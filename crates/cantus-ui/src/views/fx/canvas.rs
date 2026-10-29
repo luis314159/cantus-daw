@@ -36,29 +36,61 @@ pub struct Ink {
     /// A secondary line (the input under the output).
     pub faint: Color32,
     pub dark: bool,
+    /// The unit's display look and its colours (round 32, ADR 0074): the ground, the
+    /// cover painted over the data at the end, a trace's glow ([`trace`]).
+    pub look: crate::kit::skin::DisplayInk,
 }
 
 impl Ink {
+    /// The display's colours in the style's skin: the theme's ink well in the plain look,
+    /// the look's own (a CRT, an LCD, paper…) in a unit's ([`crate::kit::skin::display_ink`]).
     pub fn of(s: &Style) -> Ink {
-        let t = &s.t;
+        let d = crate::kit::skin::display_ink(s);
+        let hue = if d.look == crate::kit::skin::Display::Plain {
+            s.hue
+        } else {
+            d.trace
+        };
         Ink {
-            ground: t.ink,
-            grid: t.grid,
-            grid_strong: if t.dark {
-                shade(t.grid, 0.07)
-            } else {
-                t.grid_strong
-            },
-            edge: with_alpha(t.edge, 0.55),
-            text: t.text,
-            dim: t.text_dim,
-            hue: s.hue,
-            danger: t.danger,
-            ok: t.meter_low,
-            plate: with_alpha(t.ink, 0.86),
-            faint: with_alpha(t.text_dim, if t.dark { 0.30 } else { 0.40 }),
-            dark: t.dark,
+            ground: d.ground,
+            grid: d.grid,
+            grid_strong: d.grid_strong,
+            edge: d.edge,
+            text: d.text,
+            dim: d.dim,
+            hue,
+            // Floored on the look's ground in a unit's display look (the kit's).
+            danger: d.danger,
+            ok: d.ok,
+            plate: d.plate,
+            faint: d.faint,
+            dark: d.dark,
+            look: d,
         }
+    }
+
+    /// A voice on this display: `plain` (a card's or a function's hue) in the plain look;
+    /// in a unit's display look, its main trace or (`second`) its second voice — so a
+    /// curve keeps 3:1 on a CRT's, an LCD's or paper's ground whatever the theme.
+    pub fn voice(&self, plain: Color32, second: bool) -> Color32 {
+        match (self.look.look, second) {
+            (crate::kit::skin::Display::Plain, _) => plain,
+            (_, false) => self.look.trace,
+            (_, true) => self.look.trace2,
+        }
+    }
+
+    /// A third colour with a meaning of its own on this display, for a section of function
+    /// `f`: the theme's function hue as ever in the plain look; in a face, apart from the
+    /// main trace, the second voice and danger, at 3:1 on the ground
+    /// ([`crate::kit::skin::distinct_hue`]).
+    pub fn third(&self, s: &Style, f: crate::kit::Function) -> Color32 {
+        crate::kit::skin::distinct_hue(
+            s,
+            f,
+            &[self.hue, self.look.trace2, self.danger],
+            self.ground,
+        )
     }
 
     /// A fill under a curve in the hue: ≤ 35 % in a dark theme, ≤ 20 % in a light one.
@@ -72,8 +104,15 @@ impl Ink {
     }
 }
 
-/// The ground of a display: `ink`, a hair lighter at the top, a 1-px edge.
+/// The ground of a display: `ink`, a hair lighter at the top, a 1-px edge — in the
+/// unit's display look when it has one.
 pub fn ground(p: &Painter, rect: Rect, ink: &Ink) {
+    if ink.look.look != crate::kit::skin::Display::Plain {
+        crate::kit::with_brush(p, |b| {
+            crate::kit::skin::displays::ground_with(b, rect, &ink.look)
+        });
+        return;
+    }
     let top = if ink.dark {
         shade(ink.ground, 0.025)
     } else {
@@ -90,8 +129,12 @@ pub fn ground(p: &Painter, rect: Rect, ink: &Ink) {
     p.add(mesh);
 }
 
-/// The display's edge, painted last so the data never covers it.
+/// The display's edge, painted last so the data never covers it (and the look's cover —
+/// its glass — under it).
 pub fn edge(p: &Painter, rect: Rect, ink: &Ink) {
+    if ink.look.look != crate::kit::skin::Display::Plain {
+        crate::kit::with_brush(p, |b| crate::kit::skin::displays::cover(b, rect, &ink.look));
+    }
     p.rect_stroke(
         rect,
         0.0,
@@ -297,6 +340,16 @@ pub const DISPLAY_TOKENS: &[Tok] = &[
 
 /// The display's ground and its name for inspect mode.
 pub fn ground_b(b: &mut Brush, rect: Rect, ink: &Ink, hue: Option<Tok>) {
+    if ink.look.look != crate::kit::skin::Display::Plain {
+        b.register(
+            rect,
+            "display",
+            crate::kit::skin::displays::tokens(ink.look.look),
+            &[hue],
+        );
+        crate::kit::skin::displays::ground_with(b, rect, &ink.look);
+        return;
+    }
     b.register(rect, "display", DISPLAY_TOKENS, &[hue]);
     let top = if ink.dark {
         shade(ink.ground, 0.025)
@@ -308,12 +361,19 @@ pub fn ground_b(b: &mut Brush, rect: Rect, ink: &Ink, hue: Option<Tok>) {
 
 /// A 1-px edge around a display.
 pub fn edge_b(b: &mut Brush, rect: Rect, ink: &Ink) {
+    crate::kit::skin::displays::cover(b, rect, &ink.look);
     let r = b.snap_rect(rect);
     let px = b.px();
     b.hline(r.left(), r.right(), r.top() + px * 0.5, px, ink.edge);
     b.hline(r.left(), r.right(), r.bottom() - px * 0.5, px, ink.edge);
     b.vline(r.left() + px * 0.5, r.top(), r.bottom(), px, ink.edge);
     b.vline(r.right() - px * 0.5, r.top(), r.bottom(), px, ink.edge);
+}
+
+/// A display's main trace through `pts`, glowing as the unit's display look does (a
+/// CRT's beam); a plain polyline in the plain look.
+pub fn trace(b: &mut Brush, pts: &[Pos2], w: f32, color: Color32, ink: &Ink) {
+    crate::kit::skin::displays::trace(b, pts, w, color, &ink.look);
 }
 
 /// A dashed line from `a` to `c`.

@@ -262,6 +262,7 @@ pub(super) fn card(
     let Some(d) = cr.display else {
         return;
     };
+    let s = &crate::views::inst::face::on_display(s);
     if app.inst.fm.matrix_view {
         super::matrix::grid(app, ui, track, spec, s, d, "graph");
     } else {

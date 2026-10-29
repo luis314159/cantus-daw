@@ -31,6 +31,10 @@
 //! - `appearance`: the Appearance page; `themes`: every shipped theme's preview, named;
 //!   `mark`: the mark in its own colours and in each icon colour, on a dark and a light band.
 //! - `packs`: *Sound packs…* on the Salamander Grand Piano, installed, with its credit.
+//! - `score-roll`, `score-pane`, `score-page` (round 32): the piano roll with the staff
+//!   under it (Night), the Score pane (Paper), and the top of the printed A4 page.
+//! - Every effect and instrument wears its own face (*Units wear their own faces*, ADR
+//!   0074, on by default).
 //!
 //! PNGs are written as 8-bit RGB with the encoder's best compression, then optimised by
 //! `oxipng -o max` when it is installed (`cargo install oxipng`); both are lossless.
@@ -458,6 +462,19 @@ fn effect(kind: &str) -> Canvas {
         "saturator" => K::Saturator,
         "stereo" => K::Stereo,
         "maximizer" => K::Maximizer,
+        "tonsor" => K::Clipper,
+        "impetus" => K::Transient,
+        "discrimen" => K::TransientSplit,
+        "speculum" => K::Analyzer,
+        "tonus" => K::AutoTune,
+        "concentus" => K::Chorus,
+        "flexus" => K::Flanger,
+        "phasis" => K::Phaser,
+        "tremor" => K::Tremolo,
+        "vibrans" => K::Vibrato,
+        "anulus" => K::RingMod,
+        "translatio" => K::FreqShift,
+        "fluctus" => K::VolumeShaper,
         _ => K::External,
     };
     let ctx = night();
@@ -504,6 +521,112 @@ fn effect(kind: &str) -> Canvas {
         views::comp_editor::window(&mut app, &ctx);
         views::fx::window(&mut app, &ctx);
     })
+}
+
+/// The score's passage (round 32, ADR 0075): the two-hand piano piece, as a clip on a
+/// track, with dynamics from velocity.
+fn score_project() -> cantus_core::Project {
+    let p = cantus_score::samples::piano();
+    let mut pr = cantus_core::Project::new("Sonatina");
+    pr.key = p.key;
+    pr.tempo_bpm = p.tempo.bpm_at(0.0);
+    let part = &p.parts[0];
+    let mut t = pr.make_track("Piano");
+    t.score = part.settings.clone();
+    let mut c = pr.make_clip(
+        "Sonatina",
+        cantus_core::Ticks(0),
+        cantus_core::Ticks(6 * 3840),
+    );
+    for n in &part.notes {
+        let note = pr.make_note(
+            cantus_core::Ticks(n.start),
+            cantus_core::Ticks(n.len),
+            n.pitch,
+            n.velocity,
+        );
+        c.notes.push(note);
+    }
+    t.clips.push(c);
+    pr.tracks.push(t);
+    pr
+}
+
+fn score_app(ctx: &egui::Context, preset: &str) -> CantusApp {
+    let mut app = studio(ctx, score_project(), preset, EngineHandle::dummy());
+    let t = app.project().tracks[0].id;
+    let c = app.project().tracks[0].clips[0].id;
+    app.selected_track = Some(t);
+    app.selected_clip = Some(c);
+    app.selected_notes = vec![app.project().tracks[0].clips[0].notes[4].id];
+    app
+}
+
+/// The piano roll with the staff under it (Alt+S), in Cantus Night.
+fn score_roll() -> Canvas {
+    let ctx = night();
+    let mut app = score_app(&ctx, "cantus_night");
+    app.score.split_open = true;
+    app.score.split_h = 290.0;
+    app.score.split_space = 8.5;
+    raster::shoot(&ctx, egui::vec2(1400.0, 760.0), 1.0, 4, None, |ui| {
+        cantus_ui::views::piano_roll::show(&mut app, ui)
+    })
+}
+
+/// The Score pane, in Cantus Paper.
+fn score_pane() -> Canvas {
+    let ctx = context();
+    cantus_ui::theme::apply(&cantus_ui::theme::paper(), &ctx);
+    let mut app = score_app(&ctx, "cantus_paper");
+    app.score.pane_space = 8.0;
+    raster::shoot(&ctx, egui::vec2(900.0, 400.0), 1.0, 4, None, |ui| {
+        cantus_ui::views::score_view::show(&mut app, ui)
+    })
+}
+
+/// The printed page: A4 as the PDF lays it out, black on white.
+fn score_page() -> Canvas {
+    use cantus_score::layout::{engrave, Format, LayoutOptions, Paper};
+    use cantus_ui::views::score_paint::{paint, Placement, ScoreInk};
+    let ctx = context();
+    let mut app = score_app(&ctx, "cantus_paper");
+    app.settings.export.tags.artist = "Cantus".into();
+    let score = cantus_ui::score::score_of(
+        &app,
+        cantus_ui::score::Scope::Track(app.project().tracks[0].id),
+    );
+    let e = engrave(
+        &score,
+        &LayoutOptions {
+            format: Format::Pages(Paper::A4),
+            text: cantus_ui::score::measure(),
+            header: true,
+        },
+    );
+    let list = &e.pages[0].list;
+    let space = 7.5;
+    raster::shoot(
+        &ctx,
+        egui::vec2(list.width * space, list.height * space * 0.42),
+        1.0,
+        3,
+        None,
+        |ui| {
+            let r = ui.max_rect();
+            // A page: white paper, black ink, whatever the theme.
+            ui.painter().rect_filled(r, 0.0, egui::Color32::WHITE);
+            let pl = Placement {
+                origin: r.min,
+                space,
+            };
+            let ink = ScoreInk {
+                ink: egui::Color32::BLACK,
+                selected: egui::Color32::BLACK,
+            };
+            paint(ui.painter(), list, &pl, &ink, &|_| false, r);
+        },
+    )
 }
 
 /// An instrument's editor as the program docks it, cropped from the whole window.
@@ -811,6 +934,19 @@ const ALL: &[&str] = &[
     "fx-saturator",
     "fx-stereo",
     "fx-maximizer",
+    "fx-tonsor",
+    "fx-impetus",
+    "fx-discrimen",
+    "fx-speculum",
+    "fx-tonus",
+    "fx-concentus",
+    "fx-flexus",
+    "fx-phasis",
+    "fx-tremor",
+    "fx-vibrans",
+    "fx-anulus",
+    "fx-translatio",
+    "fx-fluctus",
     "fx-hosted",
     "inst-wavetable",
     "inst-analog",
@@ -820,6 +956,10 @@ const ALL: &[&str] = &[
     "inst-organ",
     "inst-epiano",
     "inst-pulsus",
+    "inst-chorda",
+    "score-roll",
+    "score-pane",
+    "score-page",
 ];
 
 fn shoot_one(name: &str, dir: &Path) {
@@ -877,6 +1017,14 @@ fn shoot_one(name: &str, dir: &Path) {
         "packs" => {
             let c = packs();
             save(&c, Some(trimmed(&c, 0.0)), &path);
+        }
+        "score-roll" => save(&score_roll(), None, &path),
+        "score-pane" => {
+            save(&score_pane(), None, &path);
+        }
+        "score-page" => {
+            let c = score_page();
+            save(&c, Some(trimmed(&c, 30.0)), &path);
         }
         n if n.starts_with("fx-") => save(&effect(&n[3..]), None, &path),
         n if n.starts_with("inst-") => {

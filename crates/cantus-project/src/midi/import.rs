@@ -1009,6 +1009,7 @@ pub fn import_commands(
             frozen: None,
             lateness: None,
             note_fx: Vec::new(),
+            score: Default::default(),
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

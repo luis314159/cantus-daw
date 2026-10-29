@@ -25,13 +25,13 @@ chorda.tilt = Inclinación
 chorda.width = Anchura
 
 # Tarjetas del editor (ADR 0024)
-chorda.strings = CUERDAS Y MARTILLOS
-chorda.pedals = PEDALES
-chorda.hammer = MARTILLO
-chorda.resonance = RESONANCIA
-chorda.output = SALIDA
-chorda.tuning = AFINACIÓN
-chorda.ring = LO QUE SUENAN LAS CUERDAS
+chorda.strings = Cuerdas y martillos
+chorda.pedals = Pedales
+chorda.hammer = Martillo
+chorda.resonance = Resonancia
+chorda.output = Salida
+chorda.tuning = Afinación
+chorda.ring = Lo que suenan las cuerdas
 chorda.legend = {key} · {hz} Hz · {n} cuerdas de {cm} cm, golpeadas al {pct} %
 chorda.legend_one = {key} · {hz} Hz · una cuerda de {cm} cm, golpeada al {pct} %
 chorda.sustain_line = Pedal derecho {p} % · apagadores {down} % abajo

@@ -30,6 +30,7 @@ pub mod instrument;
 pub mod links;
 pub mod model;
 pub mod modulator;
+pub mod notation;
 pub mod notefx;
 mod notefx_cmd;
 pub mod pads;
@@ -72,6 +73,7 @@ pub use model::{
     MIN_TRACK_HEIGHT,
 };
 pub use modulator::{ModHost, ModKind, ModRoute, ModSource, Modulator};
+pub use notation::{ClefChoice, ReadingGrid, ScoreSettings, StaffChoice};
 pub use notefx::{NoteEffect, NoteFxId, NoteFxKind, NoteFxType};
 pub use pads::{
     DrumPad, KitField, KitSettings, Lanes, PadField, PadId, PadLayer, PadParamInfo, PadVoice,

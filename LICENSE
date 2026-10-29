@@ -5,7 +5,8 @@ docs/adr/0047-licensing-revised.md.
       MPL-2.0            (see LICENSE-MPL; each of these crates has a LICENSE notice)
 
   crates/cantus-app (the program), cantus-ui, cantus-ai, cantus-host, cantus-content,
-  cantus-export, cantus-launch, cantus-update, cantus-plugins, cantus-bench, xtask, web:
+  cantus-export, cantus-score, cantus-launch, cantus-update, cantus-plugins, cantus-bench,
+  xtask, web:
       GPL-3.0-or-later   (see LICENSE-GPL)
 
 Not covered by these licences: the Reina-Valera 1960 verses (© Sociedades Bíblicas en

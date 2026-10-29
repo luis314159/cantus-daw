@@ -38,12 +38,22 @@ fn song() -> Project {
 fn app(name: &str) -> (CantusApp, std::path::PathBuf) {
     let root = std::env::temp_dir().join("cantus-freeze-ui");
     // Earlier runs' folders go (each run's own, by its process id): a run leaves its renders
-    // for a look after a failure, never for ever (review 3: gigabytes piled up).
+    // for a look after a failure, never for ever (review 3: gigabytes piled up). Only folders
+    // untouched for an hour: another run of this suite may be live in the same temp folder
+    // (round 32: parallel builders sharing TMP deleted each other's renders mid-test — "the
+    // system cannot find the path specified" in a bounce).
     static SWEEP: std::sync::Once = std::sync::Once::new();
     SWEEP.call_once(|| {
         let me = format!("-{}", std::process::id());
+        let stale = |e: &std::fs::DirEntry| {
+            e.metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|age| age > std::time::Duration::from_secs(3600))
+        };
         for e in std::fs::read_dir(&root).into_iter().flatten().flatten() {
-            if !e.file_name().to_string_lossy().ends_with(&me) {
+            if !e.file_name().to_string_lossy().ends_with(&me) && stale(&e) {
                 let _ = std::fs::remove_dir_all(e.path());
             }
         }

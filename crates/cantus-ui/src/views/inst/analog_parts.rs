@@ -24,8 +24,7 @@ use crate::kit::knob::KnobSize;
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::Param;
 use crate::kit::{self, cap, Brush, State, Style};
-use crate::views::inst::{source_family, write_readout};
-use cantus_core::inst::modulation::connections;
+use crate::views::inst::write_readout;
 use cantus_core::{NativeSpec, TrackId};
 use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Vec2};
 use std::fmt::Write as _;
@@ -220,10 +219,7 @@ fn bound(
         return ui.allocate_rect(rect, Sense::hover());
     };
     let mut v = spec.get(key);
-    let mut rings: Vec<(f32, Color32)> = connections(spec)
-        .filter(|c| c.dst == key && c.on)
-        .map(|c| (c.amount, s.t.hue(source_family(c.src))))
-        .collect();
+    let mut rings = crate::views::inst::frame::rings_for(spec, key, s);
     let mut mod_rings = [(0.0, Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
     let w = crate::views::inst::frame::wire(
         app,

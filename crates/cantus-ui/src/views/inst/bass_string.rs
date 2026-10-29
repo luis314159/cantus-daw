@@ -298,7 +298,9 @@ pub fn display(
             );
             micro(b, lr, &text, t.text, Align2::LEFT_CENTER, s);
         }
-        // The pluck marker: a triangle over the strings.
+        // The pluck marker: a triangle over the strings, in the face's second voice
+        // (Gravis's red) — the device hue on the kit's plain look.
+        let pluck = crate::views::inst::face::voice2(s, s.hue);
         let hot = grab == Some(Grab::Pluck);
         b.polygon(
             &[
@@ -306,14 +308,14 @@ pub fn display(
                 Pos2::new(px + 7.0 * k, tri_top),
                 Pos2::new(px, tri_top + 11.0 * k),
             ],
-            if hot { shade(s.hue, 0.12) } else { s.hue },
+            if hot { shade(pluck, 0.12) } else { pluck },
         );
         b.vline(
             px,
             tri_top + 11.0 * k,
             neck.bottom(),
             b.px(),
-            with_alpha(s.hue, 0.6),
+            with_alpha(pluck, 0.6),
         );
         let lr = Rect::from_center_size(
             Pos2::new(px, tri_top - 8.0 * k),

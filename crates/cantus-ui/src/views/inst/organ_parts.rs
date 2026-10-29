@@ -22,8 +22,7 @@ use crate::kit::knob::KnobSize;
 use crate::kit::text::{self as ktext, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::Param;
 use crate::kit::{with_brush, Brush, Function, State, Style};
-use crate::views::inst::{source_family, write_readout};
-use cantus_core::inst::modulation::connections;
+use crate::views::inst::write_readout;
 use cantus_core::{InstrumentKind, NativeSpec, TrackId};
 use egui::{Align2, Pos2, Rect, Sense, Vec2};
 use std::fmt::Write as _;
@@ -76,10 +75,7 @@ fn param(
         return ui.allocate_response(Vec2::ZERO, Sense::hover());
     };
     let mut v = spec.get(key);
-    let mut rings: Vec<(f32, egui::Color32)> = connections(spec)
-        .filter(|c| c.dst == key && c.on)
-        .map(|c| (c.amount, s.t.hue(source_family(c.src))))
-        .collect();
+    let mut rings = crate::views::inst::frame::rings_for(spec, key, s);
     let mut mod_rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
     let w = crate::views::inst::frame::wire(
         app,
@@ -332,11 +328,13 @@ pub fn card(b: &mut Brush, rect: Rect, s: &Style, c: &Card<'_>) -> CardRects {
         } else {
             s.t.label
         };
+        // In the unit's lettering, as the kit sets every other card title (round 32).
+        let (face, caps) = s.skin.lettering.title();
         let tt = Text::key(c.title, Role::Section, color)
-            .caps(true)
+            .caps(caps)
             .align(Align2::LEFT_CENTER)
             .policy(Policy::Elide(Elide::End));
-        let _ = ktext::paint(
+        let _ = ktext::paint_face(
             b,
             Rect::from_min_max(
                 Pos2::new(x, r.title.top()),
@@ -344,6 +342,7 @@ pub fn card(b: &mut Brush, rect: Rect, s: &Style, c: &Card<'_>) -> CardRects {
             ),
             &tt,
             s.tk(),
+            face,
         );
     }
     r

@@ -1,0 +1,54 @@
+page 1
+size 120 14.253
+line 7.474 5.4 119 5.4 w0.13
+line 7.474 6.4 119 6.4 w0.13
+line 7.474 7.4 119 7.4 w0.13
+line 7.474 8.4 119 8.4 w0.13
+line 7.474 9.4 119 9.4 w0.13
+glyph fClef 8.224 6.4
+glyph accidentalSharp 11.78 6.4
+glyph timeSig3 13.774 6.4
+glyph timeSig4 13.676 8.4
+glyph noteheadHalf 16.756 9.4 #1
+glyph augmentationDot 18.286 8.9 #1
+line 17.876 9.232 17.876 5.9 w0.12 #1
+glyph noteheadHalf 28.273 9.4 #1
+glyph augmentationDot 29.803 8.9 #1
+line 29.393 9.232 29.393 5.9 w0.12 #1
+glyph noteheadBlack 39.79 9.4 #1
+line 40.91 9.232 40.91 5.9 w0.12 #1
+glyph noteheadHalf 45.747 8.9 #2
+line 46.867 8.732 46.867 5.4 w0.12 #2
+glyph noteheadBlack 55.37 8.4 #3
+line 56.49 8.232 56.49 4.9 w0.12 #3
+glyph noteheadBlack 61.327 7.9 #4
+glyph augmentationDot 62.857 7.9 #4
+line 62.447 7.732 62.447 4.4 w0.12 #4
+glyph noteheadBlack 68.622 7.4 #5
+line 68.682 7.568 68.682 10.9 w0.12 #5
+glyph flag8thDown 68.622 11.032 #5
+glyph noteheadBlack 74.034 6.9 #6
+line 74.094 7.068 74.094 10.4 w0.12 #6
+glyph noteheadHalf 79.99 7.4 #7
+line 80.05 7.568 80.05 10.9 w0.12 #7
+glyph noteheadHalf 89.614 7.4 #7
+glyph augmentationDot 91.144 6.9 #7
+line 89.674 7.568 89.674 10.9 w0.12 #7
+glyph noteheadBlack 101.131 9.4 #8
+line 102.251 9.232 102.251 5.9 w0.12 #8
+glyph restQuarter 107.087 7.4
+glyph restQuarter 113.044 7.4
+curve 18.806 9.7 20.863 11.033 26.097 11.033 28.153 9.7 0.1/0.22 down #1
+curve 30.323 9.7 32.38 11.033 37.614 11.033 39.67 9.7 0.1/0.22 down #1
+curve 81.29 7.1 83.095 5.767 87.689 5.767 89.494 7.1 0.1/0.22 up #7
+glyph metNoteQuarterUp 8.224 3 x0.62
+text " = 72" 9.048 3 s2 Bold Left
+line 26.993 5.4 26.993 9.4 w0.16
+line 38.51 5.4 38.51 9.4 w0.16
+line 54.09 5.4 54.09 9.4 w0.16
+line 72.754 5.4 72.754 9.4 w0.16
+line 88.334 5.4 88.334 9.4 w0.16
+line 99.851 5.4 99.851 9.4 w0.16
+line 118.75 5.4 118.75 9.4 w0.5
+line 118.02 5.4 118.02 9.4 w0.16
+text "Cello" 6.474 8.17 s2.2 Regular Right

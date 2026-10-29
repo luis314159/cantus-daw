@@ -559,12 +559,41 @@ fn phase_key(p: Phase) -> &'static str {
 
 /// The lane's colour for a phase in these inks; hold is also hatched and release is also
 /// paler, so the colour is never the only cue.
-fn phase_ink(p: Phase, ink: &Ink) -> Option<Color32> {
+fn phase_ink(p: Phase, ink: &PhaseInk) -> Option<Color32> {
     match p {
-        Phase::Open => Some(ink.ok),
-        Phase::Hold => Some(Ink::a(ink.ok, 0.75)),
-        Phase::Release => Some(Ink::a(ink.ok, 0.35)),
-        Phase::Closed => None,
+        Phase::Open => Some(ink.open),
+        Phase::Hold => Some(Ink::a(ink.open, 0.75)),
+        Phase::Release => Some(
+            ink.closing
+                .map_or(Ink::a(ink.open, 0.35), |c| Ink::a(c, 0.6)),
+        ),
+        Phase::Closed => ink.closing.map(|c| Ink::a(c, 0.28)),
+    }
+}
+
+/// The phases' colours. The kit's look: open in the meters' "ok" colour, release fading
+/// out of it, closed unfilled. Porta's face (round 32): open in its green pilot, release
+/// and shut in its amber one (the display's second voice) — each pushed to 3:1 on the
+/// display's ground.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub(crate) struct PhaseInk {
+    pub open: Color32,
+    pub closing: Option<Color32>,
+}
+
+impl PhaseInk {
+    pub(crate) fn of(s: &Style, ink: &Ink) -> PhaseInk {
+        if s.skin.accent2.is_some() {
+            PhaseInk {
+                open: crate::kit::color::ensure_contrast(s.hue, ink.ground, 3.0),
+                closing: Some(ink.look.trace2),
+            }
+        } else {
+            PhaseInk {
+                open: ink.ok,
+                closing: None,
+            }
+        }
     }
 }
 
@@ -1111,7 +1140,9 @@ fn history(
         let sx = plot.left() + 32.0 * k;
         b.hline(sx, sx + 12.0 * k, b.snap_mid(gy(swing)), px, ink.danger);
         // The phase lane: colour and pattern per run.
-        b.rect(b.snap_rect(lane), Fill::Solid(s.t.deck_title));
+        let lane_fill = super::dynfx::on_display(&ink, s.t.deck_title);
+        b.rect(b.snap_rect(lane), Fill::Solid(lane_fill));
+        let phases = PhaseInk::of(s, &ink);
         let mut i = 0;
         while i < n {
             let ph = hist[i].c.phase;
@@ -1119,14 +1150,14 @@ fn history(
             while j < n && hist[j].c.phase == ph {
                 j += 1;
             }
-            if let Some(color) = phase_ink(ph, &ink) {
+            if let Some(color) = phase_ink(ph, &phases) {
                 let r = Rect::from_x_y_ranges(
                     x_of(i) - dx * 0.5..=x_of(j - 1) + dx * 0.5,
                     lane.y_range(),
                 );
                 b.rect(r, Fill::Solid(color));
                 if ph == Phase::Hold {
-                    canvas::hatch(b, r, 4.0 * k, px, s.t.deck_title);
+                    canvas::hatch(b, r, 4.0 * k, px, lane_fill);
                 }
             }
             i = j;
@@ -1423,16 +1454,23 @@ fn drag_threshold(host: &mut dyn FxHost, s: &GateSettings, g: Grab, db: f32) {
 fn legend(b: &mut crate::kit::Brush, at: Pos2, s: &Style, ink: &Ink) {
     let k = s.k;
     let mut x = at.x;
+    let phases = PhaseInk::of(s, ink);
     for ph in [Phase::Open, Phase::Hold, Phase::Release] {
         let r = b.snap_rect(Rect::from_min_size(
             pos2(x, at.y - 3.0 * k),
             vec2(12.0 * k, 6.0 * k),
         ));
-        if let Some(c) = phase_ink(ph, ink) {
+        if let Some(c) = phase_ink(ph, &phases) {
             b.rect(r, Fill::Solid(c));
         }
         if ph == Phase::Hold {
-            canvas::hatch(b, r, 4.0 * k, b.px(), s.t.deck_title);
+            canvas::hatch(
+                b,
+                r,
+                4.0 * k,
+                b.px(),
+                super::dynfx::on_display(ink, s.t.deck_title),
+            );
         }
         let lr = canvas::put_key(
             b,
@@ -2218,4 +2256,41 @@ pub fn demo_feed(app: &mut CantusApp) {
     }
     app.fx.feed(&pairs);
     app.fx.injected = Some(t);
+}
+
+#[cfg(test)]
+mod face_tests {
+    use super::*;
+
+    /// Porta's face (round 32): open in its green pilot, release and shut in its amber
+    /// one, each 3:1 on the look's ground in every preset; with faces off, the phases as
+    /// before (the meters' "ok", closed unfilled).
+    #[test]
+    fn the_phases_wear_porta_s_pilots_and_the_plain_look_keeps_its_own() {
+        use crate::kit::color::contrast;
+        let skin = crate::kit::skin::of_effect(EffectKind::Gate);
+        for (name, make) in crate::kit::appearance::PRESETS {
+            let base = crate::kit::Tokens::for_theme(&make());
+            let s = Style::new(base).skinned(skin);
+            let ink = Ink::of(&s);
+            let p = PhaseInk::of(&s, &ink);
+            assert!(contrast(p.open, ink.ground) + 1e-3 >= 3.0, "{name}: open");
+            let shut = p.closing.expect("a shut colour");
+            assert!(contrast(shut, ink.ground) + 1e-3 >= 3.0, "{name}: shut");
+            assert!(phase_ink(Phase::Closed, &p).is_some(), "{name}");
+            let h = |c: Color32| crate::kit::color::Hsl::of(c).h;
+            let d = (h(p.open) - h(shut)).rem_euclid(360.0);
+            assert!(d.min(360.0 - d) > 40.0, "{name}: open and shut look alike");
+            let plain = Style::new(base);
+            let pink = Ink::of(&plain);
+            let q = PhaseInk::of(&plain, &pink);
+            assert_eq!(phase_ink(Phase::Open, &q), Some(pink.ok), "{name}");
+            assert_eq!(phase_ink(Phase::Closed, &q), None, "{name}");
+            assert_eq!(
+                phase_ink(Phase::Release, &q),
+                Some(Ink::a(pink.ok, 0.35)),
+                "{name}"
+            );
+        }
+    }
 }

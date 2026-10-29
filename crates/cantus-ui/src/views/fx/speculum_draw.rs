@@ -122,6 +122,17 @@ fn hz_of_x(plot: Rect, x: f32) -> f32 {
     LO_HZ * cantus_dsp::math::powf(HI_HZ / LO_HZ, t)
 }
 
+/// The held line's colour: the curve's own, faint (plain, and for a second channel); in a
+/// unit's display look, the look's second voice for the first channel (Speculum's red
+/// held peak).
+fn held_colour(ink: &Ink, curve: Color32, which: usize) -> Color32 {
+    if which == 0 {
+        ink.voice(Ink::a(curve, 0.55), true)
+    } else {
+        Ink::a(curve, 0.55)
+    }
+}
+
 /// The spectrum: averaged (filled) and held (a faint line), on a log axis.
 fn spectrum(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumSettings) {
     let inside = panel(b, r, ink, k, "speculum.card.spectrum");
@@ -197,7 +208,7 @@ fn spectrum(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
             held[j] = pos2(x, y_of(a.spectrum_span_db(which, f0, f1, true)));
         }
         if set.hold {
-            b.polyline(&held[..n], 1.0 * k, Ink::a(colours[which], 0.55));
+            b.polyline(&held[..n], 1.0 * k, held_colour(ink, colours[which], which));
         }
         if which == 0 {
             b.area(&avg[..n], plot.bottom(), ink.fill(0.5));
@@ -213,7 +224,7 @@ fn spectrum(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         ]
     } else if set.hold {
         &[
-            ("speculum.legend.held", Ink::a(ink.hue, 0.55)),
+            ("speculum.legend.held", held_colour(ink, ink.hue, 0)),
             ("speculum.legend.average", ink.hue),
         ]
     } else {

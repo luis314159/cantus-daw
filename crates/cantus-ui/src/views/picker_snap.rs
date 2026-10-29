@@ -124,14 +124,27 @@ fn twin(outer: &Context) -> Context {
     ctx
 }
 
+/// Room around an editor on the capture's canvas for its shadow.
+pub const SHADOW_ROOM: Vec2 = Vec2::new(60.0, 40.0);
+
+/// The capture's canvas: the largest effect editor at 100 % as it is designed now (the
+/// faces' widths included — Comprimo's needle makes it 1260 wide), the instruments'
+/// shell, and the room for the shadow.
+pub fn canvas() -> Vec2 {
+    let largest = cantus_core::EffectKind::ALL
+        .iter()
+        .map(|k| crate::views::fx::frame::designed_size(*k))
+        .fold(crate::kit::shell::INSTRUMENT, |a, b| a.max(b));
+    largest + SHADOW_ROOM
+}
+
 /// Draw `subject`'s editor off screen at `ppp` pixels per point and tessellate it (UI
 /// thread). `None` when the editor did not open.
 pub fn capture(outer: &Context, subject: Subject, ppp: f32) -> Option<Frame> {
     let ctx = twin(outer);
     ctx.set_pixels_per_point(ppp);
     let mut app = stage(subject);
-    // Room for the largest editor at 100 % (Aequalis, Culmen) and its shadow.
-    let size = Vec2::new(1240.0, 820.0);
+    let size = canvas();
     let mut textures = Textures::default();
     let mut last = None;
     let mut body: Option<Rect> = None;
@@ -283,4 +296,19 @@ pub fn shrink(
         }
     }
     ColorImage::from_rgba_premultiplied([width, height], &px)
+}
+
+#[cfg(test)]
+mod tests {
+    /// Every effect's editor, as designed now (Comprimo's face is 1260 wide), fits the
+    /// capture's canvas with its shadow — its thumbnail is never clipped.
+    #[test]
+    fn every_editor_fits_the_capture_canvas() {
+        let c = super::canvas();
+        for kind in cantus_core::EffectKind::ALL {
+            let d = crate::views::fx::frame::designed_size(kind) + super::SHADOW_ROOM;
+            assert!(d.x <= c.x && d.y <= c.y, "{kind:?}: {d:?} in {c:?}");
+        }
+        assert!(c.x >= 1260.0 + super::SHADOW_ROOM.x, "{c:?}");
+    }
 }

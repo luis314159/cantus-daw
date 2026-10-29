@@ -79,6 +79,10 @@ pub mod routing;
 pub mod samples_browser;
 pub mod samples_content;
 pub mod samples_paint;
+/// Painting an engraved score (round 32, ADR 0075).
+pub mod score_bar;
+pub mod score_paint;
+pub mod score_view;
 pub mod settings_audio;
 pub mod transport;
 pub mod unsaved;

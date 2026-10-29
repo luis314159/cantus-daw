@@ -346,6 +346,7 @@ impl Brush {
                 part,
                 tokens,
                 extra: e,
+                skin: super::skin::worn().key,
             });
         }
     }
@@ -871,6 +872,48 @@ impl Brush {
             }
         }
         self.stitch(k, m, false, |o, _| cols[o]);
+    }
+
+    /// An open polyline `w` wide in `color` with a glow round it: `glow` at the core's
+    /// edge, fading to nothing `reach` points out — one strip of six rings (a CRT's beam,
+    /// a VFD's light) where layering two wider lines under the core took twelve.
+    pub fn glow_polyline(
+        &mut self,
+        pts: &[Pos2],
+        w: f32,
+        color: Color32,
+        glow: Color32,
+        reach: f32,
+    ) {
+        let m = pts.len();
+        if m < 2 {
+            return;
+        }
+        let f = self.px();
+        let core = (w * 0.5 - f * 0.5).max(0.0);
+        let edge = w * 0.5 + f * 0.5;
+        let out = edge + reach.max(f);
+        let core_c = if w > f {
+            color
+        } else {
+            color.gamma_multiply((w / f).clamp(0.0, 1.0))
+        };
+        let offs = [-out, -edge, -core, core, edge, out];
+        let cols = [
+            Color32::TRANSPARENT,
+            glow,
+            core_c,
+            core_c,
+            glow,
+            Color32::TRANSPARENT,
+        ];
+        for o in &offs {
+            for i in 0..m {
+                let n = miter(pts, i, false);
+                self.ring.push(pts[i] + n * *o);
+            }
+        }
+        self.stitch(6, m, false, |o, _| cols[o]);
     }
 
     /// A dashed open polyline: pieces `dash` long with `gap` between them, carried across

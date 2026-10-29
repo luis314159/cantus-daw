@@ -100,16 +100,28 @@ pub fn grand(
     let x_of = |i: usize| inner.left() + (i as f32 + 0.5) * w;
     let pitch = (w / 3.2).min(s.s(1.6));
     let thin = (w * 0.14).min(s.s(1.2)).max(b.px());
+    // A face of its own (round 32): the soundboard, the frame's gold and the hammers' felt
+    // — the face's two accents. The kit's plain look draws the piano as it always did.
+    let face = crate::views::inst::face::has_look(s);
+    let gold = crate::views::inst::face::accent_on(s, tk.hue_dynamics);
+    let felt = crate::views::inst::face::voice2(s, tk.hue_dynamics);
     let steel = tk.text_dim;
-    let wound = mix(tk.text_dim, tk.hue_dynamics, 0.55);
-    let mut bridge = Vec::with_capacity(KEYS);
-    let mut strike = Vec::with_capacity(KEYS);
+    let wound = if face {
+        mix(tk.text_dim, mix(gold, felt, 0.5), 0.55)
+    } else {
+        mix(tk.text_dim, tk.hue_dynamics, 0.55)
+    };
+    let mut bridge = [Pos2::ZERO; KEYS];
+    let mut strike = [Pos2::ZERO; KEYS];
     let contact = pedal_contact(now.pedal as f64) as f32 * grip;
+    if face {
+        soundboard(b, inner, base, s, gold, x_of, |i| base - len_px(&keys[i]));
+    }
     for (i, k) in keys.iter().enumerate() {
         let x = x_of(i);
         let y_top = base - len_px(k);
-        bridge.push(Pos2::new(x, y_top));
-        strike.push(Pos2::new(x, base - k.strike as f32 * len_px(k)));
+        bridge[i] = Pos2::new(x, y_top);
+        strike[i] = Pos2::new(x, base - k.strike as f32 * len_px(k));
         let lit = k.key == shown.key;
         let color = if lit {
             with_alpha(
@@ -156,14 +168,28 @@ pub fn grand(
         s.s(3.0),
         s.s(2.0),
     );
-    // The shown key's hammer, under its strings at the strike, shifted by the soft pedal.
+    // The shown key's hammer, under its strings at the strike, shifted by the soft pedal;
+    // in a face of its own, the hammers' row of felt heads at rest beside it and the shown
+    // one raised in felt with a gold edge.
+    let shift = Vec2::new(now.soft * pitch * 1.5, 0.0);
+    if face {
+        let head = Vec2::new((w * 0.72).max(b.px()), s.s(3.0));
+        for p in &strike {
+            b.rect(
+                Rect::from_center_size(*p + shift + Vec2::new(0.0, s.s(4.0)), head),
+                Fill::Solid(with_alpha(felt, 0.42)),
+            );
+        }
+    }
     let i = (shown.key - LOWEST) as usize;
-    let at = strike[i] + Vec2::new(now.soft * pitch * 1.5, 0.0);
-    b.rrect(
-        Rect::from_center_size(at, Vec2::new((w * 2.2).max(s.s(5.0)), s.s(7.0))),
-        s.r(2.0),
-        Fill::Solid(s.hue),
-    );
+    let at = strike[i] + shift;
+    let hammer = Rect::from_center_size(at, Vec2::new((w * 2.2).max(s.s(5.0)), s.s(7.0)));
+    if face {
+        b.rrect(hammer, s.r(2.0), Fill::Solid(felt));
+        b.rrect_stroke(hammer, s.r(2.0), b.px(), gold);
+    } else {
+        b.rrect(hammer, s.r(2.0), Fill::Solid(s.hue));
+    }
     // The keyboard: one column per key, under its strings — the white keys run the full
     // depth, a black key's front is the white keys' beside it.
     b.rect(kb, Fill::Solid(tk.key_white));
@@ -190,6 +216,84 @@ pub fn grand(
         if is_black(k.key) {
             let x = inner.left() + (i as f32 + 0.5) * w;
             b.vline(x, front, kb.bottom(), b.px(), tk.key_black);
+        }
+    }
+}
+
+/// The soundboard under the strings: spruce in the face's gold, its grain running across
+/// the board (as a soundboard's does, at an angle to the strings), bounded by the case's
+/// rim a little beyond the bridge — the cast frame's line, with its portholes over the
+/// middle of the board. `x_of(i)` and `bridge_y(i)` place key `i`'s strings. Nothing is
+/// allocated: the rim is an array, each grain line one segment (the board under the
+/// bridge's falling curve meets a rising line in one stretch).
+fn soundboard(
+    b: &mut Brush,
+    inner: Rect,
+    base: f32,
+    s: &Style,
+    gold: egui::Color32,
+    x_of: impl Fn(usize) -> f32,
+    bridge_y: impl Fn(usize) -> f32,
+) {
+    let tk = &s.t;
+    let gap = s.s(5.0);
+    let top_of = |i: usize| (bridge_y(i) - gap).max(inner.top());
+    let mut rim = [Pos2::ZERO; KEYS + 2];
+    rim[0] = Pos2::new(inner.left(), top_of(0));
+    for (i, p) in rim[1..=KEYS].iter_mut().enumerate() {
+        *p = Pos2::new(x_of(i), top_of(i));
+    }
+    rim[KEYS + 1] = Pos2::new(inner.right(), top_of(KEYS - 1));
+    let bottom = base + s.s(2.0);
+    // Spruce: the ground warmed by the gold, enough to show as wood under the strings.
+    let spruce = mix(tk.well, gold, if tk.dark { 0.42 } else { 0.30 });
+    b.area(&rim, bottom, spruce);
+    // The grain: parallel lines rising to the right, kept inside the board.
+    let w = inner.width() / KEYS as f32;
+    let top_at = |x: f32| {
+        let i = (((x - inner.left()) / w).floor().max(0.0) as usize).min(KEYS - 1);
+        top_of(i)
+    };
+    let grain = with_alpha(mix(spruce, gold, if tk.dark { 0.35 } else { 0.45 }), 0.6);
+    let slope = 0.42;
+    let step = s.s(10.0);
+    let reach = inner.width() + (bottom - inner.top()) / slope;
+    let n = (reach / step).ceil() as usize;
+    let walk = (w * 2.0).max(s.s(4.0));
+    for j in 0..n {
+        // Each line starts on the board's bottom edge (or left of it) and rises right
+        // until it meets the rim: one stretch inside the board, one segment.
+        let x0 = inner.left() - (bottom - inner.top()) / slope + j as f32 * step;
+        let y_at = |x: f32| bottom - (x - x0) * slope;
+        let start = x0.max(inner.left());
+        if y_at(start) < top_at(start) {
+            continue;
+        }
+        let mut end = start;
+        while end + walk <= inner.right() && y_at(end + walk) >= top_at(end + walk) {
+            end += walk;
+        }
+        if end > start {
+            b.segment(
+                Pos2::new(start, y_at(start)),
+                Pos2::new(end, y_at(end)),
+                b.px(),
+                grain,
+                false,
+            );
+        }
+    }
+    // The rim: the case's line beyond the bridge, the frame's gold.
+    b.polyline(&rim, s.s(1.5), with_alpha(gold, 0.8));
+    // The frame's portholes over the board's middle, where it is deep enough.
+    let r = s.s(7.0);
+    for f in [0.2f32, 0.38, 0.56] {
+        let i = ((KEYS as f32 * f) as usize).min(KEYS - 1);
+        let (x, top) = (x_of(i), top_of(i));
+        if bottom - top > r * 7.0 {
+            let c = Pos2::new(x, top + (bottom - top) * 0.3);
+            b.circle(c, r, Fill::Solid(mix(tk.well, gold, 0.08)));
+            b.circle_stroke(c, r, s.s(1.5), with_alpha(gold, 0.8));
         }
     }
 }

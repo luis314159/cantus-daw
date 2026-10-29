@@ -182,7 +182,8 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, items: &[Item<'_>], hovered: 
                         sr,
                         &Text::new(sc, Role::Body, if hot { ink } else { dim })
                             .align(Align2::RIGHT_CENTER),
-                        s.k,
+                        // At the size it was measured at.
+                        s.tk(),
                     );
                     right = sr.left() - s.s(12.0);
                 }

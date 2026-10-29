@@ -66,6 +66,8 @@ mod desk;
 mod history;
 mod key;
 mod transfer;
+mod vu;
+pub use vu::designed_width;
 
 pub use desk::{demo_feed, demo_setup, duck_menu, mini_curve, strip_gr_meter};
 
@@ -379,6 +381,8 @@ pub struct CompEditor {
     /// and their held peaks: input, reduction, output.
     live: Column,
     hold: [f32; 3],
+    /// Comprimo's needle: where it is and how long its lamp stays lit (round 32).
+    needle: vu::Needle,
     /// The key EQ's selected band.
     key_band: Option<usize>,
     key_drag: Option<usize>,
@@ -483,6 +487,7 @@ impl Default for CompEditor {
             now: (-120.0, -120.0),
             live: Column::SILENT,
             hold: [0.0; 3],
+            needle: vu::Needle::REST,
             key_band: None,
             key_drag: None,
             analyser: None,
@@ -1242,11 +1247,29 @@ fn body_cards(
     let title = (band::TITLE + 1.0) * k;
     let side = (row_b - title - TRANSFER_HEAD * k).clamp(80.0 * k, w * 0.4);
     let meters_w = METERS_W * k;
-    let [hr, tr, mr] = row(
-        &mut g,
-        row_b,
-        [(w - side - meters_w).max(80.0 * k), side, meters_w],
-    );
+    // Comprimo's needle (round 32): the reduction on a VU face, beside the meters — part
+    // of its face, so the plain look (faces off) keeps the three cards it had.
+    let needle = vu::shown(s);
+    let [hr, tr, vr, mr] = if needle {
+        let vu_w = vu::WIDTH * k;
+        row(
+            &mut g,
+            row_b,
+            [
+                (w - side - meters_w - vu_w - gap).max(80.0 * k),
+                side,
+                vu_w,
+                meters_w,
+            ],
+        )
+    } else {
+        let [hr, tr, mr] = row(
+            &mut g,
+            row_b,
+            [(w - side - meters_w).max(80.0 * k), side, meters_w],
+        );
+        [hr, tr, Rect::NOTHING, mr]
+    };
     let disp = |r: Rect| (r.height() / k - band::TITLE - 1.0).max(20.0);
     controls::card_with(
         ui,
@@ -1274,6 +1297,21 @@ fn body_cards(
             }
         },
     );
+    if needle {
+        controls::card_with(
+            ui,
+            s,
+            vr,
+            Src::Key("skin.comprimo.vu"),
+            None,
+            Some(disp(vr)),
+            |ui, cr| {
+                if let Some(d) = cr.display {
+                    vu::show(st, ui, s, d);
+                }
+            },
+        );
+    }
     controls::card_with(
         ui,
         s,

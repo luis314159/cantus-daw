@@ -3,12 +3,14 @@
 mod ahead;
 mod audio;
 mod body;
+mod faces;
 mod fx;
 mod icons;
 mod lang;
 mod listen;
 mod platform;
 mod rack;
+mod score;
 mod shelf;
 mod theme;
 mod top;
@@ -42,6 +44,8 @@ fn app() -> Html {
                 <tour::Tour />
                 <listen::Listen />
                 <tour::Features />
+                <score::Score />
+                <faces::Faces />
                 <fx::Effects />
                 <body::Engine />
                 <body::Free />

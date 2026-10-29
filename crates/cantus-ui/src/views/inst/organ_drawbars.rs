@@ -8,7 +8,7 @@
 use super::set;
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
-use crate::kit::color::{on_fill, shade, with_alpha};
+use crate::kit::color::{ensure_contrast, mix, on_fill, shade, with_alpha};
 use crate::kit::hint::{self, Caps};
 use crate::kit::light::{self, RaisedOpts};
 use crate::kit::text::{self as ktext, Policy, Role, Text};
@@ -215,6 +215,12 @@ fn paint_bar(
 ) {
     let t = &s.t;
     let fill = match kind {
+        // The sub bars' brown: the face's second voice (a pilot lamp's amber) darkened, or
+        // the dynamics hue on the kit's plain look.
+        Kind::Sub if s.skin.accent2.is_some() => shade(
+            crate::views::inst::face::voice2(s, t.hue(Function::Dynamics)),
+            if t.dark { -0.12 } else { -0.06 },
+        ),
         Kind::Sub => t.hue(Function::Dynamics),
         Kind::Octave => t.key_white,
         Kind::Mutation => t.key_black,
@@ -223,6 +229,12 @@ fn paint_bar(
     let groove =
         Rect::from_center_size(slot.center(), Vec2::new(slot.width() * 0.36, slot.height()));
     light::sunken(b, groove, s.r(2.0), t.well, 1.0, t.depth);
+    // On a display of a look of its own (Organum's printed chart), the groove, the shaft
+    // and the handle are outlined: a white bar on cream paper still shows where it is.
+    let outline = crate::views::inst::face::has_look(s).then(|| bar_edge(s));
+    if let Some(e) = outline {
+        b.rrect_stroke(groove, s.r(2.0), b.px(), e);
+    }
     let tick = shade(t.ink, if t.dark { 0.22 } else { -0.22 });
     for n in 1..=8 {
         let y = slot.top() + g.handle_h * 0.5 + n as f32 * g.step;
@@ -245,6 +257,9 @@ fn paint_bar(
             b.snap_rect(shaft),
             Fill::V(with_alpha(fill, 0.55), with_alpha(fill, 0.85)),
         );
+        if let Some(e) = outline {
+            b.rrect_stroke(b.snap_rect(shaft), 0.0, b.px(), e);
+        }
     }
     let handle = Rect::from_min_size(
         Pos2::new(slot.left(), top),
@@ -263,6 +278,9 @@ fn paint_bar(
             ..Default::default()
         },
     );
+    if let Some(e) = outline {
+        b.rrect_stroke(handle, s.r(3.0), b.px(), e);
+    }
     if hot {
         b.rrect_stroke(handle.expand(s.s(1.0)), s.r(4.0), s.s(1.5), s.hue);
     }
@@ -273,4 +291,39 @@ fn paint_bar(
         &Text::new(digit, Role::Value, on_fill(base)).align(Align2::CENTER_CENTER),
         s.tk(),
     );
+}
+
+/// The outline of a drawbar on a display of a look of its own: the display's rule pushed
+/// to 3:1 on its ground and on the white bars (WCAG 1.4.11, a control's position).
+fn bar_edge(s: &Style) -> egui::Color32 {
+    let t = &s.t;
+    let e = ensure_contrast(mix(t.edge, t.text, 0.5), t.ink, 3.0);
+    ensure_contrast(e, t.key_white, 3.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::kit::color::contrast;
+    use crate::kit::{skin, Style, Tokens};
+    use cantus_core::inst::InstrumentKind;
+
+    /// Organum's white drawbars show on its printed chart in every theme preset: their
+    /// outline reads 3:1 on the paper and on the white bar itself.
+    #[test]
+    fn a_white_drawbar_shows_on_the_chart_in_every_theme() {
+        let sheet = skin::of(skin::Unit::Instrument(InstrumentKind::Organ));
+        let mut bad = Vec::new();
+        for (name, make) in crate::kit::appearance::PRESETS {
+            let s = Style::new(Tokens::for_theme(&make())).skinned(sheet);
+            let o = crate::views::inst::face::on_display(&s);
+            let e = super::bar_edge(&o);
+            for (on, bg) in [("paper", o.t.ink), ("white bar", o.t.key_white)] {
+                let c = contrast(e, bg);
+                if c < 3.0 {
+                    bad.push(format!("{name}: outline on {on} {c:.2}"));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
+    }
 }

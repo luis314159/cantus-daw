@@ -26,6 +26,7 @@ use cantus_core::{Command, InstrumentKind, InstrumentSpec, MergeKey, NativeSpec,
 use egui::RichText;
 use std::collections::HashMap;
 
+pub(crate) mod face;
 mod frame;
 pub use frame::*;
 

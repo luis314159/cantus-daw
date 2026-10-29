@@ -61,12 +61,13 @@ fn it_opens_in_every_view_and_draws_the_piano_from_above() {
     for view in [View::Play, View::Edit, View::Matrix] {
         a.inst.view = view;
         let text = settle(&mut a, &ctx);
-        assert!(text.contains("CHORDA"), "{view:?}: {text}");
+        // The nameplate in the face's lettering (round 32): any case.
+        assert!(text.to_uppercase().contains("CHORDA"), "{view:?}: {text}");
         if view != View::Matrix {
-            assert!(text.contains("STRINGS"), "{view:?}: {text}");
+            assert!(text.contains("Strings and hammers"), "{view:?}: {text}");
             // Middle C until a key is played: three strings 63 cm long (Bensa et al.).
             assert!(text.contains("3 strings of 63 cm"), "{view:?}: {text}");
-            assert!(text.contains("PEDALS"), "{view:?}: {text}");
+            assert!(text.contains("Pedals"), "{view:?}: {text}");
         }
     }
     let text = edit_text(&mut a, &ctx);

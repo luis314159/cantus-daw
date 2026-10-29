@@ -991,6 +991,60 @@ A **MIDI file export** asks which notes to write: **As played** (each clip's gro
 and each track's note effects written out note by note — the file plays what you hear), or
 **As written** (the clips' notes, no groove, no note effects).
 
+### The score: notation, MusicXML, PDF and printing
+
+Every note clip and every MIDI track can be read as an engraved score, made as Dorico,
+MuseScore and Sibelius make one — the notes **read** onto values the metre shows, tied
+where a beat or the half bar must be seen, beamed by the beat, spelled in the song's key
+with accidentals per bar, in the SMuFL font Bravura.
+
+- **The staff under the piano roll**: the piano roll's toolbar has a **Score** switch
+  (`Alt+S`). The clip's part appears as one long staff under the roll; drag its top edge to
+  make it taller. It follows the playhead while playing (**Follow**), shows the piano roll's
+  selection in the selection colour, and scrolls with the mouse wheel; `Ctrl` + wheel or
+  **−** / **+** make the staff smaller or larger.
+- **The Score pane** (*View ▸ Score*, `Alt+Shift+S`): the selected track's whole part, every clip of its
+  playing lane, in systems that wrap to the pane's width and scroll down.
+- **Reading, not moving**: the score rounds the notes for reading only — the notes you hear
+  never move. Each beat chooses straight values or triplets (sextuplets and quintuplets too)
+  by what the notes fit; **Read as** forces a grid (eighths, sixteenths, 32nds, triplets,
+  sextuplets) when a passage reads better one way.
+- **The part's settings** (in the score's toolbar; each is one step of the undo history):
+  **Clef** (Auto picks the clef with the fewest ledger lines; octave clefs for parts that
+  live very high or low; very high or low passages get an *8va* / *8vb* line), **Staves**
+  (Auto gives a part that spans both hands a grand staff), **Split** (a grand staff follows
+  the hands — a melody that steps below middle C stays in the right hand — or splits at a
+  fixed note), **Pitch** (a transposing instrument: a B♭ clarinet or trumpet is written a
+  tone up, an E♭ alto saxophone a sixth up, a horn in F a fifth up; the key signature moves
+  with it), **Dynamics** (pp … ff written from the notes' velocities), and the **part's
+  name** (empty is the track's name).
+- **Tempo and metre** come from the tempo map: a ♩ = 120 mark at the start and at every
+  tempo change (a dotted quarter in 6/8 and 12/8; *accel.* or *rit.* where a ramp starts),
+  and a time signature at every metre change.
+- **Editing on the staff**: click a note to select it (`Shift`+click adds). With the score
+  clicked last, `Up` / `Down` move the selection a step of the song's key (a semitone
+  without a key), `Ctrl+Up` / `Ctrl+Down` an octave, `Delete` removes it. **Input** (or
+  `N`) enters notes MuseScore's way: `3`–`7` choose the value (a sixteenth to a whole note),
+  `.` a dot, the letters `A`–`G` put a note at the cursor — in the key, in the octave nearest
+  the last note — and move the cursor on; a click on the staff moves the cursor; `Esc` stops
+  (note input also stops at the clip's end). In a transposed part the letters are the
+  written notes. Outside note input, `Shift+Up` / `Shift+Down` and `Esc` keep their usual
+  meaning (transpose an octave, clear the selection).
+  Every edit is a normal command: `Ctrl+Z` undoes it.
+- **Files** (the score's **Files** menu): **Export MusicXML…** writes the clip's or the
+  track's part, **Export the song as MusicXML…** every MIDI track as a part (MusicXML 4.0,
+  which MuseScore, Dorico, Sibelius and Finale open; each note's velocity goes with it).
+  **Export PDF (A4 / Letter)…** writes vector pages with the fonts embedded, the project's
+  name as the title and the export's *Artist* tag as the composer. **Import MusicXML…** puts
+  each part of a `.musicxml` file on a new track as one clip (a compressed `.mxl` must be
+  unpacked first); into a song with no notes yet, the file's tempo, metres and key come
+  with it, while a song with notes keeps its own.
+- **Printing**: **Print…** makes the PDF and hands it to your system's printing: on
+  **Windows** the default PDF application prints it (Edge, Acrobat, SumatraPDF…; with none
+  set up to print, the PDF opens so you can print it there); on **Linux** and **macOS** it is
+  sent to the default printer with `lp` (CUPS), or opens in the PDF viewer when CUPS is not
+  there.
+
 ## 6. Mix: the mixer, inserts and sends
 
 ![The mixer](../img/mixer.png)
@@ -1280,8 +1334,50 @@ clips, mixer strip and effects; swapping an effect keeps its slot, mix and bypas
 | Chorda | Grand piano played from a physical model: strings, hammers, soundboard, pedals |
 
 The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander), Sibilus
-(de-esser), Multiplex (multiband dynamics), Terminus (limiter), Culmen (maximizer),
-Spatium (reverb), Fervor (saturation), Latitudo (stereo), Delay and Reverb.
+(de-esser), Multiplex (multiband dynamics), Terminus (limiter), Culmen (maximizer), Tonsor
+(clipper), Impetus (transient shaper), Discrimen (transient splitter), Spatium (reverb),
+Fervor (saturation), Latitudo (stereo), Speculum (analyser), Tonus (pitch correction),
+Concentus (chorus), Flexus (flanger), Phasis (phaser), Tremor (tremolo and auto-pan),
+Vibrans (vibrato), Anulus (ring modulator), Translatio (frequency shifter), Fluctus (volume
+shaper), Delay and Reverb.
+
+### Each unit's face
+
+Each of Cantus's effects and instruments wears a face of its own — all but the simple
+Delay and Reverb and Firmus, the synth every new track starts with, which keep the kit's
+plain look — as hardware does and as the best plug-ins do: its colour and the material of its panel (brushed metal, wood, matte
+paint, vinyl amp covering, glass…), the look of its display (a glowing screen, an LCD, ink on paper, an
+oscilloscope's grid), the shape of its knobs and switches (a value ring, a skirted knob, a
+chicken head, a graduated dial; a toggle, a rocker, a lamp button) and the lettering of its
+name. You recognise a unit at a glance, even small in a corner of the screen.
+
+A face changes how a unit looks, never how it works: every control keeps its name and its
+value under it, its right-click menu (*Modulate…*, *Learn MIDI controller*, automation), the keyboard
+and the screen reader; the window still resizes from 75 % to 200 %. Faces follow your
+theme — every face has a dark and a light version, and words stay readable on it.
+
+Prefer every unit in your theme's plain look? *Settings ▸ Appearance ▸ Units wear their own
+faces ▸ Off*.
+The choice is kept, and applies at once to the windows that are open. Hosted plug-ins shown
+in Cantus's view keep the plain look; the Cantus effects you use as CLAP or VST3 plug-ins in
+another program always wear their face.
+
+### Each instrument's face
+
+The instruments' faces, one by one (the controls, the right-click menu and the keyboard work
+the same in every one):
+
+| Instrument | Its face |
+|---|---|
+| Unda | Deep indigo glass; the wavetable glows cyan in 3D, the frame playing now in magenta |
+| Calor | A warm brushed panel with orange legends, machined knobs, a scope under the filter |
+| Modulus | A matte umber panel; operators, envelopes and spectrum on a green liquid-crystal display; membrane keys whose colour bar lights |
+| Exemplar | A grey-violet anodised case; zones and waveform glowing violet on a phosphor screen, the loop's points in teal |
+| Gravis | Black vinyl amp covering with a blue pilot light, pointer knobs; the pluck marker in red |
+| Lamina | Burgundy lacquer in rose; the tine with its brass tone bar and the pickup behind glass |
+| Organum | Walnut with a magic eye's green; drawbars in white, black and brown on a printed chart, ivory stop tabs that tip down and light, graduated dials |
+| Chorda | Black lacquer (white in a light theme) and gold; the strings over a spruce soundboard, the cast frame's rim, the felt hammers |
+| Pulsus II | A dark case with 808-yellow lamp keys; each hit on a yellow fluorescent display, its envelope in orange |
 
 ### Chorda: the modelled grand piano
 
@@ -1300,8 +1396,10 @@ pedals), or let a **modulator** move it; half pedalling works there too. The ped
 strings hear is the higher of the knob and controller 64, so a real pedal still works on
 top of a lane. The demo *With All Your Heart* is pedalled this way.
 
-- **Play** shows the piano from above — every key's strings at their length, the bridge,
-  where the hammers strike, the dampers — with the key you last played lit, and the pedals:
+- **Play** shows the piano from above — every key's strings at their length over the
+  spruce soundboard, the bridge, the cast frame's rim, the row of felt hammers along where
+  they strike, the dampers — with the key you last played lit and its hammer raised, and
+  the pedals:
   the sustain pedal's travel drawn over the law of how far the dampers are down at each
   position, with the **Sustain**, **Dampers** and **Soft** knobs under it. Below: the hammer (hardness, dynamics, velocity curve), the resonance
   (sympathy, decay, soundboard) and the output (tilt, width, gain).
@@ -1354,6 +1452,24 @@ with a playhead where it is now.
 
 **In another DAW.** The exported CLAP and VST3 versions read the host's tempo and position,
 so a synced Tremor or Fluctus follows that DAW's song too.
+
+**Each one's face.** The eight wear faces of their own, built around the display that
+shows how each moves the sound; the other channel or voice is drawn in each face's second
+colour. The controls work as everywhere (the value above each knob and its name under it,
+right-click for *Modulate…*, MIDI learn and automation, the keyboard and the screen reader); every
+colour keeps its contrast in light and dark themes, and *Units wear their own faces* in
+*Settings ▸ Appearance* turns them off for the plain look.
+
+| Effect | Its face |
+|---|---|
+| Concentus | Brushed silver with rack ears, machined knobs and lamp keys for the models; each voice's delay under glass as a bucket brigade's beads, the left voices ice blue, the right ones amber |
+| Flexus | Violet lacquer, skirted knobs and bat toggles; the comb glows on a phosphor screen with a mark under every notch, and through zero the wet's line flares lime where it crosses the dry |
+| Phasis | Matte orange like a stomp box, soft knobs; the response on a fluorescent display, every notch marked in teal |
+| Tremor | A seafoam vinyl amp covering with graduated dials; the shape drawn by a chart recorder's pen on paper, the other side in amber |
+| Vibrans | Periwinkle behind smoked glass, value rings; the pitch in cents on a tuner's liquid-crystal panel, with its scale and a pointer at the pitch now |
+| Anulus | A walnut case — *anulus* is Latin for ring — with knobs that are rings; the sidebands on a lab oscilloscope in gold, each pair joined by a ring round the input |
+| Translatio | Black anodised rack with pointer knobs; the spectrum on a green phosphor screen, an arrow carrying each harmonic to where it lands, the right sideband in coral |
+| Fluctus | Carbon weave; the shape in magenta under dark glass, the playhead in cyan with the level it rides now |
 
 **Your plug-ins.** When you press *Scan for plug-ins* (*Settings ▸ Plug-ins*), Cantus reads
 the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3`,
@@ -1464,6 +1580,43 @@ nothing until a peak goes over, and Speculum only looks.
 | Speculum | An analyser that never touches the sound | Tabs: *Overview*, *Spectrum* (averaging, slope, peak hold, mid/side/left/right), *Spectrogram*, *Scope* (free, triggered, or **on the beat**), *Vector* (and the **correlation**: under 0 means trouble in mono), *Loudness* (momentary, short-term and integrated LUFS, range, true peak, against a target — the EBU R128 readings). ⋯ ▸ **Dock in the workspace** makes it a tab you can resize, split or tear out; dock several and watch them at once. |
 
 Pages: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
+
+### Each dynamics unit's face
+
+The dynamics effects wear faces of their own, each built around the display that tells its
+story — how much it takes away. The controls work as everywhere (the label and value under
+each knob, right-click for *Modulate…*, MIDI learn and automation, the keyboard and the
+screen reader); every colour keeps its contrast in light and dark themes, and *Units wear
+their own faces* in *Settings ▸ Appearance* turns them off for the plain look.
+
+| Effect | Its face |
+|---|---|
+| Comprimo | A black anodised rack face with rack ears, amber legends and skirted knobs; a needle meter reads the gain reduction, and the history and transfer are drawn on cream chart paper |
+| Terminus | Flat graphite with a red line under the name — the ceiling; the output in ice blue and what it takes in red behind dark glass, value rings for knobs |
+| Multiplex | Smoked violet glass; the bands glow in the face's violet, cyan and the hues between on a phosphor screen |
+| Sibilus | Brushed silver with screws and vents; the sibilance glows ice-cyan, machined knobs |
+| Porta | A mahogany door — *porta* is Latin for door — with green for open and amber for shut on a liquid-crystal panel, soft knobs |
+| Culmen | Deep sapphire lacquer with rack ears, knobs ringed with LEDs; the bands and loudness on a fluorescent display |
+| Tonsor | Carbon weave; the transfer curve drawn by an orange beam on an oscilloscope's graticule |
+| Impetus | Black vinyl amp covering like a drum amplifier, pointer knobs; attack in lime, sustain in violet |
+| Discrimen | A printed lab card with graduated dials; the transient in magenta and the body in teal, as a two-beam scope's channels |
+
+### Each tone, space and analysis unit's face
+
+The tone, space and analysis effects wear faces of their own too, each built around its
+display. The controls work as everywhere (the label and value under each knob, right-click
+for *Modulate…*, MIDI learn and automation, the keyboard and the screen reader). Every
+colour keeps its contrast in light and dark themes, and *Units wear their own faces* in
+*Settings ▸ Appearance* turns them off for the plain look.
+
+| Effect | Its face |
+|---|---|
+| Aequalis | Blue anodised aluminium, like a precision instrument: the curve in cyan behind smoked glass, the analyser in amber behind it, small capped knobs, an engraved name, values in even-width figures |
+| Fervor | Warm brown vinyl amp covering with screws and vents, chicken-head knobs and bat toggles, the name on a badge: the curve glows in an amber fluorescent window, and the harmonics show even in amber and odd in filament yellow |
+| Spatium | Deep indigo lacquer, a hall at night: the decay and the tail glow on a blue phosphor screen, the early reflections in cold cyan, with soft knobs and lamp keys |
+| Latitudo | Brushed steel in a rack with screws and ears, like a broadcast phase meter: the stereo field and the tone are drawn on an oscilloscope's graticule, the mid in green and the side in orange, with graduated dials and rockers |
+| Speculum | Grey-green enamel, like a bench analyser: the spectrum, the scope and the loudness are drawn on a backlit liquid-crystal panel, the held peak in red, with value rings and narrow capitals |
+| Tonus | Magenta behind smoked glass, like a vocal booth: the pitch is drawn on chart paper, what comes out in magenta and what was sung in teal, with soft knobs and lamp keys |
 
 ### When a plug-in crashes
 
@@ -1597,7 +1750,8 @@ alone — each count shown with an engine and a model it is known from, drawn at
 of the list and large under the field: `4 · V4 · Fulvia`, `12 · V12 · Enzo`, more than
 16 a turbo-ramjet; the line under it says how many are at work now, counted the same way;
 the real-time priority each audio thread was given is the last line of the band),
-*MIDI*, *Appearance* (language — English or Español —, interface size, colours, keyboard
+*MIDI*, *Appearance* (language — English or Español —, interface size, *Units wear their
+own faces* — on or off, see [Each unit's face](#each-units-face) —, colours, keyboard
 shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
 least recently used samples go first — and *Clear cache*; it lives in
 `%LOCALAPPDATA%\Cantus\cache\samples`, or in a portable copy's `data` folder), *Updates*
@@ -1643,6 +1797,7 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Ctrl+Plus` · `Ctrl+Minus` · `Ctrl+0` | Interface zoom |
 | `Ctrl+,` | Settings |
 | `Ctrl+Shift+P` · `Alt+H` | The command palette · the undo history |
+| `Alt+S` · `Alt+Shift+S` | The score under the piano roll · the Score pane |
 
 **On a Mac** `Cmd` (⌘) takes the place of `Ctrl` and `Option` (⌥) of `Alt`, and the
 *macOS* preset is the default: the table's keys, except that the metronome is `Cmd+K` (or `K` while the typing keyboard is off; ⌘M

@@ -25,13 +25,13 @@ chorda.tilt = Tilt
 chorda.width = Width
 
 # Editor cards (ADR 0024)
-chorda.strings = STRINGS AND HAMMERS
-chorda.pedals = PEDALS
-chorda.hammer = HAMMER
-chorda.resonance = RESONANCE
-chorda.output = OUTPUT
-chorda.tuning = TUNING
-chorda.ring = THE STRINGS' RING
+chorda.strings = Strings and hammers
+chorda.pedals = Pedals
+chorda.hammer = Hammer
+chorda.resonance = Resonance
+chorda.output = Output
+chorda.tuning = Tuning
+chorda.ring = The strings' ring
 chorda.legend = {key} · {hz} Hz · {n} strings of {cm} cm, struck at {pct} %
 chorda.legend_one = {key} · {hz} Hz · one string of {cm} cm, struck at {pct} %
 chorda.sustain_line = Sustain {p} % · dampers {down} % down

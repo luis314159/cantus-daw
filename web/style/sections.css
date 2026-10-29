@@ -229,3 +229,27 @@
 /* The footer's line of faith */
 .foot .creed { margin-top: 0.2rem; color: var(--amber); font: 700 1.05rem/1 var(--display); letter-spacing: 0.01em; opacity: 1; }
 :root[data-theme="light"] .foot .creed { color: var(--copper-deep); }
+
+/* The score (round 32): the piano roll with its staff, the pane, a printed page. */
+.score-wrap { background: var(--paper-2); }
+.score-stage .window img { display: block; width: 100%; height: auto; }
+.score-more { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.2rem; margin-top: 1.2rem; }
+.score-more figure { margin: 0; }
+.score-more img { display: block; width: 100%; height: auto; border-radius: 0.7rem; border: 1px solid var(--line); background: var(--paper-2); }
+.score-more .paper img { box-shadow: 0 24px 40px -30px rgba(20,16,13,.45); }
+.score-more figcaption { margin-top: 0.6rem; color: var(--ink-2); font-size: 0.95rem; }
+.score-points { list-style: none; margin: 1.8rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.2rem; border-top: 2px solid var(--ink); }
+.score-points li { padding-top: 1rem; }
+.score-points h3 { font-size: 1.1rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.score-points p { margin-top: 0.4rem; color: var(--ink-2); font-size: 0.95rem; }
+@media (max-width: 56rem) { .score-more { grid-template-columns: 1fr; } .score-points { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 34rem) { .score-points { grid-template-columns: 1fr; } }
+
+/* Every unit's own face (round 32): a grid of the program's windows. */
+.faces-wrap { background: var(--paper); }
+.faces { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
+.face { margin: 0; }
+.face img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; border-radius: 0.6rem; background: #1e2a33; box-shadow: 0 22px 36px -28px rgba(20,16,13,.6); }
+.face figcaption { display: flex; flex-direction: column; gap: 0.05rem; margin-top: 0.55rem; }
+.face figcaption strong { font: 700 1.05rem/1.15 var(--display); color: var(--ink); }
+.face figcaption span { color: var(--ink-2); font-size: 0.9rem; }

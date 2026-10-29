@@ -327,6 +327,7 @@ pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
         Action::ViewRouting => Pane::Routing,
         Action::ViewControllers => Pane::Controllers,
         Action::ViewHistory => Pane::History,
+        Action::ViewScore => Pane::Score,
         Action::ToggleInspector => Pane::Inspector,
         // The clips list, which the View menu checks too (review 4, #26).
         Action::ToggleClips => Pane::Clips,
@@ -344,7 +345,9 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
         // The controller mappings (round 29, ADR 0062).
         .chain(std::iter::once(Pane::Controllers))
         // The undo history (round 31, ADR 0072).
-        .chain(std::iter::once(Pane::History));
+        .chain(std::iter::once(Pane::History))
+        // The Score pane (round 32, ADR 0075).
+        .chain(std::iter::once(Pane::Score));
     for pane in areas {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
@@ -355,6 +358,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             Pane::Routing => Action::ViewRouting,
             Pane::Controllers => Action::ViewControllers,
             Pane::History => Action::ViewHistory,
+            Pane::Score => Action::ViewScore,
             _ => Action::ToggleInspector,
         };
         let mut shown = app.workspace.contains(pane);

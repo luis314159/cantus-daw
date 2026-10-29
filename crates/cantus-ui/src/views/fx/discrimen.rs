@@ -297,7 +297,17 @@ fn history_card(ui: &mut egui::Ui, s: &Style, rect: Rect, st: &mut State, ds: &D
                 let cap = st.history.capacity().max(1);
                 let w = plot.width() / cap as f32;
                 let skip = cap - st.history.len().min(cap);
-                let body_c = Ink::a(ink.text, if ink.dark { 0.28 } else { 0.22 });
+                // The body: a faint fill in the kit's look, the second beam in Discrimen's.
+                let body_c = super::dynfx::second_voice(
+                    &s,
+                    &ink,
+                    Ink::a(ink.text, if ink.dark { 0.28 } else { 0.22 }),
+                );
+                let body_c = if s.skin.accent2.is_some() {
+                    Ink::a(body_c, 0.7)
+                } else {
+                    body_c
+                };
                 for (i, c) in st.history.iter().enumerate() {
                     let x = plot.left() + (skip + i) as f32 * w;
                     let wx = w.max(k);
@@ -402,7 +412,7 @@ fn now_card(
         None,
         |ui, cr| {
             let r = cr.body.shrink2(vec2(8.0 * s.k, 4.0 * s.k));
-            let ink = Ink::of(&s);
+            let ink = dynfx::deck_ink(&s);
             let k = s.k;
             let row = 20.0 * k;
             let dash = "\u{2014}";

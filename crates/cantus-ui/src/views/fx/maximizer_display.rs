@@ -128,7 +128,13 @@ pub fn history(
             let lr = Rect::from_min_size(pos2(rect.left(), ly), vec2(rect.width(), lane_h));
             ly += lane_h;
             let color = band_ink(band, s);
-            b.rect(b.snap_rect(lr), Fill::Solid(Ink::a(s.t.deck_title, 0.55)));
+            b.rect(
+                b.snap_rect(lr),
+                Fill::Solid(Ink::a(
+                    crate::views::fx::dynfx::on_display(&ink, s.t.deck_title),
+                    0.55,
+                )),
+            );
             let mid = lr.center().y;
             b.hline(lr.left(), lr.right(), b.snap_mid(mid), px, ink.grid_strong);
             if n > 1 {

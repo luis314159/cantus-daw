@@ -262,6 +262,7 @@ pub fn env_card(
         app.inst.wavetable.env = i;
     }
     if let Some(d) = cr.display {
+        let s = &crate::views::inst::face::on_display(s);
         env_display(app, ui, track, spec, s, d, e);
     }
     let fields = ["delay", "a", "h", "d", "s", "r", "ac", "dc", "rc"];
@@ -300,6 +301,7 @@ pub fn amp_card(
         Some(disp.max(36.0)),
     );
     if let Some(d) = cr.display {
+        let s = &crate::views::inst::face::on_display(s);
         env_display(app, ui, track, spec, s, d, 0);
     }
     parts::cells_spread(
@@ -365,6 +367,7 @@ pub fn lfo_card(
     let shape = shape_of(spec, l);
     let drawn = w == LfoWave::Drawn;
     if let Some(d) = cr.display {
+        let s = &crate::views::inst::face::on_display(s);
         let inner = d.shrink2(Vec2::new(s.s(10.0), s.s(10.0)));
         let resp = ui.interact(d, ui.id().with(("unda-lfo", l)), Sense::click_and_drag());
         let tel = app.inst_telemetry();

@@ -1402,7 +1402,7 @@ fn history(
     let k = s.k;
     let tk = s.tk();
     let ink = Ink::of(s);
-    let loud_c = s.t.hue(Function::Output);
+    let loud_c = loudness_colour(s, &ink);
     let ln = lanes(rect, k);
     let (gr_r, lv, axis) = (ln.gr, ln.levels, ln.axis);
     let plot = Rect::from_min_max(gr_r.min, rect.max);
@@ -1594,7 +1594,10 @@ fn history(
         // The history: input behind, output over it in the device's hue, the reduction
         // hanging in its lane, the clipper's work along the top.
         let c_in = Ink::a(ink.dim, if ink.dark { 0.30 } else { 0.28 });
-        let c_out = Ink::a(ink.hue, if ink.dark { 0.42 } else { 0.34 });
+        // In Terminus's face the output is its second voice (ice under a red ceiling, as a
+        // brickwall's display draws it); in the plain look, the device's hue.
+        let out_hue = super::dynfx::second_voice(s, &ink, ink.hue);
+        let c_out = Ink::a(out_hue, if ink.dark { 0.42 } else { 0.34 });
         let c_gr = Ink::a(ink.danger, if ink.dark { 0.70 } else { 0.55 });
         for sp in &strips {
             let (x0, x1) = (sp.x0.max(lv.left()), sp.x1.min(lv.right()));
@@ -1687,7 +1690,7 @@ fn history(
         let gtop = handle.bottom() - ls.gain_db / 30.0 * handle.height();
         b.rect(
             b.snap_rect(handle),
-            Fill::Solid(Ink::a(s.t.deck_title, 0.88)),
+            Fill::Solid(Ink::a(super::dynfx::on_display(&ink, s.t.deck_title), 0.88)),
         );
         b.rect(
             Rect::from_min_max(pos2(handle.left(), gtop), handle.max),
@@ -1944,7 +1947,8 @@ fn history(
                     .max(lv.left() + 4.0 * k),
                 lv.top() + 4.0 * k,
             );
-            canvas::put(b, at, Align2::LEFT_TOP, &t, tk, Some(s.t.deck_title));
+            let plate = super::dynfx::on_display(&ink, s.t.deck_title);
+            canvas::put(b, at, Align2::LEFT_TOP, &t, tk, Some(plate));
         }
     });
 
@@ -2227,7 +2231,7 @@ fn meters(
     let k = s.k;
     let tk = s.tk();
     let ink = Ink::of(s);
-    let loud_c = s.t.hue(Function::Output);
+    let loud_c = loudness_colour(s, &ink);
     let ln = lanes(rect, k);
     let (gr_r, lv, axis) = (ln.gr, ln.levels, ln.axis);
     let plot = Rect::from_min_max(gr_r.min, rect.max);
@@ -2953,18 +2957,21 @@ fn output_card(
         controls::column(ui, s, w, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = s.d(4.0);
+                // A face's switch wider than the kit's lamp (Terminus's pill) takes its
+                // room from the monitor's segments, so the words stay whole.
+                let extra = (crate::kit::skin::switches::slot_w(s.skin.switch) - 8.0).max(0.0);
                 for (key, label, width, tip_key) in [
                     ("tp", "fx.lim.tp", 96.0, "fx.lim.tp_tip"),
                     ("dc", "fx.lim.dc", 96.0, "fx.lim.dc_tip"),
                     // "Delta" in words (round 26: the Greek letter had no glyph in the
                     // condensed face), with room for the light beside it.
-                    ("delta", "fx.lim.delta", 64.0, "fx.lim.delta_tip"),
+                    ("delta", "fx.lim.delta", 64.0 + extra, "fx.lim.delta_tip"),
                 ] {
                     let r = controls::led_param(ui, s, host, key, Src::Key(label), width);
                     tip(ui, r.hovered(), frame::tr(label), frame::tr(tip_key));
                 }
                 let labels = MONITOR_KEYS.map(Src::Key);
-                let mw = (w - 96.0 - 96.0 - 64.0 - 12.0).max(60.0);
+                let mw = (w - 96.0 - 96.0 - 64.0 - extra - 12.0).max(60.0);
                 let r =
                     ui.scope(|ui| controls::segmented_param(ui, s, host, "monitor", &labels, mw));
                 let now = (host.spec().get("monitor").round().clamp(0.0, 2.0)) as usize;
@@ -3524,4 +3531,78 @@ pub fn demo_feed(app: &mut CantusApp) {
     let half = (map.bar_tick(13) - b12).0 / 2;
     app.set_time_selection(b5, b9);
     app.engine.seek(b12 + Ticks(half));
+}
+
+/// The loudness's colour (its trace, its target's dash, its meter): the output hue as ever;
+/// in a face, a voice of its own, apart from the ceiling (the main trace), the output (the
+/// second voice) and the gain reduction's danger (round 32, the review of delivery 2: all
+/// three had become one red).
+pub fn loudness_colour(s: &Style, ink: &Ink) -> egui::Color32 {
+    ink.third(s, Function::Output)
+}
+
+#[cfg(test)]
+mod face_colour_tests {
+    use super::*;
+    use crate::kit::color::{contrast, Hsl};
+
+    fn gap(a: Color32, b: Color32) -> f32 {
+        let (a, b) = (Hsl::of(a), Hsl::of(b));
+        if a.s < 0.15 || b.s < 0.15 {
+            return 180.0;
+        }
+        let d = (a.h - b.h).rem_euclid(360.0);
+        d.min(360.0 - d)
+    }
+
+    fn face(base: crate::kit::Tokens) -> (Style, Ink) {
+        let sheet = crate::kit::skin::of_effect(cantus_core::EffectKind::Limiter);
+        let s = Style::new(base)
+            .skinned(sheet)
+            .function(super::super::frame::hue_of(
+                cantus_core::EffectKind::Limiter,
+            ));
+        let ink = Ink::of(&s);
+        (s, ink)
+    }
+
+    fn pairs(base: crate::kit::Tokens) -> Vec<(&'static str, Color32, Color32)> {
+        let (s, ink) = face(base);
+        let loud = loudness_colour(&s, &ink);
+        vec![
+            ("the loudness and the ceiling", loud, ink.hue),
+            ("the loudness and the gain reduction", loud, ink.danger),
+            ("the loudness and the output", loud, ink.look.trace2),
+        ]
+    }
+
+    fn grounds(base: crate::kit::Tokens) -> Vec<(&'static str, Color32, Color32)> {
+        let (s, ink) = face(base);
+        vec![("the loudness", loudness_colour(&s, &ink), ink.ground)]
+    }
+
+    /// Round 32, the review of delivery 2: colours that tell two things apart inside the
+    /// display stay apart in the unit's face (at least 20° of hue) and read on the look's
+    /// ground (3:1), in every preset.
+    #[test]
+    fn colours_with_a_meaning_stay_apart_in_the_face() {
+        let mut bad = Vec::new();
+        for (key, make) in crate::theme::PRESETS {
+            let base = make().kit_tokens();
+            for (what, a, b) in pairs(base) {
+                if gap(a, b) < 20.0 {
+                    bad.push(format!("{key}: {what} {:.0}° apart", gap(a, b)));
+                }
+            }
+            for (what, c, ground) in grounds(base) {
+                if contrast(c, ground) < 2.99 {
+                    bad.push(format!(
+                        "{key}: {what} at {:.2} on the ground",
+                        contrast(c, ground)
+                    ));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
 }

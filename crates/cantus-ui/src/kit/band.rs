@@ -31,8 +31,25 @@ pub const BAND: f32 = 20.0;
 /// A card's title bar at 100 %.
 pub const TITLE: f32 = 24.0;
 
-/// A square-ish section lamp (10 × 10, radius 2): filled in the hue when on, hollow off.
+/// A square-ish section lamp (10 × 10, radius 2): filled in the hue when on, hollow off —
+/// or the unit's switch shape (round 32, ADR 0074) in a 12-point square.
 pub fn lamp(b: &mut Brush, c: Pos2, s: &Style, on: bool, hue: Color32, alpha: f32) {
+    use super::skin::{switches, SwitchShape};
+    let shape = s.skin.switch;
+    if !matches!(shape, SwitchShape::Plain | SwitchShape::Lamp) {
+        let area = Rect::from_center_size(c, Vec2::splat(s.s(12.0)));
+        let st = State {
+            lit: on,
+            disabled: alpha < 1.0,
+            ..State::REST
+        };
+        b.register(area, "switch", switches::tokens(shape), &[s.hue_tok]);
+        match shape {
+            SwitchShape::Custom(paint) => paint(b, area, s, st),
+            other => switches::paint(b, area, s, st, other, hue),
+        }
+        return;
+    }
     let r = Rect::from_center_size(c, Vec2::splat(s.s(10.0)));
     let r = b.snap_rect(r);
     let f = |c: Color32| c.gamma_multiply(alpha);
@@ -84,10 +101,11 @@ pub fn section(
         Pos2::new(x, rect.top()),
         Pos2::new(rect.right() - s.s(8.0), rect.bottom()),
     );
+    let (face, caps) = s.skin.lettering.title();
     let t = Text {
         src: title,
         role: Role::Section,
-        caps: true,
+        caps,
         align: if centred {
             Align2::CENTER_CENTER
         } else {
@@ -96,7 +114,30 @@ pub fn section(
         policy: Policy::Elide(Elide::End),
         color: f(s.t.label),
     };
-    let _ = text::paint(b, tr, &t, s.tk());
+    let painted = text::paint_face(b, tr, &t, s.tk(), face);
+    if let (Some(p), false) = (painted, centred) {
+        rule_after(b, p.rect, tr.right(), rect.center().y, s, a);
+    }
+}
+
+/// The face's printed rule after a title (a unit whose ornaments ask for rules): a
+/// hairline from the title's end to `right`, at `y`.
+fn rule_after(b: &mut Brush, title: Rect, right: f32, y: f32, s: &Style, alpha: f32) {
+    if !s.skin.ornaments.rules {
+        return;
+    }
+    let x0 = title.right() + s.s(8.0);
+    if right - x0 < s.s(12.0) {
+        return;
+    }
+    let y = b.snap_mid(y);
+    b.hline(
+        x0,
+        right,
+        y,
+        b.px(),
+        with_alpha(s.t.label, 0.45).gamma_multiply(alpha),
+    );
 }
 
 /// A 1-px divider between two bands or sections.
@@ -199,6 +240,15 @@ pub fn card(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CardLook<'_>
         );
     }
     b.rrect(rect, rad, Fill::Solid(f(t.deck)));
+    super::skin::materials::finish(
+        b,
+        rect,
+        rad,
+        t.deck,
+        s,
+        super::skin::materials::Surface::Card,
+        a,
+    );
     let r = rects(rect, s, look);
     // The title band: the card's top, rounded above, square below.
     let tb = b.snap_rect(r.title);
@@ -258,20 +308,26 @@ pub fn card(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CardLook<'_>
     } else {
         t.text_dim
     };
+    let (face, caps) = s.skin.lettering.title();
     let tt = Text {
         src: look.title,
         role: Role::Section,
-        caps: true,
+        caps,
         align: Align2::LEFT_CENTER,
         policy: Policy::Elide(Elide::End),
         color: f(title_color),
     };
-    let _ = text::paint(
+    let painted = text::paint_face(
         b,
         Rect::from_min_max(Pos2::new(x, tb.top()), Pos2::new(title_right, tb.bottom())),
         &tt,
-        s.k,
+        // The user's text size, as every other word (the instruments builder's finding).
+        s.tk(),
+        face,
     );
+    if let Some(p) = painted {
+        rule_after(b, p.rect, title_right, tb.center().y, s, a);
+    }
     if let (Some(sr), Some(name)) = (r.selector, look.selector) {
         let cw = s.s(10.0);
         glyph::paint(
@@ -297,7 +353,7 @@ pub fn card(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CardLook<'_>
             b,
             inner,
             &Text::new(name, Role::Control, f(t.text)).policy(Policy::Elide(Elide::End)),
-            s.k,
+            s.tk(),
         );
     }
     if let Some(m) = r.menu {
@@ -305,13 +361,18 @@ pub fn card(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CardLook<'_>
     }
     if let Some(d) = r.display {
         let d = b.snap_rect(d);
-        b.rect(
-            d,
-            Fill::V(
-                f(t.ink),
-                f(shade(t.ink, if t.dark { -0.02 } else { -0.03 })),
-            ),
-        );
+        if s.skin.display == super::skin::Display::Plain {
+            b.rect(
+                d,
+                Fill::V(
+                    f(t.ink),
+                    f(shade(t.ink, if t.dark { -0.02 } else { -0.03 })),
+                ),
+            );
+        } else {
+            // The unit's display look (round 32, ADR 0074).
+            super::skin::display_ground(b, d, s);
+        }
         let edge = f(with_alpha(t.edge, 0.55));
         b.hline(d.left(), d.right(), d.top() + b.px() * 0.5, b.px(), edge);
         b.hline(d.left(), d.right(), d.bottom() - b.px() * 0.5, b.px(), edge);

@@ -167,7 +167,9 @@ pub(super) fn show(
         let len = st.history.len();
         let dx = plot.width() / HISTORY as f32;
         let x_of = |i: usize| plot.right() - (len - 1 - i) as f32 * dx;
-        for (output, color, w) in [(false, ink.dim, 1.5 * k), (true, ink.hue, 2.0 * k)] {
+        // The sung pitch in the look's second voice (Tonus's teal); plain, dim as ever.
+        let sung = ink.voice(ink.dim, true);
+        for (output, color, w) in [(false, sung, 1.5 * k), (true, ink.hue, 2.0 * k)] {
             pts.clear();
             for (i, c) in st.history.iter().enumerate() {
                 let v = if output { c.output } else { c.input };

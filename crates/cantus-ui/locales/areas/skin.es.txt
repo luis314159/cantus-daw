@@ -1,0 +1,12 @@
+# skin — la cara propia de cada unidad: las pieles de nuestros efectos e instrumentos (ronda 32,
+# ADR 0074, BACKLOG §6h punto 1). Cada clave tiene su gemela en skin.en.txt.
+
+# ---- skin (el kit: el interruptor, las palabras de las caras) ----
+skin.settings.faces = Cada unidad con su propia cara
+skin.settings.faces.short = Caras propias
+skin.settings.faces.on = Sí
+skin.settings.faces.off = No
+skin.settings.faces.hint = Cada uno de nuestros efectos e instrumentos lleva una cara propia: su color, material, pantalla y controles. No: todas las unidades con el aspecto sencillo de tu tema.
+
+# ---- dynamics (el constructor de dinámica: Comprimo, Terminus, Multiplex, Sibilus, Porta, Culmen, Tonsor, Impetus, Discrimen) ----
+skin.comprimo.vu = Reducción

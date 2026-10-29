@@ -61,6 +61,57 @@ const SANS: &str = "cantus-sans";
 const SANS_STRONG: &str = "cantus-sans-strong";
 const MONO: &str = "cantus-mono";
 const MONO_STRONG: &str = "cantus-mono-strong";
+/// The music font: Bravura (SMuFL, SIL OFL 1.1), the score's (ADR 0075).
+const MUSIC: &str = "cantus-music";
+
+static PLEX_SANS: &[u8] = include_bytes!("../assets/fonts/IBMPlexSans-Regular.ttf");
+static PLEX_SANS_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/IBMPlexSans-SemiBold.ttf");
+static PLEX_COND_ITALIC: &[u8] = include_bytes!("../assets/fonts/IBMPlexSansCondensed-Italic.ttf");
+
+/// The family the score's music glyphs are drawn in.
+pub fn family_music() -> FontFamily {
+    static F: OnceLock<FontFamily> = OnceLock::new();
+    F.get_or_init(|| FontFamily::Name(MUSIC.into())).clone()
+}
+
+/// The score's music font at `size` points (an em is four staff spaces): the music role
+/// of ADR 0075. Its size follows the staff's, so it is not one of the fixed roles.
+pub fn music_font(size: f32) -> FontId {
+    FontId::new(size.max(1.0), family_music())
+}
+
+/// The score's words (title, tempo, part names, bar numbers) in `face` at `size` points —
+/// the same faces the score's layout measures and its PDF embeds.
+pub fn score_text_font(face: cantus_score::text::Face, size: f32) -> FontId {
+    use cantus_score::text::Face;
+    let family = match face {
+        Face::Regular => FontFamily::Proportional,
+        Face::Bold => family_strong(),
+        Face::Italic => FontFamily::Name(role::COND_ITALIC.into()),
+    };
+    FontId::new(size.max(1.0), family)
+}
+
+/// Add the score's music font — Bravura, its family ending in the emoji face as every
+/// chain does — to `defs`. Only the app's start-up asks for it (`font_fallback`), so the
+/// exported plug-ins' editors, which install [`font_definitions`] alone, never carry it.
+pub fn add_music_font(defs: &mut egui::FontDefinitions) {
+    defs.font_data.insert(
+        MUSIC.to_owned(),
+        Arc::new(egui::FontData::from_static(cantus_score::BRAVURA)),
+    );
+    defs.families
+        .insert(family_music(), vec![MUSIC.to_owned(), EMOJI.to_owned()]);
+}
+
+/// The text faces' bytes, for the score's layout and its PDF.
+pub fn score_faces() -> cantus_score::text::TextFaces {
+    cantus_score::text::TextFaces {
+        regular: PLEX_SANS,
+        bold: PLEX_SANS_SEMIBOLD,
+        italic: PLEX_COND_ITALIC,
+    }
+}
 
 /// Named [`FontFamily`] for semibold sans — headings and emphasis.
 pub fn family_strong() -> FontFamily {
@@ -172,14 +223,8 @@ pub fn font_definitions() -> egui::FontDefinitions {
             .font_data
             .insert(key.to_owned(), Arc::new(egui::FontData::from_static(bytes)));
     };
-    add(
-        SANS,
-        include_bytes!("../assets/fonts/IBMPlexSans-Regular.ttf"),
-    );
-    add(
-        SANS_STRONG,
-        include_bytes!("../assets/fonts/IBMPlexSans-SemiBold.ttf"),
-    );
+    add(SANS, PLEX_SANS);
+    add(SANS_STRONG, PLEX_SANS_SEMIBOLD);
     add(
         MONO,
         include_bytes!("../assets/fonts/IBMPlexMono-Regular.ttf"),
@@ -226,6 +271,7 @@ pub fn font_definitions() -> egui::FontDefinitions {
 /// | `Placeholder` | 12.5 | Condensed Italic | as named |
 pub mod role {
     use super::{family_mono_strong, FontFamily, FontId};
+    pub use crate::kit::skin::Weight;
 
     pub(super) const COND: &str = "cond";
     pub(super) const COND_MEDIUM: &str = "cond-medium";
@@ -247,10 +293,7 @@ pub mod role {
             COND_SEMIBOLD,
             include_bytes!("../assets/fonts/IBMPlexSansCondensed-SemiBold.ttf"),
         ),
-        (
-            COND_ITALIC,
-            include_bytes!("../assets/fonts/IBMPlexSansCondensed-Italic.ttf"),
-        ),
+        (COND_ITALIC, super::PLEX_COND_ITALIC),
     ];
 
     /// What a piece of text is. The kit asks for a role, never a size.
@@ -320,6 +363,28 @@ pub mod role {
         /// The font at the per-window scale `k` (1.0 = 100 %).
         pub fn font(self, k: f32) -> FontId {
             FontId::new(self.size() * k, self.family())
+        }
+
+        /// The font of a role in a unit's own lettering (round 32, ADR 0074): its size, in
+        /// the face `weight` and `condensed` name — IBM Plex Sans Condensed Regular, Medium
+        /// or SemiBold, or IBM Plex Sans (whose Medium is set in its SemiBold, the bundled
+        /// face nearest to it).
+        pub fn lettered(self, weight: Weight, condensed: bool, k: f32) -> FontId {
+            let name = |n: &str| FontFamily::Name(n.into());
+            let family = match (condensed, weight) {
+                (true, Weight::Regular) => name(COND),
+                (true, Weight::Medium) => name(COND_MEDIUM),
+                (true, Weight::SemiBold) => name(COND_SEMIBOLD),
+                (false, Weight::Regular) => FontFamily::Proportional,
+                (false, _) => super::family_strong(),
+            };
+            FontId::new(self.size() * k, family)
+        }
+
+        /// A value set in the plain mono face — a lab instrument's readout (a unit whose
+        /// lettering asks for `mono_values`).
+        pub fn mono_plain(self, k: f32) -> FontId {
+            FontId::new(self.size() * k, FontFamily::Monospace)
         }
 
         /// Extra space between letters, in points at 100 %, for roles set in caps.

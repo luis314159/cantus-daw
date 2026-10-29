@@ -569,6 +569,14 @@ pub struct Track {
     /// are.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub note_fx: Vec<crate::notefx::NoteEffect>,
+    /// How its part is written as a score (schema 45, ADR 0075): clef, staves, the
+    /// hands' split, transposition, dynamics, reading grid, the part's name. The default —
+    /// every older track — is everything automatic, and plays nothing differently.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::notation::ScoreSettings::is_default"
+    )]
+    pub score: crate::notation::ScoreSettings,
 }
 
 /// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
@@ -1560,6 +1568,7 @@ impl Project {
             frozen: None,
             lateness: None,
             note_fx: Vec::new(),
+            score: Default::default(),
         }
     }
 

@@ -1380,7 +1380,7 @@ fn history(
                 Align2::LEFT_TOP,
                 &t,
                 tk,
-                Some(s.t.deck_title),
+                Some(super::dynfx::on_display(&ink, s.t.deck_title)),
             );
         }
     });
@@ -1743,7 +1743,7 @@ fn spectrum(
                 Role::Value,
                 ink.text,
                 tk,
-                Some(s.t.deck_title),
+                Some(super::dynfx::on_display(&ink, s.t.deck_title)),
                 format_args!("{}", Hz(geo.spectrum_hz(pt.x))),
             );
         }

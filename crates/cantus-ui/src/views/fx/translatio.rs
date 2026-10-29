@@ -144,6 +144,8 @@ fn body_ui(
     tel: &[f32; 64],
     ts: &TranslatioSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -151,9 +153,9 @@ fn body_ui(
     let row2 = controls::card_height(Size::XL) * k;
     let row1 = (area.height() - row2 - gap).max(200.0 * k);
     let r1: Vec<Rect> = g.row(row1, &[0.42, 0.58]).collect();
-    let sm = s.function(Function::Mod);
+    let sm = modfx::own(s, Function::Mod);
     shift_card(host, st, ui, &sm, r1[0], tel, ts);
-    partials_card(ui, &s.function(Function::Tone), r1[1], tel, ts);
+    partials_card(ui, &modfx::own(s, Function::Tone), r1[1], tel, ts);
 
     let w = [
         controls::cells_width(&[Size::XL, Size::M, Size::M]) + 4.0 + SIDE_W + 16.0,
@@ -182,7 +184,7 @@ fn body_ui(
     modfx::region(ui, r2[1], ts.lfo_hz > 0.0, |ui| {
         modfx::lfo_card(host, ui, &sm, r2[1], &LFO);
     });
-    let so = s.function(Function::Output);
+    let so = modfx::own(s, Function::Output);
     controls::card(
         ui,
         &so,
@@ -328,6 +330,19 @@ fn partials_card(
                         3.0 * k,
                     );
                 }
+                // The shift carried across: an arrow from each harmonic to where it lands
+                // (the first pass of the left side), along the plot's floor (round 32).
+                let lane = plot.bottom() - 5.0 * k;
+                let sign = if ts.side == Side::Down { -1.0 } else { 1.0 };
+                let own = modfx::face::own_face(s);
+                for h in (1..=6).filter(|_| own) {
+                    let f0 = 220.0 * h as f32;
+                    let f1 = (f0 + sign * ts.shift_hz).abs();
+                    if (50.0..=5_000.0).contains(&f1) {
+                        let (x0, x1) = (x_of(f0), x_of(f1));
+                        modfx::face::arrow(b, pos2(x0, lane), pos2(x1, lane), 1.2 * k, k, ink.dim);
+                    }
+                }
                 for &(f, amp, ch) in &parts[..n] {
                     if ch == 1 && !both {
                         continue;
@@ -381,9 +396,10 @@ fn partials_card(
     );
 }
 
-/// The right channel's ink in "both": the Dynamics hue (amber), far from the card's teal.
+/// The right channel's ink in "both": the face's second voice (round 32), or the Dynamics
+/// hue (amber), far from the card's teal, in the plain look.
 pub fn right_ink(s: &Style) -> Color32 {
-    s.t.hue(Function::Dynamics)
+    modfx::face::second_voice(s, &Ink::of(s)).unwrap_or_else(|| s.t.hue(Function::Dynamics))
 }
 
 /// "Left up · right down", each word after a swatch of its channel's colour, on one plate

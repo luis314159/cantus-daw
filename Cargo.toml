@@ -12,6 +12,8 @@ members = [
     "crates/cantus-sandbox",
     "crates/cantus-content",
     "crates/cantus-export",
+    # The score from the piano roll (round 32, ADR 0075).
+    "crates/cantus-score",
     "crates/cantus-test-plugins/clap-gain",
     "crates/cantus-test-plugins/clap-synth",
     "crates/cantus-test-plugins/vst3",
@@ -41,6 +43,8 @@ default-members = [
     "crates/cantus-sandbox",
     "crates/cantus-content",
     "crates/cantus-export",
+    # The score from the piano roll (round 32, ADR 0075).
+    "crates/cantus-score",
     "crates/cantus-ui",
     "crates/cantus-app",
     "crates/cantus-launch",
@@ -48,7 +52,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.0-beta.6"
+version = "0.1.0-beta.7"
 edition = "2021"
 rust-version = "1.95"
 authors = ["Luis Ángel Almazán <https://lalmazan.com>"]
@@ -70,6 +74,7 @@ cantus-host = { path = "crates/cantus-host" }
 cantus-sandbox = { path = "crates/cantus-sandbox" }
 cantus-content = { path = "crates/cantus-content" }
 cantus-export = { path = "crates/cantus-export" }
+cantus-score = { path = "crates/cantus-score" }
 cantus-ui = { path = "crates/cantus-ui" }
 cantus-update = { path = "crates/cantus-update" }
 cantus-launch = { path = "crates/cantus-launch" }

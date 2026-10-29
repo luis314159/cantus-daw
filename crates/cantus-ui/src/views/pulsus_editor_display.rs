@@ -352,7 +352,9 @@ fn paint(
             pos2(x_of(tt), plot.bottom() - env_at(pad, tt) * plot.height())
         })
         .collect();
-    b.polyline(&env, 1.25 * k, t.text);
+    // In the face's second voice (Pulsus's orange beside its yellow pitch), the primary
+    // text on the kit's plain look.
+    b.polyline(&env, 1.25 * k, crate::views::inst::face::voice2(s, t.text));
     // The pitch, on the log-Hz axis.
     if let Some(points) = pitch {
         b.polyline(points, 2.5 * k, s.hue);

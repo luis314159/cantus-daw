@@ -237,12 +237,21 @@ pub fn card(
     );
 }
 
+/// The odd harmonics' colour: the dynamics hue as ever; in a face, the look's second voice
+/// (Fervor's filament yellow) — every function hue there is the accent, the even
+/// harmonics' colour.
+pub fn odd_colour(s: &Style, ink: &Ink) -> egui::Color32 {
+    ink.voice(s.t.hue(Function::Dynamics), true)
+}
+
 /// The spectrum on a log axis, the harmonics as bars, what lies between them in red.
 fn display(ui: &mut egui::Ui, s: &Style, outer: Rect, h: &Harmonics) {
     let k = s.k;
     let tk = s.tk();
     let ink = Ink::of(s);
-    let odd = s.t.hue(Function::Dynamics);
+    // The odd harmonics in the look's second voice (Fervor's filament yellow): in a face
+    // every function hue is the accent, so they would match the even ones; plain, as ever.
+    let odd = odd_colour(s, &ink);
     let head = 20.0 * k;
     let rect = Rect::from_min_max(
         pos2(outer.left() + 26.0 * k, outer.top() + head),
@@ -449,5 +458,67 @@ fn fft64(re: &mut [f64], im: &mut [f64]) {
             }
         }
         len <<= 1;
+    }
+}
+
+#[cfg(test)]
+mod face_colour_tests {
+    use super::*;
+    use crate::kit::color::{contrast, Hsl};
+    use egui::Color32;
+
+    fn gap(a: Color32, b: Color32) -> f32 {
+        let (a, b) = (Hsl::of(a), Hsl::of(b));
+        if a.s < 0.15 || b.s < 0.15 {
+            return 180.0;
+        }
+        let d = (a.h - b.h).rem_euclid(360.0);
+        d.min(360.0 - d)
+    }
+
+    fn face(base: crate::kit::Tokens) -> (Style, Ink) {
+        let sheet = crate::kit::skin::of_effect(cantus_core::EffectKind::Saturator);
+        let s = Style::new(base).skinned(sheet).function(Function::Tone);
+        let ink = Ink::of(&s);
+        (s, ink)
+    }
+
+    fn pairs(base: crate::kit::Tokens) -> Vec<(&'static str, Color32, Color32)> {
+        let (s, ink) = face(base);
+        vec![(
+            "the odd and the even harmonics",
+            odd_colour(&s, &ink),
+            ink.hue,
+        )]
+    }
+
+    fn grounds(base: crate::kit::Tokens) -> Vec<(&'static str, Color32, Color32)> {
+        let (s, ink) = face(base);
+        vec![("the odd harmonics", odd_colour(&s, &ink), ink.ground)]
+    }
+
+    /// Round 32, the review of delivery 2: colours that tell two things apart inside the
+    /// display stay apart in the unit's face (at least 20° of hue) and read on the look's
+    /// ground (3:1), in every preset.
+    #[test]
+    fn colours_with_a_meaning_stay_apart_in_the_face() {
+        let mut bad = Vec::new();
+        for (key, make) in crate::theme::PRESETS {
+            let base = make().kit_tokens();
+            for (what, a, b) in pairs(base) {
+                if gap(a, b) < 20.0 {
+                    bad.push(format!("{key}: {what} {:.0}° apart", gap(a, b)));
+                }
+            }
+            for (what, c, ground) in grounds(base) {
+                if contrast(c, ground) < 2.99 {
+                    bad.push(format!(
+                        "{key}: {what} at {:.2} on the ground",
+                        contrast(c, ground)
+                    ));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
     }
 }

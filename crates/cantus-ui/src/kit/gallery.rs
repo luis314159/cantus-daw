@@ -44,10 +44,34 @@ pub enum Part {
     Menu,
     /// A routing cable (round 25): every kind, faint, lit and selected.
     Cable,
+    /// A unit's face (round 32, ADR 0074): a variant of a skin's shapes and materials.
+    Skin(SkinPart),
 }
 
+#[path = "gallery_skin.rs"]
+mod skin_sheets;
+pub use skin_sheets::SkinPart;
+
 /// Every sheet, with the name its golden image carries.
-pub const PARTS: [(&str, Part); 23] = [
+pub const PARTS: [(&str, Part); 23 + skin_sheets::COUNT] = concat_parts();
+
+/// The kit's parts, then the skins' (round 32).
+const fn concat_parts() -> [(&'static str, Part); 23 + skin_sheets::COUNT] {
+    let mut out = [("", Part::Cap); 23 + skin_sheets::COUNT];
+    let mut i = 0;
+    while i < 23 {
+        out[i] = KIT_PARTS[i];
+        i += 1;
+    }
+    while i < 23 + skin_sheets::COUNT {
+        out[i] = skin_sheets::PARTS[i - 23];
+        i += 1;
+    }
+    out
+}
+
+/// The kit's own parts (ADR 0024 §4).
+const KIT_PARTS: [(&str, Part); 23] = [
     ("cap", Part::Cap),
     ("well", Part::Well),
     ("tile", Part::Tile),
@@ -95,6 +119,7 @@ pub fn slot(part: Part) -> Vec2 {
         Part::Scrollbar => Vec2::new(150.0, 24.0),
         Part::Menu => Vec2::new(210.0, 196.0),
         Part::Cable => Vec2::new(150.0, 150.0),
+        Part::Skin(sp) => skin_sheets::slot(sp),
     }
 }
 
@@ -116,6 +141,7 @@ pub fn ground_tok(part: Part) -> Tok {
         Part::Tab | Part::Splitter | Part::Scrollbar | Part::Menu | Part::SectionBand => Tok::Panel,
         Part::Cable => Tok::Strip,
         Part::Card => Tok::DeviceGround,
+        Part::Skin(sp) => skin_sheets::ground_tok(sp),
         Part::Cap | Part::Led => Tok::Strip,
         _ => Tok::Deck,
     }
@@ -397,6 +423,7 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
             menu::paint(b, r, s, &items, hovered);
         }
         Part::Cable => cable_sheet(b, rect, s, st),
+        Part::Skin(sp) => skin_sheets::paint(b, rect, s, sp, st),
     }
 }
 

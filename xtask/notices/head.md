@@ -102,6 +102,7 @@ Felker, et al.), and the notices musl carries from FreeBSD and Sun Microsystems
 | Font | Where | Copyright | Licence |
 |---|---|---|---|
 | IBM Plex Sans, Sans Condensed and Mono (Regular, Medium, SemiBold, Condensed Italic) | Cantus's interface (`crates/cantus-ui/assets/fonts/`) | © 2017 IBM Corp., with Reserved Font Name "Plex" | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL.txt`, printed below |
+| Bravura 1.482 (SMuFL) | the score's music font: the screen, MusicXML's engraving and the PDF, which embeds a subset (`crates/cantus-score/assets/`) | © 2015 Steinberg Media Technologies GmbH, with Reserved Font Name "Bravura" | SIL Open Font License 1.1 — `crates/cantus-score/assets/LICENSE-Bravura-OFL.txt`, printed below |
 | emoji-icon-font | the symbol fallback after every Plex face (`crates/cantus-ui/assets/fonts/`, as egui distributed it) | © 2014 John Slegers | MIT — `crates/cantus-ui/assets/fonts/LICENSE-emoji-icon-font.txt`, printed below |
 
 Fonts are bundled with the program; they are not sold by themselves. egui's other default

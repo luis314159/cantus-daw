@@ -423,6 +423,24 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
             app.apply_ui_scale(&ctx, UI_SCALES[sel]);
         }
     });
+    // Units wear their own faces (round 32, ADR 0074).
+    ui.horizontal(|ui| {
+        w::row_label(ui, "skin.settings.faces", LABEL_W, 24.0);
+        let mut sel = usize::from(!app.settings.unit_faces);
+        let labels = [
+            Src::Key("skin.settings.faces.on"),
+            Src::Key("skin.settings.faces.off"),
+        ];
+        if segmented(ui, &mut sel, &labels, &t("skin.settings.faces"), 160.0).changed() {
+            app.settings.unit_faces = sel == 0;
+            app.apply_unit_faces();
+            app.store_settings();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 18.0);
+        note(ui, &t("skin.settings.faces.hint"), false);
+    });
     ui.horizontal(|ui| {
         w::row_label(ui, "settings.colours", LABEL_W, 24.0);
         if w::button(ui, Src::Key("settings.edit_colours"), 0.0, true).clicked() {

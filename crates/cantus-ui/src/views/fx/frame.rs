@@ -144,7 +144,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         // Two displays and a table beside the macros: the display-first width.
         EffectKind::Space => DISPLAY_EFFECT,
         EffectKind::External => Vec2::new(820.0, 480.0),
-        EffectKind::Compressor => Vec2::new(1120.0, 780.0),
+        // Comprimo: 1120 wide, plus its needle card in its face (round 32, dynamics).
+        EffectKind::Compressor => Vec2::new(crate::views::comp_editor::designed_width(), 780.0),
         // Culmen: gain over time and the loudness, the bands and the curve, two rows of cells.
         EffectKind::Maximizer => Vec2::new(1180.0, 720.0),
         _ => Vec2::new(1000.0, 640.0),
@@ -164,7 +165,7 @@ pub fn window_ctl(maximised: bool) -> crate::kit::window_ctl::WindowCtl {
 
 /// The shell's id for a kind: its scale is kept per kind.
 pub fn shell_of(kind: EffectKind) -> Shell {
-    Shell::new(("cantus-fx", kind))
+    Shell::new(("cantus-fx", kind)).skin(crate::kit::skin::of_effect(kind))
 }
 
 // ---- the window -------------------------------------------------------------------------
@@ -489,10 +490,12 @@ pub fn show(
         chrome.name_w_at = u32::MAX;
     }
     // The name's room, at the theme's text size: again when the words or the size change.
-    let ts = Style::current().t.text_scale.to_bits();
+    // (and again when the face changes: the switch, its plate and lettering)
+    let ts =
+        Style::plain().t.text_scale.to_bits() ^ (crate::kit::cache::key(shell.skin.key) as u32);
     if chrome.name_w_at != ts {
         if let Some(w) = &chrome.words {
-            chrome.name_w = header_name_w(&ctx, &w.2, &w.3);
+            chrome.name_w = header_name_w(&ctx, shell.skin, &w.2, &w.3);
             chrome.name_w_at = ts;
         }
     }
@@ -550,7 +553,11 @@ pub fn show(
         body_rect = r;
         body(ui, s, r, host)
     });
-    let s = Style::current().scaled(out.k).function(hue_of(kind));
+    // The unit's face for its own menus too (round 32, ADR 0074).
+    let s = Style::plain()
+        .scaled(out.k)
+        .function(hue_of(kind))
+        .skinned(shell.skin);
     let rects = shell::header_rects(out.header, &s, &header);
     // The bypass lamp is the insert's bypass for MIDI learn (round 29, review 4 of ADR
     // 0062, #21).
@@ -636,12 +643,19 @@ pub fn show(
 
 /// The width the header's name (in capitals) and its context take at 100 %: what the
 /// preset well leaves room for before the name is cut (ADR 0073).
-pub fn header_name_w(ctx: &egui::Context, name: &str, context: &str) -> f32 {
+pub fn header_name_w(
+    ctx: &egui::Context,
+    skin: &'static crate::kit::skin::Skin,
+    name: &str,
+    context: &str,
+) -> f32 {
     use crate::kit::text::{measure, Role, Text};
-    let t = Style::current().t;
+    // On the unit's plate, in its lettering (round 32, ADR 0074).
+    let s = Style::plain().skinned(skin);
+    let t = s.t;
     // At the theme's text size, as the header paints them (`Style::tk`, at 100 %).
     let ts = t.text_scale;
-    let n = measure(ctx, &Text::new(name, Role::Section, t.text).caps(true), ts).x;
+    let n = crate::kit::skin::plates::name_width(ctx, &s, name);
     if context.is_empty() {
         return n + 2.0;
     }

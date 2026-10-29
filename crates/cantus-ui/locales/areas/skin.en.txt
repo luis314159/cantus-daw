@@ -1,0 +1,12 @@
+# Area: each unit's own face — the skins of our effects and instruments (round 32, ADR 0074,
+# BACKLOG §6h point 1). Every key here needs its twin in skin.es.txt.
+
+# ---- skin (the kit: the switch, the faces' words) ----
+skin.settings.faces = Units wear their own faces
+skin.settings.faces.short = Own faces
+skin.settings.faces.on = On
+skin.settings.faces.off = Off
+skin.settings.faces.hint = Each of our effects and instruments wears a face of its own: its colour, material, display and controls. Off: every unit in your theme's plain look.
+
+# ---- dynamics (the dynamics builder: Comprimo, Terminus, Multiplex, Sibilus, Porta, Culmen, Tonsor, Impetus, Discrimen) ----
+skin.comprimo.vu = Reduction

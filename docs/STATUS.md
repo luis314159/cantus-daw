@@ -1,8 +1,28 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-27 (round 31: **the daily gaps an FL or Ableton user hits first** — **automation** Read/Write/Touch/Latch per track and master with a global arm and one writer, and the piano roll's lanes for release velocity, pitch bend, pressure and CC, recorded, imported, exported and carried by every edit (ADR 0068, schema 42); **note effects** before the instrument — arpeggiator, chords, scale — on clips and live input, *Bake to notes*, the song's key lit, folded and snapped in the piano roll, groove templates (ADR 0069, schema 43); **crossfades** between overlapping audio clips and **clip gain envelopes** (ADR 0070, schema 44); **effects that sound on insert** through starting presets, the defaults still null (ADR 0071); a **command palette**, an **undo history panel**, a **start page** with project and track templates that opens at launch, the audio cores shown as engines and vehicles (ADR 0072, keymap 12); five flaky tests traced to their causes (two real sandbox races, a test-support scan, hermetic plug-in tests, per-thread test languages). Version **0.1.0-beta.6** (Windows and Linux; macOS waits for the Mac session). Schema 44, `DSP_VERSION` 5, keymap 12. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 737 pass on Windows (57 ignored), the engine fuzz 895 at `CANTUS_WORKERS=3`, 4 719 on Linux (WSL Ubuntu 24.04); clippy clean on both — after beta.6, with the hosted plug-ins' Cantus view (ADR 0073) and the macOS session flake's cause
+**Updated:** 2026-10-28 (round 32: **a face of its own for each unit** — every effect and instrument of ours wears a style sheet that is data (`kit::skin`): colour and material, a characteristic display (phosphor, LCD, VFD, glass, paper, scope; a VU needle), its own knob and switch shapes, lettering, plate and ornaments, in both themes and at any scale; 23 effects and 9 instruments, the exported CLAP/VST3 wearing the same faces, *Units wear their own faces* to turn it off, the frame budget held with three rich faces open (ADR 0074); **the score from the piano roll** — a new crate `cantus-score` reading notes for the page and engraving them in Bravura, the staff under the piano roll (`Alt+S`) and a Score pane (`Alt+Shift+S`), MusicXML 4.0 out and in, PDF, printing, editing on the staff (ADR 0075, schema 45, keymap 13); the README and the landing page show both. Version **0.1.0-beta.7** (Windows and Linux; macOS waits for the Mac session). Schema 45, `DSP_VERSION` 5, keymap 13. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 879 pass on Windows (59 ignored), the engine fuzz 895 at `CANTUS_WORKERS=3`, 4 861 on Linux (WSL Ubuntu 24.04); clippy clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 32 left
+
+Round 32 is on **master** (squashed) and published to `luis314159/cantus-daw`; **`v0.1.0-beta.7`**
+is released for Windows and Linux. The account: `docs/round32/integration.md`; one report per
+builder beside it (`skin`, `score`, `instruments`, `dynamics`, `modulation`). Under the owner's
+rule what is left is the owner's own, or new work:
+
+1. **Look and listen** (the owner's eyes and printer): the units' faces in both themes, the
+   score's engraving against Dorico or MuseScore, a printed page, the MusicXML in MuseScore 4
+   (installed on this machine).
+2. **The legal review** now also lists Concentus's "Juno I/II" and "Dimension 1–4" (kept by the
+   owner's decision, 2026-10-28) beside the cores' vehicle model names, Chorda and the CLA.
+3. **Everything rounds 30–31 left**: the Mac session and the Apple account (beta.8 can then
+   ship the `.dmg`), a real Linux desktop, Flathub, compacting the WSL disk image, listening to
+   round 31's features, the UMC in duplex, code signing, the RVR1960 permission, the trademark
+   filing; REAPER and FL Studio installed for the comparisons.
+4. **Round 33, in the owner's order (2026-10-28)**: Ableton's core — the session view, Ableton
+   Link, MIDI clock and MTC, MPE; then **round 34: AI** (the MCP server first, then stems, audio
+   to MIDI and a mastering assistant). The prompt is `docs/next-session.md`.
 
 ## The next session: what round 31 left
 
@@ -345,6 +365,22 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 32: a face of its own for each unit, and the score from the piano roll (requested 2026-10-27)
+
+**The ask:** BACKLOG §6h point 1 (each unit's own face, `kit::skin`, the exported plug-ins
+wearing it) and §0.2 *Notation* (the score from the piano roll: an engraved staff, MusicXML,
+PDF, printing, editing). Five builders (`skin`, `score`, `instruments`, `dynamics`,
+`modulation`) from contract `13986457`, then a showcase pass; ten one-agent reviews, every
+finding fixed with a test. Account: `docs/round32/integration.md`.
+
+| Part | What changed |
+|---|---|
+| The kit (ADR 0074) | A `Skin` is data — surface tint, accents per theme, material, display, knob and switch shapes (custom painters allowed), lettering, plate, ornaments; `Style.skin`, `Style::skinned` (the contrast floor after every tint and over every material), the worn style inside a unit's window, `display_style` for drawing inside a display (fills and polarity of the display's own ground), voices by the display's polarity, cue hues that never wear the accent; *Units wear their own faces* on the boot path; thumbnails keyed by a stable digest and pruned; the frame budget with three distinct rich faces (p95 ≤ 4 ms at 200 % and 2 px/pt) |
+| The faces | Instruments: Unda, Calor, Modulus (membrane keys), Exemplar, Gravis, Lamina, Organum (stop tabs), Chorda (soundboard and hammers), Pulsus. Dynamics: Comprimo (VU needle, 65 ms), Terminus, Multiplex, Sibilus, Porta, Culmen (LED-ring encoder), Tonsor, Impetus, Discrimen. Modulation: Concentus, Flexus, Phasis, Tremor, Vibrans, Anulus (ring knob), Translatio, Fluctus. Tone and space: Aequalis, Fervor, Spatium, Latitudo, Speculum, Tonus. Delay, Reverb and Firmus keep the plain look |
+| The score (ADR 0075) | `crates/cantus-score`: reading for the page (straight and tuplet grids per beat), two voices per staff, ties and rests after Gould, beams by metre, spelling by key and mode, clefs and 8va, a grand staff that follows the hands, dynamics from velocity, tempo and metre marks; engraving in Bravura (spacing by duration, systems broken over the whole piece, a last system at least half full justified); MusicXML 4.0 out and in (XSD-valid, opened in MuseScore 4), PDF (fonts subset, windings normalised), printing (the path passed as data); the staff under the piano roll, the Score pane, per-track score settings (`SetTrackScore`, schema 45), editing on the staff (keymap 13); the music font only on the app's path |
+| Showcase | README: every effect and instrument in its face, a score section (49 pictures); the landing page: a score section and a gallery of the 32 faces, EN/ES |
+| Causes | `freeze.rs`'s sweep deleted other runs' renders in a shared temp folder (test code); an instrument card built its rings by hand and wore the accent (one builder now) |
 
 ## Round 31: the daily gaps an FL or Ableton user hits first (requested 2026-10-25)
 

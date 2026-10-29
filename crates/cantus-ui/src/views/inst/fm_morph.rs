@@ -47,7 +47,14 @@ pub(super) fn card(
         Some(disp.max(40.0)),
     );
     if let Some(d) = cr.display {
-        pad(app, ui, track, spec, s, d);
+        pad(
+            app,
+            ui,
+            track,
+            spec,
+            &crate::views::inst::face::on_display(s),
+            d,
+        );
     }
     if !with_cells {
         return;

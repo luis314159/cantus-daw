@@ -27,6 +27,10 @@ pub struct Item {
     pub tokens: &'static [Tok],
     /// The tokens this use of it adds: the section hue, a lamp's colour and ground.
     pub extra: [Option<Tok>; 3],
+    /// The face it was painted in (round 32, ADR 0074): the unit's skin key
+    /// (`fx.eq`, `inst.fm`), or `plain` outside a unit's window — a skin's colours are
+    /// its sheet's data, listed under that key.
+    pub skin: &'static str,
 }
 
 impl Item {
@@ -159,6 +163,14 @@ pub fn paint_pick(b: &mut Brush, s: &Style, item: &Item, at: Pos2, bounds: Rect)
         .caps(true)
         .align(Align2::LEFT_CENTER);
     let _ = text::paint(b, title, &tt, s.tk());
+    // The unit's face it was painted in: its sheet holds the colours that are not tokens.
+    if item.skin != "plain" {
+        let kt = Text::new(item.skin, Role::Micro, with_alpha(t.menu_text, 0.7))
+            .caps(false)
+            .align(Align2::RIGHT_CENTER)
+            .policy(Policy::Elide(Elide::Middle));
+        let _ = text::paint(b, title, &kt, s.tk());
+    }
     for (i, tok) in item.all_tokens().enumerate() {
         let y = card.top() + 28.0 * k + row * i as f32;
         let sw = Rect::from_min_size(

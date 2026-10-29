@@ -113,14 +113,48 @@ pub struct Painted {
     pub shortened: bool,
 }
 
-fn job(s: &str, role: Role, k: f32) -> LayoutJob {
+/// A unit's lettering laid over a role (round 32, ADR 0074): another weight or width of
+/// the kit's faces, extra space between letters, values in the plain mono face. The
+/// default is the role's own face.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct Face {
+    /// The weight and whether condensed; `None` keeps the role's face.
+    pub letters: Option<(crate::kit::skin::Weight, bool)>,
+    /// Extra space between letters, in thousandths of an em, over the role's own.
+    pub tracking_milli: i16,
+    /// Values (and their units) in the plain mono face.
+    pub mono: bool,
+}
+
+impl Face {
+    /// The role's own face.
+    pub const ROLE: Face = Face {
+        letters: None,
+        tracking_milli: 0,
+        mono: false,
+    };
+}
+
+fn job(s: &str, role: Role, k: f32, face: Face) -> LayoutJob {
     let mut j = LayoutJob::default();
-    let format = |role: Role| TextFormat {
-        font_id: role.font(k),
-        extra_letter_spacing: role.tracking() * k,
-        color: Color32::PLACEHOLDER,
-        valign: Align::BOTTOM,
-        ..Default::default()
+    let format = |r: Role| {
+        let font_id = match face.letters {
+            _ if face.mono && matches!(role, Role::Value | Role::Hero) => r.mono_plain(k),
+            Some((w, c)) if r == role => r.lettered(w, c, k),
+            _ => r.font(k),
+        };
+        let extra = if r == role {
+            face.tracking_milli as f32 * 0.001 * r.size() * k
+        } else {
+            0.0
+        };
+        TextFormat {
+            font_id,
+            extra_letter_spacing: r.tracking() * k + extra,
+            color: Color32::PLACEHOLDER,
+            valign: Align::BOTTOM,
+            ..Default::default()
+        }
     };
     // A value's unit ("2.40 kHz", "-12.5 dB") is set after the number in the smaller
     // condensed face, as FL sets an LCD's fraction smaller: the digits keep their mono
@@ -148,23 +182,25 @@ fn resolve(src: Src<'_>, caps: bool) -> String {
     }
 }
 
-fn layout(ctx: &Context, s: &str, role: Role, k: f32) -> Arc<Galley> {
+/// What a text is set in: its role, the scale and the lettering.
+type Set = (Role, f32, Face);
+
+fn layout(ctx: &Context, s: &str, (role, k, face): Set) -> Arc<Galley> {
     // A name in a script no bundled font has asks for the system's faces (round 26).
     crate::font_fallback::note_text(ctx, s);
-    ctx.fonts_mut(|f| f.layout_job(job(s, role, k)))
+    ctx.fonts_mut(|f| f.layout_job(job(s, role, k, face)))
 }
 
 /// The longest candidate `make(n)` (n = 0…max) whose width fits `w`, by bisection.
 fn longest_fitting(
     ctx: &Context,
-    role: Role,
-    k: f32,
+    set: Set,
     w: f32,
     max: usize,
     make: impl Fn(usize) -> String,
 ) -> Option<Arc<Galley>> {
     let fits = |n: usize| {
-        let g = layout(ctx, &make(n), role, k);
+        let g = layout(ctx, &make(n), set);
         (g.size().x <= w + 0.01).then_some(g)
     };
     let mut best = fits(0)?;
@@ -182,16 +218,16 @@ fn longest_fitting(
     Some(best)
 }
 
-fn elide(ctx: &Context, s: &str, role: Role, k: f32, w: f32, how: Elide) -> Option<Arc<Galley>> {
+fn elide(ctx: &Context, s: &str, set: Set, w: f32, how: Elide) -> Option<Arc<Galley>> {
     let chars: Vec<char> = s.chars().collect();
     let n = chars.len();
     match how {
-        Elide::End => longest_fitting(ctx, role, k, w, n.saturating_sub(1), |m| {
+        Elide::End => longest_fitting(ctx, set, w, n.saturating_sub(1), |m| {
             let mut t: String = chars[..m].iter().collect::<String>().trim_end().to_string();
             t.push('…');
             t
         }),
-        Elide::Middle => longest_fitting(ctx, role, k, w, n.saturating_sub(1), |m| {
+        Elide::Middle => longest_fitting(ctx, set, w, n.saturating_sub(1), |m| {
             let head = m.div_ceil(2);
             let tail = m / 2;
             let mut t: String = chars[..head]
@@ -215,6 +251,18 @@ pub fn fit(
     k: f32,
     width: f32,
 ) -> Option<(Arc<Galley>, bool)> {
+    fit_face(ctx, c, text, k, width, Face::ROLE)
+}
+
+/// [`fit`] in a unit's lettering.
+pub fn fit_face(
+    ctx: &Context,
+    c: &mut KitCache,
+    text: &Text<'_>,
+    k: f32,
+    width: f32,
+    face: Face,
+) -> Option<(Arc<Galley>, bool)> {
     let ppp = ctx.pixels_per_point();
     let wq = (width * ppp).floor() as i32;
     let locale = matches!(text.src, Src::Key(_)).then(crate::i18n::locale);
@@ -227,10 +275,15 @@ pub fn fit(
         k.to_bits(),
         ppp.to_bits(),
     ));
-    let key = cache::key((base, wq));
+    // The role's own face keeps the key it always had; a lettering is part of the key.
+    let key = if face == Face::ROLE {
+        cache::key((base, wq))
+    } else {
+        cache::key((base, wq, face))
+    };
     c.fitted(key, || {
         let full = resolve(text.src, text.caps);
-        fit_uncached(ctx, text, &full, k, width)
+        fit_uncached(ctx, text, &full, (text.role, k, face), width)
     })
 }
 
@@ -238,10 +291,10 @@ fn fit_uncached(
     ctx: &Context,
     text: &Text<'_>,
     full: &str,
-    k: f32,
+    set: Set,
     width: f32,
 ) -> Option<(Arc<Galley>, bool)> {
-    let g = layout(ctx, full, text.role, k);
+    let g = layout(ctx, full, set);
     if g.size().x <= width + 0.01 {
         return Some((g, false));
     }
@@ -257,21 +310,26 @@ fn fit_uncached(
                     } else {
                         short
                     };
-                    let gs = layout(ctx, &short, text.role, k);
+                    let gs = layout(ctx, &short, set);
                     if gs.size().x <= width + 0.01 {
                         return Some((gs, true));
                     }
-                    return elide(ctx, &short, text.role, k, width, Elide::End).map(|g| (g, true));
+                    return elide(ctx, &short, set, width, Elide::End).map(|g| (g, true));
                 }
             }
             Elide::End
         }
     };
-    elide(ctx, full, text.role, k, width, how).map(|g| (g, true))
+    elide(ctx, full, set, width, how).map(|g| (g, true))
 }
 
 /// The natural size of a text, unshortened.
 pub fn measure(ctx: &Context, text: &Text<'_>, k: f32) -> Vec2 {
+    measure_face(ctx, text, k, Face::ROLE)
+}
+
+/// [`measure`] in a unit's lettering.
+pub fn measure_face(ctx: &Context, text: &Text<'_>, k: f32, face: Face) -> Vec2 {
     cache::with(ctx, |c| {
         let key = cache::key((
             text.src,
@@ -282,8 +340,13 @@ pub fn measure(ctx: &Context, text: &Text<'_>, k: f32) -> Vec2 {
             ctx.pixels_per_point().to_bits(),
             "measure",
         ));
+        let key = if face == Face::ROLE {
+            key
+        } else {
+            cache::key((key, face))
+        };
         c.galley(ctx, key, || {
-            job(&resolve(text.src, text.caps), text.role, k)
+            job(&resolve(text.src, text.caps), text.role, k, face)
         })
         .size()
     })
@@ -292,13 +355,24 @@ pub fn measure(ctx: &Context, text: &Text<'_>, k: f32) -> Vec2 {
 /// Paint `text` inside `rect` at scale `k`: fitted by its policy, aligned, never outside.
 /// Returns `None` when nothing could be painted (the box is too small for an ellipsis).
 pub fn paint(brush: &mut Brush, rect: Rect, text: &Text<'_>, k: f32) -> Option<Painted> {
+    paint_face(brush, rect, text, k, Face::ROLE)
+}
+
+/// [`paint`] in a unit's lettering ([`Face`]).
+pub fn paint_face(
+    brush: &mut Brush,
+    rect: Rect,
+    text: &Text<'_>,
+    k: f32,
+    face: Face,
+) -> Option<Painted> {
     let rotated = matches!(text.policy, Policy::Rotate90(_));
     let (w, h) = if rotated {
         (rect.height(), rect.width())
     } else {
         (rect.width(), rect.height())
     };
-    let (g, shortened) = brush.with_cache(|ctx, c| fit(ctx, c, text, k, w))?;
+    let (g, shortened) = brush.with_cache(|ctx, c| fit_face(ctx, c, text, k, w, face))?;
     let size = g.size();
     // A box too short for the line is a layout bug; paint nothing rather than overlap.
     if size.y > h * 1.34 + 1.0 {

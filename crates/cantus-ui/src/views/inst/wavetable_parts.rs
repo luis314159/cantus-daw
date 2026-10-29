@@ -18,8 +18,7 @@ use crate::kit::menu::{self, Check, Item};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::Param;
 use crate::kit::{well, with_brush, Brush, State, Style};
-use crate::views::inst::{source_family, write_readout};
-use cantus_core::inst::modulation::connections;
+use crate::views::inst::write_readout;
 use cantus_core::{NativeSpec, TrackId};
 use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Ui, Vec2};
 use std::fmt::Write as _;
@@ -73,10 +72,7 @@ pub fn row_width(n: usize, size: KnobSize, s: &Style) -> f32 {
 
 /// The modulation reaching `key`, as the kit's rings.
 fn rings_for(spec: &NativeSpec, key: &str, s: &Style) -> Vec<(f32, Color32)> {
-    connections(spec)
-        .filter(|c| c.dst == key && c.on)
-        .map(|c| (c.amount, s.t.hue(source_family(c.src))))
-        .collect()
+    crate::views::inst::frame::rings_for(spec, key, s)
 }
 
 /// The readout a parameter gets unless its cell names another: the house one, with whole

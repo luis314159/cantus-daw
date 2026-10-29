@@ -60,6 +60,9 @@ pub enum Pane {
     /// The undo history (round 31, ADR 0072, `views::history`): every step, the current one
     /// marked, a click goes there; beside the inspector; Alt+H.
     History,
+    /// The Score pane (round 32, ADR 0075, `views::score_view`): the selected track's part
+    /// engraved, beside the piano roll in the lower zone; *View ▸ Score*.
+    Score,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -89,6 +92,7 @@ impl Pane {
             Pane::Routing => "matrix.pane",
             Pane::Controllers => "ctl.pane",
             Pane::History => "workflow.history.pane",
+            Pane::Score => "score.pane",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -107,6 +111,7 @@ impl Pane {
             Pane::Routing => "matrix.toggle",
             Pane::Controllers => "ctl.toggle",
             Pane::History => "action.view-history",
+            Pane::Score => "action.view-score",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -124,6 +129,7 @@ impl Pane {
             Pane::Routing => Glyph::Send,
             Pane::Controllers => Glyph::Controller,
             Pane::History => Glyph::Undo,
+            Pane::Score => Glyph::Score,
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -133,7 +139,12 @@ impl Pane {
     pub fn is_lower(self) -> bool {
         matches!(
             self,
-            Pane::PianoRoll | Pane::ChannelRack | Pane::Mixer | Pane::Routing | Pane::Controllers
+            Pane::PianoRoll
+                | Pane::ChannelRack
+                | Pane::Mixer
+                | Pane::Routing
+                | Pane::Controllers
+                | Pane::Score
         )
     }
 

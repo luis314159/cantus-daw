@@ -21,7 +21,7 @@ const EFFECTS: [Fx; 7] = [
     Fx { file: "eq", name: "Aequalis", kind: ("EQ", "Ecualizador"), size: (1180, 640), song: "Midnight Static",
          line: ("24 bands, nine shapes, dynamic bands and three phase modes. The display is the control.",
                 "24 bandas, nueve formas, bandas dinámicas y tres modos de fase. La pantalla es el control.") },
-    Fx { file: "comp", name: "Comprimo", kind: ("Compressor", "Compresor"), size: (1120, 780), song: "Paper Lanterns",
+    Fx { file: "comp", name: "Comprimo", kind: ("Compressor", "Compresor"), size: (1260, 780), song: "Paper Lanterns",
          line: ("A compressor you can read: a history of what it did, the transfer curve and an EQ for its key, with measured auto gain.",
                 "Un compresor que se lee: el historial de lo que hizo, la curva de transferencia y un EQ para su señal de control, con ganancia automática medida.") },
     Fx { file: "deesser", name: "Sibilus", kind: ("De-esser", "De-esser"), size: (1000, 640), song: "Midnight Static",

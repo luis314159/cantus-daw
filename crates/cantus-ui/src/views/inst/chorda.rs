@@ -20,7 +20,7 @@
 //! — strings, tuning, hammer, the strings' ring, pedals, resonance, output.
 
 #[path = "chorda_draw.rs"]
-mod draw;
+pub(crate) mod draw;
 
 use super::organ::parts::{cells, paint_card, Card, Rows};
 use super::FactoryPreset;
@@ -141,7 +141,11 @@ fn card(
     }
     let cr = paint_card(ui, rect, s, &c);
     if let Some(d) = cr.display {
-        with_brush(&ui.painter_at(d), |b| paint(b, d, &sf));
+        let sd = crate::views::inst::face::on_display(&sf);
+        with_brush(&ui.painter_at(d), |b| {
+            paint(b, d, &sd);
+            crate::views::inst::face::cover(b, d, &sd);
+        });
     }
     if !keys.is_empty() {
         cells(app, ui, cr.body, track, spec, keys, &sf, KnobSize::M);

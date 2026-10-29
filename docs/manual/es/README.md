@@ -1083,6 +1083,65 @@ groove de cada clip y los efectos de nota de cada pista escritos nota a nota: el
 toca lo que se oye) o **Como están escritas** (las notas de los clips, sin groove ni
 efectos de nota).
 
+### La partitura: notación, MusicXML, PDF e impresión
+
+Cada clip de notas y cada pista MIDI se pueden leer como una partitura grabada, hecha como
+la hacen Dorico, MuseScore y Sibelius: las notas **leídas** en figuras que muestran el
+compás, ligadas donde hay que ver el pulso o la mitad del compás, barradas por pulso,
+escritas en la tonalidad de la canción con alteraciones por compás, en la fuente SMuFL
+Bravura.
+
+- **El pentagrama bajo el piano roll**: la barra del piano roll tiene un interruptor
+  **Partitura** (`Alt+S`). La parte del clip aparece como un pentagrama largo bajo el roll;
+  arrastra su borde superior para hacerlo más alto. Sigue al cursor de reproducción
+  (**Seguir**), muestra la selección del piano roll en el color de selección y se desplaza
+  con la rueda; `Ctrl` + rueda o **−** / **+** lo hacen más pequeño o más grande.
+- **El panel Partitura** (*Vista ▸ Partitura*, `Alt+Shift+S`): toda la parte de la pista elegida, cada
+  clip de su carril, en sistemas que se ajustan al ancho del panel y se desplazan hacia
+  abajo.
+- **Leer, no mover**: la partitura redondea las notas solo para leerlas; las notas que
+  suenan nunca se mueven. Cada pulso elige figuras normales o tresillos (también seisillos y
+  quintillos) según lo que las notas piden; **Leer en** impone una rejilla (corcheas,
+  semicorcheas, fusas, tresillos, seisillos) cuando un pasaje se lee mejor así.
+- **Los ajustes de la parte** (en la barra de la partitura; cada uno es un paso del
+  historial): **Clave** (Auto elige la que pide menos líneas adicionales; claves de octava
+  para partes muy agudas o graves; los pasajes muy agudos o graves llevan una línea *8va* /
+  *8vb*), **Pentagramas** (Auto da un sistema de piano a la parte que abarca las dos manos),
+  **División** (el sistema de piano sigue a las manos —una melodía que baja del Do central
+  se queda en la mano derecha— o divide en una nota fija), **Altura** (un instrumento
+  transpositor: el clarinete o la trompeta en Si♭ se escriben un tono más arriba, el saxo
+  alto en Mi♭ una sexta, la trompa en Fa una quinta; la armadura se mueve con ellos),
+  **Dinámicas** (pp … ff a partir de la velocidad de las notas) y el **nombre de la parte**
+  (vacío es el de la pista).
+- **Tempo y compás** salen del mapa de tempo: una indicación ♩ = 120 al principio y en
+  cada cambio (una negra con puntillo en 6/8 y 12/8; *accel.* o *rit.* donde empieza una
+  rampa) y la indicación de compás en cada cambio de compás.
+- **Editar en el pentagrama**: un clic en una nota la elige (`Mayús`+clic añade). Con la
+  partitura como lo último pulsado, `Arriba` / `Abajo` mueven la selección un grado de la
+  tonalidad (un semitono sin tonalidad), `Ctrl+Arriba` / `Ctrl+Abajo` una octava, `Supr` la
+  borra. **Entrada** (o `N`) escribe notas como MuseScore: `3`–`7` eligen la figura (de
+  semicorchea a redonda), `.` un puntillo, las letras `A`–`G` ponen una nota en el cursor —en
+  la tonalidad, en la octava más cercana a la anterior— y avanzan el cursor; un clic en el
+  pentagrama mueve el cursor; `Esc` termina (la entrada también se detiene al final del
+  clip). En una parte transpuesta las letras son las notas escritas. Fuera de la entrada,
+  `Mayús+Arriba` / `Mayús+Abajo` y `Esc` conservan su sentido de siempre (transponer una
+  octava, quitar la selección). Cada cambio es un comando normal: `Ctrl+Z` lo
+  deshace.
+- **Archivos** (el menú **Archivos** de la partitura): **Exportar MusicXML…** escribe la
+  parte del clip o de la pista, **Exportar la canción como MusicXML…** cada pista MIDI como
+  una parte (MusicXML 4.0, que abren MuseScore, Dorico, Sibelius y Finale; la velocidad de
+  cada nota va con ella). **Exportar PDF (A4 / Carta)…** escribe páginas vectoriales con las
+  fuentes incrustadas, el nombre del proyecto como título y la etiqueta *Artista* de la
+  exportación como compositor. **Importar MusicXML…** pone cada parte de un archivo
+  `.musicxml` en una pista nueva como un clip (un `.mxl` comprimido hay que descomprimirlo
+  antes); en una canción aún sin notas, el tempo, los compases y la tonalidad del archivo
+  vienen con él, y una canción con notas conserva los suyos.
+- **Imprimir**: **Imprimir…** crea el PDF y lo entrega a la impresión del sistema: en
+  **Windows** lo imprime la aplicación de PDF predeterminada (Edge, Acrobat, SumatraPDF…; si
+  ninguna está preparada para imprimir, el PDF se abre para imprimirlo desde allí); en
+  **Linux** y **macOS** se envía a la impresora predeterminada con `lp` (CUPS), o se abre en
+  el visor de PDF si no hay CUPS.
+
 ## 6. Mezclar: el mezclador, inserciones y envíos
 
 ![El mezclador](../img/mixer.png)
@@ -1399,7 +1458,51 @@ mezcla y su puenteo.
 
 Los efectos son Aequalis (EQ), Comprimo (compresor), Porta (puerta y expansor), Sibilus
 (de-esser), Multiplex (dinámica multibanda), Terminus (limitador), Culmen (maximizador),
-Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Delay y Reverb.
+Tonsor (recortador), Impetus (moldeador de transitorios), Discrimen (divisor de
+transitorios), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Speculum
+(analizador), Tonus (corrección de afinación), Concentus (chorus), Flexus (flanger), Phasis
+(phaser), Tremor (trémolo y auto-pan), Vibrans (vibrato), Anulus (modulador en anillo),
+Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Delay y Reverb.
+
+### La cara de cada unidad
+
+Cada efecto e instrumento de Cantus lleva una cara propia —todos menos el Delay y el Reverb
+sencillos y Firmus, el sintetizador con el que empieza cada pista nueva, que conservan el
+aspecto sencillo del kit—, como el hardware y como los mejores plug-ins: su color y el material de su panel (metal cepillado, madera, pintura mate,
+vinilo de amplificador, cristal…), el aspecto de su pantalla (una pantalla que brilla, un LCD, tinta sobre
+papel, la cuadrícula de un osciloscopio), la forma de sus perillas e interruptores (un anillo
+de valor, una perilla con falda, una cabeza de pollo, un dial graduado; una palanca, un
+basculante, un botón luminoso) y la rotulación de su nombre. Reconoces una unidad de un
+vistazo, aunque esté pequeña en una esquina de la pantalla.
+
+Una cara cambia cómo se ve una unidad, nunca cómo funciona: cada control conserva su nombre
+y su valor debajo, su menú del clic derecho (*Modular…*, *Aprender controlador MIDI*, automatización), el
+teclado y el lector de pantalla; la ventana sigue cambiando de tamaño del 75 % al 200 %. Las
+caras siguen tu tema — cada cara tiene una versión oscura y una clara, y las palabras se leen
+bien sobre ella.
+
+¿Prefieres todas las unidades con el aspecto sencillo de tu tema? *Ajustes ▸ Apariencia ▸
+Cada unidad con su propia cara ▸ No*. La elección se guarda y se aplica en el acto a las
+ventanas abiertas. Los plug-ins de otros fabricantes mostrados en la vista de Cantus conservan
+el aspecto sencillo; los efectos de Cantus que usas como plug-ins CLAP o VST3 en otro programa
+llevan siempre su cara.
+
+### La cara de cada instrumento
+
+Las caras de los instrumentos, una a una (los controles, el menú del clic derecho y el
+teclado funcionan igual en todas):
+
+| Instrumento | Su cara |
+|---|---|
+| Unda | Cristal índigo profundo; la tabla de ondas brilla cian en 3D, el cuadro que suena ahora en magenta |
+| Calor | Un panel cepillado cálido con rótulos naranjas, perillas mecanizadas y un osciloscopio bajo el filtro |
+| Modulus | Un panel marrón mate; operadores, envolventes y espectro en una pantalla verde de cristal líquido; teclas de membrana cuya barra de color se enciende |
+| Exemplar | Una caja anodizada gris violeta; zonas y forma de onda que brillan en violeta sobre una pantalla de fósforo, los puntos del bucle en verde azulado |
+| Gravis | Vinilo de amplificador negro con un piloto azul y perillas de puntero; el marcador de pulsación en rojo |
+| Lamina | Laca burdeos en rosa; la púa con su barra de tono de latón y la pastilla tras un cristal |
+| Organum | Nogal con el verde de un ojo mágico; barras en blanco, negro y marrón sobre un gráfico impreso, pestañas de marfil que se inclinan y se encienden, diales graduados |
+| Chorda | Laca negra (blanca en un tema claro) y oro; las cuerdas sobre una tabla armónica de abeto, el borde del arpa de hierro, los martillos de fieltro |
+| Pulsus II | Una caja oscura con teclas de lámpara amarillo 808; cada golpe en una pantalla fluorescente amarilla, su envolvente en naranja |
 
 ### Chorda: el piano de cola modelado
 
@@ -1420,9 +1523,10 @@ mueva un **modulador**; el medio pedal también funciona ahí. El pedal que oyen
 es el mayor entre la perilla y el controlador 64, así que un pedal real sigue funcionando
 encima de un carril. La demo *De todo corazón* está pedaleada así.
 
-- **Tocar** muestra el piano visto desde arriba — las cuerdas de cada tecla a su longitud,
-  el puente, dónde golpean los martillos, los apagadores — con la última tecla tocada
-  iluminada, y los pedales: el recorrido del pedal derecho dibujado sobre la ley de cuánto
+- **Tocar** muestra el piano visto desde arriba — las cuerdas de cada tecla a su longitud
+  sobre la tabla armónica de abeto, el puente, el borde del arpa de hierro, la fila de
+  martillos de fieltro por donde golpean, los apagadores — con la última tecla tocada
+  iluminada y su martillo levantado, y los pedales: el recorrido del pedal derecho dibujado sobre la ley de cuánto
   bajan los apagadores en cada posición, con las perillas **Derecho**, **Apagadores** y
   **Suave** debajo. Debajo: el martillo (dureza, dinámica, curva de
   velocidad), la resonancia (simpatía, extinción, tabla armónica) y la salida
@@ -1480,6 +1584,25 @@ hará el LFO en los dos ciclos siguientes, con un cabezal donde está ahora.
 
 **En otro DAW.** Las versiones CLAP y VST3 exportadas leen el tempo y la posición del
 anfitrión, así que un Tremor o un Fluctus al tempo siguen también la canción de ese DAW.
+
+**La cara de cada uno.** Los ocho llevan una cara propia, construida alrededor de la
+pantalla que muestra cómo mueve cada uno el sonido; el otro canal o la otra voz se dibuja en
+el segundo color de cada cara. Los controles funcionan como en todas partes (el valor sobre
+cada perilla y su nombre debajo, clic derecho para *Modular…*, aprendizaje MIDI y automatización,
+el teclado y el lector de pantalla); cada color conserva su contraste en los temas claros y
+oscuros, y *Cada unidad con su propia cara* en *Ajustes ▸ Apariencia* las apaga para el
+aspecto sencillo.
+
+| Efecto | Su cara |
+|---|---|
+| Concentus | Plata cepillada con orejas de rack, perillas mecanizadas y teclas con luz para los modelos; el retardo de cada voz bajo un cristal como las cuentas de una cadena de cubos (BBD), las voces izquierdas en azul hielo, las derechas en ámbar |
+| Flexus | Laca violeta, perillas con faldón e interruptores de palanca; el peine brilla en una pantalla de fósforo con una marca bajo cada muesca, y por cero la línea húmeda destella en lima donde cruza la seca |
+| Phasis | Naranja mate como un pedal, perillas blandas; la respuesta en una pantalla fluorescente, cada muesca marcada en verde azulado |
+| Tremor | Vinilo de amplificador verde espuma con diales graduados; la forma trazada por la pluma de un registrador sobre papel, el otro lado en ámbar |
+| Vibrans | Lavanda tras un cristal ahumado, aros de valor; la afinación en cents en el panel de cristal líquido de un afinador, con su escala y una aguja en la afinación de ahora |
+| Anulus | Una caja de nogal — *anulus* es «anillo» en latín — con perillas que son anillos; las bandas laterales en un osciloscopio de laboratorio en oro, cada par unido por un anillo alrededor de la entrada |
+| Translatio | Rack de aluminio anodizado negro con perillas de puntero; el espectro en una pantalla de fósforo verde, una flecha que lleva cada armónico adonde llega, la banda lateral derecha en coral |
+| Fluctus | Fibra de carbono; la forma en magenta bajo un cristal oscuro, el cabezal en cian con el nivel que recorre ahora |
 
 **Tus plug-ins.** Al pulsar *Buscar plug-ins* (*Ajustes ▸ Plug-ins*), Cantus revisa las
 carpetas estándar — `%LOCALAPPDATA%\Programs\Common\CLAP` y `…\VST3`,
@@ -1596,6 +1719,45 @@ empieza a 0 dBFS y no cambia nada hasta que un pico se pasa, y Speculum solo mir
 | Speculum | Un analizador que nunca toca el sonido | Pestañas: *Resumen*, *Espectro* (promedio, pendiente, retención de picos, medio/lados/izquierda/derecha), *Espectrograma*, *Osciloscopio* (libre, con disparo o **en el pulso**), *Vectorial* (y la **correlación**: por debajo de 0 hay problemas en mono), *Sonoridad* (LUFS momentánea, a corto plazo e integrada, rango, pico real, frente a un objetivo: las lecturas de EBU R128). ⋯ ▸ **Acoplar en el espacio de trabajo** lo vuelve una pestaña que puedes redimensionar, dividir o sacar como ventana; acopla varios y míralos a la vez. |
 
 Páginas: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
+
+### La cara de cada efecto de dinámica
+
+Los efectos de dinámica llevan una cara propia, construida alrededor de la pantalla que
+cuenta su historia: cuánto quitan. Los controles funcionan como en todas partes (la
+etiqueta y el valor bajo cada perilla, clic derecho para *Modular…*, aprendizaje MIDI y
+automatización, el teclado y el lector de pantalla); cada color conserva su contraste en
+los temas claros y oscuros, y *Cada unidad con su propia cara* en *Ajustes ▸ Apariencia* las
+apaga para el aspecto sencillo.
+
+| Efecto | Su cara |
+|---|---|
+| Comprimo | Un frente de rack de aluminio anodizado negro con orejas, rótulos ámbar y perillas con faldón; una aguja marca la reducción de ganancia, y el historial y la transferencia se dibujan en papel de gráfica color crema |
+| Terminus | Grafito mate con una línea roja bajo el nombre — el techo; la salida en azul hielo y lo que quita en rojo tras un cristal oscuro, aros de valor por perillas |
+| Multiplex | Cristal ahumado violeta; las bandas brillan en el violeta, el cian y los tonos entre ellos de su cara, en una pantalla de fósforo |
+| Sibilus | Plata cepillada con tornillos y rejillas; la sibilancia brilla en cian helado, perillas mecanizadas |
+| Porta | Una puerta de caoba — *porta* es «puerta» en latín — con verde para abierta y ámbar para cerrada en un panel de cristal líquido, perillas blandas |
+| Culmen | Laca zafiro profunda con orejas de rack, perillas rodeadas de LED; las bandas y la sonoridad en una pantalla fluorescente |
+| Tonsor | Fibra de carbono; la curva de transferencia trazada por un haz naranja sobre la retícula de un osciloscopio |
+| Impetus | Vinilo de amplificador negro como un amplificador de batería, perillas de puntero; el ataque en lima, el sostenido en violeta |
+| Discrimen | Una tarjeta impresa de laboratorio con diales graduados; el transitorio en magenta y el cuerpo en verde azulado, como los dos canales de un osciloscopio |
+
+### La cara de cada efecto de tono, espacio y análisis
+
+Los efectos de tono, espacio y análisis también llevan una cara propia, construida
+alrededor de su pantalla. Los controles funcionan como en todas partes (la etiqueta y el
+valor bajo cada perilla, clic derecho para *Modular…*, aprendizaje MIDI y automatización, el
+teclado y el lector de pantalla). Cada color conserva su contraste en los temas claros y
+oscuros, y *Cada unidad con su propia cara* en *Ajustes ▸ Apariencia* las apaga para el
+aspecto sencillo.
+
+| Efecto | Su cara |
+|---|---|
+| Aequalis | Aluminio anodizado azul, como un instrumento de precisión: la curva en cian tras un cristal ahumado, el analizador en ámbar detrás, perillas pequeñas con tapa, el nombre grabado, valores en cifras de igual ancho |
+| Fervor | Vinilo de amplificador marrón cálido con tornillos y rejillas, perillas de pico de gallo y palancas, el nombre en una placa: la curva brilla en una ventana fluorescente ámbar, y los armónicos pares se ven en ámbar y los impares en amarillo de filamento |
+| Spatium | Laca índigo profunda, una sala de noche: el decaimiento y la cola brillan en una pantalla de fósforo azul, las primeras reflexiones en cian frío, con perillas suaves y teclas con luz |
+| Latitudo | Acero cepillado en un rack con tornillos y orejas, como un medidor de fase de radiodifusión: el campo estéreo y el tono se dibujan en la retícula de un osciloscopio, el centro en verde y los lados en naranja, con diales graduados y basculantes |
+| Speculum | Esmalte gris verdoso, como un analizador de banco: el espectro, el osciloscopio y la sonoridad se dibujan en un panel de cristal líquido retroiluminado, el pico retenido en rojo, con aros de valor y mayúsculas estrechas |
+| Tonus | Magenta tras un cristal ahumado, como una cabina de voz: la afinación se dibuja en papel de gráfica, lo que sale en magenta y lo cantado en verde azulado, con perillas suaves y teclas con luz |
 
 ### Cuando un plug-in falla
 
@@ -1736,7 +1898,8 @@ ayudan, `1` para el hilo de audio solo — cada número con un motor y un modelo
 se le conoce, dibujado a la derecha de la lista y en grande bajo el campo:
 `4 · V4 · Fulvia`, `12 · V12 · Enzo`, más de 16 un turborreactor-estatorreactor; la línea de
 debajo dice cuántos trabajan ahora, contados igual; la prioridad de tiempo real que recibió
-cada hilo de audio es la última línea del bloque), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz,
+cada hilo de audio es la última línea del bloque), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz, *Cada unidad
+con su propia cara* — sí o no, mira [La cara de cada unidad](#la-cara-de-cada-unidad) —,
 colores, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB
 de forma predeterminada; cuando se llena, salen primero las muestras que llevan más tiempo
 sin usarse — y *Vaciar caché*; vive en `%LOCALAPPDATA%\Cantus\cache\samples`, o en la
@@ -1782,6 +1945,7 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Ctrl++` · `Ctrl+-` · `Ctrl+0` | Zoom de la interfaz |
 | `Ctrl+,` | Ajustes |
 | `Ctrl+Shift+P` · `Alt+H` | La paleta de comandos · el historial de deshacer |
+| `Alt+S` · `Alt+Shift+S` | La partitura bajo el piano roll · el panel Partitura |
 
 **En un Mac** `Cmd` (⌘) ocupa el lugar de `Ctrl` y `Opción` (⌥) el de `Alt`, y el preset
 *macOS* es el predeterminado: las teclas de la tabla, salvo que el metrónomo es `Cmd+K` (o `K` con el teclado del ordenador apagado; ⌘M

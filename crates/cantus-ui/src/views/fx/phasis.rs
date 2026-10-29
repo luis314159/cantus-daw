@@ -178,6 +178,8 @@ fn body_ui(
     tel: &[f32; 64],
     ps: &PhasisSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -187,9 +189,9 @@ fn body_ui(
     let total = area.width() - gap;
     let rw = RESPONSE_W * k;
     let r1: Vec<Rect> = g.row(row1, &[(total - rw) / total, rw / total]).collect();
-    let sm = s.function(Function::Mod);
+    let sm = modfx::own(s, Function::Mod);
     sweep_card(host, st, ui, &sm, r1[0], tel, ps);
-    response_card(ui, &s.function(Function::Tone), r1[1], tel, ps);
+    response_card(ui, &modfx::own(s, Function::Tone), r1[1], tel, ps);
 
     let w = [
         controls::cells_width(&[Size::XL, Size::M, Size::M]) + 16.0,
@@ -210,7 +212,7 @@ fn body_ui(
             controls::param_with(ui, &sm, host, "out", Size::M, Some(&modfx::db_pill));
         },
     );
-    let st_ = s.function(Function::Tone);
+    let st_ = modfx::own(s, Function::Tone);
     controls::card(
         ui,
         &st_,
@@ -361,7 +363,12 @@ fn response_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], ps: 
                     ink.text,
                 );
                 b.area(&pts, plot.bottom(), ink.fill(0.5));
-                b.polyline(&pts, 1.6 * k, ink.hue);
+                canvas::trace(b, &pts, 1.6 * k, ink.hue, &ink);
+                // Every notch the cascade makes now, marked on the axis, in its own face
+                // (round 32).
+                if let Some(c) = modfx::face::second_voice(s, &ink) {
+                    modfx::face::notches(b, &pts, plot.bottom(), plot.height() * 0.12, k, c);
+                }
                 for (word, at) in [("100", 100.0f32), ("1k", 1_000.0), ("10k", 10_000.0)] {
                     let t = Text::new(word, Role::Micro, ink.dim);
                     canvas::put(

@@ -136,11 +136,12 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CellLook<'_
         Control::Knob(k) if k.size == KnobSize::XL => Role::Hero,
         _ => Role::Value,
     };
-    let _ = text::paint(
+    let _ = text::paint_face(
         b,
         pill.shrink2(Vec2::new(s.s(2.0), 0.0)),
         &Text::new(look.value, role, f(pill_text)).policy(Policy::Elide(text::Elide::End)),
         s.tk(),
+        s.skin.lettering.value(),
     );
 
     // The control.

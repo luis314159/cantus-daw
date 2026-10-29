@@ -104,6 +104,7 @@ pub(super) fn card(
     let Some(d) = cr.display else {
         return;
     };
+    let s = &crate::views::inst::face::on_display(s);
     let folds = bw > 0.45 * RATE;
     let q = spec.get("quality").round() as usize;
     let g = spec.get("guard").round() as usize;

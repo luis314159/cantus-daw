@@ -69,6 +69,12 @@ pub fn band_color(curve: Curve, n: usize) -> Color32 {
     }
 }
 
+/// The post EQ's colour: the tone hue as ever; in a face, a voice of its own apart from the
+/// decay curve's (round 32, the review of delivery 2: both had become the accent).
+pub fn post_colour(s: &Style, ink: &Ink) -> Color32 {
+    ink.third(s, Function::Tone)
+}
+
 /// A band's colour as the display draws it: clamped to the theme's safe band.
 fn band_ink(curve: Curve, n: usize, s: &Style) -> Color32 {
     crate::kit::color::safe_track(
@@ -253,6 +259,9 @@ fn head_controls(
     view: &View,
     head: Rect,
 ) {
+    // The head lies on the display: its controls in the display's style (its fills,
+    // its polarity), the theme's in the plain look.
+    let s = &crate::kit::skin::display_style(s);
     let k = s.k;
     let mut child = ui.new_child(
         egui::UiBuilder::new()
@@ -336,7 +345,7 @@ fn paint(
     let k = s.k;
     let tk = s.tk();
     let ink = Ink::of(s);
-    let tone = s.t.hue_tone;
+    let tone = post_colour(s, &ink);
     let plot = geo.rect;
     let px = b.px();
     canvas::ground_b(b, rect, &ink, s.hue_tok);
@@ -988,5 +997,66 @@ fn menu(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style) {
     }
     if close {
         st.menu = None;
+    }
+}
+
+#[cfg(test)]
+mod face_colour_tests {
+    use super::*;
+    use crate::kit::color::{contrast, Hsl};
+
+    fn gap(a: Color32, b: Color32) -> f32 {
+        let (a, b) = (Hsl::of(a), Hsl::of(b));
+        if a.s < 0.15 || b.s < 0.15 {
+            return 180.0;
+        }
+        let d = (a.h - b.h).rem_euclid(360.0);
+        d.min(360.0 - d)
+    }
+
+    fn face(base: crate::kit::Tokens) -> (Style, Ink) {
+        let sheet = crate::kit::skin::of_effect(cantus_core::EffectKind::Space);
+        let s = Style::new(base).skinned(sheet).function(Function::Space);
+        let ink = Ink::of(&s);
+        (s, ink)
+    }
+
+    fn pairs(base: crate::kit::Tokens) -> Vec<(&'static str, Color32, Color32)> {
+        let (s, ink) = face(base);
+        vec![(
+            "the post EQ and the decay curve",
+            post_colour(&s, &ink),
+            ink.hue,
+        )]
+    }
+
+    fn grounds(base: crate::kit::Tokens) -> Vec<(&'static str, Color32, Color32)> {
+        let (s, ink) = face(base);
+        vec![("the post EQ", post_colour(&s, &ink), ink.ground)]
+    }
+
+    /// Round 32, the review of delivery 2: colours that tell two things apart inside the
+    /// display stay apart in the unit's face (at least 20° of hue) and read on the look's
+    /// ground (3:1), in every preset.
+    #[test]
+    fn colours_with_a_meaning_stay_apart_in_the_face() {
+        let mut bad = Vec::new();
+        for (key, make) in crate::theme::PRESETS {
+            let base = make().kit_tokens();
+            for (what, a, b) in pairs(base) {
+                if gap(a, b) < 20.0 {
+                    bad.push(format!("{key}: {what} {:.0}° apart", gap(a, b)));
+                }
+            }
+            for (what, c, ground) in grounds(base) {
+                if contrast(c, ground) < 2.99 {
+                    bad.push(format!(
+                        "{key}: {what} at {:.2} on the ground",
+                        contrast(c, ground)
+                    ));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
     }
 }

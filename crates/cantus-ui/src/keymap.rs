@@ -198,6 +198,11 @@ pub enum Action {
     CommandPalette,
     /// Show or hide the undo history.
     ViewHistory,
+    // The score (round 32, ADR 0075)
+    /// Show or hide the staff under the piano roll.
+    ShowScore,
+    /// Show or hide the Score pane (the selected track's part).
+    ViewScore,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -243,7 +248,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 103] = [
+    pub const ALL: [Action; 105] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -351,6 +356,9 @@ impl Action {
         // Round 31 (ADR 0068).
         Action::ToggleAutomationArm,
         Action::CycleTrackAutoMode,
+        // Round 32 (ADR 0075).
+        Action::ShowScore,
+        Action::ViewScore,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -456,6 +464,8 @@ impl Action {
             Action::OpenSettings => "open-settings",
             Action::CommandPalette => "command-palette",
             Action::ViewHistory => "view-history",
+            Action::ShowScore => "show-score",
+            Action::ViewScore => "view-score",
             Action::NewFromTemplate => "new-from-template",
             Action::SaveAsTemplate => "save-as-template",
             Action::SaveTrackTemplate => "save-track-template",
@@ -514,7 +524,9 @@ impl Action {
             | ToggleInstrumentWindow
             | ViewControllers
             | CommandPalette
-            | ViewHistory => Category::View,
+            | ViewHistory
+            | ShowScore
+            | ViewScore => Category::View,
             MidiLearnMode => Category::Tools,
             LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
@@ -933,6 +945,17 @@ fn common() -> Vec<(Action, Binding)> {
         // typing piano).
         (CommandPalette, Binding::cmd_shift(Key::P)),
         (ViewHistory, Binding::alt(Key::H)),
+        // The score under the piano roll (round 32, ADR 0075): Alt+S, S for score — free in
+        // every preset; Alt keeps it from the typing piano.
+        (ShowScore, Binding::alt(Key::S)),
+        // The Score pane beside it: Alt+Shift+S.
+        (
+            ViewScore,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::S)
+            },
+        ),
     ]
 }
 
@@ -1307,6 +1330,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 12 {
             map.fill_in(&NEW_IN_V12);
         }
+        if file.version.unwrap_or(1) < 13 {
+            map.fill_in(&NEW_IN_V13);
+        }
         Ok(map)
     }
 
@@ -1383,8 +1409,12 @@ struct KeymapFile {
 /// version 8 tap tempo and PAT / SONG (round 28); version 9 the markers' and the tempo
 /// track's actions (round 29); version 10 the settings' key (round 30, ADR 0066); version
 /// 11 the command palette's and the undo history's (round 31, ADR 0072); version 12 the
-/// automation mode's key (round 31, ADR 0068).
-pub const FILE_VERSION: u32 = 12;
+/// automation mode's key (round 31, ADR 0068); version 13 the score's (round 32, ADR 0075).
+pub const FILE_VERSION: u32 = 13;
+
+/// Actions added in version 13 (round 32, ADR 0075): Alt+S shows the staff under the piano
+/// roll, Alt+Shift+S the Score pane.
+const NEW_IN_V13: [Action; 2] = [Action::ShowScore, Action::ViewScore];
 
 /// Actions added in version 11 (round 31): Ctrl+Shift+P opens the command palette, Alt+H
 /// shows the undo history (ADR 0072).

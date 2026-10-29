@@ -197,6 +197,10 @@ pub struct Settings {
     /// parameters — by the plug-in's stable id, when the user made one the default
     /// (ADR 0073). Empty: every plug-in opens its own editor.
     pub hosted_views: crate::hosted_view::ViewDefaults,
+    /// Each of our effects and instruments wears a face of its own — its colour, material,
+    /// display and controls (round 32, ADR 0074). On by default; off, every unit wears the
+    /// theme's plain look.
+    pub unit_faces: bool,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -306,6 +310,7 @@ impl Default for Settings {
             touch_glide_ms: DEFAULT_TOUCH_GLIDE_MS,
             start_page_at_start: true,
             hosted_views: crate::hosted_view::ViewDefaults::default(),
+            unit_faces: true,
         }
     }
 }

@@ -1,0 +1,113 @@
+page 1
+size 120 169.714
+line 15.1 23.371 111.429 23.371 w0.13
+line 15.1 24.371 111.429 24.371 w0.13
+line 15.1 25.371 111.429 25.371 w0.13
+line 15.1 26.371 111.429 26.371 w0.13
+line 15.1 27.371 111.429 27.371 w0.13
+glyph gClef 15.85 26.371
+glyph accidentalSharp 19.334 23.371
+glyph accidentalSharp 20.43 24.871
+glyph timeSig4 22.326 24.371
+glyph timeSig4 22.326 26.371
+glyph noteheadBlack 25.406 26.871 #1
+line 26.526 26.703 26.526 23.371 w0.12 #1
+glyph noteheadBlack 29.605 26.871 #2
+line 30.725 26.703 30.725 23.371 w0.12 #2
+glyph noteheadBlack 33.803 26.371 #3
+line 34.923 26.203 34.923 22.871 w0.12 #3
+glyph noteheadBlack 38.002 25.871 #4
+line 39.122 25.703 39.122 22.371 w0.12 #4
+glyph noteheadBlack 43.4 25.871 #5
+line 44.52 25.703 44.52 22.371 w0.12 #5
+glyph noteheadBlack 47.598 26.371 #6
+line 48.718 26.203 48.718 22.871 w0.12 #6
+glyph noteheadBlack 51.797 26.871 #7
+line 52.917 26.703 52.917 23.371 w0.12 #7
+glyph noteheadBlack 55.995 27.371 #8
+line 57.115 27.203 57.115 23.871 w0.12 #8
+glyph noteheadBlack 61.394 27.871 #9
+line 62.514 27.703 62.514 24.371 w0.12 #9
+glyph noteheadBlack 65.592 27.871 #10
+line 66.712 27.703 66.712 24.371 w0.12 #10
+glyph noteheadBlack 69.79 27.371 #11
+line 70.91 27.203 70.91 23.871 w0.12 #11
+glyph noteheadBlack 73.989 26.871 #12
+line 75.109 26.703 75.109 23.371 w0.12 #12
+glyph noteheadBlack 79.387 26.871 #13
+glyph augmentationDot 80.917 26.871 #13
+line 80.507 26.703 80.507 23.371 w0.12 #13
+glyph noteheadBlack 84.529 27.371 #14
+line 85.649 27.203 85.649 23.871 w0.12 #14
+glyph flag8thUp 85.589 23.831 #14
+glyph noteheadHalf 87.498 27.371 #15
+line 88.618 27.203 88.618 23.871 w0.12 #15
+glyph noteheadBlack 94.635 26.871 #16
+line 95.755 26.703 95.755 23.371 w0.12 #16
+glyph noteheadBlack 98.833 26.871 #17
+line 99.953 26.703 99.953 23.371 w0.12 #17
+glyph noteheadBlack 103.032 26.371 #18
+line 104.152 26.203 104.152 22.871 w0.12 #18
+glyph noteheadBlack 107.23 25.871 #19
+line 108.35 25.703 108.35 22.371 w0.12 #19
+glyph metNoteQuarterUp 15.85 20.971 x0.62
+text " = 108" 16.674 20.971 s2 Bold Left
+line 42.12 23.371 42.12 27.371 w0.16
+line 60.114 23.371 60.114 27.371 w0.16
+line 78.107 23.371 78.107 27.371 w0.16
+line 93.355 23.371 93.355 27.371 w0.16
+line 111.349 23.371 111.349 27.371 w0.16
+text "Flute" 14.1 26.141 s2.2 Regular Right
+line 8.571 35.371 111.429 35.371 w0.13
+line 8.571 36.371 111.429 36.371 w0.13
+line 8.571 37.371 111.429 37.371 w0.13
+line 8.571 38.371 111.429 38.371 w0.13
+line 8.571 39.371 111.429 39.371 w0.13
+glyph gClef 9.321 38.371
+glyph accidentalSharp 12.805 35.371
+glyph accidentalSharp 13.901 36.871
+glyph noteheadBlack 16.097 37.871 #20
+glyph noteheadBlack 21.268 37.371 #21
+glyph noteheadBlack 26.439 36.871 #22
+glyph accidentalNatural 25.567 36.871 #22
+glyph noteheadBlack 31.609 37.371 #23
+glyph noteheadBlack 36.78 37.871 #24
+line 37.9 37.703 37.9 34.371 w0.12 #24
+glyph noteheadBlack 44.092 38.871 #25
+line 45.212 38.703 45.212 35.371 w0.12 #25
+line 16.157 38.039 16.157 41.371 w0.12 #20
+line 21.328 37.539 21.328 41.288 w0.12 #21
+line 26.499 37.039 26.499 41.205 w0.12 #22
+line 31.669 37.539 31.669 41.121 w0.12 #23
+beam 16.097 40.872 31.729 40.62 h0.5
+glyph noteheadBlack 52.604 36.371 #26
+glyph noteheadBlack 56.458 36.871 #27
+glyph accidentalParensLeft 54.134 36.871 #27
+glyph accidentalSharp 54.698 36.871 #27
+glyph accidentalParensRight 55.694 36.871 #27
+glyph noteheadBlack 60.115 37.371 #28
+glyph noteheadBlack 65.285 37.871 #29
+glyph noteheadBlack 70.456 38.371 #30
+glyph noteheadBlack 75.626 38.871 #31
+line 76.746 38.703 76.746 35.371 w0.12 #31
+glyph noteheadBlack 82.939 39.371 #32
+line 84.059 39.203 84.059 35.871 w0.12 #32
+line 52.664 36.539 52.664 41.121 w0.12 #26
+line 56.518 37.039 56.518 41.378 w0.12 #27
+line 60.175 37.539 60.175 41.621 w0.12 #28
+beam 52.604 40.617 60.235 41.125 h0.5
+beam 52.604 39.867 56.578 40.132 h0.5
+line 66.405 37.703 66.405 34.371 w0.12 #29
+line 71.576 38.203 71.576 34.621 w0.12 #30
+beam 66.345 34.369 71.636 34.624 h0.5
+glyph noteheadHalf 91.451 39.871 #33
+glyph augmentationDot 92.981 39.871 #33
+line 92.571 39.703 92.571 36.371 w0.12 #33
+glyph restQuarter 104.116 37.371
+line 51.324 35.371 51.324 39.371 w0.16
+line 90.171 35.371 90.171 39.371 w0.16
+line 111.179 35.371 111.179 39.371 w0.5
+line 110.449 35.371 110.449 39.371 w0.16
+text "6" 8.571 33.179 s1.5 Regular Left
+text "Melody" 60 11.931 s4.2 Bold Centre
+text "Cantus" 111.429 15.771 s2.2 Regular Right

@@ -265,7 +265,9 @@ pub fn draw_table(
     flat: bool,
     w: &[WarpSlot; 2],
 ) {
-    let now = s.t.highlight;
+    // The frame playing now: the face's second voice (magenta on Unda's glass), FL's
+    // highlight on the kit's plain look.
+    let now = crate::views::inst::face::voice2(s, s.t.highlight);
     let mut buf = [0.0f32; POINTS];
     if flat {
         draw_cycle(b, rect, s, table, pos, w, now);
@@ -462,32 +464,34 @@ pub fn table_card(
     let shown = table_for(&mut app.inst.wavetable, spec, o);
     let frames = shown.as_ref().map_or(1, |t| t.frames());
     let w = warps(spec, o);
+    let sd = &crate::views::inst::face::on_display(s);
     with_brush(&ui.painter_at(d), |b| {
         match &shown {
-            Some(table) => draw_table(b, d, s, table, now, flat, &w),
+            Some(table) => draw_table(b, d, sd, table, now, flat, &w),
             None => parts::say(
                 b,
                 d,
-                s,
+                sd,
                 &t("unda.table_missing"),
                 Role::Label,
-                s.t.danger,
+                sd.t.danger,
                 Align2::CENTER_CENTER,
             ),
         }
-        let pad = s.s(8.0);
-        let line = s.s(18.0);
+        let pad = sd.s(8.0);
+        let line = sd.s(18.0);
         parts::chip(
             b,
             Rect::from_min_size(
                 Pos2::new(d.left() + pad, d.bottom() - pad - line),
                 Vec2::new(d.width() * 0.5, line),
             ),
-            s,
+            sd,
             &frame_text(pos, frames),
-            s.t.text,
+            sd.t.text,
             Align2::LEFT_CENTER,
         );
+        crate::views::inst::face::cover(b, d, sd);
     });
     scrub(app, ui, track, spec, d, o, frames);
     if !play {
@@ -706,15 +710,17 @@ pub fn detail_card(
             if let (Some(d), Some(table)) =
                 (cr.display, table_for(&mut app.inst.wavetable, spec, o))
             {
+                let sd = crate::views::inst::face::on_display(s);
                 with_brush(&ui.painter_at(d), |b| {
-                    super::engines::draw_partes(b, d, s, &table, spec, o, s.hue)
+                    super::engines::draw_partes(b, d, &sd, &table, spec, o, sd.hue)
                 });
             }
         }
         2 => {
             if let Some(d) = cr.display {
+                let sd = crate::views::inst::face::on_display(s);
                 with_brush(&ui.painter_at(d), |b| {
-                    super::engines::draw_window(b, d, s, spec, o)
+                    super::engines::draw_window(b, d, &sd, spec, o)
                 });
             }
             let body = parts::below_display(&cr, s);
@@ -897,20 +903,22 @@ pub fn osc_card(
     };
     let frames = table_for(&mut app.inst.wavetable, spec, o).map_or(1, |t| t.frames());
     let pos = spec.get(&key(o, "pos"));
+    let sd = &crate::views::inst::face::on_display(s);
     with_brush(&ui.painter_at(d), |b| {
-        picture(app, b, d, s, spec, o);
-        let line = s.s(16.0);
+        picture(app, b, d, sd, spec, o);
+        let line = sd.s(16.0);
         parts::chip(
             b,
             Rect::from_min_size(
-                Pos2::new(d.left() + s.s(6.0), d.bottom() - line - s.s(4.0)),
+                Pos2::new(d.left() + sd.s(6.0), d.bottom() - line - sd.s(4.0)),
                 Vec2::new(d.width() * 0.6, line),
             ),
-            s,
+            sd,
             &frame_text(pos, frames),
-            s.t.text,
+            sd.t.text,
             Align2::LEFT_CENTER,
         );
+        crate::views::inst::face::cover(b, d, sd);
     });
     let r = scrub(app, ui, track, spec, d, o, frames);
     if r.clicked() || r.drag_started() {

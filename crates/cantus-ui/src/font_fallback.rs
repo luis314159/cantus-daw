@@ -298,6 +298,18 @@ fn candidates(_: Script) -> Vec<Face> {
 
 /// Whether the real window has armed the fallback.
 static ARMED: AtomicBool = AtomicBool::new(false);
+/// The score's music font is wanted (the app's start-up, or a score first drawn).
+static MUSIC: AtomicBool = AtomicBool::new(false);
+
+/// Ask for the score's music font in every definition from now on (`definitions`).
+pub fn enable_music() {
+    MUSIC.store(true, Ordering::Relaxed);
+}
+
+/// Whether the music font is part of the definitions.
+pub fn music_enabled() -> bool {
+    MUSIC.load(Ordering::Relaxed)
+}
 
 /// A system face that was read: what it covers, and its bytes once it is installed.
 struct Read {
@@ -364,15 +376,24 @@ fn order_for(c: char) -> Vec<Face> {
     out
 }
 
-/// Every character the bundled fonts map (IBM Plex and the emoji face), read once from
-/// their character maps.
+/// Every character the bundled text faces map (IBM Plex and the emoji face — the faces in
+/// the text families' chains, never the score's music font), read once from their
+/// character maps.
 fn bundled() -> &'static HashSet<u32> {
     static B: OnceLock<HashSet<u32>> = OnceLock::new();
     B.get_or_init(|| {
         let defs = design::font_definitions();
+        let keys: HashSet<&String> = defs
+            .families
+            .iter()
+            .filter(|(f, _)| **f != design::family_music())
+            .flat_map(|(_, chain)| chain.iter())
+            .collect();
         let mut set = HashSet::new();
-        for data in defs.font_data.values() {
-            set.extend(cmap_of(&data.font, data.index));
+        for k in keys {
+            if let Some(data) = defs.font_data.get(k) {
+                set.extend(cmap_of(&data.font, data.index));
+            }
         }
         set
     })
@@ -400,6 +421,7 @@ pub fn arm() {
 /// stage calls this — the path the desktop app takes — and so does `CantusApp::new`.
 pub fn install_for_window(ctx: &Context) {
     arm();
+    enable_music();
     design::install_fonts(ctx);
 }
 
@@ -598,6 +620,9 @@ pub fn poll(ctx: &Context) {
 /// with them. Without any, exactly [`design::font_definitions`].
 pub fn definitions() -> egui::FontDefinitions {
     let mut defs = design::font_definitions();
+    if music_enabled() {
+        design::add_music_font(&mut defs);
+    }
     let st = state().lock().unwrap();
     with_faces(&mut defs, &st.installed);
     defs

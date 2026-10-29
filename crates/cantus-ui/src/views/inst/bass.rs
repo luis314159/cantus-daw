@@ -520,7 +520,9 @@ fn display_card(
         kit::well::readout(b, readout, &st, state, &now, true);
     });
     if let Some(d) = cr.display {
-        draw_picture(app, ui, track, spec, d, &st);
+        let sd = super::face::on_display(&st);
+        draw_picture(app, ui, track, spec, d, &sd);
+        kit::with_brush(&ui.painter_at(d), |b| super::face::cover(b, d, &sd));
     }
 }
 

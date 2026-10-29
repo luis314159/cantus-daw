@@ -377,8 +377,10 @@ fn paint_wave(
         if x < rect.left() - 1.0 || x > rect.right() + 1.0 {
             continue;
         }
+        // The loop's points in the face's second voice (Exemplar's teal), FL's
+        // highlight on the kit's plain look.
         let c = if matches!(which, Which::LoopStart | Which::LoopEnd) {
-            t.highlight
+            crate::views::inst::face::voice2(s, t.highlight)
         } else {
             t.text
         };
@@ -696,14 +698,15 @@ pub fn sample_card(
     let Some(d) = cr.display else {
         return;
     };
+    let sd = &crate::views::inst::face::on_display(s);
     let Some((n, z, audio)) = sel else {
         parts::words(
             ui,
             d,
-            s,
+            sd,
             Src::Key("smp.select_zone"),
             Role::Body,
-            s.t.text_dim,
+            sd.t.text_dim,
             Align2::CENTER_CENTER,
             Policy::Elide(Elide::End),
         );
@@ -720,20 +723,20 @@ pub fn sample_card(
         parts::words(
             ui,
             d,
-            s,
+            sd,
             Src::Key(if reading {
                 "smp.wave_reading"
             } else {
                 "smp.unreadable"
             }),
             Role::Body,
-            if reading { s.t.text_dim } else { s.t.danger },
+            if reading { sd.t.text_dim } else { sd.t.danger },
             Align2::CENTER_CENTER,
             Policy::Elide(Elide::End),
         );
         return;
     };
-    waveform(app, ui, track, spec, n, &z, &audio, d, s);
+    waveform(app, ui, track, spec, n, &z, &audio, d, sd);
     span_in_title(app, ui, cr.title, s, &audio);
     let k = s.k;
     let body = Rect::from_min_max(pos2(cr.body.left(), d.bottom() + 8.0 * k), cr.body.max);
@@ -951,6 +954,7 @@ pub fn seam_card(
     let Some(d) = cr.display else {
         return;
     };
+    let sd = &crate::views::inst::face::on_display(s);
     let Some((n, z, Some(audio))) = selected(app, spec) else {
         return;
     };
@@ -968,10 +972,10 @@ pub fn seam_card(
         parts::words(
             ui,
             d,
-            s,
+            sd,
             Src::Key("smp.no_loop"),
             Role::Body,
-            s.t.text_dim,
+            sd.t.text_dim,
             Align2::CENTER_CENTER,
             Policy::Elide(Elide::End),
         );
@@ -1000,7 +1004,10 @@ pub fn seam_card(
         }
         return;
     }
-    with_brush(&ui.painter_at(d), |b| paint_seam(b, d, s, &z, &audio));
+    with_brush(&ui.painter_at(d), |b| {
+        paint_seam(b, d, sd, &z, &audio);
+        crate::views::inst::face::cover(b, d, sd);
+    });
     let frames = audio.frames() as i64;
     let ls = z.get(zf::LS) as i64;
     let le = if z.get(zf::LE) > 0.0 {
@@ -1071,9 +1078,10 @@ pub fn play_card(
     let Some(d) = cr.display else {
         return;
     };
+    let sd = &crate::views::inst::face::on_display(s);
     match sel {
         Some((n, z, Some(audio))) => {
-            waveform(app, ui, track, spec, n, &z, &audio, d, s);
+            waveform(app, ui, track, spec, n, &z, &audio, d, sd);
             span_in_title(app, ui, cr.title, s, &audio);
         }
         Some((_, z, None)) => {
@@ -1087,14 +1095,14 @@ pub fn play_card(
             parts::words(
                 ui,
                 d,
-                s,
+                sd,
                 Src::Key(if reading {
                     "smp.wave_reading"
                 } else {
                     "smp.unreadable"
                 }),
                 Role::Body,
-                if reading { s.t.text_dim } else { s.t.danger },
+                if reading { sd.t.text_dim } else { sd.t.danger },
                 Align2::CENTER_CENTER,
                 Policy::Elide(Elide::End),
             )
@@ -1102,10 +1110,10 @@ pub fn play_card(
         None => parts::words(
             ui,
             d,
-            s,
+            sd,
             Src::Key("smp.select_zone"),
             Role::Body,
-            s.t.text_dim,
+            sd.t.text_dim,
             Align2::CENTER_CENTER,
             Policy::Elide(Elide::End),
         ),

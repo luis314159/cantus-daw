@@ -179,6 +179,8 @@ fn body_ui(
     tel: &[f32; 64],
     fs: &FluctusSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -186,7 +188,7 @@ fn body_ui(
     let row2 = controls::card_height(Size::XL) * k;
     let row1 = (area.height() - row2 - gap).max(220.0 * k);
     let r1: Vec<Rect> = g.row(row1, &[1.0]).collect();
-    let sm = s.function(Function::Dynamics);
+    let sm = modfx::own(s, Function::Dynamics);
     curve::card(host, st, ui, &sm, r1[0], tel, fs);
 
     let w = [
@@ -208,7 +210,7 @@ fn body_ui(
             controls::param_with(ui, &sm, host, "smooth", Size::M, Some(&modfx::ms_pill));
         },
     );
-    let smod = s.function(Function::Mod);
+    let smod = modfx::own(s, Function::Mod);
     controls::card(
         ui,
         &smod,
@@ -221,7 +223,7 @@ fn body_ui(
         },
     );
     curve::point_card(host, st, ui, &sm, r2[2], fs, SHAPE_W);
-    let so = s.function(Function::Output);
+    let so = modfx::own(s, Function::Output);
     controls::card(
         ui,
         &so,

@@ -583,6 +583,8 @@ const TRACK_COSMETIC: &[&str] = &[
     "soloed",
     // What a pass writes, never what plays (ADR 0068).
     "auto_mode",
+    // How the part is written as a score (ADR 0075).
+    "score",
 ];
 /// A frozen track's own live controls (and where it goes).
 const TRACK_LIVE: &[&str] = &["gain_db", "pan", "muted", "strip"];

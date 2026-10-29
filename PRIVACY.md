@@ -1,6 +1,6 @@
 # Privacy
 
-*Cantus 0.1.0-beta.6 · written 2026-10-06 · [Español abajo](#privacidad-español)*
+*Cantus 0.1.0-beta.7 · written 2026-10-06 · [Español abajo](#privacidad-español)*
 
 **Cantus collects nothing about you.** There is no telemetry, no analytics, no crash
 reporting, no account and no advertising. Your projects, recordings and settings stay on
@@ -47,7 +47,7 @@ The sample browser and the *Sound packs* window download a pack **only when you 
 *Install*** (or the starter kit's offer). The files come from the addresses listed in
 `crates/cantus-content/manifest/content.json` — today `raw.githubusercontent.com` and
 `github.com`, the packs' own authors' repositories. The requests carry
-`User-Agent: Cantus/0.1.0-beta.6` (the program and its version) and, when an interrupted
+`User-Agent: Cantus/0.1.0-beta.7` (the program and its version) and, when an interrupted
 download resumes, a `Range` header. Nothing else is sent. Packs are saved in
 `%LOCALAPPDATA%\Cantus\Content\` and each file's SHA-256 is checked before it is used.
 Cantus never checks for new packs by itself.
@@ -146,7 +146,7 @@ El explorador de muestras y la ventana *Paquetes de sonidos* descargan un paquet
 cuando haces clic en *Instalar*** (o en la oferta del kit inicial). Los archivos vienen de
 las direcciones de `crates/cantus-content/manifest/content.json` — hoy
 `raw.githubusercontent.com` y `github.com`, los repositorios de los propios autores. Las
-peticiones llevan `User-Agent: Cantus/0.1.0-beta.6` (el programa y su versión) y, al
+peticiones llevan `User-Agent: Cantus/0.1.0-beta.7` (el programa y su versión) y, al
 reanudar una descarga interrumpida, una cabecera `Range`. No se envía nada más. Los
 paquetes se guardan en `%LOCALAPPDATA%\Cantus\Content\` y el SHA-256 de cada archivo se
 comprueba antes de usarlo. Cantus nunca busca paquetes nuevos por sí solo.

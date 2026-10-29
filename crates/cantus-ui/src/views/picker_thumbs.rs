@@ -19,8 +19,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-/// The recipe's version: bump it when what a picture shows changes.
-pub const REV: u32 = 1;
+/// The recipe's version: bump it when what a picture shows changes (2: the units' faces,
+/// round 32 — pictures made plain before them are never read back).
+pub const REV: u32 = 2;
 /// A picture's size in pixels: 16:10, sharp on a large tile at 150 %.
 pub const W: usize = 416;
 pub const H: usize = 260;
@@ -62,6 +63,8 @@ pub struct Thumbs {
     failed: HashSet<Subject>,
     tx: Sender<Done>,
     rx: Receiver<Done>,
+    /// The look whose old neighbours on disk were last pruned.
+    pruned: u64,
     pub stats: Stats,
 }
 
@@ -79,12 +82,15 @@ impl Default for Thumbs {
             failed: HashSet::new(),
             tx,
             rx,
+            pruned: 0,
             stats: Stats::default(),
         }
     }
 }
 
-/// The look a picture is made in: every token of the installed theme and the language.
+/// The look a picture is made in: every token of the installed theme, the language, and
+/// the units' faces — the switch and every sheet (`skin::sheets_digest`; round 32), so a
+/// picture made plain, or before a sheet changed, is never shown for a face.
 pub fn look_key() -> u64 {
     use crate::kit::{cache, Tok};
     let t = crate::kit::tokens::current();
@@ -98,6 +104,8 @@ pub fn look_key() -> u64 {
         t.density.to_bits(),
         t.text_scale.to_bits(),
         crate::i18n::locale().code(),
+        crate::kit::skin::enabled(),
+        crate::kit::skin::sheets_digest(),
         REV,
     ))
 }
@@ -191,6 +199,15 @@ impl Thumbs {
             }
             captured = true;
             self.stats.captures += 1;
+            // The first picture written in a look: the folder keeps that look and the few
+            // last used before it (switching back is instant), and forgets the rest — so
+            // it never grows by a set per launch or per sheet change.
+            if self.pruned != look {
+                self.pruned = look;
+                if let Some(dir) = self.disk.clone() {
+                    std::thread::spawn(move || prune(&dir, look, KEEP_LOOKS));
+                }
+            }
             match picker_snap::capture(ctx, s, PPP) {
                 Some(frame) => {
                     self.busy.insert(s);
@@ -262,6 +279,55 @@ fn uv(i: usize) -> Rect {
     )
 }
 
+/// How many looks besides the current one the folder keeps pictures of.
+pub const KEEP_LOOKS: usize = 3;
+
+/// Remove from `dir` the pictures of every look but `keep` and the `others` most recently
+/// written other looks. A picture's look is the 16 hex digits before `-{W}.png`; other
+/// files are left alone.
+pub fn prune(dir: &std::path::Path, keep: u64, others: usize) {
+    let suffix = format!("-{W}.png");
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut files: Vec<(u64, std::time::SystemTime, PathBuf)> = Vec::new();
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Some(stem) = name.strip_suffix(&suffix) else {
+            continue;
+        };
+        let Some(hex) = stem.get(stem.len().saturating_sub(16)..) else {
+            continue;
+        };
+        let Ok(look) = u64::from_str_radix(hex, 16) else {
+            continue;
+        };
+        let when = e
+            .metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::UNIX_EPOCH);
+        files.push((look, when, e.path()));
+    }
+    // The other looks, newest first by their newest picture.
+    let mut looks: Vec<(u64, std::time::SystemTime)> = Vec::new();
+    for (l, w, _) in &files {
+        if *l == keep {
+            continue;
+        }
+        match looks.iter_mut().find(|(x, _)| x == l) {
+            Some(e) => e.1 = e.1.max(*w),
+            None => looks.push((*l, *w)),
+        }
+    }
+    looks.sort_by_key(|l| std::cmp::Reverse(l.1));
+    let kept: Vec<u64> = looks.iter().take(others).map(|(l, _)| *l).collect();
+    for (l, _, p) in files {
+        if l != keep && !kept.contains(&l) {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+}
+
 fn save_png(img: &ColorImage, path: &std::path::Path) {
     let [w, h] = img.size;
     let Some(mut pm) = tiny_skia::Pixmap::new(w as u32, h as u32) else {
@@ -287,4 +353,77 @@ fn load_png(path: &std::path::Path) -> Option<ColorImage> {
         [pm.width() as usize, pm.height() as usize],
         pm.data(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::kit::skin::{self, Material, Skin};
+
+    /// The integrator's review: nothing pruned the folder, and every look (a theme, a
+    /// language, a sheet) left a full set of pictures behind. `prune` keeps the current look
+    /// and the few last used, and leaves other files alone.
+    #[test]
+    fn the_folder_keeps_the_current_look_and_the_last_few() {
+        let dir = std::env::temp_dir().join(format!("cantus-thumbs-prune-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("a folder");
+        let t0 = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        for look in 1u64..=6 {
+            for unit in ["effect-eq-", "effect-space-"] {
+                let p = dir.join(format!("{unit}{look:016x}-{W}.png"));
+                let f = std::fs::File::create(&p).expect("a file");
+                f.set_modified(t0 + std::time::Duration::from_secs(look * 60))
+                    .expect("a time");
+            }
+        }
+        std::fs::write(dir.join("notes.txt"), b"keep me").expect("a file");
+        prune(&dir, 2, 3);
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .expect("the folder")
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        let _ = std::fs::remove_dir_all(&dir);
+        let suffix = format!("-{W}.png");
+        let looks: std::collections::BTreeSet<u64> = left
+            .iter()
+            .filter_map(|n| n.strip_suffix(suffix.as_str()))
+            .filter_map(|s| u64::from_str_radix(&s[s.len() - 16..], 16).ok())
+            .collect();
+        // The current look (2) and the three newest others (6, 5, 4).
+        assert_eq!(
+            looks.into_iter().collect::<Vec<_>>(),
+            vec![2, 4, 5, 6],
+            "{left:?}"
+        );
+        assert!(left.contains(&"notes.txt".to_owned()));
+    }
+
+    /// before the switch was turned or a sheet changed, must never be shown for a face.
+    #[test]
+    fn a_picture_s_look_changes_with_the_switch_and_with_every_sheet() {
+        static WOOD: Skin = Skin {
+            material: Material::Wood,
+            ..Skin::plain("test.thumb.wood")
+        };
+        static GLASS: Skin = Skin {
+            material: Material::Glass,
+            ..Skin::plain("test.thumb.glass")
+        };
+        let on = look_key();
+        skin::set_enabled(false);
+        let off = look_key();
+        skin::set_enabled(true);
+        assert_ne!(on, off, "the switch changes the pictures");
+        skin::set_override(Some(&WOOD));
+        let wood = look_key();
+        skin::set_override(Some(&GLASS));
+        let glass = look_key();
+        skin::set_override(None);
+        assert_ne!(wood, glass, "a sheet that changes changes the pictures");
+        assert_ne!(wood, on);
+        assert_eq!(look_key(), on, "and the same faces find the same pictures");
+    }
 }

@@ -1,0 +1,88 @@
+page 1
+size 120 169.714
+line 23.104 23.871 111.429 23.871 w0.13
+line 23.104 24.871 111.429 24.871 w0.13
+line 23.104 25.871 111.429 25.871 w0.13
+line 23.104 26.871 111.429 26.871 w0.13
+line 23.104 27.871 111.429 27.871 w0.13
+glyph gClef 23.854 26.871
+glyph accidentalSharp 27.338 23.871
+glyph accidentalSharp 28.434 25.371
+glyph accidentalSharp 29.53 23.371
+glyph accidentalSharp 30.626 24.871
+glyph accidentalSharp 31.722 26.371
+glyph timeSig4 33.618 24.871
+glyph timeSig4 33.618 26.871
+glyph noteheadBlack 36.698 27.371 #1
+line 37.818 27.203 37.818 23.871 w0.12 #1
+glyph noteheadBlack 39.585 26.871 #2
+line 40.705 26.703 40.705 23.371 w0.12 #2
+glyph noteheadBlack 42.471 26.371 #3
+line 43.591 26.203 43.591 22.871 w0.12 #3
+glyph noteheadBlack 45.357 25.871 #4
+line 45.417 26.039 45.417 29.371 w0.12 #4
+glyph timeSig7 48.994 24.871
+glyph timeSig8 49.004 26.871
+glyph noteheadBlack 51.958 25.371 #5
+glyph noteheadBlack 53.999 25.871 #6
+glyph noteheadBlack 56.04 26.371 #7
+glyph noteheadBlack 58.081 26.871 #8
+glyph noteheadBlack 60.121 27.371 #9
+glyph noteheadBlack 62.162 26.871 #10
+glyph noteheadBlack 64.203 26.371 #11
+line 52.018 25.539 52.018 29.121 w0.12 #5
+line 54.059 26.039 54.059 29.371 w0.12 #6
+beam 51.958 28.614 54.119 28.879 h0.5
+line 57.16 26.203 57.16 22.871 w0.12 #7
+line 59.201 26.703 59.201 23.121 w0.12 #8
+beam 57.1 22.864 59.261 23.129 h0.5
+line 61.241 27.203 61.241 23.371 w0.12 #9
+line 63.282 26.703 63.282 23.121 w0.12 #10
+line 65.323 26.203 65.323 22.871 w0.12 #11
+beam 61.181 23.379 65.383 22.864 h0.5
+glyph timeSig6 67.037 24.871
+glyph timeSig8 67.033 26.871
+glyph noteheadBlack 69.977 25.871 #12
+line 70.037 26.039 70.037 29.371 w0.12 #12
+glyph noteheadBlack 72.864 25.371 #13
+line 72.924 25.539 72.924 28.871 w0.12 #13
+glyph flag8thDown 72.864 29.003 #13
+glyph noteheadBlack 74.905 24.871 #14
+glyph noteheadBlack 76.946 25.371 #15
+glyph noteheadBlack 78.987 25.871 #16
+line 74.965 25.039 74.965 28.871 w0.12 #14
+line 77.006 25.539 77.006 29.121 w0.12 #15
+line 79.047 26.039 79.047 29.371 w0.12 #16
+beam 74.905 28.364 79.107 28.879 h0.5
+glyph noteheadBlack 82.267 26.371 #17
+glyph augmentationDot 83.797 26.371 #17
+line 83.387 26.203 83.387 22.871 w0.12 #17
+glyph noteheadBlack 85.802 27.371 #18
+glyph augmentationDot 87.332 27.371 #18
+line 86.922 27.203 86.922 23.871 w0.12 #18
+glyph timeSig3 90.185 24.871
+glyph timeSig4 90.087 26.871
+glyph noteheadBlack 93.167 26.871 #19
+line 94.287 26.703 94.287 23.371 w0.12 #19
+glyph noteheadBlack 96.053 26.371 #20
+line 97.173 26.203 97.173 22.871 w0.12 #20
+glyph noteheadBlack 98.939 25.871 #21
+line 98.999 26.039 98.999 29.371 w0.12 #21
+glyph timeSig4 102.576 24.871
+glyph timeSig4 102.576 26.871
+glyph noteheadWhole 105.656 25.871 #22
+glyph metNoteQuarterUp 23.854 20.971 x0.62
+text " = 96" 24.678 20.971 s2 Bold Left
+glyph metNoteQuarterUp 69.977 21.471 x0.62
+glyph metAugmentationDot 70.951 21.471 x0.62
+text " = 88" 71.301 21.471 s2 Bold Left
+line 48.164 23.871 48.164 27.871 w0.16
+line 66.203 23.871 66.203 27.871 w0.16
+line 80.987 23.871 80.987 27.871 w0.16
+line 89.257 23.871 89.257 27.871 w0.16
+line 101.746 23.871 101.746 27.871 w0.16
+line 111.179 23.871 111.179 27.871 w0.5
+line 110.449 23.871 110.449 27.871 w0.16
+text "Clarinet in B♭" 22.104 26.641 s2.2 Regular Right
+text "Metres" 60 11.931 s4.2 Bold Centre
+text "Cantus" 111.429 15.771 s2.2 Regular Right

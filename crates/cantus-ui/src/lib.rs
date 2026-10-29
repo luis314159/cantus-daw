@@ -68,6 +68,8 @@ pub mod recovery_text;
 pub mod routing_actions;
 pub mod samples;
 pub mod save_job;
+/// The score: its view state, files and edits (round 32, ADR 0075).
+pub mod score;
 pub mod settings;
 pub mod startup_probe;
 pub mod swap;

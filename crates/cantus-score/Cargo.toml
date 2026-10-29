@@ -1,0 +1,32 @@
+[package]
+name = "cantus-score"
+description = "Cantus DAW — the score: notes in, an engraved score out (a display list in staff spaces shared by the screen, the PDF and the tests), MusicXML 4.0 out and in, and vector PDF (ADR 0075)."
+# GPL like the application that uses it (ADR 0047: only the engine crates are MPL-2.0).
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+serde.workspace = true
+log.workspace = true
+thiserror.workspace = true
+# Glyph metrics of Bravura and of the text face (the same reader egui draws with).
+skrifa = "0.44"
+# MusicXML import (the parser cantus-project already uses for DAWproject).
+roxmltree = "0.20"
+# Vector PDF (MIT OR Apache-2.0), and the fonts subset for embedding (MIT OR Apache-2.0).
+pdf-writer = "0.15"
+subsetter = "0.2.6"
+miniz_oxide = "0.8"
+
+[dev-dependencies]
+serde_json.workspace = true
+roxmltree = "0.20"
+# Reads the PDFs back in the tests only (MIT).
+lopdf = { version = "0.46", default-features = false }
+# The examples' reference rasteriser (BSD-3-Clause; already in the tree through cantus-ui).
+tiny-skia = "0.12"

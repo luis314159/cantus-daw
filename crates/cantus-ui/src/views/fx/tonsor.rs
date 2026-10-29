@@ -332,7 +332,10 @@ fn body_ui(
         r2[3],
         Src::Key("tonsor.card.quality"),
         None,
-        |ui, _| {
+        |ui, cr| {
+            // The keys fit the card: at the designed width the row's shares leave it a
+            // little under the keys' own width (the 16× key ran over its edge).
+            let seg_w = seg_w.min(cr.body.width() / sd.k - 16.0);
             controls::column(ui, &sd, seg_w, |ui| {
                 let labels = OS_KEYS.map(Src::Key);
                 let keys =
@@ -569,7 +572,9 @@ fn meter_card(
         |ui, cr| {
             let r = cr.body.shrink2(vec2(8.0 * s.k, 4.0 * s.k));
             st.meter = Some(r);
-            let ink = Ink::of(&s);
+            // The numbers sit on the deck; the five seconds below on the display.
+            let ink = dynfx::deck_ink(&s);
+            let disp = Ink::of(&s);
             let k = s.k;
             let [(share, _), (_, overs_s), _] = st.rates.over(f64::from(sr), sr);
             let red = tel[tel::REDUCTION].max(0.0);
@@ -681,19 +686,19 @@ fn meter_card(
                 y += 16.0 * k;
                 let hist = Rect::from_min_max(pos2(r.left(), y), r.max);
                 if hist.height() > 8.0 * k {
-                    canvas::ground_b(b, hist, &ink, None);
-                    st.history.paint_down(b, hist, 12.0, ink.danger, k);
-                    canvas::edge_b(b, hist, &ink);
+                    canvas::ground_b(b, hist, &disp, None);
+                    st.history.paint_down(b, hist, 12.0, disp.danger, k);
+                    canvas::edge_b(b, hist, &disp);
                     let quiet = st.history.values().all(|v| v <= 0.0);
                     if live && quiet && !st.history.is_empty() {
-                        let t = Text::key("tonsor.idle", Role::Micro, ink.dim).caps(false);
+                        let t = Text::key("tonsor.idle", Role::Micro, disp.dim).caps(false);
                         canvas::put(
                             b,
                             hist.center(),
                             Align2::CENTER_CENTER,
                             &t,
                             k,
-                            Some(ink.plate),
+                            Some(disp.plate),
                         );
                     }
                 }

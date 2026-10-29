@@ -940,10 +940,11 @@ fn paint(
     };
     if show.pre && has_data {
         spec_pts(&st.pre, pts);
+        // The analyser in the look's second voice (Aequalis's amber); plain, dim as ever.
         b.area(
             &pts[..],
             plot.bottom(),
-            with_alpha(ink.dim, if ink.dark { 0.14 } else { 0.10 }),
+            with_alpha(ink.voice(ink.dim, true), if ink.dark { 0.14 } else { 0.10 }),
         );
     }
     if show.post && has_data {
@@ -951,7 +952,7 @@ fn paint(
         b.polyline(
             &pts[..],
             1.25 * k,
-            with_alpha(ink.dim, if ink.dark { 0.80 } else { 0.90 }),
+            with_alpha(ink.voice(ink.dim, true), if ink.dark { 0.80 } else { 0.90 }),
         );
     }
     // The key strip: dashed, in the text colour — a line no band colour can be confused
@@ -1679,9 +1680,9 @@ fn legend(
         match kind {
             0 => b.rect(
                 Rect::from_min_max(a - vec2(0.0, 4.0 * k), c + vec2(0.0, 4.0 * k)),
-                Fill::Solid(with_alpha(ink.dim, 0.3)),
+                Fill::Solid(with_alpha(ink.voice(ink.dim, true), 0.3)),
             ),
-            1 => b.segment(a, c, 1.5 * k, ink.dim, false),
+            1 => b.segment(a, c, 1.5 * k, ink.voice(ink.dim, true), false),
             2 => dashed(b, &[a, c], 1.5 * k, ink.text, 4.0 * k, 2.0 * k),
             _ => b.dot(pos2(x - sw * 0.5, y), 3.0 * k, s.t.highlight),
         }

@@ -8,6 +8,7 @@
 use super::brush::{Brush, Fill};
 use super::cache;
 use super::color::{shade, with_alpha};
+use super::skin::KnobShape;
 use super::{State, Style, Tok};
 
 /// The tokens a ring knob paints with in a dark theme (for inspect mode); its arc
@@ -125,8 +126,119 @@ impl KnobLook<'_> {
     }
 }
 
-fn angle(p: f32) -> f32 {
+/// The angle of position `p` (0…1) along the travel.
+pub fn angle(p: f32) -> f32 {
     START + SWEEP * p.clamp(0.0, 1.0)
+}
+
+/// A ring knob's measures at a style's scale: the outer radius, the track's width and
+/// radius, the body's radius, the pointer's width — what a skin's knob shapes
+/// (`skin::knobs`) and a unit's own painter build on.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Geometry {
+    pub r: f32,
+    pub track_w: f32,
+    pub track_r: f32,
+    pub body_r: f32,
+    pub pointer_w: f32,
+}
+
+impl Geometry {
+    pub fn of(size: KnobSize, s: &Style) -> Geometry {
+        let r = s.s(size.diameter()) * 0.5;
+        let tw = s.s(size.track());
+        Geometry {
+            r,
+            track_w: tw,
+            track_r: r - tw * 0.5,
+            body_r: r - tw - s.s(size.gap()),
+            pointer_w: s.s(size.pointer()),
+        }
+    }
+}
+
+/// The value's hue as the knob shows it: a step deeper while dragged.
+pub fn value_hue(s: &Style, st: State) -> Color32 {
+    if st.active {
+        shade(s.hue, if s.t.dark { 0.08 } else { -0.08 })
+    } else {
+        s.hue
+    }
+}
+
+/// The modulation rings outside the track, stacked outwards.
+pub fn paint_rings(b: &mut Brush, c: Pos2, s: &Style, st: State, look: &KnobLook<'_>, r: f32) {
+    let a = st.alpha();
+    let v = look.value.clamp(0.0, 1.0);
+    for (i, (depth, col)) in look.rings.iter().enumerate() {
+        let rr = r + s.s(3.0) * (i as f32 + 1.0);
+        let (p0, p1) = (v, (v + depth).clamp(0.0, 1.0));
+        let (a0, a1) = (angle(p0.min(p1)), angle(p0.max(p1)));
+        b.arc(
+            c,
+            rr,
+            a0,
+            a1,
+            s.s(2.0),
+            with_alpha(*col, 0.9).gamma_multiply(a),
+            false,
+        );
+    }
+}
+
+/// The track at radius `tr`, `tw` wide; the notch at a default that is not an end; the
+/// value arc from the default in `hue`.
+#[allow(clippy::too_many_arguments)]
+pub fn paint_track(
+    b: &mut Brush,
+    c: Pos2,
+    s: &Style,
+    st: State,
+    look: &KnobLook<'_>,
+    (tr, tw): (f32, f32),
+    r: f32,
+    hue: Color32,
+) {
+    let a = st.alpha();
+    let f = |c: Color32| c.gamma_multiply(a);
+    let (v, d) = (look.value.clamp(0.0, 1.0), look.default.clamp(0.0, 1.0));
+    b.arc(c, tr, angle(0.0), angle(1.0), tw, f(s.t.knob_track), true);
+    if d > 0.01 && d < 0.99 {
+        let dir = Vec2::angled(angle(d));
+        b.segment(
+            c + dir * (r + s.s(1.0)),
+            c + dir * (r + s.s(3.0)),
+            s.s(1.5),
+            f(s.t.text_dim),
+            false,
+        );
+    }
+    if !st.disabled && (v - d).abs() > 0.002 {
+        b.arc(c, tr, angle(d.min(v)), angle(d.max(v)), tw, hue, true);
+    }
+}
+
+/// Where modulation has the parameter now (ADR 0057): a dot riding radius `tr`.
+pub fn paint_live(
+    b: &mut Brush,
+    c: Pos2,
+    s: &Style,
+    st: State,
+    look: &KnobLook<'_>,
+    tr: f32,
+    tw: f32,
+) {
+    let a = st.alpha();
+    if let Some(l) = look.live.filter(|_| !st.disabled) {
+        let dir = Vec2::angled(angle(l));
+        let dot = c + dir * tr;
+        b.circle(
+            dot,
+            tw * 0.75 + b.px(),
+            Fill::Solid(s.t.panel.gamma_multiply(a)),
+        );
+        b.circle(dot, tw * 0.75, Fill::Solid(s.t.hue_mod.gamma_multiply(a)));
+    }
 }
 
 /// Paint a knob centred on `c`. The part covers a square of the ring's diameter (plus
@@ -137,11 +249,29 @@ pub fn paint(b: &mut Brush, c: Pos2, s: &Style, st: State, look: &KnobLook<'_>) 
     let size = look.size;
     let r = s.s(size.diameter()) * 0.5;
     let area = Rect::from_center_size(c, Vec2::splat(2.0 * r));
+    let shaped = size != KnobSize::Mini && !matches!(s.skin.knob, KnobShape::Plain);
     if size == KnobSize::Mini {
         b.register(area, "knob_mini", MINI_TOKENS, &[s.hue_tok]);
+    } else if shaped {
+        let toks = super::skin::knobs::tokens(s.skin.knob, s.t.dark);
+        b.register(area, "knob", toks, &[s.hue_tok]);
     } else {
         let toks = if s.t.dark { TOKENS } else { LIGHT_TOKENS };
         b.register(area, "knob", toks, &[s.hue_tok]);
+    }
+    if shaped {
+        // A unit's knob (round 32, ADR 0074): the modulation rings and the focus ring are
+        // the kit's on every shape; the rest is the shape's.
+        let g = Geometry::of(size, s);
+        paint_rings(b, c, s, st, look, g.r);
+        match s.skin.knob {
+            KnobShape::Custom(paint) => paint(b, c, s, st, look),
+            shape => super::skin::knobs::paint(b, c, s, st, look, shape, &g),
+        }
+        if st.focused {
+            b.circle_stroke(c, g.r + s.s(3.0), s.s(1.5), s.t.focus);
+        }
+        return;
     }
     let tw = s.s(size.track());
     let tr = r - tw * 0.5;

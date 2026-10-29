@@ -18,6 +18,9 @@ pub fn app(project: Project) -> CantusApp {
 pub fn ctx() -> egui::Context {
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
     let ctx = egui::Context::default();
+    // As the app's boot font stage does (`font_fallback::install_for_window`): the music
+    // font is in from the first frame, so a score's first frame paints (round 32).
+    cantus_ui::font_fallback::enable_music();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     ctx

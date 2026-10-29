@@ -63,7 +63,7 @@ pub fn readout(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str, num
         } else {
             Elide::Middle
         }));
-    let _ = text::paint(b, inner, &t, s.tk());
+    let _ = text::paint_face(b, inner, &t, s.tk(), s.skin.lettering.value());
 }
 
 /// Where a menu field's parts landed, for the widget to sense.

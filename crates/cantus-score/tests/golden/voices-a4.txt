@@ -1,0 +1,44 @@
+page 1
+size 120 169.714
+line 16.12 23.371 54.882 23.371 w0.13
+line 16.12 24.371 54.882 24.371 w0.13
+line 16.12 25.371 54.882 25.371 w0.13
+line 16.12 26.371 54.882 26.371 w0.13
+line 16.12 27.371 54.882 27.371 w0.13
+glyph gClef 16.87 26.371
+glyph timeSig4 20.454 24.371
+glyph timeSig4 20.454 26.371
+glyph noteheadBlack 23.934 26.371 #1
+line 25.054 26.203 25.054 22.871 w0.12 #1
+glyph noteheadHalf 23.934 27.371 #2
+glyph noteheadHalf 23.934 28.371 #3
+line 23.534 28.371 25.514 28.371 w0.16
+line 23.994 27.539 23.994 31.871 w0.12 #3
+glyph noteheadBlack 27.734 25.871 #4
+line 28.854 25.703 28.854 22.371 w0.12 #4
+glyph noteheadBlack 31.534 25.371 #5
+line 32.654 25.203 32.654 21.871 w0.12 #5
+glyph noteheadHalf 31.534 28.371 #3
+line 31.134 28.371 33.114 28.371 w0.16
+line 31.594 28.539 31.594 31.871 w0.12 #3
+glyph noteheadBlack 35.334 24.871 #6
+line 36.454 24.703 36.454 21.371 w0.12 #6
+glyph noteheadBlack 40.334 24.871 #7
+line 41.454 24.703 41.454 21.371 w0.12 #7
+glyph noteheadWhole 40.334 27.371 #8
+glyph noteheadBlack 44.134 24.371 #9
+glyph noteheadBlack 46.821 24.871 #10
+glyph noteheadHalf 49.508 25.371 #11
+line 50.628 25.203 50.628 21.871 w0.12 #11
+line 45.254 24.203 45.254 20.871 w0.12 #9
+line 47.941 24.703 47.941 21.121 w0.12 #10
+beam 45.194 20.866 48.001 21.127 h0.5
+curve 25.234 28.671 26.593 29.994 30.054 29.994 31.414 28.671 0.1/0.22 down #3
+glyph metNoteQuarterUp 16.87 20.971 x0.62
+text " = 90" 17.693 20.971 s2 Bold Left
+line 39.054 23.371 39.054 27.371 w0.16
+line 54.632 23.371 54.632 27.371 w0.5
+line 53.902 23.371 53.902 27.371 w0.16
+text "Guitar" 15.12 26.141 s2.2 Regular Right
+text "Voices" 60 11.931 s4.2 Bold Centre
+text "Cantus" 111.429 15.771 s2.2 Regular Right

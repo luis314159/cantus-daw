@@ -18,6 +18,36 @@ use cantus_dsp::modfx_lfo::{self, Shape};
 use egui::{pos2, vec2, Align2, Pos2, Rect, Sense};
 use std::fmt::Write as _;
 
+/// A card's style in a modulation unit: the function's hue in the plain look; in a unit's
+/// own face, its accent for the Mod function too — the theme's modulation hue stays for
+/// modulation cues (a knob's rings, the live dot; ADR 0074), never a unit's identity.
+pub fn own(s: &Style, f: crate::kit::Function) -> Style {
+    if f == crate::kit::Function::Mod && s.skin.accent.is_some() {
+        body(s)
+    } else {
+        s.function(f)
+    }
+}
+
+/// A modulation unit's body style: the device frame asks for the family's function (Mod),
+/// and a skinned style keeps the theme's modulation hue for it (ADR 0074); in the unit's
+/// own face the body paints in its accent instead (as the tokens' tone hue holds it).
+pub fn body(s: &Style) -> Style {
+    if s.skin.accent.is_some() && s.hue_tok == Some(crate::kit::Tok::HueMod) {
+        Style {
+            hue: s.t.hue_tone,
+            hue_tok: Some(crate::kit::Tok::HueTone),
+            ..*s
+        }
+    } else {
+        *s
+    }
+}
+
+/// The family's characteristic displays (round 32, ADR 0074).
+#[path = "modfx_face.rs"]
+pub mod face;
+
 /// The note values of the synced rates, as [`cantus_dsp::modfx_clock::DIVISIONS`] holds
 /// them: the same words in every language.
 pub const DIV_NAMES: [&str; 17] = [
@@ -264,6 +294,8 @@ pub struct Extras<'a> {
     /// The rate in Hz when the unit's own table does not say it (a chorus model's fixed
     /// rate).
     pub hz: Option<f64>,
+    /// The unit's own marks over its curves (round 32, ADR 0074).
+    pub marks: face::Marks,
 }
 
 /// [`movement`] with [`Extras`].
@@ -297,6 +329,12 @@ pub fn movement_with(
         differ |= (a - b).abs() > 1e-4;
     }
     let spec = host.spec();
+    // The unit's marks only in its own face: with the switch off, the picture as before.
+    let marks = if face::own_face(s) {
+        extras.marks
+    } else {
+        face::Marks::None
+    };
     with_brush(&ui.painter_at(rect), |b| {
         canvas::ground_b(b, rect, &ink, s.hue_tok);
         // The middle line and the cycle lines.
@@ -325,31 +363,61 @@ pub fn movement_with(
             }
             b.polyline(&pts, 1.2 * k, ink.faint);
         }
+        // The right channel: the face's second voice, or the faint line.
+        let (rc, rw) = face::right_line(s, &ink);
         if differ {
-            b.polyline(&right, 1.4 * k, ink.faint);
+            canvas::trace(b, &right, rw * k, rc, &ink);
         }
-        b.polyline(&left, 2.0 * k, ink.hue);
+        match marks {
+            face::Marks::Buckets => {
+                // A bucket brigade's stages: the lines thinner, beads along them.
+                if differ {
+                    face::beads(b, &right, 9.0 * k, 1.9 * k, rc);
+                }
+                canvas::trace(b, &left, 1.4 * k, ink.hue, &ink);
+                face::beads(b, &left, 9.0 * k, 2.2 * k, ink.hue);
+            }
+            _ => canvas::trace(b, &left, 2.0 * k, ink.hue, &ink),
+        }
+        if let face::Marks::Crossings(v) = marks {
+            face::crossings(
+                b,
+                &left,
+                y_of(v),
+                k,
+                face::second_voice(s, &ink).unwrap_or(ink.text),
+            );
+        }
         // Where the unit is now: in the first cycle, by the telemetry's phase.
-        if tel[tel::BLOCKS] > 0.0 {
+        let now = (tel[tel::BLOCKS] > 0.0).then(|| {
             let ph = tel[tel::PHASE_L].clamp(0.0, 1.0);
             let x = plot.left() + plot.width() * 0.5 * ph;
-            b.vline(x, plot.top(), plot.bottom(), 1.0 * k, ink.text);
             let (a, _) = curve(f64::from(ph));
-            b.dot(pos2(x, y_of(a)), 3.5 * k, ink.text);
+            (x, a)
+        });
+        if let Some((x, a)) = now {
+            b.vline(x, plot.top(), plot.bottom(), 1.0 * k, ink.text);
+            if marks != face::Marks::Chart {
+                b.dot(pos2(x, y_of(a)), 3.5 * k, ink.text);
+            }
         }
-        // The ends' names, and the rate in words.
-        for (word, at, align) in [
+        // The ends' names, and the rate in words (their rects: the marks keep clear of them).
+        let mut words = [Rect::NOTHING; 3];
+        for (slot, (word, at, align)) in [
             (top, rect.top() + 3.0 * k, Align2::LEFT_TOP),
             (bottom, rect.bottom() - 3.0 * k, Align2::LEFT_BOTTOM),
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
             // Words in capitals; a number keeps its unit as written ("6.4 ms").
             let numeric =
                 word.starts_with(|c: char| c.is_ascii_digit() || "+-\u{2212}".contains(c));
             let t = Text::new(word, Role::Micro, ink.dim).caps(!numeric);
-            canvas::put(b, pos2(rect.left() + 6.0 * k, at), align, &t, k, None);
+            words[slot] = canvas::put(b, pos2(rect.left() + 6.0 * k, at), align, &t, k, None);
         }
         let tempo = tel[tel::TEMPO];
-        if let Some(hz) = extras.hz {
+        words[2] = if let Some(hz) = extras.hz {
             canvas::putf(
                 b,
                 pos2(rect.right() - 6.0 * k, rect.top() + 3.0 * k),
@@ -359,7 +427,7 @@ pub fn movement_with(
                 k,
                 Some(ink.plate),
                 format_args!("{hz:.2} Hz"),
-            );
+            )
         } else if spec.get("sync") >= 0.5 {
             let i = (spec.get("div").round().max(0.0) as usize).min(DIV_NAMES.len() - 1);
             canvas::putf(
@@ -376,7 +444,7 @@ pub fn movement_with(
                     if tempo > 0.0 { tempo } else { 120.0 },
                     frame::tr("modfx.bpm")
                 ),
-            );
+            )
         } else {
             canvas::putf(
                 b,
@@ -387,7 +455,20 @@ pub fn movement_with(
                 k,
                 Some(ink.plate),
                 format_args!("{:.2} Hz", spec.get("rate")),
-            );
+            )
+        };
+        // The rate's plate is wider than its words (`canvas::put`).
+        words[2] = words[2].expand2(vec2(3.0 * k, 1.0 * k));
+        match marks {
+            face::Marks::Chart => {
+                let pen = now.map(|(x, a)| pos2(x, y_of(a)));
+                face::chart(b, plot, pen, k, &ink, ink.text, &words);
+            }
+            face::Marks::Tuner => {
+                let below = words[2].bottom();
+                face::tuner(b, plot, below, now.map(|n| n.1), k, &ink, ink.hue);
+            }
+            _ => {}
         }
         canvas::edge_b(b, rect, &ink);
     });

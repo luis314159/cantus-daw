@@ -97,8 +97,10 @@ pub fn show(
 ) -> (Rect, Rect) {
     let k = s.k;
     let ink = Ink::of(s);
-    let mid_ink = tone_s.hue;
-    let side_ink = s.hue;
+    // The mid's and the side's voices: the cards' hues in the plain look, the display
+    // look's two voices in a unit's face.
+    let mid_ink = ink.voice(tone_s.hue, false);
+    let side_ink = ink.voice(s.hue, true);
     let resp = ui.interact(rect, ui.id().with("st-map"), Sense::click_and_drag());
     let pad = 8.0 * k;
     let axis = 16.0 * k;
@@ -302,9 +304,10 @@ pub fn show(
         crate::kit::text::Src::Key("st.slope.1"),
     ];
     let now = host.spec().get("tone_slope").round().clamp(0.0, 1.0) as usize;
+    // On the display: its style (fills and polarity), the theme's in the plain look.
     if let Some(i) = controls::segmented_key(
         &mut child,
-        tone_s,
+        &crate::kit::skin::display_style(tone_s),
         host,
         "tone_slope",
         now,

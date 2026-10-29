@@ -1,0 +1,56 @@
+page 1
+size 120 169.714
+line 15.046 23.371 111.429 23.371 w0.13
+line 15.046 24.371 111.429 24.371 w0.13
+line 15.046 25.371 111.429 25.371 w0.13
+line 15.046 26.371 111.429 26.371 w0.13
+line 15.046 27.371 111.429 27.371 w0.13
+glyph fClef 15.796 24.371
+glyph accidentalSharp 19.352 24.371
+glyph timeSig3 21.346 24.371
+glyph timeSig4 21.248 26.371
+glyph noteheadHalf 24.328 27.371 #1
+glyph augmentationDot 25.858 26.871 #1
+line 25.448 27.203 25.448 23.871 w0.12 #1
+glyph noteheadHalf 34.201 27.371 #1
+glyph augmentationDot 35.731 26.871 #1
+line 35.321 27.203 35.321 23.871 w0.12 #1
+glyph noteheadBlack 44.074 27.371 #1
+line 45.194 27.203 45.194 23.871 w0.12 #1
+glyph noteheadHalf 49.081 26.871 #2
+line 50.201 26.703 50.201 23.371 w0.12 #2
+glyph noteheadBlack 57.363 26.371 #3
+line 58.483 26.203 58.483 22.871 w0.12 #3
+glyph noteheadBlack 62.37 25.871 #4
+glyph augmentationDot 63.9 25.871 #4
+line 63.49 25.703 63.49 22.371 w0.12 #4
+glyph noteheadBlack 68.503 25.371 #5
+line 68.563 25.539 68.563 28.871 w0.12 #5
+glyph flag8thDown 68.503 29.003 #5
+glyph noteheadBlack 73.244 24.871 #6
+line 73.304 25.039 73.304 28.371 w0.12 #6
+glyph noteheadHalf 78.252 25.371 #7
+line 78.312 25.539 78.312 28.871 w0.12 #7
+glyph noteheadHalf 86.533 25.371 #7
+glyph augmentationDot 88.063 24.871 #7
+line 86.593 25.539 86.593 28.871 w0.12 #7
+glyph noteheadBlack 96.406 27.371 #8
+line 97.526 27.203 97.526 23.871 w0.12 #8
+glyph restQuarter 101.414 25.371
+glyph restQuarter 106.421 25.371
+curve 26.378 27.671 28.072 29.005 32.386 29.005 34.081 27.671 0.1/0.22 down #1
+curve 36.251 27.671 37.946 29.005 42.259 29.005 43.954 27.671 0.1/0.22 down #1
+curve 79.552 25.071 81.061 23.738 84.904 23.738 86.413 25.071 0.1/0.22 up #7
+glyph metNoteQuarterUp 15.796 20.971 x0.62
+text " = 72" 16.619 20.971 s2 Bold Left
+line 32.921 23.371 32.921 27.371 w0.16
+line 42.794 23.371 42.794 27.371 w0.16
+line 56.083 23.371 56.083 27.371 w0.16
+line 71.964 23.371 71.964 27.371 w0.16
+line 85.253 23.371 85.253 27.371 w0.16
+line 95.126 23.371 95.126 27.371 w0.16
+line 111.179 23.371 111.179 27.371 w0.5
+line 110.449 23.371 110.449 27.371 w0.16
+text "Cello" 14.046 26.141 s2.2 Regular Right
+text "Long notes" 60 11.931 s4.2 Bold Centre
+text "Cantus" 111.429 15.771 s2.2 Regular Right

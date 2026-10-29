@@ -1,0 +1,86 @@
+page 1
+size 120 14.532
+line 15.533 5.9 119 5.9 w0.13
+line 15.533 6.9 119 6.9 w0.13
+line 15.533 7.9 119 7.9 w0.13
+line 15.533 8.9 119 8.9 w0.13
+line 15.533 9.9 119 9.9 w0.13
+glyph gClef 16.283 8.9
+glyph accidentalSharp 19.767 5.9
+glyph accidentalSharp 20.863 7.4
+glyph accidentalSharp 21.959 5.4
+glyph accidentalSharp 23.055 6.9
+glyph accidentalSharp 24.151 8.4
+glyph timeSig4 26.047 6.9
+glyph timeSig4 26.047 8.9
+glyph noteheadBlack 29.127 9.4 #1
+line 30.247 9.232 30.247 5.9 w0.12 #1
+glyph noteheadBlack 32.766 8.9 #2
+line 33.886 8.732 33.886 5.4 w0.12 #2
+glyph noteheadBlack 36.404 8.4 #3
+line 37.524 8.232 37.524 4.9 w0.12 #3
+glyph noteheadBlack 40.043 7.9 #4
+line 40.103 8.068 40.103 11.4 w0.12 #4
+glyph timeSig7 44.432 6.9
+glyph timeSig8 44.442 8.9
+glyph noteheadBlack 47.396 7.4 #5
+glyph noteheadBlack 49.969 7.9 #6
+glyph noteheadBlack 52.542 8.4 #7
+glyph noteheadBlack 55.115 8.9 #8
+glyph noteheadBlack 57.688 9.4 #9
+glyph noteheadBlack 60.261 8.9 #10
+glyph noteheadBlack 62.834 8.4 #11
+line 47.456 7.568 47.456 11.15 w0.12 #5
+line 50.029 8.068 50.029 11.4 w0.12 #6
+beam 47.396 10.644 50.089 10.906 h0.5
+line 53.662 8.232 53.662 4.9 w0.12 #7
+line 56.235 8.732 56.235 5.15 w0.12 #8
+beam 53.602 4.894 56.295 5.156 h0.5
+line 58.808 9.232 58.808 5.4 w0.12 #9
+line 61.381 8.732 61.381 5.15 w0.12 #10
+line 63.954 8.232 63.954 4.9 w0.12 #11
+beam 58.748 5.406 64.014 4.894 h0.5
+glyph timeSig6 66.161 6.9
+glyph timeSig8 66.157 8.9
+glyph noteheadBlack 69.101 7.9 #12
+line 69.161 8.068 69.161 11.4 w0.12 #12
+glyph noteheadBlack 72.74 7.4 #13
+line 72.8 7.568 72.8 10.9 w0.12 #13
+glyph flag8thDown 72.74 11.032 #13
+glyph noteheadBlack 75.313 6.9 #14
+glyph noteheadBlack 77.886 7.4 #15
+glyph noteheadBlack 80.459 7.9 #16
+line 75.373 7.068 75.373 10.9 w0.12 #14
+line 77.946 7.568 77.946 11.15 w0.12 #15
+line 80.519 8.068 80.519 11.4 w0.12 #16
+beam 75.313 10.394 80.579 10.906 h0.5
+glyph noteheadBlack 84.233 8.4 #17
+glyph augmentationDot 85.763 8.4 #17
+line 85.353 8.232 85.353 4.9 w0.12 #17
+glyph noteheadBlack 88.689 9.4 #18
+glyph augmentationDot 90.219 9.4 #18
+line 89.809 9.232 89.809 5.9 w0.12 #18
+glyph timeSig3 93.994 6.9
+glyph timeSig4 93.896 8.9
+glyph noteheadBlack 96.976 8.9 #19
+line 98.096 8.732 98.096 5.4 w0.12 #19
+glyph noteheadBlack 100.615 8.4 #20
+line 101.735 8.232 101.735 4.9 w0.12 #20
+glyph noteheadBlack 104.253 7.9 #21
+line 104.313 8.068 104.313 11.4 w0.12 #21
+glyph timeSig4 108.642 6.9
+glyph timeSig4 108.642 8.9
+glyph noteheadWhole 111.722 7.9 #22
+glyph metNoteQuarterUp 16.283 3 x0.62
+text " = 96" 17.106 3 s2 Bold Left
+glyph metNoteQuarterUp 69.101 3.5 x0.62
+glyph metAugmentationDot 70.075 3.5 x0.62
+text " = 88" 70.425 3.5 s2 Bold Left
+line 43.602 5.9 43.602 9.9 w0.16
+line 65.327 5.9 65.327 9.9 w0.16
+line 82.953 5.9 82.953 9.9 w0.16
+line 93.066 5.9 93.066 9.9 w0.16
+line 107.812 5.9 107.812 9.9 w0.16
+line 118.75 5.9 118.75 9.9 w0.5
+line 118.02 5.9 118.02 9.9 w0.16
+text "Clarinet in B♭" 14.533 8.67 s2.2 Regular Right

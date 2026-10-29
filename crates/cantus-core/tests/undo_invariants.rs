@@ -1773,6 +1773,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut refused_warps = 0usize;
     // Round 31 (ADR 0069): per kind of `round31_kind`, applied and refused.
     let mut midi = [[0usize; 2]; 9];
+    // Round 32 (ADR 0075): score settings applied and refused.
+    let mut scored = [0usize; 2];
     // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
@@ -1786,7 +1788,21 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         }
         let mut checkpoints: Vec<Project> = vec![bus.project().clone()];
         let mut applied = 0;
+        // Round 32 (ADR 0075): a track's score settings, drawn from a stream of their own
+        // between the others — no generator reads them, so every other draw stays the one
+        // it was — and refused when they are not valid or the track is not there.
+        let mut srng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(45));
         for _ in 0..120 {
+            if srng.below(10) == 0 {
+                let cmd = round32_score_command(&mut srng, &mut bus.project().clone());
+                let ok = bus.execute(cmd, origins[srng.below(5) as usize]).is_ok();
+                scored[usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
             // Id allocation mutates `next_id` outside the command system; keep the two in
             // sync by cloning the project only to *generate* the command, then re-applying
             // the allocation through a real project copy.
@@ -2131,6 +2147,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         midi[..2].iter().all(|k| k[1] > 0) && midi[2][1] > 0 && midi[3][1] > 0,
         "round 31's commands never refused: {midi:?}"
+    );
+    assert!(
+        scored[0] > 0 && scored[1] > 0,
+        "score settings never applied or never refused: {scored:?}"
     );
     assert!(
         kept_frames > 0,
@@ -4432,4 +4452,32 @@ fn editing_sequences_undo_and_redo_whole() {
         envs.iter().all(|n| *n > 0),
         "gain envelopes never applied and refused: {envs:?}"
     );
+}
+
+/// Round 32 (ADR 0075): a track's score settings, every field drawn — now and then a
+/// transposition out of range, an empty name or a track that is not there (refused).
+fn round32_score_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::notation::{ClefChoice, ReadingGrid, ScoreSettings, StaffChoice};
+    let track = match project
+        .tracks
+        .get(rng.below(project.tracks.len() as u64 + 1) as usize)
+    {
+        Some(t) => t.id,
+        None => TrackId(u64::MAX - 3),
+    };
+    let mut settings = ScoreSettings {
+        clef: ClefChoice::ALL[rng.below(ClefChoice::ALL.len() as u64) as usize],
+        staves: StaffChoice::ALL[rng.below(StaffChoice::ALL.len() as u64) as usize],
+        split: (rng.below(2) == 0).then(|| rng.below(128) as u8),
+        transpose: rng.below(25) as i8 - 12,
+        dynamics: rng.below(2) == 0,
+        grid: ReadingGrid::ALL[rng.below(ReadingGrid::ALL.len() as u64) as usize],
+        name: (rng.below(3) == 0).then(|| format!("Part {}", rng.below(100))),
+    };
+    match rng.below(8) {
+        0 => settings.transpose = 100,
+        1 => settings.name = Some("  ".into()),
+        _ => {}
+    }
+    Command::SetTrackScore { track, settings }
 }

@@ -293,6 +293,8 @@ pub struct CantusApp {
     /// The command palette, the undo history, the start page and the templates (round 31,
     /// ADR 0072).
     pub workflow: crate::workflow::WorkflowUi,
+    /// The score (round 32, ADR 0075): the staff under the piano roll, the Score pane.
+    pub score: crate::score::ScoreUi,
 }
 
 impl CantusApp {
@@ -488,6 +490,8 @@ impl CantusApp {
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
+        // Units wear their own faces, or the plain look (round 32, ADR 0074).
+        app.apply_unit_faces();
         // The user's automatic crossfades (round 31, ADR 0070) on the bus.
         app.apply_editing_settings();
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
@@ -729,6 +733,7 @@ impl CantusApp {
             warp: Default::default(),
             controllers: Default::default(),
             workflow: Default::default(),
+            score: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
@@ -1039,6 +1044,12 @@ impl CantusApp {
         let now = self.settings.ui_scale();
         let next = settings::ui_scale_step(now, up);
         self.apply_ui_scale(ctx, next);
+    }
+
+    /// Units wear their own faces as the settings say (round 32, ADR 0074), on the thread
+    /// that draws: at start (the boot's assemble) and whenever the choice changes.
+    pub fn apply_unit_faces(&mut self) {
+        crate::kit::skin::set_enabled(self.settings.unit_faces);
     }
 
     pub fn store_settings(&mut self) {
@@ -3439,6 +3450,8 @@ impl CantusApp {
         if self.export.dialog.is_some() {
             return;
         }
+        // The score's keys while it has them (ADR 0075): before the keymap's.
+        crate::score::keys(self, ctx);
         // A focused fader moves with the arrow keys. This dispatch runs before any panel
         // is laid out, so without the claim the same press would nudge the note selection
         // as well (`crate::widgets`).
@@ -3522,12 +3535,17 @@ impl CantusApp {
             return;
         }
         // Round 31 (ADR 0072): the palette, the history, the templates.
+        if crate::score::action(self, action) {
+            return;
+        }
         if crate::workflow::action(self, action) {
             return;
         }
         match action {
             // Handled by `controllers_action` above.
             MidiLearnMode | LinkLastTweaked | ViewControllers => {}
+            // Handled by `score::action` above.
+            ShowScore | ViewScore => {}
             // Handled by `workflow::action` above.
             CommandPalette | ViewHistory | NewFromTemplate | SaveAsTemplate | SaveTrackTemplate => {
             }

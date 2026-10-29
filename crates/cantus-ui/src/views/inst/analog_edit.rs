@@ -193,18 +193,23 @@ fn extra(
     display: Option<Rect>,
     slots: &[Rect],
 ) {
+    // The pictures in the display's look (round 32): its ink, its glass over them.
+    let sd = &crate::views::inst::face::on_display(s);
     let paint = |ui: &egui::Ui, d: Rect, f: &dyn Fn(&mut Brush)| {
-        crate::kit::with_brush(&ui.painter_at(d), |b| f(b));
+        crate::kit::with_brush(&ui.painter_at(d), |b| {
+            f(b);
+            crate::views::inst::face::cover(b, d, sd);
+        });
     };
     match (what, display) {
         (Extra::Osc(n), Some(d)) => {
             let k = |f: &str| spec.get(&format!("osc{n}.{f}"));
             let levels = (k("saw"), k("pulse"), k("tri"), k("pw"));
             paint(ui, d, &|b| {
-                draw::cycle(b, d, s, levels);
+                draw::cycle(b, d, sd, levels);
             });
         }
-        (Extra::Filter, Some(d)) => filter::display(app, ui, track, spec, tel, d, s),
+        (Extra::Filter, Some(d)) => filter::display(app, ui, track, spec, tel, d, sd),
         (Extra::Env(e), Some(d)) => {
             let k = |f: &str| spec.get(&format!("env{e}.{f}"));
             let times = (k("a"), k("d"), k("s"), k("r"));
@@ -213,7 +218,7 @@ fn extra(
             } else {
                 tel[tel::ENV2]
             };
-            paint(ui, d, &|b| draw::envelope(b, d, s, times, level));
+            paint(ui, d, &|b| draw::envelope(b, d, sd, times, level));
         }
         (Extra::Lfo(l), Some(d)) => {
             let k = |f: &str| spec.get(&format!("lfo{l}.{f}"));
@@ -222,7 +227,7 @@ fn extra(
                 k("unipolar") >= 0.5,
                 k("phase"),
             );
-            paint(ui, d, &|b| draw::lfo(b, d, s, shape, uni, ph));
+            paint(ui, d, &|b| draw::lfo(b, d, sd, shape, uni, ph));
         }
         (Extra::Output, _) => {
             if let Some(r) = slots.first() {
@@ -230,7 +235,7 @@ fn extra(
             }
         }
         (Extra::Cards, Some(d)) => {
-            cards::grid(app, ui, track, spec, tel, d, s, true);
+            cards::grid(app, ui, track, spec, tel, d, sd, true);
             if let [words, tools, ..] = slots[..] {
                 cards::condition_words(ui, words, spec, s);
                 cards::tools(app, ui, track, spec, tools, s);

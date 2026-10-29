@@ -378,7 +378,9 @@ pub fn geometry(b: &mut Brush, ls: &LaminaSettings, key: u8, d: Rect, s: &Style)
     let tip = x0 + len * px_mm;
     match ls.engine {
         Engine::Tine => {
-            // The tone bar above, twisted brass, from the same block.
+            // The tone bar above, twisted brass (the face's second accent), from the
+            // same block.
+            let brass = crate::views::inst::face::voice2(s, s.hue);
             let bar = Rect::from_min_max(
                 Pos2::new(x0, y - s.s(12.0)),
                 Pos2::new(x0 + len * 0.85 * px_mm, y - s.s(6.0)),
@@ -387,8 +389,8 @@ pub fn geometry(b: &mut Brush, ls: &LaminaSettings, key: u8, d: Rect, s: &Style)
                 bar,
                 s.r(2.0),
                 Fill::V(
-                    mix(tk.panel_raised, s.hue, 0.5),
-                    mix(tk.panel_raised, s.hue, 0.3),
+                    mix(tk.panel_raised, brass, 0.5),
+                    mix(tk.panel_raised, brass, 0.3),
                 ),
             );
             b.segment(Pos2::new(x0, y), Pos2::new(tip, y), s.s(2.5), tk.text, true);

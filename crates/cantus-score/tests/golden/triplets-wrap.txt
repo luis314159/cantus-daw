@@ -1,0 +1,97 @@
+page 1
+size 120 16.282
+line 7.988 5.4 119 5.4 w0.13
+line 7.988 6.4 119 6.4 w0.13
+line 7.988 7.4 119 7.4 w0.13
+line 7.988 8.4 119 8.4 w0.13
+line 7.988 9.4 119 9.4 w0.13
+glyph gClef 8.738 8.4
+glyph accidentalSharp 12.222 5.4
+glyph timeSig4 14.118 6.4
+glyph timeSig4 14.118 8.4
+glyph noteheadBlack 17.198 8.4 #1
+glyph noteheadBlack 20.123 7.9 #2
+glyph noteheadBlack 23.047 7.4 #3
+glyph noteheadBlack 25.971 6.9 #4
+line 26.031 7.068 26.031 10.4 w0.12 #4
+glyph noteheadBlack 31.035 6.4 #5
+line 31.095 6.568 31.095 9.9 w0.12 #5
+glyph flag8thDown 31.035 10.032 #5
+glyph rest8th 33.959 7.4
+glyph noteheadBlack 36.883 6.9 #6
+line 36.943 7.068 36.943 10.4 w0.12 #6
+glyph flag8thDown 36.883 10.532 #6
+glyph noteheadBlack 39.808 7.4 #7
+line 39.868 7.568 39.868 10.9 w0.12 #7
+line 18.318 8.232 18.318 4.4 w0.12 #1
+line 21.243 7.732 21.243 4.15 w0.12 #2
+line 24.167 7.232 24.167 3.9 w0.12 #3
+beam 18.258 4.405 24.227 3.895 h0.5
+glyph noteheadBlack 46.072 7.9 #8
+line 47.192 7.732 47.192 4.4 w0.12 #8
+glyph noteheadBlack 50.208 7.4 #9
+line 50.268 7.568 50.268 10.9 w0.12 #9
+glyph noteheadBlack 54.343 6.9 #10
+line 54.403 7.068 54.403 10.4 w0.12 #10
+glyph noteheadHalf 58.478 6.4 #11
+line 58.538 6.568 58.538 9.9 w0.12 #11
+glyph noteheadBlack 66.841 5.9 #12
+glyph noteheadBlack 70.422 6.4 #13
+glyph noteheadBlack 74.003 6.9 #14
+glyph noteheadBlack 76.927 7.4 #15
+glyph noteheadBlack 79.851 7.9 #16
+glyph noteheadBlack 82.775 7.9 #16
+line 83.895 7.732 83.895 4.4 w0.12 #16
+glyph noteheadBlack 87.84 8.4 #17
+line 88.96 8.232 88.96 4.9 w0.12 #17
+line 66.901 6.068 66.901 9.65 w0.12 #12
+line 70.482 6.568 70.482 9.9 w0.12 #13
+beam 66.841 9.146 70.542 9.404 h0.5
+line 74.063 7.068 74.063 10.9 w0.12 #14
+line 76.987 7.568 76.987 11.15 w0.12 #15
+line 79.911 8.068 79.911 11.4 w0.12 #16
+beam 74.003 10.395 79.971 10.905 h0.5
+glyph noteheadBlack 94.105 6.9 #18
+glyph noteheadBlack 96.172 6.4 #19
+glyph noteheadBlack 98.24 5.9 #20
+glyph noteheadBlack 100.308 5.4 #21
+glyph noteheadBlack 102.375 4.9 #22
+glyph noteheadBlack 104.443 4.4 #23
+line 104.043 4.4 106.023 4.4 w0.16
+glyph noteheadBlack 106.773 3.9 #24
+line 106.373 4.4 108.353 4.4 w0.16
+line 106.833 4.068 106.833 7.4 w0.12 #24
+glyph noteheadHalf 111.837 3.4 #25
+line 111.437 4.4 113.417 4.4 w0.16
+line 111.437 3.4 113.417 3.4 w0.16
+line 111.897 3.568 111.897 7.4 w0.12 #25
+line 94.165 7.068 94.165 11.15 w0.12 #18
+line 96.232 6.568 96.232 10.95 w0.12 #19
+line 98.3 6.068 98.3 10.75 w0.12 #20
+line 100.368 5.568 100.368 10.55 w0.12 #21
+line 102.435 5.068 102.435 10.35 w0.12 #22
+line 104.503 4.568 104.503 10.15 w0.12 #23
+beam 94.105 10.656 104.563 9.644 h0.5
+beam 94.105 9.906 104.563 8.894 h0.5
+curve 81.151 7.6 81.482 7.026 82.324 7.026 82.655 7.6 0.1/0.22 up #16
+glyph tuplet3 20.651 3.55
+line 30.935 11.488 33.657 11.488 w0.16
+line 35.441 11.488 38.163 11.488 w0.16
+line 30.935 11.488 30.935 10.888 w0.16
+line 38.163 11.488 38.163 10.888 w0.16
+glyph tuplet3 33.957 12.238
+line 45.972 3.44 49.906 3.44 w0.16
+line 51.69 3.44 55.623 3.44 w0.16
+line 45.972 3.44 45.972 4.04 w0.16
+line 55.623 3.44 55.623 4.04 w0.16
+glyph tuplet3 50.206 4.19
+glyph tuplet3 76.395 13.25
+glyph tuplet6 98.726 13
+glyph metNoteQuarterUp 8.738 3 x0.62
+text " = 84" 9.562 3 s2 Bold Left
+line 44.792 5.4 44.792 9.4 w0.16
+line 65.561 5.4 65.561 9.4 w0.16
+line 92.825 5.4 92.825 9.4 w0.16
+line 118.75 5.4 118.75 9.4 w0.5
+line 118.02 5.4 118.02 9.4 w0.16
+text "Violin" 6.988 8.17 s2.2 Regular Right

@@ -636,11 +636,11 @@ fn tools(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, w: f32) {
 }
 
 /// Under an analytic model's curve: the drive the curve sees, the level match, and where
-/// the input peaks.
+/// the input peaks — on the card, in the card's text (not the display's: a unit's display
+/// look can be dark on a light face).
 fn numbers(ui: &mut egui::Ui, s: &Style, w: f32, tel: &[f32; 64], ss: &SatSettings) {
     let k = s.k;
     let (rect, _) = ui.allocate_exact_size(vec2(w * k, s.d(controls::ROW)), Sense::hover());
-    let ink = Ink::of(s);
     let tk = s.tk();
     let match_db = if ss.auto_gain {
         tel[telemetry::MATCH]
@@ -655,7 +655,7 @@ fn numbers(ui: &mut egui::Ui, s: &Style, w: f32, tel: &[f32; 64], ss: &SatSettin
             pos2(rect.left() + 6.0 * k, mid),
             Align2::LEFT_CENTER,
             frame::tr("fx.sat.drive"),
-            ink.text,
+            s.t.text,
             tk,
             None,
             format_args!("{:+.1} dB", ss.total_drive_db()),
@@ -665,7 +665,7 @@ fn numbers(ui: &mut egui::Ui, s: &Style, w: f32, tel: &[f32; 64], ss: &SatSettin
             pos2(r.right() + 14.0 * k, mid),
             Align2::LEFT_CENTER,
             frame::tr("sat.match"),
-            ink.text,
+            s.t.text,
             tk,
             None,
             format_args!("{match_db:+.1} dB"),
@@ -676,7 +676,7 @@ fn numbers(ui: &mut egui::Ui, s: &Style, w: f32, tel: &[f32; 64], ss: &SatSettin
                 pos2(r.right() + 14.0 * k, mid),
                 Align2::LEFT_CENTER,
                 frame::tr("sat.peak_in"),
-                ink.text,
+                s.t.text,
                 tk,
                 None,
                 format_args!("{peak:.1} dBFS"),

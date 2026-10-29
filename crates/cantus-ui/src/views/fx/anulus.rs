@@ -143,6 +143,8 @@ fn body_ui(
     tel: &[f32; 64],
     a: &AnulusSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -152,9 +154,9 @@ fn body_ui(
     let total = area.width() - gap;
     let pw = PARTIALS_W * k;
     let r1: Vec<Rect> = g.row(row1, &[(total - pw) / total, pw / total]).collect();
-    let sm = s.function(Function::Mod);
+    let sm = modfx::own(s, Function::Mod);
     carrier_card(host, st, ui, &sm, r1[0], tel, a);
-    partials_card(ui, &s.function(Function::Tone), r1[1], a);
+    partials_card(ui, &modfx::own(s, Function::Tone), r1[1], a);
 
     let w = [
         controls::cells_width(&[Size::XL, Size::M]) + 4.0 + WAVE_W + 16.0,
@@ -182,7 +184,7 @@ fn body_ui(
     modfx::region(ui, r2[1], a.lfo_st > 0.0, |ui| {
         modfx::lfo_card(host, ui, &sm, r2[1], &LFO);
     });
-    let so = s.function(Function::Output);
+    let so = modfx::own(s, Function::Output);
     controls::card(
         ui,
         &so,
@@ -346,6 +348,23 @@ fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
                     4.0 * k,
                     3.0 * k,
                 );
+                // The sidebands come in pairs round the input, a ring joining each pair:
+                // the sum above, the difference below, at one level (round 32).
+                let rings = modfx::face::second_voice(s, &ink);
+                for pair in parts[..n].chunks_exact(2).filter(|_| rings.is_some()) {
+                    let (hi, lo) = (pair[0], pair[1]);
+                    if !(20.0..=20_000.0).contains(&hi.0) || !(20.0..=20_000.0).contains(&lo.0) {
+                        continue;
+                    }
+                    modfx::face::ring(
+                        b,
+                        pos2(x_of(lo.0), y_of(lo.1)),
+                        pos2(x_of(hi.0), y_of(hi.1)),
+                        10.0 * k,
+                        1.2 * k,
+                        rings.unwrap_or(ink.faint),
+                    );
+                }
                 for &(f, amp) in &parts[..n] {
                     if !(20.0..=20_000.0).contains(&f) {
                         continue;

@@ -300,6 +300,7 @@ fn hit_card(
     let Some(d) = cr.display else {
         return;
     };
+    let s = &crate::views::inst::face::on_display(s);
     match pad {
         Some(pad) => display::show(app, ui, track, kit, pad, d, s),
         None => parts::words(

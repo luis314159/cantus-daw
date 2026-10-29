@@ -205,7 +205,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     if crate::views::workspace_device::keyboard_toggle_requested(ctx) {
         app.inst.keyboard = Some(!keyboard_shown(app));
     }
-    let shell = Shell::new(("inst", track.0));
+    let shell = Shell::new(("inst", track.0)).skin(crate::kit::skin::of_instrument(spec.kind));
     let k = shell.scale(ctx);
     let size = shell::INSTRUMENT * k;
     let track_name = app
@@ -468,6 +468,9 @@ fn popups(
     if popup == Popup::None {
         return;
     }
+    // Round 32, skin builder: the menus wear the unit's face, as an effect's do (they run
+    // after the shell took its face off).
+    let _worn = crate::kit::skin::wear(shell.skin);
     let at = Pos2::new(rect.right() - 260.0 * k, rect.top() + shell::HEADER * k);
     let presets = preset_list(spec.kind);
     let percents: Vec<String> = shell::SCALES
@@ -823,11 +826,13 @@ pub fn write_readout(v: f32, unit: &str, b: &mut String) {
     };
 }
 
-/// The modulation reaching `key`, as the kit's rings: depth and the source's hue.
-fn rings_for(spec: &NativeSpec, key: &str, s: &Style) -> Vec<(f32, egui::Color32)> {
+/// The modulation reaching `key`, as the kit's rings: depth and the source's hue — a
+/// modulation cue, never the face's accent. Every instrument's knobs build their rings here.
+pub(crate) fn rings_for(spec: &NativeSpec, key: &str, s: &Style) -> Vec<(f32, egui::Color32)> {
     connections(spec)
         .filter(|c| c.dst == key && c.on)
-        .map(|c| (c.amount, s.t.hue(source_family(c.src))))
+        // Round 32, skin builder: a modulation cue, never the face's accent.
+        .map(|c| (c.amount, crate::kit::skin::cue_hue(s, source_family(c.src))))
         .collect()
 }
 
@@ -1044,7 +1049,8 @@ fn param(
 
 /// The colour of a modulation source: its family's hue (the chip's bar, the rings).
 pub fn source_color(tag: &str) -> egui::Color32 {
-    Style::current().t.hue(source_family(tag))
+    // Round 32, skin builder: a modulation cue, never the face's accent.
+    crate::kit::skin::cue_hue(&Style::current(), source_family(tag))
 }
 
 /// A source's short label: the tag, as the chips and rings print it (`LFO1`, `VEL`).
@@ -1320,6 +1326,85 @@ mod tests {
     use cantus_core::inst::modulation::{connections, SLOTS};
     use cantus_core::*;
     use cantus_engine::EngineHandle;
+
+    /// Round 32, the review of the skin's delivery 2: every modulation source — envelope,
+    /// LFO, macro, MPE, wheel, aftertouch, expression, velocity — is coloured as a cue in
+    /// every instrument's face (the rings, the chip bar, the drag), never in the accent the
+    /// value arc paints: at least `MOD_GAP − 6`° from it, in every preset.
+    #[test]
+    fn every_instrument_s_modulation_sources_stay_apart_from_its_accent() {
+        use crate::kit::color::Hsl;
+        use crate::kit::skin::{self, MOD_GAP};
+        use crate::kit::Style;
+        let gap = |a: f32, b: f32| {
+            let d = (a - b).rem_euclid(360.0);
+            d.min(360.0 - d)
+        };
+        let mut bad = Vec::new();
+        for kind in cantus_core::inst::InstrumentKind::ALL {
+            let sheet = skin::of_instrument(kind);
+            for (key, make) in crate::theme::PRESETS {
+                let base = make().kit_tokens();
+                let s = Style::new(base).skinned(sheet).function(super::hue(kind));
+                let _on = skin::wear(sheet);
+                for tag in [
+                    "env1", "env2", "lfo1", "macro1", "mpe_y", "mw", "at", "expr", "vel",
+                ] {
+                    // The ring as every instrument's knobs build it: one connection from
+                    // `tag` to a key, through `rings_for` (round 32's last review:
+                    // Exemplar's cards built their own and kept the accent).
+                    let mut spec = NativeSpec {
+                        kind,
+                        params: Default::default(),
+                        text: Default::default(),
+                    };
+                    spec.text.insert(SLOTS[0].src.into(), tag.into());
+                    spec.text.insert(SLOTS[0].dst.into(), "probe".into());
+                    spec.params.insert(SLOTS[0].amt.into(), 0.5);
+                    spec.params.insert(SLOTS[0].on.into(), 1.0);
+                    let built = super::rings_for(&spec, "probe", &s);
+                    assert_eq!(built.len(), 1, "{tag}: one ring");
+                    for (what, c) in [("ring", built[0].1), ("chip", super::source_color(tag))] {
+                        let (h, a) = (Hsl::of(c), Hsl::of(s.hue));
+                        if h.s > 0.15 && a.s > 0.15 && gap(h.h, a.h) < MOD_GAP - 6.0 {
+                            bad.push(format!(
+                                "{} {key}: {tag}'s {what} {:.0}° from the accent",
+                                sheet.key,
+                                gap(h.h, a.h)
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{} failures: {:#?}",
+            bad.len(),
+            &bad[..bad.len().min(12)]
+        );
+    }
+
+    /// Every instrument's knobs take their modulation rings from `rings_for`: no file of
+    /// the instruments colours a modulation source with a function hue of its own (round
+    /// 32's last review: Exemplar's cards did, and wore the accent).
+    #[test]
+    fn no_instrument_colours_a_modulation_source_by_hand() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/views/inst");
+        let mut bad = Vec::new();
+        for e in std::fs::read_dir(&dir).unwrap().flatten() {
+            let text = std::fs::read_to_string(e.path()).unwrap_or_default();
+            for (n, line) in text.lines().enumerate() {
+                // Spelled in pieces so this line does not find itself.
+                if line.contains(concat!("source_", "family("))
+                    && line.contains(concat!(".t.", "hue("))
+                {
+                    bad.push(format!("{}:{}", e.file_name().to_string_lossy(), n + 1));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "rings coloured by hand: {bad:?}");
+    }
 
     /// Sound review 2: an `a4` automation clip an Organ left on its track is inert once
     /// the track plays Chorda — the A4 knob shows its own value and offers nothing; and a

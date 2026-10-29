@@ -549,9 +549,43 @@ pub fn band_color(band: usize) -> Color32 {
 }
 
 /// A band's colour as the display draws it: clamped to the theme's safe band, so it
-/// reads on the display's ground in every theme.
+/// reads on the display's ground in every theme. In Multiplex's face (round 32) the bands
+/// take the face's colours instead — see [`face_band`] — at 3:1 on the look's ground.
 fn band_ink(band: usize, s: &Style) -> Color32 {
-    safe_track(band_color(band), s.t.dark, FillSize::Small)
+    let ink = Ink::of(s);
+    // The face's colour as the display's polarity wants it (a CRT is dark in Paper too).
+    match face_band(band, s, ink.dark) {
+        Some(h) => crate::kit::color::ensure_contrast(h.rgb(), ink.ground, 3.0),
+        None => safe_track(band_color(band), s.t.dark, FillSize::Small),
+    }
+}
+
+/// A band's colour where it marks a card on the deck (its knobs' arcs, its lamp): the
+/// face's colour at 4.5:1 on the deck, as the kit holds every hue there; the display's
+/// colour in the kit's look.
+fn band_ink_deck(band: usize, s: &Style) -> Color32 {
+    match face_band(band, s, s.t.dark) {
+        Some(h) => crate::kit::color::ensure_contrast(h.rgb(), s.t.deck, 4.5),
+        None => band_ink(band, s),
+    }
+}
+
+/// Where along the face's two hues each band sits: its accent, its second voice, between
+/// them, and beyond each — so the first four are at least 45° apart and every band its own.
+const FACE_STEPS: [f32; 8] = [0.0, 1.0, 0.5, -0.55, 1.55, 0.25, 0.75, -0.3];
+
+/// A band's hue in a face with two voices (Multiplex's violet and cyan), at the
+/// lightness its pairs give a `dark` ground or a light one: `None` in the kit's look.
+fn face_band(band: usize, s: &Style, dark: bool) -> Option<crate::kit::color::Hsl> {
+    let a = s.skin.accent?.get(dark);
+    let b = s.skin.accent2?.get(dark);
+    let span = (b.h - a.h + 540.0).rem_euclid(360.0) - 180.0;
+    let h = (a.h + span * FACE_STEPS[band % FACE_STEPS.len()]).rem_euclid(360.0);
+    Some(crate::kit::color::Hsl {
+        h,
+        s: a.s.max(b.s),
+        l: a.l,
+    })
 }
 
 /// The static key of one field of one band (`b3.thr`): no formatting.
@@ -1776,7 +1810,11 @@ fn paint_display(
             b.rrect(
                 hr,
                 3.0 * k,
-                Fill::Solid(if hot { ink.hue } else { s.t.deck_title }),
+                Fill::Solid(if hot {
+                    ink.hue
+                } else {
+                    super::dynfx::on_display(&ink, s.t.deck_title)
+                }),
             );
             b.rrect_stroke(hr, 3.0 * k, px, if hot { ink.hue } else { ink.grid_strong });
             *slot = (hr, hot);
@@ -1831,7 +1869,8 @@ fn paint_display(
         // ---- the empty state: its words on a card of their own ----
         if lay.n == 0 {
             let card = empty_card(level, k);
-            b.rrect(b.snap_rect(card), s.r(6.0), Fill::Solid(s.t.deck));
+            let fill = super::dynfx::on_display(&ink, s.t.deck);
+            b.rrect(b.snap_rect(card), s.r(6.0), Fill::Solid(fill));
             b.rrect_stroke(card, s.r(6.0), px, ink.edge);
         }
         for r in [level, gain, lanes] {
@@ -2788,7 +2827,7 @@ fn band_card(
     };
     let band = set.bands[b];
     let keyed = key_set(st);
-    let marked = s.with_hue(band_ink(b, s));
+    let marked = s.with_hue(band_ink_deck(b, s));
     let title = st.words.band.get(b).map_or("", String::as_str);
     let mut remove = false;
     let (_, lamp, lamp_resp) = controls::card_lamp(
@@ -3324,4 +3363,53 @@ pub fn demo_feed(app: &mut CantusApp) {
         }
     }
     app.fx.feed(&pairs);
+}
+
+#[cfg(test)]
+mod face_tests {
+    use super::*;
+
+    /// Multiplex's face (round 32): its bands are its own violet and cyan and the hues
+    /// between and beyond, each 3:1 on the look's ground and 4.5:1 on the deck where it
+    /// marks a card, the first four at least 40° apart; with faces off, the theme's band
+    /// palette as before.
+    #[test]
+    fn the_bands_wear_the_face_s_colours_and_the_plain_look_keeps_its_own() {
+        use crate::kit::color::{contrast, Hsl};
+        let skin = crate::kit::skin::of_effect(EffectKind::Multiband);
+        for (name, make) in crate::kit::appearance::PRESETS {
+            let base = crate::kit::Tokens::for_theme(&make());
+            let s = Style::new(base).skinned(skin);
+            let ground = Ink::of(&s).ground;
+            let hues: Vec<f32> = (0..4).map(|b| Hsl::of(band_ink(b, &s)).h).collect();
+            for b in 0..8 {
+                let c = band_ink(b, &s);
+                assert!(contrast(c, ground) + 1e-3 >= 3.0, "{name} band {b}");
+                assert!(
+                    contrast(band_ink_deck(b, &s), s.t.deck) + 1e-3 >= 4.5,
+                    "{name} {b}"
+                );
+                assert!(
+                    face_band(b, &s, true).is_some(),
+                    "{name} band {b} is the theme's"
+                );
+            }
+            for i in 0..4 {
+                for j in i + 1..4 {
+                    let d = (hues[i] - hues[j]).rem_euclid(360.0);
+                    assert!(d.min(360.0 - d) >= 40.0, "{name}: bands {i} and {j}");
+                }
+            }
+            let plain = Style::new(base);
+            for b in 0..8 {
+                let before = safe_track(band_color(b), plain.t.dark, FillSize::Small);
+                assert_eq!(band_ink(b, &plain), before, "{name} band {b}, faces off");
+                assert_eq!(
+                    band_ink_deck(b, &plain),
+                    before,
+                    "{name} band {b}, faces off"
+                );
+            }
+        }
+    }
 }

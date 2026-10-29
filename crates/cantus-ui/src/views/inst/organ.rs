@@ -28,6 +28,7 @@ mod drawbars;
 #[path = "organ_parts.rs"]
 pub(super) mod parts;
 
+use super::face;
 use super::FactoryPreset;
 use crate::app::CantusApp;
 use crate::i18n::t;
@@ -203,7 +204,8 @@ fn drawbar_card(
         well::readout(b, tr, &st, KitState::REST, &reg, true)
     });
     if let Some(d) = cr.display {
-        drawbars::drawbars(app, ui, track, spec, d, &st, keys, footages, kinds);
+        let sd = face::on_display(&st);
+        drawbars::drawbars(app, ui, track, spec, d, &sd, keys, footages, kinds);
     }
 }
 
@@ -234,8 +236,10 @@ fn percussion_card(
     );
     power(app, ui, &cr, track, "perc", on, 1.0, s);
     if let Some(d) = cr.display {
+        let fd = face::on_display(&sd);
         with_brush(&ui.painter_at(d), |b| {
-            cabinet::percussion(b, o, env, d, &sd)
+            cabinet::percussion(b, o, env, d, &fd);
+            face::cover(b, d, &fd);
         });
     }
     at(ui, cr.body, ("organ-perc", track.0), |ui| {
@@ -298,8 +302,10 @@ fn vibrato_card(
         &Card::new("organ.vibrato", Function::Mod).display(display),
     );
     if let Some(d) = cr.display {
+        let fd = face::on_display(&sm);
         with_brush(&ui.painter_at(d), |b| {
-            cabinet::scanner(b, o, position, d, &sm)
+            cabinet::scanner(b, o, position, d, &fd);
+            face::cover(b, d, &fd);
         });
     }
     let (controls, rate) = if edit {
@@ -429,7 +435,7 @@ fn rotary_play(
     );
     power(app, ui, &cr, track, "rot.out", o.rotary_on, 0.0, s);
     if let Some(d) = cr.display {
-        cabinet::cabinet(app, ui, track, o, rotors, d, &sp);
+        cabinet::cabinet(app, ui, track, o, rotors, d, &face::on_display(&sp));
     }
     let r = Rect::from_min_size(cr.body.min, Vec2::new(cr.body.width(), s.s(24.0)));
     switch(app, ui, r, track, spec, "rot.speed", &SPEEDS, &sp);
@@ -527,7 +533,7 @@ fn splits_card(
         &Card::new("organ.splits", Function::Tone).display(56.0),
     );
     if let Some(d) = cr.display {
-        cabinet::splits(app, ui, track, spec, d, &st);
+        cabinet::splits(app, ui, track, spec, d, &face::on_display(&st));
     }
     let keys = ["lvl.upper", "lvl.lower", "lvl.pedal"];
     cells(app, ui, cr.body, track, spec, &keys, &st, KnobSize::M);
@@ -581,11 +587,12 @@ fn rotary_edit(
     power(app, ui, &cr, track, "rot.out", o.rotary_on, 0.0, s);
     if let Some(d) = cr.display {
         let halves = split(d, 0.0, &[0.34, 0.66]);
-        cabinet::cabinet(app, ui, track, o, rotors, halves[0], &sp);
+        let fd = face::on_display(&sp);
+        cabinet::cabinet(app, ui, track, o, rotors, halves[0], &fd);
         with_brush(&ui.painter_at(halves[1]), |b| {
             let x = b.snap_mid(halves[1].left());
-            b.vline(x, d.top(), d.bottom(), b.px(), sp.t.edge);
-            cabinet::ramp(b, o, rotors, halves[1], &sp);
+            b.vline(x, d.top(), d.bottom(), b.px(), fd.t.edge);
+            cabinet::ramp(b, o, rotors, halves[1], &fd);
         });
     }
     let top = Rect::from_min_size(cr.body.min, Vec2::new(cr.body.width(), s.s(24.0)));

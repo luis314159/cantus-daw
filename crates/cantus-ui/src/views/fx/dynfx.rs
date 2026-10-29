@@ -362,9 +362,130 @@ pub fn key_source(
     ))
 }
 
+/// A plate or lane drawn *inside* a display (a handle, a label's backing, a lane): the
+/// theme's `plain` surface in the plain look, a step off the display's own ground in a
+/// unit's look (round 32) — so a light theme's deck colour never lands on a CRT's dark
+/// glass under its light words. The step goes away from the words (deeper on a dark
+/// glass, paler on a light panel): a backing is there to quiet what is behind them, and
+/// the display's dim words, made 3:1 on its ground, keep it on the plate.
+pub fn on_display(ink: &Ink, plain: Color32) -> Color32 {
+    if ink.look.look == crate::kit::skin::Display::Plain {
+        plain
+    } else {
+        crate::kit::color::shade(ink.ground, if ink.dark { -0.035 } else { 0.035 })
+    }
+}
+
+/// The display's second voice where the unit's face has one (Terminus's output, Impetus's
+/// sustain, Discrimen's body — round 32); `plain` in the kit's look, so nothing changes
+/// there.
+pub fn second_voice(s: &crate::kit::Style, ink: &Ink, plain: Color32) -> Color32 {
+    if s.skin.accent2.is_some() {
+        ink.look.trace2
+    } else {
+        plain
+    }
+}
+
+/// The display's ink for words and bars set on a card's deck rather than on a display
+/// (a stats column, a clip meter's numbers): in a unit's look the display's own words are
+/// made for its glass, so here they are the deck's (the theme's text, its dim text, the
+/// device's hue) — what the kit's plain look gives everywhere.
+pub fn deck_ink(s: &crate::kit::Style) -> Ink {
+    let mut i = Ink::of(s);
+    if i.look.look != crate::kit::skin::Display::Plain {
+        let t = &s.t;
+        i.text = t.text;
+        i.dim = t.text_dim;
+        i.hue = s.hue;
+        i.grid = t.grid;
+        i.faint = crate::kit::color::with_alpha(t.text_dim, if t.dark { 0.30 } else { 0.40 });
+        i.plate = crate::kit::color::with_alpha(t.ink, 0.86);
+        i.dark = t.dark;
+    }
+    i
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The dynamics family's faces (round 32), in every theme preset: inside a display the
+    /// ink's polarity is the display's own (a CRT is dark in Paper too, an LCD light in
+    /// Slate), and the words drawn there read on every fill they are drawn on — the
+    /// display's ground, a plate or lane made by [`on_display`], a label's backing — and
+    /// the unit's hue reads on the look's ground, not only on the theme's ink. Words set on
+    /// a deck through [`deck_ink`] read on the deck. With faces off, nothing changes.
+    #[test]
+    fn words_inside_every_dynamics_display_read_on_what_they_are_drawn_on() {
+        use crate::kit::color::{contrast, luminance};
+        use crate::kit::{Style, Tokens};
+        use cantus_core::EffectKind as K;
+        let kinds = [
+            K::Compressor,
+            K::Limiter,
+            K::Multiband,
+            K::DeEsser,
+            K::Gate,
+            K::Maximizer,
+            K::Clipper,
+            K::Transient,
+            K::TransientSplit,
+        ];
+        let mut bad = Vec::new();
+        for (name, make) in crate::kit::appearance::PRESETS {
+            let base = Tokens::for_theme(&make());
+            for kind in kinds {
+                let skin = crate::kit::skin::of_effect(kind);
+                let s = Style::new(base).skinned(skin);
+                let ink = Ink::of(&s);
+                let key = skin.key;
+                let dark = luminance(ink.ground) < 0.18;
+                if ink.dark != dark {
+                    bad.push(format!(
+                        "{name} {key}: the ink's polarity is not its display's"
+                    ));
+                }
+                let plate = on_display(&ink, s.t.deck_title);
+                for (what, fg, need) in [("text", ink.text, 4.5), ("dim", ink.dim, 3.0)] {
+                    for (on, bg) in [("ground", ink.ground), ("a plate", plate)] {
+                        let c = contrast(fg, bg);
+                        if c + 1e-3 < need {
+                            bad.push(format!("{name} {key}: {what} on {on} {c:.2}"));
+                        }
+                    }
+                }
+                let c = contrast(ink.hue, ink.ground);
+                if c + 1e-3 < 4.5 {
+                    bad.push(format!("{name} {key}: hue on the look's ground {c:.2}"));
+                }
+                let deck = deck_ink(&s);
+                for (what, fg, need) in [("text", deck.text, 4.5), ("dim", deck.dim, 4.5)] {
+                    let c = contrast(fg, s.t.deck);
+                    if c + 1e-3 < need {
+                        bad.push(format!("{name} {key}: deck {what} {c:.2}"));
+                    }
+                }
+                // Faces off: the plain look's ink, untouched by the helpers.
+                let plain = Style::new(base);
+                let pi = Ink::of(&plain);
+                if on_display(&pi, plain.t.deck_title) != plain.t.deck_title
+                    || deck_ink(&plain).text != pi.text
+                    || second_voice(&plain, &pi, pi.hue) != pi.hue
+                {
+                    bad.push(format!("{name}: the plain look changed"));
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{}",
+            bad.join(
+                "
+"
+            )
+        );
+    }
 
     #[test]
     fn rates_count_over_the_last_second_of_audio_across_a_wrap() {

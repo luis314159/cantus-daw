@@ -196,6 +196,8 @@ fn body_ui(
     tel: &[f32; 64],
     cs: &ConcentusSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -207,7 +209,7 @@ fn body_ui(
     let r1: Vec<Rect> = g
         .row(row1, &[mw / total, (total - mw - nw) / total, nw / total])
         .collect();
-    let sm = s.function(Function::Space);
+    let sm = modfx::own(s, Function::Space);
     modfx::mode_card(
         host,
         ui,
@@ -220,7 +222,7 @@ fn body_ui(
         &|b, r, i, ink| mode_glyph(b, r, i, ink, k),
     );
     voices_card(host, st, ui, &sm, r1[1], tel, cs);
-    mono_card(ui, &s.function(Function::Output), r1[2], tel, cs);
+    mono_card(ui, &modfx::own(s, Function::Output), r1[2], tel, cs);
 
     let free = cs.mode == Mode::Free;
     let w = [
@@ -241,7 +243,7 @@ fn body_ui(
             controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
         },
     );
-    let smod = s.function(Function::Mod);
+    let smod = modfx::own(s, Function::Mod);
     modfx::region(ui, r2[1], free, |ui| {
         modfx::lfo_card(host, ui, &smod, r2[1], &LFO);
     });
@@ -259,7 +261,7 @@ fn body_ui(
             },
         );
     });
-    let so = s.function(Function::Output);
+    let so = modfx::own(s, Function::Output);
     controls::card(
         ui,
         &so,
@@ -357,7 +359,11 @@ fn voices_card(
                 let d = delays_at(cs, c);
                 (norm(d[0]), norm(d[1]))
             };
-            let extras = modfx::Extras { more, hz };
+            let extras = modfx::Extras {
+                more,
+                hz,
+                marks: modfx::face::Marks::Buckets,
+            };
             modfx::movement_with(ui, s, r, host, tel, &curve, &st.top.1, "0 ms", &extras);
             if cs.mix == 0.0 {
                 modfx::idle_note(ui, s, r, "concentus.idle");
@@ -392,8 +398,11 @@ fn mono_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], cs: &Con
                 pos2(inner.left() + 6.0 * k, inner.top() + 22.0 * k),
                 vec2(inner.width() - 12.0 * k, 12.0 * k),
             );
+            // Words on the card in the card's own text (in a unit's face the display's ink
+            // may be of the other polarity); only the bar is a display.
+            let (text, dim) = (s.t.text, s.t.text_dim);
             with_brush(&ui.painter_at(inner.expand(2.0)), |b| {
-                let t = Text::key("concentus.mono.corr", Role::Micro, ink.dim).caps(true);
+                let t = Text::key("concentus.mono.corr", Role::Micro, dim).caps(true);
                 canvas::put(
                     b,
                     pos2(bar.left(), inner.top() + 4.0 * k),
@@ -415,7 +424,7 @@ fn mono_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], cs: &Con
                     ("0", mid, Align2::CENTER_TOP),
                     ("+1", bar.right(), Align2::RIGHT_TOP),
                 ] {
-                    let t = Text::new(word, Role::Micro, ink.dim);
+                    let t = Text::new(word, Role::Micro, dim);
                     canvas::put(b, pos2(at, bar.bottom() + 2.0 * k), align, &t, k, None);
                 }
                 canvas::tag(
@@ -423,12 +432,12 @@ fn mono_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], cs: &Con
                     pos2(bar.left(), bar.bottom() + 24.0 * k),
                     Align2::LEFT_TOP,
                     frame::tr("concentus.mono.sum"),
-                    ink.text,
+                    text,
                     k,
                     None,
                     format_args!("{loss:+.1} dB"),
                 );
-                let words = Text::key(verdict, Role::Body, ink.text).caps(false);
+                let words = Text::key(verdict, Role::Body, text).caps(false);
                 canvas::put(
                     b,
                     pos2(bar.left(), bar.bottom() + 46.0 * k),

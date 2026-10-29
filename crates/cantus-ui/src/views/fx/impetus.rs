@@ -333,6 +333,8 @@ fn history_card(
                 let cap = st.history.capacity().max(1);
                 let w = plot.width() / cap as f32;
                 let skip = cap - st.history.len().min(cap);
+                // The sustain's cut in the face's second voice (violet in Impetus's).
+                let cut_c = super::dynfx::second_voice(&s, &ink, ink.danger);
                 for (i, c) in st.history.iter().enumerate() {
                     let x = plot.left() + (skip + i) as f32 * w;
                     // The input's peak, −60 … 0 dBFS, as a faint band around the middle.
@@ -358,7 +360,7 @@ fn history_card(
                     if down > 0.0 {
                         b.rect(
                             Rect::from_min_max(pos2(x, mid), pos2(x + w.max(k), mid + half * down)),
-                            crate::kit::Fill::Solid(ink.danger),
+                            crate::kit::Fill::Solid(cut_c),
                         );
                     }
                 }

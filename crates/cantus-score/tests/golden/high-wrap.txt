@@ -1,0 +1,66 @@
+page 1
+size 120 18.732
+line 9.618 10.1 119 10.1 w0.13
+line 9.618 11.1 119 11.1 w0.13
+line 9.618 12.1 119 12.1 w0.13
+line 9.618 13.1 119 13.1 w0.13
+line 9.618 14.1 119 14.1 w0.13
+glyph gClef 10.368 13.1
+glyph timeSig4 13.952 11.1
+glyph timeSig4 13.952 13.1
+glyph noteheadBlack 17.032 11.6 #1
+line 17.092 11.768 17.092 15.1 w0.12 #1
+glyph noteheadBlack 23.264 11.1 #2
+line 23.324 11.268 23.324 14.6 w0.12 #2
+glyph noteheadBlack 29.495 10.6 #3
+line 29.555 10.768 29.555 14.1 w0.12 #3
+glyph noteheadBlack 35.727 9.6 #4
+line 35.787 9.768 35.787 13.1 w0.12 #4
+glyph noteheadBlack 43.559 9.1 #5
+line 43.159 9.1 45.139 9.1 w0.16
+glyph noteheadBlack 47.965 8.6 #6
+line 47.565 9.1 49.545 9.1 w0.16
+glyph noteheadBlack 52.372 8.1 #7
+line 51.972 9.1 53.952 9.1 w0.16
+line 51.972 8.1 53.952 8.1 w0.16
+glyph noteheadBlack 56.778 7.6 #8
+line 56.378 9.1 58.358 9.1 w0.16
+line 56.378 8.1 58.358 8.1 w0.16
+glyph noteheadBlack 61.184 7.1 #9
+line 60.784 9.1 62.764 9.1 w0.16
+line 60.784 8.1 62.764 8.1 w0.16
+line 60.784 7.1 62.764 7.1 w0.16
+line 61.244 7.268 61.244 12.1 w0.12 #9
+glyph noteheadBlack 67.416 8.1 #10
+line 67.016 9.1 68.996 9.1 w0.16
+line 67.016 8.1 68.996 8.1 w0.16
+line 67.476 8.268 67.476 12.1 w0.12 #10
+line 43.619 9.268 43.619 13.1 w0.12 #5
+line 48.025 8.768 48.025 12.767 w0.12 #6
+line 52.432 8.268 52.432 12.433 w0.12 #7
+line 56.838 7.768 56.838 12.1 w0.12 #8
+beam 43.559 12.605 56.898 11.595 h0.5
+glyph noteheadBlack 75.248 9.1 #11
+line 74.848 9.1 76.828 9.1 w0.16
+line 75.308 9.268 75.308 12.6 w0.12 #11
+glyph noteheadBlack 81.479 9.6 #12
+line 81.539 9.768 81.539 13.1 w0.12 #12
+glyph noteheadBlack 87.711 10.6 #13
+line 87.771 10.768 87.771 14.1 w0.12 #13
+glyph noteheadBlack 93.943 11.6 #14
+line 94.003 11.768 94.003 15.1 w0.12 #14
+glyph noteheadHalf 101.374 13.1 #15
+line 102.494 12.932 102.494 9.6 w0.12 #15
+glyph noteheadHalf 110.187 10.6 #16
+line 110.247 10.768 110.247 14.1 w0.12 #16
+glyph ottavaAlta 17.032 6
+dashed 20.872 5.1 102.554 w0.16 0.6/0.45
+line 102.554 5.1 102.554 6 w0.16
+glyph metNoteQuarterUp 10.368 3 x0.62
+text " = 112" 11.191 3 s2 Bold Left
+line 41.879 10.1 41.879 14.1 w0.16
+line 73.568 10.1 73.568 14.1 w0.16
+line 100.094 10.1 100.094 14.1 w0.16
+line 118.75 10.1 118.75 14.1 w0.5
+line 118.02 10.1 118.02 14.1 w0.16
+text "Piccolo" 8.618 12.87 s2.2 Regular Right

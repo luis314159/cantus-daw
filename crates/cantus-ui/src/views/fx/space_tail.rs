@@ -474,9 +474,10 @@ pub fn display(
             .max_rect(head.shrink2(vec2(6.0 * k, 3.0 * k)))
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
+    // On the display: its style (fills and polarity), the theme's in the plain look.
     if let Some(i) = choice(
         &mut child,
-        s,
+        &crate::kit::skin::display_style(s),
         spectrum as usize,
         &VIEW_LABELS,
         &VIEW_TIPS,
@@ -597,7 +598,8 @@ fn envelope_view(
         Fill::Solid(Ink::a(ink.grid_strong, 0.5)),
     );
     // One hairline per reflection with a dot on top: dense patterns stay a comb.
-    let er = Ink::a(ink.hue, if ink.dark { 0.6 } else { 0.7 });
+    // The early reflections in the look's second voice (Spatium's cold cyan); plain, the hue.
+    let er = Ink::a(ink.voice(ink.hue, true), if ink.dark { 0.6 } else { 0.7 });
     for (t, db) in &m.stem[..m.stems] {
         let top = pos2(geo.x(*t), geo.y(*db));
         b.segment(pos2(top.x, rect.bottom()), top, px.max(k), er, false);

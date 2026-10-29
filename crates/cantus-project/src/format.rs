@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 44;
+pub const SCHEMA_VERSION: u32 = 45;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -194,6 +194,12 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     // Controller mappings a command would refuse (a hand edit): dropped, so every edit of
     // the map has an exact inverse (ADR 0062, review 1).
     let dropped = file.project.controllers.repair();
+    // Score settings a command would refuse (a hand edit): the nearest valid (ADR 0075).
+    for t in file.project.tracks.iter_mut() {
+        if !t.score.is_valid() {
+            t.score = t.score.repaired();
+        }
+    }
     if dropped > 0 {
         log::warn!("{dropped} malformed controller mapping(s) dropped");
     }
@@ -256,6 +262,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_41_to_42,
     migrate_42_to_43,
     migrate_43_to_44,
+    migrate_44_to_45,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -918,6 +925,14 @@ fn migrate_42_to_43(_value: &mut Value) -> Result<(), String> {
 /// (`AudioRegion::cross`) and its gain envelope (`AudioRegion::gain_env`). Nothing to
 /// write: an older file has neither — its overlaps play summed, its clips at their gain.
 fn migrate_43_to_44(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 45 (round 32, ADR 0075): a track's score settings (`Track::score`: clef,
+/// staves, the hands' split, transposition, dynamics, reading grid, the part's name).
+/// Nothing to write: a v44 track has none — everything automatic, as the score view first
+/// shows it. An older build must refuse a v45 file, or it would drop them on its next save.
+fn migrate_44_to_45(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -2061,6 +2076,52 @@ mod freeze_tests {
             .iter()
             .filter_map(|c| c.audio.as_ref())
             .all(|a| a.cross.is_none() && a.gain_env.is_none())));
+    }
+
+    /// Schema 45 (round 32, ADR 0075): a track's score settings — a grand staff split at
+    /// a fixed pitch, a transposition, dynamics from velocity, a reading grid and a name;
+    /// a v44 file has none, and a hand-edited transposition out of range is repaired.
+    #[test]
+    fn schema_45_keeps_score_settings() {
+        use cantus_core::notation::{ReadingGrid, StaffChoice, MAX_TRANSPOSE};
+        let p = fixture("v45.cantus");
+        let t = p
+            .tracks
+            .iter()
+            .find(|t| !t.score.is_default())
+            .expect("a track with settings");
+        assert_eq!(t.score.staves, StaffChoice::Grand);
+        assert_eq!(t.score.split, Some(62));
+        assert_eq!(t.score.transpose, 2);
+        assert!(t.score.dynamics);
+        assert_eq!(t.score.grid, ReadingGrid::EighthTriplet);
+        assert_eq!(t.score.name.as_deref(), Some("Piano"));
+        assert!(fixture("v44.cantus")
+            .tracks
+            .iter()
+            .all(|t| t.score.is_default()));
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("fixtures")
+                .join("v45.cantus"),
+        )
+        .unwrap();
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        let tracks = v["project"]["tracks"].as_array_mut().unwrap();
+        let t = tracks
+            .iter_mut()
+            .find(|t| t.get("score").is_some())
+            .expect("the track");
+        t["score"]["transpose"] = serde_json::json!(120);
+        let r = parse(&serde_json::to_string(&v).unwrap(), false).expect("opens");
+        let t = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .find(|t| !t.score.is_default())
+            .unwrap();
+        assert_eq!(t.score.transpose, MAX_TRANSPOSE);
     }
 
     /// Review 1 of ADR 0070: a damaged file's gain envelope (a value out of range, points

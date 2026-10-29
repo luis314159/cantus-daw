@@ -278,7 +278,8 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         close(app);
         return;
     };
-    let shell = Shell::new(("pulsus", track.0));
+    let shell =
+        Shell::new(("pulsus", track.0)).skin(crate::kit::skin::of(crate::kit::skin::Unit::Pulsus));
     let k = shell.scale(ctx);
     let size = shell::INSTRUMENT * k;
     let track_name = app
@@ -427,6 +428,9 @@ fn popups(
     if popup == Popup::None {
         return;
     }
+    // Round 32, skin builder: the menus wear the unit's face, as an effect's do (they run
+    // after the shell took its face off).
+    let _worn = crate::kit::skin::wear(shell.skin);
     let s = Style::current().scaled(k).function(HUE);
     let at = Pos2::new(rect.right() - 290.0 * k, rect.top() + shell::HEADER * k);
     let factory = PulsusParams::factory();

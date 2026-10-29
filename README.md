@@ -33,9 +33,16 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 - **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
   it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
   (B), as in FL's playlist.
-- **Twelve effects and nine instruments of its own**, researched against the best on the
-  market and measured — plus free sound packs, among them the **Salamander Grand Piano**,
-  streamed from disk.
+- **Twenty-five effects and ten instruments of its own**, researched against the best on
+  the market and measured — plus free sound packs, among them the **Salamander Grand
+  Piano**, streamed from disk.
+- **Each unit wears its own face** (ADR 0074): its colour, material, controls and the
+  display that tells its story, drawn in vectors in light and dark themes. The CLAP and
+  VST3 versions wear the same face in any DAW; *Units wear their own faces* switches back
+  to the plain look.
+- **The score from the piano roll** (ADR 0075). A clip or a track as an engraved staff —
+  spelled in the song's key, beamed and tied as an engraver would — beside the piano roll
+  or in a pane of its own; edit on the staff, export **MusicXML** and vector **PDF**, print.
 - **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
   **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
   and **DAWproject** in and out.
@@ -98,14 +105,45 @@ track with the **paint tool** (B).
 The piano roll has FL's seven tools and a velocity lane, and holds 20 000 notes on screen
 within its frame budget; in the channel rack a step *is* a note.
 
+### The score
+
+![The piano roll with its score under it](docs/images/score-roll.png)
+
+**Score** in the piano roll's toolbar (Alt+S) puts the clip's part under the roll as an
+engraved staff that follows the playhead and shares the selection; the **Score** pane
+(Alt+Shift+S) shows a whole track in systems. The notes are read for the score only — each
+beat picks straight values or triplets — and written as Dorico or MuseScore would: ties
+that show the beat, beams by the metre, a grand staff whose split follows the hands,
+accidentals and courtesy accidentals in the song's key, tempo and metre changes, dynamics
+from velocity, 8va lines, in the SMuFL font Bravura.
+
+| The Score pane (Cantus Paper) | A printed page (A4) |
+|---|---|
+| ![The Score pane](docs/images/score-pane.png) | ![A printed page](docs/images/score-page.png) |
+
+Click a note to select it; ↑ ↓ move it a step of the key; **N** enters notes by letter and
+value, as in MuseScore — each edit one undo step. Per track: clef, one staff or two,
+transposition (B♭, E♭, F…), the reading grid, the part's name. **MusicXML 4.0** out (a part
+or the whole song) and in, vector **PDF** (A4 or Letter, fonts embedded), **Print**.
+
 ### Effects
+
+Each one in its own face — colour, material, controls and the display that tells what it
+does. *Settings ▸ Appearance ▸ Units wear their own faces* switches to the plain look;
+the exported CLAP and VST3 versions wear the same faces in any DAW.
 
 | | | |
 |---|---|---|
 | ![Aequalis](docs/images/fx-eq.png) **Aequalis** — 24-band EQ, zero-latency, natural and linear phase, dynamic bands, EQ match | ![Comprimo](docs/images/fx-comp.png) **Comprimo** — compressor with nine visible detectors, key EQ, auto gain | ![Terminus](docs/images/fx-limiter.png) **Terminus** — true-peak limiter, BS.1770 loudness, delivery profiles |
 | ![Spatium](docs/images/fx-space.png) **Spatium** — reverb with decay fitted per frequency and shown in seconds | ![Multiplex](docs/images/fx-multiband.png) **Multiplex** — eight two-sided bands, three crossover modes | ![Sibilus](docs/images/fx-deesser.png) **Sibilus** — a de-esser that tells an *s* from a bright sound |
 | ![Porta](docs/images/fx-gate.png) **Porta** — gate and expander with hysteresis, MIDI trigger and hits to MIDI | ![Fervor](docs/images/fx-saturator.png) **Fervor** — saturation with a curve you draw | ![Latitudo](docs/images/fx-stereo.png) **Latitudo** — stereo width by frequency, mono bass, mid/side tone |
-| ![Culmen](docs/images/fx-maximizer.png) **Culmen** — mastering maximizer with loudness targets and *learn drive* | ![Hosted plug-in](docs/images/fx-hosted.png) **Any CLAP or VST3** — with a generic editor or its own window | Plus **Delay** and **Reverb**, simple and light. |
+| ![Culmen](docs/images/fx-maximizer.png) **Culmen** — mastering maximizer with loudness targets and *learn drive* | ![Tonsor](docs/images/fx-tonsor.png) **Tonsor** — clipper with true-peak ceiling, oversampling and gain match | ![Impetus](docs/images/fx-impetus.png) **Impetus** — attack and sustain by level difference, not threshold |
+| ![Discrimen](docs/images/fx-discrimen.png) **Discrimen** — splits each hit into transient and body | ![Speculum](docs/images/fx-speculum.png) **Speculum** — spectrum, spectrogram, scope, vector and loudness | ![Tonus](docs/images/fx-tonus.png) **Tonus** — pitch correction for a voice, by key or by MIDI |
+| ![Concentus](docs/images/fx-concentus.png) **Concentus** — chorus: the classic bucket-brigade models and free voices | ![Flexus](docs/images/fx-flexus.png) **Flexus** — flanger, through zero, the comb drawn as you hear it | ![Phasis](docs/images/fx-phasis.png) **Phasis** — phaser, 2 to 12 stages |
+| ![Tremor](docs/images/fx-tremor.png) **Tremor** — tremolo, auto-pan and harmonic tremolo | ![Vibrans](docs/images/fx-vibrans.png) **Vibrans** — vibrato in cents, with a singer's rise | ![Anulus](docs/images/fx-anulus.png) **Anulus** — ring modulator, the carrier as a note |
+| ![Translatio](docs/images/fx-translatio.png) **Translatio** — frequency shifter, barber-pole feedback | ![Fluctus](docs/images/fx-fluctus.png) **Fluctus** — volume shaper: draw the pump | ![Hosted plug-in](docs/images/fx-hosted.png) **Any CLAP or VST3** — with a generic editor or its own window |
+
+Plus **Delay** and **Reverb**, simple and light.
 
 Every effect is a bit-exact wire at settings that do nothing, and any strip can key any of
 them. Fervor, Latitudo and Culmen make the master chain a mastering chain. Design notes
@@ -117,10 +155,11 @@ and feature matrices: [docs/plugins/](docs/plugins/).
 |---|---|---|---|
 | ![Unda](docs/images/inst-wavetable.png) **Unda** — wavetable | ![Calor](docs/images/inst-analog.png) **Calor** — analog modelling | ![Modulus](docs/images/inst-fm.png) **Modulus** — 8-operator FM | ![Exemplar](docs/images/inst-sampler.png) **Exemplar** — multisampler, here playing the Salamander Grand Piano |
 | ![Gravis](docs/images/inst-bass.png) **Gravis** — 808, synth and string bass | ![Organum](docs/images/inst-organ.png) **Organum** — tonewheel organ | ![Lamina](docs/images/inst-epiano.png) **Lamina** — electric piano | ![Pulsus II](docs/images/inst-pulsus.png) **Pulsus II** — drums |
+| ![Chorda](docs/images/inst-chorda.png) **Chorda** — a modelled grand piano: strings, hammers, soundboard, half pedalling | | | |
 
 They share one modulation model — eight macros and a matrix you connect by dragging a
-source onto a knob — one frame (Play · Edit · Matrix), and the project's undo. Firmus, the
-simple synth every new track starts with, makes nine.
+source onto a knob — one frame (Play · Edit · Matrix), and the project's undo, and each
+wears its own face. Firmus, the simple synth every new track starts with, makes ten.
 
 ### Sounds
 
@@ -165,7 +204,8 @@ tables), Calor (five self-oscillating zero-delay filters, seeded voice cards), M
 (8-operator FM that reads and writes DX7 SysEx), Exemplar (SFZ, Decent Sampler, SF2/SF3,
 WAV/AIFF/FLAC/Ogg), Gravis (808, 303-style and string bass), Organum (tonewheels and rotary
 speaker), Lamina (tine and reed electric piano), Pulsus II (layers, round robin, 808/909 and
-modal voices, 16 choke groups), plus Firmus, the built-in polysynth.
+modal voices, 16 choke groups), Chorda (a modelled grand piano), plus Firmus, the built-in
+polysynth.
 
 **Editing.** Arrangement with per-track heights, icons, time selection and clip editing
 (split, glue, trim, slip, repeat, per-clip mute, colour and name); linked clips, the clip
@@ -179,8 +219,11 @@ cables drawn under the desk, the routing matrix, solo with connected routes, a t
 channel EQ, a dry/wet per insert slot, ten slots per strip, multi-selection with ganged
 faders, submixes, docks, groups with colours, a pan law per project, width and polarity.
 
-**Effects** (ADRs 0017–0018, 0026). The twelve above, each with presets, A/B, a display that
-is the control, and design notes in `docs/plugins/`.
+**Effects** (ADRs 0017–0018, 0026). The twenty-three above plus Delay and Reverb, each with presets, A/B, a display
+that is the control, and design notes in `docs/plugins/`; the twenty-three each in its own face (ADR 0074).
+
+**Score** (ADR 0075). A clip's or a track's part engraved beside the piano roll or in its own
+pane, edited on the staff; MusicXML 4.0 in and out, vector PDF and printing.
 
 **Sounds** (ADRs 0030, 0042, 0050). Sound packs downloaded on demand and checked by SHA-256,
 CC0 or CC BY with credit; long samples streamed from disk through a sample cache.

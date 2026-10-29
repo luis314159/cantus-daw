@@ -271,7 +271,15 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
             &tone,
         );
         if let Some(d) = cr.display {
-            filter::display(app, ui, track, spec, &tel, d, &tone);
+            filter::display(
+                app,
+                ui,
+                track,
+                spec,
+                &tel,
+                d,
+                &super::face::on_display(&tone),
+            );
         }
     }
     let voices = s.function(Function::Output);
@@ -288,7 +296,16 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         &citems,
     ) {
         if let Some(d) = cr.display {
-            cards::grid(app, ui, track, spec, &tel, d, &voices, false);
+            cards::grid(
+                app,
+                ui,
+                track,
+                spec,
+                &tel,
+                d,
+                &super::face::on_display(&voices),
+                false,
+            );
         }
         if let [words, tools, ..] = slots[..] {
             cards::condition_words(ui, words, spec, &voices);

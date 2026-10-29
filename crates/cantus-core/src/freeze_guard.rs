@@ -158,6 +158,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         // it: applied, then the frozen keys checked. A groove added is played by nothing.
         SetProjectKey { .. } | RemoveGroove { .. } | SetGroove { .. } => vec![Global],
         InsertGroove { .. } => vec![],
+        // How a part is written never changes what it plays (ADR 0075).
+        SetTrackScore { .. } => vec![],
         // Where a plug-in runs never changes its sound (ADR 0063).
         SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => vec![],
         // ---- inserts ---------------------------------------------------------------------

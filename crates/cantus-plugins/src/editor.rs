@@ -309,6 +309,19 @@ impl FxHost for PluginHost {
     }
 }
 
+/// Make the editor's window ready on this thread, as `App::build` does: the kit's fonts,
+/// style and theme, and the unit's own face, always (round 32, ADR 0074) — the plug-in
+/// has no settings file, and the window's thread may be the host's, where another
+/// editor ran or a test turned faces off. Returns the window's clear colour.
+pub fn prepare(ctx: &egui::Context) -> egui::Color32 {
+    cantus_ui::design::install_fonts(ctx);
+    cantus_ui::design::install_style(ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), ctx);
+    cantus_ui::kit::skin::set_enabled(true);
+    cantus_ui::kit::skin::set_override(None);
+    cantus_ui::theme::p().panel
+}
+
 /// The editor inside egui-baseview's window.
 struct App {
     host: PluginHost,
@@ -326,11 +339,7 @@ impl egui_baseview::App for App {
             crate::text::Lang::En => cantus_ui::i18n::Locale::En,
             crate::text::Lang::Es => cantus_ui::i18n::Locale::Es,
         });
-        cantus_ui::design::install_fonts(&ctx);
-        cantus_ui::design::install_style(&ctx);
-        cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
-        let pal = cantus_ui::theme::p();
-        frame.set_clear_color(pal.panel.into());
+        frame.set_clear_color(prepare(&ctx).into());
         Ok(())
     }
 

@@ -119,6 +119,7 @@ pub mod menu;
 pub mod meter;
 pub mod segmented;
 pub mod shell;
+pub mod skin;
 pub mod tap;
 pub mod tile;
 pub mod well;
@@ -142,6 +143,14 @@ pub struct Style {
     /// The token `hue` resolves from; `None` for a colour that is user data (a track's).
     pub hue_tok: Option<Tok>,
     pub k: f32,
+    /// The unit's style sheet (round 32, ADR 0074): [`skin::PLAIN`] outside a unit's
+    /// window. Set with [`Style::skinned`], which also tints `t` and `hue`.
+    pub skin: &'static skin::Skin,
+    /// The theme's function hues (in `Function::ALL`'s order) as they were before a face
+    /// laid its accent over the tokens': the colours of the modulation cues
+    /// ([`skin::cue_hue`]) — carried through skinning, so a cue never reads the installed
+    /// tokens and is in the theme the style came from.
+    pub cues: [Color32; 6],
 }
 
 impl Style {
@@ -149,8 +158,10 @@ impl Style {
         Style {
             hue: t.hue_tone,
             hue_tok: Some(Tok::HueTone),
+            cues: tokens::Function::ALL.map(|f| t.hue(f)),
             t,
             k: 1.0,
+            skin: &skin::PLAIN,
         }
     }
 
@@ -180,16 +191,40 @@ impl Style {
         self.k * self.t.text_scale
     }
 
-    /// The installed tokens at 100 %.
+    /// The installed tokens at 100 %, in the skin worn on this thread (round 32, ADR
+    /// 0074): inside a unit's window, its face ([`skin::wear`]); elsewhere the plain look.
     pub fn current() -> Style {
+        skin::worn_style(tokens::current())
+    }
+
+    /// The installed tokens at 100 % in the plain look, whatever skin is worn.
+    pub fn plain() -> Style {
         Style::new(tokens::current())
     }
 
-    /// This style in the hue of a kind of section.
+    /// This style in the hue of a kind of section — in a unit's face with an accent, the
+    /// accent, whatever the function ([`Style::function_hue`]).
     pub fn function(mut self, f: Function) -> Style {
-        self.hue = self.t.hue(f);
-        self.hue_tok = Some(f.tok());
+        self.hue = self.function_hue(f);
+        self.hue_tok = Some(if self.skin.accent.is_some() {
+            Tok::HueTone
+        } else {
+            f.tok()
+        });
         self
+    }
+
+    /// The hue a section of function `f` paints in: the theme's function hue, or, in a
+    /// unit's face with an accent, the accent (as the tokens' floor left it) for every
+    /// function — a modulation unit's nameplate, stripes, lamps and cards included. The
+    /// modulation *cues* (a knob's live dot and rings, `automate::mod_mark`, drop targets,
+    /// Latch) read `t.hue_mod`, which keeps ADR 0057's colour apart from the accent.
+    pub fn function_hue(&self, f: Function) -> Color32 {
+        if self.skin.accent.is_some() {
+            self.t.hue_tone
+        } else {
+            self.t.hue(f)
+        }
     }
 
     /// This style in a colour that is user data (a track's colour), not a theme token.

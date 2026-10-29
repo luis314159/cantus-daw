@@ -1078,7 +1078,7 @@ impl Tokens {
 
     /// Push every text colour to 4.5:1 on the surfaces it is read on, and outlines to
     /// 3:1 on the deck.
-    fn floor(&mut self) {
+    pub(crate) fn floor(&mut self) {
         let text_on = [
             self.panel,
             self.strip,

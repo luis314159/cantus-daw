@@ -17,7 +17,6 @@ use crate::kit::knob::KnobSize;
 use crate::kit::menu::Item;
 use crate::kit::text::{Elide, Policy, Role, Src};
 use crate::kit::{with_brush, Function, Style};
-use cantus_core::inst::modulation::connections;
 use cantus_core::inst::sampler::{self as model, gf, zf, GROUP_PARAMS};
 use cantus_core::{pitch_name, NativeSpec, TrackId};
 use egui::{pos2, vec2, Align2, Rect, Sense};
@@ -41,10 +40,8 @@ pub fn cell(
     let Some(info) = spec.kind.param(key) else {
         return ui.allocate_rect(rect, Sense::hover());
     };
-    let mut rings: Vec<(f32, egui::Color32)> = connections(spec)
-        .filter(|c| c.dst == key && c.on)
-        .map(|c| (c.amount, s.t.hue(crate::views::inst::source_family(c.src))))
-        .collect();
+    // Round 32: the rings every instrument builds — modulation cues, never the accent.
+    let mut rings = crate::views::inst::frame::rings_for(spec, key, s);
     let mut value = spec.get(key);
     let mut mod_rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
     let w = crate::views::inst::frame::wire(
@@ -510,7 +507,8 @@ fn tools(
         left = rr.left();
     }
     // A drum kit (round 28): the piano roll and the channel rack show a row per drum.
-    let kw = 120.0 * k;
+    // Wide enough for its word beside the face's switch (a pill takes more than a lamp).
+    let kw = (112.0 + crate::kit::skin::switches::slot_w(s.skin.switch)) * k;
     let kr = Rect::from_min_max(
         pos2(left - gap - kw, row.top()),
         pos2(left - gap, row.bottom()),
@@ -617,7 +615,15 @@ fn map_card(
             app.inst.sampler.keys = None;
         }
     }
-    let geo = map::map(app, ui, track, spec, d, s, zoomed);
+    let geo = map::map(
+        app,
+        ui,
+        track,
+        spec,
+        d,
+        &crate::views::inst::face::on_display(s),
+        zoomed,
+    );
     if let Some((files, key)) = take_drop(ui, d, |p| geo.key_at(p)) {
         drop_files(app, track, &files, key);
     }

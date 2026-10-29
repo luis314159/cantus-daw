@@ -1,0 +1,81 @@
+page 1
+size 120 14.088
+line 13.453 5.4 119 5.4 w0.13
+line 13.453 6.4 119 6.4 w0.13
+line 13.453 7.4 119 7.4 w0.13
+line 13.453 8.4 119 8.4 w0.13
+line 13.453 9.4 119 9.4 w0.13
+glyph gClef 14.203 8.4
+glyph accidentalFlat 17.687 7.4
+glyph timeSig4 19.491 6.4
+glyph timeSig4 19.491 8.4
+glyph noteheadBlack 22.971 10.4 #1
+line 22.571 10.4 24.551 10.4 w0.16
+line 24.091 10.232 24.091 6.9 w0.12 #1
+glyph flag8thUp 24.031 6.86 #1
+glyph noteheadBlack 26.162 9.9 #2
+line 27.282 9.732 27.282 6.4 w0.12 #2
+glyph noteheadBlack 30.674 9.4 #3
+line 31.794 9.232 31.794 5.9 w0.12 #3
+glyph flag8thUp 31.734 5.86 #3
+glyph noteheadBlack 33.865 8.9 #4
+line 34.985 8.732 34.985 5.4 w0.12 #4
+glyph noteheadBlack 38.377 8.4 #5
+line 39.497 8.232 39.497 4.9 w0.12 #5
+glyph noteheadBlack 44.09 7.9 #6
+line 45.21 7.732 45.21 4.4 w0.12 #6
+glyph noteheadHalf 48.602 8.4 #7
+line 49.722 8.232 49.722 4.9 w0.12 #7
+glyph noteheadBlack 54.984 8.9 #8
+line 56.104 8.732 56.104 5.4 w0.12 #8
+glyph noteheadBlack 60.696 9.4 #9
+line 61.816 9.232 61.816 5.9 w0.12 #9
+glyph flag8thUp 61.756 5.86 #9
+glyph noteheadBlack 63.887 8.9 #10
+line 65.007 8.732 65.007 5.4 w0.12 #10
+glyph noteheadBlack 68.399 8.4 #11
+line 69.519 8.232 69.519 4.9 w0.12 #11
+glyph flag8thUp 69.459 4.86 #11
+glyph noteheadBlack 71.59 8.4 #11
+line 72.71 8.232 72.71 4.9 w0.12 #11
+glyph flag8thUp 72.65 4.86 #11
+glyph noteheadBlack 74.781 7.9 #12
+line 75.901 7.732 75.901 4.4 w0.12 #12
+glyph noteheadBlack 79.293 7.4 #13
+line 79.353 7.568 79.353 10.9 w0.12 #13
+glyph flag8thDown 79.293 11.032 #13
+glyph noteheadHalf 83.684 7.4 #13
+line 83.744 7.568 83.744 10.9 w0.12 #13
+glyph noteheadBlack 90.065 7.9 #14
+line 91.185 7.732 91.185 4.4 w0.12 #14
+glyph noteheadBlack 94.578 8.4 #15
+line 95.698 8.232 95.698 4.9 w0.12 #15
+glyph noteheadBlack 100.29 9.9 #16
+glyph noteheadBlack 102.546 10.4 #17
+line 102.146 10.4 104.126 10.4 w0.16
+glyph augmentationDot 104.076 9.9 #17
+glyph noteheadBlack 106.454 9.9 #18
+glyph noteheadBlack 108.711 9.4 #19
+glyph augmentationDot 110.241 8.9 #19
+glyph noteheadHalf 112.618 10.4 #20
+line 112.218 10.4 114.198 10.4 w0.16
+line 113.738 10.232 113.738 6.9 w0.12 #20
+line 101.41 9.732 101.41 5.4 w0.12 #16
+line 103.666 10.232 103.666 5.9 w0.12 #17
+beam 101.35 5.387 103.726 5.913 h0.5
+beam 101.35 6.137 102.51 6.394 h0.5
+line 107.574 9.732 107.574 5.4 w0.12 #18
+line 109.831 9.232 109.831 5.15 w0.12 #19
+beam 107.514 5.407 109.891 5.143 h0.5
+beam 107.514 6.157 108.674 6.028 h0.5
+curve 69.699 8.7 70.089 9.317 71.08 9.317 71.47 8.7 0.1/0.22 down #11
+curve 80.593 7.1 81.247 6.291 82.91 6.291 83.564 7.1 0.1/0.22 up #13
+glyph metNoteQuarterUp 14.203 3 x0.62
+text " = 100" 15.026 3 s2 Bold Left
+line 42.81 5.4 42.81 9.4 w0.16
+line 59.416 5.4 59.416 9.4 w0.16
+line 82.404 5.4 82.404 9.4 w0.16
+line 99.01 5.4 99.01 9.4 w0.16
+line 118.75 5.4 118.75 9.4 w0.5
+line 118.02 5.4 118.02 9.4 w0.16
+text "Saxophone" 12.453 8.17 s2.2 Regular Right

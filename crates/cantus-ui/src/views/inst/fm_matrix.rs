@@ -36,7 +36,15 @@ pub(super) fn card(
         Some(disp),
     );
     if let Some(d) = cr.display {
-        grid(app, ui, track, spec, s, d, "card");
+        grid(
+            app,
+            ui,
+            track,
+            spec,
+            &crate::views::inst::face::on_display(s),
+            d,
+            "card",
+        );
     }
 }
 

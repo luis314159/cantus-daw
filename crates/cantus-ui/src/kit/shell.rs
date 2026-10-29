@@ -315,10 +315,17 @@ fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, compact: bool) -> He
 
 /// Paint the header in `rect`; `hot` is the part under the pointer.
 pub fn paint_header(b: &mut Brush, rect: Rect, s: &Style, h: &Header<'_>, hot: Hot) -> HeaderRects {
-    b.register(rect, "shell_header", HEADER_TOKENS, &[Some(h.hue.tok())]);
+    // The token the header's hue is painted from: in a face with an accent, the accent's
+    // (`function_hue`), whatever the device's function.
+    b.register(
+        rect,
+        "shell_header",
+        HEADER_TOKENS,
+        &[s.function(h.hue).hue_tok],
+    );
     let t = &s.t;
     let rect = b.snap_rect(rect);
-    let hue = t.hue(h.hue);
+    let hue = s.function_hue(h.hue);
     let k = s.k;
     // The bar: the panel colour, lit from above, a hairline below.
     b.rect(rect, Fill::V(shade(t.panel, 0.025), shade(t.panel, -0.015)));
@@ -336,6 +343,17 @@ pub fn paint_header(b: &mut Brush, rect: Rect, s: &Style, h: &Header<'_>, hot: H
         b.px(),
         shade(t.panel, -0.14),
     );
+    // The unit's material and its stripe (round 32, ADR 0074).
+    super::skin::materials::finish(
+        b,
+        rect,
+        0.0,
+        t.panel,
+        s,
+        super::skin::materials::Surface::Header,
+        1.0,
+    );
+    super::skin::plates::stripe(b, rect, s, hue);
     let r = header_rects(rect, s, h);
     let ink = |on: bool| if on { t.text } else { t.text_dim };
 
@@ -351,22 +369,9 @@ pub fn paint_header(b: &mut Brush, rect: Rect, s: &Style, h: &Header<'_>, hot: H
     );
     glyph::paint(b, mark, Glyph::Device, hue);
 
-    // The name in the device hue, then the dimmed context, measured so they never touch.
-    let name = Text::new(h.name, Role::Title, hue)
-        .caps(true)
-        .align(Align2::LEFT_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let name = Text {
-        role: Role::Section,
-        ..name
-    };
-    let nw = text::measure(b.ctx(), &name, s.tk()).x.min(r.name.width());
-    let _ = text::paint(
-        b,
-        Rect::from_min_size(r.name.min, Vec2::new(nw + 1.0, r.name.height())),
-        &name,
-        k,
-    );
+    // The name on the unit's plate in its lettering (in the device hue on the kit's),
+    // then the dimmed context, measured so they never touch.
+    let nw = super::skin::plates::nameplate(b, r.name, s, h.name, hue);
     if !h.context.is_empty() {
         let cr = Rect::from_min_max(
             Pos2::new(r.name.left() + nw + 6.0 * k, r.name.top()),
@@ -568,7 +573,7 @@ pub fn paint_footer(
             b,
             out,
             &Text::key("shell.out", Role::Micro, t.text_dim).align(Align2::RIGHT_CENTER),
-            k,
+            s.tk(),
         );
         x = out.left() - 10.0 * k;
     }
@@ -588,8 +593,9 @@ pub fn paint_footer(
         let _ = text::paint(
             b,
             cr,
+            // At the size it was measured at.
             &Text::new(chip, Role::Micro, t.text_dim).caps(false),
-            k,
+            s.tk(),
         );
         x = cr.left() - 6.0 * k;
     }
@@ -706,6 +712,17 @@ pub fn paint_ground(b: &mut Brush, rect: Rect, s: &Style) {
         b.snap_rect(rect),
         Fill::V(t.device_ground, shade(t.device_ground, -0.015)),
     );
+    // The unit's material and ornaments (round 32, ADR 0074).
+    super::skin::materials::finish(
+        b,
+        rect,
+        0.0,
+        t.device_ground,
+        s,
+        super::skin::materials::Surface::Ground,
+        1.0,
+    );
+    super::skin::plates::ornaments(b, rect, s);
 }
 
 // ---- instrument bands ----------------------------------------------------------------
@@ -888,7 +905,8 @@ pub fn mod_card(b: &mut Brush, rect: Rect, s: &Style, chips: &[Chip<'_>], open: 
                 r.min + Vec2::splat(b.px()),
                 Vec2::new(3.0 * k, ch - 2.0 * b.px()),
             )),
-            Fill::Solid(t.hue(c.family)),
+            // A modulation cue: never the face's accent.
+            Fill::Solid(super::skin::cue_hue(s, c.family)),
         );
         let tr = Rect::from_min_max(
             Pos2::new(r.left() + 7.0 * k, r.top()),
@@ -1005,6 +1023,9 @@ pub struct Output {
 /// It fills `ui`'s whole rect (the caller sizes the window: the designed size × `k`).
 pub struct Shell {
     pub id: egui::Id,
+    /// The unit's face (round 32, ADR 0074): the style handed to the header, the body and
+    /// the footer is [`Style::skinned`] in it.
+    pub skin: &'static super::skin::Skin,
 }
 
 thread_local! {
@@ -1015,7 +1036,14 @@ impl Shell {
     pub fn new(id: impl std::hash::Hash + std::fmt::Debug) -> Shell {
         Shell {
             id: egui::Id::new(("cantus-shell", id)),
+            skin: &super::skin::PLAIN,
         }
+    }
+
+    /// This shell in a unit's skin.
+    pub fn skin(mut self, skin: &'static super::skin::Skin) -> Shell {
+        self.skin = skin;
+        self
     }
 
     /// The scale this shell shows at (kept per id; 100 % until set).
@@ -1038,8 +1066,11 @@ impl Shell {
         use egui::Sense;
         let ctx = ui.ctx().clone();
         let k = self.scale(&ctx);
-        let base = Style::current();
-        let s = base.scaled(k).function(header.hue);
+        let base = Style::plain();
+        let s = base.scaled(k).function(header.hue).skinned(self.skin);
+        // The unit's face is worn while its window paints (round 32, ADR 0074): every
+        // `Style::current()` inside the body is in it.
+        let _wearing = super::skin::wear(self.skin);
         let rect = ui.max_rect();
         // Claim the whole rect, so the window's area is as large as the shell: without it
         // the area measures nothing, the pointer is never over it, and the wheel never

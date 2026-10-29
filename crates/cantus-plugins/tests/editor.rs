@@ -357,3 +357,120 @@ fn the_exported_speculum_counts_what_it_lost() {
     assert_eq!(out.len(), PAIRS);
     assert_eq!(take.lost, (20_000 - PAIRS) as u64, "the window's");
 }
+
+/// Round 32 (ADR 0074): the plug-in's window wears its unit's face — the same sheet the
+/// DAW's window wears, in both languages, with no settings file to turn it off. Every part
+/// it paints is registered under the unit's key, and a sheet's tint reaches its pixels
+/// (a probe sheet worn by every unit tints the window's ground).
+#[test]
+fn every_exported_editor_wears_its_units_face() {
+    use cantus_ui::kit::color::Hsl;
+    use cantus_ui::kit::skin::{self, Pair, Skin, Tint};
+    static PROBE: Skin = Skin {
+        surface: Tint {
+            hue: 250.0,
+            sat: 0.45,
+            amount: 1.0,
+        },
+        accent: Some(Pair::both(Hsl {
+            h: 250.0,
+            s: 0.7,
+            l: 0.6,
+        })),
+        ..Skin::plain("test.probe")
+    };
+    fn probe_hued(shapes: &[egui::epaint::ClippedShape]) -> usize {
+        fn walk(s: &egui::Shape, n: &mut usize) {
+            match s {
+                egui::Shape::Mesh(m) => {
+                    for v in &m.vertices {
+                        let [r, g, b, a] = v.color.to_array();
+                        if a < 200 {
+                            continue;
+                        }
+                        let h = Hsl::of(egui::Color32::from_rgb(r, g, b));
+                        if h.s > 0.2 && (h.h - 250.0).abs() < 8.0 {
+                            *n += 1;
+                        }
+                    }
+                }
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, n)),
+                _ => {}
+            }
+        }
+        let mut n = 0;
+        shapes.iter().for_each(|s| walk(&s.shape, &mut n));
+        n
+    }
+    for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        cantus_ui::i18n::set_thread_locale(locale);
+        for kind in EffectKind::ALL
+            .into_iter()
+            .filter(|k| cantus_plugins::editor::has_editor(*k))
+        {
+            let key = skin::of_effect(kind).key;
+            assert_ne!(key, "plain", "{kind:?} has a sheet");
+            for probe in [false, true] {
+                // The thread as a test or another editor may leave it: faces off, another
+                // sheet over every unit. The window's own set-up (`editor::prepare`, what
+                // `App::build` runs) must put the unit's face back (the integrator's
+                // review, 7).
+                skin::set_enabled(false);
+                skin::set_override(Some(&PROBE));
+                let shared = Shared::new(desc::of(kind).unwrap());
+                let edits = Arc::new(Mutex::new(Vec::new()));
+                let mut host = PluginHost::new(shared.clone(), Box::new(Collect(edits)));
+                let mut editor = cantus_ui::views::fx::Editor::of(kind).expect("an editor");
+                let ctx = egui::Context::default();
+                let clear = cantus_plugins::editor::prepare(&ctx);
+                assert_eq!(clear, cantus_ui::theme::p().panel);
+                assert!(skin::enabled(), "the window turns faces on");
+                // The probe pass looks at a sheet on purpose, after the set-up.
+                skin::set_override(probe.then_some(&PROBE));
+                cantus_ui::kit::inspect::set_enabled(&ctx, true);
+                let (w, h) = cantus_plugins::editor::size(kind);
+                let mut hued = 0;
+                for i in 0..3 {
+                    let input = egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(w as f32, h as f32),
+                        )),
+                        time: Some(i as f64 * 0.25),
+                        ..Default::default()
+                    };
+                    let mut out = ctx.run_ui(input, |ui| {
+                        host.refresh();
+                        let _ = editor.show(&mut host, ui);
+                    });
+                    out.textures_delta.clear();
+                    hued = probe_hued(&out.shapes);
+                }
+                skin::set_override(None);
+                let items = cantus_ui::kit::inspect::items(&ctx);
+                let want = if probe { "test.probe" } else { key };
+                assert!(
+                    items
+                        .iter()
+                        .any(|i| i.part == "nameplate" && i.skin == want),
+                    "{kind:?} ({locale:?}): the nameplate wears {want}"
+                );
+                let strays: Vec<_> = items
+                    .iter()
+                    .filter(|i| i.part != "nameplate" && i.skin != want)
+                    .map(|i| i.part)
+                    .collect();
+                assert!(
+                    strays.iter().all(|p| *p == "menu" || *p == "popup"),
+                    "{kind:?} ({locale:?}): painted outside the face: {strays:?}"
+                );
+                if probe {
+                    assert!(
+                        hued > 100,
+                        "{kind:?}: the sheet's tint reaches the pixels ({hued})"
+                    );
+                }
+            }
+        }
+    }
+}

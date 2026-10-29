@@ -190,7 +190,8 @@ impl CantusApp {
                 continue;
             }
             if n < MAX_RINGS {
-                rings[n] = (*depth, s.t.hue(function_of(*kind)));
+                // A modulation cue: never the face's accent (`skin::cue_hue`).
+                rings[n] = (*depth, crate::kit::skin::cue_hue(s, function_of(*kind)));
                 n += 1;
             }
             if let Some(v) = tele.value(*id) {

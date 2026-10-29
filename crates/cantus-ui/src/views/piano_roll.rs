@@ -632,7 +632,9 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         }
     };
     let keys_w = s.s(if axis.pads() { PAD_KEYS_W } else { KEYS_W });
-    let full = ui.available_rect_before_wrap();
+    // The staff under the piano roll when it is open (round 32, ADR 0075).
+    let full =
+        super::score_view::carve(app, ui, track_id, clip_id, ui.available_rect_before_wrap());
     if full.height() < 120.0 || full.width() < keys_w + 80.0 {
         return;
     }
@@ -1193,6 +1195,25 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     });
     if quant.is_some_and(|r| r.clicked()) {
         app.quantize_selection();
+    }
+    // The score under the roll (round 32, ADR 0075).
+    let score = bar.led(
+        ui,
+        id.with("score"),
+        app.score.split_open,
+        "score.show",
+        70.0,
+        || {
+            let keys = app.keymap.display_for(Action::ShowScore);
+            if keys.is_empty() {
+                t("score.show_tip")
+            } else {
+                format!("{} ({keys})", t("score.show_tip"))
+            }
+        },
+    );
+    if score.is_some_and(|r| r.clicked()) {
+        app.score.split_open = !app.score.split_open;
     }
     let zoom = bar.key(ui, id.with("zoom"), Icon::Zoom, false, true, || {
         t("pianoroll.zoom_notes")

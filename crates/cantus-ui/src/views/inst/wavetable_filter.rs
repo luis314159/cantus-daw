@@ -122,6 +122,7 @@ pub fn filter_card(
         }
     }
     if let Some(d) = cr.display {
+        let s = &crate::views::inst::face::on_display(s);
         display(app, ui, track, spec, s, d, f, on);
     }
     let body = parts::below_display(&cr, s);
@@ -321,6 +322,7 @@ pub fn routing_card(
     );
     let v = spec.get("flt.routing");
     if let Some(d) = cr.display {
+        let s = &crate::views::inst::face::on_display(s);
         with_brush(&ui.painter_at(d), |b| {
             let r = d.shrink2(Vec2::new(s.s(10.0), s.s(8.0)));
             let bw = (r.width() * 0.32).min(s.s(26.0));

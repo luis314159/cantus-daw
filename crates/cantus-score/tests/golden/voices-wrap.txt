@@ -1,0 +1,42 @@
+page 1
+size 48.31 16.96
+line 8.548 5.4 47.31 5.4 w0.13
+line 8.548 6.4 47.31 6.4 w0.13
+line 8.548 7.4 47.31 7.4 w0.13
+line 8.548 8.4 47.31 8.4 w0.13
+line 8.548 9.4 47.31 9.4 w0.13
+glyph gClef 9.298 8.4
+glyph timeSig4 12.882 6.4
+glyph timeSig4 12.882 8.4
+glyph noteheadBlack 16.362 8.4 #1
+line 17.482 8.232 17.482 4.9 w0.12 #1
+glyph noteheadHalf 16.362 9.4 #2
+glyph noteheadHalf 16.362 10.4 #3
+line 15.962 10.4 17.942 10.4 w0.16
+line 16.422 9.568 16.422 13.9 w0.12 #3
+glyph noteheadBlack 20.162 7.9 #4
+line 21.282 7.732 21.282 4.4 w0.12 #4
+glyph noteheadBlack 23.962 7.4 #5
+line 25.082 7.232 25.082 3.9 w0.12 #5
+glyph noteheadHalf 23.962 10.4 #3
+line 23.562 10.4 25.542 10.4 w0.16
+line 24.022 10.568 24.022 13.9 w0.12 #3
+glyph noteheadBlack 27.762 6.9 #6
+line 28.882 6.732 28.882 3.4 w0.12 #6
+glyph noteheadBlack 32.762 6.9 #7
+line 33.882 6.732 33.882 3.4 w0.12 #7
+glyph noteheadWhole 32.762 9.4 #8
+glyph noteheadBlack 36.562 6.4 #9
+glyph noteheadBlack 39.249 6.9 #10
+glyph noteheadHalf 41.936 7.4 #11
+line 43.056 7.232 43.056 3.9 w0.12 #11
+line 37.682 6.232 37.682 2.9 w0.12 #9
+line 40.369 6.732 40.369 3.15 w0.12 #10
+beam 37.622 2.894 40.429 3.156 h0.5
+curve 17.662 10.7 19.022 12.022 22.483 12.022 23.842 10.7 0.1/0.22 down #3
+glyph metNoteQuarterUp 9.298 3 x0.62
+text " = 90" 10.122 3 s2 Bold Left
+line 31.482 5.4 31.482 9.4 w0.16
+line 47.06 5.4 47.06 9.4 w0.5
+line 46.33 5.4 46.33 9.4 w0.16
+text "Guitar" 7.548 8.17 s2.2 Regular Right

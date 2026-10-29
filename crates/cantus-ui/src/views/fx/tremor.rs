@@ -165,6 +165,8 @@ fn body_ui(
     tel: &[f32; 64],
     ts: &TremorSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -179,7 +181,7 @@ fn body_ui(
     modfx::mode_card(
         host,
         ui,
-        &s.function(Function::Mod),
+        &modfx::own(s, Function::Mod),
         r1[0],
         "mode",
         "fx.tremor.mode",
@@ -206,8 +208,8 @@ fn body_ui(
             controls::param_with(ui, s, host, "depth", Size::XL, Some(&modfx::pct_pill));
         },
     );
-    modfx::lfo_card(host, ui, &s.function(Function::Mod), r2[1], &LFO);
-    let so = s.function(Function::Output);
+    modfx::lfo_card(host, ui, &modfx::own(s, Function::Mod), r2[1], &LFO);
+    let so = modfx::own(s, Function::Output);
     controls::card(
         ui,
         &so,
@@ -247,13 +249,18 @@ fn display_card(
             "tremor.card.halves",
         ),
     };
-    let s = s.function(Function::Mod);
+    let s = modfx::own(s, Function::Mod);
     controls::card(ui, &s, rect, Src::Key(title), None, |ui, cr| {
         let r = cr.body;
         st.display = Some(r);
         let depth = ts.depth;
         let curve = |c: f64| movement_at(ts, c);
-        modfx::movement(
+        // A chart recorder's pen and ticks over the shape (round 32).
+        let extras = modfx::Extras {
+            marks: modfx::face::Marks::Chart,
+            ..Default::default()
+        };
+        modfx::movement_with(
             ui,
             &s,
             r,
@@ -262,6 +269,7 @@ fn display_card(
             &curve,
             frame::tr(top),
             frame::tr(bottom),
+            &extras,
         );
         if depth == 0.0 {
             modfx::idle_note(ui, &s, r, "tremor.idle");

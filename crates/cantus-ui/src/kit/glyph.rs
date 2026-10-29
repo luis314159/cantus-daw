@@ -70,6 +70,8 @@ pub enum Glyph {
     Arrangement,
     /// The piano roll: notes beside keys.
     PianoRoll,
+    /// The score: a small staff with a note on it (round 32's notation pane).
+    Score,
     /// The channel rack: rows of steps.
     Rack,
     /// The mixer: three faders.
@@ -322,6 +324,20 @@ fn workspace(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
             bar(b, -1.6, -3.4, 2.2, -1.8);
             bar(b, 0.4, -0.4, 4.8, 1.2);
             bar(b, -1.6, 2.4, 1.0, 4.0);
+        }
+        Glyph::Score => {
+            // Five lines, thin; a filled head on the second space from the foot, its stem
+            // up at the right, a flag.
+            for i in 0..5 {
+                let y = -4.0 + i as f32 * 2.0;
+                b.segment(p(-5.5, y), p(5.5, y), w * 0.45, color, false);
+            }
+            b.circle(p(-0.6, 1.0), 1.55 * u, Fill::Solid(color));
+            b.segment(p(0.85, 0.8), p(0.85, -5.2), w * 0.7, color, false);
+            b.polygon(
+                &[p(0.85, -5.2), p(3.6, -2.6), p(3.0, -2.0), p(0.85, -3.6)],
+                color,
+            );
         }
         Glyph::Rack => {
             for row in 0..3 {

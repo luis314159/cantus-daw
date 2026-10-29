@@ -320,7 +320,7 @@ fn paint(
         );
         // What is heard (with the depth), filled; the curve itself, the line you edit.
         b.area(&heard, plot.bottom(), ink.fill(0.7));
-        b.polyline(&raw, 2.0 * k, ink.hue);
+        canvas::trace(b, &raw, 2.0 * k, ink.hue, &ink);
         let (pts, n) = curve_points(fs);
         let marked = marked_point(st, fs);
         for (i, p) in &pts[..n] {
@@ -332,7 +332,18 @@ fn paint(
         }
         if tel[cantus_dsp::modfx_clock::tel::BLOCKS] > 0.0 {
             let ph = tel[cantus_dsp::modfx_clock::tel::PHASE_L].clamp(0.0, 1.0);
-            b.vline(map.x(ph), plot.top(), plot.bottom(), 1.0 * k, ink.text);
+            // In its own face: the playhead in the second voice and the level it rides now
+            // (round 32); the plain look as before.
+            match super::super::modfx::face::second_voice(s, &ink) {
+                Some(head) => {
+                    b.vline(map.x(ph), plot.top(), plot.bottom(), 1.0 * k, head);
+                    let lv = super::level_at(fs, &curve, ph.min(0.99999));
+                    let at = pos2(map.x(ph), map.y(lv));
+                    b.circle_stroke(at, 5.0 * k, 1.5 * k, head);
+                    b.dot(at, 2.5 * k, head);
+                }
+                None => b.vline(map.x(ph), plot.top(), plot.bottom(), 1.0 * k, ink.text),
+            }
         }
         canvas::putf(
             b,

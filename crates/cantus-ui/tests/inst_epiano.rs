@@ -41,14 +41,15 @@ fn it_opens_in_every_view_and_paints_its_geometry_in_millimetres() {
     for view in [View::Play, View::Edit, View::Matrix] {
         a.inst.view = view;
         let text = settle(&mut a, &ctx);
-        assert!(text.contains("LAMINA"), "{view:?}: {text}");
+        // The nameplate in the face's lettering (round 32): any case.
+        assert!(text.to_uppercase().contains("LAMINA"), "{view:?}: {text}");
         if view != View::Matrix {
             assert!(text.contains("gap 1.60 mm"), "{view:?}: {text}");
             assert!(
                 text.contains("64 mm tine"),
                 "{view:?}: C4's tine is 64 mm: {text}"
             );
-            assert!(text.contains("PICKUP"), "{view:?}: {text}");
+            assert!(text.contains("Pickup"), "{view:?}: {text}");
         }
     }
     epiano::demo_feed(&mut a);

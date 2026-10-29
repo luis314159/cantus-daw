@@ -137,6 +137,8 @@ fn body_ui(
     tel: &[f32; 64],
     vs: &VibransSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -144,7 +146,7 @@ fn body_ui(
     let row2 = controls::card_height(Size::XL) * k;
     let row1 = (area.height() - row2 - gap).max(160.0 * k);
     let r1: Vec<Rect> = g.row(row1, &[0.72, 0.28]).collect();
-    let sm = s.function(Function::Mod);
+    let sm = modfx::own(s, Function::Mod);
     controls::card(
         ui,
         &sm,
@@ -162,7 +164,14 @@ fn body_ui(
                 let _ = write!(st.ends.2, "\u{2212}{:.0} ct", vs.depth_cents);
             }
             let curve = |c: f64| pitch_at(vs, c);
-            modfx::movement(ui, &sm, r, host, tel, &curve, &st.ends.1, &st.ends.2);
+            // A tuner's scale and its pointer at the pitch now (round 32).
+            let extras = modfx::Extras {
+                marks: modfx::face::Marks::Tuner,
+                ..Default::default()
+            };
+            modfx::movement_with(
+                ui, &sm, r, host, tel, &curve, &st.ends.1, &st.ends.2, &extras,
+            );
             if vs.depth_cents == 0.0 {
                 modfx::idle_note(ui, &sm, r, "vibrans.idle");
             }
@@ -198,7 +207,7 @@ fn body_ui(
         },
     );
     modfx::lfo_card(host, ui, &sm, r2[1], &LFO);
-    let so = s.function(Function::Output);
+    let so = modfx::own(s, Function::Output);
     controls::card(
         ui,
         &so,
@@ -256,7 +265,7 @@ fn rise_picture(ui: &mut egui::Ui, s: &Style, rect: Rect, vs: &VibransSettings, 
         );
         b.hline(plot.left(), plot.right(), plot.top(), b.px(), ink.grid);
         b.area(&pts, plot.bottom(), ink.fill(0.5));
-        b.polyline(&pts, 2.0 * k, ink.hue);
+        canvas::trace(b, &pts, 2.0 * k, ink.hue, &ink);
         if tel[cantus_dsp::modfx_clock::tel::BLOCKS] > 0.0 {
             let now = tel[T_RISE].clamp(0.0, 1.0);
             let x = x_of(now * vs.rise_ms.max(0.0));

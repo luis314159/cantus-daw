@@ -174,6 +174,8 @@ fn body_ui(
     tel: &[f32; 64],
     fs: &FlexusSettings,
 ) {
+    // In its own face, the unit's accent, never the theme's modulation hue (round 32).
+    let s = &modfx::body(s);
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
@@ -185,7 +187,7 @@ fn body_ui(
     let r1: Vec<Rect> = g
         .row(row1, &[mw / total, (total - mw - cw) / total, cw / total])
         .collect();
-    let sm = s.function(Function::Mod);
+    let sm = modfx::own(s, Function::Mod);
     // The modes, and the two switches under them.
     let switches = crate::kit::band::TITLE + 8.0 + controls::ROW * 2.0 + 5.0 + 10.0;
     let modes = Rect::from_min_max(
@@ -212,7 +214,7 @@ fn body_ui(
         });
     });
     sweep_card(host, st, ui, &sm, r1[1], tel, fs);
-    comb_card(ui, &s.function(Function::Tone), r1[2], tel, fs);
+    comb_card(ui, &modfx::own(s, Function::Tone), r1[2], tel, fs);
 
     let w = [
         controls::cells_width(&[Size::XL, Size::M, Size::M]) + 16.0,
@@ -258,7 +260,7 @@ fn body_ui(
     } else {
         "flexus.card.envelope"
     };
-    let se = s.function(Function::Dynamics);
+    let se = modfx::own(s, Function::Dynamics);
     modfx::region(ui, r2[3], fs.mode != Mode::Lfo, |ui| {
         controls::card(ui, &se, r2[3], Src::Key(title), None, |ui, _| {
             if fs.mode == Mode::Manual {
@@ -339,7 +341,16 @@ fn sweep_card(
             let (a, b) = delay_at(fs, c, now);
             (norm(a), norm(b))
         };
-        modfx::movement(ui, s, r, host, tel, &curve, &st.ends.2, &st.ends.3);
+        // Through zero, the wet's line flares where it crosses the dry (round 32).
+        let extras = modfx::Extras {
+            marks: if fs.through_zero {
+                modfx::face::Marks::Crossings(norm(0.0))
+            } else {
+                modfx::face::Marks::None
+            },
+            ..Default::default()
+        };
+        modfx::movement_with(ui, s, r, host, tel, &curve, &st.ends.2, &st.ends.3, &extras);
         if fs.through_zero {
             // The dry path's place: the line the wet crosses.
             let ink = Ink::of(s);
@@ -483,7 +494,11 @@ fn comb_card(ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64], fs: &Fle
                 );
             }
             b.area(&pts, plot.bottom(), ink.fill(0.5));
-            b.polyline(&pts, 1.6 * k, ink.hue);
+            canvas::trace(b, &pts, 1.6 * k, ink.hue, &ink);
+            // The comb's teeth: a mark under every notch, in its own face (round 32).
+            if let Some(teeth) = modfx::face::second_voice(s, &ink) {
+                modfx::face::notches(b, &pts, plot.bottom(), plot.height() * 0.2, k, teeth);
+            }
             for (word, at) in [("1k", 1_000.0f32), ("2k", 2_000.0), ("3k", 3_000.0)] {
                 let x = plot.left() + plot.width() * at / SPAN;
                 b.vline(x, plot.top(), plot.bottom(), b.px(), ink.grid);

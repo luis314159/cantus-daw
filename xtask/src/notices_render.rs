@@ -250,23 +250,30 @@ pub fn content(m: &Manifest) -> String {
 /// Where the head's Fonts section takes the bundled fonts' licence texts.
 const FONT_LICENCES: &str = "<!-- font-licences -->";
 
-/// The licence file of each font bundled in `crates/cantus-ui/assets/fonts/`
-/// (`LICENSE-*.txt`), each printed whole under its file name.
+/// The licence file of each font bundled in `crates/cantus-ui/assets/fonts/` and
+/// `crates/cantus-score/assets/` (the score's Bravura, round 32) — `LICENSE-*.txt`, each
+/// printed whole under its file name.
 fn font_licences(ws: &Path) -> String {
-    let dir = ws.join("crates/cantus-ui/assets/fonts");
-    let mut files: Vec<_> = std::fs::read_dir(&dir)
-        .map(|rd| {
-            rd.flatten()
-                .map(|e| e.path())
-                .filter(|p| {
-                    p.file_name()
-                        .and_then(|n| n.to_str())
-                        .is_some_and(|n| n.starts_with("LICENSE-") && n.ends_with(".txt"))
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    files.sort();
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    for dir in [
+        "crates/cantus-ui/assets/fonts",
+        "crates/cantus-score/assets",
+    ] {
+        let found: Vec<_> = std::fs::read_dir(ws.join(dir))
+            .map(|rd| {
+                rd.flatten()
+                    .map(|e| e.path())
+                    .filter(|p| {
+                        p.file_name()
+                            .and_then(|n| n.to_str())
+                            .is_some_and(|n| n.starts_with("LICENSE-") && n.ends_with(".txt"))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        files.extend(found);
+    }
+    files.sort_by_key(|p| p.file_name().map(|n| n.to_os_string()));
     let mut out = String::new();
     for p in files {
         let body = std::fs::read_to_string(&p)

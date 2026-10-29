@@ -816,6 +816,15 @@ pub enum Command {
         clip: ClipId,
         skip: bool,
     },
+
+    // --- the score (round 32, ADR 0075) ------------------------------------------------
+    /// How a track's part is written as a score (clef, staves, split, transposition,
+    /// dynamics, reading grid, name) — all at once; typing a name merges into one step.
+    /// Refused for settings that are not valid (`ScoreSettings::is_valid`).
+    SetTrackScore {
+        track: TrackId,
+        settings: crate::notation::ScoreSettings,
+    },
     /// Put a groove in the project's pool at `index`. Refused for one that is not valid
     /// or whose id is taken.
     InsertGroove {
@@ -979,6 +988,7 @@ impl Command {
             SetProjectKey { .. } => "cmd.notefx.key",
             SetClipGroove { .. } => "cmd.notefx.groove",
             SetClipSkipNoteFx { .. } => "cmd.notefx.skip",
+            SetTrackScore { .. } => "cmd.score.settings",
             InsertGroove { .. } => "cmd.notefx.add_groove",
             RemoveGroove { .. } => "cmd.notefx.remove_groove",
             SetGroove { .. } => "cmd.notefx.set_groove",
@@ -1092,6 +1102,8 @@ impl Command {
                 },
             ) => a == b && ka == kb,
             (SetProjectKey { .. }, SetProjectKey { .. }) => true,
+            // Round 32 (ADR 0075): a part's name typed letter by letter.
+            (SetTrackScore { track: a, .. }, SetTrackScore { track: b, .. }) => a == b,
             (
                 SetClipGroove {
                     track: ta,
@@ -2785,6 +2797,19 @@ impl Command {
             } => crate::notefx_cmd::set_clip_groove(project, track, clip, groove),
             SetClipSkipNoteFx { track, clip, skip } => {
                 crate::notefx_cmd::set_clip_skip(project, track, clip, skip)
+            }
+            SetTrackScore { track, settings } => {
+                if !settings.is_valid() {
+                    return Err(CommandError::InvalidValue("score settings".into()));
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.score, settings);
+                Ok(SetTrackScore {
+                    track,
+                    settings: old,
+                })
             }
             InsertGroove { index, groove } => {
                 crate::notefx_cmd::insert_groove(project, index, *groove)

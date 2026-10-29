@@ -105,6 +105,12 @@ pub(super) fn shape(spec: &NativeSpec, o: usize, rect: Rect) -> Vec<Pos2> {
 /// one sits beside the controls): ink, darker to the bottom, a hairline edge.
 fn ground(b: &mut Brush, rect: Rect, s: &Style) {
     let r = b.snap_rect(rect);
+    if s.skin.display != crate::kit::skin::Display::Plain {
+        // A unit's face: the display's own look (an LCD on Modulus), its edge.
+        crate::kit::skin::display_ground(b, r, s);
+        b.rrect_stroke(r, s.r(3.0), b.px(), s.t.edge);
+        return;
+    }
     b.rrect(
         r,
         s.r(3.0),
@@ -429,6 +435,8 @@ fn time_editor(
     rect: Rect,
     o: usize,
 ) {
+    // The envelope in the display's look (round 32): its ink, its ground.
+    let s = &crate::views::inst::face::on_display(s);
     let k = &OP_KEYS[o];
     let plot = rect.shrink2(Vec2::new(s.s(12.0), s.s(16.0)));
     let (pts, plateau) = time_points(spec, k, plot);
@@ -702,6 +710,8 @@ fn dx_editor(
     rect: Rect,
     o: usize,
 ) {
+    // The envelope in the display's look (round 32): its ink, its ground.
+    let s = &crate::views::inst::face::on_display(s);
     let k = &OP_KEYS[o];
     let plot = rect.shrink2(Vec2::new(s.s(12.0), s.s(16.0)));
     let p = cantus_engine::inst::fm::patch_of(spec);
@@ -770,6 +780,8 @@ fn scaling_editor(
     rect: Rect,
     o: usize,
 ) {
+    // The envelope in the display's look (round 32): its ink, its ground.
+    let s = &crate::views::inst::face::on_display(s);
     let k = &OP_KEYS[o];
     let plot = rect.shrink2(Vec2::new(s.s(12.0), s.s(18.0)));
     let p = cantus_engine::inst::fm::patch_of(spec);

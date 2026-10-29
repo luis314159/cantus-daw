@@ -54,7 +54,15 @@ pub fn paint(
     if n == 0 {
         return;
     }
-    let toks = if s.t.dark { DARK_TOKENS } else { LIGHT_TOKENS };
+    let toks = match (
+        matches!(s.skin.switch, super::skin::SwitchShape::Lamp),
+        s.t.dark,
+    ) {
+        (true, true) => &[Tok::Well, Tok::Text, Tok::TextDim, Tok::Light, Tok::Focus][..],
+        (true, false) => &[Tok::Well, Tok::Text, Tok::Label, Tok::Light, Tok::Focus][..],
+        (false, true) => DARK_TOKENS,
+        (false, false) => LIGHT_TOKENS,
+    };
     b.register(rect, "segmented", toks, &[s.hue_tok]);
     let a = st.alpha();
     let f = |c: egui::Color32| c.gamma_multiply(a);
@@ -76,7 +84,23 @@ pub fn paint(
     let sel_text = if s.t.dark { s.t.text } else { s.t.knob_pointer };
     for (i, label) in labels.iter().enumerate() {
         let seg = b.snap_rect(segment(inner, n, i));
-        if i == selected {
+        let lamp = matches!(s.skin.switch, super::skin::SwitchShape::Lamp);
+        if i == selected && lamp {
+            // A unit whose switches are lamps (round 32, ADR 0074): the chosen segment
+            // glows whole in its hue.
+            b.rrect(
+                seg,
+                (r - px).max(0.0),
+                Fill::V(f(shade(s.hue, 0.06)), f(shade(s.hue, -0.06))),
+            );
+            b.hline(
+                seg.left() + r,
+                seg.right() - r,
+                seg.top() + px * 0.5,
+                px,
+                f(with_alpha(s.t.light, 0.35)),
+            );
+        } else if i == selected {
             let lit = light::Raised::at(sel_fill, s.t.depth);
             b.rrect(seg, (r - px).max(0.0), Fill::V(f(lit.top), f(lit.bottom)));
             b.hline(
@@ -111,7 +135,9 @@ pub fn paint(
                 f(shade(base, -0.12)),
             );
         }
-        let color = if i == selected {
+        let color = if i == selected && lamp {
+            super::color::on_fill(s.hue)
+        } else if i == selected {
             sel_text
         } else if hovered == Some(i) {
             s.t.text

@@ -95,10 +95,17 @@ fn lamp(
 
 /// Paint an LED button: a small cap with a lamp at its left and a caps word.
 pub fn button(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
-    let toks = if s.t.dark {
-        BUTTON_TOKENS
-    } else {
-        BUTTON_LIGHT_TOKENS
+    use super::skin::{switches, SwitchShape};
+    let shape = s.skin.switch;
+    let toks = match shape {
+        SwitchShape::Plain => {
+            if s.t.dark {
+                BUTTON_TOKENS
+            } else {
+                BUTTON_LIGHT_TOKENS
+            }
+        }
+        _ => switches::button_tokens(shape, s.t.dark),
     };
     b.register(rect, "led_button", toks, &[s.hue_tok]);
     let r = s.s(s.t.radius) + s.r(1.0);
@@ -107,39 +114,68 @@ pub fn button(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
     } else {
         s.t.deck
     };
-    let base = if st.active {
+    let pressed = if st.active {
         shade(base, -0.03)
     } else if st.hovered {
         shade(base, 0.04)
     } else {
         base
     };
-    light::raised(
-        b,
-        rect,
-        r,
-        base,
-        RaisedOpts {
-            drop: !st.active,
-            k: s.k,
-            alpha: st.alpha(),
-            depth: s.t.depth,
-            ..Default::default()
-        },
+    // The lamp shape lights the whole cap; every other shape is a cap with its switch.
+    let lamp_face = if matches!(shape, SwitchShape::Lamp) {
+        Some(switches::lamp_face(b, rect, r, s, st, base))
+    } else {
+        light::raised(
+            b,
+            rect,
+            r,
+            pressed,
+            RaisedOpts {
+                drop: !st.active,
+                k: s.k,
+                alpha: st.alpha(),
+                depth: s.t.depth,
+                ..Default::default()
+            },
+        );
+        None
+    };
+    let w = s.s(switches::slot_w(shape));
+    let slot = Rect::from_center_size(
+        Pos2::new(rect.left() + s.s(6.0) + w * 0.5, rect.center().y),
+        Vec2::new(w, (rect.height() - s.s(6.0)).max(s.s(8.0))),
     );
-    let d = s.s(8.0);
-    let lamp_at = Pos2::new(rect.left() + s.s(6.0) + d * 0.5, rect.center().y);
-    lamp(b, lamp_at, d, st.lit, s, s.hue, base, st.alpha());
-    let ink = if st.lit { s.t.text } else { s.t.label }.gamma_multiply(st.alpha());
+    match shape {
+        SwitchShape::Plain => lamp(b, slot.center(), w, st.lit, s, s.hue, pressed, st.alpha()),
+        SwitchShape::Lamp => {}
+        SwitchShape::Custom(paint) => paint(b, slot, s, st),
+        other => switches::paint(b, slot, s, st, other, s.hue),
+    }
+    let ink = match lamp_face {
+        Some(face) if st.lit => super::color::on_fill(face),
+        _ if st.lit => s.t.text,
+        _ => s.t.label,
+    }
+    .gamma_multiply(st.alpha());
+    let left = if lamp_face.is_some() {
+        rect.left() + s.s(6.0)
+    } else {
+        slot.right() + s.s(5.0)
+    };
     let tr = Rect::from_min_max(
-        Pos2::new(lamp_at.x + d * 0.5 + s.s(5.0), rect.top()),
+        Pos2::new(left, rect.top()),
         Pos2::new(rect.right() - s.s(6.0), rect.bottom()),
     );
     let t = Text {
         src: label,
         role: Role::Label,
         caps: true,
-        align: Align2::LEFT_CENTER,
+        // A lamp button's word sits in its middle, as on a drum machine's pad.
+        align: if lamp_face.is_some() {
+            Align2::CENTER_CENTER
+        } else {
+            Align2::LEFT_CENTER
+        },
         policy: Policy::Abbreviate,
         color: ink,
     };

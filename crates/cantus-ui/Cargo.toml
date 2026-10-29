@@ -23,6 +23,8 @@ cantus-host.workspace = true
 cantus-content.workspace = true
 cantus-update.workspace = true
 cantus-export.workspace = true
+# The score: engraving, MusicXML and PDF (round 32, ADR 0075).
+cantus-score.workspace = true
 # The taskbar identity and the running window's taskbar icon (ADR 0046).
 cantus-launch.workspace = true
 raw-window-handle = "0.6"

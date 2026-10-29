@@ -26,6 +26,7 @@ mod keys;
 #[path = "epiano_pickup.rs"]
 mod pickup;
 
+use super::face;
 use super::organ::parts::{self, cells, paint_card, switch, tail_rect, Card, Rows};
 use super::FactoryPreset;
 use crate::app::CantusApp;
@@ -178,7 +179,7 @@ fn pickup_card(
         &ss,
     );
     if let Some(d) = cr.display {
-        pickup::pickup(app, ui, track, ls, tele, d, &ss);
+        pickup::pickup(app, ui, track, ls, tele, d, &face::on_display(&ss));
     }
     if edit {
         let (g, a) = if ls.engine == Engine::Tine {
@@ -218,7 +219,11 @@ fn resonator_card(
         &Card::new(title, Function::Source).display(display),
     );
     if let Some(d) = cr.display {
-        with_brush(&ui.painter_at(d), |b| pickup::geometry(b, ls, key, d, &ss));
+        let sd = face::on_display(&ss);
+        with_brush(&ui.painter_at(d), |b| {
+            pickup::geometry(b, ls, key, d, &sd);
+            face::cover(b, d, &sd);
+        });
     }
     cells(app, ui, cr.body, track, spec, keys, &ss, KnobSize::M);
 }
@@ -257,7 +262,7 @@ fn damper_card(
             tele[tel::PEDAL],
             engaged(ls, tele),
             d,
-            &sd,
+            &face::on_display(&sd),
         );
     }
     if edit {
@@ -303,7 +308,11 @@ fn tremolo_card(
         &sm,
     );
     if let Some(d) = cr.display {
-        with_brush(&ui.painter_at(d), |b| keys::tremolo(b, ls, now, d, &sm));
+        let sd = face::on_display(&sm);
+        with_brush(&ui.painter_at(d), |b| {
+            keys::tremolo(b, ls, now, d, &sd);
+            face::cover(b, d, &sd);
+        });
     }
     cells(
         app,
@@ -542,7 +551,7 @@ fn curves_card(
     );
     keys::curve_switch(app, ui, track, tail_rect(&cr, s, tail), &sm);
     if let Some(d) = cr.display {
-        keys::key_curves(app, ui, track, ls, d, &sm);
+        keys::key_curves(app, ui, track, ls, d, &face::on_display(&sm));
     }
 }
 

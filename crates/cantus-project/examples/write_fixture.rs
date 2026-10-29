@@ -1062,6 +1062,26 @@ fn main() {
         t.clips.extend([a, b]);
         p.tracks.push(t);
     }
+    // Schema 45 (round 32, ADR 0075): the first note track's score settings — a grand
+    // staff split at D4, written a tone up, dynamics from velocity, read in triplets.
+    if upto >= 45 {
+        use cantus_core::notation::{ReadingGrid, ScoreSettings, StaffChoice};
+        if let Some(t) = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.clips.iter().any(|c| !c.notes.is_empty()))
+        {
+            t.score = ScoreSettings {
+                staves: StaffChoice::Grand,
+                split: Some(62),
+                transpose: 2,
+                dynamics: true,
+                grid: ReadingGrid::EighthTriplet,
+                name: Some("Piano".into()),
+                ..Default::default()
+            };
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

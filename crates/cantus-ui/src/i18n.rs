@@ -122,6 +122,8 @@ impl Locale {
                 include_str!("../locales/areas/clipfx.en.txt"),
                 include_str!("../locales/areas/workflow.en.txt"),
                 include_str!("../locales/areas/hostedview.en.txt"),
+                include_str!("../locales/areas/skin.en.txt"),
+                include_str!("../locales/areas/score.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -210,6 +212,8 @@ impl Locale {
                 include_str!("../locales/areas/clipfx.es.txt"),
                 include_str!("../locales/areas/workflow.es.txt"),
                 include_str!("../locales/areas/hostedview.es.txt"),
+                include_str!("../locales/areas/skin.es.txt"),
+                include_str!("../locales/areas/score.es.txt"),
             ],
         }
     }
