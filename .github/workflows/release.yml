@@ -71,7 +71,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # The SDK first, so the workspace is built and tested with ASIO as it ships.
       - run: cargo run -p xtask -- asio-sdk
-      - run: cargo fmt --all -- --check
+      # One package at a time: on Windows `cargo fmt --all` hands rustfmt every file of the
+      # workspace on one command line, which outgrew Windows's limit in round 32 (os error
+      # 206). Every member is still checked.
+      - name: fmt
+        run: |
+          $pkgs = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages.name
+          foreach ($p in $pkgs) {
+            cargo fmt -p $p -- --check
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
       - run: cargo clippy --workspace --all-targets
         env:
           RUSTFLAGS: -D warnings
