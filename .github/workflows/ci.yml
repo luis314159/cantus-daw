@@ -81,8 +81,10 @@ jobs:
     if: github.repository == 'luis314159/cantus-daw'
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # A hung test would otherwise bill up to six hours (x2 on Windows).
-    timeout-minutes: 90
+    # A hung test would otherwise bill up to six hours (x2 on Windows). Windows needs the
+    # most: clippy 4 min, the suite 67, the schedule fuzz ~20 (beta.8, 2026-10-30 — 90
+    # minutes cut its fuzz short twice).
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
