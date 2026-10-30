@@ -10,8 +10,16 @@ use cantus_ui::picker::{PickChoice, PickPurpose};
 use cantus_ui::CantusApp;
 use support::*;
 
-/// The test instrument, built from source where the host's tests build it.
+/// The test instrument, built from source where the host's tests build it — once per
+/// process, as the host's tests do: each test running its own `cargo build` let another's
+/// build put the library back while this one copied it (macOS runner, 2026-10-30: the copy
+/// found no file).
 fn test_synth() -> std::path::PathBuf {
+    static BUILT: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    BUILT.get_or_init(build_synth).clone()
+}
+
+fn build_synth() -> std::path::PathBuf {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..");

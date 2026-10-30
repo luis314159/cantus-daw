@@ -360,7 +360,15 @@ fn a_14_bit_pair_reaches_its_top_and_waits_for_its_fine_half() {
 }
 
 /// The test CLAP plug-in, built from source where the host's tests build it.
+/// Built once per process: each test running its own `cargo build` let another's build
+/// put the library back while this one copied it (hosted_instruments on the macOS
+/// runner, 2026-10-30).
 fn test_plugin() -> std::path::PathBuf {
+    static BUILT: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    BUILT.get_or_init(build_test_plugin).clone()
+}
+
+fn build_test_plugin() -> std::path::PathBuf {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..");
