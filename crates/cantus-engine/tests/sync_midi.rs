@@ -223,9 +223,19 @@ fn the_out_thread_sends_on_time() {
     println!("MIDI out at the port: median lateness {median} µs, 90th {p90} µs, worst {worst} µs");
     // A busy machine (three builds at once) holds the thread off now and then: 3 ms at the
     // 90th percentile was seen while other builders compiled; idle it is ~20 µs. The
-    // median is the schedule's own, held tight.
+    // median is the schedule's own, held tight. In a macOS virtual machine (GitHub's runner)
+    // the guest's timers wake a sleeping thread late whatever it asks for (ADR 0066; the
+    // deadline waits in `cantus-rt`'s `ipc_process` see the same): run alone there it gave
+    // medians of 6.7–9.6 ms and 90th percentiles of 17–21 ms (2026-10-30), so the bound
+    // there is what a VM gives. On a Mac itself the tight bound holds, measured in
+    // `docs/mac-session.md`.
+    let (median_bound, p90_bound) = if cantus_rt::thread::in_a_virtual_mac() {
+        (15_000, 35_000)
+    } else {
+        (500, 5_000)
+    };
     assert!(
-        median < 500 && p90 < 5_000,
+        median < median_bound && p90 < p90_bound,
         "median {median} µs, 90th {p90} µs"
     );
     assert_eq!(handle.shared.dropped.load(Ordering::Relaxed), 0);
