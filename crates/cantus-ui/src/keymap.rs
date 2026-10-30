@@ -203,6 +203,32 @@ pub enum Action {
     ShowScore,
     /// Show or hide the Score pane (the selected track's part).
     ViewScore,
+    // The session view (round 33, ADR 0077)
+    /// Live's Tab: the Session pane and the arrangement take turns in front.
+    ToggleSessionView,
+    /// Launch the cursor's slot.
+    SessionLaunch,
+    /// Launch the cursor's scene.
+    SessionLaunchScene,
+    /// Stop the cursor's track.
+    SessionStopTrack,
+    /// Stop every track's session clip.
+    SessionStopAll,
+    /// Record into the cursor's slot (or end the recording there).
+    SessionRecordSlot,
+    /// Arrangement record: the launches written into the arrangement as heard.
+    SessionArrangementRecord,
+    /// Every track plays its arrangement again.
+    SessionBackToArrangement,
+    /// Capture and insert scene: what plays, copied into a new scene.
+    SessionCaptureScene,
+    /// A new scene under the cursor's.
+    SessionInsertScene,
+    /// The scene cursor up and down (unbound: for controllers).
+    SessionScenePrev,
+    SessionSceneNext,
+    /// Ableton Link on or off (round 33, ADR 0078: sync's; unbound, in the palette).
+    ToggleLink,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -217,10 +243,12 @@ pub enum Category {
     Tools,
     View,
     Mixer,
+    /// The session view (round 33, ADR 0077).
+    Session,
 }
 
 impl Category {
-    pub const ALL: [Category; 9] = [
+    pub const ALL: [Category; 10] = [
         Category::Transport,
         Category::File,
         Category::Edit,
@@ -230,6 +258,7 @@ impl Category {
         Category::Tools,
         Category::View,
         Category::Mixer,
+        Category::Session,
     ];
 
     pub fn label_key(self) -> &'static str {
@@ -243,12 +272,31 @@ impl Category {
             Category::Tools => "keymap.cat.tools",
             Category::View => "keymap.cat.view",
             Category::Mixer => "keymap.cat.mixer",
+            Category::Session => "keymap.cat.session",
         }
     }
 }
 
 impl Action {
-    pub const ALL: [Action; 105] = [
+    /// A performance action: fired once per press, never by the OS repeating a held key
+    /// (holding Enter would launch again and again, and end the take it started).
+    pub fn held(self) -> bool {
+        matches!(
+            self,
+            Action::ToggleSessionView
+                | Action::SessionLaunch
+                | Action::SessionLaunchScene
+                | Action::SessionStopTrack
+                | Action::SessionStopAll
+                | Action::SessionRecordSlot
+                | Action::SessionArrangementRecord
+                | Action::SessionBackToArrangement
+                | Action::SessionCaptureScene
+                | Action::SessionInsertScene
+        )
+    }
+
+    pub const ALL: [Action; 118] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -359,6 +407,20 @@ impl Action {
         // Round 32 (ADR 0075).
         Action::ShowScore,
         Action::ViewScore,
+        // Round 33 (ADR 0077).
+        Action::ToggleSessionView,
+        Action::SessionLaunch,
+        Action::SessionLaunchScene,
+        Action::SessionStopTrack,
+        Action::SessionStopAll,
+        Action::SessionRecordSlot,
+        Action::SessionArrangementRecord,
+        Action::SessionBackToArrangement,
+        Action::SessionCaptureScene,
+        Action::SessionInsertScene,
+        Action::SessionScenePrev,
+        Action::SessionSceneNext,
+        Action::ToggleLink,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -466,6 +528,19 @@ impl Action {
             Action::ViewHistory => "view-history",
             Action::ShowScore => "show-score",
             Action::ViewScore => "view-score",
+            Action::ToggleSessionView => "toggle-session-view",
+            Action::SessionLaunch => "session-launch",
+            Action::SessionLaunchScene => "session-launch-scene",
+            Action::SessionStopTrack => "session-stop-track",
+            Action::SessionStopAll => "session-stop-all",
+            Action::SessionRecordSlot => "session-record-slot",
+            Action::SessionArrangementRecord => "session-arrangement-record",
+            Action::SessionBackToArrangement => "session-back-to-arrangement",
+            Action::SessionCaptureScene => "session-capture-scene",
+            Action::SessionInsertScene => "session-insert-scene",
+            Action::SessionScenePrev => "session-scene-prev",
+            Action::SessionSceneNext => "session-scene-next",
+            Action::ToggleLink => "toggle-link",
             Action::NewFromTemplate => "new-from-template",
             Action::SaveAsTemplate => "save-as-template",
             Action::SaveTrackTemplate => "save-track-template",
@@ -486,7 +561,7 @@ impl Action {
         match self {
             PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | TapTempo
             | TogglePatternMode | Panic | AddMarker | PreviousMarker | NextMarker
-            | LoopBetweenMarkers | ToggleAutomationArm => Category::Transport,
+            | LoopBetweenMarkers | ToggleAutomationArm | ToggleLink => Category::Transport,
             SelectBetweenMarkers => Category::Arrangement,
             ToggleTempoTrack => Category::View,
             // Freezing and bouncing are the track's; low-latency monitoring the recording's
@@ -531,6 +606,18 @@ impl Action {
             LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave | RouteMenu => Category::Mixer,
+            ToggleSessionView
+            | SessionLaunch
+            | SessionLaunchScene
+            | SessionStopTrack
+            | SessionStopAll
+            | SessionRecordSlot
+            | SessionArrangementRecord
+            | SessionBackToArrangement
+            | SessionCaptureScene
+            | SessionInsertScene
+            | SessionScenePrev
+            | SessionSceneNext => Category::Session,
         }
     }
 }
@@ -956,6 +1043,35 @@ fn common() -> Vec<(Action, Binding)> {
                 ..Binding::alt(Key::S)
             },
         ),
+        // The session view (round 33, ADR 0077): Live's Tab switches it with the
+        // arrangement; Enter launches the cursor's slot, Shift+Enter its scene, Ctrl+Enter
+        // stops its track, Ctrl+Shift+Enter stops all, Alt+Enter records into the slot;
+        // Live's Ctrl+I inserts a scene and Ctrl+Alt+I captures one (Live's Ctrl+Shift+I
+        // is our element picker); Alt+B goes back to the arrangement, Ctrl+Alt+R is
+        // arrangement record (Alt+R arms, Alt+Shift+R is low latency). None is a bare
+        // letter, so the typing piano never takes them.
+        (ToggleSessionView, Binding::key(Key::Tab)),
+        (SessionLaunch, Binding::key(Key::Enter)),
+        (SessionLaunchScene, Binding::shift(Key::Enter)),
+        (SessionStopTrack, Binding::cmd(Key::Enter)),
+        (SessionStopAll, Binding::cmd_shift(Key::Enter)),
+        (SessionRecordSlot, Binding::alt(Key::Enter)),
+        (
+            SessionArrangementRecord,
+            Binding {
+                command: true,
+                ..Binding::alt(Key::R)
+            },
+        ),
+        (SessionBackToArrangement, Binding::alt(Key::B)),
+        (SessionInsertScene, Binding::cmd(Key::I)),
+        (
+            SessionCaptureScene,
+            Binding {
+                command: true,
+                ..Binding::alt(Key::I)
+            },
+        ),
     ]
 }
 
@@ -1238,6 +1354,20 @@ impl Keymap {
                 .iter()
                 .filter_map(|e| clipboard_binding(e, m))
                 .collect();
+            // A key held down: the OS repeats it, and `key_pressed` counts every repeat.
+            let fresh: Vec<Key> = i
+                .events
+                .iter()
+                .filter_map(|e| match e {
+                    egui::Event::Key {
+                        key,
+                        pressed: true,
+                        repeat: false,
+                        ..
+                    } => Some(*key),
+                    _ => None,
+                })
+                .collect();
             let mut fired = Vec::new();
             for (action, list) in &self.bindings {
                 for b in list {
@@ -1247,7 +1377,12 @@ impl Keymap {
                     if arrows_taken && b.is_arrow() {
                         continue;
                     }
-                    if (b.matches(m) && i.key_pressed(b.key)) || chords.contains(b) {
+                    let down = if action.held() {
+                        fresh.contains(&b.key)
+                    } else {
+                        i.key_pressed(b.key)
+                    };
+                    if (b.matches(m) && down) || chords.contains(b) {
                         fired.push(*action);
                         break;
                     }
@@ -1333,6 +1468,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 13 {
             map.fill_in(&NEW_IN_V13);
         }
+        if file.version.unwrap_or(1) < 14 {
+            map.fill_in(&NEW_IN_V14);
+        }
         Ok(map)
     }
 
@@ -1409,8 +1547,25 @@ struct KeymapFile {
 /// version 8 tap tempo and PAT / SONG (round 28); version 9 the markers' and the tempo
 /// track's actions (round 29); version 10 the settings' key (round 30, ADR 0066); version
 /// 11 the command palette's and the undo history's (round 31, ADR 0072); version 12 the
-/// automation mode's key (round 31, ADR 0068); version 13 the score's (round 32, ADR 0075).
-pub const FILE_VERSION: u32 = 13;
+/// automation mode's key (round 31, ADR 0068); version 13 the score's (round 32, ADR 0075);
+/// version 14 the session view's (round 33, ADR 0077).
+pub const FILE_VERSION: u32 = 14;
+
+/// Actions added in version 14 (round 33, ADR 0077): the session view's — Tab, Enter and
+/// its modifiers, Ctrl+I, Ctrl+Alt+I, Alt+B, Ctrl+Alt+R (the scene cursor's two are
+/// unbound: they are for controllers).
+const NEW_IN_V14: [Action; 10] = [
+    Action::ToggleSessionView,
+    Action::SessionLaunch,
+    Action::SessionLaunchScene,
+    Action::SessionStopTrack,
+    Action::SessionStopAll,
+    Action::SessionRecordSlot,
+    Action::SessionArrangementRecord,
+    Action::SessionBackToArrangement,
+    Action::SessionInsertScene,
+    Action::SessionCaptureScene,
+];
 
 /// Actions added in version 13 (round 32, ADR 0075): Alt+S shows the staff under the piano
 /// roll, Alt+Shift+S the Score pane.
@@ -1628,6 +1783,54 @@ mod tests {
                     "{a:?} has no key in {}",
                     preset.id()
                 );
+            }
+        }
+    }
+
+    /// Round 33 (ADR 0077): a keymap of version 13 gains the session's keys where they are
+    /// free, and one that gave Enter to something else keeps it.
+    #[test]
+    fn keymap_13_gains_the_session_keys() {
+        let map = Keymap::from_toml(
+            "version = 13
+preset = \"cantus\"
+",
+        )
+        .expect("reads");
+        assert_eq!(
+            map.bindings_for(Action::ToggleSessionView),
+            &[Binding::key(Key::Tab)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::SessionLaunch),
+            &[Binding::key(Key::Enter)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::SessionLaunchScene),
+            &[Binding::shift(Key::Enter)]
+        );
+        assert!(!map.bindings_for(Action::SessionCaptureScene).is_empty());
+        assert!(map.bindings_for(Action::SessionScenePrev).is_empty());
+        let taken = "version = 13
+preset = \"custom\"
+[bindings]
+play-pause = [\"Enter\"]
+";
+        let map = Keymap::from_toml(taken).expect("reads");
+        assert_eq!(
+            map.bindings_for(Action::PlayPause),
+            &[Binding::key(Key::Enter)]
+        );
+        assert!(map.bindings_for(Action::SessionLaunch).is_empty());
+        assert_eq!(FILE_VERSION, 14);
+        // Every preset gives the session's keys and none of them twice.
+        for p in Preset::ALL {
+            let m = p.keymap();
+            let mut seen = std::collections::HashSet::new();
+            for a in Action::ALL {
+                for b in m.bindings_for(a) {
+                    assert!(seen.insert(*b), "{p:?}: {b:?} twice");
+                }
             }
         }
     }

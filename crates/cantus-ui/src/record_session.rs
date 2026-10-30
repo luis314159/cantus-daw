@@ -507,6 +507,8 @@ impl CantusApp {
             plan.audio_tracks = audio;
             plan.midi_tracks = midi;
         }
+        // Recording into a slot (ADR 0076 §8): its track, its stretch.
+        self.slot_pass_plan(&mut plan);
         let mut audio_on = false;
         // The files already in the pass's folder, to see which ones this pass makes (the
         // session journal keeps them for a recovery).
@@ -575,8 +577,9 @@ impl CantusApp {
             }
         }
         self.recorder.start();
-        // Every armed instrument track is heard as it is recorded into, not only the
-        // live one (multitrack MIDI recording).
+        let _ = self.engine.take_expr_inputs(); // r33:mpe — nothing of a take before (review D3)
+                                                // Every armed instrument track is heard as it is recorded into, not only the
+                                                // live one (multitrack MIDI recording).
         if !plan.midi_tracks.is_empty() {
             self.engine.set_live_echo(&plan.midi_tracks);
             self.rec.echo = plan.midi_tracks.clone();
@@ -628,13 +631,15 @@ impl CantusApp {
             return;
         };
         let at = self.engine.position();
-        let tail = self.recorder.stop(at);
+        let mut tail = self.recorder.stop(at); // r33:mpe
+        tail.extend(self.recorder.mpe.stop(at)); // r33:mpe — the MPE notes (ADR 0080)
         self.engine.set_recording(false);
         if !self.rec.echo.is_empty() {
             self.engine.set_live_echo(&[]);
             self.rec.echo.clear();
         }
-        if live.audio && self.engine.is_playing() {
+        // Into a slot, the session plays on (the writers close while it does).
+        if live.audio && self.engine.is_playing() && self.perform.recording.is_none() {
             self.engine.stop();
         }
         let takes = if live.audio {
@@ -708,6 +713,10 @@ impl CantusApp {
         notes: Vec<RecordedNote>,
         latency: i64,
     ) -> bool {
+        // A pass into a slot is the slot's (ADR 0076 §8).
+        if self.finish_slot_pass(&plan, &takes, &notes, latency) {
+            return true;
+        }
         // The time lost, not the sum over tracks (they lose the same moments).
         let dropped: u64 = takes.iter().map(|t| t.dropped).max().unwrap_or(0);
         let mut next = self.bus.project().next_id;
@@ -769,7 +778,11 @@ impl CantusApp {
         let controls = self
             .recorder
             .ingest_controls(&controls, lp.as_ref(), wrapped);
-        let done = self.recorder.ingest_pass(inputs, lp.as_ref(), wrapped);
+        let exprs = self.engine.take_expr_inputs(); // r33:mpe — per-note curves (ADR 0080)
+        let pass = self.recorder.pass(); // r33:mpe
+        self.recorder.mpe.ingest(&exprs, pass, lp.as_ref(), wrapped); // r33:mpe
+        let mut done = self.recorder.ingest_pass(inputs, lp.as_ref(), wrapped); // r33:mpe
+        done.extend(self.recorder.mpe.take_done()); // r33:mpe
         if let Some(l) = self.rec.pass.as_mut() {
             l.notes.extend(done);
             l.controls.extend(controls);

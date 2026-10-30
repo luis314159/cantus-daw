@@ -61,6 +61,7 @@ fn takes(n: usize) -> RecoveredPass {
         marked_wraps: Vec::new(),
         takes: Vec::new(),
         finished: false,
+        slot: None, // r33:session
     };
     let takes = (0..n)
         .map(|i| FinishedTake {

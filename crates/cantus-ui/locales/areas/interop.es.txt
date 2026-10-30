@@ -106,7 +106,6 @@ interop.report.d_audio_clips = Audio que Cantus no pudo colocar ({n}): vídeo, a
 interop.report.d_automation = Carriles de automatización ({n})
 interop.report.d_markers = Marcadores ({n})
 interop.report.d_launcher = Huecos del lanzador de clips ({n})
-interop.report.d_scenes = Escenas del lanzador de clips ({n})
 interop.report.d_expressions = Expresiones de nota ({n})
 interop.report.d_references = Clips que remiten a otro clip ({n})
 interop.report.d_loop = El bucle del clip «{name}» no empieza donde el clip empieza a sonar; se leyó como si empezara ahí

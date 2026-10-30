@@ -253,3 +253,15 @@
 .face figcaption { display: flex; flex-direction: column; gap: 0.05rem; margin-top: 0.55rem; }
 .face figcaption strong { font: 700 1.05rem/1.15 var(--display); color: var(--ink); }
 .face figcaption span { color: var(--ink-2); font-size: 0.9rem; }
+
+/* The session view (round 33): a dark stage — the grid, the sync bar, MPE and the ports. */
+.session-wrap { background: radial-gradient(50rem 26rem at 10% 0%, rgba(62,142,126,.30), transparent 70%), var(--night); color: var(--night-ink); border-bottom: 1px solid var(--night-line); }
+.session-wrap .sec-head h2 { color: var(--strong); }
+.session-wrap .sec-head p, .session-wrap figcaption, .session-wrap .score-points p { color: var(--night-ink-2); }
+.session-wrap .score-points { border-top-color: var(--night-ink); }
+.session-wrap .score-points h3 { color: var(--night-ink); }
+.session-wrap .score-more { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
+.session-wrap .score-more img { border-color: var(--night-line); background: var(--night-2); }
+.session-bar { margin-top: 1.2rem; }
+.session-bar img { display: block; width: 100%; max-width: 874px; height: auto; margin-inline: auto; border-radius: 0.5rem; border: 1px solid var(--night-line); }
+@media (max-width: 56rem) { .session-wrap .score-more { grid-template-columns: 1fr; } }

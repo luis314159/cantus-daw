@@ -286,7 +286,8 @@ pub fn fresh(
     let now = pairs(project);
     let mut out = Vec::new();
     let mut set = |track: TrackId, clip: ClipId, cross: Option<XfadeCurve>| {
-        let Some(c) = project.track(track).and_then(|t| t.clip(clip)) else {
+        let Some(c) = project.track(track).and_then(|t| t.arranged(clip)) else {
+            // r33:session
             return;
         };
         let Some(a) = c.audio.as_ref().filter(|a| a.cross != cross) else {
@@ -304,7 +305,7 @@ pub fn fresh(
         for &(track, left, right) in &now {
             let had = project
                 .track(track)
-                .and_then(|t| t.clip(right))
+                .and_then(|t| t.arranged(right)) // r33:session
                 .and_then(|c| c.audio.as_ref())
                 .is_some_and(|a| a.cross.is_some());
             if !before.contains(&(track, left, right)) && !had {
@@ -318,7 +319,7 @@ pub fn fresh(
         }
         let linked = project
             .track(track)
-            .and_then(|t| t.clip(right))
+            .and_then(|t| t.arranged(right)) // r33:session
             .is_none_or(|c| c.link.is_some());
         if !linked {
             set(track, right, None);

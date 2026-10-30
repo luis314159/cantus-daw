@@ -22,6 +22,8 @@ pub struct NoteData {
     pub velocity: u8,
     /// Its release velocity (`rel`, ADR 0068); 0 when the file gives none.
     pub release: u8,
+    /// Its per-note expression (ADR 0080): `transpose`, `pressure`, `timbre` timelines.
+    pub expr: Option<Box<cantus_core::model::note_expr::NoteExpr>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +68,10 @@ pub struct Timeline {
     pub metres: Vec<(Ticks, u8, u8)>,
     /// The markers: where, the name, the colour.
     pub markers: Vec<(Ticks, String, Option<Color>)>,
+    /// The scenes, top to bottom (round 33, ADR 0076). // r33:session
+    pub scenes: Vec<SceneData>, // r33:session
+    /// Every track's clip slots, by the track's id (`read_scenes`). // r33:session
+    pub slots: HashMap<String, Vec<SlotData>>, // r33:session
 }
 
 /// Where a time is read: the track, the unit, and — for seconds — how they reach the
@@ -299,9 +305,8 @@ fn notes_of(n: Node, cx: &Ctx, map: &TempoMap, track: &str, counts: &mut Counts)
         let (Some(time), Some(key)) = (attr_f64(note, "time"), attr_f64(note, "key")) else {
             continue;
         };
-        if note.children().any(|x| x.is_element()) {
-            counts.expressions += 1;
-        }
+        let (expr, unread) = note_expression(note);
+        counts.expressions += unread;
         if attr_f64(note, "channel") == Some(9.0) {
             chan.0 += 1;
         } else {
@@ -324,9 +329,52 @@ fn notes_of(n: Node, cx: &Ctx, map: &TempoMap, track: &str, counts: &mut Counts)
                 .filter(|v| v.is_finite())
                 .map(|v| (v * 127.0).round().clamp(0.0, 127.0) as u8)
                 .unwrap_or(0),
+            expr,
         });
     }
     notes
+}
+
+/// A note's per-note expressions (ADR 0080): its `transpose`, `pressure` and `timbre`
+/// timelines (beats from its start), and how many other children it had (counted).
+fn note_expression(note: Node) -> (Option<Box<cantus_core::model::note_expr::NoteExpr>>, usize) {
+    use cantus_core::model::note_expr::{ExprKind, ExprPoint, NoteExpr};
+    let mut e = NoteExpr::default();
+    let mut unread = 0;
+    // The one timeline a note holds: a `Points`, or the `Lanes` of several.
+    let timelines = note.children().filter(|x| x.is_element()).flat_map(|x| {
+        let inner: Vec<Node> = if x.has_tag_name("Lanes") {
+            x.children().filter(|y| y.is_element()).collect()
+        } else {
+            vec![x]
+        };
+        inner
+    });
+    for pts in timelines {
+        let kind = pts
+            .children()
+            .find(|x| x.has_tag_name("Target"))
+            .and_then(|t| attr(t, "expression"))
+            .and_then(|x| match x {
+                "transpose" | "pitchBend" => Some(ExprKind::Bend),
+                "pressure" | "polyPressure" => Some(ExprKind::Pressure),
+                "timbre" => Some(ExprKind::Timbre),
+                _ => None,
+            });
+        let (true, Some(kind)) = (pts.has_tag_name("Points"), kind) else {
+            unread += 1;
+            continue;
+        };
+        let c = e.curve_mut(kind);
+        for p in pts.children().filter(|x| x.has_tag_name("RealPoint")) {
+            if let (Some(t), Some(v)) = (attr_f64(p, "time"), attr_f64(p, "value")) {
+                if t.is_finite() && v.is_finite() {
+                    c.push(ExprPoint(Ticks::from_beats_f64(t).0, kind.store(v)));
+                }
+            }
+        }
+    }
+    (e.normalised().boxed(), unread)
 }
 
 /// One clip of notes. `None` for a clip of audio (counted) or of nothing we can read.
@@ -685,4 +733,126 @@ fn lane_of(points: Node, cx: &Ctx, map: &TempoMap) -> Option<cantus_core::ClipLa
         return None;
     }
     Some(cantus_core::ClipLane::new(kind, pts))
+}
+
+// ---- the session's scenes and clip slots (round 33, ADR 0076) ------------------------
+
+/// A scene of the file: its name and colour.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SceneData {
+    pub name: String,
+    pub color: Option<Color>,
+}
+
+/// A track's clip slot in a scene: the scene's index, the clip (none: an empty slot), its
+/// start marker when the clip plays from elsewhere than its loop's start, and whether an
+/// empty slot stops its track (`hasStop`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SlotData {
+    pub scene: usize,
+    pub clip: Option<ClipData>,
+    pub start: Option<Ticks>,
+    pub stop: bool,
+}
+
+/// Read the `Scenes` element into `out` (its scenes, and every track's slots): clips as
+/// the arrangement's are read — their time counted from the slot — a start marker from a
+/// `playStart` that is not the loop's start (Live's and Bitwig's), what the session cannot
+/// hold counted in the report.
+pub fn read_scenes(scenes: Node, project: &Project, out: &mut Timeline, report: &mut Report) {
+    let metres = super::read::metre_list(&out.metres, project.time_signature);
+    let map = TempoMap::new(
+        out.tempo.first().map_or(project.tempo_bpm, |p| p.bpm),
+        metres
+            .first()
+            .map_or(project.time_signature, |m| m.signature),
+        &out.tempo,
+        &metres,
+    );
+    let mut counts = Counts::default();
+    let ctx = Ctx {
+        track: None,
+        seconds: attr(scenes, "timeUnit") == Some("seconds"),
+        shift: 0.0,
+        origin: (0.0, 0.0),
+    };
+    for (i, sc) in scenes
+        .children()
+        .filter(|c| c.has_tag_name("Scene"))
+        .enumerate()
+    {
+        out.scenes.push(SceneData {
+            name: attr(sc, "name").unwrap_or("").to_string(),
+            color: parse_color(attr(sc, "color")),
+        });
+        slots_of(sc, i, &ctx, &map, out, &mut counts);
+    }
+    report.count_dropped("interop.report.d_audio_clips", counts.audio);
+    report.count_dropped("interop.report.d_automation", counts.automation);
+    report.count_dropped("interop.report.d_references", counts.references);
+    report.count_dropped("interop.report.d_expressions", counts.expressions);
+}
+
+fn slots_of(
+    n: Node,
+    scene: usize,
+    ctx: &Ctx,
+    map: &TempoMap,
+    out: &mut Timeline,
+    counts: &mut Counts,
+) {
+    for c in n.children().filter(|c| c.is_element()) {
+        let mut cx = ctx.clone();
+        if let Some(t) = attr(c, "track") {
+            cx.track = Some(t.to_string());
+        }
+        if let Some(u) = attr(c, "timeUnit") {
+            cx.seconds = u == "seconds";
+        }
+        match c.tag_name().name() {
+            "Lanes" => slots_of(c, scene, &cx, map, out, counts),
+            "ClipSlot" => {
+                let Some(track) = cx.track.clone() else {
+                    continue;
+                };
+                let node = c.children().find(|x| x.has_tag_name("Clip")).or_else(|| {
+                    c.children()
+                        .find(|x| x.has_tag_name("Clips"))
+                        .and_then(|k| k.children().find(|x| x.has_tag_name("Clip")))
+                });
+                let mut start = None;
+                let clip = node.and_then(|k| {
+                    let mut d = clip_of(k, &cx, map, counts)?;
+                    // A start marker ahead of or inside the loop: the loop's start is the
+                    // window's, the marker the slot's (in beats; seconds keep the loop).
+                    let beats = attr(k, "contentTimeUnit").map_or(!cx.seconds, |u| u == "beats");
+                    if let (Some(ps), Some(ls), true) =
+                        (attr_f64(k, "playStart"), attr_f64(k, "loopStart"), beats)
+                    {
+                        let (ps, ls) = (
+                            Ticks((ps * PPQ as f64).round() as i64),
+                            Ticks((ls * PPQ as f64).round() as i64),
+                        );
+                        if d.period.is_some() && ps != ls {
+                            d.offset = ls;
+                            start = Some(ps);
+                        }
+                    }
+                    d.start = Ticks::ZERO;
+                    Some(d)
+                });
+                let stop = attr(c, "hasStop") != Some("false");
+                if clip.is_none() && stop {
+                    continue;
+                }
+                out.slots.entry(track).or_default().push(SlotData {
+                    scene,
+                    clip,
+                    start,
+                    stop,
+                });
+            }
+            _ => {}
+        }
+    }
 }

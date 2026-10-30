@@ -208,7 +208,8 @@ pub(super) fn make_unit(
         sr,
         h.generation.clone(),
     )
-    .metered(meter);
+    .metered(meter)
+    .supports(h.main.expression_support());
     NativeUnit::hosted(track, h.key, Box::new(unit))
 }
 

@@ -343,6 +343,8 @@ impl Processor {
         }
         let old = self.snapshot.replace(snapshot);
         if let Some(old) = old {
+            // Notes the new snapshot ends behind the playhead are ended now (ADR 0076 §7).
+            self.release_cut_notes();
             // A lane gone (removed, muted, its clip deleted): its controller back to rest,
             // or it stays where the lane left it (ADR 0068).
             self.rest_dropped_controls(&old);
@@ -1132,6 +1134,8 @@ impl Processor {
                     s.next_event = t.first_event_at_or_after(tick);
                     // The controller lanes chase to where the playhead landed (ADR 0068).
                     s.next_control = t.first_control_at_or_after(tick);
+                    // r33:mpe — per-note expression from here (ADR 0080)
+                    s.next_expr = crate::inst::expr_play::first_at_or_after(&t.expr, tick);
                     // Only while playing: stopped, a seek or an edit sends the instrument
                     // nothing (a held pedal or a bend would sound under the keyboard).
                     if self.transport.is_playing() {

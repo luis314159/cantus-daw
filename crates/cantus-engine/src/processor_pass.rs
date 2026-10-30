@@ -58,7 +58,7 @@ impl Processor {
             r: master_r,
             sign: if master_invert { -1.0f32 } else { 1.0 },
         };
-        let snap = self.snapshot.clone();
+        let mut snap = self.snapshot.clone(); // r33:session (mut: a deferred install)
 
         let mut done = 0usize;
         let mut guard = 0usize;
@@ -68,8 +68,18 @@ impl Processor {
             if guard > MAX_BLOCK_FRAMES * 2 {
                 break; // Impossible unless the loop region is degenerate; never spin.
             }
+            // A snapshot that waited for the control grid goes in on it (ADR 0076 §7), the
+            // pass's own copy of the old one let go first: its last `Arc` leaves with the
+            // garbage, never here. // r33:session
+            if self.deferred_due() {
+                drop(snap.take()); // r33:session
+                self.deferred_install(); // r33:session
+                snap = self.snapshot.clone(); // r33:session
+            }
             // A control point due now runs first; the pass ends at the next one.
             let mut end = self.auto_point(done, frames).min(done + PASS_FRAMES);
+            // r33:session: a snapshot waiting for the grid ends the pass there.
+            end = self.deferred_end(done, end);
             // A tempo step (a point, or a ramp's next step) ends a pass too, so the units
             // that follow the tempo hear each step from its first sample (ADR 0060 §4).
             if self.transport.is_playing() {
@@ -145,6 +155,7 @@ impl Processor {
                 master,
                 &mut master_peak,
             );
+            self.sync_pass(done, n); // r33:sync
             done = end;
             if self.transport.is_playing() {
                 self.transport.advance(n as u64);

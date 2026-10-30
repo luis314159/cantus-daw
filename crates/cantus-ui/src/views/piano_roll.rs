@@ -37,6 +37,9 @@ mod paint;
 #[path = "piano_roll_scale.rs"]
 pub mod scale;
 
+#[path = "piano_roll_expr.rs"]
+pub mod expr;
+
 const KEYS_W: f32 = 64.0;
 /// Wider when the lanes are named: "Closed hat" does not fit in the width of "F#2".
 const PAD_KEYS_W: f32 = 104.0;
@@ -713,6 +716,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             paint::grid(b, a, &geo, clip, v.grid, &s);
             scale::rows(b, a, &geo, &s); // r31 midi: the key's rows lit
             let drawn = paint::notes(b, &geo, clip, &v.sel, &a.selected_notes, track_color, &s);
+            // Their per-note expression on them (ADR 0080).
+            expr::paint_on_notes(b, &geo, clip, v.lanes.on_notes, &s);
             paint::recording(b, a, &geo, clip, &s);
             if let Some((p0, p1)) = v.marquee {
                 let r = Rect::from_two_pos(p0, p1);
@@ -743,7 +748,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                 let field = match rr.row {
                     LaneRow::Velocity => Some(paint::NoteField::Velocity),
                     LaneRow::Release => Some(paint::NoteField::Release),
-                    LaneRow::Ctl(_) => None,
+                    LaneRow::Ctl(_) | LaneRow::Expr(_) => None,
                 };
                 match (field, rr.row) {
                     (Some(field), _) => paint::velocity(
@@ -759,6 +764,9 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                         field,
                         &s,
                     ),
+                    (None, LaneRow::Expr(k)) => {
+                        expr::paint(b, a, &geo, rr.body, clip, k, track_color, v.grid, &s)
+                    }
                     (None, LaneRow::Ctl(k)) => {
                         if let Some(l) = clip.lanes.iter().find(|l| l.kind == k) {
                             lanes::paint_ctl(
@@ -787,8 +795,9 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         let pointer = resp.hover_pos();
         let press = ui.input(|i| i.pointer.press_origin());
         let in_notes_lane = |p: &Pos2| {
-            rows.iter()
-                .any(|r| !matches!(r.row, LaneRow::Ctl(_)) && r.body.contains(*p))
+            rows.iter().any(|r| {
+                !matches!(r.row, LaneRow::Ctl(_) | LaneRow::Expr(_)) && r.body.contains(*p)
+            })
         };
         Hits {
             drawn,
@@ -823,6 +832,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                 velocity_input(app, ui, &geo, rr.body, r, &hits, track_id, clip_id, field);
             }
             LaneRow::Ctl(k) => lanes::ctl_input(app, ui, &geo, rr.body, r, k, track_id, clip_id),
+            LaneRow::Expr(k) => expr::input(app, ui, &geo, rr.body, r, k, track_id, clip_id),
         }
     }
     lanes::cell_input(app, ui, &rows, max_scroll, f.vel_label, track_id, clip_id);

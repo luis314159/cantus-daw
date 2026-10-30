@@ -313,6 +313,18 @@ impl ArrangementView {
         self.reorder
     }
 
+    /// Whether clips are being dragged to move (the Session pane lights its drop slot). // r33:launcher
+    pub fn moving_clips(&self) -> bool {
+        // r33:launcher
+        matches!(&self.drag, Some(d) if d.mode == DragMode::Move) // r33:launcher
+    } // r33:launcher
+
+    /// Forget where the timeline was drawn (it was not drawn last pass: a hidden tab). // r33:launcher
+    pub fn forget_geometry(&mut self) {
+        // r33:launcher
+        self.geometry = None; // r33:launcher
+    } // r33:launcher
+
     /// Where the timeline was drawn last frame, or `None` before the first one.
     pub fn geometry(&self) -> Option<TimelineGeometry> {
         self.geometry.clone()
@@ -820,6 +832,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     // The geometry is published last, so a click this frame is aimed with what was drawn.
     geo.scroll_beats = v.scroll_beats;
     v.geometry = Some(geo);
+    app.session_view.arrangement_pass = Some(ui.ctx().cumulative_pass_nr()); // r33:launcher
 }
 
 /// The song's length in beats, rounded up to a bar, plus room to keep writing.
@@ -2458,7 +2471,12 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         app.arrangement.looping = None;
         app.arrangement.selecting = None;
         audio::edit::end(app);
-        if let Some(d) = app.arrangement.drag.take() {
+        // Let go over the Session pane, a move puts the clips in its slots instead. // r33:launcher
+        let session = |app: &mut CantusApp, d: &ClipDrag| {
+            d.mode == DragMode::Move && crate::views::session::drop::from_arrangement(app, ui.ctx())
+        }; // r33:launcher
+        if let Some(d) = app.arrangement.drag.take().filter(|d| !session(app, d)) {
+            // r33:launcher
             app.commit_clip_drag(
                 d.anchor,
                 match d.mode {

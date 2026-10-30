@@ -285,6 +285,9 @@ when there is room.
 - **Inputs**: the typing keyboard (`Ctrl+T`), the **MIDI** lamp (it lights as notes come
   in; the number is the inputs open) and **Armed** (how many tracks will record; click to
   arm the selected one).
+- **Sync** (shown while Link or an outside clock is followed, or when you show it in
+  *Customise top bar…*): **LINK** and its peers, **Q** (Link's quantum) and **EXT** (the
+  source's tempo and lock light) — see [Playing in sync](#playing-in-sync-ableton-link-midi-clock-and-time-code).
 - **The audio chip** (see [the audio chip](#the-audio-chip)) and the **tools**: the
   element picker, the appearance page, and the interface's zoom.
 
@@ -412,6 +415,41 @@ The keyboard's **pitch bend**, **mod wheel**, **pedals**, every other controller
 **channel pressure** and how fast you let each key go (**release velocity**) are recorded
 too: they land in the clip's lanes under the notes in the piano roll.
 
+### MPE: per-note expression
+
+An MPE controller (a Seaboard, a LinnStrument, an Osmose, a Sensel) gives each note its own
+**pitch bend**, **pressure** and **timbre** (slide, CC 74). Cantus records them on the notes,
+shows and edits them in the piano roll, and plays them to its instruments and to plug-ins.
+
+- **Turn it on.** Settings ▸ MIDI ▸ *MPE*: set the controller's port to *MPE*. Other ports
+  are untouched — a keyboard on channel 5 is never read as an MPE member. *Zones*: a lower
+  zone of 15 member channels is what most controllers send (members ±48 semitones, master
+  ±2); choose *Upper* or *Both* for a split controller. A controller that sends its MCM sets
+  its own zones and bend ranges.
+- **Playing and recording.** Each note is heard with its own bend, pressure and timbre, live
+  and while recording; a take keeps them on its notes (thinned to what an ear tells apart).
+  The master channel's bend, pedal and wheel stay the track's lanes, as on any keyboard.
+- **In the piano roll.** A note's bend is the line through it (a semitone reaches the next
+  row), its pressure the line's weight, its timbre its colour. The lane area's **+** menu
+  shows a row per kind — *Bend*, *Pressure*, *Timbre (per note)* — with the selected notes'
+  curves (every note's when none is selected): draw with the pencil or the line (Shift snaps
+  a bend to whole semitones), right-click to *smooth*, *thin*, *scale*, *flatten* or *clear*.
+  Each gesture is one undo step. Slicing, moving, transposing, quantising, copying and
+  linked copies keep each note's curves with it.
+- **Our instruments.** Unda, Calor, Modulus and Gravis bend each note by its curve (smoothly,
+  glide-safe). A fresh Unda, Calor or Modulus comes with pressure and timbre already routed
+  in its last two matrix slots (Unda: level and wavetable position; Calor: its filter;
+  Modulus: level and brightness) — ordinary routes you can change or remove.
+- **Plug-ins.** The track's inspector ▸ *Note expression*: *Automatic* (what the plug-in
+  says it takes), *Note expressions* (CLAP note expressions, VST3 note expression), *MPE
+  (MIDI)* (each note on a member channel of its own, with the MCM and a ±48 bend range — for
+  plug-ins that take MIDI only) or *Off*.
+- **Files.** MIDI files: an MPE track is written as a lower zone (its MCM, the bend range,
+  a member channel per note); an MPE file — with its MCM or recognised by how it plays — is
+  read back as one track with each note's curves; key (poly) pressure is kept. DAWproject
+  carries the curves as the notes' own expressions.
+
+
 ### MIDI controllers
 
 Any knob, fader, button or pad of a MIDI controller can drive anything Cantus can set: a
@@ -514,6 +552,59 @@ before or after the take.
 
 Channel pressure and key pressure now reach the instrument (Cantus's and hosted ones), and
 a program change reaches a hosted instrument.
+
+### Playing in sync: Ableton Link, MIDI clock and time code
+
+Cantus follows one outside clock at a time, and sends its own clock to the ports you
+choose. The top bar's **Sync** group shows it: **LINK** (its lamp lit while Link is on, the
+number of other apps in the session beside it), **Q** (Link's quantum, in beats) and
+**EXT** (the source followed: its lamp is the lock light — lit when locked, amber while
+pulling in or waiting for its moment — and the tempo it plays). *Customise top bar…* shows
+or hides the group like any other.
+
+**Ableton Link.** Click **LINK**: Cantus joins the Link session of every app on your
+network (Live, Bitwig, Traktor, phone apps, another Cantus). The session's tempo becomes
+Cantus's while Link is on — the project's own tempo and its tempo track are kept and come
+back when Link is off (as in Live, Link overrides them while it is on). The top bar's tempo
+shows the session's; dragging it changes the session's tempo for everyone, and so does a
+change of the project's tempo. Press play and Cantus starts on the next quantum (**Q**: a
+click steps 1, 2, 3, 4, 8 beats; 4 is a bar of 4/4), in phase with the others; nothing
+already played moves, and the sound leaves the speakers when the session's beat does (the
+audio device's latency is allowed for). With **Start/stop sync** on (Settings ▸ MIDI), a
+play or a stop in any app starts or stops all of them. The first time Link is turned on,
+Windows may ask to let Cantus through its firewall (Link talks to the other apps over
+UDP on your network, as Live does): allow it on private networks. If Link cannot open the
+network, its lamp turns red and its tooltip says so.
+
+**MIDI clock in.** In Settings ▸ MIDI, tick **Clock** on the input the master device is on
+(or choose *Follow ▸ Clock* and the port). Cantus then waits for the master: its Start
+plays from the beginning, Continue from its song position, Stop stops; the tempo follows
+the master's clocks, filtered so a jittery clock still plays steadily. Your own play key
+waits for the master too.
+
+**MIDI time code in.** Tick **MTC** on the input instead: Cantus chases the code — a full
+frame locates, quarter frames run it, a short dropout is ridden through, and it stops when
+the code stops. **Start code** says which time code is the song's start (an hour,
+`01:00:00:00`, is common); the project's tempo map turns the time into bars.
+
+**Clock and time code out.** In the **Outputs** table, tick **Clock** on a port to send
+MIDI clock (24 per beat, the song position pointer, start, stop and continue, following
+the tempo track) and **MTC** to send time code at the **Code rate** chosen (24, 25, 29.97
+drop-frame or 30) from the **Start code**. Each output has an **Offset** (‹ › in half
+milliseconds, a click sets zero) for a device that answers late; **Feedback** says whether
+controller lights and motor faders may use the port.
+
+**The ports' table.** Each input's **Notes** and **Controls** can be turned off (a
+keyboard that should only send clock, a controller that should only drive the map); keys
+and pedals already down are still let go. On an MPE port, Controls carry each note's
+bend, pressure and timbre, so turned off they go silent.
+- **MPE**: the port's MPE zones and bend ranges (see *MPE* in the piano roll's pages).
+- **Grid**: the controller grid (Launchpad, APC) the port is, mirroring the session view.
+
+**The session view while following.** A clip or scene launched from stop waits for the
+source: with Link, the next quantum (or the session's start, with Start/stop sync); with
+MIDI clock or time code, the master's Start. A scene's own tempo is proposed to the Link
+session at its launch, so the other apps change with it.
 
 ## 5. Edit: clips, piano roll, automation
 
@@ -1044,6 +1135,143 @@ with accidentals per bar, in the SMuFL font Bravura.
   set up to print, the PDF opens so you can print it there); on **Linux** and **macOS** it is
   sent to the default printer with `lp` (CUPS), or opens in the PDF viewer when CUPS is not
   there.
+
+### The session view: launching clips and scenes
+
+The **Session** pane is a clip launcher, as in Ableton Live and Bitwig: the same tracks as
+the arrangement, side by side as columns, and **scenes** as rows. Each cell (a **slot**)
+holds a clip you can start and stop while the song plays, in time; a scene starts a whole
+row at once. The tracks, the mixer and the instruments are the arrangement's — the session
+only decides which clip each track plays.
+
+- **Switching**: `Tab` brings the Session pane forward, or the arrangement back (Live's
+  key); the top bar's window keys have a Session key, and *View ▸ Session* does the same.
+  What you chose stays chosen: a session clip you click is the piano roll's clip.
+- **What you see**: each column's head shows the track's name and colour, its arm (●),
+  mute (M), solo (S) and *back to arrangement* keys. A slot with a clip shows its name, a
+  small view of its notes (or its waveform) and, while it plays, a bar along its foot. Its
+  **▶** is the launcher: green while the clip plays, blinking while it waits for the bar
+  (or the grid you chose), red while it records. An empty slot shows a small square — it
+  stops its track — or, when the track is armed, a red dot that records into it. The
+  scenes are at the right, with their names and, when a scene sets them, its tempo and
+  metre ("128 · 4/4"); under them **Stop all**, and under each column its stop button.
+- **Launching**: click a clip's **▶** (or press `Enter` on the slot the cursor is on) — it
+  starts on the next bar, or on the **Launch** quantisation at the top of the pane (none,
+  8 bars … 1/32, triplets). Click a scene's **▶** (`Shift+Enter`) to start its row; a scene
+  that sets a tempo or a metre changes the song's when it starts. `Ctrl+Enter` stops the
+  cursor's track, `Ctrl+Shift+Enter` stops everything. A track playing a session clip leaves
+  its arrangement silent until you press its *back to arrangement* key (or **Back to arr.**
+  at the top, `Alt+B`, for every track).
+- **Editing in the grid** (each edit is one undo step): **double-click** an empty slot to
+  make a one-bar MIDI clip, a clip to open it in the piano roll; **drag** a clip to another
+  slot to move it (`Alt` or `Ctrl`: a copy), or onto the arrangement to put it there; drag
+  clips from the arrangement onto a slot to bring them into the session (each track's into
+  its own column); drop a sample from the browser on an empty slot. With the pane clicked,
+  the arrows move the slot cursor (`Shift`: eight at a time), `F2` renames, `Ctrl+Shift+C`
+  changes the colour, `Ctrl+D` duplicates (a clip into the next free slot below; a scene
+  under itself), `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copy, cut and paste clips, `Delete` deletes,
+  `Ctrl+Shift+L` turns the clip's loop on or off. `Ctrl+I` inserts a scene, `Ctrl+Alt+I`
+  **captures** one — a new scene holding a copy of whatever plays now. Right-click a clip, a
+  slot or a scene for the rest: put a clip in the arrangement at the playhead, consolidate a
+  track's clips into one, remove an empty slot's stop button, make a scene set the song's
+  tempo or metre, move a scene up or down. Double-click a scene's name to rename it.
+- **The clip panel** (at the foot of the pane; the key at the top right shows or hides it;
+  drag its top edge to make it taller): **Launch** — the mode (*Trigger* starts the clip,
+  *Gate* plays it while you hold the button, *Toggle* starts and stops it, *Repeat*
+  retriggers it while held), its own quantisation (*Global* follows the pane's), *Legato*
+  (it takes over the position of the clip it replaces), and how much a pad's velocity sets
+  its level. **Loop** — the loop on or off, the start marker, where the loop starts and how
+  long it is (as Live writes them: bar.beat.sixteenth; drag a value, `Shift` for fine steps,
+  double-click to reset). **Follow actions** — what happens after the clip has played:
+  action A or B (stop, play again, previous, next, first, last, any, other, or jump to a
+  scene), the chance of A against B, after the clip's own length (*Linked*) or a time, and
+  how many times. Follow actions draw their chances from the session's seed, so a
+  performance plays the same way again. **Envelopes** — choose a parameter of the clip's
+  track (its volume, pan, its strip, its effects, its instrument, or the last one you moved)
+  and draw its curve over the clip's loop: a click adds a point, a drag moves it, a
+  double-click or a right-click deletes it. The clip moves that parameter while it plays and
+  hands it back to the track's automation when it stops. A short pane hides the panel so the
+  grid keeps its rows: make the pane taller.
+- **Recording into a slot**: arm the track (●), then click the red dot of an empty slot (or
+  press `Alt+Enter`): it records from the next bar (after the count-in when the transport is
+  stopped); click it again, or launch the slot, to stop — the new clip plays on.
+- **Recording the session into the arrangement**: switch **Arr. record** on (`Ctrl+Alt+R`)
+  and play: everything you launch and stop, and every follow action, is written into the
+  arrangement exactly as you heard it, with the clips' envelopes as automation and the
+  scenes' tempos in the tempo track. When you switch it off, the whole take is one undo
+  step.
+- **MIDI controllers**: in the MIDI learn mode (`Ctrl+Shift+M`) every slot, scene launcher,
+  stop button, **Stop all**, **Arr. record**, **Back to arr.** and the **Launch**
+  quantisation is outlined: click one, then press a pad or turn a knob. A pad launches its
+  slot and, let go, releases it (a *Gate* clip stops); its light shows the slot's state.
+  The scene cursor (*Previous scene*, *Next scene*) and every session action can be mapped
+  too.
+- **Launchpad and APC grids**: plug in a **Launchpad Mini MK3**, **Launchpad X**,
+  **Launchpad Pro MK3**, **APC mini mk2** or **APC40 mkII** and it becomes a grid of the
+  session — found by its port's name (or chosen under *Settings ▸ MIDI* or at the foot of
+  the controller mappings pane, where you can also turn it off). Its pads launch the slots of
+  the columns and rows it shows (the **session ring**, drawn as an orange box in the pane),
+  lit in the clips' colours — green and pulsing while playing, flashing while waiting, red
+  while recording; the scene buttons launch rows; the arrows move the ring (`Shift`: a
+  page); the stop buttons stop tracks (on a Mini or an X, the lowest scene button turns the
+  bottom row of pads into stop buttons, and the *Session* button stops everything; on an APC
+  mini, `Shift` with the first four track buttons moves the ring and `Shift` with the last
+  scene button stops everything). A grid's pads never play notes on the selected track.
+### The session: how launching, follow actions and recording work
+
+*The session view's own page tells you where everything is; this one tells you what
+happens when you press it.*
+
+**Same tracks, same mixer.** A column of the session is a track of the song: the same
+instrument, the same mixer strip, the same automation. A clip launched on a track takes
+over that track's arrangement until you press *Back to Arrangement* (on the track, or for
+every track) — even after the clip stops, the track stays with the session, as in Live.
+
+**When a launch happens.** A clip waits for its launch quantisation — its own, or the
+session's global one (a bar by default) — and starts exactly on that boundary, to the
+sample. A launch pressed just before a boundary, too late for the engine to have it ready
+there (a few milliseconds to tens of them, by your audio buffer), still plays on it — a
+moment late, caught up to where it would be, never a whole bar later; and so does one
+pressed a 32nd note or less after a boundary (on a launch grid of a 32nd or finer, a
+quarter of a grid step). With the transport stopped, a launch starts it at
+once, from the playhead. A scene launches its whole row on the global quantisation, and sets
+its tempo and metre there (the metre on the next bar line).
+
+**Following Link, MIDI clock or time code.** A launch from stop waits for the source to
+start: Link's next quantum, or the master's Start — however long that is; the clip shows as
+queued meanwhile, and the stop button calls it off. If the master starts from another place
+(MIDI clock's Start is from the top), the clip plays from there. Following Link, a scene
+with a tempo sets the tempo of the whole Link session when it takes effect, as in Live. A
+relock of Link, or the master moving the playhead, does not end what the session plays.
+
+**Launch modes.** *Trigger* starts the clip (again) on each press. *Gate* plays it while
+held and stops it at the boundary after you let go. *Toggle* starts it, and stops it when
+pressed again. *Repeat* restarts it on every boundary while held. *Legato* makes a launched
+clip take over where the clip it replaces had got to, instead of starting from its start
+marker.
+
+**Follow actions.** After its follow time (a time, or *linked* to its own length, times its
+count) a clip does action A or B — stop, play again, the previous, next, first, last, any or
+another clip of its column, or jump to a row — with the chance you set for A. The chances
+are drawn from the session's **seed**: the same performance plays the same way every time,
+and an export renders exactly what you heard. Change the seed for another performance.
+
+**Recording into a slot.** On an armed track, the record button on an empty slot records
+from the next boundary (after the count-in, from stop) to the bar line after you stop it —
+or for the session's fixed length — and the new clip plays on at once, looping. MIDI is
+quantised by the session's *record quantisation*. Recorded over a looping MIDI clip that
+plays, the notes go into that clip (overdub). The take is kept like any recording: a crash
+loses nothing.
+
+**Recording the session into the arrangement.** With *arrangement record* on, everything you
+launch, stop and every follow action is written into the arrangement exactly where you heard
+it — the clips, their envelopes as automation, the scenes' tempos — as one undo step, when
+you switch it off or stop. The arrangement then plays exactly what you heard, to the bit.
+
+**Good to know.** A frozen track's clips do not launch (unfreeze it first). Freeze, bounce
+and export render the arrangement: record a performance into it first to keep it. Stopping
+the transport, or jumping the playhead, ends the performance. A tempo change keeps an
+unwarped audio clip playing the same stretch of its file; a warped one follows the tempo.
 
 ## 6. Mix: the mixer, inserts and sends
 
@@ -1798,6 +2026,9 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Ctrl+,` | Settings |
 | `Ctrl+Shift+P` · `Alt+H` | The command palette · the undo history |
 | `Alt+S` · `Alt+Shift+S` | The score under the piano roll · the Score pane |
+| `Tab` · `Enter` · `Shift+Enter` | Session ⇄ arrangement · launch the slot · launch the scene |
+| `Ctrl+Enter` · `Ctrl+Shift+Enter` · `Alt+Enter` | Stop the track's clip · stop all · record into the slot |
+| `Ctrl+I` · `Ctrl+Alt+I` · `Alt+B` · `Ctrl+Alt+R` | Insert scene · capture scene · back to arrangement · arrangement record |
 
 **On a Mac** `Cmd` (⌘) takes the place of `Ctrl` and `Option` (⌥) of `Alt`, and the
 *macOS* preset is the default: the table's keys, except that the metronome is `Cmd+K` (or `K` while the typing keyboard is off; ⌘M

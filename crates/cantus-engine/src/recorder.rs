@@ -349,6 +349,46 @@ impl EngineHandle {
         Some((p.latency?, p.wraps.clone()))
     }
 
+    // r33:session
+    /// The takes of the pass under way as far as their files hold them now (ADR 0076 §8):
+    /// what a recording into a session slot lays ahead of its end, so the clip plays on
+    /// from it seamlessly. `frames` is what each file's header says it holds (the writer
+    /// brings it up to date every half second); `start_tick` is where its first frame goes,
+    /// as [`Self::finish_recording`] will place it. None before the pass has started.
+    pub fn growing_takes(&self) -> Vec<FinishedTake> {
+        let Some(pass) = self.rec.pass.as_ref() else {
+            return Vec::new();
+        };
+        let Some(started) = pass.started else {
+            return Vec::new();
+        };
+        let latency = pass.latency.unwrap_or(self.rec.latency).total();
+        let start_tick = take_start(
+            &pass.tempo,
+            pass.tempo_bpm,
+            pass.rate,
+            started,
+            latency as u64,
+        );
+        pass.tracks
+            .iter()
+            .filter_map(|t| {
+                let r = hound::WavReader::open(&t.path).ok()?;
+                Some(FinishedTake {
+                    track: t.track,
+                    path: t.path.clone(),
+                    sample_rate: pass.rate,
+                    channels: t.channels as u8,
+                    frames: u64::from(r.duration()),
+                    start_tick,
+                    wraps: Vec::new(),
+                    wrap_shifts: Vec::new(),
+                    dropped: 0,
+                })
+            })
+            .collect()
+    }
+
     /// The user's latency correction, in frames (from the settings or a loopback test).
     pub fn set_record_offset(&mut self, frames: i64) {
         self.rec.latency.offset = frames;

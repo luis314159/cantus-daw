@@ -37,6 +37,9 @@ Studio One, Reaper**, and the free ones (**Ardour, LMMS, Zrythm, Waveform Free**
 
 - **Clip launching / session view** (Ableton, Bitwig): a grid of clips and scenes for
   live performance and sketching, recorded into the arrangement; follow actions.
+  **Done in round 33** (ADRs 0076–0077, schema 46, keymap 14): the session view, follow
+  actions, recording into slots and into the arrangement, clip envelopes, MIDI learn, and
+  the Launchpad Mini MK3/X/Pro MK3 and APC mini mk2/APC40 mkII grids.
 - **A modular environment** (Bitwig's Grid, Reaktor, Max for Live): build instruments and
   effects from modules inside the DAW, with polyphony and sample-accurate modulation.
 - **Modulators everywhere** (Bitwig): LFOs, envelopes, step sequencers, followers, MIDI
@@ -73,6 +76,13 @@ Studio One, Reaper**, and the free ones (**Ardour, LMMS, Zrythm, Waveform Free**
   controller scripts; a package manager for community scripts and themes (ReaPack-style).
 - **Sync and networking**: **Ableton Link**, MIDI clock and MTC in/out, OSC, **MIDI 2.0**
   and MPE end to end, network audio (AES67/Dante later).
+  - *Round 33 (ADRs 0078–0079): Ableton Link (Rust, crate `cantus-link`), MIDI clock and
+    MTC in and out are done. Left: OSC, network audio.*
+  - *Round 33 (ADR 0080): MPE end to end is done; MIDI 2.0 has its resolution in the model
+    and the translation layer (UMP per-note messages). Left, sized in the ADR: the UMP
+    transport — Windows MIDI Services, ALSA UMP, CoreMIDI event lists, with MIDI-CI
+    (≈ 2–3 weeks); CLAP `CLAP_EVENT_MIDI2` out (≈ 1 week); per-note controllers beyond
+    bend, pressure and timbre (≈ 1 week, a schema bump).*
 - **Tuning**: microtonal scales (Scala files, MTS-ESP), per-note tuning in the piano roll.
 - **Hardware integration**: external instruments and external effect inserts with
   automatic latency ping, CV/gate out through DC-coupled interfaces, per-device I/O presets.
@@ -139,6 +149,7 @@ is an impression. The order below is the integrator's recommendation; the owner 
 5. **Ableton's core and live work** (§0.2): session view (clips and scenes, follow
    actions, recorded into the arrangement), Ableton Link, MIDI clock and MTC in and out,
    MPE end to end, then MIDI 2.0.
+   **Done in round 33** except MIDI 2.0's transport (sized in ADR 0080).
 6. **The professional studio** (§1, §0.2, §3, §3c, §4c): ARA 2 hosting (Melodyne and
    others inside Cantus), Mackie Control / HUI surfaces, external instruments and effects
    with an automatic latency ping, the recording mode (§4c step 3), an audio editor
@@ -196,7 +207,7 @@ warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 
 learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales — en la ronda 28 llegaron el chorus (Concentus), el flanger (Flexus), el phaser (Phasis), el trémolo y autopaneo (Tremor), el vibrato (Vibrans), el modulador en anillo (Anulus), el desplazador de frecuencia (Translatio), el modelador de volumen (Fluctus), el clipper (Tonsor), el procesador de transitorios (Impetus), el separador de transitorios (Discrimen), el analizador (Speculum) y el afinador Tonus; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2) — hecho en la ronda 28, salvo lo polifónico y ARA 2; **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar) — hecho en la ronda 28: **Tonus**; **(3e)** más instrumentos, tras una investigación verificada (FL Studio 2026, Live 12.4, Logic 12, Bitwig 6.1, Reason 14, Fender Studio Pro 8, Cubase 15 y los mejores plug-ins; licencias y patentes comprobadas), en este orden: un cortador de muestras (tipo Slicex) dentro de Exemplar, arpegiador y herramientas de acordes y escala como efectos MIDI, terminar Pulsus con salidas y cadenas de efectos por pad, un piano de cola modelado (ahora por guías de onda y física publicada; el método de Modartt se evaluará cuando expire su patente estadounidense, verificada vigente hasta el 2027-10-20; revisión legal antes de publicarlo, que cubra también siete patentes activas de resonancia de piano de Casio, Kawai y Yamaha) — **Chorda**, hecho en la ronda 28; quedan la prueba a ciegas y la revisión legal (tuyas) y Chorda II (micrófonos, tapa, voicing por tecla), modos espectral y granular en Exemplar (el nivel del Sampler de Bitwig 6.1), resonadores por modelado físico (cuerdas, láminas, membranas), guitarra sobre el modelo de cuerda de Gravis con rasgueo en el piano roll, resíntesis aditiva para Partes (tipo Harmor), secciones orquestales con muestras CC0, un coro de vocales por formantes (el canto con letra después, cuando exista una voz grabada para Cantus con licencia libre: hoy no hay ninguna) y batería acústica multimicrófono (DRSKit, mezclada a estéreo al instalarla, en la ronda 28; los faders por micrófono esperan instrumentos con varias salidas); solo contenido CC0 bajo demanda hasta que decidas sobre CC-BY (Sonatina y Philharmonia quedan fuera), y más (chiptune, bucles tocables, sintetizador de texturas, MPE); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
-macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(6e)** la barra superior al estilo de FL (hecha en la ronda 28); **(6h)** pedidos del dueño (2026-10-26): un diseño propio para cada plug-in nuestro, con su estilo, como los de FL; y los plug-ins externos abren su editor nativo, con un interruptor a la vista de Cantus de sus parámetros y la opción de guardarla como predeterminada por plug-in; **(7a)** pedido del dueño (2026-10-27): una voz cantada que funcione como instrumento — notas MIDI y letra a voz cantada, con la investigación del dueño en `research/ai/singing-voice.md` (evaluar OpenUtau con DiffSinger frente a ACE Studio, español e inglés primero, licencias de cada componente); seguir evaluando y construirlo después; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
+macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(6e)** la barra superior al estilo de FL (hecha en la ronda 28); **(6h)** pedidos del dueño (2026-10-26): un diseño propio para cada plug-in nuestro, con su estilo, como los de FL; y los plug-ins externos abren su editor nativo, con un interruptor a la vista de Cantus de sus parámetros y la opción de guardarla como predeterminada por plug-in; **(7a)** pedido del dueño (2026-10-27): una voz cantada que funcione como instrumento — notas MIDI y letra a voz cantada, con la investigación del dueño en `research/ai/singing-voice.md` (evaluar OpenUtau con DiffSinger frente a ACE Studio, español e inglés primero, licencias de cada componente); seguir evaluando y construirlo después; **(6i)** pedido del dueño (2026-10-29; ronda 35): un personaje animado sobre la interfaz que baila al compás (la idea del Fruity Dance de FL, con personajes nuestros), animado con clips de automatización, moduladores, MIDI learn o notas; personajes incluidos para escoger y personajes importados (evaluar Rive, Lottie, hojas de sprites, DragonBones; glTF/VRM en 3D después; Spine y Live2D fuera por licencia), y exportar el clip como video con el audio para redes; también de compañía al trabajar y para quien graba o transmite su pantalla (YouTubers, streamers): una ventana pequeña siempre encima que baila con lo que suene, un modo para streaming que OBS capture limpio (fondo transparente o croma, tamaño y posición fijos) y un visualizador ligero, barato para dejarlo encendido todo el día; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
 
@@ -1336,6 +1347,55 @@ plug-in."*
    grouped, searchable, with meters for what the plug-in reports read-only, the parameter
    menu on every control, only the rows in view drawn (500 parameters: 48 cells a frame);
    instruments too, in and out of process.
+
+## 6i. A character that dances on screen, driven by automation (requested 2026-10-29; round 35)
+
+*The owner: an animation laid over the interface, animated with automation clips,
+customised with characters people import (find the format that fits) and with characters
+already included to choose from, so people make clips and entertaining things — "as the
+studio has a little monkey that dances, taking little steps" (FL Studio's Fruity Dance is
+the reference for the idea; ours is our own, never its character or art).*
+
+- **A unit of its own** (a visual "instrument" on the mixer or a track, like FL's): a
+  character drawn over the workspace (a floating, resizable window or docked, always on top
+  if asked, transparent background), in vectors through the kit, crisp at any scale, within
+  the frame budget, off the audio thread (it reads the transport and the parameters; it
+  never touches a sample — a null test).
+- **Driven by automation**: its parameters are ordinary automation and modulation targets
+  (ADR 0057) — move/step (left, right, in place), pose or dance (a list of moves), speed,
+  jump, turn, size, position on screen, mood/expression, colour — so automation clips, the
+  modulators, MIDI learn and notes (a note per move, like a drum map) animate it; by default
+  it dances **to the beat** (steps on the beats, follows the tempo and the transport) and can
+  react to a track's level.
+- **Characters included**: a family of our own original characters (family-friendly, both
+  themes), each with its set of moves, chosen from a picker with previews.
+- **Characters imported** — the format to evaluate first, by licence and by what it can do:
+  **Rive** (`.riv`: vector, bones, state machines with inputs that map onto our parameters;
+  MIT runtimes), **Lottie** (JSON from After Effects/LottieFiles; MIT players; a Rust
+  renderer such as `velato` on vello), **sprite sheets** (PNG + JSON from Aseprite or
+  TexturePacker: the simplest for pixel art), **DragonBones** (MIT, skeletal 2D), and for 3D
+  later **glTF 2.0 / VRM** (open; skinned characters with their own per-model licences).
+  Spine and Live2D need paid/proprietary runtimes: out unless the licence allows a free
+  GPL app. A character file is checked and sandboxed (no scripts run), its licence shown.
+- **For making clips**: export the animation with the song's audio as a video (MP4/WebM,
+  square and vertical for social media; with §0.2 *Video*), or as a transparent overlay
+  for a video editor; a green-screen option.
+- **A companion while working and on stream** (the owner, the same day: nice to watch
+  something that goes with the music while working, and to accompany whoever records their
+  screen — common for YouTubers and streamers): a small always-on-top window that keeps
+  dancing to whatever plays (the transport, the master's level and beat) without any
+  automation; a **streaming mode** that capture software takes cleanly — its own window
+  title for OBS/Streamlabs window capture, a transparent or chroma-key background, a fixed
+  size and position kept between sessions, nothing of the rest of the interface in it — and
+  a **light visualiser** beside the character (the master's spectrum or level, the bar and
+  beat, the song's name and tempo) in the same style; cheap enough to leave on all day (its
+  CPU and GPU cost measured and shown; it pauses when hidden or minimised).
+- **Done when** an included character dances to the beat with no automation, an automation
+  clip changes its moves exactly on the bars it was drawn, an imported Rive or Lottie
+  character (and a sprite sheet) plays with its moves mapped to our parameters, the frame
+  budget holds with it on screen, and a 30-second clip exports as a video with the audio in
+  sync, and OBS captures the streaming window with a transparent background while the
+  character follows the music for an hour with its cost measured.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 

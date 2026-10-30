@@ -38,6 +38,7 @@ pub mod pattern;
 pub mod pitch;
 pub mod routing;
 pub mod scale;
+pub mod session; // r33:session (ADR 0076)
 pub mod snapshot;
 pub mod starting;
 pub mod tempo;

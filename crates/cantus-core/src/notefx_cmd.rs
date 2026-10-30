@@ -147,7 +147,8 @@ pub(crate) fn insert_groove(
 
 /// Whether some clip plays with pooled groove `id`.
 pub(crate) fn groove_in_use(project: &Project, id: GrooveId) -> bool {
-    project.tracks.iter().flat_map(|t| t.clips.iter()).any(|c| {
+    // A session clip plays with it too (ADR 0076). // r33:session
+    project.tracks.iter().flat_map(|t| t.all_clips()).any(|c| {
         c.groove
             .is_some_and(|g| g.source == GrooveSource::Pool { id })
     })

@@ -106,7 +106,6 @@ interop.report.d_audio_clips = Audio Cantus could not place ({n}): video, audio 
 interop.report.d_automation = Automation lanes ({n})
 interop.report.d_markers = Markers ({n})
 interop.report.d_launcher = Clip launcher slots ({n})
-interop.report.d_scenes = Clip launcher scenes ({n})
 interop.report.d_expressions = Note expressions ({n})
 interop.report.d_references = Clips that refer to another clip ({n})
 interop.report.d_loop = The loop of the clip "{name}" does not start where the clip plays from; it was read as starting there

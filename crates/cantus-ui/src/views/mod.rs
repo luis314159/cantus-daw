@@ -83,6 +83,7 @@ pub mod samples_paint;
 pub mod score_bar;
 pub mod score_paint;
 pub mod score_view;
+pub mod session; // r33:launcher
 pub mod settings_audio;
 pub mod transport;
 pub mod unsaved;

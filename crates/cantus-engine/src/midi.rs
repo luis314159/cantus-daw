@@ -18,6 +18,14 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+// System messages for sync, with their arrival time (round 33, ADR 0079).
+#[path = "midi_sync.rs"]
+pub mod sync;
+// One connection per output port, shared by clock out and feedback (integrated review #9).
+#[path = "midi_pool.rs"]
+pub mod pool;
+pub use sync::{SyncInput, SyncMsg};
+
 /// Cloneable sender for MIDI threads. The mutex is only ever contended between MIDI
 /// callbacks, never touched by the audio thread.
 #[derive(Clone)]
@@ -250,6 +258,8 @@ struct TapShared {
     seq: AtomicU64,
     epoch: Instant,
     overflowed: AtomicBool,
+    /// The ports' clock and time code, for the sync thread (round 33).
+    sync: Arc<SyncInput>,
 }
 
 /// Slots of the overflow table (an address hashes to one; a collision keeps the newest).
@@ -331,12 +341,19 @@ impl MidiTap {
                 seq: AtomicU64::new(0),
                 epoch: Instant::now(),
                 overflowed: AtomicBool::new(false),
+                sync: Arc::default(),
             }),
         }
     }
 
     pub fn filter(&self) -> &MidiFilter {
         &self.shared.filter
+    }
+
+    /// Where the ports' clock and time code go (round 33): what each port gives, and the
+    /// sync thread's receiving end.
+    pub fn sync_input(&self) -> &Arc<SyncInput> {
+        &self.shared.sync
     }
 
     /// Whether something wakes the interface (the boot path sets it).
@@ -502,6 +519,33 @@ impl PortState {
     }
 }
 
+/// One message from port `port` as its callback hears it: through [`route`] when the port
+/// takes its kind (Settings › MIDI's Notes and Controls, round 33), else dropped.
+pub fn route_port(
+    ev: MidiEvent,
+    port: usize,
+    tap: &MidiTap,
+    engine: &MidiSender,
+    ui: &mut Producer<Heard>,
+    state: &mut PortState,
+) -> bool {
+    if tap.sync_input().admits(port, ev.status) {
+        return route(ev, port, tap, engine, ui, state);
+    }
+    // Turned off: only the release of what the engine holds from this port.
+    let Some(eng) = crate::inst::mpe::for_engine(port, ev) else {
+        engine.count();
+        return false;
+    };
+    if state.releases(&eng) {
+        let release = PortState::release_of(eng);
+        state.sent(&release);
+        return engine.send(release);
+    }
+    engine.count();
+    false
+}
+
 /// One message from port `port`: teed to the interface's ring when the map takes it or a
 /// control is being learnt, and sent to the engine unless the map took it — but a release
 /// of a key or of the pedal the engine holds always reaches it (`state`). Returns whether
@@ -516,6 +560,7 @@ pub fn route(
     ui: &mut Producer<Heard>,
     state: &mut PortState,
 ) -> bool {
+    let eng = crate::inst::mpe::for_engine(port, ev); // r33:mpe — the engine's reading (ADR 0080)
     let consumed = tap.filter().learning() || tap.filter().takes(port, &ev);
     if consumed {
         // A full ring (an interface stalled) keeps the newest per address aside; while
@@ -533,16 +578,22 @@ pub fn route(
             tap.overflow(port, &ev, at);
         }
         tap.wake();
-        if state.releases(&ev) {
-            let release = PortState::release_of(ev);
+        // r33:mpe — `eng` (`None`: dropped for the engine), not `ev`, on the two lines below
+        if let Some(eng) = eng.filter(|e| state.releases(e)) {
+            let release = PortState::release_of(eng); // r33:mpe
             state.sent(&release);
             return engine.send(release);
         }
         engine.count();
         false
     } else {
-        state.sent(&ev);
-        engine.send(ev)
+        // r33:mpe — what an MPE layout must not hear from another port is dropped (review D7)
+        let Some(eng) = eng else {
+            engine.count();
+            return false;
+        };
+        state.sent(&eng);
+        engine.send(eng)
     }
 }
 
@@ -603,7 +654,8 @@ impl MidiInputs {
             let Ok(mut input) = MidiInput::new("cantus") else {
                 continue;
             };
-            input.ignore(Ignore::All);
+            // Clock and time code come through (round 33); active sensing does not.
+            input.ignore(Ignore::ActiveSense);
             let name = input
                 .port_name(&port)
                 .unwrap_or_else(|_| "unknown".to_string());
@@ -611,12 +663,18 @@ impl MidiInputs {
             let (mut ui, heard) = RingBuffer::<Heard>::new(TAP_QUEUE);
             let index = connections.len();
             let tap2 = tap.clone();
+            let mut stamps = sync::StampClock::default();
             match input.connect(
                 &port,
                 "cantus-in",
-                move |_stamp, bytes, held: &mut PortState| {
+                move |stamp, bytes, held: &mut PortState| {
+                    if bytes.first().is_some_and(|b| *b >= 0xF0) {
+                        let at = stamps.arrival(stamp, crate::transport::sync::host_micros());
+                        tap2.sync_input().route(index, at, bytes);
+                        return;
+                    }
                     if let Some(ev) = parse(bytes) {
-                        route(ev, index, &tap2, &tx, &mut ui, held);
+                        route_port(ev, index, &tap2, &tx, &mut ui, held);
                     }
                 },
                 PortState::default(),
@@ -696,22 +754,38 @@ pub fn output_for(input: &str, outputs: &[String]) -> Option<usize> {
     None
 }
 
+/// The name of the system's output that answers the input `input` ([`output_for`]).
+pub fn output_name_for(input: &str) -> Option<String> {
+    let outputs = list_outputs();
+    output_for(input, &outputs).map(|i| outputs[i].clone())
+}
+
+/// Names the output that answers an input.
+pub type Resolve = fn(&str) -> Option<String>;
+
 /// Output ports opened for feedback, by the name of the input they answer. Opened on
 /// demand (the first mapping with feedback on a port); interface thread.
 pub struct MidiOutputs {
     open: Vec<(String, Box<dyn OutPort>)>,
+    /// Outputs the user keeps from feedback (Settings ▸ MIDI, round 33), by output name.
+    blocked: Vec<String>,
     /// Inputs whose output could not be found or opened (not tried again until a rescan).
     missing: Vec<String>,
     /// Opens the output that answers an input (the system's; a test's own).
     connect: fn(&str) -> Option<Box<dyn OutPort>>,
+    /// The shared ports (round 33), and how an input's output is named: when set, feedback
+    /// writes through the connection clock out may hold too.
+    pool: Option<(std::sync::Arc<pool::OutPool>, Resolve)>,
 }
 
 impl Default for MidiOutputs {
     fn default() -> Self {
         MidiOutputs {
             open: Vec::new(),
+            blocked: Vec::new(),
             missing: Vec::new(),
             connect: |input| MidiOutputs::connect(input).map(|c| Box::new(c) as Box<dyn OutPort>),
+            pool: None,
         }
     }
 }
@@ -763,7 +837,20 @@ impl MidiOutputs {
             if self.missing.iter().any(|n| n == input) {
                 return None;
             }
-            match (self.connect)(input) {
+            if !self.blocked.is_empty()
+                && output_for(input, &list_outputs())
+                    .is_some_and(|i| self.blocked.contains(&list_outputs()[i]))
+            {
+                self.missing.push(input.to_string());
+                return None;
+            }
+            let got = match &self.pool {
+                Some((pool, resolve)) => resolve(input)
+                    .and_then(|name| pool.get(&name))
+                    .map(|p| Box::new(pool::Pooled(p)) as Box<dyn OutPort>),
+                None => (self.connect)(input),
+            };
+            match got {
                 Some(c) => self.open.push((input.to_string(), c)),
                 None => {
                     self.missing.push(input.to_string());
@@ -796,10 +883,28 @@ impl MidiOutputs {
         }
     }
 
+    /// Take the ports from `pool` (shared with clock out), an input's output named by
+    /// `resolve` (the system's: [`output_name_for`]).
+    pub fn set_pool(&mut self, pool: std::sync::Arc<pool::OutPool>, resolve: Resolve) {
+        self.pool = Some((pool, resolve));
+        self.reset();
+    }
+
+    /// The outputs feedback may not use (by output name); a change closes what is open.
+    pub fn set_blocked(&mut self, outputs: Vec<String>) {
+        if outputs != self.blocked {
+            self.blocked = outputs;
+            self.reset();
+        }
+    }
+
     /// Close everything (a rescan, a restart): the next send opens again.
     pub fn reset(&mut self) {
         self.open.clear();
         self.missing.clear();
+        if let Some((pool, _)) = &self.pool {
+            pool.prune();
+        }
     }
 
     /// The inputs whose output is open now.
@@ -1236,5 +1341,90 @@ mod tests {
         tap.wake();
         assert!(tap.rearm(), "a wake was pending");
         assert!(!tap.rearm());
+    }
+}
+
+#[cfg(test)]
+mod port_flags {
+    use super::*;
+
+    /// Integrated review #8: a key held, then the port's Notes turned off — its release
+    /// still reaches the engine (it hung); a new key does not. The same for the sustain
+    /// pedal with Controls off.
+    #[test]
+    fn a_held_key_is_released_after_its_port_is_turned_off() {
+        let tap = MidiTap::new(None);
+        let (p, mut engine) = RingBuffer::<MidiEvent>::new(64);
+        let sender = MidiSender::new(p);
+        let (mut ui, _heard) = RingBuffer::<Heard>::new(64);
+        let mut st = PortState::default();
+        let ev = |status: u8, a: u8, b: u8| MidiEvent {
+            status,
+            data1: a,
+            data2: b,
+        };
+        assert!(route_port(
+            ev(0x90, 60, 100),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut st
+        ));
+        assert!(route_port(
+            ev(0xB0, 64, 127),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut st
+        ));
+        while engine.pop().is_ok() {}
+        tap.sync_input()
+            .set_takes(0, sync::BLOCKS_NOTES | sync::BLOCKS_CONTROLLERS);
+        assert!(route_port(
+            ev(0x80, 60, 0),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut st
+        ));
+        assert_eq!(
+            engine.pop().map(|e| e.status),
+            Ok(0x80),
+            "the key's release"
+        );
+        assert!(route_port(
+            ev(0xB0, 64, 0),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut st
+        ));
+        assert_eq!(
+            engine.pop().map(|e| (e.status, e.data2)),
+            Ok((0xB0, 0)),
+            "pedal up"
+        );
+        // Nothing else of the port.
+        assert!(!route_port(
+            ev(0x90, 62, 100),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut st
+        ));
+        assert!(!route_port(
+            ev(0xB0, 1, 64),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut st
+        ));
+        assert!(engine.pop().is_err());
     }
 }

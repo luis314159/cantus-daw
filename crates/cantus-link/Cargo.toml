@@ -1,0 +1,23 @@
+[package]
+name = "cantus-link"
+description = "Cantus DAW — Ableton Link in Rust: discovery over UDP multicast, the session clock's measurement, the shared timeline, start/stop and session merging, following the Link SDK (GPL-2.0-or-later) — ADR 0078."
+# GPL like the application that uses it: the Link SDK it follows is GPL-2.0-or-later, so this
+# crate may never be MPL (ADR 0047, ADR 0078); the engine sees Link only through its own
+# abstract sync seam (`cantus_engine::transport::sync`).
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+log.workspace = true
+# Sockets with SO_REUSEADDR, multicast loop and interface options (MIT OR Apache-2.0): two
+# Link apps on one machine share port 20808 as the SDK's sockets do.
+socket2 = { version = "0.5", features = ["all"] }
+# Every up IPv4 interface, scanned again every 30 s as the SDK does (MIT OR BSD-3-Clause).
+if-addrs = "0.13"
+
+[dev-dependencies]
+env_logger.workspace = true

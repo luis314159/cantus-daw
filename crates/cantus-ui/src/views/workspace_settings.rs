@@ -89,6 +89,8 @@ pub struct Page {
     pub(super) open_cores: bool,
     /// The Audio page's own (ADR 0025): the device scan, the loopback measurement.
     pub audio: super::settings_audio::State,
+    /// The MIDI page's list of outputs, and when it was taken (round 33). r33:sync
+    pub(crate) midi_outputs: (Option<std::time::Instant>, Vec<String>),
 }
 
 /// The settings window.
@@ -363,29 +365,19 @@ pub fn wrapped(ui: &mut Ui, s: &str, role: Role, color: egui::Color32, width: f3
     }
 }
 
+// The MIDI page: the ports' table and sync (round 33, ADR 0078–0079).
+#[path = "settings_midi.rs"]
+mod settings_midi;
+pub use settings_midi::{inputs_layout as midi_inputs_layout, InputsLayout}; // r33:launcher
+
 fn midi(app: &mut CantusApp, ui: &mut Ui) {
-    w::band(ui, Src::Key("settings.midi"));
-    ui.horizontal(|ui| {
-        w::row_label(ui, "", LABEL_W, 24.0);
-        if w::button(ui, Src::Key("settings.rescan_midi"), 0.0, true).clicked() {
-            app.rescan_midi();
-        }
-        note(
-            ui,
-            &tf("status.midi", &[("n", &app.midi_port_names.len())]),
-            false,
-        );
-    });
-    if app.midi_port_names.is_empty() {
-        note(ui, &t("settings.no_midi"), false);
-    }
-    let names = app.midi_port_names.clone();
-    for name in names {
-        ui.horizontal(|ui| {
-            w::row_label(ui, "", LABEL_W, 18.0);
-            note(ui, &name, false);
-        });
-    }
+    settings_midi::page(app, ui);
+}
+
+/// Settings ▸ MIDI with these ports, for the screenshots (round 33).
+pub fn demo_midi(app: &mut CantusApp, inputs: &[&str], outputs: &[&str]) {
+    settings_midi::demo_ports(app, inputs, outputs);
+    open(app, SettingsPage::Midi);
 }
 
 fn look(app: &mut CantusApp, ui: &mut Ui) {

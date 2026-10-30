@@ -116,6 +116,48 @@ impl PluginIsolation {
     }
 }
 
+/// How a hosted instrument hears per-note expression (round 33, ADR 0080).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExprRoute {
+    /// The format's own per-note events: CLAP note expressions, VST3 note expression.
+    NoteExpression,
+    /// MPE over MIDI 1.0: each note on a member channel of its own, its bend, pressure and
+    /// timbre as that channel's pitch bend, channel pressure and CC 74, the zone announced
+    /// with its MCM and bend range — for a plug-in that takes MIDI only.
+    MpeMidi,
+    /// Nothing per note: the notes alone (a plug-in that misreads either).
+    Off,
+}
+
+impl ExprRoute {
+    pub const ALL: [ExprRoute; 3] = [
+        ExprRoute::NoteExpression,
+        ExprRoute::MpeMidi,
+        ExprRoute::Off,
+    ];
+
+    /// The route when the project has not chosen: the format's own events where the
+    /// plug-in declares it takes them, MPE where it takes MIDI only.
+    pub fn automatic(takes_note_expressions: bool, takes_midi: bool) -> ExprRoute {
+        if takes_note_expressions {
+            ExprRoute::NoteExpression
+        } else if takes_midi {
+            ExprRoute::MpeMidi
+        } else {
+            ExprRoute::Off
+        }
+    }
+
+    /// The i18n key it is shown with.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            ExprRoute::NoteExpression => "mpe.route.note_expression",
+            ExprRoute::MpeMidi => "mpe.route.mpe_midi",
+            ExprRoute::Off => "mpe.route.off",
+        }
+    }
+}
 /// A hosted plug-in in an insert slot.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExternalPlugin {
@@ -140,6 +182,11 @@ pub struct ExternalPlugin {
     /// saves the same bytes as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub isolation: Option<PluginIsolation>,
+    /// How per-note expression reaches it (schema 47, ADR 0080); `None` — every project
+    /// before, and the default — chooses by what the plug-in declares
+    /// ([`ExprRoute::automatic`]). Not written while `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expression: Option<ExprRoute>,
 }
 
 impl ExternalPlugin {
@@ -153,6 +200,7 @@ impl ExternalPlugin {
             state: PluginState::default(),
             params: BTreeMap::new(),
             isolation: None,
+            expression: None,
         }
     }
 }

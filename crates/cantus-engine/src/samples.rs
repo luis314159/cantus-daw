@@ -803,6 +803,41 @@ impl SampleCache {
         errors
     }
 
+    // r33:session
+    /// The warp renders a snapshot nothing plays will want, asked for ahead and kept as
+    /// what plays (the session's clips laid as a launch lays them — ADR 0076 §7): its
+    /// sources loaded, its warped clips queued; the pitch renders and what plays now are
+    /// left as they are. A clip with audible pitch edits is not asked for (its input is a
+    /// pitch render only a launch asks for).
+    pub fn attach_warp_ahead(&mut self, snapshot: &mut Snapshot, rate: u32) {
+        for track in &mut snapshot.tracks {
+            for clip in &mut track.audio {
+                clip.data = self.load_audio(&clip.path, rate).ok();
+            }
+        }
+        let background = self.pitch_background || self.loader.is_some();
+        let dir = self.project_dir.clone();
+        let resolve = |p: &str| {
+            let p = Path::new(p);
+            match &dir {
+                Some(d) if p.is_relative() => d.join(p),
+                _ => p.to_path_buf(),
+            }
+        };
+        let input = |clip: &cantus_core::AudioClipSnapshot, _: &Path| -> Option<u64> {
+            clip.pitch
+                .as_ref()
+                .filter(|e| e.audible())
+                .is_none()
+                .then_some(1)
+        };
+        self.warp.preloading = true;
+        let _ = self
+            .warp
+            .attach(snapshot, rate, background, &resolve, &input, false);
+        self.warp.preloading = false;
+    }
+
     /// The pitch editor's service (ADR 0054): analyses and renders, off this thread.
     pub fn pitch(&self) -> &std::sync::Arc<crate::pitch::PitchService> {
         &self.pitch.service

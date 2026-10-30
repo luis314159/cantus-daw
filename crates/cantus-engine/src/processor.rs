@@ -49,6 +49,7 @@ use std::time::Instant;
 /// Automation (ADR 0027): control points, ramps, configured copies.
 #[path = "processor_auto.rs"]
 mod auto;
+// The session on the audio thread: installs on the control grid (ADR 0076).
 /// The graph's tasks: clustering, ranks, the serial hint.
 #[path = "graph/cluster.rs"]
 pub(crate) mod cluster;
@@ -67,6 +68,8 @@ mod master_run;
 /// Messages, MIDI and live notes.
 #[path = "processor_monitor.rs"]
 pub(crate) mod monitor;
+#[path = "session_rt.rs"]
+mod session_rt;
 
 #[path = "processor_msg.rs"]
 mod msg;
@@ -91,6 +94,8 @@ pub(crate) mod strip;
 /// A strip node's chain and outputs.
 #[path = "graph/strip_run.rs"]
 mod strip_run;
+#[path = "processor_sync.rs"] // r33:sync
+mod sync_run; // r33:sync
 /// The track nodes.
 #[path = "graph/track.rs"]
 pub(crate) mod track;
@@ -139,6 +144,9 @@ pub struct Processor {
     tx: Producer<EngineEvent>,
     midi_rx: Consumer<MidiEvent>,
     snapshot: Option<Arc<Snapshot>>,
+    /// A snapshot that arrived while playing off the automation's grid, with its plan: it
+    /// is installed on the grid (`session_rt.rs`, ADR 0076 §7).
+    deferred: Option<(Arc<Snapshot>, Option<Box<GraphPlan>>)>,
     pending_garbage: Vec<Arc<Snapshot>>,
     /// Effect units received but not yet claimed by a snapshot.
     incoming_effects: Vec<Box<EffectUnit>>,
@@ -200,6 +208,7 @@ pub struct Processor {
     live_track: Option<TrackId>,
     /// Tracks that play the live notes too (`EngineMessage::SetLiveEcho`).
     live_echo: [Option<TrackId>; crate::messages::MAX_LIVE_ECHO],
+    mpe: msg::mpe_live::MpeLive, // r33:mpe — live MPE (ADR 0080)
     recording: bool,
     stats: EngineStats,
     meters: Meters,
@@ -284,6 +293,7 @@ pub struct Processor {
     auto: auto::AutoState,
     /// Where each block's time goes, and who overran it (`crate::profile`).
     prof: crate::profile::Profiler,
+    sync: Option<Box<sync_run::SyncRun>>, // r33:sync
 }
 
 impl Processor {
@@ -303,6 +313,7 @@ impl Processor {
             tx,
             midi_rx,
             snapshot: None,
+            deferred: None,
             pending_garbage: Vec::with_capacity(PENDING_GARBAGE),
             incoming_effects: Vec::with_capacity(MAX_PENDING_EFFECTS),
             scratch_effects: Vec::with_capacity(MAX_EFFECTS_PER_TRACK),
@@ -336,6 +347,7 @@ impl Processor {
             next_beat_tick: 0.0,
             live_track: None,
             live_echo: [None; crate::messages::MAX_LIVE_ECHO],
+            mpe: Default::default(), // r33:mpe
             recording: false,
             stats: EngineStats {
                 sample_rate,
@@ -382,6 +394,7 @@ impl Processor {
             master: master::MasterChain::new(),
             auto: auto::AutoState::new(),
             prof: crate::profile::Profiler::new(),
+            sync: None, // r33:sync
         };
         p.prefault();
         p.set_workers(workers);
@@ -732,6 +745,8 @@ impl Processor {
         self.note_at = self.clock;
 
         self.drain_messages();
+        self.sync_block(frames); // r33:sync
+        self.propose_scene_tempos(frames); // r33:session
         self.drain_midi();
         self.retry_garbage();
         self.read_input(frames);
@@ -776,7 +791,14 @@ impl Processor {
     }
 
     pub fn settle(&mut self) {
-        while !self.rx.is_empty() {
+        loop {
+            // Outside a block a snapshot waits for no grid (review finding 11).
+            if let Some((snap, plan)) = self.deferred.take() {
+                self.install_snapshot(snap, plan);
+            }
+            if self.rx.is_empty() {
+                break;
+            }
             self.drain_messages();
         }
     }
@@ -793,7 +815,8 @@ pub(crate) fn song_position_of(
         .loop_region()
         .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq));
     let map = transport.map();
-    if !(map.is_constant() && map.is_one_metre()) {
+    if !transport.following() && !(map.is_constant() && map.is_one_metre()) {
+        // r33:sync
         // Through the tempo map (ADR 0060): the step's tempo, real seconds, the bar of the
         // metre in force.
         let tick = transport.position_f64();

@@ -121,6 +121,9 @@ pub struct Voice {
     pub slide: f32,
     pub volume: f32,
     pub pan: f32,
+    /// Where tuning, pressure and slide are heading (ADR 0080): each control tick moves
+    /// them there (`expr_glide`), so a stream of values is a glide, not a staircase.
+    pub expr_to: [f32; 3],
     run: [bool; 3],
     hear: [bool; 3],
     sub_run: bool,
@@ -175,6 +178,7 @@ impl Voice {
             slide: 0.0,
             volume: 1.0,
             pan: 0.0,
+            expr_to: [0.0; 3],
             run: [false; 3],
             hear: [false; 3],
             sub_run: false,
@@ -256,6 +260,7 @@ impl Voice {
         self.tuning = 0.0;
         self.pressure = 0.0;
         self.slide = 0.0;
+        self.expr_to = [0.0; 3];
         self.volume = 1.0;
         self.pan = 0.0;
         for (e, env) in self.env.iter_mut().enumerate() {
@@ -280,6 +285,11 @@ impl Voice {
     pub fn glide_to(&mut self, s: &Settings, key: u8, id: u64, base_sr: f32) {
         self.key = key;
         self.id = id;
+        // Another note now: none of the last one's expression (ADR 0080, as Gravis does).
+        self.tuning = 0.0;
+        self.pressure = 0.0;
+        self.slide = 0.0;
+        self.expr_to = [0.0; 3];
         self.target = key as f32;
         self.glide = if s.glide_s > 0.0 {
             (self.target - self.pitch) / (s.glide_s * base_sr).max(1.0)
@@ -337,3 +347,11 @@ pub fn table_of(choice: &TableChoice) -> Option<&Table> {
 
 #[path = "unda_voice_run.rs"]
 mod run;
+
+impl Voice {
+    /// Whether the voice has rendered nothing yet: a value it receives now is where it
+    /// starts, not where it glides to (ADR 0080).
+    pub fn fresh(&self) -> bool {
+        self.since == 0
+    }
+}

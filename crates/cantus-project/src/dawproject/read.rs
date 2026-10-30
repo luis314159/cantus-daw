@@ -278,14 +278,16 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
         .iter()
         .position(|c| c.role == "master")
         .and_then(|i| channels[i].id.clone());
-    let timeline = child(root, "Arrangement")
+    let mut timeline = child(root, "Arrangement") // r33:session (mut: the scenes go in)
         .map(|arr| read_timeline::read(arr, &project, &mut report))
         .unwrap_or_default();
     tempo_map(&mut project, &timeline, &mut report);
+    // The session's scenes and clip slots (round 33, ADR 0076). // r33:session
     if let Some(scenes) = child(root, "Scenes") {
-        let n = scenes.children().filter(|c| c.is_element()).count();
-        report.count_dropped("interop.report.d_scenes", n);
+        read_timeline::read_scenes(scenes, &project, &mut timeline, &mut report);
+        // r33:session
     }
+    super::session::make_scenes(&mut project, &timeline); // r33:session
 
     let built = build(
         &mut project,
@@ -296,6 +298,11 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
         (files, ours),
         &mut report,
     );
+    // The session's own settings a file Cantus wrote carries (ADR 0076). // r33:session
+    let side = ours
+        .then(|| state_file(files, super::session::SIDE))
+        .flatten(); // r33:session
+    super::session::apply_side(&mut project, side); // r33:session
     report.info(
         "interop.report.d_read",
         vec![
@@ -381,9 +388,10 @@ fn build(
                 .is_some_and(|ci| channels[ci].id.as_deref() == master);
         !master_track
             && (t.content.iter().any(|c| c == "notes")
-                || t.id
-                    .as_ref()
-                    .is_some_and(|id| timeline.clips.contains_key(id)))
+                || t.id.as_ref().is_some_and(|id| {
+                    timeline.clips.contains_key(id) || timeline.slots.contains_key(id)
+                    // r33:session
+                }))
     };
 
     // The strips, one per channel that is not the master's or a track's own.
@@ -574,7 +582,14 @@ fn build(
             Some(_) => track.strip = t.channel.and_then(|ci| strip_for_channel[ci]),
             None => track.strip = None,
         }
-        for c in clips {
+        // The track's clip slots' clips are made as its arrangement clips are, then moved
+        // into its column (round 33, ADR 0076). // r33:session
+        let slots = super::session::slot_clips(timeline, &key); // r33:session
+        for c in clips
+            .iter()
+            .chain(slots.iter().filter_map(|s| s.clip.as_ref()))
+        {
+            // r33:session
             let mut clip = project.make_clip(c.name.clone(), c.start, c.length);
             clip.offset = c.offset;
             clip.content_length = c.period;
@@ -640,6 +655,7 @@ fn build(
             for n in &c.notes {
                 let mut note = project.make_note(n.start, n.length, n.pitch, n.velocity);
                 note.release = n.release;
+                note.expr = n.expr.clone();
                 clip.notes.push(note);
             }
             // Its controller lanes (ADR 0068), only on a clip of notes.
@@ -650,6 +666,8 @@ fn build(
             n_clips += 1;
             track.clips.push(clip);
         }
+        // r33:session: the slots' clips into the track's column.
+        super::session::into_slots(project, &mut track, clips.len(), slots);
         // Two fades that span an overlap are its crossfade (ADR 0070).
         super::audio::crossfades_from_fades(&mut track);
         project.tracks.push(track);

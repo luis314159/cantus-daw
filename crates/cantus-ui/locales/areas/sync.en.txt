@@ -1,0 +1,67 @@
+# Area: sync — Ableton Link, MIDI clock and song position, MIDI time code, in and out
+# (round 33, ADRs 0078–0079, BACKLOG §0.2). Every key here needs its twin in sync.es.txt.
+
+# The top bar's group.
+sync.group = Sync
+sync.topbar.link = Link
+sync.topbar.quantum = Q
+sync.topbar.ext = Ext
+sync.tip.link_off = Ableton Link is off. Click to share tempo, phase and start/stop with the apps on your network; right-click for Settings › MIDI
+sync.tip.link_on_one = Ableton Link is on: 1 other app in the session. Click to leave it
+sync.tip.link_on = Ableton Link is on: {n} other apps in the session. Click to leave it
+sync.tip.link_failed = Ableton Link could not open any network interface (no connection, or the port refused); it keeps looking every 30 seconds. Click to turn it off
+sync.tip.quantum = Quantum: {q} beats — Link matches the phase within it (4 is a bar of 4/4). Click to change it
+sync.tip.ext = Following {source}: {tempo} BPM, {state}. Click for Settings › MIDI
+sync.tip.ext_none = Following nothing: the project's own tempo plays. Click to choose a source in Settings › MIDI
+sync.source.none = nothing
+sync.source.link = Ableton Link
+sync.source.clock = MIDI clock
+sync.source.mtc = MIDI time code
+sync.lock.locked = locked
+sync.lock.seeking = pulling in
+sync.lock.queued = waiting for its moment
+sync.lock.idle = stopped
+
+# Settings › MIDI.
+sync.band.inputs = Inputs
+sync.band.outputs = Outputs
+sync.band.sync = Sync
+sync.col.port = Port
+sync.col.notes = Notes
+sync.col.controllers = Controls
+sync.col.clock = Clock
+sync.col.mtc = MTC
+sync.col.feedback = Feedback
+sync.col.offset = Offset
+sync.no_outputs = No MIDI outputs.
+sync.source = Follow
+sync.seg.off = Off
+sync.seg.link = Link
+sync.seg.clock = Clock
+sync.seg.mtc = MTC
+sync.port = From port
+sync.port.none = Choose a port
+sync.quantum = Quantum
+sync.start_stop = Start/stop sync
+sync.mtc_rate = Code rate
+sync.mtc_offset = Start code
+sync.mtc_offset_hint = hh:mm:ss:ff
+sync.mtc_offset_bad = Write it as hh:mm:ss:ff (for example 01:00:00:00), within the rate's frames.
+sync.status.none = The project's own tempo plays.
+sync.status.link_one = Link: 1 other app in the session, {tempo} BPM.
+sync.status.link = Link: {n} other apps in the session, {tempo} BPM.
+sync.status.link_failed = Link: no network interface could be opened (no network, or the port refused). Cantus keeps looking every 30 seconds.
+sync.status.following = Following {source}: {tempo} BPM, {state}.
+sync.status.no_port = Choose the port the clock or the time code comes from.
+sync.status.silent = Nothing arrives on {port} yet.
+sync.note.firewall = Link talks to the apps on your network over UDP: the first time it is turned on, Windows may ask to let Cantus through its firewall.
+sync.note.offset = An output's offset sends its messages that much later (earlier, below zero) than the audio — for a device that answers late.
+sync.offset_value = {ms} ms
+sync.tip.in_clock = Follow this port's MIDI clock (one source at a time)
+sync.tip.in_mtc = Chase this port's time code (one source at a time)
+sync.tip.notes = This port's notes reach the instruments and the controller map; turned off, keys already down are still let go
+sync.tip.controllers = This port's controllers, pitch bend and pressure reach them; on an MPE port they carry each note's bend, pressure and timbre too — off, those go silent
+sync.tip.out_clock = Send MIDI clock and the song position from this port
+sync.tip.out_mtc = Send time code from this port
+sync.tip.feedback = Controller feedback (lights, motor faders) may use this port
+sync.tip.offset = This port's messages leave this much later (earlier, below zero) than the audio; ‹ › step half a millisecond, a click sets zero

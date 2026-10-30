@@ -297,6 +297,10 @@ interfaz: en una barra llena el chip acorta por el medio una línea de dispositi
 - **Entradas**: el teclado del ordenador (`Ctrl+T`), la luz **MIDI** (se enciende cuando
   llegan notas; el número son las entradas abiertas) y **Armadas** (cuántas pistas
   grabarán; clic para armar la seleccionada).
+- **Sincronía** (se muestra mientras se sigue Link o un reloj externo, o si la muestras en
+  *Personalizar la barra superior…*): **LINK** y sus pares, **Q** (el cuanto de Link) y
+  **EXT** (el tempo de la fuente y su luz de enganche) — ver [Tocar en
+  sincronía](#tocar-en-sincronía-ableton-link-reloj-midi-y-código-de-tiempo).
 - **El chip de audio** (ver [el chip de audio](#el-chip-de-audio)) y las **herramientas**:
   el selector de elementos, la página de apariencia y el zoom de la interfaz.
 
@@ -437,6 +441,42 @@ controlador (CC 0–119), la **presión de canal** y lo rápido que sueltas cada
 (**velocidad de liberación**) también se graban: quedan en los carriles del clip, bajo las
 notas del piano roll.
 
+### MPE: expresión por nota
+
+Un controlador MPE (un Seaboard, un LinnStrument, un Osmose, un Sensel) da a cada nota su
+propia **inflexión** (pitch bend), **presión** y **timbre** (slide, CC 74). Cantus las graba
+en las notas, las muestra y edita en el piano roll, y las toca en sus instrumentos y en los
+plug-ins.
+
+- **Activarlo.** Ajustes ▸ MIDI ▸ *MPE*: pon el puerto del controlador en *MPE*. Los demás
+  puertos no cambian: un teclado en el canal 5 nunca se lee como miembro MPE. *Zonas*: una
+  zona inferior de 15 canales miembro es lo que envían casi todos (miembros ±48 semitonos,
+  maestro ±2); elige *Superior* o *Ambas* para un controlador dividido. Un controlador que
+  envía su MCM fija sus propias zonas y rangos de inflexión.
+- **Tocar y grabar.** Cada nota suena con su propia inflexión, presión y timbre, en vivo y al
+  grabar; la toma los guarda en sus notas (aligerados a lo que el oído distingue). La
+  inflexión, el pedal y la rueda del canal maestro siguen siendo carriles de la pista.
+- **En el piano roll.** La inflexión de una nota es la línea que la atraviesa (un semitono
+  llega a la fila siguiente), su presión el grosor de la línea, su timbre el color. El menú
+  **+** del área de carriles muestra una fila por tipo —*Inflexión*, *Presión*, *Timbre (por
+  nota)*— con las curvas de las notas seleccionadas (de todas si no hay selección): dibuja
+  con el lápiz o la línea (Mayús ajusta la inflexión a semitonos enteros), clic derecho para
+  *suavizar*, *aligerar*, *escalar*, *aplanar* o *borrar*. Cada gesto es un paso de deshacer.
+  Cortar, mover, transponer, cuantizar, copiar y las copias enlazadas conservan las curvas.
+- **Nuestros instrumentos.** Unda, Calor, Modulus y Gravis inflexionan cada nota según su
+  curva (con suavidad, compatible con el glide). Un Unda, Calor o Modulus nuevo trae presión
+  y timbre ya enrutados en sus dos últimas ranuras de la matriz (Unda: nivel y posición de
+  tabla; Calor: su filtro; Modulus: nivel y brillo): rutas normales que puedes cambiar.
+- **Plug-ins.** Inspector de la pista ▸ *Expresión de nota*: *Automática* (lo que el plug-in
+  dice aceptar), *Expresiones de nota* (note expressions de CLAP y VST3), *MPE (MIDI)* (cada
+  nota en un canal miembro propio, con el MCM y rango ±48, para plug-ins que solo aceptan
+  MIDI) o *Desactivada*.
+- **Archivos.** MIDI: una pista MPE se escribe como zona inferior (MCM, rango de inflexión,
+  un canal miembro por nota); un archivo MPE —con su MCM o reconocido por cómo toca— se lee
+  como una sola pista con las curvas de cada nota; la presión polifónica se conserva.
+  DAWproject lleva las curvas como expresiones propias de las notas.
+
+
 ### Controladores MIDI
 
 Cualquier perilla, fader, botón o pad de un controlador MIDI puede mover cualquier cosa
@@ -549,6 +589,65 @@ después de la toma.
 
 La presión de canal y la presión de tecla llegan ahora al instrumento (de Cantus y
 alojados), y un cambio de programa llega a un instrumento alojado.
+
+### Tocar en sincronía: Ableton Link, reloj MIDI y código de tiempo
+
+Cantus sigue un reloj externo a la vez y envía el suyo por los puertos que elijas. El grupo
+**Sincronía** de la barra superior lo muestra: **LINK** (su luz encendida mientras Link
+está activo, al lado el número de otras aplicaciones en la sesión), **Q** (el cuanto de
+Link, en tiempos) y **EXT** (la fuente que se sigue: su luz es la de enganche — encendida
+cuando va enganchado, ámbar mientras se ajusta o espera su momento — y el tempo que toca).
+*Personalizar la barra superior…* lo muestra u oculta como cualquier otro grupo.
+
+**Ableton Link.** Haz clic en **LINK**: Cantus entra en la sesión Link de todas las
+aplicaciones de tu red (Live, Bitwig, Traktor, apps del teléfono, otro Cantus). El tempo de
+la sesión pasa a ser el de Cantus mientras Link está activo — el tempo del proyecto y su
+pista de tempo se conservan y vuelven al apagar Link (como en Live, Link los manda mientras
+está activo). El tempo de la barra superior muestra el de la sesión; arrastrarlo cambia el
+tempo de la sesión para todos, y también lo cambia un cambio del tempo del proyecto. Pulsa reproducir y Cantus
+arranca en el siguiente cuanto (**Q**: un clic recorre 1, 2, 3, 4 y 8 tiempos; 4 es un
+compás de 4/4), en fase con los demás; nada de lo ya sonado se mueve, y el sonido sale por
+los altavoces cuando lo hace el tiempo de la sesión (se descuenta la latencia del
+dispositivo de audio). Con **Inicio/parada** activo (Ajustes ▸ MIDI), reproducir o parar
+en cualquier aplicación arranca o para todas. La primera vez que se enciende Link, Windows
+puede pedir que dejes pasar a Cantus por su cortafuegos (Link habla con las otras
+aplicaciones por UDP en tu red, como Live): permítelo en redes privadas. Si Link no puede
+abrir la red, su luz se pone roja y su descripción lo dice.
+
+**Reloj MIDI de entrada.** En Ajustes ▸ MIDI, marca **Reloj** en la entrada por la que
+llega el aparato maestro (o elige *Seguir ▸ Reloj* y el puerto). Cantus espera entonces al
+maestro: su Start reproduce desde el principio, Continue desde su posición, Stop para; el
+tempo sigue los relojes del maestro, filtrados para que un reloj tembloroso suene firme. Tu
+propia tecla de reproducir también espera al maestro.
+
+**Código de tiempo MIDI de entrada.** Marca **MTC** en la entrada: Cantus persigue el
+código — un cuadro completo localiza, los cuartos de cuadro lo hacen correr, un corte breve
+se salva y se para cuando el código se para. **Código inicial** dice qué código es el
+principio de la canción (una hora, `01:00:00:00`, es lo habitual); el mapa de tempo del
+proyecto convierte el tiempo en compases.
+
+**Reloj y código de salida.** En la tabla de **Salidas**, marca **Reloj** en un puerto para
+enviar reloj MIDI (24 por tiempo, el puntero de posición, inicio, parada y continuación,
+siguiendo la pista de tempo) y **MTC** para enviar código de tiempo con los **Cuadros**
+elegidos (24, 25, 29,97 drop-frame o 30) desde el **Código inicial**. Cada salida tiene un
+**Desfase** (‹ › de medio milisegundo; un clic pone cero) para un aparato que responde
+tarde; **Respuesta** dice si las luces de los controladores y los faders motorizados pueden
+usar el puerto.
+
+**La tabla de puertos.** Las **Notas** y los **Controles** de cada entrada se pueden
+apagar (un teclado que solo debe mandar reloj, un controlador que solo debe mover el mapa);
+las teclas y pedales ya pulsados se sueltan igual. En un puerto MPE, los Controles llevan
+la inflexión, la presión y el timbre de cada nota: apagados, esos callan.
+- **MPE**: las zonas MPE del puerto y sus rangos de inflexión (ver *MPE* en las páginas del
+  piano roll).
+- **Rejilla**: la rejilla de controlador (Launchpad, APC) que es el puerto, reflejo de la
+  vista de sesión.
+
+**La vista de sesión mientras se sigue.** Un clip o una escena lanzados desde parado
+esperan a la fuente: con Link, el siguiente cuanto (o el inicio de la sesión, con
+Inicio/parada); con reloj MIDI o código de tiempo, el Start del maestro. El tempo propio de
+una escena se propone a la sesión Link al lanzarla, y las demás aplicaciones cambian con
+él.
 
 ## 5. Editar: clips, piano roll, automatización
 
@@ -1141,6 +1240,152 @@ Bravura.
   ninguna está preparada para imprimir, el PDF se abre para imprimirlo desde allí); en
   **Linux** y **macOS** se envía a la impresora predeterminada con `lp` (CUPS), o se abre en
   el visor de PDF si no hay CUPS.
+
+### La vista de sesión: lanzar clips y escenas
+
+El panel **Sesión** es un lanzador de clips, como en Ableton Live y Bitwig: las mismas
+pistas que el arreglo, una al lado de otra como columnas, y las **escenas** como filas.
+Cada celda (una **ranura**) guarda un clip que puedes iniciar y detener mientras suena la
+canción, a tiempo; una escena inicia una fila entera a la vez. Las pistas, el mezclador y
+los instrumentos son los del arreglo: la sesión solo decide qué clip toca cada pista.
+
+- **Cambiar de vista**: `Tab` trae al frente el panel Sesión, o devuelve el arreglo (la
+  tecla de Live); las teclas de ventanas de la barra superior tienen una de Sesión, y
+  *Ver ▸ Sesión* hace lo mismo. Lo elegido sigue elegido: un clip de sesión en el que haces
+  clic es el clip del piano roll.
+- **Lo que ves**: la cabecera de cada columna muestra el nombre y el color de la pista, y
+  sus teclas de armar (●), silenciar (M), solo (S) y *volver al arreglo*. Una ranura con un
+  clip muestra su nombre, una vista pequeña de sus notas (o de su forma de onda) y, mientras
+  suena, una barra a lo largo de su pie. Su **▶** es el lanzador: verde mientras el clip
+  suena, parpadeando mientras espera al compás (o a la rejilla elegida), rojo mientras graba.
+  Una ranura vacía muestra un cuadrado pequeño —detiene su pista— o, con la pista armada, un
+  punto rojo que graba en ella. Las escenas están a la derecha, con sus nombres y, cuando una
+  escena los fija, su tempo y su compás ("128 · 4/4"); debajo, **Detener todo**, y bajo cada
+  columna su botón de detener.
+- **Lanzar**: haz clic en el **▶** de un clip (o pulsa `Intro` en la ranura del cursor): empieza
+  en el próximo compás, o en la cuantización **Lanzar** de la parte superior del panel
+  (ninguna, 8 compases … 1/32, tresillos). Haz clic en el **▶** de una escena (`Mayús+Intro`)
+  para iniciar su fila; una escena que fija un tempo o un compás cambia los de la canción al
+  empezar. `Ctrl+Intro` detiene la pista del cursor, `Ctrl+Mayús+Intro` lo detiene todo. Una
+  pista que toca un clip de sesión deja su arreglo en silencio hasta que pulsas su tecla de
+  *volver al arreglo* (o **Volver al arr.** arriba, `Alt+B`, para todas).
+- **Editar en la rejilla** (cada edición es un paso de deshacer): **doble clic** en una ranura
+  vacía crea un clip MIDI de un compás; en un clip, lo abre en el piano roll; **arrastrar** un
+  clip a otra ranura lo mueve (`Alt` o `Ctrl`: una copia), y sobre el arreglo lo pone allí;
+  arrastra clips del arreglo a una ranura para traerlos a la sesión (los de cada pista a su
+  columna); suelta una muestra del navegador en una ranura vacía. Con el panel pulsado, las
+  flechas mueven el cursor de ranuras (`Mayús`: de ocho en ocho), `F2` renombra,
+  `Ctrl+Mayús+C` cambia el color, `Ctrl+D` duplica (un clip en la siguiente ranura libre de
+  abajo; una escena debajo de sí misma), `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copian, cortan y
+  pegan clips, `Supr` borra, `Ctrl+Mayús+L` activa o no el bucle del clip. `Ctrl+I` inserta
+  una escena, `Ctrl+Alt+I` **captura** una: una escena nueva con una copia de lo que suena
+  ahora. Clic derecho en un clip, una ranura o una escena para lo demás: poner un clip en el
+  arreglo en el cabezal, consolidar los clips de una pista en uno, quitar el botón de detener
+  de una ranura vacía, hacer que una escena fije el tempo o el compás de la canción, subir o
+  bajar una escena. Doble clic en el nombre de una escena para renombrarla.
+- **El panel del clip** (al pie del panel; la tecla de arriba a la derecha lo muestra u
+  oculta; arrastra su borde superior para hacerlo más alto): **Lanzamiento** — el modo
+  (*Disparo* inicia el clip, *Puerta* lo toca mientras mantienes el botón, *Alternar* lo
+  inicia y lo detiene, *Repetir* lo redispara mientras se mantiene), su propia cuantización
+  (*Global* sigue la del panel), *Legato* (toma la posición del clip al que sustituye) y
+  cuánto fija la velocidad de un pad su nivel. **Bucle** — el bucle sí o no, el marcador de
+  inicio, dónde empieza el bucle y cuánto dura (como los escribe Live:
+  compás.tiempo.semicorchea; arrastra un valor, `Mayús` para pasos finos, doble clic para
+  restablecer). **Acciones de seguimiento** — qué ocurre después de que el clip ha sonado:
+  la acción A o la B (detener, tocar de nuevo, anterior, siguiente, primero, último,
+  cualquiera, otro, o saltar a una escena), la probabilidad de A frente a B, tras la duración
+  del propio clip (*Enlazado*) o un tiempo, y cuántas veces. Las acciones de seguimiento
+  toman sus probabilidades de la semilla de la sesión, así que una interpretación vuelve a
+  sonar igual. **Envolventes** — elige un parámetro de la pista del clip (su volumen, su
+  panorama, su canal del mezclador, sus efectos, su instrumento o el último que moviste) y
+  dibuja su curva sobre el bucle del clip: un clic añade un punto, arrastrar lo mueve, doble
+  clic o clic derecho lo borra. El clip mueve ese parámetro mientras suena y lo devuelve a la
+  automatización de la pista cuando se detiene. Un panel bajo oculta el panel del clip para
+  que la rejilla conserve sus filas: hazlo más alto.
+- **Grabar en una ranura**: arma la pista (●) y haz clic en el punto rojo de una ranura vacía
+  (o pulsa `Alt+Intro`): graba desde el próximo compás (tras la cuenta previa si el transporte
+  está parado); haz clic otra vez, o lanza la ranura, para parar: el clip nuevo sigue sonando.
+- **Grabar la sesión en el arreglo**: activa **Grab. arreglo** (`Ctrl+Alt+R`) y toca: todo lo
+  que lanzas y detienes, y cada acción de seguimiento, se escribe en el arreglo tal como lo
+  oíste, con las envolventes de los clips como automatización y los tempos de las escenas en
+  la pista de tempo. Al desactivarlo, la toma entera es un paso de deshacer.
+- **Controladores MIDI**: en el modo de aprendizaje MIDI (`Ctrl+Mayús+M`) cada ranura, cada
+  lanzador de escena, cada botón de detener, **Detener todo**, **Grab. arreglo**, **Volver al
+  arr.** y la cuantización **Lanzar** quedan recuadrados: haz clic en uno y pulsa un pad o
+  gira una perilla. Un pad lanza su ranura y, al soltarlo, la suelta (un clip *Puerta* se
+  detiene); su luz muestra el estado de la ranura. El cursor de escenas (*Escena anterior*,
+  *Escena siguiente*) y cada acción de la sesión también se pueden asignar.
+- **Rejillas Launchpad y APC**: conecta un **Launchpad Mini MK3**, **Launchpad X**,
+  **Launchpad Pro MK3**, **APC mini mk2** o **APC40 mkII** y se convierte en una rejilla de la
+  sesión: se reconoce por el nombre de su puerto (o se elige en *Ajustes ▸ MIDI* o al pie del
+  panel de asignaciones de controladores, donde también puedes desactivarlo). Sus pads lanzan
+  las ranuras de las columnas y filas que muestra (el **anillo de sesión**, dibujado como un
+  recuadro naranja en el panel), iluminados con los colores de los clips: verde y latiendo
+  mientras suenan, parpadeando mientras esperan, rojo mientras graban; los botones de escena
+  lanzan filas; las flechas mueven el anillo (`Mayús`: una página); los botones de detener
+  detienen pistas (en un Mini o un X, el botón de escena más bajo convierte la última fila de
+  pads en botones de detener, y el botón *Session* lo detiene todo; en un APC mini, `Shift`
+  con los cuatro primeros botones de pista mueve el anillo y `Shift` con el último botón de
+  escena lo detiene todo). Los pads de una rejilla nunca tocan notas en la pista elegida.
+### La sesión: cómo funcionan el lanzamiento, las follow actions y la grabación
+
+*La página de la vista de sesión dice dónde está cada cosa; esta dice qué pasa cuando la
+pulsas.*
+
+**Las mismas pistas, el mismo mezclador.** Una columna de la sesión es una pista de la
+canción: el mismo instrumento, la misma tira del mezclador, la misma automatización. Un clip
+lanzado en una pista toma el lugar del arreglo de esa pista hasta que pulsas *Volver al
+arreglo* (en la pista, o para todas) — aun después de que el clip se detenga, la pista sigue
+con la sesión, como en Live.
+
+**Cuándo ocurre un lanzamiento.** Un clip espera a su cuantización de lanzamiento — la suya
+o la global de la sesión (un compás por defecto) — y empieza justo en ese límite, a la
+muestra. Un lanzamiento pulsado justo antes de un límite, demasiado tarde para que el motor
+lo tenga listo ahí (de unos milisegundos a unas decenas, según el búfer de audio), suena
+igualmente en él — un instante tarde, alcanzado hasta donde estaría, nunca un compás
+después; y lo mismo uno pulsado una fusa o menos después de un límite (con una cuantización
+de fusa o más fina, un cuarto del paso). Con el transporte detenido, un lanzamiento lo
+arranca enseguida, desde el cabezal. Una escena lanza toda su fila con la cuantización
+global y fija allí su tempo y su compás (el compás en la siguiente barra).
+
+**Siguiendo Link, reloj MIDI o código de tiempo.** Un lanzamiento con el transporte detenido
+espera a que la fuente arranque: el siguiente cuanto de Link, o el Start del maestro — tarde
+lo que tarde; el clip se muestra en cola mientras tanto, y el botón de parada lo cancela. Si
+el maestro arranca desde otro sitio (el Start del reloj MIDI es desde el principio), el clip
+suena desde ahí. Siguiendo Link, una escena con tempo fija el tempo de toda la sesión de
+Link cuando entra, como en Live. Un reenganche de Link, o el maestro moviendo el cabezal, no
+termina lo que suena en la sesión.
+
+**Modos de lanzamiento.** *Disparo* arranca el clip (de nuevo) con cada pulsación.
+*Mantener* lo toca mientras lo mantienes y lo detiene en el límite después de soltarlo.
+*Alternar* lo arranca, y lo detiene al pulsarlo otra vez. *Repetir* lo reinicia en cada
+límite mientras lo mantienes. *Legato* hace que el clip lanzado siga donde iba el que
+reemplaza, en vez de empezar desde su marca de inicio.
+
+**Follow actions.** Tras su tiempo (un tiempo, o *ligado* a su propia duración, por su
+cuenta) un clip hace la acción A o la B — parar, repetir, el clip anterior, el siguiente, el
+primero, el último, cualquiera u otro de su columna, o saltar a una fila — con la
+probabilidad que fijes para A. Las probabilidades salen de la **semilla** de la sesión: la
+misma actuación suena igual cada vez, y una exportación da exactamente lo que oíste. Cambia
+la semilla para otra actuación.
+
+**Grabar en un slot.** En una pista armada, el botón de grabar de un slot vacío graba desde
+el siguiente límite (tras la cuenta previa, desde parado) hasta la barra después de que lo
+detengas — o la duración fija de la sesión — y el clip nuevo sigue sonando enseguida, en
+bucle. El MIDI se cuantiza con la *cuantización de grabación* de la sesión. Grabado sobre un
+clip MIDI en bucle que suena, las notas van a ese clip (overdub). La toma se guarda como
+cualquier grabación: un cierre inesperado no pierde nada.
+
+**Grabar la sesión en el arreglo.** Con *grabar en el arreglo* activo, todo lo que lanzas,
+detienes y cada follow action se escribe en el arreglo justo donde lo oíste — los clips, sus
+envolventes como automatización, los tempos de las escenas — en un solo paso de deshacer, al
+desactivarlo o al parar. El arreglo suena entonces exactamente como lo oíste, al bit.
+
+**Conviene saber.** Los clips de una pista congelada no se lanzan (descongélala antes).
+Congelar, rebotar y exportar dan el arreglo: graba antes la actuación en él para conservarla.
+Parar el transporte, o saltar con el cabezal, termina la actuación. Un cambio de tempo hace
+que un clip de audio sin warp siga tocando el mismo tramo de su archivo; uno con warp sigue
+el tempo.
 
 ## 6. Mezclar: el mezclador, inserciones y envíos
 
@@ -1946,6 +2191,9 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Ctrl+,` | Ajustes |
 | `Ctrl+Shift+P` · `Alt+H` | La paleta de comandos · el historial de deshacer |
 | `Alt+S` · `Alt+Shift+S` | La partitura bajo el piano roll · el panel Partitura |
+| `Tab` · `Intro` · `Mayús+Intro` | Sesión ⇄ arreglo · lanzar la ranura · lanzar la escena |
+| `Ctrl+Intro` · `Ctrl+Mayús+Intro` · `Alt+Intro` | Detener el clip de la pista · detener todo · grabar en la ranura |
+| `Ctrl+I` · `Ctrl+Alt+I` · `Alt+B` · `Ctrl+Alt+R` | Insertar escena · capturar escena · volver al arreglo · grabar en el arreglo |
 
 **En un Mac** `Cmd` (⌘) ocupa el lugar de `Ctrl` y `Opción` (⌥) el de `Alt`, y el preset
 *macOS* es el predeterminado: las teclas de la tabla, salvo que el metrónomo es `Cmd+K` (o `K` con el teclado del ordenador apagado; ⌘M

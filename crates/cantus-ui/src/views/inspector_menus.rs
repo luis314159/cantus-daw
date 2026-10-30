@@ -36,6 +36,8 @@ pub enum MenuId {
     AutoMode(TrackId),
     /// Which editor a hosted plug-in shows, and its default (ADR 0073).
     HostedView(crate::views::plugin_notice::Target),
+    /// How a track's hosted instrument hears per-note expression (round 33, ADR 0080).
+    Expression(TrackId),
 }
 
 /// What a row of a list does.
@@ -69,6 +71,8 @@ enum Choice {
     Hosting(crate::views::plugin_notice::MenuAct),
     /// Which editor a hosted plug-in shows, and its default (ADR 0073).
     HostedView(crate::hosted_view::ViewAct),
+    /// A hosted instrument's expression route (ADR 0080); `None` automatic.
+    Expression(Option<cantus_core::external::ExprRoute>),
     /// MIDI learn of the insert's bypass (0) or mix (1), and forgetting them (round 29,
     /// review 4 of ADR 0062, #21).
     LearnSlot(u8),
@@ -225,7 +229,10 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 out.push(act(
                     Label::Key(kind.name_key()),
                     radio(native == Some(kind)),
-                    Choice::Instrument(Box::new(InstrumentSpec::Native(NativeSpec::new(kind)))),
+                    // r33:mpe — a new instance comes with its MPE routes (ADR 0080)
+                    Choice::Instrument(Box::new(InstrumentSpec::Native(
+                        cantus_core::model::note_expr::defaults::with_routes(NativeSpec::new(kind)),
+                    ))),
                 ));
             }
         }
@@ -293,6 +300,26 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             hosting_rows(rows, &mut out);
         }
         MenuId::HostedView(target) => view_rows(app, target, &mut out),
+        MenuId::Expression(t) => {
+            let now = p
+                .track(t)
+                .and_then(|t| t.instrument.external())
+                .map(|x| x.expression);
+            out.push(band("mpe.route"));
+            let mut choices = vec![(None, "mpe.route.auto")];
+            choices.extend(
+                cantus_core::external::ExprRoute::ALL
+                    .iter()
+                    .map(|r| (Some(*r), r.label_key())),
+            );
+            for (r, key) in choices {
+                out.push(act(
+                    Label::Key(key),
+                    radio(now == Some(r)),
+                    Choice::Expression(r),
+                ));
+            }
+        }
         MenuId::AutoMode(t) => {
             let cur = p.track(t).map(|t| t.auto_mode);
             for mode in cantus_core::AutoMode::ALL {
@@ -584,6 +611,9 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
         }
         (MenuId::HostedView(target), Choice::HostedView(a)) => {
             crate::hosted_view::run(app, target, a)
+        }
+        (MenuId::Expression(track), Choice::Expression(route)) => {
+            app.exec(Command::SetInstrumentExpression { track, route });
         }
         (MenuId::Hosting(t), Choice::Hosting(a)) => crate::views::plugin_notice::run_menu(
             app,

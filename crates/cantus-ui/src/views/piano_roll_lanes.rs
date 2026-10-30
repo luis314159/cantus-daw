@@ -35,6 +35,8 @@ pub enum LaneRow {
     Velocity,
     Release,
     Ctl(LaneKind),
+    /// The selected notes' per-note expression of one kind (ADR 0080).
+    Expr(cantus_core::model::note_expr::ExprKind),
 }
 
 /// How a controller lane is drawn on.
@@ -97,6 +99,13 @@ pub struct LanesView {
     page: Option<u8>,
     /// Strokes so far: each its own undo step.
     pub(super) stroke: u64,
+    /// The per-note expression rows shown (bend, pressure, timbre — ADR 0080).
+    pub expr: [bool; 3],
+    /// What the notes show of their expression: the bend as a line through the note,
+    /// pressure as the line's weight, timbre as its colour.
+    pub on_notes: [bool; 3],
+    /// An expression stroke under way.
+    pub(super) expr_drag: Option<super::expr::Stroke>,
 }
 
 impl Default for LanesView {
@@ -110,6 +119,9 @@ impl Default for LanesView {
             drag: None,
             page: None,
             stroke: 0,
+            expr: [false; 3],
+            on_notes: [true; 3],
+            expr_drag: None,
         }
     }
 }
@@ -141,6 +153,14 @@ pub fn rows(v: &LanesView, clip: &Clip) -> Vec<LaneRow> {
     out.push(LaneRow::Velocity);
     if v.release {
         out.push(LaneRow::Release);
+    }
+    for (k, on) in cantus_core::model::note_expr::ExprKind::ALL
+        .iter()
+        .zip(v.expr)
+    {
+        if on {
+            out.push(LaneRow::Expr(*k));
+        }
     }
     out.extend(clip.lanes.iter().map(|l| LaneRow::Ctl(l.kind)));
     out
@@ -201,6 +221,7 @@ fn row_name(row: LaneRow) -> String {
         LaneRow::Velocity => t("pianoroll.velocity"),
         LaneRow::Release => t("automodes.lane.release"),
         LaneRow::Ctl(k) => lane_name(k),
+        LaneRow::Expr(k) => t(k.key()),
     }
 }
 
@@ -232,7 +253,7 @@ fn cell_parts(cell: Rect, row: LaneRow, s: &Style) -> CellParts {
         None => top,
     };
     let tools = match row {
-        LaneRow::Ctl(_) if cell.height() >= line + key + 3.0 * pad => {
+        LaneRow::Ctl(_) | LaneRow::Expr(_) if cell.height() >= line + key + 3.0 * pad => {
             let y = top.bottom() + pad + key * 0.5;
             let w = key + s.s(3.0);
             Some([0, 1, 2].map(|i| {
@@ -341,6 +362,14 @@ pub fn cell_input(
                         remove_lane(app, track, clip, kind);
                     }
                 }
+                LaneRow::Expr(kind) => {
+                    if resp.hovered() {
+                        hint::set_text(ui.ctx(), &t("mpe.lane.hide"), "", Caps::NONE);
+                    }
+                    if resp.clicked() {
+                        app.piano_roll.lanes.expr[kind as usize] = false;
+                    }
+                }
                 LaneRow::Release => {}
             }
         }
@@ -376,6 +405,7 @@ fn row_hint(row: LaneRow) -> &'static str {
         LaneRow::Release => "automodes.lane.release_tip",
         LaneRow::Ctl(LaneKind::PitchBend) => "automodes.lane.bend_tip",
         LaneRow::Ctl(_) => "automodes.lane.ctl_tip",
+        LaneRow::Expr(_) => "mpe.lane.tip",
     }
 }
 
@@ -463,6 +493,10 @@ fn add_menu(app: &mut CantusApp, ui: &mut Ui, resp: &egui::Response, track: Trac
         Some(Pick::Lane(kind)) => {
             add_lane(app, track, clip, kind);
         }
+        Some(Pick::Expr(i)) => {
+            let v = &mut app.piano_roll.lanes;
+            v.expr[i] = !v.expr[i];
+        }
         None => {}
     }
 }
@@ -473,6 +507,8 @@ enum Pick {
     Follow,
     Page(Option<u8>),
     Lane(LaneKind),
+    /// A per-note expression row (ADR 0080), by kind.
+    Expr(usize),
 }
 
 /// A menu row owning its words.
@@ -534,6 +570,20 @@ fn menu_items(v: &LanesView, have: &[LaneKind], page: Option<u8>) -> (Vec<Row>, 
                 false,
                 Some(Pick::Follow),
             );
+            // Per-note expression (ADR 0080): the selected notes' curves, each a row.
+            push(t("mpe.lane.band"), Check::None, true, false, None);
+            for (i, k) in cantus_core::model::note_expr::ExprKind::ALL
+                .iter()
+                .enumerate()
+            {
+                push(
+                    t(k.key()),
+                    if v.expr[i] { Check::On } else { Check::Off },
+                    false,
+                    false,
+                    Some(Pick::Expr(i)),
+                );
+            }
             push(t("automodes.lane.band_ctl"), Check::None, true, false, None);
             for kind in [LaneKind::PitchBend, LaneKind::Pressure]
                 .into_iter()

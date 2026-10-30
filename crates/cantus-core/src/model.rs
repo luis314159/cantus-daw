@@ -47,6 +47,10 @@ impl StripId {
     }
 }
 
+/// Per-note expression: bend, pressure and timbre curves on a note (round 33, ADR 0080).
+#[path = "note_expr.rs"]
+pub mod note_expr;
+
 /// MIDI-style note (0..=127). Middle C is 60.
 pub type Pitch = u8;
 /// 1..=127. Zero is never stored; a velocity-0 note-on is a note-off in MIDI.
@@ -69,6 +73,11 @@ pub struct Note {
     /// 0, exactly what it carried before.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub release: Velocity,
+    /// The note's **per-note expression** (schema 47, ADR 0080): its pitch bend, pressure
+    /// and timbre as curves over its length, from an MPE controller or drawn in the piano
+    /// roll — `None` on an ordinary note, which then serialises and plays exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expr: Option<Box<note_expr::NoteExpr>>,
 }
 
 impl Note {
@@ -577,6 +586,10 @@ pub struct Track {
         skip_serializing_if = "crate::notation::ScoreSettings::is_default"
     )]
     pub score: crate::notation::ScoreSettings,
+    /// The track's column of the session view (schema 46, ADR 0076): its slots that hold
+    /// something, by scene id. Empty — every older track — has none. // r33:session
+    #[serde(default, skip_serializing_if = "Vec::is_empty")] // r33:session
+    pub slots: Vec<crate::session::Slot>, // r33:session
 }
 
 /// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
@@ -1018,12 +1031,20 @@ impl Track {
         }
     }
 
+    /// The clip `id`: the arrangement's, or one of the track's session clips (ADR 0076: a
+    /// session clip is edited by every clip command as an arrangement clip is).
     pub fn clip(&self, id: ClipId) -> Option<&Clip> {
-        self.clips.iter().find(|c| c.id == id)
+        self.clips
+            .iter()
+            .find(|c| c.id == id)
+            .or_else(|| crate::session::find_clip(self, id)) // r33:session
     }
 
     pub fn clip_mut(&mut self, id: ClipId) -> Option<&mut Clip> {
-        self.clips.iter_mut().find(|c| c.id == id)
+        if let Some(i) = self.clips.iter().position(|c| c.id == id) {
+            return Some(&mut self.clips[i]);
+        }
+        crate::session::find_clip_mut(self, id) // r33:session
     }
 }
 
@@ -1142,6 +1163,12 @@ pub struct Project {
     /// built-in swings are never stored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub grooves: Vec<crate::groove::Groove>,
+    /// The session view's scenes and settings (schema 46, ADR 0076); each track holds its
+    /// own column (`Track::slots`). The default — every older project — is no session, and
+    /// is not written. // r33:session
+    #[serde(default, skip_serializing_if = "crate::session::Session::is_default")]
+    // r33:session
+    pub session: crate::session::Session, // r33:session
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1188,6 +1215,7 @@ impl Project {
             controllers: crate::controller::ControllerMap::default(),
             key: None,
             grooves: Vec::new(),
+            session: Default::default(), // r33:session
             next_id: 1,
         }
     }
@@ -1569,6 +1597,7 @@ impl Project {
             lateness: None,
             note_fx: Vec::new(),
             score: Default::default(),
+            slots: Vec::new(), // r33:session
         }
     }
 
@@ -1684,6 +1713,7 @@ impl Project {
             velocity: velocity.clamp(1, 127),
             muted: false,
             release: 0,
+            expr: None,
         }
     }
 }

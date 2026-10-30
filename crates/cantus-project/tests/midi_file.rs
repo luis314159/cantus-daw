@@ -475,7 +475,7 @@ fn the_tempo_map_is_honoured_by_beats_or_by_seconds_and_never_in_silence() {
     )
     .unwrap();
     assert_eq!(by_beats.tempo_bpm, 120.0);
-    let n = by_beats.tracks[0].notes[0];
+    let n = by_beats.tracks[0].notes[0].clone();
     assert_eq!((n.start, n.length), (Ticks::beats(6), Ticks::beats(1)));
     let item = by_beats
         .report
@@ -493,7 +493,7 @@ fn the_tempo_map_is_honoured_by_beats_or_by_seconds_and_never_in_silence() {
         },
     )
     .unwrap();
-    let n = by_time.tracks[0].notes[0];
+    let n = by_time.tracks[0].notes[0].clone();
     assert_eq!((n.start, n.length), (Ticks::beats(8), Ticks::beats(2)));
     assert!(by_time.report.has("interop.report.tempo_retimed"));
     // And at 90 the same four seconds are six beats.

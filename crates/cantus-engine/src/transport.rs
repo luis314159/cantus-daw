@@ -14,6 +14,13 @@ use crate::fx::Wraps;
 use cantus_core::{LoopRegion, TempoMap, Ticks, TimeSignature, PPQ};
 use std::sync::{Arc, LazyLock};
 
+// Following an outside clock, and the seam it comes through (round 33, ADR 0078–0079).
+#[path = "transport_follow.rs"]
+mod follow;
+#[path = "sync.rs"]
+pub mod sync;
+use follow::{tps_of, Follow};
+
 /// The sample (counted from `origin`) at which a transport playing at `bpm` reaches
 /// `tick` — the transport's own arithmetic, so an offline render that must stop exactly
 /// where an event would fire computes the same sample, to the last bit (round 23).
@@ -103,6 +110,10 @@ pub struct Transport {
     swaps: [Swap; SWAPS],
     /// The newest swap seen: one carried again (a re-install, a copy) arms nothing.
     swaps_seen: u64,
+    /// Following an outside clock (round 33): the stretches the position is made of, in
+    /// place of the map's tempo. `None` — always, unless a sync source is followed — is
+    /// the transport every project before round 33 played by, to the bit.
+    follow: Option<Follow>,
 }
 
 impl Transport {
@@ -121,6 +132,7 @@ impl Transport {
             clock: 0,
             swaps: [Swap::default(); SWAPS],
             swaps_seen: 0,
+            follow: None,
         };
         t.anchor(0.0);
         t
@@ -212,6 +224,9 @@ impl Transport {
 
     /// Count from `tick`: the origin moves there and the sample counter starts again.
     fn anchor(&mut self, tick: f64) {
+        if let Some(f) = self.follow.as_mut() {
+            *f = Follow::one(0.0, tick, f.last().tps);
+        }
         self.origin_tick = tick;
         self.samples = 0;
         self.origin_sec = self.map.seconds_at(tick);
@@ -241,6 +256,9 @@ impl Transport {
 
     /// The tempo now (inside a ramp, the ramp's value at the playhead).
     pub fn bpm(&self) -> f64 {
+        if let Some(f) = &self.follow {
+            return f.last().tps * 60.0 * self.sample_rate / PPQ as f64;
+        }
         let pos = self.position_f64();
         match self.held {
             Some(h) if pos < h.to => h.bpm,
@@ -259,6 +277,9 @@ impl Transport {
     /// Ticks advanced per sample at the tempo now.
     #[inline]
     pub fn ticks_per_sample(&self) -> f64 {
+        if let Some(f) = &self.follow {
+            return f.last().tps;
+        }
         let pos = self.position_f64();
         match self.held {
             Some(h) if pos < h.to => h.tps,
@@ -277,6 +298,9 @@ impl Transport {
     /// playhead will report there.
     #[inline]
     pub fn position_at(&self, samples: u64) -> f64 {
+        if let Some(f) = &self.follow {
+            return f.pos(samples as f64);
+        }
         if let Some(h) = self.held {
             let p = self.origin_tick + samples as f64 * h.tps;
             if p < h.to {
@@ -315,6 +339,9 @@ impl Transport {
     /// The tick `samples` samples before `tick` (counted through the map; held, the
     /// constant arithmetic): where the audio a moment before a wrap's end was.
     pub fn tick_before(&self, tick: f64, samples: u64) -> f64 {
+        if let Some(f) = &self.follow {
+            return f.pos(f.sample(tick) - samples as f64);
+        }
         match self.held_over(&[tick]) {
             Some(h) if tick - samples as f64 * h.tps >= h.from => tick - samples as f64 * h.tps,
             _ => self
@@ -379,6 +406,14 @@ impl Transport {
         self.end_swaps();
     }
 
+    /// [`Self::seek`] to a fractional tick: a follower's start lands between ticks, on the
+    /// sample the outside clock asks for (round 33).
+    pub fn seek_f64(&mut self, tick: f64) {
+        self.anchor(tick);
+        self.wraps = None;
+        self.end_swaps();
+    }
+
     /// Move the playhead to the loop's start as a wrap (the loop's end due at a pass's first
     /// sample: played from at or past the loop's end, the loop moved behind the playhead):
     /// counted with the others, as `advance` counts its own (review of fix4), the stretch
@@ -407,7 +442,8 @@ impl Transport {
     /// metre, or the same map again, only takes the new `Arc` (the old one is the previous
     /// snapshot's, freed with it off the audio thread).
     pub fn set_map(&mut self, map: Arc<TempoMap>) {
-        if map.points() != self.map.points() {
+        // While following, the tempo is the source's: the map gives only its metre.
+        if map.points() != self.map.points() && self.follow.is_none() {
             let pos = self.position_f64();
             self.map = map;
             self.anchor(pos);
@@ -426,12 +462,53 @@ impl Transport {
         self.loop_region = region;
     }
 
+    /// Follow an outside clock at `bpm` from now on (round 33, ADR 0078 §4): a new
+    /// stretch at the playhead, nothing played before it moved (`transport_follow.rs`).
+    pub fn follow(&mut self, bpm: f64) {
+        let tps = tps_of(bpm, self.sample_rate);
+        if !(tps.is_finite() && tps > 0.0) {
+            return;
+        }
+        let s = self.samples as f64;
+        match self.follow.as_mut() {
+            Some(f) => {
+                if f.last().tps != tps {
+                    f.push(s, tps);
+                }
+            }
+            None => self.follow = Some(Follow::one(s, self.position_f64(), tps)),
+        }
+    }
+
+    /// Stop following: the map's tempo again from the playhead (a re-anchor, as a tempo
+    /// edit is).
+    pub fn unfollow(&mut self) {
+        if self.follow.is_some() {
+            let pos = self.position_f64();
+            self.follow = None;
+            self.anchor(pos);
+        }
+    }
+
+    /// Whether an outside clock sets the tempo.
+    pub fn following(&self) -> bool {
+        self.follow.is_some()
+    }
+
+    /// The stretches the followed position is made of (tests).
+    pub fn follow_stretches(&self) -> usize {
+        self.follow.map_or(0, |f| f.len())
+    }
+
     /// Absolute sample index (since the origin) at which the playhead reaches `tick`.
     /// Computed from the origin, never from the running position, so it is identical
     /// for every block size. A tiny epsilon keeps events that land exactly on a sample
     /// from slipping one sample late through floating-point noise.
     #[inline]
     fn target_sample(&self, tick: f64) -> u64 {
+        if let Some(f) = &self.follow {
+            return ceil_sample(f.sample(tick));
+        }
         match self.held_over(&[tick]) {
             Some(h) => sample_at(self.origin_tick, tick, h.bpm, self.sample_rate),
             None => ceil_sample((self.map.seconds_at(tick) - self.origin_sec) * self.sample_rate),
@@ -441,6 +518,9 @@ impl Transport {
     /// The transport sample (counted from the origin, fractional) a timeline tick falls on.
     #[inline]
     pub fn sample_of_f64(&self, tick: f64) -> f64 {
+        if let Some(f) = &self.follow {
+            return f.sample(tick);
+        }
         match self.held_over(&[tick]) {
             Some(h) => (tick - self.origin_tick) / h.tps,
             None => (self.map.seconds_at(tick) - self.origin_sec) * self.sample_rate,
@@ -453,6 +533,12 @@ impl Transport {
     /// the bit.
     pub fn clip_zero(&self, start: Ticks, offset: Ticks, slip: f64) -> i64 {
         let (s, origin) = (start.0 as f64, (start.0 - offset.0) as f64);
+        if let Some(f) = &self.follow {
+            // Through the stretch the clip starts in: what plays never jumps when a later
+            // stretch begins (`transport_follow.rs`).
+            let g = f.by_tick(s);
+            return (f.sample(s) - (s - origin) / g.tps - slip * self.sample_rate).round() as i64;
+        }
         // The constant arithmetic where one held stretch has the origin and the start;
         // else from the start, back by the source's seconds before it — the same sample,
         // and exactly the start's for a render that sets `slip` to cancel them (a warp).
@@ -476,6 +562,9 @@ impl Transport {
     /// tempo holds over both, through the map otherwise.
     #[inline]
     pub fn samples_between(&self, from: f64, to: f64) -> f64 {
+        if let Some(f) = &self.follow {
+            return f.sample(to) - f.sample(from);
+        }
         match self.held_over(&[from, to]) {
             Some(h) => (to - from) / h.tps,
             None => self.map.seconds_between_f64(from, to) * self.sample_rate,
@@ -494,6 +583,9 @@ impl Transport {
     /// size.
     pub fn step_tick(&self) -> f64 {
         let pos = self.position_f64();
+        if self.follow.is_some() {
+            return pos;
+        }
         if let Some(n) = self.map.next_step_after(pos) {
             if self.target_sample(n) <= self.samples {
                 return n;
@@ -511,6 +603,9 @@ impl Transport {
     /// `RAMP_STEP`): where a pass that tells units one tempo ends. `None` while the tempo
     /// holds to the end of the song.
     pub fn samples_until_step(&self) -> Option<u64> {
+        if self.follow.is_some() {
+            return None;
+        }
         let next = self.map.next_step_after(self.step_tick())?;
         Some(self.samples_until(next))
     }
@@ -523,6 +618,9 @@ impl Transport {
     /// folds (`fx::heard_tick`, shared); a step at or past the end is no cut of its own —
     /// the late wrap's cut (`Wraps::before_wrap`) is.
     pub fn samples_until_step_late(&self, late: u64) -> Option<u64> {
+        if self.follow.is_some() {
+            return None;
+        }
         let sr = self.sample_rate;
         let wraps = self.wraps_played();
         let (heard, folded) =
@@ -577,6 +675,7 @@ impl Transport {
                 let at = self.position_f64();
                 let overshoot = at - end;
                 let origin = match self.held_over(&[end, at]) {
+                    _ if self.follow.is_some() => start + overshoot.max(0.0),
                     Some(h) if self.map.held_at(start).is_some_and(|(b, ..)| b == h.bpm) => {
                         start + overshoot.max(0.0)
                     }

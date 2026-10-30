@@ -996,6 +996,7 @@ fn clipboard_paste_notes(rng: &mut Lcg, project: &mut Project) -> Command {
             velocity: 1 + rng.below(127) as u8,
             muted: rng.below(5) == 0,
             release: 0,
+            expr: None, // r33:mpe
         })
         .collect();
     // Release velocities (ADR 0068), from what was drawn: the main stream is as it was.
@@ -1775,6 +1776,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut midi = [[0usize; 2]; 9];
     // Round 32 (ADR 0075): score settings applied and refused.
     let mut scored = [0usize; 2];
+    // Round 33 (ADR 0076): per kind of `round33_session_command`, applied and refused.
+    let mut sessioned = [[0usize; 2]; SESSION_KINDS];
+    let mut mpe_done = [0usize; 2]; // r33:mpe
+                                    // Round 33, launcher (ADR 0077): mappings of the session's targets, applied and refused.
+    let mut launched = [0usize; 2];
     // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
@@ -1792,11 +1798,53 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         // between the others — no generator reads them, so every other draw stays the one
         // it was — and refused when they are not valid or the track is not there.
         let mut srng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(45));
+        let mut qrng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(46));
+        // r33:mpe — round 33 (ADR 0080): per-note expression and a hosted instrument's route,
+        // from a stream of their own (every other draw stays the one it was).
+        let mut mrng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(47)); // r33:mpe
+        let mut lrng = Lcg(seed.wrapping_mul(0x1405_7B7D).wrapping_add(47));
         for _ in 0..120 {
+            // r33:mpe — an expression edit now and then, undone with the rest.
+            if mrng.below(8) == 0 {
+                let cmd = round33_mpe_command(&mut mrng, bus.project());
+                let ok = bus.execute(cmd, origins[mrng.below(5) as usize]).is_ok();
+                mpe_done[usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
             if srng.below(10) == 0 {
                 let cmd = round32_score_command(&mut srng, &mut bus.project().clone());
                 let ok = bus.execute(cmd, origins[srng.below(5) as usize]).is_ok();
                 scored[usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // Round 33 (ADR 0076): the session's commands and builders, from a stream of
+            // their own (`qrng`), so every other draw stays the one it was.
+            if qrng.below(3) == 0 {
+                let mut scratch = bus.project().clone();
+                let (k, cmd) = round33_session_command(&mut qrng, &mut scratch);
+                let ok = bus.execute(cmd, origins[qrng.below(5) as usize]).is_ok();
+                bus.reserve_ids(scratch.next_id);
+                sessioned[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // Round 33, launcher (ADR 0077): a mapping of a slot, a scene, a stop button or
+            // the global quantisation, from a stream of its own (`lrng`).
+            if lrng.below(8) == 0 {
+                let cmd = round33_launcher_command(&mut lrng, bus.project());
+                let ok = bus.execute(cmd, origins[lrng.below(5) as usize]).is_ok();
+                launched[usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
                     snap.next_id = 0;
@@ -2151,6 +2199,23 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         scored[0] > 0 && scored[1] > 0,
         "score settings never applied or never refused: {scored:?}"
+    );
+    // r33:mpe
+    assert!(
+        mpe_done[0] > 0 && mpe_done[1] > 0,
+        "expression edits never applied or never refused: {mpe_done:?}"
+    );
+    assert!(
+        sessioned[..SESSION_NOTHING].iter().all(|k| k[0] > 0),
+        "round 33's session commands never applied: {sessioned:?}"
+    );
+    assert!(
+        sessioned[..SESSION_REFUSABLE].iter().all(|k| k[1] > 0),
+        "round 33's session commands never refused: {sessioned:?}"
+    );
+    assert!(
+        launched.iter().all(|n| *n > 0),
+        "round 33's session mappings never applied or never refused: {launched:?}"
     );
     assert!(
         kept_frames > 0,
@@ -4454,6 +4519,84 @@ fn editing_sequences_undo_and_redo_whole() {
     );
 }
 
+/// r33:mpe — round 33 (ADR 0080): per-note expression on a random note of a random clip —
+/// set, drawn, scaled, smoothed, thinned, flattened or cleared, now and then a malformed
+/// curve or a note that is not there (refused) — or a hosted instrument's route.
+fn round33_mpe_command(rng: &mut Lcg, project: &Project) -> Command {
+    use cantus_core::external::ExprRoute;
+    use cantus_core::model::note_expr::{ops, ExprEdit, ExprKind, ExprPoint, NoteExpr};
+    // r33:mpe — the arrangement's notes, then the session clips' (ADR 0076): the same
+    // draws, which land on a slot's note only once a slot holds one.
+    let notes: Vec<(TrackId, ClipId, NoteId, Ticks)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().map(move |c| (t, c)))
+        .chain(project.tracks.iter().flat_map(|t| {
+            t.slots
+                .iter()
+                .filter_map(|s| s.clip.as_ref())
+                .map(move |sc| (t, &sc.clip))
+        }))
+        .flat_map(|(t, c)| c.notes.iter().map(move |n| (t.id, c.id, n.id, n.length)))
+        .collect();
+    if rng.below(6) == 0 || notes.is_empty() {
+        let track = project
+            .tracks
+            .get(rng.below(project.tracks.len() as u64 + 1) as usize)
+            .map_or(TrackId(u64::MAX - 5), |t| t.id);
+        let route = match rng.below(4) {
+            0 => None,
+            i => Some(ExprRoute::ALL[i as usize - 1]),
+        };
+        return Command::SetInstrumentExpression { track, route };
+    }
+    let (track, clip, id, len) = notes[rng.below(notes.len() as u64) as usize];
+    let kind = ExprKind::ALL[rng.below(3) as usize];
+    let edit = ExprEdit::ALL[rng.below(ExprEdit::ALL.len() as u64) as usize];
+    let points: Vec<ExprPoint> = (0..1 + rng.below(12))
+        .map(|i| {
+            let at = (len.0 * i as i64) / 8;
+            let v = match kind {
+                ExprKind::Bend => ExprKind::Bend.store(rng.below(97) as f64 - 48.0),
+                _ => ExprKind::Pressure.store(rng.below(101) as f64 / 100.0),
+            };
+            ExprPoint(at, v)
+        })
+        .collect();
+    let mut e = NoteExpr::default();
+    *e.curve_mut(kind) = match edit {
+        ExprEdit::Smooth => ops::smooth(&points, kind, 2),
+        ExprEdit::Thin => ops::thin(&points, ops::default_tolerance(kind)),
+        ExprEdit::Scale => ops::scale(&points, kind, 0.5),
+        ExprEdit::Flatten => ops::flatten(&points, kind, len.0),
+        _ => points,
+    };
+    let mut expr = if edit == ExprEdit::Clear {
+        None
+    } else {
+        e.normalised().boxed()
+    };
+    let mut note = id;
+    match rng.below(10) {
+        // A malformed curve: refused.
+        0 => {
+            expr = Some(Box::new(NoteExpr {
+                bend: vec![ExprPoint(9, 0), ExprPoint(1, 0)],
+                ..NoteExpr::default()
+            }))
+        }
+        // A note that is not there: refused.
+        1 => note = NoteId(u64::MAX - 7),
+        _ => {}
+    }
+    Command::SetNoteExpr {
+        track,
+        clip,
+        edit,
+        notes: vec![(note, expr)],
+    }
+}
+
 /// Round 32 (ADR 0075): a track's score settings, every field drawn — now and then a
 /// transposition out of range, an empty name or a track that is not there (refused).
 fn round32_score_command(rng: &mut Lcg, project: &mut Project) -> Command {
@@ -4480,4 +4623,387 @@ fn round32_score_command(rng: &mut Lcg, project: &mut Project) -> Command {
         _ => {}
     }
     Command::SetTrackScore { track, settings }
+}
+
+/// Round 33 (ADR 0076): the kinds `round33_session_command` draws; the first
+/// `SESSION_REFUSABLE` are now and then drawn refusable (and must be seen refused).
+const SESSION_KINDS: usize = 20;
+/// The kind counted when a builder had nothing to build (its stand-in is always refused).
+const SESSION_NOTHING: usize = SESSION_KINDS - 1;
+const SESSION_REFUSABLE: usize = 12;
+
+/// A session clip of 1–2 bars with a few notes (now and then an audio clip on a source of
+/// the pool, a start marker, no loop).
+fn round33_clip(rng: &mut Lcg, project: &mut Project) -> cantus_core::session::SessionClip {
+    use cantus_core::session::edit;
+    let bars = 1 + rng.below(2) as i64;
+    let mut c = {
+        let mut ids = || project.alloc_id();
+        edit::new_note_clip("Slot", Ticks::beats(4 * bars), &mut ids)
+    };
+    let sources: Vec<AudioSourceId> = project.audio_pool.iter().map(|s| s.id).collect();
+    if !sources.is_empty() && rng.below(4) == 0 {
+        let s = sources[rng.below(sources.len() as u64) as usize];
+        c.clip.audio = Some(AudioRegion::of(s));
+    } else {
+        for i in 0..rng.below(5) {
+            let pitch = 48 + rng.below(30) as u8;
+            let n = project.make_note(Ticks::beats(i as i64), Ticks::QUARTER, pitch, 90);
+            c.clip.notes.push(n);
+        }
+    }
+    if rng.below(3) == 0 {
+        c.clip.content_length = None;
+    }
+    if rng.below(3) == 0 {
+        c.start = Some(Ticks::beats(rng.below(4) as i64));
+    }
+    c
+}
+
+fn round33_follow(rng: &mut Lcg, bad: bool) -> cantus_core::session::FollowActions {
+    use cantus_core::session::*;
+    FollowActions {
+        on: rng.below(2) == 0,
+        a: FollowAction::KINDS[rng.below(10) as usize],
+        b: FollowAction::KINDS[rng.below(10) as usize],
+        chance_a: rng.below(101) as u8,
+        after: if rng.below(2) == 0 {
+            FollowAfter::Linked
+        } else {
+            FollowAfter::Time(Ticks::beats(1 + rng.below(8) as i64))
+        },
+        count: if bad { 0 } else { 1 + rng.below(4) as u16 },
+    }
+}
+
+/// Round 33 (ADR 0076): one of the session's commands or builders, every field drawn —
+/// and, for the first `SESSION_REFUSABLE` kinds, now and then one a command must refuse.
+fn round33_session_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::session::*;
+    let q = Command::Session;
+    let tracks: Vec<TrackId> = project.tracks.iter().map(|t| t.id).collect();
+    let scenes: Vec<SceneId> = project.session.scenes.iter().map(|s| s.id).collect();
+    let full: Vec<SlotRef> = project
+        .tracks
+        .iter()
+        .flat_map(|t| {
+            t.slots
+                .iter()
+                .filter(|s| s.clip.is_some())
+                .map(move |s| SlotRef::new(t.id, s.scene))
+        })
+        .collect();
+    let pick =
+        |rng: &mut Lcg, v: &[SceneId]| v.get(rng.below(v.len() as u64 + 1) as usize).copied();
+    let track = tracks.get(rng.below(tracks.len() as u64) as usize).copied();
+    let scene = pick(rng, &scenes).unwrap_or(SceneId(u64::MAX - 7));
+    let bad = rng.below(6) == 0;
+    // A slot that holds a clip (now and then one that does not, or is not there), and
+    // any slot of the grid (mostly empty ones).
+    let full_slot = |rng: &mut Lcg| match full.len() {
+        0 => SlotRef::new(track.unwrap_or(TrackId(u64::MAX - 5)), scene),
+        _ if rng.below(8) == 0 => SlotRef::new(TrackId(u64::MAX - 5), full[0].scene),
+        n => full[rng.below(n as u64) as usize],
+    };
+    let any_slot = |rng: &mut Lcg| {
+        let t = tracks
+            .get(rng.below(tracks.len() as u64 + 1) as usize)
+            .copied()
+            .unwrap_or(TrackId(u64::MAX - 5));
+        let s = scenes
+            .get(rng.below(scenes.len() as u64 + 1) as usize)
+            .copied()
+            .unwrap_or(scene);
+        SlotRef::new(t, s)
+    };
+    let k = rng.below(SESSION_NOTHING as u64) as usize;
+    let cmd = match k {
+        0 => {
+            let id = if bad && !scenes.is_empty() {
+                scenes[0]
+            } else {
+                SceneId(project.alloc_id())
+            };
+            let mut scene = Scene::new(id, format!("S{}", id.0));
+            if rng.below(3) == 0 {
+                scene.tempo = Some(60.0 + rng.below(120) as f64);
+            }
+            let mut slots = Vec::new();
+            for t in &tracks {
+                if rng.below(3) == 0 {
+                    let clip = round33_clip(rng, project);
+                    let slot = Slot {
+                        scene: id,
+                        clip: (rng.below(4) != 0).then_some(clip),
+                        stop: rng.below(4) != 0,
+                    };
+                    if !slot.is_default() {
+                        slots.push((*t, slot));
+                    }
+                }
+            }
+            q(SessionCommand::InsertScene {
+                index: rng.below(scenes.len() as u64 + 1) as usize,
+                scene: Box::new(scene),
+                slots,
+            })
+        }
+        1 => q(SessionCommand::RemoveScene { id: scene }),
+        2 => q(SessionCommand::MoveScene {
+            id: scene,
+            to: rng.below(scenes.len() as u64 + 1) as usize,
+        }),
+        3 => q(match rng.below(5) {
+            0 => SessionCommand::SetSceneName {
+                id: scene,
+                name: format!("N{}", rng.below(9)),
+            },
+            1 => SessionCommand::SetSceneColor {
+                id: scene,
+                color: Some(Color::rgb(rng.below(255) as u8, 9, 9)),
+            },
+            2 => SessionCommand::SetSceneTempo {
+                id: scene,
+                tempo: Some(if bad {
+                    4.0
+                } else {
+                    90.0 + rng.below(60) as f64
+                }),
+            },
+            3 => SessionCommand::SetSceneMetre {
+                id: scene,
+                metre: Some(TimeSignature::new(
+                    3 + rng.below(5) as u8,
+                    if bad { 5 } else { 8 },
+                )),
+            },
+            _ => SessionCommand::SetSceneFollow {
+                id: scene,
+                follow: round33_follow(rng, bad),
+            },
+        }),
+        4 => q(SessionCommand::SetSettings {
+            settings: SessionSettings {
+                launch_quantize: Quantize::ALL[rng.below(15) as usize],
+                record_quantize: RecordQuantize::ALL[rng.below(9) as usize],
+                seed: rng.below(1000),
+                fixed_bars: (rng.below(2) == 0).then(|| 1 + rng.below(8) as u16),
+            },
+        }),
+        5 => {
+            let mut clip = round33_clip(rng, project);
+            if bad {
+                clip.start = Some(Ticks::beats(64));
+            }
+            q(SessionCommand::InsertSlotClip {
+                slot: any_slot(rng),
+                clip: Box::new(clip),
+            })
+        }
+        6 => q(SessionCommand::RemoveSlotClip {
+            slot: full_slot(rng),
+        }),
+        7 => q(SessionCommand::MoveSlotClip {
+            from: full_slot(rng),
+            to: any_slot(rng),
+        }),
+        8 => {
+            let slot = full_slot(rng);
+            q(match rng.below(3) {
+                0 => SessionCommand::SetSlotLaunch {
+                    slot,
+                    launch: LaunchSettings {
+                        mode: LaunchMode::ALL[rng.below(4) as usize],
+                        quantize: Quantize::ALL[rng.below(15) as usize],
+                        legato: rng.below(2) == 0,
+                        velocity: if bad { -1.0 } else { rng.f32(0.0, 1.0) },
+                    },
+                },
+                1 => SessionCommand::SetSlotFollow {
+                    slot,
+                    follow: round33_follow(rng, bad),
+                },
+                _ => SessionCommand::SetSlotRegion {
+                    slot,
+                    region: SlotRegion {
+                        start: (rng.below(2) == 0).then(|| Ticks::beats(rng.below(6) as i64)),
+                        offset: Ticks::beats(rng.below(3) as i64),
+                        length: Ticks::beats(1 + rng.below(8) as i64),
+                        loop_length: (rng.below(2) == 0)
+                            .then(|| Ticks::beats(1 + rng.below(4) as i64)),
+                    },
+                },
+            })
+        }
+        9 => {
+            let slot = full_slot(rng);
+            let target = AutoTarget::TrackGain(slot.track);
+            let env = Automation::new(target, vec![AutoPoint::new(Ticks::ZERO, rng.f32(0.0, 1.0))]);
+            let mut envelopes = vec![env.clone()];
+            if bad {
+                envelopes.push(env);
+            }
+            q(SessionCommand::SetSlotEnvelopes { slot, envelopes })
+        }
+        10 => q(SessionCommand::SetSlotStop {
+            slot: any_slot(rng),
+            stop: rng.below(2) == 0,
+        }),
+        11 => {
+            let slot = full_slot(rng);
+            let clip = project
+                .slot_clip(slot)
+                .map(|c| c.id())
+                .unwrap_or(ClipId(u64::MAX - 9));
+            match rng.below(3) {
+                0 => Command::SetClipLink {
+                    track: slot.track,
+                    clip,
+                    link: Some(LinkId(u64::MAX - 1)),
+                },
+                1 => {
+                    let n = project.make_note(Ticks::beats(1), Ticks::QUARTER, 64, 80);
+                    Command::InsertNotes {
+                        track: slot.track,
+                        clip,
+                        notes: vec![n],
+                    }
+                }
+                _ => Command::SetClipName {
+                    track: slot.track,
+                    clip,
+                    name: "Renamed".into(),
+                },
+            }
+        }
+        _ => {
+            let p = project.clone();
+            let slot = full.get(rng.below(full.len() as u64 + 1) as usize).copied();
+            let index = rng.below(scenes.len() as u64 + 1) as usize;
+            let pick_scene = pick(rng, &scenes);
+            let some_clips: Vec<(TrackId, ClipId)> = p
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.id)))
+                .filter(|_| rng.below(3) == 0)
+                .collect();
+            let at = Ticks::beats(rng.below(32) as i64);
+            let mut perf = edit::Performance::default();
+            let mut t0 = Ticks::beats(rng.below(8) as i64);
+            for s in &full {
+                if rng.below(2) == 0 {
+                    continue;
+                }
+                let until = t0 + Ticks::beats(1 + rng.below(12) as i64);
+                let from = p.slot_clip(*s).unwrap().play_from();
+                perf.held.push((s.track, t0, until));
+                let gain = rng.f32(0.5, 1.0);
+                perf.played.push(edit::Played {
+                    slot: *s,
+                    at: t0,
+                    from,
+                    until,
+                    gain,
+                    velocity: 1.0,
+                    origin: t0,
+                });
+                t0 = until;
+            }
+            if rng.below(2) == 0 {
+                perf.tempos
+                    .push((Ticks::beats(4), 100.0 + rng.below(40) as f64));
+            }
+            let mut ids = || project.alloc_id();
+            let built = match k {
+                12 => pick_scene.and_then(|s| edit::duplicate_scene(&p, s, &mut ids)),
+                13 => edit::capture_scene(&p, &full, index, "Cap", &mut ids),
+                14 => edit::slots_from_arrangement(&p, &some_clips, index, &mut ids),
+                15 => slot.and_then(|s| edit::slot_to_arrangement(&p, s, at, None, &mut ids)),
+                16 => slot.and_then(|s| edit::consolidate_column(&p, s.track, &scenes, &mut ids)),
+                17 => edit::consolidate_time(&p, at, at + Ticks::beats(4), 0, "Con", &mut ids),
+                _ => edit::commit_performance(&p, &perf),
+            };
+            match built {
+                Some(c) => c,
+                None => {
+                    return (
+                        SESSION_NOTHING,
+                        q(SessionCommand::SetSlotStop {
+                            slot: SlotRef::new(TrackId(u64::MAX - 5), scene),
+                            stop: false,
+                        }),
+                    )
+                }
+            }
+        }
+    };
+    (k, cmd)
+}
+
+/// Round 33, launcher (ADR 0077): a mapping of one of the session's targets — a slot, a
+/// scene, a stop button (of what is there, or of what is not: a dormant mapping is still
+/// a mapping), the global quantisation — added or replaced; refused when malformed.
+fn round33_launcher_command(rng: &mut Lcg, project: &Project) -> Command {
+    use cantus_core::controller::{
+        Control, MapMode, Mapping, MappingId, MappingTarget, MidiSource, PortRef,
+    };
+    use cantus_core::session::SceneId;
+    let track = project
+        .tracks
+        .get(rng.below(project.tracks.len() as u64 + 1) as usize)
+        .map_or(TrackId(u64::MAX - 5), |t| t.id);
+    let scene = project
+        .session
+        .scenes
+        .get(rng.below(project.session.scenes.len() as u64 + 1) as usize)
+        .map_or(SceneId(u64::MAX - 5), |s| s.id);
+    let target = match rng.below(4) {
+        0 => MappingTarget::SessionSlot { track, scene },
+        1 => MappingTarget::SessionScene(scene),
+        2 => MappingTarget::SessionStop(track),
+        _ => MappingTarget::SessionQuantize,
+    };
+    let source = MidiSource {
+        port: PortRef {
+            name: "Launchpad".into(),
+            ordinal: 0,
+        },
+        channel: Some(rng.below(16) as u8),
+        control: Control::Note(rng.below(128) as u8),
+    };
+    let existing = project
+        .controllers
+        .mappings
+        .iter()
+        .filter(|m| m.target.is_launcher() || m.target == MappingTarget::SessionQuantize)
+        .count();
+    let replace = existing > 0 && rng.below(3) == 0;
+    let id = if replace {
+        project
+            .controllers
+            .mappings
+            .iter()
+            .filter(|m| m.target.is_launcher() || m.target == MappingTarget::SessionQuantize)
+            .nth(rng.below(existing as u64) as usize)
+            .map(|m| m.id)
+            .unwrap_or(MappingId(u64::MAX))
+    } else {
+        MappingId((1 << 44) + rng.below(1 << 30))
+    };
+    let mut m = Mapping::new(id, source, target, MapMode::Trigger);
+    if rng.below(5) == 0 {
+        // Malformed: refused, nothing changes.
+        m.source.channel = Some(16);
+    }
+    if replace {
+        Command::SetMapping {
+            mapping: Box::new(m),
+        }
+    } else {
+        Command::InsertMapping {
+            index: rng.below(3) as usize,
+            mapping: Box::new(m),
+        }
+    }
 }

@@ -409,7 +409,8 @@ pub fn heard(
 /// Whether some clip of `project` plays with pooled groove `id` (what `RemoveGroove`
 /// refuses).
 pub fn in_use(project: &crate::model::Project, id: GrooveId) -> bool {
-    project.tracks.iter().flat_map(|t| t.clips.iter()).any(|c| {
+    // A session clip plays with it too. // r33:session
+    project.tracks.iter().flat_map(|t| t.all_clips()).any(|c| {
         c.groove
             .is_some_and(|g| g.source == GrooveSource::Pool { id })
     })

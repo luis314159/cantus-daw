@@ -201,6 +201,18 @@ pub struct Settings {
     /// display and controls (round 32, ADR 0074). On by default; off, every unit wears the
     /// theme's plain look.
     pub unit_faces: bool,
+    /// Ableton Link, MIDI clock and time code, and what each MIDI port does (round 33,
+    /// ADR 0078–0079; Settings ▸ MIDI). r33:sync
+    pub sync: crate::views::transport::sync_service::SyncSettings,
+    /// The MIDI input ports that are MPE controllers, by name (round 33, ADR 0080): only
+    /// their channels are read as MPE member channels. Empty: no MPE input. // r33:mpe
+    pub mpe_ports: Vec<String>, // r33:mpe
+    /// Their zone layout and bend ranges (MPE's usual: a lower zone of 15, ±48 and ±2). // r33:mpe
+    pub mpe_zones: cantus_core::model::note_expr::zones::MpeZones, // r33:mpe
+    /// The ports driven as session grids (round 33, ADR 0077): the user's choice per port;
+    /// a port with none is a grid when its name says it is a Launchpad or an APC.
+    #[serde(default)]
+    pub grids: Vec<crate::controllers::grid::GridChoice>,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -232,6 +244,9 @@ pub struct TopBarSettings {
     pub hidden: Vec<String>,
     /// The master meter shows loudness (LUFS) rather than peaks.
     pub meter_lufs: bool,
+    /// The groups hidden by default that the owner showed (round 33: Sync, which also shows
+    /// itself while a source is followed — Live's *Show Link Toggle*). r33:sync
+    pub shown: Vec<String>,
 }
 
 /// The sample cache's size limit, GB: default and range.
@@ -311,6 +326,10 @@ impl Default for Settings {
             start_page_at_start: true,
             hosted_views: crate::hosted_view::ViewDefaults::default(),
             unit_faces: true,
+            sync: Default::default(), // r33:sync
+            mpe_ports: Vec::new(),    // r33:mpe
+            mpe_zones: cantus_core::model::note_expr::zones::MpeZones::standard(), // r33:mpe
+            grids: Vec::new(),
         }
     }
 }
@@ -535,6 +554,7 @@ mod tests {
                 order: vec!["meter".into(), "transport".into()],
                 hidden: vec!["tools".into()],
                 meter_lufs: true,
+                shown: vec!["sync".into()], // r33:sync
             },
             ..Default::default()
         };

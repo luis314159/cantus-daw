@@ -444,11 +444,28 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
         "interop.report.d_device",
         "interop.report.d_audio_clips",
         "interop.report.d_automation",
-        "interop.report.d_scenes",
         "interop.report.d_loop",
     ] {
         assert!(r.has(key), "the report does not say {key}");
     }
+    // The session comes in (round 33, ADR 0076): two scenes, the bass's slot holding a
+    // looping clip that starts at its start marker, an empty slot without its stop button.
+    assert!(!r.has("interop.report.d_scenes"));
+    let s = &p.session.scenes;
+    assert_eq!(s.len(), 2);
+    assert_eq!(s[0].name, "Scene 1");
+    assert_eq!(s[0].color, Some(Color::rgb(0x20, 0x40, 0x60)));
+    let bass = p.tracks.iter().find(|t| t.name == "Bass").unwrap();
+    let c = bass.slot_clip(s[0].id).expect("the slot's clip");
+    assert_eq!(c.clip.name, "Slot riff");
+    assert_eq!(c.clip.notes.len(), 2);
+    assert_eq!(c.clip.period(), Some(Ticks::beats(4)));
+    assert_eq!(
+        (c.clip.offset, c.start),
+        (Ticks::ZERO, Some(Ticks::beats(1)))
+    );
+    assert!(!bass.slot(s[1].id).unwrap().stop);
+    assert!(bass.clips.iter().all(|k| k.name != "Slot riff"));
     let arg = |key: &str, name: &str| r.get(key).unwrap().arg(name).map(str::to_string);
     assert_eq!(
         arg("interop.report.d_device", "name").as_deref(),
@@ -761,4 +778,122 @@ fn controller_lanes_and_releases_round_trip() {
             assert!((va - vb).abs() < 0.01, "{:?} at {t}: {va} vs {vb}", a.kind);
         }
     }
+}
+
+/// Round 33 (ADR 0076): a session goes out as DAWproject's scenes and clip slots — valid
+/// against the schema — and comes back whole: the scenes, every slot's clip, an empty slot
+/// without its stop button, and what the format has no place for (launch settings, follow
+/// actions with a jump, a start marker, a scene's tempo, the session's settings) through
+/// Cantus's own side file; a clip envelope is named as left out.
+#[test]
+fn a_session_goes_out_as_scenes_and_comes_back_whole() {
+    use cantus_core::session::*;
+    let mut p = Project::new("Live set");
+    let t = p.make_track("Keys");
+    let tid = t.id;
+    p.tracks.push(t);
+    let ids: Vec<SceneId> = (0..2).map(|_| SceneId(p.alloc_id())).collect();
+    for (i, id) in ids.iter().enumerate() {
+        let mut s = Scene::new(*id, format!("Row {i}"));
+        s.color = Some(Color::rgb(10, 20, 30 + i as u8));
+        p.session.scenes.push(s);
+    }
+    p.session.scenes[1].tempo = Some(132.0);
+    p.session.settings.launch_quantize = Quantize::Quarter;
+    let mut clip = p.make_clip("Riff", Ticks::ZERO, Ticks::beats(8));
+    clip.content_length = Some(Ticks::beats(4));
+    for b in 0..4 {
+        let n = p.make_note(Ticks::beats(b), Ticks::QUARTER, 60 + b as u8, 100);
+        clip.notes.push(n);
+    }
+    let mut sc = SessionClip::new(clip);
+    sc.launch.mode = LaunchMode::Toggle;
+    sc.launch.legato = true;
+    sc.follow = FollowActions {
+        on: true,
+        a: FollowAction::Jump(ids[1]),
+        b: FollowAction::Stop,
+        chance_a: 80,
+        after: FollowAfter::Linked,
+        count: 2,
+    };
+    sc.start = Some(Ticks::beats(1));
+    sc.envelopes.push(Automation::new(
+        AutoTarget::TrackGain(tid),
+        vec![AutoPoint::new(Ticks::ZERO, 0.5)],
+    ));
+    p.track_mut(tid).unwrap().slots = vec![
+        Slot {
+            scene: ids[0],
+            clip: Some(sc),
+            stop: true,
+        },
+        Slot {
+            scene: ids[1],
+            clip: None,
+            stop: false,
+        },
+    ];
+    let parts = dawproject::write::parts(&p, "0.1.0");
+    let (xsd, _) = schemas();
+    let errors = xsd.validate(&parts.project_xml);
+    assert!(errors.is_empty(), "project.xml:\n{}", errors.join("\n"));
+    assert!(parts.report.has("interop.report.x_clip_envelopes"));
+    let back = dawproject::import(&dawproject::export(&p, "0.1.0").bytes).unwrap();
+    let q = &back.project;
+    assert_eq!(q.session.scenes.len(), 2);
+    assert_eq!(q.session.scenes[1].name, "Row 1");
+    assert_eq!(q.session.scenes[1].tempo, Some(132.0));
+    assert_eq!(q.session.scenes[0].color, Some(Color::rgb(10, 20, 30)));
+    assert_eq!(q.session.settings.launch_quantize, Quantize::Quarter);
+    let t = &q.tracks[0];
+    let c = t.slot_clip(q.session.scenes[0].id).expect("the riff");
+    assert_eq!(c.clip.notes.len(), 4);
+    assert_eq!(c.clip.period(), Some(Ticks::beats(4)));
+    assert_eq!(c.clip.length, Ticks::beats(8));
+    assert_eq!(c.launch.mode, LaunchMode::Toggle);
+    assert!(c.launch.legato);
+    assert_eq!(c.follow.a, FollowAction::Jump(q.session.scenes[1].id));
+    assert_eq!(c.follow.count, 2);
+    assert_eq!(c.start, Some(Ticks::beats(1)));
+    assert!(!t.slot(q.session.scenes[1].id).unwrap().stop);
+    assert!(t.clips.is_empty(), "nothing leaked into the arrangement");
+}
+
+/// Review of delivery 1, #9: a track whose only audio is in its session is written as a
+/// track of audio, not of notes.
+#[test]
+fn a_session_only_audio_track_is_written_as_audio() {
+    use cantus_core::session::*;
+    let mut p = Project::new("Loops");
+    let sid = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id: sid,
+        name: "loop".into(),
+        path: "Audio/loop.wav".into(),
+        sample_rate: 48_000,
+        channels: 2,
+        frames: 96_000,
+        sha256: None,
+        recorded: false,
+    });
+    let mut t = p.make_track("Loop");
+    t.instrument = InstrumentSpec::default();
+    let scene = SceneId(p.alloc_id());
+    p.session.scenes.push(Scene::new(scene, "A"));
+    let mut c = p.make_audio_clip("loop", sid, Ticks::ZERO, Ticks::beats(4));
+    c.content_length = Some(Ticks::beats(4));
+    t.slots.push(Slot {
+        scene,
+        clip: Some(SessionClip::new(c)),
+        stop: true,
+    });
+    p.tracks.push(t);
+    let parts = dawproject::write::parts(&p, "0.1.0");
+    let doc = roxmltree::Document::parse(&parts.project_xml).unwrap();
+    let track = doc
+        .descendants()
+        .find(|n| n.has_tag_name("Track") && n.attribute("name") == Some("Loop"))
+        .unwrap();
+    assert_eq!(track.attribute("contentType"), Some("audio"));
 }

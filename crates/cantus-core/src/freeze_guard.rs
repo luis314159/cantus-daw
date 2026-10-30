@@ -141,6 +141,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | InsertPad { track, .. }
         | RemovePad { track, .. }
         | SetInstrumentParam { track, .. }
+        | SetInstrumentExpression { track, .. }
         | SetPadName { track, .. }
         | SetPadSample { track, .. }
         | SetPadLayers { track, .. }
@@ -203,6 +204,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | InsertNotes { track, clip, .. }
         | RemoveNotes { track, clip, .. }
         | SetNotes { track, clip, .. }
+        | SetNoteExpr { track, clip, .. }
         // Controller lanes play into the frozen instrument (ADR 0068).
         | SetClipLanes { track, clip, .. } => clip_touches(project, *track, *clip),
         SetClipContent {
@@ -295,6 +297,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         // When its source reaches its level: part of its source's sound.
         SetTrackLateness { id, .. } => vec![TrackSource(*id)],
         // Each command of a batch is guarded as it is applied.
+        Session(c) => crate::session::touches(c, project), // r33:session
         Batch { .. } => vec![],
     }
 }

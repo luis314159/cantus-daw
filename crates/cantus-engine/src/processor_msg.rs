@@ -6,16 +6,36 @@
 use super::track_controls::lane_of;
 use super::*;
 
+// Live MPE (round 33, ADR 0080): a child of this module, so it plays live keys the way it does. // r33:mpe
+#[path = "inst/mpe_live.rs"] // r33:mpe
+pub(super) mod mpe_live; // r33:mpe
+
 impl Processor {
     pub(super) fn drain_messages(&mut self) {
+        // A snapshot waits for the control grid: what came after it waits with it.
+        if self.deferred.is_some() {
+            return;
+        }
         for _ in 0..MAX_MESSAGES_PER_BLOCK {
             let Ok(msg) = self.rx.pop() else { break };
             match msg {
+                // While playing, on the automation's grid only (ADR 0076 §7).
+                EngineMessage::SetSnapshot(snapshot) if self.defer_install() => {
+                    self.deferred = Some((snapshot, None));
+                    break;
+                }
+                EngineMessage::SetSnapshotPlanned(snapshot, plan) if self.defer_install() => {
+                    self.deferred = Some((snapshot, Some(plan)));
+                    break;
+                }
                 EngineMessage::SetSnapshot(snapshot) => self.install_snapshot(snapshot, None),
                 EngineMessage::SetSnapshotPlanned(snapshot, plan) => {
                     self.install_snapshot(snapshot, Some(plan))
                 }
                 EngineMessage::Automation(rt) => self.auto_arrived(rt),
+                // The session view (ADR 0076 §7): its presses go to the conductor beside the
+                // engine handle (`EngineHandle::send`), never here; one that does is nothing.
+                EngineMessage::Session(_) => {}
                 EngineMessage::AddEffect(unit) => {
                     if self.incoming_effects.len() < MAX_PENDING_EFFECTS {
                         self.incoming_effects.push(unit);
@@ -50,7 +70,10 @@ impl Processor {
                         self.played = 0;
                     }
                 }
-                EngineMessage::Stop => self.transport.stop(),
+                EngineMessage::Stop => {
+                    self.transport.stop();
+                    self.sync_stop_pressed(); // r33:sync
+                }
                 EngineMessage::Seek(tick) => {
                     self.release_all();
                     self.transport.seek(tick);
@@ -66,6 +89,7 @@ impl Processor {
                 EngineMessage::Midi(ev) => self.midi(ev),
                 EngineMessage::SetLiveTrack(t) => self.live_track = t,
                 EngineMessage::SetLiveEcho(tracks) => self.set_live_echo(tracks),
+                EngineMessage::SetMpe(zones) => self.set_mpe(zones), // r33:mpe
                 EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::SetLowLatency(limit) => self.set_low_latency(limit),
                 EngineMessage::SetAnalyser(id) => self.analysed = id,
@@ -246,6 +270,10 @@ impl Processor {
     }
 
     fn midi(&mut self, ev: MidiEvent) {
+        // r33:mpe — an MPE port's member channels (ADR 0080)
+        if self.mpe_midi(ev) {
+            return;
+        }
         let Some(track) = self.live_track else { return };
         match ev.status & 0xF0 {
             0x90 if ev.data2 > 0 => self.live_note(track, ev.data1, ev.data2, 0),

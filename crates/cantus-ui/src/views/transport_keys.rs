@@ -203,20 +203,23 @@ pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- the windows ---------------------------------------------------------------------
 
 pub fn windows_width(s: &Style) -> f32 {
-    6.0 * ROW_KEY * s.k
+    7.0 * ROW_KEY * s.k // r33:launcher
 }
 
 /// The areas' keys on one strip, the browser first as in FL's toolbar.
 pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    const PANES: [Pane; 6] = [
+    const PANES: [Pane; 7] = [
+        // r33:launcher
         Pane::Browser,
         Pane::Arrangement,
+        Pane::Session, // r33:launcher
         Pane::ChannelRack,
         Pane::PianoRoll,
         Pane::Mixer,
         Pane::Inspector,
     ];
-    let keys: [(KeyFace<'_>, bool, &str); 6] = std::array::from_fn(|i| {
+    let keys: [(KeyFace<'_>, bool, &str); 7] = std::array::from_fn(|i| {
+        // r33:launcher
         let pane = PANES[i];
         (
             KeyFace::Glyph(pane.glyph()),
@@ -232,10 +235,15 @@ pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             Pane::PianoRoll => Action::ViewPianoRoll,
             Pane::Mixer => Action::ViewMixer,
             Pane::Browser => Action::ToggleBrowser,
+            Pane::Session => Action::ToggleSessionView, // r33:launcher
             _ => Action::ToggleInspector,
         };
         let resp = strip_tip(ui, resp, || tip(app, pane.toggle_key(), Some(action)));
-        if resp.clicked() {
+        if resp.clicked() && pane == Pane::Session {
+            // r33:launcher
+            crate::views::session::keys::toggle_view(app); // r33:launcher
+        } else if resp.clicked() {
+            // r33:launcher
             app.toggle_pane(pane);
         }
     }

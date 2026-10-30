@@ -358,6 +358,7 @@ fn note(start: i64, len: i64, pitch: u8, pass: u32) -> RecordedNote {
         velocity: 100,
         pass,
         release: 0,
+        expr: None, // r33:mpe
     }
 }
 

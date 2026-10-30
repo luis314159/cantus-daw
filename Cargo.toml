@@ -14,6 +14,8 @@ members = [
     "crates/cantus-export",
     # The score from the piano roll (round 32, ADR 0075).
     "crates/cantus-score",
+    # Ableton Link in Rust, GPL (round 33, ADR 0078).
+    "crates/cantus-link",
     "crates/cantus-test-plugins/clap-gain",
     "crates/cantus-test-plugins/clap-synth",
     "crates/cantus-test-plugins/vst3",
@@ -45,6 +47,8 @@ default-members = [
     "crates/cantus-export",
     # The score from the piano roll (round 32, ADR 0075).
     "crates/cantus-score",
+    # Ableton Link in Rust, GPL (round 33, ADR 0078).
+    "crates/cantus-link",
     "crates/cantus-ui",
     "crates/cantus-app",
     "crates/cantus-launch",
@@ -52,7 +56,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 edition = "2021"
 rust-version = "1.95"
 authors = ["Luis Ángel Almazán <https://lalmazan.com>"]
@@ -75,6 +79,7 @@ cantus-sandbox = { path = "crates/cantus-sandbox" }
 cantus-content = { path = "crates/cantus-content" }
 cantus-export = { path = "crates/cantus-export" }
 cantus-score = { path = "crates/cantus-score" }
+cantus-link = { path = "crates/cantus-link" }
 cantus-ui = { path = "crates/cantus-ui" }
 cantus-update = { path = "crates/cantus-update" }
 cantus-launch = { path = "crates/cantus-launch" }

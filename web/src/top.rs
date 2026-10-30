@@ -26,7 +26,7 @@ pub const STABLE_APPIMAGE: &str = "Cantus-linux-x86_64.AppImage";
 pub const STABLE_DMG: &str = "Cantus-macos-universal.dmg";
 /// GitHub's API for the latest release (its files' names), asked from the visitor's browser.
 pub const LATEST_API: &str = "https://api.github.com/repos/luis314159/cantus-daw/releases/latest";
-pub const VERSION: &str = "0.1.0-beta.7";
+pub const VERSION: &str = "0.1.0-beta.8";
 
 #[function_component(Nav)]
 pub fn nav() -> Html {

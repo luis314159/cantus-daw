@@ -172,6 +172,8 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
             t.clips
                 .iter()
                 .filter(|c| c.lane == 0 && c.automation.is_none())
+                // Its session clips too (ADR 0076). // r33:session
+                .chain(t.session_clips().map(|s| &s.clip)) // r33:session
         };
         let has_audio = heard().any(|c| c.audio.is_some());
         // An instrument set up on a track of audio (for its take lanes, to play live) is
@@ -382,8 +384,16 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
     w.close();
     tempo_map(&mut w, &mut ids, project, &tempo_id, &metre_id);
     w.close();
-    w.open("Scenes", &[]);
-    w.close();
+    // The session's scenes and clip slots (round 33, ADR 0076). // r33:session
+    scenes(
+        &mut w,
+        &mut ids,
+        project,
+        &track_ids,
+        base,
+        (&mut audio, &mut files),
+        &mut report,
+    ); // r33:session
     w.close(); // Project
     report.count_dropped("interop.report.x_muted_notes", muted_notes);
     report.count_dropped("interop.report.x_grooves", grooved);
@@ -921,7 +931,15 @@ fn clip(
             ("rel", a(num(n.release as f64 / 127.0))),
         ];
         let len = if n.release > 0 { 6 } else { 5 };
-        w.empty("Note", &attrs[..len]);
+        // Its per-note expression (ADR 0080): a timeline of points per curve inside it.
+        match n.expr.as_deref() {
+            Some(e) => {
+                w.open("Note", &attrs[..len]);
+                note_expression(w, ids, e);
+                w.close();
+            }
+            None => w.empty("Note", &attrs[..len]),
+        }
     }
     w.close();
     if laned {
@@ -979,6 +997,47 @@ fn lane_points(w: &mut XmlWriter, ids: &mut Ids, lane: &cantus_core::ClipLane) {
                 ("interpolation", a(if hold { "hold" } else { "linear" })),
             ],
         );
+    }
+    w.close();
+}
+
+/// A note's curves (ADR 0080) as DAWproject's per-note expressions: `transpose` in
+/// semitones, `pressure` and `timbre` normalised, each a `Points` timeline in beats from
+/// the note's start, the lanes of the one timeline a note holds.
+fn note_expression(w: &mut XmlWriter, ids: &mut Ids, e: &cantus_core::model::note_expr::NoteExpr) {
+    use cantus_core::model::note_expr::ExprKind;
+    // A note holds one timeline: the curves are the lanes of one.
+    w.open("Lanes", &[("id", a(ids.next()))]);
+    for kind in ExprKind::ALL {
+        let c = e.curve(kind);
+        if c.is_empty() {
+            continue;
+        }
+        let (unit, name) = match kind {
+            ExprKind::Bend => ("semitones", "transpose"),
+            ExprKind::Pressure => ("normalized", "pressure"),
+            ExprKind::Timbre => ("normalized", "timbre"),
+        };
+        w.open(
+            "Points",
+            &[
+                ("unit", a(unit)),
+                ("timeUnit", a("beats")),
+                ("id", a(ids.next())),
+            ],
+        );
+        w.empty("Target", &[("expression", a(name))]);
+        for p in c {
+            w.empty(
+                "RealPoint",
+                &[
+                    ("time", a(num(cantus_core::Ticks(p.0).as_beats_f64()))),
+                    ("value", a(num(kind.read(p.1)))),
+                    ("interpolation", a("linear")),
+                ],
+            );
+        }
+        w.close();
     }
     w.close();
 }
@@ -1043,4 +1102,65 @@ fn tempo_map(w: &mut XmlWriter, ids: &mut Ids, project: &Project, tempo_id: &str
         }
         w.close();
     }
+}
+
+/// The session's scenes (round 33, ADR 0076): each a `<Scene>` of `<ClipSlot>`s, one per
+/// track whose slot holds a clip or has no stop button; what the format has no place for in
+/// `cantus/session.json` (`super::session::side`). // r33:session
+#[allow(clippy::too_many_arguments)]
+fn scenes(
+    w: &mut XmlWriter,
+    ids: &mut Ids,
+    project: &Project,
+    track_ids: &[String],
+    base: Option<&std::path::Path>,
+    (audio, files): Carried<'_>,
+    report: &mut Report,
+) {
+    w.open("Scenes", &[]);
+    for s in &project.session.scenes {
+        w.open(
+            "Scene",
+            &[
+                ("id", a(ids.next())),
+                ("name", a(&s.name)),
+                ("color", s.color.map(color)),
+            ],
+        );
+        w.open("Lanes", &[("id", a(ids.next())), ("timeUnit", a("beats"))]);
+        for (t, track_id) in project.tracks.iter().zip(track_ids) {
+            let Some(slot) = t.slot(s.id) else {
+                continue;
+            };
+            w.open(
+                "ClipSlot",
+                &[
+                    ("id", a(ids.next())),
+                    ("track", a(track_id)),
+                    ("hasStop", a(slot.stop)),
+                ],
+            );
+            if let Some(c) = &slot.clip {
+                clip(
+                    w,
+                    ids,
+                    &c.clip,
+                    None,
+                    project,
+                    base,
+                    (&mut *audio, &mut *files),
+                    report,
+                );
+            }
+            w.close();
+        }
+        w.close();
+        w.close();
+    }
+    w.close();
+    let (side, envelopes) = super::session::side(project);
+    if let Some(bytes) = side {
+        files.push((super::session::SIDE.to_string(), bytes));
+    }
+    report.count_dropped("interop.report.x_clip_envelopes", envelopes);
 }

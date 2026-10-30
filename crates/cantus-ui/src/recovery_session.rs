@@ -202,6 +202,7 @@ impl CantusApp {
             marked_wraps: Vec::new(),
             takes: match_takes(&tracks, &new),
             finished: false,
+            slot: plan.slot, // r33:session
         };
         if let Some(s) = self.session.as_mut() {
             s.journal.passes.push(pass);
@@ -347,6 +348,7 @@ impl CantusApp {
                 plan.loop_region = j.loop_region;
                 plan.loop_takes = j.loop_takes;
                 plan.mode = j.mode;
+                plan.slot = j.slot; // r33:session (a slot's take comes back into its slot)
                 plan.take_word = t("rec.take");
                 plan.audio_tracks = here.iter().map(|t| t.track).collect();
                 // Where the playhead was when the pass ended: after the last wrap, from

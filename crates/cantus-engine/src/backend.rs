@@ -105,8 +105,15 @@ pub struct EngineHandle {
     /// Snapshots compiled (tests: nothing is recompiled every frame while one waits).
     compiles: u64,
     note_inputs: Vec<NoteInput>,
+    session_events: Vec<crate::messages::SessionEvent>, // r33:session
+    session_msgs: Vec<crate::messages::SessionMsg>,     // r33:session
+    // r33:session
+    /// How many stops were sent: the conductor's launch from stop gives up waiting for the
+    /// engine to play when one was (ADR 0076 §7).
+    stops: u64,
     /// Live controllers recorded since the last take (ADR 0068).
     control_inputs: Vec<crate::messages::ControlInput>,
+    expr_inputs: Vec<crate::inst::mpe::ExprInput>, // r33:mpe
     /// Seeks sent since the handle was made (ADR 0068): a write pass tells a jump of the
     /// playhead from a slow frame by it.
     seeks: u64,
@@ -130,6 +137,7 @@ pub struct EngineHandle {
     pub(crate) rec: crate::recorder::HandleRecorder,
     /// The devices' side: the driver, the input stream, latencies, the loopback probe.
     pub(crate) dev: crate::devices::HandleDevices,
+    sync: Option<crate::transport::sync::SyncHandle>, // r33:sync
 }
 
 impl std::fmt::Debug for EngineHandle {
@@ -218,6 +226,8 @@ impl EngineHandle {
 
         // The input, at the output's rate, into the processor's ring.
         let telemetry = Arc::new(crate::devices::DeviceTelemetry::default());
+        let (sync_port, sync) = crate::transport::sync::pair(); // r33:sync
+        processor.attach_sync(sync_port, Some(telemetry.clone())); // r33:sync
         let mut rec = crate::recorder::HandleRecorder::default();
         let (plan, mut input_error) =
             match crate::devices::plan_input(host, config, &device, sample_rate) {
@@ -324,7 +334,11 @@ impl EngineHandle {
             render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
+            session_events: Vec::new(), // r33:session
+            session_msgs: Vec::new(),   // r33:session
+            stops: 0,                   // r33:session
             control_inputs: Vec::new(),
+            expr_inputs: Vec::new(), // r33:mpe
             seeks: 0,
             capture: Some(capture_rx),
             capture_target: CaptureTarget::Off,
@@ -337,6 +351,7 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec,
             dev: Default::default(),
+            sync: Some(sync), // r33:sync
         };
         handle.dev = crate::devices::HandleDevices {
             driver: driver_name,
@@ -369,6 +384,9 @@ impl EngineHandle {
         handle.rx = rx;
         handle.sample_rate = sample_rate;
         handle.scopes = scope_rx;
+        let (sync_port, sync) = crate::transport::sync::pair(); // r33:sync
+        processor.attach_sync(sync_port, None); // r33:sync
+        handle.sync = Some(sync); // r33:sync
         (handle, processor)
     }
 
@@ -404,7 +422,11 @@ impl EngineHandle {
             render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
+            session_events: Vec::new(), // r33:session
+            session_msgs: Vec::new(),   // r33:session
+            stops: 0,                   // r33:session
             control_inputs: Vec::new(),
+            expr_inputs: Vec::new(), // r33:mpe
             seeks: 0,
             capture: None,
             capture_target: CaptureTarget::Off,
@@ -417,6 +439,7 @@ impl EngineHandle {
             inst_params: Vec::new(),
             rec: Default::default(),
             dev: Default::default(),
+            sync: None, // r33:sync
         }
     }
 
@@ -657,12 +680,28 @@ impl EngineHandle {
         self._stream.is_some()
     }
 
+    /// The sync seam's far end (round 33, ADR 0078): the source and the MIDI-out thread
+    /// take it once. `None` without an audio device, or once taken.
+    pub fn take_sync(&mut self) -> Option<crate::transport::sync::SyncHandle> {
+        // r33:sync
+        self.sync.take() // r33:sync
+    } // r33:sync
+
     /// Sender for hardware MIDI threads (see [`crate::midi::MidiInputs`]).
     pub fn midi_sender(&self) -> MidiSender {
         self.midi.clone()
     }
 
     pub fn send(&mut self, msg: EngineMessage) {
+        // The session's presses go to the conductor beside the handle, which plays them as
+        // projections (ADR 0076 §7), never to the audio thread. // r33:session
+        if let EngineMessage::Session(m) = msg {
+            self.session_msgs.push(m); // r33:session
+            return; // r33:session
+        } // r33:session
+        if matches!(msg, EngineMessage::Stop) {
+            self.stops += 1; // r33:session
+        }
         if self.tx.push(msg).is_err() {
             self.send_failures += 1;
         }
@@ -680,7 +719,28 @@ impl EngineHandle {
 
     /// [`Self::compile`]; `render`: for an offline render (its frozen renders read with
     /// boards of their own).
+    /// [`Self::compile`], reusing what `prev` (compiled from `prev`'s project) compiled for
+    /// every track that did not change — the session's projections (ADR 0076 §7). // r33:session
+    pub fn compile_reusing(
+        &mut self,
+        project: &Project,
+        revision: u64,
+        prev: Option<(&Project, &Snapshot)>,
+    ) -> Arc<Snapshot> {
+        self.compile_from(project, revision, false, prev) // r33:session
+    } // r33:session
+
     fn compile_as(&mut self, project: &Project, revision: u64, render: bool) -> Arc<Snapshot> {
+        self.compile_from(project, revision, render, None) // r33:session
+    } // r33:session
+
+    fn compile_from(
+        &mut self,
+        project: &Project,
+        revision: u64,
+        render: bool,
+        prev: Option<(&Project, &Snapshot)>, // r33:session
+    ) -> Arc<Snapshot> {
         // A live engine loads audio sources in the background (ADR 0025 §9); a manual
         // one (tests, renders) at once.
         if self.is_live() {
@@ -694,7 +754,7 @@ impl EngineHandle {
         self.samples.set_pitch_background(true);
         // A render's compile never takes the playing snapshot's warp renders away.
         self.samples.set_offline(render);
-        let mut snapshot = Snapshot::compile(project, revision);
+        let mut snapshot = Snapshot::compile_reusing(project, revision, prev); // r33:session
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
         }
@@ -703,12 +763,25 @@ impl EngineHandle {
         for (path, err) in self.samples.attach_audio(&mut snapshot, rate) {
             log::warn!("audio {}: {err}", path.display());
         }
+        // r33:session: the session's audio, loaded before any of it is launched (ADR 0076).
+        self.samples.preload_session(project, rate);
+        if !render {
+            self.samples.preload_session_warps(project, rate);
+        }
         // Frozen strips and tracks whose render is at hand play it (ADR 0064).
         if project.any_frozen() {
             self.frozen.attach(project, &mut snapshot, rate, render);
         } else if !render {
             // Nothing frozen: every render opened is let go (review 1).
             self.frozen.let_go_all();
+        }
+        // r33:session
+        // The notes the snapshot playing started and this one ends sooner: what the engine
+        // ends at once if it installs this behind their new end (ADR 0076 §7).
+        if !render && self.playing {
+            if let Some(old) = &self.rec.snapshot {
+                snapshot.cut_from(old, self.engine_position);
+            }
         }
         Arc::new(snapshot)
     }
@@ -1041,7 +1114,9 @@ impl EngineHandle {
                     self.stats = s;
                 }
                 EngineEvent::NoteInput(note) => self.note_inputs.push(note),
+                EngineEvent::Session(e) => self.session_events.push(e), // r33:session
                 EngineEvent::ControlInput(c) => self.control_inputs.push(c),
+                EngineEvent::ExprInput(e) => self.expr_inputs.push(e), // r33:mpe
                 EngineEvent::Garbage(old) => drop(old),
                 EngineEvent::GarbageEffect(unit) => {
                     // A replaced unit's id lives on in its successor; so does one whose id the
@@ -1095,6 +1170,21 @@ impl EngineHandle {
         self.seeks
     }
 
+    /// The session's presses sent since the last call, for the conductor (ADR 0076). // r33:session
+    pub fn take_session_msgs(&mut self) -> Vec<crate::messages::SessionMsg> {
+        std::mem::take(&mut self.session_msgs) // r33:session
+    } // r33:session
+
+    /// A change of the session's state, for the view (the conductor tells them). // r33:session
+    pub fn push_session_event(&mut self, e: crate::messages::SessionEvent) {
+        self.session_events.push(e); // r33:session
+    } // r33:session
+
+    /// The session view's changes since the last call, in order (ADR 0076). // r33:session
+    pub fn take_session_events(&mut self) -> Vec<crate::messages::SessionEvent> {
+        std::mem::take(&mut self.session_events) // r33:session
+    } // r33:session
+
     /// Live notes recorded since the last call.
     pub fn take_note_inputs(&mut self) -> Vec<NoteInput> {
         std::mem::take(&mut self.note_inputs)
@@ -1103,6 +1193,16 @@ impl EngineHandle {
     /// Live controllers recorded since the last call (ADR 0068).
     pub fn take_control_inputs(&mut self) -> Vec<crate::messages::ControlInput> {
         std::mem::take(&mut self.control_inputs)
+    }
+
+    /// Per-note values from an MPE controller recorded since the last call (ADR 0080). // r33:mpe
+    pub fn take_expr_inputs(&mut self) -> Vec<crate::inst::mpe::ExprInput> {
+        std::mem::take(&mut self.expr_inputs) // r33:mpe
+    }
+
+    /// Per-note values as if the engine had reported them (tests and tools). // r33:mpe
+    pub fn inject_expr_inputs(&mut self, e: &[crate::inst::mpe::ExprInput]) {
+        self.expr_inputs.extend_from_slice(e);
     }
 
     /// The position being **heard**: the engine's own less the output's latency (ADR
@@ -1119,6 +1219,12 @@ impl EngineHandle {
 
     pub fn is_playing(&self) -> bool {
         self.playing
+    }
+
+    // r33:session
+    /// How many stops were sent through this handle.
+    pub fn stops(&self) -> u64 {
+        self.stops
     }
 
     pub fn meters(&self) -> &Meters {

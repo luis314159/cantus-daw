@@ -49,10 +49,13 @@ pub enum Group {
     Device,
     /// The element picker, the appearance page, the interface's zoom.
     Tools,
+    /// Ableton Link (on/off, its peers, the quantum) and the sync source with its tempo
+    /// and lock light (round 33, ADR 0078–0079).
+    Sync,
 }
 
 /// How many groups there are.
-pub const COUNT: usize = 13;
+pub const COUNT: usize = 14;
 
 impl Group {
     /// Every group, in the default order (FL's: PAT / SONG before play, the tempo beside
@@ -68,6 +71,7 @@ impl Group {
         Group::Undo,
         Group::Windows,
         Group::Inputs,
+        Group::Sync,
         Group::Performance,
         Group::Meter,
         Group::Device,
@@ -90,6 +94,7 @@ impl Group {
             Group::Inputs => "inputs",
             Group::Device => "device",
             Group::Tools => "tools",
+            Group::Sync => "sync",
         }
     }
 
@@ -113,7 +118,23 @@ impl Group {
             Group::Inputs => "topbar.group.inputs",
             Group::Device => "topbar.group.device",
             Group::Tools => "topbar.group.tools",
+            Group::Sync => "sync.group",
         }
+    }
+
+    /// Whether the default bar leaves it out (round 33: Sync, as Live hides its Link toggle
+    /// until asked) — shown when the owner shows it, or while it is in use.
+    pub fn hidden_by_default(self) -> bool {
+        matches!(self, Group::Sync)
+    }
+
+    /// Whether the bar shows it: not hidden by the owner, and — hidden by default — shown
+    /// by the owner or `in_use`.
+    pub fn is_shown(self, hidden: &[String], shown: &[String], in_use: bool) -> bool {
+        if hidden.iter().any(|h| h == self.id()) {
+            return false;
+        }
+        !self.hidden_by_default() || in_use || shown.iter().any(|h| h == self.id())
     }
 
     /// Whether it takes the bar's whole height (else one of its two rows, shared with the
@@ -121,7 +142,12 @@ impl Group {
     pub fn tall(self) -> bool {
         matches!(
             self,
-            Group::Mode | Group::Metronome | Group::Position | Group::Performance | Group::Meter
+            Group::Mode
+                | Group::Metronome
+                | Group::Position
+                | Group::Performance
+                | Group::Meter
+                | Group::Sync
         )
     }
 
@@ -138,10 +164,12 @@ impl Group {
             Group::Meter => 6,
             Group::Windows => 7,
             Group::Performance => 8,
-            Group::Snap => 9,
-            Group::Undo => 10,
-            Group::Inputs => 11,
-            Group::Tools => 12,
+            // Shown, it is in use (or asked for): kept before the snap, undo and tools.
+            Group::Sync => 9,
+            Group::Snap => 10,
+            Group::Undo => 11,
+            Group::Inputs => 12,
+            Group::Tools => 13,
         }
     }
 }
@@ -470,8 +498,8 @@ mod tests {
             l.span_of(Group::Tempo).unwrap().x0
         );
         assert_eq!(l.slot_of(Group::Metronome), Some(Slot::Full));
-        // 13 groups, 5 tall, 8 short in 4 pairs: 9 columns.
-        assert_eq!(l.columns().len(), 9);
+        // 14 groups, 6 tall, 8 short in 4 pairs: 10 columns.
+        assert_eq!(l.columns().len(), 10);
     }
 
     #[test]

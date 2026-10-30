@@ -7,6 +7,7 @@
 
 use super::gm;
 use super::smf::{Division, Event, MidiError, Smf, TimedEvent};
+use cantus_core::model::note_expr::ExprKind;
 use cantus_core::{ClipId, Project, Snapshot, Ticks, TimeSignature, Track, TrackId, PPQ};
 use std::collections::HashMap;
 
@@ -197,30 +198,167 @@ pub fn to_smf_with(
         ppq,
         end_tick,
     ));
-    let mut melodic = (0u8..16).filter(|c| *c != DRUM_CHANNEL).cycle();
-    for ct in &compiled.tracks {
-        let channel = if ct.drums {
-            DRUM_CHANNEL
+    // Channels (ADR 0080, review fixes 3 and D4–D5): a track whose notes carry expression
+    // is an MPE zone sized to the notes it sounds at once — the most polyphonic the lower
+    // zone (manager channel 1, members from 2, at most 2–9), the next the upper (manager
+    // 16, members from 15 down, at most 15–11); channel 10 stays the drums'. The plain
+    // melodic tracks need channels of their own: the upper zone shrinks first, then the
+    // lower; when that is not enough the second expressive track is written plain. A third
+    // is always written plain.
+    let poly: Vec<usize> = compiled
+        .tracks
+        .iter()
+        .map(|ct| {
+            if ct.drums || ct.expr.is_empty() {
+                0
+            } else {
+                most_at_once(&ct.spans)
+            }
+        })
+        .collect();
+    let mut order: Vec<usize> = (0..poly.len()).filter(|&i| poly[i] > 0).collect();
+    order.sort_by_key(|&i| (std::cmp::Reverse(poly[i]), i));
+    order.truncate(2);
+    let melodic_tracks = compiled.tracks.iter().filter(|ct| !ct.drums).count();
+    let (mut lower, mut upper) = (
+        order.first().map_or(0, |&i| poly[i].min(8)),
+        order.get(1).map_or(0, |&i| poly[i].min(5)),
+    );
+    let free_of = |lower: usize, upper: usize| -> Vec<u8> {
+        (0u8..16)
+            .filter(|&c| c != DRUM_CHANNEL)
+            .filter(|&c| lower == 0 || c > lower as u8)
+            .filter(|&c| upper == 0 || (c as usize) < 15 - upper)
+            .collect()
+    };
+    loop {
+        let zoned = usize::from(lower > 0) + usize::from(upper > 0);
+        if free_of(lower, upper).len() >= melodic_tracks - zoned {
+            break;
+        }
+        if upper > 1 {
+            upper -= 1;
+        } else if lower > 1 {
+            lower -= 1;
+        } else if upper == 1 {
+            // No room for both zones: the second expressive track is written plain.
+            upper = 0;
+            order.truncate(1);
         } else {
-            melodic.next().unwrap_or(0)
+            break;
+        }
+    }
+    let zone_of = |ti: usize| -> Option<(u8, Vec<u8>)> {
+        match order.iter().position(|&i| i == ti)? {
+            0 if lower > 0 => Some((0, (1..=lower as u8).collect())),
+            1 if upper > 0 => Some((15, (0..upper as u8).map(|k| 14 - k).collect())),
+            _ => None,
+        }
+    };
+    let free = free_of(lower, upper);
+    let mut melodic = if free.is_empty() {
+        (0u8..16).filter(|c| *c != DRUM_CHANNEL).collect::<Vec<_>>()
+    } else {
+        free
+    }
+    .into_iter()
+    .cycle();
+    for (ti, ct) in compiled.tracks.iter().enumerate() {
+        let zone = zone_of(ti);
+        let channel = match &zone {
+            Some((master, _)) => *master,
+            None if ct.drums => DRUM_CHANNEL,
+            None => melodic.next().unwrap_or(0),
         };
         let mut events = vec![TimedEvent {
             tick: 0,
             event: Event::TrackName(ct.name.clone()),
         }];
-        let mut notes: Vec<(u64, bool, u8, u8)> = Vec::with_capacity(ct.spans.len() * 2);
-        for s in &ct.spans {
+        let mpe = zone.is_some();
+        let mut rotation = super::mpe::Rotation::of(zone.as_ref().map_or(&[][..], |z| &z.1[..]));
+        if let Some((master, members)) = &zone {
+            events.extend(
+                super::mpe::announce_zone(*master, members)
+                    .into_iter()
+                    .map(|event| TimedEvent { tick: 0, event }),
+            );
+        }
+        // In time order, so channels are handed out as the notes come (review fix 4).
+        let mut spans: Vec<&Span> = ct.spans.iter().collect();
+        if mpe {
+            spans.sort_by_key(|s| (s.start, s.pitch));
+        }
+        // What each member channel was last left at, per kind (rest at the start).
+        let rest: [i64; 3] = ExprKind::ALL.map(|k| k.rest());
+        let mut left: [[i64; 3]; 16] = [rest; 16];
+        let mut notes: Vec<(u64, bool, u8, u8, u8)> = Vec::with_capacity(ct.spans.len() * 2);
+        // A note's expression events, kept until every note is placed: a note a later one
+        // takes the channel from is cut there, its later values dropped (review D4).
+        let mut pending: Vec<(usize, TimedEvent)> = Vec::new();
+        let mut cut: Vec<u64> = Vec::new();
+        let mut on_channel: [Option<(usize, usize)>; 16] = [None; 16];
+        for s in spans {
             let on = to_file_ticks(s.start - shift, ppq);
             // A note is never rounded away: at least one of the file's ticks long.
             let off = to_file_ticks(s.end - shift, ppq).max(on + 1);
-            notes.push((on, true, s.pitch, s.velocity));
-            notes.push((off, false, s.pitch, s.release)); // ADR 0068
+            let ch = if mpe { rotation.take(on, off) } else { channel };
+            if mpe {
+                if let Some((serial, off_ix)) = on_channel[ch as usize] {
+                    if notes[off_ix].0 > on {
+                        notes[off_ix].0 = on;
+                        cut[serial] = on;
+                    }
+                }
+            }
+            notes.push((on, true, s.pitch, s.velocity, ch));
+            notes.push((off, false, s.pitch, s.release, ch)); // ADR 0068
+            if !mpe {
+                continue;
+            }
+            let serial = cut.len();
+            cut.push(u64::MAX);
+            on_channel[ch as usize] = Some((serial, notes.len() - 1));
+            let mine: Vec<_> = ct
+                .expr
+                .iter()
+                .filter(|e| e.note.0 == s.tag && s.tag != 0 && e.tick >= s.start && e.tick < s.end)
+                .collect();
+            // A kind the note does not set at its start goes back to rest first, if the
+            // channel's last note left it elsewhere (a plain note never inherits a bend).
+            for k in ExprKind::ALL {
+                let starts = mine.iter().any(|e| e.kind == k && e.tick == s.start);
+                if !starts && left[ch as usize][k as usize] != k.rest() {
+                    left[ch as usize][k as usize] = k.rest();
+                    let event = super::mpe::message(ch, k, k.rest());
+                    pending.push((serial, TimedEvent { tick: on, event }));
+                }
+            }
+            let mut sent: [Option<Event>; 3] = [None, None, None];
+            for e in mine {
+                let raw = e.kind.store(f64::from(e.value));
+                let event = super::mpe::message(ch, e.kind, raw);
+                let k = e.kind as usize;
+                if sent[k].as_ref() == Some(&event) {
+                    continue;
+                }
+                sent[k] = Some(event.clone());
+                left[ch as usize][k] = raw;
+                let tick = to_file_ticks(e.tick - shift, ppq);
+                pending.push((serial, TimedEvent { tick, event }));
+            }
         }
+        // A cut note's values from its cut on are the next note's channel's, not its own.
+        events.extend(
+            pending
+                .into_iter()
+                .filter(|(serial, e)| e.tick < cut[*serial])
+                .map(|(_, e)| e),
+        );
         // By time; at one tick the offs first, so a note that ends where the next of the
         // same pitch begins does not cut it off in a reader that pairs by pitch.
-        notes.sort_by_key(|(t, on, pitch, _)| (*t, *on, *pitch));
+        notes.sort_by_key(|(t, on, pitch, _, _)| (*t, *on, *pitch));
         let mut last = 0;
-        for (tick, on, key, velocity) in notes {
+        for (tick, on, key, velocity, channel) in notes {
             last = last.max(tick);
             events.push(TimedEvent {
                 tick,
@@ -418,6 +556,9 @@ struct Span {
     velocity: u8,
     /// Its release velocity (0 none given, ADR 0068).
     release: u8,
+    /// Its voice tag (`NoteEvent::note`): what its expression events name (ADR 0080); 0 for
+    /// a note its note effects made.
+    tag: u64,
 }
 
 struct CompiledTrack {
@@ -426,6 +567,8 @@ struct CompiledTrack {
     spans: Vec<Span>,
     /// The clips' controller lanes as the engine plays them (ADR 0068).
     controls: Vec<cantus_core::CtlEvent>,
+    /// Its notes' expression as the engine plays it (ADR 0080).
+    expr: Vec<cantus_core::model::note_expr::compile::ExprEvent>,
 }
 
 struct Compiled {
@@ -465,6 +608,7 @@ impl Compiled {
                         pitch,
                         velocity: velocity.clamp(1, 127),
                         release,
+                        tag: 0,
                     });
                 }
                 tracks.push(CompiledTrack {
@@ -472,6 +616,7 @@ impl Compiled {
                     drums: kit.is_some(),
                     spans,
                     controls: st.controls.clone(),
+                    expr: Vec::new(),
                 });
                 continue;
             }
@@ -492,6 +637,7 @@ impl Compiled {
                             pitch,
                             velocity: velocity.clamp(1, 127),
                             release: ev.release,
+                            tag: ev.note.0,
                         });
                     }
                 }
@@ -501,8 +647,25 @@ impl Compiled {
                 drums: kit.is_some(),
                 spans,
                 controls: st.controls.clone(),
+                expr: st.expr.clone(),
             });
         }
         Compiled { tracks }
     }
+}
+
+/// The most notes of `spans` that sound at once (a note ending where another begins is not
+/// two at once).
+fn most_at_once(spans: &[Span]) -> usize {
+    let mut edges: Vec<(Ticks, i32)> = spans
+        .iter()
+        .flat_map(|s| [(s.start, 1), (s.end, -1)])
+        .collect();
+    edges.sort();
+    let (mut now, mut most) = (0i32, 0i32);
+    for (_, d) in edges {
+        now += d;
+        most = most.max(now);
+    }
+    most.max(0) as usize
 }

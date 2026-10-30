@@ -9,6 +9,11 @@ use crate::instrument::InstrumentSpec;
 use crate::model::*;
 use crate::time::{Ticks, TimeSignature};
 
+// r33:session
+#[path = "snapshot_cuts.rs"]
+mod cuts;
+pub use cuts::{CutNote, CUT_AHEAD};
+
 /// A note-on (`velocity > 0`) or note-off (`velocity == 0`) at an absolute tick.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct NoteEvent {
@@ -58,6 +63,8 @@ pub struct TrackSnapshot {
     pub controls: Vec<crate::clip_lanes::CtlEvent>,
     /// Every kind `controls` drives, once: what a seek chases and a stop puts to rest.
     pub control_kinds: Vec<crate::clip_lanes::LaneKind>,
+    /// Per-note expression (ADR 0080), sorted by tick; empty when no note has any. // r33:mpe
+    pub expr: Vec<crate::model::note_expr::compile::ExprEvent>, // r33:mpe
     /// How many lanes the instrument offers. Carried so the meter and the stats can say
     /// something about a kit without the audio thread reasoning about pads.
     pub lane_count: usize,
@@ -272,17 +279,62 @@ pub struct Snapshot {
     pub swaps: Vec<(usize, usize)>,
     /// The song's key (ADR 0069): what the note effects that follow it read.
     pub key: Option<crate::scale::Key>,
+    // r33:session
+    /// The notes the snapshot playing when this one was sent had started and this one ends
+    /// sooner ([`Snapshot::cut_from`], ADR 0076 §7): installed while playing, the engine
+    /// ends those its playhead has passed the new end of. Empty — every snapshot compiled
+    /// and not cut from another.
+    pub cuts: Vec<CutNote>,
+    // r33:session
+    /// The tempos the session's scenes set in this snapshot (a projection's, ADR 0076 §7),
+    /// by tick: the engine proposes each to a followed Link session as its tick is heard
+    /// (`Processor::propose_tempo`). Empty but in a projection.
+    pub scene_tempos: Vec<(Ticks, f64)>,
 }
 
 impl Snapshot {
     pub fn compile(project: &Project, revision: u64) -> Snapshot {
+        Self::compile_reusing(project, revision, None)
+    }
+
+    /// [`Self::compile`], taking from `prev` (the snapshot compiled from `prev_project`) the
+    /// compiled notes and controller events of every track that did not
+    /// change — same id, equal in every field — when nothing they are compiled through did
+    /// (the groove pool, the audio pool, the tempo track and the metres). What it gives is
+    /// what `compile` gives, to the field: the session's projections compile only the tracks
+    /// a launch changed (ADR 0076 §7, D3).
+    pub fn compile_reusing(
+        project: &Project,
+        revision: u64,
+        prev: Option<(&Project, &Snapshot)>,
+    ) -> Snapshot {
         let mut automation = crate::automation::compile::compile(project);
         let hearing = crate::warp::held_tempo(project);
+        let prev = prev.filter(|(q, _)| {
+            q.grooves == project.grooves
+                && q.audio_pool == project.audio_pool
+                && q.tempo_bpm == project.tempo_bpm
+                && q.tempo_points == project.tempo_points
+                && q.metre_changes == project.metre_changes
+                && q.time_signature == project.time_signature
+        });
+        // A track as `prev` compiled it, when it is unchanged.
+        let kept = |t: &Track| -> Option<&TrackSnapshot> {
+            let (q, s) = prev?;
+            let i = q.track_index(t.id)?;
+            (q.tracks[i] == *t)
+                .then(|| s.tracks.get(i))
+                .flatten()
+                .filter(|x| x.id == t.id)
+        };
         // Each track's events with its clips' grooves, and which pass its note effects (ADR 0069).
         let notes: Vec<_> = project
             .tracks
             .iter()
-            .map(|t| compile_events(t, &project.grooves))
+            .map(|t| match kept(t) {
+                Some(k) => (k.events.clone(), k.direct.clone()),
+                None => compile_events(t, &project.grooves),
+            })
             .collect();
         let tracks = project
             .tracks
@@ -297,11 +349,16 @@ impl Snapshot {
                 strip: t.strip.and_then(|s| project.strip_index(s)),
                 instrument: t.instrument.clone(),
                 events,
-                controls: crate::clip_lanes::compile_track(t),
+                controls: kept(t).map_or_else(
+                    || crate::clip_lanes::compile_track(t),
+                    |k| k.controls.clone(),
+                ),
                 control_kinds: Vec::new(),
+                expr: crate::model::note_expr::compile::compile_track(t, &project.grooves), // r33:mpe
                 lane_count: t.instrument.lanes().count(),
                 samples: Vec::new(),
                 assets: Vec::new(),
+                // Always compiled again: the engine's attach rewrites a window's fields.
                 audio: compile_audio(project, t, &hearing),
                 input: t.input.clone(),
                 armed: t.armed,
@@ -401,6 +458,10 @@ impl Snapshot {
             kept_pitch: kept_pitch(project),
             swaps: Vec::new(),
             key: project.key,
+            // r33:session
+            cuts: Vec::new(),
+            // r33:session
+            scene_tempos: Vec::new(),
         }
     }
 

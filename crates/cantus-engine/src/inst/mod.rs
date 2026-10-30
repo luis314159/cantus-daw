@@ -26,7 +26,9 @@ pub mod analog;
 pub mod bass;
 pub mod chorda;
 pub mod epiano;
+pub mod expr_play;
 pub mod fm;
+pub mod mpe;
 pub mod organ;
 pub mod sampler;
 pub mod stream;
@@ -130,6 +132,20 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
         self.note_off(key, id, 0.0);
     }
     fn expression(&mut self, _id: u64, _expression: NoteExpression, _value: f32) {}
+    /// A per-note expression `offset` samples into the next `process` call (ADR 0080), for a
+    /// unit whose [`Self::expression_offsets`] is true; the default (never called otherwise)
+    /// is [`Self::expression`].
+    fn expression_at(&mut self, id: u64, expression: NoteExpression, value: f32, offset: u32) {
+        let _ = offset;
+        self.expression(id, expression, value);
+    }
+    /// Whether the track should hand this unit a segment's expression ahead, each value with
+    /// its sample offset ([`Self::expression_at`]), instead of splitting the segment at every
+    /// value (ADR 0080): a hosted plug-in, whose block a moving bend would otherwise cut every
+    /// few milliseconds. Default `false`.
+    fn expression_offsets(&self) -> bool {
+        false
+    }
     fn controller(&mut self, _controller: Controller, _value: f32) {}
     /// A program change from live MIDI (round 29, ADR 0062): a hosted instrument hears it
     /// as MIDI; a native one has no programs. Default: nothing.

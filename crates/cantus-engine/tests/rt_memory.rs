@@ -1567,3 +1567,344 @@ fn crossfades_and_clip_envelopes_never_allocate() {
         );
     }
 }
+
+/// The session (ADR 0076 §7): a performance played as projections installed while the
+/// transport plays — blocks of 441 frames, so every install waits for the automation's
+/// grid inside a block — a launch, a follow action, an envelope, a stop. The audio thread
+/// runs nothing of the session itself: not one allocation.
+#[test]
+fn the_session_never_allocates() {
+    use cantus_core::session::play::{plan, project_play, Input, Timed};
+    use cantus_core::session::*;
+    let mut p = demo_project();
+    let lead = p.tracks[0].id;
+    let scene = SceneId(p.alloc_id());
+    p.session.scenes.push(Scene::new(scene, "A"));
+    let mut c = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
+    c.content_length = Some(Ticks::beats(4));
+    for i in 0..8 {
+        let n = p.make_note(Ticks(i * 480), Ticks(300), 60 + i as u8, 100);
+        c.notes.push(n);
+    }
+    let mut sc = SessionClip::new(c);
+    sc.follow = FollowActions {
+        on: true,
+        a: FollowAction::Again,
+        b: FollowAction::Stop,
+        chance_a: 80,
+        after: FollowAfter::Linked,
+        count: 1,
+    };
+    sc.envelopes.push(Automation::new(
+        AutoTarget::TrackGain(lead),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.3),
+            AutoPoint::new(Ticks::beats(4), 0.9),
+        ],
+    ));
+    p.tracks[0].slots.push(Slot {
+        scene,
+        clip: Some(sc),
+        stop: true,
+    });
+    let slot = SlotRef::new(lead, scene);
+    let press = |at: Ticks, input| Timed::at(at, input);
+    let inputs = [
+        press(
+            Ticks(10),
+            Input::Launch {
+                slot,
+                velocity: 1.0,
+            },
+        ),
+        press(Ticks::beats(10), Input::StopTrack { track: lead }),
+    ];
+    let mut rig = Rig::new();
+    rig.buf = vec![0.0; 441 * 2];
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("session start", 4);
+    for (i, h) in [8, 12, 16, 20].iter().enumerate() {
+        let known = &inputs[..(i + 1).min(inputs.len())];
+        let perf = plan(&p, known, Ticks::beats(*h)).perf;
+        rig.snapshot(&project_play(&p, &perf));
+        rig.play("session projection", 20);
+    }
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("session stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// Round 33 (ADR 0080): per-note expression on the audio thread — clip curves on every
+/// note of four listening instruments through a loop's wraps, a new snapshot and a seek;
+/// then a live MPE controller (the MCM, member notes with their bends, pressure and CC 74,
+/// a bend range RPN) while recording. Not one allocation.
+#[test]
+fn per_note_expression_never_allocates() {
+    use cantus_core::model::note_expr::zones::MpeZones;
+    use cantus_core::model::note_expr::{ExprKind, ExprPoint, NoteExpr};
+    let mut p = Project::new("mpe");
+    p.tempo_bpm = 140.0;
+    let st = |x: f64| ExprKind::Bend.store(x);
+    let mut live = None;
+    for kind in [
+        InstrumentKind::Wavetable,
+        InstrumentKind::Analog,
+        InstrumentKind::Fm,
+        InstrumentKind::Bass,
+    ] {
+        let mut t = p.make_track("t");
+        t.instrument = InstrumentSpec::Native(NativeSpec::new(kind));
+        live.get_or_insert(t.id);
+        let mut c = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
+        for i in 0..4 {
+            let mut n = p.make_note(Ticks::beats(i), Ticks::beats(1), 48 + i as u8 * 3, 100);
+            n.expr = NoteExpr {
+                bend: (0..20)
+                    .map(|k| ExprPoint(k * 48, st((k % 5) as f64 * 0.4)))
+                    .collect(),
+                pressure: vec![
+                    ExprPoint(0, 0),
+                    ExprPoint(900, ExprKind::Pressure.store(1.0)),
+                ],
+                timbre: vec![ExprPoint(0, ExprKind::Timbre.store(0.2))],
+            }
+            .boxed();
+            c.notes.push(n);
+        }
+        t.clips.push(c);
+        p.tracks.push(t);
+    }
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(1),
+        end: Ticks::beats(3),
+    });
+    p.loop_enabled = true;
+    let mut rig = Rig::new();
+    let snap = Snapshot::compile(&p, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("expression start and wraps", 60);
+    p.tracks[0].clips[0].notes[0].expr = None;
+    rig.snapshot(&p);
+    rig.play("expression new snapshot", 20);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+    rig.play("expression seek", 10);
+    // Live MPE, recording.
+    rig.tx.push(EngineMessage::SetLiveTrack(live)).unwrap();
+    rig.tx
+        .push(EngineMessage::SetMpe(Some(MpeZones::standard())))
+        .unwrap();
+    rig.tx.push(EngineMessage::SetRecording(true)).unwrap();
+    rig.play("mpe on", 2);
+    let ev = |status: u8, data1: u8, data2: u8| {
+        EngineMessage::Midi(cantus_engine::MidiEvent {
+            status,
+            data1,
+            data2,
+        })
+    };
+    for (s, d1, d2) in [(0xB0, 101, 0), (0xB0, 100, 6), (0xB0, 6, 15)] {
+        rig.tx.push(ev(s, d1, d2)).unwrap();
+    }
+    for i in 0..30u8 {
+        let ch = 1 + i % 15;
+        rig.tx.push(ev(0xE0 | ch, 0, 64 + i)).unwrap();
+        rig.tx.push(ev(0xB0 | ch, 74, i * 4)).unwrap();
+        rig.tx.push(ev(0x90 | ch, 48 + i % 24, 100)).unwrap();
+        rig.tx.push(ev(0xD0 | ch, i * 4, 0)).unwrap();
+        rig.tx.push(ev(0xB0 | ch, 101, 0)).unwrap();
+        rig.tx.push(ev(0xB0 | ch, 100, 0)).unwrap();
+        rig.tx.push(ev(0xB0 | ch, 6, 24 + i % 24)).unwrap();
+        rig.play("mpe notes", 1);
+        rig.tx.push(ev(0x80 | ch, 48 + i % 24, 30)).unwrap();
+    }
+    rig.play("mpe release", 2);
+    rig.tx.push(EngineMessage::SetMpe(None)).unwrap();
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("mpe off and stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+// ---- round 33, sync (ADR 0078–0079) ----------------------------------------------------
+
+/// A clock that moves one 512-frame block each time the audio thread reads it.
+static SYNC_NOW: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1_000_000);
+fn sync_now() -> i64 {
+    SYNC_NOW.fetch_add(10_667, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Following and making clock (round 33): a Link session joined in phase and followed
+/// through a tempo change (retunes, new stretches), MIDI clock and time code out with a
+/// loop's wraps, then a MIDI clock source, then none (unfollow) — on the audio thread and
+/// the pool. Not one allocation, not one free.
+#[test]
+fn following_and_clock_out_never_allocate() {
+    use cantus_engine::transport::sync::{self, SourceKind, Timeline};
+    for workers in [None, Some(Workers::parallel(3))] {
+        let mut p = demo_project();
+        p.loop_region = Some(LoopRegion {
+            start: Ticks::beats(1),
+            end: Ticks::beats(5),
+        });
+        p.loop_enabled = true;
+        let mut rig = Rig::with(workers);
+        let (port, handle) = sync::pair();
+        rig.p.attach_sync_clocked(port, None, sync_now);
+        handle
+            .shared
+            .out
+            .clock
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        handle
+            .shared
+            .out
+            .mtc
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        rig.snapshot(&p);
+        let mut tl = Timeline {
+            kind: SourceKind::Link,
+            tempo: 120.0,
+            host: 0,
+            position: 0.0,
+            rate: 1.0,
+            playing: true,
+            quantum: 4.0,
+            start_stop: true,
+            epoch: 1,
+        };
+        handle.shared.timeline.publish(&tl);
+        rig.play("sync: Link joined and followed", 400);
+        tl.tempo = 133.0;
+        tl.host = SYNC_NOW.load(std::sync::atomic::Ordering::Relaxed);
+        tl.position = 77.0;
+        handle.shared.timeline.publish(&tl);
+        rig.play("sync: a tempo change and a jump", 200);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("sync: our stop (a proposal)", 20);
+        tl.kind = SourceKind::Clock;
+        tl.quantum = 0.0;
+        tl.host = SYNC_NOW.load(std::sync::atomic::Ordering::Relaxed);
+        handle.shared.timeline.publish(&tl);
+        rig.play("sync: a MIDI clock followed", 200);
+        handle.shared.timeline.publish(&Timeline::default());
+        rig.play("sync: none (unfollowed)", 40);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "sync allocated or freed: {:?} (the first of the last phase: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+        drop(handle);
+    }
+}
+
+/// Review finding 10: snapshots installed inside a block (they waited for the automation's
+/// grid) while another thread drains and drops the garbage as fast as it comes — as the
+/// interface does — never leave the old snapshot's last reference to the audio thread.
+#[test]
+fn a_deferred_install_never_frees_on_the_audio_thread() {
+    let mut p = demo_project();
+    let lead = p.tracks[0].id;
+    let c = p.make_automation_clip(
+        "a",
+        AutoTarget::TrackGain(lead),
+        Ticks::ZERO,
+        Ticks::beats(64),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.2),
+            AutoPoint::new(Ticks::beats(64), 0.9),
+        ],
+    );
+    p.tracks[0].clips.push(c);
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(256);
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut proc = Processor::without_midi(48_000.0, rx_engine, tx_engine);
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let s2 = stop.clone();
+    let drain = std::thread::spawn(move || {
+        while !s2.load(std::sync::atomic::Ordering::Relaxed) {
+            while let Ok(ev) = rx.pop() {
+                drop(ev);
+            }
+            std::hint::spin_loop();
+        }
+    });
+    let send = |tx: &mut rtrb::Producer<EngineMessage>, p: &Project, rev: u64| {
+        let snap = Arc::new(Snapshot::compile(p, rev));
+        tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+            .unwrap();
+        tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    };
+    send(&mut tx, &p, 1);
+    tx.push(EngineMessage::Play).unwrap();
+    let mut buf = vec![0f32; 441 * 2];
+    proc.process(&mut buf, 2);
+    let mut events = 0;
+    for rev in 2..60 {
+        send(&mut tx, &p, rev);
+        for _ in 0..3 {
+            let ((), n) = armed(|| proc.process(&mut buf, 2));
+            events += n;
+        }
+    }
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    drain.join().unwrap();
+    assert_eq!(events, 0, "the audio thread allocated or freed");
+}
+
+/// N3: an install while playing that ends notes cut behind the playhead walks the list the
+/// snapshot carries (`Snapshot::cut_from`, worked out off the audio thread): not one
+/// allocation.
+#[test]
+fn an_install_that_ends_cut_notes_never_allocates() {
+    let mut p = demo_project();
+    let mut c = p.make_clip("long", Ticks::ZERO, Ticks::beats(16));
+    for k in 0..8u8 {
+        let n = p.make_note(Ticks::ZERO, Ticks::beats(16), 48 + k, 100);
+        c.notes.push(n);
+    }
+    p.tracks[0].clips.push(c);
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(256);
+    let (tx_engine, _rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut proc = Processor::without_midi(48_000.0, rx_engine, tx_engine);
+    let old = Arc::new(Snapshot::compile(&p, 1));
+    tx.push(EngineMessage::Automation(AutomationRuntime::build(&old)))
+        .unwrap();
+    tx.push(EngineMessage::SetSnapshot(old.clone())).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    let mut buf = vec![0f32; 480 * 2];
+    // A second in: beat 2.
+    for _ in 0..100 {
+        proc.process(&mut buf, 2);
+    }
+    let last = p.tracks[0].clips.len() - 1;
+    p.tracks[0].clips[last].length = Ticks::beats(1);
+    let mut new = Snapshot::compile(&p, 2);
+    new.cut_from(&old, Ticks::beats(2));
+    assert_eq!(new.cuts.len(), 8);
+    let new = Arc::new(new);
+    tx.push(EngineMessage::Automation(AutomationRuntime::build(&new)))
+        .unwrap();
+    tx.push(EngineMessage::SetSnapshot(new)).unwrap();
+    let mut events = 0;
+    for _ in 0..4 {
+        let ((), n) = armed(|| proc.process(&mut buf, 2));
+        events += n;
+    }
+    drop(old);
+    assert_eq!(events, 0, "the audio thread allocated or freed");
+}

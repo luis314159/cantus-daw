@@ -151,6 +151,8 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
             }
         }
     }
+    // While Link is followed a gesture moves the session's tempo (round 33). r33:sync
+    let by = super::sync::take_tempo_gesture(app, if gesture { by } else { 0.0 }); // r33:sync
     if resp.double_clicked() {
         app.topbar.tempo_rest = 0.0;
         let by = 120.0 - app.tempo_point_now();
@@ -165,7 +167,7 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
         app.topbar.tempo_rest = 0.0;
         app.end_gesture();
     }
-    let bpm = app.tempo_now();
+    let bpm = super::sync::followed_tempo(app).unwrap_or_else(|| app.tempo_now()); // r33:sync
     let st = State::of(&resp, false);
     if st.hovered {
         hint::set(

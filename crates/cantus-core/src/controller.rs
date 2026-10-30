@@ -24,6 +24,7 @@ use crate::automation::range::range_of;
 use crate::automation::{AutoTarget, Shape};
 use crate::command::{Command, CommandError};
 use crate::model::{EffectId, Project, StripId, TrackId};
+use crate::session::{Quantize, SceneId};
 use crate::time::Ticks;
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +32,9 @@ use serde::{Deserialize, Serialize};
 pub mod drive;
 #[path = "controller_learn.rs"]
 pub mod learn;
+// Round 33 (ADR 0077): Launchpads and APCs as grids of the session view.
+#[path = "controller_grid.rs"]
+pub mod grid;
 
 pub use drive::{Drive, DriveState, Input, Steps};
 
@@ -364,6 +368,53 @@ pub enum MappingTarget {
     SelectedStrip(DeskParam),
     /// The focused device's parameter `n` (0…7, global maps).
     DeviceParam(u8),
+    /// A session slot's launcher (round 33, ADR 0077): a press launches it (at the pad's
+    /// velocity), a release releases it (a gate clip stops). Rides schema 46, which brought
+    /// the session these name: no older file can hold one.
+    SessionSlot {
+        track: TrackId,
+        scene: SceneId,
+    },
+    /// A scene's launcher: its row launched, and released.
+    SessionScene(SceneId),
+    /// A track's session stop button.
+    SessionStop(TrackId),
+    /// The session's global launch quantisation, stepped through [`SESSION_QUANTIZE`] (a
+    /// knob or an encoder; portable).
+    SessionQuantize,
+}
+
+/// The values a controller steps the session's global launch quantisation through, in
+/// order: every `Quantize` but `Global`, which the global setting never is.
+pub const SESSION_QUANTIZE: [Quantize; 14] = [
+    Quantize::None,
+    Quantize::Bars8,
+    Quantize::Bars4,
+    Quantize::Bars2,
+    Quantize::Bar,
+    Quantize::Half,
+    Quantize::HalfTriplet,
+    Quantize::Quarter,
+    Quantize::QuarterTriplet,
+    Quantize::Eighth,
+    Quantize::EighthTriplet,
+    Quantize::Sixteenth,
+    Quantize::SixteenthTriplet,
+    Quantize::ThirtySecond,
+];
+
+/// Where `q` sits on a controller's travel (0…1) among [`SESSION_QUANTIZE`] (a bar for
+/// `Global`).
+pub fn quantize_pos(q: Quantize) -> f32 {
+    let i = SESSION_QUANTIZE.iter().position(|x| *x == q).unwrap_or(4);
+    i as f32 / (SESSION_QUANTIZE.len() - 1) as f32
+}
+
+/// The quantisation at `pos` (0…1) of a controller's travel.
+pub fn quantize_at(pos: f32) -> Quantize {
+    let n = SESSION_QUANTIZE.len() - 1;
+    let i = (pos.clamp(0.0, 1.0) * n as f32).round() as usize;
+    SESSION_QUANTIZE[i.min(n)]
 }
 
 /// What the interface knows when a relative target is resolved.
@@ -389,9 +440,21 @@ impl MappingTarget {
             | MappingTarget::Action(_)
             | MappingTarget::SelectedTrack(_)
             | MappingTarget::SelectedStrip(_)
-            | MappingTarget::DeviceParam(_) => true,
+            | MappingTarget::DeviceParam(_)
+            | MappingTarget::SessionQuantize => true,
             _ => false,
         }
+    }
+
+    /// Whether it is a session launcher (a slot, a scene, a stop button): pressed and
+    /// released rather than set, its press telling the engine, not a command (ADR 0077).
+    pub fn is_launcher(&self) -> bool {
+        matches!(
+            self,
+            MappingTarget::SessionSlot { .. }
+                | MappingTarget::SessionScene(_)
+                | MappingTarget::SessionStop(_)
+        )
     }
 
     /// Whether it names something only once the interface says what is selected or focused.
@@ -422,9 +485,10 @@ impl MappingTarget {
         }
     }
 
-    /// Whether a press fires it rather than setting a value.
+    /// Whether a press fires it rather than setting a value (an action, a session
+    /// launcher).
     pub fn is_action(&self) -> bool {
-        matches!(self, MappingTarget::Action(_))
+        matches!(self, MappingTarget::Action(_)) || self.is_launcher()
     }
 
     /// Whether the address is well formed (what a command accepts).
@@ -495,6 +559,13 @@ impl MappingTarget {
             MappingTarget::StripArm(s) => {
                 project.strip(*s).is_some() && Self::armable(project, *s).next().is_some()
             }
+            // A slot is there while its track and its scene are (empty or not: an empty
+            // slot's launcher is its stop button).
+            MappingTarget::SessionSlot { track, scene } => {
+                project.track(*track).is_some() && project.session.scene(*scene).is_some()
+            }
+            MappingTarget::SessionScene(id) => project.session.scene(*id).is_some(),
+            MappingTarget::SessionStop(t) => project.track(*t).is_some(),
             _ => true,
         }
     }
@@ -572,6 +643,9 @@ impl MappingTarget {
                 };
                 let (lo, hi) = TEMPO_TRAVEL;
                 Some((((bpm - lo) / (hi - lo)) as f32).clamp(0.0, 1.0))
+            }
+            MappingTarget::SessionQuantize => {
+                Some(quantize_pos(project.session.settings.launch_quantize))
             }
             _ => None,
         }
@@ -660,6 +734,15 @@ impl MappingTarget {
             MappingTarget::Tempo => {
                 let (lo, hi) = TEMPO_TRAVEL;
                 crate::tempo::edit::set_tempo_at(project, at, lo + f64::from(pos) * (hi - lo))
+            }
+            MappingTarget::SessionQuantize => {
+                let q = quantize_at(pos);
+                let mut settings = project.session.settings;
+                if settings.launch_quantize == q {
+                    return None;
+                }
+                settings.launch_quantize = q;
+                Command::Session(crate::session::SessionCommand::SetSettings { settings })
             }
             _ => return None,
         })

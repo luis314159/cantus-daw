@@ -107,6 +107,9 @@ pub(super) struct Voice {
     penv_at_rel: f32,
     /// MPE: tuning (st), pressure, slide, pan, volume.
     pub mpe: [f32; 5],
+    /// Where tuning, pressure and slide are heading (ADR 0080): each tick moves them there
+    /// (`expr_glide`), so a stream of values is a glide, not a staircase.
+    pub mpe_to: [f32; 3],
     /// Stream sample of the start: age for stealing is the allocator's, this is the display's.
     pub started: u64,
 }
@@ -154,6 +157,7 @@ impl Default for Voice {
             rel_at: 0.0,
             penv_at_rel: 0.0,
             mpe: [0.0, 0.0, 0.0, 0.0, 1.0],
+            mpe_to: [0.0; 3],
             started: 0,
         }
     }
@@ -261,6 +265,7 @@ impl Voice {
             0.0
         };
         self.mpe = [0.0, 0.0, 0.0, 0.0, 1.0];
+        self.mpe_to = [0.0; 3];
         self.elapsed = 0.0;
         self.started = c.clock;
         self.lfo_rate_off = [0.0; 2];
@@ -349,12 +354,25 @@ impl Voice {
     pub fn glide_to(&mut self, key: u8, id: u64, p: &Patch) {
         self.key = key;
         self.id = id;
+        // Another note now: none of the last one's expression (ADR 0080, as Gravis does).
+        self.mpe[..3].copy_from_slice(&[0.0; 3]);
+        self.mpe_to = [0.0; 3];
         self.pitch_to = key as f32;
         self.glide_rate = if p.glide > 0.0 {
             (self.pitch_to - self.pitch).abs() / p.glide
         } else {
             f32::INFINITY
         };
+    }
+
+    /// Tuning, pressure and slide glide to `value` (taken at once by a voice that has not
+    /// sounded: `fresh`); pan and volume jump.
+    pub fn expression_glided(&mut self, which: usize, value: f32, fresh: bool) {
+        if which < 3 {
+            crate::expr_glide::set(&mut self.mpe[which], &mut self.mpe_to[which], value, fresh);
+        } else {
+            self.expression(which, value);
+        }
     }
 
     pub fn expression(&mut self, which: usize, value: f32) {

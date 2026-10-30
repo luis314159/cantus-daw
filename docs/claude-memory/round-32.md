@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 271fd517-87c3-4eb3-b87b-ab7b41315f89
-  modified: 2026-10-28T14:40:03.926Z
+  modified: 2026-10-29T16:22:00.205Z
 ---
 
 Round 32 = BACKLOG §6h point 1 (a skin per unit) + notation (§0.2). Item 0 had nothing:
@@ -78,6 +78,14 @@ ignored, fuzz 895, clippy clean; Linux (WSL) clippy clean (with and without edit
 STATUS, integration.md, release notes, next-session (round 33 Ableton) written. Then: squash to
 master, push origin, publish.sh to cantus-daw, tag v0.1.0-beta.7, watch release + macos.yml.
 Worktrees daw-r32/{skin,score,instruments,dynamics,modulation,scoreview} to remove after publish.
+
+**Released 2026-10-29:** master c8645c7f squashed, published (cantus-daw 5428d9dc). The first
+Release run failed at `cargo fmt --all -- --check` on the Windows runner (os error 206, command
+line too long) — fixed in release.yml by checking `cargo fmt -p` per package (dae82a93,
+public 809644f8); the owner approved moving the tag, v0.1.0-beta.7 re-pushed on 809644f8;
+Release, CI and macOS green; GitHub release v0.1.0-beta.7 published (Windows + Linux).
+Builder worktrees removed; daw-r32/integration (99118a53, its target) and daw-r32/musicxml kept.
+Moving a pushed tag needs the owner's explicit OK (the classifier blocks deleting a remote tag).
 
 **How to apply:** round 33's prompt is docs/next-session.md (Ableton core; AI = round 34).
 Lessons: start families early on colours/displays and merge the kit when it lands; give every

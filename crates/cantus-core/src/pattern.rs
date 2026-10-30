@@ -41,7 +41,7 @@ impl PatternRegion {
     /// channel rack edit. `None` when there is no such clip, it holds audio or automation,
     /// or it has no length.
     pub fn of(project: &Project, track: TrackId, clip: ClipId) -> Option<PatternRegion> {
-        let c = project.track(track)?.clip(clip)?;
+        let c = project.track(track)?.arranged(clip)?; // r33:session
         if !is_pattern_clip(c) {
             return None;
         }

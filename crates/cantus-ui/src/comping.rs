@@ -586,6 +586,9 @@ pub fn explode_takes(project: &Project, tid: TrackId, take_word: &str, ids: Ids)
         nt.modulators = Vec::new();
         nt.comps = Vec::new();
         nt.active_comp = 0;
+        // Nor its session column: those clips are this track's (ADR 0076). // r33:session
+        // r33:session
+        nt.slots = Vec::new();
         // r31 midi: its note effects, as the track's, under ids of its own (ADR 0069).
         cantus_core::notefx::renew_ids(&mut nt.note_fx, &mut *ids);
         let mut cmds = vec![Command::InsertTrack {

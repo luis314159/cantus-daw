@@ -88,6 +88,9 @@ pub struct Kept {
     to_entry: Vec<f64>,
     /// The lines: indices into `windows`, one take each.
     lines: Vec<Vec<usize>>,
+    /// The session's unwarped audio clips, and the tempo at bar 1 (ADR 0076). // r33:session
+    session: Vec<(crate::session::SlotRef, crate::session::SlotRegion)>, // r33:session
+    session_bpm: f64, // r33:session
 }
 
 /// Whether `cmd` can change the tempo map (a tempo command, or a batch holding one).
@@ -172,7 +175,9 @@ pub fn before(project: &Project, cmd: &Command) -> Option<Kept> {
             }
         }
     }
-    if windows.is_empty() {
+    let session = crate::session::tempo_kept(project); // r33:session
+    if windows.is_empty() && session.is_empty() {
+        // r33:session (or a session clip to keep)
         return None;
     }
     // One line a take: the same file, the same direction, the same line within a frame.
@@ -214,6 +219,8 @@ pub fn before(project: &Project, cmd: &Command) -> Option<Kept> {
         line,
         to_entry,
         lines,
+        session,                      // r33:session
+        session_bpm: map.bpm_at(0.0), // r33:session
     })
 }
 
@@ -419,5 +426,11 @@ pub fn after(kept: &Kept, project: &Project) -> Vec<Command> {
             active,
         });
     }
+    // The session's unwarped audio keeps its seconds too. // r33:session
+    out.extend(crate::session::tempo_keep_after(
+        &kept.session,
+        kept.session_bpm,
+        project,
+    )); // r33:session
     out
 }

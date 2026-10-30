@@ -29,6 +29,10 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+/// Launchpads and APCs as grids of the session view (round 33, ADR 0077).
+#[path = "controllers_grid.rs"]
+pub mod grid;
+
 /// Which map a mapping is in.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Scope {
@@ -210,6 +214,8 @@ pub struct ControllerUi {
     pub(crate) buf: Vec<Heard>,
     /// The mappings view's state.
     pub view: crate::views::controllers::ViewState,
+    /// The ports driven as session grids (round 33, ADR 0077).
+    pub grids: grid::Grids,
 }
 
 impl std::fmt::Debug for ControllerUi {
@@ -218,6 +224,24 @@ impl std::fmt::Debug for ControllerUi {
             .field("global", &self.global.mappings.len())
             .field("learn_mode", &self.learn_mode)
             .finish()
+    }
+}
+
+/// The application going away (closing, or unwinding from a panic): every grid is given
+/// back to its own mode, so a Launchpad does not stay in programmer mode, nor an APC40 in
+/// Live's (round 33, ADR 0077). `grid::release_all` does it first on the close path.
+impl Drop for ControllerUi {
+    fn drop(&mut self) {
+        for p in std::mem::take(&mut self.grids.ports) {
+            for m in p.device.goodbye() {
+                match self.feedback_log.as_mut() {
+                    Some(log) => log.push((p.name.clone(), m)),
+                    None => {
+                        let _ = self.outputs.send(&p.name, &m);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -231,6 +255,8 @@ impl ControllerUi {
         self.echoes.clear();
         self.wide.clear();
         self.states.clear();
+        // The grids are greeted again: a replugged device starts in its own mode.
+        self.grids = grid::Grids::default();
     }
 }
 
@@ -573,6 +599,13 @@ impl CantusApp {
             MappingTarget::SelectedStrip(d) => two(t("ctl.target.selected_strip"), desk_text(*d)),
             MappingTarget::DeviceParam(n) => {
                 tf("ctl.target.device_param", &[("n", &(u32::from(*n) + 1))])
+            }
+            // The session's (round 33, ADR 0077).
+            MappingTarget::SessionSlot { .. }
+            | MappingTarget::SessionScene(_)
+            | MappingTarget::SessionStop(_)
+            | MappingTarget::SessionQuantize => {
+                crate::views::session::learn::target_name(self, target).unwrap_or_default()
             }
         }
     }
@@ -993,7 +1026,7 @@ impl CantusApp {
     }
 
     /// An insert's first parameters: continuous ones first, its mix last.
-    fn effect_params(&self, effect: cantus_core::EffectId) -> Vec<AutoTarget> {
+    pub(crate) fn effect_params(&self, effect: cantus_core::EffectId) -> Vec<AutoTarget> {
         let p = self.project();
         let Some(slot) = p.effect_host(effect).and_then(|h| p.effect(h, effect)) else {
             return Vec::new();
@@ -1027,7 +1060,7 @@ impl CantusApp {
     }
 
     /// A track's instrument's first parameters.
-    fn instrument_params(&self, track: cantus_core::TrackId) -> Vec<AutoTarget> {
+    pub(crate) fn instrument_params(&self, track: cantus_core::TrackId) -> Vec<AutoTarget> {
         let n = usize::from(cantus_core::controller::DEVICE_PARAMS);
         let Some(tr) = self.project().track(track) else {
             return Vec::new();

@@ -10,6 +10,7 @@
 pub mod export;
 pub mod gm;
 pub mod import;
+pub mod mpe;
 pub mod smf;
 
 pub use export::{

@@ -21,6 +21,15 @@ impl Voice {
         let sr = base_sr * q as f32;
         let elapsed = (self.since - self.last_tick) as f32;
         self.last_tick = self.since;
+        // Per-note expression toward its targets (ADR 0080); untouched when at them.
+        let k = if first {
+            1.0
+        } else {
+            crate::expr_glide::coef(elapsed, base_sr)
+        };
+        crate::expr_glide::toward(&mut self.tuning, self.expr_to[0], k);
+        crate::expr_glide::toward(&mut self.pressure, self.expr_to[1], k);
+        crate::expr_glide::toward(&mut self.slide, self.expr_to[2], k);
         // ---- sources ----
         self.src = *g.src;
         for e in 0..4 {

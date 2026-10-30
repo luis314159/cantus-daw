@@ -38,6 +38,11 @@ pub mod pattern;
 pub mod perf;
 #[path = "transport_snap.rs"]
 mod snap;
+// Link, MIDI clock and time code: the bar's group and the service (round 33). r33:sync
+#[path = "transport_sync.rs"]
+pub mod sync;
+#[path = "../sync_service.rs"]
+pub mod sync_service;
 #[path = "transport_tap.rs"]
 pub mod tap;
 #[path = "transport_tempo.rs"]
@@ -153,8 +158,10 @@ fn shown_into(app: &CantusApp, out: &mut [Option<Group>; COUNT]) -> usize {
     let mut order = [None; COUNT];
     let len = layout::resolve_into(&tb.order, &mut order);
     let mut n = 0;
+    let in_use = app.settings.sync.source != sync_service::SyncSource::None; // r33:sync
     for g in order[..len].iter().flatten() {
-        if !tb.hidden.iter().any(|h| h == g.id()) {
+        if g.is_shown(&tb.hidden, &tb.shown, in_use) {
+            // r33:sync
             out[n] = Some(*g);
             n += 1;
         }
@@ -253,6 +260,7 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
             }
         }
         Group::Tools => fixed(keys::tools_width(ctx, s)),
+        Group::Sync => fixed(sync::width(ctx, s)), // r33:sync
     }
 }
 
@@ -397,6 +405,7 @@ fn draw(g: Group, app: &mut CantusApp, ui: &mut Ui, rect: Rect, s: &Style) {
             super::audio_chip::show(app, ui, chip);
         }
         Group::Tools => keys::tools(app, ui, rect, s),
+        Group::Sync => sync::show(app, ui, rect, s), // r33:sync
     }
 }
 

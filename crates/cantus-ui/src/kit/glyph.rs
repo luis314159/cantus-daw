@@ -133,6 +133,8 @@ pub enum Glyph {
     LaneLine,
     /// A bent segment between two dots: a lane's curve tool.
     LaneCurve,
+    /// The session view (round 33, ADR 0077): a grid of clip cells, one playing. // r33:launcher
+    Session, // r33:launcher
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -440,6 +442,7 @@ fn workspace(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
             b.circle(p(-4.4, 3.6), 1.3 * u, Fill::Solid(color));
             b.circle(p(4.4, -3.6), 1.3 * u, Fill::Solid(color));
         }
+        Glyph::Session => crate::views::session::paint::glyph(b, c, u, w, color), // r33:launcher
         _ => window(b, g, c, u, w, color),
     }
 }

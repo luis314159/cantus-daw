@@ -1,0 +1,67 @@
+# Área: sincronía — Ableton Link, reloj MIDI y song position, código de tiempo MIDI, entrada
+# y salida (ronda 33, ADR 0078–0079). Cada clave tiene su gemela en sync.en.txt.
+
+# El grupo de la barra superior.
+sync.group = Sincronía
+sync.topbar.link = Link
+sync.topbar.quantum = Q
+sync.topbar.ext = Ext
+sync.tip.link_off = Ableton Link está apagado. Haz clic para compartir tempo, fase e inicio/parada con las aplicaciones de tu red; clic derecho para Ajustes › MIDI
+sync.tip.link_on_one = Ableton Link está encendido: otra aplicación en la sesión. Haz clic para salir
+sync.tip.link_on = Ableton Link está encendido: {n} aplicaciones más en la sesión. Haz clic para salir
+sync.tip.link_failed = Ableton Link no pudo abrir ninguna interfaz de red (sin conexión, o el puerto rechazado); sigue buscando cada 30 segundos. Haz clic para apagarlo
+sync.tip.quantum = Cuanto: {q} tiempos — Link iguala la fase dentro de él (4 es un compás de 4/4). Haz clic para cambiarlo
+sync.tip.ext = Siguiendo {source}: {tempo} BPM, {state}. Haz clic para Ajustes › MIDI
+sync.tip.ext_none = No sigue nada: suena el tempo del proyecto. Haz clic para elegir una fuente en Ajustes › MIDI
+sync.source.none = nada
+sync.source.link = Ableton Link
+sync.source.clock = el reloj MIDI
+sync.source.mtc = el código de tiempo MIDI
+sync.lock.locked = enganchado
+sync.lock.seeking = ajustándose
+sync.lock.queued = esperando su momento
+sync.lock.idle = parado
+
+# Ajustes › MIDI.
+sync.band.inputs = Entradas
+sync.band.outputs = Salidas
+sync.band.sync = Sincronía
+sync.col.port = Puerto
+sync.col.notes = Notas
+sync.col.controllers = Controles
+sync.col.clock = Reloj
+sync.col.mtc = MTC
+sync.col.feedback = Respuesta
+sync.col.offset = Desfase
+sync.no_outputs = No hay salidas MIDI.
+sync.source = Seguir
+sync.seg.off = No
+sync.seg.link = Link
+sync.seg.clock = Reloj
+sync.seg.mtc = MTC
+sync.port = Del puerto
+sync.port.none = Elige un puerto
+sync.quantum = Cuanto
+sync.start_stop = Inicio/parada
+sync.mtc_rate = Cuadros
+sync.mtc_offset = Código inicial
+sync.mtc_offset_hint = hh:mm:ss:cc
+sync.mtc_offset_bad = Escríbelo como hh:mm:ss:cc (por ejemplo 01:00:00:00), dentro de los cuadros de la tasa.
+sync.status.none = Suena el tempo del proyecto.
+sync.status.link_one = Link: otra aplicación en la sesión, {tempo} BPM.
+sync.status.link = Link: {n} aplicaciones más en la sesión, {tempo} BPM.
+sync.status.link_failed = Link: no se pudo abrir ninguna interfaz de red (sin red, o el puerto rechazado). Cantus sigue buscando cada 30 segundos.
+sync.status.following = Siguiendo {source}: {tempo} BPM, {state}.
+sync.status.no_port = Elige el puerto del que llega el reloj o el código de tiempo.
+sync.status.silent = Aún no llega nada por {port}.
+sync.note.firewall = Link habla con las aplicaciones de tu red por UDP: la primera vez que se enciende, Windows puede pedir que dejes pasar a Cantus por su cortafuegos.
+sync.note.offset = El desfase de una salida envía sus mensajes tanto más tarde (antes, bajo cero) que el audio — para un aparato que responde tarde.
+sync.offset_value = {ms} ms
+sync.tip.in_clock = Seguir el reloj MIDI de este puerto (una fuente a la vez)
+sync.tip.in_mtc = Perseguir el código de tiempo de este puerto (una fuente a la vez)
+sync.tip.notes = Las notas de este puerto llegan a los instrumentos y al mapa de controladores; apagadas, las teclas ya pulsadas se sueltan igual
+sync.tip.controllers = Sus controles, inflexión de tono y presión les llegan; en un puerto MPE llevan también la inflexión, la presión y el timbre de cada nota — apagados, esos callan
+sync.tip.out_clock = Enviar reloj MIDI y la posición de la canción por este puerto
+sync.tip.out_mtc = Enviar código de tiempo por este puerto
+sync.tip.feedback = La respuesta a los controladores (luces, faders motorizados) puede usar este puerto
+sync.tip.offset = Los mensajes de este puerto salen tanto más tarde (antes, bajo cero) que el audio; ‹ › avanzan medio milisegundo, un clic pone cero

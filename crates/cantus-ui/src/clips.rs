@@ -25,8 +25,9 @@ pub type ClipRef = (TrackId, ClipId);
 /// Fresh ids from the project's monotonic source (`CommandBus::alloc_id`).
 pub type Ids<'a> = &'a mut dyn FnMut() -> u64;
 
+/// An arrangement clip of the selection (a session clip is never one, ADR 0076).
 pub fn clip_of(project: &Project, r: ClipRef) -> Option<&Clip> {
-    project.track(r.0)?.clip(r.1)
+    project.track(r.0)?.arranged(r.1) // r33:session
 }
 
 /// Move or resize a clip's window while its content stays put on the timeline.
@@ -457,6 +458,7 @@ pub fn changes_content(cmd: &Command, id: ClipId) -> bool {
         Command::InsertNotes { clip, .. }
         | Command::RemoveNotes { clip, .. }
         | Command::SetNotes { clip, .. }
+        | Command::SetNoteExpr { clip, .. }
         | Command::SetClipAudio { clip, .. }
         | Command::SetClipAutomation { clip, .. }
         | Command::SetClipLanes { clip, .. }

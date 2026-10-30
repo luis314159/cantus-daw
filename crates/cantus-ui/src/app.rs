@@ -168,6 +168,8 @@ pub struct CantusApp {
     pub audio_setup: crate::audio_setup::AudioSetup,
     pub midi_port_names: Vec<String>,
     pub(crate) midi_inputs: Option<MidiInputs>,
+    /// Link, MIDI clock and time code (round 33, ADR 0078–0079). r33:sync
+    pub(crate) sync: crate::views::transport::sync_service::SyncService, // r33:sync
     live_track_sent: Option<Option<TrackId>>,
     /// The look as the user set it: light and dark, a base theme for each, and every
     /// change on top (`kit::appearance`). Kept in `appearance.json`; an older `theme.json`
@@ -295,6 +297,9 @@ pub struct CantusApp {
     pub workflow: crate::workflow::WorkflowUi,
     /// The score (round 32, ADR 0075): the staff under the piano roll, the Score pane.
     pub score: crate::score::ScoreUi,
+    pub session_view: crate::views::session::SessionView, // r33:launcher
+    /// The session's conductor (ADR 0076 §7). // r33:session
+    pub perform: crate::session_play::Conductor, // r33:session
 }
 
 impl CantusApp {
@@ -549,6 +554,8 @@ impl CantusApp {
             app.midi_port_names = inputs.names.clone();
             app.midi_inputs = Some(inputs);
         }
+        crate::views::transport::sync_service::wire(&mut app); // r33:sync
+        crate::mpe::input::publish(&mut app); // r33:mpe — the MPE ports and zones (ADR 0080)
         crate::audio_setup::arm_first_run(&mut app);
         // The templates' folder, the recent projects and the palette's uses (round 31); the
         // start page at start, unless a project was given or the switch is off.
@@ -666,6 +673,7 @@ impl CantusApp {
             audio_setup: Default::default(),
             midi_port_names: Vec::new(),
             midi_inputs: None,
+            sync: Default::default(), // r33:sync
             live_track_sent: None,
             appearance: Default::default(),
             appearance_path: views::appearance_file::path(&config_dir()),
@@ -734,6 +742,8 @@ impl CantusApp {
             controllers: Default::default(),
             workflow: Default::default(),
             score: Default::default(),
+            session_view: Default::default(), // r33:launcher
+            perform: Default::default(),      // r33:session
         };
         app.select_first();
         app.sync_live_track();
@@ -760,8 +770,9 @@ impl CantusApp {
             return false;
         }
         self.note_tweak(&cmd);
-        // Another project in its place (an import, a recovery): what was about the last
-        // one is not about this one (review 2: the tempo lane's state).
+        let tempo_edit = crate::views::transport::sync_service::is_tempo_edit(&cmd); // r33:sync
+                                                                                     // Another project in its place (an import, a recovery): what was about the last
+                                                                                     // one is not about this one (review 2: the tempo lane's state).
         let replaces = matches!(cmd, Command::ReplaceProject { .. });
         // A write pass open now is this project's (integrated review #1): it ends here,
         // into this project's history, never into the one coming.
@@ -773,6 +784,7 @@ impl CantusApp {
                 if replaces {
                     self.epoch += 1;
                 }
+                crate::views::transport::sync_service::tempo_edited(self, tempo_edit); // r33:sync
                 true
             }
             // A frozen sound refused it (ADR 0064): which, and how to give it back.
@@ -792,8 +804,12 @@ impl CantusApp {
             return false;
         }
         self.note_tweak(&cmd);
+        let tempo_edit = crate::views::transport::sync_service::is_tempo_edit(&cmd); // r33:sync
         match self.bus.execute_merging(cmd, Origin::User, key) {
-            Ok(()) => true,
+            Ok(()) => {
+                crate::views::transport::sync_service::tempo_edited(self, tempo_edit); // r33:sync
+                true
+            }
             Err(cantus_core::CommandError::Frozen(target)) => {
                 crate::freeze::refused(self, target);
                 false
@@ -900,7 +916,7 @@ impl CantusApp {
         }
         let p = self.bus.project();
         self.selected_clips
-            .retain(|(t, c)| p.track(*t).and_then(|t| t.clip(*c)).is_some());
+            .retain(|(t, c)| p.track(*t).and_then(|t| t.arranged(*c)).is_some()); // r33:session
         self.selected_strips.retain(|s| p.strip(*s).is_some());
         if self.selected_strip.is_some_and(|s| p.strip(s).is_none()) {
             self.selected_strip = None;
@@ -1096,6 +1112,9 @@ impl CantusApp {
                     self.midi_port_names = inputs.names.clone();
                     self.midi_inputs = Some(inputs);
                 }
+                crate::views::transport::sync_service::engine_replaced(self); // r33:sync
+                                                                              // r33:mpe — the MPE ports and zones for the new engine (ADR 0080)
+                crate::mpe::input::publish(self);
                 // The new engine has never seen this project.
                 self.synced_revision = u64::MAX;
                 self.live_track_sent = None;
@@ -1131,6 +1150,10 @@ impl CantusApp {
         let inputs = MidiInputs::open_with(self.engine.midi_sender(), self.controllers.tap.clone());
         self.midi_port_names = inputs.names.clone();
         self.midi_inputs = Some(inputs);
+        crate::views::transport::sync_service::apply(self); // r33:sync
+        crate::mpe::input::publish(self); // r33:mpe
+        crate::controllers::grid::find(self); // r33:launcher
+        self.publish_controller_filter(); // r33:launcher
         self.set_status(tf(
             "settings.midi_rescanned",
             &[("n", &self.midi_port_names.len())],
@@ -2546,12 +2569,19 @@ impl CantusApp {
                 && (!only_selected || self.selected_notes.contains(&n.id))
             {
                 let tail = self.bus.new_note(tick, n.end() - tick, n.pitch, n.velocity);
+                // Each half keeps the expression it sounded (ADR 0080). // r33:mpe
+                let (left, right) = cantus_core::model::note_expr::ops::split(
+                    n.expr.as_deref(),
+                    (tick - n.start).0,
+                ); // r33:mpe
                 tails.push(cantus_core::Note {
                     muted: n.muted,
+                    expr: right, // r33:mpe
                     ..tail
                 });
                 shortened.push(cantus_core::Note {
                     length: tick - n.start,
+                    expr: left, // r33:mpe
                     ..n
                 });
             }
@@ -3236,6 +3266,7 @@ impl CantusApp {
     }
 
     pub fn sync_engine(&mut self) {
+        self.perform_frame(); // r33:session (the session's conductor, ADR 0076)
         self.sync_audio_base();
         // The frozen renders' folder follows the project before anything is compiled for
         // it (round 29, review 1).
@@ -3274,16 +3305,9 @@ impl CantusApp {
             self.synced_revision = rev;
             // Pattern mode (ADR 0052): the current pattern alone, looped; a count-in's
             // forced click over whichever plays (review 2).
-            let pattern = views::transport::pattern::project_to_play(self);
-            let mut snapshot = if let Some(p) = crate::count_in::project_to_compile(
-                pattern,
-                self.bus.project(),
-                self.rec.count_in_click,
-            ) {
-                self.engine.compile(&p, rev)
-            } else {
-                self.engine.compile(self.bus.project(), rev)
-            };
+            // r33:session: pattern mode, the count-in's click, the session's projection
+            // (ADR 0076).
+            let mut snapshot = crate::session_play::compile_to_play(self, rev);
             // A parameter a recording pass has moved follows its controller (ADR 0062).
             self.latch_recorded(&mut snapshot);
             self.sent_effects.clear();
@@ -3294,6 +3318,7 @@ impl CantusApp {
             self.host_notices(notices);
             self.engine.set_snapshot(snapshot);
         }
+        self.perform_after_sync(); // r33:session
     }
 
     /// What sample loads had to say (ADR 0050, review 8): once per kind and batch, on the
@@ -3538,6 +3563,10 @@ impl CantusApp {
         if crate::score::action(self, action) {
             return;
         }
+        if views::session::action(self, action) {
+            // r33:launcher
+            return; // r33:launcher
+        } // r33:launcher
         if crate::workflow::action(self, action) {
             return;
         }
@@ -3546,6 +3575,10 @@ impl CantusApp {
             MidiLearnMode | LinkLastTweaked | ViewControllers => {}
             // Handled by `score::action` above.
             ShowScore | ViewScore => {}
+            ToggleSessionView | SessionLaunch | SessionLaunchScene | SessionStopTrack // r33:launcher
+            | SessionStopAll | SessionRecordSlot | SessionArrangementRecord // r33:launcher
+            | SessionBackToArrangement | SessionCaptureScene | SessionInsertScene // r33:launcher
+            | SessionScenePrev | SessionSceneNext | ToggleLink => {} // r33:launcher
             // Handled by `workflow::action` above.
             CommandPalette | ViewHistory | NewFromTemplate | SaveAsTemplate | SaveTrackTemplate => {
             }
@@ -4009,6 +4042,7 @@ impl CantusApp {
         self.controller_input();
         // Writing automation (ADR 0068): holds and releases, after the frame's messages.
         self.auto_write_settle();
+        views::session::frame(self, ctx); // r33:launcher
         self.host_notices(notices);
         // Hosted plug-ins that were loading in their helper when opened: in their view now
         // (ADR 0073).
@@ -4093,6 +4127,7 @@ impl CantusApp {
             views::interop::stop_import(self);
             views::update::on_quit(self);
             self.close_session();
+            crate::controllers::grid::release_all(self); // r33:launcher
         }
 
         let dt = frame_start.elapsed().as_secs_f32();

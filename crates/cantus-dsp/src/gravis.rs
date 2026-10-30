@@ -250,6 +250,11 @@ pub struct Gravis {
     bend: Smooth,
     /// Per-note tuning of the sounding note (a note expression), semitones.
     expr_tuning: f32,
+    /// Where it is heading, the per-sample share it moves, and whether the note has not
+    /// sounded yet (its first value is taken at once) — ADR 0080's `expr_glide`.
+    expr_to: f32,
+    expr_k: f32,
+    expr_fresh: bool,
     note_id: u64,
     note_key: u8,
     vel: f32,
@@ -304,6 +309,9 @@ impl Gravis {
             glide: Glide::default(),
             bend: Smooth::new(4.0, sr),
             expr_tuning: 0.0,
+            expr_to: 0.0,
+            expr_k: crate::expr_glide::coef(1.0, sr),
+            expr_fresh: true,
             note_id: NO_ID,
             note_key: 60,
             vel: 0.0,
@@ -454,7 +462,13 @@ impl Gravis {
     /// A note expression's tuning (MPE bend), semitones, for the note with this id.
     pub fn set_note_tuning(&mut self, id: u64, st: f32) {
         if id == self.note_id {
-            self.expr_tuning = st.clamp(-48.0, 48.0);
+            let fresh = self.expr_fresh;
+            crate::expr_glide::set(
+                &mut self.expr_tuning,
+                &mut self.expr_to,
+                st.clamp(-48.0, 48.0),
+                fresh,
+            );
         }
     }
 
@@ -631,6 +645,8 @@ impl Gravis {
         self.note_key = key;
         self.note_id = id;
         self.expr_tuning = 0.0;
+        self.expr_to = 0.0;
+        self.expr_fresh = true;
         let glide = self.s.glide_trigger != GlideTrigger::Off;
         if glide {
             let n = self.glide_samples(self.glide.value(), note);
@@ -690,6 +706,8 @@ impl Gravis {
         let from = self.glide.value();
         let old_hz = hz(from + self.extra(), a4);
         self.expr_tuning = 0.0;
+        self.expr_to = 0.0;
+        self.expr_fresh = true;
         if glide && self.has_pitch {
             let n = self.glide_samples(from, note);
             self.glide.start(note, n, s.glide_shape);
@@ -820,6 +838,8 @@ impl Gravis {
         self.bend.snap(0.0);
         self.gain.snap(self.gain.target);
         self.expr_tuning = 0.0;
+        self.expr_to = 0.0;
+        self.expr_fresh = true;
         self.has_pitch = false;
         self.tail_quiet = 0;
     }
@@ -843,6 +863,7 @@ impl Gravis {
             && self.bend.value == 0.0
             && self.bend.target == 0.0
             && self.expr_tuning == 0.0
+            && self.expr_to == 0.0
             && (self.s.glide_trigger != GlideTrigger::Always || !self.has_pitch)
     }
 
@@ -977,6 +998,8 @@ impl Gravis {
     fn sample(&mut self) -> (f32, f32) {
         let sr = self.sr;
         let bend = self.bend.next();
+        self.expr_fresh = false;
+        crate::expr_glide::toward(&mut self.expr_tuning, self.expr_to, self.expr_k);
         let base = self.glide.next();
         let extra = (bend + self.expr_tuning + self.s.fine_ct * 0.01) as f64;
         let pitch = base + extra;

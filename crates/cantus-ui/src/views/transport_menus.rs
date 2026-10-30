@@ -328,6 +328,7 @@ pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
         Action::ViewControllers => Pane::Controllers,
         Action::ViewHistory => Pane::History,
         Action::ViewScore => Pane::Score,
+        Action::ToggleSessionView => Pane::Session, // r33:launcher
         Action::ToggleInspector => Pane::Inspector,
         // The clips list, which the View menu checks too (review 4, #26).
         Action::ToggleClips => Pane::Clips,
@@ -347,7 +348,8 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
         // The undo history (round 31, ADR 0072).
         .chain(std::iter::once(Pane::History))
         // The Score pane (round 32, ADR 0075).
-        .chain(std::iter::once(Pane::Score));
+        .chain(std::iter::once(Pane::Score)) // r33:launcher (its `;` moved below)
+        .chain(std::iter::once(Pane::Session)); // r33:launcher
     for pane in areas {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
@@ -359,6 +361,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             Pane::Controllers => Action::ViewControllers,
             Pane::History => Action::ViewHistory,
             Pane::Score => Action::ViewScore,
+            Pane::Session => Action::ToggleSessionView, // r33:launcher
             _ => Action::ToggleInspector,
         };
         let mut shown = app.workspace.contains(pane);

@@ -49,7 +49,7 @@ impl Default for ImportOptions {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportedNote {
     /// From the start of the file, in Cantus ticks.
     pub start: Ticks,
@@ -58,6 +58,9 @@ pub struct ImportedNote {
     pub velocity: u8,
     /// The note-off's velocity (ADR 0068); 0 for a note-on at velocity 0 (none given).
     pub release: u8,
+    /// Its bend, pressure and timbre (ADR 0080): from its MPE member channel, or the key
+    /// pressure the file gave it; `None` for a plain note.
+    pub expr: Option<Box<cantus_core::model::note_expr::NoteExpr>>,
 }
 
 /// Where a track's name comes from, so the interface can say it in its own language when
@@ -412,11 +415,27 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
         if ti == 0 && name.is_none() {
             name = track_name.clone();
         }
+        // An MPE zone is one track, each note with its channel's curves (ADR 0080).
+        let layout = super::mpe::layout_of(track, (ppq_file / 16).max(1));
+        let mut samples: Vec<(
+            u64,
+            u8,
+            Option<u8>,
+            cantus_core::model::note_expr::ExprKind,
+            i64,
+        )> = Vec::new();
         let mut channels: BTreeMap<u8, Building> = BTreeMap::new();
         let mut last_tick = 0u64;
         for te in track {
             last_tick = last_tick.max(te.tick);
             counts.count(&te.event);
+            if let Some((ch, key, kind, raw)) = super::mpe::sample_of(layout.as_ref(), te) {
+                samples.push((te.tick, ch, key, kind, raw));
+                continue;
+            }
+            // A member channel's notes and controllers are its zone's master's.
+            let src = channel_of(&te.event);
+            let te = &remap(te, |c| layout.as_ref().map_or(c, |l| l.track_channel(c)));
             match te.event {
                 Event::NoteOn {
                     channel,
@@ -429,17 +448,18 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
                         .open
                         .entry(key)
                         .or_default()
-                        .push_back((te.tick, velocity));
+                        .push_back((te.tick, velocity, src));
                 }
                 Event::NoteOn { channel, key, .. } | Event::NoteOff { channel, key, .. } => {
                     // First on, first off: the convention every sequencer follows for a
                     // pitch struck again before it was released.
                     if let Some(b) = channels.get_mut(&channel) {
-                        if let Some((on, velocity)) =
-                            b.open.get_mut(&key).and_then(VecDeque::pop_front)
-                        {
+                        // An MPE note is let go on its own channel.
+                        let q = b.open.get_mut(&key);
+                        let at = q.as_ref().and_then(|q| q.iter().position(|o| o.2 == src));
+                        if let Some((on, velocity, ch)) = q.zip(at).and_then(|(q, i)| q.remove(i)) {
                             b.notes
-                                .push((on, te.tick, key, velocity, release_of(&te.event)));
+                                .push((on, te.tick, key, velocity, release_of(&te.event), ch));
                         }
                     }
                 }
@@ -469,9 +489,9 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
         for (channel, mut b) in channels {
             // A note still held at the end of its track ends there.
             for (key, open) in std::mem::take(&mut b.open) {
-                for (on, velocity) in open {
+                for (on, velocity, ch) in open {
                     counts.unterminated += 1;
-                    b.notes.push((on, last_tick.max(on), key, velocity, 0));
+                    b.notes.push((on, last_tick.max(on), key, velocity, 0, ch));
                 }
             }
             if b.notes.is_empty() {
@@ -498,10 +518,13 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
                     None => TrackLabel::Channel(channel + 1),
                 },
             };
+            // When each note's channel was last let go (its curves start no earlier, ADR 0080).
+            let freed = super::mpe::freed(&b.notes);
             let mut notes: Vec<ImportedNote> = b
                 .notes
                 .iter()
-                .map(|&(on, off, key, velocity, release)| {
+                .zip(&freed)
+                .map(|(&(on, off, key, velocity, release, ch), &freed)| {
                     let start = clock.ticks(on);
                     let mut length = clock.ticks(off) - start;
                     if length <= Ticks::ZERO {
@@ -514,6 +537,9 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
                         pitch: key.min(127),
                         velocity: velocity.clamp(1, 127),
                         release: release.min(127),
+                        expr: super::mpe::curves(&samples, ch, key, freed, on, off, |t| {
+                            clock.ticks(t).0
+                        }),
                     }
                 })
                 .collect();
@@ -586,9 +612,10 @@ fn round_bpm(bpm: f64) -> f64 {
 
 #[derive(Default)]
 struct Building {
-    open: HashMap<u8, VecDeque<(u64, u8)>>,
-    /// `(on, off, key, velocity, release)` in file ticks.
-    notes: Vec<(u64, u64, u8, u8, u8)>,
+    /// Per key: `(on, velocity, the channel it was played on)` (an MPE member's own).
+    open: HashMap<u8, VecDeque<(u64, u8, u8)>>,
+    /// `(on, off, key, velocity, release, channel played on)` in file ticks.
+    notes: Vec<(u64, u64, u8, u8, u8, u8)>,
     /// Controllers as lane positions, in file ticks (ADR 0068).
     controls: Vec<(u64, cantus_core::LaneKind, f32)>,
     program: Option<u8>,
@@ -627,7 +654,6 @@ impl Dropped {
             {
                 self.controllers += 1
             }
-            Event::PolyPressure { .. } => self.pressure += 1,
             Event::Program { .. } => self.programs += 1,
             Event::SysEx(_) => self.sysex += 1,
             Event::Text { kind: 0x06, text } if self.markers_kept && !text.trim().is_empty() => {}
@@ -950,6 +976,7 @@ pub fn import_commands(
                 velocity: n.velocity,
                 muted: false,
                 release: n.release,
+                expr: n.expr.clone(),
             })
             .collect();
         let clip = Clip {
@@ -1010,6 +1037,7 @@ pub fn import_commands(
             lateness: None,
             note_fx: Vec::new(),
             score: Default::default(),
+            slots: Vec::new(), // r33:session
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),
@@ -1204,6 +1232,36 @@ fn map_from(project: &Project, import: &MidiImport, at: Ticks) -> Vec<Command> {
 
 /// A note-off's release velocity (ADR 0068): a note-off's own; a note-on at velocity 0
 /// carries none.
+/// The channel a channel message is on (0 for anything else).
+fn channel_of(e: &Event) -> u8 {
+    match *e {
+        Event::NoteOn { channel, .. }
+        | Event::NoteOff { channel, .. }
+        | Event::PolyPressure { channel, .. }
+        | Event::Controller { channel, .. }
+        | Event::Program { channel, .. }
+        | Event::ChannelPressure { channel, .. }
+        | Event::PitchBend { channel, .. } => channel,
+        _ => 0,
+    }
+}
+
+/// `te` with its channel moved by `f` (an MPE member's to its master, ADR 0080).
+fn remap(te: &super::smf::TimedEvent, f: impl Fn(u8) -> u8) -> super::smf::TimedEvent {
+    let mut out = te.clone();
+    match &mut out.event {
+        Event::NoteOn { channel, .. }
+        | Event::NoteOff { channel, .. }
+        | Event::PolyPressure { channel, .. }
+        | Event::Controller { channel, .. }
+        | Event::Program { channel, .. }
+        | Event::ChannelPressure { channel, .. }
+        | Event::PitchBend { channel, .. } => *channel = f(*channel),
+        _ => {}
+    }
+    out
+}
+
 fn release_of(e: &Event) -> u8 {
     match e {
         Event::NoteOff { velocity, .. } => (*velocity).min(127),

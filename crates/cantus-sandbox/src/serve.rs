@@ -230,6 +230,7 @@ impl Instance {
             latency: self.main.latency(),
             has_editor: self.main.has_editor(),
             refused_state: None,
+            expression: self.main.expression_support(),
         }
     }
 }

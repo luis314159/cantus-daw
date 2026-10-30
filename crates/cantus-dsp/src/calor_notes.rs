@@ -85,7 +85,14 @@ impl Calor {
             x::DEFAULT[i]
         };
         for v in self.voices.iter_mut().filter(|v| v.active && v.id == id) {
-            v.x[i] = value;
+            // Tuning, pressure and brightness glide to it at the control rate (ADR 0080);
+            // a note not yet sounding starts there.
+            if i < 3 {
+                let fresh = v.fresh();
+                crate::expr_glide::set(&mut v.x[i], &mut v.x_to[i], value, fresh);
+            } else {
+                v.x[i] = value;
+            }
         }
     }
 

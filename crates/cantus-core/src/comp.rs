@@ -165,7 +165,8 @@ pub(crate) fn apply_seam(
     let t = project
         .track_mut(track)
         .ok_or(CommandError::TrackNotFound(track))?;
-    let (l, r) = match (t.clip(left), t.clip(right)) {
+    let (l, r) = match (t.arranged(left), t.arranged(right)) {
+        // r33:session
         (Some(l), Some(r)) => (l.clone(), r.clone()),
         (None, _) => return Err(CommandError::ClipNotFound(left)),
         (_, None) => return Err(CommandError::ClipNotFound(right)),
@@ -180,10 +181,12 @@ pub(crate) fn apply_seam(
     }
     let was = r.start;
     let d = at - was;
-    if let Some(c) = t.clip_mut(left) {
+    if let Some(c) = t.arranged_mut(left) {
+        // r33:session
         c.length = at - c.start;
     }
-    if let Some(c) = t.clip_mut(right) {
+    if let Some(c) = t.arranged_mut(right) {
+        // r33:session
         let end = c.end();
         c.start = at;
         c.length = end - at;

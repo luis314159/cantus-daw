@@ -15,6 +15,7 @@
 pub mod audio;
 pub mod read;
 pub mod read_timeline;
+pub mod session; // r33:session (ADR 0076: scenes and clip slots)
 pub mod write;
 pub mod xml;
 pub mod zip;

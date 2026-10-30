@@ -139,6 +139,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             section(app, ui, Scope::Global, w);
             ui.add_space(8.0 * k);
             section(app, ui, Scope::Project, w);
+            ui.add_space(8.0 * k);
+            // The session grids (round 33, ADR 0077).
+            crate::controllers::grid::rows(app, ui, w);
             ui.add_space(12.0 * k);
         });
     // The dots fade: keep drawing while one is lit.
@@ -347,6 +350,10 @@ pub fn portable_targets() -> Vec<(Option<&'static str>, MappingTarget)> {
     }
     for c in Category::ALL {
         band(&mut out, c.label_key());
+        // The session's global quantisation, with its actions (round 33, ADR 0077).
+        if c == Category::Session {
+            out.push((None, MappingTarget::SessionQuantize));
+        }
         for a in Action::ALL.into_iter().filter(|a| a.category() == c) {
             out.push((None, MappingTarget::Action(a.id().to_string())));
         }

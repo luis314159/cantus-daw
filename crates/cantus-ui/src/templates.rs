@@ -380,6 +380,7 @@ fn stand_in(project: &Project, id: StripId) -> Option<MixerStrip> {
 pub fn track_template(project: &Project, track: TrackId, name: &str) -> Option<Project> {
     let mut t = project.track(track)?.clone();
     t.clips.clear();
+    t.slots.clear(); // r33:session (its session clips are the song's, as its clips)
     t.comps.clear();
     t.active_comp = 0;
     t.frozen = None;

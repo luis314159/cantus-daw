@@ -619,6 +619,7 @@ fn track_part(t: &Track, live: &[&str]) -> serde_json::Value {
             }
         }
     }
+    crate::session::scrub_cosmetic(&mut v); // r33:session (a session clip's name and colour)
     v
 }
 

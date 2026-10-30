@@ -80,6 +80,9 @@ impl CantusApp {
     /// or drive, seal an idle gesture, send feedback, and ask for the frames the clocks
     /// need (a gesture's end, a learn's window, feedback's quiet). Interface thread.
     pub fn controller_input(&mut self) {
+        // The grids found first: a new grid port is taken in the same filter, before any
+        // of its pads can reach the engine (round 33, ADR 0077).
+        crate::controllers::grid::find(self);
         self.publish_controller_filter();
         let mut buf = std::mem::take(&mut self.controllers.buf);
         buf.clear();
@@ -123,6 +126,10 @@ impl CantusApp {
             // Feedback come back (a loopback port, an echoing device): neither a move nor
             // the control being learnt (review 2, #4).
             if self.is_feedback_echo(h) {
+                continue;
+            }
+            // A session grid's port is the grid's (round 33, ADR 0077).
+            if crate::controllers::grid::heard(self, h) {
                 continue;
             }
             if self.controllers.learning.is_some() {
@@ -325,6 +332,11 @@ impl CantusApp {
             t if t.is_switch() => Steps {
                 switch: true,
                 steps: Some(1),
+            },
+            // The global quantisation's fourteen grids (round 33, ADR 0077).
+            MappingTarget::SessionQuantize => Steps {
+                switch: false,
+                steps: Some(cantus_core::controller::SESSION_QUANTIZE.len() as u32 - 1),
             },
             _ => Steps::default(),
         }
@@ -562,6 +574,31 @@ impl CantusApp {
         let Some(target) = self.resolve_target(&m.target) else {
             return;
         };
+        // A session launcher (round 33, ADR 0077): its press launches, its release
+        // releases — no value, no command.
+        if target.is_launcher() {
+            let key = (scope, m.id);
+            self.controllers.activity.insert(key, Instant::now());
+            let pressed = match m.input(value, on) {
+                cantus_core::controller::Input::Press(p) => p,
+                cantus_core::controller::Input::Abs(x) => x > 0.0,
+                cantus_core::controller::Input::Steps(n) => n > 0,
+            };
+            let mut st = self.controllers.states.remove(&key).unwrap_or_default();
+            let velocity = if m.source.control.is_button() && on {
+                (f32::from(value) / f32::from(m.source.control.max())).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+            if pressed {
+                crate::views::session::learn::drive(self, &target, true, velocity);
+            } else if st.held {
+                crate::views::session::learn::drive(self, &target, false, 0.0);
+            }
+            st.held = pressed;
+            self.controllers.states.insert(key, st);
+            return;
+        }
         let id = self.gesture_target(&target);
         let key = (scope, m.id);
         self.controllers.activity.insert(key, Instant::now());
@@ -578,7 +615,11 @@ impl CantusApp {
             Drive::Fire => {
                 if let MappingTarget::Action(id) = &target {
                     if let Some(a) = crate::keymap::Action::from_id(id) {
+                        // A controller's press of a session action needs no focus on the
+                        // pane, as a key's does (round 33, ADR 0077).
+                        self.session_view.controller_fire = true;
                         self.run_action(a);
+                        self.session_view.controller_fire = false;
                     }
                 }
             }
@@ -658,6 +699,7 @@ impl CantusApp {
             MappingTarget::Param(a) if self.latched(a) => self.project_pos(target),
             MappingTarget::Param(a) => self.base_pos(a),
             MappingTarget::Action(id) => self.action_state(id),
+            t if t.is_launcher() => crate::views::session::learn::launcher_pos(self, t),
             _ => self.project_pos(target),
         }
     }
@@ -689,6 +731,12 @@ impl CantusApp {
             // The learn mode (the top bar's MIDI lamp) and every area the View menu checks
             // (review 3, #48).
             Action::MidiLearnMode => self.controllers.learn_mode,
+            // The session's (round 33, ADR 0077).
+            Action::SessionArrangementRecord => self.session_view.live.arrangement_record,
+            Action::SessionBackToArrangement => self.session_view.live.holds_any(),
+            Action::ToggleSessionView => self
+                .workspace
+                .contains(crate::views::workspace::Pane::Session),
             Action::ToggleAutomationArm => self.auto_armed(),
             a => match crate::views::transport::menus::pane_of(a) {
                 Some(pane) => self.workspace.contains(pane),
@@ -974,6 +1022,16 @@ impl CantusApp {
                     set.take(i, m.source.channel, m.source.control);
                 }
             }
+        }
+        // A session grid's port is taken whole: its pads launch, they never play notes
+        // (round 33, ADR 0077).
+        for i in crate::controllers::grid::taken_ports(self) {
+            for n in 0..128u8 {
+                set.take(i, None, cantus_core::controller::Control::Note(n));
+                set.take(i, None, cantus_core::controller::Control::Cc(n));
+                set.take(i, None, cantus_core::controller::Control::PolyPressure(n));
+            }
+            set.take(i, None, cantus_core::controller::Control::ChannelPressure);
         }
         self.controllers.tap.filter().publish(&set);
         self.controllers.published = Some((rev, sig, self.controllers.global.clone(), names));

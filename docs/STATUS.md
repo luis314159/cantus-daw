@@ -1,8 +1,29 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-28 (round 32: **a face of its own for each unit** — every effect and instrument of ours wears a style sheet that is data (`kit::skin`): colour and material, a characteristic display (phosphor, LCD, VFD, glass, paper, scope; a VU needle), its own knob and switch shapes, lettering, plate and ornaments, in both themes and at any scale; 23 effects and 9 instruments, the exported CLAP/VST3 wearing the same faces, *Units wear their own faces* to turn it off, the frame budget held with three rich faces open (ADR 0074); **the score from the piano roll** — a new crate `cantus-score` reading notes for the page and engraving them in Bravura, the staff under the piano roll (`Alt+S`) and a Score pane (`Alt+Shift+S`), MusicXML 4.0 out and in, PDF, printing, editing on the staff (ADR 0075, schema 45, keymap 13); the README and the landing page show both. Version **0.1.0-beta.7** (Windows and Linux; macOS waits for the Mac session). Schema 45, `DSP_VERSION` 5, keymap 13. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 879 pass on Windows (59 ignored), the engine fuzz 895 at `CANTUS_WORKERS=3`, 4 861 on Linux (WSL Ubuntu 24.04); clippy clean on both
+**Updated:** 2026-10-30 (round 33: **Ableton's core** — the **session view** (a clip grid per track × scenes, launches on the bar in four modes with legato, follow actions, scene tempo and metre, recording into slots and into the arrangement as one undo step, clip envelopes; played as a *projection* compiled into ordinary snapshots, so live, recorded and offline are one render; a lead of two device blocks plus the compile's 95th percentile, late presses caught up; ADR 0076, schema 46), the Session pane, keymap 14, MIDI learn of the session and the Launchpad/APC grids (ADR 0077); **Ableton Link** in Rust (`cantus-link`, GPL) behind an MPL timeline seam, **MIDI clock and MTC** in and out stamped per sample (ADRs 0078–0079); **MPE** end to end — per-note bend, pressure and timbre in the model, our instruments, hosted plug-ins, files and the piano roll (ADR 0080, schema 47, sandbox protocol 7). Version **0.1.0-beta.8** (Windows and Linux; macOS waits for the Mac session). Schema 47, `DSP_VERSION` 5, keymap 14. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 5 137 pass on Windows (61 ignored), the engine fuzz 963 at `CANTUS_WORKERS=3`, 5 120 on Linux (WSL Ubuntu 24.04); clippy clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 33 left
+
+Round 33 is on **master** (squashed) and published to `luis314159/cantus-daw`; **`v0.1.0-beta.8`**
+is released for Windows and Linux. The account: `docs/round33/integration.md`; one report per
+builder beside it (`session`, `launcher`, `sync`, `mpe`). Under the owner's rule what is left is
+the owner's own, or new work:
+
+1. **Hardware** (`docs/beta-checklist.md`): a Launchpad or an APC (the Pro MK3's side buttons and
+   Stop Clip, the APCs' blink rates and colours); Link against Live or a phone app (LinkHut could
+   not be built here); MIDI clock and MTC with a device, or loopMIDI / Windows MIDI Services for a
+   loopback; an MPE controller and an MPE plug-in.
+2. **Ears**: a performance — launching, legato and follow actions on real material.
+3. **Everything rounds 30–32 left**: the Mac session and the Apple account, a real Linux desktop,
+   Flathub, compacting the WSL disk image, the legal review (model names, Chorda, the CLA), code
+   signing, the RVR1960 permission, the trademark filing, the UMC in duplex; REAPER and FL Studio
+   for the comparisons.
+4. **Round 34: AI** (the owner's order, 2026-10-28): the MCP server first, then stems, audio to
+   MIDI and a mastering assistant. **Round 35: the dancing character** (BACKLOG §6i, whole —
+   left to Claude by the owner, 2026-10-29). MIDI 2.0's transport is sized in ADR 0080. The prompt
+   is `docs/next-session.md`.
 
 ## The next session: what round 32 left
 
@@ -365,6 +386,22 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 33: Ableton's core — the session view, Link, MIDI clock and MTC, MPE (requested 2026-10-28)
+
+**The ask:** BACKLOG §0.2 *Clip launching / session view* and *Sync and networking*, §0.4 point 5.
+Four builders (`session`, `launcher`, `sync`, `mpe`) from contract `e0853ec1`; one reviewer per
+branch, one for every fix round, one on the integrated tree (10 seams) — every finding fixed with
+a test. Account: `docs/round33/integration.md`.
+
+| Part | What changed |
+|---|---|
+| Session engine (ADR 0076) | `Track::slots`, `Project::session`, `SessionClip`, `Command::Session`, schema 46; a pure planner (bar-line launches, trigger/gate/toggle/repeat, legato, seeded follow actions, scene tempo and metre) and a conductor on the interface's side playing the performance as a projection — no session code on the audio thread; the lead = two device blocks + the compile's p95 + 2 ms, late presses caught up on their boundary, per-track compiles, cut notes listed off the audio thread; recording into slots (count-in, fixed length, overdub, MIDI and audio laid ahead for a seamless replay, crash recovery into the slot) and into the arrangement in one undo step; session audio and warp renders preloaded; launches from stop wait for Link's quantum or a master's Start |
+| Session view (ADR 0077) | The Session pane (`Tab`), clip and scene panels, envelopes, editing both ways with the arrangement, keymap 14, MIDI learn of slots/scenes/stops/quantise, Launchpad Mini MK3/X/Pro MK3 and APC mini mk2/APC40 mkII (given back on quit, faders free for learn), Settings ▸ MIDI's inputs table (Notes, Controls, Clock, MTC, MPE, Grid) that fits and scrolls |
+| Sync (ADRs 0078–0079) | `crates/cantus-link` (Link in Rust, every up IPv4 interface rescanned, hostile peers capped, tests on loopback only); the MPL seam `cantus-engine/src/sync.rs`; following with the beat matched when heard; clock and MTC out stamped per sample and sent at speaker time, one connection per output port shared with controller feedback; clock in (α-β-γ tracker) and MTC chase by piece number; tempo proposed to Link only when the user or a scene asks; the top bar's Sync group |
+| MPE (ADR 0080) | `Note::expr` at MIDI 2.0 resolution, `SetNoteExpr`, `SetInstrumentExpression`, schema 47; Unda, Calor, Modulus, Gravis per note; live MPE from marked ports (other ports' RPN and panics kept out); recording per member channel; CLAP note expressions, VST3 note expression, MPE over MIDI (sandbox protocol 7); MPE MIDI files (zones sized from polyphony) and DAWproject; three lanes under the piano roll; MIDI 2.0's translation layer |
+| Showcase | README: *The session view, Link and MPE* (six pictures); the landing page: *Play it live* (EN/ES) |
+| Causes | F: filled twice while three builders linked (targets now deleted as each merges); a lib test installed the light palette while another read it (Linux only); timing tests under load made robust |
 
 ## Round 32: a face of its own for each unit, and the score from the piano roll (requested 2026-10-27)
 

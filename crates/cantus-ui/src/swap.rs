@@ -70,7 +70,10 @@ pub fn spec_of(choice: &PickChoice) -> Option<InstrumentSpec> {
     match choice {
         PickChoice::Firmus => Some(InstrumentSpec::default()),
         PickChoice::Pulsus => Some(InstrumentSpec::Pulsus(PulsusParams::default())),
-        PickChoice::Instrument(k) => Some(InstrumentSpec::Native(NativeSpec::new(*k))),
+        // r33:mpe — a new instance comes with its MPE routes (ADR 0080)
+        PickChoice::Instrument(k) => Some(InstrumentSpec::Native(
+            cantus_core::model::note_expr::defaults::with_routes(NativeSpec::new(*k)),
+        )),
         _ => None,
     }
 }

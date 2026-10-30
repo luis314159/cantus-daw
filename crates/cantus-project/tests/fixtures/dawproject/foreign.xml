@@ -115,6 +115,13 @@
     <TempoAutomation id="id90" unit="bpm"><Target parameter="id0"/><RealPoint time="0" value="149"/><RealPoint time="32" value="120"/></TempoAutomation>
   </Arrangement>
   <Scenes>
-    <Scene id="id95" name="Scene 1"><Lanes id="id96"/></Scene>
+    <Scene id="id95" name="Scene 1" color="#204060"><Lanes id="id96">
+      <ClipSlot id="id97" track="id2" hasStop="true">
+        <Clip time="0.0" duration="8.0" playStart="1.0" loopStart="0.0" loopEnd="4.0" name="Slot riff">
+          <Notes id="id98"><Note time="0.0" duration="0.5" channel="0" key="48" vel="0.8"/><Note time="2.0" duration="0.5" channel="0" key="55" vel="0.8"/></Notes>
+        </Clip>
+      </ClipSlot>
+    </Lanes></Scene>
+    <Scene id="id99" name="Scene 2"><Lanes id="id100"><ClipSlot id="id101" track="id2" hasStop="false"/></Lanes></Scene>
   </Scenes>
 </Project>

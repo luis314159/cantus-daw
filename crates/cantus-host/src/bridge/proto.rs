@@ -15,8 +15,9 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
 
 /// Bumped whenever a message or the slot layout changes: a helper from another build is
-/// refused at the handshake.
-pub const PROTOCOL: u32 = 6;
+/// refused at the handshake. 7 (round 33, ADR 0080): `Described::expression`, what the
+/// plug-in declares for per-note expression.
+pub const PROTOCOL: u32 = 7;
 
 /// The largest frame accepted (a plug-in state of 256 MB is already absurd).
 pub const MAX_FRAME: usize = 256 << 20;
@@ -174,6 +175,9 @@ pub struct Described {
     /// The state a load carried, refused (why): the plug-in goes on as it is.
     #[serde(default)]
     pub refused_state: Option<String>,
+    /// What the plug-in declares for per-note expression (round 33, ADR 0080).
+    #[serde(default)]
+    pub expression: crate::backend::ExprSupport,
 }
 
 /// An answer.

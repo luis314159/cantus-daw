@@ -504,8 +504,10 @@ fn matching_settings_come_along_between_native_instruments() {
         .native()
         .unwrap()
         .clone();
-    assert!(
-        fresh.params.is_empty() && fresh.text.is_empty(),
+    // r33:mpe — fresh, but for its MPE routes (ADR 0080).
+    assert_eq!(
+        fresh,
+        cantus_core::model::note_expr::defaults::with_routes(NativeSpec::new(InstrumentKind::Fm)),
         "{fresh:?}"
     );
 }

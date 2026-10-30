@@ -63,6 +63,9 @@ pub enum Pane {
     /// The Score pane (round 32, ADR 0075, `views::score_view`): the selected track's part
     /// engraved, beside the piano roll in the lower zone; *View ▸ Score*.
     Score,
+    /// The Session pane (round 33, ADR 0077, `views::session`): the clip launcher, a tab
+    /// beside the arrangement — Tab brings one or the other to the front.
+    Session,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -93,6 +96,7 @@ impl Pane {
             Pane::Controllers => "ctl.pane",
             Pane::History => "workflow.history.pane",
             Pane::Score => "score.pane",
+            Pane::Session => "session.pane",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -112,6 +116,7 @@ impl Pane {
             Pane::Controllers => "ctl.toggle",
             Pane::History => "action.view-history",
             Pane::Score => "action.view-score",
+            Pane::Session => "action.toggle-session-view",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -130,6 +135,7 @@ impl Pane {
             Pane::Controllers => Glyph::Controller,
             Pane::History => Glyph::Undo,
             Pane::Score => Glyph::Score,
+            Pane::Session => Glyph::Session,
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -432,6 +438,29 @@ impl Workspace {
                 Some(node) => append(s, node, pane),
                 None => s.push_to_first_leaf(pane),
             },
+            // A tab just before the arrangement's, as Live's two views share the centre: a
+            // tab closed after them (a device's) leaves the arrangement in front.
+            Pane::Session => match (arrangement, lower, inspector) {
+                (Some(node), _, _) => {
+                    if let Node::Leaf(leaf) = &mut s[node] {
+                        let at = leaf
+                            .tabs
+                            .iter()
+                            .position(|t| *t == Pane::Arrangement)
+                            .unwrap_or(0);
+                        leaf.tabs.insert(at, Pane::Session);
+                        leaf.active = TabIndex(at);
+                    }
+                    s.set_focused_node(node);
+                }
+                (None, Some(node), _) => {
+                    s.split_above(node, ARRANGEMENT_SHARE, vec![Pane::Session]);
+                }
+                (None, None, Some(node)) => {
+                    s.split_left(node, inspector_share, vec![Pane::Session]);
+                }
+                (None, None, None) => s.push_to_first_leaf(Pane::Session),
+            },
             _ => s.push_to_first_leaf(pane),
         }
     }
@@ -693,5 +722,25 @@ mod tests {
             ws.find(Pane::Arrangement).unwrap().node_path()
         );
         assert!(ws.is_visible(Pane::Device(7)));
+    }
+}
+
+#[cfg(test)]
+mod session_tests {
+    use super::*;
+
+    /// Round 33 (ADR 0077): the Session pane comes in just before the arrangement's tab, so
+    /// Tab swaps the two and a device tab closed after them leaves the arrangement in front.
+    #[test]
+    fn the_session_comes_beside_the_arrangement_and_gives_it_back() {
+        let mut ws = Workspace::default();
+        assert!(!ws.contains(Pane::Session));
+        ws.reveal(Pane::Session);
+        assert!(ws.is_visible(Pane::Session));
+        let a = ws.find(Pane::Arrangement).unwrap();
+        let s = ws.find(Pane::Session).unwrap();
+        assert_eq!(a.node_path(), s.node_path());
+        ws.reveal(Pane::Arrangement);
+        assert!(ws.is_visible(Pane::Arrangement) && !ws.is_visible(Pane::Session));
     }
 }

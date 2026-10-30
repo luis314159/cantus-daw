@@ -177,8 +177,7 @@ pub(crate) fn each_path(project: &Project, f: &mut dyn FnMut(Owner, &str, &str))
             .tracks
             .iter()
             .find(|t| {
-                t.clips
-                    .iter()
+                t.all_clips() // r33:session
                     .any(|c| c.audio.as_ref().is_some_and(|a| a.source == s.id))
             })
             .map_or(s.name.as_str(), |t| t.name.as_str());

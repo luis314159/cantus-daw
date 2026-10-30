@@ -69,6 +69,8 @@ pub struct BridgeMain {
     /// What last made its last-good state not current ([`MainThread::why_changed`]).
     why_changed: Option<&'static str>,
     has_editor: bool,
+    /// What the plug-in declares for per-note expression (ADR 0080, protocol 7).
+    expression: crate::backend::ExprSupport,
     /// Its load's request, and whether it was answered (and how).
     load: u64,
     loaded: bool,
@@ -149,6 +151,7 @@ impl BridgeMain {
             cancel,
             sample_rate,
             has_editor: info.editor,
+            expression: Default::default(),
             info,
             params: Vec::new(),
             latency: 0,
@@ -326,6 +329,7 @@ impl BridgeMain {
         self.params = d.params;
         self.latency = d.latency;
         self.has_editor = d.has_editor;
+        self.expression = d.expression;
         self.inbox.data().latency = Some(d.latency);
         self.info = d.info;
     }
@@ -613,6 +617,10 @@ impl MainThread for BridgeMain {
 
     fn has_editor(&self) -> bool {
         self.has_editor
+    }
+
+    fn expression_support(&self) -> crate::backend::ExprSupport {
+        self.expression
     }
 
     /// Asks for its window; answered within a frame's share it says so, else the window

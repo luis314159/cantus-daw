@@ -537,6 +537,12 @@ pub enum Command {
         track: TrackId,
         isolation: Option<crate::external::PluginIsolation>,
     },
+    /// How a track's hosted instrument hears per-note expression (round 33, ADR 0080):
+    /// `None` chooses by what the plug-in declares. Refused for a track without one.
+    SetInstrumentExpression {
+        track: TrackId,
+        route: Option<crate::external::ExprRoute>,
+    },
     /// Freeze a mixer strip (round 29, ADR 0064) — `Some` with its content key now, which
     /// is checked — or unfreeze it (`None`).
     SetStripFrozen {
@@ -857,6 +863,18 @@ pub enum Command {
         clip: ClipId,
         notes: Vec<Note>,
     },
+    /// Per-note expression (round 33, ADR 0080): each named note's curves set as given
+    /// (`None` clears them), matched by id; the inverse gives back the old ones. `edit`
+    /// names the gesture in the history (draw, scale, smooth, thin, flatten, clear, …).
+    SetNoteExpr {
+        track: TrackId,
+        clip: ClipId,
+        edit: crate::model::note_expr::ExprEdit,
+        notes: Vec<(NoteId, Option<Box<crate::model::note_expr::NoteExpr>>)>,
+    },
+
+    /// An edit of the session view's grid (round 33, ADR 0076). // r33:session
+    Session(crate::session::SessionCommand), // r33:session
 
     /// Several commands as one undo step.
     Batch {
@@ -938,6 +956,7 @@ impl Command {
             SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
             SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => "cmd.set_plugin_isolation",
+            SetInstrumentExpression { .. } => "cmd.mpe.route",
             SetStripFrozen {
                 frozen: Some(_), ..
             }
@@ -983,6 +1002,7 @@ impl Command {
             InsertNotes { .. } => "cmd.insert_notes",
             RemoveNotes { .. } => "cmd.remove_notes",
             SetNotes { .. } => "cmd.set_notes",
+            SetNoteExpr { edit, .. } => edit.label_key(),
             SetTrackNoteFx { .. } => "cmd.notefx.chain",
             SetNoteFxParam { .. } => "cmd.notefx.param",
             SetProjectKey { .. } => "cmd.notefx.key",
@@ -1018,6 +1038,7 @@ impl Command {
             SetTrackTakesOpen { .. } => "cmd.set_track_takes_open",
             SetTrackPitchOpen { .. } => "cmd.pitch.lane",
             SetRecordSettings { .. } => "cmd.set_record_settings",
+            Session(c) => c.label_key(), // r33:session
             Batch { label_key, .. } => label_key,
         }
     }
@@ -1044,6 +1065,7 @@ impl Command {
             | (SetRecordSettings { .. }, SetRecordSettings { .. })
             | (SetTempoTrack { .. }, SetTempoTrack { .. })
             | (SetMetreTrack { .. }, SetMetreTrack { .. }) => true,
+            (Session(a), Session(b)) => a.supersedes(b), // r33:session
             (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
             (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
             (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
@@ -1374,7 +1396,10 @@ impl Command {
     /// unchanged (batches roll back).
     pub fn apply(self, project: &mut Project) -> Result<Command, CommandError> {
         // Frozen sounds are locked (ADR 0064): an edit that would change one is refused.
-        crate::freeze::guard(self, project, Command::apply_unguarded)
+        // A session clip keeps a session clip's form (ADR 0076). // r33:session
+        crate::session::refuse(self, project, |c, p| {
+            crate::freeze::guard(c, p, Command::apply_unguarded)
+        }) // r33:session
     }
 
     /// The command's body, without the frozen lock ([`Self::apply`] is what runs it).
@@ -1487,6 +1512,8 @@ impl Command {
                 // Its alternate comps (ADR 0058): no kept window may share an id with
                 // anything the project or the track itself holds (review 1).
                 crate::comp::check(project, track.id, &track.comps, track.active_comp)?;
+                // Its session column (ADR 0076). // r33:session
+                crate::session::check_column(project, &track)?; // r33:session
                 if let Some(w) = track
                     .comps
                     .iter()
@@ -2405,6 +2432,11 @@ impl Command {
                     isolation: old,
                 })
             }
+            SetInstrumentExpression { track, route } => {
+                let plugin = instrument_plugin_mut(project, track)?;
+                let old = std::mem::replace(&mut plugin.expression, route);
+                Ok(SetInstrumentExpression { track, route: old })
+            }
             SetStripFrozen { strip, frozen } => {
                 let s = project
                     .strip_mut(strip)
@@ -2589,8 +2621,7 @@ impl Command {
                 // A window kept in an alternate comp plays it too, when that comp plays
                 // (ADR 0058).
                 let used = project.tracks.iter().any(|t| {
-                    t.clips
-                        .iter()
+                    t.all_clips() // r33:session (its session clips play it too)
                         .chain(t.comps.iter().flat_map(|c| c.windows.iter()))
                         .any(|c| c.audio.as_ref().is_some_and(|a| a.source == id))
                 });
@@ -3065,7 +3096,14 @@ impl Command {
                     notes: old,
                 })
             }
+            SetNoteExpr {
+                track,
+                clip,
+                edit,
+                notes,
+            } => crate::model::note_expr::cmd::apply(project, track, clip, edit, notes),
 
+            Session(c) => crate::session::apply(c, project), // r33:session
             Batch {
                 label_key,
                 commands,
@@ -3252,7 +3290,8 @@ fn check_joins(project: &Project, c: &Clip) -> Result<(), CommandError> {
     }
 }
 
-fn validate_clip(c: &Clip) -> Result<(), CommandError> {
+pub(crate) fn validate_clip(c: &Clip) -> Result<(), CommandError> {
+    // r33:session (pub(crate))
     if c.start.is_negative() || c.length <= Ticks::ZERO {
         return Err(CommandError::InvalidValue("clip bounds".into()));
     }
@@ -3288,7 +3327,8 @@ fn validate_clip(c: &Clip) -> Result<(), CommandError> {
     Ok(())
 }
 
-fn validate_note(n: &Note) -> Result<(), CommandError> {
+pub(crate) fn validate_note(n: &Note) -> Result<(), CommandError> {
+    // r33:session (pub(crate))
     if n.length <= Ticks::ZERO {
         return Err(CommandError::InvalidValue(format!("note {} length", n.id)));
     }

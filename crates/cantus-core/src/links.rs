@@ -140,7 +140,7 @@ pub fn count(project: &Project, link: LinkId) -> usize {
 pub fn siblings(project: &Project, r: ClipRef) -> Vec<ClipRef> {
     let Some(link) = project
         .track(r.0)
-        .and_then(|t| t.clip(r.1))
+        .and_then(|t| t.arranged(r.1)) // r33:session
         .and_then(|c| c.link)
     else {
         return Vec::new();
@@ -297,7 +297,8 @@ pub fn make_unique(project: &Project, sel: &[ClipRef]) -> Vec<Command> {
             continue;
         }
         seen.push(*r);
-        let Some(c) = project.track(r.0).and_then(|t| t.clip(r.1)) else {
+        let Some(c) = project.track(r.0).and_then(|t| t.arranged(r.1)) else {
+            // r33:session
             continue;
         };
         if c.link.is_some() {
@@ -325,7 +326,8 @@ fn shown(c: &Clip) -> (Ticks, Ticks, Option<Ticks>) {
 /// (none when `edited` is in no group or its window does not change). A sibling the change
 /// would push before the start of the song is left alone.
 pub fn follow_window(project: &Project, edited: ClipRef, commands: &[Command]) -> Vec<Command> {
-    let Some(before) = project.track(edited.0).and_then(|t| t.clip(edited.1)) else {
+    let Some(before) = project.track(edited.0).and_then(|t| t.arranged(edited.1)) else {
+        // r33:session
         return Vec::new();
     };
     if before.link.is_none() {
@@ -362,7 +364,8 @@ pub fn follow_window(project: &Project, edited: ClipRef, commands: &[Command]) -
     let delta = after.start - before.start;
     let mut out = Vec::new();
     for (track, id) in siblings(project, edited) {
-        let Some(s) = project.track(track).and_then(|t| t.clip(id)) else {
+        let Some(s) = project.track(track).and_then(|t| t.arranged(id)) else {
+            // r33:session
             continue;
         };
         let start = s.start + delta;
@@ -416,7 +419,8 @@ pub fn link_to(
     target: ClipRef,
     ids: &mut dyn FnMut() -> u64,
 ) -> Vec<Command> {
-    let Some(t) = project.track(target.0).and_then(|t| t.clip(target.1)) else {
+    let Some(t) = project.track(target.0).and_then(|t| t.arranged(target.1)) else {
+        // r33:session
         return Vec::new();
     };
     let mut out = Vec::new();
@@ -428,7 +432,8 @@ pub fn link_to(
             continue;
         }
         seen.push(*r);
-        let Some(c) = project.track(r.0).and_then(|t| t.clip(r.1)) else {
+        let Some(c) = project.track(r.0).and_then(|t| t.arranged(r.1)) else {
+            // r33:session
             continue;
         };
         if !compatible(c, t) || (link.is_some() && c.link == link) {
@@ -617,7 +622,8 @@ fn verdict(n: usize, already: bool, other_target: bool, kind: bool) -> Result<us
 /// dimmed, with its reason. (For many targets at once, [`Selection`] answers each in
 /// constant time.)
 pub fn would_link(project: &Project, sel: &[ClipRef], target: ClipRef) -> Result<usize, Refusal> {
-    let Some(t) = project.track(target.0).and_then(|x| x.clip(target.1)) else {
+    let Some(t) = project.track(target.0).and_then(|x| x.arranged(target.1)) else {
+        // r33:session
         return Err(Refusal::Gone);
     };
     let mut seen: Vec<ClipRef> = vec![target];
@@ -630,7 +636,8 @@ pub fn would_link(project: &Project, sel: &[ClipRef], target: ClipRef) -> Result
             continue;
         }
         seen.push(*r);
-        let Some(c) = project.track(r.0).and_then(|x| x.clip(r.1)) else {
+        let Some(c) = project.track(r.0).and_then(|x| x.arranged(r.1)) else {
+            // r33:session
             continue;
         };
         if !compatible(c, t) {

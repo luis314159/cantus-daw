@@ -11,6 +11,7 @@ mod listen;
 mod platform;
 mod rack;
 mod score;
+mod session;
 mod shelf;
 mod theme;
 mod top;
@@ -44,6 +45,7 @@ fn app() -> Html {
                 <tour::Tour />
                 <listen::Listen />
                 <tour::Features />
+                <session::Session />
                 <score::Score />
                 <faces::Faces />
                 <fx::Effects />

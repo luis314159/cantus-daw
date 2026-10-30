@@ -229,8 +229,10 @@ impl Modulus {
 
     /// A per-note expression: 0 tuning (st), 1 pressure, 2 slide, 3 pan, 4 volume.
     pub fn expression(&mut self, id: u64, which: usize, value: f32) {
+        let clock = self.clock;
         for v in self.voices.iter_mut().filter(|v| v.active && v.id == id) {
-            v.expression(which, value);
+            let fresh = v.started == clock;
+            v.expression_glided(which, value, fresh);
         }
     }
 

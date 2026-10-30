@@ -232,7 +232,7 @@ pub fn copy_notes(notes: &[Note], origin: Ticks) -> Payload {
 /// [`copy_clips`]'s starts are relative to, for [`Clipboard::at`].
 pub fn copy_origin(project: &Project, sel: &[ClipRef]) -> Ticks {
     sel.iter()
-        .filter_map(|(t, c)| project.track(*t)?.clip(*c).map(|c| c.start))
+        .filter_map(|(t, c)| project.track(*t)?.arranged(*c).map(|c| c.start)) // r33:session
         .min()
         .unwrap_or(Ticks::ZERO)
 }
@@ -245,7 +245,7 @@ pub fn copy_clips(project: &Project, sel: &[ClipRef]) -> Payload {
         .iter()
         .filter_map(|(t, c)| {
             let index = project.track_index(*t)?;
-            let clip = project.tracks[index].clip(*c)?;
+            let clip = project.tracks[index].arranged(*c)?; // r33:session
             Some((index, *t, clip.clone()))
         })
         .collect();
@@ -286,7 +286,7 @@ pub fn clips_payload(
 pub fn cut_clips(project: &Project, sel: &[ClipRef]) -> Vec<Command> {
     let mut seen: Vec<ClipRef> = Vec::with_capacity(sel.len());
     for r in sel {
-        let exists = project.track(r.0).and_then(|t| t.clip(r.1)).is_some();
+        let exists = project.track(r.0).and_then(|t| t.arranged(r.1)).is_some(); // r33:session
         if exists && !seen.contains(r) {
             seen.push(*r);
         }
@@ -751,7 +751,8 @@ fn link_target(project: &Project, r: &ClipRow, copy: &Clip) -> Option<Target> {
     if let Some(src) = project
         .tracks
         .iter()
-        .find_map(|t| t.clip(r.clip.id).map(|c| (t.id, c)))
+        .find_map(|t| t.arranged(r.clip.id).map(|c| (t.id, c)))
+    // r33:session
     {
         if same(src.1) {
             return Some(Target::Clip(src.0, src.1.id, src.1.link));
@@ -1021,12 +1022,12 @@ fn crop_by_split(
         })?;
         cut(&mut bus, c)?;
     }
-    let current = bus.project().track(track)?.clip(middle)?.clone();
+    let current = bus.project().track(track)?.arranged(middle)?.clone(); // r33:session
     if to < current.end() {
         let c = split(project, track, &current, to, ids)?;
         cut(&mut bus, c)?;
     }
-    let piece = bus.project().track(track)?.clip(middle)?.clone();
+    let piece = bus.project().track(track)?.arranged(middle)?.clone(); // r33:session
     commands.push(Command::RemoveClip {
         track,
         clip: middle,

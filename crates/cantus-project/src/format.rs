@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 45;
+pub const SCHEMA_VERSION: u32 = 47;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -179,13 +179,22 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     }
 
     let mut file: ProjectFile = serde_json::from_value(value)?;
+    // The session a command would refuse (a hand edit): slots of scenes not there, a
+    // session clip out of its form, settings out of range (ADR 0076). First: the
+    // frozen keys below read the tracks' columns.
+    let session_repaired = file.project.repair_session();
+    if session_repaired > 0 {
+        log::warn!("{session_repaired} malformed session entr(ies) repaired");
+    }
     // Warps a command would refuse (a hand edit) go first (round 29's second review): the
     // links and the frozen keys below are checked against what each clip then holds.
     let warps_repaired = cantus_core::warp::repair(&mut file.project);
     // Gain envelopes a command would refuse (ADR 0070, review 1): never to the audio thread.
     let gain_envs_repaired = cantus_core::clip_gain::repair_project(&mut file.project);
-    // A track delay out of range never reaches the plan (review 3); before the frozen
-    // keys, which hold it.
+    // Per-note expression a command would refuse (a hand edit): normalised (ADR 0080).
+    cantus_core::model::note_expr::repair_project(&mut file.project); // r33:mpe
+                                                                      // A track delay out of range never reaches the plan (review 3); before the frozen
+                                                                      // keys, which hold it.
     let lateness_repaired = file.project.repair_lateness();
     let links_repaired = cantus_core::links::repair(&mut file.project);
     // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
@@ -263,6 +272,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_42_to_43,
     migrate_43_to_44,
     migrate_44_to_45,
+    migrate_45_to_46,
+    migrate_46_to_47,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -933,6 +944,23 @@ fn migrate_43_to_44(_value: &mut Value) -> Result<(), String> {
 /// Nothing to write: a v44 track has none — everything automatic, as the score view first
 /// shows it. An older build must refuse a v45 file, or it would drop them on its next save.
 fn migrate_44_to_45(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 46 (round 33, ADR 0076): the session view — the scenes and the session's
+/// settings (`Project::session`) and each track's column of slots (`Track::slots`). Nothing
+/// to write: a v45 project has no session, and its tracks no slots. An older build must
+/// refuse a v46 file, or it would drop the session on its next save.
+fn migrate_45_to_46(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 47 (round 33, ADR 0080): per-note expression (`Note::expr`: bend, pressure and
+/// timbre curves), a hosted plug-in's expression route (`ExternalPlugin::expression`).
+/// Nothing to write: a v46 note has none and plays as it did; a plug-in's route is
+/// automatic. An older build must refuse a v47 file, or it would drop the curves on its
+/// next save.
+fn migrate_46_to_47(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -2076,6 +2104,134 @@ mod freeze_tests {
             .iter()
             .filter_map(|c| c.audio.as_ref())
             .all(|a| a.cross.is_none() && a.gain_env.is_none())));
+    }
+
+    /// Schema 46 (round 33, ADR 0076): the session — three scenes (one with its tempo,
+    /// metre, colour and follow action), a column holding a gate-launched MIDI clip with its
+    /// start marker, follow actions and an envelope, a looping audio clip and an empty slot
+    /// without its stop button, and the session's settings; a v45 file has none; slots of a
+    /// scene that is not there and a session clip out of its form (a hand edit) are repaired.
+    #[test]
+    fn schema_46_keeps_the_session() {
+        use cantus_core::session::*;
+        let p = fixture("v46.cantus");
+        let s = &p.session;
+        assert_eq!(s.scenes.len(), 3);
+        assert_eq!(s.scenes[1].tempo, Some(128.0));
+        assert_eq!(s.scenes[1].follow.b, FollowAction::Jump(s.scenes[0].id));
+        assert_eq!(s.settings.launch_quantize, Quantize::Bars2);
+        assert_eq!(s.settings.fixed_bars, Some(4));
+        let t = p
+            .tracks
+            .iter()
+            .find(|t| !t.slots.is_empty())
+            .expect("a column");
+        assert_eq!(t.slots.len(), 3);
+        let c = t.slot_clip(s.scenes[0].id).expect("the riff");
+        assert_eq!(c.launch.mode, LaunchMode::Gate);
+        assert_eq!(c.start, Some(cantus_core::Ticks::beats(2)));
+        assert_eq!(c.follow.count, 4);
+        assert_eq!(c.envelopes.len(), 1);
+        assert!(t.clip(c.id()).is_some(), "found as any clip is");
+        assert!(t.slot_clip(s.scenes[1].id).unwrap().clip.audio.is_some());
+        assert!(!t.slot(s.scenes[2].id).unwrap().stop);
+        assert!(!fixture("v45.cantus").has_session());
+        assert!(fixture("v45.cantus")
+            .tracks
+            .iter()
+            .all(|t| t.slots.is_empty()));
+        // A hand edit: a slot of a scene that is gone, a clip in a link group on a take
+        // lane — repaired on load.
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("fixtures")
+                .join("v46.cantus"),
+        )
+        .unwrap();
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        let tracks = v["project"]["tracks"].as_array_mut().unwrap();
+        let t = tracks
+            .iter_mut()
+            .find(|t| t.get("slots").is_some())
+            .expect("the column");
+        let slots = t["slots"].as_array_mut().unwrap();
+        slots[0]["clip"]["clip"]["link"] = serde_json::json!(4242);
+        slots[0]["clip"]["clip"]["lane"] = serde_json::json!(3);
+        let mut ghost = slots[2].clone();
+        ghost["scene"] = serde_json::json!(999_999_999u64);
+        slots.push(ghost);
+        let r = parse(&serde_json::to_string(&v).unwrap(), false).expect("opens");
+        let t = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .find(|t| !t.slots.is_empty())
+            .unwrap();
+        assert_eq!(t.slots.len(), 3);
+        let c = &t.slots[0].clip.as_ref().unwrap().clip;
+        assert_eq!((c.link, c.lane), (None, 0));
+    }
+
+    /// Schema 47 (round 33, ADR 0080): per-note expression and a hosted instrument's route
+    /// survive a save; a v45 file has none; a hand-edited curve out of order is repaired on
+    /// load, never handed to a command or the audio thread as it was.
+    #[test]
+    fn schema_47_keeps_per_note_expression() {
+        use cantus_core::model::note_expr::ExprKind;
+        let p = fixture("v47.cantus");
+        let n = p
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter().flat_map(|c| c.notes.iter()))
+            .find(|n| n.expr.is_some())
+            .expect("a note with expression");
+        let e = n.expr.as_deref().unwrap();
+        assert_eq!(e.value_at(ExprKind::Bend, 240), Some(2.0));
+        assert_eq!(e.pressure.len(), 2);
+        assert!(p.tracks.iter().any(|t| t
+            .instrument
+            .external()
+            .is_some_and(|x| x.expression == Some(cantus_core::external::ExprRoute::MpeMidi))));
+        let old = fixture("v45.cantus");
+        assert!(old
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter().flat_map(|c| c.notes.iter()))
+            .all(|n| n.expr.is_none()));
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("fixtures")
+                .join("v47.cantus"),
+        )
+        .unwrap();
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        let note = v["project"]["tracks"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .flat_map(|t| t["clips"].as_array_mut().unwrap().iter_mut())
+            .flat_map(|c| c["notes"].as_array_mut().unwrap().iter_mut())
+            .find(|n| n.get("expr").is_some())
+            .unwrap();
+        note["expr"]["bend"] = serde_json::json!([[480, 0], [0, 99]]);
+        let r = parse(&serde_json::to_string(&v).unwrap(), false).expect("opens");
+        let e = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter().flat_map(|c| c.notes.iter()))
+            .find_map(|n| n.expr.as_deref())
+            .unwrap();
+        assert!(e.is_valid());
+        assert_eq!(
+            e.bend,
+            vec![
+                cantus_core::model::note_expr::ExprPoint(0, 99),
+                cantus_core::model::note_expr::ExprPoint(480, 0)
+            ]
+        );
     }
 
     /// Schema 45 (round 32, ADR 0075): a track's score settings — a grand staff split at

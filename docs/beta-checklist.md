@@ -106,6 +106,40 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
         de tareas (Cantus sigue sonando).
   - [ ] **Congelar** una pista pesada y descongelarla; *Bounce in place* con y sin efectos;
         grabar una voz con *Escucha de baja latencia* (sin el retraso de los plug-ins).
+  - [ ] **La vista de sesión** (ronda 33, ADR 0077): `Tab` entre sesión y arreglo; lanzar
+        clips y escenas a tiempo, *Puerta* manteniendo el clic, acciones de seguimiento,
+        *Capturar escena*, grabar en una ranura con la pista armada, *Grab. arreglo* y
+        comprobar que el arreglo suena como lo tocaste; aprender un pad sobre una ranura.
+  - [ ] **Una rejilla real** si tienes alguna (Launchpad Mini MK3, X, Pro MK3, APC mini mk2,
+        APC40 mkII): que se reconozca sola al conectarla, que los pads lancen y se iluminen
+        con los colores de los clips (verde latiendo al sonar, parpadeando al esperar, rojo
+        al grabar), las flechas muevan el recuadro naranja y los botones de escena y de
+        detener funcionen. En el **Pro MK3**, comprobar las flechas (botones laterales y
+        superiores), *Shift*, que *Stop Clip* (el último de la fila etiquetada) mantenido
+        convierta la fila bajo la rejilla en botones de detener y, con *Shift*, lo detenga
+        todo, y que *Session*, *Note* y *Chord* no hagan nada; en los **APC**, la velocidad del parpadeo y del
+        latido. Anotar en `docs/round33/launcher.md` lo que no coincida.
+- [ ] Probar a mano lo de la ronda 33 (sincronía, ADR 0078–0079):
+  - [ ] **Link con otra aplicación de verdad**: Ableton Live (o su prueba), una app Link del
+        teléfono (p. ej. *Link to MIDI*, un metrónomo con Link) u otro PC con Cantus en la
+        misma red. Encender LINK en Cantus (el cortafuegos de Windows pregunta una vez:
+        permitir en redes privadas), ver el número de pares, cambiar el tempo desde cada
+        lado, arrancar con *Inicio/parada* y oír que los tiempos caen juntos. (Aquí no se
+        pudo compilar LinkHut del SDK: la máquina no permitió compilar código de fuera.)
+  - [ ] **Reloj MIDI con un aparato real** (caja de ritmos, sinte con arpegiador): Cantus
+        como maestro (marcar *Reloj* en la salida) y como esclavo (marcar *Reloj* en la
+        entrada); probar Start, Stop, Continue y un salto de posición.
+  - [ ] **MTC** con un aparato o programa que lo lea o lo envíe (vídeo, otro DAW), a 25 y a
+        29.97 drop-frame, con código inicial 01:00:00:00.
+  - [ ] **Un loopback MIDI en Windows** (loopMIDI o Windows MIDI Services; aquí no hay
+        ninguno instalado): enviar reloj por un puerto y seguirlo por el otro en un segundo
+        Cantus.
+- [ ] Probar a mano lo de la ronda 33 (MPE, ADR 0080):
+  - [ ] **Un controlador MPE real**, si tienes uno (Seaboard, LinnStrument, Osmose, Sensel;
+        o una app MPE en el teléfono): Ajustes ▸ MIDI, la columna *MPE* encendida en su
+        puerto; tocar Unda, Calor y Modulus (inflexión, presión, timbre por nota); grabar y
+        ver las curvas en el piano roll; un plug-in MPE (Vital, Surge XT, Pigments) en
+        *Automática* y en *MPE (MIDI)*. Anotar cómo se siente en `docs/round33/mpe.md`.
 - [ ] **El instalador de `v0.1.0-beta.1`**: el botón de descarga de cantusdaw.com lo baja de
       GitHub; instalarlo (Windows avisará «Windows protegió tu PC» mientras no haya firma:
       *Más información ▸ Ejecutar de todas formas*), abrirlo, desinstalarlo.

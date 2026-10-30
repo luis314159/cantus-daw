@@ -5,6 +5,11 @@ use crate::effects::EffectUnit;
 use cantus_core::{EffectId, Snapshot, StripId, Ticks, TrackId};
 use std::sync::Arc;
 
+/// The session view's messages and events (round 33, ADR 0076).
+#[path = "session.rs"]
+pub mod session;
+pub use session::{ScenePhase, SessionEvent, SessionMsg, SlotPhase, MAX_SESSION_EVENTS};
+
 /// Hard limits that let the audio thread pre-allocate everything (ADR 0005). A snapshot
 /// with more is played up to the limit and the rest is refused and counted
 /// (`EngineStats::refused_tracks`, `refused_strips`), never dropped silently.
@@ -120,6 +125,8 @@ pub enum EngineMessage {
     Midi(MidiEvent),
     /// Track that receives hardware MIDI and is recorded into.
     SetLiveTrack(Option<TrackId>),
+    /// The zone layout of the MPE input ports, `None` when no port is MPE (ADR 0080). // r33:mpe
+    SetMpe(Option<cantus_core::model::note_expr::zones::MpeZones>), // r33:mpe
     /// Tracks that also play every live note (and controller) the live track gets: the
     /// armed instrument tracks of a recording pass, so each is heard as it is recorded
     /// into (multitrack MIDI recording, as Cubase and Logic do it). Only the live track's
@@ -168,6 +175,9 @@ pub enum EngineMessage {
     /// was played in that time was played against the backing as it was (round 29's third
     /// review: a heard-latency move shifts a take only once the musician can hear it).
     SetDeviceRoundTrip(u32),
+    /// The session view (round 33, ADR 0076): a launch, a release, a stop, back to the
+    /// arrangement, a recording into a slot, arrangement record.
+    Session(SessionMsg),
 }
 
 /// Peak meters for one block. Track order matches the snapshot's track order.
@@ -373,6 +383,8 @@ pub enum EngineEvent {
     Meters(Meters),
     Stats(EngineStats),
     NoteInput(NoteInput),
+    /// A per-note value from an MPE controller while recording (ADR 0080). // r33:mpe
+    ExprInput(crate::inst::mpe::ExprInput), // r33:mpe
     /// A live controller while recording (ADR 0068).
     ControlInput(ControlInput),
     /// A snapshot the engine no longer uses; the UI drops it (never the audio thread).
@@ -422,4 +434,6 @@ pub enum EngineEvent {
     GarbagePlan(Box<crate::graph::GraphPlan>),
     /// The modulators' live values, once a block while there are any (ADR 0057).
     Modulation(crate::modulator::ModTelemetry),
+    /// A change in the session view's state (round 33, ADR 0076).
+    Session(SessionEvent),
 }

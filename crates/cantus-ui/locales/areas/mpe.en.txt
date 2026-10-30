@@ -1,0 +1,39 @@
+# Area: MPE — per-note pitch bend, pressure and timbre, recorded, edited and played; zones;
+# MPE in MIDI files (round 33, ADR 0080, BACKLOG §0.2). Every key here needs its twin in
+# mpe.es.txt.
+cmd.mpe.set = Set note expression
+cmd.mpe.draw = Draw note expression
+cmd.mpe.scale = Scale note expression
+cmd.mpe.smooth = Smooth note expression
+cmd.mpe.thin = Thin note expression
+cmd.mpe.flatten = Flatten note expression
+cmd.mpe.clear = Clear note expression
+cmd.mpe.route = Expression route
+mpe.kind.bend = Bend (per note)
+mpe.kind.pressure = Pressure (per note)
+mpe.kind.timbre = Timbre (per note)
+mpe.route = Note expression
+mpe.route.auto = Automatic
+mpe.route.note_expression = Note expressions
+mpe.route.mpe_midi = MPE (MIDI)
+mpe.route.off = Off
+mpe.band = MPE
+mpe.port = MPE input
+mpe.port.off = Off
+mpe.port.on = MPE
+mpe.zones = Zones
+mpe.zone.lower = Lower zone
+mpe.zone.upper = Upper zone
+mpe.zone.both = Both (split)
+mpe.members = Channels
+mpe.member_bend = Bend range
+mpe.zones_hint = A controller that sends its MCM sets its own zones; these are used until it does.
+mpe.lane.band = Per-note expression
+mpe.lane.hide = Hide this row
+mpe.lane.tip = The selected notes' curves (every note when none is selected): draw with the pencil or the line, Shift snaps a bend to semitones, right-click to smooth, thin, scale, flatten or clear.
+mpe.edit.smooth = Smooth
+mpe.edit.thin = Thin
+mpe.edit.less = Scale to 50 %
+mpe.edit.more = Scale to 150 %
+mpe.edit.flatten = Flatten
+mpe.edit.clear = Clear

@@ -455,7 +455,7 @@ pub fn notes(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
         let notes: Vec<cantus_core::Note> = chosen()
             .map(|x| cantus_core::Note {
                 velocity: (x.velocity as f32 + delta).round().clamp(1.0, 127.0) as u8,
-                ..*x
+                ..x.clone()
             })
             .collect();
         sh.acts.push(Act::Merge(

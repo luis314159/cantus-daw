@@ -117,6 +117,20 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         super::menus::MenuId::Hosting(t),
         false,
     );
+    // How it hears per-note expression (round 33, ADR 0080).
+    let route = app
+        .project()
+        .track(t)
+        .and_then(|tr| tr.instrument.external())
+        .and_then(|x| x.expression)
+        .map_or("mpe.route.auto", |r| r.label_key());
+    let route = crate::i18n::t(route);
+    sh.menu_row(
+        "mpe.route",
+        &route,
+        super::menus::MenuId::Expression(t),
+        false,
+    );
     // A stopped plug-in costs nothing: its last reading is not shown.
     if let Some(c) = h.cpu().filter(|_| !stopped) {
         let cpu = crate::views::plugin_notice::percent(c.share);

@@ -70,6 +70,9 @@ impl Voice {
         let from = self.pitch;
         self.key = key;
         self.id = id;
+        // Another note now: none of the last one's expression (ADR 0080, as Gravis does).
+        self.x[..3].copy_from_slice(&super::x::DEFAULT[..3]);
+        self.x_to = [0.0; 3];
         if let Some(v) = vel {
             self.vel = v;
         }

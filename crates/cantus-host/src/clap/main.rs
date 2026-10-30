@@ -143,6 +143,13 @@ unsafe extern "C" fn istream_read(
 }
 
 impl MainThread for ClapMain {
+    fn expression_support(&self) -> crate::backend::ExprSupport {
+        crate::backend::ExprSupport {
+            note_expressions: self.ports.note_dialects.clap,
+            midi: self.ports.note_dialects.midi,
+        }
+    }
+
     fn info(&self) -> &PluginInfo {
         &self.info
     }

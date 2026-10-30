@@ -264,6 +264,7 @@ pub fn customise_panel(app: &mut CantusApp, ctx: &egui::Context, bar: Rect) {
             {
                 topbar.order.clear();
                 topbar.hidden.clear();
+                topbar.shown.clear(); // r33:sync
                 changed = true;
             }
             child.add_space(6.0 * k);
@@ -312,7 +313,8 @@ fn rows(
     let drag = app.topbar.customise.drag;
     for (i, g) in order.iter().enumerate() {
         let r = row_at(i);
-        let shown = !topbar.hidden.iter().any(|h| h == g.id());
+        let in_use = app.settings.sync.source != super::sync_service::SyncSource::None; // r33:sync
+        let shown = g.is_shown(&topbar.hidden, &topbar.shown, in_use); // r33:sync
         let grip = Rect::from_min_size(r.min, vec2(22.0 * k, row_h));
         let lamp = Rect::from_min_size(Pos2::new(grip.right(), r.top()), vec2(22.0 * k, row_h));
         let gresp = ui.interact(grip, Id::new(("topbar-grip", i)), Sense::drag());
@@ -356,8 +358,13 @@ fn rows(
         if lresp.clicked() {
             if shown {
                 topbar.hidden.push(g.id().to_string());
+                topbar.shown.retain(|h| h != g.id()); // r33:sync
             } else {
                 topbar.hidden.retain(|h| h != g.id());
+                if g.hidden_by_default() {
+                    // r33:sync
+                    topbar.shown.push(g.id().to_string()); // r33:sync
+                } // r33:sync
             }
             changed = true;
         }

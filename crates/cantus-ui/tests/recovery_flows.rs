@@ -281,6 +281,7 @@ fn a_recovered_loop_pass_wraps_where_the_engine_would_have() {
         marked_wraps: Vec::new(),
         takes: vec![],
         finished: false,
+        slot: None,
     };
     assert_eq!(wraps(&pass, 130_000), vec![48_000, 96_000]);
     // Under a tempo track (ADR 0060): 60 BPM from beat 2, so the loop (beats 1–3) is a
@@ -434,6 +435,7 @@ fn the_journal_keeps_the_figures_the_engine_marked_for_the_pass() {
             marked_wraps: Vec::new(),
             takes: vec![],
             finished: false,
+            slot: None,
         });
     }
     a.engine.begin_recording(&dir.path().join("takes")).unwrap();
@@ -479,6 +481,7 @@ fn a_recovered_loop_pass_is_laid_by_the_wraps_the_engine_marked() {
         marked_wraps: Vec::new(),
         takes: vec![],
         finished: false,
+        slot: None,
     };
     assert_eq!(wraps(&pass, 150_000), vec![48_000, 96_000, 144_000]);
     pass.marked_wraps = vec![(48_300, -300)];

@@ -34,6 +34,7 @@ pub(crate) struct TrackSlot {
     pub next_event: usize,
     /// Index into the snapshot track's controller events of the next to fire (ADR 0068).
     pub next_control: usize,
+    pub next_expr: usize, // r33:mpe — the next per-note expression event (ADR 0080)
     pub gain: f32,
     pub pan: f32,
     pub audible: bool,
@@ -84,6 +85,7 @@ impl TrackSlot {
             native: None,
             next_event: 0,
             next_control: 0,
+            next_expr: 0, // r33:mpe
             gain: 1.0,
             pan: 0.0,
             audible: true,
@@ -457,6 +459,10 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
                         end = end.min(o);
                     }
                 }
+            }
+            // r33:mpe — per-note expression, last before the segment (ADR 0080)
+            if playing && !track.expr.is_empty() {
+                end = crate::inst::expr_play::due(&mut s, track, &ctx.transport, sub, end);
             }
             if !s.notes_only {
                 track_segment(nodes, ctx, track, slot, &mut s, &mut out, sc, sub, end);

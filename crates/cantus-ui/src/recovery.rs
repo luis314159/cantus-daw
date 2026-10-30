@@ -78,6 +78,9 @@ pub struct JournalPass {
     pub takes: Vec<JournalTake>,
     /// The pass ended and its clips are in the project (not yet in a file on disk).
     pub finished: bool,
+    /// It recorded into a session slot (ADR 0076): it comes back there. // r33:session
+    #[serde(default, skip_serializing_if = "Option::is_none")] // r33:session
+    pub slot: Option<cantus_core::session::SlotRef>, // r33:session
 }
 
 impl JournalPass {

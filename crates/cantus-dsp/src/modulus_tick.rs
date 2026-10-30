@@ -17,6 +17,11 @@ impl Voice {
         let (p, g) = (c.p, c.g);
         let dt = span as f32 / c.fs;
         self.elapsed += dt;
+        // Per-note expression toward its targets (ADR 0080); untouched when at them.
+        let k = crate::expr_glide::coef(span as f32, c.fs);
+        for i in 0..3 {
+            crate::expr_glide::toward(&mut self.mpe[i], self.mpe_to[i], k);
+        }
         if self.pitch != self.pitch_to {
             let step = self.glide_rate * dt;
             let gap = self.pitch_to - self.pitch;

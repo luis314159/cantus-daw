@@ -1350,3 +1350,66 @@ fn a_toggle_on_one_value_of_a_choice_goes_between_its_two_values() {
     assert_eq!(mute.feedback_value_in(1.0, switch), 127);
     assert_eq!(mute.feedback_value_in(0.0, switch), 0);
 }
+
+// ---- round 33 (ADR 0077): the session's targets ------------------------------------------
+
+#[test]
+fn the_session_targets_exist_while_their_track_and_scene_do_and_learn_as_buttons() {
+    use crate::session::{Scene, SceneId, SessionCommand};
+    let mut p = project();
+    let t = p.tracks[0].id;
+    let scene = SceneId(9001);
+    let slot = MappingTarget::SessionSlot { track: t, scene };
+    assert!(!slot.exists(&p));
+    Command::Session(SessionCommand::InsertScene {
+        index: 0,
+        scene: Box::new(Scene::new(scene, "A")),
+        slots: Vec::new(),
+    })
+    .apply(&mut p)
+    .unwrap();
+    assert!(slot.exists(&p));
+    assert!(MappingTarget::SessionScene(scene).exists(&p));
+    assert!(MappingTarget::SessionStop(t).exists(&p));
+    assert!(!MappingTarget::SessionStop(crate::TrackId(77_777)).exists(&p));
+    for target in [
+        slot.clone(),
+        MappingTarget::SessionScene(scene),
+        MappingTarget::SessionStop(t),
+    ] {
+        assert!(target.is_launcher() && target.is_action() && !target.is_portable());
+        // A pad learnt on a launcher fires on its press.
+        let (_, mode) = detect(&[(Control::Note(36), 100)], &target).unwrap();
+        assert_eq!(mode, MapMode::Trigger);
+        assert!(target.command(&p, 1.0, Ticks::ZERO).is_none());
+        // It travels in a project file and comes back.
+        let json = serde_json::to_string(&target).unwrap();
+        assert_eq!(
+            serde_json::from_str::<MappingTarget>(&json).unwrap(),
+            target
+        );
+    }
+}
+
+#[test]
+fn the_global_quantisation_steps_through_every_grid_and_sets_the_session() {
+    use crate::session::Quantize;
+    let p = project();
+    let q = MappingTarget::SessionQuantize;
+    assert!(q.is_portable() && !q.is_launcher() && !q.is_switch());
+    // A bar by default: the fifth of fourteen.
+    assert_eq!(q.current_pos(&p, Ticks::ZERO), Some(4.0 / 13.0));
+    assert_eq!(quantize_at(0.0), Quantize::None);
+    assert_eq!(quantize_at(1.0), Quantize::ThirtySecond);
+    for (i, g) in SESSION_QUANTIZE.iter().enumerate() {
+        assert_eq!(quantize_at(quantize_pos(*g)), *g, "{i}");
+    }
+    // Where it is already: nothing to do.
+    assert!(q.command(&p, 4.0 / 13.0, Ticks::ZERO).is_none());
+    let mut p2 = p.clone();
+    let cmd = q.command(&p, 1.0, Ticks::ZERO).unwrap();
+    let inverse = cmd.apply(&mut p2).unwrap();
+    assert_eq!(p2.session.settings.launch_quantize, Quantize::ThirtySecond);
+    inverse.apply(&mut p2).unwrap();
+    assert_eq!(p2, p);
+}

@@ -269,6 +269,10 @@ pub trait MainThread: Send {
     /// Samples of delay it adds now.
     fn latency(&self) -> usize;
     fn has_editor(&self) -> bool;
+    /// What it takes for per-note expression (ADR 0080). Default: neither.
+    fn expression_support(&self) -> ExprSupport {
+        ExprSupport::default()
+    }
     /// Embed the editor in `parent` (a native child window the host owns).
     fn open_editor(
         &mut self,
@@ -594,6 +598,17 @@ pub struct Audio<'a> {
     pub key: Option<(&'a [f32], &'a [f32])>,
     /// The song position at the block's start; `None` when the host has none (offline tools).
     pub transport: Option<&'a TransportInfo>,
+}
+
+/// What a plug-in declares it takes for per-note expression (round 33, ADR 0080): its
+/// format's own per-note events (CLAP's note port speaks the CLAP dialect; a VST3 offers
+/// note expressions through `INoteExpressionController`), and MIDI (CLAP's MIDI dialect; a
+/// VST3 that maps a member channel's pitch bend through `IMidiMapping`). What decides the
+/// automatic route (`ExprRoute::automatic`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExprSupport {
+    pub note_expressions: bool,
+    pub midi: bool,
 }
 
 /// Everything called on the audio thread. No allocation, no locks, no panics (ADR 0005).

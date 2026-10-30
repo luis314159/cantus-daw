@@ -1082,6 +1082,125 @@ fn main() {
             };
         }
     }
+    // Schema 46 (round 33, ADR 0076): a session — three scenes (the second with a tempo, a
+    // metre, a colour and a follow action), the first note track's column holding a looping
+    // MIDI clip launched as a gate on a quarter with legato, a start marker, follow actions
+    // and a clip envelope of its own level, the pool's first audio file looping in the next
+    // slot, and an empty slot whose stop button was taken away; the session's own settings.
+    if upto >= 46 {
+        use cantus_core::session::*;
+        let ids: Vec<SceneId> = (0..3).map(|_| SceneId(p.alloc_id())).collect();
+        for (i, id) in ids.iter().enumerate() {
+            let mut s = Scene::new(*id, ["Intro", "Verse", "Drop"][i]);
+            if i == 1 {
+                s.tempo = Some(128.0);
+                s.metre = Some(TimeSignature::new(7, 8));
+                s.color = Some(Color::rgb(0x4F, 0xA3, 0xC7));
+                s.follow = FollowActions {
+                    on: true,
+                    a: FollowAction::Next,
+                    b: FollowAction::Jump(ids[0]),
+                    chance_a: 75,
+                    after: FollowAfter::Time(Ticks::beats(16)),
+                    count: 2,
+                };
+            }
+            p.session.scenes.push(s);
+        }
+        p.session.settings = SessionSettings {
+            launch_quantize: Quantize::Bars2,
+            record_quantize: RecordQuantize::SixteenthAndTriplet,
+            seed: 33,
+            fixed_bars: Some(4),
+        };
+        let mut clip = p.make_clip("Session riff", Ticks::ZERO, Ticks::beats(8));
+        clip.content_length = Some(Ticks::beats(8));
+        for (i, pitch) in [62u8, 65, 69].iter().enumerate() {
+            let mut n = p.make_note(Ticks::beats(i as i64 * 2), Ticks::QUARTER, *pitch, 96);
+            n.start = Ticks::beats(i as i64 * 2);
+            clip.notes.push(n);
+        }
+        let source = p.audio_pool.first().map(|s| s.id);
+        let tid = p
+            .tracks
+            .iter()
+            .find(|t| t.clips.iter().any(|c| !c.notes.is_empty()))
+            .map(|t| t.id)
+            .expect("a note track");
+        let mut slots = Vec::new();
+        let mut sc = SessionClip::new(clip);
+        sc.launch = LaunchSettings {
+            mode: LaunchMode::Gate,
+            quantize: Quantize::Quarter,
+            legato: true,
+            velocity: 0.5,
+        };
+        sc.follow = FollowActions {
+            on: true,
+            a: FollowAction::Other,
+            b: FollowAction::Stop,
+            chance_a: 60,
+            after: FollowAfter::Linked,
+            count: 4,
+        };
+        sc.start = Some(Ticks::beats(2));
+        sc.envelopes.push(cantus_core::Automation::new(
+            cantus_core::AutoTarget::TrackGain(tid),
+            vec![
+                cantus_core::AutoPoint::new(Ticks::ZERO, 0.4),
+                cantus_core::AutoPoint::new(Ticks::beats(8), 0.9),
+            ],
+        ));
+        slots.push(Slot {
+            scene: ids[0],
+            clip: Some(sc),
+            stop: true,
+        });
+        if let Some(src) = source {
+            let mut a = p.make_audio_clip("Session loop", src, Ticks::ZERO, Ticks::beats(4));
+            a.content_length = Some(Ticks::beats(4));
+            slots.push(Slot {
+                scene: ids[1],
+                clip: Some(SessionClip::new(a)),
+                stop: true,
+            });
+        }
+        slots.push(Slot {
+            scene: ids[2],
+            clip: None,
+            stop: false,
+        });
+        p.track_mut(tid).unwrap().slots = slots;
+    }
+    // Schema 47 (round 33, ADR 0080): per-note expression — the first note of the first
+    // note track bent up a tone and back, pressed and brightened; the hosted instrument's
+    // expression sent as MPE.
+    if upto >= 47 {
+        use cantus_core::model::note_expr::{ExprKind, ExprPoint, NoteExpr};
+        let st = |x: f64| ExprKind::Bend.store(x);
+        let u = |x: f64| ExprKind::Pressure.store(x);
+        if let Some(n) = p
+            .tracks
+            .iter_mut()
+            .flat_map(|t| t.clips.iter_mut())
+            .find_map(|c| c.notes.first_mut())
+        {
+            n.expr = NoteExpr {
+                bend: vec![ExprPoint(0, 0), ExprPoint(240, st(2.0)), ExprPoint(480, 0)],
+                pressure: vec![ExprPoint(0, u(0.2)), ExprPoint(120, u(0.9))],
+                timbre: vec![ExprPoint(0, u(0.5)), ExprPoint(360, u(0.75))],
+            }
+            .boxed();
+        }
+        if let Some(cantus_core::InstrumentSpec::External(x)) = p
+            .tracks
+            .iter_mut()
+            .map(|t| &mut t.instrument)
+            .find(|i| i.external().is_some())
+        {
+            x.expression = Some(cantus_core::external::ExprRoute::MpeMidi);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

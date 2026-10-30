@@ -43,6 +43,7 @@ pub mod layout;
 pub mod links;
 #[cfg(target_os = "linux")]
 pub mod linux_desktop;
+pub mod mpe; // r33:mpe
 pub mod notefx_menus;
 pub mod notefx_ui;
 // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
@@ -70,6 +71,8 @@ pub mod samples;
 pub mod save_job;
 /// The score: its view state, files and edits (round 32, ADR 0075).
 pub mod score;
+pub mod session_play; // r33:session (ADR 0076)
+pub mod session_play_rec; // r33:session
 pub mod settings;
 pub mod startup_probe;
 pub mod swap;

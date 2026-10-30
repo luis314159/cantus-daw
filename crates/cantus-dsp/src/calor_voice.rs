@@ -153,6 +153,9 @@ pub struct Voice {
     glide_step: f32,
     glide_coef: f32,
     pub x: [f32; 7],
+    /// Where tuning, pressure and brightness are heading (ADR 0080): each tick moves them
+    /// there (`expr_glide`), so a stream of values is a glide, not a staircase.
+    pub x_to: [f32; 3],
     osc: [VaOsc; 3],
     sub: SubOsc,
     noise: Noise,
@@ -235,6 +238,7 @@ impl Default for Voice {
             glide_step: 0.0,
             glide_coef: 0.0,
             x: x::DEFAULT,
+            x_to: [0.0; 3],
             osc: [VaOsc::default(); 3],
             sub: SubOsc::default(),
             noise: Noise::new(0),
@@ -293,3 +297,11 @@ impl Default for Voice {
 
 #[path = "calor_voice_run.rs"]
 mod run;
+
+impl Voice {
+    /// Whether the voice has rendered nothing yet: a value it receives now is where it
+    /// starts, not where it glides to (ADR 0080).
+    pub fn fresh(&self) -> bool {
+        self.first_tick
+    }
+}

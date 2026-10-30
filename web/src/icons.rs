@@ -31,6 +31,9 @@ pub fn mic() -> Html {
 pub fn export() -> Html {
     line("M12 3v12M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4")
 }
+pub fn grid() -> Html {
+    line("M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z")
+}
 pub fn check() -> Html {
     line("M4 12.5l5 5L20 6.5")
 }

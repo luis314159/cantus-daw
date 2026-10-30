@@ -173,15 +173,41 @@ impl Unda {
     }
 
     /// Per-note expressions, by note id: tuning (st), pressure, slide, volume, pan.
+    ///
+    /// Tuning, pressure and slide glide to each new value at the control rate
+    /// (`expr_glide`, ADR 0080); a note that has not sounded yet takes its first values at
+    /// once, its first samples already bent.
     pub fn expression(&mut self, id: u64, which: usize, value: f32) {
+        use crate::expr_glide::set;
+        let s = &*self.s;
+        let g = Globals {
+            sr: self.sr,
+            oversample: s.oversample,
+            src: &self.globals,
+            free_lfo: &self.free_val,
+        };
         for v in self.voices.iter_mut().filter(|v| v.active && v.id == id) {
+            let fresh = v.fresh();
             match which {
-                0 => v.tuning = value,
-                1 => v.pressure = value.clamp(0.0, 1.0),
-                2 => v.slide = value.clamp(0.0, 1.0),
+                0 => set(&mut v.tuning, &mut v.expr_to[0], value, fresh),
+                1 => set(
+                    &mut v.pressure,
+                    &mut v.expr_to[1],
+                    value.clamp(0.0, 1.0),
+                    fresh,
+                ),
+                2 => set(
+                    &mut v.slide,
+                    &mut v.expr_to[2],
+                    value.clamp(0.0, 1.0),
+                    fresh,
+                ),
                 3 => v.volume = value.clamp(0.0, 4.0),
                 4 => v.pan = value.clamp(-1.0, 1.0),
                 _ => {}
+            }
+            if fresh && which < 3 {
+                v.control(s, &g, true);
             }
         }
     }

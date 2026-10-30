@@ -41,6 +41,7 @@ pub mod dynfx_transient;
 pub mod env;
 pub mod eq;
 pub mod exemplar;
+pub mod expr_glide;
 pub mod fervor;
 pub mod filter;
 pub mod firmus;

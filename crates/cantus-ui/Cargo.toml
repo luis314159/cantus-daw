@@ -25,6 +25,10 @@ cantus-update.workspace = true
 cantus-export.workspace = true
 # The score: engraving, MusicXML and PDF (round 32, ADR 0075).
 cantus-score.workspace = true
+# Ableton Link in Rust, GPL like this crate (round 33, ADR 0078).
+cantus-link.workspace = true
+# The sync seam's rings (round 33).
+rtrb.workspace = true
 # The taskbar identity and the running window's taskbar icon (ADR 0046).
 cantus-launch.workspace = true
 raw-window-handle = "0.6"
@@ -81,7 +85,6 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
 
 [dev-dependencies]
 tempfile = "3"
-rtrb.workspace = true
 # The README's pictures (`examples/shoot_readme.rs`), written compressed; already in the
 # tree through tiny-skia.
 png = "0.18"

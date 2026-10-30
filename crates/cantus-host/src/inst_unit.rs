@@ -20,11 +20,15 @@ use crate::backend::{
     TransportInfo,
 };
 use crate::unit::{transport_of, CpuMeter, ParamSync};
+use cantus_core::model::note_expr::ExprKind;
 use cantus_core::{ExternalPlugin, NativeSpec};
 use cantus_engine::fx::{FxParamEvent, SongPosition};
 use cantus_engine::inst::{Assets, Controller, InstrumentUnit, NoteExpression, NoteOn};
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+
+#[path = "inst_mpe.rs"]
+mod mpe;
 
 /// Events one call can carry; more in one instant are dropped and counted.
 pub const NOTE_CAPACITY: usize = 512;
@@ -50,6 +54,10 @@ pub struct HostedInstrument {
     /// Events that did not fit, since the unit was made.
     pub dropped: usize,
     meter: Option<Arc<CpuMeter>>,
+    /// What the plug-in takes for per-note expression, and how it hears it (ADR 0080).
+    support: crate::backend::ExprSupport,
+    route: cantus_core::external::ExprRoute,
+    mpe: mpe::MpeOut,
 }
 
 impl std::fmt::Debug for HostedInstrument {
@@ -92,7 +100,23 @@ impl HostedInstrument {
             held: Vec::with_capacity(HELD_CAPACITY),
             dropped: 0,
             meter: None,
+            support: Default::default(),
+            route: cantus_core::external::ExprRoute::NoteExpression,
+            mpe: mpe::MpeOut::default(),
         }
+    }
+
+    /// What the plug-in declares for per-note expression (ADR 0080): the automatic route.
+    pub fn supports(mut self, support: crate::backend::ExprSupport) -> Self {
+        self.support = support;
+        self.route =
+            cantus_core::external::ExprRoute::automatic(support.note_expressions, support.midi);
+        self
+    }
+
+    /// How it hears per-note expression now.
+    pub fn route(&self) -> cantus_core::external::ExprRoute {
+        self.route
     }
 
     /// Measures what its calls cost into `meter` (round 29).
@@ -102,9 +126,14 @@ impl HostedInstrument {
     }
 
     fn push(&mut self, channel: u8, key: u8, note_id: i32, kind: NoteKind) {
+        self.push_at(0, channel, key, note_id, kind);
+    }
+
+    /// An event `offset` samples into the next call (a per-note expression, ADR 0080).
+    fn push_at(&mut self, offset: u32, channel: u8, key: u8, note_id: i32, kind: NoteKind) {
         if self.notes.len() < self.notes.capacity() {
             self.notes.push(NoteEvent {
-                offset: 0,
+                offset,
                 note_id,
                 channel: channel & 15,
                 key: key & 127,
@@ -130,12 +159,63 @@ impl HostedInstrument {
 
     fn release(&mut self, key: u8, id: u64, kind: NoteKind) {
         let note_id = plugin_note_id(id);
+        self.mpe.free(note_id);
         let at = self.held.iter().position(|h| h.id == note_id);
         let channel = at.map_or(0, |i| self.held[i].channel);
         if let Some(i) = at {
             self.held.swap_remove(i);
         }
         self.push(channel, key, note_id, kind);
+    }
+
+    /// A member channel for the note `id` about to start (MPE out, ADR 0080): the zone
+    /// announced first, a note whose channel it takes released, the channel's bend and
+    /// pressure put back to rest before the note-on.
+    fn mpe_channel(&mut self, id: i32) -> u8 {
+        if !self.mpe.announced {
+            let mut msgs = [(0u8, 0u8, 0u8); 5 + 15 * 6];
+            let mut k = 0;
+            self.mpe.announce(|m| {
+                msgs[k] = m;
+                k += 1;
+            });
+            for &(status, data1, data2) in &msgs[..k] {
+                self.push(
+                    status & 15,
+                    0,
+                    -1,
+                    NoteKind::Midi {
+                        status,
+                        data1,
+                        data2,
+                    },
+                );
+            }
+        }
+        let (ch, stolen) = self.mpe.take(id);
+        if let Some(old) = stolen {
+            if let Some(i) = self.held.iter().position(|h| h.id == old) {
+                let h = self.held.swap_remove(i);
+                self.push(h.channel, h.key, h.id, NoteKind::Off { velocity: 0.0 });
+            }
+        }
+        // What the channel's last note left away from rest goes back first (review fix 4):
+        // bend, pressure and timbre alike.
+        for kind in ExprKind::ALL {
+            if let Some((status, data1, data2)) = self.mpe.back_to_rest(ch, kind) {
+                self.push(
+                    ch,
+                    0,
+                    -1,
+                    NoteKind::Midi {
+                        status,
+                        data1,
+                        data2,
+                    },
+                );
+            }
+        }
+        ch
     }
 }
 
@@ -145,10 +225,25 @@ impl InstrumentUnit for HostedInstrument {
 
     fn configure_hosted(&mut self, plugin: &ExternalPlugin) {
         self.sync.configure(&plugin.params);
+        // The project's choice, else what the plug-in declares (ADR 0080).
+        let route = plugin
+            .expression
+            .unwrap_or(cantus_core::external::ExprRoute::automatic(
+                self.support.note_expressions,
+                self.support.midi,
+            ));
+        if route != self.route {
+            self.route = route;
+            self.mpe.reset();
+        }
     }
 
     fn note_on(&mut self, note: NoteOn) {
         let id = plugin_note_id(note.id);
+        let mut note = note;
+        if self.route == cantus_core::external::ExprRoute::MpeMidi {
+            note.channel = self.mpe_channel(id);
+        }
         if self.held.len() < self.held.capacity() {
             self.held.push(Held {
                 id,
@@ -181,10 +276,46 @@ impl InstrumentUnit for HostedInstrument {
     }
 
     fn expression(&mut self, id: u64, expression: NoteExpression, value: f32) {
+        self.expression_at(id, expression, value, 0);
+    }
+
+    /// Values ahead with their offsets (ADR 0080): a moving bend does not cut the plug-in's
+    /// block every few milliseconds.
+    fn expression_offsets(&self) -> bool {
+        true
+    }
+
+    fn expression_at(&mut self, id: u64, expression: NoteExpression, value: f32, offset: u32) {
         let note_id = plugin_note_id(id);
         let Some(h) = self.held.iter().find(|h| h.id == note_id).copied() else {
             return;
         };
+        match self.route {
+            cantus_core::external::ExprRoute::Off => return,
+            cantus_core::external::ExprRoute::MpeMidi => {
+                let kind = match expression {
+                    NoteExpression::Tuning => ExprKind::Bend,
+                    NoteExpression::Pressure => ExprKind::Pressure,
+                    NoteExpression::Brightness => ExprKind::Timbre,
+                    _ => return,
+                };
+                let (status, data1, data2) = mpe::MpeOut::message(h.channel, kind, value);
+                self.mpe.sent(h.channel, kind, (status, data1, data2));
+                self.push_at(
+                    offset,
+                    h.channel,
+                    0,
+                    -1,
+                    NoteKind::Midi {
+                        status,
+                        data1,
+                        data2,
+                    },
+                );
+                return;
+            }
+            cantus_core::external::ExprRoute::NoteExpression => {}
+        }
         let (expression, value) = match expression {
             NoteExpression::Tuning => (HostExpression::Tuning, f64::from(value)),
             NoteExpression::Pressure => (HostExpression::Pressure, f64::from(value)),
@@ -195,7 +326,8 @@ impl InstrumentUnit for HostedInstrument {
             NoteExpression::Vibrato => (HostExpression::Vibrato, f64::from(value)),
             NoteExpression::Expression => (HostExpression::Expression, f64::from(value)),
         };
-        self.push(
+        self.push_at(
+            offset,
             h.channel,
             h.key,
             note_id,
@@ -228,6 +360,7 @@ impl InstrumentUnit for HostedInstrument {
 
     fn all_notes_off(&mut self) {
         while let Some(h) = self.held.pop() {
+            self.mpe.free(h.id);
             self.push(h.channel, h.key, h.id, NoteKind::Off { velocity: 0.0 });
         }
         // A pedal held when the song stopped would keep every released note sounding.
@@ -237,6 +370,7 @@ impl InstrumentUnit for HostedInstrument {
     fn reset(&mut self) {
         self.notes.clear();
         self.held.clear();
+        self.mpe.reset();
         self.audio.reset();
         cantus_rt::fpenv::reassert();
     }
@@ -330,3 +464,7 @@ impl InstrumentUnit for Silent {
         0
     }
 }
+
+#[cfg(test)]
+#[path = "inst_unit_tests.rs"]
+mod tests;

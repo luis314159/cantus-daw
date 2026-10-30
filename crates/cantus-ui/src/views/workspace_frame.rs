@@ -123,6 +123,7 @@ impl TabViewer for Viewer<'_> {
             Pane::Controllers => super::controllers::show(app, ui),
             Pane::History => super::history::show(app, ui),
             Pane::Score => super::score_view::show(app, ui),
+            Pane::Session => super::session::show(app, ui), // r33:launcher
             Pane::Device(key) => device::record_body(ui.ctx(), key, ui),
         }
     }

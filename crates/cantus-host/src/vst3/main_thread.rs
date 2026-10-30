@@ -172,6 +172,24 @@ impl MainHalf {
 }
 
 impl MainThread for MainHalf {
+    /// Note expressions when the controller offers any on the first bus and channel; MIDI
+    /// when it maps a member channel's pitch bend (an MPE-aware plug-in, ADR 0080).
+    fn expression_support(&self) -> crate::backend::ExprSupport {
+        use ::vst3::ComPtr;
+        use ::vst3::Steinberg::Vst::{INoteExpressionController, INoteExpressionControllerTrait};
+        let note_expressions = self
+            .inst
+            .controller()
+            .and_then(|c| c.cast::<INoteExpressionController>())
+            // SAFETY: a main-thread query of a count.
+            .is_some_and(|x: ComPtr<INoteExpressionController>| unsafe { x.getNoteExpressionCount(0, 0) } > 0);
+        let midi = self.inst.midi_map[1][129] != super::instance::NO_MIDI_PARAM;
+        crate::backend::ExprSupport {
+            note_expressions,
+            midi,
+        }
+    }
+
     fn info(&self) -> &PluginInfo {
         &self.info
     }

@@ -58,6 +58,8 @@ pub struct PassPlan {
     pub take_word: String,
     /// The controllers played (ADR 0068): each MIDI take's lanes.
     pub controls: Vec<crate::recording::RecordedControl>,
+    /// Recording into a session slot (ADR 0076 §8): the pass is the slot's.
+    pub slot: Option<cantus_core::session::SlotRef>,
 }
 
 impl PassPlan {
@@ -76,6 +78,7 @@ impl PassPlan {
             last_pass: 0,
             take_word: "Take".into(),
             controls: Vec::new(),
+            slot: None,
         }
     }
 }
@@ -590,6 +593,7 @@ fn new_note(n: &RecordedNote, content: Ticks, ids: Ids) -> Note {
         velocity: n.velocity.clamp(1, 127),
         muted: false,
         release: n.release.min(127),
+        expr: n.expr.clone(), // r33:mpe
     }
 }
 

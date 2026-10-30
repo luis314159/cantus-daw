@@ -33,6 +33,8 @@ pub struct RecordedNote {
     pub pass: u32,
     /// The note-off's release velocity (0 none given, ADR 0068).
     pub release: u8,
+    /// What an MPE controller played on it (ADR 0080); `None` for any other note. // r33:mpe
+    pub expr: Option<Box<cantus_core::model::note_expr::NoteExpr>>, // r33:mpe
 }
 
 /// A controller played while recording (ADR 0068): where it was heard, what it drives and
@@ -54,6 +56,8 @@ pub struct Recorder {
     take: u64,
     /// The loop pass being played.
     pass: u32,
+    /// The curves of the notes being played on an MPE controller (ADR 0080). // r33:mpe
+    pub mpe: crate::mpe::record::MpeTake, // r33:mpe
 }
 
 /// A note-off that arrives with no matching note-on (or with a tick before the note-on
@@ -88,6 +92,7 @@ impl Recorder {
             self.take += 1;
             self.pass = 0;
             self.pending.clear();
+            self.mpe.clear(); // r33:mpe
         }
     }
 
@@ -103,6 +108,7 @@ impl Recorder {
                 velocity: p.velocity,
                 pass: p.pass,
                 release: 0,
+                expr: None, // r33:mpe
             })
             .collect()
     }
@@ -214,6 +220,7 @@ fn close(
         velocity: p.velocity,
         pass: p.pass,
         release,
+        expr: None, // r33:mpe
     }
 }
 
@@ -250,6 +257,7 @@ mod tests {
                 velocity: 100,
                 pass: 0,
                 release: 0,
+                expr: None, // r33:mpe
             }]
         );
         assert_eq!(r.pending().len(), 1);

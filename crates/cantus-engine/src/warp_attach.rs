@@ -151,6 +151,11 @@ pub(crate) struct Renders {
     graveyard: Vec<Arc<SampleData>>,
     /// The budget of the kept renders, bytes ([`KEEP_BYTES`] at 0; a test lowers it).
     budget: usize,
+    // r33:session
+    /// What the session's clips will play when launched (ADR 0076 §7): asked for ahead by
+    /// an attach of their windows with `preloading` on, kept like what plays.
+    pub preload: HashSet<u64>,
+    pub preloading: bool,
 }
 
 impl Renders {
@@ -447,12 +452,21 @@ impl Renders {
             }
         }
         snapshot.swaps = swaps;
+        // r33:session
+        if self.preloading {
+            self.preload = used.clone();
+        }
         if live {
             self.played = played;
             self.fading.retain(|p, _| self.played.contains_key(p));
             self.live = used.clone();
         }
-        let protected: HashSet<u64> = used.union(&self.live).copied().collect();
+        // r33:session (the session's renders asked ahead, too)
+        let protected: HashSet<u64> = used
+            .union(&self.live)
+            .chain(self.preload.iter())
+            .copied()
+            .collect();
         // What nothing plays any more is not made (a waiting final, a waiting bridge), and
         // a final still being made for such a key is not waited for.
         for k in self.service.retain_queued(&protected) {

@@ -532,7 +532,8 @@ impl PluginHost {
                 main.latency(),
                 sample_rate,
                 Arc::new(AtomicU64::new(0)),
-            );
+            )
+            .supports(main.expression_support());
             units.push(NativeUnit::hosted(t.id, key, Box::new(unit)));
             self.render_mains.push(main);
         }

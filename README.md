@@ -43,6 +43,10 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 - **The score from the piano roll** (ADR 0075). A clip or a track as an engraved staff —
   spelled in the song's key, beamed and tied as an engraver would — beside the piano roll
   or in a pane of its own; edit on the staff, export **MusicXML** and vector **PDF**, print.
+- **A session view, in sync, with per-note expression** (ADRs 0076–0080). Live's clip
+  grid beside the arrangement (Tab), played from the keyboard, the mouse, MIDI learn or a
+  Launchpad or APC; **Ableton Link**, **MIDI clock** and **MTC** in and out; **MPE** from the
+  controller to the piano roll's per-note lanes and the instruments.
 - **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
   **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
   and **DAWproject** in and out.
@@ -54,7 +58,8 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 ## A tour
 
 Every picture here is the program itself, drawn headless on its demo song by
-`cargo run --release -p cantus-ui --example shoot_readme` ([how](docs/DEVELOPING.md#3-build-and-run)).
+`cargo run --release -p cantus-ui --example shoot_readme` ([how](docs/DEVELOPING.md#3-build-and-run));
+the session view's, sync's and MPE's by `shoot_session`, `shoot_sync` and `shoot_mpe`.
 
 ### The workspace
 
@@ -125,6 +130,46 @@ Click a note to select it; ↑ ↓ move it a step of the key; **N** enters notes
 value, as in MuseScore — each edit one undo step. Per track: clef, one staff or two,
 transposition (B♭, E♭, F…), the reading grid, the part's name. **MusicXML 4.0** out (a part
 or the whole song) and in, vector **PDF** (A4 or Letter, fonts embedded), **Print**.
+
+### The session view, Link and MPE
+
+![The session view: an 8 × 8 set playing, a clip's panel open](docs/images/session-night.png)
+
+**Tab** puts the **Session** pane in front of the arrangement and back. Each track has a
+column of slots, each scene a row; launch a clip or a scene on the next bar (or the clip's
+own quantise), hold it as a gate, record into an armed track's empty slot. A clip's panel
+sets its launch, loop, **follow actions** (two, with a chance and a count, as in Live 12)
+and **envelopes**; a scene can set the tempo and the metre. *Capture* copies what plays into
+a new scene; *Arr. record* writes the launches into the arrangement as you play them; *Back
+to arr.* hands every track back to it. Enter, the arrows and the clipboard work on the grid;
+a pad, a key or a note learnt on a slot or a scene launches it.
+
+| Cantus Paper | A Launchpad's ring |
+|---|---|
+| ![The session view in Cantus Paper](docs/images/session-paper.png) | ![The orange ring a Launchpad shows](docs/images/session-ring.png) |
+
+A **Launchpad** (Mini MK3, X, Pro MK3) or an **APC** (mini mk2, APC40 mkII) is found when
+it is plugged in: the pads launch and light in the clips' colours — green while playing,
+flashing while queued, red while recording — and the arrows move the ring the grid shows.
+
+<p>
+  <img src="docs/images/sync-bar.png" alt="The top bar's sync group: LINK on with 2 peers and quantum 4, the tempo it follows">
+</p>
+
+**Ableton Link** is built in (a Rust implementation, wire-compatible with the SDK): turn on
+LINK and the tempo, the beat and start/stop are shared with Live and every Link app on the
+network, the peers counted in the top bar. Cantus follows **MIDI clock** or **MIDI time
+code** from a port, or sends them, each output with its own offset.
+
+<p>
+  <img src="docs/images/midi-ports.png" width="49%" alt="Settings ▸ MIDI: each port's notes, controls, clock, time code, MPE mark and grid">
+  <img src="docs/images/mpe-lanes.png" width="49%" alt="The piano roll's per-note lanes: bend, pressure and timbre">
+</p>
+
+Settings ▸ MIDI sets each port in one row: notes, controls, clock, time code, **MPE** and
+the grid. A port marked MPE plays and records **per-note expression** — bend, pressure and
+timbre — kept on each note and edited in the piano roll's lanes; Unda, Calor, Modulus and
+Gravis play it, and an MPE plug-in gets it as note expressions or as MPE MIDI.
 
 ### Effects
 
@@ -222,6 +267,17 @@ faders, submixes, docks, groups with colours, a pan law per project, width and p
 **Effects** (ADRs 0017–0018, 0026). The twenty-three above plus Delay and Reverb, each with presets, A/B, a display
 that is the control, and design notes in `docs/plugins/`; the twenty-three each in its own face (ADR 0074).
 
+**Session** (ADRs 0076–0077). Clip slots and scenes beside the arrangement, launched on the
+song's grid; gate, legato, follow actions, per-clip envelopes, scene tempo and metre;
+capture, arrangement record; the keyboard, MIDI learn, Launchpad Mini MK3 / X / Pro MK3,
+APC mini mk2 and APC40 mkII.
+
+**Sync** (ADRs 0078–0079). Ableton Link (tempo, beat, start/stop), MIDI clock and MTC in
+and out, a per-port offset.
+
+**MPE** (ADR 0080). Per-note bend, pressure and timbre from the controller, recorded on each
+note, edited in the piano roll, played by the native instruments and sent to MPE plug-ins.
+
 **Score** (ADR 0075). A clip's or a track's part engraved beside the piano roll or in its own
 pane, edited on the staff; MusicXML 4.0 in and out, vector PDF and printing.
 
@@ -297,6 +353,7 @@ look, and `tests/frame_budget.rs` holds the speed.
 | `cantus-project` | MPL-2.0 | project file format, migrations, MIDI files, DAWproject |
 | `cantus-host` | GPL-3.0-or-later | hosting CLAP and VST3 plug-ins |
 | `cantus-plugins` | GPL-3.0-or-later | Cantus's effects as CLAP and VST3 |
+| `cantus-link` | GPL-3.0-or-later | Ableton Link in Rust, wire-compatible with the SDK |
 | `cantus-ai` | GPL-3.0-or-later | `AiProvider` trait, tool specs, command bridge |
 | `cantus-ui` | GPL-3.0-or-later | the interface, its design system and the hand-drawn kit |
 | `cantus` | GPL-3.0-or-later | the binary |

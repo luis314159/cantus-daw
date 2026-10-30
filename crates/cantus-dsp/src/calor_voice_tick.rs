@@ -15,6 +15,15 @@ impl Voice {
         let tick_s = CONTROL as f32 / sh.fs;
         let t_note = self.age as f64 / sh.fs as f64;
         let trims = sh.trims[self.card];
+        // Per-note expression toward its targets (ADR 0080); untouched when at them.
+        let k = if self.first_tick {
+            1.0
+        } else {
+            crate::expr_glide::coef(CONTROL as f32, sh.fs)
+        };
+        for i in 0..3 {
+            crate::expr_glide::toward(&mut self.x[i], self.x_to[i], k);
+        }
         // Glide, a tick at a time.
         if self.glide_coef > 0.0 {
             self.pitch += (self.target - self.pitch) * self.glide_coef;

@@ -60,6 +60,7 @@ pub const KEYS: &[&str] = &[
     "interop.report.x_warp_formants",
     "interop.report.x_warp_markers",
     "interop.report.x_audio_unread",
+    "interop.report.x_clip_envelopes", // r33:session
     "interop.report.d_audio_missing",
     // DAWproject import
     "interop.report.d_read",
@@ -79,7 +80,6 @@ pub const KEYS: &[&str] = &[
     "interop.report.d_automation",
     "interop.report.d_markers",
     "interop.report.d_launcher",
-    "interop.report.d_scenes",
     "interop.report.d_expressions",
     "interop.report.d_references",
     "interop.report.d_loop",
