@@ -398,7 +398,9 @@ impl Processor {
         self.track_cost = o.track_cost;
         self.strip_cost = o.strip_cost;
         self.block_work = o.block_work;
-        self.pool_wakes = o.pool_wakes;
+        // The copy has a pool of its own: its wake count starts from that pool's, never the
+        // original's (a fork on the pool otherwise subtracted past zero in its first pass).
+        self.pool_wakes = self.pool.as_ref().map_or(0, |p| p.stats().wakes);
         self.shuffle = o.shuffle;
         self.split_voices = o.split_voices;
         self.offline = o.offline;
