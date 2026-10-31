@@ -67,7 +67,7 @@ pub struct Timed {
 /// The timed changes a hosted unit hears in the next pass, in time order (ADR 0057): the
 /// control phase fills it, the node hands each to the unit just before the call it falls
 /// in, with its offset into that call. Fixed capacity: never allocates once made.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct AutoQueue {
     items: Vec<Timed>,
     /// The first item not yet handed over.
@@ -138,7 +138,7 @@ impl AutoQueue {
 }
 
 /// A modulator's state on the audio thread.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct ModRt {
     pub id: ModulatorId,
     /// What it heard of audio (a follower).

@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[path = "stems_master.rs"]
-mod through;
+pub(crate) mod through;
 
 /// Where a stem is taken from.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -89,7 +89,7 @@ pub fn stem_file_name(number: usize, name: &str) -> String {
 /// What the processor copies while a stems render runs: one block of every track's and
 /// every strip's output, by slot, plus the direct-to-master sum. Allocated once, before
 /// the render, for the render's block size.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StemTap {
     frames: usize,
     strips: Vec<[Vec<f32>; 2]>,
@@ -220,7 +220,7 @@ impl StemTap {
         }
     }
 
-    fn pair(&self, source: Tapped) -> &[Vec<f32>; 2] {
+    pub(crate) fn pair(&self, source: Tapped) -> &[Vec<f32>; 2] {
         match source {
             Tapped::Strip(slot) => &self.strips[slot],
             Tapped::Track(slot) => &self.tracks[slot],
@@ -231,7 +231,7 @@ impl StemTap {
 
 /// A source resolved to where the tap keeps it.
 #[derive(Copy, Clone, Debug)]
-enum Tapped {
+pub(crate) enum Tapped {
     Strip(usize),
     Track(usize),
     Direct,

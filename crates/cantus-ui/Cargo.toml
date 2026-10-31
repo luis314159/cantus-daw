@@ -19,8 +19,11 @@ cantus-engine.workspace = true
 cantus-rt.workspace = true
 cantus-project.workspace = true
 cantus-ai.workspace = true
+# The MCP server (round 34, ADR 0081). r34:mcp
+cantus-mcp.workspace = true
 cantus-host.workspace = true
 cantus-content.workspace = true
+cantus-ml.workspace = true # r34:stems — the helper client (ADR 0085)
 cantus-update.workspace = true
 cantus-export.workspace = true
 # The score: engraving, MusicXML and PDF (round 32, ADR 0075).

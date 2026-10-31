@@ -69,6 +69,7 @@ update.installer.un_section_data = My settings, presets and autosaves
 update.installer.un_desc_app = The program, its shortcuts, its plug-ins and its file association.
 update.installer.un_desc_data = Also delete the Cantus folder in your profile: settings, presets, autosaves and recordings that belong to no project. Your projects elsewhere are not touched.
 update.installer.close_cantus = Cantus is still open. Close it, then choose Retry.
+update.installer.close_bridge = An AI app is still using Cantus (its MCP bridge, cantus-mcp). Close the app that started it (Claude Desktop, Cursor, VS Code or another), then choose Retry.
 update.installer.project_type = Cantus project
 update.installer.license_bottom = Cantus is free software. You do not need to accept this licence to use it; it says what you may do when you share or change it.
 update.installer.section_flexasio = FlexASIO driver (downloaded now)

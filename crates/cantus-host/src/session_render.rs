@@ -60,6 +60,8 @@ pub enum RenderFor {
     Freeze,
     /// A render made at once, without asking first (tests, an in-process render).
     Now,
+    /// A listen: an agent's audition or the mastering assistant (round 34, ADR 0083).
+    Listen, // r34:listen
 }
 
 /// What a render's plug-in is.

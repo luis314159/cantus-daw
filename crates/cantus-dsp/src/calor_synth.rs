@@ -42,6 +42,7 @@ pub mod tel {
     pub const NEWEST_CARD: usize = 47;
 }
 
+#[derive(Clone)]
 pub struct Calor {
     fs: f32,
     s: CalorSettings,

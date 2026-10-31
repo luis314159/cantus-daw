@@ -226,6 +226,7 @@ impl CantusApp {
     /// placed), unsaved changes are autosaved — the last line of defence — and the journal
     /// ends, or stays to offer those changes at the next start.
     pub fn close_session(&mut self) {
+        crate::stems_ui::run::settle_on_exit(self); // r34:stems — agents' stems not made
         if self.is_recording() {
             self.stop_recording();
         }

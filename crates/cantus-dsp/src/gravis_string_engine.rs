@@ -41,7 +41,7 @@ pub struct Played {
 }
 
 /// The strings of one bass, their pickups and the fretting hand.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StringEngine {
     g: Vec<Guide>,
     coil: [Coil; 2],

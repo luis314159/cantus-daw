@@ -54,7 +54,7 @@ const NO_SOUND: Sound = Sound {
     live: false,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct ArpState {
     held: [Held; HELD],
     n_held: usize,

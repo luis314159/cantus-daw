@@ -132,6 +132,7 @@ pub(crate) struct StripCells {
 
 /// What leaves a strip's fader, kept for the inserts keyed from it; valid in the pass
 /// whose stamp it carries.
+#[derive(Clone)]
 pub(crate) struct KeyBuf {
     pub l: Vec<f32>,
     pub r: Vec<f32>,
@@ -246,20 +247,28 @@ pub(crate) struct Nodes {
 
 impl Nodes {
     /// Every cell, for `slots` pool slots (the callback's included), allocated and touched
-    /// here, off the audio thread.
-    pub fn new(sample_rate: f64, slots: usize, lines: Arc<Lines>) -> Self {
+    /// here, off the audio thread — the first `tracks` track and `strips` strip cells
+    /// (`MAX_TRACKS`, `MAX_STRIPS` for a processor that plays; fewer for a range render's
+    /// checkpoint, never played — r34:listen, ADR 0083).
+    pub fn with_cells(
+        sample_rate: f64,
+        slots: usize,
+        lines: Arc<Lines>,
+        tracks: usize,
+        strips: usize,
+    ) -> Self {
         let sr = sample_rate as f32;
         let atoms = |n: usize| (0..n).map(|_| AtomicU32::new(0)).collect::<Box<[_]>>();
         let pair = || [vec![0.0; PASS_FRAMES], vec![0.0; PASS_FRAMES]];
         let mut n = Nodes {
-            tracks: (0..MAX_TRACKS)
+            tracks: (0..tracks.min(MAX_TRACKS))
                 .map(|_| TrackCells {
                     state: NodeCell::new(TrackSlot::new(sr)),
                     out: ShareCell::new(TrackOut::new()),
                     outbox: ShareCell::new(Outbox::new()),
                 })
                 .collect(),
-            strips: (0..MAX_STRIPS)
+            strips: (0..strips.min(MAX_STRIPS))
                 .map(|_| StripCells {
                     state: NodeCell::new(StripSlot::new()),
                     out: ShareCell::new(StripOut::new()),

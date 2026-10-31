@@ -24,7 +24,7 @@ pub const OUTBOX: usize = 256;
 
 /// One track's notes on their way to the effects that hear it: a ring of `(sample, note)`
 /// in the order they were played, numbered by sequence.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Outbox {
     notes: Box<[(u64, FxNote)]>,
     /// Sequence number of the next note written.

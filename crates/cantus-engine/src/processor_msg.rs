@@ -80,6 +80,13 @@ impl Processor {
                     self.reseek_events();
                     self.played = 0;
                 }
+                // r34:listen — a pre-roll on a whole sample (ADR 0083).
+                EngineMessage::SeekFrac(tick) => {
+                    self.release_all();
+                    self.transport.seek_f64(tick);
+                    self.reseek_events();
+                    self.played = 0;
+                }
                 EngineMessage::NoteOn {
                     track,
                     pitch,

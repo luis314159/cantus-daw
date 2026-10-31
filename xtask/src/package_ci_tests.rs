@@ -367,3 +367,65 @@ fn every_file_a_test_or_the_build_reads_runs_ci_when_it_changes() {
         "the scan found the files read at run time: {read_at_run}"
     );
 }
+
+/// A workflow step never relies on a negated command (`! cmd`): `set -e` does not stop on
+/// one, so the check it means can never fail (review 6 #1: the macOS bridge's "no
+/// entitlements" check). Write `if cmd; then …; exit 1; fi` instead.
+#[test]
+fn no_workflow_check_is_a_negated_command() {
+    let dir = crate::workspace().join(".github/workflows");
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|e| e != "yml") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap();
+        for (i, line) in text.lines().enumerate() {
+            if line.trim_start().starts_with("! ") {
+                found.push(format!("{}:{}: {}", path.display(), i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "negated commands set -e ignores: {found:#?}"
+    );
+}
+
+/// The programs shipped beside Cantus are built and checked together on CI (the
+/// integrated review: the ML helper was not): every workflow command that builds the MCP
+/// bridge builds the ML helper too, the Windows release build runs when either changes,
+/// and the macOS bundle check looks at both.
+#[test]
+fn the_helpers_shipped_beside_cantus_are_built_and_checked_together() {
+    for wf in ["ci.yml", "windows-release.yml", "release.yml"] {
+        let text = read(&format!(".github/workflows/{wf}"));
+        for line in text
+            .lines()
+            .filter(|l| l.contains("cargo build") && l.contains("-p cantus-mcp"))
+        {
+            assert!(line.contains("-p cantus-ml"), "{wf}: {line}");
+        }
+    }
+    let win = read(".github/workflows/windows-release.yml");
+    assert_eq!(
+        win.matches("\"crates/cantus-ml/**\"").count(),
+        win.matches("\"crates/cantus-mcp/**\"").count(),
+        "windows-release.yml runs for the ML helper as for the bridge"
+    );
+    let mac = read(".github/workflows/macos.yml");
+    let archs = mac
+        .lines()
+        .find(|l| l.contains("for b in cantus "))
+        .expect("the universal check");
+    for b in ["cantus-mcp", "cantus-ml"] {
+        assert!(
+            archs
+                .split_whitespace()
+                .any(|w| w.trim_end_matches(';') == b),
+            "{archs}"
+        );
+    }
+    assert!(mac.contains("cantus-ml lacks the library-validation entitlement"));
+}

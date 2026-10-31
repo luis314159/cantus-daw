@@ -300,9 +300,28 @@ pub struct CantusApp {
     pub session_view: crate::views::session::SessionView, // r33:launcher
     /// The session's conductor (ADR 0076 §7). // r33:session
     pub perform: crate::session_play::Conductor, // r33:session
+    /// The MCP server and its pump (round 34, ADR 0081). // r34:mcp
+    pub ai: crate::ai_mcp::AiState, // r34:mcp
+    /// The one model store and helper client (round 34, ADR 0085). // r34:stems
+    pub ml: crate::ml_service::MlService, // r34:stems
+    pub listen: crate::ai_tools::listen::Service, // r34:listen — listening and the mastering assistant (ADRs 0083–0084)
+    /// *Separate stems…*: its panel and the separations under way. // r34:stems
+    pub stems: crate::stems_ui::StemsUi, // r34:stems
+    /// Convert to MIDI: the dialog and the running conversion (ADR 0086). // r34:transcribe
+    pub transcribe: crate::transcribe_ui::run::State, // r34:transcribe
 }
 
 impl CantusApp {
+    /// The machine-learning service (ADR 0085). // r34:stems
+    pub fn ml(&self) -> &crate::ml_service::MlService {
+        &self.ml
+    }
+
+    /// The machine-learning service, to start jobs and installs. // r34:stems
+    pub fn ml_mut(&mut self) -> &mut crate::ml_service::MlService {
+        &mut self.ml
+    }
+
     /// `locale_from_flag` is whatever `--locale` asked for. It is passed in rather than
     /// read here because an explicit flag must win over the stored preference, and only
     /// the caller knows whether one was given.
@@ -561,6 +580,8 @@ impl CantusApp {
         // start page at start, unless a project was given or the switch is off.
         crate::workflow::wire(&mut app);
         crate::workflow::open_at_start(&mut app, opening_a_file);
+        crate::ai_mcp::wire(&mut app, ctx); // r34:mcp — the MCP server and its pump
+        crate::ml_service::wire(&mut app, ctx); // r34:stems — the model store and helper client
         app
     }
 
@@ -744,6 +765,11 @@ impl CantusApp {
             score: Default::default(),
             session_view: Default::default(), // r33:launcher
             perform: Default::default(),      // r33:session
+            ai: Default::default(),           // r34:mcp
+            ml: Default::default(),           // r34:stems
+            listen: Default::default(),       // r34:listen
+            stems: Default::default(),        // r34:stems
+            transcribe: Default::default(),   // r34:transcribe
         };
         app.select_first();
         app.sync_live_track();
@@ -3164,6 +3190,7 @@ impl CantusApp {
         // Finder, the Dock, a drop) closes the start page.
         self.workflow.recent.note(path);
         self.workflow.start.close();
+        crate::stems_ui::run::sweep_orphans(self); // r34:stems — stems a closed run left
     }
 
     /// *File ▸ Save* (Ctrl+S): written on a thread (`save_job`); the window goes on.
@@ -4043,6 +4070,10 @@ impl CantusApp {
         // Writing automation (ADR 0068): holds and releases, after the frame's messages.
         self.auto_write_settle();
         views::session::frame(self, ctx); // r33:launcher
+        self.listen.sync_epoch(self.epoch); // r34:listen — a switched project's listens forgotten before agents' calls run
+        crate::ai_mcp::frame(self, ctx); // r34:mcp — agents' calls, before the views draw
+        self.ml.poll(); // r34:stems — model downloads and preparations
+        crate::transcribe_ui::run::frame(self, ctx); // r34:transcribe — Convert to MIDI
         self.host_notices(notices);
         // Hosted plug-ins that were loading in their helper when opened: in their view now
         // (ADR 0073).
@@ -4089,7 +4120,9 @@ impl CantusApp {
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
         views::export_dialog::show(self, ctx);
+        crate::transcribe_ui::view::show(self, ctx); // r34:transcribe
         views::demos::frame(self, ctx);
+        crate::ai_tools::listen::panel::frame(self, ctx); // r34:listen — the mastering assistant
         views::recovery::frame(self, ctx);
         views::unsaved::frame(self, ctx);
         views::verse::frame(self, ctx);
@@ -4097,6 +4130,7 @@ impl CantusApp {
         views::link_picker::frame(self, ctx);
         crate::workflow::frame(self, ctx);
         views::warp_quantise::frame(self, ctx);
+        crate::stems_ui::frame(self, ctx); // r34:stems — separations, and their panel
         views::modulator::popup::frame(self, ctx);
         // Round 31 (ADR 0069): the note-effect, groove and key lists.
         crate::notefx_menus::frame(self, ctx);
@@ -4161,6 +4195,10 @@ impl CantusApp {
         let m = self.engine.meters().master;
         if m[0].max(m[1]) > 1e-5 {
             ticker::moving(ctx, Reason::Meters);
+        }
+        // Listening's checkpoints let go when quiet: a frame then, idle or minimised.
+        if let Some(after) = self.listen.quiet_wake(Instant::now()) {
+            ticker::wake_after(ctx, after); // r34:listen
         }
         // Samples loading in the background (ADR 0050 §7): collect them and show how far.
         if self.engine.samples.loading() {

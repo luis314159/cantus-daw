@@ -47,6 +47,11 @@ now is in [docs/STATUS.md](docs/STATUS.md).
   grid beside the arrangement (Tab), played from the keyboard, the mouse, MIDI learn or a
   Launchpad or APC; **Ableton Link**, **MIDI clock** and **MTC** in and out; **MPE** from the
   controller to the piano roll's per-note lanes and the instruments.
+- **AI that works with you, on your computer** (ADRs 0081–0086). Claude and the other
+  assistants drive Cantus through **MCP**, every change one undo step and edits asked
+  first; **stem separation** and **audio to MIDI** by models downloaded from their makers
+  when you ask; a **mastering assistant** that proposes a chain of our own effects per
+  platform.
 - **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
   **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
   and **DAWproject** in and out.
@@ -59,7 +64,8 @@ now is in [docs/STATUS.md](docs/STATUS.md).
 
 Every picture here is the program itself, drawn headless on its demo song by
 `cargo run --release -p cantus-ui --example shoot_readme` ([how](docs/DEVELOPING.md#3-build-and-run));
-the session view's, sync's and MPE's by `shoot_session`, `shoot_sync` and `shoot_mpe`.
+the session view's, sync's and MPE's by `shoot_session`, `shoot_sync` and `shoot_mpe`;
+the AI pictures by `shoot_ai`, `shoot_mastering`, `shoot_stems` and `shoot_transcribe`.
 
 ### The workspace
 
@@ -171,6 +177,53 @@ the grid. A port marked MPE plays and records **per-note expression** — bend, 
 timbre — kept on each note and edited in the piano roll's lanes; Unda, Calor, Modulus and
 Gravis play it, and an MPE plug-in gets it as note expressions or as MPE MIDI.
 
+### AI that works with you — agents, stems, audio to MIDI, mastering
+
+![Claude Code working in Cantus: the AI activity lists its calls, a card asks before a track is deleted](docs/images/ai-agent.png)
+
+The assistant you already use — **Claude Code, Claude Desktop, Cursor, VS Code, Gemini CLI,
+LM Studio** — can work in Cantus through the **Model Context Protocol**. It brings its model;
+Cantus brings about sixty tools made for music: tracks, notes and chords, the mixer, effects
+and instruments in their own units, automation, the session, export — and a catalogue of
+every unit, a **music linter** that finds a note ringing across a chord change, and writers
+that turn a chord chart into a part (`write_part`, `voice_chords`, `pedal_from_chart`).
+**Every change is one step of the undo history**, named *AI: …*; edits ask first on a card,
+and removing your material, undoing and files always ask. The agent chip in the top bar
+opens the **AI activity**: every call, *Undo all of its changes*, *Disconnect*.
+
+<p>
+  <img src="docs/images/ai-settings.png" width="54%" alt="Settings ▸ AI: the AI area, external agents on 127.0.0.1 with a token, and Copy setup for six clients">
+  <img src="docs/images/mastering-assistant.png" width="42%" alt="The mastering assistant: Spotify's target, the mix and the proposal measured, the octave balance, the proposed chain and why">
+</p>
+
+**Settings ▸ AI** holds one switch for the whole area; external agents are **off** until you
+allow them, and then reach a door on `127.0.0.1` only, with a token per client — *Copy
+setup for…* gives each client its lines. An agent can **listen**: `audition` answers with
+loudness per section, true peak, the spectrum against a genre's curve and a WAV, and after
+an edit near the end renders only the end — from a checkpoint, identical to the whole song
+to the sample. The **mastering assistant** on the master proposes a chain of Cantus's own
+effects for Spotify, Apple Music, YouTube, TIDAL, Amazon Music, SoundCloud, CD, Club or
+EBU R 128, says why each setting is there, compares by A/B at the same loudness and applies
+in one undo step (on the demo songs: within 0.07 LU of the target, never over the ceiling).
+
+![A song separated into drums, bass, other and vocals: four tracks with the AI badge under a Mix stems bus](docs/images/stems-tracks.png)
+
+**Separate stems…** splits a clip into drums, bass, vocals and the rest (or six parts) with
+Meta's **HT-Demucs**, in a helper process on your computer through ONNX Runtime — the parts
+on their own tracks under a bus, level-true to the original, in one undo step. Measured on
+MUSDB18-HQ: **8.80 dB SDR**, the paper's own numbers. **Convert to MIDI…** writes what a
+clip plays as notes: a melody by Cantus's pitch tracker, chords by Spotify's **Basic Pitch**
+(note for note what Spotify's program gives), drums by Cantus's own detector and Magenta's
+drum model.
+
+<p>
+  <img src="docs/images/stems-panel.png" width="44%" alt="Separate stems: four or six parts, Fast or Best, the model's licence, size and runtime before it downloads">
+  <img src="docs/images/audio-to-midi.png" width="54%" alt="Convert to MIDI: melody, notes and chords or drums, sensitivity, shortest note, the instrument and the model">
+</p>
+
+Models are never in the installer: each is downloaded from its maker the first time, after
+you see its licence, size and origin, checked by SHA-256 and removable in Settings ▸ Models.
+
 ### Effects
 
 Each one in its own face — colour, material, controls and the display that tells what it
@@ -278,6 +331,13 @@ and out, a per-port offset.
 **MPE** (ADR 0080). Per-note bend, pressure and timbre from the controller, recorded on each
 note, edited in the piano roll, played by the native instruments and sent to MPE plug-ins.
 
+**AI** (ADRs 0081–0086). An MCP server (both protocol generations, a door on `127.0.0.1`
+off by default, the `cantus-mcp` bridge) with about sixty tools, each change one undo step:
+the unit catalogue, the music linter, part and chord writers, listening with numbers and
+masking, mix targets; the mastering assistant (nine platforms, A/B at matched loudness);
+stem separation by HT-Demucs and audio to MIDI by Basic Pitch, our pitch tracker and our
+drum detector, in the `cantus-ml` helper process on ONNX Runtime.
+
 **Score** (ADR 0075). A clip's or a track's part engraved beside the piano roll or in its own
 pane, edited on the staff; MusicXML 4.0 in and out, vector PDF and printing.
 
@@ -354,7 +414,9 @@ look, and `tests/frame_budget.rs` holds the speed.
 | `cantus-host` | GPL-3.0-or-later | hosting CLAP and VST3 plug-ins |
 | `cantus-plugins` | GPL-3.0-or-later | Cantus's effects as CLAP and VST3 |
 | `cantus-link` | GPL-3.0-or-later | Ableton Link in Rust, wire-compatible with the SDK |
-| `cantus-ai` | GPL-3.0-or-later | `AiProvider` trait, tool specs, command bridge |
+| `cantus-ai` | GPL-3.0-or-later | `AiProvider` trait, the tool table, command bridge |
+| `cantus-mcp` | GPL-3.0-or-later | the MCP server, written by hand: both protocol generations, permissions, jobs |
+| `cantus-ml` | GPL-3.0-or-later | the machine-learning helper process: stem separation and transcription on ONNX Runtime |
 | `cantus-ui` | GPL-3.0-or-later | the interface, its design system and the hand-drawn kit |
 | `cantus` | GPL-3.0-or-later | the binary |
 

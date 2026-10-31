@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 47;
+pub const SCHEMA_VERSION: u32 = 48;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -196,6 +196,10 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
                                                                       // A track delay out of range never reaches the plan (review 3); before the frozen
                                                                       // keys, which hold it.
     let lateness_repaired = file.project.repair_lateness();
+    // Provenance of a file not in the pool (a hand edit) names nothing: dropped. // r34:stems
+    let pool: std::collections::BTreeSet<_> =
+        file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
+    file.project.provenance.retain(|id, _| pool.contains(id)); // r34:stems
     let links_repaired = cantus_core::links::repair(&mut file.project);
     // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
     // made again (ADR 0064). After the links' repair, which may change what one holds.
@@ -274,6 +278,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_44_to_45,
     migrate_45_to_46,
     migrate_46_to_47,
+    migrate_47_to_48, // r34:stems
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -961,6 +966,12 @@ fn migrate_45_to_46(_value: &mut Value) -> Result<(), String> {
 /// automatic. An older build must refuse a v47 file, or it would drop the curves on its
 /// next save.
 fn migrate_46_to_47(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 48 (round 34, ADR 0085): `provenance`, beside the audio pool — what made a file
+/// a model made. Absent in every older file: nothing to write.
+fn migrate_47_to_48(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 

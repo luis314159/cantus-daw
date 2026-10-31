@@ -88,6 +88,11 @@ mod rt_shim;
 /// Snapshots, delay compensation, chains, and handing things back.
 #[path = "processor_snap.rs"]
 mod snap;
+
+#[path = "listen_fork.rs"] // r34:listen
+mod listen_fork; // r34:listen
+pub(crate) use listen_fork::Cells;
+pub use listen_fork::Refusal; // r34:listen // r34:listen
 /// The strip nodes: state, gather and outputs.
 #[path = "graph/strip.rs"]
 pub(crate) mod strip;
@@ -303,10 +308,30 @@ impl Processor {
         tx: Producer<EngineEvent>,
         midi_rx: Consumer<MidiEvent>,
     ) -> Self {
+        Self::with_cells(sample_rate, rx, tx, midi_rx, MAX_TRACKS, MAX_STRIPS) // r34:listen
+    }
+
+    // r34:listen — a range render's checkpoint keeps the cells its song uses (ADR 0083).
+    /// [`Self::new`] with only the first `tracks` track and `strips` strip cells
+    /// (`Nodes::with_cells`): a checkpoint's processor, copied from, never played.
+    pub(crate) fn with_cells(
+        sample_rate: f64,
+        rx: Consumer<EngineMessage>,
+        tx: Producer<EngineEvent>,
+        midi_rx: Consumer<MidiEvent>,
+        tracks: usize,
+        strips: usize,
+    ) -> Self {
         let sr = sample_rate as f32;
         let pdc = crate::pdc::Compensation::new();
         let workers = pool::Workers::from_env();
-        let nodes = Arc::new(Nodes::new(sample_rate, pool::SLOTS, pdc.lines.clone()));
+        let nodes = Arc::new(Nodes::with_cells(
+            sample_rate,
+            pool::SLOTS,
+            pdc.lines.clone(),
+            tracks,
+            strips,
+        ));
         let mut p = Processor {
             sample_rate,
             rx,

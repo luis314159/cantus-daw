@@ -37,6 +37,7 @@ fn stand_ins(root: &Path) -> Inputs {
     write(&root.join("v3/cantus.exe"), b"MZ cantus v3");
     write(&root.join("v2/cantus-scan.exe"), b"MZ scanner");
     write(&root.join("v2/cantus-sandbox.exe"), b"MZ sandbox");
+    write(&root.join("v2/cantus-mcp.exe"), b"MZ bridge"); // r34:mcp
     write(&root.join("LICENSE-GPL"), b"GNU GENERAL PUBLIC LICENSE");
     write(&root.join("LICENSE"), b"Cantus is dual-licensed by crate.");
     write(&root.join("README.txt"), b"Cantus {version}\nline two\n");
@@ -50,6 +51,8 @@ fn stand_ins(root: &Path) -> Inputs {
         ],
         scanner: root.join("v2/cantus-scan.exe"),
         sandbox: root.join("v2/cantus-sandbox.exe"),
+        bridge: root.join("v2/cantus-mcp.exe"), // r34:mcp
+        beside: Vec::new(),                     // r34:stems
         bundled,
         plugins: names.iter().map(|s| s.to_string()).collect(),
         license: root.join("LICENSE-GPL"),
@@ -83,6 +86,7 @@ fn a_release_whose_files_carry_their_version_resource_is_made() {
         inputs.launcher.clone(),
         inputs.scanner.clone(),
         inputs.sandbox.clone(),
+        inputs.bridge.clone(), // r34:mcp
     ];
     files.extend(inputs.programs.iter().map(|(_, p)| p.clone()));
     for n in &inputs.plugins {
@@ -158,6 +162,7 @@ fn the_package_task_produces_the_expected_file_list() {
         "LICENSE.txt",
         "README.txt",
         "THIRD-PARTY-NOTICES.txt",
+        "cantus-mcp.exe", // r34:mcp
         "cantus-sandbox.exe",
         "cantus-scan.exe",
         "cantus-x86-64-v2.exe",
@@ -197,6 +202,7 @@ fn the_package_task_produces_the_expected_file_list() {
     assert_eq!(staged("cantus-x86-64-v3.exe"), b"MZ cantus v3");
     assert_eq!(staged("cantus-scan.exe"), b"MZ scanner");
     assert_eq!(staged("cantus-sandbox.exe"), b"MZ sandbox");
+    assert_eq!(staged("cantus-mcp.exe"), b"MZ bridge"); // r34:mcp
     let readme = std::fs::read_to_string(out.join("stage/app/README.txt")).unwrap();
     assert_eq!(readme, "Cantus 0.2.0\r\nline two\r\n");
 
@@ -240,9 +246,9 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     };
     assert_eq!(
         (files("CANTUS_APP_FILES"), deletes("CANTUS_APP_REMOVE")),
-        // The launcher, two levels, the scanner, the plug-in sandbox (round 29), three
-        // texts, the notices, the manual's page.
-        (10, 10)
+        // The launcher, two levels, the scanner, the plug-in sandbox (round 29), the MCP
+        // bridge (round 34), three texts, the notices, the manual's page.
+        (11, 11) // r34:mcp (was 10, 10)
     );
     // The manual's folders go with it, deepest first.
     let app = macro_body("CANTUS_APP_REMOVE");
@@ -301,13 +307,100 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
             "cantus-x86-64-v2.exe",
             "cantus-x86-64-v3.exe",
             "cantus-scan.exe",
-            "cantus-sandbox.exe"
+            "cantus-sandbox.exe",
+            "cantus-mcp.exe" // r34:mcp
         ]
+    );
+    // And every copy of the bridge an update moved aside, whatever its number (review 6
+    // #4: two fixed names failed with three live versions).
+    assert!(busy.contains(&"!insertmacro CANTUS_ASIDE_BUSY".to_string()));
+    // The bridge is written beside a running one, as `.new`, then swapped in.
+    let app_files = macro_body("CANTUS_APP_FILES");
+    let bridge_line = app_files
+        .iter()
+        .find(|l| l.contains("cantus-mcp"))
+        .expect("the bridge is installed");
+    assert!(
+        bridge_line.starts_with(&format!("File \"/oname={}\" ", crate::nsis::BRIDGE_NEW)),
+        "{bridge_line}"
     );
     let script =
         std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi")).unwrap();
-    let wait = &script[script.find("!macro WAIT_FOR_CANTUS").unwrap()..];
-    assert!(wait[..wait.find("!macroend").unwrap()].contains("!insertmacro CANTUS_PROGRAMS_BUSY"));
+    let body = |name: &str| -> &str {
+        let from = &script[script.find(name).unwrap_or_else(|| panic!("{name}"))..];
+        // Up to its own end, whichever kind it is.
+        let end = ["!macroend", "FunctionEnd", "SectionEnd"]
+            .iter()
+            .filter_map(|e| from.find(e))
+            .min()
+            .unwrap();
+        &from[..end]
+    };
+    let wait = body("!macro WAIT_FOR_CANTUS BUSY");
+    assert!(wait.contains("!insertmacro ${BUSY}"));
+    // The MCP bridge (round 34, review 5 #3): an AI app keeps it running as long as it is
+    // open. The installer and an update never wait for it — they wait for every other
+    // program, then move the bridge aside (Windows renames a running program's file) and
+    // copy the new one; the uninstaller waits for it too, and when it alone still runs
+    // the words name the AI app to close, not Cantus.
+    let app_busy = macro_body("CANTUS_APP_BUSY");
+    let app_only: Vec<&str> = app_busy
+        .iter()
+        .filter_map(|l| l.strip_prefix("!insertmacro CANTUS_PROGRAM_BUSY \"$INSTDIR\\"))
+        .filter_map(|l| l.strip_suffix('"'))
+        .collect();
+    assert_eq!(app_only, &waited[..waited.len() - 1], "all but the bridge");
+    assert!(!app_busy.iter().any(|l| l.contains("ASIDE")));
+    assert!(body("Function WaitForCantus").contains("WAIT_FOR_CANTUS CANTUS_APP_BUSY"));
+    assert!(body("Function un.WaitForCantus").contains("WAIT_FOR_CANTUS CANTUS_PROGRAMS_BUSY"));
+    // The swap: the old bridge aside under a name of its own (GetTickCount), put back if
+    // the new one cannot take its place; the new one dropped if the old cannot move.
+    let swap = body("!macro CANTUS_BRIDGE_SWAP");
+    let aside = crate::nsis::BRIDGE_ASIDE;
+    for needle in [
+        "System::Call 'kernel32::GetTickCount() i .R9'".to_string(),
+        format!("StrCpy $R8 \"$INSTDIR\\{aside}-$R9\""),
+        "Rename \"$INSTDIR\\cantus-mcp.exe\" \"$R8\"".to_string(),
+        format!("Delete \"$INSTDIR\\{}\"", crate::nsis::BRIDGE_NEW),
+        format!(
+            "Rename \"$INSTDIR\\{}\" \"$INSTDIR\\cantus-mcp.exe\"",
+            crate::nsis::BRIDGE_NEW
+        ),
+        "Rename \"$R8\" \"$INSTDIR\\cantus-mcp.exe\"".to_string(),
+    ] {
+        assert!(swap.contains(&needle), "{needle}");
+    }
+    // Review 6 #2: a per-user installer has no reboot queue — nothing asks for one.
+    assert!(
+        !script.contains("/REBOOTOK"),
+        "no reboot the installer cannot queue"
+    );
+    let install = body("Section \"!$(CANTUS_SECTION_APP)\"");
+    let (w, f, sw) = (
+        install.find("Call WaitForCantus").unwrap(),
+        install.find("!insertmacro CANTUS_APP_FILES").unwrap(),
+        install.find("!insertmacro CANTUS_BRIDGE_SWAP").unwrap(),
+    );
+    assert!(
+        w < f && f < sw,
+        "wait for the rest, copy (the bridge as .new), then swap it in"
+    );
+    let uninstall = body("Section \"!un.$(CANTUS_UN_SECTION_APP)\"");
+    assert!(uninstall.contains("Call un.WaitForCantus"));
+    assert!(uninstall.contains(&format!("Delete \"$INSTDIR\\{aside}*\"")));
+    assert!(uninstall.contains(&format!("Delete \"$INSTDIR\\{}\"", crate::nsis::BRIDGE_NEW)));
+    assert!(wait.contains("$(CANTUS_CLOSE_BRIDGE)") && wait.contains("$(CANTUS_CLOSE_CANTUS)"));
+    let locales = crate::workspace().join("crates/cantus-ui/locales/areas");
+    let strings = crate::nsis::strings_nsh(
+        &std::fs::read_to_string(locales.join("update.en.txt")).unwrap(),
+        &std::fs::read_to_string(locales.join("update.es.txt")).unwrap(),
+    );
+    for lang in ["ENGLISH", "SPANISH"] {
+        assert!(
+            strings.contains(&format!("LangString CANTUS_CLOSE_BRIDGE ${{LANG_{lang}}} ")),
+            "{lang}"
+        );
+    }
 }
 
 /// The release's install folder: the launcher as `cantus.exe` (what the shortcut, the
@@ -323,6 +416,7 @@ fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
             "cantus-x86-64-v3.exe",
             "cantus-scan.exe",
             "cantus-sandbox.exe",
+            "cantus-mcp.exe", // r34:mcp
             "LICENSE.txt",
             "COPYRIGHT.txt",
             "README.txt",
@@ -330,7 +424,7 @@ fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
     );
     let v4 = package::app_names(&crate::levels::release_levels(true));
     assert!(v4.contains(&"cantus-x86-64-v4.exe".to_string()));
-    assert_eq!(v4.len(), 9);
+    assert_eq!(v4.len(), 10); // r34:mcp (was 9)
     let script =
         std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi")).unwrap();
     for line in script.lines().filter(|l| {

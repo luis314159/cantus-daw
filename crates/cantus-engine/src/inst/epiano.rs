@@ -207,7 +207,7 @@ pub fn modulated(base: &[f32; N], matrix: &ModMatrix, sources: &[f32]) -> [f32; 
     eff
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     dsp: Lamina,
     base: [f32; N],
@@ -256,6 +256,9 @@ impl Unit {
 }
 
 impl InstrumentUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, _assets: &super::Assets) {
         self.base = values_of(spec);
         self.trim_db = spec.get(TRIM_KEY);

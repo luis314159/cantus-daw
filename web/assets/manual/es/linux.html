@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cantus en Linux — instalación y configuración del audio</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="cantus-en-linux--instalación-y-configuración-del-audio">Cantus en Linux — instalación y configuración del audio</h1>
+<p><a href="../en/linux.html">English</a> · <a href="index.html">Volver al manual</a></p>
+<h2 id="qué-necesitas">Qué necesitas</h2>
+<ul>
+<li>Un PC de 64 bits (x86-64) con un Linux de 2022 o posterior: Ubuntu 22.04, Linux Mint 21, Debian 12, Fedora 36, openSUSE Leap 15.5, Arch — o cualquiera más nuevo (glibc 2.35 o posterior).</li>
+<li>Un escritorio con X11 o Wayland (en Wayland Cantus funciona a través de XWayland, que todos los escritorios Wayland traen; mira <a href="#ventanas-de-los-plug-ins">Ventanas de los plug-ins</a>).</li>
+<li>Unos 300 MB de disco.</li>
+</ul>
+<h2 id="instalar-la-appimage">Instalar: la AppImage</h2>
+<ol>
+<li>Descarga <code>Cantus-&lt;versión&gt;-linux-x86_64.AppImage</code> de la <a href="https://github.com/luis314159/cantus-daw/releases">página de versiones</a> — o de <a href="https://cantusdaw.com">cantusdaw.com</a>.</li>
+<li>Hazla ejecutable: en tu gestor de archivos, <em>Propiedades ▸ Permisos ▸ Permitir ejecutar el archivo como un programa</em>; o en una terminal: <code>chmod +x Cantus-*.AppImage</code>.</li>
+<li>Haz doble clic en ella (o <code>./Cantus-*.AppImage</code>).</li>
+</ol>
+<p>La AppImage es el programa entero en un solo archivo: no se instala nada en el sistema ni se pide contraseña de administrador. Al arrancar por primera vez pone <strong>Cantus en tu menú de aplicaciones</strong> — con su icono, y <em>Abrir con Cantus</em> para los proyectos <code>.cantus</code> — apuntando al archivo donde está; si lo mueves, el siguiente arranque actualiza la entrada. Para dejarlo fuera del menú, arráncalo con <code>CANTUS_NO_DESKTOP_ENTRY=1</code>.</p>
+<p>Un buen sitio para guardarla: <code>~/Applications</code>. Las <strong>actualizaciones</strong> sustituyen ese mismo archivo.</p>
+<p><strong>Desinstalar</strong>: borra la AppImage; quita la entrada del menú con <code>rm ~/.local/share/applications/com.cantusdaw.Cantus.desktop</code>. Tus ajustes están en <code>~/.config/cantus</code> y tus preajustes, grabaciones y autoguardados en <code>~/.local/share/cantus</code> (las carpetas <code>XDG_CONFIG_HOME</code> y <code>XDG_DATA_HOME</code>, si las defines): bórralos solo si quieres que desaparezcan. Tus proyectos nunca se tocan.</p>
+<p><strong>Flatpak</strong>: hay un Flatpak (<code>com.cantusdaw.Cantus</code>) preparado para Flathub; hasta que se publique allí, usa la AppImage.</p>
+<h2 id="audio-el-controlador">Audio: el controlador</h2>
+<p>Abre <em>Ajustes ▸ Audio</em> (o el chip de audio de la barra superior). La lista <strong>Controlador</strong> ofrece lo que tiene tu sistema, el mejor primero:</p>
+<table>
+<tr><th>Controlador</th><th>Cuándo</th><th>Latencia</th></tr>
+<tr><td><strong>PipeWire</strong></td><td>Ubuntu 22.10 y posteriores, Fedora 34 y posteriores, Debian 12, Mint 22, Arch con PipeWire — la mayoría de escritorios hoy. Cantus habla con PipeWire directamente.</td><td>Baja: el búfer que eliges es al que PipeWire hace funcionar a Cantus (64–256 muestras van bien en la mayoría de equipos).</td></tr>
+<tr><td><strong>JACK</strong></td><td>Cuando hay un servidor JACK en marcha (JACK2, o el JACK de PipeWire).</td><td>Baja: el periodo del servidor.</td></tr>
+<tr><td><strong>ALSA</strong></td><td>Siempre. Por el dispositivo predeterminado del sistema (que en un sistema con PipeWire o PulseAudio pasa por ellos), o directo a una tarjeta de sonido (dispositivos <code>hw:</code>) cuando nada más la usa.</td><td>Más alta por el predeterminado; baja directo a la tarjeta.</td></tr>
+</table>
+<p>Elige el controlador, el <strong>Dispositivo de salida</strong> y el <strong>Dispositivo de entrada</strong>, la <strong>Frecuencia de muestreo</strong> y el <strong>Tamaño del búfer</strong> (muestras), y <em>Aplicar</em>. Cantus recuerda la elección para cada interfaz. No hay nada que instalar: si falta la biblioteca de PipeWire o de JACK, simplemente no se ofrecen esos controladores.</p>
+<p><strong>Menos latencia con PipeWire.</strong> PipeWire hace funcionar a todos los programas con un mismo <em>quantum</em> (su búfer). Cantus pide el búfer que elegiste; si otro programa pide uno mayor, PipeWire puede usar ese. Para fijarlo: <code>pw-metadata -n settings 0 clock.force-quantum 128</code> (para volver a lo normal: <code>… 0</code>).</p>
+<p><strong>JACK a través de PipeWire.</strong> En un sistema con PipeWire sin servidor JACK, instala el paquete JACK de PipeWire de tu distribución (<code>pipewire-jack</code>) para usar también ahí el controlador JACK; el controlador propio de PipeWire es igual de rápido.</p>
+<h2 id="prioridad-de-tiempo-real">Prioridad de tiempo real</h2>
+<p>En <em>Ajustes ▸ Audio</em>, la línea <strong>Prioridad de tiempo real</strong> dice qué dio el sistema a los hilos de audio de Cantus: por ejemplo <code>SCHED_FIFO priority 50</code> (directa), <code>SCHED_RR priority 20 via rtkit</code>, o <code>refused: …</code> con el motivo. El hilo de audio de PipeWire y de JACK lo ponen ellos en tiempo real (<code>driver-owned thread: SCHED_FIFO</code>); Cantus eleva sus propios hilos.</p>
+<p>La mayoría de escritorios la conceden mediante <strong>rtkit</strong> sin hacer nada. Si la línea dice <em>refused</em>, instala y arranca <code>rtkit</code> (<code>sudo apt install rtkit</code>), o da a tu usuario el derecho a pedirla directamente — el clásico grupo audio:</p>
+<p><code></code><code>text sudo usermod -aG audio $USER echo '@audio - rtprio 95' | sudo tee /etc/security/limits.d/95-audio.conf echo '@audio - memlock unlimited' | sudo tee -a /etc/security/limits.d/95-audio.conf </code><code></code></p>
+<p>y cierra la sesión y vuelve a entrar. (Ubuntu Studio y Fedora Jam ya lo traen hecho.)</p>
+<h2 id="plug-ins">Plug-ins</h2>
+<p>Cantus encuentra los plug-ins CLAP y VST3 en las carpetas estándar de Linux:</p>
+<table>
+<tr><th>Formato</th><th>Carpetas</th></tr>
+<tr><td>CLAP</td><td><code>~/.clap</code>, <code>/usr/lib/clap</code>, <code>/usr/local/lib/clap</code>, y las carpetas de <code>CLAP_PATH</code></td></tr>
+<tr><td>VST3</td><td><code>~/.vst3</code>, <code>/usr/lib/vst3</code>, <code>/usr/local/lib/vst3</code>, y las carpetas de <code>VST3_PATH</code></td></tr>
+</table>
+<p>Instala un plug-in como diga su fabricante (normalmente: copia el archivo <code>.clap</code> o la carpeta <code>.vst3</code> en <code>~/.clap</code> o <code>~/.vst3</code>), y luego <em>Ajustes ▸ Plug-ins ▸ Buscar plug-ins</em>. Cada archivo se lee en un proceso de examen aparte, así que un plug-in que falla al leerse solo aparece como <em>bloqueado</em>. Un plug-in también puede funcionar en un proceso propio (<em>Cuando un plug-in falla</em>, en el manual): un fallo ahí se captura, Cantus sigue y puedes volver a cargarlo.</p>
+<p>Los efectos propios de Cantus también vienen en la AppImage como plug-ins CLAP y VST3, para otros programas: extráelos con <code>./Cantus-*.AppImage --appimage-extract</code> y copia <code>squashfs-root/usr/share/cantus/plugins/clap/*</code> en <code>~/.clap</code> y <code>…/plugins/vst3/*</code> en <code>~/.vst3</code>.</p>
+<h3 id="ventanas-de-los-plug-ins">Ventanas de los plug-ins</h3>
+<p>El editor propio de un plug-in se abre en una ventana suya, que se mantiene encima de la de Cantus. En Linux esa ventana es de <strong>X11</strong>, porque los plug-ins solo dibujan en ventanas X11; en un escritorio Wayland pasa por XWayland, y la ventana de Cantus también, así que las dos van juntas. (Arrancar Cantus con <code>CANTUS_WAYLAND=1</code> le da una ventana Wayland nativa; los editores de los plug-ins se abren entonces como ventanas normales que no se mantienen encima.)</p>
+<h2 id="archivos-diálogos-y-fuentes">Archivos, diálogos y fuentes</h2>
+<ul>
+<li>Los diálogos de abrir y guardar son los de tu escritorio (mediante el portal de escritorio XDG; con <code>zenity</code> donde no hay portal). En un gestor de ventanas sin ninguno de los dos, instala <code>xdg-desktop-portal-gtk</code> o <code>zenity</code>.</li>
+<li>El texto en chino, japonés, coreano, hindi o tailandés usa las fuentes que tu sistema tiene para ello (se las pregunta a fontconfig): instala <code>fonts-noto-cjk</code> (Debian/Ubuntu) o <code>google-noto-sans-cjk-fonts</code> (Fedora) si esos caracteres salen como cuadros.</li>
+</ul>
+<h2 id="si-algo-falla">Si algo falla</h2>
+<table>
+<tr><th>Qué ves</th><th>Qué hacer</th></tr>
+<tr><td>No hay sonido y la lista de controladores solo tiene ALSA</td><td>PipeWire o JACK no están en marcha para tu usuario. Prueba ALSA con el dispositivo <em>default</em>, o arranca el servicio de sonido de tu escritorio.</td></tr>
+<tr><td>Chasquidos y cortes</td><td>Sube el búfer (<em>Ajustes ▸ Audio ▸ Tamaño del búfer</em>); mira la línea <strong>Prioridad de tiempo real</strong> (arriba); cierra programas que usen mucho el procesador.</td></tr>
+<tr><td>La ventana de un plug-in queda vacía o no se abre</td><td>Cantus funciona con <code>CANTUS_WAYLAND=1</code>, o el plug-in necesita una biblioteca que falta en tu sistema: arranca Cantus desde una terminal y lee lo que imprime el plug-in.</td></tr>
+<tr><td>La AppImage no arranca (<em>FUSE</em>)</td><td>Las AppImage muy antiguas necesitaban <code>libfuse2</code>; la de Cantus no. Si tu sistema bloquea las AppImage, ejecuta <code>./Cantus-*.AppImage --appimage-extract</code> y arranca <code>squashfs-root/AppRun</code>.</td></tr>
+</table>
+</main>
+</body>
+</html>

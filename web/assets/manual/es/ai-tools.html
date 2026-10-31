@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lo que un agente de IA puede hacer en Cantus</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="lo-que-un-agente-de-ia-puede-hacer-en-cantus">Lo que un agente de IA puede hacer en Cantus</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/ai-tools.html">Read in English</a></em></p>
+<p>Cuando dejas que un asistente como Claude se conecte a Cantus (<em>Ajustes ▸ IA</em>), trabaja en tu proyecto mediante <strong>herramientas</strong>: las mismas ediciones que haces con el ratón, cada una <strong>un solo paso de Deshacer</strong>, llamado &quot;IA: …&quot; en el historial. Leer nunca pregunta; cambiar pregunta en la ventana de Cantus salvo que hayas permitido las ediciones; quitar o sustituir tu material siempre pregunta; los archivos se rechazan hasta que los permites, y entonces se preguntan. Los nombres de tus pistas, clips y marcadores se le muestran al agente como datos, nunca como instrucciones.</p>
+<h2 id="las-herramientas">Las herramientas</h2>
+<table>
+<tr><th>Grupo</th><th>Herramientas</th><th>Qué hacen</th></tr>
+<tr><td>Leer</td><td><code>get_project</code>, <code>get_track</code>, <code>get_clip_notes</code>, <code>get_mixer</code>, <code>get_device</code>, <code>get_history</code>, <code>get_selection</code></td><td>La canción, una pista y sus clips, las notas o los puntos de automatización de un clip, el mezclador, los valores de un dispositivo, el historial, lo que tienes seleccionado y dónde está el cursor de reproducción</td></tr>
+<tr><td>La canción</td><td><code>set_tempo</code>, <code>set_tempo_point</code>, <code>set_song</code>, <code>set_marker</code></td><td>Tempo y cambios de tempo, el compás (y sus cambios), la tonalidad, el bucle, el metrónomo, los marcadores</td></tr>
+<tr><td>Transporte</td><td><code>transport</code></td><td>Reproducir, parar, situar; no es un paso de deshacer</td></tr>
+<tr><td>Pistas</td><td><code>add_track</code>, <code>set_track</code>, <code>set_instrument</code>, <code>set_instrument_param</code></td><td>Una pista de instrumento nueva con su propia franja de mezcla; nombre, color, nivel, panorama, silencio, solo, orden, ruteo; cambiar el instrumento; sus parámetros por clave en sus unidades</td></tr>
+<tr><td>Clips y notas</td><td><code>add_clip</code>, <code>add_notes</code>, <code>replace_notes</code>, <code>edit_notes</code>, <code>set_clip</code>, <code>duplicate_clip</code></td><td>Clips y notas; transponer, cuantizar, humanizar, mover, velocidad, duración, legato; mover, redimensionar, repetir y copiar clips</td></tr>
+<tr><td>Batería</td><td><code>write_drum_pattern</code></td><td>Filas de pasos (<code>x...x...</code>) por pad, con swing y acentos</td></tr>
+<tr><td>Sesión</td><td><code>set_session</code></td><td>Escenas, ranuras, modos de lanzamiento y acciones de seguimiento</td></tr>
+<tr><td>Mezclador y efectos</td><td><code>add_strip</code>, <code>set_strip</code>, <code>set_send</code>, <code>add_effect</code>, <code>set_effect</code>, <code>replace_effect</code></td><td>Buses y retornos, faders, anchura, el ecualizador de la franja, envíos; cualquier efecto de Cantus en cualquier franja o en el máster, con sus parámetros</td></tr>
+<tr><td>Movimiento</td><td><code>automate</code>, <code>replace_automation</code>, <code>add_modulator</code>, <code>set_modulator</code></td><td>Clips de automatización con las formas de FL, en las unidades del parámetro; LFO, envolventes, seguidores (sidechain), secuencias de pasos, aleatorios</td></tr>
+<tr><td>Música</td><td><code>lint_music</code>, <code>write_part</code>, <code>voice_chords</code>, <code>pedal_from_chart</code></td><td>El corrector musical; una parte entera sobre un cifrado; acordes dispuestos; el pedal derecho de Chorda a partir del cifrado</td></tr>
+<tr><td>Unidades</td><td><code>list_units</code>, <code>get_unit</code>, <code>list_presets</code>, <code>apply_preset</code></td><td>El catálogo de todos los instrumentos y efectos; los preajustes (cargar uno sustituye los ajustes de un dispositivo: siempre pregunta)</td></tr>
+<tr><td>Tomas</td><td><code>comp_takes</code>, <code>tidy_takes</code></td><td>Componer con las tomas grabadas; borrar una composición, aplanarla, borrar las tomas sin uso</td></tr>
+<tr><td>Exportar</td><td><code>export_audio</code>, <code>export_project</code></td><td>WAV, FLAC, MP3, Ogg, pistas separadas; MIDI y DAWproject, solo en la carpeta del proyecto o en una carpeta que hayas permitido</td></tr>
+<tr><td>Quitar</td><td><code>remove_items</code></td><td>Pistas, clips, notas, efectos, franjas, envíos, moduladores, marcadores, puntos de tempo, escenas, clips de sesión; siempre pregunta</td></tr>
+</table>
+<p>Un agente nunca toma tu material en silencio: dibujar automatización sobre puntos tuyos, una parte donde están tus notas o un preajuste sobre tus ajustes preguntan antes (o se rechazan).</p>
+<p>Las posiciones se dan en <strong>pulsos</strong> (negras desde el principio) o como <strong>compás:pulso</strong> (<code>9:1</code>, <code>9:2.5</code>), y Cantus responde con las dos. Los valores van en la unidad de cada parámetro (dB, Hz, ms, semitonos…); un valor fuera de su rango se rechaza diciendo el rango, nunca se cambia a escondidas.</p>
+<p>El agente tiene además las herramientas propias del servidor (ADR 0081): esperar o cancelar un trabajo largo, agrupar un turno de su trabajo en un solo paso de deshacer (<code>begin_change</code>/<code>end_change</code>), deshacer su último paso y listar lo que hizo.</p>
+<h2 id="el-catálogo-de-unidades">El catálogo de unidades</h2>
+<p><code>list_units</code> y <code>get_unit</code> (y el recurso <code>cantus://units</code>) describen todos los instrumentos y efectos de Cantus: la clave de cada parámetro, su nombre, su grupo (<em>Banda 4</em>), unidad, rango, valor por defecto y escala, los nombres de las opciones de un selector, los preajustes de fábrica y lo que ajustan, el preajuste con el que un efecto entra al insertarlo, su latencia y para qué sirve la unidad. Se genera de las mismas tablas que usan los mandos, así que siempre está completo y es exacto.</p>
+<h2 id="el-corrector-musical">El corrector musical</h2>
+<p><code>lint_music</code> lee las notas como escucha un revisor, y dice dónde y por qué:</p>
+<ul>
+<li><strong>una nota que sigue sonando en el acorde siguiente</strong> sin pertenecerle: un <em>error</em> cuando queda a un semitono del acorde nuevo (el caso clásico: el La♭ de un acorde sonando aún sobre el Sol de Mi♭/Sol);</li>
+<li><strong>un choque</strong>: una nota sostenida bajo un acorde a un semitono <em>por encima</em> de una de sus notas (la oncena sobre la tercera de un acorde mayor, la sexta menor sobre la quinta); una novena, una trecena o una séptima mayor son color;</li>
+<li><strong>una nota doble</strong>: la misma altura escrita dos veces a la vez en una pista;</li>
+<li><strong>fuera de la tonalidad</strong> y del acorde (<em>información</em>: a menudo una nota de paso, a veces un error);</li>
+<li><strong>fuera del instrumento</strong>: por debajo del La0 de un piano, una nota de batería sin pad.</li>
+</ul>
+<p>Dale los acordes (el cifrado) para las comprobaciones armónicas; sin ellos comprueba las notas dobles, la tonalidad y el registro. No cambia nada.</p>
+<h2 id="cifrados-acordes-por-compases">Cifrados: acordes por compases</h2>
+<p>Los escritores y el corrector leen los acordes como los escribe una partitura de jazz: un compás entre barras <code>|</code>, y los acordes de un compás se lo reparten por igual:</p>
+<p><code></code><code>text Fm9 | Dbmaj7 | Abadd9 | Eb Eb/G C . . G7 | %                       Do tres pulsos, Sol7 uno; luego el compás otra vez </code><code></code></p>
+<p><code>.</code> alarga el acorde anterior una parte más, <code>%</code> repite el compás, <code>N.C.</code> es sin acorde. Vale cualquier símbolo (en notación anglosajona: C es Do): <code>C</code>, <code>Cm</code>, <code>C7</code>, <code>Cmaj7</code> (<code>CM7</code>, <code>CΔ</code>), <code>Cm7b5</code> (<code>Cø</code>), <code>Cdim7</code>, <code>Csus4</code>, <code>C6/9</code>, <code>Cadd9</code>, <code>C9</code>, <code>C13</code>, <code>C7b9</code>, <code>C7#11</code>, <code>C7alt</code>, y bajos con barra (<code>Eb/G</code>).</p>
+<p><code>write_part</code> escribe una parte sobre un cifrado (acordes plaqué, pulsos, arpegios o una línea de bajo, a un ritmo fijo o con un patrón de pasos <code>x..x..x.</code>, con swing y un toque humano), dispuesta para moverse lo menos posible de acorde a acorde, y <strong>ninguna nota suena dentro del acorde siguiente</strong>. <code>voice_chords</code> escribe los acordes sostenidos; <code>pedal_from_chart</code> dibuja el pedal derecho de Chorda: arriba en cada cambio y abajo otra vez un instante después, para que cada acorde resuene y nunca el anterior.</p>
+<h2 id="indicaciones">Indicaciones</h2>
+<p>Un cliente ofrece peticiones listas: <em>Explícame la mezcla</em> (no cambia nada), <em>Escribe una parte</em>, <em>Arregla una introducción</em>, <em>Ordena el proyecto</em> (pregunta antes de quitar nada) y <em>Enséñame esta unidad</em>, en el idioma de tu interfaz.</p>
+</main>
+</body>
+</html>

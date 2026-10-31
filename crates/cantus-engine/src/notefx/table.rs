@@ -21,7 +21,7 @@ const EMPTY: Entry = Entry {
     pitches: [0; 8],
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct Table {
     entries: [Entry; ENTRIES],
     count: usize,

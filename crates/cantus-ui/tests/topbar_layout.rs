@@ -215,7 +215,8 @@ fn the_drawn_bar_keeps_every_part_and_word_inside_it() {
 fn every_group_keeps_to_its_own_width() {
     let (mut a, _dir) = app();
     // The sync group, hidden by default, shown to be measured (round 33). r33:sync
-    a.settings.topbar.shown = vec!["sync".into()]; // r33:sync
+    // The agent chip too, hidden until an agent calls (round 34). r34:mcp
+    a.settings.topbar.shown = vec!["sync".into(), "ai".into()]; // r33:sync r34:mcp
     let ctx = ctx();
     for locale in [Locale::En, Locale::Es] {
         set_thread_locale(locale);

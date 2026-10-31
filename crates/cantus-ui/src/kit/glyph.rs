@@ -35,6 +35,8 @@ pub enum Glyph {
     Close,
     /// The FX-on bulb.
     Bulb,
+    /// ✦ an agent (round 34, the AI area). // r34:mcp
+    Agent, // r34:mcp
     /// ● record
     Record,
     /// Ø invert phase
@@ -221,6 +223,17 @@ pub fn paint(b: &mut Brush, rect: Rect, g: Glyph, color: Color32) {
                 0.8 * u,
                 Fill::Solid(color),
             );
+        }
+        // r34:mcp — a four-pointed spark and a small one: the AI area's sign.
+        Glyph::Agent => {
+            // r34:mcp — four tips around a square waist, each part convex.
+            let wst = [p(-1.3, -1.3), p(1.3, -1.3), p(1.3, 1.3), p(-1.3, 1.3)]; // r34:mcp
+            let tips = [p(0.0, -5.2), p(5.2, 0.0), p(0.0, 5.2), p(-5.2, 0.0)]; // r34:mcp
+            for i in 0..4 {
+                b.polygon(&[wst[i], tips[i], wst[(i + 1) % 4]], color); // r34:mcp
+            }
+            b.polygon(&wst, color); // r34:mcp
+            b.circle(p(4.2, -4.2), 1.1 * u, Fill::Solid(color)); // r34:mcp
         }
         Glyph::Record => b.circle(c, 3.0 * u, Fill::Solid(color)),
         Glyph::Phase => {

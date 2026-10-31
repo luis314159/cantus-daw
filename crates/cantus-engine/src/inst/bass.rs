@@ -213,7 +213,7 @@ pub fn settings_from(v: &[f32; COUNT]) -> GravisSettings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     g: Gravis,
     sample_rate: f32,
@@ -287,6 +287,9 @@ impl Unit {
 }
 
 impl InstrumentUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, _assets: &super::Assets) {
         self.base = values(spec);
         for (m, key) in MACRO_KEYS.iter().enumerate() {

@@ -1129,6 +1129,11 @@ pub struct Project {
     /// Every audio file the project's clips play (ADR 0025).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub audio_pool: Vec<crate::audio::AudioSource>,
+    /// Where each file a model made came from (schema 48, ADR 0085): beside the pool, by
+    /// its source's id. A file with no entry — every file a person recorded or imported —
+    /// makes no claim. Removing a source removes its entry.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub provenance: std::collections::BTreeMap<AudioSourceId, crate::audio::Provenance>,
     /// How recording behaves: count-in, punch, takes, the click (ADR 0025).
     #[serde(default)]
     pub recording: crate::audio::RecordSettings,
@@ -1207,6 +1212,7 @@ impl Project {
             metronome: false,
             pan_law: PanLaw::default(),
             audio_pool: Vec::new(),
+            provenance: Default::default(),
             recording: crate::audio::RecordSettings::default(),
             pattern_mode: false,
             tempo_points: Vec::new(),

@@ -27,6 +27,15 @@ Everything it names is in the program as it is today; where the beta still has g
 14. [Known issues and limitations](#14-known-issues-and-limitations)
 15. [Report a bug](#15-report-a-bug)
 
+Also: [What an AI agent can do in Cantus](ai-tools.md) — the tools, the unit catalogue, the music linter.
+
+Also: [Separating stems](stems.md) — a song into drums, bass, vocals and the rest, on your computer. <!-- r34:stems -->
+
+Also: [Converting audio to MIDI](audio-to-midi.md) — a melody, chords or a drum loop into notes on a new track.
+
+AI in this manual: [AI agents (MCP)](#ai-agents-mcp) — connect Claude or another assistant;
+[The mastering assistant](#the-mastering-assistant); [Listening for AI agents](#listening-for-ai-agents).
+
 ## 1. Install
 
 Cantus runs on Windows, macOS and Linux; every release has one file for each, on the
@@ -1273,6 +1282,9 @@ and export render the arrangement: record a performance into it first to keep it
 the transport, or jumping the playhead, ends the performance. A tempo change keeps an
 unwarped audio clip playing the same stretch of its file; a warped one follows the tempo.
 
+**Audio to MIDI.** Right-click an audio clip ▸ *Convert to MIDI…* turns a melody, a chord
+part or a drum loop into notes on a new track: see [Convert audio to MIDI](audio-to-midi.md).
+
 ## 6. Mix: the mixer, inserts and sends
 
 ![The mixer](../img/mixer.png)
@@ -1426,6 +1438,62 @@ The demos master in this order, and it is a good start:
 drawn *Curve*, with oversampling, tone, mix and *Level match*, so that louder never fools
 you. On the master, the presets *Master clipper* and *Tube glue on the mid* are the gentle
 ones.
+
+### The mastering assistant
+
+Right-click the master's name ▸ *Mastering assistant…*, or open the master chain's
+*+ Add effect* list: the first row is the assistant. It listens to your mix as it reaches
+the master and proposes a chain of Cantus's own effects to master it — nothing it does is
+hidden: what it proposes are ordinary inserts you can open and change.
+
+1. Choose where the song is going: **Platform** (‹ › steps through Spotify, Apple Music,
+   YouTube, TIDAL, Amazon Music, SoundCloud, CD, Club and EBU R 128). The line under it says
+   what the platform aims at — Spotify plays every song at −14 LUFS and wants the true
+   peak at or under −1 dBTP — and the bottom of the panel says where that number comes from
+   and when it was checked.
+2. Choose the **Balance**: a genre's curve (Pop, Rock, Electronic, Hip-hop, Acoustic,
+   Classical), or *Load reference…* — a finished track you like the sound of (WAV, FLAC,
+   MP3, OGG, AIFF). With a reference the assistant matches its tone and width; the platform
+   still sets the loudness.
+3. **Listen to** the whole song or only the loop. If the master already has effects,
+   choose whether the proposal **replaces** them or is **added after** them.
+4. Click **Listen and propose**. Cantus renders the mix (a song of three minutes takes as
+   long as an export), measures it and tries the chain on it until the loudness lands on
+   the target. *Stop* stops it.
+
+The table shows, for the mix, the proposed master and the target: integrated loudness,
+true peak, loudness range, the loudest three seconds, width (how much side there is
+against the middle), what folding to mono loses, and the lowest correlation. The chart
+draws the balance per octave — bars for the mix, a line for the proposal, rings for the
+target. Under it, each unit of the chain and **why** it is there: an EQ toward the curve
+(at most ±3 dB a band; ±6 with a reference), gentle glue when the song's dynamics are wider
+than the genre keeps, stereo width or a mono bass when the mix folds badly to mono, and a
+true-peak limiter whose gain lands the platform's loudness under its ceiling.
+
+**A/B** plays the mix (A) or the proposed master (B) from the same place, the louder one
+turned down to the other's loudness: you compare tone and dynamics, not level — louder
+always sounds better, and the A/B does not let it fool you. Nothing in the project changes
+while you compare.
+
+**Apply** puts the chain on the master in **one undo step** (*Edit ▸ Undo* takes it all
+back). Then play the song and adjust anything by ear — every knob is yours.
+
+### Listening for AI agents
+
+When you allow an assistant such as Claude to work in Cantus (*Settings ▸ AI*), it can
+listen too: `audition` renders a range — or a soloed part, or the mix without the master
+chain — and answers with the numbers above for the range and each section, the spectrum
+against a genre's curve, clicks at section changes, and a WAV of what it heard (in
+Cantus's own cache); `analyse_tracks` measures every track in the mix; `masking_matrix`
+says which tracks fight for the same frequencies, and where; `set_mix_targets` sets tracks
+to the loudness the agent asks for, in one undo step; `master_assist`,
+`apply_master_chain` and `replace_master_chain` (which asks you first: it takes the
+master's own effects out) are the mastering assistant above. Cantus keeps a copy of the song's
+state at each marker (or every eight bars) while it renders, so after the agent changes the
+last chorus it hears only the last chorus again — the same sound, to the sample, as playing
+the whole song. With a hosted plug-in in the project that copy cannot be made; the range
+then starts eight seconds early, and the answer says so. The prompt *Master for streaming*
+asks an agent to do all of it for a platform you name.
 
 ## 8. Export
 
@@ -1982,8 +2050,58 @@ the real-time priority each audio thread was given is the last line of the band)
 own faces* — on or off, see [Each unit's face](#each-units-face) —, colours, keyboard
 shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
 least recently used samples go first — and *Clear cache*; it lives in
-`%LOCALAPPDATA%\Cantus\cache\samples`, or in a portable copy's `data` folder), *Updates*
-and *Plug-ins*.
+`%LOCALAPPDATA%\Cantus\cache\samples`, or in a portable copy's `data` folder), *Updates*,
+*Plug-ins* and *AI* (see [AI agents](#ai-agents-mcp) below).
+
+### AI agents (MCP)
+
+Cantus can be driven by an AI assistant you already use — Claude Code, Claude Desktop,
+Cursor, VS Code, Gemini CLI, LM Studio — through the *Model Context Protocol* (MCP). The
+assistant brings its model; Cantus brings the tools: tracks, notes, the mixer, effects and
+their parameters, automation, export. **Every change an agent makes is one step in the
+undo history**, named *AI: …* (*AI: write the verse*), and **Ctrl+Z** takes it back like any
+of yours. Cantus sends nothing to any AI service itself; what your assistant sends to its
+own is its business (read its privacy terms).
+
+**Turn it on.** *Settings ▸ AI ▸ Allow external agents: On*. Cantus opens a door on this
+computer only — `http://127.0.0.1:39571/mcp`, the port changeable below it — protected by
+a token kept in your settings folder, readable by you alone. *Copy the token* puts it on
+the clipboard; *Make a new token* disconnects every agent (set each client up again).
+
+**Connect a client.** *Copy setup for* has a button per client; each copies what that
+client wants, with its own token, and says where it goes:
+
+- **Claude Code**: a command — run it in a terminal (`claude mcp add --transport http
+  cantus …`); `claude mcp list` then shows *cantus* connected while Cantus runs.
+- **Claude Desktop**: the lines for `claude_desktop_config.json`, which start the **bridge**
+  `cantus-mcp` (installed beside Cantus); or *Save the extension (.mcpb)…* and open the
+  file it saves.
+- **Cursor, VS Code, Gemini CLI, LM Studio**: the JSON for their MCP file
+  (`~/.cursor/mcp.json`, `.vscode/mcp.json`, `~/.gemini/settings.json`, LM Studio's
+  `mcp.json`).
+
+A client that starts a program instead of an address uses the bridge too; when Cantus is
+not running, or does not allow external agents, it answers with a message saying so.
+
+**What an agent may do.** Reading the project and the transport (play, stop, locate) run
+at once. **Edits ask you first**: a card at the bottom right says what the agent wants to
+do — *Claude Code wants to: …*, what it would touch — with *Allow*, *Allow for this session*
+(that one tool, from that agent, until it disconnects) and *Deny*; with no answer within
+two minutes nothing is done. *Edits: Without asking* lets edits run at once. **Removing
+or replacing your material, undoing and files always ask**, whatever that setting says.
+*Files* are off until you choose *Ask each time*, and then reach only the project's folder
+and the folders you add below it. *Never allow* refuses a tool by its name. Names and notes
+inside a project are treated as data, never as instructions.
+
+**Watch and undo.** While an agent is connected, a chip in the top bar shows its name (its
+light turns blue while one of its calls waits for you). A click opens the **AI activity**:
+the agents, each with *Undo all of its changes* — it undoes the agent's steps from the most
+recent and stops at the first one that is not the agent's, saying which — and *Disconnect*;
+the jobs at work (long renders), with their progress; and every call and what became of
+it, refusals included. A right-click on the chip opens *Settings ▸ AI*.
+
+**One switch.** *AI area: Off* refuses every agent, closes the door and hides the area;
+Cantus is a complete DAW without it.
 
 ## 12. Keyboard shortcuts
 
@@ -2112,8 +2230,15 @@ This is a beta. What we know about:
 - The audio device cannot be changed while recording; the sample browser has no keyboard navigation yet; projects refer to
   sound-pack samples by their full path.
 - **Not in this beta**: the macOS and Linux installers (coming soon; the code builds and
-  passes its tests on Linux), control-surface protocols (Mackie Control, HUI), AI features,
-  several arrangements per project.
+  passes its tests on Linux), control-surface protocols (Mackie Control, HUI), several
+  arrangements per project.
+- **AI**: an assistant panel inside Cantus (with your own key or a local model) and
+  generating audio are not in this beta — agents connect from outside through MCP (§11).
+  Stems and audio to MIDI run on the processor (the graphics processor is used only where
+  the runtime offers one, on macOS); a separation of a three-minute song takes about a
+  minute. A range an agent listens to starts a few seconds early when the project holds a
+  hosted plug-in, and Space's modulation and Organum's rotary turn from their start, so such
+  a range is close to, not identical with, the whole song (the answer says so).
 
 ## 15. Report a bug
 

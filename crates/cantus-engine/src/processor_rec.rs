@@ -44,6 +44,7 @@ pub(crate) struct TrackInputSlot {
 
 /// The block's input, deinterleaved — what monitoring tracks read, on whichever thread
 /// runs them (it lives in a cell of the graph, `graph/exec.rs`).
+#[derive(Clone)]
 pub(crate) struct InputBlock {
     /// Channel `c` is `input[c * MAX_BLOCK_FRAMES..]`.
     input: Vec<f32>,
@@ -72,6 +73,7 @@ impl InputBlock {
 }
 
 /// Input, monitoring and recording state, preallocated.
+#[derive(Clone)]
 pub(super) struct Live {
     /// The ring has held a whole block since it last ran dry.
     primed: bool,

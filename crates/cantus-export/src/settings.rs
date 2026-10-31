@@ -331,6 +331,10 @@ pub struct ExportSettings {
     pub tags: Tags,
     /// Where the last file went.
     pub folder: Option<std::path::PathBuf>,
+    /// Never replace a file: each output is put in place by a link that fails if anything
+    /// is there (an agent's export without leave to overwrite, round 34). Not remembered.
+    #[serde(skip)]
+    pub no_replace: bool,
 }
 
 impl Default for ExportSettings {
@@ -349,6 +353,7 @@ impl Default for ExportSettings {
             stems: StemChoice::default(),
             tags: Tags::default(),
             folder: None,
+            no_replace: false,
         }
     }
 }

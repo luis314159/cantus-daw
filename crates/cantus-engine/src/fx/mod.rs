@@ -52,6 +52,12 @@ pub enum FxNote {
 }
 
 pub trait FxUnit: Send + std::fmt::Debug {
+    /// A copy of this unit with all its state, to resume a render from (a range render's
+    /// checkpoint, round 34, ADR 0083). `None`: its state cannot be copied (a hosted
+    /// plug-in) and the range render pre-rolls instead.
+    fn fork(&self) -> Option<Box<dyn FxUnit>> {
+        None
+    } // r34:listen
     /// New parameter values. Called on the audio thread with each snapshot: read the spec,
     /// set the DSP, never allocate. Changes should glide where a jump would click.
     fn configure(&mut self, spec: &EffectSpec);
@@ -526,10 +532,13 @@ pub fn position_at_step(
 
 /// A unit that passes audio through untouched: a hosted plug-in that is missing on this
 /// machine, or one the engine was given no unit for.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Wire;
 
 impl FxUnit for Wire {
+    fn fork(&self) -> Option<Box<dyn FxUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, _spec: &EffectSpec) {}
     fn process(&mut self, _l: &mut [f32], _r: &mut [f32], _key: Option<(&[f32], &[f32])>) {}
     fn reset(&mut self) {}

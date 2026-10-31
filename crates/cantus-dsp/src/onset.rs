@@ -301,3 +301,9 @@ fn louder(x: &[f32], at: usize, w: usize) -> bool {
         .into_iter()
         .any(|d| e(at, at + w, d) > 2.0 * e(lo, at, d))
 }
+
+// Round 34 (ADR 0086): drums to notes, and the measures a transcription is scored by.
+#[path = "onset_drums.rs"]
+pub mod drums;
+#[path = "onset_eval.rs"]
+pub mod eval;

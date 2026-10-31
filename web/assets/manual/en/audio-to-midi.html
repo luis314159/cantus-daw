@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convert audio to MIDI</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="convert-audio-to-midi">Convert audio to MIDI</h1>
+<p><em>Cantus 0.1.0-beta.9 and later · <a href="../es/audio-to-midi.html">Leer en español</a></em></p>
+<p>Cantus turns an audio clip into notes you can edit, play with any instrument, quantise or print: a sung or hummed melody, a piano part with its chords, a drum loop.</p>
+<p><img src="../img/transcribe-dialog.png" alt="The Convert to MIDI dialog" loading="lazy"></p>
+<h2 id="convert-a-clip">Convert a clip</h2>
+<ol>
+<li>Right-click an audio clip in the arrangement ▸ <strong>Convert to MIDI…</strong></li>
+<li>Choose <strong>what</strong> to convert: - <strong>Melody</strong> — one note at a time: a voice, a solo, a bass line. Cantus's own pitch tracker (the pitch editor's): nothing to download. - <strong>Notes and chords</strong> — every note, chords included, from any instrument. Spotify's <em>Basic Pitch</em> model. - <strong>Drums</strong> — kick, snare, toms, hi-hat and cymbals, written on the General MIDI drum map for Pulsus.</li>
+<li>Adjust how it listens: - <strong>Sensitivity</strong> (notes and chords, drums) — higher finds fainter notes (and more wrong ones); 50 % is each model's own default. Melody has none: its tracker decides by itself what is sung. - <strong>Shortest note</strong> — shorter notes are dropped (128 ms by default). - <strong>Keep pitch bends</strong> — each note keeps its bends and vibrato as its own bend curve (the piano roll's per-note expression), even notes that overlap. - For drums, <strong>Write</strong> chooses the classes. Kick, snare and hi-hat are on; toms and cymbals are on only when the drum model is installed, because without it they are often wrong.</li>
+<li>Choose where the notes go: <strong>Unda</strong>, or <strong>Exemplar</strong> with its first factory sound (Pulsus's studio kit for drums), and <strong>Quantise</strong> — off by default, so the notes stay where they were played.</li>
+<li><strong>Convert</strong>. The notes arrive on a new track under the clip's, in a MIDI clip that starts and ends with the audio clip. It is <strong>one step of Undo</strong>.</li>
+</ol>
+<p>The notes follow the clip as it plays: through the project's tempo and its tempo changes, a warped clip's warp markers, a reversed clip backwards, and a looped clip on every loop — each loop where it really sounds, after a tempo change too, the last one cut where the clip ends.</p>
+<h2 id="the-models">The models</h2>
+<p><em>Notes and chords</em> needs <strong>Basic Pitch</strong> (230 KB, Apache-2.0, by Spotify) and the ONNX Runtime (about 15 MB, MIT, by Microsoft), downloaded once the first time you convert — the dialog shows the model, its licence and its size before it downloads, and converting accepts its licence. <em>Melody</em> and <em>Drums</em> work with nothing downloaded.</p>
+<p>For better drums, <strong>Download the drum model</strong> in the dialog: Magenta's <em>Onsets and Frames Drums</em> (6 MB, Apache-2.0), trained on 444 hours of real drumming. It writes every class; Cantus's own detector still says which hi-hats were open.</p>
+<p>Everything runs on your computer, in a helper process: if a model fails, Cantus goes on.</p>
+<h2 id="how-well-it-works">How well it works</h2>
+<p>Measured with the field's usual rule (a note counts when it starts within 50 ms of the real one at the right pitch):</p>
+<ul>
+<li><strong>Melody</strong>: about 8 notes in 10 on melodies played by Cantus's instruments and on solo recordings of violin, horn, clarinet, trumpet, cello and saxophone.</li>
+<li><strong>Notes and chords</strong>: about 7 in 10 on chamber-music recordings, 6 in 10 on our instruments' chords; exactly the notes Spotify's own Basic Pitch writes.</li>
+<li><strong>Drums</strong> on drum recordings: kick 96 %, snare 85–89 %, hi-hat 65 %; with the drum model, hi-hat 74 %, cymbals 64 % and toms 44 % (toms are the hardest; check them).</li>
+</ul>
+<p>Drums work best on a drum track or a drum stem. On a whole mix, turn on <strong>Separate the drums first</strong>: Cantus takes the drums out with HT-Demucs (installed with <strong>Separate stems…</strong>) before it listens, which brings a mix almost to a drum track's accuracy (about a minute for a 3-minute song). The tonewheel organ (Organum) does not transcribe well.</p>
+<h2 id="for-agents">For agents</h2>
+<p>Agents connected through Cantus's MCP server have the same conversion as the tool <code>audio_to_midi</code>: it asks like any edit, names the clip and track it converts, and never downloads a model.</p>
+</main>
+</body>
+</html>

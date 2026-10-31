@@ -57,6 +57,7 @@ pub fn ahead() -> Html {
                         l.t("A multicore live engine; WASAPI and ASIO", "Un motor en vivo multinúcleo; WASAPI y ASIO"),
                         l.t("Hosts CLAP and VST3 plug-ins; exports WAV, FLAC, MP3 and Ogg", "Aloja plug-ins CLAP y VST3; exporta WAV, FLAC, MP3 y Ogg"),
                         l.t("Cables between mixer channels, linked clips, copy and paste", "Cables entre canales del mezclador, clips enlazados, copiar y pegar"),
+                        l.t("AI assistants that operate the DAW through MCP, with your permission; stems, audio to MIDI and a mastering assistant", "Asistentes de IA que operan el DAW por MCP, con tu permiso; stems, audio a MIDI y un asistente de mastering"),
                     ]) }
                     { col(l.t("Next: arriving with the beta, in testing now", "Siguiente: llega con la beta, en pruebas ahora"), vec![
                         l.t("Warping: audio that follows the tempo, with time-stretch and pitch-shift", "Warp: audio que sigue el tempo, con estiramiento de tiempo y cambio de tono"),
@@ -72,7 +73,7 @@ pub fn ahead() -> Html {
                     { col(l.t("Later", "Después"), vec![
                         three,
                         l.t("Sound packs and stand-alone plug-ins on cantusdaw.studio", "Paquetes de sonidos y plug-ins independientes en cantusdaw.studio"),
-                        l.t("Assistants that can operate the DAW, with your permission", "Asistentes que puedan operar el DAW, con tu permiso"),
+                        l.t("An assistant panel inside Cantus, with your own key or a local model", "Un panel de asistente dentro de Cantus, con tu propia clave o un modelo local"),
                     ]) }
                 </div>
 

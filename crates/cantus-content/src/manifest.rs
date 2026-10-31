@@ -192,11 +192,38 @@ pub struct Manifest {
 
 /// A string in the languages Cantus speaks. Content names are data, not interface
 /// strings, so they travel with the manifest rather than in the locale files.
+/// Read from `{"en": …, "es": …}` or, for a text not translated yet, a plain string
+/// (English).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(from = "TextForm")]
 pub struct Text {
     pub en: String,
     #[serde(default)]
     pub es: String,
+}
+
+// r34:stems — a plain string read as English.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum TextForm {
+    Plain(String),
+    Both {
+        en: String,
+        #[serde(default)]
+        es: String,
+    },
+}
+
+impl From<TextForm> for Text {
+    fn from(f: TextForm) -> Text {
+        match f {
+            TextForm::Plain(en) => Text {
+                en,
+                es: String::new(),
+            },
+            TextForm::Both { en, es } => Text { en, es },
+        }
+    }
 }
 
 impl Text {

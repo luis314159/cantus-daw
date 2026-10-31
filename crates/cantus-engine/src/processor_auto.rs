@@ -24,6 +24,7 @@ use cantus_core::ModulatorId;
 use cantus_core::TempoMap;
 
 /// The processor's automation state. Fixed size; the runtime arrives built.
+#[derive(Clone)]
 pub(super) struct AutoState {
     pub(super) rt: Option<Box<Runtime>>,
     /// A runtime that arrived ahead of its snapshot.

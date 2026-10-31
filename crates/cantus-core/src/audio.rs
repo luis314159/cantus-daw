@@ -51,6 +51,29 @@ pub struct AudioSource {
     pub recorded: bool,
 }
 
+/// What made a file of the pool, when a model made it (schema 48, ADR 0085), kept in
+/// `Project::provenance` by its source's id: what the clips' "AI" badge says and what an
+/// export credits (`research/ai/legal.md` §3). Plain data: nothing here knows any model.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Provenance {
+    /// What was done: `"separated"` (stems), `"transcribed"`, `"generated"`.
+    pub kind: String,
+    /// The model's id in the model manifest (`"htdemucs"`) and its name as shown.
+    pub model: String,
+    pub model_name: String,
+    /// The model's version in the manifest.
+    pub model_version: u32,
+    /// The model's licence, as an SPDX id (`"MIT"`).
+    pub licence: String,
+    /// When it was made: an ISO 8601 date (`"2026-10-30"`).
+    pub date: String,
+    /// What it was made from: the source file's name as the project showed it.
+    pub from: String,
+    /// The part of it this file is (`"vocals"`), or empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub part: String,
+}
+
 /// The shape of a fade. `Linear` is the default because it is the one that sums to unity
 /// across a crossfade of equal length with its mirror; `EqualPower` is the one that keeps
 /// loudness across a crossfade of uncorrelated material.

@@ -52,10 +52,12 @@ pub enum Group {
     /// Ableton Link (on/off, its peers, the quantum) and the sync source with its tempo
     /// and lock light (round 33, ADR 0078–0079).
     Sync,
+    /// The agent chip while an agent is connected (round 34, ADR 0081). // r34:mcp
+    Ai, // r34:mcp
 }
 
 /// How many groups there are.
-pub const COUNT: usize = 14;
+pub const COUNT: usize = 15; // r34:mcp (15)
 
 impl Group {
     /// Every group, in the default order (FL's: PAT / SONG before play, the tempo beside
@@ -76,6 +78,7 @@ impl Group {
         Group::Meter,
         Group::Device,
         Group::Tools,
+        Group::Ai, // r34:mcp
     ];
 
     /// The stable id kept in `settings.json`.
@@ -95,6 +98,7 @@ impl Group {
             Group::Device => "device",
             Group::Tools => "tools",
             Group::Sync => "sync",
+            Group::Ai => "ai", // r34:mcp
         }
     }
 
@@ -119,13 +123,14 @@ impl Group {
             Group::Device => "topbar.group.device",
             Group::Tools => "topbar.group.tools",
             Group::Sync => "sync.group",
+            Group::Ai => "ai.topbar.group", // r34:mcp
         }
     }
 
     /// Whether the default bar leaves it out (round 33: Sync, as Live hides its Link toggle
     /// until asked) — shown when the owner shows it, or while it is in use.
     pub fn hidden_by_default(self) -> bool {
-        matches!(self, Group::Sync)
+        matches!(self, Group::Sync | Group::Ai) // r34:mcp (Ai)
     }
 
     /// Whether the bar shows it: not hidden by the owner, and — hidden by default — shown
@@ -148,6 +153,7 @@ impl Group {
                 | Group::Performance
                 | Group::Meter
                 | Group::Sync
+                | Group::Ai // r34:mcp
         )
     }
 
@@ -158,18 +164,21 @@ impl Group {
             Group::Transport => 0,
             Group::Position => 1,
             Group::Tempo => 2,
-            Group::Mode => 3,
-            Group::Metronome => 4,
-            Group::Device => 5,
-            Group::Meter => 6,
-            Group::Windows => 7,
-            Group::Performance => 8,
+            // Shown, an agent is connected (visible agent mode): kept right after the
+            // transport, the position and the tempo — what the user must see. r34:mcp
+            Group::Ai => 3,          // r34:mcp
+            Group::Mode => 4,        // r34:mcp (each below one place down)
+            Group::Metronome => 5,   // r34:mcp
+            Group::Device => 6,      // r34:mcp
+            Group::Meter => 7,       // r34:mcp
+            Group::Windows => 8,     // r34:mcp
+            Group::Performance => 9, // r34:mcp
             // Shown, it is in use (or asked for): kept before the snap, undo and tools.
-            Group::Sync => 9,
-            Group::Snap => 10,
-            Group::Undo => 11,
-            Group::Inputs => 12,
-            Group::Tools => 13,
+            Group::Sync => 10,   // r34:mcp
+            Group::Snap => 11,   // r34:mcp
+            Group::Undo => 12,   // r34:mcp
+            Group::Inputs => 13, // r34:mcp
+            Group::Tools => 14,  // r34:mcp
         }
     }
 }
@@ -498,8 +507,9 @@ mod tests {
             l.span_of(Group::Tempo).unwrap().x0
         );
         assert_eq!(l.slot_of(Group::Metronome), Some(Slot::Full));
-        // 14 groups, 6 tall, 8 short in 4 pairs: 10 columns.
-        assert_eq!(l.columns().len(), 10);
+        // 15 groups, 7 tall (the agent chip among them, r34:mcp), 8 short in 4 pairs: 11
+        // columns.
+        assert_eq!(l.columns().len(), 11); // r34:mcp (was 14 groups, 10 columns)
     }
 
     #[test]

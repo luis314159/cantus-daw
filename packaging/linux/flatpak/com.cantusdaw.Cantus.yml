@@ -54,10 +54,12 @@ modules:
         CARGO_NET_OFFLINE: 'true'
         LIBCLANG_PATH: /usr/lib/sdk/llvm18/lib
     build-commands:
-      - cargo --offline build --release -p cantus -p cantus-host -p cantus-sandbox --bins
+      - cargo --offline build --release -p cantus -p cantus-host -p cantus-sandbox -p cantus-mcp -p cantus-ml --bins  # r34:stems
       - install -Dm755 target/release/cantus /app/bin/cantus
       - install -Dm755 target/release/cantus-scan /app/bin/cantus-scan
       - install -Dm755 target/release/cantus-sandbox /app/bin/cantus-sandbox
+      - install -Dm755 target/release/cantus-mcp /app/bin/cantus-mcp
+      - install -Dm755 target/release/cantus-ml /app/bin/cantus-ml  # r34:stems — the ML helper
       - install -Dm644 packaging/linux/com.cantusdaw.Cantus.desktop /app/share/applications/com.cantusdaw.Cantus.desktop
       - sed "s/@VERSION@/$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)/; s/@DATE@/$(date -u +%Y-%m-%d)/" packaging/linux/com.cantusdaw.Cantus.metainfo.xml > com.cantusdaw.Cantus.metainfo.xml
       - install -Dm644 com.cantusdaw.Cantus.metainfo.xml /app/share/metainfo/com.cantusdaw.Cantus.metainfo.xml

@@ -1,0 +1,416 @@
+{
+  "format": 1,
+  "updated": "2026-10-30",
+  "runtimes": [
+    {
+      "id": "onnxruntime-1-31-1-windows-x86-64",
+      "kind": "onnxruntime",
+      "version": "1.31.1",
+      "platform": "windows-x86_64",
+      "library": "capi/onnxruntime.dll",
+      "library_sha256": "e45f61e50d8650885452be538a00bb14a715e46a1bc3691000ce947e89ed0306",
+      "licence": "MIT",
+      "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.31.1/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "ONNX Runtime — Microsoft Corporation",
+          "url": "https://onnxruntime.ai",
+          "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.31.1/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "installed_size": 19640562,
+      "source": {
+        "zip": {
+          "url": "https://files.pythonhosted.org/packages/45/b2/793b4051d8dc6acb379ead9b72050f0ffa283ca49a6904add2e218b83e2e/onnxruntime-1.31.1-cp312-cp312-win_amd64.whl",
+          "size": 14888466,
+          "sha256": "ae8a9a351efda685cc59a66226cdefaa37a126c1d66872ca23a2de9425326130",
+          "strip": "onnxruntime/",
+          "include": ["capi/onnxruntime.dll", "LICENSE", "ThirdPartyNotices.txt", "Privacy.md"]
+        }
+      },
+      "note": "Microsoft's own build, from its Python wheel on PyPI (content-addressed): the same onnxruntime.dll as the C package's, in a 15 MB download instead of 83 MB (the C package carries 430 MB of debug symbols)."
+    },
+    {
+      "id": "onnxruntime-1-31-1-linux-x86-64",
+      "kind": "onnxruntime",
+      "version": "1.31.1",
+      "platform": "linux-x86_64",
+      "library": "lib/libonnxruntime.so.1.31.1",
+      "library_sha256": "a96f132e5eb5ca04e23a7d2fc1078fb95aa591e8d71d0f237702ece3a1e0f4ea",
+      "licence": "MIT",
+      "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.31.1/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "ONNX Runtime — Microsoft Corporation",
+          "url": "https://onnxruntime.ai",
+          "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.31.1/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "installed_size": 29691116,
+      "source": {
+        "tar_gz": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-linux-x64-1.31.1.tgz",
+          "size": 11413655,
+          "sha256": "c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9",
+          "strip": "onnxruntime-linux-x64-1.31.1/",
+          "include": ["lib/libonnxruntime.so.1.31.1", "LICENSE", "ThirdPartyNotices.txt", "Privacy.md"]
+        }
+      },
+      "note": "Microsoft's C package from the GitHub release."
+    },
+    {
+      "id": "onnxruntime-1-31-1-macos-aarch64",
+      "kind": "onnxruntime",
+      "version": "1.31.1",
+      "platform": "macos-aarch64",
+      "gpu": "coreml",
+      "library": "lib/libonnxruntime.1.31.1.dylib",
+      "library_sha256": "17500d6b1e37e70f43a2c57d94233a1bc29fbcb297be0a5f8c7c13184f3307ba",
+      "licence": "MIT",
+      "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.31.1/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "ONNX Runtime — Microsoft Corporation",
+          "url": "https://onnxruntime.ai",
+          "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.31.1/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "installed_size": 45142988,
+      "source": {
+        "tar_gz": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-osx-arm64-1.31.1.tgz",
+          "size": 36936435,
+          "sha256": "2e1344a1926ee50eb25b38153cb6992c3567515aef0e677a1a520a1798896d6f",
+          "strip": "onnxruntime-osx-arm64-1.31.1/",
+          "include": ["lib/libonnxruntime.1.31.1.dylib", "LICENSE", "ThirdPartyNotices.txt", "Privacy.md"]
+        }
+      },
+      "note": "Microsoft's C package from the GitHub release (Apple silicon)."
+    },
+    {
+      "id": "onnxruntime-1-23-2-macos-x86-64",
+      "kind": "onnxruntime",
+      "version": "1.23.2",
+      "platform": "macos-x86_64",
+      "gpu": "coreml",
+      "library": "lib/libonnxruntime.1.23.2.dylib",
+      "library_sha256": "8c9c78de65ea3786f987c0d980e9c1b13a3a5fbc6b3e2965ba05b450e6e4c054",
+      "licence": "MIT",
+      "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.23.2/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "ONNX Runtime — Microsoft Corporation",
+          "url": "https://onnxruntime.ai",
+          "licence_url": "https://github.com/microsoft/onnxruntime/blob/v1.23.2/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "installed_size": 40073016,
+      "source": {
+        "tar_gz": {
+          "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-osx-x86_64-1.23.2.tgz",
+          "size": 11676322,
+          "sha256": "d10359e16347b57d9959f7e80a225a5b4a66ed7d7e007274a15cae86836485a6",
+          "strip": "onnxruntime-osx-x86_64-1.23.2/",
+          "include": ["lib/libonnxruntime.1.23.2.dylib", "LICENSE", "ThirdPartyNotices.txt", "Privacy.md"]
+        }
+      },
+      "note": "Microsoft's C package from the GitHub release; 1.23.2 is the last with an Intel macOS build, and Cantus asks for no newer API (ADR 0085)."
+    }
+  ],
+  "models": [
+    {
+      "id": "htdemucs",
+      "version": 1,
+      "name": { "en": "HT-Demucs — 4 stems", "es": "HT-Demucs — 4 pistas" },
+      "description": {
+        "en": "Meta's Hybrid Transformer Demucs (v4): drums, bass, vocals and the rest.",
+        "es": "Hybrid Transformer Demucs (v4) de Meta: batería, bajo, voces y el resto."
+      },
+      "task": "stems",
+      "family": "ht_demucs",
+      "sources": ["drums", "bass", "other", "vocals"],
+      "sample_rate": 44100,
+      "segment": 343980,
+      "recommended": true,
+      "runtime": "onnxruntime",
+      "licence": "MIT",
+      "licence_url": "https://github.com/facebookresearch/demucs/blob/e976d93ecc3865e5757426930257e200846a520a/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "Demucs — Meta Platforms, Inc. (Simon Rouard, Francisco Massa, Alexandre Défossez)",
+          "url": "https://github.com/facebookresearch/demucs",
+          "licence_url": "https://github.com/facebookresearch/demucs/blob/e976d93ecc3865e5757426930257e200846a520a/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "provenance": {
+        "authors": "Simon Rouard, Francisco Massa, Alexandre Défossez (Meta AI)",
+        "paper": "https://arxiv.org/abs/2211.08553",
+        "code": "https://github.com/facebookresearch/demucs (MIT; archived by Meta, last commit e976d93e, 2023-11-16)",
+        "weights": {
+          "en": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th (Meta's own; the repository — its code and the models it releases — is under the MIT licence; no separate licence is stated for the weights)",
+          "es": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th (de Meta; el repositorio —su código y los modelos que publica— está bajo la licencia MIT; no se declara una licencia aparte para los pesos)"
+        },
+        "training": {
+          "en": "MUSDB18-HQ's training set and 800 songs of Meta's own, whose provenance is not disclosed",
+          "es": "El conjunto de entrenamiento de MUSDB18-HQ y 800 canciones propias de Meta, cuya procedencia no se publica"
+        },
+        "quality": {
+          "en": "8.80 dB SDR on MUSDB18-HQ's test set, the median per source averaged: drums 10.05, bass 9.78, other 6.42, vocals 8.93 (the paper's Table 1, HT Demucs with 800 extra songs; Cantus measured the same on the same 50 songs)",
+          "es": "8.80 dB de SDR en el conjunto de prueba de MUSDB18-HQ, la mediana por fuente promediada: batería 10.05, bajo 9.78, otros 6.42, voces 8.93 (tabla 1 del artículo, HT Demucs con 800 canciones extra; Cantus midió lo mismo en las mismas 50 canciones)"
+        },
+        "conversion": {
+          "en": "Cantus writes the network's graph (made by crates/cantus-ml/tools/export_htdemucs.py, no weights in it) and rebuilds the weights from Meta's file at install, checked byte for byte; Cantus hosts nothing",
+          "es": "Cantus escribe el grafo de la red (hecho por crates/cantus-ml/tools/export_htdemucs.py, sin pesos) y reconstruye los pesos del archivo de Meta al instalar, comprobados byte a byte; Cantus no aloja nada"
+        }
+      },
+      "files": [
+        {
+          "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
+          "to": "955717e8-8726e21a.th",
+          "size": 84141911,
+          "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/demucs/e976d93ecc3865e5757426930257e200846a520a/LICENSE",
+          "to": "LICENSE",
+          "size": 1087,
+          "sha256": "cf9b17822d1fcd4ff32ccbe14183386fb3adf6f2ff92dc184130823f7fc28173"
+        }
+      ],
+      "prepare": { "kind": "demucs_th", "th": "955717e8-8726e21a.th", "graph": "htdemucs" },
+      "installed_size": 84821576
+    },
+    {
+      "id": "htdemucs-6s",
+      "version": 1,
+      "name": { "en": "HT-Demucs — 6 stems", "es": "HT-Demucs — 6 pistas" },
+      "description": {
+        "en": "Meta's Hybrid Transformer Demucs (v4) with guitar and piano too; its piano is weak, its maker says.",
+        "es": "Hybrid Transformer Demucs (v4) de Meta, también con guitarra y piano; su piano es débil, dice su autor."
+      },
+      "task": "stems",
+      "family": "ht_demucs",
+      "sources": ["drums", "bass", "other", "vocals", "guitar", "piano"],
+      "sample_rate": 44100,
+      "segment": 343980,
+      "runtime": "onnxruntime",
+      "licence": "MIT",
+      "licence_url": "https://github.com/facebookresearch/demucs/blob/e976d93ecc3865e5757426930257e200846a520a/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "Demucs — Meta Platforms, Inc. (Simon Rouard, Francisco Massa, Alexandre Défossez)",
+          "url": "https://github.com/facebookresearch/demucs",
+          "licence_url": "https://github.com/facebookresearch/demucs/blob/e976d93ecc3865e5757426930257e200846a520a/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "provenance": {
+        "authors": "Simon Rouard, Francisco Massa, Alexandre Défossez (Meta AI)",
+        "paper": "https://arxiv.org/abs/2211.08553",
+        "code": "https://github.com/facebookresearch/demucs (MIT; archived by Meta, last commit e976d93e, 2023-11-16)",
+        "weights": {
+          "en": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th (Meta's own; the repository is under MIT, no separate licence stated for the weights)",
+          "es": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th (de Meta; el repositorio está bajo MIT, sin una licencia aparte declarada para los pesos)"
+        },
+        "training": {
+          "en": "as the 4-stem model, with guitar and piano sources; the README calls the piano source poor",
+          "es": "Como el modelo de 4 pistas, con guitarra y piano; el README dice que el piano sale pobre"
+        },
+        "quality": {
+          "en": "not published per source by the paper; the README: guitar acceptable, piano with bleeding and artifacts",
+          "es": "El artículo no la publica por fuente; según el README, la guitarra es aceptable y el piano tiene filtraciones y artefactos"
+        },
+        "conversion": {
+          "en": "as the 4-stem model: Cantus writes the graph and rebuilds the weights from Meta's file at install; Cantus hosts nothing",
+          "es": "Como el modelo de 4 pistas: Cantus escribe el grafo y reconstruye los pesos del archivo de Meta al instalar; Cantus no aloja nada"
+        }
+      },
+      "files": [
+        {
+          "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th",
+          "to": "5c90dfd2-34c22ccb.th",
+          "size": 54996327,
+          "sha256": "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/facebookresearch/demucs/e976d93ecc3865e5757426930257e200846a520a/LICENSE",
+          "to": "LICENSE",
+          "size": 1087,
+          "sha256": "cf9b17822d1fcd4ff32ccbe14183386fb3adf6f2ff92dc184130823f7fc28173"
+        }
+      ],
+      "prepare": { "kind": "demucs_th", "th": "5c90dfd2-34c22ccb.th", "graph": "htdemucs_6s" },
+      "installed_size": 58672189
+    },
+    {
+      "id": "basic-pitch",
+      "version": 1,
+      "name": {
+        "en": "Basic Pitch — audio to notes",
+        "es": "Basic Pitch — audio a notas"
+      },
+      "description": {
+        "en": "Spotify's Basic Pitch: the notes of any instrument or voice, chords included, with their pitch bends.",
+        "es": "Basic Pitch de Spotify: las notas de cualquier instrumento o voz, acordes incluidos, con sus inflexiones de tono."
+      },
+      "task": "transcription",
+      "family": "basic_pitch",
+      "sources": [
+        "notes"
+      ],
+      "sample_rate": 22050,
+      "segment": 43844,
+      "recommended": true,
+      "runtime": "onnxruntime",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/spotify/basic-pitch/blob/fa5997af0a8210982619003269994a1be25eddf3/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "Basic Pitch — Spotify AB (Rachel M. Bittner, Juan José Bosch, David Rubinstein, Gabriel Meseguer-Brocal, Sebastian Ewert)",
+          "url": "https://github.com/spotify/basic-pitch",
+          "licence_url": "https://github.com/spotify/basic-pitch/blob/fa5997af0a8210982619003269994a1be25eddf3/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "provenance": {
+        "authors": "Rachel M. Bittner, Juan José Bosch, David Rubinstein, Gabriel Meseguer-Brocal, Sebastian Ewert (Spotify)",
+        "paper": "https://arxiv.org/abs/2203.09893 (ICASSP 2022: A Lightweight Instrument-Agnostic Model for Polyphonic Note Transcription and Multipitch Estimation)",
+        "code": "https://github.com/spotify/basic-pitch (Apache-2.0; pinned at commit fa5997af, 2025-11-13)",
+        "weights": {
+          "en": "https://raw.githubusercontent.com/spotify/basic-pitch/fa5997af0a8210982619003269994a1be25eddf3/basic_pitch/saved_models/icassp_2022/nmp.onnx (Spotify's own ONNX export, in the repository under its Apache-2.0 licence)",
+          "es": "https://raw.githubusercontent.com/spotify/basic-pitch/fa5997af0a8210982619003269994a1be25eddf3/basic_pitch/saved_models/icassp_2022/nmp.onnx (la exportación ONNX propia de Spotify, en el repositorio bajo su licencia Apache-2.0)"
+        },
+        "training": {
+          "en": "public datasets only, as the paper states: GuitarSet, MAESTRO, Slakh (redux), iKala and MedleyDB's pitch-tracking subset",
+          "es": "solo conjuntos públicos, según el artículo: GuitarSet, MAESTRO, Slakh (redux), iKala y el subconjunto de seguimiento de tono de MedleyDB"
+        },
+        "quality": {
+          "en": "note F-measure without offsets (mir_eval, onset 50 ms, pitch 50 cents): GuitarSet 0.79, MAESTRO 0.71, Molina 0.52, Phenicx 0.49, Slakh 0.42 (the paper's Table 2); measured by Cantus: 0.70 on TRIOS, 0.61 on its own instruments (ADR 0086)",
+          "es": "medida F de notas sin finales (mir_eval, inicio 50 ms, tono 50 cents): GuitarSet 0,79, MAESTRO 0,71, Molina 0,52, Phenicx 0,49, Slakh 0,42 (tabla 2 del artículo); medido por Cantus: 0,70 en TRIOS, 0,61 en sus propios instrumentos (ADR 0086)"
+        },
+        "conversion": {
+          "en": "none: Cantus runs Spotify's file as it is, its hash checked; the note creation is Cantus's re-implementation in Rust of basic_pitch/note_creation.py, held note for note to Spotify's own (3 286 of 3 286 notes identical on 19 files)",
+          "es": "ninguna: Cantus ejecuta el archivo de Spotify tal cual, con su hash comprobado; la creación de notas es la reimplementación en Rust de basic_pitch/note_creation.py, idéntica nota por nota a la de Spotify (3 286 de 3 286 notas iguales en 19 archivos)"
+        }
+      },
+      "files": [
+        {
+          "url": "https://raw.githubusercontent.com/spotify/basic-pitch/fa5997af0a8210982619003269994a1be25eddf3/basic_pitch/saved_models/icassp_2022/nmp.onnx",
+          "to": "nmp.onnx",
+          "size": 230444,
+          "sha256": "2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/spotify/basic-pitch/fa5997af0a8210982619003269994a1be25eddf3/LICENSE",
+          "to": "LICENSE",
+          "size": 11384,
+          "sha256": "929c910bae2152fa87199a5d0660e09263419b7eee6d4b301d05ee2aaf211c37"
+        }
+      ],
+      "prepare": {
+        "kind": "onnx",
+        "file": "nmp.onnx"
+      },
+      "installed_size": 241828
+    },
+    {
+      "id": "oaf-drums",
+      "version": 2,
+      "name": {
+        "en": "Onsets and Frames Drums — drums to notes",
+        "es": "Onsets and Frames Drums — batería a notas"
+      },
+      "description": {
+        "en": "Magenta's drum transcriber, trained on 444 hours of real drumming: kicks, snares, toms, hi-hats and cymbals.",
+        "es": "El transcriptor de batería de Magenta, entrenado con 444 horas de batería real: bombos, cajas, toms, charles y platos."
+      },
+      "task": "transcription",
+      "family": "oaf_drums",
+      "sources": [
+        "drums"
+      ],
+      "sample_rate": 44100,
+      "segment": 2646000,
+      "runtime": "onnxruntime",
+      "licence": "Apache-2.0",
+      "licence_url": "https://huggingface.co/thebluescreen/oaf-drums-onnx/blob/771fd5529062b9f6f0b58f01cc4b9819db046f4a/LICENSE",
+      "licence_file": "LICENSE",
+      "credits": [
+        {
+          "name": "Onsets and Frames Drums — The Magenta Authors (Lee Callender, Curtis Hawthorne, Jesse Engel)",
+          "url": "https://github.com/magenta/magenta/tree/main/magenta/models/onsets_frames_transcription",
+          "licence_url": "https://github.com/magenta/magenta/blob/main/LICENSE"
+        },
+        {
+          "name": "ONNX conversion — thebluescreen (Hugging Face)",
+          "url": "https://huggingface.co/thebluescreen/oaf-drums-onnx",
+          "licence_url": "https://huggingface.co/thebluescreen/oaf-drums-onnx/blob/771fd5529062b9f6f0b58f01cc4b9819db046f4a/LICENSE"
+        }
+      ],
+      "checked": "2026-10-30",
+      "provenance": {
+        "authors": "Lee Callender, Curtis Hawthorne, Jesse Engel (Google Magenta); converted to ONNX by thebluescreen",
+        "paper": "https://arxiv.org/abs/2004.00188 (Improving Perceptual Quality of Drum Transcription with the Expanded Groove MIDI Dataset, 2020)",
+        "code": "https://github.com/magenta/magenta (Apache-2.0), onsets_frames_transcription, the E-GMD checkpoint model.ckpt-569400",
+        "weights": {
+          "en": "https://huggingface.co/thebluescreen/oaf-drums-onnx (Apache-2.0, pinned at commit 771fd552, 2026-10-06): Magenta's E-GMD checkpoint model.ckpt-569400 (published by Magenta in its Apache-2.0 repository, without a licence line of its own) converted to ONNX by a third party with its log-mel front end in the graph. The converter's scripts (Sillybit-io/audio-to-midi-app, scripts/drums/) are no longer available (404), and Cantus could not compare the conversion with Magenta's TensorFlow inference: it is verified by measurement only",
+          "es": "https://huggingface.co/thebluescreen/oaf-drums-onnx (Apache-2.0, fijado en el commit 771fd552, 2026-10-06): el checkpoint E-GMD model.ckpt-569400 de Magenta (publicado por Magenta en su repositorio Apache-2.0, sin una licencia propia aparte) convertido a ONNX por un tercero, con su espectrograma log-mel dentro del grafo. Los scripts del conversor (Sillybit-io/audio-to-midi-app, scripts/drums/) ya no están disponibles (404) y Cantus no pudo compararla con la inferencia de TensorFlow de Magenta: solo está verificada midiéndola"
+        },
+        "training": {
+          "en": "the Expanded Groove MIDI Dataset (E-GMD, CC BY 4.0): 444 hours of human drumming on electronic kits rendered through 43 drum kits; trained with drum_data_map '8-hit', which maps every hi-hat to pitch 46",
+          "es": "el Expanded Groove MIDI Dataset (E-GMD, CC BY 4.0): 444 horas de batería tocada por personas en kits electrónicos, sonadas con 43 kits; entrenado con drum_data_map '8-hit', que lleva todo charles al tono 46"
+        },
+        "quality": {
+          "en": "measured by Cantus on MDB Drums' 15 held-out drum stems (ADR 0086): kick 0.96, snare 0.89, toms 0.44, hi-hat 0.74, cymbals 0.64",
+          "es": "medido por Cantus en los 15 stems de batería reservados de MDB Drums (ADR 0086): bombo 0,96, caja 0,89, toms 0,44, charles 0,74, platos 0,64"
+        },
+        "conversion": {
+          "en": "one byte: the conversion's output gather takes pitch 42 for the hi-hat (trained toward zero: it never answers); Cantus copies the file and changes that index to pitch 46 (the 8-hit map's hi-hat), checking both files' hashes; every weight as the converter left it",
+          "es": "un byte: la selección de salidas de la conversión toma el tono 42 para el charles (entrenado hacia cero: nunca responde); Cantus copia el archivo y cambia ese índice al tono 46 (el charles del mapa 8-hit), comprobando el hash de ambos archivos; todos los pesos como los dejó el conversor"
+        }
+      },
+      "files": [
+        {
+          "url": "https://huggingface.co/thebluescreen/oaf-drums-onnx/resolve/771fd5529062b9f6f0b58f01cc4b9819db046f4a/oaf_drums.onnx",
+          "to": "oaf_drums.onnx",
+          "size": 5966247,
+          "sha256": "23d4b05ce7e9715bdb4396823d68bc886e8a958fa9f6266c0f7132b78098b521"
+        },
+        {
+          "url": "https://huggingface.co/thebluescreen/oaf-drums-onnx/resolve/771fd5529062b9f6f0b58f01cc4b9819db046f4a/LICENSE",
+          "to": "LICENSE",
+          "size": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "url": "https://huggingface.co/thebluescreen/oaf-drums-onnx/resolve/771fd5529062b9f6f0b58f01cc4b9819db046f4a/NOTICE.md",
+          "to": "NOTICE.md",
+          "size": 1623,
+          "sha256": "157a7b791aa8d7c0c254f4736a609c2aeba2553d90bca9ecffe1dbc5211151c8"
+        }
+      ],
+      "prepare": {
+        "kind": "onnx",
+        "file": "oaf_drums.onnx",
+        "patch": {
+          "find": "0f0000000000000011000000000000001b0000000000000015000000000000001e0000000000000020000000000000001c000000000000003600000000000000",
+          "replace": "0f0000000000000011000000000000001b0000000000000019000000000000001e0000000000000020000000000000001c000000000000003600000000000000",
+          "sha256": "1d30f87f03b19033c6ad1cc756dc412c0a74ad78e6441acf073c283a3c5d1297"
+        }
+      },
+      "installed_size": 11945475
+    }
+  ]
+}

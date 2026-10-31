@@ -73,7 +73,7 @@ pub enum Edge {
 }
 
 /// One stereo delay line.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DelayLine {
     pub edge: Option<Edge>,
     delay: usize,
@@ -99,6 +99,22 @@ impl DelayLine {
             pos: 0,
             silent: usize::MAX,
         }
+    }
+
+    // r34:listen — a checkpoint's image leaves fresh lines out (ADR 0083).
+    /// Whether this line is, to the bit, as [`Self::new`] makes it.
+    pub(crate) fn is_fresh(&self) -> bool {
+        self.edge.is_none()
+            && self.delay == 0
+            && self.pos == 0
+            && self.silent == usize::MAX
+            && self.buf_l.len() == START_LEN
+            && self.buf_r.len() == START_LEN
+            && self
+                .buf_l
+                .iter()
+                .chain(self.buf_r.iter())
+                .all(|x| x.to_bits() == 0)
     }
 
     /// The longest delay this line can hold.
@@ -230,7 +246,7 @@ impl Default for Lines {
 }
 
 /// The pool, and which line each edge uses.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Compensation {
     pub lines: Arc<Lines>,
     /// Each line's edge, delay and length, mirrored here so planning reads plain arrays.

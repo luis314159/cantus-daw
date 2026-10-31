@@ -160,6 +160,11 @@ fn shown_into(app: &CantusApp, out: &mut [Option<Group>; COUNT]) -> usize {
     let mut n = 0;
     let in_use = app.settings.sync.source != sync_service::SyncSource::None; // r33:sync
     for g in order[..len].iter().flatten() {
+        let in_use = if *g == Group::Ai {
+            crate::ai_mcp::chip::in_use(app)
+        } else {
+            in_use
+        }; // r34:mcp
         if g.is_shown(&tb.hidden, &tb.shown, in_use) {
             // r33:sync
             out[n] = Some(*g);
@@ -261,6 +266,7 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
         }
         Group::Tools => fixed(keys::tools_width(ctx, s)),
         Group::Sync => fixed(sync::width(ctx, s)), // r33:sync
+        Group::Ai => fixed(crate::ai_mcp::chip::width(s)), // r34:mcp
     }
 }
 
@@ -406,6 +412,7 @@ fn draw(g: Group, app: &mut CantusApp, ui: &mut Ui, rect: Rect, s: &Style) {
         }
         Group::Tools => keys::tools(app, ui, rect, s),
         Group::Sync => sync::show(app, ui, rect, s), // r33:sync
+        Group::Ai => crate::ai_mcp::chip::show(app, ui, rect, s), // r34:mcp
     }
 }
 

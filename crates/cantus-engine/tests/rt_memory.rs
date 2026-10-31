@@ -561,6 +561,36 @@ fn the_master_chain_never_allocates() {
     );
 }
 
+// r34:listen — a range render's checkpoint (ADR 0083).
+/// A processor copied between two blocks (`Processor::fork`, a range render's checkpoint)
+/// plays on without allocating: every vector it pushes into kept its room.
+#[test]
+fn a_forked_processor_never_allocates() {
+    let mut p = demo_project();
+    let lim = p.make_effect(EffectKind::Limiter);
+    p.master.effects = vec![lim];
+    add_effect(&mut p, EffectKind::Delay);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("before the fork", 40);
+    let (fork, tx, rx) = rig.p.fork(64, 4_096).expect("a native project copies");
+    rig.p = fork;
+    rig.tx = tx;
+    rig.rx = rx;
+    rig.play("the fork", 60);
+    // A pre-roll's whole-sample start (review 2), on the audio thread as a seek is.
+    rig.tx.push(EngineMessage::SeekFrac(1_234.5)).unwrap();
+    rig.play("the fork, a fractional seek", 20);
+    rig.snapshot(&p);
+    rig.play("the fork, a snapshot installed", 20);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the copy allocated or freed: {:?}",
+        rig.allocations
+    );
+}
+
 /// Automation (ADR 0027) on the audio thread: a fader ride and a pan sweep ramping, an
 /// EQ's band gain and Firmus's cutoff configured at control points, the master's width;
 /// a new snapshot (and runtime) mid-play, a seek, a stop. Not one allocation.

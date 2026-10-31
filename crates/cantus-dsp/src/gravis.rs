@@ -239,7 +239,7 @@ pub struct Readout {
 const STRING_GRID: u64 = 16;
 
 /// The instrument.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Gravis {
     sr: f32,
     s: GravisSettings,

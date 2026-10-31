@@ -72,7 +72,7 @@ pub fn settings(spec: &EffectSpec) -> SatSettings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     dsp: Fervor,
     /// Read into on the audio thread: setting it never allocates (`SatSettings` holds no
@@ -90,6 +90,9 @@ impl Unit {
 }
 
 impl FxUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn FxUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &EffectSpec) {
         self.scratch = settings(spec);
         self.dsp.set(&self.scratch);

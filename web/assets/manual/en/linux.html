@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cantus on Linux — installing and setting up audio</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="cantus-on-linux--installing-and-setting-up-audio">Cantus on Linux — installing and setting up audio</h1>
+<p><a href="../es/linux.html">Español</a> · <a href="index.html">Back to the manual</a></p>
+<h2 id="what-you-need">What you need</h2>
+<ul>
+<li>A 64-bit PC (x86-64) with a Linux from 2022 or later: Ubuntu 22.04, Linux Mint 21, Debian 12, Fedora 36, openSUSE Leap 15.5, Arch — or anything newer (glibc 2.35 or later).</li>
+<li>A desktop with X11 or Wayland (on Wayland Cantus runs through XWayland, which every Wayland desktop has; see <a href="#plug-in-windows">Plug-in windows</a>).</li>
+<li>About 300 MB of disk.</li>
+</ul>
+<h2 id="install-the-appimage">Install: the AppImage</h2>
+<ol>
+<li>Download <code>Cantus-&lt;version&gt;-linux-x86_64.AppImage</code> from the <a href="https://github.com/luis314159/cantus-daw/releases">releases page</a> — or from <a href="https://cantusdaw.com">cantusdaw.com</a>.</li>
+<li>Make it runnable: in your file manager, <em>Properties ▸ Permissions ▸ Allow executing file as program</em>; or in a terminal: <code>chmod +x Cantus-*.AppImage</code>.</li>
+<li>Double-click it (or <code>./Cantus-*.AppImage</code>).</li>
+</ol>
+<p>The AppImage is the whole program in one file: nothing is installed system-wide and no administrator password is asked for. On its first start it puts <strong>Cantus in your applications menu</strong> — with its icon, and <em>Open with Cantus</em> for <code>.cantus</code> projects — pointing at the file where it is; move the file and the next start updates the entry. To keep it out of the menu, start it with <code>CANTUS_NO_DESKTOP_ENTRY=1</code>.</p>
+<p>A good place to keep it: <code>~/Applications</code>. <strong>Updates</strong> replace that same file.</p>
+<p><strong>Uninstall</strong>: delete the AppImage; remove the menu entry with <code>rm ~/.local/share/applications/com.cantusdaw.Cantus.desktop</code>. Your settings are in <code>~/.config/cantus</code> and your presets, recordings and autosaves in <code>~/.local/share/cantus</code> (the <code>XDG_CONFIG_HOME</code> and <code>XDG_DATA_HOME</code> folders, when you set those): delete them only if you want them gone. Your projects are never touched.</p>
+<p><strong>Flatpak</strong>: a Flatpak (<code>com.cantusdaw.Cantus</code>) is prepared for Flathub; until it is published there, use the AppImage.</p>
+<h2 id="audio-the-driver">Audio: the driver</h2>
+<p>Open <em>Settings ▸ Audio</em> (or the audio chip in the top bar). The <strong>Driver</strong> list offers what your system has, the best first:</p>
+<table>
+<tr><th>Driver</th><th>When</th><th>Latency</th></tr>
+<tr><td><strong>PipeWire</strong></td><td>Ubuntu 22.10 and later, Fedora 34 and later, Debian 12, Mint 22, Arch with PipeWire — most desktops today. Cantus talks to PipeWire directly.</td><td>Low: the buffer you choose is what PipeWire runs Cantus at (64–256 frames is comfortable on most machines).</td></tr>
+<tr><td><strong>JACK</strong></td><td>When a JACK server is running (JACK2, or PipeWire's JACK).</td><td>Low: the server's period.</td></tr>
+<tr><td><strong>ALSA</strong></td><td>Always. Through the system's default device (which on a PipeWire or PulseAudio system goes through them), or straight to a sound card (<code>hw:</code> devices) when nothing else uses it.</td><td>Higher through the default; low straight to the card.</td></tr>
+</table>
+<p>Pick the driver, the <strong>Output</strong> and <strong>Input</strong> devices, the <strong>Sample rate</strong> and the <strong>Buffer size</strong> (frames), and <em>Apply</em>. Cantus remembers the choice for each interface. Nothing to install: if PipeWire's or JACK's library is missing, those drivers are simply not offered.</p>
+<p><strong>Lower latency with PipeWire.</strong> PipeWire runs every program at one quantum (its buffer). Cantus asks for the buffer you chose; if another program asks for a bigger one, PipeWire may run the graph at that. To pin it: <code>pw-metadata -n settings 0 clock.force-quantum 128</code> (back to normal: <code>… 0</code>).</p>
+<p><strong>JACK through PipeWire.</strong> On a PipeWire system without a JACK server, install your distribution's PipeWire JACK package (<code>pipewire-jack</code>) to use the JACK driver there too; PipeWire's own driver is just as fast.</p>
+<h2 id="real-time-priority">Real-time priority</h2>
+<p>Under <em>Settings ▸ Audio</em>, the line <strong>Real-time priority</strong> says what the system gave Cantus's audio threads: for example <code>SCHED_FIFO priority 50</code> (direct), <code>SCHED_RR priority 20 via rtkit</code>, or <code>refused: …</code> with the reason. The audio thread of PipeWire and JACK is made real-time by them (<code>driver-owned thread: SCHED_FIFO</code>); Cantus raises its own threads.</p>
+<p>Most desktops grant it through <strong>rtkit</strong> with nothing to do. If the line says <em>refused</em>, either install and start <code>rtkit</code> (<code>sudo apt install rtkit</code>), or give your user the right to ask directly — the classic audio group:</p>
+<p><code></code><code>text sudo usermod -aG audio $USER echo '@audio - rtprio 95' | sudo tee /etc/security/limits.d/95-audio.conf echo '@audio - memlock unlimited' | sudo tee -a /etc/security/limits.d/95-audio.conf </code><code></code></p>
+<p>then log out and in again. (Ubuntu Studio and Fedora Jam set this up already.)</p>
+<h2 id="plug-ins">Plug-ins</h2>
+<p>Cantus finds CLAP and VST3 plug-ins in the standard Linux folders:</p>
+<table>
+<tr><th>Format</th><th>Folders</th></tr>
+<tr><td>CLAP</td><td><code>~/.clap</code>, <code>/usr/lib/clap</code>, <code>/usr/local/lib/clap</code>, and the folders in <code>CLAP_PATH</code></td></tr>
+<tr><td>VST3</td><td><code>~/.vst3</code>, <code>/usr/lib/vst3</code>, <code>/usr/local/lib/vst3</code>, and the folders in <code>VST3_PATH</code></td></tr>
+</table>
+<p>Install a plug-in the way its maker says (usually: copy the <code>.clap</code> file or the <code>.vst3</code> folder into <code>~/.clap</code> or <code>~/.vst3</code>), then <em>Settings ▸ Plug-ins ▸ Scan for plug-ins</em>. Each file is read in a separate scanner process, so a plug-in that crashes while being read only shows as <em>blocked</em>. A plug-in can also run in a process of its own (<em>When a plug-in crashes</em> in the manual): a crash there is caught, Cantus carries on, and you can reload it.</p>
+<p>Cantus's own effects are also in the AppImage as CLAP and VST3 plug-ins, for other programs: extract them with <code>./Cantus-*.AppImage --appimage-extract</code> and copy <code>squashfs-root/usr/share/cantus/plugins/clap/*</code> into <code>~/.clap</code> and <code>…/plugins/vst3/*</code> into <code>~/.vst3</code>.</p>
+<h3 id="plug-in-windows">Plug-in windows</h3>
+<p>A plug-in's own editor opens in a window of its own, kept above Cantus's. On Linux that window is an <strong>X11</strong> window, because plug-ins draw into X11 windows only; on a Wayland desktop it goes through XWayland, and so does Cantus's own window, so the two stay together. (Starting Cantus with <code>CANTUS_WAYLAND=1</code> gives it a native Wayland window instead; plug-in editors then open as ordinary windows that are not kept above it.)</p>
+<h2 id="files-dialogs-and-fonts">Files, dialogs and fonts</h2>
+<ul>
+<li>Open and save dialogs are your desktop's own (through the XDG desktop portal; with <code>zenity</code> where there is no portal). On a bare window manager without either, install <code>xdg-desktop-portal-gtk</code> or <code>zenity</code>.</li>
+<li>Text in Chinese, Japanese, Korean, Hindi or Thai uses the fonts your system has for it (asked of fontconfig): install <code>fonts-noto-cjk</code> (Debian/Ubuntu) or <code>google-noto-sans-cjk-fonts</code> (Fedora) if those characters show as boxes.</li>
+</ul>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<tr><th>What you see</th><th>What to do</th></tr>
+<tr><td>No sound, the driver list has only ALSA</td><td>PipeWire or JACK is not running for your user. Try ALSA with the <em>default</em> device, or start your desktop's sound service.</td></tr>
+<tr><td>Clicks and dropouts</td><td>Raise the buffer (<em>Settings ▸ Audio ▸ Buffer size</em>); check the <strong>Real-time priority</strong> line (see above); close programs that use the CPU heavily.</td></tr>
+<tr><td>A plug-in's window stays empty or does not open</td><td>Cantus is running with <code>CANTUS_WAYLAND=1</code>, or the plug-in needs a library your system lacks: start Cantus from a terminal and read what the plug-in prints.</td></tr>
+<tr><td>The AppImage does not start (<em>FUSE</em>)</td><td>Very old AppImages needed <code>libfuse2</code>; Cantus's does not. If your system blocks AppImages, run <code>./Cantus-*.AppImage --appimage-extract</code> and start <code>squashfs-root/AppRun</code>.</td></tr>
+</table>
+</main>
+</body>
+</html>

@@ -74,7 +74,7 @@ impl Default for Chan {
 }
 
 /// The processor's live MPE state.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct MpeLive {
     /// `None`: no port is MPE, nothing here runs.
     zones: Option<MpeZones>,

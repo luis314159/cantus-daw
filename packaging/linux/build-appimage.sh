@@ -58,13 +58,15 @@ mkdir -p "$app/usr/bin" "$app/usr/lib/fallback/pipewire" "$app/usr/lib/fallback/
 
 # --- the programs ---------------------------------------------------------------------
 release="$tgt/release"
-for bin in cantus cantus-launch cantus-scan cantus-sandbox; do
+# cantus-mcp: the MCP stdio bridge (round 34, ADR 0081), started as `Cantus.AppImage
+# --mcp-bridge` (AppRun). r34:stems — cantus-ml, the ML helper (ADR 0085), beside the others.
+for bin in cantus cantus-launch cantus-scan cantus-sandbox cantus-mcp cantus-ml; do
   if [ ! -x "$release/$bin" ]; then
-    "$cargo" build --release -p cantus -p cantus-launch -p cantus-host -p cantus-sandbox --bins
+    "$cargo" build --release -p cantus -p cantus-launch -p cantus-host -p cantus-sandbox -p cantus-mcp -p cantus-ml --bins
     break
   fi
 done
-install -m755 "$release/cantus-scan" "$release/cantus-sandbox" "$app/usr/bin/"
+install -m755 "$release/cantus-scan" "$release/cantus-sandbox" "$release/cantus-mcp" "$release/cantus-ml" "$app/usr/bin/"
 if [ "$quick" = 1 ]; then
   install -m755 "$release/cantus" "$app/usr/bin/cantus"
 else

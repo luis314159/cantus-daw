@@ -37,7 +37,12 @@ pub const TARGETS: &[&str] = &[
 ];
 /// What a release ships: the program, the plug-in sandbox it starts beside itself
 /// (round 29, ADR 0063), and the exported plug-ins.
-pub const ROOTS: &[&str] = &["cantus", "cantus-sandbox", "cantus-plugins"];
+pub const ROOTS: &[&str] = &[
+    "cantus",
+    "cantus-sandbox",
+    "cantus-plugins",
+    "cantus-ml", // r34:stems — the machine-learning helper (ADR 0085)
+];
 
 /// One crate from crates.io in the closure.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -95,6 +95,18 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         action("pitch.midi_new", Check::None, !missing),
         action("pitch.menu.double_third", Check::None, !missing),
         action("pitch.menu.double_fifth", Check::None, !missing),
+        // Round 34 (ADR 0085): its parts by a model — the selection's when it is in it.
+        Item::Separator,
+        action(
+            "stems.menu.separate",
+            Check::None,
+            !missing && app.settings.ai.enabled,
+        ),
+        action(
+            "transcribe.menu",
+            Check::None,
+            !missing && app.settings.ai.enabled,
+        ), // r34:transcribe
     ];
     let Some(i) = kit::widgets::menu_list(ui, &items, super::super::super::MENU_W)
         .1
@@ -137,6 +149,12 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         13 => app.pitch_make(r.0, r.1, None),
         14 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Third)),
         15 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Fifth)),
+        17 => {
+            let sel = app.clip_selection();
+            let clips = if sel.contains(&r) { sel } else { vec![r] };
+            app.open_separate_stems(crate::stems_ui::Target::Clips(clips));
+        }
+        18 => crate::transcribe_ui::run::open(app, r.0, r.1), // r34:transcribe
         _ => {}
     }
     ui.close();

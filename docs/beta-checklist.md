@@ -140,6 +140,30 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
         puerto; tocar Unda, Calor y Modulus (inflexión, presión, timbre por nota); grabar y
         ver las curvas en el piano roll; un plug-in MPE (Vital, Surge XT, Pigments) en
         *Automática* y en *MPE (MIDI)*. Anotar cómo se siente en `docs/round33/mpe.md`.
+- [ ] Probar a mano lo de la ronda 34 (la IA, ADR 0081–0086):
+  - [ ] **Un Windows limpio** (un equipo o una máquina virtual que nunca tuvo el
+        redistribuible de Visual C++): instalar la beta.9, *Separar stems…* en un clip y
+        *Convertir a MIDI…* en otro. Las DLL que Cantus lleva en `ml\` deberían bastar (el
+        orden de carga lo dice), pero esta máquina tiene el redistribuible instalado.
+  - [ ] **Claude Desktop con la extensión**: *Ajustes ▸ IA ▸ Guardar la extensión
+        (.mcpb)…*, instalarla en Claude Desktop y pedirle algo pequeño (una pista, unas
+        notas); ver la tarjeta de confirmación, la actividad de IA y que Ctrl+Z lo deshace.
+        También *Copiar configuración para* ▸ Claude Code si lo usas.
+  - [ ] **Una memoria USB real en FAT32 o exFAT**: que un agente exporte un WAV o un MIDI a
+        una carpeta permitida en ella (sin enlaces duros: el renombrado que nunca
+        reemplaza), y que con los ajustes de Cantus en esa memoria los agentes externos se
+        nieguen con palabras claras.
+  - [ ] **Escuchar a los escritores**: lo que escriben `write_part`, `voice_chords` y
+        `pedal_from_chart` en Chorda, Lamina y Gravis — el espaciado de los acordes, los
+        arpegios y las líneas de bajo, el levantar del pedal. Anotar en `docs/round34/tools.md`.
+  - [ ] **Escuchar los másteres del asistente** (*Asistente de mastering…* en el menú de la
+        tira máster) sobre música real, y el A/B: las curvas son guías de promedios
+        publicados, no el oído de nadie. Anotar en `docs/round34/listen.md`.
+  - [ ] **Convertir tus propias grabaciones a MIDI**: una línea cantada, un piano, un loop
+        de batería; decir si las notas se sienten bien. Anotar en `docs/round34/transcribe.md`.
+  - [ ] **La sesión con la Mac**, filas 17 en adelante de `docs/mac-session.md`: el puente
+        MCP y el ayudante de ML dentro del paquete firmado, una separación con CoreML y con
+        el procesador, el tiempo de cada una.
 - [ ] **El instalador de `v0.1.0-beta.1`**: el botón de descarga de cantusdaw.com lo baja de
       GitHub; instalarlo (Windows avisará «Windows protegió tu PC» mientras no haya firma:
       *Más información ▸ Ejecutar de todas formas*), abrirlo, desinstalarlo.
@@ -172,6 +196,15 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       y registrar (IMPI en México primero; luego Protocolo de Madrid si conviene).
 - [ ] **Revisión legal del CLA** (`CLA.md`) antes de aceptar el primer aporte de otra
       persona.
+- [ ] **Revisión legal de los modelos de IA** (ronda 34, ADR 0085–0086): Basic Pitch de
+      Spotify (Apache-2.0) y nuestra adaptación a Rust de su creación de notas (su NOTICE va
+      en `THIRD-PARTY-NOTICES.md`); la conversión a ONNX, hecha por un tercero, del modelo de
+      batería de Magenta (Apache-2.0 según su ficha; Magenta publica el checkpoint en su
+      repositorio Apache-2.0 sin una línea de licencia aparte); HT-Demucs de Meta (el
+      repositorio es MIT; no hay licencia aparte para los pesos); y las condiciones de
+      Microsoft para redistribuir las DLL de Visual C++ junto a `cantus-ml.exe`.
+- [ ] **Firmar `cantus-mcp.exe` y `cantus-ml.exe`** con el resto de los programas cuando
+      haya firma de código.
 - [ ] **Revisión legal de Chorda** frente a las patentes de modelado de piano que nombra el
       ADR 0059 (Modartt US 7,915,515; Casio US 8,178,772; Yamaha US 10,818,278 y US
       8,729,376; Kawai US 9,330,648; Casio US 10,109,268 y 11,881,196; Yamaha US

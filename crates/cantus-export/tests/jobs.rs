@@ -445,3 +445,39 @@ fn a_stems_export_that_cannot_replace_one_file_replaces_none() {
         "the folder is the last export's, untouched"
     );
 }
+
+/// Fix review 3 #10 (and review 2 #2): an export told never to replace refuses, at its
+/// commit, a file that appeared after it started — the file left as it was, no part left;
+/// the same export with leave replaces it whole.
+#[test]
+fn never_replacing_refuses_a_file_that_appeared_and_leaves_it_whole() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("mix.wav");
+    let job = || MixJob {
+        snapshot: snapshot(),
+        render: render_opts(),
+        units: Vec::new(),
+        instruments: Vec::new(),
+    };
+    let mut s = ExportSettings {
+        format: Format::Wav,
+        no_replace: true,
+        ..Default::default()
+    };
+    // The file appears between the agent's check and the commit (here, before the call).
+    std::fs::write(&path, b"the user's").unwrap();
+    let r = export_mix(job(), &s, &Tags::default(), &path, &Control::new());
+    assert!(
+        matches!(r, Err(ExportError::Io(ref e)) if e.kind() == std::io::ErrorKind::AlreadyExists),
+        "{r:?}"
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), b"the user's");
+    assert_eq!(
+        files_in(dir.path()),
+        vec!["mix.wav".to_string()],
+        "no part left"
+    );
+    s.no_replace = false;
+    export_mix(job(), &s, &Tags::default(), &path, &Control::new()).unwrap();
+    assert_eq!(&std::fs::read(&path).unwrap()[..4], b"RIFF");
+}

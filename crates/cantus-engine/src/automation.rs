@@ -82,7 +82,7 @@ impl Dest {
 }
 
 /// An automated effect's parameter copy.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct FxCopy {
     pub effect: EffectId,
     pub spec: EffectSpec,
@@ -93,14 +93,14 @@ pub(crate) struct FxCopy {
 }
 
 /// A hosted insert some lane drives, and where its unit runs (as [`FxCopy::at`]).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct HostedFx {
     pub effect: EffectId,
     pub at: Option<(usize, usize)>,
 }
 
 /// An automated native instrument's copy, by snapshot track index.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct NativeCopy {
     pub track: usize,
     pub spec: NativeSpec,
@@ -108,7 +108,7 @@ pub(crate) struct NativeCopy {
 }
 
 /// An automated Firmus's copy, by snapshot track index.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct FirmusCopy {
     pub track: usize,
     pub params: FirmusParams,
@@ -116,7 +116,7 @@ pub(crate) struct FirmusCopy {
 }
 
 /// One lane's destination and its values at the last control point and the next.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Lane {
     pub dest: Dest,
     /// The value (a hosted lane: the automated position, NaN where none) now and at the
@@ -157,7 +157,7 @@ pub(crate) struct At<'m> {
 
 /// Everything the audio thread needs to play a snapshot's automation and modulators.
 /// Built on the UI thread by [`Runtime::build`]; never allocates once on the audio thread.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Runtime {
     /// The snapshot it was built for (its address), so a runtime never meets another's.
     pub(crate) snapshot: usize,

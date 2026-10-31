@@ -10,12 +10,16 @@ members = [
     "crates/cantus-host",
     # The helper process that hosts third-party plug-ins out of Cantus's (round 29, ADR 0063).
     "crates/cantus-sandbox",
+    # r34:stems — the helper process that runs ML models (round 34, ADR 0085).
+    "crates/cantus-ml",
     "crates/cantus-content",
     "crates/cantus-export",
     # The score from the piano roll (round 32, ADR 0075).
     "crates/cantus-score",
     # Ableton Link in Rust, GPL (round 33, ADR 0078).
     "crates/cantus-link",
+    # The MCP server, written by hand (round 34, ADR 0081). r34:mcp
+    "crates/cantus-mcp",
     "crates/cantus-test-plugins/clap-gain",
     "crates/cantus-test-plugins/clap-synth",
     "crates/cantus-test-plugins/vst3",
@@ -43,12 +47,16 @@ default-members = [
     "crates/cantus-host",
     # The helper process that hosts third-party plug-ins out of Cantus's (round 29, ADR 0063).
     "crates/cantus-sandbox",
+    # r34:stems — the helper process that runs ML models (round 34, ADR 0085).
+    "crates/cantus-ml",
     "crates/cantus-content",
     "crates/cantus-export",
     # The score from the piano roll (round 32, ADR 0075).
     "crates/cantus-score",
     # Ableton Link in Rust, GPL (round 33, ADR 0078).
     "crates/cantus-link",
+    # The MCP server, written by hand (round 34, ADR 0081). r34:mcp
+    "crates/cantus-mcp",
     "crates/cantus-ui",
     "crates/cantus-app",
     "crates/cantus-launch",
@@ -76,10 +84,12 @@ cantus-project = { path = "crates/cantus-project" }
 cantus-ai = { path = "crates/cantus-ai" }
 cantus-host = { path = "crates/cantus-host" }
 cantus-sandbox = { path = "crates/cantus-sandbox" }
+cantus-ml = { path = "crates/cantus-ml" } # r34:stems
 cantus-content = { path = "crates/cantus-content" }
 cantus-export = { path = "crates/cantus-export" }
 cantus-score = { path = "crates/cantus-score" }
 cantus-link = { path = "crates/cantus-link" }
+cantus-mcp = { path = "crates/cantus-mcp" } # r34:mcp
 cantus-ui = { path = "crates/cantus-ui" }
 cantus-update = { path = "crates/cantus-update" }
 cantus-launch = { path = "crates/cantus-launch" }

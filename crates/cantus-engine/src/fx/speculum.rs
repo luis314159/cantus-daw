@@ -75,7 +75,7 @@ pub fn view_of(spec: &EffectSpec) -> usize {
 }
 
 /// The pass-through: nothing to configure, nothing to remember.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)] // r34:listen: Clone for fork
 pub struct Unit;
 
 impl Unit {
@@ -86,6 +86,9 @@ impl Unit {
 }
 
 impl FxUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn FxUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, _spec: &EffectSpec) {}
 
     fn process(&mut self, _left: &mut [f32], _right: &mut [f32], _key: Option<(&[f32], &[f32])>) {}

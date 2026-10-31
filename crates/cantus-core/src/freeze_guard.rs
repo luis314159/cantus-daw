@@ -67,7 +67,9 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         // parameter: that is its own command, classified as it is.
         | InsertMapping { .. }
         | RemoveMapping { .. }
-        | SetMapping { .. } => vec![],
+        | SetMapping { .. }
+        // What made a file (ADR 0085) changes no sample. // r34:stems
+        | SetAudioProvenance { .. } => vec![],
         SetTempo { .. }
         | SetTimeSignature { .. }
         | SetTempoTrack { .. }

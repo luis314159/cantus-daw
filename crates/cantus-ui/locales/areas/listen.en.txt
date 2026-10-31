@@ -1,0 +1,87 @@
+# Area: listening — audition, per-track analysis, the masking matrix, mix targets (builder
+# listen) and the mastering assistant on the master channel — round 34, ADRs 0083–0084. Every
+# key here needs its twin in listen.es.txt.
+
+# The history's names for the tools' edits.
+cmd.master_assist = mastering assistant's chain
+cmd.set_mix_targets = mix targets
+# What an agent is doing (the confirmation card, the activity view, the history).
+listen.said.audition = listen to {range}
+listen.said.analyse = analyse every track over {range}
+listen.said.masking = find which tracks mask each other over {range}
+listen.said.targets = measure {count} and set them to their loudness targets: {tracks}
+listen.said.trims = set the levels of {count} to their loudness targets: {trims}
+listen.said.assist = propose a master for {platform}
+listen.said.apply = put a mastering chain for {platform} on the master: {units}
+listen.said.apply_replace = take the master's own effects out ({removed}) and put a mastering chain for {platform} in their place: {units}
+# The genres' tonal balance curves.
+listen.curve.pop = Pop
+listen.curve.rock = Rock
+listen.curve.electronic = Electronic
+listen.curve.hiphop = Hip-hop
+listen.curve.acoustic = Acoustic
+listen.curve.classical = Classical
+# Why the assistant put each unit in its chain.
+listen.why.eq = Balance toward the target curve: {bands}.
+listen.why.eq_flat = The balance already follows the target curve: only the cut under 20 Hz.
+listen.why.glue = The loudness range is {lra} LU, wider than the {most} LU this genre keeps: gentle glue at {ratio}:1.
+listen.why.mono = The mix loses {loss} LU folded to mono: a little narrower, the bass mono under 120 Hz.
+listen.why.widen = The mix is narrow (side {width} dB under mid): a little wider.
+listen.why.bass_mono = The bass has stereo content: mono under 120 Hz, for vinyl, clubs and phones.
+listen.why.limit = {gain} dB into a true-peak limiter at {ceiling} dBTP: {lufs} LUFS, {platform}'s loudness.
+# The prompt "Master for streaming".
+listen.prompt.master.title = Master for streaming
+listen.prompt.master.description = Master the open song for a streaming platform with Cantus's own effects, and check the result by listening.
+listen.prompt.master.platform = Where it is going: spotify, apple_music, youtube, tidal, amazon_music, soundcloud, cd, club or broadcast (Spotify if not said).
+listen.prompt.master.text = Master this song for {platform} ({lufs} LUFS integrated, true peak at or under {ceiling} dBTP). First call audition on the whole song with master false to hear the mix as it reaches the master, and look at its loudness, range, spectrum, correlation and clicks; fix in the mix what a master cannot (a track masking another — masking_matrix — or a click at a section change). Then call master_assist with platform "{id}" (and curve set to the song's genre, or reference to a reference track in the project's folder), read the proposed chain and why each unit is there, and apply it with apply_master_chain (or replace_master_chain when it replaces the master's own effects: it asks the user first). Finally call audition again and confirm the integrated loudness is within 0.5 LU of {lufs} and the true peak at or under {ceiling} dBTP; explain in plain words what the master changed.
+# The mastering assistant's panel.
+listen.panel.open = Mastering assistant…
+listen.panel.title = Mastering assistant
+listen.panel.target = Target
+listen.panel.platform = Platform
+listen.panel.aim = Aims at
+listen.panel.platform_numbers = {lufs} LUFS integrated, true peak at or under {ceiling} dBTP
+listen.panel.balance = Balance
+listen.panel.reference_is = Reference: {file}
+listen.panel.load = Load reference…
+listen.panel.clear = Clear
+listen.panel.audio_files = Audio files
+listen.panel.range = Listen to
+listen.panel.whole = Whole song
+listen.panel.loop = Loop
+listen.panel.chain_now = Master chain
+listen.panel.replace = Replace it
+listen.panel.append = Add after it
+listen.panel.listen = Listen and propose
+listen.panel.listening = Listening… {percent} %
+listen.panel.stop = Stop
+listen.panel.heard = What it hears
+listen.panel.mix = Mix
+listen.panel.master = Proposed
+listen.panel.goal = Target
+listen.panel.integrated = Integrated
+listen.panel.true_peak = True peak
+listen.panel.lra = Loudness range
+listen.panel.short_term = Loudest 3 s
+listen.panel.width = Width (side)
+listen.panel.mono = Mono fold-down
+listen.panel.correlation = Lowest correlation
+listen.panel.legend = Bars: the mix · line: proposed · rings: target (dB per octave, about their mean)
+listen.panel.chain = Proposed chain
+listen.panel.apply = Apply to the master
+listen.panel.apply_replace = Apply: replace the master's {n} effects
+listen.panel.apply_replace_one = Apply: replace the master's effect
+listen.panel.removes = Apply takes out the master's own effects: {effects}.
+listen.panel.apply_append = Apply: add after the master chain
+listen.panel.ab = A/B
+listen.panel.ab_off = Off
+listen.panel.ab_mix = A · Mix
+listen.panel.ab_master = B · Master
+listen.panel.ab_note = A and B play at the same loudness, the louder one turned down, and switch at the same place: what you hear is the master's tone and dynamics, not its level.
+listen.panel.source = The platform's numbers: {source}.
+listen.panel.post_moves = The master's level, balance or width moves during the song (automation or a modulator), after the chain: these numbers hold at its resting values.
+listen.panel.too_long = The song is {length} long; the assistant listens to {most} at most. Set a loop over the part to master by, and choose Loop.
+listen.panel.too_long_loop = The loop is {length} long; the assistant listens to {most} at most. Make the loop shorter.
+listen.panel.short = Kept {lu} LU under the platform's loudness so the true peak stays under its ceiling: the master strip after the chain adds to the peaks (its width or fader).
+listen.phrase.tracks.one = 1 track
+listen.phrase.tracks.many = {n} tracks

@@ -117,6 +117,22 @@ pub fn export_to(
     export_to_within(project, app_version, base, dest, u32::MAX as u64)
 }
 
+/// [`export_with`] streamed into a file already opened (an agent's export opens its file
+/// itself, safely, round 34): the archive written as it is made. Returns what could not be
+/// carried; the caller flushes and closes.
+pub fn export_into<W: std::io::Write + std::io::Seek>(
+    project: &Project,
+    app_version: &str,
+    base: Option<&std::path::Path>,
+    w: W,
+) -> std::io::Result<Report> {
+    let mut parts = write::parts_with(project, app_version, base);
+    let mut z = zip::ZipStream::with_limit(w, u32::MAX as u64);
+    write_parts(&mut z, &mut parts)?;
+    z.finish()?;
+    Ok(parts.report)
+}
+
 /// [`export_to`] with ZIP64 records past `limit` bytes (tests: a small one).
 #[doc(hidden)]
 pub fn export_to_within(

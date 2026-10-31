@@ -1,8 +1,35 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-30 (round 33: **Ableton's core** — the **session view** (a clip grid per track × scenes, launches on the bar in four modes with legato, follow actions, scene tempo and metre, recording into slots and into the arrangement as one undo step, clip envelopes; played as a *projection* compiled into ordinary snapshots, so live, recorded and offline are one render; a lead of two device blocks plus the compile's 95th percentile, late presses caught up; ADR 0076, schema 46), the Session pane, keymap 14, MIDI learn of the session and the Launchpad/APC grids (ADR 0077); **Ableton Link** in Rust (`cantus-link`, GPL) behind an MPL timeline seam, **MIDI clock and MTC** in and out stamped per sample (ADRs 0078–0079); **MPE** end to end — per-note bend, pressure and timbre in the model, our instruments, hosted plug-ins, files and the piano roll (ADR 0080, schema 47, sandbox protocol 7). Version **0.1.0-beta.8** (Windows and Linux; macOS waits for the Mac session). Schema 47, `DSP_VERSION` 5, keymap 14. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 5 137 pass on Windows (61 ignored), the engine fuzz 963 at `CANTUS_WORKERS=3`, 5 120 on Linux (WSL Ubuntu 24.04); clippy clean on both
+**Updated:** 2026-10-31 (round 34: **AI** — an **MCP server** written by hand (both protocol generations, the HTTP door on `127.0.0.1` off by default with a token per client, the `cantus-mcp` stdio bridge, permissions decided in Cantus, the confirmation card, the agent chip, the AI activity, Settings ▸ AI with setups for Claude Code, Claude Desktop, Cursor, VS Code, Gemini CLI and LM Studio; each call one undo step named "AI: …"; ADR 0081); **63 tools** with the unit catalogue, the music linter and the chunky writers `write_part`, `voice_chords`, `pedal_from_chart`, `automate` (ADR 0082); **listening** — range renders from checkpoints equal to the whole render to the bit, analysis taps, live = offline checked, `audition`, masking — and **the mastering assistant** on the master, nine platforms, worst 0.07 LU from the target (ADRs 0083–0084); **stems** by HT-Demucs in the `cantus-ml` helper on ONNX Runtime, SDR 8.80 dB on MUSDB18-HQ, equal to the paper (ADR 0085, schema 48); **audio to MIDI** — Basic Pitch note for note with Spotify's, our tracker for a melody, drums by our detector and Magenta's model (ADR 0086). Version **0.1.0-beta.9** (Windows and Linux; macOS waits for the Mac session). Schema 48, `DSP_VERSION` 5, keymap 14. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 5 590 pass on Windows (82 ignored), the engine fuzz 985 at `CANTUS_WORKERS=3`, 5 574 on Linux (WSL Ubuntu 24.04); clippy clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 34 left
+
+Round 34 is on **master** (squashed) and published to `luis314159/cantus-daw`; **`v0.1.0-beta.9`**
+is released for Windows and Linux. The account: `docs/round34/integration.md`; one report per
+builder beside it (`mcp`, `tools`, `listen`, `stems`, `transcribe`). Under the owner's rule
+what is left is the owner's own, or new work:
+
+1. **A clean Windows** (or a VM) that never had the Visual C++ redistributable: a separation
+   and a conversion run with the DLLs Cantus ships in `ml\`.
+2. **Agents for real**: Claude Desktop installing the `.mcpb` extension; signing
+   `cantus-mcp.exe` and `cantus-ml.exe` with the rest; a real FAT32 or exFAT stick (an
+   agent's export onto it, the settings on it refused in words).
+3. **Ears**: what `write_part`, `voice_chords` and `pedal_from_chart` write; the mastering
+   assistant's masters and its A/B on real material; your own recordings into MIDI (a sung
+   line, a piano, a drum loop).
+4. **The legal review** gains Basic Pitch and our port of its note creation, the ONNX
+   conversion of Magenta's drum model, HT-Demucs and the Visual C++ runtime's terms.
+5. **Everything rounds 30–33 left**: the Mac session (`docs/mac-session.md`, now with row 17
+   and later: the bridge and the ML helper in the signed bundle, CoreML) and the Apple
+   account, the hardware of round 33 (a Launchpad or an APC, Link against Live, MIDI clock
+   and MTC, an MPE controller), a real Linux desktop, Flathub, compacting the WSL disk image,
+   code signing, the RVR1960 permission, the trademark filing, the UMC in duplex; REAPER and
+   FL Studio for the comparisons.
+6. **Round 35: the dancing character** (BACKLOG §6i, whole — left to Claude by the owner,
+   2026-10-29), with video export as its risk. BACKLOG §7 keeps phase C (the assistant
+   panel) and phase E (generation) open. The prompt is `docs/next-session.md`.
 
 ## The next session: what round 33 left
 
@@ -386,6 +413,25 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 34: AI — the MCP server, the project's tools, listening and mastering, stems, audio to MIDI (requested 2026-10-28)
+
+**The ask:** BACKLOG §7 phases B and D, with round 28's demo wishlist. Five builders (`mcp`,
+`tools`, `listen`, `stems`, `transcribe`) from contract `b4568467`, every cargo command
+queued through a slot script (three build slots, one WSL); one reviewer per branch, one for
+every fix round, one on the integrated tree (13 seams) — every finding fixed with a test.
+Account: `docs/round34/integration.md`.
+
+| Part | What changed |
+|---|---|
+| MCP server (ADR 0081) | `crates/cantus-mcp` (GPL): MCP written by hand, JSON-RPC 2.0 over std threads, both generations (2025-06-18/2025-11-25 and the stateless 2026-07-28); the pump on the UI thread with `CantusApp` as host, each planned command one undo step with `Origin::Mcp`, named "AI: …"; permissions by class decided in Cantus; jobs with handles, `wait_job`/`cancel_job`, `begin_change`/`end_change`, `undo_last_ai_action`; the HTTP door on `127.0.0.1` only, off by default, a token per client compared in constant time; the `cantus-mcp` stdio bridge proving the door on every connection; owner-only secrets in `<settings>/mcp/` (`cantus-rt/src/private.rs`); the confirmation card, the agent chip, the AI activity, Settings ▸ AI (*Copy setup for…* six clients, a `.mcpb` for Claude Desktop), one off switch; the bridge in every package; `tools/list` held by a golden file (63 tools) |
+| Project tools (ADR 0082) | 47 tools in one table (36 + `replace_automation` in `cantus-ai`, 10 in `cantus-ui`): read, the song, tracks and instruments, clips and notes, drums, the session, the mixer and effects, automation and modulators, presets, comping, export, removal; `write_part`, `voice_chords`, `pedal_from_chart`, `automate`; the unit catalogue from the parameter tables; the music linter and harmony in `cantus-core/src/harmony*.rs` (MPL); resources and five prompts; the tools' fuzz (64 × 80 calls); `InsertNotes`/`SetNotes` sort by (start, pitch, id) |
+| Listening (ADR 0083) | Speculum's headless ear; `cantus_engine::listen` (the export's render, analysis taps that change no sample); `Processor::fork` and every unit's `fork` — range renders from checkpoints equal to the whole render to the bit, after a later edit too; live = offline on the application's own engine; `audition`, `analyse_tracks`, `masking_matrix`, `set_mix_targets`; a pre-roll where a unit cannot be copied, said |
+| Mastering assistant (ADR 0084) | `master_assist`, `apply_master_chain`, `replace_master_chain`, the prompt *Master for streaming*; the panel from the master strip's menu and the master chain's *Add effect*: nine platforms with sources and dates, six genre curves or a reference track, a chain of our effects with every setting and why, A/B at matched loudness, *Apply* as one undo step; 21 demo cases within 0.07 LU, never over the ceiling |
+| Stems (ADR 0085) | `crates/cantus-ml` (GPL) and the `cantus-ml` helper process; ONNX Runtime (measured against tract and candle), downloaded on demand, telemetry off; models through the content manager (licence accepted, resumable, hash-checked, weights rebuilt from Meta's file); *Separate stems…* (4/6 stems, *Fast*/*Best*) into a bus and a track per part in one undo step, level-true under every pan law; `Project::provenance`, `SetAudioProvenance`, schema 48, the "AI" badge; Settings ▸ Models; SDR 8.80 dB on MUSDB18-HQ, the paper's; on Windows the helper and its Visual C++ runtime in `ml\` |
+| Audio to MIDI (ADR 0086) | *Convert to MIDI…* and `audio_to_midi`: Basic Pitch's `nmp.onnx` with its note creation ported to Rust (3 286 of 3 286 notes identical to Spotify's); melody by our pitch tracker (0.805 vs 0.746); drums by our detector (`cantus-dsp/src/onset_drums.rs`, MPL) and Magenta's Onsets and Frames Drums (its hi-hat output re-pointed at install); through the clip's own time mapping, one undo step |
+| Showcase | README: *AI that works with you* (six pictures); the landing page: *AI that works with you, on your computer* (EN/ES); manual pages EN/ES; release notes; PRIVACY's AI section; round 35's prompt (the dancer) |
+| Causes | mcp's change tests raced on the idle zero (closed by ordering); the pre-roll's limit is Space's FDN rotors and Organum's rotary (no DSP change, BACKLOG §4b); a checkpoint was 80 MB whatever the song (cells in use only, a byte budget); the drum model's hats read pitch 42, not 46; the VC++ DLLs beside `cantus.exe` shadowed other programs and plug-ins (moved to `ml\`) |
 
 ## Round 33: Ableton's core — the session view, Link, MIDI clock and MTC, MPE (requested 2026-10-28)
 

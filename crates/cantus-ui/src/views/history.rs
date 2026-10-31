@@ -93,7 +93,8 @@ pub fn rows(app: &CantusApp, range: std::ops::Range<usize>) -> Vec<Row> {
         } else if i <= undo.len() {
             let e = &undo[i - 1];
             let name = if range.contains(&i) {
-                history_text::describe(&e.label_key, &e.command, &e.inverse, project)
+                let name = history_text::describe(&e.label_key, &e.command, &e.inverse, project);
+                crate::ai_mcp::history_name(app, e, name) // r34:mcp — "AI: …"
             } else {
                 String::new()
             };
@@ -101,7 +102,8 @@ pub fn rows(app: &CantusApp, range: std::ops::Range<usize>) -> Vec<Row> {
         } else {
             let e = &redo[redo.len() - 1 - (i - 1 - undo.len())];
             let name = if range.contains(&i) {
-                history_text::describe(&e.label_key, &e.command, &e.inverse, project)
+                let name = history_text::describe(&e.label_key, &e.command, &e.inverse, project);
+                crate::ai_mcp::history_name(app, e, name) // r34:mcp — "AI: …"
             } else {
                 String::new()
             };

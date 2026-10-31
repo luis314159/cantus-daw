@@ -16,6 +16,8 @@ on:
       - "crates/cantus-app/**"
       - "crates/cantus-launch/**"
       - "crates/cantus-sandbox/**"
+      - "crates/cantus-mcp/**"
+      - "crates/cantus-ml/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -26,6 +28,8 @@ on:
       - "crates/cantus-app/**"
       - "crates/cantus-launch/**"
       - "crates/cantus-sandbox/**"
+      - "crates/cantus-mcp/**"
+      - "crates/cantus-ml/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -63,4 +67,5 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/master' }}
       # The plug-in sandbox (ADR 0063) is a program Cantus starts beside itself: its release
       # build is checked with the app's.
-      - run: cargo build --release -p cantus -p cantus-launch -p cantus-sandbox
+      # The MCP bridge too (round 34): another program the installer ships beside it.
+      - run: cargo build --release -p cantus -p cantus-launch -p cantus-sandbox -p cantus-mcp -p cantus-ml

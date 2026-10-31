@@ -31,7 +31,8 @@ mkdir -p "$out"
 out="$(cd "$out" && pwd)"
 
 targets=(aarch64-apple-darwin x86_64-apple-darwin)
-bins=(cantus cantus-scan cantus-sandbox)
+# cantus-mcp: the MCP stdio bridge MCP clients start (round 34, ADR 0081).
+bins=(cantus cantus-scan cantus-sandbox cantus-mcp cantus-ml) # r34:stems — the ML helper (ADR 0085)
 # The oldest macOS Cantus runs on (Info.plist's LSMinimumSystemVersion says the same).
 export MACOSX_DEPLOYMENT_TARGET=11.0
 
@@ -45,6 +46,8 @@ for t in "${targets[@]}"; do
   if [ -z "${CANTUS_DMG_NO_BUILD:-}" ]; then
     cargo build --release --locked --target "$t" -p cantus-host --bin cantus-scan
     cargo build --release --locked --target "$t" -p cantus-sandbox
+    cargo build --release --locked --target "$t" -p cantus-mcp --bin cantus-mcp
+    cargo build --release --locked --target "$t" -p cantus-ml --bin cantus-ml # r34:stems
   fi
   # The app last, reading where its build script wrote the icon (cantus-app/build.rs).
   dir="$(cargo build --release --locked --target "$t" -p cantus --message-format=json-render-diagnostics |
@@ -121,14 +124,22 @@ if [ -n "$signed" ]; then
   [ -n "$identity" ] || { echo "no Developer ID Application identity for $APPLE_TEAM_ID" >&2; exit 1; }
   sign=(codesign --force --options runtime --timestamp --entitlements "$entitlements"
     --keychain "$keychain" --sign "$identity")
+  # The MCP bridge loads no plug-in: the hardened runtime and no entitlements at all.
+  sign_plain=(codesign --force --options runtime --timestamp --keychain "$keychain"
+    --sign "$identity")
 else
   echo "No Apple signing secrets: signing ad hoc."
   sign=(codesign --force --options runtime --entitlements "$entitlements" --sign -)
+  sign_plain=(codesign --force --options runtime --sign -)
 fi
 
 # Inside out: the helpers, then the bundle (which signs its main executable).
 "${sign[@]}" "$app/Contents/MacOS/cantus-scan"
 "${sign[@]}" "$app/Contents/MacOS/cantus-sandbox"
+"${sign_plain[@]}" "$app/Contents/MacOS/cantus-mcp"
+# r34:stems — the ML helper loads ONNX Runtime's dylib, signed by Microsoft: the same
+# entitlements (library validation off), checked on a real Mac (docs/mac-session.md).
+"${sign[@]}" "$app/Contents/MacOS/cantus-ml"
 "${sign[@]}" "$app"
 codesign --verify --strict --verbose=2 "$app"
 

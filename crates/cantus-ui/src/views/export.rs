@@ -160,7 +160,8 @@ pub fn close(app: &mut CantusApp) {
 pub fn remember(app: &mut CantusApp, d: &ExportSettings) {
     let mut keep = d.clone();
     keep.tags.title.clear();
-    // The project's markers are the project's: kept as the song (round 29).
+    keep.no_replace = false; // r34:tools — an agent's "never replace" is its own export's only
+                             // The project's markers are the project's: kept as the song (round 29).
     if matches!(keep.scope, Scope::Loop | Scope::Markers { .. }) {
         keep.scope = Scope::Song;
     }

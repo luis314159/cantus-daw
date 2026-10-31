@@ -17,6 +17,7 @@
 //!   page fault.
 //! - [`disk`]: a volume's size and free space (the sample cache's limit).
 //! - [`files`]: the open-files limit, raised at start-up (the stream cache's handle budget).
+//! - [`place`]: a rename that never replaces (the exporter's never-replace placement).
 //! - [`shm`] and [`ipc`]: named shared memory and the lock-step exchange over it — a job
 //!   handed to another process and waited for with a bounded spin and a deadline (ADR 0063,
 //!   the plug-in sandbox).
@@ -39,6 +40,8 @@ pub mod fpenv;
 pub mod ipc;
 pub mod memory;
 pub mod pad;
+pub mod place; // r34:tools — a no-replace rename (the exporter's never-replace)
+pub mod private; // r34:mcp — owner-only files (the MCP token)
 pub mod shm;
 pub mod thread;
 pub mod topology;

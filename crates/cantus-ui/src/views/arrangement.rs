@@ -1521,7 +1521,12 @@ fn track_menu(
         ui.close();
         return;
     }
-    // MIDI controllers (round 29, ADR 0062): learn the track's volume, pan, mute, solo, arm.
+    // Its parts by a model (round 34, ADR 0085). // r34:stems
+    if crate::stems_ui::track_menu(app, ui, id) {
+        ui.close(); // r34:stems
+        return; // r34:stems
+    } // r34:stems
+      // MIDI controllers (round 29, ADR 0062): learn the track's volume, pan, mute, solo, arm.
     if crate::controllers::track_menu(app, ui, id) {
         ui.close();
         return;
@@ -1866,7 +1871,13 @@ fn clips(
             let color = clip.color.map(theme::track_color).unwrap_or(track_color);
             let renaming = v.rename_clip.as_ref().is_some_and(|(c, _)| *c == r);
             let reserve = match clip.audio.as_ref() {
-                Some(a) => audio::badge_width(b, a, &mut scratch.audio, s),
+                Some(a) => audio::badge_width(
+                    b,
+                    a,
+                    app.project().provenance.contains_key(&a.source), // r34:stems
+                    &mut scratch.audio,
+                    s,
+                ),
                 None => 0.0,
             };
             let look = paint::ClipLook {

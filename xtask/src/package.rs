@@ -97,6 +97,13 @@ pub struct Inputs {
     /// `cantus-sandbox.exe`, which runs third-party plug-ins out of Cantus's process
     /// (round 29, ADR 0063).
     pub sandbox: PathBuf,
+    /// `cantus-mcp.exe`, the stdio bridge MCP clients start to reach the running Cantus
+    /// (round 34, ADR 0081). // r34:mcp
+    pub bridge: PathBuf,
+    /// More files beside the program, `(name in the install folder, source)`: the ML
+    /// helper `cantus-ml.exe` and the Visual C++ runtime its inference library needs
+    /// (round 34, ADR 0085). // r34:stems
+    pub beside: Vec<(String, PathBuf)>, // r34:stems
     /// `target/bundled/` (`xtask bundle`).
     pub bundled: PathBuf,
     /// The plug-ins' names (`Cantus Aequalis`, …).
@@ -131,6 +138,8 @@ pub const LAUNCHER: &str = "cantus.exe";
 pub const SCANNER: &str = "cantus-scan.exe";
 /// The plug-in sandbox's name (`cantus_host::bridge::Sandboxes::default_exe`, ADR 0063).
 pub const SANDBOX: &str = "cantus-sandbox.exe";
+/// The MCP stdio bridge's name (`cantus_ui::ai_mcp::setup::bridge_path`, ADR 0081). // r34:mcp
+pub const BRIDGE: &str = "cantus-mcp.exe";
 const TEXTS: [&str; 3] = ["LICENSE.txt", "COPYRIGHT.txt", "README.txt"];
 
 /// A level's program in the release: `cantus-x86-64-v3.exe`. The release is the Windows
@@ -148,6 +157,7 @@ pub fn app_names(levels: &[Level]) -> Vec<String> {
     v.extend(sorted.iter().map(|l| release_program(*l)));
     v.push(SCANNER.to_owned());
     v.push(SANDBOX.to_owned());
+    v.push(BRIDGE.to_owned()); // r34:mcp
     v.extend(TEXTS.iter().map(|t| t.to_string()));
     v
 }
@@ -162,6 +172,14 @@ pub fn stage(inputs: &Inputs, stage: &Path, version: &str) -> Staged {
     }
     copy_into(&inputs.scanner, &app.join(SCANNER));
     copy_into(&inputs.sandbox, &app.join(SANDBOX));
+    copy_into(&inputs.bridge, &app.join(BRIDGE)); // r34:mcp
+    for (name, src) in &inputs.beside {
+        // r34:stems — `ml/…` too: a folder of its own for the helper and its runtime.
+        copy_into(
+            src,
+            &app.join(name.replace('/', std::path::MAIN_SEPARATOR_STR)),
+        );
+    }
     copy_into(&inputs.license, &app.join("LICENSE.txt"));
     copy_into(&inputs.copyright, &app.join("COPYRIGHT.txt"));
     let readme = std::fs::read_to_string(&inputs.readme)
@@ -192,6 +210,7 @@ pub fn stage(inputs: &Inputs, stage: &Path, version: &str) -> Staged {
         app: app_names(&levels)
             .iter()
             .map(String::as_str)
+            .chain(inputs.beside.iter().map(|(n, _)| n.as_str())) // r34:stems
             .chain(inputs.docs.iter().map(|(n, _)| n.as_str()))
             .map(|n| entry(&app, n))
             .collect(),
@@ -227,7 +246,9 @@ pub fn plugin_entries(s: &Staged) -> Vec<Entry> {
         .app
         .iter()
         .filter(|e| {
-            !e.name.to_ascii_lowercase().ends_with(".exe") && !e.name.starts_with("manual/")
+            let n = e.name.to_ascii_lowercase();
+            // r34:stems — the runtime's DLLs are the program's, not the plug-ins'.
+            !n.ends_with(".exe") && !n.ends_with(".dll") && !e.name.starts_with("manual/")
         })
         .cloned()
         .collect();
@@ -467,6 +488,137 @@ fn build_sandbox(level: Level, triple: &str) {
     ]));
 }
 
+/// The MCP stdio bridge (ADR 0081), built with the lowest level's flags: it moves JSON,
+/// never audio. // r34:mcp
+fn build_bridge(level: Level, triple: &str) {
+    run(levels::cargo_build(level, triple).args(["-p", "cantus-mcp", "--bin", "cantus-mcp"]));
+}
+
+/// The ML helper (round 34, ADR 0085), with the lowest level's flags: its work is in the
+/// inference library it loads, not in its own code. // r34:stems
+fn build_ml(level: Level, triple: &str) {
+    run(levels::cargo_build(level, triple).args(["-p", "cantus-ml", "--bin", "cantus-ml"]));
+}
+
+/// The ML helper's folder in the install folder, and the helper in it: the Visual C++
+/// runtime sits beside the helper only (`cantus_ml::client::ClientConfig::default_exe`
+/// looks there first). // r34:stems
+pub const ML_DIR: &str = "ml";
+pub const ML_HELPER: &str = "ml/cantus-ml.exe"; // r34:stems
+
+/// The Visual C++ runtime the ML helper's inference library (ONNX Runtime) needs, from
+/// this machine's Visual Studio redistributable folder (`CANTUS_VC_REDIST` to name it):
+/// shipped beside `cantus-ml.exe`, where the loader finds it first (review 1 #1). At
+/// least 14.40: builds of Visual Studio 17.10 and later crash with an older `msvcp140`
+/// (`std::mutex`). // r34:stems
+pub const CRT: [&str; 4] = [
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "msvcp140.dll",
+    "msvcp140_1.dll",
+];
+
+/// A Windows file's version from its resources (`VS_FIXEDFILEINFO`, found by its
+/// signature): major, minor, build, revision. `None` when it has none.
+pub fn dll_version(path: &Path) -> Option<(u16, u16, u16, u16)> {
+    let b = std::fs::read(path).ok()?;
+    let sig = 0xFEEF_04BDu32.to_le_bytes();
+    let at = b.windows(4).position(|w| w == sig)?;
+    let word = |o: usize| -> Option<u32> {
+        Some(u32::from_le_bytes(
+            b.get(at + o..at + o + 4)?.try_into().ok()?,
+        ))
+    };
+    let (ms, ls) = (word(8)?, word(12)?);
+    Some((
+        (ms >> 16) as u16,
+        (ms & 0xffff) as u16,
+        (ls >> 16) as u16,
+        (ls & 0xffff) as u16,
+    ))
+}
+
+pub fn find_crt() -> Result<Vec<(String, PathBuf)>, String> {
+    let dir = match std::env::var_os("CANTUS_VC_REDIST") {
+        Some(d) => PathBuf::from(d),
+        None => {
+            let mut found: Vec<(Vec<u32>, PathBuf)> = Vec::new();
+            for vs in [
+                "C:\\Program Files\\Microsoft Visual Studio",
+                "C:\\Program Files (x86)\\Microsoft Visual Studio",
+            ] {
+                for year in std::fs::read_dir(vs).into_iter().flatten().flatten() {
+                    for edition in std::fs::read_dir(year.path())
+                        .into_iter()
+                        .flatten()
+                        .flatten()
+                    {
+                        let msvc = edition.path().join("VC").join("Redist").join("MSVC");
+                        for v in std::fs::read_dir(&msvc).into_iter().flatten().flatten() {
+                            let ver: Vec<u32> = v
+                                .file_name()
+                                .to_string_lossy()
+                                .split('.')
+                                .filter_map(|p| p.parse().ok())
+                                .collect();
+                            if let Some(crt) = std::fs::read_dir(v.path().join("x64"))
+                                .into_iter()
+                                .flatten()
+                                .flatten()
+                                .map(|e| e.path())
+                                .find(|p| {
+                                    p.file_name()
+                                        .is_some_and(|n| n.to_string_lossy().ends_with(".CRT"))
+                                })
+                            {
+                                found.push((ver, crt));
+                            }
+                        }
+                    }
+                }
+            }
+            found.sort();
+            let (_, crt) = found
+                .pop()
+                .ok_or("no Visual C++ redistributable folder (set CANTUS_VC_REDIST)")?;
+            crt
+        }
+    };
+    crt_files(&dir)
+}
+
+/// The four DLLs in `dir`, refused when the runtime's own version is older than 14.40.
+pub fn crt_files(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
+    // The DLL's own version, wherever it came from — the folder's name or the variable
+    // can say anything (review 2 #16).
+    let vc = dir.join(CRT[0]);
+    match dll_version(&vc) {
+        Some((major, minor, ..)) if (major, minor) >= (14, 40) => {}
+        Some((major, minor, build, _)) => {
+            return Err(format!(
+                "{} is version {major}.{minor}.{build}, older than 14.40",
+                vc.display()
+            ))
+        }
+        None => {
+            return Err(format!(
+                "{} has no version Cantus can read (is it Microsoft's?)",
+                vc.display()
+            ))
+        }
+    }
+    CRT.iter()
+        .map(|n| {
+            let p = dir.join(n);
+            if p.is_file() {
+                Ok((n.to_string(), p))
+            } else {
+                Err(format!("{} is not there", p.display()))
+            }
+        })
+        .collect()
+}
+
 /// The launcher, in the ordinary target and with no `target-cpu`, so that it runs on any
 /// x86-64 processor and can say why one is too old.
 fn build_launcher(target: &Path) {
@@ -581,6 +733,8 @@ pub fn package(args: &[String]) {
         }
         build_scanner(levels[0], &triple);
         build_sandbox(levels[0], &triple);
+        build_bridge(levels[0], &triple); // r34:mcp
+        build_ml(levels[0], &triple); // r34:stems
         build_launcher(&target);
     }
     let programs: Vec<(Level, PathBuf)> = levels
@@ -592,10 +746,13 @@ pub fn package(args: &[String]) {
         .join(format!("cantus-launch{}", std::env::consts::EXE_SUFFIX));
     let scanner = levels::binary(levels[0], &triple, "cantus-scan");
     let sandbox = levels::binary(levels[0], &triple, "cantus-sandbox");
+    let bridge = levels::binary(levels[0], &triple, "cantus-mcp"); // r34:mcp
+    let ml = levels::binary(levels[0], &triple, "cantus-ml"); // r34:stems
     for exe in programs
         .iter()
         .map(|(_, p)| p)
-        .chain([&launcher, &scanner, &sandbox])
+        .chain([&launcher, &scanner, &sandbox, &bridge, &ml])
+    // r34:mcp (bridge) r34:stems (ml)
     {
         if !exe.is_file() {
             eprintln!("{} is not built", exe.display());
@@ -614,6 +771,21 @@ pub fn package(args: &[String]) {
         programs,
         scanner,
         sandbox,
+        bridge, // r34:mcp
+        // r34:stems — the ML helper and the C++ runtime beside it, in `ml\`: never in the
+        // install folder itself, where every program (the MCP bridge an AI app keeps
+        // open, a plug-in's library search) would load our copy (integration review).
+        beside: std::iter::once((ML_HELPER.to_string(), ml.clone()))
+            .chain(
+                find_crt()
+                    .unwrap_or_else(|e| {
+                        eprintln!("{e}");
+                        std::process::exit(1);
+                    })
+                    .into_iter()
+                    .map(|(n, p)| (format!("{ML_DIR}/{n}"), p)),
+            )
+            .collect(),
         bundled: target.join("bundled"),
         plugins: cantus_plugins::desc::ALL
             .iter()
@@ -849,6 +1021,9 @@ pub fn release_docs(ws: &Path, target: &Path) -> Vec<(String, PathBuf)> {
 #[cfg(test)]
 #[path = "package_ci_tests.rs"]
 mod ci_tests;
+#[cfg(test)] // r34:stems
+#[path = "package_ml_tests.rs"] // r34:stems
+mod ml_tests; // r34:stems
 
 #[path = "package_meta.rs"]
 pub mod meta;

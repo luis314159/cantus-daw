@@ -267,7 +267,7 @@ const LEVEL: f32 = 0.25;
 const OUT: f32 = 0.7;
 const SILENCE: f32 = 1e-7;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Lamina {
     sr: f32,
     s: LaminaSettings,

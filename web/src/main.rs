@@ -1,6 +1,7 @@
 //! cantusdaw.com — the Cantus website, a Yew single-page app (ADR 0034).
 
 mod ahead;
+mod ai;
 mod audio;
 mod body;
 mod faces;
@@ -46,6 +47,7 @@ fn app() -> Html {
                 <listen::Listen />
                 <tour::Features />
                 <session::Session />
+                <ai::Ai />
                 <score::Score />
                 <faces::Faces />
                 <fx::Effects />

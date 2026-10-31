@@ -33,3 +33,18 @@ MIDI, mastering; beta.9); round 35 = the dancer ([[decision-round35-dancer]]). O
 items for round 33 (Launchpad/APC, a real Link app, MIDI clock/MTC hardware, MPE controller,
 listening to a performance) are in docs/beta-checklist.md. See [[round-32]],
 [[decision-round33-order]], [[cantus-parallel-builders]], [[feedback-review-cost]].
+
+**Released 2026-10-30:** private master 7e15d236 (squash) → public ce9374cb, tag
+v0.1.0-beta.8 (lightweight, from the publish clone), Release run green (Windows + Linux).
+After it: c276a8db/public a30262bc — macOS VM bound for sync_midi's out-thread timing (VM
+timers 7–10 ms late even alone; mac-session.md row 16 measures a real Mac) and ci.yml test
+job timeout 90 → 120 min (Windows suite 67 + fuzz ~20 cut short twice). Builder worktrees
+removed (branches r33/* kept, never pushed); WSL clone targets deleted.
+Then d324c8b0/public 07867bfd: macOS FLAKY hosted_instruments (copy found no file) — each
+test ran its own `cargo build` of the test plug-in, which put the library back while
+another test copied it; the UI tests' build helpers now build once per process (OnceLock),
+as cantus-host's did. CI on a30262bc green with the 120-min limit (Windows test job 64 min).
+**Round 33 closed 2026-10-30:** CI + macOS green on public 07867bfd with no FLAKY lines.
+All r33 worktrees removed (branches r33/* kept locally, never pushed); F: 145 GB free.
+Owner asked about the dancer's size: one whole session (round 35); video export is the risk
+(no encoder in Cantus yet — Media Foundation / openh264) and may move to round 36 with §0.2 Video.

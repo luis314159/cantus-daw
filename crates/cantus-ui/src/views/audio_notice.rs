@@ -31,6 +31,8 @@ enum Act {
     Waiting(plugin_notice::Target, plugin_notice::WaitAnswer),
     /// A render's Stop, a refused edit's Unfreeze (round 29, ADR 0064).
     Freeze(super::freeze_view::Answer),
+    /// An agent's call on the card (round 34, ADR 0081). // r34:mcp
+    Ai(u64, cantus_mcp::Answer), // r34:mcp
 }
 
 /// The picture at a card's left.
@@ -41,6 +43,8 @@ enum Art {
     Plugin,
     /// A freeze: a render on its way, an edit it refused.
     Frozen,
+    /// An agent asking (round 34). // r34:mcp
+    Agent, // r34:mcp
 }
 
 /// One card of the stack.
@@ -59,6 +63,10 @@ struct Card {
     tip: Option<(String, String)>,
     /// The audio setup's hit areas (its tests press the buttons through them).
     audio: Option<usize>,
+    /// How long until its buttons answer (`None`: they do now). An agent's card is armed
+    /// a moment after it comes to the front; until then its buttons are drawn dimmed
+    /// (review 6 #7). r34:mcp
+    armed_in: Option<std::time::Duration>,
 }
 
 /// The audio notices' cards, oldest first.
@@ -108,6 +116,7 @@ fn audio_cards(app: &CantusApp) -> Vec<Card> {
             close: Act::Dismiss(i),
             tip: None,
             audio: Some(i),
+            armed_in: None, // r34:mcp
         });
     }
     out
@@ -132,6 +141,7 @@ fn plugin_card(app: &CantusApp) -> Option<Card> {
         close: Act::Plugin(plugin_notice::Answer::KeepOff),
         tip: Some((sentence, c.reasons)),
         audio: None,
+        armed_in: None, // r34:mcp
     })
 }
 
@@ -154,8 +164,36 @@ fn waiting_card(app: &CantusApp) -> Option<Card> {
         close: Act::Waiting(target, plugin_notice::WaitAnswer::Dismiss),
         tip: Some(c.tip),
         audio: None,
+        armed_in: None, // r34:mcp
     })
 }
+
+/// An agent's call waiting for the user (round 34, ADR 0081: `ai_mcp::card`). // r34:mcp
+fn ai_card(app: &CantusApp) -> Option<Card> {
+    // r34:mcp
+    let c = crate::ai_mcp::card::card(app)?; // r34:mcp
+    Some(Card {
+        // Keyed by the call: the next one is another card, its buttons other widgets
+        // (review 5 #4). r34:mcp
+        id: ("ai", c.id as usize), // r34:mcp
+        // Who asks, shortened in its middle: never cut so its end reads as Cantus's words
+        // (review 5 #5); what let it in, drawn in full after it (review 6 #5). r34:mcp
+        name: Some(c.who),                       // r34:mcp
+        title: format!("{} {}", c.via, c.title), // r34:mcp
+        body: c.body,                            // r34:mcp
+        tok: Tok::Focus,                         // r34:mcp
+        art: Art::Agent,                         // r34:mcp
+        buttons: c
+            .buttons
+            .into_iter()
+            .map(|(l, (id, a))| (l, Act::Ai(id, a)))
+            .collect(), // r34:mcp
+        close: Act::Ai(c.close.0, c.close.1),    // r34:mcp
+        tip: None,                               // r34:mcp
+        audio: None,                             // r34:mcp
+        armed_in: crate::ai_mcp::card::armed_in(app, c.id, std::time::Instant::now()), // r34:mcp
+    })
+} // r34:mcp
 
 /// The freeze card (round 29, ADR 0064), when a render runs or an edit was refused.
 fn freeze_card(app: &CantusApp) -> Option<Card> {
@@ -174,6 +212,7 @@ fn freeze_card(app: &CantusApp) -> Option<Card> {
         close: Act::Freeze(close),
         tip: None,
         audio: None,
+        armed_in: None, // r34:mcp
     })
 }
 
@@ -181,7 +220,8 @@ fn freeze_card(app: &CantusApp) -> Option<Card> {
 /// the freeze card, the audio cards above them, newest lowest; each card above the last,
 /// never over it.
 fn stack(app: &CantusApp, ctx: &egui::Context, s: &Style) -> Vec<(Card, Rect)> {
-    let mut cards: Vec<Card> = plugin_card(app).into_iter().collect();
+    let mut cards: Vec<Card> = ai_card(app).into_iter().collect(); // r34:mcp — the agent's first
+    cards.extend(plugin_card(app)); // r34:mcp (was the first)
     cards.extend(waiting_card(app));
     cards.extend(freeze_card(app));
     cards.extend(audio_cards(app).into_iter().rev());
@@ -262,6 +302,8 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         Some(Act::Plugin(a)) => plugin_notice::answer(app, a),
         Some(Act::Waiting(target, a)) => plugin_notice::answer_waiting(app, target, a),
         Some(Act::Freeze(a)) => super::freeze_view::answer(app, a),
+        // Only a card that has been in front a moment answers (review 5 #4). r34:mcp
+        Some(Act::Ai(id, a)) => crate::ai_mcp::card::pressed(app, id, a, std::time::Instant::now()), // r34:mcp
         None => {}
     }
 }
@@ -363,6 +405,11 @@ fn draw(
                         let g = Rect::from_center_size(pic.center(), Vec2::splat(28.0 * k));
                         glyph::paint(b, g, Glyph::Frozen, s.t.focus);
                     }
+                    Art::Agent => {
+                        // r34:mcp
+                        let g = Rect::from_center_size(pic.center(), Vec2::splat(28.0 * k)); // r34:mcp
+                        glyph::paint(b, g, Glyph::Agent, s.t.highlight); // r34:mcp
+                    }
                 }
                 led::paint(
                     b,
@@ -433,10 +480,32 @@ fn draw(
             if xr.clicked() {
                 act = Some(card.close.clone());
             }
+            // Dimmed until armed, and drawn again the moment it is (review 6 #7). r34:mcp
+            let armed = card.armed_in.is_none();
+            if let Some(wait) = card.armed_in {
+                ui.ctx().request_repaint_after(wait);
+            }
+            // A screen reader announces the card when it comes, and reads its buttons
+            // (review 6 #7). r34:mcp
+            let spoken = [card.name.as_deref().unwrap_or(""), &card.title, &card.body]
+                .iter()
+                .filter(|t| !t.is_empty())
+                .copied()
+                .collect::<Vec<_>>()
+                .join(" ");
+            ui.ctx()
+                .accesskit_node_builder(Id::new(("corner-card", card.id)), |n| {
+                    n.set_role(egui::accesskit::Role::Alert);
+                    n.set_live(egui::accesskit::Live::Polite);
+                    n.set_label(spoken);
+                });
             for (j, br) in buttons_at(ui.ctx(), card, r, s) {
                 let (label, a) = &card.buttons[j];
                 let resp = ui.interact(br, Id::new(("corner-card-b", card.id, j)), Sense::click());
-                parts::paint_button(ui, br, &resp, label, j == 0, true);
+                parts::paint_button(ui, br, &resp, label, j == 0, armed);
+                resp.widget_info(|| {
+                    egui::WidgetInfo::labeled(egui::WidgetType::Button, armed, label)
+                });
                 if let Some(i) = card.audio {
                     app.audio_setup.hit(ui.ctx(), Hit::Notice(i, j), br);
                 }

@@ -69,7 +69,7 @@ pub fn baked_dx(d: &DxEnvSettings, m: [f32; 4]) -> DxEnvSettings {
     e
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Modulus {
     fs: f32,
     tables: Arc<Tables>,

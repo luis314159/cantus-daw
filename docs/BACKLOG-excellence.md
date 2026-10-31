@@ -162,7 +162,8 @@ is an impression. The order below is the integrator's recommendation; the owner 
 8. **Extensibility and safety of work** (§0.2): a sandboxed scripting API with a package
    manager, project versions and snapshots, bundled export, then collaboration.
 9. **Assistive intelligence** (§7): the MCP server (phase B, with the demo builder's
-   wishlist), stem separation, a mastering assistant, players that follow chords.
+   wishlist), stem separation, a mastering assistant — **done in round 34**; players that
+   follow chords.
 10. **The wider professional field** (§0.2): video, notation, surround and Atmos,
     AAF/OMF and loudness reports, microtonal tuning, a touch mode, a modular environment.
 
@@ -818,6 +819,14 @@ real-time path wait.**
 - *Done when:* Cantus sustains more instances than every DAW in the suite at 64 samples
   without a dropout, and exports faster than all of them, on a mid-range laptop.
 
+**Free-running unit state anchored to song time** (round 34, review 2 of the listen builder;
+ADR 0083): so a range render's pre-roll converges and an export started mid-song matches
+the whole render's frames. Space's FDN modulation rotors and Organum's rotary angle turn
+from the unit's reset, not from the song; `render.rs`, `stems.rs` and `freeze_render.rs`
+start a range on the fractional sample of its first tick — `SeekFrac`'s whole-sample start
+(`listen::begin`) for them too. A sound change: a `DSP_VERSION` bump with the measured size
+(`preroll_by_unit` says which units remain).
+
 ## 4c. A recording mode for high performance (requested 2026-10-10)
 
 *The owner: "a partial pre-render of every channel that feeds the master — audio, instruments,
@@ -1402,7 +1411,25 @@ the reference for the idea; ours is our own, never its character or art).*
 Phase A tools foundation → B an MCP server → C the assistant panel → D local audio
 intelligence (stems, audio-to-MIDI, mastering assistant) → E generative audio.
 
-**What an AI needs to make great music in Cantus — learned by doing (2026-10-15).** Round
+- **Phase B — done in round 34** (ADRs 0081–0083): the MCP server written by hand
+  (`crates/cantus-mcp`, both protocol generations, the HTTP door on `127.0.0.1` off by
+  default, the `cantus-mcp` bridge, permissions decided in Cantus, the card, the chip, the AI
+  activity, Settings ▸ AI); about 60 tools, each call one undo step; everything the list
+  below asked — `audition`, per-track analysis and the masking matrix, `lint_music`, the
+  unit catalogue, `write_part`, `voice_chords`, `pedal_from_chart`, `automate`,
+  `set_mix_targets`, presets, modulators, comping — and what Cantus needed inside: range
+  renders from checkpoints, analysis taps, live = offline checked (`docs/round34/`).
+- **Phase D — done in round 34** (ADRs 0084–0086): the mastering assistant on the master
+  (nine platforms, genre curves or a reference, a chain of our own effects, A/B at matched
+  loudness, one undo step; 21 demo cases within 0.07 LU); stems by HT-Demucs in the
+  `cantus-ml` helper on ONNX Runtime (SDR 8.80 dB on MUSDB18-HQ, the paper's; schema 48,
+  provenance and the "AI" badge); audio to MIDI — Basic Pitch note for note with Spotify's,
+  our pitch tracker for a melody, our drum detector and Magenta's drum model.
+- **Phase C (the assistant panel inside Cantus, bring-your-own-key and local models) and
+  phase E (generative audio) stay open.**
+
+**What an AI needs to make great music in Cantus — learned by doing (2026-10-15)** — every
+item below **done in round 34** (phase B above). Round
 28's demo builder composed and mixed *With All Your Heart* in code, which is what an AI
 would do through MCP (`docs/round28/demo.md`). Its findings refine `research/ai/
 mcp-server.md` §3 (the owner asked for them; to build with phase B):

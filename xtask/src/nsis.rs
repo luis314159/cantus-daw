@@ -15,6 +15,15 @@ use crate::package::Staged;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+/// The new MCP bridge, written beside a running one and swapped in by
+/// `CANTUS_BRIDGE_SWAP` in cantus.nsi (review 6 #4).
+pub const BRIDGE_NEW: &str = "cantus-mcp.exe.new";
+/// What a running bridge is moved aside to: this, then a number unique to the install
+/// (`cantus-mcp.exe.old-<ticks>`); the uninstaller removes every one. Written in
+/// cantus.nsi itself; the package tests hold the two equal.
+#[cfg(test)]
+pub const BRIDGE_ASIDE: &str = "cantus-mcp.exe.old";
+
 pub struct Config {
     pub version: String,
     pub outfile: PathBuf,
@@ -76,7 +85,16 @@ fn block(entries: &[Entry], root: &str) -> (String, String) {
             install.push_str(&format!("  SetOutPath \"{dir}\"\n"));
             current = Some(dir.clone());
         }
-        install.push_str(&format!("  File \"{}\"\n", win(&e.src)));
+        if root == "$INSTDIR" && e.name.eq_ignore_ascii_case(crate::package::BRIDGE) {
+            // The MCP bridge may be running (an AI app holds it): written beside it as
+            // `.new`, swapped in by CANTUS_BRIDGE_SWAP (review 6 #4).
+            install.push_str(&format!(
+                "  File \"/oname={BRIDGE_NEW}\" \"{}\"\n",
+                win(&e.src)
+            ));
+        } else {
+            install.push_str(&format!("  File \"{}\"\n", win(&e.src)));
+        }
         remove.push_str(&format!(
             "  Delete \"{}\\{}\"\n",
             root,
@@ -126,21 +144,29 @@ pub fn files_nsh_for(s: &Staged, carry: bool) -> String {
             "!macro CANTUS_{name}_FILES\n{install}!macroend\n\n!macro CANTUS_{name}_REMOVE\n{remove}!macroend\n\n"
         ));
     }
-    // Every program in the install folder: the installer and the uninstaller wait until
-    // none is running (the launcher waits for the program it started, but an update can
-    // also begin while only the program is still closing).
-    out.push_str("!macro CANTUS_PROGRAMS_BUSY\n  StrCpy $R3 0\n");
-    for e in s
-        .app
-        .iter()
-        .filter(|e| e.name.to_ascii_lowercase().ends_with(".exe"))
-    {
-        out.push_str(&format!(
-            "  !insertmacro CANTUS_PROGRAM_BUSY \"$INSTDIR\\{}\"\n",
-            escape(&e.name.replace('/', "\\"))
-        ));
+    // Every program in the install folder: the uninstaller waits until none is running
+    // (the launcher waits for the program it started, but an update can also begin while
+    // only the program is still closing) — the MCP bridge and the copies of it an update
+    // moved aside included. CANTUS_APP_BUSY leaves the bridge out: the installer and an
+    // update move it aside instead of waiting (an AI app keeps it running as long as it is
+    // open — review 5 #3), and when only it runs the uninstaller's words name that app.
+    for (name, bridge) in [("CANTUS_PROGRAMS_BUSY", true), ("CANTUS_APP_BUSY", false)] {
+        out.push_str(&format!("!macro {name}\n  StrCpy $R3 0\n"));
+        for e in s.app.iter().filter(|e| {
+            let n = e.name.to_ascii_lowercase();
+            n.ends_with(".exe") && (bridge || n != crate::package::BRIDGE)
+        }) {
+            out.push_str(&format!(
+                "  !insertmacro CANTUS_PROGRAM_BUSY \"$INSTDIR\\{}\"\n",
+                escape(&e.name.replace('/', "\\"))
+            ));
+            if e.name.eq_ignore_ascii_case(crate::package::BRIDGE) {
+                // Every copy an update moved aside, whatever its number.
+                out.push_str("  !insertmacro CANTUS_ASIDE_BUSY\n");
+            }
+        }
+        out.push_str("!macroend\n\n");
     }
-    out.push_str("!macroend\n\n");
     let bytes: u64 = s
         .app
         .iter()

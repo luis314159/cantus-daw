@@ -82,6 +82,7 @@ pub struct Meter {
     pub peak_r: f32,
 }
 
+#[derive(Clone)]
 pub struct Chorda {
     fs: f64,
     keyboard: Option<Arc<Keyboard>>,

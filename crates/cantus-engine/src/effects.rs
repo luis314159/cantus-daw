@@ -183,6 +183,29 @@ pub struct EffectUnit {
 }
 
 impl EffectUnit {
+    // r34:listen — a range render's checkpoint (ADR 0083).
+    /// A copy of this unit with all its state, or `None` when its state cannot be copied
+    /// (a hosted plug-in): what a range render resumes from.
+    pub fn fork(&self) -> Option<EffectUnit> {
+        let dsp = match &self.dsp {
+            Dsp::Delay(d) => Dsp::Delay(d.clone()),
+            Dsp::Reverb(r) => Dsp::Reverb(r.clone()),
+            Dsp::Eq(e) => Dsp::Eq(e.clone()),
+            Dsp::Comp(c) => Dsp::Comp(c.clone()),
+            Dsp::Fx(f) => Dsp::Fx(f.fork()?),
+        };
+        Some(EffectUnit {
+            id: self.id,
+            kind: self.kind,
+            dsp,
+            replaced: self.replaced,
+            asked: self.asked,
+            automation: self.automation.clone(),
+            late: self.late,
+            hint: self.hint,
+        })
+    }
+
     /// Build a unit for a slot. On the UI thread (or an offline render), so whatever the
     /// slot's settings need — linear-phase buffers for an EQ loaded in linear phase — is
     /// made here and the unit starts on the path it is set to.

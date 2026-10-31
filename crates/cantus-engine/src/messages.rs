@@ -111,6 +111,10 @@ pub enum EngineMessage {
     Stop,
     /// Jump to an absolute position (works while playing or stopped).
     Seek(Ticks),
+    /// Jump to a fractional tick: the one a whole sample of the song falls on, so a render
+    /// started there meets every event on the sample a render from the top does (a range
+    /// render's pre-roll, round 34, ADR 0083). // r34:listen
+    SeekFrac(f64), // r34:listen
     /// Live note from the computer keyboard, played on the given track.
     NoteOn {
         track: TrackId,

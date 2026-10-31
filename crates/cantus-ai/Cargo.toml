@@ -10,6 +10,7 @@ repository.workspace = true
 
 [dependencies]
 cantus-core.workspace = true
+cantus-rt.workspace = true # r34:mcp — open_touch: a file opened without following a link, judged by its handle
 serde.workspace = true
 serde_json.workspace = true
 async-trait.workspace = true

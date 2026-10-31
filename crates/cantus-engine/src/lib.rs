@@ -18,6 +18,7 @@ pub mod fx;
 pub mod graph;
 pub mod hotplug;
 pub mod inst;
+pub mod listen; // r34:listen — range renders, analysis taps, checkpoints (ADR 0083)
 pub mod loopback;
 pub mod messages;
 pub mod midi;

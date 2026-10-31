@@ -135,6 +135,110 @@ under the GPL.
 - **World English Bible** (`en.txt`, the *Updated* edition) — public domain; text from
   eBible.org. "World English Bible" is a trademark of eBible.org; the text is unmodified.
 
+## Demucs (the HT-Demucs graphs) <!-- r34:stems -->
+
+Cantus's stem separation (round 34, ADR 0085) runs Meta's Hybrid Transformer Demucs. The
+graphs Cantus carries (`crates/cantus-content/models/htdemucs*.onnx.gz`, no weights in
+them), the script that made them (`crates/cantus-ml/tools/export_htdemucs.py`) and the
+spectrogram code around them (`crates/cantus-ml/src/stft.rs`, `demucs.rs`) are adapted from
+`demucs/htdemucs.py`, `demucs/spec.py` and `demucs/apply.py` of
+<https://github.com/facebookresearch/demucs> at commit e976d93e, under this licence:
+
+```text
+MIT License
+
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+The weights are not part of Cantus: they are downloaded from Meta
+(`dl.fbaipublicfiles.com`) when a user installs a model, with this licence shown first,
+and kept beside the model with it.
+
+## Basic Pitch's note creation, ported to Rust <!-- r34:transcribe -->
+
+Cantus's audio to MIDI (round 34, ADR 0086) re-implements in Rust
+(`crates/cantus-ml/src/transcribe_notes.rs`, the windowing in `transcribe.rs`) the note
+creation and inference windowing of Spotify's Basic Pitch — `basic_pitch/note_creation.py`
+and `basic_pitch/inference.py` of <https://github.com/spotify/basic-pitch> at commit
+fa5997af — which is under the Apache License, Version 2.0 (the text is the root's
+`LICENSE-APACHE`). The changes: written in Rust; the largest remaining energy of the
+Melodia step found through a heap instead of a scan (the same note list). Basic Pitch's
+NOTICE file:
+
+```text
+Basic Pitch
+Copyright 2022 Spotify AB
+
+This product includes software developed at
+Spotify AB (http://www.spotify.com/).
+
+This product includes software from Librosa (ISC).
+* Copyright (C) 2013--2017, librosa development team.
+
+This product includes software from mir_eval (MIT)
+* Copyright (C) 2014 Colin Raffel
+
+This product includes software from numpy (BSD)
+* Copyright (C) 2005-2022, NumPy Developers.
+
+This product includes software from pretty-midi (MIT)
+* Copyright (C) 2014 Colin Raffel
+
+This product includes software from resampy (ISC)
+* Copyright (C) 2016, Brian McFee
+
+This product includes software from scipy (BSD)
+* Copyright (C) 2001-2002 Enthought, Inc. 2003-2022, SciPy Developers
+
+This product includes software from tensorflow (Apache 2.0)
+* Copyright (C) 2019 Google, LLC <packages@tensorflow.org>
+
+The tests for `basic-pitch` include audio files from the
+Vocadito dataset liscened under Creative Commons
+Attribution 4.0 International. The dataset can be found at:
+https://zenodo.org/record/5578807#.YnRm5vPMKDU
+```
+
+Basic Pitch's model (`nmp.onnx`) and Magenta's Onsets and Frames Drums (as converted to
+ONNX by a third party, Apache-2.0) are not part of Cantus: they are downloaded when a user
+installs them, their licences shown first and kept beside them.
+
+## ONNX Runtime (downloaded with a model) <!-- r34:stems -->
+
+The inference runtime, ONNX Runtime by Microsoft (MIT), is not part of Cantus's
+installers: it is downloaded with the first model a user installs, its `LICENSE`,
+`ThirdPartyNotices.txt` and `Privacy.md` kept beside it. Its telemetry is turned off.
+
+## The Microsoft Visual C++ runtime (Windows) <!-- r34:stems -->
+
+Beside `cantus-ml.exe` the Windows installer puts Microsoft's C++ runtime libraries
+(`vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll`, `msvcp140_1.dll`), which ONNX
+Runtime needs. They are Microsoft's redistributable files, distributed app-locally as
+the Visual Studio licence's *Distributable Code* terms allow
+(<https://learn.microsoft.com/visualstudio/releases/2022/redistribution>). They stay
+under Microsoft's terms — the Microsoft Visual C++ Redistributable licence,
+<https://visualstudio.microsoft.com/license-terms/> — and are not under the GPL or any
+licence of Cantus's; Cantus only places them beside its helper, unchanged and signed by
+Microsoft. Copyright (c) Microsoft Corporation.
+
 ## Drivers Cantus links to but does not include
 
 - **FlexASIO** by Etienne Dechamps (MIT licence), <https://github.com/dechamps/FlexASIO>.

@@ -21,6 +21,10 @@ pub mod kitbuild;
 pub mod library;
 pub mod manager;
 pub mod manifest;
+// r34:stems — machine-learning models (ADR 0085).
+pub mod models;
+pub mod models_pickle;
+pub mod models_th;
 pub mod tar;
 pub mod wav;
 

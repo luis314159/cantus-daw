@@ -34,7 +34,7 @@ pub fn settings(spec: &EffectSpec) -> FlexusSettings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     dsp: Flexus,
 }
@@ -48,6 +48,9 @@ impl Unit {
 }
 
 impl FxUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn FxUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &EffectSpec) {
         self.dsp.set(&settings(spec));
     }

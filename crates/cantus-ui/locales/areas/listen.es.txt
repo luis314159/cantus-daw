@@ -1,0 +1,87 @@
+# Área: escuchar — audición, análisis por pista, matriz de enmascaramiento, objetivos de mezcla
+# y el asistente de mastering en el canal master (ronda 34, ADR 0083–0084). Cada clave tiene su
+# gemela en listen.en.txt.
+
+# Los nombres del historial para las ediciones de las herramientas.
+cmd.master_assist = cadena del asistente de mastering
+cmd.set_mix_targets = objetivos de mezcla
+# Lo que hace un agente (la tarjeta de confirmación, la actividad, el historial).
+listen.said.audition = escuchar {range}
+listen.said.analyse = analizar cada pista en {range}
+listen.said.masking = buscar qué pistas se enmascaran en {range}
+listen.said.targets = medir {count} y llevarlas a su sonoridad objetivo: {tracks}
+listen.said.trims = ajustar el nivel de {count} a su sonoridad objetivo: {trims}
+listen.said.assist = proponer un máster para {platform}
+listen.said.apply = poner en el máster una cadena de mastering para {platform}: {units}
+listen.said.apply_replace = quitar los efectos del máster ({removed}) y poner en su lugar una cadena de mastering para {platform}: {units}
+# Las curvas de equilibrio tonal de cada género.
+listen.curve.pop = Pop
+listen.curve.rock = Rock
+listen.curve.electronic = Electrónica
+listen.curve.hiphop = Hip-hop
+listen.curve.acoustic = Acústica
+listen.curve.classical = Clásica
+# Por qué el asistente puso cada unidad en su cadena.
+listen.why.eq = Equilibrio hacia la curva objetivo: {bands}.
+listen.why.eq_flat = El equilibrio ya sigue la curva objetivo: solo el corte bajo 20 Hz.
+listen.why.glue = El rango de sonoridad es {lra} LU, más que los {most} LU de este género: compresión suave a {ratio}:1.
+listen.why.mono = La mezcla pierde {loss} LU en mono: un poco más estrecha, el grave en mono bajo 120 Hz.
+listen.why.widen = La mezcla es estrecha (lados {width} dB bajo el centro): un poco más ancha.
+listen.why.bass_mono = El grave tiene contenido estéreo: mono bajo 120 Hz, para vinilo, clubes y teléfonos.
+listen.why.limit = {gain} dB hacia un limitador de pico real a {ceiling} dBTP: {lufs} LUFS, la sonoridad de {platform}.
+# La indicación «Masterizar para streaming».
+listen.prompt.master.title = Masterizar para streaming
+listen.prompt.master.description = Masteriza la canción abierta para una plataforma de streaming con los efectos de Cantus, y comprueba el resultado escuchando.
+listen.prompt.master.platform = Adónde va: spotify, apple_music, youtube, tidal, amazon_music, soundcloud, cd, club o broadcast (Spotify si no se dice).
+listen.prompt.master.text = Masteriza esta canción para {platform} ({lufs} LUFS integrados, pico real igual o por debajo de {ceiling} dBTP). Primero llama a audition sobre toda la canción con master en false para oír la mezcla tal como llega al máster, y mira su sonoridad, su rango, su espectro, su correlación y los clics; arregla en la mezcla lo que un máster no puede (una pista que enmascara a otra —masking_matrix— o un clic en un cambio de sección). Luego llama a master_assist con platform "{id}" (y curve con el género de la canción, o reference con una pista de referencia en la carpeta del proyecto), lee la cadena propuesta y por qué está cada unidad, y aplícala con apply_master_chain (o replace_master_chain cuando reemplaza los efectos propios del máster: pregunta antes al usuario). Por último llama de nuevo a audition y confirma que la sonoridad integrada queda a menos de 0,5 LU de {lufs} y el pico real igual o por debajo de {ceiling} dBTP; explica con palabras sencillas qué cambió el máster.
+# El panel del asistente de mastering.
+listen.panel.open = Asistente de mastering…
+listen.panel.title = Asistente de mastering
+listen.panel.target = Objetivo
+listen.panel.platform = Plataforma
+listen.panel.aim = Apunta a
+listen.panel.platform_numbers = {lufs} LUFS integrados, pico real igual o bajo {ceiling} dBTP
+listen.panel.balance = Equilibrio
+listen.panel.reference_is = Referencia: {file}
+listen.panel.load = Cargar referencia…
+listen.panel.clear = Quitar
+listen.panel.audio_files = Archivos de audio
+listen.panel.range = Escuchar
+listen.panel.whole = Toda la canción
+listen.panel.loop = Bucle
+listen.panel.chain_now = Cadena del máster
+listen.panel.replace = Reemplazarla
+listen.panel.append = Añadir después
+listen.panel.listen = Escuchar y proponer
+listen.panel.listening = Escuchando… {percent} %
+listen.panel.stop = Detener
+listen.panel.heard = Lo que oye
+listen.panel.mix = Mezcla
+listen.panel.master = Propuesto
+listen.panel.goal = Objetivo
+listen.panel.integrated = Integrada
+listen.panel.true_peak = Pico real
+listen.panel.lra = Rango de sonoridad
+listen.panel.short_term = 3 s más fuertes
+listen.panel.width = Anchura (lados)
+listen.panel.mono = Suma a mono
+listen.panel.correlation = Correlación mínima
+listen.panel.legend = Barras: la mezcla · línea: propuesto · aros: objetivo (dB por octava, respecto a su media)
+listen.panel.chain = Cadena propuesta
+listen.panel.apply = Aplicar al máster
+listen.panel.apply_replace = Aplicar: reemplazar los {n} efectos del máster
+listen.panel.apply_replace_one = Aplicar: reemplazar el efecto del máster
+listen.panel.removes = Aplicar quita los efectos propios del máster: {effects}.
+listen.panel.apply_append = Aplicar: añadir tras la cadena del máster
+listen.panel.ab = A/B
+listen.panel.ab_off = No
+listen.panel.ab_mix = A · Mezcla
+listen.panel.ab_master = B · Máster
+listen.panel.ab_note = A y B suenan a la misma sonoridad, bajando la más fuerte, y cambian en el mismo punto: lo que oyes es el tono y la dinámica del máster, no su nivel.
+listen.panel.source = Las cifras de la plataforma: {source}.
+listen.panel.post_moves = El nivel, el balance o la anchura del máster se mueven durante la canción (automatización o un modulador), después de la cadena: estas cifras valen para sus valores de reposo.
+listen.panel.too_long = La canción dura {length}; el asistente escucha {most} como mucho. Pon un bucle sobre la parte por la que masterizar y elige Bucle.
+listen.panel.too_long_loop = El bucle dura {length}; el asistente escucha {most} como mucho. Acorta el bucle.
+listen.panel.short = Queda {lu} LU por debajo de la sonoridad de la plataforma para que el pico real no pase su techo: la tira del máster tras la cadena sube los picos (su anchura o su fader).
+listen.phrase.tracks.one = 1 pista
+listen.phrase.tracks.many = {n} pistas

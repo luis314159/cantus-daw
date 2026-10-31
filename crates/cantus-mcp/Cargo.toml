@@ -1,0 +1,27 @@
+[package]
+name = "cantus-mcp"
+description = "Cantus DAW — the Model Context Protocol server, written by hand: JSON-RPC 2.0 over std threads, both protocol generations (2025-06-18 and 2025-11-25 with a session, 2026-07-28 stateless), the UI-thread pump's state (permissions, confirmation, jobs, turns, the AI activity) and an in-process client for tests — ADR 0081."
+# GPL like everything AI in Cantus (ADR 0047): never a dependency of an MPL crate.
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+cantus-ai.workspace = true
+# Owner-only files for the token (its only OS code, ADR 0031 §2.7).
+cantus-rt.workspace = true
+serde_json.workspace = true
+log.workspace = true
+# The operating system's random source for tokens and handles (MIT OR Apache-2.0; already
+# shipped through ahash and rand_core).
+getrandom = "0.3"
+# HMAC-SHA-256, the door's proof that it holds the token before the bridge sends it.
+sha2.workspace = true
+
+[build-dependencies]
+# The bridge's Windows version resource (ADR 0048 §9), as cantus-sandbox has.
+winresource = "0.1"

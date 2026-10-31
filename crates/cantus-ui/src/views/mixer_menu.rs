@@ -77,6 +77,8 @@ enum ColorOf {
 /// What a row does.
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Act {
+    /// The mastering assistant's panel (round 34, ADR 0084). // r34:listen
+    MasteringAssistant, // r34:listen
     /// Automate a strip's (or the master's) volume (0), pan (1) or width (2) (ADR 0027).
     Automate(StripId, u8),
     /// *Modulate…* the strip's (or the master's) volume, pan or width (ADR 0057).
@@ -584,6 +586,10 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 .check(on(m.fx_enabled))
                 .enabled(!m.effects.is_empty()),
             );
+            e.push(Entry::act(
+                Label::Key("listen.panel.open"),
+                Act::MasteringAssistant,
+            )); // r34:listen
             e.push(Entry::separator());
             e.push(Entry::sub(Label::Key("mixer.pan_law"), Sub::PanLaw));
         }
@@ -878,6 +884,12 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
         }
         Sub::AddEffect(id) => {
             let full = p.effects_of(id).is_none_or(|s| s.len() >= MAX_INSERTS);
+            if id == StripId::MASTER {
+                e.push(Entry::act(
+                    Label::Key("listen.panel.open"),
+                    Act::MasteringAssistant,
+                )); // r34:listen
+            } // r34:listen
             e.push(
                 Entry::act(
                     Label::Key("swap.menu.browse_effects"),
@@ -1376,7 +1388,8 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         Act::Wave => app.run_action(Action::ToggleMeterWave),
         Act::PanLaw(law) => {
             if app.project().pan_law != law {
-                app.exec(Command::SetPanLaw { law });
+                // r34:stems — the stems' strips trimmed with it, one undo step.
+                app.exec(crate::stems_ui::pan_law_command(app.project(), law));
             }
         }
         Act::UnmuteAll => app.unmute_all_strips(),
@@ -1413,6 +1426,7 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             });
         }
         Act::RemoveEffect(id, fx) => app.remove_effect(id, fx),
+        Act::MasteringAssistant => crate::ai_tools::listen::panel::open(app), // r34:listen
         Act::MasterFx(enabled) => {
             app.exec(Command::SetMasterFxEnabled { enabled });
         }

@@ -30,4 +30,11 @@ fallback libxkbcommon-x11.so.0 xkb 0
 # The .desktop file and icons inside, for desktop integration tools (AppImageLauncher,
 # Gear Lever) and for the menu entry Cantus writes itself (linux_desktop.rs).
 export CANTUS_APPDIR="$HERE"
+# The MCP stdio bridge (round 34, ADR 0081): what an MCP client set up from Settings › AI
+# starts, as `Cantus.AppImage --mcp-bridge` (the image's own path stays the same between
+# launches; its mount point does not).
+if [ "${1:-}" = "--mcp-bridge" ]; then
+  shift
+  exec "$HERE/usr/bin/cantus-mcp" "$@"
+fi
 exec "$HERE/usr/bin/cantus" "$@"

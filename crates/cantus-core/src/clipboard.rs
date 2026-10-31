@@ -84,6 +84,10 @@ pub struct Clipboard {
     /// The audio clips' files, with **absolute** paths, so another project can find them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<AudioSource>,
+    /// What made those files, when a model made them (ADR 0085), by their ids here: a
+    /// paste that brings a file brings its card. // r34:stems
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub provenance: std::collections::BTreeMap<AudioSourceId, crate::audio::Provenance>,
     /// The pooled grooves the copied clips play (ADR 0069), so a paste elsewhere finds
     /// or brings them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -160,9 +164,21 @@ impl Clipboard {
             tempo_points: project.tempo_points.clone(),
             at: Ticks::ZERO,
             sources: Vec::new(),
+            provenance: Default::default(),
             grooves: played_grooves(project, &payload),
             payload,
         }
+        .with_provenance(project) // r34:stems
+    }
+
+    /// The cards of the files the copied clips play (ADR 0085). // r34:stems
+    fn with_provenance(mut self, project: &Project) -> Self {
+        for id in self.audio_source_ids() {
+            if let Some(p) = project.provenance.get(&id) {
+                self.provenance.insert(id, p.clone());
+            }
+        }
+        self
     }
 
     /// This clipboard, its payload's starts relative to `origin` on the source's timeline.
@@ -529,6 +545,13 @@ pub fn paste_clips(
                         inserted.push(s.id);
                         out.commands
                             .push(Command::InsertAudioSource { source: s.clone() });
+                        // Its card with it (ADR 0085). // r34:stems
+                        if let Some(p) = board.provenance.get(&a.source) {
+                            out.commands.push(Command::SetAudioProvenance {
+                                id: s.id,
+                                provenance: Some(Box::new(p.clone())),
+                            });
+                        }
                     }
                     rate = s.sample_rate as f64;
                     s.id

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Separating stems</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="separating-stems">Separating stems</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/stems.html">Leer en español</a></em></p>
+<p>Cantus can split a recording into its parts — <strong>drums, bass, vocals and the rest</strong>, or with the 6-stem model <strong>guitar and piano</strong> too — with a model that runs <strong>on your computer</strong>. Nothing is uploaded anywhere.</p>
+<h2 id="separate-a-clip-a-track-or-a-selection">Separate a clip, a track or a selection</h2>
+<ul>
+<li>Right-click an <strong>audio clip</strong> ▸ <em>Separate stems…</em> (with several clips of one track selected, they are separated together; clips on several tracks are separated one track at a time, since each track's parts go under a bus of its own), or</li>
+<li>right-click a <strong>track's name</strong> ▸ <em>Separate stems…</em> (every audio clip on it).</li>
+</ul>
+<p>Choose <strong>4 stems</strong> or <strong>6 stems</strong>, <strong>Fast</strong> or <strong>Best</strong> (four passes averaged: a little cleaner, four times slower) and, on a Mac, <em>Use the graphics processor when it can</em> (on Windows and Linux the panel says it is not available with the runtime Cantus downloads: the model runs on the processor). Press <strong>Separate</strong>. The panel shows the progress; <em>Cancel</em> stops it (nothing is left behind), <em>Hide</em> closes the panel and the separation goes on.</p>
+<p>How good is it? On the test songs researchers use (MUSDB18-HQ), the 4-stem model scores 8.80 dB SDR on average (drums 10.05, bass 9.78, other 6.42, vocals 8.93) — the numbers its makers published, measured again in Cantus. Busy electronic mixes are the hardest.</p>
+<p>When it is done:</p>
+<ul>
+<li>each part is a <strong>new audio track right under the separated track</strong>, named <em>Drums</em>, <em>Bass</em>, <em>Other</em>, <em>Vocals</em>…, each on its own mixer strip;</li>
+<li>the strips feed <strong>one new bus</strong>, in a mixer group named after the track (<em>Mix stems</em>), and the bus goes where the original track went — so the song sounds the same, now in parts;</li>
+<li>every new clip sits <strong>exactly where its original clip is</strong>, sample for sample, with the same window, fades, gain, warp, crossfades and comp seams; a clip you had muted stays muted in every part;</li>
+<li>the parts play at the <strong>original's level</strong>: their strips start at the level that makes up for the pan law, so muting the original and playing the parts sounds the same (change the pan law later and they are trimmed with it, in the same undo step);</li>
+<li>the <strong>original clips are muted</strong>, not deleted;</li>
+<li>it is <strong>one step of Undo</strong>.</li>
+</ul>
+<p>The new files go in the project's <em>Audio/Stems</em> folder. Their clips wear a small <strong>AI</strong> badge: each file remembers which model made it, its version and licence, when, and from which file (saved in the project).</p>
+<p>A file at any sample rate works: it is converted to the model's 44.1 kHz and the parts back to the file's own rate and length.</p>
+<h2 id="the-models-settings--models">The models (<em>Settings ▸ Models</em>)</h2>
+<p>The first time, Cantus shows the model's size, its <strong>licence</strong> and the inference runtime's, who made it and what it was trained on. <em>Accept the licence and download</em> fetches them:</p>
+<table>
+<tr><th>Model</th><th>Parts</th><th>Download</th><th>Licence</th></tr>
+<tr><td>HT-Demucs — 4 stems (Meta)</td><td>drums, bass, other, vocals</td><td>84 MB + the runtime</td><td>MIT</td></tr>
+<tr><td>HT-Demucs — 6 stems (Meta)</td><td>and guitar, piano (its piano is weak, its makers say)</td><td>55 MB + the runtime</td><td>MIT</td></tr>
+</table>
+<p>The runtime is Microsoft's <strong>ONNX Runtime</strong> (MIT; 15 MB on Windows, 11 MB on Linux, 37 MB on Apple silicon), downloaded once for every model, its telemetry turned off. Cantus does not host the weights: it downloads Meta's own file, checks every byte, and rebuilds the model from it. A download that is cut resumes where it stopped.</p>
+<p><em>Remove</em> deletes a model (and the runtime with the last one); it waits while a separation runs. Before a separation starts, Cantus checks there is room on the disk for it (<em>Best</em> needs room for four passes) and says so if not. A recording longer than one WAV file can hold as stems (4 GB: about 45 minutes at 192 kHz) is refused with a word. Opening another project cancels a separation under way.</p>
+<h2 id="how-long-it-takes">How long it takes</h2>
+<p>About a third of the song's length on a recent laptop's processor (a 3-minute song in about 65 seconds), four times that with <em>Best</em>. The model runs in a helper process of its own, <code>cantus-ml</code>: if it fails, Cantus says so and goes on.</p>
+<h2 id="for-ai-agents">For AI agents</h2>
+<p>An agent connected to Cantus can call <code>separate_stems</code> (a track or clips; 4 or 6 parts; fast or best). It asks you first like any edit, and the model must already be installed — its licence is yours to accept.</p>
+</main>
+</body>
+</html>

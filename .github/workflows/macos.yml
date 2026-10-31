@@ -91,13 +91,33 @@ jobs:
           mnt="$(mktemp -d)"
           hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg"
           app="$mnt/Cantus.app"
-          for b in cantus cantus-scan cantus-sandbox; do
+          for b in cantus cantus-scan cantus-sandbox cantus-mcp cantus-ml; do
             archs="$(lipo -archs "$app/Contents/MacOS/$b")"
             echo "$b: $archs"
             [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "::error::$b is not universal"; exit 1; }
           done
           codesign --verify --strict --verbose=2 "$app"
           codesign -d --entitlements - "$app" 2>&1 | grep -q disable-library-validation
+          # The ML helper (ADR 0085): signed, and allowed to load the inference library it
+          # downloads (library validation off) — the integrated review.
+          ml="$app/Contents/MacOS/cantus-ml"
+          codesign --verify --strict --verbose=2 "$ml"
+          ents="$(codesign -d --entitlements - --xml "$ml" 2>/dev/null; codesign -d --entitlements - "$ml" 2>&1)"
+          if ! grep -q disable-library-validation <<<"$ents"; then
+            echo "::error::cantus-ml lacks the library-validation entitlement"; exit 1
+          fi
+          # The MCP bridge: signed with the hardened runtime and no entitlements.
+          codesign --verify --strict --verbose=2 "$app/Contents/MacOS/cantus-mcp"
+          # An `if`, not `! cmd`: `set -e` ignores a negated command. XML (`--xml`) or the
+          # [Dict]/[Key] form macOS 12+ prints otherwise: either way, no key at all.
+          bridge="$app/Contents/MacOS/cantus-mcp"
+          if codesign -d --entitlements - --xml "$bridge" 2>/dev/null | grep -q '<key>' ||
+             codesign -d --entitlements - "$bridge" 2>&1 | grep -q '\[Key\]'; then
+            echo "::error::cantus-mcp carries entitlements"; exit 1
+          fi
+          if ! codesign -d --verbose=2 "$bridge" 2>&1 | grep -q 'flags=.*runtime'; then
+            echo "::error::cantus-mcp is not signed with the hardened runtime"; exit 1
+          fi
           plutil -extract CFBundleIdentifier raw "$app/Contents/Info.plist" | grep -qx com.cantusdaw.Cantus
           plutil -extract NSMicrophoneUsageDescription raw "$app/Contents/Info.plist"
           test -f "$app/Contents/Resources/Cantus.icns"

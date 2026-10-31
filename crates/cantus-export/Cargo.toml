@@ -14,6 +14,8 @@ repository.workspace = true
 cantus-core.workspace = true
 cantus-dsp.workspace = true
 cantus-engine.workspace = true
+# A no-replace rename (the never-replace placement without hard links; fix review 4 #3).
+cantus-rt.workspace = true
 hound.workspace = true
 serde.workspace = true
 thiserror.workspace = true

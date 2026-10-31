@@ -69,6 +69,7 @@ update.installer.un_section_data = Mis ajustes, presets y copias automáticas
 update.installer.un_desc_app = El programa, sus accesos directos, sus plug-ins y la asociación de archivos.
 update.installer.un_desc_data = Borra también la carpeta de Cantus en tu perfil: ajustes, presets, copias automáticas y grabaciones que no son de ningún proyecto. Tus proyectos en otras carpetas no se tocan.
 update.installer.close_cantus = Cantus sigue abierto. Ciérralo y elige Reintentar.
+update.installer.close_bridge = Una app de IA sigue usando Cantus (su puente MCP, cantus-mcp). Cierra la app que lo inició (Claude Desktop, Cursor, VS Code u otra) y elige Reintentar.
 update.installer.project_type = Proyecto de Cantus
 update.installer.license_bottom = Cantus es software libre. No necesitas aceptar esta licencia para usarlo; dice lo que puedes hacer al compartirlo o modificarlo.
 update.installer.section_flexasio = Controlador FlexASIO (se descarga ahora)

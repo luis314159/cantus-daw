@@ -63,6 +63,51 @@ fn os_space(_: &Path) -> Option<Space> {
     None
 }
 
+// r34:stems — which volume a folder is on, so two folders are known to share one.
+/// The volume `path` is on (the nearest folder of it that exists), as an identity two
+/// folders on one volume share: its mount point on Windows (`GetVolumePathNameW`), its
+/// device on Unix (`st_dev`). `None` when the system cannot say.
+pub fn volume(path: &Path) -> Option<String> {
+    let mut p = path;
+    while !p.exists() {
+        p = p.parent()?;
+    }
+    os_volume(p)
+}
+
+#[cfg(windows)]
+fn os_volume(path: &Path) -> Option<String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetVolumePathNameW;
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut buf = vec![0u16; 1024];
+    // SAFETY: `wide` is a NUL-terminated UTF-16 string and `buf` a writable buffer of the
+    // length passed, both outliving the call.
+    let ok = unsafe { GetVolumePathNameW(wide.as_ptr(), buf.as_mut_ptr(), buf.len() as u32) };
+    if ok == 0 {
+        return None;
+    }
+    let n = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    Some(String::from_utf16_lossy(&buf[..n]).to_lowercase())
+}
+
+#[cfg(unix)]
+fn os_volume(path: &Path) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+    std::fs::metadata(path)
+        .ok()
+        .map(|m| format!("dev {}", m.dev()))
+}
+
+#[cfg(not(any(windows, unix)))]
+fn os_volume(_: &Path) -> Option<String> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,5 +116,15 @@ mod tests {
     fn the_temporary_folders_volume_has_a_size_and_free_space() {
         let s = space(&std::env::temp_dir().join("not/there/yet")).expect("a volume");
         assert!(s.total > 0 && s.free <= s.total, "{s:?}");
+    }
+
+    // r34:stems
+    #[test]
+    fn folders_on_one_volume_share_its_identity() {
+        let dir = std::env::temp_dir();
+        let a = volume(&dir).expect("a volume");
+        assert_eq!(volume(&dir.join("not/there/yet")), Some(a.clone()));
+        let here = volume(Path::new(env!("CARGO_MANIFEST_DIR"))).expect("a volume");
+        assert!(!here.is_empty());
     }
 }

@@ -21,7 +21,7 @@ use cantus_dsp::va::math::db_gain;
 use cantus_dsp::va::{EnvModel, EnvSettings, FilterSettings, Model, Revision, SubShape};
 use cantus_dsp::voices::{PlayMode, Priority};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     calor: Box<Calor>,
     routes: [ModRoute; MAX_ROUTES],
@@ -335,6 +335,9 @@ pub fn route_target(key: &str) -> Option<(u16, f32)> {
 }
 
 impl InstrumentUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, _assets: &super::Assets) {
         self.calor.set(&settings(spec));
         let mut n = 0;

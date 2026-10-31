@@ -5,6 +5,9 @@
 
 #![forbid(unsafe_code)]
 
+// The tool table for agents (round 34, ADRs 0081–0086).
+pub mod ai_mcp; // r34:mcp — the MCP server, its pump and host (ADR 0081)
+pub mod ai_tools;
 pub mod app;
 pub mod audio_clips;
 pub mod audio_files;
@@ -43,10 +46,12 @@ pub mod layout;
 pub mod links;
 #[cfg(target_os = "linux")]
 pub mod linux_desktop;
+pub mod ml_service; // r34:stems — the model store and helper client (ADR 0085)
 pub mod mpe; // r33:mpe
 pub mod notefx_menus;
 pub mod notefx_ui;
-// macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
+pub mod stems_ui; // r34:stems — Separate stems… (ADR 0085)
+                  // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod engines;
 pub mod history_text;
 pub mod macos;
@@ -81,6 +86,7 @@ pub mod templates;
 pub mod tempo_ui;
 pub mod theme;
 pub mod theme_family;
+pub mod transcribe_ui; // r34:transcribe — Convert to MIDI (ADR 0086)
 pub mod verse;
 pub mod views;
 pub mod warp;

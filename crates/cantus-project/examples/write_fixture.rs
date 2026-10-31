@@ -1201,6 +1201,25 @@ fn main() {
             x.expression = Some(cantus_core::external::ExprRoute::MpeMidi);
         }
     }
+    // Schema 48 (round 34, ADR 0085): the first file of the pool marked as a model's
+    // separation — its vocals, by HT-Demucs. // r34:stems
+    if upto >= 48 {
+        if let Some(id) = p.audio_pool.first().map(|s| s.id) {
+            p.provenance.insert(
+                id,
+                cantus_core::Provenance {
+                    kind: "separated".into(),
+                    model: "htdemucs".into(),
+                    model_name: "HT-Demucs — 4 stems".into(),
+                    model_version: 1,
+                    licence: "MIT".into(),
+                    date: "2026-10-30".into(),
+                    from: "Song".into(),
+                    part: "vocals".into(),
+                },
+            );
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

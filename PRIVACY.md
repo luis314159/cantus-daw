@@ -1,6 +1,6 @@
 # Privacy
 
-*Cantus 0.1.0-beta.8 · written 2026-10-06 · [Español abajo](#privacidad-español)*
+*Cantus 0.1.0-beta.9 · written 2026-10-06, AI added 2026-10-30 · [Español abajo](#privacidad-español)*
 
 **Cantus collects nothing about you.** There is no telemetry, no analytics, no crash
 reporting, no account and no advertising. Your projects, recordings and settings stay on
@@ -47,7 +47,7 @@ The sample browser and the *Sound packs* window download a pack **only when you 
 *Install*** (or the starter kit's offer). The files come from the addresses listed in
 `crates/cantus-content/manifest/content.json` — today `raw.githubusercontent.com` and
 `github.com`, the packs' own authors' repositories. The requests carry
-`User-Agent: Cantus/0.1.0-beta.8` (the program and its version) and, when an interrupted
+`User-Agent: Cantus/0.1.0-beta.9` (the program and its version) and, when an interrupted
 download resumes, a `Range` header. Nothing else is sent. Packs are saved in
 `%LOCALAPPDATA%\Cantus\Content\` and each file's SHA-256 is checked before it is used.
 Cantus never checks for new packs by itself.
@@ -73,6 +73,40 @@ CLAP and VST3 plug-ins you install run inside Cantus with your permissions. Cant
 restrict or watch them; some may connect to the internet (licence checks, content
 downloads). Their makers' privacy policies apply.
 
+## 6. AI: agents and models (only when you turn them on)
+
+**Cantus has no AI service of its own and sends nothing to one.** It never asks for, keeps
+or uses an API key of yours — not your Claude key, nor any other.
+
+**Agents (MCP).** An assistant you run yourself (Claude Code, Claude Desktop, Cursor, VS
+Code, Gemini CLI, LM Studio) can drive Cantus only when you allow it: *Settings ▸ AI ▸ Allow
+external agents* is **off by default**. When on, Cantus listens on `127.0.0.1` only — this
+computer, never the network — and answers only a client that carries a token kept in
+`mcp\` beside your settings, readable by your user alone (*Make a new token* disconnects
+every client). The `cantus-mcp` bridge that some clients start talks to that same local
+door and nowhere else. What an agent reads from Cantus — track names, notes, settings,
+the numbers of a listen — goes to the assistant on your computer; what that assistant then
+sends to its own company is governed by its maker's privacy terms, not by Cantus. *AI area:
+Off* closes the door and refuses every agent.
+
+**Models (stems and audio to MIDI).** No model is in the installer. The first time you
+separate stems or convert audio to MIDI, Cantus shows the model's licence, size and origin
+and downloads it **only when you accept**, from its maker:
+
+| What | From |
+|---|---|
+| HT-Demucs (stems) | Meta: `dl.fbaipublicfiles.com`; its licence from `raw.githubusercontent.com` (Meta's repository) |
+| Basic Pitch (notes and chords) | Spotify: `raw.githubusercontent.com` (Spotify's repository, a pinned commit) |
+| Onsets and Frames Drums (optional) | Hugging Face: `huggingface.co` (the ONNX conversion of Magenta's model, a pinned revision) |
+| ONNX Runtime (runs the models) | Microsoft: its package on `files.pythonhosted.org` for Windows, its releases on `github.com` for Linux and macOS |
+
+The requests carry `User-Agent: Cantus/0.1.0-beta.9` and, when a download resumes, a `Range`
+header — nothing else. Each file's SHA-256 is checked before it is used. **ONNX Runtime's
+telemetry is turned off**: Microsoft's builds would otherwise send usage events, so Cantus
+sets `ORT_DISABLE_TELEMETRY=1` before the library loads and builds its environment with
+telemetry disabled. The models run in a helper program (`cantus-ml`) on your computer; your
+audio never leaves it. *Settings ▸ Models ▸ Remove* deletes a model.
+
 ## What stays on your computer
 
 Everything else. Cantus keeps its files in `%LOCALAPPDATA%\Cantus\` (or in `data\` beside
@@ -83,13 +117,14 @@ Everything else. Cantus keeps its files in `%LOCALAPPDATA%\Cantus\` (or in `data
   found), `update.json`;
 - `autosave\` (recovery copies of unsaved projects), `recordings\` (takes made before a
   project is saved), `Content\` (sound packs), `cache\` (waveform peaks, thumbnails, logos),
-  `updates\` (a downloaded installer).
+  `updates\` (a downloaded installer), `Models\` (the AI models you downloaded and their
+  runtime), `mcp\` (the agents' tokens, readable by you alone).
 
 Your projects, their `.autosave` and `.bak` copies and their `Audio` folders are wherever
 you save them. Uninstalling removes this folder only if you tick that option.
 
-The AI groundwork in the code (`cantus-ai`) has no live provider in this beta: nothing is
-sent to any AI service.
+A separation's stems are written into your project's `Audio\Stems\` folder; the WAVs an
+agent's listen keeps go to `cache\listen\` (the newest eight).
 
 ## Questions
 
@@ -146,7 +181,7 @@ El explorador de muestras y la ventana *Paquetes de sonidos* descargan un paquet
 cuando haces clic en *Instalar*** (o en la oferta del kit inicial). Los archivos vienen de
 las direcciones de `crates/cantus-content/manifest/content.json` — hoy
 `raw.githubusercontent.com` y `github.com`, los repositorios de los propios autores. Las
-peticiones llevan `User-Agent: Cantus/0.1.0-beta.8` (el programa y su versión) y, al
+peticiones llevan `User-Agent: Cantus/0.1.0-beta.9` (el programa y su versión) y, al
 reanudar una descarga interrumpida, una cabecera `Range`. No se envía nada más. Los
 paquetes se guardan en `%LOCALAPPDATA%\Cantus\Content\` y el SHA-256 de cada archivo se
 comprueba antes de usarlo. Cantus nunca busca paquetes nuevos por sí solo.
@@ -171,17 +206,54 @@ Los plug-ins CLAP y VST3 que instales se ejecutan dentro de Cantus con tus permi
 no los limita ni los vigila; algunos pueden conectarse a internet (licencias, descargas de
 contenido). Aplican las políticas de privacidad de sus fabricantes.
 
+## 6. IA: agentes y modelos (solo cuando los activas)
+
+**Cantus no tiene un servicio de IA propio ni envía nada a ninguno.** Nunca te pide, guarda
+ni usa una clave de API tuya — ni tu clave de Claude ni ninguna otra.
+
+**Agentes (MCP).** Un asistente que tú ejecutas (Claude Code, Claude Desktop, Cursor, VS
+Code, Gemini CLI, LM Studio) solo puede manejar Cantus si lo permites: *Ajustes ▸ IA ▸
+Permitir agentes externos* viene **desactivado**. Activado, Cantus escucha solo en
+`127.0.0.1` — esta computadora, nunca la red — y solo responde a un cliente que lleve un
+token guardado en `mcp\` junto a tus ajustes, que solo tu usuario puede leer (*Crear un
+token nuevo* desconecta a todos los clientes). El puente `cantus-mcp` que arrancan algunos
+clientes habla con esa misma puerta local y con nada más. Lo que un agente lee de Cantus —
+nombres de pistas, notas, ajustes, los números de una escucha — va al asistente en tu
+computadora; lo que ese asistente envíe después a su empresa lo rigen las condiciones de
+privacidad de su fabricante, no Cantus. *Área de IA: Desactivada* cierra la puerta y
+rechaza a todo agente.
+
+**Modelos (stems y audio a MIDI).** Ningún modelo viene en el instalador. La primera vez
+que separas stems o conviertes audio a MIDI, Cantus muestra la licencia, el tamaño y el
+origen del modelo y lo descarga **solo si aceptas**, de su autor:
+
+| Qué | De dónde |
+|---|---|
+| HT-Demucs (stems) | Meta: `dl.fbaipublicfiles.com`; su licencia de `raw.githubusercontent.com` (el repositorio de Meta) |
+| Basic Pitch (notas y acordes) | Spotify: `raw.githubusercontent.com` (el repositorio de Spotify, en un commit fijo) |
+| Onsets and Frames Drums (opcional) | Hugging Face: `huggingface.co` (la conversión a ONNX del modelo de Magenta, en una revisión fija) |
+| ONNX Runtime (ejecuta los modelos) | Microsoft: su paquete en `files.pythonhosted.org` para Windows, sus versiones en `github.com` para Linux y macOS |
+
+Las peticiones llevan `User-Agent: Cantus/0.1.0-beta.9` y, al reanudar una descarga, una
+cabecera `Range` — nada más. El SHA-256 de cada archivo se comprueba antes de usarlo. **La
+telemetría de ONNX Runtime está apagada**: las versiones de Microsoft enviarían eventos de
+uso, así que Cantus pone `ORT_DISABLE_TELEMETRY=1` antes de cargar la biblioteca y crea su
+entorno con la telemetría desactivada. Los modelos corren en un programa auxiliar
+(`cantus-ml`) en tu computadora; tu audio nunca sale de ella. *Ajustes ▸ Modelos ▸ Quitar*
+borra un modelo.
+
 ## Lo que se queda en tu computadora
 
 Todo lo demás. Cantus guarda sus archivos en `%LOCALAPPDATA%\Cantus\` (o en `data\` junto a
 `cantus.exe` en una copia portátil): ajustes, atajos, diseños, apariencia, dispositivos
 favoritos y recientes, la lista de plug-ins encontrados, el estado de las actualizaciones;
-`autosave\`, `recordings\`, `Content\`, `cache\` y `updates\`. Tus proyectos, sus copias
+`autosave\`, `recordings\`, `Content\`, `cache\`, `updates\`, `Models\` (los modelos de IA que
+descargaste y su motor) y `mcp\` (los tokens de los agentes, que solo tú puedes leer). Tus proyectos, sus copias
 `.autosave` y `.bak` y sus carpetas `Audio` están donde tú los guardes. Al desinstalar,
 esta carpeta se borra solo si marcas esa opción.
 
-La base de IA del código (`cantus-ai`) no tiene ningún proveedor activo en esta beta: no se
-envía nada a ningún servicio de IA.
+Los stems de una separación se escriben en la carpeta `Audio\Stems\` de tu proyecto; los WAV
+que guarda la escucha de un agente van a `cache\listen\` (los ocho más recientes).
 
 ## Preguntas
 

@@ -23,6 +23,13 @@
 //!
 //! A sample that is not a number is read as silence: nothing it touches is poisoned.
 
+// r34:listen — the headless ear a render's analysis taps hear with (ADR 0083).
+#[path = "speculum_ear.rs"]
+pub mod ear;
+#[cfg(test)]
+#[path = "speculum_ear_tests.rs"]
+mod ear_tests;
+
 use crate::aequalis::fft::Fft;
 use crate::dynfx_meter::Hold;
 use crate::math;

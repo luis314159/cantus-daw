@@ -149,7 +149,7 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/master' }}
       - run: bash packaging/linux/deps.sh
-      - run: cargo build --release -p cantus -p cantus-launch -p cantus-host -p cantus-sandbox --bins
+      - run: cargo build --release -p cantus -p cantus-launch -p cantus-host -p cantus-sandbox -p cantus-mcp -p cantus-ml --bins
       - name: AppImage
         env:
           CANTUS_APPIMAGE_QUICK: "1"

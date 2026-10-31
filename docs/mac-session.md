@@ -45,6 +45,7 @@ Anota versión de macOS, modelo (M1/M2/M3… o Intel), interfaz de audio y auric
 | 14 | **Muestras desde disco** | Carga el piano de Salamander (16 capas) y toca un acorde enorme con el pedal, o pega 40 notas a la vez en el piano roll y reprodúcelas. | Ningún hueco ni clic al empezar las notas. En el Mac de GitHub (disco virtual) las 40 voces tardan 150–170 ms en tener su primer bloque tras la cabeza (171 ms); en un Mac real debería ser mucho menos. |
 | 15 | **Plazo de un plug-in colgado** (opcional, con Rust instalado: `rustup`, y el código) | En la carpeta de Cantus: `cargo test -p cantus-rt --test ipc_process a_late_wait -- --nocapture` | Pasa: la espera de 5 ms acaba antes de 7 ms (en la máquina virtual de GitHub se permiten 10). Anota la mediana que imprime. |
 | 16 | **Reloj MIDI a tiempo** (opcional, con Rust y el código, como el 15) | `cargo test -p cantus-engine --test sync_midi the_out_thread -- --nocapture` | Pasa: la mediana del retraso por debajo de 0,5 ms y el percentil 90 de 5 ms. En la máquina virtual de GitHub los temporizadores despiertan tarde (mediana 6,7–9,6 ms) y se permiten 15 y 35 ms. Anota lo que imprime; si en el Mac real también llega tarde, el hilo de salida MIDI necesita la clase QoS *user-interactive* o enviar con la marca de tiempo de CoreMIDI. |
+| 17 | **Separar stems (la IA, ADR 0085)** <!-- r34:stems --> | *Ajustes ▸ Modelos*: acepta la licencia de HT-Demucs e instálalo; en una canción, clic derecho en un clip de audio ▸ *Separar stems…* ▸ *Separar*; luego vuelve a *Separar* con *Usar la tarjeta gráfica* activado. | Descarga el runtime de macOS (Apple silicon: 1.31.1; Intel: 1.23.2) y el modelo; `cantus-ml` aparece en el Monitor de Actividad y **carga la biblioteca de Microsoft** pese al *hardened runtime* (sus derechos quitan la validación de bibliotecas). Cuatro pistas bajo un bus, alineadas. Anota los segundos de una canción de 3 minutos en el procesador y con CoreML (y si CoreML la aceptó: el registro lo dice). |
 
 ## Cómo anotar los resultados
 
@@ -68,6 +69,7 @@ Copia esta tabla en `docs/round31/mac-session-results.md` (o pásamela en el cha
 | 14 | | |
 | 15 | | |
 | 16 | | |
+| 17 | | |
 
 Con un ✘, guarda lo que puedas: el registro de Cantus (ábrelo desde *Terminal* con
 `/Applications/Cantus.app/Contents/MacOS/cantus 2>&1 | tee ~/Desktop/cantus.log` y repite

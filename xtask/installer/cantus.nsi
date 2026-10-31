@@ -102,19 +102,41 @@ Page custom PrivacyPage PrivacyLeave
   ${EndIf}
 !macroend
 
-; Until no program of the install folder runs — cantus.exe (the launcher), each level's
-; program (files.nsh lists them), the scanner, the plug-in sandbox — up to 30 s, then
-; Retry/Cancel.
-!macro WAIT_FOR_CANTUS
+; $R3 = 1 when a copy of the MCP bridge an update moved aside (cantus-mcp.exe.old-<n>) is
+; still running.
+!macro CANTUS_ASIDE_BUSY
+  ClearErrors
+  FindFirst $R6 $R7 "$INSTDIR\cantus-mcp.exe.old*"
+  ${DoWhile} $R7 != ""
+    !insertmacro CANTUS_PROGRAM_BUSY "$INSTDIR\$R7"
+    FindNext $R6 $R7
+  ${Loop}
+  FindClose $R6
+!macroend
+
+; Until no program of the install folder runs (BUSY: files.nsh's list) — cantus.exe (the
+; launcher), each level's program, the scanner, the plug-in sandbox — up to 30 s, then
+; Retry/Cancel. The installer and an update do not wait for the MCP bridge: an AI app
+; (Claude Desktop, Cursor…) keeps it running as long as it is open, so it is moved aside
+; instead (CANTUS_BRIDGE_ASIDE). The uninstaller waits for it too, and asks.
+!macro WAIT_FOR_CANTUS BUSY
   StrCpy $R0 0
   ${Do}
-    !insertmacro CANTUS_PROGRAMS_BUSY
+    !insertmacro ${BUSY}
     ${If} $R3 == 0
       ${Break}
     ${EndIf}
     IntOp $R0 $R0 + 1
     ${If} $R0 > 60
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(CANTUS_CLOSE_CANTUS)" /SD IDCANCEL IDRETRY +3
+      ; Only the MCP bridge still running: an AI app (Claude Desktop, Cursor…) started it
+      ; and holds it — the words say to close that app (round 34).
+      !insertmacro CANTUS_APP_BUSY
+      ${If} $R3 == 1
+        StrCpy $R5 "$(CANTUS_CLOSE_CANTUS)"
+      ${Else}
+        StrCpy $R5 "$(CANTUS_CLOSE_BRIDGE)"
+      ${EndIf}
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$R5" /SD IDCANCEL IDRETRY +3
       SetErrorLevel 2
       Quit
       StrCpy $R0 0
@@ -124,12 +146,55 @@ Page custom PrivacyPage PrivacyLeave
 !macroend
 
 Function WaitForCantus
-  !insertmacro WAIT_FOR_CANTUS
+  !insertmacro WAIT_FOR_CANTUS CANTUS_APP_BUSY
 FunctionEnd
 
 Function un.WaitForCantus
-  !insertmacro WAIT_FOR_CANTUS
+  !insertmacro WAIT_FOR_CANTUS CANTUS_PROGRAMS_BUSY
 FunctionEnd
+
+; The MCP bridge (review 5 #3, review 6 #4): an AI app keeps it running, and Windows lets a
+; running program's file be renamed, never replaced. CANTUS_APP_FILES wrote the new one as
+; cantus-mcp.exe.new; here it takes the old one's place. The old one, if it will not go
+; (running), is moved aside under a name of its own (cantus-mcp.exe.old-<ticks>), and put
+; back if the new one cannot take its place — an install that stops anywhere leaves a
+; bridge. Copies aside from earlier updates go when they no longer run; the next install
+; or the uninstaller takes the rest (a per-user installer has no reboot queue).
+!macro CANTUS_BRIDGE_SWAP
+  ${If} ${FileExists} "$INSTDIR\cantus-mcp.exe.new"
+    ClearErrors
+    FindFirst $R6 $R7 "$INSTDIR\cantus-mcp.exe.old*"
+    ${DoWhile} $R7 != ""
+      Delete "$INSTDIR\$R7"
+      FindNext $R6 $R7
+    ${Loop}
+    FindClose $R6
+    StrCpy $R8 ""
+    ClearErrors
+    Delete "$INSTDIR\cantus-mcp.exe"
+    ${If} ${FileExists} "$INSTDIR\cantus-mcp.exe"
+      ; Running: aside, under a name no other copy has.
+      System::Call 'kernel32::GetTickCount() i .R9'
+      StrCpy $R8 "$INSTDIR\cantus-mcp.exe.old-$R9"
+      ClearErrors
+      Rename "$INSTDIR\cantus-mcp.exe" "$R8"
+      ${If} ${Errors}
+        ; It could not be moved: the old bridge stays, the new one is dropped.
+        Delete "$INSTDIR\cantus-mcp.exe.new"
+        StrCpy $R8 "failed"
+      ${EndIf}
+    ${EndIf}
+    ${If} $R8 != "failed"
+      ClearErrors
+      Rename "$INSTDIR\cantus-mcp.exe.new" "$INSTDIR\cantus-mcp.exe"
+      ${If} ${Errors}
+      ${AndIf} $R8 != ""
+        ; The new one could not take its place: the old one back.
+        Rename "$R8" "$INSTDIR\cantus-mcp.exe"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+!macroend
 
 !macro NOTIFY_ASSOCIATIONS
   System::Call 'shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i 0, p 0, p 0)'
@@ -141,6 +206,7 @@ Section "!$(CANTUS_SECTION_APP)" SecApp
   SectionIn RO
   Call WaitForCantus
   !insertmacro CANTUS_APP_FILES
+  !insertmacro CANTUS_BRIDGE_SWAP
 !ifdef PREBUILT_UNINSTALLER
   ; Made by the uninstaller-only pass and signed before it was embedded (ADR 0048 §8).
   SetOutPath "$INSTDIR"
@@ -382,6 +448,9 @@ Section "!un.$(CANTUS_UN_SECTION_APP)" UnSecApp
   SectionIn RO
   Call un.WaitForCantus
   !insertmacro CANTUS_APP_REMOVE
+  ; Copies of the bridge an update moved aside, and one it had not swapped in yet.
+  Delete "$INSTDIR\cantus-mcp.exe.old*"
+  Delete "$INSTDIR\cantus-mcp.exe.new"
   !insertmacro CANTUS_CLAP_REMOVE
   !insertmacro CANTUS_VST3_REMOVE
   Delete "$SMPROGRAMS\Cantus.lnk"

@@ -103,7 +103,7 @@ pub(crate) fn derive_tag(tag: u64, stage: usize, k: u64) -> u64 {
 }
 
 /// One stage of the chain.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Stage {
     id: NoteFxId,
     kind: NoteFxType,
@@ -114,7 +114,7 @@ struct Stage {
 }
 
 /// A track's note-effect chain.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Chain {
     stages: Vec<Stage>,
     /// How many stages are in use.

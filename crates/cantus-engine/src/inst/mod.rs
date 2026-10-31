@@ -113,6 +113,12 @@ pub enum Controller {
 }
 
 pub trait InstrumentUnit: Send + std::fmt::Debug {
+    /// A copy of this unit with all its state, to resume a render from (a range render's
+    /// checkpoint, round 34, ADR 0083). `None`: its state cannot be copied (a hosted
+    /// plug-in, a voice streaming from disk) and the range render pre-rolls instead.
+    fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
+        None
+    } // r34:listen
     /// New parameter values and assets. Called on the audio thread with each snapshot:
     /// read the spec, set the DSP, never allocate. Changes should glide where a jump
     /// would click.
@@ -329,6 +335,18 @@ pub struct NativeUnit {
 static NEXT_SERIAL: AtomicU64 = AtomicU64::new(1);
 
 impl NativeUnit {
+    // r34:listen — a range render's checkpoint (ADR 0083).
+    /// A copy of this unit with all its state, or `None` when its state cannot be copied.
+    pub fn fork(&self) -> Option<NativeUnit> {
+        Some(NativeUnit {
+            track: self.track,
+            kind: self.kind,
+            serial: self.serial,
+            unit: self.unit.fork()?,
+            automation: self.automation.clone(),
+        })
+    }
+
     /// Build a unit for `track`. Allocates: never on the audio thread.
     pub fn new(track: TrackId, kind: InstrumentKind, sample_rate: f32) -> Self {
         NativeUnit {

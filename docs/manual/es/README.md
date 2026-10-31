@@ -28,6 +28,15 @@ lo dice.
 14. [Problemas conocidos y limitaciones](#14-problemas-conocidos-y-limitaciones)
 15. [Reportar un error](#15-reportar-un-error)
 
+Además: [Lo que un agente de IA puede hacer en Cantus](ai-tools.md) — las herramientas, el catálogo de unidades, el corrector musical.
+
+Además: [Separar stems](stems.md) — una canción en batería, bajo, voces y el resto, en tu ordenador. <!-- r34:stems -->
+
+Además: [Convertir audio a MIDI](audio-to-midi.md) — una melodía, acordes o un loop de batería en notas sobre una pista nueva.
+
+La IA en este manual: [Agentes de IA (MCP)](#agentes-de-ia-mcp) — conecta a Claude u otro
+asistente; [El asistente de mastering](#el-asistente-de-mastering); [Escuchar, para agentes de IA](#escuchar-para-agentes-de-ia).
+
 ## 1. Instalación
 
 Cantus funciona en Windows, macOS y Linux; cada versión tiene un archivo para cada uno, en
@@ -1387,6 +1396,10 @@ Parar el transporte, o saltar con el cabezal, termina la actuación. Un cambio d
 que un clip de audio sin warp siga tocando el mismo tramo de su archivo; uno con warp sigue
 el tempo.
 
+**Audio a MIDI.** Clic derecho en un clip de audio ▸ *Convertir a MIDI…* convierte una
+melodía, una parte de acordes o un loop de batería en notas en una pista nueva: mira
+[Convertir audio a MIDI](audio-to-midi.md).
+
 ## 6. Mezclar: el mezclador, inserciones y envíos
 
 ![El mezclador](../img/mixer.png)
@@ -1555,6 +1568,66 @@ Las demos masterizan en este orden, y es un buen comienzo:
 *Pliegue* o una *Curva* dibujada, con sobremuestreo, tono, mezcla e *Igualar nivel*, para
 que lo más fuerte nunca te engañe. En el máster, los presets *Recorte de máster* y
 *Válvula en el medio* son los suaves.
+
+### El asistente de mastering
+
+Haz clic derecho en el nombre del máster ▸ *Asistente de mastering…*, o abre la lista
+*+ Añadir efecto* de la cadena del máster: la primera fila es el asistente. Escucha la
+mezcla tal como llega al máster y propone una cadena de efectos de Cantus para
+masterizarla; nada de lo que hace queda oculto: lo que propone son inserciones normales que
+puedes abrir y cambiar.
+
+1. Elige adónde va la canción: **Plataforma** (‹ › recorre Spotify, Apple Music, YouTube,
+   TIDAL, Amazon Music, SoundCloud, CD, Club y EBU R 128). La línea de debajo dice a qué
+   apunta la plataforma —Spotify reproduce cada canción a −14 LUFS y quiere el pico real
+   igual o por debajo de −1 dBTP— y el pie del panel dice de dónde sale esa cifra y cuándo
+   se comprobó.
+2. Elige el **Equilibrio**: la curva de un género (Pop, Rock, Electrónica, Hip-hop,
+   Acústica, Clásica) o *Cargar referencia…*: un tema terminado cuyo sonido te guste (WAV,
+   FLAC, MP3, OGG, AIFF). Con una referencia el asistente iguala su tono y su anchura; la
+   sonoridad la sigue fijando la plataforma.
+3. **Escucha** toda la canción o solo el bucle. Si el máster ya tiene efectos, elige si la
+   propuesta los **reemplaza** o se **añade después**.
+4. Haz clic en **Escuchar y proponer**. Cantus renderiza la mezcla (una canción de tres
+   minutos tarda lo que una exportación), la mide y prueba la cadena sobre ella hasta que la
+   sonoridad cae en el objetivo. *Detener* lo para.
+
+La tabla muestra, para la mezcla, el máster propuesto y el objetivo: sonoridad integrada,
+pico real, rango de sonoridad, los tres segundos más fuertes, anchura (cuánto lado hay
+frente al centro), lo que pierde la suma a mono y la correlación mínima. La gráfica dibuja
+el equilibrio por octavas: barras para la mezcla, una línea para la propuesta, aros para el
+objetivo. Debajo, cada unidad de la cadena y **por qué** está: un ecualizador hacia la curva
+(como mucho ±3 dB por banda; ±6 con referencia), una compresión suave cuando la dinámica es
+más amplia de lo que el género suele tener, anchura estéreo o grave en mono cuando la mezcla
+suma mal a mono, y un limitador de pico real cuya ganancia deja la sonoridad de la
+plataforma bajo su techo.
+
+**A/B** reproduce la mezcla (A) o el máster propuesto (B) desde el mismo punto, bajando el
+más fuerte a la sonoridad del otro: comparas tono y dinámica, no nivel —más fuerte siempre
+parece mejor, y el A/B no deja que te engañe—. Mientras comparas no cambia nada del
+proyecto.
+
+**Aplicar** pone la cadena en el máster en **un solo paso de deshacer** (*Editar ▸
+Deshacer* lo quita todo). Luego reproduce la canción y ajusta lo que quieras de oído: cada
+perilla es tuya.
+
+### Escuchar, para agentes de IA
+
+Cuando permites que un asistente como Claude trabaje en Cantus (*Ajustes ▸ IA*), también
+puede escuchar: `audition` renderiza un tramo —o una parte en solo, o la mezcla sin la
+cadena del máster— y responde con las cifras de arriba para el tramo y cada sección, el
+espectro frente a la curva de un género, los clics en los cambios de sección y un WAV de lo
+que oyó (en la caché de Cantus); `analyse_tracks` mide cada pista dentro de la mezcla;
+`masking_matrix` dice qué pistas se pelean por las mismas frecuencias, y dónde;
+`set_mix_targets` lleva pistas a la sonoridad que pide el agente, en un paso de deshacer;
+`master_assist`, `apply_master_chain` y `replace_master_chain` (que te pregunta antes: quita
+los efectos propios del máster) son el asistente de mastering de arriba. Mientras
+renderiza, Cantus guarda una copia del estado de la canción en cada marcador (o cada ocho
+compases), así que cuando el agente cambia el último estribillo solo vuelve a oír el último
+estribillo, con el mismo sonido, muestra a muestra, que al reproducir la canción entera. Con
+un plug-in alojado en el proyecto esa copia no se puede hacer; el tramo empieza entonces
+ocho segundos antes, y la respuesta lo dice. La indicación *Masterizar para streaming* le
+pide a un agente que lo haga todo para la plataforma que digas.
 
 ## 8. Exportar
 
@@ -2148,7 +2221,62 @@ con su propia cara* — sí o no, mira [La cara de cada unidad](#la-cara-de-cada
 colores, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB
 de forma predeterminada; cuando se llena, salen primero las muestras que llevan más tiempo
 sin usarse — y *Vaciar caché*; vive en `%LOCALAPPDATA%\Cantus\cache\samples`, o en la
-carpeta `data` de una copia portátil), *Actualizaciones* y *Plug-ins*.
+carpeta `data` de una copia portátil), *Actualizaciones*, *Plug-ins* e *IA* (mira
+[Agentes de IA](#agentes-de-ia-mcp) abajo).
+
+### Agentes de IA (MCP)
+
+Un asistente de IA que ya uses — Claude Code, Claude Desktop, Cursor, VS Code, Gemini CLI,
+LM Studio — puede manejar Cantus mediante el *Model Context Protocol* (MCP). El asistente
+pone su modelo; Cantus pone las herramientas: pistas, notas, el mezclador, los efectos y
+sus parámetros, la automatización, la exportación. **Cada cambio de un agente es un paso
+del historial de deshacer**, llamado *IA: …* (*IA: escribir la estrofa*), y **Ctrl+Z** lo
+deshace como cualquiera de los tuyos. Cantus no envía nada a ningún servicio de IA; lo que
+tu asistente envíe al suyo es cosa suya (lee sus condiciones de privacidad).
+
+**Actívalo.** *Ajustes ▸ IA ▸ Permitir agentes externos: Activada*. Cantus abre una puerta
+solo en este ordenador — `http://127.0.0.1:39571/mcp`, el puerto se cambia debajo —
+protegida por un token guardado en tu carpeta de ajustes, legible solo por ti. *Copiar el
+token* lo pone en el portapapeles; *Crear un token nuevo* desconecta a todos los agentes
+(configura de nuevo cada cliente).
+
+**Conecta un cliente.** *Copiar configuración para* tiene un botón por cliente; cada uno
+copia lo que ese cliente pide, con su propio token, y dice dónde va:
+
+- **Claude Code**: una orden — ejecútala en una terminal (`claude mcp add --transport http
+  cantus …`); luego `claude mcp list` muestra *cantus* conectado mientras Cantus está abierto.
+- **Claude Desktop**: las líneas para `claude_desktop_config.json`, que arrancan el
+  **puente** `cantus-mcp` (instalado junto a Cantus); o *Guardar la extensión (.mcpb)…* y
+  abre el archivo que guarda.
+- **Cursor, VS Code, Gemini CLI, LM Studio**: el JSON para su archivo MCP
+  (`~/.cursor/mcp.json`, `.vscode/mcp.json`, `~/.gemini/settings.json`, el `mcp.json` de
+  LM Studio).
+
+Un cliente que arranca un programa en vez de una dirección también usa el puente; si Cantus
+no está abierto, o no permite agentes externos, responde con un mensaje que lo dice.
+
+**Qué puede hacer un agente.** Leer el proyecto y el transporte (reproducir, parar, ir a)
+se hacen al momento. **Las ediciones te preguntan antes**: una tarjeta abajo a la derecha
+dice qué quiere hacer el agente — *Claude Code quiere: …*, lo que tocaría — con *Permitir*,
+*Permitir en esta sesión* (esa herramienta, de ese agente, hasta que se desconecte) y
+*Denegar*; sin respuesta en dos minutos no se hace nada. *Ediciones: Sin preguntar* deja
+que las ediciones se hagan al momento. **Quitar o reemplazar tu material, deshacer y los
+archivos siempre preguntan**, diga lo que diga ese ajuste. Los *Archivos* están
+desactivados hasta que eliges *Preguntar cada vez*, y entonces solo alcanzan la carpeta del
+proyecto y las carpetas que añadas debajo. *No permitir nunca* rechaza una herramienta por
+su nombre. Los nombres y las notas dentro de un proyecto se tratan como datos, nunca como
+instrucciones.
+
+**Vigila y deshaz.** Mientras un agente está conectado, una ficha en la barra superior
+muestra su nombre (su luz se vuelve azul mientras una de sus llamadas te espera). Un clic
+abre la **actividad de IA**: los agentes, cada uno con *Deshacer todos sus cambios* — deshace
+los pasos del agente desde el más reciente y se detiene en el primero que no es suyo,
+diciendo cuál — y *Desconectar*; los trabajos en curso (renders largos), con su progreso; y
+cada llamada y lo que pasó con ella, rechazos incluidos. Clic derecho en la ficha abre
+*Ajustes ▸ IA*.
+
+**Un solo interruptor.** *Área de IA: Desactivada* rechaza a todo agente, cierra la puerta
+y oculta el área; Cantus es un DAW completo sin ella.
 
 ## 12. Atajos de teclado
 
@@ -2286,7 +2414,15 @@ Esto es una beta. Lo que ya sabemos:
   guardan las muestras de los paquetes con su ruta completa.
 - **Fuera de esta beta**: los instaladores de macOS y Linux (muy pronto; el código compila
   y pasa sus pruebas en Linux), los protocolos de superficies de control (Mackie Control,
-  HUI), funciones de IA, varios arreglos por proyecto.
+  HUI), varios arreglos por proyecto.
+- **IA**: un panel de asistente dentro de Cantus (con tu propia clave o un modelo local) y
+  la generación de audio no están en esta beta — los agentes se conectan desde fuera por
+  MCP (§11). Los stems y el audio a MIDI corren en el procesador (la tarjeta gráfica solo se
+  usa donde el motor de ejecución la ofrece, en macOS); separar una canción de tres minutos
+  tarda alrededor de un minuto. Un rango que escucha un agente empieza unos segundos antes
+  cuando el proyecto tiene un plug-in alojado, y la modulación de Space y el rotativo de
+  Organum giran desde su inicio, así que ese rango se parece mucho, sin ser idéntico, a la
+  canción entera (la respuesta lo dice).
 
 ## 15. Reportar un error
 

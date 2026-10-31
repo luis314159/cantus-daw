@@ -645,6 +645,12 @@ pub enum Command {
         id: AudioSourceId,
         path: String,
     },
+    /// Set or clear what made a file of the pool (schema 48, ADR 0085): a model's
+    /// separation, transcription or generation. The source must be in the pool.
+    SetAudioProvenance {
+        id: AudioSourceId,
+        provenance: Option<Box<crate::audio::Provenance>>,
+    },
     /// Set or clear what makes a clip an audio clip: clip gain, fades and their curves,
     /// reverse. One command for all of them, so a drag on a fade handle merges.
     SetClipAudio {
@@ -1013,6 +1019,7 @@ impl Command {
             RemoveGroove { .. } => "cmd.notefx.remove_groove",
             SetGroove { .. } => "cmd.notefx.set_groove",
             InsertAudioSource { .. } => "cmd.insert_audio_source",
+            SetAudioProvenance { .. } => "cmd.set_audio_provenance", // r34:stems
             RemoveAudioSource { .. } => "cmd.remove_audio_source",
             SetAudioSourcePath { .. } => "cmd.set_audio_source_path",
             SetClipAudio { .. } => "cmd.set_clip_audio",
@@ -2629,7 +2636,33 @@ impl Command {
                     return Err(CommandError::AudioSourceInUse(id));
                 }
                 let source = project.audio_pool.remove(index);
-                Ok(InsertAudioSource { source })
+                // Its provenance goes with it, and comes back with it (ADR 0085).
+                match project.provenance.remove(&id) {
+                    None => Ok(InsertAudioSource { source }),
+                    Some(p) => Ok(Batch {
+                        label_key: "cmd.insert_audio_source".into(),
+                        commands: vec![
+                            InsertAudioSource { source },
+                            SetAudioProvenance {
+                                id,
+                                provenance: Some(Box::new(p)),
+                            },
+                        ],
+                    }),
+                }
+            }
+            SetAudioProvenance { id, provenance } => {
+                if project.audio_source(id).is_none() {
+                    return Err(CommandError::AudioSourceNotFound(id));
+                }
+                let old = match provenance {
+                    Some(p) => project.provenance.insert(id, *p),
+                    None => project.provenance.remove(&id),
+                };
+                Ok(SetAudioProvenance {
+                    id,
+                    provenance: old.map(Box::new),
+                })
             }
             SetAudioSourcePath { id, path } => {
                 let s = project
@@ -3039,7 +3072,7 @@ impl Command {
                         }
                     }
                     c.notes.extend(notes.iter().cloned());
-                    c.notes.sort_by_key(|n| (n.start, n.pitch));
+                    c.notes.sort_by_key(|n| (n.start, n.pitch, n.id)); // r34:tools — ties in a canonical order, so an undo restores it
                     Ok(())
                 })?;
                 let ids = notes.iter().map(|n| n.id).collect();
@@ -3087,7 +3120,7 @@ impl Command {
                             *slot = n.clone();
                         }
                     }
-                    c.notes.sort_by_key(|n| (n.start, n.pitch));
+                    c.notes.sort_by_key(|n| (n.start, n.pitch, n.id)); // r34:tools — ties in a canonical order, so an undo restores it
                     Ok(old)
                 })?;
                 Ok(SetNotes {

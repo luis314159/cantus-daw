@@ -1,7 +1,9 @@
 //! The quick-start manual as pages a browser opens offline: `docs/manual/{en,es}/README.md`
 //! (read on GitHub as they are) turned into `manual/{en,es}/index.html` beside
-//! `cantus.exe`, with the pictures in `manual/img/`. *Help ▸ Manual* opens the page in the
-//! interface's language (round 22).
+//! `cantus.exe`, every other page of a language (`stems.md`, `ai-tools.md`…) into
+//! `manual/{lang}/<page>.html` beside it, with the pictures in `manual/img/`. *Help ▸
+//! Manual* opens the index in the interface's language (round 22); links between pages
+//! become links between the built pages, anchors kept (round 34).
 //!
 //! The Markdown is the plain subset the manual is written in — headings, paragraphs,
 //! lists, tables, quotes, pictures, `code`, **bold**, *italic* and links — so a small
@@ -20,12 +22,14 @@ pub fn build(src: &Path, out: &Path) -> Result<Vec<String>, String> {
     let mut written = Vec::new();
     let _ = std::fs::remove_dir_all(out);
     for lang in LANGS {
-        let md = std::fs::read_to_string(src.join(lang).join("README.md"))
-            .map_err(|e| format!("{lang}/README.md: {e}"))?;
-        let html = page(lang, &md);
-        let rel = format!("{lang}/index.html");
-        write(&out.join(&rel), html.as_bytes())?;
-        written.push(rel);
+        for name in pages(&src.join(lang)).map_err(|e| format!("{lang}: {e}"))? {
+            let md = std::fs::read_to_string(src.join(lang).join(&name))
+                .map_err(|e| format!("{lang}/{name}: {e}"))?;
+            let html = page(lang, &md);
+            let rel = format!("{lang}/{}", html_name(&name));
+            write(&out.join(&rel), html.as_bytes())?;
+            written.push(rel);
+        }
     }
     let img = src.join("img");
     let mut pics: Vec<String> = std::fs::read_dir(&img)
@@ -43,6 +47,39 @@ pub fn build(src: &Path, out: &Path) -> Result<Vec<String>, String> {
         written.push(rel);
     }
     Ok(written)
+}
+
+/// The Markdown pages of one language's folder, `README.md` (the index) first, then the
+/// rest by name. A folder without `README.md` is an error.
+pub fn pages(dir: &Path) -> Result<Vec<String>, String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".md") && n != "README.md")
+        .collect();
+    names.sort();
+    if !dir.join("README.md").is_file() {
+        return Err("README.md: not found".into());
+    }
+    names.insert(0, "README.md".into());
+    Ok(names)
+}
+
+/// The built page of a Markdown page, its folders kept: `README.md` is `index.html`,
+/// `stems.md` is `stems.html`, `../es/README.md` is `../es/index.html`.
+pub fn html_name(md: &str) -> String {
+    let (dir, file) = match md.rfind('/') {
+        Some(i) => md.split_at(i + 1),
+        None => ("", md),
+    };
+    let stem = file.strip_suffix(".md").unwrap_or(file);
+    if stem == "README" {
+        format!("{dir}index.html")
+    } else {
+        format!("{dir}{stem}.html")
+    }
 }
 
 fn write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -121,8 +158,13 @@ pub fn href(url: &str) -> String {
             other => format!("{REPO}{other}"),
         };
     }
-    // `../es/README.md` is the other language's page.
-    url.replace("README.md", "index.html")
+    // Another page of the manual (`stems.md`, `README.md#x`, `../es/stems.md`) is its
+    // built page, the anchor kept.
+    let (path, anchor) = url.split_at(url.find('#').unwrap_or(url.len()));
+    if path.ends_with(".md") {
+        return format!("{}{anchor}", html_name(path));
+    }
+    url.to_owned()
 }
 
 /// Inline Markdown: code, pictures, links, autolinks, bold, italic; the rest escaped.

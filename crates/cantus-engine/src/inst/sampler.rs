@@ -51,7 +51,7 @@ pub mod tel {
     pub const KEYSWITCH: usize = 48;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     ex: Exemplar,
     fs: f32,
@@ -276,6 +276,11 @@ fn init_zone(trim_db: f32) -> (ZoneParams, Source) {
 }
 
 impl InstrumentUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
+        // A zone streaming from disk reads through the reader's boards: not state a copy
+        // can own (ADR 0050), so a range render pre-rolls instead.
+        (self.streamed == 0).then(|| Box::new(self.clone()) as Box<dyn InstrumentUnit>)
+    } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, assets: &Assets) {
         // Forget last time's zones.
         let defaults = &model::ZONE_PARAMS;

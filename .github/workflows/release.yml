@@ -204,8 +204,8 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
       - run: cargo test --workspace
-      - name: Build (the app, the plug-in scanner, the sandbox)
-        run: cargo build --release -p cantus -p cantus-host -p cantus-sandbox
+      - name: Build (the app, the plug-in scanner, the sandbox, the MCP bridge, the ML helper)
+        run: cargo build --release -p cantus -p cantus-host -p cantus-sandbox -p cantus-mcp -p cantus-ml # r34:mcp r34:stems
       - name: The AppImage
         run: |
           version="$(cargo run -q -p xtask -- version)"

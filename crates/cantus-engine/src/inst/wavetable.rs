@@ -424,7 +424,7 @@ pub fn settings(spec: &NativeSpec, assets: &Assets) -> Settings {
     s
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     dsp: Unda,
 }
@@ -439,6 +439,9 @@ impl Unit {
 }
 
 impl InstrumentUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, assets: &Assets) {
         self.dsp.set(&settings(spec, assets));
         for (m, key) in MACRO_KEYS.iter().enumerate() {

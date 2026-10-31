@@ -25,6 +25,7 @@ pub mod external;
 pub mod freeze;
 pub mod fx;
 pub mod groove;
+pub mod harmony; // r34:tools (ADR 0082): chords, charts, voicings, the music linter
 pub mod inst;
 pub mod instrument;
 pub mod links;
@@ -46,8 +47,8 @@ pub mod time;
 pub mod warp;
 
 pub use audio::{
-    AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, RecordSettings,
-    TakeMode, TrackInput,
+    AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, Provenance,
+    RecordSettings, TakeMode, TrackInput,
 };
 pub use automation::{AutoLane, AutoMode, AutoPoint, AutoRange, AutoTarget, Automation, Shape};
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, HistoryMark, MergeKey};

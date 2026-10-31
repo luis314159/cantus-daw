@@ -144,16 +144,28 @@ pub(crate) struct Part {
     tmp: PathBuf,
     path: PathBuf,
     done: bool,
+    /// Never replace what is at `path` (`ExportSettings::no_replace`).
+    no_replace: bool,
 }
 
 impl Part {
-    pub(crate) fn new(path: &Path) -> Part {
+    pub(crate) fn new(path: &Path, no_replace: bool) -> Part {
         let mut name = path.file_name().unwrap_or_default().to_os_string();
         name.push(".part");
         Part {
             tmp: path.with_file_name(name),
             path: path.to_path_buf(),
             done: false,
+            no_replace,
+        }
+    }
+
+    /// Put the part at its path: a rename, or — never replacing — [`place_new`].
+    fn place(&self) -> std::io::Result<()> {
+        if self.no_replace {
+            place_new(&self.tmp, &self.path)
+        } else {
+            std::fs::rename(&self.tmp, &self.path)
         }
     }
 
@@ -161,7 +173,7 @@ impl Part {
         &self,
         f: impl FnOnce(&mut std::io::BufWriter<std::fs::File>) -> Result<(), ExportError>,
     ) -> Result<(), ExportError> {
-        let file = std::fs::File::create(&self.tmp)?;
+        let file = new_part(&self.tmp)?;
         let mut w = std::io::BufWriter::with_capacity(1 << 20, file);
         f(&mut w)?;
         use std::io::Write;
@@ -173,10 +185,85 @@ impl Part {
     }
 
     pub(crate) fn commit(mut self) -> Result<PathBuf, ExportError> {
-        std::fs::rename(&self.tmp, &self.path)?;
+        self.place()?;
         self.done = true;
         Ok(self.path.clone())
     }
+}
+
+/// Open a part to write: a new file, never through a link. A stale part left by a crash (a
+/// plain file) is removed first; anything else there is refused (fix review 3 #8).
+pub fn new_part(tmp: &Path) -> std::io::Result<std::fs::File> {
+    if let Ok(m) = std::fs::symlink_metadata(tmp) {
+        if m.file_type().is_file() {
+            std::fs::remove_file(tmp)?;
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                "something that is not a file is where the part goes",
+            ));
+        }
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(tmp)
+}
+
+/// Put a written part at `path`, never replacing anything there: a hard link, which fails if
+/// a file or a link is there. Where the file system has no hard links (FAT32, exFAT, some
+/// network shares — fix review 3 #2) the system's no-replace rename
+/// ([`cantus_rt::place::rename_no_replace`], fix review 4 #3): one step, which a crash
+/// cannot leave half done. Only where that is missing too is the part copied into a file
+/// made new, synced, and that file removed again if the copy fails. Once the target is in
+/// place, removing the part is best effort (fix review 3 #7): the output is there either way.
+pub fn place_new(part: &Path, path: &Path) -> std::io::Result<()> {
+    place_new_with(
+        part,
+        path,
+        |a, b| std::fs::hard_link(a, b),
+        cantus_rt::place::rename_no_replace,
+    )
+}
+
+/// [`place_new`] with the linking and renaming steps given (tests: a file system without
+/// links, without a no-replace rename).
+pub fn place_new_with(
+    part: &Path,
+    path: &Path,
+    link: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+    rename: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    let exists = |e: &std::io::Error| e.kind() == std::io::ErrorKind::AlreadyExists;
+    match link(part, path) {
+        Ok(()) => {}
+        Err(e) if exists(&e) => return Err(e),
+        Err(_) => match rename(part, path) {
+            Ok(()) => return Ok(()),
+            Err(e) if exists(&e) => return Err(e),
+            Err(_) => copy_new(part, path)?,
+        },
+    }
+    let _ = std::fs::remove_file(part);
+    Ok(())
+}
+
+/// The last resort of [`place_new_with`]: the part copied into a file made new at `path`,
+/// synced, and that file removed again if the copy fails.
+fn copy_new(part: &Path, path: &Path) -> std::io::Result<()> {
+    let mut to = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    let copied = std::fs::File::open(part)
+        .and_then(|mut from| std::io::copy(&mut from, &mut to))
+        .and_then(|_| to.sync_all());
+    if let Err(e) = copied {
+        drop(to);
+        let _ = std::fs::remove_file(path);
+        return Err(e);
+    }
+    Ok(())
 }
 
 /// Put every part in its place, or none: each file a part would replace is moved aside
@@ -191,6 +278,13 @@ pub(crate) fn commit_all(parts: Vec<Part>) -> Result<Vec<PathBuf>, ExportError> 
         }
     };
     for part in &parts {
+        if part.no_replace {
+            if std::fs::symlink_metadata(&part.path).is_ok() {
+                restore(&aside);
+                return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists).into());
+            }
+            continue;
+        }
         if part.path.exists() {
             let mut name = part.path.file_name().unwrap_or_default().to_os_string();
             name.push(".old");
@@ -204,7 +298,7 @@ pub(crate) fn commit_all(parts: Vec<Part>) -> Result<Vec<PathBuf>, ExportError> 
     }
     let mut placed: Vec<PathBuf> = Vec::with_capacity(parts.len());
     for mut part in parts {
-        if let Err(e) = std::fs::rename(&part.tmp, &part.path) {
+        if let Err(e) = part.place() {
             for p in &placed {
                 let _ = std::fs::remove_file(p);
             }
@@ -291,7 +385,7 @@ pub(crate) fn encode_one(
     } else {
         from + span * 0.1
     };
-    let part = Part::new(path);
+    let part = Part::new(path, s.no_replace);
     part.write(|w| encode::write(w, &a, s, tags, &mut ctl.span(Phase::Encode, enc_from, to)))?;
     if ctl.cancelled() {
         return Err(ExportError::Cancelled);
@@ -396,4 +490,128 @@ pub struct StemsJob {
     pub specs: Vec<StemSpec>,
     pub units: Vec<EffectUnit>,
     pub instruments: Vec<NativeUnit>,
+}
+
+#[cfg(test)]
+mod place_tests {
+    use super::*;
+
+    fn dir(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("cantus-place-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// Fix review 3 #2: where the file system has no hard links, the part is copied into a
+    /// new file — never over one that is there.
+    #[test]
+    fn without_hard_links_the_part_is_copied_into_a_new_file() {
+        let d = dir("fat");
+        let (part, path) = (d.join("mix.wav.part"), d.join("mix.wav"));
+        std::fs::write(&part, b"the export").unwrap();
+        let no_links = |_: &Path, _: &Path| Err(std::io::Error::other("Incorrect function"));
+        let no_rename = |_: &Path, _: &Path| Err(std::io::ErrorKind::Unsupported.into());
+        place_new_with(&part, &path, no_links, no_rename).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"the export");
+        assert!(!part.exists());
+        std::fs::write(&part, b"again").unwrap();
+        let e = place_new_with(&part, &path, no_links, no_rename).unwrap_err();
+        assert_eq!(e.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"the export",
+            "never replaced"
+        );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Fix review 3 #7: once linked, a part that cannot be removed does not fail the output.
+    #[test]
+    fn a_placed_output_succeeds_even_if_its_part_stays() {
+        let d = dir("linked");
+        let (part, path) = (d.join("a.part"), d.join("a.wav"));
+        std::fs::write(&part, b"x").unwrap();
+        // A link step that succeeds and takes the part away first: removing it then fails.
+        let linked = |a: &Path, b: &Path| std::fs::rename(a, b);
+        let unused = |_: &Path, _: &Path| -> std::io::Result<()> { unreachable!() };
+        place_new_with(&part, &path, linked, unused).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"x");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Fix review 3 #8: a part is never opened through a link; a stale plain part goes.
+    #[test]
+    fn a_part_is_new_and_never_a_link() {
+        let d = dir("part");
+        let part = d.join("b.wav.part");
+        std::fs::write(&part, b"stale").unwrap();
+        drop(new_part(&part).unwrap());
+        assert_eq!(
+            std::fs::read(&part).unwrap(),
+            b"",
+            "the stale part replaced by a new one"
+        );
+        let _ = std::fs::remove_file(&part);
+        std::fs::create_dir(&part).unwrap();
+        assert!(new_part(&part).is_err(), "not a file: refused");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Fix review 4 #2: a link where the part goes, to a file elsewhere, is refused and that
+    /// file left whole (`File::create` would have followed it and emptied it). Windows makes
+    /// file links only with the privilege or developer mode: skipped where it cannot.
+    #[test]
+    fn a_link_where_the_part_goes_is_refused_and_its_file_untouched() {
+        let (d, elsewhere) = (dir("part-link"), dir("part-link-elsewhere"));
+        let (part, theirs) = (d.join("c.wav.part"), elsewhere.join("theirs.txt"));
+        std::fs::write(&theirs, b"someone's file").unwrap();
+        #[cfg(unix)]
+        let made = std::os::unix::fs::symlink(&theirs, &part);
+        #[cfg(windows)]
+        let made = std::os::windows::fs::symlink_file(&theirs, &part);
+        if let Err(e) = made {
+            eprintln!("no file link could be made here ({e}): skipped");
+            let _ = std::fs::remove_dir_all(&d);
+            let _ = std::fs::remove_dir_all(&elsewhere);
+            return;
+        }
+        assert!(new_part(&part).is_err(), "a link: refused");
+        assert_eq!(std::fs::read(&theirs).unwrap(), b"someone's file");
+        assert!(std::fs::symlink_metadata(&part)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        let _ = std::fs::remove_dir_all(&d);
+        let _ = std::fs::remove_dir_all(&elsewhere);
+    }
+
+    /// Fix review 4 #3: without hard links the part is renamed into place, never replacing —
+    /// the copy, which a crash could leave half written, only where no such rename exists.
+    #[test]
+    fn without_hard_links_the_part_is_renamed_without_replacing() {
+        let d = dir("rename");
+        let (part, path) = (d.join("m.wav.part"), d.join("m.wav"));
+        std::fs::write(&part, b"the export").unwrap();
+        let no_links = |_: &Path, _: &Path| Err(std::io::Error::other("Incorrect function"));
+        let renamed = std::cell::Cell::new(0);
+        let rename = |a: &Path, b: &Path| {
+            renamed.set(renamed.get() + 1);
+            cantus_rt::place::rename_no_replace(a, b)
+        };
+        place_new_with(&part, &path, no_links, rename).unwrap();
+        assert_eq!(renamed.get(), 1, "the rename, not a copy");
+        assert_eq!(std::fs::read(&path).unwrap(), b"the export");
+        assert!(!part.exists());
+        std::fs::write(&part, b"again").unwrap();
+        let e = place_new_with(&part, &path, no_links, rename).unwrap_err();
+        assert_eq!(e.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"the export",
+            "never replaced"
+        );
+        assert_eq!(std::fs::read(&part).unwrap(), b"again", "nor copied over");
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

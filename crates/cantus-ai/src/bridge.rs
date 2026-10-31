@@ -1,9 +1,15 @@
 //! Command bridge: turns model tool calls into ordinary [`Command`]s. An agent gets no
 //! back door — it goes through the same bus, undo and audit as a mouse click (ADR 0004).
+//!
+//! Since round 34 (ADR 0082) the tools themselves are the one table in
+//! [`crate::tools_project::TOOLS`]: this bridge is the assistant panel's door to it —
+//! [`tool_specs`] lists the table, [`to_command`] plans a call against a bare bus.
 
 use crate::provider::{ToolCall, ToolSpec};
-use cantus_core::{Command, CommandBus, EffectKind, FirmusParam, Project, Ticks, TrackId};
-use serde_json::{json, Value};
+use crate::tool::{ToolClass, ToolCx, ToolError, ToolHost, ToolRun};
+use cantus_core::{Command, CommandBus, Project};
+use std::any::Any;
+use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -11,107 +17,62 @@ pub enum BridgeError {
     #[error("unknown tool {0:?}")]
     UnknownTool(String),
     #[error("missing or invalid argument {0:?}")]
-    BadArgument(&'static str),
-    #[error("track {0} not found")]
-    TrackNotFound(u64),
+    BadArgument(String),
+    #[error("{0} not found")]
+    NotFound(String),
+    #[error("{0}")]
+    Tool(String),
 }
 
-/// The tools Cantus exposes to any agent (and, later, over MCP). Kept small on purpose:
-/// every entry is a promise we have to keep forever.
+impl From<ToolError> for BridgeError {
+    fn from(e: ToolError) -> Self {
+        match e {
+            ToolError::BadArgument { name, reason } => {
+                BridgeError::BadArgument(format!("{name}: {reason}"))
+            }
+            ToolError::NotFound(what) => BridgeError::NotFound(what),
+            other => BridgeError::Tool(other.to_string()),
+        }
+    }
+}
+
+/// A host over a bare bus: what the panel, the bridge and the tests plan against.
+#[derive(Default)]
+pub struct BareHost {
+    pub bus: CommandBus,
+    /// The project's folder, when the project has one.
+    pub dir: Option<PathBuf>,
+}
+
+impl ToolHost for BareHost {
+    fn bus(&self) -> &CommandBus {
+        &self.bus
+    }
+    fn bus_mut(&mut self) -> &mut CommandBus {
+        &mut self.bus
+    }
+    fn project_dir(&self) -> Option<PathBuf> {
+        self.dir.clone()
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+/// The tools Cantus exposes to any agent: the project's table, the same the MCP server
+/// lists (every entry is a promise we keep forever).
 pub fn tool_specs() -> Vec<ToolSpec> {
-    vec![
-        ToolSpec {
-            name: "describe_project".into(),
-            description: "Read-only summary of the open project: tempo, tracks, clips, note counts.".into(),
-            input_schema: json!({ "type": "object", "properties": {} }),
-        },
-        ToolSpec {
-            name: "set_tempo".into(),
-            description: "Set the project tempo in beats per minute (20-999).".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": { "bpm": { "type": "number" } },
-                "required": ["bpm"]
-            }),
-        },
-        ToolSpec {
-            name: "set_tempo_point".into(),
-            description: "Put a tempo change on the tempo track at a beat, 0 to 1 000 000 (a ramp when `ramp` is true: the tempo moves linearly from this point to the next; leave `ramp` out to keep an existing point's own). Beat 0 sets the song's starting tempo.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "beat": { "type": "number", "minimum": 0, "maximum": 1_000_000 },
-                    "bpm": { "type": "number" },
-                    "ramp": { "type": "boolean" }
-                },
-                "required": ["beat", "bpm"]
-            }),
-        },
-        ToolSpec {
-            name: "add_track".into(),
-            description: "Create a new instrument track playing the built-in Firmus synth.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": { "name": { "type": "string" } },
-                "required": ["name"]
-            }),
-        },
-        ToolSpec {
-            name: "add_notes".into(),
-            description: "Add MIDI notes to a track. Positions/lengths are in beats (quarter notes) from the project start. A clip is created if the track has none.".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "track_id": { "type": "integer" },
-                    "notes": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "start_beats": { "type": "number" },
-                                "length_beats": { "type": "number" },
-                                "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
-                                "velocity": { "type": "integer", "minimum": 1, "maximum": 127 }
-                            },
-                            "required": ["start_beats", "length_beats", "pitch"]
-                        }
-                    }
-                },
-                "required": ["track_id", "notes"]
-            }),
-        },
-        ToolSpec {
-            name: "set_track_gain".into(),
-            description: "Set a track's fader in dB (-96 to 12).".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": { "track_id": { "type": "integer" }, "gain_db": { "type": "number" } },
-                "required": ["track_id", "gain_db"]
-            }),
-        },
-        ToolSpec {
-            name: "add_effect".into(),
-            description: "Append an insert effect to a track. kind: \"delay\" or \"reverb\".".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": { "track_id": { "type": "integer" }, "kind": { "type": "string", "enum": ["delay", "reverb"] } },
-                "required": ["track_id", "kind"]
-            }),
-        },
-        ToolSpec {
-            name: "set_synth_param".into(),
-            description: "Set a Firmus synth parameter on a track. Params: cutoff (Hz), resonance (0-1), amp_attack, amp_decay, amp_sustain, amp_release (s), osc_mix (0-1), gain (dB).".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": {
-                    "track_id": { "type": "integer" },
-                    "param": { "type": "string" },
-                    "value": { "type": "number" }
-                },
-                "required": ["track_id", "param", "value"]
-            }),
-        },
-    ]
+    crate::tools_project::TOOLS
+        .iter()
+        .map(|t| ToolSpec {
+            name: t.name.into(),
+            description: t.description.into(),
+            input_schema: (t.input_schema)(),
+        })
+        .collect()
 }
 
 /// Human/model-readable project summary for the system prompt.
@@ -157,218 +118,51 @@ pub fn describe_project(project: &Project) -> String {
     s
 }
 
-/// Build the command for a tool call. `describe_project` returns `None` (read-only).
-pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Command>, BridgeError> {
-    let a = &call.input;
-    match call.name.as_str() {
-        "describe_project" => Ok(None),
-        "set_tempo" => {
-            let bpm = a
-                .get("bpm")
-                .and_then(Value::as_f64)
-                .ok_or(BridgeError::BadArgument("bpm"))?;
-            Ok(Some(Command::SetTempo { bpm }))
-        }
-        "set_tempo_point" => {
-            let horizon = cantus_core::tempo::HORIZON.as_beats_f64();
-            let beat = a
-                .get("beat")
-                .and_then(Value::as_f64)
-                .filter(|b| b.is_finite() && *b >= 0.0 && *b <= horizon)
-                .ok_or(BridgeError::BadArgument("beat"))?;
-            let bpm = a
-                .get("bpm")
-                .and_then(Value::as_f64)
-                .filter(|b| b.is_finite())
-                .ok_or(BridgeError::BadArgument("bpm"))?;
-            let tick = Ticks::from_beats_f64(beat);
-            // Unsaid, the point's own ramp stays (review 5: a new start tempo cleared the
-            // accelerando).
-            let ramp = a.get("ramp").and_then(Value::as_bool).unwrap_or_else(|| {
-                bus.project()
-                    .tempo_points
-                    .iter()
-                    .find(|p| p.tick == tick.max(Ticks::ZERO))
-                    .is_some_and(|p| p.ramp)
-            });
-            Ok(Some(cantus_core::tempo::edit::add_tempo_point(
-                bus.project(),
-                tick,
-                bpm,
-                ramp,
-            )))
-        }
-        "add_track" => {
-            let name = a
-                .get("name")
-                .and_then(Value::as_str)
-                .ok_or(BridgeError::BadArgument("name"))?;
-            let track = bus.new_track(name);
-            let index = bus.project().tracks.len();
-            Ok(Some(Command::InsertTrack {
-                index,
-                track: Box::new(track),
-            }))
-        }
-        "add_notes" => {
-            let track = track_id(a, bus.project())?;
-            let items = a
-                .get("notes")
-                .and_then(Value::as_array)
-                .ok_or(BridgeError::BadArgument("notes"))?;
-            let mut parsed = Vec::with_capacity(items.len());
-            for n in items {
-                let start = n
-                    .get("start_beats")
-                    .and_then(Value::as_f64)
-                    .ok_or(BridgeError::BadArgument("start_beats"))?;
-                let len = n
-                    .get("length_beats")
-                    .and_then(Value::as_f64)
-                    .ok_or(BridgeError::BadArgument("length_beats"))?;
-                let pitch = n
-                    .get("pitch")
-                    .and_then(Value::as_u64)
-                    .ok_or(BridgeError::BadArgument("pitch"))?;
-                let vel = n.get("velocity").and_then(Value::as_u64).unwrap_or(100);
-                if len <= 0.0 || start < 0.0 || pitch > 127 {
-                    return Err(BridgeError::BadArgument("notes"));
-                }
-                parsed.push((
-                    Ticks::from_beats_f64(start),
-                    Ticks::from_beats_f64(len),
-                    pitch as u8,
-                    vel.clamp(1, 127) as u8,
-                ));
-            }
-            let end = parsed
-                .iter()
-                .map(|(s, l, _, _)| *s + *l)
-                .max()
-                .unwrap_or(Ticks::ZERO);
-            let existing = bus
-                .project()
-                .track(track)
-                .and_then(|t| t.clips.first().cloned());
-            let mut commands = Vec::new();
-            let (clip_id, clip_start) = match existing {
-                Some(c) => {
-                    // Grow the clip if the new notes run past its end.
-                    if c.start + c.length < end {
-                        commands.push(Command::SetClipBounds {
-                            track,
-                            clip: c.id,
-                            start: c.start,
-                            length: (end - c.start).max(Ticks::beats(1)),
-                        });
-                    }
-                    (c.id, c.start)
-                }
-                None => {
-                    let clip = bus.new_clip("Clip", Ticks::ZERO, end.max(Ticks::beats(1)));
-                    let id = clip.id;
-                    commands.push(Command::InsertClip {
-                        track,
-                        clip: Box::new(clip),
-                    });
-                    (id, Ticks::ZERO)
-                }
-            };
-            let notes = parsed
-                .into_iter()
-                .map(|(s, l, p, v)| bus.new_note(s - clip_start, l, p, v))
-                .collect();
-            commands.push(Command::InsertNotes {
-                track,
-                clip: clip_id,
-                notes,
-            });
-            Ok(Some(Command::Batch {
-                label_key: "cmd.ai_add_notes".into(),
-                commands,
-            }))
-        }
-        "set_track_gain" => {
-            let id = track_id(a, bus.project())?;
-            let gain_db = a
-                .get("gain_db")
-                .and_then(Value::as_f64)
-                .ok_or(BridgeError::BadArgument("gain_db"))? as f32;
-            Ok(Some(Command::SetTrackGain { id, gain_db }))
-        }
-        "add_effect" => {
-            let track = track_id(a, bus.project())?;
-            let kind = match a.get("kind").and_then(Value::as_str) {
-                Some("delay") => EffectKind::Delay,
-                Some("reverb") => EffectKind::Reverb,
-                _ => return Err(BridgeError::BadArgument("kind")),
-            };
-            // Inserts live on the strip the track feeds. A track routed straight to the
-            // master has nowhere to put one, which is reported rather than guessed.
-            let strip = bus
-                .project()
-                .track(track)
-                .and_then(|t| t.strip)
-                .ok_or(BridgeError::BadArgument("track has no mixer strip"))?;
-            let slot = bus.new_effect(kind);
-            let index = bus
-                .project()
-                .strip(strip)
-                .map(|s| s.effects.len())
-                .unwrap_or(0);
-            Ok(Some(Command::InsertEffect {
-                strip,
-                index,
-                slot: Box::new(slot),
-            }))
-        }
-        "set_synth_param" => {
-            let track = track_id(a, bus.project())?;
-            let name = a
-                .get("param")
-                .and_then(Value::as_str)
-                .ok_or(BridgeError::BadArgument("param"))?;
-            let value = a
-                .get("value")
-                .and_then(Value::as_f64)
-                .ok_or(BridgeError::BadArgument("value"))? as f32;
-            let param = match name {
-                "cutoff" => FirmusParam::Cutoff,
-                "resonance" => FirmusParam::Resonance,
-                "amp_attack" => FirmusParam::AmpAttack,
-                "amp_decay" => FirmusParam::AmpDecay,
-                "amp_sustain" => FirmusParam::AmpSustain,
-                "amp_release" => FirmusParam::AmpRelease,
-                "osc_mix" => FirmusParam::OscMix,
-                "gain" => FirmusParam::Gain,
-                _ => return Err(BridgeError::BadArgument("param")),
-            };
-            Ok(Some(Command::SetInstrumentParam {
-                track,
-                param: param.into(),
-                value,
-            }))
-        }
-        other => Err(BridgeError::UnknownTool(other.to_string())),
-    }
+/// A planned call: the command, the class the user's permission is asked by, and what it
+/// says — a caller must not execute it without deciding by `class` (review #18).
+#[derive(Debug)]
+pub struct Planned {
+    pub command: Command,
+    pub class: ToolClass,
+    pub said: crate::tool::Said,
 }
 
-fn track_id(a: &Value, project: &Project) -> Result<TrackId, BridgeError> {
-    let raw = a
-        .get("track_id")
-        .and_then(Value::as_u64)
-        .ok_or(BridgeError::BadArgument("track_id"))?;
-    let id = TrackId(raw);
-    if project.track(id).is_none() {
-        return Err(BridgeError::TrackNotFound(raw));
+/// Plan a tool call: `None` for a reading tool (`describe_project`, the old name of
+/// `get_project`, included). The command is never executed here, and comes with its class.
+pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Planned>, BridgeError> {
+    if call.name == "describe_project" {
+        return Ok(None);
     }
-    Ok(id)
+    let tool = crate::tools_project::TOOLS
+        .iter()
+        .find(|t| t.name == call.name)
+        .ok_or_else(|| BridgeError::UnknownTool(call.name.clone()))?;
+    let ToolRun::Edit(plan) = tool.run else {
+        return match tool.class {
+            ToolClass::Read => Ok(None),
+            _ => Err(BridgeError::Tool(format!("{} is not an edit", tool.name))),
+        };
+    };
+    // The tool plans against the host's bus: lend it ours for the call.
+    let mut host = BareHost {
+        bus: std::mem::take(bus),
+        dir: None,
+    };
+    let planned = plan(&mut ToolCx { host: &mut host }, &call.input);
+    *bus = host.bus;
+    let planned = planned?;
+    Ok(Some(Planned {
+        command: planned.command,
+        class: tool.class,
+        said: planned.said,
+    }))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cantus_core::Origin;
+    use cantus_core::{Origin, Ticks};
+    use serde_json::json;
 
     #[test]
     fn agent_actions_are_ordinary_undoable_commands() {
@@ -377,7 +171,7 @@ mod tests {
             name: "add_track".into(),
             input: json!({ "name": "Pad" }),
         };
-        let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+        let cmd = to_command(&call, &mut bus).unwrap().unwrap().command;
         bus.execute(cmd, Origin::Ai).unwrap();
         let tid = bus.project().tracks[0].id.0;
 
@@ -389,22 +183,24 @@ mod tests {
                 { "start_beats": 4, "length_beats": 2, "pitch": 67 }
             ]}),
         };
-        let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+        let cmd = to_command(&call, &mut bus).unwrap().unwrap().command;
         bus.execute(cmd, Origin::Ai).unwrap();
         let t = &bus.project().tracks[0];
         assert_eq!(t.clips.len(), 1);
         assert_eq!(t.clips[0].notes.len(), 3);
-        assert_eq!(t.clips[0].length, Ticks::beats(6));
+        // A new clip is whole bars around the notes (round 34).
+        assert_eq!(t.clips[0].length, Ticks::beats(8));
 
-        // Adding more notes past the end grows the same clip.
+        // Notes under the clip go into it; past it, into a new clip of their own bars.
         let call = ToolCall {
             name: "add_notes".into(),
             input: json!({ "track_id": tid, "notes": [{ "start_beats": 8, "length_beats": 1, "pitch": 72 }] }),
         };
-        let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+        let cmd = to_command(&call, &mut bus).unwrap().unwrap().command;
         bus.execute(cmd, Origin::Ai).unwrap();
-        assert_eq!(bus.project().tracks[0].clips[0].length, Ticks::beats(9));
-        assert_eq!(bus.project().tracks[0].clips[0].notes.len(), 4);
+        assert_eq!(bus.project().tracks[0].clips.len(), 2);
+        assert_eq!(bus.project().tracks[0].clips[1].start, Ticks::beats(8));
+        assert_eq!(bus.project().tracks[0].clips[1].notes.len(), 1);
 
         // Everything the agent did unwinds.
         bus.undo();
@@ -426,12 +222,12 @@ mod tests {
             Err(BridgeError::UnknownTool(_))
         ));
         let bad = ToolCall {
-            name: "set_track_gain".into(),
+            name: "set_track".into(),
             input: json!({ "track_id": 99, "gain_db": 0 }),
         };
         assert!(matches!(
             to_command(&bad, &mut bus),
-            Err(BridgeError::TrackNotFound(99))
+            Err(BridgeError::NotFound(_))
         ));
         let ro = ToolCall {
             name: "describe_project".into(),
@@ -466,7 +262,7 @@ mod tests {
             name: "set_tempo_point".into(),
             input: json!({ "beat": 8.0, "bpm": 140.0, "ramp": false }),
         };
-        let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+        let cmd = to_command(&call, &mut bus).unwrap().unwrap().command;
         bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
         assert_eq!(bus.project().tempo_points.len(), 2);
         assert_eq!(bus.project().tempo_points[1].bpm, 140.0);
@@ -489,7 +285,7 @@ mod tests {
                 name: "set_tempo_point".into(),
                 input,
             };
-            let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+            let cmd = to_command(&call, &mut bus).unwrap().unwrap().command;
             bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
         }
         let p = bus.project();
@@ -511,7 +307,7 @@ mod tests {
                 name: "set_tempo_point".into(),
                 input,
             };
-            let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+            let cmd = to_command(&call, &mut bus).unwrap().unwrap().command;
             bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
         }
         let p = bus.project();
@@ -532,7 +328,8 @@ mod tests {
                 input,
             };
             to_command(&call, bus).map(|c| {
-                bus.execute(c.unwrap(), cantus_core::Origin::Ai).unwrap();
+                bus.execute(c.unwrap().command, cantus_core::Origin::Ai)
+                    .unwrap();
             })
         };
         assert!(call(&mut bus, json!({ "beat": 1e9, "bpm": 140.0 })).is_err());
@@ -545,6 +342,38 @@ mod tests {
             p.tempo_points[0].ramp,
             "the accelerando kept: {:?}",
             p.tempo_points
+        );
+    }
+
+    /// Review #18: a planned call carries its class, so a panel cannot execute a removal
+    /// without the user's say.
+    #[test]
+    fn a_planned_call_carries_its_class() {
+        let mut bus = CommandBus::default();
+        let t = bus.new_track("Pad");
+        let id = t.id.0;
+        bus.execute(
+            Command::InsertTrack {
+                index: 0,
+                track: Box::new(t),
+            },
+            Origin::User,
+        )
+        .unwrap();
+        let call = ToolCall {
+            name: "remove_items".into(),
+            input: json!({"track_ids": [id]}),
+        };
+        let planned = to_command(&call, &mut bus).unwrap().unwrap();
+        assert_eq!(planned.class, ToolClass::Destructive);
+        assert_eq!(planned.said.key, "ai.tools.remove_items");
+        let call = ToolCall {
+            name: "set_track".into(),
+            input: json!({"track_id": id, "gain_db": -3}),
+        };
+        assert_eq!(
+            to_command(&call, &mut bus).unwrap().unwrap().class,
+            ToolClass::Edit
         );
     }
 }

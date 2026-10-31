@@ -13,7 +13,7 @@ use std::sync::Arc;
 /// Frames of fade at a start and at a stop, so neither clicks.
 const FADE: u32 = 64;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Preview {
     sample: Option<Arc<SampleData>>,
     /// Read position in the sample's frames.

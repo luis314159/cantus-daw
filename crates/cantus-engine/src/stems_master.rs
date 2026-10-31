@@ -38,11 +38,28 @@ impl Through {
         block: usize,
         make_unit: &mut dyn FnMut(&EffectSlot, f32) -> EffectUnit,
     ) -> Option<Box<Through>> {
-        if snapshot.master_effects.is_empty() {
+        Self::of_chain(
+            &snapshot.master_effects,
+            snapshot.master_fx_enabled,
+            sample_rate,
+            block,
+            make_unit,
+        )
+    }
+
+    /// A copy of `chain` (switched on or off as a whole by `on`), or `None` when it is
+    /// empty — the mastering assistant's trial runs (round 34, ADR 0084).
+    pub(crate) fn of_chain(
+        chain: &[EffectSlot],
+        on: bool,
+        sample_rate: f32,
+        block: usize,
+        make_unit: &mut dyn FnMut(&EffectSlot, f32) -> EffectUnit,
+    ) -> Option<Box<Through>> {
+        if chain.is_empty() {
             return None;
         }
-        let units: Vec<(EffectUnit, bool, f32)> = snapshot
-            .master_effects
+        let units: Vec<(EffectUnit, bool, f32)> = chain
             .iter()
             .map(|slot| {
                 let mut u = make_unit(slot, sample_rate);
@@ -63,7 +80,7 @@ impl Through {
             .collect();
         Some(Box::new(Through {
             units,
-            on: snapshot.master_fx_enabled,
+            on,
             l: vec![0.0; block],
             r: vec![0.0; block],
             dry_l: vec![0.0; block],

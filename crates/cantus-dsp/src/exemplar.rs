@@ -329,7 +329,7 @@ struct Slot {
 }
 
 /// The sampler.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Exemplar {
     fs: f32,
     readers: [Reader; 4],

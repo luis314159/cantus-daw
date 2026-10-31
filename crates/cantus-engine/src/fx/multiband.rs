@@ -89,7 +89,7 @@ pub fn band(spec: &EffectSpec, b: usize) -> BandSettings {
     settings(spec).bands[b.min(MAX_BANDS - 1)]
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     dsp: Multiplex,
 }
@@ -103,6 +103,9 @@ impl Unit {
 }
 
 impl FxUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn FxUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &EffectSpec) {
         self.dsp.set(&settings(spec));
     }

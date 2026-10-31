@@ -129,6 +129,12 @@ fn drawable_in_source(text: &str, file: &str, out: &mut BTreeMap<char, String>) 
     }
 }
 
+/// The manifests whose strings the interface draws (r34:stems: the models' too).
+const MANIFESTS: [&str; 2] = [
+    "cantus-content/manifest/content.json",
+    "cantus-content/manifest/models.json", // r34:stems
+];
+
 fn used_characters() -> BTreeMap<char, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut chars = BTreeMap::new();
@@ -171,10 +177,8 @@ fn used_characters() -> BTreeMap<char, String> {
         let name = f.strip_prefix(root).unwrap_or(f).display().to_string();
         drawable_in_source(&std::fs::read_to_string(f).unwrap(), &name, &mut chars);
     }
-    // The sound packs' names, descriptions and credits come from the manifest.
-    let manifest = root.join("../cantus-content/manifest/content.json");
-    let json: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&manifest).unwrap()).unwrap();
+    // The sound packs' names, descriptions and credits come from the manifest; the
+    // models' names, descriptions, licence and provenance rows from theirs (r34:stems).
     fn strings(v: &serde_json::Value, out: &mut Vec<String>) {
         match v {
             serde_json::Value::String(s) => out.push(s.clone()),
@@ -183,14 +187,17 @@ fn used_characters() -> BTreeMap<char, String> {
             _ => {}
         }
     }
-    let mut texts = Vec::new();
-    strings(&json, &mut texts);
-    assert!(texts.len() > 50, "the manifest's strings were found");
-    for t in texts {
-        for c in t.chars() {
-            chars
-                .entry(c)
-                .or_insert_with(|| "cantus-content/manifest/content.json".to_owned());
+    for file in MANIFESTS {
+        let manifest = root.join("..").join(file);
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&manifest).unwrap()).unwrap();
+        let mut texts = Vec::new();
+        strings(&json, &mut texts);
+        assert!(texts.len() > 50, "{file}'s strings were found");
+        for t in texts {
+            for c in t.chars() {
+                chars.entry(c).or_insert_with(|| file.to_string());
+            }
         }
     }
     chars.retain(|c, _| !c.is_control() && *c != '\u{feff}');
@@ -296,4 +303,11 @@ fn only_plex_and_the_emoji_fallback_are_built_in() {
         assert_eq!(chain.len(), 2, "{family:?}: {chain:?}");
         assert_eq!(chain[1], "emoji-icon-font", "{family:?}: {chain:?}");
     }
+}
+
+/// The models' manifest is scanned: its names, licence and provenance rows are drawn in
+/// Settings ▸ Models and the stems panel (integration review #6). // r34:stems
+#[test]
+fn the_models_manifest_is_scanned() {
+    assert!(MANIFESTS.contains(&"cantus-content/manifest/models.json"));
 }

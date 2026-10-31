@@ -40,7 +40,7 @@ struct FreeLfo {
     r1: f32,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Unda {
     sr: f32,
     s: Box<Settings>,

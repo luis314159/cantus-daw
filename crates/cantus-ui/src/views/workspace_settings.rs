@@ -37,10 +37,15 @@ pub enum SettingsPage {
     Cache,
     Updates,
     Plugins,
+    /// Agents and the MCP server (round 34, ADR 0081). // r34:mcp
+    Ai, // r34:mcp
+    /// The machine-learning models (round 34, ADR 0085). // r34:stems
+    Models,
 }
 
 impl SettingsPage {
-    pub const ALL: [SettingsPage; 9] = [
+    pub const ALL: [SettingsPage; 11] = [
+        // r34:mcp (10), r34:stems (11)
         SettingsPage::General,
         SettingsPage::Audio,
         SettingsPage::Midi,
@@ -50,6 +55,8 @@ impl SettingsPage {
         SettingsPage::Cache,
         SettingsPage::Updates,
         SettingsPage::Plugins,
+        SettingsPage::Ai,     // r34:mcp
+        SettingsPage::Models, // r34:stems
     ];
 
     /// The sidebar's word.
@@ -64,6 +71,8 @@ impl SettingsPage {
             SettingsPage::Cache => "ship.settings.cache",
             SettingsPage::Updates => "ship.settings.updates",
             SettingsPage::Plugins => "ship.settings.plugins",
+            SettingsPage::Ai => "ai.settings.page", // r34:mcp
+            SettingsPage::Models => "stems.models.page", // r34:stems
         }
     }
 }
@@ -191,6 +200,8 @@ fn page_body(app: &mut CantusApp, ui: &mut Ui) {
             w::band(ui, Src::Key("host.manager.title"));
             super::plugins::manager(app, ui);
         }
+        SettingsPage::Ai => crate::ai_mcp::settings_page::page(app, ui), // r34:mcp
+        SettingsPage::Models => crate::stems_ui::models::page(app, ui),  // r34:stems
     }
 }
 

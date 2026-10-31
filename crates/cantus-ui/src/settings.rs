@@ -209,6 +209,10 @@ pub struct Settings {
     pub mpe_ports: Vec<String>, // r33:mpe
     /// Their zone layout and bend ranges (MPE's usual: a lower zone of 15, ±48 and ±2). // r33:mpe
     pub mpe_zones: cantus_core::model::note_expr::zones::MpeZones, // r33:mpe
+    /// Agents and the MCP server (round 34, ADR 0081; Settings ▸ AI). // r34:mcp
+    pub ai: crate::ai_mcp::AiSettings, // r34:mcp
+    /// *Separate stems…*'s last choices (round 34, ADR 0085). // r34:stems
+    pub stems: crate::stems_ui::StemsSettings, // r34:stems
     /// The ports driven as session grids (round 33, ADR 0077): the user's choice per port;
     /// a port with none is a grid when its name says it is a Launchpad or an APC.
     #[serde(default)]
@@ -329,6 +333,8 @@ impl Default for Settings {
             sync: Default::default(), // r33:sync
             mpe_ports: Vec::new(),    // r33:mpe
             mpe_zones: cantus_core::model::note_expr::zones::MpeZones::standard(), // r33:mpe
+            ai: Default::default(),   // r34:mcp
+            stems: Default::default(), // r34:stems
             grids: Vec::new(),
         }
     }

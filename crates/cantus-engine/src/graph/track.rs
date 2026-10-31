@@ -345,6 +345,7 @@ impl TrackSlot {
 /// A track slot's output for the current pass: the leveled (and, with compensation,
 /// delayed) signal its strip or the master adds as it is. `active` is false when the track
 /// was idle the whole pass — nothing to add.
+#[derive(Clone)]
 pub(crate) struct TrackOut {
     pub active: bool,
     pub l: Vec<f32>,

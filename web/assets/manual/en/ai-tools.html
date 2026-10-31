@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What an AI agent can do in Cantus</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="what-an-ai-agent-can-do-in-cantus">What an AI agent can do in Cantus</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/ai-tools.html">Leer en español</a></em></p>
+<p>When you let an assistant such as Claude connect to Cantus (<em>Settings ▸ AI</em>), it works on your project through <strong>tools</strong> — the same edits you make with the mouse, each one <strong>a single step of Undo</strong> named &quot;AI: …&quot; in the history. Reading never asks; changing asks in the Cantus window unless you allowed edits; removing or replacing your material always asks; files are refused until you allow them, and then asked. The names of your tracks, clips and markers are shown to the agent as data — never as instructions.</p>
+<h2 id="the-tools">The tools</h2>
+<table>
+<tr><th>Group</th><th>Tools</th><th>What they do</th></tr>
+<tr><td>Read</td><td><code>get_project</code>, <code>get_track</code>, <code>get_clip_notes</code>, <code>get_mixer</code>, <code>get_device</code>, <code>get_history</code>, <code>get_selection</code></td><td>The song, a track and its clips, a clip's notes or automation points, the mixer, a device's values, the undo history, what you have selected and where the playhead is</td></tr>
+<tr><td>The song</td><td><code>set_tempo</code>, <code>set_tempo_point</code>, <code>set_song</code>, <code>set_marker</code></td><td>Tempo and tempo changes, the time signature (and metre changes), the key, the loop, the metronome, markers</td></tr>
+<tr><td>Transport</td><td><code>transport</code></td><td>Play, stop, locate — not an undo step</td></tr>
+<tr><td>Tracks</td><td><code>add_track</code>, <code>set_track</code>, <code>set_instrument</code>, <code>set_instrument_param</code></td><td>A new instrument track with its own mixer strip; name, colour, level, pan, mute, solo, order, routing; swapping the instrument; its parameters by key in their units</td></tr>
+<tr><td>Clips and notes</td><td><code>add_clip</code>, <code>add_notes</code>, <code>replace_notes</code>, <code>edit_notes</code>, <code>set_clip</code>, <code>duplicate_clip</code></td><td>Clips and notes; transpose, quantise, humanise, move, velocity, length, legato; moving, resizing, looping and copying clips</td></tr>
+<tr><td>Drums</td><td><code>write_drum_pattern</code></td><td>Step rows (<code>x...x...</code>) per pad, with swing and accents</td></tr>
+<tr><td>Session</td><td><code>set_session</code></td><td>Scenes, slots, launch modes and follow actions</td></tr>
+<tr><td>Mixer and effects</td><td><code>add_strip</code>, <code>set_strip</code>, <code>set_send</code>, <code>add_effect</code>, <code>set_effect</code>, <code>replace_effect</code></td><td>Buses and returns, faders, width, the strip EQ, sends; any of Cantus's effects on any strip or the master, with their parameters</td></tr>
+<tr><td>Movement</td><td><code>automate</code>, <code>replace_automation</code>, <code>add_modulator</code>, <code>set_modulator</code></td><td>Automation clips with FL's shapes, in the parameter's own units; LFOs, envelopes, followers (sidechain), step sequences, random</td></tr>
+<tr><td>Music</td><td><code>lint_music</code>, <code>write_part</code>, <code>voice_chords</code>, <code>pedal_from_chart</code></td><td>The music linter; a whole part over a chord chart; voiced chords; Chorda's sustain pedal from the chart</td></tr>
+<tr><td>Units</td><td><code>list_units</code>, <code>get_unit</code>, <code>list_presets</code>, <code>apply_preset</code></td><td>The catalogue of every instrument and effect; presets (loading one replaces a device's settings: always asked)</td></tr>
+<tr><td>Takes</td><td><code>comp_takes</code>, <code>tidy_takes</code></td><td>Comping recorded takes; deleting a comp, flattening, deleting unused takes</td></tr>
+<tr><td>Export</td><td><code>export_audio</code>, <code>export_project</code></td><td>WAV, FLAC, MP3, Ogg, stems; MIDI and DAWproject — only into the project's folder or a folder you allowed</td></tr>
+<tr><td>Removing</td><td><code>remove_items</code></td><td>Tracks, clips, notes, effects, strips, sends, modulators, markers, tempo points, scenes, session clips — always asked</td></tr>
+</table>
+<p>An agent never takes your material silently: drawing automation over points you drew, a part where your notes are, a preset over your settings all ask first (or are refused).</p>
+<p>Positions are given in <strong>beats</strong> (quarter notes from the start) or as <strong>bar:beat</strong> (<code>9:1</code>, <code>9:2.5</code>), and Cantus answers with both. Values are in each parameter's own unit (dB, Hz, ms, semitones…); a value outside its range is refused with the range, never quietly changed.</p>
+<p>The agent also has the server's own tools (ADR 0081): it can wait for or cancel a long job, group a turn of its work into one undo step (<code>begin_change</code>/<code>end_change</code>), undo its own last step and list what it did.</p>
+<h2 id="the-catalogue-of-units">The catalogue of units</h2>
+<p><code>list_units</code> and <code>get_unit</code> (and the resource <code>cantus://units</code>) describe every instrument and effect Cantus has: each parameter's key, its name, its group (<em>Band 4</em>), unit, range, default and taper, the names of a switch's choices, the factory presets and what they set, the starting preset an effect loads on insert, its latency, and what the unit is for. It is made from the same tables the knobs use, so it is always complete and always right.</p>
+<h2 id="the-music-linter">The music linter</h2>
+<p><code>lint_music</code> reads the notes the way a reviewer listens, and says where and why:</p>
+<ul>
+<li><strong>a note ringing into the next chord</strong> that does not hold it — an <em>error</em> when it is a semitone against the new chord (the classic: a chord's A♭ still sounding over E♭/G's G);</li>
+<li><strong>a clash</strong>: a note held under a chord a semitone <em>above</em> one of its tones (the 11th over a major chord's third, the ♭6 over the fifth) — a 9th, a 13th or a major 7th is a colour;</li>
+<li><strong>a doubled note</strong>: the same pitch written twice at once on a track;</li>
+<li><strong>outside the key</strong> and the chord (<em>info</em>: often a passing note, sometimes a mistake);</li>
+<li><strong>outside the instrument</strong>: below a piano's A0, a drum note with no pad.</li>
+</ul>
+<p>Give it the chords (the chart) for the harmony checks; without them it checks doubles, the key and the range. It changes nothing.</p>
+<h2 id="charts-chords-in-bars">Charts: chords in bars</h2>
+<p>The writers and the linter read chords the way a lead sheet writes them, one bar between bars <code>|</code>, the chords of a bar sharing it equally:</p>
+<p><code></code><code>text Fm9 | Dbmaj7 | Abadd9 | Eb Eb/G C . . G7 | %                       C for three beats, G7 for one; then the bar again </code><code></code></p>
+<p><code>.</code> holds the chord before for one more share, <code>%</code> repeats the bar, <code>N.C.</code> is no chord. Any symbol works: <code>C</code>, <code>Cm</code>, <code>C7</code>, <code>Cmaj7</code> (<code>CM7</code>, <code>CΔ</code>), <code>Cm7b5</code> (<code>Cø</code>), <code>Cdim7</code>, <code>Csus4</code>, <code>C6/9</code>, <code>Cadd9</code>, <code>C9</code>, <code>C13</code>, <code>C7b9</code>, <code>C7#11</code>, <code>C7alt</code>, slash basses (<code>Eb/G</code>).</p>
+<p><code>write_part</code> lays a part over a chart — block chords, pulses, arpeggios or a bass line, on a rate or a step rhythm (<code>x..x..x.</code>), with swing and a human touch — voiced to move as little as possible from chord to chord, and <strong>no note rings into the next chord</strong>. <code>voice_chords</code> writes the held chords; <code>pedal_from_chart</code> draws Chorda's sustain pedal: up on each change, down again a moment later, so every chord rings and never the last one's.</p>
+<h2 id="prompts">Prompts</h2>
+<p>A client lists ready-made requests: <em>Explain my mix</em> (changes nothing), <em>Write a part</em>, <em>Arrange an intro</em>, <em>Tidy the project</em> (asks before removing anything) and <em>Teach me this unit</em>, in the language of your interface.</p>
+</main>
+</body>
+</html>

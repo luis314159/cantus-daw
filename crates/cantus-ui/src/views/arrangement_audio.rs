@@ -237,8 +237,14 @@ pub struct Scratch {
 
 /// The width the badges (gain, reverse) take at the title bar's right, so the name is
 /// elided before them.
-pub fn badge_width(b: &Brush, a: &AudioRegion, scratch: &mut Scratch, s: &Style) -> f32 {
-    badge_text(a, &mut scratch.badge);
+pub fn badge_width(
+    b: &Brush,
+    a: &AudioRegion,
+    ai: bool, // r34:stems — its file a model made (ADR 0085)
+    scratch: &mut Scratch,
+    s: &Style,
+) -> f32 {
+    badge_text(a, ai, &mut scratch.badge); // r34:stems
     if scratch.badge.is_empty() {
         return 0.0;
     }
@@ -246,9 +252,16 @@ pub fn badge_width(b: &Brush, a: &AudioRegion, scratch: &mut Scratch, s: &Style)
     text::measure(b.ctx(), &tx, s.tk()).x + 8.0 * s.k
 }
 
-fn badge_text(a: &AudioRegion, out: &mut String) {
+fn badge_text(a: &AudioRegion, ai: bool, out: &mut String) {
     out.clear();
+    // Round 34 (ADR 0085): a model made its file — a stem. // r34:stems
+    if ai {
+        out.push_str(&crate::i18n::t("stems.badge")); // r34:stems
+    } // r34:stems
     if a.gain_db.abs() >= 0.05 {
+        if !out.is_empty() {
+            out.push_str("  "); // r34:stems
+        }
         let _ = write!(out, "{:+.1} dB", a.gain_db);
     }
     if a.reverse {
@@ -341,7 +354,8 @@ pub fn paint(
     let title_h = super::paint::title_height(body, k);
     // The badges, at the title bar's right (the name was elided before them).
     if title_h > 0.0 {
-        badge_text(shown.region, &mut scratch.badge);
+        let ai = project.provenance.contains_key(&shown.region.source); // r34:stems
+        badge_text(shown.region, ai, &mut scratch.badge); // r34:stems
         if !scratch.badge.is_empty() {
             let bar = Rect::from_min_max(body.min, pos2(body.right(), body.top() + title_h));
             let right = body.right() - 4.0 * k;

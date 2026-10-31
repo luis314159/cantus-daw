@@ -265,3 +265,14 @@
 .session-bar { margin-top: 1.2rem; }
 .session-bar img { display: block; width: 100%; max-width: 874px; height: auto; margin-inline: auto; border-radius: 0.5rem; border: 1px solid var(--night-line); }
 @media (max-width: 56rem) { .session-wrap .score-more { grid-template-columns: 1fr; } }
+
+/* AI that works with you (round 34): a dark stage warmed by the mark's orange — the agent, stems, mastering, settings, MIDI. */
+.ai-wrap { background: radial-gradient(48rem 26rem at 90% 0%, rgba(212,98,42,.26), transparent 70%), var(--night); color: var(--night-ink); border-bottom: 1px solid var(--night-line); }
+.ai-wrap .sec-head h2 { color: var(--strong); }
+.ai-wrap .sec-head p, .ai-wrap figcaption, .ai-wrap .score-points p { color: var(--night-ink-2); }
+.ai-wrap .score-points { border-top-color: var(--night-ink); }
+.ai-wrap .score-points h3 { color: var(--night-ink); }
+.ai-wrap .score-more { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; }
+.ai-wrap .score-more.ai-pair { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.ai-wrap .score-more img { border-color: var(--night-line); background: var(--night-2); }
+@media (max-width: 56rem) { .ai-wrap .score-more, .ai-wrap .score-more.ai-pair { grid-template-columns: 1fr; } }

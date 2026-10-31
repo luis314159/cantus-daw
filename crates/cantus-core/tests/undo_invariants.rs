@@ -1781,7 +1781,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut mpe_done = [0usize; 2]; // r33:mpe
                                     // Round 33, launcher (ADR 0077): mappings of the session's targets, applied and refused.
     let mut launched = [0usize; 2];
-    // 120 sequences (round 31: one arm more spreads the draws thinner).
+    // r34:stems — round 34 (ADR 0085): provenance set, cleared, and gone with its source.
+    let mut provenanced = [[0usize; 2]; 3]; // r34:stems
+                                            // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
@@ -1803,6 +1805,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         // from a stream of their own (every other draw stays the one it was).
         let mut mrng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(47)); // r33:mpe
         let mut lrng = Lcg(seed.wrapping_mul(0x1405_7B7D).wrapping_add(47));
+        let mut prng = Lcg(seed.wrapping_mul(0x6C07_8965).wrapping_add(48)); // r34:stems
         for _ in 0..120 {
             // r33:mpe — an expression edit now and then, undone with the rest.
             if mrng.below(8) == 0 {
@@ -1845,6 +1848,17 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 let cmd = round33_launcher_command(&mut lrng, bus.project());
                 let ok = bus.execute(cmd, origins[lrng.below(5) as usize]).is_ok();
                 launched[usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // r34:stems — a file's provenance (ADR 0085), from a stream of its own (`prng`).
+            if prng.below(4) == 0 {
+                let (k, cmd) = round34_provenance_command(&mut prng, bus.project());
+                let ok = bus.execute(cmd, origins[prng.below(5) as usize]).is_ok();
+                provenanced[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
                     snap.next_id = 0;
@@ -2216,6 +2230,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         launched.iter().all(|n| *n > 0),
         "round 33's session mappings never applied or never refused: {launched:?}"
+    );
+    // r34:stems — each kind applied at least once, a provenance on no source refused.
+    assert!(
+        provenanced.iter().all(|k| k[0] > 0) && provenanced[0][1] > 0,
+        "round 34's provenance never applied or never refused: {provenanced:?}"
     );
     assert!(
         kept_frames > 0,
@@ -5004,6 +5023,57 @@ fn round33_launcher_command(rng: &mut Lcg, project: &Project) -> Command {
         Command::InsertMapping {
             index: rng.below(3) as usize,
             mapping: Box::new(m),
+        }
+    }
+}
+
+/// r34:stems — round 34 (ADR 0085): a file's provenance set (on a pool source, or on one
+/// that is not there: refused), cleared, or the source removed with it (its inverse puts
+/// both back). The kind, and the command.
+fn round34_provenance_command(rng: &mut Lcg, project: &Project) -> (usize, Command) {
+    let pool: Vec<_> = project.audio_pool.iter().map(|s| s.id).collect();
+    let pick = |rng: &mut Lcg| {
+        pool.get(rng.below(pool.len() as u64 + 1) as usize)
+            .copied()
+            .unwrap_or(cantus_core::AudioSourceId(u64::MAX - 7))
+    };
+    match rng.below(3) {
+        0 => {
+            let id = pick(rng);
+            let p = cantus_core::Provenance {
+                kind: "separated".into(),
+                model: "htdemucs".into(),
+                model_name: "HT-Demucs".into(),
+                model_version: 1 + rng.below(3) as u32,
+                licence: "MIT".into(),
+                date: "2026-10-30".into(),
+                from: format!("song {}", rng.below(9)),
+                part: ["drums", "bass", "other", "vocals"][rng.below(4) as usize].into(),
+            };
+            (
+                0,
+                Command::SetAudioProvenance {
+                    id,
+                    provenance: Some(Box::new(p)),
+                },
+            )
+        }
+        1 => (
+            1,
+            Command::SetAudioProvenance {
+                id: pick(rng),
+                provenance: None,
+            },
+        ),
+        _ => {
+            // The pool's last source (with its provenance, when it has one): a removed
+            // source comes back at the pool's end (`InsertAudioSource` appends), so only the
+            // last one comes back where it was.
+            let id = pool
+                .last()
+                .copied()
+                .unwrap_or(cantus_core::AudioSourceId(u64::MAX - 7));
+            (2, Command::RemoveAudioSource { id })
         }
     }
 }

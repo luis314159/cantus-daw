@@ -153,6 +153,7 @@ impl StripSlot {
 }
 
 /// What a strip slot left for its consumers in the current pass.
+#[derive(Clone)]
 pub(crate) struct StripOut {
     /// It ran this pass: everything below is this pass's.
     pub ran: bool,

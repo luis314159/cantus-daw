@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Separar stems</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="separar-stems">Separar stems</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/stems.html">Read in English</a></em></p>
+<p>Cantus puede dividir una grabación en sus partes — <strong>batería, bajo, voces y el resto</strong>, o con el modelo de 6 stems también <strong>guitarra y piano</strong> — con un modelo que corre <strong>en tu ordenador</strong>. No se sube nada a ninguna parte.</p>
+<h2 id="separar-un-clip-una-pista-o-una-selección">Separar un clip, una pista o una selección</h2>
+<ul>
+<li>Clic derecho en un <strong>clip de audio</strong> ▸ <em>Separar stems…</em> (con varios clips de una pista seleccionados, se separan juntos; los de varias pistas se separan pista por pista, porque las partes de cada pista van bajo un bus propio), o</li>
+<li>clic derecho en el <strong>nombre de una pista</strong> ▸ <em>Separar stems…</em> (todos sus clips de audio).</li>
+</ul>
+<p>Elige <strong>4 stems</strong> o <strong>6 stems</strong>, <strong>Rápida</strong> o <strong>La mejor</strong> (cuatro pasadas promediadas: algo más limpia, cuatro veces más lenta) y, en un Mac, <em>Usar la tarjeta gráfica cuando se pueda</em> (en Windows y Linux el panel dice que no está disponible con el runtime que descarga Cantus: el modelo corre en el procesador). Pulsa <strong>Separar</strong>. El panel muestra el avance; <em>Cancelar</em> la detiene (no queda nada), <em>Ocultar</em> cierra el panel y la separación sigue.</p>
+<p>¿Qué tan buena es? En las canciones de prueba que usan los investigadores (MUSDB18-HQ), el modelo de 4 pistas logra 8.80 dB de SDR en promedio (batería 10.05, bajo 9.78, otros 6.42, voces 8.93) — los números que publicaron sus autores, medidos de nuevo en Cantus. Las mezclas electrónicas densas son las más difíciles.</p>
+<p>Al terminar:</p>
+<ul>
+<li>cada parte es una <strong>pista de audio nueva justo debajo de la pista separada</strong>, llamada <em>Batería</em>, <em>Bajo</em>, <em>Otros</em>, <em>Voces</em>…, cada una en su canal del mezclador;</li>
+<li>los canales van a <strong>un bus nuevo</strong>, en un grupo del mezclador con el nombre de la pista (<em>Stems de Mix</em>), y el bus va adonde iba la pista original — la canción suena igual, ahora en partes;</li>
+<li>cada clip nuevo está <strong>exactamente donde está su clip original</strong>, muestra a muestra, con la misma ventana, fundidos, ganancia y warp;</li>
+<li>un clip que habías silenciado sigue silenciado en cada parte, y se conservan los fundidos cruzados y las costuras de las tomas compuestas;</li>
+<li>las partes suenan al <strong>nivel del original</strong>: sus canales empiezan al nivel que compensa la ley de paneo, así que silenciar el original y oír las partes suena igual (si cambias la ley de paneo después, se ajustan con ella, en el mismo paso de deshacer);</li>
+<li>los <strong>clips originales quedan silenciados</strong>, no se borran;</li>
+<li>es <strong>un solo paso de Deshacer</strong>.</li>
+</ul>
+<p>Los archivos nuevos van a la carpeta <em>Audio/Stems</em> del proyecto. Sus clips llevan una pequeña insignia <strong>IA</strong>: cada archivo recuerda qué modelo lo hizo, su versión y licencia, cuándo y de qué archivo (se guarda en el proyecto).</p>
+<p>Sirve un archivo a cualquier frecuencia de muestreo: se convierte a los 44,1 kHz del modelo y las partes vuelven a la frecuencia y la duración del archivo.</p>
+<h2 id="los-modelos-ajustes--modelos">Los modelos (<em>Ajustes ▸ Modelos</em>)</h2>
+<p>La primera vez, Cantus muestra el tamaño del modelo, su <strong>licencia</strong> y la del runtime de inferencia, quién lo hizo y con qué se entrenó. <em>Aceptar la licencia y descargar</em> los baja:</p>
+<table>
+<tr><th>Modelo</th><th>Partes</th><th>Descarga</th><th>Licencia</th></tr>
+<tr><td>HT-Demucs — 4 stems (Meta)</td><td>batería, bajo, otros, voces</td><td>84 MB + el runtime</td><td>MIT</td></tr>
+<tr><td>HT-Demucs — 6 stems (Meta)</td><td>y guitarra, piano (su piano es flojo, dicen sus autores)</td><td>55 MB + el runtime</td><td>MIT</td></tr>
+</table>
+<p>El runtime es <strong>ONNX Runtime</strong> de Microsoft (MIT; 15 MB en Windows, 11 MB en Linux, 37 MB en Apple silicon), se descarga una vez para todos los modelos y con su telemetría apagada. Cantus no aloja los pesos: descarga el archivo de Meta, comprueba cada byte y reconstruye el modelo a partir de él. Una descarga cortada sigue donde se quedó.</p>
+<p><em>Quitar</em> borra un modelo (y el runtime con el último); espera mientras corre una separación. Antes de empezar, Cantus comprueba que haya espacio en el disco (<em>La mejor</em> necesita espacio para cuatro pasadas) y lo dice si no lo hay. Una grabación más larga de lo que cabe en un archivo WAV como stems (4 GB: unos 45 minutos a 192 kHz) se rechaza con un aviso. Abrir otro proyecto cancela la separación en curso.</p>
+<h2 id="cuánto-tarda">Cuánto tarda</h2>
+<p>Alrededor de un tercio de la duración de la canción en el procesador de un portátil reciente (una canción de 3 minutos en unos 65 segundos), cuatro veces más con <em>La mejor</em>. El modelo corre en un proceso auxiliar propio, <code>cantus-ml</code>: si falla, Cantus lo dice y sigue.</p>
+<h2 id="para-agentes-de-ia">Para agentes de IA</h2>
+<p>Un agente conectado a Cantus puede llamar a <code>separate_stems</code> (una pista o clips; 4 o 6 partes; rápida o la mejor). Te pregunta antes, como cualquier edición, y el modelo tiene que estar instalado — su licencia la aceptas tú.</p>
+</main>
+</body>
+</html>

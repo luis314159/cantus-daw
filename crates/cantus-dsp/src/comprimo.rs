@@ -547,6 +547,7 @@ struct HopStat {
     samples: u32,
 }
 
+#[derive(Clone)]
 pub struct Comprimo {
     sr: f32,
     s: CompSettings,

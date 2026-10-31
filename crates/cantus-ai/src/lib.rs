@@ -12,9 +12,18 @@
 
 pub mod bridge;
 pub mod provider;
+// The tool table (round 34, ADRs 0081–0082).
+pub mod tool;
+pub mod tools_project;
 
-pub use bridge::{describe_project, to_command, tool_specs, BridgeError};
+pub use bridge::{describe_project, to_command, tool_specs, BridgeError, Planned}; // r34:tools — Planned (review #18)
 pub use provider::{
     AiError, AiMessage, AiProvider, AiRequest, AiResponse, Decision, Disclosure, NullProvider,
     Permissions, Role, ToolCall, ToolSpec,
+};
+pub use tool::{
+    fill, is_blank, is_invisible, may_touch, open_touch, quote_name, resolve_touch,
+    strip_invisible, EditPlan, Job, JobCx, JobDone, JobWork, PromptArg, PromptDef, PromptMessage,
+    ResourceBody, ResourceDef, ResourceTemplateDef, Said, SaidArg, TemplateVars, ThenPlan,
+    ToolClass, ToolCx, ToolDef, ToolError, ToolHost, ToolRun, Touch, Wording,
 };

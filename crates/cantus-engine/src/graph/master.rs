@@ -53,6 +53,32 @@ pub(super) struct MasterChain {
 }
 
 impl MasterChain {
+    // r34:listen — a range render's checkpoint (ADR 0083).
+    /// A copy with every unit's state; `None` when some unit's cannot be copied.
+    pub(super) fn fork(&self) -> Option<MasterChain> {
+        let mut effects = Vec::with_capacity(self.effects.capacity());
+        for e in &self.effects {
+            effects.push(Box::new(e.fork()?));
+        }
+        Some(MasterChain {
+            effects,
+            bypass: self.bypass,
+            mix: self.mix,
+            key_id: self.key_id,
+            key: self.key,
+            midi_id: self.midi_id,
+            listener: self.listener,
+            fx_enabled: self.fx_enabled,
+            dry_line: self.dry_line,
+            buf_l: self.buf_l.clone(),
+            buf_r: self.buf_r.clone(),
+            dry_l: self.dry_l.clone(),
+            dry_r: self.dry_r.clone(),
+            gr: self.gr,
+            ll_off: self.ll_off,
+        })
+    }
+
     pub(super) fn new() -> Self {
         MasterChain {
             effects: Vec::with_capacity(MAX_EFFECTS_PER_TRACK),

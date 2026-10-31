@@ -1,0 +1,59 @@
+[package]
+name = "cantus-ml"
+description = "Cantus DAW — the helper process that runs machine-learning models (stem separation, audio to MIDI) out of Cantus's own process, and the client that talks to it (ADR 0085)."
+# GPL like the application: everything AI lives in GPL crates (ADR 0047).
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "cantus-ml"
+path = "src/main.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log.workspace = true
+hound.workspace = true
+# The hashes of the runtime library and the model files, checked before they are loaded.
+sha2.workspace = true
+# The FFT (double-precision twiddles) and the deterministic sines for the STFT.
+cantus-dsp.workspace = true
+# ONNX Runtime through its C API, the library loaded at run time from the file the
+# content manager downloaded (ADR 0085): nothing is linked or downloaded at build time,
+# so one build works everywhere and a machine without the library simply has no models.
+# API 23 is the oldest library the code asks for: 1.23.2 is the last with an Intel macOS
+# build. MIT OR Apache-2.0.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-23", "directml", "coreml"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[build-dependencies]
+# The Windows version resource (ADR 0048 §9), as the other helpers have.
+winresource = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+# The Basic Pitch fixture is gzipped (tests/data/basic_pitch). r34:transcribe
+flate2 = "1"
+# The ignored end-to-end test installs the real model through the content manager.
+cantus-content.workspace = true

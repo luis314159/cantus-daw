@@ -127,6 +127,10 @@ impl Locale {
                 include_str!("../locales/areas/session.en.txt"),
                 include_str!("../locales/areas/sync.en.txt"),
                 include_str!("../locales/areas/mpe.en.txt"),
+                include_str!("../locales/areas/ai.en.txt"),
+                include_str!("../locales/areas/listen.en.txt"),
+                include_str!("../locales/areas/stems.en.txt"),
+                include_str!("../locales/areas/transcribe.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -220,6 +224,10 @@ impl Locale {
                 include_str!("../locales/areas/session.es.txt"),
                 include_str!("../locales/areas/sync.es.txt"),
                 include_str!("../locales/areas/mpe.es.txt"),
+                include_str!("../locales/areas/ai.es.txt"),
+                include_str!("../locales/areas/listen.es.txt"),
+                include_str!("../locales/areas/stems.es.txt"),
+                include_str!("../locales/areas/transcribe.es.txt"),
             ],
         }
     }

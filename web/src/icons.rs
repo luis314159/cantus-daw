@@ -34,6 +34,9 @@ pub fn export() -> Html {
 pub fn grid() -> Html {
     line("M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z")
 }
+pub fn spark() -> Html {
+    line("M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 3v4M17 5h4M5 17v4M3 19h4")
+}
 pub fn check() -> Html {
     line("M4 12.5l5 5L20 6.5")
 }

@@ -33,5 +33,6 @@
 - [Decision: round 32 order](decision-round32-order.md) — owner 2026-10-27: unit skins (§6h.1) + notation first; comparisons and Mac wait for the tools
 - [Round 32: unit skins + score](round-32.md) — beta.7 released 2026-10-29 (tag moved to 809644f8 after a release.yml fmt fix); 32 faces (ADR 0074) + score (ADR 0075, schema 45); next = round 33 Ableton
 - [Decision: round 33 order](decision-round33-order.md) — owner 2026-10-28: round 33 = Ableton core (session view, Link, MIDI clock/MTC, MPE); round 34 = AI (MCP first, then stems/mastering)
-- [Round 33: Ableton core](round-33.md) — session view, Link (GPL cantus-link), clock/MTC, MPE; schema 47; Win 5 137 + Linux 5 120; beta.8 (Win+Linux); next = round 34 AI
+- [Round 33: Ableton core](round-33.md) — session view, Link (GPL cantus-link), clock/MTC, MPE; schema 47; Win 5 137 + Linux 5 120; beta.8 released 2026-10-30 (Win+Linux); next = round 34 AI
 - [Decision: round 35 = dancing character](decision-round35-dancer.md) — owner 2026-10-29 left it to me: §6i whole in round 35, after round 34 (AI)
+- [Round 34: AI](round-34.md) — MCP server, 63 tools, mastering, stems, audio to MIDI; Win 5 590 + fuzz 985; beta.9; next = round 35 dancer

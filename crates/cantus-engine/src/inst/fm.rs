@@ -15,7 +15,7 @@ use cantus_dsp::modmatrix::{ModCurve, ModRoute};
 use cantus_dsp::modulus::{source, target, Modulus, OpSettings, Patch};
 use cantus_dsp::voices::{PlayMode, Priority};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)] // r34:listen: Clone for fork
 pub struct Unit {
     synth: Modulus,
     defaults: Box<Patch>,
@@ -321,6 +321,9 @@ fn global(p: &mut Patch, key: &str, v: f32) {
 }
 
 impl InstrumentUnit for Unit {
+    fn fork(&self) -> Option<Box<dyn InstrumentUnit>> {
+        Some(Box::new(self.clone()))
+    } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, _assets: &Assets) {
         patch_into(spec, &self.defaults, &mut self.scratch);
         self.synth.set_patch(&self.scratch);
