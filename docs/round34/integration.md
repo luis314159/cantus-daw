@@ -167,3 +167,19 @@ On `48188b83` (every branch merged), on a quiet machine, with `RUSTFLAGS=-D warn
 - Everything rounds 30–33 left (`docs/STATUS.md`): the hardware of round 33, the Apple
   account, a real Linux desktop, Flathub, code signing, the RVR1960 permission, the
   trademark filing, the UMC in duplex; REAPER and FL Studio for the comparisons.
+
+## After the tag
+
+GitHub's runners caught three things the local suites did not; each was fixed with a test and
+the tag `v0.1.0-beta.9` was moved, with the owner's leave, to the commit that holds them
+(public `0514b44f`), whose CI, macOS and Release runs are green:
+
+- **Windows runner**: its user is the built-in Administrator, so Windows writes the DACL's SID
+  as the alias `LA`; `home.rs`'s test compared SDDL text. The tests now compare SIDs
+  (`cantus_rt::private::same_dacl`), and a test checks the `LA` alias.
+- **macOS's "engine on the pool"** (`CANTUS_WORKERS=3`): a fork kept the original's
+  `pool_wakes` while running its own pool, so its first pass subtracted past zero
+  (`listen_fork.rs`). The local final suite now also runs the engine's lib tests on the pool.
+- **Linux runner**: two conversions in one process both numbered their work folder
+  `<pid>-1`, and the first one's end removed the second's; folders are now numbered across the
+  process and made exclusively (`transcribe_ui.rs`, `transcribe_workdir`).

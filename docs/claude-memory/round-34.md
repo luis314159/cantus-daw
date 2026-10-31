@@ -28,6 +28,13 @@ Round 34 = docs/next-session.md of round 33 (owner's order 2026-10-28). Item 0 h
 - Machine notes: a TaskStop of a background suite left its cargo running (killing it was denied by
   the permission classifier) — don't stop a long cargo run mid-way; wait it out.
 
+- After the tag, GitHub caught three things the local suites missed (fixed, tag moved to public
+  0514b44f with the owner's OK — deleting a remote tag needs the owner's explicit approval here):
+  Windows runner's built-in Administrator → SDDL aliases (`LA`) broke a DACL string test; a fork's
+  pool `pool_wakes` underflow seen only with `CANTUS_WORKERS=3` on engine lib tests (macOS's "engine
+  on the pool" step); two conversions in one process shared `Cache/transcribe/<pid>-1` (parallel
+  test threads). **Local final suite must also run `CANTUS_WORKERS=3 cargo test -p cantus-engine --lib`.**
+
 **How to apply:** round 35 = the dancer (docs/next-session.md, [[decision-round35-dancer]]).
 Owner-only items in docs/beta-checklist.md (clean Windows without VC++ redist, Mac rows 17+, signing
 cantus-mcp.exe/cantus-ml.exe, .mcpb in Claude Desktop, listening to writers and masters, FAT32/exFAT
