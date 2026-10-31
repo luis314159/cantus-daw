@@ -164,7 +164,8 @@ conversion holds stems' agent counter from its preparation until its job ends, s
 helper counts as in use between its helper jobs too (reading the take, separating, then
 transcribing).
 
-**Files and jobs.** A conversion works in `Cache/transcribe/<pid>-<n>/`, held by a lock on
+**Files and jobs.** A conversion works in `Cache/transcribe/<pid>-<n>/` (`n` counted across the
+process, so two windows' or an agent's conversions never share one), held by a lock on
 `held.lock` while it lives and removed when its last holder lets go (a stop while the take
 is still read included: the reader is cancelled between blocks); a folder whose lock no
 process holds (a Cantus that ended mid-conversion) is swept when the next conversion

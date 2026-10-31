@@ -189,7 +189,7 @@ fn prepare(cx: &mut ToolCx<'_>, args: &Value) -> Result<Job, ToolError> {
         }
     }
     tr::sweep();
-    let dir = tr::WorkDir::new(next_id()).map_err(ToolError::Failed)?;
+    let dir = tr::WorkDir::new("agent-").map_err(ToolError::Failed)?;
     let job_args = tr::job_args(
         app.ml().models(),
         &s,
@@ -366,9 +366,4 @@ pub fn said(src: &tr::Source, mode: Mode) -> Said {
                 Mode::Drums => "transcribe.mode.drums.word",
             }),
         )
-}
-
-fn next_id() -> u64 {
-    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1 << 32);
-    N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }

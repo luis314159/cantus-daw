@@ -134,6 +134,17 @@ the build's manifest (`map_of`), and *prepared* is marker, version and size.
    studio kit's pads through `app::localized_pad_name`
    (`a_drum_conversions_kit_speaks_the_interfaces_language`).
 
+## After beta.9: two conversions in one folder
+
+GitHub's Linux runner failed `drums_through_the_helper_without_a_model`: its `input.wav`
+was gone. Each window counted its conversions' folders from 1, so two windows of one
+process (that binary's parallel tests) took the same `<pid>-1`; the second's lock waited
+for the first's, which then removed the folder under it. The folder's number is now counted
+across the process (`WorkDir::new(tag)`: `<pid>-<tag><n>`, made with `create_dir`, never
+reused, its lock taken without waiting), agents' as `agent-<n>`
+(`two_conversions_at_once_never_share_a_folder`: two windows convert at once, one stopped
+takes only its own folder).
+
 ## How it was tested
 
 **Second delivery** (the review's fixes, both stems merges): **23 new tests** and one more

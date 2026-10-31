@@ -533,20 +533,13 @@ fn the_agents_drum_job_leaves_nothing_in_the_job_table() {
     // The helper's job ended and its starter forgot it (the router makes nothing again).
     std::thread::sleep(Duration::from_millis(200));
     assert_eq!(r.app.ml().kept(), 0);
-    // The agents' folders (ids from 2^32; the dialog's tests in this binary have their
-    // own) go with their jobs.
+    // The agents' folders (`<pid>-agent-<n>`; the dialog's tests in this binary have
+    // their own) go with their jobs.
     let agents = || {
         std::fs::read_dir(tr::cache_root())
             .map(|d| {
                 d.flatten()
-                    .filter(|e| {
-                        e.file_name()
-                            .to_string_lossy()
-                            .rsplit('-')
-                            .next()
-                            .and_then(|n| n.parse::<u64>().ok())
-                            .is_some_and(|n| n >= 1 << 32)
-                    })
+                    .filter(|e| e.file_name().to_string_lossy().contains("-agent-"))
                     .count()
             })
             .unwrap_or(0)

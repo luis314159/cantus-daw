@@ -31,7 +31,7 @@ fn folders() -> Vec<std::path::PathBuf> {
 fn a_folder_no_cantus_holds_is_swept_and_a_held_one_kept() {
     let _one = ONE.lock().unwrap_or_else(|p| p.into_inner());
     data_dir();
-    let held = tr::WorkDir::new(7).unwrap();
+    let held = tr::WorkDir::new("").unwrap();
     std::fs::write(held.join("input.wav"), b"held").unwrap();
     // What a Cantus that ended mid-conversion leaves: its folder, its lock file unheld.
     let left = tr::cache_root().join("4242-1");
@@ -181,4 +181,50 @@ fn another_project_open_stops_the_conversion_and_makes_nothing() {
         app.transcribe.last
     );
     assert_eq!(app.bus.history().len(), steps);
+}
+
+#[test]
+fn two_conversions_at_once_never_share_a_folder() {
+    // Two windows in one process (the tests of a binary are such): each conversion works
+    // in a folder of its own, a start's sweep leaves the other's alone, and one stopped
+    // takes only its own folder with it (GitHub's Linux runner, beta.9: the second
+    // window's folder was the first's, removed under it).
+    let _one = ONE.lock().unwrap_or_else(|p| p.into_inner());
+    data_dir();
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+    let (p1, t1, c1, _d1) = minute_take();
+    let (p2, t2, c2, _d2) = minute_take();
+    let mut a = CantusApp::from_parts(Some(p1), EngineHandle::dummy(), false);
+    let mut b = CantusApp::from_parts(Some(p2), EngineHandle::dummy(), false);
+    for (app, t, c) in [(&mut a, t1, c1), (&mut b, t2, c2)] {
+        run::open(app, t, c);
+        app.transcribe.dialog.as_mut().unwrap().settings.mode = Mode::Drums;
+        run::start(app);
+        assert!(app.transcribe.busy());
+    }
+    let both = folders();
+    assert_eq!(both.len(), 2, "a folder each: {both:?}");
+    run::stop(&mut a);
+    // `a`'s folder goes; `b`'s stays, and its reader finishes its input there.
+    let t0 = Instant::now();
+    loop {
+        let now = folders();
+        let input = now.iter().any(|f| f.join("input.wav").is_file());
+        if now.len() == 1 && input {
+            break;
+        }
+        assert!(
+            t0.elapsed() < Duration::from_secs(60),
+            "{now:?}: {:?}",
+            b.transcribe.last
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(b.transcribe.busy(), "{:?}", b.transcribe.last);
+    run::stop(&mut b);
+    let t0 = Instant::now();
+    while !folders().is_empty() {
+        assert!(t0.elapsed() < Duration::from_secs(20), "{:?}", folders());
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }

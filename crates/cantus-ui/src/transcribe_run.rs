@@ -79,7 +79,6 @@ pub struct State {
     pub running: Option<Running>,
     /// The last conversion's end: what was made, or why not.
     pub last: Option<Result<String, String>>,
-    next: u64,
     /// The window, for the workers to wake when they finish (a frame need not be drawn).
     pub repaint: Option<egui::Context>,
 }
@@ -139,10 +138,9 @@ pub fn start(app: &mut CantusApp) {
             return;
         }
     };
-    app.transcribe.next += 1;
     // Folders a Cantus that ended mid-conversion left behind go first.
     super::sweep();
-    let dir = match super::WorkDir::new(app.transcribe.next) {
+    let dir = match super::WorkDir::new("") {
         Ok(d) => Arc::new(d),
         Err(e) => {
             app.transcribe.last = Some(Err(e));
@@ -487,7 +485,7 @@ pub fn pretend_running(app: &mut CantusApp, stage: Stage, done: f32) {
         settings: d.settings,
         stage,
         done,
-        dir: match super::WorkDir::new(u64::MAX) {
+        dir: match super::WorkDir::new("shot-") {
             Ok(d) => Arc::new(d),
             Err(_) => return,
         },

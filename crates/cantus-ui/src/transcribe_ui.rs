@@ -298,15 +298,31 @@ pub struct WorkDir {
 const LOCK: &str = "held.lock";
 
 impl WorkDir {
-    pub fn new(id: u64) -> Result<WorkDir, String> {
-        let path = cache_root().join(format!("{}-{id}", std::process::id()));
-        std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
-        let f = std::fs::File::create(path.join(LOCK)).map_err(|e| e.to_string())?;
-        f.lock().map_err(|e| e.to_string())?;
-        Ok(WorkDir {
-            path,
-            lock: Some(f),
-        })
+    /// A new folder, `<pid>-<tag><n>`, `n` counted across the whole process: two
+    /// conversions at once — two windows' dialogs, an agent's beside the user's — never
+    /// share one (each window used to count its own, so two started at once took the same
+    /// folder and the first to end removed it under the other). The folder is made, never
+    /// reused (one left by an earlier process with the same pid is passed over), and its
+    /// lock taken without waiting.
+    pub fn new(tag: &str) -> Result<WorkDir, String> {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        let root = cache_root();
+        std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+        loop {
+            let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let path = root.join(format!("{}-{tag}{n}", std::process::id()));
+            match std::fs::create_dir(&path) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e.to_string()),
+            }
+            let f = std::fs::File::create(path.join(LOCK)).map_err(|e| e.to_string())?;
+            f.try_lock().map_err(|e| e.to_string())?;
+            return Ok(WorkDir {
+                path,
+                lock: Some(f),
+            });
+        }
     }
 
     pub fn join(&self, name: &str) -> PathBuf {
