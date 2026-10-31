@@ -293,6 +293,21 @@ pub fn dacl_sddl(path: &Path) -> io::Result<String> {
     windows::dacl_sddl(path)
 }
 
+/// The DACL [`secure_dir`] (`folder`) or [`create_secret`] gives, in SDDL with this user's
+/// SID spelt out — compare it with [`same_dacl`], never as text.
+#[cfg(windows)]
+pub fn expected_user_dacl(folder: bool) -> io::Result<String> {
+    windows::user_dacl(folder)
+}
+
+/// Whether two DACLs in SDDL are the same, SID for SID: each is read back as the system
+/// writes it, which spells a well-known SID by its alias (`LA` for the built-in
+/// Administrator — GitHub's Windows runner — `BA`, `SY`…), so a SID and its alias agree.
+#[cfg(windows)]
+pub fn same_dacl(a: &str, b: &str) -> io::Result<bool> {
+    Ok(windows::normalize_sddl(a)? == windows::normalize_sddl(b)?)
+}
+
 #[cfg(windows)]
 mod windows {
     use std::fs::File;
@@ -497,7 +512,7 @@ mod windows {
 
     /// A protected DACL giving this user — by SID — full control (`folder`: inherited by
     /// what it holds), nothing else.
-    pub(super) fn user_dacl(folder: bool) -> io::Result<String> {
+    pub fn user_dacl(folder: bool) -> io::Result<String> {
         let me = sid_string(&my_sid()?)?;
         let inherit = if folder { "OICI" } else { "" };
         Ok(format!("D:P(A;{inherit};FA;;;{me})"))
@@ -600,26 +615,33 @@ mod windows {
         }
     }
 
-    pub fn dacl_sddl(path: &Path) -> io::Result<String> {
-        let file = wide(path.as_os_str());
-        let mut sd: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
-        // SAFETY: `file` is a NUL-terminated wide path; `sd` is system-allocated, freed
-        // below.
-        let err = unsafe {
-            GetNamedSecurityInfoW(
-                file.as_ptr(),
-                SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                &mut sd,
-            )
-        };
-        if err != 0 {
-            return Err(io::Error::from_raw_os_error(err as i32));
+    /// `sddl` as the system writes it back (well-known SIDs as their aliases).
+    pub fn normalize_sddl(sddl: &str) -> io::Result<String> {
+        let sd = Sd::from_sddl(sddl)?;
+        dacl_string(sd.0)
+    }
+
+    /// A SID given as SDDL (`S-1-5-…` or an alias such as `LA`), as bytes.
+    #[cfg(test)]
+    pub(super) fn sid_from_string(text: &str) -> io::Result<Vec<u8>> {
+        let w = wide(std::ffi::OsStr::new(text));
+        let mut sid: PSID = std::ptr::null_mut();
+        // SAFETY: `w` is NUL-terminated; `sid` receives a system-allocated SID, freed below.
+        use windows_sys::Win32::Security::Authorization::ConvertStringSidToSidW;
+        if unsafe { ConvertStringSidToSidW(w.as_ptr(), &mut sid) } == 0 {
+            return Err(io::Error::last_os_error());
         }
+        // SAFETY: `sid` is valid; its length is GetLengthSid's.
+        let len = unsafe { GetLengthSid(sid) } as usize;
+        // SAFETY: the SID's `len` bytes, copied before it is freed.
+        let out = unsafe { std::slice::from_raw_parts(sid as *const u8, len) }.to_vec();
+        // SAFETY: allocated by the system for us, freed once.
+        unsafe { LocalFree(sid as HLOCAL) };
+        Ok(out)
+    }
+
+    /// A descriptor's DACL in SDDL, as the system writes it.
+    fn dacl_string(sd: PSECURITY_DESCRIPTOR) -> io::Result<String> {
         let mut text: *mut u16 = std::ptr::null_mut();
         let mut len = 0u32;
         // SAFETY: `sd` is valid; `text` receives a system-allocated wide string.
@@ -640,13 +662,36 @@ mod windows {
             let s = s.split(|c| *c == 0).next().unwrap_or(s);
             Ok(String::from_utf16_lossy(s))
         };
-        // SAFETY: both were allocated by the system for us, each freed once.
-        unsafe {
-            if !text.is_null() {
-                LocalFree(text as HLOCAL);
-            }
-            LocalFree(sd as HLOCAL);
+        if !text.is_null() {
+            // SAFETY: allocated by the system for us, freed once.
+            unsafe { LocalFree(text as HLOCAL) };
         }
+        out
+    }
+
+    pub fn dacl_sddl(path: &Path) -> io::Result<String> {
+        let file = wide(path.as_os_str());
+        let mut sd: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+        // SAFETY: `file` is a NUL-terminated wide path; `sd` is system-allocated, freed
+        // below.
+        let err = unsafe {
+            GetNamedSecurityInfoW(
+                file.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut sd,
+            )
+        };
+        if err != 0 {
+            return Err(io::Error::from_raw_os_error(err as i32));
+        }
+        let out = dacl_string(sd);
+        // SAFETY: allocated by the system for us, freed once.
+        unsafe { LocalFree(sd as HLOCAL) };
         out
     }
 }
@@ -688,10 +733,17 @@ mod tests {
         #[cfg(windows)]
         {
             // The user by SID (review 5 #2), read back from the system.
-            let me = windows::sid_string(&windows::my_sid().unwrap()).unwrap();
-            assert!(me.starts_with("S-1-5-"), "{me}");
-            assert_eq!(dacl_sddl(&f).unwrap(), format!("D:P(A;;FA;;;{me})"));
-            assert_eq!(dacl_sddl(&dir).unwrap(), format!("D:P(A;OICI;FA;;;{me})"));
+            // Compared SID for SID (GitHub's runner is the built-in Administrator, whose
+            // SID the system writes as `LA`).
+            let (file, folder) = (dacl_sddl(&f).unwrap(), dacl_sddl(&dir).unwrap());
+            assert!(
+                same_dacl(&file, &expected_user_dacl(false).unwrap()).unwrap(),
+                "{file}"
+            );
+            assert!(
+                same_dacl(&folder, &expected_user_dacl(true).unwrap()).unwrap(),
+                "{folder}"
+            );
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -865,6 +917,25 @@ mod tests {
         };
         let listed = String::from_utf8_lossy(&o.stdout).contains("S-1-5-32-544");
         assert_eq!(windows::in_group(&ADMINISTRATORS).unwrap(), listed);
+    }
+
+    /// The built-in Administrator (RID 500, the user on GitHub's Windows runner): the
+    /// system writes its SID as `LA`, and the comparison takes the alias and the SID
+    /// spelt out as the same — and a different SID as different.
+    #[cfg(windows)]
+    #[test]
+    fn a_dacl_matches_whether_its_sid_is_spelt_out_or_aliased() {
+        let admin = windows::sid_from_string("LA").unwrap();
+        let spelt = windows::sid_string(&admin).unwrap();
+        assert!(
+            spelt.starts_with("S-1-5-21-") && spelt.ends_with("-500"),
+            "{spelt}"
+        );
+        let aliased = "D:P(A;OICI;FA;;;LA)";
+        assert_eq!(windows::normalize_sddl(aliased).unwrap(), aliased);
+        assert!(same_dacl(aliased, &format!("D:P(A;OICI;FA;;;{spelt})")).unwrap());
+        assert!(!same_dacl(aliased, "D:P(A;OICI;FA;;;BA)").unwrap());
+        assert!(!same_dacl(aliased, &format!("D:P(A;;FA;;;{spelt})")).unwrap());
     }
 
     /// Review 4 #6, #8: a link is never followed, and an opened file says where it is.

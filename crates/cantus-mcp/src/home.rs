@@ -276,11 +276,20 @@ mod tests {
         // system; the settings folder itself is left as it was (inherited, not protected).
         #[cfg(windows)]
         {
+            // Compared SID for SID, not as text: on GitHub's runner the user is the
+            // built-in Administrator, whose SID the system writes as `LA`.
+            use cantus_rt::private::{expected_user_dacl, same_dacl};
             let sddl = cantus_rt::private::dacl_sddl;
             let folder = sddl(&secrets(&d)).unwrap();
-            assert!(folder.starts_with("D:P(A;OICI;FA;;;S-1-5-"), "{folder}");
+            assert!(
+                same_dacl(&folder, &expected_user_dacl(true).unwrap()).unwrap(),
+                "{folder}"
+            );
             let file = sddl(&secrets(&d).join(TOKEN_FILE)).unwrap();
-            assert!(file.starts_with("D:P(A;;FA;;;S-1-5-"), "{file}");
+            assert!(
+                same_dacl(&file, &expected_user_dacl(false).unwrap()).unwrap(),
+                "{file}"
+            );
             assert!(
                 !sddl(&d).unwrap().starts_with("D:P"),
                 "the settings folder untouched"
