@@ -190,6 +190,29 @@ fn the_null_corpus_is_repeatable_named_once_and_audible() {
     assert!(lines[0].split("  ").next().unwrap().len() == 64);
 }
 
+/// Every instrument of the null corpus sounds, and only those: the dancer (silent by design,
+/// ADR 0087) once made `cantus-bench hashes` refuse the corpus on every runner — the check
+/// ran only in `xtask null-hashes`, never in a test.
+#[test]
+fn the_null_corpus_instruments_all_sound() {
+    let inst = cantus_bench::hashes::instrument_items();
+    let sounding = InstrumentKind::ALL.iter().filter(|k| k.sounds()).count();
+    assert_eq!(
+        inst.len(),
+        2 + sounding,
+        "firmus, pulsus and every native that sounds"
+    );
+    assert!(!inst.iter().any(|i| i.name.contains("saltator")));
+    for i in &inst {
+        assert!(
+            i.peak > 1e-4 && i.peak.is_finite(),
+            "{} peak {}",
+            i.name,
+            i.peak
+        );
+    }
+}
+
 /// Sound review 2: the rig measures a Chorda that plays — its keyboard designed before the
 /// rig is built (a unit no longer waits for it, and the held notes at tick 0 were dropped,
 /// so `inst.chorda.v8` timed a silent piano).

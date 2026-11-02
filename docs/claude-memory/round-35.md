@@ -74,3 +74,13 @@ origin, publish.sh to cantus-daw, lightweight tag v0.1.0-beta.10 from the publis
 round = docs/next-session.md: round 36 the professional studio (recording mode §4c, VCA +
 snapshots, external gear + latency ping, Mackie/HUI, Edison-class editor, ARA 2 measured first)
 — the integrator's proposal; the owner may change it.
+
+Released 2026-11-02: private master 7ebbc88c (squash), public cantus-daw 054252e0, tag
+v0.1.0-beta.10 → Release green and "latest" (setup 156 MB, AppImage 79 MB; no macOS .dmg), CI,
+macOS (no FLAKY), Site, Supply chain, Windows release build green. After the tag, GitHub's
+"Null hashes" failed on all three runners: `cantus-bench hashes` requires every corpus
+instrument to sound and the dancer is silent — fixed (corpus filters on InstrumentKind::sounds,
+a bench test renders the corpus's instruments) in a follow-up commit, product unchanged, tag not
+moved. Lesson: a check that only lives in an xtask/workflow (not `cargo test`) must be run
+locally before tagging when a new instrument/effect kind is added. Round worktrees removed except
+F:\projects\daw-r35 itself (scripts, logs, videoprobe REPORT.md + out/alpha_png.mov kept).

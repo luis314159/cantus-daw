@@ -125,6 +125,12 @@ continúa."*
   every test in the binary, and another test's worker still running `ffmpeg -encoders`
   (seconds on WSL's Linux) moved it — the final Linux run's one failure. The window counts
   its own lookups now.
+- **The null corpus asked the dancer to sound** (after the tag, GitHub's *Null hashes* on
+  every runner): `cantus-bench hashes` renders every instrument and refuses a silent one —
+  two builds agreeing on silence prove nothing — and the dancer is silent by design. The
+  corpus leaves out what does not sound (`InstrumentKind::sounds`); the check had lived only
+  in `xtask null-hashes`, so a test now renders the corpus's instruments and requires each
+  to sound. The shipped program is unchanged.
 
 ## Results
 

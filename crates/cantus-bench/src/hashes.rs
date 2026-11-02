@@ -12,7 +12,8 @@
 //! - `math.<fn>.<f32|f64>` — every `cantus_dsp::math` function over 4 096 points;
 //! - `fx.<kind>.<default|heavy>` — every native effect, alone, on two seconds of the
 //!   bench's busy signal in 128-frame blocks (the kernels' settings, `kernels::heavy`);
-//! - `inst.<name>.v8` — every instrument holding eight voices, rendered offline;
+//! - `inst.<name>.v8` — every instrument that sounds holding eight voices, rendered
+//!   offline (the dancer makes none: its silence to the bit is its own null tests');
 //! - `demo.<id>` — each demo song's eight bars where the whole band plays, rendered
 //!   offline (`--whole`: every song whole, `demo.<id>.whole`); no samples on disk, so a
 //!   sampled pad is silence, the same on every build;
@@ -183,6 +184,11 @@ fn render_project(p: &Project, start: Ticks, end: Option<Ticks>) -> Vec<f32> {
 pub fn instrument_items() -> Vec<Hashed> {
     kernels::instruments()
         .into_iter()
+        // Two builds agreeing on a silent dancer would prove nothing (ADR 0087).
+        .filter(|(_, spec)| match spec {
+            cantus_core::InstrumentSpec::Native(n) => n.kind.sounds(),
+            _ => true,
+        })
         .map(|(name, spec)| {
             let p = crate::sessions::instrument(spec, 8);
             hash_f32(
