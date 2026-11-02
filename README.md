@@ -52,11 +52,15 @@ now is in [docs/STATUS.md](docs/STATUS.md).
   first; **stem separation** and **audio to MIDI** by models downloaded from their makers
   when you ask; a **mastering assistant** that proposes a chain of our own effects per
   platform.
+- **A character that dances to your song** (ADRs 0087–0091). Six characters of our own —
+  or your own Lottie, sprite sheet or DragonBones file — dance over the workspace to the
+  beat, driven by automation, modulators and notes; a companion window for streams; the
+  clip exported as an MP4, a WebM or a transparent MOV with the song's audio.
 - **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
   **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
   and **DAWproject** in and out.
 - **Fast, and tested to stay fast.** An audio thread that never allocates, nothing redrawn
-  when nothing moves, and 2 000+ tests — null tests that hold offline renders bit-identical
+  when nothing moves, and 6 000+ tests — null tests that hold offline renders bit-identical
   to playback, golden images that hold the look, and a frame budget that fails the build
   when the UI gets slow.
 
@@ -223,6 +227,49 @@ drum model.
 
 Models are never in the installer: each is downloaded from its maker the first time, after
 you see its licence, size and origin, checked by SHA-256 and removable in Settings ▸ Models.
+
+### A dancer for your songs — characters, video, the stage
+
+![Trino, Miso, Lana, Tic, Corchea and Sol dancing together on one stage, each its own routine](docs/round35/cast/family-hero.gif)
+
+Add a **Saltator** track and a character dances over your workspace **to the beat** — no
+automation needed. Its moves, travel, speed, energy, lift, spin, size, mood and colour are
+ordinary automation and modulator targets, MIDI learn reaches them, and notes from C3
+choose its sixteen moves like a drum map, so an automation clip changes the dance exactly
+on the bars where you drew it. *React to* makes it move with a channel's level or the whole
+song's. The dancer makes no sound: the tests hold every sample of a song with dancers
+equal, bit for bit, to the same song without them.
+
+![Trino dancing over the workspace while Neon Tide plays: the arrangement, the mixer with the dancer's strip, the inspector's Dance rows and its follower listening to the kick](docs/images/dance-stage.png)
+
+<p>
+  <img src="docs/images/dancer-window.png" width="56%" alt="Saltator's window: the stage with Trino dancing under a spotlight, the six characters as dancing tiles, sixteen move pads from C3, and Dance, Body, Look and Ears">
+  <img src="docs/images/dance-companion.png" width="40%" alt="The companion window over the desktop with true transparency: Trino dancing, the song's name and tempo, the bar and beat, the master's level">
+</p>
+
+Six characters of our own come with Cantus — **Trino** the songbird, **Miso** the cat,
+**Lana** the lamb, **Tic** the metronome robot, **Corchea** the eighth note and **Sol** — each
+with every move and mood, in its own style, crisp at any size. Bring your own as **Lottie**
+(`.json`, `.lottie`), **Aseprite** or **TexturePacker** sprite sheets or **DragonBones**
+skeletons: Cantus reads them with its own players, runs no script in them, bounds every
+size, shows their licence first and copies them into the project.
+
+**The companion** (Alt+Shift+D; Alt+D shows or hides the dancers) keeps dancing in a small window above everything while you work —
+on Windows with true transparency, soft shadows and all; **streaming mode** (Ctrl+Shift+D)
+gives OBS or Streamlabs a window titled *Cantus Stage* with a transparent or chroma
+background, a fixed size and place, and a light visualiser of the song. Measured for an
+hour under OBS: about 3.4 % of one processor core.
+
+<p>
+  <img src="docs/images/video-export.png" width="56%" alt="Export video: the preview of the scrubbed moment, vertical 1080 × 1920, the stage background, a title, the encoders it will use and an estimate">
+  <img src="docs/images/dance-import.png" width="40%" alt="Importing a Lottie character: its licence, what it holds, and its animations mapped to Cantus's moves">
+</p>
+
+**File ▸ Export video…** turns the song into a clip with the dancers and the song's audio:
+**MP4** (H.264 and AAC from your system's encoders), **WebM**, or a **transparent MOV** or
+PNG frames for an editor — square, vertical or wide, 30 or 60 frames a second, on the stage,
+transparent, on a chroma key or black, with a title. Audio and picture are in sync to the
+sample: decoded back, 0.000 ms on every path.
 
 ### Effects
 
@@ -417,6 +464,8 @@ look, and `tests/frame_budget.rs` holds the speed.
 | `cantus-ai` | GPL-3.0-or-later | `AiProvider` trait, the tool table, command bridge |
 | `cantus-mcp` | GPL-3.0-or-later | the MCP server, written by hand: both protocol generations, permissions, jobs |
 | `cantus-ml` | GPL-3.0-or-later | the machine-learning helper process: stem separation and transcription on ONNX Runtime |
+| `cantus-dance` | GPL-3.0-or-later | the dancing character: its characters, moves, imports and drawing |
+| `cantus-video` | GPL-3.0-or-later | video export: MP4 from the system's H.264 and AAC, WebM (AV1 + Vorbis), a PNG MOV and frames for editors |
 | `cantus-ui` | GPL-3.0-or-later | the interface, its design system and the hand-drawn kit |
 | `cantus` | GPL-3.0-or-later | the binary |
 

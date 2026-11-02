@@ -35,10 +35,15 @@ Round 34 = docs/next-session.md of round 33 (owner's order 2026-10-28). Item 0 h
   on the pool" step); two conversions in one process shared `Cache/transcribe/<pid>-1` (parallel
   test threads). **Local final suite must also run `CANTUS_WORKERS=3 cargo test -p cantus-engine --lib`.**
 
+**Released 2026-10-31:** private master 0ccc70ea (squash b754c269 + version 500e088d + three CI
+fixes + docs) → public 782dc960; tag v0.1.0-beta.9 on public 0514b44f (lightweight, from the publish
+clone), Release run 41217397119 green (setup, portable, plug-ins zip, AppImage). All r34 worktrees
+removed (branches r34/* kept locally, never pushed); daw-r34/models (23 GB, MUSDB NC) deleted; F: 137 GB.
+
 **How to apply:** round 35 = the dancer (docs/next-session.md, [[decision-round35-dancer]]).
 Owner-only items in docs/beta-checklist.md (clean Windows without VC++ redist, Mac rows 17+, signing
 cantus-mcp.exe/cantus-ml.exe, .mcpb in Claude Desktop, listening to writers and masters, FAT32/exFAT
 export, legal review of the model sources). Proposed next AI work: analysis store per track, assistant
-panel with the owner's own key (kept outside the repository), an agent benchmark — and a real
+panel with the owner's key ([[reference-anthropic-key]]), an agent benchmark — and a real
 Claude-drives-Cantus session after beta.9 only with the owner's OK.
 See [[cantus-parallel-builders]], [[feedback-review-cost]], [[feedback-no-leftovers]].

@@ -1394,3 +1394,6 @@ fn one_page_of_500_parameters_draws_only_its_rows_in_view() {
     let most = warm.iter().map(|f| f.drawn).max().unwrap_or(0);
     eprintln!("one page of 500, scrolled: at most {most} cells drawn");
 }
+
+#[path = "stage_budget/frame.rs"] // r35:stage
+mod stage_budget; // r35:stage — a dancer on screen (ADR 0091)

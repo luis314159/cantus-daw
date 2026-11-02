@@ -16,6 +16,7 @@ Windows 10/11 x64 is the platform Cantus ships on; Linux and macOS build for dev
 | **rustup** | Rust | `winget install Rustlang.Rustup` (or https://rustup.rs). The repository's `rust-toolchain.toml` pins the compiler (1.97.1, with clippy and rustfmt); rustup installs it by itself the first time `cargo` runs in the clone. |
 | **Visual Studio 2022 Build Tools** | the MSVC linker and C compiler (LAME, Vorbis and the ASIO glue are C/C++) | `winget install Microsoft.VisualStudio.2022.BuildTools`, then in its installer: *Desktop development with C++* (MSVC v143 and a Windows 11 SDK). |
 | **LLVM** | `libclang.dll`, which generates the ASIO bindings | `winget install LLVM.LLVM` (into `C:\Program Files\LLVM`; elsewhere, set `LIBCLANG_PATH` to its `bin`). |
+| nasm *(releases only)* | rav1e's assembly for WebM video, 2.8× faster with the same bytes (ADR 0088); `xtask package` refuses to build without it — developer builds work without it, slower | `winget install NASM.NASM` (then add `C:\Program Files\NASM` to `PATH`). Linux: `sudo apt install nasm` (`packaging/linux/deps.sh` installs it). macOS: `brew install nasm`. |
 | NSIS 3 *(packaging only)* | the installer | `nsis-3.11.zip` from SourceForge, SHA-256 `c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1`, unzipped into `%LOCALAPPDATA%\cantus-build-tools\nsis-3.11\` (or set `CANTUS_MAKENSIS`). |
 | signtool *(signing only)* | Authenticode | comes with the Windows SDK above. |
 
@@ -200,7 +201,7 @@ On a Mac (Xcode's command-line tools, `rustup target add aarch64-apple-darwin
 x86_64-apple-darwin`), from the repository's root:
 
 ```text
-packaging/macos/build-dmg.sh 0.1.0-beta.9 target/dmg-out
+packaging/macos/build-dmg.sh 0.1.0-beta.10 target/dmg-out
 ```
 
 It builds `cantus`, `cantus-scan` and `cantus-sandbox` for both architectures, joins them

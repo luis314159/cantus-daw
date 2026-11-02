@@ -20,6 +20,9 @@ path = "src/main.rs"
 # third_party/README.md); a release (`xtask package`) refuses to build without them.
 default = ["asio"]
 asio = ["cantus-ui/asio"]
+# rav1e's assembly for WebM video: 2.8x faster, the same bytes; needs nasm to build
+# (releases: `xtask package` and the workflows turn it on - ADR 0088). # r35:video
+video-asm = ["cantus-ui/video-asm"] # r35:video
 
 [dependencies]
 cantus-ui.workspace = true

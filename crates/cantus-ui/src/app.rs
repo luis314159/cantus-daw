@@ -295,6 +295,7 @@ pub struct CantusApp {
     /// The command palette, the undo history, the start page and the templates (round 31,
     /// ADR 0072).
     pub workflow: crate::workflow::WorkflowUi,
+    pub dance_import: crate::dance_import::DanceImport, // r35:import
     /// The score (round 32, ADR 0075): the staff under the piano roll, the Score pane.
     pub score: crate::score::ScoreUi,
     pub session_view: crate::views::session::SessionView, // r33:launcher
@@ -307,8 +308,11 @@ pub struct CantusApp {
     pub listen: crate::ai_tools::listen::Service, // r34:listen — listening and the mastering assistant (ADRs 0083–0084)
     /// *Separate stems…*: its panel and the separations under way. // r34:stems
     pub stems: crate::stems_ui::StemsUi, // r34:stems
+    pub video: crate::video_export::VideoUi,      // r35:video — Export video… (ADR 0088)
     /// Convert to MIDI: the dialog and the running conversion (ADR 0086). // r34:transcribe
     pub transcribe: crate::transcribe_ui::run::State, // r34:transcribe
+    pub stage: crate::stage::StageState,          // r35:stage — the dancers on screen (ADR 0091)
+    pub dance_live: crate::dance_live::DanceLive, // r35:dancer — the dancers' feeds and poses
 }
 
 impl CantusApp {
@@ -762,6 +766,7 @@ impl CantusApp {
             warp: Default::default(),
             controllers: Default::default(),
             workflow: Default::default(),
+            dance_import: Default::default(), // r35:import
             score: Default::default(),
             session_view: Default::default(), // r33:launcher
             perform: Default::default(),      // r33:session
@@ -769,7 +774,10 @@ impl CantusApp {
             ml: Default::default(),           // r34:stems
             listen: Default::default(),       // r34:listen
             stems: Default::default(),        // r34:stems
+            video: Default::default(),        // r35:video
             transcribe: Default::default(),   // r34:transcribe
+            stage: Default::default(),        // r35:stage
+            dance_live: Default::default(),   // r35:dancer
         };
         app.select_first();
         app.sync_live_track();
@@ -3261,7 +3269,7 @@ impl CantusApp {
     }
 
     pub fn export_in_progress(&self) -> bool {
-        self.export.busy()
+        self.export.busy() || self.video.busy() // r35:video — one render at a time
     }
 
     pub fn poll_export(&mut self) {
@@ -3597,6 +3605,9 @@ impl CantusApp {
         if crate::workflow::action(self, action) {
             return;
         }
+        if crate::stage::action(self, action) {
+            return; // r35:stage — the stage's keys (keymap 15)
+        } // r35:stage
         match action {
             // Handled by `controllers_action` above.
             MidiLearnMode | LinkLastTweaked | ViewControllers => {}
@@ -3606,6 +3617,7 @@ impl CantusApp {
             | SessionStopAll | SessionRecordSlot | SessionArrangementRecord // r33:launcher
             | SessionBackToArrangement | SessionCaptureScene | SessionInsertScene // r33:launcher
             | SessionScenePrev | SessionSceneNext | ToggleLink => {} // r33:launcher
+            ToggleStage | ToggleCompanion | ToggleStreaming => {} // r35:stage
             // Handled by `workflow::action` above.
             CommandPalette | ViewHistory | NewFromTemplate | SaveAsTemplate | SaveTrackTemplate => {
             }
@@ -3646,6 +3658,7 @@ impl CantusApp {
             Save => self.save(),
             SaveAs => self.save_as(),
             ExportWav => self.export_dialog(),
+            ExportVideo => crate::video_export::open(self), // r35:video
             Undo => self.undo(),
             Redo => self.redo(),
             // Cut, copy, paste, duplicate, delete and the arrows all exist twice over:
@@ -4073,6 +4086,7 @@ impl CantusApp {
         self.listen.sync_epoch(self.epoch); // r34:listen — a switched project's listens forgotten before agents' calls run
         crate::ai_mcp::frame(self, ctx); // r34:mcp — agents' calls, before the views draw
         self.ml.poll(); // r34:stems — model downloads and preparations
+        crate::dance_live::frame(self); // r35:dancer — the dancers posed at what is heard
         crate::transcribe_ui::run::frame(self, ctx); // r34:transcribe — Convert to MIDI
         self.host_notices(notices);
         // Hosted plug-ins that were loading in their helper when opened: in their view now
@@ -4120,6 +4134,7 @@ impl CantusApp {
         self.dialogs(ctx);
         views::interop::frame(self, ctx);
         views::export_dialog::show(self, ctx);
+        crate::video_export::frame(self, ctx); // r35:video — the video dialog and its export
         crate::transcribe_ui::view::show(self, ctx); // r34:transcribe
         views::demos::frame(self, ctx);
         crate::ai_tools::listen::panel::frame(self, ctx); // r34:listen — the mastering assistant
@@ -4129,6 +4144,7 @@ impl CantusApp {
         views::picker::frame(self, ctx);
         views::link_picker::frame(self, ctx);
         crate::workflow::frame(self, ctx);
+        crate::dance_import::frame(self, ctx); // r35:import
         views::warp_quantise::frame(self, ctx);
         crate::stems_ui::frame(self, ctx); // r34:stems — separations, and their panel
         views::modulator::popup::frame(self, ctx);

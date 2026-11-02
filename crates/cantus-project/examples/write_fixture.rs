@@ -1220,6 +1220,48 @@ fn main() {
             );
         }
     }
+    // Schema 49 (round 35, ADR 0087): a dancer — a character chosen, a few numbers moved,
+    // where it shows, `move` automated to Clap over bar 3 and a note in its move map.
+    // Before the last track, which the freeze block below freezes. // r35:dancer
+    if upto >= 49 {
+        use cantus_core::inst::dancer::{self, Move};
+        let mut t = p.make_track("Dancer");
+        let id = t.id;
+        let mut n = NativeSpec::new(InstrumentKind::Dancer);
+        n.set("energy", 0.9).unwrap();
+        n.set("hue", -40.0).unwrap();
+        n.set("view.mode", 1.0).unwrap();
+        n.set_text(
+            dancer::CHARACTER_KEY,
+            Some(dancer::DEFAULT_CHARACTER.into()),
+        )
+        .unwrap();
+        t.instrument = InstrumentSpec::Native(n);
+        t.icon = Some(TrackIcon::Dance);
+        let clap = dancer::move_value(Move::Clap) / 16.0;
+        let auto = p.make_automation_clip(
+            "Moves",
+            AutoTarget::Instrument {
+                track: id,
+                key: "move".into(),
+            },
+            Ticks::beats(8),
+            Ticks::beats(4),
+            vec![AutoPoint {
+                tick: Ticks::ZERO,
+                value: clap,
+                tension: 0.0,
+                shape: Shape::Hold,
+            }],
+        );
+        let mut c = p.make_clip("Steps", Ticks::beats(12), Ticks::beats(4));
+        let jump = dancer::BASE_KEY + Move::Jump.index() as u8;
+        c.notes
+            .push(p.make_note(Ticks::ZERO, Ticks::QUARTER, jump, 110));
+        t.clips.extend([auto, c]);
+        let at = p.tracks.len() - 1;
+        p.tracks.insert(at, t);
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

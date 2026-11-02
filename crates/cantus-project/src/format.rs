@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 48;
+pub const SCHEMA_VERSION: u32 = 49;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -279,6 +279,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_45_to_46,
     migrate_46_to_47,
     migrate_47_to_48, // r34:stems
+    migrate_48_to_49, // r35:dancer
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -972,6 +973,14 @@ fn migrate_46_to_47(_value: &mut Value) -> Result<(), String> {
 /// Schema 48 (round 34, ADR 0085): `provenance`, beside the audio pool — what made a file
 /// a model made. Absent in every older file: nothing to write.
 fn migrate_47_to_48(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 49 (round 35, ADR 0087): the dancer — `InstrumentKind::Dancer` (a native
+/// instrument that makes no sound; its numbers, its `character` text key) and the
+/// `TrackIcon::Dance` picture. Nothing to write: no older file holds either. An older build
+/// must refuse a v49 file, which it could not read.
+fn migrate_48_to_49(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 

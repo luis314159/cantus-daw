@@ -38,6 +38,8 @@ pub struct RenderProgress {
     pub done: std::sync::atomic::AtomicU64,
     pub total: std::sync::atomic::AtomicU64,
     pub cancel: std::sync::atomic::AtomicBool,
+    /// The dancers' feeds, each keeping its timeline (ADR 0087). // r35:dancer
+    pub dance: crate::dance::RenderFeeds, // r35:dancer
 }
 
 impl RenderProgress {
@@ -181,6 +183,7 @@ pub fn render_with_progress(
     for u in &mut instruments {
         u.unit.set_offline(true);
     }
+    progress.dance.keep(crate::dance::feeds_of(&instruments)); // r35:dancer
     instruments.extend(hosted.into_iter().map(Box::new));
     let (mut tx, rx_engine) =
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());

@@ -174,6 +174,10 @@ impl CantusApp {
 
     /// Writes the project to `path` on a thread; the outcome is collected by `poll_save`.
     fn write_save(&mut self, path: &Path, t0: Instant) {
+        if !crate::dance_import::collect_on_save(self, path) {
+            // r35:import — the characters could not be carried: refused and said, not written
+            return; // r35:import
+        } // r35:import
         let frame = Instant::now();
         // The audio comes home first, so the file is written with its new paths.
         self.collect_audio(path);

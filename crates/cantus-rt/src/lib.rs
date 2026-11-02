@@ -46,6 +46,7 @@ pub mod shm;
 pub mod thread;
 pub mod topology;
 pub mod usage;
+pub mod window; // r35:stage — a window keyed see-through (the stage's companion)
 
 pub use cell::{NodeCell, ShareCell};
 pub use denormal::DenormalGuard;

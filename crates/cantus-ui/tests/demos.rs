@@ -256,6 +256,14 @@ fn every_track_of_every_demo_is_heard() {
         let bar = p.time_signature.ticks_per_bar();
         let (ra, _) = reference(d.id);
         for i in 0..p.tracks.len() {
+            // r35:dancer — a dancer makes no sound (ADR 0087): seen, not heard.
+            if p.tracks[i]
+                .instrument
+                .native()
+                .is_some_and(|n| !n.kind.sounds())
+            {
+                continue;
+            }
             // Two bars from the first note at or after the reference section (or the
             // track's first note when it only plays before it).
             let mut starts: Vec<Ticks> = p.tracks[i]

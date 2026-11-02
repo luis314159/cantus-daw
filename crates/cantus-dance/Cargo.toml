@@ -1,0 +1,36 @@
+[package]
+name = "cantus-dance"
+description = "Cantus DAW — the dancing character (round 35, ADR 0087): the characters, their moves, the pose from the song, and the drawing on the processor that the screen, the companion window and a video share."
+# GPL like the application (ADR 0047): it draws, it reads files people bring; nothing here
+# is engine code.
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+# Deterministic maths (ADR 0031 R9): a pose and a frame are the same on every system.
+cantus-dsp.workspace = true
+# DanceFrame: what the engine tells the screen (ADR 0087).
+cantus-engine.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+log.workspace = true
+# The one renderer (ADR 0087 §3): the screen, the picker's previews, the companion window
+# and every frame of a video draw through it, pixel for pixel the same. BSD-3-Clause.
+tiny-skia = "0.12"
+# Imported characters (ADR 0089): PNG and JPEG images decoded with their size read from the
+# header first; `.lottie` packages read from their zip's central directory; a copy's
+# content hash. All already in the tree with their notices.
+png = "0.18"
+zune-jpeg = "0.5"
+zune-core = "0.5"
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

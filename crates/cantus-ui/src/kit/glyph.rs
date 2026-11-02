@@ -137,6 +137,8 @@ pub enum Glyph {
     LaneCurve,
     /// The session view (round 33, ADR 0077): a grid of clip cells, one playing. // r33:launcher
     Session, // r33:launcher
+    /// The Stage tab's mark: a figure dancing (round 35, ADR 0091). // r35:stage
+    Stage, // r35:stage
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -456,6 +458,7 @@ fn workspace(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
             b.circle(p(4.4, -3.6), 1.3 * u, Fill::Solid(color));
         }
         Glyph::Session => crate::views::session::paint::glyph(b, c, u, w, color), // r33:launcher
+        Glyph::Stage => crate::stage::chrome::glyph(b, c, u, w, color),           // r35:stage
         _ => window(b, g, c, u, w, color),
     }
 }

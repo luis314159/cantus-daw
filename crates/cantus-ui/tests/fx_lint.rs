@@ -11,6 +11,12 @@ use std::path::PathBuf;
 /// elsewhere goes here.
 const ON_THE_KIT: &[&str] = &[
     "views/comp_editor.rs",
+    // r35:dancer — Saltator's window (ADR 0087).
+    "views/inst/dancer.rs",
+    "views/inst/dancer_controls.rs",
+    "views/inst/dancer_moves.rs",
+    "views/inst/dancer_pick.rs",
+    "views/inst/dancer_stage.rs",
     // Round 29, warp (ADR 0061).
     "views/warp.rs",
     "views/warp_bar.rs",

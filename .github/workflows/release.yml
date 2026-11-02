@@ -151,6 +151,12 @@ jobs:
           "CANTUS_SIGN_AZURE_METADATA=$meta" >> $env:GITHUB_ENV
           "SIGN_FLAG=--sign" >> $env:GITHUB_ENV
 
+      # r35:video - rav1e's assembly for WebM video (ADR 0088): nasm on PATH.
+      - name: nasm
+        shell: bash
+        run: |
+          choco install nasm -y --no-progress
+          echo "C:\Program Files\NASM" >> "$GITHUB_PATH"
       - name: Package (one edition, ASIO and WASAPI; the x86-64-v3 and v2 programs and the launcher)
         shell: bash
         env:
@@ -205,7 +211,7 @@ jobs:
           RUSTFLAGS: -D warnings
       - run: cargo test --workspace
       - name: Build (the app, the plug-in scanner, the sandbox, the MCP bridge, the ML helper)
-        run: cargo build --release -p cantus -p cantus-host -p cantus-sandbox -p cantus-mcp -p cantus-ml # r34:mcp r34:stems
+        run: cargo build --release -p cantus -p cantus-host -p cantus-sandbox -p cantus-mcp -p cantus-ml --features cantus/video-asm # r34:mcp r34:stems r35:video
       - name: The AppImage
         run: |
           version="$(cargo run -q -p xtask -- version)"
@@ -245,6 +251,8 @@ jobs:
           rustup show active-toolchain || rustup toolchain install
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
+      - name: nasm (rav1e's assembly for WebM video, ADR 0088) # r35:video
+        run: brew install nasm
       - name: The tag is the workspace's version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

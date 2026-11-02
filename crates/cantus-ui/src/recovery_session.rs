@@ -227,6 +227,7 @@ impl CantusApp {
     /// ends, or stays to offer those changes at the next start.
     pub fn close_session(&mut self) {
         crate::stems_ui::run::settle_on_exit(self); // r34:stems — agents' stems not made
+        crate::video_export::settle_on_exit(self); // r35:video — a video being made stops, its part removed
         if self.is_recording() {
             self.stop_recording();
         }

@@ -34,6 +34,8 @@ pub mod analog;
 pub mod bass;
 /// Chorda, the modelled grand piano (round 28).
 pub mod chorda;
+/// Saltator, the dancer (round 35, ADR 0087). // r35:dancer
+pub mod dancer; // r35:dancer
 pub mod epiano;
 pub mod fm;
 pub mod organ;
@@ -107,6 +109,7 @@ pub struct InstEditors {
     pub epiano: epiano::State,
     pub organ: organ::State,
     pub chorda: chorda::State,
+    pub dancer: dancer::State, // r35:dancer
 }
 
 impl InstEditors {
@@ -133,6 +136,7 @@ pub fn kind_from_name(name: &str) -> Option<InstrumentKind> {
         "epiano" | "lamina" => InstrumentKind::ElectricPiano,
         "organ" | "organum" => InstrumentKind::Organ,
         "chorda" | "piano" => InstrumentKind::Chorda,
+        "dancer" | "saltator" => InstrumentKind::Dancer, // r35:dancer
         _ => return None,
     })
 }
@@ -215,6 +219,7 @@ impl CantusApp {
         if now.kind != target.kind {
             return;
         }
+        let target = &crate::dance_live::keep_through_preset(&now, target); // r35:dancer
         let mut commands = Vec::new();
         for (k, v) in &target.params {
             if now.params.get(k) != Some(v) {

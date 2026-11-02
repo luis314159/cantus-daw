@@ -33,6 +33,7 @@ pub fn factory_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
         InstrumentKind::ElectricPiano => epiano::FACTORY_PRESETS,
         InstrumentKind::Organ => organ::FACTORY_PRESETS,
         InstrumentKind::Chorda => chorda::FACTORY_PRESETS,
+        InstrumentKind::Dancer => dancer::FACTORY_PRESETS,
     }
 }
 
@@ -46,6 +47,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::ElectricPiano => epiano::body(app, ui, track, spec, s),
         InstrumentKind::Organ => organ::body(app, ui, track, spec, s),
         InstrumentKind::Chorda => chorda::body(app, ui, track, spec, s),
+        InstrumentKind::Dancer => dancer::body(app, ui, track, spec, s),
     }
 }
 
@@ -75,6 +77,7 @@ fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::ElectricPiano => epiano::play(app, ui, track, spec, s),
         InstrumentKind::Organ => organ::play(app, ui, track, spec, s),
         InstrumentKind::Chorda => chorda::play(app, ui, track, spec, s),
+        InstrumentKind::Dancer => dancer::play(app, ui, track, spec, s),
     }
 }
 
@@ -89,6 +92,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
         InstrumentKind::ElectricPiano => epiano::preview(ui, spec),
         InstrumentKind::Organ => organ::preview(ui, spec),
         InstrumentKind::Chorda => chorda::preview(ui, spec),
+        InstrumentKind::Dancer => dancer::preview(ui, spec),
     }
 }
 
@@ -103,6 +107,7 @@ pub fn demo_setup(app: &mut CantusApp, track: TrackId, kind: InstrumentKind) {
         InstrumentKind::ElectricPiano => epiano::demo_setup(app, track),
         InstrumentKind::Organ => organ::demo_setup(app, track),
         InstrumentKind::Chorda => chorda::demo_setup(app, track),
+        InstrumentKind::Dancer => dancer::demo_setup(app, track),
     }
 }
 
@@ -117,6 +122,7 @@ pub fn demo_feed(app: &mut CantusApp, kind: InstrumentKind) {
         InstrumentKind::ElectricPiano => epiano::demo_feed(app),
         InstrumentKind::Organ => organ::demo_feed(app),
         InstrumentKind::Chorda => chorda::demo_feed(app),
+        InstrumentKind::Dancer => dancer::demo_feed(app),
     }
 }
 
@@ -124,6 +130,7 @@ pub fn demo_feed(app: &mut CantusApp, kind: InstrumentKind) {
 pub fn hue(kind: InstrumentKind) -> Function {
     match kind {
         InstrumentKind::Analog | InstrumentKind::Organ | InstrumentKind::Chorda => Function::Tone,
+        InstrumentKind::Dancer => Function::Mod,
         _ => Function::Source,
     }
 }
@@ -151,6 +158,10 @@ const VIEWS: [Src<'static>; 3] = [
     Src::Key("inst.view.edit"),
     Src::Key("inst.view.matrix"),
 ];
+
+/// The dancer's two: it has no connections to show in a matrix (its numbers are reached by
+/// automation, modulators and MIDI learn).
+const DANCER_VIEWS: [Src<'static>; 2] = [Src::Key("inst.view.play"), Src::Key("inst.view.edit")];
 
 fn view_index(v: View) -> usize {
     match v {
@@ -235,7 +246,11 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         }),
         ab: Some(if on_b { Ab::B } else { Ab::A }),
         undo: Some(undo),
-        views: Some((&VIEWS, view_index(app.inst.view))),
+        views: Some(if spec.kind == InstrumentKind::Dancer {
+            (&DANCER_VIEWS[..], view_index(app.inst.view).min(1))
+        } else {
+            (&VIEWS[..], view_index(app.inst.view))
+        }),
         bypassed: None,
         help: false,
         name_w: 0.0,
@@ -245,11 +260,17 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             "swap.tip.instrument",
         )),
     };
-    let (chip_strings, chip_tips) = footer_chips(app, &spec);
+    // The dancer makes no sound: no voices, no output meter — what it dances, and where.
+    let dancer = spec.kind == InstrumentKind::Dancer;
+    let (chip_strings, chip_tips) = if dancer {
+        dancer::footer_chips(app, track)
+    } else {
+        footer_chips(app, &spec)
+    };
     let chips: Vec<&str> = chip_strings.iter().map(String::as_str).collect();
     let footer = Footer {
         chips: &chips,
-        meter: Some(track_levels(app, track)),
+        meter: (!dancer).then(|| track_levels(app, track)),
     };
 
     let mut open = true;
@@ -335,12 +356,16 @@ fn shell_body(
     body_rect: Rect,
 ) {
     let mut grid = shell::Grid::new(body_rect, s);
-    let bands = Bands {
-        macros_open: !app.inst.macros_closed,
-        mods_open: !app.inst.mods_closed,
-        keyboard: keyboard_shown(app),
-    };
-    let br = shell::layout_bands(&mut grid, s, &bands);
+    // The dancer has no macros, controllers or keyboard to show (its pads are its keys):
+    // no bands, the stage takes the room.
+    let br = (spec.kind != InstrumentKind::Dancer).then(|| {
+        let bands = Bands {
+            macros_open: !app.inst.macros_closed,
+            mods_open: !app.inst.mods_closed,
+            keyboard: keyboard_shown(app),
+        };
+        shell::layout_bands(&mut grid, s, &bands)
+    });
     let area = grid.rest();
     let mut view = ui.new_child(
         egui::UiBuilder::new()
@@ -348,7 +373,12 @@ fn shell_body(
             .id_salt(("inst-view", track.0)),
     );
     view.set_clip_rect(area);
-    match app.inst.view {
+    // The dancer has no Matrix: shown as Edit.
+    let shown = match app.inst.view {
+        View::Matrix if spec.kind == InstrumentKind::Dancer => View::Edit,
+        v => v,
+    };
+    match shown {
         View::Play => play(app, &mut view, track, spec, s),
         View::Edit => {
             egui::ScrollArea::vertical()
@@ -361,6 +391,9 @@ fn shell_body(
                 .show(&mut view, |ui| matrix(app, ui, track, spec, s));
         }
     }
+    let Some(br) = br else {
+        return;
+    };
     macro_band(app, ui, track, spec, s, br.macros);
     mod_band(app, ui, track, spec, s, br.mods);
     if let Some(kr) = br.keyboard {
@@ -1306,12 +1339,17 @@ pub fn matrix(
 /// editor, and the first four macros.
 pub fn inspector_strip(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec) {
     preview(ui, spec);
+    // The dancer has no macros to turn there: its line and the editor's button.
+    let dancer = spec.kind == InstrumentKind::Dancer;
     if ui
         .button(t("inst.open_editor"))
         .on_hover_text(t("inst.open_editor_tip"))
         .clicked()
     {
         app.open_inst_editor(track);
+    }
+    if dancer {
+        return;
     }
     ui.horizontal_wrapped(|ui| {
         for key in MACRO_KEYS.iter().take(4) {

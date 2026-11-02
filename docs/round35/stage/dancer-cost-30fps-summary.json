@@ -1,0 +1,28 @@
+{
+ "capture_methods": {},
+ "stage": null,
+ "checks": {
+  "checks": 0
+ },
+ "minutes": 0.0,
+ "none": {
+  "cpu_pct_core_mean": 68.63,
+  "cpu_pct_core_max": 75.35,
+  "working_set_mb_first": 254.5,
+  "working_set_mb_last": 251.2,
+  "working_set_mb_max": 255.2,
+  "private_mb_first": 225.1,
+  "private_mb_last": 225.5,
+  "samples": 28
+ },
+ "float": {
+  "cpu_pct_core_mean": 83.26,
+  "cpu_pct_core_max": 92.02,
+  "working_set_mb_first": 257.1,
+  "working_set_mb_last": 253.4,
+  "working_set_mb_max": 257.3,
+  "private_mb_first": 227.4,
+  "private_mb_last": 227.5,
+  "samples": 28
+ }
+}

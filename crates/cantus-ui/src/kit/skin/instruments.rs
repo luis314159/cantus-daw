@@ -407,10 +407,37 @@ pub const PULSUS: Skin = Skin {
     },
 };
 
+/// Saltator, the dancer (round 35, ADR 0087): a stage at night — a plum velvet curtain
+/// (matte, deep), a spotlight's warm pink and a footlight's gold, soft round knobs, lamp
+/// switches, a glass display the character dances behind, its name on a raised badge.
+pub const SALTATOR: Skin = Skin {
+    key: "inst.dancer",
+    surface: Tint {
+        hue: 300.0,
+        sat: 0.30,
+        amount: 0.85,
+    },
+    accent: Some(pair(330.0, 0.85, 0.81, 0.36)),
+    accent2: Some(pair(45.0, 0.90, 0.68, 0.30)),
+    material: Material::Matte,
+    display: Display::Glass,
+    knob: KnobShape::Soft,
+    switch: SwitchShape::Lamp,
+    lettering: Lettering {
+        case: Case::AsIs,
+        tracking: 0.06,
+        weight: Weight::SemiBold,
+        condensed: false,
+        mono_values: false,
+    },
+    plate: Plate::Badge,
+    ornaments: NO_ORNAMENTS,
+};
+
 /// Every instrument sheet, Pulsus last.
 #[cfg(test)]
-pub const ALL: [&Skin; 9] = [
-    &UNDA, &CALOR, &MODULUS, &EXEMPLAR, &GRAVIS, &LAMINA, &ORGANUM, &CHORDA, &PULSUS,
+pub const ALL: [&Skin; 10] = [
+    &UNDA, &CALOR, &MODULUS, &EXEMPLAR, &GRAVIS, &LAMINA, &ORGANUM, &CHORDA, &SALTATOR, &PULSUS,
 ];
 
 /// The sheet of an instrument.
@@ -424,6 +451,7 @@ pub fn of(kind: InstrumentKind) -> &'static Skin {
         InstrumentKind::ElectricPiano => &LAMINA,
         InstrumentKind::Organ => &ORGANUM,
         InstrumentKind::Chorda => &CHORDA,
+        InstrumentKind::Dancer => &SALTATOR,
     }
 }
 

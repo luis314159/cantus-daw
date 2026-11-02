@@ -538,7 +538,7 @@
     {
       "name": "add_track",
       "title": "Add a track",
-      "description": "A new instrument track at the end (or at index), with its own mixer strip (one is made if every strip is taken). Answers track_id and strip_id. Native instruments: unda, calor, modulus, exemplar, gravis, lamina, organum, chorda; firmus (simple synth, the default) and pulsus (drums). One undo step.",
+      "description": "A new instrument track at the end (or at index), with its own mixer strip (one is made if every strip is taken). Answers track_id and strip_id. Native instruments: unda, calor, modulus, exemplar, gravis, lamina, organum, chorda; firmus (simple synth, the default) and pulsus (drums); dancer (Saltator: a character that dances on screen and makes no sound). One undo step.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -552,10 +552,11 @@
               "lamina",
               "organum",
               "chorda",
+              "dancer",
               "firmus",
               "pulsus"
             ],
-            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
+            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); dancer (Saltator: a character that dances on screen and makes no sound: it dances to the beat by itself; `move` (0 = to the beat, else a move by number) and its other numbers are automatable; notes C3–D#4 (48–63) play its sixteen moves); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
           },
           "name": {
             "type": "string",
@@ -691,10 +692,11 @@
               "lamina",
               "organum",
               "chorda",
+              "dancer",
               "firmus",
               "pulsus"
             ],
-            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
+            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); dancer (Saltator: a character that dances on screen and makes no sound: it dances to the beat by itself; `move` (0 = to the beat, else a move by number) and its other numbers are automatable; notes C3–D#4 (48–63) play its sixteen moves); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
           },
           "expected_revision": {
             "type": "integer",
@@ -4858,6 +4860,121 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "name": "export_video",
+      "title": "Export a dancing video",
+      "description": "Render the song (or the loop, the time selection) with every dancer of the project as a video: MP4 (H.264 + AAC, for every platform), WebM (AV1 + Vorbis, royalty-free, slower), MOV with alpha or a folder of PNG frames for a video editor. Shapes: vertical 1080x1920, square 1080x1080, wide 1920x1080. Into the project's folder (a relative file name) or a folder the user allowed in Settings, AI. Refused until the user allows files, and always asked. Runs in the background: get_video_export says when it ends. Never overwrites unless overwrite=true.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "description": "The video file (for png, the folder made for the frames): a file name (or a path under the project's folder), or an absolute path inside a folder the user allowed in Settings, AI. The extension is added when missing."
+          },
+          "format": {
+            "enum": [
+              "mp4",
+              "webm",
+              "mov",
+              "png"
+            ],
+            "default": "mp4"
+          },
+          "shape": {
+            "enum": [
+              "vertical",
+              "square",
+              "wide"
+            ],
+            "default": "vertical"
+          },
+          "fps": {
+            "enum": [
+              30,
+              60
+            ],
+            "default": 30
+          },
+          "quality": {
+            "enum": [
+              "good",
+              "high",
+              "best"
+            ],
+            "default": "high"
+          },
+          "background": {
+            "enum": [
+              "stage",
+              "transparent",
+              "green",
+              "blue",
+              "magenta",
+              "black"
+            ],
+            "default": "stage",
+            "description": "transparent only with mov and png."
+          },
+          "title": {
+            "type": "boolean",
+            "default": true,
+            "description": "The song's name and tempo at the foot of the picture."
+          },
+          "range": {
+            "enum": [
+              "song",
+              "loop",
+              "selection"
+            ],
+            "default": "song"
+          },
+          "overwrite": {
+            "type": "boolean",
+            "default": false
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Export a dancing video",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_video_export",
+      "title": "Read the video export",
+      "description": "Whether a video export runs, how far (0-1) and its phase, and how the last one ended (the file, its size, or the error).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Read the video export",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
       }
     },
     {

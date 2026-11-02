@@ -5077,3 +5077,131 @@ fn round34_provenance_command(rng: &mut Lcg, project: &Project) -> (usize, Comma
         }
     }
 }
+
+// r35:dancer — round 35 (ADR 0087): sequences of their own, so the main test's projects
+// (and every kind's coverage counted on them) stay the ones they were.
+/// The dancer's commands (`drng`, a stream of their own) among the general generator's
+/// (`rng`): undo all restores the start, redo all the end; each kind applied, the refusal
+/// refused.
+#[test]
+fn a_dancers_commands_undo_and_redo_among_the_others() {
+    let origins = [
+        Origin::User,
+        Origin::Script,
+        Origin::Ai,
+        Origin::Mcp,
+        Origin::System,
+    ];
+    let mut danced = [[0usize; 2]; DANCE_KINDS];
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x3C6E_F372).wrapping_add(35));
+        let mut drng = Lcg(seed.wrapping_mul(0x2C9E_7D25).wrapping_add(49));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if drng.below(2) == 0 {
+                let (k, c) = round35_dancer_command(&mut drng, &mut scratch);
+                (Some(k), c)
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ok = bus.execute(cmd, origins[drng.below(5) as usize]).is_ok();
+            if let Some(k) = k {
+                danced[k][usize::from(!ok)] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        danced[..DANCE_KINDS - 1].iter().all(|k| k[0] > 0) && danced[DANCE_KINDS - 1][1] > 0,
+        "round 35's dancer commands never applied or never refused: {danced:?}"
+    );
+}
+
+/// Kinds of [`round35_dancer_command`]: 0 a track made a dancer, 1 React to a strip or the
+/// master, 2 stop reacting, 3 its character, 4 its move, 5 a key it does not have (refused).
+const DANCE_KINDS: usize = 6;
+
+/// A dancer's command on a random track: made one, told to react (a follower made or
+/// retuned and `react` set, one step) or to stop, its character or its move set; or a key
+/// it does not have (refused).
+fn round35_dancer_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::inst::dancer;
+    use cantus_core::modulator::Listen;
+    let dancers: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| dancer::is_dancer(&t.instrument))
+        .map(|t| t.id)
+        .collect();
+    let any = |rng: &mut Lcg, p: &Project| {
+        p.tracks
+            .get(rng.below(p.tracks.len() as u64) as usize)
+            .map(|t| t.id)
+            .unwrap_or(TrackId(u64::MAX - 3))
+    };
+    if dancers.is_empty() || rng.below(6) == 0 {
+        let track = any(rng, project);
+        return (
+            0,
+            Command::SetInstrument {
+                track,
+                spec: Box::new(InstrumentSpec::Native(NativeSpec::new(
+                    InstrumentKind::Dancer,
+                ))),
+            },
+        );
+    }
+    let track = dancers[rng.below(dancers.len() as u64) as usize];
+    let strips: Vec<StripId> = project.strips.iter().map(|s| s.id).collect();
+    let set = |key: &str, value: f32| Command::SetInstrumentValue {
+        track,
+        key: key.into(),
+        value,
+    };
+    match rng.below(5) {
+        0 | 1 => {
+            let listen = match strips.get(rng.below(strips.len() as u64 + 1) as usize) {
+                Some(s) => Listen::Strip(*s),
+                None => Listen::Master,
+            };
+            let id = project.alloc_id();
+            let depth = rng.f32(0.1, 1.0);
+            let off = rng.below(3) == 0;
+            let cmd = dancer::react_command(project, track, (!off).then_some(listen), depth, id);
+            match cmd {
+                Some(c) => (if off { 2 } else { 1 }, c),
+                // Nothing would change: its move instead.
+                None => (4, set("move", rng.below(17) as f32)),
+            }
+        }
+        2 => (
+            3,
+            Command::SetInstrumentText {
+                track,
+                key: dancer::CHARACTER_KEY.into(),
+                text: (rng.below(3) != 0).then(|| {
+                    [
+                        "builtin:songbird",
+                        "builtin:default",
+                        "file:Characters/x/x.json",
+                    ][rng.below(3) as usize]
+                        .to_string()
+                }),
+            },
+        ),
+        3 => (4, set("move", rng.below(17) as f32)),
+        _ => (5, set("no.such.key", 1.0)),
+    }
+}

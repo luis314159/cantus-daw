@@ -98,7 +98,7 @@ fn get_selection(cx: &ToolCx<'_>, _: &Value) -> Res<Value> {
             "position": args::pos_json(&map, app.engine.position()),
         },
         "export": {
-            "busy": export.busy(),
+            "busy": app.export_in_progress(), // r35:video — a video export counts
             "progress": export.progress().and_then(|(_, f)| f),
             "last": export.last.as_ref().map(|r| match r { Ok(s) => json!({"done": s}), Err(e) => json!({"failed": e}) }),
         },

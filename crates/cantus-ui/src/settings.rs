@@ -145,6 +145,8 @@ pub struct Settings {
     pub updates: UpdateSettings,
     /// The export dialog's last choices (ADR 0033).
     pub export: cantus_export::ExportSettings,
+    /// The video dialog's last choices (ADR 0088). // r35:video
+    pub video: crate::video_export::VideoSettings, // r35:video
     /// Whether a copy of a clip in the arrangement — a paste, Duplicate, an Alt-drag — is
     /// a **linked** copy, the same clip in another place (FL's pattern clips, ADR 0037),
     /// or a copy of its own. On by default; *Make unique* detaches one copy either way.
@@ -213,6 +215,8 @@ pub struct Settings {
     pub ai: crate::ai_mcp::AiSettings, // r34:mcp
     /// *Separate stems…*'s last choices (round 34, ADR 0085). // r34:stems
     pub stems: crate::stems_ui::StemsSettings, // r34:stems
+    /// The companion window and the streaming mode (round 35, ADR 0091). // r35:stage
+    pub stage: crate::stage::companion::StageSettings, // r35:stage
     /// The ports driven as session grids (round 33, ADR 0077): the user's choice per port;
     /// a port with none is a grid when its name says it is a Launchpad or an APC.
     #[serde(default)]
@@ -312,6 +316,7 @@ impl Default for Settings {
             audio_setup: Default::default(),
             updates: UpdateSettings::default(),
             export: cantus_export::ExportSettings::default(),
+            video: Default::default(), // r35:video
             link_copies: true,
             sample_cache_gb: None,
             topbar: TopBarSettings::default(),
@@ -335,6 +340,7 @@ impl Default for Settings {
             mpe_zones: cantus_core::model::note_expr::zones::MpeZones::standard(), // r33:mpe
             ai: Default::default(),   // r34:mcp
             stems: Default::default(), // r34:stems
+            stage: Default::default(), // r35:stage
             grids: Vec::new(),
         }
     }

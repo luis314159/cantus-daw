@@ -86,6 +86,7 @@ pub struct EngineHandle {
     /// For each track hosting a native or hosted instrument, the kind and serial of the
     /// unit the engine holds (or has been sent) for it.
     known_instruments: HashMap<TrackId, (UnitKind, u64)>,
+    dance_feeds: crate::dance::DanceFeeds, // r35:dancer — a dancer's feed, by track (ADR 0087)
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
     /// Where frozen renders are and the ones opened (ADR 0064): every snapshot compiled
@@ -125,6 +126,7 @@ pub struct EngineHandle {
     /// The consumer ends of the scope rings (ADR 0056), which Speculum watches each, and
     /// which were asked for since the last [`Self::release_unwatched_scopes`].
     scopes: Vec<Consumer<crate::fx::speculum::ScopeChunk>>,
+    pub(crate) master_tap: Option<crate::master_tap::MasterTapReader>, // r35:stage
     scope_ids: [Option<EffectId>; crate::fx::speculum::MAX_SCOPES],
     scope_seen: [bool; crate::fx::speculum::MAX_SCOPES],
     /// The analysed compressor's meter, the maxima of every block since the last take.
@@ -219,7 +221,9 @@ impl EngineHandle {
         processor.attach_analyser(analyser_tx);
         let (scope_tx, scope_rx) = scope_rings();
         processor.attach_scopes(scope_tx);
-        // The callback's first block raises its own thread (ADR 0031 R1; nothing on ASIO).
+        let (tap_tx, tap_rx) = crate::master_tap::pair(); // r35:stage
+        processor.attach_master_tap(tap_tx); // r35:stage
+                                             // The callback's first block raises its own thread (ADR 0031 R1; nothing on ASIO).
         processor.promote_on_first_block(crate::processor::AudioHost::from_driver_name(
             host.id().name(),
         ));
@@ -325,6 +329,7 @@ impl EngineHandle {
             send_failures: 0,
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
+            dance_feeds: Default::default(), // r35:dancer
             samples: SampleCache::new(),
             frozen: crate::freeze::FrozenStore::default(),
             pending: None,
@@ -344,6 +349,7 @@ impl EngineHandle {
             capture_target: CaptureTarget::Off,
             analyser: Some(analyser_rx),
             scopes: scope_rx,
+            master_tap: Some(tap_rx), // r35:stage
             scope_ids: [None; crate::fx::speculum::MAX_SCOPES],
             scope_seen: [false; crate::fx::speculum::MAX_SCOPES],
             comp_peak: [0.0; 3],
@@ -384,6 +390,9 @@ impl EngineHandle {
         handle.rx = rx;
         handle.sample_rate = sample_rate;
         handle.scopes = scope_rx;
+        let (tap_tx, tap_rx) = crate::master_tap::pair(); // r35:stage
+        processor.attach_master_tap(tap_tx); // r35:stage
+        handle.master_tap = Some(tap_rx); // r35:stage
         let (sync_port, sync) = crate::transport::sync::pair(); // r33:sync
         processor.attach_sync(sync_port, None); // r33:sync
         handle.sync = Some(sync); // r33:sync
@@ -413,6 +422,7 @@ impl EngineHandle {
             send_failures: 0,
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
+            dance_feeds: Default::default(), // r35:dancer
             samples: SampleCache::new(),
             frozen: crate::freeze::FrozenStore::default(),
             pending: None,
@@ -432,6 +442,7 @@ impl EngineHandle {
             capture_target: CaptureTarget::Off,
             analyser: None,
             scopes: Vec::new(),
+            master_tap: None, // r35:stage
             scope_ids: [None; crate::fx::speculum::MAX_SCOPES],
             scope_seen: [false; crate::fx::speculum::MAX_SCOPES],
             comp_peak: [0.0; 3],
@@ -527,6 +538,14 @@ impl EngineHandle {
             false
         }
     }
+
+    // r35:dancer
+    /// The feed of the dancer the engine runs (or is about to) on `track` (ADR 0087): what
+    /// the interface draws from. `None` for a track with no dancer.
+    pub fn dance_feed(&self, track: TrackId) -> Option<Arc<crate::dance::DanceFeed>> {
+        let serial = self.known_instruments.get(&track).map(|k| k.1); // r35:dancer
+        self.dance_feeds.get(track, serial) // r35:dancer
+    } // r35:dancer
 
     /// Whether the engine has (or is about to get) a unit of `kind` for `track`.
     pub fn knows_instrument(&self, track: TrackId, kind: UnitKind) -> bool {
@@ -988,13 +1007,18 @@ impl EngineHandle {
                 .iter()
                 .any(|t| t.id == *track && UnitKind::of(&t.instrument) == Some(*kind))
         });
+        let known = &self.known_instruments; // r35:dancer
+        self.dance_feeds
+            .retain(|t, s| known.get(&t).map(|k| k.1) == Some(s)); // r35:dancer
         let units = crate::inst::units_for(&snapshot, self.sample_rate as f32, |track, kind| {
             self.known_instruments.get(&track).map(|k| k.0) == Some(UnitKind::Native(kind))
         });
         for unit in units {
             let (track, kind, serial) = (unit.track, unit.kind, unit.serial);
+            let feed = unit.unit.dance_feed(); // r35:dancer
             if self.tx.push(EngineMessage::AddInstrument(unit)).is_ok() {
                 self.known_instruments.insert(track, (kind, serial));
+                self.dance_feeds.insert(track, serial, feed); // r35:dancer
             } else {
                 self.send_failures += 1;
             }

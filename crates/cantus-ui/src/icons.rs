@@ -446,6 +446,8 @@ pub fn paint_track_icon(p: &egui::Painter, rect: Rect, icon: TrackIcon, color: C
             p.circle_stroke(c, h * 0.8, thin);
             p.line_segment([c, pos2(c.x + h * 0.5, c.y - h * 0.62)], thin);
         }
+        // r35:dancer — a dancing figure: a head, one arm up, a kicked leg (ADR 0087).
+        TrackIcon::Dance => crate::dance_live::paint_icon(p, c, h, thin, color), // r35:dancer
     }
 }
 

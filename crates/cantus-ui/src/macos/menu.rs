@@ -31,6 +31,7 @@ pub enum Pick {
     Bug,
     Updates,
     ImportAudio,
+    ImportCharacter, // r35:import — *Import character…* for the selected dancer (ADR 0089)
     /// Settings, on one of its pages (the Options menu, round 30).
     Settings(crate::views::workspace_settings::SettingsPage),
     /// Look for new or changed plug-ins now (round 30).
@@ -238,6 +239,7 @@ pub fn model(keymap: &Keymap) -> Vec<Menu> {
             named(SaveTrackTemplate),
             Separator,
             pick("audioclips.menu.import", Pick::ImportAudio),
+            pick("dance_import.menu", Pick::ImportCharacter), // r35:import
             act("menu.export_wav", ExportWav),
         ],
     );
@@ -350,6 +352,7 @@ pub fn run(app: &mut CantusApp, ctx: &egui::Context, pick: Pick) {
         Pick::Bug => crate::docs::open(crate::docs::Doc::ReportBug),
         Pick::Updates => crate::views::update::check_now(app),
         Pick::ImportAudio => app.import_audio_dialog(),
+        Pick::ImportCharacter => crate::dance_import::menu_pick(app), // r35:import
         Pick::Settings(page) => crate::views::workspace_settings::open(app, page),
         Pick::ScanPlugins => crate::views::plugins::scan_now(app),
     }

@@ -28,6 +28,9 @@ pub mod controllers_input;
 pub mod controllers_learn;
 pub mod controllers_words;
 pub mod count_in;
+pub mod dance_import; // r35:import
+pub mod dance_live; // r35:dancer — the dancers live on the interface (ADR 0087)
+pub mod dance_texture; // r35 contract — a stage as a texture (ADR 0087)
 pub mod demos;
 pub mod design;
 pub mod docs;
@@ -79,6 +82,7 @@ pub mod score;
 pub mod session_play; // r33:session (ADR 0076)
 pub mod session_play_rec; // r33:session
 pub mod settings;
+pub mod stage; // r35:stage — the stage over the workspace, the companion, streaming (ADR 0091)
 pub mod startup_probe;
 pub mod swap;
 pub mod takes;
@@ -88,6 +92,7 @@ pub mod theme;
 pub mod theme_family;
 pub mod transcribe_ui; // r34:transcribe — Convert to MIDI (ADR 0086)
 pub mod verse;
+pub mod video_export; // r35:video — Export video… (ADR 0088)
 pub mod views;
 pub mod warp;
 pub mod waveform;
@@ -178,7 +183,8 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
         .with_app_id("cantus")
         .with_inner_size(boot::size(verse.shown.is_some()))
         .with_decorations(false)
-        .with_resizable(false);
+        .with_resizable(false)
+        .with_transparent(stage::companion::alpha_wanted()); // r35:stage — see `alpha_wanted`
     if let Some(icon) = boot::icon(options.art.as_ref()) {
         viewport = viewport.with_icon(std::sync::Arc::new(icon));
     }
@@ -195,7 +201,8 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     };
     // macOS: listen for the projects Finder and the Dock ask to open (ADR 0066).
     cantus_launch::macopen::install();
-    eframe::run_native(
+    let result = eframe::run_native(
+        // r35:stage (the result kept: see below)
         "Cantus",
         native,
         Box::new(move |cc| {
@@ -210,6 +217,13 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
                 None => Box::new(shell) as Box<dyn eframe::App>,
             })
         }),
-    )
-    .map_err(|e| anyhow::anyhow!("{e}"))
+    );
+    // r35:stage — a graphics driver with no configuration that has alpha: start again
+    // without it (the companion window then has no see-through backdrop).
+    if let Err(eframe::Error::NoGlutinConfigs(..)) = &result {
+        if stage::companion::alpha_wanted() {
+            return stage::companion::restart_without_alpha(); // r35:stage
+        } // r35:stage
+    } // r35:stage
+    result.map_err(|e| anyhow::anyhow!("{e}")) // r35:stage
 }

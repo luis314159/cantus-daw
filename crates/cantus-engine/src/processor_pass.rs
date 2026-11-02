@@ -172,6 +172,7 @@ impl Processor {
         self.prune_notes();
 
         self.meters.master = master_peak;
+        self.master_tap.push(&output[..done * channels], channels); // r35:stage
         self.meters.master_gr = self.master_gr();
         self.meters.master_loudness = self.master_loud.take();
         self.meters.track_count = self.track_to_slot.len();

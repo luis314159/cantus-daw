@@ -228,6 +228,8 @@ pub struct Processor {
     scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// How late each watched Speculum's signal is against the transport (`scope_delays`).
     scoped_delay: [usize; crate::fx::speculum::MAX_SCOPES],
+    /// The master's samples for the stage's visualiser (ADR 0091). // r35:stage
+    pub(crate) master_tap: crate::master_tap::MasterTap, // r35:stage
     /// Every distinct non-zero lateness of an insert (`EffectUnit::late`, `scope_delays`),
     /// the first `late_n` of it: after a loop wrap each insert's own wrap is that many
     /// samples later, and a pass is cut there so it hears the loop's start exactly at
@@ -385,6 +387,7 @@ impl Processor {
             analysed: None,
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
             scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
+            master_tap: Default::default(), // r35:stage
             lates: vec![0; (MAX_STRIPS + 1) * crate::messages::MAX_EFFECTS_PER_TRACK]
                 .into_boxed_slice(),
             late_n: 0,

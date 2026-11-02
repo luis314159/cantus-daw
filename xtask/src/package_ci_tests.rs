@@ -429,3 +429,72 @@ fn the_helpers_shipped_beside_cantus_are_built_and_checked_together() {
     }
     assert!(mac.contains("cantus-ml lacks the library-validation entitlement"));
 }
+
+/// The jobs of a workflow, by name, each with its text (`jobs:` and two-space keys).
+fn jobs(yaml: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut inside = false;
+    for line in yaml.lines() {
+        if line == "jobs:" {
+            inside = true;
+            continue;
+        }
+        if !inside {
+            continue;
+        }
+        let key = line
+            .strip_prefix("  ")
+            .filter(|l| !l.starts_with(' ') && l.ends_with(':'));
+        match key {
+            Some(k) if !k.starts_with('#') => {
+                out.push((k.trim_end_matches(':').into(), String::new()))
+            }
+            _ => {
+                if let Some(j) = out.last_mut() {
+                    j.1.push_str(line);
+                    j.1.push('\n');
+                }
+            }
+        }
+    }
+    out
+}
+
+/// rav1e's assembly needs nasm (ADR 0088, r35:video): every job that builds the
+/// `video-asm` feature — directly, through `xtask package` or through `build-dmg.sh` —
+/// installs it (deps.sh installs it for Linux).
+#[test]
+fn every_job_building_the_av1_assembly_installs_nasm() {
+    assert!(read("packaging/macos/build-dmg.sh").contains("--features video-asm"));
+    assert!(read("xtask/src/package.rs").contains("asio,video-asm"));
+    assert!(read("packaging/linux/deps.sh").contains("nasm"));
+    let dir = crate::workspace().join(".github/workflows");
+    let mut seen = 0;
+    for e in std::fs::read_dir(&dir).unwrap() {
+        let path = e.unwrap().path();
+        let rel = format!(
+            ".github/workflows/{}",
+            path.file_name().unwrap().to_string_lossy()
+        );
+        for (name, text) in jobs(&read(&rel)) {
+            let builds = text.contains("video-asm")
+                || text.contains("build-dmg.sh\"")
+                || text.contains("build-dmg.sh \"")
+                || text.contains("xtask -- package");
+            if builds {
+                seen += 1;
+                let nasm = text.contains("install nasm")
+                    || text.contains("choco install nasm")
+                    || text.contains("packaging/linux/deps.sh");
+                assert!(
+                    nasm,
+                    "{rel}: job {name} builds rav1e's assembly without nasm"
+                );
+            }
+        }
+    }
+    assert!(
+        seen >= 4,
+        "the release's three systems and the Mac's dmg job: {seen}"
+    );
+}

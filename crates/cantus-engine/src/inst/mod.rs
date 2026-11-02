@@ -25,6 +25,7 @@ use std::sync::Arc;
 pub mod analog;
 pub mod bass;
 pub mod chorda;
+pub mod dancer;
 pub mod epiano;
 pub mod expr_play;
 pub mod fm;
@@ -271,6 +272,15 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     fn take_stream_wakes(&mut self) -> u32 {
         0
     }
+
+    // ---- Round 35 (ADR 0087): what a dancer tells the screen.
+
+    /// The feed a dancer's unit publishes its frames into (`crate::dance`), taken off the
+    /// audio thread before the unit is sent — the interface reads it, a video export reads
+    /// its timeline. `None` for every unit that draws nothing.
+    fn dance_feed(&self) -> Option<Arc<crate::dance::DanceFeed>> {
+        None
+    }
 }
 
 /// What a unit is, as the processor matches it against what a snapshot's track hosts: a
@@ -387,6 +397,7 @@ pub fn make(kind: InstrumentKind, sample_rate: f32) -> Box<dyn InstrumentUnit> {
         InstrumentKind::ElectricPiano => Box::new(epiano::Unit::new(sample_rate)),
         InstrumentKind::Organ => Box::new(organ::Unit::new(sample_rate)),
         InstrumentKind::Chorda => Box::new(chorda::Unit::new(sample_rate)),
+        InstrumentKind::Dancer => Box::new(dancer::Unit::new(sample_rate)),
     }
 }
 

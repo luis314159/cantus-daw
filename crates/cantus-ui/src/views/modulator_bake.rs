@@ -91,7 +91,8 @@ impl CantusApp {
         }
         // An export renders through the same plug-in instances: one render at a time
         // (round 29, review isolation-3 #5, #10, #13, #48).
-        if self.export.busy() {
+        if self.export_in_progress() {
+            // r35:video — a video export holds the render instances too
             self.drop_bake_prep();
             let job = t("isolation.render.export");
             self.set_error(tf("isolation.render.busy", &[("job", &job)]));

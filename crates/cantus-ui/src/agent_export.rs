@@ -618,6 +618,9 @@ pub fn export_audio(cx: &mut ToolCx<'_>, a: &Value) -> Res<Value> {
         .as_any()
         .downcast_ref::<CantusApp>()
         .ok_or_else(|| ToolError::Failed("this tool needs the Cantus window".into()))?;
+    if let Some(words) = crate::video_export::busy_words(app) {
+        return Err(ToolError::Refused(words)); // r35:video — refused before anything is made
+    }
     let (mut d, format, stems) = audio_settings(app, a)?;
     let path = target(cx, a.str("file")?, if stems { "" } else { format })?;
     let outputs = audio_outputs(app, &path, &d);

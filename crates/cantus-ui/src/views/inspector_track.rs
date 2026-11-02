@@ -163,7 +163,9 @@ pub fn instrument(
     let Some(track) = app.project().track(t) else {
         return;
     };
-    if track.instrument.native().is_some() {
+    // r35:dancer — the dancer: label | value rows on the sheet, as Firmus (ADR 0087).
+    let dancer = cantus_core::inst::dancer::is_dancer(&track.instrument); // r35:dancer
+    if track.instrument.native().is_some() && !dancer {
         // A copy of the spec, taken when the project changes rather than every frame.
         if st
             .native
@@ -202,6 +204,8 @@ pub fn instrument(
             super::pads::show(&mut sh, app, t, &kit.pads);
         } else if let Some(params) = track.instrument.firmus() {
             firmus(&mut sh, app, t, params);
+        } else if dancer {
+            crate::views::inst::dancer::inspector_rows(&mut sh, app, t); // r35:dancer
         } else if let Some(plugin) = track.instrument.external() {
             super::hosted::show(&mut sh, app, t, plugin);
         }

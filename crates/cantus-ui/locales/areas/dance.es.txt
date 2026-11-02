@@ -1,0 +1,126 @@
+# Área: el instrumento bailarín: sus parámetros, movimientos, ánimos, el selector y su ventana — ronda 35, ADR 0087.
+
+# El instrumento y el dibujo de su pista.
+instrument.dancer = Saltator
+icon.dance = Bailarín
+
+# Sus números (unidades etiqueta/valor: el valor dice la unidad).
+dance.p.move = Paso
+dance.p.step = Desplazamiento
+dance.p.speed = Velocidad
+dance.p.energy = Energía
+dance.p.jump = Altura
+dance.p.turn = Orientación
+dance.p.spin = Giro
+dance.p.size = Tamaño
+dance.p.x = Posición X
+dance.p.y = Posición Y
+dance.p.visible = Visible
+dance.p.mood = Ánimo
+dance.p.hue = Color
+dance.p.level = Nivel que oye
+dance.p.react = Reacciona
+dance.p.view_mode = Se muestra
+dance.p.view_top = Siempre encima
+
+# Sus pasos (el mapa de pasos: una tecla cada uno, desde C3).
+dance.move.idle = Reposo
+dance.move.bounce = Rebote
+dance.move.step_left = Paso a la izquierda
+dance.move.step_right = Paso a la derecha
+dance.move.sway = Vaivén
+dance.move.clap = Palmada
+dance.move.wave = Saludo
+dance.move.jump = Salto
+dance.move.spin = Pirueta
+dance.move.kick = Patada
+dance.move.shuffle = Shuffle
+dance.move.point = Señalar
+dance.move.arms_up = Brazos arriba
+dance.move.twist = Twist
+dance.move.bow = Venia
+dance.move.freeze = Congelado
+
+# Sus ánimos.
+dance.mood.neutral = Neutral
+dance.mood.happy = Contento
+dance.mood.excited = Emocionado
+dance.mood.calm = Tranquilo
+dance.mood.surprised = Sorprendido
+dance.mood.sleepy = Dormilón
+dance.mood.cool = Genial
+dance.mood.shy = Tímido
+
+# Su ventana.
+dance.card.stage = Escenario
+dance.card.dance = Baile
+dance.card.body = Cuerpo
+dance.card.place = En escena
+dance.card.face = Cara y oídos
+dance.to_the_beat = Al ritmo
+dance.preset.beat = Al ritmo
+dance.preset.party = Fiesta
+dance.preset.chill = Tranquilo
+dance.preset.cool = Con estilo
+dance.card.character = Personaje
+dance.card.moves = Pasos (teclas C3 a D#4)
+dance.card.look = Aspecto
+dance.card.ears = Oídos
+dance.card.show = Dónde se muestra
+dance.step.in_place = En su sitio
+dance.step.left = Camina a la izquierda
+dance.step.right = Camina a la derecha
+dance.step.wander = Pasea
+dance.view.floating = Flotante
+dance.view.docked = Acoplado
+dance.view.hidden = Oculto
+dance.facing.front = De frente
+dance.facing.left = Izquierda
+dance.facing.right = Derecha
+dance.on = Sí
+dance.off = No
+dance.react.title = Reacciona a
+dance.react.nothing = Nada
+dance.react.song = Toda la canción
+dance.react.strip = Un canal del mezclador
+dance.hud.bar_beat = Compás {bar} · tiempo {beat}
+dance.hud.stopped = Parado: respirando
+dance.hud.missing = No se encontró {name} ({why}): baila el personaje predeterminado
+dance.licence.cantus = Licencia: propia de Cantus (GPL-3.0 o posterior)
+dance.licence.stated = Licencia: {licence}
+dance.licence.unknown = Licencia desconocida: asegúrate de que puedes usarlo
+dance.import = Importar personaje…
+dance.import.tip = Trae a este proyecto un personaje Lottie, una hoja de sprites o uno de DragonBones
+dance.pad.tip = Pulsa para bailar este paso ahora; las notas en esta tecla lo tocan en un clip
+
+# Comandos (el panel de historial los nombra).
+cmd.dance_react = Reaccionar a una pista
+cmd.dance_react_off = Dejar de reaccionar
+
+# El selector de instrumentos: el estante Visual.
+picker.cat.visual = Visual
+picker.dev.saltator.name = Saltator
+picker.dev.saltator.what = Personaje que baila
+picker.dev.saltator.about = Un personaje que baila la música en pantalla: al ritmo por su cuenta, o los pasos que automatices y toques. No produce sonido.
+dance.speed.quarter = ¼×
+dance.speed.half = ½×
+dance.speed.one = 1×
+dance.speed.two = 2×
+dance.speed.four = 4×
+dance.imported = Importado ({format})
+dance.edit_moves = Editar pasos…
+dance.edit_moves.tip = Abrir de nuevo su tarjeta: qué animación suya baila cada paso
+dance.hud.loading = Cargando el personaje…
+dance.import.tile = Importar
+dance.p.x.short = Pos X
+dance.p.y.short = Pos Y
+dance.p.level.short = Nivel
+dance.p.turn.short = Orient.
+dance.p.speed.short = Veloc.
+dance.p.react.short = Reacción
+dance.cannot_freeze = {name} es un bailarín: no produce sonido que congelar, y congelado dejaría de bailar
+dance.footer.stopped = Parado
+# r35:stage — «video», como en el resto de las cadenas.
+dance.export_video = Exportar video…
+dance.export_video.tip = La canción con sus bailarines como video (MP4 o WebM, cuadrado, vertical o una capa transparente)
+demos.track.dancer = Bailarín

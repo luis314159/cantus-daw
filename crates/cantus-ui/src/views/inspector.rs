@@ -53,7 +53,7 @@ mod record;
 #[path = "inspector_sends.rs"]
 mod sends;
 #[path = "inspector_sheet.rs"]
-mod sheet;
+pub(crate) mod sheet; // r35:dancer — the dancer's rows (views/inst/dancer.rs)
 #[path = "inspector_track.rs"]
 mod track;
 #[path = "inspector_warp.rs"]

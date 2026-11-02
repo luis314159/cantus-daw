@@ -14,6 +14,8 @@ pub mod project_app; // r34:tools — transport, selection, the catalogue, prese
 pub mod stems;
 #[path = "ai_tools_transcribe.rs"]
 pub mod transcribe;
+#[path = "ai_tools_video.rs"] // r35:video
+pub mod video; // r35:video — export_video (ADR 0088)
 
 /// Every tool, in a fixed order (MCP asks `tools/list` to be deterministic).
 pub fn registry() -> Vec<&'static ToolDef> {
@@ -23,6 +25,7 @@ pub fn registry() -> Vec<&'static ToolDef> {
         listen::TOOLS,
         stems::TOOLS,
         transcribe::TOOLS,
+        video::TOOLS,               // r35:video
         cantus_mcp::generic::TOOLS, // r34:mcp — the server's own: jobs, changes, undo
     ]
     .into_iter()

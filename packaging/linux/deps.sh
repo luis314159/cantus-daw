@@ -20,7 +20,8 @@ sudo apt-get install -y -q \
   pkg-config clang libclang-dev \
   libasound2-dev libdbus-1-dev libxkbcommon-dev libwayland-dev libgtk-3-dev \
   libpipewire-0.3-dev libspa-0.2-dev libxkbcommon-x11-0 libxcb-xkb1 \
-  squashfs-tools xvfb xauth
+  squashfs-tools xvfb xauth \
+  nasm
 
 have=$(pkg-config --modversion libpipewire-0.3)
 newer() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$2" ]; }

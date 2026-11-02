@@ -293,6 +293,7 @@ impl Processor {
             I::Organ => 550.0,
             I::Fm => 500.0,
             I::Bass => 400.0,
+            I::Dancer => 2.0, // r35:dancer — its numbers and a matrix, no voices
         };
         let n = &self.nodes;
         let lines: usize = (0..n.lines.len())
@@ -586,6 +587,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         analysed: _,
         scoped: _,
         scoped_delay: _,
+        master_tap: _, // r35:stage
         lates: _,
         late_n: _,
         follow_lates: _,

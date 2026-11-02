@@ -103,7 +103,7 @@ pub static TOOLS: &[ToolDef] = &[
         "A new marker (at, name) — answers its marker_id — or an existing one moved or renamed. Removing is remove_items. One undo step."),
     // --- tracks and instruments ----------------------------------------------------------
     tool!("add_track", "Add a track", Edit, tracks::add_track_schema, Edit(tracks::add_track),
-        "A new instrument track at the end (or at index), with its own mixer strip (one is made if every strip is taken). Answers track_id and strip_id. Native instruments: unda, calor, modulus, exemplar, gravis, lamina, organum, chorda; firmus (simple synth, the default) and pulsus (drums). One undo step."),
+        "A new instrument track at the end (or at index), with its own mixer strip (one is made if every strip is taken). Answers track_id and strip_id. Native instruments: unda, calor, modulus, exemplar, gravis, lamina, organum, chorda; firmus (simple synth, the default) and pulsus (drums); dancer (Saltator: a character that dances on screen and makes no sound). One undo step."),
     tool!("set_track", "Set a track", Edit, tracks::set_track_schema, Edit(tracks::set_track),
         "Any of a track's name, colour, own gain_db (-96…+12) and pan, mute, solo, place in the list, and the strip it plays through. The strip's fader is set_strip. One undo step."),
     tool!("set_instrument", "Swap a track's instrument", Destructive, tracks::set_instrument_schema, Edit(tracks::set_instrument),

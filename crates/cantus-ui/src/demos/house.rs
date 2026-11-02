@@ -66,7 +66,93 @@ fn song() -> Song {
     for (key, at, len) in FORM {
         music(&mut s, &b, key, at, len);
     }
+    dancer(&mut s, &b); // r35:dancer — last: nothing it adds moves a sound
     s
+}
+
+// r35:dancer — Saltator (round 35, ADR 0087).
+/// The dancer: Trino on the stage over the workspace, at the window's lower right, dancing
+/// its routine to the beat through the song; it hears the kick (a follower, *React to*), so
+/// it dances bigger when the kick comes in; in each drop a jump on the first downbeat, a
+/// pirouette half way and arms up for the last bar (notes on its move map); in the break it
+/// sways (`move` automated) and hands back to its routine. Added after everything else: it
+/// is silent, takes the last strip, and draws nothing from the humaniser's stream the parts
+/// that sound use — the song renders bit for bit as without it.
+fn dancer(s: &mut Song, b: &Band) {
+    use cantus_core::automation::{AutoTarget, Shape};
+    use cantus_core::inst::dancer::{self, Move, CHARACTER_KEY, DEFAULT_CHARACTER};
+    use cantus_core::modulator::{FollowSource, Listen, ModHost, ModSource};
+    let mut spec = cantus_core::NativeSpec::new(I::Dancer);
+    let _ = spec.set_text(CHARACTER_KEY, Some(DEFAULT_CHARACTER.to_string()));
+    for (k, v) in [
+        ("view.mode", 0.0),
+        ("x", 0.88),
+        ("y", 0.94),
+        ("size", 0.85),
+        ("energy", 0.85),
+        ("react", 0.45),
+    ] {
+        spec.set(k, v);
+    }
+    let d = s.part(
+        &t("demos.track.dancer"),
+        cantus_core::InstrumentSpec::Native(spec),
+        colors::LEAD,
+        TrackIcon::Dance,
+    );
+    s.feel(
+        d,
+        Feel {
+            jitter: 0.0,
+            vel: 0.0,
+            ..Feel::HUMAN
+        },
+    );
+    let track = s.track_id(d);
+    let target = |key: &str| AutoTarget::Instrument {
+        track,
+        key: key.into(),
+    };
+    s.modulate(
+        ModHost::Track(track),
+        "",
+        ModSource::Follower(FollowSource {
+            listen: Listen::Strip(b.kick.strip),
+            attack_ms: 10.0,
+            release_ms: 180.0,
+            gain_db: 6.0,
+        }),
+        &[(target(dancer::LEVEL_KEY), 1.0)],
+    );
+    let key = |m: Move| dancer::BASE_KEY + m.index() as u8;
+    for (name, at, len) in FORM {
+        let beats = len * s.bar;
+        match name {
+            "drop" => s.clip(
+                d,
+                &section(name),
+                at,
+                len,
+                &[
+                    Ev::new(0.0, 1.0, key(Move::Jump), 120),
+                    Ev::new(beats / 2.0, 2.0, key(Move::Spin), 110),
+                    Ev::new(beats - 4.0, 4.0, key(Move::ArmsUp), 127),
+                ],
+            ),
+            "break" => s.automate(
+                d,
+                target("move"),
+                &section(name),
+                at,
+                len,
+                &[
+                    (0.0, dancer::move_value(Move::Sway), Shape::Hold),
+                    (beats, 0.0, Shape::Hold),
+                ],
+            ),
+            _ => {}
+        }
+    }
 }
 
 fn band(s: &mut Song) -> Band {

@@ -242,10 +242,12 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
         ui.close();
         app.import_audio_dialog();
     }
+    crate::dance_import::file_menu_item(app, ui); // r35:import
     if ui.button(t("menu.export_wav")).clicked() {
         ui.close();
         app.export_dialog();
     }
+    crate::video_export::menu_item(app, ui); // r35:video — File ▸ Export video…
     views::interop::file_menu(app, ui);
     ui.separator();
     if ui.button(t("menu.quit")).clicked() {
@@ -380,7 +382,8 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     }
     // The arrangement's tempo track (round 29, ADR 0060).
     crate::tempo_ui::view_menu_entry(app, ui);
-    // The devices panel (round 20) and the full device picker.
+    crate::stage::view_menu(app, ui); // r35:stage — View ▸ Stage, Companion window, Streaming mode
+                                      // The devices panel (round 20) and the full device picker.
     let mut shown = app.workspace.contains(Pane::Devices);
     if ui
         .checkbox(&mut shown, t("picker.menu.view_devices"))

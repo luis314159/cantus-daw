@@ -489,12 +489,34 @@ pub fn paint_splash_with(
         .inner
 }
 
+impl Shell {
+    /// The application, once it runs. // r35:stage
+    pub fn running(&self) -> Option<&CantusApp> {
+        match self {
+            Shell::Running(app) => Some(app), // r35:stage
+            Shell::Booting(_) => None,        // r35:stage
+        } // r35:stage
+    } // r35:stage
+} // r35:stage
+
 impl eframe::App for Shell {
     /// macOS: a text edit chosen in the menu bar while a field had the focus, handed to egui
     /// as the events its key makes (ADR 0066). Nothing is queued elsewhere.
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         crate::macos::menu::inject(raw_input);
     }
+
+    // r35:stage — the companion window's transparency and its dancing while this window is
+    // minimised (ADR 0091 §2).
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        crate::stage::companion::clear_color(self.running(), visuals) // r35:stage
+    } // r35:stage
+
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Shell::Running(app) = self {
+            crate::stage::companion::logic(app, ctx); // r35:stage
+        } // r35:stage
+    } // r35:stage
 
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
@@ -536,6 +558,9 @@ fn become_main_window(ctx: &egui::Context, options: &LaunchOptions, title: &str)
     use egui::ViewportCommand as C;
     ctx.send_viewport_cmd(C::Title(title.to_string()));
     ctx.send_viewport_cmd(C::Decorations(true));
+    // The splash was made with alpha so the stage's companion window can be see-through
+    // (ADR 0091 §2); the main window itself is opaque. // r35:stage
+    ctx.send_viewport_cmd(C::Transparent(false)); // r35:stage
     ctx.send_viewport_cmd(C::Resizable(true));
     ctx.send_viewport_cmd(C::MinInnerSize(Vec2::new(960.0, 600.0)));
     match options.window {

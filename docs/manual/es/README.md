@@ -32,7 +32,14 @@ Además: [Lo que un agente de IA puede hacer en Cantus](ai-tools.md) — las her
 
 Además: [Separar stems](stems.md) — una canción en batería, bajo, voces y el resto, en tu ordenador. <!-- r34:stems -->
 
+Además: [Exportar un video con baile](video.md) — tus bailarines con la canción, para redes o un editor de video. <!-- r35:video -->
+
 Además: [Convertir audio a MIDI](audio-to-midi.md) — una melodía, acordes o un loop de batería en notas sobre una pista nueva.
+
+Además: [Saltator, un personaje que baila tu canción](dancer.md) — la ventana del bailarín, sus pasos, Reaccionar a. <!-- r35:dancer -->
+
+Además: [El escenario](stage.md) — un bailarín sobre el espacio de trabajo, en la pestaña Escenario, en una ventana de compañía y en directo (OBS). <!-- r35:stage -->
+Además: [Importar un personaje](import-characters.md) — un bailarín con tu propio personaje de Lottie, hoja de sprites o DragonBones. <!-- r35:import -->
 
 La IA en este manual: [Agentes de IA (MCP)](#agentes-de-ia-mcp) — conecta a Claude u otro
 asistente; [El asistente de mastering](#el-asistente-de-mastering); [Escuchar, para agentes de IA](#escuchar-para-agentes-de-ia).

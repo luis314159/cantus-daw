@@ -289,7 +289,9 @@ pub fn start(app: &mut CantusApp, target: &Path) -> bool {
 /// [`start`] with these choices (`None`: the dialog's, or the last ones) — the dialog left
 /// as it is.
 pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSettings>) -> bool {
-    if app.export.busy() {
+    if let Some(words) = crate::video_export::busy_words(app) {
+        // r35:video — a running export (audio or video) said, not a silent refusal
+        app.set_error(words);
         return false;
     }
     // A freeze or a bounce rendering holds the hosted plug-ins' render instances (round 29,

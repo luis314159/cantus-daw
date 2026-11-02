@@ -424,6 +424,12 @@ pub const INSTRUMENTS: &[(&str, &str, InstrumentChoice, &str)] = &[
         "modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)",
     ),
     (
+        "dancer",
+        "Saltator",
+        InstrumentChoice::Native(InstrumentKind::Dancer),
+        "a character that dances on screen and makes no sound: it dances to the beat by itself; `move` (0 = to the beat, else a move by number) and its other numbers are automatable; notes C3–D#4 (48–63) play its sixteen moves",
+    ),
+    (
         "firmus",
         "Firmus",
         InstrumentChoice::Firmus,
@@ -455,6 +461,7 @@ pub fn native_id(kind: InstrumentKind) -> &'static str {
         InstrumentKind::ElectricPiano => "lamina",
         InstrumentKind::Organ => "organum",
         InstrumentKind::Chorda => "chorda",
+        InstrumentKind::Dancer => "dancer",
     }
 }
 

@@ -266,6 +266,9 @@ pub fn instrument_entry(id: &str) -> Option<Value> {
         if *kind == InstrumentKind::Sampler {
             v["note"] = json!("silent until an instrument (SFZ, Decent Sampler, SF2) is loaded into it by the user or from a file in the project's folder");
         }
+        if *kind == InstrumentKind::Dancer {
+            crate::dance_live::describe_for_agents(&mut v); // r35:dancer
+        }
         let _ = native_id(*kind);
     }
     if id == "pulsus" {

@@ -71,9 +71,9 @@ pub fn spec_of(choice: &PickChoice) -> Option<InstrumentSpec> {
         PickChoice::Firmus => Some(InstrumentSpec::default()),
         PickChoice::Pulsus => Some(InstrumentSpec::Pulsus(PulsusParams::default())),
         // r33:mpe — a new instance comes with its MPE routes (ADR 0080)
-        PickChoice::Instrument(k) => Some(InstrumentSpec::Native(
+        PickChoice::Instrument(k) => Some(InstrumentSpec::Native(crate::dance_live::new_spec(
             cantus_core::model::note_expr::defaults::with_routes(NativeSpec::new(*k)),
-        )),
+        ))), // r35:dancer — a new dancer's character
         _ => None,
     }
 }

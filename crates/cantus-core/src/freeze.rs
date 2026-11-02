@@ -1015,6 +1015,9 @@ pub enum CannotFreeze {
     SoloedTrack(TrackId),
     /// The same for a strip of its region (the frozen strip excepted).
     SoloedStrip(StripId),
+    /// A dancer's own track (round 35, ADR 0087): it makes no sound to freeze, and frozen
+    /// its unit would stop and the screen with it. // r35:dancer
+    Dancer(TrackId), // r35:dancer
 }
 
 /// One undo step that freezes `target`: the armed tracks of its region disarmed first (a
@@ -1028,6 +1031,15 @@ pub fn freeze_commands(project: &Project, target: FreezeTarget) -> Result<Comman
     }
     if project.frozen(target).is_some() {
         return Err(CannotFreeze::Frozen);
+    }
+    // r35:dancer — a dancer's own track: nothing to freeze, and it must keep running.
+    if let FreezeTarget::Track(t) = target {
+        if project
+            .track(t)
+            .is_some_and(|x| crate::inst::dancer::is_dancer(&x.instrument))
+        {
+            return Err(CannotFreeze::Dancer(t)); // r35:dancer
+        }
     }
     let r = region(project, target);
     if let Some(s) = project
@@ -1452,7 +1464,10 @@ pub fn dormant(project: &Project, plays: &dyn Fn(FreezeTarget) -> bool) -> Dorma
             .iter()
             .filter(|t| d.tracks.contains(&t.id) || d.notes.contains(&t.id))
         {
-            if heard(&d, t.strip) {
+            // r35:dancer — a dancer is watched, not heard: its unit runs whatever its sound
+            // reaches (ADR 0087), or the screen would stop.
+            let dancer = crate::inst::dancer::is_dancer(&t.instrument); // r35:dancer
+            if heard(&d, t.strip) || dancer {
                 wake_tracks.push(t.id);
             }
         }

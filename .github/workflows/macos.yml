@@ -78,6 +78,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/master' }}
+      - name: nasm (rav1e's assembly for WebM video, ADR 0088) # r35:video
+        run: brew install nasm
       - name: build-dmg.sh
         shell: bash
         run: |

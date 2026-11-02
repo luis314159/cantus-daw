@@ -31,7 +31,14 @@ Also: [What an AI agent can do in Cantus](ai-tools.md) — the tools, the unit c
 
 Also: [Separating stems](stems.md) — a song into drums, bass, vocals and the rest, on your computer. <!-- r34:stems -->
 
+Also: [Exporting a dancing video](video.md) — your dancers with the song, for social media or a video editor. <!-- r35:video -->
+
 Also: [Converting audio to MIDI](audio-to-midi.md) — a melody, chords or a drum loop into notes on a new track.
+
+Also: [Saltator, a character that dances to your song](dancer.md) — the dancer's window, its moves, React to. <!-- r35:dancer -->
+
+Also: [The stage](stage.md) — a dancer over the workspace, on the Stage tab, in a companion window and on stream (OBS). <!-- r35:stage -->
+Also: [Importing a character](import-characters.md) — a dancer wearing your own Lottie, sprite sheet or DragonBones character. <!-- r35:import -->
 
 AI in this manual: [AI agents (MCP)](#ai-agents-mcp) — connect Claude or another assistant;
 [The mastering assistant](#the-mastering-assistant); [Listening for AI agents](#listening-for-ai-agents).

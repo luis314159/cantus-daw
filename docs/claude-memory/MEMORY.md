@@ -36,3 +36,5 @@
 - [Round 33: Ableton core](round-33.md) — session view, Link (GPL cantus-link), clock/MTC, MPE; schema 47; Win 5 137 + Linux 5 120; beta.8 released 2026-10-30 (Win+Linux); next = round 34 AI
 - [Decision: round 35 = dancing character](decision-round35-dancer.md) — owner 2026-10-29 left it to me: §6i whole in round 35, after round 34 (AI)
 - [Round 34: AI](round-34.md) — MCP server, 63 tools, mastering, stems, audio to MIDI; Win 5 590 + fuzz 985; beta.9; next = round 35 dancer
+- [Dancer quality bar](feedback-dancer-quality.md) — owner 2026-10-31: characters super professional and fun; show GIF previews before done
+- [Round 35: the dancer](round-35.md) — §6i done; beta.10 released 2026-11-02 (Win+Linux); Win 5 972 + Linux 5 934; next = round 36 the professional studio (docs/next-session.md)

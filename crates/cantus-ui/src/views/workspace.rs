@@ -66,6 +66,8 @@ pub enum Pane {
     /// The Session pane (round 33, ADR 0077, `views::session`): the clip launcher, a tab
     /// beside the arrangement — Tab brings one or the other to the front.
     Session,
+    /// The Stage (round 35, ADR 0091, `crate::stage::dock`): the docked dancers. // r35:stage
+    Stage, // r35:stage
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -97,6 +99,7 @@ impl Pane {
             Pane::History => "workflow.history.pane",
             Pane::Score => "score.pane",
             Pane::Session => "session.pane",
+            Pane::Stage => "stage.pane", // r35:stage
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -117,6 +120,7 @@ impl Pane {
             Pane::History => "action.view-history",
             Pane::Score => "action.view-score",
             Pane::Session => "action.toggle-session-view",
+            Pane::Stage => "stage.toggle", // r35:stage
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -136,6 +140,7 @@ impl Pane {
             Pane::History => Glyph::Undo,
             Pane::Score => Glyph::Score,
             Pane::Session => Glyph::Session,
+            Pane::Stage => Glyph::Stage, // r35:stage
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -434,6 +439,7 @@ impl Workspace {
                     }
                 }
             }
+            Pane::Stage => crate::stage::dock::place(s, inspector, inspector_share), // r35:stage
             Pane::Device(_) => match arrangement.or(lower) {
                 Some(node) => append(s, node, pane),
                 None => s.push_to_first_leaf(pane),

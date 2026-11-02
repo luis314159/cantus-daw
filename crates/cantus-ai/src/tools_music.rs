@@ -91,6 +91,12 @@ pub fn playable(spec: &InstrumentSpec) -> Option<(u128, String)> {
                 InstrumentKind::ElectricPiano => (28, 100),
                 InstrumentKind::Organ => (24, 96),
                 InstrumentKind::Bass => (12, 72),
+                // The move map: a key per move (ADR 0087).
+                InstrumentKind::Dancer => {
+                    let lo = cantus_core::inst::dancer::BASE_KEY;
+                    let hi = lo + cantus_core::inst::dancer::Move::ALL.len() as u8 - 1;
+                    return Some((span(lo, hi), "its move map".into()));
+                }
                 _ => return None,
             };
             Some((

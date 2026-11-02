@@ -18,9 +18,17 @@ pub fn fresh_instrument(choice: InstrumentChoice) -> InstrumentSpec {
     match choice {
         InstrumentChoice::Firmus => InstrumentSpec::default(),
         InstrumentChoice::Pulsus => InstrumentSpec::Pulsus(PulsusParams::default()),
-        InstrumentChoice::Native(k) => InstrumentSpec::Native(
-            cantus_core::model::note_expr::defaults::with_routes(NativeSpec::new(k)),
-        ),
+        InstrumentChoice::Native(k) => {
+            let mut n = cantus_core::model::note_expr::defaults::with_routes(NativeSpec::new(k));
+            // A new dancer names its character (the cast's first), as the picker's does.
+            if k == cantus_core::InstrumentKind::Dancer {
+                let _ = n.set_text(
+                    cantus_core::inst::dancer::CHARACTER_KEY,
+                    Some(cantus_core::inst::dancer::DEFAULT_CHARACTER.to_string()),
+                );
+            }
+            InstrumentSpec::Native(n)
+        }
     }
 }
 

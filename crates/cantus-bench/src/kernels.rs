@@ -344,7 +344,7 @@ pub fn kind_id(kind: EffectKind) -> &'static str {
     }
 }
 
-/// Every instrument, the two built in and the seven native ones, with `voices` held.
+/// Every instrument, the two built in and the native ones, with `voices` held.
 pub fn instruments() -> Vec<(&'static str, InstrumentSpec)> {
     let mut v: Vec<(&'static str, InstrumentSpec)> = vec![
         ("firmus", InstrumentSpec::default()),
@@ -363,6 +363,8 @@ pub fn instruments() -> Vec<(&'static str, InstrumentSpec)> {
             InstrumentKind::ElectricPiano => "lamina",
             InstrumentKind::Organ => "organum",
             InstrumentKind::Chorda => "chorda",
+            // The dancer makes no sound: what its unit costs the audio thread (ADR 0087).
+            InstrumentKind::Dancer => "saltator",
         };
         v.push((
             name,

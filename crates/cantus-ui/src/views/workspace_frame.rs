@@ -75,6 +75,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     if then == Some(After::ResetLayout) {
         app.reset_layout();
     }
+    crate::stage::float::show(app, ui, area); // r35:stage — the dancers over the workspace
 }
 
 struct Viewer<'a> {
@@ -124,6 +125,7 @@ impl TabViewer for Viewer<'_> {
             Pane::History => super::history::show(app, ui),
             Pane::Score => super::score_view::show(app, ui),
             Pane::Session => super::session::show(app, ui), // r33:launcher
+            Pane::Stage => crate::stage::dock::show(app, ui), // r35:stage
             Pane::Device(key) => device::record_body(ui.ctx(), key, ui),
         }
     }

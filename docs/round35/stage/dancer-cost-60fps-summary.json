@@ -1,0 +1,38 @@
+{
+ "capture_methods": {},
+ "stage": null,
+ "checks": {
+  "checks": 0
+ },
+ "minutes": 0.0,
+ "none": {
+  "cpu_pct_core_mean": 75.39,
+  "cpu_pct_core_max": 82.34,
+  "working_set_mb_first": 249.7,
+  "working_set_mb_last": 251.1,
+  "working_set_mb_max": 251.1,
+  "private_mb_first": 225.2,
+  "private_mb_last": 226.4,
+  "samples": 28
+ },
+ "float": {
+  "cpu_pct_core_mean": 102.14,
+  "cpu_pct_core_max": 111.36,
+  "working_set_mb_first": 256.8,
+  "working_set_mb_last": 257.2,
+  "working_set_mb_max": 257.2,
+  "private_mb_first": 228.0,
+  "private_mb_last": 228.1,
+  "samples": 28
+ },
+ "hidden": {
+  "cpu_pct_core_mean": 76.36,
+  "cpu_pct_core_max": 101.42,
+  "working_set_mb_first": 254.9,
+  "working_set_mb_last": 255.4,
+  "working_set_mb_max": 255.4,
+  "private_mb_first": 226.2,
+  "private_mb_last": 226.4,
+  "samples": 27
+ }
+}

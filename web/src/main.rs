@@ -4,6 +4,7 @@ mod ahead;
 mod ai;
 mod audio;
 mod body;
+mod dance;
 mod faces;
 mod fx;
 mod icons;
@@ -49,6 +50,7 @@ fn app() -> Html {
                 <session::Session />
                 <ai::Ai />
                 <score::Score />
+                <dance::Dance />
                 <faces::Faces />
                 <fx::Effects />
                 <body::Engine />

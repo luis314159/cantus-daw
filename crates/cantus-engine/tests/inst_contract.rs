@@ -991,10 +991,11 @@ per_kind! {
     epiano => InstrumentKind::ElectricPiano,
     organ => InstrumentKind::Organ,
     chorda => InstrumentKind::Chorda,
+    dancer => InstrumentKind::Dancer, // r35:dancer — silent: every twin is silence
 }
 
 #[test]
 fn every_native_instrument_is_checked() {
-    // `per_kind!` lists eight: a new kind must be added there.
-    assert_eq!(InstrumentKind::ALL.len(), 8);
+    // `per_kind!` lists nine: a new kind must be added there.
+    assert_eq!(InstrumentKind::ALL.len(), 9); // r35:dancer
 }

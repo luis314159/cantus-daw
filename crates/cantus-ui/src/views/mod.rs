@@ -64,7 +64,8 @@ pub mod pitch_lane;
 pub mod plugin_notice;
 pub mod start_page;
 pub mod template_name;
-// Round 29 (ADR 0064): freezing and low-latency monitoring on screen.
+pub mod video_export; // r35:video — the video dialog (ADR 0088)
+                      // Round 29 (ADR 0064): freezing and low-latency monitoring on screen.
 pub mod clipfx_settings;
 pub mod freeze_monitor;
 pub mod freeze_view;

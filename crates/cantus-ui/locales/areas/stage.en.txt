@@ -1,0 +1,61 @@
+# Area: the stage over the workspace, the companion window, the streaming mode and the visualiser — round 35, ADR 0091. Every key here
+# needs its twin in stage.es.txt.
+
+# ---- the stage over the workspace and the Stage tab (ADR 0091 §1) ----------------------
+stage.pane = Stage
+stage.toggle = Show or hide the Stage
+stage.mode.floating = Over the workspace
+stage.mode.docked = On the Stage tab
+stage.mode.hidden = Hidden
+stage.tip.move = Drag to move the dancer
+stage.tip.size = Drag to resize the dancer
+stage.tip.pin = Keep above the floating panels
+stage.tip.unpin = Stop keeping it above the floating panels
+stage.tip.dock = Put it on the Stage tab
+stage.tip.float = Put it over the workspace
+stage.tip.hide = Hide the dancer
+stage.a11y.dancer = Dancer of {track}
+stage.empty.title = No dancer on this stage
+stage.empty.hint = A dancer docked here dances on this tab. Point at a dancer over the workspace and press its dock button.
+cmd.stage.move = Move dancer
+# ---- the companion window, the streaming mode, the visualiser (ADR 0091 §§2–4) -------
+stage.companion.title = Cantus Stage
+stage.companion.project_dancers = The project's dancers
+stage.a11y.companion = Cantus Stage: a character dancing with the music
+stage.tip.menu = The stage's choices (or right-click anywhere)
+stage.menu.character = Character
+stage.menu.size = Size
+stage.menu.backdrop = Background
+stage.menu.visualiser = Visualiser
+stage.menu.bar_beat = Bar and beat
+stage.menu.song = Song name and tempo
+stage.menu.on_top = Always on top
+stage.menu.streaming = Streaming mode
+stage.menu.copy_obs = Copy OBS setup
+stage.menu.close = Close
+stage.backdrop.transparent = Transparent
+stage.backdrop.theme = The theme's stage
+stage.backdrop.green = Chroma green
+stage.backdrop.blue = Chroma blue
+stage.backdrop.magenta = Chroma magenta
+stage.vis.off = Off
+stage.vis.spectrum = Spectrum
+stage.vis.level = Level
+stage.vis.untitled = Untitled song
+stage.vis.bpm = {bpm} BPM
+stage.vis.bar = BAR {bar}
+stage.cost.none = Cost: measured once it has drawn
+stage.cost.line = CPU {ms} ms a frame · {pct} % of a core · {fps} fps
+stage.cost.gpu = GPU time: not measured (the driver is not asked)
+stage.obs.transparent = OBS Studio or Streamlabs — the "{title}" window, see-through:\n1. Add a source: Window Capture.\n2. Window: [cantus.exe]: {title}. Capture method: Windows 10 (1903 and up).\nIts background stays see-through: nothing else to set. (The BitBlt method shows it black; on Linux use Xcomposite or PipeWire.)
+stage.obs.theme = OBS Studio or Streamlabs — the "{title}" window on the theme's stage:\n1. Add a source: Window Capture.\n2. Window: [cantus.exe]: {title}.\nFor a see-through character, choose the transparent background in Cantus.
+stage.obs.chroma = OBS Studio or Streamlabs — the "{title}" window on {colour}:\n1. Add a source: Window Capture. Window: [cantus.exe]: {title}. Capture method: Windows 10 (1903 and up).\n2. Right-click the source: Filters. Add a Chroma Key filter; Key colour type: the same colour ({colour}).\n3. Lower Similarity until the character's edges are clean.
+stage.view.stage = Stage (the dancers on screen)
+stage.view.companion = Companion window
+stage.view.streaming = Streaming mode
+action.toggle-stage = Show or hide the dancers
+action.toggle-companion = Open or close the companion window
+action.toggle-streaming = Streaming mode on or off
+stage.video.row = Visualiser
+stage.video.on = The spectrum, the bar and its beats
+stage.menu.export_video = Export video…

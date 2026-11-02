@@ -465,11 +465,28 @@ fn find_icon(profile_dir: &Path) -> Option<PathBuf> {
 /// `asio_sdk`), failing the build — not degrading — when either is missing.
 fn build_app(level: Level, triple: &str, tools: &crate::asio_sdk::AsioTools) {
     let mut cmd = levels::cargo_build(level, triple);
-    cmd.args(["-p", "cantus", "--features", "asio"]);
+    // r35:video - rav1e's assembly for WebM (ADR 0088 amendment 2): nasm is required.
+    cmd.args(["-p", "cantus", "--features", "asio,video-asm"]);
     for (k, v) in tools.env() {
         cmd.env(k, v);
     }
     run(&mut cmd);
+}
+
+/// rav1e's assembly (WebM video, ADR 0088) needs nasm: a release refuses to build without
+/// it rather than ship an AV1 encoder three times slower. // r35:video
+fn require_nasm() {
+    let ok = std::process::Command::new("nasm")
+        .arg("-v")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !ok {
+        eprintln!(
+            "nasm is not on PATH: a release builds rav1e's assembly for WebM video \
+             (winget install NASM.NASM, apt install nasm, brew install nasm)"
+        );
+        std::process::exit(1);
+    }
 }
 
 /// The plug-in scanner, built with the lowest level's flags: it only reads plug-in files.
@@ -728,6 +745,7 @@ pub fn package(args: &[String]) {
             eprintln!("{e}");
             std::process::exit(1)
         });
+        require_nasm(); // r35:video
         for level in &levels {
             build_app(*level, &triple, &tools);
         }

@@ -21,6 +21,8 @@ use std::collections::BTreeMap;
 pub mod analog;
 pub mod bass;
 pub mod chorda;
+// The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
+pub mod dancer;
 pub mod epiano;
 pub mod fm;
 pub mod modulation;
@@ -51,6 +53,9 @@ pub enum InstrumentKind {
     Organ,
     /// Chorda: the modelled grand piano (round 28).
     Chorda,
+    /// The dancer: a character that dances on screen and makes no sound (round 35, ADR
+    /// 0087). A track hosts it so its numbers are automation and modulation targets.
+    Dancer,
 }
 
 macro_rules! dispatch {
@@ -64,12 +69,13 @@ macro_rules! dispatch {
             InstrumentKind::ElectricPiano => epiano::$item $( ( $($arg),* ) )?,
             InstrumentKind::Organ => organ::$item $( ( $($arg),* ) )?,
             InstrumentKind::Chorda => chorda::$item $( ( $($arg),* ) )?,
+            InstrumentKind::Dancer => dancer::$item $( ( $($arg),* ) )?,
         }
     };
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 8] = [
+    pub const ALL: [InstrumentKind; 9] = [
         InstrumentKind::Wavetable,
         InstrumentKind::Analog,
         InstrumentKind::Fm,
@@ -78,6 +84,7 @@ impl InstrumentKind {
         InstrumentKind::ElectricPiano,
         InstrumentKind::Organ,
         InstrumentKind::Chorda,
+        InstrumentKind::Dancer,
     ];
 
     pub fn name_key(self) -> &'static str {
@@ -117,12 +124,20 @@ impl InstrumentKind {
 
     /// Whether a parameter may be automated (a clip may drive it): every one but those a
     /// kind derives off the audio thread — Chorda's tuning, which designs its strings
-    /// (ADR 0059).
+    /// (ADR 0059) — and those that are set, never automated — where a dancer is shown
+    /// (ADR 0087).
     pub fn automatable(self, key: &str) -> bool {
         match self {
             InstrumentKind::Chorda => !chorda::DESIGN_KEYS.contains(&key),
+            InstrumentKind::Dancer => !dancer::VIEW_KEYS.contains(&key),
             _ => true,
         }
+    }
+
+    /// Whether it makes sound. A dancer does not (ADR 0087): what checks an instrument's
+    /// level, its tone or its voices passes it by.
+    pub fn sounds(self) -> bool {
+        self != InstrumentKind::Dancer
     }
 
     /// Whether `key` can take a modulation source — the instrument's own matrix or a

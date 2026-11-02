@@ -1,8 +1,33 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-31 (round 34: **AI** — an **MCP server** written by hand (both protocol generations, the HTTP door on `127.0.0.1` off by default with a token per client, the `cantus-mcp` stdio bridge, permissions decided in Cantus, the confirmation card, the agent chip, the AI activity, Settings ▸ AI with setups for Claude Code, Claude Desktop, Cursor, VS Code, Gemini CLI and LM Studio; each call one undo step named "AI: …"; ADR 0081); **63 tools** with the unit catalogue, the music linter and the chunky writers `write_part`, `voice_chords`, `pedal_from_chart`, `automate` (ADR 0082); **listening** — range renders from checkpoints equal to the whole render to the bit, analysis taps, live = offline checked, `audition`, masking — and **the mastering assistant** on the master, nine platforms, worst 0.07 LU from the target (ADRs 0083–0084); **stems** by HT-Demucs in the `cantus-ml` helper on ONNX Runtime, SDR 8.80 dB on MUSDB18-HQ, equal to the paper (ADR 0085, schema 48); **audio to MIDI** — Basic Pitch note for note with Spotify's, our tracker for a melody, drums by our detector and Magenta's model (ADR 0086). Version **0.1.0-beta.9** (Windows and Linux; macOS waits for the Mac session). Schema 48, `DSP_VERSION` 5, keymap 14. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 5 590 pass on Windows (82 ignored), the engine fuzz 985 at `CANTUS_WORKERS=3`, 5 574 on Linux (WSL Ubuntu 24.04); clippy clean on both
+**Updated:** 2026-11-02 (round 35: **the dancing character** — **Saltator**, a silent native instrument whose numbers are automation, modulator and MIDI-learn targets and whose notes choose its sixteen moves, dancing to the beat with no automation and reacting to a track's level, the null tests holding every sample (ADR 0087, schema 49); **the family** — Trino, Miso, Lana, Tic, Corchea and Sol, ours and original, on one deterministic rig (ADR 0090); **imported characters** — Lottie by our own player, Aseprite and TexturePacker sheets, DragonBones, sandboxed and content-addressed with their licence shown (ADR 0089); **video** — MP4, WebM, a transparent MOV or PNG frames with the song's audio, square, vertical or wide, audio and picture in sync to 0.000 ms, by our own writers and the system's encoders (ADR 0088); **the stage** — the dancer over the workspace, a companion window with true alpha and a streaming mode OBS captured for an hour, a light visualiser, about 3.4 % of a core (ADR 0091). Version **0.1.0-beta.10** (Windows and Linux; macOS waits for the Mac session). Schema 49, `DSP_VERSION` 5, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 5 972 pass on Windows (85 ignored), the engine fuzz 1 011 at `CANTUS_WORKERS=3`, 5 934 on Linux (85 ignored) (WSL Ubuntu 24.04); clippy clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 35 left
+
+Round 35 is on **master** (squashed) and published to `luis314159/cantus-daw`; **`v0.1.0-beta.10`**
+is released for Windows and Linux. The account: `docs/round35/integration.md`; one report per
+builder beside it (`dancer`, `cast`, `import`, `video`, `stage`). Under the owner's rule what
+is left is the owner's own, or new work:
+
+1. **Look and capture**: the companion on your own desktop (Alt+Shift+D; streaming mode Ctrl+Shift+D)
+   and in your own OBS (Window Capture with *Windows 10 (1903 and up)*); OBS Game Capture on
+   a single-GPU machine; capture under Linux compositors on a real Linux desktop.
+2. **Post a clip**: a vertical 30-second MP4 uploaded to TikTok, Instagram and YouTube; the
+   transparent MOV in the editors you use (Resolve, Premiere, CapCut).
+3. **The legal review** gains Cisco's OpenH264 binary terms (downloaded by the user, never
+   shipped) beside what rounds 30–34 left.
+4. **Everything rounds 30–34 left**: the Mac session (`docs/mac-session.md`, now with row 18:
+   VideoToolbox, AudioToolbox, the companion's alpha) and the Apple account; a clean Windows
+   for the ML helper; Claude Desktop's `.mcpb`; the hardware of round 33; a real Linux
+   desktop, Flathub, compacting the WSL disk image, code signing, the RVR1960 permission, the
+   trademark filing, the UMC in duplex; REAPER and FL Studio for the comparisons.
+5. **Round 36: the professional studio** (BACKLOG §0.4 item 6, the integrator's
+   recommendation — the owner decides): the recording mode (§4c), mixer snapshots and VCA
+   faders, external instruments and effects with a latency ping, Mackie Control / HUI, an
+   audio editor; ARA 2 hosting measured first. Rive characters wait in BACKLOG §6i. The
+   prompt is `docs/next-session.md`.
 
 ## The next session: what round 34 left
 
@@ -413,6 +438,25 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 35: a character that dances on screen — the dancer, the family, imports, video, the stage (requested 2026-10-29)
+
+**The ask:** BACKLOG §6i whole. Five builders (`dancer`, `cast`, `import`, `video`, `stage`)
+from contract `b6f03bfe`, the video's risk measured by a probe and decided in ADR 0088 before
+its builder started; every cargo command queued through a slot script (three build slots,
+one WSL); one reviewer per branch, one for every fix round, one on the integrated tree and
+one on the fix rounds after it — every finding fixed with a test. Account:
+`docs/round35/integration.md`.
+
+| Part | What changed |
+|---|---|
+| The dancer (ADR 0087) | `InstrumentKind::Dancer` (**Saltator**, schema 49, the picker's *Visual* shelf): a silent native instrument — its numbers (move, travel, speed, energy, lift, facing, spin, size, x, y, mood, colour, react, where it shows) are automation, modulator and MIDI-learn targets; notes from C3 choose 16 moves; to the beat with no automation; *React to* a channel or the song as one undo step (a follower on `level`); the engine's unit publishes a `DanceFrame` per segment into a seqlock (`cantus-engine/src/dance.rs`), a timeline only when a video asks; the pose a pure function of the frame (`cantus-dance`); the window (*Play*: the stage, the characters, the move pads; *Edit*); presets that keep who and where; agents (`get_unit dancer`, `add_track`); bit-identical audio with and without dancers at every block size, live and offline; a hidden dancer costs nothing |
+| The family (ADR 0090) | Six characters of our own on one rig and one choreography in six styles — Trino (songbird, the default), Miso (cat), Lana (lamb), Tic (robot), Corchea (eighth note), Sol (child); every move and mood, both themes; deterministic on every system (`rig::rotation`, `cantus_dsp::math`); 0 allocations of the rig's own; 0.95–1.34 ms a frame at 600×600; the hero video (`docs/round35/cast/family-hero.{gif,mp4}`) |
+| Imported characters (ADR 0089) | Lottie by our own player (velato measured and refused), Aseprite and TexturePacker sheets, DragonBones 5.x; our own image rasteriser; a folder sandbox, bounds before memory, no script, a panic guard; content-addressed packages `Characters/<name>-<8 hex>/` with `character.json` carried by the project; the card with the licence, the mapping by name, *Edit moves…*; 30 000 fuzzed files without a panic. Rive waits (BACKLOG §6i) |
+| Video (ADR 0088) | `crates/cantus-video` (GPL): our MP4, MOV and WebM writers; Media Foundation's H.264 + AAC, VideoToolbox, Cisco's OpenH264 downloaded on Linux and Windows N with the system's AAC or MP3, rav1e + Vorbis for WebM (nasm in CI); *File ▸ Export video…* with a live preview, square/vertical/wide, 30/60 fps, stage, transparent, chroma or black, a title and the visualiser; sync 0.000 ms on every path; 30 s vertical MP4 in 3.8 s; `export_video` for agents |
+| The stage (ADR 0091) | The dancer floating, docked or hidden over the workspace; the companion (Alt+Shift+D) — on Windows a layered window with true per-pixel alpha (`cantus_rt::window::Layered`); streaming mode (Ctrl+Shift+D, *Cantus Stage*, transparent or chroma, fixed size and place); the visualiser through a lock-free master tap; an hour under OBS with 343 of 343 checks; ≈ 3.4 % of a core; keymap 15 |
+| Showcase | README: *A dancer for your songs*; the landing page's dancer section with the family's video (EN/ES); manual pages EN/ES (dancer, import, stage, video); release notes; round 36's prompt |
+| Causes | a seek replayed old notes; every render kept a timeline; dancers drew past their own bounds (the measurements drew Idle); the companion's 14.7 % (a GL window and an egui pass); the preview compiled on the interface's thread; Media Foundation released after `CoUninitialize`; a glyph the faces lack |
 
 ## Round 34: AI — the MCP server, the project's tools, listening and mastering, stems, audio to MIDI (requested 2026-10-28)
 

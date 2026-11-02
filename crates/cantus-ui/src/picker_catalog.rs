@@ -72,6 +72,8 @@ pub enum Category {
     Drums,
     Samplers,
     OtherInstruments,
+    /// What makes no sound but shows the music: the dancer (round 35). // r35:dancer
+    Visual, // r35:dancer
     // Effects.
     Eq,
     Dynamics,
@@ -86,13 +88,15 @@ pub enum Category {
 }
 
 impl Category {
-    pub const INSTRUMENTS: [Category; 6] = [
+    pub const INSTRUMENTS: [Category; 7] = [
+        // r35:dancer
         Category::Synths,
         Category::Keys,
         Category::Bass,
         Category::Drums,
         Category::Samplers,
         Category::OtherInstruments,
+        Category::Visual, // r35:dancer
     ];
     pub const EFFECTS: [Category; 9] = [
         Category::Eq,
@@ -123,6 +127,7 @@ impl Category {
             Category::Drums => "picker.cat.drums",
             Category::Samplers => "picker.cat.samplers",
             Category::OtherInstruments => "picker.cat.other_instruments",
+            Category::Visual => "picker.cat.visual", // r35:dancer
             Category::Eq => "picker.cat.eq",
             Category::Dynamics => "picker.cat.dynamics",
             Category::Space => "picker.cat.space",
@@ -146,6 +151,8 @@ impl Category {
             Category::Drums => "drums drum bateria baterias percusion",
             Category::Samplers => "sampler samplers",
             Category::OtherInstruments => "instrument instrumento",
+            // r35:dancer
+            Category::Visual => "visual dance dancer character bailarin baile personaje",
             Category::Eq => "eq equalizer ecualizador",
             Category::Dynamics => "dynamics dinamica",
             Category::Space => "space espacio",
@@ -164,7 +171,7 @@ impl Category {
             Category::Synths | Category::Samplers | Category::OtherInstruments => Function::Source,
             Category::Keys | Category::Bass | Category::Eq | Category::Distortion => Function::Tone,
             Category::Drums | Category::Dynamics | Category::Mastering => Function::Dynamics,
-            Category::Modulation => Function::Mod,
+            Category::Modulation | Category::Visual => Function::Mod, // r35:dancer
             Category::Pitch => Function::Source,
             Category::Space | Category::Stereo => Function::Space,
             Category::Utility => Function::Output,
@@ -258,6 +265,12 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
         ("chorda", PickChoice::Instrument(I::Chorda), vec![C::Keys]),
         ("gravis", PickChoice::Instrument(I::Bass), vec![C::Bass]),
         ("pulsus", PickChoice::Pulsus, vec![C::Drums]),
+        // r35:dancer — the dancer: no sound, on a shelf of its own (ADR 0087).
+        (
+            "saltator",
+            PickChoice::Instrument(I::Dancer),
+            vec![C::Visual],
+        ), // r35:dancer
         (
             "exemplar",
             PickChoice::Instrument(I::Sampler),

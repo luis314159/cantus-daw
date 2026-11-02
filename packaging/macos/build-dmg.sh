@@ -50,7 +50,7 @@ for t in "${targets[@]}"; do
     cargo build --release --locked --target "$t" -p cantus-ml --bin cantus-ml # r34:stems
   fi
   # The app last, reading where its build script wrote the icon (cantus-app/build.rs).
-  dir="$(cargo build --release --locked --target "$t" -p cantus --message-format=json-render-diagnostics |
+  dir="$(cargo build --release --locked --target "$t" -p cantus --features video-asm --message-format=json-render-diagnostics |
     python3 -c 'import json, sys
 for line in sys.stdin:
     m = json.loads(line)

@@ -164,6 +164,24 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
   - [ ] **La sesión con la Mac**, filas 17 en adelante de `docs/mac-session.md`: el puente
         MCP y el ayudante de ML dentro del paquete firmado, una separación con CoreML y con
         el procesador, el tiempo de cada una.
+- [ ] Probar a mano lo de la ronda 35 (el personaje que baila, ADR 0087–0091):
+  - [ ] **La ventana de compañía en tu escritorio**: agrega una pista *Visual ▸ Saltator*,
+        reproduce una canción y abre la compañía con **Alt+Mayús+D**; muévela, cámbiale el
+        tamaño, prueba el menú (clic derecho o ⋯) y el **modo para streaming**
+        (**Ctrl+Mayús+D**). Que se vea bien sobre tu fondo y tus ventanas.
+  - [ ] **Tu OBS**: *Captura de ventana* de *Cantus Stage* con el método *Windows 10 (1903 y
+        posterior)* — fondo transparente; con *BitBlt* sale el color clave. Aquí se usó un OBS
+        portátil y nunca se tocó tu configuración. Si el Firewall de Windows pregunta por el
+        OBS portátil, *Cancelar* es seguro.
+  - [ ] **La *Captura de juego* de OBS en una máquina con una sola GPU**: en esta laptop de
+        dos GPU no puede abrir la ventana (OBS y Cantus en GPU distintas).
+  - [ ] **Publicar un clip**: *Archivo ▸ Exportar video…*, vertical, 30 s, MP4; subirlo a
+        TikTok, Instagram y YouTube y ver que el audio y la imagen sigan juntos.
+  - [ ] **El MOV transparente en tu editor** (`alpha_png.mov` o uno tuyo): importarlo en
+        Resolve, Premiere o CapCut y ver la transparencia.
+  - [ ] **La captura en Linux** (Xcomposite, PipeWire) en un Linux de escritorio real.
+  - [ ] **La sesión con la Mac**, fila 18 de `docs/mac-session.md`: VideoToolbox y
+        AudioToolbox, y la transparencia de la ventana de compañía en macOS.
 - [ ] **El instalador de `v0.1.0-beta.1`**: el botón de descarga de cantusdaw.com lo baja de
       GitHub; instalarlo (Windows avisará «Windows protegió tu PC» mientras no haya firma:
       *Más información ▸ Ejecutar de todas formas*), abrirlo, desinstalarlo.
@@ -203,6 +221,11 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       repositorio Apache-2.0 sin una línea de licencia aparte); HT-Demucs de Meta (el
       repositorio es MIT; no hay licencia aparte para los pesos); y las condiciones de
       Microsoft para redistribuir las DLL de Visual C++ junto a `cantus-ml.exe`.
+- [ ] **Revisión legal de OpenH264** (ronda 35, ADR 0088): en Linux y en Windows N, Cantus
+      ofrece descargar el binario de Cisco desde `ciscobinary.openh264.org` (hash fijado, la
+      licencia de Cisco a la vista antes, nunca incluido en Cantus); Cisco paga las regalías
+      de H.264 solo por su binario descargado así. Confirmar que el flujo cumple sus
+      condiciones.
 - [ ] **Firmar `cantus-mcp.exe` y `cantus-ml.exe`** con el resto de los programas cuando
       haya firma de código.
 - [ ] **Revisión legal de Chorda** frente a las patentes de modelado de piano que nombra el

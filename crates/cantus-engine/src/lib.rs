@@ -11,6 +11,7 @@
 pub mod automation;
 pub mod backend;
 mod clip_env;
+pub mod dance; // r35 contract — what a dancer tells the screen (ADR 0087)
 pub mod devices;
 pub mod effects;
 pub mod freeze;
@@ -20,6 +21,7 @@ pub mod hotplug;
 pub mod inst;
 pub mod listen; // r34:listen — range renders, analysis taps, checkpoints (ADR 0083)
 pub mod loopback;
+pub mod master_tap; // r35:stage — the master for the stage's visualiser (ADR 0091)
 pub mod messages;
 pub mod midi;
 pub mod modulator;

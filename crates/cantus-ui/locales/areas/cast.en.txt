@@ -1,0 +1,15 @@
+# Area: the included characters: their names and descriptions — round 35, ADR 0090. Every key here
+# needs its twin in cast.es.txt.
+
+cast.songbird.name = Trino
+cast.songbird.blurb = A round little songbird with berry headphones who never misses a beat: bouncy, light on its feet, and always singing on the downbeat.
+cast.cat.name = Miso
+cast.cat.blurb = A smoky grey tabby in a gold scarf: cool, slinky and light on its paws, with a tail that dances half a beat behind.
+cast.lamb.name = Lana
+cast.lamb.blurb = A little lamb in a cloud of cream wool, with a pink bow and a gold bell: gentle, hoppy and always ready to skip for joy.
+cast.robot.name = Tic
+cast.robot.blurb = A clockwork metronome robot with an LED face and a pendulum that ticks on every beat: precise, poppy and proud of its timing.
+cast.note.name = Corchea
+cast.note.blurb = A living eighth note in a gold bow tie and white gloves: a jazzy showman who claps, points, kicks and takes a bow.
+cast.child.name = Sol
+cast.child.blurb = A cheerful kid with curly hair, a star on the shirt and all the energy in the world: claps, jumps, spins and hands in the air.

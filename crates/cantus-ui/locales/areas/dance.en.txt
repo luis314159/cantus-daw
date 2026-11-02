@@ -1,0 +1,126 @@
+# Area: the dancer instrument: its parameters, moves, moods, the picker and its window — round 35, ADR 0087. Every key here
+# needs its twin in dance.es.txt.
+
+# The instrument and its track's picture.
+instrument.dancer = Saltator
+icon.dance = Dancer
+
+# Its numbers (label/value units: the value says the unit).
+dance.p.move = Move
+dance.p.step = Travel
+dance.p.speed = Speed
+dance.p.energy = Energy
+dance.p.jump = Lift
+dance.p.turn = Facing
+dance.p.spin = Spin
+dance.p.size = Size
+dance.p.x = Position X
+dance.p.y = Position Y
+dance.p.visible = Visible
+dance.p.mood = Mood
+dance.p.hue = Colour
+dance.p.level = Level heard
+dance.p.react = Reacts
+dance.p.view_mode = Shown
+dance.p.view_top = Always on top
+
+# Its moves (the move map: one key each, from C3).
+dance.move.idle = Idle
+dance.move.bounce = Bounce
+dance.move.step_left = Step left
+dance.move.step_right = Step right
+dance.move.sway = Sway
+dance.move.clap = Clap
+dance.move.wave = Wave
+dance.move.jump = Jump
+dance.move.spin = Spin
+dance.move.kick = Kick
+dance.move.shuffle = Shuffle
+dance.move.point = Point
+dance.move.arms_up = Arms up
+dance.move.twist = Twist
+dance.move.bow = Bow
+dance.move.freeze = Freeze
+
+# Its moods.
+dance.mood.neutral = Neutral
+dance.mood.happy = Happy
+dance.mood.excited = Excited
+dance.mood.calm = Calm
+dance.mood.surprised = Surprised
+dance.mood.sleepy = Sleepy
+dance.mood.cool = Cool
+dance.mood.shy = Shy
+
+# Its window.
+dance.card.stage = Stage
+dance.card.dance = Dance
+dance.card.body = Body
+dance.card.place = On stage
+dance.card.face = Face and ears
+dance.to_the_beat = To the beat
+dance.preset.beat = To the beat
+dance.preset.party = Party
+dance.preset.chill = Chill
+dance.preset.cool = Cool
+dance.card.character = Character
+dance.card.moves = Moves (keys C3 to D#4)
+dance.card.look = Look
+dance.card.ears = Ears
+dance.card.show = Where it shows
+dance.step.in_place = In place
+dance.step.left = Walk left
+dance.step.right = Walk right
+dance.step.wander = Wander
+dance.view.floating = Floating
+dance.view.docked = Docked
+dance.view.hidden = Hidden
+dance.facing.front = Front
+dance.facing.left = Left
+dance.facing.right = Right
+dance.on = On
+dance.off = Off
+dance.react.title = Reacts to
+dance.react.nothing = Nothing
+dance.react.song = The whole song
+dance.react.strip = A mixer channel
+dance.hud.bar_beat = Bar {bar} · beat {beat}
+dance.hud.stopped = Stopped: breathing
+dance.hud.missing = {name} could not be found ({why}): the default character dances
+dance.licence.cantus = Licence: Cantus's own (GPL-3.0-or-later)
+dance.licence.stated = Licence: {licence}
+dance.licence.unknown = Licence unknown: make sure you may use it
+dance.import = Import character…
+dance.import.tip = Bring a Lottie, a sprite sheet or a DragonBones character into this project
+dance.pad.tip = Press to dance this move now; notes on this key play it in a clip
+
+# Commands (the history panel names them).
+cmd.dance_react = React to a track
+cmd.dance_react_off = Stop reacting
+
+# The instrument picker: the Visual shelf.
+picker.cat.visual = Visual
+picker.dev.saltator.name = Saltator
+picker.dev.saltator.what = Dancing character
+picker.dev.saltator.about = A character that dances to the music on screen: to the beat by itself, or the moves you automate and play. It makes no sound.
+dance.speed.quarter = ¼×
+dance.speed.half = ½×
+dance.speed.one = 1×
+dance.speed.two = 2×
+dance.speed.four = 4×
+dance.imported = Imported ({format})
+dance.edit_moves = Edit moves…
+dance.edit_moves.tip = Open its card again: which of its animations plays each move
+dance.hud.loading = Loading the character…
+dance.import.tile = Import
+dance.p.x.short = Pos X
+dance.p.y.short = Pos Y
+dance.p.level.short = Level
+dance.p.turn.short = Facing
+dance.p.speed.short = Speed
+dance.p.react.short = Reacts
+dance.cannot_freeze = {name} is a dancer: it makes no sound to freeze, and frozen it would stop dancing
+dance.footer.stopped = Stopped
+dance.export_video = Export video…
+dance.export_video.tip = The song with its dancers as a video (MP4 or WebM, square, vertical or a transparent layer)
+demos.track.dancer = Dancer

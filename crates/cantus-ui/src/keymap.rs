@@ -229,6 +229,15 @@ pub enum Action {
     SessionSceneNext,
     /// Ableton Link on or off (round 33, ADR 0078: sync's; unbound, in the palette).
     ToggleLink,
+    // The stage (round 35, ADR 0091)
+    /// Show or hide the dancers on screen (over the workspace and the Stage tab).
+    ToggleStage,
+    /// Open or close the companion window.
+    ToggleCompanion,
+    /// Streaming mode on or off (unbound: View ▸ Streaming mode, the palette).
+    ToggleStreaming,
+    /// File ▸ Export video… (unbound: the menu and the palette). // r35:video
+    ExportVideo, // r35:video
 }
 
 /// How the shortcuts dialog groups the list.
@@ -296,7 +305,8 @@ impl Action {
         )
     }
 
-    pub const ALL: [Action; 118] = [
+    pub const ALL: [Action; 122] = [
+        // r35:video — 122 with ExportVideo
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -421,6 +431,11 @@ impl Action {
         Action::SessionScenePrev,
         Action::SessionSceneNext,
         Action::ToggleLink,
+        // Round 35 (ADR 0091).
+        Action::ToggleStage,
+        Action::ToggleCompanion,
+        Action::ToggleStreaming,
+        Action::ExportVideo, // r35:video
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -541,6 +556,10 @@ impl Action {
             Action::SessionScenePrev => "session-scene-prev",
             Action::SessionSceneNext => "session-scene-next",
             Action::ToggleLink => "toggle-link",
+            Action::ToggleStage => "toggle-stage",
+            Action::ToggleCompanion => "toggle-companion",
+            Action::ToggleStreaming => "toggle-streaming",
+            Action::ExportVideo => "export-video", // r35:video
             Action::NewFromTemplate => "new-from-template",
             Action::SaveAsTemplate => "save-as-template",
             Action::SaveTrackTemplate => "save-track-template",
@@ -567,6 +586,7 @@ impl Action {
             // Freezing and bouncing are the track's; low-latency monitoring the recording's
             // (round 29, ADR 0064).
             FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => Category::Arrangement,
+            ExportVideo => Category::File, // r35:video
             NewProject | DemoSongs | Open | Save | SaveAs | ExportWav | OpenSettings
             | NewFromTemplate | SaveAsTemplate | SaveTrackTemplate => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
@@ -601,7 +621,10 @@ impl Action {
             | CommandPalette
             | ViewHistory
             | ShowScore
-            | ViewScore => Category::View,
+            | ViewScore
+            | ToggleStage
+            | ToggleCompanion
+            | ToggleStreaming => Category::View,
             MidiLearnMode => Category::Tools,
             LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
@@ -1065,6 +1088,25 @@ fn common() -> Vec<(Action, Binding)> {
         ),
         (SessionBackToArrangement, Binding::alt(Key::B)),
         (SessionInsertScene, Binding::cmd(Key::I)),
+        // The stage (round 35, ADR 0091): Alt+D shows or hides the dancers (D for dancer),
+        // Alt+Shift+D opens the companion window, Ctrl+Shift+D its streaming mode (Cmd+Shift+D
+        // on a Mac; not Ctrl+Alt+D, which is Cmd+Option+D there: the Dock's) — free in every
+        // preset, never a bare letter the typing piano wants.
+        (ToggleStage, Binding::alt(Key::D)),
+        (
+            ToggleCompanion,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::D)
+            },
+        ),
+        (
+            ToggleStreaming,
+            Binding {
+                shift: true,
+                ..Binding::cmd(Key::D)
+            },
+        ),
         (
             SessionCaptureScene,
             Binding {
@@ -1471,6 +1513,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 14 {
             map.fill_in(&NEW_IN_V14);
         }
+        if file.version.unwrap_or(1) < 15 {
+            map.fill_in(&NEW_IN_V15);
+        }
         Ok(map)
     }
 
@@ -1548,8 +1593,18 @@ struct KeymapFile {
 /// track's actions (round 29); version 10 the settings' key (round 30, ADR 0066); version
 /// 11 the command palette's and the undo history's (round 31, ADR 0072); version 12 the
 /// automation mode's key (round 31, ADR 0068); version 13 the score's (round 32, ADR 0075);
-/// version 14 the session view's (round 33, ADR 0077).
-pub const FILE_VERSION: u32 = 14;
+/// version 14 the session view's (round 33, ADR 0077); version 15 the stage's (round 35,
+/// ADR 0091).
+pub const FILE_VERSION: u32 = 15;
+
+/// Actions added in version 15 (round 35, ADR 0091): Alt+D shows or hides the dancers,
+/// Alt+Shift+D opens the companion window, Ctrl+Shift+D (Cmd+Shift+D) switches its
+/// streaming mode.
+const NEW_IN_V15: [Action; 3] = [
+    Action::ToggleStage,
+    Action::ToggleCompanion,
+    Action::ToggleStreaming,
+];
 
 /// Actions added in version 14 (round 33, ADR 0077): the session view's — Tab, Enter and
 /// its modifiers, Ctrl+I, Ctrl+Alt+I, Alt+B, Ctrl+Alt+R (the scene cursor's two are
@@ -1787,6 +1842,79 @@ mod tests {
         }
     }
 
+    /// Last review of round 35: the stage's keys reach Cantus on all three systems in every
+    /// preset — none is Cmd+Option on a Mac (`command` is Cmd there, `alt` Option:
+    /// Cmd+Option+D shows and hides the Dock, Cmd+Option+Esc force-quits), and none is taken
+    /// by another action of the preset.
+    #[test]
+    fn the_stage_keys_are_no_systems_own() {
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            for action in [
+                Action::ToggleStage,
+                Action::ToggleCompanion,
+                Action::ToggleStreaming,
+            ] {
+                let keys = map.bindings_for(action);
+                assert!(!keys.is_empty(), "{action:?} bound in {preset:?}");
+                for b in keys {
+                    assert!(
+                        !(b.command && b.alt),
+                        "{action:?} in {preset:?}: {b:?} is Cmd+Option on a Mac"
+                    );
+                    for other in Action::ALL.iter().filter(|a| **a != action) {
+                        assert!(
+                            !map.bindings_for(*other).contains(b),
+                            "{action:?} and {other:?} share {b:?} in {preset:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Round 35 (ADR 0091): a keymap of version 14 gains the stage's keys where they are
+    /// free, and one that gave Alt+D to something else keeps it.
+    #[test]
+    fn keymap_14_gains_the_stage_keys() {
+        let map = Keymap::from_toml(
+            "version = 14
+preset = \"cantus\"
+",
+        )
+        .expect("reads");
+        assert_eq!(
+            map.bindings_for(Action::ToggleStage),
+            &[Binding::alt(Key::D)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::ToggleCompanion),
+            &[Binding {
+                shift: true,
+                ..Binding::alt(Key::D)
+            }]
+        );
+        assert_eq!(
+            map.bindings_for(Action::ToggleStreaming),
+            &[Binding {
+                shift: true,
+                ..Binding::cmd(Key::D)
+            }]
+        );
+        let taken = "version = 14
+preset = \"custom\"
+[bindings]
+play-pause = [\"Alt+D\"]
+";
+        let map = Keymap::from_toml(taken).expect("reads");
+        assert_eq!(map.bindings_for(Action::PlayPause), &[Binding::alt(Key::D)]);
+        assert!(map.bindings_for(Action::ToggleStage).is_empty());
+        for p in Preset::ALL {
+            let m = p.keymap();
+            assert!(!m.bindings_for(Action::ToggleStage).is_empty(), "{p:?}");
+        }
+    }
+
     /// Round 33 (ADR 0077): a keymap of version 13 gains the session's keys where they are
     /// free, and one that gave Enter to something else keeps it.
     #[test]
@@ -1822,7 +1950,7 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        assert_eq!(FILE_VERSION, 14);
+        assert_eq!(FILE_VERSION, 15);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {
             let m = p.keymap();

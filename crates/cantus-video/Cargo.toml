@@ -1,0 +1,72 @@
+[package]
+name = "cantus-video"
+description = "Cantus DAW — video export (round 35, ADR 0088): H.264 + AAC from the operating system into our own MP4 writer, a PNG MOV with alpha and a PNG sequence for editors, and the frame pipeline that renders the dancers on worker threads."
+# GPL like the application (ADR 0047): it drives the operating system's codecs through
+# unsafe OS bindings (Media Foundation; AVFoundation on macOS), which never go in an MPL
+# crate, and it sits beside cantus-export (GPL: LAME).
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+# rav1e's assembly (needs nasm to build): 2.8× faster AV1 with the very same bytes
+# (measured, ADR 0088 amendment 2). Releases turn it on (`xtask package`); a build without
+# nasm still works, slower.
+av1-asm = ["rav1e/asm"]
+
+[dependencies]
+# The song's video: the dancers' timelines drawn through the one renderer (ADR 0087).
+cantus-dance.workspace = true
+cantus-engine.workspace = true
+# Where a finished file goes and how a part is opened: the same as every audio export.
+cantus-export.workspace = true
+thiserror.workspace = true
+log.workspace = true
+# Frames are tiny-skia pixmaps: the one renderer's (cantus_dance::render). BSD-3-Clause.
+tiny-skia = "0.12"
+# The title in the frames: glyph outlines from the font (the reader egui uses; MIT OR
+# Apache-2.0), filled by tiny-skia.
+skrifa = "0.44"
+# PNG frames for the MOV layer and the sequence (MIT OR Apache-2.0).
+png = "0.18"
+# Downloads on demand (Cisco's OpenH264): the content manager's checked fetch (ADR 0030).
+cantus-content.workspace = true
+sha2.workspace = true
+# Cisco's OpenH264 binary, loaded at run time, never built (BSD-2-Clause; ADR 0088 §1b).
+openh264 = { version = "0.9.9", default-features = false, features = ["libloading"] }
+# Unpacking Cisco's .bz2: a pure-Rust decoder (MIT OR Apache-2.0).
+bzip2-rs = "0.1"
+# WebM (ADR 0088 §2): AV1 by rav1e, pure Rust, no assembly (BSD-2-Clause + AOM patent
+# licence); Vorbis by libvorbis (aoTuV) as cantus-export builds it (BSD-3-Clause).
+rav1e = { version = "0.8", default-features = false, features = ["threading"] }
+vorbis_rs = { version = "0.5.6", default-features = false }
+# MP3 in the MP4 where no AAC exists: LAME, as cantus-export uses it (LGPL).
+mp3lame-encoder = "0.2.5"
+
+[target.'cfg(windows)'.dependencies]
+# Media Foundation's H.264 and AAC encoder transforms, driven directly (ADR 0088 §1).
+# MIT OR Apache-2.0; already in the tree (eframe's winit, cpal).
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Media_MediaFoundation",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+# The measurements set the character's numbers (examples/measure.rs).
+cantus-core.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+# The measurements' peak memory (examples/measure.rs).
+windows = { version = "0.62", features = [
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
+] }

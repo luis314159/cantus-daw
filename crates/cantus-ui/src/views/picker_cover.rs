@@ -199,6 +199,15 @@ pub fn glyph(b: &mut Brush, rect: Rect, cat: Category, c: Color32, w: f32) {
             b.segment(at(0.49, 0.76), at(0.49, 0.12), w, c, true);
             b.segment(at(0.49, 0.12), at(0.72, 0.3), w, c, true);
         }
+        // r35:dancer — a figure mid-dance: a head, an arm flung up, a leg kicked out.
+        Category::Visual => {
+            b.circle(at(0.54, 0.16), ww * 0.1, Fill::Solid(c));
+            b.segment(at(0.52, 0.3), at(0.46, 0.6), w, c, true);
+            b.segment(at(0.52, 0.32), at(0.82, 0.06), w, c, true);
+            b.segment(at(0.52, 0.32), at(0.2, 0.44), w, c, true);
+            b.segment(at(0.46, 0.6), at(0.3, 0.94), w, c, true);
+            b.segment(at(0.46, 0.6), at(0.8, 0.8), w, c, true);
+        }
         Category::Eq => {
             b.hline(x0, x0 + ww, y0 + hh * 0.62, w * 0.4, with_alpha(c, 0.5));
             wave(

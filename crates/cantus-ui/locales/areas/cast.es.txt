@@ -1,0 +1,14 @@
+# Área: los personajes incluidos: sus nombres y descripciones — ronda 35, ADR 0090.
+
+cast.songbird.name = Trino
+cast.songbird.blurb = Un pajarito cantor, redondo y con auriculares color frambuesa, que nunca pierde el compás: saltarín, ligero de patas y siempre cantando en el primer tiempo.
+cast.cat.name = Miso
+cast.cat.blurb = Un gato atigrado gris humo con bufanda dorada: elegante, sinuoso y ligero de patas, con una cola que baila medio tiempo detrás.
+cast.lamb.name = Lana
+cast.lamb.blurb = Una corderita en una nube de lana color crema, con lazo rosa y cascabel dorado: tierna, saltarina y siempre lista para brincar de alegría.
+cast.robot.name = Tic
+cast.robot.blurb = Un robot metrónomo de cuerda con cara de LED y un péndulo que marca cada tiempo: preciso, mecánico y orgulloso de su compás.
+cast.note.name = Corchea
+cast.note.blurb = Una corchea viva con pajarita dorada y guantes blancos: una artista de jazz que aplaude, señala, patea y hace una reverencia.
+cast.child.name = Sol
+cast.child.blurb = Un niño alegre de pelo rizado, con una estrella en la camiseta y toda la energía del mundo: aplaude, salta, gira y levanta las manos.

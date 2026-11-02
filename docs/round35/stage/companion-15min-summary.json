@@ -1,0 +1,53 @@
+{
+ "capture_methods": {
+  "Game Capture (alpha)": {
+   "error": "GetSourceScreenshot: {'code': 702, 'comment': 'Failed to render screenshot.', 'result': False}"
+  },
+  "Window Capture WGC": {
+   "size": [
+    320,
+    360
+   ],
+   "corners_transparent": true,
+   "opaque_pixels": 60428,
+   "soft_pixels": 33864
+  },
+  "Window Capture BitBlt": {
+   "size": [
+    320,
+    360
+   ],
+   "corners_transparent": false,
+   "opaque_pixels": 115200,
+   "soft_pixels": 0
+  }
+ },
+ "stage": {
+  "cpu_pct_core_mean": 7.06,
+  "cpu_pct_core_max": 9.48,
+  "working_set_mb_first": 260.8,
+  "working_set_mb_last": 258.8,
+  "working_set_mb_max": 260.8,
+  "private_mb_first": 230.9,
+  "private_mb_last": 230.6,
+  "samples": 85
+ },
+ "checks": {
+  "checks": 86,
+  "clear": 86,
+  "moving": 86,
+  "drawn": 86,
+  "soft": 86
+ },
+ "minutes": 15.0,
+ "engine_minimised": {
+  "cpu_pct_core_mean": 5.75,
+  "cpu_pct_core_max": 34.22,
+  "working_set_mb_first": 255.0,
+  "working_set_mb_last": 255.2,
+  "working_set_mb_max": 255.2,
+  "private_mb_first": 226.4,
+  "private_mb_last": 227.0,
+  "samples": 28
+ }
+}

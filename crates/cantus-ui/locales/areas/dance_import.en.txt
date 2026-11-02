@@ -1,0 +1,129 @@
+# Area: importing characters: formats, checks, licences, mapping moves — round 35, ADR 0089. Every key here
+# needs its twin in dance_import.es.txt.
+
+# The command (the undo history names it).
+cmd.use_character = use character
+cmd.carry_characters = carry characters with the project
+cmd.edit_character_moves = edit character moves
+
+# The file dialog.
+dance_import.dialog.title = Import a character
+dance_import.dialog.filter = Characters (Lottie, sprite sheets, DragonBones)
+
+# The File menu.
+dance_import.menu = Import character…
+dance_import.menu.needs_dancer = Select a dancer track first
+
+# The card.
+dance_import.title = Import character
+dance_import.title_edit = Edit moves
+dance_import.format = {format}
+dance_import.format_by = {format} · by {author}
+dance_import.preview.routine = Dancing its routine — point at a move to see it
+dance_import.use = Use
+dance_import.save = Save
+dance_import.cancel = Cancel
+dance_import.foot.use = Use copies it into the project's Characters folder; Save As carries it.
+dance_import.foot.edit = Saving keeps these moves as a new copy and every dancer of this project wearing it follows (one undo step).
+dance_import.foot.copying = Copying it into the project…
+
+# The bands.
+dance_import.band.licence = Licence
+dance_import.band.found = In the file
+dance_import.band.ignored = Not used
+dance_import.band.moves = Moves
+dance_import.band.playback = Playback
+
+# The licence.
+dance_import.licence.stated = {licence} (from {source})
+dance_import.licence.choose = The file states no licence. Choose the one it was given to you under:
+dance_import.licence.own = My own work
+dance_import.licence.cc0 = CC0 1.0 (public domain)
+dance_import.licence.cc_by = CC BY 4.0 (credit the author)
+dance_import.licence.cc_by_sa = CC BY-SA 4.0 (credit, share alike)
+dance_import.licence.lottie_simple = Lottie Simple License (LottieFiles)
+dance_import.licence.other = Other
+dance_import.licence.other_hint = The licence, in its words
+dance_import.licence.unknown = I don't know
+dance_import.asks.credit = Credit the author where you publish what you make with it.
+dance_import.asks.share_alike = Changed versions of it must be shared under the same licence.
+dance_import.asks.non_commercial = Not for commercial use: a video made with it may not be sold or monetised.
+dance_import.asks.no_derivatives = No changes allowed: it may be shown only as it is.
+dance_import.asks.unknown = Licence unknown — make sure you may use it before you publish anything with it.
+
+# What the file holds.
+dance_import.fact.animations = Animations: {count}
+dance_import.fact.frames = Frames: {value}
+dance_import.fact.image = Image: {value} px
+dance_import.fact.layers = Layers: {value}
+dance_import.fact.frame_rate = Frame rate: {value} fps
+dance_import.fact.length = Length: {value}
+dance_import.fact.size = Size: {value} px
+dance_import.fact.bones = Bones: {value}
+dance_import.fact.slots = Slots: {value}
+dance_import.fact.moods = Moods: {moods}
+dance_import.fact.no_moods = Moods: none in this file (moods leave it as it is)
+dance_import.fact.cost = Draws in {ms} ms a frame on a 600 × 600 stage (budget {budget} ms)
+dance_import.fact.heavy = A heavy file: its frames are kept once drawn, at the size shown.
+dance_import.fact.measuring = Measuring what it costs to draw…
+
+# What was not used (each said, never dropped silently).
+dance_import.note.expressions = {arg} expressions are not run (they are scripts); their keyframes play instead.
+dance_import.note.three_d = 3D rotations around X and Y are flattened; Z turns it.
+dance_import.note.star_roundness = Rounded star points are drawn sharp.
+dance_import.note.merge_paths = Merge paths are drawn as separate shapes.
+dance_import.note.path_effects = Pucker, twist, zig-zag and offset path are not drawn.
+dance_import.note.effects = After Effects effects are not drawn.
+dance_import.note.mask_feather = Mask feathering and expansion are not drawn.
+dance_import.note.blend = A Hard Mix blend is drawn as Normal.
+dance_import.note.audio = Audio layers are not played.
+dance_import.note.text_animators = Text animators are not played; the text stands still.
+dance_import.note.text_without_glyphs = Text drawn with fonts the file does not carry is left out.
+dance_import.note.image_unreadable = An image could not be read; the rest is drawn.
+dance_import.note.image_url = An image on the internet is never fetched; it is left out.
+dance_import.note.first_animation = The package holds {arg} more animations; the first one is used.
+dance_import.note.state_machines = The package's state machines are not run.
+dance_import.note.themes = The package's themes are not used.
+dance_import.note.no_durations = The sheet gives no frame times: it plays at {arg} frames a second, or spans each move's beats.
+dance_import.note.slices = Slices are not used.
+dance_import.note.multipack = Only the first image of a multi-image sheet is used.
+dance_import.note.bone_inherit = Bones that do not inherit rotation, scale or position are drawn as if they did.
+dance_import.note.color_offsets = Colour offsets are not drawn (multipliers are).
+dance_import.note.first_skin = Only the first skin is used.
+dance_import.note.missing_texture = A display names a texture the atlas does not have; it is left out.
+dance_import.note.ik_timelines = IK weights do not animate.
+dance_import.note.events = Events and sounds in the animations are not used.
+dance_import.note.duplicate_ids = Two parts of the file share a name; the first is used.
+
+# The moves.
+dance_import.moves.lead = Each of our moves plays one of the file's animations over its beats. A guess comes from the names; change any.
+dance_import.moves.guessed = {name} (guessed)
+dance_import.moves.fallback = — plays {name} —
+dance_import.moves.none = None (play a related move)
+dance_import.moves.clip = {name} · {seconds} s
+dance_import.moves.beats = Beats
+
+# Playback.
+dance_import.playback.pixel = Sharp pixels (pixel art)
+dance_import.playback.own_speed = At its own speed (not to the beat)
+dance_import.playback.lead = To the beat, each move's frames fill its beats at the song's tempo.
+
+# A file that could not be read.
+dance_import.failed.title = This file could not be imported
+dance_import.failed.choose = Choose another…
+dance_import.failed.detail = {lead}: {detail}
+dance_import.error.unsupported = This is not a character Cantus can read (Lottie, Aseprite or TexturePacker sheets, DragonBones)
+dance_import.error.io = The file could not be read
+dance_import.error.invalid = The file is not valid
+dance_import.error.too_large = The file is larger than Cantus allows
+
+# The status line.
+dance_import.status.used = {name} is dancing now.
+dance_import.status.moves_saved = Moves saved: every dancer of this project wearing {name} follows them.
+dance_import.status.failed = The character could not be used: {error}
+dance_import.status.not_a_dancer = Only a dancer track can use a character.
+dance_import.status.not_imported = This character is one of Cantus's own; its moves are already set.
+dance_import.status.carry_failed = Not saved — a character could not be carried with the project: {error}
+dance_import.status.carry_failed_queued = Not saved — a character could not be carried with the project: {error}. The save to {file} that was waiting was not made either.
+dance_import.status.missing = Not found where the project keeps them, so not saved with it: {folders}
+dance_import.status.busy = Cantus could not start reading the file.

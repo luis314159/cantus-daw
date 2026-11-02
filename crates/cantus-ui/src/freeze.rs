@@ -989,6 +989,7 @@ impl CantusApp {
                     ("what", &name_of(self.project(), FreezeTarget::Strip(s))),
                 ],
             ),
+            CannotFreeze::Dancer(_) => tf("dance.cannot_freeze", &[("name", &name)]), // r35:dancer
         };
         self.set_error(text);
     }

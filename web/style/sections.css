@@ -276,3 +276,15 @@
 .ai-wrap .score-more.ai-pair { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
 .ai-wrap .score-more img { border-color: var(--night-line); background: var(--night-2); }
 @media (max-width: 56rem) { .ai-wrap .score-more, .ai-wrap .score-more.ai-pair { grid-template-columns: 1fr; } }
+
+/* A dancer for your songs (round 35): a warm stage — the family's video, the window, the companion, video export, import. */
+.dance-wrap { background: radial-gradient(46rem 24rem at 50% 0%, rgba(232,140,60,.24), transparent 70%), var(--night); color: var(--night-ink); border-bottom: 1px solid var(--night-line); }
+.dance-wrap .sec-head h2 { color: var(--strong); }
+.dance-wrap .sec-head p, .dance-wrap figcaption, .dance-wrap .score-points p { color: var(--night-ink-2); }
+.dance-wrap .score-points { border-top-color: var(--night-ink); }
+.dance-wrap .score-points h3 { color: var(--night-ink); }
+.dance-hero video { display: block; width: 100%; max-width: 1140px; height: auto; aspect-ratio: 1440 / 318; margin-inline: auto; border-radius: 0.9rem; border: 1px solid var(--night-line); background: var(--night-2); box-shadow: 0 30px 50px -34px rgba(0,0,0,.8); }
+.dance-wrap .score-more { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; }
+.dance-wrap .score-more.dance-pair { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.dance-wrap .score-more img { border-color: var(--night-line); background: var(--night-2); }
+@media (max-width: 56rem) { .dance-wrap .score-more, .dance-wrap .score-more.dance-pair { grid-template-columns: 1fr; } }

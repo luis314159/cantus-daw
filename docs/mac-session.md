@@ -46,6 +46,7 @@ Anota versión de macOS, modelo (M1/M2/M3… o Intel), interfaz de audio y auric
 | 15 | **Plazo de un plug-in colgado** (opcional, con Rust instalado: `rustup`, y el código) | En la carpeta de Cantus: `cargo test -p cantus-rt --test ipc_process a_late_wait -- --nocapture` | Pasa: la espera de 5 ms acaba antes de 7 ms (en la máquina virtual de GitHub se permiten 10). Anota la mediana que imprime. |
 | 16 | **Reloj MIDI a tiempo** (opcional, con Rust y el código, como el 15) | `cargo test -p cantus-engine --test sync_midi the_out_thread -- --nocapture` | Pasa: la mediana del retraso por debajo de 0,5 ms y el percentil 90 de 5 ms. En la máquina virtual de GitHub los temporizadores despiertan tarde (mediana 6,7–9,6 ms) y se permiten 15 y 35 ms. Anota lo que imprime; si en el Mac real también llega tarde, el hilo de salida MIDI necesita la clase QoS *user-interactive* o enviar con la marca de tiempo de CoreMIDI. |
 | 17 | **Separar stems (la IA, ADR 0085)** <!-- r34:stems --> | *Ajustes ▸ Modelos*: acepta la licencia de HT-Demucs e instálalo; en una canción, clic derecho en un clip de audio ▸ *Separar stems…* ▸ *Separar*; luego vuelve a *Separar* con *Usar la tarjeta gráfica* activado. | Descarga el runtime de macOS (Apple silicon: 1.31.1; Intel: 1.23.2) y el modelo; `cantus-ml` aparece en el Monitor de Actividad y **carga la biblioteca de Microsoft** pese al *hardened runtime* (sus derechos quitan la validación de bibliotecas). Cuatro pistas bajo un bus, alineadas. Anota los segundos de una canción de 3 minutos en el procesador y con CoreML (y si CoreML la aceptó: el registro lo dice). |
+| 18 | **Exportar video (ADR 0088)** <!-- r35:video --> | Con un bailarín en un proyecto: *Archivo ▸ Exportar ▸ Video…*, MP4 vertical 1080×1920 a 30 fps, 30 s; ábrelo en QuickTime y en Safari. Luego, con Rust, el código y FFmpeg (`brew install ffmpeg`): `CANTUS_FFMPEG=$(which ffmpeg) CANTUS_REQUIRE_FFMPEG=1 cargo test -p cantus-video --test sync -- --nocapture` | El MP4 se hace con VideoToolbox y AudioToolbox (lo dice el diálogo), se reproduce en ambos y cada golpe suena con su paso. Las pruebas pasan con `SYNC … 0.000 ms` y el primer clic en la muestra 0 (la *prime info* de AudioToolbox es el inicio de la lista de edición). Anota el tiempo y el tamaño del MP4 de 30 s. |
 
 ## Cómo anotar los resultados
 
@@ -70,6 +71,7 @@ Copia esta tabla en `docs/round31/mac-session-results.md` (o pásamela en el cha
 | 15 | | |
 | 16 | | |
 | 17 | | |
+| 18 | | |
 
 Con un ✘, guarda lo que puedas: el registro de Cantus (ábrelo desde *Terminal* con
 `/Applications/Cantus.app/Contents/MacOS/cantus 2>&1 | tee ~/Desktop/cantus.log` y repite

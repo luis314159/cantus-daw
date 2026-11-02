@@ -1938,3 +1938,102 @@ fn an_install_that_ends_cut_notes_never_allocates() {
     drop(old);
     assert_eq!(events, 0, "the audio thread allocated or freed");
 }
+
+#[path = "rt_memory_stage/tap.rs"] // r35:stage
+mod stage_tap; // r35:stage — the master tap for the stage's visualiser (ADR 0091)
+               // r35:dancer — the dancer's unit (ADR 0087) on the audio thread and the pool.
+/// A dancer: its notes in the move map, `move` automated, an LFO on its hue, a follower on
+/// its level, a live note and a mod wheel, a seek, a loop wrap, a stop — publishing a frame
+/// at every segment. Not one allocation, not one free.
+#[test]
+fn a_dancer_never_allocates() {
+    use cantus_core::inst::dancer::{self, Move};
+    use cantus_core::modulator::*;
+    for workers in [None, Some(Workers::parallel(3))] {
+        let mut p = demo_project();
+        p.tempo_bpm = 120.0;
+        p.loop_enabled = true;
+        p.loop_region = Some(LoopRegion {
+            start: Ticks::ZERO,
+            end: Ticks::beats(4),
+        });
+        let mut t = p.make_track("Dancer");
+        let id = t.id;
+        t.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Dancer));
+        let mut c = p.make_clip("moves", Ticks::ZERO, Ticks::beats(8));
+        for b in 0..8 {
+            let key = dancer::BASE_KEY + Move::ALL[b as usize % 16].index() as u8;
+            c.notes
+                .push(p.make_note(Ticks::beats(b), Ticks::EIGHTH, key, 100));
+        }
+        t.clips.push(c);
+        let a = p.make_automation_clip(
+            "move",
+            AutoTarget::Instrument {
+                track: id,
+                key: "move".into(),
+            },
+            Ticks::ZERO,
+            Ticks::beats(8),
+            vec![
+                AutoPoint::new(Ticks::ZERO, 0.1),
+                AutoPoint::new(Ticks::beats(4), 0.9),
+            ],
+        );
+        t.clips.push(a);
+        p.tracks.push(t);
+        let target = |key: &str| AutoTarget::Instrument {
+            track: id,
+            key: key.into(),
+        };
+        let mut lfo = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+        lfo.routes = vec![ModRoute {
+            target: target("hue"),
+            depth: 0.5,
+        }];
+        let mut follow = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+        follow.routes = vec![ModRoute {
+            target: target("level"),
+            depth: 1.0,
+        }];
+        p.modulators_mut(ModHost::Track(id))
+            .unwrap()
+            .extend([lfo, follow]);
+        let pool = workers.is_some();
+        let mut rig = Rig::with(workers);
+        let snap = Snapshot::compile(&p, 1);
+        let units = cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false);
+        let feed = cantus_engine::dance::feeds_of(&units)[0].1.clone();
+        for u in units {
+            rig.tx.push(EngineMessage::AddInstrument(u)).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("dancer start", 30);
+        rig.tx
+            .push(EngineMessage::NoteOn {
+                track: id,
+                pitch: dancer::BASE_KEY + 7,
+                velocity: 100,
+            })
+            .unwrap();
+        rig.play("dancer live note", 10);
+        rig.tx
+            .push(EngineMessage::NoteOff {
+                track: id,
+                pitch: dancer::BASE_KEY + 7,
+            })
+            .unwrap();
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+        rig.play("dancer seek", 10);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("dancer stopped", 10);
+        assert!(feed.published() > 70, "a frame a segment");
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "pool {pool}: the audio thread allocated or freed: {:?} (first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}

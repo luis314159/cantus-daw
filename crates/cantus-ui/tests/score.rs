@@ -205,7 +205,8 @@ fn keymap_13_gives_an_older_keymap_show_score() {
     let map = cantus_ui::keymap::Keymap::from_toml(old).expect("reads");
     assert!(!map.bindings_for(Action::ShowScore).is_empty());
     assert!(!map.bindings_for(Action::ViewScore).is_empty());
-    assert_eq!(cantus_ui::keymap::FILE_VERSION, 14); // r33:launcher (keymap 14)
+    // Keymap 14 brought the score's bindings (r33:launcher); later versions keep them.
+    const { assert!(cantus_ui::keymap::FILE_VERSION >= 14) };
 }
 
 #[test]

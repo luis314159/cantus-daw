@@ -454,16 +454,20 @@ pub enum TrackIcon {
     Vocal,
     Synth,
     Fx,
+    /// A dancing figure: a dancer's track (round 35, ADR 0087, schema 49). // r35:dancer
+    Dance, // r35:dancer
 }
 
 impl TrackIcon {
-    pub const ALL: [TrackIcon; 6] = [
+    pub const ALL: [TrackIcon; 7] = [
+        // r35:dancer
         TrackIcon::Drums,
         TrackIcon::Keys,
         TrackIcon::Strings,
         TrackIcon::Vocal,
         TrackIcon::Synth,
         TrackIcon::Fx,
+        TrackIcon::Dance, // r35:dancer
     ];
 
     pub fn label_key(self) -> &'static str {
@@ -474,6 +478,7 @@ impl TrackIcon {
             TrackIcon::Vocal => "icon.vocal",
             TrackIcon::Synth => "icon.synth",
             TrackIcon::Fx => "icon.fx",
+            TrackIcon::Dance => "icon.dance", // r35:dancer
         }
     }
 }

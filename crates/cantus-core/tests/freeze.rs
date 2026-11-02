@@ -696,6 +696,34 @@ fn what_rests_is_the_region_but_what_a_live_insert_listens_to() {
     assert!(freeze::dormant(&p, &|_| true).is_empty());
 }
 
+// r35:dancer — a dancer's own track is not frozen: it makes no sound, and frozen its unit
+// would stop (ADR 0087).
+#[test]
+fn a_dancers_own_track_is_not_frozen() {
+    let mut s = song();
+    let mut p = s.bus.project().clone();
+    p.track_mut(s.lonely).unwrap().instrument =
+        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Dancer));
+    s.bus = CommandBus::new(p);
+    assert_eq!(
+        freeze::freeze_commands(s.bus.project(), FreezeTarget::Track(s.lonely)),
+        Err(CannotFreeze::Dancer(s.lonely))
+    );
+}
+
+// r35:dancer — a dancer in a frozen region still runs: the screen watches it (ADR 0087).
+#[test]
+fn a_dancer_inside_a_frozen_region_never_rests() {
+    let mut s = song();
+    freeze(&mut s.bus, FreezeTarget::Strip(s.group));
+    let mut p = s.bus.project().clone();
+    p.track_mut(s.bass).unwrap().instrument =
+        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Dancer));
+    let d = freeze::dormant(&p, &|_| true);
+    assert!(!d.tracks.contains(&s.bass) && !d.notes.contains(&s.bass));
+    assert!(d.tracks.contains(&s.drums), "the rest of the region rests");
+}
+
 #[test]
 fn a_playing_frozen_strip_loses_its_chain_in_the_snapshot_and_its_region_rests() {
     let mut s = song();

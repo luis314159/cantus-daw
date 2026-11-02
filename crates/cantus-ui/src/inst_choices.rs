@@ -283,6 +283,13 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
         (Wavetable, "flt.type") => named("unda.flt", unda::FILTERS),
         (Wavetable, "lfo.wave") => named("unda.lfo", unda::LFO_WAVES),
         (Wavetable, "lfo.mode") => named("unda.lfo_mode", unda::LFO_MODES),
+        // r35:dancer — Saltator (views/inst/dancer_controls.rs).
+        (Dancer, "move") => keys(&crate::views::inst::dancer::controls::move_words()),
+        (Dancer, "step") => keys(&crate::views::inst::dancer::controls::STEPS),
+        (Dancer, "speed") => keys(&crate::views::inst::dancer::controls::SPEED_WORDS),
+        (Dancer, "mood") => keys(&crate::views::inst::dancer::controls::mood_words()),
+        (Dancer, "visible" | "view.top") => keys(&["dance.off", "dance.on"]),
+        (Dancer, "view.mode") => keys(&crate::views::inst::dancer::controls::VIEWS),
         _ => return None,
     })
 }

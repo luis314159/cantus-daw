@@ -30,6 +30,9 @@ cantus-export.workspace = true
 cantus-score.workspace = true
 # Ableton Link in Rust, GPL like this crate (round 33, ADR 0078).
 cantus-link.workspace = true
+# The dancing character: its characters, poses and drawing (round 35, ADR 0087).
+cantus-dance.workspace = true
+cantus-video.workspace = true # r35:video
 # The sync seam's rings (round 33).
 rtrb.workspace = true
 # The taskbar identity and the running window's taskbar icon (ADR 0046).
@@ -54,6 +57,8 @@ egui_dock = { version = "0.21", features = ["serde"] }
 [features]
 # ASIO drivers on Windows (ADR 0025 §10); see docs/round19/devices.md to build it.
 asio = ["cantus-engine/asio"]
+# rav1e's assembly for WebM video (nasm at build time; releases): ADR 0088. # r35:video
+video-asm = ["cantus-video/av1-asm"] # r35:video
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The global menu bar and the clipboard's text on macOS (ADR 0066). MIT; already in the
