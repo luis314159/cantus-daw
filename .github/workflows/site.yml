@@ -67,6 +67,13 @@ jobs:
           test -f web/dist/index.html
           test -f web/dist/manual/en/index.html
           test -f web/dist/_headers
+          # Every folder of pictures and media the pages use reaches the site (a copy-dir
+          # link in index.html each): round 35's dance/ was left out and its section went
+          # live with no video and no pictures.
+          for d in web/assets/*/; do
+            n=$(basename "$d")
+            test -d "web/dist/$n" || { echo "web/assets/$n is not copied (index.html)"; exit 1; }
+          done
           du -sh web/dist
 
       # Static files with no script need a recent Wrangler (the action's default is older).
