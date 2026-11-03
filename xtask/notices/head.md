@@ -277,3 +277,11 @@ when it is installed — opened at run time.
 Copyright © The Rust Project Developers, under MIT OR Apache-2.0
 (<https://github.com/rust-lang/rust>), and link to the Microsoft C runtime that Windows
 provides (on Linux, the system's C library).
+
+## ARA 2 bindings (Celemony) <!-- r36:ara -->
+
+`crates/cantus-ara/src/sys.rs` is generated from the C header `ARAInterface.h` of **ARA_API**
+release 2.3.0 (<https://github.com/Celemony/ARA_API>), Copyright (c) 2012-2025 Celemony
+Software GmbH, published under the **Apache License, Version 2.0** (text: `LICENSE-APACHE` in
+the repository). The bindings are marked as generated from it. "ARA" is Celemony's name;
+Cantus claims no endorsement by, or partnership with, Celemony Software GmbH.

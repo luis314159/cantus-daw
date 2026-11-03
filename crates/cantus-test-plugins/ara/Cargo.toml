@@ -1,0 +1,21 @@
+[package]
+name = "cantus-test-ara"
+description = "Cantus DAW — a minimal ARA 2 plug-in (VST3) built from source, for the ARA host's tests: renders its playback regions from the host's audio readers at a gain each modification keeps, archives and restores it, and counts every breach of ARA's call rules (ADR 0097)."
+license = "GPL-3.0-or-later"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# The cdylib is the plug-in; the rlib lets `cantus-host` name it as a dev-dependency, so the
+# cargo that builds the host's tests builds the plug-in too.
+crate-type = ["cdylib", "rlib"]
+test = false
+doctest = false
+
+[dependencies]
+vst3 = "0.3"
+cantus-ara.workspace = true

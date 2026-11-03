@@ -74,6 +74,56 @@ pub struct Provenance {
     pub part: String,
 }
 
+/// What the audio editor keeps with a file (schema 50 here, 52 when merged — ADR 0096 §6),
+/// in `Project::source_marks` by its source's id: markers, named regions and loop points,
+/// in the file's own frames. A file with no entry has none. A destructive edit carries
+/// them to the new file, moved with the audio.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SourceMarks {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub markers: Vec<SourceMarker>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub regions: Vec<SourceRegion>,
+    /// The loop points (start, end), for a sampler that plays the file looped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loop_points: Option<(u64, u64)>,
+}
+
+/// A marker at a frame of the file.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SourceMarker {
+    pub frame: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+}
+
+/// A named stretch of the file, `start..end` in its frames.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SourceRegion {
+    pub start: u64,
+    pub end: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+}
+
+impl SourceMarks {
+    pub fn is_empty(&self) -> bool {
+        self.markers.is_empty() && self.regions.is_empty() && self.loop_points.is_none()
+    }
+
+    /// In order and in range of a file `frames` long: markers sorted and distinct, regions
+    /// and the loop non-empty and inside it.
+    pub fn is_valid(&self, frames: u64) -> bool {
+        self.markers.windows(2).all(|w| w[0].frame < w[1].frame)
+            && self.markers.iter().all(|m| m.frame <= frames)
+            && self
+                .regions
+                .iter()
+                .all(|r| r.start < r.end && r.end <= frames)
+            && self.loop_points.is_none_or(|(a, b)| a < b && b <= frames)
+    }
+}
+
 /// The shape of a fade. `Linear` is the default because it is the one that sums to unity
 /// across a crossfade of equal length with its mirror; `EqualPower` is the one that keeps
 /// loudness across a crossfade of uncorrelated material.
@@ -183,6 +233,10 @@ pub struct AudioRegion {
     /// sample.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gain_env: Option<Box<crate::clip_gain::GainEnvelope>>,
+    /// The ARA 2 plug-in that edits this clip and its state (schema 53, ADR 0097). `None`
+    /// (every clip before, and every clip never bound) plays its source. // r36:ara
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ara: Option<Box<crate::ara::AraClip>>, // r36:ara
 }
 
 /// The longest seam crossfade a window takes (a beat at any tempo is far more than a comp
@@ -209,6 +263,7 @@ impl AudioRegion {
             warp: None,
             cross: None,
             gain_env: None,
+            ara: None, // r36:ara
         }
     }
 }

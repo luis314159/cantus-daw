@@ -358,6 +358,13 @@ pub struct PluginHost {
     /// The plug-ins the last [`Self::project_for_save`] took as they were last said, and
     /// why (review isolation-5 rule 2).
     saved_stale: Vec<(String, String)>,
+    /// r36:ara — the clips bound to ARA 2 plug-ins: their documents, instances and renders
+    /// (ADR 0097). Always in Cantus's process.
+    #[cfg(feature = "vst3")]
+    pub ara: crate::ara::AraSession,
+    /// r36:ara — the ARA session's revision whose renders the engine has.
+    #[cfg(feature = "vst3")]
+    ara_sent: u64,
     /// The application's main window: plug-in windows are owned by it.
     pub owner_window: Option<raw_window_handle::RawWindowHandle>,
     /// Hosted instruments (ADR 0028), by track.
@@ -568,6 +575,11 @@ impl PluginHost {
     /// A host whose database is read from (and written to) `db_path`.
     pub fn new(db_path: Option<PathBuf>, sample_rate: f64) -> PluginHost {
         let db = db_path.as_deref().map(PluginDb::load).unwrap_or_default();
+        // r36:ara — the ARA crash marker beside the plug-in database (none in memory).
+        let ara_marker = db_path
+            .as_deref()
+            .and_then(std::path::Path::parent)
+            .map(std::path::Path::to_path_buf);
         PluginHost {
             db,
             db_path,
@@ -586,6 +598,13 @@ impl PluginHost {
             render_lost: Vec::new(),
             render_prep: None,
             saved_stale: Vec::new(),
+            #[cfg(feature = "vst3")]
+            ara_sent: 0, // r36:ara
+            #[cfg(feature = "vst3")]
+            ara: match ara_marker {
+                Some(dir) => crate::ara::AraSession::with_marker(dir),
+                None => crate::ara::AraSession::new(),
+            },
             owner_window: None,
             instruments: HashMap::new(),
             inst_parked: HashMap::new(),
@@ -2104,6 +2123,9 @@ impl PluginHost {
             }
         }
         self.instruments_for_save(&mut out, locks.as_ref(), &mut stale);
+        // r36:ara — each bound clip's archive as its ARA plug-in gives it now (ADR 0097).
+        #[cfg(feature = "vst3")]
+        self.ara.archive_into(&mut out);
         stale.extend(self.test_hooks.stale_saves.iter().cloned());
         self.saved_stale = stale;
         out
@@ -2162,6 +2184,96 @@ impl PluginHost {
         self.slots
             .get_mut(&effect)
             .is_some_and(Hosted::close_window_now)
+    }
+}
+
+// r36:ara — ARA 2's place in the session (ADR 0097).
+#[cfg(feature = "vst3")]
+impl PluginHost {
+    /// Keep the ARA plug-ins in step with `project` and hand the engine what bound clips
+    /// play (a source's file found as the sample cache finds it). Cheap when nothing is
+    /// bound. Returns whether a new snapshot is needed.
+    pub fn ara_sync(&mut self, project: &Project, engine: &mut EngineHandle, epoch: u64) -> bool {
+        // Another project: the last one's documents and renders go first.
+        let reset = self.ara.follow(epoch);
+        let bound = project
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .any(|c| c.audio.as_ref().is_some_and(|a| a.ara.is_some()));
+        if !bound && !self.ara.active() && self.ara.renders().is_empty() {
+            let stale = reset || self.ara.revision() != self.ara_sent;
+            if stale {
+                engine.samples.set_clip_renders(Default::default());
+                self.ara_sent = self.ara.revision();
+            }
+            return stale;
+        }
+        let db = &self.db;
+        let find = |p: &cantus_core::ara::AraPlugin| {
+            db.find(crate::Format::Vst3, &p.id).cloned().or_else(|| {
+                // Not scanned here (yet): the bundle the project names, if it is there.
+                let path = PathBuf::from(&p.path);
+                path.exists().then(|| PluginInfo {
+                    format: crate::Format::Vst3,
+                    id: p.id.clone(),
+                    name: p.name.clone(),
+                    vendor: p.vendor.clone(),
+                    version: String::new(),
+                    path,
+                    kind: crate::backend::PluginKind::Effect,
+                    main_inputs: 2,
+                    main_outputs: 2,
+                    sidechain: false,
+                    editor: false,
+                    features: Vec::new(),
+                })
+            })
+        };
+        // The bound clips' sources at their own rates, through the sample cache: decoded on
+        // its loader thread, never here, and the very samples playback uses when the engine
+        // runs at the source's rate.
+        let mut sources: HashMap<cantus_core::AudioSourceId, crate::ara::SourceState> =
+            HashMap::new();
+        for c in project.tracks.iter().flat_map(|t| &t.clips) {
+            let Some(a) = c.audio.as_ref().filter(|a| a.ara.is_some()) else {
+                continue;
+            };
+            if sources.contains_key(&a.source) {
+                continue;
+            }
+            let Some(s) = project.audio_source(a.source) else {
+                continue;
+            };
+            let state = match engine.samples.load_audio(&s.path, s.sample_rate.max(1)) {
+                Ok(d) => crate::ara::SourceState::Ready(d),
+                Err(e) if e == "loading" => crate::ara::SourceState::Loading,
+                Err(_) => crate::ara::SourceState::Missing,
+            };
+            sources.insert(a.source, state);
+        }
+        let audio = |s: &cantus_core::audio::AudioSource| match sources.get(&s.id) {
+            Some(crate::ara::SourceState::Ready(d)) => crate::ara::SourceState::Ready(d.clone()),
+            Some(crate::ara::SourceState::Loading) => crate::ara::SourceState::Loading,
+            _ => crate::ara::SourceState::Missing,
+        };
+        let rate = engine.sample_rate.round() as u32;
+        // Renders taken in outside the sync (a wait) reach the engine too.
+        let changed = self.ara.sync(project, &find, &audio, rate)
+            || reset
+            || self.ara.revision() != self.ara_sent;
+        if changed {
+            engine.samples.set_clip_renders(self.ara.renders().clone());
+            self.ara_sent = self.ara.revision();
+        }
+        changed
+    }
+
+    /// Whether the engine plays every bound clip's current render (nothing queued, running,
+    /// waiting for a drag to rest, made and not taken in, or not handed to the engine): what
+    /// every offline render waits for ([`Self::render_ready`]).
+    pub fn ara_settled(&mut self) -> bool {
+        self.ara.settled() && self.ara.revision() == self.ara_sent
     }
 }
 

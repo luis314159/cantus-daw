@@ -622,6 +622,10 @@ fn start_since(
     if app.export_in_progress() {
         return Err(t("video.error.busy"));
     }
+    // Outboard gear cannot play in an offline render (ADR 0094 §6). r36:external
+    if let Some(words) = crate::external_service::export_refusal(app) {
+        return Err(words); // r36:external
+    }
     // One render at a time through the plug-ins' render instances (review 1 #1), as the
     // audio export: a background freeze refresh gives way; a bake waits for nobody.
     if !crate::freeze::yield_refresh(app) {

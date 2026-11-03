@@ -1521,6 +1521,11 @@ fn track_menu(
         ui.close();
         return;
     }
+    // External gear (round 36, ADR 0094). r36:external
+    if crate::external_service::track_menu(app, ui, id) {
+        ui.close(); // r36:external
+        return; // r36:external
+    }
     // Its parts by a model (round 34, ADR 0085). // r34:stems
     if crate::stems_ui::track_menu(app, ui, id) {
         ui.close(); // r34:stems
@@ -2839,6 +2844,8 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
         audio::edit::clip_menu(app, ui, (track, clip));
         // Warping (round 29, ADR 0061): a list of its own.
         audio::warp::clip_menu(app, ui, (track, clip));
+        // r36:ara — an ARA 2 plug-in to edit the clip (ADR 0097).
+        super::ara_menu::clip_menu(app, ui, (track, clip));
         let _ = menu(app, ui, &[Entry::Band("clip.color")]);
     }
     color_menu(app, ui, true);

@@ -212,7 +212,9 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
                 !app.settings.low_latency,
             )));
     }
-    if app.settings.low_latency && !dim {
+    // On, or forced on by the recording mode (ADR 0092): what it leaves out, named.
+    let on = app.settings.low_latency || crate::record_mode::forced_limit(app).is_some(); // r36:record
+    if on && !dim {
         let off = crate::views::freeze_monitor::bypassed(app);
         if !off.is_empty() {
             let text = crate::i18n::tf("freeze.ll.without", &[("names", &off)]);

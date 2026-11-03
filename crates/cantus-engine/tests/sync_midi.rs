@@ -387,3 +387,63 @@ fn clock_and_feedback_share_one_connection() {
     );
     assert_eq!(OPENS.load(Ordering::Relaxed), 1, "one connection");
 }
+
+/// Round 36 review (ADR 0094): an external instrument's note goes to the port its route was
+/// registered with, at once when its sample is past; a route that leaves the table still
+/// takes the note-offs that follow it (the unit removed while holding a note).
+#[test]
+fn an_external_instruments_notes_reach_their_routes_port_and_a_removed_route_its_offs() {
+    #[derive(Clone, Default)]
+    struct Unit(Arc<Mutex<Vec<Vec<u8>>>>);
+    impl OutPort for Unit {
+        fn write(&mut self, bytes: &[u8]) -> bool {
+            self.0.lock().unwrap().push(bytes.to_vec());
+            true
+        }
+    }
+    static UNIT: Mutex<Option<Unit>> = Mutex::new(None);
+    fn connect(name: &str) -> Option<Box<dyn OutPort>> {
+        (name == "Synth\u{1F}1")
+            .then(|| Box::new(UNIT.lock().unwrap().clone().unwrap()) as Box<dyn OutPort>)
+    }
+    let unit = Unit::default();
+    *UNIT.lock().unwrap() = Some(unit.clone());
+    let (mut port, mut handle) = sync::pair();
+    handle.shared.host_line.publish(&HostLine {
+        s0: 0,
+        a: sync::host_micros() as f64,
+        b: 1e6 / 48_000.0,
+        latency_us: 0.0,
+    });
+    let thread = out::MidiOut::start(
+        handle.out.take().unwrap(),
+        handle.shared.clone(),
+        cantus_engine::midi::pool::OutPool::new(connect),
+    );
+    // The second port called "Synth" (ordinal 1).
+    thread.set_unit_routes(vec![(42, "Synth".into(), 1)]);
+    assert_eq!(thread.unit_routes(), vec![(42, "Synth".to_string(), 1)]);
+    std::thread::sleep(Duration::from_millis(30));
+    port.out
+        .push(Stamped::note(0, 42, &[0x91, 60, 100]))
+        .unwrap();
+    port.out
+        .push(Stamped::note(0, 9, &[0x91, 61, 100]))
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(60));
+    // Removed: its route leaves the table; the note-off the engine sends after still goes.
+    thread.set_unit_routes(vec![]);
+    std::thread::sleep(Duration::from_millis(30));
+    port.out.push(Stamped::note(0, 42, &[0x81, 60, 0])).unwrap();
+    port.out
+        .push(Stamped::note(0, 42, &[0xB1, 123, 0]))
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(60));
+    let got = unit.0.lock().unwrap().clone();
+    drop(thread);
+    assert_eq!(
+        got,
+        vec![vec![0x91, 60, 100], vec![0x81, 60, 0], vec![0xB1, 123, 0]],
+        "route 9 was never registered: nothing of it"
+    );
+}

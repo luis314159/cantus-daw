@@ -77,6 +77,47 @@ pub fn free() -> Html {
     }
 }
 
+/// The macOS preview, said plainly wherever its download is offered.
+const MAC_NOTE: (&str, &str) = (
+    "A preview: one universal disk image for Apple silicon and Intel Macs, built and tested on GitHub's macOS machines but not yet opened on a real Mac, and not signed yet. The first time, macOS blocks it: open System Settings → Privacy & Security and choose Open Anyway. Please tell us what goes wrong.",
+    "Una vista previa: una imagen de disco universal para Mac con Apple silicon e Intel, compilada y probada en las máquinas macOS de GitHub pero aún no abierta en un Mac real, y todavía sin firmar. La primera vez macOS la bloquea: abre Ajustes del Sistema → Privacidad y seguridad y elige Abrir igualmente. Cuéntanos lo que falle.",
+);
+
+trait Pick {
+    fn pick(self, l: crate::lang::Lang) -> &'static str;
+}
+
+impl Pick for (&'static str, &'static str) {
+    fn pick(self, l: crate::lang::Lang) -> &'static str {
+        l.t(self.0, self.1)
+    }
+}
+
+/// One system in the download card's row: its file a click away once the latest release
+/// holds it (`shelf.rs`), "Coming soon" until then.
+fn platform(
+    l: crate::lang::Lang,
+    name: &'static str,
+    what: &'static str,
+    on: bool,
+    href: &'static str,
+    cta: &'static str,
+    note: Option<Html>,
+) -> Html {
+    html! {
+        <li class={classes!("platform-card", on.then_some("is-on"))}>
+            <strong>{ name }</strong>
+            <span>{ what }</span>
+            if on {
+                <a class="btn btn-quiet" href={href}>{ icons::arrow_down() }{ cta }</a>
+            } else {
+                <span class="platform-soon">{ l.t("Coming soon", "Muy pronto") }</span>
+            }
+            if let Some(n) = note.filter(|_| on) { <p class="platform-note">{ n }</p> }
+        </li>
+    }
+}
+
 #[function_component(Get)]
 pub fn get() -> Html {
     let l = use_lang().lang;
@@ -117,10 +158,9 @@ pub fn get() -> Html {
             DOWNLOAD_LINUX.to_string(),
         ),
         Os::MacOs if shelf.macos => (
-            html! { <>{ "macOS" }{ " · " }{ available }</> },
-            l.t("One disk image for Apple silicon and Intel Macs: open it and drag Cantus onto Applications. When a new version is out, Cantus downloads its disk image, checks it and opens it for you. The SHA-256 sums are on the downloads page.",
-                "Una imagen de disco para Mac con Apple silicon e Intel: ábrela y arrastra Cantus a Aplicaciones. Cuando hay una versión nueva, Cantus descarga su imagen de disco, la comprueba y te la abre. Las sumas SHA-256 están en la página de descargas."),
-            l.t("Download the disk image", "Descargar la imagen de disco"),
+            html! { <>{ "macOS" }{ " · " }{ l.t("Preview", "Vista previa") }</> },
+            MAC_NOTE.pick(l),
+            l.t("Download the preview", "Descargar la vista previa"),
             DOWNLOAD_MACOS.to_string(),
         ),
         Os::MacOs | Os::Linux => {
@@ -136,8 +176,11 @@ pub fn get() -> Html {
         Os::Mobile => (
             html! { <>{ l.t("Open this on your computer", "Ábrelo en tu computadora") }</> },
             if shelf.linux && shelf.macos {
-                l.t("Cantus is a desktop program for Windows, macOS and Linux. Come back from your computer to download it, or read the source meanwhile.",
-                    "Cantus es un programa de escritorio para Windows, macOS y Linux. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
+                l.t("Cantus is a desktop program for Windows and Linux, with a macOS preview. Come back from your computer to download it, or read the source meanwhile.",
+                    "Cantus es un programa de escritorio para Windows y Linux, con una vista previa para macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
+            } else if shelf.linux {
+                l.t("Cantus is a desktop program for Windows and Linux, with macOS coming soon. Come back from your computer to download it, or read the source meanwhile.",
+                    "Cantus es un programa de escritorio para Windows y Linux, y muy pronto para macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
             } else {
                 l.t("Cantus is a desktop program for Windows, with Linux and macOS coming soon. Come back from your computer to download it, or read the source meanwhile.",
                     "Cantus es un programa de escritorio para Windows, y muy pronto para Linux y macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
@@ -163,8 +206,8 @@ pub fn get() -> Html {
         ),
         Os::MacOs => (
             l.t(
-                "macOS, Apple silicon or Intel",
-                "macOS, Apple silicon o Intel",
+                "macOS, Apple silicon or Intel (preview)",
+                "macOS, Apple silicon o Intel (vista previa)",
             ),
             l.t("Any Core Audio device", "Cualquier dispositivo Core Audio"),
         ),
@@ -201,14 +244,20 @@ pub fn get() -> Html {
                         <dl>
                             <dt>{ l.t("System", "Sistema") }</dt><dd>{ system }</dd>
                             <dt>{ l.t("Audio", "Audio") }</dt><dd>{ audio }</dd>
-                            <dt>{ l.t("Plug-ins", "Plug-ins") }</dt><dd>{ "CLAP, VST3" }</dd>
+                            <dt>{ l.t("Plug-ins", "Plug-ins") }</dt><dd>{ l.t("CLAP, VST3; ARA 2 on audio clips", "CLAP, VST3; ARA 2 en clips de audio") }</dd>
                             <dt>{ l.t("Cost", "Costo") }</dt><dd>{ l.t("Free", "Gratis") }</dd>
                             <dt>{ "Windows" }</dt><dd>{ state(true, DOWNLOAD) }</dd>
-                            <dt>{ "macOS" }</dt><dd>{ state(shelf.macos, DOWNLOAD_MACOS) }</dd>
                             <dt>{ "Linux" }</dt><dd>{ state(shelf.linux, DOWNLOAD_LINUX) }</dd>
+                            <dt>{ "macOS" }</dt><dd>{ state(shelf.macos, DOWNLOAD_MACOS) }{ if shelf.macos { l.t(" · preview, unsigned", " · vista previa, sin firmar") } else { "" } }</dd>
                         </dl>
                     </aside>
                 </div>
+                    <ul class="platforms" aria-label={l.t("Every system", "Cada sistema")}>
+                        { platform(l, "Windows", l.t("Windows 11 · installer, no administrator", "Windows 11 · instalador, sin administrador"), true, DOWNLOAD, l.t("Download", "Descargar"), None) }
+                        { platform(l, "Linux", l.t("x86-64 · one AppImage for every distribution", "x86-64 · un AppImage para toda distribución"), shelf.linux, DOWNLOAD_LINUX, l.t("Download", "Descargar"), None) }
+                        { platform(l, l.t("macOS · preview", "macOS · vista previa"), l.t("Apple silicon and Intel · unsigned disk image", "Apple silicon e Intel · imagen de disco sin firmar"), shelf.macos, DOWNLOAD_MACOS, l.t("Download the preview", "Descargar la vista previa"),
+                                   Some(html! { <>{ MAC_NOTE.pick(l) }{ " " }<a href={format!("{GITHUB}/issues")}>{ l.t("Report a problem", "Reportar un problema") }</a></> })) }
+                    </ul>
             </div>
         </section>
     }

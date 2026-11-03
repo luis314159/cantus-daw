@@ -44,7 +44,16 @@ pub struct PluginDb {
     /// remembered across sessions and shown in the plug-in manager.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub crashes: Vec<CrashRecord>,
+    /// r36:ara — the VST3 entries were scanned by a Cantus that marks ARA plug-ins (the
+    /// [`ARA_FEATURE`] feature, ADR 0097). A database from before is rescanned
+    /// once for it.
+    #[serde(default)]
+    pub ara_marked: bool,
 }
+
+/// r36:ara — the feature word a scan gives a VST3 whose module has an ARA main factory
+/// (ADR 0097).
+pub const ARA_FEATURE: &str = "ARA";
 
 /// A plug-in that crashed or hung while it ran (isolated, so Cantus went on).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -73,10 +82,26 @@ pub fn stamp(path: &Path) -> Option<(u64, u64)> {
 impl PluginDb {
     /// Read the database; an absent or unreadable file is an empty one.
     pub fn load(path: &Path) -> PluginDb {
-        std::fs::read_to_string(path)
+        let mut db: PluginDb = std::fs::read_to_string(path)
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        // r36:ara — VST3s scanned before ARA plug-ins were marked are looked at again, once.
+        if !db.ara_marked {
+            for e in db.entries.iter_mut().filter(|e| e.format == Format::Vst3) {
+                e.modified = 0;
+            }
+            db.ara_marked = true;
+        }
+        db
+    }
+
+    /// r36:ara — the ARA 2 plug-ins found (VST3s marked [`ARA_FEATURE`]).
+    pub fn ara_plugins(&self) -> Vec<&PluginInfo> {
+        self.plugins()
+            .into_iter()
+            .filter(|p| p.format == Format::Vst3 && p.features.iter().any(|f| f == ARA_FEATURE))
+            .collect()
     }
 
     /// Write the database (through a temporary file, so a crash never leaves half of one).

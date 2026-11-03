@@ -93,6 +93,8 @@ mod snap;
 mod listen_fork; // r34:listen
 pub(crate) use listen_fork::Cells;
 pub use listen_fork::Refusal; // r34:listen // r34:listen
+#[path = "processor_ext.rs"] // r36:external
+mod ext_midi; // r36:external
 /// The strip nodes: state, gather and outputs.
 #[path = "graph/strip.rs"]
 pub(crate) mod strip;
@@ -296,11 +298,15 @@ pub struct Processor {
     live: rec::Live,
     /// The master's insert chain (ADR 0026, `graph/master.rs`).
     master: master::MasterChain,
+    /// The recording mode's baked master (ADR 0092 §3). // r36:record
+    pub(crate) master_bake: crate::record_mode::MasterBake, // r36:record
     /// Automation (ADR 0027, `processor_auto.rs`).
     auto: auto::AutoState,
     /// Where each block's time goes, and who overran it (`crate::profile`).
     prof: crate::profile::Profiler,
     sync: Option<Box<sync_run::SyncRun>>, // r33:sync
+    // r36:external
+    ext: ext_midi::ExtMidi,
 }
 
 impl Processor {
@@ -367,6 +373,7 @@ impl Processor {
             shuffle: None,
             split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
             offline: false,
+            master_bake: Default::default(), // r36:record
             low_latency: None,
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
@@ -423,6 +430,8 @@ impl Processor {
             auto: auto::AutoState::new(),
             prof: crate::profile::Profiler::new(),
             sync: None, // r33:sync
+            // r36:external
+            ext: Default::default(),
         };
         p.prefault();
         p.set_workers(workers);
@@ -471,7 +480,11 @@ impl Processor {
     /// An offline render (round 29, ADR 0064): a frozen render's reader waits for its
     /// blocks instead of playing silence where one is late. Never in real time.
     pub fn set_offline(&mut self, on: bool) {
+        let changed = self.offline != on;
         self.offline = on;
+        if changed {
+            self.ext_offline_changed(); // r36:external — an offline render plays no gear
+        }
     }
 
     /// Let the heavy instruments split their voices over the pool's threads (ADR 0038; on
@@ -778,6 +791,7 @@ impl Processor {
         self.drain_midi();
         self.retry_garbage();
         self.read_input(frames);
+        self.ping_input(frames); // r36:external
         self.record_block_start();
 
         if self.was_playing && !self.transport.is_playing() {
@@ -787,6 +801,7 @@ impl Processor {
 
         self.block += 1;
         self.render(output, channels, frames);
+        self.ping_output(output, channels, frames); // r36:external
         if let Some(done) = self.preview.mix(output, channels, frames) {
             self.give_back_preview(done);
         }
@@ -942,6 +957,9 @@ fn controller_of(ev: &MidiEvent) -> Option<(Controller, f32)> {
 
 #[inline]
 pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
+    if slot.outboard {
+        return; // r36:external (ADR 0094): the synth is not in the computer
+    }
     if ev.is_on() && slot.instrument == SlotInstrument::Pulsus {
         // A kit seeds what a hit chooses from where the note is (Pulsus II).
         let hit = cantus_dsp::pulsus::Hit {

@@ -20,10 +20,11 @@
 //! - `linked`: the arrangement with linked copies and the clip browser (Alt+F5), the paint
 //!   tool out.
 //! - `pianoroll`, `rack`: the piano roll and the channel rack on the song.
-//! - `fx-<kind>`: each effect's editor alone, at its designed size, fed as a playing engine
+//! - `fx-<kind>` (only when named; the README shows `shoot_skins`' pictures of the units
+//!   since round 36): each effect's editor alone, at its designed size, fed as a playing engine
 //!   would; `fx-hosted`: a CLAP plug-in's generic editor (the test plug-in, built from
 //!   source).
-//! - `inst-<kind>`: each instrument's editor, cropped from the window it docks in.
+//! - `inst-<kind>` (only when named): each instrument's editor, cropped from the window it docks in.
 //!   Exemplar plays the **Salamander Grand Piano** when `CANTUS_SALAMANDER_ARCHIVE` names
 //!   the pack's `.tar.gz` (installed once into `cantus-readme-content/` beside it, its
 //!   sample cache in `cantus-readme-cache/`); without it, Exemplar's demo zones. The run
@@ -1046,7 +1047,10 @@ fn main() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let mut written = Vec::new();
     for name in ALL {
-        if only.is_empty() || only.iter().any(|o| name.starts_with(o.as_str())) {
+        // The units' editors alone are shot when named: the README shows `shoot_skins`'
+        // pictures of them (both themes, 2x for the site) since round 36.
+        let on_request = name.starts_with("fx-") || name.starts_with("inst-");
+        if (only.is_empty() && !on_request) || only.iter().any(|o| name.starts_with(o.as_str())) {
             shoot_one(name, &dir);
             written.push(dir.join(format!("{name}.png")));
         }

@@ -84,3 +84,7 @@ a bench test renders the corpus's instruments) in a follow-up commit, product un
 moved. Lesson: a check that only lives in an xtask/workflow (not `cargo test`) must be run
 locally before tagging when a new instrument/effect kind is added. Round worktrees removed except
 F:\projects\daw-r35 itself (scripts, logs, videoprobe REPORT.md + out/alpha_png.mov kept).
+Second after-tag fix: the site's dancer section went live with no media — web/index.html lacked
+`<link data-trunk rel="copy-dir" href="assets/dance" />`. Fixed (4a0bbea4 private, 0d23e517
+public) and site.yml now fails if any web/assets/*/ folder is missing from dist/. Lesson: after
+a site deploy, curl the new section's asset URLs on cantusdaw.com (200 + right content type).

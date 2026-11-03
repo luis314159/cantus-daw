@@ -11,7 +11,8 @@ use windows_sys::Win32::System::Threading::{
     AVRT_PRIORITY_HIGH, AVRT_PRIORITY_LOW, AVRT_PRIORITY_NORMAL,
     PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
     PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION, PROCESS_POWER_THROTTLING_STATE,
-    THREAD_PRIORITY, THREAD_PRIORITY_HIGHEST, THREAD_PRIORITY_TIME_CRITICAL,
+    THREAD_PRIORITY, THREAD_PRIORITY_ABOVE_NORMAL, THREAD_PRIORITY_HIGHEST,
+    THREAD_PRIORITY_TIME_CRITICAL,
 };
 
 /// What to revert: the MMCSS registration (the handle as an integer; 0 = none) or the
@@ -223,4 +224,12 @@ pub fn priority() -> Option<i32> {
     let p = unsafe { GetThreadPriority(GetCurrentThread()) };
     // THREAD_PRIORITY_ERROR_RETURN
     (p != 0x7FFF_FFFF).then_some(p)
+}
+
+/// The calling thread one step above normal (round 36): a disk reader that feeds the audio
+/// thread, ahead of the interface and the builds, never in MMCSS (it blocks on reads, it
+/// does not keep a period). Whether the OS took it. // r36:record
+pub fn raise_io() -> bool {
+    // SAFETY: the pseudo-handle of this thread; a documented priority level.
+    unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL) != 0 }
 }

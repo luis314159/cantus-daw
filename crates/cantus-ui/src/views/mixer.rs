@@ -84,6 +84,8 @@ pub use parts::chain_hint;
 mod routehere;
 #[path = "mixer_strip.rs"]
 mod strip;
+#[path = "mixer_vca.rs"] // r36:mix
+pub(crate) mod vca_ui; // r36:mix - VCA strips and their marks (ADR 0093)
 
 use crate::app::CantusApp;
 use crate::i18n::{self, t};
@@ -96,6 +98,7 @@ use std::path::{Path, PathBuf};
 
 pub use cables::Drawn as DrawnCable;
 pub use parts::phase_button;
+pub use vca_ui::open_snapshots; // r36:mix
 
 /// Where the cable legend under ROUTING was drawn last frame (tests hold it whole and
 /// apart): the row's cell in the legend column, the row's name, the three line samples
@@ -266,6 +269,8 @@ impl Prefs {
 pub(crate) enum Renaming {
     Strip(StripId),
     Group(cantus_core::GroupId),
+    /// A mixer snapshot's name (round 36, ADR 0093). // r36:mix
+    Snapshot(cantus_core::mix_snap::MixSnapId), // r36:mix
 }
 
 /// Every word the desk shows or hints with, looked up once per language instead of once
@@ -296,6 +301,10 @@ pub(crate) struct Words {
     pub send_knob: String,
     pub route: String,
     pub add_strip: String,
+    pub vca: String,      // r36:mix
+    pub vca_tip: String,  // r36:mix
+    pub snap: String,     // r36:mix
+    pub snap_tip: String, // r36:mix
     pub master: String,
     /// The master's number and name: a click shows its chain, a right-click its menu.
     pub master_head: String,
@@ -369,6 +378,10 @@ impl Words {
             send_knob: t("mixer.hint.send_knob"),
             route: t("mixer.hint.route"),
             add_strip: t("mixer.add_strip"),
+            vca: t("mix.vca.plate"),     // r36:mix
+            vca_tip: t("mix.vca.tip"),   // r36:mix
+            snap: t("mix.snap.key"),     // r36:mix
+            snap_tip: t("mix.snap.tip"), // r36:mix
             master: t("mixer.master"),
             master_head: t("master.head_tip"),
             pan_law: t("panlaw.tip"),
@@ -434,6 +447,12 @@ pub struct MixerView {
     /// Ctrl+wheel notches this frame, for the fader or knob under the pointer.
     pub(crate) ctrl_notches: f32,
     popups: menu::Popups,
+    /// The desk as it was before the A/B compare put a snapshot on it (round 36). // r36:mix
+    pub(crate) snap_ab: Option<(
+        cantus_core::mix_snap::MixSnapId,
+        Box<cantus_core::mix_snap::MixState>,
+        u64,
+    )>, // r36:mix: the bus revision right after its recall
     /// The cable band's state: the selected cable, what was drawn this frame (round 25,
     /// `mixer_cables`).
     band: cables::Band,
@@ -1135,6 +1154,15 @@ impl MixerView {
                 let old = app.project().strip_group(id).map(|g| g.name.as_str());
                 if !name.is_empty() && old.is_some_and(|o| o != name) {
                     app.exec(cantus_core::Command::SetStripGroupName { id, name });
+                }
+            }
+            Renaming::Snapshot(id) => {
+                // r36:mix
+                let old = app.project().mix.snapshot(id).map(|s| s.name.as_str());
+                if !name.is_empty() && old.is_some_and(|o| o != name) {
+                    app.exec(cantus_core::Command::Mix(
+                        cantus_core::mix_cmd::MixCommand::RenameSnapshot { id, name },
+                    ));
                 }
             }
         }

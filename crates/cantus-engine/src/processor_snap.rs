@@ -88,6 +88,18 @@ impl Processor {
                 s.gain = t.gain;
                 s.pan = t.pan;
                 s.audible = t.audible;
+                // The hardware's trip (ADR 0094): reported as the track's latency, bounded
+                // to what a compensation line holds. r36:external
+                // An offline render plays no gear (ADR 0094 §6): no latency of it either.
+                s.external = if self.offline {
+                    0
+                } else {
+                    t.external
+                        .iter()
+                        .map(|l| l.latency_at(self.sample_rate))
+                        .sum::<usize>()
+                        .min(crate::pdc::MAX_DELAY)
+                };
                 apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
                 // Its note effects and the key they read (ADR 0069).
                 s.configure_notefx(&t.note_fx, snapshot.key);
@@ -317,6 +329,8 @@ impl Processor {
             self.dispose_effect(e);
         }
         self.live_install(&snapshot);
+        // r36:external
+        self.ext_plan(&snapshot);
         // Before compensating: the click has a line of its own when it is on.
         self.metronome = snapshot.metronome;
         self.compensate();
@@ -341,6 +355,11 @@ impl Processor {
             }
             None => nodes.conflict(),
         }
+        // The recording mode's baked master (ADR 0092 §3): its render, or none. // r36:record
+        self.master_bake.set(
+            crate::freeze::handle_of(snapshot.master_frozen.as_ref()),
+            loop_frame(&snapshot, self.sample_rate),
+        ); // r36:record
         let old = self.snapshot.replace(snapshot);
         if let Some(old) = old {
             // Notes the new snapshot ends behind the playhead are ended now (ADR 0076 §7).
@@ -722,6 +741,8 @@ impl Processor {
             self.pdc.want(&mut kept, Edge::Click, heard);
         }
         self.pdc.finish(&kept);
+        // r36:external — their MIDI out listens to the tracks (ADR 0094)
+        self.ext_listen();
         // Resolve the assignment once, into each node's own state, so the render loop
         // reads its own fields.
         for slot in 0..MAX_TRACKS {

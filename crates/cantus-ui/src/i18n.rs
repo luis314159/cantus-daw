@@ -136,6 +136,11 @@ impl Locale {
                 include_str!("../locales/areas/dance_import.en.txt"),
                 include_str!("../locales/areas/video.en.txt"),
                 include_str!("../locales/areas/stage.en.txt"),
+                include_str!("../locales/areas/record.en.txt"),
+                include_str!("../locales/areas/mix.en.txt"),
+                include_str!("../locales/areas/external.en.txt"),
+                include_str!("../locales/areas/editor.en.txt"),
+                include_str!("../locales/areas/ara.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -238,6 +243,11 @@ impl Locale {
                 include_str!("../locales/areas/dance_import.es.txt"),
                 include_str!("../locales/areas/video.es.txt"),
                 include_str!("../locales/areas/stage.es.txt"),
+                include_str!("../locales/areas/record.es.txt"),
+                include_str!("../locales/areas/mix.es.txt"),
+                include_str!("../locales/areas/external.es.txt"),
+                include_str!("../locales/areas/editor.es.txt"),
+                include_str!("../locales/areas/ara.es.txt"),
             ],
         }
     }

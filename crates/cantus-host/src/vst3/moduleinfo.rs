@@ -91,6 +91,21 @@ pub fn parse(text: &str, path: &Path) -> Option<Vec<PluginInfo>> {
             features,
         });
     }
+    // r36:ara — a processor paired (by name, or as the only one) with an ARA main factory
+    // class is an ARA plug-in (ADR 0097).
+    let ara: Vec<&str> = classes
+        .iter()
+        .filter(|c| {
+            c.get("Category").and_then(Value::as_str) == Some(cantus_ara::vst3::MAIN_FACTORY_CLASS)
+        })
+        .filter_map(|c| c.get("Name").and_then(Value::as_str))
+        .collect();
+    let single = out.len() == 1;
+    for p in &mut out {
+        if ara.contains(&p.name.as_str()) || (single && !ara.is_empty()) {
+            p.features.push(crate::db::ARA_FEATURE.to_string());
+        }
+    }
     Some(out)
 }
 

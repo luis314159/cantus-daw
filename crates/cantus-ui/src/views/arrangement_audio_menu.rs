@@ -107,6 +107,9 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
             Check::None,
             !missing && app.settings.ai.enabled,
         ), // r34:transcribe
+        Item::Separator,                                // r36:editor
+        action("editor.menu", Check::None, !missing), // r36:editor — Edit in audio editor (ADR 0096)
+        action("editor.clean.menu", Check::None, true), // r36:editor — Remove unused audio…
     ];
     let Some(i) = kit::widgets::menu_list(ui, &items, super::super::super::MENU_W)
         .1
@@ -155,6 +158,8 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
             app.open_separate_stems(crate::stems_ui::Target::Clips(clips));
         }
         18 => crate::transcribe_ui::run::open(app, r.0, r.1), // r34:transcribe
+        20 => crate::editor::open(app, r.0, r.1),             // r36:editor
+        21 => crate::editor::commit::open_cleanup(app),       // r36:editor
         _ => {}
     }
     ui.close();

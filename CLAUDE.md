@@ -57,6 +57,18 @@ commercial — in features, performance, quality and stability (`docs/BACKLOG-ex
   shows. Before pushing, run `cargo fmt --all` and the Linux check in WSL
   (`tools/wsl/check.sh <branch> clippy|test`, `docs/DEVELOPING.md` §4).
 - Commit only when the owner asks; never stage or discard the owner's own uncommitted work.
+  Stage by explicit path (`git add <files>`, `git commit -a` for tracked files) — never
+  `git add -A`/`git add .` or a whole folder that may hold the owner's untracked files.
+- **A feature is done only with an end-to-end test** that reaches it the way a user does —
+  through `CantusApp::assemble`/the boot path and the real engine wiring — not only unit
+  tests of its parts (round 36: an external instrument had dozens of green tests and never
+  sounded in the app).
+- **Protocols and file formats are tested with bytes from outside sources** (the published
+  spec, a capture, a reference file), never only against our own emulation or writer — an
+  emulation that shares our mistake proves nothing (round 36: HUI's tables).
+- **Real hardware and real users outrank more process**: what only a device, a driver or a
+  user can confirm goes in `docs/beta-checklist.md` with the exact steps, and the round's
+  report says plainly what was verified only in emulation.
 
 ## The owner's standing direction
 
@@ -92,6 +104,13 @@ commercial — in features, performance, quality and stability (`docs/BACKLOG-ex
    conflicts, renumbers schema/ADR collisions, runs the whole suite and clippy, writes
    STATUS, builds the release, and only then — when the owner asks — merges to `master` and
    pushes. Delete builders' `target/` folders once merged; disk fills fast (~9 GB each).
+5. **Rounds stay small**: two or three features, not five. The cross-feature bugs are the
+   worst ones and no per-branch review sees them, so **merge first deliveries early and run
+   the integrated-tree review mid-round**, not only at the end. Reviews per branch stay
+   (one agent each, ≤ ~6 per round's review step).
+6. **Disk before every suite**: the main tree builds with `CARGO_PROFILE_DEV_DEBUG=0
+   CARGO_PROFILE_TEST_DEBUG=0` (a full-debug `target/` reached 100 GB in round 36 and broke
+   the build with nonsense errors); check `df -h /f /c` before a workspace build.
 
 ## Machine quirks seen on the owner's PC
 

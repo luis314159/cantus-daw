@@ -60,6 +60,17 @@ impl Outbox {
         self.notes[(seq % OUTBOX as u64) as usize]
     }
 
+    /// Every note from `*cursor` on, oldest first (r36:external: an external instrument's
+    /// MIDI out reads the outbox beside the effects); the cursor is left at the end.
+    pub(crate) fn drain_from(&self, cursor: &mut u64, mut f: impl FnMut(u64, FxNote)) {
+        *cursor = (*cursor).max(self.floor);
+        while *cursor < self.written {
+            let (at, note) = self.get(*cursor);
+            f(at, note);
+            *cursor += 1;
+        }
+    }
+
     /// Sequence number of the next note written: where a new listener starts.
     pub(crate) fn written(&self) -> u64 {
         self.written

@@ -209,7 +209,8 @@ pub fn poll(app: &mut CantusApp, now: bool) -> bool {
         return false;
     };
     let _ = g.started;
-    let project = app.plugins.project_for_save(app.bus.project());
+    let mut project = app.plugins.project_for_save(app.bus.project());
+    crate::record_mode::as_saved(app, &mut project); // r36:record
     let stale = crate::views::plugin_notice::saved_stale(app.plugins.saved_stale());
     let name = g.name;
     let result = match g.keep {

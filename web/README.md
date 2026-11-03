@@ -47,7 +47,32 @@ cargo run --release -p cantus-ui --example render_fx_ab -- web/assets/fx/audio  
 cargo run --release -p cantus-ui --example render_fx_ab -- web/assets/fx/audio eq,gate   # some
 ```
 
-Then write the chosen song's name into `song:` in `src/fx.rs` (the run prints it).
+Then write the chosen song's name into the effect's `ab:` in `src/units_data.rs` (the run
+prints it); an effect with an `ab:` gets the player on its page and in *Hear what they do*.
+
+## The instruments' and effects' pages
+
+`src/units_data.rs` holds every native unit's name, one-line pitch, what it does, its standout
+features, presets and pictures (written from the design notes in `docs/plugins/` and
+`docs/instruments/`: only what is built, numbers only as measured there); `src/units.rs` draws
+the cards and the page a click opens. The pictures are the program's own windows:
+
+```text
+cargo run --release -p cantus-ui --example shoot_skins -- target/shots/skins
+python tools/units_pictures.py ../target/shots/skins      # Pillow; oxipng if installed
+cargo run --release -p cantus-ui --example shoot_skins -- target/shots/skins-es --es
+python tools/units_pictures.py ../target/shots/skins-es --es   # the Spanish page's
+```
+
+It writes `assets/units/` (the cards and the large pictures, dark and light; `-es` for the
+Spanish page, whose pictures show the editors in Spanish) and the README's `docs/images/units/`.
+
+## The recording mode's and the studio's pictures
+
+`assets/studio/record-*` and `mix-snap-*` (each in EN and ES) come from
+`cargo run --release -p cantus-ui --example shoot_showcase -- <dir>` (1920 × 1080, Night and
+Paper, EN and ES), converted to WebP at quality 82; the editor's, external gear's, the
+surfaces' and ARA's (`-es` for Spanish, ARA's has one) are crops of the round-36 shots in `docs/round36/{editor,external,ara}/`.
 
 ## Publishing
 

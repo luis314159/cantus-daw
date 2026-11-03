@@ -12,6 +12,7 @@
 //! - `--gallery`: the kit's skin sheets (every material, display look, knob and switch
 //!   shape, plate and the ornaments) in both themes at 2×, `gallery-<sheet>-<theme>.png`.
 //! - `--quick`: Slate at 100 % only.
+//! - `--es`: the editors in Spanish (same file names: give another out-dir).
 //! - `--try <sample>`: every unit shot wears one of the sample sheets below instead of its
 //!   own (`studio`: FabFilter-like matte with value rings; `vintage`: wood, a VU-era
 //!   phosphor, skirted knobs and bat toggles; `machine`: vinyl amp covering, an LCD, soft knobs and lamp
@@ -346,9 +347,14 @@ fn shoot_gallery(dir: &Path) {
 }
 
 fn main() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let args: Vec<String> = std::env::args().skip(1).collect();
     let flag = |f: &str| args.iter().any(|a| a == f);
+    // `--es`: the editors in Spanish (the site's Spanish pages show these).
+    cantus_ui::i18n::set_locale(if flag("--es") {
+        cantus_ui::i18n::Locale::Es
+    } else {
+        cantus_ui::i18n::Locale::En
+    });
     let mut rest = args.iter().filter(|a| !a.starts_with("--"));
     let dir = rest.next().map(PathBuf::from).unwrap_or_else(|| {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/shots/skins")

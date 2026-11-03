@@ -4978,6 +4978,983 @@
       }
     },
     {
+      "name": "create_vca",
+      "title": "Create a VCA fader",
+      "description": "Add a VCA to the mixer: a fader with no audio whose level (dB) scales the gain stage of the strips that follow it, and whose mute and solo are theirs. The members' own faders and automation stay as they are (the VCA adds to them in decibels); a VCA at 0 dB changes nothing. Optionally name the strips that follow it. A VCA can follow another VCA.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "The VCA's name (\"Drums VCA\")."
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Strips (ids from get_mixer) that follow it."
+          },
+          "gain_db": {
+            "type": "number",
+            "minimum": -96,
+            "maximum": 12,
+            "description": "Its fader, dB (default 0: no change)."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Create a VCA fader",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "assign_vca",
+      "title": "Assign strips to a VCA",
+      "description": "Make strips follow a VCA (or stop following it), or make every strip of a mixer group follow it (group_id; vca_id left out clears the group's). A strip may follow several VCAs: their decibels add, each counted once. Refused for a cycle or for something that is not a VCA.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "vca_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The VCA (get_mix_snapshots lists them)."
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Strips to make follow it."
+          },
+          "release": {
+            "type": "boolean",
+            "default": false,
+            "description": "Make `members` stop following it instead."
+          },
+          "group_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A mixer group: every strip in it follows the VCA (vca_id left out: the group follows none)."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Assign strips to a VCA",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "take_snapshot",
+      "title": "Take a mixer snapshot",
+      "description": "Store the desk's state under a name: each strip's fader, pan, width, polarity, mute, solo, swap, inserts switch, EQ, each existing send's level, switch and tap, and each insert's bypass, dry/wet and native parameters; the master's. Structure (routing, which inserts exist, a hosted plug-in's own state) is not part of it. strips narrows it to some channels.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "strips": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Only these strips (default every strip)."
+          },
+          "master": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include the master."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Take a mixer snapshot",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "recall_snapshot",
+      "title": "Recall a mixer snapshot",
+      "description": "Put a snapshot's state back on the desk as one undo step: all channels, or only strips; the master when master=true; channels marked recall-safe sit out a recall of everything unless named in strips or include_safe=true. Never creates, removes or re-routes anything.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "snapshot_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The snapshot (get_mix_snapshots)."
+          },
+          "strips": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Only these strips (default all, but the recall-safe ones)."
+          },
+          "master": {
+            "type": "boolean",
+            "default": true
+          },
+          "include_safe": {
+            "type": "boolean",
+            "default": false
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "snapshot_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Recall a mixer snapshot",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_mix_snapshots",
+      "title": "Read the mixer snapshots",
+      "description": "The mixer snapshots (id, name, how many channels, whether the master is in it), their cues on the timeline, the VCAs and who follows them, and which strips are recall-safe.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Read the mixer snapshots",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "remove_snapshot",
+      "title": "Remove a mixer snapshot",
+      "description": "Delete a snapshot. Refused while a cue plays it (remove the cue first).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "snapshot_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The snapshot."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "snapshot_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Remove a mixer snapshot",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "add_mix_cue",
+      "title": "Cue a snapshot on the timeline",
+      "description": "Recall a snapshot at a bar, as a scene: from there its faders, pans, widths, send levels and native effect parameters hold (until another cue or the next automation clip of that control starts; a clip playing across the bar is silenced from the cue on), and its mutes, solos, polarity, swap, insert switches, bypasses and strip EQ are switched with a 16-sample fade. Only what differs from the desk is written. Position in beats from the song's start (4 per bar in 4/4).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "snapshot_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The snapshot to cue."
+          },
+          "at_beats": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Where, in beats from the start of the song."
+          },
+          "strips": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Only these strips (default all)."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "at_beats"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Cue a snapshot on the timeline",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "remove_mix_cue",
+      "title": "Remove a snapshot cue",
+      "description": "Remove a cue (get_mix_snapshots lists them).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cue_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The cue (get_mix_snapshots)."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "cue_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Remove a snapshot cue",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_strip_safe",
+      "title": "Mark a strip safe",
+      "description": "recall_safe: a recall of everything leaves the strip alone (a recall naming it still reaches it). solo_safe: a solo elsewhere does not silence the strip (a click, a reference), unless it is muted. Give either or both.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "strip_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The strip."
+          },
+          "recall_safe": {
+            "type": "boolean"
+          },
+          "solo_safe": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "strip_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Mark a strip safe",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "prepare_to_record",
+      "title": "Prepare to record",
+      "description": "Enter the recording mode: render every strip that feeds the master (after its effects and automation, before its fader and pan) to its own file, so while recording only audio is read and summed and the buffer can go lower without dropouts. Armed strips stay live; the master stays live. It does not shorten the interface's round trip. Runs in the background (a minute or more for a long song): get_recording_mode says when it is on. While it is on, every edit that changes the sound is refused ('Recording mode: leave it to edit'), but in the armed tracks; arming a track whose strip is baked brings that strip live again (no render made again). Refused while Link, MIDI clock or time code is followed or a session scene plays. leave_recording_mode gives the project back. Neither is an undo step: the mode is the session's. With dry_run=true nothing is changed: it answers what would be rendered, what stays live and the disk the renders take.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "master": {
+            "enum": [
+              "live",
+              "baked"
+            ],
+            "default": "live",
+            "description": "live: the master chain runs on the sum. baked: the whole mix (but what stays live) is one render, the lightest; nothing of the master or the mix moves."
+          },
+          "mix_controls": {
+            "enum": [
+              "live",
+              "locked"
+            ],
+            "default": "live",
+            "description": "live: each baked strip's fader, pan, width, mute and solo still work at the sum (a strip that sends post-fader into a return keeps that fader locked: the return's render holds it). locked: nothing of the mix moves."
+          },
+          "on_failure": {
+            "enum": [
+              "stay_live",
+              "stop"
+            ],
+            "default": "stay_live",
+            "description": "A strip that cannot be rendered (a hosted plug-in that cannot render offline) stays live and is named, or stops the preparation and bakes nothing."
+          },
+          "dry_run": {
+            "type": "boolean",
+            "default": false,
+            "description": "Change nothing: answer the plan and its size."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Prepare to record",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "leave_recording_mode",
+      "title": "Leave the recording mode",
+      "description": "Leave the recording mode: what it baked plays live again (no undo step: the mode is the session's). The rendered files are kept by default, so entering again renders only what changed; discard_files=true deletes them. Refused while a take is being recorded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "discard_files": {
+            "type": "boolean",
+            "default": false,
+            "description": "Delete the rendered files too."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Leave the recording mode",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_recording_mode",
+      "title": "Read the recording mode",
+      "description": "Whether the recording mode is off, preparing (how far) or on, and for the mode on: the strips baked and the ones left live with the reason, the buffer, the measured round trip, the CPU before and since, the disk the renders take, and whether the mix controls are live or locked.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Read the recording mode",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "add_external_unit",
+      "title": "Add external gear to a track",
+      "description": "Make a track an external instrument (its notes go out of a MIDI port to a hardware synth; the synth's sound comes back on a pair of the audio interface's inputs) or give it an external effect (its audio goes out of a pair of outputs and comes back on a pair of inputs). Channels count from 1; a pair is its first channel (stereo unless mono=true). One unit of each kind per track. The unit has no latency measured yet: call ping_external_unit with the transport stopped. One undo step.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The track."
+          },
+          "kind": {
+            "enum": [
+              "instrument",
+              "effect"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "A name for the gear (default: the track's)."
+          },
+          "midi_port": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Instrument: the MIDI output port's name (as list_external_units or Settings shows it). Default: the first output."
+          },
+          "midi_channel": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "default": 1
+          },
+          "send_channel": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 512,
+            "default": 1,
+            "description": "Effect: the first interface output channel of the send pair."
+          },
+          "return_channel": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 512,
+            "default": 1,
+            "description": "The first interface input channel of the return pair."
+          },
+          "mono": {
+            "type": "boolean",
+            "default": false,
+            "description": "Send and return are one channel each instead of a stereo pair."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "track_id",
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Add external gear to a track",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "ping_external_unit",
+      "title": "Measure an external unit's latency",
+      "description": "The automatic latency ping: an effect plays a noise burst train out of its send pair and finds it on its return pair; an instrument is played a note (middle C, four times) and the first sound on its return is timed. Needs the transport stopped, the audio interface of the unit open and (for an instrument) a patch that makes sound; it plays sound out of the interface for about three seconds. It runs in the background: read list_external_units for the result (frames, milliseconds, jitter, or why it failed); a good result is stored in the project and used to keep the gear in time.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "unit_id": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The unit's id from list_external_units."
+          }
+        },
+        "required": [
+          "unit_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Measure an external unit's latency",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_external_units",
+      "title": "Read the external units",
+      "description": "Every external unit of the project: its track, kind, MIDI port and channel or send and return pairs (from 1), the audio interface it was set up with, whether it can play with what is open now (and why not), its measured latency in frames and milliseconds and the trim, and what its last ping came to.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Read the external units",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_surfaces",
+      "title": "Read the control surfaces",
+      "description": "The Mackie Control, extender and HUI surfaces set up in this studio (Settings, MIDI): kind, ports, whether virtual, the bank they show and the last messages they exchanged. Surfaces are set up by the user in Settings; this reads them.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Read the control surfaces",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "edit_audio",
+      "title": "Edit an audio clip's take",
+      "description": "Destructive edits on an audio clip's file, as the audio editor does: delete or trim a range, silence it, fade in or out, gain, normalize (peak, rms or lufs, with a peak ceiling for rms and lufs), invert, reverse, remove DC, remove silence, insert silence, find and repair clicks (declick), rebuild a short range from the audio around it (repair, 20 ms at most), or turn a time-frequency region (start/end seconds and lo_hz/hi_hz) up or down. Joins are made at zero crossings with a 3 ms crossfade. The result is a NEW file (the original stays) the clip then plays: one undo step. Positions are seconds in the clip's own file, not the timeline; no range means the whole take for gain, normalize, invert, reverse, dc_remove, remove_silence, declick and the fades. The clip's pitch edits and warp markers are kept by gain-like edits (gain, normalize, invert, dc_remove, fades, silence, attenuate, declick, repair) and dropped by reverse, paste and every edit that changes the length (delete, trim, remove_silence, insert_silence). Runs in the background (a job). Takes up to 30 minutes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "clip": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The audio clip"
+          },
+          "operation": {
+            "enum": [
+              "delete",
+              "trim",
+              "silence",
+              "insert_silence",
+              "fade_in",
+              "fade_out",
+              "gain",
+              "normalize",
+              "invert",
+              "reverse",
+              "dc_remove",
+              "remove_silence",
+              "attenuate",
+              "declick",
+              "repair"
+            ],
+            "description": "What to do."
+          },
+          "start_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The range's start, seconds into the clip's file."
+          },
+          "end_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The range's end, seconds into the file."
+          },
+          "gain_db": {
+            "type": "number",
+            "minimum": -96,
+            "maximum": 96,
+            "description": "gain, and attenuate (negative turns the region down)."
+          },
+          "level": {
+            "enum": [
+              "peak",
+              "rms",
+              "lufs"
+            ],
+            "default": "peak",
+            "description": "normalize: what is measured."
+          },
+          "target_db": {
+            "type": "number",
+            "minimum": -96,
+            "maximum": 24,
+            "default": -1,
+            "description": "normalize: dBFS (peak, rms) or LUFS."
+          },
+          "ceiling_db": {
+            "type": "number",
+            "minimum": -24,
+            "maximum": 0,
+            "description": "normalize rms or lufs: the gain stops where the peak reaches this (dBFS). Without it, peaks may pass 0 dBFS (the answer says so)."
+          },
+          "curve": {
+            "enum": [
+              "linear",
+              "equal_power",
+              "exponential",
+              "logarithmic",
+              "s_curve"
+            ],
+            "default": "linear",
+            "description": "fade_in, fade_out."
+          },
+          "threshold_db": {
+            "type": "number",
+            "minimum": -120,
+            "maximum": 0,
+            "default": -50,
+            "description": "remove_silence: below this a block is silent."
+          },
+          "min_ms": {
+            "type": "number",
+            "minimum": 10,
+            "maximum": 60000,
+            "default": 300,
+            "description": "remove_silence: shortest quiet stretch cut."
+          },
+          "keep_ms": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000,
+            "default": 80,
+            "description": "remove_silence: quiet left in each cut."
+          },
+          "lo_hz": {
+            "type": "number",
+            "minimum": 0,
+            "description": "attenuate: the region's lowest frequency."
+          },
+          "hi_hz": {
+            "type": "number",
+            "minimum": 0,
+            "description": "attenuate: its highest (above lo_hz)."
+          },
+          "seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 600,
+            "description": "insert_silence: how long."
+          },
+          "sensitivity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 0.5,
+            "description": "declick: higher finds fainter clicks."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "clip",
+          "operation"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Edit an audio clip's take",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "denoise_clip",
+      "title": "Reduce noise in an audio clip",
+      "description": "Noise reduction by profile, as the audio editor does: learn what the noise sounds like from a noise-only stretch (noise_start_seconds..noise_end_seconds of the clip's file, at least 0.1 s), then subtract it with spectral subtraction (a range, or the whole take; a range meets the rest through 10 ms crossfades). amount 0 changes nothing (refused as such); 1 is the whole reduction (reduction_db at most). The result is a NEW file the clip plays: one undo step, the original kept, the clip's pitch edits and warp markers kept. Runs in the background (a job).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "clip": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The audio clip"
+          },
+          "noise_start_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Where a noise-only stretch starts, seconds into the file."
+          },
+          "noise_end_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Where it ends (at least 0.1 s later)."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 1
+          },
+          "reduction_db": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 80,
+            "default": 24,
+            "description": "The most any frequency is turned down."
+          },
+          "sensitivity": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 8,
+            "default": 3,
+            "description": "How many times the noise's mean is subtracted."
+          },
+          "smoothing": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 0.5
+          },
+          "start_seconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Clean only from here (default the whole take)."
+          },
+          "end_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "clip",
+          "noise_start_seconds",
+          "noise_end_seconds"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Reduce noise in an audio clip",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "remove_unused_audio",
+      "title": "Remove unused audio",
+      "description": "Remove the project's audio files no clip, comp or session clip plays from the pool (one undo step), and delete from the project's audio folder the audio editor's files (edit-*.wav) that nothing refers to: not the project, not its undo history, not the project as saved. Files of the entries this removes stay until the undo history no longer holds them (run it again after reopening the project). Only the project's own editor folder is cleaned, never a file another project in the folder refers to, and never while an edit is being made. Always asked first, with the sizes. Answers what it removed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Remove unused audio",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_ara_plugins",
+      "title": "List ARA plug-ins",
+      "description": "The ARA 2 plug-ins found by the plug-in scan (pitch, time and spectral editors that see a whole recording: id, name, vendor) and every audio clip bound to one, with how it stands: live (the plug-in renders it) or why it plays its source (not installed, failed, stopped after a crash or hang, ARA off, loading, no source, on a take lane). ARA plug-ins run inside Cantus, not isolated.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "List ARA plug-ins",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "bind_ara_plugin",
+      "title": "Bind a clip to an ARA plug-in",
+      "description": "Bind an audio clip (clip_id) to an ARA 2 plug-in (plugin: its name or id, from list_ara_plugins): the plug-in then renders the clip, which plays its render in place of its file. Refused on a reversed clip or one with a warp or pitch edits (the plug-in does its own pitch and time). A fresh binding: the plug-in starts clean. The plug-in runs inside Cantus, not isolated. One undo step.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "clip_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "plugin": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The plug-in's name or id, as list_ara_plugins gives it."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "clip_id",
+          "plugin"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Bind a clip to an ARA plug-in",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "unbind_ara_plugin",
+      "title": "Let a clip go of its ARA plug-in",
+      "description": "Let an audio clip (clip_id) go of the ARA plug-in it is bound to: it plays its file again. Undo binds it again with what the plug-in had done to it. One undo step.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "clip_id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "clip_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Let a clip go of its ARA plug-in",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "wait_job",
       "title": "Wait for a job",
       "description": "Wait for a long job (a render, a separation, a transcription) that a tool answered with a job handle. Answers its result when it ends, or its state and progress (0-1) when timeout_s passes first; call again to keep waiting. Jobs are kept for 10 minutes after they end.",

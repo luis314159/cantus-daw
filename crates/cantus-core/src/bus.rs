@@ -91,6 +91,9 @@ pub struct CommandBus {
     /// the overlap a crossfade on this curve, in the same step. `None` (a bus's default;
     /// the application sets its user's choice) leaves overlaps as the edit made them.
     auto_xfade: Option<crate::crossfade::XfadeCurve>,
+    /// The recording mode's edit lock (ADR 0092): while set, a command (or an undo or redo)
+    /// the lock refuses is refused with [`CommandError::RecordingMode`]. // r36:record
+    record_lock: Option<crate::record_mode::EditLock>, // r36:record
 }
 
 /// A place in the history (`CommandBus::mark`): what a write pass folds its steps from.
@@ -128,6 +131,7 @@ impl CommandBus {
             saved_step: Some(0),
             states: VecDeque::from([(0, 0)]),
             auto_xfade: None,
+            record_lock: None, // r36:record
         }
     }
 
@@ -282,6 +286,41 @@ impl CommandBus {
         self.execute_inner(command, origin, Some(key))
     }
 
+    /// Put the recording mode's edit lock on (or take it off): what refuses commands while
+    /// the mode is on (ADR 0092). // r36:record
+    pub fn set_record_lock(&mut self, lock: Option<crate::record_mode::EditLock>) {
+        self.record_lock = lock; // r36:record
+    } // r36:record
+
+    /// The lock now, if the mode is on. // r36:record
+    pub fn record_lock(&self) -> Option<&crate::record_mode::EditLock> {
+        self.record_lock.as_ref() // r36:record
+    } // r36:record
+
+    /// Whether the recording mode's lock refuses `command` as the project is now (a
+    /// controller asks before it moves each target, as it asks the frozen guard). // r36:record
+    pub fn locked_against(&self, command: &Command) -> bool {
+        // r36:record
+        self.record_lock
+            .as_ref()
+            .is_some_and(|l| crate::record_mode::refuses(l, command, &self.project))
+    } // r36:record
+
+    /// Apply the recording mode's own command (its freezes, its leave, a strip brought
+    /// live): session state, never an undo step, past its lock (ADR 0092 §5). The project
+    /// stays as clean as it was: no file is written in the mode's state. // r36:record
+    pub fn apply_session(&mut self, command: Command) -> Result<(), CommandError> {
+        // r36:record
+        let clean = !self.is_dirty();
+        command.apply(&mut self.project)?;
+        self.revision += 1;
+        if clean {
+            self.saved_revision = self.revision;
+        }
+        self.note_state();
+        Ok(())
+    } // r36:record
+
     /// Seal the current gesture so the next command starts a new undo step.
     pub fn end_gesture(&mut self) {
         if let Some(top) = self.undo.last_mut() {
@@ -434,6 +473,10 @@ impl CommandBus {
         command: Command,
         label_key: &str,
     ) -> Result<(Command, Command), CommandError> {
+        if self.locked_against(&command) {
+            // r36:record
+            return Err(CommandError::RecordingMode); // r36:record
+        } // r36:record
         let kept = crate::tempo::keep::before(&self.project, &command);
         // The overlaps before an edit that can make or end one (ADR 0070): new ones are
         // crossed when automatic crossfades are on, ended ones lose their stale curve.
@@ -602,6 +645,14 @@ impl CommandBus {
 
     /// Undo the last step. Returns its label key.
     pub fn undo(&mut self) -> Option<String> {
+        if self
+            .undo
+            .last()
+            .is_some_and(|e| self.locked_against(&e.inverse))
+        {
+            // r36:record
+            return None; // r36:record
+        } // r36:record
         let entry = self.undo.pop()?;
         self.turns += 1;
         // The inverse of a successfully applied command must apply; if it does not, the
@@ -631,6 +682,14 @@ impl CommandBus {
     }
 
     pub fn redo(&mut self) -> Option<String> {
+        if self
+            .redo
+            .last()
+            .is_some_and(|e| self.locked_against(&e.command))
+        {
+            // r36:record
+            return None; // r36:record
+        } // r36:record
         let entry = self.redo.pop()?;
         self.turns += 1;
         match entry.command.clone().apply(&mut self.project) {
@@ -733,6 +792,7 @@ impl CommandBus {
     /// instead when the replacement should be undoable.
     pub fn reset(&mut self, project: Project) {
         self.project = project;
+        self.record_lock = None; // r36:record — the mode was the old project's
         self.turns += 1;
         self.undo.clear();
         self.redo.clear();

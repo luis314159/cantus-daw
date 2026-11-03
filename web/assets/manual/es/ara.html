@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editar un clip con un plug-in ARA</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="editar-un-clip-con-un-plug-in-ara">Editar un clip con un plug-in ARA</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/ara.html">Read in English</a></em></p>
+<p><strong>ARA 2</strong> (Audio Random Access, de Celemony) permite que un plug-in vea una grabación entera y los clips que la reproducen, en lugar de solo el sonido que pasa por él. Así se hacen los editores de afinación y tiempo, los editores espectrales y las herramientas de alineación. Cantus aloja plug-ins ARA 2 en formato <strong>VST3</strong>.</p>
+<h2 id="vincular-un-clip">Vincular un clip</h2>
+<ol>
+<li>Instala el plug-in y deja que la búsqueda de plug-ins lo encuentre (<em>Ajustes ▸ Plug-ins ▸ Buscar plug-ins</em>; Cantus vuelve a revisar por sí solo, una vez, los VST3 que había revisado antes de conocer ARA).</li>
+<li>Clic derecho en un <strong>clip de audio</strong> ▸ en la sección <strong>Plug-in ARA</strong>, <em>Vincular a</em> seguido del nombre del plug-in.</li>
+</ol>
+<p>El clip suena ahora con el render que el plug-in hace de él, en lugar de su archivo. La ganancia del clip, los fundidos, la pista y la mezcla se aplican como a cualquier clip; la exportación, el bounce y los stems también oyen el render. <em>Deshacer</em> quita el vínculo en un paso.</p>
+<p>La sección siempre lo dice: <strong>los plug-ins ARA se ejecutan dentro de Cantus, sin aislamiento.</strong> Otros plug-ins pueden ejecutarse en un proceso auxiliar, para que uno que se cuelgue no se lleve Cantus consigo; un plug-in ARA comparte la grabación directamente con Cantus, así que se ejecuta en el propio proceso de Cantus. Guarda a menudo mientras pruebas uno nuevo.</p>
+<h2 id="lo-que-el-plug-in-conserva">Lo que el plug-in conserva</h2>
+<ul>
+<li><strong>Sus ediciones se guardan con el proyecto.</strong> Al guardar, Cantus le pide al plug-in su estado de cada clip vinculado y lo guarda en el archivo del proyecto; al abrirlo, se lo devuelve.</li>
+<li><strong>Mover, recortar o dividir un clip</strong> se lo dice al plug-in, que vuelve a renderizarlo.</li>
+<li><strong>Borrar un clip, o soltarlo,</strong> conserva el trabajo del plug-in para <em>Deshacer</em>: el clip vuelve con todo lo que el plug-in le había hecho.</li>
+<li><strong>Una copia de un clip vinculado</strong> empieza con lo que el plug-in le había hecho al original.</li>
+</ul>
+<h2 id="soltar-un-clip">Soltar un clip</h2>
+<p>Clic derecho en el clip ▸ <em>Soltar</em> el plug-in. El clip vuelve a sonar con su archivo. Vincularlo de nuevo empieza limpio; <em>Vincular a … con sus ediciones anteriores</em> recupera lo que el plug-in le había hecho.</p>
+<h2 id="cuando-el-plug-in-no-está">Cuando el plug-in no está</h2>
+<p>Un proyecto abierto en una computadora sin el plug-in conserva el vínculo y el estado guardado del plug-in; el clip suena con <strong>su propio archivo</strong>, y su menú dice por qué (<em>no está instalado</em>, o lo que respondió el plug-in). Instala el plug-in y el clip se vuelve a renderizar.</p>
+<h2 id="abrir-el-editor-del-plug-in">Abrir el editor del plug-in</h2>
+<p>Clic derecho en el clip vinculado ▸ <em>Abrir</em> el plug-in. Su propia ventana se abre sobre el clip. Cada edición que hagas ahí es <strong>un paso de deshacer</strong> en Cantus (<em>Editar ▸ Deshacer</em> la revierte también en el plug-in), y el clip se vuelve a renderizar en segundo plano: sigues oyendo el último render hasta que el nuevo está listo, y el cuerpo del clip muestra cuánto falta. Solo se vuelve a renderizar la parte que el plug-in dice que cambió.</p>
+<h2 id="si-un-plug-in-se-cuelga-o-deja-de-responder">Si un plug-in se cuelga o deja de responder</h2>
+<p>Si Cantus se cierra mientras un plug-in ARA trabaja, el siguiente arranque abre tu proyecto con los clips de ese plug-in sonando con sus fuentes, y el menú del clip dice por qué: elige <em>Reintentar</em> para volver a ejecutarlo. Un render que tarda demasiado detiene el plug-in durante la sesión; Cantus nunca lo espera. <em>Solo fuentes (plug-ins ARA apagados)</em>, en el mismo menú, apaga todos los plug-ins ARA: cada clip vinculado suena con su propio archivo.</p>
+<h2 id="lo-que-todavía-no-está">Lo que todavía no está</h2>
+<ul>
+<li>Un clip vinculado no puede además estar invertido, tener warp ni las ediciones de afinación propias de Cantus: el plug-in se encarga de la afinación y el tiempo. Quítalos antes de vincularlo.</li>
+<li>El plug-in se ejecuta dentro del proceso de Cantus; ejecutarlo aislado llega en una versión posterior.</li>
+</ul>
+<p>Cantus se prueba con un plug-in ARA de prueba construido con Cantus (y, donde se ha construido, con el plug-in de referencia de Celemony); cuéntanos cómo se comportan tus plug-ins ARA (<a href="index.html#15-reportar-un-error">reportar un error</a>).</p>
+</main>
+</body>
+</html>

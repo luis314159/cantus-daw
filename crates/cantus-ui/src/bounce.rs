@@ -167,6 +167,13 @@ pub fn refusal(app: &CantusApp, track: TrackId) -> Option<String> {
     if t.muted {
         return Some(tf("bounce.muted", &[("name", &t.name)]));
     }
+    // Outboard gear cannot play in an offline render (ADR 0094 §6). r36:external
+    if p.external_units
+        .iter()
+        .any(|u| u.enabled && u.track == track)
+    {
+        return Some(tf("external.cannot_bounce", &[("name", &t.name)])); // r36:external
+    }
     if live_input(t) {
         return Some(tf("bounce.live_input", &[("name", &t.name)]));
     }
@@ -600,6 +607,8 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
     }
     crate::freeze::retry_back(app, &keep);
     let before = app.engine.renders_late();
+    // r36:ara — never a bounce of an ARA render older than the state it bakes (ADR 0097).
+    app.settle_ara()?;
     let compiled = app.engine.compile_for_render(&alone, 0);
     app.say_late(before);
     let late_render = app.late_since(before);

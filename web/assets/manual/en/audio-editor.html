@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The audio editor</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="the-audio-editor">The audio editor</h1>
+<p><em>Cantus 0.1.0-beta.11 and later · <a href="../es/audio-editor.html">Leer en español</a></em></p>
+<p>Cut a cough out of a take, silence a pop, fade the ends, bring a take to a level, take the hiss and the clicks out, remove the dead air between phrases — and hear it in the clip straight away. The audio editor is the wave editor you open from a clip. (The pitch editor, which corrects notes without touching the audio, is a different tool: double-click the clip.)</p>
+<h2 id="open-it-leave-it">Open it, leave it</h2>
+<p>Right-click an audio clip ▸ <strong>Edit in audio editor…</strong> The window shows the clip's whole file. Close it with ✕: the clip plays what you left. Undo and Redo work as everywhere else, with the window open or closed; the window follows them. Opening another project closes it.</p>
+<p><strong>Nothing you do here touches the file you started from.</strong> Every edit makes a new file (named <code>edit-</code> and a code from its content, in the project's <em>Audio</em> folder) and points the clip at it: one undo step each, the original still in the project's list of files.</p>
+<p>Also in the toolbar: <strong>Open file…</strong> puts a file on a new track and opens it here; <strong>Paste from file…</strong> pastes a file at the cursor (at another sample rate, or stereo into mono, it is converted first — so is the clipboard); <strong>To new clip</strong> — or <strong>Alt-drag</strong> the selection out of the window — makes the selection a clip of its own on a new track, right where it plays now.</p>
+<h2 id="select-to-the-sample">Select to the sample</h2>
+<ul>
+<li><strong>Drag</strong> in the wave or the spectrogram to select. The foot of the window says the selection to the frame (<code>1.23456 s (59259)</code>). Drag an edge to change it, <strong>Shift</strong>-drag to extend, double-click to select everything, click for a cursor. Escape clears the selection.</li>
+<li><strong>Wheel</strong> zooms about the pointer; <strong>Shift + wheel</strong> (or the bar under the graphs) scrolls. <em>Fit all</em> and <em>Zoom to selection</em> are in the toolbar. Zoomed in far enough, the samples themselves are drawn, and the spectrogram is drawn again in detail for what you see.</li>
+<li><strong>Marker</strong> drops a flag at the cursor; <strong>Region</strong> names the selection; <strong>Loop points</strong> marks the selection as the loop. They are saved with the file, in the project, and move with the audio when you cut or paste. Click a flag on the ruler to select up to the next one, or a region's bar to select it. <em>Clear marks</em> removes them (one undo step).</li>
+<li><strong>Play</strong> auditions the selection, or the whole take (Space starts and stops it).</li>
+</ul>
+<h2 id="edits">Edits</h2>
+<p>The toolbar: <strong>Cut</strong>, <strong>Copy</strong>, <strong>Paste</strong> (replaces the selection, or goes in at the cursor), <strong>Delete</strong>, <strong>Trim</strong>, <strong>Silence</strong>, <strong>Invert</strong>, <strong>Reverse</strong>. With nothing selected, Invert and Reverse work on the whole take. Cut, Copy, Paste and Delete use the keys you know while the window is open. While an edit is being made, the next one waits (&quot;Wait: the editor is still working…&quot;).</p>
+<p><strong>Smooth joins</strong> (on by default): where pieces meet — a cut, a paste, silence — the edges move to the nearest zero crossing and the two sides cross over 3 ms, so nothing clicks. Turn it off for a raw splice exactly where you put it.</p>
+<p>The right column:</p>
+<ul>
+<li><strong>Level.</strong> <em>Apply gain</em> (dB); <em>Normalize</em> to a <strong>peak</strong>, an <strong>RMS</strong> (both dBFS) or a loudness (<strong>LUFS</strong>, integrated; at least 0.4 s) target — of the selection, or the whole take. With <strong>Peak ceiling</strong> on, RMS and LUFS stop where the peaks reach the ceiling (the status says what level was reached); off, the status warns when peaks pass 0 dBFS.</li>
+<li><strong>Fades.</strong> Five curves; <em>Fade in</em> and <em>Fade out</em> over the selection.</li>
+<li><strong>Noise reduction.</strong> Select a stretch of <strong>only noise</strong>, press <strong>Learn noise</strong> (the selection is then cleared); <strong>Reduce noise</strong> cleans the whole take, or a selection you make (which blends into the rest over 10 ms). <em>Amount</em> 0 % changes nothing; <em>Reduce</em> is the most any frequency is turned down; <em>Strength</em> is how much of the noise's peaks it catches; <em>Smooth</em> softens the result. For steady noise — hiss, hum, fans.</li>
+<li><strong>Silence and DC.</strong> <em>Remove silence</em> cuts the stretches below <em>Below</em> that last longer than <em>Minimum</em>, leaving <em>Keep</em> milliseconds of each. <em>Remove DC</em> takes the offset out.</li>
+<li><strong>Clicks.</strong> <strong>Declick</strong> finds clicks and pops in the selection (or the take) and rebuilds each from the audio around it; <em>Sensitivity</em> finds fainter ones. Or select a click (up to 20 ms) and <strong>Repair selection</strong>.</li>
+<li><strong>Spectral region.</strong> In <strong>Spectrogram</strong> or <strong>Both</strong>, drag a rectangle over the sound to turn down (a whistle, a hum's band), set <em>Region gain</em> and <strong>Apply to region</strong>.</li>
+</ul>
+<p>An edit that would change nothing says so and makes no file; one that would leave nothing is refused.</p>
+<h2 id="what-the-clip-keeps">What the clip keeps</h2>
+<p>Gain, fades, crossfades and reverse stay. The pitch editor's notes and warp markers stay through edits that leave the audio's timing alone (gain, normalize, invert, DC, fades, silence, noise, clicks, region) and are dropped — the status says so — by Reverse, Paste and edits that change the length. A clip that showed the whole take shows the whole edited take; other clips keep their place. Linked clips change together.</p>
+<h2 id="clean-up">Clean up</h2>
+<p>Each edit keeps a file. <strong>Clean up…</strong> (also in the audio clip's menu: <em>Remove unused audio…</em>) lists the files no clip plays and the editor's files nothing refers to, with their sizes, before removing anything; the list leaves the project in one undo step. Files you put in the folder yourself are never deleted, and files Undo could still bring back stay on disk until you reopen the project and clean up again.</p>
+<h2 id="for-agents">For agents</h2>
+<p><code>edit_audio</code>, <code>denoise_clip</code> and <code>remove_unused_audio</code> do the same, in one undo step each; the edits run in the background. Positions are seconds in the clip's own file.</p>
+<h2 id="good-to-know">Good to know</h2>
+<ul>
+<li>Takes up to 30 minutes open here.</li>
+<li>Recording straight into the editor is not here yet: record in the arrangement and open the take.</li>
+</ul>
+</main>
+</body>
+</html>

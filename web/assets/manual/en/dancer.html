@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saltator: a character that dances to your song</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="saltator-a-character-that-dances-to-your-song">Saltator: a character that dances to your song</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/dancer.html">Leer en español</a></em></p>
+<p><strong>Saltator</strong> is an instrument that makes no sound: it draws a character that dances to your music. Put it on a track and it dances to the beat at once, with nothing to set up; then make it yours — choose the character, automate its moves bar by bar, play moves from a MIDI clip or your keyboard, let it react to the drums, put it on stream. Where it shows (over the workspace, on the Stage tab, in the companion window, the streaming mode) is <a href="stage.html">the stage's page</a>; a clip of it with the song's audio is <a href="video.html">the video export</a>; your own characters are <a href="import-characters.html">importing a character</a>.</p>
+<h2 id="add-one">Add one</h2>
+<p><em>Add track</em> (or the device picker, Ctrl+T) ▸ the <strong>Visual</strong> shelf ▸ <strong>Saltator</strong>. The new track is named <em>Saltator</em>, has a dancing figure for its icon, and Trino, the cast's songbird, dances on it. Its window opens.</p>
+<h2 id="the-window">The window</h2>
+<p><strong>Play</strong> is a little theatre:</p>
+<ul>
+<li><strong>The stage</strong> — the character dancing live, exactly as you hear the song (an output's latency is taken into account), with a spotlight that follows it and swells on the beat. At the top: the bar and the beat, and the move it is dancing.</li>
+<li><strong>Character</strong> — every character Cantus includes, each dancing its own routine, and every character imported into the project. Click one to choose it (one undo step). Under them: its name, its line and its licence. <strong>Import</strong> brings your own (a Lottie, a sprite sheet or a DragonBones character: <a href="import-characters.html">importing a character</a>); for an imported one, <strong>Edit moves…</strong> chooses which of its animations plays each move.</li>
+<li><strong>Export video…</strong> (the stage's title bar) — the song with its dancers as a video: MP4 or WebM, square, vertical or a transparent layer (<a href="video.html">exporting a video</a>).</li>
+<li><strong>Moves</strong> — the move map as sixteen pads, one per key from <strong>C3</strong> to <strong>D#4</strong>. The move dancing now lights up. Press a pad to dance that move at once (a live note, as on the keyboard).</li>
+<li><strong>Dance</strong> — <em>Move</em> (<em>To the beat</em>, or one of the sixteen moves by name), <em>Travel</em> (<em>In place</em>, <em>Walk left</em>, <em>Walk right</em>, <em>Wander</em>), <em>Speed</em> (¼× to 4× the beat), <em>Energy</em>.</li>
+<li><strong>Body</strong> — <em>Lift</em> (how far off the ground), <em>Facing</em> (left, front, right), <em>Spin</em> (°), <em>Size</em> (×).</li>
+<li><strong>Look</strong> — <em>Mood</em> (Happy, Excited, Calm, Surprised, Sleepy, Cool, Shy, Neutral) and <em>Colour</em> (turns its colours around the wheel; eyes and outlines stay).</li>
+<li><strong>Ears</strong> — <em>Reacts to</em>: what it listens to. Click the field (or its ‹ ›) to go through <em>Nothing</em>, <em>The whole song</em> and each channel of the mixer. <em>Reacts</em> says how much of its energy the level decides.</li>
+</ul>
+<p><strong>Edit</strong> has every number as a card, and <strong>Where it shows</strong> (<em>Floating</em>, <em>Docked</em>, <em>Hidden</em>; <em>Always on top</em>) and its position on the stage.</p>
+<p>Every number is an ordinary parameter: right-click it for <em>Automate</em>, <em>Learn MIDI controller</em> and the modulators.</p>
+<h2 id="how-it-dances">How it dances</h2>
+<ul>
+<li><strong>To the beat, by itself.</strong> With <em>Move</em> at <em>To the beat</em> it dances its own routine, one move a bar, every step landing on the beat — no automation needed.</li>
+<li><strong>Automation.</strong> Draw an automation clip of <em>Move</em> and it dances the move you chose from the clip's first bar line to where it ends (between clips a value holds; end the clip on <em>To the beat</em> to hand back to the routine). Every number can be automated the same way.</li>
+<li><strong>Notes.</strong> A note on a key of the move map plays that move from the note's start: held, it goes on; let go, it finishes the step it is in. Velocity is how big it dances. Notes in a session clip move it too.</li>
+<li><strong>Modulators.</strong> An LFO on <em>Colour</em> cycles its colours; a step sequencer on <em>Move</em> changes its moves every step; learn the mod wheel on <em>Energy</em> and it dances bigger as you push it.</li>
+<li><strong>React to.</strong> Choose a channel in <em>Reacts to</em>: a follower listens to it and the dancer dances bigger when it is loud. It is one undo step; choose <em>Nothing</em> to stop.</li>
+<li><strong>MIDI learn.</strong> Right-click any number ▸ <em>Learn MIDI controller</em> and move a knob; a fader on <em>Move</em> goes through the moves by name.</li>
+</ul>
+<h2 id="presets">Presets</h2>
+<p><em>To the beat</em>, <em>Party</em>, <em>Chill</em> and <em>Cool</em> set how it dances. A preset never changes who dances or where: the character, its place, its size and where it shows stay.</p>
+<h2 id="agents">Agents</h2>
+<p>An AI agent sees Saltator in the unit catalogue (<code>get_unit dancer</code>: every number, the moves and moods by name, the move map, the characters). It can add one (<code>add_track</code> with kind <code>dancer</code>), automate its <em>Move</em> and set its numbers like any instrument's.</p>
+</main>
+</body>
+</html>

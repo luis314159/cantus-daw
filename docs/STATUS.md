@@ -1,8 +1,35 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-02 (round 35: **the dancing character** — **Saltator**, a silent native instrument whose numbers are automation, modulator and MIDI-learn targets and whose notes choose its sixteen moves, dancing to the beat with no automation and reacting to a track's level, the null tests holding every sample (ADR 0087, schema 49); **the family** — Trino, Miso, Lana, Tic, Corchea and Sol, ours and original, on one deterministic rig (ADR 0090); **imported characters** — Lottie by our own player, Aseprite and TexturePacker sheets, DragonBones, sandboxed and content-addressed with their licence shown (ADR 0089); **video** — MP4, WebM, a transparent MOV or PNG frames with the song's audio, square, vertical or wide, audio and picture in sync to 0.000 ms, by our own writers and the system's encoders (ADR 0088); **the stage** — the dancer over the workspace, a companion window with true alpha and a streaming mode OBS captured for an hour, a light visualiser, about 3.4 % of a core (ADR 0091). Version **0.1.0-beta.10** (Windows and Linux; macOS waits for the Mac session). Schema 49, `DSP_VERSION` 5, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 5 972 pass on Windows (85 ignored), the engine fuzz 1 011 at `CANTUS_WORKERS=3`, 5 934 on Linux (85 ignored) (WSL Ubuntu 24.04); clippy clean on both
+**Updated:** 2026-11-03 (round 36: **the professional studio** — **the recording mode**: *Prepare to record* renders every strip feeding the master after its inserts and before its fader, keyed by freeze's content hash, streams them, keeps armed tracks live, bakes the master if asked, locks every other edit with a bar that cannot be missed, bit-identical when you leave; 64 tracks with effects from 224–590 % of each block live to 2–4 %, 0 disk underruns with 64 and 128 streams (ADR 0092); **VCA faders, mixer snapshots and scene cues** (ADR 0093, schema 50); **external instruments and effects with an automatic latency ping** (ADR 0094, schema 51) and **Mackie Control / HUI surfaces** with virtual units (ADR 0095); **the audio editor** — destructive edits as new files with undo, denoise by profile, spectral repair, declick, remove silence (ADR 0096, schema 52); **ARA 2 hosting** — a plug-in on a clip rendered off the audio thread, its editor, its edits as undo steps (ADR 0097, schema 53, the new GPL crate `cantus-ara`); the landing page and README selling the instruments and effects one by one. Version **0.1.0-beta.11** (Windows, Linux, and **macOS as an unsigned preview**). Schema 53, `DSP_VERSION` 5, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 291 pass on Windows (89 ignored), the engine fuzz 1 085 at `CANTUS_WORKERS=3`, 6 253 on Linux (89 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 36 left
+
+Round 36 is on **master** (squashed) and published to `luis314159/cantus-daw`; **`v0.1.0-beta.11`**
+is released for Windows and Linux, with macOS as an unsigned preview (the owner's decision,
+2026-11-03). The account: `docs/round36/integration.md`; one report per builder beside it
+(`record`, `mix`, `external`, `editor`, `ara`, `showcase`). **New working rules** from this
+round are in `CLAUDE.md` (an end-to-end test per feature, protocols tested with outside bytes,
+rounds of two or three features with a mid-round integrated review, explicit staging, disk
+before a suite). Under the owner's rule what is left is the owner's own, or new work:
+
+1. **Hardware** (`docs/beta-checklist.md`): the lowest stable buffer with and without the
+   recording mode and with the master baked (ASIO and WASAPI, duplex, 10 minutes) and a take's
+   timing; a hardware synth's ping and timing; an effect through a loopback cable; a real Mackie
+   Control (handshake, motors, a two-fader ride) and a real HUI.
+2. **ARA**: write to Celemony about the name and logo; run `tools/ara/build-test-plugin.sh` once;
+   a commercial ARA plug-in by ear. No plug-in is named as compatible anywhere.
+3. **Ears**: noise reduction, declick and the 3 ms joins on real recordings; a VCA ride and a
+   cue's switches in a real song.
+4. **The Mac**: open the preview on a real Mac (`docs/mac-session.md`), and the Apple account
+   to sign it; plus everything rounds 30–35 left (OBS and clips, a clean Windows for the ML
+   helper, `.mcpb`, round 33's hardware, the legal review, a real Linux desktop, Flathub,
+   compacting the WSL image, code signing, the RVR1960 permission, the trademark, the UMC in
+   duplex, REAPER and FL Studio for the comparisons).
+5. **Round 37** (the integrator's recommendation — the owner decides): content and instruments
+   (Chorda by ear, the slicer, Pulsus per pad, a preset library) and the first measured
+   scorecard (§0.1), with at most three builders. The prompt is `docs/next-session.md`.
 
 ## The next session: what round 35 left
 
@@ -438,6 +465,25 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 36: the professional studio — the recording mode, VCAs and snapshots, external gear and surfaces, the audio editor, ARA 2 (requested 2026-11-02)
+
+**The ask:** BACKLOG §0.4 item 6. Five builders (`record`, `mix`, `external`, `editor`, `ara`)
+from contract `7393f1c2`, ARA researched and decided (go) in ADR 0097 before any code, a sixth
+(`showcase`) for the landing page and README when the owner asked; one reviewer per branch,
+one over all the fix rounds, one over the integrated tree — every finding fixed with a test.
+Account: `docs/round36/integration.md`.
+
+| Part | What changed |
+|---|---|
+| The recording mode (ADR 0092) | *Prepare to record*: strips feeding the master rendered after inserts, sends and effect automation, before fader/pan, keyed by the freeze hash (only changed strips re-render), streamed (the reader serves every stream's next block first, above normal priority); armed tracks live; master live or baked (hosted master plug-ins rendered); mix controls live (pre-fader senders keep fader and pan) or locked; every other edit refused through the bus's lock with the mode's notice; never in the undo history or a saved file; arming brings a strip live without a re-render; external units, failed renders and regions a cue solos into stay live with a reason; refuses sync following; the bar; three agent tools. 64 tracks: 224–590 % live → 2–4 %, master baked 0.4–0.9 %; 0 underruns at 32–1024 frames with 64 and 128 streams |
+| Studio mixing (ADR 0093, schema 50) | VCA strips (gain-stage dB, −96 dB floor as silence, nested VCAs counted once, cycles refused, mute/solo follow, 0 dB a bit-exact null); groups with a VCA; snapshots (all or named channels, recall-safe, A/B, exact undo); cues — a snapshot at a bar as automation holds plus a switch timeline (mute, solo, polarity, swap, FX switch, bypass, EQ) with a 16-sample declick; solo-safe; cues in freeze keys; nine agent tools |
+| External gear and surfaces (ADRs 0094, 0095, schema 51) | External instrument/effect units with the automatic ping (to the sample, re-based on a buffer change) as the track's latency; held notes released on every change; offline renders never play gear (one processor choke point); Mackie Control and HUI with virtual units, tables tested against TouchMCU's notes and theageman's HUI document; one undo step per surface gesture; keep-alive, meters, the SysEx handshake; four agent tools |
+| The audio editor (ADR 0096, schema 52) | From a clip and back; each edit a new content-addressed file in `Audio/<project>/` and one undo step; zero-crossing joins with 3 ms crossfades; denoise by profile (`cantus_dsp::denoise`), spectral attenuation with a native-hop detail view, declick, remove silence, normalise to peak/RMS/LUFS, paste across rates and channels, open/paste from file, drag out to a clip, saved markers/regions/loops; *Remove unused audio* asked first and safe for sibling projects and pending agent edits; three agent tools |
+| ARA 2 (ADR 0097, schema 53) | `cantus-ara` (GPL; bindings per architecture with layout tests); a bound clip's own in-process VST3 instance renders its region on a render thread (cancel, debounce, ranges over a matching base, windowed memory, latency pre-roll, the tempo map), played via `SampleCache::set_clip_renders`; the plug-in's editor from the clip; edits as undo steps; crash/hang markers and *Play sources only*; offline renders wait for ARA to settle; `cantus-test-ara`; three agent tools |
+| Showcase | The landing page: the recording mode with its measured tiles, 32 instrument and effect cards opening detail dialogs (both themes, EN/ES pictures), the studio, *Windows · Linux · macOS (preview)*; README: download table, the mode, the studio, the instrument and effect grid with details; `shoot_showcase`, `shoot_skins --es` |
+| Causes the reviews caught | external instruments that never sounded in the app; HUI tables wrong and an emulation sharing them; a frozen bus deaf to its members' VCAs; the editor's cleanup able to delete a sibling project's files; ARA partials over the raw source; cues re-applying switches on frozen strips and doubling the armed track in the baked master |
+| Process | `CLAUDE.md`'s new working rules (approved 2026-11-03); macOS released as a preview |
 
 ## Round 35: a character that dances on screen — the dancer, the family, imports, video, the stage (requested 2026-10-29)
 

@@ -23,6 +23,9 @@ use cantus_core::modulator::eval::ModTime;
 use cantus_core::ModulatorId;
 use cantus_core::TempoMap;
 
+#[path = "scene_rt.rs"] // r36:mix
+mod scene_rt; // r36:mix - the mix cues' switches (ADR 0093 §3)
+
 /// The processor's automation state. Fixed size; the runtime arrives built.
 #[derive(Clone)]
 pub(super) struct AutoState {
@@ -62,6 +65,12 @@ pub(super) struct AutoState {
     /// An offline trace of one modulator's output × amount at every control point, for
     /// *Bake to automation* (ADR 0057): room made before the render, never grown.
     pub(super) trace: Option<(ModulatorId, Vec<(f64, f32)>)>,
+    /// The mix cues' region whose switches are on the desk, the strips fading this
+    /// segment, and the master's fade and polarity (ADR 0093 §3). // r36:mix
+    scene: usize, // r36:mix
+    scene_env: [bool; MAX_STRIPS],       // r36:mix
+    pub(super) master_env: Option<Ramp>, // r36:mix
+    pub(super) master_sign: Option<f32>, // r36:mix
 }
 
 /// Modulators a snapshot may play at once with their audio heard (more are heard as
@@ -90,6 +99,10 @@ impl AutoState {
             peaks: vec![0.0; MAX_EARS],
             told: u64::MAX,
             trace: None,
+            scene: 0,                       // r36:mix
+            scene_env: [false; MAX_STRIPS], // r36:mix
+            master_env: None,               // r36:mix
+            master_sign: None,              // r36:mix
         }
     }
 
@@ -284,6 +297,7 @@ impl Processor {
                 m.ear = plan.listen.and_then(|l| Ear::of(l, &self.strip_to_slot));
             }
         }
+        self.scene_install(snapshot); // r36:mix
     }
 
     /// Trace modulator `id`'s output × amount at every control point of the coming
@@ -854,6 +868,10 @@ impl Processor {
         } else {
             next
         };
+        // The mix cues' switches (ADR 0093 §3): their fades and their own control points. // r36:mix
+        if let Some(d) = self.scene_point(&snap, &at, now, len, playing, &nodes) {
+            self.auto.next = self.auto.next.min(d); // r36:mix
+        }
         self.auto.rt = Some(rt);
     }
 }

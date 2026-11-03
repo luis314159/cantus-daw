@@ -1,0 +1,97 @@
+# Area: external - ronda 36 (ADR 0094 unidades externas y ping, ADR 0095 Mackie Control y HUI). Cada clave necesita su gemela en external.en.txt
+cmd.external.add = añadir equipo externo
+cmd.external.remove = quitar equipo externo
+cmd.external.set = cambiar equipo externo
+cmd.external.latency = medir equipo externo
+
+# --- el estado de una unidad ---
+external.state.ready = lista
+external.state.off = apagada
+external.state.no_device = no hay dispositivo de audio abierto
+external.state.other_interface = hay otra interfaz de audio abierta
+external.state.channels = la interfaz no tiene esos canales
+external.state.send_master = el envío sonaría en las salidas 1-2, la master: elige otro par
+external.state.port = el puerto MIDI no está
+external.state.track = su pista ya no existe
+
+# --- el ping ---
+external.ping = Ping
+external.remeasure = Medir de nuevo
+external.ping.running = midiendo...
+external.ping.silent = no volvió nada: revisa el cable y los canales de retorno
+external.ping.no_input = no hay entrada de audio abierta
+external.ping.not_found = volvió algo, pero no el ping (zumbido u otra fuente)
+external.ping.dropped = la entrada perdió audio al medir: inténtalo de nuevo
+external.ping.unstable = las mediciones no coinciden: el tiempo de la interfaz no es estable
+external.ping.no_note = el sintetizador no respondió a la nota: revisa el puerto, el canal y que el sonido suene
+external.ping.busy = ya hay otra medición en marcha
+external.ping.no_unit = la unidad ya no existe
+external.ping.playing = detén primero el transporte
+
+# --- las unidades en Ajustes ---
+external.band.units = Equipo externo
+external.add.instrument = Instrumento externo
+external.add.effect = Efecto externo
+external.none = Elige una pista y añade un instrumento externo (un sintetizador por un puerto MIDI, con su sonido de vuelta en un par de entradas) o un efecto externo (un envío y un retorno).
+external.kind.instrument = instrumento externo
+external.kind.effect = efecto externo
+external.unit.title = {track}: {kind} - {state}
+external.row.routing = Conexión
+external.row.latency = Latencia
+external.row.adjust = Ajuste
+external.row.log = Últimos mensajes
+external.row.surface = Superficie
+external.no_port = sin puerto
+external.port = Puerto de salida MIDI
+external.channel = Can {n}
+external.channel_name = Canal MIDI
+external.send_pair = Sal {pair}
+external.send_name = Salidas de la interfaz (envío)
+external.return_pair = Ent {pair}
+external.return_name = Entradas de la interfaz (retorno)
+external.latency = {frames} muestras, {ms} ms (variación {jitter})
+external.not_measured = sin medir: pulsa Ping
+external.trim = {ms} ms
+external.trim_name = Ajuste sumado a la medición
+external.level = {db} dB
+external.level_name = Nivel del retorno
+external.on = Activo
+external.remove = Quitar
+
+# --- superficies de control en Ajustes ---
+external.band.surfaces = Superficies de control
+external.surface.add = Añadir superficie
+external.surface.add_virtual = Añadir superficie virtual
+external.surface.none = Ninguna superficie de control. Añade una Mackie Control o una HUI, o una virtual para probar sin nada conectado.
+external.surface.kind = Tipo de superficie
+external.surface.virtual = unidad virtual (sin puertos)
+external.surface.input = Puerto de entrada MIDI
+external.surface.output = Puerto de salida MIDI
+external.surface.output_auto = salida del mismo
+external.surface.mcu = Mackie Control
+external.surface.xt1 = Extensión Mackie 1
+external.surface.xt2 = Extensión Mackie 2
+external.surface.hui = HUI
+
+# --- herramientas de los agentes ---
+external.tool.add = Añadir {kind} a {track}
+
+# --- revisión: rechazos, mediciones viejas, el menú de pista, faders táctiles ---
+external.ping.aborted = el transporte arrancó: la medición se detuvo
+external.ping.timed_out = la medición no volvió (el dispositivo se detuvo o cambió): inténtalo de nuevo
+external.cannot_freeze = {name} no se puede congelar: {track} toca equipo externo, que un render no puede tocar - graba su retorno
+external.cannot_export = La canción no se puede exportar mientras {track} toca equipo externo: un render no puede tocarlo. Graba el retorno del equipo en una pista (o apaga la unidad) y exporta de nuevo.
+external.cannot_bounce = {name} toca equipo externo, que un render no puede tocar: graba su retorno
+external.stale_device = medido con otra interfaz (búfer {buffer}): mide de nuevo
+external.rebased = medido con búfer {from}, ajustado a {to}
+external.menu.band = Equipo externo
+external.menu.instrument = Instrumento externo...
+external.menu.effect = Efecto externo...
+external.menu.remove_instrument = Quitar el instrumento externo
+external.menu.remove_effect = Quitar el efecto externo
+external.surface.touch = Faders táctiles
+external.surface.touch_on = los motores esperan mientras tocas un fader
+external.surface.touch_off = sin sensor táctil: un fader que mueves se mantiene 0.6 s antes de que los motores sigan al mezclador (sin esto los motores pelearían con tu mano)
+external.cannot_bake = El modulador no se puede fijar mientras {track} toca equipo externo: un render no puede tocarlo. Apaga la unidad (o graba su retorno) y fija de nuevo.
+cmd.external.surface_move = mover faders en una superficie de control
+external.stale_unknown = medido con otra interfaz: mide de nuevo

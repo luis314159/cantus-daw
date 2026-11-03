@@ -9,7 +9,9 @@
 #![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
 
+pub mod ara; // r36:ara (ADR 0097)
 pub mod audio;
+pub mod audio_edit; // r36:editor — the audio editor's edits as pure functions (ADR 0096)
 pub mod audio_time;
 pub mod automation;
 pub mod bus;
@@ -22,6 +24,12 @@ pub mod controller;
 pub mod crossfade;
 pub mod effect;
 pub mod external;
+pub mod external_emulation; // r36:external (ADR 0095): virtual MCU and HUI units
+pub mod external_hui; // r36:external
+pub mod external_mcu; // r36:external
+pub mod external_surface; // r36:external
+pub mod external_unit; // r36:external (ADR 0094)
+mod external_unit_cmd; // r36:external
 pub mod freeze;
 pub mod fx;
 pub mod groove;
@@ -29,6 +37,9 @@ pub mod harmony; // r34:tools (ADR 0082): chords, charts, voicings, the music li
 pub mod inst;
 pub mod instrument;
 pub mod links;
+pub mod mix_cmd; // r36:mix (ADR 0093)
+pub mod mix_scene; // r36:mix
+pub mod mix_snap; // r36:mix
 pub mod model;
 pub mod modulator;
 pub mod notation;
@@ -37,6 +48,7 @@ mod notefx_cmd;
 pub mod pads;
 pub mod pattern;
 pub mod pitch;
+pub mod record_mode; // r36:record (ADR 0092): the recording mode's plan and edit lock
 pub mod routing;
 pub mod scale;
 pub mod session; // r33:session (ADR 0076)
@@ -44,11 +56,23 @@ pub mod snapshot;
 pub mod starting;
 pub mod tempo;
 pub mod time;
+pub mod vca; // r36:mix
 pub mod warp;
 
 pub use audio::{
-    AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, Provenance,
-    RecordSettings, TakeMode, TrackInput,
+    AudioRegion,
+    AudioSource,
+    ClickMode,
+    ClickSound,
+    FadeCurve,
+    MonitorMode,
+    Provenance,
+    RecordSettings,
+    SourceMarker,
+    SourceMarks,
+    SourceRegion, // r36:editor
+    TakeMode,
+    TrackInput,
 };
 pub use automation::{AutoLane, AutoMode, AutoPoint, AutoRange, AutoTarget, Automation, Shape};
 pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, HistoryMark, MergeKey};
@@ -59,6 +83,7 @@ pub use effect::{
     PluginState, EQ_BANDS, EQ_BAND_FIELDS,
 };
 pub use external::PluginIsolation;
+pub use external_unit::{ExternalLink, ExternalUnit, ExternalUnitId}; // r36:external
 pub use freeze::{FreezeTarget, Frozen};
 pub use groove::{ClipGroove, Groove, GrooveId, GrooveSource, SwingGrid};
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};

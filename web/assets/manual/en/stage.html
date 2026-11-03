@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The stage: where a dancer dances</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="the-stage-where-a-dancer-dances">The stage: where a dancer dances</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/stage.html">Leer en español</a></em></p>
+<p>See also: <a href="dancer.html">The dancer</a> — its moves, moods and characters · <a href="import-characters.html">Importing a character</a> · <a href="video.html">Exporting a video</a> — the song with its dancers (also from the companion's menu: <em>Export video…</em>).</p>
+<p>A <strong>dancer</strong> is a track whose instrument makes no sound and draws a character that dances to your song. This page is about <em>where</em> it dances; its moves, moods and characters are the dancer's own window.</p>
+<h2 id="over-the-workspace-on-the-stage-tab-or-hidden">Over the workspace, on the Stage tab, or hidden</h2>
+<p>Each dancer has a place to show (its window's <em>Where</em>):</p>
+<ul>
+<li><strong>Over the workspace</strong> — the character stands right on top of your arrangement, mixer and editors, with nothing around it: no window, no frame, see-through. Its <strong>X</strong> and <strong>Y</strong> say where its feet are (0 to 1 across and down the workspace) and <strong>Size</strong> how tall it is (at 1×, about a third of the workspace's height). Automate X and it walks across the window.</li>
+<li><strong>On the Stage tab</strong> — the character dances on a stage of its own, a tab of the workspace that opens under the inspector the first time. Drag the tab anywhere, stack it beside others or float it as you would any other area; your layouts keep it.</li>
+<li><strong>Hidden</strong> — it shows nowhere and costs nothing.</li>
+</ul>
+<h2 id="move-it-resize-it-pin-it">Move it, resize it, pin it</h2>
+<p>Point at a dancer and its frame appears:</p>
+<ul>
+<li><strong>drag its body</strong> to move it (one undo step per drag: <em>Move dancer</em>);</li>
+<li><strong>drag the round grip</strong> at its top-right corner to make it bigger or smaller (its feet stay where they are);</li>
+<li>in the <strong>pill</strong> above it: <strong>pin</strong> keeps it above the floating panels (a floating mixer, a device window); <strong>dock</strong> puts it on the Stage tab (on the tab, <strong>float</strong> puts it back over the workspace); <strong>hide</strong> hides it.</li>
+</ul>
+<p>The frame fades a moment after the pointer leaves.</p>
+<h2 id="what-it-costs">What it costs</h2>
+<p>A dancer is drawn only when its pose changes: at most 60 times a second while the song plays, 15 times a second while it is stopped (a slow breath and a blink), and not at all when it is hidden or Cantus is minimised. Each dancer is drawn into a box just big enough for it, at your screen's real pixels, so it is crisp at every zoom.</p>
+<h2 id="the-companion-window">The companion window</h2>
+<p><em>View ▸ Companion window</em> (<strong>Alt+Shift+D</strong>) opens a small window of its own, <strong>Cantus Stage</strong>, that floats above everything — Cantus, your browser, a game — with no frame and a see-through background. A character dances in it <strong>with whatever plays</strong>, with no automation: the song while it plays; a beat of its own at the project's tempo when the transport is stopped but sound comes out (a preview, your instrument through an input); a slow breath in silence. It dances bigger when the music is louder.</p>
+<p>Drag it by anything in it to move it; drag its bottom-right corner to resize it. Point at it for its ⋯ button, or right-click anywhere in it, for its choices — each row steps to the next value when clicked:</p>
+<ul>
+<li><strong>Character</strong> — each of Cantus's characters, then <em>The project's dancers</em> (your dancer tracks, as they dance on the stage).</li>
+<li><strong>Size</strong> — three companion sizes, a square 600 × 600, a vertical 540 × 960 and a wide 960 × 540.</li>
+<li><strong>Background</strong> — transparent, the theme's stage, or a chroma green, blue or magenta.</li>
+<li><strong>Visualiser</strong> — the master's spectrum, its level, or off; <strong>Bar and beat</strong> and <strong>Song name and tempo</strong> on or off.</li>
+<li><strong>Always on top</strong>, <strong>Streaming mode</strong>, <strong>Copy OBS setup</strong>, and <strong>Close</strong>.</li>
+</ul>
+<p>The menu also shows <strong>what it costs</strong>: the processor time of each of its frames, its frame rate and the share of one core they make. The graphics card's time is not measured (Cantus does not ask the driver), and the menu says so. Minimised, the window draws nothing and costs nothing. It stays open across sessions until you close it.</p>
+<h2 id="streaming-mode">Streaming mode</h2>
+<p><em>View ▸ Streaming mode</em> turns the companion into a capture source for OBS Studio or Streamlabs: the window keeps the same title, <strong>Cantus Stage</strong>, every session, shows nothing but the stage (no frame or buttons when you point at it — right-click still opens its menu), and its size and place are fixed and remembered. <em>Copy OBS setup</em> in its menu puts the steps for its background on the clipboard.</p>
+<table>
+<tr><th>Background</th><th>In OBS</th><th>What you get</th></tr>
+<tr><td>Transparent</td><td><strong>Window Capture</strong>, capture method <em>Windows 10 (1903 and up)</em></td><td>The character with nothing around it</td></tr>
+<tr><td>Transparent</td><td>Window Capture, method <em>BitBlt</em></td><td>A black background (use a chroma background instead)</td></tr>
+<tr><td>Chroma green, blue or magenta</td><td>Window Capture + a <strong>Chroma Key</strong> filter of the same colour</td><td>The character keyed out; lower <em>Similarity</em> until its edges are clean</td></tr>
+<tr><td>The theme's stage</td><td>Window Capture</td><td>The character on Cantus's stage</td></tr>
+</table>
+<p>On Windows, OBS's <em>Game Capture</em> could not capture the window on a laptop with two graphics chips (one draws Cantus, the other runs OBS); <em>Window Capture</em> always did. On Linux, use <em>Window Capture (Xcomposite)</em> or <em>Screen Capture (PipeWire)</em>; a desktop with a compositor keeps the transparency, and without one choose a chroma background.</p>
+<h2 id="shortcuts">Shortcuts</h2>
+<table>
+<tr><th>Key</th><th>What it does</th></tr>
+<tr><td>Alt+D</td><td>Show or hide the dancers on screen (<em>View ▸ Stage</em>)</td></tr>
+<tr><td>Alt+Shift+D</td><td>Open or close the companion window</td></tr>
+<tr><td>Ctrl+Shift+D (Cmd+Shift+D on a Mac)</td><td>Streaming mode on or off (<em>View ▸ Streaming mode</em>, or the command palette)</td></tr>
+</table>
+</main>
+</body>
+</html>

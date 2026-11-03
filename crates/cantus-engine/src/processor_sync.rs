@@ -98,6 +98,23 @@ impl SyncRun {
     }
 }
 
+impl SyncRun {
+    /// Free places in the out ring (an external instrument keeps some for note-offs).
+    /// r36:external
+    pub(super) fn out_free(&self) -> usize {
+        self.port.out.slots()
+    }
+
+    /// An external instrument's note into the out ring (ADR 0094): whether it fit. r36:external
+    pub(super) fn push_ext(&mut self, m: Stamped) -> bool {
+        let ok = self.port.out.push(m).is_ok();
+        if !ok {
+            self.port.shared.dropped.fetch_add(1, Ordering::Relaxed);
+        }
+        ok
+    }
+}
+
 impl Processor {
     /// Give the processor its end of the sync seam and the device's telemetry (its output
     /// latency). Built off the audio thread, before the processor moves there.

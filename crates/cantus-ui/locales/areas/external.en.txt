@@ -1,0 +1,97 @@
+# Area: external - round 36 (ADR 0094 external units and the ping, ADR 0095 Mackie Control and HUI). Every key here needs its twin in external.es.txt
+cmd.external.add = add external gear
+cmd.external.remove = remove external gear
+cmd.external.set = change external gear
+cmd.external.latency = measure external gear
+
+# --- the state of a unit ---
+external.state.ready = ready
+external.state.off = switched off
+external.state.no_device = no audio device is open
+external.state.other_interface = another audio interface is open
+external.state.channels = the interface has no such channels
+external.state.send_master = the send would play on outputs 1-2, the master: choose another pair
+external.state.port = the MIDI port is not there
+external.state.track = its track is gone
+
+# --- the ping ---
+external.ping = Ping
+external.remeasure = Measure again
+external.ping.running = measuring...
+external.ping.silent = nothing came back: check the cable and the return channels
+external.ping.no_input = no audio input is open
+external.ping.not_found = something came back, but not the ping (hum, or another source)
+external.ping.dropped = the input lost audio while measuring: try again
+external.ping.unstable = the measurements disagree: the interface's timing is not steady
+external.ping.no_note = the synth did not answer the note: check the port, the channel and that the patch makes sound
+external.ping.busy = another measurement is running
+external.ping.no_unit = the unit is gone
+external.ping.playing = stop the transport first
+
+# --- the units in Settings ---
+external.band.units = External gear
+external.add.instrument = External instrument
+external.add.effect = External effect
+external.none = Select a track and add an external instrument (a synth out of a MIDI port, its sound back on an input pair) or an external effect (a send and a return).
+external.kind.instrument = external instrument
+external.kind.effect = external effect
+external.unit.title = {track}: {kind} - {state}
+external.row.routing = Routing
+external.row.latency = Latency
+external.row.adjust = Adjust
+external.row.log = Last messages
+external.row.surface = Surface
+external.no_port = no port
+external.port = MIDI output port
+external.channel = Ch {n}
+external.channel_name = MIDI channel
+external.send_pair = Out {pair}
+external.send_name = Interface outputs (send)
+external.return_pair = In {pair}
+external.return_name = Interface inputs (return)
+external.latency = {frames} frames, {ms} ms (jitter {jitter})
+external.not_measured = not measured yet: press Ping
+external.trim = {ms} ms
+external.trim_name = Trim added to the measurement
+external.level = {db} dB
+external.level_name = Return level
+external.on = On
+external.remove = Remove
+
+# --- control surfaces in Settings ---
+external.band.surfaces = Control surfaces
+external.surface.add = Add surface
+external.surface.add_virtual = Add virtual surface
+external.surface.none = No control surface. Add one for a Mackie Control or a HUI, or a virtual one to try it with nothing plugged in.
+external.surface.kind = Kind of surface
+external.surface.virtual = virtual unit (no ports)
+external.surface.input = MIDI input port
+external.surface.output = MIDI output port
+external.surface.output_auto = output of the same device
+external.surface.mcu = Mackie Control
+external.surface.xt1 = Mackie extender 1
+external.surface.xt2 = Mackie extender 2
+external.surface.hui = HUI
+
+# --- the agents' tools ---
+external.tool.add = Add {kind} to {track}
+
+# --- review: refusals, staleness, the track menu, touch sensing ---
+external.ping.aborted = the transport started: the measurement stopped
+external.ping.timed_out = the measurement did not come back (the device stopped or changed): try again
+external.cannot_freeze = {name} cannot be frozen: {track} plays outboard gear, which a render cannot play - record its return instead
+external.cannot_export = The song cannot be exported while {track} plays outboard gear: a render cannot play it. Record the gear's return to a track (or switch the unit off) and export again.
+external.cannot_bounce = {name} plays outboard gear, which a render cannot play: record its return instead
+external.stale_device = measured on another interface (buffer {buffer}): measure again
+external.rebased = measured at buffer {from}, adjusted to {to}
+external.menu.band = External gear
+external.menu.instrument = External instrument...
+external.menu.effect = External effect...
+external.menu.remove_instrument = Remove the external instrument
+external.menu.remove_effect = Remove the external effect
+external.surface.touch = Touch-sensing faders
+external.surface.touch_on = the motors wait while a fader is touched
+external.surface.touch_off = no touch sensing: a fader you move is held 0.6 s before the motors follow the mixer again (without this the motors would fight your hand)
+external.cannot_bake = The modulator cannot be baked while {track} plays outboard gear: a render cannot play it. Switch the unit off (or record its return) and bake again.
+cmd.external.surface_move = move faders on a control surface
+external.stale_unknown = measured on another interface: measure again

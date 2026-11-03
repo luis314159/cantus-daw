@@ -26,7 +26,7 @@ pub const STABLE_APPIMAGE: &str = "Cantus-linux-x86_64.AppImage";
 pub const STABLE_DMG: &str = "Cantus-macos-universal.dmg";
 /// GitHub's API for the latest release (its files' names), asked from the visitor's browser.
 pub const LATEST_API: &str = "https://api.github.com/repos/luis314159/cantus-daw/releases/latest";
-pub const VERSION: &str = "0.1.0-beta.10";
+pub const VERSION: &str = "0.1.0-beta.11";
 
 #[function_component(Nav)]
 pub fn nav() -> Html {
@@ -69,13 +69,14 @@ pub fn nav() -> Html {
                 <a class="brand" href="#top" aria-label="Cantus">{ icons::logo() }{ "Cantus" }<sup class="tm" aria-hidden="true">{ "™" }</sup></a>
                 <nav class="nav-links" aria-label={l.t("Sections", "Secciones")}>
                     <a href="#product">{ l.t("Product", "Producto") }</a>
-                    <a href="#listen">{ l.t("Listen", "Escucha") }</a>
+                    <a href="#record">{ l.t("Recording", "Grabación") }</a>
+                    <a href="#units">{ l.t("Instruments", "Instrumentos") }</a>
+                    <a href="#listen" class="opt2">{ l.t("Listen", "Escucha") }</a>
                     <a href="#features">{ l.t("Features", "Funciones") }</a>
-                    <a href="#engine">{ l.t("Engine", "Motor") }</a>
-                    <a href="#free">{ l.t("Free for good", "Libre para siempre") }</a>
-                    <a href="#faq">{ l.t("FAQ", "Preguntas") }</a>
-                    <a href="#support">{ l.t("Support", "Apoyar") }</a>
-                    <a href="#more">{ l.t("Manual & more", "Manual y más") }</a>
+                    <a href="#free" class="opt">{ l.t("Free for good", "Libre para siempre") }</a>
+                    <a href="#faq" class="opt2">{ l.t("FAQ", "Preguntas") }</a>
+                    <a href="#support" class="opt">{ l.t("Support", "Apoyar") }</a>
+                    <a href="#more" class="opt">{ l.t("Manual & more", "Manual y más") }</a>
                 </nav>
                 <div class="lang" role="group" aria-label={l.t("Language", "Idioma")}>
                     <button type="button" aria-pressed={(l == Lang::En).to_string()} onclick={pick(Lang::En)}>{ "EN" }</button>
@@ -130,17 +131,22 @@ pub fn hero() -> Html {
             <div class="wrap hero-in">
                 <div class="hero-top">
                     <div>
+                        <a class="hero-new" href="#record">
+                            <b>{ l.t("New", "Nuevo") }</b>
+                            <span>{ l.t("The recording mode: the whole song baked, only your take live", "El modo de grabación: toda la canción pre-renderizada, solo tu toma en vivo") }</span>
+                            <i aria-hidden="true">{ "→" }</i>
+                        </a>
                         <h1>{ l.t("Finish the song", "Termina la canción") }<span class="stop">{ "." }</span></h1>
                         <p class="hero-sub">
                             { l.t(
-                                "Cantus is a free, open-source DAW written in Rust. Sequence, record, mix and export \u{2014} with no account, no subscription and no telemetry.",
-                                "Cantus es un DAW libre y gratuito escrito en Rust. Secuencia, graba, mezcla y exporta \u{2014} sin cuenta, sin suscripción y sin telemetría.") }
+                                "Cantus is a free, open-source DAW for Windows and Linux, with a macOS preview, written in Rust. Sequence, record, mix and export \u{2014} with no account, no subscription and no telemetry.",
+                                "Cantus es un DAW libre y gratuito para Windows y Linux, con una vista previa para macOS, escrito en Rust. Secuencia, graba, mezcla y exporta \u{2014} sin cuenta, sin suscripción y sin telemetría.") }
                         </p>
                         <div class="hero-cta">
                             <a class="btn btn-primary" href="#download">{ icons::arrow_down() }{ l.t("Download the beta", "Descargar la beta") }</a>
                             <a class="btn btn-quiet" href="#rack">{ l.t("Play a groove first", "Toca un ritmo primero") }</a>
                         </div>
-                        <p class="hero-meta">{ format!("{} · Windows · Linux · {}", VERSION, l.t("app GPL-3.0-or-later · engine MPL-2.0", "app GPL-3.0-o-posterior · motor MPL-2.0")) }</p>
+                        <p class="hero-meta">{ format!("{} · Windows · Linux · {} · {}", VERSION, l.t("macOS (preview)", "macOS (vista previa)"), l.t("app GPL-3.0-or-later · engine MPL-2.0", "app GPL-3.0-o-posterior · motor MPL-2.0")) }</p>
                     </div>
                     { sigil() }
                 </div>

@@ -97,6 +97,9 @@ pub struct TrackSnapshot {
     pub notes_only: bool,
     /// How late its audio arrives at its level (`Track::lateness`, schema 38).
     pub lateness: Option<crate::model::Lateness>,
+    /// The hardware that belongs to this track (schema 51, ADR 0094): at most one
+    /// instrument and one effect, only those switched on. Empty for every older project.
+    pub external: Vec<crate::external_unit::ExternalLink>, // r36:external
     /// The note effects before its instrument (ADR 0069), as the track holds them; empty
     /// plays every event as it is.
     pub note_fx: Vec<crate::notefx::NoteEffect>,
@@ -290,6 +293,18 @@ pub struct Snapshot {
     /// by tick: the engine proposes each to a followed Link session as its tick is heard
     /// (`Processor::propose_tempo`). Empty but in a projection.
     pub scene_tempos: Vec<(Ticks, f64)>,
+    /// What the engine adds to a member's fader lane for its VCAs (ADR 0093). Empty — every
+    /// project without a VCA that rides a lane.
+    pub vca_links: Vec<crate::vca::VcaLink>, // r36:mix
+    /// Per lane of `automation`: its link in `vca_links`, or `vca::NO_LINK`; empty when
+    /// there are no links (review 1, item 4: no search at a control point). // r36:mix
+    pub vca_by_lane: Vec<u32>, // r36:mix
+    /// The cues' switch timeline (ADR 0093 §3): mute/solo, polarity, swap, bypasses, the
+    /// strip EQ, region by region. Empty — every project without a cue that switches. // r36:mix
+    pub mix_scenes: Vec<crate::mix_scene::MixScene>, // r36:mix
+    /// The recording mode's baked master (ADR 0092 §3): one render the master stage plays
+    /// in place of its chain and fader; `None` (every snapshot but the mode's). // r36:record
+    pub master_frozen: Option<crate::freeze::FrozenPlay>, // r36:record
 }
 
 impl Snapshot {
@@ -309,6 +324,7 @@ impl Snapshot {
         prev: Option<(&Project, &Snapshot)>,
     ) -> Snapshot {
         let mut automation = crate::automation::compile::compile(project);
+        crate::mix_snap::cue_lanes(project, &mut automation); // r36:mix
         let hearing = crate::warp::held_tempo(project);
         let prev = prev.filter(|(q, _)| {
             q.grooves == project.grooves
@@ -375,6 +391,12 @@ impl Snapshot {
                 rest: false,
                 notes_only: false,
                 lateness: t.lateness,
+                external: project // r36:external
+                    .external_units
+                    .iter()
+                    .filter(|u| u.track == t.id && u.enabled)
+                    .map(|u| crate::external_unit::ExternalLink::of(u, project.route_of(u.id)))
+                    .collect(),
                 note_fx: t.note_fx.clone(),
                 direct,
             })
@@ -386,6 +408,7 @@ impl Snapshot {
         }
         // Modulators (ADR 0057): a lane for every modulated target, and their plans.
         let modulators = crate::modulator::compile::compile(project, &tracks, &mut automation);
+        let vca = crate::vca::compile(project, &mut automation); // r36:mix
         Snapshot {
             revision,
             tempo_bpm: project.tempo_bpm,
@@ -410,9 +433,14 @@ impl Snapshot {
                     .strips
                     .iter()
                     .zip(audible)
-                    .map(|(s, audible)| StripSnapshot {
+                    .enumerate()
+                    .map(|(i, (s, audible))| StripSnapshot {
                         id: s.id,
-                        gain: db_to_linear(s.gain_db),
+                        // A VCA's static decibels add to the fader's (ADR 0093).
+                        gain: db_to_linear(match vca.fold_db[i] {
+                            Some(db) => crate::vca::sum_db(s.gain_db, db), // r36:mix
+                            None => s.gain_db,
+                        }),
                         pan: s.pan,
                         width: s.width,
                         phase_invert: s.phase_invert,
@@ -444,7 +472,8 @@ impl Snapshot {
                             use crate::freeze::{solo_play, FreezeTarget, FrozenPlay};
                             FrozenPlay::of(f, solo_play(project, FreezeTarget::Strip(s.id)))
                         }),
-                        rest: false,
+                        // A VCA has no audio: it is never run. // r36:mix
+                        rest: s.kind == crate::vca::StripKind::Vca,
                     })
                     .collect()
             },
@@ -462,6 +491,10 @@ impl Snapshot {
             cuts: Vec::new(),
             // r33:session
             scene_tempos: Vec::new(),
+            vca_links: vca.links,                            // r36:mix
+            vca_by_lane: vca.by_lane,                        // r36:mix
+            mix_scenes: crate::mix_scene::timeline(project), // r36:mix
+            master_frozen: None,                             // r36:record
         }
     }
 

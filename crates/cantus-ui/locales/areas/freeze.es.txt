@@ -120,3 +120,4 @@ freeze.ll.round_trip = {ms} ms ida y vuelta
 freeze.ll.now_on = Escucha con baja latencia activa: lo que escuchas se oye sin esperar a las otras pistas.
 freeze.ll.now_off = Escucha con baja latencia apagada: todo vuelve a estar alineado.
 freeze.chip.monitored = {ms} ms de escucha
+freeze.cannot_cue_solo = {name} no se puede congelar: una señal de la mesa pone en solo {what} dentro de él, y un render no guarda solos. Quita el solo de la señal primero.

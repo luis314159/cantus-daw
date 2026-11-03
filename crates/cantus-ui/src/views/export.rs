@@ -308,6 +308,11 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         app.set_error(crate::i18n::tf("isolation.render.busy", &[("job", &job)]));
         return false;
     }
+    // Outboard gear cannot play in an offline render (ADR 0094 §6). r36:external
+    if let Some(words) = crate::external_service::export_refusal(app) {
+        app.set_error(words); // r36:external
+        return false; // r36:external
+    }
     let from_dialog = choices.is_none();
     let mut d = match choices.or_else(|| app.export.dialog.clone()) {
         Some(d) => d,

@@ -381,8 +381,13 @@ pub fn wrapped(ui: &mut Ui, s: &str, role: Role, color: egui::Color32, width: f3
 mod settings_midi;
 pub use settings_midi::{inputs_layout as midi_inputs_layout, InputsLayout}; // r33:launcher
 
+// The external gear's bands (round 36, ADR 0094, 0095). r36:external
+#[path = "external_bands.rs"] // r36:external
+pub mod external_bands; // r36:external
+
 fn midi(app: &mut CantusApp, ui: &mut Ui) {
     settings_midi::page(app, ui);
+    external_bands::page(app, ui); // r36:external
 }
 
 /// Settings ▸ MIDI with these ports, for the screenshots (round 33).

@@ -66,7 +66,11 @@ impl ClipContent {
             name: clip.name.clone(),
             color: clip.color,
             notes: clip.notes.clone(),
-            audio: clip.audio.clone(),
+            // r36:ara — the ARA binding is the clip's own, never content (ADR 0097).
+            audio: clip.audio.clone().map(|mut a| {
+                a.ara = None;
+                a
+            }),
             automation: clip.automation.clone(),
             lanes: clip.lanes.clone(),
             groove: clip.groove,
@@ -80,7 +84,7 @@ impl ClipContent {
             name: std::mem::replace(&mut clip.name, self.name),
             color: std::mem::replace(&mut clip.color, self.color),
             notes: std::mem::replace(&mut clip.notes, self.notes),
-            audio: std::mem::replace(&mut clip.audio, self.audio),
+            audio: swap_audio(&mut clip.audio, self.audio),
             automation: std::mem::replace(&mut clip.automation, self.automation),
             lanes: std::mem::replace(&mut clip.lanes, self.lanes),
             groove: std::mem::replace(&mut clip.groove, self.groove),
@@ -89,16 +93,57 @@ impl ClipContent {
     }
 }
 
+/// r36:ara — put `new` audio settings on a clip, keeping its ARA binding (each clip's own) when
+/// it stays an audio clip; the binding of a clip that stops being one travels in what is
+/// handed back, so the swap back restores it.
+fn swap_audio(slot: &mut Option<AudioRegion>, mut new: Option<AudioRegion>) -> Option<AudioRegion> {
+    let ara = slot.as_mut().and_then(|a| a.ara.take());
+    let mut old = match new.as_mut() {
+        Some(n) => {
+            n.ara = ara;
+            std::mem::replace(slot, new)
+        }
+        None => {
+            let mut old = std::mem::replace(slot, new);
+            if let Some(o) = old.as_mut() {
+                o.ara = ara;
+            }
+            return old;
+        }
+    };
+    if let Some(o) = old.as_mut() {
+        o.ara = None;
+    }
+    old
+}
+
 /// Whether two clips share every shared field, to the bit (notes in the same order).
 pub fn same_content(a: &Clip, b: &Clip) -> bool {
     a.name == b.name
         && a.color == b.color
         && a.notes == b.notes
-        && a.audio == b.audio
+        && audio_shared_eq(&a.audio, &b.audio) // r36:ara
         && a.automation == b.automation
         && a.lanes == b.lanes
         && a.groove == b.groove
         && a.skip_note_fx == b.skip_note_fx
+}
+
+/// r36:ara — audio settings equal in what a link group shares: everything but the ARA
+/// binding, which is each clip's own (each bound clip has its own modification and state in
+/// the plug-in, ADR 0097).
+fn audio_shared_eq(a: &Option<AudioRegion>, b: &Option<AudioRegion>) -> bool {
+    match (a, b) {
+        (Some(x), Some(y)) if x.ara.is_some() || y.ara.is_some() => {
+            let strip = |r: &AudioRegion| {
+                let mut r = r.clone();
+                r.ara = None;
+                r
+            };
+            strip(x) == strip(y)
+        }
+        _ => a == b,
+    }
 }
 
 /// Copy `src`'s shared fields onto `dst`.
@@ -106,7 +151,12 @@ pub fn adopt(dst: &mut Clip, src: &Clip) {
     dst.name.clone_from(&src.name);
     dst.color = src.color;
     dst.notes.clone_from(&src.notes);
+    // r36:ara — the ARA binding is each clip's own: kept.
+    let ara = dst.audio.as_mut().and_then(|a| a.ara.take());
     dst.audio.clone_from(&src.audio);
+    if let Some(a) = dst.audio.as_mut() {
+        a.ara = ara;
+    }
     dst.automation.clone_from(&src.automation);
     dst.lanes.clone_from(&src.lanes);
     dst.groove = src.groove;

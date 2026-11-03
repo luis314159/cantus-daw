@@ -408,6 +408,8 @@ pub fn paint(
     {
         parts::loading(b, lanes, inner, look, s);
     }
+    // r36:ara — a bound clip says so, and how far its render is (ADR 0097).
+    crate::views::ara_menu::paint_clip(b, app, (shown.track, shown.clip.id), inner, s);
     // A fade a crossfade replaces is not drawn, nor offered (ADR 0070).
     let keep = (
         !matches!(crossing.into, Some((_, _, Some(_), _))),

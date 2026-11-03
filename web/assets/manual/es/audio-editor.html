@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El editor de audio</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="el-editor-de-audio">El editor de audio</h1>
+<p><em>Cantus 0.1.0-beta.11 y posteriores · <a href="../en/audio-editor.html">Read in English</a></em></p>
+<p>Quita una tos de una toma, silencia un golpe, haz fundidos en los extremos, lleva la toma a un nivel, quítale el siseo y los chasquidos, borra el aire muerto entre frases — y escúchalo en el clip al instante. El editor de audio es el editor de onda que se abre desde un clip. (El editor de tono, que corrige notas sin tocar el audio, es otra herramienta: doble clic en el clip.)</p>
+<h2 id="abrirlo-y-salir">Abrirlo y salir</h2>
+<p>Clic derecho en un clip de audio ▸ <strong>Editar en el editor de audio…</strong> La ventana muestra el archivo entero del clip. Ciérrala con ✕: el clip suena como lo dejaste. Deshacer y Rehacer funcionan como en todo lo demás, con la ventana abierta o cerrada; la ventana los sigue. Abrir otro proyecto la cierra.</p>
+<p><strong>Nada de lo que haces aquí toca el archivo del que partiste.</strong> Cada edición hace un archivo nuevo (se llama <code>edit-</code> y un código de su contenido, en la carpeta <em>Audio</em> del proyecto) y apunta el clip a él: un paso de deshacer cada una, con el original aún en la lista de archivos del proyecto.</p>
+<p>También en la barra: <strong>Abrir archivo…</strong> pone un archivo en una pista nueva y lo abre aquí; <strong>Pegar desde archivo…</strong> pega un archivo en el cursor (a otra frecuencia de muestreo, o estéreo en mono, se convierte antes — igual que el portapapeles); <strong>A clip nuevo</strong> — o <strong>arrastrar con Alt</strong> la selección fuera de la ventana — hace de la selección un clip propio en una pista nueva, justo donde suena ahora.</p>
+<h2 id="seleccionar-al-cuadro">Seleccionar al cuadro</h2>
+<ul>
+<li><strong>Arrastra</strong> en la onda o en el espectrograma para seleccionar. El pie de la ventana dice la selección al cuadro (<code>1.23456 s (59259)</code>). Arrastra un borde para cambiarla, arrastra con <strong>Mayús</strong> para extenderla, doble clic para seleccionar todo, clic para un cursor. Escape quita la selección.</li>
+<li>La <strong>rueda</strong> acerca y aleja alrededor del puntero; <strong>Mayús + rueda</strong> (o la barra bajo los gráficos) desplaza. <em>Ver todo</em> y <em>Acercar a la selección</em> están en la barra. Con zoom suficiente se dibujan las muestras mismas, y el espectrograma se vuelve a dibujar en detalle para lo que ves.</li>
+<li><strong>Marcador</strong> pone una bandera en el cursor; <strong>Región</strong> nombra la selección; <strong>Puntos de bucle</strong> marca la selección como bucle. Se guardan con el archivo, en el proyecto, y se mueven con el audio al cortar o pegar. Un clic en una bandera de la regla selecciona hasta la siguiente, o en la barra de una región la selecciona. <em>Quitar marcas</em> las borra (un paso de deshacer).</li>
+<li><strong>Reproducir</strong> escucha la selección, o la toma entera (la barra espaciadora la inicia y la para).</li>
+</ul>
+<h2 id="ediciones">Ediciones</h2>
+<p>La barra: <strong>Cortar</strong>, <strong>Copiar</strong>, <strong>Pegar</strong> (reemplaza la selección, o entra en el cursor), <strong>Borrar</strong>, <strong>Recortar</strong>, <strong>Silenciar</strong>, <strong>Invertir</strong>, <strong>Reverso</strong>. Sin selección, Invertir y Reverso actúan sobre la toma entera. Cortar, Copiar, Pegar y Borrar usan las teclas de siempre mientras la ventana está abierta. Mientras se hace una edición, la siguiente espera (&quot;Espera: el editor aún trabaja…&quot;).</p>
+<p><strong>Uniones suaves</strong> (activadas por omisión): donde se unen trozos — un corte, un pegado, un silencio — los bordes van al cruce por cero más cercano y los dos lados se funden en 3 ms, para que nada chasquee. Desactívalas para un empalme crudo exactamente donde lo pones.</p>
+<p>La columna de la derecha:</p>
+<ul>
+<li><strong>Nivel.</strong> <em>Aplicar ganancia</em> (dB); <em>Normalizar</em> a un objetivo de <strong>pico</strong>, <strong>RMS</strong> (ambos en dBFS) o sonoridad (<strong>LUFS</strong>, integrada; al menos 0,4 s) — de la selección o de la toma entera. Con <strong>Techo de pico</strong>, RMS y LUFS se detienen donde los picos llegan al techo (el estado dice qué nivel se alcanzó); sin él, el estado avisa cuando los picos pasan de 0 dBFS.</li>
+<li><strong>Fundidos.</strong> Cinco curvas; <em>Fundido de entrada</em> y <em>de salida</em> sobre la selección.</li>
+<li><strong>Reducción de ruido.</strong> Selecciona un tramo de <strong>solo ruido</strong> y pulsa <strong>Aprender ruido</strong> (la selección se quita después); <strong>Reducir ruido</strong> limpia la toma entera, o una selección que hagas (que se funde con el resto en 10 ms). <em>Cantidad</em> al 0 % no cambia nada; <em>Reducir</em> es lo máximo que se baja cualquier frecuencia; <em>Fuerza</em> es cuánto de los picos del ruido atrapa; <em>Suavizar</em> ablanda el resultado. Para ruido constante — siseo, zumbido, ventiladores.</li>
+<li><strong>Silencio y DC.</strong> <em>Quitar silencio</em> corta los tramos por debajo de <em>Bajo</em> que duran más de <em>Mínimo</em>, dejando <em>Dejar</em> milisegundos de cada uno. <em>Quitar DC</em> elimina el desplazamiento.</li>
+<li><strong>Chasquidos.</strong> <strong>Quitar chasquidos</strong> encuentra chasquidos y golpes en la selección (o la toma) y reconstruye cada uno con el audio de alrededor; <em>Sensibilidad</em> encuentra los más débiles. O selecciona un chasquido (hasta 20 ms) y <strong>Reparar selección</strong>.</li>
+<li><strong>Región espectral.</strong> En <strong>Espectro</strong> o <strong>Ambas</strong>, arrastra un rectángulo sobre el sonido que quieres bajar (un silbido, la banda de un zumbido), fija la <em>Ganancia de la región</em> y <strong>Aplicar a la región</strong>.</li>
+</ul>
+<p>Una edición que no cambiaría nada lo dice y no hace archivo; una que no dejaría nada se rechaza.</p>
+<h2 id="qué-conserva-el-clip">Qué conserva el clip</h2>
+<p>La ganancia, los fundidos, los fundidos cruzados y el reverso se quedan. Las notas del editor de tono y los marcadores de warp se quedan con las ediciones que no mueven el tiempo del audio (ganancia, normalizar, invertir, DC, fundidos, silencio, ruido, chasquidos, región) y se descartan — el estado lo dice — con Reverso, Pegar y las ediciones que cambian la duración. Un clip que mostraba la toma entera muestra la toma editada entera; los demás clips conservan su lugar. Los clips enlazados cambian juntos.</p>
+<h2 id="limpiar">Limpiar</h2>
+<p>Cada edición guarda un archivo. <strong>Limpiar…</strong> (también en el menú del clip de audio: <em>Quitar audio sin usar…</em>) lista los archivos que ningún clip toca y los archivos del editor a los que nada se refiere, con sus tamaños, antes de quitar nada; la lista sale del proyecto en un solo paso de deshacer. Los archivos que pusiste tú en la carpeta nunca se borran, y los que Deshacer aún podría traer de vuelta se quedan en el disco hasta que reabras el proyecto y vuelvas a limpiar.</p>
+<h2 id="para-los-agentes">Para los agentes</h2>
+<p><code>edit_audio</code>, <code>denoise_clip</code> y <code>remove_unused_audio</code> hacen lo mismo, en un paso de deshacer cada uno; las ediciones corren en segundo plano. Las posiciones son segundos en el archivo propio del clip.</p>
+<h2 id="bueno-saber">Bueno saber</h2>
+<ul>
+<li>Se abren aquí tomas de hasta 30 minutos.</li>
+<li>Grabar directamente en el editor aún no está: graba en el arreglo y abre la toma.</li>
+</ul>
+</main>
+</body>
+</html>

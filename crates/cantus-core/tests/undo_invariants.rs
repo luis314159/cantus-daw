@@ -1783,7 +1783,16 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut launched = [0usize; 2];
     // r34:stems — round 34 (ADR 0085): provenance set, cleared, and gone with its source.
     let mut provenanced = [[0usize; 2]; 3]; // r34:stems
-                                            // 120 sequences (round 31: one arm more spreads the draws thinner).
+                                            // r36:mix - per kind of `round36_mix_command`, applied and refused.
+    let mut mixed = [[0usize; 2]; MIX_KINDS]; // r36:mix
+                                              // 120 sequences (round 31: one arm more spreads the draws thinner).
+    let mut marked = [[0usize; 2]; 4]; // r36:editor
+                                       // 120 sequences (round 31: one arm more spreads the draws thinner).
+                                       // r36:ara — round 36 (ADR 0097): a clip bound to an ARA plug-in, let go, and refused.
+    let mut ara_done = [[0usize; 2]; 5]; // r36:ara
+                                         // r36:external - per kind of `round36_external_command`, applied and refused.
+    let mut externaled = [[0usize; 2]; EXTERNAL_KINDS];
+    // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
@@ -1796,9 +1805,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         }
         let mut checkpoints: Vec<Project> = vec![bus.project().clone()];
         let mut applied = 0;
-        // Round 32 (ADR 0075): a track's score settings, drawn from a stream of their own
-        // between the others — no generator reads them, so every other draw stays the one
-        // it was — and refused when they are not valid or the track is not there.
+        let mut mixed_applied = 0; // r36:mix
+                                   // Round 32 (ADR 0075): a track's score settings, drawn from a stream of their own
+                                   // between the others — no generator reads them, so every other draw stays the one
+                                   // it was — and refused when they are not valid or the track is not there.
         let mut srng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(45));
         let mut qrng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(46));
         // r33:mpe — round 33 (ADR 0080): per-note expression and a hosted instrument's route,
@@ -1806,7 +1816,22 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         let mut mrng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(47)); // r33:mpe
         let mut lrng = Lcg(seed.wrapping_mul(0x1405_7B7D).wrapping_add(47));
         let mut prng = Lcg(seed.wrapping_mul(0x6C07_8965).wrapping_add(48)); // r34:stems
+        let mut xrng = Lcg(seed.wrapping_mul(0x3C6E_F35F).wrapping_add(50)); // r36:mix
+        let mut erng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(52)); // r36:editor
+        let mut arng = Lcg(seed.wrapping_mul(0x9E37_79B1).wrapping_add(53)); // r36:ara
+        let mut urng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(54)); // r36:external
         for _ in 0..120 {
+            // r36:ara — a clip bound to an ARA plug-in or let go (ADR 0097), from `arng`.
+            if arng.below(5) == 0 {
+                let (k, cmd) = round36_ara_command(&mut arng, bus.project());
+                let ok = bus.execute(cmd, origins[arng.below(5) as usize]).is_ok();
+                ara_done[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
             // r33:mpe — an expression edit now and then, undone with the rest.
             if mrng.below(8) == 0 {
                 let cmd = round33_mpe_command(&mut mrng, bus.project());
@@ -1854,6 +1879,17 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     checkpoints.push(snap);
                 }
             }
+            // r36:editor — a file's marks (ADR 0096 §6), from a stream of their own (`erng`).
+            if erng.below(4) == 0 {
+                let (k, cmd) = round36_marks_command(&mut erng, bus.project());
+                let ok = bus.execute(cmd, origins[erng.below(5) as usize]).is_ok();
+                marked[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
             // r34:stems — a file's provenance (ADR 0085), from a stream of its own (`prng`).
             if prng.below(4) == 0 {
                 let (k, cmd) = round34_provenance_command(&mut prng, bus.project());
@@ -1865,10 +1901,43 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     checkpoints.push(snap);
                 }
             }
+            // r36:mix - VCAs, snapshots, recalls and cues (ADR 0093), from a stream of their own.
+            if xrng.below(6) == 0 {
+                let mut scratch = bus.project().clone();
+                let (k, cmd) = round36_mix_command(&mut xrng, &mut scratch);
+                let ok = bus.execute(cmd, origins[xrng.below(5) as usize]).is_ok();
+                bus.reserve_ids(scratch.next_id);
+                mixed[k][usize::from(!ok)] += 1;
+                if ok {
+                    mixed_applied += 1; // r36:mix - its own count; `applied` is the main stream's
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // r36:external - external units (ADR 0094), from a stream of their own (`urng`).
+            if urng.below(5) == 0 {
+                let mut scratch = bus.project().clone();
+                let (k, cmd) = round36_external_command(&mut urng, &mut scratch);
+                bus.reserve_ids(scratch.next_id);
+                let ok = bus.execute(cmd, origins[urng.below(5) as usize]).is_ok();
+                externaled[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
             // Id allocation mutates `next_id` outside the command system; keep the two in
             // sync by cloning the project only to *generate* the command, then re-applying
             // the allocation through a real project copy.
             let mut scratch = bus.project().clone();
+            // r36:mix - the main stream draws among the audio strips: a VCA takes no output,
+            // send, insert or track, and drawing it would only starve the main stream's count.
+            // Without a VCA (every sequence before round 36) this changes no draw.
+            scratch
+                .strips
+                .retain(|s| s.kind == cantus_core::vca::StripKind::Audio);
             let cmd = random_command(&mut rng, &mut scratch);
             // Keep the bus id counter in sync with the ids the generator handed out.
             while bus.project().next_id < scratch.next_id {
@@ -2121,11 +2190,17 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             applied > 80,
             "seed {seed}: too few commands applied ({applied})"
         );
+        // r36:mix - the mix stream's own floor.
+        assert!(
+            mixed_applied >= 3,
+            "seed {seed}: too few mix commands applied ({mixed_applied})"
+        );
         assert!(bus.project().tracks.len() + 1 >= 2 || applied > 0);
 
         // Walk back: each undo must yield the previous checkpoint.
         for i in (1..checkpoints.len()).rev() {
-            assert!(bus.undo().is_some(), "seed {seed}: undo {i} failed");
+            let undone = bus.undo();
+            assert!(undone.is_some(), "seed {seed}: undo {i} failed");
             links::check(bus.project())
                 .unwrap_or_else(|e| panic!("seed {seed}: link invariant broken by undo: {e}"));
             let mut now = bus.project().clone();
@@ -2135,7 +2210,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             assert_eq!(
                 now,
                 expected,
-                "seed {seed}: mismatch after undo to checkpoint {}",
+                "seed {seed}: mismatch after undo to checkpoint {} (undid {undone:?})",
                 i - 1
             );
         }
@@ -2231,10 +2306,36 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         launched.iter().all(|n| *n > 0),
         "round 33's session mappings never applied or never refused: {launched:?}"
     );
+    // r36:editor — marks set, cleared and gone with their source; marks out of range refused.
+    assert!(
+        marked[0][0] > 0 && marked[1][1] > 0 && marked[2][0] > 0 && marked[3][0] > 0,
+        "round 36's marks never applied or never refused: {marked:?}"
+    );
+    // r36:ara — bound and let go at least once each; a binding on a note clip (or a
+    // linked, warped or pitch-edited one) refused.
+    assert!(
+        ara_done[0][0] > 0
+            && ara_done[1][0] > 0
+            && ara_done[2][1] > 0
+            && ara_done[3][0] > 0
+            && ara_done[4][0] > 0,
+        "round 36's ARA bindings never applied or never refused: {ara_done:?}"
+    );
     // r34:stems — each kind applied at least once, a provenance on no source refused.
     assert!(
         provenanced.iter().all(|k| k[0] > 0) && provenanced[0][1] > 0,
         "round 34's provenance never applied or never refused: {provenanced:?}"
+    );
+    // r36:external - every kind applied at least once, the refused one refused.
+    assert!(
+        externaled[..EXTERNAL_KINDS - 1].iter().all(|k| k[0] > 0)
+            && externaled[EXTERNAL_KINDS - 1][1] > 0,
+        "round 36's external units never applied or never refused: {externaled:?}"
+    );
+    // r36:mix - every kind applied at least once, and the checked ones refused.
+    assert!(
+        mixed.iter().all(|k| k[0] > 0) && mixed[1][1] > 0 && mixed[4][1] > 0 && mixed[14][1] > 0,
+        "round 36's mix commands never applied or never refused: {mixed:?}"
     );
     assert!(
         kept_frames > 0,
@@ -5078,6 +5179,72 @@ fn round34_provenance_command(rng: &mut Lcg, project: &Project) -> (usize, Comma
     }
 }
 
+/// r36:editor — round 36 (ADR 0096 §6): a file's marks set (in range), set out of range
+/// (refused), cleared, or the source removed with them (its inverse puts them back). The
+/// kind, and the command.
+fn round36_marks_command(rng: &mut Lcg, project: &Project) -> (usize, Command) {
+    use cantus_core::{SourceMarker, SourceMarks, SourceRegion};
+    let pool: Vec<_> = project
+        .audio_pool
+        .iter()
+        .map(|s| (s.id, s.frames))
+        .collect();
+    let Some(&(id, frames)) = pool.get(rng.below(pool.len().max(1) as u64) as usize) else {
+        return (
+            1,
+            Command::SetAudioSourceMarks {
+                id: cantus_core::AudioSourceId(u64::MAX - 9),
+                marks: Some(Box::default()),
+            },
+        );
+    };
+    let f = frames.max(8);
+    match rng.below(4) {
+        0 => {
+            let a = rng.below(f / 2);
+            let marks = SourceMarks {
+                markers: vec![SourceMarker {
+                    frame: a,
+                    name: format!("m{}", rng.below(9)),
+                }],
+                regions: vec![SourceRegion {
+                    start: a,
+                    end: a + 1 + rng.below(f / 2 - 1),
+                    name: String::new(),
+                }],
+                loop_points: (rng.below(2) == 0).then_some((0, f / 2)),
+            };
+            (
+                0,
+                Command::SetAudioSourceMarks {
+                    id,
+                    marks: Some(Box::new(marks)),
+                },
+            )
+        }
+        1 => {
+            let marks = SourceMarks {
+                loop_points: Some((f, f + 10)),
+                ..SourceMarks::default()
+            };
+            (
+                1,
+                Command::SetAudioSourceMarks {
+                    id,
+                    marks: Some(Box::new(marks)),
+                },
+            )
+        }
+        2 => (2, Command::SetAudioSourceMarks { id, marks: None }),
+        _ => {
+            // The pool's last source, with its marks when it has them: a removed source comes
+            // back at the pool's end, so only the last one comes back where it was.
+            let id = pool.last().map(|p| p.0).unwrap_or(id);
+            (3, Command::RemoveAudioSource { id })
+        }
+    }
+}
+
 // r35:dancer — round 35 (ADR 0087): sequences of their own, so the main test's projects
 // (and every kind's coverage counted on them) stay the ones they were.
 /// The dancer's commands (`drng`, a stream of their own) among the general generator's
@@ -5203,5 +5370,436 @@ fn round35_dancer_command(rng: &mut Lcg, project: &mut Project) -> (usize, Comma
         ),
         3 => (4, set("move", rng.below(17) as f32)),
         _ => (5, set("no.such.key", 1.0)),
+    }
+}
+
+/// r36:mix — round 36 (ADR 0093): VCAs and who follows them, mixer snapshots, recalls (all,
+/// named channels, safe ones), cues, from a stream of their own. The kind, and the command.
+const MIX_KINDS: usize = 16;
+fn round36_mix_command(rng: &mut Lcg, scratch: &mut Project) -> (usize, Command) {
+    use cantus_core::mix_cmd::MixCommand as M;
+    use cantus_core::mix_snap::{capture, MixCue, MixCueId, MixSnapId, MixSnapshot};
+    let strips: Vec<StripId> = scratch.strips.iter().map(|s| s.id).collect();
+    let vcas: Vec<StripId> = scratch
+        .strips
+        .iter()
+        .filter(|s| s.kind == cantus_core::vca::StripKind::Vca)
+        .map(|s| s.id)
+        .collect();
+    let any_strip = |rng: &mut Lcg| strips[rng.below(strips.len() as u64) as usize];
+    let snaps: Vec<MixSnapId> = scratch.mix.snapshots.iter().map(|s| s.id).collect();
+    let snap = |rng: &mut Lcg| {
+        snaps
+            .get(rng.below(snaps.len() as u64 + 1) as usize)
+            .copied()
+            .unwrap_or(MixSnapId(u64::MAX - 3))
+    };
+    match rng.below(MIX_KINDS as u64) {
+        // One VCA at most: a desk with several would have the main stream's commands refused
+        // (a VCA takes no output, send or insert) and starve its own count.
+        0 if !vcas.is_empty() => (
+            5,
+            Command::Mix(M::SetRecallSafe {
+                id: any_strip(rng),
+                safe: false,
+            }),
+        ),
+        0 => {
+            let mut v = scratch.make_strip("VCA");
+            v.kind = cantus_core::vca::StripKind::Vca;
+            v.gain_db = -(rng.below(12) as f32);
+            let index = rng.below(scratch.strips.len() as u64 + 1) as usize;
+            (
+                0,
+                Command::InsertStrip {
+                    index,
+                    strip: Box::new(v),
+                },
+            )
+        }
+        1 => {
+            // Mostly VCAs, sometimes a plain strip (refused) or itself (refused).
+            let id = any_strip(rng);
+            let n = rng.below(3) as usize;
+            let list = (0..n)
+                .map(|_| {
+                    if !vcas.is_empty() && rng.below(6) != 0 {
+                        vcas[rng.below(vcas.len() as u64) as usize]
+                    } else {
+                        any_strip(rng)
+                    }
+                })
+                .collect();
+            (1, Command::Mix(M::SetStripVcas { id, vcas: list }))
+        }
+        2 => {
+            let g = scratch
+                .strip_groups
+                .get(rng.below(scratch.strip_groups.len() as u64 + 1) as usize)
+                .map(|g| g.id)
+                .unwrap_or(GroupId(u64::MAX - 3));
+            let vca = (rng.below(4) != 0 && !vcas.is_empty())
+                .then(|| vcas[rng.below(vcas.len() as u64) as usize]);
+            (2, Command::Mix(M::SetGroupVca { id: g, vca }))
+        }
+        3 => {
+            let scope: Vec<StripId> = if rng.below(2) == 0 {
+                Vec::new()
+            } else {
+                vec![any_strip(rng), any_strip(rng)]
+            };
+            let id = MixSnapId(scratch.alloc_id());
+            let state = capture(scratch, &scope, rng.below(2) == 0);
+            let index = rng.below(snaps.len() as u64 + 1) as usize;
+            (
+                3,
+                Command::Mix(M::InsertSnapshot {
+                    index,
+                    snapshot: Box::new(MixSnapshot {
+                        id,
+                        name: format!("s{}", id.0),
+                        state,
+                    }),
+                }),
+            )
+        }
+        4 => {
+            let scope = if rng.below(2) == 0 {
+                Vec::new()
+            } else {
+                vec![any_strip(rng)]
+            };
+            (
+                4,
+                Command::Mix(M::Recall {
+                    id: snap(rng),
+                    scope,
+                    master: rng.below(2) == 0,
+                    include_safe: rng.below(2) == 0,
+                }),
+            )
+        }
+        5 => (
+            5,
+            Command::Mix(M::SetRecallSafe {
+                id: any_strip(rng),
+                safe: rng.below(2) == 0,
+            }),
+        ),
+        6 => {
+            let id = MixCueId(scratch.alloc_id());
+            let cue = MixCue {
+                id,
+                at: Ticks::beats(rng.below(32) as i64),
+                snapshot: snap(rng),
+                scope: if rng.below(3) == 0 {
+                    vec![any_strip(rng)]
+                } else {
+                    Vec::new()
+                },
+            };
+            let index = rng.below(scratch.mix.cues.len() as u64 + 1) as usize;
+            (6, Command::Mix(M::InsertCue { index, cue }))
+        }
+        7 => {
+            let id = scratch
+                .mix
+                .cues
+                .get(rng.below(scratch.mix.cues.len() as u64 + 1) as usize)
+                .map(|c| c.id)
+                .unwrap_or(MixCueId(u64::MAX - 3));
+            (7, Command::Mix(M::RemoveCue { id }))
+        }
+        8 => (8, Command::Mix(M::RemoveSnapshot { id: snap(rng) })),
+        9 => (
+            9,
+            Command::Mix(M::RenameSnapshot {
+                id: snap(rng),
+                name: format!("n{}", rng.below(99)),
+            }),
+        ),
+        10 => (
+            10,
+            Command::Mix(M::UpdateSnapshot {
+                id: snap(rng),
+                state: Box::new(capture(scratch, &[], true)),
+            }),
+        ),
+        11 => {
+            let state = scratch
+                .mix
+                .snapshots
+                .first()
+                .map(|s| s.state.clone())
+                .unwrap_or_default();
+            (
+                11,
+                Command::Mix(M::Apply {
+                    state: Box::new(state),
+                }),
+            )
+        }
+        12 => {
+            // A VCA's mute: its members' mute (the edit lock reads it).
+            let id = vcas.first().copied().unwrap_or_else(|| any_strip(rng));
+            (
+                12,
+                Command::SetStripMute {
+                    id,
+                    muted: rng.below(2) == 0,
+                },
+            )
+        }
+        14 => {
+            // A cue moved to another bar (or onto another snapshot); refused for a cue that
+            // is not there.
+            let cue = match scratch
+                .mix
+                .cues
+                .get(rng.below(scratch.mix.cues.len() as u64 + 1) as usize)
+            {
+                Some(c) => MixCue {
+                    at: Ticks::beats(rng.below(32) as i64),
+                    snapshot: if rng.below(2) == 0 {
+                        c.snapshot
+                    } else {
+                        snap(rng)
+                    },
+                    ..c.clone()
+                },
+                None => MixCue {
+                    id: MixCueId(u64::MAX - 5),
+                    at: Ticks::ZERO,
+                    snapshot: snap(rng),
+                    scope: Vec::new(),
+                },
+            };
+            (14, Command::Mix(M::SetCue { cue }))
+        }
+        15 => {
+            // Strips (VCAs among them) in and out of groups that follow VCAs (review 1, item 2).
+            if scratch.strip_groups.is_empty() || rng.below(4) == 0 {
+                let g = StripGroup {
+                    id: GroupId(scratch.alloc_id()),
+                    name: "g".into(),
+                    color: Color::PALETTE[0],
+                    collapsed: false,
+                };
+                let index = scratch.strip_groups.len();
+                (
+                    15,
+                    Command::InsertStripGroup {
+                        index,
+                        group: Box::new(g),
+                    },
+                )
+            } else {
+                let groups: Vec<GroupId> = scratch.strip_groups.iter().map(|g| g.id).collect();
+                let group = groups
+                    .get(rng.below(groups.len() as u64 + 1) as usize)
+                    .copied();
+                let id = if !vcas.is_empty() && rng.below(2) == 0 {
+                    vcas[rng.below(vcas.len() as u64) as usize]
+                } else {
+                    any_strip(rng)
+                };
+                (15, Command::SetStripGroup { id, group })
+            }
+        }
+        _ => (
+            13,
+            Command::Mix(M::SetSoloSafe {
+                id: any_strip(rng),
+                safe: rng.below(2) == 0,
+            }),
+        ),
+    }
+}
+
+// r36:ara — round 36 (ADR 0097): bind an audio clip to an ARA plug-in (with or without an
+// archive), let one go, or bind what may not be bound (a note clip, a clip not there).
+fn round36_ara_command(rng: &mut Lcg, project: &Project) -> (usize, Command) {
+    use cantus_core::ara::{AraArchive, AraClip, AraPlugin};
+    let clips: Vec<(TrackId, ClipId, bool)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.id, c.audio.is_some())))
+        .collect();
+    let audio: Vec<_> = clips.iter().filter(|c| c.2).collect();
+    let notes: Vec<_> = clips.iter().filter(|c| !c.2).collect();
+    let plugin = AraPlugin {
+        id: format!("{:032X}", 1 + rng.below(3)),
+        name: "Fuzz ARA".into(),
+        vendor: "Cantus Tests".into(),
+        path: "fuzz.vst3".into(),
+        factory_id: "org.cantus.fuzz".into(),
+    };
+    let linked: Vec<(TrackId, ClipId)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.audio.is_some() && c.link.is_some())
+                .map(move |c| (t.id, c.id))
+        })
+        .collect();
+    let archive = |rng: &mut Lcg, tag: u64| AraArchive {
+        document_archive_id: "org.cantus.fuzz.doc".into(),
+        source_id: "s".into(),
+        modification_id: format!("m{tag}"),
+        data: PluginState::new(vec![rng.below(256) as u8; 1 + rng.below(6) as usize]),
+    };
+    match (rng.below(5), audio.is_empty()) {
+        // The plug-in's state of a clip (refused on one that is not bound).
+        (3, false) => {
+            let &&(track, clip, _) = &audio[rng.below(audio.len() as u64) as usize];
+            let a = (rng.below(3) != 0).then(|| archive(rng, clip.0));
+            (
+                3,
+                Command::SetClipAraState {
+                    track,
+                    clip,
+                    archive: a,
+                },
+            )
+        }
+        // A linked clip bound with an archive of its own: the group's other clips keep theirs.
+        (4, false) if !linked.is_empty() => {
+            let (track, clip) = linked[rng.below(linked.len() as u64) as usize];
+            let mut ara = AraClip::new(plugin);
+            ara.archive = Some(archive(rng, clip.0));
+            (
+                4,
+                Command::SetClipAra {
+                    track,
+                    clip,
+                    ara: Some(Box::new(ara)),
+                },
+            )
+        }
+        (0, false) => {
+            let &&(track, clip, _) = &audio[rng.below(audio.len() as u64) as usize];
+            let mut ara = AraClip::new(plugin);
+            if rng.below(2) == 0 {
+                ara.archive = Some(AraArchive {
+                    document_archive_id: "org.cantus.fuzz.doc".into(),
+                    source_id: "s".into(),
+                    modification_id: format!("m{}", rng.below(9)),
+                    data: PluginState::new(vec![rng.below(256) as u8; rng.below(6) as usize]),
+                });
+            }
+            (
+                0,
+                Command::SetClipAra {
+                    track,
+                    clip,
+                    ara: Some(Box::new(ara)),
+                },
+            )
+        }
+        (1, false) => {
+            let &&(track, clip, _) = &audio[rng.below(audio.len() as u64) as usize];
+            (
+                1,
+                Command::SetClipAra {
+                    track,
+                    clip,
+                    ara: None,
+                },
+            )
+        }
+        _ => {
+            let (track, clip) = match notes.first() {
+                Some(&&(t, c, _)) if rng.below(2) == 0 => (t, c),
+                _ => (
+                    project.tracks.first().map_or(TrackId(u64::MAX), |t| t.id),
+                    ClipId(u64::MAX - 3),
+                ),
+            };
+            (
+                2,
+                Command::SetClipAra {
+                    track,
+                    clip,
+                    ara: Some(Box::new(AraClip::new(plugin))),
+                },
+            )
+        }
+    }
+}
+
+// r36:external - round 36 (ADR 0094): external units added, removed, changed and measured
+// among every other edit, and one that is not valid (refused).
+
+/// Kinds of [`round36_external_command`]: 0 add, 1 remove, 2 set, 3 latency, 4 refused (an
+/// invalid unit).
+const EXTERNAL_KINDS: usize = 5;
+
+fn round36_external_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::external_unit::{Measured, MidiRoute, Pair};
+    let tracks: Vec<TrackId> = project.tracks.iter().map(|t| t.id).collect();
+    let units = project.external_units.clone();
+    let route = |rng: &mut Lcg| MidiRoute {
+        port: format!("Port{}", rng.below(3)),
+        ordinal: rng.below(2) as u8,
+        channel: rng.below(16) as u8,
+    };
+    match rng.below(5) {
+        0 if !tracks.is_empty() => {
+            let track = tracks[rng.below(tracks.len() as u64) as usize];
+            let id = project.new_external_unit_id();
+            let u = if rng.below(2) == 0 {
+                ExternalUnit::instrument(id, track, route(rng), Pair::stereo(rng.below(8) as u16))
+            } else {
+                ExternalUnit::effect(
+                    id,
+                    track,
+                    Pair::stereo(2 + rng.below(6) as u16),
+                    Pair::stereo(rng.below(8) as u16),
+                )
+            };
+            (
+                0,
+                Command::InsertExternalUnit {
+                    index: rng.below(units.len() as u64 + 1) as usize,
+                    unit: Box::new(u),
+                },
+            )
+        }
+        1 if !units.is_empty() => (
+            1,
+            Command::RemoveExternalUnit {
+                id: units[rng.below(units.len() as u64) as usize].id,
+            },
+        ),
+        2 if !units.is_empty() => {
+            let mut u = units[rng.below(units.len() as u64) as usize].clone();
+            u.trim_ms = rng.below(1000) as f32 - 500.0;
+            u.return_db = rng.below(60) as f32 - 30.0;
+            u.enabled = rng.below(4) != 0;
+            (2, Command::SetExternalUnit { unit: Box::new(u) })
+        }
+        3 if !units.is_empty() => (
+            3,
+            Command::SetExternalLatency {
+                id: units[rng.below(units.len() as u64) as usize].id,
+                latency: (rng.below(5) != 0)
+                    .then(|| Measured::bare(rng.below(20_000) as u32, 48_000, 30.0)),
+            },
+        ),
+        _ => {
+            let id = project.new_external_unit_id();
+            (
+                4,
+                Command::InsertExternalUnit {
+                    index: 0,
+                    unit: Box::new(ExternalUnit {
+                        trim_ms: f32::NAN,
+                        ..ExternalUnit::effect(id, TrackId(u64::MAX), Pair::mono(2), Pair::mono(0))
+                    }),
+                },
+            )
+        }
     }
 }

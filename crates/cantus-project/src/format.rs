@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 49;
+pub const SCHEMA_VERSION: u32 = 53; // r36: 50 mix, 51 external, 52 editor, 53 ara
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -200,6 +200,18 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     let pool: std::collections::BTreeSet<_> =
         file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
     file.project.provenance.retain(|id, _| pool.contains(id)); // r34:stems
+                                                               // Marks of a file not in the pool, or out of its range (a hand edit), are dropped. // r36:editor
+    let frames: std::collections::BTreeMap<_, _> = file
+        .project
+        .audio_pool
+        .iter()
+        .map(|s| (s.id, s.frames))
+        .collect(); // r36:editor
+    file.project.source_marks.retain(|id, m| {
+        frames
+            .get(id)
+            .is_some_and(|f| m.is_valid(*f) && !m.is_empty())
+    }); // r36:editor
     let links_repaired = cantus_core::links::repair(&mut file.project);
     // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
     // made again (ADR 0064). After the links' repair, which may change what one holds.
@@ -280,6 +292,10 @@ static MIGRATIONS: &[Migration] = &[
     migrate_46_to_47,
     migrate_47_to_48, // r34:stems
     migrate_48_to_49, // r35:dancer
+    migrate_49_to_50, // r36:mix
+    migrate_50_to_51, // r36:external
+    migrate_51_to_52, // r36:editor
+    migrate_52_to_53, // r36:ara
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -981,6 +997,38 @@ fn migrate_47_to_48(_value: &mut Value) -> Result<(), String> {
 /// `TrackIcon::Dance` picture. Nothing to write: no older file holds either. An older build
 /// must refuse a v49 file, which it could not read.
 fn migrate_48_to_49(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 50 (round 36, ADR 0093): VCA faders and mixer snapshots — `MixerStrip::kind`,
+/// `vcas` and `recall_safe`, and `Project::mix` (snapshots, cues, the VCA of each group).
+/// Nothing to write: no older file holds any of them, and every one is skipped when it is
+/// the default. An older build must refuse a v50 file, which it could not read.
+fn migrate_49_to_50(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 51 (round 36, ADR 0094): `external_units` — the hardware that is part of a track
+/// (an external instrument's MIDI out and audio return, an external effect's send and
+/// return, the measured latency). Absent in every older file: nothing to write. An older
+/// build must refuse a v51 file, or it would drop the routing and the measurement on its
+/// next save. r36:external
+fn migrate_50_to_51(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 52 (round 36, ADR 0096 §6): the audio editor's markers, regions and loop points,
+/// `Project::source_marks`. Nothing to write: no older file holds any. An older build must
+/// refuse a v52 file, which it could not read. // r36:editor
+fn migrate_51_to_52(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 53 (round 36, ADR 0097): an audio clip bound to an ARA 2 plug-in —
+/// `AudioRegion::ara` (the plug-in, and its archive of the clip's modification). Nothing to
+/// write: no older file binds a clip. An older build must refuse a v53 file, which it could
+/// not play as saved. // r36:ara
+fn migrate_52_to_53(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 

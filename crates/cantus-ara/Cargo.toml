@@ -1,0 +1,17 @@
+[package]
+name = "cantus-ara"
+description = "Cantus DAW — hosting ARA 2 plug-ins (Celemony's Audio Random Access, Apache-2.0): the C API's bindings, the host document built from the project, and the update stream that keeps a plug-in in step with the clips (ADR 0097)."
+# GPL like the application and the host. Never MPL: the SDK and the unsafe live here, outside
+# the engine crates (ADR 0097, ADR 0047).
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cantus-core.workspace = true
+
+[dependencies.vst3]
+version = "0.3"

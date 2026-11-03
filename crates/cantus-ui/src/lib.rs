@@ -9,6 +9,7 @@
 pub mod ai_mcp; // r34:mcp — the MCP server, its pump and host (ADR 0081)
 pub mod ai_tools;
 pub mod app;
+pub mod ara; // r36:ara — ARA 2 plug-ins on audio clips (ADR 0097)
 pub mod audio_clips;
 pub mod audio_files;
 pub mod audio_setup;
@@ -53,9 +54,12 @@ pub mod ml_service; // r34:stems — the model store and helper client (ADR 0085
 pub mod mpe; // r33:mpe
 pub mod notefx_menus;
 pub mod notefx_ui;
+pub mod record_mode; // r36:record (ADR 0092)
 pub mod stems_ui; // r34:stems — Separate stems… (ADR 0085)
                   // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
+pub mod editor; // r36:editor — the audio editor (ADR 0096)
 pub mod engines;
+pub mod external_service; // r36:external — external units and the ping (ADR 0094)
 pub mod history_text;
 pub mod macos;
 pub mod palette_index;
@@ -84,6 +88,7 @@ pub mod session_play_rec; // r33:session
 pub mod settings;
 pub mod stage; // r35:stage — the stage over the workspace, the companion, streaming (ADR 0091)
 pub mod startup_probe;
+pub mod surface; // r36:external — Mackie Control and HUI surfaces (ADR 0095)
 pub mod swap;
 pub mod takes;
 pub mod templates;

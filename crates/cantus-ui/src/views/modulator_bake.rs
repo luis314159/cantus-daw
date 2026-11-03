@@ -117,6 +117,12 @@ impl CantusApp {
             self.set_status(t("isolation.render.loading"));
             return true;
         }
+        // Outboard gear cannot play in an offline render (ADR 0094 §6). r36:external
+        if let Some(words) = crate::external_service::render_refusal(self, "external.cannot_bake") {
+            self.drop_bake_prep(); // r36:external
+            self.set_error(words); // r36:external
+            return false; // r36:external
+        }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let before = self.engine.renders_late();
         let snapshot = self

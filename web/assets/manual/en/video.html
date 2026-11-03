@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exporting a dancing video</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="exporting-a-dancing-video">Exporting a dancing video</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/video.html">Leer en español</a></em> · See also: <a href="dancer.html">the dancer</a> · <a href="stage.html">the stage</a> · <a href="import-characters.html">importing characters</a></p>
+<p><em>File ▸ Export video…</em> makes a video of your dancers with the song: a vertical clip for TikTok, Reels or Shorts, a square one, a wide one for YouTube, or a transparent layer for a video editor. What you see in the preview is what the file will hold, frame for frame — the dancers move exactly as they do on the screen, their automation included.</p>
+<h2 id="the-window">The window</h2>
+<ul>
+<li><strong>Preview</strong> (left): the frame at any moment of the song. Drag the bar under it to look around. The background and the title are drawn as they will be in the file; a transparent background shows as a checkerboard. To show the dancers exactly as the file will, the preview renders a few seconds of the song around that moment — automation, notes and modulators included (plug-ins from other makers are left out of it; they are in the file).</li>
+<li><strong>Which dancers</strong>: every dancer of the project except one set to show nowhere (hidden). An imported character still being read is waited for (&quot;Loading the characters…&quot;); one that cannot be read stops the export and says which.</li>
+<li><strong>Format</strong>:</li>
+<li><strong>MP4</strong> — H.264 and AAC, the one format every platform takes (YouTube, TikTok, Instagram, Facebook, X). Made in seconds.</li>
+<li><strong>WebM</strong> — AV1 and Vorbis, royalty-free; YouTube and TikTok take it. It takes longer to make: the estimate under the choices says how long.</li>
+<li><strong>MOV + alpha</strong> — lossless PNG frames with a transparent background, for Final Cut, Kdenlive, Shotcut and other editors.</li>
+<li><strong>PNG frames</strong> — a folder of numbered PNG files and the song as a WAV: any editor imports it.</li>
+<li><strong>Shape</strong>: vertical 1080 × 1920, square 1080 × 1080, wide 1920 × 1080, or another size (720 × 1280 up to 4K, and Instagram's 1080 × 1350).</li>
+<li><strong>Frame rate</strong>: 30 or 60 frames a second. <strong>Quality</strong>: Good, High (what platforms recommend) or Best.</li>
+<li><strong>Background</strong>: the theme's stage colour, transparent (MOV and PNG only), a chroma key (green, blue or magenta) or black. A key in an MP4 or WebM blurs a little at the character's edges (those formats store colour at half resolution): for clean keying use MOV + alpha.</li>
+<li><strong>Title</strong>: the song's name and tempo along the foot of the picture.</li>
+<li><strong>Range</strong>: the whole song, the time selection or the loop.</li>
+<li><strong>Encoders</strong>: which encoder makes the picture and the sound on this computer, said before you start.</li>
+</ul>
+<p>The footer says how long the export should take and how big the file will be; during the export, how far it is and how long is left. <em>Stop</em> stops it and leaves nothing behind.</p>
+<h2 id="in-sync-to-the-sample">In sync, to the sample</h2>
+<p>Each frame is drawn at its exact time and the sound starts on the same sample: a beat's step lands on its beat in every player and on every platform. One exception you might notice when comparing very closely: <strong>Windows' own player (Media Player, Films &amp; TV) plays the sound of any AAC MP4 about 21 ms late</strong> — files from other programs too — because it ignores the instruction that trims the encoder's start. What you upload is exact.</p>
+<h2 id="where-the-encoders-come-from">Where the encoders come from</h2>
+<p>Cantus ships no video encoder of its own (H.264 and AAC are licensed per copy):</p>
+<ul>
+<li><strong>Windows</strong> uses Windows' own H.264 and AAC encoders. <em>Windows N</em> editions lack them: add the free <em>Media Feature Pack</em> (Settings ▸ Apps ▸ Optional features), or use Cisco's OpenH264 (below).</li>
+<li><strong>macOS</strong> uses macOS's own encoders (VideoToolbox and AudioToolbox).</li>
+<li><strong>Linux</strong> uses <strong>Cisco's OpenH264</strong>: switch it on in the window and press <em>Download from Cisco</em> (once, about 0.6 MB). It is Cisco's own build, checked byte for byte, and Cisco's licence applies (<em>OpenH264 Video Codec provided by Cisco Systems, Inc.</em>); switch it off any time. The sound is AAC when FFmpeg or GStreamer (with gst-libav) is installed — the window says which — and otherwise MP3, which plays everywhere but which Instagram refuses: install FFmpeg (<code>sudo apt install ffmpeg</code>) for AAC.</li>
+<li><strong>WebM, MOV and PNG</strong> need nothing: they are made by Cantus itself on every system.</li>
+</ul>
+<h2 id="for-agents">For agents</h2>
+<p>An assistant connected through MCP can export a video with <code>export_video</code> (format, shape, frame rate, quality, background, title, range, file) and follow it with <code>get_video_export</code>. Like every tool that writes files, it is refused until you allow files in <em>Settings ▸ AI</em>, and you are always asked.</p>
+</main>
+</body>
+</html>

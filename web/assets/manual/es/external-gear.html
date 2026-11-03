@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equipo externo y superficies de control</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="equipo-externo-y-superficies-de-control">Equipo externo y superficies de control</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/external-gear.html">Read in English</a></em></p>
+<p>Dos cosas viven en <strong>Ajustes ▸ MIDI</strong>, bajo los puertos: el <strong>equipo externo</strong> del proyecto (un sintetizador o un procesador de rack que es parte de una pista) y las <strong>superficies de control</strong> de tu estudio (una Mackie Control o una HUI con faders motorizados).</p>
+<h2 id="un-instrumento-externo-un-sintetizador-fuera-de-la-computadora">Un instrumento externo: un sintetizador fuera de la computadora</h2>
+<ol>
+<li>Haz clic derecho en la pista y elige <strong>Instrumento externo…</strong> (o selecciónala y pulsa <strong>Instrumento externo</strong> en Ajustes ▸ MIDI). Sus notas salen ahora por un puerto MIDI hacia tu sintetizador, y el sonido del sintetizador vuelve por un par de entradas de tu interfaz de audio y suena en la pista (el instrumento propio de la pista calla: el sintetizador está afuera).</li>
+<li>En la fila <em>Conexión</em> elige el <strong>puerto de salida MIDI</strong>, el <strong>canal</strong> y las <strong>entradas</strong> (<em>Ent 1-2</em> son las entradas 1 y 2 de la interfaz).</li>
+<li>Haz que el sintetizador suene, detén el transporte y pulsa <strong>Ping</strong>.</li>
+</ol>
+<p>Cantus toca el do central cuatro veces y escucha el primer sonido que vuelve. Dice lo que encontró — <em>612 muestras, 12.8 ms (variación 0)</em> — y lo guarda con el proyecto. Desde ahí las demás pistas esperan ese tiempo, así que tu sintetizador queda <strong>a tiempo</strong> con el resto de la canción, al reproducir, al mezclar en el sitio y en el archivo exportado (usan el número guardado en el proyecto, no una medición nueva). <strong>Medir de nuevo</strong> cuando cambies el búfer de la interfaz, el ataque del sonido o un cable. Si el sonido tiene un ataque lento, corrígelo con <strong>Ajuste</strong> (en milisegundos, ±500).</p>
+<p>Si cambias el búfer de la interfaz, Cantus ajusta el número guardado con lo que la propia interfaz informa y lo dice (<em>medido con búfer 256, ajustado a 512</em>); con otra interfaz te pide medir de nuevo. Arrancar el transporte detiene una medición; una que no vuelve se abandona a los 15 segundos y se avisa.</p>
+<p><strong>Renders.</strong> Congelar, mezclar en el sitio o exportar no pueden tocar un sintetizador o un rack que está fuera de la computadora: Cantus los rechaza mientras una unidad suena y dice qué hacer — grabar el retorno del equipo en una pista (la grabación se coloca con la latencia medida) o apagar la unidad.</p>
+<h2 id="un-efecto-externo-un-procesador-de-rack">Un efecto externo: un procesador de rack</h2>
+<p><strong>Efecto externo</strong> da a la pista un <em>envío</em> (un par de salidas de la interfaz) y un <em>retorno</em> (un par de entradas). <strong>Ping</strong> envía una ráfaga corta de ruido por el envío y la busca en el retorno; necesita el cable conectado, y avisa si no volvió nada, si solo volvió zumbido o si las mediciones no coinciden. El tiempo medido se guarda y el resto de la mezcla lo espera. El sonido de la pista sale por el par de envío (usa las salidas 3-4 o más: las 1-2 son la master) y lo que vuelve por el retorno suena en su lugar, con el nivel, los inserts y los envíos de la pista.</p>
+<h2 id="lo-que-dice-la-pantalla">Lo que dice la pantalla</h2>
+<p>Cada unidad dice si puede sonar ahora: <em>lista</em>, <em>apagada</em>, <em>no hay dispositivo de audio abierto</em>, <em>hay otra interfaz de audio abierta</em>, <em>la interfaz no tiene esos canales</em>, <em>el puerto MIDI no está</em>, <em>su pista ya no existe</em>. Cantus nunca abre un dispositivo ni un puerto para una unidad que no está disponible, ni le hace ping. <strong>Activo</strong> conserva la configuración y toca la pista como si la unidad no estuviera. <strong>Quitar</strong> la saca y devuelve a la pista la entrada que tenía — deshacer la devuelve. Quitar una unidad (o apagarla, o cambiarle el puerto o el canal) primero suelta toda nota que tenga sonando en el sintetizador.</p>
+<p>Todo se puede deshacer y cada paso tiene nombre en el historial (<em>añadir equipo externo</em>, <em>medir equipo externo</em>…). Un agente puede hacerlo todo (<code>add_external_unit</code>, <code>ping_external_unit</code>, <code>list_external_units</code>).</p>
+<h2 id="superficies-de-control-mackie-control-y-hui">Superficies de control: Mackie Control y HUI</h2>
+<p>Pulsa <strong>Añadir superficie</strong>, elige el tipo — <em>Mackie Control</em>, <em>Extensión Mackie 1/2</em> (más canales a la derecha de la unidad principal) o <em>HUI</em> — y sus puertos MIDI de entrada y salida (la salida es por defecto la del mismo dispositivo). ¿Sin equipo todavía? <strong>Añadir superficie virtual</strong> conecta una unidad virtual a Cantus, para probar la configuración.</p>
+<ul>
+<li>Los <strong>faders</strong> mueven los de los canales (y los siguen: los motores van a donde está el mezclador, nunca mientras tocas uno). Un toque hasta soltarlo es un solo paso de deshacer.</li>
+<li>Los <strong>V-pots</strong> panoramizan; pulsarlos centra; <strong>Shift</strong> los hace diez veces más finos. <strong>Flip</strong> cambia faders y V-pots (el fader panoramiza, el V-pot fija la ganancia).</li>
+<li>Los botones <strong>Rec</strong>, <strong>Solo</strong>, <strong>Mute</strong> y <strong>Select</strong> y sus luces siguen al mezclador.</li>
+<li><strong>Bank ◂ ▸</strong> mueve ocho canales (dieciséis con una extensión), <strong>canal ◂ ▸</strong> uno. El display de dos dígitos muestra la página.</li>
+<li>Las <strong>tiras de nombre</strong> muestran el nombre de cada canal y debajo su ganancia; <strong>Name/Value</strong> muestra el pan. Los <strong>medidores</strong> muestran niveles; el display grande, la posición.</li>
+<li><strong>Play, Stop, Record, Cycle, Click, Rewind, Fast forward, Scrub, la rueda jog, Marker ◂ ▸, Save y Undo</strong> (Shift + Undo es Rehacer) manejan el transporte y el proyecto.</li>
+</ul>
+<p>El puerto de una superficie es de la superficie: sus botones nunca tocan notas ni llegan a la asignación genérica de controladores, que sigue igual para los demás dispositivos. Los últimos mensajes de cada superficie aparecen bajo la lista (en la HUI, cualquier interruptor que Cantus no asigna se nombra por zona y puerto: mándanoslo y lo añadimos).</p>
+<p><strong>Faders táctiles.</strong> Toda Mackie Control y HUI sabe cuándo hay un dedo en un fader. Algunos controladores en modo Mackie no: apaga <em>Faders táctiles</em> para ellos, y un fader que mueves se mantiene 0.6 s antes de que los motores sigan al mezclador — si no, los motores pelearían con tu mano.</p>
+<p><em>La HUI está asignada para sus ocho canales, la selección de canal y banco, shift, deshacer y guardar, las flechas y scrub, el transporte, el bucle y la vuelta al inicio, y la rueda jog; las demás zonas se leen y se ignoran. Cantus le hace ping cada segundo y avisa si deja de responder.</em></p>
+</main>
+</body>
+</html>

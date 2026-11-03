@@ -36,10 +36,20 @@ Además: [Exportar un video con baile](video.md) — tus bailarines con la canci
 
 Además: [Convertir audio a MIDI](audio-to-midi.md) — una melodía, acordes o un loop de batería en notas sobre una pista nueva.
 
+Además: [El editor de audio](audio-editor.md) — cortar, silenciar, fundidos, normalizar, quitar ruido, quitar silencio y ver el espectro, sobre la toma de un clip.
+
 Además: [Saltator, un personaje que baila tu canción](dancer.md) — la ventana del bailarín, sus pasos, Reaccionar a. <!-- r35:dancer -->
 
 Además: [El escenario](stage.md) — un bailarín sobre el espacio de trabajo, en la pestaña Escenario, en una ventana de compañía y en directo (OBS). <!-- r35:stage -->
+
+Además: [El modo de grabación](recording-mode.md) — renderiza cada canal que alimenta el master para poder bajar el búfer mientras grabas. <!-- r36:record -->
+
+Además: [Faders VCA e instantáneas de la mesa](mixing-studio.md) — mueve un grupo de franjas a la vez, guarda la mesa y recupérala, señálala en la línea de tiempo. <!-- r36:mix -->
+
+También: [Equipo externo y superficies de control](external-gear.md) - un sintetizador o efecto de hardware en una pista con su latencia medida, y superficies Mackie Control / HUI. <!-- r36:external -->
+
 Además: [Importar un personaje](import-characters.md) — un bailarín con tu propio personaje de Lottie, hoja de sprites o DragonBones. <!-- r35:import -->
+Además: [Editar un clip con un plug-in ARA](ara.md) — un plug-in ARA 2, que ve toda la grabación, renderiza tu clip de audio. <!-- r36:ara -->
 
 La IA en este manual: [Agentes de IA (MCP)](#agentes-de-ia-mcp) — conecta a Claude u otro
 asistente; [El asistente de mastering](#el-asistente-de-mastering); [Escuchar, para agentes de IA](#escuchar-para-agentes-de-ia).

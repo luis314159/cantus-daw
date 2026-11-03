@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The recording mode</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="the-recording-mode">The recording mode</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/recording-mode.html">Leer en español</a></em></p>
+<p>A big session can make the computer work so hard that you cannot lower the audio buffer without crackles. The <strong>recording mode</strong> takes the load away before you record: it plays every strip that feeds the master from a recording of itself — or, if you choose, the whole mix from one recording — so while you record the computer only reads audio and adds it up. The strip you record on stays live.</p>
+<p><strong>What it does, and what it does not.</strong> It does not shorten your audio interface's own round trip (the buffer, the driver and the converters). It lets you set a smaller buffer without dropouts, because the computer has little left to calculate, and it keeps the track you play on free of the delay other tracks' plug-ins add. The bar shows the buffer, the round trip (as your driver reports it, or measured when Cantus has measured it), and the processor load before and since.</p>
+<h2 id="enter-it">Enter it</h2>
+<ol>
+<li><strong>Arm</strong> the track or tracks you are going to record on. Armed tracks, and the strips they go through, stay live. (You can arm another one later: see below.)</li>
+<li>Open the <strong>record options</strong> (the small arrow beside the record button) and press <strong>Prepare to record</strong>.</li>
+<li>Cantus shows what it will do: how many strips and tracks it renders, how many renders are already on disk, <strong>up to how much disk the new files take</strong> (each render is the song plus a tail of up to 30 seconds; a 5-minute stereo strip is at most about 120 MB), and what stays live and why (an armed track, a track that plays outboard gear, which a recording made off line cannot play).</li>
+<li>Choose the <strong>master</strong>: - <strong>Live</strong> (the default): the master chain runs on the sum. - <strong>Baked</strong>: the whole mix — all but what stays live — is one recording, the lightest of all. Nothing of the master or the mix can move while the mode is on.</li>
+<li>Choose how the <strong>mix</strong> behaves (with the master live): - <strong>Live</strong> (the default): each strip's fader, pan, mute and solo still work, so &quot;more guitar in my headphones&quot; needs no exit. A strip that goes into a baked bus, or sends post-fader into a baked reverb or delay return, keeps its mix locked, because that recording already holds its fader — the dialog says how many. A pre-fader send does not hold the fader: such a strip keeps its fader and pan. - <strong>Locked</strong>: nothing of the mix moves until you leave.</li>
+<li>Choose what happens to a strip that cannot be rendered (for example a plug-in that cannot render offline): it <strong>stays live and is named</strong>, or the preparation <strong>stops</strong>.</li>
+<li>Press <strong>Prepare</strong>. A bar appears across the top with its progress and <strong>Cancel</strong>.</li>
+</ol>
+<p>Each strip is rendered after its effects and automation and before its fader and pan, so with the controls untouched the sound is <strong>bit for bit</strong> what you hear normally — with the master baked too. A bus is one recording that includes everything it sums.</p>
+<p>The mode cannot start while the tempo follows Ableton Link, MIDI clock or time code, or while a session scene plays: the recordings would play at another speed. If one of them starts while the mode is on, the mode is left (and a take stopped).</p>
+<h2 id="while-it-is-on">While it is on</h2>
+<p>A bar you cannot miss says <strong>RECORDING MODE</strong> (and <em>Master baked</em> when it is), how many strips are baked, the buffer, the round trip, the processor load before and since, how many strips stay live, and which inserts low-latency monitoring leaves out. Low-latency monitoring is on while the mode is on (the record options say <em>forced by the recording mode</em>). Strips that are baked look frozen.</p>
+<p>Everything that would change the sound is refused with <em>&quot;Recording mode: leave it to edit&quot;</em>: notes, clips, effects, instruments, automation, routing, the tempo, adding or removing tracks, pattern mode, and undo or redo of those — on every strip but the armed ones, even a strip that stayed live for another reason. Names, colours, markers, the loop and the metronome stay editable; so do the armed tracks and their strips, a dancer's settings (a dancer makes no sound), and the master while it is live.</p>
+<p><strong>Arming another track</strong> whose strip is baked asks you whether to bring that strip live: its own chain plays again at once, aligned to the sample, and nothing is rendered again. Only the recordings that hold that track come back live. With the master baked, the master plays live again too (it held that track).</p>
+<p>Record as always. Your new take lands on the live track and plays through its own strip.</p>
+<p>You do not need to do anything to keep your project safe: entering and leaving the mode are not undo steps and do not mark the project as changed, and the project file is <strong>never written in the mode's state</strong>. If the program or the computer stops, you reopen the project out of the mode, and the renders are still on disk.</p>
+<h2 id="leave-it">Leave it</h2>
+<p>Press <strong>Leave</strong> in the bar (or the record options). Choose:</p>
+<ul>
+<li><strong>Leave, keep files</strong>: everything plays live again. The renders stay, so entering again renders only the strips that changed.</li>
+<li><strong>Leave, discard files</strong>: the same, and the renders are deleted to free the disk.</li>
+<li><strong>Stay</strong>.</li>
+</ul>
+<p>You cannot leave while a take is being recorded: stop first.</p>
+<h2 id="for-an-ai-agent">For an AI agent</h2>
+<p><code>prepare_to_record</code> (with <code>master</code>, <code>mix_controls</code>, <code>on_failure</code>; with <code>dry_run</code> it only answers the plan and the disk it needs), <code>get_recording_mode</code> and <code>leave_recording_mode</code>. An agent that arms a baked track brings its strip live. See <a href="ai-tools.html">What an AI agent can do in Cantus</a>.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Importing a character</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="importing-a-character">Importing a character</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/import-characters.html">Leer en español</a></em></p>
+<p>See also: <a href="dancer.html">Saltator, the dancer</a> · <a href="stage.html">The stage</a> · <a href="video.html">Exporting a dancing video</a></p>
+<p>A dancer can wear a character of your own: one you drew, one you bought, one shared with a free licence. Cantus reads four kinds of file:</p>
+<table>
+<tr><th>Format</th><th>The files</th><th>Made with</th></tr>
+<tr><td><strong>Lottie</strong></td><td><code>.json</code>, or a <code>.lottie</code> package</td><td>After Effects with Bodymovin, Glaxnimate (free), Synfig (free), Lottie Creator, LottieFiles</td></tr>
+<tr><td><strong>Aseprite sprite sheet</strong></td><td>a <code>.json</code> beside its <code>.png</code></td><td>Aseprite, LibreSprite (free)</td></tr>
+<tr><td><strong>TexturePacker sprite sheet</strong></td><td>a <code>.json</code> (hash or array) beside its <code>.png</code></td><td>TexturePacker, free-tex-packer (free)</td></tr>
+<tr><td><strong>DragonBones</strong></td><td><code>…_ske.json</code>, <code>…_tex.json</code> and <code>…_tex.png</code> together</td><td>DragonBones, LoongBones</td></tr>
+</table>
+<p>Rive files (<code>.riv</code>) are not read yet. 3D characters (glTF, VRM) are planned. Spine and Live2D characters cannot be read: their licences ask every user to buy one.</p>
+<h2 id="import-one">Import one</h2>
+<ol>
+<li>Open the dancer's window and its character picker, then press <strong>Import character…</strong> — or select the dancer's track and choose <strong>File ▸ Import character…</strong>.</li>
+<li>Choose the file. For DragonBones, choose the skeleton (<code>…_ske.json</code>); its atlas is found beside it.</li>
+<li>Cantus checks the file, then shows <strong>the card</strong>: - the character <strong>dancing</strong> to the song's tempo — point at a move in the list to see that move; - its <strong>name</strong>, <strong>format</strong> and <strong>author</strong>; - its <strong>licence</strong>: what the file or a <code>LICENSE</code> file beside it says, or, when nothing says, a short list to choose from (<em>My own work</em>, CC0, CC BY, CC BY-SA, the Lottie Simple License, <em>Other</em>, <em>I don't know</em>). What the licence asks of you is said under it: credit the author, share alike, not for sale; - <strong>what is in the file</strong> (animations, frames, layers or bones) and <strong>what it costs to draw</strong> a frame on a 600 × 600 stage (Cantus's budget is 1.5 ms); - <strong>what was not used</strong>, each in words — for example a Lottie file's expressions, which are scripts and never run (their keyframes play instead).</li>
+<li><strong>Map the moves.</strong> Each of Cantus's sixteen moves — <em>Idle, Bounce, Step left, Step right, Sway, Clap, Wave, Jump, Spin, Kick, Shuffle, Point, Arms up, Twist, Bow, Freeze</em> — plays one of the file's animations. Cantus guesses from the names, in English and Spanish (a marker or a tag called <code>clap</code>, <code>aplauso</code> or <code>Clap_01</code> is <em>Clap</em>); every guess says &quot;(guessed)&quot; and every row can be changed. A move left on <em>None</em> plays a related move. <strong>Beats</strong>: how many beats the move's animation fills at the song's tempo (1, 2, 4 or 8).</li>
+<li><strong>Playback</strong>: <em>Sharp pixels</em> for pixel art; <em>At its own speed</em> plays the file at its own frame rate instead of to the beat.</li>
+<li>Press <strong>Use</strong>. The file — with its images and its licence file — is copied into the project's <strong>Characters</strong> folder and the dancer wears it. One <em>Undo</em> takes it back off.</li>
+</ol>
+<p>Animations that name a <strong>mood</strong> (<code>happy</code>, <code>sleepy</code>, <code>feliz</code>…) play instead of <em>Idle</em> while that mood is chosen.</p>
+<h2 id="change-its-moves-later">Change its moves later</h2>
+<p>In the dancer's window, <strong>Edit moves…</strong> opens the card again with your choices. <strong>Save</strong> keeps them as a new copy of the character, and <strong>every dancer of this project</strong> wearing it follows — one <em>Undo</em> takes them all back to the moves before (that copy is still there).</p>
+<h2 id="where-it-lives">Where it lives</h2>
+<ul>
+<li><code>Characters/&lt;name&gt;-&lt;code&gt;/</code> beside the project file holds the copy and <code>character.json</code> (its format, its licence, your mapping). The code comes from everything in it — the files and your choices — and a copy is never changed afterwards, so two projects saved in one folder share a copy only when it is exactly the same. Moving or zipping the project folder takes it along.</li>
+<li>In a project not saved yet, the copy waits in Cantus's own folder; the first save carries it beside the project. <em>Save As</em> into another folder carries it too.</li>
+<li>A character file that is missing draws Cantus's default character and the dancer's window says so.</li>
+</ul>
+<h2 id="safe-by-design">Safe by design</h2>
+<p>A character file is data, never a program: no script runs, nothing is downloaded, nothing outside the file's own folder is read, and every size is checked before Cantus gives it memory. A damaged or hostile file is refused with words saying why.</p>
+</main>
+</body>
+</html>

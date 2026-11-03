@@ -452,10 +452,20 @@ pub fn load(
     info: &PluginInfo,
     setup: crate::backend::AudioSetup,
 ) -> Result<crate::backend::Loaded, HostError> {
+    load_bound(info, setup, &mut |_| Ok(()))
+}
+
+/// [`load`], with `bind` run on the component right after `initialize`, before it is set
+/// up or activated: an ARA-bound instance (ADR 0097). r36:ara
+pub fn load_bound(
+    info: &PluginInfo,
+    setup: crate::backend::AudioSetup,
+    bind: super::instance::BindHook<'_>,
+) -> Result<crate::backend::Loaded, HostError> {
     let tuid = super::util::tuid_from_string(&info.id)
         .ok_or_else(|| HostError::NotFound(info.id.clone()))?;
     let module = super::module::open(&info.path)?;
-    let parts = super::instance::Parts::create(&module, &tuid)?;
+    let parts = super::instance::Parts::create_bound(&module, &tuid, bind)?;
     let (inst, from_ui) = Instance::activate(parts, setup)?;
     let map = inst.param_map();
     // What the file or the scan could not know, now exact.

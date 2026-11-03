@@ -1,0 +1,98 @@
+# Area: record - round 36. Every key here needs its twin in record.en.txt
+
+# Etiqueta de deshacer (cmd.*)
+cmd.record_leave = salir del modo de grabación
+
+# Los mensajes del modo
+record.cannot.on = El modo de grabación ya está activo.
+record.cannot.recording = Detén la grabación primero: el modo se prepara con el transporte detenido.
+record.cannot.exporting = Hay una exportación en curso: prepara la grabación cuando termine.
+record.cannot.leave_recording = Detén la grabación antes de salir del modo: la toma aún se está escribiendo.
+record.nothing = Nada que preparar: cada canal está en vivo, armado o ya congelado.
+record.preparing = Preparando para grabar: renderizando {n} canales y pistas.
+record.cancelled = Se detuvo la preparación. Lo ya renderizado se conserva.
+record.not_on = El modo de grabación no está activo.
+record.left = Saliste del modo de grabación. Los renders se conservan: volver a entrar solo renderiza lo que cambió.
+record.left_discarded = Saliste del modo de grabación. Los renders se descartaron.
+record.notice = Modo de grabación: sal de él para editar.
+record.failed.unknown = no se pudo renderizar
+record.stopped = Se detuvo la preparación: {names} no se pudo renderizar, así que no se horneó nada.
+record.none_baked = No se pudo pre-renderizar nada: el proyecto sigue en vivo.
+record.entered = Modo de grabación activo: {n} canales y pistas suenan desde sus renders.
+
+# La barra
+record.bar.chip = MODO DE GRABACIÓN
+record.bar.chip_preparing = PREPARANDO PARA GRABAR
+record.bar.unknown = sin medir
+record.bar.buffer_value = {frames} muestras ({ms} ms)
+record.bar.cpu_both = {before} antes, {now} ahora
+record.bar.cpu_before = {before} antes
+record.bar.cpu_now = {now} ahora
+record.bar.cpu_unknown = sin medir aún: reproduce para verlo
+record.bar.rendering = {name} {pct}
+record.bar.preparing = {done} de {total} renderizados {now}
+record.bar.live = {n} siguen en vivo.
+record.bar.live_one = 1 sigue en vivo.
+record.bar.text = {baked} pre-renderizados. Búfer {buffer}. Ida y vuelta {trip}. CPU {cpu}. {live} Sal para editar.
+record.bar.leave = Salir
+record.bar.cancel = Cancelar
+record.bar.tip = Los canales que alimentan el máster suenan desde renders, así que solo los canales armados están en vivo. No acorta la latencia de ida y vuelta de tu interfaz: permite bajar el búfer sin cortes.
+
+# Las preguntas
+record.ask.title = Preparar para grabar
+record.ask.what = Cada canal que alimenta el máster se renderiza por separado, después de sus efectos y automatización y antes de su fader y paneo. Con el modo activo solo se lee y se suma audio.
+record.ask.plan = {n} canales y pistas por renderizar ({reused} ya en disco), {seconds} s cada uno.
+record.ask.size = Hasta {new} de archivos nuevos en la carpeta del proyecto, {all} en total (cada render es la canción y su cola, hasta 30 s).
+record.ask.mix_band = Controles de mezcla
+record.ask.mix_live = En vivo: fader, paneo, mute y solo
+record.ask.mix_locked = Bloqueados hasta salir
+record.ask.fail_band = Un canal que no se puede renderizar
+record.ask.fail_live = Dejarlo en vivo y nombrarlo
+record.ask.fail_stop = Detener la preparación
+record.ask.honest = Esto no acorta la latencia de ida y vuelta de tu interfaz. Permite bajar el búfer sin cortes, porque al ordenador le queda poco por calcular. Al salir todo vuelve a estar como estaba.
+record.ask.prepare = Preparar
+record.ask.cancel = Cancelar
+record.live.armed = {name} sigue en vivo: tiene una pista armada.
+record.live.monitoring = {name} sigue en vivo: una pista monitorea su entrada.
+record.live.soloed = {name} sigue en vivo: un solo dentro de él no se puede pre-renderizar.
+record.live.cue_solo = {name} sigue en vivo: una señal pone en solo un canal dentro de él, y un render no guarda solos.
+record.live.external = {name} sigue en vivo: suena por equipo externo, que un render hecho sin conexión no puede tocar.
+record.live.dancer = {name} sigue en vivo: un bailarín no produce sonido que pre-renderizar.
+record.leave.title = Salir del modo de grabación
+record.leave.text = Todo lo que el modo horneó vuelve a sonar en vivo. Conserva los archivos renderizados para volver a entrar rápido, o descártalos para liberar disco.
+record.leave.keep = Salir y conservar archivos
+record.leave.discard = Salir y descartar archivos
+record.leave.stay = Quedarme
+
+# El menú de grabación
+record.row.band = Modo de grabación
+record.row.mode = Modo
+record.row.prepare = Preparar para grabar
+record.row.leave = Activo: salir
+record.row.tip = Renderiza cada canal que alimenta el máster para poder bajar el búfer mientras grabas.
+
+# Ronda 36, tras la revisión
+record.cannot.sync = El tempo sigue a Link, al reloj MIDI o al código de tiempo: los renders sonarían a otra velocidad. Pon la fuente de sincronía en Ninguna primero.
+record.cannot.session = Está sonando una escena de la sesión: su tempo y sus clips no son los de la canción. Detén la sesión primero.
+record.left_tempo = Saliste del modo de grabación: {why}
+record.not_baked = Esa pista no está en un canal pre-renderizado.
+record.brought_live = {name} vuelve a estar en vivo y armada: su canal suena con su propia cadena, no se renderizó nada de nuevo.
+record.master_failed = No se pudo pre-renderizar el máster ({why}): sigue en vivo.
+record.ask.master_band = Máster
+record.ask.master_live = En vivo: la cadena del máster sobre la suma
+record.ask.master_baked = Pre-renderizado: toda la mezcla en un render
+record.ask.locked_mix = {n} canales mantienen su mezcla bloqueada: otro canal pre-renderizado (un retorno, un bus) los contiene.
+record.ask.locked_mix_one = 1 canal mantiene su mezcla bloqueada: otro canal pre-renderizado (un retorno, un bus) lo contiene.
+record.offer.title = Grabar en una pista pre-renderizada
+record.offer.text = {name} suena desde el render de {strips}. ¿Ponerla en vivo para grabar en ella? Su cadena vuelve a sonar al instante, alineada a la muestra; no se renderiza nada de nuevo.
+record.offer.master = El máster está pre-renderizado y también la contiene: el máster vuelve a sonar en vivo.
+record.offer.yes = Poner en vivo y armar
+record.offer.no = Cancelar
+record.bar.master_baked = Máster pre-renderizado.
+record.bar.trip_reported = {ms} ms (según el controlador)
+record.bar.trip_measured = {ms} ms (medida)
+record.bar.trip_unknown = sin dato
+record.bar.without = Monitoreo sin: {names}.
+record.ll.forced = Activa: la impone el modo de grabación
+record.notice_recall = Modo de grabación: esta recuperación alcanza canales pre-renderizados. Sal del modo para recuperarla, o recupera solo los canales en vivo.
+record.notice_cue = Modo de grabación: una señal cambia canales pre-renderizados desde su compás. Sal del modo para editar señales.

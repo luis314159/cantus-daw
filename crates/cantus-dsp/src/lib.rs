@@ -33,6 +33,7 @@ pub mod comprimo;
 pub mod concentus;
 pub mod culmen;
 pub mod delay;
+pub mod denoise; // r36:editor — noise reduction by profile and the spectral region (ADR 0096)
 pub mod discrimen;
 pub mod dynfx_follow;
 pub mod dynfx_meter;

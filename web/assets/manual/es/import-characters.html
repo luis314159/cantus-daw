@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Importar un personaje</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="importar-un-personaje">Importar un personaje</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/import-characters.html">Read in English</a></em></p>
+<p>Ver también: <a href="dancer.html">Saltator, el bailarín</a> · <a href="stage.html">El escenario</a> · <a href="video.html">Exportar un video con baile</a></p>
+<p>Un bailarín puede llevar un personaje tuyo: uno que dibujaste, uno que compraste, uno compartido con una licencia libre. Cantus lee cuatro tipos de archivo:</p>
+<table>
+<tr><th>Formato</th><th>Los archivos</th><th>Hecho con</th></tr>
+<tr><td><strong>Lottie</strong></td><td><code>.json</code>, o un paquete <code>.lottie</code></td><td>After Effects con Bodymovin, Glaxnimate (libre), Synfig (libre), Lottie Creator, LottieFiles</td></tr>
+<tr><td><strong>Hoja de sprites de Aseprite</strong></td><td>un <code>.json</code> junto a su <code>.png</code></td><td>Aseprite, LibreSprite (libre)</td></tr>
+<tr><td><strong>Hoja de sprites de TexturePacker</strong></td><td>un <code>.json</code> (hash o array) junto a su <code>.png</code></td><td>TexturePacker, free-tex-packer (libre)</td></tr>
+<tr><td><strong>DragonBones</strong></td><td><code>…_ske.json</code>, <code>…_tex.json</code> y <code>…_tex.png</code> juntos</td><td>DragonBones, LoongBones</td></tr>
+</table>
+<p>Los archivos de Rive (<code>.riv</code>) aún no se leen. Los personajes 3D (glTF, VRM) están previstos. Los personajes de Spine y Live2D no se pueden leer: sus licencias piden que cada usuario compre una.</p>
+<h2 id="importar-uno">Importar uno</h2>
+<ol>
+<li>Abre la ventana del bailarín y su selector de personajes, y pulsa <strong>Importar personaje…</strong> — o selecciona la pista del bailarín y elige <strong>Archivo ▸ Importar personaje…</strong>.</li>
+<li>Elige el archivo. En DragonBones, elige el esqueleto (<code>…_ske.json</code>); su atlas se busca a su lado.</li>
+<li>Cantus revisa el archivo y muestra <strong>la tarjeta</strong>: - el personaje <strong>bailando</strong> al tempo de la canción — señala un movimiento de la lista para verlo; - su <strong>nombre</strong>, <strong>formato</strong> y <strong>autor</strong>; - su <strong>licencia</strong>: lo que dice el archivo o un archivo <code>LICENSE</code> a su lado, o, si nada lo dice, una lista breve para elegir (<em>Obra mía</em>, CC0, CC BY, CC BY-SA, la Lottie Simple License, <em>Otra</em>, <em>No lo sé</em>). Debajo se dice lo que la licencia te pide: citar al autor, compartir igual, no vender; - <strong>lo que tiene el archivo</strong> (animaciones, cuadros, capas o huesos) y <strong>lo que cuesta dibujar</strong> un cuadro en un escenario de 600 × 600 (el presupuesto de Cantus es 1,5 ms); - <strong>lo que no se usó</strong>, cada cosa con palabras — por ejemplo las expresiones de un Lottie, que son scripts y nunca se ejecutan (suenan sus fotogramas clave).</li>
+<li><strong>Asigna los movimientos.</strong> Cada uno de los dieciséis movimientos de Cantus — <em>Reposo, Rebote, Paso a la izquierda, Paso a la derecha, Vaivén, Palmada, Saludo, Salto, Pirueta, Patada, Shuffle, Señalar, Brazos arriba, Twist, Reverencia, Congelado</em> — toca una animación del archivo. Cantus la sugiere por los nombres, en inglés y en español (un marcador o etiqueta llamado <code>clap</code>, <code>palmada</code> o <code>Clap_01</code> es <em>Palmada</em>); cada sugerencia dice &quot;(sugerido)&quot; y cada fila se puede cambiar. Un movimiento en <em>Ninguna</em> toca un movimiento afín. <strong>Tiempos</strong>: cuántos tiempos llena la animación al tempo de la canción (1, 2, 4 u 8).</li>
+<li><strong>Reproducción</strong>: <em>Píxeles nítidos</em> para pixel art; <em>A su propia velocidad</em> lo toca a sus cuadros por segundo en vez de al compás.</li>
+<li>Pulsa <strong>Usar</strong>. El archivo — con sus imágenes y su archivo de licencia — se copia en la carpeta <strong>Characters</strong> del proyecto y el bailarín lo lleva puesto. Un <em>Deshacer</em> se lo quita.</li>
+</ol>
+<p>Las animaciones con nombre de un <strong>ánimo</strong> (<code>happy</code>, <code>sleepy</code>, <code>feliz</code>…) suenan en lugar de <em>Reposo</em> mientras ese ánimo esté elegido.</p>
+<h2 id="cambiar-sus-movimientos-después">Cambiar sus movimientos después</h2>
+<p>En la ventana del bailarín, <strong>Editar movimientos…</strong> vuelve a abrir la tarjeta con tus elecciones. <strong>Guardar</strong> las conserva como una copia nueva del personaje, y <strong>cada bailarín de este proyecto</strong> que lo lleva la sigue — un <em>Deshacer</em> los devuelve a todos a los movimientos de antes (esa copia sigue ahí).</p>
+<h2 id="dónde-vive">Dónde vive</h2>
+<ul>
+<li><code>Characters/&lt;nombre&gt;-&lt;código&gt;/</code> junto al archivo del proyecto guarda la copia y <code>character.json</code> (su formato, su licencia, tu asignación). El código sale de todo lo que tiene — los archivos y tus elecciones — y una copia nunca se cambia después, así que dos proyectos guardados en una carpeta comparten una copia solo si es exactamente la misma. Mover o comprimir la carpeta del proyecto lo lleva consigo.</li>
+<li>En un proyecto aún sin guardar, la copia espera en la carpeta propia de Cantus; el primer guardado la lleva junto al proyecto. <em>Guardar como</em> en otra carpeta también la lleva.</li>
+<li>Si falta el archivo de un personaje, se dibuja el personaje por defecto de Cantus y la ventana del bailarín lo dice.</li>
+</ul>
+<h2 id="seguro-por-diseño">Seguro por diseño</h2>
+<p>Un archivo de personaje son datos, nunca un programa: no se ejecuta ningún script, no se descarga nada, no se lee nada fuera de la carpeta del archivo, y cada tamaño se revisa antes de darle memoria. Un archivo dañado u hostil se rechaza con palabras que dicen por qué.</p>
+</main>
+</body>
+</html>

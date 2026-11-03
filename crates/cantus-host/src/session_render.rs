@@ -125,6 +125,12 @@ impl PluginHost {
         sample_rate: f64,
         stored: bool,
     ) -> bool {
+        // r36:ara — an ARA render on its way: the offline render (and a freeze key) waits for
+        // it, so nothing bakes a render older than the state the project holds (ADR 0097).
+        #[cfg(feature = "vst3")]
+        if !self.ara_settled() {
+            return false;
+        }
         let key = (sample_rate.to_bits(), stored, content_of(project, stored));
         let mut before = None;
         if let Some(p) = &self.render_prep {

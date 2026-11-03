@@ -170,6 +170,10 @@ pub struct CantusApp {
     pub(crate) midi_inputs: Option<MidiInputs>,
     /// Link, MIDI clock and time code (round 33, ADR 0078–0079). r33:sync
     pub(crate) sync: crate::views::transport::sync_service::SyncService, // r33:sync
+    /// Mackie Control and HUI surfaces (ADR 0095). r36:external
+    pub surfaces: crate::surface::SurfaceService, // r36:external
+    /// External units: the ping's state (ADR 0094). r36:external
+    pub external: crate::external_service::ExternalService, // r36:external
     live_track_sent: Option<Option<TrackId>>,
     /// The look as the user set it: light and dark, a base theme for each, and every
     /// change on top (`kit::appearance`). Kept in `appearance.json`; an older `theme.json`
@@ -313,6 +317,7 @@ pub struct CantusApp {
     pub transcribe: crate::transcribe_ui::run::State, // r34:transcribe
     pub stage: crate::stage::StageState,          // r35:stage — the dancers on screen (ADR 0091)
     pub dance_live: crate::dance_live::DanceLive, // r35:dancer — the dancers' feeds and poses
+    pub editor: crate::editor::EditorState,       // r36:editor — the audio editor (ADR 0096)
 }
 
 impl CantusApp {
@@ -699,6 +704,9 @@ impl CantusApp {
             midi_port_names: Vec::new(),
             midi_inputs: None,
             sync: Default::default(), // r33:sync
+            // r36:external
+            surfaces: Default::default(),
+            external: Default::default(),
             live_track_sent: None,
             appearance: Default::default(),
             appearance_path: views::appearance_file::path(&config_dir()),
@@ -778,6 +786,7 @@ impl CantusApp {
             transcribe: Default::default(),   // r34:transcribe
             stage: Default::default(),        // r35:stage
             dance_live: Default::default(),   // r35:dancer
+            editor: Default::default(),       // r36:editor
         };
         app.select_first();
         app.sync_live_track();
@@ -804,6 +813,8 @@ impl CantusApp {
             return false;
         }
         self.note_tweak(&cmd);
+        let arm = crate::record_mode::arm_of(&cmd); // r36:record
+        let notice = crate::record_mode::notice_key(&cmd); // r36:record
         let tempo_edit = crate::views::transport::sync_service::is_tempo_edit(&cmd); // r33:sync
                                                                                      // Another project in its place (an import, a recovery): what was about the last
                                                                                      // one is not about this one (review 2: the tempo lane's state).
@@ -826,6 +837,13 @@ impl CantusApp {
                 crate::freeze::refused(self, target);
                 false
             }
+            Err(cantus_core::CommandError::RecordingMode) => {
+                // Arming a baked track: the offer to bring its strip live. // r36:record
+                if !arm.is_some_and(|t| self.record_mode_arm_refused(t, false)) {
+                    self.record_mode_notice_for(notice); // r36:record
+                }
+                false // r36:record
+            }
             Err(e) => {
                 self.set_error(e.to_string());
                 false
@@ -838,6 +856,8 @@ impl CantusApp {
             return false;
         }
         self.note_tweak(&cmd);
+        let arm = crate::record_mode::arm_of(&cmd); // r36:record
+        let notice = crate::record_mode::notice_key(&cmd); // r36:record
         let tempo_edit = crate::views::transport::sync_service::is_tempo_edit(&cmd); // r33:sync
         match self.bus.execute_merging(cmd, Origin::User, key) {
             Ok(()) => {
@@ -847,6 +867,13 @@ impl CantusApp {
             Err(cantus_core::CommandError::Frozen(target)) => {
                 crate::freeze::refused(self, target);
                 false
+            }
+            Err(cantus_core::CommandError::RecordingMode) => {
+                // Arming a baked track: the offer to bring its strip live. // r36:record
+                if !arm.is_some_and(|t| self.record_mode_arm_refused(t, false)) {
+                    self.record_mode_notice_for(notice); // r36:record
+                }
+                false // r36:record
             }
             Err(e) => {
                 self.set_error(e.to_string());
@@ -911,7 +938,10 @@ impl CantusApp {
             return;
         }
         let replaced = self.bus.undo_label_key() == Some(REPLACE_PROJECT);
-        self.bus.undo();
+        let had = self.bus.undo_label_key().is_some(); // r36:record
+        if self.bus.undo().is_none() && had && self.bus.record_lock().is_some() {
+            self.record_mode_notice(); // r36:record — the mode refused the step
+        } // r36:record
         if replaced {
             // Another project is back: ids copied from this one mean other things there.
             self.epoch += 1;
@@ -924,7 +954,10 @@ impl CantusApp {
             return;
         }
         let replaced = self.bus.redo_label_key() == Some(REPLACE_PROJECT);
-        self.bus.redo();
+        let had = self.bus.redo_label_key().is_some(); // r36:record
+        if self.bus.redo().is_none() && had && self.bus.record_lock().is_some() {
+            self.record_mode_notice(); // r36:record — the mode refused the step
+        } // r36:record
         if replaced {
             self.epoch += 1;
         }
@@ -2950,6 +2983,7 @@ impl CantusApp {
     /// progress belong to the project they rode, so they end into it first (the reviews of
     /// round 31: a pass finished into the next song); then the transport stops.
     pub(crate) fn reset_bus_to(&mut self, project: Project) {
+        crate::editor::close(self); // r36:editor — another project: the window on this one's take closes
         self.end_passes();
         self.stop_transport();
         self.bus.reset(project);
@@ -3335,6 +3369,14 @@ impl CantusApp {
         {
             self.synced_revision = u64::MAX;
         }
+        // r36:ara — ARA plug-ins in step with the project; a new render needs a snapshot.
+        if self
+            .plugins
+            .ara_sync(self.bus.project(), &mut self.engine, self.epoch)
+        {
+            self.synced_revision = u64::MAX; // r36:ara
+        }
+        self.ara_after_sync(); // r36:ara — the plug-in's edits and transport wishes
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
@@ -3575,6 +3617,9 @@ impl CantusApp {
     pub fn run_action(&mut self, action: Action) {
         use Action::*;
         // Round 28 (ADR 0054): the pitch editor's keys while it has the focus.
+        if crate::editor::action(self, action) {
+            return; // r36:editor — the audio editor keeps Cut, Copy, Paste, Delete, Space while it is open
+        }
         if self.pitch_action(action) {
             return;
         }
@@ -4087,6 +4132,7 @@ impl CantusApp {
         crate::ai_mcp::frame(self, ctx); // r34:mcp — agents' calls, before the views draw
         self.ml.poll(); // r34:stems — model downloads and preparations
         crate::dance_live::frame(self); // r35:dancer — the dancers posed at what is heard
+        crate::editor::frame(self, ctx); // r36:editor — the audio editor: its thread's results, an undo that moved the clip
         crate::transcribe_ui::run::frame(self, ctx); // r34:transcribe — Convert to MIDI
         self.host_notices(notices);
         // Hosted plug-ins that were loading in their helper when opened: in their view now
@@ -4123,6 +4169,7 @@ impl CantusApp {
             .exact_size(toolbar)
             .resizable(false)
             .show(root, |ui| views::transport::show(self, ui));
+        views::record_bar::banner(self, root); // r36:record — the recording mode's bar
         egui::Panel::bottom(egui::Id::new("status"))
             .frame(egui::Frame::NONE)
             .exact_size(status)
@@ -4132,10 +4179,12 @@ impl CantusApp {
             .frame(egui::Frame::NONE.fill(s.t.panel))
             .show(root, |ui| views::workspace::show(self, ui));
         self.dialogs(ctx);
+        views::record_bar::frame(self, ctx); // r36:record — its questions
         views::interop::frame(self, ctx);
         views::export_dialog::show(self, ctx);
         crate::video_export::frame(self, ctx); // r35:video — the video dialog and its export
         crate::transcribe_ui::view::show(self, ctx); // r34:transcribe
+        crate::editor::view::show(self, ctx); // r36:editor
         views::demos::frame(self, ctx);
         crate::ai_tools::listen::panel::frame(self, ctx); // r34:listen — the mastering assistant
         views::recovery::frame(self, ctx);

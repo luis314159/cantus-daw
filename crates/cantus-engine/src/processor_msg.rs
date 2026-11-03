@@ -97,6 +97,7 @@ impl Processor {
                 EngineMessage::SetLiveTrack(t) => self.live_track = t,
                 EngineMessage::SetLiveEcho(tracks) => self.set_live_echo(tracks),
                 EngineMessage::SetMpe(zones) => self.set_mpe(zones), // r33:mpe
+                EngineMessage::StartPing(job) => self.ping_start(job), // r36:external
                 EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::SetLowLatency(limit) => self.set_low_latency(limit),
                 EngineMessage::SetAnalyser(id) => self.analysed = id,

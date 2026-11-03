@@ -18,6 +18,7 @@ members = [
     "crates/cantus-score",
     # Ableton Link in Rust, GPL (round 33, ADR 0078).
     "crates/cantus-link",
+    "crates/cantus-ara", # r36:ara (ADR 0097)
     # The MCP server, written by hand (round 34, ADR 0081). r34:mcp
     "crates/cantus-mcp",
     # The dancing character (round 35, ADR 0087).
@@ -26,6 +27,7 @@ members = [
     "crates/cantus-test-plugins/clap-gain",
     "crates/cantus-test-plugins/clap-synth",
     "crates/cantus-test-plugins/vst3",
+    "crates/cantus-test-plugins/ara", # r36:ara
     "crates/cantus-ui",
     "crates/cantus-app",
     # The start-up stub that picks the x86-64-v3 or v2 build (round 22): `cantus.exe` in a release.
@@ -58,6 +60,7 @@ default-members = [
     "crates/cantus-score",
     # Ableton Link in Rust, GPL (round 33, ADR 0078).
     "crates/cantus-link",
+    "crates/cantus-ara", # r36:ara (ADR 0097)
     # The MCP server, written by hand (round 34, ADR 0081). r34:mcp
     "crates/cantus-mcp",
     "crates/cantus-dance",
@@ -69,7 +72,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.0-beta.10"
+version = "0.1.0-beta.11"
 edition = "2021"
 rust-version = "1.95"
 authors = ["Luis Ángel Almazán <https://lalmazan.com>"]
@@ -94,6 +97,7 @@ cantus-content = { path = "crates/cantus-content" }
 cantus-export = { path = "crates/cantus-export" }
 cantus-score = { path = "crates/cantus-score" }
 cantus-link = { path = "crates/cantus-link" }
+cantus-ara = { path = "crates/cantus-ara" } # r36:ara
 cantus-mcp = { path = "crates/cantus-mcp" } # r34:mcp
 cantus-dance = { path = "crates/cantus-dance" }
 cantus-video = { path = "crates/cantus-video" } # r35:video

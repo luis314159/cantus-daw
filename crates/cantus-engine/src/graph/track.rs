@@ -68,6 +68,23 @@ pub(crate) struct TrackSlot {
     /// rate: its source goes through its line ([`Self::source_line`]) and it is reported as
     /// its own (review 3: the audio itself stays on the grid).
     pub lateness: usize,
+    /// The latency of the hardware that belongs to this track (ADR 0094): an external
+    /// instrument's or effect's measured trip (plus its trim), at the engine's rate. Its
+    /// audio returns this late on its own, so it is reported as the track's own latency (the
+    /// rest of the mix waits for it) and delays nothing itself. r36:external
+    pub external: usize,
+    /// Its instrument is outboard (ADR 0094): its notes go to the MIDI-out thread and the
+    /// instrument here is not played. r36:external
+    pub outboard: bool,
+    /// An external effect's send (ADR 0094 §5): the interface output channel it goes out of
+    /// and whether it is a pair. The track's source is written to `send_l`/`send_r` for the
+    /// pass and mixed into the device's output after it ([`Processor::ext_send_mix`]); the
+    /// return is the track's input. r36:external
+    pub send: Option<(usize, bool)>,
+    pub send_l: Vec<f32>,
+    pub send_r: Vec<f32>,
+    /// Something was written to the send this pass (it is cleared when mixed).
+    pub send_dirty: bool,
     /// Its note effects (ADR 0069), built with the slot: consulted only while a stage is
     /// on. `None` only for the instant its outputs are being played.
     pub notefx: Option<Box<crate::notefx::Chain>>,
@@ -103,12 +120,21 @@ impl TrackSlot {
             rest: false,
             notes_only: false,
             lateness: 0,
+            external: 0,                           // r36:external
+            outboard: false,                       // r36:external
+            send: None,                            // r36:external
+            send_l: vec![0.0; super::PASS_FRAMES], // r36:external
+            send_r: vec![0.0; super::PASS_FRAMES], // r36:external
+            send_dirty: false,                     // r36:external
             source_line: None,
             notefx: Some(Box::new(crate::notefx::Chain::new())),
         }
     }
 
     pub fn note_on(&mut self, pitch: u8, velocity: u8, tag: u64) {
+        if self.outboard {
+            return; // r36:external
+        }
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_on(pitch, velocity, tag),
             SlotInstrument::Pulsus => self.drums.note_on(pitch, velocity, tag),
@@ -127,6 +153,9 @@ impl TrackSlot {
 
     /// A clip's note-on with its ordinal on the track ([`crate::inst::InstrumentUnit::note_on_seq`]).
     pub fn note_on_seq(&mut self, pitch: u8, velocity: u8, tag: u64, ordinal: u32) {
+        if self.outboard {
+            return; // r36:external
+        }
         match self.instrument {
             SlotInstrument::Native => {
                 if let Some(n) = self.native.as_mut() {
@@ -335,6 +364,7 @@ impl TrackSlot {
         }
         // The delay it keeps (a bounce's, schema 38) and its instrument's.
         self.lateness
+            + self.external // r36:external
             + match self.instrument {
                 SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.latency()),
                 SlotInstrument::Firmus | SlotInstrument::Pulsus => 0,
@@ -683,6 +713,23 @@ fn track_segment(
             }
             has_signal = true;
         }
+    }
+    // An external effect (ADR 0094 §5): the source goes out of the interface and is not heard
+    // here; what comes back is the track's input, joined below. r36:external
+    if let Some((_, stereo)) = s.send {
+        if has_signal {
+            let (sl, sr) = (&mut s.send_l[sub..end], &mut s.send_r[sub..end]);
+            if stereo {
+                sl.copy_from_slice(l);
+                sr.copy_from_slice(r);
+            } else {
+                for ((o, a), b) in sl.iter_mut().zip(l.iter()).zip(r.iter()) {
+                    *o = (a + b) * 0.5;
+                }
+            }
+            s.send_dirty = true;
+        }
+        has_signal = false;
     }
     // The monitored input joins it, before the channel's level (ADR 0025 §4).
     let has_signal = {

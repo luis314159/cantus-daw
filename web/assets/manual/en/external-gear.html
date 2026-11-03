@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>External gear and control surfaces</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="external-gear-and-control-surfaces">External gear and control surfaces</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/external-gear.html">Leer en español</a></em></p>
+<p>Two things live in <strong>Settings ▸ MIDI</strong>, under the ports: the <strong>external gear</strong> of the project (a hardware synth or a rack processor that is part of a track) and the <strong>control surfaces</strong> of your studio (a Mackie Control or a HUI with motor faders).</p>
+<h2 id="an-external-instrument-a-synth-outside-the-computer">An external instrument: a synth outside the computer</h2>
+<ol>
+<li>Right-click the track and choose <strong>External instrument…</strong> (or select it and press <strong>External instrument</strong> in Settings ▸ MIDI). Its notes now leave through a MIDI port to your synth, and the synth's sound comes back on a pair of your audio interface's inputs and plays through the track (the track's own instrument is silent: the synth is outboard).</li>
+<li>Choose, in the <em>Routing</em> row, the <strong>MIDI output port</strong>, the <strong>channel</strong> and the <strong>inputs</strong> (<em>In 1-2</em> means interface inputs 1 and 2).</li>
+<li>Make the synth play a sound, stop the transport and press <strong>Ping</strong>.</li>
+</ol>
+<p>Cantus plays middle C four times and listens for the first sound that comes back. It says what it found — <em>612 frames, 12.8 ms (jitter 0)</em> — and keeps it with the project. From then on every other track waits that long, so your synth is <strong>on time</strong> with the rest of the song, in playback, in bounces and in an exported file (they use the number kept in the project, not a new measurement). <strong>Measure again</strong> whenever you change the interface's buffer, the patch's attack or a cable. If the sound has a slow attack, correct it with <strong>Adjust</strong> (a trim in milliseconds, ±500).</p>
+<p>If you change the interface's buffer, Cantus adjusts the stored number by what the interface itself reports and says so (<em>measured at buffer 256, adjusted to 512</em>); on another interface it asks you to measure again. Starting the transport stops a measurement; one that does not come back is given up after 15 seconds and said.</p>
+<p><strong>Rendering.</strong> A freeze, a bounce in place or an export cannot play a synth or a rack that is outside the computer: Cantus refuses them while a unit plays and says what to do — record the gear's return to a track (the recording is placed by the measured latency), or switch the unit off.</p>
+<h2 id="an-external-effect-a-processor-in-a-rack">An external effect: a processor in a rack</h2>
+<p><strong>External effect</strong> gives the track a <em>send</em> (a pair of interface outputs) and a <em>return</em> (a pair of inputs). <strong>Ping</strong> sends a short burst of noise out of the send and finds it on the return; it needs the cable connected, and says if nothing came back, if only hum came back, or if the measurements disagree. The measured trip is kept and the rest of the mix waits for it. The track's sound goes out of the send pair (use outputs 3-4 or higher: 1-2 are the master's) and what comes back on the return plays in its place, through the track's level, inserts and sends.</p>
+<h2 id="what-the-screen-says">What the screen says</h2>
+<p>Each unit says whether it can play right now: <em>ready</em>, <em>switched off</em>, <em>no audio device is open</em>, <em>another audio interface is open</em>, <em>the interface has no such channels</em>, <em>the MIDI port is not there</em>, <em>its track is gone</em>. Cantus never opens a device or a port for a unit that is not available, and never pings it. <strong>On</strong> keeps the setup and plays the track as if the unit were not there. <strong>Remove</strong> takes it out and gives the track back the input it had — undo brings it back. Taking a unit away (or switching it off, or moving it to another port or channel) first releases every note it holds on the synth.</p>
+<p>Everything is undoable and every step has a name in the history (<em>add external gear</em>, <em>measure external gear</em>…). An agent can do all of it (<code>add_external_unit</code>, <code>ping_external_unit</code>, <code>list_external_units</code>).</p>
+<h2 id="control-surfaces-mackie-control-and-hui">Control surfaces: Mackie Control and HUI</h2>
+<p>Press <strong>Add surface</strong>, choose its kind — <em>Mackie Control</em>, <em>Mackie extender 1/2</em> (more strips to the right of the main unit) or <em>HUI</em> — and its MIDI input and output ports (the output defaults to the same device's). No hardware yet? <strong>Add virtual surface</strong> connects a virtual unit to Cantus, to try the setup.</p>
+<ul>
+<li><strong>Faders</strong> move the strips' faders (and follow them: the motors move to where the mixer is — never while you are touching one). One touch to one release is one undo step.</li>
+<li><strong>V-pots</strong> pan; push resets to centre; <strong>Shift</strong> makes it ten times finer. <strong>Flip</strong> swaps faders and V-pots (the fader pans, the V-pot sets the gain).</li>
+<li><strong>Rec</strong>, <strong>Solo</strong>, <strong>Mute</strong> and <strong>Select</strong> buttons and their lights follow the mixer.</li>
+<li><strong>Bank ◂ ▸</strong> moves eight strips (sixteen with an extender), <strong>channel ◂ ▸</strong> one. The two-digit display shows the page.</li>
+<li>The <strong>scribble strips</strong> show each strip's name and, below, its gain; <strong>Name/Value</strong> shows the pan instead. The <strong>meters</strong> show levels; the large display shows the position.</li>
+<li><strong>Play, Stop, Record, Cycle, Click, Rewind, Fast forward, Scrub, the jog wheel, Marker ◂ ▸, Save and Undo</strong> (Shift + Undo is Redo) drive the transport and the project.</li>
+</ul>
+<p>A surface's port belongs to the surface: its buttons never play notes and never reach the generic controller mapping, which stays as it was for every other device. The last messages each surface exchanged are listed under the surfaces (for the HUI, any switch Cantus does not map is named by zone and port: send them to us and we add it).</p>
+<p><strong>Touch-sensing faders.</strong> Every Mackie Control and HUI knows when a finger is on a fader. Some controllers in Mackie mode do not: switch <em>Touch-sensing faders</em> off for them, and a fader you move is held 0.6 s before the motors follow the mixer again — otherwise the motors would fight your hand.</p>
+<p><em>A HUI is mapped for its eight channel strips, channel and bank selection, shift, undo and save, the cursor keys and scrub, the transport, loop and return-to-zero, and the jog wheel; its other zones are read and ignored. Cantus pings it every second and says when it stops answering.</em></p>
+</main>
+</body>
+</html>

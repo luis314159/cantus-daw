@@ -71,8 +71,22 @@ pub struct Parts {
     _module: Arc<Module>,
 }
 
+/// A hook run on the initialized component before anything else is asked of it: where an
+/// ARA host binds the instance to its document controller (ARA requires it before the first
+/// `setActive`, `setState`, `getProcessContextRequirements` or view — ADR 0097). r36:ara
+pub type BindHook<'a> = &'a mut dyn FnMut(&ComPtr<IComponent>) -> Result<(), HostError>;
+
 impl Parts {
     pub fn create(module: &Arc<Module>, cid: &TUID) -> Result<Parts, HostError> {
+        Self::create_bound(module, cid, &mut |_| Ok(()))
+    }
+
+    /// [`Self::create`], with `bind` run right after `initialize` (r36:ara).
+    pub fn create_bound(
+        module: &Arc<Module>,
+        cid: &TUID,
+        bind: BindHook<'_>,
+    ) -> Result<Parts, HostError> {
         let component = create::<IComponent>(module, cid)
             .ok_or_else(|| HostError::NotFound(super::util::tuid_to_string(cid)))?;
         let context = module.host_context();
@@ -90,6 +104,8 @@ impl Parts {
                 connection: None,
                 _module: module.clone(),
             };
+            // r36:ara: before the controller reads the component's state.
+            bind(&parts.component)?;
             if let Some(single) = parts.component.cast::<IEditController>() {
                 parts.controller = Some(single);
             } else {

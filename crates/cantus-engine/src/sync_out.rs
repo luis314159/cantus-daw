@@ -43,10 +43,13 @@ pub type Connect = crate::midi::pool::Connect;
 /// The system's outputs, by name.
 pub fn connect_system(name: &str) -> Option<Box<dyn OutPort>> {
     let out = midir::MidiOutput::new("cantus-sync").ok()?;
+    // The n-th port of a name (an external instrument's ordinal, ADR 0094). r36:external
+    let (name, nth) = crate::external_out::split_key(name);
     let port = out
         .ports()
         .into_iter()
-        .find(|p| out.port_name(p).ok().as_deref() == Some(name))?;
+        .filter(|p| out.port_name(p).ok().as_deref() == Some(name))
+        .nth(nth)?;
     match out.connect(&port, "cantus-sync-out") {
         Ok(c) => Some(Box::new(c)),
         Err(e) => {
@@ -59,6 +62,8 @@ pub fn connect_system(name: &str) -> Option<Box<dyn OutPort>> {
 /// The running thread.
 pub struct MidiOut {
     choices: Arc<Mutex<Vec<PortChoice>>>,
+    /// The external instruments' ports: route number → port name (ADR 0094). r36:external
+    routes: Arc<Mutex<Vec<(u64, String, u8)>>>,
     stop: Arc<AtomicBool>,
     pub stats: Arc<OutStats>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -85,6 +90,9 @@ struct Open {
     port: Option<Box<dyn OutPort>>,
 }
 
+/// The port id of a due message for an external instrument (ADR 0094): its route says which.
+const NOTE_PORT: u64 = u64::MAX; // r36:external
+
 /// How close to a message's moment the thread sleeps (the high-resolution timer's own
 /// lateness), then yields to it: the yielding is this short, not a millisecond a message.
 const SPIN_US: f64 = 500.0;
@@ -99,19 +107,36 @@ impl MidiOut {
         pool: Arc<crate::midi::pool::OutPool>,
     ) -> MidiOut {
         let choices: Arc<Mutex<Vec<PortChoice>>> = Arc::default();
+        let routes: Arc<Mutex<Vec<(u64, String, u8)>>> = Arc::default(); // r36:external
+        let r2 = routes.clone(); // r36:external
         let stop = Arc::new(AtomicBool::new(false));
         let stats = Arc::new(OutStats::default());
         let (c2, s2, st2) = (choices.clone(), stop.clone(), stats.clone());
         let thread = std::thread::Builder::new()
             .name("cantus-midi-out".into())
-            .spawn(move || run(ring, shared, pool, c2, s2, st2))
+            .spawn(move || run(ring, shared, pool, c2, r2, s2, st2))
             .ok();
         MidiOut {
             choices,
+            routes, // r36:external
             stop,
             stats,
             thread,
         }
+    }
+
+    /// The ports external instruments' notes go to: `(route, port name, ordinal)`, the route
+    /// being what the processor stamped each note with — the unit's id (ADR 0094).
+    /// r36:external
+    pub fn set_unit_routes(&self, routes: Vec<(u64, String, u8)>) {
+        if let Ok(mut r) = self.routes.lock() {
+            *r = routes;
+        }
+    }
+
+    /// The routes as last set (the interface's tests read the wiring back). r36:external
+    pub fn unit_routes(&self) -> Vec<(u64, String, u8)> {
+        self.routes.lock().map(|r| r.clone()).unwrap_or_default()
     }
 
     /// The ports and what each takes (Settings ▸ MIDI).
@@ -136,9 +161,13 @@ fn run(
     shared: Arc<SyncShared>,
     pool: Arc<crate::midi::pool::OutPool>,
     choices: Arc<Mutex<Vec<PortChoice>>>,
+    unit_routes: Arc<Mutex<Vec<(u64, String, u8)>>>, // r36:external
     stop: Arc<AtomicBool>,
     stats: Arc<OutStats>,
 ) {
+    // The external instruments' ports (ADR 0094): route → its connection; a due message
+    // whose port is NOTE_PORT goes to its route's. r36:external
+    let mut unit_ports = crate::external_out::UnitPorts::default();
     let mut open: Vec<Open> = Vec::new();
     let mut ids = 0u64;
     let mut due: Vec<Due> = Vec::with_capacity(256);
@@ -185,25 +214,55 @@ fn run(
                 // What waits for a port no longer chosen, or for a kind it no longer takes,
                 // is dropped.
                 due.retain(|d| {
-                    open.iter().any(|o| {
+                    d.port == NOTE_PORT // r36:external
+                        || open.iter().any(|o| {
                         o.id == d.port
                             && match d.msg.kind {
                                 OutKind::Clock => o.choice.clock,
                                 OutKind::Mtc => o.choice.mtc,
+                                OutKind::Note => false, // r36:external
                             }
                     })
                 });
             }
+        }
+        // r36:external — the unit routes as set now: a port is opened (through the pool, which
+        // controller feedback and clock share) for each route; a route gone is retired, so the
+        // note-offs for it still go out (never dropped).
+        if let Ok(r) = unit_routes.try_lock() {
+            let refused = unit_ports.update(&r, |key| {
+                pool.get(key)
+                    .map(|p| Box::new(crate::midi::pool::Pooled(p)) as Box<dyn OutPort>)
+            });
+            stats.refused.fetch_add(refused, Ordering::Relaxed);
+        }
+        if unit_ports.prune(|route| {
+            due.iter()
+                .any(|d| d.port == NOTE_PORT && d.msg.route == route)
+        }) {
+            pool.prune();
         }
         if let Some(l) = shared.host_line.read() {
             line = l;
         }
         while let Ok(m) = ring.pop() {
             let at = line.host_of(m.at) + line.latency_us;
+            if m.kind == OutKind::Note {
+                // r36:external: to the one port its route names, at its sample's moment.
+                if unit_ports.reaches(m.route) {
+                    due.push(Due {
+                        at_us: at,
+                        port: NOTE_PORT,
+                        msg: m,
+                    });
+                }
+                continue;
+            }
             for o in &open {
                 let takes = match m.kind {
                     OutKind::Clock => o.choice.clock,
                     OutKind::Mtc => o.choice.mtc,
+                    OutKind::Note => false, // r36:external
                 };
                 if takes && o.port.is_some() {
                     due.push(Due {
@@ -233,11 +292,14 @@ fn run(
         let mut k = 0;
         while k < due.len() && due[k].at_us <= sent_at {
             let d = &due[k];
-            if let Some(p) = open
-                .iter_mut()
-                .find(|o| o.id == d.port)
-                .and_then(|o| o.port.as_mut())
-            {
+            let target = if d.port == NOTE_PORT {
+                unit_ports.port(d.msg.route) // r36:external
+            } else {
+                open.iter_mut()
+                    .find(|o| o.id == d.port)
+                    .and_then(|o| o.port.as_mut())
+            };
+            if let Some(p) = target {
                 p.write(d.msg.msg());
                 let late = (super::host_micros() as f64 - d.at_us) as i64;
                 stats.sent.fetch_add(1, Ordering::Relaxed);

@@ -1,0 +1,49 @@
+# Area: ara - round 36 (ADR 0097): ARA 2 plug-ins editing audio clips. Every key here needs its twin in ara.es.txt
+
+# Undo labels (cmd.*)
+cmd.bind_ara = bind clip to ARA plug-in
+cmd.unbind_ara = let go of ARA plug-in
+cmd.ara_edit = edit in ARA plug-in
+
+# The clip menu's ARA section
+ara.menu.band = ARA plug-in
+ara.menu.bind = Bind to {name}
+ara.menu.unbind = Let go of {name}
+ara.menu.none = No ARA plug-in found: Settings → Plug-ins → Scan for plug-ins
+ara.menu.in_process = Runs inside Cantus, not isolated
+ara.menu.live = {name} renders this clip
+ara.menu.missing = {name}: {why}
+ara.menu.source = The clip plays its source
+ara.menu.blocked = Remove the clip's warp, reverse and pitch edits to bind it
+
+# What the status line says
+ara.status.bound = Clip bound to {name}. ARA plug-ins run inside Cantus, not isolated.
+ara.status.unbound = Clip let go of {name}.
+ara.err.not_ara = {name} cannot edit clips: {why}
+ara.err.missing = {name} is not installed: the clip plays its source
+
+# Why a bound clip plays its source
+ara.why.not_installed = not installed
+ara.why.no_source = its audio file is not there
+ara.why.take_lane = on a take lane
+
+# What an agent asks to do (the confirmation card)
+ara.tool.bind = Bind the clip to {plugin} (runs inside Cantus)
+ara.tool.unbind = Let the clip go of {plugin}
+
+# Round 36, slice 2: the editor, retry, sources only, progress
+ara.menu.open = Open {name}
+ara.menu.retry = Retry {name}
+ara.menu.restore = Bind to {name} with its previous edits
+ara.menu.off = Play sources only (ARA plug-ins off)
+ara.clip.rendering = {name}: rendering {pct} %
+ara.clip.live = {name}
+ara.clip.source = {name}: playing its source
+ara.why.loading = its audio file is still loading
+ara.why.off = ARA plug-ins are off
+ara.status.on = ARA plug-ins on.
+ara.status.off = ARA plug-ins off: every bound clip plays its source.
+ara.err.no_editor = {name} opened no editor: {why}
+
+# The fix round
+ara.err.unsettled = An ARA plug-in is still rendering: try again when its clips show no progress

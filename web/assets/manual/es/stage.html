@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El escenario: dónde baila un bailarín</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="el-escenario-dónde-baila-un-bailarín">El escenario: dónde baila un bailarín</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/stage.html">Read in English</a></em></p>
+<p>Ver también: <a href="dancer.html">El bailarín</a> — sus pasos, sus caras y sus personajes · <a href="import-characters.html">Importar un personaje</a> · <a href="video.html">Exportar un vídeo</a> — la canción con sus bailarines (también desde el menú de la ventana de compañía: <em>Exportar vídeo…</em>).</p>
+<p>Un <strong>bailarín</strong> es una pista cuyo instrumento no suena y dibuja un personaje que baila con tu canción. Esta página trata de <em>dónde</em> baila; sus pasos, sus caras y sus personajes están en la ventana del propio bailarín.</p>
+<h2 id="sobre-el-espacio-de-trabajo-en-la-pestaña-escenario-u-oculto">Sobre el espacio de trabajo, en la pestaña Escenario, u oculto</h2>
+<p>Cada bailarín tiene un lugar donde se muestra (el <em>Dónde</em> de su ventana):</p>
+<ul>
+<li><strong>Sobre el espacio de trabajo</strong> — el personaje está justo encima de tu arreglo, tu mezclador y tus editores, sin nada alrededor: ni ventana ni marco, transparente. Su <strong>X</strong> y su <strong>Y</strong> dicen dónde están sus pies (de 0 a 1, a lo ancho y a lo alto del espacio de trabajo) y su <strong>Tamaño</strong> cuánto mide (a 1×, cerca de un tercio de la altura del espacio de trabajo). Automatiza X y cruzará la ventana caminando.</li>
+<li><strong>En la pestaña Escenario</strong> — el personaje baila en un escenario propio, una pestaña del espacio de trabajo que se abre bajo el inspector la primera vez. Arrastra la pestaña a donde quieras, apílala junto a otras o hazla flotar como cualquier otra área; tus disposiciones la conservan.</li>
+<li><strong>Oculto</strong> — no se muestra en ninguna parte y no cuesta nada.</li>
+</ul>
+<h2 id="moverlo-cambiar-su-tamaño-fijarlo">Moverlo, cambiar su tamaño, fijarlo</h2>
+<p>Señala un bailarín y aparece su marco:</p>
+<ul>
+<li><strong>arrastra su cuerpo</strong> para moverlo (un paso de deshacer por arrastre: <em>Mover bailarín</em>);</li>
+<li><strong>arrastra el tirador redondo</strong> de su esquina superior derecha para hacerlo más grande o más pequeño (sus pies se quedan donde están);</li>
+<li>en la <strong>píldora</strong> de encima: <strong>fijar</strong> lo mantiene por encima de los paneles flotantes (un mezclador flotante, la ventana de un dispositivo); <strong>acoplar</strong> lo pone en la pestaña Escenario (en la pestaña, <strong>flotar</strong> lo devuelve sobre el espacio de trabajo); <strong>ocultar</strong> lo oculta.</li>
+</ul>
+<p>El marco se desvanece un momento después de que el puntero se va.</p>
+<h2 id="lo-que-cuesta">Lo que cuesta</h2>
+<p>Un bailarín se dibuja solo cuando su postura cambia: como mucho 60 veces por segundo mientras suena la canción, 15 veces por segundo mientras está parada (una respiración lenta y un parpadeo), y nunca cuando está oculto o Cantus está minimizado. Cada bailarín se dibuja en una caja justo del tamaño que necesita, con los píxeles reales de tu pantalla, así que es nítido con cualquier zoom.</p>
+<h2 id="la-ventana-de-compañía">La ventana de compañía</h2>
+<p><em>Ver ▸ Ventana de compañía</em> (<strong>Alt+Mayús+D</strong>) abre una ventana pequeña propia, <strong>Cantus Stage</strong>, que flota sobre todo —Cantus, tu navegador, un juego— sin marco y con el fondo transparente. En ella un personaje baila <strong>con lo que suene</strong>, sin automatización: la canción mientras suena; un pulso propio al tempo del proyecto cuando el transporte está parado pero sale sonido (una preescucha, tu instrumento por una entrada); una respiración lenta en silencio. Baila con más ganas cuanto más fuerte suena la música.</p>
+<p>Arrástrala desde cualquier punto para moverla; arrastra su esquina inferior derecha para cambiar su tamaño. Señálala para ver su botón ⋯, o haz clic derecho en ella, para sus opciones — cada fila pasa al valor siguiente con un clic:</p>
+<ul>
+<li><strong>Personaje</strong> — cada personaje de Cantus y luego <em>Los bailarines del proyecto</em> (tus pistas de bailarín, tal como bailan en el escenario).</li>
+<li><strong>Tamaño</strong> — tres tamaños de compañía, un cuadrado de 600 × 600, un vertical de 540 × 960 y uno ancho de 960 × 540.</li>
+<li><strong>Fondo</strong> — transparente, el escenario del tema, o un verde, azul o magenta croma.</li>
+<li><strong>Visualizador</strong> — el espectro del máster, su nivel, o apagado; <strong>Compás y pulso</strong> y <strong>Nombre y tempo de la canción</strong>, encendidos o apagados.</li>
+<li><strong>Siempre encima</strong>, <strong>Modo para streaming</strong>, <strong>Copiar la configuración de OBS</strong> y <strong>Cerrar</strong>.</li>
+</ul>
+<p>El menú muestra también <strong>lo que cuesta</strong>: el tiempo de procesador de cada uno de sus fotogramas, su frecuencia de fotogramas y la parte de un núcleo que suman. El tiempo de la tarjeta gráfica no se mide (Cantus no se lo pregunta al controlador), y el menú lo dice. Minimizada, la ventana no dibuja nada y no cuesta nada. Sigue abierta entre sesiones hasta que la cierras.</p>
+<h2 id="modo-para-streaming">Modo para streaming</h2>
+<p><em>Ver ▸ Modo para streaming</em> convierte la ventana de compañía en una fuente de captura para OBS Studio o Streamlabs: la ventana conserva el mismo título, <strong>Cantus Stage</strong>, en cada sesión, no muestra nada más que el escenario (ni marco ni botones al señalarla — el clic derecho sigue abriendo su menú), y su tamaño y su lugar quedan fijos y recordados. <em>Copiar la configuración de OBS</em> en su menú copia los pasos para su fondo.</p>
+<table>
+<tr><th>Fondo</th><th>En OBS</th><th>Lo que obtienes</th></tr>
+<tr><td>Transparente</td><td><strong>Captura de ventana</strong>, método <em>Windows 10 (1903 y posterior)</em></td><td>El personaje sin nada alrededor</td></tr>
+<tr><td>Transparente</td><td>Captura de ventana, método <em>BitBlt</em></td><td>Un fondo negro (usa mejor un fondo croma)</td></tr>
+<tr><td>Verde, azul o magenta croma</td><td>Captura de ventana + un filtro <strong>Clave croma</strong> del mismo color</td><td>El personaje recortado; baja la <em>Similitud</em> hasta que sus bordes queden limpios</td></tr>
+<tr><td>El escenario del tema</td><td>Captura de ventana</td><td>El personaje sobre el escenario de Cantus</td></tr>
+</table>
+<p>En Windows, la <em>Captura de juego</em> de OBS no pudo capturar la ventana en un portátil con dos chips gráficos (uno dibuja Cantus y el otro ejecuta OBS); la <em>Captura de ventana</em> siempre pudo. En Linux, usa <em>Captura de ventana (Xcomposite)</em> o <em>Captura de pantalla (PipeWire)</em>; un escritorio con compositor conserva la transparencia, y sin él elige un fondo croma.</p>
+<h2 id="atajos">Atajos</h2>
+<table>
+<tr><th>Tecla</th><th>Qué hace</th></tr>
+<tr><td>Alt+D</td><td>Mostrar u ocultar los bailarines en pantalla (<em>Ver ▸ Escenario</em>)</td></tr>
+<tr><td>Alt+Mayús+D</td><td>Abrir o cerrar la ventana de compañía</td></tr>
+<tr><td>Ctrl+Mayús+D (Cmd+Mayús+D en un Mac)</td><td>Activar o desactivar el modo para streaming (<em>Ver ▸ Modo para streaming</em>, o la paleta de comandos)</td></tr>
+</table>
+</main>
+</body>
+</html>

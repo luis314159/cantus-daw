@@ -21,9 +21,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Noise bursts in the train.
-const BURSTS: usize = 8;
+pub(crate) const BURSTS: usize = 8; // r36:external
 /// Frames in each burst.
-const BURST_FRAMES: usize = 1024;
+pub(crate) const BURST_FRAMES: usize = 1024; // r36:external (the pair ping reads them)
 /// Burst level (linear peak before the window).
 const BURST_LEVEL: f32 = 0.5;
 /// How strong the peak must stand above the correlation's spread to be believed.
@@ -118,7 +118,7 @@ pub fn probe_signal(rate: f64) -> Vec<f32> {
 }
 
 /// The silence before the first burst and the distance between bursts, in frames.
-fn burst_layout(rate: f64) -> (usize, usize) {
+pub(crate) fn burst_layout(rate: f64) -> (usize, usize) {
     (
         (rate * 0.1) as usize,
         ((rate * 0.25) as usize).max(BURST_FRAMES * 2),
@@ -126,7 +126,7 @@ fn burst_layout(rate: f64) -> (usize, usize) {
 }
 
 /// Where each burst starts in the probe signal.
-fn burst_starts(rate: f64) -> impl Iterator<Item = usize> {
+pub(crate) fn burst_starts(rate: f64) -> impl Iterator<Item = usize> {
     let (lead, spacing) = burst_layout(rate);
     (0..BURSTS).map(move |b| lead + b * spacing)
 }

@@ -102,6 +102,8 @@ pub struct Desk {
     /// empty without inserts.
     pub chain: Vec<String>,
     pub master_chain: String,
+    /// Per project strip: the VCAs' marks (round 36, ADR 0093).
+    pub vca_marks: Vec<super::vca_ui::VcaMark>, // r36:mix
     /// The most sends any strip has: the Extra large send list's rows follow it.
     pub most_sends: usize,
     pub any_solo: bool,
@@ -230,6 +232,7 @@ impl Desk {
             self.middle.extend(right);
         }
         self.info.clear();
+        super::vca_ui::marks(p, &mut self.vca_marks); // r36:mix
         self.fed.clear();
         self.fed
             .extend(p.strips.iter().map(|s| routing::is_fed(p, s.id)));

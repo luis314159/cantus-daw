@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Faders VCA e instantáneas de la mesa</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="faders-vca-e-instantáneas-de-la-mesa">Faders VCA e instantáneas de la mesa</h1>
+<p><em>Cantus 0.1.0-beta.11 · <a href="../en/mixing-studio.html">Read in English</a> · volver al <a href="index.html">manual</a></em></p>
+<p>Dos herramientas de una mesa de estudio, en el mezclador: los <strong>faders VCA</strong>, que mueven un grupo entero de pistas a la vez sin tocar sus propios faders, y las <strong>instantáneas</strong>, que guardan la mesa y la devuelven, entera o canal por canal.</p>
+<h2 id="faders-vca">Faders VCA</h2>
+<p>Un VCA es una franja <strong>sin audio</strong>: un fader, un silencio y un solo. Las franjas que lo <strong>siguen</strong> reciben su nivel sumado al suyo, en decibelios, en la etapa de ganancia, justo donde actúa el fader de cada franja. Sus faders, su automatización y sus moduladores no se reescriben: una franja a −3 dB que sigue a un VCA a −6 dB suena a −9 dB y sigue mostrando −3 dB. Un VCA a 0 dB no cambia nada, ni una sola muestra.</p>
+<p><strong>Crear uno.</strong> En el menú ▸ del mezclador, <strong>Añadir VCA</strong>; o clic derecho en una franja (o en una selección) → <strong>Seguir un VCA ▸ Nuevo VCA con esta franja</strong>. Un VCA se dibuja como una franja con una placa «VCA» de color donde iría el medidor, y cuántas franjas lo siguen. Cada franja que un VCA alcanza lleva una barra del color del VCA bajo su número; pasa el ratón sobre el número para ver cuál.</p>
+<p><strong>Seguir uno.</strong> Clic derecho en una franja → <strong>Seguir un VCA ▸</strong> y marca los VCA que sigue (con una selección, todas las seleccionadas lo siguen juntas). Una franja puede seguir varios VCA: sus decibelios se suman, <strong>cada uno contado una vez</strong> aunque un VCA llegue a la franja por dos caminos (un VCA puede seguir a otro VCA). Un ciclo se rechaza. <strong>Un grupo puede seguir a un VCA</strong>: clic derecho en el separador del grupo → <strong>VCA del grupo</strong>.</p>
+<p><strong>El silencio y el solo siguen.</strong> Un VCA en silencio silencia todo lo que alcanza; un VCA en solo pone en solo todo lo que alcanza (y sus rutas, como el solo de FL).</p>
+<p><strong>Automatización.</strong> El fader del VCA es un fader normal: dibuja o graba automatización en él, o ponle un modulador. La automatización de cada franja se queda y las dos se suman. Un VCA no puede tener inserciones, envíos, salida ni pistas, y un VCA que alguien sigue no se puede quitar.</p>
+<h2 id="instantáneas">Instantáneas</h2>
+<p>La fila de título del mezclador tiene un campo <strong>Instantáneas</strong>. <strong>Guardar instantánea</strong> guarda la mesa —el fader, el panorama, la anchura, la polaridad, el silencio, el solo, el intercambio, el interruptor de inserciones y la EQ de cada franja; el nivel, el interruptor y el punto de toma de cada envío; el bypass, el seco/mojado y los parámetros nativos de cada inserción; y el máster— con un nombre; <strong>Guardar instantánea de las franjas seleccionadas</strong> guarda solo esas. Una instantánea guarda <em>estado</em>, nunca <em>estructura</em>: el encaminamiento, qué inserciones existen y el estado propio de un plugin alojado no están en ella, y recuperarla nunca crea, quita ni reencamina nada.</p>
+<p>El submenú de cada instantánea:</p>
+<ul>
+<li><strong>Recuperar</strong> devuelve todos los canales en un solo paso de deshacer. <strong>Recuperar las franjas seleccionadas</strong> devuelve solo esas; <strong>Recuperar todo, también las franjas a salvo</strong> alcanza también a las franjas marcadas a salvo.</li>
+<li><strong>A/B con la mesa</strong> intercambia la mesa con la instantánea y vuelve, para oír la diferencia.</li>
+<li><strong>Actualizar con la mesa</strong> la guarda de nuevo; <strong>Renombrar</strong>; <strong>Quitar</strong>.</li>
+<li><strong>Señalar en el cursor</strong> (más abajo).</li>
+</ul>
+<p><strong>Franjas a salvo.</strong> Clic derecho en una franja → <strong>A salvo de recuperar instantáneas</strong>: al recuperar todo, la franja se queda como está (una recuperación que la nombra sí la alcanza). <strong>A salvo del solo</strong> mantiene una franja sonando cuando otra está en solo (un clic, una referencia), salvo que esté en silencio.</p>
+<p><strong>Señales: instantáneas en la línea de tiempo.</strong> Una señal recupera una instantánea en un compás —la escena entera—: desde ahí se mantienen sus faders, panoramas, anchuras, niveles de envío y parámetros nativos de efectos, y se conmutan sus silencios, solos, polaridad, intercambio, interruptores de inserciones, bypass y EQ de franja (con un fundido de 16 muestras, nunca un corte). Un nivel se mantiene hasta otra señal o hasta que empiece tu siguiente clip de automatización de ese control; un clip que sonaba a través del compás de la señal se calla desde ella. Las señales se colocan en el cursor y se listan en el menú Instantáneas, donde se quita cada una; añadir y quitar una señal es un paso de deshacer. En la vista de sesión, los clips de una escena llevan sus propias envolventes (una escena se lanza tocando, no en un compás).</p>
+<h2 id="qué-puede-hacer-un-agente">Qué puede hacer un agente</h2>
+<p><code>create_vca</code>, <code>assign_vca</code>, <code>take_snapshot</code>, <code>recall_snapshot</code>, <code>get_mix_snapshots</code>, <code>remove_snapshot</code>, <code>add_mix_cue</code>, <code>remove_mix_cue</code> y <code>set_strip_safe</code> — véase <a href="ai-tools.html">Qué puede hacer un agente de IA en Cantus</a>.</p>
+</main>
+</body>
+</html>

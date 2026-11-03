@@ -71,6 +71,9 @@ struct Reader {
 }
 
 pub(super) fn run() {
+    // Ahead of the interface and the builds (round 36: 64 frozen streams in the recording
+    // mode), never in MMCSS: it blocks on its reads. // r36:record
+    let _ = cantus_rt::thread::raise_io_thread(); // r36:record
     let mut r = Reader {
         owners: Vec::new(),
         tick: 0,
@@ -126,7 +129,11 @@ impl Reader {
             return Look::Quiet;
         };
         self.tick += 1;
-        let mut wants: Vec<(usize, u32, usize, usize)> = Vec::new();
+        // (class, distance, stream, level, block): sorted, every stream's next block comes
+        // before any stream's block after it — beyond the reader's own look-ahead too (round
+        // 36: with 128 frozen streams the far blocks went stream by stream, and the last
+        // streams' next block came too late). // r36:record
+        let mut wants: Vec<(usize, usize, u32, usize, usize)> = Vec::new();
         // Start pins whose mip levels are built in one chain (fourth review #6).
         let mut chains: Vec<StartPin> = Vec::new();
         for b in &self.boards {
@@ -149,7 +156,7 @@ impl Reader {
                     for k in 0..p.levels.min(e.stream.levels()) {
                         let head = e.stream.head_frames(k) / BLOCK;
                         for b in p.blocks(k).filter(|b| *b >= head) {
-                            wants.push((LOOKAHEAD + 2, p.stream, k, b));
+                            wants.push((LOOKAHEAD + 2, 0, p.stream, k, b));
                         }
                     }
                     if p.levels > 1 {
@@ -167,18 +174,18 @@ impl Reader {
                 let first = |k: usize, blk: usize| blk.max(st.head_frames(k) / BLOCK);
                 let start = first(c.level, c.block);
                 for d in 0..=LOOKAHEAD + c.ahead {
-                    wants.push((d.min(LOOKAHEAD), c.stream, c.level, start + d));
+                    wants.push((d.min(LOOKAHEAD), d, c.stream, c.level, start + d));
                 }
                 // The neighbouring mip level at the same place when the voice's pitch is
                 // near it: a pitch change that crosses an octave finds its block there.
                 let at = c.block * BLOCK;
                 if c.near_up && c.level + 1 < st.levels() {
                     let b = first(c.level + 1, at / 2 / BLOCK);
-                    wants.push((LOOKAHEAD + 1, c.stream, c.level + 1, b));
+                    wants.push((LOOKAHEAD + 1, 0, c.stream, c.level + 1, b));
                 }
                 if c.near_down && c.level > 0 {
                     let b = first(c.level - 1, at * 2 / BLOCK);
-                    wants.push((LOOKAHEAD + 1, c.stream, c.level - 1, b));
+                    wants.push((LOOKAHEAD + 1, 0, c.stream, c.level - 1, b));
                 }
             }
         }
@@ -186,8 +193,11 @@ impl Reader {
             return Look::Quiet;
         }
         wants.sort_unstable();
-        wants.dedup_by_key(|w| (w.1, w.2, w.3));
-        let keep: HashSet<(u32, usize, usize)> = wants.iter().map(|w| (w.1, w.2, w.3)).collect();
+        // The same block wanted twice: the nearer want kept (it sorts first). Not adjacent
+        // once distances part them: deduplicated by set.
+        let mut seen: HashSet<(u32, usize, usize)> = HashSet::with_capacity(wants.len());
+        wants.retain(|w| seen.insert((w.2, w.3, w.4)));
+        let keep = seen;
         // Mark what is there as wanted, so nothing wanted is evicted.
         let tick = self.tick;
         for o in self.owners.iter_mut().flatten() {
@@ -197,7 +207,7 @@ impl Reader {
         }
         let mut read = false;
         let mut pin_reads = 0;
-        for &(priority, id, level, block) in &wants {
+        for &(priority, _, id, level, block) in &wants {
             // Playing voices first (third review #7): a few start blocks a look, then the
             // cursors are looked at again before any more.
             if priority > LOOKAHEAD + 1 && pin_reads >= PIN_READS_PER_LOOK {

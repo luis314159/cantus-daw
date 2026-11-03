@@ -63,6 +63,9 @@ pub enum CommandError {
     /// first. Names the frozen target.
     #[error("{0:?} is frozen: unfreeze it to change this")]
     Frozen(crate::freeze::FreezeTarget),
+    /// The recording mode is on (ADR 0092): leave it to edit. // r36:record
+    #[error("recording mode: leave it to edit")] // r36:record
+    RecordingMode, // r36:record
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -651,6 +654,11 @@ pub enum Command {
         id: AudioSourceId,
         provenance: Option<Box<crate::audio::Provenance>>,
     },
+    /// Set or clear a file's markers, regions and loop points (ADR 0096 §6). r36:editor
+    SetAudioSourceMarks {
+        id: AudioSourceId,
+        marks: Option<Box<crate::audio::SourceMarks>>,
+    }, // r36:editor
     /// Set or clear what makes a clip an audio clip: clip gain, fades and their curves,
     /// reverse. One command for all of them, so a drag on a fade handle merges.
     SetClipAudio {
@@ -667,6 +675,24 @@ pub enum Command {
         clip: ClipId,
         pitch: Option<Box<crate::pitch::PitchEdit>>,
         op: crate::pitch::PitchOp,
+    },
+    /// Bind an audio clip to an ARA 2 plug-in, or let it go (ADR 0097) — the plug-in and its
+    /// state for the clip, whole; the inverse is the binding as it was. Binding is refused on
+    /// a clip that is not audio and one with a warp or audible pitch edits (the plug-in does
+    /// its own pitch and time). Linked clips share the binding, each its own modification.
+    /// r36:ara
+    SetClipAra {
+        track: TrackId,
+        clip: ClipId,
+        ara: Option<Box<crate::ara::AraClip>>,
+    },
+    /// The ARA plug-in's state of a bound clip changed (an edit in its own editor), or an
+    /// undo puts it back: the archive, whole (ADR 0097). Not shared with linked clips: each
+    /// has its own modification. Refused on a clip that is not bound. r36:ara
+    SetClipAraState {
+        track: TrackId,
+        clip: ClipId,
+        archive: Option<crate::ara::AraArchive>,
     },
     /// Set or clear an audio clip's warp (ADR 0061): its markers, mode, transposition and
     /// tempo, whole — a drag merges into one step (when `op` merges) and the inverse is the
@@ -848,6 +874,27 @@ pub enum Command {
         id: crate::groove::GrooveId,
     },
     /// Replace a pooled groove, found by its id (renamed, edited).
+    // r36:external (ADR 0094) — hardware that is part of a track.
+    /// Put an external unit in the project at `index`. Refused for one that is not valid,
+    /// whose id is taken, or whose track already has a unit of that kind (a unit of a track
+    /// that is gone is inert, so the undo of its removal always puts it back).
+    InsertExternalUnit {
+        index: usize,
+        unit: Box<crate::external_unit::ExternalUnit>,
+    },
+    /// Take an external unit out (its routing and measure are kept by the inverse).
+    RemoveExternalUnit {
+        id: crate::external_unit::ExternalUnitId,
+    },
+    /// Replace a unit, found by its id: renamed, re-routed, trimmed, switched.
+    SetExternalUnit {
+        unit: Box<crate::external_unit::ExternalUnit>,
+    },
+    /// Store (or forget) a unit's measured latency: the ping's result.
+    SetExternalLatency {
+        id: crate::external_unit::ExternalUnitId,
+        latency: Option<crate::external_unit::Measured>,
+    },
     SetGroove {
         groove: Box<crate::groove::Groove>,
     },
@@ -881,6 +928,7 @@ pub enum Command {
 
     /// An edit of the session view's grid (round 33, ADR 0076). // r33:session
     Session(crate::session::SessionCommand), // r33:session
+    Mix(crate::mix_cmd::MixCommand), // r36:mix
 
     /// Several commands as one undo step.
     Batch {
@@ -1018,8 +1066,14 @@ impl Command {
             InsertGroove { .. } => "cmd.notefx.add_groove",
             RemoveGroove { .. } => "cmd.notefx.remove_groove",
             SetGroove { .. } => "cmd.notefx.set_groove",
+            // r36:external
+            InsertExternalUnit { .. } => "cmd.external.add",
+            RemoveExternalUnit { .. } => "cmd.external.remove",
+            SetExternalUnit { .. } => "cmd.external.set",
+            SetExternalLatency { .. } => "cmd.external.latency",
             InsertAudioSource { .. } => "cmd.insert_audio_source",
             SetAudioProvenance { .. } => "cmd.set_audio_provenance", // r34:stems
+            SetAudioSourceMarks { .. } => "cmd.editor.marks",        // r36:editor
             RemoveAudioSource { .. } => "cmd.remove_audio_source",
             SetAudioSourcePath { .. } => "cmd.set_audio_source_path",
             SetClipAudio { .. } => "cmd.set_clip_audio",
@@ -1031,6 +1085,9 @@ impl Command {
             SetClipAutomation { .. } => "cmd.set_clip_automation",
             SetClipPitch { op, .. } => op.label_key(),
             SetClipWarp { op, .. } => op.label_key(),
+            SetClipAra { ara: Some(_), .. } => "cmd.bind_ara", // r36:ara
+            SetClipAra { ara: None, .. } => "cmd.unbind_ara",  // r36:ara
+            SetClipAraState { .. } => "cmd.ara_edit",          // r36:ara
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
             SetClipLanes { .. } => "cmd.set_clip_lanes",
             SetTrackAutoMode { .. } => "cmd.set_track_auto_mode",
@@ -1046,6 +1103,7 @@ impl Command {
             SetTrackPitchOpen { .. } => "cmd.pitch.lane",
             SetRecordSettings { .. } => "cmd.set_record_settings",
             Session(c) => c.label_key(), // r33:session
+            Mix(c) => c.label_key(),     // r36:mix
             Batch { label_key, .. } => label_key,
         }
     }
@@ -1073,12 +1131,15 @@ impl Command {
             | (SetTempoTrack { .. }, SetTempoTrack { .. })
             | (SetMetreTrack { .. }, SetMetreTrack { .. }) => true,
             (Session(a), Session(b)) => a.supersedes(b), // r33:session
+            (Mix(a), Mix(b)) => a.supersedes(b),         // r36:mix
             (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
             (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
             (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
             (SetModulatorAmount { id: a, .. }, SetModulatorAmount { id: b, .. }) => a == b,
             (SetTrackArmed { id: a, .. }, SetTrackArmed { id: b, .. }) => a == b,
             (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
+            // r36:ara — an ARA plug-in's edits of one clip in one gesture: one step.
+            (SetClipAraState { clip: a, .. }, SetClipAraState { clip: b, .. }) => a == b,
             (
                 SetClipAudio {
                     track: ta,
@@ -1509,6 +1570,10 @@ impl Command {
                 if project.track(track.id).is_some() {
                     return Err(CommandError::DuplicateId(track.id.0));
                 }
+                if track.strip.is_some_and(|s| project.is_vca(s)) {
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                }
                 // A delay a bounce could not have kept (review 3).
                 if track.lateness.is_some_and(|l| !l.is_valid()) {
                     return Err(CommandError::InvalidValue("lateness".into()));
@@ -1608,6 +1673,11 @@ impl Command {
                 Ok(SetTrackPan { id, pan: old })
             }
             SetTrackStrip { id, strip } => {
+                if strip.is_some_and(|s| project.is_vca(s)) {
+                    // r36:mix
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                } // r36:mix
                 if let Some(sid) = strip {
                     if project.strip(sid).is_none() {
                         return Err(CommandError::StripNotFound(sid));
@@ -1629,6 +1699,18 @@ impl Command {
                     return Err(CommandError::DuplicateId(strip.id.0));
                 }
                 crate::modulator::check_new(project, &strip.modulators)?;
+                let into_vca = strip.output.is_some_and(|o| project.is_vca(o)) // r36:mix
+                    || strip.sends.iter().any(|s| project.is_vca(s.to))
+                    || strip.keys().any(|k| project.is_vca(k));
+                if into_vca
+                    || strip.kind == crate::vca::StripKind::Vca // r36:mix
+                        && (strip.output.is_some()
+                            || !strip.sends.is_empty()
+                            || !strip.effects.is_empty())
+                {
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                }
                 let id = strip.id;
                 project.strips.insert(index, *strip);
                 Ok(RemoveStrip { id })
@@ -1645,7 +1727,14 @@ impl Command {
                         .effects
                         .iter()
                         .any(|e| e.sidechain == Some(id));
-                if fed {
+                // A VCA somebody follows stays (ADR 0093). // r36:mix
+                let followed = project.strips.iter().any(|s| s.vcas.contains(&id))
+                    || project
+                        .mix
+                        .group_vcas
+                        .iter()
+                        .any(|(g, v)| *v == id && project.strip_group(*g).is_some());
+                if fed || followed {
                     return Err(CommandError::StripInUse(id));
                 }
                 let strip = project.strips.remove(index);
@@ -1702,6 +1791,11 @@ impl Command {
                 Ok(SetStripMute { id, muted: old })
             }
             SetStripOutput { id, output } => {
+                if project.is_vca(id) || output.is_some_and(|o| project.is_vca(o)) {
+                    // r36:mix
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                } // r36:mix
                 if let Some(o) = output {
                     if project.strip(o).is_none() {
                         return Err(CommandError::StripNotFound(o));
@@ -1771,6 +1865,11 @@ impl Command {
                 })
             }
             SetStripSend { id, send } => {
+                if project.is_vca(id) || project.is_vca(send.to) {
+                    // r36:mix
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                } // r36:mix
                 if !send.level.is_finite() {
                     return Err(CommandError::InvalidValue("send level".into()));
                 }
@@ -1824,6 +1923,11 @@ impl Command {
                 })
             }
             InsertStripSend { id, index, send } => {
+                if project.is_vca(id) || project.is_vca(send.to) {
+                    // r36:mix
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                } // r36:mix
                 if !send.level.is_finite() {
                     return Err(CommandError::InvalidValue("send level".into()));
                 }
@@ -2160,6 +2264,11 @@ impl Command {
             }
 
             InsertEffect { strip, index, slot } => {
+                if project.is_vca(strip) || slot.sidechain.is_some_and(|s| project.is_vca(s)) {
+                    // r36:mix
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                } // r36:mix
                 let t = chain_mut(project, strip)?;
                 let len = t.len();
                 if index > len {
@@ -2271,6 +2380,10 @@ impl Command {
                 effect,
                 source,
             } => {
+                if source.is_some_and(|s| project.is_vca(s)) {
+                    return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    // r36:mix
+                }
                 if let Some(src) = source {
                     // The master cannot be keyed from: every strip feeds it, so a key from
                     // it into anything is a loop (ADR 0026). A key *into* a master insert
@@ -2637,20 +2750,48 @@ impl Command {
                 }
                 let source = project.audio_pool.remove(index);
                 // Its provenance goes with it, and comes back with it (ADR 0085).
-                match project.provenance.remove(&id) {
-                    None => Ok(InsertAudioSource { source }),
-                    Some(p) => Ok(Batch {
-                        label_key: "cmd.insert_audio_source".into(),
-                        commands: vec![
-                            InsertAudioSource { source },
-                            SetAudioProvenance {
+                let marks = project.source_marks.remove(&id); // r36:editor — and its marks (ADR 0096)
+                match (project.provenance.remove(&id), marks) {
+                    (None, None) => Ok(InsertAudioSource { source }),
+                    (p, m) => {
+                        let mut commands = vec![InsertAudioSource { source }];
+                        if let Some(p) = p {
+                            commands.push(SetAudioProvenance {
                                 id,
                                 provenance: Some(Box::new(p)),
-                            },
-                        ],
-                    }),
+                            });
+                        }
+                        if let Some(m) = m {
+                            commands.push(SetAudioSourceMarks {
+                                id,
+                                marks: Some(Box::new(m)),
+                            }); // r36:editor
+                        }
+                        Ok(Batch {
+                            label_key: "cmd.insert_audio_source".into(),
+                            commands,
+                        })
+                    }
                 }
             }
+            SetAudioSourceMarks { id, marks } => {
+                // r36:editor — in range of the file, in order (ADR 0096 §6).
+                let frames = project
+                    .audio_source(id)
+                    .ok_or(CommandError::AudioSourceNotFound(id))?
+                    .frames;
+                if marks.as_ref().is_some_and(|m| !m.is_valid(frames)) {
+                    return Err(CommandError::InvalidValue("marks".into()));
+                }
+                let old = match marks {
+                    Some(m) if !m.is_empty() => project.source_marks.insert(id, *m),
+                    _ => project.source_marks.remove(&id),
+                };
+                Ok(SetAudioSourceMarks {
+                    id,
+                    marks: old.map(Box::new),
+                })
+            } // r36:editor
             SetAudioProvenance { id, provenance } => {
                 if project.audio_source(id).is_none() {
                     return Err(CommandError::AudioSourceNotFound(id));
@@ -2685,6 +2826,12 @@ impl Command {
                         || a.warp.as_ref().is_some_and(|w| !w.is_valid())
                         // A gain envelope in order and in range (ADR 0070).
                         || a.gain_env.as_ref().is_some_and(|e| !e.is_valid())
+                        // r36:ara: a bound clip (or one linked to one) is never reversed or
+                        // warped, nor bound with audible pitch edits (ADR 0097).
+                        || ((a.ara.is_some() || ara_bound_group(project, track, clip))
+                            && (a.reverse
+                                || a.warp.is_some()
+                                || a.pitch.as_ref().is_some_and(|p| p.audible())))
                     {
                         return Err(CommandError::InvalidValue("clip audio".into()));
                     }
@@ -2707,11 +2854,16 @@ impl Command {
                 if pitch.as_ref().is_some_and(|p| !p.is_valid()) {
                     return Err(CommandError::InvalidValue("pitch edit".into()));
                 }
+                let bound_group = ara_bound_group(project, track, clip); // r36:ara
                 let old = edit_shared(project, track, clip, |c| {
                     let a = c
                         .audio
                         .as_mut()
                         .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                    // r36:ara: an ARA plug-in does the clip's pitch (ADR 0097).
+                    if pitch.as_ref().is_some_and(|p| p.audible()) && bound_group {
+                        return Err(CommandError::InvalidValue("bound to an ARA plug-in".into()));
+                    }
                     Ok(std::mem::replace(&mut a.pitch, pitch.clone()))
                 })?;
                 Ok(SetClipPitch {
@@ -2730,11 +2882,16 @@ impl Command {
                 if warp.as_ref().is_some_and(|w| !w.is_valid()) {
                     return Err(CommandError::InvalidValue("warp".into()));
                 }
+                let bound_group = ara_bound_group(project, track, clip); // r36:ara
                 let old = edit_shared(project, track, clip, |c| {
                     let a = c
                         .audio
                         .as_mut()
                         .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                    // r36:ara: an ARA plug-in does the clip's time (ADR 0097).
+                    if warp.is_some() && bound_group {
+                        return Err(CommandError::InvalidValue("bound to an ARA plug-in".into()));
+                    }
                     Ok(std::mem::replace(&mut a.warp, warp.clone()))
                 })?;
                 Ok(SetClipWarp {
@@ -2742,6 +2899,62 @@ impl Command {
                     clip,
                     warp: old,
                     op,
+                })
+            }
+            // r36:ara — the plug-in's state of one clip (ADR 0097): never shared.
+            SetClipAraState {
+                track,
+                clip,
+                archive,
+            } => {
+                let ti = project
+                    .track_index(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = project.tracks[ti]
+                    .clip_mut(clip)
+                    .ok_or(CommandError::ClipNotFound(clip))?;
+                let ara = c
+                    .audio
+                    .as_mut()
+                    .and_then(|a| a.ara.as_mut())
+                    .ok_or_else(|| {
+                        CommandError::InvalidValue("not bound to an ARA plug-in".into())
+                    })?;
+                let old = std::mem::replace(&mut ara.archive, archive);
+                Ok(SetClipAraState {
+                    track,
+                    clip,
+                    archive: old,
+                })
+            }
+            // r36:ara (ADR 0097)
+            SetClipAra { track, clip, ara } => {
+                // The binding is each clip's own, linked or not (`links::same_content` leaves
+                // it out): one clip, its own inverse.
+                let ti = project
+                    .track_index(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = project.tracks[ti]
+                    .clip_mut(clip)
+                    .ok_or(CommandError::ClipNotFound(clip))?;
+                let a = c
+                    .audio
+                    .as_mut()
+                    .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                if ara.is_some()
+                    && (a.warp.is_some()
+                        || a.reverse
+                        || a.pitch.as_ref().is_some_and(|p| p.audible()))
+                {
+                    return Err(CommandError::InvalidValue(
+                        "a reversed clip, or one with a warp or pitch edits".into(),
+                    ));
+                }
+                let old = std::mem::replace(&mut a.ara, ara);
+                Ok(SetClipAra {
+                    track,
+                    clip,
+                    ara: old,
                 })
             }
             SetClipAutomation {
@@ -2880,6 +3093,15 @@ impl Command {
             }
             RemoveGroove { id } => crate::notefx_cmd::remove_groove(project, id),
             SetGroove { groove } => crate::notefx_cmd::set_groove(project, *groove),
+            // r36:external (ADR 0094)
+            InsertExternalUnit { index, unit } => {
+                crate::external_unit_cmd::insert(project, index, *unit)
+            }
+            RemoveExternalUnit { id } => crate::external_unit_cmd::remove(project, id),
+            SetExternalUnit { unit } => crate::external_unit_cmd::set(project, *unit),
+            SetExternalLatency { id, latency } => {
+                crate::external_unit_cmd::set_latency(project, id, latency)
+            }
             SetCompSeam {
                 track,
                 left,
@@ -3137,6 +3359,7 @@ impl Command {
             } => crate::model::note_expr::cmd::apply(project, track, clip, edit, notes),
 
             Session(c) => crate::session::apply(c, project), // r33:session
+            Mix(c) => crate::mix_cmd::apply(c, project),     // r36:mix
             Batch {
                 label_key,
                 commands,
@@ -3267,6 +3490,23 @@ fn instrument_plugin_mut(
 /// content, so the edit does to each exactly what it did to the first; a member it refuses
 /// (only possible in a project that broke the invariant) takes the named clip's content
 /// instead, so the group comes out equal either way. A clip in no group costs nothing more.
+/// r36:ara — whether `clip`, or a clip linked to it, is bound to an ARA plug-in (ADR 0097):
+/// what refuses a warp, audible pitch edits or reverse shared through the link.
+fn ara_bound_group(project: &Project, track: TrackId, clip: ClipId) -> bool {
+    let bound = |c: &Clip| c.audio.as_ref().is_some_and(|a| a.ara.is_some());
+    let Some(c) = project.track(track).and_then(|t| t.clip(clip)) else {
+        return false;
+    };
+    bound(c)
+        || c.link.is_some_and(|l| {
+            project
+                .tracks
+                .iter()
+                .flat_map(|t| &t.clips)
+                .any(|o| o.link == Some(l) && bound(o))
+        })
+}
+
 pub(crate) fn edit_shared<R>(
     project: &mut Project,
     track: TrackId,
@@ -3297,6 +3537,11 @@ pub(crate) fn edit_shared<R>(
         .collect();
     let mut source: Option<Clip> = None;
     for (i, j) in others {
+        // r36:ara — each clip's ARA binding is its own: a shared edit never carries it.
+        let own = project.tracks[i].clips[j]
+            .audio
+            .as_ref()
+            .and_then(|a| a.ara.clone());
         if edit(&mut project.tracks[i].clips[j]).is_err() {
             let src = source.get_or_insert_with(|| {
                 project.tracks[ti]
@@ -3305,6 +3550,9 @@ pub(crate) fn edit_shared<R>(
                     .expect("edited above")
             });
             crate::links::adopt(&mut project.tracks[i].clips[j], src);
+        }
+        if let Some(a) = project.tracks[i].clips[j].audio.as_mut() {
+            a.ara = own;
         }
     }
     Ok(out)

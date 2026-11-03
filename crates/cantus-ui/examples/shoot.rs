@@ -9,6 +9,8 @@
 
 use cantus_engine::EngineHandle;
 
+#[path = "shoot_ara/scene.rs"] // r36:ara
+mod ara_scene; // r36:ara
 #[path = "shoot_audio/scene.rs"]
 mod audio_scene;
 #[path = "shoot_auto/scene.rs"]
@@ -71,6 +73,13 @@ fn main() {
     // `audio`: the arrangement with audio clips, and the inspector on one (round 19).
     if kinds.iter().any(|k| k == "audio") {
         audio_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
+    // r36:ara — `ara`: clips bound to ARA plug-ins and the clip menu's ARA section.
+    if kinds.iter().any(|k| k == "ara") {
+        ara_scene::shots(&dir, scale);
         if kinds.len() == 1 {
             return;
         }

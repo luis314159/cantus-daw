@@ -120,6 +120,8 @@ pub struct FreezeState {
     /// Tests: the save's thread waits before its copies while this is set.
     #[doc(hidden)]
     pub hold_copies: Arc<std::sync::atomic::AtomicBool>,
+    /// The recording mode (round 36, ADR 0092): built on this module's freezes.
+    pub record: crate::record_mode::State, // r36:record
 }
 
 impl FreezeState {
@@ -150,6 +152,17 @@ impl FreezeState {
     pub fn waits_for_states(&self) -> bool {
         self.job.is_none() && self.asked.is_some() && self.asked.as_ref() == self.queue.front()
     }
+
+    /// Whether a freeze waits for its plug-ins' states (asked for, not yet in).
+    pub fn is_asking(&self) -> bool {
+        self.asked.is_some() // r36:record
+    } // r36:record
+
+    /// Why `target`'s render failed this session, if it did.
+    pub fn failure_of(&self, project: &Project, target: FreezeTarget) -> Option<String> {
+        let key = freeze::content_key(project, target)?; // r36:record
+        self.failed.get(&key).cloned() // r36:record
+    } // r36:record
 
     /// Whether the running render is a background refresh (an export may stop it).
     pub fn refreshing(&self) -> bool {
@@ -708,7 +721,11 @@ fn also_dirs(path: Option<&Path>) -> Vec<PathBuf> {
 /// Tell the engine what low-latency monitoring the settings ask for, when it changed (or
 /// the engine is new: `again`).
 pub fn apply_low_latency(app: &mut CantusApp) {
-    let want = app.settings.low_latency_samples(app.engine.sample_rate);
+    // The recording mode forces it on (ADR 0092): the armed strips are monitored without
+    // waiting for the baked ones.
+    let want = crate::record_mode::forced_limit(app) // r36:record
+        .map(Some)
+        .unwrap_or_else(|| app.settings.low_latency_samples(app.engine.sample_rate)); // r36:record
     if app.freeze.told != Some(want) {
         app.freeze.told = Some(want);
         app.engine
@@ -756,6 +773,7 @@ pub fn tick(app: &mut CantusApp, ctx: &egui::Context) {
     if app.freeze.closing && !copies_pending(app) {
         app.request_quit = true;
     }
+    crate::record_mode::tick(app); // r36:record
     collect(app);
     if app.freeze.scanned.is_none_or(|t| t.elapsed() >= SCAN) {
         app.freeze.scanned = Some(Instant::now());
@@ -896,6 +914,11 @@ impl CantusApp {
         if self.project().frozen(target).is_none() {
             return;
         }
+        // The mode's renders are given back by leaving it (ADR 0092).
+        if self.freeze.record.on() {
+            self.record_mode_notice(); // r36:record
+            return; // r36:record
+        }
         self.freeze.stopped.clear();
         if self.exec(freeze::unfreeze_command(target)) {
             self.set_status(tf(
@@ -990,6 +1013,17 @@ impl CantusApp {
                 ],
             ),
             CannotFreeze::Dancer(_) => tf("dance.cannot_freeze", &[("name", &name)]), // r35:dancer
+            CannotFreeze::External(t) => tf(
+                "external.cannot_freeze",
+                &[("name", &name), ("track", &track_name(self.project(), t))],
+            ), // r36:external
+            CannotFreeze::CueSolo(s) => tf(
+                "freeze.cannot_cue_solo",
+                &[
+                    ("name", &name),
+                    ("what", &name_of(self.project(), FreezeTarget::Strip(s))),
+                ],
+            ), // r36:record
         };
         self.set_error(text);
     }
@@ -1065,6 +1099,12 @@ pub fn exec_through(
 /// An edit a frozen target refused (`CantusApp::exec`): the status line says which, and
 /// how to give it back.
 pub fn refused(app: &mut CantusApp, target: FreezeTarget) {
+    // In the recording mode the answer is the mode's, with no Unfreeze to offer.
+    if app.freeze.record.on() {
+        // r36:record
+        app.record_mode_notice(); // r36:record
+        return; // r36:record
+    }
     app.freeze.refusal = Some((target, Instant::now()));
     let name = name_of(app.project(), target);
     let how = match target {
@@ -1759,10 +1799,20 @@ fn commit_freeze(
         c => commands.push(c),
     }
     let name = name_of(app.project(), target);
-    if app.exec(Command::Batch {
+    let batch = Command::Batch {
         label_key: "cmd.freeze".into(),
         commands,
-    }) {
+    };
+    // The recording mode's freezes are session state: no undo step (ADR 0092 §5).
+    if crate::record_mode::bakes(app, target) {
+        // r36:record
+        if let Err(e) = app.bus.apply_session(batch) {
+            app.set_error(e.to_string()); // r36:record
+        }
+        app.force_resync(); // r36:record
+        return; // r36:record
+    }
+    if app.exec(batch) {
         let key = crate::views::freeze_view::live_words(app.project(), target, "freeze.done");
         app.say_done(tf(key, &[("name", &name)]), late);
     }

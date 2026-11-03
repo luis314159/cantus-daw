@@ -10,6 +10,7 @@ pub mod appearance;
 pub mod appearance_file;
 pub mod appearance_look;
 pub mod appearance_panels;
+pub mod ara_menu; // r36:ara — the clip menu's ARA section (ADR 0097)
 pub mod arrangement;
 pub mod audio_art;
 pub mod audio_chip;
@@ -73,6 +74,7 @@ pub mod plugin_view;
 pub mod plugin_view_inst;
 pub mod plugins;
 pub mod pulsus_editor;
+pub mod record_bar; // r36:record (ADR 0092): the banner, the questions, the popover rows
 pub mod record_options;
 pub mod recovery;
 pub mod route_menu;

@@ -192,8 +192,13 @@ pub fn card(app: &CantusApp) -> Option<Card> {
             Answer::CloseNow,
         ));
     }
-    // Waiting (behind an export, a bake, files loading): said, and it can be stopped
-    // (review 2: it waited unseen).
+    // The recording mode's bar says its renders and its refusals, with Cancel and Leave
+    // (ADR 0092): no card with a Stop or an Unfreeze that would undo the mode.
+    if app.freeze.record.on() {
+        return None; // r36:record
+    } // r36:record
+      // Waiting (behind an export, a bake, files loading): said, and it can be stopped
+      // (review 2: it waited unseen).
     if let Some(w) = app.freeze.waiting() {
         let name = match w {
             crate::freeze::Want::Freeze(t) | crate::freeze::Want::Refresh(t) => {

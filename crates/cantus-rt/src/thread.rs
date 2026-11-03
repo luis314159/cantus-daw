@@ -569,6 +569,14 @@ pub fn opt_out_of_power_throttling() -> PowerThrottling {
     os::opt_out_of_power_throttling()
 }
 
+/// Raise the calling thread a step above normal for a disk reader that feeds the audio
+/// thread (round 36, ADR 0092): Windows `THREAD_PRIORITY_ABOVE_NORMAL`, Linux a nice of -5
+/// when allowed; never MMCSS or a real-time policy (it blocks on reads). Whether it took.
+/// // r36:record
+pub fn raise_io_thread() -> bool {
+    os::raise_io()
+}
+
 /// The calling thread's OS priority as the OS reports it (Windows `GetThreadPriority`; Linux
 /// and macOS the `sched_param` priority), for the probe and the tests.
 pub fn current_priority() -> Option<i32> {

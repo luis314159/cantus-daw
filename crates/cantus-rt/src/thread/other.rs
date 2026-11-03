@@ -37,3 +37,8 @@ pub fn opt_out_of_power_throttling() -> PowerThrottling {
 pub fn priority() -> Option<i32> {
     None
 }
+
+/// The calling thread's priority for a disk reader (round 36): not raised here. // r36:record
+pub fn raise_io() -> bool {
+    false
+}

@@ -127,6 +127,7 @@ impl CantusApp {
     /// wherever it is opened from.
     pub fn autosave_copy(&mut self) -> cantus_core::Project {
         let mut p = self.plugins.project_for_save(self.bus.project());
+        crate::record_mode::as_saved(self, &mut p); // r36:record
         absolute_audio_paths(&mut p, self.audio_base());
         p
     }

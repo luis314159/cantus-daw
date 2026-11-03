@@ -513,8 +513,17 @@ fn strip(
     let target = super::drag::target(v, app, ui, Some(id), body);
     super::cables::column_hatch(b, s, body, target);
     head(v, app, ui, b, pass, &sn, x, bw, color, selected, chosen);
-    meter_row(v, app, ui, b, pass, &sn, x, bw, color);
-    controls(v, app, ui, b, pass, &sn, x, bw, chosen);
+    // A VCA has no audio: a plate for the meter, the fader, and nothing of the chain. // r36:mix
+    let vca = v.desk.vca_marks.get(index).is_some_and(|m| m.is_vca); // r36:mix
+    if vca {
+        super::vca_ui::plate(v, app, ui, b, pass, &sn, x, bw); // r36:mix
+    } else {
+        meter_row(v, app, ui, b, pass, &sn, x, bw, color);
+    }
+    controls(v, app, ui, b, pass, &sn, x, bw, chosen, vca); // r36:mix
+    if vca {
+        return; // r36:mix
+    }
     super::parts::chain_row(v, app, ui, b, pass, &sn, x, bw);
     super::parts::output_row(v, app, ui, b, pass, &sn, x, bw);
     super::parts::send_list(v, app, ui, b, pass, &sn, x, bw);
@@ -581,6 +590,15 @@ fn head(
     );
     // Frozen, or held by a frozen strip (round 29, ADR 0064).
     crate::views::freeze_view::paint_strip_mark(b, cr, app, sn.id, s);
+    // The VCAs that reach it, as a bar of their colour (round 36, ADR 0093). // r36:mix
+    if let Some(m) = v
+        .desk
+        .vca_marks
+        .get(sn.index)
+        .filter(|m| m.governed > 0 || m.is_vca)
+    {
+        super::vca_ui::bar(b, s, cr, m); // r36:mix
+    }
     let renaming = matches!(v.rename, Some((Renaming::Strip(r), _)) if r == sn.id);
     if renaming {
         v.rename_at = Some(cell);
@@ -618,6 +636,11 @@ fn head(
     // only by sends no longer says nothing feeds it). Built only while hovered.
     let resp = resp.on_hover_ui(|ui| {
         ui.label(crate::routing_actions::feeders_text(app.project(), sn.id));
+        // The VCAs that reach it (round 36, ADR 0093). // r36:mix
+        let vcas = super::vca_ui::names(app.project(), sn.id); // r36:mix
+        if !vcas.is_empty() {
+            ui.label(crate::i18n::tf("mix.vca.follows", &[("names", &vcas)])); // r36:mix
+        }
     });
     if resp.double_clicked() {
         let own = app
@@ -878,6 +901,7 @@ fn controls(
     x: f32,
     bw: f32,
     chosen: bool,
+    vca: bool, // r36:mix
 ) {
     let s = pass.s;
     let t = &s.t;
@@ -944,7 +968,7 @@ fn controls(
     }
 
     // Pan.
-    if let Some(py) = pass.mid(Row::Pan) {
+    if let Some(py) = pass.mid(Row::Pan).filter(|_| !vca) {
         let ks = knob_style(pass);
         let c = pos2(cx, py);
         let mut pos = (sn.pan.clamp(-1.0, 1.0) + 1.0) * 0.5;
@@ -1060,7 +1084,7 @@ fn controls(
 
     // Phase, swap and (from Wide up) mono: the input stage, in the order the signal meets
     // it. Mono is the width's end stop, so its switch is a shortcut to it.
-    if let Some(py) = pass.mid(Row::PhaseSwap) {
+    if let Some(py) = pass.mid(Row::PhaseSwap).filter(|_| !vca) {
         let mono = sn.width <= 0.005;
         let all = [
             (Part::Phase, Glyph::Phase, sn.phase),
@@ -1115,7 +1139,7 @@ fn controls(
     }
 
     // Width: 0 mono … 1 as recorded … 2 twice as wide.
-    if let Some(wy) = pass.mid(Row::Width) {
+    if let Some(wy) = pass.mid(Row::Width).filter(|_| !vca) {
         let ks = knob_style(pass);
         let c = pos2(cx, wy);
         let mut pos = (sn.width / 2.0).clamp(0.0, 1.0);
@@ -1167,6 +1191,9 @@ fn controls(
         );
     }
 
+    if vca {
+        return; // r36:mix
+    }
     eq_bars(v, app, ui, b, pass, sn, x, bw);
     fx_rec(v, app, ui, b, pass, sn, cx, CaptureTarget::Strip(id));
 }

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VCA faders and mixer snapshots</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="vca-faders-and-mixer-snapshots">VCA faders and mixer snapshots</h1>
+<p><em>Cantus 0.1.0-beta.11 · <a href="../es/mixing-studio.html">Leer en español</a> · back to the <a href="index.html">manual</a></em></p>
+<p>Two tools of a studio desk, in the mixer: <strong>VCA faders</strong> that move a whole group of strips together without touching their own faders, and <strong>snapshots</strong> that store the desk and put it back, whole or one channel at a time.</p>
+<h2 id="vca-faders">VCA faders</h2>
+<p>A VCA is a strip with <strong>no audio</strong>: a fader, a mute and a solo. The strips that <em>follow</em> it get its level added to their own, in decibels, at the gain stage — right where each strip's fader acts. Their own faders, automation and modulators are not rewritten: a strip at −3 dB following a VCA at −6 dB plays at −9 dB and still shows −3 dB. A VCA at 0 dB changes nothing, not one sample.</p>
+<p><strong>Make one.</strong> In the mixer's ▸ menu, <strong>Add VCA</strong>; or right-click a strip (or a selection) → <strong>Follow VCA ▸ New VCA with this strip</strong>. A VCA is drawn as a strip with a coloured &quot;VCA&quot; plate where the meter would be, and the number of strips that follow it. Every strip a VCA reaches wears a bar of the VCA's colour under its number; hover the number to see which.</p>
+<p><strong>Follow one.</strong> Right-click a strip → <strong>Follow VCA ▸</strong> and tick the VCAs it follows (with a selection, all selected strips follow it together). A strip may follow several VCAs: their decibels add, <strong>each counted once</strong> even when one VCA reaches the strip twice (a VCA can follow another VCA). A cycle is refused. <strong>A group can follow a VCA</strong> too: right-click the group's separator → <strong>VCA of the group</strong>.</p>
+<p><strong>Mute and solo follow.</strong> A muted VCA mutes everything it reaches; a soloed VCA solos everything it reaches (and their routes, as FL's solo does).</p>
+<p><strong>Automation.</strong> The VCA's fader is an ordinary fader: draw or record automation on it, or put a modulator on it. Each member's automation stays and the two add. A VCA cannot hold inserts, sends, an output or a track, and a VCA somebody follows cannot be removed.</p>
+<h2 id="snapshots">Snapshots</h2>
+<p>The mixer's title row has a <strong>Snapshots</strong> field. <strong>Take snapshot</strong> stores the desk — each strip's fader, pan, width, polarity, mute, solo, swap, inserts switch and EQ, each send's level, switch and tap, each insert's bypass, dry/wet and native parameters, and the master's — under a name; <strong>Take snapshot of the selected strips</strong> stores only those. A snapshot holds <em>state</em>, never <em>structure</em>: routing, which inserts exist and a hosted plug-in's own state are not in it, and a recall never creates, removes or re-routes anything.</p>
+<p>Each snapshot's submenu:</p>
+<ul>
+<li><strong>Recall</strong> puts every channel back as one undo step. <strong>Recall the selected strips</strong> puts back only those; <strong>Recall everything, safe strips too</strong> also reaches strips marked safe.</li>
+<li><strong>A/B with the desk</strong> swaps the desk with the snapshot and back, to hear the difference.</li>
+<li><strong>Update from the desk</strong> takes the state again; <strong>Rename</strong>; <strong>Remove</strong>.</li>
+<li><strong>Cue at the playhead</strong> (see below).</li>
+</ul>
+<p><strong>Safe strips.</strong> Right-click a strip → <strong>Safe from snapshot recall</strong>: a recall of everything leaves it alone (a recall naming it still reaches it). <strong>Safe from solo</strong> keeps a strip playing when another is soloed (a click, a reference) unless it is muted.</p>
+<p><strong>Cues: snapshots on the timeline.</strong> A cue recalls a snapshot at a bar — the whole scene: from there on its faders, pans, widths, send levels and native effect parameters hold, and its mutes, solos, polarity, swap, insert switches, bypasses and strip EQ are switched (faded over 16 samples, never cut). A level holds until another cue or the next of your automation clips for that control starts; a clip that was playing across the cue's bar is silenced from the cue on. Cues are placed at the playhead and listed under the Snapshots menu, where each is removed; adding and removing a cue is one undo step. In the session view, a scene's clips carry their own envelopes instead (a scene is launched by playing, not at a bar).</p>
+<h2 id="what-an-agent-can-do">What an agent can do</h2>
+<p><code>create_vca</code>, <code>assign_vca</code>, <code>take_snapshot</code>, <code>recall_snapshot</code>, <code>get_mix_snapshots</code>, <code>remove_snapshot</code>, <code>add_mix_cue</code>, <code>remove_mix_cue</code> and <code>set_strip_safe</code> — see <a href="ai-tools.html">What an AI agent can do in Cantus</a>.</p>
+</main>
+</body>
+</html>

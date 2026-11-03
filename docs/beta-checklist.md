@@ -189,6 +189,17 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       Pianoteq 9 y un piano de muestras (p. ej. Salamander); que no sepan cuál es cuál.
       Anotar preferencias y comentarios en `docs/round28/sound.md`.
 
+### Equipo externo y superficies (ronda 36, ADR 0094 y 0095) <!-- r36:external -->
+
+Necesita tu hardware; en la ronda se probó todo con una interfaz virtual y con unidades Mackie y HUI emuladas.
+
+- [ ] **Ping de un sintetizador**: crea un instrumento externo en una pista, elige su puerto MIDI y las entradas donde vuelve su sonido, pulsa *Ping* con el transporte parado. Debe decir unos milisegundos plausibles (el tamaño del búfer más lo del sintetizador) con variación 0-2 muestras; pulsa *Medir de nuevo* tres veces: el número no debe moverse más de 2 ms.
+- [ ] **A tiempo**: graba/toca una nota de batería de Cantus y la misma nota del sintetizador en el mismo golpe: deben sonar juntas (a ojo y en el analizador) al reproducir y en el WAV exportado.
+- [ ] **Ping de un efecto**: un cable de una salida a una entrada de tu interfaz (loopback), *Efecto externo* con ese par: debe medir lo mismo que *Ajustes ▸ Audio ▸ latencia de ida y vuelta* (±1 muestra). Con el cable fuera dice *no volvió nada*.
+- [ ] **Interfaz desenchufada**: con el sintetizador/interfaz del proyecto apagados, la unidad dice *hay otra interfaz abierta* o *no está el puerto* y *Ping* no se ofrece. Nunca cargues un driver ASIO de una interfaz desconectada.
+- [ ] **Mackie Control** (o una compatible: X-Touch, Icon, FaderPort en modo MCU): añade la superficie, mueve un fader (el canal cambia y un solo deshacer lo devuelve), toca un fader mientras cambias el volumen con el ratón (el motor no pelea), banco y canal, mute/solo/rec/select con sus luces, V-pot, jog, transporte, las pantallas de nombre y los medidores. Con una extensión, dieciséis canales.
+- [ ] **HUI**: si tienes una, lo mismo con sus ocho canales y el transporte. Abre el registro bajo la lista: cualquier interruptor que diga *unmapped HUI zone … port …* mándalo y se añade a la tabla (la tabla de zonas y puertos se tomó de las notas públicas del protocolo y solo se probó con la emulación).
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):

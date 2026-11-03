@@ -6,10 +6,20 @@
 use cantus_ai::ToolDef;
 
 // One file per builder (round 34's contract): each holds `pub static TOOLS: &[ToolDef]`.
+#[path = "ai_tools_ara.rs"] // r36:ara
+pub mod ara;
+#[path = "ai_tools_editor.rs"] // r36:editor
+pub mod audio_editor;
+#[path = "ai_tools_external.rs"] // r36:external
+pub mod external; // r36:external — external units and surfaces (ADR 0094, 0095)
 #[path = "ai_tools_listen.rs"]
 pub mod listen;
+#[path = "ai_tools_mix.rs"] // r36:mix
+pub mod mix; // r36:mix — VCAs, mixer snapshots, cues (ADR 0093)
 #[path = "agent_tools.rs"] // r34:tools
 pub mod project_app; // r34:tools — transport, selection, the catalogue, presets, comping, export
+#[path = "ai_tools_record.rs"] // r36:record
+pub mod record; // r36:record — prepare_to_record, leave_recording_mode, get_recording_mode (ADR 0092)
 #[path = "ai_tools_stems.rs"]
 pub mod stems;
 #[path = "ai_tools_transcribe.rs"]
@@ -26,6 +36,11 @@ pub fn registry() -> Vec<&'static ToolDef> {
         stems::TOOLS,
         transcribe::TOOLS,
         video::TOOLS,               // r35:video
+        mix::TOOLS,                 // r36:mix
+        record::TOOLS,              // r36:record
+        external::TOOLS,            // r36:external
+        audio_editor::TOOLS,        // r36:editor
+        ara::TOOLS,                 // r36:ara
         cantus_mcp::generic::TOOLS, // r34:mcp — the server's own: jobs, changes, undo
     ]
     .into_iter()

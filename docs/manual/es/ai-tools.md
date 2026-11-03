@@ -22,10 +22,12 @@ nunca como instrucciones.
 | Batería | `write_drum_pattern` | Filas de pasos (`x...x...`) por pad, con swing y acentos |
 | Sesión | `set_session` | Escenas, ranuras, modos de lanzamiento y acciones de seguimiento |
 | Mezclador y efectos | `add_strip`, `set_strip`, `set_send`, `add_effect`, `set_effect`, `replace_effect` | Buses y retornos, faders, anchura, el ecualizador de la franja, envíos; cualquier efecto de Cantus en cualquier franja o en el máster, con sus parámetros |
+| VCA e instantáneas | `create_vca`, `assign_vca`, `take_snapshot`, `recall_snapshot`, `get_mix_snapshots`, `remove_snapshot`, `add_mix_cue`, `remove_mix_cue`, `set_strip_safe` | Faders VCA y quién los sigue; el estado de la mesa guardado y recuperado (todo, o algunos canales, sin tocar las franjas a salvo); una instantánea señalada en un compás; franjas a salvo de la recuperación o del solo — véase [Faders VCA e instantáneas](mixing-studio.md) |
 | Movimiento | `automate`, `replace_automation`, `add_modulator`, `set_modulator` | Clips de automatización con las formas de FL, en las unidades del parámetro; LFO, envolventes, seguidores (sidechain), secuencias de pasos, aleatorios |
 | Música | `lint_music`, `write_part`, `voice_chords`, `pedal_from_chart` | El corrector musical; una parte entera sobre un cifrado; acordes dispuestos; el pedal derecho de Chorda a partir del cifrado |
 | Unidades | `list_units`, `get_unit`, `list_presets`, `apply_preset` | El catálogo de todos los instrumentos y efectos; los preajustes (cargar uno sustituye los ajustes de un dispositivo: siempre pregunta) |
 | Tomas | `comp_takes`, `tidy_takes` | Componer con las tomas grabadas; borrar una composición, aplanarla, borrar las tomas sin uso |
+| Grabación | `prepare_to_record`, `get_recording_mode`, `leave_recording_mode` | El modo de grabación: renderiza cada canal que alimenta el master para poder bajar el búfer; `dry_run` responde el plan y el disco que necesita; mientras está activo se rechazan las ediciones que cambian el sonido |
 | Exportar | `export_audio`, `export_project` | WAV, FLAC, MP3, Ogg, pistas separadas; MIDI y DAWproject, solo en la carpeta del proyecto o en una carpeta que hayas permitido |
 | Quitar | `remove_items` | Pistas, clips, notas, efectos, franjas, envíos, moduladores, marcadores, puntos de tempo, escenas, clips de sesión; siempre pregunta |
 

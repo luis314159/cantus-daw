@@ -145,12 +145,15 @@ fn slots_of(control: Control) -> ([usize; 2], usize) {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FilterSet {
     words: Vec<u64>,
+    /// Ports taken whole, SysEx included (a control surface's). r36:external
+    whole: u32,
 }
 
 impl Default for FilterSet {
     fn default() -> Self {
         FilterSet {
             words: vec![0; FILTER_PORTS * 16 * WORDS],
+            whole: 0, // r36:external
         }
     }
 }
@@ -175,6 +178,22 @@ impl FilterSet {
         }
     }
 
+    /// Take **everything** of port `port`: every message of every channel (a control
+    /// surface's port, ADR 0095: a Mackie button's note must not play a key). r36:external
+    pub fn take_port(&mut self, port: usize) {
+        if port >= FILTER_PORTS {
+            return;
+        }
+        self.whole |= 1 << port; // r36:external
+        let row = WORDS;
+        for c in 0..16 {
+            let at = (port * 16 + c) * row;
+            for w in &mut self.words[at..at + row] {
+                *w = u64::MAX;
+            }
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.words.iter().all(|w| *w == 0)
     }
@@ -189,6 +208,9 @@ pub struct MidiFilter {
     /// A control is being learnt: every message is heard, and none reaches the engine (the
     /// knob the user turns to teach Cantus must not bend the instrument meanwhile).
     learning: AtomicBool,
+    /// Ports taken whole (`FilterSet::take_port`): their SysEx is the interface's too.
+    /// r36:external
+    whole: AtomicU32,
 }
 
 impl Default for MidiFilter {
@@ -198,6 +220,7 @@ impl Default for MidiFilter {
                 .map(|_| AtomicU64::new(0))
                 .collect(),
             learning: AtomicBool::new(false),
+            whole: AtomicU32::new(0), // r36:external
         }
     }
 }
@@ -220,6 +243,12 @@ impl MidiFilter {
         for (w, v) in self.words.iter().zip(&set.words) {
             w.store(*v, Ordering::Relaxed);
         }
+        self.whole.store(set.whole, Ordering::Relaxed); // r36:external
+    }
+
+    /// Whether port `port` is taken whole (a control surface's). r36:external
+    pub fn takes_whole(&self, port: usize) -> bool {
+        port < FILTER_PORTS && self.whole.load(Ordering::Relaxed) & (1 << port) != 0
     }
 
     /// Learning on or off. Released: the words published before it are seen by a callback
@@ -602,6 +631,8 @@ pub struct MidiInputs {
     pub names: Vec<String>,
     /// Each open port's tap ring, in the order of `names` (round 29, ADR 0062).
     taps: Vec<Consumer<Heard>>,
+    /// Each open port's SysEx for a surface (ADR 0095). r36:external
+    sysex: Vec<Consumer<crate::external_sysex::Sysex>>,
     tap: MidiTap,
 }
 
@@ -638,6 +669,7 @@ impl MidiInputs {
         let mut connections = Vec::new();
         let mut names = Vec::new();
         let mut taps = Vec::new();
+        let mut sysex = Vec::new(); // r36:external
         let ports = match MidiInput::new("cantus-scan") {
             Ok(i) => i.ports(),
             Err(e) => {
@@ -646,6 +678,7 @@ impl MidiInputs {
                     _connections: connections,
                     names,
                     taps,
+                    sysex: Vec::new(), // r36:external
                     tap,
                 };
             }
@@ -661,6 +694,9 @@ impl MidiInputs {
                 .unwrap_or_else(|_| "unknown".to_string());
             let tx = sender.clone();
             let (mut ui, heard) = RingBuffer::<Heard>::new(TAP_QUEUE);
+            // r36:external
+            let (mut sx, sx_rx) =
+                RingBuffer::<crate::external_sysex::Sysex>::new(crate::external_sysex::SYSEX_QUEUE);
             let index = connections.len();
             let tap2 = tap.clone();
             let mut stamps = sync::StampClock::default();
@@ -669,6 +705,10 @@ impl MidiInputs {
                 "cantus-in",
                 move |stamp, bytes, held: &mut PortState| {
                     if bytes.first().is_some_and(|b| *b >= 0xF0) {
+                        // A surface's SysEx is the surface's (ADR 0095). r36:external
+                        if crate::external_sysex::route_sysex(bytes, index, &tap2, &mut sx) {
+                            return;
+                        }
                         let at = stamps.arrival(stamp, crate::transport::sync::host_micros());
                         tap2.sync_input().route(index, at, bytes);
                         return;
@@ -684,6 +724,7 @@ impl MidiInputs {
                     connections.push(c);
                     names.push(name);
                     taps.push(heard);
+                    sysex.push(sx_rx); // r36:external
                 }
                 Err(e) => log::warn!("midi: cannot open {name}: {e}"),
             }
@@ -692,7 +733,18 @@ impl MidiInputs {
             _connections: connections,
             names,
             taps,
+            sysex, // r36:external
             tap,
+        }
+    }
+
+    /// The SysEx surfaces' ports sent since the last call (ADR 0095). Interface thread.
+    /// r36:external
+    pub fn drain_sysex(&mut self, out: &mut Vec<crate::external_sysex::Sysex>) {
+        for ring in &mut self.sysex {
+            while let Ok(m) = ring.pop() {
+                out.push(m);
+            }
         }
     }
 

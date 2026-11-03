@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saltator: un personaje que baila tu canción</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="saltator-un-personaje-que-baila-tu-canción">Saltator: un personaje que baila tu canción</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/dancer.html">Read in English</a></em></p>
+<p><strong>Saltator</strong> es un instrumento que no produce sonido: dibuja un personaje que baila tu música. Ponlo en una pista y baila al ritmo enseguida, sin preparar nada; después hazlo tuyo: elige el personaje, automatiza sus pasos compás a compás, toca pasos desde un clip MIDI o tu teclado, deja que reaccione a la batería, llévalo a tu transmisión. Dónde se muestra (sobre el espacio de trabajo, en la pestaña Escenario, en la ventana de compañía, el modo para streaming) está en <a href="stage.html">la página del escenario</a>; un clip con el audio de la canción, en <a href="video.html">la exportación de video</a>; tus propios personajes, en <a href="import-characters.html">importar un personaje</a>.</p>
+<h2 id="añadir-uno">Añadir uno</h2>
+<p><em>Añadir pista</em> (o el selector de dispositivos, Ctrl+T) ▸ el estante <strong>Visual</strong> ▸ <strong>Saltator</strong>. La pista nueva se llama <em>Saltator</em>, tiene de icono una figura que baila, y baila en ella Trino, el pájaro cantor del reparto. Se abre su ventana.</p>
+<h2 id="la-ventana">La ventana</h2>
+<p><strong>Tocar</strong> es un pequeño teatro:</p>
+<ul>
+<li><strong>El escenario</strong>: el personaje bailando en vivo, exactamente como suena la canción (se tiene en cuenta la latencia de la salida), con un foco que lo sigue y se aviva en el tiempo. Arriba: el compás y el tiempo, y el paso que baila.</li>
+<li><strong>Personaje</strong>: cada personaje que trae Cantus, cada uno bailando su propia rutina, y cada personaje importado al proyecto. Haz clic en uno para elegirlo (un paso de deshacer). Debajo: su nombre, su frase y su licencia. <strong>Importar</strong> trae uno tuyo (un Lottie, una hoja de sprites o un personaje de DragonBones: <a href="import-characters.html">importar un personaje</a>); para uno importado, <strong>Editar pasos…</strong> elige qué animación suya baila cada paso.</li>
+<li><strong>Exportar video…</strong> (en la barra de título del escenario): la canción con sus bailarines como video: MP4 o WebM, cuadrado, vertical o una capa transparente (<a href="video.html">exportar un video</a>).</li>
+<li><strong>Pasos</strong>: el mapa de pasos como dieciséis pads, uno por tecla de <strong>C3</strong> a <strong>D#4</strong>. El paso que baila ahora se ilumina. Pulsa un pad para bailar ese paso enseguida (una nota en vivo, como en el teclado).</li>
+<li><strong>Baile</strong>: <em>Paso</em> (<em>Al ritmo</em>, o uno de los dieciséis pasos por su nombre), <em>Desplazamiento</em> (<em>En su sitio</em>, <em>Camina a la izquierda</em>, <em>Camina a la derecha</em>, <em>Pasea</em>), <em>Velocidad</em> (de ¼× a 4× el tiempo), <em>Energía</em>.</li>
+<li><strong>Cuerpo</strong>: <em>Altura</em> (cuánto se separa del suelo), <em>Orientación</em> (izquierda, de frente, derecha), <em>Giro</em> (°), <em>Tamaño</em> (×).</li>
+<li><strong>Aspecto</strong>: <em>Ánimo</em> (Contento, Emocionado, Tranquilo, Sorprendido, Dormilón, Genial, Tímido, Neutral) y <em>Color</em> (gira sus colores por el círculo; ojos y contornos se quedan).</li>
+<li><strong>Oídos</strong>: <em>Reacciona a</em>: lo que escucha. Haz clic en el campo (o en sus ‹ ›) para pasar por <em>Nada</em>, <em>Toda la canción</em> y cada canal del mezclador. <em>Reacciona</em> dice cuánta de su energía decide el nivel.</li>
+</ul>
+<p><strong>Editar</strong> tiene cada número en una tarjeta, y <strong>Dónde se muestra</strong> (<em>Flotante</em>, <em>Acoplado</em>, <em>Oculto</em>; <em>Siempre encima</em>) y su posición en el escenario.</p>
+<p>Cada número es un parámetro corriente: clic derecho para <em>Automatizar</em>, <em>Aprender controlador MIDI</em> y los moduladores.</p>
+<h2 id="cómo-baila">Cómo baila</h2>
+<ul>
+<li><strong>Al ritmo, por su cuenta.</strong> Con <em>Paso</em> en <em>Al ritmo</em> baila su propia rutina, un paso por compás, cada paso cayendo en el tiempo, sin automatización.</li>
+<li><strong>Automatización.</strong> Dibuja un clip de automatización de <em>Paso</em> y baila el paso elegido desde la primera línea de compás del clip hasta donde termina (entre clips el valor se mantiene; termina el clip en <em>Al ritmo</em> para devolverlo a la rutina). Cada número se automatiza igual.</li>
+<li><strong>Notas.</strong> Una nota en una tecla del mapa de pasos toca ese paso desde su comienzo: mantenida, sigue; suelta, termina el paso en curso. La velocidad (fuerza) es lo grande que baila. Las notas de un clip de sesión también lo mueven.</li>
+<li><strong>Moduladores.</strong> Un LFO en <em>Color</em> hace girar sus colores; un secuenciador de pasos en <em>Paso</em> cambia sus pasos en cada paso; aprende la rueda de modulación en <em>Energía</em> y baila más grande cuanto más la subes.</li>
+<li><strong>Reaccionar a.</strong> Elige un canal en <em>Reacciona a</em>: un seguidor lo escucha y el bailarín baila más grande cuando suena fuerte. Es un paso de deshacer; elige <em>Nada</em> para parar.</li>
+<li><strong>Aprender MIDI.</strong> Clic derecho en cualquier número ▸ <em>Aprender controlador MIDI</em> y mueve un mando; un fader en <em>Paso</em> recorre los pasos por su nombre.</li>
+</ul>
+<h2 id="preajustes">Preajustes</h2>
+<p><em>Al ritmo</em>, <em>Fiesta</em>, <em>Tranquilo</em> y <em>Con estilo</em> cambian cómo baila. Un preajuste nunca cambia quién baila ni dónde: el personaje, su sitio, su tamaño y dónde se muestra se quedan.</p>
+<h2 id="agentes">Agentes</h2>
+<p>Un agente de IA ve Saltator en el catálogo de unidades (<code>get_unit dancer</code>: cada número, los pasos y ánimos por su nombre, el mapa de pasos, los personajes). Puede añadir uno (<code>add_track</code> con kind <code>dancer</code>), automatizar su <em>Paso</em> y ajustar sus números como los de cualquier instrumento.</p>
+</main>
+</body>
+</html>

@@ -24,6 +24,8 @@ thiserror.workspace = true
 log.workspace = true
 raw-window-handle = "0.6"
 cantus-core.workspace = true
+# ARA 2 hosting: the bindings and the host document (round 36, ADR 0097). r36:ara
+cantus-ara.workspace = true
 cantus-engine.workspace = true
 # The denormal guard's re-assert after every audio-thread call into a plug-in (ADR 0031 R9).
 cantus-rt.workspace = true
@@ -101,6 +103,8 @@ cantus-project.workspace = true
 tempfile = "3"
 # Built (as a DLL next to the test binaries) for the VST3 backend's tests; not linked.
 cantus-test-vst3 = { path = "../cantus-test-plugins/vst3" }
+# r36:ara — the ARA test plug-in, built next to the test binaries the same way.
+cantus-test-ara = { path = "../cantus-test-plugins/ara" }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 # The X11 editor window's picture (`CANTUS_X11_SHOT`, tests/clap_window_x11.rs); already in

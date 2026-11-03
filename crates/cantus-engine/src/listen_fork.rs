@@ -60,6 +60,12 @@ fn fork_track(s: &TrackSlot) -> Option<TrackSlot> {
         rest: s.rest,
         notes_only: s.notes_only,
         lateness: s.lateness,
+        external: s.external,     // r36:external
+        outboard: s.outboard,     // r36:external
+        send: s.send,             // r36:external
+        send_l: s.send_l.clone(), // r36:external
+        send_r: s.send_r.clone(), // r36:external
+        send_dirty: s.send_dirty, // r36:external
         notefx: s.notefx.clone(),
         source_line: s.source_line,
     })
@@ -108,6 +114,7 @@ fn fork_strip(s: &StripSlot) -> Option<StripSlot> {
         dry_line: s.dry_line,
         gain_ramp: s.gain_ramp,
         pan_ramp: s.pan_ramp,
+        scene_env: s.scene_env, // r36:mix
         follow_peak: s.follow_peak,
         frozen: None,
         parked: None,
@@ -406,6 +413,7 @@ impl Processor {
         self.split_voices = o.split_voices;
         self.offline = o.offline;
         self.low_latency = o.low_latency;
+        self.master_bake = o.master_bake.clone(); // r36:record
         self.click = o.click.clone();
         self.preview = o.preview.clone();
         self.metronome = o.metronome;
@@ -571,6 +579,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         split_voices: _,
         offline: _,
         low_latency: _,
+        master_bake: _, // r36:record
         click: _,
         preview: _,
         metronome: _,
@@ -621,6 +630,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         auto: _,
         prof: _,
         sync: _,
+        ext: _, // r36:external
     } = p;
     let exec::Nodes {
         tracks: _,

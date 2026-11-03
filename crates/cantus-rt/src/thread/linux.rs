@@ -230,3 +230,14 @@ pub fn opt_out_of_power_throttling() -> PowerThrottling {
 pub fn priority() -> Option<i32> {
     current().map(|(_, p)| p)
 }
+
+/// The calling thread a little above normal (round 36): a nice of -5 for this thread, which
+/// the kernel grants only with the right (`RLIMIT_NICE` or `CAP_SYS_NICE`); refused, it
+/// stays as it is. Whether the OS took it. // r36:record
+pub fn raise_io() -> bool {
+    // SAFETY: gettid has no preconditions; setpriority on this thread's id.
+    unsafe {
+        let tid = libc::syscall(libc::SYS_gettid) as libc::id_t;
+        libc::setpriority(libc::PRIO_PROCESS, tid, -5) == 0
+    }
+}

@@ -12,18 +12,27 @@ pub fn ahead() -> Html {
     // Once the latest release carries the Linux and macOS files (shelf.rs), the roadmap
     // and the answer below say so instead of "coming soon".
     let shelf = use_shelf();
-    let everywhere = shelf.linux && shelf.macos;
-    let three = if everywhere {
-        l.t("Installers for Windows, Linux and macOS — one Cantus on all three systems, out now", "Instaladores para Windows, Linux y macOS — un mismo Cantus en los tres sistemas, ya disponibles")
+    let mac = shelf.macos;
+    let three = if mac {
+        l.t(
+            "macOS out of preview: signed, notarised and tried on real Macs",
+            "macOS fuera de vista previa: firmado, notarizado y probado en Mac reales",
+        )
     } else {
-        l.t("Coming soon: installers for Linux and macOS, next to Windows's — one Cantus on all three systems", "Muy pronto: instaladores para Linux y macOS junto al de Windows — un mismo Cantus en los tres sistemas")
+        l.t(
+            "macOS, first as a preview, then signed and tried on real Macs",
+            "macOS, primero como vista previa, luego firmado y probado en Mac reales",
+        )
     };
-    let other_systems = if everywhere {
-        l.t("Yes. Cantus runs on Windows, macOS and Linux: an installer for Windows, one disk image for Apple silicon and Intel Macs, and an AppImage for Linux — the download button gives you the one for your system.",
-            "Sí. Cantus funciona en Windows, macOS y Linux: un instalador para Windows, una imagen de disco para Mac con Apple silicon e Intel, y un AppImage para Linux — el botón de descarga te da el de tu sistema.")
+    let other_systems = if mac {
+        l.t("Yes. Cantus runs on Windows and Linux — an installer for Windows and one AppImage for every Linux distribution, the whole test suite run on both every round — and macOS has a preview: one universal disk image for Apple silicon and Intel, built and tested on GitHub's macOS machines, not yet signed and not yet opened on a real Mac. The first time, macOS blocks it: System Settings → Privacy & Security → Open Anyway. Please report what goes wrong.",
+            "Sí. Cantus funciona en Windows y Linux — un instalador para Windows y un AppImage para toda distribución Linux, con todas las pruebas pasadas en ambos en cada ronda — y macOS tiene una vista previa: una imagen de disco universal para Apple silicon e Intel, compilada y probada en las máquinas macOS de GitHub, aún sin firmar y aún no abierta en un Mac real. La primera vez macOS la bloquea: Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente. Cuéntanos lo que falle.")
+    } else if shelf.linux {
+        l.t("Yes for Linux: one AppImage for every distribution from Ubuntu 22.04 on, with the whole test suite run on Linux every round. macOS is next, first as a preview.",
+            "Sí para Linux: un AppImage para toda distribución desde Ubuntu 22.04, con todas las pruebas pasadas en Linux en cada ronda. macOS es lo siguiente, primero como vista previa.")
     } else {
-        l.t("Coming soon. Cantus is made for Windows, Linux and macOS: Windows has its installer today, and the Linux and macOS installers are next. Meanwhile you can build it from source.",
-            "Muy pronto. Cantus está hecho para Windows, Linux y macOS: Windows tiene su instalador hoy, y los de Linux y macOS son lo siguiente. Mientras tanto puedes compilarlo desde el código.")
+        l.t("Cantus is made for Windows, Linux and macOS: Windows has its installer today, and the Linux and macOS files are next. Meanwhile you can build it from source.",
+            "Cantus está hecho para Windows, Linux y macOS: Windows tiene su instalador hoy, y los archivos de Linux y macOS son lo siguiente. Mientras tanto puedes compilarlo desde el código.")
     };
 
     let col = |title: &'static str, items: Vec<&'static str>| {
@@ -50,28 +59,26 @@ pub fn ahead() -> Html {
 
                 <div class="road">
                     { col(l.t("Works today", "Funciona hoy"), vec![
-                        l.t("Record, sequence, mix and export a whole song", "Grabar, secuenciar, mezclar y exportar una canción completa"),
+                        l.t("Record, sequence, mix and export a whole song, on Windows and Linux", "Grabar, secuenciar, mezclar y exportar una canción completa, en Windows y Linux"),
                         l.t("Ten instruments and twenty-five effects of its own, a modelled grand piano among them", "Diez instrumentos y veinticinco efectos propios, entre ellos un piano de cola modelado"),
-                        l.t("Pitch editing of recordings, note by note, and a real-time auto-tuner", "Edición de afinación de grabaciones, nota por nota, y un afinador automático en tiempo real"),
-                        l.t("Modulators on any parameter, and take comping", "Moduladores en cualquier parámetro, y comping de tomas"),
-                        l.t("A multicore live engine; WASAPI and ASIO", "Un motor en vivo multinúcleo; WASAPI y ASIO"),
-                        l.t("Hosts CLAP and VST3 plug-ins; exports WAV, FLAC, MP3 and Ogg", "Aloja plug-ins CLAP y VST3; exporta WAV, FLAC, MP3 y Ogg"),
-                        l.t("Cables between mixer channels, linked clips, copy and paste", "Cables entre canales del mezclador, clips enlazados, copiar y pegar"),
-                        l.t("AI assistants that operate the DAW through MCP, with your permission; stems, audio to MIDI and a mastering assistant", "Asistentes de IA que operan el DAW por MCP, con tu permiso; stems, audio a MIDI y un asistente de mastering"),
+                        l.t("The recording mode: the song baked, only your take live", "El modo de grabación: la canción pre-renderizada, solo tu toma en vivo"),
+                        l.t("VCA faders, mixer snapshots and scene cues", "Faders VCA, snapshots del mezclador y cues de escena"),
+                        l.t("An audio editor with spectral repair and noise reduction", "Un editor de audio con reparación espectral y reducción de ruido"),
+                        l.t("Warp, a tempo track, freeze, take comping and pitch editing", "Warp, pista de tempo, congelar, comping de tomas y edición de afinación"),
+                        l.t("A session view, Ableton Link, MIDI clock and MPE", "Una vista de sesión, Ableton Link, reloj MIDI y MPE"),
+                        l.t("Hosts CLAP, VST3 and ARA 2 plug-ins; CLAP and VST3 out of process", "Aloja plug-ins CLAP, VST3 y ARA 2; CLAP y VST3 fuera de proceso"),
+                        l.t("AI assistants that operate the DAW through MCP, with your permission", "Asistentes de IA que operan el DAW por MCP, con tu permiso"),
                     ]) }
-                    { col(l.t("Next: arriving with the beta, in testing now", "Siguiente: llega con la beta, en pruebas ahora"), vec![
-                        l.t("Warping: audio that follows the tempo, with time-stretch and pitch-shift", "Warp: audio que sigue el tempo, con estiramiento de tiempo y cambio de tono"),
-                        l.t("A tempo track with ramps and metre changes, and named markers", "Una pista de tempo con rampas y cambios de compás, y marcadores con nombre"),
-                        l.t("MIDI learn for any parameter, with your own controller", "MIDI learn para cualquier parámetro, con tu propio controlador"),
-                        l.t("Plug-ins in their own process: one that crashes never takes your song down", "Plug-ins en su propio proceso: uno que falla nunca tumba tu canción"),
-                        l.t("Freeze, bounce in place and low-latency monitoring while you record", "Congelar, bounce in place y monitoreo de baja latencia al grabar"),
-                        l.t("More audio interfaces tried in duplex, ten minutes live without a dropout", "Más interfaces de audio probadas en dúplex, diez minutos en vivo sin un corte"),
-                        l.t("The installer, checked on clean machines", "El instalador, comprobado en máquinas limpias"),
+                    { col(l.t("Next: the beta's last mile", "Siguiente: el último tramo de la beta"), vec![
+                        l.t("The macOS preview tried on real Macs", "La vista previa de macOS probada en Mac reales"),
+                        l.t("Mackie Control and HUI tried on real surfaces; outboard gear's ping on real synths", "Mackie Control y HUI probados en superficies reales; el ping del equipo externo en sintes reales"),
+                        l.t("More audio interfaces tried in duplex, at their lowest buffers", "Más interfaces de audio probadas en dúplex, en sus búferes más bajos"),
                         l.t("Signed downloads, so you know the file is ours", "Descargas firmadas, para saber que el archivo es nuestro"),
                         l.t("Whole songs made with it, and every rough edge they find smoothed", "Canciones completas hechas con él, y cada aspereza que encuentren, pulida"),
                     ]) }
                     { col(l.t("Later", "Después"), vec![
                         three,
+                        l.t("ARA plug-ins in their own process", "Plug-ins ARA en su propio proceso"),
                         l.t("Sound packs and stand-alone plug-ins on cantusdaw.studio", "Paquetes de sonidos y plug-ins independientes en cantusdaw.studio"),
                         l.t("An assistant panel inside Cantus, with your own key or a local model", "Un panel de asistente dentro de Cantus, con tu propia clave o un modelo local"),
                     ]) }
@@ -86,11 +93,11 @@ pub fn ahead() -> Html {
                         "There is nothing to sign in to. Your projects, audio and MIDI stay on your computer and Cantus has no telemetry. The privacy notice in the repository says exactly what, if anything, leaves your machine.",
                         "No hay nada a lo que iniciar sesión. Tus proyectos, audio y MIDI se quedan en tu computadora y Cantus no tiene telemetría. El aviso de privacidad del repositorio dice exactamente qué sale de tu máquina, si algo sale.") }</p> }) }
                     { faq(l.t("Does it work with my plug-ins?", "¿Funciona con mis plug-ins?"), html! { <p>{ l.t(
-                        "It hosts CLAP and VST3 plug-ins, and ships its own effects as CLAP and VST3 so you can use them in other DAWs.",
-                        "Aloja plug-ins CLAP y VST3, y entrega sus propios efectos como CLAP y VST3 para que los uses en otros DAW.") }</p> }) }
+                        "It hosts CLAP and VST3 plug-ins, and ARA 2 plug-ins on audio clips; it ships its own effects as CLAP and VST3 so you can use them in other DAWs. ARA hosting is new: tell us which ARA plug-ins you tried and how they behaved.",
+                        "Aloja plug-ins CLAP y VST3, y plug-ins ARA 2 en clips de audio; entrega sus propios efectos como CLAP y VST3 para que los uses en otros DAW. El alojamiento ARA es nuevo: cuéntanos qué plug-ins ARA probaste y cómo se comportaron.") }</p> }) }
                     { faq(l.t("Which audio interfaces work?", "¿Qué interfaces de audio funcionan?"), html! { <p>{ l.t(
-                        "Any Windows audio device through WASAPI, and ASIO drivers (ASIO4ALL and the makers' own). It is a beta and has been tried on a small number of devices, so tell us what you used and how it went.",
-                        "Cualquier dispositivo de audio de Windows mediante WASAPI, y drivers ASIO (ASIO4ALL y los de cada fabricante). Es una beta y se ha probado en pocos dispositivos, así que cuéntanos qué usaste y cómo te fue.") }</p> }) }
+                        "On Windows, any device through WASAPI and ASIO drivers (ASIO4ALL and the makers' own); on Linux, PipeWire, JACK and ALSA; on the macOS preview, Core Audio. It is a beta and has been tried on a small number of devices, so tell us what you used and how it went.",
+                        "En Windows, cualquier dispositivo por WASAPI y drivers ASIO (ASIO4ALL y los de cada fabricante); en Linux, PipeWire, JACK y ALSA; en la vista previa de macOS, Core Audio. Es una beta y se ha probado en pocos dispositivos, así que cuéntanos qué usaste y cómo te fue.") }</p> }) }
                     { faq(l.t("Is there a Mac or Linux version?", "¿Hay versión para Mac o Linux?"), html! { <p>{ other_systems }</p> }) }
                     { faq(l.t("Can I release the music I make?", "¿Puedo publicar la música que hago?"), html! { <p>{ l.t(
                         "Yes. The GPL covers the program, not what you create with it; your songs are yours. Each sound pack states its own licence, so check it for the samples you use.",

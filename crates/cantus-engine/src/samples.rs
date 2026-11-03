@@ -17,6 +17,10 @@ use std::sync::Arc;
 
 #[path = "resample.rs"]
 pub mod resample;
+// r36:ara — renders made outside the engine (an ARA plug-in's), played in place of sources.
+#[path = "clip_renders.rs"]
+mod clip_renders;
+pub use clip_renders::ClipRender; // r36:ara
 
 #[path = "samples_assets.rs"]
 pub mod assets;
@@ -71,6 +75,8 @@ pub struct SampleCache {
     pitch: crate::pitch::attach::Renders,
     /// Warped clips' renders (ADR 0061): attached after the pitch renders.
     warp: crate::warp::attach::Renders,
+    /// Clips bound to an ARA plug-in play its render (ADR 0097). r36:ara
+    clip_renders: clip_renders::ClipRenders,
     /// Pitch renders go to the pitch service's worker even without the source loader
     /// (`EngineHandle::compile` sets it: no render on the caller's thread, device or not).
     pitch_background: bool,
@@ -157,6 +163,18 @@ pub(crate) fn decode_audio(path: &Path, rate: u32) -> Result<SampleData, String>
 impl SampleCache {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// r36:ara — the renders clips play in place of their sources, at the sources' own
+    /// rates (an ARA plug-in's, ADR 0097). Takes effect at the next compile.
+    pub fn set_clip_renders(&mut self, renders: HashMap<cantus_core::ClipId, ClipRender>) {
+        self.clip_renders.set(renders);
+    }
+
+    /// r36:ara — a source's samples at its own rate (what an ARA plug-in reads), decoded
+    /// as the cache decodes it, never resampled.
+    pub fn decode_source(path: &Path) -> Result<SampleData, String> {
+        decode_audio(path, 0)
     }
 
     /// Load a WAV, or hand back the copy already loaded. Failures are remembered too, so
@@ -778,6 +796,9 @@ impl SampleCache {
             }
         };
         errors.extend(self.pitch.attach(snapshot, rate, background, &resolve));
+        // r36:ara — clips bound to an ARA plug-in play its render (ADR 0097); a bound clip
+        // has no warp or audible pitch edit (`SetClipAra` refuses one).
+        self.clip_renders.attach(snapshot, rate);
         // Warped clips play their render (ADR 0061), after the pitch render: the chain is
         // source → pitch → warp. The input is ready when it is what the clip will play —
         // the source, or its pitch render once that has arrived.

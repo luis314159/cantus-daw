@@ -76,6 +76,8 @@ pub(crate) struct StripSlot {
     /// Automated fader and pan ramping (ADR 0027).
     pub gain_ramp: Option<Ramp>,
     pub pan_ramp: Option<Ramp>,
+    /// A mix cue's fade over this control segment (ADR 0093 §3), on what leaves the chain.
+    pub scene_env: Option<Ramp>, // r36:mix
     /// The output's peak since the last control point, for a modulator that follows the
     /// strip (ADR 0057); the control phase reads and empties it.
     pub follow_peak: f32,
@@ -129,6 +131,7 @@ impl StripSlot {
             dry_line: [None; MAX_EFFECTS_PER_TRACK],
             gain_ramp: None,
             pan_ramp: None,
+            scene_env: None, // r36:mix
             follow_peak: 0.0,
             frozen: None,
             parked: None,

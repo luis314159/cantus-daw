@@ -393,6 +393,9 @@ pub enum OutKind {
     #[default]
     Clock,
     Mtc,
+    /// A note of an external instrument (ADR 0094), to the port its [`Stamped::route`]
+    /// names. r36:external
+    Note,
 }
 
 /// A MIDI message the audio thread made, stamped with the processor sample it is heard at
@@ -403,9 +406,20 @@ pub struct Stamped {
     pub kind: OutKind,
     pub len: u8,
     pub bytes: [u8; 10],
+    /// For [`OutKind::Note`]: the unit's route (its id) the interface registered with
+    /// `MidiOut::set_unit_routes`. 0 for clock and time code. r36:external
+    pub route: u64,
 }
 
 impl Stamped {
+    /// A note-on/off (or all-notes-off) of an external instrument, for `route`.
+    pub fn note(at: u64, route: u64, msg: &[u8]) -> Stamped {
+        Stamped {
+            route,
+            ..Stamped::new(at, OutKind::Note, msg)
+        }
+    }
+
     pub fn new(at: u64, kind: OutKind, msg: &[u8]) -> Stamped {
         let mut bytes = [0u8; 10];
         let len = msg.len().min(10);
@@ -415,6 +429,7 @@ impl Stamped {
             kind,
             len: len as u8,
             bytes,
+            route: 0,
         }
     }
     pub fn msg(&self) -> &[u8] {

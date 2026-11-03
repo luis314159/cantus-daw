@@ -182,7 +182,8 @@ impl CantusApp {
         // The audio comes home first, so the file is written with its new paths.
         self.collect_audio(path);
         // The hosted plug-ins' states asked for when the save began.
-        let project = self.plugins.project_for_save(self.bus.project());
+        let mut project = self.plugins.project_for_save(self.bus.project());
+        crate::record_mode::as_saved(self, &mut project); // r36:record
         let stale = self.plugins.saved_stale().to_vec();
         let revision = self.bus.revision();
         let step = self.bus.current_step();
@@ -201,7 +202,8 @@ impl CantusApp {
         if let Err(e) = spawned {
             // No thread to be had: write here rather than not at all.
             log::warn!("save thread: {e}");
-            let project = self.plugins.project_for_save(self.bus.project());
+            let mut project = self.plugins.project_for_save(self.bus.project());
+            crate::record_mode::as_saved(self, &mut project); // r36:record
             let (tx, rx2) = mpsc::channel();
             let _ = tx.send(cantus_project::save(&project, path, APP_VERSION));
             self.saving.job = Some(Job {

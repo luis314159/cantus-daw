@@ -497,7 +497,7 @@ fn the_legend_says_which_kinds_are_hidden() {
 /// row lies over a key it does not belong to.
 #[test]
 fn the_title_row_never_overlaps() {
-    const KEYS: [&str; 8] = [
+    const KEYS: [&str; 9] = [
         "menu",
         "add",
         "width",
@@ -506,6 +506,7 @@ fn the_title_row_never_overlaps() {
         "cable-options",
         "mixer.solo_off",
         "mixer.unmute_all",
+        "snapshots", // r36:mix
     ];
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for (px, ppp) in [

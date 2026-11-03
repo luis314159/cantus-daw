@@ -24,6 +24,8 @@
 //! lifting and writing back are copies, exact to the bit.
 
 use super::*;
+#[path = "scene_master.rs"] // r36:mix
+mod scene_master; // r36:mix
 use crate::graph::notes::Listener;
 use crate::pdc::Edge;
 

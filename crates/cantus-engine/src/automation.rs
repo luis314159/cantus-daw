@@ -32,6 +32,9 @@ use cantus_core::{
 };
 use std::sync::Arc;
 
+#[path = "vca_rt.rs"] // r36:mix
+mod vca_rt; // r36:mix
+
 /// Samples between two control points: the DSPs' update grid (ADR 0020 §4).
 pub const GRID: u64 = 16;
 
@@ -183,7 +186,11 @@ impl Runtime {
     /// (the engine then does nothing it did not do before). Allocates: never on the audio
     /// thread.
     pub fn build(snapshot: &Arc<Snapshot>) -> Option<Box<Runtime>> {
-        if snapshot.automation.is_empty() && snapshot.modulators.is_empty() {
+        if snapshot.automation.is_empty()
+            && snapshot.modulators.is_empty()
+            && snapshot.mix_scenes.is_empty()
+        // r36:mix
+        {
             return None;
         }
         let mut rt = Runtime {
@@ -418,6 +425,7 @@ impl Runtime {
         for li in 0..self.lanes.len() {
             let lane = &snapshot.automation[li];
             let (ma, mb) = self.mod_sum(li);
+            let vx = self.vca_extra(snapshot, li, at); // r36:mix
             let l = &mut self.lanes[li];
             if matches!(l.dest, Dest::ModAmount(_)) {
                 continue;
@@ -438,8 +446,14 @@ impl Runtime {
                     lane.range.value((p + m).clamp(0.0, 1.0))
                 }
             };
-            let v = value(at.tick, ma);
-            let w = value(at.next_tick, mb);
+            let (v, w) = match vx {
+                // The VCAs' decibels, the fader's floor kept (ADR 0093). // r36:mix
+                Some((va, vb)) => (
+                    cantus_core::vca::sum_db(value(at.tick, ma), va),
+                    cantus_core::vca::sum_db(value(at.next_tick, mb), vb),
+                ),
+                None => (value(at.tick, ma), value(at.next_tick, mb)),
+            };
             if v == l.now && w == l.next && !l.fresh {
                 continue;
             }

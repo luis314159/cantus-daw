@@ -21,9 +21,14 @@ use cantus_core::{
 };
 use egui::{pos2, vec2, Id, Pos2, Rect, Sense};
 
+#[path = "mixer_snap.rs"] // r36:mix
+mod snap_menu; // r36:mix - snapshots and VCAs in the menus (ADR 0093)
+
 /// Which menu is open.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(super) enum Menu {
+    /// The title row's snapshots (round 36). // r36:mix
+    Snapshots, // r36:mix
     /// The desk's ▸ menu: width, rows, view, mix.
     Desk,
     /// A strip's menu (right-click on its number or name).
@@ -66,6 +71,11 @@ enum Sub {
     /// The cable view's options (the rows of the title row's options key, which gives
     /// way on a narrow desk).
     Cables,
+    /// One mixer snapshot's actions (round 36, ADR 0093). // r36:mix
+    Snap(cantus_core::mix_snap::MixSnapId), // r36:mix
+    /// The VCAs a strip follows, and a group's. // r36:mix
+    Vca(StripId), // r36:mix
+    GroupVca(GroupId), // r36:mix
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -77,6 +87,8 @@ enum ColorOf {
 /// What a row does.
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Act {
+    /// A snapshot or VCA action (round 36, ADR 0093). // r36:mix
+    Mix(snap_menu::MixAct), // r36:mix
     /// The mastering assistant's panel (round 34, ADR 0084). // r34:listen
     MasteringAssistant, // r34:listen
     /// Automate a strip's (or the master's) volume (0), pan (1) or width (2) (ADR 0027).
@@ -357,6 +369,10 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             ));
             e.push(Entry::separator());
             e.push(Entry::act(Label::Key("mixer.add_strip"), Act::AddStrip));
+            e.push(Entry::act(
+                Label::Key("mix.vca.add"), // r36:mix
+                Act::Mix(snap_menu::MixAct::NewVca(None)),
+            ));
             e.push(
                 Entry::act(Label::Key("mixer.unmute_all"), Act::UnmuteAll)
                     .enabled(v.desk.any_muted),
@@ -379,6 +395,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::act(Label::Key("track.solo_tip"), Act::Solo(id)).check(on(s.soloed)));
             e.push(Entry::act(Label::Key("track.mute_tip"), Act::Mute(id)).check(on(s.muted)));
             e.push(Entry::act(Label::Key("track.mono"), Act::Mono(id)).check(on(s.width <= 0.005)));
+            snap_menu::strip_rows(app, id, &mut e); // r36:mix
             if p.tracks_on_strip(id).next().is_some() {
                 // Recording (ADR 0025): the input, arm, and the mix take for a strip whose
                 // record dot now arms.
@@ -489,6 +506,10 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Sub::Colors(ColorOf::Group(g)),
             ));
             e.push(Entry::separator());
+            e.push(Entry::sub(
+                Label::Key("mix.menu.group_vca"),
+                Sub::GroupVca(g),
+            )); // r36:mix
             e.push(Entry::act(
                 Label::Key("mixer.group.select"),
                 Act::GroupSelect(g),
@@ -594,6 +615,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::sub(Label::Key("mixer.pan_law"), Sub::PanLaw));
         }
         Menu::Cables => sub_entries(v, app, Sub::Cables, &mut e),
+        Menu::Snapshots => snap_menu::entries(v, app, &mut e), // r36:mix
         Menu::Slot(id, fx) => {
             let Some(s) = p.effects_of(id) else {
                 return e;
@@ -692,6 +714,9 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
     let prefs = v.prefs.current;
     match sub {
         Sub::Colors(_) => {}
+        Sub::Snap(id) => snap_menu::snap_entries(v, app, id, e), // r36:mix
+        Sub::Vca(id) => snap_menu::vca_entries(app, id, e),      // r36:mix
+        Sub::GroupVca(g) => snap_menu::group_entries(app, g, e), // r36:mix
         Sub::Cables => {
             let o = v.prefs.current.cable_opts;
             e.push(Entry::band("cables.menu.scope"));
@@ -1227,6 +1252,7 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
 fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
     let mut prefs = v.prefs.current;
     match act {
+        Act::Mix(a) => snap_menu::apply(v, app, a), // r36:mix
         Act::Freeze(id) => match app.freeze_holding_strip(id) {
             Some(h) => app.unfreeze_target(h),
             None => app.freeze_target(cantus_core::FreezeTarget::Strip(id)),

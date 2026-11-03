@@ -30,6 +30,10 @@ pub enum Touch {
     StripChain(StripId),
     /// A strip's mix: width, pan, fader, mute, solo, sends, where it goes, its place.
     StripMix(StripId),
+    /// A strip's fader and pan alone (round 36, ADR 0092): what a pre-fader send never
+    /// hears, so a strip whose only way into a frozen region is a pre-fader send keeps them
+    /// live ([`Locks::level`]).
+    StripLevel(StripId),
     /// What a strip gathers: a route into it made or taken away.
     StripInput(StripId),
     /// An automation target's curve, or a modulator driving it.
@@ -69,7 +73,9 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | RemoveMapping { .. }
         | SetMapping { .. }
         // What made a file (ADR 0085) changes no sample. // r34:stems
-        | SetAudioProvenance { .. } => vec![],
+        | SetAudioProvenance { .. }
+        | SetAudioSourceMarks { .. } // r36:editor — the editor's marks: no sound changes
+        => vec![],
         SetTempo { .. }
         | SetTimeSignature { .. }
         | SetTempoTrack { .. }
@@ -114,6 +120,21 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         SetTrackInput { id, .. } | SetTrackArmed { id, .. } => vec![TrackSource(*id)],
         // ---- strips ----------------------------------------------------------------------
         InsertStrip { .. } | RemoveStrip { .. } => vec![Global],
+        // A VCA's fader, mute or solo is its members' (ADR 0093): what each sounds. // r36:mix
+        SetStripGain { id, .. } | SetStripMute { id, .. } | SetStripSolo { id, .. }
+            if project.is_vca(*id) =>
+        {
+            crate::mix_cmd::followers(project, &[*id]) // r36:mix
+        }
+        // Into or out of a group that has a VCA: the strip's VCAs change. // r36:mix
+        SetStripGroup { id, group }
+            if [project.strip(*id).and_then(|s| s.group), *group]
+                .iter()
+                .flatten()
+                .any(|g| project.mix.group_vca(*g).is_some()) =>
+        {
+            crate::mix_cmd::followers(project, &[*id]) // r36:mix
+        }
         SetStripName { .. }
         | SetStripColor { .. }
         | SetStripDock { .. }
@@ -123,11 +144,10 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetStripGroupName { .. }
         | SetStripGroupColor { .. }
         | SetStripGroupCollapsed { .. } => vec![],
-        SetStripGain { id, .. }
-        | SetStripPan { id, .. }
-        | SetStripWidth { id, .. }
-        | SetStripMute { id, .. }
-        | SetStripSolo { id, .. } => vec![StripMix(*id)],
+        SetStripGain { id, .. } | SetStripPan { id, .. } => vec![StripLevel(*id)],
+        SetStripWidth { id, .. } | SetStripMute { id, .. } | SetStripSolo { id, .. } => {
+            vec![StripMix(*id)]
+        }
         MoveStrip { id, .. } => vec![StripMix(*id), Global],
         SetStripPhaseInvert { id, .. }
         | SetStripSwapChannels { id, .. }
@@ -163,6 +183,14 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         InsertGroove { .. } => vec![],
         // How a part is written never changes what it plays (ADR 0075).
         SetTrackScore { .. } => vec![],
+        // r36:external (ADR 0094): a unit changes where a track's notes or audio go and
+        // what comes back, so it touches the track's source; a measurement only moves where
+        // the return is placed and sounds like nothing until it plays.
+        InsertExternalUnit { unit, .. } | SetExternalUnit { unit } => vec![TrackSource(unit.track)],
+        RemoveExternalUnit { id } => project
+            .external_unit(*id)
+            .map_or_else(Vec::new, |u| vec![TrackSource(u.track)]),
+        SetExternalLatency { .. } => vec![],
         // Where a plug-in runs never changes its sound (ADR 0063).
         SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => vec![],
         // ---- inserts ---------------------------------------------------------------------
@@ -201,6 +229,9 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetClipPitch { track, clip, .. }
         // A warped clip's render plays in place of its source (ADR 0061).
         | SetClipWarp { track, clip, .. }
+        // r36:ara: a bound clip plays the ARA plug-in's render in place of its source.
+        | SetClipAra { track, clip, .. }
+        | SetClipAraState { track, clip, .. }
         | SetClipLane { track, clip, .. }
         | SetClipComp { track, clip, .. }
         | InsertNotes { track, clip, .. }
@@ -300,6 +331,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         SetTrackLateness { id, .. } => vec![TrackSource(*id)],
         // Each command of a batch is guarded as it is applied.
         Session(c) => crate::session::touches(c, project), // r33:session
+        Mix(c) => crate::mix_cmd::touches(c, project), // r36:mix
         Batch { .. } => vec![],
     }
 }
@@ -371,12 +403,16 @@ fn refused_by(project: &Project, locks: &Locks, touch: &Touch, depth: u8) -> Opt
             .contains(s)
             .then(|| locks.owner_of_strip(*s))
             .flatten(),
+        StripLevel(s) => locks
+            .level
+            .contains(s)
+            .then(|| locks.owner_of_strip(*s))
+            .flatten(),
         Target(target) => {
             let inner = match target {
                 AutoTarget::TrackGain(t) | AutoTarget::TrackPan(t) => TrackMix(*t),
-                AutoTarget::StripGain(s) | AutoTarget::StripPan(s) | AutoTarget::StripWidth(s) => {
-                    StripMix(*s)
-                }
+                AutoTarget::StripGain(s) | AutoTarget::StripPan(s) => StripLevel(*s),
+                AutoTarget::StripWidth(s) => StripMix(*s),
                 AutoTarget::Send { strip, .. } => StripMix(*strip),
                 AutoTarget::Effect { effect, .. } | AutoTarget::Plugin { effect, .. } => {
                     match project.effect_host(*effect) {

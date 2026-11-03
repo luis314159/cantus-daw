@@ -35,10 +35,20 @@ Also: [Exporting a dancing video](video.md) — your dancers with the song, for 
 
 Also: [Converting audio to MIDI](audio-to-midi.md) — a melody, chords or a drum loop into notes on a new track.
 
+Also: [The audio editor](audio-editor.md) — cut, silence, fade, normalise, take the noise out, remove silence and see the spectrum, on a clip's take.
+
 Also: [Saltator, a character that dances to your song](dancer.md) — the dancer's window, its moves, React to. <!-- r35:dancer -->
 
 Also: [The stage](stage.md) — a dancer over the workspace, on the Stage tab, in a companion window and on stream (OBS). <!-- r35:stage -->
+
+Also: [The recording mode](recording-mode.md) — render every strip that feeds the master so the buffer can go lower while you record. <!-- r36:record -->
+
+Also: [VCA faders and mixer snapshots](mixing-studio.md) — move a group of strips together, store the desk and recall it, cue it on the timeline. <!-- r36:mix -->
+
+Also: [External gear and control surfaces](external-gear.md) - a hardware synth or effect on a track with its latency measured, and Mackie Control / HUI surfaces. <!-- r36:external -->
+
 Also: [Importing a character](import-characters.md) — a dancer wearing your own Lottie, sprite sheet or DragonBones character. <!-- r35:import -->
+Also: [Editing a clip with an ARA plug-in](ara.md) — an ARA 2 plug-in that sees the whole recording renders your audio clip. <!-- r36:ara -->
 
 AI in this manual: [AI agents (MCP)](#ai-agents-mcp) — connect Claude or another assistant;
 [The mastering assistant](#the-mastering-assistant); [Listening for AI agents](#listening-for-ai-agents).

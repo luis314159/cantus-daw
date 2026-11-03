@@ -363,6 +363,10 @@ pub(crate) fn strip_chain(
     }
     // Width, then pan: narrowing a stereo reverb has to happen before the channel is
     // placed, or the placement is what gets narrowed.
+    // A mix cue's fade (ADR 0093 §3): out before its switch, in after it. // r36:mix
+    if let (Some(e), Some(k0)) = (st.scene_env, ctx.k0(ctx.transport.samples())) {
+        e.fade(l, r, k0); // r36:mix
+    }
     apply_width(l, r, st.width);
     let (pl, pr) = ctx.law.gains(st.pan);
     let (gl, gr, muted) = (st.gain * pl, st.gain * pr, st.muted);

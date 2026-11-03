@@ -5,7 +5,6 @@ mod ai;
 mod audio;
 mod body;
 mod dance;
-mod faces;
 mod fx;
 mod icons;
 mod lang;
@@ -15,9 +14,12 @@ mod rack;
 mod score;
 mod session;
 mod shelf;
+mod studio;
 mod theme;
 mod top;
 mod tour;
+mod units;
+mod units_data;
 
 use yew::prelude::*;
 
@@ -45,14 +47,16 @@ fn app() -> Html {
             <main>
                 <top::Hero />
                 <tour::Tour />
+                <studio::RecordMode />
+                <units::Units />
+                <fx::Effects />
                 <listen::Listen />
+                <studio::Studio />
                 <tour::Features />
                 <session::Session />
                 <ai::Ai />
                 <score::Score />
                 <dance::Dance />
-                <faces::Faces />
-                <fx::Effects />
                 <body::Engine />
                 <body::Free />
                 <body::Support />

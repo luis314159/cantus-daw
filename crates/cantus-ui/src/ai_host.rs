@@ -75,6 +75,8 @@ impl AgentHost for CantusApp {
         if self.tempo_held(&command) {
             return Err(t("tempo.status.recording"));
         }
+        let arm = crate::record_mode::arm_of(&command); // r36:record
+        let notice = crate::record_mode::notice_key(&command); // r36:record
         let tempo_edit = crate::views::transport::sync_service::is_tempo_edit(&command);
         let replaces = matches!(command, Command::ReplaceProject { .. });
         if replaces {
@@ -96,6 +98,16 @@ impl AgentHost for CantusApp {
             Err(CommandError::Frozen(target)) => {
                 crate::freeze::refused(self, target);
                 Err(self.status.text.clone())
+            }
+            Err(CommandError::RecordingMode) => {
+                // An agent arming a baked track: its call was allowed, so its strip is
+                // brought live and armed (ADR 0092). // r36:record
+                if arm.is_some_and(|t| self.record_mode_arm_refused(t, true)) {
+                    self.validate_selection(); // r36:record
+                    return Ok(()); // r36:record
+                }
+                self.record_mode_notice_for(notice); // r36:record
+                Err(self.status.text.clone()) // r36:record
             }
             Err(e) => Err(e.to_string()),
         }

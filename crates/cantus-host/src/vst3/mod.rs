@@ -19,6 +19,8 @@
 // between them and the `int32` fields are no-ops here and needed there.
 #![allow(clippy::unnecessary_cast)]
 
+// r36:ara — ARA 2: the main factory and bound instances (ADR 0097).
+pub mod ara;
 mod audio_thread;
 mod host_objects;
 mod instance;

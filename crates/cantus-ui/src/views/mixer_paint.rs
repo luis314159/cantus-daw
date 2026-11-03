@@ -179,6 +179,10 @@ pub(super) fn title(
     // Takes: the one running, or the list of those made.
     x = takes(v, app, ui, b, s, r, x);
 
+    // Snapshots (round 36, ADR 0093), where the right side leaves room. // r36:mix
+    let leds = usize::from(v.desk.any_solo) + usize::from(v.desk.any_muted); // r36:mix
+    x = super::vca_ui::snap_key(v, app, ui, b, s, r, x, 140.0 + 120.0 * leds as f32); // r36:mix
+
     // The right side, from the right edge inwards.
     let mut right = r.right() - 10.0;
     right = title_text(v, app, b, s, r, right, x);

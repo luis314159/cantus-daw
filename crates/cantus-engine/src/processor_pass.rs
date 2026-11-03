@@ -155,6 +155,7 @@ impl Processor {
                 master,
                 &mut master_peak,
             );
+            self.ext_send_mix(&mut output[done * channels..end * channels], channels, n); // r36:external
             self.sync_pass(done, n); // r33:sync
             done = end;
             if self.transport.is_playing() {
@@ -169,6 +170,7 @@ impl Processor {
         self.clock += done as u64;
         // Notes for effects that did not run, or are gone, never arrive: what is past is
         // dropped.
+        self.ext_drain(); // r36:external
         self.prune_notes();
 
         self.meters.master = master_peak;

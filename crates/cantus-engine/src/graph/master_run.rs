@@ -59,6 +59,12 @@ impl Processor {
             None => (strip.l, strip.r),
         };
         let mut pass_peak = 0f32;
+        // A mix cue's polarity and fade on the master (ADR 0093 §3). // r36:mix
+        let sign = self.auto.master_sign.unwrap_or(strip.sign);
+        let fade = self
+            .auto
+            .k0(self.transport.samples())
+            .zip(self.auto.master_env);
         for (i, frame) in out.chunks_exact_mut(channels).enumerate() {
             let (g, ml, mr) = match master_ramp {
                 Some(k0) => {
@@ -78,14 +84,25 @@ impl Processor {
                     1 => mr,
                     _ => 1.0,
                 };
-                *s *= g * pan * strip.sign;
+                *s *= g * pan * sign; // r36:mix
+                if let Some((k0, e)) = fade {
+                    *s *= e.at(k0 + i as u64).clamp(0.0, 1.0); // r36:mix
+                }
                 if ch < 2 {
                     peaks[ch] = peaks[ch].max(s.abs());
                     pass_peak = pass_peak.max(s.abs());
                 }
             }
         }
-        // What a modulator following the master hears (ADR 0057).
+        // The recording mode's baked master (ADR 0092 §3): its render after the live strips,
+        // which met the master's (locked) fader. // r36:record
+        // Read where the live strips arrive: the output's latency behind the transport.
+        let from = crate::freeze::frame_at(&self.transport) - self.stats.latency_samples as i64; // r36:record
+        let (playing, offline) = (self.transport.is_playing(), self.offline); // r36:record
+        let late = &self.nodes.stream_late; // r36:record
+        self.master_bake
+            .add(from, playing, offline, out, channels, n, peaks, late); // r36:record
+                                                                         // What a modulator following the master hears (ADR 0057).
         self.auto.follow_master = self.auto.follow_master.max(pass_peak);
         // The master's loudness (ADR 0052): the mix as it leaves the master strip, read into
         // the scratch lanes the click uses next (it writes them before it reads them).

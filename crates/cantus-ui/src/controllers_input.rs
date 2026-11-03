@@ -100,7 +100,18 @@ impl CantusApp {
         }
         self.controller_heard(&buf);
         self.controllers.buf = buf;
+        // A surface's SysEx (a Mackie's connection query) to the surface. r36:external
+        let mut sysex = Vec::new(); // r36:external
+        if let Some(inputs) = self.midi_inputs.as_mut() {
+            inputs.drain_sysex(&mut sysex); // r36:external
+        }
+        for m in sysex {
+            crate::surface::service::sysex(self, usize::from(m.port), m.bytes());
+            // r36:external
+        }
         self.controller_feedback();
+        crate::surface::service::tick(self); // r36:external
+        crate::external_service::poll(self); // r36:external
         self.controller_wakes();
     }
 
@@ -132,6 +143,11 @@ impl CantusApp {
             if crate::controllers::grid::heard(self, h) {
                 continue;
             }
+            // A control surface's port is the surface's (round 36, ADR 0095). // r36:external
+            if crate::surface::service::heard(self, h) {
+                // r36:external
+                continue; // r36:external
+            } // r36:external
             if self.controllers.learning.is_some() {
                 self.learn_heard(h);
             } else {
@@ -444,6 +460,10 @@ impl CantusApp {
                 if cantus_core::freeze::refuses(p, &cmd).is_some() {
                     return Some(Idle::Frozen);
                 }
+                // The recording mode's lock, asked as the frozen guard is. // r36:record
+                if self.bus.locked_against(&cmd) {
+                    return Some(Idle::Frozen); // r36:record
+                }
             }
         }
         None
@@ -638,6 +658,11 @@ impl CantusApp {
                 if let Some(t) = cantus_core::freeze::refuses(self.project(), &cmd) {
                     self.refused_by_freeze(t);
                     return;
+                }
+                // The recording mode's lock: this target left out, the others move on. // r36:record
+                if self.bus.locked_against(&cmd) {
+                    self.record_mode_notice(); // r36:record
+                    return; // r36:record
                 }
                 self.record_controller(&target, pos, at);
                 // A strip's record arm is its tracks' arms, each its own in the gesture: a
@@ -942,6 +967,7 @@ impl CantusApp {
                 };
                 match e {
                     cantus_core::CommandError::Frozen(t) => self.refused_by_freeze(t),
+                    cantus_core::CommandError::RecordingMode => self.record_mode_notice(), // r36:record
                     e => self.set_error(e.to_string()),
                 }
             }
@@ -1032,6 +1058,10 @@ impl CantusApp {
                 set.take(i, None, cantus_core::controller::Control::PolyPressure(n));
             }
             set.take(i, None, cantus_core::controller::Control::ChannelPressure);
+        }
+        // A control surface's port is taken whole: its buttons are not keys (ADR 0095).
+        for i in crate::surface::service::taken_ports(self) {
+            set.take_port(i); // r36:external
         }
         self.controllers.tap.filter().publish(&set);
         self.controllers.published = Some((rev, sig, self.controllers.global.clone(), names));

@@ -937,6 +937,19 @@ pub struct MixerStrip {
     /// The strip's modulators (ADR 0057, schema 28).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modulators: Vec<crate::modulator::Modulator>,
+    /// What the strip is (round 36, ADR 0093): a channel, or a VCA fader with no audio.
+    #[serde(default, skip_serializing_if = "crate::vca::StripKind::is_audio")]
+    pub kind: crate::vca::StripKind, // r36:mix
+    /// The VCAs whose faders scale this strip (besides its group's).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vcas: Vec<StripId>, // r36:mix
+    /// A recall of a mixer snapshot leaves this strip alone unless it names it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub recall_safe: bool, // r36:mix
+    /// Console feel (ADR 0093): a solo elsewhere does not silence this strip (a click, a
+    /// reference, a talkback), unless it is muted itself.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub solo_safe: bool, // r36:mix
     /// Frozen (schema 37, ADR 0064): everything the strip gathers and its chain up to the
     /// width play from a render — width, pan, fader, mute, solo and the sends stay live.
     /// `None` plays live.
@@ -1123,6 +1136,9 @@ pub struct Project {
     /// The desk's groups, in the order they were made. See [`StripGroup`].
     #[serde(default)]
     pub strip_groups: Vec<StripGroup>,
+    /// The mixer snapshots and their cues (round 36, ADR 0093).
+    #[serde(default, skip_serializing_if = "crate::mix_snap::MixBook::is_empty")]
+    pub mix: crate::mix_snap::MixBook, // r36:mix
     pub master: Master,
     pub loop_region: Option<LoopRegion>,
     pub loop_enabled: bool,
@@ -1139,6 +1155,11 @@ pub struct Project {
     /// makes no claim. Removing a source removes its entry.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub provenance: std::collections::BTreeMap<AudioSourceId, crate::audio::Provenance>,
+    /// The audio editor's markers, regions and loop points of each file (ADR 0096 §6), by
+    /// its source's id. r36:editor
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    // r36:editor
+    pub source_marks: std::collections::BTreeMap<AudioSourceId, crate::audio::SourceMarks>, // r36:editor
     /// How recording behaves: count-in, punch, takes, the click (ADR 0025).
     #[serde(default)]
     pub recording: crate::audio::RecordSettings,
@@ -1179,6 +1200,10 @@ pub struct Project {
     #[serde(default, skip_serializing_if = "crate::session::Session::is_default")]
     // r33:session
     pub session: crate::session::Session, // r33:session
+    /// The hardware that is part of a track (schema 51, ADR 0094): external instruments
+    /// and effects. Empty — every older project — is none, and is not written.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")] // r36:external
+    pub external_units: Vec<crate::external_unit::ExternalUnit>, // r36:external
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1208,6 +1233,7 @@ impl Project {
             tracks: Vec::new(),
             strips: Vec::new(),
             strip_groups: Vec::new(),
+            mix: Default::default(), // r36:mix
             master: Master::default(),
             loop_region: Some(LoopRegion {
                 start: Ticks::ZERO,
@@ -1218,6 +1244,7 @@ impl Project {
             pan_law: PanLaw::default(),
             audio_pool: Vec::new(),
             provenance: Default::default(),
+            source_marks: Default::default(), // r36:editor
             recording: crate::audio::RecordSettings::default(),
             pattern_mode: false,
             tempo_points: Vec::new(),
@@ -1227,6 +1254,7 @@ impl Project {
             key: None,
             grooves: Vec::new(),
             session: Default::default(), // r33:session
+            external_units: Vec::new(),  // r36:external
             next_id: 1,
         }
     }
@@ -1351,7 +1379,10 @@ impl Project {
     /// middle of the desk are taken first: the pinned docks hold returns and buses, and a
     /// new instrument landing on one of them would be a surprise.
     pub fn first_free_strip(&self) -> Option<StripId> {
-        let free = |s: &&MixerStrip| !self.tracks.iter().any(|t| t.strip == Some(s.id));
+        let free = |s: &&MixerStrip| {
+            s.kind == crate::vca::StripKind::Audio // r36:mix
+                && !self.tracks.iter().any(|t| t.strip == Some(s.id))
+        };
         self.strips
             .iter()
             .filter(|s| s.dock == Dock::Middle)
@@ -1473,11 +1504,15 @@ impl Project {
     /// solo somewhere, only the soloed strips and what they are connected to do. Indexed
     /// like `strips`.
     pub fn strip_audibility(&self) -> Vec<bool> {
+        // VCAs (ADR 0093): a muted or soloed VCA is its members' mute and solo.
+        if self.has_vca() {
+            return self.strip_audibility_vca();
+        }
         let mut audible: Vec<bool> = self.strips.iter().map(|s| !s.muted).collect();
         if self.any_strip_solo() {
             let keep = self.connected_strips(self.strips.iter().filter(|s| s.soloed).map(|s| s.id));
             for (i, a) in audible.iter_mut().enumerate() {
-                *a = *a && keep.contains(&i);
+                *a = *a && (keep.contains(&i) || self.strips[i].solo_safe); // r36:mix
             }
         }
         audible
@@ -1633,6 +1668,10 @@ impl Project {
             group: None,
             modulators: Vec::new(),
             frozen: None,
+            kind: Default::default(), // r36:mix
+            vcas: Vec::new(),         // r36:mix
+            recall_safe: false,       // r36:mix
+            solo_safe: false,         // r36:mix
         }
     }
 

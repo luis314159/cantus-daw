@@ -1,0 +1,98 @@
+# Area: record - round 36. Every key here needs its twin in record.es.txt
+
+# Undo label (cmd.*)
+cmd.record_leave = leave the recording mode
+
+# The mode's messages
+record.cannot.on = The recording mode is on already.
+record.cannot.recording = Stop recording first: the mode is prepared with the transport still.
+record.cannot.exporting = An export is running: prepare to record when it is done.
+record.cannot.leave_recording = Stop recording before leaving the mode: the take is still being written.
+record.nothing = Nothing to prepare: every strip is live, armed or frozen already.
+record.preparing = Preparing to record: rendering {n} strips and tracks.
+record.cancelled = Preparing to record stopped. What was rendered is kept.
+record.not_on = The recording mode is not on.
+record.left = Left the recording mode. The renders are kept: entering again only renders what changed.
+record.left_discarded = Left the recording mode. The renders were discarded.
+record.notice = Recording mode: leave it to edit.
+record.failed.unknown = it could not be rendered
+record.stopped = Preparing stopped: {names} could not be rendered, so nothing was baked.
+record.none_baked = Nothing could be baked: the project stays live.
+record.entered = Recording mode on: {n} strips and tracks play from their renders.
+
+# The bar
+record.bar.chip = RECORDING MODE
+record.bar.chip_preparing = PREPARING TO RECORD
+record.bar.unknown = not measured
+record.bar.buffer_value = {frames} frames ({ms} ms)
+record.bar.cpu_both = {before} before, {now} now
+record.bar.cpu_before = {before} before
+record.bar.cpu_now = {now} now
+record.bar.cpu_unknown = not measured yet: play to see it
+record.bar.rendering = {name} {pct}
+record.bar.preparing = {done} of {total} rendered {now}
+record.bar.live = {n} stay live.
+record.bar.live_one = 1 stays live.
+record.bar.text = {baked} baked. Buffer {buffer}. Round trip {trip}. CPU {cpu}. {live} Leave it to edit.
+record.bar.leave = Leave
+record.bar.cancel = Cancel
+record.bar.tip = The strips that feed the master play from renders, so only armed strips are live. It does not shorten your interface's round trip: it lets the buffer go lower without dropouts.
+
+# The questions
+record.ask.title = Prepare to record
+record.ask.what = Every strip that feeds the master is rendered on its own, after its effects and automation and before its fader and pan. While the mode is on only audio is read and summed.
+record.ask.plan = {n} strips and tracks to render ({reused} already on disk), {seconds} s each.
+record.ask.size = Up to {new} of new files in the project's folder, {all} in all (each render is the song and its tail, up to 30 s).
+record.ask.mix_band = Mix controls
+record.ask.mix_live = Live: fader, pan, mute and solo work
+record.ask.mix_locked = Locked until you leave
+record.ask.fail_band = A strip that cannot be rendered
+record.ask.fail_live = Leave it live and name it
+record.ask.fail_stop = Stop preparing
+record.ask.honest = This does not shorten your interface's own round trip. It lets the buffer go lower without dropouts, because the computer has little left to compute. Leaving gives everything back as it was.
+record.ask.prepare = Prepare
+record.ask.cancel = Cancel
+record.live.armed = {name} stays live: it has an armed track.
+record.live.monitoring = {name} stays live: a track monitors its input.
+record.live.soloed = {name} stays live: a solo inside it cannot be baked.
+record.live.cue_solo = {name} stays live: a cue solos a strip inside it, and a render holds no solo.
+record.live.external = {name} stays live: it plays outboard gear, which a render made off line cannot play.
+record.live.dancer = {name} stays live: a dancer makes no sound to bake.
+record.leave.title = Leave the recording mode
+record.leave.text = Everything the mode baked plays live again. Keep the rendered files to enter again quickly, or discard them to free the disk.
+record.leave.keep = Leave, keep files
+record.leave.discard = Leave, discard files
+record.leave.stay = Stay
+
+# The record popover
+record.row.band = Recording mode
+record.row.mode = Mode
+record.row.prepare = Prepare to record
+record.row.leave = On: leave
+record.row.tip = Render every strip that feeds the master so the buffer can go lower while you record.
+
+# Round 36, after the review
+record.cannot.sync = The tempo follows Link, MIDI clock or time code: the renders would play at another speed. Set the sync source to None first.
+record.cannot.session = A session scene is playing: its tempo and clips are not the song's. Stop the session first.
+record.left_tempo = Left the recording mode: {why}
+record.not_baked = That track is not in a baked strip.
+record.brought_live = {name} is live again and armed: its strip plays its own chain, nothing was rendered again.
+record.master_failed = The master could not be baked ({why}): it stays live.
+record.ask.master_band = Master
+record.ask.master_live = Live: the master chain on the sum
+record.ask.master_baked = Baked: the whole mix in one render
+record.ask.locked_mix = {n} strips keep their mix locked: another baked strip (a return, a bus) holds them.
+record.ask.locked_mix_one = 1 strip keeps its mix locked: another baked strip (a return, a bus) holds it.
+record.offer.title = Record on a baked track
+record.offer.text = {name} plays from the render of {strips}. Bring it live to record on it? Its chain plays again at once, aligned to the sample; nothing is rendered again.
+record.offer.master = The master is baked and holds it too: the master plays live again.
+record.offer.yes = Bring live and arm
+record.offer.no = Cancel
+record.bar.master_baked = Master baked.
+record.bar.trip_reported = {ms} ms (as the driver reports)
+record.bar.trip_measured = {ms} ms (measured)
+record.bar.trip_unknown = not reported
+record.bar.without = Monitoring without: {names}.
+record.ll.forced = On: forced by the recording mode
+record.notice_recall = Recording mode: this recall reaches baked strips. Leave the mode to recall it, or recall only the live strips.
+record.notice_cue = Recording mode: a cue changes baked strips from its bar. Leave the mode to edit cues.

@@ -22,6 +22,11 @@
 //! - [`bridge`]: plug-ins run out of Cantus's process, in helper processes (ADR 0063), so
 //!   one that crashes or hangs cannot take the session down.
 
+// r36:ara — ARA 2 hosting: the session of bound clips (ADR 0097).
+#[cfg(feature = "vst3")]
+pub mod ara;
+#[cfg(feature = "vst3")]
+pub mod ara_worker; // r36:ara — the render thread (ADR 0097)
 pub mod backend;
 pub mod bridge;
 pub mod bundle;

@@ -76,6 +76,9 @@ impl MidiEvent {
 /// UI → engine.
 #[derive(Debug)]
 pub enum EngineMessage {
+    /// Run an external unit's latency ping (ADR 0094): the transport must be stopped. The
+    /// job comes back as [`EngineEvent::PingDone`], finished or refused. r36:external
+    StartPing(Box<crate::external_ping::PingJob>),
     /// A freshly compiled project snapshot. The engine keeps it until the next one. Its
     /// graph plan is the engine's current one when the routing has not changed; otherwise
     /// the engine compiles it in place (allocation-free) — the UI sends
@@ -375,6 +378,9 @@ pub struct ControlInput {
 // are sized for the largest variant once, at construction.
 #[allow(clippy::large_enum_variant)]
 pub enum EngineEvent {
+    /// A ping ran (or was refused): its job, to be evaluated on the interface thread.
+    /// r36:external
+    PingDone(Box<crate::external_ping::PingJob>),
     Position {
         /// Where the engine is: what it is rendering now.
         tick: Ticks,

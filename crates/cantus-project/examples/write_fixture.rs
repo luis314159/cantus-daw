@@ -1220,6 +1220,34 @@ fn main() {
             );
         }
     }
+    // Schema 52 (round 36, ADR 0096): the audio editor's marks on the
+    // pool's first file — two markers, a named region and loop points. // r36:editor
+    if upto >= 52 {
+        if let Some(s) = p.audio_pool.first() {
+            let (id, f) = (s.id, s.frames.max(4));
+            p.source_marks.insert(
+                id,
+                cantus_core::SourceMarks {
+                    markers: vec![
+                        cantus_core::SourceMarker {
+                            frame: f / 4,
+                            name: "Verse".into(),
+                        },
+                        cantus_core::SourceMarker {
+                            frame: f / 2,
+                            name: String::new(),
+                        },
+                    ],
+                    regions: vec![cantus_core::SourceRegion {
+                        start: f / 4,
+                        end: f / 2,
+                        name: "Take 2".into(),
+                    }],
+                    loop_points: Some((f / 8, f / 2)),
+                },
+            );
+        }
+    }
     // Schema 49 (round 35, ADR 0087): a dancer — a character chosen, a few numbers moved,
     // where it shows, `move` automated to Clap over bar 3 and a note in its move map.
     // Before the last track, which the freeze block below freezes. // r35:dancer
@@ -1261,6 +1289,96 @@ fn main() {
         t.clips.extend([auto, c]);
         let at = p.tracks.len() - 1;
         p.tracks.insert(at, t);
+    }
+    // Schema 50 (round 36, ADR 0093): a VCA the Keys strip follows (its fader at -3 dB), a
+    // snapshot of the desk, a cue at bar 3 that recalls it, and the strip marked safe.
+    if upto >= 50 {
+        use cantus_core::mix_snap::{capture, MixCue, MixCueId, MixSnapId, MixSnapshot};
+        use cantus_core::vca::StripKind;
+        let mut v = p.make_strip("Keys VCA");
+        v.kind = StripKind::Vca;
+        v.gain_db = -3.0;
+        let vca = v.id;
+        p.strips.push(v);
+        p.strip_mut(strip1).unwrap().vcas.push(vca);
+        p.strip_mut(strip1).unwrap().recall_safe = true;
+        let state = capture(&p, &[], true);
+        let id = MixSnapId(p.alloc_id());
+        p.mix.snapshots.push(MixSnapshot {
+            id,
+            name: "Verse".into(),
+            state,
+        });
+        let cue = MixCueId(p.alloc_id());
+        p.mix.cues.push(MixCue {
+            id: cue,
+            at: Ticks::beats(8),
+            snapshot: id,
+            scope: Vec::new(),
+        });
+    }
+    // Schema 51 (round 36, ADR 0094): an external instrument on a track of its own ("Outboard
+    // synth") — notes to "Hardware Synth" channel 3, audio back on inputs 5–6, measured at 612
+    // frames and trimmed 1.5 ms — and an external effect on another ("Outboard bus"), both
+    // outside every region the freeze block below freezes (a frozen region cannot hold
+    // outboard gear: `CannotFreeze::External`). Inserted before the last track, which that
+    // block freezes. r36:external
+    if upto >= 51 {
+        use cantus_core::external_unit::{Measured, MidiRoute, Pair};
+        let synth = p.make_track("Outboard synth");
+        let bus = p.make_track("Outboard bus");
+        let (synth_id, bus_id) = (synth.id, bus.id);
+        let at = p.tracks.len().saturating_sub(1);
+        p.tracks.insert(at, bus);
+        p.tracks.insert(at, synth);
+        let id = p.new_external_unit_id();
+        let mut u = ExternalUnit::instrument(
+            id,
+            synth_id,
+            MidiRoute {
+                port: "Hardware Synth".into(),
+                ordinal: 0,
+                channel: 2,
+            },
+            Pair::stereo(4),
+        );
+        u.name = "Bass synth".into();
+        u.device = "Fixture Interface".into();
+        u.trim_ms = 1.5;
+        u.latency = Some(Measured::bare(612, 48_000, 41.5));
+        p.external_units.push(u);
+        let id = p.new_external_unit_id();
+        let mut e = ExternalUnit::effect(id, bus_id, Pair::stereo(2), Pair::stereo(2));
+        e.name = "Outboard compressor".into();
+        e.return_db = -3.0;
+        p.external_units.push(e);
+    }
+    // Schema 53 (round 36, ADR 0097): an audio clip bound to an ARA 2 plug-in, with the
+    // plug-in's archive of its modification. Before the freeze block. // r36:ara
+    if upto >= 53 {
+        use cantus_core::ara::{AraArchive, AraClip, AraPlugin};
+        let src = p.audio_pool.first().map(|s| s.id).expect("a source");
+        let mut c = p.make_audio_clip("ARA take", src, Ticks::beats(24), Ticks::beats(4));
+        let mut ara = AraClip::new(AraPlugin {
+            id: "41524154455354504C5547494E000001".into(),
+            name: "Cantus Test ARA".into(),
+            vendor: "Cantus Tests".into(),
+            path: "cantus_test_ara.vst3".into(),
+            factory_id: "org.cantus.test.ara.factory".into(),
+        });
+        ara.archive = Some(AraArchive {
+            document_archive_id: "org.cantus.test.ara.document.v1".into(),
+            source_id: cantus_core::ara::source_persistent_id(src),
+            modification_id: cantus_core::ara::modification_persistent_id(c.id),
+            data: cantus_core::PluginState::new(b"gain=0.5\n".to_vec()),
+        });
+        c.audio.as_mut().unwrap().ara = Some(Box::new(ara));
+        let vocal = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Vocal")
+            .expect("the vocal track");
+        vocal.clips.push(c);
     }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with

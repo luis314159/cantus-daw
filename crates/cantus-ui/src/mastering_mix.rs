@@ -27,6 +27,13 @@ pub fn rendered_json(project: &Project, h: &Heard) -> Value {
     v["seconds_rendered"] = json!(round(h.rendered_frames as f64 / h.sample_rate as f64, 2));
     v["checkpoints_taken"] = json!(h.checkpoints_taken);
     v["latency_samples"] = json!(h.latency);
+    // An offline render plays no outboard gear (ADR 0094 §6): what was left out is said.
+    let gear = crate::external_service::outboard_tracks(project); // r36:external
+    if !gear.is_empty() {
+        v["outboard_not_heard"] = json!(gear); // r36:external
+        v["outboard_note"] = json!("These tracks play hardware outside the computer, which an offline render cannot play: they are not in this render. Record their return to hear them here.");
+        // r36:external
+    }
     v
 }
 

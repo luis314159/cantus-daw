@@ -67,7 +67,8 @@ impl InputBlock {
     /// Input channel `c`, frames `[from, from + n)` of this block; `None` past the
     /// device's channels.
     #[inline]
-    fn channel(&self, c: usize, from: usize, n: usize) -> Option<&[f32]> {
+    pub(crate) fn channel(&self, c: usize, from: usize, n: usize) -> Option<&[f32]> {
+        // (pub(crate): the external units' ping reads the return pair. r36:external)
         (c < self.channels).then(|| &self.input[c * MAX_BLOCK_FRAMES + from..][..n])
     }
 }
@@ -553,6 +554,10 @@ impl Processor {
                     },
                     armed: t.armed,
                 };
+                // An external unit's return level (ADR 0094): unity (the default) is exactly
+                // 1.0, an empty product too. r36:external
+                self.live.tracks[slot].trim *=
+                    t.external.iter().map(|l| l.return_gain).product::<f32>();
             } else if t.armed {
                 // Armed with no audio input: its notes are monitored (low latency, ADR
                 // 0064 §4).

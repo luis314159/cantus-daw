@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editing a clip with an ARA plug-in</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="editing-a-clip-with-an-ara-plug-in">Editing a clip with an ARA plug-in</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/ara.html">Leer en español</a></em></p>
+<p><strong>ARA 2</strong> (Audio Random Access, by Celemony) lets a plug-in see a whole recording and the clips that play it, instead of only the sound passing through it. Pitch and timing editors, spectral editors and alignment tools are made this way. Cantus hosts ARA 2 plug-ins in the <strong>VST3</strong> format.</p>
+<h2 id="bind-a-clip">Bind a clip</h2>
+<ol>
+<li>Install the plug-in and let the plug-in scan find it (<em>Settings ▸ Plug-ins ▸ Scan for plug-ins</em>; Cantus scans again by itself, once, the VST3 plug-ins it scanned before it knew ARA).</li>
+<li>Right-click an <strong>audio clip</strong> ▸ in the <strong>ARA plug-in</strong> section, <em>Bind to</em> the plug-in.</li>
+</ol>
+<p>The clip now plays the plug-in's render of it in place of its file. Clip gain, fades, the track and the mix apply as to any clip; an export, a bounce and the stems hear the render too. <em>Undo</em> takes the binding back in one step.</p>
+<p>The section always says it: <strong>ARA plug-ins run inside Cantus, not isolated.</strong> Other plug-ins can run in a helper process, so one that crashes cannot take Cantus with it; an ARA plug-in shares the recording with Cantus directly, so it runs in Cantus's own process. Save often while you try a new one.</p>
+<h2 id="what-the-plug-in-keeps">What the plug-in keeps</h2>
+<ul>
+<li><strong>Its edits are saved with the project.</strong> When you save, Cantus asks the plug-in for its state for each bound clip and stores it in the project file; opening the project gives it back.</li>
+<li><strong>Moving, trimming or splitting a clip</strong> tells the plug-in, which renders the clip again.</li>
+<li><strong>Deleting a clip, or letting it go,</strong> keeps the plug-in's work for <em>Undo</em>: the clip comes back with everything the plug-in had done to it.</li>
+<li><strong>A copy of a bound clip</strong> starts with what the plug-in had done to the original.</li>
+</ul>
+<h2 id="let-a-clip-go">Let a clip go</h2>
+<p>Right-click the clip ▸ <em>Let go of</em> the plug-in. The clip plays its file again. Binding it again starts clean; <em>Bind to … with its previous edits</em> brings back what the plug-in had done to it.</p>
+<h2 id="when-the-plug-in-is-not-there">When the plug-in is not there</h2>
+<p>A project opened on a computer without the plug-in keeps the binding and the plug-in's saved state; the clip plays <strong>its own file</strong>, and its menu says why (<em>not installed</em>, or what the plug-in answered). Install the plug-in and the clip is rendered again.</p>
+<h2 id="open-the-plug-ins-editor">Open the plug-in's editor</h2>
+<p>Right-click the bound clip ▸ <em>Open</em> the plug-in. Its own window opens on the clip. Every edit you make there is <strong>one undo step</strong> in Cantus (<em>Edit ▸ Undo</em> takes it back in the plug-in too), and the clip renders again in the background: you keep hearing the last render until the new one is ready, and the clip's body shows how far it is. Only the part the plug-in says changed is rendered again.</p>
+<h2 id="if-a-plug-in-crashes-or-stops-answering">If a plug-in crashes or stops answering</h2>
+<p>If Cantus closes while an ARA plug-in is working, the next start opens your project with that plug-in's clips playing their sources, and the clip's menu says why: choose <em>Retry</em> to run it again. A render that takes far too long stops the plug-in for the session; Cantus never waits for it. <em>Play sources only (ARA plug-ins off)</em> in the same menu turns every ARA plug-in off: each bound clip plays its own file.</p>
+<h2 id="what-is-not-there-yet">What is not there yet</h2>
+<ul>
+<li>A bound clip cannot also be reversed, warped or have Cantus's own pitch edits: the plug-in does pitch and time. Remove those before binding.</li>
+<li>The plug-in runs inside Cantus's process; running it isolated comes in a later version.</li>
+</ul>
+<p>Cantus is tested with an ARA test plug-in built with Cantus (and, where it has been built, with Celemony's reference plug-in); tell us how your ARA plug-ins behave (<a href="index.html#15-report-a-bug">report a bug</a>).</p>
+</main>
+</body>
+</html>

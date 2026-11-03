@@ -14,6 +14,10 @@ mod clip_env;
 pub mod dance; // r35 contract — what a dancer tells the screen (ADR 0087)
 pub mod devices;
 pub mod effects;
+pub mod external_out; // r36:external (ADR 0094): the units' MIDI ports
+pub mod external_ping; // r36:external (ADR 0094)
+pub mod external_presence; // r36:external (ADR 0094): availability and re-based trips
+pub mod external_sysex; // r36:external (ADR 0095): a surface's SysEx
 pub mod freeze;
 pub mod fx;
 pub mod graph;
@@ -32,6 +36,7 @@ pub mod preview;
 pub mod processor;
 pub mod profile;
 pub mod pulsus_kit;
+pub mod record_mode; // r36:record — the baked master (ADR 0092 §3)
 pub mod recorder;
 pub mod render;
 pub mod routing;
@@ -66,7 +71,7 @@ pub use render::{
     render, render_to_wav, render_with_instruments, render_with_progress, render_with_units,
     write_wav, RenderError, RenderOptions, RenderProgress, Rendered,
 };
-pub use samples::{SampleCache, SampleStatus};
+pub use samples::{ClipRender, SampleCache, SampleStatus}; // r36:ara: ClipRender
 pub use stems::{
     render_stems, render_stems_hosted, render_stems_to_folder, render_stems_to_folder_with,
     stem_file_name, Stem, StemOptions, StemSource, StemSpec, StemsDone, StemsError,

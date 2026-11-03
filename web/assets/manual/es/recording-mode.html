@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El modo de grabación</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="el-modo-de-grabación">El modo de grabación</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/recording-mode.html">Read in English</a></em></p>
+<p>Una sesión grande puede exigir tanto al ordenador que no puedes bajar el búfer de audio sin chasquidos. El <strong>modo de grabación</strong> quita esa carga antes de grabar: reproduce cada canal que alimenta el máster desde una grabación de sí mismo —o, si lo eliges, toda la mezcla desde una sola grabación—, de modo que mientras grabas el ordenador solo lee audio y lo suma. El canal en el que grabas sigue en vivo.</p>
+<p><strong>Qué hace y qué no.</strong> No acorta la latencia de ida y vuelta de tu interfaz de audio (el búfer, el controlador y los conversores). Te deja poner un búfer más pequeño sin cortes, porque al ordenador le queda poco por calcular, y mantiene la pista en la que tocas libre del retraso que añaden los plug-ins de otras pistas. La barra muestra el búfer, la latencia de ida y vuelta (según la informa tu controlador, o medida cuando Cantus la ha medido) y la carga del procesador antes y desde entonces.</p>
+<h2 id="entrar">Entrar</h2>
+<ol>
+<li><strong>Arma</strong> la pista o las pistas en las que vas a grabar. Las pistas armadas, y los canales por los que pasan, siguen en vivo. (Puedes armar otra después: mira más abajo.)</li>
+<li>Abre las <strong>opciones de grabación</strong> (la flechita junto al botón de grabar) y pulsa <strong>Preparar para grabar</strong>.</li>
+<li>Cantus muestra lo que va a hacer: cuántos canales y pistas renderiza, cuántos renders ya están en disco, <strong>hasta cuánto disco ocupan los archivos nuevos</strong> (cada render es la canción más una cola de hasta 30 segundos; un canal estéreo de 5 minutos son como mucho unos 120 MB) y qué sigue en vivo y por qué (una pista armada, una pista que suena por equipo externo, que una grabación hecha sin conexión no puede tocar).</li>
+<li>Elige el <strong>máster</strong>: - <strong>En vivo</strong> (por defecto): la cadena del máster trabaja sobre la suma. - <strong>Pre-renderizado</strong>: toda la mezcla —salvo lo que sigue en vivo— es una sola grabación, lo más ligero. Nada del máster ni de la mezcla se mueve con el modo activo.</li>
+<li>Elige cómo se comporta la <strong>mezcla</strong> (con el máster en vivo): - <strong>En vivo</strong> (por defecto): el fader, el paneo, el mute y el solo de cada canal siguen funcionando, así que &quot;más guitarra en mis audífonos&quot; no exige salir. Un canal que entra en un bus pre-renderizado, o que envía después del fader a un retorno de reverb o delay pre-renderizado, mantiene su mezcla bloqueada, porque esa grabación ya contiene su fader; el diálogo dice cuántos. Un envío antes del fader no contiene el fader: ese canal conserva su fader y su paneo. - <strong>Bloqueados</strong>: nada de la mezcla se mueve hasta que salgas.</li>
+<li>Elige qué pasa con un canal que no se puede renderizar (por ejemplo un plug-in que no puede renderizar sin conexión): <strong>sigue en vivo y se nombra</strong>, o la preparación <strong>se detiene</strong>.</li>
+<li>Pulsa <strong>Preparar</strong>. Aparece una barra arriba con el progreso y <strong>Cancelar</strong>.</li>
+</ol>
+<p>Cada canal se renderiza después de sus efectos y automatización y antes de su fader y paneo, así que con los controles sin tocar el sonido es <strong>idéntico bit a bit</strong> al que oyes normalmente, también con el máster pre-renderizado. Un bus es una sola grabación que incluye todo lo que suma.</p>
+<p>El modo no puede empezar mientras el tempo sigue a Ableton Link, al reloj MIDI o al código de tiempo, ni mientras suena una escena de la sesión: las grabaciones sonarían a otra velocidad. Si una de esas cosas empieza con el modo activo, se sale del modo (y se detiene la toma).</p>
+<h2 id="mientras-está-activo">Mientras está activo</h2>
+<p>Una barra imposible de no ver dice <strong>MODO DE GRABACIÓN</strong> (y <em>Máster pre-renderizado</em> cuando lo está), cuántos canales están pre-renderizados, el búfer, la latencia de ida y vuelta, la carga del procesador antes y desde entonces, cuántos canales siguen en vivo y qué inserciones deja fuera la escucha con baja latencia. La escucha con baja latencia está activa mientras dura el modo (las opciones de grabación dicen <em>la impone el modo de grabación</em>). Los canales pre-renderizados se ven congelados.</p>
+<p>Todo lo que cambiaría el sonido se rechaza con <em>&quot;Modo de grabación: sal de él para editar&quot;</em>: notas, clips, efectos, instrumentos, automatización, ruteo, el tempo, añadir o quitar pistas, el modo patrón, y deshacer o rehacer eso, en todos los canales salvo los armados, incluso uno que siguió en vivo por otro motivo. Los nombres, los colores, los marcadores, el bucle y el metrónomo siguen editables; también las pistas armadas y sus canales, los ajustes de un bailarín (no produce sonido) y el máster mientras está en vivo.</p>
+<p><strong>Armar otra pista</strong> cuyo canal está pre-renderizado te pregunta si quieres ponerlo en vivo: su propia cadena vuelve a sonar al instante, alineada a la muestra, y no se renderiza nada de nuevo. Solo vuelven en vivo las grabaciones que contienen esa pista. Con el máster pre-renderizado, el máster también vuelve a sonar en vivo (contenía esa pista).</p>
+<p>Graba como siempre. Tu toma nueva queda en la pista en vivo y suena por su propio canal.</p>
+<p>No tienes que hacer nada para proteger tu proyecto: entrar y salir del modo no son pasos de deshacer ni marcan el proyecto como modificado, y el archivo del proyecto <strong>nunca se escribe en el estado del modo</strong>. Si el programa o el ordenador se detienen, reabres el proyecto fuera del modo, y los renders siguen en disco.</p>
+<h2 id="salir">Salir</h2>
+<p>Pulsa <strong>Salir</strong> en la barra (o en las opciones de grabación). Elige:</p>
+<ul>
+<li><strong>Salir y conservar archivos</strong>: todo suena en vivo otra vez. Los renders se quedan, así que al volver a entrar solo se renderizan los canales que cambiaron.</li>
+<li><strong>Salir y descartar archivos</strong>: lo mismo, y los renders se borran para liberar disco.</li>
+<li><strong>Quedarme</strong>.</li>
+</ul>
+<p>No puedes salir mientras se graba una toma: detén primero.</p>
+<h2 id="para-un-agente-de-ia">Para un agente de IA</h2>
+<p><code>prepare_to_record</code> (con <code>máster</code>, <code>mix_controls</code>, <code>on_failure</code>; con <code>dry_run</code> solo responde el plan y el disco que necesita), <code>get_recording_mode</code> y <code>leave_recording_mode</code>. Un agente que arma una pista pre-renderizada pone su canal en vivo. Mira <a href="ai-tools.html">Qué puede hacer un agente de IA en Cantus</a>.</p>
+</main>
+</body>
+</html>

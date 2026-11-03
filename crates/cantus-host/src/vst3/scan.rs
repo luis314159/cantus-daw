@@ -207,9 +207,26 @@ pub fn describe(module: &Arc<Module>, entry: &ClassEntry, path: &Path) -> Plugin
 
 /// Every audio module class in a loaded module, described completely.
 pub fn scan_module(module: &Arc<Module>, path: &Path) -> Vec<PluginInfo> {
-    classes(module)
+    let all = classes(module);
+    // r36:ara — a processor paired (by name, or as the only one) with an ARA main factory
+    // class is an ARA plug-in (ADR 0097).
+    let ara: Vec<&str> = all
+        .iter()
+        .filter(|c| c.category == cantus_ara::vst3::MAIN_FACTORY_CLASS)
+        .map(|c| c.name.as_str())
+        .collect();
+    let processors = all
         .iter()
         .filter(|c| c.category == AUDIO_MODULE_CLASS)
-        .map(|c| describe(module, c, path))
+        .count();
+    all.iter()
+        .filter(|c| c.category == AUDIO_MODULE_CLASS)
+        .map(|c| {
+            let mut info = describe(module, c, path);
+            if ara.contains(&c.name.as_str()) || (processors == 1 && !ara.is_empty()) {
+                info.features.push(crate::db::ARA_FEATURE.to_string());
+            }
+            info
+        })
         .collect()
 }

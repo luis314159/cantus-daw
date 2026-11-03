@@ -1206,6 +1206,10 @@ impl CantusApp {
         alone.tracks.push(lone);
         let rate = self.engine.sample_rate.round() as u32;
         let before = self.engine.renders_late();
+        // r36:ara — an ARA render on its way: the merge waits for it, as for a file (ADR 0097).
+        if !self.plugins.ara_settled() {
+            return false;
+        }
         let snapshot = self.engine.compile_for_render(&alone, 1);
         if self.engine.samples.loading() {
             // What it plays started loading just now (a file, a render on its way): wait

@@ -139,7 +139,16 @@ pub fn popover_rows(app: &mut CantusApp, ui: &mut Ui, control_w: f32) {
             set_limit(app, LIMITS[i]);
         }
     });
-    if app.settings.low_latency {
+    // On, or forced on by the recording mode (ADR 0092): said, and what it leaves out named.
+    let forced = crate::record_mode::forced_limit(app).is_some(); // r36:record
+    if forced {
+        ui.horizontal(|ui| {
+            super::record_options::label(ui, "freeze.ll.now", &s);
+            let w = t("record.ll.forced");
+            let _ = crate::kit::widgets::readout(ui, &w, false, &w, control_w);
+        }); // r36:record
+    }
+    if app.settings.low_latency || forced {
         let off = bypassed(app);
         let text = if off.is_empty() {
             t("freeze.ll.none_off")
@@ -158,4 +167,5 @@ pub fn popover_rows(app: &mut CantusApp, ui: &mut Ui, control_w: f32) {
             });
         }
     }
+    super::record_bar::popover_rows(app, ui, control_w); // r36:record — ADR 0092
 }

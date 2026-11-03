@@ -242,6 +242,9 @@ pub struct FrozenStore {
     also_names: Vec<std::collections::HashSet<String>>,
     /// Lookups that touched the disk in an `also` folder (tests).
     probes: std::sync::atomic::AtomicU64,
+    /// The recording mode's baked master (ADR 0092 §3), by content key: attached to every
+    /// snapshot while set (the session's, never the project's).
+    master: Option<String>,
 }
 
 /// The render files in `dir`, by name.
@@ -261,6 +264,17 @@ fn mtime(p: &Path) -> Option<std::time::SystemTime> {
 }
 
 impl FrozenStore {
+    /// The baked master's render (ADR 0092 §3) for the snapshots compiled from now on, or
+    /// none.
+    pub fn set_master(&mut self, key: Option<String>) {
+        self.master = key;
+    }
+
+    /// The baked master's content key, while set.
+    pub fn master(&self) -> Option<&str> {
+        self.master.as_deref()
+    }
+
     /// The application's folder (read from always; written to when the project has none).
     pub fn set_app_dir(&mut self, dir: PathBuf) {
         if self.app_dir.as_ref() != Some(&dir) {
@@ -507,6 +521,22 @@ impl FrozenStore {
                 );
             any |= f.audio.is_some();
         }
+        // The baked master (ADR 0092 §3): one render in place of the master's chain, and
+        // everything a freeze holds at rest.
+        if let Some(key) = self.master.clone() {
+            used.push(render_key(&key, rate));
+            if let Some(a) = self.find(&key, rate) {
+                let a = if own_boards { with_own_board(&a) } else { a };
+                let mut play = FrozenPlay::new(&cantus_core::Frozen { content: key }, false);
+                play.audio = Some(a);
+                snapshot.master_frozen = Some(play);
+                if any {
+                    cantus_core::freeze::settle(project, snapshot);
+                    any = false;
+                }
+                cantus_core::record_mode::rest_for_master(project, snapshot);
+            }
+        }
         if !own_boards {
             // The engine still holds what it plays through its snapshot, which goes back
             // to this thread to be freed: never the last owner on the audio thread.
@@ -658,6 +688,16 @@ pub(crate) fn release(h: &FrozenHandle) {
     h.board.set(1, 0);
 }
 
+/// Offline reads that had to wait for the reader thread (a block not read yet), since the
+/// process started: what tells an offline pass's slow block from slow work (round 36, the
+/// recording mode's benchmark).
+static OFFLINE_WAITS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// [`OFFLINE_WAITS`] now.
+pub fn offline_waits() -> u64 {
+    OFFLINE_WAITS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Frames `from..from + l.len()` of the render into `l`/`r` (silence outside it), `inter`
 /// the interleaved scratch (two per frame). Returns the frames that were not there in time
 /// (silence in their place): in real time, blocks the reader has not read yet; `offline`,
@@ -713,6 +753,9 @@ pub(crate) fn read(
         }
         // Offline: wait for the reader, as a streamed voice does (ADR 0050 §6), asking for
         // the very block waited for.
+        if waited.is_none() {
+            OFFLINE_WAITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed); // r36:record
+        }
         let since = *waited.get_or_insert_with(Instant::now);
         if since.elapsed() > st.pool.patience() {
             break;

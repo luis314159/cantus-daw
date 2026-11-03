@@ -224,6 +224,8 @@ pub struct SyncService {
     /// The output ports, shared by clock out and controller feedback (integrated review
     /// #9: two connections to one port, the class driver refuses the second).
     pool: Option<Arc<cantus_engine::midi::pool::OutPool>>,
+    /// The external instruments' routes given to the out thread (ADR 0094). r36:external
+    unit_routes: Vec<(u64, String, u8)>,
 }
 
 impl std::fmt::Debug for SyncService {
@@ -289,6 +291,22 @@ impl SyncService {
             .ok();
     }
 
+    /// The external instruments' routes for the MIDI-out thread: `(route, port, ordinal)`
+    /// (ADR 0094). r36:external
+    pub fn set_unit_routes(&mut self, routes: Vec<(u64, String, u8)>) {
+        if routes != self.unit_routes {
+            if let Some(o) = &self.out {
+                o.set_unit_routes(routes.clone());
+            }
+            self.unit_routes = routes;
+        }
+    }
+
+    /// The routes the running out thread holds (`None`: no out thread). r36:external
+    pub fn out_unit_routes(&self) -> Option<Vec<(u64, String, u8)>> {
+        self.out.as_ref().map(|o| o.unit_routes())
+    }
+
     /// Ask Link's session for `bpm` (applied on the sync thread within a millisecond).
     pub fn request_tempo(&self, bpm: f64) {
         if let Ok(mut r) = self.tempo_req.lock() {
@@ -311,6 +329,10 @@ impl SyncService {
         if let Some(ring) = h.out.take() {
             let pool = self.pool().clone();
             self.out = Some(out::MidiOut::start(ring, h.shared.clone(), pool));
+            // A new out thread (an audio restart) gets the routes at once. r36:external
+            if let Some(o) = &self.out {
+                o.set_unit_routes(self.unit_routes.clone());
+            }
         }
         self.shared = Some(h.shared.clone());
         *self.engine.lock().unwrap_or_else(|e| e.into_inner()) = Some(EngineSide {
@@ -404,6 +426,7 @@ pub fn wire(app: &mut CantusApp) {
 
 /// The engine was replaced (an audio restart): the new one's seam.
 pub fn engine_replaced(app: &mut CantusApp) {
+    crate::external_service::engine_replaced(app); // r36:external — a ping in flight is gone
     let handle = app.engine.take_sync();
     app.sync.attach(handle);
     apply(app);

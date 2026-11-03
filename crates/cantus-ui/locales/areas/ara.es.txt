@@ -1,0 +1,49 @@
+# Area: ara - round 36 (ADR 0097): plug-ins ARA 2 que editan clips de audio. Every key here needs its twin in ara.en.txt
+
+# Undo labels (cmd.*)
+cmd.bind_ara = vincular clip a plug-in ARA
+cmd.unbind_ara = soltar plug-in ARA
+cmd.ara_edit = edición en plug-in ARA
+
+# The clip menu's ARA section
+ara.menu.band = Plug-in ARA
+ara.menu.bind = Vincular a {name}
+ara.menu.unbind = Soltar {name}
+ara.menu.none = No se encontró ningún plug-in ARA: Ajustes → Plug-ins → Buscar plug-ins
+ara.menu.in_process = Dentro de Cantus, sin aislamiento
+ara.menu.live = {name} renderiza este clip
+ara.menu.missing = {name}: {why}
+ara.menu.source = El clip suena con su fuente
+ara.menu.blocked = Quita el warp, la inversión y las ediciones de afinación del clip para vincularlo
+
+# What the status line says
+ara.status.bound = Clip vinculado a {name}. Los plug-ins ARA se ejecutan dentro de Cantus, sin aislamiento.
+ara.status.unbound = Clip soltado de {name}.
+ara.err.not_ara = {name} no puede editar clips: {why}
+ara.err.missing = {name} no está instalado: el clip suena con su fuente
+
+# Why a bound clip plays its source
+ara.why.not_installed = no está instalado
+ara.why.no_source = su archivo de audio no está
+ara.why.take_lane = en un carril de tomas
+
+# What an agent asks to do (the confirmation card)
+ara.tool.bind = Vincular el clip a {plugin} (se ejecuta dentro de Cantus)
+ara.tool.unbind = Soltar el clip de {plugin}
+
+# Round 36, slice 2: the editor, retry, sources only, progress
+ara.menu.open = Abrir {name}
+ara.menu.retry = Reintentar {name}
+ara.menu.restore = Vincular a {name} con sus ediciones anteriores
+ara.menu.off = Solo fuentes (plug-ins ARA apagados)
+ara.clip.rendering = {name}: renderizando {pct} %
+ara.clip.live = {name}
+ara.clip.source = {name}: suena su fuente
+ara.why.loading = su archivo de audio aún se está cargando
+ara.why.off = los plug-ins ARA están apagados
+ara.status.on = Plug-ins ARA encendidos.
+ara.status.off = Plug-ins ARA apagados: cada clip vinculado suena con su fuente.
+ara.err.no_editor = {name} no abrió ningún editor: {why}
+
+# The fix round
+ara.err.unsettled = Un plug-in ARA aún está renderizando: inténtalo de nuevo cuando sus clips no muestren progreso

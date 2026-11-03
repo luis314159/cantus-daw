@@ -108,6 +108,11 @@ pub struct EngineHandle {
     note_inputs: Vec<NoteInput>,
     session_events: Vec<crate::messages::SessionEvent>, // r33:session
     session_msgs: Vec<crate::messages::SessionMsg>,     // r33:session
+    // r36:external
+    #[allow(clippy::vec_box)]
+    pings: Vec<Box<crate::external_ping::PingJob>>,
+    // r36:external — the units that can play and the interface's round trip (ADR 0094)
+    pub(crate) external_presence: Option<crate::external_presence::ExternalPresence>,
     // r33:session
     /// How many stops were sent: the conductor's launch from stop gives up waiting for the
     /// engine to play when one was (ADR 0076 §7).
@@ -342,6 +347,10 @@ impl EngineHandle {
             session_events: Vec::new(), // r33:session
             session_msgs: Vec::new(),   // r33:session
             stops: 0,                   // r33:session
+            // r36:external
+            pings: Vec::new(),
+            // r36:external
+            external_presence: None,
             control_inputs: Vec::new(),
             expr_inputs: Vec::new(), // r33:mpe
             seeks: 0,
@@ -435,6 +444,10 @@ impl EngineHandle {
             session_events: Vec::new(), // r33:session
             session_msgs: Vec::new(),   // r33:session
             stops: 0,                   // r33:session
+            // r36:external
+            pings: Vec::new(),
+            // r36:external
+            external_presence: None,
             control_inputs: Vec::new(),
             expr_inputs: Vec::new(), // r33:mpe
             seeks: 0,
@@ -774,6 +787,13 @@ impl EngineHandle {
         // A render's compile never takes the playing snapshot's warp renders away.
         self.samples.set_offline(render);
         let mut snapshot = Snapshot::compile_reusing(project, revision, prev); // r33:session
+        if render {
+            // r36:external — an offline render plays no gear; live, units not available give
+            // no link and trips are re-based (ADR 0094)
+            crate::external_presence::strip(&mut snapshot);
+        } else if let Some(p) = &self.external_presence {
+            crate::external_presence::apply(&mut snapshot, p);
+        }
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
         }
@@ -1170,6 +1190,7 @@ impl EngineHandle {
                     self.send(EngineMessage::PdcLines(lines));
                 }
                 EngineEvent::GarbageLines(lines) => drop(lines),
+                EngineEvent::PingDone(job) => self.pings.push(job), // r36:external
                 EngineEvent::EffectNeed { effect, need } => {
                     let memory = crate::effects::EffectMemory::build(need, self.sample_rate as f32);
                     self.send(EngineMessage::EffectMemory { effect, memory });
@@ -1195,6 +1216,18 @@ impl EngineHandle {
     }
 
     /// The session's presses sent since the last call, for the conductor (ADR 0076). // r33:session
+    /// Start a unit's latency ping (ADR 0094). The transport is stopped first by the caller.
+    pub fn start_ping(&mut self, job: Box<crate::external_ping::PingJob>) {
+        self.send(EngineMessage::StartPing(job)); // r36:external
+    }
+
+    /// The pings that finished since the last call, each to be evaluated
+    /// ([`crate::external_ping::PingJob::evaluate`]). r36:external
+    #[allow(clippy::vec_box)]
+    pub fn take_pings(&mut self) -> Vec<Box<crate::external_ping::PingJob>> {
+        std::mem::take(&mut self.pings)
+    }
+
     pub fn take_session_msgs(&mut self) -> Vec<crate::messages::SessionMsg> {
         std::mem::take(&mut self.session_msgs) // r33:session
     } // r33:session

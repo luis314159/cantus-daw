@@ -255,6 +255,157 @@ pub fn region(project: &Project, target: FreezeTarget) -> Region {
     r
 }
 
+/// The strip a mix cue (ADR 0093) solos inside `target`'s region — any strip of it but the
+/// frozen root, or a VCA governing one — when one does (its scope; a safe strip sits out a
+/// cue of everything). A render holds no solo, so such a region is never frozen (ADR 0064
+/// §3's rule for a strip soloed inside, applied to cues). (Round 36.)
+pub fn cue_solo_inside(project: &Project, target: FreezeTarget) -> Option<StripId> {
+    if project.mix.cues.is_empty() {
+        return None;
+    }
+    let root = match target {
+        FreezeTarget::Strip(s) => Some(s),
+        FreezeTarget::Track(_) => None,
+    };
+    let r = region(project, target);
+    let inside: BTreeSet<StripId> = r
+        .strips
+        .iter()
+        .copied()
+        .filter(|s| Some(*s) != root)
+        .collect();
+    let vcas: BTreeSet<StripId> = inside
+        .iter()
+        .flat_map(|s| project.vca_governing(*s))
+        .collect();
+    for cue in &project.mix.cues {
+        let Some(snap) = project.mix.snapshot(cue.snapshot) else {
+            continue;
+        };
+        for st in snap.state.strips.iter().filter(|st| st.soloed) {
+            if !inside.contains(&st.id) && !vcas.contains(&st.id) {
+                continue;
+            }
+            if !cue.scope.is_empty() && !cue.scope.contains(&st.id) {
+                continue;
+            }
+            let safe = project.strip(st.id).is_some_and(|s| s.recall_safe);
+            if safe && !cue.scope.contains(&st.id) {
+                continue;
+            }
+            return Some(st.id);
+        }
+    }
+    None
+}
+
+/// What of the mix cues (ADR 0093) reaches region `r`: each cue, in play order, with the
+/// entries of its snapshot for the region's strips it applies to (its scope; a safe strip
+/// sits out a cue of everything), each as the region hears it — the frozen root's chain
+/// switches alone (its fader, pan, width, mute, solo and sends are live), a pre-fader
+/// sender's without its fader and pan — and of the VCAs governing them; the master's when
+/// the region holds the whole mix. Empty when no cue reaches it. (Round 36.)
+fn cue_part(
+    project: &Project,
+    r: &Region,
+    root: Option<StripId>,
+    pre: &BTreeSet<StripId>,
+) -> Vec<serde_json::Value> {
+    use serde_json::{json, Value};
+    let mut cues: Vec<&crate::mix_snap::MixCue> = project.mix.cues.iter().collect();
+    if cues.is_empty() {
+        return Vec::new();
+    }
+    cues.sort_by_key(|c| (c.at, c.id));
+    let vcas: BTreeSet<StripId> = r
+        .strips
+        .iter()
+        .filter(|s| Some(**s) != root)
+        .flat_map(|s| project.vca_governing(*s))
+        .collect();
+    let mut out = Vec::new();
+    for cue in cues {
+        let Some(snap) = project.mix.snapshot(cue.snapshot) else {
+            continue;
+        };
+        let mut entries: Vec<Value> = Vec::new();
+        for st in &snap.state.strips {
+            let inside = r.strips.contains(&st.id) || vcas.contains(&st.id);
+            if !inside || (!cue.scope.is_empty() && !cue.scope.contains(&st.id)) {
+                continue;
+            }
+            let safe = project.strip(st.id).is_some_and(|s| s.recall_safe);
+            if safe && !cue.scope.contains(&st.id) {
+                continue;
+            }
+            // A solo of a strip inside stays: a cue that would add one to a frozen region
+            // moves its key, and is refused (`CueSolo`); the root's is live, with its mix.
+            let v = value(st);
+            let v = if Some(st.id) == root && !r.whole && !r.hears_root {
+                scrub(v, &["gain_db", "pan", "width", "muted", "soloed", "sends"])
+            } else if pre.contains(&st.id) {
+                scrub(v, &["gain_db", "pan"])
+            } else {
+                v
+            };
+            entries.push(v);
+        }
+        let master = (r.whole && cue.scope.is_empty())
+            .then(|| snap.state.master.as_ref().map(value))
+            .flatten();
+        if entries.is_empty() && master.is_none() {
+            continue;
+        }
+        let mut c = serde_json::Map::new();
+        c.insert("at".into(), value(&cue.at));
+        c.insert("s".into(), Value::Array(entries));
+        if let Some(m) = master {
+            c.insert("m".into(), m);
+        }
+        out.push(canonical(json!(c)));
+    }
+    out
+}
+
+/// The strips of region `r` (but `root`) whose only way into it is a pre-fader send: their
+/// output goes elsewhere, every send of theirs into the region taps before the fader, no
+/// insert of the region is keyed from them and no modulator of it listens to them — so
+/// their fader and pan are nothing the region hears (a pre-fader send taps before both;
+/// their width and mute still silence or shape it). Empty for a region that holds the
+/// whole mix. (Round 36, ADR 0092.)
+pub fn pre_only_senders(project: &Project, r: &Region, root: Option<StripId>) -> BTreeSet<StripId> {
+    let mut out = BTreeSet::new();
+    if r.whole {
+        return out;
+    }
+    let keyed: BTreeSet<StripId> = project
+        .strips
+        .iter()
+        .filter(|s| r.strips.contains(&s.id))
+        .flat_map(|s| s.effects.iter().filter_map(|e| e.sidechain))
+        .collect();
+    for s in project.strips.iter().filter(|s| r.strips.contains(&s.id)) {
+        if Some(s.id) == root || keyed.contains(&s.id) || r.listened.contains(&s.id) {
+            continue;
+        }
+        if s.output.is_some_and(|o| r.strips.contains(&o)) {
+            continue;
+        }
+        let mut into = s
+            .sends
+            .iter()
+            .filter(|x| r.strips.contains(&x.to))
+            .peekable();
+        if into.peek().is_none() {
+            continue;
+        }
+        if into.all(|x| x.tap == crate::model::SendTap::Pre) {
+            out.insert(s.id);
+        }
+    }
+    out
+}
+
 /// Whether strip `from`'s sound reaches strip `to`: by outputs and sends, or as a key of
 /// an insert on the way (no modulator is followed: this is a walk, never a region).
 fn reaches_strip(project: &Project, from: StripId, to: StripId) -> bool {
@@ -310,6 +461,11 @@ fn target_in_strip_region(
         | AutoTarget::Firmus { track, .. }
         | AutoTarget::PluginInstrument { track, .. }
         | AutoTarget::NoteFx { track, .. } => r.tracks.contains(track),
+        // A VCA's fader moves the fader stage of the region strips it reaches (ADR 0093). // r36:mix
+        AutoTarget::StripGain(s) if project.is_vca(*s) => r
+            .strips
+            .iter()
+            .any(|x| Some(*x) != root && project.vca_governing(*x).contains(s)),
         AutoTarget::StripGain(s) | AutoTarget::StripPan(s) | AutoTarget::StripWidth(s) => {
             Some(*s) != root && r.strips.contains(s)
         }
@@ -413,6 +569,10 @@ pub struct Locks {
     /// Strips whose mix (fader, pan, width, mute, sends, where they go) a frozen sound
     /// depends on: the regions' strips but their frozen roots.
     pub mix: BTreeSet<StripId>,
+    /// Of those, the strips whose fader and pan a frozen sound depends on: all but those
+    /// whose only way into the region is a pre-fader send ([`pre_only_senders`]: a
+    /// pre-fader send taps before the fader and the pan law). // r36:record
+    pub level: BTreeSet<StripId>,
     /// Tracks whose source (instrument, clips, notes, input) a frozen sound depends on.
     pub source: BTreeSet<TrackId>,
     /// Tracks whose level, balance, mute, solo and routing a frozen sound depends on.
@@ -429,19 +589,26 @@ pub struct Locks {
 impl Locks {
     pub fn of(project: &Project) -> Locks {
         let mut l = Locks::default();
+        // Per frozen strip, the strips of its region its fader and pan never reach.
+        let mut pre: Vec<(FreezeTarget, BTreeSet<StripId>)> = Vec::new();
         for target in project.frozen_targets() {
             let r = region(project, target);
             match target {
                 FreezeTarget::Strip(root) => {
+                    let free = pre_only_senders(project, &r, Some(root));
                     for s in &r.strips {
                         l.chain.insert(*s);
                         // The root's own mix is live, unless something in its region
                         // hears it.
                         if *s != root || r.hears_root {
                             l.mix.insert(*s);
+                            if !free.contains(s) {
+                                l.level.insert(*s);
+                            }
                         }
                         l.owner_strip.push((*s, target));
                     }
+                    pre.push((target, free));
                     for t in &r.tracks {
                         l.source.insert(*t);
                         l.track_mix.insert(*t);
@@ -460,6 +627,7 @@ impl Locks {
                     for s in &r.strips {
                         l.chain.insert(*s);
                         l.mix.insert(*s);
+                        l.level.insert(*s);
                         l.owner_strip.push((*s, target));
                     }
                 }
@@ -483,6 +651,10 @@ impl Locks {
         for (s, owner) in &l.owner_strip {
             if *owner != FreezeTarget::Strip(*s) {
                 l.mix.insert(*s);
+                let free = pre.iter().any(|(o, f)| o == owner && f.contains(s));
+                if !free {
+                    l.level.insert(*s);
+                }
             }
         }
         l
@@ -567,6 +739,9 @@ const STRIP_COSMETIC: &[&str] = &[
     "modulators",
     "frozen",
     "soloed",
+    "vcas",
+    "recall_safe",
+    "solo_safe",
 ];
 /// A frozen strip's own live controls (and where it goes).
 const STRIP_LIVE: &[&str] = &["gain_db", "pan", "width", "muted", "sends", "output"];
@@ -633,6 +808,12 @@ pub(crate) fn reaches(
 ) -> bool {
     match frozen {
         FreezeTarget::Strip(root) => {
+            // A pre-fader sender's fader and pan never reach the region (ADR 0092). // r36:record
+            if let AutoTarget::StripGain(s) | AutoTarget::StripPan(s) = target {
+                if !project.is_vca(*s) && pre_only_senders(project, r, Some(root)).contains(s) {
+                    return false;
+                }
+            }
             if is_root_live(target, root) {
                 // The root's own controls: heard only by a modulator that follows it (its
                 // sends, only by one that follows the whole mix).
@@ -711,8 +892,9 @@ fn subject_with(
     reach: &dyn Fn(&AutoTarget) -> bool,
 ) -> serde_json::Value {
     use serde_json::{json, Value};
-    // The frozen strip on its own (where it sits on the desk is nothing to hear); the
-    // others in the desk's order (their sums are made in it).
+    let pre = pre_only_senders(project, r, root_strip); // r36:record
+                                                        // The frozen strip on its own (where it sits on the desk is nothing to hear); the
+                                                        // others in the desk's order (their sums are made in it).
     let root: Option<Value> = root_strip
         .and_then(|s| project.strip(s))
         .map(|s| strip_part(s, r));
@@ -720,7 +902,16 @@ fn subject_with(
         .strips
         .iter()
         .filter(|s| r.strips.contains(&s.id) && Some(s.id) != root_strip)
-        .map(|s| scrub(value(s), STRIP_COSMETIC))
+        .map(|s| {
+            let part = crate::vca::with_vcas(project, s.id, scrub(value(s), STRIP_COSMETIC)); // r36:mix
+                                                                                              // Into the region by a pre-fader send only: its fader and pan are nothing it
+                                                                                              // hears (round 36, ADR 0092). Every other subject is as it was. // r36:record
+            if pre.contains(&s.id) {
+                scrub(part, &["gain_db", "pan"])
+            } else {
+                part
+            }
+        })
         .collect();
     // The tracks strip by strip (by id), each strip's in their order (they are summed in
     // it): where a track sits among tracks of other strips is nothing to hear (review 2).
@@ -836,6 +1027,12 @@ fn subject_with(
         .collect();
     if !grooves.is_empty() {
         o.insert("grooves".into(), Value::Array(grooves));
+    }
+    // Round 36 (ADR 0092): the mix cues that reach the region — written only where one
+    // does, so every other subject is as it was. // r36:record
+    let cues = cue_part(project, r, root_strip, &pre);
+    if !cues.is_empty() {
+        o.insert("cues".into(), Value::Array(cues)); // r36:record
     }
     o.insert(
         "tempo".into(),
@@ -1018,6 +1215,13 @@ pub enum CannotFreeze {
     /// A dancer's own track (round 35, ADR 0087): it makes no sound to freeze, and frozen
     /// its unit would stop and the screen with it. // r35:dancer
     Dancer(TrackId), // r35:dancer
+    /// A track of its region plays outboard gear (round 36, ADR 0094): a render made off
+    /// line cannot play a synth or a rack processor. The track. // r36:external
+    External(TrackId), // r36:external
+    /// A mix cue (ADR 0093) solos a strip inside its region: the render, which holds no
+    /// solo, could not follow it (as a strip soloed inside, `SoloedStrip`). The strip the
+    /// cue solos. // r36:record
+    CueSolo(StripId), // r36:record
 }
 
 /// One undo step that freezes `target`: the armed tracks of its region disarmed first (a
@@ -1042,12 +1246,24 @@ pub fn freeze_commands(project: &Project, target: FreezeTarget) -> Result<Comman
         }
     }
     let r = region(project, target);
+    // r36:external — outboard gear in the region: an offline render cannot play it.
+    if let Some(u) = project
+        .external_units
+        .iter()
+        .find(|u| u.enabled && r.tracks.contains(&u.track))
+    {
+        return Err(CannotFreeze::External(u.track)); // r36:external
+    }
     if let Some(s) = project
         .strips
         .iter()
         .find(|s| s.soloed && r.strips.contains(&s.id) && target != FreezeTarget::Strip(s.id))
     {
         return Err(CannotFreeze::SoloedStrip(s.id));
+    }
+    // r36:record — a cue that solos a strip inside: refused, as a solo inside is.
+    if let Some(s) = cue_solo_inside(project, target) {
+        return Err(CannotFreeze::CueSolo(s)); // r36:record
     }
     let mut after = project.clone();
     let mut commands = Vec::new();
@@ -1249,6 +1465,12 @@ pub fn unsolo(project: &mut Project) {
     }
     for s in &mut project.strips {
         s.soloed = false;
+    }
+    // Nor a cue's solo (ADR 0093): it would silence what the render holds. // r36:record
+    for snap in &mut project.mix.snapshots {
+        for st in &mut snap.state.strips {
+            st.soloed = false; // r36:record
+        }
     }
 }
 
@@ -1599,6 +1821,43 @@ pub fn settle(project: &Project, snapshot: &mut crate::Snapshot) {
             s.muted |= silenced;
         }
     }
+    // The cues' switches (ADR 0093) on a strip playing its render: what they switch
+    // before the fader is in the render; mute and solo (silent) act after it, as the
+    // strip's own do, with a solo's silencing kept (round 36, the integrated review).
+    // r36:record
+    let playing: Vec<(usize, bool)> = snapshot
+        .strips
+        .iter()
+        .enumerate()
+        .filter_map(|(i, s)| {
+            s.frozen
+                .as_ref()
+                .filter(|f| f.plays())
+                .map(|f| (i, f.silenced))
+        })
+        .collect();
+    // The fade a cue makes around its switch (after the render, as live) still comes where
+    // the strip's switches changed: a token in the (unused: no insert runs) bypass list
+    // flips at each change, so the region differs from the one before exactly then.
+    for (i, silenced) in &playing {
+        let mut before: Option<crate::mix_scene::SceneStrip> = None;
+        let mut token = false;
+        for scene in &mut snapshot.mix_scenes {
+            let Some(st) = scene.strips.get_mut(*i) else {
+                continue;
+            };
+            if before.as_ref().is_some_and(|b| b != &*st) {
+                token = !token;
+            }
+            before = Some(st.clone());
+            st.silent |= *silenced;
+            st.phase_invert = false;
+            st.swap = false;
+            st.fx_enabled = true;
+            st.bypass = if token { vec![false] } else { Vec::new() };
+            st.eq = crate::model::StripEq::default();
+        }
+    } // r36:record
     for t in &mut snapshot.tracks {
         t.rest = d.tracks.contains(&t.id);
         t.notes_only = d.notes.contains(&t.id);

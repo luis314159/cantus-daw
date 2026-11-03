@@ -655,6 +655,72 @@ fn automation_never_allocates() {
     );
 }
 
+/// r36:mix - VCAs (ADR 0093): a ridden VCA over two members, one with a fader ride of its
+/// own, and a cue's holds, through a new snapshot, a seek and a stop. Not one allocation.
+#[test]
+fn vcas_and_cues_never_allocate() {
+    use cantus_core::mix_snap::{capture, MixCue, MixCueId, MixSnapId, MixSnapshot};
+    let mut p = demo_project();
+    let mut v = p.make_strip("VCA");
+    v.kind = cantus_core::vca::StripKind::Vca;
+    let vca = v.id;
+    p.strips.push(v);
+    let (s0, s1) = (p.tracks[0].strip.unwrap(), p.tracks[1].strip.unwrap());
+    p.strip_mut(s0).unwrap().vcas.push(vca);
+    p.strip_mut(s1).unwrap().vcas.push(vca);
+    let ramp = |a: f32, b: f32| {
+        vec![
+            AutoPoint::new(Ticks::ZERO, a),
+            AutoPoint::new(Ticks::beats(4), b),
+        ]
+    };
+    for t in [AutoTarget::StripGain(vca), AutoTarget::StripGain(s0)] {
+        let c = p.make_automation_clip("a", t, Ticks::ZERO, Ticks::beats(8), ramp(0.2, 0.9));
+        p.tracks[0].clips.push(c);
+    }
+    let mut state = capture(&p, &[], true);
+    // Switches too (review 1, item 5): a mute, a polarity, the master's polarity.
+    if let Some(s) = state.strips.iter_mut().find(|x| x.id == s1) {
+        s.muted = true;
+        s.phase_invert = true;
+    }
+    if let Some(m) = state.master.as_mut() {
+        m.phase_invert = true;
+    }
+    let sid = MixSnapId(p.alloc_id());
+    p.mix.snapshots.push(MixSnapshot {
+        id: sid,
+        name: "x".into(),
+        state,
+    });
+    let cue = MixCueId(p.alloc_id());
+    p.mix.cues.push(MixCue {
+        id: cue,
+        at: Ticks::beats(2),
+        snapshot: sid,
+        scope: vec![],
+    });
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("vca start", 30);
+    p.strip_mut(vca).unwrap().gain_db = -4.0;
+    rig.snapshot(&p);
+    rig.play("vca new snapshot", 30);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("vca seek", 10);
+    // Back before the cue (its switches undone at once), and across it again.
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(1))).unwrap();
+    rig.play("vca seek back", 60);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("vca stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations
+    );
+}
+
 /// Modulators (ADR 0057) on the audio thread: every kind at once — an LFO on an EQ band,
 /// steps on a fader, a random source on a pan, an envelope from notes (sequenced and live)
 /// on Firmus's cutoff, a follower on the master's width, one nested into another's
@@ -2036,4 +2102,231 @@ fn a_dancer_never_allocates() {
             FIRST.with(|f| f.get())
         );
     }
+}
+
+/// Round 36 (ADR 0092): the recording mode's audio path — every strip but the armed one
+/// baked and read from its render, low-latency monitoring on, recording started and
+/// stopped, the mode left (the live snapshot) and entered again, a loop — on the audio
+/// thread and the pool: not one allocation, not one free. // r36:record
+#[test]
+fn the_recording_mode_never_allocates() {
+    use cantus_core::freeze;
+    let dir = tempfile::tempdir().unwrap();
+    let mut p = demo_project();
+    let mut delay = p.make_effect(EffectKind::Delay);
+    delay.spec.set("feedback", 0.6).unwrap();
+    let s0 = p.tracks[0].strip.unwrap();
+    p.strip_mut(s0).unwrap().effects.push(delay);
+    // The bass is the musician's: armed, live.
+    let bass = p.tracks[1].id;
+    p.track_mut(bass).unwrap().armed = true;
+    let (mut h, _) = EngineHandle::manual(48_000.0);
+    h.frozen.set_app_dir(dir.path().to_path_buf());
+    let plan = cantus_core::record_mode::plan(&p);
+    assert!(!plan.bake.is_empty() && !plan.live.is_empty());
+    for target in plan.bake.clone() {
+        let job = cantus_engine::freeze::render::prepare(&mut h, &p, target).unwrap();
+        job.run(Vec::new(), Vec::new(), &RenderProgress::default())
+            .unwrap();
+        h.frozen.forget_missing();
+        freeze::freeze_commands(&p, target)
+            .unwrap()
+            .apply(&mut p)
+            .unwrap();
+    }
+    let baked = h.compile(&p, 1);
+    assert!(baked
+        .strips
+        .iter()
+        .any(|s| s.frozen.as_ref().is_some_and(|f| f.plays())));
+    let mut live = p.clone();
+    freeze::thaw(&mut live);
+    let live = h.compile(&live, 2);
+    let mut looped = (*baked).clone();
+    looped.loop_region = Some(LoopRegion {
+        start: Ticks::beats(1),
+        end: Ticks::beats(3),
+    });
+    let looped = Arc::new(looped);
+    // The master baked (ADR 0092 §3): one render, the armed bass live over it.
+    let live_roots: Vec<_> = plan.live.iter().map(|(t, _)| *t).collect();
+    let job = cantus_engine::record_mode::prepare_master(&mut h, &p, &live_roots);
+    let key = job.key.clone();
+    job.run(&RenderProgress::default()).unwrap();
+    h.frozen.forget_missing();
+    h.frozen.set_master(Some(key));
+    let mastered = h.compile(&p, 6);
+    assert!(mastered.master_frozen.as_ref().is_some_and(|f| f.plays()));
+    h.frozen.set_master(None);
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        rig.send(baked.clone());
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 4);
+        rig.allocations.clear();
+        rig.tx
+            .push(EngineMessage::SetLowLatency(Some(144)))
+            .unwrap();
+        rig.play("low latency on", 40);
+        rig.tx.push(EngineMessage::SetRecording(true)).unwrap();
+        rig.play("recording over the baked mix", 200);
+        rig.send(looped.clone());
+        rig.play("a loop", 200);
+        rig.tx.push(EngineMessage::SetRecording(false)).unwrap();
+        rig.send(live.clone());
+        rig.play("the mode left", 40);
+        rig.send(baked.clone());
+        rig.play("the mode entered again", 40);
+        rig.send(mastered.clone());
+        rig.play("the master baked", 100);
+        rig.send(baked.clone());
+        rig.play("the master live again", 20);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "the recording mode allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
+/// Round 36, ADR 0094: an external instrument's notes drained into the MIDI-out ring and
+/// the latency ping (an audio burst and a note onset), block by block — not one allocation
+/// on the audio thread.
+#[test]
+fn external_notes_and_the_ping_never_allocate() {
+    use cantus_core::external_unit::{MidiRoute, Pair};
+    use cantus_engine::external_ping::PingJob;
+    let mut p = Project::new("ext");
+    let mut t = p.make_track("Synth");
+    t.strip = None;
+    let mut c = p.make_clip("Line", Ticks::ZERO, Ticks::beats(64));
+    for beat in 0..60 {
+        c.notes.push(p.make_note(
+            Ticks::beats(beat),
+            Ticks::beats(1),
+            48 + (beat % 12) as u8,
+            90,
+        ));
+    }
+    t.clips.push(c);
+    let track = t.id;
+    p.tracks.push(t);
+    let id = p.new_external_unit_id();
+    p.external_units.push(ExternalUnit::instrument(
+        id,
+        track,
+        MidiRoute {
+            port: "Synth".into(),
+            ordinal: 0,
+            channel: 0,
+        },
+        Pair::stereo(0),
+    ));
+    let mut rig = Rig::new();
+    let (port, mut handle) = cantus_engine::transport::sync::pair();
+    rig.p.attach_sync(port, None);
+    let (mut ring, consumer) = rtrb::RingBuffer::<f32>::new(48_000 * 4);
+    rig.p.attach_input(consumer, 2);
+    rig.snapshot(&p);
+    let feed = |ring: &mut rtrb::Producer<f32>| {
+        for _ in 0..512 * 2 {
+            let _ = ring.push(0.0);
+        }
+    };
+    let drain = |h: &mut cantus_engine::transport::sync::SyncHandle| {
+        while h.out.as_mut().unwrap().pop().is_ok() {}
+    };
+    rig.tx.push(EngineMessage::Play).unwrap();
+    feed(&mut ring);
+    rig.play("warm", 4);
+    rig.allocations.clear();
+    for _ in 0..120 {
+        feed(&mut ring);
+        rig.play("notes out", 1);
+        drain(&mut handle);
+    }
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    feed(&mut ring);
+    rig.play("stop", 2);
+    for job in [
+        PingJob::audio(id, 48_000.0, Pair::stereo(0), Pair::stereo(0)),
+        PingJob::onset(id, 48_000.0, 1, 0, 60, Pair::stereo(0)),
+    ] {
+        rig.tx
+            .push(EngineMessage::StartPing(Box::new(job)))
+            .unwrap();
+        for _ in 0..400 {
+            feed(&mut ring);
+            rig.play("ping", 1);
+            drain(&mut handle);
+        }
+    }
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the external path allocated: {:?}",
+        rig.allocations
+    );
+}
+
+/// Round 36 review: an external effect's send — the source into the track's send buffer, mixed
+/// into the device's outputs 3-4 after each pass, the return through the track's input — with
+/// four device channels: not one allocation.
+#[test]
+fn an_external_effects_send_never_allocates() {
+    use cantus_core::audio::{MonitorMode, TrackInput};
+    use cantus_core::external_unit::Pair;
+    let mut p = Project::new("send");
+    let mut t = p.make_track("Line");
+    t.strip = None;
+    t.input = Some(TrackInput {
+        first: 2,
+        stereo: true,
+        monitor: MonitorMode::On,
+        trim_db: 0.0,
+    });
+    let mut c = p.make_clip("Line", Ticks::ZERO, Ticks::beats(64));
+    for beat in 0..60 {
+        c.notes
+            .push(p.make_note(Ticks::beats(beat), Ticks::beats(1), 60, 90));
+    }
+    t.clips.push(c);
+    let track = t.id;
+    p.tracks.push(t);
+    let id = p.new_external_unit_id();
+    p.external_units.push(ExternalUnit::effect(
+        id,
+        track,
+        Pair::stereo(2),
+        Pair::stereo(2),
+    ));
+    let mut rig = Rig::new();
+    let (mut ring, consumer) = rtrb::RingBuffer::<f32>::new(48_000 * 8);
+    rig.p.attach_input(consumer, 4);
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    let mut buf = vec![0f32; 512 * 4];
+    let feed = |ring: &mut rtrb::Producer<f32>| {
+        for _ in 0..512 * 4 {
+            let _ = ring.push(0.1);
+        }
+    };
+    for _ in 0..4 {
+        feed(&mut ring);
+        rig.p.process(&mut buf, 4);
+        rig.answer();
+    }
+    let mut total = 0;
+    let mut sent = false;
+    for _ in 0..200 {
+        feed(&mut ring);
+        let ((), n) = armed(|| rig.p.process(&mut buf, 4));
+        total += n;
+        sent |= buf.chunks(4).any(|f| f[2] != 0.0);
+        rig.answer();
+    }
+    assert!(sent, "the send went out of outputs 3-4");
+    assert_eq!(total, 0, "the send path allocated");
 }

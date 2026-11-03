@@ -147,6 +147,8 @@ pub struct Settings {
     pub export: cantus_export::ExportSettings,
     /// The video dialog's last choices (ADR 0088). // r35:video
     pub video: crate::video_export::VideoSettings, // r35:video
+    /// The control surfaces of this studio (ADR 0095), not of the project. // r36:external
+    pub surfaces: Vec<crate::surface::SurfaceChoice>, // r36:external
     /// Whether a copy of a clip in the arrangement — a paste, Duplicate, an Alt-drag — is
     /// a **linked** copy, the same clip in another place (FL's pattern clips, ADR 0037),
     /// or a copy of its own. On by default; *Make unique* detaches one copy either way.
@@ -317,6 +319,8 @@ impl Default for Settings {
             updates: UpdateSettings::default(),
             export: cantus_export::ExportSettings::default(),
             video: Default::default(), // r35:video
+            // r36:external
+            surfaces: Vec::new(),
             link_copies: true,
             sample_cache_gb: None,
             topbar: TopBarSettings::default(),
