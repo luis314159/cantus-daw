@@ -1,0 +1,10 @@
+# gitleaks (tools/public/check.sh, ADR 0049): every default rule, plus the false positives we
+# have looked at one by one. Each entry names the exact text it lets through, never a file or
+# a whole rule.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "ARA SDK identifiers (round 36): an API generation constant, not a key"
+regexTarget = "match"
+regexes = ['''ARAAPIGeneration\s*=\s*kARAAPIGeneration_[0-9]+_[0-9]+_[A-Za-z]+;''']
