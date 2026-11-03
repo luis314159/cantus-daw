@@ -536,6 +536,12 @@ pub fn forget_device() {
     remember(None, None);
 }
 
+/// The calling thread's priority for a disk reader (round 36): left to the system's default
+/// QoS on macOS (the reader's reads are timed by the audio thread's wakes). // r36:record
+pub fn raise_io() -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -564,10 +570,4 @@ mod tests {
         }
         forget_device();
     }
-}
-
-/// The calling thread's priority for a disk reader (round 36): left to the system's default
-/// QoS on macOS (the reader's reads are timed by the audio thread's wakes). // r36:record
-pub fn raise_io() -> bool {
-    false
 }
