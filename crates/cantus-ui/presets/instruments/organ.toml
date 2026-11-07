@@ -1,0 +1,958 @@
+# Organum: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "organ.preset.jazz_trio"
+note = "Three drawbars and percussion, the lower manual for chords: the jazz organ trio."
+styles = ["jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.jazz"]
+[preset.values]
+"drive" = 0.15
+"gain" = 6.9
+"l3" = 6
+"l4" = 6
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"perc" = 1
+"perc.harm" = 1
+"split.pedal" = 48
+"split.upper" = 60
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib.upper" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.full"
+note = "Every drawbar out, driven, the rotor fast: full organ."
+styles = ["rock"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.rock"]
+[preset.values]
+"click" = 0
+"drive" = 0.6
+"gain" = -2.8
+"lvl.upper" = -4
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 2
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 8
+"u5" = 8
+"u6" = 8
+"u7" = 8
+"u8" = 8
+"u9" = 8
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.gospel"
+note = "The gospel registration with the top drawbar: bright, fast rotor, a little dirt."
+styles = ["worship", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.gospel"]
+[preset.values]
+"click" = -3
+"drive" = 0.35
+"gain" = -4.7
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 2
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 8
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.ballad"
+note = "Soft and dark, the click down: a ballad."
+styles = ["worship", "pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"click" = -18
+"drive" = 0.05
+"gain" = 0.2
+"lvl.upper" = 0
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"u1" = 8
+"u2" = 3
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.soul"
+note = "Four drawbars and a little drive: the soul organ."
+styles = ["rnb", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soul"]
+[preset.values]
+"click" = 0
+"drive" = 0.3
+"gain" = -2.9
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"perc.vol" = 0
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 8
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib.upper" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.chorale"
+note = "Soft, wide and slow: a chorale."
+styles = ["worship", "film"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"click" = -24
+"drive" = 0.1
+"gain" = -1.4
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 6
+"u2" = 8
+"u3" = 8
+"u4" = 6
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.reggae"
+note = "The bubble: short, percussive, no vibrato."
+styles = ["latin", "lofi"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.reggae"]
+[preset.values]
+"click" = 0
+"gain" = 1.9
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"perc" = 1
+"perc.harm" = 0
+"perc.vol" = 1
+"u1" = 0
+"u2" = 0
+"u3" = 8
+"u4" = 0
+"u5" = 8
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib.upper" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.flute"
+note = "One drawbar, no click: a soft flute."
+styles = ["ambient", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"click" = -30
+"drive" = 0
+"gain" = 6.7
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"u1" = 0
+"u2" = 0
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.growl"
+note = "Driven hard into the rotor: the rock growl."
+styles = ["rock"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.rock"]
+[preset.values]
+"click" = 0
+"drive" = 0.85
+"gain" = -0.6
+"lvl.upper" = -6
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 2
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.parked"
+note = "The rotor stopped, a chorus instead: a still, round organ."
+styles = ["rnb", "ambient"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soul"]
+[preset.values]
+"drive" = 0.25
+"gain" = -3.3
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.brake" = 90
+"rot.speed" = 0
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 8
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib" = 2
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.trio"
+note = "Split with pedals: bass, chords and a solo voice in one."
+styles = ["jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.jazz"]
+[preset.values]
+"drive" = 0.2
+"gain" = 4.1
+"l1" = 0
+"l3" = 8
+"l4" = 6
+"l6" = 4
+"lvl.lower" = -6
+"lvl.pedal" = -2
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"p1" = 8
+"p2" = 5
+"perc" = 1
+"split.pedal" = 48
+"split.upper" = 60
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib.lower" = 1
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.worship_pad"
+note = "A soft, wide pad of foundation drawbars under a worship set."
+styles = ["worship", "ambient"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"click" = -30
+"drive" = 0.05
+"gain" = 2.1
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 6
+"u2" = 0
+"u3" = 8
+"u4" = 5
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.gospel_shout"
+note = "Every bright drawbar and the rotor flying: the shout."
+styles = ["worship"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.gospel"]
+[preset.values]
+"click" = 0
+"drive" = 0.45
+"gain" = -4.9
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 2
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 8
+"u5" = 0
+"u6" = 6
+"u7" = 0
+"u8" = 0
+"u9" = 8
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.rock_drive"
+note = "Three drawbars driven into a slow rotor: the rock organ under guitars."
+styles = ["rock"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.rock"]
+[preset.values]
+"click" = -3
+"drive" = 0.7
+"gain" = -2.6
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.salsa"
+note = "Bright, percussive, fast rotor: the salsa and boogaloo organ."
+styles = ["latin", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"click" = 0
+"drive" = 0.25
+"gain" = -4
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"perc" = 1
+"perc.vol" = 1
+"rot.speed" = 2
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.house_organ"
+note = "The classic house organ chord: bright, short, percussive."
+styles = ["house"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"click" = 0
+"drive" = 0.3
+"gain" = -0.8
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"perc" = 1
+"perc.decay" = 1
+"perc.vol" = 1
+"u1" = 0
+"u2" = 0
+"u3" = 8
+"u4" = 8
+"u5" = 0
+"u6" = 8
+"u7" = 0
+"u8" = 0
+"u9" = 8
+"vib.upper" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.lofi_organ"
+note = "A dark, leaky organ with a slow rotor: the sample of an old record."
+styles = ["lofi"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"bright" = -4
+"click" = -12
+"drive" = 0.3
+"gain" = -4.1
+"leak" = -28
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 8
+"u2" = 4
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.pop_church"
+note = "A bright church organ for a pop chorus."
+styles = ["pop", "worship"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"click" = -18
+"drive" = 0.1
+"gain" = -2
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 8
+"u2" = 0
+"u3" = 8
+"u4" = 8
+"u5" = 0
+"u6" = 6
+"u7" = 0
+"u8" = 0
+"u9" = 4
+"vib" = 3
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.neo_soul"
+note = "A soft, slow-rotor organ for R&B chords."
+styles = ["rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soul"]
+[preset.values]
+"click" = -12
+"drive" = 0.15
+"gain" = -1.5
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 8
+"u2" = 6
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.ambient_swell"
+note = "A held, wide swell of upper drawbars."
+styles = ["ambient", "film"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"click" = -30
+"drive" = 0
+"gain" = 6.6
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 0
+"u2" = 0
+"u3" = 6
+"u4" = 6
+"u5" = 4
+"u6" = 6
+"u7" = 0
+"u8" = 0
+"u9" = 4
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.horror"
+note = "Full stops, a little detuned leakage, the rotor slow: the haunted cathedral."
+styles = ["film"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"click" = -6
+"drive" = 0.2
+"gain" = -5
+"leak" = -30
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 8
+"u2" = 8
+"u3" = 8
+"u4" = 8
+"u5" = 8
+"u6" = 8
+"u7" = 8
+"u8" = 8
+"u9" = 8
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.trap_organ"
+note = "A dark, sustained organ under a trap beat."
+styles = ["trap"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.soft"]
+[preset.values]
+"bright" = -5
+"click" = -24
+"drive" = 0.2
+"gain" = -3.7
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"rot.speed" = 1
+"u1" = 8
+"u2" = 0
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib" = 5
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.jazz_ballad"
+note = "Soft percussion and a slow rotor for a jazz ballad."
+styles = ["jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "organ.tag.jazz"]
+[preset.values]
+"click" = -12
+"drive" = 0.1
+"gain" = 1.7
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"perc" = 1
+"perc.vol" = 0
+"rot.speed" = 1
+"u1" = 8
+"u2" = 6
+"u3" = 8
+"u4" = 0
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "organ.preset.ska"
+note = "Short, bright off-beat chords without vibrato."
+styles = ["latin", "rock"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"click" = 0
+"drive" = 0.2
+"gain" = 1.3
+"mod1.amt" = 0.5
+"mod2.amt" = 0.25
+"mod3.amt" = 0.3
+"mod4.amt" = 0.5
+"perc" = 1
+"perc.vol" = 1
+"u1" = 0
+"u2" = 0
+"u3" = 8
+"u4" = 8
+"u5" = 0
+"u6" = 0
+"u7" = 0
+"u8" = 0
+"u9" = 0
+"vib.upper" = 0
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Fast"
+"macro3.name" = "Click"
+"macro4.name" = "Brilliance"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "rot.speed"
+"mod2.src" = "macro2"
+"mod3.dst" = "click"
+"mod3.src" = "macro3"
+"mod4.dst" = "bright"
+"mod4.src" = "macro4"

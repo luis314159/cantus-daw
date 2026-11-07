@@ -197,6 +197,12 @@ pub fn extras(
     }
 }
 
+/// How far the chest has turned when the head has turned `yaw` (round 37): a little
+/// behind it (the head leads), all the way round in a spin, smoothly.
+pub fn torso_yaw(yaw: f32) -> f32 {
+    yaw - 16.0 * rig::sin_deg(yaw)
+}
+
 /// The body for a pose in a character's style: the move, blended from the move it is
 /// leaving, turned by the pose's `turn` (`turn_yaw` degrees at full turn).
 pub fn body(pose: &Pose, style: &dance::Style, turn_yaw: f32) -> Body {

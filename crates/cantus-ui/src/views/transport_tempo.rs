@@ -193,14 +193,38 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
             kit::well::paint(b, well, s, st, None);
             let vr = Rect::from_min_max(well.min, Pos2::new(well.right() - unit_w, well.bottom()));
             let ink = if resp.dragged() { s.t.focus } else { s.t.text };
-            let _ = text::paint(
-                b,
-                vr.shrink2(Vec2::new(4.0 * k, 0.0)),
-                &Text::new(value, Role::Hero, ink)
-                    .align(Align2::RIGHT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
-            );
+            // r37:finish — the whole BPM large, its tenth a size down (FL's display; read
+            // "124" at a glance).
+            let vr = vr.shrink2(Vec2::new(4.0 * k, 0.0));
+            if let Some(at) = value.find('.') {
+                let (whole, tenth) = value.split_at(at);
+                let tt = Text::new(tenth, Role::Value, ink).align(Align2::RIGHT_BOTTOM);
+                let tw = text::measure(b.ctx(), &tt, s.tk()).x;
+                let foot = vr.bottom() - 4.0 * k;
+                let tr = Rect::from_min_max(
+                    Pos2::new(vr.right() - tw, vr.top()),
+                    Pos2::new(vr.right(), foot),
+                );
+                let _ = text::paint(b, tr, &tt, s.tk());
+                let wr = Rect::from_min_max(vr.min, Pos2::new(tr.left(), foot + 2.0 * k));
+                let _ = text::paint(
+                    b,
+                    wr,
+                    &Text::new(whole, Role::Hero, ink)
+                        .align(Align2::RIGHT_BOTTOM)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
+            } else {
+                let _ = text::paint(
+                    b,
+                    vr,
+                    &Text::new(value, Role::Hero, ink)
+                        .align(Align2::RIGHT_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
+            }
             let ur = Rect::from_min_max(Pos2::new(well.right() - unit_w, well.top()), well.max);
             let _ = text::paint(
                 b,

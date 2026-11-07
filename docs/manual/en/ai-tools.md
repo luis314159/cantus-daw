@@ -19,16 +19,18 @@ shown to the agent as data — never as instructions.
 | Tracks | `add_track`, `set_track`, `set_instrument`, `set_instrument_param` | A new instrument track with its own mixer strip; name, colour, level, pan, mute, solo, order, routing; swapping the instrument; its parameters by key in their units |
 | Clips and notes | `add_clip`, `add_notes`, `replace_notes`, `edit_notes`, `set_clip`, `duplicate_clip` | Clips and notes; transpose, quantise, humanise, move, velocity, length, legato; moving, resizing, looping and copying clips |
 | Drums | `write_drum_pattern` | Step rows (`x...x...`) per pad, with swing and accents |
+| Slicing | `slice_sample`, `dump_slices` | A loop cut into Exemplar, one slice per key from C1 — at the file's markers, its transients or a beat grid; the slices written as a clip that replays the loop (Sectio, ADR 0099) |
 | Session | `set_session` | Scenes, slots, launch modes and follow actions |
 | Mixer and effects | `add_strip`, `set_strip`, `set_send`, `add_effect`, `set_effect`, `replace_effect` | Buses and returns, faders, width, the strip EQ, sends; any of Cantus's effects on any strip or the master, with their parameters |
 | VCAs and snapshots | `create_vca`, `assign_vca`, `take_snapshot`, `recall_snapshot`, `get_mix_snapshots`, `remove_snapshot`, `add_mix_cue`, `remove_mix_cue`, `set_strip_safe` | VCA faders and who follows them; the desk's state stored and recalled (all, or some channels, safe strips left alone); a snapshot cued at a bar; strips safe from recall or from solo — see [VCA faders and snapshots](mixing-studio.md) |
 | Movement | `automate`, `replace_automation`, `add_modulator`, `set_modulator` | Automation clips with FL's shapes, in the parameter's own units; LFOs, envelopes, followers (sidechain), step sequences, random |
 | Music | `lint_music`, `write_part`, `voice_chords`, `pedal_from_chart` | The music linter; a whole part over a chord chart; voiced chords; Chorda's sustain pedal from the chart |
-| Units | `list_units`, `get_unit`, `list_presets`, `apply_preset` | The catalogue of every instrument and effect; presets (loading one replaces a device's settings: always asked) |
+| Units | `list_units`, `get_unit`, `list_presets`, `find_presets`, `audition_preset`, `apply_preset` | The catalogue of every instrument and effect; presets found by style, role and words, heard before loading (`audition_preset` plays one to you as the preset browser does — Stop or Esc stops it, the window never waits for it — and never changes the project; the names come in English whatever language the window speaks); loading one replaces a device's settings: always asked |
 | Takes | `comp_takes`, `tidy_takes` | Comping recorded takes; deleting a comp, flattening, deleting unused takes |
 | Recording | `prepare_to_record`, `get_recording_mode`, `leave_recording_mode` | The recording mode: render every strip that feeds the master so the buffer can go lower; `dry_run` answers the plan and the disk it needs; while it is on, edits that change the sound are refused |
 | Export | `export_audio`, `export_project` | WAV, FLAC, MP3, Ogg, stems; MIDI and DAWproject — only into the project's folder or a folder you allowed |
 | Removing | `remove_items` | Tracks, clips, notes, effects, strips, sends, modulators, markers, tempo points, scenes, session clips — always asked |
+| Drums | `split_kit_outputs`, `set_pad_chain`, `make_kit_from_folder` | A kit split to strips (or merged back), effects on one pad, a kit from a folder or an SFZ file — one undo step each ([Pulsus III](drum-kits.md)) |
 
 An agent never takes your material silently: drawing automation over points you drew, a
 part where your notes are, a preset over your settings all ask first (or are refused).

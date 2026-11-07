@@ -37,7 +37,7 @@ fn columns(ctx: &egui::Context, s: &Style) -> (f32, f32) {
     let tk = s.tk();
     let label = WORDS
         .iter()
-        .map(|k| text::measure(ctx, &Text::key(k, Role::Micro, s.t.text).caps(true), tk).x)
+        .map(|k| text::measure(ctx, &Text::key(k, Role::Label, s.t.text).caps(true), tk).x)
         .fold(0.0, f32::max);
     let value = COUNT_INS
         .iter()
@@ -103,10 +103,14 @@ fn row(ui: &Ui, r: Rect, lw: f32, s: &Style, st: State, word: &str, value: &str)
         let _ = text::paint(
             b,
             lr.shrink2(Vec2::new(2.0 * k, 0.0)),
-            &Text::key(word, Role::Micro, s.t.text_dim)
-                .caps(true)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Elide(Elide::End)),
+            &Text::key(
+                word,
+                Role::Label,
+                crate::kit::color::ensure_contrast_all(s.t.text_dim, &[s.t.ink, s.t.toolbar], 4.5),
+            ) // r37:finish
+            .caps(true)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End)),
             s.tk(),
         );
         let vr = Rect::from_min_max(Pos2::new(r.left() + lw, r.top()), r.max);

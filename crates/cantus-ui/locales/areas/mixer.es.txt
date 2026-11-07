@@ -101,3 +101,8 @@ mixer.chain.tonus = Afin
 # La ficha de la ley de paneo del máster (integración: nunca un número suelto bajo SALIDA).
 mixer.pan_law.chip = ley {law} dB
 mixer.pan_law.short = {law} dB
+mixer.menu.inserts_panel = Panel de inserciones
+mixer.inserts.title = INSERCIONES
+mixer.inserts.strip = Canal {n}
+mixer.inserts.slot = Hueco {n}
+mixer.inserts.empty_tip = Un hueco vacío: un clic abre el inspector, donde se añaden las inserciones

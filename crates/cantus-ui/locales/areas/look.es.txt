@@ -32,3 +32,10 @@ look.icon.graphite = Grafito (para una barra clara)
 kit.logo.tint.icon = Colores del icono
 # Ronda 26: el relleno tras el texto seleccionado en un campo, con las superficies (el editor de temas lo nombra).
 kit.token.surface.text_selection = Selección de texto (en un campo)
+
+# ronda 37, acabado: el capuchón de los faders
+look.fader = Faders
+look.fader.tip = Capuchón del fader: cómo se ven todos los faders — el mezclador, los VCA y las unidades
+look.fader.note = Clásico es el capuchón marfil; Metal, uno mecanizado con su índice grabado y el brillo del tema. Todos los faders cambian a la vez.
+kit.fader.classic = Clásico
+kit.fader.metal = Metal

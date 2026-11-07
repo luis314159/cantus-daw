@@ -158,7 +158,15 @@ impl GraphPlan {
                 edge(from, &mut sc.stamp, &mut sc.edges);
             }
             let effects = match self.nodes[n] {
-                NodeRef::Track(_) => continue,
+                // r37:drums — a tap waits for its source, which renders its bus (ADR 0100).
+                NodeRef::Track(t) => {
+                    if let Some(src) = snap.tracks[t as usize].tap.map(|x| x.source) {
+                        if src < tracks && !snap.tracks[src].rest {
+                            edge(src as u16, &mut sc.stamp, &mut sc.edges);
+                        }
+                    }
+                    continue;
+                }
                 // A resting strip runs nothing and waits for nothing.
                 NodeRef::Strip(s) if snap.strips[s as usize].rest => continue,
                 NodeRef::Strip(s) => &snap.strips[s as usize].effects,

@@ -246,6 +246,9 @@ fn why_text(app: &CantusApp, target: FreezeTarget, why: Why) -> String {
         Why::Dancer => "record.live.dancer",
         Why::External(_) => "record.live.external",
         Why::CueSolo(_) => "record.live.cue_solo",
+        // r37:drums — split, or only chains on its pads.
+        Why::SplitKit(t) if cantus_core::padout::is_split(app.project(), t) => "padout.record_live",
+        Why::SplitKit(_) => "padout.record_live_chains",
     };
     tf(key, &[("name", &name)])
 }

@@ -1,0 +1,31 @@
+# Area: scene - round 37 (ADR 0104). Every key here needs its twin in scene.es.txt
+# Chorda's scene: the piano in its recording room, and its look.
+
+chorda.scene = The piano and its room
+chorda.look.body = Piano
+chorda.look.finish = Finish
+chorda.look.hint = The look changes the picture only, never the sound.
+chorda.look.body.concert = Concert grand
+chorda.look.body.grand = Grand
+chorda.look.body.parlour = Parlour grand
+chorda.look.body.upright = Upright
+chorda.look.finish.black = Black lacquer
+chorda.look.finish.white = White lacquer
+chorda.look.finish.walnut = Walnut
+chorda.look.finish.rosewood = Rosewood
+cmd.chorda_look = Change the piano's look
+
+# What the scene shows, in words (the screen reader's line)
+chorda.scene.caption = {body}, {finish} — {lid}, {mics}, {room}
+chorda.scene.lid_closed = the lid closed
+chorda.scene.lid_short = the lid on the short stick
+chorda.scene.lid_full = the lid on the full stick
+chorda.scene.top_closed = the top closed
+chorda.scene.top_open = the top open
+chorda.scene.mics_close = the microphones over the hammers
+chorda.scene.mics_player = the microphones at the player
+chorda.scene.mics_far = the microphones out in the hall
+chorda.scene.room_booth = in a booth
+chorda.scene.room_studio = in a studio's live room
+chorda.scene.room_hall = in a hall
+chorda.scene.room_church = in a church

@@ -78,6 +78,7 @@ smp.delay = Retardo
 smp.cc = Controlador
 smp.cclo = Controlador desde
 smp.cchi = Controlador hasta
+smp.lpf = Paso bajo (corte)
 # Editor
 smp.import = Importar
 smp.import_samples = Muestras…
@@ -323,6 +324,7 @@ smp.sw.short = KEYSW
 smp.cc.short = CC
 smp.cclo.short = CC DESDE
 smp.cchi.short = CC HASTA
+smp.lpf.short = PASO BAJO
 smp.gain.short = GAN
 smp.tune.short = AFIN
 smp.pan.short = PAN

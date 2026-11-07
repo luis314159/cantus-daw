@@ -42,7 +42,9 @@
 <h2 id="real-time-priority">Real-time priority</h2>
 <p>Under <em>Settings ▸ Audio</em>, the line <strong>Real-time priority</strong> says what the system gave Cantus's audio threads: for example <code>SCHED_FIFO priority 50</code> (direct), <code>SCHED_RR priority 20 via rtkit</code>, or <code>refused: …</code> with the reason. The audio thread of PipeWire and JACK is made real-time by them (<code>driver-owned thread: SCHED_FIFO</code>); Cantus raises its own threads.</p>
 <p>Most desktops grant it through <strong>rtkit</strong> with nothing to do. If the line says <em>refused</em>, either install and start <code>rtkit</code> (<code>sudo apt install rtkit</code>), or give your user the right to ask directly — the classic audio group:</p>
-<p><code></code><code>text sudo usermod -aG audio $USER echo '@audio - rtprio 95' | sudo tee /etc/security/limits.d/95-audio.conf echo '@audio - memlock unlimited' | sudo tee -a /etc/security/limits.d/95-audio.conf </code><code></code></p>
+<pre><code>sudo usermod -aG audio $USER
+echo '@audio - rtprio 95' | sudo tee /etc/security/limits.d/95-audio.conf
+echo '@audio - memlock unlimited' | sudo tee -a /etc/security/limits.d/95-audio.conf</code></pre>
 <p>then log out and in again. (Ubuntu Studio and Fedora Jam set this up already.)</p>
 <h2 id="plug-ins">Plug-ins</h2>
 <p>Cantus finds CLAP and VST3 plug-ins in the standard Linux folders:</p>

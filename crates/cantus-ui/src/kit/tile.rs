@@ -17,6 +17,8 @@ pub const TOKENS: &[Tok] = &[
     Tok::Text,
     Tok::Placeholder,
     Tok::Focus,
+    Tok::Bevel,
+    Tok::BevelShade,
 ];
 use egui::{Align2, Pos2, Rect, Vec2};
 
@@ -88,6 +90,25 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &TileLook<'_
         Fill::Solid(f(if st.lit { s.t.selection } else { border })),
     );
     b.rect(rect.shrink(b.px()), Fill::Solid(f(fill)));
+    // A slot is a row of a rack (round 37, ADR 0103): its upper bevel lit, its lower one
+    // shaded, so the rows stack as objects, not stripes.
+    let m = super::light::Material::of(&s.t);
+    let inner = rect.shrink(b.px());
+    let px = b.px();
+    b.hline(
+        inner.left(),
+        inner.right(),
+        inner.top() + px * 0.5,
+        px,
+        f(m.bevel),
+    );
+    b.hline(
+        inner.left(),
+        inner.right(),
+        inner.bottom() - px * 0.5,
+        px,
+        f(m.bevel_shade.gamma_multiply(0.7)),
+    );
     let r = rects(rect, s);
     let ink = s.t.text;
     glyph::paint(

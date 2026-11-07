@@ -261,7 +261,7 @@ fn learn_sets_the_threshold_from_a_passage() {
 fn the_presets_are_complete() {
     let _turn = turn();
     let (mut a, s0, fx) = open();
-    for (label, params) in deesser::FACTORY_PRESETS {
+    for (label, params) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::DeEsser) {
         for locale in cantus_ui::i18n::Locale::ALL {
             cantus_ui::i18n::set_thread_locale(locale);
             assert_ne!(cantus_ui::i18n::t(label), *label, "{label} in {locale:?}");
@@ -275,7 +275,7 @@ fn the_presets_are_complete() {
             assert_eq!(s.get(k), *v, "{label}: {k}");
         }
     }
-    assert!(deesser::FACTORY_PRESETS.len() >= 4);
+    assert!(cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::DeEsser).len() >= 4);
 }
 
 /// The inspector's picture: the band and the settings, in words.

@@ -1,0 +1,78 @@
+# Speculum analyser: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.speculum.mix"
+note = "The spectrum of the mix."
+styles = ["pop", "house"]
+roles = ["master"]
+[preset.values]
+"view" = 0
+
+[[preset]]
+key = "preset.speculum.master"
+note = "Loudness against -14 LUFS."
+styles = ["pop", "rnb"]
+roles = ["master"]
+[preset.values]
+"target" = -14
+"view" = 5
+
+[[preset]]
+key = "preset.speculum.broadcast"
+note = "Loudness against -23 LUFS."
+styles = ["film"]
+roles = ["master"]
+[preset.values]
+"target" = -23
+"view" = 5
+
+[[preset]]
+key = "preset.speculum.bass"
+note = "The low end, averaged, close up."
+styles = ["trap", "house"]
+roles = ["master"]
+[preset.values]
+"avg" = 600
+"chan" = 4
+"fft" = 4
+"view" = 1
+
+[[preset]]
+key = "preset.speculum.drums"
+note = "The waveform of every beat."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"beats" = 3
+"sync" = 2
+"view" = 3
+
+[[preset]]
+key = "preset.speculum.stereo"
+note = "The stereo image."
+styles = ["pop", "ambient"]
+roles = ["master"]
+[preset.values]
+"view" = 4
+
+[[preset]]
+key = "preset.speculum.vocal"
+note = "A slower spectrum for a vocal: its body, its presence, its air."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"avg" = 400
+"fft" = 3
+"view" = 0
+
+[[preset]]
+key = "preset.speculum.scope_bar"
+note = "The waveform over a whole bar."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"beats" = 4
+"sync" = 2
+"view" = 3

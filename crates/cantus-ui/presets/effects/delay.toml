@@ -1,0 +1,159 @@
+# Delay: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "delay.preset.slapback"
+note = "A single short repeat: the rockabilly and classic rock vocal slap."
+styles = ["rock", "jazz"]
+roles = ["vocal"]
+[preset.values]
+"feedback" = 0.08
+"mix" = 0.22
+"ping_pong" = 0
+"time_ms" = 95
+"tone_hz" = 5000
+
+[[preset]]
+key = "delay.preset.eighth_echo"
+note = "Eighth notes at 120 BPM, a few repeats under a pop vocal."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"feedback" = 0.32
+"mix" = 0.18
+"ping_pong" = 0
+"time_ms" = 250
+"tone_hz" = 6000
+
+[[preset]]
+key = "delay.preset.dotted_eighth"
+note = "Dotted eighths bouncing left and right: the worship and stadium guitar delay."
+styles = ["worship", "rock"]
+roles = ["creative"]
+[preset.values]
+"feedback" = 0.42
+"mix" = 0.2
+"ping_pong" = 1
+"time_ms" = 375
+"tone_hz" = 4500
+
+[[preset]]
+key = "delay.preset.quarter_throw"
+note = "Quarter notes, darkened: a vocal throw at the end of a line."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"feedback" = 0.45
+"mix" = 0.16
+"ping_pong" = 1
+"time_ms" = 500
+"tone_hz" = 3800
+
+[[preset]]
+key = "delay.preset.trap_vocal"
+note = "Eighths, dark and wide, for a rap or a sung hook."
+styles = ["trap"]
+roles = ["vocal"]
+[preset.values]
+"feedback" = 0.3
+"mix" = 0.18
+"ping_pong" = 1
+"time_ms" = 250
+"tone_hz" = 3200
+
+[[preset]]
+key = "delay.preset.dub_spiral"
+note = "Long feedback, the top rolled off: repeats that fade into the distance."
+styles = ["lofi", "ambient"]
+roles = ["creative"]
+[preset.values]
+"feedback" = 0.8
+"mix" = 0.2
+"ping_pong" = 0
+"time_ms" = 375
+"tone_hz" = 1800
+
+[[preset]]
+key = "delay.preset.tape_echo"
+note = "A darker echo with a few repeats, as a worn tape machine gives."
+styles = ["lofi", "jazz"]
+roles = ["creative"]
+[preset.values]
+"feedback" = 0.5
+"mix" = 0.26
+"ping_pong" = 0
+"time_ms" = 333
+"tone_hz" = 2200
+
+[[preset]]
+key = "delay.preset.ambient_wash"
+note = "Half notes, long feedback, both sides: a bed behind pads and guitars."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"feedback" = 0.72
+"mix" = 0.2
+"ping_pong" = 1
+"time_ms" = 750
+"tone_hz" = 3000
+
+[[preset]]
+key = "delay.preset.sixteenth_bounce"
+note = "Sixteenths bouncing between the speakers: a pluck becomes a sequence."
+styles = ["house", "pop"]
+roles = ["creative"]
+[preset.values]
+"feedback" = 0.42
+"mix" = 0.2
+"ping_pong" = 1
+"time_ms" = 125
+"tone_hz" = 8000
+
+[[preset]]
+key = "delay.preset.doubler"
+note = "One very short repeat on the other side: a wider, doubled voice."
+styles = ["pop", "rock"]
+roles = ["vocal"]
+[preset.values]
+"feedback" = 0
+"mix" = 0.2
+"ping_pong" = 1
+"time_ms" = 28
+"tone_hz" = 12000
+
+[[preset]]
+key = "delay.preset.film_tail"
+note = "Slow, dark repeats that hang after a hit."
+styles = ["film", "ambient"]
+roles = ["bus"]
+[preset.values]
+"feedback" = 0.6
+"mix" = 0.2
+"ping_pong" = 1
+"time_ms" = 600
+"tone_hz" = 2500
+
+[[preset]]
+key = "delay.preset.triplet"
+note = "Eighth-note triplets against a straight beat: the reggaeton vocal lilt."
+styles = ["latin", "pop"]
+roles = ["vocal"]
+[preset.values]
+"feedback" = 0.36
+"mix" = 0.18
+"ping_pong" = 1
+"time_ms" = 167
+"tone_hz" = 5000
+
+[[preset]]
+key = "delay.preset.snare_space"
+note = "A short, dark echo that fills the space after a snare."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"feedback" = 0.22
+"mix" = 0.14
+"ping_pong" = 1
+"time_ms" = 250
+"tone_hz" = 3000

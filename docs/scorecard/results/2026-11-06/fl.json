@@ -1,0 +1,57 @@
+{
+  "name": "fl",
+  "exe": "C:\\Program Files\\Image-Line\\FL Studio 2024\\FL64.exe",
+  "version": "24.1.2.4394",
+  "runs": 5,
+  "idle_share": 0.35,
+  "date": "2026-11-06 21:28",
+  "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics        ",
+  "window_ms_median": 2818.0,
+  "window_ms_best": 2807.0,
+  "settled_ms_median": 3587.0,
+  "settled_ms_best": 3540.0,
+  "private_mb_median": 132.9,
+  "working_mb_median": 179.2,
+  "starts": [
+    {
+      "name": "fl",
+      "measured": true,
+      "window_ms": 2818.0,
+      "settled_ms": 4046.0,
+      "private_mb": 132.8,
+      "working_mb": 179.2
+    },
+    {
+      "name": "fl",
+      "measured": true,
+      "window_ms": 2845.0,
+      "settled_ms": 3818.0,
+      "private_mb": 133.1,
+      "working_mb": 179.6
+    },
+    {
+      "name": "fl",
+      "measured": true,
+      "window_ms": 2859.0,
+      "settled_ms": 3587.0,
+      "private_mb": 132.9,
+      "working_mb": 179.4
+    },
+    {
+      "name": "fl",
+      "measured": true,
+      "window_ms": 2807.0,
+      "settled_ms": 3540.0,
+      "private_mb": 132.8,
+      "working_mb": 179.1
+    },
+    {
+      "name": "fl",
+      "measured": true,
+      "window_ms": 2815.0,
+      "settled_ms": 3555.0,
+      "private_mb": 133.0,
+      "working_mb": 179.2
+    }
+  ]
+}

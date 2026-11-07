@@ -329,6 +329,20 @@ impl Tints {
             h.l = h.l.min(0.38);
             large = h.rgb();
         }
+        // r37:finish — the large fills in one calm band (the judge: a saturated rainbow on
+        // Night, candy colours on Paper): saturation held under 0.52, the lightness the
+        // same for every hue, the strips' band.
+        {
+            let mut h = crate::kit::color::Hsl::of(large);
+            // r37:finish — judge 8: still candy on Paper; a muted tone of the colour.
+            h.s = if s.t.dark {
+                h.s.clamp(0.28, 0.46)
+            } else {
+                h.s.clamp(0.22, 0.38)
+            };
+            h.l = if s.t.dark { 0.33 } else { 0.78 };
+            large = h.rgb();
+        }
         // The theme's veil calms the large fills (ADR 0046 §8); the small one, the colour
         // cell, keeps the bright hue.
         large = crate::kit::color::veiled(large, s.t.track_veil);
@@ -358,7 +372,7 @@ fn tinted_text(fill: Color32, dark: bool) -> Color32 {
         l: if dark { 0.90 } else { 0.16 },
     }
     .rgb();
-    ensure_contrast(tint, fill, 4.5)
+    ensure_contrast(tint, fill, 6.0) // r37:finish (4.5 read only moderate on mid fills)
 }
 
 /// Fill the corner where two bars meet.

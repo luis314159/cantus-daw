@@ -103,7 +103,7 @@ fn the_window_paints_both_views_in_both_themes_with_the_character_dancing() {
                     text.contains("Arms up") || text.contains("Clap"),
                     "the pads"
                 );
-                assert!(text.contains("Trino") || text.contains("Reacts to"));
+                assert!(text.contains("Fuga") || text.contains("Reacts to"));
             } else {
                 assert!(text.contains("Floating"), "where it shows");
             }

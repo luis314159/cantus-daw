@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulsus III: pads en canales propios, una cadena por pad, kits de donde sea</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="pulsus-iii-pads-en-canales-propios-una-cadena-por-pad-kits-de-donde-sea">Pulsus III: pads en canales propios, una cadena por pad, kits de donde sea</h1>
+<p><em>Cantus 0.1.0-beta.12 · <a href="../en/drum-kits.html">Read in English</a> · volver al <a href="index.html">manual</a></em></p>
+<p>Pulsus es el instrumento de batería de Cantus: hasta 32 pads, cada uno un tambor sintetizado o muestras. Este capítulo trata de tres cosas que una batería necesita en una mezcla: cada pad en <strong>un canal propio del mezclador</strong>, <strong>efectos en un solo pad</strong> antes de que el kit se sume, y <strong>kits hechos con tus propias muestras</strong>: una carpeta de golpes sueltos o un kit SFZ.</p>
+<h2 id="separar-en-canales">Separar en canales</h2>
+<p>Abre el kit (doble clic en su pista) → <strong>⋯ ▸ Separar en canales</strong>, o clic derecho en el canal del kit en el mezclador → <strong>Separar en canales</strong>. Cada pad que suena recibe un canal propio, con el nombre del pad, justo después del canal del kit, en el orden de los pads. Cada pad tiene ahora su fader, paneo, inserciones, envíos, silencio y solo. Un solo paso de deshacer.</p>
+<p>Los canales de los pads suenan <strong>hacia el canal del kit</strong>: el canal del kit es el bus del kit, así que un compresor o un fader allí sigue actuando sobre todo el kit, y la pista del kit sigue silenciándolo y poniéndolo en solo entero. Con cada canal nuevo a 0 dB y centrado, el kit separado suena <strong>exactamente</strong> como sonaba antes — no casi: las mismas muestras, al bit (con el nivel propio de la pista del kit a 0 dB y su balance centrado; con otro nivel, los dos coinciden por debajo de −120 dB). El canal de un pad panea como un balance (su ley de paneo es de 0 dB), así que deja pasar el pad intacto; el canal del kit coloca el kit con la ley de paneo del proyecto, como antes. El menú del canal dice qué ley sigue (<strong>Ley de paneo ▸</strong>) y deja cambiarla.</p>
+<p><strong>Unir de nuevo</strong> (en los mismos menús) devuelve cada pad al canal del kit y quita los canales que hizo la separación — salvo que otra cosa use alguno (un envío hacia él, otra pista). Un solo paso de deshacer.</p>
+<p>Bueno saber:</p>
+<ul>
+<li>Poner en solo el canal de un pad toca ese pad solo, a través del canal del kit.</li>
+<li>Congelar el kit congela el canal del kit, con cada canal de pad dentro. La pista del kit sola no se puede congelar mientras está separada (su sonido son varias salidas).</li>
+<li>El modo de grabación renderiza el canal del kit como un solo render.</li>
+<li>Rebotar en el sitio la pista del kit rebota <strong>el kit entero</strong> (cada pad, como suena el kit sin separar) hacia el canal del kit; los canales propios de los pads — sus faders e inserciones — no entran en el rebote. Para rebotar lo que el mezclador hace a los pads, rebota el canal del kit. El canal de un pad no se puede rebotar solo: es una salida del kit.</li>
+<li>Cargar otro kit sobre un kit separado mantiene la separación: cada pad nuevo toma el canal del pad viejo en la misma nota (o del mismo tipo de tambor; en los kits de muestras, del mismo nombre y luego del mismo lugar). Cambiar el instrumento o borrar la pista quita con ella los canales de los pads, en el mismo paso de deshacer.</li>
+<li>Enrutar la pista del kit a otro canal lleva allí el kit entero: los canales y las cadenas de los pads que sonaban hacia el canal viejo suenan hacia el nuevo, en el mismo paso de deshacer.</li>
+<li>Separar necesita sitio: el motor toca como mucho 256 pistas — las del proyecto, y una más por cada pad con canal o cadena propia — y 256 canales. Una separación que pase de ahí se rechaza y se dice; quita antes algunas pistas o canales.</li>
+<li>Una plantilla de pista de un kit guarda los canales y las cadenas de sus pads (al insertarla son canales nuevos, propios). Explotar las tomas de un kit no da cadenas a las pistas de toma: son del kit.</li>
+<li>Stems: la cadena de un pad es parte del sonido del kit — en el stem de pista del kit y, con el kit directo al máster, en el stem de lo que va directo al máster.</li>
+<li>DAWproject no tiene salidas para un instrumento: un kit separado se escribe entero, y el informe de exportación lo dice.</li>
+</ul>
+<p><strong>Kits anteriores.</strong> Un kit hecho antes de esta versión es <em>Modelo 2</em> (o <em>Modelo 1</em>). También se separa, pero se suma a sí mismo solo con un redondeo (unos −135 dB); <strong>Actualizar a Pulsus III</strong> en la cabecera del kit lo hace exacto. Nada más cambia.</p>
+<h2 id="una-cadena-por-pad">Una cadena por pad</h2>
+<p>Elige un pad y abre <strong>Edición</strong>: la tarjeta <strong>Cadena</strong> lista las inserciones propias del pad, en orden. <strong>Añadir inserción ▾</strong> pone cualquier efecto de Cantus al final (con su preset inicial); cada inserción tiene su interruptor, <strong>Editar</strong> (su editor) y <strong>Quitar</strong>. El sonido del pad pasa por su cadena antes de unirse al kit — o antes de ir a su propio canal, cuando el kit está separado; separar y unir mantienen la cadena en su pad. Cuando el pad ya tiene cadena, <strong>Más…</strong> abre el selector de dispositivos sobre ella: todos los efectos, plug-ins incluidos.</p>
+<p>Una cadena no cuesta nada mientras su pad calla: Cantus no ejecuta sus inserciones hasta que el pad vuelve a sonar, y lo que sale es exactamente lo que daría ejecutarlas.</p>
+<p>Una cadena sigue a su kit: enruta la pista del kit a otro canal y cada cadena va con ella. <strong>Añadir inserción ▾</strong> ofrece lo que ofrece un canal (Spatium es la reverb).</p>
+<h2 id="kits-con-tus-muestras">Kits con tus muestras</h2>
+<p><strong>Una carpeta.</strong> Arrastra una carpeta de golpes sueltos desde el explorador de archivos sobre los pads de un kit: pasa a ser ese kit. Suéltala en cualquier otro lugar de la ventana: pasa a ser una pista de kit nueva. Cantus lee los nombres, en español o en inglés:</p>
+<table>
+<tr><th>Un nombre con</th><th>Va a</th></tr>
+<tr><td>bombo, kick, bd, bass drum</td><td>Bombo (nota 36)</td></tr>
+<tr><td>aro, rim, rimshot, side stick</td><td>Aro (37)</td></tr>
+<tr><td>caja, redoblante, snare, sd</td><td>Caja (38)</td></tr>
+<tr><td>palmas, clap</td><td>Palmas (39)</td></tr>
+<tr><td>charles / hh / hihat / hat + cerrado, closed</td><td>Charles cerrado (42)</td></tr>
+<tr><td>… + pie, pedal, foot</td><td>Charles de pedal (44)</td></tr>
+<tr><td>… + abierto, open</td><td>Charles abierto (46) — los tres se cortan entre sí</td></tr>
+<tr><td>tom + grave/floor/low, tom, tom + agudo/high</td><td>Toms (41…50)</td></tr>
+<tr><td>crash, splash, china · ride · cencerro, cowbell</td><td>49 · 51 · 56</td></tr>
+<tr><td>pandereta, shaker, conga, bongó, clave, maraca, perc…</td><td>Percusión (54, 58, 60…)</td></tr>
+</table>
+<p>Los archivos que solo se diferencian <strong>por un número</strong> (<em>Bombo 1, Bombo 2</em>) pasan a ser un pad que los toca por turnos (round robin) — salvo un número que nombra el tambor: <em>Tom 1, Tom 2, Tom 3</em> (de agudo a base), <em>Crash 1, Crash 2</em> y uno al principio (<em>808 Kick</em>, <em>909 Kick</em>) son pads propios. Los que se diferencian <strong>por una dinámica</strong> (<em>suave, fuerte, soft, hard, pp, mf, ff, vl1…vl4</em>) pasan a ser capas de velocidad de un pad, la más suave para los golpes más suaves. Un nombre que no dice nada va al siguiente pad libre, en el orden de la carpeta. Hasta 32 pads y 16 capas por pad; lo que no cabe se nombra en el registro. Un solo paso de deshacer. La carpeta se lee en segundo plano; una de más de 512 sonidos (o 4 GB) no es un kit y se rechaza, y una carpeta soltada fuera de los pads de un kit debe tener algún archivo con nombre de tambor.</p>
+<p><strong>Un kit SFZ.</strong> Arrastra un archivo <code>.sfz</code> igual: un pad por tecla, sus regiones como capas (rangos de velocidad, afinación, nivel, paneo), con sus round robins y elecciones al azar, y los grupos exclusivos del kit (los de un charles) como un grupo de corte. Probado con el kit libre <em>Virtuosity Drums</em>.</p>
+<h2 id="los-kits-de-fábrica">Los kits de fábrica</h2>
+<p>La cabecera del kit lista los dieciséis kits de fábrica: Pulsus clásico, Estudio, 808, 909, Boom bap, Electro, Percusión, Trap, House, Lo-fi, Rock, Pop, R&amp;B, Reguetón, Cinemática y Jazz con escobillas — todos sintetizados por el propio Pulsus, sin muestras. Cada uno trae su <strong>Nivel del kit</strong> (la tarjeta del kit), calibrado; 0 dB en un kit tuyo no cambia nada. <strong>⋯ ▸ Explorar presets…</strong> abre el navegador de presets sobre el kit: filtra por estilo, escucha un kit antes de elegirlo y cárgalo en un solo paso de deshacer.</p>
+<h2 id="para-agentes">Para agentes</h2>
+<p><code>split_kit_outputs</code> (y <code>merge</code>), <code>set_pad_chain</code> (añadir o quitar una inserción en un pad) y <code>make_kit_from_folder</code> (una carpeta o un <code>.sfz</code>, solo dentro de la carpeta del proyecto o de una carpeta que permitiste en Ajustes ▸ IA, con el acceso a archivos activado) hacen lo mismo, un paso de deshacer cada uno — ver <a href="ai-tools.html">Lo que un agente de IA puede hacer</a>.</p>
+</main>
+</body>
+</html>

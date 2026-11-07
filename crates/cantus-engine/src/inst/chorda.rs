@@ -31,7 +31,7 @@
 //! | [`tel::ALIVE`] | always 1 |
 
 use super::{Controller, InstrumentUnit, NoteOn, Telemetry, TELEMETRY_LEN};
-use cantus_core::inst::chorda::{DESIGN_KEYS, PARAMS};
+use cantus_core::inst::chorda::{DESIGN_KEYS, PARAMS, SET_KEYS};
 use cantus_core::inst::modulation::{MACRO_KEYS, SLOTS};
 use cantus_core::NativeSpec;
 use cantus_dsp::chorda::design::{Keyboard, Tuning};
@@ -417,6 +417,9 @@ fn design_loop() {
             if faults::panics(tuning.a4) {
                 panic!("a design that fails (a test)");
             }
+            // Model 2's body responses at this rate first (ADR 0098), so a unit made while
+            // the strings are designed does not synthesise them itself.
+            cantus_dsp::chorda::body::warm(fs as f64);
             Keyboard::compute_counted(tuning, fs as f64, threads(), &done)
         }));
         let kept = made.map(|k| insert(key, Arc::new(k)));
@@ -609,6 +612,12 @@ pub fn settings_from(values: &[f32; N]) -> (ChordaSettings, f64) {
             "tilt" => s.tilt_db = v,
             "width" => s.width = v,
             "gain" => s.gain_db = v,
+            "model" => s.model = if v >= 1.5 { 2 } else { 1 },
+            "room" => s.room = v,
+            "noise" => s.noise = v,
+            "persp" => s.persp = v,
+            "lid" => s.lid = v,
+            "roomsize" => s.size = v,
             _ => {}
         }
     }
@@ -625,7 +634,7 @@ pub fn routes(spec: &NativeSpec, matrix: &mut ModMatrix) {
         let (Some(src), Some(dst)) = (spec.text(k.src), spec.text(k.dst)) else {
             continue;
         };
-        if spec.get(k.on) < 0.5 || DESIGN_KEYS.contains(&dst) {
+        if spec.get(k.on) < 0.5 || DESIGN_KEYS.contains(&dst) || SET_KEYS.contains(&dst) {
             continue;
         }
         let (Some(src), Some(dst)) = (source_index(src), PARAMS.iter().position(|i| i.key == dst))

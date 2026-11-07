@@ -543,3 +543,140 @@ pub fn ring(b: &mut Brush, d: Rect, s: &Style, keys: &[Key; KEYS], shown: u8, de
     let i = (key.key - LOWEST) as usize;
     b.circle(free[i], s.s(3.5), Fill::Solid(tk.text));
 }
+
+/// The perspective's words: where the pair is, the lid (round 37, voicing pass two).
+pub fn mics_caption(persp: f32, lid: f32) -> String {
+    let at = if persp < 0.18 {
+        "chorda.persp.hammers"
+    } else if persp < 0.68 {
+        "chorda.persp.player"
+    } else {
+        "chorda.persp.audience"
+    };
+    let lid = if lid < 0.25 {
+        "chorda.lid.closed"
+    } else if lid < 0.75 {
+        "chorda.lid.half"
+    } else {
+        "chorda.lid.open"
+    };
+    tf("chorda.mics_line", &[("at", &t(at)), ("lid", &t(lid))])
+}
+
+/// The piano from the side with its lid, and the pair where the perspective puts it: over
+/// the hammers (0), at the player (35 %), out in the audience (1); its spread the width.
+pub fn stage(b: &mut Brush, d: Rect, s: &Style, persp: f32, lid: f32, width: f32) {
+    let tk = &s.t;
+    let (line, room) = caption(d, s);
+    label(b, line, &mics_caption(persp, lid), Role::Label, tk.text, s);
+    let r = plot(b, room, s);
+    let floor = r.bottom() - s.s(2.0);
+    let left = r.left() + s.s(4.0);
+    let case_w = r.width() * 0.42;
+    let case_h = (r.height() * 0.16).max(s.s(6.0));
+    let top = floor - r.height() * 0.38;
+    // Legs, the case, the keyboard's end.
+    for x in [left + s.s(6.0), left + case_w - s.s(8.0)] {
+        b.segment(
+            Pos2::new(x, top + case_h),
+            Pos2::new(x, floor),
+            s.s(2.0),
+            tk.text_dim,
+            true,
+        );
+    }
+    b.rrect(
+        Rect::from_min_size(Pos2::new(left, top), Vec2::new(case_w, case_h)),
+        s.r(2.0),
+        Fill::Solid(mix(tk.text_dim, tk.well, 0.35)),
+    );
+    // The lid, hinged at the spine, open toward the listener: 0° closed … 35° open.
+    // (At most what the picture's height above the case holds.)
+    let most = (0.8 * (top - r.top()) / case_w)
+        .clamp(0.05, 1.0)
+        .asin()
+        .min(35f32.to_radians());
+    let a = lid.clamp(0.0, 1.0) * most;
+    let hinge = Pos2::new(left, top);
+    let end = Pos2::new(hinge.x + case_w * a.cos(), hinge.y - case_w * a.sin());
+    b.segment(hinge, end, s.s(2.5), tk.text, true);
+    if lid > 0.05 {
+        let prop = Pos2::new(left + case_w * 0.62, top);
+        let on = Pos2::new(
+            hinge.x + 0.62 * (end.x - hinge.x),
+            hinge.y + 0.62 * (end.y - hinge.y),
+        );
+        b.segment(prop, on, s.s(1.2), tk.text_dim, true);
+    }
+    // The pair: from over the hammers to the audience's seats.
+    let p = persp.clamp(0.0, 1.0);
+    let x0 = left + case_w * 0.35;
+    let x1 = r.right() - s.s(10.0);
+    let cx = x0 + p * (x1 - x0);
+    let cy = top - r.height() * (0.14 + 0.28 * p);
+    let spread = s.s(3.0) + width.clamp(0.0, 1.0) * s.s(14.0);
+    let target = Pos2::new(left + case_w * 0.5, top);
+    for side in [-1.0f32, 1.0] {
+        let m = Pos2::new(cx + side * spread, cy);
+        b.dashed(
+            &[m, target],
+            b.px(),
+            with_alpha(s.hue, 0.45),
+            s.s(3.0),
+            s.s(3.0),
+        );
+        b.dot(m, s.s(3.2), s.hue);
+    }
+    b.hline(r.left(), r.right(), floor, b.px(), tk.grid);
+}
+
+/// The room's caption: its decay time at low frequencies.
+pub fn room_caption(amount: f32, size: f32) -> String {
+    let t60 = cantus_dsp::chorda::room::RoomVoicing::default().t60_low
+        * cantus_dsp::chorda::stage::size_scale(size as f64);
+    tf(
+        "chorda.room_line",
+        &[
+            ("amount", &format!("{:.0}", amount * 100.0)),
+            ("t60", &format!("{t60:.1}")),
+        ],
+    )
+}
+
+/// The room: its walls as large as its size, its reflections as strong as its level.
+pub fn room(b: &mut Brush, d: Rect, s: &Style, amount: f32, size: f32) {
+    let tk = &s.t;
+    let (line, room) = caption(d, s);
+    label(
+        b,
+        line,
+        &room_caption(amount, size),
+        Role::Label,
+        tk.text,
+        s,
+    );
+    let r = plot(b, room, s);
+    let z = size.clamp(0.0, 1.0);
+    let w = r.width() * (0.45 + 0.55 * z);
+    let h = r.height() * (0.5 + 0.5 * z);
+    let walls = Rect::from_min_size(Pos2::new(r.left(), r.bottom() - h), Vec2::new(w, h));
+    b.rrect_stroke(walls, s.r(2.0), s.s(1.5), tk.text_dim);
+    let src = Pos2::new(walls.left() + s.s(10.0), walls.bottom() - s.s(8.0));
+    b.dot(src, s.s(3.0), tk.text);
+    let g = amount.clamp(0.0, 1.0);
+    for k in 1..=4 {
+        let rr = k as f32 * walls.width().min(walls.height() * 1.6) / 4.6;
+        let alpha = g * (1.0 - 0.2 * k as f32);
+        if alpha > 0.02 {
+            b.arc(
+                src,
+                rr,
+                -1.45,
+                0.0,
+                s.s(1.2),
+                with_alpha(s.hue, alpha),
+                false,
+            );
+        }
+    }
+}

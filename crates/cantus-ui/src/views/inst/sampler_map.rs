@@ -774,7 +774,7 @@ pub fn write_zone(f: usize, v: f32, b: &mut String) {
 
 /// The zone card's cells, three rows of eight: ranges and root, tracking, group and delay,
 /// tuning and level with the fades, then round robin, random range, exclusivity and keyswitch.
-pub const ZONE_FIELDS: [usize; 23] = [
+pub const ZONE_FIELDS: [usize; 24] = [
     zf::ROOT,
     zf::LO,
     zf::HI,
@@ -798,6 +798,7 @@ pub const ZONE_FIELDS: [usize; 23] = [
     zf::EXCL,
     zf::OFFBY,
     zf::SW,
+    zf::LPF, // r37:piano — the zone's own low-pass (a slice's)
 ];
 
 /// The cells of a zone a controller starts: the controller and its range where the key

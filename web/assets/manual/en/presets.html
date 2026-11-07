@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finding and hearing presets</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="finding-and-hearing-presets">Finding and hearing presets</h1>
+<p><em><a href="index.html">Back to the manual</a> · <a href="../es/presets.html">Leer en español</a></em></p>
+<p>Every instrument and effect of Cantus comes with factory presets, and you can save your own. The <strong>preset browser</strong> finds them by what they are for and lets you <strong>hear one before you choose it</strong> — nothing in your song changes until you load it.</p>
+<h2 id="open-it">Open it</h2>
+<ul>
+<li>In an instrument's window, click the <strong>preset name</strong> in its title bar ▸ <em>Browse presets…</em> (the menu's first row).</li>
+<li>In an effect's window, the same: its preset name ▸ <em>Browse presets…</em>.</li>
+</ul>
+<p>The browser opens beside the window, on that instrument's or effect's presets. Drag its title to move it; <strong>Esc</strong> or <strong>×</strong> closes it.</p>
+<h2 id="find">Find</h2>
+<ul>
+<li><strong>Type</strong> to search: every word must be found in the preset's name, its style, its role or the unit's name — capitals and accents do not matter (<em>electrico</em> finds <em>Eléctrico</em>).</li>
+<li><strong>STYLE</strong> chips: trap · hip-hop, pop, house · EDM, R&amp;B, lo-fi, rock, latin · reggaeton, ambient · cinematic, film · game, jazz · soul, worship · gospel. Each shows how many presets it has. Several chips are alternatives (<em>trap</em> or <em>lo-fi</em>).</li>
+<li><strong>ROLE</strong> chips: for an instrument the part it plays (bass, lead, pad, keys, pluck, effect, drums); for an effect where it goes (vocal, drums, bus, master, creative). Style and role together narrow the list (a <em>trap bass</em>). Click a chip again to turn it off.</li>
+</ul>
+<h2 id="hear">Hear</h2>
+<ul>
+<li>Click <strong>▶</strong> on a row: Cantus renders the preset and plays it once. An <strong>instrument</strong> is heard on a short phrase for its role — a bass line, a melody, held chords, comping, an arpeggio, a drum groove — at 120 BPM, or at your song's tempo with <strong>Sync BPM</strong> on. An <strong>effect</strong> is heard on the <strong>clip you selected</strong> (its track alone), or on the first clip its channel plays; with no clip, on a short source Cantus makes with its own instruments.</li>
+<li><strong>↑ ↓</strong> choose the previous or next preset and play it; <strong>Space</strong> plays the chosen one again or stops it.</li>
+<li>The row keeps a small waveform of what you heard; the player at the bottom shows the large one, what it was heard on, and how many presets the filters leave.</li>
+</ul>
+<p>What you hear is rendered by Cantus, with no processing after it. Your project, its undo history and its file are never touched by hearing a preset.</p>
+<h2 id="load">Load</h2>
+<p>Double-click a row, press <strong>Enter</strong>, or click <strong>Load</strong>: the preset is loaded into the instrument or effect as <strong>one step of undo</strong> (Ctrl+Z gives the old sound back). A gold dot marks the preset loaded last.</p>
+</main>
+</body>
+</html>

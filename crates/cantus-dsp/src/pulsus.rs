@@ -72,6 +72,15 @@ pub const MAX_DRUM_VOICES: usize = 48;
 pub const LEGACY_VOICES: usize = 24;
 /// Sample layers per pad, preallocated.
 pub const MAX_LAYERS: usize = 16;
+/// The length of the lane a pad's voices are summed in (Pulsus III, ADR 0100): a call is
+/// cut into chunks of it, which changes no sample (each voice renders sample by sample).
+pub const LANE_FRAMES: usize = 256;
+/// Where an instrument hands one of its outputs' lanes (ADR 0100): `(bus, offset, left,
+/// right)`, the lane `offset` frames into the call, to be added into that bus.
+pub type BusOut<'a> = dyn FnMut(u8, usize, &[f32], &[f32]) + 'a;
+/// The first kit model that sums each pad on its own lane, the lanes in pad order: what
+/// lets a kit split to strips sum to itself to the bit (ADR 0100).
+pub const LANES_MODEL: u8 = 3;
 /// Where a model 2 kick sits at Tune 0: F1.
 pub const KICK_F1_HZ: f32 = 43.653_53;
 /// Where a model 1 kick sat: 45 Hz, 52 cents sharp of F1.
@@ -482,6 +491,11 @@ pub struct Pulsus {
     /// The hi-hat pedal's openness, once one has arrived.
     pedal: Option<f32>,
     taps: [f32; HALF_TAPS],
+    /// The kit's own gain (ADR 0100 §8): 1.0 is exactly unity and touches nothing.
+    gain: f32,
+    /// One pad's voices, summed before they join their output (Pulsus III).
+    lane_l: Vec<f32>,
+    lane_r: Vec<f32>,
 }
 
 impl Pulsus {
@@ -506,6 +520,9 @@ impl Pulsus {
             live: [0; MAX_PADS],
             pedal: None,
             taps: half_band_taps(),
+            gain: 1.0,
+            lane_l: vec![0.0; LANE_FRAMES],
+            lane_r: vec![0.0; LANE_FRAMES],
         }
     }
 
@@ -541,6 +558,26 @@ impl Pulsus {
         }
         self.pitches[index] = pitch;
         self.pads[index] = *settings;
+        // A pad's ringing voices follow it to its output and its place (Pulsus III): a
+        // pad is heard where it is routed now, all of it, and sums on its own lane.
+        for v in &mut self.voices {
+            if v.active && v.pad_id == settings.id {
+                v.bus = settings.bus;
+                v.pad = index as u8;
+            }
+        }
+    }
+
+    /// The kit's own gain, linear (ADR 0100 §8). Model 3 applies it to each pad's lane
+    /// before the sum — so a split kit is still its unsplit self to the bit — and models 1
+    /// and 2 to each voice; at 1.0 nothing is multiplied.
+    pub fn set_gain(&mut self, gain: f32) {
+        self.gain = if gain.is_finite() { gain.max(0.0) } else { 1.0 };
+    }
+
+    /// Whether the kit sums each pad on its own lane (model 3 and later, ADR 0100).
+    pub fn lanes(&self) -> bool {
+        self.version >= LANES_MODEL
     }
 
     /// Give a pad its sample (or take it away). An `Arc` clone in, an `Arc` drop out.
@@ -809,8 +846,21 @@ impl Pulsus {
         self.voices[idx].choke = self.pads[pad].choke;
     }
 
-    /// Transport stop. One-shots have no gate to release, so their tails ring out.
-    pub fn all_notes_off(&mut self) {}
+    /// Transport stop, a seek, a loop wrap: every note is released. One-shots have no gate to
+    /// release, so their tails ring out; a pad that chokes on its note-off (a cymbal grabbed)
+    /// is let go exactly as its note-off would let it go — its note-off will not come now
+    /// (round 37: it rang on past a stop, held).
+    pub fn all_notes_off(&mut self) {
+        for v in &mut self.voices {
+            if !v.active || v.choking {
+                continue;
+            }
+            let pad = &self.pads[(v.pad as usize).min(MAX_PADS - 1)];
+            if pad.id == v.pad_id && pad.choke_on_off {
+                v.choke_now();
+            }
+        }
+    }
 
     /// Hard reset: silence immediately and clear every voice (seek, render start).
     pub fn reset(&mut self) {
@@ -844,14 +894,81 @@ impl Pulsus {
     /// Render into `left`/`right`, **adding**. Returns `false` when nothing was added.
     ///
     /// Stereo, because a pad carries its own pan: a kit is a dozen sources on one track,
-    /// and placing them relative to each other is part of the instrument.
+    /// and placing them relative to each other is part of the instrument. A model 3 kit
+    /// sums each pad on its own lane and the lanes in pad order ([`Self::process_buses`]),
+    /// whatever its outputs; older models sum every voice in voice order, as they always did.
     pub fn process_add(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
+        if self.lanes() {
+            let n = left.len().min(right.len());
+            let (left, right) = (&mut left[..n], &mut right[..n]);
+            return self.process_buses(n, &mut |_, at, a, b| {
+                add_into(&mut left[at..at + a.len()], a);
+                add_into(&mut right[at..at + b.len()], b);
+            });
+        }
         self.process_add_bus(None, left, right)
     }
 
-    /// Render only the voices of pads on output `bus` (`None`: every voice). The hook for
-    /// per-pad outputs: the engine renders bus 0 into the kit's strip and each other bus
-    /// into the strip the pad names, each voice exactly once per segment.
+    /// Render `n` frames lane by lane (Pulsus III, ADR 0100): for each stretch of up to
+    /// [`LANE_FRAMES`], each pad's voices in voice order into a lane that starts at +0.0,
+    /// then `out(bus, offset, left, right)` with that lane — pads in kit order, so a kit
+    /// whose pads all play into one output and a kit whose pads each play into their own
+    /// receive the very same lanes, in the very same order. Each voice is rendered exactly
+    /// once. Returns whether any lane was given. No allocation.
+    pub fn process_buses(&mut self, n: usize, out: &mut BusOut<'_>) -> bool {
+        if n == 0 || !self.voices.iter().any(|v| v.active) {
+            return false;
+        }
+        let taps = &self.taps;
+        let mut any = false;
+        let mut at = 0;
+        while at < n {
+            let c = (n - at).min(LANE_FRAMES);
+            for pad in 0..MAX_PADS as u8 {
+                // The pad's voices on one bus; a voice still ringing on another (a pad
+                // removed under it) closes the lane and opens the next.
+                let mut lane: Option<u8> = None;
+                for v in self.voices.iter_mut() {
+                    if !v.active || v.pad != pad {
+                        continue;
+                    }
+                    if lane.is_some_and(|b| b != v.bus) {
+                        if let Some(b) = lane {
+                            scale(&mut self.lane_l[..c], &mut self.lane_r[..c], self.gain);
+                            out(b, at, &self.lane_l[..c], &self.lane_r[..c]);
+                        }
+                        lane = None;
+                    }
+                    if lane.is_none() {
+                        self.lane_l[..c].iter_mut().for_each(|x| *x = 0.0);
+                        self.lane_r[..c].iter_mut().for_each(|x| *x = 0.0);
+                        lane = Some(v.bus);
+                        any = true;
+                    }
+                    for (l, r) in self.lane_l[..c].iter_mut().zip(self.lane_r[..c].iter_mut()) {
+                        let Some((a, b)) = v.render(taps) else {
+                            break;
+                        };
+                        *l += a * v.gain_l;
+                        *r += b * v.gain_r;
+                        if !v.advance() {
+                            break;
+                        }
+                    }
+                }
+                if let Some(b) = lane {
+                    scale(&mut self.lane_l[..c], &mut self.lane_r[..c], self.gain);
+                    out(b, at, &self.lane_l[..c], &self.lane_r[..c]);
+                }
+            }
+            at += c;
+        }
+        any
+    }
+
+    /// Render only the voices of pads on output `bus` (`None`: every voice), in voice
+    /// order — the sum of models 1 and 2. The engine's per-pad outputs use
+    /// [`Self::process_buses`], which renders every bus in one sweep.
     pub fn process_add_bus(
         &mut self,
         bus: Option<u8>,
@@ -868,16 +985,24 @@ impl Pulsus {
             return false;
         }
         let taps = &self.taps;
+        let g = self.gain;
         for v in &mut self.voices {
             if !v.active || bus.is_some_and(|b| v.bus != b) {
                 continue;
             }
+            // The kit's gain on each voice (models 1 and 2 have no lanes); at unity the
+            // very same products as before.
+            let (gl, gr) = if g == 1.0 {
+                (v.gain_l, v.gain_r)
+            } else {
+                (v.gain_l * g, v.gain_r * g)
+            };
             for (l, r) in left[..n].iter_mut().zip(right[..n].iter_mut()) {
                 let Some((a, b)) = v.render(taps) else {
                     break;
                 };
-                *l += a * v.gain_l;
-                *r += b * v.gain_r;
+                *l += a * gl;
+                *r += b * gr;
                 if !v.advance() {
                     break;
                 }
@@ -887,6 +1012,26 @@ impl Pulsus {
     }
 }
 
+/// A lane times the kit's gain; nothing at unity.
+#[inline]
+fn scale(l: &mut [f32], r: &mut [f32], g: f32) {
+    if g != 1.0 {
+        l.iter_mut().for_each(|x| *x *= g);
+        r.iter_mut().for_each(|x| *x *= g);
+    }
+}
+
+/// `into[i] += from[i]`.
+#[inline]
+fn add_into(into: &mut [f32], from: &[f32]) {
+    for (o, x) in into.iter_mut().zip(from) {
+        *o += *x;
+    }
+}
+
+#[cfg(test)]
+#[path = "pulsus_lanes_tests.rs"]
+mod lanes_tests;
 #[cfg(test)]
 #[path = "pulsus_legacy_tests.rs"]
 mod legacy_tests;

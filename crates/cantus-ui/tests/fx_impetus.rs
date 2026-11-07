@@ -142,7 +142,8 @@ fn the_history_keeps_every_column() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in impetus::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Transient)
+    {
         for (k, _) in *values {
             assert!(
                 EffectKind::Transient.param(k).is_some(),

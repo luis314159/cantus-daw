@@ -1,0 +1,330 @@
+# Multiplex multiband: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "mb.preset.glue"
+note = "Four bands of gentle compression: a mix that holds together."
+styles = ["pop", "house"]
+roles = ["master"]
+[preset.values]
+"b0.att" = 30
+"b0.from" = 20
+"b0.knee" = 12
+"b0.range" = 6
+"b0.ratio" = 1.8
+"b0.rel" = 250
+"b0.thr" = -26
+"b0.used" = 1
+"b1.att" = 25
+"b1.from" = 120
+"b1.knee" = 12
+"b1.range" = 6
+"b1.ratio" = 1.5
+"b1.rel" = 200
+"b1.thr" = -28
+"b1.used" = 1
+"b2.att" = 15
+"b2.from" = 2000
+"b2.knee" = 12
+"b2.range" = 6
+"b2.ratio" = 1.5
+"b2.rel" = 150
+"b2.thr" = -30
+"b2.used" = 1
+"b3.att" = 10
+"b3.from" = 8000
+"b3.knee" = 12
+"b3.range" = 4
+"b3.ratio" = 1.5
+"b3.rel" = 120
+"b3.thr" = -34
+"b3.used" = 1
+"out" = 1.5
+
+[[preset]]
+key = "mb.preset.deharsh"
+note = "Only the 2.5 to 6.5 kHz band, compressed when it gets harsh."
+styles = ["rock", "pop"]
+roles = ["bus"]
+[preset.values]
+"b0.from" = 20
+"b0.ratio" = 1
+"b0.used" = 1
+"b1.att" = 2
+"b1.from" = 2500
+"b1.knee" = 6
+"b1.range" = 8
+"b1.ratio" = 3
+"b1.rel" = 80
+"b1.thr" = -32
+"b1.used" = 1
+"b2.from" = 6500
+"b2.ratio" = 1
+"b2.used" = 1
+
+[[preset]]
+key = "mb.preset.low_end"
+note = "The lows held steady under a kick and an 808."
+styles = ["trap", "house"]
+roles = ["bus"]
+[preset.values]
+"b0.att" = 12
+"b0.from" = 20
+"b0.la" = 2
+"b0.range" = 8
+"b0.ratio" = 4
+"b0.rel" = 140
+"b0.thr" = -24
+"b0.used" = 1
+"b1.att" = 8
+"b1.from" = 90
+"b1.la" = 2
+"b1.range" = 6
+"b1.ratio" = 3
+"b1.rel" = 120
+"b1.thr" = -26
+"b1.used" = 1
+"b2.from" = 280
+"b2.ratio" = 1
+"b2.used" = 1
+"mode" = 1
+"out" = 1
+
+[[preset]]
+key = "mb.preset.up_down"
+note = "Upward and downward at once: quiet details up, loud peaks down."
+styles = ["pop", "film"]
+roles = ["master"]
+[preset.values]
+"b0.att" = 3
+"b0.from" = 20
+"b0.range_lo" = 12
+"b0.ratio" = 4
+"b0.ratio_lo" = 3
+"b0.rel" = 120
+"b0.thr" = -22
+"b0.thr_lo" = -42
+"b0.used" = 1
+"b1.att" = 2
+"b1.from" = 160
+"b1.range_lo" = 12
+"b1.ratio" = 4
+"b1.ratio_lo" = 3
+"b1.rel" = 100
+"b1.thr" = -24
+"b1.thr_lo" = -44
+"b1.used" = 1
+"b2.att" = 1
+"b2.from" = 2500
+"b2.range_lo" = 12
+"b2.ratio" = 4
+"b2.ratio_lo" = 3
+"b2.rel" = 80
+"b2.thr" = -26
+"b2.thr_lo" = -46
+"b2.used" = 1
+"out" = 1.4
+
+[[preset]]
+key = "mb.preset.vocal"
+note = "A vocal controlled in its mids, de-essed above 4.5 kHz."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"b0.from" = 20
+"b0.gain" = -2
+"b0.ratio" = 1
+"b0.used" = 1
+"b1.att" = 8
+"b1.from" = 200
+"b1.range" = 8
+"b1.ratio" = 2
+"b1.rel" = 120
+"b1.thr" = -24
+"b1.used" = 1
+"b2.att" = 0.5
+"b2.from" = 4500
+"b2.la" = 1
+"b2.range" = 10
+"b2.ratio" = 5
+"b2.rel" = 60
+"b2.thr" = -32
+"b2.used" = 1
+"b3.from" = 10000
+"b3.range_lo" = 6
+"b3.ratio" = 1
+"b3.ratio_lo" = 2
+"b3.thr_lo" = -48
+"b3.used" = 1
+
+[[preset]]
+key = "mb.preset.punch"
+note = "Expansion on the lows and the highs: more punch from a drum bus."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"b0.att" = 5
+"b0.from" = 20
+"b0.range" = 6
+"b0.ratio" = 0.7
+"b0.rel" = 90
+"b0.thr" = -20
+"b0.used" = 1
+"b1.from" = 180
+"b1.ratio" = 1
+"b1.used" = 1
+"b2.att" = 2
+"b2.from" = 3000
+"b2.range" = 4
+"b2.ratio" = 0.75
+"b2.rel" = 60
+"b2.thr" = -26
+"b2.used" = 1
+
+[[preset]]
+key = "mb.preset.eight_oh_eight"
+note = "The band under 120 Hz held steady, the rest untouched: an 808 that sits."
+styles = ["trap"]
+roles = ["bus"]
+[preset.values]
+"b0.att" = 10
+"b0.from" = 20
+"b0.range" = 8
+"b0.ratio" = 3
+"b0.rel" = 100
+"b0.thr" = -20
+"b0.used" = 1
+"b1.from" = 120
+"b1.ratio" = 1
+"b1.used" = 1
+
+[[preset]]
+key = "mb.preset.vocal_smooth"
+note = "A vocal smoothed in its mids and its presence."
+styles = ["rnb", "pop"]
+roles = ["vocal"]
+[preset.values]
+"b0.from" = 20
+"b0.ratio" = 1
+"b0.used" = 1
+"b1.att" = 8
+"b1.from" = 250
+"b1.range" = 6
+"b1.ratio" = 2
+"b1.rel" = 120
+"b1.thr" = -26
+"b1.used" = 1
+"b2.att" = 2
+"b2.from" = 3000
+"b2.range" = 6
+"b2.ratio" = 3
+"b2.rel" = 80
+"b2.thr" = -30
+"b2.used" = 1
+
+[[preset]]
+key = "mb.preset.worship_mix"
+note = "Three gentle bands on a live mix."
+styles = ["worship"]
+roles = ["master"]
+[preset.values]
+"b0.att" = 30
+"b0.from" = 20
+"b0.range" = 4
+"b0.ratio" = 1.5
+"b0.rel" = 250
+"b0.thr" = -24
+"b0.used" = 1
+"b1.att" = 25
+"b1.from" = 200
+"b1.range" = 4
+"b1.ratio" = 1.4
+"b1.rel" = 200
+"b1.thr" = -26
+"b1.used" = 1
+"b2.att" = 15
+"b2.from" = 4000
+"b2.range" = 4
+"b2.ratio" = 1.4
+"b2.rel" = 150
+"b2.thr" = -28
+"b2.used" = 1
+"out" = 1
+
+[[preset]]
+key = "mb.preset.lofi_squash"
+note = "Every band squashed: the dense, breathing loop."
+styles = ["lofi"]
+roles = ["bus"]
+[preset.values]
+"b0.att" = 10
+"b0.from" = 20
+"b0.range" = 10
+"b0.ratio" = 4
+"b0.rel" = 120
+"b0.thr" = -30
+"b0.used" = 1
+"b1.att" = 8
+"b1.from" = 300
+"b1.range" = 10
+"b1.ratio" = 4
+"b1.rel" = 100
+"b1.thr" = -32
+"b1.used" = 1
+"b2.att" = 4
+"b2.from" = 3000
+"b2.range" = 8
+"b2.ratio" = 3
+"b2.rel" = 80
+"b2.thr" = -30
+"b2.used" = 1
+"out" = 6.9
+
+[[preset]]
+key = "mb.preset.acoustic_body"
+note = "The boom of an acoustic guitar held down when it builds up."
+styles = ["latin", "worship"]
+roles = ["creative"]
+[preset.values]
+"b0.from" = 20
+"b0.ratio" = 1
+"b0.used" = 1
+"b1.att" = 10
+"b1.from" = 150
+"b1.range" = 6
+"b1.ratio" = 3
+"b1.rel" = 150
+"b1.thr" = -28
+"b1.used" = 1
+"b2.from" = 600
+"b2.ratio" = 1
+"b2.used" = 1
+
+[[preset]]
+key = "mb.preset.drum_tight"
+note = "Lows, mids and highs of a drum bus each held: tight and even."
+styles = ["house", "rock"]
+roles = ["drums"]
+[preset.values]
+"b0.att" = 15
+"b0.from" = 20
+"b0.range" = 6
+"b0.ratio" = 3
+"b0.rel" = 100
+"b0.thr" = -22
+"b0.used" = 1
+"b1.att" = 10
+"b1.from" = 200
+"b1.range" = 6
+"b1.ratio" = 2
+"b1.rel" = 90
+"b1.thr" = -24
+"b1.used" = 1
+"b2.att" = 3
+"b2.from" = 4000
+"b2.range" = 5
+"b2.ratio" = 2
+"b2.rel" = 60
+"b2.thr" = -26
+"b2.used" = 1

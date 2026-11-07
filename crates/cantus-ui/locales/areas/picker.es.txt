@@ -94,7 +94,8 @@ picker.menu.open_picker = Selector de dispositivos…
 picker.dev.firmus.name = Firmus
 picker.dev.firmus.what = Sintetizador básico
 picker.dev.firmus.about = El sintetizador sencillo con el que empieza cada pista nueva: un oscilador, un filtro y una envolvente. Ligero, rápido, siempre a mano.
-picker.dev.pulsus.name = Pulsus II
+# r37:drums — the kit is Pulsus III (ADR 0100)
+picker.dev.pulsus.name = Pulsus III
 picker.dev.pulsus.what = Caja de ritmos
 picker.dev.pulsus.about = Una batería sintetizada con capas de samples: bombos, cajas, metales y toms modelados, no grabados, grupos de corte y un pad para cada sonido. La toca el rack de canales.
 picker.dev.unda.name = Unda

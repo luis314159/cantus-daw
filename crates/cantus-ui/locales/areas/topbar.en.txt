@@ -105,3 +105,4 @@ topbar.zoom = Interface zoom
 # The project's name
 topbar.name = Project name
 topbar.name_tip = Project name — click to rename
+topbar.summary = {tracks} tracks · {strips} strips · {bars} bars · {time}

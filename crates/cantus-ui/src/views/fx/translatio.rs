@@ -26,43 +26,8 @@ use std::fmt::Write as _;
 const KIND: EffectKind = EffectKind::FreqShift;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.translatio.slow_phase",
-        &[("shift", 0.7), ("mix", 0.5)],
-    ),
-    (
-        "preset.translatio.barber_up",
-        &[("shift", 3.0), ("fb", 0.7), ("mix", 0.5)],
-    ),
-    (
-        "preset.translatio.barber_down",
-        &[("shift", -3.0), ("fb", 0.7), ("mix", 0.5)],
-    ),
-    (
-        "preset.translatio.detune",
-        &[("shift", 9.0), ("side", 2.0), ("mix", 0.45)],
-    ),
-    ("preset.translatio.bell", &[("shift", 173.0), ("mix", 1.0)]),
-    (
-        "preset.translatio.robot",
-        &[("shift", -440.0), ("fb", 0.3), ("mix", 1.0)],
-    ),
-    (
-        "preset.translatio.wobble",
-        &[
-            ("shift", 0.0),
-            ("lfo", 60.0),
-            ("sync", 1.0),
-            ("div", 8.0),
-            ("mix", 0.8),
-        ],
-    ),
-    (
-        "preset.translatio.stereo_spin",
-        &[("shift", 1.5), ("side", 2.0), ("mix", 1.0)],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 const SIDE_KEYS: [&str; 3] = [
     "translatio.side.0",

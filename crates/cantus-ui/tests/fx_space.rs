@@ -4,7 +4,7 @@
 
 mod support;
 use cantus_core::*;
-use cantus_ui::views::fx::space::{band_used, Curve, FACTORY_PRESETS};
+use cantus_ui::views::fx::space::{band_used, Curve};
 use support::*;
 
 fn with_reverb() -> (cantus_ui::CantusApp, StripId, EffectId) {
@@ -89,8 +89,8 @@ fn the_demo_measures_a_tail_near_the_curve() {
 
 #[test]
 fn every_factory_preset_names_real_parameters() {
-    assert!(FACTORY_PRESETS.len() >= 6);
-    for (label, params) in FACTORY_PRESETS {
+    assert!(cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Space).len() >= 6);
+    for (label, params) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Space) {
         assert_ne!(cantus_ui::i18n::t(label), *label, "{label} has no string");
         let mut s = EffectSpec::new(EffectKind::Space);
         for (k, v) in *params {

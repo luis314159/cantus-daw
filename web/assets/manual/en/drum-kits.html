@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulsus III: pads on their own strips, a chain per pad, kits from anywhere</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Back to the site</a></header>
+<main>
+<h1 id="pulsus-iii-pads-on-their-own-strips-a-chain-per-pad-kits-from-anywhere">Pulsus III: pads on their own strips, a chain per pad, kits from anywhere</h1>
+<p><em>Cantus 0.1.0-beta.12 · <a href="../es/drum-kits.html">Leer en español</a> · back to the <a href="index.html">manual</a></em></p>
+<p>Pulsus is Cantus's drum instrument: up to 32 pads, each a synthesised drum or samples. This chapter is about three things a drum kit needs in a mix: each pad on <strong>a mixer strip of its own</strong>, <strong>effects on one pad</strong> before the kit is summed, and <strong>kits made from your own samples</strong> — a folder of one-shots or an SFZ kit.</p>
+<h2 id="split-to-strips">Split to strips</h2>
+<p>Open the kit (double-click its track) → <strong>⋯ ▸ Split to strips</strong>, or right-click the kit's strip in the mixer → <strong>Split to strips</strong>. Every pad that makes a sound gets a strip of its own, named after the pad, placed right after the kit's strip, in the order of the pads. Each pad now has its own fader, pan, inserts, sends, mute and solo. One undo step.</p>
+<p>The pad strips play <strong>into the kit's strip</strong>: the kit's strip is the kit's bus, so a compressor or a fader there still acts on the whole kit, and the kit's track still mutes and solos all of it. With every new strip at 0 dB and centred, the split kit sounds <strong>exactly</strong> like the kit did before — not nearly: the same samples, to the bit (with the kit track's own level at 0 dB and its balance centred; at another level the two agree to within −120 dB). A pad's strip pans as a balance (its pan law is 0 dB), so it passes the pad untouched; the kit's strip places the kit through the project's pan law as before. The strip's menu says which law it follows (<strong>Pan law ▸</strong>), and lets you change it.</p>
+<p><strong>Merge back</strong> (the same menus) puts every pad back on the kit's strip and removes the strips the split made — unless something else uses one (a send into it, another track). One undo step.</p>
+<p>Good to know:</p>
+<ul>
+<li>Soloing a pad's strip plays that pad alone, through the kit's strip.</li>
+<li>Freezing the kit freezes the kit's strip, with every pad strip inside it. The kit's track alone cannot be frozen while it is split (its sound is several outputs).</li>
+<li>The recording mode bakes the kit's strip as one render.</li>
+<li>Bouncing the kit's track in place bounces <strong>the whole kit</strong> (every pad, as the kit sounds unsplit) onto the kit's strip; the pads' own strips — their faders and inserts — are not in the bounce. To bounce what the mixer does to the pads, bounce the kit's strip. A pad's strip cannot be bounced on its own: it is one output of the kit.</li>
+<li>Loading another kit onto a split kit keeps the split: each new pad takes the strip of the old pad on the same note (or of the same kind of drum; for kits of samples, of the same name, then in the same place). Changing the instrument or deleting the track removes the pad strips with it, in the same undo step.</li>
+<li>Routing the kit's track to another strip takes the whole kit there: the pads' strips and chains that played into the old strip play into the new one, in the same undo step.</li>
+<li>Splitting needs room: the engine plays at most 256 tracks — the project's, and one more for each pad on a strip or chain of its own — and 256 strips. A split past that is refused and said; remove some tracks or strips first.</li>
+<li>A track template of a kit keeps its pads' strips and chains (inserted, they are new strips of their own). Exploding a kit's takes gives the take tracks no chains: those are the kit's.</li>
+<li>Stems: a pad's chain is part of the kit's sound — in the kit's track stem, and, with the kit straight to the master, in the stem of what goes to the master directly.</li>
+<li>DAWproject has no outputs for an instrument: a split kit is written whole, and the export report says so.</li>
+</ul>
+<p><strong>Older kits.</strong> A kit made before this version is <em>Model 2</em> (or <em>Model 1</em>). It splits too, but sums to itself only within rounding (about −135 dB); <strong>Upgrade to Pulsus III</strong> in the kit's header makes it exact. Nothing else changes.</p>
+<h2 id="a-chain-per-pad">A chain per pad</h2>
+<p>Select a pad and open <strong>Edit</strong>: the <strong>Chain</strong> card lists the pad's own inserts, in order. <strong>Add insert ▾</strong> puts any Cantus effect at the end (with its starting preset); each insert has its switch, <strong>Edit</strong> (its editor) and <strong>Remove</strong>. The pad's sound goes through its chain before it joins the kit — or before it goes to its own strip, when the kit is split; split and merge keep the chain on its pad. Once the pad has a chain, <strong>More…</strong> opens the device picker onto it: every effect, plug-ins included.</p>
+<p>A chain costs nothing while its pad is silent: Cantus does not run its inserts until the pad plays again, and what comes out is exactly what running them would give.</p>
+<p>A chain follows its kit: route the kit's track to another strip and every chain goes with it. <strong>Add insert ▾</strong> offers what a strip offers (Spatium is the reverb).</p>
+<h2 id="kits-from-your-samples">Kits from your samples</h2>
+<p><strong>A folder.</strong> Drag a folder of one-shots from the file manager onto a kit's pads: it becomes that kit. Drop it anywhere else in the window: it becomes a new kit track. Cantus reads the names, in English or Spanish:</p>
+<table>
+<tr><th>A name with</th><th>Goes to</th></tr>
+<tr><td>kick, bd, bombo, bass drum</td><td>Kick (note 36)</td></tr>
+<tr><td>rim, rimshot, side stick, aro</td><td>Rim (37)</td></tr>
+<tr><td>snare, sd, caja, redoblante</td><td>Snare (38)</td></tr>
+<tr><td>clap, palmas</td><td>Clap (39)</td></tr>
+<tr><td>hat / hh / hihat / charles + closed, cerrado</td><td>Closed hat (42)</td></tr>
+<tr><td>… + pedal, foot, pie</td><td>Pedal hat (44)</td></tr>
+<tr><td>… + open, abierto</td><td>Open hat (46) — the three hats choke each other</td></tr>
+<tr><td>tom + low/floor/grave, tom, tom + high/agudo</td><td>Toms (41…50)</td></tr>
+<tr><td>crash, splash, china · ride · cowbell, cencerro</td><td>49 · 51 · 56</td></tr>
+<tr><td>perc, shaker, pandereta, conga, bongó, clave, maraca…</td><td>Percussion (54, 58, 60…)</td></tr>
+</table>
+<p>Files that differ <strong>only by a number</strong> (<em>Kick 1, Kick 2</em>) become one pad that takes them in turn (round robin) — except a number that names the drum: <em>Tom 1, Tom 2, Tom 3</em> (high to floor), <em>Crash 1, Crash 2</em> and a leading one (<em>808 Kick</em>, <em>909 Kick</em>) are pads of their own. Files that differ by a <strong>dynamic</strong> (<em>soft, medium, hard, pp, mf, ff, vl1…vl4, suave, fuerte</em>) become one pad's velocity layers, the softest for the softest hits. A name that says nothing goes on the next free pad, in the folder's order. Up to 32 pads and 16 layers a pad; what does not fit is named in the log. One undo step. A folder is read in the background; one of more than 512 sounds (or 4 GB) is not a kit and is refused, and a folder dropped away from a kit's pads must name a drum in some file.</p>
+<p><strong>An SFZ kit.</strong> Drag an <code>.sfz</code> file the same way: one pad per key, its regions as layers (velocity ranges, tuning, level, pan), round robins and random choices kept, and the kit's exclusive groups (a hi-hat's) as a choke group. Tested with the free <em>Virtuosity Drums</em> kit.</p>
+<h2 id="the-factory-kits">The factory kits</h2>
+<p>The kit's header lists the sixteen factory kits: Pulsus classic, Studio, 808, 909, Boom bap, Electro, Percussion, Trap, House, Lo-fi, Rock, Pop, R&amp;B, Reggaeton, Cinematic and Jazz brushes — every one synthesised by Pulsus itself, no samples. Each comes with its own <strong>Kit level</strong> (the kit card), calibrated; 0 dB on a kit of your own changes nothing. <strong>⋯ ▸ Browse presets…</strong> opens the preset browser on the kit: filter by style, listen to a kit before you choose it, load it in one undo step.</p>
+<h2 id="for-agents">For agents</h2>
+<p><code>split_kit_outputs</code> (and <code>merge</code>), <code>set_pad_chain</code> (add or remove an insert on a pad) and <code>make_kit_from_folder</code> (a folder or an <code>.sfz</code>, only inside the project's folder or a folder you allowed in Settings ▸ AI, with file access on) do the same, one undo step each — see <a href="ai-tools.html">What an AI agent can do</a>.</p>
+</main>
+</body>
+</html>

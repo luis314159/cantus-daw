@@ -42,6 +42,18 @@ leaves preview.
 
 ## Highlights
 
+- **Sounds for every style, heard before you choose** (ADRs 0098–0101, 0104). **511 factory
+  presets** tagged by style and role, each one levelled and checked by a test, auditioned on
+  a phrase or on your own clip before it touches the song — and **heard on the
+  [website](https://cantusdaw.com/#units)** before you download anything.
+  - **Chorda, model 2**: mics, lid and room, shown as a piano in its room rendered in 3-D.
+  - **Sectio** slices a loop across Exemplar's keys.
+  - **Pulsus** gives every pad its own output and effect chain.
+  - **Two sound packs of our own**, public domain (CC0), downloaded when you ask.
+- **Measured against FL Studio and REAPER, wins and losses alike** (ADR 0102). On the same
+  laptop, Cantus's window is ready in **1.31 s**, against FL Studio 24.1.2's 2.82 s and
+  REAPER 7.85's 1.94 s. It still uses more memory and more CPU at rest than both, and the
+  [scorecard](docs/scorecard/README.md) says so, with the method to repeat every number.
 - **The recording mode** (ADR 0092). *Prepare to record* bakes every strip that feeds the
   master and leaves only what you record live, so a heavy song plays at a low buffer: on the
   development machine, 64 tracks with effects went from 224–590 % of each block's time
@@ -82,7 +94,7 @@ leaves preview.
   first; **stem separation** and **audio to MIDI** by models downloaded from their makers
   when you ask; a **mastering assistant** that proposes a chain of our own effects per
   platform.
-- **A character that dances to your song** (ADRs 0087–0091). Six characters of our own —
+- **A character that dances to your song** (ADRs 0087–0091, 0105). Eight characters of our own —
   or your own Lottie, sprite sheet or DragonBones file — dance over the workspace to the
   beat, driven by automation, modulators and notes; a companion window for streams; the
   clip exported as an MP4, a WebM or a transparent MOV with the song's audio.
@@ -228,7 +240,7 @@ Unda has three oscillators, each with up to sixteen unison lanes and two warp sl
 - Four DAHDSR envelopes, eight LFOs with drawable shapes, 85 modulation targets
 - Aliasing of a full saw below −96 dB at the default 2× quality
 
-<sub>15 factory presets · [light theme](docs/images/units/unda-light.png)</sub>
+<sub>26 factory presets — [hear them](https://cantusdaw.com/#unit-unda) · [light theme](docs/images/units/unda-light.png)</sub>
 
 </details>
 <details>
@@ -245,7 +257,7 @@ Calor is an analog-modelling polysynth with a fixed, readable signal path: three
 - Condition from Calibrated to Unruly; drift and variances in cents and dB
 - Poly-mod, cross-mod, hard sync and a three-mode chorus
 
-<sub>12 factory presets · [light theme](docs/images/units/calor-light.png)</sub>
+<sub>26 factory presets — [hear them](https://cantusdaw.com/#unit-calor) · [light theme](docs/images/units/calor-light.png)</sub>
 
 </details>
 <details>
@@ -262,7 +274,7 @@ Modulus has eight operators connected any to any through a matrix where every ce
 - Easy macros with Bake, and a four-corner morph pad
 - An operator graph you drag to connect, and a spectrum of the patch's own sound
 
-<sub>10 factory presets · [light theme](docs/images/units/modulus-light.png)</sub>
+<sub>25 factory presets — [hear them](https://cantusdaw.com/#unit-modulus) · [light theme](docs/images/units/modulus-light.png)</sub>
 
 </details>
 <details>
@@ -279,7 +291,7 @@ Exemplar plays groups of zones mapped by key and velocity, with round robin, cro
 - Long samples stream from disk, bit-identical to playback from memory
 - Map editor: drag zones; dropped files are mapped by metadata or note names
 
-<sub>12 factory presets · [light theme](docs/images/units/exemplar-light.png)</sub>
+<sub>32 factory presets — [hear them](https://cantusdaw.com/#unit-exemplar) · [light theme](docs/images/units/exemplar-light.png)</sub>
 
 </details>
 <details>
@@ -296,7 +308,7 @@ Gravis is a bass instrument with three engines behind one mono/legato voice: an 
 - Synth accent with a sweep that climbs on runs of accented notes
 - Glide by time or rate, a legato window and declick; pitch within 0.05 cent
 
-<sub>14 factory presets · [light theme](docs/images/units/gravis-light.png)</sub>
+<sub>25 factory presets — [hear them](https://cantusdaw.com/#unit-gravis) · [light theme](docs/images/units/gravis-light.png)</sub>
 
 </details>
 <details>
@@ -313,7 +325,7 @@ Organum is built the way the instrument is: 91 wheels that never stop, keys that
 - Rotary speaker: horn and drum with real spin-up, a brake and movable microphones
 - Gear tuning within 0.71 cent of equal temperament below C8, or exact equal
 
-<sub>11 factory presets · [light theme](docs/images/units/organum-light.png)</sub>
+<sub>24 factory presets — [hear them](https://cantusdaw.com/#unit-organum) · [light theme](docs/images/units/organum-light.png)</sub>
 
 </details>
 <details>
@@ -330,7 +342,7 @@ Lamina models two classic electric pianos from their parts: a hammer, a vibratin
 - Tremolo as stereo pan or amplitude; preamp drive, bass and treble
 - Hardness, decay and level curves across the keyboard
 
-<sub>11 factory presets · [light theme](docs/images/units/lamina-light.png)</sub>
+<sub>24 factory presets — [hear them](https://cantusdaw.com/#unit-lamina) · [light theme](docs/images/units/lamina-light.png)</sub>
 
 </details>
 <details>
@@ -347,7 +359,7 @@ Chorda plays a grand piano from a physical model: each key's one to three string
 - Felt hardness and hysteresis, two-stage decay and phantom partials, adjustable
 - The piano drawn from above: strings, bridge, dampers and the last key played
 
-<sub>10 factory presets · [light theme](docs/images/units/chorda-light.png)</sub>
+<sub>24 factory presets — [hear them](https://cantusdaw.com/#unit-chorda) · [light theme](docs/images/units/chorda-light.png)</sub>
 
 </details>
 <details>
@@ -362,9 +374,9 @@ Pulsus II is the drum instrument behind the channel rack: each pad is a kick, sn
 - Up to 16 sample layers per pad; round robin Stack, Cycle, Random or No repeat
 - 16 choke groups with a fade time per pad; polyphony per pad
 - Hi-hat pedal by MIDI controller opens the hat continuously and plays the chick
-- Eight factory kits on the General MIDI map
+- Sixteen factory kits on the General MIDI map
 
-<sub>8 factory kits · [light theme](docs/images/units/pulsus-light.png)</sub>
+<sub>16 factory kits — [hear them](https://cantusdaw.com/#unit-pulsus) · [light theme](docs/images/units/pulsus-light.png)</sub>
 
 </details>
 
@@ -374,7 +386,8 @@ simple synth every new track starts with, makes ten.
 
 ### Effects
 
-Twenty-three effects with a face of their own, each also a CLAP and VST3 plug-in for other DAWs.
+Twenty-three effects with a face of their own, each also a CLAP and VST3 plug-in for other DAWs,
+and Delay, edited in the inspector.
 Seven of them can be heard with and without, on the same excerpt of a demo song, at
 [cantusdaw.com](https://cantusdaw.com/#effects).
 
@@ -413,6 +426,7 @@ Seven of them can be heard with and without, on the same excerpt of a demo song,
 <td align="center" valign="top" width="25%"><a href="docs/images/units/anulus-dark.png"><img src="docs/images/units/thumbs/anulus.jpg" alt="Anulus, its window"></a><br><b>Anulus</b><br><sub>Ring modulator</sub></td>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/translatio-dark.png"><img src="docs/images/units/thumbs/translatio.jpg" alt="Translatio, its window"></a><br><b>Translatio</b><br><sub>Frequency shifter</sub></td>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/fluctus-dark.png"><img src="docs/images/units/thumbs/fluctus.jpg" alt="Fluctus, its window"></a><br><b>Fluctus</b><br><sub>Volume shaper</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/delay-dark.png"><img src="docs/images/units/thumbs/delay.jpg" alt="Delay, in the inspector"></a><br><b>Delay</b><br><sub>Stereo delay</sub></td>
 </tr>
 </table>
 
@@ -430,7 +444,7 @@ Aequalis is a 24-band equalizer with nine filter shapes, dynamic bands and per-b
 - Auto gain measured on K-weighted loudness, not estimated from the curve
 - Spectrum Grab labels peaks in Hz or note and dB; pull one to make a bell there
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/aequalis-light.png)</sub>
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-aequalis) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/aequalis-light.png)</sub>
 
 </details>
 <details>
@@ -447,7 +461,7 @@ Comprimo is a feed-forward compressor with peak or RMS detection, a feedback ble
 - Mix 0–200 %, dry gain for parallel compression, lookahead up to 20 ms
 - Level history with bars and beats; drag the threshold on it
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/comprimo-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-comprimo) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/comprimo-light.png)</sub>
 
 </details>
 <details>
@@ -464,7 +478,7 @@ Terminus is a two-stage mastering limiter, a look-ahead transient stage and a re
 - Monitor Out, 1:1, loudness-matched Match, or Δ (what the limiter takes away)
 - 4× soft clipper, 0–12 dB knee, TPDF dither 16–24 bit, silent on digital silence
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/terminus-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-terminus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/terminus-light.png)</sub>
 
 </details>
 <details>
@@ -481,7 +495,7 @@ Culmen is a mastering maximizer: a band stage of up to three bands and a full ba
 - Integrated, momentary, short-term, LRA, true peak, PLR and input loudness at once
 - One time axis shows input, output, brickwall reduction and a lane per band
 
-<sub>10 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/culmen-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-culmen) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/culmen-light.png)</sub>
 
 </details>
 <details>
@@ -498,7 +512,7 @@ Multiplex splits the spectrum into up to eight bands, each with an upper and a l
 - Per-band lookahead 0–20 ms; latency is the largest in use, always shown
 - Listen to output, delta or key; a history lane per band
 
-<sub>6 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/multiplex-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-multiplex) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/multiplex-light.png)</sub>
 
 </details>
 <details>
@@ -515,7 +529,7 @@ Sibilus turns sibilance down across the whole signal or only in its band. In Sin
 - Lookahead 0–15 ms reported for compensation; L/R, M/S, mid only or side only
 - Listen to Trigger or Removed; events, average and deepest cut per event
 
-<sub>6 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/sibilus-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-sibilus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/sibilus-light.png)</sub>
 
 </details>
 <details>
@@ -532,7 +546,7 @@ Porta is a gate, a downward and upward expander and a ducker around one detector
 - Learn thresholds from a passage; hits become a MIDI clip on a new drum track
 - Opens from a track's MIDI notes; lookahead 0–10 ms at a fixed 10 ms latency
 
-<sub>9 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/porta-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-porta) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/porta-light.png)</sub>
 
 </details>
 <details>
@@ -549,7 +563,7 @@ Tonsor cuts the peaks off a sound with a hard, soft or analog-style shoulder. Ov
 - Latency 0 at 1× without the guard, at most 1.9 ms at 48 kHz
 - Aliasing of a hard-clipped 7 kHz sine: −15.9 dB at 1×, −84.7 dB at 16×
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tonsor-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-tonsor) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tonsor-light.png)</sub>
 
 </details>
 <details>
@@ -566,7 +580,7 @@ Impetus makes the onsets of a sound louder or softer and its tails longer or sho
 - Shows a test hit through the real DSP and the last three seconds
 - Measured: attack at +100 % lifts the first 5 ms of each hit by 14.0 dB
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/impetus-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-impetus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/impetus-light.png)</sub>
 
 </details>
 <details>
@@ -582,7 +596,7 @@ Discrimen cuts a sound into its transient, the attack of every hit, and its body
 - Listen to both, the transient alone or the body alone
 - Sensitivity and speed set what counts as a transient and how long it lasts
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/discrimen-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-discrimen) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/discrimen-light.png)</sub>
 
 </details>
 <details>
@@ -599,7 +613,7 @@ Spatium is a 16-line feedback delay network whose decay time is a curve you draw
 - Shapeable early reflections, six-band post EQ and freeze; no latency
 - Ducking with threshold, range, attack and release, keyed from any strip
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/spatium-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-spatium) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/spatium-light.png)</sub>
 
 </details>
 <details>
@@ -616,7 +630,7 @@ Fervor bends a signal through tape, tube, overdrive, fuzz, clip, fold or a curve
 - Bias, low cut before and high cut after the curve, tilt, bit and rate reduction
 - Stereo, mid only or side only; dry/wet with the dry path delayed to match
 
-<sub>13 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/fervor-light.png)</sub>
+<sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-fervor) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/fervor-light.png)</sub>
 
 </details>
 <details>
@@ -633,7 +647,7 @@ Latitudo is the stereo tool for a strip or the master: width, mid and side gain,
 - Vectorscope with level rings; correlation overall, per band and input vs output
 - Rotation ±45°, balance, swap and per-channel polarity; no latency
 
-<sub>13 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/latitudo-light.png)</sub>
+<sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-latitudo) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/latitudo-light.png)</sub>
 
 </details>
 <details>
@@ -650,7 +664,7 @@ Speculum shows what is in a sound and never touches it: spectrum, spectrogram, a
 - Docks as a resizable tab; three at once measured with no frame lost at 60 Hz
 - Readings checked against the EBU Tech 3341 and 3342 test signals
 
-<sub>6 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/speculum-light.png)</sub>
+<sub>8 factory presets — [hear them](https://cantusdaw.com/#unit-speculum) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/speculum-light.png)</sub>
 
 </details>
 <details>
@@ -667,7 +681,7 @@ Tonus hears a monophonic voice and moves it to a target note chosen from a key a
 - Removes, keeps or doubles the singer's vibrato, or adds a created one
 - Pitch display of the last three seconds over note lanes, with a cents meter
 
-<sub>9 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tonus-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-tonus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tonus-light.png)</sub>
 
 </details>
 <details>
@@ -683,7 +697,7 @@ Concentus thickens and widens: three classic polysynth chorus modes (I, II and I
 - Bucket-brigade style lines darkened by a 2–20 kHz tone filter
 - Model changes glide over 40 ms, so switching while playing does not click
 
-<sub>10 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/concentus-light.png)</sub>
+<sub>14 factory presets — [hear them](https://cantusdaw.com/#unit-concentus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/concentus-light.png)</sub>
 
 </details>
 <details>
@@ -699,7 +713,7 @@ Flexus mixes the signal with a copy read from a swept delay. The sweep follows a
 - The comb drawn with the unit's own arithmetic, within 0.6 dB of what plays
 - Stereo spread of 0–180° between the channels' LFOs
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/flexus-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-flexus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/flexus-light.png)</sub>
 
 </details>
 <details>
@@ -715,7 +729,7 @@ Phasis runs the signal through a cascade of allpass stages and mixes it with the
 - Sweep bounds from 20 Hz to 16 kHz, moved on a log scale
 - Response drawn with the unit's own arithmetic, within 0.3 dB of what plays
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/phasis-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-phasis) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/phasis-light.png)</sub>
 
 </details>
 <details>
@@ -732,7 +746,7 @@ Tremor moves a sound's level, its place between the speakers or, in harmonic mod
 - Draws the next two cycles with a playhead where the unit is now
 - In another DAW, the plug-in follows that host's tempo and position
 
-<sub>9 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tremor-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-tremor) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/tremor-light.png)</sub>
 
 </details>
 <details>
@@ -748,7 +762,7 @@ Vibrans makes the pitch waver by reading the sound from a delay line whose lengt
 - Sine or triangle; stereo phase spread of 0–180°
 - The display draws the pitch, not the delay, over two cycles
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/vibrans-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-vibrans) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/vibrans-light.png)</sub>
 
 </details>
 <details>
@@ -765,7 +779,7 @@ Anulus multiplies the sound by a carrier, turning every partial into a pair of s
 - Draws every partial a 1 kHz tone becomes, within 1 dB of the DSP
 - DC removed after the product; stereo carrier phase spread of 0–180°
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/anulus-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-anulus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/anulus-light.png)</sub>
 
 </details>
 <details>
@@ -781,7 +795,7 @@ Translatio moves every partial by the same number of hertz, so a harmonic tone s
 - An LFO on the shift of up to ±1000 Hz, free or synced
 - Draws what a harmonic 220 Hz tone becomes; no latency
 
-<sub>8 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/translatio-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-translatio) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/translatio-light.png)</sub>
 
 </details>
 <details>
@@ -797,11 +811,28 @@ Fluctus makes the level follow a drawn curve that repeats with the song: the sid
 - Smoothing of 0–50 ms (2 ms by default) so a step never clicks
 - Offset nudges the curve onto the kick
 
-<sub>10 factory presets · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/fluctus-light.png)</sub>
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-fluctus) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/fluctus-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Delay</b> — Stereo delay. A stereo echo with ping-pong and repeats that darken, edited right in the inspector.</summary>
+
+<a href="docs/images/units/delay-dark.png"><img src="docs/images/units/delay-dark.png" alt="Delay — Stereo delay, in the inspector of Cantus"></a>
+
+Delay is Cantus's plain stereo echo: a time of up to two seconds, feedback, a tone filter inside the feedback path so each repeat is darker than the one before, and ping-pong between the sides. It has no window of its own: it opens under its insert in the inspector, where every parameter is automated and modulated like any other. A change of time glides through a fractional read head, so a sweep bends the pitch as tape does instead of clicking.
+
+- Time from 1 ms to 2 s; a sweep glides and bends the pitch like tape, never clicks
+- Feedback up to 95 %, with a tone filter from 200 Hz to 20 kHz in the loop
+- Ping-pong between left and right, or straight stereo repeats
+- Dry/wet on the insert; every parameter automated and modulated from the inspector
+- Slapback, dotted eighth, dub spiral, tape echo, doubler and more, by style and role
+- Its two-second line is allocated once: nothing allocated or locked while it plays
+
+<sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-delay) · [light theme](docs/images/units/delay-light.png)</sub>
 
 </details>
 
-Plus **Delay** and **Reverb**, simple and light, and any **CLAP or VST3** plug-in with a
+Plus the older **Reverb** (kept for the projects that use it), and any **CLAP or VST3** plug-in with a
 generic editor or its own window. Every effect is a bit-exact wire at settings that do
 nothing, and any strip can key any of them. Fervor, Latitudo and Culmen make the master
 chain a mastering chain. Design notes and feature matrices: [docs/plugins/](docs/plugins/)
@@ -966,7 +997,7 @@ you see its licence, size and origin, checked by SHA-256 and removable in Settin
 
 ### A dancer for your songs — characters, video, the stage
 
-![Trino, Miso, Lana, Tic, Corchea and Sol dancing together on one stage, each its own routine](docs/round35/cast/family-hero.gif)
+![Fuga, Volta, Trino, Miso, Lana, Tic, Corchea and Sol dancing together on one stage, each its own routine](docs/round37/chars/family-hero.gif)
 
 Add a **Saltator** track and a character dances over your workspace **to the beat** — no
 automation needed. Its moves, travel, speed, energy, lift, spin, size, mood and colour are
@@ -979,13 +1010,16 @@ equal, bit for bit, to the same song without them.
 ![Trino dancing over the workspace while Neon Tide plays: the arrangement, the mixer with the dancer's strip, the inspector's Dance rows and its follower listening to the kick](docs/images/dance-stage.png)
 
 <p>
-  <img src="docs/images/dancer-window.png" width="56%" alt="Saltator's window: the stage with Trino dancing under a spotlight, the six characters as dancing tiles, sixteen move pads from C3, and Dance, Body, Look and Ears">
-  <img src="docs/images/dance-companion.png" width="40%" alt="The companion window over the desktop with true transparency: Trino dancing, the song's name and tempo, the bar and beat, the master's level">
+  <img src="docs/images/dancer-window.png" width="56%" alt="Saltator's window: the stage with Fuga dancing under a spotlight, the eight characters as dancing tiles, sixteen move pads from C3, and Dance, Body, Look and Ears">
+  <img src="docs/images/dance-companion.png" width="40%" alt="The companion window's own pixels, with true transparency, over a desktop picture: Fuga dancing, the song's name and tempo, the bar and beat, the master's spectrum">
 </p>
 
-Six characters of our own come with Cantus — **Trino** the songbird, **Miso** the cat,
-**Lana** the lamb, **Tic** the metronome robot, **Corchea** the eighth note and **Sol** — each
-with every move and mood, in its own style, crisp at any size. Bring your own as **Lottie**
+Eight characters of our own come with Cantus — led by **Fuga** the ninja (masked, a torn
+crimson scarf in the wind: flips, high kicks, a crouched landing) and **Volta** the mecha
+(a V visor of light, a core that pulses on the beat, jets for its rocket jump), then
+**Trino** the songbird, **Miso** the cat, **Lana** the lamb, **Tic** the metronome robot,
+**Corchea** the eighth note and **Sol** — each with every move and mood, in its own style,
+crisp at any size. Bring your own as **Lottie**
 (`.json`, `.lottie`), **Aseprite** or **TexturePacker** sprite sheets or **DragonBones**
 skeletons: Cantus reads them with its own players, runs no script in them, bounds every
 size, shows their licence first and copies them into the project.

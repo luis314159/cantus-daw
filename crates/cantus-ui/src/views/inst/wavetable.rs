@@ -243,7 +243,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
 /// `--editor wavetable`: a preset that shows the displays off, and a live engine's
 /// numbers so the picture is alive.
 pub fn demo_setup(app: &mut CantusApp, track: TrackId) {
-    if let Some(p) = FACTORY_PRESETS
+    if let Some(p) = super::factory_presets(cantus_core::InstrumentKind::Wavetable)
         .iter()
         .find(|p| p.label_key == "unda.preset.glass_choir")
     {
@@ -292,5 +292,5 @@ pub fn demo_feed(app: &mut CantusApp) {
 
 /// The factory preset list, for the frame (and tests).
 pub fn presets() -> &'static [FactoryPreset] {
-    FACTORY_PRESETS
+    super::factory_presets(cantus_core::InstrumentKind::Wavetable)
 }

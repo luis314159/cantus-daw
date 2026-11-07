@@ -205,7 +205,10 @@ impl Grid {
         };
         let order: Vec<usize> = Dock::ALL
             .iter()
-            .flat_map(|d| (0..n).filter(move |i| p.strips[*i].dock == *d))
+            .flat_map(|d| {
+                (0..n).filter(move |i| p.strips[*i].dock == *d && p.strips[*i].on_desk())
+                // r37:drums
+            })
             .collect();
         // *In use*: a row for every strip that routes somewhere other than the master or
         // is fed; a column for every strip something feeds (a destination in use).

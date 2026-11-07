@@ -30,6 +30,7 @@ pub mod messages;
 pub mod midi;
 pub mod modulator;
 pub mod notefx;
+pub mod padout; // r37:drums (ADR 0100): instruments with several outputs
 pub mod pdc;
 pub mod pitch;
 pub mod preview;

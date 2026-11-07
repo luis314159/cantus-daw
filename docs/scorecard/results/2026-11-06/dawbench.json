@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "suite": "quick",
+  "machine": {
+    "class": "windows-amd-ryzen-7-7735hs-with-radeon-graphics",
+    "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+    "logical_cores": 16,
+    "os": "windows",
+    "arch": "x86_64"
+  },
+  "git": "b0457cac",
+  "date": "2026-11-07",
+  "metrics": [
+    {
+      "id": "dawbench.dsp.b64",
+      "unit": "Comprimo instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 120.0,
+        "p10": 120.0,
+        "p90": 120.0,
+        "min": 120.0,
+        "max": 120.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "dawbench.dsp.b128",
+      "unit": "Comprimo instances",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 120.0,
+        "p10": 120.0,
+        "p90": 120.0,
+        "min": 120.0,
+        "max": 120.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "dawbench.vi.b64",
+      "unit": "Calor voices",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 40.0,
+        "p10": 40.0,
+        "p90": 40.0,
+        "min": 40.0,
+        "max": 40.0,
+        "runs": 3
+      }
+    },
+    {
+      "id": "dawbench.vi.b128",
+      "unit": "Calor voices",
+      "better": "higher",
+      "gate": false,
+      "summary": {
+        "median": 40.0,
+        "p10": 40.0,
+        "p90": 40.0,
+        "min": 40.0,
+        "max": 40.0,
+        "runs": 3
+      }
+    }
+  ],
+  "hot_spots": []
+}

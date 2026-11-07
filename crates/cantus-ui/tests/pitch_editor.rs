@@ -237,9 +237,12 @@ impl Rig {
 
     /// Where a word was drawn last frame.
     fn word(&self, w: &str) -> Pos2 {
+        // Under the top bar: from round 37 the bar shows its own words at this width (the
+        // inputs' MIDI among them).
+        let bar = cantus_ui::views::transport::HEIGHT * 1.2;
         self.texts
             .iter()
-            .find(|(t, _)| t == w)
+            .find(|(t, r)| t == w && r.top() > bar)
             .map(|(_, r)| r.center())
             .unwrap_or_else(|| panic!("{w:?} not drawn: {:?}", self.texts))
     }

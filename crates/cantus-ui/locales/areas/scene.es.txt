@@ -1,0 +1,31 @@
+# Area: scene - round 37 (ADR 0104). Every key here needs its twin in scene.en.txt
+# La escena de Chorda: el piano en su sala de grabación, y su aspecto.
+
+chorda.scene = El piano y su sala
+chorda.look.body = Piano
+chorda.look.finish = Acabado
+chorda.look.hint = El aspecto cambia solo la imagen, nunca el sonido.
+chorda.look.body.concert = Gran cola de concierto
+chorda.look.body.grand = Media cola
+chorda.look.body.parlour = Cuarto de cola
+chorda.look.body.upright = Piano vertical
+chorda.look.finish.black = Negro lacado
+chorda.look.finish.white = Blanco lacado
+chorda.look.finish.walnut = Nogal
+chorda.look.finish.rosewood = Palisandro
+cmd.chorda_look = Cambiar el aspecto del piano
+
+# Lo que muestra la escena, en palabras (la línea del lector de pantalla)
+chorda.scene.caption = {body}, {finish} — {lid}, {mics}, {room}
+chorda.scene.lid_closed = la tapa cerrada
+chorda.scene.lid_short = la tapa en el puntal corto
+chorda.scene.lid_full = la tapa en el puntal largo
+chorda.scene.top_closed = la tapa superior cerrada
+chorda.scene.top_open = la tapa superior abierta
+chorda.scene.mics_close = los micrófonos sobre los martillos
+chorda.scene.mics_player = los micrófonos a la altura del pianista
+chorda.scene.mics_far = los micrófonos lejos, en la sala
+chorda.scene.room_booth = en una cabina
+chorda.scene.room_studio = en la sala de un estudio
+chorda.scene.room_hall = en una sala de conciertos
+chorda.scene.room_church = en una iglesia

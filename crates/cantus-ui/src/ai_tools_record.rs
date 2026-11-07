@@ -62,6 +62,7 @@ fn why_word(w: Why) -> &'static str {
         Why::Dancer => "dancer",
         Why::External(_) => "external",
         Why::CueSolo(_) => "cue_solo",
+        Why::SplitKit(_) => "split_kit", // r37:drums
     }
 }
 

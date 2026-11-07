@@ -15,7 +15,16 @@ de la canción, en [la exportación de video](video.md); tus propios personajes,
 
 *Añadir pista* (o el selector de dispositivos, Ctrl+T) ▸ el estante **Visual** ▸
 **Saltator**. La pista nueva se llama *Saltator*, tiene de icono una figura que baila, y
-baila en ella Trino, el pájaro cantor del reparto. Se abre su ventana.
+baila en ella Fuga, el ninja del reparto. Se abre su ventana.
+
+**El reparto.** Lo encabezan Fuga, el ninja (enmascarado, con una bufanda carmesí rasgada
+al viento: volteretas, patadas altas, un aterrizaje agachado, una reverencia marcial), y
+Volta, el mecha (armadura de metal oscuro, un visor en V de luz cuyas rendijas muestran su
+ánimo, un núcleo altavoz que late con el compás, propulsores que se encienden al saltar:
+pop and lock, el salto cohete, una pose de héroe); luego la familia: Trino, el pájaro
+cantor; Miso, el gato; Lana, la oveja; Tic, el robot metrónomo; Corchea, la nota; Sol, el
+niño. Una canción hecha antes de Fuga conserva su personaje: un bailarín guardado sin
+ninguno sigue con Trino.
 
 ## La ventana
 

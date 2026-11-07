@@ -14,13 +14,17 @@ use serde::{Deserialize, Serialize};
 /// - 3: a pack built at install ([`Pack::build`]: a multi-microphone DrumGizmo kit mixed
 ///   into the stereo instrument Exemplar plays — round 28), and a pack instrument's
 ///   `voices`.
-pub const FORMAT: u32 = 3;
+/// - 4: the `loops` category (round 37: Cantus's own loops, ADR 0101).
+pub const FORMAT: u32 = 4;
 
 /// The first format that may carry a credit line.
 pub const FORMAT_ATTRIBUTION: u32 = 2;
 
 /// The first format that may carry a build step.
 pub const FORMAT_BUILD: u32 = 3;
+
+/// The first format that may carry the `loops` category.
+pub const FORMAT_LOOPS: u32 = 4;
 
 /// The licences content may be under (ADR 0042 §1): CC0 1.0 and CC BY 3.0 / 4.0.
 /// Everything else — NC, ND, SA, retired Creative Commons licences, any other id — is
@@ -244,6 +248,8 @@ pub enum Category {
     OneShots,
     Instruments,
     Fx,
+    /// Loops cut to the bar (format 4).
+    Loops,
 }
 
 impl Category {
@@ -255,6 +261,7 @@ impl Category {
             Category::OneShots => "samples.cat.one_shots",
             Category::Instruments => "samples.cat.instruments",
             Category::Fx => "samples.cat.fx",
+            Category::Loops => "samples.cat.loops",
         }
     }
 }
@@ -783,6 +790,11 @@ impl Manifest {
                         return Err(bad_inst("voices must be 1…64"));
                     }
                 }
+            }
+            if p.category == Category::Loops && self.format < FORMAT_LOOPS {
+                return Err(bad(format!(
+                    "the loops category needs manifest format {FORMAT_LOOPS}"
+                )));
             }
             if let Some(b) = &p.build {
                 if self.format < FORMAT_BUILD {

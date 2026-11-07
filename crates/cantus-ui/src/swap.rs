@@ -229,7 +229,12 @@ impl CantusApp {
                 if self.swap_keep.matching =>
             {
                 let (spec, kept) = carry_over(from, to.kind);
-                (InstrumentSpec::Native(spec), kept)
+                // r37:chars — what is carried over is rebuilt from a bare spec: a dancer
+                // still names its character (ADR 0105).
+                (
+                    InstrumentSpec::Native(crate::dance_live::new_spec(spec)),
+                    kept,
+                )
             }
             (_, spec) => (localized(spec), 0),
         };

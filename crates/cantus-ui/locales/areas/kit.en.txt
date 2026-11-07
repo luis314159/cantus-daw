@@ -85,6 +85,12 @@ kit.token.depth.dark = Shade under parts
 kit.token.depth.sheen = Sheen on bars (from the top)
 kit.token.depth.glow = Warm glow in large grounds
 kit.token.depth.glow_cool = Cool glow in large grounds
+kit.token.depth.bevel = Light on an object's upper bevel
+kit.token.depth.bevel_shade = Shade on an object's lower bevel
+kit.token.depth.inner_shadow = Shadow inside a well
+kit.token.depth.lip = Light on a well's lower lip
+kit.token.depth.specular = Shine on metal and glass
+kit.token.depth.drop = Shadow an object casts
 theme.form.depth = Depth
 theme.form.roundness = Roundness
 theme.form.density = Density
@@ -300,3 +306,7 @@ kit.mixer.width.wide = Wide
 kit.mixer.width.xl = Extra large
 kit.mixer.width.xl.short = XL
 kit.mixer.add = Add a track
+
+# round 37, finish: a switch's state, in its tip
+kit.state.on = on
+kit.state.off = off

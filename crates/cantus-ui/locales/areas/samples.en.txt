@@ -1,6 +1,7 @@
 # Area: the sample browser and the content manager (round 20, ADR 0030). Every key here needs its twin in samples.es.txt.
 
 samples.title = Browser
+samples.heading = Sounds
 samples.toggle = Show or hide the browser
 action.toggle-browser = Browser
 samples.content = Sound packs…
@@ -108,3 +109,14 @@ samples.missing.locate = Find the folder…
 samples.missing.not_there = That folder does not hold the pack's missing files
 cmd.samples_relink = Use the installed sound pack
 samples.sound.preset_layers = {name} · {n} layers
+samples.preview.play = Play the sound
+samples.preview.stop = Stop the sound
+samples.family = Category
+samples.family.all = All
+samples.family.drums = Drums
+samples.family.loops = Loops
+samples.family.melodic = Melodic
+samples.family.fx = FX
+samples.preview.volume = Preview level (the sound starts again at the new level)
+samples.detail.mono = Mono
+samples.detail.stereo = Stereo

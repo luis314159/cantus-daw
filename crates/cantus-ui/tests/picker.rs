@@ -123,8 +123,9 @@ fn the_catalogue_lists_every_native_kind_and_every_scanned_plugin() {
     for k in InstrumentKind::ready_kinds() {
         assert!(has(&PickChoice::Instrument(k)), "{k:?} missing");
     }
+    // r37:library — every kind offered; the older Reverb only in the projects that have it.
     for k in EffectKind::ALL {
-        assert!(has(&PickChoice::Effect(k)), "{k:?} missing");
+        assert_eq!(has(&PickChoice::Effect(k)), k.offered(), "{k:?}");
     }
     let hosted: Vec<_> = devices
         .iter()
@@ -181,13 +182,14 @@ fn search_finds_by_name_vendor_category_and_preset_and_folds_accents() {
     );
     assert_eq!(names(Role::Effect, "fabfilter"), vec!["Pro-Q 4"]);
     let verbs = names(Role::Effect, "reverb");
-    for n in ["Spatium", "Reverb", "Big Verb"] {
+    // r37:library — the older Reverb is not offered.
+    for n in ["Spatium", "Big Verb"] {
         assert!(verbs.iter().any(|x| x == n), "{n} not in {verbs:?}");
     }
     // Spanish words and accents: "batería" and "bateria" find the drums.
     assert!(names(Role::Instrument, "batería")
         .iter()
-        .any(|n| n == "Pulsus II"));
+        .any(|n| n == "Pulsus III")); // r37:drums
     assert!(names(Role::Instrument, "bateria")
         .iter()
         .any(|n| n == "Kit Machine"));

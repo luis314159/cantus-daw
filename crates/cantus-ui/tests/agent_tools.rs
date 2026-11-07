@@ -53,9 +53,11 @@ fn the_catalogue_is_complete_and_generated_from_the_tables() {
         .iter()
         .map(|u| u["id"].as_str().unwrap())
         .collect();
+    // r37:fixes — the retired Reverb is offered to no agent (Spatium is the reverb).
+    assert!(!ids.contains(&"reverb"), "the retired Reverb is listed");
     for kind in EffectKind::ALL
         .into_iter()
-        .filter(|k| *k != EffectKind::External)
+        .filter(|k| *k != EffectKind::External && k.offered())
     {
         let (id, _) = cantus_ai::tools_project::args::effect_names(kind);
         assert!(ids.contains(&id), "{kind:?} is not in the list");

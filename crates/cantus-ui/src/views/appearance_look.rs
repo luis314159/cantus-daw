@@ -237,6 +237,28 @@ pub fn icon_section(app: &mut CantusApp, ui: &mut Ui) {
     caption(ui, &t("look.icon.note"), s.t.text_dim);
 }
 
+/// The fader cap every fader wears (round 37, the owner's choice): Classic or Metal, live.
+/// // r37:finish
+pub fn fader_section(app: &mut CantusApp, ui: &mut Ui) {
+    use crate::kit::fader::FaderCap;
+    let s = Style::current();
+    w::band(ui, Src::Key("look.fader"));
+    let mut sel = FaderCap::ALL
+        .iter()
+        .position(|c| *c == app.appearance.fader)
+        .unwrap_or(0);
+    let labels: Vec<Src<'_>> = FaderCap::ALL
+        .iter()
+        .map(|c| Src::Key(c.name_key()))
+        .collect();
+    let tip = t("look.fader.tip");
+    if crate::kit::widgets::segmented(ui, &mut sel, &labels, &tip, 220.0).changed() {
+        let c = FaderCap::ALL[sel];
+        change(app, |a| a.fader = c);
+    }
+    caption(ui, &t("look.fader.note"), s.t.text_dim);
+}
+
 fn caption(ui: &mut Ui, s: &str, color: egui::Color32) {
     let st = Style::current();
     let (rect, _) =

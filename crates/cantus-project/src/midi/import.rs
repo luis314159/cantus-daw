@@ -8,7 +8,7 @@ use super::gm;
 use super::smf::{self, Division, Event, MidiError};
 use crate::report::Report;
 use cantus_core::{
-    Clip, ClipId, Color, Command, Dock, InstrumentSpec, Note, NoteId, Pitch, Project, PulsusParams,
+    Clip, ClipId, Color, Command, InstrumentSpec, Note, NoteId, Pitch, Project, PulsusParams,
     StripId, Ticks, TimeSignature, Track, TrackId, PPQ,
 };
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -1088,16 +1088,8 @@ struct FreeStrips {
 
 impl FreeStrips {
     fn new(project: &Project) -> Self {
-        let used = |id: StripId| project.tracks.iter().any(|t| t.strip == Some(id));
-        let middle = project
-            .strips
-            .iter()
-            .filter(|s| s.dock == Dock::Middle && !used(s.id));
-        let docked = project
-            .strips
-            .iter()
-            .filter(|s| s.dock != Dock::Middle && !used(s.id));
-        let mut free: Vec<StripId> = middle.chain(docked).map(|s| s.id).collect();
+        // r37:fixes — the project's own rule: never a pad's strip, a chain or a VCA.
+        let mut free: Vec<StripId> = project.free_strips().collect();
         free.reverse();
         FreeStrips { free }
     }

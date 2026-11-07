@@ -105,3 +105,4 @@ topbar.zoom = Zoom de la interfaz
 # El nombre del proyecto
 topbar.name = Nombre del proyecto
 topbar.name_tip = Nombre del proyecto: haz clic para cambiarlo
+topbar.summary = {tracks} pistas · {strips} canales · {bars} compases · {time}

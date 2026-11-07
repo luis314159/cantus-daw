@@ -63,6 +63,9 @@ pub mod picker_thumbs;
 pub mod pitch;
 pub mod pitch_lane;
 pub mod plugin_notice;
+pub mod preset_browser; // r37:library
+pub mod preset_browser_keys; // r37:library
+pub mod preset_browser_rows; // r37:library
 pub mod start_page;
 pub mod template_name;
 pub mod video_export; // r35:video — the video dialog (ADR 0088)
@@ -70,6 +73,7 @@ pub mod video_export; // r35:video — the video dialog (ADR 0088)
 pub mod clipfx_settings;
 pub mod freeze_monitor;
 pub mod freeze_view;
+pub mod mixer_inserts; // r37:finish — the insert panel (ADR 0103)
 pub mod plugin_view;
 pub mod plugin_view_inst;
 pub mod plugins;
@@ -81,7 +85,10 @@ pub mod route_menu;
 pub mod routing;
 pub mod samples_browser;
 pub mod samples_content;
+pub mod samples_detail; // r37:finish — the chosen sound's card (ADR 0103)
 pub mod samples_paint;
+pub mod samples_peaks; // r37:finish — a WAV thumbnail read in pieces (ADR 0103)
+pub mod samples_thumbs; // r37:finish — the browser's row details (ADR 0103)
 /// Painting an engraved score (round 32, ADR 0075).
 pub mod score_bar;
 pub mod score_paint;

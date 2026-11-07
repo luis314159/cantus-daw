@@ -106,6 +106,9 @@ fn main() {
     }
     let only: Vec<&String> = rest.iter().filter(|a| !a.starts_with("--")).collect();
     std::fs::create_dir_all(&dir).expect("create the output directory");
+    // Chorda's scene bakes on the painting thread here: a screenshot cannot wait for its
+    // worker (ADR 0104). r37:scene
+    cantus_ui::views::inst::chorda::scene::set_blocking(true);
     for unit in UNITS {
         if !only.is_empty() && !only.iter().any(|o| o.as_str() == unit) {
             continue;

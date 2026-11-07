@@ -128,13 +128,15 @@ fn a_floating_dancer_is_see_through_over_the_workspace_at_physical_pixels() {
     let ((w1, h1, b1), (w2, h2, b2)) = (sizes[0], sizes[1]);
     // Drawn again at twice the pixels, never stretched: the same body in points.
     assert!((b1.height() - b2.height()).abs() < 1.5, "{b1:?} {b2:?}");
+    // Each box is rounded up to a bucket, so the 100 % one may carry up to a bucket of
+    // slack that doubles at 200 % (Fuga, round 37: 481 → 512 at 100 %, 960 at 200 %).
     let bucket = cantus_ui::stage::geom::BUCKET;
     assert!(
-        w2 + bucket >= 2 * w1 && w2 <= 2 * w1 + bucket,
+        w2 + 2 * bucket >= 2 * w1 && w2 <= 2 * w1 + bucket,
         "{w1} → {w2}"
     );
     assert!(
-        h2 + bucket >= 2 * h1 && h2 <= 2 * h1 + bucket,
+        h2 + 2 * bucket >= 2 * h1 && h2 <= 2 * h1 + bucket,
         "{h1} → {h2}"
     );
 }

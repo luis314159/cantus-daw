@@ -25,6 +25,8 @@ pub enum Target {
     Arrangement,
     /// The Session pane: an audio clip in the empty slot under the pointer. // r33:launcher
     Session, // r33:launcher
+    /// An Exemplar's Slices card: the loop sliced into it (ADR 0099). // r37:piano
+    Slicer { track: TrackId }, // r37:piano
 }
 
 #[derive(Clone, Default)]
@@ -119,6 +121,10 @@ pub fn land(app: &mut CantusApp, path: &Path, target: Target, rect: Rect, pos: P
             crate::audio_files::drop_audio(app, &[path.to_path_buf()], Some(pos));
         }
         Target::Session => crate::views::session::drop::sample(app, path, pos), // r33:launcher
+        Target::Slicer { track } => {
+            // r37:piano
+            app.slice_into_track(track, path, cantus_core::sectio::SliceMode::Markers);
+        }
     }
     app.samples.notice = Some(crate::i18n::tf(
         "samples.notice.dropped",

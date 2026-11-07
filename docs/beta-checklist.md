@@ -188,6 +188,66 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
 - [ ] **Chorda — prueba a ciegas** (ADR 0059): ≥ 20 oyentes, frases iguales en Chorda,
       Pianoteq 9 y un piano de muestras (p. ej. Salamander); que no sepan cuál es cuál.
       Anotar preferencias y comentarios en `docs/round28/sound.md`.
+- [ ] **Chorda modelo 2 — tu ABX** (ronda 37, ADR 0098) <!-- r37:piano -->: en una
+      terminal, `cargo run --release -p cantus-ui --example chorda_abx -- F:\projects\chorda-abx`
+      (instala el Salamander si falta, ~740 MB, y escribe la carpeta en unos minutos). Abre
+      `F:\projects\chorda-abx\index.html` con auriculares, el volumen fijo desde el primer
+      clip: **ABX 1** (Chorda 2 / Salamander, 16 ensayos), **ABX 2** (Chorda 1 / Chorda 2,
+      16 ensayos), **Preferencia** (14 preguntas ciegas, con una nota del porqué). En
+      *Resultados*, *Descargar resultados (JSON)* y envía el archivo (o pega los números y
+      las notas en `docs/round37/piano.md`). Lo que cierra Chorda: el modelo 2 preferido al
+      modelo 1 y sin preferencia significativa por el Salamander. `LEEME.md` en la carpeta
+      lo explica.
+  - [x] Primera ABX hecha (2026-11-05): ABX 1 15/16, ABX 2 15/16; preferencia Chorda 2
+        sobre Chorda 1 7 de 7, Salamander sobre Chorda 2 7 de 7 («muchos medios, algo
+        borroso, un poco nasal; el Salamander más vivo, mejores graves y agudos»).
+  - [ ] **Tercera ABX, con el Chorda integrado** <!-- r37:piano -->: la carpeta
+        `F:\projects\daw-r37\abx-kit3\` (ya escrita; abre `index.html`; la de `abx-kit2`
+        quedó vieja), igual que la primera, y envía el JSON. Además, en Chorda (modelo 2) gira **Micros** de 0 % (sobre los martillos) a
+        100 % (en el público), **Tapa** cerrada / media / abierta y **Tamaño** de la sala, y
+        prueba cinco presets (Cercano e íntimo, Pop al frente, Cola en sala, Cinemático
+        suave, Estudio seco): ¿algún ajuste
+        suena a filtro de peine, nasal o con saltos al moverlo mientras suena? ¿Qué
+        perspectiva querrías por defecto?
+- [ ] **Sectio, el cortador de Exemplar — por el oído** (ronda 37, ADR 0099) <!-- r37:piano -->:
+      arrastra a la tarjeta *Cortes* de un Exemplar vacío cinco o seis loops CC0 de
+      batería y uno de piano o guitarra (anota de dónde salen y su licencia, p. ej.
+      OpenGameArt o Freesound con CC0), y en cada uno di si los cortes caen donde oyes los
+      golpes; *Volcar al piano roll* debe repetir el loop igual. Medido: 91,9 % de los golpes
+      a menos de 10 ms en loops hechos con Cantus, 75,8 % en MDB Drums (grabaciones reales
+      anotadas a mano; 88 % a menos de 20 ms) — el objetivo era 95 %. Si un loop sale mal,
+      guárdalo y dímelo.
+      Prueba también el editor de la tarjeta (arrastrar, clic derecho, doble clic, *Volver a
+      cortar* con vista previa) y dos estilos de la biblioteca (*Break de batería*, *Corte
+      vocal*) sobre tu propio loop.
+- [ ] **Los kits y los presets bajos, por el oído** (ronda 37, ADR 0100 y 0101)
+      <!-- r37:drums -->: los ocho kits nuevos de Pulsus (en el menú de kits) y los 20
+      presets que quedaron por debajo de su ventana de volumen por su margen (la lista
+      está en `docs/round37/library.md`, *Open*): ¿alguno suena flojo o se pasa? Y la
+      **pregunta de los presets de sidechain**: los presets de ducking que necesitan una
+      señal clave (Porta y Comprimo *Duck*) no suenan solos al insertarlos; ¿los dejamos
+      así (con su nota) o se quitan de la lista de inicio?
+- [ ] **La escena de Chorda, a la vista** (ronda 37, ADR 0104) <!-- r37:scene -->: abre
+      Chorda, gira *Cuerpo* y *Acabado* y compárala con las fotos de las librerías de piano
+      premium (`docs/round37/scene/`): ¿se ve profesional y creíble?
+- [ ] **El acabado, en la app real** (ronda 37, ADR 0103) <!-- r37:finish -->: las trece
+      zonas (barra superior, transporte, botones, mezclador, tira, fader/LED/perilla,
+      arreglo, encabezados, rack, teclado del piano roll, EQ, navegador, tipografía) a
+      100/125/150 % en los temas Noche y Papel; anota lo que se vea mal.
+- [ ] **Fuga y Volta** (ronda 37, ADR 0105) <!-- r37:chars -->: en el escenario y en la
+      ventana de compañía, con una canción sonando: ¿se ven cool y serios?
+- [x] **REAPER instalado** (2026-11-06): REAPER 7.85, evaluación de 60 días, portátil en
+      `F:\projects\daw-r37\reaper` (bórralo con la carpeta); el arranque ya se midió contra
+      Cantus y FL (`docs/scorecard/README.md`).
+- [ ] **El DAWbench en vivo** (ronda 37, ADR 0102) <!-- r37:integration -->: con tu interfaz
+      conectada y el mismo búfer en los tres (64 y 128), arma la sesión de
+      `docs/perf/benchmark.md` §3 en Cantus, FL y REAPER: una sierra sostenida por pista (en FL
+      y REAPER, la pista 1 de Cantus exportada a WAV) y 8 Comprimo por pista (en FL y REAPER el
+      CLAP/VST3: `cargo run -p xtask -- bundle comprimo`), umbral −30 dB, 4:1. Empieza con 8
+      pistas, toca el loop 60 s; si no hay cortes (el contador de cada programa: la barra de
+      Cantus, *underruns* de FL, el *Performance Meter* de REAPER), agrega 8 más, y de una en
+      una cerca del límite. Tres pasadas, la mediana. Anota versión, interfaz, driver y
+      temperatura al empezar, y pásame los números; luego lo mismo con Surge XT (VI, §4).
 
 ### Equipo externo y superficies (ronda 36, ADR 0094 y 0095) <!-- r36:external -->
 

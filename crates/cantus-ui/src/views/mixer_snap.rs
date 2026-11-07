@@ -206,7 +206,8 @@ pub(super) fn strip_rows(app: &CantusApp, id: StripId, e: &mut Vec<Entry>) {
         return;
     };
     e.push(Entry::band("mix.menu.band"));
-    if s.kind == StripKind::Audio || s.kind == StripKind::Vca {
+    if matches!(s.kind, StripKind::Audio | StripKind::Vca | StripKind::Pad) {
+        // r37:drums
         e.push(Entry::sub(Label::Key("mix.menu.vca"), Sub::Vca(id)));
     }
     e.push(

@@ -30,6 +30,14 @@ pub enum StripKind {
     /// A VCA fader: no audio, no inserts, no routing; a fader, mute and solo that act on
     /// the strips that follow it.
     Vca,
+    /// A pad's chain (round 37, ADR 0100): the inserts on one pad of a kit, which the pad
+    /// plays into and which outputs where the pad is heard. Audio like a channel, but it
+    /// lives on the pad — the desk does not show it. // r37:drums
+    Chain, // r37:drums
+    /// A pad's own strip, made by *Split to strips* (round 37, ADR 0100): a channel of the
+    /// desk like any other, which goes with its kit (merge, another kit, the track deleted)
+    /// and is never handed to a new track. // r37:drums
+    Pad, // r37:drums
 }
 
 impl StripKind {
@@ -228,8 +236,8 @@ pub fn compile(project: &Project, lanes: &mut Vec<AutoLane>) -> Compiled {
             .position(|l| l.target == AutoTarget::StripGain(s))
     };
     for (i, s) in project.strips.iter().enumerate() {
-        if s.kind != StripKind::Audio {
-            continue;
+        if s.kind == StripKind::Vca {
+            continue; // r37:drums — a pad's chain is audio a VCA may govern too
         }
         let gov = project.vca_governing(s.id);
         if gov.is_empty() {

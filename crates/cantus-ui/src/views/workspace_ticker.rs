@@ -126,9 +126,17 @@ pub fn finish(ctx: &Context) -> Tick {
         t
     });
     if let Some(d) = tick.requested {
-        ctx.request_repaint_after(d);
+        ctx.request_repaint_after(d + predicted(ctx));
     }
     tick
+}
+
+/// The frame time egui takes off every delayed request ("less likely to over-shoot",
+/// `Context::request_repaint_after`), given back so the wait is the one decided. Without it
+/// the 17 ms became 0.3 ms and the monitor set the rate: 144 frames a second on a 144 Hz
+/// screen, a core and a half at rest (round 37's scorecard).
+fn predicted(ctx: &Context) -> Duration {
+    Duration::try_from_secs_f32(ctx.input(|i| i.predicted_dt)).unwrap_or_default()
 }
 
 /// What the last finished frame decided.

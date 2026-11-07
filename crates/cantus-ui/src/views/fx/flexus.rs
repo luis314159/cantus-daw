@@ -26,71 +26,8 @@ use std::fmt::Write as _;
 const KIND: EffectKind = EffectKind::Flanger;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.flexus.jet",
-        &[("mix", 0.5), ("fb", 0.75), ("rate", 0.15), ("depth", 6.0)],
-    ),
-    (
-        "preset.flexus.tape_tz",
-        &[
-            ("tz", 1.0),
-            ("invert", 1.0),
-            ("mix", 0.5),
-            ("rate", 0.12),
-            ("depth", 8.0),
-            ("shape", 0.0),
-        ],
-    ),
-    (
-        "preset.flexus.mistress",
-        &[
-            ("mix", 0.5),
-            ("fb", 0.55),
-            ("rate", 0.08),
-            ("delay", 1.0),
-            ("depth", 5.0),
-        ],
-    ),
-    (
-        "preset.flexus.negative_metal",
-        &[("mix", 0.5), ("fb", -0.85), ("rate", 0.4), ("depth", 3.0)],
-    ),
-    (
-        "preset.flexus.synced_sweep",
-        &[
-            ("mix", 0.5),
-            ("fb", 0.6),
-            ("sync", 1.0),
-            ("div", 3.0),
-            ("spread", 90.0),
-        ],
-    ),
-    (
-        "preset.flexus.drum_bus",
-        &[
-            ("mix", 0.35),
-            ("fb", 0.3),
-            ("sync", 1.0),
-            ("div", 2.0),
-            ("depth", 2.5),
-        ],
-    ),
-    (
-        "preset.flexus.envelope",
-        &[
-            ("mode", 1.0),
-            ("mix", 0.5),
-            ("fb", 0.65),
-            ("sens", 24.0),
-            ("rel", 250.0),
-        ],
-    ),
-    (
-        "preset.flexus.manual",
-        &[("mode", 2.0), ("mix", 0.5), ("fb", 0.8), ("manual", 0.3)],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 const MODE_KEYS: [&str; 3] = ["flexus.mode.0", "flexus.mode.1", "flexus.mode.2"];
 const MODE_WORDS: [&str; 3] = ["flexus.words.0", "flexus.words.1", "flexus.words.2"];

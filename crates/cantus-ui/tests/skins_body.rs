@@ -19,6 +19,9 @@ use egui::{Pos2, Rect, Shape};
 
 /// The sentinel's hue, and the probe skin's.
 const SENTINEL: f32 = 330.0;
+/// The sentinel's saturation: under the track palette's least (0.42 since round 37), so a
+/// unit's own palette colour (Spatium's band handles) never reads as a plain token.
+const SENTINEL_SAT: f32 = 0.28;
 const PROBE_HUE: f32 = 250.0;
 
 static PROBE: Skin = Skin {
@@ -60,7 +63,7 @@ fn sentinel_tokens() -> Tokens {
             tok,
             Hsl {
                 h: SENTINEL,
-                s: 0.5,
+                s: SENTINEL_SAT,
                 l: h.l.clamp(0.08, 0.92),
             }
             .rgb(),
@@ -145,7 +148,7 @@ fn in_sentinel_hue(c: egui::Color32) -> bool {
     let h = Hsl::of(egui::Color32::from_rgb(un(r), un(g), un(b)));
     // The sentinel exactly — its hue and its saturation (shades keep both); a palette
     // colour of the unit's own (Spatium's band handles) is not one.
-    (h.s - 0.5).abs() < 0.06 && (h.h - SENTINEL).abs() < 5.0
+    (h.s - SENTINEL_SAT).abs() < 0.06 && (h.h - SENTINEL).abs() < 5.0
 }
 
 fn in_probe_hue(c: egui::Color32) -> bool {

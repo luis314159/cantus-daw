@@ -1,0 +1,135 @@
+# Impetus transient shaper: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.impetus.punch"
+note = "More attack on every hit."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"attack" = 0.4
+"out" = -2.8
+"speed" = 12
+
+[[preset]]
+key = "preset.impetus.snap"
+note = "Attack above 1.5 kHz only: snap without boom."
+styles = ["pop", "house"]
+roles = ["drums"]
+[preset.values]
+"attack" = 0.8
+"band" = 1
+"out" = -2
+"speed" = 6
+"xover" = 1500
+
+[[preset]]
+key = "preset.impetus.soften"
+note = "Less attack: softer, further away."
+styles = ["lofi", "jazz"]
+roles = ["drums"]
+[preset.values]
+"attack" = -0.6
+"out" = 2.6
+"speed" = 20
+
+[[preset]]
+key = "preset.impetus.tight"
+note = "More attack, much less tail: a tight, dry kit."
+styles = ["house", "pop"]
+roles = ["drums"]
+[preset.values]
+"attack" = 0.4
+"length" = 180
+"out" = -2.9
+"sustain" = -0.6
+
+[[preset]]
+key = "preset.impetus.room"
+note = "The tails brought up: more of the room."
+styles = ["rock", "film"]
+roles = ["drums"]
+[preset.values]
+"length" = 600
+"out" = -0.6
+"sustain" = 0.7
+
+[[preset]]
+key = "preset.impetus.dry"
+note = "The tails taken down."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"length" = 120
+"out" = 0.6
+"sustain" = -0.8
+
+[[preset]]
+key = "preset.impetus.kick"
+note = "Attack under 150 Hz only: a kick that thumps."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"attack" = 0.5
+"band" = 2
+"out" = -4.5
+"speed" = 18
+"xover" = 150
+
+[[preset]]
+key = "preset.impetus.pluck"
+note = "A pluck with more pick and a longer ring."
+styles = ["pop", "latin"]
+roles = ["creative"]
+[preset.values]
+"attack" = 0.5
+"length" = 400
+"out" = -1
+"speed" = 8
+"sustain" = 0.3
+
+[[preset]]
+key = "preset.impetus.trap_snap"
+note = "Sharp attack and short tails: the trap snare and clap."
+styles = ["trap"]
+roles = ["drums"]
+[preset.values]
+"attack" = 0.5
+"length" = 150
+"out" = -1.7
+"speed" = 5
+"sustain" = -0.4
+
+[[preset]]
+key = "preset.impetus.acoustic_guitar"
+note = "A strummed guitar with its pick brought forward."
+styles = ["latin", "worship"]
+roles = ["creative"]
+[preset.values]
+"attack" = 0.35
+"band" = 1
+"speed" = 8
+"xover" = 2000
+
+[[preset]]
+key = "preset.impetus.vocal_consonants"
+note = "Consonants a little forward: a vocal that reads."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"attack" = 0.25
+"band" = 1
+"speed" = 4
+"xover" = 3000
+
+[[preset]]
+key = "preset.impetus.ambient_bloom"
+note = "Attacks softened, tails longer: everything blooms."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"attack" = -0.4
+"length" = 800
+"out" = -0.6
+"sustain" = 0.5

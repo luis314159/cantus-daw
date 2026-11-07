@@ -1,0 +1,57 @@
+{
+  "name": "reaper",
+  "exe": "F:\\projects\\daw-r37\\reaper\\reaper.exe",
+  "version": "7.85",
+  "runs": 5,
+  "idle_share": 0.35,
+  "date": "2026-11-06 21:32",
+  "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics        ",
+  "window_ms_median": 1940.0,
+  "window_ms_best": 1918.0,
+  "settled_ms_median": 1856.0,
+  "settled_ms_best": 1836.0,
+  "private_mb_median": 61.6,
+  "working_mb_median": 81.6,
+  "starts": [
+    {
+      "name": "reaper",
+      "measured": true,
+      "window_ms": 1940.0,
+      "settled_ms": 1842.0,
+      "private_mb": 61.5,
+      "working_mb": 81.6
+    },
+    {
+      "name": "reaper",
+      "measured": true,
+      "window_ms": 1949.0,
+      "settled_ms": 1949.0,
+      "private_mb": 61.6,
+      "working_mb": 81.6
+    },
+    {
+      "name": "reaper",
+      "measured": true,
+      "window_ms": 1918.0,
+      "settled_ms": 2100.0,
+      "private_mb": 61.6,
+      "working_mb": 81.6
+    },
+    {
+      "name": "reaper",
+      "measured": true,
+      "window_ms": 1936.0,
+      "settled_ms": 1836.0,
+      "private_mb": 61.7,
+      "working_mb": 81.7
+    },
+    {
+      "name": "reaper",
+      "measured": true,
+      "window_ms": 1945.0,
+      "settled_ms": 1856.0,
+      "private_mb": 61.7,
+      "working_mb": 81.7
+    }
+  ]
+}

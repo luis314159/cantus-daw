@@ -26,87 +26,8 @@ const KIND: EffectKind = EffectKind::Phaser;
 
 /// Factory presets: a label key and the parameters it sets. The pedals as their circuits
 /// sweep: four stages, a few hundred hertz to a couple of kilohertz.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.phasis.phase90_script",
-        &[("mix", 0.5), ("lo", 220.0), ("hi", 1_600.0), ("rate", 0.6)],
-    ),
-    (
-        "preset.phasis.phase90_block",
-        &[
-            ("mix", 0.5),
-            ("lo", 220.0),
-            ("hi", 1_600.0),
-            ("rate", 0.6),
-            ("fb", 0.3),
-        ],
-    ),
-    (
-        "preset.phasis.small_stone",
-        &[
-            ("mix", 0.5),
-            ("lo", 100.0),
-            ("hi", 3_500.0),
-            ("rate", 0.3),
-            ("fb", 0.5),
-        ],
-    ),
-    (
-        "preset.phasis.deep_twelve",
-        &[
-            ("stages", 12.0),
-            ("mix", 0.5),
-            ("lo", 80.0),
-            ("hi", 6_000.0),
-            ("rate", 0.12),
-            ("fb", -0.5),
-        ],
-    ),
-    (
-        "preset.phasis.synced_eighths",
-        &[
-            ("stages", 6.0),
-            ("mix", 0.5),
-            ("sync", 1.0),
-            ("div", 11.0),
-            ("shape", 1.0),
-            ("fb", 0.4),
-        ],
-    ),
-    (
-        "preset.phasis.stereo_swirl",
-        &[
-            ("stages", 6.0),
-            ("mix", 0.5),
-            ("rate", 0.25),
-            ("spread", 180.0),
-            ("hi", 5_000.0),
-        ],
-    ),
-    (
-        "preset.phasis.random_steps",
-        &[
-            ("stages", 8.0),
-            ("mix", 0.5),
-            ("sync", 1.0),
-            ("div", 14.0),
-            ("shape", 5.0),
-            ("edge", 0.5),
-            ("fb", 0.6),
-        ],
-    ),
-    (
-        "preset.phasis.slow_wash",
-        &[
-            ("stages", 8.0),
-            ("mix", 0.4),
-            ("rate", 0.05),
-            ("lo", 60.0),
-            ("hi", 8_000.0),
-            ("spread", 90.0),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// What the editor remembers between frames.
 #[derive(Debug, Default)]

@@ -290,7 +290,8 @@ pub fn list() -> Value {
         .collect();
     for kind in EffectKind::ALL
         .into_iter()
-        .filter(|k| *k != EffectKind::External)
+        .filter(|k| *k != EffectKind::External && k.offered())
+    // r37:fixes
     {
         let (id, name) = effect_names(kind);
         out.push(json!({"id": id, "name": name, "type": "effect", "what": effect_use(kind),
@@ -302,7 +303,7 @@ pub fn list() -> Value {
 /// One unit by id, or `None`.
 pub fn entry(id: &str) -> Option<Value> {
     instrument_entry(id).or_else(|| {
-        cantus_ai::tools_project::args::effect_kind(id)
+        cantus_ai::tools_project::args::any_effect_kind(id) // r37:fixes — reverb_legacy too
             .filter(|k| *k != EffectKind::External)
             .map(effect_entry)
     })

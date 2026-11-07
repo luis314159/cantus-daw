@@ -179,7 +179,11 @@ impl Desk {
             let (mut strips, mut seps) = (0u16, 0u16);
             // Where the current group's separator sits, for its folded members.
             let mut sep_at = (0u16, 0u16);
-            for (i, s) in p.strips.iter().enumerate().filter(|(_, s)| s.dock == dock) {
+            // r37:drums — a pad's chain lives on its pad, not on the desk (ADR 0100 §6).
+            let on_desk = |s: &&cantus_core::MixerStrip| {
+                s.dock == dock && s.kind != cantus_core::vca::StripKind::Chain
+            };
+            for (i, s) in p.strips.iter().enumerate().filter(|(_, s)| on_desk(s)) {
                 let group = s.group.filter(|g| p.strip_group(*g).is_some());
                 if group != run {
                     if let Some(g) = group {

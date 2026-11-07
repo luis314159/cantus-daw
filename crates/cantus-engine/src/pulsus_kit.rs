@@ -96,11 +96,18 @@ pub fn configure(drums: &mut Pulsus, kit: &PulsusParams, samples: &[Option<Arc<S
         kit.kit.hat_cc,
         kit.kit.hat_invert,
     );
+    // The kit's own gain (ADR 0100 §8): exactly unity at 0 dB.
+    drums.set_gain(if kit.kit.gain_db == 0.0 {
+        1.0
+    } else {
+        db_to_linear(kit.kit.gain_db)
+    });
     drums.set_pad_count(kit.pads.len());
     let mut layer_at = kit.pads.len();
     for (i, pad) in kit.pads.iter().take(MAX_PADS).enumerate() {
-        // Per-pad outputs are not routed yet: every pad plays into the kit's own strip.
-        drums.set_pad(i, pad.pitch, &settings(pad, 0));
+        // Each pad on its output (Pulsus III, ADR 0100): bus 0 the kit's own strip, bus
+        // `k` the `k`-th strip its pads name — the snapshot's taps carry them.
+        drums.set_pad(i, pad.pitch, &settings(pad, kit.bus_of(i)));
         // An `Arc` clone per pad and nothing more.
         let sample = samples.get(i).and_then(|s| s.as_ref()).map(sample_ref);
         drums.set_sample(i, sample);

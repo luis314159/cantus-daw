@@ -43,8 +43,36 @@ const MIN_GAP: f64 = 0.030;
 /// The threshold over the moving mean: this share of the function's top.
 const DELTA: f32 = 0.06;
 
+/// How [`detect_with`] listens (round 37, Sectio — ADR 0099). The default is [`detect`]'s
+/// own, bit for bit: warping, the tempo detector and drums-to-notes keep their results.
+///
+/// Measured on MDB Drums' hand annotation (round 37): picking the bands apart finds 75.8 %
+/// of the hits within 10 ms against 73.9 %; adaptive whitening (Stowell & Plumbley 2007)
+/// fell to 58.6 % and backtracking to the function's minimum (librosa's `onset_backtrack`)
+/// to 44.6 % — this detector's points already lie a median 3.5 ms *before* the annotated
+/// hit, so moving them earlier loses them — and neither was kept.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Options {
+    /// Three detection functions — under 200 Hz, 200 Hz to 3 kHz, over 3 kHz — each picked
+    /// against its own top, the peaks merged: a hi-hat under a kick is a peak of its own.
+    pub bands: bool,
+}
+
+impl Options {
+    /// The slicer's: the bands picked apart.
+    pub const SLICER: Options = Options { bands: true };
+}
+
+/// The bands' edges (Hz) when picked apart.
+const MID_LO: f64 = 200.0;
+const MID_HI: f64 = 3_000.0;
 /// Find the onsets of a mono signal at `rate`.
 pub fn detect(x: &[f32], rate: f32) -> Onsets {
+    detect_with(x, rate, &Options::default())
+}
+
+/// [`detect`], listening as `o` says.
+pub fn detect_with(x: &[f32], rate: f32, o: &Options) -> Onsets {
     let sr = rate as f64;
     let n = ((0.046 * sr) as usize)
         .next_power_of_two()
@@ -88,8 +116,15 @@ pub fn detect(x: &[f32], rate: f32) -> Onsets {
     // SuperFlux: the difference to the frame `lag` back, maximum-filtered across 3 bands.
     let lag = ((0.25 * n as f64 / hop as f64).round() as usize).max(1);
     let low_bands = bank.below(LOW_HI);
+    let (mid_lo, mid_hi) = (bank.below(MID_LO), bank.below(MID_HI));
     let mut odf = vec![0.0f32; frames];
     let mut low = vec![0.0f32; frames];
+    // The three bands' functions (filled only when picked apart).
+    let mut parts = if o.bands {
+        vec![vec![0.0f32; frames]; 3]
+    } else {
+        Vec::new()
+    };
     // Before the signal is silence: a file that starts on a hit has an onset at 0.
     let silent = vec![0.0f32; bands];
     for t in 0..frames {
@@ -105,14 +140,49 @@ pub fn detect(x: &[f32], rate: f32) -> Onsets {
             if b < low_bands {
                 l += d;
             }
+            if o.bands {
+                let k = if b < mid_lo {
+                    0
+                } else if b < mid_hi {
+                    1
+                } else {
+                    2
+                };
+                parts[k][t] += d;
+            }
         }
         // A frame growing quieter is an end, not an onset (its leakage rises in bands
         // that were silent, but its power falls): weigh the flux by the power it kept.
         let keep = (level[t] / before.max(1e-12)).min(1.0);
         odf[t] = s * keep;
         low[t] = l * keep;
+        for p in parts.iter_mut() {
+            p[t] *= keep;
+        }
     }
-    let picked = pick(&odf, fps);
+    // Picked apart: each band's peaks, its strength against its own top (0 … 1), the
+    // earliest of peaks within the shortest gap of each other standing.
+    let picked: Vec<(usize, f32)> = if o.bands {
+        let mut all: Vec<(usize, f32)> = Vec::new();
+        for p in &parts {
+            let top = p.iter().fold(0.0f32, |m, v| m.max(*v));
+            if top > 0.0 {
+                all.extend(pick(p, fps).into_iter().map(|t| (t, p[t] / top)));
+            }
+        }
+        all.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.total_cmp(&a.1)));
+        let gap = (MIN_GAP * fps).round() as usize;
+        let mut kept: Vec<(usize, f32)> = Vec::new();
+        for (t, st) in all {
+            match kept.last_mut() {
+                Some(l) if t - l.0 < gap => l.1 = l.1.max(st),
+                _ => kept.push((t, st)),
+            }
+        }
+        kept
+    } else {
+        pick(&odf, fps).into_iter().map(|t| (t, odf[t])).collect()
+    };
     let mut out = Onsets {
         fps,
         odf,
@@ -121,7 +191,7 @@ pub fn detect(x: &[f32], rate: f32) -> Onsets {
         strengths: Vec::with_capacity(picked.len()),
     };
     let gap = MIN_GAP * sr;
-    for t in picked {
+    for (t, strength) in picked {
         let at = refine(x, t * hop, n, lag * hop, rate);
         // An onset makes the signal louder: an end, a fade or a cut also makes the
         // spectrum change (its splatter), but never louder (+3 dB over 20 ms).
@@ -132,7 +202,7 @@ pub fn detect(x: &[f32], rate: f32) -> Onsets {
             continue;
         }
         out.frames.push(at);
-        out.strengths.push(out.odf[t]);
+        out.strengths.push(strength);
     }
     out
 }

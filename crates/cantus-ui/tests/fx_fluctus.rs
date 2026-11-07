@@ -200,7 +200,9 @@ fn the_level_drawn_is_the_level_played() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in fluctus::FACTORY_PRESETS {
+    for (label, values) in
+        cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::VolumeShaper)
+    {
         let mut sp = EffectSpec::new(EffectKind::VolumeShaper);
         for (k, v) in *values {
             assert!(sp.set(k, *v).is_some(), "{label}: no parameter {k}");

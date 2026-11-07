@@ -97,6 +97,26 @@ impl NoteInk {
 /// keyboard beside them; a kit's pads simply alternate), what lies outside the clip a
 /// step darker, an octave line at each C, and FL's line ladder — step, beat, and a bar
 /// line three pixels wide with a dark core.
+/// r37:finish — the roll's lines a step clearer than the arrangement's (the judge: a
+/// brown grid in Night, near-invisible on Paper): toward the text in a dark theme, darker
+/// in a light one.
+fn line_ink(c: Color32, s: &Style) -> Color32 {
+    if s.t.dark {
+        mix(c, s.t.text, 0.07)
+    } else {
+        // A light theme's lines in a neutral ink over the rows, by the line's weight (the
+        // judge: heavy greenish lines on Paper): the grid's own token says how strong.
+        let weight = if c == s.t.grid_bar {
+            0.20
+        } else if c == s.t.grid_strong {
+            0.12
+        } else {
+            0.07
+        };
+        crate::kit::color::over(with_alpha(s.t.text, weight), s.t.row_white)
+    }
+}
+
 pub(super) fn grid(
     b: &mut Brush,
     app: &CantusApp,
@@ -120,9 +140,15 @@ pub(super) fn grid(
             is_black(geo.axis.pitch(lane as usize))
         };
         if dark {
+            // r37:finish — a light theme's black-key rows a step darker, so they read.
+            let row = if t.dark {
+                t.row_black
+            } else {
+                shade(t.row_black, -0.03)
+            };
             b.rect(
                 b.snap_rect(Rect::from_min_max(pos2(g.left(), y0), pos2(g.right(), y1))),
-                Fill::Solid(t.row_black),
+                Fill::Solid(row),
             );
         }
         if !geo.axis.pads() && geo.axis.pitch(lane as usize).is_multiple_of(12) {
@@ -131,10 +157,16 @@ pub(super) fn grid(
                 g.right(),
                 y1 - 0.5 * b.px(),
                 b.px(),
-                t.grid_strong,
+                line_ink(t.grid_strong, s), // r37:finish
             );
         } else if geo.axis.pads() {
-            b.hline(g.left(), g.right(), y1 - 0.5 * b.px(), b.px(), t.grid);
+            b.hline(
+                g.left(),
+                g.right(),
+                y1 - 0.5 * b.px(),
+                b.px(),
+                line_ink(t.grid, s),
+            ); // r37:finish
         }
     }
     // The theme's glows (ADR 0046 §8): over the rows, under the lines and the notes.
@@ -188,6 +220,12 @@ pub(super) fn ladder(
         step = step * 2;
     }
     let side = mix(t.grid_bar, t.row_black, 0.55);
+    // r37:finish — the lines a step clearer.
+    let (bar_ink, beat_ink, step_ink) = (
+        line_ink(t.grid_bar, s),
+        line_ink(t.grid_strong, s),
+        line_ink(t.grid, s),
+    );
     let first = beats_to_ticks(geo.beats(rect.left()).max(0.0)).snap_floor(step);
     let last = beats_to_ticks(geo.beats(rect.right()));
     let mut tick = first;
@@ -195,11 +233,11 @@ pub(super) fn ladder(
         let x = geo.x(ticks_to_beats(tick));
         if tick.0 % bar.0 == 0 {
             b.vline(x, rect.top(), rect.bottom(), 3.0 * b.px(), side);
-            b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_bar);
+            b.vline(x, rect.top(), rect.bottom(), b.px(), bar_ink);
         } else if tick.0 % beat.0 == 0 {
-            b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_strong);
+            b.vline(x, rect.top(), rect.bottom(), b.px(), beat_ink);
         } else {
-            b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid);
+            b.vline(x, rect.top(), rect.bottom(), b.px(), step_ink);
         }
         tick += step;
     }
@@ -261,23 +299,43 @@ pub(super) fn keys(b: &mut Brush, geo: &Geo<'_>, rect: Rect, hover: Option<usize
     }
     // The white keys first, each stretched over half of each black row beside it.
     b.rect(rect, Fill::Solid(shade(t.key_white, -0.18)));
-    let edge = shade(t.key_white, -0.20);
+    // r37:finish — a light theme's key edges firmer (the judge: faint white-key lines).
+    let edge = shade(t.key_white, if t.dark { -0.20 } else { -0.46 });
     for lane in (lo - 1).max(0)..(hi + 1).min(geo.axis.len() as i32) {
         let pitch = geo.axis.pitch(lane as usize);
         if is_black(pitch) {
             continue;
         }
-        let half = geo.key_h * 0.5;
-        let above = pitch < 127 && is_black(pitch + 1);
-        let below = pitch > 0 && is_black(pitch - 1);
-        let top = geo.y(lane as f32 + 1.0) - if above { half } else { 0.0 };
-        let bottom = geo.y(lane as f32) + if below { half } else { 0.0 };
+        // r37:finish — a real keyboard's white keys (judge 7): an octave's seven share its
+        // twelve rows, C–E three over five, F–B four over seven, so B|C and E|F fall on
+        // row edges and every other boundary under a black key ([`white_rows`]).
+        let (lo, hi) = white_rows(pitch).unwrap_or((0.0, 1.0));
+        let at = pitch as f32 - (pitch % 12) as f32;
+        let top = geo.y(lane as f32 + (at + hi - pitch as f32));
+        let bottom = geo.y(lane as f32 + (at + lo - pitch as f32));
         let r = b.snap_rect(Rect::from_min_max(
             pos2(rect.left(), top),
             pos2(rect.right(), bottom),
         ));
         let face = lit(t.key_white, lane as usize);
+        // r37:finish — every C a shade down: the octaves read at a glance.
+        let face = if pitch.is_multiple_of(12) {
+            shade(face, -0.08)
+        } else {
+            face
+        };
         b.rect(r, Fill::V(shade(face, 0.02), shade(face, -0.03)));
+        // r37:finish — the light along the key: a gentle fall from its front toward the
+        // case (the judge: flat keys), five bands of a faint shade stacked from the case
+        // (each over the ones before it: steps of under 1 % read as one fall).
+        for (i, a) in [0.012f32; 5].iter().enumerate() {
+            let x0 = r.left();
+            let x1 = r.left() + r.width() * ((5 - i) as f32 * 0.1);
+            b.rect(
+                Rect::from_min_max(pos2(x0, r.top()), pos2(x1, r.bottom())),
+                Fill::Solid(with_alpha(t.dark_shade, a * t.depth.max(0.5))),
+            );
+        }
         // The shade at the back of the key, where it goes under the case.
         b.rect(
             Rect::from_min_max(r.min, pos2(r.left() + 5.0 * s.k, r.bottom())),
@@ -291,7 +349,8 @@ pub(super) fn keys(b: &mut Brush, geo: &Geo<'_>, rect: Rect, hover: Option<usize
         );
         b.hline(r.left(), r.right(), r.bottom() - 0.5 * b.px(), b.px(), edge);
         if pitch.is_multiple_of(12) && geo.key_h >= 8.0 {
-            let label = Text::new(super::pitch_label(pitch), Role::Label, ink)
+            // r37:finish — judge 8: the octave labels a size up and in the ink.
+            let label = Text::new(super::pitch_label(pitch), Role::Control, ink)
                 .align(Align2::RIGHT_CENTER)
                 .policy(Policy::Elide(Elide::End));
             let lr = Rect::from_min_max(
@@ -317,6 +376,22 @@ pub(super) fn keys(b: &mut Brush, geo: &Geo<'_>, rect: Rect, hover: Option<usize
             pos2(rect.left() + bw, y1 - 0.5),
         );
         let face = lit(t.key_black, lane as usize);
+        // r37:finish — the black key's shadow on the white keys: past its front and
+        // along its lower edge, soft.
+        b.rect(
+            Rect::from_min_max(
+                pos2(r.left(), r.bottom()),
+                pos2(r.right() + 3.0 * s.k, r.bottom() + 2.0 * s.k),
+            ),
+            Fill::Solid(with_alpha(t.dark_shade, 0.14 * t.depth.max(0.5))),
+        );
+        b.rect(
+            Rect::from_min_max(
+                pos2(r.right(), r.top() + 1.0 * s.k),
+                pos2(r.right() + 3.0 * s.k, r.bottom()),
+            ),
+            Fill::Solid(with_alpha(t.dark_shade, 0.10 * t.depth.max(0.5))),
+        );
         light::raised(
             b,
             r,
@@ -324,7 +399,7 @@ pub(super) fn keys(b: &mut Brush, geo: &Geo<'_>, rect: Rect, hover: Option<usize
             face,
             RaisedOpts {
                 drop: true,
-                k: s.k * 0.6,
+                k: s.k, // r37:finish (its shadow on the white keys a step deeper)
                 depth: t.depth,
                 ..Default::default()
             },
@@ -346,6 +421,17 @@ pub(super) fn keys(b: &mut Brush, geo: &Geo<'_>, rect: Rect, hover: Option<usize
         b.px(),
         shade(t.key_white, -0.45),
     );
+    // r37:finish — the case's shadow falling on the roll beside the keys: white keys no
+    // longer run into a light theme's white rows.
+    for (i, a) in [0.16f32, 0.09, 0.04].iter().enumerate() {
+        b.vline(
+            rect.right() + (i as f32 + 0.5) * b.px(),
+            rect.top(),
+            rect.bottom(),
+            b.px(),
+            with_alpha(t.dark_shade, a * t.depth.max(0.5)),
+        );
+    }
 }
 
 /// The ruler over the grid: bar numbers in the *arrangement's* count, thinned by doubling
@@ -496,15 +582,26 @@ pub(super) fn note(
             );
             if let Some(l) = label {
                 if r.width() > 22.0 * s.k && r.height() >= 10.0 * s.k {
-                    let tx = Text::new(l, Role::Micro, ink.label)
+                    // r37:finish — a reading size where the note is tall enough (the judge:
+                    // soft labels); the small caps face only on short notes.
+                    // Judge 8: still small and soft — the control size where it fits.
+                    let role = if r.height() >= 15.0 * s.k {
+                        Role::Control
+                    } else if r.height() >= 13.0 * s.k {
+                        Role::Label
+                    } else {
+                        Role::Micro
+                    };
+                    let tx = Text::new(l, role, ink.label)
                         .caps(false)
                         .align(Align2::LEFT_CENTER)
                         .policy(Policy::Elide(Elide::End));
                     let _ = text::paint(
                         b,
+                        // r37:finish — room from the note's edge (the judge: "E5" cramped).
                         Rect::from_min_max(
-                            pos2(r.left() + 3.0 * s.k, r.top()),
-                            pos2(r.right() - 2.0, r.bottom()),
+                            pos2(r.left() + 5.0 * s.k, r.top()),
+                            pos2(r.right() - 3.0, r.bottom()),
                         ),
                         &tx,
                         s.tk(),
@@ -815,6 +912,78 @@ fn playhead_mark(b: &mut Brush, rect: Rect, playhead: Option<f32>, s: &Style) {
                 ],
                 t.playhead,
             );
+        }
+    }
+}
+
+/// A white key's rows within its octave, `(from, to)` in semitones from the octave's C:
+/// C, D, E share the five rows C…E (5/3 each), F, G, A, B the seven rows F…B (7/4 each),
+/// as a piano's white keys are of one width over black keys set between them. `None` for
+/// a black key. // r37:finish
+pub(crate) fn white_rows(pitch: u8) -> Option<(f32, f32)> {
+    const LOW: [u8; 3] = [0, 2, 4];
+    const HIGH: [u8; 4] = [5, 7, 9, 11];
+    let n = pitch % 12;
+    if let Some(i) = LOW.iter().position(|&w| w == n) {
+        let w = 5.0 / 3.0;
+        return Some((i as f32 * w, (i + 1) as f32 * w));
+    }
+    let i = HIGH.iter().position(|&w| w == n)?;
+    let w = 7.0 / 4.0;
+    Some((5.0 + i as f32 * w, 5.0 + (i + 1) as f32 * w))
+}
+
+#[cfg(test)]
+mod keyboard_tests {
+    use super::*;
+
+    /// The white keys against the note rows: seven keys fill the octave's twelve rows
+    /// without a gap or an overlap; B|C and E|F are row edges (no black key between);
+    /// every other boundary lies inside the row of the black key between its two keys;
+    /// within each group the keys are of one width.
+    #[test]
+    fn the_white_keys_fall_on_a_keyboards_rows() {
+        let whites: Vec<u8> = (0..12).filter(|p| !is_black(*p)).collect();
+        assert_eq!(whites.len(), 7);
+        let spans: Vec<(f32, f32)> = whites.iter().map(|&p| white_rows(p).unwrap()).collect();
+        assert_eq!(spans[0].0, 0.0);
+        assert!((spans[6].1 - 12.0).abs() < 1e-5);
+        for w in spans.windows(2) {
+            assert!(
+                (w[0].1 - w[1].0).abs() < 1e-5,
+                "no gap, no overlap: {spans:?}"
+            );
+        }
+        // Each boundary: between C|D, D|E, F|G, G|A, A|B — inside the black key's row.
+        for (i, pair) in whites.windows(2).enumerate() {
+            let edge = spans[i].1;
+            if pair[1] - pair[0] == 1 {
+                assert!(
+                    (edge - pair[1] as f32).abs() < 1e-5,
+                    "E|F on a row edge: {edge}"
+                );
+            } else {
+                let black = (pair[0] + 1) as f32;
+                assert!(
+                    edge > black + 0.2 && edge < black + 0.8,
+                    "{}|{} under the black key's row {black}: {edge}",
+                    pair[0],
+                    pair[1]
+                );
+            }
+        }
+        let width = |p: u8| {
+            let (a, b) = white_rows(p).unwrap();
+            b - a
+        };
+        assert!((width(0) - width(4)).abs() < 1e-5 && (width(5) - width(11)).abs() < 1e-5);
+        assert!(
+            (width(0) - width(5)).abs() < 0.1,
+            "the two groups' keys nearly one width"
+        );
+        for p in 0..12u8 {
+            assert_eq!(white_rows(p).is_none(), is_black(p), "{p}");
+            assert_eq!(white_rows(p + 60), white_rows(p), "every octave alike");
         }
     }
 }

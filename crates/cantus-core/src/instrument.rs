@@ -420,6 +420,17 @@ impl Default for InstrumentSpec {
 }
 
 impl InstrumentSpec {
+    // r37:drums — instruments with several outputs (ADR 0100).
+    /// The strips the instrument's own outputs play into, besides the track's: bus `k + 1`
+    /// is the `k`-th. A split kit's pad strips (Pulsus III); empty for every other
+    /// instrument today (an Exemplar kit's microphones are the next).
+    pub fn output_strips(&self) -> Vec<crate::model::StripId> {
+        match self {
+            InstrumentSpec::Pulsus(k) => k.output_strips(),
+            _ => Vec::new(),
+        }
+    }
+
     pub fn firmus(&self) -> Option<&FirmusParams> {
         match self {
             InstrumentSpec::Firmus(p) => Some(p),

@@ -10,12 +10,18 @@ use cantus_ai::ToolDef;
 pub mod ara;
 #[path = "ai_tools_editor.rs"] // r36:editor
 pub mod audio_editor;
+#[path = "ai_tools_drums.rs"] // r37:drums
+pub mod drums; // r37:drums — split_kit_outputs, set_pad_chain, make_kit_from_folder (ADR 0100)
 #[path = "ai_tools_external.rs"] // r36:external
 pub mod external; // r36:external — external units and surfaces (ADR 0094, 0095)
+#[path = "ai_tools_library.rs"] // r37:library
+pub mod library;
 #[path = "ai_tools_listen.rs"]
 pub mod listen;
 #[path = "ai_tools_mix.rs"] // r36:mix
 pub mod mix; // r36:mix — VCAs, mixer snapshots, cues (ADR 0093)
+#[path = "ai_tools_piano.rs"] // r37:piano
+pub mod piano; // r37:piano — slice_sample, dump_slices (ADR 0099)
 #[path = "agent_tools.rs"] // r34:tools
 pub mod project_app; // r34:tools — transport, selection, the catalogue, presets, comping, export
 #[path = "ai_tools_record.rs"] // r36:record
@@ -25,7 +31,7 @@ pub mod stems;
 #[path = "ai_tools_transcribe.rs"]
 pub mod transcribe;
 #[path = "ai_tools_video.rs"] // r35:video
-pub mod video; // r35:video — export_video (ADR 0088)
+pub mod video; // r35:video — export_video (ADR 0088) // r37:library — find_presets, audition_preset (ADR 0101)
 
 /// Every tool, in a fixed order (MCP asks `tools/list` to be deterministic).
 pub fn registry() -> Vec<&'static ToolDef> {
@@ -41,6 +47,9 @@ pub fn registry() -> Vec<&'static ToolDef> {
         external::TOOLS,            // r36:external
         audio_editor::TOOLS,        // r36:editor
         ara::TOOLS,                 // r36:ara
+        library::TOOLS,             // r37:library
+        drums::TOOLS,               // r37:drums
+        piano::TOOLS,               // r37:piano
         cantus_mcp::generic::TOOLS, // r34:mcp — the server's own: jobs, changes, undo
     ]
     .into_iter()

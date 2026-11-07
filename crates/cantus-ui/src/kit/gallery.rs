@@ -30,6 +30,8 @@ pub enum Part {
     Led,
     Knob(KnobSize),
     Fader,
+    /// The fader in its metal cap (round 37: the appearance's other choice).
+    FaderMetal,
     Meter,
     Cell,
     Segmented,
@@ -53,25 +55,25 @@ mod skin_sheets;
 pub use skin_sheets::SkinPart;
 
 /// Every sheet, with the name its golden image carries.
-pub const PARTS: [(&str, Part); 23 + skin_sheets::COUNT] = concat_parts();
+pub const PARTS: [(&str, Part); 24 + skin_sheets::COUNT] = concat_parts();
 
 /// The kit's parts, then the skins' (round 32).
-const fn concat_parts() -> [(&'static str, Part); 23 + skin_sheets::COUNT] {
-    let mut out = [("", Part::Cap); 23 + skin_sheets::COUNT];
+const fn concat_parts() -> [(&'static str, Part); 24 + skin_sheets::COUNT] {
+    let mut out = [("", Part::Cap); 24 + skin_sheets::COUNT];
     let mut i = 0;
-    while i < 23 {
+    while i < 24 {
         out[i] = KIT_PARTS[i];
         i += 1;
     }
-    while i < 23 + skin_sheets::COUNT {
-        out[i] = skin_sheets::PARTS[i - 23];
+    while i < 24 + skin_sheets::COUNT {
+        out[i] = skin_sheets::PARTS[i - 24];
         i += 1;
     }
     out
 }
 
 /// The kit's own parts (ADR 0024 §4).
-const KIT_PARTS: [(&str, Part); 23] = [
+const KIT_PARTS: [(&str, Part); 24] = [
     ("cap", Part::Cap),
     ("well", Part::Well),
     ("tile", Part::Tile),
@@ -82,6 +84,7 @@ const KIT_PARTS: [(&str, Part); 23] = [
     ("knob_l", Part::Knob(KnobSize::L)),
     ("knob_xl", Part::Knob(KnobSize::XL)),
     ("fader", Part::Fader),
+    ("fader_metal", Part::FaderMetal),
     ("meter", Part::Meter),
     ("cell", Part::Cell),
     ("segmented", Part::Segmented),
@@ -105,7 +108,7 @@ pub fn slot(part: Part) -> Vec2 {
         Part::Tile => Vec2::new(180.0, 30.0),
         Part::Led => Vec2::new(28.0, 28.0),
         Part::Knob(k) => Vec2::splat(k.diameter() + 20.0),
-        Part::Fader => Vec2::new(40.0, 150.0),
+        Part::Fader | Part::FaderMetal => Vec2::new(40.0, 150.0),
         Part::Meter => Vec2::new(28.0, 130.0),
         Part::Cell => cell::size(KnobSize::M) + Vec2::splat(12.0),
         Part::Segmented => Vec2::new(170.0, 36.0),
@@ -135,7 +138,7 @@ pub fn sheet_size(part: Part) -> Vec2 {
 /// The surface a part normally sits on.
 pub fn ground_tok(part: Part) -> Tok {
     match part {
-        Part::Fader | Part::Meter | Part::Knob(KnobSize::Mini) => Tok::Strip,
+        Part::Fader | Part::FaderMetal | Part::Meter | Part::Knob(KnobSize::Mini) => Tok::Strip,
         Part::Tile => Tok::PanelLight,
         Part::ToolbarKey => Tok::Toolbar,
         Part::Tab | Part::Splitter | Part::Scrollbar | Part::Menu | Part::SectionBand => Tok::Panel,
@@ -241,9 +244,14 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
             }
             knob::paint(b, c, s, st, &look);
         }
-        Part::Fader => {
+        Part::Fader | Part::FaderMetal => {
             let r = Rect::from_center_size(c, Vec2::new(30.0, 140.0));
-            fader::paint(
+            let cap = if part == Part::Fader {
+                fader::FaderCap::Classic
+            } else {
+                fader::FaderCap::Metal
+            };
+            fader::paint_as(
                 b,
                 r,
                 s,
@@ -253,6 +261,7 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
                     ticks: &TICKS,
                     unity: Some(0.8),
                 },
+                cap,
             );
         }
         Part::Meter => {
@@ -347,7 +356,7 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
             Rect::from_center_size(c, Vec2::splat(28.0)),
             s,
             st,
-            KeyFace::Glyph(Glyph::Record),
+            KeyFace::Glyph(Glyph::Mixer),
         ),
         Part::Tab => chrome::tab(
             b,

@@ -33,6 +33,12 @@ Studio One, Reaper**, and the free ones (**Ardour, LMMS, Zrythm, Waveform Free**
 | **Built-in content** | instruments and effects judged blind against the leaders' stock ones (and against Serum/Vital, Kontakt, FabFilter, Valhalla) | preferred blind in most pairings |
 | **Openness** | open source, open formats (DAWproject, CLAP/VST3 both ways), every platform, free | unique — no commercial DAW can match it |
 
+*Round 37:* the **Features** dimension is published (`docs/scorecard/features.md`: 97 rows,
+Cantus and twelve DAWs from their current manuals, each cell sourced) and the cross-DAW
+start-up harness exists (`tools/scorecard/startup.ps1`); the measured dimensions follow with
+their method (ADR 0102). The cross-DAW performance runs wait on REAPER being installed on the
+owner's machine (FL Studio 24.1.2 is).
+
 ### 0.2 What the leaders have that no section above covers yet
 
 - **Clip launching / session view** (Ableton, Bitwig): a grid of clips and scenes for
@@ -159,6 +165,10 @@ is an impression. The order below is the integrator's recommendation; the owner 
    then §3e's order (the slicer, Pulsus's per-pad outputs and chains, spectral and granular
    Exemplar, physical modelling…), a larger free sound library and presets — the leaders'
    biggest visible advantage after platforms.
+   **Done in round 37** (ADRs 0098–0101, 0104): Chorda model 2 with its perspective and its
+   scene, Sectio, Pulsus III's per-pad outputs and chains, 511 presets heard before they are
+   chosen and on the website, Cantus's own packs on demand — except the owner's ears (Chorda's
+   third ABX, the kits and presets) and Sectio's 95 % target (§3e).
 8. **Extensibility and safety of work** (§0.2): a sandboxed scripting API with a package
    manager, project versions and snapshots, bundled export, then collaboration.
 9. **Assistive intelligence** (§7): the MCP server (phase B, with the demo builder's
@@ -166,6 +176,17 @@ is an impression. The order below is the integrator's recommendation; the owner 
    follow chords.
 10. **The wider professional field** (§0.2): video, notation, surround and Atmos,
     AAF/OMF and loudness reports, microtonal tuning, a touch mode, a modular environment.
+
+*Measured, round 37 (2026-11-04, `docs/scorecard/features.md`):* against the eight commercial
+leaders' current manuals, Cantus is missing or partial in **22 rows** a leader has. Round 37
+closes three (the slicer, per-pad outputs and chains, preset audition) — **done**. By how many leaders
+have each, the next are: **convolution reverb** (7), **ripple edit / insert time** (6), **clip
+groups** (6), **AU hosting** (5), **ARA out of process** (5), **a video track** (5), **surround
+and Atmos** (4), a granular/spectral Exemplar (4), a step sequencer per melodic channel (4),
+then ghost notes, physical models, scripting, project versions, AAF/OMF, multiple
+arrangements, MIDI 2.0's transport, AAC, vocal synthesis and chord-following players. Only
+Cantus documents an MCP agent interface (with Ardour's experimental one), open source, and
+bit-exact determinism.
 
 ## Resumen (español)
 
@@ -183,7 +204,8 @@ insertarlos; **(4)** Linux y luego macOS — decidido el 2026-10-20: la ronda 30
 Link, reloj MIDI/MTC, MPE; **(6)** estudio profesional: ARA 2, superficies Mackie/HUI,
 hardware externo con medición de latencia, el modo de grabación (§4c paso 3), un editor de
 audio, snapshots y VCA; **(7)** el sonido de Chorda, más instrumentos y una librería de
-sonidos mayor; **(8)** scripting, versiones del proyecto, colaboración; **(9)** IA: servidor
+sonidos mayor (hecho en la ronda 37: Chorda modelo 2 y su escena, Sectio, Pulsus III, 511
+presets que se oyen antes de elegir y en la web, los paquetes de Cantus; faltan tus oídos); **(8)** scripting, versiones del proyecto, colaboración; **(9)** IA: servidor
 MCP, separación de stems, asistente de masterización; **(10)** video, partitura, surround y
 Atmos, AAF/OMF, microtonalidad, modo táctil, entorno modular.
 
@@ -351,7 +373,7 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
 - **Editing**: crossfades between overlapping clips (automatic and editable), clip gain
   envelopes, an audio editor window (Edison-like: destructive edits, spectral view, noise
   reduction, normalise, reverse a region — *done in round 36, ADR 0096; recording straight into the editor waits for the recording mode, ADR 0096 §10*), **pitch correction** (Newtone/Melodyne-lite
-  for vocals — *done in round 28*: §3c's editor and §3d's Tonus), slicing to a sampler, consolidate / **bounce in place**, **freeze** tracks (§4c step 1), **low-latency monitoring** of armed tracks (§4c step 2),
+  for vocals — *done in round 28*: §3c's editor and §3d's Tonus), slicing to a sampler (*done in round 37*: Sectio, ADR 0099), consolidate / **bounce in place**, **freeze** tracks (§4c step 1), **low-latency monitoring** of armed tracks (§4c step 2),
   insert/delete time (STATUS round 12 plan), clip groups, ripple edit.
 - **MIDI**: arpeggiator and chord tools as MIDI effects, scale highlighting and
   snap-to-scale, ghost notes from other clips, groove/swing templates (STATUS: swing as a
@@ -623,9 +645,9 @@ vocals — then what blind comparisons demand, then build cost on what exists):
 
 | Instrument | Reference | What makes it first-rank | Done when |
 |---|---|---|---|
-| **1. Slicer** — *Sectio*, a mode of Exemplar | FL Fruity Slicer 2 and Slicex, Ableton Simpler, Logic Quick Sampler, Bitwig 6.1 Sliced | **Technique:** spectral-flux onset detection with SuperFlux for sustained sounds and a beat grid by dynamic programming, offline; slice points stored in the project. Embedded markers read first (WAV cue, ACID); one sensitivity control; grid and manual slices; "dump to piano roll"; per-slice pitch, envelope, filter, reverse, choke; FL's *Random*, *Stutter*, *Quantize/Swing* as one-step commands; tempo-following by slice replay | ≥ 95 % of slice points within 10 ms of hand annotation on 50 CC0 loops; a loop replayed from its dumped MIDI equals the file to the bit; a tempo change keeps slices on the grid; drop-to-chopped in ≤ 2 clicks |
+| **1. Slicer** — *Sectio*, a mode of Exemplar — ✓ **done in round 37** (ADR 0099, schema 55) except the accuracy target: 91.9 % / 75.8 % within 10 ms (below the table) | FL Fruity Slicer 2 and Slicex, Ableton Simpler, Logic Quick Sampler, Bitwig 6.1 Sliced | **Technique:** spectral-flux onset detection with SuperFlux for sustained sounds and a beat grid by dynamic programming, offline; slice points stored in the project. Embedded markers read first (WAV cue, ACID); one sensitivity control; grid and manual slices; "dump to piano roll"; per-slice pitch, envelope, filter, reverse, choke; FL's *Random*, *Stutter*, *Quantize/Swing* as one-step commands; tempo-following by slice replay | ≥ 95 % of slice points within 10 ms of hand annotation on 50 CC0 loops; a loop replayed from its dumped MIDI equals the file to the bit; a tempo change keeps slices on the grid; drop-to-chopped in ≤ 2 clicks |
 | **2. Arpeggiator, chord and scale tools** (note effects) | FL Arpeggiator and Chord tools, Ableton Arpeggiator/Chord/Scale and MIDI Tools, Kontakt 8.6 Tools, Serum 2's arp and clip sequencer | **Technique:** event processing on the absolute song tick (needs tempo and position in the instrument contract). Arp modes, rate with swing, gate, octaves, a step lane with probability and ratchets, latch; chord voicings with inversions and strum; scale lock to the project key; probability drawn from the note's hash | sample-accurate at block sizes 1/37/64/512; bounce = playback; a render from bar 5 equals bars 5… of a full render; works before native **and** hosted instruments; output recordable to the clip |
-| **3. Pulsus III** — per-pad outputs and chains (finishing the drum sampler) | Ableton Drum Rack, FL FPC, Logic Drum Machine Designer, Battery 4, XO | Wire the existing per-pad outputs to strips; a per-pad insert chain; any Cantus instrument on a pad; kit import from a folder (name parsing, then similarity) and SFZ; XO-style similarity map shared with the browser; 808/909-class one-shots rendered from Pulsus and released CC0 | 16 pads, each with its own chain, split to 16 strips in one click; the split kit sums to the unsplit kit to the bit; a folder becomes a mapped kit in one drop; chains at rest cost nothing |
+| **3. Pulsus III** — per-pad outputs and chains (finishing the drum sampler) — ✓ **done in round 37** (ADR 0100, schemas 56–57); the similarity map and any instrument on a pad open | Ableton Drum Rack, FL FPC, Logic Drum Machine Designer, Battery 4, XO | Wire the existing per-pad outputs to strips; a per-pad insert chain; any Cantus instrument on a pad; kit import from a folder (name parsing, then similarity) and SFZ; XO-style similarity map shared with the browser; 808/909-class one-shots rendered from Pulsus and released CC0 | 16 pads, each with its own chain, split to 16 strips in one click; the split kit sums to the unsplit kit to the bit; a folder becomes a mapped kit in one drop; chains at rest cost nothing |
 | **4. Modelled grand piano** — *Chorda* — ✓ **Chorda I done in round 28** (ADR 0059; see below the table) | Pianoteq 9 (Oct 2025, ~50 MB), Logic Studio Piano, Keyscape, Garritan CFX | **Technique:** digital waveguide strings with dispersion allpasses, a nonlinear felt hammer (Lamina's, extended with hysteresis), two- and three-string unisons with two-stage decay, phantom partials, a multirate soundboard and a sustain-pedal resonance bank, all from closed-form physics and published measurements; continuous half-pedalling; no task-skipping under load (unlike Pianoteq) — see the plan below | partials within 1 cent of the stretch target on every key; per-partial decay within −25 %/+40 % of published measurements; half-pedal continuous; a blind test (≥ 20 listeners) shows no significant preference for Pianoteq 9 or a sampled grand; 64 pedal-down voices inside 25 % of a core at 256 frames; the legal review done |
 | **5. Spectral and granular modes of Exemplar** (Unda's *Grana* grown) | Bitwig 6.1 Sampler (Spectral, Fragments), Ableton Granulator III, Logic Sample Alchemy, Serum 2 | **Technique:** granular scheduling on the sample clock with seeded draws (as Grana), a mip-mapped source so transposing up does not alias, sync/count density, loop and freeze, capture from any track; a phase-locked vocoder for stretch and pitch with formant preservation (Signalsmith Stretch, MIT, as reference), STFT grid anchored to the note, long stretches pre-rendered and cached. The same engine serves warp (§3) and the pitch editor (§3c) | bit-identical at every block size and offline = real time; +24 st grains with no alias above −90 dB; a 2× vocal stretch keeps formants and transients (onset smear ≤ 5 ms); 16 voices × 64 grains inside 10 % of a core |
 | **6. Physical-model resonators** (exciter → resonator) | Ableton Collision and Tension, Logic Sculpture, AAS Chromaphone 3, Pigments Modal | **Technique:** exciters (pluck, pick, bow by a friction curve, mallet, noise, sample, live input) into waveguide strings (Gravis's) or modal bars, plates, membranes and tubes (Pulsus's modal voice), coupled, with a body; MPE pressure and slide on bow pressure and position | marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello and glass presets each judged "convincing in solo" by a 10-listener panel; pitch within 0.1 cent at any bend; renders repeat to the bit |
@@ -672,6 +694,29 @@ vocals — then what blind comparisons demand, then build cost on what exists):
   Ask the owner what they hear wrong (metallic? thin? dull? synthetic attack? no body?) to
   aim first. **Done when** the owner says it sounds good, and a blind preference test
   against the Salamander shows Chorda at least on par.
+  **Round 37 (ADR 0098, schema 54): Chorda model 2**, voiced by measurement against the
+  Salamander through the real engine (`examples/chorda_compare`): a body of two synthesised
+  radiation responses, the action's noises, a room, a seeded variation per strike; then a
+  second pass on the owner's first ABX (2026-11-05: ABX 15/16 both ways; Chorda 2 preferred
+  to Chorda 1 7 of 7, the Salamander to Chorda 2 7 of 7 — *"muchos medios, algo borroso, un
+  poco nasal"*), with **Chorda II's microphone perspective and lid** as controls (*Mics*,
+  *Width*, *Lid*, the room's *Size*). Model 1 bit-identical for old songs. **Open:** the
+  owner's third ABX (`F:\projects\daw-r37\abx-kit3\`), the perspective by ear, what still
+  measures apart (the middle notes' 1–1.6 kHz +4–5 dB, the 3.2 kHz third −6 dB in phrases,
+  the fortissimo chord's crest, the treble's late decay), and per-key voicing curves.
+- **Sectio's onsets: a learned model** (round 37, ADR 0099) <!-- r37:integration -->: the
+  brief's *≥ 95 % of slice points within 10 ms of hand annotation* is **not met** — 91.9 % on
+  50 loops rendered by Cantus, 75.8 % on MDB Drums' 5 956 hand-annotated hits (88 % within
+  20 ms, 91 % within 50 ms); brushed and ridden jazz 43–65 %. The spectral-flux detector's
+  points lie a median 3.5 ms before the annotations, and its misses are soft hits it does not
+  report at any sensitivity; adaptive whitening (58.6 %) and backtracking (44.6 %) measured
+  worse. Next: a small learned onset detector (a CNN or RNN over a log-mel spectrogram, the
+  Böck–Schlüter class) of our own, trained only on data whose licence allows it (MDB Drums is
+  CC BY-NC-SA: measurement only, never training or shipping; check any pretrained model's
+  licence — madmom's are non-commercial), run offline, deterministic
+  (a fixed reduction order, `cantus_dsp::math`), with the hand-annotated CC0 loops the owner
+  makes as a test set; *done when* ≥ 95 % within 10 ms on both sets without moving any point
+  later than the attack's start.
 - **Item 11 — DRSKit** (DrumGizmo, CC BY 4.0; ADR 0042's round-28 amendment) installs in one
   step from *Sound packs* (a 2.8 GB download, mixed at install into a 24-bit stereo kit of
   about 470 MB: per-microphone gain, pan, polarity and bleed), plays in Exemplar on General
@@ -681,7 +726,30 @@ vocals — then what blind comparisons demand, then build cost on what exists):
   instrument with several outputs, each a strip (the *Mic buses* of this item and Pulsus
   III's per-pad outputs, item 3); CC4 hi-hat openness, repetition smoothing beyond round
   robin, more kits for the item's three styles (Virtuosity Drums, CC0, is a jazz kit), a
-  browser of CC0 grooves, and the listening panel against EZdrummer 3.
+  browser of CC0 grooves, and the listening panel against EZdrummer 3. (Round 37, Pulsus III:
+  per-pad outputs, chains per pad and SFZ kits are done, ADR 0100; an SFZ kit of several
+  microphones keeps one position per key — per-microphone buses for Exemplar's DRSKit wait on
+  `InstrumentUnit::process_buses`.)
+- **The drum transcriber misses a brush snare** (round 37, drums) <!-- r37:drums -->: on the
+  Jazz brushes factory kit (a brushed Pulsus snare, mostly noise) `transcribe_drums.rs` finds
+  0 of its 28 snare hits, while every other kit's snare scores 0.67–1.00; the snare class's
+  detector wants a body the brush does not have (round 34's audio-to-MIDI, ADR 0086).
+
+- **Chorda's look per preset — the owner, 2026-11-06 (after the sound wins):** *"imágenes de
+  pianos de los presets de fondo para que se vea diferente, y la sala y micros o cosas así muy
+  pros para que se vean los cambios (tipos de pianos, colores, formas)."* The editor already
+  draws the piano from its numbers (`views/inst/chorda_draw.rs`); grow it into a hand-drawn
+  scene per preset: the instrument's shape and finish (concert grand, baby grand, upright;
+  black lacquer, white, walnut), the lid at its position, the microphones drawn where the
+  perspective control puts them, and the room's size and depth behind — every change of a
+  control visible in the picture, both themes, inside the frame budget. Scheduled after
+  Chorda wins the owner's ABX (round 37 pass two, or the round after). **✓ Round 37
+  (ADR 0104, schema 58):** *the piano and its room* is Play's hero — concert grand, grand,
+  parlour grand, upright in black, white, walnut, rosewood, each preset's look declared and
+  held to its sound, the lid on its stick, the pair and a room pair on stands where the
+  controls put them, a booth, a studio, a hall or a church; pickers for the look (never
+  audible, one undo step). Open: the owner's eye against the premium libraries' artwork
+  (`docs/round37/scene/`).
 
 **The piano, as the owner decided it (2026-10-10):**
 
@@ -807,6 +875,20 @@ real-time path wait.**
 - 120/144 Hz rendering with input-to-photon latency measured; virtualised views for
   1 000 tracks and 10 000 clips; waveforms and notes as cached meshes (rounds 9 and 19
   started this); zero work when idle (round 18 already guarantees no repaint).
+- **What the first measured scorecard left** (round 37, `docs/scorecard/README.md`): Cantus's
+  window is ready first (1.31 s; FL Studio 2.82 s, REAPER 1.94 s), but it loses four rows:
+  - **Work after the window**: 6–42 s of start-up work after the window — trace it and move
+    it off the start or make it lazy.
+  - **Memory**: 267 MB private, against FL Studio's 133 and REAPER's 62.
+  - **At rest**: 29 % of a core. The engine runs the demo's graph in silence (≈ 13 points:
+    rest silent strips, the pad-chain idea above), and the dancer's 12 Hz breath redraws the
+    whole window (≈ 16 points: draw it in its own layer or viewport, or breathe slower once
+    nothing has moved for a while).
+  - **Frame cost**: a full-window frame costs ≈ 16 ms of CPU — cache meshes, redraw only
+    what changed.
+
+  The same measuring found that the ticker's 17 ms became 0.3 ms in egui (144 frames a
+  second), plus four views repainting outside it: fixed in round 37.
 
 **Proof — a benchmark that keeps us honest**
 - A reproducible **DAWbench-style suite** (DSP: N instances of a reference effect chain;
@@ -826,6 +908,16 @@ from the unit's reset, not from the song; `render.rs`, `stems.rs` and `freeze_re
 start a range on the fractional sample of its first tick — `SeekFrac`'s whole-sample start
 (`listen::begin`) for them too. A sound change: a `DSP_VERSION` bump with the measured size
 (`preroll_by_unit` says which units remain).
+
+**Every strip rests like a pad's chain** (round 37, drums; ADR 0100 §6, ADR 0031 §5.1)
+<!-- r37:drums -->: a strip with inserts runs them on every pass, even on silence, though every
+native insert carries an exact `at_rest`/`skip` contract. Round 37 rests **pad chains only**: a
+chain with nothing in, its EQ and lines quiet, no key or note reaching it and every insert at
+rest skips its inserts (`EngineStats::chain_rests`). Measured: the studio kit with a chain on
+every pad and only the kick playing processes in 0.027 s against 0.018 s with no chain at all
+(13 resting, 1 running), and the resting chains are the same bits as the same chains run as
+ordinary strips. Extending it to every strip (sends' tails, keys, followers, frozen and
+parked strips, the master) is the next step: the same exactness test over the strip fuzz.
 
 ## 4c. A recording mode for high performance (requested 2026-10-10)
 
@@ -1021,9 +1113,18 @@ measurement or been decided against with the reason written down.
   CC0 sample libraries (Osiris Piano, VSCO 2 CE, VCSL, Karoryfer) loaded in Exemplar.
 - **Presets**: a shared preset library across instruments with tags and audition through
   the user's own clip (research/instruments/family.md §6); dozens of musical presets per
-  instrument and effect, made by ear.
+  instrument and effect, made by ear. *✓ Round 37 (ADR 0101):* 511 factory presets at their
+  floors (instruments ≥ 24, effects ≥ 12, kits 16), tagged by style and role, the library's
+  as data; each rendered by a test in its role's ±2 LU window, unclipped, under its CPU
+  budget; the browser filters, searches and auditions on a phrase or the user's clip; every
+  unit's presets heard on the website; `find_presets`, `audition_preset`. **Open:** made by
+  measurement — the owner's ears, first on the 20 presets their headroom holds under their
+  window, the eight new kits and the sidechain (ducking) presets.
 - **Instrument gain staging**: Lamina and Exemplar sit 8–9 LU under the others at unity
   (docs/round19/fixes-mix.md) — calibrate with a migration so old projects keep their sound.
+  *Round 37 (ADR 0101, Gain staging):* the presets were fitted to one level per role instead
+  of the units (no migration needed, schema 57 not taken); a kind-level calibration was
+  measured and not made.
 - Demo songs by real musicians, and template projects per genre.
 - **CC BY content (ADR 0042, the owner, 2026-10-10)**: CC0 *and* CC BY 3.0/4.0 packs are
   accepted, with the credit always shown (NC, ND, SA still refused). To do in
@@ -1044,6 +1145,11 @@ measurement or been decided against with the reason written down.
   Wilkinson Audio confirms a CC BY or CC0 licence in writing, add Naked Drums through the
   same build step (asking is the owner's, `docs/beta-checklist.md`). Dustyroom's kit and
   VocalSet are still open.
+- **Cantus's own packs** ✓ round 37 (ADR 0101 §7): *Cantus One-Shots* (182 files, a note of
+  every library instrument preset by role) and *Cantus Loops* (70 instrument loops and the
+  sixteen kits' grooves), rendered at the round's final sound, CC0, hosted on the
+  `content-r37` release with sizes and SHA-256 pinned (manifest format 4). Vetted and not
+  added yet: the rest of VSCO 2 CE, Kenney's *Sci-fi* and *Impact Sounds* (CC0).
 
 ## 6. Product
 
@@ -1423,6 +1529,19 @@ the reference for the idea; ours is our own, never its character or art).*
   each model's licence from its VRM `meta`). **Spine and Live2D stay out** while their
   licences need a licence per user (Spine) or a publication agreement per release for an
   application that loads users' models (Live2D).
+- **A cooler lead character — the owner, 2026-11-06:** *"hacer otro personaje más cool, algo
+  de anime o algo así pero más cool, para cambiar el principal."* A new **original**
+  character in an anime-inspired style (our own design, never a known series' character, look
+  or name; family-friendly like the rest) that becomes the default, the current one staying in
+  the family. The owner's first ideas, the same day: *"quizás un robot y un ninja o algo
+  así"* — sketch both (a sleek anime-style robot, a ninja) and let the owner pick, or ship
+  both. Same bar as round 35 (super professional and fun; GIF previews shown to the
+  owner before done): a character sheet first (silhouette, palette, outfit, expressions,
+  turnarounds) for the owner to choose from, then the rig with the full dance vocabulary,
+  beat-synced, both themes, inside the stage budget. **✓ Round 37 (ADR 0105, schema 59):
+  Fuga** the ninja (the new default) and **Volta** the mecha, chosen by the owner from three
+  rounds of sheets; every move and mood, moves of their own; old songs keep the songbird.
+  Open: watching them in the running app (the stage and the companion).
 
 ## 7. AI (research done in round 20: `research/ai/`)
 
@@ -1532,3 +1651,45 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
   file for a moment. Every overwrite of a just-written file (exports, bounces, autosave,
   edits) should retry a sharing or access violation a few times over ~1 s before failing, as
   the atomic `.part`-then-rename writes already tolerate; a test with a file held open.
+  *Round 37:* `cantus-mcp`'s `write_private` retries its rename while Windows holds the target
+  (a taken-port test had failed once), with a held-file test; the other writers still to do.
+- **Beat FL Studio's finish — inspired, never copied** (the owner, 2026-11-04, round 37: *"FL
+  developed its graphics from zero; ours too — be inspired, do not copy; note the details and
+  the quality; we have to beat it"*). Observations of FL Studio 24.1.2 and ten proposals in
+  [`research/ui/fl-look-2026-11/notes.md`](../research/ui/fl-look-2026-11/notes.md): strips
+  and rows tinted by their colour, vertical names on narrow strips, the meter inside the
+  fader track, one colour per EQ band with region and note names on every frequency axis,
+  clip content drawn in its own hue with previews in the clip browser, a drawn piano-roll
+  keyboard, a hint line that is never empty and a large clock, system meters with numbers,
+  richer browser rows (round 37's library builder), and one finish across the kit held by a
+  test. Where Cantus is already ahead (label/value units, routing cables, numeric values,
+  themes) stays. Each item shot in both themes at 75–200 % and judged by the owner's eyes.
+  **✓ Round 37 (ADR 0103)**, thirteen deliveries, judged blind between them by fresh agents
+  (on real captures from the seventh delivery on, 1:1 on both sides and two judges at a time
+  from the eleventh; the last pair of judges Cantus 20 and 22 of 26; the scores in
+  `docs/round37/integration.md`). **Open:** the owner's eyes on the thirteen crops in the
+  real app; and the two elements FL Studio still won for both judges in both themes —
+  **the toolbar icons** (four redraws: thin line glyphs read as "coarse, close to
+  pixel-art", filled ones as "blobs", two-tone drawings as "abstract, blur together at this
+  size"; FL's win as "grey-glass icons, more detailed and easier to tell apart" — a set
+  drawn larger, with more inner detail and a material of their own, judged alone at 100 and
+  125 %) and **the piano-roll keys** ("FL's keys better proportioned, larger, with shaded C
+  rows"; ours "narrow, cramped"). The mixer and the arrangement were split votes.
+- **The `stage_budget` variance** (round 37's integration) <!-- r37:integration -->: two
+  applications built apart sometimes differ by a whole inspector dancer section (+4 540
+  triangles) under a loaded suite, never in a small run. The test now measures the dancer
+  against itself in one application (hidden, then shown), so it no longer fails — but the
+  cause, something that builds one more inspector section in one application than in an
+  identical one, is not found. Find it (a frame's layout depending on timing or on state
+  left by an earlier test) and add a test that holds two identical applications to the same
+  triangle count.
+- **The arrangement clamps its stored header width in a small window** (round 37, finish)
+  <!-- r37:integration -->: drawn while the window is still small (a first frame, a start in a
+  small window), the headers' width is clamped and the clamp is stored, so they stay narrower
+  than the user left them. Only the capture scene re-sets the width (every frame from the
+  50th). Clamp what is drawn, never what is stored; a test that opens small, grows, and
+  finds the stored width.
+- **A preview's level without restarting it** (round 37, finish) <!-- r37:integration -->:
+  the browser's preview strip restarts the playing sound when its level changes, because the
+  engine has no gain message for a preview (`EngineMessage::Preview` only starts one). Add a
+  preview-gain message (ramped, no allocation), and the strip changes the level as it plays.

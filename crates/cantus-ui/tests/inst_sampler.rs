@@ -121,7 +121,7 @@ fn dragging_a_zone_is_one_undo_step() {
 
 #[test]
 fn every_factory_preset_sets_what_it_names() {
-    for p in smp::FACTORY_PRESETS {
+    for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Sampler) {
         let (mut a, track) = with_sampler();
         let target = cantus_ui::views::inst::preset_spec(InstrumentKind::Sampler, p);
         a.apply_inst_spec(track, &target, "cmd.fx_preset");
@@ -138,7 +138,9 @@ fn every_factory_preset_sets_what_it_names() {
         let label = cantus_ui::i18n::t(p.label_key);
         assert_ne!(label, p.label_key, "{} has a name", p.label_key);
     }
-    assert!((8..=16).contains(&smp::FACTORY_PRESETS.len()));
+    assert!(
+        cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Sampler).len() >= 8
+    );
 }
 
 #[test]

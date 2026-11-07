@@ -181,7 +181,7 @@ fn peak_db(x: &[f32]) -> f64 {
 
 #[test]
 fn its_levels_leave_headroom_and_a_middle_c_is_heard() {
-    // Both hands fortissimo, the pedal down: under −2 dBFS at the defaults.
+    // Both hands fortissimo, the pedal down: under full scale at the defaults.
     let mut u = unit();
     u.controller(Controller::Sustain, 1.0);
     for (i, k) in [21u8, 33, 45, 52, 57, 64, 69, 76, 88, 96]
@@ -196,8 +196,10 @@ fn its_levels_leave_headroom_and_a_middle_c_is_heard() {
     u.note_on(on(60, 0.6, 1));
     let mf = peak_db(&play(&mut u, 24_000));
     eprintln!("ff both hands with pedal {loud:.1} dBFS, mf middle C {mf:.1} dBFS");
-    assert!(loud < -2.0, "{loud}");
-    assert!((-30.0..-12.0).contains(&mf), "{mf}");
+    // Model 2 (ADR 0098) stands 4 dB hotter than model 1 did, its output ceiling bending
+    // the fortissimo chords' attacks under full scale.
+    assert!(loud < -0.5, "{loud}");
+    assert!((-30.0..-8.0).contains(&mf), "{mf}");
 }
 
 #[test]
@@ -459,4 +461,78 @@ fn a_lane_on_the_pedal_holds_and_releases_the_strings() {
         after < -20.0,
         "lifted, the dampers stop them: {after:.1} dB"
     );
+}
+
+/// Review of the first delivery (1): the project played after the engine has run idle for
+/// seconds (the transport stopped) equals the offline render, to the bit — model 2's strike
+/// variation is seeded from the notes, never from the unit's running clock.
+#[test]
+fn played_after_idling_it_equals_the_offline_render() {
+    let p = piano_project(&[], &PHRASE);
+    assert_eq!(
+        p.tracks[0].instrument.native().map(|n| n.get("model")),
+        Some(2.0)
+    );
+    let offline = render_of(&p, 0.5);
+    let snap = Arc::new(Snapshot::compile(&p, 1));
+    let (mut tx, rx) = rtrb::RingBuffer::<EngineMessage>::new(256);
+    let (etx, mut erx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut proc_ = Processor::without_midi(SR as f64, rx, etx);
+    for unit in cantus_engine::inst::units_for(&snap, SR, |_, _| false) {
+        tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    proc_.settle();
+    // Three seconds and a bit with the transport stopped.
+    let mut idle = vec![0f32; 512 * 2];
+    for _ in 0..(3 * 48_000 / 512 + 3) {
+        proc_.process(&mut idle, 2);
+        while erx.pop().is_ok() {}
+    }
+    tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    let frames = offline.len() / 2;
+    let mut live = Vec::with_capacity(frames * 2);
+    while live.len() / 2 < frames {
+        let n = 333.min(frames - live.len() / 2);
+        let mut buf = vec![0f32; n * 2];
+        proc_.process(&mut buf, 2);
+        live.extend_from_slice(&buf);
+        while erx.pop().is_ok() {}
+    }
+    assert_null(&offline, &live, 0.0, "played after idling");
+}
+
+/// Review of the first delivery (1): a range render (an export of a range, a freeze, a
+/// bounce) equals the same span of the whole render when no note rings across its start.
+#[test]
+fn a_range_render_equals_the_same_span_of_the_whole() {
+    let late: Vec<(f64, f64, u8, u8)> = PHRASE
+        .iter()
+        .map(|(s, l, k, v)| (s + 4.0, *l, *k, *v))
+        .collect();
+    let p = piano_project(&[], &late);
+    let whole = render(
+        Arc::new(Snapshot::compile(&p, 1)),
+        &RenderOptions {
+            tail_seconds: 0.5,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .samples;
+    let part = render(
+        Arc::new(Snapshot::compile(&p, 1)),
+        &RenderOptions {
+            start: Ticks::beats(2),
+            tail_seconds: 0.5,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .samples;
+    // Two beats at 120 BPM: one second, 48 000 frames.
+    let from = 48_000 * 2;
+    let n = part.len().min(whole.len() - from);
+    assert_null(&whole[from..from + n], &part[..n], 0.0, "a range render");
 }

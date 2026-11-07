@@ -85,6 +85,12 @@ kit.token.depth.dark = Sombra bajo las piezas
 kit.token.depth.sheen = Brillo sobre las barras (desde arriba)
 kit.token.depth.glow = Resplandor cálido en los fondos grandes
 kit.token.depth.glow_cool = Resplandor frío en los fondos grandes
+kit.token.depth.bevel = Luz en el bisel superior de una pieza
+kit.token.depth.bevel_shade = Sombra en el bisel inferior de una pieza
+kit.token.depth.inner_shadow = Sombra dentro de un hueco
+kit.token.depth.lip = Luz en el borde inferior de un hueco
+kit.token.depth.specular = Brillo del metal y del cristal
+kit.token.depth.drop = Sombra que proyecta una pieza
 theme.form.depth = Profundidad
 theme.form.roundness = Redondez
 theme.form.density = Densidad
@@ -300,3 +306,7 @@ kit.mixer.width.wide = Ancho
 kit.mixer.width.xl = Extra grande
 kit.mixer.width.xl.short = XL
 kit.mixer.add = Añadir una pista
+
+# ronda 37, acabado: el estado de un interruptor, en su ayuda
+kit.state.on = activado
+kit.state.off = desactivado

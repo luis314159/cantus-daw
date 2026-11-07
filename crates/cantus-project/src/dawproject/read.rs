@@ -723,6 +723,14 @@ fn instrument(
                 // comes back at the level it was exported with (ADR 0039).
                 return match spec {
                     InstrumentSpec::Native(n) => InstrumentSpec::Native(n.read_unversioned()),
+                    // r37:drums — a pad's strip id does not survive the trip: the kit comes
+                    // back whole (ADR 0100; the export writes it so, an older file may not).
+                    InstrumentSpec::Pulsus(mut k) => {
+                        for pad in &mut k.pads {
+                            pad.output = None;
+                        }
+                        InstrumentSpec::Pulsus(k)
+                    }
                     other => other,
                 };
             }

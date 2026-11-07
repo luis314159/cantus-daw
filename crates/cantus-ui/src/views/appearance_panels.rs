@@ -592,6 +592,7 @@ pub fn themes(app: &mut CantusApp, ui: &mut Ui) {
     });
 
     super::appearance_look::icon_section(app, ui);
+    super::appearance_look::fader_section(app, ui); // r37:finish
 }
 
 /// One theme: its name, and what can be done with it.

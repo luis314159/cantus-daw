@@ -1,0 +1,181 @@
+# Concentus chorus: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.concentus.juno_one"
+note = "The Juno-60's chorus I: a slow, warm wobble on pads and keys."
+styles = ["lofi", "house"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.5
+"mode" = 0
+"out" = -2.6
+
+[[preset]]
+key = "preset.concentus.juno_two"
+note = "Chorus II: faster and deeper, the classic synth-pad shimmer."
+styles = ["house", "pop"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.5
+"mode" = 1
+"out" = -2.6
+
+[[preset]]
+key = "preset.concentus.juno_both"
+note = "I and II together: the fast, dense swirl."
+styles = ["ambient", "lofi"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.5
+"mode" = 2
+"out" = -2.7
+
+[[preset]]
+key = "preset.concentus.dim_subtle"
+note = "Dimension-style width with hardly any movement: a mix stays still and gets wider."
+styles = ["pop", "rnb"]
+roles = ["bus"]
+[preset.values]
+"mix" = 0.5
+"mode" = 3
+"out" = 1.2
+"tone" = 12000
+
+[[preset]]
+key = "preset.concentus.dim_wide"
+note = "The widest Dimension mode, for pads and backing vocals."
+styles = ["ambient", "pop"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.5
+"mode" = 6
+"tone" = 12000
+
+[[preset]]
+key = "preset.concentus.string_ensemble"
+note = "Three voices on a slow triangle: a string machine's ensemble."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"delay" = 9
+"depth" = 3
+"mix" = 0.55
+"mode" = 7
+"out" = -0.8
+"rate" = 0.6
+"shape" = 0
+"voices" = 3
+
+[[preset]]
+key = "preset.concentus.vocal_double"
+note = "Two slow voices, a little later than the singer: a gentle double."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"delay" = 18
+"depth" = 1.5
+"mix" = 0.35
+"mode" = 7
+"out" = -2
+"rate" = 0.25
+"tone" = 14000
+"voices" = 2
+
+[[preset]]
+key = "preset.concentus.lush_four"
+note = "Four voices, deeper: a wide bed under a worship pad or an ambient guitar."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"delay" = 12
+"depth" = 4
+"mix" = 0.5
+"mode" = 7
+"out" = -3.4
+"rate" = 0.9
+"voices" = 4
+
+[[preset]]
+key = "preset.concentus.synced_swirl"
+note = "A whole-note sweep locked to the song."
+styles = ["house", "film"]
+roles = ["creative"]
+[preset.values]
+"delay" = 8
+"depth" = 5
+"div" = 3
+"mix" = 0.5
+"mode" = 7
+"out" = -2
+"sync" = 1
+"voices" = 2
+
+[[preset]]
+key = "preset.concentus.mono_bass"
+note = "Chorus II kept narrow and dark: movement on a bass without a wide low end."
+styles = ["rock", "rnb"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.4
+"mode" = 1
+"out" = -1.7
+"spread" = 0
+"tone" = 6000
+
+[[preset]]
+key = "preset.concentus.guitar_shimmer"
+note = "Two quick, shallow voices that make a clean guitar sparkle."
+styles = ["rock", "worship"]
+roles = ["creative"]
+[preset.values]
+"delay" = 7
+"depth" = 2.5
+"mix" = 0.4
+"mode" = 7
+"out" = 0.4
+"rate" = 0.7
+"tone" = 11000
+"voices" = 2
+
+[[preset]]
+key = "preset.concentus.lofi_wobble"
+note = "One deep, slow voice and a dark top: the seasick warble of a worn cassette."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"delay" = 14
+"depth" = 6
+"mix" = 0.6
+"mode" = 7
+"out" = -2
+"rate" = 0.35
+"tone" = 5000
+"voices" = 1
+
+[[preset]]
+key = "preset.concentus.pad_width"
+note = "Dimension width under a trap or R&B pad: wider, never moving."
+styles = ["trap", "rnb"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.45
+"mode" = 4
+"out" = 1.1
+"tone" = 10000
+
+[[preset]]
+key = "preset.concentus.eighties_vocal"
+note = "Three quick voices on a vocal: the bright, wide eighties chorus."
+styles = ["pop", "rock"]
+roles = ["vocal"]
+[preset.values]
+"delay" = 10
+"depth" = 2
+"mix" = 0.3
+"mode" = 7
+"out" = -1.4
+"rate" = 0.5
+"tone" = 13000
+"voices" = 3

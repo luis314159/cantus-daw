@@ -32,3 +32,10 @@ look.icon.graphite = Graphite (for a light taskbar)
 kit.logo.tint.icon = Icon colours
 # Round 26: the fill behind selected text in a field, with the surfaces (the theme editor names it).
 kit.token.surface.text_selection = Text selection (in a field)
+
+# round 37, finish: the fader cap
+look.fader = Faders
+look.fader.tip = Fader cap: how every fader looks — the mixer, VCAs and the units
+look.fader.note = Classic is the ivory cap; Metal a machined cap with an engraved index and the theme's shine. Every fader changes at once.
+kit.fader.classic = Classic
+kit.fader.metal = Metal

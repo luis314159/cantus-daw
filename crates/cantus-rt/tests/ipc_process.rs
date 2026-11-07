@@ -31,6 +31,14 @@ fn payload(mem: &SharedMemory, i: usize) -> &AtomicU64 {
     unsafe { &*(mem.as_ptr().add(i * 1024 + 512) as *const AtomicU64) }
 }
 
+/// `slow-first`'s hold, in the third exchange's unused room: the first job waits until the
+/// caller lifts it, so the caller's deadline passes first however long a loaded machine
+/// pauses either side (round 37: a fixed 60 ms was outlasted by a paused WSL caller).
+fn hold(mem: &SharedMemory) -> &AtomicU64 {
+    // SAFETY: an aligned AtomicU64 inside the live region.
+    unsafe { &*(mem.as_ptr().add(2048) as *const AtomicU64) }
+}
+
 fn spawn_worker(name: &str, mode: &str) -> Child {
     Command::new(std::env::current_exe().expect("this test binary"))
         .args(["--exact", "worker_side", "--nocapture", "--test-threads=1"])
@@ -41,8 +49,8 @@ fn spawn_worker(name: &str, mode: &str) -> Child {
 }
 
 /// The workers' copy: two threads serving both exchanges; each job doubles the number and
-/// adds one. `abort-after-3` dies on the fourth job; `slow-first` takes 60 ms over its
-/// first. `u64::MAX` asks it to stop.
+/// adds one. `abort-after-3` dies on the fourth job; `slow-first` holds its first until
+/// the caller lifts [`hold`] (10 s at most). `u64::MAX` asks it to stop.
 #[test]
 fn worker_side() {
     let Ok(name) = std::env::var(ENV) else {
@@ -82,7 +90,12 @@ fn worker_side() {
                             std::process::abort();
                         }
                         if mode == "slow-first" && k == 1 {
-                            std::thread::sleep(Duration::from_millis(60));
+                            let t = Instant::now();
+                            while hold(&mem).load(Ordering::SeqCst) == 0
+                                && t.elapsed() < Duration::from_secs(10)
+                            {
+                                std::thread::sleep(Duration::from_millis(1));
+                            }
                         }
                         let p = payload(&mem, i);
                         let x = p.load(Ordering::Relaxed);
@@ -109,6 +122,17 @@ struct Pair {
     _bell: LobbyBell,
     callers: Vec<Caller>,
     child: Child,
+}
+
+impl Drop for Pair {
+    /// A test that fails before [`stop`] must not leave its workers serving for ever: while
+    /// they live, the suite's output pipe stays open (round 37's Linux run hung 3.5 h).
+    fn drop(&mut self) {
+        if matches!(self.child.try_wait(), Ok(None)) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+    }
 }
 
 fn pair(mode: &str) -> Pair {
@@ -237,11 +261,14 @@ fn a_late_job_is_left_to_finish_and_seen_finished_later() {
     let mut p = pair("slow-first");
     let t = Instant::now();
     assert_eq!(call(&p, 0, 5, Duration::from_millis(5)), Outcome::Late);
+    // The job is held for up to 10 s, so a wait that ignored its deadline would take that
+    // long; the deadline's own bound is the next test's, judged on a median.
     assert!(
-        t.elapsed() < Duration::from_millis(50),
+        t.elapsed() < Duration::from_secs(1),
         "the deadline held: {:?}",
         t.elapsed()
     );
+    hold(&p.mem).store(1, Ordering::SeqCst);
     // SAFETY: the exchange is in our live region.
     let (job, _) = unsafe { &*exchange(&p.mem, 0) }.numbers();
     let start = Instant::now();

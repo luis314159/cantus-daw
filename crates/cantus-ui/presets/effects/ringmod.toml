@@ -1,0 +1,135 @@
+# Anulus ring modulator: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.anulus.bell"
+note = "A carrier a fifth above: metal bells out of anything."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"freq" = 587
+"mix" = 0.6
+"out" = -1.6
+
+[[preset]]
+key = "preset.anulus.robot"
+note = "A low square carrier on a voice: the robot."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"freq" = 55
+"mix" = 1
+"wave" = 2
+
+[[preset]]
+key = "preset.anulus.dalek"
+note = "Thirty hertz on a voice: the classic science-fiction villain."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"freq" = 30
+"mix" = 1
+"out" = 3
+
+[[preset]]
+key = "preset.anulus.through_zero_tremolo"
+note = "A carrier so slow it is a tremolo that flips the polarity."
+styles = ["rock", "film"]
+roles = ["creative"]
+[preset.values]
+"freq" = 4
+"mix" = 1
+"out" = 5
+"wave" = 1
+
+[[preset]]
+key = "preset.anulus.siren"
+note = "The carrier swept by an LFO: an alarm."
+styles = ["film", "house"]
+roles = ["creative"]
+[preset.values]
+"freq" = 700
+"lfo" = 12
+"mix" = 0.8
+"rate" = 0.4
+"shape" = 1
+
+[[preset]]
+key = "preset.anulus.metal_drums"
+note = "A square carrier on drums: clang and grit."
+styles = ["house", "film"]
+roles = ["drums"]
+[preset.values]
+"freq" = 1250
+"mix" = 0.45
+"out" = -6.6
+"wave" = 2
+
+[[preset]]
+key = "preset.anulus.stereo_shimmer"
+note = "A high carrier, a little, opposite sides: a glassy air."
+styles = ["ambient"]
+roles = ["creative"]
+[preset.values]
+"freq" = 2200
+"mix" = 0.3
+"out" = -2
+"spread" = 90
+
+[[preset]]
+key = "preset.anulus.random_steps"
+note = "The carrier jumps on every eighth: a sample-and-hold ring."
+styles = ["house", "film"]
+roles = ["creative"]
+[preset.values]
+"div" = 11
+"freq" = 330
+"lfo" = 7
+"mix" = 0.7
+"out" = -0.4
+"shape" = 5
+"sync" = 1
+
+[[preset]]
+key = "preset.anulus.lofi_radio"
+note = "A low, faint carrier: the sound of a cheap radio."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"freq" = 90
+"mix" = 0.2
+
+[[preset]]
+key = "preset.anulus.trap_bell"
+note = "A high carrier on a melody: the dark trap bell."
+styles = ["trap"]
+roles = ["creative"]
+[preset.values]
+"freq" = 880
+"mix" = 0.35
+"out" = -1.5
+
+[[preset]]
+key = "preset.anulus.drum_tone"
+note = "A low carrier tuned under a snare: tone and grit."
+styles = ["rock", "trap"]
+roles = ["drums"]
+[preset.values]
+"freq" = 180
+"mix" = 0.25
+"out" = -0.8
+"wave" = 1
+
+[[preset]]
+key = "preset.anulus.alien_vocal"
+note = "A slow sweep under a voice: the alien announcer."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"freq" = 400
+"lfo" = 5
+"mix" = 0.7
+"out" = 1
+"rate" = 0.3
+"shape" = 0

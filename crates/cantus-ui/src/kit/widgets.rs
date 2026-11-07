@@ -451,6 +451,42 @@ pub fn segmented(
             }
         }
     }
+    // The keyboard (round 37): ← and → move the choice while it holds focus.
+    if resp.has_focus() && !labels.is_empty() {
+        let (l, r) = ui.input(|i| {
+            (
+                i.key_pressed(egui::Key::ArrowLeft),
+                i.key_pressed(egui::Key::ArrowRight),
+            )
+        });
+        let n = labels.len();
+        let next = if l {
+            (*selected + n - 1) % n
+        } else if r {
+            (*selected + 1) % n
+        } else {
+            *selected
+        };
+        if next != *selected {
+            *selected = next;
+            resp.mark_changed();
+        }
+    }
+    // The screen reader hears the control's name and its choice.
+    let chosen = labels
+        .get(*selected)
+        .map(|l| match l {
+            Src::Str(t) => t.to_string(),
+            Src::Key(k) => crate::i18n::t(k),
+        })
+        .unwrap_or_default();
+    resp.widget_info(|| {
+        egui::WidgetInfo::labeled(
+            egui::WidgetType::RadioGroup,
+            true,
+            format!("{name}: {chosen}"),
+        )
+    });
     let st = State::of(&resp, false);
     if st.hovered {
         hint::set_text(ui.ctx(), name, "", Caps::NONE);

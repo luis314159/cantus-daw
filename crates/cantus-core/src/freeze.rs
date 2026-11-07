@@ -795,7 +795,30 @@ fn track_part(t: &Track, live: &[&str]) -> serde_json::Value {
         }
     }
     crate::session::scrub_cosmetic(&mut v); // r33:session (a session clip's name and colour)
+    scrub_look(&mut v); // r37:scene
     v
+}
+
+/// A Chorda's look (ADR 0104: the piano its scene draws) is nothing to hear: its text keys
+/// are left out of the key, and an instrument text left empty by that is left out whole,
+/// so a song keyed before the look existed keys the same after schema 58 writes it.
+/// // r37:scene
+fn scrub_look(v: &mut serde_json::Value) {
+    let Some(inst) = v.get_mut("instrument").and_then(|i| i.as_object_mut()) else {
+        return;
+    };
+    let empty = match inst.get_mut("text").and_then(|t| t.as_object_mut()) {
+        Some(text) => {
+            for k in crate::inst::chorda_look::KEYS {
+                text.remove(k);
+            }
+            text.is_empty()
+        }
+        None => false,
+    };
+    if empty {
+        inst.remove("text");
+    }
 }
 
 /// Whether automation (or modulation) of `target` moves the sound of frozen target
@@ -1222,6 +1245,10 @@ pub enum CannotFreeze {
     /// solo, could not follow it (as a strip soloed inside, `SoloedStrip`). The strip the
     /// cue solos. // r36:record
     CueSolo(StripId), // r36:record
+    /// A kit whose pads play on strips of their own (round 37, ADR 0100): its source is
+    /// several outputs, which one render of the track cannot hold — its strips freeze (the
+    /// kit's strip holds them all). The track. // r37:drums
+    SplitKit(TrackId), // r37:drums
 }
 
 /// One undo step that freezes `target`: the armed tracks of its region disarmed first (a
@@ -1243,6 +1270,15 @@ pub fn freeze_commands(project: &Project, target: FreezeTarget) -> Result<Comman
             .is_some_and(|x| crate::inst::dancer::is_dancer(&x.instrument))
         {
             return Err(CannotFreeze::Dancer(t)); // r35:dancer
+        }
+    }
+    // r37:drums — a split kit's own source is several outputs: its strips freeze instead.
+    if let FreezeTarget::Track(t) = target {
+        if project
+            .track(t)
+            .is_some_and(|x| !x.instrument.output_strips().is_empty())
+        {
+            return Err(CannotFreeze::SplitKit(t));
         }
     }
     let r = region(project, target);
@@ -1559,9 +1595,12 @@ pub fn solo_play(project: &Project, target: FreezeTarget) -> SoloPlay {
     };
     // A track whose sound is in the region (it plays into one of its strips, or into the
     // master the region hears), not one there only for its notes.
-    let sounds_in = |t: &Track| match t.strip {
-        Some(x) => r.strips.contains(&x),
-        None => r.whole,
+    // r37:drums — through any of its outputs (a split kit's pads, ADR 0100).
+    let sounds_in = |t: &Track| {
+        t.destinations().into_iter().any(|d| match d {
+            Some(x) => r.strips.contains(&x),
+            None => r.whole,
+        })
     };
     let mut changed = false;
     for t in project.tracks.iter().filter(|t| r.tracks.contains(&t.id)) {
@@ -1689,7 +1728,9 @@ pub fn dormant(project: &Project, plays: &dyn Fn(FreezeTarget) -> bool) -> Dorma
             // r35:dancer — a dancer is watched, not heard: its unit runs whatever its sound
             // reaches (ADR 0087), or the screen would stop.
             let dancer = crate::inst::dancer::is_dancer(&t.instrument); // r35:dancer
-            if heard(&d, t.strip) || dancer {
+                                                                        // r37:drums — any of its outputs (a split kit's pads, ADR 0100).
+            let out = t.destinations().into_iter().any(|to| heard(&d, to));
+            if out || dancer {
                 wake_tracks.push(t.id);
             }
         }
@@ -1867,6 +1908,7 @@ pub fn settle(project: &Project, snapshot: &mut crate::Snapshot) {
             t.instrument = crate::instrument::InstrumentSpec::default();
         }
     }
+    crate::padout::settle_taps(snapshot); // r37:drums — a pad's output rests with its source
 }
 
 /// Mark every node of `snapshot` outside `keep` as resting: a freeze's render (or a
@@ -1881,10 +1923,11 @@ pub fn isolate(snapshot: &mut crate::Snapshot, keep: &Region) {
         }
     }
     for t in &mut snapshot.tracks {
-        if !keep.tracks.contains(&t.id) {
+        if !keep.tracks.contains(&t.id) && t.tap.is_none() {
             t.rest = true;
         }
     }
+    crate::padout::settle_taps(snapshot); // r37:drums — taps follow their source and strip
 }
 
 /// What makes the sound of one track through strip `strip`'s chain (a bounce in place

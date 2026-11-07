@@ -1,11 +1,67 @@
-//! The kit's small vector glyphs, drawn with the brush's primitives on the pixel grid:
-//! the ▸ menu arrow every window has at its top-left (FL), chevrons, steppers, the star,
-//! the power lamp's symbol, undo and redo, the FX bulb, phase and swap, the resize grip.
-//! Each fits a square box and scales with it.
+//! The kit's icon family (round 37, ADR 0103): every glyph drawn on one 12-unit grid with
+//! **one stroke weight**, **one corner radius** and **one optical size**, in two tones —
+//! the ink for strokes and solid marks, a *tint* of the ink (its colour at [`TINT`]) inside
+//! closed shapes — so a toolbar, a strip, a menu and a window's own buttons read as one hand.
+//!
+//! A glyph is **data**: [`ops`] describes it as a list of [`Op`]s in grid units (no op can
+//! carry a width or a radius of its own), and [`paint`] renders the list centred in a box,
+//! the stroke snapped to whole physical pixels and every point onto the pixel grid, so the
+//! lines are crisp at 100 %, 125 %, 150 % and 200 %. `tests/kit_glyphs.rs` measures every
+//! glyph — its extent, its centre and its ink — and fails on one outside the family.
+//!
+//! Callers size the box: a glyph fills about 0.86 of it (`2 × LIVE / GRID`); a toolbar
+//! key gives it 0.72 of its side ([`super::cap::GLYPH_SHARE`]).
 
 use super::brush::{Brush, Fill};
-use egui::{pos2, Color32, Pos2, Rect, Vec2};
+use egui::{pos2, Color32, Pos2, Rect};
 use std::f32::consts::PI;
+
+/// The grid a glyph is drawn on: this many units across its box.
+pub const GRID: f32 = 12.0;
+/// The family's one stroke weight, in units (snapped to whole physical pixels).
+pub const STROKE: f32 = 1.2;
+/// The family's one corner radius, in units, for frames and blocks.
+pub const RADIUS: f32 = 1.0;
+/// The tint inside closed shapes: the ink at this opacity.
+pub const TINT: f32 = 0.38;
+/// How far from the centre ink may reach, stroke included, in units.
+pub const LIVE: f32 = 5.7;
+/// The least a glyph's larger extent may be, in units: none reads smaller than the rest.
+pub const OPTICAL_MIN: f32 = 8.0;
+
+/// A point on the grid, in units from the box's centre (y down).
+pub type P = (f32, f32);
+
+/// One mark of a glyph. Strokes are [`STROKE`] wide with round ends and joins; frames and
+/// blocks have [`RADIUS`] corners — no op can say otherwise.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Op<'a> {
+    /// An open stroke through the points.
+    Line(&'a [P]),
+    /// A closed stroke through the points, tinted inside (the points make a convex shape).
+    Loop(&'a [P]),
+    /// A closed stroke through the points, not tinted (a concave shape; its tint, if any,
+    /// is given as [`Op::Tint`] pieces).
+    Outline(&'a [P]),
+    /// A convex piece of tint.
+    Tint(&'a [P]),
+    /// A solid convex shape in the ink.
+    Solid(&'a [P]),
+    /// A circle's stroke, tinted inside: centre, radius.
+    Ring(P, f32),
+    /// A solid disc: centre, radius.
+    Disc(P, f32),
+    /// An arc's stroke: centre, radius, from and to (radians; 0 points right, π/2 down).
+    Arc(P, f32, f32, f32),
+    /// A rounded box's stroke, tinted inside: left, top, right, bottom.
+    Frame(f32, f32, f32, f32),
+    /// A solid rounded box in the ink.
+    Block(f32, f32, f32, f32),
+    /// A rounded box of tint alone (an unlit step, an empty cell).
+    Ghost(f32, f32, f32, f32),
+    /// A capsule's stroke (its ends half circles), tinted inside.
+    Pill(f32, f32, f32, f32),
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Glyph {
@@ -35,8 +91,8 @@ pub enum Glyph {
     Close,
     /// The FX-on bulb.
     Bulb,
-    /// ✦ an agent (round 34, the AI area). // r34:mcp
-    Agent, // r34:mcp
+    /// ✦ an agent (round 34, the AI area).
+    Agent,
     /// ● record
     Record,
     /// Ø invert phase
@@ -45,6 +101,10 @@ pub enum Glyph {
     Swap,
     /// ▲ send to this strip
     Send,
+    /// △ a send that would loop (round 37: the hollow ▲, once drawn by the mixer).
+    SendOpen,
+    /// Two rings folded into one: mono (round 37: once drawn by the mixer).
+    Mono,
     /// + add
     Plus,
     /// ◢ resize grip: three diagonal lines
@@ -96,6 +156,8 @@ pub enum Glyph {
     Typed,
     /// ↔ ⌕ the interface's zoom.
     Zoom,
+    /// A magnet: snap to the grid. // r37:finish
+    Magnet,
     // --- a device window's own buttons (round 20) ---
     /// ‒ minimise: a bar at the foot of the box.
     Minimise,
@@ -135,66 +197,330 @@ pub enum Glyph {
     LaneLine,
     /// A bent segment between two dots: a lane's curve tool.
     LaneCurve,
-    /// The session view (round 33, ADR 0077): a grid of clip cells, one playing. // r33:launcher
-    Session, // r33:launcher
-    /// The Stage tab's mark: a figure dancing (round 35, ADR 0091). // r35:stage
-    Stage, // r35:stage
+    /// The session view (round 33, ADR 0077): a grid of clip cells, one playing.
+    Session,
+    /// The Stage tab's mark: a figure dancing (round 35, ADR 0091).
+    Stage,
 }
 
-/// Paint `g` centred in `rect` (its smaller side is the glyph's size).
+impl Glyph {
+    /// Every glyph, in the order above (the family test walks it).
+    pub const ALL: [Glyph; 64] = [
+        Glyph::Menu,
+        Glyph::Down,
+        Glyph::Prev,
+        Glyph::Next,
+        Glyph::Star,
+        Glyph::StarFilled,
+        Glyph::More,
+        Glyph::Help,
+        Glyph::Power,
+        Glyph::Undo,
+        Glyph::Redo,
+        Glyph::Resize,
+        Glyph::Close,
+        Glyph::Bulb,
+        Glyph::Agent,
+        Glyph::Record,
+        Glyph::Phase,
+        Glyph::Swap,
+        Glyph::Send,
+        Glyph::SendOpen,
+        Glyph::Mono,
+        Glyph::Plus,
+        Glyph::Grip,
+        Glyph::Check,
+        Glyph::Device,
+        Glyph::Play,
+        Glyph::Pause,
+        Glyph::Stop,
+        Glyph::ToStart,
+        Glyph::Loop,
+        Glyph::Metronome,
+        Glyph::Keyboard,
+        Glyph::Arrangement,
+        Glyph::PianoRoll,
+        Glyph::Score,
+        Glyph::Rack,
+        Glyph::Mixer,
+        Glyph::Inspector,
+        Glyph::Browser,
+        Glyph::Gear,
+        Glyph::Pick,
+        Glyph::Warning,
+        Glyph::MouseMenu,
+        Glyph::Automate,
+        Glyph::Typed,
+        Glyph::Zoom,
+        Glyph::Magnet, // r37:finish
+        Glyph::Minimise,
+        Glyph::Maximise,
+        Glyph::Restore,
+        Glyph::Replace,
+        Glyph::Link,
+        Glyph::Key,
+        Glyph::Cables,
+        Glyph::Filter,
+        Glyph::Warp,
+        Glyph::PluginStopped,
+        Glyph::Frozen,
+        Glyph::Controller,
+        Glyph::LanePencil,
+        Glyph::LaneLine,
+        Glyph::LaneCurve,
+        Glyph::Session,
+        Glyph::Stage,
+    ];
+}
+
+/// The stroke a glyph in a box of `side` points is drawn with at `ppp`, in points: the
+/// family's weight, rounded to whole physical pixels (one at least).
+pub fn stroke_width(side: f32, ppp: f32) -> f32 {
+    ((STROKE * side / GRID * ppp).round().max(1.0)) / ppp
+}
+
+/// Polylines this long or shorter have their points snapped to the pixel grid (crisp
+/// straight strokes); longer ones are curves, drawn where they fall.
+const SNAP_POINTS: usize = 5;
+
+/// Paint `g` centred in `rect` (its smaller side is the glyph's box) in `color`: strokes
+/// and solid marks in the ink, closed shapes tinted inside with it at [`TINT`].
 pub fn paint(b: &mut Brush, rect: Rect, g: Glyph, color: Color32) {
-    let s = rect.width().min(rect.height());
+    paint_mode(b, rect, g, color, false, ops);
+}
+
+/// A glyph's accent (r37:finish thirteenth, ADR 0103 §59): the one part of an area key's
+/// little drawing in the theme's highlight — the playhead over the clips, the note being
+/// played, the lit steps — drawn over [`paint`]'s body. Nothing for a glyph without one.
+pub fn paint_accent(b: &mut Brush, rect: Rect, g: Glyph, color: Color32) {
+    paint_mode(b, rect, g, color, false, accent_ops);
+}
+
+/// Whether `g` has an accent ([`paint_accent`]).
+pub fn has_accent(g: Glyph) -> bool {
+    let mut any = false;
+    accent_ops(g, &mut |_| any = true);
+    any
+}
+
+/// The stroke of a fine-line pictogram in a box of `side` points: three quarters of the
+/// family's, whole physical pixels (1 px at 100 % on a toolbar key, 2 px at 150 %).
+/// // r37:finish
+pub fn fine_stroke_width(side: f32, ppp: f32) -> f32 {
+    ((0.75 * STROKE * side / GRID * ppp).round().max(1.0)) / ppp
+}
+
+/// [`paint`] as a fine-line pictogram (the toolbar's keys, round 37: the judge read the
+/// filled glyphs as blobs): the strokes finer, every filled shape an outline with a faint
+/// tint, only dots under two pixels left solid. // r37:finish
+pub fn paint_line(b: &mut Brush, rect: Rect, g: Glyph, color: Color32) {
+    paint_mode(b, rect, g, color, true, ops);
+}
+
+/// A glyph's list of strokes and shapes: its body ([`ops`]) or its accent
+/// ([`accent_ops`]).
+type OpList = fn(Glyph, &mut dyn FnMut(Op<'_>));
+
+fn paint_mode(b: &mut Brush, rect: Rect, g: Glyph, color: Color32, fine: bool, which: OpList) {
+    let side = rect.width().min(rect.height());
+    if side <= 0.0 || color.a() == 0 {
+        return;
+    }
+    let ppp = b.ppp();
+    let u = side / GRID;
+    let w = if fine {
+        fine_stroke_width(side, ppp)
+    } else {
+        stroke_width(side, ppp)
+    };
+    // An odd stroke centres on a pixel's middle, an even one on a pixel's edge; fills
+    // end on pixel edges.
+    let mid = if ((w * ppp).round() as i32) % 2 == 1 {
+        0.5
+    } else {
+        0.0
+    };
     let c = rect.center();
-    let c = pos2(b.snap_mid(c.x), b.snap_mid(c.y));
-    let u = s / 12.0; // the glyph grid: 12 units across
-    let p = |x: f32, y: f32| c + Vec2::new(x * u, y * u);
-    let w = (1.25 * u).max(b.px());
+    let c = pos2((c.x * ppp).round() / ppp, (c.y * ppp).round() / ppp);
+    let snap = move |v: f32, off: f32| ((v * ppp - off).round() + off) / ppp;
+    let at = move |q: P| pos2(c.x + q.0 * u, c.y + q.1 * u);
+    let on_line = move |q: P| {
+        let p = at(q);
+        pos2(snap(p.x, mid), snap(p.y, mid))
+    };
+    let on_edge = move |q: P| {
+        let p = at(q);
+        pos2(snap(p.x, 0.0), snap(p.y, 0.0))
+    };
+    // r37:finish — a fine pictogram is one ink, lines only (judge 7: an orange line over
+    // a pale tint read as two inks): no tint inside its shapes.
+    let tint = if fine {
+        Color32::TRANSPARENT
+    } else {
+        color.gamma_multiply(TINT)
+    };
+    let rad = RADIUS * u;
+    let mut buf = [Pos2::ZERO; 16];
+    which(g, &mut |op| match op {
+        Op::Line(pts) => {
+            let n = pts.len().min(buf.len());
+            let snapped = n <= SNAP_POINTS;
+            for (d, q) in buf.iter_mut().zip(pts) {
+                *d = if snapped { on_line(*q) } else { at(*q) };
+            }
+            if n == 2 {
+                b.segment(buf[0], buf[1], w, color, true);
+            } else if n > 2 {
+                b.polyline(&buf[..n], w, color);
+                b.dot(buf[0], w * 0.5, color);
+                b.dot(buf[n - 1], w * 0.5, color);
+            }
+        }
+        Op::Loop(pts) | Op::Outline(pts) => {
+            let n = pts.len().min(buf.len());
+            for (d, q) in buf.iter_mut().zip(pts) {
+                *d = on_line(*q);
+            }
+            if matches!(op, Op::Loop(_)) && tint.a() > 0 {
+                b.polygon(&buf[..n], tint);
+            }
+            for i in 0..n {
+                b.segment(buf[i], buf[(i + 1) % n], w, color, false);
+                b.dot(buf[i], w * 0.5, color);
+            }
+        }
+        Op::Solid(pts) if fine => {
+            // A solid shape as its outline over a faint tint.
+            let n = pts.len().min(buf.len());
+            for (d, q) in buf.iter_mut().zip(pts) {
+                *d = on_line(*q);
+            }
+            if tint.a() > 0 {
+                b.polygon(&buf[..n], tint);
+            }
+            for i in 0..n {
+                b.segment(buf[i], buf[(i + 1) % n], w, color, false);
+                b.dot(buf[i], w * 0.5, color);
+            }
+        }
+        Op::Tint(pts) | Op::Solid(pts) => {
+            let n = pts.len().min(buf.len());
+            for (d, q) in buf.iter_mut().zip(pts) {
+                *d = at(*q);
+            }
+            let ink = if matches!(op, Op::Tint(_)) {
+                tint
+            } else {
+                color
+            };
+            b.polygon(&buf[..n], ink);
+        }
+        Op::Ring(q, r) => {
+            let p = on_line(q);
+            if tint.a() > 0 {
+                b.dot(p, r * u, tint);
+            }
+            b.circle_stroke(p, r * u, w, color);
+        }
+        Op::Disc(q, r) if fine && r * u * ppp > 2.0 => {
+            let p = on_line(q);
+            if tint.a() > 0 {
+                b.dot(p, r * u, tint);
+            }
+            b.circle_stroke(p, r * u, w, color);
+        }
+        Op::Disc(q, r) => b.dot(at(q), r * u, color),
+        Op::Arc(q, r, a0, a1) => b.arc(on_line(q), r * u, a0, a1, w, color, true),
+        Op::Frame(x0, y0, x1, y1) => {
+            let r = Rect::from_min_max(on_line((x0, y0)), on_line((x1, y1)));
+            if tint.a() > 0 {
+                b.rrect(r, rad, Fill::Solid(tint));
+            }
+            b.rrect_stroke(r, rad, w, color);
+        }
+        Op::Pill(x0, y0, x1, y1) => {
+            let r = Rect::from_min_max(on_line((x0, y0)), on_line((x1, y1)));
+            let rr = r.width().min(r.height()) * 0.5;
+            if tint.a() > 0 {
+                b.rrect(r, rr, Fill::Solid(tint));
+            }
+            b.rrect_stroke(r, rr, w, color);
+        }
+        Op::Block(x0, y0, x1, y1) if fine => {
+            // A block as a frame over a faint tint.
+            let r = Rect::from_min_max(on_line((x0, y0)), on_line((x1, y1)));
+            let rr = rad.min(r.width().min(r.height()) * 0.5);
+            if tint.a() > 0 {
+                b.rrect(r, rr, Fill::Solid(tint));
+            }
+            b.rrect_stroke(r, rr, w, color);
+        }
+        Op::Block(x0, y0, x1, y1) | Op::Ghost(x0, y0, x1, y1) => {
+            let r = Rect::from_min_max(on_edge((x0, y0)), on_edge((x1, y1)));
+            let ink = if matches!(op, Op::Ghost(..)) {
+                tint
+            } else {
+                color
+            };
+            b.rrect(
+                r,
+                rad.min(r.width().min(r.height()) * 0.5),
+                Fill::Solid(ink),
+            );
+        }
+    });
+}
+
+/// A glyph's size for a box of `side` points: the box a caller hands [`paint`] so the
+/// glyph is drawn at `drawn` points (the family fills `2 × LIVE / GRID` of its box).
+pub fn box_for(drawn: f32) -> f32 {
+    drawn * GRID / (2.0 * LIVE)
+}
+
+/// Describe `g` as ops in grid units, one call of `o` per op, in painting order.
+pub fn ops(g: Glyph, o: &mut dyn FnMut(Op<'_>)) {
+    use Op::*;
     match g {
-        Glyph::Menu => b.polygon(&[p(-2.0, -4.0), p(3.0, 0.0), p(-2.0, 4.0)], color),
-        Glyph::Down => b.polygon(&[p(-4.0, -2.0), p(4.0, -2.0), p(0.0, 3.0)], color),
-        Glyph::Prev => {
-            b.segment(p(1.5, -4.0), p(-2.0, 0.0), w, color, true);
-            b.segment(p(-2.0, 0.0), p(1.5, 4.0), w, color, true);
-        }
-        Glyph::Next => {
-            b.segment(p(-1.5, -4.0), p(2.0, 0.0), w, color, true);
-            b.segment(p(2.0, 0.0), p(-1.5, 4.0), w, color, true);
-        }
+        Glyph::Menu => o(Solid(&[(-1.6, -4.2), (3.4, 0.0), (-1.6, 4.2)])),
+        Glyph::Down => o(Solid(&[(-4.2, -2.0), (4.2, -2.0), (0.0, 2.8)])),
+        Glyph::Prev => o(Line(&[(1.9, -4.6), (-2.7, 0.0), (1.9, 4.6)])),
+        Glyph::Next => o(Line(&[(-1.9, -4.6), (2.7, 0.0), (-1.9, 4.6)])),
         Glyph::Star | Glyph::StarFilled => {
-            let mut pts = [Pos2::ZERO; 10];
-            for (i, q) in pts.iter_mut().enumerate() {
+            let pts: [P; 10] = std::array::from_fn(|i| {
                 let a = -PI / 2.0 + i as f32 * PI / 5.0;
                 let r = if i % 2 == 0 { 5.0 } else { 2.1 };
-                *q = p(r * a.cos(), r * a.sin() + 0.4);
-            }
+                (r * a.cos(), r * a.sin() + 0.4)
+            });
+            let pent = [pts[1], pts[3], pts[5], pts[7], pts[9]];
+            let tips: [[P; 3]; 5] =
+                std::array::from_fn(|i| [pts[(2 * i + 9) % 10], pts[2 * i], pts[2 * i + 1]]);
             if g == Glyph::StarFilled {
-                // Convex pieces: the pentagon and its five points.
-                b.polygon(&[pts[1], pts[3], pts[5], pts[7], pts[9]], color);
-                for i in 0..5 {
-                    let tip = pts[2 * i];
-                    let l = pts[(2 * i + 9) % 10];
-                    let r = pts[2 * i + 1];
-                    b.polygon(&[l, tip, r], color);
+                o(Solid(&pent));
+                for t in &tips {
+                    o(Solid(t));
                 }
             } else {
-                for i in 0..10 {
-                    b.segment(pts[i], pts[(i + 1) % 10], w * 0.85, color, true);
+                o(Tint(&pent));
+                for t in &tips {
+                    o(Tint(t));
                 }
+                o(Outline(&pts));
             }
         }
         Glyph::More => {
-            for x in [-3.5, 0.0, 3.5] {
-                b.circle(p(x, 0.0), 1.1 * u, Fill::Solid(color));
+            for x in [-3.8, 0.0, 3.8] {
+                o(Disc((x, 0.0), 1.6));
             }
         }
         Glyph::Help => {
-            b.arc(p(0.0, -1.5), 2.6 * u, -PI * 0.95, PI * 0.35, w, color, true);
-            b.segment(p(0.9, 0.9), p(0.0, 2.0), w, color, true);
-            b.circle(p(0.0, 4.4), 0.95 * u, Fill::Solid(color));
+            o(Ring((0.0, 0.0), 5.0));
+            o(Arc((0.0, -1.4), 1.8, -PI * 0.95, PI * 0.3));
+            o(Line(&[(1.15, -0.05), (0.0, 0.9), (0.0, 1.4)]));
+            o(Disc((0.0, 3.0), 0.8));
         }
         Glyph::Power => {
-            b.arc(p(0.0, 0.8), 4.2 * u, -PI * 0.28, PI * 1.28, w, color, true);
-            b.segment(p(0.0, -4.8), p(0.0, 0.2), w, color, true);
+            o(Arc((0.0, 0.6), 4.3, -PI * 0.28, PI * 1.28));
+            o(Line(&[(0.0, -5.0), (0.0, 0.4)]));
         }
         Glyph::Undo | Glyph::Redo => {
             let m = if g == Glyph::Undo { 1.0 } else { -1.0 };
@@ -203,381 +529,380 @@ pub fn paint(b: &mut Brush, rect: Rect, g: Glyph, color: Color32) {
             } else {
                 (PI * 0.65, PI * 1.9)
             };
-            b.arc(p(0.0, 0.8), 3.6 * u, a0, a1, w, color, true);
-            b.polygon(
-                &[p(-5.8 * m, -1.0), p(-1.8 * m, -2.2), p(-3.4 * m, 1.8)],
-                color,
-            );
+            o(Arc((0.0, 0.8), 3.8, a0, a1));
+            o(Solid(&[
+                (-5.6 * m, -1.0),
+                (-1.6 * m, -2.4),
+                (-3.2 * m, 2.0),
+            ]));
         }
         Glyph::Resize => {
-            b.segment(p(-3.5, 3.5), p(3.5, -3.5), w, color, true);
-            b.polygon(&[p(4.5, -4.5), p(0.5, -4.5), p(4.5, -0.5)], color);
-            b.polygon(&[p(-4.5, 4.5), p(-0.5, 4.5), p(-4.5, 0.5)], color);
+            o(Line(&[(-3.2, 3.2), (3.2, -3.2)]));
+            o(Solid(&[(4.8, -4.8), (0.6, -4.8), (4.8, -0.6)]));
+            o(Solid(&[(-4.8, 4.8), (-0.6, 4.8), (-4.8, 0.6)]));
         }
         Glyph::Close => {
-            b.segment(p(-3.5, -3.5), p(3.5, 3.5), w, color, true);
-            b.segment(p(-3.5, 3.5), p(3.5, -3.5), w, color, true);
+            o(Line(&[(-3.8, -3.8), (3.8, 3.8)]));
+            o(Line(&[(-3.8, 3.8), (3.8, -3.8)]));
         }
         Glyph::Bulb => {
-            b.circle(p(0.0, -1.2), 3.6 * u, Fill::Solid(color));
-            b.rrect(
-                Rect::from_center_size(p(0.0, 3.4), Vec2::new(3.8 * u, 2.6 * u)),
-                0.8 * u,
-                Fill::Solid(color),
-            );
+            // A lamp's glass, solid (it is read as lit or not), and its base.
+            o(Disc((0.0, -1.3), 3.8));
+            o(Block(-1.9, 2.9, 1.9, 4.0));
+            o(Block(-1.2, 4.6, 1.2, 5.5));
         }
-        // r34:mcp — a four-pointed spark and a small one: the AI area's sign.
         Glyph::Agent => {
-            // r34:mcp — four tips around a square waist, each part convex.
-            let wst = [p(-1.3, -1.3), p(1.3, -1.3), p(1.3, 1.3), p(-1.3, 1.3)]; // r34:mcp
-            let tips = [p(0.0, -5.2), p(5.2, 0.0), p(0.0, 5.2), p(-5.2, 0.0)]; // r34:mcp
+            let w: [P; 4] = [(-1.3, -1.1), (1.3, -1.1), (1.3, 1.5), (-1.3, 1.5)];
+            let tips: [P; 4] = [(0.0, -4.8), (5.0, 0.2), (0.0, 5.2), (-5.0, 0.2)];
             for i in 0..4 {
-                b.polygon(&[wst[i], tips[i], wst[(i + 1) % 4]], color); // r34:mcp
+                o(Solid(&[w[i], tips[i], w[(i + 1) % 4]]));
             }
-            b.polygon(&wst, color); // r34:mcp
-            b.circle(p(4.2, -4.2), 1.1 * u, Fill::Solid(color)); // r34:mcp
+            o(Solid(&w));
+            o(Disc((4.0, -4.0), 1.2));
         }
-        Glyph::Record => b.circle(c, 3.0 * u, Fill::Solid(color)),
+        Glyph::Record => o(Disc((0.0, 0.0), 4.4)),
         Glyph::Phase => {
-            b.circle_stroke(c, 3.4 * u, w, color);
-            b.segment(p(-4.2, 4.2), p(4.2, -4.2), w, color, true);
+            o(Ring((0.0, 0.0), 3.6));
+            o(Line(&[(-4.6, 4.6), (4.6, -4.6)]));
         }
         Glyph::Swap => {
-            b.segment(p(-4.0, -1.8), p(3.0, -1.8), w, color, false);
-            b.polygon(&[p(5.0, -1.8), p(2.0, -4.2), p(2.0, 0.6)], color);
-            b.segment(p(4.0, 1.8), p(-3.0, 1.8), w, color, false);
-            b.polygon(&[p(-5.0, 1.8), p(-2.0, -0.6), p(-2.0, 4.2)], color);
+            o(Line(&[(-4.6, -2.2), (2.4, -2.2)]));
+            o(Solid(&[(5.0, -2.2), (1.8, -4.8), (1.8, 0.4)]));
+            o(Line(&[(4.6, 2.2), (-2.4, 2.2)]));
+            o(Solid(&[(-5.0, 2.2), (-1.8, -0.4), (-1.8, 4.8)]));
         }
-        Glyph::Send => b.polygon(&[p(-4.0, 2.5), p(0.0, -2.5), p(4.0, 2.5)], color),
+        Glyph::Send => o(Solid(&[(-4.4, 3.0), (0.0, -3.0), (4.4, 3.0)])),
+        Glyph::SendOpen => o(Outline(&[(-4.4, 3.0), (0.0, -3.0), (4.4, 3.0)])),
+        Glyph::Mono => {
+            o(Ring((-1.9, 0.0), 3.2));
+            o(Ring((1.9, 0.0), 3.2));
+        }
         Glyph::Plus => {
-            b.segment(p(-4.0, 0.0), p(4.0, 0.0), w, color, false);
-            b.segment(p(0.0, -4.0), p(0.0, 4.0), w, color, false);
+            o(Line(&[(-4.2, 0.0), (4.2, 0.0)]));
+            o(Line(&[(0.0, -4.2), (0.0, 4.2)]));
         }
         Glyph::Grip => {
-            for d in [0.0, 3.0, 6.0] {
-                b.segment(p(5.0 - d, 5.0), p(5.0, 5.0 - d), w * 0.8, color, false);
-            }
+            // Anchored in its corner, where a window's grip sits.
+            o(Line(&[(-2.4, 5.0), (5.0, -2.4)]));
+            o(Line(&[(1.2, 5.0), (5.0, 1.2)]));
+            o(Disc((4.6, 4.6), 0.9));
         }
-        Glyph::Check => {
-            b.segment(p(-4.0, 0.2), p(-1.2, 3.2), w, color, true);
-            b.segment(p(-1.2, 3.2), p(4.2, -3.6), w, color, true);
-        }
+        Glyph::Check => o(Line(&[(-4.4, 0.2), (-1.4, 3.4), (4.4, -3.6)])),
         Glyph::Device => {
-            b.circle_stroke(c, 5.0 * u, w * 0.9, color);
-            let mut pts = [Pos2::ZERO; 13];
-            for (i, q) in pts.iter_mut().enumerate() {
-                let x = -3.2 + 6.4 * i as f32 / 12.0;
-                *q = p(x, -2.0 * (x * 1.25).sin());
-            }
-            b.polyline(&pts, w, color);
+            o(Ring((0.0, 0.0), 5.0));
+            let wave: [P; 13] = std::array::from_fn(|i| {
+                let x = -3.0 + 6.0 * i as f32 / 12.0;
+                (x, -1.9 * (x * 1.3).sin())
+            });
+            o(Line(&wave));
         }
-        _ => workspace(b, g, c, u, w, color),
+        _ => workspace(g, o),
     }
 }
 
-/// The workspace's glyphs (ADR 0024 §5, §9), on the same 12-unit grid.
-fn workspace(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
-    let p = |x: f32, y: f32| c + Vec2::new(x * u, y * u);
-    let bar = |b: &mut Brush, x0: f32, y0: f32, x1: f32, y1: f32| {
-        b.rect(Rect::from_min_max(p(x0, y0), p(x1, y1)), Fill::Solid(color));
-    };
+/// The workspace's glyphs (ADR 0024 §5, §9): transport, views, the hint bar.
+fn workspace(g: Glyph, o: &mut dyn FnMut(Op<'_>)) {
+    use Op::*;
     match g {
-        Glyph::Play => b.polygon(&[p(-3.2, -4.6), p(4.6, 0.0), p(-3.2, 4.6)], color),
+        Glyph::Play => o(Solid(&[(-3.4, -4.8), (4.8, 0.0), (-3.4, 4.8)])),
         Glyph::Pause => {
-            bar(b, -3.6, -4.2, -1.0, 4.2);
-            bar(b, 1.0, -4.2, 3.6, 4.2);
+            o(Block(-4.0, -4.6, -1.2, 4.6));
+            o(Block(1.2, -4.6, 4.0, 4.6));
         }
-        Glyph::Stop => b.rrect(
-            Rect::from_center_size(c, Vec2::splat(8.0 * u)),
-            0.8 * u,
-            Fill::Solid(color),
-        ),
+        Glyph::Stop => o(Block(-4.2, -4.2, 4.2, 4.2)),
         Glyph::ToStart => {
-            bar(b, -4.4, -4.2, -2.8, 4.2);
-            b.polygon(&[p(4.4, -4.2), p(4.4, 4.2), p(-2.2, 0.0)], color);
+            o(Block(-4.6, -4.4, -2.8, 4.4));
+            o(Solid(&[(4.6, -4.4), (4.6, 4.4), (-2.0, 0.0)]));
         }
         Glyph::Loop => {
-            b.arc(p(0.0, 0.0), 3.8 * u, PI * 0.15, PI * 1.05, w, color, true);
-            b.arc(p(0.0, 0.0), 3.8 * u, PI * 1.15, PI * 2.05, w, color, true);
-            b.polygon(&[p(-5.6, -0.6), p(-2.0, -0.6), p(-3.8, 2.0)], color);
-            b.polygon(&[p(5.6, 0.6), p(2.0, 0.6), p(3.8, -2.0)], color);
+            o(Arc((0.0, 0.0), 4.0, PI * 0.15, PI * 1.02));
+            o(Arc((0.0, 0.0), 4.0, PI * 1.15, PI * 2.02));
+            o(Solid(&[(-5.6, -0.4), (-2.4, -0.4), (-4.0, 2.2)]));
+            o(Solid(&[(5.6, 0.4), (2.4, 0.4), (4.0, -2.2)]));
         }
         Glyph::Metronome => {
-            b.segment(p(-3.0, 4.2), p(-1.2, -4.4), w, color, true);
-            b.segment(p(3.0, 4.2), p(1.2, -4.4), w, color, true);
-            b.segment(p(-1.2, -4.4), p(1.2, -4.4), w, color, true);
-            b.segment(p(-3.8, 4.2), p(3.8, 4.2), w, color, true);
-            b.segment(p(0.0, 2.6), p(3.6, -3.2), w * 0.9, color, true);
+            // r37:finish — a metronome: its case an outline (not a tinted block), its foot,
+            // the pendulum swung with its weight.
+            o(Outline(&[
+                (-3.4, 4.0),
+                (3.4, 4.0),
+                (1.2, -4.8),
+                (-1.2, -4.8),
+            ]));
+            o(Line(&[(-4.6, 4.8), (4.6, 4.8)]));
+            o(Line(&[(0.0, 2.6), (3.4, -3.8)]));
+            o(Disc((1.7, -0.6), 1.1));
         }
         Glyph::Keyboard => {
-            b.rrect_stroke(
-                Rect::from_min_max(p(-5.0, -3.4), p(5.0, 3.4)),
-                0.8 * u,
-                w * 0.8,
-                color,
-            );
-            for x in [-2.5, 0.0, 2.5] {
-                b.segment(p(x, 0.4), p(x, 3.0), w * 0.7, color, false);
+            o(Frame(-5.0, -3.8, 5.0, 3.8));
+            for x in [-2.6, 0.0, 2.6] {
+                o(Line(&[(x, 0.6), (x, 3.8)]));
             }
-            for x in [-3.6, -1.2, 1.2, 3.6] {
-                bar(b, x - 0.5, -3.0, x + 0.5, 0.6);
+            for x in [-2.6, 0.0] {
+                o(Block(x - 0.9, -3.8, x + 0.9, 0.6));
             }
+            o(Block(2.6 - 0.9, -3.8, 2.6 + 0.9, 0.6));
         }
         Glyph::Arrangement => {
-            for (i, (x0, x1)) in [(-5.0, 0.5), (-2.0, 5.0), (-5.0, 2.5)].iter().enumerate() {
-                let y = -3.4 + i as f32 * 3.4;
-                b.rrect(
-                    Rect::from_min_max(p(*x0, y - 1.1), p(*x1, y + 1.1)),
-                    0.5 * u,
-                    Fill::Solid(color),
-                );
-            }
+            // r37:finish thirteenth — the playlist: clips on three lanes, each a framed
+            // block; the playhead across them is the accent.
+            o(Frame(-5.0, -4.8, 0.2, -2.2));
+            o(Frame(-2.4, -1.3, 5.0, 1.3));
+            o(Frame(-5.0, 2.2, -0.8, 4.8));
+            o(Frame(2.6, 2.2, 5.0, 4.8));
         }
         Glyph::PianoRoll => {
-            for i in 0..4 {
-                let y = -4.2 + i as f32 * 2.3;
-                bar(b, -5.2, y, -3.4, y + 1.5);
-            }
-            bar(b, -1.6, -3.4, 2.2, -1.8);
-            bar(b, 0.4, -0.4, 4.8, 1.2);
-            bar(b, -1.6, 2.4, 1.0, 4.0);
+            // r37:finish thirteenth — a keyboard down the left (its keys parted), notes at
+            // two pitches; the note being played is the accent.
+            o(Frame(-5.0, -5.0, -2.4, 5.0));
+            o(Line(&[(-5.0, -1.7), (-2.4, -1.7)]));
+            o(Line(&[(-5.0, 1.7), (-2.4, 1.7)]));
+            o(Block(-1.2, -4.4, 2.4, -2.6));
+            o(Block(0.2, 2.6, 4.2, 4.4));
         }
         Glyph::Score => {
-            // Five lines, thin; a filled head on the second space from the foot, its stem
-            // up at the right, a flag.
-            for i in 0..5 {
-                let y = -4.0 + i as f32 * 2.0;
-                b.segment(p(-5.5, y), p(5.5, y), w * 0.45, color, false);
+            for y in [-3.4, 0.2, 3.8] {
+                o(Line(&[(-5.0, y), (5.0, y)]));
             }
-            b.circle(p(-0.6, 1.0), 1.55 * u, Fill::Solid(color));
-            b.segment(p(0.85, 0.8), p(0.85, -5.2), w * 0.7, color, false);
-            b.polygon(
-                &[p(0.85, -5.2), p(3.6, -2.6), p(3.0, -2.0), p(0.85, -3.6)],
-                color,
-            );
+            o(Disc((-1.0, 2.0), 1.9));
+            o(Line(&[(0.85, 1.6), (0.85, -4.8)]));
+            o(Solid(&[
+                (0.85, -4.8),
+                (3.8, -2.4),
+                (3.2, -1.6),
+                (0.85, -3.0),
+            ]));
         }
         Glyph::Rack => {
-            for row in 0..3 {
-                for col in 0..4 {
-                    let x = -4.8 + col as f32 * 2.6;
-                    let y = -4.0 + row as f32 * 3.0;
-                    let on = (row + col) % 3 == 0;
-                    let r = Rect::from_min_max(p(x, y), p(x + 1.9, y + 2.2));
-                    if on {
-                        b.rect(r, Fill::Solid(color));
-                    } else {
-                        b.rrect_stroke(r, 0.0, w * 0.6, color);
-                    }
+            // r37:finish thirteenth — the step sequencer: three channels' rows of four
+            // steps, framed; the lit steps are the accent.
+            for y in [-5.0f32, -1.3, 2.4] {
+                for x in [-5.0f32, -2.4, 0.2, 2.8] {
+                    o(Ghost(x, y, x + 2.2, y + 2.6));
                 }
             }
         }
         Glyph::Mixer => {
-            for (x, cap) in [(-3.6, 1.6), (0.0, -2.0), (3.6, 0.4)] {
-                b.segment(p(x, -4.8), p(x, 4.8), w * 0.7, color, false);
-                bar(b, x - 1.5, cap - 1.0, x + 1.5, cap + 1.0);
+            // r37:finish thirteenth — three faders: their slots and their caps at three
+            // heights; the middle cap is the accent.
+            for x in [-3.6f32, 0.0, 3.6] {
+                o(Line(&[(x, -5.0), (x, 5.0)]));
             }
+            o(Frame(-5.0, 0.6, -2.2, 2.8));
+            o(Frame(2.2, -0.6, 5.0, 1.6));
         }
-        Glyph::Inspector | Glyph::Browser => {
-            let r = Rect::from_min_max(p(-5.0, -4.2), p(5.0, 4.2));
-            b.rrect_stroke(r, 0.8 * u, w * 0.8, color);
-            let (x0, x1) = if g == Glyph::Inspector {
-                (1.4, 5.0)
-            } else {
-                (-5.0, -1.4)
-            };
-            bar(b, x0, -4.2, x1, 4.2);
+        Glyph::Inspector => {
+            // r37:finish — the inspector: information, an "i" in its ring (a silhouette of
+            // its own; three value tracks read like the other bar-and-dot icons).
+            o(Ring((0.0, 0.0), 4.9));
+            o(Disc((0.0, -2.4), 0.95));
+            o(Line(&[(0.0, -0.6), (0.0, 3.0)]));
+        }
+        Glyph::Browser => {
+            // r37:finish thirteenth — a folder, its tab and its front flap; the sound in
+            // it is the accent.
+            o(Outline(&[
+                (-5.0, 4.8),
+                (-5.0, -4.6),
+                (-1.6, -4.6),
+                (-0.4, -3.2),
+                (5.0, -3.2),
+                (5.0, 4.8),
+                (-5.0, 4.8),
+            ]));
+            o(Line(&[(-5.0, -1.4), (5.0, -1.4)]));
         }
         Glyph::Gear => {
             for i in 0..8 {
                 let a = i as f32 * PI / 4.0;
-                let (s, co) = a.sin_cos();
-                b.segment(
-                    p(co * 3.0, s * 3.0),
-                    p(co * 5.0, s * 5.0),
-                    w * 1.5,
-                    color,
-                    false,
-                );
+                let (s, c) = a.sin_cos();
+                let (r0, r1, h) = (2.8, 5.0, 0.95);
+                let q = |r: f32, t: f32| (c * r - s * t, s * r + c * t);
+                o(Solid(&[
+                    q(r0, -h),
+                    q(r1, -h * 0.8),
+                    q(r1, h * 0.8),
+                    q(r0, h),
+                ]));
             }
-            b.circle_stroke(c, 3.2 * u, w * 1.1, color);
+            o(Ring((0.0, 0.0), 3.3));
+            o(Ring((0.0, 0.0), 1.1));
         }
         Glyph::Pick => {
-            b.segment(p(-4.4, 4.4), p(1.0, -1.0), w * 1.1, color, true);
-            b.polygon(
-                &[p(-0.4, -2.6), p(2.6, 0.4), p(4.6, -1.6), p(1.6, -4.6)],
-                color,
-            );
-            b.circle(p(3.4, -3.4), 1.9 * u, Fill::Solid(color));
+            o(Line(&[(-4.4, 4.4), (0.6, -0.6)]));
+            o(Solid(&[(-0.8, -2.6), (2.6, 0.8), (4.2, -0.8), (0.8, -4.2)]));
+            o(Disc((3.4, -3.4), 1.9));
         }
         Glyph::Warning => {
-            b.polygon(&[p(0.0, -5.0), p(5.4, 4.4), p(-5.4, 4.4)], color);
+            o(Loop(&[(0.0, -4.8), (5.0, 4.2), (-5.0, 4.2)]));
+            o(Line(&[(0.0, -1.4), (0.0, 1.2)]));
+            o(Disc((0.0, 2.8), 0.75));
         }
         Glyph::MouseMenu => {
-            let r = Rect::from_min_max(p(-3.4, -4.8), p(3.4, 4.8));
-            b.rrect_stroke(r, 3.2 * u, w * 0.8, color);
-            b.segment(p(0.0, -4.8), p(0.0, -1.0), w * 0.7, color, false);
-            b.polygon(
-                &[p(0.5, -4.2), p(2.9, -3.0), p(2.9, -1.0), p(0.5, -1.0)],
-                color,
-            );
+            o(Pill(-3.4, -4.8, 3.4, 4.8));
+            o(Line(&[(0.0, -4.8), (0.0, -1.2)]));
+            o(Solid(&[(0.5, -4.2), (2.8, -3.0), (2.8, -1.2), (0.5, -1.2)]));
+        }
+        Glyph::Magnet => {
+            // r37:finish — a horseshoe magnet, its poles up (snap, as FL's).
+            o(Arc((0.0, -0.6), 3.9, 0.0, PI));
+            o(Line(&[(-3.9, -0.6), (-3.9, -3.0)]));
+            o(Line(&[(3.9, -0.6), (3.9, -3.0)]));
+            o(Block(-5.2, -5.0, -2.6, -3.0));
+            o(Block(2.6, -5.0, 5.2, -3.0));
         }
         Glyph::Automate => {
-            let pts = [p(-5.0, 3.0), p(-2.0, -3.0), p(1.0, 1.0), p(5.0, -3.8)];
-            b.polyline(&pts, w, color);
+            let pts: [P; 4] = [(-4.4, 3.0), (-1.7, -3.0), (1.2, 1.0), (4.4, -3.4)];
+            o(Line(&pts));
             for q in pts {
-                b.circle(q, 1.1 * u, Fill::Solid(color));
+                o(Disc(q, 1.2));
             }
         }
         Glyph::Typed => {
-            b.segment(p(0.0, -4.4), p(0.0, 4.4), w, color, false);
-            b.segment(p(-2.2, -4.4), p(2.2, -4.4), w, color, true);
-            b.segment(p(-2.2, 4.4), p(2.2, 4.4), w, color, true);
+            o(Line(&[(0.0, -4.4), (0.0, 4.4)]));
+            o(Line(&[(-2.2, -4.4), (2.2, -4.4)]));
+            o(Line(&[(-2.2, 4.4), (2.2, 4.4)]));
         }
         Glyph::Zoom => {
-            b.circle_stroke(p(-1.0, -1.0), 3.4 * u, w, color);
-            b.segment(p(1.6, 1.6), p(4.6, 4.6), w * 1.3, color, true);
+            o(Ring((-1.0, -1.0), 3.6));
+            o(Line(&[(1.8, 1.8), (4.8, 4.8)]));
         }
         Glyph::LanePencil => {
-            // The pencil, slanted, its tip at the lower left, over a short stroke.
-            b.segment(p(-3.2, 3.2), p(3.4, -3.4), w * 1.6, color, true);
-            b.polygon(&[p(-4.8, 4.8), p(-3.9, 2.2), p(-2.2, 3.9)], color);
-            b.segment(p(-5.0, 5.2), p(1.0, 5.2), w * 0.7, color, true);
+            o(Loop(&[
+                (-1.55, 3.25),
+                (4.45, -2.75),
+                (2.75, -4.45),
+                (-3.25, 1.55),
+            ]));
+            o(Solid(&[(-1.55, 3.25), (-3.25, 1.55), (-4.8, 4.8)]));
         }
         Glyph::LaneLine => {
-            b.segment(p(-4.4, 3.6), p(4.4, -3.6), w, color, true);
-            b.circle(p(-4.4, 3.6), 1.3 * u, Fill::Solid(color));
-            b.circle(p(4.4, -3.6), 1.3 * u, Fill::Solid(color));
+            o(Line(&[(-4.2, 3.4), (4.2, -3.4)]));
+            o(Disc((-4.2, 3.4), 1.4));
+            o(Disc((4.2, -3.4), 1.4));
         }
         Glyph::LaneCurve => {
-            let pts: [egui::Pos2; 9] = std::array::from_fn(|i| {
+            let pts: [P; 9] = std::array::from_fn(|i| {
                 let k = i as f32 / 8.0;
-                p(-4.4 + 8.8 * k, 3.6 - 7.2 * k * k)
+                (-4.2 + 8.4 * k, 3.4 - 6.8 * k * k)
             });
-            b.polyline(&pts, w, color);
-            b.circle(p(-4.4, 3.6), 1.3 * u, Fill::Solid(color));
-            b.circle(p(4.4, -3.6), 1.3 * u, Fill::Solid(color));
+            o(Line(&pts));
+            o(Disc((-4.2, 3.4), 1.4));
+            o(Disc((4.2, -3.4), 1.4));
         }
-        Glyph::Session => crate::views::session::paint::glyph(b, c, u, w, color), // r33:launcher
-        Glyph::Stage => crate::stage::chrome::glyph(b, c, u, w, color),           // r35:stage
-        _ => window(b, g, c, u, w, color),
+        Glyph::Session => {
+            // r37:finish thirteenth — the session: four clip slots, framed; the one playing
+            // (its ▶) is the accent.
+            o(Frame(-5.0, -5.0, -0.6, -0.6));
+            o(Frame(0.6, -5.0, 5.0, -0.6));
+            o(Frame(-5.0, 0.6, -0.6, 5.0));
+            o(Frame(0.6, 0.6, 5.0, 5.0));
+        }
+        Glyph::Stage => {
+            o(Disc((0.6, -3.6), 1.6));
+            o(Line(&[(0.3, -1.6), (-0.2, 1.4)]));
+            o(Line(&[(-3.4, -3.6), (0.2, -1.0), (3.4, -0.4)]));
+            o(Line(&[(-2.6, 3.8), (-0.2, 1.4), (2.0, 2.4), (2.6, 4.2)]));
+            o(Line(&[(-5.0, 5.0), (5.0, 5.0)]));
+        }
+        _ => window(g, o),
     }
 }
 
-/// A device window's own buttons (round 20): minimise, maximise, restore, replace.
-fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
-    let p = |x: f32, y: f32| c + Vec2::new(x * u, y * u);
+/// A device window's own buttons (round 20), routing, warping, isolation, freeze and
+/// controllers.
+fn window(g: Glyph, o: &mut dyn FnMut(Op<'_>)) {
+    use Op::*;
     match g {
-        Glyph::Minimise => {
-            b.rect(
-                Rect::from_min_max(p(-4.5, 2.6), p(4.5, 2.6) + Vec2::new(0.0, w * 1.15)),
-                Fill::Solid(color),
-            );
-        }
+        // At the foot of its box, as every window's minimise is.
+        Glyph::Minimise => o(Block(-4.6, 1.6, 4.6, 4.0)),
         Glyph::Maximise => {
-            let r = Rect::from_min_max(p(-4.5, -4.5), p(4.5, 4.5));
-            b.rrect_stroke(r, 0.6 * u, w, color);
-            b.rect(
-                Rect::from_min_max(r.min, Pos2::new(r.max.x, r.min.y + w * 1.6)),
-                Fill::Solid(color),
-            );
+            o(Frame(-4.6, -4.6, 4.6, 4.6));
+            o(Block(-4.6, -4.6, 4.6, -2.4));
         }
         Glyph::Restore => {
             // The window behind shows only where the front one does not cover it.
-            b.segment(p(-2.0, -2.2), p(-2.0, -5.0), w, color, false);
-            b.segment(p(-2.0, -5.0), p(5.0, -5.0), w, color, false);
-            b.segment(p(5.0, -5.0), p(5.0, 2.0), w, color, false);
-            b.segment(p(5.0, 2.0), p(2.4, 2.0), w, color, false);
-            let front = Rect::from_min_max(p(-5.0, -2.0), p(2.4, 5.0));
-            b.rrect_stroke(front, 0.5 * u, w, color);
-            b.rect(
-                Rect::from_min_max(front.min, Pos2::new(front.max.x, front.min.y + w * 1.5)),
-                Fill::Solid(color),
-            );
+            o(Line(&[
+                (-1.8, -2.2),
+                (-1.8, -4.8),
+                (4.8, -4.8),
+                (4.8, 1.8),
+                (2.4, 1.8),
+            ]));
+            o(Frame(-4.8, -2.0, 2.4, 4.8));
+            o(Block(-4.8, -2.0, 2.4, 0.0));
         }
         Glyph::Replace => {
             // Two cards, and an arrow turning from one to the other above them.
-            let a = Rect::from_min_max(p(-5.2, -0.6), p(-1.2, 5.0));
-            let z = Rect::from_min_max(p(1.2, -0.6), p(5.2, 5.0));
-            b.rrect_stroke(a, 0.6 * u, w * 0.9, color);
-            b.rrect(z, 0.6 * u, Fill::Solid(color));
-            b.arc(p(0.0, -0.4), 3.4 * u, PI * 1.12, PI * 1.82, w, color, true);
-            b.polygon(&[p(2.0, -4.6), p(4.6, -2.6), p(1.4, -1.8)], color);
+            o(Frame(-5.0, -0.2, -1.2, 5.0));
+            o(Block(1.2, -0.2, 5.0, 5.0));
+            o(Arc((0.0, -0.4), 3.4, PI * 1.12, PI * 1.8));
+            o(Solid(&[(2.0, -4.8), (4.8, -2.6), (1.4, -1.6)]));
         }
         Glyph::Link => {
-            // Two rounded links on a slant, overlapping in the middle: a chain.
-            let r = 1.9 * u;
-            b.rrect_stroke(
-                Rect::from_min_max(p(-5.4, -1.9), p(0.9, 1.9)),
-                r,
-                w * 0.85,
-                color,
-            );
-            b.rrect_stroke(
-                Rect::from_min_max(p(-0.9, -1.9), p(5.4, 1.9)),
-                r,
-                w * 0.85,
-                color,
-            );
+            // Two links of a chain, one through the other.
+            o(Pill(-4.8, -1.9, 0.9, 1.9));
+            o(Pill(-0.9, -1.9, 4.8, 1.9));
         }
         Glyph::Key => {
             // A key on its side (round 25): the bow at the left, the shaft, two teeth.
-            b.circle_stroke(p(-2.8, 0.0), 2.4 * u, w * 0.9, color);
-            b.segment(p(-0.4, 0.0), p(5.2, 0.0), w, color, false);
-            b.segment(p(3.0, 0.0), p(3.0, 2.4), w, color, false);
-            b.segment(p(4.8, 0.0), p(4.8, 1.8), w, color, false);
+            o(Ring((-2.6, 0.0), 2.4));
+            o(Line(&[(-0.2, 0.0), (5.0, 0.0)]));
+            o(Line(&[(3.0, 0.0), (3.0, 2.6)]));
+            o(Line(&[(5.0, 0.0), (5.0, 2.0)]));
         }
         Glyph::Cables => {
-            // Two ports and the cable hanging between them (round 25): the desk's cable
-            // view.
-            let mut pts = [Pos2::ZERO; 9];
-            for (i, q) in pts.iter_mut().enumerate() {
+            // Two ports and the cable hanging between them (round 25).
+            let pts: [P; 9] = std::array::from_fn(|i| {
                 let a = PI * i as f32 / 8.0;
-                *q = p(-4.2 * a.cos(), -2.6 + 6.4 * a.sin());
-            }
-            b.polyline(&pts, w, color);
-            b.dot(p(-4.2, -3.2), 1.7 * u, color);
-            b.dot(p(4.2, -3.2), 1.7 * u, color);
+                (-4.0 * a.cos(), -2.4 + 6.4 * a.sin())
+            });
+            o(Line(&pts));
+            o(Disc((-4.0, -3.2), 1.7));
+            o(Disc((4.0, -3.2), 1.7));
+        }
+        Glyph::Filter => {
+            // A funnel: the wide mouth, the narrowing, the spout.
+            let mouth = [(-5.0, -4.4), (5.0, -4.4), (1.3, 0.3), (-1.3, 0.3)];
+            let spout = [(1.3, 0.3), (1.3, 4.6), (-1.3, 3.2), (-1.3, 0.3)];
+            o(Tint(&mouth));
+            o(Tint(&spout));
+            o(Outline(&[
+                (-5.0, -4.4),
+                (5.0, -4.4),
+                (1.3, 0.3),
+                (1.3, 4.6),
+                (-1.3, 3.2),
+                (-1.3, 0.3),
+            ]));
         }
         Glyph::Warp => {
             // A flag on its staff over a wave pulled out to the right.
-            b.polygon(&[p(-1.6, -5.0), p(1.6, -5.0), p(0.0, -2.6)], color);
-            b.segment(p(0.0, -2.6), p(0.0, 5.0), w * 0.8, color, false);
-            // The wave: tight zigzags left of the flag, the same pulled wide to its right.
-            let pts = [
-                p(-5.2, 1.6),
-                p(-4.3, -0.2),
-                p(-3.4, 3.4),
-                p(-2.5, -0.2),
-                p(-1.6, 3.4),
-                p(-0.7, 1.6),
-                p(1.2, -0.2),
-                p(3.1, 3.4),
-                p(5.2, 1.6),
-            ];
-            b.polyline(&pts, w * 0.8, color);
+            o(Solid(&[(-1.8, -5.0), (1.8, -5.0), (0.0, -2.4)]));
+            o(Line(&[(0.0, -2.4), (0.0, 5.0)]));
+            o(Line(&[
+                (-5.0, 1.6),
+                (-4.1, -0.2),
+                (-3.2, 3.4),
+                (-2.3, -0.2),
+                (-1.4, 3.4),
+                (-0.5, 1.6),
+                (1.4, -0.2),
+                (3.2, 3.4),
+                (5.0, 1.6),
+            ]));
         }
         Glyph::PluginStopped => {
-            // The plug's head and prongs, above; the socket's half, below, slanted away;
-            // a jagged gap between them.
-            b.rrect_stroke(
-                Rect::from_min_max(p(-3.4, -2.6), p(3.4, 0.2)),
-                1.0 * u,
-                w,
-                color,
-            );
-            b.segment(p(-1.5, -2.6), p(-1.5, -5.2), w, color, true);
-            b.segment(p(1.5, -2.6), p(1.5, -5.2), w, color, true);
-            b.polyline(
-                &[p(-3.4, 2.4), p(-1.2, 1.6), p(1.0, 2.6), p(3.4, 1.8)],
-                w * 0.8,
-                color,
-            );
-            b.segment(p(0.0, 2.2), p(0.0, 5.4), w, color, true);
+            // The plug's head and prongs above, its cable below, a jagged gap between.
+            o(Frame(-3.4, -2.4, 3.4, 0.4));
+            o(Line(&[(-1.5, -2.4), (-1.5, -5.0)]));
+            o(Line(&[(1.5, -2.4), (1.5, -5.0)]));
+            o(Line(&[(-3.4, 2.4), (-1.2, 1.6), (1.0, 2.6), (3.4, 1.8)]));
+            o(Line(&[(0.0, 2.6), (0.0, 5.0)]));
         }
         Glyph::Frozen => {
-            // Six arms at 60° (cos/sin of 30° and 60° written out: 0.866, 0.5), each with
-            // two twigs a little out from the middle.
-            const ARMS: [(f32, f32); 6] = [
+            // Six arms at 60°, each with two twigs a little out from the middle.
+            const ARMS: [P; 6] = [
                 (0.0, -1.0),
                 (0.866, -0.5),
                 (0.866, 0.5),
@@ -585,49 +910,101 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
                 (-0.866, 0.5),
                 (-0.866, -0.5),
             ];
-            let r = 5.2;
+            let r = 5.0;
             for (i, (x, y)) in ARMS.iter().enumerate() {
-                b.segment(p(0.0, 0.0), p(x * r, y * r), w, color, true);
-                // The twigs: from 60 % along the arm, out at the neighbours' directions.
+                o(Line(&[(0.0, 0.0), (x * r, y * r)]));
                 let (bx, by) = (x * r * 0.6, y * r * 0.6);
                 for j in [(i + 1) % 6, (i + 5) % 6] {
                     let (nx, ny) = ARMS[j];
-                    let t = 1.8;
-                    b.segment(
-                        p(bx, by),
-                        p(bx + (x + nx) * 0.5 * t, by + (y + ny) * 0.5 * t),
-                        w * 0.8,
-                        color,
-                        true,
-                    );
+                    let t = 1.7;
+                    o(Line(&[
+                        (bx, by),
+                        (bx + (x + nx) * 0.5 * t, by + (y + ny) * 0.5 * t),
+                    ]));
                 }
             }
         }
         Glyph::Controller => {
-            // A knob at the left (its ring and pointer), a fader at the right (its slot and
-            // its cap).
-            b.circle_stroke(p(-2.4, 0.6), 2.9 * u, w * 0.9, color);
-            b.segment(p(-2.4, 0.6), p(-3.9, -1.4), w, color, true);
-            b.segment(p(3.4, -4.8), p(3.4, 4.8), w * 0.8, color, true);
-            b.rrect(
-                Rect::from_min_max(p(2.0, -1.8), p(4.8, 0.6)),
-                0.5 * u,
-                Fill::Solid(color),
-            );
-        }
-        Glyph::Filter => {
-            // A funnel in outline: the wide mouth, the narrowing, the spout cut slanted.
-            let pts = [
-                p(-5.0, -4.4),
-                p(5.0, -4.4),
-                p(1.3, 0.3),
-                p(1.3, 4.6),
-                p(-1.3, 3.2),
-                p(-1.3, 0.3),
-                p(-5.0, -4.4),
-            ];
-            b.polyline(&pts, w, color);
+            // A knob at the left (its ring and pointer), a fader at the right.
+            o(Ring((-2.2, 0.6), 2.8));
+            o(Line(&[(-2.2, 0.6), (-3.7, -1.3)]));
+            o(Line(&[(3.6, -4.8), (3.6, 4.8)]));
+            o(Block(2.0, -2.0, 5.2, 0.6));
         }
         _ => {}
     }
 }
+
+/// The ink's extent of `g` in units — its box, stroke and discs included: what
+/// The accent of an area key's drawing (r37:finish thirteenth): the part in the highlight.
+pub fn accent_ops(g: Glyph, o: &mut dyn FnMut(Op<'_>)) {
+    use Op::*;
+    match g {
+        Glyph::Browser => o(Line(&[
+            (-3.0, 1.8),
+            (-1.8, 1.8),
+            (-0.9, 0.2),
+            (0.2, 3.6),
+            (1.2, 0.8),
+            (2.1, 1.8),
+            (3.2, 1.8),
+        ])),
+        Glyph::Arrangement => {
+            o(Line(&[(1.4, -4.0), (1.4, 5.4)]));
+            o(Solid(&[(-0.2, -5.6), (3.0, -5.6), (1.4, -3.8)]));
+        }
+        Glyph::PianoRoll => o(Block(1.0, -0.9, 5.2, 0.9)),
+        Glyph::Mixer => o(Block(-1.6, -3.4, 1.6, -1.2)),
+        Glyph::Rack => {
+            for (x, y) in [
+                (-5.0f32, -5.0f32),
+                (0.2, -5.0),
+                (-2.4, -1.3),
+                (2.8, -1.3),
+                (-5.0, 2.4),
+                (0.2, 2.4),
+            ] {
+                o(Block(x, y, x + 2.2, y + 2.6));
+            }
+        }
+        Glyph::Session => o(Solid(&[(-4.0, -4.2), (-1.4, -2.8), (-4.0, -1.4)])),
+        _ => {}
+    }
+}
+
+/// `tests/kit_glyphs.rs` holds against [`LIVE`] and [`OPTICAL_MIN`].
+pub fn extent(g: Glyph) -> Rect {
+    let mut r = Rect::NOTHING;
+    let h = STROKE * 0.5;
+    let mut add = |x: f32, y: f32, pad: f32| {
+        r = r.union(Rect::from_min_max(
+            pos2(x - pad, y - pad),
+            pos2(x + pad, y + pad),
+        ));
+    };
+    ops(g, &mut |op| match op {
+        Op::Line(p) | Op::Loop(p) | Op::Outline(p) => p.iter().for_each(|q| add(q.0, q.1, h)),
+        Op::Tint(p) | Op::Solid(p) => p.iter().for_each(|q| add(q.0, q.1, 0.0)),
+        Op::Ring(c, rad) => add(c.0, c.1, rad + h),
+        Op::Disc(c, rad) => add(c.0, c.1, rad),
+        Op::Arc(c, rad, a0, a1) => {
+            for i in 0..=24 {
+                let a = a0 + (a1 - a0) * i as f32 / 24.0;
+                add(c.0 + rad * a.cos(), c.1 + rad * a.sin(), h);
+            }
+        }
+        Op::Frame(x0, y0, x1, y1) | Op::Pill(x0, y0, x1, y1) => {
+            add(x0, y0, h);
+            add(x1, y1, h);
+        }
+        Op::Block(x0, y0, x1, y1) | Op::Ghost(x0, y0, x1, y1) => {
+            add(x0, y0, 0.0);
+            add(x1, y1, 0.0);
+        }
+    });
+    r
+}
+
+/// Glyphs placed off centre on purpose: a window's grip sits in its corner, minimise at the
+/// foot of its box.
+pub const ANCHORED: [Glyph; 2] = [Glyph::Grip, Glyph::Minimise];

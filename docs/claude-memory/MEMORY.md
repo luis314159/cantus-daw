@@ -3,7 +3,7 @@
 - [DAW interop](daw-interop-later.md) — round 17 merged: CLAP/VST3 hosting, our effects as a separate CLAP/VST3 build (bit-identical), MIDI/stems/DAWproject; schema 15; instruments are daw-b0's
 - [Parallel builders](cantus-parallel-builders.md) — snapshot commit via temp index, worktree per builder, file-by-file 3-way merge; never stage the user's changes
 - [Instruments, rounds 17-18](instruments-round-17.md) — 8 instruments + kit-shell redesign in the main tree; committed e25c393, pushed with master be216de (2026-10-06); worktree cleanup pending user OK
-- [UI quality bar](ui-quality-bar.md) — user found the UI ugly (2026-09-25): redesign to top-DAW level, FL Studio as reference, resizable/movable panels, no loose-word labels, mixer scroll
+- [UI quality bar](ui-quality-bar.md) — owner found UI ugly (2026-09-25), FL is the reference; 2026-11-04 hard side-by-side vs FL: FL 10, Cantus 2 — finish round proposed
 - [Round 19: recording, master FX, demos](round-19-recording.md) — merged r19/integration 1422cdc, applied uncommitted to C:\projects\daw (2026-10-05); 1422 tests; what is left
 - [Round 20: automation, browser, swaps, hosted instruments, AI research](round-20.md) — started 2026-10-05; contract 403ca06; six agents in C:\projects\daw-r20
 - [One build, every driver](feedback-one-build-all-drivers.md) — distributed builds always include ASIO+WASAPI; test real drivers in duplex before calling device work done
@@ -42,3 +42,4 @@
 - [Showcase must sell](feedback-showcase-sell.md) — owner 2026-11-03: web + README sell instruments/effects (click for detail, big pictures) and new features strongly, honestly
 - [Work standards after r36](feedback-work-standards-r36.md) — owner approved 2026-11-03: e2e test per feature, outside-source protocol tests, rounds of 2–3 features + mid-round integrated review, explicit git staging, no-debug builds
 - [Round 36: the professional studio](round-36.md) — recording mode, VCA/snapshots/cues, external gear + Mackie/HUI, audio editor, ARA 2; schema 53; Win 6 291 + Linux 6 253; beta.11 with macOS preview
+- [Round 37: content, instruments, scorecard](round-37.md) — closing as beta.12 (2026-11-07); two blind judges 20 & 22/26 after 13 look deliveries (icons, piano keys open); scorecard measured vs FL/REAPER; ticker 60 Hz fix

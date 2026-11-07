@@ -190,7 +190,7 @@ fn more_shows_the_folded_settings() {
 
 #[test]
 fn the_factory_presets_are_in_range_and_named() {
-    assert!(tonus::FACTORY_PRESETS.len() >= 6);
+    assert!(cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::AutoTune).len() >= 6);
     for want in [
         "preset.tonus.natural",
         "preset.tonus.tight",
@@ -199,9 +199,14 @@ fn the_factory_presets_are_in_range_and_named() {
         "preset.tonus.throat_down",
         "preset.tonus.midi_lead",
     ] {
-        assert!(tonus::FACTORY_PRESETS.iter().any(|p| p.0 == want), "{want}");
+        assert!(
+            cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::AutoTune)
+                .iter()
+                .any(|p| p.0 == want),
+            "{want}"
+        );
     }
-    for (name, values) in tonus::FACTORY_PRESETS {
+    for (name, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::AutoTune) {
         assert!(cantus_ui::i18n::t(name) != *name, "{name} has no words");
         for (k, v) in *values {
             let info = EffectKind::AutoTune

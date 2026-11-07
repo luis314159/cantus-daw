@@ -305,7 +305,8 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
         ),
         ("spatium", PickChoice::Effect(E::Space), vec![C::Space]),
         ("delay", PickChoice::Effect(E::Delay), vec![C::Space]),
-        ("reverb", PickChoice::Effect(E::Reverb), vec![C::Space]),
+        // r37:library — the older Reverb (`EffectKind::offered`) is not offered: Spatium is
+        // the reverb; old projects keep theirs.
         (
             "fervor",
             PickChoice::Effect(E::Saturator),

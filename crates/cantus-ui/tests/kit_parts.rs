@@ -196,10 +196,11 @@ fn many_knobs_share_one_rasterised_body() {
         (b.vertex_count(), (before, after))
     });
     let (before, after) = stats;
+    // One body and one well (round 37: the well a knob stands in is a layer too).
     assert_eq!(
         after.layers_rasterised - before.layers_rasterised,
-        1,
-        "one body for 256 knobs of one size"
+        2,
+        "one body and one well for 256 knobs of one size"
     );
     // (Repeats are answered by the brush's own memo, without asking the cache again.)
     let per_knob = verts / 256;

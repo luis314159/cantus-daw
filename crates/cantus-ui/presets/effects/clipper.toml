@@ -1,0 +1,147 @@
+# Tonsor clipper: Factory presets (ADR 0101). Names are locale keys. `preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.tonsor.safety"
+note = "Catches only what passes -0.3 dBFS, true peak, the rest untouched."
+styles = ["pop", "rock"]
+roles = ["master"]
+[preset.values]
+"ceil" = -0.3
+"curve" = 0
+"os" = 2
+"tp" = 1
+
+[[preset]]
+key = "preset.tonsor.streaming"
+note = "A soft ceiling at -1 dBTP: what streaming services ask for."
+styles = ["pop", "rnb"]
+roles = ["master"]
+[preset.values]
+"ceil" = -1
+"curve" = 1
+"knee" = 1
+"os" = 3
+"tp" = 1
+
+[[preset]]
+key = "preset.tonsor.soft_master"
+note = "A little drive into a soft knee: louder without a limiter sound."
+styles = ["pop", "house"]
+roles = ["master"]
+[preset.values]
+"ceil" = -0.5
+"curve" = 1
+"drive" = 2
+"knee" = 3
+"os" = 3
+"tp" = 1
+
+[[preset]]
+key = "preset.tonsor.loud_clean"
+note = "More drive, highly oversampled: loud and clean."
+styles = ["house", "trap"]
+roles = ["master"]
+[preset.values]
+"ceil" = -0.3
+"curve" = 1
+"drive" = 5
+"knee" = 1.5
+"os" = 4
+"tp" = 1
+
+[[preset]]
+key = "preset.tonsor.drum_bus"
+note = "Hard clipping of the drum peaks, the level matched: weight and punch."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"curve" = 0
+"drive" = 6
+"knee" = 2
+"match" = 1
+"os" = 2
+
+[[preset]]
+key = "preset.tonsor.snare_crack"
+note = "A snare driven into a hard ceiling: crack."
+styles = ["rock", "trap"]
+roles = ["drums"]
+[preset.values]
+"ceil" = -3
+"curve" = 0
+"drive" = 9
+"match" = 1
+"os" = 1
+
+[[preset]]
+key = "preset.tonsor.analog_warmth"
+note = "A round curve and a wide knee: the soft clip of tape and transformers."
+styles = ["jazz", "lofi"]
+roles = ["bus"]
+[preset.values]
+"curve" = 2
+"drive" = 4
+"knee" = 6
+"match" = 1
+"os" = 2
+
+[[preset]]
+key = "preset.tonsor.hard_808"
+note = "An 808 clipped hard: its harmonics carry it on small speakers."
+styles = ["trap"]
+roles = ["creative"]
+[preset.values]
+"ceil" = -2
+"curve" = 0
+"drive" = 12
+"knee" = 0.5
+"match" = 1
+"os" = 2
+
+[[preset]]
+key = "preset.tonsor.vocal_edge"
+note = "A little soft clipping on a vocal: presence without a compressor sound."
+styles = ["pop", "rock"]
+roles = ["vocal"]
+[preset.values]
+"curve" = 2
+"drive" = 3
+"knee" = 4
+"match" = 1
+"os" = 2
+
+[[preset]]
+key = "preset.tonsor.latin_perc"
+note = "Percussion pushed into a soft clip: congas and shakers that cut."
+styles = ["latin", "house"]
+roles = ["drums"]
+[preset.values]
+"curve" = 1
+"drive" = 5
+"knee" = 2
+"match" = 1
+"os" = 2
+
+[[preset]]
+key = "preset.tonsor.lofi_crunch"
+note = "Driven hard with no oversampling: the aliasing grit of an old sampler."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"curve" = 0
+"drive" = 10
+"match" = 1
+"os" = 0
+
+[[preset]]
+key = "preset.tonsor.bus_glue"
+note = "A gentle soft clip across a group: it holds together."
+styles = ["pop", "film"]
+roles = ["bus"]
+[preset.values]
+"curve" = 1
+"drive" = 2
+"knee" = 6
+"match" = 1
+"os" = 2

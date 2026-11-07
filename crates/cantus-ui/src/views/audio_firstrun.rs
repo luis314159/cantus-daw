@@ -18,6 +18,7 @@ use crate::kit::glyph::{self, Glyph};
 use crate::kit::meter::MIN_DB;
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{band, with_brush, Fill, State, Style, Tok};
+use crate::views::workspace_ticker::{self as ticker, Reason};
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
 
 /// The window's size at 100 %.
@@ -38,12 +39,14 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     let screen = ctx.content_rect();
     let live = setup::live(app, true);
     poll_measure(app);
-    // Held peaks fall 20 dB a second; the loudest input lately is the one being played.
+    // Held peaks fall 20 dB a second (by the frame's time: the window may draw at any
+    // rate); the loudest input lately is the one being played.
+    let dt = ctx.input(|i| i.stable_dt).clamp(0.0, 0.25);
     if let Some(fr) = app.audio_setup.first_run.as_mut() {
         fr.hold.resize(live.in_channels, MIN_DB);
         for (c, h) in fr.hold.iter_mut().enumerate() {
             let l = parts::db(live.peaks.get(c).copied().unwrap_or(0.0));
-            *h = (*h - 20.0 / 60.0).max(l).max(MIN_DB);
+            *h = (*h - 20.0 * dt).max(l).max(MIN_DB);
         }
         if let Some((c, h)) = fr.hold.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) {
             if *h > HEARD_DB {
@@ -51,8 +54,10 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             }
         }
     }
+    // Live meters: through the ticker, at its 60 Hz (round 37's scorecard found this card
+    // drawing at the monitor's full rate — 144 a second, 1.6 cores — on every first start).
     if live.live {
-        ctx.request_repaint();
+        ticker::moving(ctx, Reason::Meters);
     }
     // The room behind dims, and takes no clicks; the setup is moved above it each frame.
     egui::Area::new(Id::new("cantus-audio-first-run-veil"))

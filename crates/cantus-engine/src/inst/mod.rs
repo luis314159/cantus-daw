@@ -157,9 +157,11 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// A program change from live MIDI (round 29, ADR 0062): a hosted instrument hears it
     /// as MIDI; a native one has no programs. Default: nothing.
     fn program(&mut self, _program: u8) {}
-    /// Release every voice (transport stop, loop wrap). Tails may ring.
+    /// Release every voice (transport stop, a seek, loop wrap — ADR 0028). Tails may ring,
+    /// so a play started again at once begins over what the last one released.
     fn all_notes_off(&mut self);
-    /// Silence at once and forget every tail (seek, panic, instrument switched).
+    /// Silence at once and forget every tail (panic, the instrument switched, frozen or
+    /// thawed, a slot taken by another track). A seek releases; it does not reset.
     fn reset(&mut self);
     /// Render one segment **added** into `left`/`right` (the caller zeroes them). Returns
     /// whether anything was written; `false` lets the processor skip an idle track, so it
@@ -175,6 +177,26 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
         par: &dyn cantus_dsp::par::Parallel,
     ) -> bool {
         let _ = par;
+        self.process(left, right)
+    }
+    // ---- Round 37 (ADR 0100): instruments with several outputs. // r37:drums
+
+    /// [`Self::process`] for a unit that plays into more than its track's strip (an
+    /// Exemplar kit's microphones, the next user of Pulsus III's contract): its main output
+    /// **added** into `left`/`right` as `process` does, and each other output `k ≥ 1`
+    /// handed to `out(k, offset, left, right)` — `offset` frames into this call, any number
+    /// of calls per output, each adding — which the engine sends through that output's
+    /// strip. Called instead of `process` only when the track's spec names outputs
+    /// (`InstrumentSpec::output_strips`); returns what `process` returns for the main
+    /// output. The same rules as `process`: no allocation, the same bits at any split.
+    /// Default: everything on the main output.
+    fn process_buses(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        out: &mut cantus_dsp::pulsus::BusOut<'_>,
+    ) -> bool {
+        let _ = out;
         self.process(left, right)
     }
     /// Whether the unit's [`Self::process_par`] can split its voices, so the pool should not

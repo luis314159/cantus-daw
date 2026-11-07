@@ -63,7 +63,13 @@ fn it_opens_in_every_view_and_draws_the_piano_from_above() {
         let text = settle(&mut a, &ctx);
         // The nameplate in the face's lettering (round 32): any case.
         assert!(text.to_uppercase().contains("CHORDA"), "{view:?}: {text}");
-        if view != View::Matrix {
+        // Play's hero is the piano in its room (ADR 0104); the strings from above are in
+        // Edit. r37:scene
+        if view == View::Play {
+            assert!(text.contains("The piano and its room"), "{view:?}: {text}");
+            assert!(text.contains("Pedals"), "{view:?}: {text}");
+        }
+        if view == View::Edit {
             assert!(text.contains("Strings and hammers"), "{view:?}: {text}");
             // Middle C until a key is played: three strings 63 cm long (Bensa et al.).
             assert!(text.contains("3 strings of 63 cm"), "{view:?}: {text}");
@@ -76,9 +82,12 @@ fn it_opens_in_every_view_and_draws_the_piano_from_above() {
     // The strings' ring at C4, its first partial, as Bensa et al. measured: 6.2 s.
     assert!(text.contains("C4 rings 6.2 s"), "C4's ring: {text}");
     chorda::demo_feed(&mut a);
-    a.inst.view = View::Play;
+    // The struck key is shown where the strings are drawn: Edit (ADR 0104). r37:scene
+    a.inst.view = View::Edit;
     let text = settle(&mut a, &ctx);
     assert!(text.contains("E5"), "the struck key is shown: {text}");
+    a.inst.view = View::Play;
+    let text = settle(&mut a, &ctx);
     assert!(text.contains("Sustain 40 %"), "the pedal: {text}");
 }
 
@@ -192,7 +201,8 @@ fn no_text_is_elided_or_overlaps_in_spanish() {
 #[test]
 fn presets_set_what_they_name() {
     let (mut a, track) = with_chorda();
-    assert!(chorda::FACTORY_PRESETS.len() >= 8);
+    // Round 37 (ADR 0098, ADR 0101's floor): at least twenty-four, voiced for model 2.
+    assert!(chorda::FACTORY_PRESETS.len() >= 24);
     let felt = chorda::FACTORY_PRESETS
         .iter()
         .find(|p| p.label_key == "chorda.preset.felt")
@@ -213,7 +223,29 @@ fn presets_set_what_they_name() {
             "{}: a key it names is not a parameter",
             p.label_key
         );
-        assert_eq!(s.params.get("model"), Some(&1.0), "the model is stored");
+        assert_eq!(s.params.get("model"), Some(&2.0), "the model (2) is stored");
+        let (styles, roles) = cantus_ui::preset_tags::read_tags(p.tags);
+        assert!(
+            !styles.is_empty(),
+            "{}: no style among {:?}",
+            p.label_key,
+            p.tags
+        );
+        assert!(
+            !roles.is_empty(),
+            "{}: no role among {:?}",
+            p.label_key,
+            p.tags
+        );
+        for t in p.tags {
+            for l in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+                assert!(
+                    cantus_ui::i18n::has(l, t),
+                    "{}: tag {t} unnamed in {l:?}",
+                    p.label_key
+                );
+            }
+        }
         for (k, v) in p.values {
             let info = InstrumentKind::Chorda.param(k).expect("a parameter");
             assert!(
@@ -297,6 +329,37 @@ fn the_tuning_is_set_never_automated() {
 #[test]
 fn screenshots_for_the_design_review() {
     inst_keys::shots(InstrumentKind::Chorda, "chorda");
+    // The whole Edit view at once (review of round 37's first delivery: the room and the
+    // action's noise sit at its foot, under the window's fold), in both themes.
+    let Some(dir) = std::env::var_os("CANTUS_KEYS_SHOTS").map(std::path::PathBuf::from) else {
+        return;
+    };
+    for (tag, theme) in [
+        ("slate", cantus_ui::theme::slate()),
+        ("paper", cantus_ui::theme::paper()),
+    ] {
+        let (mut a, track) = with_chorda();
+        a.open_inst_editor(track);
+        a.inst.view = View::Edit;
+        let c = support::ctx();
+        cantus_ui::theme::apply(&theme, &c);
+        let path = dir.join(format!("chorda-edit-whole-{tag}.png"));
+        cantus_ui::raster::shoot(
+            &c,
+            egui::Vec2::new(1040.0, 1320.0),
+            1.0,
+            6,
+            Some(&path),
+            |ui| {
+                cantus_ui::views::inst::window_in_sized(
+                    &mut a,
+                    ui,
+                    egui::Vec2::new(1040.0, 1320.0),
+                );
+            },
+        );
+    }
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &support::ctx());
 }
 
 #[test]

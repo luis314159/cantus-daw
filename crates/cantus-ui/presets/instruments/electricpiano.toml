@@ -1,0 +1,753 @@
+# Lamina: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "epiano.preset.suitcase"
+note = "The suitcase tine piano with its stereo tremolo."
+styles = ["jazz", "rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.25
+"gain" = 0.2
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -12
+"trem.depth" = 0.55
+"trem.rate" = 4.8
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.stage"
+note = "The stage tine piano: brighter, a little driven."
+styles = ["rock", "pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.3
+"gain" = -1.5
+"hard" = 0.55
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.align" = 0.8
+"tine.bell" = -10
+"tine.gap" = 1.4
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.bark"
+note = "Played hard, it barks: the pickup close, the amp pushed."
+styles = ["rock", "rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.5
+"dynamics" = 44
+"gain" = -5.5
+"hard" = 0.72
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.align" = 0.5
+"tine.gap" = 0.9
+"treble" = 2
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.ballad"
+note = "Soft hammers, a long decay, a gentle tremolo: a ballad."
+styles = ["pop", "worship"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.soft"]
+[preset.values]
+"drive" = 0.1
+"gain" = -0.4
+"hammer.noise" = -30
+"hard" = 0.3
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -18
+"tine.decay" = 12
+"trem.depth" = 0.3
+"trem.rate" = 3.5
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.bells"
+note = "The tone bar bells up front: glassy."
+styles = ["ambient", "pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"gain" = 0.2
+"hard" = 0.75
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"strike" = 0.05
+"tine.bell" = -4
+"tine.bell_decay" = 0.6
+"tine.couple" = 0.7
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.worn"
+note = "An old, worn instrument through a tired amp: noise, drift and a darker top."
+styles = ["lofi"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.lofi"]
+[preset.values]
+"age" = 0.8
+"drive" = 0.4
+"gain" = 0.3
+"hammer.noise" = -18
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"release.noise" = -24
+"spread" = 6
+"treble" = -6
+"trem.depth" = 0.25
+"trem.mode" = 2
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.octave"
+note = "Rounder, centred tines with little bell: the mellow jazz tone."
+styles = ["jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.2
+"gain" = 1.8
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.align" = 0
+"tine.bell" = -16
+"tine.gap" = 1.2
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.bright"
+note = "A bright tine piano with less bass."
+styles = ["pop", "latin"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"bass" = -2
+"drive" = 0.15
+"gain" = 1.8
+"hard" = 0.62
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -8
+"treble" = 6
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.reed"
+note = "The reed electric piano with its vibrato."
+styles = ["rock", "rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.reed"]
+[preset.values]
+"drive" = 0.3
+"dynamics" = 50
+"engine" = 1
+"gain" = 4.2
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"pickup.level" = 3
+"range" = 1
+"trem.depth" = 0.4
+"trem.rate" = 5.8
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "reed.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.reed_growl"
+note = "The reed piano played hard: it growls."
+styles = ["rock"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.reed"]
+[preset.values]
+"drive" = 0.6
+"dynamics" = 50
+"engine" = 1
+"gain" = 3.2
+"hard" = 0.7
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"range" = 1
+"reed.align" = 0.4
+"reed.gap" = 0.7
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "reed.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.reed_soft"
+note = "A soft reed piano, its overtones down."
+styles = ["lofi", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.soft"]
+[preset.values]
+"drive" = 0.1
+"engine" = 1
+"gain" = 5
+"hard" = 0.35
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"output" = 1
+"range" = 1
+"reed.overtones" = -16
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "reed.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.neo_soul"
+note = "A warm, slightly driven tine piano with a slow tremolo: neo-soul chords."
+styles = ["rnb", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"bass" = 2
+"drive" = 0.2
+"gain" = 1
+"hard" = 0.45
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -14
+"treble" = -1
+"trem.depth" = 0.2
+"trem.rate" = 4
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.lofi_keys"
+note = "An old piano heard through a cassette: noise, drift, no top."
+styles = ["lofi"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"age" = 0.9
+"drive" = 0.3
+"gain" = 0.5
+"hammer.noise" = -16
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"spread" = 8
+"treble" = -8
+"trem.depth" = 0.15
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.worship_ballad"
+note = "Soft hammers and a long, clean ring under a worship ballad."
+styles = ["worship", "pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.05
+"gain" = 1.1
+"hard" = 0.3
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -20
+"tine.decay" = 14
+"treble" = 1
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.gospel_bright"
+note = "Bright and punchy for gospel chords and runs."
+styles = ["worship", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.35
+"gain" = -0.6
+"hard" = 0.65
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -8
+"treble" = 3
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.pop_ballad"
+note = "A clean, balanced tine piano with a touch of tremolo."
+styles = ["pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.1
+"gain" = 0.5
+"hard" = 0.4
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -14
+"trem.depth" = 0.15
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.bolero"
+note = "A soft piano with a gentle tremolo: a bolero or a slow balada."
+styles = ["latin"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.1
+"gain" = 0
+"hard" = 0.35
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -14
+"trem.depth" = 0.35
+"trem.rate" = 5
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.rock_reed"
+note = "The reed piano pushed hard into its amp: the rock electric piano."
+styles = ["rock"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.reed"]
+[preset.values]
+"drive" = 0.7
+"engine" = 1
+"gain" = 2.1
+"hard" = 0.75
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"range" = 1
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "reed.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.ambient_tines"
+note = "Soft, long-ringing tines with a slow, deep tremolo."
+styles = ["ambient", "film"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"gain" = -0.1
+"hard" = 0.2
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"spread" = 4
+"tine.bell" = -10
+"tine.decay" = 20
+"trem.depth" = 0.4
+"trem.rate" = 2
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.trap_keys"
+note = "Dark and round, no bell: the electric piano under a trap or R&B beat."
+styles = ["trap", "rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"bass" = 2
+"gain" = 1
+"hard" = 0.35
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -20
+"treble" = -4
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.house_stab"
+note = "Short, hard and bright: piano-house stabs."
+styles = ["house"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.45
+"gain" = 0.6
+"hard" = 0.8
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -6
+"tine.decay" = 3
+"treble" = 4
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.music_box"
+note = "Struck near the tip, almost all bell: a music box."
+styles = ["film", "ambient"]
+roles = ["pluck"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"gain" = -5.2
+"hard" = 0.9
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"strike" = 0.03
+"tine.bell" = -2
+"tine.bell_decay" = 1.2
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.jazz_soft"
+note = "A soft touch and a dark bell for a jazz trio."
+styles = ["jazz"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.tine"]
+[preset.values]
+"drive" = 0.1
+"gain" = 1.3
+"hard" = 0.35
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"tine.bell" = -16
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "tine.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"
+
+[[preset]]
+key = "epiano.preset.reed_tremolo"
+note = "The reed piano with a deep, quick tremolo: the classic soul sound."
+styles = ["rnb", "pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "epiano.tag.reed"]
+[preset.values]
+"drive" = 0.25
+"engine" = 1
+"gain" = 7.3
+"mod1.amt" = -0.15
+"mod2.amt" = 0.5
+"mod3.amt" = 0.8
+"mod4.amt" = 0.4
+"range" = 1
+"trem.depth" = 0.6
+"trem.rate" = 6
+[preset.text]
+"macro1.name" = "Bark"
+"macro2.name" = "Drive"
+"macro3.name" = "Tremolo"
+"macro4.name" = "Hardness"
+"mod1.dst" = "reed.gap"
+"mod1.src" = "macro1"
+"mod2.dst" = "drive"
+"mod2.src" = "macro2"
+"mod3.dst" = "trem.depth"
+"mod3.src" = "macro3"
+"mod4.dst" = "hard"
+"mod4.src" = "macro4"

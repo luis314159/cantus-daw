@@ -281,6 +281,12 @@ pub struct Layer {
     pub env: Env,
     pub env2: Env,
     pub filter: Svf,
+    /// The zone's own low-pass, Hz (0: none; ADR 0099's per-slice filter).
+    /// Whether the zone's low-pass is the layer's only filter (decided at the trigger: the
+    /// instrument's filter was off) — then a later change of the instrument's filter leaves
+    /// this layer as it began (review 2 #3).
+    pub zone_only: bool,
+    pub zone_lpf: f32,
     pub lfo: [f64; 2],
     /// Samples until the next control update.
     pub ctl: u32,

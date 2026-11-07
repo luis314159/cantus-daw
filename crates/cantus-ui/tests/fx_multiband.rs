@@ -4,7 +4,7 @@
 
 mod support;
 use cantus_core::*;
-use cantus_ui::views::fx::multiband::{self as mb, FACTORY_PRESETS};
+use cantus_ui::views::fx::multiband as mb;
 use support::*;
 
 fn with_multiband() -> (cantus_ui::CantusApp, StripId, EffectId) {
@@ -273,7 +273,8 @@ fn the_editor_paints_its_display_and_band_panel() {
 
 #[test]
 fn every_preset_names_real_parameters_and_makes_bands() {
-    for (label, params) in FACTORY_PRESETS {
+    for (label, params) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Multiband)
+    {
         let mut s = EffectSpec::new(EffectKind::Multiband);
         for (k, v) in *params {
             assert!(s.set(k, *v).is_some(), "{label}: {k} is not a parameter");

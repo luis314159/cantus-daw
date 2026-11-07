@@ -473,6 +473,9 @@ pub const ZONE_PARAMS: &[InstParamInfo] = &[
     p("z.cc", "smp.cc", 0.0, 127.0, 64.0, "", false, true),
     p("z.cclo", "smp.cclo", 0.0, 127.0, 64.0, "", false, true),
     p("z.cchi", "smp.cchi", 0.0, 127.0, 127.0, "", false, true),
+    // A zone's own low-pass (round 37, Sectio's per-slice filter, ADR 0099; schema 55):
+    // 0 is none. r37:piano
+    p("z.lpf", "smp.lpf", 0.0, 20_000.0, 0.0, "Hz", false, false),
 ];
 
 pub fn params() -> &'static [InstParamInfo] {
@@ -536,6 +539,10 @@ pub fn param(key: &str) -> Option<&'static InstParamInfo> {
     if let Some((_, field)) = group_key(key) {
         return template(GROUP_PARAMS, field);
     }
+    // Sectio's slice points and settings (round 37, ADR 0099). r37:piano
+    if let Some(i) = crate::sectio::param(key) {
+        return Some(i);
+    }
     find(PARAMS, key).or_else(|| super::modulation::param(key))
 }
 
@@ -594,7 +601,8 @@ pub mod zf {
     pub const CC: usize = 37;
     pub const CCLO: usize = 38;
     pub const CCHI: usize = 39;
-    pub const COUNT: usize = 40;
+    pub const LPF: usize = 40; // r37:piano
+    pub const COUNT: usize = 41;
 }
 
 /// Index of each group field in [`GROUP_PARAMS`].
@@ -658,6 +666,7 @@ pub fn zone_field(field: &str) -> Option<usize> {
         "cc" => zf::CC,
         "cclo" => zf::CCLO,
         "cchi" => zf::CCHI,
+        "lpf" => zf::LPF, // r37:piano
         _ => return None,
     })
 }

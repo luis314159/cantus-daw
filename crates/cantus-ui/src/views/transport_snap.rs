@@ -9,8 +9,8 @@ use super::{Style, STEP};
 use crate::app::{CantusApp, CentralView, EditFocus};
 use crate::i18n::t;
 use crate::kit::hint::{self, Caps};
-use crate::kit::text::{self, Role, Src, Text};
-use crate::kit::{self, led, with_brush, State};
+use crate::kit::text::{self, Role, Text};
+use crate::kit::{self, with_brush, State};
 use crate::views::workspace::Pane;
 use crate::views::GRIDS;
 use cantus_core::Ticks;
@@ -128,17 +128,14 @@ fn parts(ctx: &egui::Context, s: &Style) -> (f32, f32) {
         .map(|k| text::measure(ctx, &Text::key(k, Role::Control, s.t.text), tk).x)
         .fold(0.0, f32::max)
         + 28.0 * s.k;
-    let snap = text::measure(
-        ctx,
-        &Text::key("pianoroll.snap", Role::Control, s.t.text).caps(true),
-        tk,
-    )
-    .x + 30.0 * s.k;
-    (grid, snap)
+    // r37:finish — snap is a key with the magnet (its name in its tip), not a lit word:
+    // the bar has every group at 1920 with it.
+    let _ = tk;
+    (grid, super::ROW_KEY * s.k)
 }
 
 /// The editor's glyph's place at 100 %.
-const GLYPH_W: f32 = 18.0;
+const GLYPH_W: f32 = 21.0; // r37:finish (the glyph 16 pt)
 
 pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
     let (grid, snap) = parts(ctx, s);
@@ -153,8 +150,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let row_h = super::key_side(r, s);
     // The editor it speaks for, by its glyph (its name in the hint).
     let g = Rect::from_center_size(
-        Pos2::new(r.left() + 8.0 * k, r.center().y),
-        Vec2::splat(13.0 * k),
+        Pos2::new(r.left() + 9.5 * k, r.center().y),
+        Vec2::splat(16.0 * k), // r37:finish (13: a muddy blob)
     );
     with_brush(ui.painter(), |b| {
         crate::kit::glyph::paint(b, g, e.glyph(), s.t.text_dim)
@@ -216,12 +213,27 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         toggle_snap(app, e);
     }
     let (_, snap_now) = grid_of(app, e);
-    let mut st = State::of(&resp, snap_now);
+    let mut st = State::of(&resp, snap_now).lit(snap_now);
     if matches!(e, Editor::Rack | Editor::Pitch) {
         st.disabled = true;
     }
     with_brush(ui.painter(), |b| {
-        led::button(b, sr, s, st, Src::Key("pianoroll.snap"))
+        crate::kit::cap::toolbar_key(
+            b,
+            sr,
+            s,
+            st,
+            crate::kit::cap::KeyFace::Glyph(crate::kit::glyph::Glyph::Magnet),
+        )
+    });
+    // The key's words for a screen reader: its name and whether it is on.
+    resp.widget_info(|| {
+        egui::WidgetInfo::selected(
+            egui::WidgetType::Checkbox,
+            !st.disabled,
+            snap_now,
+            t("pianoroll.snap"),
+        )
     });
     if st.hovered {
         let tip = if e == Editor::Rack {

@@ -284,7 +284,8 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 Choice::Browse,
             ));
             out.push(band("inspector.effects"));
-            for kind in EffectKind::ALL {
+            for kind in EffectKind::ALL.into_iter().filter(|k| k.offered()) {
+                // r37:library — the older Reverb is not offered
                 out.push(act(
                     Label::Key(kind.name_key()),
                     Check::None,

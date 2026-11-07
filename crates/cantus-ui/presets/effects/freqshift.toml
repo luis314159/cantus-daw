@@ -1,0 +1,134 @@
+# Translatio frequency shifter: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.translatio.slow_phase"
+note = "Under one hertz, half wet: a phaser with no notches."
+styles = ["ambient", "pop"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.5
+"out" = -3.2
+"shift" = 0.7
+
+[[preset]]
+key = "preset.translatio.barber_up"
+note = "Feedback and a small shift up: a barber-pole rise that never ends."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"fb" = 0.7
+"mix" = 0.5
+"out" = -4.7
+"shift" = 3
+
+[[preset]]
+key = "preset.translatio.barber_down"
+note = "The same, falling."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"fb" = 0.7
+"mix" = 0.5
+"out" = -3.9
+"shift" = -3
+
+[[preset]]
+key = "preset.translatio.detune"
+note = "A few hertz up and down on either side: thicker, wider."
+styles = ["pop", "house"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.45
+"out" = -2.5
+"shift" = 9
+"side" = 2
+
+[[preset]]
+key = "preset.translatio.bell"
+note = "A fixed shift that breaks the harmonics: inharmonic bells."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"mix" = 1
+"out" = -1.8
+"shift" = 173
+
+[[preset]]
+key = "preset.translatio.robot"
+note = "A large shift down with feedback on a voice."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"fb" = 0.3
+"mix" = 1
+"out" = 1
+"shift" = -440
+
+[[preset]]
+key = "preset.translatio.wobble"
+note = "The shift swept on quarter notes."
+styles = ["house", "trap"]
+roles = ["creative"]
+[preset.values]
+"div" = 8
+"lfo" = 60
+"mix" = 0.8
+"out" = -0.4
+"shift" = 0
+"sync" = 1
+
+[[preset]]
+key = "preset.translatio.stereo_spin"
+note = "Opposite shifts on each side: the sound turns around you."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"mix" = 1
+"shift" = 1.5
+"side" = 2
+
+[[preset]]
+key = "preset.translatio.vocal_width"
+note = "Two hertz either way, a little: a double that never flams."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"mix" = 0.25
+"out" = -1.1
+"shift" = 2
+"side" = 2
+
+[[preset]]
+key = "preset.translatio.lofi_drift"
+note = "A shift that wanders slowly: an old tape that will not stay in tune."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"lfo" = 4
+"mix" = 0.4
+"out" = -2
+"rate" = 0.15
+"shift" = 0
+
+[[preset]]
+key = "preset.translatio.riser"
+note = "Feedback climbing upward: a riser under a build."
+styles = ["film", "house"]
+roles = ["creative"]
+[preset.values]
+"fb" = 0.85
+"mix" = 0.4
+"out" = -5.3
+"shift" = 12
+
+[[preset]]
+key = "preset.translatio.dark_pad"
+note = "A small shift down, half wet: a pad that darkens and moves."
+styles = ["ambient", "trap"]
+roles = ["creative"]
+[preset.values]
+"mix" = 0.4
+"out" = -2
+"shift" = -6

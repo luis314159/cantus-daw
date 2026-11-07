@@ -461,6 +461,20 @@ kit_tokens! {
         Glow glow "depth.glow",
         /// The cool counter-glow at the bottom left of the same grounds.
         GlowCool glow_cool "depth.glow_cool",
+        /// The light a raised object's upper bevel catches (round 37, ADR 0103): its colour,
+        /// its alpha the strength. Every material below is a colour of that kind.
+        Bevel bevel "depth.bevel",
+        /// The shade along a raised object's lower bevel and its turned-away sides.
+        BevelShade bevel_shade "depth.bevel_shade",
+        /// The shadow a well's upper lip casts inside it (and a pressed key's).
+        InnerShadow inner_shadow "depth.inner_shadow",
+        /// The light along a well's lower lip.
+        Lip lip "depth.lip",
+        /// The hot highlight on metal and glass: fader caps, knob caps, lamps, displays —
+        /// strong on a glossy theme (Night's metal and glass), faint on a matte one (Paper).
+        Specular specular "depth.specular",
+        /// The shadow a raised object casts on the surface under it.
+        Drop drop "depth.drop",
     }
 }
 
@@ -594,6 +608,12 @@ impl Tokens {
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
+            bevel: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 38),
+            bevel_shade: Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 110),
+            inner_shadow: Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 165),
+            lip: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 22),
+            specular: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 190),
+            drop: Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 140),
             dark: true,
             radius: 2.0,
             round: 1.0,
@@ -677,6 +697,12 @@ impl Tokens {
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
+            bevel: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 235),
+            bevel_shade: Color32::from_rgba_unmultiplied_const(0x18, 0x10, 0x0a, 46),
+            inner_shadow: Color32::from_rgba_unmultiplied_const(0x18, 0x12, 0x0c, 64),
+            lip: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 210),
+            specular: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 120),
+            drop: Color32::from_rgba_unmultiplied_const(0x18, 0x12, 0x0c, 60),
             dark: false,
             radius: 2.0,
             round: 1.0,
@@ -759,6 +785,12 @@ impl Tokens {
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
+            bevel: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 38),
+            bevel_shade: Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 110),
+            inner_shadow: Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 165),
+            lip: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 22),
+            specular: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 190),
+            drop: Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 140),
             dark: true,
             radius: 3.0,
             round: 1.0,
@@ -841,6 +873,12 @@ impl Tokens {
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
+            bevel: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 235),
+            bevel_shade: Color32::from_rgba_unmultiplied_const(0x18, 0x10, 0x0a, 46),
+            inner_shadow: Color32::from_rgba_unmultiplied_const(0x18, 0x12, 0x0c, 64),
+            lip: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 210),
+            specular: Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 120),
+            drop: Color32::from_rgba_unmultiplied_const(0x18, 0x12, 0x0c, 60),
             dark: false,
             radius: 3.0,
             round: 1.0,
@@ -985,6 +1023,36 @@ impl Tokens {
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
+            bevel: if dark {
+                Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 38)
+            } else {
+                Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 235)
+            },
+            bevel_shade: if dark {
+                Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 110)
+            } else {
+                Color32::from_rgba_unmultiplied_const(0x18, 0x10, 0x0a, 46)
+            },
+            inner_shadow: if dark {
+                Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 165)
+            } else {
+                Color32::from_rgba_unmultiplied_const(0x18, 0x12, 0x0c, 64)
+            },
+            lip: if dark {
+                Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 22)
+            } else {
+                Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 210)
+            },
+            specular: if dark {
+                Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 190)
+            } else {
+                Color32::from_rgba_unmultiplied_const(0xff, 0xff, 0xff, 120)
+            },
+            drop: if dark {
+                Color32::from_rgba_unmultiplied_const(0x00, 0x00, 0x00, 140)
+            } else {
+                Color32::from_rgba_unmultiplied_const(0x18, 0x12, 0x0c, 60)
+            },
             dark,
             radius: p.corner_radius as f32,
             round: 1.0,
@@ -1330,6 +1398,69 @@ mod tests {
             ("Parchment", Tokens::parchment()),
             ("Ink & Gold", Tokens::ink_and_gold()),
         ]
+    }
+
+    /// The material tokens (round 37, ADR 0103).
+    const MATERIALS: [Tok; 6] = [
+        Tok::Bevel,
+        Tok::BevelShade,
+        Tok::InnerShadow,
+        Tok::Lip,
+        Tok::Specular,
+        Tok::Drop,
+    ];
+
+    #[test]
+    fn every_shipped_theme_defines_its_materials_and_their_character() {
+        for (id, make) in super::super::appearance::PRESETS {
+            let t = make().kit_tokens();
+            for m in MATERIALS {
+                assert!(t.get(m).a() > 0, "{id}: {} has no strength", m.key());
+            }
+            // Light from above: the bevel is lighter than its shade; the drop and the
+            // inner shadow are shadows.
+            let l = |c: Color32| Hsl::of(super::super::color::opaque(c)).l;
+            assert!(l(t.bevel) > l(t.bevel_shade), "{id}: the bevel is not lit");
+            assert!(
+                l(t.drop) < 0.3 && l(t.inner_shadow) < 0.3,
+                "{id}: shadows are dark"
+            );
+            assert!(l(t.specular) > 0.8, "{id}: the specular is a highlight");
+        }
+        // Night is glossy metal and glass, Paper matte.
+        let night = crate::theme::cantus_night().kit_tokens();
+        let paper = crate::theme::cantus_paper().kit_tokens();
+        assert!(night.specular.a() > paper.specular.a() + 60);
+    }
+
+    #[test]
+    fn a_theme_saved_before_the_materials_derives_them_by_its_kind() {
+        for (theme, dark) in [
+            (crate::theme::cantus_night(), true),
+            (crate::theme::cantus_paper(), false),
+        ] {
+            // A theme file as round 36 wrote it: every token it knew, none of the six.
+            let mut old = theme.clone();
+            for m in MATERIALS {
+                old.kit.remove(m.key());
+            }
+            let json = serde_json::to_string(&old).expect("write");
+            let back: crate::theme::Theme = serde_json::from_str(&json).expect("read");
+            let t = back.kit_tokens();
+            let kind = if dark {
+                Tokens::slate()
+            } else {
+                Tokens::paper()
+            };
+            for m in MATERIALS {
+                assert_eq!(t.get(m), kind.get(m), "{}: {}", theme.name, m.key());
+            }
+            // Saved again, it keeps them.
+            let again = back.clone().with_kit(&t);
+            for m in MATERIALS {
+                assert!(again.kit.contains_key(m.key()), "{} is saved", m.key());
+            }
+        }
     }
 
     #[test]

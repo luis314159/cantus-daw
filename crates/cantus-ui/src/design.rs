@@ -119,6 +119,14 @@ pub fn family_strong() -> FontFamily {
     F.get_or_init(|| FontFamily::Name("strong".into())).clone()
 }
 
+/// Named [`FontFamily`] for light mono — the large displays (the clock, the tempo, a
+/// device's hero readout): thin numerals that read refined at size (round 37). // r37:finish
+pub fn family_mono_light() -> FontFamily {
+    static F: OnceLock<FontFamily> = OnceLock::new();
+    F.get_or_init(|| FontFamily::Name("mono-light".into()))
+        .clone()
+}
+
 /// Named [`FontFamily`] for medium mono — numeric readouts that must carry weight.
 pub fn family_mono_strong() -> FontFamily {
     static F: OnceLock<FontFamily> = OnceLock::new();
@@ -233,6 +241,10 @@ pub fn font_definitions() -> egui::FontDefinitions {
         MONO_STRONG,
         include_bytes!("../assets/fonts/IBMPlexMono-Medium.ttf"),
     );
+    add(
+        "mono-light",
+        include_bytes!("../assets/fonts/IBMPlexMono-Light.ttf"), // r37:finish
+    );
     // ADR 0024 §3: the condensed UI face, which is what lets FL's labels fit.
     for (key, bytes) in role::FACES {
         add(key, bytes);
@@ -245,6 +257,9 @@ pub fn font_definitions() -> egui::FontDefinitions {
     fonts
         .families
         .insert(family_mono_strong(), chain(MONO_STRONG));
+    fonts
+        .families
+        .insert(family_mono_light(), chain("mono-light")); // r37:finish
     for (key, _) in role::FACES {
         fonts
             .families
@@ -265,12 +280,12 @@ pub fn font_definitions() -> egui::FontDefinitions {
 /// | `Control` | 12 | Condensed Medium | Title |
 /// | `Title` | 13 | Condensed Medium | Title |
 /// | `Section` | 11 | Condensed SemiBold | CAPS +0.8 |
-/// | `Value` | 12 | Mono Medium | — |
-/// | `Hero` | 18 | Mono Medium | — |
-/// | `Display` | 26 | Mono Regular | — |
+/// | `Value` | 12 | Condensed Medium (tabular figures) | — |
+/// | `Hero` | 18 | Condensed (tabular figures) | — |
+/// | `Display` | 26 | Condensed (tabular figures) | — |
 /// | `Placeholder` | 12.5 | Condensed Italic | as named |
 pub mod role {
-    use super::{family_mono_strong, FontFamily, FontId};
+    use super::{FontFamily, FontId};
     pub use crate::kit::skin::Weight;
 
     pub(super) const COND: &str = "cond";
@@ -355,8 +370,11 @@ pub mod role {
                 Role::Label | Role::Control | Role::Title => name(COND_MEDIUM),
                 Role::Body => name(COND),
                 Role::Placeholder => name(COND_ITALIC),
-                Role::Value | Role::Hero => family_mono_strong(),
-                Role::Display => FontFamily::Monospace,
+                // r37:finish — one face for numbers and words: Plex Sans Condensed, whose
+                // figures are tabular (every digit one width), so a value never shifts as it
+                // counts and never reads as a terminal's (the judge: two faces side by side).
+                Role::Value => name(COND_MEDIUM),
+                Role::Hero | Role::Display => name(COND),
             }
         }
 
@@ -387,12 +405,15 @@ pub mod role {
             FontId::new(self.size() * k, FontFamily::Monospace)
         }
 
-        /// Extra space between letters, in points at 100 %, for roles set in caps.
+        /// Extra space between letters, in points at 100 %: for roles set in caps, and
+        /// (less than none) for the monospaced numbers.
         pub fn tracking(self) -> f32 {
             match self {
-                Role::Micro => 0.4,
-                Role::Label => 0.5,
+                Role::Micro => 0.3,  // r37:finish (0.4: loose beside the condensed face)
+                Role::Label => 0.25, // r37:finish (0.5)
                 Role::Section => 0.8,
+                // r37:finish — the large display a touch close.
+                Role::Display => -0.4,
                 _ => 0.0,
             }
         }

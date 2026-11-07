@@ -76,6 +76,8 @@ enum Sub {
     /// The VCAs a strip follows, and a group's. // r36:mix
     Vca(StripId), // r36:mix
     GroupVca(GroupId), // r36:mix
+    /// A strip's own pan law, or the project's (ADR 0100 §3). // r37:drums
+    StripLaw(StripId), // r37:drums
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -120,6 +122,8 @@ enum Act {
     Width(WidthMode),
     Row(Row),
     Colourful(Colourful),
+    /// The insert panel at the desk's right (r37:finish).
+    InsertsPanel,
     Wave,
     ResetRatio,
     PanLaw(PanLaw),
@@ -180,6 +184,11 @@ enum Act {
     ForgetSlot(EffectId),
     /// The master's automation mode (round 31, ADR 0068).
     MasterAutoMode(cantus_core::AutoMode),
+    /// A kit's pads each on a strip of their own, or back on the kit (ADR 0100). // r37:drums
+    SplitKit(cantus_core::TrackId), // r37:drums
+    MergeKit(cantus_core::TrackId), // r37:drums
+    /// A strip's own pan law (`None`: the project's). // r37:drums
+    StripLaw(StripId, Option<PanLaw>), // r37:drums
 }
 
 impl Act {
@@ -359,6 +368,10 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::sub(Label::Key("cables.menu.options"), Sub::Cables));
             e.push(Entry::separator());
             e.push(
+                Entry::act(Label::Key("mixer.menu.inserts_panel"), Act::InsertsPanel)
+                    .check(on(v.prefs.current.inserts)),
+            );
+            e.push(
                 Entry::act(Label::Key("mixer.wave"), Act::Wave)
                     .check(on(app.settings.mixer_meter_wave))
                     .shortcut(app.keymap.display_for(Action::ToggleMeterWave)),
@@ -429,6 +442,31 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Entry::act(Label::Key("bounce.menu.strip"), Act::Bounce(id))
                     .enabled(crate::bounce::strip_plan(app, id).is_ok()),
             );
+            // r37:drums — the strip's own pan law, said when it has one (ADR 0100 §3); a VCA
+            // has no audio to place.
+            let own = app.project().strip(id).and_then(|s| s.pan_law);
+            let vca = app.project().is_vca(id);
+            if !vca {
+                e.push(Entry::sub(
+                    match own {
+                        Some(_) => Label::Key("padout.law.own"),
+                        None => Label::Key("padout.law.project"),
+                    },
+                    Sub::StripLaw(id),
+                ));
+            }
+            // r37:drums — a kit's strip, or a pad's: split the kit to strips, merge it back.
+            if let Some(kit) = app.kit_on_strip(id) {
+                e.push(Entry::band("padout.menu.band"));
+                e.push(
+                    Entry::act(Label::Key("padout.menu.split"), Act::SplitKit(kit))
+                        .enabled(cantus_core::padout::can_split(app.project(), kit)),
+                );
+                e.push(
+                    Entry::act(Label::Key("padout.menu.merge"), Act::MergeKit(kit))
+                        .enabled(cantus_core::padout::can_merge(app.project(), kit)),
+                );
+            }
             e.push(Entry::band("mixer.menu.routing"));
             e.push(
                 Entry::act(Label::Key("routing.menu.where"), Act::RouteMenu(id)).shortcut(
@@ -774,6 +812,20 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
                 );
             }
         }
+        // r37:drums — the strip's own pan law, the project's first.
+        Sub::StripLaw(id) => {
+            let own = p.strip(id).and_then(|s| s.pan_law);
+            e.push(
+                Entry::act(Label::Key("padout.law.follow"), Act::StripLaw(id, None))
+                    .check(radio(own.is_none())),
+            );
+            for law in PanLaw::ALL {
+                e.push(
+                    Entry::act(Label::Key(law.label_key()), Act::StripLaw(id, Some(law)))
+                        .check(radio(own == Some(law))),
+                );
+            }
+        }
         Sub::PanLaw => {
             for law in PanLaw::ALL {
                 e.push(
@@ -923,7 +975,8 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
                 .enabled(!full),
             );
             e.push(Entry::band("effect.add"));
-            for kind in EffectKind::ALL {
+            for kind in EffectKind::ALL.into_iter().filter(|k| k.offered()) {
+                // r37:library — the older Reverb is not offered
                 e.push(
                     Entry::act(Label::Key(kind.name_key()), Act::AddEffect(id, kind))
                         .enabled(!full),
@@ -1258,6 +1311,15 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             None => app.freeze_target(cantus_core::FreezeTarget::Strip(id)),
         },
         Act::Bounce(id) => app.bounce_strip(id),
+        Act::SplitKit(t) => {
+            app.split_kit(t); // r37:drums
+        }
+        Act::MergeKit(t) => {
+            app.merge_kit(t); // r37:drums
+        }
+        Act::StripLaw(id, law) => {
+            app.exec(Command::SetStripPanLaw { id, law }); // r37:drums
+        }
         Act::Rename(id) => {
             if let Some(s) = app.project().strip(id) {
                 let name = s.name.clone();
@@ -1375,6 +1437,10 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         }
         Act::Colourful(c) => {
             prefs.colourful = c;
+            v.prefs.set(prefs);
+        }
+        Act::InsertsPanel => {
+            prefs.inserts = !prefs.inserts;
             v.prefs.set(prefs);
         }
         Act::Learn(id, what) => {
@@ -1707,5 +1773,75 @@ fn automate_entries(id: StripId, e: &mut Vec<Entry>) {
         (2, "mods.menu.width"),
     ] {
         e.push(Entry::act(Label::Key(key), Act::Modulate(id, what)));
+    }
+}
+
+// r37:drums — the strip menu's *Split to strips* / *Merge back* and its pan law, driven as
+// a click drives them (the review of round 37's first delivery, item 7).
+#[cfg(test)]
+mod padout_menu_tests {
+    use super::*;
+    use cantus_core::{InstrumentSpec, Project, PulsusParams};
+
+    fn app() -> (CantusApp, cantus_core::TrackId, StripId) {
+        let mut p = Project::new("Kit");
+        let mut t = p.make_track("Drums");
+        t.instrument = InstrumentSpec::Pulsus(PulsusParams::studio());
+        let (id, s) = (t.id, t.strip.unwrap());
+        p.tracks.push(t);
+        let app = CantusApp::from_parts(Some(p), cantus_engine::EngineHandle::dummy(), false);
+        (app, id, s)
+    }
+
+    /// The action of the entry labelled `key` in strip `s`'s menu, and whether it is enabled.
+    fn find(v: &MixerView, app: &CantusApp, s: StripId, key: &str) -> Option<(Act, bool)> {
+        entries(v, app, Menu::Strip(s))
+            .into_iter()
+            .find_map(|e| match (e.label, e.then) {
+                (Label::Key(k), Then::Act(a)) if k == key => Some((a, e.enabled)),
+                _ => None,
+            })
+    }
+
+    #[test]
+    fn the_strip_menu_splits_and_merges_the_kit() {
+        let (mut app, t, kit) = app();
+        let mut v = MixerView::default();
+        let (split, on) = find(&v, &app, kit, "padout.menu.split").expect("the entry");
+        assert!(on);
+        let (_, merge_on) = find(&v, &app, kit, "padout.menu.merge").unwrap();
+        assert!(!merge_on, "nothing to merge yet");
+        apply(&mut v, &mut app, split);
+        assert!(cantus_core::padout::is_split(app.project(), t));
+        // From a pad's strip too.
+        let pad = app.project().tracks[0].instrument.output_strips()[0];
+        let (merge, on) = find(&v, &app, pad, "padout.menu.merge").expect("on a pad strip");
+        assert!(on);
+        apply(&mut v, &mut app, merge);
+        assert!(!cantus_core::padout::is_split(app.project(), t));
+    }
+
+    #[test]
+    fn the_strip_menu_sets_a_strips_own_pan_law() {
+        let (mut app, _, kit) = app();
+        let mut v = MixerView::default();
+        apply(&mut v, &mut app, Act::StripLaw(kit, Some(PanLaw::ZeroDb)));
+        assert_eq!(
+            app.project().strip(kit).unwrap().pan_law,
+            Some(PanLaw::ZeroDb)
+        );
+        let labels: Vec<&str> = entries(&v, &app, Menu::Strip(kit))
+            .iter()
+            .filter_map(|e| match e.label {
+                Label::Key(k) => Some(k),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            labels.contains(&"padout.law.own"),
+            "the menu says the strip has its own law"
+        );
+        apply(&mut v, &mut app, Act::StripLaw(kit, None));
+        assert_eq!(app.project().strip(kit).unwrap().pan_law, None);
     }
 }

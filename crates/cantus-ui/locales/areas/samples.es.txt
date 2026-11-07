@@ -1,6 +1,7 @@
 # Área: el explorador de sonidos y el gestor de contenido (ronda 20, ADR 0030). Cada clave necesita su gemela en samples.en.txt.
 
 samples.title = Explorador
+samples.heading = Sonidos
 samples.toggle = Mostrar u ocultar el explorador
 action.toggle-browser = Explorador
 samples.content = Paquetes de sonidos…
@@ -108,3 +109,14 @@ samples.missing.locate = Buscar la carpeta…
 samples.missing.not_there = Esa carpeta no tiene los archivos que faltan del paquete
 cmd.samples_relink = Usar el paquete de sonidos instalado
 samples.sound.preset_layers = {name} · {n} capas
+samples.preview.play = Reproducir el sonido
+samples.preview.stop = Detener el sonido
+samples.family = Categoría
+samples.family.all = Todo
+samples.family.drums = Batería
+samples.family.loops = Loops
+samples.family.melodic = Melódico
+samples.family.fx = FX
+samples.preview.volume = Nivel de la escucha (el sonido vuelve a empezar al nuevo nivel)
+samples.detail.mono = Mono
+samples.detail.stereo = Estéreo

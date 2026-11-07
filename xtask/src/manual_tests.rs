@@ -3,6 +3,39 @@
 
 use crate::manual::{self, body, href, html_name, inline, slug};
 
+/// The sources' marks for builders never reach a reader; an example of one in code does.
+#[test]
+fn html_comments_go_but_not_from_code() {
+    let md = "# Title\n\nAlso: [the stage](stage.md). <!-- r35:stage -->\n\
+              The next line.\n\
+              <!-- a mark on its own line -->\n\
+              Same paragraph.\n\n\
+              <!-- across\nlines -->\n\n\
+              Write `<!-- r37:chars -->` to mark a line.\n\n\
+              ```text\n<!-- kept in the block -->\nmore\n```\n";
+    let html = body(md);
+    assert!(!html.contains("r35:stage"), "{html}");
+    assert!(!html.contains("on its own line"), "{html}");
+    assert!(
+        !html.contains("across") && !html.contains("lines --"),
+        "{html}"
+    );
+    assert!(
+        html.contains(
+            "<p>Also: <a href=\"stage.html\">the stage</a>. The next line. Same paragraph.</p>"
+        ),
+        "the paragraph stays one: {html}"
+    );
+    assert!(
+        html.contains("<code>&lt;!-- r37:chars --&gt;</code>"),
+        "inline code keeps it: {html}"
+    );
+    assert!(
+        html.contains("<pre><code>&lt;!-- kept in the block --&gt;\nmore</code></pre>"),
+        "a code block keeps it: {html}"
+    );
+}
+
 #[test]
 fn the_markdown_the_manual_uses_becomes_html() {
     assert_eq!(

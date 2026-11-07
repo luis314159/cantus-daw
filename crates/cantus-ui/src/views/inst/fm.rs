@@ -429,7 +429,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
 
 /// `--editor fm`: the electric piano preset, operator B selected, a note sounding.
 pub fn demo_setup(app: &mut CantusApp, track: TrackId) {
-    if let Some(p) = FACTORY_PRESETS.first() {
+    if let Some(p) = super::factory_presets(cantus_core::InstrumentKind::Fm).first() {
         let spec = super::preset_spec(cantus_core::InstrumentKind::Fm, p);
         app.apply_inst_spec(track, &spec, "cmd.fx_preset");
     }

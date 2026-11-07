@@ -203,6 +203,7 @@ impl Voice {
         self.pad_id = s.id;
         self.note_id = c.note_id;
         self.bus = s.bus;
+        self.pad = c.pad_index.min(u8::MAX as usize) as u8;
         self.primary = true;
         self.pedal = s.pedal && s.voice == DrumVoice::HiHat;
         self.own_choke_coef = decay_coef(s.choke_fade, sr);

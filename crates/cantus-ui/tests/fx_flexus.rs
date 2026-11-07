@@ -107,7 +107,7 @@ fn the_centre_point_is_drawn_as_silence() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in flexus::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Flanger) {
         let mut spec = EffectSpec::new(EffectKind::Flanger);
         for (k, v) in *values {
             assert!(spec.set(k, *v).is_some(), "{label}: no parameter {k}");

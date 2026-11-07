@@ -33,10 +33,7 @@ fn the_v49_fixture_carries_a_dancer_with_its_move_automated() {
         2.0,
         "a default is not stored and reads back"
     );
-    assert_eq!(
-        n.text(dancer::CHARACTER_KEY),
-        Some(dancer::DEFAULT_CHARACTER)
-    );
+    assert_eq!(n.text(dancer::CHARACTER_KEY), Some("builtin:songbird"));
     assert_eq!(t.icon, Some(TrackIcon::Dance));
     let auto = t
         .clips

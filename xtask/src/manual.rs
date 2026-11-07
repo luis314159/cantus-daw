@@ -123,6 +123,8 @@ table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.95em}
 th,td{border:1px solid var(--line);padding:.35em .6em;text-align:left;vertical-align:top}
 th{background:var(--code)}
 blockquote{margin:1em 0;padding:.2em 1em;border-left:3px solid var(--gold);color:var(--dim)}
+pre{background:var(--code);padding:.7em .9em;border-radius:6px;overflow-x:auto;line-height:1.45}
+pre code{background:none;padding:0}
 ";
 
 pub fn escape(s: &str) -> String {
@@ -244,8 +246,80 @@ fn cells(line: &str) -> Vec<&str> {
     t.split('|').map(str::trim).collect()
 }
 
-/// Block Markdown to HTML.
+/// Whether a line opens or closes a fenced code block (three backticks or tildes).
+fn is_fence(line: &str) -> bool {
+    let t = line.trim_start();
+    t.starts_with("```") || t.starts_with("~~~")
+}
+
+/// The Markdown with its HTML comments (`<!-- … -->`, one line or several) taken out — the
+/// sources' marks for builders, never for readers — but kept inside fenced code blocks and
+/// inline code, where an example shows them as text. A line left empty by a comment goes
+/// with it, so a paragraph it closed stays one paragraph (round 37).
+pub fn strip_comments(md: &str) -> String {
+    let mut out = String::new();
+    let mut fenced = false;
+    let mut in_comment = false;
+    for line in md.lines() {
+        if !in_comment && is_fence(line) {
+            fenced = !fenced;
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        if fenced {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        let mut kept = String::new();
+        let mut rest = line;
+        let mut code_run = 0usize;
+        while !rest.is_empty() {
+            if in_comment {
+                match rest.find("-->") {
+                    Some(end) => {
+                        rest = &rest[end + 3..];
+                        in_comment = false;
+                    }
+                    None => rest = "",
+                }
+                continue;
+            }
+            if rest.starts_with('`') {
+                let run = rest.len() - rest.trim_start_matches('`').len();
+                code_run = if code_run == 0 {
+                    run
+                } else if code_run == run {
+                    0
+                } else {
+                    code_run
+                };
+                kept.push_str(&rest[..run]);
+                rest = &rest[run..];
+                continue;
+            }
+            if code_run == 0 && rest.starts_with("<!--") {
+                in_comment = true;
+                rest = &rest[4..];
+                continue;
+            }
+            let ch = rest.chars().next().expect("not empty");
+            kept.push(ch);
+            rest = &rest[ch.len_utf8()..];
+        }
+        let emptied = kept.trim().is_empty() && !line.trim().is_empty();
+        if !emptied {
+            out.push_str(kept.trim_end());
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// Block Markdown to HTML (HTML comments taken out first: [`strip_comments`]).
 pub fn body(md: &str) -> String {
+    let md = strip_comments(md);
     let lines: Vec<&str> = md.lines().collect();
     let mut out = String::new();
     let mut i = 0;
@@ -279,6 +353,22 @@ pub fn body(md: &str) -> String {
             flush(&mut para, &mut out);
             out.push_str("<hr>\n");
             i += 1;
+            continue;
+        }
+        if is_fence(line) {
+            // A fenced code block, as it is (its language word, if any, dropped).
+            flush(&mut para, &mut out);
+            let mut code: Vec<&str> = Vec::new();
+            i += 1;
+            while i < lines.len() && !is_fence(lines[i]) {
+                code.push(lines[i]);
+                i += 1;
+            }
+            i += 1;
+            out.push_str(&format!(
+                "<pre><code>{}</code></pre>\n",
+                escape(&code.join("\n"))
+            ));
             continue;
         }
         if t.starts_with('|')

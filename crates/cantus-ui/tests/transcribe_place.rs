@@ -303,7 +303,7 @@ fn exemplar_gets_a_sound_not_an_empty_sampler() {
         n,
         cantus_ui::views::inst::preset_spec(
             cantus_core::inst::InstrumentKind::Sampler,
-            &cantus_ui::views::inst::sampler::FACTORY_PRESETS[0]
+            &cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Sampler)[0]
         )
     );
 }

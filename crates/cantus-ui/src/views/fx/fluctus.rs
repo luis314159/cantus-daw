@@ -29,82 +29,9 @@ pub use curve::curve_points;
 
 const KIND: EffectKind = EffectKind::VolumeShaper;
 
-/// A preset: its globals, then its points `p{n}.on/x/y/t/s` from `p0` up. What it does not
-/// name goes back to its default — points from `p2` on are unused by default, and every
-/// preset draws `p0` and `p1` — so a preset's curve is exactly the points it lists.
-macro_rules! preset {
-    ([$(($gk:literal, $gv:expr)),* $(,)?]; $($n:literal: $x:expr, $y:expr, $t:expr, $s:expr);* $(;)?) => {
-        &[
-            $(($gk, $gv),)*
-            $(
-                (concat!("p", $n, ".on"), 1.0),
-                (concat!("p", $n, ".x"), $x),
-                (concat!("p", $n, ".y"), $y),
-                (concat!("p", $n, ".t"), $t),
-                (concat!("p", $n, ".s"), $s),
-            )*
-        ]
-    };
-}
-
 /// Factory presets: the classic pumps without a key, gates and swells.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.fluctus.pump_quarters",
-        preset!([("depth", 1.0), ("div", 8.0), ("smooth", 2.0)];
-            0: 0.0, 0.0, -0.6, 0.0; 1: 0.5, 1.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.pump_hard",
-        preset!([("depth", 1.0), ("div", 8.0), ("smooth", 1.0)];
-            0: 0.0, 0.0, -0.9, 0.0; 1: 0.3, 1.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.pump_soft",
-        preset!([("depth", 0.7), ("div", 8.0), ("smooth", 4.0)];
-            0: 0.0, 0.25, -0.3, 0.0; 1: 0.75, 1.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.pump_eighths",
-        preset!([("depth", 0.9), ("div", 11.0), ("smooth", 1.5)];
-            0: 0.0, 0.0, -0.6, 0.0; 1: 0.5, 1.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.half_time",
-        preset!([("depth", 1.0), ("div", 5.0), ("smooth", 3.0)];
-            0: 0.0, 0.0, -0.6, 0.0; 1: 0.5, 1.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.swell_bar",
-        preset!([("depth", 1.0), ("div", 3.0), ("smooth", 5.0)];
-            0: 0.0, 0.0, 0.5, 0.0; 1: 0.95, 1.0, 0.0, 0.0),
-    ),
-    (
-        "preset.fluctus.gate_sixteenths",
-        preset!([("depth", 1.0), ("div", 5.0), ("smooth", 1.0)];
-            0: 0.0, 1.0, 0.0, 2.0; 1: 0.125, 0.0, 0.0, 2.0;
-            2: 0.25, 1.0, 0.0, 2.0; 3: 0.375, 0.0, 0.0, 2.0;
-            4: 0.5, 1.0, 0.0, 2.0; 5: 0.625, 0.0, 0.0, 2.0;
-            6: 0.75, 1.0, 0.0, 2.0; 7: 0.875, 0.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.offbeat",
-        preset!([("depth", 1.0), ("div", 8.0), ("smooth", 2.0)];
-            0: 0.0, 0.0, 0.0, 2.0; 1: 0.5, 1.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.triplet_chop",
-        preset!([("depth", 1.0), ("div", 8.0), ("smooth", 1.0)];
-            0: 0.0, 1.0, 0.0, 2.0; 1: 0.2, 0.0, 0.0, 2.0;
-            2: 0.333, 1.0, 0.0, 2.0; 3: 0.533, 0.0, 0.0, 2.0;
-            4: 0.667, 1.0, 0.0, 2.0; 5: 0.867, 0.0, 0.0, 2.0),
-    ),
-    (
-        "preset.fluctus.slow_wave",
-        preset!([("depth", 0.6), ("div", 3.0), ("smooth", 0.0)];
-            0: 0.0, 0.2, 0.4, 5.0; 1: 0.5, 1.0, 0.4, 5.0),
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// What the editor remembers between frames.
 #[derive(Debug, Default)]

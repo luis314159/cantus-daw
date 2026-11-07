@@ -312,7 +312,8 @@ fn a_shape_replaces_the_curve_in_one_step_and_a_straight_line_clears_it() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in saturator::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Saturator)
+    {
         for (k, _) in *values {
             assert!(
                 EffectKind::Saturator.param(k).is_some(),

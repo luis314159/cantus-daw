@@ -276,6 +276,17 @@ impl KeyStrings {
         }
     }
 
+    /// The force the hammers press on the strings now (N, summed): what model 2 carries
+    /// into the frame as the blow (ADR 0098).
+    #[inline]
+    pub fn hammer_force(&self) -> f64 {
+        self.strings[..self.n]
+            .iter()
+            .filter(|s| s.hammer.active)
+            .map(|s| s.hammer.f)
+            .sum()
+    }
+
     /// Whether a hammer still touches or approaches a string.
     pub fn hammering(&self) -> bool {
         self.strings[..self.n].iter().any(|s| s.hammer.active)

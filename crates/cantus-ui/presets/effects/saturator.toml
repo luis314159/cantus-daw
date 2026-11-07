@@ -1,0 +1,177 @@
+# Fervor saturator: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.sat.tape_bus"
+note = "Seven decibels of tape on a bus: warmer, rounder."
+styles = ["pop", "rock"]
+roles = ["bus"]
+[preset.values]
+"char" = 0.5
+"drive" = 7
+"model" = 0
+"os" = 2
+
+[[preset]]
+key = "preset.sat.tape_drums"
+note = "Drums hit hard into tape: squash and grit."
+styles = ["rock", "lofi"]
+roles = ["drums"]
+[preset.values]
+"char" = 0.85
+"drive" = 18
+"lo_cut" = 35
+"model" = 0
+"os" = 2
+"out" = -0.9
+
+[[preset]]
+key = "preset.sat.tube_vocal"
+note = "A tube preamp on a vocal: presence and a little hair."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"bias" = 0.1
+"char" = 0.4
+"drive" = 10
+"model" = 1
+"os" = 1
+"tone" = 1
+
+[[preset]]
+key = "preset.sat.tube_master"
+note = "A light tube colour on the whole mix, the lows kept mono-clean."
+styles = ["pop", "jazz"]
+roles = ["master"]
+[preset.values]
+"chan" = 1
+"char" = 0.3
+"drive" = 4
+"model" = 1
+"os" = 2
+
+[[preset]]
+key = "preset.sat.overdrive"
+note = "An overdrive pedal, its top tamed."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"char" = 0.6
+"drive" = 26
+"hi_cut" = 8000
+"model" = 2
+"os" = 2
+"out" = -6.8
+"tone" = 2
+
+[[preset]]
+key = "preset.sat.bass_growl"
+note = "Growl blended under a clean bass."
+styles = ["rock", "trap"]
+roles = ["creative"]
+[preset.values]
+"char" = 1
+"drive" = 20
+"mix" = 0.6
+"model" = 2
+"os" = 2
+"out" = -2
+
+[[preset]]
+key = "preset.sat.fuzz"
+note = "A gated, starved fuzz."
+styles = ["rock", "lofi"]
+roles = ["creative"]
+[preset.values]
+"bias" = 0.3
+"char" = 0.5
+"drive" = 30
+"hi_cut" = 6500
+"model" = 3
+"os" = 3
+"out" = -4.4
+
+[[preset]]
+key = "preset.sat.clipper"
+note = "A clean clip on the peaks, gain matched."
+styles = ["house", "trap"]
+roles = ["bus"]
+[preset.values]
+"auto" = 0
+"char" = 0.15
+"drive" = 3
+"model" = 4
+"os" = 3
+"out" = -3
+
+[[preset]]
+key = "preset.sat.fold"
+note = "Wavefolding: bright, metallic harmonics."
+styles = ["film", "house"]
+roles = ["creative"]
+[preset.values]
+"char" = 0.3
+"drive" = 14
+"model" = 5
+"os" = 3
+
+[[preset]]
+key = "preset.sat.lofi"
+note = "Ten bits at 11 kHz through a narrow band: the old sampler."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"bits" = 10
+"drive" = 8
+"hi_cut" = 6000
+"lo_cut" = 120
+"model" = 0
+"out" = 5.2
+"rate" = 11025
+
+[[preset]]
+key = "preset.sat.side_air"
+note = "Tape on the sides only: a wider, airier mix."
+styles = ["pop", "ambient"]
+roles = ["master"]
+[preset.values]
+"chan" = 2
+"char" = 1
+"drive" = 9
+"mix" = 0.5
+"model" = 0
+"os" = 2
+
+[[preset]]
+key = "preset.sat.shaper_soft"
+note = "A drawn soft curve: gentle warmth."
+styles = ["pop", "rnb"]
+roles = ["creative"]
+[preset.values]
+"c.t" = 0.4
+"drive" = 4
+"model" = 6
+"os" = 2
+"p0.on" = 1
+"p0.x" = 0.35
+"p0.y" = 0.55
+"p1.on" = 1
+"p1.t" = 0.3
+"p1.x" = 0.75
+"p1.y" = 0.88
+
+[[preset]]
+key = "preset.sat.shaper_rectify"
+note = "A rectifier: an octave up and a lot of buzz."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"c.lo" = 1
+"c.sym" = 0
+"model" = 6
+"os" = 1
+"out" = -2.7
+"p0.on" = 1
+"p0.x" = 0
+"p0.y" = 0

@@ -439,16 +439,16 @@ fn the_snap_follows_the_editor_being_worked_in() {
     r.app.central = cantus_ui::app::CentralView::PianoRoll;
     r.idle(2);
     assert_eq!(transport::snap_editor(&r.app).0, "piano_roll");
-    // The SNAP lamp switches the piano roll's snap.
+    // The snap key (round 37: a magnet at the group's right end) switches the piano
+    // roll's snap.
     let before = r.app.piano_roll.snap;
-    let lamp = r.group(Group::Snap).expect("the snap group");
-    let snap = r
-        .texts
-        .iter()
-        .find(|(t, rr)| t == "SNAP" && lamp.contains_rect(*rr))
-        .map(|(_, rr)| *rr)
-        .expect("the SNAP lamp");
-    r.click(snap.center());
+    assert!(r.group(Group::Snap).is_some(), "the snap group");
+    let key = r
+        .ctx
+        .read_response(egui::Id::new("toolbar-snap"))
+        .map(|k| k.rect)
+        .expect("the snap key");
+    r.click(key.center());
     assert_ne!(r.app.piano_roll.snap, before);
     assert!(r.app.arrangement.snap, "the arrangement's is its own");
 }
@@ -541,8 +541,9 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
         r.text("Woodblock").is_some(),
         "the metronome's options are open"
     );
-    // A click on the window itself closes it.
-    r.click(pos2(450.0, 400.0));
+    // A click on the window itself closes it (round 37: at the window's foot, clear of
+    // the overflow, which holds more now the bar is drawn larger).
+    r.click(pos2(60.0, 680.0));
     assert!(!transport::overflow_open(&r.app));
 }
 
@@ -561,7 +562,7 @@ fn customising_hides_and_reorders_groups_and_keeps_them() {
         .1
         .span_of(Group::Tools)
         .is_none());
-    // Drag the first row (PAT / SONG) by its grip below the transport.
+    // Drag PAT / SONG (second since round 37) by its grip above the transport.
     let mode = r.text("Pattern / song").unwrap();
     let transport_row = r.text("Transport").unwrap();
     let grip = pos2(mode.left() - 30.0, mode.center().y);
@@ -578,7 +579,7 @@ fn customising_hides_and_reorders_groups_and_keeps_them() {
     r.frame(vec![Rig::button(to, false)]);
     r.idle(2);
     let order = cantus_ui::views::transport::layout::resolve(&r.app.settings.topbar.order);
-    assert_eq!(&order[..2], &[Group::Transport, Group::Mode], "{order:?}");
+    assert_eq!(&order[..2], &[Group::Mode, Group::Transport], "{order:?}");
     let saved = std::fs::read_to_string(&r.app.settings_path).unwrap();
     assert!(saved.contains("\"tools\""), "{saved}");
     // Reset: the default bar.
@@ -628,11 +629,16 @@ fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
         assert!(inside.contains(&w), "{inside:?}");
     }
     if cfg!(any(windows, target_os = "linux")) {
+        let near: Vec<_> = r
+            .texts
+            .iter()
+            .filter(|(t, _)| t.ends_with("MB") || t.ends_with("GB"))
+            .collect();
         assert!(
             inside
                 .iter()
                 .any(|t| t.ends_with("MB") || t.ends_with("GB")),
-            "{inside:?}"
+            "{inside:?} in {perf:?}; the memory drawn at {near:?}"
         );
     }
     let status_top = r.size.y - 30.0;

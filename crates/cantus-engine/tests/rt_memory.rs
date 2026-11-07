@@ -2330,3 +2330,70 @@ fn an_external_effects_send_never_allocates() {
     assert!(sent, "the send went out of outputs 3-4");
     assert_eq!(total, 0, "the send path allocated");
 }
+
+/// r37:drums - a kit split to strips (ADR 0100): every pad renders into its tap, the taps
+/// follow a ride of the kit's level, the pads move between strips while they ring (merge
+/// back, split again), a seek and a stop — serial and on the pool. Not one allocation.
+#[test]
+fn a_split_kit_never_allocates() {
+    for workers in [None, Some(Workers::parallel(3))] {
+        let mut p = Project::new("Kit");
+        let mut t = p.make_track("Drums");
+        t.instrument = InstrumentSpec::Pulsus(PulsusParams::studio());
+        let pitches: Vec<u8> = t
+            .instrument
+            .pulsus()
+            .unwrap()
+            .pads
+            .iter()
+            .map(|x| x.pitch)
+            .collect();
+        let mut c = p.make_clip("Groove", Ticks::ZERO, Ticks::beats(8));
+        for step in 0..32i64 {
+            let pitch = pitches[(step as usize * 5) % pitches.len()];
+            let n = p.make_note(Ticks(step * PPQ / 4), Ticks(PPQ / 4), pitch, 100);
+            c.notes.push(n);
+        }
+        t.clips.push(c);
+        let id = t.id;
+        p.tracks.push(t);
+        let ride = p.make_automation_clip(
+            "ride",
+            AutoTarget::TrackGain(id),
+            Ticks::ZERO,
+            Ticks::beats(8),
+            vec![
+                AutoPoint::new(Ticks::ZERO, 0.9),
+                AutoPoint::new(Ticks::beats(4), 0.3),
+            ],
+        );
+        p.tracks[0].clips.push(ride);
+        let view = p.clone();
+        let cmd = cantus_core::padout::split_with(&view, id, |n| p.make_strip(n)).unwrap();
+        cmd.apply(&mut p).unwrap();
+        let pooled = workers.is_some();
+        let mut rig = Rig::with(workers);
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("split start", 40);
+        // Merged back while the pads ring, then split again.
+        let mut merged = p.clone();
+        cantus_core::padout::merge(&p, id)
+            .unwrap()
+            .apply(&mut merged)
+            .unwrap();
+        rig.snapshot(&merged);
+        rig.play("merged", 20);
+        rig.snapshot(&p);
+        rig.play("split again", 20);
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+        rig.play("split seek", 20);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("split stop", 4);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "the audio thread allocated or freed (pool: {pooled}): {:?}",
+            rig.allocations
+        );
+    }
+}

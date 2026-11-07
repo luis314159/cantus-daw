@@ -650,76 +650,8 @@ pub fn verdict(
 // ---- presets --------------------------------------------------------------------------
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "lim.preset.transparent",
-        &[
-            ("gain", 4.0),
-            ("style", 0.0),
-            ("look", 2.0),
-            ("link_t", 0.75),
-        ],
-    ),
-    (
-        "lim.preset.streaming",
-        &[
-            ("gain", 6.0),
-            ("style", 0.0),
-            ("knee", 1.0),
-            ("ceiling", -1.0),
-            ("target", -14.0),
-        ],
-    ),
-    (
-        "lim.preset.loud",
-        &[
-            ("gain", 10.0),
-            ("style", 2.0),
-            ("look", 1.0),
-            ("clip", 0.4),
-            ("ceiling", -1.0),
-            ("target", -9.0),
-        ],
-    ),
-    (
-        "lim.preset.drums",
-        &[
-            ("gain", 6.0),
-            ("style", 1.0),
-            ("look", 1.0),
-            ("rel", 80.0),
-            ("link_t", 0.5),
-        ],
-    ),
-    (
-        "lim.preset.glue",
-        &[("gain", 4.0), ("style", 3.0), ("att", 5.0), ("rel", 300.0)],
-    ),
-    (
-        "lim.preset.broadcast",
-        &[
-            ("gain", 2.0),
-            ("style", 4.0),
-            ("look", 5.0),
-            ("rel", 500.0),
-            ("target", -23.0),
-        ],
-    ),
-    (
-        "lim.preset.cd",
-        &[
-            ("gain", 6.0),
-            ("ceiling", -0.3),
-            ("dither", 5.0),
-            ("shape", 2.0),
-            ("target", -10.0),
-        ],
-    ),
-    (
-        "lim.preset.tracking",
-        &[("look", 0.0), ("tp", 0.0), ("style", 4.0), ("rel", 100.0)],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 // ---- words ----------------------------------------------------------------------------
 

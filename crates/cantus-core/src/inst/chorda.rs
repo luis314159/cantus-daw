@@ -14,6 +14,7 @@
 //! | Pedals | `pedal` (the sustain pedal as a parameter, 0 up … 1 down: what an automation lane or a modulator drives; the higher of it and controller 64 plays), `damper` (%), `una` (%: how far the soft pedal shifts the hammers) |
 //! | Body | `body` (%), `tilt` (dB), `width` (%) |
 //! | Output | `gain` (dB) |
+//! | Model 2 (ADR 0098) | `room` (%: the room's level), `noise` (%: the hammer's, the action's and the dampers' noises), `persp` (%: the microphones, over the hammers 0 … the audience 1), `lid` (%: closed 0 … open 1), `roomsize` (%) — model 1 ignores them; `width` is model 2's pair width too |
 //!
 //! `a4`, `stretch` and `stiffness` shape every string's dispersion design, computed off the
 //! audio thread: they are set, not modulated (a modulation route to them does nothing).
@@ -27,14 +28,18 @@ pub const ICON: TrackIcon = TrackIcon::Keys;
 /// Offered in the instrument picker (round 28: finished, ADR 0059).
 pub const READY: bool = true;
 
-/// The model a new instance plays (a key absent from a spec reads as this).
-pub const MODEL: f32 = 1.0;
+/// The model a new instance plays (a key absent from a spec reads as this). Round 37
+/// (ADR 0098): 2. Every spec saved before says `model` = 1 (schema 54's migration).
+pub const MODEL: f32 = 2.0;
+
+/// Set, never automated or modulated: the model a song was made with.
+pub const SET_KEYS: [&str; 1] = ["model"];
 
 /// The keys a design is computed from: never modulated.
 pub const DESIGN_KEYS: [&str; 3] = ["a4", "stretch", "stiffness"];
 
 pub const PARAMS: &[InstParamInfo] = &[
-    p("model", "chorda.model", 1.0, 1.0, MODEL, "", false, true),
+    p("model", "chorda.model", 1.0, 2.0, MODEL, "", false, true),
     p("a4", "chorda.a4", 415.0, 466.0, 440.0, "Hz", false, false),
     p(
         "stretch",
@@ -135,6 +140,23 @@ pub const PARAMS: &[InstParamInfo] = &[
     p("tilt", "chorda.tilt", -12.0, 12.0, 0.0, "dB", false, false),
     p("width", "chorda.width", 0.0, 1.0, 0.7, "%", false, false),
     p("gain", "inst.gain", -48.0, 12.0, 0.0, "dB", false, false),
+    p("room", "chorda.room", 0.0, 1.0, 0.35, "%", false, false),
+    p("noise", "chorda.noise", 0.0, 2.0, 1.0, "%", false, false),
+    // Model 2's perspective (round 37, voicing pass two): the microphones from over the
+    // hammers (0) through the player (35 %) to the audience (1), the lid closed (0) … open
+    // (1), the room's size (40 %: as voiced). r37:piano
+    p("persp", "chorda.persp", 0.0, 1.0, 0.35, "%", false, false),
+    p("lid", "chorda.lid", 0.0, 1.0, 1.0, "%", false, false),
+    p(
+        "roomsize",
+        "chorda.roomsize",
+        0.0,
+        1.0,
+        0.4,
+        "%",
+        false,
+        false,
+    ),
 ];
 
 pub fn params() -> &'static [InstParamInfo] {
@@ -152,7 +174,8 @@ pub fn param(key: &str) -> Option<&'static InstParamInfo> {
 }
 
 pub fn is_text_key(key: &str) -> bool {
-    super::modulation::is_text_key(key)
+    // The look its scene draws (ADR 0104): text, never a parameter. r37:scene
+    super::chorda_look::KEYS.contains(&key) || super::modulation::is_text_key(key)
 }
 
 pub fn is_asset_key(key: &str) -> bool {

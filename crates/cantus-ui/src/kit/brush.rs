@@ -337,7 +337,7 @@ impl Brush {
         extra: &[Option<super::Tok>],
     ) {
         if self.inspecting {
-            let mut e = [None; 3];
+            let mut e = [None; 4];
             for (d, x) in e.iter_mut().zip(extra) {
                 *d = *x;
             }

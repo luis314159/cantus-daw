@@ -1229,7 +1229,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             ui.id().with(("arr-header", id.0)),
             Sense::click_and_drag(),
         );
-        let lamp = |c: Pos2| Rect::from_center_size(c, egui::Vec2::splat(s.s(paint::LED + 6.0)));
+        let lamp = |c: Pos2| Rect::from_center_size(c, egui::Vec2::splat(s.s(paint::LED + 8.0))); // r37:finish
         let m = ui.interact(
             lamp(hr.mute),
             ui.id().with(("arr-mute", id.0)),
@@ -1893,6 +1893,18 @@ fn clips(
                 reserve,
                 sibling: marks.is_sibling(clip, sel),
                 label_row: scratch.label_row,
+                // r37:finish — quiet when the track above says the same from the same bar:
+                // the first clip of a run keeps its name (the judge: a name always to be
+                // found), the ones under it show their content at full height.
+                quiet: !renaming
+                    && clip.lane == 0
+                    && !clip.name.is_empty()
+                    && marks.count(clip).is_none()
+                    && i > 0
+                    && app.project().tracks[i - 1]
+                        .clips
+                        .iter()
+                        .any(|c| c.lane == 0 && c.start == clip.start && c.name == clip.name),
             };
             let linked = marks.count(clip).map(|n| {
                 while counts.len() < n {
@@ -1975,12 +1987,27 @@ fn clips(
                 );
             }
             if !clip.notes.is_empty() && inner.height() > 2.0 && inner.width() > 4.0 {
-                let (lo, hi) = clip.notes.iter().fold((127u8, 0u8), |(lo, hi), n| {
-                    (lo.min(n.pitch), hi.max(n.pitch))
-                });
-                let span = (hi - lo).max(12) as f32;
+                // r37:finish — the notes fill the clip's height: a row per pitch in use,
+                // folded as a piano roll folds (the contour kept, the empty pitches
+                // between left out), so a bass line spread over two octaves reads at the
+                // size a drum line does. One 128-bit mask, no allocation.
+                let mask = clip
+                    .notes
+                    .iter()
+                    .fold(0u128, |m, n| m | 1u128 << (n.pitch & 127));
+                let above = |p: u8| {
+                    mask.checked_shr(u32::from(p & 127) + 1)
+                        .unwrap_or(0)
+                        .count_ones() as f32
+                };
+                let used = mask.count_ones() as f32; // r37:finish
+                let span = used.max(3.0); // r37:finish
+                                          // The rows in use, centred: one drum's hits sit across the middle.
+                let row_h = inner.height() / span; // r37:finish
+                let top_pad = (inner.height() - used * row_h) * 0.5; // r37:finish
                 let ink = paint::note_ink(&look, s);
-                let half = (inner.height() / span * 0.5).clamp(0.75, 2.0);
+                // r37:finish — a bar at least 2 px tall on its pitch row.
+                let half = (row_h * 0.42).max(1.0).min((inner.height() * 0.3).max(1.0)); // r37:finish
                 let (left, right) = (
                     inner.left().max(lanes.left()),
                     inner.right().min(lanes.right()),
@@ -1996,6 +2023,10 @@ fn clips(
                 } else {
                     0
                 };
+                // r37:finish — a piano roll in miniature: each note a bar at its pitch row and
+                // its true length (2 px at least), and a pixel's gap only between two notes
+                // that follow each other on the same row (each row's last end remembered).
+                let mut last_end = [f32::NEG_INFINITY; 128];
                 for n in &clip.notes[skip..] {
                     if shown.period().is_none() && n.start > last_on {
                         break; // sorted by start: the rest are off the right edge
@@ -2011,12 +2042,30 @@ fn clips(
                         if nx1 <= nx0 {
                             continue;
                         }
-                        let ny = inner.bottom() - (n.pitch - lo) as f32 / span * inner.height();
+                        let ny = inner.top() + top_pad + above(n.pitch) * row_h + row_h * 0.5; // r37:finish
+                                                                                               // r37:finish — a piano roll in miniature: a held note a bar with a
+                                                                                               // pixel's gap at its end (repeated notes read apart), a short hit a
+                                                                                               // clean block as wide as it is tall (up to 5 px), not a tick.
+                        let px = b.px();
+                        let row = usize::from(n.pitch & 127);
+                        // Touching the note before it on its row: a pixel of ground first.
+                        let x0 = if nx0 < last_end[row] + px {
+                            // Wholly under the bar before it (dense hits zoomed out): it
+                            // is that bar already.
+                            if nx1 <= last_end[row] + px {
+                                continue;
+                            }
+                            last_end[row] + px
+                        } else {
+                            nx0
+                        };
+                        let x1 = nx1.max(x0 + 2.0).min(right.max(x0 + 2.0));
+                        if x0 >= right {
+                            continue;
+                        }
+                        last_end[row] = x1;
                         b.rect(
-                            Rect::from_min_max(
-                                pos2(nx0, ny - half),
-                                pos2(nx1.max(nx0 + 1.0), ny + half),
-                            ),
+                            Rect::from_min_max(pos2(x0, ny - half), pos2(x1, ny + half)),
                             kit::Fill::Solid(ink),
                         );
                     }

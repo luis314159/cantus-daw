@@ -80,40 +80,8 @@ const SCALE_NAMES: [&str; 13] = [
 
 /// Factory presets: a label key and the parameters it sets (the rest at their defaults:
 /// a chromatic corrector in C).
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.tonus.natural",
-        &[
-            ("speed", 80.0),
-            ("human", 0.5),
-            ("amount", 0.85),
-            ("flex", 15.0),
-        ],
-    ),
-    ("preset.tonus.tight", &[("speed", 15.0), ("human", 0.2)]),
-    ("preset.tonus.hard", &[("speed", 0.0)]),
-    (
-        "preset.tonus.hard_vibrato",
-        &[("speed", 0.0), ("vdepth", 30.0)],
-    ),
-    (
-        "preset.tonus.throat_up",
-        &[("speed", 40.0), ("throat", 3.0)],
-    ),
-    (
-        "preset.tonus.throat_down",
-        &[("speed", 40.0), ("throat", -3.0)],
-    ),
-    ("preset.tonus.midi_lead", &[("src", 2.0), ("speed", 0.0)]),
-    (
-        "preset.tonus.major_soft",
-        &[("scale", 1.0), ("speed", 50.0), ("human", 0.4)],
-    ),
-    (
-        "preset.tonus.octave_down",
-        &[("trans", -12.0), ("speed", 30.0)],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// What the editor remembers between frames.
 #[derive(Debug, Default)]

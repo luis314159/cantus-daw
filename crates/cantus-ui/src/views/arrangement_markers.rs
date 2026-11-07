@@ -22,7 +22,7 @@ use cantus_core::{Color, Command, MergeKey, Ticks};
 use egui::{pos2, vec2, Align2, Color32, Id, Rect, Sense};
 
 /// The marker lane's height at full size.
-pub const MARKER_H: f32 = 16.0;
+pub const MARKER_H: f32 = 18.0; // r37:finish (was 16: the names a size up)
 
 /// What the marker lane remembers between frames.
 #[derive(Clone, Debug, Default)]
@@ -122,7 +122,7 @@ fn tabs(
             .map(|m| {
                 text::measure(
                     ctx,
-                    &Text::new(&m.name, Role::Micro, s.t.text).caps(false),
+                    &Text::new(&m.name, Role::Label, s.t.text).caps(false),
                     s.tk(),
                 )
                 .x
@@ -177,7 +177,7 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lane
         let _ = text::paint(
             b,
             tab.shrink2(vec2(4.0 * k, 0.0)),
-            &Text::new(&m.name, Role::Micro, t.text)
+            &Text::new(&m.name, Role::Label, t.text)
                 .caps(false)
                 .align(Align2::LEFT_CENTER)
                 .policy(Policy::Elide(Elide::End)),

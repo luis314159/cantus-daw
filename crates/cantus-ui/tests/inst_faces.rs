@@ -40,8 +40,11 @@ fn opened(kind: InstrumentKind, view: View) -> CantusApp {
 fn titles(kind: InstrumentKind) -> &'static [&'static str] {
     match kind {
         InstrumentKind::Chorda => &[
-            "chorda.strings",
+            // Play's hero is the scene (ADR 0104); the strings from above are in Edit.
+            // r37:scene
+            "chorda.scene",
             "chorda.pedals",
+            "chorda.mics",
             "chorda.hammer",
             "chorda.resonance",
             "chorda.output",

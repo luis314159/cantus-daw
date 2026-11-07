@@ -27,52 +27,8 @@ use egui::{pos2, vec2, Align2, Pos2, Rect};
 const KIND: EffectKind = EffectKind::Transient;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    ("preset.impetus.punch", &[("attack", 0.6), ("speed", 12.0)]),
-    (
-        "preset.impetus.snap",
-        &[
-            ("attack", 0.8),
-            ("speed", 6.0),
-            ("band", 1.0),
-            ("xover", 1_500.0),
-        ],
-    ),
-    (
-        "preset.impetus.soften",
-        &[("attack", -0.6), ("speed", 20.0)],
-    ),
-    (
-        "preset.impetus.tight",
-        &[("attack", 0.4), ("sustain", -0.6), ("length", 180.0)],
-    ),
-    (
-        "preset.impetus.room",
-        &[("sustain", 0.7), ("length", 600.0)],
-    ),
-    (
-        "preset.impetus.dry",
-        &[("sustain", -0.8), ("length", 120.0)],
-    ),
-    (
-        "preset.impetus.kick",
-        &[
-            ("attack", 0.7),
-            ("speed", 18.0),
-            ("band", 2.0),
-            ("xover", 150.0),
-        ],
-    ),
-    (
-        "preset.impetus.pluck",
-        &[
-            ("attack", 0.5),
-            ("sustain", 0.3),
-            ("speed", 8.0),
-            ("length", 400.0),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 const BAND_KEYS: [&str; 3] = ["impetus.band.0", "impetus.band.1", "impetus.band.2"];
 

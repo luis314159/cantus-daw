@@ -76,6 +76,12 @@ pub(super) fn show(
     let inner = area.shrink(8.0 * k);
     let rects = cell_rects(inner, kit.pads.len(), 6.0 * k);
     let selected = app.pulsus.selected;
+    // r37:drums — how many inserts each pad's chain holds (ADR 0100 §6), drawn on the pad.
+    let chains: Vec<usize> = kit
+        .pads
+        .iter()
+        .map(|p| cantus_core::padout::chain_effects(app.project(), p).len())
+        .collect();
     let chip_at = |r: &Rect| pos2(r.right() - 13.0 * k, r.top() + 11.0 * k);
     let mut hovered = None;
     let mut menu_for = None;
@@ -140,7 +146,8 @@ pub(super) fn show(
                 b.polyline(&members, 2.5 * k, with_alpha(s.t.highlight, 0.8));
             }
         }
-        for ((pad, rect), preview) in kit.pads.iter().zip(&rects).zip(&previews) {
+        for (((pad, rect), preview), fx) in kit.pads.iter().zip(&rects).zip(&previews).zip(&chains)
+        {
             let sel = selected == Some(pad.id);
             paint_pad(
                 b,
@@ -151,6 +158,7 @@ pub(super) fn show(
                 sel,
                 hovered == Some(pad.id),
                 chip_at(rect),
+                *fx,
             );
         }
     });
@@ -217,6 +225,7 @@ fn paint_pad(
     selected: bool,
     hovered: bool,
     chip: Pos2,
+    fx: usize,
 ) {
     let t = &s.t;
     let k = s.k;
@@ -247,7 +256,10 @@ fn paint_pad(
     let name_r = Rect::from_min_size(
         r.min + vec2(pad_x, 3.0 * k),
         vec2(
-            r.width() - 2.0 * pad_x - if pad.choke > 0 { 22.0 * k } else { 0.0 },
+            r.width()
+                - 2.0 * pad_x
+                - if pad.choke > 0 { 22.0 * k } else { 0.0 }
+                - if fx > 0 { 30.0 * k } else { 0.0 },
             line_h,
         ),
     );
@@ -300,6 +312,14 @@ fn paint_pad(
             .policy(Policy::Elide(Elide::End)),
         s.tk(),
     );
+    // r37:drums — the pad's chain: "FX n", left of the choke chip.
+    if fx > 0 {
+        let at = chip - vec2(if pad.choke > 0 { 26.0 * k } else { 4.0 * k }, 0.0);
+        let cr = b.snap_rect(Rect::from_center_size(at, vec2(26.0 * k, 15.0 * k)));
+        b.rrect(cr, 3.0 * k, Fill::Solid(s.hue));
+        let label = crate::i18n::tf("pulsus.pad.fx_chip", &[("n", &fx.to_string())]);
+        let _ = ktext::paint(b, cr, &Text::new(&label, Role::Micro, t.deck), s.tk());
+    }
     if pad.choke > 0 {
         let cr = b.snap_rect(Rect::from_center_size(chip, vec2(18.0 * k, 15.0 * k)));
         b.rrect(cr, 3.0 * k, Fill::Solid(t.deck));

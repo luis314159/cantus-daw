@@ -106,6 +106,13 @@ pub struct TrackSnapshot {
     /// For each of `events`, whether it reaches the instrument past the note effects (a
     /// baked clip's, `Clip::skip_note_fx`). Empty when none does.
     pub direct: Vec<bool>,
+    // r37:drums — instruments with several outputs (ADR 0100).
+    /// The tracks that carry this one's own outputs: bus `k + 1` plays through
+    /// `tracks[buses[k]]` (a split kit's pads). Empty for every track with one output.
+    pub buses: Vec<usize>,
+    /// This track is one of another's outputs (`crate::padout`): it plays nothing of its
+    /// own, only what its source renders into its bus, through its own strip and line.
+    pub tap: Option<crate::padout::Tap>,
 }
 
 impl TrackSnapshot {
@@ -234,6 +241,10 @@ pub struct StripSnapshot {
     pub frozen: Option<crate::freeze::FrozenPlay>,
     /// Resting (ADR 0064): see [`TrackSnapshot::rest`].
     pub rest: bool,
+    /// The strip's own pan law, in place of [`Snapshot::pan_law`] (ADR 0100). // r37:drums
+    pub pan_law: Option<PanLaw>, // r37:drums
+    /// A pad's chain (ADR 0100 §6): the engine rests it while it is at rest. // r37:drums
+    pub chain: bool, // r37:drums
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -399,6 +410,8 @@ impl Snapshot {
                     .collect(),
                 note_fx: t.note_fx.clone(),
                 direct,
+                buses: Vec::new(), // r37:drums
+                tap: None,         // r37:drums
             })
             .collect::<Vec<_>>();
         // The kinds each track's lanes drive (ADR 0068): what a seek chases.
@@ -409,6 +422,7 @@ impl Snapshot {
         // Modulators (ADR 0057): a lane for every modulated target, and their plans.
         let modulators = crate::modulator::compile::compile(project, &tracks, &mut automation);
         let vca = crate::vca::compile(project, &mut automation); // r36:mix
+        crate::padout::append_taps(project, &mut tracks); // r37:drums (ADR 0100)
         Snapshot {
             revision,
             tempo_bpm: project.tempo_bpm,
@@ -474,6 +488,8 @@ impl Snapshot {
                         }),
                         // A VCA has no audio: it is never run. // r36:mix
                         rest: s.kind == crate::vca::StripKind::Vca,
+                        pan_law: s.pan_law,                            // r37:drums
+                        chain: s.kind == crate::vca::StripKind::Chain, // r37:drums
                     })
                     .collect()
             },

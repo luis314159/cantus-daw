@@ -1,0 +1,115 @@
+# Tonus pitch correction: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.tonus.natural"
+note = "A gentle correction that keeps the singer."
+styles = ["pop", "worship"]
+roles = ["vocal"]
+[preset.values]
+"amount" = 0.85
+"flex" = 15
+"human" = 0.5
+"speed" = 80
+
+[[preset]]
+key = "preset.tonus.tight"
+note = "Tighter, still human."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"human" = 0.2
+"speed" = 15
+
+[[preset]]
+key = "preset.tonus.hard"
+note = "Instant correction: the hard-tuned effect."
+styles = ["trap", "pop"]
+roles = ["vocal"]
+[preset.values]
+"speed" = 0
+
+[[preset]]
+key = "preset.tonus.hard_vibrato"
+note = "Hard-tuned with a vibrato of its own."
+styles = ["trap", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"speed" = 0
+"vdepth" = 30
+
+[[preset]]
+key = "preset.tonus.throat_up"
+note = "Corrected and a smaller throat: younger, brighter."
+styles = ["film", "trap"]
+roles = ["vocal"]
+[preset.values]
+"speed" = 40
+"throat" = 3
+
+[[preset]]
+key = "preset.tonus.throat_down"
+note = "Corrected and a bigger throat: darker, larger."
+styles = ["film", "trap"]
+roles = ["vocal"]
+[preset.values]
+"speed" = 40
+"throat" = -3
+
+[[preset]]
+key = "preset.tonus.midi_lead"
+note = "The voice follows the notes of a MIDI part."
+styles = ["house", "film"]
+roles = ["vocal"]
+[preset.values]
+"speed" = 0
+"src" = 2
+
+[[preset]]
+key = "preset.tonus.major_soft"
+note = "Soft correction to a major scale."
+styles = ["pop", "worship"]
+roles = ["vocal"]
+[preset.values]
+"human" = 0.4
+"scale" = 1
+"speed" = 50
+
+[[preset]]
+key = "preset.tonus.octave_down"
+note = "An octave down: a deep double."
+styles = ["film", "trap"]
+roles = ["vocal"]
+[preset.values]
+"speed" = 30
+"trans" = -12
+
+[[preset]]
+key = "preset.tonus.latin_vocal"
+note = "A quick but human correction for a reggaeton or pop latino hook."
+styles = ["latin"]
+roles = ["vocal"]
+[preset.values]
+"human" = 0.4
+"speed" = 30
+
+[[preset]]
+key = "preset.tonus.gospel"
+note = "A light hand that keeps the slides and runs of a gospel singer."
+styles = ["worship"]
+roles = ["vocal"]
+[preset.values]
+"amount" = 0.7
+"flex" = 25
+"human" = 0.6
+"speed" = 100
+
+[[preset]]
+key = "preset.tonus.robot"
+note = "Instant correction, the formants left alone: a robotic voice."
+styles = ["film", "house"]
+roles = ["vocal"]
+[preset.values]
+"formant" = 0
+"speed" = 0

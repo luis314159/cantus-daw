@@ -1,0 +1,1 @@
+# Area: scorecard - round 37. Every key here needs its twin in scorecard.es.txt

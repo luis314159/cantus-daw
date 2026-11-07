@@ -21,7 +21,7 @@ use crate::kit::{band, led, with_brush, Fill, State};
 use egui::{vec2, Align2, Id, Order, Pos2, Rect, Sense, Ui, Vec2};
 
 /// The ⋯ key's width at 100 %.
-pub const KEY_W: f32 = 22.0;
+pub const KEY_W: f32 = 24.0; // r37:finish — a 24-pt target
 
 /// The customise panel's state.
 #[derive(Debug, Default)]
@@ -152,6 +152,9 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
     let mut drawn: Vec<(Group, Rect)> = Vec::with_capacity(folded.len());
     for g in folded {
         let (band_r, _) = ui.allocate_exact_size(vec2(width, s.s(band::BAND)), Sense::hover());
+        // r37:finish — the group's shortcut at the band's right: what folded is still one
+        // key away (the owner, round 37).
+        let keys = shortcut_of(app, *g);
         with_brush(ui.painter(), |b| {
             band::section(
                 b,
@@ -162,6 +165,17 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
                 None,
                 false,
             );
+            if !keys.is_empty() {
+                let _ = text::paint(
+                    b,
+                    band_r.shrink2(vec2(8.0 * k, 0.0)),
+                    &Text::new(&keys, Role::Micro, s.t.text_dim)
+                        .caps(false)
+                        .align(Align2::RIGHT_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
+            }
         });
         let w = wants[..n]
             .iter()
@@ -171,7 +185,9 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
         let h = if g.tall() { tall_h } else { row_h };
         let (row, _) = ui.allocate_exact_size(vec2(width, h), Sense::hover());
         let r = Rect::from_min_size(row.min, vec2(w, h));
-        draw(*g, app, ui, r, &s);
+        // r37:finish — at the size it has on the bar.
+        let gs = super::group_style_at(*g, ui.ctx().content_rect().width());
+        draw(*g, app, ui, r, &gs);
         drawn.push((*g, r));
     }
     ui.ctx()
@@ -185,6 +201,36 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
         open_customise(app);
         app.topbar.customise.overflow = false;
     }
+}
+
+/// The keys that do what a folded group does, as the overflow menu shows them: the area
+/// keys' F-keys, undo's, the metronome's, play's — empty for a group without one.
+/// // r37:finish
+pub fn shortcut_of(app: &CantusApp, g: Group) -> String {
+    use crate::keymap::Action as A;
+    let actions: &[A] = match g {
+        Group::Transport => &[A::PlayPause],
+        Group::Undo => &[A::Undo, A::Redo],
+        Group::Metronome => &[A::ToggleMetronome],
+        Group::Windows => &[
+            A::ToggleBrowser,
+            A::ViewArrangement,
+            A::ViewChannelRack,
+            A::ViewPianoRoll,
+            A::ViewMixer,
+        ],
+        _ => &[],
+    };
+    let mut out = String::new();
+    for a in actions {
+        if let Some(b) = app.keymap.bindings_for(*a).first() {
+            if !out.is_empty() {
+                out.push_str("  ");
+            }
+            out.push_str(&b.display());
+        }
+    }
+    out
 }
 
 // ---- customise -----------------------------------------------------------------------

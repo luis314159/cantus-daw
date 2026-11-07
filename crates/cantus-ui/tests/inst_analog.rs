@@ -205,9 +205,13 @@ fn every_string_it_paints_is_translated() {
         .params()
         .iter()
         .map(|i| i.label_key)
-        .chain(analog::FACTORY_PRESETS.iter().map(|p| p.label_key))
         .chain(
-            analog::FACTORY_PRESETS
+            cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Analog)
+                .iter()
+                .map(|p| p.label_key),
+        )
+        .chain(
+            cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Analog)
                 .iter()
                 .flat_map(|p| p.tags.iter().copied()),
         )
@@ -366,10 +370,10 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
 fn presets_set_what_they_name_and_name_their_macros() {
     let _turn = turn();
     assert!(
-        (8..=16).contains(&analog::FACTORY_PRESETS.len()),
+        cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Analog).len() >= 8,
         "8 to 16 factory presets"
     );
-    for preset in analog::FACTORY_PRESETS {
+    for preset in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Analog) {
         let target = preset_spec(KIND, preset);
         for (k, v) in preset.values {
             assert_eq!(

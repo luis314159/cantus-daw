@@ -222,10 +222,13 @@ pub enum FillSize {
 pub fn safe_track(c: Color32, dark_theme: bool, size: FillSize) -> Color32 {
     let hsl = Hsl::of(opaque(c));
     let (s_band, l_band) = match (dark_theme, size) {
-        (true, FillSize::Small) => ((0.25, 0.40), (0.58, 0.64)),
-        (true, FillSize::Large) => ((0.25, 0.40), (0.36, 0.46)),
-        (false, FillSize::Small) => ((0.35, 0.45), (0.50, 0.58)),
-        (false, FillSize::Large) => ((0.30, 0.42), (0.62, 0.72)),
+        // Round 37 (finish, ADR 0103): a stronger band than FL's — user colour is how a
+        // desk and a song are read from across the room; each colour still kept in a
+        // lightness band so text on it holds.
+        (true, FillSize::Small) => ((0.48, 0.72), (0.56, 0.64)),
+        (true, FillSize::Large) => ((0.42, 0.62), (0.36, 0.46)),
+        (false, FillSize::Small) => ((0.50, 0.72), (0.46, 0.56)),
+        (false, FillSize::Large) => ((0.42, 0.62), (0.62, 0.72)),
     };
     let s = if hsl.s < 0.08 {
         hsl.s
@@ -245,6 +248,18 @@ pub fn is_safe_track(c: Color32, dark_theme: bool, size: FillSize) -> bool {
     let s = safe_track(c, dark_theme, size);
     let d = |a: u8, b: u8| a.abs_diff(b) <= 2;
     d(s.r(), c.r()) && d(s.g(), c.g()) && d(s.b(), c.b())
+}
+
+/// A colour's strength scaled by `k` (0…1.5), alpha and channels together.
+pub fn strength(c: Color32, k: f32) -> Color32 {
+    if (0.999..=1.001).contains(&k) {
+        return c;
+    }
+    let [r, g, b, a] = c.to_array();
+    let s = |v: u8| ((v as f32 * k).round().clamp(0.0, 255.0)) as u8;
+    let a2 = s(a);
+    // Premultiplied: no channel above the alpha.
+    Color32::from_rgba_premultiplied(s(r).min(a2), s(g).min(a2), s(b).min(a2), a2)
 }
 
 #[cfg(test)]
@@ -312,7 +327,7 @@ mod tests {
     fn the_safe_clamp_lands_in_fl_s_band() {
         let loud = Color32::from_rgb(0xff, 0x00, 0x40);
         let s = Hsl::of(safe_track(loud, true, FillSize::Small));
-        assert!((0.24..=0.41).contains(&s.s) && (0.57..=0.65).contains(&s.l));
+        assert!((0.47..=0.73).contains(&s.s) && (0.55..=0.65).contains(&s.l));
         let big = Hsl::of(safe_track(loud, true, FillSize::Large));
         assert!(big.l < s.l, "large fills are darker");
         // A grey stays grey.

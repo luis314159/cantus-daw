@@ -203,8 +203,8 @@ fn a_run_of_markers_that_fits_keeps_every_name_whole() {
             ..a.project().marker(short).unwrap().clone()
         },
     });
-    // The next marker 150 points on: room for both names, not for two equal halves.
-    a.add_marker(Ticks::beats(9)).unwrap();
+    // The next marker 210 points on: room for both names, not for two equal halves.
+    a.add_marker(Ticks::beats(11)).unwrap(); // r37:finish (names a size up: 210 pt)
     let ctx = context();
     arrangement(&mut a, &ctx, vec![]);
     arrangement(&mut a, &ctx, vec![]);

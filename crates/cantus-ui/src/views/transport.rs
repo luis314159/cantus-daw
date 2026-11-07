@@ -62,12 +62,70 @@ use std::cell::RefCell;
 
 pub use more::open_customise;
 
-/// The toolbar's height at 100 %.
-pub const HEIGHT: f32 = 54.0;
+/// The toolbar's height at 100 % (round 37, finish: the bar is drawn at [`bar_scale`] —
+/// keys of 31 and 27 pt at 1920, words a size up; FL's bar is ~100 px, ours carries more
+/// in less). // r37:finish
+pub const HEIGHT: f32 = 66.0;
+
+/// How much larger than the rest of the window the bar draws everything on it — its keys,
+/// glyphs, words, the clock — for a window `width` points wide at 100 %: as before up to a
+/// laptop's 1366, a size up from there, 1.12 at 1920 (keys of 31 and 27 pt), 1.2 from
+/// 2400. Its constants below are in these larger points. // r37:finish
+pub fn bar_scale(width: f32) -> f32 {
+    let t = ((width - 1366.0) / (1920.0 - 1366.0)).clamp(0.0, 1.0);
+    let wide = ((width - 1920.0) / (2400.0 - 1920.0)).clamp(0.0, 1.0);
+    1.0 + 0.12 * t + 0.08 * wide
+}
+
+/// The style the bar is drawn and laid out with: the window's, at [`bar_scale`] for the
+/// window's width. // r37:finish
+pub fn bar_style(ctx: &egui::Context) -> Style {
+    bar_style_at(ctx.content_rect().width())
+}
+
+/// [`bar_style`] for a bar `width` points wide. // r37:finish
+pub fn bar_style_at(width: f32) -> Style {
+    let s = Style::current();
+    s.scaled(s.k * bar_scale(width / s.k.max(0.1)))
+}
+
+/// Whether a group carries the bar's presence — the transport, PAT / SONG, the tempo and
+/// the clock — drawn at [`bar_scale`]; the other groups are drawn at
+/// [`secondary_scale`], so that at 1920 every group is on the bar (the owner, round 37:
+/// "nothing folds at 1920"). // r37:finish
+pub fn primary(g: Group) -> bool {
+    matches!(
+        g,
+        Group::Transport | Group::Mode | Group::Tempo | Group::Position
+    )
+}
+
+/// The scale of the bar's other groups: the window's up to 1920 points, a size up from
+/// there (1.1 from 2400). // r37:finish
+pub fn secondary_scale(width: f32) -> f32 {
+    let wide = ((width - 1920.0) / (2400.0 - 1920.0)).clamp(0.0, 1.0);
+    1.0 + 0.10 * wide
+}
+
+/// The style group `g` is measured and drawn with on a bar `width` points wide. // r37:finish
+pub fn group_style_at(g: Group, width: f32) -> Style {
+    if primary(g) {
+        bar_style_at(width)
+    } else {
+        let s = Style::current();
+        s.scaled(s.k * secondary_scale(width / s.k.max(0.1)))
+    }
+}
+
+/// The width the bar is laid out for: the window's content. // r37:finish
+fn bar_width(ctx: &egui::Context) -> f32 {
+    ctx.content_rect().width()
+}
+
 /// A key's side at 100 % in a group as tall as the bar.
-const KEY: f32 = 28.0;
+pub(super) const KEY: f32 = 28.0;
 /// A key's side at 100 % in a group one row high (two rows to the bar, as FL's).
-const ROW_KEY: f32 = 22.0;
+const ROW_KEY: f32 = 24.5; // r37:finish (29 pt on the bar)
 /// The space between two columns of groups; a divider sits in its middle.
 const GAP: f32 = 8.0;
 /// The margin at each end of the bar.
@@ -80,7 +138,7 @@ const HINT_MIN: f32 = 300.0;
 /// shortened in its middle, the whole of it in the chip's hint): what keeps every group on
 /// the bar at 1920 px with a running interface's chip (review 2). A sentence (no audio,
 /// lost) is read whole, up to [`DEVICE_SENTENCE`].
-pub const DEVICE_MIN: f32 = 150.0;
+pub const DEVICE_MIN: f32 = 120.0; // r37:finish (the bar is a size up: the chip gives way first)
 /// The most a sentence on the chip takes before it is shortened.
 const DEVICE_SENTENCE: f32 = 200.0;
 /// The audio chip's widest on the bar at 100 %, when the bar has the room (it grows after
@@ -138,6 +196,8 @@ thread_local! {
 struct WantsKey {
     locale: crate::i18n::Locale,
     tk: u32,
+    /// The bar's width: the groups' scales follow it. // r37:finish
+    width: u32,
     ppp: u32,
     groups: [Option<Group>; COUNT],
     chip: u32,
@@ -182,12 +242,24 @@ pub fn wants(app: &CantusApp, ctx: &egui::Context) -> Vec<Want> {
 }
 
 fn wants_cached(app: &CantusApp, ctx: &egui::Context) -> ([Want; COUNT], usize) {
-    let s = Style::current();
+    wants_with(app, ctx, bar_width(ctx)) // r37:finish
+}
+
+/// What the groups want on a bar `width` points wide (tests: the bar's scale follows the
+/// window's width, so its wants do too). // r37:finish
+pub fn wants_at(app: &CantusApp, ctx: &egui::Context, width: f32) -> Vec<Want> {
+    let (w, n) = wants_with(app, ctx, width);
+    w[..n].to_vec()
+}
+
+fn wants_with(app: &CantusApp, ctx: &egui::Context, width: f32) -> ([Want; COUNT], usize) {
+    let s = bar_style_at(width); // r37:finish
     let mut groups = [None; COUNT];
     let n = shown_into(app, &mut groups);
     let key = WantsKey {
         locale: crate::i18n::locale(),
         tk: s.tk().to_bits(),
+        width: width.to_bits(),
         ppp: ctx.pixels_per_point().to_bits(),
         groups,
         chip: super::audio_chip::width(app, ctx).to_bits(),
@@ -207,8 +279,10 @@ fn wants_cached(app: &CantusApp, ctx: &egui::Context) -> ([Want; COUNT], usize) 
             tall: false,
         }; COUNT];
         for (i, g) in groups[..n].iter().flatten().enumerate() {
-            w[i] = want_of(*g, app, ctx, &s);
+            w[i] = want_of(*g, app, ctx, &group_style_at(*g, width)); // r37:finish
         }
+        // r37:finish — the menus and the hint at the bar's scale (the judge: menu text
+        // small); the groups' tighter packing pays for it.
         LEFT.with(|l| *l.borrow_mut() = menus::left_widths(ctx, &s));
         *c = Some((key, w, n));
         (w, n)
@@ -243,7 +317,7 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
                 group: g,
                 min: min.ceil(),
                 max: max.ceil(),
-                tall: true,
+                tall: g.tall(), // r37:finish (a row of the meter bridge)
             }
         }
         Group::Inputs => fixed(keys::inputs_width(ctx, s)),
@@ -252,14 +326,16 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
         // in its hint), never the bar's room for the other groups.
         Group::Device => {
             let chip = super::audio_chip::width(app, ctx);
+            // r37:finish — a running device's least is its short line whole (name ·
+            // latency): the chip is never cut inside a name ("ASIO4ALL v2…6").
             let least = if super::audio_chip::reads_a_device(app, ctx) {
-                DEVICE_MIN
+                super::audio_chip::short_width(app, ctx).max(DEVICE_MIN * s.k)
             } else {
-                DEVICE_SENTENCE
+                DEVICE_SENTENCE * s.k
             };
             Want {
                 group: g,
-                min: (chip.min(least * s.k) + 4.0 * s.k).ceil(),
+                min: (chip.min(least) + 4.0 * s.k).ceil(),
                 max: (chip.min(DEVICE_MAX * s.k) + 4.0 * s.k).ceil(),
                 tall: false,
             }
@@ -272,24 +348,30 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
 
 /// The room the bar gives its parts at `width` points (the property test reads it).
 pub fn room(ctx: &egui::Context, width: f32) -> Room {
-    let s = Style::current();
+    // r37:finish — the menus, the hint and the gaps at the other groups' scale (the
+    // transport, the tempo and the clock carry the bar's).
+    let s = group_style_at(Group::Undo, width);
     let k = s.k;
     let menus_w = LEFT.with(|l| {
         let l = *l.borrow();
         if l > 0.0 {
             l
         } else {
-            menus::left_widths(ctx, &s)
+            menus::left_widths(ctx, &bar_style_at(width)) // r37:finish
         }
     });
-    let logo = menus::LOGO_W * k;
+    let logo = menus::LOGO_W * bar_style_at(width).k; // r37:finish (drawn at the bar's scale)
     Room {
         width,
         pad: PAD * k,
         gap: GAP * k,
         // The hint panel keeps room for its two lines, as the bar before round 28 gave it at
         // 1280 × 720 (the final review: every hint whole there, at 100 % and 200 %).
-        left_min: logo + menus_w.max(HINT_MIN * k),
+        // r37:finish — at the window's scale, not the bar's: its words are the hint's.
+        // A wide bar's hint gives a tenth of its least to the groups (its text elides in
+        // its middle, whole in the hint panel's tooltip).
+        left_min: logo
+            + menus_w.max(HINT_MIN * Style::current().k * if width >= 1800.0 { 0.9 } else { 1.0 }),
         left_max: logo + menus_w.max(460.0 * k),
 
         more: more::KEY_W * k,
@@ -303,7 +385,7 @@ pub fn last_layout(ctx: &egui::Context) -> Option<(Rect, Layout)> {
 
 /// The toolbar, filling `ui`'s rect.
 pub fn show(app: &mut CantusApp, ui: &mut Ui) {
-    let s = Style::current();
+    let s = bar_style(ui.ctx()); // r37:finish
     let t = s.t;
     let k = s.k;
     // The bar takes its height even in a panel that did not size it.
@@ -355,12 +437,22 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         for x in l.columns() {
             divider(b, rect.left() + x - room.gap * 0.5, rect, k, &s);
         }
+        // r37:finish — the ⋯ key a group of its own too (it floated at the end).
+        divider(b, rect.left() + l.more.x0 - room.gap * 0.5, rect, k, &s);
     });
 
     let full = |sp| at(sp, layout::Slot::Full);
-    let hint = menus::left_block(app, ui, full(l.left), &s);
+    let ls = s; // r37:finish — the bar's scale
+    let hint = menus::left_block(app, ui, full(l.left), &ls);
+    let bw = bar_width(&ctx); // r37:finish
     for p in l.placed() {
-        draw(p.group, app, ui, at(p.span, p.slot), &s);
+        draw(
+            p.group,
+            app,
+            ui,
+            at(p.span, p.slot),
+            &group_style_at(p.group, bw),
+        );
     }
     more::key(app, ui, full(l.more), l.folded(), &s);
     // A right-click on the bar's ground: customise it.
@@ -371,7 +463,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     // must cover the panel's words while the project is renamed.
     texts_last(&ctx, layer, first);
     if let Some(hint) = hint {
-        title::name_field(app, ui, hint, &s);
+        title::name_field(app, ui, hint, &ls);
     }
     more::customise_panel(app, &ctx, rect);
 }
@@ -559,7 +651,7 @@ pub fn snap_editor(app: &CantusApp) -> (&'static str, cantus_core::Ticks, bool) 
 
 /// Draw one group alone in `rect` (tests: every group keeps to the rect it is given).
 pub fn draw_group(g: Group, app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
-    let s = Style::current();
+    let s = group_style_at(g, bar_width(ui.ctx())); // r37:finish
     draw(g, app, ui, rect, &s);
 }
 
@@ -632,10 +724,7 @@ fn key_strip<const N: usize>(
     s: &Style,
     keys: [(KeyFace<'_>, bool, &str); N],
 ) -> [Response; N] {
-    use crate::kit::color::with_alpha;
-    use crate::kit::light::{self, RaisedOpts};
-    let k = s.k;
-    let side = key_side(r, s);
+    let side = key_side(r, s); // r37:finish
     let top = r.center().y - side * 0.5;
     let cells: [Rect; N] = std::array::from_fn(|i| {
         Rect::from_min_size(Pos2::new(x + i as f32 * side, top), Vec2::splat(side))
@@ -647,70 +736,12 @@ fn key_strip<const N: usize>(
             Sense::click(),
         )
     });
-    let strip = Rect::from_min_max(cells[0].min, cells[N - 1].max);
+    // r37:finish — the kit draws the strip (one object, lit keys tinted and edged).
+    let states: [State; N] = std::array::from_fn(|i| State::of(&resps[i], keys[i].1)); // r37:finish
+    let faces: [KeyFace<'_>; N] = std::array::from_fn(|i| keys[i].0); // r37:finish
     with_brush(ui.painter(), |b| {
-        b.register(strip, "toolbar_key", cap::KEY_TOKENS, &[]);
-        let rad = s.s(s.t.radius);
-        let base = if s.t.dark {
-            shade(s.t.toolbar, -0.05)
-        } else {
-            shade(s.t.toolbar, 0.06)
-        };
-        light::raised(
-            b,
-            strip,
-            rad,
-            base,
-            RaisedOpts {
-                drop: true,
-                k,
-                alpha: 1.0,
-                depth: s.t.depth,
-                ..Default::default()
-            },
-        );
-        for (i, c) in cells.iter().enumerate() {
-            let st = State::of(&resps[i], keys[i].1);
-            let face = b.snap_rect(*c).shrink(b.px());
-            let ink = if st.lit {
-                let stops = cap::highlight_stops(s);
-                b.rrect(face, (rad - b.px()).max(0.0), Fill::Stops(&stops));
-                s.t.highlight_glyph
-            } else if st.hovered {
-                let a = if st.active { 0.14 } else { 0.08 };
-                b.rrect(
-                    face,
-                    (rad - b.px()).max(0.0),
-                    Fill::Solid(with_alpha(s.t.text, a)),
-                );
-                s.t.text
-            } else {
-                s.t.text_dim
-            };
-            if i > 0 {
-                b.vline(
-                    b.snap_mid(c.left()),
-                    c.top() + 3.0 * k,
-                    c.bottom() - 3.0 * k,
-                    b.px(),
-                    shade(base, -0.22),
-                );
-            }
-            match keys[i].0 {
-                KeyFace::Glyph(g) => {
-                    crate::kit::glyph::paint(b, c.shrink(5.5 * k), g, ink);
-                }
-                KeyFace::Text(t) => {
-                    let _ = crate::kit::text::paint(
-                        b,
-                        c.shrink(2.0 * k),
-                        &crate::kit::text::Text::new(t, crate::kit::text::Role::Micro, ink),
-                        s.tk(),
-                    );
-                }
-            }
-        }
-    });
+        cap::key_strip(b, &cells, &states, &faces, s)
+    }); // r37:finish
     resps
 }
 

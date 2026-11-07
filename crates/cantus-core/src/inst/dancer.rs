@@ -193,7 +193,7 @@ pub const SPEEDS: [f32; 5] = [0.25, 0.5, 1.0, 2.0, 4.0];
 /// unreadable one draws the default character and says so; it is never an error.
 pub const CHARACTER_KEY: &str = "character";
 /// The cast's first character: what a new dancer shows.
-pub const DEFAULT_CHARACTER: &str = "builtin:songbird"; // r35:cast
+pub const DEFAULT_CHARACTER: &str = "builtin:ninja"; // r35:cast, r37:chars (Fuga)
 
 /// Keys that are set, never automated or modulated (where it is shown).
 pub const VIEW_KEYS: &[&str] = &["view.mode", "view.top"];

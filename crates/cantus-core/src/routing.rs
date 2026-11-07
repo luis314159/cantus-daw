@@ -316,25 +316,32 @@ pub fn edges(project: &Project) -> Vec<Edge> {
 /// [`edges`] into a buffer that keeps its capacity (the desk rebuilds it per revision).
 pub fn edges_into(project: &Project, out: &mut Vec<Edge>) {
     out.clear();
-    for s in &project.strips {
+    // r37:drums — a pad's chain is no cable of the desk's (it lives on its pad).
+    for s in project.strips.iter().filter(|s| s.on_desk()) {
         out.push(Edge {
             from: s.id,
             to: s.output.unwrap_or(StripId::MASTER),
             kind: EdgeKind::Output,
         });
-        out.extend(s.sends.iter().map(|x| Edge {
-            from: s.id,
-            to: x.to,
-            kind: EdgeKind::Send {
-                level: x.level,
-                enabled: x.enabled,
-                tap: x.tap,
-            },
-        }));
+        out.extend(
+            s.sends
+                .iter()
+                .filter(|x| project.strip(x.to).is_none_or(|t| t.on_desk()))
+                .map(|x| Edge {
+                    from: s.id,
+                    to: x.to,
+                    kind: EdgeKind::Send {
+                        level: x.level,
+                        enabled: x.enabled,
+                        tap: x.tap,
+                    },
+                }),
+        );
     }
     let hosts = project
         .strips
         .iter()
+        .filter(|s| s.on_desk()) // r37:drums
         .map(|s| (s.id, s.effects.as_slice()))
         .chain(std::iter::once((
             StripId::MASTER,

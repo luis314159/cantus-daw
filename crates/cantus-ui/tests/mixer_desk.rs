@@ -203,9 +203,10 @@ fn the_legend_names_each_row_once_and_strips_carry_no_words() {
             + usize::from(text.starts_with(&format!("{word} |")));
         assert_eq!(n, 1, "{word} is named {n} times: {text}");
     }
-    for gone in ["| M |", "| S |", "| FX |", "| Mono |", "| SENDS |"] {
+    // Round 37 (the judge: two lamps alike): each strip's mute and solo lamps carry their
+    // letters, M and S — the only words on a strip; nothing else repeats the legend.
+    for gone in ["| FX |", "| Mono |", "| SENDS |"] {
         let n = text.matches(gone).count();
-        // "M" is the master's number cell, once.
         assert!(n <= 1, "{gone} appears {n} times: {text}");
     }
     // Every strip is numbered, the master first.
@@ -877,6 +878,11 @@ fn extra_large_send_rows_switch_and_set_their_sends() {
         id: ids[14],
         name: "Reverb".into(),
     });
+    // Round 37: the band has as many rows as the strip with the most sends; a strip with
+    // two sends makes room for "+" after strip 2's one.
+    r.app.set_strip_send(ids[3], Send::new(ids[14]));
+    r.app.set_strip_send(ids[3], Send::new(ids[15]));
+    r.app.end_gesture();
     let text = r.idle(3);
     assert!(text.contains("| Reverb |"), "the send row names it: {text}");
     let row = r.rect(Some(ids[1]), Control::SendRow(0));
@@ -1642,7 +1648,8 @@ fn the_band_handle_never_traps_the_band() {
         p.band = band;
         r.app.mixer.set_prefs(p);
     };
-    let mut r = Rig::new(starter_project(), vec2(1600.0, 380.0));
+    // 380 pt before round 37; the strips' 24-pt keys take more of a desk now.
+    let mut r = Rig::new(starter_project(), vec2(1600.0, 470.0));
     let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
     r.app.select_strip(ids[1]);
     set_band(&mut r, 40.0);
@@ -1856,5 +1863,89 @@ fn a_modulated_sends_pill_shows_its_modulation() {
     assert!(
         paint(&mut r).contains(&hue),
         "the pill shows the modulation"
+    );
+}
+
+/// Round 37 (review of the finish's deliveries): where the middle scrolls, the right dock
+/// starts after whole strips, but never past the window's edge — a narrow desk with many
+/// returns docked right keeps every docked strip on screen, at every width.
+#[test]
+fn the_right_dock_never_leaves_the_window() {
+    let mut r = Rig::new(grown(24), vec2(1400.0, 700.0));
+    let ids: Vec<StripId> = r.app.project().strips.iter().map(|s| s.id).collect();
+    for id in &ids[18..24] {
+        r.app.exec(Command::SetStripDock {
+            id: *id,
+            dock: Dock::Right,
+        });
+    }
+    let mut w = 1400.0;
+    while w >= 700.0 {
+        r.size = vec2(w, 700.0);
+        r.frame(Vec::new());
+        r.frame(Vec::new());
+        let dock = r.app.mixer.right_dock_seen();
+        let rows = r.app.mixer.rows_seen();
+        assert!(dock.is_positive(), "{w}: a right dock");
+        assert!(
+            dock.right() <= rows.right() + 0.5,
+            "{w}: the dock {dock:?} inside the desk {rows:?}"
+        );
+        w -= 37.0;
+    }
+}
+
+/// Round 37 (finish, ADR 0103 §48): the insert panel, as the desk's ▾ menu turns it on,
+/// shows the selected strip's inserts by name and its empty slots, at the desk's right
+/// beside the strips; a click on an insert opens its editor.
+#[test]
+fn the_insert_panel_shows_the_selected_strips_inserts_and_opens_them() {
+    let mut r = Rig::new(grown(12), vec2(1500.0, 760.0));
+    let strip = r.app.project().strips[2].id;
+    let slot = r.app.bus.new_effect(cantus_core::EffectKind::Saturator);
+    let fx = slot.id;
+    assert!(r.app.exec(Command::InsertEffect {
+        strip,
+        index: 0,
+        slot: Box::new(slot),
+    }));
+    r.app.select_strip(strip);
+    r.frame(Vec::new());
+    let before = r.app.mixer.rows_seen();
+    mixer::set_inserts_panel(&mut r.app, true);
+    r.frame(Vec::new());
+    let texts = r.texts();
+    let after = r.app.mixer.rows_seen();
+    assert!(
+        after.right() < before.right() - 150.0,
+        "the desk gives the panel its room: {before:?} → {after:?}"
+    );
+    let name = cantus_ui::history_text::effect_name(
+        r.app
+            .project()
+            .strip(strip)
+            .unwrap()
+            .effects
+            .first()
+            .unwrap(),
+    );
+    let (_, at) = texts
+        .iter()
+        .find(|(t, _)| *t == name)
+        .unwrap_or_else(|| panic!("the insert {name:?} in the panel: {texts:?}"));
+    assert!(
+        at.left() > after.right(),
+        "the panel is right of the strips"
+    );
+    assert!(
+        texts.iter().any(|(t, _)| t == "Slot 10"),
+        "the empty slots named as places"
+    );
+    r.click(at.center(), Modifiers::NONE);
+    assert!(
+        r.app.fx.open.map(|(s, e, _)| (s, e)) == Some((strip, fx))
+            || r.app.eq_editor.open == Some((strip, fx))
+            || r.app.comp_editor.open == Some((strip, fx)),
+        "a click opens the insert's editor"
     );
 }

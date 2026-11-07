@@ -19,7 +19,7 @@ fn the_shipped_kit_is_sorted_by_pitch_and_chokes_its_hats() {
                 assert_eq!(pad.choke, 0, "{} is in a choke group", pad.name);
             }
         }
-        assert_eq!(kit.version, PULSUS_MODEL, "a kit made now is Pulsus II");
+        assert_eq!(kit.version, PULSUS_MODEL, "a kit made now is Pulsus III");
     }
 }
 

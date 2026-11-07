@@ -73,9 +73,10 @@ impl WidthMode {
 /// FL's *Colourful mixer*: how strongly a whole strip takes its track's colour.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Colourful {
-    #[default]
     Off,
     Low,
+    /// The default since round 37 (finish): the whole strip in its colour. // r37:finish
+    #[default]
     Medium,
     High,
 }
@@ -92,9 +93,9 @@ impl Colourful {
     pub fn alpha(self) -> f32 {
         match self {
             Colourful::Off => 0.0,
-            Colourful::Low => 0.10,
-            Colourful::Medium => 0.20,
-            Colourful::High => 0.35,
+            Colourful::Low => 0.12,    // r37:finish
+            Colourful::Medium => 0.24, // r37:finish
+            Colourful::High => 0.40,   // r37:finish
         }
     }
 
@@ -474,13 +475,23 @@ pub const FOOT: f32 = 3.0;
 /// The meter's shortest; the fader's shortest and tallest (a fader longer than this
 /// is more travel than a hand wants: the rest goes to the meter).
 pub const METER_MIN: f32 = 48.0;
+
+/// The meter row's least in `mode`: from Wide up the strip's meter is the long one beside
+/// its fader and the row above holds its peak's number. // r37:finish
+pub fn meter_min(mode: WidthMode) -> f32 {
+    if mode == WidthMode::Compact {
+        METER_MIN
+    } else {
+        26.0
+    }
+}
 pub const FADER_MIN: f32 = 80.0;
 pub const FADER_MAX: f32 = 440.0;
 /// The meter's share of the flexible height by default (the proof's 38 : 62).
-pub const DEFAULT_RATIO: f32 = 0.38;
+pub const DEFAULT_RATIO: f32 = 0.30; // r37:finish — the fader its long throw (was 0.38)
 /// A send row of Extra large: its height, and the fewest and most the list shows.
-pub const SEND_ROW: f32 = 15.0;
-pub const MIN_SEND_ROWS: usize = 2;
+pub const SEND_ROW: f32 = 24.0; // r37:finish — each row's targets 24 pt (was 15)
+pub const MIN_SEND_ROWS: usize = 1; // r37:finish (was 2)
 pub const MAX_SEND_ROWS: usize = 6;
 /// The cable band: its height by default, and the least and most its handle gives it.
 pub const BAND: f32 = 40.0;
@@ -516,11 +527,63 @@ impl Default for Wants {
 /// The send rows a desk whose busiest strip has `most` sends wants: one more for the
 /// "+ Send" row, within the list's limits.
 pub fn send_rows_for(most: usize) -> usize {
-    (most + 1).clamp(MIN_SEND_ROWS, MAX_SEND_ROWS)
+    // r37:finish — as many rows as the strip with the most sends has, no spare row under
+    // them all (the judge: a band of empty "+" rows): a strip with fewer sends has "+" after
+    // its last; one at the most adds from its route menu or FROM SELECTED.
+    most.clamp(MIN_SEND_ROWS, MAX_SEND_ROWS)
+}
+
+/// How much larger a width mode draws its controls (round 37, finish: FL's strip carries
+/// a large knob and lamps; a wide strip has the room). // r37:finish
+pub fn grow(mode: WidthMode) -> f32 {
+    match mode {
+        WidthMode::Compact => 1.0,
+        WidthMode::Wide => 1.1,
+        // r37:finish — 1.25, not 1.4: the fader keeps its long throw (the owner,
+        // 2026-11-06).
+        WidthMode::Xl => 1.25,
+    }
 }
 
 /// The fixed height of a row (the meter and the fader are flexible: 0).
-fn fixed(r: Row, rotated: bool, name_short: bool, w: Wants) -> f32 {
+/// The least a strip's click target is, in points at 100 % (round 37: the owner found the
+/// phase, swap and mono switches too small to hit). // r37:finish
+pub const TARGET: f32 = 24.0;
+
+/// How many [`TARGET`]-sized keys sit side by side across a strip of `mode`. // r37:finish
+pub fn keys_per_row(mode: WidthMode) -> usize {
+    ((mode.pitch() + 0.5) / TARGET).floor().max(1.0) as usize
+}
+
+/// The height of a row holding `n` keys of [`TARGET`] in `mode`: as many rows of them as
+/// the strip's width needs. // r37:finish
+pub fn keys_height(n: usize, mode: WidthMode) -> f32 {
+    let rows = n.div_ceil(keys_per_row(mode)).max(1) as f32;
+    rows * TARGET + (rows - 1.0) * 2.0 + 2.0
+}
+
+/// A row of one 24-pt target (the sends' arrow, knob or route chip). // r37:finish
+fn layout_target_row() -> f32 {
+    TARGET + 2.0
+}
+
+fn fixed(r: Row, rotated: bool, name_short: bool, w: Wants, mode: WidthMode) -> f32 {
+    // r37:finish — the rows that hold the larger controls grow with them.
+    let g = grow(mode);
+    match r {
+        // r37:finish — phase, swap (and mono from Wide up); FX and record: real keys.
+        Row::PhaseSwap => keys_height(if mode == WidthMode::Compact { 2 } else { 3 }, mode),
+        Row::FxRec => keys_height(2, mode),
+        Row::Sends => layout_target_row(),           // r37:finish
+        Row::Number => 16.0 + 4.0 * (g - 1.0) / 0.4, // r37:finish
+        Row::MuteSolo => keys_height(2, mode),       // r37:finish — 24-pt targets
+        Row::Pan => (22.0 * g).round(),              // r37:finish
+        Row::Width => (22.0 * g).round(),            // r37:finish
+        _ => fixed_base(r, rotated, name_short, w),
+    }
+}
+
+fn fixed_base(r: Row, rotated: bool, name_short: bool, w: Wants) -> f32 {
     match r {
         Row::Number => 16.0,
         Row::Name if !rotated => NAME_ACROSS,
@@ -627,10 +690,11 @@ pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, ratio: f32, wants: Wants)
     let need = |on: RowSet, name_short: bool, w: Wants| -> f32 {
         let (mut sum, mut n) = (0.0f32, 0usize);
         for r in Row::ALL.iter().filter(|r| on.has(**r)) {
-            sum += fixed(*r, rotated, name_short, w);
+            sum += fixed(*r, rotated, name_short, w, mode); // r37:finish
             n += 1;
         }
-        sum + GAP * n.saturating_sub(1) as f32 + FOOT + METER_MIN + FADER_MIN
+        sum + GAP * n.saturating_sub(1) as f32 + FOOT + meter_min(mode) + FADER_MIN
+        // r37:finish
     };
     let mut dropped = 0;
     while need(on, name_short, w) > avail && dropped < DROPS.len() {
@@ -652,11 +716,14 @@ pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, ratio: f32, wants: Wants)
     let height = avail.max(minimum);
     // The flexible height, split: the fader takes its share up to its tallest, the meter
     // the rest.
-    let flex = height - (minimum - METER_MIN - FADER_MIN);
-    let ratio = ratio.clamp(0.15, 0.75);
+    // r37:finish — from Wide up the meter's share is halved: its long meter is beside the
+    // fader, so the fader takes the travel.
+    let m_min = meter_min(mode);
+    let flex = height - (minimum - m_min - FADER_MIN);
+    let ratio = ratio.clamp(0.15, 0.75) * if mode == WidthMode::Compact { 1.0 } else { 0.5 };
     let fader = (flex * (1.0 - ratio)).round().clamp(FADER_MIN, FADER_MAX);
-    let fader = fader.min(flex - METER_MIN).max(FADER_MIN);
-    let meter = (flex - fader).max(METER_MIN);
+    let fader = fader.min(flex - m_min).max(FADER_MIN);
+    let meter = (flex - fader).max(m_min);
 
     let mut rows = [None; ROWS];
     let mut y = 0.0f32;
@@ -672,7 +739,7 @@ pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, ratio: f32, wants: Wants)
         let h = match r {
             Row::Meter => meter,
             Row::Fader => fader,
-            _ => fixed(r, rotated, name_short, w),
+            _ => fixed(r, rotated, name_short, w, mode), // r37:finish
         };
         rows[r.index()] = Some((y, y + h));
         y += h;
@@ -694,8 +761,10 @@ pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, ratio: f32, wants: Wants)
 
 /// The ratio a drag of the 3-dot handle to `meter_h` points of meter asks for, given the
 /// flexible height `flex`.
-pub fn ratio_for(meter_h: f32, flex: f32) -> f32 {
-    (meter_h / flex.max(1.0)).clamp(0.15, 0.75)
+pub fn ratio_for(meter_h: f32, flex: f32, mode: WidthMode) -> f32 {
+    // r37:finish — from Wide up the share is halved in `fit`: the drag asks for twice.
+    let k = if mode == WidthMode::Compact { 1.0 } else { 2.0 };
+    (k * meter_h / flex.max(1.0)).clamp(0.15, 0.75)
 }
 
 #[cfg(test)]
@@ -792,7 +861,7 @@ mod tests {
         assert!(off.row(Row::Cables).is_none() && off.band == 0.0);
         // The send list's rows: as the busiest strip wants, within its limits.
         assert_eq!(send_rows_for(0), MIN_SEND_ROWS);
-        assert_eq!(send_rows_for(3), 4);
+        assert_eq!(send_rows_for(3), 3); // r37:finish (no spare row)
         assert_eq!(send_rows_for(16), MAX_SEND_ROWS);
     }
 
@@ -849,11 +918,17 @@ mod tests {
             band: 48.0,
         };
         let full = fit(2000.0, WidthMode::Xl, RowSet::default(), 0.38, wants);
-        let need =
-            |f: &Fit| f.height - span(f, Row::Meter) - span(f, Row::Fader) + METER_MIN + FADER_MIN;
+        let need = |f: &Fit| {
+            f.height - span(f, Row::Meter) - span(f, Row::Fader)
+                + meter_min(WidthMode::Xl)
+                + FADER_MIN
+        }; // r37:finish
         let base = need(&full);
         // Everything up to the name shrinking (Extra large names lie flat: no change).
-        let lost = 26.0 + 22.0 + 16.0 + 16.0 + 4.0 * GAP;
+        // The rows that go first, at their round-37 heights (the keys and knobs grew).
+        // r37:finish
+        let h = |r: Row| fixed(r, true, false, wants, WidthMode::Xl);
+        let lost = h(Row::Eq) + h(Row::Width) + h(Row::PhaseSwap) + h(Row::Readout) + 4.0 * GAP;
         let f = fit(
             base - lost - 1.0,
             WidthMode::Xl,
@@ -864,7 +939,7 @@ mod tests {
         assert_eq!(f.send_rows, MIN_SEND_ROWS, "the send list shortens first");
         assert_eq!(span(&f, Row::Cables), 48.0);
         assert!(f.row(Row::Output).is_some());
-        let lost2 = lost + 4.0 * SEND_ROW;
+        let lost2 = lost + (6 - MIN_SEND_ROWS) as f32 * SEND_ROW; // r37:finish
         let f = fit(
             base - lost2 - 1.0,
             WidthMode::Xl,

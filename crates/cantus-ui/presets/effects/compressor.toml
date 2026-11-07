@@ -1,0 +1,183 @@
+# Comprimo compressor: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "comp.preset.vocal"
+note = "Opto-style levelling of a vocal, its sidechain blind under 120 Hz."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"att" = 5
+"auto_gain" = 1
+"auto_rel" = 1
+"knee" = 12
+"ratio" = 3
+"rel" = 150
+"sc0.freq" = 120
+"sc0.shape" = 3
+"sc0.slope" = 24
+"sc0.used" = 1
+"style" = 4
+"thr" = -24
+
+[[preset]]
+key = "comp.preset.drum_bus"
+note = "Slow attack so the hits pass, a little mixed back: a drum bus that punches."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"att" = 20
+"auto_gain" = 1
+"knee" = 6
+"mix" = 0.8
+"ratio" = 4
+"rel" = 100
+"style" = 3
+"thr" = -20
+
+[[preset]]
+key = "comp.preset.parallel"
+note = "Crushed and only wet, for a parallel channel under the dry drums."
+styles = ["rock", "trap"]
+roles = ["drums"]
+[preset.values]
+"att" = 1
+"dry" = 0
+"knee" = 0
+"makeup" = -13.8
+"ratio" = 10
+"rel" = 60
+"style" = 1
+"thr" = -36
+
+[[preset]]
+key = "comp.preset.glue"
+note = "Two to one, slow, soft knee: a mix bus that holds together."
+styles = ["pop", "house"]
+roles = ["bus"]
+[preset.values]
+"att" = 30
+"auto_gain" = 1
+"knee" = 18
+"ratio" = 2
+"rel" = 300
+"style" = 6
+"thr" = -18
+
+[[preset]]
+key = "comp.preset.master"
+note = "Barely there: a gentle hand on the whole mix."
+styles = ["pop", "film"]
+roles = ["master"]
+[preset.values]
+"att" = 30
+"auto_gain" = 1
+"knee" = 24
+"look" = 5
+"ratio" = 1.5
+"rel" = 400
+"style" = 5
+"thr" = -12
+
+[[preset]]
+key = "comp.preset.duck"
+note = "Deep, fast ducking for a key from another channel (a kick, a voice)."
+styles = ["house", "pop"]
+roles = ["creative"]
+[preset.values]
+"att" = 1
+"hold" = 10
+"knee" = 6
+"makeup" = 11.1
+"range" = 12
+"ratio" = 10
+"rel" = 180
+"thr" = -30
+
+[[preset]]
+key = "comp.preset.pump"
+note = "Hard, fast and released on the beat: audible pumping."
+styles = ["house"]
+roles = ["bus"]
+[preset.values]
+"att" = 0.5
+"auto_gain" = 1
+"makeup" = 0.4
+"ratio" = 20
+"rel" = 240
+"style" = 7
+"thr" = -30
+
+[[preset]]
+key = "comp.preset.bass"
+note = "A bass held steady, its attack kept."
+styles = ["rock", "rnb"]
+roles = ["creative"]
+[preset.values]
+"att" = 15
+"auto_gain" = 1
+"knee" = 10
+"makeup" = 0.5
+"ratio" = 4
+"rel" = 200
+"style" = 2
+"thr" = -22
+
+[[preset]]
+key = "comp.preset.lofi_squash"
+note = "Squashed and blended: the breathing drums of a sampled break."
+styles = ["lofi"]
+roles = ["drums"]
+[preset.values]
+"att" = 3
+"auto_gain" = 1
+"mix" = 0.6
+"ratio" = 8
+"rel" = 120
+"style" = 1
+"thr" = -30
+
+[[preset]]
+key = "comp.preset.rap_vocal"
+note = "Fast and firm: a rap that stays in front."
+styles = ["trap"]
+roles = ["vocal"]
+[preset.values]
+"att" = 3
+"auto_gain" = 1
+"knee" = 6
+"ratio" = 4
+"rel" = 80
+"style" = 1
+"thr" = -20
+
+[[preset]]
+key = "comp.preset.acoustic"
+note = "Slow, gentle levelling for an acoustic guitar or a piano."
+styles = ["worship", "jazz"]
+roles = ["creative"]
+[preset.values]
+"att" = 15
+"auto_gain" = 1
+"knee" = 12
+"makeup" = 0.4
+"ratio" = 2.5
+"rel" = 250
+"style" = 4
+"thr" = -22
+
+[[preset]]
+key = "comp.preset.room_smash"
+note = "A room mic smashed and mixed in under the kit."
+styles = ["rock"]
+roles = ["drums"]
+[preset.values]
+"att" = 0.5
+"auto_gain" = 1
+"makeup" = 0.4
+"mix" = 0.4
+"ratio" = 20
+"rel" = 50
+"style" = 1
+"thr" = -40

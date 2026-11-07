@@ -299,12 +299,23 @@ fn control(cx: &Ctx, l: &mut Layer) {
     } else {
         l.rate_ratio * math::exp2(semis / 12.0)
     };
-    let cutoff = if l.filter.mode != 0 {
+    let cutoff = if l.zone_only {
+        // The zone's own low-pass alone, as the trigger decided (ADR 0099).
+        Some((l.zone_lpf, 0.0))
+    } else if l.filter.mode != 0 {
         let oct = (l.key as f32 - 60.0) / 12.0 * g.filter_key
             + l.vel * g.filter_vel / 12.0
             + l.env2.level * g.filter_env / 12.0
             + off[4];
-        Some((g.cutoff * math::exp2(oct), (g.reso + off[5]) / 100.0))
+        let fc = g.cutoff * math::exp2(oct);
+        // Under the zone's own low-pass, if it has one — only when the instrument's filter is
+        // a low-pass itself (a high- or band-pass keeps its own corner).
+        let fc = if l.zone_lpf > 0.0 && l.filter.mode == 1 {
+            fc.min(l.zone_lpf)
+        } else {
+            fc
+        };
+        Some((fc, (g.reso + off[5]) / 100.0))
     } else {
         None
     };

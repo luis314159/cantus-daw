@@ -209,8 +209,8 @@ fn the_mono_edge_and_a_shelf_are_dragged_on_the_map() {
 /// Every factory preset names keys of the table, inside their ranges.
 #[test]
 fn the_factory_presets_are_in_range() {
-    assert!(stereo::FACTORY_PRESETS.len() >= 10);
-    for (name, values) in stereo::FACTORY_PRESETS {
+    assert!(cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Stereo).len() >= 10);
+    for (name, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Stereo) {
         assert!(cantus_ui::i18n::t(name) != *name, "{name} has no words");
         for (k, v) in *values {
             let info = EffectKind::Stereo

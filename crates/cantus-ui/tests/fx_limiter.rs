@@ -5,7 +5,7 @@
 mod support;
 use cantus_core::*;
 use cantus_dsp::terminus::{Column, LimSettings, Terminus, T_SEQ};
-use cantus_ui::views::fx::limiter::{self, profile_of, verdict, State, View, PROFILES};
+use cantus_ui::views::fx::limiter::{profile_of, verdict, State, View, PROFILES};
 use cantus_ui::CantusApp;
 use support::*;
 
@@ -370,8 +370,8 @@ fn the_verdict_says_what_the_platform_will_do() {
 /// Every factory preset names only parameters the limiter has, in range, and has a name.
 #[test]
 fn the_factory_presets_are_valid() {
-    assert!(limiter::FACTORY_PRESETS.len() >= 6);
-    for (label, params) in limiter::FACTORY_PRESETS {
+    assert!(cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Limiter).len() >= 6);
+    for (label, params) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Limiter) {
         let name = cantus_ui::i18n::t(label);
         assert!(!name.starts_with("lim."), "{label} has no text");
         for (k, v) in params.iter() {

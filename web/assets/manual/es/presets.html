@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encontrar y escuchar presets</title>
+<link rel="stylesheet" href="../manual.css">
+<script>(function(){var t=null;try{t=localStorage.getItem("cantus-theme")}catch(e){}if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})()</script>
+</head>
+<body>
+<header class="mbar"><a class="brand" href="../../"><img src="../../logo.svg" alt="" width="64" height="64">Cantus</a><a class="crumb" href="index.html">Manual</a><a class="back" href="../../">Volver al sitio</a></header>
+<main>
+<h1 id="encontrar-y-escuchar-presets">Encontrar y escuchar presets</h1>
+<p><em><a href="index.html">Volver al manual</a> · <a href="../en/presets.html">Read in English</a></em></p>
+<p>Cada instrumento y cada efecto de Cantus trae presets de fábrica, y puedes guardar los tuyos. El <strong>navegador de presets</strong> los encuentra por lo que son y te deja <strong>escuchar uno antes de elegirlo</strong>: nada cambia en tu canción hasta que lo cargas.</p>
+<h2 id="abrirlo">Abrirlo</h2>
+<ul>
+<li>En la ventana de un instrumento, haz clic en el <strong>nombre del preset</strong> de su barra de título ▸ <em>Explorar presets…</em> (la primera fila del menú).</li>
+<li>En la ventana de un efecto, igual: su nombre de preset ▸ <em>Explorar presets…</em>.</li>
+</ul>
+<p>El navegador se abre junto a la ventana, con los presets de ese instrumento o efecto. Arrastra su título para moverlo; <strong>Esc</strong> o <strong>×</strong> lo cierra.</p>
+<h2 id="encontrar">Encontrar</h2>
+<ul>
+<li><strong>Escribe</strong> para buscar: cada palabra debe aparecer en el nombre del preset, su estilo, su función o el nombre de la unidad; no importan mayúsculas ni acentos (<em>electrico</em> encuentra <em>Eléctrico</em>).</li>
+<li>Fichas de <strong>ESTILO</strong>: trap · hip-hop, pop, house · EDM, R&amp;B, lo-fi, rock, latino · reguetón, ambient · cinemático, cine · videojuegos, jazz · soul, alabanza · gospel. Cada una dice cuántos presets tiene. Varias fichas son alternativas (<em>trap</em> o <em>lo-fi</em>).</li>
+<li>Fichas de <strong>FUNCIÓN</strong>: para un instrumento, la parte que toca (bajo, solista, pad, teclas, pulsado, efecto, batería); para un efecto, dónde va (voz, batería, bus, máster, creativo). Estilo y función juntos acotan la lista (un <em>bajo trap</em>). Otro clic en una ficha la apaga.</li>
+</ul>
+<h2 id="escuchar">Escuchar</h2>
+<ul>
+<li>Haz clic en <strong>▶</strong> en una fila: Cantus renderiza el preset y lo toca una vez. Un <strong>instrumento</strong> se escucha en una frase corta de su función —una línea de bajo, una melodía, acordes tenidos, un acompañamiento, un arpegio, un ritmo de batería— a 120 BPM, o al tempo de tu canción con <strong>Sync BPM</strong> encendido. Un <strong>efecto</strong> se escucha en el <strong>clip que elegiste</strong> (su pista sola), o en el primer clip que toca su canal; sin clip, en una fuente corta que Cantus hace con sus propios instrumentos.</li>
+<li><strong>↑ ↓</strong> eligen el preset anterior o el siguiente y lo tocan; <strong>Espacio</strong> vuelve a tocar el elegido o lo para.</li>
+<li>La fila guarda una forma de onda pequeña de lo que escuchaste; el reproductor de abajo muestra la grande, sobre qué se escuchó y cuántos presets dejan los filtros.</li>
+</ul>
+<p>Lo que escuchas lo renderiza Cantus, sin ningún proceso después. Escuchar un preset nunca toca tu proyecto, su historial de deshacer ni su archivo.</p>
+<h2 id="cargar">Cargar</h2>
+<p>Doble clic en una fila, <strong>Intro</strong> o <strong>Cargar</strong>: el preset se carga en el instrumento o el efecto como <strong>un paso de deshacer</strong> (Ctrl+Z devuelve el sonido anterior). Un punto dorado marca el último preset cargado.</p>
+</main>
+</body>
+</html>

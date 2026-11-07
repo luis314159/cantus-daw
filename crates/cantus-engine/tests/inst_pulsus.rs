@@ -411,6 +411,8 @@ fn the_kits_keep_their_headroom() {
     );
     for factory in PulsusParams::factory() {
         let (p, pitches) = all_at_once(factory.kit);
+        let mut loudest = 0.0f32; // r37:drums — each kit's room under the rule, said
+        let mut each = String::new(); // r37:drums — and each pad's peak, the balance
         for pitch in pitches {
             let mut solo = p.clone();
             solo.tracks[0].clips[0].notes.retain(|n| n.pitch == pitch);
@@ -431,7 +433,18 @@ fn the_kits_keep_their_headroom() {
                 factory.label_key,
                 r.peak
             );
+            loudest = loudest.max(r.peak);
+            each.push_str(&format!(
+                " {pitch}:{:.1}",
+                20.0 * cantus_dsp::math::log10(r.peak)
+            ));
         }
+        eprintln!("pulsus pads: {:24}{each}", factory.label_key);
+        eprintln!(
+            "pulsus headroom: {:24} loudest pad {loudest:.3}, room {:+.2} dB",
+            factory.label_key,
+            20.0 * cantus_dsp::math::log10(0.6 / loudest.max(1e-6))
+        );
     }
 }
 

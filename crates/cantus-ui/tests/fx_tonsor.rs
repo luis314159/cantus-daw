@@ -147,7 +147,7 @@ fn the_curve_drawn_is_the_curve_played() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in tonsor::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Clipper) {
         for (k, _) in *values {
             assert!(
                 EffectKind::Clipper.param(k).is_some(),
@@ -165,7 +165,7 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
 /// Every preset clips something of the demo signal (or holds a ceiling under it).
 #[test]
 fn every_preset_moves_the_sound() {
-    for (label, values) in tonsor::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Clipper) {
         let mut spec = EffectSpec::new(EffectKind::Clipper);
         for (k, v) in *values {
             spec.set(k, *v);

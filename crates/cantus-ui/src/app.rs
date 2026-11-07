@@ -160,6 +160,8 @@ pub struct CantusApp {
     pub picker: Option<crate::picker::PickPurpose>,
     /// The device picker's view: the catalogue, the search, favourites, thumbnails.
     pub picker_view: views::picker::PickerView,
+    /// The preset browser (round 37, ADR 0101). // r37:library
+    pub presets: crate::preset_browser::Browser, // r37:library
     /// The *Link to…* picker (round 26, ADR 0037).
     pub link_picker: views::link_picker::LinkPicker,
     /// The clip browser's filter and drag (round 26, ADR 0037).
@@ -698,6 +700,7 @@ impl CantusApp {
             rec: Default::default(),
             picker: None,
             picker_view: Default::default(),
+            presets: Default::default(), // r37:library
             link_picker: Default::default(),
             clip_browser: Default::default(),
             audio_setup: Default::default(),
@@ -1073,6 +1076,7 @@ impl CantusApp {
             .mark_on(&t.kit_tokens(), self.taskbar.light());
         crate::kit::logo::set_icon_colours(mark);
         self.window_icon.want(mark);
+        crate::kit::fader::set_cap(self.appearance.fader); // r37:finish
         theme::apply(&t, &ctx);
         self.appearance_page.system_dark = dark;
     }
@@ -1989,6 +1993,7 @@ impl CantusApp {
     }
 
     pub fn delete_track(&mut self, id: TrackId) {
+        // r37:drums — a kit's pad strips and chains go with its track: the bus does it.
         if self.exec(Command::RemoveTrack { id }) {
             self.validate_selection();
         }
@@ -2984,6 +2989,7 @@ impl CantusApp {
     /// round 31: a pass finished into the next song); then the transport stops.
     pub(crate) fn reset_bus_to(&mut self, project: Project) {
         crate::editor::close(self); // r36:editor — another project: the window on this one's take closes
+        self.close_preset_browser(); // r37:library — and the preset browser, its render cancelled
         self.end_passes();
         self.stop_transport();
         self.bus.reset(project);
@@ -3034,10 +3040,24 @@ impl CantusApp {
                 for pad in &mut kit.pads {
                     pad.name = localized_pad_name(pad);
                 }
+                // r37:drums — a kit loaded onto a split kit keeps its pads' outputs and
+                // chains, by pitch, then by voice (ADR 0100).
+                if let Some(old) = self
+                    .project()
+                    .track(track)
+                    .and_then(|t| t.instrument.pulsus())
+                {
+                    cantus_core::padout::carry_outputs(old, &mut kit);
+                }
                 InstrumentSpec::Pulsus(kit)
             }
+            // r37:chars — a dancer always names its character (ADR 0105): whichever way it
+            // arrives (the inspector's menu, a snap, the instrument window), a new one
+            // names the default of today.
+            InstrumentSpec::Native(n) => InstrumentSpec::Native(crate::dance_live::new_spec(n)),
             other => other,
         };
+        // r37:drums — what the old kit's pads played on goes with it: the bus does it.
         self.exec(Command::SetInstrument {
             track,
             spec: Box::new(spec),
@@ -3537,9 +3557,16 @@ impl CantusApp {
     /// piece of policy left is the typing piano: while it is on it owns the bare letter
     /// keys, so those bindings are suppressed and the tools stay reachable on the numbers.
     pub fn global_shortcuts(&mut self, ctx: &egui::Context) {
-        // The device picker reads every key while it is open (type to search).
-        // A kit text field holds the keyboard — or just let it go with this very key
-        // (the Esc or Enter that closed it): its keys are its own (round 26).
+        // r37:library — the preset browser takes its own keys only, before the shortcuts
+        // (ADR 0101): every other key still reaches them.
+        if self.presets.open && !ctx.egui_wants_keyboard_input() && !crate::kit::field::active(ctx)
+        {
+            let ask = crate::views::preset_browser_keys::take(self, ctx); // r37:library
+            crate::views::preset_browser_keys::act(self, ask); // r37:library
+        } // r37:library
+          // The device picker reads every key while it is open (type to search).
+          // A kit text field holds the keyboard — or just let it go with this very key
+          // (the Esc or Enter that closed it): its keys are its own (round 26).
         if ctx.egui_wants_keyboard_input()
             || crate::kit::field::active(ctx)
             || self.rebinding.is_some()
@@ -3758,6 +3785,13 @@ impl CantusApp {
                 // take Esc for themselves — it cancels the drag, lets the cable go — and
                 // nothing else is cleared with it (round 25).
                 if self.mixer.claims_escape() {
+                    return;
+                }
+                // r37:fixes — a preset heard (an agent's audition, the browser closed) is
+                // the thing Esc stops first.
+                let a = &self.presets.audition;
+                if !self.presets.open && (a.rendering() || a.until.is_some()) {
+                    self.stop_preset_audition();
                     return;
                 }
                 // Esc closes the device window clicked last (round 20), or a floating one
@@ -4076,6 +4110,7 @@ impl CantusApp {
         views::inst::window(self, ctx);
         views::plugin_view_inst::window(self, ctx);
         views::pulsus_editor::window(self, ctx);
+        views::preset_browser::window(self, ctx); // r37:library
         if self.show_settings {
             views::workspace_settings::window(self, ctx);
         }
@@ -4145,6 +4180,11 @@ impl CantusApp {
         self.poll_appearance(ctx);
         self.global_shortcuts(ctx);
         views::transport::title::sync(self, ctx);
+        crate::shot_scene::tick(self, ctx); // r37:finish — CANTUS_SHOT_SCENE only
+                                            // r37:fixes — an agent's preset audition plays with the browser closed too.
+        if !self.presets.open && self.poll_preset_audition() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        }
         self.sync_live_track();
 
         // Release auditions after 250 ms.

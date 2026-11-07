@@ -33,85 +33,8 @@ const KIND: EffectKind = EffectKind::Clipper;
 
 /// Factory presets: a label key and the parameters it sets (what a preset does not name
 /// goes back to its default).
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.tonsor.safety",
-        &[("ceil", -0.3), ("curve", 0.0), ("os", 2.0), ("tp", 1.0)],
-    ),
-    (
-        "preset.tonsor.streaming",
-        &[
-            ("ceil", -1.0),
-            ("knee", 1.0),
-            ("curve", 1.0),
-            ("os", 3.0),
-            ("tp", 1.0),
-        ],
-    ),
-    (
-        "preset.tonsor.soft_master",
-        &[
-            ("drive", 2.0),
-            ("ceil", -0.5),
-            ("knee", 3.0),
-            ("curve", 1.0),
-            ("os", 3.0),
-            ("tp", 1.0),
-        ],
-    ),
-    (
-        "preset.tonsor.loud_clean",
-        &[
-            ("drive", 5.0),
-            ("ceil", -0.3),
-            ("knee", 1.5),
-            ("curve", 1.0),
-            ("os", 4.0),
-            ("tp", 1.0),
-        ],
-    ),
-    (
-        "preset.tonsor.drum_bus",
-        &[
-            ("drive", 6.0),
-            ("knee", 2.0),
-            ("curve", 0.0),
-            ("os", 2.0),
-            ("match", 1.0),
-        ],
-    ),
-    (
-        "preset.tonsor.snare_crack",
-        &[
-            ("drive", 9.0),
-            ("ceil", -3.0),
-            ("curve", 0.0),
-            ("os", 1.0),
-            ("match", 1.0),
-        ],
-    ),
-    (
-        "preset.tonsor.analog_warmth",
-        &[
-            ("drive", 4.0),
-            ("knee", 6.0),
-            ("curve", 2.0),
-            ("os", 2.0),
-            ("match", 1.0),
-        ],
-    ),
-    (
-        "preset.tonsor.hard_808",
-        &[
-            ("drive", 12.0),
-            ("ceil", -2.0),
-            ("knee", 0.5),
-            ("curve", 0.0),
-            ("os", 3.0),
-            ("match", 1.0),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// The curves' names and what each does, by index.
 const CURVE_KEYS: [&str; 3] = ["tonsor.curve.0", "tonsor.curve.1", "tonsor.curve.2"];

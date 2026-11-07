@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::views::fx::canvas::{self, Ink};
+use crate::views::workspace_ticker::{self as ticker, Reason};
 
 /// The card's width at 100 %.
 pub(super) const WIDTH: f32 = 136.0;
@@ -85,7 +86,7 @@ pub(super) fn show(st: &mut State, ui: &mut egui::Ui, s: &Style, rect: Rect) {
     // An over: the output's peak this frame at or above full scale.
     let lit = st.needle.step(target, st.live.out >= 0.0, dt, now);
     if st.needle.busy(target, now) {
-        ui.ctx().request_repaint();
+        ticker::moving(ui.ctx(), Reason::Animation);
     }
     let gr = st.needle.gr;
     let pad = 6.0 * k;

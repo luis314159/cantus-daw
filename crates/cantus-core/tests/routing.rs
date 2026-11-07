@@ -1183,3 +1183,33 @@ fn make_this_the_output_then_a_send_again_gives_the_automation_back() {
         "it rides again"
     );
 }
+
+/// A pad's chain lives on its pad (round 37, review 2 #6): the desk's edges — the cables,
+/// the matrix — neither start nor end on it, and a send aimed at one is not drawn.
+#[test]
+fn a_pads_chain_is_no_cable_of_the_desks() {
+    use cantus_core::padout;
+    let mut p = Project::new("Kit");
+    let mut t = p.make_track("Drums");
+    t.instrument = InstrumentSpec::Pulsus(PulsusParams::studio());
+    let tid = t.id;
+    p.tracks.push(t);
+    let pad = p.tracks[0].instrument.pulsus().unwrap().pads[0].id;
+    let fx = p.make_effect(EffectKind::Compressor);
+    let view = p.clone();
+    let cmd = padout::chain_add(&view, tid, pad, fx, |n| p.make_strip(n)).unwrap();
+    cmd.apply(&mut p).unwrap();
+    let chain = p
+        .strips
+        .iter()
+        .find(|s| !s.on_desk())
+        .expect("the chain")
+        .id;
+    let e = routing::edges(&p);
+    assert!(!e.is_empty());
+    assert!(
+        e.iter().all(|x| x.from != chain && x.to != chain),
+        "an edge on the chain: {e:?}"
+    );
+    assert_eq!(e.len(), p.strips.len() - 1, "an output per desk strip");
+}

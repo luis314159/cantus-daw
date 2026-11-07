@@ -23,12 +23,13 @@ fn configure(plug: &Plug, values: &[(&str, f32)]) {
 
 /// A square gate on the quarters, at full depth: open through the first half of every
 /// beat, shut through the second.
-const GATE: [(&str, f32); 5] = [
+const GATE: [(&str, f32); 6] = [
     ("depth", 1.0),
     ("sync", 1.0),
     ("div", 8.0),
     ("shape", 2.0),
     ("edge", 0.0),
+    ("out", 0.0), // unity: the starting preset (ADR 0101) lifts `out`
 ];
 
 fn transport(beats: f64, tempo: f64, playing: bool) -> clap_event_transport {

@@ -173,6 +173,9 @@ pub struct Sympathetic {
     decay: f64,
     /// How firmly the dampers grip (the instrument's *dampers* setting, as for the voices).
     grip: f64,
+    /// Below this peak (N) a string undriven for 64 control steps falls silent: 1e-10 in
+    /// model 1, higher in model 2 (ADR 0098: its longer decays still reach rest).
+    pub quiet_floor: f64,
 }
 
 impl Sympathetic {
@@ -221,6 +224,7 @@ impl Sympathetic {
             level: 1.0,
             decay: 1.0,
             grip: 1.0,
+            quiet_floor: 1.0e-10,
         }
     }
 
@@ -441,7 +445,7 @@ impl Sympathetic {
                 s.yz = yz;
                 s.set_contact = s.contact;
             }
-            if s.peak < 1.0e-10 && !driven {
+            if s.peak < self.quiet_floor && !driven {
                 s.quiet += 1;
                 if s.quiet >= 64 {
                     s.silence();
@@ -560,6 +564,14 @@ impl Soundboard {
     /// The tilt: the top raised or lowered by `db` (a shelf from about 2.5 kHz).
     pub fn set_tilt(&mut self, db: f64) {
         self.shelf = math::powf(10.0f64, db / 20.0) - 1.0;
+    }
+
+    /// Every state cleared, the quarter-rate phase kept (a model switch: the stream's grid
+    /// goes on).
+    pub fn clear(&mut self) {
+        let tick = self.tick;
+        self.reset();
+        self.tick = tick;
     }
 
     pub fn reset(&mut self) {

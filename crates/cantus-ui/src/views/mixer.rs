@@ -185,6 +185,9 @@ pub struct DeskPrefs {
     /// The cable view's options (the title row's options menu): whose cables, which
     /// kinds, how much detail. Absent from a desk saved before them: the default.
     pub cable_opts: CableOpts,
+    /// The selected strip's inserts as a panel at the desk's right (FL's insert panel;
+    /// r37:finish, ADR 0103 §48). Absent from older desks: off.
+    pub inserts: bool,
 }
 
 impl Default for DeskPrefs {
@@ -197,6 +200,7 @@ impl Default for DeskPrefs {
             cables: CableView::default(),
             band: layout::BAND,
             cable_opts: CableOpts::default(),
+            inserts: false,
         }
     }
 }
@@ -479,6 +483,8 @@ pub struct MixerView {
     pub(crate) cable_key: Option<CableKey>,
     /// The desk's rows area last frame (where anything of the desk is visible).
     rows_seen: Option<egui::Rect>,
+    /// The right dock's rect in the last frame (r37:finish, tests).
+    right_seen: Option<egui::Rect>,
 }
 
 impl std::fmt::Debug for MixerView {
@@ -556,6 +562,11 @@ impl MixerView {
     /// The desk's rows area in the last frame: what of the desk is visible.
     pub fn rows_seen(&self) -> egui::Rect {
         self.rows_seen.unwrap_or(egui::Rect::NOTHING)
+    }
+
+    /// The right dock in the last frame (its strips: the returns docked right). // r37:finish
+    pub fn right_dock_seen(&self) -> egui::Rect {
+        self.right_seen.unwrap_or(egui::Rect::NOTHING)
     }
 
     /// Where the cable legend went in the last frame (`None` while the band is off).
@@ -655,6 +666,17 @@ pub fn set_width_mode(app: &mut CantusApp, mode: WidthMode) {
     app.mixer.prefs.by_layout.insert(layout, p);
 }
 
+/// Screenshots and tests: show or hide the insert panel. // r37:finish
+pub fn set_inserts_panel(app: &mut CantusApp, on: bool) {
+    let p = DeskPrefs {
+        inserts: on,
+        ..app.mixer.prefs.current
+    };
+    app.mixer.prefs.current = p;
+    let layout = app.mixer.prefs.layout.clone();
+    app.mixer.prefs.by_layout.insert(layout, p);
+}
+
 /// Screenshots and tests: show or hide a family of the desk's rows.
 pub fn set_row(app: &mut CantusApp, row: layout::Row, on: bool) {
     let mut p = app.mixer.prefs.current;
@@ -741,7 +763,7 @@ pub(crate) mod size {
     /// The title row: the desk's menu, `+`, the width modes, the title.
     pub const TITLE: f32 = 28.0;
     /// The legend column.
-    pub const LEGEND: f32 = 84.0;
+    pub const LEGEND: f32 = 100.0; // r37:finish (was 84: the rows' names a size up)
     /// The band under the strips holding the horizontal scrollbar.
     pub const HBAR: f32 = 12.0;
     /// The column at the right holding the vertical scrollbar, when the desk scrolls.
@@ -804,7 +826,20 @@ impl MixerView {
         self.desk.refresh(app);
         self.meters.begin_frame();
         let s = style();
-        let full = ui.available_rect_before_wrap();
+        let outer = ui.available_rect_before_wrap();
+        // r37:finish — the insert panel at the desk's right, when it is on and there is
+        // room for it beside a useful desk (ADR 0103 §48).
+        let pw = super::mixer_inserts::WIDTH * s.k;
+        let panel = (self.prefs.current.inserts && outer.width() >= pw + 480.0 * s.k).then(|| {
+            egui::Rect::from_min_max(egui::pos2(outer.right() - pw, outer.top()), outer.max)
+        });
+        let full = match panel {
+            Some(p) => egui::Rect::from_min_max(
+                outer.min,
+                egui::pos2(p.left() - size::DIVIDER, outer.bottom()),
+            ),
+            None => outer,
+        };
         // The docks never cover each other (final review): where the master, the left
         // dock, the right dock and a strip of the middle do not fit side by side, the right
         // dock scrolls with the middle, after its last strip.
@@ -819,7 +854,10 @@ impl MixerView {
         if self.desk.set_unpinned(pinned > full.width()) {
             self.desk.refresh(app);
         }
-        ui.allocate_rect(full, egui::Sense::hover());
+        ui.allocate_rect(outer, egui::Sense::hover());
+        if let Some(p) = panel {
+            super::mixer_inserts::panel(app, ui, p);
+        }
         // Every layout of the frame pins the band where it is drawn, so the wheel reads
         // the band under the pointer, not a row hidden under it (second review, 8).
         let (fit, geo) = self.layout(full);
@@ -832,6 +870,7 @@ impl MixerView {
         let (fit, geo) = self.layout(full);
         self.desk_width = geo.middle.width();
         self.rows_seen = Some(geo.rows);
+        self.right_seen = Some(geo.right); // r37:finish
 
         let mut b = std::mem::take(&mut self.brush);
         b.begin(ui.ctx());
@@ -975,11 +1014,26 @@ impl MixerView {
             pos2(legend.right() + left_w, rows.bottom()),
         );
         let right_w = desk::items_width(&self.desk.right, pitch);
-        let right = Rect::from_min_max(
-            pos2(right_edge - right_w, rows.top()),
-            pos2(right_edge, rows.bottom()),
-        );
         let mid_l = left.right() + size::DIVIDER;
+        // r37:finish — where the middle's strips all fit, the right dock sits just after
+        // them, not across an empty gap at the window's edge (the judge: dead space before
+        // the buses); pinned at the edge only while the middle scrolls.
+        let content = desk::items_width(&self.desk.middle, pitch) + desk::ADD + 6.0;
+        let mut dock_l = (mid_l + content + size::DIVIDER).min(right_edge - right_w);
+        // r37:finish — where the middle scrolls, it shows whole strips: its width a whole
+        // number of strips, the dock just after them (a strip cut by the dock read as a
+        // stray half strip).
+        if right_w > 0.0 && mid_l + content + size::DIVIDER > right_edge - right_w {
+            let room = (right_edge - right_w - size::DIVIDER - mid_l).max(0.0);
+            // Never past the window's edge (review: under one strip of room, a strip's
+            // width pushed the dock off screen): the edge's place is the most.
+            dock_l =
+                (mid_l + (room / pitch).floor() * pitch + size::DIVIDER).min(right_edge - right_w);
+        }
+        let right = Rect::from_min_max(
+            pos2(dock_l, rows.top()),
+            pos2(dock_l + right_w, rows.bottom()),
+        );
         let mid_r = if right_w > 0.0 {
             right.left() - size::DIVIDER
         } else {

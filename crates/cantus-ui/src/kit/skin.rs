@@ -77,6 +77,9 @@ pub mod materials;
 pub mod plates;
 #[path = "skin/switches.rs"]
 pub mod switches;
+// Chorda's scene: its materials and lights (ADR 0104). r37:scene
+#[path = "skin/scene.rs"]
+pub mod scene;
 #[path = "skin/textures.rs"]
 mod textures;
 

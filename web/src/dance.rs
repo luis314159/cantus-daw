@@ -1,5 +1,5 @@
-//! A dancer for your songs: the family, imported characters, the companion for streams and
-//! the clip as a video (round 35).
+//! A dancer for your songs: the cast (Fuga and Volta from round 37), imported characters,
+//! the companion for streams and the clip as a video (round 35).
 
 use yew::prelude::*;
 
@@ -12,9 +12,9 @@ pub fn dance() -> Html {
         (l.t("To the beat, by itself", "Al compás, solo"),
          l.t("Add a Saltator track and it dances on the beat with no automation. Draw automation, add a modulator, learn a knob or play notes from C3 and it changes moves exactly on your bars.",
              "Agrega una pista Saltator y baila al compás sin automatización. Dibuja automatización, agrega un modulador, aprende una perilla o toca notas desde C3 y cambia de paso justo en tus compases.")),
-        (l.t("Six of ours, or yours", "Seis nuestros, o los tuyos"),
-         l.t("Trino, Miso, Lana, Tic, Corchea and Sol — or your own Lottie, Aseprite, TexturePacker or DragonBones file, read by Cantus's own players with no script run and its licence shown.",
-             "Trino, Miso, Lana, Tic, Corchea y Sol — o tu propio archivo Lottie, Aseprite, TexturePacker o DragonBones, leído por los reproductores de Cantus sin ejecutar ningún script y con su licencia a la vista.")),
+        (l.t("Eight of ours, or yours", "Ocho nuestros, o los tuyos"),
+         l.t("Fuga the ninja and Volta the mecha lead Trino, Miso, Lana, Tic, Corchea and Sol — or your own Lottie, Aseprite, TexturePacker or DragonBones file, read by Cantus's own players with no script run and its licence shown.",
+             "Fuga, el ninja, y Volta, el mecha, encabezan a Trino, Miso, Lana, Tic, Corchea y Sol — o tu propio archivo Lottie, Aseprite, TexturePacker o DragonBones, leído por los reproductores de Cantus sin ejecutar ningún script y con su licencia a la vista.")),
         (l.t("On stream, all day", "En tu transmisión, todo el día"),
          l.t("The companion dances above everything with true transparency; streaming mode gives OBS a clean window. About 3 % of one core, measured for an hour.",
              "La ventana de compañía baila encima de todo con transparencia real; el modo streaming le da a OBS una ventana limpia. Cerca del 3 % de un núcleo, medido durante una hora.")),
@@ -37,17 +37,17 @@ pub fn dance() -> Html {
                 // attribute set afterwards does not mute it, and browsers then refuse autoplay).
                 <div class="dance-hero">{ Html::from_html_unchecked(AttrValue::from(format!(
                     r#"<video src="dance/family.mp4" poster="dance/family.webp" width="1440" height="318" autoplay muted loop playsinline preload="metadata" aria-label="{}"></video>"#,
-                    l.t("Trino, Miso, Lana, Tic, Corchea and Sol dancing together on one stage", "Trino, Miso, Lana, Tic, Corchea y Sol bailando juntos en un escenario"),
+                    l.t("Fuga, Volta, Trino, Miso, Lana, Tic, Corchea and Sol dancing together on one stage", "Fuga, Volta, Trino, Miso, Lana, Tic, Corchea y Sol bailando juntos en un escenario"),
                 ))) }</div>
                 <div class="score-more">
                     <figure>
                         <img src="dance/window.webp" width="1040" height="680" loading="lazy"
-                             alt={ l.t("Saltator's window: the stage, the six characters, sixteen move pads, and Dance, Body, Look and Ears", "La ventana de Saltator: el escenario, los seis personajes, dieciséis pads de pasos, y Baile, Cuerpo, Aspecto y Oído") } />
+                             alt={ l.t("Saltator's window: the stage with Fuga dancing, the eight characters, sixteen move pads, and Dance, Body, Look and Ears", "La ventana de Saltator: el escenario con Fuga bailando, los ocho personajes, dieciséis pads de pasos, y Baile, Cuerpo, Aspecto y Oído") } />
                         <figcaption>{ l.t("Saltator: pick who dances, play its moves from the pads, shape the dance.", "Saltator: elige quién baila, toca sus pasos desde los pads, dale forma al baile.") }</figcaption>
                     </figure>
                     <figure>
                         <img src="dance/companion.webp" width="500" height="560" loading="lazy"
-                             alt={ l.t("The companion window over the desktop with true transparency: Trino, the song and tempo, bar and beat, the master's level", "La ventana de compañía sobre el escritorio con transparencia real: Trino, la canción y el tempo, compás y pulso, el nivel del máster") } />
+                             alt={ l.t("The companion window's own pixels, with true transparency, over a desktop picture: Fuga, the song and tempo, bar and beat, the master's spectrum", "Los píxeles propios de la ventana de compañía, con transparencia real, sobre una imagen de escritorio: Fuga, la canción y el tempo, compás y pulso, el espectro del máster") } />
                         <figcaption>{ l.t("The companion: always on top, see-through, ready for OBS.", "La compañía: siempre encima, transparente, lista para OBS.") }</figcaption>
                     </figure>
                 </div>

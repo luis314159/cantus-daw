@@ -1,0 +1,124 @@
+# Vibrans vibrato: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.vibrans.singer"
+note = "A sung vibrato that comes in late on long notes."
+styles = ["pop", "worship"]
+roles = ["vocal"]
+[preset.values]
+"depth" = 30
+"rate" = 5.5
+"rise" = 350
+
+[[preset]]
+key = "preset.vibrans.violin"
+note = "A string player vibrato: faster, narrower."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"depth" = 18
+"rate" = 6.2
+"rise" = 250
+
+[[preset]]
+key = "preset.vibrans.organ"
+note = "The organ scanner vibrato, light."
+styles = ["jazz", "worship"]
+roles = ["creative"]
+[preset.values]
+"depth" = 12
+"rate" = 6.9
+
+[[preset]]
+key = "preset.vibrans.tape_wow"
+note = "Slow tape wow: pitch that drifts."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"depth" = 14
+"rate" = 0.6
+"spread" = 30
+
+[[preset]]
+key = "preset.vibrans.seasick"
+note = "Deep, slow, wide: the warped record."
+styles = ["lofi", "film"]
+roles = ["creative"]
+[preset.values]
+"depth" = 70
+"rate" = 1.2
+"spread" = 90
+
+[[preset]]
+key = "preset.vibrans.trill"
+note = "A square swing of a semitone: a trill."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"depth" = 100
+"rate" = 7
+"shape" = 1
+
+[[preset]]
+key = "preset.vibrans.sync_wobble"
+note = "An eighth-note pitch wobble locked to the song."
+styles = ["house", "trap"]
+roles = ["creative"]
+[preset.values]
+"depth" = 40
+"div" = 11
+"sync" = 1
+
+[[preset]]
+key = "preset.vibrans.chorus_one"
+note = "Half dry, half wet: a one-voice chorus."
+styles = ["pop", "ambient"]
+roles = ["creative"]
+[preset.values]
+"depth" = 12
+"mix" = 0.5
+"out" = 1
+"rate" = 0.9
+"spread" = 90
+
+[[preset]]
+key = "preset.vibrans.vintage_keys"
+note = "A slow, shallow vibrato that ages a keys part."
+styles = ["rnb", "jazz"]
+roles = ["creative"]
+[preset.values]
+"depth" = 8
+"rate" = 4.5
+
+[[preset]]
+key = "preset.vibrans.lofi_vinyl"
+note = "The wobble of a record slightly off its centre."
+styles = ["lofi", "rnb"]
+roles = ["creative"]
+[preset.values]
+"depth" = 20
+"rate" = 0.55
+
+[[preset]]
+key = "preset.vibrans.latin_guitar"
+note = "A gentle vibrato on a nylon line."
+styles = ["latin", "pop"]
+roles = ["creative"]
+[preset.values]
+"depth" = 10
+"rate" = 5
+"rise" = 150
+
+[[preset]]
+key = "preset.vibrans.ghost_vocal"
+note = "A slow, wide, half-wet pitch drift: a voice that is not quite there."
+styles = ["film", "trap"]
+roles = ["vocal"]
+[preset.values]
+"depth" = 35
+"mix" = 0.5
+"out" = 3
+"rate" = 0.4
+"spread" = 120

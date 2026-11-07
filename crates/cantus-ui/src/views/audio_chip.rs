@@ -12,7 +12,7 @@ use crate::i18n::{t, tf, Locale};
 use crate::kit::color::shade;
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::hint::{self, Caps};
-use crate::kit::light::{self, RaisedOpts};
+use crate::kit::light;
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{led, with_brush, Fill, State, Style, Tok};
 use egui::{Align2, Pos2, Rect, Sense, Ui, Vec2};
@@ -87,6 +87,18 @@ struct Key {
 struct Cache {
     key: Key,
     text: String,
+    /// r37:finish — the line without its middle (name · latency) where the whole does not
+    /// fit: whole words, never a name cut in two ("ASIO4ALL v2…6").
+    short: String,
+    /// The whole line's width in its chip.
+    text_w: f32,
+    /// The chip's width with the short line.
+    short_width: f32,
+    /// The interface's name alone, and the chip's width with it: the least on a full bar
+    /// (the name whole, its latency in the hint). // r37:finish
+    name: String,
+    name_w: f32,
+    short_w: f32,
     width: f32,
 }
 
@@ -161,6 +173,7 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             .and_then(|sc| interfaces::current(&sc.interfaces, &app.settings.audio, device))
             .map(|i| i.key.clone())
             .unwrap_or_else(|| interfaces::adapter_of(device));
+        let mut short = String::new(); // r37:finish
         let text = if !live {
             t("devices.chip.none")
         } else if lost {
@@ -179,6 +192,9 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             } else {
                 lat.push('–');
             }
+            short.push_str(&name); // r37:finish
+            short.push_str(" · ");
+            short.push_str(&lat);
             tf(
                 "devices.chip.text",
                 &[
@@ -191,7 +207,25 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             )
         };
         let tw = text::measure(ctx, &Text::new(&text, Role::Label, s.t.text), s.tk()).x;
-        c.width = (tw + 44.0 * s.k).min(380.0 * s.k);
+        c.width = (tw + 42.0 * s.k).min(380.0 * s.k); // r37:finish (was 44)
+        c.text_w = tw; // r37:finish
+        let sw = text::measure(ctx, &Text::new(&short, Role::Label, s.t.text), s.tk()).x;
+        let nw = text::measure(ctx, &Text::new(&name, Role::Label, s.t.text), s.tk()).x;
+        c.short_w = sw;
+        c.name_w = nw;
+        c.name = if short.is_empty() {
+            String::new()
+        } else {
+            name.clone()
+        };
+        // r37:finish — the least is the name alone whole: at 1920 nothing folds whatever
+        // the interface is called ("Realtek(R) Audio" pushed the area keys into ⋯).
+        c.short_width = if short.is_empty() {
+            c.width
+        } else {
+            (nw + 42.0 * s.k).min(c.width)
+        };
+        c.short = short;
         c.text = text;
         c.key = Key {
             device: device.to_string(),
@@ -214,6 +248,14 @@ pub fn width(app: &CantusApp, ctx: &egui::Context) -> f32 {
     let s = Style::current();
     refresh(app, ctx, &s);
     CACHE.with(|c| c.borrow().width)
+}
+
+/// The chip's width showing its short line (name · latency), the least a running device's
+/// chip takes on the bar. // r37:finish
+pub fn short_width(app: &CantusApp, ctx: &egui::Context) -> f32 {
+    let s = Style::current();
+    refresh(app, ctx, &s);
+    CACHE.with(|c| c.borrow().short_width)
 }
 
 /// Whether the chip reads a running device's line (name · driver · rate · buffer ·
@@ -270,18 +312,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
             shade(s.t.panel, 0.03)
         };
         let r = s.r(4.0);
-        light::raised(
-            b,
-            rect,
-            r,
-            base,
-            RaisedOpts {
-                drop: false,
-                k: s.k,
-                depth: s.t.depth * 0.7,
-                ..Default::default()
-            },
-        );
+        // r37:finish — a chip of the family (the meter's and the snap's), not a raised slab.
+        light::chip(b, rect, r, base, &light::Material::of(&s.t), false);
         if h == Health::Lost {
             // A red edge at the left: seen from the corner of the eye.
             let edge = Rect::from_min_size(rect.min, Vec2::new(s.s(3.0), rect.height()));
@@ -304,10 +336,18 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
         };
         CACHE.with(|c| {
             let c = c.borrow();
+            // r37:finish — the short line where the whole one does not fit.
+            let line = if c.text_w <= tr.width() + 0.5 || c.short.is_empty() {
+                &c.text
+            } else if c.short_w <= tr.width() + 0.5 || c.name.is_empty() {
+                &c.short
+            } else {
+                &c.name
+            };
             let _ = text::paint(
                 b,
                 tr,
-                &Text::new(&c.text, Role::Label, ink)
+                &Text::new(line, Role::Label, ink)
                     .align(Align2::LEFT_CENTER)
                     .policy(Policy::Elide(Elide::Middle)),
                 s.tk(),

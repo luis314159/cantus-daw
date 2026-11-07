@@ -1,0 +1,921 @@
+# Exemplar: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "smp.preset.showcase"
+note = "Plucked strings sampled at three roots and crossfaded across the keys."
+styles = ["pop", "ambient"]
+roles = ["keys"]
+tags = ["smp.tag.keys", "smp.tag.pluck"]
+[preset.values]
+"amp.release" = 600
+"filter.cutoff" = 2500
+"filter.key" = 50
+"filter.type" = 1
+"gain" = 2.8
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"z0.gen" = 6
+"z0.hi" = 52
+"z0.kfout" = 4
+"z0.lo" = 24
+"z0.mode" = 1
+"z0.root" = 36
+"z1.gen" = 7
+"z1.hi" = 70
+"z1.kfin" = 4
+"z1.kfout" = 4
+"z1.lo" = 49
+"z1.mode" = 1
+"z1.root" = 60
+"z2.gen" = 8
+"z2.hi" = 83
+"z2.kfin" = 4
+"z2.lo" = 67
+"z2.mode" = 1
+"z2.root" = 84
+"z3.gen" = 9
+"z3.hi" = 108
+"z3.lo" = 84
+"z3.mode" = 1
+"z3.root" = 72
+"z3.vfout" = 30
+"z3.vhi" = 90
+"z4.gen" = 10
+"z4.hi" = 108
+"z4.lo" = 84
+"z4.mode" = 1
+"z4.root" = 72
+"z4.vfin" = 30
+"z4.vlo" = 60
+"z5.gen" = 11
+"z5.hi" = 23
+"z5.le" = 129999
+"z5.lo" = 12
+"z5.ls" = 44100
+"z5.mode" = 2
+"z5.root" = 48
+"z5.xf" = 250
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.nylon"
+note = "A nylon-string guitar from the built-in plucks."
+styles = ["latin", "pop"]
+roles = ["pluck"]
+tags = ["smp.tag.pluck"]
+[preset.values]
+"amp.release" = 350
+"filter.cutoff" = 4000
+"filter.key" = 50
+"filter.type" = 1
+"filter.vel" = 24
+"gain" = -4.7
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"z0.gen" = 6
+"z0.hi" = 52
+"z0.kfout" = 4
+"z0.lo" = 24
+"z0.mode" = 1
+"z0.root" = 36
+"z1.gen" = 7
+"z1.hi" = 70
+"z1.kfin" = 4
+"z1.kfout" = 4
+"z1.lo" = 49
+"z1.mode" = 1
+"z1.root" = 60
+"z2.gen" = 8
+"z2.hi" = 96
+"z2.kfin" = 4
+"z2.lo" = 67
+"z2.mode" = 1
+"z2.root" = 84
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.bells"
+note = "Bells in two velocity layers."
+styles = ["ambient", "film"]
+roles = ["pluck"]
+tags = ["smp.tag.bell", "smp.tag.keys"]
+[preset.values]
+"amp.release" = 1200
+"filter.cutoff" = 4000
+"filter.key" = 60
+"filter.type" = 1
+"gain" = -8
+"mod1.amt" = 0.3
+"mod2.amt" = 0.05
+"z0.gen" = 9
+"z0.hi" = 108
+"z0.lo" = 48
+"z0.mode" = 1
+"z0.root" = 72
+"z0.vfout" = 30
+"z0.vhi" = 90
+"z1.gen" = 10
+"z1.hi" = 108
+"z1.lo" = 48
+"z1.mode" = 1
+"z1.root" = 72
+"z1.vfin" = 30
+"z1.vlo" = 60
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Detune"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "tune"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.pad"
+note = "A looped, slowly filtered pad."
+styles = ["ambient", "worship"]
+roles = ["pad"]
+tags = ["smp.tag.pad"]
+[preset.values]
+"amp.attack" = 600
+"amp.release" = 1800
+"filter.cutoff" = 3000
+"filter.reso" = 20
+"filter.type" = 1
+"gain" = -0.5
+"lfo2.rate" = 0.3
+"lfo2.shape" = 0
+"mod1.amt" = 0.08
+"mod2.amt" = 0.3
+"mod3.amt" = 0.15
+"z0.gen" = 11
+"z0.le" = 129999
+"z0.ls" = 44100
+"z0.lxc" = 1
+"z0.mode" = 2
+"z0.root" = 48
+"z0.xf" = 250
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Motion"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "lfo2"
+"mod2.dst" = "filter.cutoff"
+"mod2.src" = "macro1"
+"mod3.dst" = "lfo2.rate"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.choir"
+note = "A choir with a late vibrato."
+styles = ["worship", "film"]
+roles = ["pad"]
+tags = ["smp.tag.pad", "smp.tag.vocal"]
+[preset.values]
+"amp.attack" = 350
+"amp.release" = 900
+"filter.cutoff" = 5000
+"filter.type" = 1
+"gain" = -5.1
+"lfo1.delay" = 500
+"lfo1.pitch" = 12
+"lfo1.rate" = 5.2
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"z0.gen" = 21
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Vibrato"
+"macro2.name" = "Brightness"
+"mod1.dst" = "lfo1.pitch"
+"mod1.src" = "macro1"
+"mod2.dst" = "filter.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.organ"
+note = "An organ with a key-click release sample."
+styles = ["jazz", "worship"]
+roles = ["keys"]
+tags = ["smp.tag.organ", "smp.tag.keys"]
+[preset.values]
+"amp.attack" = 3
+"amp.release" = 60
+"filter.cutoff" = 12000
+"filter.type" = 1
+"gain" = -9.2
+"mod1.amt" = 0.25
+"mod2.amt" = -0.3
+"z0.gen" = 20
+"z0.mode" = 2
+"z0.root" = 24
+"z1.gain" = -14
+"z1.gen" = 19
+"z1.key" = 0
+"z1.mode" = 1
+"z1.root" = 60
+"z1.trig" = 1
+[preset.text]
+"macro1.name" = "Vibrato"
+"macro2.name" = "Tone"
+"mod1.dst" = "lfo1.pitch"
+"mod1.src" = "macro1"
+"mod2.dst" = "filter.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.kit"
+note = "A round-robin kit with a choked hi-hat."
+styles = ["house", "pop"]
+roles = ["drums"]
+tags = ["smp.tag.drums"]
+[preset.values]
+"filter.type" = 1
+"gain" = 3.7
+"mod1.amt" = 0.05
+"mod2.amt" = -0.4
+"z0.gen" = 12
+"z0.hi" = 36
+"z0.key" = 0
+"z0.lo" = 36
+"z0.mode" = 1
+"z0.root" = 36
+"z1.gen" = 13
+"z1.hi" = 38
+"z1.key" = 0
+"z1.lo" = 38
+"z1.mode" = 1
+"z1.root" = 38
+"z1.seq" = 1
+"z1.seqlen" = 3
+"z2.gen" = 14
+"z2.hi" = 38
+"z2.key" = 0
+"z2.lo" = 38
+"z2.mode" = 1
+"z2.root" = 38
+"z2.seq" = 2
+"z2.seqlen" = 3
+"z3.gen" = 15
+"z3.hi" = 38
+"z3.key" = 0
+"z3.lo" = 38
+"z3.mode" = 1
+"z3.root" = 38
+"z3.seq" = 3
+"z3.seqlen" = 3
+"z4.excl" = 1
+"z4.gen" = 16
+"z4.hi" = 42
+"z4.key" = 0
+"z4.lo" = 42
+"z4.mode" = 1
+"z4.root" = 42
+"z4.seq" = 1
+"z4.seqlen" = 2
+"z5.excl" = 1
+"z5.gen" = 17
+"z5.hi" = 42
+"z5.key" = 0
+"z5.lo" = 42
+"z5.mode" = 1
+"z5.root" = 42
+"z5.seq" = 2
+"z5.seqlen" = 2
+"z6.gen" = 18
+"z6.hi" = 46
+"z6.key" = 0
+"z6.lo" = 46
+"z6.mode" = 1
+"z6.offby" = 1
+"z6.root" = 46
+[preset.text]
+"macro1.name" = "Tune"
+"macro2.name" = "Tone"
+"mod1.dst" = "transpose"
+"mod1.src" = "macro1"
+"mod2.dst" = "filter.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.sub"
+note = "A mono sine sub with glide."
+styles = ["trap", "house"]
+roles = ["bass"]
+tags = ["smp.tag.bass"]
+[preset.values]
+"amp.release" = 120
+"gain" = 1.1
+"glide" = 60
+"mod1.amt" = 0.125
+"mod2.amt" = 0.2
+"mode" = 2
+"z0.gen" = 1
+"z0.hi" = 72
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Octave up"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "transpose"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.lead"
+note = "A resonant saw lead with glide."
+styles = ["pop", "house"]
+roles = ["lead"]
+tags = ["smp.tag.lead"]
+[preset.values]
+"amp.release" = 200
+"env2.decay" = 350
+"env2.sustain" = 30
+"filter.cutoff" = 1800
+"filter.env" = 36
+"filter.reso" = 45
+"filter.type" = 1
+"gain" = -1.2
+"glide" = 40
+"mod1.amt" = 0.3
+"mod2.amt" = 0.4
+"mode" = 2
+"z0.gen" = 2
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Cutoff"
+"macro2.name" = "Resonance"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "filter.reso"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.chip"
+note = "A square with a vibrato and a crushed resampler: the game console."
+styles = ["film"]
+roles = ["lead"]
+tags = ["smp.tag.lead", "smp.tag.lofi"]
+[preset.values]
+"amp.release" = 40
+"gain" = -5.9
+"lfo1.delay" = 200
+"lfo1.pitch" = 20
+"lfo1.rate" = 6
+"mod1.amt" = 0.5
+"mod2.amt" = 0.06
+"quality" = 0
+"z0.gen" = 3
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Vibrato"
+"macro2.name" = "Detune"
+"mod1.dst" = "lfo1.pitch"
+"mod1.src" = "macro1"
+"mod2.dst" = "tune"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.noise"
+note = "Noise through a slow, resonant band-pass: wind."
+styles = ["film", "ambient"]
+roles = ["fx"]
+tags = ["smp.tag.fx", "smp.tag.pad"]
+[preset.values]
+"amp.attack" = 800
+"amp.release" = 2000
+"filter.cutoff" = 1200
+"filter.reso" = 70
+"filter.type" = 2
+"gain" = -4.2
+"lfo2.rate" = 0.2
+"lfo2.shape" = 0
+"mod1.amt" = 0.3
+"mod2.amt" = 0.3
+"mod3.amt" = 0.25
+"z0.gen" = 5
+"z0.key" = 0
+"z0.le" = 88199
+"z0.ls" = 22050
+"z0.mode" = 2
+"z0.root" = 60
+"z0.xf" = 200
+[preset.text]
+"macro1.name" = "Sweep speed"
+"macro2.name" = "Centre"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "lfo2"
+"mod2.dst" = "lfo2.rate"
+"mod2.src" = "macro1"
+"mod3.dst" = "filter.cutoff"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.keys"
+note = "A triangle keyboard that decays to a soft sustain."
+styles = ["pop", "rnb"]
+roles = ["keys"]
+tags = ["smp.tag.keys"]
+[preset.values]
+"amp.decay" = 1200
+"amp.release" = 400
+"amp.sustain" = 25
+"filter.cutoff" = 3000
+"filter.key" = 50
+"filter.type" = 1
+"filter.vel" = 36
+"gain" = -3.7
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"z0.gen" = 4
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.harp"
+note = "The plucks opened up with a long release: a harp."
+styles = ["film", "worship"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"amp.release" = 1500
+"filter.cutoff" = 6000
+"filter.key" = 50
+"filter.type" = 1
+"filter.vel" = 24
+"gain" = -5.3
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"z0.gen" = 6
+"z0.hi" = 52
+"z0.kfout" = 4
+"z0.lo" = 24
+"z0.mode" = 1
+"z0.root" = 36
+"z1.gen" = 7
+"z1.hi" = 70
+"z1.kfin" = 4
+"z1.kfout" = 4
+"z1.lo" = 49
+"z1.mode" = 1
+"z1.root" = 60
+"z2.gen" = 8
+"z2.hi" = 96
+"z2.kfin" = 4
+"z2.lo" = 67
+"z2.mode" = 1
+"z2.root" = 84
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.lofi_nylon"
+note = "A nylon guitar through a dark, crushed sampler."
+styles = ["lofi"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"amp.release" = 350
+"filter.cutoff" = 1800
+"filter.key" = 50
+"filter.type" = 1
+"filter.vel" = 24
+"gain" = -1.7
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"quality" = 0
+"z0.gen" = 6
+"z0.hi" = 52
+"z0.kfout" = 4
+"z0.lo" = 24
+"z0.mode" = 1
+"z0.root" = 36
+"z1.gen" = 7
+"z1.hi" = 70
+"z1.kfin" = 4
+"z1.kfout" = 4
+"z1.lo" = 49
+"z1.mode" = 1
+"z1.root" = 60
+"z2.gen" = 8
+"z2.hi" = 96
+"z2.kfin" = 4
+"z2.lo" = 67
+"z2.mode" = 1
+"z2.root" = 84
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.latin_guitar"
+note = "A bright, dynamic nylon guitar for a bolero or a reggaeton melody."
+styles = ["latin"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"amp.release" = 350
+"filter.cutoff" = 5000
+"filter.key" = 50
+"filter.type" = 1
+"filter.vel" = 36
+"gain" = -5.9
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"z0.gen" = 6
+"z0.hi" = 52
+"z0.kfout" = 4
+"z0.lo" = 24
+"z0.mode" = 1
+"z0.root" = 36
+"z1.gen" = 7
+"z1.hi" = 70
+"z1.kfin" = 4
+"z1.kfout" = 4
+"z1.lo" = 49
+"z1.mode" = 1
+"z1.root" = 60
+"z2.gen" = 8
+"z2.hi" = 96
+"z2.kfin" = 4
+"z2.lo" = 67
+"z2.mode" = 1
+"z2.root" = 84
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.celesta"
+note = "A celesta: a soft, bright bell that fades quickly."
+styles = ["film", "ambient"]
+roles = ["pluck"]
+tags = ["preset.tag.bell"]
+[preset.values]
+"amp.release" = 900
+"filter.cutoff" = 6000
+"filter.key" = 60
+"filter.type" = 1
+"gain" = -8.1
+"mod1.amt" = 0.3
+"mod2.amt" = 0.05
+"z0.gen" = 9
+"z0.hi" = 108
+"z0.lo" = 48
+"z0.mode" = 1
+"z0.root" = 72
+"z0.vfout" = 30
+"z0.vhi" = 90
+"z1.gen" = 10
+"z1.hi" = 108
+"z1.lo" = 48
+"z1.mode" = 1
+"z1.root" = 72
+"z1.vfin" = 30
+"z1.vlo" = 60
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Detune"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "tune"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.trap_glock"
+note = "A short glockenspiel for trap melodies."
+styles = ["trap"]
+roles = ["pluck"]
+tags = ["preset.tag.bell"]
+[preset.values]
+"amp.release" = 600
+"filter.cutoff" = 4000
+"filter.key" = 60
+"filter.type" = 1
+"gain" = -8
+"mod1.amt" = 0.3
+"mod2.amt" = 0.05
+"z0.gen" = 9
+"z0.hi" = 108
+"z0.lo" = 48
+"z0.mode" = 1
+"z0.root" = 72
+"z0.vfout" = 30
+"z0.vhi" = 90
+"z1.gen" = 10
+"z1.hi" = 108
+"z1.lo" = 48
+"z1.mode" = 1
+"z1.root" = 72
+"z1.vfin" = 30
+"z1.vlo" = 60
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Detune"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "tune"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.worship_choir"
+note = "The choir slower in and out: a bed under worship."
+styles = ["worship"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"amp.attack" = 900
+"amp.release" = 2500
+"filter.cutoff" = 5000
+"filter.type" = 1
+"gain" = -4.5
+"lfo1.delay" = 500
+"lfo1.pitch" = 12
+"lfo1.rate" = 5.2
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"z0.gen" = 21
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Vibrato"
+"macro2.name" = "Brightness"
+"mod1.dst" = "lfo1.pitch"
+"mod1.src" = "macro1"
+"mod2.dst" = "filter.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.dark_pad"
+note = "The looped pad, darker."
+styles = ["ambient", "film"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"amp.attack" = 600
+"amp.release" = 1800
+"filter.cutoff" = 1200
+"filter.reso" = 20
+"filter.type" = 1
+"lfo2.rate" = 0.3
+"lfo2.shape" = 0
+"mod1.amt" = 0.08
+"mod2.amt" = 0.3
+"mod3.amt" = 0.15
+"z0.gen" = 11
+"z0.le" = 129999
+"z0.ls" = 44100
+"z0.lxc" = 1
+"z0.mode" = 2
+"z0.root" = 48
+"z0.xf" = 250
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Motion"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "lfo2"
+"mod2.dst" = "filter.cutoff"
+"mod2.src" = "macro1"
+"mod3.dst" = "lfo2.rate"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.lofi_keys"
+note = "Soft keys through a crushed resampler."
+styles = ["lofi"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"amp.decay" = 1200
+"amp.release" = 400
+"amp.sustain" = 25
+"filter.cutoff" = 1800
+"filter.key" = 50
+"filter.type" = 1
+"filter.vel" = 36
+"gain" = -3.6
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"quality" = 0
+"z0.gen" = 4
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.chip_arp"
+note = "Short chip notes for arpeggios: the console arpeggio."
+styles = ["film"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"amp.release" = 20
+"gain" = -7.5
+"lfo1.delay" = 200
+"lfo1.pitch" = 20
+"lfo1.rate" = 6
+"mod1.amt" = 0.5
+"mod2.amt" = 0.06
+"quality" = 0
+"z0.gen" = 3
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Vibrato"
+"macro2.name" = "Detune"
+"mod1.dst" = "lfo1.pitch"
+"mod1.src" = "macro1"
+"mod2.dst" = "tune"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.trap_sub"
+note = "The sine sub with a long glide: an 808-style slide."
+styles = ["trap"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"amp.release" = 120
+"gain" = 1.1
+"glide" = 120
+"mod1.amt" = 0.125
+"mod2.amt" = 0.2
+"mode" = 2
+"z0.gen" = 1
+"z0.hi" = 72
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Octave up"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "transpose"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.house_organ"
+note = "The organ with a short release for house chords."
+styles = ["house"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"amp.attack" = 3
+"amp.release" = 120
+"filter.cutoff" = 12000
+"filter.type" = 1
+"gain" = -9.2
+"mod1.amt" = 0.25
+"mod2.amt" = -0.3
+"z0.gen" = 20
+"z0.mode" = 2
+"z0.root" = 24
+"z1.gain" = -14
+"z1.gen" = 19
+"z1.key" = 0
+"z1.mode" = 1
+"z1.root" = 60
+"z1.trig" = 1
+[preset.text]
+"macro1.name" = "Vibrato"
+"macro2.name" = "Tone"
+"mod1.dst" = "lfo1.pitch"
+"mod1.src" = "macro1"
+"mod2.dst" = "filter.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.rnb_lead"
+note = "A softer, darker saw lead with a slow glide."
+styles = ["rnb"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"amp.release" = 200
+"env2.decay" = 350
+"env2.sustain" = 30
+"filter.cutoff" = 1200
+"filter.env" = 36
+"filter.reso" = 20
+"filter.type" = 1
+"gain" = -0.4
+"glide" = 80
+"mod1.amt" = 0.3
+"mod2.amt" = 0.4
+"mode" = 2
+"z0.gen" = 2
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Cutoff"
+"macro2.name" = "Resonance"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "filter.reso"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.pop_keys"
+note = "The triangle keys with their top open."
+styles = ["pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"amp.decay" = 1200
+"amp.release" = 400
+"amp.sustain" = 25
+"filter.cutoff" = 6000
+"filter.key" = 50
+"filter.type" = 1
+"filter.vel" = 36
+"gain" = -3.7
+"mod1.amt" = 0.3
+"mod2.amt" = 0.2
+"z0.gen" = 4
+"z0.mode" = 2
+"z0.root" = 24
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "smp.preset.wind"
+note = "Noise through a slowly moving, darker band: wind."
+styles = ["ambient", "film"]
+roles = ["fx"]
+tags = ["preset.tag.fx"]
+[preset.values]
+"amp.attack" = 800
+"amp.release" = 2000
+"filter.cutoff" = 700
+"filter.reso" = 70
+"filter.type" = 2
+"gain" = -0.9
+"lfo2.rate" = 0.1
+"lfo2.shape" = 0
+"mod1.amt" = 0.3
+"mod2.amt" = 0.3
+"mod3.amt" = 0.25
+"z0.gen" = 5
+"z0.key" = 0
+"z0.le" = 88199
+"z0.ls" = 22050
+"z0.mode" = 2
+"z0.root" = 60
+"z0.xf" = 200
+[preset.text]
+"macro1.name" = "Sweep speed"
+"macro2.name" = "Centre"
+"mod1.dst" = "filter.cutoff"
+"mod1.src" = "lfo2"
+"mod2.dst" = "lfo2.rate"
+"mod2.src" = "macro1"
+"mod3.dst" = "filter.cutoff"
+"mod3.src" = "macro2"

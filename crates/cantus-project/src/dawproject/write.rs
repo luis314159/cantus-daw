@@ -111,6 +111,13 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
             },
         );
     }
+    // r37:drums — a strip's own pan law (ADR 0100 §3) has no place in DAWproject: said.
+    for (si, st) in project.strips.iter().enumerate() {
+        if st.pan_law.is_some() && plans.get(&st.id).is_some_and(|p| p.used) {
+            let name = strip_name(st).unwrap_or_else(|| default_strip_name(project, si));
+            report.dropped("interop.report.x_pan_law", vec![("name", name)]);
+        }
+    }
     let master_id = ids.next();
     let empty = plans.values().filter(|p| !p.used).count();
     if empty > 0 {
@@ -186,6 +193,26 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
             (true, true) => "audio notes",
             _ => "notes",
         };
+        // r37:drums — a kit split to strips comes back whole, its pads' chains lost (ADR 0100).
+        if cantus_core::padout::is_split(project, t.id) {
+            let own = t.instrument.pulsus().map_or(0, |k| {
+                k.pads
+                    .iter()
+                    .filter(|p| cantus_core::padout::heard_on(project, t, p).is_some())
+                    .count()
+            });
+            report.dropped(
+                "interop.report.x_split_kit",
+                vec![("track", t.name.clone()), ("n", own.to_string())],
+            );
+        }
+        let chains = cantus_core::padout::chain_count(project, t.id);
+        if chains > 0 {
+            report.dropped(
+                "interop.report.x_pad_chains",
+                vec![("track", t.name.clone()), ("n", chains.to_string())],
+            );
+        }
         if t.input.is_some() {
             report.info(
                 "interop.report.x_track_input",
@@ -695,6 +722,16 @@ fn instrument_device(ids: &mut Ids, files: &mut Vec<(String, Vec<u8>)>, t: &Trac
     // is written out, so a later calibration reads it at this level (ADR 0039).
     let spec = match &t.instrument {
         InstrumentSpec::Native(n) => InstrumentSpec::Native(n.spell_out_trim()),
+        // r37:drums — a split kit is written whole (ADR 0100): DAWproject has no instrument
+        // outputs, and a strip id does not survive the trip (it could name another strip on
+        // the way back). Said in the report.
+        InstrumentSpec::Pulsus(k) => {
+            let mut k = k.clone();
+            for pad in &mut k.pads {
+                pad.output = None;
+            }
+            InstrumentSpec::Pulsus(k)
+        }
         other => other.clone(),
     };
     files.push((

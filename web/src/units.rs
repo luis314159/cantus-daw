@@ -9,6 +9,7 @@ use yew::prelude::*;
 
 use crate::fx::AbPlayer;
 use crate::lang::use_lang;
+use crate::sounds::{CardSound, PresetSounds};
 use crate::units_data::{EFFECTS, INSTRUMENTS};
 
 /// One native unit. Text is `(English, Spanish)`.
@@ -177,7 +178,7 @@ pub fn units() -> Html {
         let (open, g) = (open.clone(), *tab);
         let heard = u.ab.is_some();
         html! {
-            <li>
+            <li class="uc-li">
                 <button type="button" class="unit-card" id={format!("unit-{}", u.file)} aria-haspopup="dialog"
                         onclick={Callback::from(move |_| open.set(Some((g, i))))}>
                     <span class="uc-pic">
@@ -194,6 +195,7 @@ pub fn units() -> Html {
                         <span class="uc-more" aria-hidden="true">{ l.t("See it large", "Verlo en grande") }{ " →" }</span>
                     </span>
                 </button>
+                <CardSound unit={u.file} />
             </li>
         }
     });
@@ -230,6 +232,8 @@ pub fn units() -> Html {
                 format!("{n} {}", l.t("factory presets", "presets de fábrica"))
             }
         });
+        // r37:library — Delay is edited in the inspector: its picture is that view.
+        let inspector = u.file == "delay";
         html! {
             <div class="unit-scrim" onclick={close_scrim}>
                 <div class="unit-page" role="dialog" aria-modal="true" aria-labelledby="unit-title" id="unit-page">
@@ -255,14 +259,18 @@ pub fn units() -> Html {
                         <a href={big.clone()} target="_blank" rel="noopener" class="up-shot-link"
                            aria-label={format!("{} — {}", u.name, l.t("open the picture full size", "abrir la imagen a tamaño completo"))}>
                             <img key={big.clone()} src={big} width={u.big.0.to_string()} height={u.big.1.to_string()}
-                                 alt={format!("{} — {}", u.name, l.t("its window in Cantus", "su ventana en Cantus"))} />
+                                 alt={format!("{} — {}", u.name, if inspector { l.t("in the inspector of Cantus", "en el inspector de Cantus") } else { l.t("its window in Cantus", "su ventana en Cantus") })} />
                         </a>
                         <figcaption>
                             <div class="ab-seg up-shade" role="group" aria-label={l.t("Theme of the picture", "Tema de la imagen")}>
                                 <button type="button" aria-pressed={(shown == "dark").to_string()} onclick={pick("dark")}>{ l.t("Dark theme", "Tema oscuro") }</button>
                                 <button type="button" aria-pressed={(shown == "light").to_string()} onclick={pick("light")}>{ l.t("Light theme", "Tema claro") }</button>
                             </div>
-                            <span>{ l.t("The program's own window, drawn headless. Click it to open it full size.", "La ventana del propio programa, dibujada sin pantalla. Haz clic para abrirla a tamaño completo.") }</span>
+                            <span>{ if inspector {
+                                l.t("Its view in the program's inspector, drawn headless: it has no window of its own. Click it to open it full size.", "Su vista en el inspector del programa, dibujada sin pantalla: no tiene ventana propia. Haz clic para abrirla a tamaño completo.")
+                            } else {
+                                l.t("The program's own window, drawn headless. Click it to open it full size.", "La ventana del propio programa, dibujada sin pantalla. Haz clic para abrirla a tamaño completo.")
+                            } }</span>
                         </figcaption>
                     </figure>
                     <div class="up-body">
@@ -275,6 +283,7 @@ pub fn units() -> Html {
                                     <AbPlayer key={file} file={file} song={song} />
                                 </div>
                             }
+                            <PresetSounds key={u.file} unit={u.file} />
                         </div>
                         <div class="up-side">
                             <h4>{ l.t("What stands out", "Lo que destaca") }</h4>
@@ -300,8 +309,8 @@ pub fn units() -> Html {
             <div class="wrap">
                 <header class="sec-head">
                     <h2>{ l.t("Instruments and effects of its own", "Instrumentos y efectos propios") }</h2>
-                    <p>{ l.t("Nine instruments and twenty-three effects with a face of their own come with Cantus, free — each researched against the best on the market, measured, and drawn in vectors in light and dark themes. Open any of them to see it large.",
-                             "Nueve instrumentos y veintitrés efectos con cara propia vienen con Cantus, gratis — cada uno estudiado frente a lo mejor del mercado, medido y dibujado en vectores, en tema claro y oscuro. Abre cualquiera para verlo en grande.") }</p>
+                    <p>{ l.t("Nine instruments and twenty-four effects come with Cantus, free — twenty-three with a face of their own, and Delay, edited in the inspector; each researched against the best on the market, measured, and drawn in vectors in light and dark themes. Open any of them to see it large.",
+                             "Nueve instrumentos y veinticuatro efectos vienen con Cantus, gratis — veintitrés con cara propia, y Delay, que se edita en el inspector; cada uno estudiado frente a lo mejor del mercado, medido y dibujado en vectores, en tema claro y oscuro. Abre cualquiera para verlo en grande.") }</p>
                 </header>
                 <div class="tabs" role="tablist" aria-label={l.t("Units", "Unidades")}>{ for buttons }</div>
                 <ul class={classes!("unit-grid", (*tab == 0).then_some("is-inst"))} id="unit-grid">{ for cards }</ul>

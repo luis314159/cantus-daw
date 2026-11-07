@@ -72,6 +72,7 @@ pub mod psola;
 pub mod pulsus;
 pub mod rest;
 pub mod reverb;
+pub mod sectio; // r37:piano (ADR 0099): the slicer's analysis
 pub mod sibilus;
 pub mod smoother;
 pub mod spatium;
@@ -101,7 +102,8 @@ pub mod voices;
 /// | 3 | round 22: [`math::powf`] in `f32` our own (correctly rounded, ~4× faster) and [`math::db_to_gain`] at the per-sample gains; counter-based TPDF dither (R10), so Terminus and Culmen rest with it on; Aequalis's dynamic release lands on 0 dB |
 /// | 4 | round 25: the 0 dB pan law and the balance are exactly unity at centre and on the near side (`cos(π/4)·√2` was 0.99999994 in `f32`): a centred strip under that law is one rounding step louder (≤ 6e-8 of the signal); no golden hash moved |
 /// | 5 | round 28: an Aequalis band raised (by its knob, automation or a modulator) from exactly 0 dB while no other band was active glides to its gain instead of staying flat for good (`is_active` sees a gain still gliding); that case moves by the whole of the gain asked, every other render is unchanged — no golden hash moved |
-pub const DSP_VERSION: u32 = 5;
+/// | 6 | round 37 (piano, voicing pass two): Chorda's model 2 — new this round, merged once — re-voiced (its body's response, its strings' voicing, its output, the perspective stage); model 1 and every other unit unchanged — no golden hash moved r37:piano |
+pub const DSP_VERSION: u32 = 6;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

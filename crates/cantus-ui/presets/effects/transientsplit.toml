@@ -1,0 +1,124 @@
+# Discrimen splitter: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.discrimen.more_attack"
+note = "The transients 5 dB up, found by their shape."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"mode" = 1
+"out" = -1.9
+"t.gain" = 5
+
+[[preset]]
+key = "preset.discrimen.less_attack"
+note = "The transients 6 dB down."
+styles = ["lofi", "jazz"]
+roles = ["drums"]
+[preset.values]
+"out" = 1.1
+"t.gain" = -6
+
+[[preset]]
+key = "preset.discrimen.drum_room"
+note = "The body darker and squeezed: the room behind the drums."
+styles = ["rock", "film"]
+roles = ["drums"]
+[preset.values]
+"b.comp" = 0.4
+"b.gain" = -4
+"b.tilt" = -1.5
+"mode" = 1
+"out" = 2.2
+
+[[preset]]
+key = "preset.discrimen.snappy"
+note = "Brighter, louder hits over a quieter body."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"b.gain" = -5
+"mode" = 1
+"out" = 1.3
+"t.gain" = 4
+"t.tilt" = 2
+
+[[preset]]
+key = "preset.discrimen.bright_attack"
+note = "The attacks brighter, the body darker."
+styles = ["pop"]
+roles = ["creative"]
+[preset.values]
+"b.tilt" = -3
+"out" = -1.3
+"t.tilt" = 4
+
+[[preset]]
+key = "preset.discrimen.squash_body"
+note = "The body squeezed and brought up: sustain without louder hits."
+styles = ["rock", "lofi"]
+roles = ["drums"]
+[preset.values]
+"b.comp" = 0.8
+"b.gain" = 3
+"out" = -0.8
+
+[[preset]]
+key = "preset.discrimen.only_transients"
+note = "Only the transients: a click track out of anything (a listen)."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"listen" = 1
+"mode" = 1
+
+[[preset]]
+key = "preset.discrimen.only_body"
+note = "Only the body, the hits taken out (a listen)."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"listen" = 2
+"mode" = 1
+
+[[preset]]
+key = "preset.discrimen.vocal_breath"
+note = "The body a little up under softer consonants: a breathy, close voice."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"b.gain" = 2
+"out" = -2
+"t.gain" = -3
+
+[[preset]]
+key = "preset.discrimen.guitar_strum"
+note = "A strummed guitar with brighter picking."
+styles = ["latin", "worship"]
+roles = ["creative"]
+[preset.values]
+"t.gain" = 3
+"t.tilt" = 2
+
+[[preset]]
+key = "preset.discrimen.trap_hats"
+note = "Hats with sharper ticks and less wash."
+styles = ["trap"]
+roles = ["drums"]
+[preset.values]
+"b.gain" = -4
+"mode" = 1
+"out" = 1.1
+"t.gain" = 3
+
+[[preset]]
+key = "preset.discrimen.bus_depth"
+note = "The body darker under the hits: depth across a mix."
+styles = ["film", "pop"]
+roles = ["bus"]
+[preset.values]
+"b.tilt" = -2
+"out" = -1
+"t.gain" = 1

@@ -30,14 +30,17 @@ Everything it names is in the program as it is today; where the beta still has g
 Also: [What an AI agent can do in Cantus](ai-tools.md) — the tools, the unit catalogue, the music linter.
 
 Also: [Separating stems](stems.md) — a song into drums, bass, vocals and the rest, on your computer. <!-- r34:stems -->
+Also: [Finding and hearing presets](presets.md) — by style and role, heard before you choose. <!-- r37:library -->
 
 Also: [Exporting a dancing video](video.md) — your dancers with the song, for social media or a video editor. <!-- r35:video -->
 
 Also: [Converting audio to MIDI](audio-to-midi.md) — a melody, chords or a drum loop into notes on a new track.
 
+Also: [Pulsus III: pads on their own strips, a chain per pad, kits from anywhere](drum-kits.md) — split a kit to strips, effects on one pad, a folder or an SFZ as a kit. <!-- r37:drums -->
+
 Also: [The audio editor](audio-editor.md) — cut, silence, fade, normalise, take the noise out, remove silence and see the spectrum, on a clip's take.
 
-Also: [Saltator, a character that dances to your song](dancer.md) — the dancer's window, its moves, React to. <!-- r35:dancer -->
+Also: [Saltator, a character that dances to your song](dancer.md) — the dancer's window, its moves, React to; Fuga the ninja and Volta the mecha lead the cast. <!-- r35:dancer, r37:chars -->
 
 Also: [The stage](stage.md) — a dancer over the workspace, on the Stage tab, in a companion window and on stream (OBS). <!-- r35:stage -->
 
@@ -208,7 +211,11 @@ window; save the arrangement of the window under *View ▸ Layout ▸ Save layou
 interface zooms from 75 % to 200 % (`Ctrl+Plus`, `Ctrl+Minus`, `Ctrl+0`). Twelve themes —
 Cantus Night (the default), Cantus Paper, Daylight, Blue Hour, high-contrast dark and light
 and more, each with a preview — the colours, the logo and the taskbar icon's colour are
-under *View ▸ Appearance*.
+under *View ▸ Appearance*. Each theme has its own **materials** (group *Depth*): how light
+falls on the controls — the bevel on a raised key and its shade, the shadow inside a
+well, the light on a well's lip, the shine on metal and glass, the shadow an object casts.
+Cantus Night is metal and glass, Cantus Paper matte; recolour any of them, or turn the
+theme's depth down for a flat look. The faders have two caps to choose from in *View ▸ Appearance ▸ Faders*: **Classic** (the ivory cap, the default) and **Metal** (machined, with an engraved index and the theme's shine); every fader — the mixer, VCAs, the units — changes at once.
 
 **Typing a name or a value** works the same everywhere — renaming a track, a clip, a pad
 or a strip, a search, a level: the field opens with its words selected, so typing
@@ -258,16 +265,22 @@ back.
 ### The top bar
 
 The top bar is FL Studio's strip in two rows: one group per function, a thin divider
-between the columns. The groups with two lines of their own — PAT / SONG, the metronome,
-the clock, CPU/RAM and the meter — take the bar's height; the others are one row high and
-stack two to a column (the transport over the tempo, the snap over undo, the windows over
-the inputs, the audio chip over the tools). At 1920 pixels and 100 % every group is on the
-bar, in English and in Spanish, with your interface's chip on it: on a full bar the chip
-shortens a long device line in the middle (point at it for the whole line), and widens
-when there is room.
+between the columns. The transport, the metronome and the clock (bars.beats.ticks large,
+the time and the metre on a line under them) take the bar's height; the others are one row
+high and stack two to a column (PAT / SONG over the tempo, the snap over undo, the windows
+over the inputs, the master meter over CPU/RAM/voices/drops — a console's meter bridge —
+and the audio chip over the tools). On a wide window the transport, the tempo and the
+clock are drawn a size up (keys of 31 pt at 1920 pixels). **At 1920 × 1080 every group is
+on the bar.** On a narrower window (or at a larger zoom) groups wait in ⋯ at the bar's
+right end, each under its name with its shortcut, in this order: the area keys first
+(F5…), then CPU/RAM, then the metronome's options, sync, the tools, the snap and the
+inputs; the transport, the clock, the tempo, undo / redo and the audio chip stay. On a
+full bar the audio chip shows your interface's name and latency (point at it for the whole
+line), and the whole line when there is room.
 
 - **The menus and the hint panel**: *File, Edit, Clip, View, Help* over the project's name
-  and the hint for whatever is under the pointer. **Click the name** to rename the
+  and the hint for whatever is under the pointer — with nothing under it, the song's summary
+  (tracks · strips · bars · length). **Click the name** to rename the
   project in place (`Enter` keeps it, `Esc` leaves); the window's title follows it, with
   `•` while there are unsaved changes.
 - **PAT / SONG** (`L`): *song mode* plays the arrangement; *pattern mode* plays the clip
@@ -1312,7 +1325,9 @@ and swap, width, a three-band EQ, its inserts and its sends. Click to select, `C
 to add, `Shift+click` for a run; dragging one fader of a selection moves them all. With
 the mixer focused, `M` mutes, `S` solos, `Alt+Left`/`Alt+Right` move the strip.
 `Ctrl+wheel` changes the strips' width; at *Extra large* each strip shows a one-line summary
-of its chain (click it to open the inspector).
+of its chain (click it to open the inspector). The desk's ▾ menu ▸ *Insert panel* docks the
+selected strip's ten insert slots at the desk's right: click a slot to open its effect, an
+empty one to open the inspector where inserts are added; each mixer layout keeps the choice.
 
 - **Inserts** (up to ten per strip): click an empty slot to choose an effect in the device
   picker, or right-click it for the quick list. On a filled slot, click the lamp to bypass
@@ -1552,6 +1567,15 @@ packs you installed and *My folders* (click **+** to add any folder of samples).
 
 - **Click** a sound to hear it; click again to stop. Type in the search field to find
   sounds across every pack and folder.
+- The **tabs** under the search (*All*, *Drums*, *Loops*, *Melodic*, *FX*) keep one family
+  of sounds, read from their names. The sounds are a table: each row shows its pack's
+  **cover**, its name, its **waveform**, its **tempo** and its **length** in columns, and
+  its **key** where its name says it ("Chord Stab Am", "Drum Loop 124 BPM").
+- The sound chosen gets a **card** under the list: its format (WAV · 44.1 kHz · Stereo ·
+  4.0 s), a larger waveform (click it to play) and its tags.
+- The **preview strip** at the browser's foot shows the sound chosen: ▶ / ■ to play or stop
+  it, how far it has played, and the **preview level** (click or drag along it; the sound
+  starts again at the new level).
 - **Drag** a sound onto a **Pulsus pad** (the pad plays it), onto **Exemplar**'s key map (a
   zone on that key), onto the **channel rack** (a new sample channel with its own strip),
   or onto the **arrangement** (an audio clip where you drop it). Each drop is one undo step.
@@ -1709,24 +1733,99 @@ pedals), or let a **modulator** move it; half pedalling works there too. The ped
 strings hear is the higher of the knob and controller 64, so a real pedal still works on
 top of a lane. The demo *With All Your Heart* is pedalled this way.
 
-- **Play** shows the piano from above — every key's strings at their length over the
-  spruce soundboard, the bridge, the cast frame's rim, the row of felt hammers along where
-  they strike, the dampers — with the key you last played lit and its hammer raised, and
-  the pedals:
+- **Play** shows **the piano and its room** (round 37): the piano drawn as a photograph of a
+  recording session would show it — the body and finish of the preset, the lid at the
+  **Lid** knob's angle (closed, on the short stick, on the full stick), the microphones
+  where **Mics** and **Width** put them (on a boom over the hammers, on a stand behind the
+  player, out where the audience sits; the pair the mix listens through has a red ring),
+  a room pair on tall stands when the **Room** knob brings the room in, and the room the
+  room's **Size** makes — a booth with absorbers and a rug, a studio's live room with its
+  control-room window, a hall with a polished stage, a church with tall windows when the
+  room is large and very live. Turn a knob and the picture follows. Two pickers over its
+  corner choose the **Piano** (concert grand, grand, parlour grand, upright) and the
+  **Finish** (black or white lacquer, walnut, rosewood): the look changes the picture only,
+  never the sound, is kept with the song and is one undo step. Each preset brings its own
+  look, always one its sound can stand for (Chorda models a grand's strings; an upright is
+  shown only for a sound voiced as one — the lid shut and a short scale, a honky-tonk's
+  detuning or the felt's soft action). Beside it, the pedals:
   the sustain pedal's travel drawn over the law of how far the dampers are down at each
   position, with the **Sustain**, **Dampers** and **Soft** knobs under it. Below: the hammer (hardness, dynamics, velocity curve), the resonance
   (sympathy, decay, soundboard) and the output (tilt, width, gain).
-- **Edit** adds the tuning (A4, the stretch an aural tuner gives a piano's octaves, the
+- **Edit** shows the piano from above — every key's strings at their length over the
+  spruce soundboard, the bridge, the cast frame's rim, the row of felt hammers along where
+  they strike, the dampers, the key you last played lit — and adds the tuning (A4, the stretch an aural tuner gives a piano's octaves, the
   strings' stiffness) with its curve in cents across the keyboard, the felt's stiffness,
   the strings' ring key by key, the unisons' spread, the bridge coupling and the phantom
   partials.
-- Ten presets (*Concert Grand*, *Warm Ballad*, *Felt Piano*, *Honky-Tonk*, *Baroque Pitch*
-  at A = 415 Hz…) each come with four macros: hardness, resonance, body and decay.
+- Twenty-four presets, each tagged with the styles and the role it was made for (the preset
+  browser filters by them): *Concert Grand*, *Hall Grand*, *Game Theme* and *Baroque Pitch*
+  (A = 415 Hz) for film; *Studio Bright*, *Pop Forward*, *Close and Intimate* and *Dry Studio*
+  for pop; *Warm Ballad* and *Gospel Grand* for worship; *Jazz Club*; *R&B Keys*; *Montuno* and
+  *Reggaeton Keys* for latin; *Rock Piano* and *Honky-Tonk*; *Trap Keys*; *House Piano*;
+  *Felt Piano*, *Lo-fi Grand* and *Old Grand* for lo-fi; *Cinematic Soft*, *Pedal Wash* and
+  *Ambient Halo* (pads). Each has four macros: hardness, resonance, body and decay.
+
+**Model 2 (round 37).** A Chorda you add now plays its second model: the strings reach you
+through the soundboard and case as two microphones over the strings hear them (the body),
+in a room, with the hammer's knock, the key landing on the keybed and the dampers falling
+back — and no two strikes of a key exactly alike. Two knobs belong to it: **Room** (on the
+RESONANCE card: how much of the room you hear; 0 % is the piano alone) and **Action noise**
+(in Edit: the knock, the keybed and the dampers; 0 % is none). A song made before keeps the
+first model, and sounds exactly as it did; to move its piano to model 2, load any of
+Chorda's presets on it (one undo step). The model is set, never automated.
+
+**Where you listen from (model 2).** A modelled piano's perspective is a control, not a
+recording. On the MICROPHONES AND LID card: **Mics** moves the pair from over the hammers
+(0 %: close, direct, every hammer and damper heard) through the player's seat (35 %, the
+default) to the audience (100 %: more of the board's ring and the room, the top softened by
+the air); **Width** opens or narrows the pair (the mono sum never changes, so no setting
+can sound comb-filtered); **Lid** closes it (closed: darker, the strings covered; half; open).
+In Edit, the ROOM card adds **Size**, from a small studio to a hall (the room's decay is
+shown in seconds). Every one of them moves smoothly while the piano plays and can be
+automated. The presets use them: *Close and Intimate* and *Pop Forward* sit over the hammers,
+*Hall Grand* in the audience, *Felt Piano* with the lid closed, *Jazz Club* half open.
 
 Changing **A4, the stretch or the stiffness** designs the strings again, beside the window,
 once the knob has settled (a second or two; the editor says *designing the strings* with
 how far it has come): the piano keeps its previous tuning until the new one is ready. An
 export always waits for it. These three are set, not automated.
+
+### Sectio: slicing a loop in Exemplar
+
+Right-click a loop (WAV, AIFF, FLAC, OGG) in the sample browser and choose **Slice into a
+new Exemplar track** (or *Slice into the open Exemplar*), or choose *Import ▸ Slice a loop…*
+in an Exemplar's Edit view: the loop is cut into slices, **one per key from C1** (MIDI 36)
+up, each at its own pitch — one undo step. Where it is cut: the file's own **markers** (a
+WAV's cue points, else its sampler loops; an ACID file's beats give the loop's tempo), else
+its **transients**, or a **beat grid**. Up to 64 slices (the status line says when more were
+found; a grid is made coarser to fit, and a loop with no tempo of its own uses the song's;
+loops longer than 5 min 49 s at 48 kHz cannot be sliced). A loop dropped on the **Slices** card (from the system or the browser) slices it
+again into that Exemplar.
+
+The **Slices** card draws the loop with its slices numbered (where the numbers fit) and says
+how many, the tempo and how they were found:
+
+- **Edit the points**: drag a line to move it (it lands on the nearest zero crossing),
+  right-click one to remove it, double-click the waveform to add one. One undo step each.
+- **Slice again**: choose *Markers*, *Transients* (drag its sensitivity: higher keeps
+  fainter hits) or *Grid* (1/4 … 1/32): the new points show on the loop; **Apply** keeps
+  them (one undo step), **Cancel** drops them.
+- **Dump to piano roll** writes a clip that plays the slices in order, each until the next:
+  at the loop's tempo it plays the file sample for sample; at another tempo the slices stay
+  on the grid. A loop with no tempo of its own is read at the song's.
+- **Random**, **Stutter**, **Quantize** (sixteenths) on that clip — one undo step each.
+
+**Slicing styles** are presets for Exemplar in the library (tag *Slicing style*): *Drum
+Break* (transients, each slice cutting the last), *One-Shots* (slices ring out), *Stutter
+Grid* (1/32, choked), *File Markers*, *Vocal Chop* (beats, each slice only while held; a lead),
+*Melodic Phrase* (1/8, one voice gliding). On a sliced Exemplar a style re-cuts **your**
+loop its way and plays it its way (one undo step); on an empty one it plays a few built-in
+sounds until you slice a loop into it. No audio ships with them.
+
+Every slice is a zone of Exemplar's: its **pitch**, **gain**, **pan**, **reverse**, **choke
+group** and its own **low-pass** (*Low-pass* in the zone table) are the zone's, its **envelope**
+its group's. The slice points are saved with the project. Agents have `slice_sample` (on
+files inside the project's folder and the folders you allowed) and `dump_slices`.
 
 ### The modulation effects
 
@@ -2246,9 +2345,21 @@ This is a beta. What we know about:
   the buffer if the top bar counts dropouts.
 - The audio device cannot be changed while recording; the sample browser has no keyboard navigation yet; projects refer to
   sound-pack samples by their full path.
-- **Not in this beta**: the macOS and Linux installers (coming soon; the code builds and
-  passes its tests on Linux), control-surface protocols (Mackie Control, HUI), several
-  arrangements per project.
+- **macOS is a preview**: the disk image is not signed by Apple yet, and it has been tested on
+  GitHub's macOS machines, not yet on a Mac at a desk. **Mackie Control and HUI** were tested
+  with emulated units; tell us how your surface behaves ([External gear](external-gear.md)).
+- **Not in this beta**: several arrangements per project.
+- **Sectio** (the slicer, §10) finds about 92 % of the hits within 10 ms on clean loops and
+  about 76 % on real recorded drums (88 % within 20 ms); brushed or ridden jazz drums are the
+  hardest (43–65 %). Move a slice by hand, or re-slice at another sensitivity, where it
+  misses. Slices cannot yet go to separate outputs.
+- **Pulsus**: a pad's chain that holds an effect with latency is late by that latency in the
+  *track* stem (the full mix and the pad's own output are aligned).
+- **Presets** are levelled and checked by measurement (each in its loudness window, unclipped,
+  under its CPU budget), not yet all tuned by ear; about twenty quiet, dynamic presets sit
+  under their window by design. Ducking presets (Porta and Comprimo *Duck*) need a key
+  signal routed to them before they do anything.
+- In the browser, changing the **preview level** restarts the sound that is playing.
 - **AI**: an assistant panel inside Cantus (with your own key or a local model) and
   generating audio are not in this beta — agents connect from outside through MCP (§11).
   Stems and audio to MIDI run on the processor (the graphics processor is used only where

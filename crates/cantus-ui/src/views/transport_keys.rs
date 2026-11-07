@@ -2,7 +2,7 @@
 //! the inputs (typing keyboard, MIDI, armed tracks) and the tools (picker, appearance,
 //! zoom).
 
-use super::{key_in, key_rect, key_side, key_strip, strip_tip, tip, Style, ROW_KEY, STEP};
+use super::{key_in, key_rect, key_side, key_strip, strip_tip, tip, Style, KEY, ROW_KEY, STEP};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::keymap::Action;
@@ -27,17 +27,26 @@ fn word_w(ctx: &egui::Context, s: &Style, key: &str, role: Role) -> f32 {
 }
 
 pub fn mode_width(ctx: &egui::Context, s: &Style) -> f32 {
-    let w = MODE_KEYS
+    // r37:finish — one row now (over the tempo): the two lamps and words side by side.
+    let w: f32 = MODE_KEYS
         .iter()
         .map(|k| word_w(ctx, s, k, Role::Label))
-        .fold(0.0, f32::max);
-    w + 30.0 * s.k
+        .sum();
+    w + 46.0 * s.k
 }
 
 /// FL's switch: two lamps, PAT over SONG, in a well; a click (or L) swaps them.
 pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
-    let well = Rect::from_center_size(r.center(), Vec2::new(r.width(), 36.0 * k));
+    let one_row = r.height() < 34.0 * k; // r37:finish
+    let well = if one_row {
+        Rect::from_center_size(
+            r.center(),
+            Vec2::new(r.width(), (r.height() - 2.0 * k).min(24.0 * k)),
+        )
+    } else {
+        Rect::from_center_size(r.center(), Vec2::new(r.width(), 36.0 * k))
+    };
     let resp = ui.interact(well, Id::new("toolbar-mode"), Sense::click());
     let pattern = app.project().pattern_mode;
     crate::controllers::learn_action_spot(app, ui, well, Action::TogglePatternMode);
@@ -56,6 +65,33 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         let _ = resp.on_hover_text(tip);
     }
     let pattern = app.project().pattern_mode;
+    if one_row {
+        // r37:finish — PAT and SONG as two keys, the one in use lit through: the mode reads
+        // as strongly as any key on the bar.
+        with_brush(ui.painter(), |b| {
+            b.register(
+                well,
+                "toolbar_key",
+                crate::kit::cap::KEY_TOKENS,
+                &[
+                    Some(crate::kit::cap::rest_tok(s)),
+                    crate::kit::cap::lit_toks(s)[0],
+                    crate::kit::cap::lit_toks(s)[1],
+                ], // r37:finish
+            );
+            let gap = 2.0 * k;
+            let half = (well.width() - gap) * 0.5;
+            for (i, key) in MODE_KEYS.iter().enumerate() {
+                let x0 = well.left() + i as f32 * (half + gap);
+                let kr =
+                    Rect::from_min_size(Pos2::new(x0, well.top()), Vec2::new(half, well.height()));
+                let lit = (i == 0) == pattern;
+                let kst = State { lit, ..st };
+                crate::kit::cap::word_key(b, kr, s, kst, key);
+            }
+        });
+        return;
+    }
     with_brush(ui.painter(), |b| {
         crate::kit::well::paint(b, well, s, st, None);
         for (i, key) in MODE_KEYS.iter().enumerate() {
@@ -84,10 +120,11 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- the transport -------------------------------------------------------------------
 
 pub fn transport_width(s: &Style) -> f32 {
-    (4.0 * ROW_KEY + STEP + views::record_options::KEY_W + STEP + ROW_KEY
+    // r37:finish — the bar's height: its keys are the bar's keys.
+    (4.0 * KEY + STEP + views::record_options::KEY_W + STEP + KEY
         // The automation arm and its options (round 31, ADR 0068).
         + STEP
-        + ROW_KEY
+        + KEY
         + views::auto_modes::MORE_W)
         * s.k
 }
@@ -256,7 +293,8 @@ const LAMP_WORDS: [&str; 2] = ["topbar.midi", "topbar.armed"];
 /// The words' and the number's widths in a lamp cell.
 /// A lamp cell's word's width, and the number's.
 fn lamp_parts(ctx: &egui::Context, s: &Style, i: usize) -> (f32, f32) {
-    let word = word_w(ctx, s, LAMP_WORDS[i], Role::Micro);
+    // r37:finish — the words at a reading size (Label, was Micro).
+    let word = word_w(ctx, s, LAMP_WORDS[i], Role::Label);
     let digits = text::measure(ctx, &Text::new("88", Role::Value, s.t.text), s.tk()).x;
     (word, digits)
 }
@@ -295,10 +333,15 @@ fn lamp_cell(
         let _ = text::paint(
             b,
             wr,
-            &Text::key(word, Role::Micro, s.t.text_dim)
-                .caps(true)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Elide(Elide::End)),
+            // r37:finish — 4.5:1 on its well and on the bar, both themes.
+            &Text::key(
+                word,
+                Role::Label,
+                crate::kit::color::ensure_contrast_all(s.t.text_dim, &[s.t.ink, s.t.toolbar], 4.5),
+            )
+            .caps(true)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End)),
             s.tk(),
         );
         // The number's room: what is past the word, 2 pt in from it and 4 from the well's

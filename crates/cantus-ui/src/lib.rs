@@ -54,7 +54,9 @@ pub mod ml_service; // r34:stems — the model store and helper client (ADR 0085
 pub mod mpe; // r33:mpe
 pub mod notefx_menus;
 pub mod notefx_ui;
+pub mod padout_ui; // r37:drums — Split to strips, Merge back (ADR 0100)
 pub mod record_mode; // r36:record (ADR 0092)
+pub mod shot_scene; // r37:finish — a capture scene for the real app (ADR 0103)
 pub mod stems_ui; // r34:stems — Separate stems… (ADR 0085)
                   // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod editor; // r36:editor — the audio editor (ADR 0096)
@@ -69,6 +71,13 @@ pub mod picker_catalog;
 pub mod picker_prefs;
 pub mod picker_query;
 pub mod pitch;
+pub mod preset_audition; // r37:library — presets heard before they are chosen (ADR 0101)
+pub mod preset_browser; // r37:library
+pub mod preset_catalog; // r37:library
+pub mod preset_data; // r37:library
+pub mod preset_measure; // r37:library
+pub mod preset_query; // r37:library
+pub mod preset_tags; // r37:library
 pub mod raster;
 pub mod recent;
 pub mod record_pass;
@@ -83,6 +92,7 @@ pub mod samples;
 pub mod save_job;
 /// The score: its view state, files and edits (round 32, ADR 0075).
 pub mod score;
+pub mod sectio_ui; // r37:piano (ADR 0099): Sectio in the app
 pub mod session_play; // r33:session (ADR 0076)
 pub mod session_play_rec; // r33:session
 pub mod settings;

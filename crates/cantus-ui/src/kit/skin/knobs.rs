@@ -66,7 +66,7 @@ pub fn tokens(shape: KnobShape, dark: bool) -> &'static [Tok] {
             Tok::Dark,
             Tok::Focus,
         ],
-        // The dial's body is the kit's, with its rim on a dark theme.
+        // The dial's body is the kit's (its materials, round 37), with its rim on a dark theme.
         (KnobShape::Dial, true) => &[
             Tok::KnobTrack,
             Tok::KnobBody,
@@ -75,7 +75,10 @@ pub fn tokens(shape: KnobShape, dark: bool) -> &'static [Tok] {
             Tok::Text,
             Tok::TextDim,
             Tok::Light,
-            Tok::Dark,
+            Tok::Bevel,
+            Tok::BevelShade,
+            Tok::Specular,
+            Tok::Drop,
             Tok::Focus,
         ],
         (KnobShape::Dial, false) => &[
@@ -85,7 +88,10 @@ pub fn tokens(shape: KnobShape, dark: bool) -> &'static [Tok] {
             Tok::Text,
             Tok::TextDim,
             Tok::Light,
-            Tok::Dark,
+            Tok::Bevel,
+            Tok::BevelShade,
+            Tok::Specular,
+            Tok::Drop,
             Tok::Focus,
         ],
         // The soft knob's dot is the hue; the cap's line is cut into its metal.

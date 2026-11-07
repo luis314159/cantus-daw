@@ -8,7 +8,7 @@ mod inst_look;
 mod support;
 use cantus_core::inst::modulation::connections;
 use cantus_core::*;
-use cantus_ui::views::inst::wavetable::{self as unda, import, FACTORY_PRESETS};
+use cantus_ui::views::inst::wavetable::{self as unda, import};
 use cantus_ui::views::inst::View;
 use support::*;
 
@@ -322,9 +322,11 @@ fn a_gesture_is_one_undo_step() {
 
 #[test]
 fn presets_set_what_they_name_and_name_their_macros() {
-    assert!((8..=16).contains(&FACTORY_PRESETS.len()));
+    assert!(
+        cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Wavetable).len() >= 8
+    );
     let kind = InstrumentKind::Wavetable;
-    for p in FACTORY_PRESETS {
+    for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Wavetable) {
         let name = cantus_ui::i18n::t(p.label_key);
         assert_ne!(name, p.label_key, "{} has no string", p.label_key);
         for (k, _) in p.values {
@@ -373,7 +375,7 @@ fn presets_set_what_they_name_and_name_their_macros() {
 fn every_preset_keeps_its_headroom_on_a_loud_chord() {
     use std::sync::Arc;
     let mut report = Vec::new();
-    for p in FACTORY_PRESETS {
+    for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Wavetable) {
         let s = cantus_ui::views::inst::preset_spec(InstrumentKind::Wavetable, p);
         let mut proj = Project::new("unda");
         proj.tempo_bpm = 120.0;

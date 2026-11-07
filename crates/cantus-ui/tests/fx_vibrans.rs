@@ -91,7 +91,7 @@ fn the_pitch_drawn_is_the_pitch_played() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in vibrans::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Vibrato) {
         let mut spec = EffectSpec::new(EffectKind::Vibrato);
         for (k, v) in *values {
             assert!(spec.set(k, *v).is_some(), "{label}: no parameter {k}");

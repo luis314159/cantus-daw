@@ -36,9 +36,14 @@ fn rig(dancer_mode: Option<f32>) -> (Rig, cantus_core::TrackId) {
 #[test]
 fn a_dancer_on_screen_stays_in_budget() {
     let plain = rig(None).0.run(20, 30);
-    let base = rig(Some(2.0)).0.run(20, 30);
     let _ = summary("mixer16 and a plain track, whole window", &plain);
-    let (mut with, track) = rig(Some(0.0));
+    // The same application hidden, then shown (round 37): two applications built apart
+    // differed by a whole inspector section (+4 540 triangles) now and then under a
+    // loaded suite, so the dancer is measured against itself.
+    let (mut with, track) = rig(Some(2.0));
+    let base = with.run(20, 30);
+    with.app.set_inst_value(track, "view.mode", 0.0, false);
+    with.app.sync_engine();
     let frames = with.run(20, 30);
     let (a0, b0, t0, d0, _) = summary("mixer16, whole window, a dancer hidden", &base);
     let (a1, b1, t1, d1, _) = summary("mixer16, whole window, a dancer", &frames);

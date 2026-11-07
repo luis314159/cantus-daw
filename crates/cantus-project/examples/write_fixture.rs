@@ -1259,11 +1259,9 @@ fn main() {
         n.set("energy", 0.9).unwrap();
         n.set("hue", -40.0).unwrap();
         n.set("view.mode", 1.0).unwrap();
-        n.set_text(
-            dancer::CHARACTER_KEY,
-            Some(dancer::DEFAULT_CHARACTER.into()),
-        )
-        .unwrap();
+        // The songbird by name (the default before schema 59). // r37:chars
+        n.set_text(dancer::CHARACTER_KEY, Some("builtin:songbird".into()))
+            .unwrap();
         t.instrument = InstrumentSpec::Native(n);
         t.icon = Some(TrackIcon::Dance);
         let clap = dancer::move_value(Move::Clap) / 16.0;
@@ -1379,6 +1377,84 @@ fn main() {
             .find(|t| t.name == "Vocal")
             .expect("the vocal track");
         vocal.clips.push(c);
+    }
+    // Schema 55 (round 37, ADR 0099): a loop sliced by Sectio — an Exemplar of four slices
+    // of one file, its points and settings, the third slice reversed and low-passed, the
+    // last choked. // r37:piano
+    if upto >= 55 {
+        let s = cantus_core::sectio::Slicing {
+            mode: cantus_core::sectio::SliceMode::Transients,
+            sens: 0.6,
+            bpm: 120.0,
+            grid: 4,
+            len: 96_000,
+            rate: 48_000,
+            points: vec![0, 24_000, 48_000, 72_000],
+        };
+        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
+        for (k, v) in s.values() {
+            spec.set(&k, v);
+        }
+        for (n, mut z) in s.zones("loops/break.wav").into_iter().enumerate() {
+            use cantus_core::inst::sampler::zf;
+            if n == 2 {
+                z.set(zf::REV, 1.0).set(zf::LPF, 2_400.0);
+            }
+            if n == 3 {
+                z.set(zf::EXCL, 1.0).set(zf::OFFBY, 1.0);
+            }
+            for (k, v) in z.values_for(n) {
+                spec.set(&k, v);
+            }
+            for (k, text) in z.texts_for(n) {
+                let _ = spec.set_text(&k, Some(text));
+            }
+        }
+        let mut sliced = p.make_track("Sliced loop");
+        sliced.instrument = InstrumentSpec::Native(spec);
+        p.tracks.push(sliced);
+    }
+    // Schema 56 (round 37, ADR 0100): the Drums kit split to strips — each pad that sounds
+    // on a strip of its own, into the kit's, with the 0 dB pan law — and one pad strip's
+    // fader down. Before the freeze block. // r37:drums
+    if upto >= 56 {
+        let drums = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Drums")
+            .map(|t| t.id)
+            .expect("the drums track");
+        let view = p.clone();
+        let cmd = cantus_core::padout::split_with(&view, drums, |n| p.make_strip(n))
+            .expect("the kit splits");
+        cmd.apply(&mut p).expect("split");
+        let first = p.track(drums).unwrap().instrument.output_strips()[0];
+        p.strip_mut(first).unwrap().gain_db = -3.0;
+    }
+    // Schema 57 (round 37, ADR 0100 §8): the Drums kit's own gain. // r37:drums
+    if upto >= 57 {
+        if let Some(k) = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Drums")
+            .and_then(|t| t.instrument.pulsus_mut())
+        {
+            k.kit.gain_db = 3.5;
+        }
+    }
+    // Schema 58 (round 37, ADR 0104): the Chorda shown as a walnut upright — a look no
+    // sample reads. // r37:scene
+    if upto >= 58 {
+        use cantus_core::inst::chorda_look::{BODY_KEY, FINISH_KEY};
+        if let Some(n) = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Chorda")
+            .and_then(|t| t.instrument.native_mut())
+        {
+            n.set_text(BODY_KEY, Some("upright".into())).unwrap();
+            n.set_text(FINISH_KEY, Some("walnut".into())).unwrap();
+        }
     }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with

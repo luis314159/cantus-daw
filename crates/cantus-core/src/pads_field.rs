@@ -511,28 +511,37 @@ impl PadField {
 /// A kit-wide field of Pulsus II, addressed by `InstrumentParam::PulsusKit`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KitField {
-    /// The model (1 = Pulsus I, 2 = Pulsus II). Upgrading is setting it.
+    /// The model (1 = Pulsus I, 2 = Pulsus II, 3 = Pulsus III). Upgrading is setting it.
     Version,
     Seed,
     HatCc,
     HatInvert,
+    /// The kit's own level, dB (ADR 0100 §8). // r37:drums
+    Gain,
 }
 
 impl KitField {
-    pub const ALL: [KitField; 4] = [
+    pub const ALL: [KitField; 5] = [
         KitField::Version,
         KitField::Seed,
         KitField::HatCc,
         KitField::HatInvert,
+        KitField::Gain, // r37:drums
     ];
 
     /// `(label key, min, max, default)`; every kit field is stepped.
     pub fn range(self) -> (&'static str, f32, f32, f32) {
         match self {
-            KitField::Version => ("pulsus.kit.version", 1.0, PULSUS_MODEL as f32, 2.0),
+            KitField::Version => (
+                "pulsus.kit.version",
+                1.0,
+                PULSUS_MODEL as f32,
+                PULSUS_MODEL as f32,
+            ),
             KitField::Seed => ("pulsus.kit.seed", 0.0, 65_535.0, 1.0),
             KitField::HatCc => ("pulsus.kit.hat_cc", 0.0, 127.0, 4.0),
             KitField::HatInvert => ("pulsus.kit.hat_invert", 0.0, 1.0, 0.0),
+            KitField::Gain => ("pulsus.kit.gain", -24.0, 12.0, 0.0), // r37:drums
         }
     }
 
@@ -542,14 +551,17 @@ impl KitField {
             KitField::Seed => kit.kit.seed as f32,
             KitField::HatCc => kit.kit.hat_cc as f32,
             KitField::HatInvert => kit.kit.hat_invert as u8 as f32,
+            KitField::Gain => kit.kit.gain_db, // r37:drums
         }
     }
 
     /// Clamp, round and store; returns what was stored.
     pub fn set(self, kit: &mut PulsusParams, value: f32) -> f32 {
         let (_, min, max, default) = self.range();
+        // Stepped by one; the kit's gain by a tenth of a decibel. // r37:drums
+        let step = if self == KitField::Gain { 10.0 } else { 1.0 };
         let v = if value.is_finite() {
-            value.clamp(min, max).round()
+            (value.clamp(min, max) * step).round() / step
         } else {
             default
         };
@@ -558,6 +570,7 @@ impl KitField {
             KitField::Seed => kit.kit.seed = v as u32,
             KitField::HatCc => kit.kit.hat_cc = v as u8,
             KitField::HatInvert => kit.kit.hat_invert = v >= 0.5,
+            KitField::Gain => kit.kit.gain_db = v, // r37:drums
         }
         v
     }

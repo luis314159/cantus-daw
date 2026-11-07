@@ -400,6 +400,7 @@ pub fn track_template(project: &Project, track: TrackId, name: &str) -> Option<P
         let mut s = s.clone();
         s.frozen = None;
         s.group = None;
+        s.vcas.clear(); // r37:fixes — a VCA is the project's, not the template's
         s.muted = false;
         s.soloed = false;
         let mut reached: Vec<StripId> = s.sends.iter().map(|x| x.to).collect();
@@ -414,8 +415,59 @@ pub fn track_template(project: &Project, track: TrackId, name: &str) -> Option<P
     } else {
         t.strip = None;
     }
+    // r37:fixes — a kit keeps its sound: its pads' chains and own strips go with it, and
+    // a pad routed to a strip of the desk keeps that route as a stand-in (round 37's
+    // review, item 2).
+    let mine = kit_strips(project, &t);
+    let mut reached: Vec<StripId> = Vec::new();
+    for s in project.strips.iter().filter(|s| mine.contains(&s.id)) {
+        let mut s = s.clone();
+        s.frozen = None;
+        s.group = None;
+        s.vcas.clear(); // r37:fixes — a VCA is the project's, not the template's
+        s.muted = false;
+        s.soloed = false;
+        reached.extend(s.sends.iter().map(|x| x.to));
+        reached.extend(s.output);
+        reached.extend(s.effects.iter().filter_map(|e| e.sidechain));
+        out.strips.push(s);
+    }
+    if let Some(kit) = t.instrument.pulsus() {
+        reached.extend(kit.pads.iter().filter_map(|p| p.output));
+    }
+    for id in reached {
+        if !id.is_master() && !out.strips.iter().any(|x| x.id == id) {
+            out.strips.extend(stand_in(project, id));
+        }
+    }
     out.tracks.push(t);
     Some(out)
+}
+
+/// The strips made for `t`'s pads (ADR 0100 §9): each pad's chain or own strip, and the
+/// pad's own strip its chain plays into.
+fn kit_strips(project: &Project, t: &Track) -> Vec<StripId> {
+    let mut mine: Vec<StripId> = Vec::new();
+    let Some(kit) = t.instrument.pulsus() else {
+        return mine;
+    };
+    let mut add = |id: StripId| {
+        if project.strip(id).is_some_and(cantus_core::padout::pad_made) && !mine.contains(&id) {
+            mine.push(id);
+        }
+    };
+    for p in &kit.pads {
+        let Some(o) = p.output else { continue };
+        add(o);
+        let into = project
+            .strip(o)
+            .filter(|s| s.kind == cantus_core::vca::StripKind::Chain)
+            .and_then(|s| s.output);
+        if let Some(po) = into {
+            add(po);
+        }
+    }
+    mine
 }
 
 /// A track template read from its file (migrated when older).
@@ -451,6 +503,8 @@ struct Ids {
     notefx: HashMap<cantus_core::notefx::NoteFxId, cantus_core::notefx::NoteFxId>,
     /// A stand-in's id → the strip of that name in the project, if any.
     reached: HashMap<StripId, Option<StripId>>,
+    /// The strips made for a kit's pads (chains, pads' own strips): their new ids.
+    kit: HashMap<StripId, StripId>,
 }
 
 impl Ids {
@@ -460,7 +514,11 @@ impl Ids {
         }
         match self.strip {
             Some((old, new)) if old == id => Some(new),
-            _ => self.reached.get(&id).copied().flatten(),
+            _ => self
+                .kit
+                .get(&id)
+                .copied()
+                .or_else(|| self.reached.get(&id).copied().flatten()),
         }
     }
 
@@ -583,7 +641,22 @@ pub fn insert_track(
         mods: HashMap::new(),
         notefx: HashMap::new(),
         reached: HashMap::new(),
+        kit: HashMap::new(),
     };
+    // r37:fixes — the strips made for the kit's pads come with new ids of their own.
+    let mut kit_made: Vec<MixerStrip> = template
+        .strips
+        .iter()
+        .filter(|s| own.as_ref().is_none_or(|o| o.id != s.id) && cantus_core::padout::pad_made(s))
+        .cloned()
+        .collect();
+    // Pads' own strips before the chains that play into them: inserted in that order, the
+    // undo (the reverse) takes a chain away before the strip it feeds, which would be
+    // refused while fed.
+    kit_made.sort_by_key(|s| s.kind != cantus_core::vca::StripKind::Pad);
+    for s in &kit_made {
+        ids.kit.insert(s.id, StripId(fresh()));
+    }
     // The blank strip the new one takes the place of, chosen first: nothing is routed to it.
     let blank_at = own
         .as_ref()
@@ -591,7 +664,7 @@ pub fn insert_track(
     let taken = blank_at.map(|i| project.strips[i].id);
     let mut missing = Vec::new();
     for s in &template.strips {
-        if own.as_ref().is_some_and(|o| o.id == s.id) {
+        if own.as_ref().is_some_and(|o| o.id == s.id) || ids.kit.contains_key(&s.id) {
             continue;
         }
         let found = strip_named(project, &s.name, taken);
@@ -604,12 +677,13 @@ pub fn insert_track(
         .modulators
         .iter()
         .chain(own.iter().flat_map(|s| s.modulators.iter()))
+        .chain(kit_made.iter().flat_map(|s| s.modulators.iter()))
         .map(|m| m.id)
         .collect();
     for m in mods {
         ids.mods.insert(m, ModulatorId(fresh()));
     }
-    if let Some(s) = &own {
+    for s in own.iter().chain(&kit_made) {
         for e in &s.effects {
             ids.effects.insert(e.id, EffectId(fresh()));
         }
@@ -624,8 +698,17 @@ pub fn insert_track(
     track.id = ids.track.1;
     track.strip = ids.strip.map(|(_, new)| new);
     ids.modulators(&mut track.modulators);
-    let mut commands = Vec::new();
-    if let (Some(mut s), Some((_, new))) = (own, ids.strip) {
+    // r37:fixes — a pad plays where its template said, in this project's ids; a strip id
+    // the template does not bring is not this project's (cleared: the pad on the kit).
+    if let Some(kit) = track.instrument.pulsus_mut() {
+        for p in &mut kit.pads {
+            p.output = p
+                .output
+                .and_then(|o| ids.strip(o))
+                .filter(|o| !o.is_master());
+        }
+    }
+    let remap = |s: &mut MixerStrip, new: StripId| {
         s.id = new;
         for e in &mut s.effects {
             e.id = ids.effect(e.id).unwrap_or(e.id);
@@ -643,7 +726,14 @@ pub fn insert_track(
             .output
             .and_then(|o| ids.strip(o))
             .filter(|o| !o.is_master());
+        s.vcas.clear(); // r37:fixes — an older template's VCA ids are not this project's
         ids.modulators(&mut s.modulators);
+    };
+    let mut commands = Vec::new();
+    // Where the kit's own strips go: right after the track's strip, or at the desk's end.
+    let mut kit_at = project.strips.len();
+    if let (Some(mut s), Some((_, new))) = (own, ids.strip) {
+        remap(&mut s, new);
         match blank_at {
             Some(i) => {
                 commands.push(Command::RemoveStrip {
@@ -666,6 +756,17 @@ pub fn insert_track(
                 });
             }
         }
+        if let Some(Command::InsertStrip { index, .. }) = commands.last() {
+            kit_at = index + 1;
+        }
+    }
+    for (k, mut s) in kit_made.into_iter().enumerate() {
+        let new = ids.kit[&s.id];
+        remap(&mut s, new);
+        commands.push(Command::InsertStrip {
+            index: kit_at + k,
+            strip: Box::new(s),
+        });
     }
     let id = track.id;
     commands.push(Command::InsertTrack {

@@ -27,3 +27,14 @@ wrong; the owner judges by ear.
 **How to apply:** in the next round's brief, make both items explicit; for any new
 instrument, plan an ear-driven reference comparison, not only physics targets. See
 [[round-28]], [[goal-best-daw]].
+
+**Round 37 (2026-11-04), the owner's ear in detail:** Chorda "me sonaba sintético, muy
+sintético, muy falso, nada real, sin cuerpo, muy fino" — synthetic, fake, no body, thin.
+Model 2 aims at body (low-mid, soundboard radiation, bass weight, rich slowly beating
+sustain), a real attack (thump, felt noise), seeded variation, and a room/perspective.
+
+**2026-11-05/06, the owner's first ABX (round 37):** Chorda 2 preferred over Chorda 1 7/7; the
+Salamander preferred over Chorda 2 7/7 (distinguished 15/16 both). His words: Salamander "más
+vida, más bonitos graves y agudos"; Chorda 2 "muchos medios, algo borroso, un poco nasal por los
+medios"; Salamander "más fuerte y vivo". Voicing pass two aimed at mids/honk, blur (body/room
+smear, mic comb), lows/highs, crest factor/liveliness; new kit abx-kit2.

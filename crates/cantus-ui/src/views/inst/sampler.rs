@@ -30,6 +30,8 @@ mod presets;
 pub mod sf2;
 #[path = "sampler_sfz.rs"]
 pub mod sfz;
+#[path = "sampler_slices.rs"] // r37:piano (ADR 0099): Sectio's card
+mod slices;
 #[path = "sampler_wave.rs"]
 mod wave;
 #[path = "sampler_xml.rs"]
@@ -466,10 +468,10 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
 /// `--instrument sampler`: a multisample built from the built-in sounds, the looped pad
 /// selected so the waveform shows its loop and seam.
 pub fn demo_setup(app: &mut CantusApp, track: TrackId) {
-    let preset = FACTORY_PRESETS
+    let preset = super::factory_presets(cantus_core::InstrumentKind::Sampler)
         .iter()
         .find(|p| p.label_key == "smp.preset.showcase")
-        .unwrap_or(&FACTORY_PRESETS[0]);
+        .unwrap_or(&super::factory_presets(cantus_core::InstrumentKind::Sampler)[0]);
     let spec = super::preset_spec(cantus_core::InstrumentKind::Sampler, preset);
     app.apply_inst_spec(track, &spec, "cmd.fx_preset");
     let pad = model::zones(&spec)

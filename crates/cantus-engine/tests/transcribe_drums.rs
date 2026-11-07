@@ -121,6 +121,13 @@ fn score(found: &[cantus_dsp::onset::drums::Hit]) -> Vec<Score> {
         .collect()
 }
 
+/// Whether `kit` has a pad on a note the pattern plays as class `c`. // r37:drums
+fn kit_plays(kit: &PulsusParams, c: Class) -> bool {
+    pattern()
+        .iter()
+        .any(|h| class_of(h.1) == Some(c) && kit.pads.iter().any(|p| p.pitch == h.1))
+}
+
 #[test]
 fn pulsus_kits_transcribe_class_by_class() {
     let mut per: Vec<Vec<Score>> = vec![Vec::new(); 5];
@@ -176,7 +183,13 @@ fn pulsus_kits_transcribe_class_by_class() {
                 " {c:?} {:.2} ({}/{}/{})",
                 s[i].f, s[i].matched, s[i].truth, s[i].found
             );
-            per[i].push(s[i]);
+            // r37:drums — a class the kit has no pad for is silence in its render, nothing
+            // a transcriber can find (round 37's kits without toms): not counted for it.
+            if kit_plays(&kit.kit, *c) {
+                per[i].push(s[i]);
+            } else {
+                line += " (no pad)";
+            }
         }
         println!("{line}");
         if std::env::var_os("CANTUS_DRUMS_CONFUSION").is_some() {

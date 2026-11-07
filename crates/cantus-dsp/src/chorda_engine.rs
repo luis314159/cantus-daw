@@ -13,9 +13,13 @@
 //! board's tail flushed) — so any block size gives the same bits.
 
 use super::board::{Soundboard, Sympathetic};
+use super::body::Body;
 use super::design::Keyboard;
+use super::room::Room;
+use super::stage::{self, Stage};
 use super::tables::{self, KEYS, LOWEST};
 use super::voice::{Voice, VoiceSettings};
+use super::voicing::Voicing;
 use crate::math;
 use crate::par::{self, Lanes, Parallel};
 use std::sync::Arc;
@@ -25,6 +29,33 @@ pub const CHUNK: usize = 64;
 /// The bridge force (N) to the output's full scale: both hands fortissimo with the pedal
 /// down peak near −3 dBFS, a mezzo-forte middle C near −23 dBFS (`inst_chorda`).
 const OUTPUT_SCALE: f64 = 0.0225;
+/// Model 2's output ceiling (ADR 0098): a piano's chords peak some 20 dB over their
+/// loudness, so at the level every instrument is staged to (ADR 0101) a fortissimo chord
+/// would pass full scale. Above `KNEE` the output bends smoothly toward `CEILING`
+/// (memoryless, the same at any block size); only fortissimo chords' attacks reach it.
+const KNEE: f64 = 0.6;
+const CEILING: f64 = 0.92;
+
+/// The ceiling's curve: unity below the knee, a tanh above it, never past the ceiling.
+#[inline]
+pub fn ceiling(x: f64) -> f64 {
+    let a = x.abs();
+    if a <= KNEE {
+        x
+    } else {
+        let room = CEILING - KNEE;
+        (KNEE + room * math::tanh((a - KNEE) / room)).copysign(x)
+    }
+}
+
+/// Model 2's room's default level (the `room` setting's default).
+pub const ROOM: f64 = 0.35;
+/// Model 2's quiet floor (N at the bridge): about −115 dBFS at the staged output (1e-4 N ×
+/// the output scale 0.0244), some 20 dB under a 16-bit
+/// file's floor — what lets its longer decays (up to four times model 1's in the treble)
+/// still end, and the instrument rest, as soon as the family's contract asks.
+const MODEL_2_QUIET: f64 = 1.0e-4;
+
 /// The board's states are flushed below this (N: −230 dBFS out) once nothing drives it.
 const FLOOR: f64 = 1.0e-10;
 
@@ -39,6 +70,18 @@ pub struct ChordaSettings {
     /// The top raised or lowered (dB), and the stereo spread of the keyboard (0…1).
     pub tilt_db: f64,
     pub width: f64,
+    /// The model (ADR 0098): 1, the first (round 28: the board of ADR 0059 §3); 2, the
+    /// second (round 37: the body's responses, the room, the hammer's and the action's
+    /// noises, the strikes' variation). A song keeps the model it was made with.
+    pub model: u8,
+    /// Model 2: the room's level (0…1) and the noises' (1: as voiced).
+    pub room: f64,
+    pub noise: f64,
+    /// Model 2's perspective (voicing pass two, `stage`): the microphones (0 over the
+    /// hammers … 1 the audience), the lid (0 closed … 1 open), the room's size (0…1).
+    pub persp: f64,
+    pub lid: f64,
+    pub size: f64,
 }
 
 impl Default for ChordaSettings {
@@ -61,11 +104,25 @@ impl Default for ChordaSettings {
                 damper: 1.0,
                 phantom: 1.0,
                 una_depth: 1.0,
+                blow: 0.0,
+                knock: 0.0,
+                landing: 0.0,
+                vary: 0.0,
+                b1_scale: 1.0,
+                b2_scale: 1.0,
+                quiet: 1.0e-10,
+                seed: 0,
             },
             sympathetic: 1.0,
             body: 1.0,
             tilt_db: 0.0,
             width: 0.7,
+            model: 1,
+            room: ROOM,
+            noise: 1.0,
+            persp: super::stage::PERSP,
+            lid: super::stage::LID,
+            size: super::stage::SIZE,
         }
     }
 }
@@ -95,6 +152,8 @@ pub struct Chorda {
     settings: ChordaSettings,
     lanes: Lanes,
     scratch: Vec<Vec<f64>>,
+    /// Each voice's action noises (model 2), summed into the body after the strings.
+    noise: Vec<Vec<f64>>,
     pans: [(f64, f64); KEYS],
     dl: [f64; CHUNK],
     dr: [f64; CHUNK],
@@ -108,6 +167,11 @@ pub struct Chorda {
     pos: usize,
     sym: Sympathetic,
     board: Soundboard,
+    /// Model 2's body and room.
+    body: Body,
+    room: Room,
+    stage: Stage,
+    voicing: Voicing,
     pedal: f64,
     soft: f64,
     gain: f64,
@@ -148,6 +212,7 @@ impl Chorda {
             settings: ChordaSettings::default(),
             lanes: Lanes::new(KEYS, CHUNK),
             scratch: (0..KEYS).map(|_| vec![0.0; CHUNK]).collect(),
+            noise: (0..KEYS).map(|_| vec![0.0; CHUNK]).collect(),
             pans: [(0.5, 0.5); KEYS],
             dl: [0.0; CHUNK],
             dr: [0.0; CHUNK],
@@ -158,6 +223,10 @@ impl Chorda {
             pos: 0,
             sym: Sympathetic::new(&caps, &reference, fs),
             board: Soundboard::new(fs),
+            body: Body::new(fs, &Voicing::default().body),
+            room: Room::new(fs, &Voicing::default().room),
+            stage: Stage::new(fs),
+            voicing: Voicing::default(),
             pedal: 0.0,
             soft: 0.0,
             gain: OUTPUT_SCALE,
@@ -203,16 +272,71 @@ impl Chorda {
 
     /// The settings, and the felt's hardness (−1…1: softer … harder, 0 the measured felt).
     pub fn set(&mut self, s: &ChordaSettings, hardness: f64) {
+        // A model switched on a ringing unit: the side it leaves is never ticked again, so
+        // it is cleared (no allocation) — else its frozen state would keep the unit from
+        // rest and come back on the way back (ADR 0098, review of the first delivery).
+        if (s.model >= 2) != (self.settings.model >= 2) {
+            if s.model >= 2 {
+                self.board.clear();
+            } else {
+                self.body.clear();
+                self.room.reset();
+                self.stage.reset();
+            }
+        }
         self.settings = *s;
+        // Model 2's action: its noises and its strikes' variation; model 1 has neither.
+        let v = &mut self.settings.voice;
+        if s.model >= 2 {
+            let near = stage::noise_scale(s.persp);
+            v.blow = s.noise * near * self.voicing.blow;
+            v.knock = s.noise * near * self.voicing.knock;
+            v.landing = s.noise * near * self.voicing.landing;
+            v.vary = 1.0;
+            v.b2_scale = self.voicing.hf_decay;
+            v.quiet = MODEL_2_QUIET;
+            self.sym.quiet_floor = MODEL_2_QUIET;
+            self.room.floor = MODEL_2_QUIET;
+        } else {
+            (v.blow, v.knock, v.landing, v.vary) = (0.0, 0.0, 0.0, 0.0);
+            (v.b1_scale, v.b2_scale) = (1.0, 1.0);
+            v.quiet = 1.0e-10;
+            self.sym.quiet_floor = 1.0e-10;
+        }
         self.hardness = hardness.clamp(-1.0, 1.0);
-        self.gain = OUTPUT_SCALE * math::powf(10.0f64, s.gain_db / 20.0);
+        let scale = if s.model >= 2 {
+            self.voicing.output
+        } else {
+            OUTPUT_SCALE
+        };
+        let spread = if s.model >= 2 {
+            self.voicing.spread
+        } else {
+            1.0
+        };
+        self.gain = scale * math::powf(10.0f64, s.gain_db / 20.0);
         self.sym.level = s.sympathetic;
         self.sym.set_decay(s.voice.decay);
         self.sym.set_grip(s.voice.damper);
         self.board.body = s.body;
         self.board.set_tilt(s.tilt_db);
+        self.body.level = s.body;
+        self.body.set_tilt(s.tilt_db);
+        self.stage.set(s.persp, s.width, s.lid);
+        self.room.set_size(stage::size_scale(s.size));
+        if self.at_rest() {
+            self.stage.snap();
+        }
+        // Model 2's width is the microphones' (the stage's gliding mid/side): the keys keep
+        // their voiced places, so the width never steps the direct path nor moves the mono
+        // sum (review 2 #7). Model 1's spreads the keys, as it always did.
+        let width = if s.model >= 2 {
+            stage::WIDTH
+        } else {
+            s.width.clamp(0.0, 1.0)
+        };
         for (i, p) in self.pans.iter_mut().enumerate() {
-            let x = s.width.clamp(0.0, 1.0) * (i as f64 - 43.5) / 43.5;
+            let x = (spread * width * (i as f64 - 43.5) / 43.5).clamp(-1.0, 1.0);
             *p = (0.5 * (1.0 - x), 0.5 * (1.0 + x));
         }
     }
@@ -224,7 +348,25 @@ impl Chorda {
         let mut v = self.settings.voice;
         v.felt.k = k.hammer_k * math::powf(4.0f64, self.hardness);
         v.felt.p = (k.hammer_p + 0.3 * self.hardness).clamp(1.8, 4.0);
+        if self.settings.model >= 2 {
+            v.felt.k *= self.voicing.felt_of(k.key);
+            v.felt.p = (v.felt.p + self.voicing.felt_p).clamp(1.8, 4.0);
+            v.b1_scale = self.voicing.decay_of(k.key);
+            if self.voicing.vmin != 1.0 {
+                v.v_min *= self.voicing.vmin;
+            }
+        }
         v
+    }
+
+    /// Model 2's voicing (ADR 0098): the shipped one unless a tool tries another.
+    /// Allocates (the body's responses are synthesised): never on the audio thread.
+    pub fn set_voicing(&mut self, v: &Voicing) {
+        self.voicing = *v;
+        self.body = Body::new(self.fs, &v.body);
+        self.room = Room::new(self.fs, &v.room);
+        let (s, h) = (self.settings, self.hardness);
+        self.set(&s, h);
     }
 
     pub fn note_on(&mut self, key: u8, velocity: f32, id: u64) {
@@ -239,7 +381,8 @@ impl Chorda {
         if !self.voices[i].fits(design) {
             return;
         }
-        let vs = self.strike_settings(i);
+        let mut vs = self.strike_settings(i);
+        vs.seed = id;
         let gen = self.generation;
         let soft = self.soft;
         self.voices[i].strike(kb.keys[i], design, gen, vs, velocity as f64, soft, id);
@@ -289,6 +432,9 @@ impl Chorda {
         }
         self.sym.reset();
         self.board.reset();
+        self.body.reset();
+        self.room.reset();
+        self.stage.reset();
         self.sounding = [false; KEYS];
         self.pos = 0;
         self.pedal = 0.0;
@@ -343,12 +489,16 @@ impl Chorda {
             && !self.voices.iter().any(|v| v.active)
             && self.sym.at_rest()
             && self.board.at_rest()
+            && self.body.at_rest()
+            && self.room.at_rest()
+            && self.stage.at_rest()
     }
 
     /// Frames skipped while at rest: the grid, the board's quarter-rate phase and the
     /// sympathetic strings' control phase move on.
     pub fn skip(&mut self, frames: usize) {
         self.board.skip(frames);
+        self.body.skip(frames);
         self.sym.skip(frames);
         self.pos = (self.pos + frames % CHUNK) % CHUNK;
     }
@@ -380,25 +530,53 @@ impl Chorda {
                 self.sym.set_dampers(self.pedal, &self.sounding);
             }
             self.chunk(n, par);
+            let model2 = self.settings.model >= 2;
+            let room = self.settings.room;
             for i in 0..n {
                 // The sympathetic strings radiate from the middle of the board.
                 let sym = self.sym_out[i];
-                let (l, r) = self.board.tick(
-                    self.dl[i] + 0.5 * sym,
-                    self.dr[i] + 0.5 * sym,
-                    self.mono[i] + sym,
-                );
-                let (l, r) = ((l * self.gain) as f32, (r * self.gain) as f32);
+                let (l, r) = if model2 {
+                    let (d, b) = self
+                        .body
+                        .parts(self.dl[i] + 0.5 * sym, self.dr[i] + 0.5 * sym);
+                    let mut o = self.stage.mix(d, b);
+                    self.body.tilt(&mut o);
+                    self.stage.lid(&mut o);
+                    let (wl, wr) = self.room.tick(o[0], o[1]);
+                    let o = self.stage.wet(o, [wl, wr], room);
+                    (o[0], o[1])
+                } else {
+                    self.board.tick(
+                        self.dl[i] + 0.5 * sym,
+                        self.dr[i] + 0.5 * sym,
+                        self.mono[i] + sym,
+                    )
+                };
+                let (l, r) = if model2 {
+                    (ceiling(l * self.gain) as f32, ceiling(r * self.gain) as f32)
+                } else {
+                    ((l * self.gain) as f32, (r * self.gain) as f32)
+                };
                 left[done + i] += l;
                 right[done + i] += r;
                 pl = pl.max(l.abs());
                 pr = pr.max(r.abs());
+            }
+            // The side this model does not play keeps the stream's grid (a switch later
+            // finds it where a new unit would be).
+            if model2 {
+                self.board.skip(n);
+            } else {
+                self.body.skip(n);
             }
             self.pos += n;
             if self.pos == CHUNK {
                 self.pos = 0;
                 if !self.voices.iter().any(|v| v.active) && self.sym.at_rest() {
                     self.board.flush(FLOOR);
+                    self.body.flush(FLOOR);
+                    self.stage.flush(FLOOR);
+                    self.room.flush();
                 }
             }
             done += n;
@@ -421,23 +599,32 @@ impl Chorda {
         let work = self
             .voices
             .iter_mut()
-            .zip(self.scratch.iter_mut())
+            .zip(self.scratch.iter_mut().zip(self.noise.iter_mut()))
             .zip(self.lanes.split(n))
             .enumerate()
             .filter(|(_, ((v, _), _))| v.active)
-            .map(|(i, ((v, buf), (l, r)))| (i, v, buf, l, r));
-        let render =
-            |(i, v, buf, l, r): (usize, &mut Voice, &mut Vec<f64>, &mut [f32], &mut [f32])| {
-                let buf = &mut buf[..n];
-                buf.fill(0.0);
-                v.render(buf);
-                par::clear_lane(l, r);
-                let (gl, gr) = pans[i];
-                for ((x, a), b) in buf.iter().zip(l.iter_mut()).zip(r.iter_mut()) {
-                    *a += (x * gl) as f32;
-                    *b += (x * gr) as f32;
-                }
-            };
+            .map(|(i, ((v, (buf, nz)), (l, r)))| (i, v, buf, nz, l, r));
+        type Item<'a> = (
+            usize,
+            &'a mut Voice,
+            &'a mut Vec<f64>,
+            &'a mut Vec<f64>,
+            &'a mut [f32],
+            &'a mut [f32],
+        );
+        let render = |(i, v, buf, nz, l, r): Item| {
+            let buf = &mut buf[..n];
+            buf.fill(0.0);
+            let nz = &mut nz[..n];
+            nz.fill(0.0);
+            v.render(buf, nz);
+            par::clear_lane(l, r);
+            let (gl, gr) = pans[i];
+            for ((x, a), b) in buf.iter().zip(l.iter_mut()).zip(r.iter_mut()) {
+                *a += (x * gl) as f32;
+                *b += (x * gr) as f32;
+            }
+        };
         if active > 1 && par.width() > 1 {
             par::run_each(par, work, &render);
         } else {
@@ -459,6 +646,19 @@ impl Chorda {
         }
         for j in 0..n {
             self.mono[j] = self.dl[j] + self.dr[j];
+        }
+        // Model 2's action noises reach the body beside the strings (never the
+        // sympathetic strings: the frame's knock is not the bridge's motion), in key order.
+        if self.settings.model >= 2 {
+            for ((on, (gl, gr)), noise) in self.rendering.iter().zip(pans).zip(&self.noise) {
+                if !on {
+                    continue;
+                }
+                for (j, x) in noise[..n].iter().enumerate() {
+                    self.dl[j] += x * gl;
+                    self.dr[j] += x * gr;
+                }
+            }
         }
         self.sym_out[..n].fill(0.0);
         self.sym.process(&self.mono[..n], &mut self.sym_out[..n]);

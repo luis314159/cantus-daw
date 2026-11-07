@@ -99,3 +99,8 @@ mixer.chain.tonus = Tune
 # The master's pan law chip (integration: never a bare number under OUTPUT).
 mixer.pan_law.chip = {law} dB law
 mixer.pan_law.short = {law} dB
+mixer.menu.inserts_panel = Insert panel
+mixer.inserts.title = INSERTS
+mixer.inserts.strip = Strip {n}
+mixer.inserts.slot = Slot {n}
+mixer.inserts.empty_tip = An empty slot: a click opens the inspector, where inserts are added

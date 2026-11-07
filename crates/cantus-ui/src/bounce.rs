@@ -198,6 +198,16 @@ pub fn strip_plan(app: &CantusApp, strip: StripId) -> Result<Plan, String> {
     if p.strip(strip).is_some_and(|s| s.muted) {
         return Err(tf("bounce.muted", &[("name", &name)]));
     }
+    // r37:drums — a pad's strip is one output of a kit (ADR 0100): bounced alone it would
+    // replace the kit's clips with one pad. The kit's strip bounces the whole kit.
+    if let Some(kit) = cantus_core::padout::kit_of_strip(p, strip).and_then(|t| p.track(t)) {
+        if kit.strip != Some(strip) {
+            return Err(tf(
+                "padout.bounce_pad_strip",
+                &[("name", &name), ("kit", &kit.name)],
+            ));
+        }
+    }
     let r = freeze::region(p, FreezeTarget::Strip(strip));
     // A solo inside what it bounces would be lost: the render holds all of it (review 2).
     if let Some(t) = p
@@ -548,6 +558,26 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
     // strips the bounce hears (a key) play their renders, as in the session.
     let mut alone = project.clone();
     freeze::unsolo(&mut alone);
+    // r37:drums — a split kit's track bounces whole (ADR 0100): in the render every pad
+    // heard on a strip of its own is back on the kit (its chain kept), which a model 3 kit
+    // sums to the bit as it does split; its pads' own strips (faders, inserts, sends) are
+    // not in it, and the notice says so. A pad's chain is the instrument's: it is in.
+    let by_track = !matches!(plan.through, Through::Strip(_));
+    let whole_kit = by_track && cantus_core::padout::merge_in_place(&mut alone, plan.track);
+    let chain_ids: Vec<StripId> = if by_track {
+        alone
+            .track(plan.track)
+            .and_then(|t| t.instrument.pulsus())
+            .map(|k| {
+                k.pads
+                    .iter()
+                    .filter_map(|x| cantus_core::padout::chain_of(&alone, x))
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     match edges {
         // A time range: the track cut at its edges and only what is inside played; the
         // song plays on through its tail (review 2: stopped, the tail met still lanes).
@@ -569,7 +599,9 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             TapPoint::Strip(alone.strip_index(s).ok_or_else(|| t("bounce.gone"))?),
         ),
         (Through::Inserts, Some(s)) => {
-            let keep = freeze::region_through(&alone, plan.track, s);
+            let mut keep = freeze::region_through(&alone, plan.track, s);
+            // r37:drums — the kit's chains play into its strip: part of this track's sound.
+            keep.strips.extend(chain_ids.iter().copied());
             // What runs only for a key or the notes an insert hears is not this track's
             // sound: it does not reach the tap (review 1: it leaked into the bounce).
             for x in &mut alone.tracks {
@@ -578,7 +610,7 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
                 }
             }
             for o in &mut alone.strips {
-                if o.id != s {
+                if o.id != s && !chain_ids.contains(&o.id) {
                     if o.output == Some(s) {
                         o.output = None;
                     }
@@ -588,6 +620,16 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             (
                 keep,
                 TapPoint::Strip(alone.strip_index(s).ok_or_else(|| t("bounce.gone"))?),
+            )
+        }
+        // r37:drums — a kit whose pads play through chains: its own output and every
+        // chain, summed at unity in a strip of the render's own, before the kit's strip.
+        _ if !chain_ids.is_empty() => {
+            let sum = cantus_core::padout::kit_sum_strip(&mut alone, plan.track)
+                .ok_or_else(|| t("bounce.gone"))?;
+            (
+                freeze::region(&alone, FreezeTarget::Strip(sum)),
+                TapPoint::Strip(alone.strip_index(sum).ok_or_else(|| t("bounce.gone"))?),
             )
         }
         // Its source, with what its modulators follow (review 1).
@@ -674,6 +716,9 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             Ok(out)
         })
         .map_err(|e| e.to_string())?;
+    if whole_kit {
+        app.set_status(tf("padout.bounce_whole", &[("name", &orig.name)])); // r37:drums
+    }
     let prepared = Prepared {
         plan: plan.clone(),
         start,
@@ -1263,6 +1308,7 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
         }
         Range::Track if remove => {
             commands.extend(rescue(app, &project, plan.track, tid));
+            // r37:drums — a kit's pad strips and chains go with it: the bus does it.
             commands.push(Command::RemoveTrack { id: plan.track });
         }
         Range::Track => {

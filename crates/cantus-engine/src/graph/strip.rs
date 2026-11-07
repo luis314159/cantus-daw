@@ -78,6 +78,14 @@ pub(crate) struct StripSlot {
     pub pan_ramp: Option<Ramp>,
     /// A mix cue's fade over this control segment (ADR 0093 §3), on what leaves the chain.
     pub scene_env: Option<Ramp>, // r36:mix
+    /// Its own pan law in place of the project's (ADR 0100: a pad's strip). // r37:drums
+    pub law: Option<PanLaw>, // r37:drums
+    /// A pad's chain (ADR 0100 §6): it rests while nothing comes in and its inserts are at
+    /// rest. // r37:drums
+    pub chain: bool, // r37:drums
+    /// A pad's chain: the track slot of the kit it belongs to, whose stem its output joins
+    /// (ADR 0100 §9: the chain is the instrument's sound). // r37:fixes
+    pub chain_of: Option<usize>, // r37:fixes
     /// The output's peak since the last control point, for a modulator that follows the
     /// strip (ADR 0057); the control phase reads and empties it.
     pub follow_peak: f32,
@@ -132,6 +140,9 @@ impl StripSlot {
             gain_ramp: None,
             pan_ramp: None,
             scene_env: None, // r36:mix
+            law: None,       // r37:drums
+            chain: false,    // r37:drums
+            chain_of: None,  // r37:fixes
             follow_peak: 0.0,
             frozen: None,
             parked: None,
@@ -384,7 +395,23 @@ pub(crate) fn run_strip(nodes: &Nodes, frame: &Frame, node: usize, slot: usize, 
     let eq_ringing = !st.eq_flat && !(st.eq_l.is_quiet() && st.eq_r.is_quiet());
     let ringing = !st.effects.is_empty() || eq_ringing;
     st.active = any;
-    if !any && !ringing && !lines_ringing(nodes, &st) {
+    // r37:drums — a pad's chain at rest costs nothing (ADR 0100 §6): nothing came in, its
+    // EQ and lines are quiet, no key or note reaches its inserts, and every insert is at
+    // rest — so skipping them (told with `skip`) changes no sample (ADR 0031 §5.1).
+    let resting_chain = st.chain
+        && !any
+        && !eq_ringing
+        && !lines_ringing(nodes, &st)
+        && st.key.iter().all(|k| k.is_none())
+        && st.listener.iter().all(|l| l.is_none())
+        && st.effects.iter().all(|e| e.at_rest());
+    if resting_chain {
+        for e in st.effects.iter_mut() {
+            e.skip(n);
+        }
+        nodes.chain_rests.fetch_add(1, Relaxed);
+        out.ran = false;
+    } else if !any && !ringing && !lines_ringing(nodes, &st) {
         out.ran = false; // Nothing came in and nothing is ringing.
     } else {
         if !any {

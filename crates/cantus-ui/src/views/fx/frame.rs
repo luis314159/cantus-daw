@@ -88,6 +88,9 @@ pub struct Chrome {
     /// Whether the values were looked up among the factory presets when the editor opened
     /// (an insert's starting preset is named as loaded — ADR 0071).
     recognised: bool,
+    /// The host's count of presets loaded from elsewhere (the preset browser) when last
+    /// looked at: a new one names the loaded preset again. // r37:library
+    epoch: u64,
 }
 
 impl Chrome {
@@ -499,6 +502,12 @@ pub fn show(
             chrome.name_w_at = ts;
         }
     }
+    // r37:library — a preset loaded from the browser: the well names it (ADR 0101).
+    if host.preset_epoch() != chrome.epoch {
+        chrome.epoch = host.preset_epoch();
+        chrome.loaded = None;
+        chrome.recognised = false;
+    }
     // An editor opened on values a factory preset set (an insert's starting preset, ADR
     // 0071): the well names it, as if it had been loaded here.
     if !chrome.recognised {
@@ -740,6 +749,11 @@ fn popups(
             let mut items: Vec<Item<'_>> = Vec::with_capacity(list.len() + 5);
             let mut rows: Vec<Option<usize>> = Vec::with_capacity(list.len() + 5);
             let mut band = None;
+            // r37:library — the browser: styles, roles, search, audition (ADR 0101)
+            if host.can_browse_presets() {
+                items.push(action(Src::Key("preset.browse")));
+                rows.push(Some(usize::MAX - 1));
+            }
             for (i, e) in list.iter().enumerate() {
                 if band != Some(e.factory) {
                     band = Some(e.factory);
@@ -766,6 +780,7 @@ fn popups(
                 close = true;
                 match rows.get(i).copied().flatten() {
                     Some(usize::MAX) => chrome.saving = Some(String::new()),
+                    Some(n) if n == usize::MAX - 1 => host.browse_presets(), // r37:library
                     Some(n) => chrome.load(host, n),
                     None => {}
                 }

@@ -145,6 +145,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetStripGroupColor { .. }
         | SetStripGroupCollapsed { .. } => vec![],
         SetStripGain { id, .. } | SetStripPan { id, .. } => vec![StripLevel(*id)],
+        // r37:drums — the law places the strip as its pan does (ADR 0100 §3).
+        SetStripPanLaw { id, .. } => vec![StripLevel(*id)],
         SetStripWidth { id, .. } | SetStripMute { id, .. } | SetStripSolo { id, .. } => {
             vec![StripMix(*id)]
         }
@@ -159,6 +161,12 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         }
         RemoveStripSend { id, to } => vec![StripMix(*id), StripInput(*to)],
         // ---- instruments -----------------------------------------------------------------
+        // A Chorda's look (ADR 0104) is a picture: no frozen sound holds it. r37:scene
+        SetInstrumentText { key, .. }
+            if crate::inst::chorda_look::KEYS.contains(&key.as_str()) =>
+        {
+            vec![]
+        }
         SetInstrument { track, .. }
         | InsertPad { track, .. }
         | RemovePad { track, .. }
@@ -172,6 +180,18 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetInstrumentText { track, .. }
         | SetInstrumentPluginParam { track, .. }
         | SetInstrumentPluginState { track, .. } => vec![TrackSource(*track)],
+        // r37:drums — a pad moves between strips (ADR 0100): the kit's source and both
+        // strips' inputs (a pad on the kit is heard through the track's own strip).
+        SetPadOutput { track, pad, output } => {
+            let t = project.track(*track);
+            let home = t.and_then(|t| t.strip);
+            let was = t
+                .and_then(|t| t.instrument.pulsus())
+                .and_then(|k| k.by_id(*pad))
+                .and_then(|p| p.output)
+                .or(home);
+            vec![TrackSource(*track), input(was), input(output.or(home))]
+        }
         // Round 31 (ADR 0069): the notes a track plays are its source.
         SetTrackNoteFx { track, .. } | SetNoteFxParam { track, .. } => vec![TrackSource(*track)],
         SetClipGroove { track, clip, .. } | SetClipSkipNoteFx { track, clip, .. } => {

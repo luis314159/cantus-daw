@@ -237,6 +237,24 @@ pub struct FactoryKit {
     pub kit: PulsusParams,
 }
 
+/// `kit` balanced as a mixed record has it (r37:drums, ADR 0100 §11): its kick (note 36)
+/// driven by `drive` more — the same peak, more body, so the groove's loudness rises under
+/// Pulsus's single-pad rule (the kick holds most of a groove's loudness) — and its hats
+/// (42/44/46) `hats_db` and its snare (38) `snare_db` up, nearer the kick than the 20-odd
+/// and 12 LU under it they sat. The kits everyone else builds on
+/// ([`PulsusParams::default`], [`PulsusParams::studio`]) are not touched.
+fn mixed(mut kit: PulsusParams, drive: f32, hats_db: f32, snare_db: f32) -> PulsusParams {
+    for p in &mut kit.pads {
+        match p.pitch {
+            36 => p.drive = (p.drive + drive).min(1.0),
+            38 => p.level_db += snare_db,
+            42 | 44 | 46 => p.level_db += hats_db,
+            _ => {}
+        }
+    }
+    kit
+}
+
 fn named(mut pad: DrumPad, pitch: Pitch, name: &str) -> DrumPad {
     pad.pitch = pitch;
     pad.name = name.to_string();
@@ -409,48 +427,390 @@ impl PulsusParams {
                 DrumPad::crash(),
             ])
         };
-        const ELECTRONIC: &[&str] = &["pulsus.kit.tag.electronic"];
-        vec![
+        // r37:drums — two more styles, synthesised by Pulsus itself (ADR 0100 §8).
+        let house = {
+            let mut kick = DrumPad::kick_909();
+            kick.decay = 0.38;
+            kick.tune = -1.0;
+            kick.click = 0.35;
+            let mut clap = DrumPad::clap();
+            clap.decay = 0.45;
+            clap.bursts = 4;
+            clap.spacing_ms = 9.0;
+            let mut closed = DrumPad::closed_hat();
+            closed.tone = 10_000.0;
+            closed.decay = 0.045;
+            let mut open = DrumPad::open_hat();
+            open.decay = 0.32;
+            open.tone = 9_000.0;
+            let mut ride = DrumPad::ride();
+            ride.level_db = -4.0;
+            let mut shake = shaker();
+            shake.level_db = -11.0;
+            PulsusParams::of(vec![
+                kick,
+                DrumPad::rim(),
+                DrumPad::snare(),
+                clap,
+                closed,
+                open,
+                ride,
+                shake,
+            ])
+        };
+        let lofi = {
+            let dull = |mut p: DrumPad, cutoff: f32| {
+                p.filter = 1;
+                p.cutoff = cutoff;
+                p
+            };
+            let mut kick = dull(DrumPad::kick(), 2_200.0);
+            kick.drive = 0.55;
+            kick.decay = 0.42;
+            let mut snare = dull(DrumPad::snare(), 4_000.0);
+            snare.decay = 0.18;
+            snare.drive = 0.4;
+            snare.tone = 1_300.0;
+            let mut closed = dull(DrumPad::closed_hat(), 5_000.0);
+            closed.decay = 0.05;
+            closed.vel_level = 140.0;
+            let mut open = dull(DrumPad::open_hat(), 5_000.0);
+            open.decay = 0.28;
+            let mut rim = dull(DrumPad::rim(), 3_500.0);
+            rim.level_db = -3.0;
+            let mut shake = dull(shaker(), 9_000.0);
+            shake.level_db = -5.0;
+            PulsusParams::of(vec![kick, rim, snare, closed, open, shake])
+        };
+        // r37:drums — six more styles, synthesised by Pulsus itself (ADR 0100 §8).
+        let rock = {
+            let mut kick = DrumPad::kick();
+            kick.tune = -2.0;
+            kick.click = 0.5;
+            kick.drive = 0.2;
+            let mut snare = DrumPad::snare_modal();
+            snare.decay = 0.25;
+            snare.tone = 2_200.0;
+            let mut crash = DrumPad::crash();
+            crash.decay = 2.2;
+            PulsusParams::of(vec![
+                kick,
+                DrumPad::rim(),
+                snare,
+                DrumPad::closed_hat(),
+                DrumPad::pedal_hat(),
+                tom(43, "Floor tom", -9.0, 0.9, 0.3),
+                DrumPad::open_hat(),
+                tom(47, "Mid tom", -3.0, 0.9, 0.3),
+                crash,
+                tom(50, "High tom", 2.0, 0.9, 0.3),
+                DrumPad::ride(),
+            ])
+        };
+        let pop = {
+            let mut kick = DrumPad::kick_909();
+            kick.decay = 0.3;
+            kick.click = 0.4;
+            let mut snare = DrumPad::snare();
+            snare.tone = 2_800.0;
+            snare.mix = 0.55;
+            let mut clap = DrumPad::clap();
+            clap.level_db = -3.0;
+            let mut closed = DrumPad::closed_hat();
+            closed.tone = 11_000.0;
+            PulsusParams::of(vec![
+                kick,
+                snare,
+                clap,
+                closed,
+                DrumPad::open_hat(),
+                DrumPad::crash(),
+                shaker(),
+            ])
+        };
+        let rnb = {
+            let mut kick = DrumPad::kick_808();
+            kick.decay = 0.9;
+            kick.tune = -2.0;
+            let mut rim = DrumPad::rim();
+            rim.tune = 4.0;
+            let mut snare = DrumPad::snare_modal();
+            snare.decay = 0.14;
+            snare.level_db = -2.0;
+            let mut clap = DrumPad::clap();
+            clap.decay = 0.3;
+            clap.spacing_ms = 11.0;
+            let mut closed = DrumPad::closed_hat();
+            closed.decay = 0.03;
+            closed.tone = 9_500.0;
+            PulsusParams::of(vec![
+                kick,
+                rim,
+                snare,
+                clap,
+                closed,
+                DrumPad::open_hat(),
+                shaker(),
+                DrumPad::claves(),
+            ])
+        };
+        let reggaeton = {
+            let mut kick = DrumPad::kick_808();
+            kick.decay = 0.5;
+            kick.drive = 0.3;
+            let mut snare = DrumPad::snare();
+            snare.decay = 0.08;
+            snare.tone = 3_000.0;
+            snare.mix = 0.7;
+            let mut timbale = tom(65, "Timbale", 14.0, 0.4, 0.5);
+            timbale.material = 4;
+            timbale.decay = 0.4;
+            PulsusParams::of(vec![
+                kick,
+                DrumPad::rim(),
+                snare,
+                DrumPad::clap(),
+                DrumPad::closed_hat(),
+                DrumPad::open_hat(),
+                DrumPad::cowbell(),
+                tom(62, "Conga", 5.0, 0.8, 0.5),
+                tom(63, "Conga", 9.0, 0.8, 0.5),
+                timbale,
+                shaker(),
+            ])
+        };
+        let cinematic = {
+            let mut kick = DrumPad::kick();
+            kick.tune = -5.0;
+            kick.decay = 1.2;
+            kick.drive = 0.3;
+            let boom = |pitch, name: &str, t| {
+                let mut x = tom(pitch, name, t, 1.0, 0.2);
+                x.decay = 1.6;
+                x
+            };
+            let mut snare = DrumPad::snare_modal();
+            snare.decay = 0.5;
+            let mut crash = DrumPad::crash();
+            crash.decay = 3.5;
+            PulsusParams::of(vec![
+                kick,
+                snare,
+                boom(41, "Low boom", -12.0),
+                boom(43, "Boom", -9.0),
+                boom(45, "High boom", -6.0),
+                crash,
+                DrumPad::ride(),
+            ])
+        };
+        let jazz = {
+            let mut kick = DrumPad::kick();
+            kick.decay = 0.3;
+            // r37:drums — a jazz kick under the brushes (its peak under the brush snare's)
+            // but driven for body, the kit's gain up by what the brush leaves (ADR 0100 §11).
+            kick.level_db = -4.0;
+            kick.drive = 0.6;
+            let mut brush = DrumPad::snare();
+            brush.name = "Brush snare".into();
+            brush.mix = 0.85;
+            brush.noise_decay = 0.3;
+            brush.decay = 0.2;
+            brush.level_db = -3.0;
+            let mut ride = DrumPad::ride();
+            ride.decay = 3.0;
+            let mut crash = DrumPad::crash();
+            crash.decay = 2.5;
+            crash.level_db = -4.0;
+            PulsusParams::of(vec![
+                kick,
+                DrumPad::rim(),
+                brush,
+                DrumPad::closed_hat(),
+                DrumPad::pedal_hat(),
+                tom(45, "Low tom", -5.0, 0.7, 0.4),
+                tom(48, "High tom", 3.0, 0.7, 0.4),
+                crash,
+                ride,
+            ])
+        };
+        let mut kits = vec![
             FactoryKit {
                 label_key: "pulsus.kit.classic",
-                tags: ELECTRONIC,
-                kit: PulsusParams::default(),
+                tags: &[
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.pop",
+                    "preset.role.drums",
+                ],
+                kit: mixed(PulsusParams::default(), 0.4, 3.0, 3.0),
             },
             FactoryKit {
                 label_key: "pulsus.kit.studio",
-                tags: &["pulsus.kit.tag.acoustic"],
-                kit: PulsusParams::studio(),
+                tags: &[
+                    "pulsus.kit.tag.acoustic",
+                    "preset.style.rock",
+                    "preset.style.pop",
+                    "preset.role.drums",
+                ],
+                kit: mixed(PulsusParams::studio(), 0.4, 3.0, 2.0),
             },
             FactoryKit {
                 label_key: "pulsus.kit.808",
-                tags: &["pulsus.kit.tag.vintage", "pulsus.kit.tag.electronic"],
+                tags: &[
+                    "pulsus.kit.tag.vintage",
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.trap",
+                    "preset.style.rnb",
+                    "preset.role.drums",
+                ],
                 kit: machine_808,
             },
             FactoryKit {
                 label_key: "pulsus.kit.909",
-                tags: &["pulsus.kit.tag.vintage", "pulsus.kit.tag.electronic"],
+                tags: &[
+                    "pulsus.kit.tag.vintage",
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.house",
+                    "preset.role.drums",
+                ],
                 kit: machine_909,
             },
             FactoryKit {
                 label_key: "pulsus.kit.boom_bap",
-                tags: &["pulsus.kit.tag.vintage"],
+                tags: &[
+                    "pulsus.kit.tag.vintage",
+                    "preset.style.trap",
+                    "preset.style.lofi",
+                    "preset.role.drums",
+                ],
                 kit: boom_bap,
             },
             FactoryKit {
                 label_key: "pulsus.kit.electro",
-                tags: ELECTRONIC,
+                tags: &[
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.house",
+                    "preset.role.drums",
+                ],
                 kit: electro,
             },
             FactoryKit {
                 label_key: "pulsus.kit.percussion",
-                tags: &["pulsus.kit.tag.percussion"],
+                tags: &[
+                    "pulsus.kit.tag.percussion",
+                    "preset.style.latin",
+                    "preset.role.drums",
+                ],
                 kit: percussion,
             },
             FactoryKit {
                 label_key: "pulsus.kit.trap",
-                tags: ELECTRONIC,
+                tags: &[
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.trap",
+                    "preset.role.drums",
+                ],
                 kit: trap,
             },
-        ]
+            FactoryKit {
+                label_key: "pulsus.kit.house", // r37:drums
+                tags: &[
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.house",
+                    "preset.role.drums",
+                ],
+                kit: house,
+            },
+            FactoryKit {
+                label_key: "pulsus.kit.lofi", // r37:drums
+                tags: &[
+                    "pulsus.kit.tag.vintage",
+                    "preset.style.lofi",
+                    "preset.role.drums",
+                ],
+                kit: lofi,
+            },
+            FactoryKit {
+                label_key: "pulsus.kit.rock",
+                tags: &[
+                    "pulsus.kit.tag.acoustic",
+                    "preset.style.rock",
+                    "preset.role.drums",
+                ],
+                kit: mixed(rock, 0.4, 3.0, 2.0),
+            },
+            FactoryKit {
+                label_key: "pulsus.kit.pop",
+                tags: &[
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.pop",
+                    "preset.role.drums",
+                ],
+                kit: pop,
+            },
+            FactoryKit {
+                label_key: "pulsus.kit.rnb",
+                tags: &[
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.rnb",
+                    "preset.role.drums",
+                ],
+                kit: rnb,
+            },
+            FactoryKit {
+                label_key: "pulsus.kit.reggaeton",
+                tags: &[
+                    "pulsus.kit.tag.electronic",
+                    "preset.style.latin",
+                    "preset.role.drums",
+                ],
+                kit: reggaeton,
+            },
+            FactoryKit {
+                label_key: "pulsus.kit.cinematic",
+                tags: &[
+                    "pulsus.kit.tag.acoustic",
+                    "preset.style.film",
+                    "preset.style.ambient",
+                    "preset.role.drums",
+                ],
+                kit: cinematic,
+            },
+            FactoryKit {
+                label_key: "pulsus.kit.jazz",
+                tags: &[
+                    "pulsus.kit.tag.acoustic",
+                    "preset.style.jazz",
+                    "preset.role.drums",
+                ],
+                kit: jazz,
+            },
+        ];
+        // r37:drums — each kit's own gain (ADR 0100 §11): the lesser of what brings its
+        // groove to the drums window's centre (−19 LUFS on its phrase), what Pulsus's
+        // headroom rule leaves (no pad alone over 0.6 peak, less 0.3 dB) and what keeps a
+        // dense riff under full scale. Measured by `inst_pulsus.rs` (each pad's peak, the
+        // room), `preset_render.rs` (the level) and `instrument_levels.rs` (the riff).
+        for f in &mut kits {
+            f.kit.kit.gain_db = match f.label_key {
+                "pulsus.kit.classic" => 4.3,
+                "pulsus.kit.studio" => 4.3,
+                "pulsus.kit.808" => 2.0, // the dense riff stays under full scale (−0.9 dBFS)
+                "pulsus.kit.909" => 4.5,
+                "pulsus.kit.boom_bap" => 4.3,
+                "pulsus.kit.electro" => 1.0,
+                "pulsus.kit.percussion" => 8.9,
+                "pulsus.kit.trap" => -0.7,
+                "pulsus.kit.house" => 4.6,
+                "pulsus.kit.lofi" => 4.3,
+                "pulsus.kit.rock" => 4.3,
+                "pulsus.kit.pop" => 4.6,
+                "pulsus.kit.rnb" => 4.1,
+                "pulsus.kit.reggaeton" => 4.0,
+                "pulsus.kit.cinematic" => 4.3,
+                "pulsus.kit.jazz" => 7.5,
+                _ => 0.0,
+            };
+        }
+        kits
     }
 }

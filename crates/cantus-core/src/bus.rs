@@ -556,6 +556,21 @@ impl CommandBus {
         origin: Origin,
         merge_key: Option<MergeKey>,
     ) -> Result<(), CommandError> {
+        // r37:drums — what a kit's pads played on goes with the kit, whoever replaces or
+        // deletes it (ADR 0100 §9): one place, every path (a swap, a sound, a preset, an
+        // agent), the same undo step.
+        let command = if crate::padout::may_orphan(&command) {
+            crate::padout::with_orphans_removed(&self.project, command)
+        } else {
+            command
+        };
+        // r37:fixes — a kit routed to another strip takes its pads' chains and strips with
+        // it (round 37's review, item 1).
+        let command = if crate::padout::may_reroute(&command) {
+            crate::padout::with_kit_strips_following(&self.project, command)
+        } else {
+            command
+        };
         let label_key = command.label_key().to_string();
         let tempo = crate::tempo::keep::changes_tempo(&command);
         if let (Some(key), Some(top)) = (merge_key, self.undo.last()) {

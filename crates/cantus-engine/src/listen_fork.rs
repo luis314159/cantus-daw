@@ -68,6 +68,7 @@ fn fork_track(s: &TrackSlot) -> Option<TrackSlot> {
         send_dirty: s.send_dirty, // r36:external
         notefx: s.notefx.clone(),
         source_line: s.source_line,
+        outs: s.outs.clone(), // r37:drums
     })
 }
 
@@ -115,6 +116,9 @@ fn fork_strip(s: &StripSlot) -> Option<StripSlot> {
         gain_ramp: s.gain_ramp,
         pan_ramp: s.pan_ramp,
         scene_env: s.scene_env, // r36:mix
+        law: s.law,             // r37:drums
+        chain: s.chain,         // r37:drums
+        chain_of: None,         // r37:fixes — a fork taps no stem
         follow_peak: s.follow_peak,
         frozen: None,
         parked: None,
@@ -531,6 +535,7 @@ impl Processor {
             (&a.stream_late, &b.stream_late),
             (&a.stream_cut, &b.stream_cut),
             (&a.stream_wakes, &b.stream_wakes),
+            (&a.chain_rests, &b.chain_rests), // r37:drums
         ] {
             y.store(x.load(Relaxed), Relaxed);
         }
@@ -658,6 +663,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         stream_late: _,
         stream_cut: _,
         stream_wakes: _,
+        chain_rests: _, // r37:drums
         origin: _,
     } = &*p.nodes;
     let exec::TrackCells {

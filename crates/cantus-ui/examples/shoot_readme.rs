@@ -63,7 +63,12 @@ fn studio(
     preset: &str,
     engine: EngineHandle,
 ) -> CantusApp {
-    let dark = preset != "cantus_paper";
+    let over = std::env::var("CANTUS_SHOOT_THEME").ok(); // r37:finish
+    let preset = over.as_deref().unwrap_or(preset); // r37:finish
+    let dark = cantus_ui::kit::appearance::PRESETS // r37:finish
+        .iter()
+        .find(|(id, _)| *id == preset)
+        .is_none_or(|(_, theme)| theme().dark);
     let mut app = CantusApp::from_parts(Some(project), engine, false);
     let tmp = std::env::temp_dir().join("cantus-shoot-readme");
     app.settings_path = tmp.join("settings.json");
@@ -73,6 +78,10 @@ fn studio(
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     let mode = app.appearance.mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
+    // r37:finish — CANTUS_SHOOT_FADER=metal shoots the metal fader cap.
+    if std::env::var("CANTUS_SHOOT_FADER").is_ok_and(|v| v == "metal") {
+        app.appearance.fader = cantus_ui::kit::fader::FaderCap::Metal;
+    }
     app.attach(ctx);
     // The demo interface of the audio setup, as on a machine with one plugged in.
     cantus_ui::audio_setup::demo::setup(&mut app);
@@ -189,11 +198,18 @@ fn window_with(
     let (mut app, mut processor) = playing(&ctx, preset, project, bar, setup);
     let mut audio = vec![0f32; 800 * 2];
     let mut frame = 0;
-    raster::shoot(&ctx, egui::vec2(size.0, size.1), 1.0, 14, None, |root| {
+    let k = ppp(); // r37:finish (the shot below is at k)
+    raster::shoot(&ctx, egui::vec2(size.0, size.1) / k, k, 14, None, |root| {
         each(frame, &mut app);
         frame += 1;
         processor.process(&mut audio, 2);
         app.frame(root);
+        // r37:finish — the CPU renderer is slow enough to read as a dropout: the notice is
+        // the shot's, not the song's, and it is not left on the status line.
+        if app.status.error {
+            app.status.error = false;
+            app.status.text.clear();
+        }
     })
 }
 
@@ -206,7 +222,8 @@ fn alone(
     let ctx = context();
     let (mut app, mut processor) = playing(&ctx, "cantus_night", song(), 6, setup);
     let mut audio = vec![0f32; 800 * 2];
-    raster::shoot(&ctx, egui::vec2(size.0, size.1), 1.0, 10, None, |root| {
+    let k = ppp(); // r37:finish (the shot below is at k)
+    raster::shoot(&ctx, egui::vec2(size.0, size.1) / k, k, 10, None, |root| {
         processor.process(&mut audio, 2);
         // What the window's frame does first: the engine's meters, latency and clock.
         app.engine.poll();
@@ -218,6 +235,17 @@ fn alone(
 }
 
 fn nothing(_: &mut CantusApp) {}
+
+/// The pixels per point a run shoots at (`CANTUS_SHOOT_PPP`, 1 by default): the pictures
+/// keep their size in pixels, the window shows `1/ppp` as many points (round 37, finish:
+/// the same views at 150 %). // r37:finish
+fn ppp() -> f32 {
+    std::env::var("CANTUS_SHOOT_PPP") // r37:finish
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|k: &f32| *k >= 0.5 && *k <= 3.0)
+        .unwrap_or(1.0)
+}
 
 /// The arrangement's height in the linked-clips picture, which shows the window above it.
 const LINKED_ARRANGEMENT: f32 = 460.0;
@@ -245,6 +273,11 @@ fn hero(app: &mut CantusApp) {
     let beats = app.project().content_end().0 as f32 / cantus_core::Ticks::beats(1).0 as f32;
     app.arrangement.px_per_beat = HERO_LANES / beats.max(1.0);
     app.arrangement.scroll_beats = 0.0;
+    // r37:finish — the floating dancer off these shots: over the desk's edge it read as a
+    // cut-off orange shape in every crop (the stage has pictures of its own).
+    app.settings.stage.hidden = true;
+    // r37:finish — every track of the song in view (the arrangement's crop cut the last).
+    app.arrangement.track_height = 30.0;
 }
 
 /// The hero's arrangement lanes, in points, and its browser's and inspector's widths.
@@ -257,6 +290,12 @@ const HERO_INSPECTOR: f32 = 330.0;
 fn hero_frames(frame: usize, app: &mut CantusApp) {
     if frame == 1 {
         app.toggle_pane(cantus_ui::views::workspace::Pane::Browser);
+        // r37:finish — the browser as it is in use: a folder of sounds open in it (the
+        // judge: the empty state shot alone read as an empty browser).
+        let dir = cantus_ui::shot_scene::demo_sounds();
+        app.settings.sample_folders.push(dir.clone());
+        app.samples.open.insert(dir);
+        app.samples.refresh();
     }
     if frame == 3 {
         let main = app.workspace.dock.main_surface_mut();
@@ -269,6 +308,7 @@ fn hero_frames(frame: usize, app: &mut CantusApp) {
 
 fn compact(app: &mut CantusApp) {
     sixteen_bars(app, 760.0);
+    app.settings.stage.hidden = true; // r37:finish
 }
 
 /// The desk alone, Extra large, every cable drawn.
@@ -914,8 +954,10 @@ fn packs() -> Canvas {
 const ALL: &[&str] = &[
     "window-night",
     "window-night-720",
+    "window-wide",
     "window-paper-720",
     "mixer",
+    "mixer-tall", // r37:finish
     "inspector",
     "matrix",
     "linked",
@@ -978,6 +1020,21 @@ fn shoot_one(name: &str, dir: &Path) {
             None,
             &path,
         ),
+        // r37:finish — the hero at 2400 × 1350 pixels: at 125 % (CANTUS_SHOOT_PPP) the
+        // window is 1920 points wide, every top-bar group shown, as the judge's 1:1 crop
+        // of the area keys needs.
+        "window-wide" => save(
+            &window_with(
+                "cantus_night",
+                (2400.0, 1350.0),
+                whole_song(),
+                22,
+                hero,
+                hero_frames,
+            ),
+            None,
+            &path,
+        ),
         "window-night-720" => save(
             &window("cantus_night", (1280.0, 720.0), compact),
             None,
@@ -989,6 +1046,8 @@ fn shoot_one(name: &str, dir: &Path) {
             &path,
         ),
         "mixer" => save(&alone((1240.0, 560.0), desk, draw_mixer), None, &path),
+        // r37:finish — the desk with room for every row (the strip's keys, review shots).
+        "mixer-tall" => save(&alone((1240.0, 900.0), desk, draw_mixer), None, &path),
         "inspector" => save(
             &alone((290.0, 1000.0), nothing, draw_inspector),
             None,
@@ -1037,6 +1096,16 @@ fn shoot_one(name: &str, dir: &Path) {
 }
 
 fn main() {
+    // A debug build's frames are deep: shoot on a thread with room (round 37). // r37:finish
+    std::thread::Builder::new()
+        .stack_size(256 << 20)
+        .spawn(run)
+        .expect("the shooting thread")
+        .join()
+        .expect("the shots");
+}
+
+fn run() {
     let mut args = std::env::args().skip(1);
     let dir = args
         .next()

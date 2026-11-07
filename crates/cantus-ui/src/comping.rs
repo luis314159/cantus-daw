@@ -589,6 +589,13 @@ pub fn explode_takes(project: &Project, tid: TrackId, take_word: &str, ids: Ids)
         // Nor its session column: those clips are this track's (ADR 0076). // r33:session
         // r33:session
         nt.slots = Vec::new();
+        // r37:fixes — nor its pads' chains and own strips: those are this kit's (ADR 0100
+        // §9); a copy's pads play on the strip the copy plays on.
+        if let Some(kit) = nt.instrument.pulsus_mut() {
+            for p in &mut kit.pads {
+                p.output = None;
+            }
+        }
         // r31 midi: its note effects, as the track's, under ids of its own (ADR 0069).
         cantus_core::notefx::renew_ids(&mut nt.note_fx, &mut *ids);
         let mut cmds = vec![Command::InsertTrack {

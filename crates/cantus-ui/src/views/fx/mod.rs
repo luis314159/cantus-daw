@@ -342,8 +342,14 @@ pub fn save_user_preset(
     std::fs::write(dir.join(format!("{clean}.json")), text).map_err(|e| e.to_string())
 }
 
-/// A kind's factory presets.
+/// A kind's factory presets: those written in code, then its data presets (round 37,
+/// ADR 0101, `crate::preset_data`). // r37:library
 pub fn factory_presets(kind: EffectKind) -> &'static [FactoryPreset] {
+    crate::preset_data::effect_presets(kind, code_presets(kind)) // r37:library
+}
+
+/// A kind's factory presets written in code. // r37:library
+pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
     match kind {
         EffectKind::Eq => crate::views::eq_editor::FACTORY_PRESETS,
         EffectKind::Compressor => crate::views::comp_editor::FACTORY_PRESETS,

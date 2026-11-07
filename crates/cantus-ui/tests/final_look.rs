@@ -41,6 +41,16 @@ impl Rig {
 
     /// One frame; every painted text with where it lies.
     fn frame(&mut self, events: Vec<Event>) -> Vec<(String, egui::Rect)> {
+        self.frame_clipped(events)
+            .into_iter()
+            .map(|(t, r, _)| (t, r))
+            .collect()
+    }
+
+    /// One frame; every painted text with where it lies and the part of it that can be
+    /// seen (inside its clip: a scrolled-away row under a pinned panel is painted, not
+    /// seen).
+    fn frame_clipped(&mut self, events: Vec<Event>) -> Vec<(String, egui::Rect, egui::Rect)> {
         self.frame += 1;
         let mut ev = Vec::new();
         if let Some(p) = self.pointer {
@@ -74,7 +84,12 @@ impl Rig {
         }
         let mut v = Vec::new();
         for c in &out.shapes {
-            walk(&c.shape, &mut v);
+            let mut here = Vec::new();
+            walk(&c.shape, &mut here);
+            v.extend(
+                here.into_iter()
+                    .map(|(t, r)| (t, r, r.intersect(c.clip_rect))),
+            );
         }
         v
     }
@@ -506,7 +521,15 @@ fn the_pinned_strip_never_runs_a_caption_into_its_value() {
         let mut w = 1160.0;
         while w <= 1420.0 {
             r.size = vec2(w, 720.0);
-            let texts = r.idle(3);
+            // What can be seen: a value scrolled away under the pinned strip is painted
+            // (clipped) where the strip's readout is, and is not on screen.
+            r.idle(2);
+            let texts: Vec<(String, egui::Rect)> = r
+                .frame_clipped(Vec::new())
+                .into_iter()
+                .filter(|(_, _, seen)| seen.width() > 0.5 && seen.height() > 0.5)
+                .map(|(t, _, seen)| (t, seen))
+                .collect();
             let items = cantus_ui::kit::inspect::items(&r.ctx);
             for well in items
                 .iter()

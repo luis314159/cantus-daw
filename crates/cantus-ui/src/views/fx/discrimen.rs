@@ -25,47 +25,8 @@ use egui::{pos2, vec2, Align2, Rect};
 const KIND: EffectKind = EffectKind::TransientSplit;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.discrimen.more_attack",
-        &[("t.gain", 5.0), ("mode", 1.0)],
-    ),
-    ("preset.discrimen.less_attack", &[("t.gain", -6.0)]),
-    (
-        "preset.discrimen.drum_room",
-        &[
-            ("b.gain", -4.0),
-            ("b.comp", 0.4),
-            ("b.tilt", -1.5),
-            ("mode", 1.0),
-        ],
-    ),
-    (
-        "preset.discrimen.snappy",
-        &[
-            ("t.gain", 4.0),
-            ("t.tilt", 2.0),
-            ("b.gain", -5.0),
-            ("mode", 1.0),
-        ],
-    ),
-    (
-        "preset.discrimen.bright_attack",
-        &[("t.tilt", 4.0), ("b.tilt", -3.0)],
-    ),
-    (
-        "preset.discrimen.squash_body",
-        &[("b.comp", 0.8), ("b.gain", 3.0)],
-    ),
-    (
-        "preset.discrimen.only_transients",
-        &[("listen", 1.0), ("mode", 1.0)],
-    ),
-    (
-        "preset.discrimen.only_body",
-        &[("listen", 2.0), ("mode", 1.0)],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 const MODE_KEYS: [&str; 2] = ["discrimen.mode.0", "discrimen.mode.1"];
 const MODE_WORDS: [&str; 2] = ["discrimen.words.0", "discrimen.words.1"];

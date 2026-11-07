@@ -12,3 +12,9 @@ cast.note.name = Corchea
 cast.note.blurb = Una corchea viva con pajarita dorada y guantes blancos: una artista de jazz que aplaude, señala, patea y hace una reverencia.
 cast.child.name = Sol
 cast.child.blurb = Un niño alegre de pelo rizado, con una estrella en la camiseta y toda la energía del mundo: aplaude, salta, gira y levanta las manos.
+
+cast.mecha.name = Volta
+cast.mecha.blurb = Un mecha de metal oscuro con un visor en V de luz, un núcleo que late con el compás y propulsores para su salto cohete: pop and lock, poses de héroe.
+
+cast.ninja.name = Fuga
+cast.ninja.blurb = Un ninja enmascarado con una bufanda carmesí rasgada al viento: volteretas, patadas altas, un aterrizaje agachado y una reverencia marcial.

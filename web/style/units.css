@@ -149,3 +149,19 @@ body.unit-open { overflow: hidden; }
 .nav .theme-toggle, .nav .lang, .nav .btn { flex: none; }
 @media (max-width: 70rem) { .nav-links a.opt2 { display: none; } }
 .unit-grid.is-inst { grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); }
+
+/* Round 37: every unit's presets, heard (src/sounds.rs). */
+.uc-li { position: relative; }
+.card-play { position: absolute; left: 0.7rem; top: 0.7rem; width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(20,16,13,.72); color: #fff; display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(4px); }
+.card-play svg { width: 0.95rem; height: 0.95rem; }
+.card-play:hover, .card-play:focus-visible { border-color: #ef8a43; }
+.card-play.is-on { background: linear-gradient(#ef8a43, var(--copper-deep)); border-color: #ef8a43; }
+.up-sounds { margin-top: 1.6rem; }
+.up-sounds h4 { margin-bottom: 0.6rem; }
+.ps-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.ps-row { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 0.8rem; align-items: center; padding: 0.45rem 0.6rem; border-radius: 0.7rem; background: var(--mist); }
+.ps-row.is-on { background: var(--mist-2); }
+.ps-row .ab-play { grid-row: 1 / span 2; width: 2.4rem; height: 2.4rem; }
+.ps-name { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.ps-what { font-size: 0.88rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.ps-note { margin-top: 0.6rem; font-size: 0.85rem; color: var(--ink-2); }

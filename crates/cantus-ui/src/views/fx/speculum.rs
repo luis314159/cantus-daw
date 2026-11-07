@@ -32,26 +32,8 @@ mod draw;
 const KIND: EffectKind = EffectKind::Analyzer;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    ("preset.speculum.mix", &[("view", 0.0)]),
-    (
-        "preset.speculum.master",
-        &[("view", 5.0), ("target", -14.0)],
-    ),
-    (
-        "preset.speculum.broadcast",
-        &[("view", 5.0), ("target", -23.0)],
-    ),
-    (
-        "preset.speculum.bass",
-        &[("view", 1.0), ("fft", 4.0), ("chan", 4.0), ("avg", 600.0)],
-    ),
-    (
-        "preset.speculum.drums",
-        &[("view", 3.0), ("sync", 2.0), ("beats", 3.0)],
-    ),
-    ("preset.speculum.stereo", &[("view", 4.0)]),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// The views' names, by the `view` parameter's index.
 pub const VIEW_KEYS: [&str; 6] = [

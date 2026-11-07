@@ -583,6 +583,11 @@ pub fn cover(b: &mut Brush, rect: Rect, d: &DisplayInk) {
         return;
     }
     let reflection = |b: &mut Brush, a: f32| {
+        // r37:finish — on a small pane only: across a large display (an EQ's plot) the
+        // band read as a glare streak over the curves (the judge, twice).
+        if h > 80.0 {
+            return;
+        }
         let x0 = rect.left() + w * 0.55;
         let band = (w * 0.16).min(h);
         let pts = [

@@ -514,6 +514,7 @@ fn a_synced_tremor_follows_the_hosts_tempo_and_position_through_vst3() {
         ("div", 8.0),
         ("shape", 2.0),
         ("edge", 0.0),
+        ("out", 0.0), // unity: the starting preset (ADR 0101) lifts `out`
     ];
     let (tempo, start, n) = (90.0f64, 2.5f64, 96_000usize);
     // The engine's DSP, given the song position once per block of 512.
@@ -585,6 +586,7 @@ fn a_vst3_host_without_beats_follows_its_project_time_in_samples() {
         ("div", 8.0),
         ("shape", 2.0),
         ("edge", 0.0),
+        ("out", 0.0), // unity: the starting preset (ADR 0101) lifts `out`
     ];
     let (tempo, start_samples, n) = (100.0f64, 28_800i64, 48_000usize);
     let spec = spec_with(EffectKind::Tremolo, &gate);

@@ -1,19 +1,35 @@
-//! `Well` — the sunken recipe as a part: fields, dropdowns, readouts, number boxes — and
-//! `MenuField`, a well holding a value and ▾, with optional ‹ › steppers outside.
+//! `Well` — a hollow cut into the surface (round 37, ADR 0103): fields, dropdowns, number
+//! boxes; its lower lip catches the light, its upper lip shades its floor. A readout is a
+//! recessed display — the same well under the theme's glass. `MenuField`, a well holding a
+//! value and ▾, with optional ‹ › steppers outside.
 
 use super::brush::Brush;
 use super::color::shade;
 use super::glyph::{self, Glyph};
-use super::light;
+use super::light::{self, Material};
 use super::text::{self, Elide, Policy, Role, Text};
 use super::{focus_ring, State, Style, Tok};
 
 /// The tokens a well paints with (for inspect mode); its hue is the section's.
-pub const TOKENS: &[Tok] = &[Tok::Well, Tok::Focus];
-/// A readout: a well with a value in it.
-pub const READOUT_TOKENS: &[Tok] = &[Tok::Well, Tok::Text, Tok::Focus];
+pub const TOKENS: &[Tok] = &[Tok::Well, Tok::Focus, Tok::InnerShadow, Tok::Lip];
+/// A readout: a well with a value in it, under glass.
+pub const READOUT_TOKENS: &[Tok] = &[
+    Tok::Well,
+    Tok::Text,
+    Tok::Focus,
+    Tok::InnerShadow,
+    Tok::Lip,
+    Tok::Specular,
+];
 /// A menu field.
-pub const FIELD_TOKENS: &[Tok] = &[Tok::Well, Tok::Text, Tok::TextDim, Tok::Focus];
+pub const FIELD_TOKENS: &[Tok] = &[
+    Tok::Well,
+    Tok::Text,
+    Tok::TextDim,
+    Tok::Focus,
+    Tok::InnerShadow,
+    Tok::Lip,
+];
 use egui::{Align2, Color32, Rect, Vec2};
 
 /// The well's fill in `st`.
@@ -34,7 +50,8 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, base_color: Option
 
 fn well(b: &mut Brush, rect: Rect, s: &Style, st: State, base_color: Option<Color32>) {
     let r = s.s(s.t.radius);
-    light::sunken(b, rect, r, base(s, st, base_color), st.alpha(), s.t.depth);
+    let m = Material::of(&s.t);
+    light::recess(b, rect, r, base(s, st, base_color), &m, st.alpha(), s.k);
     if st.lit {
         // An open field, or one being typed into: its outline in the section's hue.
         b.rrect_stroke(b.snap_rect(rect).shrink(b.px() * 0.5), r, b.px(), s.hue);
@@ -48,6 +65,9 @@ fn well(b: &mut Brush, rect: Rect, s: &Style, st: State, base_color: Option<Colo
 pub fn readout(b: &mut Brush, rect: Rect, s: &Style, st: State, value: &str, numeric: bool) {
     b.register(rect, "readout", READOUT_TOKENS, &[s.hue_tok]);
     well(b, rect, s, st, None);
+    let inner = b.snap_rect(rect).shrink(b.px());
+    let r = (s.s(s.t.radius) - b.px()).max(0.0);
+    light::glass(b, inner, r, &Material::of(&s.t), st.alpha());
     let pad = s.s(6.0);
     let inner = rect.shrink2(Vec2::new(pad, 0.0));
     let (role, align) = if numeric {

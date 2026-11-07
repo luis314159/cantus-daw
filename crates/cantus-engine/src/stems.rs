@@ -196,6 +196,30 @@ impl StemTap {
         }
     }
 
+    // r37:drums — a track's other outputs join its stem (ADR 0100).
+    /// [`Self::track`], added to what the track holds: one of its instrument's other
+    /// outputs (a split kit's pad), so the track's stem is all of its sound.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn track_add(
+        &mut self,
+        slot: usize,
+        at: usize,
+        l: &[f32],
+        r: &[f32],
+        gl: f32,
+        gr: f32,
+    ) {
+        let n = l.len().min(self.frames.saturating_sub(at));
+        let Some([tl, tr]) = self.tracks.get_mut(slot) else {
+            return;
+        };
+        for ((t, s), g) in [(tl, l), (tr, r)].into_iter().zip([gl, gr]) {
+            for (o, x) in t[at..at + n].iter_mut().zip(s) {
+                *o += x * g;
+            }
+        }
+    }
+
     /// What a track adds into the master, `at` frames into the block — after its line, so
     /// every such track is as late as the master's arrival (review 3: summed before their
     /// lines, tracks of different latencies smeared).

@@ -4,6 +4,7 @@
     python web/tools/units_pictures.py <shots>          # needs Pillow; oxipng if installed
     cargo run --release -p cantus-ui --example shoot_skins -- <shots-es> --es
     python web/tools/units_pictures.py <shots-es> --es  # the Spanish page's: <name>-*-es.webp
+    python web/tools/units_pictures.py <shots> delay     # only the units named
 
 Writes, for every instrument and effect:
 - web/assets/units/<name>-thumb.webp  (Slate at 100 %, 640 px wide: the card)
@@ -27,31 +28,43 @@ DOC = os.path.join(ROOT, "docs", "images", "units")
 
 NAMES = """aequalis comprimo terminus culmen multiplex sibilus porta tonsor impetus discrimen spatium
 fervor latitudo speculum tonus concentus flexus phasis tremor vibrans anulus translatio fluctus
-unda calor modulus exemplar gravis organum lamina chorda pulsus""".split()
+unda calor modulus exemplar gravis organum lamina chorda pulsus delay""".split()
+# Delay has no window of its own: its pictures are the inspector's view of it, made by
+# `cargo run --release -p cantus-ui --example shoot_delay -- <shots> [--es]` (round 37).
 
 
 def fit(im, w):
     return im if im.width <= w else im.resize((w, round(im.height * w / im.width)), Image.LANCZOS)
 
 
-def main(src, es=False):
+def sharp(src, n, theme):
+    """The 100 % shot, or the 200 % one when the 100 % is narrower than a card (Delay's view
+    in the inspector): a small picture is never scaled up."""
+    one = Image.open(os.path.join(src, f"{n}-{theme}-100.png")).convert("RGB")
+    if one.width < 640:
+        one = Image.open(os.path.join(src, f"{n}-{theme}-200.png")).convert("RGB")
+    return one
+
+
+def main(src, es=False, names=None):
+    names = names or NAMES
     os.makedirs(WEB, exist_ok=True)
     if es:
         # The Spanish page's pictures only: the README is in English.
-        for n in NAMES:
+        for n in names:
             for theme, tag in (("slate", "dark"), ("paper", "light")):
                 big = Image.open(os.path.join(src, f"{n}-{theme}-200.png")).convert("RGB")
                 fit(big, 1800).save(os.path.join(WEB, f"{n}-{tag}-es.webp"), "WEBP", quality=82, method=6)
-            one = Image.open(os.path.join(src, f"{n}-slate-100.png")).convert("RGB")
+            one = sharp(src, n, "slate")
             fit(one, 640).save(os.path.join(WEB, f"{n}-thumb-es.webp"), "WEBP", quality=80, method=6)
             print(n, flush=True)
         return
     os.makedirs(os.path.join(DOC, "thumbs"), exist_ok=True)
-    for n in NAMES:
+    for n in names:
         for theme, tag in (("slate", "dark"), ("paper", "light")):
             big = Image.open(os.path.join(src, f"{n}-{theme}-200.png")).convert("RGB")
             fit(big, 1800).save(os.path.join(WEB, f"{n}-{tag}.webp"), "WEBP", quality=82, method=6)
-            one = Image.open(os.path.join(src, f"{n}-{theme}-100.png")).convert("RGB")
+            one = sharp(src, n, theme)
             if tag == "dark":
                 fit(one, 640).save(os.path.join(WEB, f"{n}-thumb.webp"), "WEBP", quality=80, method=6)
                 fit(one, 480).save(os.path.join(DOC, "thumbs", f"{n}.jpg"), "JPEG", quality=86,
@@ -65,4 +78,6 @@ def main(src, es=False):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if a != "--es"]
-    main(args[0] if args else os.path.join(ROOT, "target", "shots", "skins"), "--es" in sys.argv)
+    # Names after the folder make only those units' pictures (`<shots> delay`).
+    main(args[0] if args else os.path.join(ROOT, "target", "shots", "skins"), "--es" in sys.argv,
+         args[1:] or None)

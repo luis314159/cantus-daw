@@ -152,7 +152,8 @@ fn the_device_header_steps_presets_undoes_bypasses_and_compares() {
     click(&mut a, &ctx, r.redo.unwrap().center());
     assert_eq!(
         spec(&a).get("thr"),
-        first.1[0].1,
+        // r37:library — a data preset's values are in name order: find the threshold.
+        first.1.iter().find(|(k, _)| *k == "thr").unwrap().1,
         "and its redo brought it again"
     );
     // The lamp.

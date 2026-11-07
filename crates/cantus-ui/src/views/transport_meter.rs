@@ -105,6 +105,9 @@ fn toggle_w(ctx: &egui::Context, s: &Style) -> f32 {
         + 4.0 * s.k
 }
 
+/// The lanes' least width in the one-row meter, at 100 %. // r37:finish
+const LANES_MIN: f32 = 56.0;
+
 /// The meter's least and most width.
 pub fn widths(ctx: &egui::Context, s: &Style) -> (f32, f32) {
     let readout = text::measure(
@@ -113,8 +116,9 @@ pub fn widths(ctx: &egui::Context, s: &Style) -> (f32, f32) {
         s.tk(),
     )
     .x;
-    let min = toggle_w(ctx, s) + readout + 12.0 * s.k;
-    (min.max(150.0 * s.k), min.max(280.0 * s.k))
+    // r37:finish — one row (the meter bridge): the switch, the lanes, the readout.
+    let min = toggle_w(ctx, s) + readout + LANES_MIN * s.k + 16.0 * s.k;
+    (min, min.max(300.0 * s.k))
 }
 
 pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
@@ -126,21 +130,41 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     // Fed once a frame by `watch`, drawn or not.
     let held = app.topbar.hold.peak();
     let true_peak = app.topbar.hold.true_peak();
-    let row_h = 17.0 * k;
-    let top = Rect::from_min_size(
-        Pos2::new(r.left(), r.center().y - 23.0 * k),
-        Vec2::new(r.width(), row_h),
-    );
-    let lanes = Rect::from_min_size(
-        Pos2::new(r.left(), top.bottom() + 3.0 * k),
-        Vec2::new(r.width(), 13.0 * k),
-    );
-    let foot = Rect::from_min_size(
-        Pos2::new(r.left(), lanes.bottom() + 1.0 * k),
-        Vec2::new(r.width(), 12.0 * k),
-    );
-    // The PEAK / LUFS switch.
+    // r37:finish — one row: the PEAK / LUFS switch, the lanes, the readout (the meter
+    // bridge: the system meters are the row under it). The loudness footer is the lanes'
+    // hint, and a click on the lanes lets the held peaks go.
+    let row_h = 18.0 * k;
+    let top = Rect::from_center_size(r.center(), Vec2::new(r.width(), row_h));
     let tr = Rect::from_min_size(top.min, Vec2::new(toggle_w(ui.ctx(), s), row_h));
+    let readout_w = text::measure(
+        ui.ctx(),
+        &Text::new("\u{2212}88.8 LUFS", Role::Value, s.t.text),
+        s.tk(),
+    )
+    .x;
+    let lufs_now = app.settings.topbar.meter_lufs;
+    let (x0, x1) = (tr.right() + 6.0 * k, top.right() - readout_w - 8.0 * k);
+    // In loudness the lanes are the upper half and the short-term, integrated and true-peak
+    // figures a line under them (the TP the manual says to click); in peak, the lanes
+    // alone, full height.
+    let (lanes, foot) = if lufs_now {
+        (
+            Rect::from_min_max(
+                Pos2::new(x0, r.center().y - 10.0 * k),
+                Pos2::new(x1, r.center().y - 2.0 * k),
+            ),
+            Rect::from_min_max(
+                Pos2::new(x0, r.center().y - 1.0 * k),
+                Pos2::new(x1, r.center().y + 10.0 * k),
+            ),
+        )
+    } else {
+        let l = Rect::from_min_max(
+            Pos2::new(x0, r.center().y - 6.5 * k),
+            Pos2::new(x1, r.center().y + 6.5 * k),
+        );
+        (l, l)
+    };
     let tresp = ui.interact(tr, Id::new("toolbar-meter-mode"), Sense::click());
     let hovered = tresp
         .hover_pos()
@@ -160,7 +184,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let lufs = app.settings.topbar.meter_lufs;
     // The readout at the right: a click lets the held peak go.
     let rr = Rect::from_min_max(
-        Pos2::new(tr.right() + 6.0 * k, top.top()),
+        Pos2::new(lanes.right() + 4.0 * k, top.top()),
         Pos2::new(top.right() - 2.0 * k, top.bottom()),
     );
     let rresp = ui.interact(rr, Id::new("toolbar-meter-readout"), Sense::click());
@@ -200,7 +224,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             }
         };
         if lufs {
-            num(readout, loud.momentary);
+            if loud.momentary.is_finite() {
+                num(readout, loud.momentary);
+            } else {
+                readout.push_str("\u{2212}\u{221e}"); // r37:finish
+            }
             readout.push_str(" LUFS");
             footer.push_str("S ");
             num(footer, loud.short_term);
@@ -214,14 +242,13 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             };
             num(footer, tp);
         } else {
-            num(
-                readout,
-                if held > 0.0 {
-                    db(held)
-                } else {
-                    f32::NEG_INFINITY
-                },
-            );
+            // r37:finish — silence reads as minus infinity, as a strip's meter does (judge
+            // 7: a bare dash read unfinished).
+            if held > 0.0 {
+                num(readout, db(held));
+            } else {
+                readout.push_str("\u{2212}\u{221e}");
+            }
             readout.push_str(" dB");
         }
         if lufs && fresp.hovered() {
@@ -235,7 +262,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             };
             hint::set_text(ui.ctx(), &name, readout, Caps::NONE);
         }
-        if let Some(p) = lresp.hover_pos() {
+        if let Some(p) = lresp.hover_pos().filter(|_| !lufs) {
             let pos = (p.x - lanes.left()) / lanes.width().max(1.0);
             hint::set(ui.ctx(), &t("kit.mixer.master"), Caps::NONE, false, |b| {
                 write!(b, "{:.1} dB", meter::db_at(pos))
@@ -260,26 +287,39 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 let x = inner.left() + inner.width() * meter::pos_of_db(v);
                 b.vline(b.snap_mid(x), inner.top(), inner.bottom(), b.px(), ink);
             };
+            // r37:finish — the scale under the lanes at rest and playing alike: ticks at −48,
+            // −24, −12, −6 and 0 dB, so the empty well reads as a meter waiting.
+            if !lufs {
+                for v in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
+                    let x = inner.left() + inner.width() * meter::pos_of_db(v);
+                    b.vline(
+                        b.snap_mid(x),
+                        inner.bottom() - inner.height() * 0.35,
+                        inner.bottom(),
+                        b.px(),
+                        // On the well's own dark (both themes): its readable ink.
+                        with_alpha(
+                            crate::kit::color::on_fill(s.t.meter_well),
+                            if v == 0.0 { 0.70 } else { 0.40 },
+                        ),
+                    );
+                }
+            }
             if lufs {
                 mark(b, TARGET_LUFS, with_alpha(s.t.text, 0.7));
             } else if held > 0.0 {
                 mark(b, db(held), s.t.text);
             }
-            let word = if lufs {
-                Text::new(footer, Role::Micro, s.t.text_dim)
-            } else if clip {
-                Text::key("workspace.clip", Role::Micro, s.t.danger)
-            } else {
-                Text::key("kit.mixer.master", Role::Micro, s.t.text_dim)
-            };
-            let _ = text::paint(
-                b,
-                foot,
-                &word
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
-            );
+            if lufs {
+                let _ = text::paint(
+                    b,
+                    foot,
+                    &Text::new(footer, Role::Micro, s.t.text_dim)
+                        .align(Align2::LEFT_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
+            }
         });
     });
 }

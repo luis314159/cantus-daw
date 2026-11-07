@@ -13,6 +13,7 @@ use crate::kit::shell::{self, Ab, Bands, Event, Footer, Header, Preset, Shell};
 use crate::kit::text::{self as ktext, Policy, Role, Src, Text};
 use crate::kit::widgets::Param;
 use crate::kit::{self, Function, Style};
+use crate::views::workspace_ticker::{self as ticker, Reason};
 use crate::widgets::Knob;
 use cantus_core::inst::modulation::{
     self, connections, Scope, MACROS, MACRO_KEYS, MACRO_NAME_KEYS,
@@ -22,13 +23,19 @@ use std::fmt::Write as _;
 
 // ---- dispatch ----------------------------------------------------------------------------
 
-/// A kind's factory presets.
+/// A kind's factory presets: those written in code, then its data presets (round 37,
+/// ADR 0101, `crate::preset_data`). // r37:library
 pub fn factory_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
+    crate::preset_data::instrument_presets(kind, code_presets(kind)) // r37:library
+}
+
+/// A kind's factory presets written in code. // r37:library
+pub fn code_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
     match kind {
         InstrumentKind::Wavetable => wavetable::FACTORY_PRESETS,
         InstrumentKind::Analog => analog::FACTORY_PRESETS,
         InstrumentKind::Fm => fm::FACTORY_PRESETS,
-        InstrumentKind::Sampler => sampler::FACTORY_PRESETS,
+        InstrumentKind::Sampler => crate::sectio_ui::styles::sampler_presets(), // r37:piano
         InstrumentKind::Bass => bass::FACTORY_PRESETS,
         InstrumentKind::ElectricPiano => epiano::FACTORY_PRESETS,
         InstrumentKind::Organ => organ::FACTORY_PRESETS,
@@ -187,6 +194,15 @@ pub fn window_in(app: &mut CantusApp, ui: &mut egui::Ui) {
     window(app, ui.ctx());
 }
 
+/// [`window_in`] with the editor's body `size` points (a review's shot of a whole view, taller
+/// than the window). r37:piano
+pub fn window_in_sized(app: &mut CantusApp, ui: &mut egui::Ui, size: egui::Vec2) {
+    if let Some(track) = app.inst.open {
+        host(ui, editor_id(track), size);
+    }
+    window(app, ui.ctx());
+}
+
 /// The instrument editor's device id: its tab in the workspace.
 pub fn editor_id(track: TrackId) -> egui::Id {
     egui::Id::new(("inst-editor", track.0))
@@ -306,6 +322,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     let Some(rect) = shown else {
         return;
     };
+    let opened_before = app.inst.popup; // r37:library
     for ev in events {
         match ev {
             // The tab is the window: the dock moves it, not the header.
@@ -342,8 +359,13 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             }
         }
     }
+    if app.inst.popup != opened_before {
+        app.inst.popup_pass = ctx.cumulative_pass_nr(); // r37:library
+    }
     popups(app, ctx, track, &spec, &shell, rect, k);
-    ctx.request_repaint();
+    // An open editor shows live state (lit keys, envelopes, meters): through the ticker,
+    // at its 60 Hz, never at the monitor's full rate.
+    ticker::moving(ctx, Reason::Live);
 }
 
 /// The body: the bands claim the bottom, the view fills the rest.
@@ -380,10 +402,15 @@ fn shell_body(
     };
     match shown {
         View::Play => play(app, &mut view, track, spec, s),
+        // r37:finish — the Edit view lays its sections out in at least `BODY_MIN` and
+        // scrolls when the window is shorter (a short window crushed sections to their
+        // headers and cut their labels).
         View::Edit => {
             egui::ScrollArea::vertical()
                 .id_salt(("inst-edit", track.0))
-                .show(&mut view, |ui| body(app, ui, track, spec, s));
+                .show(&mut view, |ui| {
+                    at_least(ui, s, |ui| body(app, ui, track, spec, s))
+                });
         }
         View::Matrix => {
             egui::ScrollArea::vertical()
@@ -398,6 +425,25 @@ fn shell_body(
     mod_band(app, ui, track, spec, s, br.mods);
     if let Some(kr) = br.keyboard {
         keyboard_band(app, ui, track, s, kr);
+    }
+}
+
+/// The least height an instrument's Play or Edit view lays its sections out in, at 100 %:
+/// below it the view scrolls instead of crushing them. // r37:finish
+pub const BODY_MIN: f32 = 600.0;
+
+/// Run `f` in a child as wide as `ui` and as tall as `ui`'s room or [`BODY_MIN`], whichever
+/// is more, the height allocated so the scroll area around it scrolls. // r37:finish
+fn at_least(ui: &mut egui::Ui, s: &Style, f: impl FnOnce(&mut egui::Ui)) {
+    let w = ui.available_width();
+    let h = ui.available_height().max(BODY_MIN * s.k);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+    f(&mut inner);
+    // A body that laid out more than that (a long card list) still scrolls to its end.
+    let more = inner.min_rect().bottom() - rect.bottom();
+    if more > 0.5 {
+        ui.allocate_space(egui::vec2(w, more));
     }
 }
 
@@ -518,7 +564,10 @@ fn popups(
         ],
         Popup::Presets => {
             let current = app.inst.preset.get(&track).cloned().unwrap_or_default();
-            let mut v = vec![Item::Band(Src::Key("preset.factory"))];
+            let mut v = vec![
+                entry(Src::Key("preset.browse"), Check::None), // r37:library
+                Item::Band(Src::Key("preset.factory")),
+            ];
             v.extend(
                 presets
                     .iter()
@@ -552,7 +601,13 @@ fn popups(
                 _ => app.inst.mods_closed = !app.inst.mods_closed,
             },
             Popup::Presets => {
-                if let Some((name, preset)) = i.checked_sub(1).and_then(|j| presets.get(j)) {
+                if i == 0 {
+                    // r37:library — the browser: styles, roles, search, audition (ADR 0101)
+                    app.inst.popup = Popup::None;
+                    app.open_preset_browser(crate::preset_audition::Target::Track(track));
+                    return;
+                }
+                if let Some((name, preset)) = i.checked_sub(2).and_then(|j| presets.get(j)) {
                     app.apply_inst_spec(track, preset, "cmd.fx_preset");
                     app.inst.preset.insert(track, name.clone());
                 }
@@ -565,7 +620,9 @@ fn popups(
             Popup::None => {}
         }
     }
-    if clicks.clicked.is_some() || resp.clicked_elsewhere() {
+    // r37:library — not on the pass it opened: the click that opened it is not elsewhere
+    let opening = app.inst.popup_pass == ctx.cumulative_pass_nr();
+    if clicks.clicked.is_some() || (resp.clicked_elsewhere() && !opening) {
         app.inst.popup = Popup::None;
     }
 }

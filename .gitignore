@@ -3,6 +3,8 @@
 *.pdb
 *.wav
 !tests/null-tests/fixtures/*.wav
+# Sectio's marker files written by libsndfile (round 37, ADR 0099; 87 KB). r37:piano
+!crates/cantus-dsp/tests/data/sectio/*.wav
 /tmp
 .DS_Store
 Thumbs.db

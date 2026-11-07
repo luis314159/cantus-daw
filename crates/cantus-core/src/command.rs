@@ -243,6 +243,12 @@ pub enum Command {
         id: StripId,
         name: String,
     },
+    // r37:drums
+    /// A strip's own pan law (ADR 0100 §3): `None` follows the project's.
+    SetStripPanLaw {
+        id: StripId,
+        law: Option<PanLaw>,
+    },
     SetStripGain {
         id: StripId,
         gain_db: f32,
@@ -394,6 +400,15 @@ pub enum Command {
         track: TrackId,
         param: InstrumentParam,
         value: f32,
+    },
+    // r37:drums — a pad's own output (ADR 0100).
+    /// Where one pad of a kit is heard: `None` the kit's own strip, or a strip of its own
+    /// (an output of the instrument the track renders into that strip). *Split to strips*
+    /// and *Merge back* are batches of it (`crate::padout`).
+    SetPadOutput {
+        track: TrackId,
+        pad: PadId,
+        output: Option<StripId>,
     },
     /// Rename a pad of a kit. The name lives **in the kit**, so this renames the lane in
     /// every clip on the track at once — which is the point of a pad having a name at all.
@@ -1033,9 +1048,17 @@ impl Command {
             RemovePad { .. } => "cmd.remove_pad",
             SetInstrumentParam { .. } => "cmd.set_instrument_param",
             SetPadName { .. } => "cmd.set_pad_name",
+            SetPadOutput { .. } => "cmd.set_pad_output", // r37:drums
+            SetStripPanLaw { .. } => "cmd.set_strip_pan_law", // r37:drums
             SetPadSample { .. } => "cmd.set_pad_sample",
             SetPadLayers { .. } => "cmd.set_pad_layers",
             SetInstrumentValue { .. } | ClearInstrumentValue { .. } => "cmd.set_instrument_value",
+            // Chorda's look (ADR 0104): the history names what changed. r37:scene
+            SetInstrumentText { key, .. }
+                if crate::inst::chorda_look::KEYS.contains(&key.as_str()) =>
+            {
+                "cmd.chorda_look"
+            }
             SetInstrumentText { .. } => "cmd.set_instrument_text",
             InsertEffect { .. } => "cmd.insert_effect",
             RemoveEffect { .. } => "cmd.remove_effect",
@@ -1720,6 +1743,7 @@ impl Command {
                     .strip_index(id)
                     .ok_or(CommandError::StripNotFound(id))?;
                 let fed = project.tracks.iter().any(|t| t.strip == Some(id))
+                    || project.tracks.iter().any(|t| t.feeds_through_bus(id)) // r37:drums
                     || project.strips.iter().any(|s| s.feeds().any(|to| to == id))
                     || project.strips.iter().any(|s| s.keys().any(|k| k == id))
                     || project
@@ -2220,6 +2244,42 @@ impl Command {
                     track,
                     pad,
                     name: old,
+                })
+            }
+
+            // r37:drums — a strip's own pan law (ADR 0100 §3).
+            SetStripPanLaw { id, law } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.pan_law, law);
+                Ok(SetStripPanLaw { id, law: old })
+            }
+            // r37:drums — a pad's own output (ADR 0100).
+            SetPadOutput { track, pad, output } => {
+                if let Some(s) = output {
+                    if project.strip(s).is_none() {
+                        return Err(CommandError::StripNotFound(s));
+                    }
+                    if project.is_vca(s) {
+                        return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    }
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let kit = t
+                    .instrument
+                    .pulsus_mut()
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let slot = kit
+                    .by_id_mut(pad)
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                let old = std::mem::replace(&mut slot.output, output);
+                Ok(SetPadOutput {
+                    track,
+                    pad,
+                    output: old,
                 })
             }
 

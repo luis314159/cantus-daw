@@ -238,6 +238,7 @@ pub fn zone_params(v: &[f32; zf::COUNT], rate: f32) -> ZoneParams {
         off_normal: v[zf::OFFMODE] >= 0.5,
         sw: v[zf::SW] as i16,
         delay_ms: v[zf::DELAY],
+        lpf_hz: v[zf::LPF], // r37:piano
         cc: (v[zf::CC] as u8).min(127),
         cclo: (v[zf::CCLO] as u8).min(127),
         cchi: (v[zf::CCHI] as u8).min(127),

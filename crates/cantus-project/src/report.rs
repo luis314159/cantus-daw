@@ -35,11 +35,14 @@ pub const KEYS: &[&str] = &[
     "interop.report.x_muted_notes",
     "interop.report.x_devices",
     "interop.report.x_pan",
+    "interop.report.x_pad_chains", // r37:drums
+    "interop.report.x_pan_law",    // r37:drums
     "interop.report.x_width",
     "interop.report.x_polarity",
     "interop.report.x_swap",
     "interop.report.x_fx_off",
     "interop.report.x_slot_mix",
+    "interop.report.x_split_kit", // r37:drums
     "interop.report.x_sidechain",
     "interop.report.x_master_width",
     "interop.report.x_master_polarity",

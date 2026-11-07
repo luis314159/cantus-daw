@@ -549,7 +549,8 @@ fn a_build_step_is_checked_by_the_manifest() {
     let src = tempfile::tempdir().unwrap();
     let good = kit_pack(src.path());
     let mut m = manifest(vec![good.clone()]);
-    assert_eq!(m.format, FORMAT_BUILD);
+    // r37:library: the current format (4, loops) holds the build step too.
+    assert!(m.format >= FORMAT_BUILD);
     assert_eq!(m.validate(), Ok(()));
     m.format = FORMAT_BUILD - 1;
     assert!(m.validate().unwrap_err().to_string().contains("format 3"));

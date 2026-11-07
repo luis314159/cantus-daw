@@ -517,7 +517,8 @@ fn rows(app: &CantusApp, kind: &Kind) -> Vec<Row> {
             ));
             for dock in Dock::ALL {
                 let mut band = false;
-                for s in p.strips.iter().filter(|s| s.dock == dock) {
+                // r37:drums — a pad's chain takes no send (it lives on its pad).
+                for s in p.strips.iter().filter(|s| s.dock == dock && s.on_desk()) {
                     if sources.contains(&s.id) {
                         continue;
                     }
@@ -807,7 +808,12 @@ fn sub_rows(app: &CantusApp, sub: Sub) -> Vec<Row> {
         Sub::SendStrip(to) => {
             for dock in Dock::ALL {
                 let mut band = false;
-                for s in p.strips.iter().filter(|s| s.dock == dock && s.id != to) {
+                for s in p
+                    .strips
+                    .iter()
+                    .filter(|s| s.dock == dock && s.id != to && s.on_desk())
+                // r37:drums
+                {
                     if !band {
                         e.push(Row::band(Label::Key(dock.label_key())));
                         band = true;
@@ -1272,7 +1278,7 @@ fn apply(app: &mut CantusApp, ctx: &Context, pick: Pick) {
             let v: Vec<StripId> = p
                 .strips
                 .iter()
-                .filter(|s| s.output == Some(to) || s.send_to(to).is_some())
+                .filter(|s| s.on_desk() && (s.output == Some(to) || s.send_to(to).is_some())) // r37:drums
                 .map(|s| s.id)
                 .collect();
             select_all(app, v);

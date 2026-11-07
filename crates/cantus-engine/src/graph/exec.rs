@@ -242,6 +242,8 @@ pub(crate) struct Nodes {
     pub stream_cut: AtomicU64,
     /// Times voices woke the stream reader (fourth review #1).
     pub stream_wakes: AtomicU64,
+    /// Passes a pad's chain rested (ADR 0100 §6). // r37:drums
+    pub chain_rests: AtomicU64,
     pub origin: Instant,
 }
 
@@ -332,6 +334,7 @@ impl Nodes {
             stream_late: AtomicU64::new(0),
             stream_cut: AtomicU64::new(0),
             stream_wakes: AtomicU64::new(0),
+            chain_rests: AtomicU64::new(0), // r37:drums
             origin: Instant::now(),
         };
         n.prefault();

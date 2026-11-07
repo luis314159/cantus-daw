@@ -15,6 +15,7 @@ use crate::kit::meter::MIN_DB;
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::{segmented, Param};
 use crate::kit::{with_brush, Style};
+use crate::views::workspace_ticker::{self as ticker, Reason};
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
 
 /// The window's size at 100 %.
@@ -208,7 +209,7 @@ fn page(app: &mut CantusApp, ui: &mut Ui, live: &setup::Live) {
         name_row(app, ui, &mut prof, true, c, Some(lvl));
     }
     if live.live {
-        ui.ctx().request_repaint();
+        ticker::moving(ui.ctx(), Reason::Meters);
     }
     if prof != before {
         *app.settings.audio_setup.profile_mut(&key) = prof;

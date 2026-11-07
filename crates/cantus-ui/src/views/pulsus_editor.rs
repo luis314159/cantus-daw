@@ -77,6 +77,9 @@ pub struct State {
     pub kit_name: HashMap<TrackId, &'static str>,
     /// Rendered hits, by a hash of what makes them sound.
     previews: HashMap<u64, Preview>,
+    /// A kit read from a folder or an SFZ dropped on the window, on its own thread
+    /// (`padout_ui::drop_kit`): landed on the next frame. // r37:drums
+    pub pending_kit: Option<crate::padout_ui::PendingKit>,
 }
 
 impl State {
@@ -157,8 +160,9 @@ pub fn set_kit_field(app: &mut CantusApp, track: TrackId, field: KitField, value
     });
 }
 
-/// Upgrade a model 1 kit to Pulsus II: the version, and the drive model 1 stored where it
-/// never sounded. One undo step.
+/// Upgrade a kit to Pulsus III: the version, and (from model 1) the drive model 1 stored
+/// where it never sounded. From model 2 only the sum's order changes (ADR 0100). One undo
+/// step.
 pub fn upgrade(app: &mut CantusApp, track: TrackId) {
     let Some(kit) = kit_of(app, track) else {
         return;
@@ -322,10 +326,12 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         )),
     };
     let pads = tf("pulsus.chip.pads", &[("n", &kit.pads.len().to_string())]);
-    let model = if kit.version < cantus_core::PULSUS_MODEL {
-        t("pulsus.chip.model1")
-    } else {
-        t("pulsus.model2")
+    // r37:drums — the chip names the model (1, 2, or 3 — Pulsus III); the pads card offers
+    // models 1 and 2 the upgrade to 3 (ADR 0100 §1).
+    let model = match kit.version {
+        0 | 1 => t("pulsus.chip.model1"),
+        2 => t("pulsus.model2"),
+        _ => t("pulsus.model3"),
     };
     let chips = [pads.as_str(), model.as_str()];
     let footer = Footer {
@@ -405,6 +411,17 @@ fn step_kit(app: &mut CantusApp, track: TrackId, by: i32) {
     load_factory(app, track, (at + by).rem_euclid(n) as usize);
 }
 
+// r37:drums — an action that is greyed out when it has nothing to do.
+fn entry_on(label: Src<'_>, enabled: bool) -> Item<'_> {
+    Item::Action {
+        label,
+        check: Check::None,
+        shortcut: None,
+        submenu: false,
+        enabled,
+    }
+}
+
 fn entry(label: Src<'_>, check: Check) -> Item<'_> {
     Item::Action {
         label,
@@ -457,16 +474,32 @@ fn popups(
             );
             v
         }
+        // r37:drums — built from `more_rows`, so a row and its action cannot drift apart.
         Popup::More => {
-            let mut v = vec![Item::Band(Src::Key("pulsus.pad.add"))];
-            v.extend(
-                PadVoice::ALL
-                    .iter()
-                    .map(|voice| entry(Src::Key(voice.label_key()), Check::None)),
+            let p = app.project();
+            let (split, merge) = (
+                cantus_core::padout::can_split(p, track),
+                cantus_core::padout::can_merge(p, track),
             );
-            v.push(Item::Separator);
-            v.push(entry(Src::Key("pulsus.close"), Check::None));
-            v
+            let mut bands = 0;
+            more_rows()
+                .into_iter()
+                .map(|r| match r {
+                    MoreRow::AddPad(voice) => entry(Src::Key(voice.label_key()), Check::None),
+                    MoreRow::Browse => entry(Src::Key("preset.browse"), Check::None),
+                    MoreRow::Split => entry_on(Src::Key("padout.menu.split"), split),
+                    MoreRow::Merge => entry_on(Src::Key("padout.menu.merge"), merge),
+                    MoreRow::Close => entry(Src::Key("pulsus.close"), Check::None),
+                    MoreRow::Nothing => {
+                        bands += 1;
+                        match bands {
+                            1 => Item::Band(Src::Key("pulsus.pad.add")),
+                            2 => Item::Band(Src::Key("padout.menu.band")),
+                            _ => Item::Separator,
+                        }
+                    }
+                })
+                .collect()
         }
         Popup::Sizes => {
             let now = shell.scale(ctx);
@@ -507,13 +540,7 @@ fn popups(
                     load_factory(app, track, i - 1);
                 }
             }
-            Popup::More => {
-                if let Some(voice) = i.checked_sub(1).and_then(|j| PadVoice::ALL.get(j)) {
-                    add_pad(app, track, *voice);
-                } else if i == items.len() - 1 {
-                    close(app);
-                }
-            }
+            Popup::More => more(app, track, more_row(i)), // r37:drums
             Popup::Sizes => {
                 if let Some(sc) = shell::SCALES.get(i) {
                     shell.set_scale(ctx, *sc);
@@ -524,6 +551,59 @@ fn popups(
     }
     if chosen.is_some() || area.inner.clicked_elsewhere() {
         app.pulsus.popup = Popup::None;
+    }
+}
+
+// r37:drums — the ⋯ menu's rows and what each does, in one place (the review of round 37's
+// first delivery, item 7: the arithmetic lived beside the list it counted).
+/// What a row of the kit's ⋯ menu does.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum MoreRow {
+    AddPad(PadVoice),
+    /// The preset browser on this kit (round 37's library: audition and load a kit).
+    Browse,
+    Split,
+    Merge,
+    Close,
+    /// A band or a separator.
+    Nothing,
+}
+
+/// The ⋯ menu's rows, in order: *Browse presets…*, the band, a pad of each voice, the
+/// outputs' band, *Split to strips*, *Merge back*, a separator, *Close*.
+pub fn more_rows() -> Vec<MoreRow> {
+    let mut v = vec![MoreRow::Browse, MoreRow::Nothing];
+    v.extend(PadVoice::ALL.iter().map(|x| MoreRow::AddPad(*x)));
+    v.extend([
+        MoreRow::Nothing,
+        MoreRow::Split,
+        MoreRow::Merge,
+        MoreRow::Nothing,
+        MoreRow::Close,
+    ]);
+    v
+}
+
+/// The row at `i` of the ⋯ menu.
+pub fn more_row(i: usize) -> MoreRow {
+    more_rows().get(i).copied().unwrap_or(MoreRow::Nothing)
+}
+
+/// Do what a row of the ⋯ menu does.
+pub fn more(app: &mut CantusApp, track: TrackId, row: MoreRow) {
+    match row {
+        MoreRow::AddPad(voice) => add_pad(app, track, voice),
+        MoreRow::Browse => {
+            app.open_preset_browser(crate::preset_audition::Target::Track(track));
+        }
+        MoreRow::Split => {
+            app.split_kit(track);
+        }
+        MoreRow::Merge => {
+            app.merge_kit(track);
+        }
+        MoreRow::Close => close(app),
+        MoreRow::Nothing => {}
     }
 }
 
@@ -577,5 +657,25 @@ pub fn demo(app: &mut CantusApp, kind: &str) {
     };
     if let Some(kit) = kit_of(app, track) {
         app.pulsus.selected = kit.pads.iter().find(|p| p.pitch == 36).map(|p| p.id);
+    }
+    // r37:drums — `pulsus-chain`: the kick with a chain; `pulsus-split`: the kit split to
+    // strips (the mixer shows them), its kick and snare with chains.
+    if kind.contains("chain") || kind.contains("split") {
+        let pads: Vec<(u8, cantus_core::PadId)> = kit_of(app, track)
+            .map(|k| k.pads.iter().map(|p| (p.pitch, p.id)).collect())
+            .unwrap_or_default();
+        for (pitch, id) in pads {
+            if pitch == 36 {
+                app.add_to_pad_chain(track, id, cantus_core::EffectKind::Eq);
+                app.add_to_pad_chain(track, id, cantus_core::EffectKind::Compressor);
+            } else if pitch == 38 {
+                app.add_to_pad_chain(track, id, cantus_core::EffectKind::Saturator);
+            }
+        }
+    }
+    if kind.contains("split") {
+        app.split_kit(track);
+        // The mixer shows the pad strips: the editor's window closed.
+        close(app);
     }
 }

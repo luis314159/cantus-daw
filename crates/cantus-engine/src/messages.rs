@@ -16,6 +16,11 @@ pub use session::{ScenePhase, SessionEvent, SessionMsg, SlotPhase, MAX_SESSION_E
 pub const MAX_TRACKS: usize = 256;
 /// Mixer strips the engine can hold, buffers preallocated for each.
 pub const MAX_STRIPS: usize = 256;
+// r37:fixes — the model refuses a split or a chain past these (`padout::Refusal::NoRoom`).
+const _: () = assert!(
+    MAX_TRACKS == cantus_core::padout::ENGINE_TRACKS
+        && MAX_STRIPS == cantus_core::padout::ENGINE_STRIPS
+);
 pub const MAX_BLOCK_FRAMES: usize = 8192;
 /// Most tracks that play the live notes besides the live track (multitrack MIDI
 /// recording: every armed instrument track sounds).
@@ -291,6 +296,9 @@ pub struct EngineStats {
     /// audio thread (`WakeByAddressSingle`, a futex wake, `semaphore_signal`), only when the
     /// reader is needed sooner than its next look (ADR 0050 §4, fourth review #1).
     pub stream_wakes: u64,
+    /// Strip passes a pad's chain (ADR 0100 §6) rested: nothing came in, nothing rang and
+    /// every insert was at rest, so none ran — what a chain at rest costs. // r37:drums
+    pub chain_rests: u64, // r37:drums
     /// Delay compensation: how far the output lags the engine's position, in samples —
     /// the latency of the slowest path to the master. The position the engine reports as
     /// heard (`EngineEvent::Position::heard`), the click and recorded notes all allow for

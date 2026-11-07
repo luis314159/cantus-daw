@@ -49,73 +49,8 @@ pub const SCOPE_POINTS: usize = 1_536;
 const CORR_FRAMES: usize = 180;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.st.master_low",
-        &[("mono", 100.0), ("mono_slope", 2.0), ("w_lo", 0.85)],
-    ),
-    (
-        "preset.st.master_air",
-        &[
-            ("mono", 90.0),
-            ("w_hi", 1.3),
-            ("x_hi", 5_000.0),
-            ("s_hi", 1.5),
-            ("s_hi_f", 9_000.0),
-        ],
-    ),
-    (
-        "preset.st.patcher",
-        &[
-            ("m_lo", 1.0),
-            ("m_lo_f", 120.0),
-            ("m_hi", 1.0),
-            ("m_hi_f", 10_000.0),
-            ("s_lo", -4.0),
-            ("s_lo_f", 250.0),
-            ("s_hi", 3.0),
-            ("s_hi_f", 7_000.0),
-        ],
-    ),
-    ("preset.st.mono_check", &[("listen", 1.0)]),
-    ("preset.st.side_solo", &[("listen", 2.0)]),
-    ("preset.st.narrow", &[("width", 0.7), ("mono", 120.0)]),
-    (
-        "preset.st.wide_pad",
-        &[
-            ("width", 1.35),
-            ("mono", 160.0),
-            ("w_lo", 0.6),
-            ("w_hi", 1.25),
-            ("s_hi", 2.0),
-        ],
-    ),
-    (
-        "preset.st.haas_safe",
-        &[
-            ("haas", 12.0),
-            ("haas_mode", 2.0),
-            ("haas_amt", 0.6),
-            ("mono", 150.0),
-        ],
-    ),
-    ("preset.st.haas_classic", &[("haas", 15.0), ("mono", 150.0)]),
-    ("preset.st.swap", &[("swap", 1.0)]),
-    ("preset.st.polarity", &[("inv_r", 1.0)]),
-    (
-        "preset.st.vocal",
-        &[
-            ("mid", 1.0),
-            ("side", -3.0),
-            ("s_lo", -6.0),
-            ("s_lo_f", 300.0),
-        ],
-    ),
-    (
-        "preset.st.bass_mono",
-        &[("mono", 140.0), ("mono_slope", 3.0)],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// What the editor remembers between frames.
 #[derive(Debug, Default)]

@@ -100,7 +100,15 @@ impl Processor {
                         .sum::<usize>()
                         .min(crate::pdc::MAX_DELAY)
                 };
-                apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
+                if t.tap.is_some() {
+                    // r37:drums — a tap plays its source's bus, nothing of its own.
+                    if s.instrument != SlotInstrument::Tap {
+                        s.reset();
+                        s.instrument = SlotInstrument::Tap;
+                    }
+                } else {
+                    apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
+                }
                 // Its note effects and the key they read (ADR 0069).
                 s.configure_notefx(&t.note_fx, snapshot.key);
                 // Freezing (ADR 0064): the render it plays, if any (an `Arc` clone; the
@@ -211,6 +219,9 @@ impl Processor {
                 ss.width = st.width;
                 ss.phase_invert = st.phase_invert;
                 ss.swap = st.swap_channels;
+                ss.law = st.pan_law; // r37:drums
+                ss.chain = st.chain; // r37:drums
+                ss.chain_of = None; // r37:fixes — set with the tracks below
                 ss.muted = st.muted;
                 ss.fx_enabled = st.fx_enabled;
                 ss.eq_flat = st.eq.is_flat();
@@ -285,6 +296,29 @@ impl Processor {
             let slot = self.track_to_slot[ti];
             if let Some(mut s) = nodes.track(slot) {
                 s.strip = t.strip.and_then(|s| self.strip_to_slot.get(s).copied());
+                // r37:drums — its outputs' taps, or its source (ADR 0100), in slots.
+                s.outs.clear();
+                for (k, tap) in t.buses.iter().enumerate() {
+                    if let Some(at) = self.track_to_slot.get(*tap) {
+                        s.outs.set_tap(k + 1, *at);
+                    }
+                }
+                s.outs.source = t
+                    .tap
+                    .and_then(|x| self.track_to_slot.get(x.source).copied());
+                // r37:fixes — a tap into a pad's chain: the chain's output is the stem's.
+                let chain = t
+                    .strip
+                    .filter(|si| {
+                        t.tap.is_some() && snapshot.strips.get(*si).is_some_and(|x| x.chain)
+                    })
+                    .and_then(|si| self.strip_to_slot.get(si).copied());
+                s.outs.into_chain = chain.is_some() && s.outs.source.is_some();
+                let source = s.outs.source;
+                drop(s);
+                if let Some(mut st) = chain.and_then(|c| nodes.strip(c)) {
+                    st.chain_of = source;
+                }
             }
         }
         self.resolve_keys();

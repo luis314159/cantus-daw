@@ -233,8 +233,8 @@ fn edit_scrolls_to_the_rotary_speaker() {
 #[test]
 fn presets_set_what_they_name() {
     let (mut a, track) = with_organ();
-    assert!(organ::FACTORY_PRESETS.len() >= 8);
-    let full = organ::FACTORY_PRESETS
+    assert!(cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Organ).len() >= 8);
+    let full = cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Organ)
         .iter()
         .find(|p| p.label_key == "organ.preset.full")
         .unwrap();
@@ -250,7 +250,7 @@ fn presets_set_what_they_name() {
     assert_eq!(s.text("macro1.name"), Some("Drive"));
     assert_eq!(s.text("mod1.dst"), Some("drive"));
     // Every preset names its macros and only real keys.
-    for p in organ::FACTORY_PRESETS {
+    for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Organ) {
         let s = preset_spec(InstrumentKind::Organ, p);
         assert_eq!(
             s.params.len(),

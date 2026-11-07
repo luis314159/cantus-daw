@@ -614,7 +614,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
 
 /// `--editor epiano`: a suitcase with its tremolo, a note mid-swing.
 pub fn demo_setup(app: &mut CantusApp, track: TrackId) {
-    if let Some(p) = FACTORY_PRESETS
+    if let Some(p) = super::factory_presets(cantus_core::InstrumentKind::ElectricPiano)
         .iter()
         .find(|p| p.label_key == "epiano.preset.suitcase")
     {
@@ -651,94 +651,5 @@ pub fn demo_feed(app: &mut CantusApp) {
 }
 
 // ---- factory presets --------------------------------------------------------------------
-
-/// Macros for the tine presets: 1 bark (the pickup closer), 2 drive, 3 tremolo, 4 hardness.
-const TINE_MACROS: &[(&str, &str)] = &[
-    ("macro1.name", "Bark"),
-    ("mod1.src", "macro1"),
-    ("mod1.dst", "tine.gap"),
-    ("macro2.name", "Drive"),
-    ("mod2.src", "macro2"),
-    ("mod2.dst", "drive"),
-    ("macro3.name", "Tremolo"),
-    ("mod3.src", "macro3"),
-    ("mod3.dst", "trem.depth"),
-    ("macro4.name", "Hardness"),
-    ("mod4.src", "macro4"),
-    ("mod4.dst", "hard"),
-];
-/// The same four for the reed presets (bark moves the reed's slot).
-const REED_MACROS: &[(&str, &str)] = &[
-    ("macro1.name", "Bark"),
-    ("mod1.src", "macro1"),
-    ("mod1.dst", "reed.gap"),
-    ("macro2.name", "Drive"),
-    ("mod2.src", "macro2"),
-    ("mod2.dst", "drive"),
-    ("macro3.name", "Tremolo"),
-    ("mod3.src", "macro3"),
-    ("mod3.dst", "trem.depth"),
-    ("macro4.name", "Hardness"),
-    ("mod4.src", "macro4"),
-    ("mod4.dst", "hard"),
-];
-
-macro_rules! preset {
-    ($label:expr, $text:expr, $tags:expr, [$($k:expr => $v:expr),* $(,)?]) => {
-        FactoryPreset {
-            label_key: $label,
-            values: &[
-                ("mod1.amt", -0.15),
-                ("mod2.amt", 0.5),
-                ("mod3.amt", 0.8),
-                ("mod4.amt", 0.4),
-                $(($k, $v)),*
-            ],
-            text: $text,
-            tags: $tags,
-        }
-    };
-}
-
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    preset!("epiano.preset.suitcase", TINE_MACROS, &["preset.tag.keys", "epiano.tag.tine"], [
-        "trem.depth" => 0.55, "trem.rate" => 4.8, "drive" => 0.25, "tine.bell" => -12.0,
-    ]),
-    preset!("epiano.preset.stage", TINE_MACROS, &["preset.tag.keys", "epiano.tag.tine"], [
-        "tine.gap" => 1.4, "tine.align" => 0.8, "drive" => 0.3, "tine.bell" => -10.0, "hard" => 0.55,
-    ]),
-    preset!("epiano.preset.bark", TINE_MACROS, &["preset.tag.keys", "epiano.tag.tine"], [
-        "tine.gap" => 0.9, "tine.align" => 0.5, "hard" => 0.72, "drive" => 0.5, "dynamics" => 44.0,
-        "treble" => 2.0,
-    ]),
-    preset!("epiano.preset.ballad", TINE_MACROS, &["preset.tag.keys", "epiano.tag.soft"], [
-        "hard" => 0.3, "tine.bell" => -18.0, "tine.decay" => 12.0, "trem.depth" => 0.3,
-        "trem.rate" => 3.5, "drive" => 0.1, "hammer.noise" => -30.0,
-    ]),
-    preset!("epiano.preset.bells", TINE_MACROS, &["preset.tag.keys", "epiano.tag.tine"], [
-        "tine.bell" => -4.0, "tine.bell_decay" => 0.6, "strike" => 0.05, "hard" => 0.75,
-        "tine.couple" => 0.7,
-    ]),
-    preset!("epiano.preset.worn", TINE_MACROS, &["preset.tag.keys", "epiano.tag.lofi"], [
-        "age" => 0.8, "spread" => 6.0, "drive" => 0.4, "treble" => -6.0, "trem.mode" => 2.0,
-        "trem.depth" => 0.25, "release.noise" => -24.0, "hammer.noise" => -18.0,
-    ]),
-    preset!("epiano.preset.octave", TINE_MACROS, &["preset.tag.keys", "epiano.tag.tine"], [
-        "tine.align" => 0.0, "tine.gap" => 1.2, "drive" => 0.2, "tine.bell" => -16.0,
-    ]),
-    preset!("epiano.preset.bright", TINE_MACROS, &["preset.tag.keys", "epiano.tag.tine"], [
-        "treble" => 6.0, "bass" => -2.0, "tine.bell" => -8.0, "drive" => 0.15, "hard" => 0.62,
-    ]),
-    preset!("epiano.preset.reed", REED_MACROS, &["preset.tag.keys", "epiano.tag.reed"], [
-        "engine" => 1.0, "range" => 1.0, "trem.depth" => 0.4, "trem.rate" => 5.8, "drive" => 0.3,
-        "dynamics" => 50.0, "gain" => 5.0,
-    ]),
-    preset!("epiano.preset.reed_growl", REED_MACROS, &["preset.tag.keys", "epiano.tag.reed"], [
-        "engine" => 1.0, "range" => 1.0, "reed.gap" => 0.7, "reed.align" => 0.4, "hard" => 0.7,
-        "drive" => 0.6, "dynamics" => 50.0,
-    ]),
-    preset!("epiano.preset.reed_soft", REED_MACROS, &["preset.tag.keys", "epiano.tag.soft"], [
-        "engine" => 1.0, "range" => 1.0, "hard" => 0.35, "reed.overtones" => -16.0, "drive" => 0.1,
-        "output" => 1.0, "gain" => 5.0,
-    ]),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];

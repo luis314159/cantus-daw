@@ -35,6 +35,9 @@ pub enum Why {
     External(TrackId),
     /// A mix cue (ADR 0093) solos a strip inside it: a render holds no solo.
     CueSolo(StripId),
+    /// A kit whose pads play on strips of their own goes straight to the master (ADR 0100):
+    /// its pads' strips are baked, its own output is not (freeze refuses the track). // r37:drums
+    SplitKit(TrackId), // r37:drums
 }
 
 /// What *Prepare to record* does with the project as it is.
@@ -88,6 +91,12 @@ pub fn plan(project: &Project) -> Plan {
         }
         if crate::inst::dancer::is_dancer(&t.instrument) {
             out.live.push((target, Why::Dancer));
+            continue;
+        }
+        // r37:drums — a split kit straight to the master: its pads' strips are baked as
+        // strips; the track's own output (one render cannot hold its buses) stays live.
+        if !t.instrument.output_strips().is_empty() {
+            out.live.push((target, Why::SplitKit(t.id)));
             continue;
         }
         let why = if let Some(u) = external_in(project, &[t.id]) {
@@ -422,6 +431,7 @@ pub fn rest_for_master(project: &Project, snapshot: &mut crate::Snapshot) {
             t.notes_only = false;
         }
     }
+    crate::padout::settle_taps(snapshot); // r37:drums — a pad's output rests with its kit
     snapshot.master_effects.clear();
 }
 

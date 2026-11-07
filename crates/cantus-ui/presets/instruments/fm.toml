@@ -1,0 +1,923 @@
+# Modulus: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "fm.preset.epiano"
+note = "The FM electric piano: a tine on top of a soft body."
+styles = ["pop", "rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env.a.c2" = 0.7
+"env.a.l2" = 0
+"env.a.t1" = 2
+"env.a.t2" = 2500
+"env.a.t3" = 350
+"env.b.c2" = 0.6
+"env.b.l2" = 0
+"env.b.t1" = 1
+"env.b.t2" = 180
+"env.c.c2" = 0.6
+"env.c.l2" = 0
+"env.c.t1" = 2
+"env.c.t2" = 1800
+"env.c.t3" = 300
+"env.d.c2" = 0.5
+"env.d.l2" = 0.15
+"env.d.t1" = 1
+"env.d.t2" = 900
+"gain" = 4.5
+"ks.b.rdepth" = 18
+"m.b.a" = 1.4
+"m.d.c" = 2.2
+"mod1.amt" = 0.08
+"mod2.amt" = 0.1
+"op.a.detune" = -2
+"op.a.vel" = 0.5
+"op.b.ratio" = 14
+"op.b.vel" = 0.9
+"op.c.detune" = 4
+"op.c.vel" = 0.5
+"op.d.vel" = 0.7
+"out.c" = -4
+"pan.a" = -0.25
+"pan.c" = 0.25
+[preset.text]
+"macro1.name" = "Tine"
+"macro2.name" = "Bark"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+"mod2.dst" = "m.d.c"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "fm.preset.bass"
+note = "A feedback FM bass with a quick decay of brightness."
+styles = ["pop", "house"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"env.a.l2" = 0.8
+"env.a.t1" = 1
+"env.a.t2" = 600
+"env.a.t3" = 120
+"env.b.c2" = 0.5
+"env.b.l2" = 0.15
+"env.b.t1" = 1
+"env.b.t2" = 350
+"fb.b" = 1.6
+"gain" = 10.5
+"glide" = 35
+"m.b.a" = 2.2
+"mod1.amt" = 0.35
+"mode" = 2
+"op.a.vel" = 0.3
+"op.b.vel" = 0.7
+[preset.text]
+"macro1.name" = "Growl"
+"mod1.dst" = "macro.bright"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.bell"
+note = "Inharmonic ratios and a long ring: a bell."
+styles = ["ambient", "film"]
+roles = ["pluck"]
+tags = ["preset.tag.bell"]
+[preset.values]
+"env.a.c2" = 0.8
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 6000
+"env.a.t3" = 2500
+"env.b.c2" = 0.8
+"env.b.l2" = 0
+"env.b.t1" = 1
+"env.b.t2" = 4000
+"env.c.c2" = 0.8
+"env.c.l2" = 0
+"env.c.t1" = 1
+"env.c.t2" = 3000
+"env.c.t3" = 2500
+"env.d.c2" = 0.7
+"env.d.l2" = 0
+"env.d.t2" = 1500
+"gain" = -0.7
+"m.b.a" = 4.5
+"m.d.c" = 1.5
+"mod1.amt" = 0.1
+"op.a.vel" = 0.3
+"op.b.ratio" = 1.4
+"op.b.vel" = 0.6
+"op.c.ratio" = 2
+"op.c.vel" = 0.3
+"op.d.ratio" = 7
+"op.d.vel" = 0.6
+"out.c" = -6
+[preset.text]
+"macro1.name" = "Strike"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.brass"
+note = "Brass with a slow-opening brightness and a late vibrato."
+styles = ["film", "rock"]
+roles = ["lead"]
+tags = ["preset.tag.brass", "preset.tag.lead"]
+[preset.values]
+"env.a.l2" = 0.9
+"env.a.t1" = 40
+"env.a.t3" = 180
+"env.b.c1" = -0.4
+"env.b.l2" = 0.75
+"env.b.t1" = 90
+"env.b.t2" = 400
+"env.b.t3" = 200
+"env.c.l2" = 0.9
+"env.c.t1" = 50
+"env.c.t3" = 180
+"env.d.c1" = -0.4
+"env.d.l2" = 0.7
+"env.d.t1" = 120
+"fb.b" = 0.6
+"gain" = 4.5
+"lfo1.delay" = 450
+"lfo1.pitch" = 14
+"lfo1.rate" = 5.5
+"m.b.a" = 2.5
+"m.d.c" = 1.5
+"mod1.amt" = 0.3
+"mod2.amt" = 0.03
+"op.b.vel" = 0.6
+"op.c.detune" = 7
+"op.d.vel" = 0.6
+"out.c" = -5
+[preset.text]
+"macro1.name" = "Blare"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "macro.bright"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "fm.preset.marimba"
+note = "A wooden bar struck: the marimba."
+styles = ["latin", "jazz"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env.a.c2" = 0.7
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 900
+"env.a.t3" = 200
+"env.b.c2" = 0.6
+"env.b.l2" = 0
+"env.b.t1" = 0.5
+"env.b.t2" = 60
+"env.c.c2" = 0.6
+"env.c.l2" = 0
+"env.c.t1" = 0.5
+"env.c.t2" = 150
+"gain" = 7.4
+"m.b.a" = 2.2
+"mod1.amt" = 0.06
+"op.a.vel" = 0.3
+"op.b.ratio" = 4
+"op.b.vel" = 0.7
+"op.c.ratio" = 10
+"out.c" = -14
+[preset.text]
+"macro1.name" = "Mallet"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.organ"
+note = "Six operators as drawbars: a clean organ."
+styles = ["worship", "jazz"]
+roles = ["keys"]
+tags = ["preset.tag.organ", "preset.tag.keys"]
+[preset.values]
+"env.a.l2" = 1
+"env.a.t1" = 3
+"env.a.t3" = 40
+"env.b.l2" = 1
+"env.b.t1" = 3
+"env.b.t3" = 40
+"env.c.l2" = 1
+"env.c.t1" = 3
+"env.c.t3" = 40
+"env.d.l2" = 1
+"env.d.t1" = 3
+"env.d.t3" = 40
+"env.e.l2" = 1
+"env.e.t1" = 3
+"env.e.t3" = 40
+"env.f.l2" = 1
+"env.f.t1" = 3
+"env.f.t3" = 40
+"gain" = -2.5
+"lfo1.pitch" = 6
+"lfo1.rate" = 6.8
+"mod1.amt" = 0.15
+"op.a.ratio" = 0.5
+"op.c.ratio" = 2
+"op.d.ratio" = 3
+"op.e.ratio" = 4
+"op.f.ratio" = 8
+"out.a" = -8
+"out.b" = -6
+"out.c" = -9
+"out.d" = -14
+"out.e" = -12
+"out.f" = -16
+[preset.text]
+"macro1.name" = "Upper"
+"mod1.dst" = "out.f"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.pad"
+note = "A slow, wide, glassy FM pad."
+styles = ["ambient", "pop"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env.a.c1" = -0.3
+"env.a.l2" = 0.9
+"env.a.t1" = 900
+"env.a.t3" = 1800
+"env.b.t1" = 1500
+"env.b.t3" = 1800
+"env.c.c1" = -0.3
+"env.c.l2" = 0.9
+"env.c.t1" = 900
+"env.c.t3" = 1800
+"env.d.t1" = 1500
+"env.d.t3" = 1800
+"gain" = -1.7
+"lfo2.rate" = 0.3
+"m.b.a" = 1.2
+"m.d.c" = 0.8
+"mod1.amt" = 0.02
+"mod2.amt" = 0.05
+"op.b.ratio" = 2
+"op.c.detune" = 9
+"op.d.ratio" = 3
+"out.c" = -3
+"pan.a" = -0.3
+"pan.c" = 0.3
+"uni.detune" = 14
+"uni.spread" = 0.7
+"unison" = 2
+[preset.text]
+"macro1.name" = "Shimmer"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "lfo2"
+"mod2.dst" = "m.d.c"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.pluck"
+note = "A mono pluck with feedback and glide."
+styles = ["pop", "house"]
+roles = ["pluck"]
+tags = ["preset.tag.lead", "preset.tag.pluck"]
+[preset.values]
+"env.a.l2" = 0.6
+"env.a.t1" = 1
+"env.a.t2" = 500
+"env.a.t3" = 150
+"env.b.c2" = 0.5
+"env.b.l2" = 0.2
+"env.b.t1" = 1
+"env.b.t2" = 250
+"fb.b" = 0.8
+"gain" = 3.8
+"glide" = 60
+"m.b.a" = 3
+"mod1.amt" = 0.06
+"mode" = 2
+"op.b.ratio" = 2
+"op.b.vel" = 0.5
+[preset.text]
+"macro1.name" = "Bite"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.perc"
+note = "Fixed-frequency operators struck: metallic percussion."
+styles = ["film", "house"]
+roles = ["drums"]
+tags = ["preset.tag.perc"]
+[preset.values]
+"env.a.c2" = 0.8
+"env.a.l2" = 0
+"env.a.t1" = 0.5
+"env.a.t2" = 350
+"env.a.t3" = 200
+"env.b.c2" = 0.7
+"env.b.l2" = 0
+"env.b.t1" = 0.5
+"env.b.t2" = 80
+"env.c.l2" = 0
+"env.c.t1" = 0.5
+"env.c.t2" = 40
+"gain" = 9.4
+"m.b.a" = 6
+"m.c.a" = 2
+"mod1.amt" = 0.1
+"op.b.fixed" = 1270
+"op.b.freq_mode" = 1
+"op.c.fixed" = 3510
+"op.c.freq_mode" = 1
+[preset.text]
+"macro1.name" = "Ring"
+"mod1.dst" = "m.c.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.flute"
+note = "A breathy flute with a late vibrato."
+styles = ["film", "latin"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"drift" = 2
+"env.a.c1" = -0.2
+"env.a.l2" = 0.9
+"env.a.t1" = 70
+"env.a.t3" = 150
+"env.b.l2" = 0.8
+"env.b.t1" = 120
+"gain" = 5
+"lfo1.delay" = 300
+"lfo1.pitch" = 10
+"lfo1.rate" = 5
+"m.b.a" = 0.6
+"mod1.amt" = 0.03
+"op.b.vel" = 0.4
+[preset.text]
+"macro1.name" = "Breath"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.ballad_ep"
+note = "A brighter FM piano: the tine forward, for a ballad."
+styles = ["pop", "rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env.a.c2" = 0.7
+"env.a.l2" = 0
+"env.a.t1" = 2
+"env.a.t2" = 2500
+"env.a.t3" = 350
+"env.b.c2" = 0.6
+"env.b.l2" = 0
+"env.b.t1" = 1
+"env.b.t2" = 180
+"env.c.c2" = 0.6
+"env.c.l2" = 0
+"env.c.t1" = 2
+"env.c.t2" = 1800
+"env.c.t3" = 300
+"env.d.c2" = 0.5
+"env.d.l2" = 0.15
+"env.d.t1" = 1
+"env.d.t2" = 900
+"gain" = 4.5
+"ks.b.rdepth" = 18
+"m.b.a" = 2
+"m.d.c" = 2.2
+"mod1.amt" = 0.08
+"mod2.amt" = 0.1
+"op.a.detune" = -2
+"op.a.vel" = 0.5
+"op.b.ratio" = 14
+"op.b.vel" = 1
+"op.c.detune" = 4
+"op.c.vel" = 0.5
+"op.d.vel" = 0.7
+"out.c" = -4
+"pan.a" = -0.25
+"pan.c" = 0.25
+[preset.text]
+"macro1.name" = "Tine"
+"macro2.name" = "Bark"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+"mod2.dst" = "m.d.c"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "fm.preset.slap_bass"
+note = "More feedback and a faster snap: the slapped FM bass of eighties pop and R&B."
+styles = ["pop", "rnb"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"env.a.l2" = 0.8
+"env.a.t1" = 1
+"env.a.t2" = 600
+"env.a.t3" = 120
+"env.b.c2" = 0.5
+"env.b.l2" = 0.05
+"env.b.t1" = 1
+"env.b.t2" = 200
+"fb.b" = 2.2
+"gain" = 10.5
+"glide" = 35
+"m.b.a" = 3
+"mod1.amt" = 0.35
+"mode" = 2
+"op.a.vel" = 0.3
+"op.b.vel" = 0.7
+[preset.text]
+"macro1.name" = "Growl"
+"mod1.dst" = "macro.bright"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.glass_bells"
+note = "Higher, glassier ratios with a long ring."
+styles = ["ambient", "film"]
+roles = ["pluck"]
+tags = ["preset.tag.bell"]
+[preset.values]
+"env.a.c2" = 0.8
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 5000
+"env.a.t3" = 2500
+"env.b.c2" = 0.8
+"env.b.l2" = 0
+"env.b.t1" = 1
+"env.b.t2" = 4000
+"env.c.c2" = 0.8
+"env.c.l2" = 0
+"env.c.t1" = 1
+"env.c.t2" = 3000
+"env.c.t3" = 2500
+"env.d.c2" = 0.7
+"env.d.l2" = 0
+"env.d.t2" = 1500
+"gain" = -0.9
+"m.b.a" = 4.5
+"m.d.c" = 1.5
+"mod1.amt" = 0.1
+"op.a.vel" = 0.3
+"op.b.ratio" = 3.5
+"op.b.vel" = 0.6
+"op.c.ratio" = 2
+"op.c.vel" = 0.3
+"op.d.ratio" = 7.1
+"op.d.vel" = 0.6
+"out.c" = -6
+[preset.text]
+"macro1.name" = "Strike"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.kalimba"
+note = "A thumb piano: a bright tine that rings a little longer."
+styles = ["lofi", "latin"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env.a.c2" = 0.7
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 700
+"env.a.t3" = 200
+"env.b.c2" = 0.6
+"env.b.l2" = 0
+"env.b.t1" = 0.5
+"env.b.t2" = 60
+"env.c.c2" = 0.6
+"env.c.l2" = 0
+"env.c.t1" = 0.5
+"env.c.t2" = 150
+"gain" = 7.9
+"m.b.a" = 1.8
+"mod1.amt" = 0.06
+"op.a.vel" = 0.3
+"op.b.ratio" = 5
+"op.b.vel" = 0.7
+"op.c.ratio" = 10
+"out.c" = -14
+[preset.text]
+"macro1.name" = "Mallet"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.tubular"
+note = "Tubular bells: deep, slow to fade."
+styles = ["film", "worship"]
+roles = ["pluck"]
+tags = ["preset.tag.bell"]
+[preset.values]
+"env.a.c2" = 0.8
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 8000
+"env.a.t3" = 2500
+"env.b.c2" = 0.8
+"env.b.l2" = 0
+"env.b.t1" = 1
+"env.b.t2" = 4000
+"env.c.c2" = 0.8
+"env.c.l2" = 0
+"env.c.t1" = 1
+"env.c.t2" = 5000
+"env.c.t3" = 2500
+"env.d.c2" = 0.7
+"env.d.l2" = 0
+"env.d.t2" = 1500
+"gain" = -1.4
+"m.b.a" = 3.5
+"m.d.c" = 1.5
+"mod1.amt" = 0.1
+"op.a.vel" = 0.3
+"op.b.ratio" = 3.5
+"op.b.vel" = 0.6
+"op.c.ratio" = 2
+"op.c.vel" = 0.3
+"op.d.ratio" = 7
+"op.d.vel" = 0.6
+"out.c" = -6
+[preset.text]
+"macro1.name" = "Strike"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.clav"
+note = "A clavinet: bright, short and played polyphonically."
+styles = ["rnb", "rock"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 400
+"env.a.t3" = 150
+"env.b.c2" = 0.5
+"env.b.l2" = 0.2
+"env.b.t1" = 1
+"env.b.t2" = 250
+"fb.b" = 1.5
+"gain" = 2.7
+"m.b.a" = 3.5
+"mod1.amt" = 0.06
+"mode" = 0
+"op.b.ratio" = 1
+"op.b.vel" = 0.8
+[preset.text]
+"macro1.name" = "Bite"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.steel_drum"
+note = "A steel pan: a ringing, slightly inharmonic note."
+styles = ["latin"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env.a.c2" = 0.7
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 800
+"env.a.t3" = 200
+"env.b.c2" = 0.6
+"env.b.l2" = 0
+"env.b.t1" = 0.5
+"env.b.t2" = 60
+"env.c.c2" = 0.6
+"env.c.l2" = 0
+"env.c.t1" = 0.5
+"env.c.t2" = 150
+"gain" = 6.7
+"m.b.a" = 2.5
+"mod1.amt" = 0.06
+"op.a.vel" = 0.3
+"op.b.ratio" = 1.5
+"op.b.vel" = 0.7
+"op.c.ratio" = 10
+"out.c" = -20
+[preset.text]
+"macro1.name" = "Mallet"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.digital_pad"
+note = "A brighter, more digital pad: the harmonics up."
+styles = ["ambient", "pop"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env.a.c1" = -0.3
+"env.a.l2" = 0.9
+"env.a.t1" = 900
+"env.a.t3" = 1800
+"env.b.t1" = 1500
+"env.b.t3" = 1800
+"env.c.c1" = -0.3
+"env.c.l2" = 0.9
+"env.c.t1" = 900
+"env.c.t3" = 1800
+"env.d.t1" = 1500
+"env.d.t3" = 1800
+"gain" = -1.8
+"lfo2.rate" = 0.3
+"m.b.a" = 2
+"m.d.c" = 0.8
+"mod1.amt" = 0.02
+"mod2.amt" = 0.05
+"op.b.ratio" = 3
+"op.c.detune" = 9
+"op.d.ratio" = 3
+"out.c" = -3
+"pan.a" = -0.3
+"pan.c" = 0.3
+"uni.detune" = 14
+"uni.spread" = 0.7
+"unison" = 2
+[preset.text]
+"macro1.name" = "Shimmer"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "lfo2"
+"mod2.dst" = "m.d.c"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.house_stab"
+note = "A short brass chord: the house and garage stab."
+styles = ["house"]
+roles = ["keys"]
+tags = ["preset.tag.brass", "preset.tag.keys"]
+[preset.values]
+"env.a.l2" = 0
+"env.a.t1" = 5
+"env.a.t2" = 300
+"env.a.t3" = 100
+"env.b.c1" = -0.4
+"env.b.l2" = 0.75
+"env.b.t1" = 90
+"env.b.t2" = 400
+"env.b.t3" = 200
+"env.c.l2" = 0
+"env.c.t1" = 5
+"env.c.t3" = 180
+"env.d.c1" = -0.4
+"env.d.l2" = 0.7
+"env.d.t1" = 120
+"fb.b" = 0.6
+"gain" = 4.2
+"lfo1.delay" = 450
+"lfo1.pitch" = 0
+"lfo1.rate" = 5.5
+"m.b.a" = 2.5
+"m.d.c" = 1.5
+"mod1.amt" = 0.3
+"mod2.amt" = 0.03
+"op.b.vel" = 0.6
+"op.c.detune" = 7
+"op.d.vel" = 0.6
+"out.c" = -5
+[preset.text]
+"macro1.name" = "Blare"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "macro.bright"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "fm.preset.vibraphone"
+note = "A vibraphone: a bar that rings, its motor on."
+styles = ["jazz", "lofi"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env.a.c2" = 0.7
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 2500
+"env.a.t3" = 200
+"env.b.c2" = 0.6
+"env.b.l2" = 0
+"env.b.t1" = 0.5
+"env.b.t2" = 60
+"env.c.c2" = 0.6
+"env.c.l2" = 0
+"env.c.t1" = 0.5
+"env.c.t2" = 150
+"gain" = 5.7
+"lfo1.amp" = 3
+"lfo1.rate" = 5
+"m.b.a" = 1.5
+"mod1.amt" = 0.06
+"op.a.vel" = 0.3
+"op.b.ratio" = 4
+"op.b.vel" = 0.7
+"op.c.ratio" = 10
+"out.c" = -14
+[preset.text]
+"macro1.name" = "Mallet"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.trap_bell"
+note = "A shorter, darker bell for trap melodies."
+styles = ["trap"]
+roles = ["pluck"]
+tags = ["preset.tag.bell"]
+[preset.values]
+"env.a.c2" = 0.8
+"env.a.l2" = 0
+"env.a.t1" = 1
+"env.a.t2" = 1500
+"env.a.t3" = 2500
+"env.b.c2" = 0.8
+"env.b.l2" = 0
+"env.b.t1" = 1
+"env.b.t2" = 4000
+"env.c.c2" = 0.8
+"env.c.l2" = 0
+"env.c.t1" = 1
+"env.c.t2" = 1200
+"env.c.t3" = 2500
+"env.d.c2" = 0.7
+"env.d.l2" = 0
+"env.d.t2" = 1500
+"gain" = 1.5
+"m.b.a" = 3
+"m.d.c" = 1.5
+"mod1.amt" = 0.1
+"op.a.vel" = 0.3
+"op.b.ratio" = 3.5
+"op.b.vel" = 0.6
+"op.c.ratio" = 2
+"op.c.vel" = 0.3
+"op.d.ratio" = 7
+"op.d.vel" = 0.6
+"out.c" = -6
+[preset.text]
+"macro1.name" = "Strike"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.metal_fx"
+note = "A metallic hit that falls in pitch: an impact."
+styles = ["film"]
+roles = ["fx"]
+tags = ["preset.tag.fx"]
+[preset.values]
+"env.a.c2" = 0.8
+"env.a.l2" = 0
+"env.a.t1" = 0.5
+"env.a.t2" = 1500
+"env.a.t3" = 200
+"env.b.c2" = 0.7
+"env.b.l2" = 0
+"env.b.t1" = 0.5
+"env.b.t2" = 80
+"env.c.l2" = 0
+"env.c.t1" = 0.5
+"env.c.t2" = 40
+"gain" = 6.5
+"m.b.a" = 8
+"m.c.a" = 2
+"mod1.amt" = 0.1
+"op.b.fixed" = 1270
+"op.b.freq_mode" = 1
+"op.c.fixed" = 3510
+"op.c.freq_mode" = 1
+"penv.l0" = 24
+"penv.t1" = 600
+[preset.text]
+"macro1.name" = "Ring"
+"mod1.dst" = "m.c.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.church"
+note = "A church organ: deeper, slower to speak."
+styles = ["worship"]
+roles = ["keys"]
+tags = ["preset.tag.organ", "preset.tag.keys"]
+[preset.values]
+"env.a.l2" = 1
+"env.a.t1" = 40
+"env.a.t3" = 40
+"env.b.l2" = 1
+"env.b.t1" = 40
+"env.b.t3" = 40
+"env.c.l2" = 1
+"env.c.t1" = 40
+"env.c.t3" = 40
+"env.d.l2" = 1
+"env.d.t1" = 40
+"env.d.t3" = 40
+"env.e.l2" = 1
+"env.e.t1" = 40
+"env.e.t3" = 40
+"env.f.l2" = 1
+"env.f.t1" = 40
+"env.f.t3" = 40
+"gain" = -1.9
+"lfo1.pitch" = 6
+"lfo1.rate" = 6.8
+"mod1.amt" = 0.15
+"op.a.ratio" = 0.25
+"op.c.ratio" = 2
+"op.d.ratio" = 3
+"op.e.ratio" = 4
+"op.f.ratio" = 8
+"out.a" = -8
+"out.b" = -6
+"out.c" = -9
+"out.d" = -14
+"out.e" = -12
+"out.f" = -16
+[preset.text]
+"macro1.name" = "Upper"
+"mod1.dst" = "out.f"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.pop_lead"
+note = "A bright mono lead with glide and vibrato."
+styles = ["pop"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"drift" = 2
+"env.a.c1" = -0.2
+"env.a.l2" = 0.9
+"env.a.t1" = 70
+"env.a.t3" = 150
+"env.b.l2" = 0.8
+"env.b.t1" = 120
+"gain" = 5.5
+"glide" = 40
+"lfo1.delay" = 300
+"lfo1.pitch" = 10
+"lfo1.rate" = 5
+"m.b.a" = 1.6
+"mod1.amt" = 0.03
+"mode" = 2
+"op.b.ratio" = 1
+"op.b.vel" = 0.4
+[preset.text]
+"macro1.name" = "Breath"
+"mod1.dst" = "m.b.a"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "fm.preset.scifi"
+note = "Metallic operators wobbling in pitch: a science-fiction beep."
+styles = ["film"]
+roles = ["fx"]
+tags = ["preset.tag.fx"]
+[preset.values]
+"env.a.c2" = 0.8
+"env.a.l2" = 0
+"env.a.t1" = 0.5
+"env.a.t2" = 2000
+"env.a.t3" = 200
+"env.b.c2" = 0.7
+"env.b.l2" = 0
+"env.b.t1" = 0.5
+"env.b.t2" = 80
+"env.c.l2" = 0
+"env.c.t1" = 0.5
+"env.c.t2" = 40
+"gain" = 4.8
+"lfo1.pitch" = 600
+"lfo1.rate" = 8
+"m.b.a" = 6
+"m.c.a" = 2
+"mod1.amt" = 0.1
+"op.b.fixed" = 1270
+"op.b.freq_mode" = 1
+"op.c.fixed" = 3510
+"op.c.freq_mode" = 1
+"out.a" = 4
+[preset.text]
+"macro1.name" = "Ring"
+"mod1.dst" = "m.c.a"
+"mod1.src" = "macro1"

@@ -109,7 +109,7 @@ fn the_delays_drawn_are_the_delays_played() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in concentus::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Chorus) {
         let mut spec = EffectSpec::new(EffectKind::Chorus);
         for (k, v) in *values {
             assert!(spec.set(k, *v).is_some(), "{label}: no parameter {k}");

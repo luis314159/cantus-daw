@@ -1,0 +1,167 @@
+# Phasis phaser: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.phasis.phase90_script"
+note = "Four stages, no feedback: the early script-logo pedal on a clean guitar or keys."
+styles = ["rock", "rnb"]
+roles = ["creative"]
+[preset.values]
+"hi" = 1600
+"lo" = 220
+"mix" = 0.5
+"out" = -3.8
+"rate" = 0.6
+
+[[preset]]
+key = "preset.phasis.phase90_block"
+note = "The same with its feedback: a sharper, vocal sweep."
+styles = ["rock", "jazz"]
+roles = ["creative"]
+[preset.values]
+"fb" = 0.3
+"hi" = 1600
+"lo" = 220
+"mix" = 0.5
+"out" = -4.2
+"rate" = 0.6
+
+[[preset]]
+key = "preset.phasis.small_stone"
+note = "Wide range, a lot of feedback, slow: the seventies swoosh."
+styles = ["rock", "lofi"]
+roles = ["creative"]
+[preset.values]
+"fb" = 0.5
+"hi" = 3500
+"lo" = 100
+"mix" = 0.5
+"out" = -5.6
+"rate" = 0.3
+
+[[preset]]
+key = "preset.phasis.deep_twelve"
+note = "Twelve stages, negative feedback, very slow: deep, hollow movement."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"fb" = -0.5
+"hi" = 6000
+"lo" = 80
+"mix" = 0.5
+"out" = -4.3
+"rate" = 0.12
+"stages" = 12
+
+[[preset]]
+key = "preset.phasis.synced_eighths"
+note = "Eighth-note sweeps on a triangle, locked to the song."
+styles = ["house", "pop"]
+roles = ["creative"]
+[preset.values]
+"div" = 11
+"fb" = 0.4
+"mix" = 0.5
+"out" = -3.7
+"shape" = 1
+"stages" = 6
+"sync" = 1
+
+[[preset]]
+key = "preset.phasis.stereo_swirl"
+note = "Left and right opposite: a phaser that turns around the head."
+styles = ["ambient", "pop"]
+roles = ["creative"]
+[preset.values]
+"hi" = 5000
+"mix" = 0.5
+"out" = -3.9
+"rate" = 0.25
+"spread" = 180
+"stages" = 6
+
+[[preset]]
+key = "preset.phasis.random_steps"
+note = "Random steps on sixteenths: a sample-and-hold phaser."
+styles = ["house", "film"]
+roles = ["creative"]
+[preset.values]
+"div" = 14
+"edge" = 0.5
+"fb" = 0.6
+"mix" = 0.5
+"out" = -2.4
+"shape" = 5
+"stages" = 8
+"sync" = 1
+
+[[preset]]
+key = "preset.phasis.slow_wash"
+note = "A sweep so slow it reads as motion under a pad."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"hi" = 8000
+"lo" = 60
+"mix" = 0.4
+"out" = -4.7
+"rate" = 0.05
+"spread" = 90
+"stages" = 8
+
+[[preset]]
+key = "preset.phasis.funk_keys"
+note = "Quarter-note sweeps on an electric piano or a clavinet."
+styles = ["rnb", "jazz"]
+roles = ["creative"]
+[preset.values]
+"div" = 8
+"fb" = 0.35
+"hi" = 2500
+"lo" = 150
+"mix" = 0.5
+"out" = -5
+"stages" = 4
+"sync" = 1
+
+[[preset]]
+key = "preset.phasis.lofi_drift"
+note = "Slow and narrow: a soft, drifting tone."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"hi" = 2200
+"lo" = 300
+"mix" = 0.35
+"out" = -4.1
+"rate" = 0.1
+"stages" = 4
+
+[[preset]]
+key = "preset.phasis.vocal_motion"
+note = "A light phaser on a vocal: it moves, it stays clear."
+styles = ["pop", "film"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 4000
+"lo" = 400
+"mix" = 0.25
+"out" = -0.9
+"rate" = 0.2
+"stages" = 4
+
+[[preset]]
+key = "preset.phasis.drum_loop"
+note = "Half-note sweeps across a drum loop."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"div" = 5
+"fb" = 0.3
+"hi" = 6000
+"lo" = 150
+"mix" = 0.4
+"out" = -5.2
+"stages" = 6
+"sync" = 1

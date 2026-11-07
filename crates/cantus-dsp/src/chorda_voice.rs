@@ -16,6 +16,7 @@
 //! directly. `EA` from the wire's diameter, itself from `B = π³ E d⁴ / (64 T L²)`.
 
 use super::design::LoopDesign;
+use super::noise::{self, Thud};
 use super::string::{loss, Felt, KeyStrings, MAX_STRINGS};
 use super::tables::Key;
 use crate::math;
@@ -52,6 +53,42 @@ pub struct VoiceSettings {
     pub phantom: f64,
     /// The soft pedal's reach (0…1) and how far it is pressed now (0…1).
     pub una_depth: f64,
+    /// Model 2 (ADR 0098), all 0 in model 1: the hammer's blow carried into the frame (a
+    /// share of its force), the key's thud and the damper's landing (1: as voiced), and how
+    /// much each strike varies from the last (1: as voiced).
+    pub blow: f64,
+    pub knock: f64,
+    pub landing: f64,
+    pub vary: f64,
+    /// Model 2: the strings' decay laws scaled — `b₁` (by register, set per strike) and
+    /// `b₂` (the frequency-dependent loss) divided by these (1: as measured, model 1).
+    pub b1_scale: f64,
+    pub b2_scale: f64,
+    /// Below this force (N) a control step is quiet (model 1: 1e-10; model 2 higher, so
+    /// its longer decays still end).
+    pub quiet: f64,
+    /// Model 2: what this strike's variation and noises are seeded from — the note's id
+    /// (a clip note's own, the same on every play, live or offline, from any start; ADR
+    /// 0023 rule 1).
+    pub seed: u64,
+}
+
+/// Model 2's voicing of the action (ADR 0098), calibrated by `chorda_compare`.
+pub mod action {
+    /// The key bottoming: its two modes (Hz, T60 s) and their kicks (N at 1 m/s, growing as
+    /// the speed to the 1.5), its noise (N at 1 m/s, as the speed squared).
+    pub const KEY_HZ: [f64; 2] = [72.0, 185.0];
+    pub const KEY_T60: [f64; 2] = [0.06, 0.04];
+    pub const KEY_KICK: [f64; 2] = [0.020, 0.012];
+    pub const KEY_NOISE: f64 = 0.010;
+    /// The damper landing: modes, kicks and noise (N), at a key's release.
+    pub const DAMPER_HZ: [f64; 2] = [95.0, 240.0];
+    pub const DAMPER_T60: [f64; 2] = [0.05, 0.035];
+    pub const DAMPER_KICK: [f64; 2] = [0.006, 0.004];
+    pub const DAMPER_NOISE: f64 = 0.003;
+    /// A strike's variation: its speed (±) and its felt's stiffness (±), as fractions.
+    pub const VARY_SPEED: f64 = 0.025;
+    pub const VARY_FELT: f64 = 0.08;
 }
 
 /// A damped string's T60 at its first partial (s), by key: interpolated on a log scale.
@@ -111,6 +148,9 @@ pub struct Voice {
     /// fade out over [`RETUNE_FADE`] samples, then the new strings are laid and struck
     /// (sound review 2: a key struck again while it rang kept the old tuning for good).
     retune: Option<Retune>,
+    /// Model 2: the key's thud on the keybed and the damper's as it lands.
+    knock: Thud,
+    landing: Thud,
 }
 
 /// Samples a ringing voice takes to fade out before a strike for a newer keyboard.
@@ -173,6 +213,14 @@ impl Voice {
                 damper: 1.0,
                 phantom: 1.0,
                 una_depth: 1.0,
+                blow: 0.0,
+                knock: 0.0,
+                landing: 0.0,
+                vary: 0.0,
+                b1_scale: 1.0,
+                b2_scale: 1.0,
+                quiet: QUIET_N,
+                seed: 0,
             },
             tension,
             dc_x: 0.0,
@@ -184,6 +232,15 @@ impl Voice {
             step_peak: 0.0,
             design_gen: 0,
             retune: None,
+            knock: Thud::new(fs, action::KEY_HZ, action::KEY_T60, 300.0, 3_000.0, 0.004),
+            landing: Thud::new(
+                fs,
+                action::DAMPER_HZ,
+                action::DAMPER_T60,
+                200.0,
+                2_000.0,
+                0.006,
+            ),
         }
     }
 
@@ -249,7 +306,19 @@ impl Voice {
         felt.k *= 1.0 - 0.4 * soft;
         let x = ((vel - 1.0 / 127.0) / (1.0 - 1.0 / 127.0)).clamp(0.0, 1.0);
         let shaped = math::powf(x, settings.vel_curve.max(0.1));
-        let v = settings.v_min * math::powf(settings.v_max / settings.v_min, shaped);
+        let mut v = settings.v_min * math::powf(settings.v_max / settings.v_min, shaped);
+        let seed = noise::seed(key.key, (settings.seed ^ (settings.seed >> 32)) as u32);
+        if settings.vary != 0.0 {
+            // No two strikes alike: the speed and the felt vary a little, seeded.
+            v *= 1.0 + settings.vary * action::VARY_SPEED * noise::draw(seed ^ 0x51);
+            felt.k *= 1.0 + settings.vary * action::VARY_FELT * noise::draw(seed ^ 0xF3);
+        }
+        if settings.knock != 0.0 {
+            let k = settings.knock * math::powf(v, 1.5);
+            let kick = [k * action::KEY_KICK[0], k * action::KEY_KICK[1]];
+            self.knock
+                .strike(kick, settings.knock * v * v * action::KEY_NOISE, seed);
+        }
         let weight = match key.strings {
             3 => [1.0, 1.0, 1.0 - soft],
             2 => [1.0, 1.0 - 0.5 * soft, 0.0],
@@ -282,6 +351,20 @@ impl Voice {
     pub fn release(&mut self, pedal: f64) {
         self.key_down = false;
         self.set_pedal(pedal);
+        // Model 2: the damper lands on the strings (unless the pedal holds it up).
+        if self.settings.landing != 0.0 && self.key.damper && self.active {
+            let held = 1.0 - pedal_contact(pedal);
+            let g = self.settings.landing * (1.0 - held);
+            if g > 0.0 {
+                let c = self.settings.seed;
+                let seed = noise::seed(self.key.key, (c ^ (c >> 32)) as u32) ^ 0xDA;
+                self.landing.strike(
+                    [g * action::DAMPER_KICK[0], g * action::DAMPER_KICK[1]],
+                    g * action::DAMPER_NOISE,
+                    seed,
+                );
+            }
+        }
     }
 
     /// Let go of any strike waiting for the old strings to fade (all notes off).
@@ -319,6 +402,8 @@ impl Voice {
         self.dc_y = 0.0;
         self.res = [0.0; 2];
         self.design_gen = 0;
+        self.knock.silence();
+        self.landing.silence();
     }
 
     fn control(&mut self) {
@@ -330,8 +415,14 @@ impl Voice {
         }
         if self.contact != self.set_contact {
             let grip = 6.907_755 / damped_t60(self.key.key as f64);
+            // Model 2's decay laws (model 1: the key as measured, untouched).
+            let mut key = self.key;
+            if self.settings.b1_scale != 1.0 || self.settings.b2_scale != 1.0 {
+                key.b1 /= self.settings.b1_scale;
+                key.b2 /= self.settings.b2_scale;
+            }
             let (g, a, yz) = loss(
-                &self.key,
+                &key,
                 self.fs,
                 self.settings.coupling,
                 self.settings.decay,
@@ -343,12 +434,14 @@ impl Voice {
         }
     }
 
-    /// Render `out.len()` samples of the bridge force (N) into `out` (added).
-    pub fn render(&mut self, out: &mut [f64]) {
+    /// Render `out.len()` samples of the bridge force (N) into `out`, and model 2's
+    /// action noises (N, the frame's: they reach the body, never the sympathetic strings)
+    /// into `noise` (both added).
+    pub fn render(&mut self, out: &mut [f64], noise: &mut [f64]) {
         if let Some(r) = self.retune {
             // The old strings fade out; then the waiting strike lands on the new ones.
             let n = (r.left as usize).min(out.len());
-            self.render_gain(&mut out[..n], true);
+            self.render_gain(&mut out[..n], &mut noise[..n], true);
             if self.retune.is_some_and(|r| r.left == 0) {
                 let r = self.retune.take().unwrap_or(r);
                 self.kill();
@@ -357,19 +450,20 @@ impl Voice {
                     self.release(pedal);
                 }
             }
-            self.render_gain(&mut out[n..], false);
+            self.render_gain(&mut out[n..], &mut noise[n..], false);
             return;
         }
-        self.render_gain(out, false);
+        self.render_gain(out, noise, false);
     }
 
     /// [`Self::render`]'s samples; `fading`, each scaled by what is left of the fade.
-    fn render_gain(&mut self, out: &mut [f64], fading: bool) {
+    fn render_gain(&mut self, out: &mut [f64], noise: &mut [f64], fading: bool) {
         if !self.active {
             return;
         }
         let ph = self.settings.phantom * self.tension * LONGITUDINAL_COUPLING;
-        for o in out.iter_mut() {
+        let blow = self.settings.blow;
+        for (o, nz) in out.iter_mut().zip(noise.iter_mut()) {
             if self.phase == 0 {
                 self.control();
             }
@@ -393,6 +487,12 @@ impl Voice {
                 self.res[0] = r;
                 y += 0.5 * dc + 0.5 * r;
             }
+            if blow != 0.0 {
+                *nz += blow * self.strings.hammer_force();
+            }
+            if self.knock.busy() || self.landing.busy() {
+                *nz += self.knock.tick() + self.landing.tick();
+            }
             if fading {
                 if let Some(r) = self.retune.as_mut() {
                     y *= f64::from(r.left) / f64::from(RETUNE_FADE);
@@ -404,9 +504,11 @@ impl Voice {
             self.phase += 1;
             if self.phase == CONTROL {
                 self.phase = 0;
-                if self.step_peak < QUIET_N
+                if self.step_peak < self.settings.quiet
                     && !self.key_down
                     && !self.strings.hammering()
+                    && !self.knock.busy()
+                    && !self.landing.busy()
                     && self.retune.is_none()
                 {
                     self.quiet += 1;

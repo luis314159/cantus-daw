@@ -69,77 +69,8 @@ pub const HEAVY_DB: f32 = 6.0;
 
 /// Factory presets: a label key and the parameters it sets. Anything not named goes back
 /// to its default (Single vocal, wide band, 5 ms lookahead, L/R linked).
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "ds.preset.male",
-        &[
-            ("thr", -34.0),
-            ("range", 6.0),
-            ("lo", 4_000.0),
-            ("hi", 9_000.0),
-            ("rel", 50.0),
-        ],
-    ),
-    (
-        "ds.preset.female",
-        &[
-            ("thr", -34.0),
-            ("range", 6.0),
-            ("lo", 5_500.0),
-            ("hi", 12_000.0),
-            ("rel", 40.0),
-        ],
-    ),
-    (
-        "ds.preset.voiceover",
-        &[
-            ("thr", -40.0),
-            ("range", 8.0),
-            ("proc", 1.0),
-            ("lo", 4_500.0),
-            ("hi", 11_000.0),
-            ("rel", 60.0),
-            ("look", 8.0),
-        ],
-    ),
-    (
-        "ds.preset.backing",
-        &[
-            ("thr", -36.0),
-            ("range", 8.0),
-            ("stereo", 3.0),
-            ("lo", 5_000.0),
-            ("hi", 12_000.0),
-        ],
-    ),
-    (
-        "ds.preset.cymbals",
-        &[
-            ("mode", 1.0),
-            ("proc", 2.0),
-            ("thr", -26.0),
-            ("range", 4.0),
-            ("lo", 6_000.0),
-            ("hi", 16_000.0),
-            ("att", 2.0),
-            ("rel", 120.0),
-            ("link", 0.5),
-        ],
-    ),
-    (
-        "ds.preset.bus",
-        &[
-            ("mode", 1.0),
-            ("proc", 1.0),
-            ("thr", -20.0),
-            ("range", 3.0),
-            ("lo", 8_000.0),
-            ("hi", 20_000.0),
-            ("att", 0.5),
-            ("rel", 80.0),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// The choices' words and what each does, by index.
 const MODE_KEYS: [&str; 2] = ["ds.mode.0", "ds.mode.1"];

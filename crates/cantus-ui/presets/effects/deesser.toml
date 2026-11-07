@@ -1,0 +1,160 @@
+# Sibilus de-esser: Factory presets (ADR 0101). Names are locale keys. `preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "ds.preset.male"
+note = "Sibilance between 4 and 9 kHz, a lower voice."
+styles = ["rock", "pop"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 9000
+"lo" = 4000
+"range" = 6
+"rel" = 50
+"thr" = -34
+
+[[preset]]
+key = "ds.preset.female"
+note = "Sibilance between 5.5 and 12 kHz, a higher voice."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 12000
+"lo" = 5500
+"range" = 6
+"rel" = 40
+"thr" = -34
+
+[[preset]]
+key = "ds.preset.voiceover"
+note = "Speech with look-ahead, split-band: clean, never lisping."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 11000
+"lo" = 4500
+"look" = 8
+"proc" = 1
+"range" = 8
+"rel" = 60
+"thr" = -40
+
+[[preset]]
+key = "ds.preset.backing"
+note = "Stacked backing vocals, each side on its own."
+styles = ["pop", "worship"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 12000
+"lo" = 5000
+"range" = 8
+"stereo" = 3
+"thr" = -36
+
+[[preset]]
+key = "ds.preset.cymbals"
+note = "Harsh cymbals tamed in the top octave."
+styles = ["rock", "jazz"]
+roles = ["drums"]
+[preset.values]
+"att" = 2
+"hi" = 16000
+"link" = 0.5
+"lo" = 6000
+"mode" = 1
+"proc" = 2
+"range" = 4
+"rel" = 120
+"thr" = -26
+
+[[preset]]
+key = "ds.preset.bus"
+note = "A light hand on the highs of a whole group."
+styles = ["pop", "film"]
+roles = ["bus"]
+[preset.values]
+"att" = 0.5
+"hi" = 20000
+"lo" = 8000
+"mode" = 1
+"proc" = 1
+"range" = 3
+"rel" = 80
+"thr" = -20
+
+[[preset]]
+key = "ds.preset.rap"
+note = "A rap delivered close: firm on the S."
+styles = ["trap"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 11000
+"lo" = 5000
+"range" = 7
+"rel" = 45
+"thr" = -32
+
+[[preset]]
+key = "ds.preset.airy"
+note = "Only the sharpest S, the air kept."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 14000
+"lo" = 6000
+"range" = 4
+"rel" = 40
+"thr" = -36
+
+[[preset]]
+key = "ds.preset.choir"
+note = "A choir or a congregation, both sides on their own."
+styles = ["worship"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 12000
+"lo" = 5000
+"range" = 6
+"stereo" = 3
+"thr" = -35
+
+[[preset]]
+key = "ds.preset.guitar_squeak"
+note = "The fret squeak of an acoustic guitar."
+styles = ["latin", "worship"]
+roles = ["creative"]
+[preset.values]
+"hi" = 6000
+"lo" = 2500
+"mode" = 1
+"range" = 5
+"rel" = 60
+"thr" = -30
+
+[[preset]]
+key = "ds.preset.hats"
+note = "Hats and shakers softened at their brightest."
+styles = ["trap", "house"]
+roles = ["drums"]
+[preset.values]
+"hi" = 16000
+"lo" = 7000
+"mode" = 1
+"proc" = 2
+"range" = 5
+"rel" = 90
+"thr" = -28
+
+[[preset]]
+key = "ds.preset.podcast"
+note = "Speech for a podcast or a film: look-ahead, deep, transparent."
+styles = ["film"]
+roles = ["vocal"]
+[preset.values]
+"hi" = 10000
+"lo" = 4500
+"look" = 8
+"proc" = 1
+"range" = 8
+"rel" = 60
+"thr" = -38

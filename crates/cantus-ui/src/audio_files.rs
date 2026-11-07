@@ -89,22 +89,10 @@ pub fn stored_path(base: Option<&Path>, file: &Path) -> String {
 
 /// The strips not yet taken by a track, in the order `Project::first_free_strip` would
 /// hand them out — so several tracks made in one batch do not share one.
+/// r37:fixes — the project's own rule (`Project::free_strips`): never a pad's strip, a
+/// chain or a VCA.
 pub(crate) fn free_strips(project: &Project) -> Vec<cantus_core::StripId> {
-    let taken = |id| project.tracks.iter().any(|t| t.strip == Some(id));
-    let mut out: Vec<_> = project
-        .strips
-        .iter()
-        .filter(|s| s.dock == cantus_core::Dock::Middle && !taken(s.id))
-        .map(|s| s.id)
-        .collect();
-    out.extend(
-        project
-            .strips
-            .iter()
-            .filter(|s| s.dock != cantus_core::Dock::Middle && !taken(s.id))
-            .map(|s| s.id),
-    );
-    out
+    project.free_strips().collect()
 }
 
 /// Every relative source path made absolute against `base`: an autosave may be opened

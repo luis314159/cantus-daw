@@ -53,16 +53,18 @@ fn template(metre: TimeSignature) -> &'static str {
 
 /// The widest the clock's digits get in `metre`, in the `display` role.
 fn digits_width(ctx: &egui::Context, s: &Style, metre: TimeSignature) -> f32 {
-    text::measure(
-        ctx,
-        &Text::new(template(metre), Role::Display, s.t.text),
-        s.tk(),
-    )
-    .x + 24.0 * s.k
+    // r37:finish — as drawn: bar and beat in the display role, the ticks a size down.
+    let tpl = template(metre);
+    let (big, small) = tpl.split_at(tpl.rfind('.').unwrap_or(tpl.len()));
+    let w = |x: &str, role| text::measure(ctx, &Text::new(x, role, s.t.text), s.tk()).x;
+    w(big, Role::Display) + w(small, Role::Hero) + 24.0 * s.k
 }
 
 pub fn width(ctx: &egui::Context, s: &Style, metre: TimeSignature) -> f32 {
-    digits_width(ctx, s, metre) + SIDE * s.k
+    // r37:finish — the time and the metre on a line under the digits, not in a column
+    // beside them: a console's display, and the room for every group at 1920.
+    let _ = SIDE;
+    digits_width(ctx, s, metre)
 }
 
 /// The role a reading is painted in: `role` when `text` fits `width`, else `smaller` — a
@@ -89,7 +91,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let widest = crate::views::bars::widest_metre(app.project());
     let digits_w = digits_width(ui.ctx(), s, widest);
     let (_, tick_digits) = digits(widest);
-    let lcd = Rect::from_center_size(r.center(), Vec2::new(r.width(), 40.0 * k));
+    // r37:finish — tall enough for the digits over the time line.
+    let lcd = Rect::from_center_size(
+        r.center(),
+        Vec2::new(r.width(), (r.height() - 8.0 * k).clamp(40.0 * k, 56.0 * k)),
+    );
     let at = app.engine.position();
     let mut pos = at;
     // Pattern mode counts from the pattern's start.
@@ -130,8 +136,16 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         }
         with_brush(ui.painter(), |b| {
             b.register(lcd, "clock", views::hint::PANEL_TOKENS, &[]);
-            light::sunken(b, lcd, s.r(4.0), t.ink, 1.0, t.depth);
-            let dr = Rect::from_min_size(lcd.min, Vec2::new(digits_w, lcd.height()));
+            // r37:finish — a recessed display under glass.
+            let m = light::Material::of(t);
+            light::recess(b, lcd, s.r(4.0), t.ink, &m, 1.0, k);
+            light::glass(b, b.snap_rect(lcd).shrink(b.px()), s.r(3.0), &m, 1.0);
+            // r37:finish — the digits in the upper part, the time line under them.
+            let line_h = 14.0 * k;
+            let dr = Rect::from_min_max(
+                lcd.min,
+                Pos2::new(lcd.left() + digits_w, lcd.bottom() - line_h - 2.0 * k),
+            );
             let digits = dr.shrink2(Vec2::new(12.0 * k, 0.0));
             // The clock is sized for three bar digits in this metre (the template, in the
             // same monospaced face): a longer position steps down a size.
@@ -140,41 +154,70 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             } else {
                 Role::Hero
             };
-            let _ = text::paint(
-                b,
-                digits,
-                &Text::new(bbt, role, t.text)
-                    .align(Align2::RIGHT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
+            // r37:finish — bar and beat large, the ticks a size down beside them (read the
+            // bar from across the room, the ticks when you look).
+            let split = bbt.rfind('.').filter(|_| role == Role::Display);
+            if let Some(at) = split {
+                let (big, small) = bbt.split_at(at);
+                let st = Text::new(small, Role::Hero, with_alpha(t.text, 0.8))
+                    .align(Align2::RIGHT_BOTTOM);
+                let sw = text::measure(b.ctx(), &st, s.tk()).x;
+                let foot = digits.bottom() - 8.5 * k;
+                let sr = Rect::from_min_max(
+                    Pos2::new(digits.right() - sw, digits.top()),
+                    Pos2::new(digits.right(), foot),
+                );
+                let _ = text::paint(b, sr, &st, s.tk());
+                let br = Rect::from_min_max(digits.min, Pos2::new(sr.left(), foot + 3.0 * k));
+                let _ = text::paint(
+                    b,
+                    br,
+                    &Text::new(big, Role::Display, t.text)
+                        .align(Align2::RIGHT_BOTTOM)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
+            } else {
+                let _ = text::paint(
+                    b,
+                    digits,
+                    &Text::new(bbt, role, t.text)
+                        .align(Align2::RIGHT_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
+            }
+            // The line under the digits: the time at the left, the metre (or the take's
+            // time while recording) at the right, a hairline above them.
+            let line = Rect::from_min_max(
+                Pos2::new(digits.left(), lcd.bottom() - line_h - 3.0 * k),
+                Pos2::new(digits.right(), lcd.bottom() - 3.0 * k),
             );
-            let side = Rect::from_min_max(
-                Pos2::new(dr.right(), lcd.top() + 4.0 * k),
-                Pos2::new(lcd.right() - 8.0 * k, lcd.bottom() - 4.0 * k),
-            );
-            b.vline(
-                b.snap_mid(side.left() - 2.0 * k),
-                lcd.top() + 7.0 * k,
-                lcd.bottom() - 7.0 * k,
+            b.hline(
+                line.left(),
+                line.right(),
+                b.snap_mid(line.top() - 0.5 * k),
                 b.px(),
-                with_alpha(t.text_dim, 0.3),
-            );
-            let half = side.height() * 0.5;
-            let top = Rect::from_min_size(side.min, Vec2::new(side.width(), half));
-            let bottom = Rect::from_min_max(Pos2::new(side.left(), side.top() + half), side.max);
-            let role = fitting(b.ctx(), s, clock, top.width(), Role::Value, Role::Label);
-            let _ = text::paint(
-                b,
-                top,
-                &Text::new(clock, role, t.text_dim)
-                    .align(Align2::RIGHT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
+                with_alpha(t.text_dim, 0.22),
             );
             if app.rec.pass.is_some() || app.rec.dropped > 0 {
-                // Recording: the take's time and a pulsing lamp in the metre's place.
-                views::record_options::paint_elapsed(b, app, bottom, s);
+                // Recording: the take's time and its pulsing lamp take the whole line (the
+                // song's time is in the clock's hint).
+                views::record_options::paint_elapsed(b, app, line, s);
             } else {
+                let half = line.width() * 0.58;
+                let top = Rect::from_min_size(line.min, Vec2::new(half, line.height()));
+                let bottom =
+                    Rect::from_min_max(Pos2::new(line.left() + half, line.top()), line.max);
+                let role = fitting(b.ctx(), s, clock, top.width(), Role::Value, Role::Label);
+                let _ = text::paint(
+                    b,
+                    top,
+                    &Text::new(clock, role, t.text_dim)
+                        .align(Align2::LEFT_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    s.tk(),
+                );
                 let ink = if pattern { t.highlight } else { t.text_dim };
                 let _ = text::paint(
                     b,

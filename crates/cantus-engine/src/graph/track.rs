@@ -90,6 +90,8 @@ pub(crate) struct TrackSlot {
     pub notefx: Option<Box<crate::notefx::Chain>>,
     /// The line that delays its source by `lateness` (`Edge::Source`).
     pub source_line: Option<usize>,
+    /// Its instrument's other outputs, or the bus it carries as a tap (ADR 0100). // r37:drums
+    pub outs: crate::padout::Outs, // r37:drums
 }
 
 impl TrackSlot {
@@ -128,6 +130,7 @@ impl TrackSlot {
             send_dirty: false,                     // r36:external
             source_line: None,
             notefx: Some(Box::new(crate::notefx::Chain::new())),
+            outs: crate::padout::Outs::new(), // r37:drums
         }
     }
 
@@ -138,6 +141,7 @@ impl TrackSlot {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_on(pitch, velocity, tag),
             SlotInstrument::Pulsus => self.drums.note_on(pitch, velocity, tag),
+            SlotInstrument::Tap => {} // r37:drums — a tap plays no notes
             SlotInstrument::Native => {
                 if let Some(n) = self.native.as_mut() {
                     n.unit.note_on(NoteOn {
@@ -179,6 +183,7 @@ impl TrackSlot {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_off(pitch, tag),
             SlotInstrument::Pulsus => self.drums.note_off(pitch, tag),
+            SlotInstrument::Tap => {} // r37:drums
             SlotInstrument::Native => {
                 if let Some(n) = self.native.as_mut() {
                     n.unit
@@ -237,6 +242,7 @@ impl TrackSlot {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.all_notes_off(),
             SlotInstrument::Pulsus => self.drums.all_notes_off(),
+            SlotInstrument::Tap => {} // r37:drums
             SlotInstrument::Native => {
                 if let Some(n) = self.native.as_mut() {
                     n.unit.all_notes_off();
@@ -352,6 +358,7 @@ impl TrackSlot {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.active_voices(),
             SlotInstrument::Pulsus => self.drums.active_voices(),
+            SlotInstrument::Tap => 0, // r37:drums
             SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.active_voices()),
         }
     }
@@ -367,7 +374,7 @@ impl TrackSlot {
             + self.external // r36:external
             + match self.instrument {
                 SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.latency()),
-                SlotInstrument::Firmus | SlotInstrument::Pulsus => 0,
+                SlotInstrument::Firmus | SlotInstrument::Pulsus | SlotInstrument::Tap => 0,
             }
     }
 }
@@ -410,6 +417,9 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
         s.peak_block = ctx.block;
     }
     let track = ctx.snapshot.as_deref().and_then(|snap| snap.tracks.get(ti));
+    if s.outs.count > 0 {
+        mirror(nodes, &s); // r37:drums
+    }
     if let Some(track) = track {
         let mut outbox = if s.listened {
             let o = cells.outbox.try_borrow_mut();
@@ -502,6 +512,13 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
         }
     }
     nodes.track_peak[slot].store(s.peak.to_bits(), Relaxed);
+    // r37:drums — a tap's sound is its source's too: the kit's meter shows all its pads
+    // (a peak is never negative, so its bits order as its values do).
+    if let Some(src) = s.outs.source {
+        if let Some(p) = nodes.track_peak.get(src) {
+            p.fetch_max(s.peak.to_bits(), Relaxed);
+        }
+    }
     let voices = s.active_voices();
     nodes.track_voices[slot].store(voices as u32, Relaxed);
     // Divisible only while there is something to split: two voices or more on a unit that
@@ -549,6 +566,74 @@ fn fx_step<O: std::ops::DerefMut<Target = super::super::graph::notes::Outbox>>(
     );
     if lost > 0 {
         nodes.dropped.fetch_add(lost, Relaxed);
+    }
+}
+
+// r37:drums — instruments with several outputs (ADR 0100). ---------------------------------
+
+/// One lane of a source's bus `bus`, `off` frames into the segment that starts `sub` frames
+/// into the pass: bus 0 (or a bus whose tap the engine could not hold) into the track's own
+/// `l`/`r`, any other into its tap. Returns whether it went into the track's own.
+#[allow(clippy::too_many_arguments)]
+fn feed_bus(
+    nodes: &Nodes,
+    pass: u64,
+    outs: &crate::padout::Outs,
+    sub: usize,
+    bus: u8,
+    off: usize,
+    a: &[f32],
+    b: &[f32],
+    l: &mut [f32],
+    r: &mut [f32],
+) -> bool {
+    if bus != 0 && feed_tap(nodes, pass, outs, sub, bus, off, a, b) {
+        return false;
+    }
+    for (o, x) in l[off..off + a.len()].iter_mut().zip(a) {
+        *o += *x;
+    }
+    for (o, x) in r[off..off + b.len()].iter_mut().zip(b) {
+        *o += *x;
+    }
+    true
+}
+
+/// Bus `bus` (1 and up) into its tap's buffer; `false` when it has none.
+#[allow(clippy::too_many_arguments)]
+fn feed_tap(
+    nodes: &Nodes,
+    pass: u64,
+    outs: &crate::padout::Outs,
+    sub: usize,
+    bus: u8,
+    off: usize,
+    a: &[f32],
+    b: &[f32],
+) -> bool {
+    let Some(slot) = outs.tap(bus as usize) else {
+        return false;
+    };
+    // The tap waits for its source (the plan's edge): its cell is free.
+    if let Some(mut t) = nodes.track(slot) {
+        t.outs.feed(pass, sub + off, a, b);
+    }
+    true
+}
+
+/// A source hands its taps its channel's level, balance, audibility and their ramps: the
+/// channel's own level is every output's (ADR 0100).
+fn mirror(nodes: &Nodes, s: &TrackSlot) {
+    for bus in 1..=s.outs.count {
+        if let Some(slot) = s.outs.tap(bus) {
+            if let Some(mut t) = nodes.track(slot) {
+                t.gain = s.gain;
+                t.pan = s.pan;
+                t.audible = s.audible;
+                t.gain_ramp = s.gain_ramp;
+                t.pan_ramp = s.pan_ramp;
+            }
+        }
     }
 }
 
@@ -621,12 +706,25 @@ fn track_segment(
         SlotInstrument::Pulsus => {
             l.iter_mut().for_each(|x| *x = 0.0);
             r.iter_mut().for_each(|x| *x = 0.0);
-            s.drums.process_add(l, r)
+            if s.outs.count == 0 {
+                s.drums.process_add(l, r)
+            } else {
+                // r37:drums — every bus in one sweep, the others into their taps (ADR 0100).
+                let (drums, outs) = (&mut s.drums, &s.outs);
+                let mut main = false;
+                drums.process_buses(m, &mut |bus, off, a, b| {
+                    main |= feed_bus(nodes, ctx.pass, outs, sub, bus, off, a, b, l, r);
+                });
+                main
+            }
         }
+        // r37:drums — a tap: what its source rendered into its bus this pass (ADR 0100).
+        SlotInstrument::Tap => s.outs.take(ctx.pass, sub, l, r),
         SlotInstrument::Native => {
             l.iter_mut().for_each(|x| *x = 0.0);
             r.iter_mut().for_each(|x| *x = 0.0);
             let id = s.id;
+            let outs = &s.outs; // r37:drums
             match s.native.as_mut() {
                 Some(u) => {
                     // Where the song is at this segment's first sample, for the units
@@ -645,7 +743,14 @@ fn track_segment(
                         forks: &nodes.forks,
                         on: ctx.split_voices,
                     };
-                    let sig = u.unit.process_par(l, r, &par);
+                    // r37:drums — a unit with outputs of its own renders them in one sweep.
+                    let sig = if outs.count == 0 {
+                        u.unit.process_par(l, r, &par)
+                    } else {
+                        u.unit.process_buses(l, r, &mut |bus, off, a, b| {
+                            feed_tap(nodes, ctx.pass, outs, sub, bus, off, a, b);
+                        })
+                    };
                     let late = u.unit.take_late_reads();
                     if late > 0 {
                         nodes.stream_late.fetch_add(late as u64, Relaxed);
@@ -827,6 +932,12 @@ fn track_level(
             Some(mut tap) => {
                 if let Some(tap) = tap.as_mut() {
                     tap.track(slot, done, l, r, gl, gr);
+                    // r37:drums — a tap's stem is its source's too: a track's stem is its
+                    // instrument's every output (ADR 0100).
+                    // r37:fixes — one into a pad's chain joins as the chain's output.
+                    if let Some(src) = s.outs.source.filter(|_| !s.outs.into_chain) {
+                        tap.track_add(src, done, l, r, gl, gr);
+                    }
                 }
             }
             None => nodes.conflict(),

@@ -1968,7 +1968,6 @@
               "latitudo",
               "culmen",
               "delay",
-              "reverb",
               "concentus",
               "flexus",
               "phasis",
@@ -1981,9 +1980,34 @@
               "impetus",
               "discrimen",
               "speculum",
-              "tonus"
+              "tonus",
+              "eq",
+              "compressor",
+              "limiter",
+              "reverb",
+              "multiband",
+              "deesser",
+              "de_esser",
+              "gate",
+              "saturator",
+              "stereo",
+              "maximizer",
+              "chorus",
+              "flanger",
+              "phaser",
+              "tremolo",
+              "vibrato",
+              "ring_mod",
+              "freq_shift",
+              "volume_shaper",
+              "clipper",
+              "transient",
+              "transient_split",
+              "analyzer",
+              "autotune",
+              "auto_tune"
             ],
-            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, reverb (simple), concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune). Plain names also work: eq, compressor, limiter, chorus…"
+            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
           },
           "index": {
             "type": "integer",
@@ -2147,7 +2171,6 @@
               "latitudo",
               "culmen",
               "delay",
-              "reverb",
               "concentus",
               "flexus",
               "phasis",
@@ -2160,9 +2183,34 @@
               "impetus",
               "discrimen",
               "speculum",
-              "tonus"
+              "tonus",
+              "eq",
+              "compressor",
+              "limiter",
+              "reverb",
+              "multiband",
+              "deesser",
+              "de_esser",
+              "gate",
+              "saturator",
+              "stereo",
+              "maximizer",
+              "chorus",
+              "flanger",
+              "phaser",
+              "tremolo",
+              "vibrato",
+              "ring_mod",
+              "freq_shift",
+              "volume_shaper",
+              "clipper",
+              "transient",
+              "transient_split",
+              "analyzer",
+              "autotune",
+              "auto_tune"
             ],
-            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, reverb (simple), concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune). Plain names also work: eq, compressor, limiter, chorus…"
+            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
           },
           "neutral": {
             "type": "boolean",
@@ -5948,6 +5996,359 @@
       },
       "annotations": {
         "title": "Let a clip go of its ARA plug-in",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "find_presets",
+      "title": "Find presets",
+      "description": "Factory presets of a unit (effect_id, track_id or unit) or of every unit, each with its styles (trap, pop, house, rnb, lofi, rock, latin, ambient, film, jazz, worship), roles and what it is for; filtered by style, role and words. apply_preset loads one; audition_preset lets the user hear it first.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "effect_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "An insert effect: its unit's presets."
+          },
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A track: its instrument's presets."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Or a unit's id (list_units). With none of the three, every unit's presets."
+          },
+          "style": {
+            "enum": [
+              "trap",
+              "pop",
+              "house",
+              "rnb",
+              "lofi",
+              "rock",
+              "latin",
+              "ambient",
+              "film",
+              "jazz",
+              "worship"
+            ],
+            "description": "Only presets made for this style."
+          },
+          "role": {
+            "enum": [
+              "bass",
+              "lead",
+              "pad",
+              "keys",
+              "pluck",
+              "fx",
+              "drums",
+              "vocal",
+              "bus",
+              "master",
+              "creative"
+            ],
+            "description": "Only presets for this role: an instrument's part (bass, lead, pad, keys, pluck, fx, drums) or where an effect goes (vocal, drums, bus, master, creative)."
+          },
+          "search": {
+            "type": "string",
+            "description": "Words that must all be in the name, a style, a role or the unit (case and accents ignored)."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "description": "At most this many (default 100)."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Find presets",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "audition_preset",
+      "title": "Hear a preset",
+      "description": "Render a preset on what Cantus's preset browser hears it on — an instrument's role phrase (two bars at 120 BPM), an insert's clip on its channel, or Cantus's own source — and play it to the user (as the browser plays one: Stop or Esc stops it). Answers its loudness (LUFS), peak (dBFS) and length, or that it was stopped. The project, its undo history and its file never change; not an undo step. A job: the window never waits for it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "effect_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "An insert: heard on a clip its channel plays."
+          },
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A track: its instrument's preset heard on its role's phrase."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Or a unit's id, heard on a phrase or on Cantus's own source."
+          },
+          "preset": {
+            "type": "string",
+            "description": "The preset's name (find_presets or list_presets), any case."
+          },
+          "play": {
+            "type": "boolean",
+            "description": "Play it to the user through the audition voice (default true). The project never changes."
+          }
+        },
+        "required": [
+          "preset"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Hear a preset",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "split_kit_outputs",
+      "title": "Split a kit to strips",
+      "description": "Give every pad of a Pulsus kit that sounds a mixer strip of its own (named after the pad, right after the kit's strip, routed into it, its pan law a balance), so each pad has its own fader, inserts and sends; the kit sums to itself to the bit while the new strips are at unity. merge=true does the reverse: every pad back on the kit's strip, the strips it made removed (a pad's chain kept). One undo step either way.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The kit's track"
+          },
+          "merge": {
+            "type": "boolean",
+            "default": false,
+            "description": "Merge the kit back instead."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Split a kit to strips",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_pad_chain",
+      "title": "Edit a pad's chain",
+      "description": "Insert effects on one pad of a Pulsus kit, before the kit's sum: add puts an effect (eq, compressor, gate, saturator, delay, spatium — the reverb, also named reverb — … by kind, with its starting preset) at the end of the pad's chain (made with the first); remove takes an effect out by its id (the last takes the chain). A chain at rest costs nothing. Answers the pad's chain after the change. One undo step.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The kit's track"
+          },
+          "pad": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 127,
+            "description": "The pad, by its note (36 the kick on the General MIDI map)."
+          },
+          "add": {
+            "type": "string",
+            "description": "An effect kind to add at the end of the pad's chain (eq, compressor, gate, saturator, delay, spatium — the reverb, also named reverb —, …)."
+          },
+          "remove": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "An effect of the pad's chain to remove, by id"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "track_id",
+          "pad"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Edit a pad's chain",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "make_kit_from_folder",
+      "title": "Make a kit from a folder",
+      "description": "Make a Pulsus kit from a folder of audio files (or an SFZ drum kit file) inside the project's folder or a folder the user allowed: names in English or Spanish map to the General MIDI drum map (kick 36, snare 38, clap 39, hats 42/44/46 choking each other, toms, crash, ride, cowbell, percussion), numbered takes become a round robin, dynamics (soft/hard, pp/ff, vl1…) velocity layers, the rest by order; at most 512 sounds. On track_id's kit (its pads' strips kept; a track that is not a kit is refused), else on a new kit track. One undo step. Answers the pads (notes, names, layer counts) and what did not fit, by file name.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "A folder of audio files (three levels deep), or an .sfz file."
+          },
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A kit's track to load it on; left out, a new kit track"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Make a kit from a folder",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "slice_sample",
+      "title": "Slice a loop",
+      "description": "Cut an audio loop (WAV, AIFF, FLAC, OGG) inside the project's folder or a folder the user allowed into slices played by Exemplar, one slice per key from C1 (MIDI 36) up, each at its own pitch: at the file's own markers (WAV cue points; an ACID file's beats also give its tempo), else at its transients (sensitivity 0..1: higher keeps fainter hits), on a beat grid (grid_steps per beat at the loop's tempo), or as one slice to cut by hand. With track_id the track's instrument becomes the sliced Exemplar (its clips stay); without, a new track is made. When the tempo is known the points are put where the dump replays the file exactly. At most 64 slices. One undo step. Answers the track, the tempo and every slice's start (frames and seconds).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "The loop's path on this computer."
+          },
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The track whose instrument becomes the sliced Exemplar; omitted, a new track."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "markers",
+              "transients",
+              "grid",
+              "manual"
+            ],
+            "description": "markers (default: the file's own, else transients), transients, grid or manual (one slice)."
+          },
+          "sensitivity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Transients: 0 keeps the strongest only, 1 the faintest too (default 0.5)."
+          },
+          "grid_steps": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              4,
+              8
+            ],
+            "description": "Grid: slices per beat (default 4: sixteenths)."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Slice a loop",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "dump_slices",
+      "title": "Dump the slices",
+      "description": "Write a sliced Exemplar's slices to a new clip on its track: slice i on key C1+i at the tick its start falls on at the loop's tempo, until the next — played at the loop's tempo it replays the file sample for sample; at another tempo the slices follow the grid. at_bar (1-based, default 1) places the clip. One undo step. Answers the clip and its notes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A track whose instrument is a sliced Exemplar."
+          },
+          "at_bar": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Where the clip starts (1-based bar, default 1)."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "track_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Dump the slices",
         "readOnlyHint": false,
         "destructiveHint": false,
         "idempotentHint": false,

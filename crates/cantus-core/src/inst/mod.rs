@@ -21,7 +21,8 @@ use std::collections::BTreeMap;
 pub mod analog;
 pub mod bass;
 pub mod chorda;
-// The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
+pub mod chorda_look; // r37:scene
+                     // The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
 pub mod dancer;
 pub mod epiano;
 pub mod fm;
@@ -128,7 +129,10 @@ impl InstrumentKind {
     /// (ADR 0087).
     pub fn automatable(self, key: &str) -> bool {
         match self {
-            InstrumentKind::Chorda => !chorda::DESIGN_KEYS.contains(&key),
+            InstrumentKind::Chorda => {
+                !chorda::DESIGN_KEYS.contains(&key) && !chorda::SET_KEYS.contains(&key)
+                // r37:piano
+            }
             InstrumentKind::Dancer => !dancer::VIEW_KEYS.contains(&key),
             _ => true,
         }

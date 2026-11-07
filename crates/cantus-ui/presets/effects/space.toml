@@ -1,0 +1,166 @@
+# Spatium reverb: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "space.preset.vocal_plate"
+note = "A bright plate behind a vocal, its lows cut."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"bright" = 0.6
+"decay" = 1.8
+"e0.freq" = 180
+"e0.shape" = 3
+"e0.used" = 1
+"mix" = 0.2
+"predelay" = 30
+"space" = 0.45
+"style" = 1
+
+[[preset]]
+key = "space.preset.drum_room"
+note = "A short room for a kit: the drums in one place."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"character" = 0.15
+"decay" = 0.6
+"distance" = 0.2
+"er" = 4
+"mix" = 0.3
+"space" = 0.2
+
+[[preset]]
+key = "space.preset.concert_hall"
+note = "A concert hall, warm at the bottom."
+styles = ["film", "worship"]
+roles = ["bus"]
+[preset.values]
+"bright" = 0.4
+"d0.freq" = 250
+"d0.mult" = 1.3
+"d0.shape" = 1
+"d0.used" = 1
+"decay" = 2.4
+"distance" = 0.5
+"mix" = 0.25
+"predelay" = 20
+"space" = 0.64
+
+[[preset]]
+key = "space.preset.cathedral"
+note = "Seven seconds of stone and air."
+styles = ["worship", "ambient"]
+roles = ["creative"]
+[preset.values]
+"bright" = 0.35
+"character" = 0.45
+"decay" = 7
+"distance" = 0.7
+"mix" = 0.3
+"predelay" = 45
+"space" = 0.9
+
+[[preset]]
+key = "space.preset.ducked_vocal"
+note = "A long reverb that ducks while the voice sings and blooms between lines."
+styles = ["pop", "trap"]
+roles = ["vocal"]
+[preset.values]
+"decay" = 2.2
+"duck" = 10
+"duck_rel" = 350
+"duck_thr" = -30
+"mix" = 0.3
+"predelay" = 60
+"space" = 0.55
+
+[[preset]]
+key = "space.preset.eighties_snare"
+note = "The big, bright snare reverb of the eighties."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"bright" = 0.7
+"character" = 0.7
+"decay" = 1.4
+"mix" = 0.25
+"space" = 0.5
+"style" = 2
+
+[[preset]]
+key = "space.preset.surf_spring"
+note = "A spring tank: the drip of surf guitar."
+styles = ["rock", "jazz"]
+roles = ["creative"]
+[preset.values]
+"bright" = 0.55
+"decay" = 2.6
+"mix" = 0.35
+"space" = 0.6
+"style" = 3
+
+[[preset]]
+key = "space.preset.dark_tail"
+note = "A long, dark tail behind pads and swells."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"bright" = 0.15
+"d0.freq" = 3000
+"d0.mult" = 0.5
+"d0.shape" = 2
+"d0.used" = 1
+"decay" = 4
+"mix" = 0.25
+"space" = 0.75
+
+[[preset]]
+key = "space.preset.lofi_room"
+note = "A small, dark room: the reverb of an old record."
+styles = ["lofi", "jazz"]
+roles = ["creative"]
+[preset.values]
+"bright" = 0.25
+"character" = 0.5
+"decay" = 0.8
+"mix" = 0.2
+"space" = 0.25
+
+[[preset]]
+key = "space.preset.trap_vocal"
+note = "A hall that ducks under the rap and blooms between bars."
+styles = ["trap", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"bright" = 0.5
+"decay" = 2.5
+"duck" = 6
+"duck_thr" = -30
+"mix" = 0.15
+"predelay" = 40
+"space" = 0.6
+
+[[preset]]
+key = "space.preset.worship_hall"
+note = "A large, warm hall for a band and a choir."
+styles = ["worship", "film"]
+roles = ["bus"]
+[preset.values]
+"bright" = 0.45
+"decay" = 3.5
+"mix" = 0.2
+"predelay" = 25
+"space" = 0.75
+
+[[preset]]
+key = "space.preset.latin_room"
+note = "A short, bright room for percussion."
+styles = ["latin", "pop"]
+roles = ["drums"]
+[preset.values]
+"bright" = 0.6
+"decay" = 0.9
+"mix" = 0.16
+"space" = 0.3

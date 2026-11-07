@@ -225,6 +225,17 @@ pub trait FxHost {
     fn toggle_ab(&mut self) {}
     /// Copy the showing side onto the other one.
     fn copy_ab(&mut self) {}
+    /// Whether the host has the preset browser (round 37, ADR 0101). // r37:library
+    fn can_browse_presets(&self) -> bool {
+        false
+    }
+    /// Open the preset browser on this unit. // r37:library
+    fn browse_presets(&mut self) {}
+    /// How many presets were loaded into this unit from elsewhere (the preset browser):
+    /// the frame names the loaded one again when it moves. // r37:library
+    fn preset_epoch(&self) -> u64 {
+        0
+    }
     /// Whether the user's own presets can be saved here (a folder of the DAW's).
     fn user_presets(&self) -> bool {
         false
@@ -813,6 +824,24 @@ impl FxHost for DawHost<'_> {
 
     fn user_presets(&self) -> bool {
         true
+    }
+
+    // r37:library — a hosted plug-in keeps its maker's presets
+    fn can_browse_presets(&self) -> bool {
+        self.spec.kind != cantus_core::EffectKind::External
+    }
+
+    fn preset_epoch(&self) -> u64 {
+        self.app.presets.loads_into(self.effect) // r37:library
+    }
+
+    fn browse_presets(&mut self) {
+        // r37:library
+        self.app
+            .open_preset_browser(crate::preset_audition::Target::Effect {
+                strip: self.strip,
+                effect: self.effect,
+            });
     }
 
     fn sample_rate(&self) -> f32 {

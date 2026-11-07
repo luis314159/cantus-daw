@@ -133,140 +133,8 @@ pub fn target_of(lufs: f32, ceiling: f32) -> Option<usize> {
 
 /// Factory presets: a label key and the parameters it sets; what a preset does not name
 /// goes back to its default.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.max.transparent",
-        &[
-            ("gain", 3.0),
-            ("all.thr", -18.0),
-            ("all.ratio", 1.5),
-            ("all.knee", 12.0),
-            ("all.att", 30.0),
-            ("all.rel", 300.0),
-        ],
-    ),
-    (
-        "preset.max.streaming",
-        &[
-            ("gain", 6.0),
-            ("target", -14.0),
-            ("ceiling", -1.0),
-            ("lo.thr", -20.0),
-            ("lo.ratio", 2.0),
-            ("lo.att", 30.0),
-            ("lo.rel", 200.0),
-            ("all.thr", -16.0),
-            ("all.ratio", 1.4),
-            ("all.knee", 10.0),
-        ],
-    ),
-    (
-        "preset.max.loud",
-        &[
-            ("gain", 10.0),
-            ("target", -8.0),
-            ("ceiling", -0.3),
-            ("style", 2.0),
-            ("clip", 0.4),
-            ("link_t", 0.6),
-            ("mid.thr", -22.0),
-            ("mid.ratio", 1.5),
-            ("all.thr", -20.0),
-            ("all.ratio", 2.0),
-            ("all.thr_lo", -40.0),
-            ("all.ratio_lo", 1.5),
-        ],
-    ),
-    (
-        "preset.max.club",
-        &[
-            ("gain", 12.0),
-            ("target", -7.0),
-            ("ceiling", -0.1),
-            ("style", 1.0),
-            ("clip", 0.5),
-            ("lo.thr", -16.0),
-            ("lo.ratio", 2.5),
-            ("lo.place", 1.0),
-            ("hi.thr", -24.0),
-            ("hi.ratio", 1.5),
-        ],
-    ),
-    (
-        "preset.max.cd",
-        &[
-            ("gain", 8.0),
-            ("target", -9.0),
-            ("ceiling", -0.3),
-            ("all.thr", -18.0),
-            ("all.ratio", 1.5),
-            ("dither", 5.0),
-            ("shape", 2.0),
-        ],
-    ),
-    (
-        "preset.max.lowend",
-        &[
-            ("gain", 4.0),
-            ("x1", 120.0),
-            ("lo.thr", -24.0),
-            ("lo.ratio", 3.0),
-            ("lo.att", 20.0),
-            ("lo.rel", 120.0),
-            ("lo.place", 1.0),
-        ],
-    ),
-    (
-        "preset.max.upward",
-        &[
-            ("gain", 4.0),
-            ("mid.thr_lo", -40.0),
-            ("mid.ratio_lo", 1.6),
-            ("all.thr_lo", -35.0),
-            ("all.ratio_lo", 2.0),
-            ("all.range_lo", 8.0),
-        ],
-    ),
-    (
-        "preset.max.ms",
-        &[
-            ("gain", 4.0),
-            ("lo.thr", -40.0),
-            ("lo.ratio", 4.0),
-            ("lo.place", 2.0),
-            ("hi.thr", -30.0),
-            ("hi.ratio", 0.8),
-            ("hi.range", 3.0),
-            ("hi.place", 2.0),
-        ],
-    ),
-    (
-        "preset.max.broadcast",
-        &[
-            ("target", -23.0),
-            ("ceiling", -1.0),
-            ("style", 4.0),
-            ("all.thr", -24.0),
-            ("all.ratio", 2.0),
-        ],
-    ),
-    (
-        "preset.max.maximus",
-        &[
-            ("gain", 6.0),
-            ("style", 1.0),
-            ("xmode", 1.0),
-            ("lo.thr", -18.0),
-            ("lo.ratio", 2.5),
-            ("mid.thr", -16.0),
-            ("mid.ratio", 2.0),
-            ("hi.thr", -20.0),
-            ("hi.ratio", 2.5),
-            ("all.thr", -12.0),
-            ("all.ratio", 1.5),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 // ---- the editor's memory ----------------------------------------------------------------
 
@@ -595,7 +463,7 @@ mod tests {
 
     #[test]
     fn every_preset_names_real_parameters_in_range() {
-        for (name, values) in FACTORY_PRESETS {
+        for (name, values) in crate::views::fx::factory_presets(EffectKind::Maximizer) {
             assert!(name.starts_with("preset.max."));
             for (k, v) in *values {
                 let info = EffectKind::Maximizer

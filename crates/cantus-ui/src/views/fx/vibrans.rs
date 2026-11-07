@@ -25,42 +25,8 @@ use std::fmt::Write as _;
 const KIND: EffectKind = EffectKind::Vibrato;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.vibrans.singer",
-        &[("depth", 30.0), ("rate", 5.5), ("rise", 350.0)],
-    ),
-    (
-        "preset.vibrans.violin",
-        &[("depth", 18.0), ("rate", 6.2), ("rise", 250.0)],
-    ),
-    ("preset.vibrans.organ", &[("depth", 12.0), ("rate", 6.9)]),
-    (
-        "preset.vibrans.tape_wow",
-        &[("depth", 14.0), ("rate", 0.6), ("spread", 30.0)],
-    ),
-    (
-        "preset.vibrans.seasick",
-        &[("depth", 70.0), ("rate", 1.2), ("spread", 90.0)],
-    ),
-    (
-        "preset.vibrans.trill",
-        &[("depth", 100.0), ("rate", 7.0), ("shape", 1.0)],
-    ),
-    (
-        "preset.vibrans.sync_wobble",
-        &[("depth", 40.0), ("sync", 1.0), ("div", 11.0)],
-    ),
-    (
-        "preset.vibrans.chorus_one",
-        &[
-            ("depth", 12.0),
-            ("rate", 0.9),
-            ("mix", 0.5),
-            ("spread", 90.0),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// What the editor remembers between frames.
 #[derive(Debug, Default)]

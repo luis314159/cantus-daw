@@ -174,6 +174,15 @@ pub struct BrowserGeometry {
     /// The *Content…* key and *Add folder* key in the header.
     pub content_key: egui::Rect,
     pub add_folder_key: egui::Rect,
+    /// The category tabs (All, Drums, Loops, Melodic, FX), and the preview strip's play
+    /// key and level when a sound is chosen. // r37:finish
+    pub tabs: egui::Rect,
+    /// Each category tab, in the order of `samples_thumbs::FAMILIES`.
+    pub tab_keys: Vec<egui::Rect>,
+    /// The chosen sound's card and its waveform (a click plays), when shown.
+    pub detail: Option<(egui::Rect, egui::Rect)>,
+    pub preview_key: Option<egui::Rect>,
+    pub preview_level: Option<egui::Rect>,
 }
 
 impl BrowserGeometry {
@@ -327,7 +336,9 @@ impl crate::app::CantusApp {
     fn start_audition(&mut self, path: &Path, s: Arc<SampleData>) {
         let len = Duration::from_secs_f64(s.len_frames() as f64 / s.rate.max(1) as f64);
         self.samples.preview.playing = Some((path.to_path_buf(), Instant::now(), len));
-        self.engine.preview(Some((s, AUDITION_GAIN)));
+        // r37:finish — the browser's preview level.
+        let gain = AUDITION_GAIN * crate::views::samples_thumbs::preview_volume();
+        self.engine.preview(Some((s, gain)));
     }
 
     /// Stop the audition (a fade, in the engine).

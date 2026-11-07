@@ -14,10 +14,17 @@
 //! A kit carries a **model version** ([`PulsusParams::version`]). A kit written before
 //! Pulsus II has none in its file and loads as **model 1**, which renders bit-identically
 //! to the Pulsus that wrote it — including the two defects Pulsus II fixes (noise seeded
-//! from a hit count that a seek resets, and a kick 52 cents sharp of F1). A kit made now
-//! is model 2 ([`PULSUS_MODEL`]). Every field Pulsus II added reads from an old file as a
+//! from a hit count that a seek resets, and a kick 52 cents sharp of F1). A Pulsus II kit
+//! is model 2. Every field Pulsus II added reads from an old file as a
 //! value that changes no sample, so an old kit can use the new sections without being
 //! upgraded; upgrading is one command and changes only what the version says it does.
+//!
+//! ## Pulsus III
+//!
+//! **Model 3** ([`PULSUS_MODEL`], round 37, ADR 0100) is model 2 with one change: each pad
+//! sums on its own lane and the lanes in pad order, so a kit whose pads play on strips of
+//! their own ([`DrumPad::output`], *Split to strips*) sums back to the kit to the bit. A
+//! model 2 kit keeps its sum in voice order and renders exactly as it did.
 //!
 //! Pads have a stable [`PadId`]: the rack, the commands and the lanes address a pad by
 //! identity, so inserting a lower pad no longer renumbers the ones above it.
@@ -28,6 +35,9 @@ use serde::{Deserialize, Serialize};
 
 #[path = "pads_field.rs"]
 mod field;
+/// Kits from outside: a folder of one-shots, an SFZ kit's regions (ADR 0100 §7). // r37:drums
+#[path = "pads_import.rs"]
+pub mod import;
 #[path = "pads_kit.rs"]
 mod kit;
 pub use field::{KitField, PadField, PadParamInfo};
@@ -35,7 +45,7 @@ pub use kit::FactoryKit;
 
 /// The model a kit made today is. Model 1 is the Pulsus of rounds 12–16, kept so old
 /// projects sound exactly as they did.
-pub const PULSUS_MODEL: u8 = 2;
+pub const PULSUS_MODEL: u8 = 3;
 /// The most sample layers a pad holds; the engine preallocates this many per pad.
 pub const MAX_LAYERS: usize = 16;
 /// Choke groups a kit can use (0 is none).
@@ -354,8 +364,9 @@ pub struct DrumPad {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub layers: Vec<PadLayer>,
     pub round_robin: RoundRobin,
-    /// Where the pad is heard: `None` is the kit's own strip. The engine's multi-out is
-    /// not wired yet (see `docs/instruments/pulsus.md`, "the hook").
+    /// Where the pad is heard: `None` is the kit's own strip; a strip is an output of its
+    /// own (Pulsus III, ADR 0100): the track renders it as a bus into that strip. Pads that
+    /// name the same strip share one bus.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<StripId>,
     /// Amplitude envelope: attack and hold, ms, before the decay; and the decay's curve
@@ -513,6 +524,16 @@ pub struct KitSettings {
     /// pedals send 127 for closed).
     pub hat_cc: u8,
     pub hat_invert: bool,
+    /// The kit's own level, dB, applied to each pad's lane before the kit is summed (Pulsus
+    /// III, ADR 0100 §8, schema 57): what lets a factory kit sit at the library's drums level
+    /// while no pad alone passes Pulsus's headroom rule. 0 dB — every older kit, every kit
+    /// made by hand — is exactly unity: no sample changes. // r37:drums
+    #[serde(default, skip_serializing_if = "is_zero_db")]
+    pub gain_db: f32,
+}
+
+fn is_zero_db(x: &f32) -> bool {
+    *x == 0.0
 }
 
 impl Default for KitSettings {
@@ -521,6 +542,7 @@ impl Default for KitSettings {
             seed: 1,
             hat_cc: 4,
             hat_invert: false,
+            gain_db: 0.0, // r37:drums
         }
     }
 }
@@ -640,11 +662,53 @@ impl PulsusParams {
             .flat_map(|p| p.layers.iter().take(MAX_LAYERS).map(|l| l.sample.as_str()))
     }
 
+    /// The strips the kit's pads play on besides the kit's own, each once, in pad order:
+    /// bus `k + 1` is `output_strips()[k]` (ADR 0100). Empty for a kit that is not split.
+    pub fn output_strips(&self) -> Vec<StripId> {
+        let mut out: Vec<StripId> = Vec::new();
+        for s in self.pads.iter().filter_map(|p| p.output) {
+            if !out.contains(&s) {
+                out.push(s);
+            }
+        }
+        out
+    }
+
+    /// The bus pad `index` plays into: 0 the kit's own output, `k + 1` the `k`-th of
+    /// [`Self::output_strips`]. Allocation-free (the engine calls it on the audio thread).
+    pub fn bus_of(&self, index: usize) -> u8 {
+        let Some(out) = self.pads.get(index).and_then(|p| p.output) else {
+            return 0;
+        };
+        let mut bus = 0u8;
+        for (i, p) in self.pads.iter().enumerate() {
+            let Some(s) = p.output else { continue };
+            // Count each strip at its first pad.
+            if self.pads[..i].iter().any(|q| q.output == Some(s)) {
+                continue;
+            }
+            bus = bus.saturating_add(1);
+            if s == out {
+                return bus;
+            }
+        }
+        0
+    }
+
+    /// Whether any pad plays into a strip of its own or a chain (it has outputs besides the
+    /// kit's). Whether the kit is *split* — a pad heard on a strip of its own — is
+    /// `padout::is_split`, which follows a chain to where it plays.
+    pub fn has_outputs(&self) -> bool {
+        self.pads.iter().any(|p| p.output.is_some())
+    }
+
     /// What upgrading this kit to the current model changes besides the version: the
     /// drive a model 1 kit stored on voices that did not use it, which model 2 would now
     /// hear. `(pad, field, value)`, for the caller to send as commands.
     pub fn upgrade_edits(&self) -> Vec<(PadId, PadField, f32)> {
-        if self.version >= PULSUS_MODEL {
+        // Only model 1 stored values a later model hears differently (model 2 → 3 changes
+        // the sum's order and nothing else).
+        if self.version >= 2 {
             return Vec::new();
         }
         self.pads

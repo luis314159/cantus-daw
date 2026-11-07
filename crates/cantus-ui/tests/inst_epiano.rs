@@ -217,8 +217,11 @@ fn no_text_is_elided_or_overlaps_in_spanish() {
 #[test]
 fn presets_set_what_they_name() {
     let (mut a, track) = with_epiano();
-    assert!(epiano::FACTORY_PRESETS.len() >= 8);
-    let reed = epiano::FACTORY_PRESETS
+    assert!(
+        cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::ElectricPiano).len()
+            >= 8
+    );
+    let reed = cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::ElectricPiano)
         .iter()
         .find(|p| p.label_key == "epiano.preset.reed")
         .unwrap();
@@ -230,7 +233,7 @@ fn presets_set_what_they_name() {
     let s = spec(&a, track);
     assert_eq!(s.get("engine"), 1.0);
     assert_eq!(s.text("mod1.dst"), Some("reed.gap"));
-    for p in epiano::FACTORY_PRESETS {
+    for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::ElectricPiano) {
         let s = preset_spec(InstrumentKind::ElectricPiano, p);
         assert_eq!(
             s.params.len(),

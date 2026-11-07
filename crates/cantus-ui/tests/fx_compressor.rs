@@ -397,8 +397,10 @@ fn the_desk_shows_gain_reduction_on_a_compressor_strip() {
 fn the_factory_presets_are_real() {
     let _turn = turn();
     let (mut a, s0, fx) = with_comp();
-    assert!(comp_editor::FACTORY_PRESETS.len() >= 6);
-    for (label, values) in comp_editor::FACTORY_PRESETS {
+    assert!(cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Compressor).len() >= 6);
+    for (label, values) in
+        cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Compressor)
+    {
         assert_ne!(cantus_ui::i18n::t(label), *label, "{label} has no words");
         let map = values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
         a.apply_fx_params(s0, fx, &map, "cmd.fx_preset");

@@ -139,6 +139,9 @@ pub(crate) enum SlotInstrument {
     Pulsus,
     /// A native instrument's unit (ADR 0023), in `TrackSlot::native`.
     Native,
+    /// One of another track's outputs (ADR 0100): plays what its source renders into its
+    /// bus (`TrackSlot::outs`), nothing of its own. // r37:drums
+    Tap,
 }
 
 /// The pool the processor drives, when it has workers.

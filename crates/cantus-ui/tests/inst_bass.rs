@@ -365,8 +365,8 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
 #[test]
 fn presets_set_what_they_name_and_name_their_macros() {
     let _turn = turn();
-    assert!((8..=16).contains(&bass::FACTORY_PRESETS.len()));
-    for preset in bass::FACTORY_PRESETS {
+    assert!(cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Bass).len() >= 8);
+    for preset in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Bass) {
         let (mut a, track) = with_bass();
         a.set_inst_value(track, "gain", -20.0, false);
         let target = preset_spec(InstrumentKind::Bass, preset);
@@ -413,9 +413,13 @@ fn every_label_is_translated_in_both_languages() {
     let _turn = turn();
     use cantus_ui::i18n::{set_thread_locale, t, Locale};
     let mut keys: Vec<&str> = PARAMS.iter().map(|p| p.label_key).collect();
-    keys.extend(bass::FACTORY_PRESETS.iter().map(|p| p.label_key));
     keys.extend(
-        bass::FACTORY_PRESETS
+        cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Bass)
+            .iter()
+            .map(|p| p.label_key),
+    );
+    keys.extend(
+        cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Bass)
             .iter()
             .flat_map(|p| p.tags.iter().copied()),
     );

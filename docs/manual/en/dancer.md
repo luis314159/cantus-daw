@@ -13,8 +13,16 @@ export](video.md); your own characters are [importing a character](import-charac
 ## Add one
 
 *Add track* (or the device picker, Ctrl+T) ▸ the **Visual** shelf ▸ **Saltator**. The new
-track is named *Saltator*, has a dancing figure for its icon, and Trino, the cast's
-songbird, dances on it. Its window opens.
+track is named *Saltator*, has a dancing figure for its icon, and Fuga, the cast's ninja,
+dances on it. Its window opens.
+
+**The cast.** Fuga the ninja (masked, a torn crimson scarf in the wind: flips, high kicks,
+a crouched landing, a martial bow) and Volta the mecha (gunmetal armour, a V visor of
+light whose slits show its mood, a speaker core that pulses on the beat, jets that fire
+when it jumps: pop and lock, the rocket jump, a hero stance) lead it; then the family —
+Trino the songbird, Miso the cat, Lana the lamb, Tic the metronome robot, Corchea the
+eighth note, Sol the child. A song made before Fuga keeps the character it had: a dancer
+saved without one keeps Trino.
 
 ## The window
 

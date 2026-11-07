@@ -48,7 +48,20 @@ struct Band {
 }
 
 pub fn build() -> Project {
-    song().finish()
+    let mut p = song().finish();
+    // r37:finish — the sections as markers: named once in the ruler, as a song's form is
+    // read (the clips that say the same go quiet under them).
+    for (key, at, _) in FORM {
+        let id = cantus_core::tempo::MarkerId(p.alloc_id());
+        let tick = cantus_core::Ticks::beats((at * 4.0) as i64);
+        p.markers.push(cantus_core::tempo::Marker {
+            id,
+            tick,
+            name: song::section(key),
+            color: None,
+        });
+    }
+    p
 }
 
 /// The second drop — the choir has joined — sixteen bars, looping: what the program opens

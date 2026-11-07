@@ -1,0 +1,149 @@
+# Tremor tremolo: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.tremor.surf"
+note = "The amp tremolo of surf guitar: fast and choppy."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.65
+"out" = 3.3
+"rate" = 6.2
+"shape" = 1
+"sync" = 0
+
+[[preset]]
+key = "preset.tremor.slow_swell"
+note = "Half-note swells, soft."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.5
+"div" = 5
+"out" = 2.4
+"shape" = 0
+
+[[preset]]
+key = "preset.tremor.helicopter"
+note = "Square sixteenths at full depth: the chopped pad."
+styles = ["house", "film"]
+roles = ["creative"]
+[preset.values]
+"depth" = 1
+"div" = 14
+"edge" = 0.1
+"out" = 2.4
+"shape" = 2
+
+[[preset]]
+key = "preset.tremor.trance_gate"
+note = "A swung sixteenth gate on a pad: the trance chop."
+styles = ["house"]
+roles = ["creative"]
+[preset.values]
+"depth" = 1
+"div" = 14
+"edge" = 0.05
+"out" = 2.4
+"shape" = 2
+"swing" = 0.5
+
+[[preset]]
+key = "preset.tremor.stereo_shimmer"
+note = "Eighth-note triplets opposite left and right."
+styles = ["ambient", "pop"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.6
+"div" = 13
+"out" = 2.7
+"shape" = 0
+"spread" = 180
+
+[[preset]]
+key = "preset.tremor.random_steps"
+note = "Random levels on eighths."
+styles = ["film", "lofi"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.6
+"div" = 11
+"edge" = 0.4
+"out" = 1.7
+"shape" = 5
+
+[[preset]]
+key = "preset.tremor.pan_quarters"
+note = "An auto-pan on quarter notes."
+styles = ["pop", "house"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.8
+"div" = 8
+"mode" = 1
+"out" = 1.7
+"shape" = 0
+
+[[preset]]
+key = "preset.tremor.wide_pan"
+note = "A slow, wide pan over a whole bar."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"depth" = 1
+"div" = 3
+"mode" = 1
+"out" = 1.7
+"shape" = 1
+
+[[preset]]
+key = "preset.tremor.harmonic"
+note = "Lows and highs in turn: the harmonic tremolo of a vintage amp."
+styles = ["rock", "jazz"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.8
+"mode" = 2
+"out" = 3.6
+"rate" = 4.5
+"sync" = 0
+"xover" = 700
+
+[[preset]]
+key = "preset.tremor.rhodes_pan"
+note = "The suitcase piano stereo vibrato: a gentle auto-pan."
+styles = ["jazz", "rnb"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.7
+"mode" = 1
+"out" = 1.5
+"rate" = 4
+"shape" = 0
+"sync" = 0
+
+[[preset]]
+key = "preset.tremor.lofi_flutter"
+note = "A shallow, quick flutter, as an old player gives."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.25
+"out" = 1.1
+"rate" = 7
+"shape" = 0
+"sync" = 0
+
+[[preset]]
+key = "preset.tremor.trap_stutter"
+note = "Thirty-second chops on a melody: a stutter."
+styles = ["trap"]
+roles = ["creative"]
+[preset.values]
+"depth" = 0.9
+"div" = 16
+"edge" = 0.1
+"out" = 2.6
+"shape" = 2

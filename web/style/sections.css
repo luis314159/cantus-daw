@@ -288,3 +288,17 @@
 .dance-wrap .score-more.dance-pair { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
 .dance-wrap .score-more img { border-color: var(--night-line); background: var(--night-2); }
 @media (max-width: 56rem) { .dance-wrap .score-more, .dance-wrap .score-more.dance-pair { grid-template-columns: 1fr; } }
+
+/* The measured scorecard (round 37, ADR 0102). */
+.measured { background: var(--paper); border-bottom: 1px solid var(--line); }
+.measured-table { overflow-x: auto; margin-top: 1.6rem; -webkit-overflow-scrolling: touch; }
+.measured table { width: 100%; min-width: 34rem; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.measured th, .measured td { padding: .7rem .9rem; text-align: right; border-bottom: 1px solid var(--line); }
+.measured thead th { color: var(--ink-2); font-weight: 600; font-size: .9rem; }
+.measured th[scope="row"], .measured thead th:first-child { text-align: left; }
+.measured tbody th { color: var(--ink); font-weight: 600; }
+.measured tr.ours { background: var(--paper-2); }
+.measured tr.ours th { color: var(--copper-deep); }
+.measured tr.ours td.win { color: var(--verdigris-deep); font-weight: 700; }
+.measured .score-points a { color: var(--copper-deep); font-weight: 600; }
+.measured-note { margin-top: 1.4rem; color: var(--ink-3); font-size: .85rem; }

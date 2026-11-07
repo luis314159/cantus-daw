@@ -126,7 +126,27 @@ pub fn write_private(path: &Path, contents: &[u8]) -> io::Result<()> {
         f.write_all(contents)?;
         f.sync_all()?;
     }
-    std::fs::rename(&tmp, path)
+    rename_patiently(&tmp, path)
+}
+
+/// `rename`, tried again for a moment while Windows holds a file: a virus scanner or the
+/// search indexer opens a file just written for a few milliseconds, and a rename over it is
+/// refused meanwhile (access denied, a sharing violation). Seen under load in round 37.
+fn rename_patiently(from: &Path, to: &Path) -> io::Result<()> {
+    let busy = |e: &io::Error| {
+        e.kind() == io::ErrorKind::PermissionDenied
+            || (cfg!(windows) && matches!(e.raw_os_error(), Some(5 | 32)))
+    };
+    let mut tries = 0;
+    loop {
+        match std::fs::rename(from, to) {
+            Err(e) if busy(&e) && tries < 40 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            done => return done,
+        }
+    }
 }
 
 /// A new token: 256 bits from the operating system's random source, hex.
@@ -251,6 +271,34 @@ pub fn remove_door(dir: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file another program holds for a moment (Windows: opened sharing nothing, as a
+    /// scanner may) is still replaced once it lets go, not refused (round 37).
+    #[cfg(windows)]
+    #[test]
+    fn a_file_held_for_a_moment_is_still_replaced() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let d = std::env::temp_dir().join(format!("cantus-mcp-held-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        let path = secrets(&d).join(DOOR_FILE);
+        write_private(&path, b"old").unwrap();
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&path)
+            .unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let holder = std::thread::spawn(move || {
+            tx.send(()).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(40));
+            drop(held);
+        });
+        rx.recv().unwrap();
+        write_private(&path, b"new").unwrap();
+        holder.join().unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"new");
+        let _ = std::fs::remove_dir_all(&d);
+    }
 
     #[test]
     fn the_token_is_made_once_and_regenerated_on_demand() {

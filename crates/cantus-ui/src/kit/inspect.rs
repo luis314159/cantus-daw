@@ -26,7 +26,7 @@ pub struct Item {
     /// The tokens the part always paints with.
     pub tokens: &'static [Tok],
     /// The tokens this use of it adds: the section hue, a lamp's colour and ground.
-    pub extra: [Option<Tok>; 3],
+    pub extra: [Option<Tok>; 4],
     /// The face it was painted in (round 32, ADR 0074): the unit's skin key
     /// (`fx.eq`, `inst.fm`), or `plain` outside a unit's window — a skin's colours are
     /// its sheet's data, listed under that key.

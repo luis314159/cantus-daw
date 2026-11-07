@@ -1,10 +1,12 @@
-//! `Led` — an 11-pt lamp built like FL's: a faint outer ring, a dark ring, a bright rim,
-//! the core; lit, it throws a cached glow. Off keeps the geometry. `LedButton` — an LED
+//! `Led` — an 11-pt lamp of glass in a socket (round 37, ADR 0103): the socket cut into
+//! the panel, its lip catching the light; the lens lit from inside when on (a hot core,
+//! the colour, a darker rim) and dark tinted glass when off; the specular on the glass
+//! either way; lit, a tight halo (a cached glow), not a haze. `LedButton` — an LED
 //! and a caps word in one 20-pt button: every on/off in a device.
 
 use super::brush::{Brush, Fill};
 use super::color::{mix, shade, with_alpha};
-use super::light::{self, RaisedOpts};
+use super::light::{self, Material, RaisedOpts};
 use super::text::{self, Policy, Role, Src, Text};
 use super::{focus_ring, State, Style, Tok};
 
@@ -16,11 +18,30 @@ pub const BUTTON_TOKENS: &[Tok] = &[
     Tok::Label,
     Tok::Light,
     Tok::Focus,
+    Tok::Bevel,
+    Tok::BevelShade,
+    Tok::Drop,
+    Tok::InnerShadow,
+    Tok::Lip,
+    Tok::Specular,
 ];
 /// In a light theme (the button is the card's face).
-pub const BUTTON_LIGHT_TOKENS: &[Tok] = &[Tok::Deck, Tok::Text, Tok::Label, Tok::Light, Tok::Focus];
-/// The tokens a lamp paints with, beside its colour and its ground.
-pub const TOKENS: &[Tok] = &[Tok::Light];
+pub const BUTTON_LIGHT_TOKENS: &[Tok] = &[
+    Tok::Deck,
+    Tok::Text,
+    Tok::Label,
+    Tok::Light,
+    Tok::Focus,
+    Tok::Bevel,
+    Tok::BevelShade,
+    Tok::Drop,
+    Tok::InnerShadow,
+    Tok::Lip,
+    Tok::Specular,
+];
+/// The tokens a lamp paints with, beside its colour and its ground: the light in its
+/// lit core, its socket's lip, its lens's edge, the specular on the glass.
+pub const TOKENS: &[Tok] = &[Tok::Light, Tok::Lip, Tok::BevelShade, Tok::Specular];
 use egui::{Align2, Color32, Pos2, Rect, Vec2};
 
 /// Paint a lamp of `diameter` points at `c`, in the token `color` when `lit`. `ground`
@@ -64,33 +85,93 @@ fn lamp(
     let c = Pos2::new(b.snap_mid(c.x), b.snap_mid(c.y));
     let r = diameter * 0.5;
     let px = b.px();
-    let f = |c: Color32| c.gamma_multiply(alpha);
-    // Outer ring: a lens set into the panel.
-    b.circle(c, r, Fill::Solid(f(with_alpha(shade(ground, 0.16), 0.55))));
+    let m = Material::of(&s.t);
+    // Lit, a tight halo round the lens (light on the panel, not a haze).
     if lit {
-        light::glow(b, c, r * 2.6, color, 0.9 * alpha);
-        b.circle(c, r - px, Fill::Solid(f(shade(color, -0.30))));
-        b.circle(c, r - 2.0 * px, Fill::Solid(f(shade(color, 0.08))));
+        // A light theme's panel needs more of it to show the lamp is on.
+        let (k, reach) = if s.t.dark { (0.6, 1.9) } else { (0.75, 1.6) }; // r37:finish (Paper: a tighter glow, not a smear)
+        light::glow(b, c, r * reach, color, k * alpha);
+    }
+    let lens = (r - (1.2 * s.k).max(px)).max(px);
+    let ppp = b.ppp();
+    // One cached layer per colour, size and state (round 37): the socket, the lens, its
+    // edge and the specular, rasterised once.
+    let side = ((2.0 * r * ppp + 3.0).ceil() as usize) | 1;
+    let look = super::raster_parts::LampLook {
+        lit,
+        color,
+        ground,
+        light: s.t.light,
+        lip: m.lip,
+        edge: m.bevel_shade,
+        specular: m.specular,
+    };
+    let key = super::cache::key((
+        "lamp",
+        side,
+        (r * ppp).to_bits(),
+        (lens * ppp).to_bits(),
+        lit,
+        [color, ground, s.t.light, m.lip, m.bevel_shade, m.specular].map(super::cache::ckey),
+    ));
+    let uv = b.layer(key, side, side, |pix| {
+        super::raster_parts::lamp(pix, r * ppp, lens * ppp, &look)
+    });
+    if let Some(uv) = uv {
+        let half = side as f32 / ppp * 0.5;
+        let rect = Rect::from_min_max(c - Vec2::splat(half), c + Vec2::splat(half));
+        b.layer_quad(rect, uv, alpha);
+        return;
+    }
+    lamp_vector(b, c, r, lens, lit, s, color, ground, alpha, &m);
+}
+
+/// The lamp as geometry, where the atlas has no room.
+#[allow(clippy::too_many_arguments)]
+fn lamp_vector(
+    b: &mut Brush,
+    c: Pos2,
+    r: f32,
+    lens: f32,
+    lit: bool,
+    s: &Style,
+    color: Color32,
+    ground: Color32,
+    alpha: f32,
+    m: &Material,
+) {
+    let px = b.px();
+    let f = |c: Color32| c.gamma_multiply(alpha);
+    // The bezel: a socket cut into the panel — its lower lip catching the light, its
+    // hollow darker at the top.
+    if m.lip.a() > 0 {
+        b.dot(c + Vec2::new(0.0, px), r, f(m.lip));
+    }
+    b.circle(
+        c,
+        r,
+        Fill::V(f(shade(ground, -0.26)), f(shade(ground, -0.10))),
+    );
+    // The lens: glass, lit from inside when on (a hot top, the colour, a darker foot), a
+    // dark glass tinted by its colour when off. A vertical ramp: the light is above.
+    if lit {
         b.circle(
             c,
-            (r - 3.0 * px).max(px),
-            Fill::V(f(shade(color, 0.12)), f(color)),
-        );
-        // The specular dot, up and to the left.
-        b.circle(
-            c + Vec2::new(-r * 0.28, -r * 0.3),
-            (r * 0.22).max(px * 0.8),
-            Fill::Solid(f(with_alpha(s.t.light, 0.55 * s.t.depth.min(1.0)))),
+            lens,
+            Fill::V(f(mix(color, s.t.light, 0.62)), f(shade(color, 0.04))),
         );
     } else {
-        let off = mix(shade(ground, -0.10), color, 0.18);
-        b.circle(c, r - px, Fill::Solid(f(shade(ground, -0.16))));
-        b.circle(
-            c,
-            (r - 2.0 * px).max(px),
-            Fill::V(f(shade(off, 0.03)), f(shade(off, -0.03))),
-        );
+        let off = mix(shade(ground, -0.14), color, 0.24);
+        b.circle(c, lens, Fill::V(f(shade(off, -0.06)), f(shade(off, 0.06))));
     }
+    // The lens's edge in the socket, and the specular on the glass.
+    b.circle_stroke(c, lens, px, f(with_alpha(m.bevel_shade, 0.8)));
+    let k = if lit { 0.9 } else { 0.55 };
+    b.dot(
+        c + Vec2::new(-lens * 0.30, -lens * 0.36),
+        (lens * 0.30).max(px * 0.8),
+        f(m.specular.gamma_multiply(k)),
+    );
 }
 
 /// Paint an LED button: a small cap with a lamp at its left and a caps word.
@@ -124,6 +205,22 @@ pub fn button(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
     // The lamp shape lights the whole cap; every other shape is a cap with its switch.
     let lamp_face = if matches!(shape, SwitchShape::Lamp) {
         Some(switches::lamp_face(b, rect, r, s, st, base))
+    } else if matches!(shape, SwitchShape::Plain) {
+        // An object (round 37, ADR 0103): raised at rest, pushed in while held.
+        light::object(
+            b,
+            rect,
+            r,
+            pressed,
+            &Material::of(&s.t),
+            light::ObjectOpts {
+                pressed: st.active,
+                k: s.k,
+                alpha: st.alpha(),
+                ..Default::default()
+            },
+        );
+        None
     } else {
         light::raised(
             b,

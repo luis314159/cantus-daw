@@ -498,6 +498,27 @@ pub fn ribbon_into(pb: &mut dyn Sink, pts: &[P], width: f32) {
     tube_into(pb, &pts[..n], &nrm[..n], &[width * 0.5; 16][..n]);
 }
 
+/// A tapered ribbon along `pts` (at most 16; a smooth line), `w0` wide at the first point
+/// and `w1` at the last, round at both ends: a scarf's tail, a lock of hair, as one tube
+/// (round 37; far fewer edges than limbs overlapping).
+pub fn taper_into(pb: &mut dyn Sink, pts: &[P], w0: f32, w1: f32) {
+    let n = pts.len().min(16);
+    if n < 2 {
+        return;
+    }
+    let mut nrm = [(0.0, 0.0); 16];
+    let mut half = [0.0; 16];
+    for i in 0..n {
+        let a = pts[i.saturating_sub(1)];
+        let b = pts[(i + 1).min(n - 1)];
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let len = (dx * dx + dy * dy).sqrt().max(1e-6);
+        nrm[i] = (-dy / len, dx / len);
+        half[i] = lerp(w0, w1, i as f32 / (n - 1) as f32) * 0.5;
+    }
+    tube_into(pb, &pts[..n], &nrm[..n], &half[..n]);
+}
+
 // ---- Painting ----
 
 thread_local! {
@@ -608,6 +629,13 @@ pub fn fixed(c: &mut Canvas, shape: ShapeFn, rgba: [u8; 4]) {
 pub fn fixed_even_odd(c: &mut Canvas, shape: ShapeFn, rgba: [u8; 4]) {
     let s = build(shape, 0.0, c.transform);
     let col = c.fixed(rgba);
+    fill_rule(c, &s, col, FillRule::EvenOdd);
+}
+
+/// A flat fill by the even-odd rule, turned by the hue (round 37: skin round an eye).
+pub fn flat_even_odd(c: &mut Canvas, shape: ShapeFn, rgba: [u8; 4]) {
+    let s = build(shape, 0.0, c.transform);
+    let col = c.color(rgba);
     fill_rule(c, &s, col, FillRule::EvenOdd);
 }
 

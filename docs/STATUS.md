@@ -1,8 +1,46 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-03 (round 36: **the professional studio** — **the recording mode**: *Prepare to record* renders every strip feeding the master after its inserts and before its fader, keyed by freeze's content hash, streams them, keeps armed tracks live, bakes the master if asked, locks every other edit with a bar that cannot be missed, bit-identical when you leave; 64 tracks with effects from 224–590 % of each block live to 2–4 %, 0 disk underruns with 64 and 128 streams (ADR 0092); **VCA faders, mixer snapshots and scene cues** (ADR 0093, schema 50); **external instruments and effects with an automatic latency ping** (ADR 0094, schema 51) and **Mackie Control / HUI surfaces** with virtual units (ADR 0095); **the audio editor** — destructive edits as new files with undo, denoise by profile, spectral repair, declick, remove silence (ADR 0096, schema 52); **ARA 2 hosting** — a plug-in on a clip rendered off the audio thread, its editor, its edits as undo steps (ADR 0097, schema 53, the new GPL crate `cantus-ara`); the landing page and README selling the instruments and effects one by one. Version **0.1.0-beta.11** (Windows, Linux, and **macOS as an unsigned preview**). Schema 53, `DSP_VERSION` 5, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 291 pass on Windows (89 ignored), the engine fuzz 1 085 at `CANTUS_WORKERS=3`, 6 253 on Linux (89 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both
+**Updated:** 2026-11-07 (round 37: **content, instruments and the look** — **Chorda model 2**, voiced against the Salamander Grand by measurement, with the microphones, the lid and the room as controls (ADR 0098), and **its scene**, the piano in its room built in 3-D and baked by our own CPU renderer, its look per preset (ADR 0104, schema 58); **Sectio**, Exemplar's slicer — markers, transients, a grid or by hand, a slice editor, a dump that replays the loop to the bit (ADR 0099, schema 55; 91.9 % of hits within 10 ms on rendered loops, 75.8 % on MDB Drums — short of the 95 % target); **Pulsus III** — each pad on its own strip in one click, the split kit equal to the unsplit one to the bit, a chain per pad that costs nothing at rest, kits from a folder or an SFZ, sixteen original kits (ADR 0100, schemas 56–57); **a library of 511 presets** by style and role, auditioned before they are chosen, Cantus's own packs on demand and every unit heard on the website (ADR 0101); **the look drawn by hand** above FL Studio, judged blind by fresh agents (ADR 0103); **Fuga the ninja**, the new lead dancer, and **Volta the mecha** (ADR 0105, schema 59); the first **scorecard** — 97 features against twelve DAWs from their manuals. Version **0.1.0-beta.12** (Windows, Linux, and **macOS as an unsigned preview**). Schema 59, `DSP_VERSION` 6, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 534 pass on Windows (95 ignored), the engine fuzz 1 111 at `CANTUS_WORKERS=3`, 6 494 on Linux (95 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both, and clippy for `aarch64-apple-darwin` on the crates with macOS code
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 37 left
+
+Round 37 is on **master** (squashed) and published to `luis314159/cantus-daw`; **`v0.1.0-beta.12`**
+is released for Windows and Linux, with macOS as an unsigned preview, and Cantus's own sound
+packs are on the `content-r37` release. The account: `docs/round37/integration.md`; one
+report per builder beside it (`piano`, `drums`, `library`, `fixes`, `finish`, `scene`,
+`chars`). Under the owner's rule what is left is the owner's own, or new work:
+
+1. **Ears** (`docs/beta-checklist.md`): Chorda's third ABX kit,
+   `F:\projects\daw-r37\abx-kit3\index.html` (the integrated Chorda; kit 2 is stale) — send
+   back the JSON; then *Mics*, *Lid* and *Size* while a phrase plays, and the default
+   perspective; Sectio on your own loops; the eight new kits and the 20 presets held under
+   their window by their headroom; the sidechain-presets question (the ducking presets that
+   need a key).
+2. **Eyes**: the look's thirteen crops in the real app at 100/125/150 % — finish's
+   acceptance (the eighth blind judge: Cantus 10 of 26, Night 7 and Paper 3, which sent a tenth delivery for Paper's surfaces and meters, the icons and the clips; the ninth: Cantus 20 of 26 (Night 10, Paper 10); FL kept the toolbar icons, the mixer and the browser in both themes. The judge noted FL's crops were softer, with colour fringing, which weighed against FL on precision in four pairs (06, 08, 10, 21); then three more deliveries for the owner's 26 of 26, each judged by two fresh judges on 1:1 crops: 20/18, 22/19 and **20/22** — the top bar and the browser won by both, the toolbar icons and the piano keys still FL's for both, round 38's); Chorda's scene against the premium
+   sampled pianos' pictures; Fuga and Volta on the stage and in the companion window.
+3. **The scorecard** (`docs/scorecard/README.md`): REAPER 7.85 is installed as a portable
+   evaluation in `F:\projects\daw-r37\reaper` and start-up is measured against it and FL
+   Studio; the live DAWbench (the same session in each host, tracks added by hand until the
+   host counts a dropout, a real interface) is yours — the steps are in the checklist.
+4. **Open in the code** (BACKLOG): the `stage_budget` variance (+4 540 triangles between two
+   applications built apart, cause unknown, §8); the arrangement's stored header width
+   clamped in a small window (§8); a preview's level without restarting it (the engine's
+   gain message, §8); a latent pad chain in the kit's track stem (ADR 0100 §12); Sectio's
+   learned onset model (§3e); ADR 0102.
+5. **Everything round 36 left**: the hardware (the recording mode's lowest buffer, a
+   synth's ping, a loopback effect, a real Mackie and HUI), ARA (Celemony, the test plug-in,
+   a commercial plug-in), the audio editor by ear, the Mac (`docs/mac-session.md`) and the
+   Apple account, and rounds 30–35's items.
+6. **Round 38** (the integrator's recommendation — the owner decides): **performance,
+   measured against the market** — the scorecard's performance rows (a DAWbench-style run
+   against FL Studio and REAPER, start-up and load, the UI with 200 tracks) and §4b's next
+   lever, every strip resting like a pad's chain — with the two feature gaps the most
+   leaders have: **a convolution reverb** (7 of 8) and **ripple edit / insert and delete
+   time** (6; clip groups, also 6, next). The alternative: AU hosting and the Mac session
+   (5 leaders, needs the borrowed Mac). The prompt is `docs/next-session.md`.
 
 ## The next session: what round 36 left
 
@@ -465,6 +503,30 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 37: content, instruments, the look and the first measurement — Chorda model 2 and its scene, Sectio, Pulsus III, the preset library, Fuga and Volta, the scorecard (requested 2026-11-03)
+
+**The ask:** BACKLOG §0.4 item 7 and §0.1. Three builders (`piano`, `drums`, `library`) from
+contract `c95ee8a9`; the owner added **finish** (the look, 2026-11-04, after a side-by-side
+with FL Studio that FL won 10 to 2), **scene** (Chorda's room) and **chars** (a cooler lead
+character) on 2026-11-06, and the integrated-tree review's drums and library items went to
+a **fixes** builder; the scorecard was the integrator's. First deliveries merged early, the
+integrated tree reviewed mid-round, one reviewer per branch and one over the fix rounds —
+every finding fixed with a test; the look judged blind by a fresh agent between deliveries.
+Account: `docs/round37/integration.md`.
+
+| Part | What changed |
+|---|---|
+| Chorda model 2 (ADR 0098, schema 54) | `chorda_compare` measures Chorda and the Salamander Grand through the real engine note by note and band by band (the Salamander installed by Cantus's own pack code); model 2: a body of two synthesised radiation responses convolved without latency, the action's noises, a room, a seeded variation per strike, the voicing set by measurement, then a second pass on the owner's first ABX (*"muchos medios, algo borroso, un poco nasal"*); **the perspective** — *Mics* (hammers … audience), *Width* (mid/side), *Lid*, *Size*, gliding, exact at their defaults; 24 presets placed in it; model 1 bit-identical for old songs (schema 54 writes `model = 1`); the owner's ABX kit (offline HTML, 16 trials, binomial p). The comparison's score 64.4 (model 1) → 33.1, the second pass's own 26.3 → 23.5; 64 pedal-down voices 22.3 % of a core; `DSP_VERSION` 6, no golden moved. The owner's first ABX: 15/16 both ways, Chorda 2 preferred to Chorda 1 7 of 7, the Salamander to Chorda 2 7 of 7 — the third kit is the owner's |
+| Chorda's scene (ADR 0104, schema 58) | *The piano and its room*, Play's hero: built in 3-D and baked by our own CPU renderer on a worker (procedural materials, shadow map, occlusion, reflections, depth of field, bloom); four bodies, four finishes, the lid, the pair and the room pair where the controls put them, four rooms; the look two text keys (`look.body`, `look.finish`; schema 58 writes a black concert grand), never audible, each preset's look held to its sound; a bake 537 ms, a preview 69 ms, nothing at rest |
+| Sectio (ADR 0099, schema 55) | Exemplar's slicer: markers (`cue `, `smpl`, ACID), transients (SuperFlux, banded), a grid or by hand, one undo step; slice *i* on C1 + *i* with pitch, gain, pan, reverse, choke, envelope and its own low-pass; the slice editor; **Dump to piano roll** replays the loop to the bit; *Random*, *Stutter*, *Quantize*; six slicing styles that re-cut the user's loop; from the browser in two clicks; `slice_sample`, `dump_slices`. **91.9 %** of rendered hits and **75.8 %** of MDB Drums' within 10 ms (88 % within 20 ms) — **the 95 % target is not met** (the reasons measured in the ADR) |
+| Pulsus III (ADR 0100, schemas 56–57) | Instruments with several outputs (`output_strips`, `process_buses`, taps that are ordinary tracks); *Split to strips* / *Merge back* in one step — the split kit is the kit to the bit; a strip's own pan law; **a chain per pad**, free at rest; kits from a folder or an SFZ; sixteen original kits at −19 LUFS; the kit gain stage; freeze, the recording mode, VCAs, sends, compensation, stems, templates and DAWproject all see it; `split_kit_outputs`, `set_pad_chain`, `make_kit_from_folder` |
+| The library (ADR 0101) | **511 factory presets** at their floors, tagged by style and role, the library's as data (`presets/**.toml`); each rendered by a test in its ±2 LU window, unclipped, under its CPU budget; effects levelled on insert; the browser filters, searches by the English name in any language and **auditions** on a phrase or the user's clip; the older Reverb retired from new inserts; Cantus's own CC0 packs on demand (one-shots 182 files, loops 87, manifest format 4); **the website plays every unit's presets** (114 excerpts, 9.7 MiB); `find_presets`, `audition_preset` |
+| The look (ADR 0103) | Thirteen deliveries: material tokens, controls as lit objects, one icon family, fine-line toolbar pictograms, tinted strip plates, the top bar a size up (nothing folds at 1920 × 1080), the fader *Classic* or *Metal*, one numeric face, clip content at full height, a browser with tabs, waveform thumbnails and a preview strip, a real piano's keyboard, Paper's meter wells, the mixer's insert panel, the browser as a table with pack covers and a sound's card, the song's summary in the top bar, two-tone area glyphs; real-window captures. Blind judges: 7/8, 23/24, 22/24, then on 26 pairs 17, 16, 17 (real captures), 14, 10, 20, then two judges at a time on 1:1 crops 20/18, 22/19 and **20/22** (FL keeps the toolbar icons and the piano keys) — the owner's thirteen crops open |
+| Fuga and Volta (ADR 0105, schema 59) | Fuga the ninja (the new default) and Volta the mecha, original, in hard cel with a rim light, every move and mood plus moves of their own; schema 59 keeps the songbird in old songs; 1.16 / 1.24 ms a frame; the README's hero and the landing clip of eight |
+| The scorecard (`docs/scorecard/`) | 97 feature rows, Cantus and twelve DAWs from their current manuals, 22 gaps a leader has and 3 rows only Cantus has; BACKLOG §0.4 ordered by it; the start-up harness and ADR 0102. **Measured on the owner's machine (2026-11-06, `docs/scorecard/README.md`):** the main window ready in **1.31 s** against FL Studio 24.1.2's 2.82 s and REAPER 7.85's 1.94 s (first of the three); Cantus loses the rest — quiet only 6–42 s after its window, 267 MB private against 133 and 62, 29 % of a core at rest against 6.2 % and 0.3 % (the demo's engine and its dancer's breath redrawing the whole window). Capacity, offline estimate on one core: 120 Comprimo instances and 40 Calor voices at 64 and 128 samples; the live DAWbench in the other hosts is the owner's. The measuring found the repaint ticker's 17 ms turned into 0.3 ms by egui (144 frames a second on a 144 Hz screen) and four views repainting outside it — fixed, with an end-to-end test. |
+| Causes the reviews caught | Sectio's styles re-cut by five paths; slice settings left behind; a rerouted kit leaving its chains; three free-strip rules; an audition played after its cancel; the retired Reverb offered to agents; two paths to a dancer with no character; a stale scene bake; agent tools that read any file (now a test) |
+| Process | Seven branches against the rule's three (the owner's additions); judges on real captures, not CPU shots; content re-rendered at the final sound and pinned |
 
 ## Round 36: the professional studio — the recording mode, VCAs and snapshots, external gear and surfaces, the audio editor, ARA 2 (requested 2026-11-02)
 

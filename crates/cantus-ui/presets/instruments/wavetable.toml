@@ -1,0 +1,879 @@
+# Unda: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "unda.preset.glass_choir"
+note = "A vowel table swept by an LFO over an octave: a glassy choir."
+styles = ["ambient", "film"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env1.a" = 0.6
+"env1.d" = 1
+"env1.r" = 1.8
+"env1.s" = 0.8
+"flt1.cutoff" = 3200
+"flt1.on" = 1
+"flt1.res" = 0.2
+"gain" = 1.2
+"lfo1.rate" = 0.2
+"mod1.amt" = 0.25
+"mod2.amt" = 0.15
+"mod3.amt" = 0.6
+"mod4.amt" = 0.3
+"osc1.detune" = 18
+"osc1.pos" = 0.3
+"osc1.uni" = 3
+"osc1.wt" = 5
+"osc2.level" = -8
+"osc2.on" = 1
+"osc2.pos" = 0.5
+"osc2.semi" = 12
+"osc2.uni" = 2
+"osc2.wt" = 3
+[preset.text]
+"macro1.name" = "Vowel"
+"macro2.name" = "Air"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "lfo1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "env2"
+"mod3.dst" = "osc1.pos"
+"mod3.src" = "macro1"
+"mod4.dst" = "flt1.cutoff"
+"mod4.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.hyper_saw"
+note = "Nine detuned saws and a fifth: the big festival lead."
+styles = ["house", "pop"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"env1.a" = 0.003
+"env1.d" = 0.3
+"env1.r" = 0.35
+"env1.s" = 0.9
+"flt1.cutoff" = 5000
+"flt1.on" = 1
+"flt1.res" = 0.15
+"flt1.type" = 6
+"gain" = 4.9
+"mod1.amt" = 0.6
+"mod2.amt" = 0.3
+"osc1.blend" = 0.6
+"osc1.detune" = 35
+"osc1.uni" = 9
+"osc2.detune" = 25
+"osc2.level" = -10
+"osc2.on" = 1
+"osc2.semi" = 7
+"osc2.uni" = 5
+[preset.text]
+"macro1.name" = "Width"
+"macro2.name" = "Bright"
+"mod1.dst" = "osc1.detune"
+"mod1.src" = "macro1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.reese"
+note = "Detuned, driven, mono: the reese bass."
+styles = ["house", "trap"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"env1.a" = 0.002
+"env1.d" = 0.5
+"env1.r" = 0.12
+"flt1.cutoff" = 900
+"flt1.drive" = 6
+"flt1.on" = 1
+"flt1.res" = 0.3
+"flt1.type" = 6
+"gain" = 12
+"lfo1.rate" = 0.3
+"mod1.amt" = 0.2
+"mod2.amt" = 0.35
+"mod3.amt" = 0.4
+"osc1.detune" = 22
+"osc1.pos" = 0.1
+"osc1.uni" = 2
+"osc1.wt" = 1
+"osc2.level" = -6
+"osc2.oct" = -1
+"osc2.on" = 1
+"voice.glide" = 0.06
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Growl"
+"macro2.name" = "Movement"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "lfo1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro1"
+"mod3.dst" = "lfo1.rate"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.pluck_keys"
+note = "A quick pluck of two tables."
+styles = ["pop", "house"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 0.45
+"env1.r" = 0.4
+"env1.s" = 0
+"env2.a" = 0.001
+"env2.d" = 0.25
+"flt1.cutoff" = 1500
+"flt1.on" = 1
+"flt1.type" = 1
+"gain" = 3
+"mod1.amt" = 0.35
+"mod2.amt" = 0.3
+"mod3.amt" = 0.6
+"osc1.pos" = 0.2
+"osc1.wt" = 2
+"osc2.level" = -10
+"osc2.on" = 1
+"osc2.pos" = 0.3
+"osc2.wt" = 8
+[preset.text]
+"macro1.name" = "Tone"
+"macro2.name" = "FM"
+"mod1.dst" = "flt1.cutoff"
+"mod1.src" = "env2"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro1"
+"mod3.dst" = "osc2.pos"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.formant_talker"
+note = "A formant table that talks as it moves."
+styles = ["house", "film"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"env1.a" = 0.01
+"env1.r" = 0.3
+"gain" = 2.1
+"lfo1.rate" = 0.8
+"mod1.amt" = 0.4
+"mod2.amt" = 0.7
+"mod3.amt" = 0.5
+"osc1.detune" = 10
+"osc1.pos" = 0.2
+"osc1.uni" = 3
+"osc1.wt" = 4
+[preset.text]
+"macro1.name" = "Mouth"
+"macro2.name" = "Speed"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "lfo1"
+"mod2.dst" = "osc1.pos"
+"mod2.src" = "macro1"
+"mod3.dst" = "lfo1.rate"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.sync_scream"
+note = "A sync table, driven and gliding: it screams."
+styles = ["rock", "house"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"env2.d" = 0.6
+"env2.s" = 0.2
+"flt1.cutoff" = 6000
+"flt1.drive" = 8
+"flt1.on" = 1
+"flt1.res" = 0.25
+"flt1.type" = 6
+"gain" = 9.6
+"mod1.amt" = 0.5
+"mod2.amt" = 0.7
+"osc1.detune" = 12
+"osc1.pos" = 0.1
+"osc1.uni" = 3
+"osc1.wt" = 7
+"voice.glide" = 0.04
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Scream"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "env2"
+"mod2.dst" = "osc1.pos"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "unda.preset.digital_bells"
+note = "Two bright tables an octave apart, ringing."
+styles = ["pop", "film"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 1.5
+"env1.r" = 1.2
+"env1.s" = 0
+"gain" = -0.4
+"mod1.amt" = 0.6
+"mod2.amt" = 0.3
+"osc1.pos" = 0.2
+"osc1.wt" = 6
+"osc2.level" = -8
+"osc2.on" = 1
+"osc2.pos" = 0.4
+"osc2.semi" = 12
+"osc2.wt" = 8
+[preset.text]
+"macro1.name" = "Crush"
+"macro2.name" = "Shimmer"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "macro1"
+"mod2.dst" = "osc2.level"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.drawbars"
+note = "An organ table with a quick, clicky envelope."
+styles = ["jazz", "rnb"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env1.a" = 0.005
+"env1.d" = 0.1
+"env1.r" = 0.08
+"gain" = -1.8
+"lfo1.rate" = 5.5
+"mod1.amt" = 0.004
+"mod2.amt" = 0.8
+"osc1.pos" = 0.3
+"osc1.rand" = 0
+"osc1.wt" = 9
+[preset.text]
+"macro1.name" = "Vibrato"
+"macro2.name" = "Register"
+"mod1.dst" = "osc1.pitch"
+"mod1.src" = "lfo1"
+"mod1.via" = "macro1"
+"mod2.dst" = "osc1.pos"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.sub_drop"
+note = "A short pitched hit over a sub."
+styles = ["trap", "house"]
+roles = ["bass"]
+tags = ["preset.tag.bass", "preset.tag.drum"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 1.2
+"env1.r" = 0.3
+"env1.s" = 0
+"env2.d" = 0.05
+"gain" = 11.6
+"macro1" = 1
+"mod1.amt" = 0.08
+"osc1.pos" = 1
+"osc1.rand" = 0
+"sub.level" = -6
+"sub.on" = 1
+"voice.mode" = 1
+[preset.text]
+"macro1.name" = "Drop"
+"mod1.dst" = "osc1.pitch"
+"mod1.src" = "env2"
+"mod1.via" = "macro1"
+
+[[preset]]
+key = "unda.preset.warp_pad"
+note = "A warp moving slowly on a unison of tables: an evolving pad."
+styles = ["ambient", "film"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env1.a" = 1.2
+"env1.d" = 1
+"env1.r" = 2
+"env1.s" = 0.9
+"flt1.cutoff" = 2400
+"flt1.on" = 1
+"gain" = 9.5
+"lfo1.rate" = 0.15
+"lfo2.rate" = 0.09
+"lfo2.wave" = 1
+"mod1.amt" = 0.3
+"mod2.amt" = 0.3
+"mod3.amt" = 0.6
+"mod4.amt" = 0.4
+"osc1.detune" = 25
+"osc1.level" = 5
+"osc1.pos" = 0.4
+"osc1.uni" = 2
+"osc1.warp1" = 2
+"osc1.warp1.amt" = 0.3
+"osc1.wt" = 3
+[preset.text]
+"macro1.name" = "Bend"
+"macro2.name" = "Motion"
+"mod1.dst" = "osc1.warp1.amt"
+"mod1.src" = "lfo1"
+"mod2.dst" = "osc1.pos"
+"mod2.src" = "lfo2"
+"mod3.dst" = "osc1.warp1.amt"
+"mod3.src" = "macro1"
+"mod4.dst" = "lfo1.rate"
+"mod4.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.pwm_strings"
+note = "A string machine of two pulse tables."
+styles = ["film", "worship"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env1.a" = 0.35
+"env1.d" = 0.5
+"env1.r" = 0.9
+"env1.s" = 0.9
+"flt1.cutoff" = 2800
+"flt1.key" = 0.5
+"flt1.on" = 1
+"gain" = -2.4
+"lfo1.rate" = 0.4
+"mod1.amt" = 0.3
+"mod2.amt" = 0.4
+"mod3.amt" = 0.3
+"osc1.detune" = 12
+"osc1.pos" = 0.3
+"osc1.uni" = 4
+"osc1.wt" = 2
+"osc2.level" = -12
+"osc2.on" = 1
+"osc2.pos" = 0.6
+"osc2.semi" = 12
+"osc2.wt" = 2
+[preset.text]
+"macro1.name" = "Width"
+"macro2.name" = "Brightness"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "lfo1"
+"mod2.dst" = "osc1.pos"
+"mod2.src" = "macro1"
+"mod3.dst" = "flt1.cutoff"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.noise_sweep"
+note = "Noise through a resonant filter sweeping slowly: a riser."
+styles = ["film", "house"]
+roles = ["fx"]
+tags = ["preset.tag.fx"]
+[preset.values]
+"env1.a" = 1.5
+"env1.r" = 2
+"flt1.cutoff" = 800
+"flt1.on" = 1
+"flt1.res" = 0.7
+"flt1.type" = 2
+"gain" = 4.9
+"lfo1.rate" = 0.25
+"lfo1.wave" = 1
+"mod1.amt" = 0.5
+"mod2.amt" = 0.5
+"noise.color" = 0.3
+"noise.level" = 0
+"noise.on" = 1
+"osc1.on" = 0
+[preset.text]
+"macro1.name" = "Sweep"
+"mod1.dst" = "flt1.cutoff"
+"mod1.src" = "lfo1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "unda.preset.stretched_bells"
+note = "Additive partials stretched apart: bells."
+styles = ["ambient", "film"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 2.5
+"env1.r" = 2
+"env1.s" = 0
+"gain" = 11.2
+"mod1.amt" = 0.5
+"mod2.amt" = -0.3
+"osc1.engine" = 1
+"osc1.level" = 6
+"osc1.partials" = 24
+"osc1.pos" = 0.8
+"osc1.rand" = 0
+"osc1.stretch" = 0.035
+"osc1.tilt" = -1
+"osc1.wt" = 3
+[preset.text]
+"macro1.name" = "Inharmonic"
+"macro2.name" = "Dark"
+"mod1.dst" = "osc1.stretch"
+"mod1.src" = "macro1"
+"mod2.dst" = "osc1.tilt"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.grain_cloud"
+note = "Grains sprayed over a table: a cloud."
+styles = ["ambient", "film"]
+roles = ["pad"]
+tags = ["preset.tag.pad", "preset.tag.fx"]
+[preset.values]
+"env1.a" = 1
+"env1.r" = 2.5
+"env1.s" = 0.9
+"flt1.cutoff" = 5000
+"flt1.on" = 1
+"gain" = 6.3
+"lfo1.rate" = 0.1
+"mod1.amt" = 0.3
+"mod2.amt" = 0.6
+"mod3.amt" = 0.5
+"osc1.density" = 25
+"osc1.engine" = 2
+"osc1.glen" = 0.12
+"osc1.gpitch" = 15
+"osc1.pos" = 0.3
+"osc1.spray" = 0.04
+"osc1.width" = 0.8
+"osc1.wt" = 5
+[preset.text]
+"macro1.name" = "Scatter"
+"macro2.name" = "Thickness"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "lfo1"
+"mod2.dst" = "osc1.spray"
+"mod2.src" = "macro1"
+"mod3.dst" = "osc1.density"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.fm_bass"
+note = "An FM warp on the oscillator: a punchy bass."
+styles = ["house", "pop"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 0.6
+"env1.r" = 0.15
+"env1.s" = 0.6
+"env2.d" = 0.3
+"flt1.cutoff" = 2000
+"flt1.on" = 1
+"flt1.type" = 6
+"gain" = 11.4
+"mod1.amt" = 0.4
+"mod2.amt" = 0.5
+"osc1.pos" = 1
+"osc1.rand" = 0
+"osc1.warp1" = 13
+"osc1.warp1.amt" = 0.25
+"osc1.warp1.src" = 1
+"osc2.pos" = 1
+"osc2.rand" = 0
+"osc2.semi" = 12
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Index"
+"mod1.dst" = "osc1.warp1.amt"
+"mod1.src" = "env2"
+"mod2.dst" = "osc1.warp1.amt"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "unda.preset.anthem"
+note = "Seven wide saws with the filter open: the anthem lead."
+styles = ["house", "pop"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"env1.a" = 0.003
+"env1.d" = 0.3
+"env1.r" = 0.35
+"env1.s" = 0.9
+"flt1.cutoff" = 7000
+"flt1.on" = 1
+"flt1.res" = 0.15
+"flt1.type" = 6
+"gain" = 5
+"mod1.amt" = 0.6
+"mod2.amt" = 0.3
+"osc1.blend" = 0.6
+"osc1.detune" = 30
+"osc1.uni" = 7
+"osc2.detune" = 25
+"osc2.level" = -10
+"osc2.on" = 1
+"osc2.semi" = 7
+"osc2.uni" = 5
+[preset.text]
+"macro1.name" = "Width"
+"macro2.name" = "Bright"
+"mod1.dst" = "osc1.detune"
+"mod1.src" = "macro1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.future_chord"
+note = "A detuned chord with a short swell and a soft body: the future-bass chord."
+styles = ["pop", "house"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env1.a" = 0.005
+"env1.d" = 0.6
+"env1.r" = 0.35
+"env1.s" = 0.4
+"flt1.cutoff" = 3500
+"flt1.on" = 1
+"flt1.res" = 0.15
+"flt1.type" = 6
+"gain" = 5.1
+"mod1.amt" = 0.6
+"mod2.amt" = 0.3
+"osc1.blend" = 0.6
+"osc1.detune" = 35
+"osc1.uni" = 5
+"osc2.detune" = 25
+"osc2.level" = -10
+"osc2.on" = 1
+"osc2.semi" = 7
+"osc2.uni" = 3
+[preset.text]
+"macro1.name" = "Width"
+"macro2.name" = "Bright"
+"mod1.dst" = "osc1.detune"
+"mod1.src" = "macro1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.trap_bell"
+note = "A bell two octaves up with a short ring: the trap melody bell."
+styles = ["trap"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 0.9
+"env1.r" = 1.2
+"env1.s" = 0
+"gain" = -0.9
+"mod1.amt" = 0.6
+"mod2.amt" = 0.3
+"osc1.pos" = 0.2
+"osc1.wt" = 6
+"osc2.level" = -8
+"osc2.oct" = 2
+"osc2.on" = 1
+"osc2.pos" = 0.4
+"osc2.semi" = 0
+"osc2.wt" = 8
+[preset.text]
+"macro1.name" = "Crush"
+"macro2.name" = "Shimmer"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "macro1"
+"mod2.dst" = "osc2.level"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.growl"
+note = "More warp and drive: the growling EDM bass."
+styles = ["house"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 0.6
+"env1.r" = 0.15
+"env1.s" = 0.6
+"env2.d" = 0.3
+"flt1.cutoff" = 2000
+"flt1.drive" = 8
+"flt1.on" = 1
+"flt1.type" = 6
+"gain" = 12
+"mod1.amt" = 0.4
+"mod2.amt" = 0.5
+"osc1.pos" = 1
+"osc1.rand" = 0
+"osc1.warp1" = 13
+"osc1.warp1.amt" = 0.45
+"osc1.warp1.src" = 1
+"osc2.pos" = 1
+"osc2.rand" = 0
+"osc2.semi" = 12
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Index"
+"mod1.dst" = "osc1.warp1.amt"
+"mod1.src" = "env2"
+"mod2.dst" = "osc1.warp1.amt"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "unda.preset.riser"
+note = "A slower, more resonant noise riser for a build."
+styles = ["film", "house"]
+roles = ["fx"]
+tags = ["preset.tag.fx"]
+[preset.values]
+"env1.a" = 3
+"env1.r" = 2
+"flt1.cutoff" = 800
+"flt1.on" = 1
+"flt1.res" = 0.8
+"flt1.type" = 2
+"gain" = 8.8
+"lfo1.rate" = 0.25
+"lfo1.wave" = 1
+"mod1.amt" = 0.5
+"mod2.amt" = 0.5
+"noise.color" = 0.3
+"noise.level" = 0
+"noise.on" = 1
+"osc1.on" = 0
+[preset.text]
+"macro1.name" = "Sweep"
+"mod1.dst" = "flt1.cutoff"
+"mod1.src" = "lfo1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "unda.preset.dark_drone"
+note = "An octave down, dark and slow: a drone under a film cue."
+styles = ["ambient", "film"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env1.a" = 2
+"env1.d" = 0.5
+"env1.r" = 2
+"env1.s" = 0.9
+"flt1.cutoff" = 900
+"flt1.key" = 0.5
+"flt1.on" = 1
+"gain" = -0.5
+"lfo1.rate" = 0.4
+"mod1.amt" = 0.3
+"mod2.amt" = 0.4
+"mod3.amt" = 0.3
+"osc1.detune" = 12
+"osc1.pos" = 0.3
+"osc1.uni" = 2
+"osc1.wt" = 2
+"osc2.level" = -12
+"osc2.on" = 1
+"osc2.pos" = 0.6
+"osc2.semi" = -12
+"osc2.wt" = 2
+[preset.text]
+"macro1.name" = "Width"
+"macro2.name" = "Brightness"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "lfo1"
+"mod2.dst" = "osc1.pos"
+"mod2.src" = "macro1"
+"mod3.dst" = "flt1.cutoff"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.lofi_keys"
+note = "A darker, drifting pluck that holds: dusty keys."
+styles = ["lofi"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 0.9
+"env1.r" = 0.4
+"env1.s" = 0.3
+"env2.a" = 0.001
+"env2.d" = 0.25
+"flt1.cutoff" = 1000
+"flt1.on" = 1
+"flt1.type" = 1
+"gain" = 0.1
+"mod1.amt" = 0.35
+"mod2.amt" = 0.3
+"mod3.amt" = 0.6
+"osc1.pos" = 0.2
+"osc1.wt" = 2
+"osc2.level" = -10
+"osc2.on" = 1
+"osc2.pos" = 0.3
+"osc2.wt" = 8
+"voice.drift" = 0.4
+[preset.text]
+"macro1.name" = "Tone"
+"macro2.name" = "FM"
+"mod1.dst" = "flt1.cutoff"
+"mod1.src" = "env2"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro1"
+"mod3.dst" = "osc2.pos"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.reggaeton_pluck"
+note = "A bright, short pluck for the reggaeton melody."
+styles = ["latin", "pop"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 0.3
+"env1.r" = 0.4
+"env1.s" = 0
+"env2.a" = 0.001
+"env2.d" = 0.25
+"flt1.cutoff" = 2500
+"flt1.on" = 1
+"flt1.type" = 1
+"gain" = 3.7
+"mod1.amt" = 0.35
+"mod2.amt" = 0.3
+"mod3.amt" = 0.6
+"osc1.pos" = 0.2
+"osc1.wt" = 2
+"osc2.level" = -10
+"osc2.on" = 1
+"osc2.pos" = 0.3
+"osc2.wt" = 8
+[preset.text]
+"macro1.name" = "Tone"
+"macro2.name" = "FM"
+"mod1.dst" = "flt1.cutoff"
+"mod1.src" = "env2"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro1"
+"mod3.dst" = "osc2.pos"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.neon_arp"
+note = "A quick, slightly wide pluck made for arpeggios."
+styles = ["pop", "house"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 0.2
+"env1.r" = 0.4
+"env1.s" = 0
+"env2.a" = 0.001
+"env2.d" = 0.25
+"flt1.cutoff" = 3000
+"flt1.on" = 1
+"flt1.type" = 1
+"gain" = 3.8
+"mod1.amt" = 0.35
+"mod2.amt" = 0.3
+"mod3.amt" = 0.6
+"osc1.detune" = 15
+"osc1.pos" = 0.2
+"osc1.uni" = 3
+"osc1.wt" = 2
+"osc2.level" = -10
+"osc2.on" = 1
+"osc2.pos" = 0.3
+"osc2.wt" = 8
+[preset.text]
+"macro1.name" = "Tone"
+"macro2.name" = "FM"
+"mod1.dst" = "flt1.cutoff"
+"mod1.src" = "env2"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "macro1"
+"mod3.dst" = "osc2.pos"
+"mod3.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.worship_shimmer"
+note = "A bright choir with a fifth above the octave: the shimmer pad of worship music."
+styles = ["worship", "ambient"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env1.a" = 0.6
+"env1.d" = 1
+"env1.r" = 1.8
+"env1.s" = 0.8
+"flt1.cutoff" = 4500
+"flt1.on" = 1
+"flt1.res" = 0.2
+"gain" = 1.1
+"lfo1.rate" = 0.2
+"mod1.amt" = 0.25
+"mod2.amt" = 0.15
+"mod3.amt" = 0.6
+"mod4.amt" = 0.3
+"osc1.detune" = 18
+"osc1.pos" = 0.3
+"osc1.uni" = 2
+"osc1.wt" = 5
+"osc2.level" = -8
+"osc2.oct" = 1
+"osc2.on" = 1
+"osc2.pos" = 0.5
+"osc2.semi" = 7
+"osc2.uni" = 2
+"osc2.wt" = 3
+[preset.text]
+"macro1.name" = "Vowel"
+"macro2.name" = "Air"
+"mod1.dst" = "osc1.pos"
+"mod1.src" = "lfo1"
+"mod2.dst" = "flt1.cutoff"
+"mod2.src" = "env2"
+"mod3.dst" = "osc1.pos"
+"mod3.src" = "macro1"
+"mod4.dst" = "flt1.cutoff"
+"mod4.src" = "macro2"
+
+[[preset]]
+key = "unda.preset.impact"
+note = "A long, falling boom for a hit or a transition."
+styles = ["film", "trap"]
+roles = ["fx"]
+tags = ["preset.tag.fx"]
+[preset.values]
+"env1.a" = 0.001
+"env1.d" = 2
+"env1.r" = 0.3
+"env1.s" = 0
+"env2.d" = 0.05
+"gain" = 8.5
+"macro1" = 1
+"mod1.amt" = 0.08
+"osc1.pos" = 0.6
+"osc1.rand" = 0
+"sub.level" = -6
+"sub.on" = 1
+"voice.mode" = 1
+[preset.text]
+"macro1.name" = "Drop"
+"mod1.dst" = "osc1.pitch"
+"mod1.src" = "env2"
+"mod1.via" = "macro1"

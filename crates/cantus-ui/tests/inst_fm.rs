@@ -263,8 +263,8 @@ fn bake_writes_the_easy_macros_into_the_patch_in_one_step() {
 
 #[test]
 fn every_factory_preset_sets_what_it_names_in_one_step() {
-    assert!(fm::FACTORY_PRESETS.len() >= 8);
-    for p in fm::FACTORY_PRESETS {
+    assert!(cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Fm).len() >= 8);
+    for p in cantus_ui::views::inst::factory_presets(cantus_core::InstrumentKind::Fm) {
         let (mut a, track) = with_fm();
         let target = cantus_ui::views::inst::preset_spec(InstrumentKind::Fm, p);
         for (k, v) in p.values {

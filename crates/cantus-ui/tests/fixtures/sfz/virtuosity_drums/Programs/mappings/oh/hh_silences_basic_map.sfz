@@ -1,0 +1,24 @@
+<group>
+//The range which mutes open hi-hats
+//Everything except open
+//Just like the splash mute group, except the splash key is in this too
+sample=*silence
+off_mode=fast
+end=-1
+group=24
+off_by=23
+<region>
+key=$HH_CLOSED_KEY
+<region>
+key=$HH_PEDAL_KEY
+
+
+<group>
+//The range which mutes closed hi-hats
+//Just splash and pedal
+sample=*silence
+off_mode=fast
+end=-1
+group=21
+<region>
+key=$HH_PEDAL_KEY

@@ -88,6 +88,8 @@ fn no_width_zoom_language_or_group_set_overlaps_or_clips() {
                     );
                     for px in (800..=3840).step_by(23) {
                         let width = px as f32 / zoom;
+                        // The bar's scale follows its width (round 37): so do its wants.
+                        let wants = transport::wants_at(&a, ui.ctx(), width);
                         let room = transport::room(ui.ctx(), width);
                         let l = transport::layout::layout(&room, &wants);
                         let what = format!("{locale:?} {zoom} seed {seed} {px}px: {l:?}");
@@ -332,19 +334,109 @@ fn the_default_bar_shows_every_group_at_1920() {
     ctx.set_zoom_factor(1.0);
     for locale in [Locale::En, Locale::Es] {
         set_thread_locale(locale);
-        let mut o = ctx.run_ui(Default::default(), |ui| {
+        // A 1920-px window (round 37: the bar's scale follows the window's width).
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1920.0, 1080.0),
+            )),
+            ..Default::default()
+        };
+        let mut o = ctx.run_ui(input, |ui| {
             let wants = transport::wants(&a, ui.ctx());
             let device = wants.iter().find(|w| w.group == Group::Device).unwrap();
+            let k = transport::group_style_at(Group::Device, 1920.0).k;
+            // Round 37: a running device's least is its short line whole (name · latency),
+            // never a name cut in its middle.
+            let short = cantus_ui::views::audio_chip::short_width(&a, ui.ctx());
             assert_eq!(
                 device.min,
-                transport::DEVICE_MIN + 4.0,
+                (short.max(transport::DEVICE_MIN * k) + 4.0 * k).ceil(),
                 "{locale:?}: the chip past its least"
             );
-            let l = transport::layout::layout(&transport::room(ui.ctx(), 1920.0), &wants);
-            assert!(l.folded().is_empty(), "{locale:?} folds {:?}", l.folded());
-            let l = transport::layout::layout(&transport::room(ui.ctx(), 1280.0), &wants);
-            for g in [Group::Transport, Group::Tempo, Group::Position, Group::Mode] {
-                assert!(l.span_of(g).is_some(), "{locale:?} 1280: {g:?} folded");
+            // Round 37, the owner: at 1920 × 1080 at 100 % nothing folds — undo, the
+            // inputs, the system meters and the audio chip on the bar with the transport,
+            // the clock and the tempo at their larger size.
+            let room = transport::room(ui.ctx(), 1920.0);
+            let l = transport::layout::layout(&room, &wants);
+            assert!(
+                l.folded().is_empty(),
+                "{locale:?} folds {:?}; wants {:?}; room {room:?}",
+                l.folded(),
+                wants.iter().map(|w| (w.group, w.min)).collect::<Vec<_>>(),
+            );
+            let wide = transport::wants_at(&a, ui.ctx(), 2560.0);
+            let l = transport::layout::layout(&transport::room(ui.ctx(), 2560.0), &wide);
+            assert!(
+                l.folded().is_empty(),
+                "{locale:?} 2560 folds {:?}",
+                l.folded()
+            );
+        });
+        o.textures_delta.clear();
+    }
+    set_thread_locale(Locale::En);
+}
+
+/// Round 37, the owner: below 1920 (1366, 1280, or 1920 at 125 % and 150 %) the bar folds
+/// in a defined order — never the transport, the clock, the tempo, undo / redo or the
+/// audio status; first the area keys (they have their F-keys), then the system meters,
+/// then the metronome's options — in both languages.
+#[test]
+fn a_smaller_bar_folds_in_the_owners_order() {
+    let (mut a, _dir) = app();
+    with_device(&mut a);
+    let ctx = ctx();
+    ctx.set_zoom_factor(1.0);
+    for locale in [Locale::En, Locale::Es] {
+        set_thread_locale(locale);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1920.0, 1080.0),
+            )),
+            ..Default::default()
+        };
+        let mut o = ctx.run_ui(input, |ui| {
+            // 1536 and 1280 points: a 1920 window at 125 % and 150 %.
+            for width in [1700.0f32, 1536.0, 1366.0, 1280.0] {
+                let wants = transport::wants_at(&a, ui.ctx(), width);
+                let l = transport::layout::layout(&transport::room(ui.ctx(), width), &wants);
+                let folded = l.folded();
+                for g in [
+                    Group::Transport,
+                    Group::Position,
+                    Group::Tempo,
+                    Group::Undo,
+                    Group::Device,
+                ] {
+                    assert!(
+                        l.span_of(g).is_some(),
+                        "{locale:?} {width}: {g:?} folded ({folded:?})"
+                    );
+                }
+                // The first to go are the least used: the area keys, the system meters, the
+                // metronome's options (one of them may come back where it costs nothing —
+                // the area keys over the inputs).
+                let first = [Group::Windows, Group::Performance, Group::Metronome];
+                if !folded.is_empty() {
+                    assert!(
+                        folded.iter().any(|g| first.contains(g)),
+                        "{locale:?} {width}: {folded:?}"
+                    );
+                }
+                if width >= 1700.0 {
+                    assert!(
+                        folded.iter().all(|g| first.contains(g)),
+                        "{locale:?} {width}: {folded:?}"
+                    );
+                }
+                // Whatever folded is in ⋯ — the layout's every group is placed or folded.
+                assert_eq!(
+                    l.placed().len() + folded.len(),
+                    wants.len(),
+                    "{locale:?} {width}"
+                );
             }
         });
         o.textures_delta.clear();

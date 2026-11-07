@@ -1,5 +1,6 @@
-//! The family's hero clip (round 35, cast): the six characters dancing together on one
-//! stage, each its own routine, eight bars at 120 BPM — for the README and the landing page.
+//! The family's hero clip (round 35, cast; Fuga and Volta from round 37): the eight
+//! characters dancing together on one stage, each its own routine, eight bars at 120 BPM —
+//! for the README and the landing page.
 //!
 //! `cargo run -p cantus-video --release --example hero -- png <dir> [width] [height] [fps] [size] [y]`
 //! writes transparent PNG frames (a GIF is assembled from them);
@@ -90,7 +91,9 @@ fn main() {
     let real = |i: usize, d: f32| a.get(i).and_then(|s| s.parse().ok()).unwrap_or(d);
     let (size, y) = (real(6, 0.74), real(7, 0.93));
     // The default character in the middle, the others either side.
-    let order = ["cat", "lamb", "songbird", "note", "robot", "child"];
+    let order = [
+        "cat", "lamb", "songbird", "ninja", "mecha", "note", "robot", "child",
+    ];
     let cast: Vec<Arc<dyn Character>> = order
         .iter()
         .map(|id| cast::by_id(&format!("builtin:{id}")).expect("a character"))

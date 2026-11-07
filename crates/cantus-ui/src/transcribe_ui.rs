@@ -478,7 +478,7 @@ pub fn instrument(s: &Settings) -> InstrumentSpec {
         // sounds): an empty sampler would be silent.
         (_, Instrument::Exemplar) => InstrumentSpec::Native(crate::views::inst::preset_spec(
             InstrumentKind::Sampler,
-            &crate::views::inst::sampler::FACTORY_PRESETS[0],
+            &crate::views::inst::factory_presets(cantus_core::InstrumentKind::Sampler)[0],
         )),
     }
 }

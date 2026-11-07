@@ -26,75 +26,8 @@ use std::fmt::Write as _;
 const KIND: EffectKind = EffectKind::Chorus;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    ("preset.concentus.juno_one", &[("mode", 0.0), ("mix", 0.5)]),
-    ("preset.concentus.juno_two", &[("mode", 1.0), ("mix", 0.5)]),
-    ("preset.concentus.juno_both", &[("mode", 2.0), ("mix", 0.5)]),
-    (
-        "preset.concentus.dim_subtle",
-        &[("mode", 3.0), ("mix", 0.5), ("tone", 12_000.0)],
-    ),
-    (
-        "preset.concentus.dim_wide",
-        &[("mode", 6.0), ("mix", 0.5), ("tone", 12_000.0)],
-    ),
-    (
-        "preset.concentus.string_ensemble",
-        &[
-            ("mode", 7.0),
-            ("mix", 0.55),
-            ("voices", 3.0),
-            ("rate", 0.6),
-            ("shape", 0.0),
-            ("delay", 9.0),
-            ("depth", 3.0),
-        ],
-    ),
-    (
-        "preset.concentus.vocal_double",
-        &[
-            ("mode", 7.0),
-            ("mix", 0.35),
-            ("voices", 2.0),
-            ("rate", 0.25),
-            ("delay", 18.0),
-            ("depth", 1.5),
-            ("tone", 14_000.0),
-        ],
-    ),
-    (
-        "preset.concentus.lush_four",
-        &[
-            ("mode", 7.0),
-            ("mix", 0.5),
-            ("voices", 4.0),
-            ("rate", 0.9),
-            ("delay", 12.0),
-            ("depth", 4.0),
-        ],
-    ),
-    (
-        "preset.concentus.synced_swirl",
-        &[
-            ("mode", 7.0),
-            ("mix", 0.5),
-            ("voices", 2.0),
-            ("sync", 1.0),
-            ("div", 3.0),
-            ("delay", 8.0),
-            ("depth", 5.0),
-        ],
-    ),
-    (
-        "preset.concentus.mono_bass",
-        &[
-            ("mode", 1.0),
-            ("mix", 0.4),
-            ("spread", 0.0),
-            ("tone", 6_000.0),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// The models' names and what each does, by index.
 const MODE_KEYS: [&str; 8] = [

@@ -825,6 +825,13 @@ impl EngineHandle {
         Arc::new(snapshot)
     }
 
+    /// [`Self::compile`] for a preset audition (round 37, ADR 0101): as for a render, but it
+    /// never waits for a file still loading — that plays silent, and the browser falls back
+    /// to a source of its own. The interface thread calls it, so it must not block. // r37:library
+    pub fn compile_for_audition(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
+        self.compile_as(project, revision, true) // r37:library
+    } // r37:library
+
     /// [`Self::compile`] for an offline render (export, stems): first waits for every
     /// instrument file still loading in the background, so the render plays what playing
     /// will once they are in — never the silence of a zone still on its way (ADR 0050 §7).

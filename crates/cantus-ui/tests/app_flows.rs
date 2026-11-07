@@ -200,10 +200,12 @@ fn the_mixer_draws_faders_with_a_scale_and_a_readout() {
     let mut a = app(starter_project());
     views::mixer::set_width_mode(&mut a, views::mixer::layout::WidthMode::Wide);
     let ctx = ctx();
+    // 820 pt tall (700 before round 37): the strips' 24-pt keys take more of the desk, and
+    // a shorter fader prints fewer of its marks.
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
-            egui::vec2(900.0, 700.0),
+            egui::vec2(900.0, 820.0),
         )),
         ..Default::default()
     };
@@ -373,7 +375,9 @@ fn the_toolbar_is_drawn_by_the_kit() {
         .count();
     assert!(meshes >= 1, "the toolbar paints through the kit's brush");
     let text = painted_text(&out.shapes);
-    for expected in ["FILE", "VIEW", "1.1.000", "120.0"] {
+    // Round 37: the clock's bar and beat large, its ticks a size down (two texts); the
+    // tempo's tenth small beside the whole BPM.
+    for expected in ["FILE", "VIEW", "1.1", ".000", "120", ".0"] {
         assert!(
             text.contains(expected),
             "the toolbar did not paint {expected:?}; painted: {text}"
@@ -736,6 +740,65 @@ fn an_idle_window_asks_for_no_frames() {
     if a.engine.is_live() || tick.has(ticker::Reason::Playback) {
         assert!(tick.requested.is_some_and(|d| d >= ticker::FRAME));
     }
+}
+
+#[test]
+fn an_open_instrument_editor_draws_at_the_tickers_rate_not_the_monitors() {
+    // Round 37's scorecard: an open editor called `request_repaint()` every frame, so the
+    // window drew at the monitor's full rate (144 a second, a core and a half at rest). It
+    // goes through the ticker now: live, at no more than 60 Hz.
+    use cantus_ui::views::workspace_ticker as ticker;
+    let mut a = app(welcome_project());
+    let dir = tempfile::tempdir().unwrap();
+    a.settings_path = dir.path().join("settings.json");
+    a.appearance_path = dir.path().join("appearance.json");
+    // Calor on the first track, as the picker puts it there, and its editor open.
+    let track = a.project().tracks[0].id;
+    assert!(a.exec(Command::SetInstrument {
+        track,
+        spec: Box::new(InstrumentSpec::Native(NativeSpec::new(
+            InstrumentKind::Analog
+        ))),
+    }));
+    a.open_inst_editor(track);
+    let ctx = ctx();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(1600.0, 900.0),
+        )),
+        ..Default::default()
+    };
+    // egui and the views settle over the first frames (fonts, layouts, first sizes, the
+    // windows' fade-in), the clock moving as a real window's does.
+    for i in 0..30 {
+        let input = egui::RawInput {
+            time: Some(i as f64 / 60.0),
+            predicted_dt: 1.0 / 60.0,
+            ..input.clone()
+        };
+        let mut out = ctx.run_ui(input, |ui| a.frame(ui));
+        out.textures_delta.clear();
+        // The wait egui will keep: it takes its predicted frame time off a delayed request,
+        // and the ticker gives it back (17 ms had become 0.3 ms, the monitor's rate).
+        let delay = out.viewport_output[&egui::ViewportId::ROOT].repaint_delay;
+        if i >= 20 {
+            let causes = ctx.repaint_causes();
+            assert!(
+                delay >= ticker::FRAME
+                    && causes
+                        .iter()
+                        .all(|c| c.to_string().contains("workspace_ticker")),
+                "frame {i} asked for the next in {delay:?} (the ticker's rate is {:?}), \
+                 asked at {causes:?}",
+                ticker::FRAME,
+            );
+        }
+    }
+    assert!(
+        ticker::last(&ctx).has(ticker::Reason::Live),
+        "the editor is live"
+    );
 }
 
 /// Feed one key press through a frame, exactly as a keyboard would.

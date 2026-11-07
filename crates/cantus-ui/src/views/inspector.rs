@@ -217,6 +217,14 @@ impl std::fmt::Debug for Inspector {
 }
 
 impl Inspector {
+    /// Open an insert's view under its tile, as its ▸ does (r37:library: the site's Delay
+    /// picture, whose only face is this view).
+    pub fn open_insert_view(&mut self, effect: cantus_core::EffectId) {
+        if !self.chan.open.contains(&effect) {
+            self.chan.open.push(effect);
+        }
+    }
+
     /// Say what was clicked last. The selection calls (`select_strip`, `select_track`,
     /// `select_clip`) report here, so the inspector knows a strip click from a track
     /// click even when both leave the same things selected.

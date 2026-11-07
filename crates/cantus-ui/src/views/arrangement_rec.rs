@@ -21,7 +21,7 @@ use crate::kit::glyph::{self, Glyph};
 use crate::kit::hint::{self, Caps};
 use crate::kit::menu::{Check, Item};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::{self, cap, led, well, Brush, Fill, State, Style, Tok};
+use crate::kit::{self, cap, well, Brush, Fill, State, Style, Tok};
 use crate::record_pass::max_lane;
 use crate::record_session::{input_choices, input_label, monitor_key};
 use crate::views::clips_chrome::Tint;
@@ -149,20 +149,18 @@ pub(super) fn paint_header(
     } else {
         1.0
     };
-    led::paint(
+    // r37:finish — arm as a key with the record dot, lit red while armed (pulsing as it records).
+    let near = |c: Pos2| pointer.is_some_and(|p| p.distance(c) <= d);
+    super::paint::dot_key(
         b,
         rr.arm,
-        d,
+        (LED + 6.0) * k,
         track.armed || recording,
-        s,
-        Tok::Danger,
-        Tok::Panel,
+        t.danger,
+        near(rr.arm),
         alpha,
+        s,
     );
-    let near = |c: Pos2| pointer.is_some_and(|p| p.distance(c) <= d);
-    if near(rr.arm) {
-        b.circle_stroke(rr.arm, d * 0.5 + 1.5 * k, b.px(), t.text);
-    }
     let hovered = |r: Rect| pointer.is_some_and(|p| r.contains(p));
     if let (Some(r), Some(input)) = (rr.input, &track.input) {
         let st = State {
@@ -265,7 +263,7 @@ pub(super) fn header_input(
 ) {
     let k = s.k;
     let arm = ui.interact(
-        Rect::from_center_size(rr.arm, egui::Vec2::splat((LED + 6.0) * k)),
+        Rect::from_center_size(rr.arm, egui::Vec2::splat((LED + 8.0) * k)), // r37:finish
         ui.id().with(("arr-arm", id.0)),
         Sense::click(),
     );

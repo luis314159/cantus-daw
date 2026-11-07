@@ -206,6 +206,13 @@ pub fn strip_entry(p: &Project, s: &MixerStrip) -> Value {
         "id": s.id.0,
         "number": p.strip_number(s.id),
         "name": s.name,
+        // r37:drums — audio, vca, pad (a pad's own strip) or chain (a pad's chain, on its pad).
+        "kind": match s.kind {
+            cantus_core::vca::StripKind::Audio => "audio",
+            cantus_core::vca::StripKind::Vca => "vca",
+            cantus_core::vca::StripKind::Pad => "pad",
+            cantus_core::vca::StripKind::Chain => "chain",
+        },
         "gain_db": num(s.gain_db),
         "pan": num(s.pan),
         "width": num(s.width),

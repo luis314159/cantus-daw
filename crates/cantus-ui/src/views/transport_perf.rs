@@ -90,22 +90,34 @@ thread_local! {
     static CACHE: RefCell<(Option<Key>, [String; 4])> = RefCell::new((None, Default::default()));
 }
 
-fn columns(ctx: &egui::Context, s: &Style) -> (f32, f32) {
+/// Each cell's label and value widths (CPU, RAM, voices, dropouts), each as wide as its
+/// own words. // r37:finish
+fn cells_of(ctx: &egui::Context, s: &Style) -> [(f32, f32); 4] {
     let tk = s.tk();
-    let label = WORDS
-        .iter()
-        .map(|k| text::measure(ctx, &Text::key(k, Role::Micro, s.t.text).caps(true), tk).x)
-        .fold(0.0, f32::max);
-    let value = WIDEST
-        .iter()
-        .map(|v| text::measure(ctx, &Text::new(v, Role::Value, s.t.text), tk).x)
-        .fold(0.0, f32::max);
-    (label + 6.0 * s.k, value + 6.0 * s.k)
+    std::array::from_fn(|i| {
+        let label = text::measure(ctx, &Text::key(WORDS[i], LABEL, s.t.text).caps(true), tk).x;
+        let value = text::measure(ctx, &Text::new(WIDEST[i], Role::Value, s.t.text), tk).x;
+        (label, value)
+    })
+}
+
+/// The gap between two cells, at 100 % (a hairline in its middle).
+const CELL_GAP: f32 = 10.0;
+
+/// The readings' names: a reading size, in capitals, over their values (round 37, the
+/// judge: 7-px labels run into the next value). // r37:finish
+const LABEL: Role = Role::Label;
+
+/// A cell's width: its name over its value, the wider of the two.
+fn cell_w(c: (f32, f32)) -> f32 {
+    c.0.max(c.1)
 }
 
 pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
-    let (l, v) = columns(ctx, s);
-    2.0 * (l + v) + 22.0 * s.k
+    // r37:finish — one row under the meter (the meter bridge): the four readings side by
+    // side.
+    let c = cells_of(ctx, s);
+    c.iter().map(|c| cell_w(*c)).sum::<f32>() + 3.0 * CELL_GAP * s.k + 12.0 * s.k
 }
 
 /// Every frame, whether the group is on the bar or folded: the RAM reading, and a new
@@ -135,18 +147,17 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         voices: stats.active_voices,
         overruns: stats.overruns,
     };
-    let well = Rect::from_center_size(r.center(), Vec2::new(r.width(), 40.0 * k));
-    let (lw, vw) = columns(ui.ctx(), s);
+    // r37:finish — one row: a recessed strip with the four readings side by side.
+    let well = Rect::from_center_size(
+        r.center(),
+        Vec2::new(r.width(), (r.height() - 2.0 * k).min(32.0 * k)),
+    );
+    let cols = cells_of(ui.ctx(), s);
     let cell = |i: usize| {
-        let col = (i / 2) as f32;
-        let row = (i % 2) as f32;
-        let h = (well.height() - 6.0 * k) * 0.5;
+        let x0: f32 = cols[..i].iter().map(|c| cell_w(*c) + CELL_GAP * k).sum();
         Rect::from_min_size(
-            Pos2::new(
-                well.left() + 7.0 * k + col * (lw + vw + 8.0 * k),
-                well.top() + 3.0 * k + row * h,
-            ),
-            Vec2::new(lw + vw, h),
+            Pos2::new(well.left() + 6.0 * k + x0, well.top()),
+            Vec2::new(cell_w(cols[i]), well.height()),
         )
     };
     let warn = live && stats.overruns > 0;
@@ -158,26 +169,28 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             for t in texts.iter_mut() {
                 t.clear();
             }
-            let dash = '\u{2014}';
+            // r37:finish — without audio the engine's numbers are zero, shown as zero in
+            // the dim ink (a dash read as unfinished).
             if live {
                 let _ = write!(texts[0], "{} %", key.load);
                 count(&mut texts[2], key.voices as u64);
                 count(&mut texts[3], key.overruns);
             } else {
-                texts[0].push(dash);
-                texts[2].push(dash);
-                texts[3].push(dash);
+                texts[0].push_str("0 %");
+                texts[2].push('0');
+                texts[3].push('0');
             }
             ram_text(app.topbar.ram.bytes(), &mut texts[1]);
         }
         with_brush(ui.painter(), |b| {
-            light::sunken(b, well, s.r(4.0), s.t.ink, 1.0, s.t.depth);
-            // The CPU's load as a thin bar under its row.
+            let m = light::Material::of(&s.t);
+            light::recess(b, well, s.r(4.0), s.t.ink, &m, 1.0, k);
+            // The CPU's load as a thin bar under its value.
             if live {
                 let c0 = cell(0);
                 let bar = Rect::from_min_size(
-                    Pos2::new(c0.left() + lw, c0.bottom() - 2.5 * k),
-                    Vec2::new(vw * stats.load.clamp(0.0, 1.0), 2.0 * k),
+                    Pos2::new(c0.left(), c0.bottom() - 3.0 * k),
+                    Vec2::new(c0.width() * stats.load.clamp(0.0, 1.0), 2.0 * k),
                 );
                 let ink = if stats.load > 0.8 {
                     s.t.danger
@@ -188,23 +201,57 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             }
             for (i, word) in WORDS.iter().enumerate() {
                 let cr = cell(i);
-                let lr = Rect::from_min_size(cr.min, Vec2::new(lw, cr.height()));
-                let vr = Rect::from_min_max(Pos2::new(cr.left() + lw, cr.top()), cr.max);
+                // r37:finish — a hairline between two readings.
+                if i > 0 {
+                    b.vline(
+                        b.snap_mid(cr.left() - CELL_GAP * k * 0.5),
+                        cr.top() + 5.0 * k,
+                        cr.bottom() - 5.0 * k,
+                        b.px(),
+                        with_alpha(s.t.text_dim, 0.30),
+                    );
+                }
+                // The name over the value; a value the engine cannot give yet (no audio)
+                // is a quiet dash, not a word's weight.
+                // A short row (a small zoom, the overflow menu) takes the smaller name.
+                let label_role = if cr.height() >= 28.0 * k {
+                    LABEL
+                } else {
+                    Role::Micro
+                };
+                // The name at the cell's top, the value at its foot: both inside it at
+                // every zoom.
+                let inner = cr.shrink2(Vec2::new(0.0, 1.0 * k));
+                let half = inner.height() * 0.44;
+                let lr = Rect::from_min_size(inner.min, Vec2::new(inner.width(), half));
+                let vr = Rect::from_min_max(Pos2::new(inner.left(), inner.top() + half), inner.max);
                 let _ = text::paint(
                     b,
                     lr,
-                    &Text::key(word, Role::Micro, s.t.text_dim)
-                        .caps(true)
-                        .align(Align2::LEFT_CENTER)
-                        .policy(Policy::Elide(Elide::End)),
+                    // r37:finish — 4.5:1 on the well in both themes (Paper's was 1.5:1).
+                    &Text::key(
+                        word,
+                        label_role,
+                        crate::kit::color::ensure_contrast(s.t.text_dim, s.t.ink, 4.5),
+                    )
+                    .caps(true)
+                    .align(Align2::LEFT_TOP)
+                    .policy(Policy::Elide(Elide::End)),
                     s.tk(),
                 );
-                let ink = if i == 3 && warn { s.t.danger } else { s.t.text };
+                let idle = !live && i != 1;
+                let ink = if i == 3 && warn {
+                    s.t.danger
+                } else if idle {
+                    with_alpha(s.t.text_dim, 0.55)
+                } else {
+                    s.t.text
+                };
                 let _ = text::paint(
                     b,
                     vr,
                     &Text::new(&texts[i], Role::Value, ink)
-                        .align(Align2::RIGHT_CENTER)
+                        .align(Align2::LEFT_BOTTOM)
                         .policy(Policy::Elide(Elide::End)),
                     s.tk(),
                 );

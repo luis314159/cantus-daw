@@ -1,0 +1,312 @@
+# Aequalis EQ: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "eq.preset.vocal"
+note = "A vocal cleaned under 90 Hz and in the boxy mids, present and airy, its sibilance tamed by a dynamic band."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"b0.freq" = 90
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 24
+"b0.used" = 1
+"b1.freq" = 280
+"b1.gain" = -2.5
+"b1.q" = 1.2
+"b1.used" = 1
+"b2.freq" = 3200
+"b2.gain" = 2.5
+"b2.q" = 0.9
+"b2.used" = 1
+"b3.freq" = 11000
+"b3.gain" = 2
+"b3.q" = 0.71
+"b3.shape" = 2
+"b3.used" = 1
+"b4.att" = 2
+"b4.dyn" = 1
+"b4.freq" = 6500
+"b4.gain" = 0.001
+"b4.q" = 3
+"b4.range" = -6
+"b4.rel" = 80
+"b4.thr" = -30
+"b4.used" = 1
+"out" = 0.5
+
+[[preset]]
+key = "eq.preset.kick"
+note = "A kick with its sub lifted, the cardboard taken out and its beater forward."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"b0.freq" = 30
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 24
+"b0.used" = 1
+"b1.freq" = 62
+"b1.gain" = 3
+"b1.q" = 1.4
+"b1.used" = 1
+"b2.freq" = 350
+"b2.gain" = -5
+"b2.gq" = 1
+"b2.q" = 1.6
+"b2.used" = 1
+"b3.freq" = 4000
+"b3.gain" = 3.5
+"b3.q" = 1
+"b3.used" = 1
+"out" = -1.7
+
+[[preset]]
+key = "eq.preset.demud"
+note = "A dynamic cut at 300 Hz that only works when the mids build up."
+styles = ["pop", "rock"]
+roles = ["bus"]
+[preset.values]
+"b0.att" = 15
+"b0.dyn" = 1
+"b0.freq" = 300
+"b0.gain" = 0.001
+"b0.q" = 1
+"b0.range" = -6
+"b0.ratio" = 3
+"b0.rel" = 150
+"b0.thr" = -28
+"b0.used" = 1
+
+[[preset]]
+key = "eq.preset.harsh"
+note = "A dynamic cut at 3.4 kHz for the moments a voice or a guitar turns harsh."
+styles = ["rock", "pop"]
+roles = ["vocal"]
+[preset.values]
+"b0.att" = 3
+"b0.dyn" = 1
+"b0.freq" = 3400
+"b0.gain" = 0.001
+"b0.q" = 2.2
+"b0.range" = -5
+"b0.ratio" = 4
+"b0.rel" = 90
+"b0.thr" = -30
+"b0.used" = 1
+
+[[preset]]
+key = "eq.preset.air"
+note = "A wide, linear-phase shelf of air."
+styles = ["pop", "rnb"]
+roles = ["master"]
+[preset.values]
+"b0.freq" = 12000
+"b0.gain" = 3
+"b0.q" = 0.6
+"b0.shape" = 2
+"b0.used" = 1
+"lp_res" = 1
+"mode" = 2
+
+[[preset]]
+key = "eq.preset.telephone"
+note = "Everything outside 400 Hz to 3.2 kHz gone: a telephone."
+styles = ["film", "lofi"]
+roles = ["creative"]
+[preset.values]
+"b0.freq" = 400
+"b0.q" = 0.9
+"b0.shape" = 3
+"b0.slope" = 24
+"b0.used" = 1
+"b1.freq" = 3200
+"b1.q" = 0.9
+"b1.shape" = 4
+"b1.slope" = 24
+"b1.used" = 1
+"b2.freq" = 1500
+"b2.gain" = 4
+"b2.q" = 1
+"b2.used" = 1
+"out" = 16.5
+
+[[preset]]
+key = "eq.preset.mono_bass"
+note = "Mid and side apart: the low end cut from the sides, air on the sides."
+styles = ["house", "trap"]
+roles = ["master"]
+[preset.values]
+"b0.freq" = 120
+"b0.place" = 4
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 24
+"b0.used" = 1
+"b1.freq" = 8000
+"b1.gain" = 2
+"b1.place" = 4
+"b1.q" = 0.71
+"b1.shape" = 2
+"b1.used" = 1
+"mode" = 1
+
+[[preset]]
+key = "eq.preset.master"
+note = "A rumble filter and a gentle tilt, linear phase."
+styles = ["pop", "house"]
+roles = ["master"]
+[preset.values]
+"b0.freq" = 25
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 18
+"b0.used" = 1
+"b1.freq" = 1000
+"b1.gain" = 1
+"b1.q" = 0.5
+"b1.shape" = 7
+"b1.used" = 1
+"lp_res" = 2
+"mode" = 2
+"out" = 0.5
+
+[[preset]]
+key = "eq.preset.snare"
+note = "A snare with more body, less ring and more crack."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"b0.freq" = 80
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 18
+"b0.used" = 1
+"b1.freq" = 200
+"b1.gain" = 2.5
+"b1.q" = 1.2
+"b1.used" = 1
+"b2.freq" = 900
+"b2.gain" = -3
+"b2.q" = 1.5
+"b2.used" = 1
+"b3.freq" = 5000
+"b3.gain" = 3
+"b3.q" = 1
+"b3.used" = 1
+"out" = 5.6
+
+[[preset]]
+key = "eq.preset.acoustic_guitar"
+note = "An acoustic guitar without its boom, with sparkle."
+styles = ["latin", "worship"]
+roles = ["creative"]
+[preset.values]
+"b0.freq" = 90
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 18
+"b0.used" = 1
+"b1.freq" = 220
+"b1.gain" = -2.5
+"b1.q" = 1
+"b1.used" = 1
+"b2.freq" = 2500
+"b2.gain" = 2
+"b2.q" = 1
+"b2.used" = 1
+"b3.freq" = 10000
+"b3.gain" = 2.5
+"b3.q" = 0.71
+"b3.shape" = 2
+"b3.used" = 1
+"out" = 4.8
+
+[[preset]]
+key = "eq.preset.eight_oh_eight"
+note = "An 808 with its fundamental up and the mud under it out."
+styles = ["trap"]
+roles = ["creative"]
+[preset.values]
+"b0.freq" = 25
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 24
+"b0.used" = 1
+"b1.freq" = 55
+"b1.gain" = 2
+"b1.q" = 1
+"b1.used" = 1
+"b2.freq" = 300
+"b2.gain" = -4
+"b2.q" = 1.4
+"b2.used" = 1
+"out" = -0.8
+
+[[preset]]
+key = "eq.preset.lofi_band"
+note = "Lows and highs rolled off, the mids pushed: the narrow band of an old sampler."
+styles = ["lofi"]
+roles = ["creative"]
+[preset.values]
+"b0.freq" = 200
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 12
+"b0.used" = 1
+"b1.freq" = 5000
+"b1.q" = 0.71
+"b1.shape" = 4
+"b1.slope" = 12
+"b1.used" = 1
+"b2.freq" = 800
+"b2.gain" = 2
+"b2.q" = 0.8
+"b2.used" = 1
+"out" = 8.5
+
+[[preset]]
+key = "eq.preset.piano"
+note = "A piano with less boom and a clearer top."
+styles = ["jazz", "worship"]
+roles = ["creative"]
+[preset.values]
+"b0.freq" = 50
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 12
+"b0.used" = 1
+"b1.freq" = 300
+"b1.gain" = -2
+"b1.q" = 1
+"b1.used" = 1
+"b2.freq" = 8000
+"b2.gain" = 2
+"b2.q" = 0.71
+"b2.shape" = 2
+"b2.used" = 1
+"out" = 1.3
+
+[[preset]]
+key = "eq.preset.bus_clean"
+note = "A group with the mud taken out and a little air."
+styles = ["pop", "film"]
+roles = ["bus"]
+[preset.values]
+"b0.freq" = 30
+"b0.q" = 0.71
+"b0.shape" = 3
+"b0.slope" = 18
+"b0.used" = 1
+"b1.freq" = 250
+"b1.gain" = -2
+"b1.q" = 0.8
+"b1.used" = 1
+"b2.freq" = 12000
+"b2.gain" = 1.5
+"b2.q" = 0.71
+"b2.shape" = 2
+"b2.used" = 1
+"out" = 0.7

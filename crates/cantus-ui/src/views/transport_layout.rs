@@ -64,8 +64,10 @@ impl Group {
     /// the transport, the position after the recording toggles, the snap and the windows
     /// after it, the meters at the end).
     pub const ALL: [Group; COUNT] = [
-        Group::Mode,
+        // r37:finish — the transport first and the bar's whole height (an instrument, as
+        // FL's is), PAT / SONG over the tempo beside it.
         Group::Transport,
+        Group::Mode,
         Group::Tempo,
         Group::Metronome,
         Group::Position,
@@ -74,8 +76,10 @@ impl Group {
         Group::Windows,
         Group::Inputs,
         Group::Sync,
-        Group::Performance,
+        // r37:finish — the meter over the system meters, one column: a console's meter
+        // bridge.
         Group::Meter,
+        Group::Performance,
         Group::Device,
         Group::Tools,
         Group::Ai, // r34:mcp
@@ -147,11 +151,10 @@ impl Group {
     pub fn tall(self) -> bool {
         matches!(
             self,
-            Group::Mode
+            Group::Transport // r37:finish (was Mode)
                 | Group::Metronome
                 | Group::Position
-                | Group::Performance
-                | Group::Meter
+                // r37:finish — the meter and the system meters are a row each now.
                 | Group::Sync
                 | Group::Ai // r34:mcp
         )
@@ -160,25 +163,29 @@ impl Group {
     /// How much it matters on the bar: 0 is kept the longest. A narrow window folds the
     /// highest first.
     pub fn importance(self) -> u8 {
+        // r37:finish — the owner's order (round 37): never the transport, the clock, the
+        // tempo, undo / redo or the audio status before everything else has gone; first
+        // the least used — the area keys (each has its shortcut: F5…), the system meters,
+        // the metronome's options.
         match self {
             Group::Transport => 0,
             Group::Position => 1,
             Group::Tempo => 2,
-            // Shown, an agent is connected (visible agent mode): kept right after the
-            // transport, the position and the tempo — what the user must see. r34:mcp
-            Group::Ai => 3,          // r34:mcp
-            Group::Mode => 4,        // r34:mcp (each below one place down)
-            Group::Metronome => 5,   // r34:mcp
-            Group::Device => 6,      // r34:mcp
-            Group::Meter => 7,       // r34:mcp
-            Group::Windows => 8,     // r34:mcp
-            Group::Performance => 9, // r34:mcp
-            // Shown, it is in use (or asked for): kept before the snap, undo and tools.
-            Group::Sync => 10,   // r34:mcp
-            Group::Snap => 11,   // r34:mcp
-            Group::Undo => 12,   // r34:mcp
-            Group::Inputs => 13, // r34:mcp
-            Group::Tools => 14,  // r34:mcp
+            // Shown, an agent is connected (visible agent mode): kept with what the user
+            // must see. r34:mcp
+            Group::Ai => 3,
+            Group::Undo => 4,
+            Group::Device => 5,
+            Group::Mode => 6,
+            Group::Meter => 7,
+            Group::Inputs => 8,
+            Group::Snap => 9,
+            Group::Tools => 10,
+            // Shown, it is in use (or asked for).
+            Group::Sync => 11,
+            Group::Metronome => 12,
+            Group::Performance => 13,
+            Group::Windows => 14,
         }
     }
 }
@@ -500,16 +507,18 @@ mod tests {
     #[test]
     fn short_groups_share_a_column_two_high() {
         let l = layout(&room(4000.0), &wants());
-        assert_eq!(l.slot_of(Group::Transport), Some(Slot::Top));
+        // r37:finish — the transport is the bar's height; PAT / SONG over the tempo.
+        assert_eq!(l.slot_of(Group::Transport), Some(Slot::Full));
+        assert_eq!(l.slot_of(Group::Mode), Some(Slot::Top));
         assert_eq!(l.slot_of(Group::Tempo), Some(Slot::Bottom));
         assert_eq!(
-            l.span_of(Group::Transport).unwrap().x0,
+            l.span_of(Group::Mode).unwrap().x0,
             l.span_of(Group::Tempo).unwrap().x0
         );
         assert_eq!(l.slot_of(Group::Metronome), Some(Slot::Full));
-        // 15 groups, 7 tall (the agent chip among them, r34:mcp), 8 short in 4 pairs: 11
-        // columns.
-        assert_eq!(l.columns().len(), 11); // r34:mcp (was 14 groups, 10 columns)
+        // 15 groups, 5 tall (the agent chip among them, r34:mcp), 10 short in 5 pairs: 10
+        // columns (r37:finish — the meter over the system meters).
+        assert_eq!(l.columns().len(), 10); // r37:finish (was 11)
     }
 
     #[test]
@@ -609,9 +618,9 @@ mod tests {
             at(Group::Meter) < at(Group::Transport),
             "the owner's order kept"
         );
-        // A group the file does not name goes after its default predecessor: Tempo after
-        // Transport, Mode (which has none) first.
-        assert_eq!(at(Group::Tempo), at(Group::Transport) + 1);
-        assert_eq!(r[0], Group::Mode);
+        // A group the file does not name goes after its default predecessor: PAT / SONG
+        // after the transport, the tempo after it (round 37's order). // r37:finish
+        assert_eq!(at(Group::Mode), at(Group::Transport) + 1);
+        assert_eq!(at(Group::Tempo), at(Group::Mode) + 1);
     }
 }

@@ -26,47 +26,8 @@ use std::fmt::Write as _;
 const KIND: EffectKind = EffectKind::RingMod;
 
 /// Factory presets: a label key and the parameters it sets.
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    ("preset.anulus.bell", &[("freq", 587.0), ("mix", 0.6)]),
-    (
-        "preset.anulus.robot",
-        &[("freq", 55.0), ("wave", 2.0), ("mix", 1.0)],
-    ),
-    ("preset.anulus.dalek", &[("freq", 30.0), ("mix", 1.0)]),
-    (
-        "preset.anulus.through_zero_tremolo",
-        &[("freq", 4.0), ("wave", 1.0), ("mix", 1.0)],
-    ),
-    (
-        "preset.anulus.siren",
-        &[
-            ("freq", 700.0),
-            ("lfo", 12.0),
-            ("rate", 0.4),
-            ("shape", 1.0),
-            ("mix", 0.8),
-        ],
-    ),
-    (
-        "preset.anulus.metal_drums",
-        &[("freq", 1_250.0), ("wave", 2.0), ("mix", 0.45)],
-    ),
-    (
-        "preset.anulus.stereo_shimmer",
-        &[("freq", 2_200.0), ("spread", 90.0), ("mix", 0.3)],
-    ),
-    (
-        "preset.anulus.random_steps",
-        &[
-            ("freq", 330.0),
-            ("lfo", 7.0),
-            ("sync", 1.0),
-            ("div", 11.0),
-            ("shape", 5.0),
-            ("mix", 0.7),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 const WAVE_KEYS: [&str; 3] = ["anulus.wave.0", "anulus.wave.1", "anulus.wave.2"];
 

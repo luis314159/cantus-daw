@@ -1,0 +1,531 @@
+# Gravis: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "bass.preset.trap_long"
+note = "A long 808 that glides between notes, its drive and length on the macros."
+styles = ["trap"]
+roles = ["bass"]
+tags = ["bass.tag.808", "bass.tag.trap"]
+[preset.values]
+"808.decay" = 3000
+"808.harmonics" = 0.3
+"808.pitch" = 12
+"808.pitch_time" = 40
+"808.release" = 400
+"808.sustain" = 0.7
+"drive" = 0.35
+"gain" = -2.6
+"glide" = 90
+"glide.trigger" = 1
+"mod1.amt" = 0.5
+"mod2.amt" = 0.4
+"subsonic" = 25
+[preset.text]
+"macro1.name" = "Drive"
+"macro2.name" = "Length"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+"mod2.dst" = "808.decay"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "bass.preset.punchy"
+note = "A short 808 with knock and click: it hits like a kick."
+styles = ["trap", "latin"]
+roles = ["bass"]
+tags = ["bass.tag.808", "bass.tag.drums"]
+[preset.values]
+"808.click" = 0.35
+"808.decay" = 450
+"808.harmonics" = 0.15
+"808.knock" = 0.45
+"808.pitch" = 16
+"808.pitch_time" = 30
+"808.release" = 120
+"808.sustain" = 0
+"drive" = 0.2
+"gain" = 6.6
+"mod1.amt" = 0.6
+[preset.text]
+"macro1.name" = "Knock"
+"mod1.dst" = "808.knock"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.distorted"
+note = "A distorted 808: its harmonics carry on small speakers."
+styles = ["trap"]
+roles = ["bass"]
+tags = ["bass.tag.808", "bass.tag.dirty"]
+[preset.values]
+"808.decay" = 2200
+"808.even" = 0.6
+"808.harmonics" = 0.5
+"808.pitch" = 7
+"808.sustain" = 0.6
+"clip" = 1
+"drive" = 0.8
+"drive.keytrack" = 4
+"drive.type" = 3
+"gain" = -5.9
+"glide.trigger" = 1
+"mod1.amt" = 0.2
+[preset.text]
+"macro1.name" = "Grit"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.sub_sine"
+note = "A pure sub, felt more than heard."
+styles = ["trap", "rnb"]
+roles = ["bass"]
+tags = ["bass.tag.sub"]
+[preset.values]
+"808.attack" = 4
+"808.click" = 0
+"808.knock" = 0
+"808.pitch" = 0
+"808.release" = 150
+"808.sustain" = 1
+"gain" = -2
+"mod1.amt" = 0.5
+"subsonic" = 20
+[preset.text]
+"macro1.name" = "Harmonics"
+"mod1.dst" = "808.harmonics"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.acid"
+note = "The squelching acid line: high resonance, accents that open the filter."
+styles = ["house"]
+roles = ["bass"]
+tags = ["bass.tag.synth", "bass.tag.acid"]
+[preset.values]
+"engine" = 1
+"gain" = 1
+"glide" = 60
+"mod1.amt" = 0.35
+"mod2.amt" = 0.25
+"syn.accent" = 0.85
+"syn.cutoff" = 280
+"syn.env" = 3.5
+"syn.f_decay" = 260
+"syn.filter" = 1
+"syn.release" = 40
+"syn.reso" = 0.75
+"syn.sustain" = 0.9
+[preset.text]
+"macro1.name" = "Cutoff"
+"macro2.name" = "Resonance"
+"mod1.dst" = "syn.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "syn.reso"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "bass.preset.reese"
+note = "Detuned saws: the rolling bass of drum and bass and EDM."
+styles = ["house"]
+roles = ["bass"]
+tags = ["bass.tag.synth", "bass.tag.reese"]
+[preset.values]
+"drive" = 0.25
+"engine" = 1
+"gain" = -1.7
+"mod1.amt" = 0.4
+"mod2.amt" = 0.4
+"sub.level" = 0.6
+"syn.cutoff" = 900
+"syn.detune" = 0.45
+"syn.env" = 0
+"syn.reso" = 0.1
+"syn.spread" = 0.6
+"syn.sustain" = 1
+"syn.unison" = 5
+"syn.width" = 0.6
+[preset.text]
+"macro1.name" = "Detune"
+"macro2.name" = "Width"
+"mod1.dst" = "syn.detune"
+"mod1.src" = "macro1"
+"mod2.dst" = "syn.width"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "bass.preset.wobble"
+note = "An LFO on the filter: the wobble."
+styles = ["house"]
+roles = ["bass"]
+tags = ["bass.tag.synth", "bass.tag.wobble"]
+[preset.values]
+"engine" = 1
+"gain" = 0.8
+"lfo.rate" = 3
+"mod1.amt" = 0.35
+"mod2.amt" = 0.3
+"sub.level" = 0.5
+"syn.cutoff" = 260
+"syn.env" = 0.5
+"syn.reso" = 0.5
+"syn.sustain" = 1
+"syn.unison" = 3
+[preset.text]
+"macro1.name" = "Rate"
+"mod1.dst" = "syn.cutoff"
+"mod1.src" = "lfo1"
+"mod2.dst" = "lfo.rate"
+"mod2.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.square_sub"
+note = "A square with a sub under it: simple and solid."
+styles = ["pop", "house"]
+roles = ["bass"]
+tags = ["bass.tag.synth", "bass.tag.sub"]
+[preset.values]
+"engine" = 1
+"gain" = -1.9
+"mod1.amt" = 0.4
+"sub.level" = 0.5
+"syn.accent" = 0
+"syn.cutoff" = 600
+"syn.env" = 1
+"syn.wave" = 1
+[preset.text]
+"macro1.name" = "Sub"
+"mod1.dst" = "sub.level"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.p_fingers"
+note = "A P-style electric played with the fingers."
+styles = ["rock", "pop"]
+roles = ["bass"]
+tags = ["bass.tag.electric", "bass.tag.finger"]
+[preset.values]
+"engine" = 2
+"gain" = 9.5
+"mod1.amt" = -0.5
+"str.pluck" = 200
+"str.pu1_level" = 0
+"str.pu2" = 150
+"str.tone" = 0.7
+[preset.text]
+"macro1.name" = "Tone"
+"mod1.dst" = "str.tone"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.j_bridge"
+note = "A J-style electric, the bridge pickup: tighter and brighter."
+styles = ["rock", "jazz"]
+roles = ["bass"]
+tags = ["bass.tag.electric", "bass.tag.finger"]
+[preset.values]
+"engine" = 2
+"gain" = 7.2
+"mod1.amt" = 0.5
+"str.bright" = 0.6
+"str.hardness" = 0.65
+"str.pluck" = 95
+"str.pu2_level" = 0.35
+[preset.text]
+"macro1.name" = "Neck pickup"
+"mod1.dst" = "str.pu2_level"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.slap"
+note = "Slapped and popped: funk."
+styles = ["rnb", "jazz"]
+roles = ["bass"]
+tags = ["bass.tag.electric", "bass.tag.slap"]
+[preset.values]
+"engine" = 2
+"gain" = 4.8
+"mod1.amt" = 0.4
+"str.action" = 1.8
+"str.bright" = 0.75
+"str.buzz" = 0.7
+"str.pluck" = 330
+"str.pop_vel" = 100
+"str.stiffness" = 1.2
+"str.technique" = 2
+[preset.text]
+"macro1.name" = "Buzz"
+"mod1.dst" = "str.buzz"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.fretless"
+note = "Fretless, singing, sliding between notes."
+styles = ["jazz"]
+roles = ["bass"]
+tags = ["bass.tag.electric", "bass.tag.fretless"]
+[preset.values]
+"engine" = 2
+"gain" = 6.6
+"glide" = 120
+"mod1.amt" = 0.3
+"str.fretless" = 1
+"str.pluck" = 150
+"str.pu1_level" = 0.25
+"str.sustain" = 9
+"str.tone" = 0.6
+[preset.text]
+"macro1.name" = "Slide"
+"mod1.dst" = "glide"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.picked"
+note = "A five-string played with a pick, a little driven."
+styles = ["rock"]
+roles = ["bass"]
+tags = ["bass.tag.electric", "bass.tag.pick"]
+[preset.values]
+"drive" = 0.3
+"engine" = 2
+"gain" = 1.8
+"mod1.amt" = 0.4
+"str.bright" = 0.65
+"str.hardness" = 0.8
+"str.pluck" = 120
+"str.strings" = 5
+"str.technique" = 1
+[preset.text]
+"macro1.name" = "Drive"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.motown"
+note = "Flatwounds, old strings, muted with the palm: the sixties studio bass."
+styles = ["jazz", "rnb"]
+roles = ["bass"]
+tags = ["bass.tag.electric", "bass.tag.vintage"]
+[preset.values]
+"engine" = 2
+"gain" = 4.2
+"mod1.amt" = 0.4
+"str.age" = 0.7
+"str.pluck" = 230
+"str.pu1_level" = 0
+"str.technique" = 0
+"str.tone" = 0.35
+"str.type" = 2
+[preset.text]
+"macro1.name" = "Mute"
+"mod1.dst" = "str.mute"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.reggaeton_808"
+note = "A short, round 808 with a little knock: the dembow bass."
+styles = ["latin", "pop"]
+roles = ["bass"]
+[preset.values]
+"808.click" = 0.2
+"808.decay" = 700
+"808.knock" = 0.3
+"808.pitch" = 7
+"808.pitch_time" = 35
+"808.release" = 120
+"808.sustain" = 0.2
+"drive" = 0.15
+"gain" = 4.3
+"mod1.amt" = 0.5
+[preset.text]
+"macro1.name" = "Length"
+"mod1.dst" = "808.decay"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.trap_slide"
+note = "A long 808 made to slide: every overlapping note glides."
+styles = ["trap"]
+roles = ["bass"]
+[preset.values]
+"808.decay" = 4000
+"808.harmonics" = 0.2
+"808.release" = 500
+"808.sustain" = 0.8
+"gain" = -2
+"glide" = 140
+"glide.trigger" = 1
+"mod1.amt" = 0.5
+[preset.text]
+"macro1.name" = "Glide"
+"mod1.dst" = "glide"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.lofi_upright"
+note = "An electric played muted and dark, old strings: an upright in a dusty room."
+styles = ["lofi", "jazz"]
+roles = ["bass"]
+[preset.values]
+"engine" = 2
+"gain" = 8.9
+"mod1.amt" = 0.4
+"str.age" = 0.8
+"str.bright" = 0.3
+"str.mute" = 0.5
+"str.sustain" = 3
+"str.tone" = 0.4
+[preset.text]
+"macro1.name" = "Mute"
+"mod1.dst" = "str.mute"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.worship_finger"
+note = "A warm finger-played electric that sits under a band."
+styles = ["worship", "pop"]
+roles = ["bass"]
+[preset.values]
+"engine" = 2
+"gain" = 6.1
+"mod1.amt" = 0.4
+"str.bright" = 0.4
+"str.pluck" = 230
+"str.tone" = 0.5
+[preset.text]
+"macro1.name" = "Tone"
+"mod1.dst" = "str.tone"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.house_roll"
+note = "A saw bass with a quick filter envelope: the rolling house bassline."
+styles = ["house"]
+roles = ["bass"]
+[preset.values]
+"engine" = 1
+"gain" = 3.1
+"mod1.amt" = 0.4
+"syn.cutoff" = 700
+"syn.env" = 2
+"syn.f_decay" = 180
+"syn.reso" = 0.3
+"syn.sustain" = 0.6
+"syn.wave" = 0
+[preset.text]
+"macro1.name" = "Cutoff"
+"mod1.dst" = "syn.cutoff"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.synthwave"
+note = "A saw an octave over another: the bright, driving synthwave bass."
+styles = ["pop"]
+roles = ["bass"]
+[preset.values]
+"engine" = 1
+"gain" = -0.6
+"mod1.amt" = 0.4
+"syn.cutoff" = 1500
+"syn.env" = 1.5
+"syn.osc2" = 0.5
+"syn.osc2_semi" = 12
+"syn.wave" = 0
+[preset.text]
+"macro1.name" = "Octave"
+"mod1.dst" = "syn.osc2"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.rnb_sub"
+note = "A soft sub with a touch of harmonics and a slow attack: smooth R&B low end."
+styles = ["rnb", "pop"]
+roles = ["bass"]
+[preset.values]
+"808.attack" = 6
+"808.click" = 0
+"808.harmonics" = 0.15
+"808.knock" = 0
+"808.pitch" = 0
+"808.shape" = 0.3
+"808.sustain" = 1
+"gain" = -2.2
+"mod1.amt" = 0.4
+[preset.text]
+"macro1.name" = "Harmonics"
+"mod1.dst" = "808.harmonics"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.dub"
+note = "Muted, dark and round: the dub and reggae bass."
+styles = ["lofi", "latin"]
+roles = ["bass"]
+[preset.values]
+"engine" = 2
+"gain" = 9.1
+"mod1.amt" = 0.4
+"str.bright" = 0.2
+"str.mute" = 0.3
+"str.pluck" = 260
+"str.tone" = 0.2
+[preset.text]
+"macro1.name" = "Tone"
+"mod1.dst" = "str.tone"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.sub_drop"
+note = "Two octaves falling over half a second: the sub drop of a trailer or a drop."
+styles = ["film", "trap"]
+roles = ["fx"]
+[preset.values]
+"808.decay" = 5000
+"808.pitch" = 24
+"808.pitch_time" = 400
+"808.sustain" = 0.5
+"gain" = -5.3
+"mod1.amt" = 0.5
+[preset.text]
+"macro1.name" = "Drop"
+"mod1.dst" = "808.pitch_time"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.rock_drive"
+note = "Picked hard into an overdrive: the rock bass."
+styles = ["rock"]
+roles = ["bass"]
+[preset.values]
+"drive" = 0.5
+"engine" = 2
+"mod1.amt" = 0.4
+"str.bright" = 0.7
+"str.hardness" = 0.8
+"str.technique" = 1
+[preset.text]
+"macro1.name" = "Drive"
+"mod1.dst" = "drive"
+"mod1.src" = "macro1"
+
+[[preset]]
+key = "bass.preset.ambient_swell"
+note = "A sub that swells in and rings on: a floor under a pad."
+styles = ["ambient", "film"]
+roles = ["bass"]
+[preset.values]
+"808.attack" = 50
+"808.click" = 0
+"808.decay" = 6000
+"808.knock" = 0
+"808.pitch" = 0
+"808.release" = 2000
+"808.sustain" = 0.9
+"gain" = -1.8
+"mod1.amt" = 0.4
+[preset.text]
+"macro1.name" = "Swell"
+"mod1.dst" = "808.attack"
+"mod1.src" = "macro1"

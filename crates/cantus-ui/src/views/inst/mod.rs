@@ -99,6 +99,9 @@ pub struct InstEditors {
     pub keyboard: Option<bool>,
     /// Which of the shell's pop-ups is open: the ⋯ menu, the preset list, the sizes.
     pub popup: Popup,
+    /// The pass the pop-up opened on: the click that opened it is not a click elsewhere
+    /// (round 37: a click on the preset well opened the list and closed it in one pass).
+    pub popup_pass: u64, // r37:library
     /// The factory or user preset each track's instrument was last set from.
     pub preset: HashMap<TrackId, String>,
     pub wavetable: wavetable::State,
@@ -219,7 +222,11 @@ impl CantusApp {
         if now.kind != target.kind {
             return;
         }
-        let target = &crate::dance_live::keep_through_preset(&now, target); // r35:dancer
+        let target = &preset_target(&now, target, self.project().tempo_bpm); // r35:dancer, r37:piano
+                                                                             // r37:piano — a preset on an old song's Chorda moves it to model 2: say so.
+        let to_model_2 = now.kind == cantus_core::InstrumentKind::Chorda
+            && now.get("model") < 1.5
+            && target.get("model") >= 1.5;
         let mut commands = Vec::new();
         for (k, v) in &target.params {
             if now.params.get(k) != Some(v) {
@@ -256,11 +263,14 @@ impl CantusApp {
                 text: None,
             });
         }
-        if !commands.is_empty() {
-            self.exec(Command::Batch {
+        if !commands.is_empty()
+            && self.exec(Command::Batch {
                 label_key: label_key.into(),
                 commands,
-            });
+            })
+            && to_model_2
+        {
+            self.set_status(crate::i18n::t("chorda.now_model2")); // r37:piano
         }
     }
 
@@ -433,6 +443,15 @@ pub fn save_user_preset(spec: &NativeSpec, name: &str) -> Result<(), String> {
 }
 
 /// A factory preset as the spec it describes.
+/// What a preset `target` becomes on an instrument that is `now`: the dancer's own keys kept
+/// through it (r35:dancer), a slicing style re-cutting the user's own loop its way (ADR
+/// 0099). The one path presets take — the editor, A/B, the library, the agents and the
+/// audition. r37:piano
+pub fn preset_target(now: &NativeSpec, target: &NativeSpec, song_bpm: f64) -> NativeSpec {
+    let kept = crate::dance_live::keep_through_preset(now, target);
+    crate::sectio_ui::styles::through_style(now, &kept, song_bpm)
+}
+
 pub fn preset_spec(kind: InstrumentKind, preset: &FactoryPreset) -> NativeSpec {
     let mut s = NativeSpec::new(kind);
     for (k, v) in preset.values {

@@ -1,0 +1,772 @@
+# Calor: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "calor.preset.init"
+note = "Two saws through the ladder: where a patch starts."
+styles = ["pop", "house"]
+roles = ["keys"]
+tags = ["preset.tag.init"]
+[preset.values]
+"analog.condition" = 0
+"gain" = -1.6
+"mod1.amt" = 0.35
+"mod2.amt" = 0.5
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Resonance"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.reso"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.warm_brass"
+note = "A slow-opening filter on two detuned saws: warm analog brass."
+styles = ["rock", "film"]
+roles = ["lead"]
+tags = ["preset.tag.brass", "preset.tag.keys"]
+[preset.values]
+"analog.condition" = 0.35
+"env1.a" = 45
+"env1.d" = 700
+"env1.r" = 380
+"env1.s" = 0.4
+"env2.a" = 30
+"env2.d" = 400
+"env2.r" = 320
+"env2.s" = 0.85
+"gain" = 5.9
+"mod1.amt" = 0.25
+"mod2.amt" = 0.4
+"osc2.fine" = 9
+"vcf.cutoff" = 700
+"vcf.env" = 3.6
+"vcf.reso" = 0.22
+"vcf.vel" = 0.5
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.round_bass"
+note = "A mono bass with a sub and a quick filter: round and solid."
+styles = ["rnb", "rock"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"analog.condition" = 0.2
+"env1.d" = 260
+"env1.s" = 0.08
+"env2.r" = 120
+"env2.s" = 0.9
+"gain" = 8.9
+"glide.legato" = 1
+"glide.time" = 0.035
+"mix.sub" = 0.5
+"mod1.amt" = 0.3
+"mod2.amt" = -0.08
+"osc2.fine" = 3
+"osc2.octave" = -1
+"osc2.pulse" = 1
+"osc2.saw" = 0
+"vcf.bass_comp" = 0.9
+"vcf.cutoff" = 260
+"vcf.env" = 3.2
+"vcf.reso" = 0.35
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Tone"
+"macro2.name" = "Snap"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "env1.d"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.acid_line"
+note = "The diode filter at high resonance with slides and accents: acid."
+styles = ["house"]
+roles = ["bass"]
+tags = ["preset.tag.bass", "preset.tag.lead"]
+[preset.values]
+"analog.condition" = 0.3
+"env1.d" = 190
+"env1.s" = 0
+"env2.a" = 1
+"env2.r" = 30
+"env2.s" = 1
+"gain" = 12
+"glide.curve" = 1
+"glide.legato" = 1
+"glide.time" = 0.06
+"mix.osc1" = 1
+"mix.osc2" = 0
+"mod1.amt" = 0.12
+"mod2.amt" = 0.35
+"vcf.bass_comp" = 0.6
+"vcf.cutoff" = 420
+"vcf.env" = 4.2
+"vcf.model" = 2
+"vcf.reso" = 0.86
+"vcf.rev" = 2
+"vcf.vel" = 0.8
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Squelch"
+"macro2.name" = "Cutoff"
+"mod1.dst" = "vcf.reso"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.glass_pluck"
+note = "Triangles an octave apart, a fast filter: a glassy pluck."
+styles = ["pop", "ambient"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck", "preset.tag.keys"]
+[preset.values]
+"chorus.mode" = 1
+"env1.d" = 230
+"env1.s" = 0
+"env2.d" = 520
+"env2.r" = 520
+"env2.s" = 0
+"gain" = 9.8
+"mix.osc1" = 1
+"mix.osc2" = 0.8
+"mod1.amt" = 0.2
+"mod2.amt" = 0.12
+"osc1.saw" = 0.4
+"osc1.tri" = 1
+"osc2.octave" = 1
+"osc2.saw" = 0
+"osc2.tri" = 1
+"vcf.cutoff" = 900
+"vcf.env" = 5
+"vcf.key" = 0.8
+"vcf.model" = 1
+"vcf.reso" = 0.4
+[preset.text]
+"macro1.name" = "Tone"
+"macro2.name" = "Length"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "env2.d"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.velvet_pad"
+note = "A slow, wide, chorused pad that breathes."
+styles = ["ambient", "worship"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"analog.condition" = 0.45
+"chorus.mode" = 2
+"env1.a" = 900
+"env1.d" = 2500
+"env1.s" = 0.6
+"env2.a" = 700
+"env2.d" = 1500
+"env2.r" = 1800
+"env2.s" = 0.85
+"gain" = 1
+"lfo2.rate" = 0.25
+"lfo2.restart" = 0
+"mod1.amt" = 0.25
+"mod2.amt" = 0.2
+"osc2.fine" = 12
+"vcf.cutoff" = 1300
+"vcf.env" = 1
+"vcf.lfo" = 0.35
+"vcf.model" = 3
+"vcf.reso" = 0.2
+"voice.stack" = 1
+"voice.stack_detune" = 18
+"voice.stack_spread" = 0.8
+[preset.text]
+"macro1.name" = "Air"
+"macro2.name" = "Motion"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo2.rate"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.sync_lead"
+note = "A hard-synced lead that sings when it bends."
+styles = ["rock", "pop"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"gain" = 6.7
+"glide.time" = 0.07
+"mix.osc1" = 0.3
+"mix.osc2" = 0.9
+"mod1.amt" = 0.35
+"mod2.amt" = 0.2
+"mod3.amt" = 0.2
+"osc2.semi" = 7
+"osc2.sync" = 1
+"vcf.cutoff" = 3000
+"vcf.env" = 1.5
+"vcf.reso" = 0.18
+"voice.mode" = 2
+"wheel.vibrato" = 40
+[preset.text]
+"macro1.name" = "Sync"
+"macro2.name" = "Brightness"
+"mod1.dst" = "osc2.semi"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.cutoff"
+"mod2.src" = "macro2"
+"mod3.dst" = "osc2.semi"
+"mod3.src" = "env1"
+
+[[preset]]
+key = "calor.preset.poly_sweep"
+note = "Poly-mod on the pulse: a moving, vocal chord."
+styles = ["film", "pop"]
+roles = ["keys"]
+tags = ["preset.tag.keys", "preset.tag.fx"]
+[preset.values]
+"analog.condition" = 0.35
+"env1.d" = 900
+"env1.s" = 0.25
+"gain" = -3.3
+"mix.osc3" = 0
+"mod1.amt" = 0.25
+"mod2.amt" = 0.2
+"osc1.pulse" = 1
+"osc1.pw" = 0.35
+"osc1.saw" = 0
+"osc3.octave" = -1
+"polymod.env" = 0.35
+"polymod.osc3" = 0.12
+"polymod.to_freq" = 1
+"polymod.to_pw" = 1
+"vcf.cutoff" = 1100
+"vcf.env" = 3
+"vcf.reso" = 0.45
+[preset.text]
+"macro1.name" = "Poly-mod"
+"macro2.name" = "Tone"
+"mod1.dst" = "polymod.env"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.cutoff"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.unison_saw"
+note = "Stacked, detuned saws: the big lead."
+styles = ["house", "pop"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"env2.a" = 8
+"env2.r" = 420
+"gain" = 6.1
+"mix.osc2" = 0.6
+"mod1.amt" = 0.25
+"mod2.amt" = 0.2
+"osc2.fine" = -9
+"vcf.cutoff" = 3200
+"vcf.env" = 1.2
+"vcf.reso" = 0.12
+"voice.count" = 4
+"voice.stack" = 3
+"voice.stack_detune" = 26
+"voice.stack_spread" = 0.9
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Detune"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "osc2.fine"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.screamer"
+note = "The filter driven hard at high resonance: it screams."
+styles = ["rock", "house"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"gain" = 2.8
+"mix.drive" = 6
+"mod1.amt" = 0.1
+"mod2.amt" = 0.2
+"vca.drive" = 0.35
+"vcf.cutoff" = 1600
+"vcf.drive" = 9
+"vcf.env" = 2.2
+"vcf.model" = 4
+"vcf.reso" = 0.88
+"voice.mode" = 1
+[preset.text]
+"macro1.name" = "Scream"
+"macro2.name" = "Drive"
+"mod1.dst" = "vcf.reso"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.filter_whistle"
+note = "The filter alone, self-oscillating, played from the keys."
+styles = ["film", "ambient"]
+roles = ["fx"]
+tags = ["preset.tag.lead", "preset.tag.fx"]
+[preset.values]
+"analog.condition" = 0
+"env2.a" = 60
+"env2.r" = 600
+"gain" = 12
+"glide.time" = 0.05
+"mix.osc1" = 0
+"mix.osc2" = 0
+"mod1.amt" = 0.01
+"mod2.amt" = 0.08
+"vca.drive" = 1
+"vcf.cutoff" = 261.63
+"vcf.drive" = 12
+"vcf.env" = 0
+"vcf.key" = 1
+"vcf.reso" = 1.2
+"vcf.vel" = 0
+"wheel.vibrato" = 25
+[preset.text]
+"macro1.name" = "Tune"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.string_machine"
+note = "Pulse-width-modulated pulses through an ensemble: the string machine."
+styles = ["film", "lofi"]
+roles = ["pad"]
+tags = ["preset.tag.strings", "preset.tag.pad"]
+[preset.values]
+"chorus.mix" = 0.6
+"chorus.mode" = 3
+"env2.a" = 320
+"env2.r" = 950
+"env2.s" = 0.9
+"gain" = -1.2
+"hpf.cutoff" = 180
+"lfo2.rate" = 0.7
+"lfo2.restart" = 0
+"mix.osc2" = 0.45
+"mod1.amt" = 0.25
+"mod2.amt" = -0.3
+"osc1.pulse" = 1
+"osc1.pwm" = 0.6
+"osc1.saw" = 0
+"osc2.octave" = 1
+"osc2.pulse" = 1
+"osc2.pwm" = 0.6
+"osc2.saw" = 0
+"vcf.cutoff" = 4200
+"vcf.env" = 0
+"vcf.model" = 1
+"vcf.reso" = 0.05
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Ensemble"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "osc1.pw"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.juno_pad"
+note = "One modulated pulse through the chorus: the eighties pad."
+styles = ["house", "pop"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"chorus.mode" = 1
+"env2.a" = 400
+"env2.r" = 1200
+"env2.s" = 0.9
+"lfo2.rate" = 0.6
+"mix.osc2" = 0
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc1.pulse" = 1
+"osc1.pwm" = 0.5
+"osc1.saw" = 0
+"vcf.cutoff" = 2500
+"vcf.env" = 0.5
+"vcf.reso" = 0.1
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.prophet_brass"
+note = "Two saws and a filter that opens with each note: the classic poly brass."
+styles = ["rock", "film"]
+roles = ["lead"]
+tags = ["preset.tag.brass", "preset.tag.lead"]
+[preset.values]
+"env1.a" = 60
+"env1.d" = 600
+"env1.s" = 0.5
+"env2.a" = 20
+"env2.s" = 0.9
+"gain" = 5.7
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc2.fine" = 6
+"vcf.cutoff" = 900
+"vcf.env" = 3
+"vcf.reso" = 0.2
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.moog_bass"
+note = "Two saws an octave apart through the ladder, a quick envelope: the fat mono bass."
+styles = ["rock", "rnb"]
+roles = ["bass"]
+tags = ["preset.tag.bass"]
+[preset.values]
+"env1.d" = 300
+"env1.s" = 0.15
+"env2.s" = 0.9
+"gain" = 11.5
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc2.octave" = -1
+"vcf.cutoff" = 350
+"vcf.env" = 3
+"vcf.model" = 0
+"vcf.reso" = 0.3
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.synthwave_lead"
+note = "A detuned, chorused mono lead with a little glide."
+styles = ["pop"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"chorus.mode" = 1
+"gain" = 9.2
+"glide.time" = 0.04
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc2.fine" = 10
+"vcf.cutoff" = 2500
+"vcf.reso" = 0.25
+"voice.mode" = 2
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.house_stab"
+note = "A short chord with a snappy filter: the house stab."
+styles = ["house"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"env1.d" = 200
+"env1.s" = 0
+"env2.a" = 1
+"env2.d" = 250
+"env2.r" = 150
+"env2.s" = 0
+"gain" = 9.5
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"vcf.cutoff" = 1800
+"vcf.env" = 2.5
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.funk_pluck"
+note = "A narrow pulse through a resonant diode filter: the funk pluck."
+styles = ["rnb", "jazz"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env1.d" = 180
+"env1.s" = 0
+"env2.d" = 300
+"env2.s" = 0.2
+"gain" = 9.5
+"mix.osc2" = 0
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc1.pulse" = 1
+"osc1.pw" = 0.3
+"osc1.saw" = 0
+"vcf.cutoff" = 600
+"vcf.env" = 4
+"vcf.model" = 2
+"vcf.reso" = 0.5
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.lofi_keys"
+note = "Worn triangles, a dark filter and a wobbly chorus: dusty keys."
+styles = ["lofi"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"analog.condition" = 0.8
+"chorus.mode" = 1
+"env2.a" = 10
+"env2.d" = 1500
+"env2.r" = 600
+"env2.s" = 0.5
+"gain" = 2.4
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc1.saw" = 0
+"osc1.tri" = 1
+"osc2.fine" = 15
+"osc2.saw" = 0
+"osc2.tri" = 1
+"vcf.cutoff" = 1200
+"vcf.reso" = 0.05
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.reggaeton_lead"
+note = "A bright saw and pulse with a short body: the reggaeton synth line."
+styles = ["latin", "pop"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"env2.d" = 220
+"env2.s" = 0.3
+"gain" = 9.3
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc2.pulse" = 1
+"osc2.saw" = 0
+"vcf.cutoff" = 2500
+"vcf.env" = 2
+"voice.mode" = 1
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.cinematic_swell"
+note = "A pad that swells for three seconds as its filter opens."
+styles = ["film", "ambient"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"env1.a" = 3000
+"env1.d" = 4000
+"env2.a" = 2500
+"env2.r" = 2000
+"env2.s" = 0.9
+"gain" = 2.2
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"vcf.cutoff" = 600
+"vcf.env" = 2
+"vcf.reso" = 0.3
+"voice.stack" = 1
+"voice.stack_detune" = 15
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.worship_pad"
+note = "Two warm saws, slow in and out, chorused: the pad under a worship set."
+styles = ["worship", "ambient"]
+roles = ["pad"]
+tags = ["preset.tag.pad"]
+[preset.values]
+"chorus.mode" = 2
+"env2.a" = 1200
+"env2.r" = 2500
+"env2.s" = 0.9
+"gain" = 3.2
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc2.fine" = 8
+"vcf.cutoff" = 1600
+"vcf.env" = 0.5
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.rnb_lead"
+note = "A soft triangle lead with glide and vibrato on the wheel."
+styles = ["rnb"]
+roles = ["lead"]
+tags = ["preset.tag.lead"]
+[preset.values]
+"gain" = 7.8
+"glide.time" = 0.08
+"mix.osc2" = 0.3
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc1.saw" = 0
+"osc1.tri" = 1
+"vcf.cutoff" = 1800
+"voice.mode" = 2
+"wheel.vibrato" = 20
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.trap_pluck"
+note = "A dark, quick pulse pluck for trap melodies."
+styles = ["trap"]
+roles = ["pluck"]
+tags = ["preset.tag.pluck"]
+[preset.values]
+"env1.d" = 250
+"env1.s" = 0
+"env2.d" = 400
+"env2.r" = 400
+"env2.s" = 0
+"gain" = 5.5
+"mix.osc2" = 0
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"osc1.pulse" = 1
+"osc1.saw" = 0
+"vcf.cutoff" = 1500
+"vcf.env" = 3
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.detroit_chord"
+note = "A resonant, chorused saw chord with a medium decay: the Detroit chord."
+styles = ["house"]
+roles = ["keys"]
+tags = ["preset.tag.keys"]
+[preset.values]
+"chorus.mode" = 1
+"env1.d" = 400
+"env1.s" = 0.3
+"env2.d" = 600
+"env2.s" = 0.4
+"gain" = 7.3
+"mod1.amt" = 0.4
+"mod2.amt" = 0.3
+"vcf.cutoff" = 900
+"vcf.env" = 2
+"vcf.reso" = 0.4
+[preset.text]
+"macro1.name" = "Brightness"
+"macro2.name" = "Bite"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "vcf.drive"
+"mod2.src" = "macro2"
+
+[[preset]]
+key = "calor.preset.siren_glide"
+note = "The self-oscillating filter gliding slowly between notes: a siren."
+styles = ["film", "house"]
+roles = ["fx"]
+tags = ["preset.tag.fx"]
+[preset.values]
+"analog.condition" = 0
+"env2.a" = 60
+"env2.r" = 600
+"gain" = 10.5
+"glide.time" = 0.4
+"mix.osc1" = 0
+"mix.osc2" = 0
+"mod1.amt" = 0.01
+"mod2.amt" = 0.08
+"vca.drive" = 1
+"vcf.cutoff" = 261.63
+"vcf.drive" = 12
+"vcf.env" = 0
+"vcf.key" = 1
+"vcf.reso" = 1.2
+"vcf.vel" = 0
+"wheel.vibrato" = 25
+[preset.text]
+"macro1.name" = "Tune"
+"macro2.name" = "Vibrato"
+"mod1.dst" = "vcf.cutoff"
+"mod1.src" = "macro1"
+"mod2.dst" = "lfo1.pitch"
+"mod2.src" = "macro2"

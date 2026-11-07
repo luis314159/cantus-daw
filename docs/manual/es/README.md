@@ -31,14 +31,17 @@ lo dice.
 Además: [Lo que un agente de IA puede hacer en Cantus](ai-tools.md) — las herramientas, el catálogo de unidades, el corrector musical.
 
 Además: [Separar stems](stems.md) — una canción en batería, bajo, voces y el resto, en tu ordenador. <!-- r34:stems -->
+Además: [Encontrar y escuchar presets](presets.md) — por estilo y función, escuchados antes de elegir. <!-- r37:library -->
 
 Además: [Exportar un video con baile](video.md) — tus bailarines con la canción, para redes o un editor de video. <!-- r35:video -->
 
 Además: [Convertir audio a MIDI](audio-to-midi.md) — una melodía, acordes o un loop de batería en notas sobre una pista nueva.
 
+También: [Pulsus III: pads en canales propios, una cadena por pad, kits de donde sea](drum-kits.md) — separar un kit en canales, efectos en un pad, una carpeta o un SFZ como kit. <!-- r37:drums -->
+
 Además: [El editor de audio](audio-editor.md) — cortar, silenciar, fundidos, normalizar, quitar ruido, quitar silencio y ver el espectro, sobre la toma de un clip.
 
-Además: [Saltator, un personaje que baila tu canción](dancer.md) — la ventana del bailarín, sus pasos, Reaccionar a. <!-- r35:dancer -->
+Además: [Saltator, un personaje que baila tu canción](dancer.md) — la ventana del bailarín, sus pasos, Reaccionar a; Fuga, el ninja, y Volta, el mecha, encabezan el reparto. <!-- r35:dancer, r37:chars -->
 
 Además: [El escenario](stage.md) — un bailarín sobre el espacio de trabajo, en la pestaña Escenario, en una ventana de compañía y en directo (OBS). <!-- r35:stage -->
 
@@ -217,7 +220,12 @@ que flote en su propia ventana; guarda la forma de la ventana en *Ver ▸ Dispos
 Guardar disposición…*. La interfaz se amplía del 75 % al 200 % (`Ctrl++`, `Ctrl+-`,
 `Ctrl+0`). Doce temas — Cantus Noche (el predeterminado), Cantus Papel, Luz de día, Hora
 azul, alto contraste oscuro y claro y más, cada uno con su vista previa —, los colores, el
-logo y el color del icono de la barra de tareas están en *Ver ▸ Apariencia*.
+logo y el color del icono de la barra de tareas están en *Ver ▸ Apariencia*. Cada tema
+tiene sus **materiales** (grupo *Profundidad*): cómo cae la luz sobre los controles — el bisel
+de una tecla en relieve y su sombra, la sombra dentro de un hueco, la luz en su borde, el
+brillo del metal y del cristal, la sombra que proyecta una pieza. Cantus Noche es metal y
+cristal; Cantus Papel, mate. Puedes cambiar el color de cualquiera, o bajar el relieve del
+tema (su profundidad) para un aspecto plano. Los faders tienen dos capuchones a elegir en *Ver ▸ Apariencia ▸ Faders*: **Clásico** (el capuchón marfil, el predeterminado) y **Metal** (mecanizado, con su índice grabado y el brillo del tema); todos los faders — el mezclador, los VCA, las unidades — cambian a la vez.
 
 **Escribir un nombre o un valor** funciona igual en todas partes — renombrar una pista, un
 clip, un pad o un canal, una búsqueda, un nivel: el campo se abre con su texto
@@ -270,16 +278,23 @@ haría `Ctrl+Z` — no se pierde nada, y un clic en una fila posterior vuelve.
 ### La barra superior
 
 La barra superior es la de FL Studio, en dos filas: un grupo por función y una línea fina
-entre las columnas. Los grupos que tienen dos líneas propias —PATRÓN / CANCIÓN, el
-metrónomo, el reloj, CPU/RAM y el medidor— ocupan toda la altura; los demás ocupan una
-fila y se apilan de dos en dos (el transporte sobre el tempo, la rejilla sobre deshacer,
-las ventanas sobre las entradas, el chip de audio sobre las herramientas). A 1920 píxeles y
-al 100 % todos los grupos están en la barra, en inglés y en español, con el chip de tu
-interfaz: en una barra llena el chip acorta por el medio una línea de dispositivo larga
-(apunta a él para leerla entera) y se ensancha cuando hay sitio.
+entre las columnas. El transporte, el metrónomo y el reloj (compases.tiempos.ticks en
+grande, el tiempo y el compás en una línea debajo) ocupan toda la altura; los demás ocupan
+una fila y se apilan de dos en dos (PATRÓN / CANCIÓN sobre el tempo, la rejilla sobre
+deshacer, las ventanas sobre las entradas, el medidor principal sobre CPU/RAM/voces/cortes
+—el puente de medidores de una consola— y el chip de audio sobre las herramientas). En una
+ventana ancha el transporte, el tempo y el reloj se dibujan un tamaño mayor (teclas de 31 pt
+a 1920 píxeles). **A 1920 × 1080 todos los grupos están en la barra.** En una ventana más
+estrecha (o con más zoom) los grupos esperan en ⋯ al final de la barra, cada uno bajo su
+nombre con su atajo, en este orden: primero las teclas de las áreas (F5…), luego CPU/RAM,
+las opciones del metrónomo, la sincronía, las herramientas, la rejilla y las entradas; el
+transporte, el reloj, el tempo, deshacer / rehacer y el chip de audio se quedan. En una
+barra llena el chip de audio muestra el nombre de tu interfaz y su latencia (apunta a él
+para leer la línea entera), y la línea entera cuando hay sitio.
 
 - **Los menús y el panel de ayuda**: *Archivo, Edición, Clip, Ver, Ayuda* sobre el nombre
-  del proyecto y la ayuda de lo que hay bajo el puntero. **Haz clic en el nombre** para
+  del proyecto y la ayuda de lo que hay bajo el puntero — sin nada debajo, el resumen de la
+  canción (pistas · canales · compases · duración). **Haz clic en el nombre** para
   cambiarlo ahí mismo (`Intro` lo guarda, `Esc` lo deja); el título de la ventana lo
   sigue, con `•` mientras haya cambios sin guardar.
 - **PATRÓN / CANCIÓN** (`L`): el *modo canción* reproduce el arreglo; el *modo patrón*
@@ -1428,7 +1443,10 @@ selecciona, `Ctrl+clic` añade, `Shift+clic` toma un tramo; mover un fader de un
 mueve todos. Con el foco en el mezclador, `M` silencia, `S` pone solo,
 `Alt+Izquierda`/`Alt+Derecha` mueven el canal. `Ctrl+rueda` cambia el ancho de los canales;
 en *Extra grande* cada canal muestra un resumen de su cadena en una línea (un clic abre el
-inspector).
+inspector). El menú ▾ de la mesa ▸ *Panel de inserciones* acopla a la derecha de la mesa los
+diez huecos de inserción del canal elegido: un clic en un hueco abre su efecto, y en uno
+vacío abre el inspector, donde se añaden las inserciones; cada distribución del mezclador
+guarda la elección.
 
 - **Inserciones** (hasta diez por canal): clic en una ranura vacía para elegir un efecto
   en el selector, o clic derecho para la lista rápida. En una ranura ocupada, clic en la
@@ -1689,6 +1707,16 @@ cualquier carpeta de muestras).
 
 - **Clic** en un sonido para oírlo; otro clic lo detiene. Escribe en el campo de búsqueda
   para encontrar sonidos en todos los paquetes y carpetas.
+- Las **pestañas** bajo la búsqueda (*Todo*, *Batería*, *Loops*, *Melódico*, *FX*) dejan
+  una familia de sonidos, leída de sus nombres. Los sonidos son una tabla: cada fila
+  muestra la **portada** de su paquete, su nombre, su **forma de onda**, su **tempo** y su
+  **duración** en columnas, y su **tonalidad** cuando su nombre la dice ("Chord Stab Am",
+  "Drum Loop 124 BPM").
+- El sonido elegido tiene una **ficha** bajo la lista: su formato (WAV · 44.1 kHz · Estéreo
+  · 4.0 s), una forma de onda más grande (un clic lo toca) y sus etiquetas.
+- La **franja de escucha** al pie del explorador muestra el sonido elegido: ▶ / ■ para
+  tocarlo o detenerlo, cuánto lleva sonado y el **nivel de escucha** (haz clic o arrastra
+  a lo largo; el sonido vuelve a empezar al nuevo nivel).
 - **Arrastra** un sonido a un **pad de Pulsus** (el pad lo toca), al mapa de teclas de
   **Exemplar** (una zona en esa tecla), al **rack de canales** (un canal de muestra nuevo
   con su propio canal del mezclador) o al **arreglo** (un clip de audio donde lo sueltas).
@@ -1858,27 +1886,112 @@ mueva un **modulador**; el medio pedal también funciona ahí. El pedal que oyen
 es el mayor entre la perilla y el controlador 64, así que un pedal real sigue funcionando
 encima de un carril. La demo *De todo corazón* está pedaleada así.
 
-- **Tocar** muestra el piano visto desde arriba — las cuerdas de cada tecla a su longitud
-  sobre la tabla armónica de abeto, el puente, el borde del arpa de hierro, la fila de
-  martillos de fieltro por donde golpean, los apagadores — con la última tecla tocada
-  iluminada y su martillo levantado, y los pedales: el recorrido del pedal derecho dibujado sobre la ley de cuánto
+- **Tocar** muestra **el piano y su sala** (ronda 37): el piano dibujado como lo mostraría
+  la foto de una sesión de grabación — el cuerpo y el acabado del preset, la tapa al ángulo
+  de la perilla **Tapa** (cerrada, en el puntal corto, en el puntal largo), los micrófonos
+  donde los ponen **Micros** y **Anchura** (en una jirafa sobre los martillos, en un pie
+  detrás del pianista, lejos, donde se sienta el público; el par por el que escucha la
+  mezcla lleva un aro rojo), un par de sala en pies altos cuando la perilla **Sala** trae
+  la sala, y la sala que hace su **Tamaño** — una cabina con paneles absorbentes y una
+  alfombra, la sala de un estudio con la ventana de la sala de control, un auditorio con
+  un escenario pulido, una iglesia con ventanales cuando la sala es grande y muy viva. Gira
+  una perilla y la imagen la sigue. Dos selectores en su esquina eligen el **Piano** (gran
+  cola de concierto, media cola, cuarto de cola, piano vertical) y el **Acabado** (negro o
+  blanco lacado, nogal, palisandro): el aspecto cambia solo la imagen, nunca el sonido, se
+  guarda con la canción y es un paso de deshacer. Cada preset trae su aspecto, siempre uno
+  que su sonido puede representar (Chorda modela las cuerdas de un piano de cola; un
+  vertical solo se muestra para un sonido afinado como tal — la tapa cerrada y una escala
+  corta, la desafinación de un honky-tonk o la mecánica suave del fieltro). Junto a ella,
+  los pedales: el recorrido del pedal derecho dibujado sobre la ley de cuánto
   bajan los apagadores en cada posición, con las perillas **Derecho**, **Apagadores** y
   **Suave** debajo. Debajo: el martillo (dureza, dinámica, curva de
   velocidad), la resonancia (simpatía, extinción, tabla armónica) y la salida
   (inclinación, anchura, ganancia).
-- **Editar** añade la afinación (La4, el estiramiento que un afinador de oído da a las
+- **Editar** muestra el piano visto desde arriba — las cuerdas de cada tecla a su longitud
+  sobre la tabla armónica de abeto, el puente, el borde del arpa de hierro, la fila de
+  martillos de fieltro por donde golpean, los apagadores, la última tecla tocada
+  iluminada — y añade la afinación (La4, el estiramiento que un afinador de oído da a las
   octavas de un piano, la rigidez de las cuerdas) con su curva en cents a lo largo del
   teclado, la rigidez del fieltro, lo que suena cada cuerda tecla por tecla, la abertura
   de los unísonos, el acople al puente y los parciales fantasma.
-- Diez presets (*Cola de concierto*, *Balada cálida*, *Piano de fieltro*, *Honky-tonk*,
-  *Diapasón barroco* a La = 415 Hz…), cada uno con cuatro macros: dureza, resonancia,
-  cuerpo y extinción.
+- Veinticuatro presets, cada uno etiquetado con los estilos y el papel para los que se hizo
+  (el navegador de presets filtra por ellos): *Cola de concierto*, *Cola en sala*, *Tema de
+  videojuego* y *Diapasón barroco* (La = 415 Hz) para cine; *Estudio brillante*, *Pop al
+  frente*, *Cercano e íntimo* y *Estudio seco* para pop; *Balada cálida* y *Cola gospel* para
+  alabanza; *Club de jazz*; *Teclas R&B*; *Montuno* y *Teclas reggaetón* para latina; *Piano
+  rock* y *Honky-tonk*; *Teclas trap*; *Piano house*; *Piano de fieltro*, *Cola lo-fi* y
+  *Piano de cola antiguo* para lo-fi; *Cinemático suave*, *Baño de pedal* y *Halo ambient*
+  (pads). Cada uno con cuatro macros: dureza, resonancia, cuerpo y extinción.
+
+**Modelo 2 (ronda 37).** Un Chorda que añadas ahora toca su segundo modelo: las cuerdas te
+llegan a través de la tabla armónica y la caja tal como las oyen dos micrófonos sobre las
+cuerdas (el cuerpo), en una sala, con el golpe del martillo, la tecla al llegar al fondo y
+los apagadores al volver — y ningún golpe de una tecla es exactamente igual a otro. Tiene
+dos perillas propias: **Sala** (en la tarjeta RESONANCIA: cuánto se oye la sala; 0 % es el
+piano solo) y **Ruido de la mecánica** (en Editar: el golpe, el fondo de la tecla y los
+apagadores; 0 % es ninguno). Una canción hecha antes conserva el primer modelo y suena
+exactamente como sonaba; para pasar su piano al modelo 2, carga en él cualquiera de los
+presets de Chorda (un paso de deshacer). El modelo se fija, no se automatiza.
+
+**Desde dónde escuchas (modelo 2).** En un piano modelado la perspectiva es un control, no
+una grabación. En la tarjeta MICRÓFONOS Y TAPA: **Micros** lleva el par desde sobre los
+martillos (0 %: cerca, directo, se oye cada martillo y apagador) por el sitio del pianista
+(35 %, el de partida) hasta el público (100 %: más resonancia de la tabla y de la sala, los
+agudos suavizados por el aire); **Anchura** abre o estrecha el par (la suma en mono no
+cambia, así que ningún ajuste suena a filtro de peine); **Tapa** lo cierra (cerrada: más
+oscuro, las cuerdas cubiertas; a media altura; abierta). En Editar, la tarjeta SALA añade
+**Tamaño**, de un estudio pequeño a un auditorio (se muestra la caída de la sala en
+segundos). Todos se mueven sin saltos mientras el piano suena y se pueden automatizar. Los
+presets los usan: *Cercano e íntimo* y *Pop al frente* están sobre los martillos, *Cola en
+sala* en el público, *Piano de fieltro* con la tapa cerrada, *Club de jazz* a media altura.
 
 Cambiar **La4, el estiramiento o la rigidez** vuelve a diseñar las cuerdas, junto a la
 ventana, cuando la perilla se ha quedado quieta (uno o dos segundos; el editor dice
 *diseñando las cuerdas* con cuánto lleva): el piano conserva su afinación anterior hasta
 que la nueva esté lista. Una exportación siempre la espera. Estos tres se fijan, no se
 automatizan.
+
+### Sectio: cortar un bucle en Exemplar
+
+Haz clic derecho en un bucle (WAV, AIFF, FLAC, OGG) del explorador de muestras y elige
+**Cortar en una pista nueva de Exemplar** (o *Cortar en el Exemplar abierto*), o elige
+*Importar ▸ Cortar un bucle…* en la vista Editar de un Exemplar: el bucle se corta en trozos,
+**uno por tecla desde Do1** (MIDI 36), cada uno a su altura — un paso de deshacer. Dónde se
+corta: en los **marcadores** del archivo (los cue points de un WAV, si no sus bucles de
+sampler; los pulsos de un archivo ACID dan el tempo), si no en sus **transitorios**, o en una
+**rejilla de pulsos**. Hasta 64 cortes (la barra de estado avisa si había más; una rejilla se hace más gruesa para caber, y un bucle sin tempo propio usa el
+de la canción; no se cortan bucles de más de 5 min 49 s a 48 kHz). Un bucle
+soltado en la tarjeta **Cortes** (desde el sistema o el explorador) vuelve a cortarse en ese
+Exemplar.
+
+La tarjeta **Cortes** dibuja el bucle con sus cortes numerados (donde caben los números) y
+dice cuántos, el tempo y cómo se hallaron:
+
+- **Editar los puntos**: arrastra una línea para moverla (cae en el cruce por cero más
+  cercano), clic derecho para quitarla, doble clic en la onda para añadir una. Un paso de
+  deshacer cada uno.
+- **Volver a cortar**: elige *Marcadores*, *Transitorios* (arrastra su sensibilidad: más
+  alta conserva golpes más débiles) o *Rejilla* (1/4 … 1/32): los puntos nuevos se ven sobre
+  el bucle; **Aplicar** los conserva (un paso de deshacer), **Cancelar** los descarta.
+- **Volcar al piano roll** escribe un clip que toca los cortes en orden, cada uno hasta el
+  siguiente: al tempo del bucle suena igual que el archivo, muestra a muestra; a otro tempo
+  los cortes siguen la rejilla. Un bucle sin tempo propio se lee al de la canción.
+- **Aleatorio**, **Tartamudeo**, **Cuantizar** (semicorcheas) sobre ese clip — un paso de
+  deshacer cada uno.
+
+Los **estilos de corte** son presets de Exemplar en la biblioteca (etiqueta *Estilo de
+corte*): *Break de batería* (transitorios, cada corte corta al anterior), *Golpes sueltos*
+(resuenan), *Rejilla tartamuda* (1/32, con corte), *Marcadores del archivo*, *Corte vocal*
+(pulsos, cada corte solo mientras se mantiene; un lead), *Frase melódica* (1/8, una voz con glide).
+En un Exemplar cortado, un estilo vuelve a cortar **tu** bucle a su manera y lo toca a su
+manera (un paso de deshacer); en uno vacío toca unos sonidos integrados hasta que cortes un
+bucle en él. No incluyen audio.
+
+Cada corte es una zona de Exemplar: su **altura**, **ganancia**, **panorama**, **reversa**,
+**grupo de corte** y su propio **paso bajo** (*Paso bajo* en la tabla de zonas) son de la zona, su
+**envolvente** de su grupo. Los puntos se guardan con el proyecto. Los agentes tienen
+`slice_sample` (sobre archivos dentro de la carpeta del proyecto y las carpetas que
+permitiste) y `dump_slices`.
 
 ### Los efectos de modulación
 
@@ -2429,9 +2542,24 @@ Esto es una beta. Lo que ya sabemos:
   sube el búfer si la barra superior cuenta cortes.
 - No se puede cambiar el dispositivo de audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos
   guardan las muestras de los paquetes con su ruta completa.
-- **Fuera de esta beta**: los instaladores de macOS y Linux (muy pronto; el código compila
-  y pasa sus pruebas en Linux), los protocolos de superficies de control (Mackie Control,
-  HUI), varios arreglos por proyecto.
+- **macOS es una vista previa**: la imagen de disco aún no está firmada por Apple y se ha
+  probado en las máquinas macOS de GitHub, todavía no en un Mac de escritorio. **Mackie
+  Control y HUI** se probaron con unidades emuladas; cuéntanos cómo se porta tu superficie
+  ([Equipo externo](external-gear.md)).
+- **Fuera de esta beta**: varios arreglos por proyecto.
+- **Sectio** (el cortador, §10) encuentra alrededor del 92 % de los golpes a menos de 10 ms en
+  loops limpios y del 76 % en baterías grabadas de verdad (88 % a menos de 20 ms); la
+  batería de jazz con escobillas o ride es la más difícil (43–65 %). Donde falle, mueve el
+  corte a mano o vuelve a cortar con otra sensibilidad. Los cortes aún no pueden ir a
+  salidas separadas.
+- **Pulsus**: la cadena de un pad que lleva un efecto con latencia llega tarde esa latencia
+  en el stem de la *pista* (la mezcla completa y la salida propia del pad van alineadas).
+- Los **presets** están nivelados y comprobados con mediciones (cada uno en su ventana de
+  sonoridad, sin saturar, dentro de su presupuesto de CPU), todavía no todos afinados de
+  oído; unos veinte presets dinámicos y suaves quedan por debajo de su ventana a propósito.
+  Los presets de ducking (Porta y Comprimo *Duck*) necesitan que les llegue una señal clave
+  para hacer algo.
+- En el explorador, cambiar el **nivel de escucha previa** reinicia el sonido que suena.
 - **IA**: un panel de asistente dentro de Cantus (con tu propia clave o un modelo local) y
   la generación de audio no están en esta beta — los agentes se conectan desde fuera por
   MCP (§11). Los stems y el audio a MIDI corren en el procesador (la tarjeta gráfica solo se

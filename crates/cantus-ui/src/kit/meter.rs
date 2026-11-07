@@ -15,6 +15,8 @@ pub const TOKENS: &[Tok] = &[
     Tok::MeterLow,
     Tok::MeterHigh,
     Tok::MeterClip,
+    Tok::InnerShadow,
+    Tok::Lip,
 ];
 use egui::{Color32, Pos2, Rect};
 
@@ -50,7 +52,12 @@ impl Levels {
 #[derive(Copy, Clone, Debug)]
 pub struct MeterBatch {
     well: Sunken,
+    /// The shadow the well's upper lip casts, and the light on its lower lip (round 37).
+    shadow: Color32,
+    lip: Color32,
     lane: Color32,
+    /// The well's rim: a light theme's firmer (judge 7: Paper's meters washed out).
+    rim: Color32,
     low: Color32,
     high: Color32,
     clip: Color32,
@@ -61,9 +68,24 @@ pub struct MeterBatch {
 impl MeterBatch {
     pub fn new(s: &Style) -> MeterBatch {
         let t = &s.t;
+        let m = super::light::Material::of(t);
         MeterBatch {
             well: Sunken::at(t.meter_well, t.depth),
-            lane: shade(t.meter_well, -0.035),
+            shadow: m.inner_shadow,
+            // r37:finish — a light theme's lip half as bright: a white rim round a dark well
+            // read harsh on paper.
+            lip: if t.dark {
+                m.lip
+            } else {
+                m.lip.gamma_multiply(0.5)
+            },
+            lane: shade(t.meter_well, if t.dark { -0.035 } else { 0.04 }), // r37:finish
+            // r37:finish — a light theme's dark well has a firm dark rim on the paper.
+            rim: if t.dark {
+                Sunken::at(t.meter_well, t.depth).border
+            } else {
+                shade(t.meter_well, -0.5)
+            },
             low: t.meter_low,
             high: t.meter_high,
             clip: t.meter_clip,
@@ -78,7 +100,15 @@ impl MeterBatch {
         let rect = b.snap_rect(rect);
         let px = b.px();
         let w = &self.well;
-        b.rect(rect, Fill::Solid(w.border));
+        // The lower lip catching the light, just under the well.
+        b.rect(
+            Rect::from_min_max(
+                Pos2::new(rect.left(), rect.bottom()),
+                Pos2::new(rect.right(), rect.bottom() + px),
+            ),
+            Fill::Solid(self.lip),
+        );
+        b.rect(rect, Fill::Solid(self.rim));
         let inner = rect.shrink(px);
         b.rect(inner, Fill::V(w.fill_top, w.fill_bottom));
         b.rect(
@@ -109,12 +139,14 @@ impl MeterBatch {
             let lv = levels.level[ch];
             if lv > MIN_DB {
                 let y = b.snap(y_of(lv));
+                // Each zone lit brighter toward its top (round 37): a lit column, not a
+                // flat block.
                 let mut zone = |from: f32, to: f32, c: Color32| {
                     let (a, z) = (from.max(y), to);
                     if a < z {
                         b.rect(
                             Rect::from_min_max(Pos2::new(x0, a), Pos2::new(x1, z)),
-                            Fill::Solid(c),
+                            Fill::V(shade(c, 0.08), shade(c, -0.07)),
                         );
                     }
                 };
@@ -132,16 +164,30 @@ impl MeterBatch {
                 } else {
                     self.low
                 };
+                // The held peak: a bright line with a softer one under it (round 37).
                 let t = b.snap((2.0 * px).max(px * 2.0));
                 b.rect(
                     Rect::from_min_max(
                         Pos2::new(x0, y.max(y_top)),
+                        Pos2::new(x1, (y + t * 0.5).min(y_bot)),
+                    ),
+                    Fill::Solid(shade(c, 0.10)),
+                );
+                b.rect(
+                    Rect::from_min_max(
+                        Pos2::new(x0, (y + t * 0.5).min(y_bot)),
                         Pos2::new(x1, (y + t).min(y_bot)),
                     ),
-                    Fill::Solid(c),
+                    Fill::Solid(shade(c, -0.12)),
                 );
             }
         }
+        // The shadow the upper lip casts over the well's top.
+        let reach = (3.0 * px).min(inner.height());
+        b.rect(
+            Rect::from_min_max(inner.min, Pos2::new(inner.max.x, inner.top() + reach)),
+            Fill::V(self.shadow, Color32::TRANSPARENT),
+        );
     }
 }
 

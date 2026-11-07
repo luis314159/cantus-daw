@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 53; // r36: 50 mix, 51 external, 52 editor, 53 ara
+pub const SCHEMA_VERSION: u32 = 59; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -296,6 +296,12 @@ static MIGRATIONS: &[Migration] = &[
     migrate_50_to_51, // r36:external
     migrate_51_to_52, // r36:editor
     migrate_52_to_53, // r36:ara
+    migrate_53_to_54, // r37:piano
+    migrate_54_to_55, // r37:piano (Sectio's, to come: an empty step until then)
+    migrate_55_to_56, // r37:drums
+    migrate_56_to_57, // r37:drums — a kit's own gain
+    migrate_57_to_58, // r37:scene — Chorda's look
+    migrate_58_to_59, // r37:chars — the songbird written into dancers that named no character
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1032,6 +1038,169 @@ fn migrate_52_to_53(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 54 (round 37, ADR 0098): Chorda's second model. A new instance plays model 2;
+/// a spec that says no model meant the first one, so every Chorda saved before gets
+/// `model` = 1 written into its parameters — it renders to the same bits it did — and a
+/// value already there is kept. // r37:piano
+fn migrate_53_to_54(value: &mut Value) -> Result<(), String> {
+    write_native_default(value, "Chorda", "model", 1.0)
+}
+
+/// Schema 59 (round 37, ADR 0105): the cast's default character is now Fuga the ninja. A
+/// dancer that named no character showed the default — the songbird, before — so every
+/// dancer saved without one gets `character` = `builtin:songbird` written into its text,
+/// and a song keeps the dancer it had; a character already named is kept. // r37:chars
+fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(inst) = t.get_mut("instrument").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let native = inst.get("type").and_then(Value::as_str) == Some("Native");
+        if !native || inst.get("kind").and_then(Value::as_str) != Some("Dancer") {
+            continue;
+        }
+        let text = inst
+            .entry("text")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(text) = text.as_object_mut() else {
+            return Err("a dancer's text is not a map".into());
+        };
+        text.entry("character")
+            .or_insert_with(|| Value::from("builtin:songbird"));
+    }
+    Ok(())
+}
+
+/// Write `key` = `v` into the parameters of every native instrument of `kind` that lacks
+/// it. // r37:piano
+fn write_native_default(value: &mut Value, kind: &str, key: &str, v: f64) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(inst) = t.get_mut("instrument").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let native = inst.get("type").and_then(Value::as_str) == Some("Native");
+        if !native || inst.get("kind").and_then(Value::as_str) != Some(kind) {
+            continue;
+        }
+        let params = inst
+            .entry("params")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(params) = params.as_object_mut() else {
+            return Err(format!("a {kind}'s params are not a map"));
+        };
+        params.entry(key).or_insert_with(|| Value::from(v));
+    }
+    Ok(())
+}
+
+/// Schema 55 (round 37, ADR 0099): Sectio, Exemplar's slicer — a sliced loop's points and
+/// settings among an Exemplar's parameters (`sl.n`, `sl.p{i}`, `sl.len`, `sl.rate`,
+/// `sl.bpm`, `sl.mode`, `sl.sens`, `sl.grid`) and a zone's own low-pass (`z{n}.lpf`). Nothing
+/// to write: no older file holds any of them, and an Exemplar without them is not sliced and
+/// plays as it did. An older build must refuse a v55 file, which would lose the slices and
+/// the slices' filters on its next save. // r37:piano
+fn migrate_54_to_55(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 56 (round 37, ADR 0100): Pulsus III — a pad's `output` is heard on its strip (it
+/// was stored and ignored), a strip's own `pan_law`, kit model 3. Nothing to write: every
+/// older kit keeps its model (1 or 2) and sums in voice order, bit for bit as it did; no
+/// older file sets a strip's law. An older build must refuse a v56 file: it would play a
+/// split kit's pads on the kit's strip and a pad strip through the project's law. // r37:drums
+fn migrate_55_to_56(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 57 (round 37, ADR 0100 §8): a kit's own gain (`KitSettings::gain_db`), the stage
+/// the factory kits are calibrated with. Nothing to write: an older kit has none and plays at
+/// 0 dB, exactly as it did. An older build must refuse a v57 file: it would play a
+/// calibrated kit at 0 dB. // r37:drums
+fn migrate_56_to_57(value: &mut Value) -> Result<(), String> {
+    // A strip a pad of a kit plays on, made by schema 56's *Split to strips* (its own pan
+    // law, audio): a pad strip now (`StripKind::Pad`), so it goes with its kit.
+    let project = value
+        .get_mut("project")
+        .ok_or_else(|| "no project".to_string())?;
+    let mut pad_strips: Vec<u64> = Vec::new();
+    if let Some(tracks) = project.get("tracks").and_then(Value::as_array) {
+        for t in tracks {
+            let pads = t
+                .get("instrument")
+                .filter(|i| i.get("type").and_then(Value::as_str) == Some("Pulsus"))
+                .and_then(|i| i.get("pads"))
+                .and_then(Value::as_array);
+            for pad in pads.into_iter().flatten() {
+                if let Some(o) = pad.get("output").and_then(Value::as_u64) {
+                    pad_strips.push(o);
+                }
+            }
+        }
+    }
+    if let Some(strips) = project.get_mut("strips").and_then(Value::as_array_mut) {
+        for s in strips {
+            let id = s.get("id").and_then(Value::as_u64);
+            let audio = s.get("kind").is_none_or(|k| k == "Audio");
+            let own_law = s.get("pan_law").is_some();
+            if id.is_some_and(|i| pad_strips.contains(&i)) && audio && own_law {
+                s["kind"] = Value::from("Pad");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Schema 58 (round 37, ADR 0104): Chorda's look — the piano its scene draws, two text
+/// keys (`look.body`, `look.finish`) that no sample reads. Every Chorda saved before gets the
+/// look it was always shown with (a black concert grand) written in, so a later default never
+/// changes the picture of a song made before it; a look already there is kept. // r37:scene
+fn migrate_57_to_58(value: &mut Value) -> Result<(), String> {
+    write_native_text_default(value, "Chorda", "look.body", "concert")?;
+    write_native_text_default(value, "Chorda", "look.finish", "black")
+}
+
+/// Write the text `key` = `v` into every native instrument of `kind` that lacks it.
+/// // r37:scene
+fn write_native_text_default(
+    value: &mut Value,
+    kind: &str,
+    key: &str,
+    v: &str,
+) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(inst) = t.get_mut("instrument").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let native = inst.get("type").and_then(Value::as_str) == Some("Native");
+        if !native || inst.get("kind").and_then(Value::as_str) != Some(kind) {
+            continue;
+        }
+        let text = inst
+            .entry("text")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(text) = text.as_object_mut() else {
+            return Err(format!("a {kind}'s text is not a map"));
+        };
+        text.entry(key).or_insert_with(|| Value::from(v));
+    }
+    Ok(())
+}
+
 /// What schema 31 read of a clip to tell a comp window: its lane, its stretch of the
 /// timeline, what it shows and that content's origin on the timeline.
 #[derive(Copy, Clone, PartialEq)]
@@ -1145,6 +1314,56 @@ mod tests {
         let old = std::fs::read_to_string(dir.join("v23.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tracks.iter().all(|t| t.name != "Exemplar pedal"));
+    }
+
+    // r37:drums
+    /// Schema 57 (round 37, ADR 0100 §8): the fixture's Drums kit keeps its own gain; an
+    /// older file (56) opens with none (0 dB).
+    #[test]
+    fn schema_57_keeps_a_kits_own_gain() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let gain = |f: &str| {
+            let text = std::fs::read_to_string(dir.join(f)).unwrap();
+            let p = parse(&text, true).unwrap().file.project;
+            let t = p.tracks.iter().find(|t| t.name == "Drums").unwrap();
+            t.instrument.pulsus().unwrap().kit.gain_db
+        };
+        assert_eq!(gain("v57.cantus"), 3.5);
+        assert_eq!(gain("v56.cantus"), 0.0);
+        // A v56 file's pad strips are pad strips after the migration.
+        let text = std::fs::read_to_string(dir.join("v56.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let t = p.tracks.iter().find(|t| t.name == "Drums").unwrap();
+        for s in t.instrument.output_strips() {
+            assert_eq!(p.strip(s).unwrap().kind, cantus_core::vca::StripKind::Pad);
+        }
+    }
+
+    // r37:drums
+    /// Schema 56 (round 37, ADR 0100): the fixture's Drums kit comes back split — each pad
+    /// on its own strip, into the kit's, with the 0 dB law, one fader down — and an older
+    /// file (53) opens with its kit whole, its model as it was, no strip with a law.
+    #[test]
+    fn schema_56_keeps_a_kit_split_to_strips() {
+        use cantus_core::PanLaw;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v56.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let t = p.tracks.iter().find(|t| t.name == "Drums").unwrap();
+        let outs = t.instrument.output_strips();
+        assert!(outs.len() >= 5, "the kit is split: {outs:?}");
+        for s in &outs {
+            let st = p.strip(*s).expect("its strip");
+            assert_eq!(st.output, t.strip);
+            assert_eq!(st.pan_law, Some(PanLaw::ZeroDb));
+        }
+        assert_eq!(p.strip(outs[0]).unwrap().gain_db, -3.0);
+        let old = std::fs::read_to_string(dir.join("v53.cantus")).unwrap();
+        let q = parse(&old, true).unwrap().file.project;
+        let t = q.tracks.iter().find(|t| t.name == "Drums").unwrap();
+        assert!(t.instrument.output_strips().is_empty());
+        assert!(t.instrument.pulsus().unwrap().version < cantus_core::PULSUS_MODEL);
+        assert!(q.strips.iter().all(|s| s.pan_law.is_none()));
     }
 
     /// Schema 25 (round 28): the fixture holds one insert of each of the thirteen new

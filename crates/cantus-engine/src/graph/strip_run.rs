@@ -368,7 +368,8 @@ pub(crate) fn strip_chain(
         e.fade(l, r, k0); // r36:mix
     }
     apply_width(l, r, st.width);
-    let (pl, pr) = ctx.law.gains(st.pan);
+    let law = st.law.unwrap_or(ctx.law); // r37:drums — a strip's own law (ADR 0100)
+    let (pl, pr) = law.gains(st.pan);
     let (gl, gr, muted) = (st.gain * pl, st.gain * pr, st.muted);
     let (gl, gr) = if muted { (0.0, 0.0) } else { (gl, gr) };
     // An automated fader or pan ramping (ADR 0027): applied to the buffer, so every tap
@@ -382,7 +383,7 @@ pub(crate) fn strip_chain(
                 dry_l.copy_from_slice(l);
                 dry_r.copy_from_slice(r);
             }
-            auto::ramp_strip(st, ctx.law, k0, l, r);
+            auto::ramp_strip(st, law, k0, l, r);
             Fader {
                 gl: 1.0,
                 gr: 1.0,
@@ -435,6 +436,11 @@ pub(crate) fn strip_outputs(
                 Some(mut tap) => {
                     if let Some(tap) = tap.as_mut() {
                         tap.strip(slot, ctx.p0, l, r, gl, gr);
+                        // r37:fixes — a pad's chain is its kit's sound: in the kit's
+                        // track stem (ADR 0100 §9).
+                        if let Some(src) = st.chain_of {
+                            tap.track_add(src, ctx.p0, l, r, gl, gr);
+                        }
                     }
                 }
                 None => nodes.conflict(),
@@ -509,6 +515,18 @@ pub(crate) fn strip_outputs(
                     out.out_l[i] = sl;
                     out.out_r[i] = sr;
                 }
+            }
+        }
+        // r37:fixes — a pad's chain straight to the master (its kit has no strip) is part of
+        // what goes there directly: the stems' Direct sum, as the master takes it.
+        if ctx.tap && st.chain && st.output.is_none() {
+            match nodes.tap.try_borrow_mut() {
+                Some(mut tap) => {
+                    if let Some(tap) = tap.as_mut() {
+                        tap.direct(ctx.p0, &out.out_l[..n], &out.out_r[..n]);
+                    }
+                }
+                None => nodes.conflict(),
             }
         }
         out.ran = true;

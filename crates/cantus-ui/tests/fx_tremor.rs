@@ -159,7 +159,7 @@ fn the_movement_drawn_is_the_movement_played() {
 
 #[test]
 fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
-    for (label, values) in tremor::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Tremolo) {
         for (k, _) in *values {
             assert!(
                 EffectKind::Tremolo.param(k).is_some(),
@@ -176,7 +176,7 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
 
 #[test]
 fn every_preset_moves_the_sound() {
-    for (label, values) in tremor::FACTORY_PRESETS {
+    for (label, values) in cantus_ui::views::fx::factory_presets(cantus_core::EffectKind::Tremolo) {
         let mut spec = EffectSpec::new(EffectKind::Tremolo);
         for (k, v) in *values {
             spec.set(k, *v);

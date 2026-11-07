@@ -103,7 +103,7 @@ Felker, et al.), and the notices musl carries from FreeBSD and Sun Microsystems
 
 | Font | Where | Copyright | Licence |
 |---|---|---|---|
-| IBM Plex Sans, Sans Condensed and Mono (Regular, Medium, SemiBold, Condensed Italic) | Cantus's interface (`crates/cantus-ui/assets/fonts/`) | © 2017 IBM Corp., with Reserved Font Name "Plex" | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL.txt`, printed below |
+| IBM Plex Sans, Sans Condensed and Mono (Light, Regular, Medium, SemiBold, Condensed Italic) | Cantus's interface (`crates/cantus-ui/assets/fonts/`) | © 2017 IBM Corp., with Reserved Font Name "Plex" | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL.txt`, printed below |
 | Bravura 1.482 (SMuFL) | the score's music font: the screen, MusicXML's engraving and the PDF, which embeds a subset (`crates/cantus-score/assets/`) | © 2015 Steinberg Media Technologies GmbH, with Reserved Font Name "Bravura" | SIL Open Font License 1.1 — `crates/cantus-score/assets/LICENSE-Bravura-OFL.txt`, printed below |
 | emoji-icon-font | the symbol fallback after every Plex face (`crates/cantus-ui/assets/fonts/`, as egui distributed it) | © 2014 John Slegers | MIT — `crates/cantus-ui/assets/fonts/LICENSE-emoji-icon-font.txt`, printed below |
 
@@ -528,6 +528,8 @@ CC BY's one condition is credit to the author. Each pack's credit, as its licens
 | Unruly Drums | Karoryfer Samples | <https://github.com/sfzinstruments/karoryfer.unruly-drums> |
 | VSCO 2 Percussion | VSCO 2 Community Edition — Versilian Studios | <https://github.com/sgossner/VSCO-2-CE> |
 | TX81Z Multisamples (VCSL) | Versilian Community Sample Library (VCSL) — Versilian Studios | <https://github.com/sgossner/VCSL> |
+| Cantus One-Shots | Cantus — rendered from its own instruments and factory presets | <https://cantusdaw.com> |
+| Cantus Loops | Cantus — rendered from its own instruments, factory presets and kits | <https://cantusdaw.com> |
 
 The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/content.json`.
 

@@ -37,8 +37,9 @@ pub const MAX_NODES: usize = MAX_TRACKS + MAX_STRIPS + 1;
 /// Audio inputs a plan can hold: every track into one place, every strip's output and
 /// sends.
 const MAX_INPUTS: usize = MAX_TRACKS + MAX_STRIPS * (1 + MAX_SENDS_PER_STRIP);
-/// Dependencies: the audio inputs, plus a key and a note source per insert.
-const MAX_EDGES: usize = MAX_INPUTS + (MAX_STRIPS + 1) * MAX_EFFECTS_PER_TRACK * 2;
+/// Dependencies: the audio inputs, plus a key and a note source per insert, plus a tap's
+/// wait for its source (ADR 0100, r37:drums).
+const MAX_EDGES: usize = MAX_INPUTS + (MAX_STRIPS + 1) * MAX_EFFECTS_PER_TRACK * 2 + MAX_TRACKS;
 /// Not in the order.
 const NONE: u16 = u16::MAX;
 
@@ -219,6 +220,11 @@ pub fn topology_key(snap: &Snapshot) -> u64 {
         // it always did.
         if t.rest {
             h.word(0xF2EE_2E01);
+        }
+        // r37:drums — a tap and its source (ADR 0100): mixed in only when there is one.
+        if let Some(tap) = t.tap {
+            h.word(0x7A9_0000 | u64::from(tap.bus));
+            h.word(tap.source as u64);
         }
     }
     for st in &snap.strips {

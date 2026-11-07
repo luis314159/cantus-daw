@@ -1,0 +1,271 @@
+# Area: library - round 37. Every key here needs its twin in library.es.txt
+
+# The preset vocabulary (ADR 0101): styles and roles.
+preset.style.trap = Trap · Hip-hop
+preset.style.pop = Pop
+preset.style.house = House · EDM
+preset.style.rnb = R&B
+preset.style.lofi = Lo-fi
+preset.style.rock = Rock
+preset.style.latin = Latin · Reggaeton
+preset.style.ambient = Ambient · Cinematic
+preset.style.film = Film · Game
+preset.style.jazz = Jazz · Soul
+preset.style.worship = Worship · Gospel
+preset.role.bass = Bass
+preset.role.lead = Lead
+preset.role.pad = Pad
+preset.role.keys = Keys
+preset.role.pluck = Pluck
+preset.role.fx = Effect
+preset.role.drums = Drums
+preset.role.vocal = Vocal
+preset.role.bus = Bus
+preset.role.master = Master
+preset.role.creative = Creative
+
+# The preset browser.
+preset.browse = Browse presets…
+preset.browser.title = Presets · {unit}
+preset.browser.search = Search presets
+preset.browser.styles = STYLE
+preset.browser.roles = ROLE
+preset.browser.count = {shown} of {all} presets
+preset.browser.none = No preset matches. Clear a filter or the search.
+preset.browser.clear = Clear filters
+preset.browser.load = Load
+preset.browser.play = Hear it
+preset.browser.stop = Stop
+preset.browser.rendering = Rendering…
+preset.browser.sync = Sync BPM
+preset.browser.sync_tip = Audition at the project's tempo (off: at 120 BPM, the tempo the presets are levelled at)
+preset.browser.help = ▶ hears a preset · nothing changes until you load it · double-click or Enter loads
+preset.browser.silent = This unit makes no sound to hear
+preset.browser.failed = Could not render the audition: {why}
+library.said.audition = hear the preset {preset}
+preset.browser.factory = Factory
+preset.browser.user = Yours
+preset.browser.close = Close the preset browser
+preset.browser.on_phrase = Heard on {what} at {bpm} BPM, rendered by Cantus
+preset.browser.on_clip = Heard on the selected clip, rendered by Cantus
+preset.browser.on_first_clip = Heard on the first clip of this channel, rendered by Cantus
+preset.browser.on_source = Heard on {what}, made and rendered by Cantus
+preset.browser.phrase.bass = a bass line
+preset.browser.phrase.lead = a melody
+preset.browser.phrase.pad = held chords
+preset.browser.phrase.keys = comped chords
+preset.browser.phrase.pluck = an arpeggio
+preset.browser.phrase.fx = held notes
+preset.browser.phrase.drums = a drum groove
+preset.browser.source.drums = a drum groove
+preset.browser.source.vocal = a lead line standing in for a voice
+preset.browser.source.band = a small band (drums, bass, keys)
+preset.browser.frozen = Frozen — unfreeze to load
+
+# Delay's presets.
+delay.preset.slapback = Slapback
+delay.preset.eighth_echo = Eighth echo
+delay.preset.dotted_eighth = Dotted eighth
+delay.preset.quarter_throw = Quarter-note throw
+delay.preset.trap_vocal = Trap vocal echo
+delay.preset.dub_spiral = Dub spiral
+delay.preset.tape_echo = Tape echo
+delay.preset.ambient_wash = Ambient wash
+delay.preset.sixteenth_bounce = Sixteenth bounce
+delay.preset.doubler = Doubler
+delay.preset.film_tail = Film tail
+delay.preset.triplet = Triplet echo
+delay.preset.snare_space = Snare space
+
+# Concentus's new presets.
+preset.concentus.guitar_shimmer = Guitar shimmer
+preset.concentus.lofi_wobble = Lo-fi wobble
+preset.concentus.pad_width = Pad width
+preset.concentus.eighties_vocal = Eighties vocal
+
+# Flexus, Phasis, Tremor and Vibrans: their new presets.
+preset.flexus.house_filter_sweep = House sweep
+preset.flexus.vocal_air = Vocal air
+preset.flexus.lofi_warble = Lo-fi warble
+preset.flexus.trap_hat_swirl = Trap hat swirl
+preset.phasis.funk_keys = Funk keys
+preset.phasis.lofi_drift = Lo-fi drift
+preset.phasis.vocal_motion = Vocal motion
+preset.phasis.drum_loop = Drum loop sweep
+preset.tremor.rhodes_pan = Suitcase pan
+preset.tremor.lofi_flutter = Lo-fi flutter
+preset.tremor.trap_stutter = Trap stutter
+preset.vibrans.vintage_keys = Vintage keys
+preset.vibrans.lofi_vinyl = Lo-fi vinyl
+preset.vibrans.latin_guitar = Nylon vibrato
+preset.vibrans.ghost_vocal = Ghost vocal
+
+# Anulus, Translatio, Fluctus, Tonsor, Impetus and Discrimen: their new presets.
+preset.anulus.lofi_radio = Lo-fi radio
+preset.anulus.trap_bell = Trap bell
+preset.anulus.drum_tone = Drum tone
+preset.anulus.alien_vocal = Alien vocal
+preset.translatio.vocal_width = Vocal width
+preset.translatio.lofi_drift = Lo-fi drift
+preset.translatio.riser = Riser
+preset.translatio.dark_pad = Dark pad
+preset.fluctus.lofi_breath = Lo-fi breath
+preset.fluctus.dembow_pump = Dembow pump
+preset.tonsor.vocal_edge = Vocal edge
+preset.tonsor.latin_perc = Latin percussion
+preset.tonsor.lofi_crunch = Lo-fi crunch
+preset.tonsor.bus_glue = Bus glue
+preset.impetus.trap_snap = Trap snap
+preset.impetus.acoustic_guitar = Acoustic guitar
+preset.impetus.vocal_consonants = Vocal consonants
+preset.impetus.ambient_bloom = Ambient bloom
+preset.discrimen.vocal_breath = Vocal breath
+preset.discrimen.guitar_strum = Guitar strum
+preset.discrimen.trap_hats = Trap hats
+preset.discrimen.bus_depth = Bus depth
+
+# Aequalis, Comprimo, Sibilus and Porta: their new presets.
+eq.preset.snare = Snare body and crack
+eq.preset.acoustic_guitar = Acoustic guitar
+eq.preset.eight_oh_eight = 808 clean-up
+eq.preset.lofi_band = Lo-fi band
+eq.preset.piano = Piano clarity
+eq.preset.bus_clean = Bus clean-up
+comp.preset.lofi_squash = Lo-fi squash
+comp.preset.rap_vocal = Rap vocal
+comp.preset.acoustic = Acoustic leveller
+comp.preset.room_smash = Room smash
+ds.preset.rap = Rap vocal
+ds.preset.airy = Soft and airy
+ds.preset.choir = Choir
+ds.preset.guitar_squeak = Guitar squeak
+ds.preset.hats = Hats and shakers
+ds.preset.podcast = Podcast
+preset.gate.eight_oh_eight = 808 tail
+preset.gate.live_vocal = Live vocal
+preset.gate.percussion = Hand percussion
+
+# Terminus, Spatium, Multiplex, Culmen, Speculum and Tonus: their new presets.
+lim.preset.trap_master = Trap master
+lim.preset.worship_live = Worship live
+lim.preset.vocal_peaks = Vocal peaks
+lim.preset.lofi_wall = Lo-fi wall
+space.preset.lofi_room = Lo-fi room
+space.preset.trap_vocal = Trap vocal hall
+space.preset.worship_hall = Worship hall
+space.preset.latin_room = Percussion room
+mb.preset.eight_oh_eight = 808 control
+mb.preset.vocal_smooth = Vocal smoothing
+mb.preset.worship_mix = Worship mix
+mb.preset.lofi_squash = Lo-fi squash
+mb.preset.acoustic_body = Acoustic body
+mb.preset.drum_tight = Tight drums
+preset.max.worship = Worship master
+preset.max.lofi = Lo-fi master
+preset.speculum.vocal = Vocal spectrum
+preset.speculum.scope_bar = One-bar scope
+preset.tonus.latin_vocal = Latin vocal
+preset.tonus.gospel = Gospel runs
+preset.tonus.robot = Robot
+# Gravis: its new presets.
+bass.preset.reggaeton_808 = Reggaeton 808
+bass.preset.trap_slide = Trap slide
+bass.preset.lofi_upright = Lo-fi upright
+bass.preset.worship_finger = Warm finger
+bass.preset.house_roll = House roll
+bass.preset.synthwave = Synthwave octave
+bass.preset.rnb_sub = R&B sub
+bass.preset.dub = Dub
+bass.preset.sub_drop = Sub drop
+bass.preset.rock_drive = Rock drive
+bass.preset.ambient_swell = Ambient swell
+# Lamina: its new presets.
+epiano.preset.neo_soul = Neo-soul
+epiano.preset.lofi_keys = Lo-fi keys
+epiano.preset.worship_ballad = Worship ballad
+epiano.preset.gospel_bright = Gospel bright
+epiano.preset.pop_ballad = Pop ballad
+epiano.preset.bolero = Bolero
+epiano.preset.rock_reed = Rock reed
+epiano.preset.ambient_tines = Ambient tines
+epiano.preset.trap_keys = Trap keys
+epiano.preset.house_stab = House stab
+epiano.preset.music_box = Music box
+epiano.preset.jazz_soft = Soft jazz
+epiano.preset.reed_tremolo = Reed tremolo
+# Organum: its new presets.
+organ.preset.worship_pad = Worship pad
+organ.preset.gospel_shout = Gospel shout
+organ.preset.rock_drive = Rock drive
+organ.preset.salsa = Salsa organ
+organ.preset.house_organ = House organ
+organ.preset.lofi_organ = Lo-fi organ
+organ.preset.pop_church = Pop church
+organ.preset.neo_soul = Neo-soul organ
+organ.preset.ambient_swell = Ambient swell
+organ.preset.horror = Haunted cathedral
+organ.preset.trap_organ = Trap organ
+organ.preset.jazz_ballad = Jazz ballad
+organ.preset.ska = Ska chops
+# Calor: its new presets.
+calor.preset.juno_pad = Eighties pad
+calor.preset.prophet_brass = Poly brass
+calor.preset.moog_bass = Ladder bass
+calor.preset.synthwave_lead = Synthwave lead
+calor.preset.house_stab = House stab
+calor.preset.funk_pluck = Funk pluck
+calor.preset.lofi_keys = Dusty keys
+calor.preset.reggaeton_lead = Reggaeton lead
+calor.preset.cinematic_swell = Cinematic swell
+calor.preset.worship_pad = Worship pad
+calor.preset.rnb_lead = R&B lead
+calor.preset.trap_pluck = Trap pluck
+calor.preset.detroit_chord = Detroit chord
+# Modulus: its new presets.
+fm.preset.ballad_ep = Ballad FM piano
+fm.preset.slap_bass = FM slap bass
+fm.preset.glass_bells = Glass bells
+fm.preset.kalimba = Kalimba
+fm.preset.tubular = Tubular bells
+fm.preset.clav = Clavinet
+fm.preset.steel_drum = Steel pan
+fm.preset.digital_pad = Digital pad
+fm.preset.house_stab = House stab
+fm.preset.vibraphone = Vibraphone
+fm.preset.trap_bell = Trap bell
+fm.preset.metal_fx = Metal impact
+fm.preset.church = Church organ
+fm.preset.pop_lead = Pop lead
+# Unda: its new presets.
+unda.preset.anthem = Anthem lead
+unda.preset.future_chord = Future chord
+unda.preset.trap_bell = Trap bell
+unda.preset.growl = Growl bass
+unda.preset.riser = Riser
+unda.preset.dark_drone = Dark drone
+unda.preset.lofi_keys = Lo-fi keys
+unda.preset.reggaeton_pluck = Reggaeton pluck
+unda.preset.neon_arp = Neon arp
+unda.preset.worship_shimmer = Shimmer pad
+# Exemplar: its new presets.
+smp.preset.harp = Harp
+smp.preset.lofi_nylon = Lo-fi nylon
+smp.preset.latin_guitar = Latin guitar
+smp.preset.celesta = Celesta
+smp.preset.trap_glock = Trap glockenspiel
+smp.preset.worship_choir = Worship choir
+smp.preset.dark_pad = Dark pad
+smp.preset.lofi_keys = Lo-fi keys
+smp.preset.chip_arp = Chip arpeggio
+smp.preset.trap_sub = Trap sub
+smp.preset.house_organ = House organ
+smp.preset.rnb_lead = R&B lead
+smp.preset.pop_keys = Pop keys
+# Four effect patches.
+calor.preset.siren_glide = Siren glide
+unda.preset.impact = Impact
+fm.preset.scifi = Sci-fi beep
+smp.preset.wind = Wind
+
+# The loops category of the sound packs (round 37).
+samples.cat.loops = Loops

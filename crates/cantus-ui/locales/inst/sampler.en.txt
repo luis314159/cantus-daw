@@ -78,6 +78,7 @@ smp.delay = Delay
 smp.cc = Controller
 smp.cclo = Controller from
 smp.cchi = Controller to
+smp.lpf = Low-pass (slice)
 # Editor
 smp.import = Import
 smp.import_samples = Samples…
@@ -323,6 +324,7 @@ smp.sw.short = KEYSW
 smp.cc.short = CC
 smp.cclo.short = CC FROM
 smp.cchi.short = CC TO
+smp.lpf.short = LOW-PASS
 smp.gain.short = GAIN
 smp.tune.short = TUNE
 smp.pan.short = PAN

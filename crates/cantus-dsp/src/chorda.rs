@@ -52,6 +52,24 @@ pub mod voice;
 #[path = "chorda_board.rs"]
 pub mod board;
 
+#[path = "chorda_conv.rs"]
+pub mod conv;
+
+#[path = "chorda_body.rs"]
+pub mod body;
+
+#[path = "chorda_room.rs"]
+pub mod room;
+
+#[path = "chorda_stage.rs"]
+pub mod stage;
+
+#[path = "chorda_noise.rs"]
+pub mod noise;
+
+#[path = "chorda_voicing.rs"]
+pub mod voicing;
+
 #[path = "chorda_engine.rs"]
 mod engine;
 pub use engine::{Chorda, ChordaSettings, Meter, CHUNK};
@@ -63,3 +81,15 @@ mod tests_engine;
 #[cfg(test)]
 #[path = "chorda_tests_piano.rs"]
 mod tests_piano;
+
+#[cfg(test)]
+#[path = "chorda_tests_model2.rs"]
+mod tests_model2;
+
+#[cfg(test)]
+#[path = "chorda_tests_stage.rs"]
+mod tests_stage;
+
+#[cfg(test)]
+#[path = "chorda_tests_hash.rs"]
+mod tests_hash;

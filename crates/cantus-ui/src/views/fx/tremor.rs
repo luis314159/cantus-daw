@@ -25,66 +25,8 @@ const KIND: EffectKind = EffectKind::Tremolo;
 
 /// Factory presets: a label key and the parameters it sets (what a preset does not name
 /// goes back to its default).
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[
-    (
-        "preset.tremor.surf",
-        &[
-            ("depth", 0.65),
-            ("sync", 0.0),
-            ("rate", 6.2),
-            ("shape", 1.0),
-        ],
-    ),
-    (
-        "preset.tremor.slow_swell",
-        &[("depth", 0.5), ("div", 5.0), ("shape", 0.0)],
-    ),
-    (
-        "preset.tremor.helicopter",
-        &[("depth", 1.0), ("div", 14.0), ("shape", 2.0), ("edge", 0.1)],
-    ),
-    (
-        "preset.tremor.trance_gate",
-        &[
-            ("depth", 1.0),
-            ("div", 14.0),
-            ("shape", 2.0),
-            ("edge", 0.05),
-            ("swing", 0.5),
-        ],
-    ),
-    (
-        "preset.tremor.stereo_shimmer",
-        &[
-            ("depth", 0.6),
-            ("div", 13.0),
-            ("shape", 0.0),
-            ("spread", 180.0),
-        ],
-    ),
-    (
-        "preset.tremor.random_steps",
-        &[("depth", 0.6), ("div", 11.0), ("shape", 5.0), ("edge", 0.4)],
-    ),
-    (
-        "preset.tremor.pan_quarters",
-        &[("mode", 1.0), ("depth", 0.8), ("div", 8.0), ("shape", 0.0)],
-    ),
-    (
-        "preset.tremor.wide_pan",
-        &[("mode", 1.0), ("depth", 1.0), ("div", 3.0), ("shape", 1.0)],
-    ),
-    (
-        "preset.tremor.harmonic",
-        &[
-            ("mode", 2.0),
-            ("depth", 0.8),
-            ("sync", 0.0),
-            ("rate", 4.5),
-            ("xover", 700.0),
-        ],
-    ),
-];
+// r37:library — the factory presets are data now: crates/cantus-ui/presets/ (ADR 0101).
+pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// The modes' names and what each does, by index.
 const MODE_KEYS: [&str; 3] = ["tremor.mode.0", "tremor.mode.1", "tremor.mode.2"];

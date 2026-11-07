@@ -845,8 +845,9 @@ fn without_ports_the_midi_cell_opens_the_settings() {
     let ctx = ctx();
     let mut a = app(cantus_ui::starter_project());
     assert!(a.midi_port_names.is_empty());
-    // Find the cell by painting once, then click it.
-    paint(&ctx, egui::vec2(1920.0, 70.0), 2, |ui| {
+    // Find the cell by painting once, then click it. A 2560-pt bar: at 1920 the larger
+    // bar (round 37) folds the inputs into its overflow.
+    paint(&ctx, egui::vec2(2560.0, 70.0), 2, |ui| {
         cantus_ui::views::transport::show(&mut a, ui)
     });
     let r = ctx
@@ -878,7 +879,7 @@ fn without_ports_the_midi_cell_opens_the_settings() {
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
-                egui::vec2(1920.0, 70.0),
+                egui::vec2(2560.0, 70.0),
             )),
             time: Some(1.0 + i as f64 * 0.1),
             events,

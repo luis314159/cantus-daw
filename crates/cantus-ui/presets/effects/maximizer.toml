@@ -1,0 +1,179 @@
+# Culmen maximizer: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.max.transparent"
+note = "Gentle and clear: a little louder, nothing changed."
+styles = ["pop", "film"]
+roles = ["master"]
+[preset.values]
+"all.att" = 30
+"all.knee" = 12
+"all.ratio" = 1.5
+"all.rel" = 300
+"all.thr" = -18
+"gain" = 3
+
+[[preset]]
+key = "preset.max.streaming"
+note = "Towards -14 LUFS with -1 dBTP: a streaming master."
+styles = ["pop", "rnb"]
+roles = ["master"]
+[preset.values]
+"all.knee" = 10
+"all.ratio" = 1.4
+"all.thr" = -16
+"ceiling" = -1
+"gain" = 6
+"lo.att" = 30
+"lo.ratio" = 2
+"lo.rel" = 200
+"lo.thr" = -20
+"target" = -14
+
+[[preset]]
+key = "preset.max.loud"
+note = "Towards -8 LUFS: a loud modern master."
+styles = ["trap", "house"]
+roles = ["master"]
+[preset.values]
+"all.ratio" = 2
+"all.ratio_lo" = 1.5
+"all.thr" = -20
+"all.thr_lo" = -40
+"ceiling" = -0.3
+"clip" = 0.4
+"gain" = 10
+"link_t" = 0.6
+"mid.ratio" = 1.5
+"mid.thr" = -22
+"style" = 2
+"target" = -8
+
+[[preset]]
+key = "preset.max.club"
+note = "Towards -7 LUFS, the lows held: a club master."
+styles = ["house"]
+roles = ["master"]
+[preset.values]
+"ceiling" = -0.1
+"clip" = 0.5
+"gain" = 12
+"hi.ratio" = 1.5
+"hi.thr" = -24
+"lo.place" = 1
+"lo.ratio" = 2.5
+"lo.thr" = -16
+"style" = 1
+"target" = -7
+
+[[preset]]
+key = "preset.max.cd"
+note = "Loud for a CD, dithered."
+styles = ["rock", "pop"]
+roles = ["master"]
+[preset.values]
+"all.ratio" = 1.5
+"all.thr" = -18
+"ceiling" = -0.3
+"dither" = 5
+"gain" = 8
+"shape" = 2
+"target" = -9
+
+[[preset]]
+key = "preset.max.lowend"
+note = "The low band controlled under 120 Hz before the limiter."
+styles = ["trap", "house"]
+roles = ["master"]
+[preset.values]
+"gain" = 4
+"lo.att" = 20
+"lo.place" = 1
+"lo.ratio" = 3
+"lo.rel" = 120
+"lo.thr" = -24
+"x1" = 120
+
+[[preset]]
+key = "preset.max.upward"
+note = "Upward compression: the quiet details brought up."
+styles = ["ambient", "jazz"]
+roles = ["master"]
+[preset.values]
+"all.range_lo" = 8
+"all.ratio_lo" = 2
+"all.thr_lo" = -35
+"gain" = 4
+"mid.ratio_lo" = 1.6
+"mid.thr_lo" = -40
+
+[[preset]]
+key = "preset.max.ms"
+note = "Mid and side apart: a centred low end, a controlled top."
+styles = ["pop", "film"]
+roles = ["master"]
+[preset.values]
+"gain" = 4
+"hi.place" = 2
+"hi.range" = 3
+"hi.ratio" = 0.8
+"hi.thr" = -30
+"lo.place" = 2
+"lo.ratio" = 4
+"lo.thr" = -40
+
+[[preset]]
+key = "preset.max.broadcast"
+note = "Towards -23 LUFS for broadcast."
+styles = ["film"]
+roles = ["master"]
+[preset.values]
+"all.ratio" = 2
+"all.thr" = -24
+"ceiling" = -1
+"style" = 4
+"target" = -23
+
+[[preset]]
+key = "preset.max.maximus"
+note = "Three bands, the classic maximizer approach."
+styles = ["house", "pop"]
+roles = ["master"]
+[preset.values]
+"all.ratio" = 1.5
+"all.thr" = -12
+"gain" = 6
+"hi.ratio" = 2.5
+"hi.thr" = -20
+"lo.ratio" = 2.5
+"lo.thr" = -18
+"mid.ratio" = 2
+"mid.thr" = -16
+"style" = 1
+"xmode" = 1
+
+[[preset]]
+key = "preset.max.worship"
+note = "A gentle master for worship music: -14 LUFS, open and dynamic."
+styles = ["worship"]
+roles = ["master"]
+[preset.values]
+"all.ratio" = 1.4
+"all.thr" = -16
+"ceiling" = -1
+"gain" = 4
+"target" = -14
+
+[[preset]]
+key = "preset.max.lofi"
+note = "A soft master that keeps the lo-fi dynamics."
+styles = ["lofi"]
+roles = ["master"]
+[preset.values]
+"all.ratio" = 1.5
+"all.thr" = -20
+"ceiling" = -1
+"gain" = 3
+"target" = -14

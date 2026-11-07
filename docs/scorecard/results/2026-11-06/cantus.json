@@ -1,0 +1,57 @@
+{
+  "name": "cantus",
+  "exe": "F:\\projects\\daw-r37\\integration\\target\\release\\cantus.exe",
+  "version": "0.1.0-beta.12",
+  "runs": 5,
+  "idle_share": 0.35,
+  "date": "2026-11-06 21:25",
+  "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics        ",
+  "window_ms_median": 1314.0,
+  "window_ms_best": 1290.0,
+  "settled_ms_median": 10052.0,
+  "settled_ms_best": 5877.0,
+  "private_mb_median": 267.3,
+  "working_mb_median": 295.1,
+  "starts": [
+    {
+      "name": "cantus",
+      "measured": true,
+      "window_ms": 1308.0,
+      "settled_ms": 5877.0,
+      "private_mb": 271.5,
+      "working_mb": 289.4
+    },
+    {
+      "name": "cantus",
+      "measured": true,
+      "window_ms": 1317.0,
+      "settled_ms": 10052.0,
+      "private_mb": 267.3,
+      "working_mb": 299.6
+    },
+    {
+      "name": "cantus",
+      "measured": true,
+      "window_ms": 1290.0,
+      "settled_ms": 41607.0,
+      "private_mb": 266.7,
+      "working_mb": 295.1
+    },
+    {
+      "name": "cantus",
+      "measured": true,
+      "window_ms": 1317.0,
+      "settled_ms": 7200.0,
+      "private_mb": 269.1,
+      "working_mb": 296.7
+    },
+    {
+      "name": "cantus",
+      "measured": true,
+      "window_ms": 1314.0,
+      "settled_ms": 22813.0,
+      "private_mb": 266.5,
+      "working_mb": 294.9
+    }
+  ]
+}

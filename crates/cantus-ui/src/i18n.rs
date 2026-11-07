@@ -141,6 +141,11 @@ impl Locale {
                 include_str!("../locales/areas/external.en.txt"),
                 include_str!("../locales/areas/editor.en.txt"),
                 include_str!("../locales/areas/ara.en.txt"),
+                include_str!("../locales/areas/slicer.en.txt"), // r37
+                include_str!("../locales/areas/padout.en.txt"), // r37
+                include_str!("../locales/areas/library.en.txt"), // r37
+                include_str!("../locales/areas/scorecard.en.txt"), // r37
+                include_str!("../locales/areas/scene.en.txt"),  // r37:scene
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -248,6 +253,11 @@ impl Locale {
                 include_str!("../locales/areas/external.es.txt"),
                 include_str!("../locales/areas/editor.es.txt"),
                 include_str!("../locales/areas/ara.es.txt"),
+                include_str!("../locales/areas/slicer.es.txt"), // r37
+                include_str!("../locales/areas/padout.es.txt"), // r37
+                include_str!("../locales/areas/library.es.txt"), // r37
+                include_str!("../locales/areas/scorecard.es.txt"), // r37
+                include_str!("../locales/areas/scene.es.txt"),  // r37:scene
             ],
         }
     }
@@ -332,6 +342,27 @@ pub fn set_locale(locale: Locale) {
 /// a thread of its own, the language it asks for never reaching another).
 pub fn set_thread_locale(locale: Locale) {
     THIS_THREAD.with(|l| l.set(Some(locale)));
+}
+
+/// This thread speaks `locale` until the guard is dropped, then what it spoke before —
+/// for code that runs on the interface's thread and wants a language of its own for a
+/// moment (an agent's tool answering in English while the window speaks Spanish: round
+/// 37's review, item 8). // r37:fixes
+#[must_use = "the language goes back when the guard is dropped"]
+pub fn scoped_thread_locale(locale: Locale) -> ThreadLocaleGuard {
+    let before = THIS_THREAD.with(|l| l.replace(Some(locale)));
+    ThreadLocaleGuard { before }
+}
+
+/// See [`scoped_thread_locale`].
+pub struct ThreadLocaleGuard {
+    before: Option<Locale>,
+}
+
+impl Drop for ThreadLocaleGuard {
+    fn drop(&mut self) {
+        THIS_THREAD.with(|l| l.set(self.before));
+    }
 }
 
 /// Give this thread `locale` unless it already chose one. For test helpers: a test that

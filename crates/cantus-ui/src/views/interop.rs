@@ -862,7 +862,14 @@ pub fn stem_specs(project: &Project, tracks: bool, master: bool) -> Vec<StemSpec
             });
         }
     } else {
-        if project.tracks.iter().any(|t| t.strip.is_none()) {
+        // r37:fixes — a pad's chain straight to the master (its kit has no strip) is part
+        // of the Direct stem.
+        if project.tracks.iter().any(|t| t.strip.is_none())
+            || project
+                .strips
+                .iter()
+                .any(|s| s.kind == cantus_core::vca::StripKind::Chain && s.output.is_none())
+        {
             specs.push(StemSpec {
                 source: StemSource::Direct,
                 file_name: stem_file_name(0, &t("interop.stems.direct")),
@@ -874,6 +881,9 @@ pub fn stem_specs(project: &Project, tracks: bool, master: bool) -> Vec<StemSpec
             .enumerate()
             .take(cantus_engine::MAX_STRIPS)
         {
+            if !s.on_desk() {
+                continue; // r37:drums — a pad's chain: in its kit's strip (or in Direct)
+            }
             let name = if s.name.is_empty() {
                 project
                     .tracks_on_strip(s.id)
@@ -1253,6 +1263,7 @@ pub fn drop_target(app: &CantusApp, pos: Option<egui::Pos2>) -> (Ticks, Option<u
 }
 
 fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
+    crate::padout_ui::poll_kit(app, false); // r37:drums — a kit read on its thread lands
     let (files, hovering, pos) = ctx.input(|i| {
         (
             i.raw.dropped_files.clone(),
@@ -1274,6 +1285,10 @@ fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
     }
     for f in files {
         if crate::audio_files::is_audio_path(f.path()) {
+            continue;
+        }
+        // r37:drums — a folder or an SFZ file: a kit (ADR 0100 §7).
+        if crate::padout_ui::drop_kit(app, ctx, f.path(), pos) {
             continue;
         }
         // A Cantus project dropped on the window opens, as *Open* opens one (ADR 0066).

@@ -489,8 +489,10 @@ mod tests {
     }
 
     /// Final review, fields 3: two fields with one id in one pass would be one edit (typing
-    /// into one writes both) — refused.
+    /// into one writes both) — refused. The check is a `debug_assert!`: release builds of
+    /// the tests skip it.
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "two kit fields share the id")]
     fn two_fields_with_one_id_are_refused() {
         let ctx = Context::default();

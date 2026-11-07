@@ -26,6 +26,8 @@ pub(crate) struct Voice {
     pub(crate) pad_id: u16,
     pub(crate) note_id: u64,
     pub(crate) bus: u8,
+    /// The pad's place in the kit (Pulsus III, ADR 0100): the lane its voice sums into.
+    pub(crate) pad: u8,
     pub(crate) choke: u8,
     /// Follows the hi-hat pedal.
     pub(crate) pedal: bool,
@@ -156,6 +158,7 @@ impl Voice {
             pad_id: 0,
             note_id: 0,
             bus: 0,
+            pad: 0,
             choke: 0,
             pedal: false,
             primary: true,

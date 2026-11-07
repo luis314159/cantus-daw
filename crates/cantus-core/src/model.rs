@@ -955,9 +955,22 @@ pub struct MixerStrip {
     /// `None` plays live.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frozen: Option<crate::freeze::Frozen>,
+    /// The strip's own pan law, in place of the project's (REAPER's per-track law); `None`
+    /// follows the project. *Split to strips* gives a pad's strip the 0 dB law (a balance):
+    /// centred, it passes the pad untouched, and the kit's strip places the kit through
+    /// the project's law as before — so a split kit sums to the kit (schema 56, ADR 0100).
+    #[serde(default, skip_serializing_if = "Option::is_none")] // r37:drums
+    pub pan_law: Option<PanLaw>, // r37:drums
 }
 
 impl MixerStrip {
+    // r37:drums
+    /// Whether the strip is the desk's: every strip but a pad's chain, which lives on its
+    /// pad (ADR 0100 §6). What every list of strips a user picks from or sees filters by.
+    pub fn on_desk(&self) -> bool {
+        self.kind != crate::vca::StripKind::Chain
+    }
+
     pub fn effect(&self, id: EffectId) -> Option<&EffectSlot> {
         self.effects.iter().find(|e| e.id == id)
     }
@@ -1029,6 +1042,26 @@ pub const MIN_GAIN_DB: f32 = -96.0;
 pub const MAX_GAIN_DB: f32 = 12.0;
 
 impl Track {
+    // r37:drums — instruments with several outputs (ADR 0100).
+    /// Where the track is heard: its own strip (`None`: the master), then each strip one of
+    /// its instrument's outputs plays into (a split kit's pads), each once.
+    pub fn destinations(&self) -> Vec<Option<StripId>> {
+        let mut out = vec![self.strip];
+        for s in self.instrument.output_strips() {
+            if !out.contains(&Some(s)) {
+                out.push(Some(s));
+            }
+        }
+        out
+    }
+
+    /// Whether one of the instrument's own outputs (not the track's) plays into `strip`.
+    pub fn feeds_through_bus(&self, strip: StripId) -> bool {
+        self.instrument
+            .pulsus()
+            .is_some_and(|k| k.pads.iter().any(|p| p.output == Some(strip)))
+    }
+
     /// The icon to draw: the one that was chosen, or the one the instrument implies.
     pub fn icon(&self) -> TrackIcon {
         self.icon.unwrap_or(match &self.instrument {
@@ -1379,16 +1412,38 @@ impl Project {
     /// middle of the desk are taken first: the pinned docks hold returns and buses, and a
     /// new instrument landing on one of them would be a surprise.
     pub fn first_free_strip(&self) -> Option<StripId> {
-        let free = |s: &&MixerStrip| {
-            s.kind == crate::vca::StripKind::Audio // r36:mix
-                && !self.tracks.iter().any(|t| t.strip == Some(s.id))
-        };
-        self.strips
+        self.free_strips().next()
+    }
+
+    /// r37:fixes — whether `s` may be handed to a new track: the one rule every path that
+    /// makes tracks follows (a new track, a sample dropped on the rack, imported audio or
+    /// MIDI, a pitch or transcription track). An audio strip (never a VCA, a pad's chain or
+    /// a pad's own strip) that no track plays into, through its own output or a pad's, and
+    /// that no pad's chain or own strip plays into.
+    pub fn strip_is_free(&self, s: &MixerStrip) -> bool {
+        s.kind == crate::vca::StripKind::Audio // r36:mix
+            && !self.tracks.iter().any(|t| t.strip == Some(s.id))
+            && !self.tracks.iter().any(|t| t.feeds_through_bus(s.id)) // r37:drums
+            && !self.strips.iter().any(|x| {
+                matches!(
+                    x.kind,
+                    crate::vca::StripKind::Chain | crate::vca::StripKind::Pad
+                ) && x.output == Some(s.id)
+            })
+    }
+
+    /// The free strips ([`Self::strip_is_free`]) in the order new tracks take them: the
+    /// middle of the desk first, then the docks.
+    pub fn free_strips(&self) -> impl Iterator<Item = StripId> + '_ {
+        let middle = self
+            .strips
             .iter()
-            .filter(|s| s.dock == Dock::Middle)
-            .find(free)
-            .or_else(|| self.strips.iter().find(free))
-            .map(|s| s.id)
+            .filter(|s| s.dock == Dock::Middle && self.strip_is_free(s));
+        let docked = self
+            .strips
+            .iter()
+            .filter(|s| s.dock != Dock::Middle && self.strip_is_free(s));
+        middle.chain(docked).map(|s| s.id)
     }
 
     pub fn strip_group(&self, id: GroupId) -> Option<&StripGroup> {
@@ -1413,9 +1468,12 @@ impl Project {
         }
     }
 
-    /// The tracks feeding a strip, in track order.
+    /// The tracks feeding a strip, in track order: through their own output, or through
+    /// one of their instrument's (a pad of a split kit, ADR 0100).
     pub fn tracks_on_strip(&self, id: StripId) -> impl Iterator<Item = &Track> {
-        self.tracks.iter().filter(move |t| t.strip == Some(id))
+        self.tracks
+            .iter()
+            .filter(move |t| t.strip == Some(id) || t.feeds_through_bus(id)) // r37:drums
     }
 
     /// Would routing `strip` into `output` — as its output or as a send — close a loop?
@@ -1672,6 +1730,7 @@ impl Project {
             vcas: Vec::new(),         // r36:mix
             recall_safe: false,       // r36:mix
             solo_safe: false,         // r36:mix
+            pan_law: None,            // r37:drums
         }
     }
 

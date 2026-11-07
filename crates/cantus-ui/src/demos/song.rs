@@ -263,6 +263,11 @@ impl Song {
             for (k, v) in preset_values.iter() {
                 slot.spec.set(k, *v);
             }
+            // r37:library — the preset as this demo was mixed on.
+            let fresh = cantus_core::EffectSpec::new(kind);
+            for (k, v) in super::as_mixed::restore(name, |p| fresh.get(p)) {
+                slot.spec.set(k, v);
+            }
         }
         for (k, v) in values {
             slot.spec
@@ -486,6 +491,12 @@ pub fn native(kind: InstrumentKind, preset: &str, values: &[(&str, f32)]) -> Ins
         .find(|p| p.label_key == preset)
         .unwrap_or_else(|| panic!("no factory preset {preset} for {kind:?}"));
     let mut spec = crate::views::inst::preset_spec(kind, found);
+    // r37:library — the preset as this demo was mixed on.
+    let fresh = cantus_core::NativeSpec::new(kind);
+    for (k, v) in super::as_mixed::restore(preset, |p| fresh.get(p)) {
+        spec.set(k, v)
+            .unwrap_or_else(|| panic!("{kind:?} has no parameter {k}"));
+    }
     for (k, v) in values {
         spec.set(k, *v)
             .unwrap_or_else(|| panic!("{kind:?} has no parameter {k}"));

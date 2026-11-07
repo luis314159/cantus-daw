@@ -12,6 +12,16 @@ use std::path::PathBuf;
 const ON_THE_KIT: &[&str] = &[
     "views/comp_editor.rs",
     // r35:dancer — Saltator's window (ADR 0087).
+    // r37:scene — Chorda's scene (ADR 0104): its palette is kit/skin/scene.rs.
+    "views/inst/chorda_scene.rs",
+    "views/inst/chorda_scene_geo.rs",
+    "views/inst/chorda_scene_gear.rs",
+    "views/inst/chorda_scene_mesh.rs",
+    "views/inst/chorda_scene_piano.rs",
+    "views/inst/chorda_scene_raster.rs",
+    "views/inst/chorda_scene_room.rs",
+    "views/inst/chorda_scene_shade.rs",
+    "views/inst/chorda_scene_view.rs",
     "views/inst/dancer.rs",
     "views/inst/dancer_controls.rs",
     "views/inst/dancer_moves.rs",

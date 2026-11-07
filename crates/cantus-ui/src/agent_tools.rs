@@ -170,16 +170,28 @@ fn presets_of(kind: Kind) -> Vec<(String, Preset)> {
                     .map(|(n, s)| (n, Preset::Native(s))),
             )
             .collect(),
-        Kind::Pulsus => vec![
-            (
-                "Default kit".into(),
-                Preset::Kit(cantus_core::PulsusParams::default()),
-            ),
-            (
-                "Studio kit".into(),
-                Preset::Kit(cantus_core::PulsusParams::studio()),
-            ),
-        ],
+        // r37:fixes — the factory kits the library lists (`find_presets` names them the
+        // same way), and the two names agents knew before.
+        Kind::Pulsus => crate::preset_catalog::entries(crate::preset_catalog::Unit::Kit, false)
+            .into_iter()
+            .filter_map(|e| match e.payload {
+                crate::preset_catalog::Payload::Kit(k) => Some((
+                    crate::i18n::t_in(crate::i18n::Locale::En, &e.id),
+                    Preset::Kit(k),
+                )),
+                _ => None,
+            })
+            .chain([
+                (
+                    "Default kit".into(),
+                    Preset::Kit(cantus_core::PulsusParams::default()),
+                ),
+                (
+                    "Studio kit".into(),
+                    Preset::Kit(cantus_core::PulsusParams::studio()),
+                ),
+            ])
+            .collect(),
     }
 }
 
@@ -221,7 +233,7 @@ fn kind_of(cx: &ToolCx<'_>, a: A<'_>) -> Res<Kind> {
         };
     }
     if let Some(u) = a.opt_str("unit")? {
-        if let Some(k) = args::effect_kind(u) {
+        if let Some(k) = args::any_effect_kind(u) {
             return Ok(Kind::Effect(k));
         }
         return match args::instrument_choice(u) {
@@ -291,13 +303,20 @@ fn apply_preset(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
                 .and_then(|t| t.instrument.native())
                 .expect("native")
                 .clone();
+            // The editor's own path (r37:piano): the dancer's keys, a style on a sliced loop.
+            let target = crate::views::inst::preset_target(&now, &target, p.tempo_bpm);
             (
                 inst_commands(track, &now, &target)?,
                 words::instrument_of(p, track),
             )
         }
-        Preset::Kit(kit) => {
+        Preset::Kit(mut kit) => {
             let track = args::track(p, a, "track_id")?;
+            // r37:drums — a split kit stays split (as the kit's own preset load); the bus
+            // removes whatever pad strip is left unused (ADR 0100 §9).
+            if let Some(old) = p.track(track).and_then(|t| t.instrument.pulsus()) {
+                cantus_core::padout::carry_outputs(old, &mut kit);
+            }
             (
                 Command::SetInstrument {
                     track,

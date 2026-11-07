@@ -106,24 +106,16 @@ handles (a drag is one undo step). The **section** below shows only what the voi
 use, in real units; the layers list edits zones, cross-fades, tune and level (each drag one
 step). Cell edges use `text_dim` (≥ 3:1 in the three themes; a test holds it).
 
-## The hook the coordinator needs (per-pad outputs)
+## Per-pad outputs (Pulsus III, round 37, ADR 0100)
 
-`DrumPad::output: Option<StripId>` is in the model (serialised only when set) and the grid
-shows it. The DSP side is done: each pad has a `bus: u8` (`PadSettings::bus`) and
-`Pulsus::process_add_bus(Some(bus), l, r)` renders only that bus's voices, each voice
-exactly once per segment when every bus is called; `process_add` is `None` (all). What the
-processor needs:
-
-1. In `pulsus_kit::configure`, map each pad's `output` to a bus number 1…n (0 = the kit's
-   strip) — today it passes 0 for every pad — and give the processor the table
-   `bus → strip slot`.
-2. In the track render, call `drums.process_add_bus(Some(0), …)` into the track buffer as
-   now, and for each bus ≥ 1 `process_add_bus(Some(b), …)` into a per-pad scratch buffer
-   that is added into that strip's buffer before the strips run (up to 16 preallocated
-   stereo buffers per slot, `MAX_PAD_OUTS` in the report).
-3. The routing null test (report §9.10) then needs the sum order considered: the buses sum
-   in a different order from one buffer (`the_buses_together_are_the_kit` agrees to 1e-6,
-   not bit-exactly).
+Each pad says where it is heard (`DrumPad::output`: the kit's own strip, or a strip of its
+own). **Split to strips** (the kit's ⋯ menu, or a kit strip's or pad strip's menu in the mixer)
+gives every pad that sounds a strip named after it, right after the kit's strip, routed into
+the kit's strip, with the 0 dB pan law; **Merge back** returns the pads and removes the strips
+nothing else uses. Each is one undo step. A model 3 kit (every kit made now) sums each pad on
+its own lane, so the split kit with its new strips at unity is the unsplit kit to the bit.
+In the engine each output is a *tap* track after the project's tracks (`cantus_core::padout`,
+`cantus_engine::padout`); see ADR 0100 for the whole contract.
 
 ## Parameters
 
@@ -185,7 +177,7 @@ voice and model use.
   fundamental within ±5 cents for all five materials at three tunings;
 - full drive lifts a kick's tail by at most +12 dB in every mode; the 2× drive's alias
   floor is at least 30 dB below the unoversampled curve's (soft, tape; 10 dB for clip);
-- the buses together are the kit (1e-6), the per-pad-output hook;
+- the buses together are the kit (1e-6 for model 2; to the bit for model 3, round 37);
 - a CPU ceiling: 48 of the heaviest voices (32-mode toms and cymbals, 2× drive) for 2 s.
 
 `crates/cantus-core/src/pads_tests.rs`: every field of every voice round-trips and clamps;
@@ -222,8 +214,7 @@ step. `CANTUS_INST_SHOTS=<dir>` writes `pulsus-{play,edit}-{slate,paper}.png`.
 
 ## Not done, and why
 
-- **Per-pad outputs to strips**: the model field, the grid badge and the DSP buses are in;
-  the processor work is the coordinator's (the hook above).
+- **Per-pad outputs to strips**: done in round 37 (Pulsus III, ADR 0100, above).
 - **Schema bump and fixture**: not bumped, as instructed; the coordinator's at merge (the
   new fields are all `#[serde(default)]`, and a model 1 kit round-trips as model 1).
 - **Drag a file from the OS onto a pad**, **user kit presets as files**, and the shared

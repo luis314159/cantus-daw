@@ -1,0 +1,137 @@
+# Latitudo stereo: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.st.master_low"
+note = "The low end mono under 100 Hz, a little narrower: a master that travels."
+styles = ["pop", "house"]
+roles = ["master"]
+[preset.values]
+"mono" = 100
+"mono_slope" = 2
+"w_lo" = 0.85
+
+[[preset]]
+key = "preset.st.master_air"
+note = "Mono bass, a wider top: space without losing the centre."
+styles = ["pop", "ambient"]
+roles = ["master"]
+[preset.values]
+"mono" = 90
+"s_hi" = 1.5
+"s_hi_f" = 9000
+"w_hi" = 1.3
+"x_hi" = 5000
+
+[[preset]]
+key = "preset.st.patcher"
+note = "Mid and side shaped apart: a clean centre, an airy side."
+styles = ["pop", "film"]
+roles = ["master"]
+[preset.values]
+"m_hi" = 1
+"m_hi_f" = 10000
+"m_lo" = 1
+"m_lo_f" = 120
+"out" = -0.5
+"s_hi" = 3
+"s_hi_f" = 7000
+"s_lo" = -4
+"s_lo_f" = 250
+
+[[preset]]
+key = "preset.st.mono_check"
+note = "Listen in mono: what a phone or a club speaker hears."
+styles = ["pop", "rock"]
+roles = ["master"]
+[preset.values]
+"listen" = 1
+
+[[preset]]
+key = "preset.st.side_solo"
+note = "Listen to the sides alone: what the stereo adds."
+styles = ["film", "pop"]
+roles = ["master"]
+[preset.values]
+"listen" = 2
+"out" = 12
+
+[[preset]]
+key = "preset.st.narrow"
+note = "A part made narrower so it sits in the middle."
+styles = ["rock", "jazz"]
+roles = ["creative"]
+[preset.values]
+"mono" = 120
+"width" = 0.7
+
+[[preset]]
+key = "preset.st.wide_pad"
+note = "A pad made wider, its lows narrowed."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"mono" = 160
+"s_hi" = 2
+"w_hi" = 1.25
+"w_lo" = 0.6
+"width" = 1.35
+
+[[preset]]
+key = "preset.st.haas_safe"
+note = "A Haas widening that stays safe in mono."
+styles = ["pop", "house"]
+roles = ["creative"]
+[preset.values]
+"haas" = 12
+"haas_amt" = 0.6
+"haas_mode" = 2
+"mono" = 150
+
+[[preset]]
+key = "preset.st.haas_classic"
+note = "The classic Haas spread: one side a little late."
+styles = ["rock", "pop"]
+roles = ["creative"]
+[preset.values]
+"haas" = 15
+"mono" = 150
+"out" = 1.7
+
+[[preset]]
+key = "preset.st.swap"
+note = "Left and right swapped."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"swap" = 1
+
+[[preset]]
+key = "preset.st.polarity"
+note = "The right side inverted: to check or fix a polarity."
+styles = ["film"]
+roles = ["creative"]
+[preset.values]
+"inv_r" = 1
+
+[[preset]]
+key = "preset.st.vocal"
+note = "A vocal kept centred and clean in its low sides."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"mid" = 1
+"out" = -1
+"s_lo" = -6
+"s_lo_f" = 300
+"side" = -3
+
+[[preset]]
+key = "preset.st.bass_mono"
+note = "A bass mono under 140 Hz."
+styles = ["trap", "house"]
+roles = ["creative"]
+[preset.values]
+"mono" = 140
+"mono_slope" = 3

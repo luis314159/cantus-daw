@@ -505,7 +505,9 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
         K::Stereo => ("latitudo", "Latitudo"),
         K::Maximizer => ("culmen", "Culmen"),
         K::Delay => ("delay", "Delay"),
-        K::Reverb => ("reverb", "Reverb"),
+        // r37:fixes — the retired one has an id of its own: `reverb` names Spatium for a new
+        // insert, so an old project's Reverb must not answer to it (its keys are not Spatium's).
+        K::Reverb => ("reverb_legacy", "Reverb (retired)"),
         K::External => ("hosted", "Hosted plug-in"),
         K::Chorus => ("concentus", "Concentus"),
         K::Flanger => ("flexus", "Flexus"),
@@ -523,45 +525,75 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
     }
 }
 
-/// A native effect kind by its id (or its plain English role: `eq`, `compressor`, …).
+/// The plain English names an agent may give an effect by (`eq`, `compressor`, …), each
+/// with the unit it names — `reverb` is Spatium, the older Reverb being retired (old projects
+/// keep theirs, reached by its `effect_id`; r37:fixes).
+pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
+    ("eq", EffectKind::Eq),
+    ("compressor", EffectKind::Compressor),
+    ("limiter", EffectKind::Limiter),
+    ("reverb", EffectKind::Space), // r37:fixes
+    ("multiband", EffectKind::Multiband),
+    ("deesser", EffectKind::DeEsser),
+    ("de_esser", EffectKind::DeEsser),
+    ("gate", EffectKind::Gate),
+    ("saturator", EffectKind::Saturator),
+    ("stereo", EffectKind::Stereo),
+    ("maximizer", EffectKind::Maximizer),
+    ("chorus", EffectKind::Chorus),
+    ("flanger", EffectKind::Flanger),
+    ("phaser", EffectKind::Phaser),
+    ("tremolo", EffectKind::Tremolo),
+    ("vibrato", EffectKind::Vibrato),
+    ("ring_mod", EffectKind::RingMod),
+    ("freq_shift", EffectKind::FreqShift),
+    ("volume_shaper", EffectKind::VolumeShaper),
+    ("clipper", EffectKind::Clipper),
+    ("transient", EffectKind::Transient),
+    ("transient_split", EffectKind::TransientSplit),
+    ("analyzer", EffectKind::Analyzer),
+    ("autotune", EffectKind::AutoTune),
+    ("auto_tune", EffectKind::AutoTune),
+];
+
+/// A native effect kind offered for a new insert, by its id or one of its
+/// [`EFFECT_ALIASES`].
 pub fn effect_kind(name: &str) -> Option<EffectKind> {
-    let alias = match name {
-        "eq" => Some(EffectKind::Eq),
-        "compressor" => Some(EffectKind::Compressor),
-        "limiter" => Some(EffectKind::Limiter),
-        "multiband" => Some(EffectKind::Multiband),
-        "deesser" | "de_esser" => Some(EffectKind::DeEsser),
-        "gate" => Some(EffectKind::Gate),
-        "saturator" => Some(EffectKind::Saturator),
-        "stereo" => Some(EffectKind::Stereo),
-        "maximizer" => Some(EffectKind::Maximizer),
-        "chorus" => Some(EffectKind::Chorus),
-        "flanger" => Some(EffectKind::Flanger),
-        "phaser" => Some(EffectKind::Phaser),
-        "tremolo" => Some(EffectKind::Tremolo),
-        "vibrato" => Some(EffectKind::Vibrato),
-        "ring_mod" => Some(EffectKind::RingMod),
-        "freq_shift" => Some(EffectKind::FreqShift),
-        "volume_shaper" => Some(EffectKind::VolumeShaper),
-        "clipper" => Some(EffectKind::Clipper),
-        "transient" => Some(EffectKind::Transient),
-        "transient_split" => Some(EffectKind::TransientSplit),
-        "analyzer" => Some(EffectKind::Analyzer),
-        "autotune" | "auto_tune" => Some(EffectKind::AutoTune),
-        _ => None,
-    };
-    alias.or_else(|| {
+    EFFECT_ALIASES
+        .iter()
+        .find(|(a, _)| *a == name)
+        .map(|(_, k)| *k)
+        .or_else(|| {
+            EffectKind::ALL
+                .into_iter()
+                .find(|k| *k != EffectKind::External && k.offered() && effect_names(*k).0 == name)
+        })
+}
+
+/// A native effect kind by its id, the retired ones included (`reverb_legacy`), or one of
+/// its [`EFFECT_ALIASES`]: what describes a device that is there (`get_unit`, its presets) —
+/// never what makes a new insert ([`effect_kind`]). r37:fixes
+pub fn any_effect_kind(name: &str) -> Option<EffectKind> {
+    effect_kind(name).or_else(|| {
         EffectKind::ALL
             .into_iter()
             .find(|k| *k != EffectKind::External && effect_names(*k).0 == name)
     })
 }
 
-/// Every native effect id, for schemas.
+/// Every name [`effect_kind`] takes — the ids, then the plain names — for a schema whose
+/// description says plain names work too (r37:fixes: the enum refused them).
+pub fn effect_words() -> Vec<&'static str> {
+    let mut v = effect_ids();
+    v.extend(EFFECT_ALIASES.iter().map(|(a, _)| *a));
+    v
+}
+
+/// Every native effect id offered for a new insert, for schemas.
 pub fn effect_ids() -> Vec<&'static str> {
     EffectKind::ALL
         .into_iter()
-        .filter(|k| *k != EffectKind::External)
+        .filter(|k| *k != EffectKind::External && k.offered()) // r37:fixes
         .map(|k| effect_names(k).0)
         .collect()
 }

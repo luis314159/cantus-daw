@@ -94,7 +94,8 @@ picker.menu.open_picker = Device picker…
 picker.dev.firmus.name = Firmus
 picker.dev.firmus.what = Basic synth
 picker.dev.firmus.about = The simple synth every new track starts with: an oscillator, a filter and an envelope. Light, quick, always there.
-picker.dev.pulsus.name = Pulsus II
+# r37:drums — the kit is Pulsus III (ADR 0100)
+picker.dev.pulsus.name = Pulsus III
 picker.dev.pulsus.what = Drum machine
 picker.dev.pulsus.about = A synthesized drum kit with sample layers: kicks, snares, metals and toms that are modelled, not recorded, choke groups and a pad for every sound. The channel rack plays it.
 picker.dev.unda.name = Unda

@@ -295,7 +295,14 @@ impl Exemplar {
             region.looping = false;
         }
         let quality = g.quality as usize;
-        let filter = g.filter;
+        // A zone's own low-pass runs the layer's filter as a low-pass when the instrument's
+        // is off (ADR 0099: Sectio's per-slice filter); 0 leaves the filter as it was.
+        let zone_lpf = z.lpf_hz;
+        let filter = if g.filter == 0 && zone_lpf > 0.0 {
+            1
+        } else {
+            g.filter
+        };
         self.serial += 1;
         let serial = self.serial;
         let Exemplar {
@@ -331,6 +338,8 @@ impl Exemplar {
         l.env2.start(&shape2);
         l.filter.reset();
         l.filter.mode = filter;
+        l.zone_lpf = zone_lpf;
+        l.zone_only = g.filter == 0 && zone_lpf > 0.0;
         l.lfo = [0.0; 2];
         l.ctl = 0;
         l.age = 0;

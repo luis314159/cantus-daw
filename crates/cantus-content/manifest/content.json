@@ -1,6 +1,6 @@
 {
- "format": 3,
- "updated": "2026-10-15",
+ "format": 4,
+ "updated": "2026-11-05",
  "packs": [
   {
    "id": "cantus-starter-drums",
@@ -1725,6 +1725,58 @@
      "README.md"
     ]
    }
+  },
+  {
+   "id": "cantus-one-shots",
+   "version": 1,
+   "name": {
+    "en": "Cantus One-Shots",
+    "es": "Golpes sueltos de Cantus"
+   },
+   "description": {
+    "en": "One note of every factory preset of Cantus's own instruments — basses, leads, keys, pads, plucks and effect sounds, by role — rendered by Cantus itself: 44.1 kHz, 24-bit, ours to give away.",
+    "es": "Una nota de cada preset de fábrica de los instrumentos de Cantus — bajos, solistas, teclas, pads, pulsados y sonidos de efecto, por función — renderizada por el propio Cantus: 44,1 kHz, 24 bits, nuestros para regalar."
+   },
+   "category": "one_shots",
+   "licence": "CC0-1.0",
+   "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+   "licence_file": "LICENSE.txt",
+   "credits": [
+    {
+     "name": "Cantus — rendered from its own instruments and factory presets",
+     "url": "https://cantusdaw.com",
+     "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
+    }
+   ],
+   "checked": "2026-11-06",
+   "installed_size": 119744350,
+   "source": {"zip": {"url": "https://github.com/luis314159/cantus-daw/releases/download/content-r37/cantus-one-shots-1.zip", "size": 56625571, "sha256": "121533707e7a873b0c0741ecf441659d90afddcc4c0020f3fb807cfd854ff78e", "strip": "cantus-one-shots/"}}
+  },
+  {
+   "id": "cantus-loops",
+   "version": 1,
+   "name": {
+    "en": "Cantus Loops",
+    "es": "Loops de Cantus"
+   },
+   "description": {
+    "en": "Two-bar loops at 120 BPM from Cantus's own instruments and drum kits — trap, house, lo-fi, pop, latin, R&B and ambient — cut so they loop without a seam, rendered by Cantus itself.",
+    "es": "Loops de dos compases a 120 BPM de los instrumentos y las baterías de Cantus — trap, house, lo-fi, pop, latino, R&B y ambient — cortados para repetirse sin costura, renderizados por el propio Cantus."
+   },
+   "category": "loops",
+   "licence": "CC0-1.0",
+   "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+   "licence_file": "LICENSE.txt",
+   "credits": [
+    {
+     "name": "Cantus — rendered from its own instruments, factory presets and kits",
+     "url": "https://cantusdaw.com",
+     "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode"
+    }
+   ],
+   "checked": "2026-11-06",
+   "installed_size": 91028790,
+   "source": {"zip": {"url": "https://github.com/luis314159/cantus-daw/releases/download/content-r37/cantus-loops-1.zip", "size": 60033092, "sha256": "872991f18a8010df4b1911813d1451244f77879ae9d6dd7f0b89ba7a4ae59e33", "strip": "cantus-loops/"}}
   }
  ]
 }

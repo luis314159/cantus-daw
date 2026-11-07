@@ -1024,6 +1024,19 @@ impl CantusApp {
                     ("what", &name_of(self.project(), FreezeTarget::Strip(s))),
                 ],
             ), // r36:record
+            // r37:drums — two wordings: a kit with a strip of its own, or straight to the master.
+            CannotFreeze::SplitKit(t) => {
+                let p = self.project();
+                let straight = p.track(t).is_some_and(|x| x.strip.is_none());
+                // Split to strips, or only chains on its pads: each said as it is.
+                let key = match (cantus_core::padout::is_split(p, t), straight) {
+                    (true, true) => "padout.cannot_freeze_master",
+                    (true, false) => "padout.cannot_freeze",
+                    (false, true) => "padout.cannot_freeze_chains_master",
+                    (false, false) => "padout.cannot_freeze_chains",
+                };
+                tf(key, &[("name", &name)])
+            }
         };
         self.set_error(text);
     }

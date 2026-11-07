@@ -101,6 +101,7 @@ pub mod hint;
 pub mod inspect;
 pub mod light;
 pub mod prose;
+pub mod raster_parts;
 pub mod text;
 pub mod tokens;
 

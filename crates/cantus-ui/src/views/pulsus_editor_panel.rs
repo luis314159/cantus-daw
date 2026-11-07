@@ -12,12 +12,15 @@ use crate::kit::text::{Elide, Policy, Role, Src};
 use crate::kit::{with_brush, Fill, Function, Style};
 use crate::views::inst::sampler::parts::{self, write_pan, write_value};
 use cantus_core::{
-    Command, DrumPad, KitField, PadField, PadLayer, PadVoice, PulsusParams, TrackId, PULSUS_MODEL,
+    Command, DrumPad, KitField, PadField, PadLayer, PadVoice, PulsusParams, TrackId,
 };
 use egui::{pos2, vec2, Align2, Rect, Sense};
 use std::fmt::Write as _;
 
 /// A pad field's readout in its unit: pans by side, amounts as percentages, voices ∞.
+#[path = "pulsus_editor_chain.rs"] // r37:drums — a chain per pad (ADR 0100 §6)
+mod chain;
+
 fn write_field(field: PadField, info: &cantus_core::PadParamInfo, v: f32, b: &mut String) {
     match field {
         PadField::Polyphony if v < 0.5 => b.push_str(&t("pulsus.poly.inf")),
@@ -209,7 +212,7 @@ const VELOCITY: [PadField; 4] = {
 };
 
 /// The pads card: the grid is its display; under it, + Pad ▾, the kit's model, and the
-/// upgrade when the kit is a model 1 one.
+/// upgrade when the kit is an older model (1 or 2, ADR 0100 §1).
 fn pads_card(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
@@ -253,7 +256,8 @@ fn pads_card(
     ) {
         super::add_pad(app, track, PadVoice::ALL[i]);
     }
-    let model1 = kit.version < PULSUS_MODEL;
+    // r37:drums — models 1 and 2 are offered an upgrade to 3 (ADR 0100).
+    let model1 = kit.version < cantus_core::PULSUS_MODEL;
     let up_w = if model1 { 176.0 * k } else { 0.0 };
     let mr = Rect::from_min_max(
         pos2(add.right() + 6.0 * k, row.top()),
@@ -262,23 +266,20 @@ fn pads_card(
             row.bottom(),
         ),
     );
-    let model = if model1 {
-        t("pulsus.model1")
-    } else {
-        t("pulsus.model2")
+    let model = match kit.version {
+        0 | 1 => t("pulsus.model1"),
+        2 => t("pulsus.model2"),
+        _ => t("pulsus.model3"),
     };
     parts::readout(ui, mr, s, &model, false, false, &t("pulsus.kit.version"));
     if model1 {
         let ur = Rect::from_min_max(pos2(row.right() - up_w, row.top()), row.max);
-        if parts::press(
-            ui,
-            ur,
-            s,
-            Src::Key("pulsus.upgrade"),
-            &t("pulsus.upgrade_tip"),
-        )
-        .clicked()
-        {
+        let tip = if kit.version <= 1 {
+            "pulsus.upgrade_tip"
+        } else {
+            "pulsus.upgrade_lanes_tip"
+        };
+        if parts::press(ui, ur, s, Src::Key("pulsus.upgrade"), &t(tip)).clicked() {
             upgrade(app, track);
         }
     }
@@ -972,8 +973,28 @@ fn kit_card(
     {
         set_kit_field(app, track, KitField::HatInvert, if inv { 0.0 } else { 1.0 });
     }
-    if kit.version < PULSUS_MODEL && pad.is_some_and(|p| p.voice != PadVoice::Kick) {
-        let nr = Rect::from_min_max(pos2(lr.right() + 16.0 * k, row.top()), row.max);
+    // r37:drums — the kit's own level (ADR 0100 §8), in decibels.
+    let (l, v) = pair(lr.right() + 16.0 * k, 72.0 * k, 80.0 * k);
+    parts::row_label(ui, l, s, "pulsus.kit.gain");
+    let mut gain = kit.kit.gain_db;
+    let r = parts::drag_num(
+        ui,
+        v,
+        s,
+        &mut gain,
+        -24.0..=12.0,
+        0.1,
+        false,
+        &t("pulsus.kit.gain_tip"),
+        |v, b| {
+            let _ = write!(b, "{v:+.1} dB");
+        },
+    );
+    if r.changed() {
+        set_kit_field(app, track, KitField::Gain, gain);
+    }
+    if kit.version <= 1 && pad.is_some_and(|p| p.voice != PadVoice::Kick) {
+        let nr = Rect::from_min_max(pos2(v.right() + 16.0 * k, row.top()), row.max);
         parts::readout(
             ui,
             nr,
@@ -1085,7 +1106,9 @@ pub(super) fn edit(
     let top_h = 300.0 * k;
     let kit_h = (parts::CARD_CHROME + parts::ROW) * k;
     let rows = if pad.is_some() { 3.0 } else { 0.0 };
-    let layers_h = pad.map_or(0.0, |p| layers_height(s, p) + gut);
+    let layers_h = pad.map_or(0.0, |p| {
+        layers_height(s, p) + gut + chain::chain_height(s, app, p) + gut // r37:drums
+    });
     let total = top_h + gut + rows * (row_h + gut) + layers_h + kit_h;
     let (area, _) = ui.allocate_exact_size(vec2(w, total), Sense::hover());
     let mut y = area.top();
@@ -1114,6 +1137,9 @@ pub(super) fn edit(
         s,
     );
     if let Some(pad) = pad {
+        // r37:drums — the pad's chain, right under the pads (ADR 0100 §6).
+        let ch = chain::chain_height(s, app, pad);
+        chain::chain_card(app, ui, track, pad, take(ch), s);
         let rs = row_rects(take(row_h), s, &[voice_need(s), character_need(s, pad)]);
         voice_card(app, ui, track, pad, rs[0], s);
         character_card(app, ui, track, pad, rs[1], s);

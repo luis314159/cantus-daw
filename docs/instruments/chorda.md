@@ -66,13 +66,39 @@ damped), the pedals, resonance and output. Every cell but the tuning's (A4, stre
 stiffness — set, never automated or modulated) takes a modulation source by drag and drop;
 each change is one undo step.
 
+## Model 2 (round 37, ADR 0098)
+
+A new Chorda plays its **second model**; every song saved before keeps the first (schema
+54 writes `model = 1` into it), to the bit. Model 2 was voiced by comparison with a
+recorded grand — the Salamander Grand Piano (Yamaha C5, CC BY 3.0), installed through
+Cantus's own pack code — with `cantus-ui/examples/chorda_compare`, because model 1, right in
+every physical number, measured thin, bright, dry and almost mono against it (the owner:
+*"sintético… sin cuerpo, muy fino"*).
+
+| Layer | File |
+|---|---|
+| the body: two radiation responses (two microphones over the strings), convolved | `chorda_body.rs`, `chorda_conv.rs` |
+| the room: early reflections and an eight-line FDN | `chorda_room.rs` |
+| the action: the hammer's blow, the keybed, the dampers landing | `chorda_noise.rs`, `chorda_voice.rs` |
+| the voicing (every number the comparison set) | `chorda_voicing.rs` |
+| the perspective: mics, pair width, lid, room size — gliding gains and shelves | `chorda_stage.rs`, `chorda_tests_stage.rs` |
+| tests: the family's rules for model 2, model 1's pinned hash | `chorda_tests_model2.rs`, `chorda_tests_hash.rs` |
+| the comparison and the owner's ABX kit | `cantus-ui/examples/chorda_compare`, `chorda_abx`, `chorda_kit/` |
+
+Model 2 adds five settings, read by it alone: **`room`** (0–100 %, default 35 %: the room's
+level), **`noise`** (0–200 %, default 100 %: the action's noises), **`persp`** (0 over the
+hammers … 35 % the player … 100 % the audience), **`lid`** (0 closed … 100 % open) and
+**`roomsize`** (0–100 %, 40 %); `width` is model 2's pair width too (a mid/side gain). Voicing
+pass two (after the owner's first ABX) is in ADR 0098's second amendment. `model` (1–2) is set,
+never automated or modulated; loading any preset on an old song's Chorda moves it to model 2.
+
 ## Parameters
 
 Shares are fractions shown in %; 100 % is the model as measured.
 
 | Key | Range (default) | What it does |
 |---|---|---|
-| `model` | 1 | The model a song was made with, stored with every instance; a later one never changes it |
+| `model` | 1–2 (2) | The model a song was made with, stored with every instance; schema 54 writes 1 into every older one |
 | `a4` | 415–466 Hz (440) | A4's first partial; designs the strings again |
 | `stretch` | 0–200 % (100) | The octaves' widening an aural tuner gives; designs again |
 | `stiffness` | 50–150 % (100) | The strings' inharmonicity `B`; designs again |
@@ -90,16 +116,25 @@ Shares are fractions shown in %; 100 % is the model as measured.
 | `una` | 0–100 % (100) | How far the soft pedal shifts the hammers |
 | `body` | 0–200 % (100) | The soundboard's ring |
 | `tilt` | ±12 dB (0) | The top raised or lowered |
-| `width` | 0–100 % (70) | The keyboard's spread across the stereo field |
+| `width` | 0–100 % (70) | The keyboard's spread across the stereo field; model 2: the pair's width |
 | `gain` | −48–12 dB (0) | The output |
+| `room` | 0–100 % (35) | Model 2: the room's level |
+| `noise` | 0–200 % (100) | Model 2: the hammer's blow, the keybed and the dampers landing |
+| `persp` | 0–100 % (35) | Model 2: the microphones, over the hammers (0) … the audience (100 %) |
+| `lid` | 0–100 % (100) | Model 2: the lid, closed (0) … open |
+| `roomsize` | 0–100 % (40) | Model 2: the room's size (its decay ×0.44 … ×3.5) |
 
 The modulation matrix, the eight macros and the sources (velocity, key, mod wheel,
 aftertouch, expression, sustain) work as on every native instrument; the three tuning keys
 are never modulated.
 
-**Presets** (each with macros Hardness, Resonance, Body, Decay): Concert Grand, Studio Bright,
-Warm Ballad, Jazz Club, Felt Piano, Honky-Tonk, Baroque Pitch (A 415), Pedal Wash, Pop
-Forward, Old Grand.
+**Presets** (round 37: twenty-four, voiced for model 2, tagged with the preset library's
+styles and roles, ADR 0101; macros Hardness, Resonance, Body, Decay): film — Concert Grand,
+Hall Grand, Game Theme, Baroque Pitch (A 415), Cinematic Soft; pop — Studio Bright, Pop
+Forward, Close and Intimate, Dry Studio; worship — Warm Ballad, Gospel Grand; jazz — Jazz
+Club; R&B — R&B Keys; latin — Montuno, Reggaeton Keys; rock — Rock Piano, Honky-Tonk; trap —
+Trap Keys; house — House Piano; lo-fi — Felt Piano, Lo-fi Grand, Old Grand; ambient (pads) —
+Pedal Wash, Ambient Halo.
 
 ## What the tests hold
 

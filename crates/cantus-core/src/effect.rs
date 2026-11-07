@@ -205,6 +205,12 @@ impl EffectKind {
         EffectKind::AutoTune,
     ];
 
+    /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
+    /// only for the projects that use it (Spatium is the reverb). // r37:library
+    pub fn offered(self) -> bool {
+        self != EffectKind::Reverb // r37:library
+    }
+
     pub fn name_key(self) -> &'static str {
         match self {
             EffectKind::Delay => "effect.delay",

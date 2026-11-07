@@ -374,6 +374,7 @@ fn tools(
         Item::action(Src::Key("smp.import_samples")),
         Item::action(Src::Key("smp.import_folder")),
         Item::action(Src::Key("smp.import_instrument")),
+        Item::action(Src::Key("slicer.slice_file")), // r37:piano
     ];
     let picked = parts::dropdown(
         ui,
@@ -395,6 +396,15 @@ fn tools(
         Some(1) => {
             if let Some(dir) = rfd::FileDialog::new().pick_folder() {
                 drop_files(app, track, &[dir], 60);
+            }
+        }
+        // r37:piano — a loop, sliced into this Exemplar (ADR 0099).
+        Some(3) => {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter(t("smp.audio_files"), &["wav", "aif", "aiff", "flac", "ogg"])
+                .pick_file()
+            {
+                app.slice_into_track(track, &path, cantus_core::sectio::SliceMode::Markers);
             }
         }
         Some(_) => {
@@ -638,15 +648,15 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     let top_h = (area.height() - cards_h - gut).max(120.0 * k);
     let top = Rect::from_min_size(area.min, vec2(area.width(), top_h));
     let split = top.left() + (top.width() - gut) * 0.62;
-    map_card(
-        app,
-        ui,
-        track,
-        spec,
-        Rect::from_min_max(top.min, pos2(split, top.bottom())),
-        s,
-        false,
-    );
+    let left = Rect::from_min_max(top.min, pos2(split, top.bottom()));
+    // A sliced loop shows its slices where the keyboard map would be (ADR 0099); every other
+    // Exemplar keeps its map (a loop is sliced from the import menu, the browser's menu or
+    // a drop on the slices). r37:piano
+    if cantus_core::sectio::Slicing::of(spec).is_some() {
+        super::slices::card(app, ui, track, spec, left, s);
+    } else {
+        map_card(app, ui, track, spec, left, s, false);
+    }
     let src = s.function(Function::Source);
     wave::play_card(
         app,

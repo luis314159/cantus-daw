@@ -1,0 +1,186 @@
+# Porta gate: Factory presets (ADR 0101). Names are locale keys. `preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.gate.kick"
+note = "A kick mic closed between hits, keyed under 150 Hz."
+styles = ["rock"]
+roles = ["drums"]
+[preset.values]
+"att" = 0.5
+"hold" = 40
+"hyst" = 6
+"look" = 2
+"lpf" = 150
+"range" = 40
+"rel" = 120
+"thr" = -30
+
+[[preset]]
+key = "preset.gate.snare"
+note = "A snare mic without the hats bleeding in."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"att" = 0.3
+"hold" = 50
+"hpf" = 150
+"hyst" = 5
+"look" = 2
+"lpf" = 8000
+"range" = 30
+"rel" = 180
+"thr" = -28
+
+[[preset]]
+key = "preset.gate.toms"
+note = "Toms that ring, then close."
+styles = ["rock"]
+roles = ["drums"]
+[preset.values]
+"att" = 1
+"hold" = 80
+"hpf" = 60
+"hyst" = 8
+"look" = 3
+"lpf" = 1200
+"range" = 24
+"rel" = 350
+"style" = 1
+"thr" = -32
+
+[[preset]]
+key = "preset.gate.hats"
+note = "Tight hats, keyed above 5 kHz."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"att" = 0.2
+"hold" = 15
+"hpf" = 5000
+"hyst" = 4
+"key_slope" = 48
+"look" = 1
+"range" = 18
+"rel" = 60
+"style" = 1
+"thr" = -35
+
+[[preset]]
+key = "preset.gate.vocal"
+note = "A gentle expander between phrases: breaths and room down."
+styles = ["pop"]
+roles = ["vocal"]
+[preset.values]
+"att" = 5
+"hold" = 60
+"hpf" = 100
+"hyst" = 6
+"look" = 5
+"range" = 12
+"ratio" = 3
+"rel" = 250
+"style" = 2
+"thr" = -45
+
+[[preset]]
+key = "preset.gate.guitar"
+note = "A high-gain guitar silent between chugs."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"att" = 2
+"hold" = 30
+"hpf" = 80
+"hyst" = 4
+"lpf" = 6000
+"range" = 30
+"ratio" = 4
+"rel" = 200
+"style" = 3
+"thr" = -50
+
+[[preset]]
+key = "preset.gate.noise"
+note = "Hiss and hum under the quiet parts, softly."
+styles = ["film", "jazz"]
+roles = ["bus"]
+[preset.values]
+"att" = 5
+"hold" = 100
+"hyst" = 6
+"range" = 12
+"ratio" = 2
+"rel" = 400
+"style" = 1
+"thr" = -60
+
+[[preset]]
+key = "preset.gate.duck"
+note = "Ducks when its key plays."
+styles = ["house"]
+roles = ["creative"]
+[preset.values]
+"att" = 10
+"hold" = 50
+"look" = 5
+"range" = 10
+"rel" = 250
+"style" = 5
+"thr" = -30
+
+[[preset]]
+key = "preset.gate.punch"
+note = "An upward push of the hits."
+styles = ["house", "pop"]
+roles = ["drums"]
+[preset.values]
+"att" = 1
+"hold" = 0
+"range" = 6
+"ratio" = 1.5
+"rel" = 80
+"style" = 4
+"thr" = -20
+
+[[preset]]
+key = "preset.gate.eight_oh_eight"
+note = "An 808 tail cut short so the next one is clean."
+styles = ["trap"]
+roles = ["creative"]
+[preset.values]
+"att" = 0.5
+"hold" = 120
+"range" = 40
+"rel" = 200
+"thr" = -35
+
+[[preset]]
+key = "preset.gate.live_vocal"
+note = "A live vocal mic with the band bleed held down between lines."
+styles = ["rock", "worship"]
+roles = ["vocal"]
+[preset.values]
+"att" = 3
+"hold" = 80
+"hpf" = 150
+"hyst" = 6
+"range" = 15
+"ratio" = 2
+"rel" = 300
+"style" = 2
+"thr" = -40
+
+[[preset]]
+key = "preset.gate.percussion"
+note = "Congas and bongos closed between hits."
+styles = ["latin"]
+roles = ["drums"]
+[preset.values]
+"att" = 0.3
+"hold" = 30
+"hpf" = 200
+"hyst" = 5
+"range" = 20
+"rel" = 100
+"thr" = -30

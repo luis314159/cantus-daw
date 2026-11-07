@@ -13,3 +13,9 @@ cast.note.name = Corchea
 cast.note.blurb = A living eighth note in a gold bow tie and white gloves: a jazzy showman who claps, points, kicks and takes a bow.
 cast.child.name = Sol
 cast.child.blurb = A cheerful kid with curly hair, a star on the shirt and all the energy in the world: claps, jumps, spins and hands in the air.
+
+cast.mecha.name = Volta
+cast.mecha.blurb = A gunmetal mecha with a V visor of light, a core that pulses on the beat and jets for its rocket jump: pop and lock, hero poses.
+
+cast.ninja.name = Fuga
+cast.ninja.blurb = A masked ninja whose torn crimson scarf streams in the wind: flips, high kicks, a crouched landing and a martial bow.

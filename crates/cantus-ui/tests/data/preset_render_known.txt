@@ -1,0 +1,3 @@
+# The presets that fail a check of tests/preset_render.rs: <id> <check> <measured>
+# (LU off the window's centre, dBFS, share of a core). The library's round
+# retunes them and strikes them off (ADR 0101 §5).

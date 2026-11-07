@@ -1,8 +1,10 @@
 //! The characters Cantus includes (ADR 0090): ours and original, for the whole family,
 //! good on both themes, each with every move and every mood.
 //!
-//! The family (ADR 0090), in the picker's order:
-//! - [`songbird`] — **Trino** (`builtin:songbird`), a new dancer's character;
+//! The family (ADR 0090, ADR 0105), in the picker's order:
+//! - [`ninja`] — **Fuga** (`builtin:ninja`), a new dancer's character (round 37);
+//! - [`mecha`] — **Volta** (`builtin:mecha`, round 37);
+//! - [`songbird`] — **Trino** (`builtin:songbird`), the default of rounds 35–36;
 //! - [`cat`] — **Miso** (`builtin:cat`);
 //! - [`lamb`] — **Lana** (`builtin:lamb`);
 //! - [`robot`] — **Tic** (`builtin:robot`);
@@ -21,8 +23,11 @@ use std::sync::Arc;
 
 pub mod cat;
 pub mod child;
+pub mod edge;
 pub mod kit;
 pub mod lamb;
+pub mod mecha;
+pub mod ninja;
 pub mod note;
 pub mod placeholder;
 pub mod robot;
@@ -31,6 +36,8 @@ pub mod songbird;
 /// Every included character, in the picker's order (the first is a new dancer's).
 pub fn builtin() -> Vec<Arc<dyn Character>> {
     vec![
+        Arc::new(ninja::Ninja::new()),
+        Arc::new(mecha::Mecha::new()),
         Arc::new(songbird::Songbird::new()),
         Arc::new(cat::Cat::new()),
         Arc::new(lamb::Lamb::new()),

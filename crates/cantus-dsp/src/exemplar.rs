@@ -262,6 +262,8 @@ pub struct ZoneParams {
     /// Plays only while this keyswitch is in force (−1: always).
     pub sw: i16,
     pub delay_ms: f32,
+    /// The zone's own low-pass, Hz (0: none) — Sectio's per-slice filter (ADR 0099).
+    pub lpf_hz: f32,
     /// [`Trig::Controller`]: the controller and the range its value crosses into.
     pub cc: u8,
     pub cclo: u8,
@@ -301,6 +303,7 @@ impl Default for ZoneParams {
             off_normal: false,
             sw: -1,
             delay_ms: 0.0,
+            lpf_hz: 0.0,
             cc: 64,
             cclo: 64,
             cchi: 127,

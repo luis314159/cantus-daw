@@ -285,6 +285,10 @@ fn native_shots(out: &Path) {
         };
         let mut pm = tiny_skia::Pixmap::new(500, 575).unwrap();
         draw(&mut pm, &scene);
+        // Its own pixels too (true alpha), to lay over any picture (the README's, the
+        // site's). r37:chars
+        let alpha = out.join(format!("native-{name}-alpha.png"));
+        pm.save_png(&alpha).expect("written");
         // Over a picture: a desktop or a game under the window.
         let mut under = tiny_skia::Pixmap::new(500, 575).unwrap();
         for y in 0..575u32 {

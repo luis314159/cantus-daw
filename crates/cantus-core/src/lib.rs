@@ -45,12 +45,15 @@ pub mod modulator;
 pub mod notation;
 pub mod notefx;
 mod notefx_cmd;
+pub mod padout; // r37:drums (ADR 0100): instruments with several outputs, split to strips
 pub mod pads;
 pub mod pattern;
 pub mod pitch;
 pub mod record_mode; // r36:record (ADR 0092): the recording mode's plan and edit lock
 pub mod routing;
 pub mod scale;
+pub mod sectio; // r37:piano (ADR 0099): Exemplar's slicer
+pub mod sectio_ops; // r37:piano
 pub mod session; // r33:session (ADR 0076)
 pub mod snapshot;
 pub mod starting;

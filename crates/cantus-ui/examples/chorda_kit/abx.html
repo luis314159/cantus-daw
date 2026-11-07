@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chorda listening test</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1f; --mute:#6b6b70; --line:#dedcd6; --acc:#1e64c8; --acc-ink:#ffffff; --ok:#2a8a4a; --warn:#b5541b; }
+@media (prefers-color-scheme: dark) { :root { --bg:#17181a; --card:#222326; --ink:#ececec; --mute:#a0a0a6; --line:#36373b; --acc:#5b9bf0; --acc-ink:#0b1320; --ok:#5cc07c; --warn:#f0965b; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+h2 { font-size: 20px; margin: 0 0 8px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin:16px 0; }
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:10px 18px; cursor:pointer; min-width:64px; }
+button.big { font-size:20px; font-weight:600; min-width:88px; }
+button.on { background:var(--acc); color:var(--acc-ink); border-color:var(--acc); }
+button.primary { background:var(--acc); color:var(--acc-ink); border-color:var(--acc); }
+button:disabled { opacity:.45; cursor:default; }
+.mute { color:var(--mute); }
+.bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; flex:1 1 200px; }
+.bar > div { height:100%; width:0; background:var(--acc); }
+.tabs button { border-radius:8px 8px 0 0; }
+table { border-collapse:collapse; width:100%; }
+td, th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+textarea { width:100%; font:inherit; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px; }
+.ok { color:var(--ok); } .warn { color:var(--warn); }
+.lang { float:right; }
+</style>
+</head>
+<body>
+<main>
+<div class="lang"><button id="lang-en">EN</button> <button id="lang-es">ES</button></div>
+<h1 data-t="title"></h1>
+<p class="mute" data-t="intro"></p>
+<div class="row tabs" id="tabs"></div>
+<section id="view"></section>
+</main>
+<script>
+"use strict";
+const PHRASES = __PHRASES__;
+// Each clip's file, by phrase and piano: opaque names, so a file's name never says which
+// piano X is.
+const FILES = __FILES__;
+const TRIALS = 16;
+const KEY = "chorda-abx-v1";
+const T = {
+ en: {
+  title: "Chorda listening test",
+  intro: "Headphones or good speakers, a quiet room. Set the volume once on the first clip and leave it. Every file is matched in loudness. Nothing here uses the network; your answers stay in this browser until you download them.",
+  tab_abx1: "ABX 1: Chorda 2 / Salamander", tab_abx2: "ABX 2: Chorda 1 / Chorda 2", tab_pref: "Preference", tab_res: "Results",
+  abx_help: "A and B are two pianos. X is one of them, drawn at random. Listen as often as you like, switch while it plays (it keeps its place), then say which one X is. Guess if you cannot tell: that is part of the test.",
+  trial: "Trial {i} of {n}", phrase: "Phrase", play: "Play", stop: "Stop", loop: "Loop",
+  x_is_a: "X is A", x_is_b: "X is B", done: "This test is finished. See Results.",
+  pref_help: "Two blind clips of the same phrase. Which sounds more like a fine grand piano, well recorded? Choose, or say you hear no preference. A note on why helps.",
+  question: "Question {i} of {n}", one: "Clip 1", two: "Clip 2", same: "No preference", note: "Why (optional)", next: "Next",
+  res_abx: "{name}: {k} of {n} correct — p = {p}", res_none: "not taken yet", res_partial: "{k} of {done} so far",
+  res_pref: "Preference, {pair}: {a} for {an}, {b} for {bn}, {s} no preference (sign test p = {p})",
+  sig: "Significant at 5 %: you can tell them apart.", nsig: "Not significant: no reliable difference heard.",
+  download: "Download results (JSON)", reset: "Start again (erases the answers)", reset_q: "Erase every answer and draw new trials?",
+  reveal: "Answers per trial", src_salamander: "Salamander Grand", src_chorda1: "Chorda model 1", src_chorda2: "Chorda model 2"
+ },
+ es: {
+  title: "Prueba de escucha de Chorda",
+  intro: "Auriculares o buenos altavoces, un cuarto silencioso. Ajusta el volumen una vez con el primer clip y no lo toques. Todos los archivos tienen la misma sonoridad. Nada aquí usa la red; tus respuestas se quedan en este navegador hasta que las descargues.",
+  tab_abx1: "ABX 1: Chorda 2 / Salamander", tab_abx2: "ABX 2: Chorda 1 / Chorda 2", tab_pref: "Preferencia", tab_res: "Resultados",
+  abx_help: "A y B son dos pianos. X es uno de ellos, sorteado. Escucha cuanto quieras, cambia mientras suena (conserva el punto), y di cuál es X. Si no lo distingues, adivina: es parte de la prueba.",
+  trial: "Ensayo {i} de {n}", phrase: "Frase", play: "Reproducir", stop: "Parar", loop: "Repetir",
+  x_is_a: "X es A", x_is_b: "X es B", done: "Esta prueba terminó. Mira Resultados.",
+  pref_help: "Dos clips ciegos de la misma frase. ¿Cuál suena más a un buen piano de cola bien grabado? Elige, o di que no tienes preferencia. Una nota del porqué ayuda.",
+  question: "Pregunta {i} de {n}", one: "Clip 1", two: "Clip 2", same: "Sin preferencia", note: "Por qué (opcional)", next: "Siguiente",
+  res_abx: "{name}: {k} de {n} aciertos — p = {p}", res_none: "aún sin hacer", res_partial: "{k} de {done} por ahora",
+  res_pref: "Preferencia, {pair}: {a} por {an}, {b} por {bn}, {s} sin preferencia (prueba de signos p = {p})",
+  sig: "Significativo al 5 %: los distingues.", nsig: "No significativo: no se oye una diferencia fiable.",
+  download: "Descargar resultados (JSON)", reset: "Empezar de nuevo (borra las respuestas)", reset_q: "¿Borrar todas las respuestas y sortear ensayos nuevos?",
+  reveal: "Respuestas por ensayo", src_salamander: "Salamander Grand", src_chorda1: "Chorda modelo 1", src_chorda2: "Chorda modelo 2"
+ }
+};
+const PHRASE_NAMES = {
+ en: { middle_c: "Middle C, mf", soft_chords: "Soft chords, pedalled", fast_run: "A fast run", ballad: "A pedalled ballad", ff_chord: "A fortissimo chord", bass: "Bass notes alone", top: "The top octave" },
+ es: { middle_c: "Do central, mf", soft_chords: "Acordes suaves, con pedal", fast_run: "Una escala rápida", ballad: "Una balada con pedal", ff_chord: "Un acorde fortísimo", bass: "Notas graves solas", top: "La octava aguda" }
+};
+const TESTS = { abx1: ["chorda2", "salamander"], abx2: ["chorda1", "chorda2"] };
+let lang = "en";
+function tr(k, v) { let s = (T[lang][k] || k); for (const n in (v || {})) s = s.split("{" + n + "}").join(v[n]); return s; }
+function rnd(n) { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; }
+function file(phrase, src) { return "audio/" + FILES[phrase + "|" + src]; }
+function fresh() {
+ const s = { created: new Date().toISOString(), lang: lang, abx1: [], abx2: [], pref: [] };
+ for (const t of ["abx1", "abx2"]) {
+  const order = [];
+  while (order.length < TRIALS) order.push(...PHRASES);
+  for (let i = 0; i < TRIALS; i++) {
+   const j = i + rnd(order.length - i); [order[i], order[j]] = [order[j], order[i]];
+   const pair = TESTS[t].slice(); if (rnd(2)) pair.reverse();
+   s[t].push({ phrase: order[i], a: pair[0], b: pair[1], x: rnd(2) ? "a" : "b", answer: null, plays: 0, heard: {}, at: null });
+  }
+ }
+ const qs = [];
+ for (const p of PHRASES) for (const pair of [TESTS.abx1, TESTS.abx2]) {
+  const o = pair.slice(); if (rnd(2)) o.reverse();
+  qs.push({ phrase: p, one: o[0], two: o[1], choice: null, note: "", plays: 0, heard: {}, at: null });
+ }
+ for (let i = qs.length - 1; i > 0; i--) { const j = rnd(i + 1); [qs[i], qs[j]] = [qs[j], qs[i]]; }
+ s.pref = qs;
+ return s;
+}
+let st;
+try { st = JSON.parse(localStorage.getItem(KEY)); } catch (e) { st = null; }
+if (!st || !st.abx1) st = fresh();
+lang = st.lang || "en";
+function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+save();
+// The transport: one element per slot; switching keeps the place.
+// `cur`: the trial or question on screen — every press of a slot counts in its `plays`
+// (and `heard`, by slot), saved at once.
+let players = {}, playing = null, looping = false, timer = null, cur = null;
+function stopAll() { for (const k in players) players[k].pause(); playing = null; paint(); }
+function setPlayers(map) { stopAll(); players = {}; for (const k in map) { const a = new Audio(map[k]); a.preload = "auto"; a.loop = looping; players[k] = a; a.onended = () => { if (playing === k) { playing = null; paint(); } }; } }
+function play(k) {
+ const now = playing ? players[playing].currentTime : 0;
+ for (const n in players) if (n !== k) players[n].pause();
+ const a = players[k];
+ try { a.currentTime = playing ? now : 0; } catch (e) {}
+ a.loop = looping; a.play(); playing = k;
+ if (cur) { cur.plays = (cur.plays || 0) + 1; cur.heard = cur.heard || {}; cur.heard[k] = (cur.heard[k] || 0) + 1; save(); }
+ paint();
+}
+function progress() { const el = document.getElementById("pos"); if (!el) return; const a = playing && players[playing]; el.style.width = a && a.duration ? (100 * a.currentTime / a.duration) + "%" : "0"; }
+setInterval(progress, 50);
+let tab = "abx1";
+function btn(label, on, cls) { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = on; return b; }
+function el(tag, html, cls) { const e = document.createElement(tag); if (html !== undefined) e.innerHTML = html; if (cls) e.className = cls; return e; }
+function transport(keys, labels) {
+ const r = el("div", undefined, "row");
+ for (const k of keys) { const b = btn(labels[k], () => play(k), "big" + (playing === k ? " on" : "")); b.id = "play-" + k; r.appendChild(b); }
+ r.appendChild(btn(tr("stop"), stopAll));
+ const l = btn(tr("loop"), () => { looping = !looping; for (const k in players) players[k].loop = looping; paint(); }, looping ? "on" : "");
+ r.appendChild(l);
+ const bar = el("div", '<div id="pos"></div>', "bar"); r.appendChild(bar);
+ return r;
+}
+let shown = null;
+function paint() {
+ document.documentElement.lang = lang;
+ document.querySelectorAll("[data-t]").forEach(e => e.textContent = tr(e.dataset.t));
+ for (const k in players) { const b = document.getElementById("play-" + k); if (b) b.className = "big" + (playing === k ? " on" : ""); }
+ const tabs = document.getElementById("tabs"); tabs.innerHTML = "";
+ for (const t of ["abx1", "abx2", "pref", "res"]) tabs.appendChild(btn(tr("tab_" + t), () => { tab = t; shown = null; stopAll(); render(); }, tab === t ? "on" : ""));
+}
+function render() {
+ paint();
+ const v = document.getElementById("view"); v.innerHTML = "";
+ const c = el("div", undefined, "card"); v.appendChild(c);
+ if (tab === "abx1" || tab === "abx2") {
+  const list = st[tab]; const i = list.findIndex(t => t.answer === null);
+  c.appendChild(el("p", tr("abx_help"), "mute"));
+  if (i < 0) { cur = null; c.appendChild(el("p", tr("done"))); return; }
+  const t = list[i]; cur = t;
+  if (shown !== tab + i) { setPlayers({ a: file(t.phrase, t.a), b: file(t.phrase, t.b), x: file(t.phrase, t.x === "a" ? t.a : t.b) }); shown = tab + i; }
+  c.appendChild(el("h2", tr("trial", { i: i + 1, n: list.length })));
+  c.appendChild(el("p", tr("phrase") + ": <b>" + PHRASE_NAMES[lang][t.phrase] + "</b>"));
+  c.appendChild(transport(["a", "b", "x"], { a: "A", b: "B", x: "X" }));
+  const r = el("div", undefined, "row"); r.style.marginTop = "16px";
+  for (const ans of ["a", "b"]) r.appendChild(btn(tr(ans === "a" ? "x_is_a" : "x_is_b"), () => { t.answer = ans; t.at = new Date().toISOString(); save(); render(); }, "primary"));
+  c.appendChild(r);
+ } else if (tab === "pref") {
+  const i = st.pref.findIndex(q => q.choice === null);
+  c.appendChild(el("p", tr("pref_help"), "mute"));
+  if (i < 0) { cur = null; c.appendChild(el("p", tr("done"))); return; }
+  const q = st.pref[i]; cur = q;
+  if (shown !== "pref" + i) { setPlayers({ one: file(q.phrase, q.one), two: file(q.phrase, q.two) }); shown = "pref" + i; }
+  c.appendChild(el("h2", tr("question", { i: i + 1, n: st.pref.length })));
+  c.appendChild(el("p", tr("phrase") + ": <b>" + PHRASE_NAMES[lang][q.phrase] + "</b>"));
+  c.appendChild(transport(["one", "two"], { one: tr("one"), two: tr("two") }));
+  const note = el("textarea"); note.rows = 2; note.placeholder = tr("note"); note.style.marginTop = "14px"; c.appendChild(note);
+  const r = el("div", undefined, "row"); r.style.marginTop = "10px";
+  for (const [k, lab] of [["one", tr("one")], ["two", tr("two")], ["same", tr("same")]]) r.appendChild(btn(lab, () => { q.choice = k; q.note = note.value; q.at = new Date().toISOString(); save(); render(); }, "primary"));
+  c.appendChild(r);
+ } else { cur = null; results(c); }
+}
+function choose(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
+function binomTail(k, n) { let p = 0; for (let i = k; i <= n; i++) p += choose(n, i); return p / Math.pow(2, n); }
+function results(c) {
+ for (const t of ["abx1", "abx2"]) {
+  const list = st[t]; const done = list.filter(x => x.answer !== null); const k = done.filter(x => x.answer === x.x).length;
+  const name = tr("tab_" + t);
+  if (done.length === 0) { c.appendChild(el("p", name + ": " + tr("res_none"))); continue; }
+  if (done.length < list.length) { c.appendChild(el("p", name + ": " + tr("res_partial", { k: k, done: done.length }))); continue; }
+  const p = binomTail(k, list.length);
+  c.appendChild(el("p", tr("res_abx", { name: name, k: k, n: list.length, p: p < 0.0001 ? p.toExponential(1) : p.toFixed(4) }) + " — <span class='" + (p < 0.05 ? "warn" : "ok") + "'>" + tr(p < 0.05 ? "sig" : "nsig") + "</span>"));
+ }
+ for (const pair of [TESTS.abx1, TESTS.abx2]) {
+  const qs = st.pref.filter(q => q.choice !== null && [q.one, q.two].sort().join() === pair.slice().sort().join());
+  if (!qs.length) continue;
+  let a = 0, b = 0, s = 0;
+  for (const q of qs) { if (q.choice === "same") s++; else if ((q.choice === "one" ? q.one : q.two) === pair[0]) a++; else b++; }
+  const n = a + b, m = Math.max(a, b);
+  const p = n ? Math.min(1, 2 * binomTail(m, n)) : 1;
+  c.appendChild(el("p", tr("res_pref", { pair: tr("src_" + pair[0]) + " / " + tr("src_" + pair[1]), a: a, an: tr("src_" + pair[0]), b: b, bn: tr("src_" + pair[1]), s: s, p: p.toFixed(3) })));
+ }
+ const r = el("div", undefined, "row");
+ r.appendChild(btn(tr("download"), () => { const blob = new Blob([JSON.stringify(st, null, 1)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "chorda-abx-results.json"; a.click(); }, "primary"));
+ r.appendChild(btn(tr("reset"), () => { if (confirm(tr("reset_q"))) { st = fresh(); save(); shown = null; tab = "abx1"; render(); } }));
+ c.appendChild(r);
+ const done = ["abx1", "abx2"].every(t => st[t].every(x => x.answer !== null));
+ if (done) {
+  c.appendChild(el("h2", tr("reveal")));
+  const tb = el("table"); tb.innerHTML = "<tr><th>#</th><th>" + tr("phrase") + "</th><th>A</th><th>B</th><th>X</th><th></th></tr>";
+  for (const t of ["abx1", "abx2"]) st[t].forEach((x, i) => { const row = el("tr"); row.innerHTML = "<td>" + t + "." + (i + 1) + "</td><td>" + PHRASE_NAMES[lang][x.phrase] + "</td><td>" + tr("src_" + x.a) + "</td><td>" + tr("src_" + x.b) + "</td><td>" + x.x.toUpperCase() + "</td><td>" + (x.answer === x.x ? "✓" : "✗") + "</td>"; tb.appendChild(row); });
+  c.appendChild(tb);
+ }
+}
+document.getElementById("lang-en").onclick = () => { lang = "en"; st.lang = lang; save(); render(); };
+document.getElementById("lang-es").onclick = () => { lang = "es"; st.lang = lang; save(); render(); };
+document.addEventListener("keydown", e => { if (e.target.tagName === "TEXTAREA") return; const k = e.key.toLowerCase(); if (players[k]) play(k); else if (k === "1" && players.one) play("one"); else if (k === "2" && players.two) play("two"); else if (k === " ") { e.preventDefault(); stopAll(); } });
+render();
+</script>
+</body>
+</html>

@@ -54,6 +54,7 @@ const fn preset(label_key: &'static str, params: &'static [(&'static str, f32)])
 pub fn start_of(kind: EffectKind) -> Start {
     use EffectKind as K;
     use Neutral::*;
+    // r37:library — the values as ADR 0101 levelled them (each preset's `out`; Punch's attack).
     match kind {
         K::Eq | K::Stereo => Start::Neutral(Flat),
         K::Compressor | K::Space | K::DeEsser | K::Gate | K::Delay | K::Reverb | K::AutoTune => {
@@ -97,20 +98,36 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("b3.knee", 12.0),
                 ("b3.att", 10.0),
                 ("b3.rel", 120.0),
+                ("out", 1.5),
             ],
         ),
         K::Saturator => preset(
             "preset.sat.tape_bus",
             &[("model", 0.0), ("drive", 7.0), ("char", 0.5), ("os", 2.0)],
         ),
-        K::Chorus => preset("preset.concentus.juno_one", &[("mode", 0.0), ("mix", 0.5)]),
+        K::Chorus => preset(
+            "preset.concentus.juno_one",
+            &[("mode", 0.0), ("mix", 0.5), ("out", -2.6)],
+        ),
         K::Flanger => preset(
             "preset.flexus.jet",
-            &[("mix", 0.5), ("fb", 0.75), ("rate", 0.15), ("depth", 6.0)],
+            &[
+                ("mix", 0.5),
+                ("fb", 0.75),
+                ("rate", 0.15),
+                ("depth", 6.0),
+                ("out", -0.3),
+            ],
         ),
         K::Phaser => preset(
             "preset.phasis.phase90_script",
-            &[("mix", 0.5), ("lo", 220.0), ("hi", 1_600.0), ("rate", 0.6)],
+            &[
+                ("mix", 0.5),
+                ("lo", 220.0),
+                ("hi", 1_600.0),
+                ("rate", 0.6),
+                ("out", -3.8),
+            ],
         ),
         K::Tremolo => preset(
             "preset.tremor.surf",
@@ -119,16 +136,20 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("sync", 0.0),
                 ("rate", 6.2),
                 ("shape", 1.0),
+                ("out", 3.3),
             ],
         ),
         K::Vibrato => preset(
             "preset.vibrans.singer",
             &[("depth", 30.0), ("rate", 5.5), ("rise", 350.0)],
         ),
-        K::RingMod => preset("preset.anulus.bell", &[("freq", 587.0), ("mix", 0.6)]),
+        K::RingMod => preset(
+            "preset.anulus.bell",
+            &[("freq", 587.0), ("mix", 0.6), ("out", -1.6)],
+        ),
         K::FreqShift => preset(
             "preset.translatio.slow_phase",
-            &[("shift", 0.7), ("mix", 0.5)],
+            &[("shift", 0.7), ("mix", 0.5), ("out", -3.2)],
         ),
         K::VolumeShaper => preset(
             "preset.fluctus.pump_quarters",
@@ -146,12 +167,16 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("p1.y", 1.0),
                 ("p1.t", 0.0),
                 ("p1.s", 2.0),
+                ("out", 1.0),
             ],
         ),
-        K::Transient => preset("preset.impetus.punch", &[("attack", 0.6), ("speed", 12.0)]),
+        K::Transient => preset(
+            "preset.impetus.punch",
+            &[("attack", 0.4), ("speed", 12.0), ("out", -2.8)],
+        ),
         K::TransientSplit => preset(
             "preset.discrimen.more_attack",
-            &[("t.gain", 5.0), ("mode", 1.0)],
+            &[("t.gain", 5.0), ("mode", 1.0), ("out", -1.9)],
         ),
     }
 }

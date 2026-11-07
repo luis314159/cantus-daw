@@ -80,13 +80,16 @@ fn stage(px: u32) -> Stage {
 }
 
 #[test]
-fn the_default_character_is_the_first_and_the_songbird() {
+fn the_default_character_is_the_first_and_the_ninja() {
     let all = cast::builtin();
     assert_eq!(
         all[0].info().id,
         cantus_core::inst::dancer::DEFAULT_CHARACTER
     );
-    assert_eq!(cast::default_character().info().id, "builtin:songbird");
+    // Fuga the ninja since round 37 (ADR 0105), Volta the mecha second; the songbird stays.
+    assert_eq!(cast::default_character().info().id, "builtin:ninja");
+    assert_eq!(all[1].info().id, "builtin:mecha");
+    assert!(cast::by_id("builtin:songbird").is_some());
     let mut ids: Vec<String> = all.iter().map(|c| c.info().id.clone()).collect();
     ids.sort();
     ids.dedup();
@@ -127,8 +130,10 @@ fn every_move_and_mood_draws() {
         for pose in poses(ch).iter().step_by(3) {
             let p = render(&stage(160), &[(ch, *pose)]).expect("a stage");
             let drawn = p.pixels().iter().filter(|c| c.alpha() > 0).count();
+            // The action pair (round 37) are slim teens, not round mascots: about 1 500
+            // pixels standing at this size where the family covers 2 000 and more.
             assert!(
-                drawn > 1500,
+                drawn > 1200,
                 "{:?} {:?}: only {drawn} pixels",
                 pose.mv,
                 pose.mood

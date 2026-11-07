@@ -10,6 +10,7 @@
 //! everything survives save and open. The File menu's *Demo songs* opens them
 //! (`views::demos`).
 
+pub mod as_mixed; // r37:library — the demos keep the presets they were mixed on
 pub mod parts;
 pub mod song;
 pub mod theory;

@@ -1252,8 +1252,39 @@ fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
         }),
         5 => route.and_then(|r| plan::remove_route(project, r)),
         6 => {
-            let to = project.strip(a).and_then(|s| s.sends.first()).map(|x| x.to);
-            to.and_then(|to| plan::send_to_output(project, a, to))
+            // A strip with a send, when there is one; else `a` sends to `b` first, in the
+            // same batch (r37:drums: the strips that had sends now go with their kits).
+            let sending: Vec<StripId> = project
+                .strips
+                .iter()
+                .filter(|s| !s.sends.is_empty())
+                .map(|s| s.id)
+                .collect();
+            match sending
+                .get(rng.below(sending.len().max(1) as u64) as usize)
+                .copied()
+            {
+                Some(from) => {
+                    let to = project
+                        .strip(from)
+                        .and_then(|s| s.sends.first())
+                        .map(|x| x.to);
+                    to.and_then(|to| plan::send_to_output(project, from, to))
+                }
+                None => {
+                    let mut q = project.clone();
+                    let first = Command::SetStripSend {
+                        id: a,
+                        send: Send::new(b),
+                    };
+                    first.clone().apply(&mut q).ok().and_then(|_| {
+                        plan::send_to_output(&q, a, b).map(|then| Command::Batch {
+                            label_key: "cmd.send_to_output".into(),
+                            commands: vec![first, then],
+                        })
+                    })
+                }
+            }
         }
         7 => {
             // A strip routed somewhere other than the master, when there is one.
@@ -1263,11 +1294,27 @@ fn routing_batch(rng: &mut Lcg, project: &mut Project) -> Command {
                 .filter(|s| s.output.is_some())
                 .map(|s| s.id)
                 .collect();
-            let from = routed
+            match routed
                 .get(rng.below(routed.len().max(1) as u64) as usize)
                 .copied()
-                .unwrap_or(a);
-            plan::output_to_send(project, from)
+            {
+                Some(from) => plan::output_to_send(project, from),
+                // None routed yet (a kit's pad strips, once routed strips, now go with
+                // their kit — r37:drums): `a` into `b` first, in the same batch.
+                None => {
+                    let mut q = project.clone();
+                    let first = Command::SetStripOutput {
+                        id: a,
+                        output: Some(b),
+                    };
+                    first.clone().apply(&mut q).ok().and_then(|_| {
+                        plan::output_to_send(&q, a).map(|then| Command::Batch {
+                            label_key: "cmd.output_to_send".into(),
+                            commands: vec![first, then],
+                        })
+                    })
+                }
+            }
         }
         8 => {
             let ret = project.make_strip("Return");
@@ -1792,7 +1839,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut ara_done = [[0usize; 2]; 5]; // r36:ara
                                          // r36:external - per kind of `round36_external_command`, applied and refused.
     let mut externaled = [[0usize; 2]; EXTERNAL_KINDS];
-    // 120 sequences (round 31: one arm more spreads the draws thinner).
+    // r37:drums - per kind of `round37_padout_command`, applied and refused.
+    let mut padded = [[0usize; 2]; PADOUT_KINDS]; // r37:drums
+                                                  // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
@@ -1820,6 +1869,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         let mut erng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(52)); // r36:editor
         let mut arng = Lcg(seed.wrapping_mul(0x9E37_79B1).wrapping_add(53)); // r36:ara
         let mut urng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(54)); // r36:external
+        let mut krng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(56)); // r37:drums
         for _ in 0..120 {
             // r36:ara — a clip bound to an ARA plug-in or let go (ADR 0097), from `arng`.
             if arng.below(5) == 0 {
@@ -1922,6 +1972,21 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 bus.reserve_ids(scratch.next_id);
                 let ok = bus.execute(cmd, origins[urng.below(5) as usize]).is_ok();
                 externaled[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // r37:drums - a kit split to strips and merged back, a pad's output (ADR 0100),
+            // from a stream of their own (`krng`).
+            // Sparse: a split adds a strip per pad, and the main stream draws among strips.
+            if krng.below(10) == 0 {
+                let mut scratch = bus.project().clone();
+                let (k, cmd) = round37_padout_command(&mut krng, &mut scratch);
+                bus.reserve_ids(scratch.next_id);
+                let ok = bus.execute(cmd, origins[krng.below(5) as usize]).is_ok();
+                padded[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
                     snap.next_id = 0;
@@ -2331,6 +2396,12 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         externaled[..EXTERNAL_KINDS - 1].iter().all(|k| k[0] > 0)
             && externaled[EXTERNAL_KINDS - 1][1] > 0,
         "round 36's external units never applied or never refused: {externaled:?}"
+    );
+    // r37:drums - every kind applied at least once; a pad sent to a strip that is not
+    // there, and a merge of a kit that is not split, refused.
+    assert!(
+        padded.iter().all(|k| k[0] > 0) && padded[3][1] > 0,
+        "round 37's pad outputs never applied or never refused: {padded:?}"
     );
     // r36:mix - every kind applied at least once, and the checked ones refused.
     assert!(
@@ -5800,6 +5871,312 @@ fn round36_external_command(rng: &mut Lcg, project: &mut Project) -> (usize, Com
                     }),
                 },
             )
+        }
+    }
+}
+
+// r37:drums — round 37 (ADR 0100): a kit split to strips, merged back, a pad's output.
+const PADOUT_KINDS: usize = 9; // r37:fixes — 8: a kit routed
+
+/// The kind and the command: 0 a kit put on a track, 1 *Split to strips*, 2 *Merge back*,
+/// 3 a pad sent to a strip (or to one that is not there: refused), 4 a pad back on the kit,
+/// 5 an insert added to a pad's chain (the chain made with the first), 6 one taken out (the
+/// last takes the chain), 7 a strip's own pan law (on one that is not there: refused).
+/// 8 a kit routed to another strip or the master (its chains and pad strips follow it in
+/// the same step — round 37's review, item 1).
+/// A kit that cannot be split or merged gives a pad's output instead (the same kinds).
+fn round37_padout_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    let kits: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.instrument.pulsus().is_some())
+        .map(|t| t.id)
+        .collect();
+    let any_track = |rng: &mut Lcg, p: &Project| {
+        (!p.tracks.is_empty()).then(|| p.tracks[rng.below(p.tracks.len() as u64) as usize].id)
+    };
+    let kind = if kits.is_empty() {
+        0
+    } else {
+        rng.below(PADOUT_KINDS as u64) as usize
+    };
+    let kit = kits
+        .get(rng.below(kits.len().max(1) as u64) as usize)
+        .copied();
+    match (kind, kit) {
+        (1, Some(t)) => {
+            let view = project.clone();
+            match cantus_core::padout::split_with(&view, t, |n| project.make_strip(n)) {
+                Ok(cmd) => (1, cmd),
+                Err(_) => (1, pad_output(rng, project, t, None)),
+            }
+        }
+        (2, Some(t)) => match cantus_core::padout::merge(project, t) {
+            Ok(cmd) => (2, cmd),
+            Err(_) => (2, pad_output(rng, project, t, None)),
+        },
+        (3, Some(t)) => {
+            let to = if rng.below(4) == 0 || project.strips.is_empty() {
+                StripId(9_000_000 + rng.below(100))
+            } else {
+                project.strips[rng.below(project.strips.len() as u64) as usize].id
+            };
+            (3, pad_output(rng, project, t, Some(to)))
+        }
+        (4, Some(t)) => (4, pad_output(rng, project, t, None)),
+        // r37:fixes
+        (8, Some(t)) => {
+            let audio: Vec<StripId> = project
+                .strips
+                .iter()
+                .filter(|s| s.kind == cantus_core::vca::StripKind::Audio)
+                .map(|s| s.id)
+                .collect();
+            let to = if audio.is_empty() || rng.below(4) == 0 {
+                None
+            } else {
+                Some(audio[rng.below(audio.len() as u64) as usize])
+            };
+            (8, Command::SetTrackStrip { id: t, strip: to })
+        }
+        (5, Some(t)) => {
+            let view = project.clone();
+            let pads: Vec<PadId> = view
+                .track(t)
+                .and_then(|x| x.instrument.pulsus())
+                .map(|k| k.pads.iter().map(|p| p.id).collect())
+                .unwrap_or_default();
+            let pad = pads[rng.below(pads.len().max(1) as u64) as usize % pads.len().max(1)];
+            let kind =
+                [EffectKind::Eq, EffectKind::Compressor, EffectKind::Delay][rng.below(3) as usize];
+            let slot = project.make_effect(kind);
+            match cantus_core::padout::chain_add(&view, t, pad, slot, |n| project.make_strip(n)) {
+                Ok(cmd) => (5, cmd),
+                Err(_) => (5, pad_output(rng, project, t, None)),
+            }
+        }
+        (7, Some(_)) => {
+            let laws = [
+                None,
+                Some(PanLaw::ZeroDb),
+                Some(PanLaw::Minus3dB),
+                Some(PanLaw::Minus6dB),
+            ];
+            let law = laws[rng.below(4) as usize];
+            let id = if project.strips.is_empty() || rng.below(5) == 0 {
+                StripId(9_100_000)
+            } else {
+                project.strips[rng.below(project.strips.len() as u64) as usize].id
+            };
+            (7, Command::SetStripPanLaw { id, law })
+        }
+        (6, Some(t)) => {
+            let found = project
+                .track(t)
+                .and_then(|x| x.instrument.pulsus())
+                .and_then(|k| {
+                    k.pads.iter().find_map(|p| {
+                        cantus_core::padout::chain_effects(project, p)
+                            .first()
+                            .map(|e| (p.id, e.id))
+                    })
+                });
+            match found {
+                Some((pad, effect)) => {
+                    match cantus_core::padout::chain_remove(project, t, pad, effect) {
+                        Ok(cmd) => (6, cmd),
+                        Err(_) => (6, pad_output(rng, project, t, None)),
+                    }
+                }
+                None => (6, pad_output(rng, project, t, None)),
+            }
+        }
+        _ => match any_track(rng, project) {
+            Some(track) => {
+                // The seven-pad kit: seven strips at a split, not fourteen.
+                let kit = PulsusParams::default();
+                (
+                    0,
+                    Command::SetInstrument {
+                        track,
+                        spec: Box::new(InstrumentSpec::Pulsus(kit)),
+                    },
+                )
+            }
+            None => (
+                0,
+                Command::InsertTrack {
+                    index: 0,
+                    track: Box::new({
+                        let mut t = project.make_track("Kit");
+                        t.instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+                        t
+                    }),
+                },
+            ),
+        },
+    }
+}
+
+/// One pad of `track`'s kit to `output`.
+fn pad_output(
+    rng: &mut Lcg,
+    project: &Project,
+    track: TrackId,
+    output: Option<StripId>,
+) -> Command {
+    let pads: Vec<PadId> = project
+        .track(track)
+        .and_then(|t| t.instrument.pulsus())
+        .map(|k| k.pads.iter().map(|p| p.id).collect())
+        .unwrap_or_default();
+    let pad = pads
+        .get(rng.below(pads.len().max(1) as u64) as usize)
+        .copied()
+        .unwrap_or(PadId(1));
+    Command::SetPadOutput { track, pad, output }
+}
+
+// r37:scene — round 37 (ADR 0104): Chorda's look, from a stream of its own, so the main
+// test's projects (and every kind's coverage counted on them) stay the ones they were.
+/// A Chorda's look (`lrng`, a stream of its own) among the general generator's commands:
+/// undo all restores the start, redo all the end; each kind applied, the refusal refused.
+#[test]
+fn a_chordas_look_undoes_and_redoes_among_the_others() {
+    let origins = [
+        Origin::User,
+        Origin::Script,
+        Origin::Ai,
+        Origin::Mcp,
+        Origin::System,
+    ];
+    let mut looked = [[0usize; 2]; LOOK_KINDS];
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x3C6E_F372).wrapping_add(58));
+        let mut lrng = Lcg(seed.wrapping_mul(0x1F2E_3D4B).wrapping_add(104));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if lrng.below(2) == 0 {
+                let (k, c) = round37_look_command(&mut lrng, &mut scratch);
+                (Some(k), c)
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ok = bus.execute(cmd, origins[lrng.below(5) as usize]).is_ok();
+            if let Some(k) = k {
+                looked[k][usize::from(!ok)] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        looked[..LOOK_KINDS - 1].iter().all(|k| k[0] > 0) && looked[LOOK_KINDS - 1][1] > 0,
+        "round 37's look commands never applied or never refused: {looked:?}"
+    );
+}
+
+/// Kinds of [`round37_look_command`]: 0 a track made a Chorda, 1 its body, 2 its finish,
+/// 3 a look key cleared (back to the default), 4 a look key on an instrument that has none
+/// (refused).
+const LOOK_KINDS: usize = 5;
+
+/// A Chorda's look on a random track: made a Chorda, its body or finish set (to a word this
+/// build knows or one it does not), a key cleared; or the key on an organ (refused).
+fn round37_look_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::inst::chorda_look::{Body, Finish, BODY_KEY, FINISH_KEY};
+    let chordas: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| {
+            t.instrument
+                .native()
+                .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+        })
+        .map(|t| t.id)
+        .collect();
+    if chordas.is_empty() || rng.below(12) == 0 {
+        let Some(track) = project.tracks.first().map(|t| t.id) else {
+            let mut t = project.make_track("Piano");
+            t.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
+            return (
+                0,
+                Command::InsertTrack {
+                    index: 0,
+                    track: Box::new(t),
+                },
+            );
+        };
+        return (
+            0,
+            Command::SetInstrument {
+                track,
+                spec: Box::new(InstrumentSpec::Native(NativeSpec::new(
+                    InstrumentKind::Chorda,
+                ))),
+            },
+        );
+    }
+    let track = chordas[rng.below(chordas.len() as u64) as usize];
+    let text = |key: &str, text: Option<String>| Command::SetInstrumentText {
+        track,
+        key: key.into(),
+        text,
+    };
+    match rng.below(5) {
+        0 | 1 => {
+            let words: Vec<&str> = Body::ALL
+                .iter()
+                .map(|b| b.key())
+                .chain(["harpsichord"])
+                .collect();
+            let w = words[rng.below(words.len() as u64) as usize];
+            (1, text(BODY_KEY, Some(w.to_string())))
+        }
+        2 => {
+            let w = Finish::ALL[rng.below(Finish::ALL.len() as u64) as usize].key();
+            (2, text(FINISH_KEY, Some(w.to_string())))
+        }
+        3 => (
+            3,
+            text(
+                if rng.below(2) == 0 {
+                    BODY_KEY
+                } else {
+                    FINISH_KEY
+                },
+                None,
+            ),
+        ),
+        _ => {
+            let organ = project.tracks.iter().find(|t| {
+                t.instrument
+                    .native()
+                    .is_some_and(|n| n.kind != InstrumentKind::Chorda)
+            });
+            match organ {
+                Some(t) => (
+                    4,
+                    Command::SetInstrumentText {
+                        track: t.id,
+                        key: BODY_KEY.into(),
+                        text: Some("upright".into()),
+                    },
+                ),
+                // No other native instrument: a key Chorda does not hold (refused too).
+                None => (4, text("look.colour", Some("red".into()))),
+            }
         }
     }
 }

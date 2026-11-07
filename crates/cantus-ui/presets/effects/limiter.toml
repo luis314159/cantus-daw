@@ -1,0 +1,146 @@
+# Terminus limiter: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "lim.preset.transparent"
+note = "Four decibels louder and nothing more: a clean last stage."
+styles = ["pop", "film"]
+roles = ["master"]
+[preset.values]
+"gain" = 4
+"link_t" = 0.75
+"look" = 2
+"style" = 0
+
+[[preset]]
+key = "lim.preset.streaming"
+note = "Towards -14 LUFS with a -1 dBTP ceiling: ready for streaming services."
+styles = ["pop", "rnb"]
+roles = ["master"]
+[preset.values]
+"ceiling" = -1
+"gain" = 6
+"knee" = 1
+"style" = 0
+"target" = -14
+
+[[preset]]
+key = "lim.preset.loud"
+note = "Pushed towards -9 LUFS with a touch of clipping: loud and still punchy."
+styles = ["trap", "house"]
+roles = ["master"]
+[preset.values]
+"ceiling" = -1
+"clip" = 0.4
+"gain" = 10
+"look" = 1
+"style" = 2
+"target" = -9
+
+[[preset]]
+key = "lim.preset.drums"
+note = "A fast limiter on a drum bus: the peaks held, the hits kept."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"gain" = 6
+"link_t" = 0.5
+"look" = 1
+"rel" = 80
+"style" = 1
+
+[[preset]]
+key = "lim.preset.glue"
+note = "A slow, soft limiter that holds a group together."
+styles = ["pop", "rock"]
+roles = ["bus"]
+[preset.values]
+"att" = 5
+"gain" = 4
+"rel" = 300
+"style" = 3
+
+[[preset]]
+key = "lim.preset.broadcast"
+note = "Towards -23 LUFS for broadcast, gently."
+styles = ["film"]
+roles = ["master"]
+[preset.values]
+"gain" = 2
+"look" = 5
+"rel" = 500
+"style" = 4
+"target" = -23
+
+[[preset]]
+key = "lim.preset.cd"
+note = "Loud for a CD, dithered to sixteen bits."
+styles = ["pop", "rock"]
+roles = ["master"]
+[preset.values]
+"ceiling" = -0.3
+"dither" = 5
+"gain" = 6
+"shape" = 2
+"target" = -10
+
+[[preset]]
+key = "lim.preset.tracking"
+note = "Only a safety while recording: no look-ahead, no latency."
+styles = ["film", "jazz"]
+roles = ["master"]
+[preset.values]
+"look" = 0
+"rel" = 100
+"style" = 4
+"tp" = 0
+
+[[preset]]
+key = "lim.preset.trap_master"
+note = "Towards -9 LUFS with a touch of clipping and a -0.5 dB ceiling."
+styles = ["trap"]
+roles = ["master"]
+[preset.values]
+"ceiling" = -0.5
+"clip" = 0.3
+"gain" = 8
+"style" = 2
+"target" = -9
+
+[[preset]]
+key = "lim.preset.worship_live"
+note = "A gentle stage for a live worship mix: -16 LUFS, never pumping."
+styles = ["worship"]
+roles = ["master"]
+[preset.values]
+"ceiling" = -1
+"gain" = 3
+"look" = 2
+"rel" = 300
+"style" = 0
+"target" = -16
+
+[[preset]]
+key = "lim.preset.vocal_peaks"
+note = "A fast limiter that only catches a vocal peak."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"att" = 1
+"ceiling" = -3
+"gain" = 2
+"rel" = 60
+"style" = 1
+
+[[preset]]
+key = "lim.preset.lofi_wall"
+note = "A hard, quick wall on a group: the flattened sound of a sampled loop."
+styles = ["lofi"]
+roles = ["bus"]
+[preset.values]
+"ceiling" = -1
+"gain" = 6
+"knee" = 0
+"rel" = 50
+"style" = 3
