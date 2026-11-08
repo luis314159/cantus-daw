@@ -1675,6 +1675,20 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
   drawn larger, with more inner detail and a material of their own, judged alone at 100 and
   125 %) and **the piano-roll keys** ("FL's keys better proportioned, larger, with shaded C
   rows"; ours "narrow, cramped"). The mixer and the arrangement were split votes.
+- **A shared helper's crash blamed on no one** (beta.12's release run, Windows runner)
+  <!-- r37:integration -->: `cantus-sandbox`'s
+  `a_crash_in_a_shared_helper_is_counted_once_and_only_for_the_plugin_that_did_it` failed
+  once with the abort fault — `crash_culprit(gain)` false, so the blame (round 29, #25/#49:
+  the crash handler's `CRASH_AT`, else `MAIN_AT` and the running exchanges) did not land on
+  the plug-in that aborted. The code was untouched in round 37; passed on rerun. Find the
+  race (the handler's write against the host reading the helper's death) and hold it with a
+  test that aborts a hundred times.
+- **Chorda model 2's constructor costs 17–20 ms** (round 37's integration)
+  <!-- r37:integration -->: `Unit::new` makes the body's radiation responses and the room
+  where it is called (118 ms once on a loaded CI runner, where
+  `a_unit_never_waits_for_its_keyboard` had a 100 ms bound, now 500 ms). If a unit is made on
+  the interface's thread when Chorda is chosen, that is a dropped frame: make them on the
+  designer's worker as the keyboard is, or share them per sample rate.
 - **The `stage_budget` variance** (round 37's integration) <!-- r37:integration -->: two
   applications built apart sometimes differ by a whole inspector dancer section (+4 540
   triangles) under a loaded suite, never in a small run. The test now measures the dancer

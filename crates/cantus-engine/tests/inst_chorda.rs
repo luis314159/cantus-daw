@@ -325,7 +325,10 @@ fn a_unit_never_waits_for_its_keyboard() {
     let fs = 46_000.0f32;
     let t = std::time::Instant::now();
     let mut u = Unit::new(fs);
-    assert!(t.elapsed().as_millis() < 100, "made in {:?}", t.elapsed());
+    // Model 2 makes its body and room here (17–20 ms on the owner's machine, 118 ms once on
+    // a loaded CI runner); the keyboard's design takes 1.6 s and more, so waiting for it
+    // would be seen far above this bound.
+    assert!(t.elapsed().as_millis() < 500, "made in {:?}", t.elapsed());
     assert_eq!(u.telemetry()[tel::DESIGNED], 0.0, "designing");
     u.note_on(on(60, 0.8, 1));
     assert!(
