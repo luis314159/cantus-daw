@@ -183,7 +183,9 @@ jobs:
     # 22.04, not latest: an AppImage runs on systems at least as new as the one it was
     # built on (its glibc), so the oldest supported LTS builds it (ADR 0067 §1).
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
+    # The suite (68 min at beta.12), the release build and the AppImage's two more builds
+    # (x86-64-v2 and -v3) passed 120 minutes at beta.12, cut in the AppImage step.
+    timeout-minutes: 180
     env:
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
