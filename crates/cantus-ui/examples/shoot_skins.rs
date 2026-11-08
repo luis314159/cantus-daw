@@ -361,6 +361,9 @@ fn main() {
     });
     let only: Vec<&String> = rest.collect();
     std::fs::create_dir_all(&dir).expect("create the output directory");
+    // Chorda's scene bakes on the painting thread here: a shot cannot wait for the worker,
+    // and without it the piano's picture is an empty card (round 38: the site showed one).
+    views::inst::chorda::scene::set_blocking(true);
     if flag("--gallery") {
         shoot_gallery(&dir);
         if only.is_empty() {
