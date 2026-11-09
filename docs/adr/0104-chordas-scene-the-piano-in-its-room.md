@@ -175,3 +175,44 @@ plate at its foot. The strings from above stay in Edit (*Strings and hammers*).
 | The null test: the look changed twice while the piano sounds live equals the offline render with no look, to the bit, and other looks render the same | `chorda_scene.rs::the_look_touches_no_sample_live_or_offline` |
 | The frame budget: no allocation beyond an empty frame at rest and while gliding (bake uploads aside), no request at rest, the whole card at rest; triangle bound; the bake's bounds (texture side, samples); a late bake for an undone look never shown, the worker waking the UI; a new size baked with no event; the bake's time (release, ignored) | `cantus-ui/tests/chorda_scene_budget.rs` |
 | The look is no part of a frozen sound: allowed on a frozen Chorda, the key kept; its sound still refused | `cantus-core/tests/chorda_look_freeze.rs` |
+
+## Amended in round 38: the baker is ~4× faster, to the bit
+
+The owner found that moving *Width*, *Lid* or *Room* pixelated the picture: a full bake took
+~600 ms at 1.5 px/pt, so a gliding control was shown as a half-resolution preview, stretched,
+then cut to the full bake. The renderer of §1 keeps every rule and every bit; only how it
+walks the picture changed (`docs/round38/chorda.md`):
+
+- **Span rasterization** (`chorda_scene_raster.rs`, `span`). An edge function is linear along
+  a row, so a triangle's inside on that row is one interval. The interval is widened by two
+  samples and every sample in it still takes the exact inside test, so the coverage is the
+  same wherever that test is decided by more than its own rounding; the shadow map had
+  tested ~60 samples for each one it kept. *How exact, said plainly* (round 38's review):
+  the interval is computed in f64 and the test in f32, so a sample the f32 test accepts only
+  by rounding noise, more than two samples outside the f64 interval (a very large triangle
+  with an almost horizontal edge, under ~0.12 px of rise), would now be skipped. No hole can
+  open — a shared edge is one f64 line, so the neighbour's span takes the sample — and the
+  rows do not depend on the thread count. For the scenes Cantus draws, 24 bakes hash as
+  before; a future camera or scene could differ from the old walk in such noise-decided
+  samples, and the hash test says so if it does. The near-horizontal lines have the same
+  bound. Lines use the same walk
+  (`|q · nrm|` is linear along the row).
+- **Rows in bands of 8, taken by whichever bake thread is free** (`rows1`, `rows3`), instead
+  of a fixed split that left threads idle behind the piano's rows.
+- **The once-serial passes run on every thread**: the blur (rows, then column bands walked
+  row by row, each column's running sum in its own order, so the sums are unchanged), the
+  mirror composite, depth of field, bloom, the resolve, and the lines (each band draws every
+  line in order over its own rows).
+- **Settings:** bake threads are all but two, at most 14; `PREVIEW_MS` 120; the first preview
+  is the whole picture (`PREVIEW_START` 1.0). The antialiased preview and the 0.15 s dissolve
+  between two textures, recoloured in place with no allocation, stay.
+
+Measured at 1.5 px/pt, 710×300 pt, 14 threads: the full bake 597 → ~140 ms, a full-resolution
+preview ~400 → ~95 ms, the key light's shadow map (1 536²) 130 → 12 ms, the lines 18 → 1 ms.
+The owner confirmed on 2026-11-09 that *Width*, *Lid* and *Room* no longer pixelate.
+
+| What | Test |
+|---|---|
+| 24 bakes (three lid/room/width settings × both themes × four qualities and thread counts) hash as before the change | `chorda_knobs_measure::hash_the_bakes` (diagnostic, ignored) |
+| A bake is the same on 1, 2, 5 and 14 threads — preview and full, three rooms, the mirror, both themes | `chorda_scene_budget::a_bake_is_the_same_on_any_number_of_threads` |
+| A preview's resolution is what the machine bakes in its time; a landed picture dissolves over the one before and then rests | `chorda_scene_budget.rs` |

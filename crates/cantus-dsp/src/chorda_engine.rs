@@ -15,6 +15,7 @@
 use super::board::{Soundboard, Sympathetic};
 use super::body::Body;
 use super::design::Keyboard;
+use super::registers::Registers;
 use super::room::Room;
 use super::stage::{self, Stage};
 use super::tables::{self, KEYS, LOWEST};
@@ -169,6 +170,11 @@ pub struct Chorda {
     board: Soundboard,
     /// Model 2's body and room.
     body: Body,
+    /// Model 2's voicing by register: the filters, each key's share of the three buses,
+    /// and the buses (left, right) for one chunk.
+    regs: Registers,
+    reg_w: [[f64; 3]; KEYS],
+    bus: [[[f64; CHUNK]; 2]; 3],
     room: Room,
     stage: Stage,
     voicing: Voicing,
@@ -224,6 +230,9 @@ impl Chorda {
             sym: Sympathetic::new(&caps, &reference, fs),
             board: Soundboard::new(fs),
             body: Body::new(fs, &Voicing::default().body),
+            regs: Registers::new(fs, &Voicing::default().reg),
+            reg_w: std::array::from_fn(|i| Registers::weights(LOWEST + i as u8)),
+            bus: [[[0.0; CHUNK]; 2]; 3],
             room: Room::new(fs, &Voicing::default().room),
             stage: Stage::new(fs),
             voicing: Voicing::default(),
@@ -280,6 +289,7 @@ impl Chorda {
                 self.board.clear();
             } else {
                 self.body.clear();
+                self.regs.reset();
                 self.room.reset();
                 self.stage.reset();
             }
@@ -364,6 +374,7 @@ impl Chorda {
     pub fn set_voicing(&mut self, v: &Voicing) {
         self.voicing = *v;
         self.body = Body::new(self.fs, &v.body);
+        self.regs = Registers::new(self.fs, &v.reg);
         self.room = Room::new(self.fs, &v.room);
         let (s, h) = (self.settings, self.hardness);
         self.set(&s, h);
@@ -433,6 +444,7 @@ impl Chorda {
         self.sym.reset();
         self.board.reset();
         self.body.reset();
+        self.regs.reset();
         self.room.reset();
         self.stage.reset();
         self.sounding = [false; KEYS];
@@ -490,6 +502,7 @@ impl Chorda {
             && self.sym.at_rest()
             && self.board.at_rest()
             && self.body.at_rest()
+            && self.regs.at_rest()
             && self.room.at_rest()
             && self.stage.at_rest()
     }
@@ -575,6 +588,7 @@ impl Chorda {
                 if !self.voices.iter().any(|v| v.active) && self.sym.at_rest() {
                     self.board.flush(FLOOR);
                     self.body.flush(FLOOR);
+                    self.regs.flush(FLOOR);
                     self.stage.flush(FLOOR);
                     self.room.flush();
                 }
@@ -646,6 +660,39 @@ impl Chorda {
         }
         for j in 0..n {
             self.mono[j] = self.dl[j] + self.dr[j];
+        }
+        // Model 2 voiced by register: what reaches the body is the three buses, filtered
+        // (the sympathetic strings hear the strings themselves, above).
+        if self.settings.model >= 2 && self.regs.active() {
+            for b in self.bus.iter_mut() {
+                b[0][..n].fill(0.0);
+                b[1][..n].fill(0.0);
+            }
+            for i in 0..KEYS {
+                if !self.rendering[i] {
+                    continue;
+                }
+                let (l, r) = self.lanes.lane(i, n);
+                for (w, b) in self.reg_w[i].iter().zip(self.bus.iter_mut()) {
+                    if *w == 0.0 {
+                        continue;
+                    }
+                    for j in 0..n {
+                        b[0][j] += w * l[j] as f64;
+                        b[1][j] += w * r[j] as f64;
+                    }
+                }
+            }
+            self.dl[..n].fill(0.0);
+            self.dr[..n].fill(0.0);
+            for (k, b) in self.bus.iter_mut().enumerate() {
+                let [bl, br] = b;
+                self.regs.filter(k, &mut bl[..n], &mut br[..n]);
+                for j in 0..n {
+                    self.dl[j] += bl[j];
+                    self.dr[j] += br[j];
+                }
+            }
         }
         // Model 2's action noises reach the body beside the strings (never the
         // sympathetic strings: the frame's knock is not the bridge's motion), in key order.

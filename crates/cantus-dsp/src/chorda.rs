@@ -70,6 +70,9 @@ pub mod noise;
 #[path = "chorda_voicing.rs"]
 pub mod voicing;
 
+#[path = "chorda_registers.rs"]
+pub mod registers;
+
 #[path = "chorda_engine.rs"]
 mod engine;
 pub use engine::{Chorda, ChordaSettings, Meter, CHUNK};
@@ -85,6 +88,10 @@ mod tests_piano;
 #[cfg(test)]
 #[path = "chorda_tests_model2.rs"]
 mod tests_model2;
+
+#[cfg(test)]
+#[path = "chorda_tests_registers.rs"]
+mod tests_registers;
 
 #[cfg(test)]
 #[path = "chorda_tests_stage.rs"]

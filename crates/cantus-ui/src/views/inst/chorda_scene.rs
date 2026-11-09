@@ -309,9 +309,25 @@ pub fn render(
     )
 }
 
-/// The full bake and the preview a gliding control gets (half the pixels, no extras).
+/// The full bake and the preview a gliding control gets: no extras, but four samples a
+/// pixel (round 38: one sample a pixel stepped every edge and made the floor sparkle — the
+/// glide looked pixelated, the owner's report), at the resolution [`PREVIEW_MS`] allows.
 pub const FULL: Quality = Quality { ss: 2, full: true };
-pub const PREVIEW: Quality = Quality { ss: 1, full: false };
+pub const PREVIEW: Quality = Quality { ss: 2, full: false };
+
+/// What a preview may take (ms): its resolution is the most of the picture's this machine
+/// bakes in that time, between [`PREVIEW_MIN`] (each side) and all of it — all of it until
+/// a preview has been measured. Round 38's faster baker (rows shared as threads come free,
+/// rows walked only where a triangle or a line is) bakes the whole picture within it on an
+/// eight-core machine: a preview is no longer a smaller picture stretched — the owner still
+/// saw that as pixels after the first fix.
+pub const PREVIEW_MS: f64 = 120.0;
+pub const PREVIEW_MIN: f32 = 0.4;
+/// The first preview's share, before one has been measured: the whole picture.
+const PREVIEW_START: f32 = 1.0;
+/// A picture landing dissolves over the one before in this long (s): a preview's lighting
+/// steps to the full bake's without a flash.
+pub const FADE: f64 = 0.15;
 
 /// Bake on the calling thread (screenshots, which cannot wait for the worker).
 static BLOCKING: AtomicBool = AtomicBool::new(false);
@@ -321,11 +337,13 @@ pub fn set_blocking(on: bool) {
     BLOCKING.store(on, Ordering::Relaxed);
 }
 
+/// The bake's threads: all but two of the machine's (the UI's and the audio's), at most 14.
+/// A bake is short and its threads run at normal priority: the audio's preempt them.
 fn threads() -> usize {
     std::thread::available_parallelism()
         .map_or(2, |n| n.get())
-        .saturating_sub(1)
-        .clamp(1, 8)
+        .saturating_sub(2)
+        .clamp(1, 14)
 }
 
 /// What one bake is for.
@@ -354,11 +372,16 @@ struct Job {
     gen: u64,
     want: Want,
     max_side: usize,
+    /// A preview's share of the picture's resolution (each side).
+    scale: f32,
 }
+
+/// A bake landed: its job, the picture, what it took (ms) and its preview scale.
+type Landed = (u64, egui::ColorImage, f64, f32);
 
 struct Worker {
     tx: Sender<Job>,
-    rx: Receiver<(u64, egui::ColorImage)>,
+    rx: Receiver<Landed>,
 }
 
 /// For a test only: how long the worker waits before each bake (a bake made to land late).
@@ -384,7 +407,8 @@ impl Worker {
                     }
                     let w = job.want;
                     let ppp = f32::from_bits(w.ppp_bits);
-                    let ppp = if w.q.full { ppp } else { ppp * 0.5 };
+                    let ppp = if w.q.full { ppp } else { ppp * job.scale };
+                    let t0 = std::time::Instant::now();
                     // A bake that fails never leaves the picture waiting: an empty image
                     // comes back in its place (and the log says why).
                     let img = std::panic::catch_unwind(|| {
@@ -394,7 +418,8 @@ impl Worker {
                         log::error!("chorda scene: a bake failed");
                         egui::ColorImage::new([1, 1], vec![Color32::TRANSPARENT])
                     });
-                    if done.send((job.gen, img)).is_err() {
+                    let ms = t0.elapsed().as_secs_f64() * 1e3;
+                    if done.send((job.gen, img, ms, job.scale)).is_err() {
                         break;
                     }
                     ctx.request_repaint();
@@ -405,12 +430,28 @@ impl Worker {
     }
 }
 
+/// A preview's scale for a preview cost per unit of scale squared (ms; none yet: the whole
+/// picture, `PREVIEW_START`).
+pub fn scale_for(cost: Option<f64>) -> f32 {
+    cost.map_or(PREVIEW_START, |c| {
+        ((PREVIEW_MS / c.max(1e-3)).sqrt() as f32).clamp(PREVIEW_MIN, 1.0)
+    })
+}
+
 /// The scene's cache: the baked picture, what it shows, what was asked for, the glide.
 #[derive(Default)]
 pub struct Scene {
     worker: Option<Worker>,
-    tex: Option<egui::TextureHandle>,
-    quad: Option<(Arc<Mesh>, Rect, egui::TextureId)>,
+    /// Two pictures: the one shown (`cur`) and the one it dissolves from, each with its
+    /// quad (its vertices' alpha set in place: a fade allocates nothing).
+    tex: [Option<egui::TextureHandle>; 2],
+    quad: [Option<(Arc<Mesh>, Rect, egui::TextureId)>; 2],
+    cur: usize,
+    /// When the picture shown landed (the fade's start), in frame time.
+    fade: Option<f64>,
+    now: f64,
+    /// A preview's cost per unit of resolution scale squared (ms), from the last preview.
+    preview_cost: Option<f64>,
     shown: Option<[f32; 5]>,
     last: Option<f64>,
     /// What the texture shows; the bake on its way; the picture this frame wants (at the
@@ -449,6 +490,7 @@ impl Scene {
         let want = target.controls();
         let dt = self.last.map_or(1.0, |t| (now - t).clamp(0.0, 0.25));
         self.last = Some(now);
+        self.now = now;
         let shown = match self.shown {
             None => want,
             Some(s) => {
@@ -508,7 +550,7 @@ impl Scene {
             if self.showing != Some(full) {
                 let wp = f32::from_bits(full.ppp_bits);
                 let img = render(&inputs, full.size(), wp, FULL, threads(), max_side);
-                self.upload(ctx, img);
+                self.upload(ctx, img, false);
                 self.showing = Some(full);
                 self.builds += 1;
             }
@@ -522,14 +564,20 @@ impl Scene {
                     got = Some(r);
                 }
             }
-            if let Some((gen, img)) = got {
+            if let Some((gen, img, ms, scale)) = got {
                 if let Some((asked_gen, asked)) = self.asked {
                     if gen == asked_gen {
                         self.asked = None;
+                        if !asked.q.full {
+                            // What a preview costs at the whole resolution, smoothed.
+                            let c = ms / (scale as f64 * scale as f64);
+                            self.preview_cost =
+                                Some(self.preview_cost.map_or(c, |p| 0.7 * p + 0.3 * c));
+                        }
                         // A bake for another look than the one now wanted (undone while
                         // it was on its way) is dropped, never shown.
                         if asked.same_picture(&w) {
-                            self.upload(ctx, img);
+                            self.upload(ctx, img, true);
                             self.showing = Some(asked);
                         }
                     }
@@ -544,6 +592,7 @@ impl Scene {
                         gen: self.gen,
                         want: w,
                         max_side,
+                        scale: self.preview_scale(),
                     };
                     if wk.tx.send(job).is_ok() {
                         self.asked = Some((self.gen, w));
@@ -552,33 +601,74 @@ impl Scene {
                 }
             }
         }
-        if self.showing.is_some() {
-            self.paint_quad(painter, rect);
-        }
-        moving
+        let fading = if self.showing.is_some() {
+            self.paint_quad(painter, rect)
+        } else {
+            false
+        };
+        moving || fading
     }
 
-    fn upload(&mut self, ctx: &egui::Context, img: egui::ColorImage) {
-        match &mut self.tex {
+    /// A preview's share of the picture's resolution (each side): the most this machine
+    /// bakes in [`PREVIEW_MS`], from what the last previews took; all of it until one has.
+    pub fn preview_scale(&self) -> f32 {
+        scale_for(self.preview_cost)
+    }
+
+    /// Whether a picture that landed still dissolves in over the one before.
+    pub fn fading(&self) -> bool {
+        self.fade.is_some()
+    }
+
+    /// Show `img`: into the slot not shown (the one shown stays for the dissolve, when
+    /// `fade` and there is one), then it is the one shown.
+    fn upload(&mut self, ctx: &egui::Context, img: egui::ColorImage, fade: bool) {
+        let had = self.tex[self.cur].is_some();
+        let next = if had { 1 - self.cur } else { self.cur };
+        match &mut self.tex[next] {
             Some(t) => t.set(img, egui::TextureOptions::LINEAR),
             None => {
-                self.tex = Some(ctx.load_texture("chorda-scene", img, egui::TextureOptions::LINEAR))
+                let name = if next == 0 {
+                    "chorda-scene"
+                } else {
+                    "chorda-scene-b"
+                };
+                self.tex[next] = Some(ctx.load_texture(name, img, egui::TextureOptions::LINEAR))
             }
         }
+        self.cur = next;
+        self.fade = (fade && had).then_some(self.now);
         self.uploads += 1;
     }
 
-    fn paint_quad(&mut self, painter: &egui::Painter, rect: Rect) {
-        let Some(tex) = &self.tex else {
+    /// The picture shown, dissolving in over the one before while its fade lasts. Returns
+    /// whether it still fades (another frame wanted).
+    fn paint_quad(&mut self, painter: &egui::Painter, rect: Rect) -> bool {
+        let t = self
+            .fade
+            .map_or(1.0, |f| ((self.now - f) / FADE).clamp(0.0, 1.0) as f32);
+        if t >= 1.0 {
+            self.fade = None;
+        } else {
+            self.slot(painter, rect, 1 - self.cur, 1.0);
+        }
+        self.slot(painter, rect, self.cur, t);
+        self.fade.is_some()
+    }
+
+    /// Slot `i`'s picture over `rect` at `alpha` (its cached quad, recoloured in place).
+    fn slot(&mut self, painter: &egui::Painter, rect: Rect, i: usize, alpha: f32) {
+        let Some(tex) = &self.tex[i] else {
             return;
         };
         let id = tex.id();
-        if self.quad.as_ref().map(|q| (q.1, q.2)) != Some((rect, id)) {
-            let white = Color32::from(egui::Rgba::WHITE);
+        let a = (alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let tint = Color32::from_white_alpha(a);
+        if self.quad[i].as_ref().map(|q| (q.1, q.2)) != Some((rect, id)) {
             let corner = |p: Pos2, u: f32, v: f32| Vertex {
                 pos: p,
                 uv: Pos2::new(u, v),
-                color: white,
+                color: tint,
             };
             let mesh = Mesh {
                 indices: vec![0, 1, 2, 0, 2, 3],
@@ -590,9 +680,15 @@ impl Scene {
                 ],
                 texture_id: id,
             };
-            self.quad = Some((Arc::new(mesh), rect, id));
+            self.quad[i] = Some((Arc::new(mesh), rect, id));
         }
-        if let Some((m, _, _)) = &self.quad {
+        if let Some((m, _, _)) = &mut self.quad[i] {
+            if m.vertices[0].color != tint {
+                // The frame before's shapes are gone: the quad is ours alone, no copy.
+                for v in Arc::make_mut(m).vertices.iter_mut() {
+                    v.color = tint;
+                }
+            }
             painter.add(egui::Shape::Mesh(m.clone()));
         }
     }

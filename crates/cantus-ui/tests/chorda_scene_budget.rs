@@ -456,3 +456,90 @@ fn the_scene_card_at_rest_allocates_next_to_nothing() {
     eprintln!("the scene card at rest: {card} allocations a frame (an empty panel: {empty})");
     assert!(card <= empty + 6, "{card} against {empty}");
 }
+
+#[test]
+fn a_previews_resolution_is_what_the_machine_bakes_in_its_time() {
+    // None measured yet: the whole picture; then as much as PREVIEW_MS allows, never above
+    // the whole picture nor below PREVIEW_MIN (round 38: a fixed half looked pixelated).
+    assert_eq!(scene::scale_for(None), 1.0);
+    assert_eq!(scene::scale_for(Some(scene::PREVIEW_MS / 4.0)), 1.0);
+    assert_eq!(
+        scene::scale_for(Some(scene::PREVIEW_MS * 100.0)),
+        scene::PREVIEW_MIN
+    );
+    assert_eq!(scene::PREVIEW.ss, 2, "a preview is antialiased");
+    let s = scene::scale_for(Some(scene::PREVIEW_MS * 2.0));
+    assert!((s - std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-4, "{s}");
+}
+
+#[test]
+fn a_landed_picture_dissolves_over_the_one_before_and_then_rests() {
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    let mut s = scene::Scene::default();
+    let base = scene::Inputs::of(&cantus_core::NativeSpec::new(InstrumentKind::Chorda), true);
+    let mut t = 0.0;
+    let start = Instant::now();
+    // The first picture is a preview, the full bake dissolving in over it: wait for both.
+    while !(s.ready() && !s.fading()) && start.elapsed().as_secs() < 300 {
+        t += 1.0 / 60.0;
+        frame(&ctx, &mut s, Some(base), t);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(s.ready() && !s.fading(), "the full bake came and rests");
+    let (_, rest) = frame(&ctx, &mut s, Some(base), t + 1.0 / 60.0);
+    t += 1.0 / 60.0;
+    // The lid comes down: the next picture to land dissolves in, one quad over the other.
+    let mut shut = base;
+    shut.lid = 0.0;
+    let up = s.uploads;
+    let start = Instant::now();
+    while s.uploads == up && start.elapsed().as_secs() < 300 {
+        t += 1.0 / 60.0;
+        frame(&ctx, &mut s, Some(shut), t);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(s.uploads > up, "a picture landed");
+    assert!(s.fading(), "it dissolves in");
+    let (_, during) = frame(&ctx, &mut s, Some(shut), t);
+    assert_eq!(during, rest + 2, "two quads while it dissolves");
+    // After the fade (and with no bake landing meanwhile), one quad again.
+    let mut ended = false;
+    for _ in 0..240 {
+        t += 1.0 / 60.0;
+        let up = s.uploads;
+        frame(&ctx, &mut s, Some(shut), t);
+        if s.uploads == up && !s.fading() {
+            ended = true;
+            break;
+        }
+    }
+    assert!(ended, "the fade ends");
+}
+
+/// The baker shares rows among threads as they come free (round 38): every row is computed
+/// as one thread alone would, so the picture is the same to the bit on any number of threads
+/// — the plain preview and the full bake, a polished floor's mirror, depth of field, bloom
+/// and the strings drawn over it all.
+#[test]
+fn a_bake_is_the_same_on_any_number_of_threads() {
+    let size = egui::vec2(300.0, 130.0);
+    let mut spec = cantus_core::NativeSpec::new(InstrumentKind::Chorda);
+    for (lid, room) in [(1.0, 0.5), (0.4, 0.95), (0.0, 0.05)] {
+        spec.set("lid", lid);
+        spec.set("room", room);
+        for dark in [true, false] {
+            let i = scene::Inputs::of(&spec, dark);
+            for q in [scene::PREVIEW, scene::FULL] {
+                let one = scene::render(&i, size, 1.5, q, 1, 16_384);
+                for threads in [2, 5, 14] {
+                    let many = scene::render(&i, size, 1.5, q, threads, 16_384);
+                    assert!(
+                        one.pixels == many.pixels,
+                        "lid {lid} room {room} dark {dark} {q:?}: {threads} threads differ"
+                    );
+                }
+            }
+        }
+    }
+}

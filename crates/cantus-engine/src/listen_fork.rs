@@ -536,6 +536,7 @@ impl Processor {
             (&a.stream_cut, &b.stream_cut),
             (&a.stream_wakes, &b.stream_wakes),
             (&a.chain_rests, &b.chain_rests), // r37:drums
+            (&a.strip_rests, &b.strip_rests),
         ] {
             y.store(x.load(Relaxed), Relaxed);
         }
@@ -664,6 +665,8 @@ fn every_field_is_accounted_for(p: &Processor) {
         stream_cut: _,
         stream_wakes: _,
         chain_rests: _, // r37:drums
+        strip_rests: _,
+        never_rest: _,
         origin: _,
     } = &*p.nodes;
     let exec::TrackCells {

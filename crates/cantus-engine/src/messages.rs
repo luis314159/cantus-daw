@@ -299,6 +299,11 @@ pub struct EngineStats {
     /// Strip passes a pad's chain (ADR 0100 §6) rested: nothing came in, nothing rang and
     /// every insert was at rest, so none ran — what a chain at rest costs. // r37:drums
     pub chain_rests: u64, // r37:drums
+    /// Strip passes any strip with inserts rested, pad chains included (round 38): nothing
+    /// came in, no key, no note, nothing rang and every insert that runs was at rest.
+    pub strip_rests: u64,
+    /// Passes the master chain rested (round 38): a silent mix in and every insert at rest.
+    pub master_rests: u64,
     /// Delay compensation: how far the output lags the engine's position, in samples —
     /// the latency of the slowest path to the master. The position the engine reports as
     /// heard (`EngineEvent::Position::heard`), the click and recorded notes all allow for

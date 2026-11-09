@@ -437,8 +437,9 @@ pub fn open_window_sized(
         *pos = Some(to);
         device::remember_place(ctx, key, egui::Rect::from_min_size(to, size));
     }
-    // Meters and histories move with the audio: at most 60 frames a second.
-    ctx.request_repaint_after(std::time::Duration::from_millis(16));
+    // Meters and histories move with the audio: at most 60 frames a second, through the
+    // ticker (16 ms asked of egui directly drew at the screen's rate, round 38).
+    crate::views::workspace_ticker::moving(ctx, crate::views::workspace_ticker::Reason::Live);
     !out.close
 }
 

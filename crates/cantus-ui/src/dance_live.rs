@@ -134,6 +134,11 @@ pub struct DanceLive {
     reads: u64,
     /// The wall clock of the last update (what the picker's previews dance to).
     wall: f64,
+    /// The breath's clock, which stops while nothing happens (round 38).
+    pub doze: Doze,
+    /// The last update read a note on a dancer's feed (a key held, a new move-map note):
+    /// played live from a MIDI keyboard it is something happening, as the pointer is.
+    stirred: bool,
     /// What a warm frame reuses (it allocates nothing): the dancers' specs and the tempo map
     /// as of the project's revision, the feeds' buffer, the default character.
     revision: Option<u64>,
@@ -163,9 +168,96 @@ pub fn wall_seconds() -> f64 {
         .as_secs_f64()
 }
 
-/// Once a screen frame, from the app's frame (before the views draw).
+/// How long a dancer goes on breathing, stopped, once nothing happens (round 38, the
+/// scorecard): then it holds still and the window draws nothing for it until something
+/// does — the pointer over the window, a key, Play, a drag. Each breath redrew the whole
+/// window (16 points of a core at rest, measured); a dancer that holds costs nothing.
+pub const DOZE_AFTER: f64 = 10.0;
+
+/// The breath's clock: the wall clock with the time spent holding still taken out, so a
+/// dancer that wakes goes on from the pose it held — never a jump.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Doze {
+    /// How long it breathes once nothing happens ([`DOZE_AFTER`]; the tests shorten it).
+    pub after: f64,
+    /// The wall clock when something last happened.
+    last_active: f64,
+    /// Seconds spent holding still, in all.
+    held: f64,
+    /// Since when it holds still, if it does.
+    since: Option<f64>,
+}
+
+impl Default for Doze {
+    fn default() -> Self {
+        Doze {
+            after: DOZE_AFTER,
+            last_active: 0.0,
+            held: 0.0,
+            since: None,
+        }
+    }
+}
+
+impl Doze {
+    /// Something happened at `wall`: it breathes again (from the pose it held).
+    pub fn wake(&mut self, wall: f64) {
+        if let Some(s) = self.since.take() {
+            self.held += (wall - s).max(0.0);
+        }
+        self.last_active = wall;
+    }
+
+    /// The breath's clock at `wall`: still while it holds, which it starts to
+    /// [`Self::after`] seconds after the last thing that happened.
+    pub fn clock(&mut self, wall: f64) -> f64 {
+        if self.since.is_none() && wall - self.last_active >= self.after {
+            self.since = Some(self.last_active + self.after);
+        }
+        match self.since {
+            Some(s) => s - self.held,
+            None => wall - self.held,
+        }
+    }
+
+    /// It holds still: the window asks no frame for its breath.
+    pub fn holding(&self) -> bool {
+        self.since.is_some()
+    }
+}
+
+/// Once a screen frame, from the app's frame (before the views draw): the dancers posed at
+/// what is heard, on the breath's clock — which stops once nothing has happened for
+/// [`DOZE_AFTER`] seconds ([`Doze`]). Not while the companion window is open: what it
+/// streams keeps breathing.
+pub fn frame_main(app: &mut CantusApp, ctx: &egui::Context) {
+    let wall = wall_seconds();
+    let now = ctx.input(|i| i.time);
+    let happening = app.engine.is_playing()
+        || app.settings.stage.companion_open
+        || app.stage.drag.is_some()
+        // A hover lingers a moment after the pointer left (the frame's fade), then is over.
+        || app.stage.hovered(now).is_some()
+        || ctx.input(|i| !i.events.is_empty() || i.pointer.is_moving() || i.pointer.any_down());
+    if happening || app.dance_live.stirred {
+        app.dance_live.doze.wake(wall);
+    }
+    let clock = app.dance_live.doze.clock(wall);
+    DanceLive::update(app, clock);
+    // A note read now wakes it at once (this frame was posed on the held clock; the next one
+    // breathes, and the breath asks for it).
+    if app.dance_live.stirred {
+        app.dance_live.doze.wake(wall);
+    }
+}
+
+/// Once a frame of the companion's own (the main window minimised): the breath's clock as
+/// the main window left it.
 pub fn frame(app: &mut CantusApp) {
-    DanceLive::update(app, wall_seconds());
+    let wall = wall_seconds();
+    app.dance_live.doze.wake(wall);
+    let clock = app.dance_live.doze.clock(wall);
+    DanceLive::update(app, clock);
 }
 
 impl DanceLive {
@@ -208,6 +300,7 @@ impl DanceLive {
             live.tempo_map = map;
             live.revision = Some(revision);
         }
+        app.dance_live.stirred = false;
         if app.dance_live.specs.is_empty() {
             app.dance_live.tracks.clear();
             app.dance_live.dancers.clear();
@@ -277,6 +370,10 @@ impl DanceLive {
                 let n = f.published();
                 if n != state.seen {
                     if let Some(frame) = f.latest() {
+                        let note_was = state.history.back().and_then(|b| b.note);
+                        if frame.held != [0; 2] || frame.note != note_was {
+                            live.stirred = true;
+                        }
                         if state.history.len() == HISTORY {
                             state.history.pop_front();
                         }
@@ -293,7 +390,9 @@ impl DanceLive {
             let id = spec
                 .text(CHARACTER_KEY)
                 .unwrap_or(dancer::DEFAULT_CHARACTER);
-            let r = live.resolve(id, &project_dir, wall);
+            // The import re-check runs on the real wall clock, as `character` asks it (the
+            // breath's clock stands still while it holds: two clocks would re-ask every frame).
+            let r = live.resolve(id, &project_dir, wall_seconds());
             let pose = pose_at(&frame, r.character.as_ref(), wall);
             out.push(LiveDancer {
                 track: *track,
@@ -634,5 +733,43 @@ mod tests {
         // Just after the wrap the heard moment is still in the first pass (the engine is
         // in the second): the first pass's frame holds it.
         assert_eq!(heard_frame(&h, 1.85, true).unwrap().values[0], 1.0);
+    }
+}
+
+#[cfg(test)]
+mod doze_tests {
+    use super::Doze;
+
+    #[test]
+    fn it_holds_still_after_a_while_and_wakes_where_it_held() {
+        let mut d = Doze::default();
+        d.wake(1.0);
+        assert_eq!(d.clock(5.0), 5.0, "breathing: the wall clock");
+        assert!(!d.holding());
+        assert_eq!(
+            d.clock(1.0 + d.after + 2.0),
+            1.0 + d.after,
+            "held from `after` on"
+        );
+        assert!(d.holding());
+        assert_eq!(d.clock(100.0), 1.0 + d.after, "still held");
+        d.wake(100.0);
+        assert!(!d.holding());
+        assert_eq!(
+            d.clock(100.0),
+            1.0 + d.after,
+            "it goes on from the pose it held"
+        );
+        assert_eq!(d.clock(101.5), 1.0 + d.after + 1.5, "and breathes on");
+        // A clock that never goes back, whatever wakes it.
+        let mut last = d.clock(101.5);
+        for w in [102.0, 150.0, 150.5, 300.0] {
+            if w == 150.5 {
+                d.wake(w);
+            }
+            let c = d.clock(w);
+            assert!(c >= last);
+            last = c;
+        }
     }
 }

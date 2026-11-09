@@ -43,3 +43,10 @@ F:\projects\daw-r37\slot.sh. ADRs 0098 Chorda 2, 0099 Sectio, 0100 Pulsus III, 0
   covers + sound card, song summary in the top bar, two-tone glyphs, layout-file fix). Two judges
   each: 20/18, 22/19, 20/22; toolbar icons + piano keys left for round 38 (owner chose to release
   after the 13th). r37/integration 1772bc72 + docs. See [[ui-quality-bar]].
+- **Released 2026-11-08 07:58 UTC** as v0.1.0-beta.12 (latest; Win setup/portable/plug-ins,
+  AppImage, macOS dmg). Private master 25b565a7, public cantus-daw master ae3e51b0; the tag was
+  moved once (from ccd87c85, owner approved) after the Release's Linux job was cut at 120 min.
+  Lessons: the Release Linux job now needs 180 min (suite 68 min + release + AppImage v2/v3);
+  the Release's Windows test took 1 h 51 and package 1 h 23 — tag-to-download is ~3 h 15.
+  CI flakes fixed: ipc_process slow-first (hold flag + kill on drop), macOS dense-install
+  bound 3 ms in a virtual Mac, Chorda Unit::new bound 500 ms.

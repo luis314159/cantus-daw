@@ -612,6 +612,10 @@ pub struct Fdn {
     c_r: [f32; LINES],
     sample_rate: f32,
     configured: bool,
+    /// Each line's run of zeros written, back from its newest (ADR 0031 §5.1): the whole
+    /// line is +0.0 once it covers the line's length — counted after each block
+    /// ([`Self::wrote`]), never by scanning the lines when asked.
+    zeros: [crate::rest::ZeroRun; LINES],
 }
 
 impl Fdn {
@@ -672,6 +676,7 @@ impl Fdn {
             c_r,
             sample_rate,
             configured: false,
+            zeros: [crate::rest::ZeroRun::FULL; LINES],
         };
         f.reset_phases();
         f
@@ -705,7 +710,70 @@ impl Fdn {
         self.energy = 0.0;
         self.energy_ref = 0.0;
         self.frozen_for = 0;
+        self.zeros = [crate::rest::ZeroRun::FULL; LINES];
         self.reset_phases();
+    }
+
+    /// One step of line `i`'s modulation — the rotation and its renormalisation; the same
+    /// arithmetic for a tick and for a skip, so a skipped network's phases are a processed
+    /// one's to the bit.
+    #[inline]
+    fn lfo_step(&mut self, i: usize) {
+        let (c, s) = (self.rot_c[i], self.rot_s[i]);
+        let re = self.lfo_re[i] * c - self.lfo_im[i] * s;
+        let im = self.lfo_re[i] * s + self.lfo_im[i] * c;
+        let k = 1.5 - 0.5 * (re * re + im * im);
+        self.lfo_re[i] = re * k;
+        self.lfo_im[i] = im * k;
+    }
+
+    /// `n` ticks were just run: each line's run of zeros, counted back from its newest
+    /// write (one comparison a line while sound passes).
+    pub fn wrote(&mut self, n: usize) {
+        let size = self.size;
+        for i in 0..LINES {
+            self.zeros[i].wrote(&self.buf[i * size..(i + 1) * size], self.w, n);
+        }
+    }
+
+    /// At rest (ADR 0031 §5.1): every line, all-pass and absorption state +0.0, every glide
+    /// landed, no freeze — so silence in gives silence out, and only the write position and
+    /// the modulation move, which [`Self::skip`] moves as ticks would. (The freeze's level
+    /// hold, `energy`, is read only while frozen.)
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        use crate::rest::{all_zero, z};
+        if !self.zeros.iter().all(|r| r.covers(self.size)) {
+            return Some("late lines");
+        }
+        let sections = |a: &[[f32; LINES]; SECTIONS]| a.iter().all(|r| all_zero(r));
+        if !all_zero(&self.ap)
+            || !sections(&self.x1)
+            || !sections(&self.x2)
+            || !sections(&self.y1)
+            || !sections(&self.y2)
+        {
+            return Some("late filters");
+        }
+        if self.len != self.len_target || self.depth != self.depth_target {
+            return Some("late glides");
+        }
+        if !z(self.freeze) || !z(self.freeze_target) || self.frozen_for != 0 {
+            return Some("freeze");
+        }
+        None
+    }
+
+    /// `n` samples of silence not run, at rest: the write position and the modulation's
+    /// phases move exactly as `n` ticks would move them.
+    pub fn skip(&mut self, n: usize) {
+        if self.depth > 0.0 {
+            for _ in 0..n {
+                for i in 0..LINES {
+                    self.lfo_step(i);
+                }
+            }
+        }
+        self.w = (self.w + n) & self.mask;
     }
 
     /// Apply a design: lengths glide to their new values, filters take theirs at once.
@@ -796,12 +864,7 @@ impl Fdn {
             glide(&mut self.len[i], self.len_target[i], self.glide, 1e-3);
             let mut d = self.len[i];
             if modulated {
-                let (c, s) = (self.rot_c[i], self.rot_s[i]);
-                let re = self.lfo_re[i] * c - self.lfo_im[i] * s;
-                let im = self.lfo_re[i] * s + self.lfo_im[i] * c;
-                let k = 1.5 - 0.5 * (re * re + im * im);
-                self.lfo_re[i] = re * k;
-                self.lfo_im[i] = im * k;
+                self.lfo_step(i);
                 let depth = (self.depth * self.depth_scale[i])
                     .min(0.45 * d - 2.0)
                     .max(0.0);
@@ -879,7 +942,11 @@ impl Fdn {
         }
         hadamard(&mut v);
         for i in 0..LINES {
-            self.buf[i * size + w] = v[PERMUTE[i]] + self.b_l[i] * in_l + self.b_r[i] * in_r;
+            // `+ 0.0` turns a −0.0 into +0.0 and leaves every other value as it is: the
+            // signs and the Hadamard make −0.0 out of silence, which reads back as +0.0
+            // anyway (the interpolator's flush), but would keep a line from counting as
+            // empty (ADR 0031 §5.1: zero is +0.0, bit for bit). No output changes.
+            self.buf[i * size + w] = v[PERMUTE[i]] + self.b_l[i] * in_l + self.b_r[i] * in_r + 0.0;
         }
         self.w = (w + 1) & mask;
         (ol, or)

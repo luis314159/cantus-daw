@@ -56,7 +56,7 @@ fn tune(name: &str, default: f32) -> f32 {
 /// is cleared and the audio chip shows an interface (none is open here).
 fn app(place: Option<Place>, docked_tab: bool) -> (CantusApp, Processor) {
     use cantus_core::inst::InstrumentKind;
-    let p = cantus_ui::demos::startup_project();
+    let p = cantus_ui::demos::startup_project_with_dancer();
     // The song's own dancer (the demo has one: Trino), placed and dancing as the shot
     // wants; hidden for the empty stage.
     let dancer = p

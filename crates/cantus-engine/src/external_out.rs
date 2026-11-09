@@ -48,6 +48,11 @@ pub(crate) struct UnitPorts {
 }
 
 impl UnitPorts {
+    /// No route is set and none is retiring: no external instrument's note can be due.
+    pub fn is_empty(&self) -> bool {
+        self.table.is_empty() && self.live.is_empty() && self.retired.is_empty()
+    }
+
     /// The table as the interface set it now: new routes opened through `open`, routes gone
     /// retired. Returns how many ports could not be opened.
     pub fn update(

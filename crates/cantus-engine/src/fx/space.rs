@@ -184,6 +184,20 @@ impl FxUnit for Unit {
         self.dsp.reset();
     }
 
+    // Round 38 (the scorecard): a return that hears nothing rests — exact, its lines and
+    // filters all +0.0, its glides landed; `skip` moves its rings and its modulation.
+    fn at_rest(&self) -> bool {
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
     fn latency(&self) -> usize {
         self.dsp.latency()
     }

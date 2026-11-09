@@ -232,9 +232,14 @@ fn stage_card(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, rect: Rect
         }
         crate::views::inst::face::cover(b, d, &sd);
     });
-    // Playing it moves with the song; stopped it breathes.
-    ui.ctx()
-        .request_repaint_after(std::time::Duration::from_millis(16));
+    // Playing it moves with the song; stopped it breathes — at most 60 frames a second,
+    // through the ticker (round 38) — and once it holds still it asks for none.
+    if app.engine.is_playing() || !app.dance_live.doze.holding() {
+        crate::views::workspace_ticker::moving(
+            ui.ctx(),
+            crate::views::workspace_ticker::Reason::Animation,
+        );
+    }
 }
 
 /// The character card: the picker.

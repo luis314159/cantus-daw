@@ -223,3 +223,15 @@ takes clicks with no pass of the main window and closes on Esc) and `companion_m
 (below-right of the pointer, flipped at the edges); `stage_vis.rs`'s
 tests (a tone lights its band; the meter's fall; the log axis); `master_tap.rs`'s and
 `rt_memory`'s; `keymap_14_gains_the_stage_keys`; `tools/obs/stage_hour.py` (the hour).
+
+## Amended by ADR 0106 (round 38: at rest costs nothing)
+
+The stopped breath (12 redraws a second since round 35's measure) **stops once nothing has
+happened for `dance_live::DOZE_AFTER` (10 s)**: the dancer holds its pose and the window asks
+for no frame for it; the pointer over the window, a key, Play, a drag or a hover wakes it
+from the pose it held (the breath's clock stops while it holds). Each breath redrew the whole
+window — 17 points of a core at rest, measured. Not while the companion window is open.
+
+Also by ADR 0106 (the owner's decision, 2026-11-08): **the song Cantus opens on has no dancer**
+— the house demo's excerpt is built without Trino; the whole demo, the picker and any saved
+song with a dancer are as before.

@@ -73,7 +73,15 @@ impl DeviceList {
     }
 }
 
-/// A thread that lists the devices every `interval` and reports changes.
+/// With the endpoints watched: how often the stop flag is looked at while waiting.
+const LOOK: Duration = Duration::from_millis(250);
+/// With the endpoints watched: the longest the devices go unlisted, whatever the system says.
+pub const SAFETY: Duration = Duration::from_secs(10);
+/// With the endpoints watched: how long a change is let settle before the devices are listed.
+const SETTLE: Duration = Duration::from_millis(150);
+
+/// A thread that lists the devices and reports changes: when the system says its audio
+/// endpoints changed, or every `interval` where it cannot say.
 pub struct DeviceWatch {
     rx: mpsc::Receiver<DeviceList>,
     stop: Arc<AtomicBool>,
@@ -81,16 +89,26 @@ pub struct DeviceWatch {
 }
 
 impl DeviceWatch {
-    /// Watch the machine's devices.
+    /// Watch the machine's devices: listed at once, then again when the system says its
+    /// audio endpoints changed (`cantus_rt::endpoints`, round 38) — and every [`SAFETY`]
+    /// whatever it says. Where changes cannot be watched, every `interval`.
     pub fn spawn(interval: Duration) -> DeviceWatch {
-        Self::with_source(interval, DeviceList::scan)
+        Self::run(interval, DeviceList::scan, true)
     }
 
-    /// Watch whatever `source` lists (tests hand in a scripted list). The first list is
-    /// sent at once; later ones only when they differ from the last sent.
+    /// Watch whatever `source` lists (tests hand in a scripted list), every `interval`. The
+    /// first list is sent at once; later ones only when they differ from the last sent.
     pub fn with_source(
         interval: Duration,
+        source: impl FnMut() -> DeviceList + Send + 'static,
+    ) -> DeviceWatch {
+        Self::run(interval, source, false)
+    }
+
+    fn run(
+        interval: Duration,
         mut source: impl FnMut() -> DeviceList + Send + 'static,
+        notified: bool,
     ) -> DeviceWatch {
         let (tx, rx) = mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
@@ -100,6 +118,10 @@ impl DeviceWatch {
             .spawn(move || {
                 let mut last: Option<DeviceList> = None;
                 let tick = Duration::from_millis(25).min(interval);
+                // Made on this thread, which the registration belongs to.
+                let mut changes = notified
+                    .then(cantus_rt::endpoints::EndpointChanges::open)
+                    .filter(|c| c.watching());
                 while !flag.load(Ordering::Acquire) {
                     let now = source();
                     if last.as_ref() != Some(&now) {
@@ -108,11 +130,32 @@ impl DeviceWatch {
                         }
                         last = Some(now);
                     }
-                    // Sleep in short steps, so dropping the watch ends the thread soon.
-                    let mut slept = Duration::ZERO;
-                    while slept < interval && !flag.load(Ordering::Acquire) {
-                        std::thread::sleep(tick);
-                        slept += tick;
+                    match changes.as_mut() {
+                        // Until the endpoints change (the stop flag looked at four times a
+                        // second), or SAFETY has passed; then a moment for the change to
+                        // settle — a plug writes several values.
+                        Some(c) => {
+                            let mut waited = Duration::ZERO;
+                            while !flag.load(Ordering::Acquire) && waited < SAFETY {
+                                if c.wait(LOOK) {
+                                    std::thread::sleep(SETTLE);
+                                    break;
+                                }
+                                waited += LOOK;
+                            }
+                            // The registry gave the watch up: poll as where it cannot watch.
+                            if !c.watching() {
+                                changes = None;
+                            }
+                        }
+                        // Sleep in short steps, so dropping the watch ends the thread soon.
+                        None => {
+                            let mut slept = Duration::ZERO;
+                            while slept < interval && !flag.load(Ordering::Acquire) {
+                                std::thread::sleep(tick);
+                                slept += tick;
+                            }
+                        }
                     }
                 }
             })

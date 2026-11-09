@@ -18,6 +18,7 @@
 
 use super::os::TruePeak;
 use crate::math;
+use crate::rest;
 
 /// Energy → LUFS. Silence is −∞.
 #[inline]
@@ -407,6 +408,16 @@ impl LoudnessMeter {
     }
 
     pub fn process(&mut self, left: &[f32], right: &[f32]) {
+        let n = left.len().min(right.len());
+        if self.is_clear() && rest::all_zero(&left[..n]) && rest::all_zero(&right[..n]) {
+            self.silence(n);
+            return;
+        }
+        self.run(left, right);
+    }
+
+    /// Every sample through the filters (what [`Self::process`] does when it is not silence).
+    fn run(&mut self, left: &[f32], right: &[f32]) {
         for (&l, &r) in left.iter().zip(right) {
             let kl = self.k[0].tick(l as f64);
             let kr = self.k[1].tick(r as f64);
@@ -426,6 +437,10 @@ impl LoudnessMeter {
 
     /// Mono: one channel, weighed as one channel (BS.1770 sums channels; a mono file is one).
     pub fn process_mono(&mut self, x: &[f32]) {
+        if self.is_clear() && rest::all_zero(x) {
+            self.silence(x.len());
+            return;
+        }
         for &v in x {
             let k = self.k[0].tick(v as f64);
             self.acc += k * k;
@@ -436,6 +451,28 @@ impl LoudnessMeter {
                 self.acc_n = 0;
             }
             self.max_true_peak = self.max_true_peak.max(self.tp[0].push(v));
+        }
+    }
+
+    /// The filters and the true peak hold nothing, as a new meter's (ADR 0031 §5.1).
+    pub fn is_clear(&self) -> bool {
+        self.k.iter().all(KWeighting::is_clear) && self.tp.iter().all(TruePeak::is_clear)
+    }
+
+    /// `n` samples of exact silence through a clear meter, as [`Self::process`] would take
+    /// them (round 38: a DAW at rest meters its silent master for nothing): a clear filter
+    /// fed zeros gives zeros and stays clear, so the energy and the true peak do not move —
+    /// only the columns are counted and closed. The readings are the same to the bit.
+    fn silence(&mut self, mut n: usize) {
+        while n > 0 {
+            let take = (self.col_len - self.acc_n).min(n);
+            self.acc_n += take;
+            n -= take;
+            if self.acc_n == self.col_len {
+                self.columns.push(self.acc / self.col_len as f64);
+                self.acc = 0.0;
+                self.acc_n = 0;
+            }
         }
     }
 
@@ -607,6 +644,41 @@ mod tests {
         eprintln!("true peak of the 45 degree quarter-rate sine: {tp:.4} dBTP");
         assert!((-0.4..=0.2).contains(&tp), "TP {tp}");
         assert!(tp.abs() < 0.02, "and much closer than the tolerance: {tp}");
+    }
+
+    /// The silent fast path reads what every sample through the filters reads, to the bit:
+    /// a tone, its tail, long silence (the filters come to rest and the path is taken), the
+    /// tone again — in blocks of several sizes.
+    #[test]
+    fn silence_through_a_clear_meter_is_counted_exactly() {
+        let tone = sine(-12.0, 0.4);
+        let mut input = tone.clone();
+        input.extend(std::iter::repeat_n(0.0f32, 48_000 * 3));
+        input.extend(&tone);
+        input.extend(std::iter::repeat_n(0.0f32, 48_000));
+        for block in [480usize, 333, 4096] {
+            let mut fast = LoudnessMeter::new(48_000.0);
+            let mut slow = LoudnessMeter::new(48_000.0);
+            let mut took_it = false;
+            for c in input.chunks(block) {
+                took_it |= fast.is_clear() && rest::all_zero(c);
+                fast.process(c, c);
+                slow.run(c, c);
+                assert_eq!(fast.momentary().to_bits(), slow.momentary().to_bits());
+                assert_eq!(fast.short_term().to_bits(), slow.short_term().to_bits());
+                assert_eq!(fast.max_true_peak.to_bits(), slow.max_true_peak.to_bits());
+                assert_eq!(
+                    (fast.acc.to_bits(), fast.acc_n),
+                    (slow.acc.to_bits(), slow.acc_n)
+                );
+            }
+            assert!(took_it, "block {block}: the silence came to rest");
+            assert_eq!(
+                fast.integrated().map(f64::to_bits),
+                slow.integrated().map(f64::to_bits)
+            );
+            assert_eq!(fast.columns.blocks.len(), slow.columns.blocks.len());
+        }
     }
 
     #[test]

@@ -41,7 +41,11 @@ El marco se desvanece un momento después de que el puntero se va.
 
 Un bailarín se dibuja solo cuando su postura cambia: como mucho 60 veces por segundo
 mientras suena la canción, 15 veces por segundo mientras está parada (una respiración lenta
-y un parpadeo), y nunca cuando está oculto o Cantus está minimizado. Cada bailarín se dibuja
+y un parpadeo), y nunca cuando está oculto o Cantus está minimizado. Parado, cuando pasan
+diez segundos sin que ocurra nada (ni el puntero sobre la ventana, ni una tecla, ni
+Reproducir), mantiene su postura y no cuesta nada; lo siguiente que hagas lo despierta donde
+estaba. Mientras la ventana de compañía está abierta sigue respirando, porque es lo que
+transmites. Cada bailarín se dibuja
 en una caja justo del tamaño que necesita, con los píxeles reales de tu pantalla, así que es
 nítido con cualquier zoom.
 

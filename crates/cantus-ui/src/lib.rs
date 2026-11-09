@@ -87,6 +87,7 @@ pub mod recovery;
 pub mod recovery_restore;
 pub mod recovery_session;
 pub mod recovery_text;
+pub mod repaint_log; // round 38: what keeps the window drawing, written to a file when asked
 pub mod routing_actions;
 pub mod samples;
 pub mod save_job;

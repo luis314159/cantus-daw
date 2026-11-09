@@ -50,9 +50,13 @@ leaves preview.
   - **Sectio** slices a loop across Exemplar's keys.
   - **Pulsus** gives every pad its own output and effect chain.
   - **Two sound packs of our own**, public domain (CC0), downloaded when you ask.
-- **Measured against FL Studio and REAPER, wins and losses alike** (ADR 0102). On the same
-  laptop, Cantus's window is ready in **1.31 s**, against FL Studio 24.1.2's 2.82 s and
-  REAPER 7.85's 1.94 s. It still uses more memory and more CPU at rest than both, and the
+- **Measured against FL Studio and REAPER, wins and losses alike** (ADRs 0102, 0106). On
+  the same quiet laptop, like against like: on an empty song Cantus's window is ready in
+  **0.74 s** against REAPER 7.85's 1.76 s, on a beat starter in **0.76 s** against FL Studio
+  24.1.2's 2.49 s, and it is done working sooner. **At rest it uses less CPU than both**
+  (1.6 % of a core against REAPER's 2.3–3.7 %, 2 % against FL Studio's 6.6 %): a channel
+  whose effects hear silence stops running them, to the same bits. It still holds **more
+  memory** than both (237 MB against 62 and 133), and the
   [scorecard](docs/scorecard/README.md) says so, with the method to repeat every number.
 - **The recording mode** (ADR 0092). *Prepare to record* bakes every strip that feeds the
   master and leaves only what you record live, so a heavy song plays at a low buffer: on the

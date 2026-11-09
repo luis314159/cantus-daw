@@ -421,6 +421,8 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
     match kind {
         EffectKind::Delay => (true, false), // heavy: 0.9 feedback rings for ~11 minutes
         EffectKind::Reverb => (true, false), // heavy: size 1 rings for over a minute
+        // Round 38: Spatium rests once its late field has died away; heavy rings longer.
+        EffectKind::Space => (true, false),
         EffectKind::Stereo | EffectKind::Saturator => (true, true),
         EffectKind::Multiband | EffectKind::DeEsser | EffectKind::Maximizer => (true, true),
         // Heavy dithers: counter-based since round 22 (R10), so it rests.

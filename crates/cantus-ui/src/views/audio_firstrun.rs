@@ -55,9 +55,21 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         }
     }
     // Live meters: through the ticker, at its 60 Hz (round 37's scorecard found this card
-    // drawing at the monitor's full rate — 144 a second, 1.6 cores — on every first start).
-    if live.live {
-        ticker::moving(ctx, Reason::Meters);
+    // drawing at the monitor's full rate — 144 a second, 1.6 cores — on every first start),
+    // and only while something moves (round 38: a card left open on a silent input drew 60
+    // full-window frames a second — 78 % of a core — for meters standing at the floor): an
+    // input above the floor or falling to it, the tone, a measurement. A level arriving
+    // wakes it within the ticker's look, a quarter of a second at most.
+    if let Some(fr) = app.audio_setup.first_run.as_ref() {
+        let moving = live.peaks.iter().any(|p| *p > 0.0)
+            || fr.hold.iter().any(|h| *h > MIN_DB)
+            || fr.tone
+            || fr.measure == Measure::Running;
+        if live.live && moving {
+            ticker::moving(ctx, Reason::Meters);
+        } else if live.live {
+            ticker::wake_after(ctx, std::time::Duration::from_millis(250));
+        }
     }
     // The room behind dims, and takes no clicks; the setup is moved above it each frame.
     egui::Area::new(Id::new("cantus-audio-first-run-veil"))

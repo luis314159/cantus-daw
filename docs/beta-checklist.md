@@ -249,6 +249,25 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       una cerca del límite. Tres pasadas, la mediana. Anota versión, interfaz, driver y
       temperatura al empezar, y pásame los números; luego lo mismo con Surge XT (VI, §4).
 
+### En reposo (ronda 38, ADR 0106) <!-- r38:scorecard -->
+
+Probado en esta máquina con la interfaz del portátil; lo que solo un aparato confirma:
+
+- [ ] **Enchufar y desenchufar sin sondeo**: con Cantus abierto en un proyecto vacío y sin tocar
+      nada, conecta tu UMC por USB: la tarjeta *¿Cambiar a UMC204HD?* debe aparecer en menos de
+      un segundo (Cantus ya no lista los dispositivos cada 1,5 s; espera a que Windows avise). Si
+      tarda unos 10 s, Windows no avisó en tu equipo y Cantus usó la revisión de seguridad:
+      dímelo. Desenchúfala mientras suena algo: el aviso de *interfaz perdida* igual de rápido.
+- [ ] **Un puerto MIDI de reloj elegido en reposo**: *Ajustes ▸ MIDI*, marca *Reloj* en un
+      puerto con el transporte parado y luego pulsa Play: el aparato debe seguir desde el primer
+      compás (el hilo de salida, que ahora duerme 20 ms sin puertos, abre el puerto a tiempo).
+- [x] **El reposo contra REAPER, con la máquina quieta** (2026-11-09, con todo cerrado y WSL
+      apagado): Cantus vacío 1,6 % de un núcleo contra REAPER 2,3 % (ticks) y 3,7 % (ciclos);
+      Cantus *Beat* 1,8–2,0 % contra FL Studio 6,6 %. Ganada; `docs/scorecard/README.md`.
+- [ ] **El bailarín en reposo**: Cantus ya abre sin bailarín (tu decisión). Añade uno (el
+      selector de instrumentos) y no toques nada: respira unos 10 s y se queda quieto; mueve el
+      ratón sobre la ventana y vuelve a respirar desde la misma postura, sin saltos.
+
 ### Equipo externo y superficies (ronda 36, ADR 0094 y 0095) <!-- r36:external -->
 
 Necesita tu hardware; en la ronda se probó todo con una interfaz virtual y con unidades Mackie y HUI emuladas.

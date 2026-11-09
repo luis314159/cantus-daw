@@ -352,6 +352,50 @@ fn lines_ringing(nodes: &Nodes, st: &StripSlot) -> bool {
     nodes.line_ringing(st.out_line) || st.send_line.iter().any(|l| nodes.line_ringing(*l))
 }
 
+/// Whether insert `i` is a wire this pass — bypassed (or the chain off) with no latency, or
+/// bypassed hard for low-latency monitoring — so it does not run (`strip_run`'s rule).
+pub(crate) fn wire(
+    bypass: &[bool; MAX_EFFECTS_PER_TRACK],
+    fx_enabled: bool,
+    ll_off: &[bool; MAX_EFFECTS_PER_TRACK],
+    i: usize,
+    e: &EffectUnit,
+) -> bool {
+    let off = bypass[i] || !fx_enabled;
+    (off && e.latency() == 0) || ll_off[i]
+}
+
+/// Whether a silent strip with inserts may rest this pass (ADR 0031 §5.1): every insert
+/// that runs is at rest and hears a silent key (its key strip left none this pass — what
+/// it would read as silence) and no note; no latent insert's dry line still holds signal;
+/// no analyser, scope or recorder is fed from it; and the tests have not asked for every
+/// strip to run.
+fn may_rest(nodes: &Nodes, ctx: &super::ctx::PassCtx, slot: usize, st: &StripSlot) -> bool {
+    if nodes.never_rest.load(Relaxed) || ctx.capture_slot == Some(slot) {
+        return false;
+    }
+    if st.dry_line.iter().any(|l| nodes.line_ringing(*l)) {
+        return false;
+    }
+    // Notes reach every insert, a bypassed one too (it knows what is held when it is back).
+    if st.listener.iter().any(|l| l.is_some()) {
+        return false;
+    }
+    st.effects.iter().enumerate().all(|(i, e)| {
+        if wire(&st.bypass, st.fx_enabled, &st.ll_off, i, e) {
+            return true;
+        }
+        let watched = ctx.analysed == Some(e.id) || ctx.scoped.contains(&Some(e.id));
+        let key_silent = match st.key[i] {
+            Some(k) if st.key_before[i] => nodes
+                .read(&nodes.strips[k].key)
+                .is_none_or(|b| b.pass != ctx.pass),
+            _ => true,
+        };
+        !watched && key_silent && e.at_rest()
+    })
+}
+
 /// Run plan node `node`, the strip in slot `slot`, over the pass. It rests when nothing
 /// came in and nothing in it rings.
 pub(crate) fn run_strip(nodes: &Nodes, frame: &Frame, node: usize, slot: usize, sc: &mut Scratch) {
@@ -395,21 +439,36 @@ pub(crate) fn run_strip(nodes: &Nodes, frame: &Frame, node: usize, slot: usize, 
     let eq_ringing = !st.eq_flat && !(st.eq_l.is_quiet() && st.eq_r.is_quiet());
     let ringing = !st.effects.is_empty() || eq_ringing;
     st.active = any;
-    // r37:drums — a pad's chain at rest costs nothing (ADR 0100 §6): nothing came in, its
-    // EQ and lines are quiet, no key or note reaches its inserts, and every insert is at
-    // rest — so skipping them (told with `skip`) changes no sample (ADR 0031 §5.1).
-    let resting_chain = st.chain
+    // A strip with inserts at rest costs nothing (ADR 0031 §5.1; ADR 0100 §6 for a pad's
+    // chain, every strip since round 38): nothing came in, its EQ and lines are quiet, no
+    // key or note reaches its inserts, nobody watches them, and every insert that would
+    // run is at rest — so skipping them (told with `skip`) changes no sample.
+    let resting = !st.effects.is_empty()
         && !any
         && !eq_ringing
         && !lines_ringing(nodes, &st)
-        && st.key.iter().all(|k| k.is_none())
-        && st.listener.iter().all(|l| l.is_none())
-        && st.effects.iter().all(|e| e.at_rest());
-    if resting_chain {
-        for e in st.effects.iter_mut() {
-            e.skip(n);
+        && may_rest(nodes, ctx, slot, &st);
+    if resting {
+        let s = &mut *st;
+        for (i, e) in s.effects.iter_mut().enumerate() {
+            // An insert that is a wire this pass would not have run: nothing to count.
+            if !wire(&s.bypass, s.fx_enabled, &s.ll_off, i, e) {
+                // A unit that follows the song hears where it is as a running one would
+                // (it would read the jump as a seek otherwise), then skips the pass.
+                if e.follows_song() {
+                    e.set_position(&ctx.position.earlier_in(
+                        e.late,
+                        ctx.sample_rate,
+                        ctx.transport.map(),
+                    ));
+                }
+                e.skip(n);
+            }
         }
-        nodes.chain_rests.fetch_add(1, Relaxed);
+        if st.chain {
+            nodes.chain_rests.fetch_add(1, Relaxed);
+        }
+        nodes.strip_rests.fetch_add(1, Relaxed);
         out.ran = false;
     } else if !any && !ringing && !lines_ringing(nodes, &st) {
         out.ran = false; // Nothing came in and nothing is ringing.

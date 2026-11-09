@@ -55,6 +55,7 @@ pub fn show(app: &mut CantusApp, ui: &Ui, area: Rect) {
     let ctx = ui.ctx().clone();
     begin(app, &ctx);
     let playing = app.engine.is_playing();
+    let holding = app.dance_live.doze.holding();
     let mut st = std::mem::take(&mut app.stage);
     let mut actions = Vec::new();
     let dancers = std::mem::take(&mut st.dancers);
@@ -67,22 +68,23 @@ pub fn show(app: &mut CantusApp, ui: &Ui, area: Rect) {
     }
     st.dancers = dancers;
     st.sweep();
-    wake(&ctx, &st, playing);
+    wake(&ctx, &st, playing, holding);
     app.stage = st;
     apply(app, &actions);
     super::companion::frame(app, &ctx);
 }
 
 /// Ask for the next frame the stage needs: the idle breath while it is stopped (playing,
-/// the transport already asks for 60 a second), the frame's fade, nothing when nothing
-/// shows or the window is minimised.
-pub(crate) fn wake(ctx: &Context, st: &StageState, playing: bool) {
+/// the transport already asks for 60 a second) until the dancers hold still
+/// (`dance_live::Doze`), the frame's fade, nothing when nothing shows or the window is
+/// minimised.
+pub(crate) fn wake(ctx: &Context, st: &StageState, playing: bool, holding: bool) {
     if st.slots.is_empty() || ctx.input(|i| i.viewport().minimized == Some(true)) {
         return;
     }
     if st.drag.is_some() {
         ticker::moving(ctx, ticker::Reason::Drag);
-    } else if !playing {
+    } else if !playing && !holding {
         ticker::wake_after(ctx, Duration::from_secs_f64(1.0 / super::IDLE_RATE));
     }
     if let Some((_, _, until)) = st.hover {

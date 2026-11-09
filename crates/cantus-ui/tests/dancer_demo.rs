@@ -64,9 +64,14 @@ fn the_house_demo_has_a_dancer_on_the_stage() {
                 track: t.id,
                 key: "move".into()
             }));
-    // What the program opens on (the second drop) has it too.
+    // What the program opens on (the second drop) has none (the owner's decision,
+    // 2026-11-08: nothing dances at start); the excerpt with it is the stage's.
     let start = cantus_ui::demos::startup_project();
-    assert!(start
+    assert!(!start
+        .tracks
+        .iter()
+        .any(|t| dancer::is_dancer(&t.instrument)));
+    assert!(cantus_ui::demos::startup_project_with_dancer()
         .tracks
         .iter()
         .any(|t| dancer::is_dancer(&t.instrument)));

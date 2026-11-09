@@ -39,7 +39,10 @@ The frame fades a moment after the pointer leaves.
 
 A dancer is drawn only when its pose changes: at most 60 times a second while the song
 plays, 15 times a second while it is stopped (a slow breath and a blink), and not at all
-when it is hidden or Cantus is minimised. Each dancer is drawn into a box just big enough
+when it is hidden or Cantus is minimised. Stopped, once nothing has happened for ten
+seconds (no pointer over the window, no key, no Play), it holds its pose and costs nothing;
+the next thing you do wakes it where it was. While the companion window is open it keeps
+breathing, since that is what you stream. Each dancer is drawn into a box just big enough
 for it, at your screen's real pixels, so it is crisp at every zoom.
 
 ## The companion window

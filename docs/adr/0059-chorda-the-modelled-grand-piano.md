@@ -210,3 +210,11 @@ changes `MODEL` and never a song made with this one.
   session while the unit plays the keyboard it has. Tested with the spawn fault
   (`a_tuning_no_designer_can_make_is_not_on_its_way`, seen failing on `Some(0.0)`) and the
   caption's words in both languages.
+
+## Amended by ADR 0106 (round 38: the scorecard)
+
+§6's reference keyboard is **no longer designed at start-up or after a device change**: it
+took ≈ 7.5 s of CPU over ten threads in the seconds after the window, for a piano most
+sessions never load. A project with Chorda asks for its tunings with its first snapshot (as
+before); opening the instrument picker asks for the reference keyboard, so it is ready by
+the time the piano is chosen. `tests/inst_chorda_boot.rs` holds the new rule.

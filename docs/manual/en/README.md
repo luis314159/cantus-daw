@@ -191,7 +191,9 @@ restarts the audio once by itself. You cannot change the device while recording.
 ## 3. The workspace
 
 Cantus opens on a song — the second drop of the demo *Neon Tide*, looping — so the first
-thing you hear is music. Press `Space` to play it.
+thing you hear is music. Press `Space` to play it. Nothing dances at start: the whole demo
+(*File ▸ Demo songs*) keeps its dancer, and you can add one to any song
+([Saltator](dancer.md)).
 
 - **The top bar** (see [below](#the-top-bar)): the menus over the project's name and the
   hint panel, then the transport, the tempo, the metronome, the position, the meters and
@@ -2319,8 +2321,10 @@ This is a beta. What we know about:
   open; a first save or a *Save As* that copies imported audio into the project folder can
   pause the window while the files are copied; Ctrl+V with nothing
   copied does nothing and says nothing.
-- **Chorda** designs its strings for the audio device's sample rate when Cantus starts (a
-  second or two, beside the window — the window never waits). Played before that, or at
+- **Chorda** designs its strings for the audio device's sample rate when it is wanted: a
+  song with Chorda asks for them as it opens, and opening the instrument picker starts the
+  reference piano, so it is ready by the time you choose it (a second or two, beside the
+  window — the window never waits; nothing is designed at start for a song without it). Played before that, or at
   a sample rate it has not met (after changing the device), it is silent until the design
   is ready, and its editor says *designing the strings* with how far it has come. Its
   tuning parameters (A4, stretch, stiffness) are set, not automated or modulated: they

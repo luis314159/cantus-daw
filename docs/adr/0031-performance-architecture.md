@@ -1146,3 +1146,11 @@ rule, promotion, the switch point, the render cache's keys and settle points, ex
 suspension, the SIMD rules, Bitwig's hosting modes, and the export's pipelining. The review
 found each of them supported by at least one shipping engine or paper, and several of them
 better than anything shipping.
+
+## Amended by ADR 0106 (round 38: at rest costs nothing)
+
+§5.1's suspension is generalised from ADR 0100's pad chains to **every strip with inserts**
+and to **the master chain**; Spatium implements `at_rest`/`skip`, and the master's loudness
+meter takes exact silence through clear filters as a count of columns. A strip whose latent
+insert's dry line still holds signal does not rest (the pad chains' rule missed it). Exact:
+a twin that never rests (`Processor::set_never_rest`) plays the demo to the same bits.

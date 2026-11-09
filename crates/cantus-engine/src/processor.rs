@@ -731,6 +731,41 @@ impl Processor {
         &self.stats
     }
 
+    /// Why each insert that is not at rest is not (ADR 0031 §5.1): `(strip, insert's place,
+    /// the unit's first failing condition)`, the master's as `StripId::MASTER`. Read between
+    /// blocks — the tests and a profiler that shows what keeps a desk running.
+    #[doc(hidden)]
+    pub fn rest_blockers(&self) -> Vec<(StripId, usize, &'static str)> {
+        let mut v = Vec::new();
+        for slot in 0..self.nodes.strips.len() {
+            if let Some(st) = self.nodes.strip(slot) {
+                if let Some(id) = st.id {
+                    for (i, e) in st.effects.iter().enumerate() {
+                        if let Some(b) = e.rest_blocker() {
+                            v.push((id, i, b));
+                        }
+                    }
+                }
+            }
+        }
+        for (i, e) in self.master.effects.iter().enumerate() {
+            if let Some(b) = e.rest_blocker() {
+                v.push((StripId::MASTER, i, b));
+            }
+        }
+        v
+    }
+
+    /// For the twin tests (round 38): `true` keeps every strip with inserts and the master
+    /// chain running over silence, as before they could rest — the reference a resting
+    /// engine must match to the bit. Never set by the application.
+    #[doc(hidden)]
+    pub fn set_never_rest(&self, on: bool) {
+        self.nodes
+            .never_rest
+            .store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
     fn slot_for(&self, track: TrackId) -> Option<usize> {
         self.track_ids.iter().position(|s| *s == Some(track))
     }

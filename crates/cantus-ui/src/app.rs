@@ -488,9 +488,11 @@ impl CantusApp {
         let peak_cache = data_dir().join("cache").join("peaks");
         let mut engine = engine;
         Self::start_window_services(&mut engine, &settings);
-        // Chorda's strings for this sample rate, designed beside the window (round 28,
-        // ADR 0059): ready before anybody loads the piano.
-        cantus_engine::inst::chorda::warm(engine.sample_rate as f32);
+        // Chorda's strings are not designed at start (round 38, ADR 0059 amended): they
+        // took 7 s of CPU over ten threads in the seconds after the window, for a piano
+        // most sessions never load. A project with Chorda asks for its tunings with its
+        // first snapshot; the instrument picker asks for the reference keyboard when it
+        // opens (`views::picker::open`), so the piano is ready by the time it is chosen.
         // This computer's choice of where third-party plug-ins run goes in before the
         // first sync: a start-up project's plug-ins load there at once, never within Cantus
         // first (review #14).
@@ -1171,8 +1173,8 @@ impl CantusApp {
                     .set_record_offset(self.settings.audio.record_offset_frames);
                 // Hosted plug-ins load again, for the new engine and its rate.
                 self.plugins.reload_all(self.engine.sample_rate);
-                // Chorda's strings for the new rate (a rate it has met before is kept).
-                cantus_engine::inst::chorda::warm(self.engine.sample_rate as f32);
+                // Chorda's strings for the new rate come with the snapshot's Chorda tracks
+                // and the instrument picker (round 38); a rate met before is kept.
                 self.midi_inputs = None;
                 self.controllers.reopened();
                 if self.engine.is_live() {
@@ -4166,7 +4168,7 @@ impl CantusApp {
         self.listen.sync_epoch(self.epoch); // r34:listen — a switched project's listens forgotten before agents' calls run
         crate::ai_mcp::frame(self, ctx); // r34:mcp — agents' calls, before the views draw
         self.ml.poll(); // r34:stems — model downloads and preparations
-        crate::dance_live::frame(self); // r35:dancer — the dancers posed at what is heard
+        crate::dance_live::frame_main(self, ctx); // r35:dancer — the dancers posed at what is heard
         crate::editor::frame(self, ctx); // r36:editor — the audio editor: its thread's results, an undo that moved the clip
         crate::transcribe_ui::run::frame(self, ctx); // r34:transcribe — Convert to MIDI
         self.host_notices(notices);
@@ -4289,8 +4291,11 @@ impl CantusApp {
         if !self.auditions.is_empty() {
             ticker::moving(ctx, Reason::Audition);
         }
+        // Work in the background is collected ten times a second, not drawn at 60 (round 38:
+        // the start-up plug-in scan of a fresh install drew the whole window 60 times a
+        // second for as long as it ran — 36 % of a core).
         if self.export_in_progress() || self.plugins.scanning() {
-            ticker::moving(ctx, Reason::Background);
+            ticker::wake_after(ctx, Duration::from_millis(100));
         }
         // A hosted plug-in expects its requests served soon (CLAP `request_callback`): the
         // frame loop is the main thread's pump, so it keeps turning while one is loaded.
@@ -4339,6 +4344,7 @@ impl CantusApp {
             ticker::wake_after(ctx, left.max(Duration::from_millis(250)));
         }
         ticker::finish(ctx);
+        crate::repaint_log::frame(ctx);
     }
 
     /// The last two seconds' average frame time, in milliseconds (the stats readout).

@@ -1,8 +1,32 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-07 (round 37: **content, instruments and the look** — **Chorda model 2**, voiced against the Salamander Grand by measurement, with the microphones, the lid and the room as controls (ADR 0098), and **its scene**, the piano in its room built in 3-D and baked by our own CPU renderer, its look per preset (ADR 0104, schema 58); **Sectio**, Exemplar's slicer — markers, transients, a grid or by hand, a slice editor, a dump that replays the loop to the bit (ADR 0099, schema 55; 91.9 % of hits within 10 ms on rendered loops, 75.8 % on MDB Drums — short of the 95 % target); **Pulsus III** — each pad on its own strip in one click, the split kit equal to the unsplit one to the bit, a chain per pad that costs nothing at rest, kits from a folder or an SFZ, sixteen original kits (ADR 0100, schemas 56–57); **a library of 511 presets** by style and role, auditioned before they are chosen, Cantus's own packs on demand and every unit heard on the website (ADR 0101); **the look drawn by hand** above FL Studio, judged blind by fresh agents (ADR 0103); **Fuga the ninja**, the new lead dancer, and **Volta the mecha** (ADR 0105, schema 59); the first **scorecard** — 97 features against twelve DAWs from their manuals. Version **0.1.0-beta.12** (Windows, Linux, and **macOS as an unsigned preview**). Schema 59, `DSP_VERSION` 6, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 534 pass on Windows (95 ignored), the engine fuzz 1 111 at `CANTUS_WORKERS=3`, 6 494 on Linux (95 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both, and clippy for `aarch64-apple-darwin` on the crates with macOS code
+**Updated:** 2026-11-09 (round 38: **at rest costs nothing** — every strip with inserts, the master chain and the reverb rest exactly in silence, held to the bit by twins; no view draws at the screen's rate; idle threads sleep; Chorda's keyboard designed on intent; **nothing dances at start**, and a dancer holds still after 10 s (ADR 0106); **Chorda's scene** baked ~4× faster, its previews whole (ADR 0104 amended); the start-up rows measured again on a quiet machine, like against like: Cantus wins window, quiet and at rest against REAPER and FL Studio and loses memory. Version **0.1.0-beta.13** (Windows, Linux, and macOS as an unsigned preview). Schema 59, `DSP_VERSION` 6, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 554 pass on Windows (102 ignored), the engine fuzz 1 106 at `CANTUS_WORKERS=3`, 6 515 on Linux (102 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 38 left
+
+Round 38 is on **master** (squashed) and published to `luis314159/cantus-daw`;
+**`v0.1.0-beta.13`** is released for Windows and Linux, with macOS as an unsigned preview.
+The account: `docs/round38/integration.md`; the builders' reports beside it (`scorecard`,
+`chorda`). The prompt for the next session is `docs/next-session.md`:
+
+1. **Round 39: UX and graphics, the whole window** (BACKLOG §6j, the owner's decision of
+   2026-11-08): a design agent that only designs — every button, icon, knob, fader, meter,
+   tab, field, menu and surface drawn by hand from a blank sheet, as SVG sheets at 1:1 and
+   4× beside FL Studio's piece, two or three whole-window directions first and the owner
+   picks; a kit builder that turns approved sheets into code (an ADR on how it draws, with
+   the frame budget measured); a UX builder (click paths, an automated knob that says so,
+   the help line never empty, nothing truncated, every panel resizable and movable, keyboard
+   reach). At most three agents; the owner accepts on whole windows, in both themes.
+2. **Memory** (the scorecard's one lost row): the engine's preallocation for its largest
+   session — Pulsus kits built as the native instruments are (−31 MB), the meters out of the
+   event queue (−15 MB), a delay-line pool that grows (−9 MB); each an ADR. `memory_e2e`
+   now fails if a start holds a tenth more than round 38's.
+3. **Round 40 (proposed)**: Chorda's third voicing pass and ABX 4 (`docs/round38/chorda.md`),
+   a convolution reverb (7 of 8 leaders), ripple edit / insert and delete time (6 of 8).
+4. **The owner's own** (`docs/beta-checklist.md`): an interface plugged and unplugged (the
+   device watcher, *En reposo*), the dancer at rest, and everything rounds 30–37 left.
 
 ## The next session: what round 37 left
 
@@ -503,6 +527,21 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 38: at rest costs nothing, and Chorda's picture follows its controls (requested 2026-11-08)
+
+**The ask:** win the scorecard's start-up rows honestly (BACKLOG §0.1, ADR 0102) and fix
+Chorda's scene, which pixelated while its controls moved. One builder (`scorecard`) and the
+integrator (`chorda`); the owner decided on the way that nothing dances at start and moved
+round 39 to UX and graphics. One read-only reviewer per branch; every finding fixed with a
+test. Account: `docs/round38/integration.md`.
+
+| Part | What changed |
+|---|---|
+| At rest (ADR 0106; amends 0031, 0059, 0091, 0102) | Every strip with inserts, the master chain and Spatium rest in exact silence and wake to the pass, held to the bit by twins that never rest (now also with a knob turned on the resting desk); the master's loudness meter counts silence through clear filters; the mixer's meters, the effect editors, the pinned meter and the dancer editor go through the ticker; the first-run setup looks four times a second; Chorda's reference keyboard designed when the instrument picker opens; the MIDI-out thread and the device watcher sleep (`cantus_rt::endpoints`, re-armed as soon as it fires); tools `profile.ps1`, `memmap.ps1`, `startup.ps1 -AlsoShare`. |
+| The dancer | Nothing dances at start (`demos::startup_project`); a dancer holds still 10 s after the last thing that happened — the pointer, a key, Play, a drag, a hover, or a note on its track — and the window then asks for no frame. |
+| Chorda's scene (ADR 0104 amended) | Span rasterization, rows in bands taken by free threads, the once-serial passes on every thread: the full bake 597 → ~140 ms, the previews whole; the owner confirmed no pixelation. Voicing by register in the code, flat. |
+| Measured (`docs/scorecard/README.md`) | Quiet machine, like against like: Cantus on an empty song 0.74 s / 1.5 s / 237 MB / 1.6 % against REAPER's 1.76 s / 2.0 s / 62 MB / 2.3–3.7 %; on *Beat* 0.76 s / 1.6 s / 239 MB / 1.8–2.0 % against FL Studio's 2.49 s / 5.8 s / 133 MB / 6.6 %. Memory lost; its cause mapped (`docs/round38/scorecard.md` §4). |
 
 ## Round 37: content, instruments, the look and the first measurement — Chorda model 2 and its scene, Sectio, Pulsus III, the preset library, Fuga and Volta, the scorecard (requested 2026-11-03)
 

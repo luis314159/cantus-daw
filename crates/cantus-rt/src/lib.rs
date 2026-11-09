@@ -16,6 +16,7 @@
 //! - [`memory`]: pre-faulting and best-effort locking, so the audio thread never takes a
 //!   page fault.
 //! - [`disk`]: a volume's size and free space (the sample cache's limit).
+//! - [`endpoints`]: changes to the system's audio endpoints, waited for (the device watcher).
 //! - [`files`]: the open-files limit, raised at start-up (the stream cache's handle budget).
 //! - [`place`]: a rename that never replaces (the exporter's never-replace placement).
 //! - [`shm`] and [`ipc`]: named shared memory and the lock-step exchange over it — a job
@@ -34,6 +35,7 @@
 pub mod cell;
 pub mod denormal;
 pub mod disk;
+pub mod endpoints; // round 38 — audio endpoints' changes waited for, not polled
 pub mod files;
 pub mod fork;
 pub mod fpenv;

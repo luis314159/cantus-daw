@@ -200,7 +200,9 @@ reinicia el audio una vez por sí solo. No se puede cambiar el dispositivo mient
 ## 3. El espacio de trabajo
 
 Cantus abre con una canción — la segunda subida de la demo *Neon Tide*, en bucle — para
-que lo primero que oigas sea música. Pulsa `Espacio` para reproducirla.
+que lo primero que oigas sea música. Pulsa `Espacio` para reproducirla. Nada baila al
+arrancar: la demo completa (*Archivo ▸ Canciones de demostración*) conserva su bailarín, y
+puedes añadir uno a cualquier canción ([Saltator](dancer.md)).
 
 - **La barra superior** (ver [más abajo](#la-barra-superior)): los menús sobre el nombre
   del proyecto y el panel de ayuda, y luego el transporte, el tempo, el metrónomo, la
@@ -2515,8 +2517,11 @@ Esto es una beta. Lo que ya sabemos:
   Cantus siga abierto; un primer guardado o un *Guardar como* que copia el audio importado
   a la carpeta del proyecto puede detener la ventana mientras se copian los archivos; Ctrl+V sin
   nada copiado no hace nada ni lo dice.
-- **Chorda** diseña sus cuerdas para la frecuencia de muestreo del dispositivo de audio al
-  arrancar Cantus (uno o dos segundos, junto a la ventana — la ventana nunca espera).
+- **Chorda** diseña sus cuerdas para la frecuencia de muestreo del dispositivo de audio
+  cuando se le necesita: una canción con Chorda las pide al abrirse, y abrir el selector de
+  instrumentos empieza el piano de referencia, para que esté listo cuando lo elijas (uno o
+  dos segundos, junto a la ventana — la ventana nunca espera; al arrancar no se diseña
+  nada para una canción sin él).
   Tocado antes, o a una frecuencia que aún no conoce (tras cambiar de dispositivo), queda
   en silencio hasta que el diseño está listo, y su editor dice *diseñando las cuerdas* con
   cuánto lleva. Sus parámetros de afinación (La4, estiramiento, rigidez) se fijan, no se

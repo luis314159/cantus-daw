@@ -15,7 +15,7 @@ use crate::kit::glyph::Glyph;
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::led_button;
 use crate::kit::{with_brush, Fill, Style};
-use crate::views::workspace_ticker::{self as ticker, Reason};
+use crate::views::workspace_ticker as ticker;
 use cantus_update::install::{self, InstallKind};
 use cantus_update::notes::LineKind;
 use cantus_update::{net, schedule, updater, verify, Config, Status, Updater, Version};
@@ -115,7 +115,11 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
     }
     let status = app.update.status();
     match &status {
-        Status::Checking | Status::Downloading { .. } => ticker::moving(ctx, Reason::Background),
+        // Collected ten times a second (round 38): the start's daily check drew the whole
+        // window at 60 Hz for as long as the network took to answer.
+        Status::Checking | Status::Downloading { .. } => {
+            ticker::wake_after(ctx, Duration::from_millis(100))
+        }
         Status::Held { .. } => ticker::wake_after(ctx, Duration::from_secs(1)),
         _ => {}
     }

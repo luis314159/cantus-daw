@@ -183,3 +183,42 @@ fn the_chip_is_amber_after_a_dropout_and_red_without_a_device() {
     let b = support::app(cantus_ui::welcome_project());
     assert_eq!(health(&b), Health::Lost);
 }
+
+/// Round 38 (the scorecard): the first-run setup left open on a silent input draws no 60
+/// frames a second for meters standing at the floor — it looks four times a second — and
+/// draws at the ticker's 60 Hz again as soon as an input moves.
+#[test]
+fn the_first_run_setup_on_a_silent_input_only_looks_now_and_then() {
+    use cantus_ui::views::workspace_ticker as ticker;
+    let (mut a, _dir) = studio();
+    let ctx = support::ctx();
+    a.attach(&ctx);
+    a.settings.audio = AudioSettings::default();
+    a.settings.audio_setup = Default::default();
+    setup::arm_first_run(&mut a);
+    assert!(a.audio_setup.first_run.is_some());
+    a.audio_setup.demo.as_mut().unwrap().peaks = vec![0.0, 0.0];
+    // The held peaks fall to the floor first (20 dB a second).
+    for _ in 0..8 {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(1280.0, 720.0))),
+            predicted_dt: 1.0,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| a.frame(ui)).textures_delta.clear();
+    }
+    let quiet = ticker::last(&ctx);
+    assert!(
+        quiet
+            .requested
+            .is_some_and(|d| d >= std::time::Duration::from_millis(200)),
+        "a silent first run looks now and then, not at 60 Hz: {quiet:?}"
+    );
+    a.audio_setup.demo.as_mut().unwrap().peaks = vec![0.3, 0.0];
+    run(&mut a, &ctx, vec![]);
+    let moving = ticker::last(&ctx);
+    assert!(
+        moving.has(ticker::Reason::Meters) && moving.requested == Some(ticker::FRAME),
+        "a moving input draws at the ticker's rate: {moving:?}"
+    );
+}

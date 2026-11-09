@@ -244,6 +244,12 @@ pub(crate) struct Nodes {
     pub stream_wakes: AtomicU64,
     /// Passes a pad's chain rested (ADR 0100 §6). // r37:drums
     pub chain_rests: AtomicU64,
+    /// Passes any strip with inserts rested — pad chains included (round 38, ADR 0031
+    /// §5.1 generalised): what a desk at rest costs.
+    pub strip_rests: AtomicU64,
+    /// The tests' switch: no strip with inserts rests and the master chain always runs, so
+    /// a twin can show resting changes no sample. Off in the application.
+    pub never_rest: std::sync::atomic::AtomicBool,
     pub origin: Instant,
 }
 
@@ -335,6 +341,8 @@ impl Nodes {
             stream_cut: AtomicU64::new(0),
             stream_wakes: AtomicU64::new(0),
             chain_rests: AtomicU64::new(0), // r37:drums
+            strip_rests: AtomicU64::new(0),
+            never_rest: std::sync::atomic::AtomicBool::new(false),
             origin: Instant::now(),
         };
         n.prefault();

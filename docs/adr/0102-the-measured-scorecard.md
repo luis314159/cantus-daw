@@ -68,3 +68,16 @@ Two traps shaped the decision:
 - `tools/scorecard/startup.ps1` is a script, not a test: its rule is written in its header,
   and every result it writes carries the program's version and the raw per-start rows, so a
   published median can be checked against the starts it came from.
+
+## Amended by ADR 0106 (round 38: the start-up rows, measured again)
+
+- `startup.ps1` measures **at rest** itself (`-RestAt 30 -RestFor 10`: one core's share over
+  10 s from 30 s after spawn, and the private bytes then) and reports a second *quiet*
+  threshold from the same samples (`-AlsoShare`): the rows are taken at the ADR's 0.10 again,
+  with round 37's 0.35 beside them.
+- Cantus is measured **on its demo and on an empty song** (`examples/scorecard_projects.rs`
+  writes `empty.cantus`, `beat.cantus` and `demo.cantus`), the like-for-like rows being the
+  empty song against REAPER's empty project and the *Beat* starter against FL Studio's
+  template; its release folder holds `cantus-scan.exe`, as an installed copy does.
+- `profile.ps1` (a sampling profiler from outside, no administrator rights) and
+  `memmap.ps1` (what the private bytes are made of) trace what a row shows.

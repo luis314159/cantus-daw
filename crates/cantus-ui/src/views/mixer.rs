@@ -952,14 +952,20 @@ impl MixerView {
         menu::show(self, app, ui);
         crate::views::route_menu::show(app, ui, route_owner());
 
-        // The next frame only while something moves, and at 60 Hz at most (§13).
+        // The next frame only while something moves, and at 60 Hz at most (§13) — through
+        // the ticker: egui takes its predicted frame off a delayed request, so 16 ms asked
+        // of it directly drew at the screen's rate (round 38, as round 37 found elsewhere).
         if self.meters.moving() {
-            ui.ctx()
-                .request_repaint_after(std::time::Duration::from_millis(16));
+            crate::views::workspace_ticker::moving(
+                ui.ctx(),
+                crate::views::workspace_ticker::Reason::Meters,
+            );
         }
         if app.mix_recorder.status().is_some() {
-            ui.ctx()
-                .request_repaint_after(std::time::Duration::from_millis(33));
+            crate::views::workspace_ticker::wake_after(
+                ui.ctx(),
+                std::time::Duration::from_millis(33),
+            );
         }
     }
 

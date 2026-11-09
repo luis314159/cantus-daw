@@ -48,7 +48,7 @@ struct Band {
 }
 
 pub fn build() -> Project {
-    let mut p = song().finish();
+    let mut p = song(true).finish();
     // r37:finish — the sections as markers: named once in the ruler, as a song's form is
     // read (the clips that say the same go quiet under them).
     for (key, at, _) in FORM {
@@ -65,21 +65,27 @@ pub fn build() -> Project {
 }
 
 /// The second drop — the choir has joined — sixteen bars, looping: what the program opens
-/// on.
-pub fn startup() -> Project {
-    let mut p = song().excerpt(40.0, 16.0);
+/// on, **without its dancer** (the owner's decision, 2026-11-08, ADR 0106 §10: nothing
+/// dances at start). The whole song (*File ▸ Demo songs*) keeps Trino; `dancer` puts it in
+/// the excerpt too (the stage's shots).
+pub fn startup(dancer: bool) -> Project {
+    let mut p = song(dancer).excerpt(40.0, 16.0);
     p.name = t("demos.song.house");
     p
 }
 
-fn song() -> Song {
+/// The song, with its dancer or not: it is added last, takes the last strip and draws
+/// nothing from the humaniser's stream, so the music is the same bits either way.
+fn song(with_dancer: bool) -> Song {
     let mut s = Song::new(&t("demos.song.house"), 124.0, 0x4E0_71DE);
     let b = band(&mut s);
     desk(&mut s, &b);
     for (key, at, len) in FORM {
         music(&mut s, &b, key, at, len);
     }
-    dancer(&mut s, &b); // r35:dancer — last: nothing it adds moves a sound
+    if with_dancer {
+        dancer(&mut s, &b); // r35:dancer — last: nothing it adds moves a sound
+    }
     s
 }
 

@@ -97,6 +97,10 @@ const NOTE_PORT: u64 = u64::MAX; // r36:external
 /// lateness), then yields to it: the yielding is this short, not a millisecond a message.
 const SPIN_US: f64 = 500.0;
 
+/// How long the thread sleeps between looks when it has no port and no external instrument
+/// to serve (round 38): a port chosen in Settings is opened within this.
+const IDLE: Duration = Duration::from_millis(20);
+
 impl MidiOut {
     /// Start sending what `ring` brings, to the ports [`Self::set_ports`] names.
     /// Its ports come from `pool`, which controller feedback shares (one connection per
@@ -277,7 +281,17 @@ fn run(
         due.sort_by(|a, b| a.at_us.total_cmp(&b.at_us));
         let now = super::host_micros() as f64;
         let Some(first) = due.first() else {
-            std::thread::sleep(Duration::from_millis(1));
+            // Nothing due. With a port or an external instrument to serve, look again within
+            // a millisecond (the audio thread stamps messages a latency ahead); with none, the
+            // audio thread sends nothing, and a port chosen later is opened within IDLE —
+            // a thread that woke a thousand times a second for nothing was 1 % of a core at
+            // rest (round 38, the scorecard).
+            let serving = open.iter().any(|o| o.port.is_some()) || !unit_ports.is_empty();
+            std::thread::sleep(if serving {
+                Duration::from_millis(1)
+            } else {
+                IDLE
+            });
             continue;
         };
         let wait = first.at_us - now;

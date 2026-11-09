@@ -92,9 +92,16 @@ fn raster_rows(
         let yb = ((t.hi.y - 0.5).floor() + 1.0).min(y1 as f32).max(0.0) as usize;
         let xa = ((t.lo.x - 0.5).ceil().max(0.0)) as usize;
         let xb = ((t.hi.x - 0.5).floor() + 1.0).min(w as f32).max(0.0) as usize;
+        // A sliver's edge functions are too steep to bound a row by; it walks its box.
+        let spans = area.abs() >= 1.0;
         for py in ya..yb {
             let sy = py as f32 + 0.5;
             let row = (py - y0) * w;
+            let (xa, xb) = if spans {
+                span(t, inv, sy, xa, xb)
+            } else {
+                (xa, xb)
+            };
             for px in xa..xb {
                 let sx = px as f32 + 0.5;
                 let w0 = ((t.x[1] - sx) * (t.y[2] - sy) - (t.x[2] - sx) * (t.y[1] - sy)) * inv;
@@ -119,8 +126,58 @@ fn raster_rows(
     }
 }
 
-/// Run `f(first_row, rows, chunk_a, chunk_b, chunk_c)` over the rows of three buffers
-/// split among `threads`.
+/// The samples of row `sy` that can be inside `t` (whose doubled area's inverse is `inv`),
+/// within `xa..xb`: each edge function is linear along the row, so the row's inside is an
+/// interval. It is widened by two samples and every sample in it still takes the exact test,
+/// so the picture is the box walk's to the bit — only the samples plainly outside are skipped
+/// (a large thin triangle's box is mostly empty: the key light's map tested ~60 samples for
+/// each it kept).
+fn span(t: &PTri, inv: f32, sy: f32, xa: usize, xb: usize) -> (usize, usize) {
+    let (inv, sy) = (inv as f64, sy as f64);
+    let (x, y) = (t.x.map(|v| v as f64), t.y.map(|v| v as f64));
+    // w_i(sx) = c_i + d_i · sx for the edges opposite vertices 0 and 1; w_2 = 1 − w_0 − w_1.
+    let c0 = (x[1] * (y[2] - sy) - x[2] * (y[1] - sy)) * inv;
+    let d0 = (y[1] - y[2]) * inv;
+    let c1 = (x[2] * (y[0] - sy) - x[0] * (y[2] - sy)) * inv;
+    let d1 = (y[2] - y[0]) * inv;
+    let (mut lo, mut hi) = (f64::NEG_INFINITY, f64::INFINITY);
+    for (c, d) in [(c0, d0), (c1, d1), (1.0 - c0 - c1, -d0 - d1)] {
+        let at = (-1e-5 - c) / d;
+        if d > 0.0 {
+            lo = lo.max(at);
+        } else if d < 0.0 {
+            hi = hi.min(at);
+        } else if c < -1e-5 {
+            return (xa, xa);
+        }
+    }
+    if lo.is_nan() || hi.is_nan() || lo > hi {
+        return (xa, xa);
+    }
+    // sx = px + 0.5.
+    let a = (lo - 0.5).floor() - 2.0;
+    let b = (hi - 0.5).ceil() + 3.0;
+    let a = if a.is_finite() {
+        a.clamp(xa as f64, xb as f64) as usize
+    } else {
+        xa
+    };
+    let b = if b.is_finite() {
+        b.clamp(xa as f64, xb as f64) as usize
+    } else {
+        xb
+    };
+    (a, b.max(a))
+}
+
+/// Rows a thread takes at a time. The scene's cost is uneven down the picture (the piano's
+/// rows cost many times the sky's), so the rows go out in small bands to whichever thread is
+/// free instead of one block each — a fixed split left most threads idle while one finished
+/// the piano. A row is computed the same whoever takes it: the bits never depend on it.
+const BAND: usize = 8;
+
+/// Run `f(first_row, end_row, chunk_a, chunk_b, chunk_c)` over the rows (each `w` long) of
+/// three buffers, in bands of [`BAND`] rows shared among `threads`.
 fn rows3<A: Send, B: Send, C: Send>(
     h: usize,
     w: usize,
@@ -130,24 +187,57 @@ fn rows3<A: Send, B: Send, C: Send>(
     c: &mut [C],
     f: impl Fn(usize, usize, &mut [A], &mut [B], &mut [C]) + Sync,
 ) {
-    let per = h.div_ceil(threads.max(1)).max(1);
+    if h == 0 || w == 0 {
+        return;
+    }
+    let n = BAND * w;
+    let bands = std::sync::Mutex::new(
+        a[..h * w]
+            .chunks_mut(n)
+            .zip(b[..h * w].chunks_mut(n))
+            .zip(c[..h * w].chunks_mut(n))
+            .enumerate(),
+    );
+    let work = || loop {
+        let next = bands.lock().unwrap().next();
+        let Some((i, ((a, b), c))) = next else { break };
+        let y = i * BAND;
+        f(y, y + a.len() / w, a, b, c);
+    };
+    let helpers = threads.max(1).min(h.div_ceil(BAND)) - 1;
     std::thread::scope(|s| {
-        let mut a = a;
-        let mut b = b;
-        let mut c = c;
-        let mut y = 0;
-        while y < h {
-            let n = per.min(h - y);
-            let (ah, at) = a.split_at_mut(n * w);
-            let (bh, bt) = b.split_at_mut(n * w);
-            let (ch, ct) = c.split_at_mut(n * w);
-            a = at;
-            b = bt;
-            c = ct;
-            let f = &f;
-            s.spawn(move || f(y, y + n, ah, bh, ch));
-            y += n;
+        for _ in 0..helpers {
+            s.spawn(work);
         }
+        work();
+    });
+}
+
+/// Run `f(first_row, end_row, chunk)` over the rows (each `w` long) of `a`, in bands of
+/// [`BAND`] rows shared among `threads`.
+fn rows1<A: Send>(
+    h: usize,
+    w: usize,
+    threads: usize,
+    a: &mut [A],
+    f: impl Fn(usize, usize, &mut [A]) + Sync,
+) {
+    if h == 0 || w == 0 {
+        return;
+    }
+    let bands = std::sync::Mutex::new(a[..h * w].chunks_mut(BAND * w).enumerate());
+    let work = || loop {
+        let next = bands.lock().unwrap().next();
+        let Some((i, a)) = next else { break };
+        let y = i * BAND;
+        f(y, y + a.len() / w, a);
+    };
+    let helpers = threads.max(1).min(h.div_ceil(BAND)) - 1;
+    std::thread::scope(|s| {
+        for _ in 0..helpers {
+            s.spawn(work);
+        }
+        work();
     });
 }
 
@@ -419,8 +509,35 @@ fn occlusion(g: &GBuf, k_px: f32, threads: usize) -> Vec<f32> {
 }
 
 /// Draw the lines over the shaded samples, anti-aliased, where nothing stands in front.
-fn lines(geo: &Geo, st: &Stage, sh: Option<&Shadow>, cam: &Camera, g: &GBuf, col: &mut [Lin]) {
+fn lines(
+    geo: &Geo,
+    st: &Stage,
+    sh: Option<&Shadow>,
+    cam: &Camera,
+    g: &GBuf,
+    col: &mut [Lin],
+    threads: usize,
+) {
+    /// One line, projected and lit, ready to cover its samples.
+    struct Stroke {
+        pa: Pos2,
+        d: egui::Vec2,
+        len: f32,
+        dir: egui::Vec2,
+        nrm: egui::Vec2,
+        wpx: f32,
+        cover: f32,
+        alpha: f32,
+        za: f32,
+        zb: f32,
+        c: Lin,
+        x0: usize,
+        x1: usize,
+        y0: usize,
+        y1: usize,
+    }
     let eye = cam.eye;
+    let mut strokes = Vec::with_capacity(geo.lines.len());
     for l in &geo.lines {
         let Line {
             a,
@@ -456,76 +573,144 @@ fn lines(geo: &Geo, st: &Stage, sh: Option<&Shadow>, cam: &Camera, g: &GBuf, col
         let lo = pa.min(pb) - egui::vec2(hw, hw);
         let hi = pa.max(pb) + egui::vec2(hw, hw);
         // Clamped before the cast: a cable's end near the lens projects far off the image.
-        let (x0, x1) = (
-            lo.x.clamp(0.0, g.w as f32) as usize,
-            (hi.x + 1.0).clamp(0.0, g.w as f32) as usize,
-        );
-        let (y0, y1) = (
-            lo.y.clamp(0.0, g.h as f32) as usize,
-            (hi.y + 1.0).clamp(0.0, g.h as f32) as usize,
-        );
-        for y in y0..y1 {
-            for x in x0..x1 {
-                let q = Pos2::new(x as f32 + 0.5, y as f32 + 0.5) - pa;
-                let t = (q.dot(dir) / len).clamp(0.0, 1.0);
-                let dist = (q - d * t).dot(nrm).abs();
-                let cov = ((wpx * 0.5 + 0.5 - dist).clamp(0.0, 1.0)) * cover * alpha;
-                if cov <= 0.0 {
-                    continue;
+        strokes.push(Stroke {
+            pa,
+            d,
+            len,
+            dir,
+            nrm,
+            wpx,
+            cover,
+            alpha,
+            za,
+            zb,
+            c,
+            x0: lo.x.clamp(0.0, g.w as f32) as usize,
+            x1: (hi.x + 1.0).clamp(0.0, g.w as f32) as usize,
+            y0: lo.y.clamp(0.0, g.h as f32) as usize,
+            y1: (hi.y + 1.0).clamp(0.0, g.h as f32) as usize,
+        });
+    }
+    // Every band of rows draws every line in order over its own rows, so where lines cross
+    // they blend in the same order as one thread would. A long string's box is mostly empty:
+    // a row walks only the samples near the line (|q · nrm| is a sample's distance to it,
+    // linear along the row; widened by two samples, each still takes the exact test).
+    let w = g.w;
+    rows1(g.h, w, threads, col, |r0, r1, out| {
+        for s in &strokes {
+            let reach = (s.wpx * 0.5 + 0.5) as f64;
+            for y in s.y0.max(r0)..s.y1.min(r1) {
+                let (mut x0, mut x1) = (s.x0, s.x1);
+                let (nx, ny) = (s.nrm.x as f64, s.nrm.y as f64);
+                if nx.abs() > 1e-6 {
+                    let base = (y as f64 + 0.5 - s.pa.y as f64) * ny;
+                    // (x + 0.5 − pa.x)·nx + base ∈ [−reach, reach]
+                    let ea = (-reach - base) / nx + s.pa.x as f64 - 0.5;
+                    let eb = (reach - base) / nx + s.pa.x as f64 - 0.5;
+                    let (lo, hi) = (ea.min(eb).floor() - 2.0, ea.max(eb).ceil() + 3.0);
+                    if lo.is_finite() && hi.is_finite() {
+                        x0 = lo.clamp(s.x0 as f64, s.x1 as f64) as usize;
+                        x1 = (hi.clamp(s.x0 as f64, s.x1 as f64) as usize).max(x0);
+                    }
                 }
-                let k = y * g.w + x;
-                let z = 1.0 / ((1.0 - t) / za + t / zb);
-                if z > g.depth[k] + 0.01 + 0.002 * z {
-                    continue;
+                for x in x0..x1 {
+                    let q = Pos2::new(x as f32 + 0.5, y as f32 + 0.5) - s.pa;
+                    let t = (q.dot(s.dir) / s.len).clamp(0.0, 1.0);
+                    let dist = (q - s.d * t).dot(s.nrm).abs();
+                    let cov = ((s.wpx * 0.5 + 0.5 - dist).clamp(0.0, 1.0)) * s.cover * s.alpha;
+                    if cov <= 0.0 {
+                        continue;
+                    }
+                    let k = y * w + x;
+                    let z = 1.0 / ((1.0 - t) / s.za + t / s.zb);
+                    if z > g.depth[k] + 0.01 + 0.002 * z {
+                        continue;
+                    }
+                    let o = &mut out[(y - r0) * w + x];
+                    *o = lmix(*o, s.c, cov);
                 }
-                col[k] = lmix(col[k], c, cov);
             }
         }
-    }
+    });
 }
 
 /// A separable box blur of `img` (`w` × `h`), radius `r`, run twice (near a Gaussian).
-fn blur(img: &mut [Lin], w: usize, h: usize, r: usize) {
-    if r == 0 {
+fn blur(img: &mut [Lin], w: usize, h: usize, r: usize, threads: usize) {
+    if r == 0 || w == 0 || h == 0 {
         return;
     }
     let mut tmp = vec![[0.0f32; 3]; w * h];
     for _ in 0..2 {
-        for y in 0..h {
-            let mut acc = [0.0f32; 3];
-            let row = &img[y * w..(y + 1) * w];
-            for v in row.iter().take(r.min(w - 1) + 1) {
-                acc = ladd(acc, *v);
-            }
-            for x in 0..w {
-                let n = (x + r).min(w - 1) - x.saturating_sub(r) + 1;
-                tmp[y * w + x] = lscale(acc, 1.0 / n as f32);
-                if x + r + 1 < w {
-                    acc = ladd(acc, row[x + r + 1]);
+        // Along the rows: each row alone.
+        {
+            let img = &*img;
+            rows1(h, w, threads, &mut tmp, |y0, y1, out| {
+                for y in y0..y1 {
+                    let mut acc = [0.0f32; 3];
+                    let row = &img[y * w..(y + 1) * w];
+                    for v in row.iter().take(r.min(w - 1) + 1) {
+                        acc = ladd(acc, *v);
+                    }
+                    let o = &mut out[(y - y0) * w..(y - y0 + 1) * w];
+                    for x in 0..w {
+                        let n = (x + r).min(w - 1) - x.saturating_sub(r) + 1;
+                        o[x] = lscale(acc, 1.0 / n as f32);
+                        if x + r + 1 < w {
+                            acc = ladd(acc, row[x + r + 1]);
+                        }
+                        if x >= r {
+                            let v = row[x - r];
+                            acc = [acc[0] - v[0], acc[1] - v[1], acc[2] - v[2]];
+                        }
+                    }
                 }
-                if x >= r {
-                    let o = row[x - r];
-                    acc = [acc[0] - o[0], acc[1] - o[1], acc[2] - o[2]];
-                }
+            });
+        }
+        // Down the columns: each column's running sum in its own order, the columns shared
+        // among the threads in bands (walked row by row, for the cache).
+        let bands = threads.clamp(1, w);
+        let per = w.div_ceil(bands);
+        let mut cols: Vec<Vec<&mut [Lin]>> = (0..bands).map(|_| Vec::with_capacity(h)).collect();
+        for row in img[..w * h].chunks_mut(w) {
+            let mut rest = row;
+            for band in cols.iter_mut() {
+                let n = per.min(rest.len());
+                let (a, t) = rest.split_at_mut(n);
+                band.push(a);
+                rest = t;
             }
         }
-        for x in 0..w {
-            let mut acc = [0.0f32; 3];
-            for y in 0..=r.min(h - 1) {
-                acc = ladd(acc, tmp[y * w + x]);
-            }
-            for y in 0..h {
-                let n = (y + r).min(h - 1) - y.saturating_sub(r) + 1;
-                img[y * w + x] = lscale(acc, 1.0 / n as f32);
-                if y + r + 1 < h {
-                    acc = ladd(acc, tmp[(y + r + 1) * w + x]);
+        let tmp = &tmp;
+        std::thread::scope(|s| {
+            for (b, mut band) in cols.into_iter().enumerate() {
+                let x0 = b * per;
+                let bw = band.first().map_or(0, |r| r.len());
+                if bw == 0 {
+                    continue;
                 }
-                if y >= r {
-                    let o = tmp[(y - r) * w + x];
-                    acc = [acc[0] - o[0], acc[1] - o[1], acc[2] - o[2]];
-                }
+                s.spawn(move || {
+                    let mut acc = vec![[0.0f32; 3]; bw];
+                    for y in 0..=r.min(h - 1) {
+                        for (cx, a) in acc.iter_mut().enumerate() {
+                            *a = ladd(*a, tmp[y * w + x0 + cx]);
+                        }
+                    }
+                    for (y, out) in band.iter_mut().enumerate() {
+                        let n = (y + r).min(h - 1) - y.saturating_sub(r) + 1;
+                        for (cx, a) in acc.iter_mut().enumerate() {
+                            out[cx] = lscale(*a, 1.0 / n as f32);
+                            if y + r + 1 < h {
+                                *a = ladd(*a, tmp[(y + r + 1) * w + x0 + cx]);
+                            }
+                            if y >= r {
+                                let o = tmp[(y - r) * w + x0 + cx];
+                                *a = [a[0] - o[0], a[1] - o[1], a[2] - o[2]];
+                            }
+                        }
+                    }
+                });
             }
-        }
+        });
     }
 }
 
@@ -563,7 +748,7 @@ pub fn bake(
         vec![1.0; sw * sh_]
     };
     let mut col = shade_buf(geo, st, Some(&shadow), &scam, &g, &ao, threads);
-    lines(geo, st, Some(&shadow), &scam, &g, &mut col);
+    lines(geo, st, Some(&shadow), &scam, &g, &mut col, threads);
     // The polished floor's mirror image, at half the samples, blurred as a gloss blurs it.
     if let (Some((mg, strength)), true) = (mirror, q.full) {
         let (mw, mh) = (sw / 2, sh_ / 2);
@@ -581,19 +766,22 @@ pub fn bake(
                 mc[i] = [0.0; 3];
             }
         }
-        blur(&mut mc, mw, mh, 2);
-        for y in 0..sh_ {
-            for x in 0..sw {
-                let k = y * sw + x;
-                let t = g.tri[k];
-                if t == u32::MAX || geo.tris[t as usize].mat != M::Floor {
-                    continue;
+        blur(&mut mc, mw, mh, 2, threads);
+        rows1(sh_, sw, threads, &mut col, |y0, y1, c| {
+            for y in y0..y1 {
+                for x in 0..sw {
+                    let k = y * sw + x;
+                    let t = g.tri[k];
+                    if t == u32::MAX || geo.tris[t as usize].mat != M::Floor {
+                        continue;
+                    }
+                    let m = mc[(y / 2).min(mh - 1) * mw + (x / 2).min(mw - 1)];
+                    let fall = ao[k];
+                    let c = &mut c[(y - y0) * sw + x];
+                    *c = ladd(*c, lscale(m, strength * fall));
                 }
-                let m = mc[(y / 2).min(mh - 1) * mw + (x / 2).min(mw - 1)];
-                let fall = ao[k];
-                col[k] = ladd(col[k], lscale(m, strength * fall));
             }
-        }
+        });
     }
     if q.full {
         // Depth of field: the far room softens behind the piano.
@@ -607,77 +795,91 @@ pub fn bake(
             .fold(0.0f32, f32::max)
             + 0.6;
         let mut far = col.clone();
-        blur(&mut far, sw, sh_, (2 * ss).max(2));
-        for k in 0..col.len() {
-            let z = g.depth[k];
-            let coc = ((z - far_end) / (far_end * 0.8)).clamp(0.0, 1.0);
-            if coc > 0.0 {
-                col[k] = lmix(col[k], far[k], coc);
+        blur(&mut far, sw, sh_, (2 * ss).max(2), threads);
+        rows1(sh_, sw, threads, &mut col, |y0, y1, c| {
+            for k in y0 * sw..y1 * sw {
+                let z = g.depth[k];
+                let coc = ((z - far_end) / (far_end * 0.8)).clamp(0.0, 1.0);
+                if coc > 0.0 {
+                    let c = &mut c[k - y0 * sw];
+                    *c = lmix(*c, far[k], coc);
+                }
             }
-        }
+        });
         // Bloom: what is brighter than white spills round itself.
         let (bw, bh) = (sw / 4, sh_ / 4);
         if bw > 4 && bh > 4 {
             let mut bright = vec![[0.0f32; 3]; bw * bh];
-            for y in 0..bh {
-                for x in 0..bw {
-                    let mut acc = [0.0f32; 3];
-                    for dy in 0..4 {
-                        for dx in 0..4 {
-                            let c = col[(y * 4 + dy) * sw + x * 4 + dx];
-                            acc = ladd(
-                                acc,
-                                [
-                                    (c[0] - 0.9).max(0.0),
-                                    (c[1] - 0.9).max(0.0),
-                                    (c[2] - 0.9).max(0.0),
-                                ],
-                            );
+            let colr = &col;
+            rows1(bh, bw, threads, &mut bright, |y0, y1, out| {
+                for y in y0..y1 {
+                    for x in 0..bw {
+                        let mut acc = [0.0f32; 3];
+                        for dy in 0..4 {
+                            for dx in 0..4 {
+                                let c = colr[(y * 4 + dy) * sw + x * 4 + dx];
+                                acc = ladd(
+                                    acc,
+                                    [
+                                        (c[0] - 0.9).max(0.0),
+                                        (c[1] - 0.9).max(0.0),
+                                        (c[2] - 0.9).max(0.0),
+                                    ],
+                                );
+                            }
                         }
+                        out[(y - y0) * bw + x] = lscale(acc, 1.0 / 16.0);
                     }
-                    bright[y * bw + x] = lscale(acc, 1.0 / 16.0);
                 }
-            }
-            blur(&mut bright, bw, bh, 3 * ss);
+            });
+            blur(&mut bright, bw, bh, 3 * ss, threads);
             let mut wide = bright.clone();
-            blur(&mut wide, bw, bh, 9 * ss);
-            for y in 0..sh_ {
-                for x in 0..sw {
-                    let k = (y / 4).min(bh - 1) * bw + (x / 4).min(bw - 1);
-                    let b = ladd(lscale(bright[k], 0.7), lscale(wide[k], 0.8));
-                    let c = &mut col[y * sw + x];
-                    *c = ladd(*c, b);
+            blur(&mut wide, bw, bh, 9 * ss, threads);
+            rows1(sh_, sw, threads, &mut col, |y0, y1, cc| {
+                for y in y0..y1 {
+                    for x in 0..sw {
+                        let k = (y / 4).min(bh - 1) * bw + (x / 4).min(bw - 1);
+                        let b = ladd(lscale(bright[k], 0.7), lscale(wide[k], 0.8));
+                        let c = &mut cc[(y - y0) * sw + x];
+                        *c = ladd(*c, b);
+                    }
                 }
-            }
+            });
         }
     }
     // Down to pixels, through the tone curve, the vignette and a dither.
-    let mut px: Vec<u8> = Vec::with_capacity(w * h * 4);
+    let mut px = vec![0u8; w * h * 4];
     let n = (ss * ss) as f32;
-    for y in 0..h {
-        for x in 0..w {
-            let mut acc = [0.0f32; 3];
-            for dy in 0..ss {
-                for dx in 0..ss {
-                    acc = ladd(acc, col[(y * ss + dy) * sw + x * ss + dx]);
+    let col = &col;
+    rows1(h, w * 4, threads, &mut px, |y0, y1, out| {
+        for y in y0..y1 {
+            for x in 0..w {
+                let mut acc = [0.0f32; 3];
+                for dy in 0..ss {
+                    for dx in 0..ss {
+                        acc = ladd(acc, col[(y * ss + dy) * sw + x * ss + dx]);
+                    }
                 }
+                let c = lscale(acc, 1.0 / n);
+                let (u, v) = (x as f32 / w as f32 - 0.5, y as f32 / h as f32 - 0.47);
+                let r = (u * u * 1.6 + v * v * 2.2).sqrt();
+                let vig = 1.0 - 0.45 * ((r - 0.35) / 0.55).clamp(0.0, 1.0).powf(1.6);
+                let dither =
+                    (super::shade::noise(x as f32 * 0.73, y as f32 * 0.91, 7) - 0.5) / 255.0;
+                let to8 = |v: f32| {
+                    let t = aces(v * vig * 1.35);
+                    (egui::ecolor::gamma_u8_from_linear_f32(t) as f32 / 255.0 + dither)
+                        .clamp(0.0, 1.0)
+                };
+                let o = ((y - y0) * w + x) * 4;
+                out[o..o + 4].copy_from_slice(&[
+                    (to8(c[0]) * 255.0).round() as u8,
+                    (to8(c[1]) * 255.0).round() as u8,
+                    (to8(c[2]) * 255.0).round() as u8,
+                    255,
+                ]);
             }
-            let c = lscale(acc, 1.0 / n);
-            let (u, v) = (x as f32 / w as f32 - 0.5, y as f32 / h as f32 - 0.47);
-            let r = (u * u * 1.6 + v * v * 2.2).sqrt();
-            let vig = 1.0 - 0.45 * ((r - 0.35) / 0.55).clamp(0.0, 1.0).powf(1.6);
-            let dither = (super::shade::noise(x as f32 * 0.73, y as f32 * 0.91, 7) - 0.5) / 255.0;
-            let to8 = |v: f32| {
-                let t = aces(v * vig * 1.35);
-                (egui::ecolor::gamma_u8_from_linear_f32(t) as f32 / 255.0 + dither).clamp(0.0, 1.0)
-            };
-            px.extend_from_slice(&[
-                (to8(c[0]) * 255.0).round() as u8,
-                (to8(c[1]) * 255.0).round() as u8,
-                (to8(c[2]) * 255.0).round() as u8,
-                255,
-            ]);
         }
-    }
+    });
     egui::ColorImage::from_rgba_premultiplied([w, h], &px)
 }

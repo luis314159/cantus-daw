@@ -87,9 +87,16 @@ pub fn find(id: &str) -> Option<&'static Demo> {
 
 /// What the program opens on: the house track's second drop, sixteen bars looping, with
 /// its whole desk: named, coloured strips, the drum bus, the
-/// sidechained chords, the reverb and delay returns and the master chain.
+/// sidechained chords, the reverb and delay returns and the master chain — and no dancer
+/// (round 38: nothing dances at start; the whole song keeps it).
 pub fn startup_project() -> Project {
-    house::startup()
+    house::startup(false)
+}
+
+/// [`startup_project`] with the house song's dancer in it, as it opened until round 38 (the
+/// stage's shots and tests).
+pub fn startup_project_with_dancer() -> Project {
+    house::startup(true)
 }
 
 /// How long a project plays, in seconds: to the end of its last clip.

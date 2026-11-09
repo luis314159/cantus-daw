@@ -363,6 +363,9 @@ pub struct Spatium {
     fall: f32,
     corr: [f32; 3],
     corr_coef: f32,
+    /// The pre-delay lines' runs of zeros (L and R; the reflections' two are made of the
+    /// same samples), counted after each block (ADR 0031 §5.1).
+    in_zeros: [crate::rest::ZeroRun; 2],
 }
 
 impl Spatium {
@@ -429,6 +432,7 @@ impl Spatium {
             fall: math::powf(10f32, -20.0 / 20.0 / fs),
             corr: [0.0; 3],
             corr_coef: 1.0 - math::exp(-1.0 / (0.3 * fs)),
+            in_zeros: [crate::rest::ZeroRun::FULL; 2],
         };
         let d = SpatiumSettings::default();
         s.set(&d);
@@ -487,6 +491,78 @@ impl Spatium {
         self.corr = [0.0; 3];
         self.meter.wet_peak = [0.0; 2];
         self.meter.in_peak = 0.0;
+        self.in_zeros = [crate::rest::ZeroRun::FULL; 2];
+    }
+
+    /// At rest (ADR 0031 §5.1): with silence in (and a silent key) it would give exact
+    /// silence out and keep its state, so its calls may be skipped ([`Self::skip`]) — or it
+    /// may be reset — without changing a sample. `None` when it is; else why not. The spring
+    /// keeps its own tank and is not suspended.
+    pub fn rest_blocker(&self) -> Option<&'static str> {
+        use crate::rest::z;
+        if self.settings.style == Style::Spring {
+            return Some("spring");
+        }
+        if let Some(why) = self.fdn.rest_blocker() {
+            return Some(why);
+        }
+        let len = self.in_mask + 1;
+        if !self.in_zeros.iter().all(|r| r.covers(len)) {
+            return Some("pre-delay");
+        }
+        if !self
+            .diff
+            .iter()
+            .flatten()
+            .all(|a| crate::rest::all_zero(&a.buf))
+        {
+            return Some("diffusers");
+        }
+        if !z(self.er_lp[0]) || !z(self.er_lp[1]) {
+            return Some("reflections");
+        }
+        let landed = |g: &Glide| g.now == g.target;
+        let gains = [
+            &self.predelay,
+            &self.gap,
+            &self.diff_g,
+            &self.er_gain,
+            &self.late_gain,
+            &self.in_gain,
+            &self.mix,
+            &self.width,
+        ];
+        if !gains.iter().all(|g| landed(g))
+            || !self.er_t.iter().flatten().all(landed)
+            || !self.er_g.iter().flatten().all(landed)
+        {
+            return Some("glides");
+        }
+        if !z(self.duck_env) || !z(self.duck_gr) {
+            return Some("ducking");
+        }
+        if !self.post.at_rest() {
+            return Some("wet EQ");
+        }
+        None
+    }
+
+    /// [`Self::rest_blocker`] is `None`.
+    pub fn at_rest(&self) -> bool {
+        self.rest_blocker().is_none()
+    }
+
+    /// `n` samples of silence not run, at rest: the rings' positions, the late field's
+    /// modulation and the wet EQ's update grid move as processing would move them; the
+    /// meters (the editor's only) fall to nothing.
+    pub fn skip(&mut self, n: usize) {
+        self.in_w = (self.in_w + n) & self.in_mask;
+        self.fdn.skip(n);
+        self.post.skip(n);
+        self.meter.wet_peak = [0.0; 2];
+        self.meter.in_peak = 0.0;
+        self.corr = [0.0; 3];
+        self.meter.correlation = 0.0;
     }
 
     /// Samples of delay this adds to the signal: none.
@@ -615,6 +691,13 @@ impl Spatium {
             self.post.process(&mut self.wl[..m], &mut self.wr[..m]);
             self.finish(&mut left[pos..pos + m], &mut right[pos..pos + m]);
             pos += m;
+        }
+        // The rings' runs of zeros, for `at_rest` (one comparison each while sound passes).
+        if !spring_style(&self.settings) {
+            self.fdn.wrote(n);
+        }
+        for c in 0..2 {
+            self.in_zeros[c].wrote(&self.buf[c], self.in_w, n);
         }
     }
 
@@ -801,6 +884,10 @@ impl Spatium {
         self.meter.line_ms = self.fdn.mean_length() / (self.sample_rate * 0.001);
         self.meter.mod_depth_ms = self.fdn.depth() / (self.sample_rate * 0.001);
     }
+}
+
+fn spring_style(s: &SpatiumSettings) -> bool {
+    s.style == Style::Spring
 }
 
 /// The late field's output gain for a mean loop length (samples) and decay: calibrated so

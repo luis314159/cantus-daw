@@ -36,10 +36,11 @@
 - [Round 33: Ableton core](round-33.md) — session view, Link (GPL cantus-link), clock/MTC, MPE; schema 47; Win 5 137 + Linux 5 120; beta.8 released 2026-10-30 (Win+Linux); next = round 34 AI
 - [Decision: round 35 = dancing character](decision-round35-dancer.md) — owner 2026-10-29 left it to me: §6i whole in round 35, after round 34 (AI)
 - [Round 34: AI](round-34.md) — MCP server, 63 tools, mastering, stems, audio to MIDI; Win 5 590 + fuzz 985; beta.9; next = round 35 dancer
-- [Owner's Claude API key](reference-anthropic-key.md) — in Windows Credential Manager (target cantus-daw); never in repo/memory/logs; ask before spending
 - [Dancer quality bar](feedback-dancer-quality.md) — owner 2026-10-31: characters super professional and fun; show GIF previews before done
 - [Round 35: the dancer](round-35.md) — §6i done; beta.10 released 2026-11-02 (Win+Linux); Win 5 972 + Linux 5 934; next = round 36 the professional studio (docs/next-session.md)
 - [Showcase must sell](feedback-showcase-sell.md) — owner 2026-11-03: web + README sell instruments/effects (click for detail, big pictures) and new features strongly, honestly
 - [Work standards after r36](feedback-work-standards-r36.md) — owner approved 2026-11-03: e2e test per feature, outside-source protocol tests, rounds of 2–3 features + mid-round integrated review, explicit git staging, no-debug builds
 - [Round 36: the professional studio](round-36.md) — recording mode, VCA/snapshots/cues, external gear + Mackie/HUI, audio editor, ARA 2; schema 53; Win 6 291 + Linux 6 253; beta.11 with macOS preview
-- [Round 37: content, instruments, scorecard](round-37.md) — closing as beta.12 (2026-11-07); two blind judges 20 & 22/26 after 13 look deliveries (icons, piano keys open); scorecard measured vs FL/REAPER; ticker 60 Hz fix
+- [Round 37: content, instruments, scorecard](round-37.md) — beta.12 released 2026-11-08 (public ae3e51b0, private 25b565a7); two blind judges 20 & 22/26 after 13 look deliveries (icons, piano keys open); scorecard measured vs FL/REAPER; ticker 60 Hz fix
+- [Decision: round 39 = UX + graphics](decision-round39-ux-graphics.md) — owner 2026-11-08: all UX/graphics; a dedicated design agent draws every element by hand from blank sheets, owner approves; dancer off at start (r38)
+- [Round 38: at rest + Chorda scene](round-38.md) — beta.13 released 2026-11-09; quiet scorecard won window/quiet/rest vs REAPER and FL, memory lost; next = round 39 UX/graphics (docs/next-session.md)

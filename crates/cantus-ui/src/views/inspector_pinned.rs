@@ -135,8 +135,11 @@ pub fn show(
         moving |= m.level[ch] > meter::MIN_DB + 0.1 || m.hold[ch] > meter::MIN_DB + 0.1;
     }
     if moving {
-        ui.ctx()
-            .request_repaint_after(std::time::Duration::from_millis(16));
+        // Through the ticker: at most 60 frames a second (round 38).
+        crate::views::workspace_ticker::moving(
+            ui.ctx(),
+            crate::views::workspace_ticker::Reason::Meters,
+        );
     }
     let mr = Rect::from_min_size(
         pos2(rect.left() + k(14.0), inner.top()),

@@ -198,8 +198,13 @@ pub fn open(app: &mut CantusApp, purpose: PickPurpose) {
     let sounds = app.samples.content().instruments();
     app.picker_view.refresh(&app.plugins.db, &sounds);
     app.picker_view.scanning = app.plugins.scanning();
-    let v = &mut app.picker_view;
     let role = Role::of(&purpose);
+    // Chorda's reference keyboard designed now, on its own thread, while the user looks
+    // (round 38, ADR 0059 amended): no longer at start, and ready when the piano is chosen.
+    if role == Role::Instrument {
+        cantus_engine::inst::chorda::warm(app.engine.sample_rate as f32);
+    }
+    let v = &mut app.picker_view;
     v.query = Query {
         role: Some(role),
         shelf: Shelf::All,

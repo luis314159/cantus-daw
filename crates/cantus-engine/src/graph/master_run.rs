@@ -255,6 +255,24 @@ impl Processor {
             }
             return;
         }
+        // At rest (round 38, ADR 0031 §5.1): a silent mix in, and every insert that runs at
+        // rest and hearing no key and no note — its calls skipped (told with `skip`)
+        // change no sample. Nothing is watching it either.
+        if self.master_may_rest(&out[..n * channels]) {
+            let (rate, map) = (self.sample_rate, self.transport.map());
+            let m = &mut self.master;
+            for (i, e) in m.effects.iter_mut().enumerate() {
+                if !strip::wire(&m.bypass, m.fx_enabled, &m.ll_off, i, e) {
+                    // As in a resting strip: a unit that follows the song hears where it is.
+                    if e.follows_song() {
+                        e.set_position(&position.earlier_in(e.late, rate, map));
+                    }
+                    e.skip(n);
+                }
+            }
+            self.stats.master_rests += 1;
+            return;
+        }
         let start = self.clock + p0 as u64;
         let pass = self.pass;
         let nodes = self.nodes.clone();
@@ -405,6 +423,34 @@ impl Processor {
                 frame[0] = l[i] + r[i];
             }
         }
+    }
+
+    /// Whether the master chain may rest this pass, given the summed mix `out`: it is exact
+    /// silence; every insert that runs is at rest and hears a silent key (no strip left one
+    /// this pass) and no note; no latent insert's dry line holds signal; no analyser or scope
+    /// is fed from it; and the tests have not asked for it to run.
+    fn master_may_rest(&self, out: &[f32]) -> bool {
+        let nodes = &*self.nodes;
+        let m = &self.master;
+        if nodes.never_rest.load(std::sync::atomic::Ordering::Relaxed)
+            || m.listener.iter().any(|l| l.is_some())
+            || m.dry_line.iter().any(|l| nodes.line_ringing(*l))
+            || !out.iter().all(|x| *x == 0.0)
+        {
+            return false;
+        }
+        m.effects.iter().enumerate().all(|(i, e)| {
+            if strip::wire(&m.bypass, m.fx_enabled, &m.ll_off, i, e) {
+                return true;
+            }
+            let watched = self.analysed == Some(e.id) || self.scoped.contains(&Some(e.id));
+            let key_silent = m.key[i].is_none_or(|k| {
+                nodes
+                    .read(&nodes.strips[k].key)
+                    .is_none_or(|b| b.pass != self.pass)
+            });
+            !watched && key_silent && e.at_rest()
+        })
     }
 }
 

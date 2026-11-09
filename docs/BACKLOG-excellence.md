@@ -704,6 +704,17 @@ vocals — then what blind comparisons demand, then build cost on what exists):
   owner's third ABX (`F:\projects\daw-r37\abx-kit3\`), the perspective by ear, what still
   measures apart (the middle notes' 1–1.6 kHz +4–5 dB, the 3.2 kHz third −6 dB in phrases,
   the fortissimo chord's crest, the treble's late decay), and per-key voicing curves.
+  **Round 38, first: voicing pass three before the third ABX** (owner, 2026-11-08). The
+  third kit, measured against the Salamander on its seven phrases (loudness-matched,
+  third-octave bands within 25 dB A-weighted of each phrase's loudest, octave-smoothed): the
+  error went 4.2 → 3.2 dB from the first ABX's model 2 (model 1: 5.8 dB), but every one of the
+  owner's words still measures in its direction — *graves* 60–125 Hz −6 to −10 dB; *medios*
+  ~315 Hz +4 to +7 dB; *nasal* middle C 800–1 260 Hz +9 to +15 dB (the 3rd partial) and
+  4 kHz −14 dB; *vivo, fuerte* the fortissimo chord's crest 17.6 against 25.4 dB (unchanged)
+  and the fast run's envelope spread 10.5 against 14.7 dB; *agudos* +5 to +15 dB above
+  6 kHz on loud and high phrases, −10 dB at 3–4 kHz on soft ones; and the top phrase's
+  stereo almost uncorrelated (0.01 against 0.21). The owner chose to work on these before
+  taking the ABX; a fourth kit follows when they close.
 - **Sectio's onsets: a learned model** (round 37, ADR 0099) <!-- r37:integration -->: the
   brief's *≥ 95 % of slice points within 10 ms of hand annotation* is **not met** — 91.9 % on
   50 loops rendered by Cantus, 75.8 % on MDB Drums' 5 956 hand-annotated hits (88 % within
@@ -889,6 +900,18 @@ real-time path wait.**
 
   The same measuring found that the ticker's 17 ms became 0.3 ms in egui (144 frames a
   second), plus four views repainting outside it: fixed in round 37.
+- **Round 38 (ADR 0106, `docs/round38/scorecard.md`)**: the work after the window and the
+  at-rest rows are won — every strip, the master and Spatium rest exactly; nothing dances at
+  start; Chorda is designed on intent; idle threads sleep (at rest 30 % → ≈ 2 % of a core,
+  quiet 2.3 s). **Left, measured:**
+  - **Memory** (237 MB on an empty song): Pulsus in each of 256 track slots (31 MB) → build
+    kits with the UI's units as native instruments are; the event queue's 3.9 KB events
+    (15.9 MB, the meters) → meters in a mailbox of their own, max-merged until read; the
+    delay-line pool (12.4 MB) → start small and grow through `PdcNeed`; then the GL driver's.
+  - **A frame's cost**: ≈ 4 ms on the main thread and ≈ 8 ms on the AMD GL driver's thread per
+    whole-window frame — trace the driver's (vsync?) and redraw only what changed.
+  - **The last 1–2 % at rest**: the audio callback's per-pass work for a resting desk (the
+    rest checks, tracks, automation, meters) and the open input stream.
 
 **Proof — a benchmark that keeps us honest**
 - A reproducible **DAWbench-style suite** (DSP: N instances of a reference effect chain;
@@ -1543,6 +1566,95 @@ the reference for the idea; ours is our own, never its character or art).*
   rounds of sheets; every move and mood, moves of their own; old songs keep the songbird.
   Open: watching them in the running app (the stage and the companion).
 
+## 6j. Round 39: every point of UX and graphics — the whole window, not crops (requested 2026-11-08)
+
+*The owner, after beta.12: "FL aún se ve a años luz de Cantus … hay botones que se ven super
+feos en el nuestro; FL se ve tan limpio y bonito, está excelente, con una calidad estupenda."
+And: "la siguiente ronda quiero que nos enfoquemos en todos los puntos de UX y gráficos."
+Round 37's blind judges scored Cantus 20 and 22 of 26, but they judged **crops**, element by
+element; the owner judges the **whole window**, and there it loses. Round 39 is that round:
+no other feature work.*
+
+**The diagnosis (whole windows side by side, `research/ui/fl-look-2026-11/` vs
+`docs/round37/finish/real-night.png`):**
+
+1. **Cantus shouts, FL rests.** Saturated slabs everywhere (track headers, mixer strips,
+   clips); FL is a calm cool slate with the user's colours muted, spent as accents.
+2. **The base colour.** Cantus Night's warm brown-black reads muddy; FL's cool grey-blue
+   reads clean.
+3. **Words and boxes.** The mixer's label column (NUMBER, NAME, LEVEL, MUTE·SOLO, PAN, VOLUME,
+   FX CHAIN, FROM SELECTED, ROUTING) makes it a form; "Slot 3 … Slot 10"; nearly every item
+   framed. FL draws where we write.
+4. **Buttons** (the owner's words: "super feos"): the finish of every button, toggle and
+   icon — FL's are clean, evenly weighted, one family, crisp at every scale.
+5. **Idle looks dead.** "−∞" in every strip and the top bar, empty black meter slabs.
+6. **Type.** One size and weight everywhere, a small heavy clock; FL has a condensed face
+   with character, a large thin clock and a clear hierarchy.
+7. **Clip content.** MIDI reads as barcode dashes; FL's notes and waveforms read from afar.
+8. **No focal point.** Browser, arrangement, mixer and inserts all weigh the same.
+
+**The button study (2026-11-08, the owner's five crops of our top bar, mixer strip and
+inspector next to FL at 3×):** the defect is the method, not one icon. Every glyph is a list
+of coordinates typed on a 12-unit grid under rules (one stroke 1.2 units, the glyph 0.72 of
+its key) and checked by tests that measure extents — consistent, and consistently wrong:
+1. **Proportion.** FL's glyph is about a third of its key (play ≈ 30 % of the height, stop
+   ≈ 20 %); ours fills 65–75 %. The air around the glyph is what reads as "clean".
+2. **The key is a dark well, not a raised plastic cap.** FL's keys are flat, a little darker
+   than the bar, with a 1-px dark edge and almost no gradient; ours have a strong top-light
+   gradient, a light rim and a drop shadow — a 2006 "glossy" chiclet.
+3. **The glyph is light grey with detail, not white and solid.** FL's ink is ≈ #c8d0d6 with
+   a second tone for edges and inner lines (the play's lit side, the file's fold); ours is a
+   flat white block (play, stop, skip) or a thick white outline.
+4. **Small sizes need their own drawing.** Our gear, eyedropper, Ø and link rings turn to
+   mush at 16–20 px; FL's icons are drawn for the size they are shown at.
+5. **Colour only for state.** Our loop and magnet are thick orange strokes in a tinted key at
+   rest; FL lights a whole segment (SONG in lime) only when it is on.
+**The new method:** every control designed first as an SVG sheet at 1:1 and 4× beside FL's,
+drawn for each size it appears at (16/20/24 px and their 150 %), approved by the owner on
+the zoomed sheet, then rendered by the kit — measured rules come *from* the approved sheet,
+not before it. Consider a human icon designer for the family (the owner's call).
+**The owner's crops** (`research/ui/owner-crops-2026-11-08/`, private like every image
+under `research/`): the transport group, the eyedropper and gear, snap and undo/redo, the
+strip's phase/swap/link, the inspector's bulb and dot, and the 3× sheet beside FL. The
+owner added (2026-11-09, "esta parte también está horrenda") **the top bar's overflow
+panel**, the one that opens with Metronome, Windows, CPU/RAM and "Customise top bar…". Its
+defects, all to be designed again from a blank sheet:
+- boxes inside boxes;
+- heavy capital section bars;
+- the metronome glyph alone in a raised cap;
+- *Count-in* and *Level* drawn as form fields, with a lone dropdown key beside them;
+- seven saturated orange window keys with crude glyphs, and their shortcuts
+  ("Alt+F8 F5 F6 F7 F9") crammed in a line that does not align with the keys;
+- the CPU/RAM/voices/drops cells cramped in a boxed table of capitals;
+- a large plain grey "Customise top bar…" button.
+The panel needs a real layout: a hierarchy, alignment, each shortcut under its own key, and
+live meters drawn as small graphs with their numbers, as FL's bar does.
+**The owner's direction for it (2026-11-08):** "En la próxima sesión pon un agente a diseñar
+y hagamos los elementos a mano, no elementos reciclados o haciendo las cosas fáciles — vamos
+por lo difícil, a mano, que nos dé los mejores resultados." So round 39 opens with **a design
+agent of its own** whose only job is to design: every control, icon and surface drawn from a
+blank sheet for its size and place — no reused glyph, no generic shape scaled up or down, no
+shortcut because a rule or a test passes. A builder turns only approved sheets into kit code.
+
+**How the round works (different from round 37's):**
+
+- **Direction first, at the system level** — palette, type scale and face (an OFL condensed
+  family), density, spacing, the button and icon family, idle states — as **two or three
+  whole-window directions**, captured from the real app next to FL at the same scale. The
+  owner picks one; only then is the kit changed, and every view follows from the kit.
+- **The owner's eyes on whole windows are the acceptance test**, not crop judges. Agents may
+  still find defects, but they do not decide.
+- **Every view, both themes, 100 % and 150 %:** the main window, the mixer and its inspector,
+  arrangement, piano roll, channel rack, browser, every instrument and effect editor, the
+  dialogs, Settings, the first-run setup, the menus and context menus.
+- **UX in the same pass:** every click path the owner uses daily timed and shortened;
+  an automated control says so on the knob (a clip that overrides it — round 38 found knobs
+  that "stuck" because of automation clips); hover hints never empty; nothing truncated;
+  every panel resizable and movable; keyboard reach.
+- The frame budget stays measured: the new look may not cost frames.
+- **The dancer is off at start** from round 38 on (the owner, 2026-11-08: "cada vez me gusta
+  menos, quítalo"); it stays one click away.
+
 ## 7. AI (research done in round 20: `research/ai/`)
 
 Phase A tools foundation → B an MCP server → C the assistant panel → D local audio
@@ -1689,6 +1801,12 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
   `a_unit_never_waits_for_its_keyboard` had a 100 ms bound, now 500 ms). If a unit is made on
   the interface's thread when Chorda is chosen, that is a dropped frame: make them on the
   designer's worker as the keyboard is, or share them per sample rate.
+- **Chorda's scene baker spawns threads per pass** (round 38's review) <!-- r38:integration -->:
+  `rows1`/`rows3` and each blur pass (`chorda_scene_raster.rs`) start up to 13 scoped
+  threads per call, about twenty parallel sections per full bake (a few hundred spawns,
+  several ms on Windows), and `shade_buf`/`occlusion` allocate two w·h dummy buffers per call
+  to fill `rows3`'s other slots (~10 MB at ss 2). Keep the bake's workers alive across its
+  passes (a scoped pool with a barrier) and give `rows3` single-buffer forms; the bits stay.
 - **The `stage_budget` variance** (round 37's integration) <!-- r37:integration -->: two
   applications built apart sometimes differ by a whole inspector dancer section (+4 540
   triangles) under a loaded suite, never in a small run. The test now measures the dancer

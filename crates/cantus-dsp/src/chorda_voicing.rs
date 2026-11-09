@@ -4,6 +4,7 @@
 //! [`super::Chorda::set_voicing`], which allocates and is never called on the audio thread.
 
 use super::body::BodyVoicing;
+use super::registers::BANDS;
 use super::room::RoomVoicing;
 use crate::math;
 
@@ -38,6 +39,9 @@ pub struct Voicing {
     /// The slowest hammer against model 1's (< 1: a wider dynamic range — the reference's
     /// fortissimo stands further over its pianissimo).
     pub vmin: f64,
+    /// The voicing by register (dB): per register (bass, middle, treble), the gain of each
+    /// band at `registers::CENTRES` (`registers.rs`; all 0: the keys summed as they are).
+    pub reg: [[f64; BANDS]; 3],
 }
 
 /// What shipped in round 37: the best of `chorda_compare`'s coordinate search against the
@@ -65,6 +69,7 @@ impl Default for Voicing {
             output: 0.024_4,
             spread: 1.0,
             vmin: 0.6,
+            reg: [[0.0; BANDS]; 3],
         }
     }
 }
@@ -90,6 +95,28 @@ impl Voicing {
         };
         let t = ((m as f64 - x0) / (x1 - x0)).clamp(0.0, 1.0);
         self.felt_k * math::exp(math::ln(y0) + t * (math::ln(y1) - math::ln(y0)))
+    }
+
+    /// `reg.<bass|mid|treble>.<band index>` = `v` dB. False when the name is not one.
+    fn set_reg(&mut self, key: &str, v: f64) -> bool {
+        let mut it = key.split('.');
+        let (Some("reg"), Some(r), Some(b), None) = (it.next(), it.next(), it.next(), it.next())
+        else {
+            return false;
+        };
+        let r = match r {
+            "bass" => 0,
+            "mid" => 1,
+            "treble" => 2,
+            _ => return false,
+        };
+        match b.parse::<usize>() {
+            Ok(b) if b < BANDS => {
+                self.reg[r][b] = v;
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Set `key` = `value` by name (the voicing lab's `key=v,key=v`). False when the name
@@ -140,7 +167,7 @@ impl Voicing {
             "room.late" => &mut self.room.late,
             "room.hp_hz" => &mut self.room.hp_hz,
             "room.lp_hz" => &mut self.room.lp_hz,
-            _ => return false,
+            _ => return self.set_reg(key, v),
         };
         *f = v;
         true
