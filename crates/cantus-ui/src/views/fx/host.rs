@@ -322,6 +322,7 @@ pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> boo
         | C::SetEffectBypass { effect: e, .. }
         | C::SetEffectSidechain { effect: e, .. }
         | C::SetEffectMidiSource { effect: e, .. }
+        | C::SetEffectIr { effect: e, .. } // r39:conv
         | C::SetEffectMix { effect: e, .. }
         | C::SetPluginParam { effect: e, .. }
         | C::SetPluginState { effect: e, .. } => *e == effect,
@@ -351,6 +352,7 @@ impl Drop for DawHost<'_> {
                 kind: self.spec.kind,
                 params: Default::default(),
                 external: None,
+                ir: None, // r39:conv
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));

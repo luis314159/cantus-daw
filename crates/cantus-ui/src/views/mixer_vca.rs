@@ -4,16 +4,13 @@
 //! the way a console marks its VCA groups. What the desk derives from the project is
 //! worked out once per revision ([`marks`]); a frame only reads it.
 
-use super::layout::Row;
-use super::strip::{pid, sense, Part, Pass, Snap};
 use super::MixerView;
 use crate::app::CantusApp;
-use crate::kit::color::{safe_track, with_alpha, FillSize};
-use crate::kit::text::{self, Elide, Policy, Role, Text};
-use crate::kit::{Brush, Fill, State, Style};
+use crate::kit::text::{self, Role, Text};
+use crate::kit::{Brush, State, Style};
 use cantus_core::vca::StripKind;
 use cantus_core::{Color, Project};
-use egui::{pos2, vec2, Align2, Color32, Rect, Sense, Ui};
+use egui::{pos2, vec2, Rect, Sense, Ui};
 
 /// What a strip shows of the VCAs: derived once per revision.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -55,83 +52,6 @@ fn vca_color(p: &Project, id: cantus_core::StripId) -> Color {
         let at = n.take_while(|x| x.id != id).count();
         Color::PALETTE[(at + 3) % Color::PALETTE.len()]
     })
-}
-
-fn tone(c: Color, s: &Style) -> Color32 {
-    safe_track(crate::theme::track_color(c), s.t.dark, FillSize::Small)
-}
-
-/// The bar under the number cell of a strip a VCA reaches (and under a VCA's own).
-pub(super) fn bar(b: &mut Brush, s: &Style, cell: Rect, mark: &VcaMark) {
-    let Some(c) = mark.color else {
-        return;
-    };
-    let h = (b.px() * 3.0).max(2.0);
-    let r = Rect::from_min_max(pos2(cell.left(), cell.bottom() - h), cell.right_bottom());
-    b.rect(b.snap_rect(r), Fill::Solid(tone(c, s)));
-}
-
-/// A VCA strip's plate where the meter would be: "VCA" and how many strips follow it.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn plate(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    pass: &mut Pass,
-    sn: &Snap,
-    x: f32,
-    bw: f32,
-) {
-    let Some((a, z)) = pass.row(Row::Meter) else {
-        return;
-    };
-    let s = pass.s;
-    let t = &s.t;
-    let mark = v.desk.vca_marks.get(sn.index).copied().unwrap_or_default();
-    let well = Rect::from_min_max(pos2(x + 3.0, a), pos2(x + bw - 3.0, z));
-    let ink = mark.color.map_or(t.label, |c| tone(c, s));
-    b.rrect(well, s.r(3.0), Fill::Solid(with_alpha(ink, 0.10)));
-    b.rrect_stroke(well, s.r(3.0), b.px(), with_alpha(ink, 0.55));
-    // "VCA", up the plate when the strip is narrow, across it when it is not; below it, how
-    // many strips follow.
-    let word = &v.words.vca;
-    let (mut name, mut count) = (well.shrink(2.0), None);
-    if !pass.fit.rotated && well.height() > 40.0 {
-        let split = (well.top() + 18.0).min(well.bottom());
-        name = Rect::from_min_max(well.min, pos2(well.right(), split));
-        count = Some(Rect::from_min_max(pos2(well.left(), split), well.max));
-    }
-    let nt = if pass.fit.rotated {
-        Text::new(word, Role::Label, ink)
-            .align(Align2::CENTER_CENTER)
-            .policy(Policy::Rotate90(Elide::Middle))
-    } else {
-        Text::new(word, Role::Label, ink)
-            .align(Align2::CENTER_CENTER)
-            .policy(Policy::Elide(Elide::Middle))
-    };
-    let _ = text::paint(b, name, &nt, s.tk());
-    if let Some(r) = count {
-        v.buf.clear();
-        use std::fmt::Write as _;
-        let _ = write!(v.buf, "\u{d7}{}", mark.members);
-        let ct = Text::new(&v.buf, Role::Value, t.text_dim).align(Align2::CENTER_TOP);
-        let _ = text::paint(b, r.shrink2(vec2(0.0, 2.0)), &ct, s.tk());
-    }
-    if let Some(resp) = sense(
-        ui,
-        pass,
-        well,
-        pid(Some(sn.id), Part::Meter),
-        Sense::click(),
-    ) {
-        let resp = resp.on_hover_text(&v.words.vca_tip);
-        if resp.clicked() {
-            super::strip::click_select(app, sn.id, pass.mods);
-        }
-        let _ = State::REST;
-    }
 }
 
 /// The names of the VCAs that reach a strip, for the hover on its number.

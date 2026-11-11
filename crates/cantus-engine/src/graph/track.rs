@@ -24,9 +24,10 @@ pub(crate) struct TrackSlot {
     pub id: Option<TrackId>,
     pub instrument: SlotInstrument,
     pub synth: Firmus,
-    pub drums: Pulsus,
+    /// Its drum machine, once its track hosts Pulsus and a kit was given (ADR 0107).
+    pub drums: crate::pulsus_kit::SlotKit,
     /// The native instrument's unit, delivered by `AddInstrument`; `None` while the track
-    /// hosts Firmus or Pulsus. Unlike those two it is not preallocated per slot: a native
+    /// hosts Firmus or Pulsus. Unlike Firmus it is not preallocated per slot: a native
     /// instrument can be large (a sampler, a piano), so it is built off the audio thread
     /// and swapped in.
     pub native: Option<Box<NativeUnit>>,
@@ -85,8 +86,9 @@ pub(crate) struct TrackSlot {
     pub send_r: Vec<f32>,
     /// Something was written to the send this pass (it is cleared when mixed).
     pub send_dirty: bool,
-    /// Its note effects (ADR 0069), built with the slot: consulted only while a stage is
-    /// on. `None` only for the instant its outputs are being played.
+    /// Its note effects (ADR 0069), consulted only while a stage is on: a chain while its
+    /// track has note effects (ADR 0107, `crate::parts`), `None` otherwise — and for the
+    /// instant its outputs are being played.
     pub notefx: Option<Box<crate::notefx::Chain>>,
     /// The line that delays its source by `lateness` (`Edge::Source`).
     pub source_line: Option<usize>,
@@ -96,11 +98,21 @@ pub(crate) struct TrackSlot {
 
 impl TrackSlot {
     pub fn new(sample_rate: f32) -> Self {
+        Self::with_room(sample_rate, PASS_FRAMES)
+    }
+
+    /// A slot not provisioned yet (ADR 0107): its pass buffers empty, nothing of them
+    /// allocated. No track is given one until it is provisioned (`Processor::provision`).
+    pub fn bare(sample_rate: f32) -> Self {
+        Self::with_room(sample_rate, 0)
+    }
+
+    fn with_room(sample_rate: f32, frames: usize) -> Self {
         TrackSlot {
             id: None,
             instrument: SlotInstrument::Firmus,
             synth: Firmus::new(sample_rate),
-            drums: Pulsus::new(sample_rate),
+            drums: crate::pulsus_kit::SlotKit::empty(),
             native: None,
             next_event: 0,
             next_control: 0,
@@ -122,15 +134,19 @@ impl TrackSlot {
             rest: false,
             notes_only: false,
             lateness: 0,
-            external: 0,                           // r36:external
-            outboard: false,                       // r36:external
-            send: None,                            // r36:external
-            send_l: vec![0.0; super::PASS_FRAMES], // r36:external
-            send_r: vec![0.0; super::PASS_FRAMES], // r36:external
-            send_dirty: false,                     // r36:external
+            external: 0,               // r36:external
+            outboard: false,           // r36:external
+            send: None,                // r36:external
+            send_l: vec![0.0; frames], // r36:external
+            send_r: vec![0.0; frames], // r36:external
+            send_dirty: false,         // r36:external
             source_line: None,
-            notefx: Some(Box::new(crate::notefx::Chain::new())),
-            outs: crate::padout::Outs::new(), // r37:drums
+            notefx: None, // ADR 0107: given while its track has note effects
+            outs: if frames == 0 {
+                crate::padout::Outs::bare()
+            } else {
+                crate::padout::Outs::new()
+            }, // r37:drums
         }
     }
 
@@ -395,6 +411,15 @@ impl TrackOut {
             active: false,
             l: vec![0.0; PASS_FRAMES],
             r: vec![0.0; PASS_FRAMES],
+        }
+    }
+
+    /// A slot not provisioned yet (ADR 0107): nothing allocated.
+    pub fn bare() -> Self {
+        TrackOut {
+            active: false,
+            l: Vec::new(),
+            r: Vec::new(),
         }
     }
 }

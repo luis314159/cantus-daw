@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mock 2 — instrument spotlight with sound</title>
+<script>if (location.search.includes("light")) document.documentElement.dataset.theme = "light";</script>
+<link rel="stylesheet" href="mock.css">
+<style>
+section { padding: 5.5rem 0 5rem; }
+.head { display: grid; grid-template-columns: 1.1fr 1fr; gap: 3rem; align-items: end; margin-bottom: 2.4rem; }
+.head h2 { font-size: clamp(2.6rem, 5vw, 4.4rem); margin-top: .9rem; }
+.head h2 span { color: var(--ink-3); }
+.tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line) inset; justify-self: end; }
+.tabs span { padding: .6rem 1rem; border-radius: 6px; font-weight: 600; color: var(--ink-3); }
+.tabs span.on { background: var(--paper-2); color: var(--strong); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.tabs em { font-style: normal; font-weight: 400; color: var(--ink-3); margin-left: .35rem; }
+.spot { display: grid; grid-template-columns: 1.65fr 1fr; gap: 0; overflow: hidden; }
+.pic { position: relative; background: var(--cell); }
+.pic img { width: 100%; }
+.pic .zoom { position: absolute; right: 1rem; top: 1rem; font-size: .85rem; padding: .4rem .65rem; border-radius: 6px; background: rgba(10,14,20,.7); color: #e3e8ed; }
+.info { padding: 2rem 2rem 1.6rem; display: flex; flex-direction: column; gap: 1rem; border-left: 1px solid var(--line); }
+.info .kind { font: 600 .8rem/1 var(--f); letter-spacing: .12em; text-transform: uppercase; color: var(--accent-text); }
+.info h3 { font-size: 2.8rem; }
+.info .pitch { color: var(--ink-2); font-size: 1.15rem; }
+.info ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .55rem; font-size: 1rem; color: var(--ink-2); }
+.info li { display: grid; grid-template-columns: 1rem 1fr; gap: .5rem; }
+.info li::before { content: ""; width: 6px; height: 6px; margin-top: .55rem; transform: rotate(45deg); background: var(--leaf); }
+.info .more { margin-top: auto; display: flex; gap: .6rem; }
+/* presets, heard */
+.presets { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
+.preset { display: flex; align-items: center; gap: .8rem; padding: 1rem 1.2rem; border-left: 1px solid var(--line); }
+.preset:first-child { border-left: 0; }
+.preset .play { width: 2.3rem; height: 2.3rem; background: var(--mist-2); color: var(--strong); box-shadow: 0 0 0 1px var(--line) inset; }
+.preset.on { background: var(--accent-tint); }
+.preset.on .play { background: var(--verm); color: #fff; box-shadow: 0 6px 16px -6px rgba(226,98,42,.8); }
+.preset b { display: block; font-weight: 600; color: var(--strong); }
+.preset small { color: var(--ink-3); font-size: .85rem; }
+.preset .bar { height: 3px; border-radius: 2px; background: var(--line); margin-top: .45rem; position: relative; }
+.preset.on .bar::after { content: ""; position: absolute; inset: 0 62% 0 0; border-radius: 2px; background: #e2622a; }
+/* the shelf of the others */
+.shelf { display: grid; grid-template-columns: repeat(9, 1fr); gap: .7rem; margin-top: 1.2rem; }
+.th { border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--line) inset; background: var(--paper-2); }
+.th img { width: 100%; aspect-ratio: 640 / 418; object-fit: cover; opacity: .82; }
+.th span { display: block; padding: .45rem .6rem; font-weight: 600; font-size: .92rem; color: var(--ink-2); }
+.th.on { box-shadow: 0 0 0 2px var(--accent); }
+.th.on img { opacity: 1; } .th.on span { color: var(--strong); }
+.note { margin-top: 1.1rem; font-size: .95rem; color: var(--ink-3); }
+@media (max-width: 52rem) {
+  section { padding: 3rem 0; }
+  .head { grid-template-columns: 1fr; gap: 1.2rem; }
+  .tabs { justify-self: start; }
+  .spot { grid-template-columns: 1fr; }
+  .info { border-left: 0; border-top: 1px solid var(--line); padding: 1.3rem; }
+  .info h3 { font-size: 2.2rem; }
+  .info ul li:nth-child(n+4) { display: none; }
+  .presets { grid-template-columns: 1fr 1fr; }
+  .preset { padding: .8rem; border-top: 1px solid var(--line); }
+  .preset:nth-child(odd) { border-left: 0; }
+  .shelf { display: flex; overflow: hidden; gap: .6rem; margin-right: calc(-1 * var(--g)); }
+  .th { flex: 0 0 8.4rem; }
+}
+</style></head>
+<body>
+<div class="mock-tag">Mock 2 · spotlight — not the site</div>
+<section>
+  <div class="wrap">
+    <div class="head">
+      <div><span class="eyebrow">Instruments &amp; effects</span>
+        <h2>Nine instruments. Twenty-five effects. <span>All its own, all free.</span></h2></div>
+      <div class="tabs"><span class="on">Instruments<em>9</em></span><span>Effects<em>25</em></span></div>
+    </div>
+    <div class="spot card">
+      <div class="pic"><img src="../../../../../web/assets/units/unda-dark.webp" data-light="../../../../../web/assets/units/unda-light.webp" alt="Unda, Cantus's wavetable synth, its editor">
+        <span class="zoom">Click to see it full size</span></div>
+      <div class="info">
+        <span class="kind">Wavetable synth</span>
+        <h3>Unda</h3>
+        <p class="pitch">Three wavetable oscillators with additive and granular engines, and Serum and Surge table import.</p>
+        <ul>
+          <li>3 oscillators, up to 16 unison lanes each, two warps from 14 types</li>
+          <li>Imports WAV wavetables (Serum, u-he and Surge markers) and Surge .wt files</li>
+          <li>Aliasing of a full saw below −96 dB at the default 2× quality</li>
+          <li>Four DAHDSR envelopes, eight LFOs, 85 modulation targets</li>
+        </ul>
+        <div class="more"><a class="btn ghost" href="#">Everything about Unda →</a></div>
+      </div>
+      <div class="presets">
+        <div class="preset on"><span class="play"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M2 1h3v10H2zM7 1h3v10H7z"/></svg></span><div style="flex:1"><b>Glass Choir</b><small>Pad — ambient, cinematic</small><div class="bar"></div></div></div>
+        <div class="preset"><span class="play"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M2 1v10l9-5z"/></svg></span><div style="flex:1"><b>Hyper Saw</b><small>Lead — pop, house</small><div class="bar"></div></div></div>
+        <div class="preset"><span class="play"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M2 1v10l9-5z"/></svg></span><div style="flex:1"><b>Reese Bass</b><small>Bass — trap, house</small><div class="bar"></div></div></div>
+        <div class="preset"><span class="play"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M2 1v10l9-5z"/></svg></span><div style="flex:1"><b>Pluck Keys</b><small>Pluck — pop, house</small><div class="bar"></div></div></div>
+      </div>
+    </div>
+    <div class="shelf">
+      <div class="th on"><img src="../../../../../web/assets/units/unda-thumb.webp" alt=""><span>Unda</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/calor-thumb.webp" alt=""><span>Calor</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/modulus-thumb.webp" alt=""><span>Modulus</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/exemplar-thumb.webp" alt=""><span>Exemplar</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/gravis-thumb.webp" alt=""><span>Gravis</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/organum-thumb.webp" alt=""><span>Organum</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/lamina-thumb.webp" alt=""><span>Lamina</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/chorda-thumb.webp" alt=""><span>Chorda</span></div>
+      <div class="th"><img src="../../../../../web/assets/units/pulsus-thumb.webp" alt=""><span>Pulsus II</span></div>
+    </div>
+    <p class="note">Every preset above is rendered by Cantus itself, no processing after. The pictures are the program's own windows.</p>
+  </div>
+</section>
+<script>if (document.documentElement.dataset.theme === "light") document.querySelectorAll("img[data-light]").forEach(i => i.src = i.dataset.light);</script>
+</body></html>

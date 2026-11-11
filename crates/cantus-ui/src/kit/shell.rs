@@ -603,10 +603,43 @@ pub fn paint_footer(
         Pos2::new(rect.left() + 10.0 * k, rect.top()),
         Pos2::new(x - 8.0 * k, rect.bottom()),
     );
-    let ht = Text::new(help, Role::Body, t.text_dim)
-        .align(Align2::LEFT_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let _ = text::paint(b, hr, &ht, s.tk());
+    // A help line wider than its room loses whole phrases from its end — what drives a
+    // control before its name and value (round 39, ADR 0109: the top bar's hint says it
+    // all) — and is cut with an ellipsis only when one phrase alone does not fit.
+    // A line break in `help` parts what drives a control from its name; on the line it is
+    // a dot like the others.
+    fn joined(h: &str) -> std::borrow::Cow<'_, str> {
+        if h.contains('\n') {
+            std::borrow::Cow::Owned(h.replace('\n', " \u{b7} "))
+        } else {
+            std::borrow::Cow::Borrowed(h)
+        }
+    }
+    let mut shown = help;
+    while text::measure(
+        b.ctx(),
+        &Text::new(&joined(shown), Role::Body, t.text_dim),
+        s.tk(),
+    )
+    .x > hr.width()
+    {
+        match shown.rfind('\n').or_else(|| shown.rfind(" \u{b7} ")) {
+            Some(at) => shown = &shown[..at],
+            None => break,
+        }
+    }
+    let words = joined(shown);
+    // r39:el-controls — the keys as keycaps (`des-controls`' help line), where they fit.
+    if t.system.recessed()
+        && super::hint::keys::width(b.ctx(), s, &words, Role::Body, s.tk()) <= hr.width()
+    {
+        super::hint::keys::paint(b, hr, s, &words, Role::Body, t.text_dim, s.tk());
+    } else {
+        let ht = Text::new(&words, Role::Body, t.text_dim)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End));
+        let _ = text::paint(b, hr, &ht, s.tk());
+    }
     FooterRects {
         help: hr,
         meter: meter_rect,
@@ -1250,6 +1283,13 @@ impl Shell {
                     if !hint.value.is_empty() {
                         h.push_str(" · ");
                         h.push_str(&hint.value);
+                    }
+                    // What drives it and how to take it back (round 39, ADR 0109).
+                    // Its own phrases after a line break each, so the footer drops them
+                    // whole, never inside a clip's name.
+                    for line in hint.driven.lines() {
+                        h.push('\n');
+                        h.push_str(line);
                     }
                 }
                 None => h.push_str(&crate::i18n::t("shell.help.idle")),

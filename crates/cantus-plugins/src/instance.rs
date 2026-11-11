@@ -577,6 +577,7 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
+        ir: None, // r39:conv
     }
 }
 
@@ -678,6 +679,9 @@ pub struct Processor {
     bypass: Bypass,
     /// The analyser tap, lent by [`Shared`] while this processor lives.
     pairs: Option<Producer<(f32, f32)>>,
+    /// Memory built off the audio thread for what the unit asks while it runs (Aula's
+    /// kernels, ADR 0112). // r39:conv
+    memory: Option<crate::memory::Memory>,
     /// The host's transport at the start of the current block, when it gives one.
     transport: Option<HostTransport>,
     /// Transports the host sent inside the block (CLAP events): offset, transport.
@@ -736,8 +740,12 @@ impl Processor {
         bypass.target = if base[table.bypass] >= 0.5 { 1.0 } else { 0.0 };
         bypass.gain = bypass.target;
         let pairs = shared.pairs.lock().ok().and_then(|mut p| p.0.take());
+        // r39:conv
+        let memory = (unit.kind == cantus_core::EffectKind::Aula)
+            .then(|| crate::memory::Memory::start(sample_rate));
         Processor {
             pairs,
+            memory,
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
             n_moves: 0,
@@ -910,6 +918,9 @@ impl Processor {
             };
         }
         self.unit.configure(&self.spec);
+        if let Some(m) = self.memory.as_mut() {
+            m.ask(&mut self.unit); // r39:conv
+        }
         self.sidechain = self.base[table.sidechain] >= 0.5;
         self.bypass.target = if self.base[table.bypass] >= 0.5 {
             1.0
@@ -951,6 +962,9 @@ impl Processor {
         let mut next_note = 0usize;
         let key = key.filter(|(a, b)| a.len() >= n && b.len() >= n);
         self.pull_main();
+        if let Some(m) = self.memory.as_mut() {
+            m.deliver(&mut self.unit); // r39:conv
+        }
         let block_start = self.pos;
         let mut s = 0usize;
         let mut next = 0usize;

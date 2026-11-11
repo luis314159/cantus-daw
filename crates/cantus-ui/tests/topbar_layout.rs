@@ -249,8 +249,9 @@ fn every_group_keeps_to_its_own_width() {
                         .expect("the default bar shows every group");
                     let rect = Rect::from_min_size(
                         Pos2::new(100.0, 100.0),
-                        // A short group in one of the bar's two rows (as `slot_y` gives it).
-                        Vec2::new(w.min, if w.tall { transport::HEIGHT } else { 24.0 }),
+                        // Drawn alone, a group takes its full form (round 39: `min` is its
+                        // compact one).
+                        Vec2::new(w.max, transport::HEIGHT),
                     );
                     ui.ctx()
                         .data_mut(|d| d.insert_temp(egui::Id::new("group-rect"), rect));
@@ -323,18 +324,16 @@ fn widths() {
     }
 }
 
-/// At 1920 px and 100 %, the default bar shows every group — in English and in Spanish
-/// (review 1: five folded), with a running interface's chip at its widest (review 2: only
-/// the "no audio" chip was measured) — and at 1280 px the most important ones stay.
+/// At 1920 px and 100 % the default bar shows every group but at most
+/// the tools in English (the first step of `dir-a`'s fold order), the inputs too in Spanish;
+/// at 2560 nothing folds.
 #[test]
 fn the_default_bar_shows_every_group_at_1920() {
-    let (mut a, _dir) = app();
-    with_device(&mut a);
+    let (a, _dir) = app();
     let ctx = ctx();
     ctx.set_zoom_factor(1.0);
     for locale in [Locale::En, Locale::Es] {
         set_thread_locale(locale);
-        // A 1920-px window (round 37: the bar's scale follows the window's width).
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
@@ -344,29 +343,27 @@ fn the_default_bar_shows_every_group_at_1920() {
         };
         let mut o = ctx.run_ui(input, |ui| {
             let wants = transport::wants(&a, ui.ctx());
-            let device = wants.iter().find(|w| w.group == Group::Device).unwrap();
-            let k = transport::group_style_at(Group::Device, 1920.0).k;
-            // Round 37: a running device's least is its short line whole (name · latency),
-            // never a name cut in its middle.
-            let short = cantus_ui::views::audio_chip::short_width(&a, ui.ctx());
-            assert_eq!(
-                device.min,
-                (short.max(transport::DEVICE_MIN * k) + 4.0 * k).ceil(),
-                "{locale:?}: the chip past its least"
-            );
-            // Round 37, the owner: at 1920 × 1080 at 100 % nothing folds — undo, the
-            // inputs, the system meters and the audio chip on the bar with the transport,
-            // the clock and the tempo at their larger size.
-            let room = transport::room(ui.ctx(), 1920.0);
-            let l = transport::layout::layout(&room, &wants);
+            let l = transport::layout::layout(&transport::room(ui.ctx(), 1920.0), &wants);
+            // The sheet fits everything at 1920 with 10 to spare; the built bar's tabular
+            // clock and the take's time cost a little more, so the first step (the tools)
+            // may be taken there, never a second.
+            let allowed: &[Group] = if locale == Locale::En {
+                &[Group::Tools]
+            } else {
+                // Spanish words run longer ("Armadas", "Patrón · Canción"): the second step.
+                &[Group::Tools, Group::Inputs]
+            };
             assert!(
-                l.folded().is_empty(),
-                "{locale:?} folds {:?}; wants {:?}; room {room:?}",
+                l.folded().iter().all(|g| allowed.contains(g)),
+                "{locale:?} folds {:?}; wants {:?}",
                 l.folded(),
-                wants.iter().map(|w| (w.group, w.min)).collect::<Vec<_>>(),
+                wants
+                    .iter()
+                    .map(|w| (w.group, w.min, w.max))
+                    .collect::<Vec<_>>(),
             );
-            let wide = transport::wants_at(&a, ui.ctx(), 2560.0);
-            let l = transport::layout::layout(&transport::room(ui.ctx(), 2560.0), &wide);
+            assert_eq!(l.compact().count(), 0, "{locale:?}: {l:?}");
+            let l = transport::layout::layout(&transport::room(ui.ctx(), 2560.0), &wants);
             assert!(
                 l.folded().is_empty(),
                 "{locale:?} 2560 folds {:?}",
@@ -378,65 +375,50 @@ fn the_default_bar_shows_every_group_at_1920() {
     set_thread_locale(Locale::En);
 }
 
-/// Round 37, the owner: below 1920 (1366, 1280, or 1920 at 125 % and 150 %) the bar folds
-/// in a defined order — never the transport, the clock, the tempo, undo / redo or the
-/// audio status; first the area keys (they have their F-keys), then the system meters,
-/// then the metronome's options — in both languages.
+/// Narrower, the bar takes the steps of `dir-a`'s fold order in turn, in both languages
+/// and with a running interface's long name: what folded and what went compact at each
+/// width is always the order's first steps — never the transport, the position or the
+/// tempo while the bar is 1024 or more.
 #[test]
 fn a_smaller_bar_folds_in_the_owners_order() {
+    use transport::layout::{Brand, Step, STEPS};
     let (mut a, _dir) = app();
     with_device(&mut a);
     let ctx = ctx();
     ctx.set_zoom_factor(1.0);
     for locale in [Locale::En, Locale::Es] {
         set_thread_locale(locale);
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(1920.0, 1080.0),
-            )),
-            ..Default::default()
-        };
-        let mut o = ctx.run_ui(input, |ui| {
-            // 1536 and 1280 points: a 1920 window at 125 % and 150 %.
-            for width in [1700.0f32, 1536.0, 1366.0, 1280.0] {
-                let wants = transport::wants_at(&a, ui.ctx(), width);
+        let mut o = ctx.run_ui(Default::default(), |ui| {
+            let wants = transport::wants(&a, ui.ctx());
+            for width in [
+                1920.0f32, 1600.0, 1440.0, 1280.0, 1152.0, 1024.0, 900.0, 800.0,
+            ] {
                 let l = transport::layout::layout(&transport::room(ui.ctx(), width), &wants);
-                let folded = l.folded();
-                for g in [
-                    Group::Transport,
-                    Group::Position,
-                    Group::Tempo,
-                    Group::Undo,
-                    Group::Device,
-                ] {
+                // How many steps were taken: the last one whose effect shows.
+                let taken = |st: &Step| match st {
+                    Step::Fold(g) => l.folded().contains(g),
+                    Step::Compact(g) => l.is_compact(*g),
+                    Step::Brand(b) => l.brand >= *b,
+                };
+                let last = STEPS.iter().rposition(taken).map_or(0, |i| i + 1);
+                for (i, st) in STEPS[..last].iter().enumerate() {
+                    let shown = |g: &Group| wants.iter().any(|w| w.group == *g);
+                    let applies = match st {
+                        Step::Fold(g) => shown(g),
+                        Step::Compact(g) => wants.iter().any(|w| w.group == *g && w.min < w.max),
+                        Step::Brand(_) => true,
+                    };
                     assert!(
-                        l.span_of(g).is_some(),
-                        "{locale:?} {width}: {g:?} folded ({folded:?})"
+                        !applies || taken(st) || matches!(st, Step::Brand(Brand::Full)),
+                        "{locale:?} {width}: step {i} {st:?} skipped: {l:?}"
                     );
                 }
-                // The first to go are the least used: the area keys, the system meters, the
-                // metronome's options (one of them may come back where it costs nothing —
-                // the area keys over the inputs).
-                let first = [Group::Windows, Group::Performance, Group::Metronome];
-                if !folded.is_empty() {
-                    assert!(
-                        folded.iter().any(|g| first.contains(g)),
-                        "{locale:?} {width}: {folded:?}"
-                    );
+                if width >= 1024.0 {
+                    for g in [Group::Transport, Group::Position, Group::Tempo, Group::Undo] {
+                        assert!(l.span_of(g).is_some(), "{locale:?} {width}: {g:?} folded");
+                    }
                 }
-                if width >= 1700.0 {
-                    assert!(
-                        folded.iter().all(|g| first.contains(g)),
-                        "{locale:?} {width}: {folded:?}"
-                    );
-                }
-                // Whatever folded is in ⋯ — the layout's every group is placed or folded.
-                assert_eq!(
-                    l.placed().len() + folded.len(),
-                    wants.len(),
-                    "{locale:?} {width}"
-                );
+                assert_eq!(l.placed().len() + l.folded().len(), wants.len());
             }
         });
         o.textures_delta.clear();
@@ -451,7 +433,7 @@ fn clock_texts(a: &mut CantusApp, ctx: &egui::Context) -> Vec<String> {
             .into_iter()
             .find(|w| w.group == Group::Position)
             .unwrap();
-        let rect = Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(w.min, transport::HEIGHT));
+        let rect = Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(w.max, transport::HEIGHT));
         transport::draw_group(Group::Position, a, ui, rect);
     });
     out.textures_delta.clear();

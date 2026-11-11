@@ -181,3 +181,4 @@ lim.selection.short = Selection
 lim.range.short = LRA
 lim.true_peak.short = TP max
 lim.auto_reset.short = on play
+lim.freeze.short = FREEZE

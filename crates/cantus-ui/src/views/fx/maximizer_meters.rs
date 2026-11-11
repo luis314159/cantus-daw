@@ -213,14 +213,22 @@ pub fn loudness(
             }
         });
         // What learning says, or the target's rule.
-        let (r, _) = row(ui, s, w, 18.0);
+        // Two lines of room, wrapped where the words fall (round 39, ADR 0109: a rule cut
+        // at its end said half of it).
+        let (r, _) = row(ui, s, w, 34.0);
         let words = learn_words(st).or_else(|| preset.map(|i| t(TARGETS[i].rule)));
         if let Some(words) = words {
             with_brush(ui.painter(), |b| {
-                let t = Text::new(&words, Role::Body, s.t.text_dim)
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Elide(Elide::End));
-                let _ = ktext::paint(b, r, &t, s.tk());
+                let g = crate::views::audio_parts::wrapped(
+                    ui.ctx(),
+                    &words,
+                    Role::Body,
+                    s.tk(),
+                    r.width(),
+                    2,
+                );
+                let y = r.center().y - g.size().y * 0.5;
+                b.text(pos2(b.snap(r.left()), b.snap(y)), g, s.t.text_dim, 0.0);
             });
         }
         let _ = tf;

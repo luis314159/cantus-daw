@@ -8,6 +8,9 @@
 use cantus_core::{EffectKind, EffectSpec};
 
 pub mod anulus;
+pub mod aula; // r39:conv
+pub mod aula_load; // r39:conv
+pub mod aula_store; // r39:conv
 pub mod concentus;
 pub mod deesser;
 pub mod discrimen;
@@ -164,6 +167,23 @@ pub trait FxUnit: Send + std::fmt::Debug {
     /// `EngineStats::dropped_events`. Default: none.
     fn take_dropped(&mut self) -> u64 {
         0
+    }
+
+    // r39:conv — memory built off the audio thread for a unit behind the contract (ADR
+    // 0022's path, which only the EQ used before): Aula's kernels (ADR 0112).
+
+    /// Memory the unit's settings need and it has not got. Allocation-free. Default: none.
+    fn memory_need(&self) -> Option<crate::effects::MemoryNeed> {
+        None
+    }
+
+    /// Memory built for the unit; what comes back (what it replaced, or what it could not
+    /// use) is freed off the audio thread. No allocation. Default: handed back unused.
+    fn supply(
+        &mut self,
+        memory: crate::effects::EffectMemory,
+    ) -> Option<crate::effects::EffectMemory> {
+        Some(memory)
     }
 }
 
@@ -571,6 +591,7 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::TransientSplit => Box::new(discrimen::Unit::new(sample_rate)),
         EffectKind::Analyzer => Box::new(speculum::Unit::new(sample_rate)),
         EffectKind::AutoTune => Box::new(tonus::Unit::new(sample_rate)),
+        EffectKind::Aula => Box::new(aula::Unit::new(sample_rate)), // r39:conv
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

@@ -1,60 +1,73 @@
-//! The top bar's groups of keys (ADR 0052): PAT / SONG, the transport, undo, the windows,
-//! the inputs (typing keyboard, MIDI, armed tracks) and the tools (picker, appearance,
-//! zoom).
+//! The top bar's groups of keys (ADR 0052; round 39, `dir-a`'s phase B): Pat / Song, the
+//! transport and loop, undo, the windows, the inputs (MIDI, armed tracks) and the tools
+//! (picker, zoom). Keys are joined in one recessed well, divided by its own dark edge; a
+//! key that is on is tinted inside it (green for play, red for record, the accent else).
 
-use super::{key_in, key_rect, key_side, key_strip, strip_tip, tip, Style, KEY, ROW_KEY, STEP};
+use super::paint::{self as p, ink1, ink2, ink3};
+use super::{strip_tip, tip, Style};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::keymap::Action;
-use crate::kit::cap::KeyFace;
-
+use crate::kit::color::{mix, opaque};
 use crate::kit::glyph::Glyph;
 use crate::kit::hint::{self, Caps};
-use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::tokens::Tok;
-use crate::kit::{led, light, with_brush, Fill, State};
-use crate::views;
+use crate::kit::text::{Role, Src};
+use crate::kit::{with_brush, Fill, State};
 use crate::views::workspace::Pane;
-use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Align2, Id, Pos2, Rect, Response, Sense, Ui, Vec2};
+use std::cell::RefCell;
 use std::fmt::Write as _;
 
-// ---- PAT / SONG ----------------------------------------------------------------------
+thread_local! {
+    /// A short number's words, rebuilt in place (no allocation once grown).
+    static WORDS: RefCell<String> = RefCell::new(String::with_capacity(8));
+}
+
+/// Cells of the key row `row`, `widths` wide from its left (points at 100 %).
+pub(super) fn cells<const N: usize>(row: Rect, widths: [f32; N], s: &Style) -> [Rect; N] {
+    let mut x = 0.0;
+    std::array::from_fn(|i| {
+        let c = p::cell(row, x, widths[i] * s.k);
+        x += widths[i] * s.k;
+        c
+    })
+}
+
+/// The responses of keys `ids` over `cells`.
+fn sense<const N: usize>(ui: &Ui, cells: &[Rect; N], ids: [&str; N]) -> [Response; N] {
+    std::array::from_fn(|i| ui.interact(cells[i], Id::new(("toolbar-key", ids[i])), Sense::click()))
+}
+
+// ---- Pat / Song ----------------------------------------------------------------------
 
 const MODE_KEYS: [&str; 2] = ["topbar.mode.pattern", "topbar.mode.song"];
 
-fn word_w(ctx: &egui::Context, s: &Style, key: &str, role: Role) -> f32 {
-    text::measure(ctx, &Text::key(key, role, s.t.text).caps(true), s.tk()).x
+/// The two segments' widths: the sheet's 34 and 40, wider where a language needs it.
+fn mode_widths(ctx: &egui::Context, s: &Style) -> [f32; 2] {
+    let w = |i: usize, least: f32| {
+        (p::measure_key(ctx, MODE_KEYS[i], Role::Control, 11.0, s) + 16.0 * s.k).max(least * s.k)
+    };
+    [w(0, 34.0), w(1, 40.0)]
 }
 
 pub fn mode_width(ctx: &egui::Context, s: &Style) -> f32 {
-    // r37:finish — one row now (over the tempo): the two lamps and words side by side.
-    let w: f32 = MODE_KEYS
-        .iter()
-        .map(|k| word_w(ctx, s, k, Role::Label))
-        .sum();
-    w + 46.0 * s.k
+    mode_widths(ctx, s).iter().sum()
 }
 
-/// FL's switch: two lamps, PAT over SONG, in a well; a click (or L) swaps them.
+/// FL's switch as a segmented well: the chosen one a raised pill (inset 2, corner 3) in
+/// 11 Medium ink 1, the other 11 Regular ink 3 — never coloured. A click (or L) swaps.
 pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
-    let one_row = r.height() < 34.0 * k; // r37:finish
-    let well = if one_row {
-        Rect::from_center_size(
-            r.center(),
-            Vec2::new(r.width(), (r.height() - 2.0 * k).min(24.0 * k)),
-        )
-    } else {
-        Rect::from_center_size(r.center(), Vec2::new(r.width(), 36.0 * k))
-    };
+    let [w0, w1] = mode_widths(ui.ctx(), s);
+    let row = p::row(r, s);
+    let well = Rect::from_min_size(row.min, Vec2::new(w0 + w1, row.height()));
     let resp = ui.interact(well, Id::new("toolbar-mode"), Sense::click());
-    let pattern = app.project().pattern_mode;
     crate::controllers::learn_action_spot(app, ui, well, Action::TogglePatternMode);
     if resp.clicked() {
         app.run_action(Action::TogglePatternMode);
     }
-    let st = State::of(&resp, false);
-    if st.hovered {
+    let pattern = app.project().pattern_mode;
+    if resp.hovered() {
         let what = if pattern {
             "topbar.mode.pattern_tip"
         } else {
@@ -62,94 +75,84 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         };
         let tip = tip(app, what, Some(Action::TogglePatternMode));
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
-        let _ = resp.on_hover_text(tip);
-    }
-    let pattern = app.project().pattern_mode;
-    if one_row {
-        // r37:finish — PAT and SONG as two keys, the one in use lit through: the mode reads
-        // as strongly as any key on the bar.
-        with_brush(ui.painter(), |b| {
-            b.register(
-                well,
-                "toolbar_key",
-                crate::kit::cap::KEY_TOKENS,
-                &[
-                    Some(crate::kit::cap::rest_tok(s)),
-                    crate::kit::cap::lit_toks(s)[0],
-                    crate::kit::cap::lit_toks(s)[1],
-                ], // r37:finish
-            );
-            let gap = 2.0 * k;
-            let half = (well.width() - gap) * 0.5;
-            for (i, key) in MODE_KEYS.iter().enumerate() {
-                let x0 = well.left() + i as f32 * (half + gap);
-                let kr =
-                    Rect::from_min_size(Pos2::new(x0, well.top()), Vec2::new(half, well.height()));
-                let lit = (i == 0) == pattern;
-                let kst = State { lit, ..st };
-                crate::kit::cap::word_key(b, kr, s, kst, key);
-            }
-        });
-        return;
+        let _ = resp.clone().on_hover_text(tip);
     }
     with_brush(ui.painter(), |b| {
-        crate::kit::well::paint(b, well, s, st, None);
+        b.register(well, "toolbar_key", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+        p::well(b, well, s, None);
+        let mut x = well.left();
         for (i, key) in MODE_KEYS.iter().enumerate() {
-            let lit = (i == 0) == pattern;
-            let row = Rect::from_min_size(
-                Pos2::new(well.left(), well.top() + 2.0 * k + i as f32 * 16.0 * k),
-                Vec2::new(well.width(), 16.0 * k),
-            );
-            let c = Pos2::new(row.left() + 10.0 * k, row.center().y);
-            let color = if i == 0 { Tok::Highlight } else { Tok::Led };
-            led::paint(b, c, 8.0 * k, lit, s, color, Tok::Well, 1.0);
-            let tr = Rect::from_min_max(Pos2::new(c.x + 8.0 * k, row.top()), row.max);
-            let ink = if lit { s.t.text } else { s.t.text_dim };
-            let _ = text::paint(
-                b,
-                tr,
-                &Text::key(key, Role::Label, ink)
-                    .caps(true)
-                    .align(Align2::LEFT_CENTER),
-                s.tk(),
-            );
+            let w = if i == 0 { w0 } else { w1 };
+            let seg = Rect::from_min_size(Pos2::new(x, well.top()), Vec2::new(w, well.height()));
+            x += w;
+            let chosen = (i == 0) == pattern;
+            if chosen {
+                let pill = b.snap_rect(seg.shrink(2.0 * k));
+                b.rrect(pill, s.r(3.0), Fill::Solid(s.t.menu));
+                b.hline(
+                    pill.left() + s.r(3.0),
+                    pill.right() - s.r(3.0),
+                    pill.top() + b.px() * 0.5,
+                    b.px(),
+                    mix(s.t.menu, s.t.text, 0.10),
+                );
+            }
+            let (role, ink) = if chosen {
+                (Role::Control, ink1(s))
+            } else if resp.hovered() {
+                (Role::Label, ink2(s))
+            } else {
+                (Role::Label, ink3(s))
+            };
+            p::words_key(b, seg, key, role, 11.0, ink, Align2::CENTER_CENTER, s);
         }
     });
 }
 
 // ---- the transport -------------------------------------------------------------------
 
+/// The well's keys (to start, play, stop, record) and the loop key after a gap.
+const TRANSPORT: [f32; 4] = [30.0, 32.0, 30.0, 30.0];
+const LOOP_X: f32 = 130.0;
+const LOOP_W: f32 = 30.0;
+
 pub fn transport_width(s: &Style) -> f32 {
-    // r37:finish — the bar's height: its keys are the bar's keys.
-    (4.0 * KEY + STEP + views::record_options::KEY_W + STEP + KEY
-        // The automation arm and its options (round 31, ADR 0068).
-        + STEP
-        + KEY
-        + views::auto_modes::MORE_W)
-        * s.k
+    (LOOP_X + LOOP_W) * s.k
 }
 
-/// To start, play, stop and record on one strip, the record options' ▾ beside it, loop.
+/// To start, play, stop and record in one well; loop beside it. Playing tints the play key
+/// green, recording the record key red; a right-click on record opens its options.
 pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let k = s.k;
+    let row = p::row(r, s);
+    let c = cells(row, TRANSPORT, s);
+    let [to_start, play, stop, record] = sense(ui, &c, ["to-start", "play", "stop", "record"]);
     let playing = app.engine.is_playing();
     let recording = app.is_recording();
-    let play = if playing { Glyph::Pause } else { Glyph::Play };
-    let [to_start, play_r, stop, record] = key_strip(
-        ui,
-        r.left(),
-        r,
-        s,
-        [
-            (KeyFace::Glyph(Glyph::ToStart), false, "to-start"),
-            (KeyFace::Glyph(play), playing, "play"),
-            (KeyFace::Glyph(Glyph::Stop), false, "stop"),
-            (KeyFace::Glyph(Glyph::Record), recording, "record"),
-        ],
-    );
+    let lr = p::cell(row, LOOP_X * s.k, LOOP_W * s.k);
+    let lresp = ui.interact(lr, Id::new(("toolbar-key", "loop")), Sense::click());
+    let looping = app.project().loop_enabled;
+    with_brush(ui.painter(), |b| {
+        b.register(row, "toolbar_key", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+        p::joined(b, &c, s);
+        let keys = [
+            (&to_start, Glyph::ToStart, false, s.t.highlight, 0.2),
+            (&play, Glyph::Play, playing, s.t.led, 0.18),
+            (&stop, Glyph::Stop, false, s.t.highlight, 0.2),
+            (&record, Glyph::Record, recording, s.t.danger, 0.22),
+        ];
+        for (i, (resp, g, on, hue, amount)) in keys.into_iter().enumerate() {
+            let st = State::of(resp, on);
+            p::tint(b, c[i], s, st, hue, amount);
+            p::icon(b, c[i], s, g, st, hue, 24.0);
+        }
+        p::well(b, lr, s, None);
+        let st = State::of(&lresp, looping);
+        p::tint(b, lr, s, st, s.t.highlight, 0.2);
+        p::icon(b, lr, s, Glyph::Loop, st, s.t.highlight, 24.0);
+    });
     let keys = [
         (to_start, "transport.to_start", Action::ToStart),
-        (play_r, "transport.play", Action::PlayPause),
+        (play, "transport.play", Action::PlayPause),
         (stop, "transport.stop", Action::Stop),
     ];
     for (resp, key, action) in keys {
@@ -162,61 +165,53 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     crate::controllers::learn_action_spot(app, ui, record.rect, Action::Record);
     let record = strip_tip(ui, record, || {
-        tip(app, "transport.record", Some(Action::Record))
+        format!(
+            "{} \u{2014} {}",
+            tip(app, "transport.record", Some(Action::Record)),
+            t("topbar.record_options_tip")
+        )
     });
     if record.clicked() {
         app.run_action(Action::Record);
     }
-    let side = key_side(r, s);
-    // The record options hang from a narrow ▾ beside the strip (ADR 0025); a right-click
-    // on the record key opens them too.
-    let x = r.left() + 4.0 * side + STEP * k;
-    let w = views::record_options::KEY_W * k;
-    let kr = key_rect(r, x, s);
-    let kr = Rect::from_min_size(kr.min, Vec2::new(w, kr.height()));
-    views::record_options::key(app, ui, kr, &record, s);
-    let looping = app.project().loop_enabled;
-    let lr = key_rect(r, kr.right() + STEP * k, s);
-    if key_in(
-        ui,
-        lr,
-        s,
-        KeyFace::Glyph(Glyph::Loop),
-        looping,
-        "loop",
-        || tip(app, "transport.loop", Some(Action::ToggleLoop)),
-    )
-    .clicked()
-    {
+    // The record options hang from the record key (ADR 0025): a right-click opens them.
+    crate::views::record_options::popover(app, ui, &record, s);
+    let lresp = strip_tip(ui, lresp, || {
+        tip(app, "transport.loop", Some(Action::ToggleLoop))
+    });
+    if lresp.clicked() {
         app.run_action(Action::ToggleLoop);
     }
     crate::controllers::learn_action_spot(app, ui, lr, Action::ToggleLoop);
-    // The automation arm and its ▾ (round 31, ADR 0068): Ableton's place for it, after loop.
-    let ar = key_rect(r, lr.right() + STEP * k, s);
-    let mr = Rect::from_min_size(
-        egui::pos2(ar.right(), ar.top()),
-        Vec2::new(views::auto_modes::MORE_W * k, ar.height()),
-    );
-    views::auto_modes::arm_keys(app, ui, ar, mr, s);
 }
 
 // ---- undo ----------------------------------------------------------------------------
 
 pub fn undo_width(s: &Style) -> f32 {
-    2.0 * ROW_KEY * s.k
+    56.0 * s.k
 }
 
+/// Undo and redo in one well; what cannot be undone or redone is its glyph in ink 4.
 pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let [u, rr] = key_strip(
-        ui,
-        r.left(),
-        r,
-        s,
-        [
-            (KeyFace::Glyph(Glyph::Undo), false, "undo"),
-            (KeyFace::Glyph(Glyph::Redo), false, "redo"),
-        ],
-    );
+    let row = p::row(r, s);
+    let c = cells(row, [28.0, 28.0], s);
+    let [u, rr] = sense(ui, &c, ["undo", "redo"]);
+    let (can_u, can_r) = (app.bus.can_undo(), app.bus.can_redo());
+    with_brush(ui.painter(), |b| {
+        b.register(row, "toolbar_key", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+        p::joined(b, &c, s);
+        for (i, (resp, g, can)) in [(&u, Glyph::Undo, can_u), (&rr, Glyph::Redo, can_r)]
+            .into_iter()
+            .enumerate()
+        {
+            let mut st = State::of(resp, false);
+            st.disabled = !can;
+            if can {
+                p::tint(b, c[i], s, st, s.t.highlight, 0.2);
+            }
+            p::icon(b, c[i], s, g, st, s.t.highlight, 24.0);
+        }
+    });
     let u = strip_tip(ui, u, || {
         app.bus
             .undo_label_key()
@@ -239,49 +234,96 @@ pub fn undo(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 
 // ---- the windows ---------------------------------------------------------------------
 
+/// The seven windows' keys (`dir-a`): browser, arrangement, rack, piano roll, the selected
+/// track's plug-in window, mixer, inspector — `None` is the plug-in window.
+pub const WINDOWS: [Option<Pane>; 7] = [
+    Some(Pane::Browser),
+    Some(Pane::Arrangement),
+    Some(Pane::ChannelRack),
+    Some(Pane::PianoRoll),
+    None,
+    Some(Pane::Mixer),
+    Some(Pane::Inspector),
+];
+
 pub fn windows_width(s: &Style) -> f32 {
-    7.0 * ROW_KEY * s.k // r33:launcher
+    7.0 * 28.0 * s.k
 }
 
-/// The areas' keys on one strip, the browser first as in FL's toolbar.
+/// A window key's glyph, whether it is open, its action and its tip's words.
+pub fn window_key(app: &CantusApp, w: Option<Pane>) -> (Glyph, bool, Action, &'static str) {
+    match w {
+        None => (
+            Glyph::Device,
+            app.selected_track
+                .is_some_and(|t| app.instrument_window_in_front(t)),
+            Action::ToggleInstrumentWindow,
+            "topbar.plugin_window",
+        ),
+        Some(pane) => {
+            let action = match pane {
+                Pane::Arrangement => Action::ViewArrangement,
+                Pane::ChannelRack => Action::ViewChannelRack,
+                Pane::PianoRoll => Action::ViewPianoRoll,
+                Pane::Mixer => Action::ViewMixer,
+                Pane::Browser => Action::ToggleBrowser,
+                _ => Action::ToggleInspector,
+            };
+            (
+                pane.glyph(),
+                app.workspace.is_visible(pane),
+                action,
+                pane.toggle_key(),
+            )
+        }
+    }
+}
+
+/// Run a window key's click.
+pub fn window_click(app: &mut CantusApp, w: Option<Pane>) {
+    match w {
+        None => app.run_action(Action::ToggleInstrumentWindow),
+        Some(pane) => app.toggle_pane(pane),
+    }
+}
+
+/// The windows' keys in one well, the open ones tinted with the accent (16 %).
 pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    const PANES: [Pane; 7] = [
-        // r33:launcher
-        Pane::Browser,
-        Pane::Arrangement,
-        Pane::Session, // r33:launcher
-        Pane::ChannelRack,
-        Pane::PianoRoll,
-        Pane::Mixer,
-        Pane::Inspector,
+    let row = p::row(r, s);
+    let c = cells(row, [28.0; 7], s);
+    windows_in(app, ui, &c, 20.0, s);
+}
+
+/// The windows' keys over `c` (the bar's, or the More panel's larger ones), glyphs drawn
+/// in a box `box_h` high.
+pub(super) fn windows_in(app: &mut CantusApp, ui: &mut Ui, c: &[Rect; 7], box_h: f32, s: &Style) {
+    let ids = [
+        "w-browser",
+        "w-arrangement",
+        "w-rack",
+        "w-piano",
+        "w-plugin",
+        "w-mixer",
+        "w-inspector",
     ];
-    let keys: [(KeyFace<'_>, bool, &str); 7] = std::array::from_fn(|i| {
-        // r33:launcher
-        let pane = PANES[i];
-        (
-            KeyFace::Glyph(pane.glyph()),
-            app.workspace.is_visible(pane),
-            pane.title_key(),
-        )
+    let resps = sense(ui, c, ids);
+    let keys: [(Glyph, bool, Action, &str); 7] =
+        std::array::from_fn(|i| window_key(app, WINDOWS[i]));
+    with_brush(ui.painter(), |b| {
+        let all = Rect::from_min_max(c[0].min, c[6].max);
+        b.register(all, "toolbar_key", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+        p::joined(b, c, s);
+        for i in 0..7 {
+            let st = State::of(&resps[i], keys[i].1);
+            p::tint(b, c[i], s, st, s.t.highlight, 0.16);
+            p::icon(b, c[i], s, keys[i].0, st, s.t.highlight, box_h);
+        }
     });
-    let resps = key_strip(ui, r.left(), r, s, keys);
-    for (pane, resp) in PANES.into_iter().zip(resps) {
-        let action = match pane {
-            Pane::Arrangement => Action::ViewArrangement,
-            Pane::ChannelRack => Action::ViewChannelRack,
-            Pane::PianoRoll => Action::ViewPianoRoll,
-            Pane::Mixer => Action::ViewMixer,
-            Pane::Browser => Action::ToggleBrowser,
-            Pane::Session => Action::ToggleSessionView, // r33:launcher
-            _ => Action::ToggleInspector,
-        };
-        let resp = strip_tip(ui, resp, || tip(app, pane.toggle_key(), Some(action)));
-        if resp.clicked() && pane == Pane::Session {
-            // r33:launcher
-            crate::views::session::keys::toggle_view(app); // r33:launcher
-        } else if resp.clicked() {
-            // r33:launcher
-            app.toggle_pane(pane);
+    for (i, resp) in resps.into_iter().enumerate() {
+        let (_, _, action, key) = keys[i];
+        let resp = strip_tip(ui, resp, || tip(app, key, Some(action)));
+        if resp.clicked() {
+            window_click(app, WINDOWS[i]);
         }
     }
 }
@@ -290,172 +332,144 @@ pub fn windows(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 
 const LAMP_WORDS: [&str; 2] = ["topbar.midi", "topbar.armed"];
 
-/// The words' and the number's widths in a lamp cell.
-/// A lamp cell's word's width, and the number's.
-fn lamp_parts(ctx: &egui::Context, s: &Style, i: usize) -> (f32, f32) {
-    // r37:finish — the words at a reading size (Label, was Micro).
-    let word = word_w(ctx, s, LAMP_WORDS[i], Role::Label);
-    let digits = text::measure(ctx, &Text::new("88", Role::Value, s.t.text), s.tk()).x;
-    (word, digits)
-}
-
-/// A lamp cell's width: the lamp, its word, its number.
-fn lamp_w(ctx: &egui::Context, s: &Style, i: usize) -> f32 {
-    let (word, digits) = lamp_parts(ctx, s, i);
-    word + digits + 26.0 * s.k
+/// Where the inputs' parts sit, from the well's left: the divider, the arm ring, the word,
+/// the count's right edge; and the well's width.
+fn inputs_parts(ctx: &egui::Context, s: &Style) -> (f32, f32, f32, f32, f32) {
+    let k = s.k;
+    let midi = p::measure_key(ctx, LAMP_WORDS[0], Role::Label, 11.0, s);
+    let armed = p::measure_key(ctx, LAMP_WORDS[1], Role::Label, 11.0, s);
+    let digits = p::measure(ctx, "88", Role::Control, 11.0, s);
+    // The count right-aligned 104 in (the sheet), further only where the words need it.
+    let div = (18.0 * k + midi + 9.0 * k).max(50.0 * k);
+    let ring = div + 10.0 * k;
+    let word = ring + 8.0 * k;
+    let count = (word + armed + 4.0 * k + digits).max(104.0 * k);
+    (div, ring, word, count, count + 8.0 * k)
 }
 
 pub fn inputs_width(ctx: &egui::Context, s: &Style) -> f32 {
-    ROW_KEY * s.k + 2.0 * STEP * s.k + lamp_w(ctx, s, 0) + lamp_w(ctx, s, 1)
+    inputs_parts(ctx, s).4
 }
 
-/// A lamp, a word and a number in a well, one row: the MIDI input, the armed tracks.
-#[allow(clippy::too_many_arguments)]
-fn lamp_cell(
-    ui: &Ui,
-    r: Rect,
-    s: &Style,
-    lit: bool,
-    color: Tok,
-    word: &str,
-    value: &str,
-    words_w: f32,
-) {
-    let k = s.k;
-    with_brush(ui.painter(), |b| {
-        light::sunken(b, r, s.r(3.0), s.t.well, 1.0, s.t.depth);
-        let c = Pos2::new(r.left() + 9.0 * k, r.center().y);
-        led::paint(b, c, 7.0 * k, lit, s, color, Tok::Well, 1.0);
-        let wr = Rect::from_min_size(
-            Pos2::new(c.x + 7.0 * k, r.top()),
-            Vec2::new(words_w + 2.0 * k, r.height()),
-        );
-        let _ = text::paint(
-            b,
-            wr,
-            // r37:finish — 4.5:1 on its well and on the bar, both themes.
-            &Text::key(
-                word,
-                Role::Label,
-                crate::kit::color::ensure_contrast_all(s.t.text_dim, &[s.t.ink, s.t.toolbar], 4.5),
-            )
-            .caps(true)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End)),
-            s.tk(),
-        );
-        // The number's room: what is past the word, 2 pt in from it and 4 from the well's
-        // edge — the width of "88" and 2 pt to spare (review 2: 2 pt short, "10" read "1…").
-        let vr = Rect::from_min_max(
-            Pos2::new(wr.right() + 2.0 * k, r.top()),
-            Pos2::new(r.right() - 4.0 * k, r.bottom()),
-        );
-        let ink = if lit { s.t.text } else { s.t.text_dim };
-        let _ = text::paint(
-            b,
-            vr,
-            &Text::new(value, Role::Value, ink)
-                .align(Align2::RIGHT_CENTER)
-                .policy(Policy::Elide(Elide::End)),
-            s.tk(),
-        );
-    });
-}
-
-thread_local! {
-    static WORDS: std::cell::RefCell<(String, String)> =
-        std::cell::RefCell::new((String::with_capacity(8), String::with_capacity(8)));
-}
-
+/// The MIDI lamp and the armed tracks in one well: the lamp lights green as events come
+/// in; the arm ring fills red, its count red, while tracks are armed.
 pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
-    // The typing keyboard (Ctrl+T).
-    let typing = app.keyboard_piano;
-    let kr = key_rect(r, r.left(), s);
-    if key_in(
-        ui,
-        kr,
-        s,
-        KeyFace::Glyph(Glyph::Keyboard),
-        typing,
-        "typing",
-        || {
-            format!(
-                "{} \u{2014} {}",
-                t("transport.typing"),
-                t("transport.typing_tip")
-            )
-        },
-    )
-    .clicked()
-    {
-        app.run_action(Action::ToggleTypingPiano);
-    }
-    let (w0, w1) = (lamp_w(ui.ctx(), s, 0), lamp_w(ui.ctx(), s, 1));
-    let cell = |i: usize| {
-        let x = kr.right() + STEP * k + if i == 0 { 0.0 } else { w0 + STEP * k };
-        let w = if i == 0 { w0 } else { w1 };
-        Rect::from_min_size(Pos2::new(x, kr.top()), Vec2::new(w, kr.height()))
-    };
-    // MIDI in: lit for a moment whenever an event comes in; the ports open.
+    let row = p::row(r, s);
+    let (div, ring, word, count, w) = inputs_parts(ui.ctx(), s);
+    let well = Rect::from_min_size(row.min, Vec2::new(w, row.height()));
+    let mr = Rect::from_min_max(well.min, Pos2::new(well.left() + div, well.bottom()));
+    let ar = Rect::from_min_max(Pos2::new(well.left() + div, well.top()), well.max);
+    // MIDI in: lit for a moment whenever an event comes in.
     let received = app.engine.midi_sender().received();
-    let midi_lit = app.topbar.midi_lamp(received);
-    if midi_lit {
+    let lit = app.topbar.midi_lamp(received);
+    if lit {
         // Look again when the lamp is due to go out.
         crate::views::workspace_ticker::wake_after(ui.ctx(), std::time::Duration::from_millis(160));
     }
     let ports = app.midi_port_names.len();
     let armed = app.project().tracks.iter().filter(|t| t.armed).count();
-    let (mr, ar) = (cell(0), cell(1));
     let m = ui.interact(mr, Id::new("toolbar-midi"), Sense::click());
     let a = ui.interact(ar, Id::new("toolbar-armed"), Sense::click());
-    let (m_clicked, a_clicked) = (m.clicked(), a.clicked());
-    // The MIDI cell is also Live's *MIDI* key (round 29, ADR 0062): a click turns the
-    // learn mode on and off, a right-click opens the MIDI settings.
-    let m_settings = m.secondary_clicked();
     let learning = app.controllers.learn_mode;
-    WORDS.with(|words| {
-        let mut words = words.borrow_mut();
-        let (mv, av) = &mut *words;
-        mv.clear();
-        av.clear();
-        let _ = write!(mv, "{ports}");
-        let _ = write!(av, "{armed}");
-        let (word0, _) = lamp_parts(ui.ctx(), s, 0);
-        let (word1, _) = lamp_parts(ui.ctx(), s, 1);
-        lamp_cell(ui, mr, s, midi_lit, Tok::Led, LAMP_WORDS[0], mv, word0);
-        if learning {
-            with_brush(ui.painter(), |b| {
+    WORDS.with(|n| {
+        let mut n = n.borrow_mut();
+        n.clear();
+        let _ = write!(n, "{armed}");
+        with_brush(ui.painter(), |b| {
+            b.register(well, "inputs", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+            p::well(b, well, s, None);
+            for (resp, rr) in [(&m, mr), (&a, ar)] {
+                p::tint(b, rr, s, State::of(resp, false), s.t.highlight, 0.2);
+            }
+            if learning {
                 b.rrect(
-                    mr.shrink(b.px()),
+                    b.snap_rect(mr.shrink(2.0 * k)),
                     s.r(3.0),
-                    Fill::Solid(s.t.highlight.gamma_multiply(0.2)),
+                    Fill::Solid(mix(s.t.well, s.t.highlight, 0.2)),
                 );
-                b.rrect_stroke(mr.shrink(b.px()), s.r(3.0), s.s(1.5), s.t.highlight);
-            });
-        }
-        lamp_cell(ui, ar, s, armed > 0, Tok::Danger, LAMP_WORDS[1], av, word1);
+            }
+            let lc = Pos2::new(well.left() + 10.0 * k, well.center().y);
+            if lit {
+                b.circle(lc, 4.5 * k, Fill::Solid(s.t.led.gamma_multiply(0.2)));
+            }
+            let lamp = if lit {
+                s.t.led
+            } else {
+                mix(s.t.well, ink3(s), 0.5)
+            };
+            b.circle(lc, 2.5 * k, Fill::Solid(lamp));
+            let wr = Rect::from_min_max(
+                Pos2::new(well.left() + 18.0 * k, well.top()),
+                Pos2::new(well.left() + div, well.bottom()),
+            );
+            p::words_key(
+                b,
+                wr,
+                LAMP_WORDS[0],
+                Role::Label,
+                11.0,
+                ink2(s),
+                Align2::LEFT_CENTER,
+                s,
+            );
+            b.vline(
+                b.snap_mid(well.left() + div),
+                well.top() + 6.0 * k,
+                well.bottom() - 6.0 * k,
+                b.px(),
+                opaque(s.t.inner_shadow),
+            );
+            let rc = Pos2::new(well.left() + ring, well.center().y);
+            let ac = if armed > 0 {
+                s.t.danger
+            } else {
+                mix(s.t.well, ink3(s), 0.5)
+            };
+            b.circle_stroke(rc, 3.5 * k, 1.2 * k, ac);
+            if armed > 0 {
+                b.circle(rc, 1.6 * k, Fill::Solid(ac));
+            }
+            let wr = Rect::from_min_max(
+                Pos2::new(well.left() + word, well.top()),
+                Pos2::new(well.left() + count, well.bottom()),
+            );
+            p::words_key(
+                b,
+                wr,
+                LAMP_WORDS[1],
+                Role::Label,
+                11.0,
+                ink2(s),
+                Align2::LEFT_CENTER,
+                s,
+            );
+            let (role, ink) = if armed > 0 {
+                (Role::Control, s.t.danger)
+            } else {
+                (Role::Label, ink3(s))
+            };
+            p::words(b, wr, &n, role, 11.0, ink, Align2::RIGHT_CENTER, s);
+        });
     });
+    let m_settings = m.secondary_clicked();
+    let (m_clicked, a_clicked) = (m.clicked(), a.clicked());
     if m.hovered() {
         let tip = if ports == 0 {
             t("topbar.midi_none")
         } else {
-            crate::i18n::tf_count(
+            let ports_tip = crate::i18n::tf_count(
                 "topbar.midi_tip",
                 ports,
                 &[("ports", &app.midi_port_names.join(", "))],
-            )
-        };
-        // With a port open the cell is Live's MIDI key: a click learns, a right-click
-        // opens the settings; with none, a click opens the settings (review 1, #29, #47).
-        let tip = if ports == 0 {
-            tip
-        } else {
+            );
+            // With a port open the cell is Live's MIDI key: a click learns, a right-click
+            // opens the settings (review 1, #29, #47).
             let learn = match app.keymap.bindings_for(Action::MidiLearnMode).first() {
                 Some(b) => tf("ctl.topbar.lamp_tip_key", &[("key", &b.display())]),
                 None => t("ctl.topbar.lamp_tip"),
             };
-            format!("{tip}. {learn}")
+            format!("{ports_tip}. {learn}")
         };
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
         let _ = m.on_hover_text(tip);
@@ -468,7 +482,10 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     if a.hovered() {
         let tip = crate::i18n::tf_count("topbar.armed_tip", armed, &[]);
-        let tip = tip_with_key(app, tip, Action::ArmTrack);
+        let tip = match app.keymap.bindings_for(Action::ArmTrack).first() {
+            Some(b) => format!("{tip} ({})", b.display()),
+            None => tip,
+        };
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
         let _ = a.on_hover_text(tip);
     }
@@ -477,66 +494,64 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
 }
 
-fn tip_with_key(app: &CantusApp, text: String, action: Action) -> String {
-    match app.keymap.bindings_for(action).first() {
-        Some(b) => format!("{text} ({})", b.display()),
-        None => text,
-    }
-}
-
 // ---- the tools -----------------------------------------------------------------------
 
+/// The zoom well's width: the sheet's 52, wider where "200 %" needs it.
 fn zoom_w(ctx: &egui::Context, s: &Style) -> f32 {
-    // The kit's menu field: the value in the control role, 7 pt before it, the ▾ after.
-    text::measure(ctx, &Text::new("200 %", Role::Control, s.t.text), s.tk()).x + 28.0 * s.k
+    (p::measure(ctx, "200 %", Role::Label, 11.0, s) + 16.0 * s.k).max(52.0 * s.k)
 }
 
 pub fn tools_width(ctx: &egui::Context, s: &Style) -> f32 {
-    (2.0 * ROW_KEY + STEP) * s.k + zoom_w(ctx, s)
+    32.0 * s.k + zoom_w(ctx, s)
 }
 
+/// The element picker (lit while picking) and the interface's zoom (a click for the
+/// steps; Ctrl + / Ctrl −).
 pub fn tools(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let k = s.k;
-    let pick = app.appearance_page.picking;
-    let open = app.show_theme_editor;
-    let [p, g] = key_strip(
-        ui,
-        r.left(),
-        r,
-        s,
-        [
-            (KeyFace::Glyph(Glyph::Pick), pick, "pick"),
-            (KeyFace::Glyph(Glyph::Gear), open, "appearance"),
-        ],
-    );
-    if strip_tip(ui, p, || {
+    let row = p::row(r, s);
+    let pr = p::cell(row, 0.0, 28.0 * s.k);
+    let zr = p::cell(row, 32.0 * s.k, zoom_w(ui.ctx(), s));
+    pick_key(app, ui, pr, s);
+    zoom_well(app, ui, zr, s);
+}
+
+/// The picker key in `pr`.
+pub(super) fn pick_key(app: &mut CantusApp, ui: &mut Ui, pr: Rect, s: &Style) {
+    let resp = ui.interact(pr, Id::new(("toolbar-key", "pick")), Sense::click());
+    let st = State::of(&resp, app.appearance_page.picking);
+    with_brush(ui.painter(), |b| {
+        p::well(b, pr, s, None);
+        p::tint(b, pr, s, st, s.t.highlight, 0.2);
+        p::icon(b, pr, s, Glyph::Pick, st, s.t.highlight, 20.0);
+    });
+    let resp = strip_tip(ui, resp, || {
         tip(app, "theme.inspect", Some(Action::PickElement))
-    })
-    .clicked()
-    {
+    });
+    if resp.clicked() {
         app.toggle_pick();
     }
-    if strip_tip(ui, g, || t("settings.appearance")).clicked() {
-        app.show_theme_editor = !open;
-    }
-    let kr = key_rect(r, r.left() + key_side(r, s), s);
-    // The interface's zoom: the value, a click for the steps (Ctrl + / Ctrl −).
-    let zr = Rect::from_min_size(
-        Pos2::new(kr.right() + STEP * k, kr.top()),
-        Vec2::new(zoom_w(ui.ctx(), s), kr.height()),
-    );
+}
+
+/// The zoom well in `zr`: its value, a click for the steps.
+pub(super) fn zoom_well(app: &mut CantusApp, ui: &mut Ui, zr: Rect, s: &Style) {
     let resp = ui.interact(zr, Id::new("toolbar-zoom"), Sense::click());
     let popup = egui::Popup::default_response_id(&resp);
     let is_open = egui::Popup::is_id_open(ui.ctx(), popup);
     let now = app.settings.ui_scale();
-    WORDS.with(|words| {
-        let mut words = words.borrow_mut();
-        let v = &mut words.0;
+    WORDS.with(|v| {
+        let mut v = v.borrow_mut();
         v.clear();
         let _ = write!(v, "{:.0} %", now * 100.0);
         let st = State::of(&resp, is_open);
         with_brush(ui.painter(), |b| {
-            crate::kit::well::menu_field(b, zr, s, st, v, false)
+            p::well(b, zr, s, None);
+            p::tint(b, zr, s, st, s.t.highlight, 0.2);
+            let ink = if st.hovered || is_open {
+                ink1(s)
+            } else {
+                ink2(s)
+            };
+            p::words(b, zr, &v, Role::Label, 11.0, ink, Align2::CENTER_CENTER, s);
         });
         if st.hovered {
             let name = tip(app, "topbar.zoom", Some(Action::ZoomIn));
@@ -544,7 +559,7 @@ pub fn tools(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 menu: true,
                 ..Caps::NONE
             };
-            hint::set_text(ui.ctx(), &name, v, caps);
+            hint::set_text(ui.ctx(), &name, &v, caps);
         }
     });
     if is_open || resp.clicked() {

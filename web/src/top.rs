@@ -1,11 +1,12 @@
-//! The navigation bar and the hero.
+//! The hero (round 39, Mock 1): the program full-width on the lapis, "Hear this song", the
+//! measured proof strip under it, and the playable rack in its own section.
 
 use yew::prelude::*;
 
 use crate::icons;
-use crate::lang::{use_lang, Lang};
+use crate::lang::use_lang;
+use crate::platform::Os;
 use crate::rack::Rack;
-use crate::theme::Theme;
 
 pub const GITHUB: &str = "https://github.com/luis314159/cantus-daw";
 pub const RELEASES: &str = "https://github.com/luis314159/cantus-daw/releases";
@@ -24,151 +25,194 @@ pub const DOWNLOAD_MACOS: &str =
 /// The stable names those links end in, which the latest release's file list is searched for.
 pub const STABLE_APPIMAGE: &str = "Cantus-linux-x86_64.AppImage";
 pub const STABLE_DMG: &str = "Cantus-macos-universal.dmg";
-/// GitHub's API for the latest release (its files' names), asked from the visitor's browser.
-pub const LATEST_API: &str = "https://api.github.com/repos/luis314159/cantus-daw/releases/latest";
-pub const VERSION: &str = "0.1.0-beta.11";
+/// The DAW's version, from the repository's `Cargo.toml` at build time (`build.rs`).
+pub const VERSION: &str = env!("CANTUS_VERSION");
 
-#[function_component(Nav)]
-pub fn nav() -> Html {
-    let theme = use_state(Theme::detect);
-    let flip = {
-        let theme = theme.clone();
-        Callback::from(move |_| {
-            let next = theme.toggled();
-            next.apply(true);
-            theme.set(next);
-        })
-    };
-    let to_day = *theme == Theme::Night;
-    let ctx = use_lang();
-    let l = ctx.lang;
-    let scrolled = use_state(|| false);
-    {
-        let scrolled = scrolled.clone();
-        use_effect_with((), move |_| {
-            use wasm_bindgen::{closure::Closure, JsCast};
-            let win = web_sys::window().expect("window");
-            let w2 = win.clone();
-            let cb = Closure::<dyn FnMut()>::new(move || {
-                scrolled.set(w2.scroll_y().unwrap_or(0.0) > 8.0)
-            });
-            let _ = win.add_event_listener_with_callback("scroll", cb.as_ref().unchecked_ref());
-            move || {
-                let _ =
-                    win.remove_event_listener_with_callback("scroll", cb.as_ref().unchecked_ref());
-            }
-        });
-    }
-    let pick = |lang: Lang| {
-        let set = ctx.set.clone();
-        Callback::from(move |_| set.emit(lang))
-    };
-    html! {
-        <header class={classes!("nav", scrolled.then_some("is-scrolled"))}>
-            <div class="wrap nav-in">
-                <a class="brand" href="#top" aria-label="Cantus">{ icons::logo() }{ "Cantus" }<sup class="tm" aria-hidden="true">{ "™" }</sup></a>
-                <nav class="nav-links" aria-label={l.t("Sections", "Secciones")}>
-                    <a href="#product">{ l.t("Product", "Producto") }</a>
-                    <a href="#record">{ l.t("Recording", "Grabación") }</a>
-                    <a href="#units">{ l.t("Instruments", "Instrumentos") }</a>
-                    <a href="#listen" class="opt2">{ l.t("Listen", "Escucha") }</a>
-                    <a href="#features">{ l.t("Features", "Funciones") }</a>
-                    <a href="#free" class="opt">{ l.t("Free for good", "Libre para siempre") }</a>
-                    <a href="#faq" class="opt2">{ l.t("FAQ", "Preguntas") }</a>
-                    <a href="#support" class="opt">{ l.t("Support", "Apoyar") }</a>
-                    <a href="#more" class="opt">{ l.t("Manual & more", "Manual y más") }</a>
-                </nav>
-                <div class="lang" role="group" aria-label={l.t("Language", "Idioma")}>
-                    <button type="button" aria-pressed={(l == Lang::En).to_string()} onclick={pick(Lang::En)}>{ "EN" }</button>
-                    <button type="button" aria-pressed={(l == Lang::Es).to_string()} onclick={pick(Lang::Es)}>{ "ES" }</button>
-                </div>
-                <button type="button" class="theme-toggle" onclick={flip}
-                        aria-label={if to_day { l.t("Switch to day mode", "Cambiar a modo día") } else { l.t("Switch to night mode", "Cambiar a modo noche") }}
-                        title={if to_day { l.t("Day mode", "Modo día") } else { l.t("Night mode", "Modo noche") }}>
-                    { if to_day { icons::sun() } else { icons::moon() } }
-                </button>
-                <a class="btn btn-primary" href="#download">{ l.t("Download", "Descargar") }</a>
-            </div>
-        </header>
-    }
-}
-
-/// The logo's C of waves, drawn large. Rays sit on a ring open to the east, where the
-/// playhead stands; while the rack plays they breathe, each a little out of step.
-fn sigil() -> Html {
-    const N: usize = 46;
-    let rays = (0..N).map(|i| {
-        let u = i as f32 / (N - 1) as f32;
-        let a = (36.0 + u * 288.0).to_radians();
-        // a swell in the lengths gives the logo's waveform silhouette
-        let swell = (u * std::f32::consts::PI * 5.0).sin().abs() * 0.55
-            + (u * std::f32::consts::PI).sin() * 0.45;
-        let (r0, r1) = (92.0, 118.0 + 62.0 * swell);
-        let (c, s) = (a.cos(), a.sin());
-        let style = format!("--i:{i};--dx:{:.1};--dy:{:.1}", c * 9.0, s * 9.0);
-        let stroke = ray_colour(u);
-        html! {
-            <line class="ray" {style} {stroke}
-                  x1={format!("{:.1}", 190.0 + c * r0)} y1={format!("{:.1}", 200.0 + s * r0)}
-                  x2={format!("{:.1}", 190.0 + c * r1)} y2={format!("{:.1}", 200.0 + s * r1)} />
-        }
-    });
-    html! {
-        <svg class="sigil" viewBox="0 0 400 400" aria-hidden="true">
-            { for rays }
-            <rect class="bar" x="326" y="60" width="9" height="280" rx="4.5"/>
-            <rect class="bar" x="300" y="112" width="61" height="9" rx="4.5"/>
-            <path class="bar" d="M313 56 L348 56 L330.5 74 Z"/>
-        </svg>
+/// `0.1.0-beta.13` → `beta 13`, as the hero's line says it.
+pub fn version_short() -> String {
+    match VERSION.split_once("-beta.") {
+        Some((_, n)) => format!("beta {n}"),
+        None => VERSION.to_string(),
     }
 }
 
 #[function_component(Hero)]
 pub fn hero() -> Html {
     let l = use_lang().lang;
+    let os = use_state(Os::detect);
+    let shelf = crate::shelf::use_shelf();
+    let to = crate::nav::href(l, "/download");
+    let primary = match *os {
+        Os::Mobile => html! { <crate::nav::SendLink /> },
+        Os::Linux if shelf.linux => html! {
+            <a class="btn btn-primary" href={to}>{ icons::arrow_down() }{ l.t("Download for Linux", "Descargar para Linux") }<small>{ "AppImage" }</small></a>
+        },
+        Os::MacOs if shelf.macos => html! {
+            <a class="btn btn-primary" href={to}>{ icons::arrow_down() }{ l.t("Download the macOS preview", "Descargar la vista previa para macOS") }</a>
+        },
+        Os::Linux | Os::MacOs => html! {
+            <a class="btn btn-primary" href={to}>{ icons::arrow_down() }{ l.t("Get Cantus", "Consigue Cantus") }</a>
+        },
+        Os::Windows => html! {
+            <a class="btn btn-primary" href={to}>{ icons::arrow_down() }{ l.t("Download for Windows", "Descargar para Windows") }<small>{ "64-bit" }</small></a>
+        },
+    };
+    let (w, h) = crate::picture::SIZE;
     html! {
+        <>
         <section class="hero" id="top">
-            <div class="wrap hero-in">
-                <div class="hero-top">
-                    <div>
-                        <a class="hero-new" href="#record">
-                            <b>{ l.t("New", "Nuevo") }</b>
-                            <span>{ l.t("The recording mode: the whole song baked, only your take live", "El modo de grabación: toda la canción pre-renderizada, solo tu toma en vivo") }</span>
-                            <i aria-hidden="true">{ "→" }</i>
-                        </a>
-                        <h1>{ l.t("Finish the song", "Termina la canción") }<span class="stop">{ "." }</span></h1>
-                        <p class="hero-sub">
-                            { l.t(
-                                "Cantus is a free, open-source DAW for Windows and Linux, with a macOS preview, written in Rust. Sequence, record, mix and export \u{2014} with no account, no subscription and no telemetry.",
-                                "Cantus es un DAW libre y gratuito para Windows y Linux, con una vista previa para macOS, escrito en Rust. Secuencia, graba, mezcla y exporta \u{2014} sin cuenta, sin suscripción y sin telemetría.") }
-                        </p>
-                        <div class="hero-cta">
-                            <a class="btn btn-primary" href="#download">{ icons::arrow_down() }{ l.t("Download the beta", "Descargar la beta") }</a>
-                            <a class="btn btn-quiet" href="#rack">{ l.t("Play a groove first", "Toca un ritmo primero") }</a>
-                        </div>
-                        <p class="hero-meta">{ format!("{} · Windows · Linux · {} · {}", VERSION, l.t("macOS (preview)", "macOS (vista previa)"), l.t("app GPL-3.0-or-later · engine MPL-2.0", "app GPL-3.0-o-posterior · motor MPL-2.0")) }</p>
-                    </div>
-                    { sigil() }
+            <div class="wrap hero-copy">
+                <span class="eyebrow">{ format!("{} · {}", l.t("Free · open source", "Libre · código abierto"), version_short()) }</span>
+                <h1>{ l.t("Finish the song", "Termina la canción") }<span class="stop">{ "." }</span></h1>
+                <p class="hero-sub">{ crate::counts::hero_lede(l) }</p>
+                <div class="hero-cta">
+                    { primary }
+                    <a class="btn btn-quiet" href="#rack">{ l.t("Play a groove in your browser", "Toca un ritmo en tu navegador") }</a>
                 </div>
-                <Rack />
+                if *os == Os::Mobile {
+                    <p class="hero-phone">{ icons::desktop() }{ l.t("Cantus is a desktop program: Windows, Linux, macOS preview", "Cantus es un programa de escritorio: Windows, Linux, vista previa para macOS") }</p>
+                } else {
+                    <p class="hero-facts">
+                        <span><b>{ "Windows" }</b>{ l.t(" & ", " y ") }<b>{ "Linux" }</b></span>
+                        <span>{ l.t("macOS preview", "Vista previa para macOS") }</span>
+                        <span>{ "CLAP · VST3 · ARA 2" }</span>
+                        <span>{ "ASIO · WASAPI · PipeWire" }</span>
+                    </p>
+                }
+            </div>
+            <div class="hero-stage">
+                <figure class="hero-window">
+                    <img src={crate::picture::program(l)} srcset={crate::picture::program_srcset(l)} sizes={crate::picture::PROGRAM_SIZES}
+                         width={w.to_string()} height={h.to_string()}
+                         alt={crate::picture::program_alt(l)} fetchpriority="high" decoding="async" />
+                </figure>
+                <HearSong />
+                <p class="hero-real">{ l.t("The real program, playing Neon Tide", "El programa real, tocando Neon Tide") }</p>
+            </div>
+        </section>
+        <Proof />
+        </>
+    }
+}
+
+/// "Hear this song": Neon Tide, the house demo, made and mastered in Cantus — the excerpt
+/// the listening section plays (`assets/demos/house.mp3`).
+#[function_component(HearSong)]
+pub fn hear_song() -> Html {
+    let l = use_lang().lang;
+    let playing = use_state(|| false);
+    let frac = use_state(|| 0.0f64);
+    let audio = use_mut_ref(|| None::<web_sys::HtmlAudioElement>);
+    {
+        let (audio, playing_h, frac) = (audio.clone(), playing.clone(), frac.clone());
+        use_effect_with(*playing, move |on| {
+            let timer = on.then(|| {
+                gloo_timers::callback::Interval::new(200, move || {
+                    if let Some(a) = audio.borrow().as_ref() {
+                        let len = a.duration();
+                        if len.is_finite() && len > 0.0 {
+                            frac.set((a.current_time() / len).clamp(0.0, 1.0));
+                        }
+                        if a.ended() {
+                            playing_h.set(false);
+                        }
+                    }
+                })
+            });
+            move || drop(timer)
+        });
+    }
+    {
+        let audio = audio.clone();
+        use_effect_with((), move |_| {
+            move || {
+                if let Some(a) = audio.borrow_mut().take() {
+                    let _ = a.pause();
+                }
+            }
+        });
+    }
+    let click = {
+        let (audio, playing) = (audio.clone(), playing.clone());
+        Callback::from(move |_| {
+            let mut slot = audio.borrow_mut();
+            if slot.is_none() {
+                *slot = web_sys::HtmlAudioElement::new_with_src("/demos/house.mp3").ok();
+            }
+            if let Some(a) = slot.as_ref() {
+                if *playing {
+                    let _ = a.pause();
+                    playing.set(false);
+                } else {
+                    if a.ended() {
+                        a.set_current_time(0.0);
+                    }
+                    let _ = a.play();
+                    playing.set(true);
+                }
+            }
+        })
+    };
+    let pct = format!("{:.0}", *frac * 100.0);
+    html! {
+        <div class={classes!("hear", playing.then_some("is-playing"))}>
+            <button type="button" class="hear-btn" onclick={click} aria-pressed={playing.to_string()}
+                    aria-label={if *playing { l.t("Pause Neon Tide", "Pausar Neon Tide") } else { l.t("Hear Neon Tide, a song made in Cantus", "Escuchar Neon Tide, una canción hecha en Cantus") }}>
+                { if *playing { icons::pause() } else { icons::play() } }
+            </button>
+            <span class="hear-text"><b>{ l.t("Hear this song", "Escucha esta canción") }</b>
+                <small>{ l.t("Neon Tide · made and mastered in Cantus", "Neon Tide · hecha y masterizada en Cantus") }</small></span>
+            <span class="hear-wave" aria-hidden="true">{ for [30, 70, 45, 100, 60, 85, 40, 65, 30].iter().enumerate().map(|(i, h)| html! { <i style={format!("--i:{i};height:{h}%")}></i> }) }</span>
+            <span class="hear-bar" role="progressbar" aria-label={l.t("Neon Tide, played", "Neon Tide, reproducido")}
+                  aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct.clone()}><i style={format!("width:{pct}%")}></i></span>
+        </div>
+    }
+}
+
+/// The measured proof under the hero: three rows won and the one lost, each with what it is
+/// compared with (docs/scorecard/README.md, 2026-11-09 and 2026-11-11).
+#[function_component(Proof)]
+pub fn proof() -> Html {
+    let l = use_lang().lang;
+    let stat = |won: bool, n: &'static str, unit: &'static str, what: &'static str| {
+        html! {
+            <li class={classes!("stat", (!won).then_some("lost"))}>
+                <span class="tag">{ if won { l.t("Won", "Ganado") } else { l.t("Lost", "Perdido") } }</span>
+                <span class="n">{ n }<small>{ unit }</small></span>
+                <p>{ what }</p>
+            </li>
+        }
+    };
+    html! {
+        <section class="proof" aria-label={l.t("Measured against FL Studio and REAPER", "Medido frente a FL Studio y REAPER")}>
+            <div class="wrap proof-in">
+                <ul class="stats-row">
+                    { stat(true, l.t("0.76", "0,76"), " s", l.t("to a ready window on an empty song — 2.3× sooner than REAPER", "hasta la ventana lista con una canción vacía — 2,3× antes que REAPER")) }
+                    { stat(true, l.t("3.2×", "3,2×"), "", l.t("sooner than FL Studio, each on a comparable starter", "antes que FL Studio, cada uno con una plantilla comparable")) }
+                    { stat(true, l.t("1.1", "1,1"), " %", l.t("of a core at rest — REAPER 2.3–3.7 %; on a starter 1.7–2.0 % against FL Studio's 6.6 %", "de un núcleo en reposo — REAPER 2,3–3,7 %; con una plantilla 1,7–2,0 % frente al 6,6 % de FL Studio")) }
+                    { stat(false, "140", " MB", l.t("of memory on an empty song, down from 237 — REAPER 62 MB; on a starter 143 against FL Studio's 133", "de memoria con una canción vacía, antes 237 — REAPER 62 MB; con una plantilla 143 frente a los 133 de FL Studio")) }
+                </ul>
+                <p class="how">{ l.t("Same quiet laptop, same script, five starts each (Cantus beta.14 2026-11-11, the others 2026-11-09). ", "La misma laptop tranquila, el mismo script, cinco arranques cada uno (Cantus beta.14 el 2026-11-11, los otros el 2026-11-09). ") }
+                    <a href={crate::nav::href(l, "/measured")}>{ l.t("See how it was measured →", "Mira cómo se midió →") }</a></p>
             </div>
         </section>
     }
 }
 
-/// The logo's ramp along the ring: pale gold, copper, deep red.
-fn ray_colour(u: f32) -> String {
-    let stops = [
-        (0.0, [255.0, 217.0, 138.0]),
-        (0.5, [224.0, 122.0, 46.0]),
-        (1.0, [156.0, 48.0, 12.0]),
-    ];
-    let (a, b) = if u < 0.5 {
-        (stops[0], stops[1])
-    } else {
-        (stops[1], stops[2])
-    };
-    let k = (u - a.0) / (b.0 - a.0);
-    let m = |i: usize| (a.1[i] + (b.1[i] - a.1[i]) * k).round() as u8;
-    format!("#{:02x}{:02x}{:02x}", m(0), m(1), m(2))
+/// The playable channel rack, in a section of its own under the proof (round 39: the hero
+/// shows the program; the rack stays one click away, "Play a groove in your browser").
+#[function_component(Groove)]
+pub fn groove() -> Html {
+    let l = use_lang().lang;
+    html! {
+        <section class="section groove" id="play">
+            <div class="wrap">
+                <header class="sec-head">
+                    <h2>{ l.t("Play a groove first", "Toca un ritmo primero") }</h2>
+                    <p>{ l.t("A channel rack like the program's, in your browser: click the cells, change the tempo, press play.", "Un rack de canales como el del programa, en tu navegador: pulsa las celdas, cambia el tempo, dale a reproducir.") }</p>
+                </header>
+                <Rack />
+            </div>
+        </section>
+    }
 }

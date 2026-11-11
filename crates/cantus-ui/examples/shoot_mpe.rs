@@ -11,6 +11,9 @@ use cantus_ui::CantusApp;
 use egui::vec2;
 use std::path::PathBuf;
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
@@ -106,9 +109,9 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let th = if theme == "paper" {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     } else {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     };
     cantus_ui::theme::apply(&th, &ctx);
     let mut app =
@@ -119,13 +122,15 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     let (preset, mode) = if theme == "paper" {
-        ("paper", Mode::Light)
+        ("slate_paper", Mode::Light)
     } else {
-        ("cantus_night", Mode::Dark)
+        ("slate_night", Mode::Dark)
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(&ctx);
+    // A working studio: the demo interface (not "No audio").
+    studio::studio(&mut app, 256);
     let t = app.project().tracks[0].id;
     let c = app.project().tracks[0].clips[0].id;
     app.select_clip(t, c);

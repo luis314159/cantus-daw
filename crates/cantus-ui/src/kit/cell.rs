@@ -104,6 +104,9 @@ pub fn rects(rect: Rect, s: &Style, look: &CellLook<'_>) -> CellRects {
 
 /// Paint a cell in `rect` (of [`size`]).
 pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CellLook<'_>) -> CellRects {
+    if s.t.system.recessed() {
+        return paint_slate(b, rect, s, st, look);
+    }
     b.register(rect, "cell", TOKENS, &[s.hue_tok]);
     let a = st.alpha();
     let f = |c: egui::Color32| c.gamma_multiply(a);
@@ -167,5 +170,97 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CellLook<'_
     if st.focused {
         super::focus_ring(b, rect, s.r(6.0), s);
     }
+    r
+}
+
+/// The tokens a Slate cell paints with (round 39): its name and value; its control
+/// registers itself.
+pub const SLATE_TOKENS: &[Tok] = &[
+    Tok::TextDim,
+    Tok::Text,
+    Tok::Placeholder,
+    Tok::Disabled,
+    Tok::Focus,
+    Tok::Auto,
+];
+
+/// A number and its unit ("2.40 kHz" → ("2.40", "kHz")): the unit is the last word when
+/// it holds no digit.
+pub fn split_unit(value: &str) -> (&str, &str) {
+    match value.rsplit_once(' ') {
+        Some((n, u))
+            if !u.is_empty()
+                && !u.chars().any(|c| c.is_ascii_digit())
+                && n.chars().any(|c| c.is_ascii_digit()) =>
+        {
+            (n, u)
+        }
+        _ => (value, ""),
+    }
+}
+
+/// A cell in a recessed family (round 39, `des-controls`' knob sheet): no pill and no box —
+/// the name above in ink 2 (ink 1 under the hand), the control, the value below in ink 1
+/// with its unit a size down in ink 3; the value in the accent while held, in the clip's
+/// colour when a clip drives it. The pill's rect stays where the hand takes typing.
+fn paint_slate(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CellLook<'_>) -> CellRects {
+    b.register(rect, "cell", SLATE_TOKENS, &[]);
+    let rect = b.snap_rect(rect);
+    let r = rects(rect, s, look);
+    let t = &s.t;
+    let d = super::automate::current_driving();
+    let name_ink = if st.disabled {
+        t.disabled
+    } else if st.hovered || st.active || st.focused {
+        t.text
+    } else {
+        t.text_dim
+    };
+    let name = Text {
+        src: look.label,
+        role: Role::Label,
+        caps: false,
+        align: Align2::CENTER_CENTER,
+        policy: Policy::Abbreviate,
+        color: name_ink,
+    };
+    let _ = text::paint(b, r.pill, &name, s.tk());
+    let control_state = State {
+        focused: st.focused,
+        ..st
+    };
+    match look.control {
+        Control::Knob(k) => knob::paint(b, r.control.center(), s, control_state, &k),
+        Control::Fader(fl, _) => fader::paint(b, r.control, s, control_state, &fl),
+    }
+    let value_ink = if st.disabled {
+        t.disabled
+    } else if st.active {
+        t.focus
+    } else if d.clip {
+        t.auto
+    } else {
+        t.text
+    };
+    let role = match look.control {
+        Control::Knob(k) if k.size == KnobSize::XL => Role::Hero,
+        _ => Role::Value,
+    };
+    // The value sits where the label sat: just under the control (the hero's a size taller,
+    // into the cell's foot). Its unit is set a size down after the number, in one run
+    // (`text`'s value layout), so the value reads as one text.
+    let row = if role == Role::Hero {
+        Rect::from_min_max(
+            r.label.min - Vec2::new(0.0, s.s(2.0)),
+            r.label.max + Vec2::new(0.0, s.s(6.0)),
+        )
+    } else {
+        r.label
+    };
+    let whole = Text::new(look.value, role, value_ink).policy(Policy::Elide(text::Elide::End));
+    let unit = (!st.disabled).then_some(t.placeholder);
+    let _ = text::with_unit_ink(unit, || {
+        text::paint_face(b, row, &whole, s.tk(), s.skin.lettering.value())
+    });
     r
 }

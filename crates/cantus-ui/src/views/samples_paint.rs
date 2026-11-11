@@ -5,7 +5,6 @@ use crate::kit::color::{shade, with_alpha};
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::{Brush, Fill, Style};
-use crate::theme::tint as theme_tint;
 use egui::{pos2, vec2, Align2, Color32, Pos2, Rect};
 
 /// What a row shows at its left.
@@ -32,6 +31,9 @@ pub struct RowLook {
     pub disclosure: Option<bool>,
     /// Dims the name (a hint line, a path in search results).
     pub dim: bool,
+    /// A search's match in the name, as a byte range (r39:el-views): painted in the
+    /// accent.
+    pub hit: Option<(u16, u16)>,
 }
 
 /// Paint one row: the band, the chevron, the icon, the name, and a play mark.
@@ -164,14 +166,26 @@ pub fn row_with(
 ) {
     let k = s.k;
     let r = b.snap_rect(rect);
+    // r39:el-views — des-views' rows: the selection a lifted well tinted with the accent
+    // and a 2-px accent stripe; the pointer's row a well lifted; the tree's guides as
+    // hairlines; a sound's own waveform as its icon.
+    let room = super::room::Room::of(&s.t);
     if look.selected {
-        b.rect(r, Fill::Solid(with_alpha(s.t.selection, 0.32)));
+        b.rect(
+            r,
+            Fill::Solid(crate::kit::color::mix(room.raised, room.accent, 0.10)),
+        );
         b.rect(
             Rect::from_min_size(r.min, vec2(2.0 * k, r.height())),
-            Fill::Solid(s.t.highlight),
+            Fill::Solid(room.accent),
         );
     } else if look.hovered {
-        b.rect(r, Fill::Solid(theme_tint(s.t.panel, s.t.text, 0.06)));
+        b.rect(r, Fill::Solid(room.well_hi));
+    }
+    let guide = crate::kit::color::mix(room.base, room.ink4, 0.55);
+    for level in 0..depth {
+        let gx = r.left() + (8.0 + level as f32 * 14.0 + 5.0) * k;
+        b.vline(gx, r.top(), r.bottom(), b.px(), guide);
     }
     let indent = 8.0 * k + depth as f32 * 14.0 * k;
     let cy = r.center().y;
@@ -182,42 +196,43 @@ pub fn row_with(
             b,
             Rect::from_center_size(pos2(x + 5.0 * k, cy), vec2(9.0, 9.0) * k),
             g,
-            s.t.text_dim,
+            room.ink3,
         );
     }
     x += 13.0 * k;
     let ir = Rect::from_center_size(pos2(x + 7.0 * k, cy), vec2(14.0, 12.0) * k);
-    let ink = if look.playing {
-        s.t.highlight
+    let ink = if look.playing || look.selected {
+        room.accent
     } else {
-        s.t.text_dim
+        room.ink3
     };
-    paint_icon(b, ir, s, icon, ink);
+    match wave {
+        Some((peaks, _, _)) if peaks.len() >= 2 => thumb(b, ir, peaks, ink, s),
+        _ => paint_icon(b, ir, s, icon, ink),
+    }
     x += 20.0 * k;
     let right = if look.playing {
         r.right() - 20.0 * k
     } else {
         r.right() - 6.0 * k
     };
-    let ink = if look.dim { s.t.text_dim } else { s.t.text };
+    let ink = if look.dim || wave.is_some() {
+        room.ink2
+    } else {
+        room.ink1
+    };
     let role = if matches!(icon, Icon::Pack | Icon::Cover { .. }) {
         Role::Control
     } else {
         Role::Body
     };
-    if let Some((peaks, cols, d)) = wave {
+    if let Some((_, cols, d)) = wave {
         let _ = detail;
-        sound_columns(b, r, s, x, right, name, d, look, peaks, cols, ink);
+        // The waveform is the row's icon now (des-views): no second one in the row.
+        sound_columns(b, r, s, x, right, name, d, look, &[], cols, ink);
     } else {
         let name_rect = Rect::from_min_max(pos2(x, r.top()), pos2(right, r.bottom()));
-        let painted = text::paint(
-            b,
-            name_rect,
-            &Text::new(name, role, ink)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Elide(Elide::End)),
-            s.tk(),
-        );
+        let painted = name_text(b, name_rect, s, name, role, ink, look.hit);
         if !detail.is_empty() {
             // The detail (a format tag, or where a search hit lives) sits at the right.
             let used = painted.map(|p| p.rect.right()).unwrap_or(x) + 10.0 * k;
@@ -234,66 +249,76 @@ pub fn row_with(
         }
     }
     if look.playing {
-        let pr = Rect::from_center_size(pos2(r.right() - 11.0 * k, cy), vec2(9.0, 9.0) * k);
-        glyph::paint(b, pr, Glyph::Play, s.t.highlight);
+        let pr = Rect::from_center_size(pos2(r.right() - 11.0 * k, cy), vec2(12.0, 12.0) * k);
+        crate::kit::glyph_browser::paint(
+            b,
+            pr,
+            crate::kit::glyph_browser::Glyph::Speaker,
+            room.accent,
+        );
+    }
+}
+
+/// A sound's waveform as its row's icon (des-views): eight columns every other pixel,
+/// ten high, from its own peaks.
+pub fn thumb(b: &mut Brush, r: Rect, peaks: &[f32], ink: Color32, s: &Style) {
+    let k = s.k;
+    let n = peaks.len();
+    let h = 10.0 * k;
+    let cy = r.center().y;
+    // r39:lo-rest — to the sound's own loudest column (at most 16 times up), as the
+    // preview draws it: a quiet sound is a shape, not a row of dots.
+    let top = peaks.iter().copied().fold(0.0f32, f32::max);
+    let gain = if top > 1e-6 {
+        (1.0 / top).min(16.0)
+    } else {
+        1.0
+    };
+    for i in 0..8usize {
+        // The loudest peak of the stretch this column stands for.
+        let a = i * n / 8;
+        let z = ((i + 1) * n / 8).max(a + 1).min(n);
+        let p = peaks[a..z]
+            .iter()
+            .fold(0.0f32, |m, v| m.max(*v * gain))
+            .clamp(0.08, 1.0);
+        let x = b.snap(r.left() + (1.0 + 2.0 * i as f32) * k);
+        let half = (p * h * 0.5).max(0.5 * k);
+        b.rect(
+            Rect::from_min_max(pos2(x, cy - half), pos2(x + k.max(b.px()), cy + half)),
+            Fill::Solid(ink),
+        );
     }
 }
 
 /// The small icons, drawn: a pack box, a folder, a waveform.
 pub fn paint_icon(b: &mut Brush, r: Rect, s: &Style, icon: Icon, ink: Color32) {
     let k = s.k;
+    // r39:el-views — icon set 4 (spec-browser.md): bare glyphs, a folder or a pack in
+    // ink 2, the accent when its row is chosen.
+    use crate::kit::glyph_browser::{paint as glyph4, Glyph as G4};
+
+    let row_ink = if ink == s.t.selection {
+        ink
+    } else {
+        s.t.text_dim
+    };
+    let _ = k;
     match icon {
         Icon::Wave => {
-            // Five bars of a waveform, tallest in the middle.
-            let hs = [0.35, 0.7, 1.0, 0.6, 0.3];
-            let w = r.width() / hs.len() as f32;
-            for (i, h) in hs.iter().enumerate() {
-                let x = r.left() + (i as f32 + 0.5) * w;
-                let half = r.height() * 0.5 * h;
-                b.segment(
-                    pos2(x, r.center().y - half),
-                    pos2(x, r.center().y + half),
-                    1.4 * k,
-                    ink,
-                    true,
-                );
-            }
+            glyph4(b, r, G4::Audio, ink);
         }
         Icon::Folder { open } => {
-            let body = Rect::from_min_max(pos2(r.left(), r.top() + 2.5 * k), r.max);
-            let tab = Rect::from_min_size(r.min, vec2(r.width() * 0.45, 3.5 * k));
-            let fill = theme_tint(s.t.panel, s.hue, if open { 0.55 } else { 0.4 });
-            b.rrect(tab, 1.0 * k, Fill::Solid(fill));
-            b.rrect(body, 1.5 * k, Fill::Solid(fill));
-            b.rrect_stroke(body, 1.5 * k, b.px(), shade(fill, -0.25));
-            if open {
-                b.hline(
-                    body.left() + 1.5 * k,
-                    body.right() - 1.5 * k,
-                    body.top() + 3.0 * k,
-                    b.px(),
-                    shade(fill, 0.25),
-                );
-            }
+            glyph4(
+                b,
+                r,
+                if open { G4::FolderOpen } else { G4::Folder },
+                row_ink,
+            );
         }
         Icon::Cover { motif, hue } => cover(b, r, s, motif, hue),
         Icon::Pack => {
-            let fill = theme_tint(s.t.panel, s.t.brand, 0.5);
-            b.rrect(r, 2.0 * k, Fill::Solid(fill));
-            b.rrect_stroke(r, 2.0 * k, b.px(), shade(fill, -0.3));
-            // The lid's seam and a label.
-            b.hline(
-                r.left(),
-                r.right(),
-                r.top() + r.height() * 0.38,
-                b.px(),
-                shade(fill, -0.3),
-            );
-            let label = Rect::from_center_size(
-                pos2(r.center().x, r.top() + r.height() * 0.66),
-                vec2(r.width() * 0.4, 2.2 * k),
-            );
-            b.rect(label, Fill::Solid(shade(fill, 0.35)));
+            glyph4(b, r, G4::Pack, row_ink);
         }
     }
 }
@@ -301,13 +326,25 @@ pub fn paint_icon(b: &mut Brush, r: Rect, s: &Style, icon: Icon, ink: Color32) {
 /// A pack's cover for `id`: a loop's pack a loop, a one-shots' pack a hit, others bars;
 /// the hue from the id. // r37:finish
 pub fn cover_of(id: &str) -> Icon {
+    // r39:el-views — the motif from what the pack holds (des-views).
     let lower = id.to_ascii_lowercase();
-    let motif = if lower.contains("loop") {
+    let has = |w: &[&str]| w.iter().any(|x| lower.contains(x));
+    let motif = if has(&["kick"]) {
         1
-    } else if lower.contains("shot") || lower.contains("drum") || lower.contains("kit") {
+    } else if has(&["drum", "kit", "shot", "perc"]) {
         0
-    } else {
+    } else if has(&["choir", "voice", "vocal", "vowel"]) {
         2
+    } else if has(&["piano", "keys", "organ", "chorda"]) {
+        3
+    } else if has(&["synth", "chip", "bass", "lead"]) {
+        4
+    } else if has(&["impulse", "ir", "reverb", "room", "space"]) {
+        6
+    } else if has(&["loop", "groove", "beat"]) {
+        7
+    } else {
+        5
     };
     let hue = id
         .bytes()
@@ -322,11 +359,11 @@ pub fn cover_of(id: &str) -> Icon {
 /// A pack's cover in (about) `r`: a square of its hue, lit from above, its motif in the
 /// light (our own drawing; ADR 0103 §53).
 fn cover(b: &mut Brush, r: Rect, s: &Style, motif: u8, hue: u8) {
-    // r37:finish thirteenth — a small composition with depth (the judges: covers richer
-    // than a motif in a hue): a sky lit from the top, a horizon of a second hue, a disc
-    // standing on it with its shadow, the motif in the light on the disc, a sheen.
+    // r39:el-views — des-views' covers, drawn from what the pack holds: a gradient of the
+    // pack's hue darkened 30 % to 62 %, the motif in the hue lifted 30 % toward white at a
+    // weight of the side / 40, a faint light ring; r 3 at 14 px, r 8 at 128.
     let k = s.k;
-    let side = r.height().max(16.0 * k);
+    let side = r.height().max(12.0 * k);
     let sq = b.snap_rect(Rect::from_center_size(r.center(), vec2(side, side)));
     let hues = [
         s.t.hue_source,
@@ -336,92 +373,257 @@ fn cover(b: &mut Brush, r: Rect, s: &Style, motif: u8, hue: u8) {
         s.t.hue_space,
         s.t.hue_output,
     ];
-    let h = hues[usize::from(hue % 6)];
-    let h2 = hues[usize::from((hue + 3) % 6)];
-    let rad = 3.0 * k;
-    // The sky and the ground.
-    b.rrect(sq, rad, Fill::V(shade(h, 0.30), shade(h, -0.10)));
-    let ground = Rect::from_min_max(pos2(sq.left(), sq.top() + side * 0.64), sq.max);
-    b.rrect(ground, rad, Fill::V(shade(h2, -0.05), shade(h2, -0.35)));
-    b.hline(
-        sq.left(),
-        sq.right(),
-        ground.top(),
-        b.px(),
-        with_alpha(s.t.light, 0.35),
+    let h = hues[usize::from(hue) % hues.len()];
+    let black = s.t.dark_shade;
+    let white = s.t.light;
+    let rad = (side * 8.0 / 128.0).max(3.0 * k).min(side * 0.25);
+    b.rrect(
+        sq,
+        rad,
+        Fill::V(
+            crate::kit::color::mix(h, black, 0.30),
+            crate::kit::color::mix(h, black, 0.62),
+        ),
     );
-    let u = side / 12.0;
-    let c = pos2(sq.center().x + 0.4 * u, sq.top() + side * 0.50);
-    // The disc's shadow on the ground, then the disc, lit from the top left.
-    b.dot(
-        pos2(c.x + 1.0 * u, ground.top() + 1.2 * u),
-        3.6 * u,
-        with_alpha(s.t.dark_shade, 0.35),
-    );
-    b.dot(c, 4.1 * u, shade(h, -0.45));
-    b.dot(pos2(c.x - 0.6 * u, c.y - 0.6 * u), 3.3 * u, shade(h, -0.25));
-    let ink = with_alpha(s.t.light, 0.95);
-    let w = (1.1 * k).max(b.px());
-    match motif {
+    let ink = crate::kit::color::mix(h, white, 0.30);
+    let w = (side / 40.0).max(b.px());
+    let c = sq.center();
+    let u = side / 16.0; // the motif's unit: a sixteenth of the side
+    match motif % 8 {
+        // Drum rings: a drumhead seen from above.
         0 => {
-            // A hit: a transient ringing down across the disc.
-            let pts: [egui::Pos2; 7] = std::array::from_fn(|i| {
-                let x = c.x - 3.0 * u + i as f32 * 1.0 * u;
-                let d = 1.0 - i as f32 / 7.0;
-                let a = 2.8 * u * d * d;
-                pos2(x, c.y + if i % 2 == 0 { -a } else { a })
-            });
+            for (i, rr) in [5.5f32, 3.6, 1.7].iter().enumerate() {
+                let a = 1.0 - i as f32 * 0.2;
+                b.circle_stroke(c, rr * u, w, with_alpha(ink, a));
+            }
+        }
+        // A kick's sweep: a sine falling in pitch and level.
+        1 => {
+            let mut pts = [pos2(0.0, 0.0); 33];
+            for (i, p) in pts.iter_mut().enumerate() {
+                let t = i as f32 / 32.0;
+                let phase = 18.0 * (1.0 - (1.0 - t).powi(3));
+                let env = (1.0 - t).powf(1.4);
+                *p = pos2(
+                    sq.left() + 2.0 * u + t * 12.0 * u,
+                    c.y - cantus_dsp::math::sin(phase) * env * 5.0 * u,
+                );
+            }
             b.polyline(&pts, w, ink);
         }
-        1 => {
-            // A loop: a ring round the disc's centre with its arrowhead.
-            let rr = 2.2 * u;
-            b.arc(c, rr, 0.5, 5.8, w, ink, true);
-            let tip = pos2(c.x + rr, c.y - 0.2 * u);
-            b.polygon(
-                &[
-                    pos2(tip.x - 1.2 * u, tip.y - 1.1 * u),
-                    pos2(tip.x + 1.2 * u, tip.y - 1.1 * u),
-                    pos2(tip.x, tip.y + 0.9 * u),
-                ],
-                ink,
-            );
+        // Vowels: three formant ellipses side by side.
+        2 => {
+            for (i, (rx, ry)) in [(1.6f32, 4.5f32), (2.2, 3.2), (1.4, 5.2)]
+                .iter()
+                .enumerate()
+            {
+                let cx = c.x + (i as f32 - 1.0) * 4.2 * u;
+                let mut pts = [pos2(0.0, 0.0); 25];
+                for (j, p) in pts.iter_mut().enumerate() {
+                    let a = j as f32 / 24.0 * std::f32::consts::TAU;
+                    *p = pos2(
+                        cx + cantus_dsp::math::cos(a) * rx * u,
+                        c.y + cantus_dsp::math::sin(a) * ry * u,
+                    );
+                }
+                b.polyline(&pts, w, ink);
+            }
         }
-        _ => {
-            for (i, hgt) in [2.0f32, 3.8, 2.8, 4.4].iter().enumerate() {
-                let x = c.x - 2.6 * u + i as f32 * 1.5 * u;
+        // A keyboard: white keys and three black ones.
+        3 => {
+            let kb = Rect::from_center_size(c, vec2(12.0 * u, 7.0 * u));
+            b.rrect_stroke(kb, u * 0.5, w, ink);
+            for i in 1..5 {
+                let x = kb.left() + kb.width() * i as f32 / 5.0;
+                b.vline(x, kb.top(), kb.bottom(), w, with_alpha(ink, 0.8));
+            }
+            for i in [1.0f32, 2.0, 4.0] {
+                let x = kb.left() + kb.width() * i / 5.0;
                 b.rect(
-                    Rect::from_min_max(
-                        pos2(x, c.y + 1.6 * u - hgt * u),
-                        pos2(x + 0.9 * u, c.y + 1.6 * u),
+                    Rect::from_center_size(
+                        pos2(x, kb.top() + kb.height() * 0.3),
+                        vec2(1.4 * u, kb.height() * 0.6),
                     ),
                     Fill::Solid(ink),
                 );
             }
         }
+        // A square wave.
+        4 => {
+            let (y0, y1) = (c.y - 3.5 * u, c.y + 3.5 * u);
+            let x = |i: f32| sq.left() + 2.0 * u + i * 3.0 * u;
+            let pts = [
+                pos2(x(0.0), y1),
+                pos2(x(0.0), y0),
+                pos2(x(1.0), y0),
+                pos2(x(1.0), y1),
+                pos2(x(2.0), y1),
+                pos2(x(2.0), y0),
+                pos2(x(3.0), y0),
+                pos2(x(3.0), y1),
+                pos2(x(4.0), y1),
+            ];
+            b.polyline(&pts, w, ink);
+        }
+        // Contour lines: a landscape of sound.
+        5 => {
+            for i in 0..4 {
+                let mut pts = [pos2(0.0, 0.0); 17];
+                for (j, p) in pts.iter_mut().enumerate() {
+                    let t = j as f32 / 16.0;
+                    let y = c.y
+                        + (i as f32 - 1.5) * 2.6 * u
+                        + cantus_dsp::math::sin(t * 6.0 + i as f32) * 1.2 * u;
+                    *p = pos2(sq.left() + 2.0 * u + t * 12.0 * u, y);
+                }
+                b.polyline(&pts, w, with_alpha(ink, 1.0 - i as f32 * 0.15));
+            }
+        }
+        // An impulse response: spikes falling away.
+        6 => {
+            for i in 0..10 {
+                let t = i as f32 / 9.0;
+                let hgt = 9.0 * u * (1.0 - t).powf(1.6) + u * 0.5;
+                let x = sq.left() + 2.5 * u + t * 11.0 * u;
+                b.vline(x, c.y + 4.5 * u - hgt, c.y + 4.5 * u, w, ink);
+            }
+        }
+        // A groove: a grid of hits, accents larger.
+        _ => {
+            for row in 0..3 {
+                for col in 0..4 {
+                    let on = (row + col) % 2 == 0 || col == 0;
+                    let p = pos2(
+                        c.x + (col as f32 - 1.5) * 3.2 * u,
+                        c.y + (row as f32 - 1.0) * 3.4 * u,
+                    );
+                    if on {
+                        b.circle(p, if col == 0 { 1.2 } else { 0.8 } * u, Fill::Solid(ink));
+                    }
+                }
+            }
+        }
     }
-    // A sheen across the top and the edge.
-    b.rect(
-        Rect::from_min_max(
-            pos2(sq.left() + rad, sq.top() + b.px()),
-            pos2(sq.right() - rad, sq.top() + 2.0 * b.px()),
-        ),
-        Fill::Solid(with_alpha(s.t.light, 0.45)),
-    );
-    b.rrect_stroke(sq, rad, b.px(), shade(h, -0.45));
+    b.rrect_stroke(sq, rad, b.px(), with_alpha(white, 0.10));
 }
 
-/// A small-caps section label across the tree ("PACKS", "MY FOLDERS").
+/// A section's title across the tree ("Packs", "My folders"): SemiBold 11 in ink 3, in
+/// title case (des-views; r39:lo-rest — it was small capitals in the label ink).
 pub fn section(b: &mut Brush, rect: Rect, s: &Style, key: &str) {
     let r = b.snap_rect(rect);
+    let room = super::room::Room::of(&s.t);
     let _ = text::paint(
         b,
-        r.shrink2(vec2(10.0 * s.k, 0.0)),
-        &Text::key(key, Role::Micro, s.t.label)
+        Rect::from_min_max(r.min, pos2(r.right(), r.bottom() - 3.0 * s.k))
+            .shrink2(vec2(12.0 * s.k, 0.0)),
+        &Text::key(key, Role::Section, room.ink3)
             .align(Align2::LEFT_BOTTOM)
-            .caps(true),
+            .caps(false),
         s.tk(),
     );
+}
+
+/// A search's group (r39:lo-rest): the pack or folder its hits are in, SemiBold 11 in
+/// ink 3, and at the right how many with a chevron ("24 ›"); lifted under the pointer
+/// (a click keeps the search to it).
+pub fn group(b: &mut Brush, rect: Rect, s: &Style, label: &str, count: usize, hovered: bool) {
+    let k = s.k;
+    let r = b.snap_rect(rect);
+    let room = super::room::Room::of(&s.t);
+    if hovered {
+        b.rect(r, Fill::Solid(room.well_hi));
+    }
+    let ink = if hovered { room.ink1 } else { room.ink3 };
+    let body = Rect::from_min_max(r.min, pos2(r.right(), r.bottom() - 3.0 * k))
+        .shrink2(vec2(12.0 * k, 0.0));
+    let mut d = crate::views::clips_chrome::Digits::default();
+    let n = Text::new(d.fmt(count as i64), Role::Label, room.ink3)
+        .caps(false)
+        .align(Align2::RIGHT_BOTTOM);
+    let g = Rect::from_min_max(
+        pos2(body.right() - 8.0 * k, body.bottom() - 11.0 * k),
+        pos2(body.right(), body.bottom() - 1.0 * k),
+    );
+    glyph::paint(b, g, Glyph::Next, room.ink3);
+    let painted = text::paint(
+        b,
+        Rect::from_min_max(body.min, pos2(g.left() - 3.0 * k, body.bottom())),
+        &n,
+        s.tk() * 10.0 / 11.0,
+    );
+    let right = painted.map_or(g.left(), |p| p.rect.left()) - 8.0 * k;
+    let _ = text::paint(
+        b,
+        Rect::from_min_max(body.min, pos2(right, body.bottom())),
+        &Text::new(label, Role::Section, ink)
+            .caps(false)
+            .align(Align2::LEFT_BOTTOM)
+            .policy(Policy::Elide(Elide::End)),
+        s.tk(),
+    );
+}
+
+/// A link in the accent across a row ("Show the other 19 sounds").
+pub fn link(b: &mut Brush, rect: Rect, s: &Style, words: &str, hovered: bool) {
+    let room = super::room::Room::of(&s.t);
+    let ink = if hovered { room.ink1 } else { room.accent };
+    let _ = text::paint(
+        b,
+        b.snap_rect(rect).shrink2(vec2(12.0 * s.k, 0.0)),
+        &Text::new(words, Role::Label, ink)
+            .caps(false)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End)),
+        s.tk(),
+    );
+}
+
+/// The search's chips from `left` along the row's middle: each 20 high, r 10, an accent
+/// 10 % fill and a 35 % ring, its words and a × (des-views). Returns each chip's rect.
+pub fn chips(
+    b: &mut Brush,
+    rect: Rect,
+    s: &Style,
+    words: &[&str],
+    hovered: Option<usize>,
+) -> Vec<Rect> {
+    let k = s.k;
+    let room = super::room::Room::of(&s.t);
+    let mut x = rect.left() + 12.0 * k;
+    let cy = rect.center().y;
+    let mut out = Vec::with_capacity(words.len());
+    for (i, w) in words.iter().enumerate() {
+        let tx = Text::new(w, Role::Label, room.ink1)
+            .caps(false)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End));
+        let tw = text::measure(b.ctx(), &tx, s.tk()).x;
+        let cw = (tw + 30.0 * k).min(rect.right() - 8.0 * k - x);
+        if cw < 40.0 * k {
+            break;
+        }
+        let chip = b.snap_rect(Rect::from_min_size(
+            pos2(x, cy - 10.0 * k),
+            vec2(cw, 20.0 * k),
+        ));
+        let a = if hovered == Some(i) { 0.20 } else { 0.10 };
+        b.rrect(chip, 10.0 * k, Fill::Solid(with_alpha(room.accent, a)));
+        b.rrect_stroke(chip, 10.0 * k, b.px(), with_alpha(room.accent, 0.35));
+        let _ = text::paint(
+            b,
+            Rect::from_min_max(
+                pos2(chip.left() + 10.0 * k, chip.top()),
+                pos2(chip.right() - 18.0 * k, chip.bottom()),
+            ),
+            &tx,
+            s.tk(),
+        );
+        let xr = Rect::from_center_size(pos2(chip.right() - 10.0 * k, cy), vec2(7.0, 7.0) * k);
+        glyph::paint(b, xr, Glyph::Close, room.ink2);
+        out.push(chip);
+        x = chip.right() + 6.0 * k;
+    }
+    out
 }
 
 /// The chip that follows the pointer while a sample is dragged: its waveform mark and
@@ -525,23 +727,25 @@ fn sound_columns(
     // thumbnail, else without the key too (the panel's width decides, not the row's).
     let full = cols.width(k);
     let no_key = SoundCols { key: 0.0, ..cols };
-    let (cols, wave_on) = if x + min_name + wave_w + COL_GAP * k + full <= right {
-        (cols, true)
-    } else if x + min_name + full <= right {
-        (cols, false)
-    } else {
-        (no_key, false)
-    };
+    let (cols, wave_on) =
+        if !peaks.is_empty() && x + min_name + wave_w + COL_GAP * k + full <= right {
+            (cols, true)
+        } else if x + min_name + full <= right {
+            (cols, false)
+        } else {
+            (no_key, false)
+        };
     let table = right - cols.width(k) + COL_GAP * k;
     let wave_x = table - COL_GAP * k - wave_w;
     let name_right = if wave_on { wave_x } else { table } - COL_GAP * k;
-    let _ = text::paint(
+    let _ = name_text(
         b,
         Rect::from_min_max(pos2(x, r.top()), pos2(name_right.max(x), r.bottom())),
-        &Text::new(name, Role::Body, ink)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End)),
-        s.tk(),
+        s,
+        name,
+        Role::Body,
+        ink,
+        look.hit,
     );
     if wave_on {
         let wr = Rect::from_min_max(
@@ -606,9 +810,92 @@ fn sound_columns(
     }
 }
 
+/// Where `needle` first occurs in `hay`, ignoring ASCII case, as a byte range (no
+/// allocation: the browser asks it for every row in view while a search is typed).
+pub fn find_ci(hay: &str, needle: &str) -> Option<(u16, u16)> {
+    let (h, n) = (hay.as_bytes(), needle.as_bytes());
+    if n.is_empty() || n.len() > h.len() || h.len() > u16::MAX as usize {
+        return None;
+    }
+    (0..=h.len() - n.len())
+        .filter(|&i| hay.is_char_boundary(i) && hay.is_char_boundary(i + n.len()))
+        .find(|&i| h[i..i + n.len()].eq_ignore_ascii_case(n))
+        .map(|i| (i as u16, (i + n.len()) as u16))
+}
+
+/// A row's name, elided at its end; a search's match inside it in the accent and a
+/// heavier weight (des-views: the match within one run).
+fn name_text(
+    b: &mut Brush,
+    rect: Rect,
+    s: &Style,
+    name: &str,
+    role: Role,
+    ink: Color32,
+    hit: Option<(u16, u16)>,
+) -> Option<text::Painted> {
+    let whole = |b: &mut Brush| {
+        text::paint(
+            b,
+            rect,
+            &Text::new(name, role, ink)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        )
+    };
+    let Some((a, z)) = hit.map(|(a, z)| (a as usize, z as usize)) else {
+        return whole(b);
+    };
+    let (Some(head), Some(word), Some(tail)) = (name.get(..a), name.get(a..z), name.get(z..))
+    else {
+        return whole(b);
+    };
+    let accent = super::room::Room::of(&s.t).accent;
+    let mut x = rect.left();
+    let mut last = None;
+    for (part, role, ink) in [
+        (head, role, ink),
+        (word, Role::Control, accent),
+        (tail, role, ink),
+    ] {
+        if part.is_empty() || x >= rect.right() {
+            continue;
+        }
+        let r = Rect::from_min_max(pos2(x, rect.top()), rect.max);
+        let p = text::paint(
+            b,
+            r,
+            &Text::new(part, role, ink)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        );
+        match p {
+            Some(p) => {
+                x = p.rect.right();
+                last = Some(p);
+            }
+            None => break,
+        }
+    }
+    last
+}
+
 #[cfg(test)]
 mod cover_tests {
     use super::*;
+
+    /// A search's match is found whatever its case, as a byte range on character
+    /// boundaries (r39:el-views: lit in the accent in the browser's rows).
+    #[test]
+    fn a_search_match_is_found_in_any_case() {
+        assert_eq!(super::find_ci("Deep Kick 01", "kick"), Some((5, 9)));
+        assert_eq!(super::find_ci("Deep Kick 01", "DEEP"), Some((0, 4)));
+        assert_eq!(super::find_ci("Deep Kick 01", "snare"), None);
+        assert_eq!(super::find_ci("Señal kick", "kick"), Some((7, 11)));
+        assert_eq!(super::find_ci("kick", ""), None);
+    }
 
     /// A pack's cover says what it holds: loops a loop, one-shots a hit; and the same id
     /// draws the same cover every time. // r37:finish
@@ -616,14 +903,23 @@ mod cover_tests {
     fn a_packs_cover_follows_its_id() {
         assert!(matches!(
             cover_of("cantus-loops"),
-            Icon::Cover { motif: 1, .. }
+            Icon::Cover { motif: 7, .. }
         ));
         assert!(matches!(
             cover_of("cantus-one-shots"),
             Icon::Cover { motif: 0, .. }
         ));
+        // r39:el-views — the motif says what the pack holds (des-views' covers).
         assert!(matches!(
             cover_of("salamander-piano"),
+            Icon::Cover { motif: 3, .. }
+        ));
+        assert!(matches!(
+            cover_of("afr-kicks-2024"),
+            Icon::Cover { motif: 1, .. }
+        ));
+        assert!(matches!(
+            cover_of("choir-voices"),
             Icon::Cover { motif: 2, .. }
         ));
         assert_eq!(cover_of("cantus-loops"), cover_of("cantus-loops"));

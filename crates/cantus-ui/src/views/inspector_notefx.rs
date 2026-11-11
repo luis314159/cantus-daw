@@ -159,6 +159,7 @@ fn empty_row(sh: &mut Sheet<'_>, track: TrackId) {
         .ui
         .interact(r, Id::new(("notefx-empty", track)), Sense::click());
     sheet::placeholder_well(sh.b, r, &s, State::of(&resp, false), "notefx.empty");
+    let resp = crate::views::hint::said_with(resp, || crate::i18n::t("notefx.empty")); // r39:ux-a
     if resp.clicked() {
         sh.acts.push(Act::NoteFx(NfAct::AddMenu(track, r)));
     }
@@ -585,11 +586,12 @@ fn word_row(
         typing: false,
         modulation: Some(m),
     };
-    if offer.automated {
-        crate::kit::automate::mark(sh.b, rect, &sh.s);
-    }
-    if n > 0 {
-        crate::kit::automate::mod_mark(sh.b, rect, &sh.s);
+    // The signs of what drives it, and its hint's words (round 39, ADR 0109).
+    let mut signs = offer.drivers();
+    signs.modulated |= n > 0;
+    crate::kit::automate::signs(sh.b, rect, &sh.s, signs);
+    if resp.hovered() {
+        crate::kit::automate::hint_drive(sh.ui.ctx(), Some(offer));
     }
     let c = crate::kit::automate::modulation_choice(sh.ui, &resp, Some(offer))
         .or_else(|| crate::kit::automate::menu(sh.ui, &resp, offer));

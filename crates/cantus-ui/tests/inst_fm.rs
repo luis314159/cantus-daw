@@ -338,10 +338,10 @@ fn a_cell_drag_is_one_undo_step_and_a_dropped_source_connects() {
     let texts = inst_look::paint_at(&ctx, &mut a, track, View::Play, 1.0);
     let label = texts
         .iter()
-        .find(|p| p.text == "BRIGHTNESS" || p.text == "BRIGHT")
+        .find(|p| matches!(p.text.to_uppercase().as_str(), "BRIGHTNESS" | "BRIGHT")) // r39:el-controls
         .expect("the easy brightness cell");
-    // The knob sits above its label: 4 pt of gap, then the L knob (56 pt).
-    let knob = egui::pos2(label.rect.center().x, label.rect.top() - 4.0 - 28.0);
+    // The whole cell takes the drag (in Slate its name sits above the knob; r39:el-controls).
+    let knob = label.rect.center();
     let size = egui::vec2(1080.0, 720.0);
     let t = inst_look::drag(
         &ctx,

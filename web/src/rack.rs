@@ -217,7 +217,7 @@ pub fn rack() -> Html {
     html! {
         <div class={classes!("rack", playing.then_some("is-playing"))} id="rack">
             <div class="rack-bar">
-                <div class="rack-title"><i></i>{ l.t("Channel rack — try it", "Channel rack — pruébalo") }</div>
+                <div class="rack-title"><i></i>{ l.t("Channel rack — try it", "Rack de canales — pruébalo") }</div>
                 <label class="tempo">
                     <span>{ l.t("Tempo", "Tempo") }</span>
                     <input type="range" min="70" max="180" value={bpm.to_string()} oninput={on_bpm}

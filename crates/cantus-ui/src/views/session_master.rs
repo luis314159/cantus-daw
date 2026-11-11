@@ -55,6 +55,12 @@ pub(crate) fn heads(app: &mut CantusApp, ui: &mut Ui, geo: &Geometry, s: &Style)
                 hint::set_text(ui.ctx(), &t(tip), "", Caps::NONE);
             }
         }
+        // r39:ux-a — the head itself on the help line (ADR 0109).
+        if resp.hovered() && !hint::written(ui.ctx()) {
+            let name = &app.project().tracks[i].name;
+            let words = crate::i18n::tf("ux.hint.session_head", &[("track", name)]);
+            hint::set_text(ui.ctx(), &words, "", Caps::NONE);
+        }
         if resp.clicked() && !app.controllers.learn_mode {
             clicks.push((i, 9));
         }
@@ -201,6 +207,10 @@ pub(crate) fn master(app: &mut CantusApp, ui: &mut Ui, geo: &Geometry, s: &Style
     resp.widget_info(|| {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, true, spoken_scene(app))
     });
+    // r39:ux-a — an empty column says how a scene is made (ADR 0109).
+    if geo.scenes.is_empty() && resp.hovered() {
+        hint::fallback(ui.ctx(), &t("session.empty.scenes"), "", Caps::NONE);
+    }
     let pointer = ui
         .input(|i| i.pointer.hover_pos())
         .filter(|p| view.contains(*p));

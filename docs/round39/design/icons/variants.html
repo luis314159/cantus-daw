@@ -1,0 +1,58 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Icon variants</title>
+<style>html,body{margin:0;background:#1d2329;font-family:Segoe UI,sans-serif}</style></head>
+<body><div id="out"></div>
+<script>
+// Draft variants of the hard metaphors, drawn once at a 36-px key (stroke 2) to choose the
+// idea; the small copy is the same drawing scaled to a 24-px key, for judging only. The
+// chosen ones are then drawn for every size by hand (glyphs-*.js).
+const I = '#a6b0ba', I3 = '#7a8692', W = '#1a1f25';
+const s = (d, w = 2, extra = '') => `<path d="${d}" fill="none" stroke="${I}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${extra}/>`;
+const f = (d, c = I) => `<path d="${d}" fill="${c}"/>`;
+const V = {
+  'loop A · one head': s('M19.5 12 H22 A6.5 6.5 0 0 1 22 25 H14 A6.5 6.5 0 0 1 14 12 H15.5') + s('M13 9 L16.5 12 L13 15'),
+  'loop B · two heads': s('M9 19 V17 A5 5 0 0 1 14 12 H26') + s('M23 9 L26.5 12 L23 15') + s('M27 17 V19 A5 5 0 0 1 22 24 H10') + s('M13 21 L9.5 24 L13 27'),
+  'loop C · head down': s('M20 24 H24 A4 4 0 0 0 28 20 V16 A4 4 0 0 0 24 12 H12 A4 4 0 0 0 8 16 V20 A4 4 0 0 0 12 24 H13') + s('M12 21 L15.5 24 L12 27'),
+  'metro A · outline': s('M15 8 H21 L26 28 H10 Z') + s('M18 24 L24 9') + `<circle cx="21.6" cy="15" r="2.2" fill="${I}"/>`,
+  'metro B · cut rod': `<clipPath id="mb"><path d="M15 8 H21 L26 28 H10 Z"/></clipPath>` + s('M17.5 25 L25 5') + f('M15 8 H21 L26 28 H10 Z') + `<path d="M17.5 25 L25 5" stroke="${W}" stroke-width="2.2" clip-path="url(#mb)"/>`,
+  'metro C · taper + tick': s('M15.5 8 H20.5 L25 28 H11 Z') + s('M18 23 L22 11') + s('M14 23 H22', 2),
+  'count-in A · dots ▶': `<circle cx="9" cy="18" r="1.5" fill="${I}"/><circle cx="13.5" cy="18" r="1.5" fill="${I}"/><circle cx="18" cy="18" r="1.5" fill="${I}"/>` + f('M21.5 12 L29 18 L21.5 24 Z'),
+  'count-in B · ring ▶': s('M18 9 A9 9 0 1 1 9.5 15') + `<circle cx="9.9" cy="11.6" r="1.4" fill="${I}"/>` + f('M16 14 L22 18 L16 22 Z'),
+  'count-in C · 1 2 ▶': `<text x="7" y="23" font-size="10" font-weight="600" fill="${I}">1·2</text>` + f('M22 12 L29 18 L22 24 Z'),
+  'follow A · head →': f('M10 8 H16 V10 L13 13 L10 10 Z') + s('M13 12 V28') + s('M18 18 H27') + s('M24 15 L27.5 18 L24 21'),
+  'follow B · view': s('M8 11 H28 V25 H8 Z', 2) + s('M18 8 V28') + s('M21 15 L24 18 L21 21', 2),
+  'follow C · page →': s('M9 9 V27') + s('M27 9 V27') + s('M13 18 H23') + s('M20 15 L23.5 18 L20 21'),
+  'slice A · blade': `<g transform="rotate(-45 18 18)">` + f('M8 15.5 H22 V20.5 H11 Z') + s('M22.5 18 H29', 3.5) + `</g>`,
+  'slice B · scissors': `<circle cx="11.5" cy="23.5" r="3.2" fill="none" stroke="${I}" stroke-width="2"/><circle cx="11.5" cy="12.5" r="3.2" fill="none" stroke="${I}" stroke-width="2"/>` + s('M14.3 21.7 L28 11') + s('M14.3 14.3 L28 25'),
+  'slice C · split clip': s('M8 13 H15 L17 23 H8 Z') + s('M19.5 13 H28 V23 H21.5 Z') ,
+  'arr A · pills': s('M9 12 H20', 4) + s('M15 18 H27', 4) + s('M9 24 H16', 4),
+  'arr B · lanes': s('M8 13.5 H28', 1, `stroke="${I3}"`) + s('M8 22.5 H28', 1) + s('M10 18 H17', 3.5) + s('M20 18 H26', 3.5) + s('M14 27 H25', 3.5) + s('M12 9 H22', 3.5),
+  'piano A · keys': s('M8 9 H28 V27 H8 Z', 2) + s('M13 19 V27 M18 19 V27 M23 19 V27', 1.6) + f('M11.5 9 H14.5 V19 H11.5 Z') + f('M16.5 9 H19.5 V19 H16.5 Z') + f('M21.5 9 H24.5 V19 H21.5 Z'),
+  'piano B · roll': s('M10 9 V27', 2) + s('M14 11 H19', 3) + s('M18 17 H24', 3) + s('M22 23 H27', 3) + s('M7 13 H10 M7 21 H10', 2),
+  'rack A · steps': [11, 16, 21, 26].map((x, i) => [12, 18, 24].map((y, j) => ((i + j) % 3 === 0 ? `<rect x="${x - 2}" y="${y - 2}" width="4" height="4" rx="1" fill="${I}"/>` : `<rect x="${x - 1.5}" y="${y - 1.5}" width="3" height="3" rx="0.8" fill="none" stroke="${I}" stroke-width="1.2"/>`)).join('')).join(''),
+  'rack B · rows': [13, 23].map(y => s(`M8 ${y} H11`, 3) + [15, 19.5, 24, 28.5].map((x, i) => `<rect x="${x - 1.75}" y="${y - 1.75}" width="3.5" height="3.5" rx="0.8" fill="${i % 2 ? 'none' : I}" stroke="${I}" stroke-width="1.2"/>`).join('')).join(''),
+  'mixer A · caps': s('M12 9 V17 M12 23 V27 M18 9 V11 M18 17 V27 M24 9 V20 M24 26 V27') + `<rect x="9" y="17" width="6" height="6" rx="1.5" fill="none" stroke="${I}" stroke-width="2"/><rect x="15" y="11" width="6" height="6" rx="1.5" fill="none" stroke="${I}" stroke-width="2"/><rect x="21" y="20" width="6" height="6" rx="1.5" fill="none" stroke="${I}" stroke-width="2"/>`,
+  'mixer B · solid caps': s('M12 9 V27 M18 9 V27 M24 9 V27', 1.5) + f('M9 17 h6 v4 h-6 Z') + f('M15 11 h6 v4 h-6 Z') + f('M21 21 h6 v4 h-6 Z'),
+  'browser A · folder': s('M8 12 V25 A1.5 1.5 0 0 0 9.5 26.5 H26.5 A1.5 1.5 0 0 0 28 25 V15 A1.5 1.5 0 0 0 26.5 13.5 H18 L16 10.5 H9.5 A1.5 1.5 0 0 0 8 12 Z'),
+  'browser B · folder + list': s('M8 11.5 V18 H19 V13 H14 L12.5 11 H8.5 Z', 1.6) + s('M10 21 V26 H14 M10 23.5 H14', 1.4) + s('M17 23.5 H27 M17 26 H27 M23 15 H28', 2),
+  'plug A · front': s('M14 8 V12 M22 8 V12') + s('M10 12 H26 V15 A8 8 0 0 1 10 15 Z') + s('M18 23 V28'),
+  'plug B · module': s('M8 10 H28 V26 H8 Z') + `<circle cx="14" cy="18" r="3" fill="none" stroke="${I}" stroke-width="2"/><circle cx="22" cy="18" r="3" fill="none" stroke="${I}" stroke-width="2"/>`,
+  'inspector A · sidebar': s('M8 10 H28 V26 H8 Z') + s('M20 10 V26') + s('M22.5 14 H25.5 M22.5 18 H25.5 M22.5 22 H25.5', 1.5),
+  'inspector B · info': `<circle cx="18" cy="18" r="9.5" fill="none" stroke="${I}" stroke-width="2"/><circle cx="18" cy="13" r="1.4" fill="${I}"/>` + s('M18 17 V24'),
+  'magnet A · outline': s('M9 9 V18 A9 9 0 0 0 27 18 V9 H22 V18 A4 4 0 0 1 14 18 V9 Z') + s('M9 13 H14 M22 13 H27', 2),
+  'magnet B · caps': s('M11.5 13 V18 A6.5 6.5 0 0 0 24.5 18 V13', 3) + f('M10 8 h3 v3 h-3 Z') + f('M23 8 h3 v3 h-3 Z'),
+};
+let html = '<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="' + (Math.ceil(Object.keys(V).length / 6) * 96 + 20) + '">';
+Object.entries(V).forEach(([name, g], i) => {
+  const x = 16 + (i % 6) * 204, y = 16 + Math.floor(i / 6) * 96;
+  const key = (kx, ky, K) => `<rect x="${kx}" y="${ky}" width="${K}" height="${K}" rx="${K / 6}" fill="#2e363e"/><rect x="${kx}" y="${ky}" width="${K}" height="${K - 1}" rx="${K / 6}" fill="#11151a"/><rect x="${kx + 1}" y="${ky + 1}" width="${K - 2}" height="${K - 2}" rx="${K / 6 - 1}" fill="${W}"/>`;
+  html += `<rect x="${x - 6}" y="${y - 6}" width="196" height="84" rx="6" fill="#262d34"/>`;
+  html += key(x, y, 36) + `<g transform="translate(${x},${y})">${g}</g>`;
+  html += key(x + 46, y + 6, 24) + `<g transform="translate(${x + 46},${y + 6}) scale(${24 / 36})">${g.replace(/id="mb"/, 'id="mb' + i + 's"').replace(/url\(#mb\)/, 'url(#mb' + i + 's)')}</g>`;
+  html += `<text x="${x}" y="${y + 58}" font-size="11" fill="#a6b0ba">${name}</text>`;
+});
+html += '</svg>';
+document.getElementById('out').innerHTML = html;
+document.body.setAttribute('data-w', 1240);
+document.body.setAttribute('data-h', Math.ceil(Object.keys(V).length / 6) * 96 + 20);
+</script></body></html>

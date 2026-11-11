@@ -453,7 +453,8 @@ fn help_credits_opens_about_at_the_credits() {
             .unwrap_or_else(|| panic!("no {label:?} in {}", joined(shown)))
     };
     let shown = run(&mut app, vec![]);
-    let help = find(&shown, "HELP");
+    // Round 39 (ADR 0111): the menus are title case, "Help" (no longer "HELP").
+    let help = find(&shown, "Help");
     let shown = run(&mut app, click(help));
     let shown = if shown.iter().any(|(s, _)| s == "Credits") {
         shown

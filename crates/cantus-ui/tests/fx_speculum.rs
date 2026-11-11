@@ -270,7 +270,8 @@ fn a_docked_tabs_settings_fit_its_width() {
                 "RETENIDO"
             };
             assert!(
-                text.contains(held),
+                // r39:el-controls — Slate sets an LED key's word in title case.
+                text.to_lowercase().contains(&held.to_lowercase()),
                 "{lang:?} {size:?}: the last setting, in {text}"
             );
         }

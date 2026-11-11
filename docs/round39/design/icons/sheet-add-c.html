@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus track icons — additions C</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="family.js"></script>
+<script src="glyphs-t-tracks.js"></script>
+<script src="glyphs-t-tracks2.js"></script>
+<script src="glyphs-t-tracks3.js"></script>
+<script src="glyphs-t-lib.js"></script>
+<script src="glyphs-t-lib2.js"></script>
+<script src="glyphs-t-lib3.js"></script>
+<script src="glyphs-t-add-c.js"></script>
+</head><body><div id="out"></div>
+<script>
+// Set 6 additions, part C (icons-c): electronic & production, voice, notation, sound design &
+// Foley, mix & routing, marks & shapes, letters & numbers.
+//   ?t=night|paper            every family titled; each icon at 12, 14, 16 (ink 2 with ink 3,
+//                             1:1), 24 and 30 (ink 1 with ink 2), then in a track colour at
+//                             16, with its English and Spanish names
+//   &fam=<n>                  only the n-th family (0-based)
+//   &ids=a,b,c                only these icons (variants)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const HUES = t === 'night' ? ['#e0794f', '#d9b24a', '#7fbf5a', '#4fb3c8', '#6f8cf0', '#b07ae0', '#e06c9f']
+  : ['#c2532a', '#a8801a', '#4f8f2e', '#1f8197', '#3d5fd0', '#8648c0', '#c0457a'];
+const glyph = (id, S, x, y, ink, ink2) =>
+  `<g style="--main:${ink};--second:${ink2};--cut:${k.surface}" transform="translate(${x},${y})">${drawing(N[id] && N[id][S])}</g>`;
+let groups = window.ADDC_GROUPS;
+if (q.get('fam')) groups = q.get('fam').split(',').map(i => groups[+i]);
+if (q.get('ids')) groups = [['Variants', q.get('ids').split(',')]];
+const SZ = [12, 14, 16, 24, 30], GAP = 7, COLS = +(q.get('cols') || 6);
+const CW = SZ.reduce((a, b) => a + b, 0) + GAP * (SZ.length - 1) + 22 + 18, RH = 66, PAD = 16;
+const W = PAD * 2 + COLS * CW;
+let y = PAD, body = '', n = 0;
+const T = (x, yy, s, size, col, weight = 400, anchor = 'start') =>
+  `<text x="${x}" y="${yy}" font-family="Segoe UI, sans-serif" font-size="${size}" font-weight="${weight}" fill="${col}" text-anchor="${anchor}">${s}</text>`;
+body += T(PAD, y + 14, `Cantus track icons — set 6 additions C — Slate ${t === 'night' ? 'Night' : 'Paper'} — 1:1 device pixels`, 14, k.ink1, 600);
+y += 22;
+body += T(PAD, y + 11, 'Each icon at 12, 14, 16 px (strip head, header; ink 2 with ink 3), 24 and 30 px (picker at 100 % and 125 %; ink 1 with ink 2), then 16 px in a track colour.', 10.5, k.ink3);
+y += 22;
+for (const [title, ids] of groups) {
+  body += T(PAD, y + 13, title, 12, k.ink3, 600);
+  body += `<rect x="${PAD}" y="${y + 19}" width="${W - 2 * PAD}" height="1" fill="${k.rule}"/>`;
+  y += 28;
+  ids.forEach((id, i) => {
+    const x0 = PAD + (i % COLS) * CW, yy = y + Math.floor(i / COLS) * RH;
+    let x = x0;
+    SZ.forEach(S => {
+      const big = S >= 24;
+      body += glyph(id, S, x, yy + (30 - S), big ? k.ink1 : k.ink2, big ? k.ink2 : k.ink3);
+      x += S + GAP;
+    });
+    const h = HUES[n++ % HUES.length];
+    body += glyph(id, 16, x + 4, yy + 14, h, mix(h, k.surface, 0.45));
+    const w = (window.ADDC_WORDS[id] || window.TRACK_WORDS[id] || [id, '']);
+    body += T(x0, yy + 45, w[0], 10.5, k.ink2);
+    body += T(x0, yy + 58, w[1], 10.5, k.ink3);
+  });
+  y += Math.ceil(ids.length / COLS) * RH + 6;
+}
+const H = Math.ceil(y + PAD);
+document.body.style.background = k.surface;
+document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.surface}"/>` + body);
+document.body.setAttribute('data-w', W);
+document.body.setAttribute('data-h', H);
+</script></body></html>

@@ -5,7 +5,7 @@ use yew::prelude::*;
 use crate::icons;
 use crate::lang::use_lang;
 
-/// One crop of `app-mixer-xl.png` (1912×1022), in source pixels.
+/// One crop of the program's picture (`picture.rs`), in source pixels.
 struct Crop {
     x: u32,
     y: u32,
@@ -21,9 +21,9 @@ const ARRANGEMENT: Crop = Crop {
 };
 const MIXER: Crop = Crop {
     x: 277,
-    y: 515,
+    y: 497,
     w: 1340,
-    h: 475,
+    h: 493,
 };
 const INSPECTOR: Crop = Crop {
     x: 1622,
@@ -49,8 +49,14 @@ pub fn tour() -> Html {
     ];
     let (_, crop, title, caption) = tabs[*tab];
     let style = format!(
-        "--sw:1912;--sh:1022;--cx:{};--cy:{};--cw:{};--ch:{}",
-        crop.x, crop.y, crop.w, crop.h
+        "--pic:url({});--sw:{};--sh:{};--cx:{};--cy:{};--cw:{};--ch:{}",
+        crate::picture::program(l),
+        crate::picture::SIZE.0,
+        crate::picture::SIZE.1,
+        crop.x,
+        crop.y,
+        crop.w,
+        crop.h
     );
     let buttons = tabs.iter().enumerate().map(|(i, (name, ..))| {
         let tab = tab.clone();
@@ -93,8 +99,7 @@ pub fn features() -> Html {
          l.t("Sends, groups, submixes, VCA faders, snapshots and a master strip with a chain, in the FL Studio tradition.",
              "Envíos, grupos, submezclas, faders VCA, snapshots y un máster con cadena, en la tradición de FL Studio.")),
         (icons::wave(), l.t("Instruments and effects of its own", "Instrumentos y efectos propios"),
-         l.t("Wavetable, analog, FM, sampler, bass, organ, electric piano, a modelled grand piano and drums; twenty-five effects from EQ and compressor to chorus, flanger, clipper and analyser — twenty-three of them with a face of their own.",
-             "Wavetable, analógico, FM, sampler, bajo, órgano, piano eléctrico, un piano de cola modelado y batería; veinticinco efectos, del EQ y el compresor al chorus, el flanger, el clipper y el analizador, veintitrés de ellos con su propia cara.")),
+         crate::counts::features_units(l)),
         (icons::grid(), l.t("A session view, in sync", "Una vista de sesión, sincronizada"),
          l.t("Launch clips and scenes from a grid, a Launchpad or an APC; share the tempo over Ableton Link or MIDI clock; play and edit MPE note by note.",
              "Lanza clips y escenas desde una rejilla, un Launchpad o un APC; comparte el tempo por Ableton Link o reloj MIDI; toca y edita MPE nota a nota.")),

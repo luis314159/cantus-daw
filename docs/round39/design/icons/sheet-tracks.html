@@ -1,0 +1,147 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus track icons</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="family.js"></script>
+<script src="glyphs-t-tracks.js"></script>
+<script src="glyphs-t-tracks2.js"></script>
+<script src="glyphs-t-tracks3.js"></script>
+<script src="glyphs-t-lib.js"></script>
+<script src="glyphs-t-lib2.js"></script>
+<script src="glyphs-t-lib3.js"></script>
+<script src="glyphs-t-add-a.js"></script>
+<script src="glyphs-t-add-a-names.js"></script>
+<script src="glyphs-t-add-b.js"></script>
+<script src="glyphs-t-add-c.js"></script>
+<script src="glyphs-t-final.js"></script>
+<script src="glyphs-t-guitars.js"></script>
+<script src="glyphs-t-guitars-e.js"></script>
+<script src="glyphs-t-guitars-a.js"></script>
+<script src="glyphs-t-guitars-mx.js"></script>
+<script src="glyphs-t-guitars-pick.js"></script>
+<script src="glyphs-t-guitars-px.js"></script>
+<script src="glyphs-t-guitars-px-fix.js"></script>
+<script src="glyphs-t-guitars-px-fix2.js"></script>
+<script src="glyphs-t-guitars-px-fix3.js"></script>
+<script src="glyphs-t-guitars-px-fix4.js"></script>
+<script src="glyphs-t-guitars-px-fix5.js"></script>
+<script src="glyphs-t-families.js"></script>
+</head><body><div id="out"></div>
+<script>
+// The whole track-icon library (set 6, 316 icons):
+//   ?t=night|paper&grouped=1&page=N   every family titled, icons at the picker's 24 px shown at
+//                                     125 % (30 device px), English and Spanish names; page N
+//                                     (the page count is in <body data-pages>)
+//   ?t=…&x4=1                         every icon at 12, 14, 16 and 24 px, 1:1 (render.py makes
+//                                     the 4× by nearest neighbour)
+//   ?t=…&review=a,b,c[&sizes=…][&names=…]  a working view: those ids (variants too) at every
+//                                     size (or the sizes given), labelled by id (or names)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const HUES = t === 'night' ? ['#e0794f', '#d9b24a', '#7fbf5a', '#4fb3c8', '#6f8cf0', '#b07ae0', '#e06c9f']
+  : ['#c2532a', '#a8801a', '#4f8f2e', '#1f8197', '#3d5fd0', '#8648c0', '#c0457a'];
+const FAM = window.TRACK_FAMILIES, WORDS = window.TRACK_WORDS;
+const glyph = (id, S, x, y, ink, ink2, cut) =>
+  `<g style="--main:${ink};--second:${ink2};--cut:${cut || k.surface}" transform="translate(${x},${y})">${N[id] && N[id][S] ? drawing(N[id][S]) : ''}</g>`;
+const T = (x, y, s, size, fill, o = {}) => `<text x="${x}" y="${y}" font-family="Segoe UI, sans-serif" font-size="${size}"` +
+  ` font-weight="${o.weight || 400}" text-anchor="${o.anchor || 'start'}" fill="${fill}"${o.max ? ` data-max="${o.max}"` : ''}>${s}</text>`;
+const names = (fam, id) => (window.TRACK_LABEL_IN || {})[fam + ':' + id] || WORDS[id] || [id, '?'];
+function done(W, H, body, extra = {}) {
+  document.body.style.background = k.surface;
+  document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.surface}"/>` + body);
+  document.body.setAttribute('data-w', W);
+  document.body.setAttribute('data-h', H);
+  for (const [a, v] of Object.entries(extra)) document.body.setAttribute('data-' + a, v);
+  // Every label must fit its cell: the ones that do not are reported (nothing may collide).
+  const over = [...document.querySelectorAll('text[data-max]')].filter(e => e.getComputedTextLength() > +e.dataset.max).map(e => e.textContent);
+  document.body.setAttribute('data-overflow', over.join('|'));
+}
+// A family's rows: its own ids, then each sub with its own title.
+const sections = f => [[null, f[1]]].concat(f[2] || []);
+const total = window.TRACK_LIBRARY.length;
+
+if (q.get('grouped')) {
+  // 24 px at 125 % = the picker's 30-px drawing. Logical measures times Z.
+  const Z = 1.25, PAD = 20 * Z, COLS = 10, CW = 106 * Z, RH = 62 * Z, TITLE = 30 * Z, SUB = 20 * Z, HEAD = 46 * Z, MAXH = 1500;
+  const W = Math.ceil(PAD * 2 + COLS * CW);
+  const famH = f => TITLE + sections(f).reduce((a, [st, ids]) => a + (st ? SUB : 0) + Math.ceil(ids.length / COLS) * RH, 0) + 6 * Z;
+  // greedy pages, families whole
+  const pages = [[]];
+  let h = HEAD + PAD;
+  for (const f of FAM) {
+    const fh = famH(f);
+    if (h + fh > MAXH && pages[pages.length - 1].length) { pages.push([]); h = HEAD + PAD; }
+    pages[pages.length - 1].push(f); h += fh;
+  }
+  const P = Math.max(1, Math.min(pages.length, +(q.get('page') || 1)));
+  let y = PAD, body = '';
+  body += T(PAD, y + 16 * Z, `Cantus track icons — ${total} icons in ${FAM.length} families — Slate ${t === 'night' ? 'Night' : 'Paper'} — 24 px at 125 %`, 15 * Z, k.ink1, { weight: 600 });
+  body += T(W - PAD, y + 16 * Z, `${P} / ${pages.length}`, 12 * Z, k.ink3, { anchor: 'end' });
+  y += HEAD - PAD + 8 * Z;
+  for (const f of pages[P - 1]) {
+    const fi = FAM.indexOf(f) + 1;
+    body += T(PAD, y + 15 * Z, `${fi}  ${f[0]}`, 12.5 * Z, k.ink1, { weight: 600 });
+    body += T(W - PAD, y + 15 * Z, `${window.familyIds(f).length}`, 11 * Z, k.ink3, { anchor: 'end' });
+    body += `<rect x="${PAD}" y="${Math.round(y + 21 * Z)}" width="${W - 2 * PAD}" height="1" fill="${k.rule}"/>`;
+    y += TITLE;
+    for (const [st, ids] of sections(f)) {
+      if (st) { body += T(PAD, y + 13 * Z, st, 10.5 * Z, k.ink3, { weight: 600 }); y += SUB; }
+      ids.forEach((id, i) => {
+        const x = PAD + (i % COLS) * CW, yy = y + Math.floor(i / COLS) * RH;
+        body += glyph(id, 30, Math.round(x + CW / 2 - 15), Math.round(yy), k.ink1, k.ink2);
+        const w = names(f[0], id);
+        body += T(x + CW / 2, Math.round(yy + 43 * Z), w[0], 9.5 * Z, k.ink2, { anchor: 'middle', max: CW - 6 });
+        body += T(x + CW / 2, Math.round(yy + 54 * Z), w[1], 9.5 * Z, k.ink3, { anchor: 'middle', max: CW - 6 });
+      });
+      y += Math.ceil(ids.length / COLS) * RH;
+    }
+    y += 6 * Z;
+  }
+  done(W, Math.ceil(y + PAD - 6 * Z), body, { pages: pages.length });
+} else if (q.get('x4')) {
+  // Every icon at 12, 14, 16 and 24 px on one baseline, ink 2 with ink 3, a name under;
+  // enlarged 4× by nearest neighbour afterwards (every device pixel visible).
+  const SZ = [12, 14, 16, 24], PAD = 8, COLS = 16, CW = 80, RH = 40;
+  const W = PAD * 2 + COLS * CW;
+  let y = PAD, body = T(PAD, y + 10, `Cantus track icons — ${total} icons at 12, 14, 16 and 24 px — Slate ${t === 'night' ? 'Night' : 'Paper'} — 1:1, shown at 4×`, 10, k.ink1, { weight: 600 });
+  y += 18;
+  for (const f of FAM) {
+    body += T(PAD, y + 9, f[0], 9, k.ink3, { weight: 600 });
+    body += `<rect x="${PAD}" y="${y + 12}" width="${W - 2 * PAD}" height="1" fill="${k.rule}"/>`;
+    y += 16;
+    for (const [st, ids] of sections(f)) {
+      if (st) { body += T(PAD, y + 8, st, 8, k.ink3); y += 11; }
+      ids.forEach((id, i) => {
+        const x = PAD + (i % COLS) * CW, yy = y + Math.floor(i / COLS) * RH;
+        let gx = x + 2;
+        for (const S of SZ) { body += glyph(id, S, gx, yy + 24 - S, k.ink2, k.ink3); gx += S + 2; }
+        body += T(x + 2, yy + 34, names(f[0], id)[0], 8, k.ink3);
+      });
+      y += Math.ceil(ids.length / COLS) * RH;
+    }
+    y += 4;
+  }
+  done(W, y + PAD, body);
+} else {
+  // review: ?review=a,b,c — each id at every size, ink 2 on the surface, then 16 and 24 in a
+  // track's colour.
+  const ids = (q.get('review') || window.TRACK_LIBRARY.slice(0, 20).join(',')).split(',');
+  const SZ = (q.get('sizes') || '12,14,15,16,18,20,21,24,30,36').split(',').map(Number), PAD = 8, LBL = q.get('names') ? 120 : q.get('sizes') ? 70 : 120;
+  const RH = Math.max(46, Math.max(...SZ) + 10);
+  const W = PAD * 2 + LBL + SZ.reduce((a, S) => a + S + 6, 0) + 16 + 24 + 12;
+  let y = PAD, body = '';
+  ids.forEach((id, i) => {
+    const w = WORDS[id] || [id, ''];
+    const lbl = q.get('names') ? q.get('names').split(',')[i] : id;
+    body += T(PAD, y + 16, lbl, 10, k.ink1, { weight: 600 });
+    if (LBL > 100 && !q.get('names')) body += T(PAD, y + 30, `${w[0]} · ${w[1]}`.slice(0, 26), 8, k.ink3);
+    let x = PAD + LBL;
+    for (const S of SZ) { body += glyph(id, S, x, y + RH - 8 - S, k.ink2, k.ink3); x += S + 6; }
+    const h = HUES[i % HUES.length];
+    body += glyph(id, 16, x, y + RH - 24, h, mix(h, k.surface, 0.45)); x += 22;
+    body += glyph(id, 24, x, y + RH - 32, h, mix(h, k.surface, 0.45));
+    y += RH;
+  });
+  done(W, y + PAD, body);
+}
+</script></body></html>

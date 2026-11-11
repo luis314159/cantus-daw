@@ -4,7 +4,7 @@ use yew::prelude::*;
 
 /// The real Cantus logo (the app icon): a C of waves with a gold playhead cross.
 pub fn logo() -> Html {
-    html! { <img src="logo.svg" alt="" width="64" height="64" /> }
+    html! { <img src="/logo.svg" alt="" width="64" height="64" /> }
 }
 fn line(d: &'static str) -> Html {
     html! {
@@ -54,4 +54,36 @@ pub fn sun() -> Html {
 }
 pub fn moon() -> Html {
     line("M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z")
+}
+
+// Round 39 (web-content): the phone menu, the download page and the players.
+pub fn menu() -> Html {
+    line("M4 7h16M4 12h16M4 17h16")
+}
+pub fn close() -> Html {
+    line("M6 6l12 12M18 6L6 18")
+}
+pub fn chevron() -> Html {
+    line("M9 5l7 7-7 7")
+}
+pub fn share() -> Html {
+    line("M12 15V3M7.5 7.5L12 3l4.5 4.5M5 12v8h14v-8")
+}
+pub fn desktop() -> Html {
+    line("M3 5h18v11H3zM9 20h6M12 16v4")
+}
+pub fn warn() -> Html {
+    line("M12 3l10 18H2zM12 10v5M12 18v.01")
+}
+pub fn shield() -> Html {
+    line("M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM8.5 12l2.5 2.5 4.5-5")
+}
+pub fn no_signal() -> Html {
+    line("M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9 9l6 6M15 9l-6 6")
+}
+pub fn play() -> Html {
+    html! { <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z" fill="currentColor"/></svg> }
+}
+pub fn pause() -> Html {
+    html! { <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="3" width="3" height="10" rx="1" fill="currentColor"/><rect x="9.5" y="3" width="3" height="10" rx="1" fill="currentColor"/></svg> }
 }

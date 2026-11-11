@@ -5,6 +5,39 @@ way for every program, on one machine, the same day. The method is ADR 0102; the
 dimension is [`features.md`](features.md) (97 rows over twelve DAWs). **A row Cantus loses is
 published as plainly as one it wins**, and "better" is never claimed without a number here.
 
+## Start-up on a quiet machine (0.1.0-beta.14, 2026-11-11)
+
+Round 39's release build (`81f88171`) measured on the same machine, **quiet** (no builds
+running; 13 % of the CPU busy before the runs, 0.6–0.9 of a core of other load during each
+start), with the same script, rule and settings as below (`IdleShare 0.10`, `AlsoShare 0.35`,
+`RestAt 30`, `RestFor 10`; five measured starts after one unmeasured start), fresh copies of
+round 38's data folders and round 38's `empty.cantus` and `beat.cantus`. REAPER and FL Studio
+were not measured again: their rows, and beta.13's, are 2026-11-09's (the next section), on the
+same machine.
+
+| Program — what it opens | Window ready (median · best) | Quiet < 0.10 | Quiet < 0.35 | Private memory | At rest (ticks · cycles) |
+|---|---:|---:|---:|---:|---:|
+| **Cantus beta.14 — an empty song** | **0.76 s** · 0.73 s | **1.5 s** | **1.5 s** | 140 MB | **1.1 % · 1.5 %** |
+| Cantus beta.13 — an empty song (2026-11-09) | 0.74 s · 0.72 s | 1.5 s | 1.5 s | 237 MB | 1.6 % · 1.6 % |
+| REAPER 7.85 — an empty project (2026-11-09) | 1.76 s · 1.74 s | 2.0 s | 1.8 s | **62 MB** | 2.3 % · 3.7 % |
+| **Cantus beta.14 — the *Beat* starter** | **0.77 s** · 0.76 s | **1.5 s** | **1.5 s** | 143 MB | **2.0 % · 1.7 %** |
+| Cantus beta.13 — the *Beat* starter (2026-11-09) | 0.76 s · 0.75 s | 1.6 s | 1.5 s | 239 MB | 2.0 % · 1.8 % |
+| FL Studio 24.1.2 — its template (2026-11-09) | 2.49 s · 2.40 s | 5.8 s | 3.2 s | **133 MB** | 6.6 % · 6.7 % |
+
+**What it says.**
+
+- **Memory: 97 MB less than beta.13 on an empty song (−41 %), 96 MB less on the *Beat*
+  starter** — the engine's parts are made as the song needs them (ADR 0107). At rest (30–40 s)
+  the private bytes are 135.7 MB and 138.7 MB; the working set 171 MB and 178 MB. Every start's
+  private memory falls within 1.5 MB of its median.
+- **Memory is still lost**: 140 MB on an empty song against REAPER's 62 (by 78 MB), 143 MB on
+  the *Beat* starter against FL Studio's 133 (by 10 MB). Cantus's own live heap on an empty
+  song is about 25 MB; the rest is the next memory item (`docs/round39/memory-measured.md`).
+- **Window ready, quiet and at rest: the same as beta.13, within the noise**, and still first
+  in both pairs — the window 2.3× sooner than REAPER and 3.2× sooner than FL Studio; quiet at
+  1.5 s against 2.0 s and 5.8 s; at rest 1.1–1.5 % of a core against REAPER's 2.3–3.7 %, and
+  1.7–2.0 % against FL Studio's 6.6 %.
+
 ## Start-up on a quiet machine (0.1.0-beta.13, 2026-11-09)
 
 Round 38's rows measured again **with the machine quiet** (the owner closed everything; WSL

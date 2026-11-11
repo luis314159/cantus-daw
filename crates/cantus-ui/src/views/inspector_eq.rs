@@ -7,18 +7,18 @@
 use super::channel::Chan;
 use super::sheet::{self, Range, Sheet};
 use super::Act;
-use crate::kit::color::{shade, with_alpha};
+use crate::kit::color::with_alpha;
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Role, Text};
-use crate::kit::{cache, light, Brush, Fill, Function, Style};
+use crate::kit::{cache, Brush, Fill, Function, Style};
 use cantus_core::{
     Command, EqField, MergeKey, MixerStrip, StripEq, EQ_MAX_GAIN_DB, EQ_MAX_HZ, EQ_MAX_Q,
     EQ_MIN_HZ, EQ_MIN_Q,
 };
-use egui::{pos2, Id, PointerButton, Pos2, Rect, Sense, Vec2};
+use egui::{pos2, Align2, Id, PointerButton, Pos2, Rect, Sense, Vec2};
 
 /// The display's height at 100 %.
-pub const EQ_H: f32 = 112.0;
+pub const EQ_H: f32 = 72.0;
 /// Points the response is sampled at, across 20 Hz … 20 kHz.
 const CURVE_N: usize = 96;
 const BANDS: [&str; 3] = [
@@ -61,7 +61,7 @@ impl EqCurve {
 
 /// Where the plot sits inside the display.
 fn plot_of(rect: Rect, s: &Style) -> Rect {
-    rect.shrink2(Vec2::new(0.0, s.s(8.0)))
+    rect.shrink2(Vec2::new(s.s(6.0), s.s(8.0)))
 }
 
 fn x_of(hz: f32, plot: Rect) -> f32 {
@@ -98,7 +98,6 @@ pub fn eq_display(
     selected: Option<usize>,
     hovered: Option<usize>,
 ) {
-    let t = &s.t;
     b.register(
         rect,
         "eq_display",
@@ -109,99 +108,72 @@ pub fn eq_display(
         ],
         &[s.hue_tok],
     );
+    // r39:el-mixer — des-mixer's EQ: the curve in a quiet panel (`strip.panel`), the
+    // area under it in the accent at 12 %, the 0-dB line and the decades faint, the bands
+    // as small rings in their colours (filled while held or pointed at).
+    let p = crate::views::mixer::look::Pal::of(s);
     let rect = b.snap_rect(rect);
-    b.rect(
-        rect,
-        Fill::V(shade(t.ink, if t.dark { 0.025 } else { 0.0 }), t.ink),
-    );
+    b.rrect(rect, 3.0, Fill::Solid(p.panel));
     let plot = plot_of(rect, s);
     let px = b.px();
-    let minor = with_alpha(t.grid, if t.dark { 0.5 } else { 0.55 });
-    let major = if t.dark {
-        shade(t.grid, 0.07)
-    } else {
-        t.grid_strong
-    };
-    for f in [
-        30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0,
-        900.0, 2e3, 3e3, 4e3, 5e3, 6e3, 7e3, 8e3, 9e3,
-    ] {
-        b.vline(
-            b.snap_mid(x_of(f, plot)),
-            plot.top(),
-            plot.bottom(),
-            px,
-            minor,
-        );
-    }
+    let faint = crate::kit::color::mix(p.panel, p.ink4, 0.45);
     for f in [100.0, 1_000.0, 10_000.0] {
         b.vline(
             b.snap_mid(x_of(f, plot)),
-            rect.top(),
-            rect.bottom(),
+            rect.top() + 2.0,
+            rect.bottom() - 2.0,
             px,
-            major,
+            faint,
         );
     }
-    let mut db = -12.0;
-    while db <= 12.0 {
-        let c = if db == 0.0 { shade(major, 0.05) } else { minor };
-        b.hline(plot.left(), plot.right(), b.snap_mid(y_of(db, plot)), px, c);
-        db += 6.0;
-    }
+    b.hline(
+        plot.left(),
+        plot.right(),
+        b.snap_mid(y_of(0.0, plot)),
+        px,
+        faint,
+    );
     curve.update(eq);
     let mut pts = [Pos2::ZERO; CURVE_N];
-    for (i, p) in pts.iter_mut().enumerate() {
+    for (i, q) in pts.iter_mut().enumerate() {
         let x = plot.left() + plot.width() * i as f32 / (CURVE_N - 1) as f32;
-        *p = pos2(x, y_of(curve.db.get(i).copied().unwrap_or(0.0), plot));
+        *q = pos2(x, y_of(curve.db.get(i).copied().unwrap_or(0.0), plot));
     }
     let flat = eq.is_flat();
-    let hue = if flat { t.text_dim } else { s.hue };
-    b.area(
-        &pts,
-        y_of(0.0, plot),
-        with_alpha(hue, if t.dark { 0.16 } else { 0.12 }),
-    );
-    b.polyline(&pts, s.s(2.0), hue);
+    if !flat {
+        b.area(&pts, y_of(0.0, plot), with_alpha(p.accent, 0.12));
+    }
+    b.polyline(&pts, px, if flat { p.ink4 } else { p.ink2 });
+    let colours = [p.solo, p.play, p.accent];
     for (i, digit) in ["1", "2", "3"].into_iter().enumerate() {
         let c = token(eq, i, plot);
-        let r = s.s(if hovered == Some(i) || selected == Some(i) {
-            7.0
-        } else {
-            6.0
-        });
-        if selected == Some(i) {
-            light::glow(b, c, r * 2.2, s.hue, 0.8);
-            b.circle(c, r, Fill::Solid(s.hue));
-            let tx = Text::new(digit, Role::Micro, t.ink);
+        let col = colours[i];
+        if selected == Some(i) || hovered == Some(i) {
+            b.circle(c, 5.0, Fill::Solid(col));
+            let tx = Text::new(digit, Role::Micro, p.base);
             let _ = text::paint(
                 b,
-                Rect::from_center_size(c, Vec2::splat(r * 2.0)),
+                Rect::from_center_size(c, Vec2::splat(10.0)),
                 &tx,
-                s.tk(),
+                s.tk() * 0.85,
             );
         } else {
-            b.circle(c, r, Fill::Solid(with_alpha(t.ink, 0.85)));
-            b.circle_stroke(c, r - s.s(0.75), s.s(1.5), hue);
-            let tx = Text::new(digit, Role::Micro, hue);
-            let _ = text::paint(
-                b,
-                Rect::from_center_size(c, Vec2::splat(r * 2.0)),
-                &tx,
-                s.tk(),
-            );
+            b.circle(c, 3.0, Fill::Solid(p.panel));
+            b.circle_stroke(c, 3.0, px, col);
         }
     }
     for (f, l) in [(100.0, "100"), (1_000.0, "1k"), (10_000.0, "10k")] {
-        let r = Rect::from_center_size(
-            pos2(x_of(f, plot) + s.s(12.0), rect.bottom() - s.s(7.0)),
-            Vec2::new(s.s(28.0), s.s(12.0)),
-        );
-        let _ = text::paint(
+        crate::views::mixer::look::say(
             b,
-            r,
-            &Text::new(l, Role::Micro, t.text_dim).caps(false),
-            s.tk(),
+            s,
+            l,
+            x_of(f, plot),
+            rect.bottom() - 3.0,
+            Align2::CENTER_BOTTOM,
+            30.0,
+            9.0,
+            crate::views::mixer::look::W::Regular,
+            p.ink3,
         );
     }
 }
@@ -222,6 +194,8 @@ pub fn show(sh: &mut Sheet<'_>, st: &mut Chan, ms: Option<&MixerStrip>) {
     let (rect, _) = sh
         .ui
         .allocate_exact_size(Vec2::new(w, s.s(EQ_H)), Sense::hover());
+    // r39:lo-mixer — the graph inside the section's margins (des-mixer: a panel 12 in).
+    let rect = rect.shrink2(Vec2::new(s.s(sheet::MARGIN), 0.0));
     let plot = plot_of(rect, &s);
     let mut hovered = None;
     if let Some(m) = ms {
@@ -283,6 +257,10 @@ pub fn show(sh: &mut Sheet<'_>, st: &mut Chan, ms: Option<&MixerStrip>) {
                 },
             );
             hint::set_text(sh.ui.ctx(), &name, text, Caps::PARAM);
+        } else if r.hovered() {
+            // r39:el-mixer — the display between the bands says what it does.
+            let name = sh.fmt.tr("inspector.eq_display_tip");
+            hint::set_text(sh.ui.ctx(), name, "", Caps::NONE);
         }
     }
     eq_display(sh.b, rect, &s, eq, &mut st.eq, st.eq_drag, hovered);
@@ -312,70 +290,61 @@ pub fn show(sh: &mut Sheet<'_>, st: &mut Chan, ms: Option<&MixerStrip>) {
         sh.b.rect(rect, Fill::Solid(with_alpha(s.t.panel_light, 0.55)));
     }
     sh.ui.add_space(s.d(4.0));
-    // The numbers: frequency, gain and width of each band, in wells, under a legend
-    // printed once for the three rows (the units live there, so the wells hold digits).
-    let legend = {
-        let w = sh.width();
-        let (r, _) = sh
-            .ui
-            .allocate_exact_size(Vec2::new(w, s.s(12.0)), Sense::hover());
-        r
-    };
-    let mut first = true;
+    // r39:lo-mixer — des-mixer's band table: a column per band — its colour's mark and its
+    // name, then its frequency (ink 2) and gain (ink 1), its width under them; each figure
+    // drags (Shift fine, a double-click resets) as the wells did.
+    use crate::views::mixer::look::{self, Pal, W};
+    let pal = Pal::of(&s);
+    let w = sh.width();
+    let m = s.s(sheet::MARGIN);
+    let (table, _) = sh
+        .ui
+        .allocate_exact_size(Vec2::new(w, s.s(50.0)), Sense::hover());
+    let cw = (table.width() - 2.0 * m) / 3.0;
+    let marks = [pal.solo, pal.play, pal.accent];
+    let sid = ms.map(|m| m.id);
+    let dim = ms.is_none();
+    let a = if dim { 0.45 } else { 1.0 };
     for (i, key) in BANDS.iter().enumerate() {
-        let row = sh.row();
-        let gap = s.s(4.0);
-        // Three wells of at least 44 pt: on a narrow panel the label column gives way
-        // (and the band's name shortens to "Low", "Mid", "High").
-        let need = 3.0 * s.s(44.0) + 2.0 * gap;
-        let (label, value) = if row.value.width() >= need {
-            (row.label, row.value)
-        } else {
-            let vl = row.value.right() - need;
-            (
-                Rect::from_min_max(
-                    row.label.min,
-                    pos2(vl - s.s(sheet::GAP), row.label.bottom()),
-                ),
-                Rect::from_min_max(pos2(vl, row.value.top()), row.value.max),
-            )
-        };
-        sh.label(label, key, ms.is_none());
-        let cw = (value.width() - 2.0 * gap) / 3.0;
-        let cell = |k: usize| {
-            Rect::from_min_size(
-                pos2(value.left() + k as f32 * (cw + gap), value.top()),
-                Vec2::new(cw, value.height()),
-            )
-        };
-        if first {
-            first = false;
-            for (k, lk) in [
-                "inspector.eq_legend_freq",
-                "inspector.eq_legend_gain",
-                "inspector.eq_legend_q",
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                let c = cell(k);
-                let r = Rect::from_min_max(
-                    pos2(c.left(), legend.top()),
-                    pos2(c.right(), legend.bottom()),
-                );
-                let tx = Text::key(
-                    lk,
-                    Role::Micro,
-                    s.t.text_dim
-                        .gamma_multiply(if ms.is_none() { 0.45 } else { 1.0 }),
-                )
-                .caps(false);
-                let _ = text::paint(sh.b, r, &tx, s.tk());
-            }
-        }
+        let x = table.left() + m + cw * i as f32;
+        let col = Rect::from_min_max(
+            pos2(x, table.top()),
+            pos2(x + cw - s.s(8.0), table.bottom()),
+        );
         let b = eq.bands[i];
-        let sid = ms.map(|m| m.id);
-        let dim = ms.is_none();
+        // The mark and the name.
+        sh.b.rect(
+            sh.b.snap_rect(Rect::from_min_size(
+                pos2(col.left(), col.top() + s.s(8.0)),
+                Vec2::new(6.0, 2.0),
+            )),
+            Fill::Solid(marks[i].gamma_multiply(a)),
+        );
+        // The band's name, its short form where the column is narrow ("Shelf agudo" →
+        // "Agudo").
+        let full = sheet::name(sh.fmt.tr(key));
+        let fits =
+            look::width_of(sh.ui.ctx(), &s, &full, 10.0, W::Regular) <= col.width() - s.s(10.0);
+        let name = if fits {
+            full
+        } else {
+            let mut k = String::with_capacity(32);
+            k.push_str(key);
+            k.push_str(".short");
+            sheet::name(sh.fmt.tr(&k))
+        };
+        look::say(
+            sh.b,
+            &s,
+            &name,
+            col.left() + s.s(10.0),
+            col.top() + s.s(12.0),
+            Align2::LEFT_BOTTOM,
+            col.width() - s.s(10.0),
+            10.0,
+            W::Regular,
+            pal.ink3.gamma_multiply(a),
+        );
         let fields = [
             (
                 EqField::Freq,
@@ -396,24 +365,100 @@ pub fn show(sh: &mut Sheet<'_>, st: &mut Chan, ms: Option<&MixerStrip>) {
                 "inspector.eq_q",
             ),
         ];
+        // Frequency and gain on one line where both fit whole, else the gain goes under
+        // the frequency, beside the width; a narrow column writes the frequency short.
+        let ctx = sh.ui.ctx().clone();
+        let stamp = sheet::bits(b.freq_hz) ^ (sheet::bits(b.gain_db) << 32);
+        let long = {
+            let f = sh.fmt.get(cache::key(("insp-eq-fw", sid, i)), stamp, |t| {
+                sheet::hz(b.freq_hz, t)
+            });
+            look::width_of(&ctx, &s, f, 11.0, W::Regular)
+        };
+        let gw = {
+            let g = sh.fmt.get(cache::key(("insp-eq-gw", sid, i)), stamp, |t| {
+                signed(b.gain_db, t)
+            });
+            look::width_of(&ctx, &s, g, 11.0, W::Regular)
+        };
+        let short = long + 4.0 > col.width();
+        let one_line = long + gw + 8.0 <= col.width();
+        let line = |n: f32| col.top() + s.s(16.0) * n;
+        let cells = if one_line {
+            [
+                Rect::from_min_size(
+                    pos2(col.left(), line(1.0)),
+                    Vec2::new(col.width() - gw - 8.0, s.s(16.0)),
+                ),
+                Rect::from_min_size(
+                    pos2(col.right() - gw - 4.0, line(1.0)),
+                    Vec2::new(gw + 4.0, s.s(16.0)),
+                ),
+                Rect::from_min_size(
+                    pos2(col.left(), line(2.0)),
+                    Vec2::new(col.width(), s.s(16.0)),
+                ),
+            ]
+        } else {
+            let half = col.width() * 0.5;
+            [
+                Rect::from_min_size(
+                    pos2(col.left(), line(1.0)),
+                    Vec2::new(col.width(), s.s(16.0)),
+                ),
+                Rect::from_min_size(pos2(col.left(), line(2.0)), Vec2::new(half, s.s(16.0))),
+                Rect::from_min_size(
+                    pos2(col.left() + half, line(2.0)),
+                    Vec2::new(half, s.s(16.0)),
+                ),
+            ]
+        };
         for (k, (field, v, range, nkey)) in fields.into_iter().enumerate() {
-            let name = sheet::name(sh.fmt.tr(nkey));
-            let d = sh.value(
-                cell(k),
-                Id::new(("insp-eqv", sid, i, k)),
-                v,
-                &range,
-                false,
-                &name,
-                |v, t| match field {
-                    EqField::Freq => short_hz(v, t),
-                    EqField::Gain => signed(v, t),
-                    EqField::Q => short_q(v, t),
+            let cell = cells[k];
+            let id = Id::new(("insp-eqv", sid, i, k));
+            let d = sheet::drag(sh.ui, id, cell, v, &range, false);
+            let shown = d.value.unwrap_or(v);
+            let text = sh.fmt.get(
+                cache::key(("insp-eqt", sid, i, k, short)),
+                sheet::bits(shown),
+                |t| match field {
+                    EqField::Freq if short => short_hz(shown, t),
+                    EqField::Freq => sheet::hz(shown, t),
+                    EqField::Gain => signed(shown, t),
+                    EqField::Q => {
+                        t.push_str("Q ");
+                        short_q(shown, t);
+                    }
                 },
-                Function::Tone,
-                dim,
             );
-            if let (Some(nv), Some(id)) = (d.value, sid) {
+            let hot = !dim && (d.resp.hovered() || d.resp.dragged());
+            let (size, ink, align, x) = match field {
+                EqField::Freq => (11.0, pal.ink2, Align2::LEFT_BOTTOM, cell.left()),
+                EqField::Gain => (11.0, pal.ink1, Align2::RIGHT_BOTTOM, cell.right()),
+                EqField::Q => (10.0, pal.ink3, Align2::LEFT_BOTTOM, cell.left()),
+            };
+            look::say(
+                sh.b,
+                &s,
+                text,
+                x,
+                cell.center().y + 4.0,
+                align,
+                cell.width(),
+                size,
+                W::Regular,
+                (if hot { pal.ink1 } else { ink }).gamma_multiply(a),
+            );
+            if hot {
+                let name = sheet::name(sh.fmt.tr(nkey));
+                let text = sheet::name(sh.fmt.get(
+                    cache::key(("insp-eqt", sid, i, k)),
+                    sheet::bits(shown),
+                    |_| {},
+                ));
+                hint::set_text(sh.ui.ctx(), &name, &text, Caps::PARAM);
+            }
+            if let (Some(nv), Some(id), false) = (d.value, sid, dim) {
                 push(sh, id, i, field, nv);
             }
             if d.ended && !dim {

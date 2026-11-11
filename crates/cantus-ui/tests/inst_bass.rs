@@ -209,7 +209,7 @@ fn dragging_a_cell_is_one_undo_step() {
     // The 808's knock, in its Pitch card.
     let label = all
         .iter()
-        .find(|w| w.text == "KNOCK")
+        .find(|w| w.text.eq_ignore_ascii_case("KNOCK")) // r39:el-controls
         .unwrap_or_else(|| panic!("no knock cell in {all:#?}"));
     let at = label.rect.center();
     let press = |pos, pressed| egui::Event::PointerButton {

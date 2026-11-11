@@ -113,7 +113,7 @@ fn every_native_instrument_editor_offers_learn_on_every_control() {
 }
 
 #[test]
-fn sends_and_the_pinned_strip_offer_learn() {
+fn sends_and_the_level_section_offer_learn() {
     let mut a = app(cantus_ui::starter_project());
     let track = a.project().tracks[0].id;
     let s0 = a.project().tracks[0].strip.unwrap();
@@ -123,6 +123,8 @@ fn sends_and_the_pinned_strip_offer_learn() {
     let drawn_of = |a: &mut cantus_ui::CantusApp| {
         probe::start();
         paint(&ctx(), egui::vec2(360.0, 2400.0), 3, |ui| {
+            // r39:lo-mixer — the Level section stands where the pinned strip stood.
+            cantus_ui::views::inspector::unfold(ui.ctx(), "inspector.level");
             cantus_ui::views::inspector::show(a, ui)
         });
         probe::take_learn()
@@ -131,9 +133,9 @@ fn sends_and_the_pinned_strip_offer_learn() {
     let drawn = drawn_of(&mut a);
     for key in [
         "inspector.send_level",
-        "kit.param.volume",
-        "kit.param.pan",
-        "kit.param.width",
+        "inspector.volume",
+        "inspector.pan",
+        "inspector.width",
     ] {
         assert!(
             drawn.iter().any(|(n, l)| n == key && *l),
@@ -143,7 +145,7 @@ fn sends_and_the_pinned_strip_offer_learn() {
     assert!(unlearnable(drawn).is_empty());
     a.select_strip(StripId::MASTER);
     let drawn = drawn_of(&mut a);
-    for key in ["kit.param.volume", "kit.param.pan", "kit.param.width"] {
+    for key in ["inspector.volume", "inspector.pan", "inspector.width"] {
         assert!(
             drawn.iter().any(|(n, l)| n == key && *l),
             "the master's {key}"

@@ -98,6 +98,8 @@ impl Locale {
                 include_str!("../locales/fx/tremor.en.txt"),
                 include_str!("../locales/fx/vibrans.en.txt"),
                 include_str!("../locales/fx/anulus.en.txt"),
+                include_str!("../locales/areas/aula.en.txt"), // r39:conv
+                include_str!("../locales/fx/delay.en.txt"),   // r39:delay
                 include_str!("../locales/fx/translatio.en.txt"),
                 include_str!("../locales/fx/fluctus.en.txt"),
                 include_str!("../locales/fx/tonsor.en.txt"),
@@ -146,6 +148,12 @@ impl Locale {
                 include_str!("../locales/areas/library.en.txt"), // r37
                 include_str!("../locales/areas/scorecard.en.txt"), // r37
                 include_str!("../locales/areas/scene.en.txt"),  // r37:scene
+                include_str!("../locales/areas/ux_signs.en.txt"), // r39:ux-a
+                include_str!("../locales/areas/el_views.en.txt"), // r39:el-views
+                include_str!("../locales/areas/lo_mixer.en.txt"), // r39:lo-mixer
+                include_str!("../locales/areas/ux_panels.en.txt"), // r39:ux-b
+                include_str!("../locales/areas/arrange.en.txt"), // r39:el-arrange
+                include_str!("../locales/areas/lo_arrange.en.txt"), // r39:lo-arrange
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -210,6 +218,8 @@ impl Locale {
                 include_str!("../locales/fx/tremor.es.txt"),
                 include_str!("../locales/fx/vibrans.es.txt"),
                 include_str!("../locales/fx/anulus.es.txt"),
+                include_str!("../locales/areas/aula.es.txt"), // r39:conv
+                include_str!("../locales/fx/delay.es.txt"),   // r39:delay
                 include_str!("../locales/fx/translatio.es.txt"),
                 include_str!("../locales/fx/fluctus.es.txt"),
                 include_str!("../locales/fx/tonsor.es.txt"),
@@ -258,6 +268,12 @@ impl Locale {
                 include_str!("../locales/areas/library.es.txt"), // r37
                 include_str!("../locales/areas/scorecard.es.txt"), // r37
                 include_str!("../locales/areas/scene.es.txt"),  // r37:scene
+                include_str!("../locales/areas/ux_signs.es.txt"), // r39:ux-a
+                include_str!("../locales/areas/el_views.es.txt"), // r39:el-views
+                include_str!("../locales/areas/lo_mixer.es.txt"), // r39:lo-mixer
+                include_str!("../locales/areas/ux_panels.es.txt"), // r39:ux-b
+                include_str!("../locales/areas/arrange.es.txt"), // r39:el-arrange
+                include_str!("../locales/areas/lo_arrange.es.txt"), // r39:lo-arrange
             ],
         }
     }

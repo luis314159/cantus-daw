@@ -1,0 +1,179 @@
+/* Round 39 (web-struct) — the frame around the pages: the skip link, a page's own heading,
+   a chapter's way on to its page, a unit's page, and the four-column footer. Loaded last. */
+
+.skip {
+  position: absolute; left: 1rem; top: -4rem; z-index: 100;
+  padding: 0.7rem 1rem; border-radius: 6px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 600; text-decoration: none;
+}
+.skip:focus { top: 1rem; }
+
+/* A page's heading under the nav: the way home, its one <h1>, a line. */
+.page-head { padding-block: clamp(2.5rem, 6vw, 4.5rem) 0.5rem; }
+.page-head h1 {
+  font-size: clamp(2.6rem, 5.4vw, 4.2rem); font-weight: 500; letter-spacing: -0.01em; line-height: 1;
+  color: var(--strong);
+}
+.page-head .lede { margin-top: 0.9rem; max-width: 46rem; font-size: 1.22rem; color: var(--ink-2); }
+.crumbs { margin-bottom: 0.8rem; font-size: 1rem; color: var(--ink-3); }
+.crumbs a { color: var(--accent-text); text-decoration: none; }
+.crumbs a::before { content: "← "; }
+.crumbs a:hover { text-decoration: underline; }
+
+/* A chapter's way on: one quiet link under it. */
+.chapter-more { text-align: right; }
+.chapter-more a.link {
+  color: var(--accent-text); font-weight: 600; text-decoration: none;
+  border-bottom: 1px solid var(--accent);
+}
+.chapter-more a.link:hover { color: var(--strong); }
+.chapter-more i { font-style: normal; }
+
+/* A unit's own page (a placeholder until web-content's spotlight lands). */
+.unit-solo h1 { font-size: clamp(2.8rem, 6vw, 4.6rem); font-weight: 500; color: var(--strong); }
+.unit-solo .up-shot { margin-block: 1.5rem; }
+.unit-solo .up-shot img { width: 100%; height: auto; border-radius: 10px; }
+.unit-solo .up-body { display: grid; gap: 2rem; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.unit-solo h2 { font-size: 1.3rem; margin-bottom: 0.6rem; }
+.unit-solo .up-what { font-size: 1.1rem; color: var(--ink-2); margin-bottom: 1.2rem; }
+.unit-solo .up-feats { padding-left: 1.1rem; display: grid; gap: 0.4rem; color: var(--ink-2); }
+@media (max-width: 52rem) { .unit-solo .up-body { grid-template-columns: 1fr; } }
+
+/* The footer: the brand and four columns, then the switches, the marks and the creed. */
+.foot { padding-block: 3rem 2.5rem; }
+.foot-cols {
+  display: grid; gap: 2rem 1.5rem;
+  grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+}
+.foot-brand .brand { display: inline-flex; align-items: center; gap: 0.6rem; font: 600 1.35rem/1 var(--display); color: var(--strong); text-decoration: none; }
+.foot-brand .brand img { width: 2rem; height: 2rem; }
+.foot-brand p { margin-top: 0.8rem; max-width: 20rem; color: var(--ink-3); }
+.foot-col h2 {
+  font: 600 0.95rem/1 var(--body); letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--gold-text); margin-bottom: 0.9rem;
+}
+.foot-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+.foot-col a { display: inline-block; padding-block: 0.3rem; color: var(--ink-2); text-decoration: none; }
+.foot a:hover { color: var(--strong); text-decoration: underline; }
+.foot-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.5rem;
+  margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+}
+.foot-lang { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.foot-lang a { padding: 0.5rem 0.9rem; min-height: 24px; color: var(--ink-2); text-decoration: none; }
+.foot-lang a[aria-current="page"] { background: var(--accent-tint); color: var(--strong); font-weight: 600; }
+.foot-theme {
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.9rem;
+  font: 500 1rem/1 var(--body); color: var(--ink-2); background: transparent;
+  border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+}
+.foot-theme:hover { color: var(--strong); border-color: var(--accent); }
+.foot-theme svg { width: 1.1rem; height: 1.1rem; }
+.foot-bar .foot-legal { flex: 1 1 24rem; color: var(--ink-3); font-size: 0.93rem; opacity: 1; }
+.foot-bar .creed { flex-basis: auto; margin: 0; }
+
+@media (max-width: 60rem) {
+  .foot-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .foot-brand { grid-column: 1 / -1; }
+}
+
+/* Bands (the owner, round 39: a change of section must be seen). Every page's sections
+   alternate paper and a warm ivory; the proof strip, the listening room, the engine and the
+   AI stage are deep navy with light text; the hero and the pages' heads stay lapis. A gold
+   hairline (#03's rule) marks every edge. The same rhythm in the dark theme, from Slate. */
+:root {
+  --band-paper: #f5f6f9;
+  --band-ivory: #f4eedf;
+  --band-navy: #0e1630;
+}
+:root[data-theme="dark"] {
+  --band-paper: #1d2329;
+  --band-ivory: #29241b;
+  --band-navy: #0b1226;
+}
+:root main > section:nth-of-type(odd):not(.hero, .proof, .listen, .night, .ai-wrap) { background: var(--band-paper); }
+:root main > section:nth-of-type(even):not(.hero, .proof, .listen, .night, .ai-wrap) {
+  background: var(--band-ivory);
+  --paper: var(--band-ivory);
+}
+:root[data-theme="light"] main > section:nth-of-type(even):not(.hero, .proof, .listen, .night, .ai-wrap) { --mist: #ebe3cf; --line: #d9cdb0; }
+:root[data-theme="dark"] main > section:nth-of-type(even):not(.hero, .proof, .listen, .night, .ai-wrap) { --mist: #221e16; --line: #3d3626; }
+
+/* deep navy: light text, the lapis scope's tokens */
+:root main > section.proof,
+:root main > section.listen,
+:root main > section.night,
+:root main > section.ai-wrap {
+  background: var(--band-navy);
+  color-scheme: dark;
+  --paper: var(--band-navy); --paper-2: #16203f; --mist: #121b38; --mist-2: #18234a;
+  --night: var(--band-navy); --night-2: #16203f; --night-3: #1c2850;
+  --line: rgba(185, 198, 238, 0.22); --night-line: rgba(185, 198, 238, 0.22); --edge: rgba(185, 198, 238, 0.2);
+  --ink: #f1f3fa; --ink-2: #c3cce8; --ink-3: #9eabd6; --strong: #ffffff;
+  --night-ink: #f1f3fa; --night-ink-2: #c3cce8;
+  --accent: #7ea2f6; --accent-text: #a9c0fa; --accent-ink: #0a1234;
+  --gold: #e2b84a; --gold-text: #f0cd6a;
+  --cell: #121b38; --cell-2: #16203f;
+  --lose: #ff9a6c;
+  color: var(--ink);
+}
+:root main > section.ai-wrap {
+  background: radial-gradient(48rem 26rem at 90% 0%, rgba(201, 150, 46, 0.2), transparent 70%), var(--band-navy);
+}
+
+/* the gold hairline at every band's edge */
+:root main > section + section,
+:root main > section + .chapter-more + section,
+:root main > .page-band + section,
+.foot {
+  border-top: 1px solid transparent;
+  border-image: var(--gold-rule) 1;
+}
+:root main > section { border-bottom: 0; }
+/* a chapter's way on sits inside its chapter's band, not between two */
+.chapter-more { margin-top: -1px; padding-block: 0 2.5rem; }
+:root main > section:nth-of-type(odd) + .chapter-more { background: var(--band-paper); }
+:root main > section:nth-of-type(even) + .chapter-more { background: var(--band-ivory); }
+:root main > section:is(.proof, .listen, .night, .ai-wrap) + .chapter-more { background: var(--band-navy); --accent-text: #a9c0fa; --accent: #7ea2f6; }
+
+/* Below the first screen, a band is laid out only as it comes near: the pre-rendered home holds
+   every chapter, and laying them all out before the first paint cost a slow phone its LCP.
+   Only until the app runs (`app-on`, main.rs): after that, jumps to a chapter and the back
+   button need the real heights. */
+:root:not(.app-on) main > section:not(.hero, .proof) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
+}
+
+/* The FAQ is a chapter of its own now: its heading as large as the others'. */
+.faq-wrap .faq > h2 { font-size: clamp(2.3rem, 4.6vw, 3.6rem); font-weight: 500; line-height: 1.02; margin-bottom: 1.4rem; }
+
+/* The hero in the light theme (the owner, round 39): white, its dot grid in lapis, its words in
+   the deep blue of the dark hero's ground, gold only in the eyebrow and the headline's dot (the
+   darker gold, 4.5:1 on white). The bar above it reads the same until the page scrolls. The dark
+   theme keeps the lapis night. Contrast on #fff: #1b2c7a 12.6:1, #24398f 9.9:1, #3a4c9a 7.8:1,
+   #8a6212 5.1:1. */
+:root[data-theme="light"] .hero,
+:root[data-theme="light"] .nav:not(.is-scrolled) {
+  color-scheme: light;
+  --ink: #1b2c7a; --ink-2: #24398f; --ink-3: #3a4c9a; --strong: #1b2c7a;
+  --night-ink: #1b2c7a; --night-ink-2: #24398f; --night-3: #2443a8;
+  --line: rgba(36, 67, 168, 0.22); --night-line: rgba(36, 67, 168, 0.22);
+  --edge: rgba(36, 67, 168, 0.3); --mist: #eef1fa;
+  --accent: #2443a8; --accent-text: #2443a8; --accent-ink: #ffffff;
+  --accent-grad: linear-gradient(#3352b8, #2443a8 55%, #1d3890); --accent-glow: rgba(36, 67, 168, 0.38);
+  --gold: #8a6212; --gold-text: #8a6212;
+}
+:root[data-theme="light"] .hero {
+  background:
+    radial-gradient(circle at 17px 17px, rgba(36, 67, 168, 0.2) 1.6px, transparent 2.2px) 0 0 / 34px 34px,
+    #ffffff;
+}
+:root[data-theme="light"] .nav:not(.is-scrolled) .lang button[aria-pressed="true"] { background: #2443a8; color: #ffffff; }
+:root[data-theme="light"] .hero .btn-quiet {
+  background: transparent; color: #1b2c7a; border: 1.5px solid #2443a8; box-shadow: none;
+}
+:root[data-theme="light"] .hero .btn-quiet:hover { background: rgba(36, 67, 168, 0.08); color: #1b2c7a; }
+:root[data-theme="light"] .hero-window {
+  box-shadow: 0 0 0 1px rgba(27, 44, 122, 0.18), 0 30px 60px -28px rgba(27, 44, 122, 0.5), 0 8px 20px -12px rgba(23, 32, 42, 0.35);
+}

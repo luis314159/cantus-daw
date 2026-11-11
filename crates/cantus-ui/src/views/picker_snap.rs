@@ -28,7 +28,7 @@ pub enum Subject {
 }
 
 impl Subject {
-    /// Whether the device has an editor to picture (Delay, Reverb, Firmus and hosted
+    /// Whether the device has an editor to picture (the old Reverb, Firmus and hosted
     /// plug-ins get a drawn card instead).
     pub fn of_effect(kind: EffectKind) -> Option<Subject> {
         kind.has_editor()
@@ -61,6 +61,8 @@ impl Subject {
             EffectKind::TransientSplit => "discrimen",
             EffectKind::Analyzer => "speculum",
             EffectKind::AutoTune => "tonus",
+            EffectKind::Aula => "aula",   // r39:conv
+            EffectKind::Delay => "delay", // r39:delay
             _ => "eq",
         }
     }

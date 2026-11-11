@@ -1,0 +1,27 @@
+# Area: the workspace's areas, the keyboard's reach and the daily click paths (round 39, ux-b; ADR 0110). Every key here needs its twin in ux_panels.es.txt.
+
+# A tab's menu.
+ux.panels.collapse = Collapse area
+ux.panels.expand = Expand area
+ux.panels.maximise = Maximise area
+ux.panels.restore = Restore the other areas
+ux.panels.folded_hint = {area} is collapsed — click to expand it
+
+# The actions (the keymap's names; the palette, the shortcuts dialog).
+action.maximize-area = Maximise the area being worked in
+action.collapse-area = Collapse or expand the area being worked in
+action.next-area = Next area
+action.previous-area = Previous area
+
+# The daily click paths: the devices used last, one click away.
+ux.paths.recent_instruments = Recent instruments
+ux.paths.recent_effects = Recent effects
+ux.paths.insert_effect = Insert {name}
+ux.paths.no_presets = The selected track's instrument has no presets to browse
+action.browse-presets = Find a preset for the selected track
+
+# The menu rows the palette runs for the area or the selection being worked in.
+ux.panels.float_area = Float or dock the area being worked in
+ux.panels.hide_area = Hide the area being worked in
+ux.panels.selection_menu = Open the menu of the selection
+ux.panels.modulate_last = Modulate the last parameter moved…

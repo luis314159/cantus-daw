@@ -16,7 +16,7 @@ struct Pair {
 }
 
 fn make(file: &str, kind: &str) -> Option<HtmlAudioElement> {
-    let a = HtmlAudioElement::new_with_src(&format!("fx/audio/{file}-{kind}.mp3")).ok()?;
+    let a = HtmlAudioElement::new_with_src(&format!("/fx/audio/{file}-{kind}.mp3")).ok()?;
     a.set_loop(true);
     Some(a)
 }
@@ -175,7 +175,7 @@ pub fn effects() -> Html {
                     <ul class="fx-list">{ for items }</ul>
                     <figure class="fx-stage">
                         <div class="fx-window">
-                            <img src={format!("units/{}-{}{}.webp", fx.file, shade, pic_lang(l))} width={fx.big.0.to_string()} height={fx.big.1.to_string()}
+                            <img src={format!("/units/{}-{}{}.webp", fx.file, shade, pic_lang(l))} width={fx.big.0.to_string()} height={fx.big.1.to_string()}
                                  alt={format!("{} — {}", fx.name, l.t(fx.kind.0, fx.kind.1))} loading="lazy" />
                         </div>
                         <figcaption><strong>{ fx.name }</strong>{ " — " }{ l.t(fx.pitch.0, fx.pitch.1) }</figcaption>

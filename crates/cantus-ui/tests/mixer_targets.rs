@@ -1,13 +1,16 @@
 //! Every click target on a mixer strip is a real one (round 37, the owner: "los tres botones
-//! … son muy chicos y es difícil darles click"): at least 24 × 24 pt in every width mode and
-//! at every zoom from 75 % to 200 %, and no two of a strip's targets overlap.
+//! … son muy chicos y es difícil darles click"), in every width mode and at every zoom from
+//! 75 % to 200 %, and no two of a strip's targets overlap. Round 39 (des-mixer, approved):
+//! the strips are 30 / 60 / 94 pt with up to three keys across, so a target is its share
+//! of the strip's width (at least 15 pt) and 20 pt tall at least (24 from Wide up).
 
 use cantus_engine::EngineHandle;
 use cantus_ui::views::mixer::{self, layout::WidthMode, Control};
 use cantus_ui::{views, welcome_project, CantusApp};
 use egui::{Pos2, Rect};
 
-const FLOOR: f32 = 24.0;
+const FLOOR_W: f32 = 15.0;
+const FLOOR_H: f32 = 20.0;
 
 fn frame(ctx: &egui::Context, app: &mut CantusApp, px: egui::Vec2, n: u64) {
     let z = ctx.zoom_factor();
@@ -74,7 +77,7 @@ fn every_strip_target_is_at_least_24_pt_and_none_overlaps() {
                     .collect();
                 for (c, r) in &rects {
                     seen += 1;
-                    if r.width() + 1e-3 < FLOOR || r.height() + 1e-3 < FLOOR {
+                    if r.width() + 1e-3 < FLOOR_W || r.height() + 1e-3 < FLOOR_H {
                         bad.push(format!(
                             "{mode:?} {zoom}: {c:?} is {:.1} × {:.1}",
                             r.width(),

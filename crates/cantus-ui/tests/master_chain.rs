@@ -1,7 +1,7 @@
 //! The master's insert chain in the UI (ADR 0026): a master effect's window opens in the
 //! shared frame and names the master; A/B and presets work there; on the desk the master
-//! shows its slots and its FX lamp, and a click on its head shows its chain in the
-//! inspector.
+//! shows its chain and its menu switches it, and a click on its head shows its chain in
+//! the inspector.
 
 mod support;
 use cantus_core::*;
@@ -66,6 +66,30 @@ fn desk_frame(
     frame: &mut u64,
     events: Vec<Event>,
 ) -> String {
+    painted_text(&desk_shapes(ctx, a, frame, events))
+}
+
+/// Where the text `label` was painted among `shapes`.
+fn text_rect(shapes: &[egui::epaint::ClippedShape], label: &str) -> Option<egui::Rect> {
+    fn walk(shape: &egui::Shape, label: &str) -> Option<egui::Rect> {
+        match shape {
+            egui::Shape::Text(t) if t.galley.text() == label => {
+                Some(t.galley.rect.translate(t.pos.to_vec2()))
+            }
+            egui::Shape::Vec(v) => v.iter().find_map(|s| walk(s, label)),
+            _ => None,
+        }
+    }
+    shapes.iter().find_map(|s| walk(&s.shape, label))
+}
+
+/// One frame of the desk with `events`; returns what it painted.
+fn desk_shapes(
+    ctx: &egui::Context,
+    a: &mut cantus_ui::CantusApp,
+    frame: &mut u64,
+    events: Vec<Event>,
+) -> Vec<egui::epaint::ClippedShape> {
     *frame += 1;
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
@@ -81,10 +105,20 @@ fn desk_frame(
         egui::CentralPanel::default().show(ui, |ui| views::mixer::show(a, ui));
     });
     out.textures_delta.clear();
-    painted_text(&out.shapes)
+    out.shapes
 }
 
 fn click(ctx: &egui::Context, a: &mut cantus_ui::CantusApp, frame: &mut u64, p: Pos2) {
+    click_with(ctx, a, frame, p, egui::PointerButton::Primary);
+}
+
+fn click_with(
+    ctx: &egui::Context,
+    a: &mut cantus_ui::CantusApp,
+    frame: &mut u64,
+    p: Pos2,
+    button: egui::PointerButton,
+) {
     desk_frame(ctx, a, frame, vec![Event::PointerMoved(p)]);
     for pressed in [true, false] {
         desk_frame(
@@ -95,7 +129,7 @@ fn click(ctx: &egui::Context, a: &mut cantus_ui::CantusApp, frame: &mut u64, p: 
                 Event::PointerMoved(p),
                 Event::PointerButton {
                     pos: p,
-                    button: egui::PointerButton::Primary,
+                    button,
                     pressed,
                     modifiers: egui::Modifiers::NONE,
                 },
@@ -116,19 +150,37 @@ fn the_desk_shows_the_master_chain_and_chooses_the_master() {
     for _ in 0..3 {
         text = desk_frame(&ctx, &mut a, &mut frame, Vec::new());
     }
-    // Round 25: Extra large shows the chain in one line by the inserts' short names (the
-    // slots moved to the inspector, which shows the master's chain once it is chosen).
-    let name = cantus_ui::i18n::t("mixer.chain.limiter");
+    // Round 25: Extra large shows the chain (the slots moved to the inspector, which shows
+    // the master's chain once it is chosen). Round 39, des-mixer's Large: "inserts show
+    // unit names (Comprimo, Aequalis)" — the master's limiter by its unit's name.
+    let name = cantus_ui::i18n::t("picker.dev.terminus.name");
     assert!(
-        text.contains(&name),
+        text.contains(&format!("| {name} |")),
         "the master's chain line does not show its insert: {text}"
     );
-    // The FX lamp switches the master's chain.
-    let fx = views::mixer::control_rect(&ctx, None, Control::Fx).expect("the master's FX lamp");
+    // The effects switch switches the master's chain. Round 39: des-mixer's strip has no
+    // FX lamp (its rows: the sound, the mix, the route); on the desk the switch is the
+    // master's menu's *Effects on* row (a right-click on its head), as on every strip.
+    let head = views::mixer::control_rect(&ctx, None, Control::Head).expect("the master's head");
+    click_with(
+        &ctx,
+        &mut a,
+        &mut frame,
+        head.center(),
+        egui::PointerButton::Secondary,
+    );
+    let row = cantus_ui::i18n::t("master.menu.fx_on");
+    let shapes = desk_shapes(&ctx, &mut a, &mut frame, Vec::new());
+    let fx = text_rect(&shapes, &row).unwrap_or_else(|| {
+        panic!(
+            "the master's menu has no {row:?}: {}",
+            painted_text(&shapes)
+        )
+    });
     click(&ctx, &mut a, &mut frame, fx.center());
     assert!(
         !a.project().master.fx_enabled,
-        "the lamp switched the chain off"
+        "the row switched the chain off"
     );
     a.undo();
     assert!(a.project().master.fx_enabled);
@@ -165,14 +217,19 @@ fn the_inspector_shows_the_master_chain() {
             ..Default::default()
         };
         let mut out = ctx.run_ui(input, |ui| {
+            // Round 39 (des-mixer): Routing, where the output is, starts folded.
+            views::inspector::unfold(ui.ctx(), "kit.inspector.routing");
             egui::CentralPanel::default().show(ui, |ui| views::inspector::show(&mut a, ui));
         });
         out.textures_delta.clear();
         text = painted_text(&out.shapes);
     }
+    // Round 39, des-mixer's insert row: the unit's name ("Terminus"), then its kind
+    // ("Limit") after it — not the effect's whole name ("Terminus limiter").
     for want in [
         cantus_ui::i18n::t("master.input"),
-        cantus_ui::i18n::t(EffectKind::Limiter.name_key()),
+        format!("| {} |", cantus_ui::i18n::t("picker.dev.terminus.name")),
+        format!("| {} |", cantus_ui::i18n::t("mixer.chain.limiter")),
         cantus_ui::i18n::t("master.output"),
     ] {
         assert!(

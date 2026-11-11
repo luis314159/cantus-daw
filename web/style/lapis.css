@@ -1,0 +1,136 @@
+/* Round 39 — the site dressed after logo #03 ("Lapis stage", the owner's choice): Slate's calm
+   surfaces in both themes, lapis for what you press, the logo's lapis tile for the hero, the
+   download card and the verse, and gold only in fine marks and rules. Loaded last: it settles
+   the older sheets' sections, states and literal colours. */
+
+/* Sections alternate two Slate values (base and a step darker); cards sit on the surface. */
+.showcase, .units-wrap, .listen, .features-wrap, .ai-wrap, .night, .free-wrap, .get, .more-wrap { background: var(--night); }
+.record-wrap, .fx-wrap, .studio-wrap, .session-wrap, .score-wrap, .measured, .support, .ahead { background: var(--paper); }
+.record-wrap, .session-wrap, .ai-wrap, .measured { border-bottom: 0; }
+.night, .listen, .record-wrap, .session-wrap, .ai-wrap { color: var(--ink); }
+
+/* Section titles: the logo's lozenge and a gold rule above every heading. */
+main section h2::before {
+  content: ""; display: block; width: 3.4rem; height: 9px; margin-bottom: 1.1rem;
+  background:
+    linear-gradient(var(--gold), var(--gold)) 1.15rem 4px / 2.25rem 1px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FFF4C2'/%3E%3Cstop offset='.3' stop-color='%23EBC455'/%3E%3Cstop offset='.6' stop-color='%23B8862B'/%3E%3Cstop offset='1' stop-color='%238A5E14'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M5 .3 9.7 5 5 9.7.3 5Z' fill='url(%23g)' stroke='%235A3A08' stroke-opacity='.35' stroke-width='.5'/%3E%3C/svg%3E") 0 0 / 9px 9px no-repeat;
+}
+.sec-head h2, .features-head h2, .night h2, .free h2, .get h2, .more h2, .support h2 {
+  font-size: clamp(2.3rem, 4.6vw, 3.6rem); font-weight: 500; letter-spacing: -0.005em; line-height: 1.02;
+}
+.sec-head p, .features-head p, .night .lede, .listen .lede, .support .lede { font-size: 1.22rem; color: var(--ink-2); }
+.kicker { font: 600 0.95rem/1 var(--body); letter-spacing: 0.02em; text-transform: none; color: var(--gold-text); }
+
+/* Tabs: Slate's segmented control — a recessed well, the choice a lifted neutral pill. */
+.tabs { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 6px; background: var(--mist); box-shadow: 0 0 0 1px var(--edge) inset; }
+.tab { border: 0; border-radius: 4px; background: transparent; color: var(--ink-3); padding: 0.65rem 1rem; font: 600 1rem/1 var(--body); }
+.tab:hover { color: var(--ink); border-color: transparent; }
+.tab[aria-selected="true"] { background: var(--night-3); color: var(--strong); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 1px 2px rgba(0, 0, 0, 0.25); }
+:root[data-theme="light"] .tab[aria-selected="true"] { background: #fff; box-shadow: 0 1px 2px rgba(23, 32, 42, 0.18); }
+.record-wrap .tab { background: transparent; border: 0; color: var(--ink-3); }
+.record-wrap .tab:hover { color: var(--ink); }
+.record-wrap .tab[aria-selected="true"] { background: var(--night-3); color: var(--strong); }
+:root[data-theme="light"] .record-wrap .tab[aria-selected="true"] { background: #fff; }
+.ab-seg { background: var(--mist); box-shadow: 0 0 0 1px var(--edge) inset; border-radius: 6px; padding: 3px; }
+.ab-seg button { border-radius: 4px; color: var(--ink-3); }
+.ab-seg button[aria-pressed="true"] { background: var(--night-3); color: var(--strong); }
+:root[data-theme="light"] .ab-seg button[aria-pressed="true"] { background: #fff; box-shadow: 0 1px 2px rgba(23, 32, 42, 0.18); }
+
+/* The hero's chip: a gold-rimmed tag, never a gold fill. */
+.hero-new { background: rgba(7, 13, 38, 0.35); border-color: var(--line); color: var(--ink-2); font-size: 1rem; }
+.hero-new:hover { border-color: var(--accent); }
+.hero-new b { background: transparent; color: var(--gold-text); box-shadow: 0 0 0 1px var(--gold) inset; font: 700 0.78rem/1 var(--body); letter-spacing: 0.08em; }
+.hero-new i { color: var(--accent-text); }
+
+/* The product tour's backdrop: the program floating on lapis. */
+.backdrop, :root[data-theme="light"] .backdrop { background: var(--lapis-ground); border-radius: 14px; }
+.record-stage .backdrop { background: var(--lapis-ground); border: 0; }
+.window { border-radius: 8px; box-shadow: 0 50px 90px -30px rgba(7, 13, 38, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.window-bar { background: #e4e9ee; border-bottom-color: #c8d0d8; }
+.caption b { color: var(--ink); }
+
+/* Cards: the instruments, the studio, the recording numbers. */
+.unit-card { background: var(--paper-2); border: 0; border-radius: 8px; box-shadow: var(--shadow); }
+:root[data-theme="light"] .unit-card { box-shadow: 0 0 0 1px var(--line), var(--shadow); }
+.unit-card:hover { border-color: transparent; box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
+.uc-pic { background: #11151a; }
+.uc-pic::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--gold); opacity: 0.45; }
+.uc-text { padding: 1rem 1.15rem 1.15rem; }
+.uc-text strong { font: 600 1.5rem/1.1 var(--display); letter-spacing: 0.005em; }
+.uc-kind { color: var(--ink-3); font-size: 1rem; }
+.uc-pitch { font-size: 1.05rem; }
+.uc-more { font-size: 0.98rem; }
+.unit-card:hover .uc-more { color: var(--accent-text); }
+.uc-badge { background: var(--accent-grad); color: var(--accent-ink); font: 600 0.8rem/1 var(--body); }
+.card-play { background: rgba(8, 11, 15, 0.72); border-color: rgba(255, 255, 255, 0.3); }
+.card-play:hover, .card-play:focus-visible { border-color: #7ea2f6; }
+.card-play.is-on { background: var(--accent-grad); border-color: transparent; color: var(--accent-ink); }
+.studio-card, .way, .tiers li { background: var(--paper-2); border-color: var(--line); border-radius: 8px; }
+.studio-card { box-shadow: var(--shadow); }
+.studio-text .studio-note { border-left-color: var(--gold); }
+.stats li { background: var(--paper-2); border: 0; border-radius: 8px; box-shadow: var(--shadow); }
+.stats li.is-good strong { color: var(--strong); }
+.stats li.is-good { box-shadow: 3px 0 0 var(--gold) inset, var(--shadow); }
+.honest { border-color: var(--line); border-radius: 8px; }
+.face img { border-radius: 6px; background: #11151a; }
+.score-more img { border-radius: 6px; }
+.score-points, .record-points, .session-wrap .score-points, .ai-wrap .score-points { border-top: 1px solid var(--gold); }
+
+/* Plain lists and editorial rules take the gold hairline; their marks are quiet. */
+.flist { border-top: 1px solid var(--gold); }
+.flist .ico { background: var(--mist); color: var(--accent-text); box-shadow: 0 0 0 1px var(--edge) inset; }
+.more-col, .road-col { border-top: 1px solid var(--gold); }
+.road-col:nth-child(2), .road-col:nth-child(3) { border-top-color: var(--gold); }
+.road-col li::before, .road-col:nth-child(1) li::before, .road-col:nth-child(2) li::before { background: var(--accent); }
+.more-col a.link { color: var(--accent-text); border-bottom: 1px solid var(--accent); }
+.qa summary::after { color: var(--accent-text); }
+.qa-a a, .measured .score-points a { color: var(--accent-text); }
+.promises svg { color: var(--accent-text); }
+.soon { background: var(--mist); color: var(--ink-2); }
+.facts li { border-left: 1px solid var(--gold); }
+
+/* The engine's console: Slate wells, meters in the logo's gold. */
+.console { background: var(--paper-2); border: 0; border-radius: 8px; box-shadow: var(--shadow); }
+.chan { background: var(--cell); border-radius: 3px; }
+.chan b, :root[data-theme="light"] .chan b { background: linear-gradient(to top, #8c6418, #c9962e 60%, #f3d37a); }
+
+/* The effects' list: the choice is a lifted neutral pill. */
+.fx-item { border-radius: 6px; }
+.fx-item strong { font-weight: 600; }
+.fx-item:hover { background: var(--mist); }
+.fx-item[aria-pressed="true"] { background: var(--paper-2); border-color: transparent; box-shadow: 3px 0 0 var(--accent) inset, var(--shadow); }
+.fx-item[aria-pressed="true"] strong { color: var(--strong); }
+.fx-item[aria-pressed="true"] span { color: var(--ink-2); }
+.fx-window { border-radius: 8px; background: #11151a; }
+
+/* Listening: Slate rows, the playing one marked in lapis, its bar the logo's gold. */
+.songs { border-top: 0; display: grid; gap: 2px; border-radius: 8px; overflow: hidden; background: var(--gutter-bg); }
+:root[data-theme="light"] .songs { background: var(--line); }
+.song { border-bottom: 0; padding: 0.85rem 1.2rem; background: var(--paper-2); }
+.song.is-current { background: var(--night-3); box-shadow: 3px 0 0 var(--accent) inset; }
+:root[data-theme="light"] .song.is-current { background: #fff; }
+.song-btn { background: var(--mist); border: 0; box-shadow: 0 0 0 1px var(--edge) inset; color: var(--strong); width: 2.9rem; height: 2.9rem; }
+.song-btn:hover { box-shadow: 0 0 0 1px var(--accent) inset; }
+.song.is-playing .song-btn { background: var(--accent-grad); color: var(--accent-ink); box-shadow: none; }
+.song-name strong { font-weight: 500; }
+.song-bar, .ab-bar { background: var(--cell); box-shadow: 0 1px 0 var(--edge) inset; }
+.song-bar i, .ab-bar i { background: var(--verm-bar); }
+.ab-play { background: var(--mist); border-color: var(--edge); }
+.ab-play:hover { border-color: var(--accent); }
+.ab-play.is-on { background: var(--accent-grad); border-color: transparent; color: var(--accent-ink); }
+.ps-row { background: var(--mist); border-radius: 6px; }
+.ps-row.is-on { background: var(--mist-2); box-shadow: 3px 0 0 var(--accent) inset; }
+
+/* Measured: a Slate table; Cantus's rows carry a gold rule, nothing louder. */
+.measured-table { background: var(--paper-2); border-radius: 8px; box-shadow: var(--shadow); }
+:root[data-theme="light"] .measured-table { box-shadow: 0 0 0 1px var(--line), var(--shadow); }
+.measured th, .measured td { padding: 0.9rem 1.1rem; border-bottom-color: var(--line); }
+.measured thead th { color: var(--ink-3); background: var(--night-3); }
+:root[data-theme="light"] .measured thead th { background: var(--mist); }
+.measured tbody tr:last-child th, .measured tbody tr:last-child td { border-bottom: 0; }
+.measured tbody th { color: var(--ink-2); font-weight: 500; }
+.measured tr.ours { background: transparent; }
+.measured tr.ours th { color: var(--strong); font-weight: 600; box-shadow: 3px 0 0 var(--gold) inset; }
+.measured tr.ours td { color: var(--strong); }
+.measured tr.ours td.win { color: var(--strong); font-weight: 600; }

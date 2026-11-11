@@ -230,7 +230,11 @@ impl Processor {
         cells: &Cells,
         image: bool,
     ) -> Option<(Processor, Producer<EngineMessage>, Consumer<EngineEvent>)> {
-        if self.deferred.is_some() || self.sync.is_some() || self.record_rings.is_some() {
+        if self.deferred.is_some()
+            || self.cells_wait.is_some()
+            || self.sync.is_some()
+            || self.record_rings.is_some()
+        {
             return None;
         }
         every_field_is_accounted_for(self);
@@ -269,8 +273,9 @@ impl Processor {
             rx_engine,
             tx_engine,
             midi_rx,
-            n_tracks,
-            n_strips,
+            (n_tracks, n_strips),
+            // Its slots provisioned as the original's (ADR 0107).
+            self.ready,
         );
         p.copy_state_from(self, master, incoming_effects, incoming_instruments)?;
         p.copy_nodes_from(self, tracks, strips, tap, image)?;
@@ -286,7 +291,11 @@ impl Processor {
         use cantus_core::{EffectKind as E, InstrumentKind as I};
         const KB: f64 = 1024.0;
         const FIXED: f64 = 4_700.0 * KB;
-        const TRACK_CELL: usize = 192 << 10;
+        // A track cell without its parts (ADR 0107: a slot holds a kit or a note-effect
+        // chain only while its track uses one); each part held, in a slot or spare, apart.
+        const TRACK_CELL: usize = 24 << 10;
+        const KIT: usize = 120 << 10;
+        const NOTE_FX: usize = 55 << 10;
         const STRIP_CELL: usize = 36 << 10;
         let effect = |k: E| match k {
             E::Space | E::Maximizer => 2_000.0,
@@ -330,6 +339,8 @@ impl Processor {
         (FIXED + units * KB * scale) as usize
             + n.tracks.len() * TRACK_CELL
             + n.strips.len() * STRIP_CELL
+            + self.parts_held().kits * KIT
+            + self.parts_held().note_fx * NOTE_FX
             + lines
     }
 
@@ -345,6 +356,9 @@ impl Processor {
                 lasting: false,
             })
         };
+        if self.cells_wait.is_some() {
+            return passing("a snapshot was waiting for its slots");
+        }
         if self.deferred.is_some() {
             return passing("a snapshot was waiting for the control grid");
         }
@@ -397,10 +411,12 @@ impl Processor {
         self.snapshot = o.snapshot.clone();
         self.incoming_effects = incoming_effects;
         self.incoming_instruments = incoming_instruments;
+        // The spare parts copied, room kept for one of each per slot (ADR 0107).
+        self.parts = o.parts.fork();
         self.probed = o.probed;
         self.transport = o.transport.clone();
-        self.track_ids = o.track_ids;
-        self.strip_ids = o.strip_ids;
+        *self.track_ids = *o.track_ids;
+        *self.strip_ids = *o.strip_ids;
         self.track_to_slot = with_room(&o.track_to_slot);
         self.strip_to_slot = with_room(&o.strip_to_slot);
         self.strip_play_order = with_room(&o.strip_play_order);
@@ -427,7 +443,9 @@ impl Processor {
         self.mpe = o.mpe.clone();
         self.recording = o.recording;
         self.stats = o.stats;
-        self.meters = o.meters.clone();
+        self.meters.clone_from(&o.meters);
+        // Its own mailbox (ADR 0107); the block's modulators as the original's.
+        self.modulation = o.modulation;
         self.was_playing = o.was_playing;
         self.capture_target = o.capture_target;
         self.capture_slot = o.capture_slot;
@@ -440,11 +458,11 @@ impl Processor {
         self.follow_n = o.follow_n;
         // The planner's state, on this processor's own lines (shared with its nodes).
         let lines = self.pdc.lines.clone();
-        self.pdc = o.pdc.clone();
+        self.pdc.clone_from(&o.pdc);
         self.pdc.lines = lines;
-        self.master_loud = o.master_loud.clone();
-        self.strip_post = o.strip_post;
-        self.strip_arrive = o.strip_arrive;
+        self.master_loud.clone_from(&o.master_loud);
+        *self.strip_post = *o.strip_post;
+        *self.strip_arrive = *o.strip_arrive;
         self.arrive_floor = o.arrive_floor;
         self.master_arrive = o.master_arrive;
         self.latency_sig = o.latency_sig;
@@ -460,7 +478,7 @@ impl Processor {
         self.pass = o.pass;
         self.last_parallel = o.last_parallel;
         self.flush_denormals = o.flush_denormals;
-        self.live = o.live.clone();
+        self.live.clone_from(&o.live);
         self.master = master;
         self.auto = o.auto.clone();
         self.prof.set_on(o.prof.is_on());
@@ -490,14 +508,19 @@ impl Processor {
             *y.out.try_borrow_mut()? = (*x.out.try_borrow()?).clone();
             *y.key.try_borrow_mut()? = (*x.key.try_borrow()?).clone();
         }
-        // A fresh line is left out of an image (an empty one stands for it) and stays fresh
-        // in a copy from one: 64 KB each, 192 of them (review 3).
+        // A fresh line is left out of an image (an empty one stands for it) and is made
+        // fresh again in a copy from one (review 3), where the planner says a line is: a
+        // pool starts empty (ADR 0107), so what the copy holds is what the original did.
         for i in 0..a.lines.len() {
             let (from, mut to) = (a.lines.get(i)?, b.lines.get(i)?);
             if image && from.is_fresh() {
                 *to = crate::pdc::DelayLine::with_len(0);
             } else if !from.is_empty() {
                 *to = from.clone();
+            } else if o.pdc.len_of(i) > 0 {
+                *to = crate::pdc::DelayLine::with_len(o.pdc.len_of(i));
+            } else {
+                *to = crate::pdc::DelayLine::with_len(0);
             }
         }
         for (x, y) in a.edges.iter().zip(b.edges.iter()) {
@@ -562,6 +585,10 @@ fn every_field_is_accounted_for(p: &Processor) {
         incoming_effects: _,
         scratch_effects: _,
         incoming_instruments: _,
+        parts: _,
+        ready: _,
+        cells_wait: _,
+        cells_asked: _,
         probed: _,
         transport: _,
         nodes: _,
@@ -596,6 +623,9 @@ fn every_field_is_accounted_for(p: &Processor) {
         recording: _,
         stats: _,
         meters: _,
+        reports: _,
+        reports_in: _,
+        modulation: _,
         was_playing: _,
         capture_target: _,
         capture_slot: _,
@@ -777,7 +807,7 @@ mod tests {
             image.approx_bytes()
         );
         let whole = a.approx_bytes();
-        assert!(whole > 50 << 20, "a whole engine: {whole} bytes");
+        assert!(whole > 15 << 20, "a whole engine: {whole} bytes");
         let (mut b, _btx, mut brx) = image.fork_cells(64, 1024, &cells, false).expect("resumes");
         for i in 0..400 {
             let x = block(&mut a, &mut arx, 64);

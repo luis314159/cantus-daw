@@ -1,0 +1,42 @@
+# Area: the signs of a driven control, the help line, nothing truncated (round 39, ADR 0109).
+# Every key here needs its twin in ux_signs.es.txt.
+
+# What drives a control and how to take it back ({menu} is the menu entry's own label).
+ux.drive.clip = Automated by the clip ‘{clip}’{on}
+ux.drive.clips = Automated by {n} clips, ‘{clip}’ here{on}
+ux.drive.clip.back = Right-click → {menu}, or delete the clip
+ux.drive.mod = Modulated by {names}
+ux.drive.mod.back = Alt+drag sets the depth; right-click → {menu} disconnects
+ux.drive.ctl = Moved by the controller {control}
+ux.drive.ctl.back = Right-click → {menu} to let it go
+ux.drive.vca = Scaled by the VCA {names}
+ux.drive.vca.back = Right-click the strip → {menu} to release it
+
+# The help line is never empty: what the kit's parts say when nothing more precise does.
+ux.hint.field = Click to type · Enter keeps it, Esc puts it back
+ux.hint.splitter = Drag to resize · double-click for the last size · right-click resets
+ux.hint.scrollbar = Drag to scroll
+ux.hint.resize = Drag to resize
+ux.hint.move = Drag to move
+ux.hint.menu = The {menu} menu
+ux.hint.window = Drag to move the window · double-click to maximise it
+ux.hint.topbar = Right-click to choose what the top bar shows
+ux.hint.add = Add to {what}
+ux.hint.settings_page = Show the {page} settings
+ux.hint.pad_edit = Open this pad in the drum machine’s editor
+ux.hint.inspector_menu = The inspector’s menu: its width, folding it away
+ux.hint.input = What plays into this strip: {names}
+ux.hint.scrollbar_page = Drag to scroll · click beside the thumb for a page
+ux.hint.cable_band = The routing: point at a cable to see where it goes · click selects it, right-click opens its menu
+ux.hint.roll_ruler = Click to move the playhead to that beat
+ux.hint.device = {name} · {what} — double-click to add it, or drag it onto a track or a strip
+ux.hint.session_head = {track} — click to select the track
+ux.hint.session_grid = Double-click an empty slot to make a clip · drag clips between slots
+ux.hint.fold_macros = Macros: click to fold the band or open it again
+ux.hint.fold_mods = Modulation: click to fold the band or open it again
+ux.hint.keyboard = Play the instrument: press a key — lower on the key plays louder
+ux.hint.sampler_map = The key map: click a zone to select it, drag its edges to change its keys and velocities · drop samples to add zones
+ux.words.devices_search = Name, kind, vendor or preset
+ux.hint.dancer_character = Click to choose the character in the instrument’s window
+ux.hint.no_strip = No mixer strip: choose one in the track’s Mixer row to give it effects
+ux.drive.on = on {track}

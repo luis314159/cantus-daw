@@ -95,13 +95,20 @@ pub mod automate;
 pub mod brush;
 pub mod cache;
 pub mod color;
+pub mod faces;
 pub mod field;
 pub mod glyph;
+/// The browser's glyphs, icon set 4 (round 39, el-views).
+pub mod glyph_browser;
+pub mod glyph_mixer; // r39:el-mixer — icon set 3
 pub mod hint;
+pub mod icons;
+pub mod icons_data;
 pub mod inspect;
 pub mod light;
 pub mod prose;
 pub mod raster_parts;
+pub mod system;
 pub mod text;
 pub mod tokens;
 
@@ -110,17 +117,24 @@ pub mod cable;
 pub mod cap;
 pub mod cell;
 pub mod chrome;
+pub mod dialog; // r39:el-controls
+pub mod drive_sign; // r39:el-controls
 pub mod fader;
+pub mod fader_slate; // r39:el-controls
+pub mod glyph_rest_data; // r39:el-controls
 pub mod knob;
+pub mod knob_slate; // r39:el-controls
 pub mod led;
 pub mod logo;
 pub mod logo_small;
 pub mod mark;
 pub mod menu;
+pub mod menu_slate; // r39:el-controls
 pub mod meter;
 pub mod segmented;
 pub mod shell;
 pub mod skin;
+pub mod slider; // r39:el-controls
 pub mod tap;
 pub mod tile;
 pub mod well;
@@ -357,5 +371,11 @@ pub fn with_brush<R>(painter: &Painter, f: impl FnOnce(&mut Brush) -> R) -> R {
 pub fn focus_ring(b: &mut Brush, rect: egui::Rect, radius: f32, s: &Style) {
     let off = s.s(2.0);
     let radius = radius.max(0.0);
-    b.rrect_stroke(rect.expand(off), radius + off, s.s(1.5), s.t.focus);
+    // r39:el-controls — a recessed family's ring is a hairline of the accent, 2 pt out.
+    let w = if s.t.system.recessed() {
+        s.s(1.0)
+    } else {
+        s.s(1.5)
+    };
+    b.rrect_stroke(rect.expand(off), radius + off, w, s.t.focus);
 }

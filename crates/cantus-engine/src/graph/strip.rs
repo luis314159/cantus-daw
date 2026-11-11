@@ -196,6 +196,15 @@ pub(crate) struct StripOut {
 
 impl StripOut {
     pub fn new() -> Self {
+        Self::with_room(PASS_FRAMES)
+    }
+
+    /// A slot not provisioned yet (ADR 0107): nothing allocated.
+    pub fn bare() -> Self {
+        Self::with_room(0)
+    }
+
+    fn with_room(frames: usize) -> Self {
         StripOut {
             ran: false,
             muted: false,
@@ -203,13 +212,13 @@ impl StripOut {
             gr: 1.0,
             send_level: [0.0; MAX_SENDS_PER_STRIP],
             send_tap: [SendTap::Post; MAX_SENDS_PER_STRIP],
-            post_l: vec![0.0; PASS_FRAMES],
-            post_r: vec![0.0; PASS_FRAMES],
+            post_l: vec![0.0; frames],
+            post_r: vec![0.0; frames],
             pre_apart: false,
-            pre_l: vec![0.0; PASS_FRAMES],
-            pre_r: vec![0.0; PASS_FRAMES],
-            out_l: vec![0.0; PASS_FRAMES],
-            out_r: vec![0.0; PASS_FRAMES],
+            pre_l: vec![0.0; frames],
+            pre_r: vec![0.0; frames],
+            out_l: vec![0.0; frames],
+            out_r: vec![0.0; frames],
         }
     }
 }

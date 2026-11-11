@@ -1,12 +1,12 @@
 //! Bakes Cantus's art into the executable (ADR 0024 §12):
 //!
-//! - the splash's logo — #2, "C of waves with a playhead cross", as designed — at 1× and
-//!   2× of its 184-point side, as premultiplied RGBA, so the splash's first frame shows it
+//! - the splash's logo — #03, "the metal", the default logo since round 39 — at 1× and 2×
+//!   of its 184-point side, as premultiplied RGBA, so the splash's first frame shows it
 //!   without rendering anything;
-//! - the window's icon off Windows: the mark (ADR 0046) at 64 px (on Windows the running
-//!   application draws its own, in the colour the user chose: `cantus_ui::window_icon`);
-//! - the `.exe`'s icon: a Windows resource (`winresource`, MIT) holding the mark at every
-//!   size from 16 to 256 px, the small ones redrawn for the pixel grid.
+//! - the window's icon off Windows: #03 at 64 px (on Windows the running application draws
+//!   its own, the mark in the colour the user chose: `cantus_ui::window_icon`);
+//! - the `.exe`'s icon: a Windows resource (`winresource`, MIT) holding #03 at every size
+//!   from 16 to 256 px, below 48 its designer's small masters.
 //!
 //! The icon code is `icon.rs`, shared with the launcher's build script.
 
@@ -58,6 +58,18 @@ pub const ART: cantus_ui::boot::Art = cantus_ui::boot::Art {{
     write(&out.join("baked.rs"), baked.as_bytes());
 
     icon::embed_exe_icon(&out, "Cantus");
+
+    // Windows gives the main thread 1 MB, Linux and macOS 8 MB: the same 8 MB here, as an
+    // additional guard only (ADR 0107, addendum — round 39's start-up overflow). The frames
+    // on the boot path are held small without it (`tests/stack_budget.rs` in the engine and
+    // the interface, the size bounds in `processor.rs`).
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        match std::env::var("CARGO_CFG_TARGET_ENV").as_deref() {
+            Ok("msvc") => println!("cargo:rustc-link-arg-bins=/STACK:8388608"),
+            Ok("gnu") => println!("cargo:rustc-link-arg-bins=-Wl,--stack,8388608"),
+            _ => {}
+        }
+    }
 
     // Linux (ADR 0065): the desktop's icon theme sizes, for the AppImage, the Flatpak and
     // any package (`packaging/linux/`, which takes them from `OUT_DIR/hicolor`).

@@ -201,11 +201,14 @@ pub enum Glyph {
     Session,
     /// The Stage tab's mark: a figure dancing (round 35, ADR 0091).
     Stage,
+    /// Three sliders at three heights: settings to set (the More panel's *Customise top
+    /// bar…*, round 39 close-out).
+    Sliders,
 }
 
 impl Glyph {
     /// Every glyph, in the order above (the family test walks it).
-    pub const ALL: [Glyph; 64] = [
+    pub const ALL: [Glyph; 65] = [
         Glyph::Menu,
         Glyph::Down,
         Glyph::Prev,
@@ -270,6 +273,7 @@ impl Glyph {
         Glyph::LaneCurve,
         Glyph::Session,
         Glyph::Stage,
+        Glyph::Sliders,
     ];
 }
 
@@ -805,6 +809,13 @@ fn workspace(g: Glyph, o: &mut dyn FnMut(Op<'_>)) {
             o(Line(&[(-2.6, 3.8), (-0.2, 1.4), (2.0, 2.4), (2.6, 4.2)]));
             o(Line(&[(-5.0, 5.0), (5.0, 5.0)]));
         }
+        Glyph::Sliders => {
+            for (y, x) in [(-3.6, 1.6), (0.0, -2.0), (3.6, 0.6)] {
+                o(Line(&[(-5.0, y), (x - 1.6, y)]));
+                o(Line(&[(x + 1.6, y), (5.0, y)]));
+                o(Block(x - 0.8, y - 1.4, x + 0.8, y + 1.4));
+            }
+        }
         _ => window(g, o),
     }
 }
@@ -1008,3 +1019,156 @@ pub fn extent(g: Glyph) -> Rect {
 /// Glyphs placed off centre on purpose: a window's grip sits in its corner, minimise at the
 /// foot of its box.
 pub const ANCHORED: [Glyph; 2] = [Glyph::Grip, Glyph::Minimise];
+
+/// The icon family's name for each kit glyph (round 39, `icons`' set 5 and its whole map,
+/// `docs/round39/design/icons/spec-rest.md`): the drawing a key of 16–36 device pixels
+/// shows (`kit::icons`). The set each comes from is said where it is not set 5.
+pub fn family_name(g: Glyph) -> &'static str {
+    match g {
+        Glyph::Menu => "menu",
+        Glyph::Down => "down",
+        Glyph::Prev => "prev",
+        Glyph::Next => "next",
+        Glyph::Star => "star",             // set 4
+        Glyph::StarFilled => "starFilled", // set 4
+        Glyph::More => "more",             // set 3
+        Glyph::Help => "help",
+        // The bulb is retired: an effect's on is the enable key (set 3).
+        Glyph::Power | Glyph::Bulb => "enable",
+        Glyph::Undo => "undo", // set 2
+        Glyph::Redo => "redo", // set 2
+        Glyph::Resize => "resize",
+        Glyph::Close => "close",
+        Glyph::Agent => "agent",
+        Glyph::Record => "record", // set 2 (a strip's arm is set 3's `arm`)
+        Glyph::Phase => "phase",   // set 3
+        Glyph::Swap => "swap",     // set 3
+        Glyph::Send => "send",     // set 3
+        Glyph::SendOpen => "sendOpen",
+        Glyph::Mono => "mono", // set 3
+        Glyph::Plus => "add",  // set 3
+        Glyph::Grip => "resizeGrip",
+        Glyph::Check => "check", // set 4
+        Glyph::Device => "device",
+        Glyph::Play => "play",           // set 2
+        Glyph::Pause => "pause",         // set 2
+        Glyph::Stop => "stop",           // set 2
+        Glyph::ToStart => "toStart",     // set 2
+        Glyph::Loop => "loop",           // set 2
+        Glyph::Metronome => "metronome", // set 2
+        Glyph::Keyboard => "keyboard",
+        Glyph::Arrangement => "arrangement", // set 2
+        Glyph::PianoRoll => "pianoRoll",     // set 2
+        Glyph::Score => "score",
+        Glyph::Rack => "rack",           // set 2
+        Glyph::Mixer => "mixer",         // set 2
+        Glyph::Inspector => "inspector", // set 2
+        Glyph::Browser => "browser",     // set 2
+        Glyph::Gear => "gear",           // set 2
+        Glyph::Pick => "pick",           // set 2
+        Glyph::Warning => "warning",
+        Glyph::MouseMenu => "mouseMenu",
+        Glyph::Automate => "automate",
+        Glyph::Typed => "typed",
+        Glyph::Zoom => "zoom",   // set 2
+        Glyph::Magnet => "snap", // set 2
+        Glyph::Minimise => "minimise",
+        Glyph::Maximise => "maximise",
+        Glyph::Restore => "restore",
+        Glyph::Replace => "replace",
+        Glyph::Link => "link",      // set 3
+        Glyph::Key => "key",        // set 3
+        Glyph::Cables => "routing", // set 3
+        Glyph::Filter => "filter",
+        Glyph::Warp => "warp",
+        Glyph::PluginStopped => "pluginStopped",
+        Glyph::Frozen => "freeze", // set 3
+        Glyph::Controller => "controller",
+        Glyph::LanePencil => "lanePencil",
+        Glyph::LaneLine => "laneLine",
+        Glyph::LaneCurve => "laneCurve",
+        Glyph::Session => "session",
+        Glyph::Stage => "stage",
+        Glyph::Sliders => "sliders",
+    }
+}
+
+/// Set 5's drawing of `name` (and the set-4 drawings the map names) for a canvas of `size`
+/// device pixels ([`super::glyph_rest_data`]).
+pub fn rest_drawing(name: &str, size: u16) -> Option<&'static str> {
+    super::glyph_rest_data::DRAWINGS
+        .iter()
+        .find(|(n, s, _)| *n == name && *s == size)
+        .map(|(_, _, svg)| *svg)
+}
+
+/// The glyphs set 5 draws for every key (16, 20, 24, 30 and 36 device pixels).
+pub const SET5_KEYS: [Glyph; 19] = [
+    Glyph::Help,
+    Glyph::Warning,
+    Glyph::Agent,
+    Glyph::Device,
+    Glyph::Keyboard,
+    Glyph::Score,
+    Glyph::MouseMenu,
+    Glyph::Automate,
+    Glyph::Filter,
+    Glyph::Replace,
+    Glyph::Warp,
+    Glyph::PluginStopped,
+    Glyph::Controller,
+    Glyph::LanePencil,
+    Glyph::LaneLine,
+    Glyph::LaneCurve,
+    Glyph::Session,
+    Glyph::Stage,
+    Glyph::Sliders,
+];
+
+#[cfg(test)]
+mod family_tests {
+    use super::*;
+
+    /// Every glyph of the kit has its family name, and every set-5 key glyph is drawn for
+    /// every key height, each drawing parsing and inking something (spec-rest.md).
+    #[test]
+    fn set_5_draws_every_key_glyph_at_every_key_height() {
+        for g in Glyph::ALL {
+            assert!(!family_name(g).is_empty(), "{g:?}");
+        }
+        let t = crate::theme_slate::slate_night_tokens();
+        let inks = super::super::icons::Inks {
+            main: t.text,
+            second: t.text_dim,
+            rec: t.danger,
+            cut: t.well,
+        };
+        for g in SET5_KEYS {
+            let name = family_name(g);
+            for size in super::super::icons::SIZES {
+                let body = rest_drawing(name, size)
+                    .unwrap_or_else(|| panic!("{name} has no drawing at {size} px"));
+                let doc = super::super::icons::document(body, size, &inks);
+                let tree = resvg::usvg::Tree::from_str(&doc, &Default::default())
+                    .unwrap_or_else(|e| panic!("{name}@{size}: {e}"));
+                let mut pix = resvg::tiny_skia::Pixmap::new(size.into(), size.into()).unwrap();
+                resvg::render(&tree, Default::default(), &mut pix.as_mut());
+                let inked = pix.pixels().iter().filter(|p| p.alpha() > 0).count();
+                assert!(inked > 4, "{name}@{size} draws nothing");
+                assert!(!doc.contains("var(--"), "{name}@{size}: an ink not named");
+            }
+        }
+        // The small marks: each at its own sizes.
+        for (name, sizes) in [
+            ("menu", &[10u16, 12, 15, 18][..]),
+            ("down", &[8, 10, 12, 15]),
+            ("close", &[10, 12, 15, 16, 18, 24]),
+            ("resize", &[12, 16, 18, 24]),
+            ("typed", &[12, 16, 18, 24]),
+        ] {
+            for &size in sizes {
+                assert!(rest_drawing(name, size).is_some(), "{name}@{size}");
+            }
+        }
+    }
+}

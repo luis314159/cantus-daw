@@ -587,6 +587,14 @@ pub enum Command {
         effect: EffectId,
         source: Option<TrackId>,
     },
+    /// r39:conv — Aula's response from a file ([`crate::EffectSpec::ir`], ADR 0112), or
+    /// none (`None`: Cantus's own, by its `ir` parameter). Refused for any other kind and
+    /// for an empty path.
+    SetEffectIr {
+        strip: StripId,
+        effect: EffectId,
+        ir: Option<Box<crate::fx::aula::IrFile>>,
+    },
 
     // --- clips ------------------------------------------------------------------------
     InsertClip {
@@ -944,6 +952,8 @@ pub enum Command {
     /// An edit of the session view's grid (round 33, ADR 0076). // r33:session
     Session(crate::session::SessionCommand), // r33:session
     Mix(crate::mix_cmd::MixCommand), // r36:mix
+    /// Sections, folders and lane modes (round 39, ADR 0113). // r39:arrange
+    Arrange(crate::arrange::ArrangeCommand), // r39:arrange
 
     /// Several commands as one undo step.
     Batch {
@@ -1039,6 +1049,7 @@ impl Command {
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
+            SetEffectIr { .. } => "cmd.set_effect_ir", // r39:conv
             SetTrackHeight { .. } => "cmd.set_track_height",
             SetTrackIcon { .. } => "cmd.set_track_icon",
             SetTrackMute { .. } => "cmd.set_track_mute",
@@ -1127,6 +1138,7 @@ impl Command {
             SetRecordSettings { .. } => "cmd.set_record_settings",
             Session(c) => c.label_key(), // r33:session
             Mix(c) => c.label_key(),     // r36:mix
+            Arrange(c) => c.label_key(), // r39:arrange
             Batch { label_key, .. } => label_key,
         }
     }
@@ -1155,6 +1167,7 @@ impl Command {
             | (SetMetreTrack { .. }, SetMetreTrack { .. }) => true,
             (Session(a), Session(b)) => a.supersedes(b), // r33:session
             (Mix(a), Mix(b)) => a.supersedes(b),         // r36:mix
+            (Arrange(a), Arrange(b)) => a.supersedes(b), // r39:arrange
             (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
             (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
             (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
@@ -2490,6 +2503,22 @@ impl Command {
                     source: old,
                 })
             }
+            // r39:conv
+            SetEffectIr { strip, effect, ir } => {
+                let e = slot_mut(project, strip, effect)?;
+                if e.spec.kind != crate::EffectKind::Aula && ir.is_some() {
+                    return Err(CommandError::InvalidValue("impulse response".into()));
+                }
+                if ir.as_ref().is_some_and(|f| f.path.trim().is_empty()) {
+                    return Err(CommandError::InvalidValue("impulse response path".into()));
+                }
+                let old = std::mem::replace(&mut e.spec.ir, ir);
+                Ok(SetEffectIr {
+                    strip,
+                    effect,
+                    ir: old,
+                })
+            }
             ClearEffectParam { strip, effect, key } => {
                 let e = slot_mut(project, strip, effect)?;
                 if e.spec.kind.param(&key).is_none() {
@@ -3420,6 +3449,7 @@ impl Command {
 
             Session(c) => crate::session::apply(c, project), // r33:session
             Mix(c) => crate::mix_cmd::apply(c, project),     // r36:mix
+            Arrange(c) => crate::arrange::apply(c, project), // r39:arrange
             Batch {
                 label_key,
                 commands,

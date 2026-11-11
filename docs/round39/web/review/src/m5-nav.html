@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mock 5 — navigation: a menu on phones, chapters on desktop</title>
+<script>if (location.search.includes("light")) document.documentElement.dataset.theme = "light";</script>
+<link rel="stylesheet" href="mock.css">
+<style>
+body { min-height: 100vh; }
+.bar { background: color-mix(in srgb, var(--paper) 92%, transparent); border-bottom: 1px solid var(--line); position: relative; z-index: 2; }
+.bar .links span.on { color: var(--strong); box-shadow: 0 -2px 0 var(--accent) inset; padding-bottom: .4rem; }
+.mega { position: relative; z-index: 1; background: var(--paper-2); border-bottom: 1px solid var(--line); box-shadow: 0 30px 60px -30px rgba(0,0,0,.6); }
+.mega .wrap { display: grid; grid-template-columns: repeat(4, 1fr) 1.15fr; gap: 1rem; padding-top: 1.6rem; padding-bottom: 1.8rem; }
+.ch { display: grid; gap: .55rem; align-content: start; padding: .8rem; border-radius: 10px; }
+.ch:hover, .ch.on { background: var(--accent-tint); }
+.ch img { border-radius: 6px; aspect-ratio: 16 / 9; object-fit: cover; object-position: top left; box-shadow: 0 0 0 1px var(--line); }
+.ch b { color: var(--strong); font-size: 1.1rem; }
+.ch p { color: var(--ink-3); font-size: .95rem; line-height: 1.4; }
+.side { border-left: 1px solid var(--line); padding-left: 1.4rem; display: grid; gap: .55rem; align-content: start; }
+.side h4 { margin: .4rem 0 .2rem; font: 600 .78rem/1 var(--f); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.side a { text-decoration: none; color: var(--ink); font-weight: 500; }
+.side small { color: var(--ink-3); }
+.page { opacity: .35; padding: 3rem 0; filter: blur(1px); }
+.page h1 { font-size: 5rem; }
+/* phone: a sheet */
+.sheet { display: none; }
+@media (max-width: 52rem) {
+  .mega, .page { display: none; }
+  .sheet { display: block; padding: .6rem var(--g) 2rem; background: var(--paper); }
+  .sheet .row { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+  .sheet .row b { font: 600 1.45rem/1 var(--f); color: var(--strong); }
+  .sheet .row small { display: block; color: var(--ink-3); font-size: .92rem; margin-top: .35rem; }
+  .sheet .row svg { color: var(--ink-3); flex: none; }
+  .sheet .prefs { display: flex; gap: .7rem; margin: 1.4rem 0 1rem; }
+  .sheet .prefs .seg { display: inline-flex; font-size: .95rem; }
+  .sheet .prefs .seg span { padding: .55rem .8rem; }
+  .sheet .send { width: 100%; justify-content: center; padding: 1rem; }
+  .sheet .fine { margin-top: .9rem; color: var(--ink-3); font-size: .92rem; text-align: center; }
+  .bar .btn { display: none; }
+  .bar .burger { box-shadow: 0 0 0 1px var(--accent) inset; color: var(--strong); }
+}
+</style></head>
+<body>
+<div class="mock-tag">Mock 5 · navigation — not the site</div>
+<div class="bar"><div class="wrap nav">
+  <a class="brand" href="#"><img src="../../../../../crates/cantus-ui/assets/logos/03.svg" alt="">Cantus</a>
+  <nav class="links"><span class="on">Tour ▾</span><span>Instruments</span><span>Effects</span><span>Listen</span><span>Measured</span><span>Manual</span></nav>
+  <div class="tools"><span class="seg"><span class="on">EN</span><span>ES</span></span>
+    <a class="btn primary" href="#" style="padding:.7rem 1.05rem">Download</a>
+    <span class="burger"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 12 12M14 2 2 14"/></svg></span></div>
+</div></div>
+<div class="mega"><div class="wrap">
+  <div class="ch on"><img src="../../../../../web/assets/studio/record-on-night-en.webp" alt=""><b>Record</b><p>The recording mode: the song baked, only your take live.</p></div>
+  <div class="ch"><img src="../../../../../web/assets/app-mixer-xl.png" alt="" style="object-position: 30% 90%"><b>Mix &amp; master</b><p>Sends, groups, VCAs, snapshots and a master chain.</p></div>
+  <div class="ch"><img src="../../../../../web/assets/session/grid.webp" alt=""><b>Perform</b><p>Session view, Ableton Link, MIDI clock and MPE.</p></div>
+  <div class="ch"><img src="../../../../../web/assets/score/page.webp" alt=""><b>Write</b><p>Piano roll, channel rack and a score from the roll.</p></div>
+  <div class="side"><h4>Also</h4><a href="#">AI that works with you <small>— MCP, stems, audio to MIDI</small></a><a href="#">The professional studio <small>— outboard, surfaces, ARA 2</small></a><a href="#">The engine <small>— bit-exact, every core</small></a><h4>Project</h4><a href="#">Where it is and where it goes</a><a href="#">Support the work</a></div>
+</div></div>
+<div class="wrap page"><h1>Finish the song.</h1></div>
+<div class="sheet">
+  <div class="row"><div><b>Tour</b><small>Record, mix, perform, write</small></div><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 6 6-6 6"/></svg></div>
+  <div class="row"><div><b>Instruments</b><small>Nine of its own, each heard</small></div><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 6 6-6 6"/></svg></div>
+  <div class="row"><div><b>Effects</b><small>Twenty-five; seven heard with and without</small></div><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 6 6-6 6"/></svg></div>
+  <div class="row"><div><b>Listen</b><small>Six demo songs made in Cantus</small></div><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 6 6-6 6"/></svg></div>
+  <div class="row"><div><b>Measured</b><small>Against FL Studio and REAPER</small></div><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 6 6-6 6"/></svg></div>
+  <div class="row"><div><b>Manual</b><small>English and Spanish</small></div><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m2 2 6 6-6 6"/></svg></div>
+  <div class="prefs"><span class="seg"><span class="on">English</span><span>Español</span></span><span class="seg"><span class="on">Night</span><span>Day</span></span></div>
+  <a class="btn primary send" href="#">Send the download link to my computer</a>
+  <p class="fine">Cantus runs on Windows, Linux and macOS (preview).</p>
+</div>
+</body></html>

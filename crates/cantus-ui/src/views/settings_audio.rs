@@ -15,7 +15,7 @@ use crate::kit::knob::KnobSize;
 use crate::kit::meter::{self, Levels, MIN_DB};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::{menu_field, readout, Param};
-use crate::kit::{with_brush, Style};
+use crate::kit::{with_brush, Fill, Style};
 use crate::settings::{AudioSettings, BUFFER_SIZES, SAMPLE_RATES};
 use cantus_engine::{
     DeviceInfo, DeviceLatency, DriverInfo, InputDeviceInfo, LoopbackError, LoopbackResult,
@@ -286,7 +286,13 @@ fn device_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
         (List::Workers, "settings.workers"),
     ] {
         let v = value(list, &p, &scan, f.rate);
-        field_row(app, ui, list, key, &v);
+        // r39:el-topbar — `dir-a`: a few drivers as a segment, the buffer's latency a scale.
+        if !(list == List::Driver && driver_segment(app, ui, &p, &scan)) {
+            field_row(app, ui, list, key, &v);
+        }
+        if list == List::Buffer {
+            latency_scale(ui, &p, f);
+        }
         // On Windows, say why ASIO is missing when this build cannot offer it.
         if list == List::Driver
             && cfg!(windows)
@@ -533,6 +539,12 @@ fn inputs_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
     let hold = hold.clone();
     if f.live {
         ui.ctx().request_repaint();
+    }
+    if s.t.system.recessed() {
+        // r39:el-topbar — `dir-a`: each input a row, "In 1" and a slim lane that moves (the
+        // one that moves is the one to record from).
+        input_lanes(ui, &levels, &hold, &s);
+        return;
     }
     let pairs = f.channels.div_ceil(2);
     // As many pairs to a row as fit beside the label column.
@@ -884,4 +896,213 @@ pub fn demo_setup(app: &mut CantusApp) {
         confidence: 92.0,
         bursts: 8,
     });
+}
+
+// ---- round 39, `dir-a`'s Settings ▸ Audio sheet ------------------------------ r39:el-topbar
+
+/// The driver as a segmented control when a few are installed (`dir-a`: ASIO | WASAPI) —
+/// the system's default first — with a word on what the chosen one is. Returns false when
+/// the list is better (none scanned yet, or more than four), and the field row is drawn.
+fn driver_segment(app: &mut CantusApp, ui: &mut Ui, p: &AudioSettings, scan: &Scan) -> bool {
+    let s = Style::current();
+    if !s.t.system.recessed() || scan.drivers.is_empty() || scan.drivers.len() > 4 {
+        return false;
+    }
+    let names: Vec<String> = scan.drivers.iter().map(|d| d.name.clone()).collect();
+    let now = p
+        .driver
+        .clone()
+        .or_else(|| {
+            scan.drivers
+                .iter()
+                .find(|d| d.is_default)
+                .map(|d| d.name.clone())
+        })
+        .unwrap_or_default();
+    let mut sel = names.iter().position(|n| *n == now).unwrap_or(0);
+    let before = sel;
+    let srcs: Vec<Src<'_>> = names.iter().map(|n| Src::Str(n)).collect();
+    ui.horizontal(|ui| {
+        w::row_label(ui, "devices.driver", LABEL_W, 24.0);
+        let width = (names.len() as f32 * 76.0).min(ui.available_width() / s.k - 8.0);
+        let _ = crate::kit::widgets::segmented(ui, &mut sel, &srcs, &t("devices.driver"), width);
+        let what = if names
+            .get(sel)
+            .is_some_and(|n| n.eq_ignore_ascii_case("ASIO"))
+        {
+            "topbar.audio.driver_asio"
+        } else {
+            "topbar.audio.driver_system"
+        };
+        let (r, _) =
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0 * s.k), Sense::hover());
+        with_brush(ui.painter(), |b| {
+            let _ = text::paint(
+                b,
+                r,
+                &Text::key(what, Role::Label, s.t.text_dim)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
+        });
+    });
+    if sel != before {
+        let mut next = p.clone();
+        let name = names.get(sel).cloned();
+        if next.driver != name {
+            // Device names belong to a driver: start from its defaults.
+            next.driver = name;
+            next.device = None;
+            next.input_device = None;
+            app.settings_page.pending = Some(next);
+        }
+    }
+    true
+}
+
+/// The buffer's latency as `dir-a` draws it: a scale in three zones — green to 6 ms (play
+/// through it), amber to 12 (fine for most playing), grey past (mixing) — a marker at the
+/// pending buffer's round trip, the figure, and a sentence on what it means.
+fn latency_scale(ui: &mut Ui, p: &AudioSettings, f: &Facts) {
+    let s = Style::current();
+    let k = s.k;
+    let rate = if f.rate > 0.0 {
+        f.rate
+    } else {
+        f64::from(p.sample_rate.unwrap_or(48_000))
+    };
+    // The running device's measured round trip; a buffer not applied yet, estimated (in
+    // and out, a buffer each).
+    let applied = f.live && p.buffer_frames.is_none_or(|b| f.latency.output == b);
+    let frames = if applied && f.latency.round_trip() > 0 {
+        f.latency.round_trip() as f64
+    } else {
+        2.0 * f64::from(p.buffer_frames.unwrap_or(256))
+    };
+    let ms = (frames / rate * 1000.0) as f32;
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 22.0);
+        let w_scale = (ui.available_width() - 150.0 * k).clamp(160.0 * k, 300.0 * k);
+        let (r, resp) = ui.allocate_exact_size(Vec2::new(w_scale, 22.0 * k), Sense::hover());
+        let (tr, _) =
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), 22.0 * k), Sense::hover());
+        let words = tf("topbar.audio.round_trip", &[("ms", &format!("{ms:.1}"))]);
+        if resp.hovered() {
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                &t("topbar.audio.scale"),
+                &words,
+                crate::kit::hint::Caps::NONE,
+            );
+        }
+        with_brush(ui.painter(), |b| {
+            let y = r.center().y;
+            let third = r.width() / 3.0;
+            for (i, c) in [s.t.led, s.t.meter_high, s.t.placeholder]
+                .into_iter()
+                .enumerate()
+            {
+                let x0 = r.left() + i as f32 * third + if i > 0 { 2.0 * k } else { 0.0 };
+                let seg = Rect::from_min_max(
+                    Pos2::new(x0, y - 1.5 * k),
+                    Pos2::new(r.left() + (i + 1) as f32 * third, y + 1.5 * k),
+                );
+                b.rrect(b.snap_rect(seg), 1.5 * k, Fill::Solid(c));
+            }
+            // 0–6 ms the first third, 6–12 the second, 12–24 the last.
+            let pos = if ms <= 12.0 {
+                ms / 18.0
+            } else {
+                (2.0 / 3.0 + (ms - 12.0) / 36.0).min(1.0)
+            };
+            let c = Pos2::new(r.left() + r.width() * pos, y);
+            let zone = if ms <= 6.0 {
+                s.t.led
+            } else if ms <= 12.0 {
+                s.t.meter_high
+            } else {
+                s.t.placeholder
+            };
+            b.circle(c, 6.0 * k, Fill::Solid(s.t.well));
+            b.circle_stroke(c, 5.0 * k, 2.0 * k, zone);
+            let _ = text::paint(
+                b,
+                tr.shrink2(Vec2::new(12.0 * k, 0.0)),
+                &Text::new(&words, Role::Title, s.t.text)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
+        });
+    });
+    let key = if ms <= 6.0 {
+        "topbar.audio.tight"
+    } else if ms <= 12.0 {
+        "topbar.audio.fine"
+    } else {
+        "topbar.audio.loose"
+    };
+    indented_note(ui, &t(key), false);
+}
+
+/// The inputs as `dir-a` draws them: a row each — "In 1", a 3-px lane in its groove, green
+/// to −12 dB, amber to −3, red past, the held peak a hairline. // r39:el-topbar
+fn input_lanes(ui: &mut Ui, levels: &[f32], hold: &[f32], s: &Style) {
+    let k = s.k;
+    let pos = |db: f32| ((db - MIN_DB) / -MIN_DB).clamp(0.0, 1.0);
+    for (c, (l, h)) in levels.iter().zip(hold).enumerate() {
+        ui.horizontal(|ui| {
+            w::row_label(ui, "", LABEL_W, 18.0);
+            let (r, resp) = ui.allocate_exact_size(Vec2::new(260.0 * k, 18.0 * k), Sense::hover());
+            let name = tf("topbar.audio.input_n", &[("n", &(c + 1))]);
+            if resp.hovered() {
+                crate::kit::hint::set_text(
+                    ui.ctx(),
+                    &tf("devices.inputs.meter", &[("ch", &(c + 1))]),
+                    &format!("{h:.1} dB"),
+                    crate::kit::hint::Caps::NONE,
+                );
+            }
+            with_brush(ui.painter(), |b| {
+                let lr = Rect::from_min_size(r.min, Vec2::new(54.0 * k, r.height()));
+                let _ = text::paint(
+                    b,
+                    lr,
+                    &Text::new(&name, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER),
+                    s.tk(),
+                );
+                let lane = Rect::from_min_max(
+                    Pos2::new(lr.right() + 4.0 * k, r.center().y - 1.5 * k),
+                    Pos2::new(r.right(), r.center().y + 1.5 * k),
+                );
+                let lane = b.snap_rect(lane);
+                b.rrect(lane, 1.5 * k, Fill::Solid(s.t.well));
+                let x = |db: f32| lane.left() + lane.width() * pos(db);
+                for (from, to, c) in [
+                    (MIN_DB, -12.0, s.t.meter_low),
+                    (-12.0, -3.0, s.t.meter_high),
+                    (-3.0, 0.0, s.t.meter_clip),
+                ] {
+                    let end = l.min(to);
+                    if end > from {
+                        let seg = Rect::from_min_max(
+                            Pos2::new(x(from), lane.top()),
+                            Pos2::new(x(end), lane.bottom()),
+                        );
+                        b.rect(b.snap_rect(seg), Fill::Solid(c));
+                    }
+                }
+                if *h > MIN_DB {
+                    b.vline(
+                        b.snap_mid(x(*h)),
+                        lane.top() - 2.0 * k,
+                        lane.bottom() + 2.0 * k,
+                        b.px(),
+                        s.t.text,
+                    );
+                }
+            });
+        });
+    }
 }

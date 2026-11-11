@@ -308,6 +308,8 @@ action.tool-delete = Delete tool
 action.tool-mute = Mute tool
 action.tool-slice = Slice tool
 action.tool-playback = Play tool
+action.tool-zoom = Zoom tool
+action.grid-triplets = Triplet grid
 action.toggle-typing-piano = Typing keyboard plays notes
 keymap.mouse = Mouse and wheel
 
@@ -338,7 +340,7 @@ settings.edit_shortcuts = Edit shortcuts…
 settings.saving = Saving
 settings.autosave = Autosave every
 settings.autosave_hint = Autosave keeps a recovery copy beside your project; it never overwrites the file you are working on.
-theme.paper = Paper (light)
+theme.paper = Chalk (light)
 
 # Appearance: interface size and the colour editor
 settings.ui_scale = Interface size

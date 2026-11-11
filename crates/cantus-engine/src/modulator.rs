@@ -334,6 +334,8 @@ pub fn trace(
     p.set_profiling(false);
     // Frozen renders are read as a render reads them: waited for (review 1).
     p.set_offline(true);
+    // The parts its tracks use (kits, note-effect chains), built here (ADR 0107).
+    p.hold_parts_for(&snap);
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {
             Some(i) => units.swap_remove(i),
@@ -360,7 +362,7 @@ pub fn trace(
                 p.settle();
             }
             EngineEvent::EffectNeed { effect, need } => {
-                let memory = crate::effects::EffectMemory::build(need, sr as f32);
+                let memory = crate::effects::EffectMemory::build(need.need(), sr as f32);
                 tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
                 p.settle();
             }

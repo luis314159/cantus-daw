@@ -34,6 +34,13 @@ impl Processor {
         snapshot: Arc<Snapshot>,
         plan: Option<Box<GraphPlan>>,
     ) {
+        // More tracks or strips than slots provisioned (ADR 0107): it waits for them, the
+        // snapshot before it playing on; one that fits drops any that waited.
+        if !self.fits(&snapshot) {
+            self.wait_for_cells(snapshot, plan);
+            return;
+        }
+        self.forget_waiting();
         // The plan: the one compiled for it on the UI thread, or — sent without one (a
         // test, a queue that was full) or with a stale one — compiled here, in place,
         // allocation-free. An unchanged topology keeps the plan it has.
@@ -70,9 +77,10 @@ impl Processor {
             let slot = match self.slot_for(t.id) {
                 Some(i) => i,
                 None => {
-                    let free = (0..MAX_TRACKS).find(|i| !used[*i] && self.track_ids[*i].is_none());
+                    let free =
+                        (0..self.ready.0).find(|i| !used[*i] && self.track_ids[*i].is_none());
                     let i =
-                        free.unwrap_or_else(|| (0..MAX_TRACKS).find(|i| !used[*i]).unwrap_or(0));
+                        free.unwrap_or_else(|| (0..self.ready.0).find(|i| !used[*i]).unwrap_or(0));
                     used[i] = true;
                     if let Some(mut s) = nodes.track(i) {
                         s.reset();
@@ -176,6 +184,8 @@ impl Processor {
                 }
             }
         }
+        // Every track the parts it uses, every other slot none (ADR 0107).
+        self.place_parts(&snapshot);
         // Instrument units nobody claimed are stale.
         while let Some(u) = self.incoming_instruments.pop() {
             self.dispose_instrument(u);
@@ -195,9 +205,10 @@ impl Processor {
                 Some(i) => i,
                 None => {
                     let free =
-                        (0..MAX_STRIPS).find(|i| !strip_used[*i] && self.strip_ids[*i].is_none());
-                    let i = free
-                        .unwrap_or_else(|| (0..MAX_STRIPS).find(|i| !strip_used[*i]).unwrap_or(0));
+                        (0..self.ready.1).find(|i| !strip_used[*i] && self.strip_ids[*i].is_none());
+                    let i = free.unwrap_or_else(|| {
+                        (0..self.ready.1).find(|i| !strip_used[*i]).unwrap_or(0)
+                    });
                     strip_used[i] = true;
                     self.strip_ids[i] = Some(st.id);
                     if let Some(mut s) = nodes.strip(i) {
@@ -645,8 +656,8 @@ impl Processor {
                 }
             }
         }
-        self.strip_post = post;
-        self.strip_arrive = arrive;
+        *self.strip_post = post;
+        *self.strip_arrive = arrive;
         self.master_arrive = master;
         // Effects hearing a track's notes (ADR 0022): each note waits as long as the audio
         // reaching its slot does — the strip's arrival plus the latency of the inserts
@@ -987,7 +998,7 @@ impl Processor {
         }
     }
 
-    fn dispose(&mut self, old: Arc<Snapshot>) {
+    pub(super) fn dispose(&mut self, old: Arc<Snapshot>) {
         if let Err(rtrb::PushError::Full(EngineEvent::Garbage(old))) =
             self.tx.push(EngineEvent::Garbage(old))
         {
@@ -1002,7 +1013,7 @@ impl Processor {
     }
 
     /// A plan the processor no longer uses goes back to be freed on the UI thread.
-    fn dispose_plan(&mut self, old: Box<GraphPlan>) {
+    pub(super) fn dispose_plan(&mut self, old: Box<GraphPlan>) {
         if self.tx.push(EngineEvent::GarbagePlan(old)).is_err() {
             // Queue full: freed here. Extremely unlikely (the queue holds thousands).
             self.stats.dropped_events += 1;

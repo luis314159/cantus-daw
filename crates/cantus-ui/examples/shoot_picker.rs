@@ -14,6 +14,8 @@ use cantus_ui::views::picker_snap::{self, Subject};
 use cantus_ui::CantusApp;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+#[path = "shots_common/studio.rs"]
+mod studio;
 
 fn save(img: &egui::ColorImage, path: &Path) {
     let [w, h] = img.size;
@@ -315,6 +317,8 @@ fn picker(dir: &Path, dark: bool, what: &str, spanish: bool) {
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     app.attach(&ctx);
+    // A working studio: the demo interface (not "No audio").
+    studio::studio(&mut app, 256);
     app.plugins.db = database();
     app.picker_view.thumbs.enable(Some(tmp.join("thumbs")));
     app.picker_view.prefs.favourites = vec!["cantus:unda".into(), "cantus:culmen".into()];

@@ -285,7 +285,7 @@ fn dragging_a_cell_is_one_undo_step() {
     let all = words(&shapes);
     let label = all
         .iter()
-        .find(|w| w.text == "RESONANCE" || w.text == "RES")
+        .find(|w| matches!(w.text.to_uppercase().as_str(), "RESONANCE" | "RES")) // r39:el-controls — title case in Slate
         .unwrap_or_else(|| panic!("no resonance cell in {all:#?}"));
     let at = label.rect.center();
     let press = |pos, pressed| egui::Event::PointerButton {

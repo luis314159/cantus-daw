@@ -44,14 +44,23 @@ pub(crate) struct Outs {
 }
 
 impl Outs {
+    /// A slot not provisioned yet (ADR 0107): no bus buffer, nothing allocated.
+    pub fn bare() -> Self {
+        Self::with_room(0)
+    }
+
     pub fn new() -> Self {
+        Self::with_room(PASS_FRAMES)
+    }
+
+    fn with_room(frames: usize) -> Self {
         Outs {
             taps: [NONE; MAX_BUSES],
             count: 0,
             source: None,
             into_chain: false,
-            l: vec![0.0; PASS_FRAMES],
-            r: vec![0.0; PASS_FRAMES],
+            l: vec![0.0; frames],
+            r: vec![0.0; frames],
             pass: u64::MAX,
         }
     }

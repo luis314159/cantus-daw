@@ -1,0 +1,82 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus icons</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="v1/glyphs-transport.js"></script>
+<script src="v1/glyphs-transport2.js"></script>
+<script src="v1/glyphs-tools.js"></script>
+<script src="v1/glyphs-tools2.js"></script>
+<script src="v1/glyphs-tools3.js"></script>
+<script>window.G1 = G;</script>
+<script src="family.js"></script>
+<script src="glyphs-n-transport.js"></script>
+<script src="glyphs-n-transport2.js"></script>
+<script src="glyphs-n-tools.js"></script>
+<script src="glyphs-n-tools2.js"></script>
+<script src="glyphs-n-windows.js"></script>
+</head><body><div id="out"></div>
+<script>
+// ?t=night|paper &groups=transport,tools,windows    one sheet: rows = key sizes, columns = glyphs
+// ?t=…&strip=<K>&ids=a,b&state=rest|hover|on        one tight row of keys (for comparisons)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const GROUPS = {
+  transport: { title: 'Transport', names: [['toStart', 'to start'], ['skipBack', 'back'], ['play', 'play'],
+    ['pause', 'pause'], ['stop', 'stop'], ['record', 'record'], ['skipFwd', 'forward'], ['loop', 'loop'],
+    ['metronome', 'metronome'], ['countIn', 'count-in'], ['follow', 'follow']],
+    on: { play: 'play', record: 'rec', loop: '', metronome: '', countIn: '', follow: '' } },
+  tools: { title: 'Toolbar and top bar — tools', names: [['snap', 'snap'], ['undo', 'undo'], ['redo', 'redo'],
+    ['draw', 'draw'], ['select', 'select'], ['slice', 'slice'], ['erase', 'erase'], ['muteTool', 'mute'],
+    ['zoom', 'zoom'], ['pick', 'eyedropper'], ['gear', 'settings']],
+    on: { snap: '', draw: '', select: '', slice: '', erase: '', muteTool: '', zoom: '', pick: '' } },
+  windows: { title: 'Toolbar and top bar — windows', names: [['arrangement', 'arrangement'], ['pianoRoll', 'piano roll'],
+    ['rack', 'channel rack'], ['mixer', 'mixer'], ['browser', 'browser'], ['plugins', 'plug-ins'], ['inspector', 'inspector']],
+    on: { arrangement: '', pianoRoll: '', rack: '', mixer: '', browser: '', plugins: '', inspector: '' } },
+};
+const ALL_ON = Object.assign({}, ...Object.values(GROUPS).map(g => g.on));
+function done(W, H, body, bg) {
+  document.body.style.background = bg;
+  document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${bg}"/>` + body);
+  document.body.setAttribute('data-w', W);
+  document.body.setAttribute('data-h', H);
+}
+if (q.get('strip')) {
+  const K = +q.get('strip'), gap = Math.max(2, Math.round(K / 6)), st = q.get('state') || 'rest';
+  const ids = q.get('ids').split(',');
+  let body = '';
+  ids.forEach((id, i) => {
+    body += iconKey(t, N[id], K, 6 + i * (K + gap), 6, st, st === 'on' ? (ALL_ON[id] || '') : '');
+  });
+  done(12 + ids.length * (K + gap) - gap, K + 12, body, k.surface);
+} else {
+  const groups = (q.get('groups') || 'transport').split(',');
+  const COL = 56, LEFT = 132, PAD = 16;
+  let y = PAD, body = '', maxW = 0;
+  body += label(t, PAD, y + 14, `Cantus icon family, second pass — Slate ${t === 'night' ? 'Night' : 'Paper'} — 1:1 device pixels`, { size: 13, weight: 600 });
+  y += 30;
+  const pct = { 16: '16 @100 %', 20: '20 @100 %', 24: '24 @100 %, 16 @150 %', 30: '20 @150 %', 36: '24 @150 %' };
+  for (const g of groups) {
+    const grp = GROUPS[g];
+    body += label(t, PAD, y + 12, grp.title, { size: 12, weight: 600 });
+    y += 22;
+    grp.names.forEach(([id, name], i) => { body += label(t, LEFT + i * COL + 18, y + 10, name, { size: 9.5, anchor: 'middle', dim: true }); });
+    y += 18;
+    const rows = KEYS.map(K => ({ K, st: 'rest' })).concat([{ K: 24, st: 'hover' }, { K: 24, st: 'on' }, { K: 36, st: 'on' }]);
+    for (const r of rows) {
+      const rh = Math.max(r.K, 26);
+      const ky = y + Math.floor((rh - r.K) / 2);
+      body += label(t, PAD, y + rh / 2 - 1, `key ${r.K}${r.st === 'rest' ? '' : ' · ' + r.st}`, { size: 10.5, weight: 600 });
+      body += label(t, PAD, y + rh / 2 + 10, pct[r.K], { size: 8.5, dim: true });
+      grp.names.forEach(([id], i) => {
+        if (r.st === 'on' && !(id in grp.on)) return;
+        const x = LEFT + i * COL + Math.floor((36 - r.K) / 2);
+        body += iconKey(t, N[id], r.K, x, ky, r.st, r.st === 'on' ? grp.on[id] : '');
+      });
+      y += rh + 6;
+    }
+    maxW = Math.max(maxW, LEFT + grp.names.length * COL + PAD);
+    y += 12;
+  }
+  done(maxW, y + PAD, body, k.surface);
+}
+</script></body></html>

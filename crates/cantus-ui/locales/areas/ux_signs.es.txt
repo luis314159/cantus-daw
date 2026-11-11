@@ -1,0 +1,41 @@
+# Área: los signos de un control dirigido, la línea de ayuda, nada recortado (ronda 39, ADR 0109).
+
+# Qué dirige un control y cómo recuperarlo ({menu} es la etiqueta de la propia entrada del menú).
+ux.drive.clip = Automatizado por el clip ‘{clip}’{on}
+ux.drive.clips = Automatizado por {n} clips, ‘{clip}’ aquí{on}
+ux.drive.clip.back = Clic derecho → {menu}, o borra el clip
+ux.drive.mod = Modulado por {names}
+ux.drive.mod.back = Alt+arrastrar fija la profundidad; clic derecho → {menu} lo desconecta
+ux.drive.ctl = Lo mueve el controlador {control}
+ux.drive.ctl.back = Clic derecho → {menu} para soltarlo
+ux.drive.vca = Escalado por el VCA {names}
+ux.drive.vca.back = Clic derecho en la tira → {menu} para liberarla
+
+# La línea de ayuda nunca está vacía: lo que dicen las piezas del kit cuando nada más preciso lo dice.
+ux.hint.field = Clic para escribir · Intro lo guarda, Esc lo devuelve
+ux.hint.splitter = Arrastra para cambiar el tamaño · doble clic para el tamaño anterior · clic derecho lo restablece
+ux.hint.scrollbar = Arrastra para desplazar
+ux.hint.resize = Arrastra para cambiar el tamaño
+ux.hint.move = Arrastra para mover
+ux.hint.menu = El menú {menu}
+ux.hint.window = Arrastra para mover la ventana · doble clic para maximizarla
+ux.hint.topbar = Clic derecho para elegir qué muestra la barra superior
+ux.hint.add = Añadir a {what}
+ux.hint.settings_page = Mostrar los ajustes de {page}
+ux.hint.pad_edit = Abrir este pad en el editor de la caja de ritmos
+ux.hint.inspector_menu = El menú del inspector: su ancho, plegarlo
+ux.hint.input = Lo que suena en esta tira: {names}
+ux.hint.scrollbar_page = Arrastra para desplazar · clic junto al cursor para una página
+ux.hint.cable_band = El ruteo: apunta a un cable para ver adónde va · clic lo selecciona, clic derecho abre su menú
+ux.hint.roll_ruler = Clic para llevar el cursor de reproducción a ese tiempo
+ux.hint.device = {name} · {what} — doble clic para añadirlo, o arrástralo a una pista o una tira
+ux.hint.session_head = {track} — clic para seleccionar la pista
+ux.hint.session_grid = Doble clic en una ranura vacía para crear un clip · arrastra clips entre ranuras
+ux.hint.fold_macros = Macros: clic para plegar la banda o abrirla de nuevo
+ux.hint.fold_mods = Modulación: clic para plegar la banda o abrirla de nuevo
+ux.hint.keyboard = Toca el instrumento: pulsa una tecla — más abajo en la tecla suena más fuerte
+ux.hint.sampler_map = El mapa de teclas: clic en una zona para seleccionarla, arrastra sus bordes para cambiar sus teclas y velocidades · suelta muestras para añadir zonas
+ux.words.devices_search = Nombre, tipo, marca o preset
+ux.hint.dancer_character = Clic para elegir el personaje en la ventana del instrumento
+ux.hint.no_strip = Sin canal del mezclador: elige uno en la fila Mezclador de la pista para darle efectos
+ux.drive.on = en {track}

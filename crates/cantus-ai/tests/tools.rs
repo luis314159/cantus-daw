@@ -22,8 +22,13 @@ fn the_table_keeps_its_promises() {
         );
         assert!(t.description.len() > 40, "{} says too little", t.name);
         match t.run {
+            // A Files tool may plan an edit too (`set_impulse_response` stores a path, as
+            // the application's `make_kit_from_folder` and `slice_sample` build from one).
             ToolRun::Edit(_) => assert!(
-                matches!(t.class, ToolClass::Edit | ToolClass::Destructive),
+                matches!(
+                    t.class,
+                    ToolClass::Edit | ToolClass::Destructive | ToolClass::Files
+                ),
                 "{} plans an edit but is {:?}",
                 t.name,
                 t.class

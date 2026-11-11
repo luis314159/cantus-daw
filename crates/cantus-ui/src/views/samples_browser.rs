@@ -27,6 +27,29 @@ enum Kind {
     Root(RootKind),
     Dir,
     File,
+    /// r39:lo-rest — a search's group: the pack or folder its hits are in, and how many.
+    /// A click keeps the search to it (a chip says so).
+    Group(usize),
+    /// A group's hidden hits: "Show the other 19 sounds".
+    More(usize),
+    /// The search's chips: what it is kept to.
+    Chips,
+}
+
+/// How many hits a group shows before its "Show the other …".
+pub const GROUP_SHOWN: usize = 5;
+
+/// A search hit's place under its group: the folders from the pack or folder down.
+fn place_in(root: &Path, p: &Path) -> String {
+    p.parent()
+        .and_then(|d| d.strip_prefix(root).ok())
+        .map(|rel| {
+            rel.iter()
+                .map(|c| c.to_string_lossy().into_owned())
+                .collect::<Vec<_>>()
+                .join(" \u{203a} ")
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Clone, Debug)]
@@ -39,7 +62,7 @@ struct Item {
 }
 
 /// The rows to draw, in order: sections, roots, and the open folders' contents.
-fn items(app: &mut CantusApp) -> Vec<Item> {
+fn items(app: &mut CantusApp, fam: usize) -> Vec<Item> {
     let user = app.settings.sample_folders.clone();
     let roots = app.samples.roots(&user);
     let mut out = Vec::new();
@@ -51,33 +74,85 @@ fn items(app: &mut CantusApp) -> Vec<Item> {
                 out.push(hint(tf("samples.no_results", &[("query", &query)])))
             }
             Some(hits) => {
-                for p in hits {
-                    let detail = roots
-                        .iter()
-                        .find(|r| p.starts_with(&r.path))
-                        .map(|r| {
-                            let rel = p.parent().and_then(|d| d.strip_prefix(&r.path).ok());
-                            match rel {
-                                Some(rel) if !rel.as_os_str().is_empty() => format!(
-                                    "{} › {}",
-                                    rel.to_string_lossy().replace('\\', " › "),
-                                    r.label
-                                ),
-                                _ => r.label.clone(),
-                            }
-                        })
-                        .unwrap_or_default();
+                // r39:lo-rest — grouped by the pack or folder they are in (des-views:
+                // "results are grouped by kind with filter chips"), five a group until
+                // its "Show the other …"; a group's title keeps the search to it.
+                let hits: Vec<PathBuf> = hits
+                    .into_iter()
+                    .filter(|p| fam == 0 || super::samples_thumbs::in_family(&stem(p), fam))
+                    .collect();
+                let scope = app.samples.scope.clone();
+                if scope.is_some() || fam != 0 {
                     out.push(Item {
-                        kind: Kind::File,
-                        name: stem(&p),
-                        path: p,
-                        detail,
+                        kind: Kind::Chips,
+                        path: PathBuf::new(),
+                        name: String::new(),
+                        detail: String::new(),
                         depth: 0,
                     });
+                }
+                let mut any = false;
+                for r in roots
+                    .iter()
+                    .filter(|r| scope.as_ref().is_none_or(|s| *s == r.path))
+                {
+                    let mine: Vec<&PathBuf> =
+                        hits.iter().filter(|p| p.starts_with(&r.path)).collect();
+                    if mine.is_empty() {
+                        continue;
+                    }
+                    any = true;
+                    out.push(Item {
+                        kind: Kind::Group(mine.len()),
+                        path: r.path.clone(),
+                        name: r.label.clone(),
+                        detail: String::new(),
+                        depth: 0,
+                    });
+                    let open = scope.is_some() || app.samples.groups_open.contains(&r.path);
+                    let shown = if open {
+                        mine.len()
+                    } else {
+                        mine.len().min(GROUP_SHOWN)
+                    };
+                    for p in &mine[..shown] {
+                        out.push(Item {
+                            kind: Kind::File,
+                            name: stem(p),
+                            detail: place_in(&r.path, p),
+                            path: (*p).clone(),
+                            depth: 0,
+                        });
+                    }
+                    if shown < mine.len() {
+                        out.push(Item {
+                            kind: Kind::More(mine.len() - shown),
+                            path: r.path.clone(),
+                            name: String::new(),
+                            detail: String::new(),
+                            depth: 0,
+                        });
+                    }
+                }
+                if !any {
+                    out.push(hint(tf("samples.no_results", &[("query", &query)])));
                 }
             }
         }
         return out;
+    }
+    // r39:lo-rest — the sounds starred in the preview, first.
+    if !app.settings.sample_favourites.is_empty() {
+        out.push(section("samples.section.favourites"));
+        for p in &app.settings.sample_favourites {
+            out.push(Item {
+                kind: Kind::File,
+                name: stem(p),
+                detail: format_tag(p),
+                path: p.clone(),
+                depth: 0,
+            });
+        }
     }
     let (packs, folders): (Vec<Root>, Vec<Root>) = roots
         .into_iter()
@@ -316,6 +391,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     let body = Rect::from_min_max(pos2(full.left(), top), pos2(full.right(), foot.top()));
     // r37:finish — the chosen sound's card under the list, where there is room (judge 9:
     // "a large empty lower half").
+    let mut card_keys = None;
     let chosen = app
         .samples
         .selected
@@ -332,6 +408,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
                 pos2(full.right() - 8.0 * k, body.bottom() - 6.0 * k),
             );
             let wave = super::samples_detail::card(app, ui, &s, card, &p);
+            // r39:lo-rest — the preview's keys inside its card (des-views).
+            let (.., keys) = super::samples_detail::card_rects(card, k);
+            card_keys = Some(card_controls(app, ui, &s, keys, &p));
             (
                 Rect::from_min_max(body.min, pos2(body.right(), card.top() - 6.0 * k)),
                 Some((card, wave)),
@@ -340,7 +419,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         None => (body, None),
     };
     let rows = tree(app, ui, &s, body);
-    let preview = foot_line(app, ui, &s, foot);
+    let preview = foot_line(app, ui, &s, foot, detail.is_some()).or(card_keys);
     app.samples.geometry = Some(BrowserGeometry {
         rect: full,
         search,
@@ -362,23 +441,12 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
     let k = s.k;
     // r37:finish — the thumbnails' worker repaints this window when one lands.
     super::samples_thumbs::attach(ui.ctx());
-    let mut list = items(app);
-    // r37:finish thirteenth — each pack's root: a sound in it shows the pack's cover.
-    let user = app.settings.sample_folders.clone();
-    let packs: Vec<(PathBuf, String)> = app
-        .samples
-        .roots(&user)
-        .into_iter()
-        .filter_map(|r| match r.kind {
-            RootKind::Pack(id) => Some((r.path, id)),
-            RootKind::User => None,
-        })
-        .collect();
     // r37:finish — the category tab chosen keeps the sounds of its family.
     let fam = ui
         .ctx()
         .data(|d| d.get_temp::<usize>(egui::Id::new("samples-family")))
         .unwrap_or(0);
+    let mut list = items(app, fam);
     if fam != 0 {
         list.retain(|i| i.kind != Kind::File || super::samples_thumbs::in_family(&i.name, fam));
     }
@@ -395,6 +463,22 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
         }
     }
     let row_h = 22.0 * k;
+    // r39:lo-rest — a search's hits are 36 high: the name, then the place in ink 3.
+    let searching = !app.samples.query.trim().is_empty();
+    // The chips' words: the pack or folder the search is kept to, the family chosen.
+    let scope_word = app.samples.scope.as_ref().map(|sc| {
+        list.iter()
+            .find(|i| matches!(i.kind, Kind::Group(_)) && i.path == *sc)
+            .map(|i| i.name.clone())
+            .unwrap_or_else(|| stem(sc))
+    });
+    let fam_word = (fam != 0).then(|| t(super::samples_thumbs::FAMILIES[fam]));
+    let chip_words: Vec<&str> = scope_word
+        .iter()
+        .chain(fam_word.iter())
+        .map(String::as_str)
+        .collect();
+    let mut chip_hit: Option<usize> = None;
     let mut drawn = Vec::new();
     let mut clicked: Option<(Item, egui::Pos2)> = None;
     let mut dragged: Option<(PathBuf, egui::Pos2)> = None;
@@ -407,7 +491,10 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
             let width = ui.available_width();
             for item in &list {
                 let h = match item.kind {
-                    Kind::Section(_) => 24.0 * k,
+                    Kind::Section(_) => 26.0 * k,
+                    Kind::Group(_) => 26.0 * k,
+                    Kind::Chips => 30.0 * k,
+                    Kind::File if searching => 36.0 * k,
                     _ => row_h,
                 };
                 let sense = match item.kind {
@@ -432,6 +519,27 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
                 let playing = item.kind == Kind::File && app.samples.preview.is_playing(&item.path);
                 with_brush(ui.painter(), |b| match &item.kind {
                     Kind::Section(key) => paint::section(b, rect, s, key),
+                    Kind::Group(n) => paint::group(b, rect, s, &item.name, *n, resp.hovered()),
+                    Kind::More(n) => paint::link(
+                        b,
+                        rect,
+                        s,
+                        &tf("samples.show_more", &[("n", &n.to_string())]),
+                        resp.hovered(),
+                    ),
+                    Kind::Chips => {
+                        let over = resp.hover_pos();
+                        let rects = paint::chips(b, rect, s, &chip_words, None);
+                        let at = over.and_then(|p| rects.iter().position(|r| r.contains(p)));
+                        if at.is_some() {
+                            paint::chips(b, rect, s, &chip_words, at);
+                        }
+                        if resp.clicked() {
+                            chip_hit = resp
+                                .interact_pointer_pos()
+                                .and_then(|p| rects.iter().position(|r| r.contains(p)));
+                        }
+                    }
                     Kind::Hint(text) => paint::line(
                         b,
                         rect.shrink2(vec2(18.0 * k, 0.0)),
@@ -443,10 +551,19 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
                     ),
                     kind => {
                         let open = app.samples.open.contains(&item.path);
-                        let icon = match kind {
-                            Kind::Root(RootKind::Pack(id)) => paint::cover_of(id), // r37:finish
-                            Kind::File => file_icon(&packs, &item.path),
-                            _ => Icon::Folder { open },
+                        // r39:el-views — the search's match, lit in the name.
+                        let query = app.samples.query.trim();
+                        // r39:lo-rest — one mark a row type (`row_mark`).
+                        let ready = *kind == Kind::File
+                            && super::samples_thumbs::thumb(&item.path).is_some();
+                        let icon = match row_mark(kind_of(kind), ready) {
+                            RowMark::Cover => match kind {
+                                Kind::Root(RootKind::Pack(id)) => paint::cover_of(id),
+                                _ => Icon::Pack,
+                            },
+                            RowMark::Folder => Icon::Folder { open },
+                            // The waveform is drawn by the row itself.
+                            RowMark::Waveform | RowMark::AudioGlyph => Icon::Wave,
                         };
                         let look = RowLook {
                             hovered: resp.hovered(),
@@ -454,12 +571,60 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
                             playing,
                             disclosure: (*kind != Kind::File).then_some(open),
                             dim: false,
+                            hit: None,
                         };
                         // r37:finish — a sound's row: its waveform, its length, and its
                         // tempo and key where its name says them.
                         let thumb = (*kind == Kind::File)
                             .then(|| super::samples_thumbs::thumb(&item.path))
                             .flatten();
+                        // r39:lo-rest — a search hit: the band over its 36, the row in its
+                        // top 22, where it lives under the name.
+                        let (rect, place) = if searching && *kind == Kind::File {
+                            let room = super::room::Room::of(&s.t);
+                            let band = b.snap_rect(rect);
+                            if selected {
+                                b.rect(
+                                    band,
+                                    Fill::Solid(crate::kit::color::mix(
+                                        room.raised,
+                                        room.accent,
+                                        0.10,
+                                    )),
+                                );
+                                b.rect(
+                                    Rect::from_min_size(band.min, vec2(2.0 * k, band.height())),
+                                    Fill::Solid(room.accent),
+                                );
+                            } else if resp.hovered() {
+                                b.rect(band, Fill::Solid(room.well_hi));
+                            }
+                            let top = Rect::from_min_size(
+                                rect.min + vec2(0.0, 3.0 * k),
+                                vec2(rect.width(), 20.0 * k),
+                            );
+                            let under = Rect::from_min_max(
+                                pos2(rect.left() + paint::name_x(item.depth, k), top.bottom()),
+                                pos2(rect.right() - 8.0 * k, rect.bottom() - 3.0 * k),
+                            );
+                            (top, Some(under))
+                        } else {
+                            (rect, None)
+                        };
+                        if let Some(under) = place.filter(|_| !item.detail.is_empty()) {
+                            let room = super::room::Room::of(&s.t);
+                            let _ = crate::kit::text::paint(
+                                b,
+                                under,
+                                &crate::kit::text::Text::new(&item.detail, Role::Label, room.ink3)
+                                    .caps(false)
+                                    .align(Align2::LEFT_CENTER)
+                                    .policy(crate::kit::text::Policy::Elide(
+                                        crate::kit::text::Elide::End,
+                                    )),
+                                s.tk() * 10.0 / 11.0,
+                            );
+                        }
                         if let Some(th) = thumb.as_ref() {
                             let d = sound_detail(&item.name, th.seconds);
                             paint::row_with(
@@ -470,7 +635,10 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
                                 icon,
                                 shown_name(&item.name),
                                 "",
-                                look,
+                                RowLook {
+                                    hit: paint::find_ci(shown_name(&item.name), query),
+                                    ..look
+                                },
                                 Some((&th.peaks, cols, &d)),
                             );
                         } else {
@@ -481,8 +649,11 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
                                 item.depth,
                                 icon,
                                 &item.name,
-                                &item.detail,
-                                look,
+                                if place.is_some() { "" } else { &item.detail },
+                                RowLook {
+                                    hit: paint::find_ci(&item.name, query),
+                                    ..look
+                                },
                             );
                         }
                         if *kind == Kind::Root(RootKind::User) && resp.hovered() {
@@ -532,6 +703,15 @@ fn tree(app: &mut CantusApp, ui: &mut Ui, s: &Style, body: Rect) -> Vec<Row> {
             }
             ui.allocate_space(vec2(width, 12.0 * k));
         });
+    // r39:lo-rest — a chip's click lets go of what it keeps the search to.
+    if let Some(i) = chip_hit {
+        if i == 0 && app.samples.scope.is_some() {
+            app.samples.scope = None;
+        } else {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(egui::Id::new("samples-family"), 0usize));
+        }
+    }
     if let Some((item, at)) = clicked {
         let rect = drawn
             .iter()
@@ -596,6 +776,16 @@ fn on_click(app: &mut CantusApp, item: Item, at: egui::Pos2, rect: Rect, k: f32)
             if !app.samples.open.remove(&item.path) {
                 app.samples.open.insert(item.path);
             }
+        }
+        Kind::Group(_) => {
+            app.samples.scope = if app.samples.scope.as_ref() == Some(&item.path) {
+                None
+            } else {
+                Some(item.path)
+            };
+        }
+        Kind::More(_) => {
+            app.samples.groups_open.insert(item.path);
         }
         Kind::File => {
             let again = app.samples.selected.as_deref() == Some(item.path.as_path());
@@ -761,10 +951,16 @@ fn starter_card(
 }
 
 /// The foot: the preview strip (its play key and level returned) or the notice line.
-fn foot_line(app: &mut CantusApp, ui: &mut Ui, s: &Style, foot: Rect) -> Option<(Rect, Rect)> {
+fn foot_line(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    s: &Style,
+    foot: Rect,
+    card: bool,
+) -> Option<(Rect, Rect)> {
     // r37:finish — the preview strip: a sound chosen or playing shows here, with its play
     // key and how far it has played (the judge: no preview player in sight).
-    if app.samples.notice.is_none() && app.samples.preview.error.is_none() {
+    if !card && app.samples.notice.is_none() && app.samples.preview.error.is_none() {
         let playing = app.samples.preview.playing.clone();
         let chosen = playing.as_ref().map(|(p, _, _)| p.clone()).or_else(|| {
             app.samples
@@ -773,7 +969,15 @@ fn foot_line(app: &mut CantusApp, ui: &mut Ui, s: &Style, foot: Rect) -> Option<
                 .filter(|p| super::inst::sampler::is_audio(p))
         });
         if let Some(path) = chosen {
-            return Some(preview_strip(app, ui, s, foot, &path, playing.as_ref()));
+            return Some(preview_strip(
+                app,
+                ui,
+                s,
+                foot,
+                &path,
+                playing.as_ref(),
+                card,
+            ));
         }
     }
     let text = app
@@ -823,6 +1027,7 @@ fn preview_strip(
     foot: Rect,
     path: &std::path::Path,
     playing: Option<&(std::path::PathBuf, std::time::Instant, std::time::Duration)>,
+    card: bool,
 ) -> (Rect, Rect) {
     let k = s.k;
     let on = playing.is_some_and(|(_, at, len)| at.elapsed() < *len);
@@ -835,6 +1040,12 @@ fn preview_strip(
         .file_stem()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
+    // r39:lo-rest — with the card above naming it, the strip says what the sound is in
+    // numbers (des-views: "0.42 s · 48 kHz · mono").
+    let label = match super::samples_thumbs::thumb(path).filter(|_| card) {
+        Some(th) => super::samples_detail::short_format(&th),
+        None => name.clone(),
+    };
     // The preview's level at the strip's right end: a well, its fill, its value.
     let vol = Rect::from_min_max(
         pos2(foot.right() - 70.0 * k, foot.top() + 4.0 * k),
@@ -845,6 +1056,7 @@ fn preview_strip(
         egui::Id::new("samples-preview-volume"),
         Sense::click_and_drag(),
     );
+    let was = super::samples_thumbs::preview_volume();
     if let Some(p) = vresp.interact_pointer_pos() {
         if vresp.dragged() || vresp.clicked() {
             super::samples_thumbs::set_preview_volume((p.x - vol.left()) / vol.width());
@@ -855,6 +1067,16 @@ fn preview_strip(
     let progress = playing
         .filter(|_| on)
         .map(|(_, at, len)| (at.elapsed().as_secs_f32() / len.as_secs_f32().max(1e-3)).min(1.0));
+    // r39:el-views — the preview's numbers (des-views: ink 3, 10): where it is and how
+    // long the sound is, beside its name.
+    let numbers = super::samples_thumbs::thumb(path).map(|th| {
+        let len = th.seconds.max(0.0);
+        match progress {
+            Some(p) => format!("{} / {}", clock(p * len), clock(len)),
+            None => clock(len),
+        }
+    });
+    let num_w = if numbers.is_some() { 84.0 * k } else { 0.0 };
     with_brush(ui.painter(), |b| {
         let st = crate::kit::State::of(&resp, on);
         crate::kit::cap::row_key(
@@ -868,14 +1090,33 @@ fn preview_strip(
             b,
             Rect::from_min_max(
                 pos2(key.right() + 8.0 * k, foot.top()),
-                pos2(end, foot.bottom() - 4.0 * k),
+                pos2(end - num_w, foot.bottom() - 4.0 * k),
             ),
             s,
-            Src::Str(&name),
+            Src::Str(&label),
             Role::Label,
-            s.t.text,
+            if card {
+                super::room::Room::of(&s.t).ink3
+            } else {
+                s.t.text
+            },
             Align2::LEFT_CENTER,
         );
+        if let Some(n) = numbers.as_deref() {
+            let room = super::room::Room::of(&s.t);
+            paint::line(
+                b,
+                Rect::from_min_max(
+                    pos2(end - num_w, foot.top()),
+                    pos2(end, foot.bottom() - 4.0 * k),
+                ),
+                s,
+                Src::Str(n),
+                Role::Micro,
+                room.ink3,
+                Align2::RIGHT_CENTER,
+            );
+        }
         // The position line along the foot's bottom.
         let line = Rect::from_min_max(
             pos2(key.right() + 8.0 * k, foot.bottom() - 4.0 * k),
@@ -919,9 +1160,10 @@ fn preview_strip(
             Align2::RIGHT_CENTER,
         );
     });
-    // A new level is heard at once: the sound playing starts again at it.
-    if (vresp.drag_stopped() || vresp.clicked()) && on {
-        app.audition_sample(path);
+    // A new level is heard at once, as it is dragged: the sound playing goes on at it
+    // (round 39, fixes — it used to start again).
+    if level != was && on {
+        app.set_audition_level();
     }
     if vresp.hovered() || vresp.dragged() {
         crate::kit::hint::set_text(
@@ -939,7 +1181,8 @@ fn preview_strip(
         }
     }
     if on {
-        ui.ctx().request_repaint();
+        // The position moves: through the ticker, at 60 Hz at most (ADR 0106 §6).
+        super::workspace_ticker::moving(ui.ctx(), super::workspace_ticker::Reason::Audition);
     }
     if resp.hovered() {
         let tip = if on {
@@ -948,6 +1191,157 @@ fn preview_strip(
             t("samples.preview.play")
         };
         crate::kit::hint::set_text(ui.ctx(), &tip, &name, crate::kit::hint::Caps::NONE);
+    }
+    (key, vol)
+}
+
+/// The preview card's controls on its last line (des-views, *Preview*; r39:lo-rest): the
+/// play key (`play` tint while it sounds), the loop key, the level — a 2-px slider with a
+/// 4-r thumb — and at the right what the sound is in numbers and where it is ("0:00.4 /
+/// 1.2 s · 48 kHz · Stereo"). Returns the play key's and the level's rects.
+fn card_controls(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    s: &Style,
+    row: Rect,
+    path: &Path,
+) -> (Rect, Rect) {
+    let k = s.k;
+    let room = super::room::Room::of(&s.t);
+    let playing = app.samples.preview.playing.clone();
+    let progress = playing
+        .as_ref()
+        .filter(|(p, at, len)| p == path && at.elapsed() < *len)
+        .map(|(_, at, len)| (at.elapsed().as_secs_f32() / len.as_secs_f32().max(1e-3)).min(1.0));
+    let on = progress.is_some();
+    let looping = app.samples.preview.looping;
+    let cy = row.center().y;
+    let key = Rect::from_min_size(pos2(row.left(), cy - 10.0 * k), vec2(26.0, 20.0) * k);
+    let lp = Rect::from_min_size(pos2(key.right() + 4.0 * k, key.top()), key.size());
+    let vol = Rect::from_min_max(
+        pos2(lp.right() + 10.0 * k, row.top()),
+        pos2((lp.right() + 70.0 * k).min(row.right()), row.bottom()),
+    );
+    let resp = ui.interact(key, egui::Id::new("samples-preview-key"), Sense::click());
+    let lresp = ui.interact(lp, egui::Id::new("samples-preview-loop"), Sense::click());
+    let vresp = ui.interact(
+        vol,
+        egui::Id::new("samples-preview-volume"),
+        Sense::click_and_drag(),
+    );
+    let was = super::samples_thumbs::preview_volume();
+    if let Some(p) = vresp.interact_pointer_pos() {
+        if vresp.dragged() || vresp.clicked() {
+            super::samples_thumbs::set_preview_volume((p.x - vol.left()) / vol.width());
+        }
+    }
+    let level = super::samples_thumbs::preview_volume();
+    let numbers = super::samples_thumbs::thumb(path).map(|th| {
+        let len = th.seconds.max(0.0);
+        let at = match progress {
+            Some(p) => format!("{} / {}", clock(p * len), clock(len)),
+            None => clock(len),
+        };
+        format!("{at} \u{b7} {}", super::samples_detail::short_format(&th))
+    });
+    with_brush(ui.painter(), |b| {
+        // Play: lit with the `play` colour while it sounds.
+        let st = crate::kit::State::of(&resp, on);
+        crate::kit::cap::row_key(
+            b,
+            key,
+            s,
+            st,
+            crate::kit::cap::KeyFace::Glyph(if on { Glyph::Stop } else { Glyph::Play }),
+        );
+        if on {
+            b.rrect(
+                key.shrink(b.px()),
+                s.r(3.0),
+                Fill::Solid(crate::kit::color::with_alpha(room.play, 0.20)),
+            );
+        }
+        crate::kit::cap::row_key(
+            b,
+            lp,
+            s,
+            crate::kit::State::of(&lresp, looping),
+            crate::kit::cap::KeyFace::Glyph(Glyph::Loop),
+        );
+        // The level: a 2-px line, its fill to the level, a 4-r thumb.
+        let line = Rect::from_min_max(
+            pos2(vol.left() + 4.0 * k, cy - 1.0 * k),
+            pos2(vol.right() - 4.0 * k, cy + 1.0 * k),
+        );
+        b.rrect(
+            line,
+            1.0 * k,
+            Fill::Solid(crate::kit::color::mix(room.well, room.ink3, 0.45)),
+        );
+        let x = vol.left() + vol.width() * level;
+        let x = x.clamp(line.left(), line.right());
+        b.rrect(
+            Rect::from_min_max(line.min, pos2(x, line.bottom())),
+            1.0 * k,
+            Fill::Solid(room.ink2),
+        );
+        b.dot(pos2(x, cy), 4.5 * k, room.edge);
+        b.dot(pos2(x, cy), 4.0 * k, room.raised);
+        if let Some(n) = numbers.as_deref() {
+            let tx = crate::kit::text::Text::new(n, Role::Label, room.ink3)
+                .caps(false)
+                .align(Align2::RIGHT_CENTER)
+                .policy(crate::kit::text::Policy::Elide(
+                    crate::kit::text::Elide::End,
+                ));
+            let _ = crate::kit::text::paint(
+                b,
+                Rect::from_min_max(pos2(vol.right() + 8.0 * k, row.top()), row.max),
+                &tx,
+                s.tk() * 10.0 / 11.0,
+            );
+        }
+    });
+    // A new level is heard at once, as it is dragged (the sound goes on at it).
+    if level != was && on {
+        app.set_audition_level();
+    }
+    if vresp.hovered() || vresp.dragged() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            &t("samples.preview.volume"),
+            &format!("{:.0} %", level * 100.0),
+            crate::kit::hint::Caps::NONE,
+        );
+    }
+    if lresp.hovered() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            &t("samples.preview.loop"),
+            "",
+            crate::kit::hint::Caps::NONE,
+        );
+    }
+    if lresp.clicked() {
+        app.samples.preview.looping = !looping;
+    }
+    if resp.hovered() {
+        let tip = if on {
+            t("samples.preview.stop")
+        } else {
+            t("samples.preview.play")
+        };
+        crate::kit::hint::set_text(ui.ctx(), &tip, "", crate::kit::hint::Caps::NONE);
+    }
+    if resp.clicked() {
+        if on {
+            app.stop_audition();
+        } else {
+            app.audition_sample(path);
+        }
+    }
+    if on {
+        super::workspace_ticker::moving(ui.ctx(), super::workspace_ticker::Reason::Audition);
     }
     (key, vol)
 }
@@ -1037,11 +1431,54 @@ fn family_tabs(ui: &mut Ui, s: &Style, left: f32, top: f32, width: f32) -> (Rect
 
 /// A sound's row icon: its pack's cover when it is in a pack, a waveform in a folder of
 /// the user's. // r37:finish thirteenth
-pub fn file_icon(packs: &[(PathBuf, String)], path: &Path) -> Icon {
-    packs
-        .iter()
-        .find(|(root, _)| path.starts_with(root))
-        .map_or(Icon::Wave, |(_, id)| paint::cover_of(id))
+/// A sound's time as the preview reads it: "0:02.4" (r39:el-views).
+fn clock(seconds: f32) -> String {
+    let t = (seconds.max(0.0) * 10.0).round() as u32;
+    format!("{}:{:02}.{}", t / 600, (t / 10) % 60, t % 10)
+}
+
+/// What kind of row the browser draws, for [`row_mark`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RowKindMark {
+    /// An installed pack's root.
+    Pack,
+    /// A folder of the user's, or a folder inside a pack.
+    Folder,
+    /// A sound.
+    Sound,
+}
+
+fn kind_of(k: &Kind) -> RowKindMark {
+    match k {
+        Kind::Root(RootKind::Pack(_)) => RowKindMark::Pack,
+        Kind::File => RowKindMark::Sound,
+        _ => RowKindMark::Folder,
+    }
+}
+
+/// What a row shows at its left (r39:lo-rest — one rule a row type; packs-night showed a
+/// pack's sounds with the pack's cover until their waveform was read, others with it).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RowMark {
+    /// The pack's cover: only on a pack's own row.
+    Cover,
+    /// The folder glyph, open or closed.
+    Folder,
+    /// A sound's own waveform, once it is read.
+    Waveform,
+    /// The audio glyph, in the waveform's place, while it is being read.
+    AudioGlyph,
+}
+
+/// The mark of a row: a pack its cover, a folder the folder glyph, a sound its waveform —
+/// or the audio glyph until the waveform is read; never a pack's cover on a sound.
+pub fn row_mark(kind: RowKindMark, waveform_ready: bool) -> RowMark {
+    match kind {
+        RowKindMark::Pack => RowMark::Cover,
+        RowKindMark::Folder => RowMark::Folder,
+        RowKindMark::Sound if waveform_ready => RowMark::Waveform,
+        RowKindMark::Sound => RowMark::AudioGlyph,
+    }
 }
 
 /// A sound's details: its key and tempo where its name says them, and its length.
@@ -1077,6 +1514,19 @@ pub fn shown_name(name: &str) -> &str {
 /// End of a frame: the dragged sample's chip and its target's ring, and a release
 /// remembered for the next frame. Also the content window.
 pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
+    // r39:lo-rest — the preview's loop: a sound that ended starts again.
+    if app.samples.preview.looping {
+        let ended = app
+            .samples
+            .preview
+            .playing
+            .as_ref()
+            .filter(|(_, at, len)| at.elapsed() >= *len)
+            .map(|(p, _, _)| p.clone());
+        if let Some(p) = ended {
+            app.audition_sample(&p);
+        }
+    }
     // A sound pack the open project needs and does not find: said, with what to do.
     super::samples_content::missing::frame(app, ctx);
     if app.samples.window.open {
@@ -1100,4 +1550,15 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
         ctx.request_repaint();
     }
     crate::samples::drop::finish_drag(app, ctx);
+}
+
+#[cfg(test)]
+mod clock_tests {
+    /// The preview's numbers read as minutes, seconds and a tenth (r39:el-views).
+    #[test]
+    fn a_sound_s_time_reads_as_minutes_seconds_and_a_tenth() {
+        assert_eq!(super::clock(2.44), "0:02.4");
+        assert_eq!(super::clock(75.0), "1:15.0");
+        assert_eq!(super::clock(-1.0), "0:00.0");
+    }
 }

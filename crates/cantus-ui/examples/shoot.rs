@@ -24,6 +24,8 @@ mod samples_scene;
 use cantus_ui::raster::shoot;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
+#[path = "shots_common/studio.rs"]
+mod studio;
 
 fn noise(seed: &mut u32) -> f32 {
     *seed ^= *seed << 13;
@@ -162,11 +164,11 @@ fn main() {
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
-        // `-dark` is Cantus Night, the default theme (the website's pictures); `-light` is Paper.
+        // `-dark` is Slate Night, the default theme (round 39); `-light` is Slate Paper.
         let theme = if dark {
             cantus_ui::theme::default_theme()
         } else {
-            cantus_ui::theme::paper()
+            cantus_ui::theme::slate_paper()
         };
         cantus_ui::theme::apply(&theme, &ctx);
         // The mixer and `startup` (the whole window) show what the program opens on.
@@ -411,6 +413,8 @@ fn startup_window(app: &mut CantusApp, ctx: &egui::Context, dark: bool, path: &s
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     app.attach(ctx);
+    // A working studio: the demo interface (not "No audio"), no dropout line.
+    studio::studio(app, 256);
     if let Some(strip) = app.project().tracks.get(5).and_then(|t| t.strip) {
         app.select_strip(strip);
     }

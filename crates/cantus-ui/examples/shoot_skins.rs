@@ -5,7 +5,8 @@
 //! ```
 //!
 //! - **Shots**: each unit's editor in its device frame, in Slate and in Paper, at the
-//!   window scales 100 % and 200 %, named `<unit>-<theme>-<scale>.png` (`aequalis-slate-100.png`).
+//!   window scales 100 % and 200 %, named `<unit>-<theme>-<scale>.png` (`aequalis-slate-100.png`;
+//!   `slate` is Slate Night and `paper` Slate Paper since round 39).
 //!   Give unit names (`aequalis spatium unda pulsus`) to shoot only those.
 //! - `--plain`: one more shot of each, Slate at 100 %, with *Units wear their own faces*
 //!   off (`<unit>-slate-100-plain.png`) — the kit's plain look, to compare.
@@ -210,6 +211,8 @@ const UNITS: &[(&str, &str, What)] = &[
     ("latitudo", "latitudo", What::Fx(EffectKind::Stereo)),
     ("speculum", "speculum", What::Fx(EffectKind::Analyzer)),
     ("tonus", "tonus", What::Fx(EffectKind::AutoTune)),
+    ("aula", "aula", What::Fx(EffectKind::Aula)), // r39:conv
+    ("delay", "delay", What::Fx(EffectKind::Delay)), // r39:delay
     ("concentus", "concentus", What::Fx(EffectKind::Chorus)),
     ("flexus", "flexus", What::Fx(EffectKind::Flanger)),
     ("phasis", "phasis", What::Fx(EffectKind::Phaser)),
@@ -237,10 +240,11 @@ fn context(dark: bool) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
+    // Round 39 (ADR 0111): Slate Night, the default, and Slate Paper, its light twin.
     let theme = if dark {
-        cantus_ui::theme::slate()
+        cantus_ui::theme::slate_night()
     } else {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     ctx
@@ -331,7 +335,11 @@ fn shoot_unit(
 
 /// The kit's skin sheets.
 fn shoot_gallery(dir: &Path) {
-    for (theme, tokens) in [("slate", Tokens::slate()), ("paper", Tokens::paper())] {
+    for (theme, made) in [
+        ("slate", cantus_ui::theme::slate_night()),
+        ("paper", cantus_ui::theme::slate_paper()),
+    ] {
+        let tokens = Tokens::for_theme(&made);
         let style = Style::new(tokens);
         for (name, part) in PARTS {
             if !matches!(part, Part::Skin(_)) {

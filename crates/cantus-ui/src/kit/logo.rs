@@ -44,8 +44,10 @@ pub const SOURCES: [&str; 10] = [
 pub struct Logo(pub u8);
 
 impl Logo {
-    /// #2, the default.
-    pub const DEFAULT: Logo = Logo(2);
+    /// #3, "the metal" — the default since round 39 (the owner, 2026-11-09; #2 before). A
+    /// user's saved choice is kept: only a fresh install, or a setting that names none,
+    /// starts here.
+    pub const DEFAULT: Logo = Logo(3);
 
     pub fn all() -> impl Iterator<Item = Logo> {
         (1..=10).map(Logo)
@@ -243,17 +245,17 @@ pub fn render_svg(svg: &str, px: u32) -> Option<ColorImage> {
     ))
 }
 
-/// The pixel size below which #2 is drawn from its small master.
+/// The pixel size below which a logo with small masters (#2, #3) is drawn from them.
 pub const SMALL: u32 = 48;
 
-pub use super::logo_small::small_master;
+pub use super::logo_small::{small_for, small_master, small_master_03};
 
-/// The SVG to render for `logo` at `px`: #2 below [`SMALL`] comes from its small master.
+/// The SVG to render for `logo` at `px`: below [`SMALL`], #2 and #3 come from their small
+/// masters (drawn for the pixel grid); every other size and logo, the full drawing.
 pub fn svg_for(logo: Logo, tint: Tint, t: &Tokens, px: u32) -> String {
-    if logo == Logo::DEFAULT && px < SMALL {
-        tinted(&small_master(px), tint, t)
-    } else {
-        tinted(logo.source(), tint, t)
+    match (px < SMALL).then(|| small_for(logo.0, px)).flatten() {
+        Some(small) => tinted(&small, tint, t),
+        None => tinted(logo.source(), tint, t),
     }
 }
 
@@ -529,8 +531,39 @@ mod tests {
             assert_eq!(img.size, [px as usize, px as usize]);
             assert!(svg.contains("data-role=\"wave\""));
         }
-        assert!(svg_for(Logo::DEFAULT, Tint::Original, &Tokens::slate(), 32)
+        assert!(svg_for(Logo(2), Tint::Original, &Tokens::slate(), 32)
             .contains("viewBox=\"0 0 32 32\""));
-        assert!(svg_for(Logo::DEFAULT, Tint::Original, &Tokens::slate(), 64).contains("1024"));
+        assert!(svg_for(Logo(2), Tint::Original, &Tokens::slate(), 64).contains("1024"));
     }
+
+    /// #3 is the default (round 39) and is drawn from its designer's small masters below
+    /// 48 px — each renders at every size it serves, every colour with its role, and
+    /// tinted it stays whole.
+    #[test]
+    fn the_default_is_three_with_its_small_masters() {
+        assert_eq!(Logo::DEFAULT, Logo(3));
+        assert_eq!(LogoChoice::default().number, 3);
+        for px in [16, 20, 24, 30, 32, 40, 47] {
+            let svg = svg_for(Logo::DEFAULT, Tint::Original, &Tokens::slate(), px);
+            let drawn = small_master_03(px);
+            assert_eq!(svg, drawn, "{px}: the small master, untouched");
+            assert!(svg.contains("data-role=\"wave\"") && svg.contains("data-role=\"patina\""));
+            let img = render_svg(&svg, px).expect("the small master renders");
+            assert_eq!(img.size, [px as usize, px as usize]);
+            // The tile fills the square: its corner pixel's row is opaque in the middle.
+            let mid = img.pixels[(px as usize / 2) * px as usize + 1];
+            assert!(mid.a() > 200, "{px}: the tile reaches the edge");
+            for tint in [Tint::Theme, Tint::Icon] {
+                let t = svg_for(Logo::DEFAULT, tint, &Tokens::slate(), px);
+                assert!(
+                    render_svg(&t, px).is_some(),
+                    "{px} {tint:?}: tinted, it renders"
+                );
+            }
+        }
+        assert_eq!(small_master_03(16), M03_16);
+        assert!(svg_for(Logo::DEFAULT, Tint::Original, &Tokens::slate(), 48).contains("1024"));
+    }
+
+    const M03_16: &str = include_str!("../../assets/logos/small/03-16.svg");
 }

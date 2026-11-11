@@ -13,22 +13,20 @@
 //! brace, dragged like the loop's — by an end to move it, anywhere else to draw a new one.
 
 use super::chrome;
-use super::paint::{HeaderRects, LED};
 use super::{beats_to_ticks, ticks_to_beats, TimelineGeometry};
 use crate::app::CantusApp;
 use crate::kit::color::{mix, shade, with_alpha};
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::hint::{self, Caps};
 use crate::kit::menu::{Check, Item};
-use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::{self, cap, well, Brush, Fill, State, Style, Tok};
+use crate::kit::text::Src;
+use crate::kit::{self, Brush, Fill, Style, Tok};
 use crate::record_pass::max_lane;
 use crate::record_session::{input_choices, input_label, monitor_key};
-use crate::views::clips_chrome::Tint;
 use cantus_core::audio::{MonitorMode, TrackInput};
 use cantus_core::{LoopRegion, Ticks, Track, TrackId};
 use cantus_engine::PEAK_FRAMES;
-use egui::{pos2, vec2, Align2, Color32, Id, Pos2, Rect, Sense};
+use egui::{pos2, vec2, Color32, Id, Pos2, Rect, Sense};
 use std::cell::RefCell;
 
 thread_local! {
@@ -38,65 +36,55 @@ thread_local! {
     static COLUMNS: RefCell<Vec<(f32, f32)>> = RefCell::new(Vec::with_capacity(2048));
 }
 
-/// Where a header's record controls are.
+/// Where a header's record controls are (r39:el-arrange: the arm is the header's ● key;
+/// the input is line 2 while armed; the monitor and the takes' disclosure sit at line 2's
+/// right end, only on a track with an input or with takes).
 #[derive(Copy, Clone, Debug)]
 pub(super) struct RecRects {
     pub arm: Pos2,
     pub input: Option<Rect>,
     pub monitor: Option<Rect>,
-    pub meter: Option<Rect>,
     pub disclosure: Option<Rect>,
 }
 
-/// Lay out the record controls of `track`'s header, taking room from the song map.
-pub(super) fn layout(hr: &mut HeaderRects, track: &Track, s: &Style) -> RecRects {
+/// Lay out the record controls of `track`'s header.
+pub(super) fn layout(r: &super::head::Rects, track: &Track, s: &Style) -> RecRects {
     let k = s.k;
+    let arm = if r.n > 2 {
+        r.keys[2].center()
+    } else {
+        pos2(f32::NAN, f32::NAN)
+    };
     let mut rr = RecRects {
-        arm: hr.arm,
+        arm,
         input: None,
         monitor: None,
-        meter: None,
         disclosure: None,
     };
-    let Some(map) = hr.map else {
+    let Some(l2) = r.line2 else {
         return rr;
     };
+    let side = 14.0 * k;
+    let mut right = l2.right();
+    if track.input.is_some() {
+        let m = Rect::from_min_size(
+            pos2(right - side, l2.center().y - side * 0.5),
+            vec2(side, side),
+        );
+        rr.monitor = Some(m);
+        right = m.left() - 2.0 * k;
+        if track.armed {
+            rr.input = Some(Rect::from_min_max(
+                l2.min,
+                pos2(right - 2.0 * k, l2.bottom()),
+            ));
+        }
+    }
     if max_lane(track) > 0 || track.takes_open {
-        rr.disclosure = Some(Rect::from_center_size(
-            pos2(hr.cell.center().x, hr.cell.bottom() - 8.0 * k),
-            vec2(11.0 * k, 11.0 * k),
+        rr.disclosure = Some(Rect::from_min_size(
+            pos2(right - side, l2.center().y - side * 0.5),
+            vec2(side, side),
         ));
-    }
-    if track.input.is_none() {
-        return rr;
-    }
-    let line = Rect::from_min_max(
-        pos2(map.left(), map.top() - 2.0 * k),
-        pos2(map.right(), map.bottom() + 2.0 * k),
-    );
-    let h = (15.0 * k).min(line.height());
-    if h < 10.0 * k {
-        return rr;
-    }
-    let cy = line.center().y;
-    let input = Rect::from_min_size(pos2(line.left(), cy - h * 0.5), vec2(48.0 * k, h));
-    let monitor = Rect::from_min_size(
-        pos2(input.right() + 4.0 * k, cy - h * 0.5),
-        vec2(h + 4.0 * k, h),
-    );
-    rr.input = Some(input);
-    rr.monitor = Some(monitor);
-    let rest = Rect::from_min_max(pos2(monitor.right() + 6.0 * k, map.top()), map.max);
-    if track.armed {
-        rr.meter = (rest.width() > 8.0 * k).then(|| {
-            Rect::from_min_max(
-                pos2(rest.left(), cy - 2.5 * k),
-                pos2(rest.right(), cy + 2.5 * k),
-            )
-        });
-        hr.map = None;
-    } else {
-        hr.map = (rest.width() > 12.0 * k).then_some(rest);
     }
     rr
 }
@@ -129,159 +117,49 @@ fn speaker(b: &mut Brush, r: Rect, mode: MonitorMode, color: Color32) {
     }
 }
 
-/// The record controls, painted over the header.
+/// The monitor key and the takes' disclosure, painted over the header.
 pub(super) fn paint_header(
     b: &mut Brush,
-    app: &CantusApp,
     track: &Track,
     rr: &RecRects,
-    tint: Tint,
     pointer: Option<Pos2>,
     s: &Style,
 ) {
-    let t = &s.t;
-    let k = s.k;
-    let d = LED * k;
-    let recording = app.rec.pass.as_ref().is_some_and(|l| l.records(track.id));
-    let alpha = if recording {
-        let now = b.ctx().input(|i| i.time) as f32;
-        0.65 + 0.35 * (now * 5.0).sin().abs()
-    } else {
-        1.0
-    };
-    // r37:finish — arm as a key with the record dot, lit red while armed (pulsing as it records).
-    let near = |c: Pos2| pointer.is_some_and(|p| p.distance(c) <= d);
-    super::paint::dot_key(
-        b,
-        rr.arm,
-        (LED + 6.0) * k,
-        track.armed || recording,
-        t.danger,
-        near(rr.arm),
-        alpha,
-        s,
-    );
+    let ink = super::slate::Ink::of(s);
     let hovered = |r: Rect| pointer.is_some_and(|p| r.contains(p));
-    if let (Some(r), Some(input)) = (rr.input, &track.input) {
-        let st = State {
-            hovered: hovered(r),
-            ..State::REST
-        };
-        well::paint(b, r, s, st, None);
-        LABEL.with(|l| {
-            let mut l = l.borrow_mut();
-            l.clear();
-            input_label_into(input, &mut l);
-            let tx = Text::new(
-                &l,
-                Role::Micro,
-                if app.input_channels() == 0 {
-                    t.text_dim
-                } else {
-                    t.text
-                },
-            )
-            .caps(true)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End));
-            let tr = Rect::from_min_max(
-                pos2(r.left() + 5.0 * k, r.top()),
-                pos2(r.right() - 11.0 * k, r.bottom()),
-            );
-            let _ = text::paint(b, tr, &tx, s.tk());
-        });
-        let g = Rect::from_center_size(
-            pos2(r.right() - 6.0 * k, r.center().y),
-            vec2(7.0 * k, 7.0 * k),
-        );
-        glyph::paint(b, g, Glyph::Down, t.text_dim);
-    }
     if let (Some(r), Some(input)) = (rr.monitor, &track.input) {
-        let st = State {
-            hovered: hovered(r),
-            lit: input.monitor == MonitorMode::On,
-            ..State::REST
+        let c = match input.monitor {
+            MonitorMode::On => ink.accent,
+            _ if hovered(r) => ink.ink1,
+            MonitorMode::Auto => ink.ink2,
+            MonitorMode::Off => ink.ink3,
         };
-        cap::toolbar_key(b, r, s, st, cap::KeyFace::Text(""));
-        let ink = match input.monitor {
-            MonitorMode::On => t.highlight_glyph,
-            MonitorMode::Auto => t.text,
-            MonitorMode::Off => t.text_dim,
-        };
-        speaker(b, r.shrink(2.0 * k), input.monitor, ink);
-    }
-    if let (Some(r), Some(input)) = (rr.meter, &track.input) {
-        b.register(
-            r,
-            "input_meter",
-            &[Tok::Well, Tok::MeterLow, Tok::MeterHigh, Tok::MeterClip],
-            &[],
-        );
-        b.rrect(b.snap_rect(r), 1.5 * k, Fill::Solid(shade(t.well, -0.08)));
-        let lin = app.input_level(input);
-        let level = ((cantus_core::linear_to_db(lin) + 60.0) / 60.0).clamp(0.0, 1.0);
-        if level > 0.0 {
-            let x = r.left() + r.width() * level;
-            let c = if level > 0.97 {
-                t.meter_clip
-            } else if level > 0.85 {
-                t.meter_high
-            } else {
-                t.meter_low
-            };
-            b.rrect(
-                Rect::from_min_max(r.min, pos2(x, r.bottom())),
-                1.5 * k,
-                Fill::Solid(c),
-            );
+        if hovered(r) {
+            b.rrect(r, s.r(3.0), Fill::Solid(ink.well_hi));
         }
+        speaker(b, r.shrink(2.0 * s.k), input.monitor, c);
     }
     if let Some(r) = rr.disclosure {
-        let open = track.takes_open;
-        glyph::paint(
-            b,
-            r,
-            if open { Glyph::Down } else { Glyph::Menu },
-            tint.on_small,
-        );
+        let c = if hovered(r) { ink.ink1 } else { ink.ink3 };
+        let g = if track.takes_open {
+            Glyph::Down
+        } else {
+            Glyph::Menu
+        };
+        glyph::paint(b, r.shrink(2.0 * s.k), g, c);
     }
 }
 
-fn input_label_into(input: &TrackInput, b: &mut String) {
-    input_label(input, b);
-}
-
-/// The record controls' clicks: arm (Shift: this track alone), monitor (cycles), the input
-/// chip (its list), the takes' disclosure.
+/// The record controls' clicks: monitor (cycles), the input (its list, while armed), the
+/// takes' disclosure. The arm is the header's own key.
 pub(super) fn header_input(
     app: &mut CantusApp,
     ui: &mut egui::Ui,
     id: TrackId,
     rr: &RecRects,
     s: &Style,
-    clip: Rect,
 ) {
     let k = s.k;
-    let arm = ui.interact(
-        Rect::from_center_size(rr.arm, egui::Vec2::splat((LED + 8.0) * k)), // r37:finish
-        ui.id().with(("arr-arm", id.0)),
-        Sense::click(),
-    );
-    // MIDI learn mode (round 29, ADR 0062): the arm lamp is learnable.
-    crate::controllers::learn_spot_in(
-        app,
-        ui,
-        arm.rect,
-        clip,
-        cantus_core::controller::MappingTarget::TrackArm(id),
-    );
-    if arm.hovered() {
-        hint::set_text(ui.ctx(), chrome::word("rec.arm_tip"), "", Caps::NONE);
-    }
-    if arm.clicked() {
-        let only = ui.input(|i| i.modifiers.shift);
-        app.toggle_arm(id, only);
-    }
     if let Some(r) = rr.monitor {
         let resp = ui.interact(r, ui.id().with(("arr-monitor", id.0)), Sense::click());
         if resp.hovered() {
@@ -325,7 +203,7 @@ pub(super) fn header_input(
     }
     if let Some(r) = rr.disclosure {
         let resp = ui.interact(
-            r.expand(3.0 * k),
+            r.expand(2.0 * k),
             ui.id().with(("arr-takes", id.0)),
             Sense::click(),
         );
@@ -877,11 +755,19 @@ pub fn record_controls(app: &CantusApp, track: TrackId) -> Option<RecordControls
     let i = app.project().tracks.iter().position(|t| t.id == track)?;
     let row = geo.rows.get(i)?;
     let s = Style::current();
-    let w = app.arrangement.header_width;
+    let w = app.arrangement.header_shown();
     let hx = geo.left - 1.0;
     let rect = Rect::from_min_size(pos2(hx - w, row.top), vec2(w, row.height));
-    let mut hr = super::paint::header_rects(rect, &s);
-    let rr = layout(&mut hr, &app.project().tracks[i], &s);
+    let t = &app.project().tracks[i];
+    let n = super::head::keys_of(super::head::Width::of(w, s.k));
+    let r = super::head::rects(
+        rect,
+        usize::from(t.folder.is_some()),
+        n,
+        t.glyph.is_some(),
+        &s,
+    );
+    let rr = layout(&r, t, &s);
     Some(RecordControls {
         arm: rr.arm,
         input: rr.input,

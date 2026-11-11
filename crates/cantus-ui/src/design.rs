@@ -85,9 +85,11 @@ pub fn music_font(size: f32) -> FontId {
 pub fn score_text_font(face: cantus_score::text::Face, size: f32) -> FontId {
     use cantus_score::text::Face;
     let family = match face {
-        Face::Regular => FontFamily::Proportional,
-        Face::Bold => family_strong(),
-        Face::Italic => FontFamily::Name(role::COND_ITALIC.into()),
+        // IBM Plex whatever the theme's face: the faces the layout measured and the PDF
+        // embeds ([`score_faces`]).
+        Face::Regular => FontFamily::Name(role::PLEX_SANS.into()),
+        Face::Bold => FontFamily::Name(role::PLEX_SANS_STRONG.into()),
+        Face::Italic => FontFamily::Name(role::PLEX_COND_ITALIC.into()),
     };
     FontId::new(size.max(1.0), family)
 }
@@ -201,7 +203,26 @@ fn text_styles() -> std::collections::BTreeMap<TextStyle, FontId> {
 /// Install the bundled fonts ([`font_definitions`]), and the system faces the fallback has
 /// added so far (`font_fallback`; none unless the real window armed it).
 pub fn install_fonts(ctx: &Context) {
+    let face = crate::kit::system::face();
     ctx.set_fonts(crate::font_fallback::definitions());
+    ctx.data_mut(|d| d.insert_temp(face_id(), face));
+}
+
+fn face_id() -> egui::Id {
+    egui::Id::new("cantus.design.face")
+}
+
+/// Make `face` the one text roles resolve to and, when `ctx` was given another, install
+/// its fonts there (round 39: a theme carries its face, ADR 0111). Returns whether fonts
+/// were installed.
+pub fn use_face(ctx: &Context, face: crate::kit::system::Face) -> bool {
+    crate::kit::system::set_face(face);
+    let had: Option<crate::kit::system::Face> = ctx.data(|d| d.get_temp(face_id()));
+    if had == Some(face) {
+        return false;
+    }
+    install_fonts(ctx);
+    true
 }
 
 /// The emoji fallback every chain ends with: emoji-icon-font (MIT, © 2014 John Slegers),
@@ -250,20 +271,49 @@ pub fn font_definitions() -> egui::FontDefinitions {
         add(key, bytes);
     }
 
-    let chain = |first: &str| vec![first.to_owned(), EMOJI.to_owned()];
-    fonts.families.insert(FontFamily::Proportional, chain(SANS));
-    fonts.families.insert(FontFamily::Monospace, chain(MONO));
-    fonts.families.insert(family_strong(), chain(SANS_STRONG));
+    // Round 39 (ADR 0111): the theme's face. IBM Plex stays registered whatever it is —
+    // the units' own lettering (ADR 0074) and the fallback after every other face.
+    let face = crate::kit::system::face();
+    for (key, bytes) in crate::kit::faces::data(face) {
+        add(key, bytes);
+    }
+    let plex = role::plex();
+    let chain = |family: &str| {
+        let first = crate::kit::faces::first(face, family, &plex);
+        let back = crate::kit::faces::fallback(family, &plex);
+        let mut v = vec![first.to_owned()];
+        if back != first {
+            v.push(back.to_owned());
+        }
+        v.push(EMOJI.to_owned());
+        v
+    };
     fonts
         .families
-        .insert(family_mono_strong(), chain(MONO_STRONG));
+        .insert(FontFamily::Proportional, chain("proportional"));
     fonts
         .families
-        .insert(family_mono_light(), chain("mono-light")); // r37:finish
-    for (key, _) in role::FACES {
+        .insert(FontFamily::Monospace, chain("monospace"));
+    for name in crate::kit::faces::FAMILIES {
         fonts
             .families
-            .insert(FontFamily::Name((*key).into()), chain(key));
+            .insert(FontFamily::Name(name.into()), chain(name));
+    }
+    // The units' lettering (ADR 0074) and the plain mono readout: IBM Plex, whatever the
+    // theme's face.
+    let plain = |first: &str| vec![first.to_owned(), EMOJI.to_owned()];
+    for (name, key) in [
+        (role::PLEX_SANS, SANS),
+        (role::PLEX_SANS_STRONG, SANS_STRONG),
+        (role::PLEX_MONO, MONO),
+        (role::PLEX_COND, role::COND),
+        (role::PLEX_COND_MEDIUM, role::COND_MEDIUM),
+        (role::PLEX_COND_SEMIBOLD, role::COND_SEMIBOLD),
+        (role::PLEX_COND_ITALIC, role::COND_ITALIC),
+    ] {
+        fonts
+            .families
+            .insert(FontFamily::Name(name.into()), plain(key));
     }
     fonts
 }
@@ -288,10 +338,35 @@ pub mod role {
     use super::{FontFamily, FontId};
     pub use crate::kit::skin::Weight;
 
-    pub(super) const COND: &str = "cond";
-    pub(super) const COND_MEDIUM: &str = "cond-medium";
-    pub(super) const COND_SEMIBOLD: &str = "cond-semibold";
-    pub(super) const COND_ITALIC: &str = "cond-italic";
+    /// The Plex faces' `font_data` keys. (Family names are [`crate::kit::faces::FAMILIES`];
+    /// the theme's face points each at a file.)
+    pub(super) const COND: &str = "plex-cond";
+    pub(super) const COND_MEDIUM: &str = "plex-cond-medium";
+    pub(super) const COND_SEMIBOLD: &str = "plex-cond-semibold";
+    pub(super) const COND_ITALIC: &str = "plex-cond-italic";
+    /// Families that are IBM Plex whatever the theme's face: the units' lettering.
+    pub(super) const PLEX_SANS: &str = "plex:sans";
+    pub(super) const PLEX_SANS_STRONG: &str = "plex:sans-strong";
+    pub(super) const PLEX_MONO: &str = "plex:mono";
+    pub(super) const PLEX_COND: &str = "plex:cond";
+    pub(super) const PLEX_COND_MEDIUM: &str = "plex:cond-medium";
+    pub(super) const PLEX_COND_SEMIBOLD: &str = "plex:cond-semibold";
+    pub(super) const PLEX_COND_ITALIC: &str = "plex:cond-italic";
+
+    /// The Plex files' keys, for the face table.
+    pub(super) fn plex() -> crate::kit::faces::Plex {
+        crate::kit::faces::Plex {
+            sans: super::SANS,
+            sans_strong: super::SANS_STRONG,
+            mono: super::MONO,
+            mono_strong: super::MONO_STRONG,
+            mono_light: "mono-light",
+            cond: COND,
+            cond_medium: COND_MEDIUM,
+            cond_semibold: COND_SEMIBOLD,
+            cond_italic: COND_ITALIC,
+        }
+    }
 
     /// The bundled IBM Plex Sans Condensed faces (SIL OFL 1.1, the same licence and
     /// family as the other Plex files in `assets/fonts`).
@@ -350,32 +425,18 @@ pub mod role {
             Role::Placeholder,
         ];
 
+        /// How the role is set in the installed theme's face (round 39, ADR 0111).
+        pub fn spec(self) -> crate::kit::faces::Spec {
+            crate::kit::faces::of(crate::kit::system::face(), self)
+        }
+
         /// Size in points at 100 %.
         pub fn size(self) -> f32 {
-            match self {
-                Role::Micro => 8.5,
-                Role::Label | Role::Section => 11.0,
-                Role::Body | Role::Placeholder => 12.5,
-                Role::Control | Role::Value => 12.0,
-                Role::Title => 13.0,
-                Role::Hero => 18.0,
-                Role::Display => 26.0,
-            }
+            self.spec().size
         }
 
         pub fn family(self) -> FontFamily {
-            let name = |n: &str| FontFamily::Name(n.into());
-            match self {
-                Role::Micro | Role::Section => name(COND_SEMIBOLD),
-                Role::Label | Role::Control | Role::Title => name(COND_MEDIUM),
-                Role::Body => name(COND),
-                Role::Placeholder => name(COND_ITALIC),
-                // r37:finish — one face for numbers and words: Plex Sans Condensed, whose
-                // figures are tabular (every digit one width), so a value never shifts as it
-                // counts and never reads as a terminal's (the judge: two faces side by side).
-                Role::Value => name(COND_MEDIUM),
-                Role::Hero | Role::Display => name(COND),
-            }
+            FontFamily::Name(self.spec().family.into())
         }
 
         /// The font at the per-window scale `k` (1.0 = 100 %).
@@ -390,11 +451,11 @@ pub mod role {
         pub fn lettered(self, weight: Weight, condensed: bool, k: f32) -> FontId {
             let name = |n: &str| FontFamily::Name(n.into());
             let family = match (condensed, weight) {
-                (true, Weight::Regular) => name(COND),
-                (true, Weight::Medium) => name(COND_MEDIUM),
-                (true, Weight::SemiBold) => name(COND_SEMIBOLD),
-                (false, Weight::Regular) => FontFamily::Proportional,
-                (false, _) => super::family_strong(),
+                (true, Weight::Regular) => name(PLEX_COND),
+                (true, Weight::Medium) => name(PLEX_COND_MEDIUM),
+                (true, Weight::SemiBold) => name(PLEX_COND_SEMIBOLD),
+                (false, Weight::Regular) => name(PLEX_SANS),
+                (false, _) => name(PLEX_SANS_STRONG),
             };
             FontId::new(self.size() * k, family)
         }
@@ -402,26 +463,20 @@ pub mod role {
         /// A value set in the plain mono face — a lab instrument's readout (a unit whose
         /// lettering asks for `mono_values`).
         pub fn mono_plain(self, k: f32) -> FontId {
-            FontId::new(self.size() * k, FontFamily::Monospace)
+            FontId::new(self.size() * k, FontFamily::Name(PLEX_MONO.into()))
         }
 
         /// Extra space between letters, in points at 100 %: for roles set in caps, and
         /// (less than none) for the monospaced numbers.
         pub fn tracking(self) -> f32 {
-            match self {
-                Role::Micro => 0.3,  // r37:finish (0.4: loose beside the condensed face)
-                Role::Label => 0.25, // r37:finish (0.5)
-                Role::Section => 0.8,
-                // r37:finish — the large display a touch close.
-                Role::Display => -0.4,
-                _ => 0.0,
-            }
+            self.spec().tracking
         }
 
         /// Whether the role is set in capitals (labels only inside devices; the caller
-        /// decides that with `Label`'s own flag).
+        /// decides that with `Label`'s own flag). Slate and its siblings never set a
+        /// section in capitals (round 39).
         pub fn caps(self) -> bool {
-            matches!(self, Role::Micro | Role::Section)
+            self.spec().caps
         }
     }
 }

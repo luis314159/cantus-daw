@@ -53,3 +53,26 @@ param.amp_release.short = Liber.
 param.filter_release.short = Liber.
 pad.choke.short = Corte
 kit.mixer.mute.short = Sil.
+
+# Round 39 (el-mixer): the head says what is shown
+inspector.ctx.strip = Canal del mezclador
+inspector.add_effect = Añadir un efecto
+inspector.bypassed = Anulado
+inspector.level = Nivel
+inspector.automation = Automatización
+freeze.section = Congelar
+inspector.key_into = Clave en
+inspector.key_from = Desde
+inspector.none = Ninguno
+inspector.lanes = {n} carriles
+inspector.lanes_label = Carriles
+inspector.lane_read = Leer
+inspector.frozen = Congelado
+inspector.has_input = Con entrada
+inspector.volume = Volumen
+inspector.pan = Paneo
+inspector.width = Anchura
+inspector.reduction = Reducción
+inspector.send_pre = Antes del fader
+inspector.eq_display_tip = Arrastra el punto de una banda: su frecuencia y ganancia; con el botón derecho: su Q; doble clic: a 0 dB
+inspector.fold_tip = Plegar {what}

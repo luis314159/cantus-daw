@@ -117,6 +117,6 @@ samples.family.drums = Drums
 samples.family.loops = Loops
 samples.family.melodic = Melodic
 samples.family.fx = FX
-samples.preview.volume = Preview level (the sound starts again at the new level)
+samples.preview.volume = Preview level (heard at once, as you drag)
 samples.detail.mono = Mono
 samples.detail.stereo = Stereo

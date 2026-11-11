@@ -113,6 +113,17 @@ pub enum EngineMessage {
     /// one stopped and handed back, compensation planned again. Waits like
     /// [`Self::AddInstrument`] when no snapshot holds that track and kind yet.
     ReplaceInstrument(Box<crate::inst::NativeUnit>),
+    /// A part a track slot holds only while its track uses it (ADR 0107) — a Pulsus kit, a
+    /// note-effect chain — built off the audio thread (`crate::parts`) and sent before a
+    /// snapshot that uses more of them than the engine holds, or in answer to
+    /// [`EngineEvent::PartsNeed`]. The engine keeps every part it is given and moves them
+    /// between its slots; it never frees one.
+    AddPart(crate::parts::SlotPart),
+    /// Track and strip slots' pass buffers (ADR 0107), sent before a snapshot with more
+    /// tracks or strips than the engine has slots provisioned for, or in answer to
+    /// [`EngineEvent::CellsNeed`]: swapped into the next bare slots, the bare ones handed
+    /// back as [`EngineEvent::GarbageCells`].
+    Cells(Box<crate::parts::SlotCells>),
     /// Report this track's instrument telemetry in `Meters::inst` (its editor is open).
     SetInstrumentProbe(Option<TrackId>),
     Play,
@@ -158,6 +169,14 @@ pub enum EngineMessage {
     /// Copy these Speculums' signals into the scope rings (ADR 0056): entry `i` feeds ring
     /// `i`; `None` leaves a ring idle. Every frame of a watched slot reaches its ring.
     WatchScopes([Option<EffectId>; crate::fx::speculum::MAX_SCOPES]),
+    /// Scope ring `index`'s writing end (ADR 0107): made by the backend the first time a
+    /// Speculum is watched in it, sent before the [`Self::WatchScopes`] that uses it — eight
+    /// rings of 1 024 chunks were 4.4 MB held from the start whether a scope was ever looked
+    /// at or not. Each index is sent once.
+    ScopeRing {
+        index: usize,
+        ring: rtrb::Producer<crate::fx::speculum::ScopeChunk>,
+    },
     /// Release every voice on every track immediately.
     Panic,
     /// Longer delay-compensation lines, answering [`EngineEvent::PdcNeed`]. The engine
@@ -180,6 +199,9 @@ pub enum EngineMessage {
     /// `None` fades the audition out. A sample the voice lets go of comes back as
     /// [`EngineEvent::GarbagePreview`].
     Preview(Option<(Arc<cantus_core::SampleData>, f32)>),
+    /// The audition's level from now on, ramped in while it plays — never started again
+    /// (round 39, fixes). // r39:fixes
+    PreviewGain(f32),
     /// Where the take begins when recording starts with a count-in (`ClickMode::CountInOnly`
     /// clicks only before it); `None` when not counting in.
     SetRecordStart(Option<Ticks>),
@@ -311,6 +333,15 @@ pub struct EngineStats {
     pub latency_samples: u64,
     /// Edges that needed compensation and found no free delay line.
     pub pdc_unserved: u64,
+    /// Drum tracks waiting for a Pulsus kit (ADR 0107): zero wherever the parts are sent
+    /// before the snapshot that needs them, as the application and every render do.
+    pub kits_waiting: u64,
+    /// Tracks with note effects waiting for their chain (ADR 0107), bypassed meanwhile:
+    /// zero wherever the parts are sent ahead, as for kits.
+    pub note_fx_waiting: u64,
+    /// A snapshot waiting for its slots to be provisioned (1) or none (0): zero wherever the
+    /// cells are sent ahead (ADR 0107).
+    pub cells_waiting: u64,
     /// The input ring held more than its target (the input device's clock runs fast
     /// against the output's): frames thrown away to catch up (ADR 0025 §10).
     pub input_dropped: u64,
@@ -386,10 +417,9 @@ pub struct ControlInput {
 
 /// Engine → UI.
 #[derive(Debug)]
-// `Meters` grew a strip array; boxing it would put an allocation on the audio thread
-// every block, which is the one thing this enum must never do. The ring buffer's slots
-// are sized for the largest variant once, at construction.
-#[allow(clippy::large_enum_variant)]
+// The ring buffer's slots are sized for the largest variant, so every variant stays small
+// (`an_event_is_small`): the block's meters, stats and modulators travel in their own
+// mailbox (`crate::report`, ADR 0107).
 pub enum EngineEvent {
     /// A ping ran (or was refused): its job, to be evaluated on the interface thread.
     /// r36:external
@@ -403,8 +433,6 @@ pub enum EngineEvent {
         heard: Ticks,
         playing: bool,
     },
-    Meters(Meters),
-    Stats(EngineStats),
     NoteInput(NoteInput),
     /// A per-note value from an MPE controller while recording (ADR 0080). // r33:mpe
     ExprInput(crate::inst::mpe::ExprInput), // r33:mpe
@@ -422,6 +450,27 @@ pub enum EngineEvent {
         count: usize,
         delay: usize,
     },
+    /// The installed snapshot uses more slot parts than the engine holds (ADR 0107):
+    /// `kits` Pulsus kits and `note_fx` note-effect chains more. Answer with as many
+    /// [`EngineMessage::AddPart`]; until they arrive those tracks play without them (a
+    /// drum track silent, a note-effect chain bypassed). Only a sender that did not send
+    /// the parts before the snapshot is ever asked.
+    PartsNeed {
+        kits: usize,
+        note_fx: usize,
+    },
+    /// A part the engine had no room for (never, within the track limit); the UI drops it.
+    GarbagePart(crate::parts::SlotPart),
+    /// A snapshot needs `tracks` track and `strips` strip slots provisioned and the engine
+    /// has fewer (ADR 0107): it waits, the one before it playing on and every other message
+    /// handled, until [`EngineMessage::Cells`] brings them. Only a sender that did not send
+    /// them before the snapshot is ever asked.
+    CellsNeed {
+        tracks: usize,
+        strips: usize,
+    },
+    /// The bare slots' memory a provision swapped out; the UI drops it.
+    GarbageCells(Box<crate::parts::SlotCells>),
     /// Delay lines swapped out of the pool; the UI drops them.
     GarbageLines(Vec<crate::pdc::DelayLine>),
     /// A unit's own editor moved a parameter (a hosted plug-in's window): the host turns
@@ -441,7 +490,7 @@ pub enum EngineEvent {
     /// Until it arrives the effect keeps running its previous path.
     EffectNeed {
         effect: EffectId,
-        need: crate::effects::MemoryNeed,
+        need: crate::effects::NeedTicket,
     },
     /// Effect memory handed back; the UI drops it.
     GarbageMemory(crate::effects::EffectMemory),
@@ -455,8 +504,22 @@ pub enum EngineEvent {
     GarbageAutomation(Box<crate::automation::Runtime>),
     /// A graph plan the engine no longer uses; the UI drops it.
     GarbagePlan(Box<crate::graph::GraphPlan>),
-    /// The modulators' live values, once a block while there are any (ADR 0057).
-    Modulation(crate::modulator::ModTelemetry),
     /// A change in the session view's state (round 33, ADR 0076).
     Session(SessionEvent),
+}
+
+#[cfg(test)]
+mod size_tests {
+    use super::*;
+
+    /// ADR 0107: the event queue's slots are as large as its largest event, and the
+    /// application's queue holds 4 096 of them — once 3 880 B each (15.9 MB), when the
+    /// block's meters travelled in it. An event that needs more goes in a box.
+    #[test]
+    fn an_event_is_small() {
+        let size = std::mem::size_of::<EngineEvent>();
+        assert!(size <= 64, "an EngineEvent is {size} B");
+        let size = std::mem::size_of::<EngineMessage>();
+        assert!(size <= 160, "an EngineMessage is {size} B");
+    }
 }

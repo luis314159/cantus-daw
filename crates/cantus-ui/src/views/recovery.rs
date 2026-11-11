@@ -58,13 +58,15 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
         .unwrap_or(0);
     let text = lines(item, now);
     let (mut restore, mut discard) = (false, false);
-    egui::Window::new(t("recovery.title"))
+    crate::kit::dialog::window(t("recovery.title")) // r39:el-controls
         .id(egui::Id::new("cantus-recovery"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
         .show(ctx, |ui| {
             let s = Style::current();
+            // r39:el-controls — the kit's title row; closing it keeps the work for later.
+            let _ = crate::kit::dialog::heading(ui, &t("recovery.title"));
             // The window's title says what this is; the band names what is offered.
             form::band(ui, "recovery.left");
             for (i, line) in text.iter().enumerate() {

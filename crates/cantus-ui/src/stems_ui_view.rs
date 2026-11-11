@@ -17,7 +17,9 @@ use cantus_content::models::ModelStatus;
 use egui::{pos2, vec2, Context, Id, Key, Rect, UiBuilder};
 
 pub const WIDTH: f32 = 480.0;
-const HEIGHT: f32 = 560.0;
+/// As tall as its rows up to this (the model's card whole on a 1080-line screen); on a
+/// shorter one the rows scroll above the foot band (its actions).
+const HEIGHT: f32 = 900.0;
 
 /// The models the panel offers, in order: id, and the key of its words.
 pub const MODELS: [(&str, &str); 2] = [
@@ -48,9 +50,13 @@ pub fn dialog(app: &mut CantusApp, ctx: &Context) {
         (WIDTH * k).min(screen.width() - 16.0),
         want.min(HEIGHT * k).min(screen.height() - 40.0),
     );
+    // A sixth of the way down, or higher where the screen is short: whole on it, its foot
+    // too (the area would be pushed up on screen while its rows were laid where it was not).
     let at = pos2(
         screen.center().x - size.x * 0.5,
-        screen.top() + screen.height() * 0.15,
+        (screen.top() + screen.height() * 0.15)
+            .min(screen.bottom() - size.y - 20.0)
+            .max(screen.top() + 8.0),
     );
     let rect = Rect::from_min_size(at, size);
     let mut close = false;
@@ -59,15 +65,32 @@ pub fn dialog(app: &mut CantusApp, ctx: &Context) {
         .fixed_pos(at)
         .show(ctx, |ui| {
             ui.set_min_size(rect.size());
-            ws::frame(ui, rect, &s);
+            crate::kit::dialog::sheet(ui, rect, &s); // r39:el-controls
             let title = Rect::from_min_size(rect.min, vec2(size.x, 30.0 * k));
-            if ws::title(ui, title, &s, Glyph::Mixer, "stems.title") {
+            if crate::kit::dialog::head(ui, title, &s, Glyph::Mixer, "stems.title") {
                 close = true;
             }
+            // The actions at the dialog's foot, outside the rows' scroll (round 39: the
+            // kit's foot band drawn in the middle of the rows read as the dialog's end, and a
+            // long model card pushed *Accept* below the fold). As tall as it was last frame.
+            let foot_fit = Id::new("cantus-stems-dialog-foot");
+            let foot_h = ctx.data(|d| d.get_temp::<f32>(foot_fit)).unwrap_or(0.0);
+            let foot_top = (rect.bottom() - foot_h).max(title.bottom() + 8.0 * k);
             let inner = Rect::from_min_max(
                 pos2(rect.left() + 14.0 * k, title.bottom() + 8.0 * k),
-                pos2(rect.right() - 14.0 * k, rect.bottom() - 10.0 * k),
+                pos2(
+                    rect.right() - 14.0 * k,
+                    if foot_h > 0.0 {
+                        foot_top
+                    } else {
+                        rect.bottom() - 10.0 * k
+                    },
+                ),
             );
+            let mut foot = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_max(
+                pos2(inner.left(), foot_top),
+                pos2(inner.right() - 8.0 * k, rect.bottom()),
+            )));
             let mut child = ui.new_child(UiBuilder::new().max_rect(inner));
             let shown = egui::ScrollArea::vertical()
                 .id_salt("stems-dialog")
@@ -75,11 +98,22 @@ pub fn dialog(app: &mut CantusApp, ctx: &Context) {
                 .show(&mut child, |ui| {
                     ui.set_width(inner.width() - 8.0 * k);
                     ui.spacing_mut().item_spacing = vec2(6.0 * k, 6.0 * k);
-                    if body(app, ui, &s, &target) {
+                    if body(app, ui, &mut foot, &s, &target) {
                         close = true;
                     }
                 });
-            let rows = (shown.content_size.y + (inner.top() - rect.top()) + 10.0 * k)
+            // The foot's height: what it used, and the band's 14 points under its row.
+            let used = foot.min_rect();
+            let need = if used.height() > 0.5 {
+                used.height() + 14.0
+            } else {
+                0.0
+            };
+            if (need - foot_h).abs() > 0.5 {
+                ctx.data_mut(|d| d.insert_temp(foot_fit, need));
+                ctx.request_repaint();
+            }
+            let rows = (shown.content_size.y + (inner.top() - rect.top()) + 10.0 * k + need)
                 .min(HEIGHT * k)
                 .min(screen.height() - 40.0);
             if (rows - size.y).abs() > 0.5 {
@@ -92,8 +126,14 @@ pub fn dialog(app: &mut CantusApp, ctx: &Context) {
     }
 }
 
-/// The panel's rows; true to close it.
-fn body(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, target: &Target) -> bool {
+/// The panel's rows in `ui`, its actions in `foot` (the dialog's foot band); true to close it.
+fn body(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    foot: &mut egui::Ui,
+    s: &Style,
+    target: &Target,
+) -> bool {
     let words = target.words(app.project());
     ws::wrapped(ui, &words, Role::Title, s.t.text, ui.available_width());
     // A separation of these clips under way: its progress and Cancel, nothing else.
@@ -108,7 +148,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, target: &Target) -> b
                     s.t.text_dim,
                     ui.available_width(),
                 );
-                return form::buttons(ui, |ui| form::button(ui, &t("stems.close"), true, true));
+                return form::buttons(foot, |ui| form::button(ui, &t("stems.close"), true, true));
             }
             Phase::Failed(why) => {
                 ws::wrapped(
@@ -135,7 +175,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, target: &Target) -> b
                     s.t.text_dim,
                     ui.available_width(),
                 );
-                let close = form::buttons(ui, |ui| {
+                let close = form::buttons(foot, |ui| {
                     if form::button(ui, &t("stems.cancel"), false, true) {
                         run::cancel(app, i);
                     }
@@ -189,9 +229,12 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, target: &Target) -> b
     let status = app.ml.models().status(&model);
     let mut close = false;
     super::models::header(app, ui, s, &model);
+    // What the model is — its size, licence and runtime — above the buttons that accept them:
+    // round 39's buttons are the dialog's foot band, and nothing is drawn under a foot.
+    super::models::summary(app, ui, s, &model);
     match status {
         ModelStatus::Ready => {
-            close = form::buttons(ui, |ui| {
+            close = form::buttons(foot, |ui| {
                 let cancel = form::button(ui, &t("stems.close"), false, true);
                 let can = super::models::ready(app, &model).is_some();
                 if form::button(ui, &t("stems.separate"), true, can) {
@@ -208,12 +251,10 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, target: &Target) -> b
             });
         }
         other => {
-            if super::models::actions(app, ui, s, &model, &other) {
+            if super::models::actions(app, foot, s, &model, &other) {
                 close = true;
             }
         }
     }
-    // What the model is: its card under the buttons.
-    super::models::summary(app, ui, s, &model);
     close
 }

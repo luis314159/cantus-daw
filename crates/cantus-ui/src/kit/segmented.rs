@@ -65,6 +65,10 @@ pub fn paint(
     if n == 0 {
         return;
     }
+    if s.t.system.recessed() && !matches!(s.skin.switch, super::skin::SwitchShape::Lamp) {
+        paint_slate(b, rect, s, st, labels, selected, hovered);
+        return;
+    }
     let toks = match (
         matches!(s.skin.switch, super::skin::SwitchShape::Lamp),
         s.t.dark,
@@ -184,6 +188,114 @@ pub fn paint(
             color: f(color),
         };
         let _ = text::paint(b, seg.shrink2(egui::vec2(s.s(4.0), 0.0)), &t, s.tk());
+    }
+    if st.focused {
+        focus_ring(b, rect, r, s);
+    }
+}
+
+/// The tokens a Slate segmented control paints with (for inspect mode).
+pub const SLATE_TOKENS: &[Tok] = &[
+    Tok::Well,
+    Tok::InnerShadow,
+    Tok::Lip,
+    Tok::Menu,
+    Tok::Text,
+    Tok::TextDim,
+    Tok::Placeholder,
+    Tok::Focus,
+];
+
+/// A segmented control in a recessed family (round 39, `des-controls`' switches sheet): a
+/// well; the chosen segment lifts, inset 2 pt — Night a raised pill with a lit top, Paper a
+/// white one framed in the well's edge — its word Medium in ink 1; under the hand a step
+/// lifted and ink 2; the others ink 3; 1-px dividers only between unchosen neighbours.
+/// Never coloured: a choice among equals stays neutral.
+fn paint_slate(
+    b: &mut Brush,
+    rect: Rect,
+    s: &Style,
+    st: State,
+    labels: &[Src<'_>],
+    selected: usize,
+    hovered: Option<usize>,
+) {
+    b.register(rect, "segmented", SLATE_TOKENS, &[]);
+    let n = labels.len();
+    let a = st.alpha();
+    let f = |c: egui::Color32| c.gamma_multiply(a);
+    let t = &s.t;
+    let r = s.s(t.radius);
+    let rect = b.snap_rect(rect);
+    super::cap::well_body(b, rect, r, s, t.well, a);
+    let px = b.px();
+    let inner = rect.shrink(px);
+    let inset = s.s(2.0);
+    let edge = super::color::opaque(t.inner_shadow);
+    for (i, label) in labels.iter().enumerate() {
+        let seg = b.snap_rect(segment(inner, n, i));
+        let pill = seg.shrink(inset - px);
+        if i == selected {
+            if t.dark {
+                b.rrect(pill, (r - inset).max(px), Fill::Solid(f(t.menu)));
+                b.hline(
+                    pill.left() + s.s(2.0),
+                    pill.right() - s.s(2.0),
+                    pill.top() + px * 0.5,
+                    px,
+                    f(super::color::mix(t.menu, t.text, 0.16)),
+                );
+            } else {
+                b.rrect(pill, (r - inset).max(px), Fill::Solid(f(edge)));
+                b.rrect(
+                    pill.shrink(px),
+                    (r - inset - px).max(px),
+                    Fill::Solid(f(t.light)),
+                );
+            }
+        } else if hovered == Some(i) && !st.disabled {
+            b.rrect(
+                pill,
+                (r - inset).max(px),
+                Fill::Solid(f(super::cap::well_fill(
+                    s,
+                    State {
+                        hovered: true,
+                        ..State::REST
+                    },
+                ))),
+            );
+        }
+        if i > 0 && i != selected && i != selected + 1 {
+            b.vline(
+                seg.left(),
+                seg.top() + s.s(5.0),
+                seg.bottom() - s.s(5.0),
+                px,
+                f(super::color::mix(t.well, t.placeholder, 0.35)),
+            );
+        }
+        // One weight for every segment, so a word that fits chosen fits unchosen (the
+        // segments' widths are laid out for it); the choice is said by the pill and the ink.
+        let role = Role::Control;
+        let color = if st.disabled {
+            t.disabled
+        } else if i == selected {
+            t.text
+        } else if hovered == Some(i) {
+            t.text_dim
+        } else {
+            t.placeholder
+        };
+        let tt = Text {
+            src: *label,
+            role,
+            caps: false,
+            align: Align2::CENTER_CENTER,
+            policy: Policy::Abbreviate,
+            color: f(color),
+        };
+        let _ = text::paint(b, seg.shrink2(egui::vec2(s.s(4.0), 0.0)), &tt, s.tk());
     }
     if st.focused {
         focus_ring(b, rect, r, s);

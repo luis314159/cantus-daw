@@ -1,0 +1,33 @@
+/* Round 39, web-extra: the proof strip (proof.rs) and the /learn hub (pages/learn.rs).
+   The site's tokens only (base.css); nothing here shows until its component renders. */
+
+/* The proof strip: GitHub's counts, then the songs made with Cantus. */
+.proof { padding-block: clamp(2rem, 5vw, 3.5rem); border-top: 1px solid var(--line); }
+.proof-stats { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.8rem clamp(1.5rem, 4vw, 3.5rem); }
+.proof-stat { display: grid; gap: 0.15rem; color: var(--ink); text-decoration: none; }
+.proof-stat strong { font-family: var(--display); font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.proof-stat span { color: var(--ink-2); font-size: 0.95rem; }
+.proof-stat:hover strong, .proof-stat:focus-visible strong { color: var(--accent-text); }
+.proof-how { flex-basis: 100%; margin: 0; color: var(--ink-3); font-size: 0.85rem; }
+.proof-songs { margin-top: 1.6rem; }
+.proof-songs h3 { font-size: 1.2rem; }
+.proof-songs ul { list-style: none; margin: 0.8rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.6rem; }
+.proof-songs a { display: grid; gap: 0.1rem; min-height: 2.75rem; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 6px; background: var(--paper-2); color: var(--ink); text-decoration: none; }
+.proof-songs a span { color: var(--ink-2); font-size: 0.9rem; }
+.proof-songs a:hover, .proof-songs a:focus-visible { border-color: var(--accent); }
+
+/* /learn */
+.learn h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
+.learn-lede { max-width: 44rem; margin-top: 0.8rem; color: var(--ink-2); font-size: 1.1rem; }
+.learn-jump { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.6rem; }
+.learn-jump a { display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0 0.9rem; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; font-weight: 500; }
+.learn-jump a:hover, .learn-jump a:focus-visible { border-color: var(--accent); color: var(--accent-text); }
+.learn-grid { margin-top: 2.4rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: clamp(1.2rem, 3vw, 2.4rem); }
+.learn-group { border-top: 1px solid var(--gold); padding-top: 1rem; scroll-margin-top: 5rem; }
+.learn-group h2 { font-size: 1.4rem; }
+.learn-group p { margin-top: 0.4rem; color: var(--ink-2); }
+.learn-group ul { list-style: none; margin: 0.8rem 0 0; padding: 0; }
+.learn-group li + li { border-top: 1px solid var(--line); }
+.learn-group a { display: flex; align-items: center; gap: 0.3rem; min-height: 2.5rem; padding-block: 0.35rem; color: var(--accent-text); text-decoration: none; }
+.learn-group a:hover, .learn-group a:focus-visible { text-decoration: underline; text-underline-offset: 0.2em; }
+.learn-where { color: var(--ink-3); font-size: 0.85rem; white-space: nowrap; }

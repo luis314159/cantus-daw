@@ -8,7 +8,6 @@
 use cantus_core::routing::{Route, RouteKind};
 use cantus_core::{Command, Dock, EffectKind, Project, Send, SendTap, StripId};
 use cantus_engine::EngineHandle;
-use cantus_ui::kit::hint;
 use cantus_ui::views::mixer::layout::{CableOpts, CablePreset, CableScope, CableView, WidthMode};
 use cantus_ui::views::mixer::{self, DeskPrefs, DrawnCable};
 use cantus_ui::{starter_project, views, CantusApp};
@@ -35,7 +34,11 @@ impl Rig {
         cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         Rig {
             ctx: ctx(),
-            app: CantusApp::from_parts(Some(project), EngineHandle::dummy(), false),
+            app: cantus_ui::views::mixer::with_cables(CantusApp::from_parts(
+                Some(project),
+                EngineHandle::dummy(),
+                false,
+            )),
             size,
             frame: 0,
             pointer: None,
@@ -198,10 +201,9 @@ fn wide_rig() -> (Rig, Vec<StripId>, Route) {
     (r, ids, key)
 }
 
-/// A point on a drawn cable's flat run, away from its pill and its ends.
-fn on_cable(d: &DrawnCable) -> Pos2 {
-    let p = cantus_ui::kit::cable::path(d.from, d.to, d.depth);
-    p.run_start + vec2(if d.to.x > d.from.x { 4.0 } else { -4.0 }, 0.0)
+/// A point on a drawn cable, half way along it (away from its ends).
+fn on_cable(r: &Rig, d: &DrawnCable) -> Pos2 {
+    r.app.mixer.cable_point(d)
 }
 
 /// The options are kept with the desk's preferences: they survive a restart, and a desk
@@ -233,7 +235,7 @@ fn cable_options_round_trip_and_old_desks_read_as_today() {
     // Only some of the options written: the rest default.
     let some = r#"{"cable_opts":{"sends":false}}"#;
     let back: DeskPrefs = serde_json::from_str(some).unwrap();
-    assert!(!back.cable_opts.sends && back.cable_opts.outputs && back.cable_opts.levels);
+    assert!(!back.cable_opts.sends && back.cable_opts.outputs && !back.cable_opts.levels);
     assert_eq!(back.cable_opts.scope, CableScope::Both);
     // Through the file the app keeps, across a restart.
     let dir = tempfile::tempdir().unwrap();
@@ -270,7 +272,7 @@ fn only_sends_shown_draws_and_selects_no_output_or_key() {
     }
     assert!(r.drawn(Route::send(ids[1], ids[14])).is_some());
     // Where the output's cable ran: nothing to hit.
-    r.click(on_cable(&out));
+    r.click(on_cable(&r, &out));
     assert_ne!(
         r.app.mixer.selected_cable(),
         Some(Route::output(ids[1], ids[9])),
@@ -362,7 +364,7 @@ fn delete_on_a_hidden_kind_does_nothing() {
     let (mut r, ids, _) = wide_rig();
     let route = Route::output(ids[1], ids[9]);
     let out = r.drawn(route).expect("the output's cable");
-    r.click(on_cable(&out));
+    r.click(on_cable(&r, &out));
     assert_eq!(r.app.mixer.selected_cable(), Some(route));
     r.opts(|o| o.outputs = false);
     r.idle(1);
@@ -373,7 +375,7 @@ fn delete_on_a_hidden_kind_does_nothing() {
     // Shown again and selected again, Delete removes it.
     r.opts(|o| o.outputs = true);
     r.idle(2);
-    r.click(on_cable(&out));
+    r.click(on_cable(&r, &out));
     assert_eq!(r.app.mixer.selected_cable(), Some(route));
     r.delete();
     assert_eq!(r.app.project().strip(ids[1]).unwrap().output, None);
@@ -391,12 +393,10 @@ fn detail_switches_hide_pills_and_master_outputs() {
     r.opts(|o| o.master = false);
     r.idle(2);
     assert!(r.drawn(Route::output(ids[4], StripId::MASTER)).is_none());
+    r.opts(|o| o.levels = true);
     r.app.select_strip(ids[1]);
     let texts = r.idle(2);
-    assert!(
-        !r.app.mixer.cable_pills().is_empty(),
-        "levels on by default"
-    );
+    assert!(!r.app.mixer.cable_pills().is_empty(), "levels on");
     assert!(texts.iter().any(|(t, _)| t == "PRE"), "the PRE tag");
     let pill = mixer::pill_rect(&r.ctx, ids[1], ids[14]).expect("the pill");
     r.opts(|o| o.levels = false);
@@ -467,28 +467,6 @@ fn the_options_menu_switches_kinds_and_resets() {
     assert!(shows(&r.idle(1)), "open");
     r.click(key.center());
     assert!(!shows(&r.idle(1)), "a second click on the key closes it");
-}
-
-/// The legend never leaves the user wondering why a cable is missing: hovering it names
-/// the kinds the options hide.
-#[test]
-fn the_legend_says_which_kinds_are_hidden() {
-    let (mut r, _, _) = wide_rig();
-    r.opts(|o| *o = CablePreset::Sends.opts());
-    let texts = r.idle(2);
-    let word = cantus_ui::i18n::t("cables.legend").to_uppercase();
-    let at = texts
-        .iter()
-        .find(|(t, _)| *t == word)
-        .map(|(_, r)| r.center())
-        .expect("ROUTING in the legend");
-    r.hover(at);
-    let value = hint::current(&r.ctx).map(|h| h.value).unwrap_or_default();
-    for key in ["cables.kinds.outputs", "cables.kinds.keys"] {
-        let w = cantus_ui::i18n::t(key);
-        assert!(value.contains(&w), "{w:?} named hidden: {value:?}");
-    }
-    assert!(!value.contains(&cantus_ui::i18n::t("cables.kinds.sends")));
 }
 
 /// The title row keeps its keys apart: at 1280 px, at 75 %, 100 % and 200 %, in English

@@ -298,6 +298,13 @@ pub fn paint(b: &mut Brush, c: Pos2, s: &Style, st: State, look: &KnobLook<'_>) 
     let r = s.s(size.diameter()) * 0.5;
     let area = Rect::from_center_size(c, Vec2::splat(2.0 * r));
     let shaped = size != KnobSize::Mini && !matches!(s.skin.knob, KnobShape::Plain);
+    if !shaped && s.t.system.recessed() {
+        // Slate and its siblings (round 39, `des-controls`): a groove, a cap lit from
+        // above, the driven value's colour and sign.
+        super::knob_slate::paint(b, c, s, st, look, super::automate::current_driving());
+        return;
+    }
+    let _ = take_stepping(); // the classic knob has no detents: forget them
     let dark = s.t.dark;
     if size == KnobSize::Mini {
         let toks = if dark { MINI_TOKENS } else { MINI_LIGHT_TOKENS };
@@ -765,4 +772,20 @@ fn raster_body(pix: &mut tiny_skia::Pixmap, r: f32, look: &BodyLook) {
     if look.dark {
         arc(pix, r - 0.5, ts(look.rim, 0.30), 0.0, 2.0 * PI);
     }
+}
+
+// r39:el-controls — a stepped knob (`des-controls`): detents in place of the groove.
+thread_local! {
+    static STEPS: std::cell::Cell<Option<u8>> = const { std::cell::Cell::new(None) };
+}
+
+/// The next knob painted on this thread has `n` detents (2…24; `None`: a continuous knob):
+/// dots in place of its groove, the chosen one lit. The knob painted takes it.
+pub fn stepping(n: Option<u8>) {
+    STEPS.with(|c| c.set(n.filter(|n| (2..=24).contains(n))));
+}
+
+/// The detents of the knob being painted (and forget them).
+pub fn take_stepping() -> Option<u8> {
+    STEPS.with(|c| c.take())
 }

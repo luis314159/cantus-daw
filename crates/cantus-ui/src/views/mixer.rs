@@ -67,10 +67,10 @@ mod cables;
 pub(crate) mod desk;
 #[path = "mixer_drag.rs"]
 mod drag;
-#[path = "mixer_lanes.rs"]
-mod lanes;
 #[path = "mixer_layout.rs"]
 pub mod layout;
+#[path = "mixer_look.rs"]
+pub(crate) mod look; // r39:el-mixer
 #[path = "mixer_menu.rs"]
 mod menu;
 #[path = "mixer_meters.rs"]
@@ -79,9 +79,14 @@ mod meters;
 mod paint;
 #[path = "mixer_parts.rs"]
 mod parts;
-pub use parts::chain_hint;
+#[path = "mixer_wires.rs"]
+pub(crate) mod wires; // r39:el-cables
+pub(crate) use desk::short_name as desk_short_name;
+pub use parts::chain_hint; // r39:el-mixer
 #[path = "mixer_routehere.rs"]
 mod routehere;
+#[path = "mixer_rows.rs"]
+mod rows; // r39:el-mixer
 #[path = "mixer_strip.rs"]
 mod strip;
 #[path = "mixer_vca.rs"] // r36:mix
@@ -126,6 +131,18 @@ pub fn control_rect(
         .map(|r| r.rect)
 }
 
+/// Where Compact's dot of a strip's send `k` was drawn last frame (round 39).
+pub fn send_dot_rect(ctx: &egui::Context, strip: StripId, k: u8) -> Option<egui::Rect> {
+    ctx.read_response(strip::pid(Some(strip), strip::Part::SendRow(k)).with("dot"))
+        .map(|r| r.rect)
+}
+
+/// Where the key glyph of a strip's keyed insert `k` was drawn last frame (round 39).
+pub fn key_rect(ctx: &egui::Context, strip: StripId, k: usize) -> Option<egui::Rect> {
+    ctx.read_response(strip::pid(Some(strip), strip::Part::Chain).with(("key", k)))
+        .map(|r| r.rect)
+}
+
 /// Where the tap chip of a strip's own send row `row` (Extra large) was drawn last frame.
 pub fn tap_chip_rect(ctx: &egui::Context, strip: StripId, row: u8) -> Option<egui::Rect> {
     ctx.read_response(strip::pid(Some(strip), strip::Part::SendRow(row)).with("tap"))
@@ -144,8 +161,9 @@ pub fn pill_rect(ctx: &egui::Context, from: StripId, to: StripId) -> Option<egui
         .map(|r| r.rect)
 }
 
-/// Where the end mark of a lit cable (`DrawnCable::edge`) was drawn last frame: its
-/// destination's (`source == false`) or, on the selected cable, its source's.
+/// Where the input jack a lit cable (`DrawnCable::edge`) plugs into was sensed last frame
+/// (r39:el-cables: the jack is the cable's end; pulling it moves the route). `source`
+/// is kept for callers; only the destination's end is sensed.
 pub fn end_mark_rect(ctx: &egui::Context, edge: u32, source: bool) -> Option<egui::Rect> {
     ctx.read_response(egui::Id::new(("mixer-cable-end", edge, source)))
         .map(|r| r.rect)
@@ -188,6 +206,10 @@ pub struct DeskPrefs {
     /// The selected strip's inserts as a panel at the desk's right (FL's insert panel;
     /// r37:finish, ADR 0103 §48). Absent from older desks: off.
     pub inserts: bool,
+    /// Read since round 39 (the owner's choices of 2026-11-09): a desk saved before has
+    /// its cables hidden at rest and FL's row off once, as today's desks start.
+    #[serde(default)]
+    pub look39: bool,
 }
 
 impl Default for DeskPrefs {
@@ -201,7 +223,21 @@ impl Default for DeskPrefs {
             band: layout::BAND,
             cable_opts: CableOpts::default(),
             inserts: false,
+            look39: true,
         }
+    }
+}
+
+impl DeskPrefs {
+    /// A desk saved before round 39, as today's start: the cables hidden at rest (the
+    /// header's Cables key shows them), FL's "from selected" row off (Rows brings it back).
+    pub fn to_look39(mut self) -> DeskPrefs {
+        if !self.look39 {
+            self.cables = CableView::Off;
+            self.rows.set(layout::Row::Sends, false);
+            self.look39 = true;
+        }
+        self
     }
 }
 
@@ -291,10 +327,6 @@ pub(crate) struct Words {
     pub phase: String,
     pub swap: String,
     pub mono: String,
-    pub fx: String,
-    pub fx_off: String,
-    pub record: String,
-    pub record_mix: String,
     pub stop: String,
     pub level: String,
     pub peak: String,
@@ -306,20 +338,12 @@ pub(crate) struct Words {
     pub route: String,
     pub add_strip: String,
     pub vca: String,      // r36:mix
-    pub vca_tip: String,  // r36:mix
     pub snap: String,     // r36:mix
     pub snap_tip: String, // r36:mix
     pub master: String,
     /// The master's number and name: a click shows its chain, a right-click its menu.
     pub master_head: String,
-    pub pan_law: String,
-    /// The pan law's chip on the master, "{law} dB law" (and its short form "{law} dB").
-    pub pan_law_chip: String,
-    pub pan_law_short: String,
-    pub ratio: String,
-    pub menu: String,
     pub modes: String,
-    pub wave: String,
     pub chain: String,
     pub chain_empty: String,
     pub output: String,
@@ -328,23 +352,42 @@ pub(crate) struct Words {
     pub send_more: String,
     pub port: String,
     pub cable: String,
-    pub cable_view: String,
     pub cable_opts: String,
     pub pill: String,
     pub chip: String,
-    pub band: String,
-    /// The band's handle while the desk holds the band at its least.
-    pub band_short: String,
     pub send_off: String,
     pub pre: String,
     pub kind: [String; 3],
     pub tap: [String; 2],
     pub group: String,
-    pub solo_off: String,
-    pub unmute_all: String,
-    pub gr: String,
     pub name: String,
     pub takes: String,
+    // Round 39 (des-mixer).
+    pub sends_in: String,
+    pub strips_n: String,
+    pub lufs: String,
+    pub out_main: String,
+    pub master_short: String,
+    pub soloed: String,
+    pub clear: String,
+    pub clear_tip: String,
+    pub rows: String,
+    pub rows_tip: String,
+    pub kind_track: String,
+    pub kind_bus: String,
+    pub kind_return: String,
+    pub more_right: String,
+    /// FL's next empty strips' hint (round 39, lo-mixer).
+    pub next_strip: String,
+    pub more_left: String,
+    pub routes: String,
+    pub tag_out: String,
+    pub tag_send: String,
+    pub tag_key: String,
+    pub cables: String,
+    pub cables_tip: String,
+    pub key_from: String,
+    pub send_level: String,
 }
 
 impl Words {
@@ -364,10 +407,6 @@ impl Words {
             phase: t("track.phase_tip"),
             swap: t("mixer.swap_tip"),
             mono: t("track.mono_tip"),
-            fx: t("mixer.fx_tip"),
-            fx_off: t("mixer.fx_off"),
-            record: t("mixer.hint.record"),
-            record_mix: t("take.record_mix"),
             stop: t("take.stop_tip"),
             level: t("mixer.legend.meter"),
             peak: t("mixer.hint.peak"),
@@ -383,18 +422,11 @@ impl Words {
             route: t("mixer.hint.route"),
             add_strip: t("mixer.add_strip"),
             vca: t("mix.vca.plate"),     // r36:mix
-            vca_tip: t("mix.vca.tip"),   // r36:mix
             snap: t("mix.snap.key"),     // r36:mix
             snap_tip: t("mix.snap.tip"), // r36:mix
             master: t("mixer.master"),
             master_head: t("master.head_tip"),
-            pan_law: t("panlaw.tip"),
-            pan_law_chip: t("mixer.pan_law.chip"),
-            pan_law_short: t("mixer.pan_law.short"),
-            ratio: t("mixer.hint.ratio"),
-            menu: t("mixer.hint.menu"),
             modes: t("mixer.hint.modes"),
-            wave: t("mixer.wave_tip"),
             chain: t("mixer.hint.chain"),
             chain_empty: t("mixer.hint.chain_empty"),
             output: t("mixer.hint.output"),
@@ -403,12 +435,9 @@ impl Words {
             send_more: t("mixer.hint.send_more"),
             port: t("cables.hint.port"),
             cable: t("cables.hint.cable"),
-            cable_view: t("cables.hint.view"),
             cable_opts: t("cables.hint.options"),
             pill: t("cables.hint.pill"),
             chip: t("cables.hint.chip"),
-            band: t("cables.hint.band"),
-            band_short: t("cables.hint.band_short"),
             send_off: t("cables.send_off"),
             pre: t("routing.tap.pre"),
             kind: [
@@ -418,11 +447,32 @@ impl Words {
             ],
             tap: [t("cables.tap.post"), t("cables.tap.pre")],
             group: t("mixer.hint.group"),
-            solo_off: t("mixer.solo_off"),
-            unmute_all: t("mixer.unmute_all"),
-            gr: t("mixer.hint.gr"),
             name: t("mixer.hint.name"),
             takes: t("mixer.takes"),
+            sends_in: t("mixer.look.sends_in"),
+            strips_n: t("mixer.look.strips"),
+            lufs: t("mixer.look.lufs"),
+            out_main: t("mixer.look.out_main"),
+            master_short: t("mixer.look.master"),
+            soloed: t("mixer.look.soloed"),
+            clear: t("mixer.look.clear"),
+            clear_tip: t("mixer.look.clear_tip"),
+            rows: t("mixer.look.rows"),
+            rows_tip: t("mixer.look.rows_tip"),
+            kind_track: t("mixer.look.track"),
+            kind_bus: t("mixer.look.bus"),
+            kind_return: t("mixer.look.return"),
+            more_right: t("mixer.look.more_right"),
+            next_strip: t("lo_mixer.next_strip"),
+            more_left: t("mixer.look.more_left"),
+            routes: t("mixer.look.routes"),
+            tag_out: t("mixer.look.tag_out"),
+            tag_send: t("mixer.look.tag_send"),
+            tag_key: t("mixer.look.tag_key"),
+            cables: t("mixer.look.cables"),
+            cables_tip: t("mixer.look.cables_tip"),
+            key_from: t("mixer.look.key_from"),
+            send_level: t("mixer.look.send_knob"),
         };
     }
 }
@@ -471,9 +521,26 @@ pub struct MixerView {
     /// Reused for numbers and hint names, so a frame formats without allocating.
     pub(crate) buf: String,
     pub(crate) hint_buf: String,
+    /// Reused for the strips' EQ curves (round 39).
+    pub(crate) pts: Vec<egui::Pos2>,
+    /// Compact: the send whose knob is open (its strip, its index).
+    pub(crate) send_pop: Option<(StripId, usize)>,
+    /// A keyed insert's key under the pointer: the source strip lit (this frame's ask, and
+    /// last frame's, which the strips draw).
+    pub(crate) key_lit: Option<StripId>,
+    pub(crate) key_shown: Option<StripId>,
+    /// The track icons the strip heads drew this frame, and where (round 39; tests read
+    /// them through [`MixerView::head_icon`]).
+    pub(crate) icons_drawn: Vec<(StripId, egui::Rect, &'static str)>,
+    /// The room the workspace's tab row leaves right of its tabs, when the desk is docked
+    /// under one (round 39, des-mixer: the tabs, the density and the header share one 28-pt
+    /// row). Set by the workspace before every frame; `None` (floating, narrow, a test's
+    /// bare desk): the header has its own row.
+    pub(crate) bar_room: Option<egui::Rect>,
+    /// How many of FL's next empty strips the desk painted last frame (round 39).
+    pub(crate) ghosts_drawn: usize,
     /// The last frame's counters (the frame-budget test reads them).
     laid_out: usize,
-    lanes_filling: usize,
     desk_width: f32,
     /// The egui pass the desk was last drawn on: a gap means it left the screen in
     /// between (its pane closed, another tab over it) — the clean "the desk was hidden"
@@ -485,6 +552,11 @@ pub struct MixerView {
     rows_seen: Option<egui::Rect>,
     /// The right dock's rect in the last frame (r37:finish, tests).
     right_seen: Option<egui::Rect>,
+    /// The middle's rect in the last frame (r39:fix2, tests).
+    middle_seen: Option<egui::Rect>,
+    /// One digit's width in the overflow pill's face (10 pt SemiBold), measured each frame:
+    /// the pill's slot is as wide as its count needs (r39:fix2).
+    digit_w: f32,
 }
 
 impl std::fmt::Debug for MixerView {
@@ -498,6 +570,21 @@ impl std::fmt::Debug for MixerView {
 }
 
 impl MixerView {
+    /// Where the head of `strip` drew its track's icon last frame, and which icon (round
+    /// 39, ADR 0113 §4).
+    pub fn next_strips_shown(&self) -> usize {
+        self.ghosts_drawn
+    }
+
+    /// Where the head of `strip` drew its track's icon last frame, and which icon (round
+    /// 39, ADR 0113 §4).
+    pub fn head_icon(&self, strip: StripId) -> Option<(egui::Rect, &'static str)> {
+        self.icons_drawn
+            .iter()
+            .find(|(s, _, _)| *s == strip)
+            .map(|(_, r, g)| (*r, *g))
+    }
+
     /// Start renaming a strip in place (the menu's *Rename…* and a double-click).
     /// Whether a strip or a group is being renamed.
     pub fn renaming(&self) -> bool {
@@ -515,7 +602,12 @@ impl MixerView {
         let path = layouts_path.with_file_name("mixer.json");
         if let Ok(text) = std::fs::read_to_string(&path) {
             match serde_json::from_str::<BTreeMap<String, DeskPrefs>>(&text) {
-                Ok(map) => self.prefs.by_layout = map,
+                Ok(mut map) => {
+                    for p in map.values_mut() {
+                        *p = p.to_look39();
+                    }
+                    self.prefs.by_layout = map;
+                }
                 Err(e) => log::warn!("mixer.json is not usable ({e}); using the defaults"),
             }
         }
@@ -538,11 +630,6 @@ impl MixerView {
         self.laid_out
     }
 
-    /// Gain-reduction lanes showing reduction in the last frame.
-    pub fn gr_lanes_filling(&self) -> usize {
-        self.lanes_filling
-    }
-
     /// The middle dock's width in the last frame, in points.
     pub fn desk_width(&self) -> f32 {
         self.desk_width
@@ -559,6 +646,21 @@ impl MixerView {
         &self.band.drawn
     }
 
+    /// A drawn cable's points on screen (r39:el-cables: its curve or subway route).
+    pub fn cable_path(&self, d: &cables::Drawn) -> &[egui::Pos2] {
+        self.band.path(d)
+    }
+
+    /// A point on a drawn cable, half way along it (where a test points at it).
+    pub fn cable_point(&self, d: &cables::Drawn) -> egui::Pos2 {
+        wires::halfway(self.band.path(d))
+    }
+
+    /// How many pieces of Flow's gleam the band drew in the last frame.
+    pub fn cable_gleams(&self) -> u32 {
+        self.band.gleams
+    }
+
     /// The desk's rows area in the last frame: what of the desk is visible.
     pub fn rows_seen(&self) -> egui::Rect {
         self.rows_seen.unwrap_or(egui::Rect::NOTHING)
@@ -567,6 +669,12 @@ impl MixerView {
     /// The right dock in the last frame (its strips: the returns docked right). // r37:finish
     pub fn right_dock_seen(&self) -> egui::Rect {
         self.right_seen.unwrap_or(egui::Rect::NOTHING)
+    }
+
+    /// The middle of the desk in the last frame: where its scrolling strips show
+    /// (r39:fix2).
+    pub fn middle_seen(&self) -> egui::Rect {
+        self.middle_seen.unwrap_or(egui::Rect::NOTHING)
     }
 
     /// Where the cable legend went in the last frame (`None` while the band is off).
@@ -629,6 +737,11 @@ impl MixerView {
         drag::armed(self)
     }
 
+    /// The strip a keyed insert's key under the pointer lights (round 39).
+    pub fn key_lit_strip(&self) -> Option<StripId> {
+        self.key_lit.or(self.key_shown)
+    }
+
     /// Select a cable as a click on it does (tools and pictures).
     pub fn select_cable(&mut self, route: Option<cantus_core::routing::Route>) {
         self.band.selected = route;
@@ -653,6 +766,15 @@ pub(crate) fn in_selection(app: &CantusApp, id: StripId) -> bool {
         Some(s) => s == id,
         None => false,
     }
+}
+
+/// Tests of the cable band (round 25's): the desk with the selection's cables shown, as the
+/// header's Cables key leaves it (round 39: nothing is drawn at rest).
+pub fn with_cables(mut app: CantusApp) -> CantusApp {
+    let mut p = app.mixer.prefs.current;
+    p.cables = CableView::Selected;
+    app.mixer.prefs.current = p;
+    app
 }
 
 /// Screenshots and tests: put the desk in a width mode without keeping it.
@@ -762,23 +884,36 @@ fn style() -> Style {
 pub(crate) mod size {
     /// The title row: the desk's menu, `+`, the width modes, the title.
     pub const TITLE: f32 = 28.0;
-    /// The legend column.
-    pub const LEGEND: f32 = 100.0; // r37:finish (was 84: the rows' names a size up)
-    /// The band under the strips holding the horizontal scrollbar.
-    pub const HBAR: f32 = 12.0;
+    /// The desk's left inset (des-mixer: the master at x 8; no legend column).
+    pub const LEGEND: f32 = 8.0;
+    /// The band under the strips holding the horizontal scrollbar (strips end 4 above
+    /// the desk's foot; the 3-pt bar sits there).
+    pub const HBAR: f32 = 4.0;
     /// The column at the right holding the vertical scrollbar, when the desk scrolls.
-    pub const VBAR: f32 = 10.0;
-    /// FL's dock divider.
-    pub const DIVIDER: f32 = 6.0;
+    pub const VBAR: f32 = 8.0;
+    /// Between the docks and the middle (des-mixer: 8; the right dock's seam 6 left of it).
+    pub const DIVIDER: f32 = 8.0;
+    /// The slot each side of a scrolling middle where its overflow's pill sits: its widest
+    /// (a two-digit count; [`super::MixerView::slot_for`] fits it to its count).
+    pub const OVERFLOW: f32 = 36.0;
+    /// The clearance each side of the pill in its slot.
+    pub const SLOT_PAD: f32 = 2.0;
     /// Above the first row.
     pub const TOP: f32 = 4.0;
-    /// The master strip, per width mode.
+    /// The master strip, per width mode (its body and the 8 pt before the middle are
+    /// `DIVIDER`'s).
     pub fn master(mode: super::WidthMode) -> f32 {
-        match mode {
-            super::WidthMode::Compact => 50.0,
-            super::WidthMode::Wide => 56.0,
-            super::WidthMode::Xl => 76.0,
+        super::look::master_w(mode)
+    }
+}
+
+impl Geo {
+    /// The header's room in the tab row, when it has one.
+    fn with_title(mut self, bar: Option<egui::Rect>) -> Geo {
+        if let Some(r) = bar {
+            self.title = r;
         }
+        self
     }
 }
 
@@ -808,6 +943,15 @@ pub(crate) struct Geo {
     pub strips: egui::Rect,
     /// The cable band is pinned to the desk's foot (the desk scrolls; the routing stays).
     pub pinned: bool,
+    /// The header sits in the workspace's tab row (`title` is that room).
+    pub merged: bool,
+    /// The middle scrolls (its strips do not all fit).
+    pub scrolls: bool,
+    /// The widths of the overflow's slots left and right of the middle, where its pills
+    /// sit: 0 on a side with no strip hidden beyond it (r39:fix2 — a slot only where
+    /// there is something to count, so no empty slot takes a strip's room).
+    pub slot_l: f32,
+    pub slot_r: f32,
     /// The rows' right edge, left of the vertical scrollbar when there is one: the band
     /// stops there, so the bar's track stays the bar's (second review, 9).
     pub inner_right: f32,
@@ -858,6 +1002,7 @@ impl MixerView {
         if let Some(p) = panel {
             super::mixer_inserts::panel(app, ui, p);
         }
+        self.digit_w = look::width_of(ui.ctx(), &s, "0", 10.0, look::W::SemiBold);
         // Every layout of the frame pins the band where it is drawn, so the wheel reads
         // the band under the pointer, not a row hidden under it (second review, 8).
         let (fit, geo) = self.layout(full);
@@ -871,23 +1016,41 @@ impl MixerView {
         self.desk_width = geo.middle.width();
         self.rows_seen = Some(geo.rows);
         self.right_seen = Some(geo.right); // r37:finish
+        self.middle_seen = Some(geo.middle); // r39:fix2
 
         let mut b = std::mem::take(&mut self.brush);
         b.begin(ui.ctx());
         let mut pass = strip::Pass::new(&s, &fit, &geo, ui, prefs, app.settings.mixer_meter_wave);
+        // Option C: the strip under the pointer, else the selected one, lights its
+        // destinations; a keyed insert's key under the pointer lights its source.
+        pass.lit = ui
+            .ctx()
+            .pointer_hover_pos()
+            .filter(|q| geo.strips.contains(*q))
+            .and_then(|q| paint::strip_at(self, &geo, q))
+            .or(app.selected_strip);
+        self.key_shown = self.key_lit.take();
+        self.icons_drawn.clear();
 
         // 1. The ground, the title row and the scrollbars: nothing else overlaps them.
         paint::ground(&mut b, &s, &geo);
-        paint::title(self, app, ui, &mut b, &s, &geo);
+        if geo.merged {
+            // The header in the tab row above the desk: its own clip, over the dock's bar.
+            b.flush(ui.painter());
+            let mut bar = ui.new_child(egui::UiBuilder::new().max_rect(geo.title));
+            bar.set_clip_rect(geo.title);
+            paint::title(self, app, &mut bar, &mut b, &s, &geo);
+            b.flush(bar.painter());
+        } else {
+            paint::title(self, app, ui, &mut b, &s, &geo);
+        }
         paint::scrollbars(self, ui, &mut b, &s, &geo, &fit);
         b.flush(ui.painter());
 
         // 2. The legend and the left dock: the master first, so the keyboard reaches it
         //    first, as the eye does.
         self.laid_out = 0;
-        self.lanes_filling = 0;
         pass.clip = geo.strips;
-        paint::legend(self, ui, &mut b, &s, &geo, &fit);
         let mut x = geo.left.left();
         parts::master(self, app, ui, &mut b, &mut pass, x, geo.master_w);
         x += geo.master_w;
@@ -929,7 +1092,25 @@ impl MixerView {
             strip::item(self, app, ui, &mut b, &mut pass, item, x, w);
             x += w;
         }
+        // r39:lo-mixer — FL's next inserts up to the panel's edge, where the desk does not
+        // scroll (it fits): after the right dock, else after the middle's add column.
+        self.ghosts_drawn = 0;
+        if !geo.scrolls {
+            let content = desk::items_width(&self.desk.middle, geo.pitch) + desk::ADD + 6.0;
+            let from = if geo.right.width() > 0.0 {
+                geo.right.right()
+            } else {
+                geo.middle.left() + content + size::DIVIDER
+            };
+            let fits = content <= geo.middle.width() + 0.5;
+            if fits {
+                pass.clip = geo.strips;
+                self.ghosts_drawn =
+                    paint::ghosts(self, app, ui, &mut b, &pass, from, geo.inner_right);
+            }
+        }
         paint::dividers(&mut b, &s, &geo);
+        paint::overflow(self, ui, &mut b, &s, &geo); // r39:el-mixer
         if geo.pinned {
             // The strips run under a pinned band: they stop at its edge (one more draw
             // call, only while the desk is scrolled away from its foot).
@@ -941,7 +1122,20 @@ impl MixerView {
         //    builder's): the rubber band, auto-scroll, the drop. Same clip as the right
         //    dock, so they share its flush: the band adds no draw call (ADR 0041 §12).
         pass.clip = geo.rows;
-        paint::band_legend(self, ui, &mut b, &s, &geo, &fit);
+        // r39:el-mixer — no legend column: the band's cell is its row under the master.
+        self.cable_key = fit.row(layout::Row::Cables).map(|(a, z)| {
+            let cell = egui::Rect::from_min_max(
+                egui::pos2(geo.left.left(), geo.y0 + a),
+                egui::pos2(geo.left.left() + geo.master_w, geo.y0 + z),
+            );
+            CableKey {
+                cell,
+                name: cell,
+                marks: None,
+                compact: true,
+                handle: egui::Rect::NOTHING,
+            }
+        });
         cables::band(self, app, ui, &mut b, &pass, &geo);
         drag::finish(self, app, ui, &mut b, &s, &geo);
         b.flush(&ui.painter().with_clip_rect(geo.rows));
@@ -973,13 +1167,16 @@ impl MixerView {
     fn fit(&self, full: egui::Rect) -> layout::Fit {
         let prefs = self.prefs.current;
         layout::fit(
-            full.height() - size::TITLE - size::HBAR - size::TOP,
+            full.height() - self.title_h() - size::HBAR - size::TOP,
             prefs.width,
             prefs.shown(),
             prefs.ratio,
+            // The level pills need a deeper band (round 25's); des-mixer's is the sockets'.
             layout::Wants {
-                send_rows: layout::send_rows_for(self.desk.most_sends),
-                band: prefs.band,
+                send_rows: 0,
+                // r39:el-cables — the sockets' row and the channel the cables hang in
+                // (Subway's lanes may ask for more).
+                band: wires::JACK_ROW + self.band.channel.max(wires::CHANNEL),
             },
         )
     }
@@ -997,7 +1194,7 @@ impl MixerView {
         use egui::{pos2, Rect};
         let prefs = self.prefs.current;
         let pitch = prefs.width.pitch();
-        let title = Rect::from_min_max(full.min, pos2(full.right(), full.top() + size::TITLE));
+        let title = Rect::from_min_max(full.min, pos2(full.right(), full.top() + self.title_h()));
         let rows = Rect::from_min_max(
             pos2(full.left(), title.bottom()),
             pos2(
@@ -1007,11 +1204,12 @@ impl MixerView {
         );
         let vbar = fit.scrolls.then(|| {
             Rect::from_min_max(
-                pos2(rows.right() - size::VBAR + 2.0, rows.top() + 2.0),
-                pos2(rows.right() - 2.0, rows.bottom() - 2.0),
+                pos2(rows.right() - 5.0, rows.top() + 4.0),
+                pos2(rows.right() - 2.0, rows.bottom() - 4.0),
             )
         });
-        let right_edge = rows.right() - if vbar.is_some() { size::VBAR } else { 0.0 };
+        // r39:el-mixer — the right dock 8 pt in from the edge (its last pitch carries 2).
+        let right_edge = rows.right() - 6.0 - if vbar.is_some() { size::VBAR } else { 0.0 };
         let legend = Rect::from_min_max(rows.min, pos2(rows.left() + size::LEGEND, rows.bottom()));
         let master_w = size::master(prefs.width);
         let left_w = master_w + desk::items_width(&self.desk.left, pitch);
@@ -1024,24 +1222,71 @@ impl MixerView {
         // r37:finish — where the middle's strips all fit, the right dock sits just after
         // them, not across an empty gap at the window's edge (the judge: dead space before
         // the buses); pinned at the edge only while the middle scrolls.
-        let content = desk::items_width(&self.desk.middle, pitch) + desk::ADD + 6.0;
-        let mut dock_l = (mid_l + content + size::DIVIDER).min(right_edge - right_w);
+        let strips_w = desk::items_width(&self.desk.middle, pitch);
+        let content = strips_w + desk::ADD + 6.0;
+        let end = if right_w > 0.0 {
+            right_edge - right_w - size::DIVIDER
+        } else {
+            right_edge
+        };
         // r37:finish — where the middle scrolls, it shows whole strips: its width a whole
         // number of strips, the dock just after them (a strip cut by the dock read as a
-        // stray half strip).
-        if right_w > 0.0 && mid_l + content + size::DIVIDER > right_edge - right_w {
-            let room = (right_edge - right_w - size::DIVIDER - mid_l).max(0.0);
+        // stray half strip). r39:lo-mixer — and a slot of its own for the overflow's pill
+        // ("‹ 6", "6 ›"), so the pill never covers a strip's meter. r39:fix2 — a slot only
+        // on a side with strips hidden beyond it: at the start no slot on the left (it was
+        // an empty 36 pt that took a strip's room), and scrolled to the end none on the
+        // right; the right slot takes what is left of the room after the whole strips, so
+        // the right dock stays at the window's edge and no gap a strip could fill is left.
+        let avail = (end - mid_l).max(0.0);
+        let scrolls = mid_l + content > end + 0.5;
+        let whole = |w: f32| (w.max(0.0) / pitch).floor() * pitch;
+        let roomy = scrolls && avail - 2.0 * size::OVERFLOW >= pitch;
+        // r39:fix2 — each slot as wide as its pill: the count's digits (the pill is its
+        // number, the chevron and 20 pt), so a one-digit count leaves a strip the room a
+        // two-digit one needs.
+        let hidden_left = self.strips_between(pitch, 0.0, self.scroll_x + 1.0);
+        let slot_l = if roomy && self.scroll_x > 0.5 {
+            self.slot_for(hidden_left)
+        } else {
+            0.0
+        };
+        let hidden_right = strips_w - self.scroll_x > whole(avail - slot_l) + 0.5;
+        let (mid_l, mid_w, slot_r) = if roomy && hidden_right {
+            // The count beside the room a one-digit slot leaves; again if it has two.
+            let mut slot = self.slot_for(1);
+            let mut mid_w = whole(avail - slot_l - slot);
+            for _ in 0..2 {
+                let n = self.strips_between(pitch, self.scroll_x + mid_w - 1.0, f32::MAX);
+                let need = self.slot_for(n);
+                if need <= slot {
+                    break;
+                }
+                slot = need;
+                mid_w = whole(avail - slot_l - slot);
+            }
+            (mid_l + slot_l, mid_w, avail - slot_l - mid_w)
+        } else if roomy {
+            // Scrolled to the end: the middle runs to the dock (the strip cut at its left
+            // edge sits under the fade, beside its pill).
+            (mid_l + slot_l, avail - slot_l, 0.0)
+        } else if scrolls && right_w > 0.0 {
             // Never past the window's edge (review: under one strip of room, a strip's
             // width pushed the dock off screen): the edge's place is the most.
-            dock_l =
-                (mid_l + (room / pitch).floor() * pitch + size::DIVIDER).min(right_edge - right_w);
-        }
+            (mid_l, whole(avail), 0.0)
+        } else {
+            (mid_l, avail.min(content), 0.0)
+        };
+        let dock_l = if right_w > 0.0 {
+            (mid_l + mid_w + slot_r + size::DIVIDER).min(right_edge - right_w)
+        } else {
+            right_edge
+        };
         let right = Rect::from_min_max(
             pos2(dock_l, rows.top()),
             pos2(dock_l + right_w, rows.bottom()),
         );
-        let mid_r = if right_w > 0.0 {
-            right.left() - size::DIVIDER
+        let mid_r = if right_w > 0.0 || roomy {
+            mid_l + mid_w
         } else {
             right_edge
         };
@@ -1051,8 +1296,8 @@ impl MixerView {
         );
         let content_w = desk::items_width(&self.desk.middle, pitch) + desk::ADD + 6.0;
         let hbar = Rect::from_min_max(
-            pos2(middle.left() + 2.0, rows.bottom() + 3.0),
-            pos2(middle.right() - 2.0, rows.bottom() + 9.0),
+            pos2(middle.left(), rows.bottom()),
+            pos2(middle.right(), rows.bottom() + 3.0),
         );
         Geo {
             full,
@@ -1070,8 +1315,56 @@ impl MixerView {
             content_w,
             strips: rows,
             pinned: false,
+            merged: self.bar_room.is_some(),
+            scrolls,
+            slot_l,
+            slot_r,
             inner_right: right_edge,
         }
+        .with_title(self.bar_room)
+    }
+
+    /// The header's own row: none when it sits in the workspace's tab row.
+    fn title_h(&self) -> f32 {
+        if self.bar_room.is_some() {
+            0.0
+        } else {
+            size::TITLE
+        }
+    }
+
+    /// How many of the middle's strips lie wholly at or after `from` and end before `to`
+    /// (scrolled content coordinates): what an overflow pill counts.
+    fn strips_between(&self, pitch: f32, from: f32, to: f32) -> usize {
+        let mut x = 0.0;
+        let mut n = 0;
+        for item in &self.desk.middle {
+            let w = desk::item_width(item, pitch);
+            if matches!(item, desk::Item::Strip(..)) && x >= from && x + w <= to {
+                n += 1;
+            }
+            x += w;
+        }
+        n
+    }
+
+    /// The overflow slot a count `n` needs: its pill (the digits, the chevron and 20 pt, as
+    /// `paint::overflow` draws it) and [`size::SLOT_PAD`] each side: 30 pt for one digit,
+    /// 36 ([`size::OVERFLOW`]) for two in the shipped face (r39:fix2).
+    pub(crate) fn slot_for(&self, n: usize) -> f32 {
+        let digits = if n >= 100 {
+            3.0
+        } else if n >= 10 {
+            2.0
+        } else {
+            1.0
+        };
+        let digit = if self.digit_w > 0.0 {
+            self.digit_w
+        } else {
+            6.0
+        };
+        ((digits * digit).round() + 20.0 + 2.0 * size::SLOT_PAD).max(28.0)
     }
 
     /// Bring a strip selected elsewhere (the arrangement, the inspector, a route) into
@@ -1081,21 +1374,36 @@ impl MixerView {
             self.followed = app.selected_strip;
             if let Some(sel) = app.selected_strip {
                 let mut x = 0.0;
+                let mut at = None;
                 for item in &self.desk.middle {
                     let w = desk::item_width(item, geo.pitch);
                     if matches!(item, desk::Item::Strip(id, _) if *id == sel) {
-                        if x < self.scroll_x {
-                            self.scroll_x = x;
-                        } else if x + w > self.scroll_x + geo.middle.width() {
-                            self.scroll_x = x + w - geo.middle.width();
-                        }
+                        at = Some((x, w));
                         break;
                     }
                     x += w;
                 }
+                // r39:fix2 — the middle's width follows the scroll (the left overflow slot
+                // shows once strips are hidden on the left): settle it in a few passes, so
+                // the strip is in view with the slot the scroll brings.
+                if let Some((x, w)) = at {
+                    let mut width = geo.middle.width();
+                    for _ in 0..3 {
+                        if x < self.scroll_x {
+                            self.scroll_x = x;
+                        } else if x + w > self.scroll_x + width {
+                            self.scroll_x = x + w - width;
+                        } else {
+                            break;
+                        }
+                        width = self.geometry(geo.full, fit).middle.width();
+                    }
+                }
             }
         }
-        self.clamp_scroll(geo, fit);
+        // Clamped by the middle as the scroll lays it out (narrower once scrolled).
+        let now = self.geometry(geo.full, fit);
+        self.clamp_scroll(&now, fit);
     }
 
     fn clamp_scroll(&mut self, geo: &Geo, fit: &layout::Fit) {

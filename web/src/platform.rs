@@ -11,7 +11,12 @@ pub enum Os {
 }
 
 impl Os {
+    /// Windows in the pre-renderer: the static page offers the platform we ship, and the app
+    /// speaks to the visitor's own system once it runs.
     pub fn detect() -> Self {
+        if !cfg!(target_arch = "wasm32") {
+            return Os::Windows;
+        }
         let ua = web_sys::window()
             .and_then(|w| w.navigator().user_agent().ok())
             .unwrap_or_default()

@@ -1,0 +1,148 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus guitars, v3</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="family.js"></script>
+<script src="glyphs-t-tracks.js"></script>
+<script src="glyphs-t-tracks2.js"></script>
+<script src="glyphs-t-tracks3.js"></script>
+<script src="glyphs-t-lib.js"></script>
+<script src="glyphs-t-lib2.js"></script>
+<script src="glyphs-t-lib3.js"></script>
+<script src="glyphs-t-add-a.js"></script>
+<script src="glyphs-t-add-a-names.js"></script>
+<script src="glyphs-t-add-b.js"></script>
+<script src="glyphs-t-add-c.js"></script>
+<script src="glyphs-t-final.js"></script>
+<script src="glyphs-t-guitars.js"></script>
+<script src="glyphs-t-guitars-e.js"></script>
+<script src="glyphs-t-guitars-a.js"></script>
+<script src="glyphs-t-guitars-mx.js"></script>
+<script src="glyphs-t-guitars-pick.js"></script>
+<script src="glyphs-t-guitars-px.js"></script>
+<script src="glyphs-t-guitars-px-fix.js"></script>
+<script src="glyphs-t-guitars-px-fix2.js"></script>
+<script src="glyphs-t-guitars-px-fix3.js"></script>
+<script src="glyphs-t-guitars-px-fix4.js"></script>
+<script src="glyphs-t-guitars-px-fix5.js"></script>
+<script src="glyphs-t-families.js"></script>
+</head><body><div id="out"></div>
+<script>
+// The guitar family's sheets (icons-guitars):
+//   ?t=night|paper&mode=variants&rows=eStype,eTtype&v=A,B,C   each row's variants side by side,
+//                                     each at 12, 14, 16, 24 px and 16 in a track colour
+//   ?t=…&mode=set                     every type at 14, 16 and 24 px, in its family, with names
+//   ?t=…&mode=ba                      before (set 6) and after (v3), each at 14, 16 and 24 px
+//   ?t=…&mode=photo&dir=…             a study photo beside each final icon (PRIVATE: photos)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const HUES = t === 'night' ? ['#e0794f', '#d9b24a', '#7fbf5a', '#4fb3c8', '#6f8cf0', '#b07ae0', '#e06c9f']
+  : ['#c2532a', '#a8801a', '#4f8f2e', '#1f8197', '#3d5fd0', '#8648c0', '#c0457a'];
+const WORDS = window.TRACK_WORDS || {};
+const glyph = (id, S, x, y, ink, ink2) => N[id] && N[id][S] ?
+  `<g style="--main:${ink};--second:${ink2};--cut:${k.surface}" transform="translate(${x},${y})">${drawing(N[id][S])}</g>`
+  : `<rect x="${x}" y="${y}" width="${S}" height="${S}" fill="#f0f" opacity=".4"/>`;
+const T = (x, y, s, size, fill, o = {}) => `<text x="${x}" y="${y}" font-family="Segoe UI, sans-serif" font-size="${size}"` +
+  ` font-weight="${o.weight || 400}" text-anchor="${o.anchor || 'start'}" fill="${fill}">${s}</text>`;
+const name = id => (WORDS[id] || [id])[0];
+function done(W, H, body) {
+  document.body.style.background = k.surface;
+  document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.surface}"/>` + body);
+  document.body.setAttribute('data-w', W);
+  document.body.setAttribute('data-h', H);
+}
+const FAMS = window.GUITAR_FAMS;
+const mode = q.get('mode') || 'set';
+const theme = t === 'night' ? 'Night' : 'Paper';
+// One cell: the sizes on one baseline, then 16 (and 24) in a track colour.
+const SZ = (q.get('sizes') || '12,14,16,24').split(',').map(Number);
+function cell(id, x, y, hue, base = 24) {
+  let s = '', gx = x;
+  for (const S of SZ) { s += glyph(id, S, gx, y + base - S, k.ink2, k.ink3); gx += S + 4; }
+  gx += 4;
+  s += glyph(id, 16, gx, y + base - 16, hue, mix(hue, k.surface, 0.45)); gx += 20;
+  s += glyph(id, 24, gx, y + base - 24, hue, mix(hue, k.surface, 0.45)); gx += 28;
+  return [s, gx - x];
+}
+
+if (mode === 'variants') {
+  const rows = q.get('rows').split(','), vs = (q.get('v') || 'A,B,C').split(',');
+  const PAD = 10, LBL = 92, CW = cell('x', 0, 0, '#000')[1] + 18, RH = 44;
+  const W = PAD * 2 + LBL + vs.length * CW;
+  let y = PAD, body = T(PAD, y + 10, `Guitar variants — Slate ${theme} — 12, 14, 16, 24 px, then 16 and 24 in a track colour — 1:1`, 10, k.ink1, { weight: 600 });
+  y += 18;
+  vs.forEach((v, j) => { body += T(PAD + LBL + j * CW, y + 8, v, 9, k.ink3, { weight: 600 }); });
+  y += 12;
+  rows.forEach((r, i) => {
+    body += T(PAD, y + 20, r, 9, k.ink1, { weight: 600 });
+    vs.forEach((v, j) => { const id = v === '_' ? r : v === 'v2' ? r + '_v2' : r + v; body += cell(id, PAD + LBL + j * CW, y, HUES[i % HUES.length])[0]; });
+    y += RH;
+  });
+  done(W, y + PAD, body);
+} else if (mode === 'set' || mode === 'ba') {
+  // set: every type, three sizes (14, 16, 24) + 16 in a colour; ba: two such groups per type.
+  const PAD = 12, COLS = mode === 'ba' ? 4 : 6;
+  const one = (id, x, y, h) => {
+    let s = glyph(id, 14, x, y + 24 - 14, k.ink2, k.ink3) + glyph(id, 16, x + 18, y + 24 - 16, k.ink2, k.ink3) + glyph(id, 24, x + 38, y, k.ink2, k.ink3);
+    s += glyph(id, 16, x + 66, y + 24 - 16, h, mix(h, k.surface, 0.45));
+    return s;
+  };
+  const CW = mode === 'ba' ? 200 : 128, RH = 54;
+  const W = PAD * 2 + COLS * CW;
+  let y = PAD, n = 0;
+  let body = T(PAD, y + 12, mode === 'ba' ? `Guitars — before (set 6) and after (v3) — Slate ${theme} — 14, 16, 24 px and 16 in a track colour — 1:1`
+    : `Guitars, v3 — Slate ${theme} — every type at 14, 16 and 24 px, then 16 in a track colour — 1:1`, 11, k.ink1, { weight: 600 });
+  y += 24;
+  for (const [title, ids] of FAMS) {
+    body += T(PAD, y + 10, title, 10, k.ink3, { weight: 600 });
+    body += `<rect x="${PAD}" y="${y + 14}" width="${W - 2 * PAD}" height="1" fill="${k.rule}"/>`;
+    y += 20;
+    ids.forEach((id, i) => {
+      const x = PAD + (i % COLS) * CW, yy = y + Math.floor(i / COLS) * RH, h = HUES[n++ % HUES.length];
+      if (mode === 'ba') {
+        body += one(id + '_v2', x, yy, h) + T(x + 88, yy + 15, '→', 10, k.ink3) + one(id, x + 100, yy, h);
+      } else body += one(id, x, yy, h);
+      body += T(x, yy + 38, name(id), 9, k.ink1);
+      body += T(x, yy + 49, (WORDS[id] || ['', ''])[1], 9, k.ink3);
+    });
+    y += Math.ceil(ids.length / COLS) * RH + 6;
+  }
+  done(W, y + PAD, body);
+} else if (mode === 'fit') {
+  // The pixel fit's source: each chosen id at each small size, drawn as a vector 8× larger in
+  // pure inks (main red, second green, cut black, on black), one 8 × 8 block per device pixel.
+  // fit.py reads the coverage of each block and writes the pixel rows (glyphs-t-guitars-px.js).
+  const ids = (q.get('ids') || FAMS.flatMap(f => f[1]).join(',')).split(','), SZ = (q.get('sz') || '12,14,15,16').split(',').map(Number);
+  const Z = 8, CELL = 16 * Z + 8, W = SZ.length * CELL;
+  let body = '', y = 0;
+  const map = [];
+  ids.forEach(id => {
+    SZ.forEach((S, j) => {
+      const x = j * CELL;
+      body += `<g style="--main:#ff0000;--second:#00ff00;--cut:#000000" transform="translate(${x},${y}) scale(${Z})">${N[id] && N[id][S] ? drawing(N[id][S]) : ''}</g>`;
+      map.push([id, S, x, y]);
+    });
+    y += CELL;
+  });
+  document.body.style.background = '#000';
+  document.getElementById('out').innerHTML = svgDoc(t, W, y, `<rect width="${W}" height="${y}" fill="#000"/>` + body);
+  document.body.setAttribute('data-w', W);
+  document.body.setAttribute('data-h', y);
+  document.body.setAttribute('data-map', JSON.stringify(map));
+} else if (mode === 'photo') {
+  // PRIVATE: a study photo (already cut to the instrument) beside each final icon at 24 and 16.
+  const dir = q.get('dir'), PAD = 12, COLS = 6, PH = 120, CW = 170, RH = PH + 34;
+  const ids = FAMS.flatMap(f => f[1]);
+  const W = PAD * 2 + COLS * CW;
+  let body = T(PAD, PAD + 12, `Guitars, v3 beside a study photograph (Wikimedia Commons; private research, never public) — Slate ${theme}`, 11, k.ink1, { weight: 600 });
+  const y0 = PAD + 24;
+  ids.forEach((id, i) => {
+    const x = PAD + (i % COLS) * CW, y = y0 + Math.floor(i / COLS) * RH;
+    body += `<image href="${dir}/${id}.jpg" x="${x}" y="${y}" width="${PH * 0.75}" height="${PH}" preserveAspectRatio="xMidYMid meet"/>`;
+    body += glyph(id, 24, x + PH * 0.75 + 10, y + 20, k.ink1, k.ink2) + glyph(id, 16, x + PH * 0.75 + 14, y + 56, k.ink2, k.ink3);
+    body += glyph(id, 36, x + PH * 0.75 + 4, y + 80, k.ink2, k.ink3);
+    body += T(x, y + PH + 14, name(id), 9, k.ink1);
+  });
+  done(W, y0 + Math.ceil(ids.length / COLS) * RH + PAD, body);
+}
+</script></body></html>

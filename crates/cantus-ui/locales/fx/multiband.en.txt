@@ -147,3 +147,4 @@ mb.key_own.short = Own
 mb.key_ext.short = Sidechain
 mb.mode.0.short = Dyn.
 mb.mode.1.short = Split
+mb.place.0.short = Stereo

@@ -39,10 +39,30 @@ pub fn button(ui: &mut Ui, label: Src<'_>, width: f32, enabled: bool) -> Respons
         Sense::hover()
     };
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), sense);
+    // Its words on the help line (round 39, ADR 0109).
+    let resp = super::hint::said_with(resp, || match label {
+        Src::Key(k) => crate::i18n::t(k),
+        Src::Str(s) => s.to_string(),
+    });
     let st = State {
         disabled: !enabled,
         ..State::of(&resp, false)
     };
+    if s.t.system.recessed() {
+        // r39:el-controls — the kit's secondary button (`kit::dialog`).
+        with_brush(ui.painter(), |b| {
+            crate::kit::dialog::button(
+                b,
+                rect,
+                &s,
+                st,
+                crate::kit::dialog::Kind::Secondary,
+                label,
+                None,
+            )
+        });
+        return resp;
+    }
     with_brush(ui.painter(), |b| {
         b.register(rect, "button", BUTTON_TOKENS, &[]);
         let base = if st.active {
@@ -178,7 +198,28 @@ pub fn band(ui: &mut Ui, title: Src<'_>) -> Rect {
         Sense::hover(),
     );
     with_brush(ui.painter(), |b| {
-        band::section(b, rect, &s, State::REST, title, None, false)
+        if s.t.system.recessed() {
+            // r39:el-topbar — `dir-a`'s dialogs: a section is its title, 11 SemiBold in
+            // ink 3, in title case at the foot of its room; no bar behind it.
+            let ink = crate::kit::color::ensure_contrast_all(
+                s.t.placeholder,
+                &[s.t.toolbar, s.t.panel],
+                4.5,
+            );
+            let t = match title {
+                Src::Key(k) => Text::key(k, Role::Section, ink),
+                Src::Str(w) => Text::new(w, Role::Section, ink),
+            };
+            let _ = text::paint(
+                b,
+                rect,
+                &t.align(Align2::LEFT_BOTTOM)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
+        } else {
+            band::section(b, rect, &s, State::REST, title, None, false)
+        }
     });
     rect
 }
@@ -187,12 +228,18 @@ pub fn band(ui: &mut Ui, title: Src<'_>) -> Rect {
 pub fn row_label(ui: &mut Ui, key: &str, width: f32, height: f32) {
     let s = Style::current();
     let (rect, _) = ui.allocate_exact_size(Vec2::new(width * s.k, height * s.k), Sense::hover());
+    // r39:el-topbar — `dir-a`'s dialogs: labels at the left of their column, 11 in ink 2.
+    let (role, align) = if s.t.system.recessed() {
+        (Role::Label, Align2::LEFT_CENTER)
+    } else {
+        (Role::Body, Align2::RIGHT_CENTER)
+    };
     with_brush(ui.painter(), |b| {
         let _ = text::paint(
             b,
             rect,
-            &Text::key(key, Role::Body, s.t.text_dim)
-                .align(Align2::RIGHT_CENTER)
+            &Text::key(key, role, s.t.text_dim)
+                .align(align)
                 .policy(Policy::Abbreviate),
             s.tk(),
         );

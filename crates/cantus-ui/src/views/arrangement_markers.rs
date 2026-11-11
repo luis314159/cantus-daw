@@ -12,10 +12,10 @@
 use super::{beats_to_ticks, chrome, ticks_to_beats, TimelineGeometry};
 use crate::app::CantusApp;
 use crate::i18n::t;
-use crate::kit::color::{mix, with_alpha};
+use crate::kit::color::with_alpha;
 use crate::kit::hint::{self, Caps};
 use crate::kit::menu::{Check, Item};
-use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
+use crate::kit::text::{self, Role, Src, Text};
 use crate::kit::{self, Brush, Fill, Style, Tok};
 use cantus_core::tempo::{Marker, MarkerId};
 use cantus_core::{Color, Command, MergeKey, Ticks};
@@ -69,12 +69,13 @@ enum MenuOn {
     At(Ticks),
 }
 
-/// The lane's height: there while the song has markers.
+/// The lane's height: r39:el-arrange — the sections and markers lane, under the ruler's
+/// numbers, there unless the corner's lanes menu hides it.
 pub(super) fn height(app: &CantusApp, s: &Style) -> f32 {
-    if app.project().markers.is_empty() {
-        0.0
+    if app.arrangement.show_sections {
+        s.s(super::ruler::SECTIONS_H)
     } else {
-        s.s(MARKER_H)
+        0.0
     }
 }
 
@@ -153,35 +154,47 @@ fn tabs(
     out
 }
 
-/// The lane and its markers.
+/// The markers over the sections lane (r39:el-arrange; `des-arrange`, *Marker*): a 1-px
+/// ink 2 line, a 6 × 7 pennant and the name in 10 ink 2; below 20 px a bar, the pennant
+/// only. The lane's ground and the sections under them are `arrangement_sections`'.
 pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lane: Rect, s: &Style) {
     if lane.height() <= 0.0 {
         return;
     }
-    let t = &s.t;
+    let ink = super::slate::Ink::of(s);
     let k = s.k;
     b.register(lane, "marker_lane", &[Tok::Ink, Tok::Highlight], &[]);
-    b.rect(b.snap_rect(lane), Fill::Solid(mix(t.ink, t.row_black, 0.2)));
+    let ts = app.project().time_signature;
+    let bar_px = ts.numerator as f32 * 4.0 / ts.denominator as f32 * geo.px_per_beat;
     let renaming = app.arrangement.markers.rename.as_ref().map(|(id, _)| *id);
     for (id, tab, _) in tabs(app, b.ctx(), geo, lane, s) {
         let Some(m) = app.project().marker(id) else {
             continue;
         };
-        let c = ink(m, s);
-        b.rect(b.snap_rect(tab), Fill::Solid(with_alpha(c, 0.35)));
+        let c = m.color.map_or(ink.ink2, crate::theme::track_color);
         let at = geo.x(ticks_to_beats(m.tick));
-        b.vline(at, lane.top(), lane.bottom(), 2.0 * b.px(), c);
-        if renaming == Some(id) {
+        b.vline(at, lane.top() + 3.0 * k, lane.bottom(), b.px(), c);
+        let top = lane.top() + 4.0 * k;
+        b.polygon(
+            &[
+                pos2(at, top),
+                pos2(at + 6.0 * k, top + 2.0 * k),
+                pos2(at, top + 7.0 * k),
+            ],
+            c,
+        );
+        if renaming == Some(id) || bar_px < 20.0 * k {
             continue;
         }
-        let _ = text::paint(
+        let _ = super::slate::say(
             b,
-            tab.shrink2(vec2(4.0 * k, 0.0)),
-            &Text::new(&m.name, Role::Label, t.text)
-                .caps(false)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Elide(Elide::End)),
-            s.tk(),
+            Rect::from_min_max(pos2(at + 8.0 * k, tab.top()), tab.max),
+            &m.name,
+            super::slate::W::Regular,
+            10.0,
+            ink.ink2,
+            Align2::LEFT_CENTER,
+            s,
         );
     }
 }
@@ -267,6 +280,8 @@ pub(super) fn input(
         .frame(chrome::menu_frame())
         .show(|ui| lane_menu(app, ui));
 
+    // r39:el-arrange — the sections over the lane's own response, under the markers' tabs.
+    super::ruler::sections::input(app, ui, geo, lane, s);
     let drawn = tabs(app, ui.ctx(), geo, lane, s);
     app.arrangement.markers.drawn.clone_from(&drawn);
     for (id, tab, _letters) in drawn {
@@ -434,6 +449,8 @@ fn lane_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
             submenu: false,
             enabled: true,
         },
+        // r39:el-arrange — a section of the selection, or of four bars here (ADR 0113).
+        Item::action(Src::Key("arrange.lanes.add_section")),
     ];
     let first_name = items.len() + 2;
     if !names.is_empty() {
@@ -449,6 +466,10 @@ fn lane_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
                 let name = app.project().marker(id).map(|m| m.name.clone());
                 app.arrangement.markers.rename = name.map(|n| (id, n));
             }
+            ui.close();
+        }
+        Some(6) => {
+            let _ = super::ruler::sections::add_here(app, at);
             ui.close();
         }
         Some(1) => {

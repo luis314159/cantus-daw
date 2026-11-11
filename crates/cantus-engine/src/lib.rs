@@ -29,8 +29,10 @@ pub mod master_tap; // r35:stage — the master for the stage's visualiser (ADR 
 pub mod messages;
 pub mod midi;
 pub mod modulator;
+pub mod need_mailbox; // integration of round 39: a request too large for the event (ADR 0112)
 pub mod notefx;
 pub mod padout; // r37:drums (ADR 0100): instruments with several outputs
+pub mod parts; // r39:memory — what a track slot holds only while its track uses it (ADR 0107)
 pub mod pdc;
 pub mod pitch;
 pub mod preview;
@@ -40,6 +42,7 @@ pub mod pulsus_kit;
 pub mod record_mode; // r36:record — the baked master (ADR 0092 §3)
 pub mod recorder;
 pub mod render;
+pub mod report; // r39:memory — the block's report in a mailbox of its own (ADR 0107)
 pub mod routing;
 pub mod samples;
 pub mod sched;
@@ -50,7 +53,7 @@ pub mod warp;
 pub use automation::Runtime as AutomationRuntime;
 pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHandle};
 pub use devices::{DeviceLatency, DeviceState, DriverInfo, InputDeviceInfo};
-pub use effects::{comp_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed};
+pub use effects::{comp_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed, NeedTicket};
 pub use fx::{FxNote, FxParamEvent, FxUnit, SongPosition, Telemetry, Wire, TELEMETRY_LEN};
 pub use inst::{
     hosted_key, Controller, InstrumentUnit, NativeUnit, NoteExpression, NoteOn, UnitKind,

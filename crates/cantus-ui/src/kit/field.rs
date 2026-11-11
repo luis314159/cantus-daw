@@ -248,6 +248,23 @@ impl<'a> Field<'a> {
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).id_salt(self.id));
         let mut out = edit.show(&mut child);
         let resp = out.response.response.clone();
+        // The help line is never empty (round 39, ADR 0109): a field the caller gave no
+        // words of its own says what it holds (its placeholder) or how it is typed in.
+        if resp.hovered() && !super::hint::written(&ctx) {
+            let words = match self.hint {
+                Some(h) => h.to_string(),
+                None => crate::i18n::t("ux.hint.field"),
+            };
+            super::hint::fallback(
+                &ctx,
+                &words,
+                "",
+                super::hint::Caps {
+                    typed: true,
+                    ..super::hint::Caps::NONE
+                },
+            );
+        }
         let opening = self.open && !had && !ctx.data(|d| d.get_temp::<Session>(sid).is_some());
         let gained = resp.gained_focus() || opening;
         if opening {

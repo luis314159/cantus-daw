@@ -1,4 +1,5 @@
-//! The website's hero picture (`web/assets/app-mixer-xl.png`, 1912 x 1022), headless: the whole
+//! The website's program picture (`web/assets/program/cantus.webp`, and `cantus-es.webp` in Spanish;
+//! re-encode the PNG as lossless WebP — `web/src/picture.rs`), 1912 x 1022, headless: the whole
 //! window on the startup project as the program opens, with the Browser docked at the left, the
 //! mixer Extra large and its cables on (the selected strip's: its sidechain, its sends, its
 //! output), in Cantus Night. The site crops it (`web/src/tour.rs`: arrangement, mixer,
@@ -6,9 +7,10 @@
 //! operating system's caption bar is on a real screen shot, and are painted here as a plain
 //! band in the theme's panel colour.
 //!
-//! `cargo run --release -p cantus-ui --example shoot_site -- <out-dir> [night|paper]`
+//! `cargo run --release -p cantus-ui --example shoot_site -- <out-dir> [night|paper] [en|es]`
 //!
-//! Writes `app-mixer-xl.png` (or `app-mixer-xl-<theme>.png` for the other theme).
+//! Writes `app-mixer-xl.png` (`-paper` for the other theme, `-es` for the Spanish interface:
+//! the site shows the Spanish page its own picture, round 39).
 
 use cantus_engine::EngineHandle;
 use cantus_ui::kit::appearance::Mode;
@@ -17,6 +19,9 @@ use cantus_ui::views::mixer::layout::{CableView, WidthMode};
 use cantus_ui::views::workspace::Pane;
 use cantus_ui::{demos, CantusApp};
 use std::path::PathBuf;
+
+#[path = "shots_common/studio.rs"]
+mod studio;
 
 const SIZE: (f32, f32) = (1912.0, 1022.0);
 /// The height the caption bar of a real window takes.
@@ -28,9 +33,15 @@ const INSPECTOR_PX: f32 = 290.0;
 fn main() {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
-    let paper = args.next().is_some_and(|a| a == "paper");
+    let rest: Vec<String> = args.collect();
+    let paper = rest.iter().any(|a| a == "paper");
+    let spanish = rest.iter().any(|a| a == "es");
     std::fs::create_dir_all(&dir).expect("output dir");
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_locale(if spanish {
+        cantus_ui::i18n::Locale::Es
+    } else {
+        cantus_ui::i18n::Locale::En
+    });
 
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
@@ -45,17 +56,9 @@ fn main() {
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if paper { Mode::Light } else { Mode::Dark };
     app.attach(&ctx);
-    // A working studio: the demo interface, here an ASIO driver at 48 kHz and 256 samples.
-    cantus_ui::audio_setup::demo::setup(&mut app);
-    if let Some(live) = app.audio_setup.demo.as_mut() {
-        live.driver = "ASIO".into();
-        live.device = "ASIO4ALL v2".into();
-        live.wanted = live.device.clone();
-        live.block = 256;
-    }
-    // Named by its driver, as an unlisted interface is.
-    app.audio_setup.scan = None;
-    app.settings.audio.device = Some("ASIO4ALL v2".into());
+    // A working studio: the demo interface, here an ASIO driver at 48 kHz and 256 samples,
+    // and no dropout on the status line.
+    studio::studio(&mut app, 256);
     app.set_status(cantus_ui::i18n::t("status.autosaved"));
     // The desk ends cleanly: the strips nothing feeds (the empty slots) are removed.
     let empty: Vec<_> = app
@@ -85,11 +88,11 @@ fn main() {
     for _ in 0..40 {
         processor.process(&mut audio, 2);
     }
-    let name = if paper {
-        "app-mixer-xl-paper.png"
-    } else {
-        "app-mixer-xl.png"
-    };
+    let name = format!(
+        "app-mixer-xl{}{}.png",
+        if paper { "-paper" } else { "" },
+        if spanish { "-es" } else { "" }
+    );
     let path = dir.join(name);
     let mut frame = 0;
     raster::shoot(

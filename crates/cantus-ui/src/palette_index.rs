@@ -89,6 +89,8 @@ pub enum Target {
     TrackTemplate(PathBuf),
     /// A note effect added at the end of a track's chain (round 31, ADR 0069).
     NoteFx(cantus_core::TrackId, cantus_core::notefx::NoteFxType),
+    /// A menu row that is not a keymap action (round 39, ADR 0110), under its words.
+    Menu(crate::menu_commands::MenuCommand),
 }
 
 /// What an entry is, as the palette's right-hand word says.
@@ -137,8 +139,12 @@ pub struct Entry {
     pub detail: String,
     /// Stable across languages and renames: what its uses are counted by.
     pub key: String,
+    /// Other words that find it: a menu's for the same thing (round 39, ADR 0110 — the
+    /// Options menu's *Audio settings…* finds *Settings: Audio*).
+    pub also: Vec<String>,
     folded: String,
     folded_en: String,
+    folded_also: Vec<String>,
 }
 
 impl Entry {
@@ -159,9 +165,18 @@ impl Entry {
             english,
             detail,
             key,
+            also: Vec::new(),
             folded,
             folded_en,
+            folded_also: Vec::new(),
         }
+    }
+
+    /// The entry found by `words` too.
+    pub fn also(mut self, words: String) -> Entry {
+        self.folded_also.push(fold(&words));
+        self.also.push(words);
+        self
     }
 
     /// The stable key an action's entry is counted by.
@@ -227,7 +242,17 @@ pub fn word_score(hay: &str, word: &str) -> Option<i32> {
         }
         best = Some(best.map_or(score, |b| b.max(score)));
     }
-    best
+    // A word typed whole, found whole at the start of a word, beats the same letters
+    // scattered (round 39: "chorda" found *Check for updates* before *New track with
+    // Chorda*).
+    let whole = hay.match_indices(word).any(|(i, _)| {
+        i == 0
+            || !hay[..i]
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphanumeric())
+    });
+    best.map(|b| if whole && w.len() > 1 { b + 40 } else { b })
 }
 
 /// How well a folded query (words) is found in an entry: every word must be found in its
@@ -246,10 +271,12 @@ pub fn score(entry: &Entry, query: &str) -> Option<i32> {
     } else {
         None
     };
-    match (own, en) {
-        (Some(a), Some(b)) => Some(a.max(b)),
-        (a, b) => a.or(b),
-    }
+    let also = entry
+        .folded_also
+        .iter()
+        .filter_map(|h| all(h).map(|s| s - 2))
+        .max();
+    [own, en, also].into_iter().flatten().max()
 }
 
 /// One entry's use: how many times, and when last (the uses' own clock).

@@ -113,6 +113,30 @@ pub fn commit(now: &Project, writer: &Writer, c: &mut Commit<'_>) -> (Vec<Comman
         return (Vec::new(), 0);
     }
     for &t in c.wrote {
+        // r39:arrange — a lane in Write of its own turns to Touch as its track does (ADR 0113).
+        let lanes: Vec<_> = sim
+            .track(t)
+            .map(|tr| {
+                tr.lane_modes
+                    .iter()
+                    .filter(|l| l.mode == AutoMode::Write)
+                    .map(|l| l.target.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        for target in lanes {
+            push(
+                &mut sim,
+                &mut out,
+                vec![Command::Arrange(
+                    crate::arrange::ArrangeCommand::SetLaneMode {
+                        track: t,
+                        target,
+                        mode: Some(AutoMode::Touch),
+                    },
+                )],
+            );
+        }
         if sim
             .track(t)
             .is_some_and(|tr| tr.auto_mode == AutoMode::Write)

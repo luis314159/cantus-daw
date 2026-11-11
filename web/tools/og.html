@@ -1,19 +1,38 @@
 <!doctype html><meta charset="utf-8">
+<!-- The share image (1200 x 630): the site's hero — logo #03's lapis, its faint gold dots and its gilded C. -->
 <style>
-@font-face{font-family:Syne;src:url("../assets/fonts/syne.ttf");font-weight:400 800}
-@font-face{font-family:IS;src:url("../assets/fonts/instrumentsans.ttf");font-weight:400 700}
-html{background:#120d0a}html,body{margin:0;width:1200px;height:630px;overflow:hidden}
-body{position:relative;font-family:IS,sans-serif;color:#f6ece2;
- background:radial-gradient(60rem 36rem at 85% 5%,rgba(212,98,42,.45),transparent 70%),radial-gradient(40rem 26rem at 0% 100%,rgba(62,142,126,.28),transparent 70%),#120d0a}
-.logo{position:absolute;right:70px;top:90px;width:430px;height:430px}
-h1{position:absolute;left:80px;top:140px;margin:0;font:800 84px/1 Syne;letter-spacing:-0.04em;color:#fff;width:640px}
-h1 i{font-style:normal;color:#f5ad3d}
-p{position:absolute;left:80px;top:340px;margin:0;width:560px;font-size:30px;line-height:1.35;color:#c1a995}
-.brand{position:absolute;left:80px;top:60px;font:700 34px Syne;letter-spacing:-.02em;color:#fff}
-.url{position:absolute;left:80px;bottom:50px;font-size:26px;color:#f5ad3d;font-weight:600}
+@font-face{font-family:B;src:url("../assets/fonts/barlow-semi-condensed-light.ttf");font-weight:300}
+@font-face{font-family:B;src:url("../assets/fonts/barlow-semi-condensed-regular.ttf");font-weight:400}
+@font-face{font-family:B;src:url("../assets/fonts/barlow-semi-condensed-semibold.ttf");font-weight:600}
+html,body{margin:0;width:1200px;height:630px;overflow:hidden}
+body{position:relative;font-family:B,sans-serif;color:#f1f3fa;
+ background:radial-gradient(circle at 17px 17px,rgba(233,196,102,.13) 1.6px,transparent 2.2px) 0 0/34px 34px,
+  radial-gradient(900px 620px at 76% 40%,#2e4aa0 0%,#1a2a66 46%,#0a1234 100%)}
+body::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,rgba(226,184,74,.15),#e2b84a 6%,#f3d478 50%,#e2b84a 94%,rgba(226,184,74,.15))}
+.brand{position:absolute;left:80px;top:62px;display:flex;align-items:center;gap:16px;font:600 38px/1 B;letter-spacing:.01em}
+.brand img{width:52px;height:52px}
+h1{position:absolute;left:76px;top:170px;margin:0;font:300 112px/1 B;letter-spacing:-.02em;width:720px}
+h1 i{font-style:normal;color:#e2b84a}
+p{position:absolute;left:80px;top:318px;margin:0;width:660px;font:400 33px/1.35 B;color:#c3cce8}
+.url{position:absolute;left:80px;bottom:62px;font:600 30px/1 B;color:#a9c0fa}
+svg{position:absolute;right:58px;top:85px;width:430px;height:453px}
 </style>
-<div class="brand">Cantus</div>
+<div class="brand"><img src="../assets/logo.svg">Cantus</div>
 <h1>Finish the song<i>.</i></h1>
-<p>A free, open-source DAW written in Rust. No account. No telemetry.</p>
+<p>A free, open-source DAW written in Rust.<br>No account. No telemetry.</p>
 <div class="url">cantusdaw.com</div>
-<img class="logo" src="../assets/logo.svg">
+<svg viewBox="196 196 600 632">
+ <defs>
+  <linearGradient id="leaf" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFF4C2"/><stop offset="0.25" stop-color="#EBC455"/><stop offset="0.5" stop-color="#B8862B"/><stop offset="0.72" stop-color="#F3D478"/><stop offset="1" stop-color="#8A5E14"/></linearGradient>
+  <linearGradient id="verm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8A4C"/><stop offset="1" stop-color="#B7410E"/></linearGradient>
+  <filter id="emb" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity="0.5"/></filter>
+ </defs>
+ <g filter="url(#emb)">
+  <path d="M711.8,702.7 A285,285 0 1 1 711.8,321.3 L673.8,363.4 A200,200 0 1 0 673.8,660.6 Z" fill="url(#leaf)"/>
+  <path d="M711.8,702.7 A285,285 0 1 1 711.8,321.3 L673.8,363.4 A200,200 0 1 0 673.8,660.6 Z" fill="none" stroke="#5A3A08" stroke-opacity=".55" stroke-width="3"/>
+  <path d="M711.8,287.3 l34,34 l-34,34 l-34,-34 Z" fill="url(#leaf)" stroke="#5A3A08" stroke-opacity=".5" stroke-width="3"/>
+  <path d="M711.8,668.7 l34,34 l-34,34 l-34,-34 Z" fill="url(#leaf)" stroke="#5A3A08" stroke-opacity=".5" stroke-width="3"/>
+ </g>
+ <path d="M300,420 C290,470 290,554 300,604" stroke="#FFF8DA" stroke-opacity=".55" stroke-width="10" fill="none" stroke-linecap="round"/>
+ <g fill="url(#verm)"><rect x="470" y="477" width="16" height="70" rx="8"/><rect x="498" y="452" width="16" height="120" rx="8"/><rect x="526" y="427" width="16" height="170" rx="8"/><rect x="554" y="457" width="16" height="110" rx="8"/><rect x="582" y="437" width="16" height="150" rx="8"/><rect x="610" y="472" width="16" height="80" rx="8"/><rect x="638" y="487" width="16" height="50" rx="8"/></g>
+</svg>

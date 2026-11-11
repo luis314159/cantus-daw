@@ -204,30 +204,72 @@ que lo primero que oigas sea música. Pulsa `Espacio` para reproducirla. Nada ba
 arrancar: la demo completa (*Archivo ▸ Canciones de demostración*) conserva su bailarín, y
 puedes añadir uno a cualquier canción ([Saltator](dancer.md)).
 
-- **La barra superior** (ver [más abajo](#la-barra-superior)): los menús sobre el nombre
-  del proyecto y el panel de ayuda, y luego el transporte, el tempo, el metrónomo, la
-  posición, los medidores y más: un grupo por función.
+- **La barra superior** (ver [más abajo](#la-barra-superior)): una sola fila — los menús sobre
+  el nombre del proyecto, luego el transporte, el metrónomo, el tempo, el reloj, la rejilla,
+  las ventanas, y a la derecha los medidores, el dispositivo de audio, Ajustes y **Más**.
 - **El arreglo** (centro): las pistas y sus clips sobre una línea de tiempo.
 - **El navegador de clips** (`Alt+F5`, *Ver ▸ Navegador de clips*): todos los clips de la
   canción como mosaicos, junto al arreglo (ver el [capítulo 5](#los-clips-en-el-arreglo)).
 - **La zona inferior**: el Mezclador, el Piano roll y el Rack de canales en pestañas.
 - **El inspector** (derecha, `I`): todo sobre la pista, el canal o el clip seleccionado.
-- **La barra de estado** (abajo): lo que hay bajo el puntero, la latencia de los plug-ins,
-  las muestras que se cargan, la octava del teclado y los dispositivos minimizados.
+- **La línea de estado** (abajo): la **línea de ayuda** — lo que hay bajo el puntero, su
+  valor, qué lo mueve (un clip de automatización, un modulador, un controlador, un VCA) y las
+  teclas que actúan sobre él —, luego la latencia de los plug-ins, las muestras que se cargan,
+  la octava del teclado y los dispositivos minimizados. Cada control dice algo ahí; nada queda
+  en blanco.
 
 Cada área se muestra u oculta con su tecla de ventana o su tecla de función (`F5` arreglo,
 `Alt+F5` navegador de clips, `F6` rack de canales, `F7` piano roll, `F9` mezclador,
-`Alt+F8` explorador, `I` inspector). Arrastra los divisores para cambiar tamaños; clic derecho en una pestaña para
-que flote en su propia ventana; guarda la forma de la ventana en *Ver ▸ Disposición ▸
-Guardar disposición…*. La interfaz se amplía del 75 % al 200 % (`Ctrl++`, `Ctrl+-`,
-`Ctrl+0`). Doce temas — Cantus Noche (el predeterminado), Cantus Papel, Luz de día, Hora
-azul, alto contraste oscuro y claro y más, cada uno con su vista previa —, los colores, el
-logo y el color del icono de la barra de tareas están en *Ver ▸ Apariencia*. Cada tema
-tiene sus **materiales** (grupo *Profundidad*): cómo cae la luz sobre los controles — el bisel
-de una tecla en relieve y su sombra, la sombra dentro de un hueco, la luz en su borde, el
-brillo del metal y del cristal, la sombra que proyecta una pieza. Cantus Noche es metal y
-cristal; Cantus Papel, mate. Puedes cambiar el color de cualquiera, o bajar el relieve del
-tema (su profundidad) para un aspecto plano. Los faders tienen dos capuchones a elegir en *Ver ▸ Apariencia ▸ Faders*: **Clásico** (el capuchón marfil, el predeterminado) y **Metal** (mecanizado, con su índice grabado y el brillo del tema); todos los faders — el mezclador, los VCA, las unidades — cambian a la vez.
+`Alt+F8` explorador, `I` inspector). Arrastra los divisores para cambiar tamaños (clic derecho
+devuelve uno a su sitio, doble clic lo pliega o despliega); clic derecho en una pestaña abre su
+menú:
+
+- **Plegar zona** (`Ctrl+Alt+C`) pliega el área a su barra de pestañas — o, en una fila, a un
+  riel delgado con su glifo — y conserva su lugar; *Desplegar zona*, un clic en el riel o
+  arrastrar la línea plegada la devuelve tal como estaba.
+- **Maximizar zona** (doble clic en su pestaña, o `Ctrl+Alt+Enter`) le da todo el espacio de
+  trabajo; las áreas ocultas esperan en una fila de pestañas a su pie — un clic en una devuelve
+  las áreas con esa delante, o *Mostrar los paneles*. Otra vez, o mostrar cualquier área,
+  devuelve las demás. Las ventanas flotantes se quedan.
+- **Flotar** la pone en su propia ventana; **Acoplar** la devuelve.
+
+`Ctrl+F6` y `Ctrl+Shift+F6` pasan el foco del teclado de un área a otra (el glifo de la pestaña
+con el foco se ilumina); `Shift+F10` abre lo que abriría un clic derecho sobre la selección;
+`Esc` cierra lo último que se abrió. Toda área que tiene más de lo que muestra se desplaza.
+Guarda la forma de la ventana en *Ver ▸ Disposición ▸ Guardar disposición…*; la disposición se
+conserva entre sesiones.
+
+**El aspecto.** Cantus se dibuja en **Pizarra**: un espacio gris azulado y tranquilo donde los
+paneles se separan por el tono y no por líneas, un solo acento azul significa *activado* o
+*elegido* y nada más, y los colores de tus pistas son una franja y un tinte hasta que eliges una
+pista — entonces se ilumina en toda la ventana (su encabezado, sus clips, su canal y el
+inspector). La letra es Barlow Semi Condensed, cuyas cifras no cambian de ancho al contar; las
+teclas y los campos son pozos planos con un borde oscuro y un labio claro; en silencio nada
+dice «−∞». *Ajustes ▸ Apariencia* (`Ctrl+,`) tiene todos los temas como imágenes, en
+cuatro grupos: las **familias** de la ronda 39 — **Pizarra** (la predeterminada), **Pizarra
+lapislázuli** (un espacio azul noche, la selección en lapislázuli y el oro del logo en el
+reloj, los números de las reglas, el cursor de reproducción y el bucle), **Grafito y oro** y **Tinta de estudio**; los temas
+de versiones anteriores, **redibujados** en el aspecto nuevo — **Cantus Noche · Papel**
+(espresso y el cobre del logo, cardenillo en la selección), **Hora azul · Luz de día** (azul
+marino profundo, y blanco con azul), **Peltre · Tiza** (gris pizarra con naranja y lima, y
+su gemelo de tiza: los antiguos *Pizarra* y *Papel*, con otro nombre), **Tinta y oro ·
+Pergamino**, **Ultravioleta** y **Laguna**; los **nuevos** — **Siempreverde, Noche · Papel**
+(verde bosque y latón, con cables de parcheo de verdad en el mezclador), **Burdeos** (vino y oro
+rosa) e **Imprenta** (tinta negra sobre papel blanco y un solo bermellón); y la pareja de **alto
+contraste** (todo el texto a 7:1). Un clic elige una familia en sus dos luces; un tema hecho en
+una sola luz (Ultravioleta, Laguna, Burdeos, Imprenta) además pasa la ventana a ese modo. Luego
+el modo (**Noche**, **Papel**, o seguir al sistema), el estilo de los cables, los colores del
+icono de la barra de tareas y el recoloreado (tono, saturación, brillo, contraste, cada papel de
+color, o un clic en un elemento para cambiarle el color). Un ajuste guardado por una versión
+anterior abre en el tema que nombra, con tus cambios de color conservados; los temas que hiciste
+tú no se tocan. En los temas de alto contraste y en tus temas antiguos los faders siguen
+ofreciendo dos capuchones (*Faders*: **Clásico** y **Metal**); los demás temas dibujan un solo
+capuchón, iluminado desde arriba.
+
+**El tamaño** sigue a tu pantalla hasta que eliges uno: cerca del 125 % en una pantalla de 1920
+píxeles (menos si Windows ya escala), nunca menos del 100 % ni más del 200 %. `Ctrl++`,
+`Ctrl+-` y `Ctrl+0`, o *Ajustes ▸ Apariencia*, fijan el tuyo, que se conserva; un tamaño que
+elegiste en una versión anterior también se conserva.
 
 **Escribir un nombre o un valor** funciona igual en todas partes — renombrar una pista, un
 clip, un pad o un canal, una búsqueda, un nivel: el campo se abre con su texto
@@ -279,27 +321,22 @@ haría `Ctrl+Z` — no se pierde nada, y un clic en una fila posterior vuelve.
 
 ### La barra superior
 
-La barra superior es la de FL Studio, en dos filas: un grupo por función y una línea fina
-entre las columnas. El transporte, el metrónomo y el reloj (compases.tiempos.ticks en
-grande, el tiempo y el compás en una línea debajo) ocupan toda la altura; los demás ocupan
-una fila y se apilan de dos en dos (PATRÓN / CANCIÓN sobre el tempo, la rejilla sobre
-deshacer, las ventanas sobre las entradas, el medidor principal sobre CPU/RAM/voces/cortes
-—el puente de medidores de una consola— y el chip de audio sobre las herramientas). En una
-ventana ancha el transporte, el tempo y el reloj se dibujan un tamaño mayor (teclas de 31 pt
-a 1920 píxeles). **A 1920 × 1080 todos los grupos están en la barra.** En una ventana más
-estrecha (o con más zoom) los grupos esperan en ⋯ al final de la barra, cada uno bajo su
-nombre con su atajo, en este orden: primero las teclas de las áreas (F5…), luego CPU/RAM,
-las opciones del metrónomo, la sincronía, las herramientas, la rejilla y las entradas; el
-transporte, el reloj, el tempo, deshacer / rehacer y el chip de audio se quedan. En una
-barra llena el chip de audio muestra el nombre de tu interfaz y su latencia (apunta a él
-para leer la línea entera), y la línea entera cuando hay sitio.
+La barra superior es una sola fila de 44 puntos de alto. Cada tecla va en un pozo hundido sobre
+su línea central; una tecla activada se tiñe dentro de su pozo — verde para reproducir, rojo
+para grabar, el acento para lo demás. Los grupos se agrupan en dos bloques: a la izquierda los
+menús, Patrón / Canción, el transporte, el metrónomo, el tempo, el reloj, la rejilla, deshacer y
+las ventanas; a la derecha los medidores del sistema, las entradas, el medidor del maestro, el
+dispositivo de audio, las herramientas, **Ajustes** (el engranaje) y **Más**. A 1920 × 1080 y
+al 100 % solo las herramientas esperan en Más (en español, también las entradas); a un tamaño
+mayor se pliegan más grupos.
 
-- **Los menús y el panel de ayuda**: *Archivo, Edición, Clip, Ver, Ayuda* sobre el nombre
-  del proyecto y la ayuda de lo que hay bajo el puntero — sin nada debajo, el resumen de la
-  canción (pistas · canales · compases · duración). **Haz clic en el nombre** para
-  cambiarlo ahí mismo (`Intro` lo guarda, `Esc` lo deja); el título de la ventana lo
-  sigue, con `•` mientras haya cambios sin guardar.
-- **PATRÓN / CANCIÓN** (`L`): el *modo canción* reproduce el arreglo; el *modo patrón*
+- **Los menús**: *Archivo, Edición, Clip, Ver, Ayuda* sobre el nombre del proyecto y su resumen
+  (`9 pistas · 16 compases · 0:30`). **Haz clic en el nombre** para cambiarlo ahí mismo
+  (`Intro` lo guarda, `Esc` lo deja); el título de la ventana lo sigue, con `•` mientras haya
+  cambios sin guardar. En una barra estrecha los menús se vuelven una tecla ≡ que tiene cada
+  menú como submenú. Cada fila de los menús muestra su atajo, o está en la paleta de comandos
+  con las mismas palabras.
+- **Patrón / Canción** (`L`): el *modo canción* reproduce el arreglo; el *modo patrón*
   reproduce el clip que editas en el piano roll o en el rack de canales —con lo que el
   rack muestra de las otras pistas en ese tramo— solo y en bucle, y el reloj cuenta desde
   el inicio del patrón; el cursor no sale del patrón (Inicio o un clic fuera de él lo
@@ -308,53 +345,58 @@ para leer la línea entera), y la línea entera cuando hay sitio.
   vuelve a donde estaba la canción. El modo patrón no graba, y no se puede activar en
   mitad de una toma (una toma pertenece a la canción: pasa antes al modo canción); la
   exportación siempre renderiza la canción. Se guarda con el proyecto.
-- **Transporte**: ir al inicio, reproducir, detener, grabar y sus opciones ▾, bucle.
-- **Tempo**: los BPM (arrastra, usa la rueda, doble clic para 120); **TAP** (`Shift+T`):
-  pulsa al menos dos veces —el tempo es la media de tus últimas pulsaciones; tras una
-  pausa, vuelve a empezar, y cada tanda es un solo paso de deshacer—; el **compás**: haz
-  clic para los tiempos (‹ ›), la figura y los compases habituales.
-- **Metrónomo** (`Ctrl+M`): su interruptor, la **claqueta** (no, 1, 2, 4 compases) y el
-  **nivel** del clic (arrastra, rueda, doble clic para 0 dB). Su ▾ guarda el **sonido**
-  (*Clásico*, *Caja china*, *Pitido*), el **acento** en el primer tiempo de cada compás y
-  **cuándo** suena (siempre, al grabar, durante la claqueta). El sonido y el acento se
-  guardan con la canción.
-- **Posición**: compases.tiempos.ticks y el tiempo, con el compás al lado; al grabar, el
-  tiempo de la toma.
-- **Rejilla y ajuste**: la rejilla y la luz IMÁN del editor en el que trabajas —el arreglo,
-  el piano roll o el rack de canales (siempre sobre su rejilla); con un clip de audio en el
-  lugar del piano roll, la rejilla del editor de afinación (a la que *Cuantizar* mueve las
-  notas), y con un clip de automatización, la del arreglo, a la que se ajusta el editor de
-  automatización—. Los mismos valores que la barra del propio editor.
-- **Deshacer** y **rehacer**, y las **teclas de ventana** (explorador, arreglo, rack, piano
-  roll, mezclador, inspector).
-- **CPU, RAM, voces, cortes**: la carga del audio (su histograma en la información
-  emergente), la memoria que usa Cantus, las voces que suenan y los cortes contados (la
-  causa del último en la información emergente, y dicha en la barra de estado cuando
-  ocurre).
-- **Medidor maestro**: *Pico* muestra los picos izquierdo y derecho y retiene el más alto
-  de los dos últimos segundos (clic en el número para reiniciarlo); *LUFS* muestra la
-  sonoridad del maestro —la momentánea arriba, la de corto plazo debajo, con una marca en
-  −14 LUFS (el nivel de los servicios de streaming)— y debajo la de corto plazo, la
-  integrada de la pasada (desde Reproducir; se mantiene tras Detener) y el pico real más
-  alto desde que pulsaste reproducir (clic en el número para reiniciarlo).
-- **Entradas**: el teclado del ordenador (`Ctrl+T`), la luz **MIDI** (se enciende cuando
-  llegan notas; el número son las entradas abiertas) y **Armadas** (cuántas pistas
-  grabarán; clic para armar la seleccionada).
+- **Transporte**: ir al inicio, reproducir, detener, grabar, bucle. **Clic derecho en la
+  tecla de grabar** para las opciones de grabación (preconteo, pinchado, tomas).
+- **Metrónomo** (`Ctrl+M`): su tecla y su ▾ en un mismo pozo. El ▾ tiene el **preconteo**
+  (no, 1, 2, 4 compases), el **nivel** del clic, el **sonido** (*Clásico*, *Caja
+  china*, *Pitido*), el **acento** en el primer tiempo de cada compás y **cuándo** suena
+  (siempre, al grabar, durante el preconteo). El sonido y el acento se guardan con la canción.
+- **Tempo**: `124.000 BPM` — arrástralo, gira la rueda, doble clic para 120; **clic en la
+  unidad para marcarlo a golpes** (`Shift+T`): dice *TAP* en el acento mientras marcas; da al
+  menos dos golpes — el tempo es la media de los últimos, una pausa empieza de nuevo, y cada
+  serie de golpes es un paso de deshacer. A su lado el **compás**: clic para los tiempos, la
+  figura y los compases usuales.
+- **El reloj**: el tiempo grande y fino, `compás · tiempo` debajo; al grabar se pone rojo y el
+  tiempo de la toma ocupa el lugar del tiempo.
+- **Rejilla y ajuste**: el imán y la rejilla en un mismo pozo — la rejilla y el ajuste del
+  editor en el que trabajas (el arreglo, el piano roll o el rack de canales); con un clip de
+  audio en el lugar del piano roll, la rejilla del editor de afinación, y con un clip de
+  automatización, la rejilla del arreglo. Los mismos valores que la barra del propio editor.
+- **Deshacer** y **rehacer**, y las siete **teclas de ventana**: explorador, arreglo, rack,
+  piano roll, la ventana del plug-in (`F8`), mezclador, inspector. La vista de sesión está en
+  `Tab` y en *Ver*; el teclado del ordenador en `Ctrl+T` y en la línea de estado; el armado de
+  la automatización y sus modos, en sus teclas y en la paleta.
+- **CPU, memoria, cortes**: la carga de la llamada de audio como una pequeña gráfica con su
+  número, la memoria que usa Cantus, y los cortes como una píldora roja cuando los hay (la
+  causa del último, en la línea de estado).
+- **Entradas**: la luz **MIDI** (se enciende cuando llegan notas) y el anillo de armado con
+  cuántas pistas grabarán.
+- **Medidor del maestro**: dos carriles finos con las marcas de la escala, surcos en reposo
+  (nunca «−∞») y una luz de saturación. Sus cifras están en la línea de ayuda al apuntarlo:
+  *Pico* muestra los picos izquierdo y derecho y mantiene el más alto de los dos últimos
+  segundos; *LUFS* muestra la sonoridad del maestro —la momentánea, la de corto plazo, la
+  integrada de la pasada (desde Reproducir; se mantiene tras Detener) y el pico real más alto
+  desde que pulsaste reproducir (clic para reiniciarlo).
 - **Sincronía** (se muestra mientras se sigue Link o un reloj externo, o si la muestras en
   *Personalizar la barra superior…*): **LINK** y sus pares, **Q** (el cuanto de Link) y
   **EXT** (el tempo de la fuente y su luz de enganche) — ver [Tocar en
   sincronía](#tocar-en-sincronía-ableton-link-reloj-midi-y-código-de-tiempo).
-- **El chip de audio** (ver [el chip de audio](#el-chip-de-audio)) y las **herramientas**:
-  el selector de elementos, la página de apariencia y el zoom de la interfaz.
+- **El dispositivo de audio** (ver [el chip de audio](#el-chip-de-audio)): su nombre, o el
+  aviso ámbar con *Sin dispositivo*; luego las **herramientas**: el selector de elementos y el
+  zoom de la interfaz; el engranaje abre **Ajustes**.
 
-**Con la ventana estrecha** los grupos menos importantes se pliegan —enteros— en el menú
-**⋯** del extremo derecho, donde funcionan igual que en la barra, con sus propios menús y
-ventanas emergentes; un grupo plegado vuelve en cuanto cabe. Los menús nunca se pliegan:
-están sobre el panel de ayuda, en su mismo ancho. Un punto en ⋯ avisa de que hay algo
-plegado (rojo si es el chip de audio y el audio necesita atención). **Personalizar la
-barra superior…** (en ⋯, en *Ver* o con clic derecho en la barra): marca un grupo para
-mostrarlo u ocultarlo, arrástralo por su asa para moverlo, *Restablecer* para volver al
-orden por defecto. Tu disposición se recuerda.
+**Más.** Con la ventana más estrecha (o a un tamaño mayor) los grupos se pliegan en un orden
+fijo — las herramientas, las entradas, la CPU y la memoria, las ventanas, y luego formas
+compactas del dispositivo, el metrónomo, el medidor, el tempo, el reloj y los menús — y esperan
+en **Más**, que muestra cuántos hay plegados. Su panel los ordena en secciones: *Metrónomo* (su
+tecla, su interruptor y su atajo; preconteo, nivel, sonido, acento), *Ventanas* (cada tecla con
+su atajo debajo), *Rendimiento* (CPU, memoria, voces y cortes como gráficas de los últimos 30 s
+con sus números), *Entradas* (los puertos, las pistas armadas por su nombre) y *Herramientas y
+zoom* (− 100 % +); las piezas pequeñas, bajo *También aquí*. Todo funciona ahí igual que en la
+barra; un grupo vuelve a la barra en cuanto cabe. El transporte siempre se queda. **Personalizar
+la barra superior…** (al pie de Más, en *Ver* o con clic derecho en la barra): marca un grupo
+para mostrarlo u ocultarlo, arrástralo por su asa para moverlo, *Restablecer* para el orden por
+defecto. Tu orden se conserva.
 
 ## 4. Grabar audio y MIDI
 
@@ -737,7 +779,7 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
   de nuevo para seguir en fila). **Silenciar**: `0`. **Renombrar**: `F2`. **Color**:
   `Ctrl+Shift+C`.
 - **Selección de tiempo**: arrastra en el carril inferior de la regla; la franja de arriba
-  es el bucle. `Shift+L` pone el bucle en la selección, `Z` la amplía.
+  es el bucle: un bucle dibujado ahí ya suena en bucle (un paso de deshacer). `Shift+L` pone el bucle en la selección, `Z` la amplía.
 - **Los clips de audio** tienen tiradores de fundido de entrada, de salida y de ganancia
   (doble clic en uno lo restablece; clic derecho en un fundido para su curva) y un menú con
   *Normalizar*, *Invertir*, *Restablecer ganancia* y *Quitar fundidos*.
@@ -789,8 +831,96 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
   cada trazo es un paso de deshacer; `Esc` la desactiva. Doble clic en un mosaico
   selecciona todas sus copias.
 
-La **rejilla** (barra del arreglo) empieza en un compás; elige valores más finos para el
-detalle. Desplázate con la rueda, `Shift+rueda` en el tiempo, `Ctrl+rueda` para el zoom.
+Desplázate con la rueda, `Shift+rueda` en el tiempo, `Ctrl+rueda` para el zoom. Bajo los
+carriles, el **mapa de la canción** es la barra de desplazamiento horizontal: cada pista una línea
+donde tiene clips, la vista un marco — arrastra el marco, arrastra sus extremos para el zoom,
+pulsa en otro sitio para ir ahí.
+
+### Las herramientas del arreglo, Seguir y la rejilla
+
+La barra del arreglo tiene su nombre, las **herramientas**, la **rejilla**, **Seguir** y el menú
+del panel **…**. Las herramientas son un juego de opciones — la elegida se ilumina — y sus teclas
+son las letras de FL y la fila de números mientras el arreglo tiene el foco (si no, las del piano
+roll):
+
+| Herramienta | Tecla | Qué hace |
+|---|---|---|
+| Seleccionar | `E` o `3` | Clic en un clip lo elige, arrastrarlo lo mueve, arrastrar su borde lo redimensiona; arrastrar en carriles vacíos selecciona. Es la que está en la mano al arrancar |
+| Dibujar | `P` o `1` | Clic en un carril vacío añade un clip de un compás en la celda de rejilla pulsada; arrastra para dibujarlo del largo arrastrado. Sobre un clip lo mueve y redimensiona, como Seleccionar |
+| Cortar | `C` o `6` | Clic en un clip lo parte en dos sobre la rejilla; el corte se dibuja antes bajo el puntero |
+| Borrar | `D` o `4` | Clic en un clip, o arrastra sobre varios, para eliminarlos (un paso de deshacer) |
+| Silenciar | `T` o `5` | Clic en un clip, o arrastra sobre varios, para silenciarlos o no |
+| Zoom | `8` | Clic acerca en el puntero, `Alt`+clic aleja, arrastra sobre unos compases para encajarlos |
+
+`B` (o `2`) sigue siendo la herramienta de pintar del navegador de clips (ver arriba), y `Z`
+amplía la selección. Las demás acciones de la fila antigua — partir, pegar, duplicar, silenciar,
+repetir, hacer único, borrar, poner en bucle y ampliar la selección, *Ajustar a la rejilla* —
+están en el menú del panel **…** y en el menú del clip, con sus teclas.
+
+- **Seguir** (activado al arrancar): mientras suena la canción, la vista pasa la página cuando el
+  cursor de reproducción sale de ella, empieza fuera o da la vuelta al bucle. Una vista que
+  desplazaste tú se respeta.
+- **La rejilla** (empieza en un compás): su menú tiene los valores en orden musical —
+  *Compás*, 1/2, *Tiempo*, 1/8, 1/16, 1/32 — con una marca en el actual, y luego **Tresillos**
+  (`Shift+3`; un valor y su tresillo, «1/8T») y **Seguir el zoom** (la rejilla pasa a ser el
+  valor más fino cuyas líneas quedan al menos a 12 puntos). `Ctrl` al arrastrar ignora la
+  rejilla. El menú de la rejilla del piano roll es el mismo.
+- Con la ventana estrecha la barra se pliega: primero las palabras de la rejilla y de Seguir,
+  luego el nombre se vuelve su glifo, y luego las herramientas se vuelven la elegida y un
+  chevrón que las lista todas.
+
+**Lo que muestran los clips.** El contenido de un clip se dibuja a cuatro zooms: de lejos, el
+contorno de alturas de un clip MIDI, el pulso de un clip de batería y la sonoridad de un clip de
+audio; más cerca, las notas en filas ordenadas por altura (una melodía, en orden de altura), cada
+tambor en una fila, los picos y la sonoridad de la onda; de cerca, las notas con su duración y
+su brillo según la velocidad, los dos lados del estéreo por separado (*L*, *R*), y los valores de
+un carril de automatización junto a sus puntos («−15.0 dB»). Los clips de la pista elegida se
+iluminan un paso; mientras una pista está en solo, los clips de las demás se atenúan; un clip
+bajo el cursor brilla mientras suena; un clip silenciado lleva un rayado. Al mover un clip, su
+sitio anterior queda punteado y el clip va sobre una sombra suave, con «Drop → 3.1» en la línea
+de ayuda; al redimensionar, el borde se ilumina y la línea de ayuda dice el largo en que cae
+(`Alt` estira, `Ctrl` ignora la rejilla). Apunta a un clip MIDI y aparece una pequeña **muesca**
+en su esquina superior derecha: arrástrala para repetir el clip a su largo (un paso de
+deshacer).
+
+### Secciones, carpetas, encabezados de pista y el icono de una pista
+
+- **Las secciones** son tramos de compases con nombre en un carril bajo la regla
+  (*Secciones*), cada uno con su largo («8 compases»); la que suena es la más marcada. Añade una
+  desde el menú del carril o desde la tecla de carriles en la esquina sobre los encabezados (de
+  la selección de tiempo, o de cuatro compases). Clic en una sección la elige, doble clic la
+  renombra, arrástrala por los compases (un paso de deshacer), arrastra su final para cambiar su
+  largo; su menú selecciona su tiempo o lo pone en bucle (*Repetirla en bucle*) y la quita.
+  Arrastrar una sección mueve la sección; mover con ella la música que tiene debajo está
+  planeado.
+- **Carpetas**: *Carpeta* en el menú de añadir pista, o el menú de una pista ▸ *Meter en una
+  carpeta nueva*. Una carpeta es una fila propia con un chevrón, su nombre y M · S (silencian y
+  ponen en solo a sus miembros, en un paso); su carril muestra los clips de los miembros como
+  barras finas. Cerrada, es una sola fila («Carpeta · 4 pistas → Drum bus») y sus miembros no
+  ocupan altura; abierta, los miembros van sangrados bajo ella. Suelta un encabezado entre dos
+  miembros para meterlo en su carpeta, en cualquier otro sitio para sacarlo; *Sacar de su
+  carpeta* y *Desagrupar* lo hacen desde el menú.
+- **Los encabezados de pista**: el número, el nombre, una línea debajo (el instrumento, la
+  entrada armada con su medidor, o *Congelada*), un medidor fino, y M S ● A como letras en reposo
+  — reunidas en un pozo bajo el puntero; solo la tecla activada se ilumina (S en ámbar, ● en rojo,
+  A en violeta; M con un contorno ámbar cuando un solo silencia la pista). Alturas de 24, 32, 44
+  (la predeterminada), 64 (con el nivel como deslizador) y 96 (con las inserciones en palabras),
+  desde el menú de la pista ▸ *Altura*, o cualquier altura arrastrando el pie de una fila (`Alt`:
+  todas las pistas). Arrastra el borde de los encabezados para su ancho (120–360).
+- **Un modo por carril de automatización**: el encabezado de un carril de automatización muestra
+  su **ficha de modo** (Read, Touch, Latch, Write); clic para darle a ese carril un modo propio
+  sobre el de su pista.
+- **El icono propio de una pista**: el menú de la pista ▸ *Icono…*, o un clic en el icono delante
+  de su nombre, abre el **selector de iconos**: 316 dibujos en 17 familias (baterías, percusión,
+  percusión afinada, guitarras y bajos, cuerdas, vientos y metales, teclados, electrónica, voz,
+  sonido y efectos, mezcla, marcas y formas…), los que usaste hace poco en una fila arriba,
+  **Ninguno** para quitarlo, y un campo de búsqueda que encuentra un icono por su nombre en
+  español o en inglés o por un alias, con o sin acentos. El icono aparece delante del nombre de
+  la pista, en la cabeza de su canal en el mezclador y en el inspector. Cada elección es un paso
+  de deshacer.
+- **Una canción vacía** ofrece *Empieza tu canción* con tres comienzos (una pista de
+  instrumento, una batería, una pista de audio), un sitio para soltar un sonido, un bucle o un
+  archivo MIDI, y *O abre una canción de demostración*.
 
 ### La pista de tempo y los marcadores
 
@@ -873,6 +1003,26 @@ desplazan, `Q` cuantiza, `Ctrl+C`/`Ctrl+V` copian y pegan. Las velocidades son t
 el carril bajo la rejilla: arrástralos, o `Alt+rueda` sobre una nota. Una batería muestra
 una fila con nombre por pad.
 
+**El teclado y las notas.** El teclado de la izquierda se dibuja como un piano: teclas de
+marfil y ébano con los anchos de un piano real (de do a mi comparten cinco filas, de fa a si
+siete, así que solo mi|fa y si|do caen en líneas de fila), cada do con su nombre en su tecla, el
+do central más marcado. La tecla bajo el puntero se ilumina, la que suena con un clic se ilumina
+más, y mientras suena la canción las teclas que suenan se encienden en el color de la pista. La
+esquina de encima, **Filas**, fija la altura de las filas: *Compacta · 8*, *Normal · 12* o
+*Alta · 18* (`Ctrl+Alt+rueda` sobre las notas las amplía libremente). El relleno de una nota
+sigue su velocidad, con un ataque más brillante y su nombre dentro cuando cabe; una nota elegida
+se eleva y lleva un aro; una nota silenciada va hueca.
+
+**Fantasmas** (la luz *Fantasmas* de la cabecera, encendida por defecto) muestra tenues detrás
+de este clip las notas de los demás — las de esta pista en su color, las de otras pistas en
+gris — y la cabecera dice de quién son («Pluck · Lead · Choir»). Nunca se eligen ni se mueven.
+
+**La cabecera** dice qué clip está abierto: la franja y el nombre de la pista › el nombre del
+clip, un menú con los otros clips de esta pista y los de otras pistas (*Otras pistas*), y, con
+notas elegidas, cuántas y su ámbito («6 notas seleccionadas · E4 – C5 · velocidad 90 – 95»). Sus
+herramientas, la rejilla, el ajuste, Fantasmas y las partes de la escala se pliegan en una
+ventana estrecha, como las del arreglo.
+
 **Carriles bajo las notas.** Bajo la rejilla, cada clip muestra su carril de velocidad y los
 carriles que tiene. El **+** de la celda del carril de velocidad añade uno: **Velocidad de
 liberación** (lo rápido que se suelta cada nota — arrastra sus tallos; un aro en el suelo es
@@ -897,9 +1047,29 @@ sus celdas las desplaza. Los archivos MIDI traen sus inflexiones, presión y con
 estos carriles y los vuelven a sacar al exportar, con la velocidad de liberación de cada
 nota.
 
+### El rack de canales
+
 El **rack de canales** (`F6`) muestra cada pista como una fila de pasos sobre los compases
 del clip seleccionado: clic enciende un paso, clic derecho lo apaga, arrastrar pinta. Un
 paso es una nota normal.
+
+- **Una fila** es la luz del canal, sus dos perillas, su pista del mezclador, su **placa con el
+  nombre** y sus pasos; el color del canal es una franja a la izquierda (entera si está
+  elegido), y la fila elegida se tiñe a lo largo de la rejilla. Un paso encendido se llena desde
+  abajo hasta su velocidad en el color del canal; los tiempos dos y cuatro van un paso más
+  claros.
+- **Una batería** lista sus pads bajo su propia fila, sangrados, con una línea de árbol; su
+  placa dice cuántos pads tiene («3 pads»). **Su chevrón pliega los pads** bajo la fila de la
+  batería (la fila sigue mostrando sus golpes) y los vuelve a abrir.
+- **Un canal melódico** muestra su patrón como un pequeño piano roll en un pozo a lo largo de la
+  página, y un canal de audio la forma de onda de su sonido.
+- **Dos compases por página** cuando el rack está ajustado; el **mapa del patrón** a la derecha
+  de la cabecera muestra cada compás del patrón (la página a la vista en relieve, los golpes de
+  cada tiempo como una marca) — clic en un compás para ir a esa página; la barra de
+  desplazamiento recorre el resto.
+- **Al pie**: **Añadir un canal** abre el selector de instrumentos para un canal nuevo al final;
+  debajo, una zona para soltar — *Suelta aquí un sonido para un canal nuevo*, *o sobre un canal
+  para cambiar su muestra* — se ilumina mientras arrastras un sonido del explorador sobre ella.
 
 ### El editor de afinación
 
@@ -1020,7 +1190,7 @@ archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
   no sigue el tempo conserva su velocidad natural); **Formantes ▸ Conservar** mantiene el
   color de una voz al transponerla (sin efecto "ardilla"). El nivel queda como estaba.
 - **Detectado** y **Certeza** en el inspector: el tempo y los compases que encontró el
-  análisis, y lo seguro que está. Sobre un marcador, el panel de ayuda da la velocidad a
+  análisis, y lo seguro que está. Sobre un marcador, la línea de ayuda da la velocidad a
   la que suena el audio tras él, frente al tempo vigente allí.
 - **Cuantizar audio…** (el menú del clip o el inspector, sobre cada clip de audio
   seleccionado junto al que elegiste): acerca los transitorios a una rejilla con una
@@ -1120,8 +1290,8 @@ sobre su automatización.
 - **En todas partes**: cada perilla de los instrumentos y efectos de Cantus, los faders,
   panoramas y anchuras del mezclador (también los del máster), el **nivel de cada envío**
   (su perilla y su fila en la mesa, el nivel de su cable, las filas de envíos y de entradas
-  del inspector; el menú de un envío tiene *Automatizar* y *Modular…* para él), la tira fija
-  del inspector y los parámetros de un plug-in alojado aceptan un modulador del mismo modo.
+  del inspector; el menú de un envío tiene *Automatizar* y *Modular…* para él), la sección
+  *Nivel* del inspector y los parámetros de un plug-in alojado aceptan un modulador del mismo modo.
   También la **cantidad** de un modulador: deja que una fuente aleatoria mueva cuánto se
   mueve un LFO (un nivel de anidamiento). La afinación de Chorda (A4, estiramiento,
   rigidez) se fija; no se automatiza ni se modula.
@@ -1439,32 +1609,56 @@ melodía, una parte de acordes o un loop de batería en notas en una pista nueva
 ![El mezclador](../img/mixer.png)
 
 Cada pista alimenta un **canal** del mezclador (`F9`); los canales van al **máster**, a la
-izquierda, o a otro canal (un bus). Un canal tiene su medidor, silencio y solo, paneo,
-fader, fase e intercambio, anchura, EQ de tres bandas, sus inserciones y sus envíos. Clic
-selecciona, `Ctrl+clic` añade, `Shift+clic` toma un tramo; mover un fader de una selección
-mueve todos. Con el foco en el mezclador, `M` silencia, `S` pone solo,
-`Alt+Izquierda`/`Alt+Derecha` mueven el canal. `Ctrl+rueda` cambia el ancho de los canales;
-en *Extra grande* cada canal muestra un resumen de su cadena en una línea (un clic abre el
-inspector). El menú ▾ de la mesa ▸ *Panel de inserciones* acopla a la derecha de la mesa los
-diez huecos de inserción del canal elegido: un clic en un hueco abre su efecto, y en uno
-vacío abre el inspector, donde se añaden las inserciones; cada distribución del mezclador
-guarda la elección.
+izquierda, o a otro canal (un bus). Un canal se lee de arriba abajo en el orden que sigue la
+señal: su **cabeza** (el número sobre el nombre, el icono de la pista, el punto de armado), las
+**inserciones** (un punto y el tipo de la unidad en cada una; la primera libre, un `+` tenue), su
+propia **curva de EQ**, fase e intercambio, el **paneo** (y la perilla de anchura), **M | S** en
+una sola píldora, el **fader** con su medidor al lado y su nivel debajo, los **envíos** como
+perillas pequeñas y la **salida** («Master» discreto, o «→ Drum bus»). Nada dice «−∞» en reposo;
+no hay columna de etiquetas. Tres anchos — **Compacto**, **Ancho** y **Grande** (el nombre de la
+unidad en cada inserción, el nivel de los envíos en dB, las bandas de la EQ como puntos sobre la
+curva, los LUFS de corto plazo del máster) — en la cabecera de la mesa o con `Ctrl+rueda`; una
+mesa baja va cediendo filas (la EQ, la fila de fase, las inserciones a una línea de resumen, los
+envíos…) y luego se desplaza. Cuando el mezclador está acoplado bajo una barra con sitio, su
+cabecera — los anchos, **Filas ▾** (qué filas muestran los canales, entre ellas *Desde el canal
+elegido*, y *Panel de inserciones*), la ficha de solo («1 en solo · Quitar»), **Cables**,
+**Instantáneas** y `+` — va en la fila de pestañas del espacio de trabajo, a la derecha de las
+pestañas. Clic selecciona un canal (su cuerpo teñido, su franja entera), `Ctrl+clic` añade,
+`Shift+clic` toma un tramo; mover un fader de una selección mueve todos. Con el foco en el
+mezclador, `M` silencia, `S` pone solo, `Alt+Izquierda`/`Alt+Derecha` mueven el canal. Un canal
+silenciado se apaga en tinta; uno que calla por el solo de otro muestra su M con un aro del color
+del solo.
 
-- **Inserciones** (hasta diez por canal): clic en una ranura vacía para elegir un efecto
-  en el selector, o clic derecho para la lista rápida. En una ranura ocupada, clic en la
-  luz la puentea y en el nombre abre su ventana; clic derecho para cambiarla, moverla o
-  quitarla. En el inspector, cada inserción tiene un anillo de **Mezcla** (seco/procesado).
-- **Envíos**: selecciona un canal y mira la fila *Envíos* de los demás — haz clic en el ▲
-  del canal al que quieres enviar (un retorno de reverb, un compresor en paralelo); una
-  perilla fija entonces el nivel del envío. Cada envío toma la señal **después del fader
-  (POST, por defecto) o antes (PRE)** — clic en su chip PRE/POST; un envío PRE sigue sonando
-  al bajar el fader.
-- **Cables**: cada canal tiene un puerto. Arrastra desde él a otro canal, o haz clic en él y
-  luego en el destino (`Esc` cancela): sin tecla es un envío a 0 dB, con `Ctrl` la única
-  salida del canal, con `Alt` una llave de sidechain. Los cables del canal seleccionado (o
-  todos, o ninguno — el interruptor sobre la mesa, con un filtro de tipos) se dibujan en
-  una banda bajo la mesa; clic en un cable lo selecciona, arrastrar su extremo lo mueve,
-  `Supr` lo quita. Un camino doble se permite y se marca. Cada cambio es un paso de deshacer.
+- **Inserciones** (hasta diez por canal): clic en la fila `+` (o clic derecho en el canal ▸
+  *Añadir efecto ▸*, donde arriba están los cinco efectos que usaste último) para elegir un
+  efecto en el selector de dispositivos. Un clic en las inserciones muestra la cadena del canal
+  en el inspector, donde cada inserción abre su ventana, tiene su luz (puentear) y una
+  **Mezcla** (seco/procesado); clic derecho en una inserción del canal para su menú. Una
+  inserción con llave muestra su glifo de llave («← Kick» al apuntarla, con el canal de origen
+  remarcado).
+- **Envíos**: un envío es una perilla pequeña bajo el nombre de su destino (en Ancho y Grande;
+  en Compacto, un punto — clic para su perilla); su valor en dB aparece en lugar del nombre
+  mientras lo apuntas o lo arrastras. Para crear uno, arrastra un cable (abajo), usa *Envíos ▸
+  Añadir un envío* en el inspector, o activa *Filas ▾ ▸ Desde el canal elegido* y haz clic en el
+  ▲ del canal al que quieres enviar. Cada envío toma la señal **después del fader (por
+  defecto) o antes** — su menú ▸ *Antes del fader*; un envío antes del fader sigue sonando al
+  bajar el fader.
+- **Cables**: cada canal tiene dos **jacks** al pie — su entrada y su salida. Arrastra desde un
+  jack de salida a otro canal, o haz clic en él y luego en el destino (`Esc` cancela): sin tecla
+  es un envío a 0 dB, con `Ctrl` la única salida del canal, con `Alt` una llave de sidechain;
+  mientras arrastras, la línea de ayuda dice qué hará («Enrutar Chords a Drum bus») o por qué no
+  se puede (un bucle). En reposo no se dibuja nada; bajo un canal sus rutas se leen en palabras
+  («→ Drum bus», «3 rutas»), y el canal bajo el puntero ilumina los canales a los que llega.
+  **Cables** en la cabecera dibuja los cables del canal elegido en una banda bajo la mesa
+  (*Mostrar todos*, en su menú, dibuja todas las rutas, las demás atenuadas); apunta a un cable y
+  se ilumina **toda su ruta hasta el máster** mientras el resto se atenúa; clic en un cable lo
+  selecciona, tirar de su clavija en el jack de entrada lo mueve, `Supr` lo quita. Cada cambio es
+  un paso de deshacer. **Cuatro estilos**, en el menú de Cables ▸ *Estilo de cables* o en
+  *Ajustes ▸ Apariencia*: **Latiguillo** (curvas que cuelgan entre los jacks), **Flujo** (el
+  predeterminado: Latiguillo con una luz que recorre el cable mientras pasa sonido, más rápida
+  cuanto más suena, quieta al parar), **Metro** (tramos rectos en carriles que nunca se
+  solapan, con esquinas redondeadas) y **Jack** (clavijas y cables que se comban y se asientan un
+  momento al soltarlos). *La del tema* sigue el estilo propio del aspecto.
 - **Ruteo**: clic derecho en un canal ▸ *Enrutado* ▸ *Salida* o *Enviar a*, `Shift+F10`
   para el menú de ruta del canal seleccionado, o selecciona varios canales y *Crear
   submezcla con los seleccionados*. En el menú de ruta de un cable o un envío, *Nivel ▸
@@ -1481,6 +1675,46 @@ guarda la elección.
 
 **El solo** sigue el ruteo: un canal en solo se oye con lo que lo alimenta y aquello a lo
 que alimenta.
+
+### El inspector
+
+El inspector (`I`) muestra la pista, el canal o el clip elegido como una hoja que sigue la señal.
+Para un canal, bajo su cabeza (el color, el número, el nombre, *Canal del mezclador* y el menú ⋯):
+
+- **Fuente** — lo que suena en el canal: el icono de la pista, el nombre del instrumento y el de
+  la pista; un clic muestra la pista, la flecha abre el instrumento. Un bus o un retorno lista
+  los canales que le llegan; el máster dice *La mezcla completa*.
+- **Inserciones** — una fila por inserción (su número, la unidad y su tipo, su luz, la tecla de
+  una vista mini bajo el puntero) y una fila *+ Añadir un efecto*. La **vista mini** se abre
+  bajo la fila con tres valores de la unidad para arrastrar (un compresor: *Umbral*,
+  *Proporción* y su reducción en vivo); cada uno conserva *Aprender*, *Modular…* y la
+  automatización. Arrastra una fila por su número para reordenarla: se levanta, y una línea
+  muestra dónde caerá.
+- **Ecualizador** — la curva de EQ del canal para arrastrar, y debajo una tabla de bandas: la
+  frecuencia, la ganancia y la Q de cada banda, cada cifra arrastrable.
+- **Envíos** y **Recibe** — cada envío con su interruptor, nombre, barra de nivel y valor; una
+  sección vacía es *+ Añadir un envío*.
+
+Luego las secciones que se pliegan a una línea cada una, con su estado a la derecha — un clic en
+el título la abre o la cierra:
+
+- **Ruteo** — la salida, la entrada, la polaridad, el intercambio y el mono del canal, la
+  compensación de retardo y la latencia.
+- **Cadena lateral** — qué inserción lleva la llave y desde qué canal.
+- **Grabación** — la entrada, la *Escucha*, el *Ajuste*, *Armar*, *Baja latencia*.
+- **Automatización** — el modo de la pista del canal (*Read · Touch · Latch · Write*), una línea
+  por carril con una pequeña imagen y sus puntos, y **Mostrar en el arreglo**: abre los carriles
+  de automatización de la pista, desplaza el arreglo hasta ellos y le da el foco (un paso de
+  deshacer).
+- **Nivel** — volumen, paneo y anchura como barras con sus valores, los VCA que sigue el canal,
+  *Silencio · solo*, *A salvo de instantáneas* y *A salvo del solo*; bajo el volumen, un medidor
+  fino en la misma escala (verde, amarillo, ámbar, el color de saturación encima, un pico
+  retenido). Con varios canales elegidos, el volumen los mueve juntos. Nivel ocupa el lugar de
+  la antigua tira fijada al pie del panel.
+- **Congelar** — **Congelar la tira** (o *Descongelar*) y lo que hace; congelado, cuántas
+  inserciones se renderizaron y cuánto ocupa el render en disco («2 inserciones renderizadas ·
+  12 MB»).
+- **Moduladores** — abiertos cuando el canal tiene alguno.
 
 ### Congelar y pasar a audio en su lugar
 
@@ -1701,35 +1935,53 @@ a medias. Se recuerdan tus últimas opciones.
 
 ## 9. Sonidos: el explorador y los paquetes de sonidos
 
-El **explorador** (`Alt+F8`, la primera tecla de ventana) se acopla a la izquierda. Lista
-los paquetes de sonidos que instalaste y *Mis carpetas* (haz clic en **+** para añadir
-cualquier carpeta de muestras).
+El **explorador** (`Alt+F8`, la primera tecla de ventana) se acopla a la izquierda. Lista tus
+**Favoritos**, los paquetes de sonidos que instalaste (*Paquetes*) y *Mis carpetas* (haz clic en
+**+** para añadir cualquier carpeta de muestras).
 
 ![El explorador de muestras](../img/browser.png)
 
-- **Clic** en un sonido para oírlo; otro clic lo detiene. Escribe en el campo de búsqueda
-  para encontrar sonidos en todos los paquetes y carpetas.
+- **Clic** en un sonido para oírlo; otro clic lo detiene. Cada fila tiene una marca de lo que es:
+  un paquete, su portada; una carpeta, el glifo de carpeta; un sonido, su propia forma de onda
+  pequeña; las líneas de árbol muestran dónde vive cada sonido.
+- **Buscar**: escribe en el campo de búsqueda para encontrar sonidos en todos los paquetes y
+  carpetas. La coincidencia se ilumina dentro de cada nombre. Los resultados se **agrupan por el
+  paquete o la carpeta donde están**, cada grupo con su título y su cuenta; cinco por grupo hasta
+  *Mostrar los otros N sonidos*; cada resultado muestra su lugar bajo su nombre («Kicks › Hard»).
+  Clic en el título de un grupo deja la búsqueda en ese lugar: una **ficha** lo dice (clic en su
+  × para soltarla), y otra ficha nombra la pestaña de familia elegida.
 - Las **pestañas** bajo la búsqueda (*Todo*, *Batería*, *Loops*, *Melódico*, *FX*) dejan
-  una familia de sonidos, leída de sus nombres. Los sonidos son una tabla: cada fila
-  muestra la **portada** de su paquete, su nombre, su **forma de onda**, su **tempo** y su
-  **duración** en columnas, y su **tonalidad** cuando su nombre la dice ("Chord Stab Am",
-  "Drum Loop 124 BPM").
-- El sonido elegido tiene una **ficha** bajo la lista: su formato (WAV · 44.1 kHz · Estéreo
-  · 4.0 s), una forma de onda más grande (un clic lo toca) y sus etiquetas.
-- La **franja de escucha** al pie del explorador muestra el sonido elegido: ▶ / ■ para
-  tocarlo o detenerlo, cuánto lleva sonado y el **nivel de escucha** (haz clic o arrastra
-  a lo largo; el sonido vuelve a empezar al nuevo nivel).
+  una familia de sonidos, leída de sus nombres; las cuentas siguen a la pestaña.
+- El sonido elegido tiene una **tarjeta**: su nombre con su **estrella** a la derecha, dónde
+  está, sus etiquetas y un **pozo con la forma de onda** — un clic lo toca; mientras suena, lo
+  oído se ilumina y una línea marca por dónde va. Bajo el pozo, las teclas de la tarjeta:
+  **reproducir**, **bucle** (el sonido vuelve a empezar al terminar), el **nivel de escucha**
+  (arrástralo mientras suena — no vuelve a empezar) y las cifras («0:00.4 / 0:01.2 · 48 kHz ·
+  Estéreo»).
+- **La estrella** guarda un sonido en **Favoritos**, que se listan primero en el explorador;
+  pertenece a los ajustes de este equipo, no a la canción.
 - **Arrastra** un sonido a un **pad de Pulsus** (el pad lo toca), al mapa de teclas de
   **Exemplar** (una zona en esa tecla), al **rack de canales** (un canal de muestra nuevo
-  con su propio canal del mezclador) o al **arreglo** (un clip de audio donde lo sueltas).
-  Cada arrastre es un solo paso de deshacer.
+  con su propio canal del mezclador, o sobre un canal para cambiar su muestra) o al
+  **arreglo** (un clip de audio donde lo sueltas). Cada arrastre es un solo paso de deshacer.
 - Sin nada instalado, el explorador ofrece **Empieza con una batería**: *Descargar* trae la
-  *Batería inicial de Cantus* (81 golpes, 33 MB). *Paquetes de sonidos…* (o *Más
-  paquetes…*) lista los demás — las baterías de Karoryfer, la percusión de VCSL y VSCO 2,
-  un TX81Z para Exemplar, el **piano de cola Salamander** (un Yamaha C5, 16 capas de
-  velocidad) y **DRSKit**, una batería acústica grabada por el equipo de DrumGizmo — con
-  su tamaño, licencia y créditos; *Instalar*, *Actualizar*, *Quitar*,
-  mostrar la carpeta e *Instalar desde un archivo…* para equipos sin internet.
+  *Batería inicial de Cantus* (81 golpes, 33 MB).
+
+**La ventana de paquetes de sonidos** (*Paquetes de sonidos…*, o *Más paquetes…*) muestra cada
+paquete como una **portada** dibujada a partir de lo que contiene (aros de batería, una forma de
+onda, un teclado, una respuesta al impulso…), agrupados por categoría, con su nombre, qué es,
+cuántos archivos tiene y su licencia, y **su estado**: *Obtener · 140 MB* (un clic lo descarga);
+mientras se descarga, una barra fina, «42 % de 54 MB» y *Cancelar*; *Instalado* con una marca, y
+*Abrir* (lo abre en el árbol del explorador); o *Actualizar · 4 MB*. Su cabecera cuenta los
+paquetes («8 paquetes gratuitos · 3 instalados · 471 MB en disco») y los filtra (*Todos ·
+Instalados* y cada categoría); **Orden**, a la derecha, los ordena por categoría, nombre o
+tamaño. Clic en una portada para su página junto a la cuadrícula: detalles, licencia y créditos,
+*Instalar*, *Actualizar*, *Quitar*, mostrar la carpeta e *Instalar desde un archivo…* para
+equipos sin internet. *Dónde se guardan los paquetes ›*, al pie, muestra la carpeta. Los
+paquetes: los propios de Cantus, las baterías de Karoryfer, la percusión de VCSL y VSCO 2, un
+TX81Z para Exemplar, el **piano de cola Salamander** (un Yamaha C5, 16 capas de velocidad),
+**DRSKit**, una batería acústica grabada por el equipo de DrumGizmo, y las **Respuestas al
+impulso de OpenAIR** para [Aula](#aula-la-reverb-de-convolución).
 
 Todos los paquetes son gratuitos. Casi todos son **CC0** (sin tener que citar); el piano
 Salamander es **CC BY 3.0** y DRSKit **CC BY 4.0**: su crédito aparece en su página de
@@ -1827,12 +2079,12 @@ Tonsor (recortador), Impetus (moldeador de transitorios), Discrimen (divisor de
 transitorios), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Speculum
 (analizador), Tonus (corrección de afinación), Concentus (chorus), Flexus (flanger), Phasis
 (phaser), Tremor (trémolo y auto-pan), Vibrans (vibrato), Anulus (modulador en anillo),
-Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Delay y Reverb.
+Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Aula (reverb de convolución), Delay y Reverb.
 
 ### La cara de cada unidad
 
-Cada efecto e instrumento de Cantus lleva una cara propia —todos menos el Delay y el Reverb
-sencillos y Firmus, el sintetizador con el que empieza cada pista nueva, que conservan el
+Cada efecto e instrumento de Cantus lleva una cara propia —todos menos el Reverb
+sencillo y Firmus, el sintetizador con el que empieza cada pista nueva, que conservan el
 aspecto sencillo del kit—, como el hardware y como los mejores plug-ins: su color y el material de su panel (metal cepillado, madera, pintura mate,
 vinilo de amplificador, cristal…), el aspecto de su pantalla (una pantalla que brilla, un LCD, tinta sobre
 papel, la cuadrícula de un osciloscopio), la forma de sus perillas e interruptores (un anillo
@@ -2063,6 +2315,86 @@ ValhallaSupermassive*. Cada archivo se revisa en un
 proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin tumbar
 Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros
 DAW.
+
+### Aula, la reverb de convolución
+
+**Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de
+una **respuesta al impulso** — la grabación de cómo responde una sala a un solo chasquido — como
+lo haría la propia sala. Se inserta desde **Añadir inserción ▾ ▸ Espacio ▸ Aula**; empieza en la
+*Sala de conciertos* de Cantus, a un cuarto de mezcla y con 12 ms de pre-retardo (el preset *Sala al 25 %*).
+
+**De dónde viene la respuesta** (la tarjeta *Origen*):
+
+- **De Cantus** — quince respuestas que hace el propio Cantus, iguales en todo ordenador y sin
+  nada que descargar: *Sala de estudio*, *Sala pequeña*, *Sala de madera*, *Sala en vivo*,
+  *Ambiente*, *Cámara*, *Cámara de piedra*, *Sala de conciertos*, *Sala grande*, *Catedral*,
+  *Placa*, *Placa vocal*, *Placa oscura*, *Muelle* y *Muelle largo*. Todas son estéreo real: un
+  sonido a la izquierda se oye en los dos lados, como en una sala.
+- **Un archivo** — **Cargar archivo** (o soltar un archivo sobre el editor) toma una respuesta
+  WAV, AIFF, FLAC u Ogg: un canal (mono), dos (estéreo: izquierda a izquierda, derecha a
+  derecha) o cuatro (**estéreo real**, en el orden izquierda→izquierda, izquierda→derecha,
+  derecha→izquierda, derecha→derecha, como lo escriben Waves, Altiverb y REAPER), de 16, 24 o
+  32 bits flotante, a cualquier frecuencia de muestreo (Aula la convierte), hasta 20 segundos.
+  El archivo se queda donde está; el proyecto recuerda su ruta. Si falta, la tarjeta lo dice y
+  la reverb calla hasta que vuelva. **Volver a las de Cantus** olvida el archivo.
+- **Un paquete libre** — *Muestras ▸ Conseguir más ▸ Respuestas al impulso de OpenAIR* descarga
+  ocho espacios reales medidos por la biblioteca OpenAIR de la Universidad de York (dos iglesias
+  de Nashville, la catedral de York, un mausoleo, el salón de un club de mujeres, una sala de
+  mármol, una sala de mecanografía y un muelle de juguete), bajo CC BY 4.0. Su crédito aparece
+  en la tarjeta cuando suena uno de sus archivos; da crédito a OpenAIR (www.openairlib.net) y a
+  los autores que allí se nombran cuando publiques música hecha con ellos.
+
+**La imagen** es la respuesta en decibelios a lo largo del tiempo, después del pre-retardo, tal
+como la moldean los controles de abajo: se mueve en cuanto se mueve una perilla. Mientras se
+prepara una respuesta nueva, la pantalla dice *Preparando la respuesta…*; la anterior sigue
+sonando hasta que la nueva entra entera, sin chasquido, y se conserva la cola de lo que sonaba.
+
+| Tarjeta | Controles |
+|---|---|
+| Longitud y tiempo | **Estirar** (50–200 %: una sala más grande o más pequeña, más grave o más aguda), **Longitud** (la parte que se conserva, con un desvanecido al final), **Invertir** (la respuesta al revés: una crecida hacia el sonido) |
+| Envolvente | **Ataque** (la respuesta entra gradualmente), **Caída** (100 % tal como se grabó; menos, la cola muere antes), **Puerta** (donde la respuesta cae tanto bajo su pico, termina: quita el ruido de fondo de una grabación; *No* a −120 dB) |
+| Tono | **Corte grave** y **Corte agudo** (12 dB por octava, sobre la respuesta), **Amortiguación** (los agudos se apagan antes a medida que avanza la cola) |
+| Salida | **Pre-retardo** (0–500 ms), **Anchura** (0 mono … 200 %), **Mezcla** (seco y húmedo en fundido cruzado), **Nivel** |
+
+**Exacta y ligera.** Aula no añade latencia: las primeras 64 muestras de la respuesta suenan en
+forma directa y el resto en particiones que crecen de ocho en ocho, con el trabajo de cada una
+repartido por igual en los bloques previos, así que una sala larga cuesta lo mismo en cada
+bloque. Queda a −130 dB de una convolución directa, da los mismos bits con cualquier tamaño de
+búfer y exporta, congela y separa en stems exactamente como suena. Con la mezcla al 0 % deja el
+sonido intacto, bit a bit.
+
+**En otro DAW.** El *Cantus Aula* exportado en CLAP y VST3 suena con las quince respuestas de
+Cantus (el estado de un plug-in guarda números, no archivos). Los agentes ajustan sus números con
+`set_effect` y cargan un archivo con `set_impulse_response` (solo si permitiste los archivos, y
+solo dentro de las carpetas que permitiste).
+
+### Delay, el delay estéreo
+
+**Delay** es el eco estéreo de Cantus: un tiempo de hasta dos segundos, realimentación, un filtro
+de tono en el lazo para que cada repetición sea más oscura que la anterior, y ping-pong entre los
+lados. Se inserta desde **Añadir inserción ▾ ▸ Espacio ▸ Delay**; un clic en su inserción abre su
+ventana (la vista reducida bajo la inserción deja a mano el tiempo, la realimentación, el tono y la
+mezcla).
+
+**Los ecos** son la imagen de la ventana y su control: el lado izquierdo sobre la línea central,
+el derecho debajo; el sonido en 0 y luego cada repetición en su tiempo, su altura su nivel frente
+a la primera, su color enfriándose del coral de su cara al óxido a medida que el tono le quita
+agudos. Con **Ping-pong** activo, la primera repetición va a la izquierda y cruzan de un lado a
+otro; sin él, cada lado se repite a sí mismo. **Arrastra** sobre la imagen: a lo ancho para el
+tiempo (la primera repetición sigue al puntero), arriba y abajo para la realimentación (las líneas
+de nivel discontinuas lo siguen) — un paso de deshacer. Mayús es fino; un doble clic vuelve a
+375 ms y 40 %. Mientras suena, cada repetición se ilumina cuando el sonido la alcanza; en reposo
+nada se mueve.
+
+| Tarjeta | Controles |
+|---|---|
+| Lo que se oye | las repeticiones hasta −60 dB, la cola que hacen, lo que el tono quita a cada repetición a 8 kHz, el lado de la primera |
+| Tiempo | **Tiempo** (1 ms … 2 s); **Al tempo**: una figura al tempo de la canción fija el tiempo una vez — no sigue un cambio de tempo |
+| Repeticiones | **Realimentación** (0–95 %), **Tono** (200 Hz … 20 kHz, en el lazo) |
+| Salida | **Ping-pong**, **Mezcla** (las repeticiones frente al sonido seco) |
+
+Un cambio de tiempo se desliza, así que un barrido dobla el tono como una cinta. Delay no se
+exporta como plug-in CLAP ni VST3.
 
 ### Plug-ins de otros fabricantes: instalarlos y usarlos
 
@@ -2341,16 +2673,17 @@ así que una plantilla de una versión anterior se abre como cualquier proyecto.
 
 **Ajustes** (`Ctrl+,`, o el menú **Opciones**, que además abre cada página directamente;
 *Ver ▸ Ajustes…* sigue funcionando). La ventana tiene una barra lateral de páginas, como
-las opciones de FL: *General* (el versículo al iniciar, sí o no, y la Biblia en
+las opciones de FL, y abre en la página donde la dejaste, también en la sesión siguiente: *General* (el versículo al iniciar, sí o no, y la Biblia en
 español), *Audio* (controlador, dispositivos, frecuencia, búfer, latencia, la corrección
 de grabación y los *Núcleos de audio* que trabajan — el hilo de audio y los núcleos que lo
 ayudan, `1` para el hilo de audio solo — cada número con un motor y un modelo por el que
 se le conoce, dibujado a la derecha de la lista y en grande bajo el campo:
 `4 · V4 · Fulvia`, `12 · V12 · Enzo`, más de 16 un turborreactor-estatorreactor; la línea de
 debajo dice cuántos trabajan ahora, contados igual; la prioridad de tiempo real que recibió
-cada hilo de audio es la última línea del bloque), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz, *Cada unidad
+cada hilo de audio es la última línea del bloque), *MIDI*, *Apariencia* (idioma — English o Español —, la familia del aspecto y su modo —
+mira [el aspecto](#3-el-espacio-de-trabajo) —, tamaño de la interfaz, el estilo de los cables, *Cada unidad
 con su propia cara* — sí o no, mira [La cara de cada unidad](#la-cara-de-cada-unidad) —,
-colores, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB
+colores, los colores del icono de la barra de tareas, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB
 de forma predeterminada; cuando se llena, salen primero las muestras que llevan más tiempo
 sin usarse — y *Vaciar caché*; vive en `%LOCALAPPDATA%\Cantus\cache\samples`, o en la
 carpeta `data` de una copia portátil), *Actualizaciones*, *Plug-ins* e *IA* (mira
@@ -2434,7 +2767,8 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Izquierda` `Derecha` (`Shift`: un compás) | Desplazar |
 | `Arriba` `Abajo` (`Shift`: una octava) | Transportar notas |
 | `Q` | Cuantizar |
-| `P` `B` `E` `D` `T` `C` `Y` o `1`–`7` | Herramientas del piano roll; en el arreglo, `B` o `2` es la herramienta de pintar |
+| `P` `B` `E` `D` `T` `C` `Y` o `1`–`7` | Herramientas del piano roll; en el arreglo `E` `P` `C` `D` `T` (o `3` `1` `6` `4` `5`) eligen Seleccionar, Dibujar, Cortar, Borrar y Silenciar, `8` Zoom, y `B` o `2` es la herramienta de pintar |
+| `Shift+3` | Los tresillos de la rejilla |
 | `Shift+L` · `Z` | Bucle en la selección de tiempo · ampliarla |
 | `Alt+A` | Automatizar el último parámetro que moviste |
 | `Alt+Shift+A` | Vincular el último parámetro que moviste a un controlador MIDI |
@@ -2444,12 +2778,16 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Alt+F5` | Navegador de clips |
 | `F8` · `F12` | El instrumento de la pista seleccionada · cerrar los dispositivos flotantes |
 | `M` · `S` · `Alt+Izquierda`/`Alt+Derecha` | Mezclador: silenciar · solo · mover el canal |
-| `Alt+F9` · `Shift+F10` | La matriz de ruteo · el menú de ruta del canal seleccionado |
+| `Alt+F9` | La matriz de ruteo |
 | `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Hacer único · enlazar la selección a este clip · seleccionar enlazados · enlazar a… |
 | `Ctrl+T` | El teclado del ordenador toca notas |
 | `Ctrl++` · `Ctrl+-` · `Ctrl+0` | Zoom de la interfaz |
 | `Ctrl+,` | Ajustes |
 | `Ctrl+Shift+P` · `Alt+H` | La paleta de comandos · el historial de deshacer |
+| `Ctrl+F` | Buscar un preset para el instrumento de la pista elegida |
+| `Ctrl+F6` · `Ctrl+Shift+F6` | El área siguiente · la anterior |
+| `Ctrl+Alt+Enter` · `Ctrl+Alt+C` | Maximizar el área en la que trabajas (otra vez: devolver las demás) · plegarla o desplegarla |
+| `Shift+F10` | El menú de la selección (en el mezclador: el menú de ruta del canal seleccionado) |
 | `Alt+S` · `Alt+Shift+S` | La partitura bajo el piano roll · el panel Partitura |
 | `Tab` · `Intro` · `Mayús+Intro` | Sesión ⇄ arreglo · lanzar la ranura · lanzar la escena |
 | `Ctrl+Intro` · `Ctrl+Mayús+Intro` · `Alt+Intro` | Detener el clip de la pista · detener todo · grabar en la ranura |
@@ -2551,7 +2889,12 @@ Esto es una beta. Lo que ya sabemos:
   probado en las máquinas macOS de GitHub, todavía no en un Mac de escritorio. **Mackie
   Control y HUI** se probaron con unidades emuladas; cuéntanos cómo se porta tu superficie
   ([Equipo externo](external-gear.md)).
-- **Fuera de esta beta**: varios arreglos por proyecto.
+- **Fuera de esta beta**: varios arreglos por proyecto. Arrastrar una **sección** mueve la
+  sección, no la música que hay debajo; insertar y borrar tiempo no están en esta beta.
+- **El aspecto nuevo** (Pizarra, ronda 39) se revisó en imágenes que dibuja el propio programa,
+  todavía no en muchas pantallas reales: si algo se solapa, sale cortado o se ve borroso a la
+  escala de tu pantalla, mándanos una captura. Los temas de versiones anteriores vuelven,
+  redibujados en él.
 - **Sectio** (el cortador, §10) encuentra alrededor del 92 % de los golpes a menos de 10 ms en
   loops limpios y del 76 % en baterías grabadas de verdad (88 % a menos de 20 ms); la
   batería de jazz con escobillas o ride es la más difícil (43–65 %). Donde falle, mueve el
@@ -2564,7 +2907,6 @@ Esto es una beta. Lo que ya sabemos:
   oído; unos veinte presets dinámicos y suaves quedan por debajo de su ventana a propósito.
   Los presets de ducking (Porta y Comprimo *Duck*) necesitan que les llegue una señal clave
   para hacer algo.
-- En el explorador, cambiar el **nivel de escucha previa** reinicia el sonido que suena.
 - **IA**: un panel de asistente dentro de Cantus (con tu propia clave o un modelo local) y
   la generación de audio no están en esta beta — los agentes se conectan desde fuera por
   MCP (§11). Los stems y el audio a MIDI corren en el procesador (la tarjeta gráfica solo se

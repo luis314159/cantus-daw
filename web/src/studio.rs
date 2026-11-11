@@ -14,7 +14,7 @@ fn shot(what: &str, l: Lang) -> String {
     } else {
         "night"
     };
-    format!("studio/record-{what}-{theme}-{}.webp", l.code())
+    format!("/studio/record-{what}-{theme}-{}.webp", l.code())
 }
 
 #[function_component(RecordMode)]
@@ -154,32 +154,32 @@ pub fn studio() -> Html {
                         l.t("A VCA strip moves its members' gain at the gain stage: their own faders and automation stay where you left them, and a member can follow two VCAs, or a VCA another. Snapshots take the whole desk or chosen channels and recall them in one undo step, with recall-safe and solo-safe strips and an A/B compare; put one on the timeline and the mix changes on that bar.",
                             "Un canal VCA mueve la ganancia de sus miembros en la etapa de ganancia: sus propios faders y su automatización quedan donde los dejaste, y un miembro puede seguir a dos VCA, o un VCA a otro. Los snapshots toman la consola entera o los canales que elijas y los recuperan en un paso de deshacer, con canales a salvo del recall y del solo y una comparación A/B; pon uno en la línea de tiempo y la mezcla cambia en ese compás."),
                         l.t("A VCA at 0 dB touches no sample: a null test holds it.", "Un VCA a 0 dB no toca ninguna muestra: una prueba nula lo sostiene."),
-                        format!("studio/mix-snap-{theme}-{}.webp", l.code()), l.t("The mixer with two VCA strips and the Snapshots menu open", "El mezclador con dos canales VCA y el menú Snapshots abierto"), (1920, 1080)) }
+                        format!("/studio/mix-snap-{theme}-{}.webp", l.code()), l.t("The mixer with two VCA strips and the Snapshots menu open", "El mezclador con dos canales VCA y el menú Snapshots abierto"), (1920, 1080)) }
                     { card("editor",
                         l.t("An audio editor, opened from the clip", "Un editor de audio, abierto desde el clip"),
                         l.t("Edit in audio editor… on any clip: cut, paste, silence, fades with five curves, normalise to peak, RMS or LUFS, reverse, remove silence — each edit a new file and one undo step, the original kept. A spectrogram where you select a region in time and frequency and turn it down; noise reduction by a learned profile; declick and repair. Markers, regions and loop points travel with the file.",
                             "Editar en el editor de audio… en cualquier clip: cortar, pegar, silencio, fundidos con cinco curvas, normalizar a pico, RMS o LUFS, invertir, quitar silencios — cada edición un archivo nuevo y un paso de deshacer, el original conservado. Un espectrograma donde seleccionas una región en tiempo y frecuencia y la atenúas; reducción de ruido por perfil aprendido; declick y reparación. Marcadores, regiones y puntos de loop viajan con el archivo."),
                         l.t("In its tests: hiss 12 dB down or more, a voice within 1 dB.", "En sus pruebas: el siseo 12 dB más bajo o más, una voz a menos de 1 dB."),
-                        format!("studio/editor-{theme}{es}.webp"), l.t("The audio editor: the waveform over its spectrogram, a selection, markers and the noise reduction controls", "El editor de audio: la onda sobre su espectrograma, una selección, marcadores y los controles de reducción de ruido"),
+                        format!("/studio/editor-{theme}{es}.webp"), l.t("The audio editor: the waveform over its spectrogram, a selection, markers and the noise reduction controls", "El editor de audio: la onda sobre su espectrograma, una selección, marcadores y los controles de reducción de ruido"),
                         if theme == "night" && es.is_empty() { (1800, 1080) } else { (1500, 900) }) }
                     { card("external",
                         l.t("Outboard gear, on time by itself", "Equipo externo, a tiempo por sí solo"),
                         l.t("External instrument and External effect units send MIDI and audio out of your interface and bring the result back. Ping sends a burst out and listens for it to return: the trip is measured to the sample, stored with the unit, and delay compensation uses it. An interface that is unplugged is said, never loaded blindly.",
                             "Las unidades Instrumento externo y Efecto externo envían MIDI y audio por tu interfaz y traen el resultado de vuelta. Ping envía una ráfaga y la escucha volver: el viaje se mide a la muestra, se guarda con la unidad y la compensación de retardo lo usa. Una interfaz desconectada se avisa, nunca se carga a ciegas."),
                         l.t("Hardware cannot be rendered offline: export and freeze refuse a track with outboard gear and say why.", "El hardware no se puede renderizar sin conexión: exportar y congelar rechazan una pista con equipo externo y dicen por qué."),
-                        format!("studio/external-{theme}{es}.webp"), l.t("Settings, MIDI: an external instrument with its measured latency, and an external effect waiting for its ping", "Ajustes, MIDI: un instrumento externo con su latencia medida, y un efecto externo esperando su ping"), (1500, 412)) }
+                        format!("/studio/external-{theme}{es}.webp"), l.t("Settings, MIDI: an external instrument with its measured latency, and an external effect waiting for its ping", "Ajustes, MIDI: un instrumento externo con su latencia medida, y un efecto externo esperando su ping"), (1500, 414)) }
                     { card("surfaces",
                         l.t("Mackie Control and HUI", "Mackie Control y HUI"),
                         l.t("A Mackie Control with its extenders, or a HUI, drives the mixer: motor faders that never fight your hand, V-Pots, transport and jog, banks and flip, scribble strips, meters and the timecode display. Two clicks to set one up; generic MIDI mapping stays beside it.",
                             "Un Mackie Control con sus extensores, o un HUI, maneja el mezclador: faders motorizados que nunca pelean con tu mano, V-Pots, transporte y jog, bancos y flip, scribble strips, medidores y la pantalla de código de tiempo. Dos clics para configurarlo; el mapeo MIDI genérico sigue al lado."),
                         l.t("Tested byte for byte against a built-in emulation of both protocols, written from their published notes; trying it on real hardware is still to come.", "Probado byte a byte contra una emulación integrada de ambos protocolos, escrita a partir de sus notas publicadas; falta probarlo con hardware real."),
-                        format!("studio/surfaces-{theme}{es}.webp"), l.t("Settings, MIDI: a Mackie Control, an extender and a HUI, with the last messages sent", "Ajustes, MIDI: un Mackie Control, un extensor y un HUI, con los últimos mensajes enviados"), (1500, 376)) }
+                        format!("/studio/surfaces-{theme}{es}.webp"), l.t("Settings, MIDI: a Mackie Control, an extender and a HUI, with the last messages sent", "Ajustes, MIDI: un Mackie Control, un extensor y un HUI, con los últimos mensajes enviados"), (1500, 372)) }
                     { card("ara",
                         l.t("ARA 2 plug-ins on your clips", "Plug-ins ARA 2 en tus clips"),
                         l.t("Cantus hosts ARA 2 plug-ins on audio clips: bind a clip, open the plug-in's editor from it, and each edit gesture is one undo step. The plug-in renders the region and Cantus plays the render, so fades, clip gain and offline export keep working.",
                             "Cantus aloja plug-ins ARA 2 en clips de audio: vincula un clip, abre el editor del plug-in desde él, y cada gesto de edición es un paso de deshacer. El plug-in renderiza la región y Cantus reproduce el render, así los fundidos, la ganancia del clip y la exportación siguen funcionando."),
                         l.t("ARA plug-ins run inside Cantus's own process, not isolated like other plug-ins — the clip menu says so.", "Los plug-ins ARA corren dentro del proceso de Cantus, no aislados como los demás plug-ins — el menú del clip lo dice."),
-                        "studio/ara-clips.webp".to_string(), l.t("Audio clips in the arrangement, one rendered by an ARA plug-in", "Clips de audio en el arreglo, uno renderizado por un plug-in ARA"), (1500, 420)) }
+                        "/studio/ara-clips.webp".to_string(), l.t("Audio clips in the arrangement, one rendered by an ARA plug-in", "Clips de audio en el arreglo, uno renderizado por un plug-in ARA"), (1500, 420)) }
                 </div>
             </div>
         </section>

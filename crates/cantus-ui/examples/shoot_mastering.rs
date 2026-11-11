@@ -10,6 +10,9 @@ use cantus_ui::raster::shoot;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
@@ -23,8 +26,8 @@ fn main() {
     let code = locale.code();
     for kind in ["open", "list", "listening", "proposal", "proposal-end"] {
         for (theme_name, theme) in [
-            ("slate", cantus_ui::theme::slate()),
-            ("paper", cantus_ui::theme::paper()),
+            ("slate", cantus_ui::theme::slate_night()),
+            ("paper", cantus_ui::theme::slate_paper()),
         ] {
             let ctx = egui::Context::default();
             cantus_ui::design::install_fonts(&ctx);
@@ -104,6 +107,13 @@ fn main() {
             if let Some(r) = &app.listen.panel.running {
                 r.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             }
+            // The crop the site and the README cut (`tools/shots/place.py`): the dialog.
+            studio::sidecar(
+                &path,
+                egui::vec2(1440.0, 900.0),
+                scale,
+                &[("dialog", studio::area(&ctx, "cantus-mastering"))],
+            );
             println!("{}", path.display());
         }
     }

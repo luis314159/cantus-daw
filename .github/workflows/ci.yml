@@ -36,6 +36,8 @@ on:
       - "THIRD-PARTY-NOTICES.md"
       - "PRIVACY.md"
       - "web/src/top.rs"
+      - "web/build.rs"
+      - "web/site_version.rs"
       - ".github/workflows/ci.yml"
       - ".github/workflows/release.yml"
   pull_request:
@@ -51,6 +53,8 @@ on:
       - "THIRD-PARTY-NOTICES.md"
       - "PRIVACY.md"
       - "web/src/top.rs"
+      - "web/build.rs"
+      - "web/site_version.rs"
       - ".github/workflows/ci.yml"
       - ".github/workflows/release.yml"
   workflow_dispatch:

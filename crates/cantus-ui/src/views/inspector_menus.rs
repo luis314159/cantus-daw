@@ -53,6 +53,9 @@ enum Choice {
     Bypass,
     Remove,
     SendToggle,
+    /// The send's tap: before the fader (and the pan law) or after (round 39: the row's
+    /// switch moved here).
+    SendPre,
     SendRemove,
     ShowStrip(StripId),
     Sidechain(Option<StripId>),
@@ -403,6 +406,15 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 if on { Check::On } else { Check::Off },
                 Choice::SendToggle,
             ));
+            let pre = p
+                .strip(me)
+                .and_then(|s| s.send_to(to))
+                .is_some_and(|s| !s.tap.is_post());
+            out.push(act(
+                Label::Key("inspector.send_pre"),
+                if pre { Check::On } else { Check::Off },
+                Choice::SendPre,
+            ));
             out.push(act(
                 Label::Key("inspector.show_strip"),
                 Check::None,
@@ -681,6 +693,21 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                         },
                     );
                     app.end_gesture();
+                }
+            }
+            Choice::SendPre => {
+                let tap = app
+                    .project()
+                    .strip(me)
+                    .and_then(|s| s.send_to(to))
+                    .map(|s| s.tap);
+                if let Some(tap) = tap {
+                    let next = if tap.is_post() {
+                        cantus_core::SendTap::Pre
+                    } else {
+                        cantus_core::SendTap::Post
+                    };
+                    app.set_send_tap(me, to, next);
                 }
             }
             Choice::ShowStrip(s) => {

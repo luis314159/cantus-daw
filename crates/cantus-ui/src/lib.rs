@@ -35,6 +35,7 @@ pub mod dance_texture; // r35 contract — a stage as a texture (ADR 0087)
 pub mod demos;
 pub mod design;
 pub mod docs;
+pub mod drive; // r39:ux-a — what drives a control, in words (ADR 0109)
 pub mod font_fallback;
 pub mod freeze;
 pub mod gestures;
@@ -61,9 +62,12 @@ pub mod stems_ui; // r34:stems — Separate stems… (ADR 0085)
                   // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod editor; // r36:editor — the audio editor (ADR 0096)
 pub mod engines;
+pub mod esc; // r39:ux-b — Esc closes what opened last (ADR 0110)
 pub mod external_service; // r36:external — external units and the ping (ADR 0094)
 pub mod history_text;
 pub mod macos;
+pub mod menu_commands;
+pub mod menu_keys; // r39:ux-b — every kit menu answers the keyboard (ADR 0110) // r39:ux-b — menu rows the palette runs too (ADR 0110)
 pub mod palette_index;
 pub mod perf_status;
 pub mod picker;
@@ -78,6 +82,7 @@ pub mod preset_data; // r37:library
 pub mod preset_measure; // r37:library
 pub mod preset_query; // r37:library
 pub mod preset_tags; // r37:library
+pub mod quick_devices; // r39:ux-b — recent devices one click away (ADR 0110)
 pub mod raster;
 pub mod recent;
 pub mod record_pass;
@@ -93,6 +98,7 @@ pub mod samples;
 pub mod save_job;
 /// The score: its view state, files and edits (round 32, ADR 0075).
 pub mod score;
+pub mod screen_scale;
 pub mod sectio_ui; // r37:piano (ADR 0099): Sectio in the app
 pub mod session_play; // r33:session (ADR 0076)
 pub mod session_play_rec; // r33:session
@@ -105,7 +111,13 @@ pub mod takes;
 pub mod templates;
 pub mod tempo_ui;
 pub mod theme;
+pub mod theme_added;
 pub mod theme_family;
+pub mod theme_graphite;
+pub mod theme_redrawn;
+pub mod theme_slate;
+pub mod theme_slate_lapis;
+pub mod theme_studio_ink;
 pub mod transcribe_ui; // r34:transcribe — Convert to MIDI (ADR 0086)
 pub mod verse;
 pub mod video_export; // r35:video — Export video… (ADR 0088)

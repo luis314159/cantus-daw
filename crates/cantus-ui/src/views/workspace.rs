@@ -207,6 +207,9 @@ pub(super) struct SplitMemo {
 pub(crate) struct TabMenu {
     pub pane: Pane,
     pub at: Pos2,
+    /// The frame it opened in: the click that opened it is no click outside it (round 39:
+    /// it closed in the frame it opened, so a tab's menu never showed).
+    pub fresh: bool,
 }
 
 /// The workspace: the dock and what the splitters, the snapping and the toggles remember.
@@ -237,9 +240,16 @@ pub struct Workspace {
     pub(super) active: Vec<Pane>,
     pub(super) focused: Option<Pane>,
     pub(super) bars: Vec<Rect>,
+    /// Per bar: where its last tab ends this frame (round 39: the mixer's header takes the
+    /// room right of them).
+    pub(super) tab_ends: Vec<f32>,
     pub(super) wanted: Vec<DeviceKey>,
     pub(super) menu: Option<TabMenu>,
     pub(super) titles: super::workspace_skin::Titles,
+    /// Areas collapsed to their tab bar (round 39, ADR 0110, `workspace_fold`).
+    pub(super) folds: Vec<super::workspace_fold::Fold>,
+    /// The area maximised and the main surface it took (round 39, ADR 0110).
+    pub(super) maximised: Option<super::workspace_fold::Maximised>,
 }
 
 impl Default for Workspace {
@@ -269,9 +279,12 @@ impl Workspace {
             active: Vec::with_capacity(16),
             focused: None,
             bars: Vec::with_capacity(8),
+            tab_ends: Vec::with_capacity(8),
             wanted: Vec::with_capacity(4),
             menu: None,
             titles: Default::default(),
+            folds: Vec::new(),
+            maximised: None,
         }
     }
 
@@ -285,7 +298,9 @@ impl Workspace {
             .map(|(_, p)| *p)
             .filter(|p| matches!(p, Pane::Device(_)))
             .collect();
+        self.maximised = None;
         self.dock = layout.dock_state();
+        self.set_folds(&layout.folds);
         for d in devices {
             self.place(d);
         }
@@ -317,6 +332,15 @@ impl Workspace {
     /// F5 / F6 / F7 / F9 / I: hide an area that is showing; bring one that is behind
     /// another tab to the front; put one that is not there back where it belongs.
     pub fn toggle(&mut self, pane: Pane) {
+        // Showing or hiding an area while one is maximised gives the others back first
+        // (round 39, ADR 0110): its own key un-maximises it, another's brings that one up.
+        if let Some(m) = self.maximised() {
+            self.restore_maximised();
+            if m != pane {
+                self.reveal(pane);
+            }
+            return;
+        }
         if self.is_visible(pane) {
             self.hide(pane);
         } else {
@@ -326,6 +350,9 @@ impl Workspace {
 
     /// Take `pane` out of the dock.
     pub fn hide(&mut self, pane: Pane) {
+        if self.maximised.is_some() && !matches!(pane, Pane::Device(_)) {
+            self.restore_maximised();
+        }
         if let Some(path) = self.find(pane) {
             self.dock.remove_tab(path);
         }
@@ -339,7 +366,15 @@ impl Workspace {
                 let _ = self.dock.set_active_tab(path);
                 self.dock.set_focused_node_and_surface(path.node_path());
             }
-            None => self.place(pane),
+            None => {
+                if self.maximised.is_some() && !matches!(pane, Pane::Device(_)) {
+                    self.restore_maximised();
+                    if self.contains(pane) {
+                        return self.reveal(pane);
+                    }
+                }
+                self.place(pane)
+            }
         }
     }
 

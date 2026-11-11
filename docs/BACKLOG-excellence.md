@@ -375,6 +375,12 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
   reduction, normalise, reverse a region — *done in round 36, ADR 0096; recording straight into the editor waits for the recording mode, ADR 0096 §10*), **pitch correction** (Newtone/Melodyne-lite
   for vocals — *done in round 28*: §3c's editor and §3d's Tonus), slicing to a sampler (*done in round 37*: Sectio, ADR 0099), consolidate / **bounce in place**, **freeze** tracks (§4c step 1), **low-latency monitoring** of armed tracks (§4c step 2),
   insert/delete time (STATUS round 12 plan), clip groups, ripple edit.
+- **A section drag that moves the song** (round 39, des-arrange's sheets; `docs/round39/el-arrange.md`,
+  ADR 0113): a drag of a section in the sections lane moves its bars on every track — Ctrl
+  copies them, Shift inserts them — splitting the clips at its edges and shifting the rest of
+  the song, with its automation, tempo changes and markers. Today the drag moves the section
+  alone. It is ripple editing of the whole song, a feature of its own with insert/delete time
+  above; **the owner places it** in a round.
 - **MIDI**: arpeggiator and chord tools as MIDI effects, scale highlighting and
   snap-to-scale, ghost notes from other clips, groove/swing templates (STATUS: swing as a
   clip property), step-sequencer per melodic channel (FL's mini piano roll), MPE.
@@ -453,6 +459,12 @@ bit-identical. Ours should end up better than the reference, not a clone.
   input; voice's note ports (ADR 0053) now give them one, so it is a small step.
 - **Delay family**: tape echo (Space Echo), ping-pong and multi-tap, a ducking delay,
   reverse delay, a dub-style feedback filter — Valhalla/Echoboy as the bar.
+  **Round 39 (ADR 0115):** Delay has its own window (the echoes drawn in time and dragged)
+  and face. Two steps it left open, both the owner's to decide: **a synced time** (a new
+  `sync`/`div` pair and the DSP to follow the tempo — today *At the tempo* sets the
+  milliseconds once and says it does not follow), and **exporting Delay as a CLAP/VST3
+  plug-in** (its editor already runs on `FxHost`; new ids are forever, so it waits for a
+  yes).
 - **Reverbs**: convolution (impulse responses, user IRs), plate and spring, shimmer — on
   top of Spatium's algorithmic halls.
 - **Pitch and creative**: pitch shifter and harmonizer, formant shifter, vocoder
@@ -1654,6 +1666,190 @@ shortcut because a rule or a test passes. A builder turns only approved sheets i
 - The frame budget stays measured: the new look may not cost frames.
 - **The dancer is off at start** from round 38 on (the owner, 2026-11-08: "cada vez me gusta
   menos, quítalo"); it stays one click away.
+- **The owner's choice (2026-11-09):** direction A, **Slate**, is the default theme; B
+  (Graphite and gold) and C (Studio ink) are optional themes, each in Night and Paper
+  (`docs/round39/briefs-phase-b.md`).
+
+**The ten earlier themes, back** <!-- r39:integration --> (the owner, 2026-11-09: "agrega al
+backlog el mantenerlos … después los actualizamos"). **Done in round 39** (*themes*, the owner
+2026-11-10: "Recover all of them, and add more if you want"): the ten are back, redrawn in
+round 39's system under their old ids, with four new themes (Evergreen Night and Paper,
+Bordeaux, Print); an old setting opens in the theme it names (ADR 0111 §2,
+`docs/round39/themes.md`).
+
+**The dancers, reviewed and started again** <!-- r39:integration --> (the owner,
+2026-11-09: "tengo dudas sobre los dancers, creo que no me están convenciendo … creo que ya
+no va ni con el estilo").
+- Saltator, the cast (Fuga, Volta, the family), the stage, the companion window and the video
+  export (ADRs 0087–0091, 0105) stay in the app, unchanged, off at start since round 38.
+- They are **out of the website and the README** from round 39 on.
+- To do: decide with the owner what a character in Cantus should be — or whether it should be
+  at all — in the Slate look; then redesign or retire it. Until then, nothing new is built on it.
+
+**An old-school theme** <!-- r39:integration --> (the owner, 2026-11-09: "agrega un modo con
+un estilo old school"). The owner's references are in
+`research/ui/old-school-2026-11-09/` (private):
+- a black rack sampler/mixer with orange and white silkscreen;
+- a portable mixer of brushed aluminium channel modules, with skirted black knobs, a needle VU
+  and one red fader cap;
+- a grey DJ mixer with wooden side cheeks, twin VU meters and printed fader scales;
+- a cream broadcast console with bakelite knobs, rotary faders and a bridge of VU meters.
+
+What the theme would need:
+- **Surfaces:** materials — brushed metal, enamel, anodised black and wood cheeks — drawn by
+  the kit, not photographed.
+- **Labels:** silkscreened, with printed scales beside the faders.
+- **Meters:** needle VU meters that move with ballistics, as an option beside the modern meters.
+- **Controls:** skirted and chicken-head knobs, and fader caps in the colours of the era.
+- **Lamps:** small incandescent lamps for state.
+
+Rules:
+- One of the themes, never the default.
+- It obeys every rule of the kit: tokens only, the frame budget, contrast, both scales.
+- A Night variant (the black panel) and a Paper variant (the cream console).
+- Inspired by the era, never a copy of a maker's panel, name or logo.
+
+To do after round 39's kit lands, as a short round of its own: a design agent first (the owner
+approves the sheets), then one or two builders. It needs the kit to draw *materials* (brushed
+metal, enamel, anodised black, wood), a needle VU meter with real ballistics, period knobs and
+fader caps, silkscreen labels and printed scales, and small lamps. Each finish (black panel,
+cream console, brushed silver, wood) is a palette the user picks, and the colours stay
+adjustable with the recolour tool (the owner, 2026-11-09: "que también se puedan cambiar los
+colores").
+
+**Very vintage ideas to analyse and explore** (the owner, 2026-11-09: "también me gustaría luces
+de bulbos y válvulas … ideas muy muy vintage … deja que se debe analizar y explorar"). These are
+not decisions. The design agent explores them, prototypes the promising ones, measures their
+cost, and the owner chooses.
+
+*Bulbs and valves*
+- **Vacuum tubes that glow:**
+  - a row of valves behind a grille or a window in the master section, their filaments warming
+    from dark to amber when Cantus starts or the audio device opens, a few seconds as a real
+    amp's warm-up (skippable);
+  - their glow follows the master's level, softly, like a tube under load;
+  - a dim blue getter flash at the top of each glass.
+- **Magic-eye tuning indicators** (the green fan of an EM84/6E5-style tube) as an alternative
+  level or tuning meter: the green wedge closes as the signal rises.
+- **Nixie-tube digits** for the transport clock, the tempo and the position: orange glowing
+  numerals stacked in glass with the faint unlit digits behind; a flicker-free cathode change.
+- **Pilot lamps:**
+  - jewelled lens lamps (red, amber, green, blue) for record, solo, clip, power and armed;
+  - they fade on and off with a filament's lag rather than switching instantly;
+  - an incandescent "ON AIR" / "RECORDING" sign that lights in record.
+- **Edge-lit meter faces:** the VU's paper face lit warm from behind, slightly brighter at the
+  centre, the needle casting a soft shadow.
+
+*Meters and dials*
+- Needle VU meters with true VU ballistics (300 ms) and a PPM option; twin meters in a bridge
+  over the master; the peak lamp beside each needle.
+- Large rotary dials with engraved scales and a pointer, like a radio's tuning dial, for the
+  tempo or the master volume; a station-dial strip that slides behind glass for the song
+  position.
+- Oscilloscope and spectrum on a round green phosphor CRT with a bezel and a graticule, with
+  afterglow on the trace.
+- **Audio drawn as an old oscilloscope in the vintage mode** (the owner, 2026-11-10, with two
+  reference photos of a 1970s four-channel audio scope and a bench oscilloscope: "que los audios
+  se vieran tipo osciloscopio viejo para ese modo"). Every place Cantus draws sound, not only a
+  scope panel, takes the phosphor look in that theme:
+  - clips' waveforms in the arrangement, the audio editor, the browser's preview well and
+    Sectio's slices as a green (or amber) phosphor trace on a dark screen, with bloom and a
+    soft afterglow, over a faint graticule;
+  - the master's goniometer and correlation as an XY (Lissajous) display on a round CRT behind a
+    chrome bezel, quadrants labelled L / R as the four-channel scopes did, a pilot lamp in the
+    corner; a bench-scope view (time base, trigger) for a strip's signal;
+  - the trace persists and fades only while sound moves; at rest it is a still picture
+    (round 38's rule), and the glow is drawn once per changed frame, never at the screen's
+    rate for nothing; a reduced-motion setting keeps the trace without afterglow.
+  The reference photos are private research (research/, never committed as textures); the
+  screens are drawn by Cantus.
+
+*Materials and hardware*
+- Brushed aluminium, crackle paint, bakelite, cream enamel, walnut and teak cheeks, chrome
+  bezels, rack ears with screws, rubber feet, a slight bevel and screw heads that don't line
+  up perfectly.
+- **Knobs:** chicken-head, skirted with a numbered scale, fluted aluminium, and chunky
+  bakelite with an inlaid white line.
+- **Faders:** long-throw with T-caps and a printed dB scale.
+- **Switches:** toggle switches and rocker switches for mute and solo; rotary selectors that
+  click into detents for routing; push-buttons that latch with a little travel.
+- **Labels:** Dymo-style embossed tape labels for track names (the user's text, punched in
+  white on coloured tape); typed paper labels on masking tape on the strips; hand-lettered
+  scribble strips.
+- **The mixer's routing as real jack cables** (the owner, 2026-11-09: "mixer con cables jack
+  reales … para el modo vintage"). In the vintage theme the cables are patch cords:
+  - 1/4" plugs with a metal sleeve, tip and ring and a strain-relief boot, seated in round jacks
+    on each strip; bantam jacks in a patch-bay row;
+  - cloth-covered cords with thickness, a shadow on the desk and a natural sag;
+  - a short settle wobble when dropped, then still;
+  - a red boot on a refused loop.
+  The "Jack" cable style itself is built in round 39 as a fourth selectable style in every theme
+  (`docs/round39/design/des-mixer/options-cables-jack-*`); the vintage theme makes it its
+  default and adds the cloth cords and the patch-bay row.
+
+*Media and motion*
+- Reel-to-reel tape: spinning reels in the transport while playing, slowing when stopped; the
+  tape counter as mechanical digits that roll.
+- A cassette or cartridge look for the recording mode; a turntable platter for the browser's
+  preview.
+- Paper and film touches: a score-paper texture under the piano roll, an index-card look for
+  presets.
+
+*Sound and feel (to weigh carefully)*
+- Optional UI sounds: a relay click on arming, the clunk of a latching switch, a tape motor
+  when playing. Off by default; never in the audio path.
+- Optional "warm-up" and "power-down" animations.
+- A faint scanline or grain over the CRT views only.
+
+*To analyse before building*
+- Which ideas help a user work (a meter that reads better, a clock you see from across the
+  room) and which are only decoration.
+- The frame budget of glows, filaments and spinning reels: they must rest when nothing
+  happens, as everything does since round 38.
+- Contrast and legibility (nixie and amber on dark, cream at night).
+- Accessibility: every animation can be reduced.
+- How each piece degrades at 100 % on a small screen.
+- Licences: no photographed textures from others; everything drawn or generated by Cantus.
+- What stays shared with the modern themes, so the vintage theme does not fork the views.
+
+**The retired themes, later (owner, 2026-11-09).** Done in round 39 (*themes*): every one is
+back, re-expressed on Slate's structure with recessed keys and a round-39 face (ADR 0111 §2).
+
+**One browser for every kind (round 39, r39:lo-rest; the owner decides).** des-views' browser
+has a kinds switch, *All · Sounds · Plug-ins · Presets*: plug-ins (Cantus units filled,
+hosted ones outlined, the format in words, favourites starred) and presets listed in the same
+panel as the sounds, one search across them, the results grouped *by kind* ("Sounds 24",
+"Presets 6") with filter chips that depend on it — a pack, "under 1 s" (a length), "+ Filter"
+(format, key, tempo, licence). Cantus today keeps them apart: the browser lists sounds (its
+family tabs *All · Drums · Loops · Melodic · FX*), the picker the instruments and effects,
+the preset browser the presets; round 39 grouped the browser's search by pack or folder with
+a place chip and a family chip. Bringing the three into one panel changes where plug-ins and
+presets are found and dragged from — a structural decision for an ADR: which panel owns the
+drag onto a track, what the picker becomes, the search index over presets and plug-ins.
+
+**A pad's own mixer track in the rack (round 39, r39:lo-rest; the owner decides).** des-views
+draws a mixer-track well on each pad of a kit ("3" under the kit's "3"). A pad plays through
+its kit's strip unless it has an output of its own (ADR 0100, pad outputs), which only the
+inspector shows. A well a pad can route from — FL's per-channel track on each drum — is a
+model change (a pad's route in `PulsusParams`, its command and undo arm, a schema bump with a
+migration) and the engine's pad-output routing made per pad from the rack.
+
+**Two engine features des-mixer's inspector sheet draws (round 39 close-out, `lo-mixer`).**
+The inspector was built to `docs/round39/design/des-mixer/inspector-*` without these two, because
+the engine has neither; each is a feature of its own, with its null tests first:
+- **Sidechain — *Hear the key*.** A switch in the inspector's Sidechain section that sends a
+  keyed insert's key signal (the source strip's, as its detector hears it, after the key's EQ)
+  to the output in place of the strip, to tune the key by ear — FabFilter Pro-C's and Ableton's
+  "listen to the sidechain". The engine needs a per-insert audition tap that replaces the
+  strip's output while it is on (never in an export, never saved as on), its latency
+  compensated; the desk's keyed insert shows it lit. Tests: off touches no sample, to the bit;
+  on, the strip's output equals the key's detector input.
+- **Recording — *Before FX · After FX*.** A segmented choice in the Recording section: record
+  the track's input as it arrives (today's only way) or as heard through the strip's inserts
+  (Logic's and Studio One's "record with effects"), a choice per track kept in the project
+  (a schema bump). The engine needs a recording tap after the strip's insert chain for the
+  track's input, its latency compensated so the take lands on the grid. Tests: *Before FX*
+  equals today's take to the bit; *After FX* equals the input rendered through the chain.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 
@@ -1757,6 +1953,17 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
 - The visual details only use reveals: alignment, wording, empty states, error messages
   that tell you what to do, consistent icons; a design review of every view against FL.
 - Localisation beyond EN/ES (PT, FR, DE, JA) once strings settle.
+- **A scroll-bar zoom test that failed once** (round 39's integration, 2026-11-09):
+  `views_nav::dragging_an_end_of_the_scroll_bar_zooms` failed once in the whole cantus-ui
+  suite (`pulling the bar's end out did not zoom out: 26 → 26` — the press missed the thumb's
+  end, so the drag scrolled or did nothing) and passed in 4 reruns and in 120 runs of its
+  binary, four at a time beside a build. The test aims at the thumb's end from a formula of
+  its own (the song's length plus eight bars, `g.ruler_top − 6`, 3 px inside the end) rather
+  than from where the bar was drawn; suspects: a layout that moved between the frame the test
+  measured and the one it pressed in (the kit's face arrives a pass after a theme switch, ADR
+  0111), or the end handle's grab width at the kit's scale. To do: let the test take the
+  handle's rect from the bar as drawn (`chrome::bar` could leave it in the frame's geometry),
+  and log the geometry on failure.
 - **Writes that survive a scanner** (seen 2026-11-03, round 36's integration): an agent's
   `export_project` overwriting a file it had just written failed once with *Access is denied*
   (os error 5) and passed on three reruns — Windows Defender (or an indexer) holding the new
@@ -1787,41 +1994,3 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
   drawn larger, with more inner detail and a material of their own, judged alone at 100 and
   125 %) and **the piano-roll keys** ("FL's keys better proportioned, larger, with shaded C
   rows"; ours "narrow, cramped"). The mixer and the arrangement were split votes.
-- **A shared helper's crash blamed on no one** (beta.12's release run, Windows runner)
-  <!-- r37:integration -->: `cantus-sandbox`'s
-  `a_crash_in_a_shared_helper_is_counted_once_and_only_for_the_plugin_that_did_it` failed
-  once with the abort fault — `crash_culprit(gain)` false, so the blame (round 29, #25/#49:
-  the crash handler's `CRASH_AT`, else `MAIN_AT` and the running exchanges) did not land on
-  the plug-in that aborted. The code was untouched in round 37; passed on rerun. Find the
-  race (the handler's write against the host reading the helper's death) and hold it with a
-  test that aborts a hundred times.
-- **Chorda model 2's constructor costs 17–20 ms** (round 37's integration)
-  <!-- r37:integration -->: `Unit::new` makes the body's radiation responses and the room
-  where it is called (118 ms once on a loaded CI runner, where
-  `a_unit_never_waits_for_its_keyboard` had a 100 ms bound, now 500 ms). If a unit is made on
-  the interface's thread when Chorda is chosen, that is a dropped frame: make them on the
-  designer's worker as the keyboard is, or share them per sample rate.
-- **Chorda's scene baker spawns threads per pass** (round 38's review) <!-- r38:integration -->:
-  `rows1`/`rows3` and each blur pass (`chorda_scene_raster.rs`) start up to 13 scoped
-  threads per call, about twenty parallel sections per full bake (a few hundred spawns,
-  several ms on Windows), and `shade_buf`/`occlusion` allocate two w·h dummy buffers per call
-  to fill `rows3`'s other slots (~10 MB at ss 2). Keep the bake's workers alive across its
-  passes (a scoped pool with a barrier) and give `rows3` single-buffer forms; the bits stay.
-- **The `stage_budget` variance** (round 37's integration) <!-- r37:integration -->: two
-  applications built apart sometimes differ by a whole inspector dancer section (+4 540
-  triangles) under a loaded suite, never in a small run. The test now measures the dancer
-  against itself in one application (hidden, then shown), so it no longer fails — but the
-  cause, something that builds one more inspector section in one application than in an
-  identical one, is not found. Find it (a frame's layout depending on timing or on state
-  left by an earlier test) and add a test that holds two identical applications to the same
-  triangle count.
-- **The arrangement clamps its stored header width in a small window** (round 37, finish)
-  <!-- r37:integration -->: drawn while the window is still small (a first frame, a start in a
-  small window), the headers' width is clamped and the clamp is stored, so they stay narrower
-  than the user left them. Only the capture scene re-sets the width (every frame from the
-  50th). Clamp what is drawn, never what is stored; a test that opens small, grows, and
-  finds the stored width.
-- **A preview's level without restarting it** (round 37, finish) <!-- r37:integration -->:
-  the browser's preview strip restarts the playing sound when its level changes, because the
-  engine has no gain message for a preview (`EngineMessage::Preview` only starts one). Add a
-  preview-gain message (ramped, no allocation), and the strip changes the level as it plays.

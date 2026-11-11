@@ -201,6 +201,20 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("human", 1.0),
             ],
         ),
+        // r39:conv — Aula: the cathedral stretched half again (about 11 s, true stereo, four
+        // levels of partitions), damped, cut, wide, half wet.
+        EffectKind::Aula => set(
+            &mut s,
+            &[
+                ("ir", 9.0),
+                ("stretch", 1.5),
+                ("damp", 0.4),
+                ("low", 80.0),
+                ("predelay", 30.0),
+                ("width", 1.3),
+                ("mix", 0.5),
+            ],
+        ),
     }
     s
 }

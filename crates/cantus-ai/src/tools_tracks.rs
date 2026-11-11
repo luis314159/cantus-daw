@@ -140,7 +140,8 @@ pub fn set_track_schema() -> Value {
             "muted": {"type": "boolean"},
             "soloed": {"type": "boolean"},
             "index": {"type": "integer", "minimum": 0, "description": "Move the track to this place in the list (0 is the top)."},
-            "strip_id": args::s_strip("Route the track into this strip (\"master\": straight to the master, with no inserts)")
+            "strip_id": args::s_strip("Route the track into this strip (\"master\": straight to the master, with no inserts)"),
+            "icon": {"type": ["string", "null"], "pattern": "^[a-z0-9-]{1,48}$", "description": "The icon of the user's choice before the track's name, by its id in the track icon library (\"kick\", \"mic\", \"eguitar\", \"treble-clef\"…), or null for none."}
         }),
         &["track_id"],
     )
@@ -188,6 +189,18 @@ pub fn set_track(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
         let index = (i as usize).min(p.tracks.len() - 1);
         done.insert("index".into(), json!(index));
         cmds.push(Command::MoveTrack { id, index });
+    }
+    // r39:arrange — the icon of the user's choice (ADR 0113).
+    if let Some(v) = a.get("icon") {
+        let glyph = match v {
+            Value::Null => None,
+            Value::String(g) => Some(g.clone()),
+            _ => return Err(ToolError::bad("icon", "a string or null")),
+        };
+        done.insert("icon".into(), json!(glyph));
+        cmds.push(Command::Arrange(
+            cantus_core::ArrangeCommand::SetTrackGlyph { track: id, glyph },
+        ));
     }
     if let Some(v) = a.get("strip_id") {
         let s = args::strip_of(p, v, "strip_id")?;

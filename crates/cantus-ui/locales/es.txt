@@ -308,6 +308,8 @@ action.tool-delete = Herramienta de borrado
 action.tool-mute = Herramienta de silencio
 action.tool-slice = Herramienta de corte
 action.tool-playback = Herramienta de escucha
+action.tool-zoom = Herramienta de zoom
+action.grid-triplets = Rejilla de tresillos
 action.toggle-typing-piano = El teclado del ordenador toca notas
 keymap.mouse = Ratón y rueda
 
@@ -338,7 +340,7 @@ settings.edit_shortcuts = Editar atajos…
 settings.saving = Guardado
 settings.autosave = Autoguardar cada
 settings.autosave_hint = El autoguardado mantiene una copia de recuperación junto a tu proyecto; nunca sobrescribe el archivo en el que trabajas.
-theme.paper = Papel (claro)
+theme.paper = Tiza (claro)
 
 # Appearance: interface size and the colour editor
 settings.ui_scale = Tamaño de la interfaz

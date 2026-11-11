@@ -191,15 +191,13 @@ impl Rig {
     /// Serials handed back, and the last telemetry seen.
     fn events(&mut self) -> (Vec<u64>, einst::Telemetry) {
         let mut garbage = Vec::new();
-        let mut tel = [0.0; einst::TELEMETRY_LEN];
         while let Ok(e) = self.rx.pop() {
-            match e {
-                EngineEvent::GarbageInstrument(u) => garbage.push(u.serial),
-                EngineEvent::Meters(m) => tel = m.inst,
-                _ => {}
+            if let EngineEvent::GarbageInstrument(u) = e {
+                garbage.push(u.serial);
             }
         }
-        (garbage, tel)
+        // The last block's report (ADR 0107).
+        (garbage, self.proc.meters().inst)
     }
 }
 

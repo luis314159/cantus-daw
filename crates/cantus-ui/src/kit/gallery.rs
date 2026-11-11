@@ -423,7 +423,7 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
                     enabled: true,
                 },
             ];
-            let h = menu::height(&items, 1.0);
+            let h = menu::height_in(&items, s);
             let r = Rect::from_min_size(
                 rect.min + Vec2::new(4.0, 4.0),
                 Vec2::new(rect.width() - 8.0, h),

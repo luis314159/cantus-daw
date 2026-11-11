@@ -9,6 +9,7 @@ picker.context.new_track = for a new track
 picker.context.track = on {name}
 picker.context.strip = on {name}
 picker.context.master = on the master
+picker.context.strip_gone = on a strip no longer in the project
 picker.search = Search {n} devices…
 picker.search.name = Search: name, vendor, kind, a preset's name
 picker.close = Close (Esc)

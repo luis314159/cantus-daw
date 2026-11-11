@@ -42,6 +42,9 @@ pub fn pic_lang(l: crate::lang::Lang) -> &'static str {
 
 /// The page's theme now (`dark` or `light`), the picture shown first.
 pub fn shade_now() -> &'static str {
+    if !cfg!(target_arch = "wasm32") {
+        return "dark"; // the pre-renderer: night, as `Theme::detect` there
+    }
     let light = web_sys::window()
         .and_then(|w| w.document())
         .and_then(|d| d.document_element())
@@ -182,7 +185,7 @@ pub fn units() -> Html {
                 <button type="button" class="unit-card" id={format!("unit-{}", u.file)} aria-haspopup="dialog"
                         onclick={Callback::from(move |_| open.set(Some((g, i))))}>
                     <span class="uc-pic">
-                        <img src={format!("units/{}-thumb{}.webp", u.file, pic_lang(l))} width={u.thumb.0.to_string()} height={u.thumb.1.to_string()}
+                        <img src={format!("/units/{}-thumb{}.webp", u.file, pic_lang(l))} width={u.thumb.0.to_string()} height={u.thumb.1.to_string()}
                              loading="lazy" alt="" />
                         if heard {
                             <span class="uc-badge">{ l.t("Listen", "Escúchalo") }</span>
@@ -221,9 +224,9 @@ pub fn units() -> Html {
                 }
             })
         };
-        let big = format!("units/{}-{}{}.webp", u.file, shown, pic_lang(l));
-        let feats = u.features.iter().map(|f| html! {
-            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>{ l.t(f.0, f.1) }</span></li>
+        let big = format!("/units/{}-{}{}.webp", u.file, shown, pic_lang(l));
+        let feats = crate::unit_text::features(u, l).into_iter().map(|f| html! {
+            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>{ f }</span></li>
         });
         let presets = u.presets.map(|n| {
             if u.file == "pulsus" {
@@ -232,8 +235,6 @@ pub fn units() -> Html {
                 format!("{n} {}", l.t("factory presets", "presets de fábrica"))
             }
         });
-        // r37:library — Delay is edited in the inspector: its picture is that view.
-        let inspector = u.file == "delay";
         html! {
             <div class="unit-scrim" onclick={close_scrim}>
                 <div class="unit-page" role="dialog" aria-modal="true" aria-labelledby="unit-title" id="unit-page">
@@ -259,24 +260,20 @@ pub fn units() -> Html {
                         <a href={big.clone()} target="_blank" rel="noopener" class="up-shot-link"
                            aria-label={format!("{} — {}", u.name, l.t("open the picture full size", "abrir la imagen a tamaño completo"))}>
                             <img key={big.clone()} src={big} width={u.big.0.to_string()} height={u.big.1.to_string()}
-                                 alt={format!("{} — {}", u.name, if inspector { l.t("in the inspector of Cantus", "en el inspector de Cantus") } else { l.t("its window in Cantus", "su ventana en Cantus") })} />
+                                 alt={format!("{} — {}", u.name, l.t("its window in Cantus", "su ventana en Cantus"))} />
                         </a>
                         <figcaption>
                             <div class="ab-seg up-shade" role="group" aria-label={l.t("Theme of the picture", "Tema de la imagen")}>
                                 <button type="button" aria-pressed={(shown == "dark").to_string()} onclick={pick("dark")}>{ l.t("Dark theme", "Tema oscuro") }</button>
                                 <button type="button" aria-pressed={(shown == "light").to_string()} onclick={pick("light")}>{ l.t("Light theme", "Tema claro") }</button>
                             </div>
-                            <span>{ if inspector {
-                                l.t("Its view in the program's inspector, drawn headless: it has no window of its own. Click it to open it full size.", "Su vista en el inspector del programa, dibujada sin pantalla: no tiene ventana propia. Haz clic para abrirla a tamaño completo.")
-                            } else {
-                                l.t("The program's own window, drawn headless. Click it to open it full size.", "La ventana del propio programa, dibujada sin pantalla. Haz clic para abrirla a tamaño completo.")
-                            } }</span>
+                            <span>{ l.t("The program's own window, drawn headless. Click it to open it full size.", "La ventana del propio programa, dibujada sin pantalla. Haz clic para abrirla a tamaño completo.") }</span>
                         </figcaption>
                     </figure>
                     <div class="up-body">
                         <div class="up-main">
                             <p class="up-pitch">{ l.t(u.pitch.0, u.pitch.1) }</p>
-                            <p class="up-what">{ l.t(u.what.0, u.what.1) }</p>
+                            <p class="up-what">{ crate::unit_text::what(u, l) }</p>
                             if let Some((file, song)) = u.ab {
                                 <div class="up-ab">
                                     <h4>{ l.t("Hear it", "Escúchalo") }</h4>
@@ -309,13 +306,12 @@ pub fn units() -> Html {
             <div class="wrap">
                 <header class="sec-head">
                     <h2>{ l.t("Instruments and effects of its own", "Instrumentos y efectos propios") }</h2>
-                    <p>{ l.t("Nine instruments and twenty-four effects come with Cantus, free — twenty-three with a face of their own, and Delay, edited in the inspector; each researched against the best on the market, measured, and drawn in vectors in light and dark themes. Open any of them to see it large.",
-                             "Nueve instrumentos y veinticuatro efectos vienen con Cantus, gratis — veintitrés con cara propia, y Delay, que se edita en el inspector; cada uno estudiado frente a lo mejor del mercado, medido y dibujado en vectores, en tema claro y oscuro. Abre cualquiera para verlo en grande.") }</p>
+                    <p>{ crate::counts::units_lede(l) }</p>
                 </header>
                 <div class="tabs" role="tablist" aria-label={l.t("Units", "Unidades")}>{ for buttons }</div>
                 <ul class={classes!("unit-grid", (*tab == 0).then_some("is-inst"))} id="unit-grid">{ for cards }</ul>
-                <p class="units-foot">{ l.t("Plus Firmus, the simple synth every new track starts with, a Delay and a Reverb — and any CLAP or VST3 plug-in you own.",
-                                            "Además Firmus, el sintetizador sencillo con el que empieza cada pista, un Delay y una Reverb — y cualquier plug-in CLAP o VST3 que tengas.") }</p>
+                <p class="units-foot">{ l.t("Plus Firmus, the simple synth every new track starts with, a plain Reverb, and any CLAP or VST3 plug-in you own.",
+                                            "Además Firmus, el sintetizador sencillo con el que empieza cada pista, una Reverb sencilla y cualquier plug-in CLAP o VST3 que tengas.") }</p>
             </div>
             { page.unwrap_or_default() }
         </section>

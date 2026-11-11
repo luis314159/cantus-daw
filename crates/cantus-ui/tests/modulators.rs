@@ -269,6 +269,8 @@ fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
             mapping: false,
             live: Some(0.6),
             learn: None,
+            drive: 0,
+            vca: false,
         }),
         ..Default::default()
     };
@@ -284,6 +286,8 @@ fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
             mapping: true,
             live: None,
             learn: None,
+            drive: 0,
+            vca: false,
         }),
         ..Default::default()
     };
@@ -798,6 +802,8 @@ fn a_handle_dropped_on_a_desk_send_knob_connects_the_send() {
     let id = a
         .add_modulator(ModHost::Strip(s), ModKind::Lfo, None)
         .unwrap();
+    // FL's row is the Rows menu's to show (off by default since round 39).
+    mixer::set_row(&mut a, mixer::layout::Row::Sends, true);
     let ctx = ctx();
     cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
     let none = egui::Modifiers::NONE;
@@ -823,10 +829,11 @@ fn a_handle_dropped_on_a_desk_send_knob_connects_the_send() {
     assert_eq!(a.bus.history().len(), steps + 1);
 }
 
-/// Review 2: the inspector's pinned strip takes a modulator as the desk's copy does — a
-/// handle dropped on its fader connects the channel's volume.
+/// Review 2: the inspector's level takes a modulator as the desk's copy does — a handle
+/// dropped on its volume connects the channel's volume (round 39: the Level section stands
+/// where the pinned strip stood).
 #[test]
-fn a_handle_dropped_on_the_pinned_fader_connects_the_volume() {
+fn a_handle_dropped_on_the_level_volume_connects_the_volume() {
     let mut a = app(starter_project());
     let (t, s, _) = pan(&a);
     a.select_track(t);
@@ -835,14 +842,22 @@ fn a_handle_dropped_on_the_pinned_fader_connects_the_volume() {
         .unwrap();
     let ctx = ctx();
     cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    cantus_ui::views::inspector::unfold(&ctx, "inspector.level");
     let none = egui::Modifiers::NONE;
     desk_frame(&ctx, &mut a, true, vec![], none);
     desk_frame(&ctx, &mut a, true, vec![], none);
-    let fader = ctx
-        .read_response(egui::Id::new(("insp-pin-fader", Some(s))))
-        .expect("the pinned fader")
+    let volume = ctx
+        .read_response(egui::Id::new(("insp-level-gain", Some(s))))
+        .expect("the Level section's volume")
         .rect;
-    drop_handle(&ctx, &mut a, true, id, egui::pos2(2.0, 2.0), fader.center());
+    drop_handle(
+        &ctx,
+        &mut a,
+        true,
+        id,
+        egui::pos2(2.0, 2.0),
+        volume.center(),
+    );
     assert!(
         a.project()
             .modulator(id)
@@ -851,15 +866,14 @@ fn a_handle_dropped_on_the_pinned_fader_connects_the_volume() {
     );
 }
 
-/// Review of fix4: the inspector's pinned strip shows where modulation has its controls
-/// the desk's way — the fader with the desk's mark beside its cap (not the value wells'
-/// edge tick), the pan knob with its own dot and rings, width and the wells with the edge
-/// tick. Review of fix5: the probe notes a mark only where one is drawn — nothing
-/// modulated, nothing noted; only what is modulated, only its mark.
+/// Review of fix4, round 39: the inspector's Level section shows where modulation has its
+/// values — a tick across each value's bar. Review of fix5: the probe notes a mark only
+/// where one is drawn — nothing modulated, nothing noted; only what is modulated, only its
+/// mark.
 #[test]
-fn the_pinned_strip_shows_its_modulation_the_desks_way() {
+fn the_level_section_shows_its_modulation_on_its_bars() {
     use cantus_ui::kit::automate::probe;
-    // The marks the pinned strip draws, by control, with these routes modulated.
+    // The marks the Level section draws, by value, with these routes modulated.
     let marks = |routes: &[fn(StripId) -> AutoTarget]| -> Vec<(String, &'static str)> {
         let mut p = starter_project();
         let t = p.tracks[0].id;
@@ -877,6 +891,7 @@ fn the_pinned_strip_shows_its_modulation_the_desks_way() {
         let mut a = app(p);
         a.select_track(t);
         let ctx = ctx();
+        cantus_ui::views::inspector::unfold(&ctx, "inspector.level");
         probe::start();
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -905,20 +920,9 @@ fn the_pinned_strip_shows_its_modulation_the_desks_way() {
         AutoTarget::StripPan,
         AutoTarget::StripWidth,
     ]);
-    // The volume's fader the desk's way and the pan knob its own dot, their readout wells
-    // the edge tick; the width's well the edge tick.
-    let sorted = |name: &str| {
-        let mut v = how(&live, name);
-        v.sort_unstable();
-        v
-    };
-    assert_eq!(
-        sorted("kit.param.volume"),
-        vec!["edge", "fader"],
-        "{live:?}"
-    );
-    assert_eq!(sorted("kit.param.pan"), vec!["edge", "knob"], "{live:?}");
-    assert_eq!(how(&live, "kit.param.width"), vec!["edge"], "{live:?}");
+    for name in ["inspector.volume", "inspector.pan", "inspector.width"] {
+        assert_eq!(how(&live, name), vec!["bar"], "{name}: {live:?}");
+    }
     // Nothing modulated: no mark anywhere.
     let none = marks(&[]);
     assert!(none.is_empty(), "no modulation, no mark: {none:?}");
@@ -926,7 +930,7 @@ fn the_pinned_strip_shows_its_modulation_the_desks_way() {
     let width = marks(&[AutoTarget::StripWidth]);
     assert_eq!(
         width,
-        vec![("kit.param.width".to_string(), "edge")],
+        vec![("inspector.width".to_string(), "bar")],
         "only what is modulated"
     );
 }

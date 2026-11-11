@@ -268,6 +268,15 @@ pub(crate) fn grid(app: &mut CantusApp, ui: &mut Ui, geo: &Geometry, s: &Style) 
             },
         );
     }
+    // r39:ux-a — the grid where no slot is under the pointer (ADR 0109).
+    if resp.hovered() && !hint::written(ui.ctx()) {
+        let key = if geo.scenes.is_empty() {
+            "session.empty.scenes"
+        } else {
+            "ux.hint.session_grid"
+        };
+        hint::set_text(ui.ctx(), &crate::i18n::t(key), "", Caps::NONE);
+    }
     input(app, ui, &resp, geo, hover);
 }
 

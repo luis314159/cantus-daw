@@ -219,12 +219,15 @@ pub fn open(plan: &Plan) -> Vec<Metric> {
             let snap = Snapshot::compile(&loaded.project, 1);
             let t2 = Instant::now();
             let inst = cantus_engine::inst::units_for(&snap, SAMPLE_RATE as f32, |_, _| false);
+            // The slot parts the song uses are built with its units now (ADR 0107).
+            let parts =
+                cantus_engine::parts::parts_for(&snap, Default::default(), SAMPLE_RATE as f32);
             let fx: Vec<EffectUnit> = snap
                 .effect_slots()
                 .map(|s| EffectUnit::new(s, SAMPLE_RATE as f32))
                 .collect();
             let t3 = Instant::now();
-            std::hint::black_box((inst.len(), fx.len()));
+            std::hint::black_box((inst.len(), fx.len(), parts.len()));
             let ms = |a: Instant, b: Instant| (b - a).as_secs_f64() * 1e3;
             load.push(ms(t0, t1));
             compile.push(ms(t1, t2));

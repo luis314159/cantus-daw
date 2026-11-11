@@ -398,6 +398,7 @@ impl<'a> Cell<'a> {
                 self.write(v, b);
                 Ok(())
             });
+            crate::kit::automate::hint_drive(ui.ctx(), self.offer); // r39:ux-a
         }
         if ui.is_rect_visible(rect) {
             let look_value = pos_of(v, min, max, taper);
@@ -418,17 +419,17 @@ impl<'a> Cell<'a> {
                             value: text,
                             label: self.label,
                         };
+                        // r39:el-controls — a stepped parameter's knob shows its detents.
+                        let span = (self.max - self.min).round();
+                        if self.stepped && (1.0..=23.0).contains(&span) {
+                            crate::kit::knob::stepping(Some(span as u8 + 1));
+                        }
                         cell::paint(b, rect, s, st, &l);
-                        if self.offer.is_some_and(|o| o.automated) {
-                            crate::kit::automate::mark(b, rect, s);
+                        // The signs of what drives it (round 39, ADR 0109).
+                        if let Some(o) = self.offer {
+                            crate::kit::automate::signs(b, rect, s, o.drivers());
                         }
                         let m = self.offer.and_then(|o| o.modulation);
-                        if m.is_some_and(|m| m.depth.is_some() && !m.mapping) {
-                            crate::kit::automate::mod_mark(b, rect, s);
-                        }
-                        if m.and_then(|m| m.learn).is_some_and(|l| l.mapped) {
-                            crate::kit::automate::learn_mark(b, rect, s);
-                        }
                         if m.is_some()
                             && crate::kit::automate::handle_in_flight(ui.ctx())
                             && resp.contains_pointer()

@@ -1,0 +1,61 @@
+{
+ "version": "0.1.0-beta.13",
+ "date": "2026-11-09",
+ "notes": "https://github.com/luis314159/cantus-daw/releases/tag/v0.1.0-beta.13",
+ "files": [
+  {
+   "name": "Cantus-0.1.0-beta.13-linux-x86_64.AppImage",
+   "size": 81742328,
+   "sha256": "5c22416c0e69263b9152d0e798d4acb50990ddb50a964604b4cd527985c3f0eb",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-0.1.0-beta.13-linux-x86_64.AppImage"
+  },
+  {
+   "name": "Cantus-0.1.0-beta.13-macos-universal.dmg",
+   "size": 66394562,
+   "sha256": "a6fa5d32a79785ecbcc1b204aca4ec563e1688ac02cbea62f77375d80f411e18",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-0.1.0-beta.13-macos-universal.dmg"
+  },
+  {
+   "name": "Cantus-0.1.0-beta.13-plugins-windows-x64.zip",
+   "size": 353995804,
+   "sha256": "328fd09103d69cd167725b73613518de372845e062607b2df9e7cb143f464f83",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-0.1.0-beta.13-plugins-windows-x64.zip"
+  },
+  {
+   "name": "Cantus-0.1.0-beta.13-windows-x64-portable.zip",
+   "size": 411492477,
+   "sha256": "e1be44720cb1693f9e4c8316b5cb49f45e92864d893795c22a43ae7742094371",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-0.1.0-beta.13-windows-x64-portable.zip"
+  },
+  {
+   "name": "Cantus-0.1.0-beta.13-windows-x64-setup.exe",
+   "size": 166648623,
+   "sha256": "b140694a9e2e48fd3fbd9dcfd1319fbc51eaee5b2bf31c8c65df01fedb49ef40",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-0.1.0-beta.13-windows-x64-setup.exe"
+  },
+  {
+   "name": "Cantus-linux-x86_64.AppImage",
+   "size": 81742328,
+   "sha256": "5c22416c0e69263b9152d0e798d4acb50990ddb50a964604b4cd527985c3f0eb",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-linux-x86_64.AppImage"
+  },
+  {
+   "name": "Cantus-macos-universal.dmg",
+   "size": 66394562,
+   "sha256": "a6fa5d32a79785ecbcc1b204aca4ec563e1688ac02cbea62f77375d80f411e18",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-macos-universal.dmg"
+  },
+  {
+   "name": "Cantus-windows-x64-setup.exe",
+   "size": 166648623,
+   "sha256": "b140694a9e2e48fd3fbd9dcfd1319fbc51eaee5b2bf31c8c65df01fedb49ef40",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/Cantus-windows-x64-setup.exe"
+  },
+  {
+   "name": "SHA256SUMS.txt",
+   "size": 831,
+   "sha256": "60bee9ef4a2cd1b8abfbd39b9cc3194c7978ac5b4d84ea84e233f9f75a624334",
+   "url": "https://github.com/luis314159/cantus-daw/releases/download/v0.1.0-beta.13/SHA256SUMS.txt"
+  }
+ ]
+}

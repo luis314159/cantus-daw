@@ -221,6 +221,9 @@ pub struct CantusApp {
     /// Areas to bring to the front once the dock is drawn (`show_pane`): a view drawn
     /// inside a tab cannot change the dock it is drawn in.
     pub(crate) panes_wanted: Vec<crate::views::workspace::Pane>,
+    /// An area to bring forward and focus once the dock is back (unfolded, its tab the
+    /// one shown): the inspector's *Show in the arrangement* (round 39, lo-mixer).
+    pub(crate) pane_focus_wanted: Option<crate::views::workspace::Pane>,
     /// The egui pass whose keys were dispatched (`dispatch_keys` runs once a pass).
     keys_pass: Option<u64>,
     pub(crate) theme_ctx: Option<egui::Context>,
@@ -552,6 +555,15 @@ impl CantusApp {
         app.workspace.load(&app.layouts.current);
         app.keymap = keymap;
         app.keymap_path = keymap_path;
+        // r39:ux-b — Settings opens on the page chosen last (ADR 0110).
+        if let Some(p) = app
+            .settings
+            .settings_page
+            .as_deref()
+            .and_then(views::workspace_settings::SettingsPage::from_key)
+        {
+            app.settings_page.page = p;
+        }
         // New or changed plug-ins, looked for in the background as Cantus starts (round 30).
         if views::plugins::scans_at_start(app.settings.plugin_scan_at_start, db_from_disk, stress) {
             views::plugins::scan_at_start(&mut app);
@@ -735,6 +747,7 @@ impl CantusApp {
             layouts_path: layout::layouts_path(&config_dir()),
             naming_layout: None,
             panes_wanted: Vec::new(),
+            pane_focus_wanted: None,
             keys_pass: None,
             piano_roll_notes_drawn: 0,
             keyboard: KeyboardPiano::default(),
@@ -1083,6 +1096,22 @@ impl CantusApp {
         self.appearance_page.system_dark = dark;
     }
 
+    /// The taskbar went light or dark: the automatic icon's colours follow it, the look
+    /// stays as it is (round 39, fixes).
+    fn follow_taskbar(&mut self) {
+        let Some(ctx) = self.theme_ctx.clone() else {
+            return;
+        };
+        let dark = views::appearance_file::system_dark(&ctx);
+        let t = self.appearance.resolve(dark);
+        let mark = self
+            .appearance
+            .icon
+            .mark_on(&t.kit_tokens(), self.taskbar.light());
+        crate::kit::logo::set_icon_colours(mark);
+        self.window_icon.want(mark);
+    }
+
     /// Write the appearance file (it is also what a hand edit or another window changes;
     /// the app picks those up while it runs), and leave the chosen logo where the next
     /// launch's splash finds it.
@@ -1121,6 +1150,8 @@ impl CantusApp {
         let scale = scale.clamp(settings::MIN_UI_SCALE, settings::MAX_UI_SCALE);
         ctx.set_zoom_factor(scale);
         self.settings.ui_scale = scale;
+        // r39:kit — the user's own choice: the scale no longer follows the screen.
+        self.settings.ui_scale_follows_screen = false;
         self.store_settings();
         self.set_status(tf(
             "workspace.zoom_now",
@@ -1654,6 +1685,8 @@ impl CantusApp {
             "discrimen" => EffectKind::TransientSplit,
             "speculum" => EffectKind::Analyzer,
             "tonus" => EffectKind::AutoTune,
+            "aula" | "convolution" => EffectKind::Aula, // r39:conv
+            "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };
         self.add_effect(strip, kind);
@@ -1818,6 +1851,31 @@ impl CantusApp {
             strip: Box::new(strip),
         }) {
             self.selected_strip = Some(id);
+        }
+    }
+
+    /// Make the desk's strips up to number `n` (FL's next inserts: a click on an empty
+    /// place beyond the last strip), one undo step, and select the last (round 39).
+    pub fn add_strips_up_to(&mut self, n: usize) {
+        let have = self.project().strips.len();
+        if n <= have {
+            return;
+        }
+        let mut commands = Vec::with_capacity(n - have);
+        let mut last = None;
+        for index in have..n {
+            let strip = self.bus.new_strip("");
+            last = Some(strip.id);
+            commands.push(Command::InsertStrip {
+                index,
+                strip: Box::new(strip),
+            });
+        }
+        if self.exec(Command::Batch {
+            label_key: "cmd.insert_strip".into(),
+            commands,
+        }) {
+            self.selected_strip = last;
         }
     }
 
@@ -2209,6 +2267,32 @@ impl CantusApp {
                 self.toggle_pane(pane);
             }
         }
+        if let Some(pane) = self.pane_focus_wanted.take() {
+            if self.workspace.is_folded(pane) {
+                self.workspace.unfold(pane);
+            }
+            self.workspace.reveal(pane);
+            self.follow_area_focus(pane);
+        }
+    }
+
+    /// *Show in the arrangement* (round 39, the inspector's Automation): the track's
+    /// automation lanes opened, the arrangement scrolled to the track and brought forward
+    /// with the keys' focus. Opening the lanes is one undo step; nothing when they are open.
+    pub fn show_automation_in_arrangement(&mut self, track: cantus_core::TrackId) {
+        let Some(t) = self.project().track(track) else {
+            return;
+        };
+        if !t.automation_open {
+            self.exec(cantus_core::Command::SetTrackAutomationOpen {
+                id: track,
+                open: true,
+            });
+        }
+        self.arrangement.reveal = Some(track);
+        self.show_pane(crate::views::workspace::Pane::Arrangement);
+        self.pane_focus_wanted = Some(crate::views::workspace::Pane::Arrangement);
+        self.focus = EditFocus::Arrangement;
     }
 
     /// "Pick an element": turn the eyedropper on or off (ADR 0024 §2). While it is on,
@@ -2217,6 +2301,43 @@ impl CantusApp {
         self.appearance_page.picking = !self.appearance_page.picking;
         if let Some(ctx) = &self.theme_ctx {
             crate::kit::inspect::set_enabled(ctx, self.appearance_page.picking);
+        }
+    }
+
+    /// Shift+F10 outside the mixer (round 39, ADR 0110): while the arrangement is being
+    /// edited, the selected clip's menu, else the selected track's; in another area, its
+    /// tab's menu.
+    pub fn open_context_menu_by_key(&mut self) {
+        let Some(ctx) = self.theme_ctx.clone() else {
+            return;
+        };
+        // The editors take turns by the edit focus (a click in one, Ctrl+F6); the other
+        // areas by the dock's.
+        let area = self.workspace.focused_area().unwrap_or(Pane::Arrangement);
+        let editor = matches!(
+            area,
+            Pane::Arrangement | Pane::Mixer | Pane::PianoRoll | Pane::ChannelRack
+        );
+        if editor && self.focus == EditFocus::Arrangement {
+            let clip = self.clip_selection().first().copied();
+            if let Some((t, c)) = clip {
+                crate::menu_keys::want(&ctx, crate::menu_keys::Wanted::Clip(t, c));
+            } else if let Some(t) = self.selected_track {
+                crate::menu_keys::want(&ctx, crate::menu_keys::Wanted::Track(t));
+            }
+        } else {
+            self.workspace.open_tab_menu(area);
+        }
+    }
+
+    /// The keys' focus follows the area the keyboard moved to (round 39, ADR 0110): the
+    /// arrows and M / S act where the focused tab is lit.
+    pub fn follow_area_focus(&mut self, pane: Pane) {
+        match pane {
+            Pane::Arrangement => self.focus = EditFocus::Arrangement,
+            Pane::PianoRoll | Pane::ChannelRack => self.focus = EditFocus::PianoRoll,
+            Pane::Mixer => self.focus = EditFocus::Mixer,
+            _ => {}
         }
     }
 
@@ -2969,6 +3090,15 @@ impl CantusApp {
         self.auditions.push((track, pitch, Instant::now()));
     }
 
+    /// r39:el-views — the pitches a click on the keyboard is sounding on `track` now, as
+    /// a 128-bit set (the piano roll lights those keys).
+    pub(crate) fn auditioned(&self, track: TrackId) -> u128 {
+        self.auditions
+            .iter()
+            .filter(|(t, p, _)| *t == track && *p < 128)
+            .fold(0, |set, (_, p, _)| set | 1u128 << *p)
+    }
+
     pub(crate) fn apply_key_event(&mut self, ev: KeyEvent) {
         let Some(track) = self.selected_track else {
             return;
@@ -3587,7 +3717,25 @@ impl CantusApp {
         // is laid out, so without the claim the same press would nudge the note selection
         // as well (`crate::widgets`).
         let arrows_taken = crate::widgets::arrow_keys_claimed(ctx);
-        self.dispatch_keys(ctx, arrows_taken, &|_, _| false);
+        // r39:ux-b — a menu in front holds the keys it walks with: the arrows, Home, End,
+        // Enter, Space and Esc are its own while it is open (ADR 0110, `menu_keys`); every
+        // other shortcut still works (Shift+F10 opens another menu).
+        let menu = crate::menu_keys::holds_keys(ctx);
+        let walks = |map: &crate::keymap::Keymap, a: Action| {
+            menu && map.bindings_for(a).iter().any(|b| {
+                !b.command
+                    && !b.alt
+                    && matches!(
+                        b.key,
+                        egui::Key::Home
+                            | egui::Key::End
+                            | egui::Key::Enter
+                            | egui::Key::Space
+                            | egui::Key::Escape
+                    )
+            })
+        };
+        self.dispatch_keys(ctx, arrows_taken || menu, &walks);
     }
 
     /// One pass's keys, whoever holds the focus: the keymap's actions (but those `taken`
@@ -3783,6 +3931,11 @@ impl CantusApp {
             }
             Quantize => self.quantize_selection(),
             ClearSelection => {
+                // Esc closes what opened last (round 39, ADR 0110): while a menu, a dialog
+                // or a panel that Esc closes is open, the key is that surface's.
+                if self.theme_ctx.as_ref().is_some_and(crate::esc::any_open) {
+                    return;
+                }
                 // A drag on the desk (or a route armed by a click) and a selected cable
                 // take Esc for themselves — it cancels the drag, lets the cable go — and
                 // nothing else is cleared with it (round 25).
@@ -3855,6 +4008,23 @@ impl CantusApp {
                 self.set_auto_armed(on);
             }
             CycleTrackAutoMode => self.cycle_track_auto_mode(),
+            // r39:lo-arrange — the arrangement's own tools while it is worked in (dir-a's
+            // radio set: Select, Draw, Slice, Erase, Mute, Zoom); B stays its paint tool.
+            ToolDraw | ToolSelect | ToolDelete | ToolMute | ToolSlice | ToolZoom
+                if self.focus == EditFocus::Arrangement =>
+            {
+                views::arrangement::tools::pick_by_key(self, action);
+            }
+            ToolZoom => {}
+            GridTriplets => {
+                use views::arrangement::tools::toggle_triplets;
+                if self.focus == EditFocus::Arrangement {
+                    self.arrangement.grid = toggle_triplets(self.arrangement.grid);
+                    self.arrangement.snap = true;
+                } else {
+                    self.piano_roll.grid = toggle_triplets(self.piano_roll.grid);
+                }
+            }
             ToolDraw => self.piano_roll.tool = views::piano_roll::Tool::Draw,
             // B in the arrangement: its paint tool, painting the clip browser's chosen tile
             // (round 26, ADR 0037), as B is the paint tool in FL's playlist.
@@ -3884,6 +4054,34 @@ impl CantusApp {
             CloseFloating => {
                 if let Some(ctx) = self.theme_ctx.clone() {
                     self.workspace.close_floating_devices(&ctx);
+                }
+            }
+            // The workspace's areas (round 39, ADR 0110): the one being worked in.
+            MaximizeArea => {
+                let p = self.workspace.focused_area().unwrap_or(Pane::Arrangement);
+                self.workspace.toggle_maximise(p);
+            }
+            CollapseArea => {
+                if let Some(p) = self.workspace.focused_area() {
+                    self.workspace.toggle_fold(p);
+                }
+            }
+            BrowsePresets => {
+                // r39:ux-b — the preset browser on the selected track's instrument, or
+                // closed when it is open (ADR 0110).
+                if self.presets.open {
+                    self.close_preset_browser();
+                } else if let Some(track) = self.selected_track {
+                    self.open_preset_browser(crate::preset_audition::Target::Track(track));
+                    if !self.presets.open {
+                        self.set_status(t("ux.paths.no_presets"));
+                    }
+                }
+            }
+            NextArea | PreviousArea => {
+                let step = if action == NextArea { 1 } else { -1 };
+                if let Some(p) = self.workspace.focus_step(step) {
+                    self.follow_area_focus(p);
                 }
             }
             ZoomIn | ZoomOut | ZoomReset => {
@@ -3931,6 +4129,10 @@ impl CantusApp {
                     && self.selected_strip.is_some_and(|s| !s.is_master())
                 {
                     self.mixer.want_route_menu();
+                } else if self.focus != EditFocus::Mixer {
+                    // r39:ux-b — elsewhere the platform's context-menu key opens what a
+                    // right-click on the selection opens (ADR 0110).
+                    self.open_context_menu_by_key();
                 }
             }
         }
@@ -3945,6 +4147,7 @@ impl CantusApp {
     fn keymap_dialog(&mut self, ctx: &egui::Context) {
         use crate::keymap::{Category, Preset};
 
+        let was_rebinding = self.rebinding.is_some();
         // A rebind in progress swallows the next key press, so read it before the widgets
         // get a chance to act on it.
         if let Some(action) = self.rebinding {
@@ -3958,30 +4161,59 @@ impl CantusApp {
         }
 
         let mut open = self.show_shortcuts;
+        // r39:ux-b — Esc closes the shortcuts when they opened last and no key is being
+        // caught for a binding (ADR 0110).
+        crate::esc::open(ctx, crate::esc::Layer::Shortcuts);
+        if !was_rebinding
+            && !ctx.egui_wants_keyboard_input()
+            && crate::esc::take(ctx, crate::esc::Layer::Shortcuts)
+        {
+            open = false;
+        }
         let mut open_file = false;
         let mut apply_preset: Option<Preset> = None;
         let mut rebind: Option<Action> = None;
         let mut unbind: Option<(Action, crate::keymap::Binding)> = None;
         let conflicts = self.keymap.conflicts();
 
-        egui::Window::new(t("keymap.title"))
+        let mut closed = false; // r39:el-controls
+        crate::kit::dialog::window(t("keymap.title"))
             .collapsible(false)
             .open(&mut open)
             .default_size([space::GRID * 150.0, space::GRID * 140.0])
             .show(ctx, |ui| {
+                closed = crate::kit::dialog::title(ui, &t("keymap.title")); // r39:el-controls
                 ui.horizontal(|ui| {
                     ui.label(t("keymap.preset"));
-                    for preset in Preset::ALL {
-                        let selected = self.keymap.preset == preset.id();
-                        if ui
-                            .selectable_label(selected, t(preset.label_key()))
-                            .clicked()
-                        {
-                            apply_preset = Some(preset);
-                        }
+                    // r39:el-controls — the presets a segmented choice, the file a button.
+                    let mut at = Preset::ALL
+                        .iter()
+                        .position(|p| self.keymap.preset == p.id())
+                        .unwrap_or(0);
+                    let names: Vec<String> = Preset::ALL.iter().map(|p| t(p.label_key())).collect();
+                    let labels: Vec<crate::kit::text::Src<'_>> = names
+                        .iter()
+                        .map(|n| crate::kit::text::Src::Str(n.as_str()))
+                        .collect();
+                    let width = 96.0 * labels.len() as f32;
+                    if crate::kit::widgets::segmented(
+                        ui,
+                        &mut at,
+                        &labels,
+                        &t("keymap.preset"),
+                        width,
+                    )
+                    .changed()
+                    {
+                        apply_preset = Preset::ALL.get(at).copied();
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        open_file = ui.button(t("keymap.open_file")).clicked();
+                        open_file = crate::kit::dialog::compact_ui(
+                            ui,
+                            &t("keymap.open_file"),
+                            crate::kit::dialog::Kind::Secondary,
+                        )
+                        .clicked();
                     });
                 });
                 ui.label(
@@ -4028,15 +4260,20 @@ impl CantusApp {
                                             for b in &bindings {
                                                 let clashes =
                                                     conflicts.iter().any(|c| c.binding == *b);
-                                                let mut text = egui::RichText::new(b.display())
-                                                    .text_style(design::mono_small());
-                                                if clashes {
-                                                    text = text.color(theme::p().danger);
-                                                }
-                                                if ui
-                                                    .button(text)
-                                                    .on_hover_text(t("keymap.clear"))
-                                                    .clicked()
+                                                // r39:el-controls — a key, a compact
+                                                // button; a clash says so in red.
+                                                let kind = if clashes {
+                                                    crate::kit::dialog::Kind::Destructive
+                                                } else {
+                                                    crate::kit::dialog::Kind::Secondary
+                                                };
+                                                if crate::kit::dialog::compact_ui(
+                                                    ui,
+                                                    &b.display(),
+                                                    kind,
+                                                )
+                                                .on_hover_text(t("keymap.clear"))
+                                                .clicked()
                                                 {
                                                     unbind = Some((action, *b));
                                                 }
@@ -4053,7 +4290,14 @@ impl CantusApp {
                                             } else {
                                                 t("keymap.add")
                                             };
-                                            if ui.selectable_label(listening, label).clicked() {
+                                            let kind = if listening {
+                                                crate::kit::dialog::Kind::Primary
+                                            } else {
+                                                crate::kit::dialog::Kind::Quiet
+                                            };
+                                            if crate::kit::dialog::compact_ui(ui, &label, kind)
+                                                .clicked()
+                                            {
                                                 rebind =
                                                     if listening { None } else { Some(action) };
                                             }
@@ -4075,8 +4319,8 @@ impl CantusApp {
                 }
             });
 
-        self.show_shortcuts = open;
-        if !open {
+        self.show_shortcuts = open && !closed;
+        if !self.show_shortcuts {
             self.rebinding = None;
         }
         if open_file {
@@ -4115,6 +4359,9 @@ impl CantusApp {
         views::preset_browser::window(self, ctx); // r37:library
         if self.show_settings {
             views::workspace_settings::window(self, ctx);
+        } else {
+            // Closed however it was: the next opening raises it again.
+            views::workspace_settings::closed(self);
         }
         if self.show_theme_editor {
             views::appearance::window(self, ctx);
@@ -4138,6 +4385,13 @@ impl CantusApp {
             self.theme_ctx = Some(ctx.clone());
         }
         let frame_start = Instant::now();
+        // r39:kit — until the user picks a scale, it follows the screen (ADR 0111 §7).
+        if let Some(z) = crate::screen_scale::wanted(&self.settings, ctx) {
+            if (z - self.settings.ui_scale).abs() > 1e-3 {
+                ctx.set_zoom_factor(z);
+                self.settings.ui_scale = z;
+            }
+        }
         // macOS: the global menu bar kept in step with the keymap, its picks run (ADR 0066).
         crate::macos::menu::serve(self, ctx);
         // macOS: a project double-clicked in Finder or dropped on the Dock icon.
@@ -4246,6 +4500,8 @@ impl CantusApp {
         views::update::frame(self, ctx);
         views::appearance::pick(self, ctx);
         views::hint::value_pill(ctx);
+        views::hint::from_cursor(ctx); // r39:ux-a — a resize edge or a handle says what it does (ADR 0109)
+        crate::drive::frame(self, ctx); // r39:ux-a — a driven control's words, for the next frame (ADR 0109)
         design::paint_focus_ring(ctx, &theme::p());
         self.layouts.end_frame();
 
@@ -4361,9 +4617,11 @@ impl eframe::App for CantusApp {
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.frame(root);
         // The taskbar going light or dark changes the automatic icon (read here, by the
-        // real window only, at most every two seconds).
+        // real window only, at most every two seconds) — the icon's colours alone: the
+        // whole look applied again made every cache keyed on the theme go cold and drew
+        // the next frame as a first frame (round 39, fixes: the "stage_budget variance").
         if self.taskbar.poll() {
-            self.apply_appearance();
+            self.follow_taskbar();
         }
         self.window_icon.sync(root.ctx(), frame);
     }
@@ -4390,7 +4648,7 @@ fn layout_name_dialog(ctx: &egui::Context, mut name: String) -> (String, bool, b
             views::audio_parts::panel(ui, rect, &s);
             let head = Rect::from_min_size(rect.min, vec2(rect.width(), 32.0 * k));
             let glyph = crate::kit::glyph::Glyph::Inspector;
-            if views::workspace_settings::title(ui, head, &s, glyph, "layout.dialog_title") {
+            if crate::kit::dialog::head(ui, head, &s, glyph, "layout.dialog_title") {
                 close = true;
             }
             let x0 = rect.left() + 20.0 * k;
@@ -4443,8 +4701,10 @@ fn layout_name_dialog(ctx: &egui::Context, mut name: String) -> (String, bool, b
                 close = true;
             }
         });
-    // Esc with the field already let go leaves the dialog too.
-    if !crate::kit::field::active(ctx) && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+    // Esc with the field already let go leaves the dialog too — when it is what opened
+    // last (r39:ux-b, ADR 0110).
+    crate::esc::open(ctx, crate::esc::Layer::LayoutName);
+    if !crate::kit::field::active(ctx) && crate::esc::take(ctx, crate::esc::Layer::LayoutName) {
         close = true;
     }
     (name, save, close)

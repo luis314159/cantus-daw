@@ -53,10 +53,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click());
             with_brush(ui.painter(), |b| {
-                b.rect(
-                    r,
-                    Fill::Solid(crate::kit::color::with_alpha(s.t.shadow, 0.5)),
-                )
+                b.rect(r, Fill::Solid(super::workspace_settings::scrim_fill(&s)))
             });
         });
     let size = (SIZE * k).min(screen.size() - Vec2::splat(24.0));
@@ -68,7 +65,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             ui.set_min_size(size);
             parts::panel(ui, rect, &s);
-            let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 34.0 * k));
+            let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 44.0 * k));
             if super::workspace_settings::title(ui, head, &s, Glyph::Send, "export_audio.title") {
                 close = true;
             }
@@ -85,14 +82,12 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
                 Pos2::new(rect.right() - 18.0 * k, left.bottom()),
             );
             with_brush(ui.painter(), |b| {
-                let x = b.snap(left.right() + 10.0 * k);
-                b.vline(
-                    x,
-                    left.top(),
-                    left.bottom(),
-                    b.px(),
-                    crate::kit::color::shade(s.t.panel, -0.12),
+                // r39:el-topbar — the presets on the window's base, as Settings' pages.
+                let side = Rect::from_min_max(
+                    Pos2::new(rect.left(), head.bottom()),
+                    Pos2::new(left.right() + 10.0 * k, rect.bottom()),
                 );
+                super::workspace_settings::side_ground(b, side, &s);
             });
             let mut d = app.export.dialog.clone().unwrap_or_default();
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(left));
@@ -180,36 +175,86 @@ fn presets(ui: &mut Ui, d: &mut ExportSettings) {
     band_row(ui, "export_audio.band.presets");
     let current = d.preset();
     let w = ui.available_width();
+    let recessed = s.t.system.recessed();
     for p in Preset::ALL {
         let (name, hint) = p.keys();
-        let (r, _) = ui.allocate_exact_size(Vec2::new(w, 58.0 * k), Sense::hover());
-        let resp = parts::choice_key(
-            ui,
-            r,
-            Id::new(("export-preset", p as u8)),
-            &t(name),
-            &t(hint),
-            Some(preset_dot(p)),
-            current == Some(p),
-        );
+        let h = if recessed { 46.0 } else { 58.0 };
+        let (r, _) = ui.allocate_exact_size(Vec2::new(w, h * k), Sense::hover());
+        let id = Id::new(("export-preset", p as u8));
+        let resp = if recessed {
+            preset_row(ui, r, id, &t(name), &t(hint), current == Some(p))
+        } else {
+            parts::choice_key(
+                ui,
+                r,
+                id,
+                &t(name),
+                &t(hint),
+                Some(preset_dot(p)),
+                current == Some(p),
+            )
+        };
         put(ui, format!("preset#{}", p as u8), r);
         if resp.clicked() {
             *d = p.apply(d);
         }
-        ui.add_space(6.0 * k);
+        ui.add_space(if recessed { 2.0 } else { 6.0 } * k);
     }
-    let (r, _) = ui.allocate_exact_size(Vec2::new(w, 40.0 * k), Sense::hover());
+    let h = if recessed { 46.0 } else { 40.0 };
+    let (r, _) = ui.allocate_exact_size(Vec2::new(w, h * k), Sense::hover());
     let custom = t("export_audio.preset.custom");
     let hint = t("export_audio.preset.custom_hint");
-    parts::choice_key(
-        ui,
-        r,
-        Id::new("export-preset-custom"),
-        &custom,
-        &hint,
-        None,
-        current.is_none(),
-    );
+    let id = Id::new("export-preset-custom");
+    if recessed {
+        preset_row(ui, r, id, &custom, &hint, current.is_none());
+    } else {
+        parts::choice_key(ui, r, id, &custom, &hint, None, current.is_none());
+    }
+}
+
+/// A preset as `dir-a` draws it (round 39): its name 12 Medium over its hint 10 in ink 3,
+/// the chosen one a raised pill with a 2 × 14 accent bar, as Settings' pages. // r39:el-topbar
+fn preset_row(ui: &mut Ui, r: Rect, id: Id, name: &str, hint: &str, on: bool) -> Response {
+    let s = Style::current();
+    let k = s.k;
+    let resp = ui.interact(r, id, Sense::click());
+    let resp = super::hint::said_with(resp, || format!("{name} \u{2014} {hint}"));
+    with_brush(ui.painter(), |b| {
+        if on {
+            b.rrect(b.snap_rect(r), s.r(4.0), Fill::Solid(s.t.menu));
+            let bar = Rect::from_center_size(
+                Pos2::new(r.left() + 1.0 * k, r.center().y),
+                Vec2::new(2.0, 14.0) * k,
+            );
+            b.rect(b.snap_rect(bar), Fill::Solid(s.t.highlight));
+        } else if resp.hovered() {
+            b.rrect(
+                b.snap_rect(r),
+                s.r(4.0),
+                Fill::Solid(crate::kit::color::with_alpha(s.t.text, 0.05)),
+            );
+        }
+        let inner = r.shrink2(Vec2::new(12.0 * k, 6.0 * k));
+        let top = Rect::from_min_max(inner.min, Pos2::new(inner.right(), inner.center().y));
+        let bottom = Rect::from_min_max(Pos2::new(inner.left(), inner.center().y), inner.max);
+        let _ = text::paint(
+            b,
+            top,
+            &Text::new(name, Role::Control, s.t.text)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk(),
+        );
+        let _ = text::paint(
+            b,
+            bottom,
+            &Text::new(hint, Role::Label, s.t.text_dim)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End)),
+            s.tk() * 10.0 / Role::Label.size().max(1.0),
+        );
+    });
+    resp
 }
 
 fn preset_dot(p: Preset) -> Tok {
@@ -230,7 +275,22 @@ pub(super) fn band_row(ui: &mut Ui, key: &str) {
         Sense::hover(),
     );
     with_brush(ui.painter(), |b| {
-        band::section(b, r, &s, State::REST, Src::Key(key), None, false)
+        if s.t.system.recessed() {
+            // r39:el-topbar — `dir-a`: a section is its title, 11 SemiBold ink 3, title case.
+            let ink = crate::kit::color::ensure_contrast_all(
+                s.t.placeholder,
+                &[s.t.toolbar, s.t.panel],
+                4.5,
+            );
+            let _ = text::paint(
+                b,
+                r,
+                &Text::key(key, Role::Section, ink).align(Align2::LEFT_BOTTOM),
+                s.tk(),
+            );
+        } else {
+            band::section(b, r, &s, State::REST, Src::Key(key), None, false)
+        }
     });
 }
 
@@ -334,7 +394,13 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, rect: Rect) -> bool {
     );
     let mut close = false;
     if busy {
-        let b = parts::button(&mut child, &t("export_audio.stop"), true, true, 96.0);
+        let b = parts::button(
+            &mut child,
+            &t("export_audio.stop"),
+            !s.t.system.recessed(),
+            true,
+            96.0,
+        );
         put(&child, "button.stop", b.rect);
         if b.clicked() {
             ex::stop(app);
@@ -381,6 +447,10 @@ pub(super) fn progress(
         &[Tok::Well, Tok::Selection, Tok::Text],
         &[],
     );
+    if s.t.system.recessed() {
+        progress_slate(b, r, s, phase, fraction, time);
+        return;
+    }
     well::paint(b, r, s, State::REST, None);
     let inner = r.shrink(s.s(2.0));
     let fill = crate::kit::color::with_alpha(s.t.selection, 0.55);
@@ -413,6 +483,65 @@ pub(super) fn progress(
         b,
         r,
         &Text::new(&label, Role::Value, s.t.text).align(Align2::CENTER_CENTER),
+        s.tk(),
+    );
+}
+
+/// The exporting state as `dir-a` draws it (round 39): the phase in 12 Medium, how far at
+/// the right, a 4-px accent bar in its groove under them — or, when the render cannot say
+/// how far it is, a lit block gliding along the groove. // r39:el-topbar
+fn progress_slate(
+    b: &mut crate::kit::Brush,
+    r: Rect,
+    s: &Style,
+    phase: &str,
+    fraction: Option<f32>,
+    time: f64,
+) {
+    let k = s.k;
+    let words = Rect::from_min_max(r.min, Pos2::new(r.right(), r.center().y + 2.0 * k));
+    let groove = Rect::from_min_size(
+        Pos2::new(r.left(), r.center().y + 5.0 * k),
+        Vec2::new(r.width(), 4.0 * k),
+    );
+    let groove = b.snap_rect(groove);
+    b.rrect(groove, 2.0 * k, Fill::Solid(s.t.well));
+    match fraction {
+        Some(f) => {
+            let f = f.clamp(0.0, 1.0);
+            let lit =
+                Rect::from_min_size(groove.min, Vec2::new(groove.width() * f, groove.height()));
+            b.rrect(lit, 2.0 * k, Fill::Solid(s.t.highlight));
+            let pct = format!("{:.0} %", f * 100.0);
+            let _ = text::paint(
+                b,
+                words,
+                &Text::new(&pct, Role::Control, s.t.text).align(Align2::RIGHT_CENTER),
+                s.tk(),
+            );
+        }
+        None => {
+            let span = groove.width() * 0.22;
+            let t = (time * 0.6).fract() as f32;
+            let x = groove.left() + (groove.width() + span) * t - span;
+            let block = Rect::from_min_max(
+                Pos2::new(x.max(groove.left()), groove.top()),
+                Pos2::new((x + span).min(groove.right()), groove.bottom()),
+            );
+            if block.width() > 0.0 {
+                b.rrect(block, 2.0 * k, Fill::Solid(s.t.highlight));
+            }
+        }
+    }
+    let _ = text::paint(
+        b,
+        Rect::from_min_max(
+            words.min,
+            Pos2::new(words.right() - 48.0 * k, words.bottom()),
+        ),
+        &Text::new(phase, Role::Control, s.t.text)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End)),
         s.tk(),
     );
 }

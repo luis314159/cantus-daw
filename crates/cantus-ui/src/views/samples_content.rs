@@ -9,13 +9,13 @@ pub mod missing;
 pub mod sounds;
 
 use super::interop::form;
-use super::samples_paint::{self as paint, Icon};
+use super::samples_paint as paint;
 use super::workspace_settings::{frame, title};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
-use crate::kit::color::{shade, with_alpha};
+use crate::kit::color::with_alpha;
 use crate::kit::glyph::Glyph;
-use crate::kit::text::{Role, Src};
+use crate::kit::text::{self, Role, Src, Text};
 use crate::kit::{with_brush, Fill, Style};
 use cantus_content::{Attribution, Licence, Pack, Phase, Source, Status};
 use egui::{pos2, vec2, Align2, Context, Id, Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
@@ -119,7 +119,8 @@ pub fn size(bytes: u64) -> String {
 pub fn window(app: &mut CantusApp, ctx: &Context) {
     let s = Style::current();
     let screen = ctx.content_rect();
-    let want = Vec2::new(780.0, 560.0) * s.k;
+    // r39:lo-rest — wide enough for three covers beside a pack's details.
+    let want = Vec2::new(980.0, 620.0) * s.k;
     let size = want.min(screen.size() - Vec2::new(40.0, 100.0));
     let mut open = true;
     egui::Window::new("cantus-content")
@@ -160,13 +161,40 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
 
 fn body(app: &mut CantusApp, ui: &mut Ui, s: &Style, area: Rect) {
     let k = s.k;
-    let mut packs: Vec<Pack> = app.samples.content().manifest().packs.clone();
-    // Grouped by category, in the manifest's order within each.
-    packs.sort_by_key(|p| p.category as u8);
+    let all: Vec<Pack> = app.samples.content().manifest().packs.clone();
+    // r39:lo-rest — the page's head (counts, filters, order) and foot (credits, where).
+    let head = Rect::from_min_size(
+        area.min + vec2(10.0, 6.0) * k,
+        vec2(area.width() - 20.0 * k, 48.0 * k),
+    );
+    let foot = Rect::from_min_max(
+        pos2(area.left() + 10.0 * k, area.bottom() - 30.0 * k),
+        pos2(area.right() - 10.0 * k, area.bottom() - 4.0 * k),
+    );
+    packs_head(app, ui, s, head, &all);
+    packs_foot(app, ui, s, foot);
+    let area = Rect::from_min_max(
+        pos2(area.left(), head.bottom() + 2.0 * k),
+        pos2(area.right(), foot.top()),
+    );
+    let lang = crate::i18n::locale().code();
+    let (filter, sort) = (app.samples.window.filter, app.samples.window.sort);
+    let installed: Vec<String> = all
+        .iter()
+        .filter(|p| app.samples.content().is_installed(&p.id))
+        .map(|p| p.id.clone())
+        .collect();
+    let packs = shown_packs(
+        &all,
+        filter,
+        sort,
+        |id| installed.iter().any(|i| i == id),
+        lang,
+    );
     if app.samples.window.selected.is_none() {
         app.samples.window.selected = packs.first().map(|p| p.id.clone());
     }
-    let list_w = (area.width() * 0.42).clamp(240.0 * k, 360.0 * k);
+    let list_w = (area.width() * 0.5).clamp(180.0 * k, 470.0 * k);
     let list = Rect::from_min_max(
         area.min + vec2(8.0, 8.0) * k,
         pos2(area.left() + list_w, area.bottom() - 8.0 * k),
@@ -178,39 +206,20 @@ fn body(app: &mut CantusApp, ui: &mut Ui, s: &Style, area: Rect) {
     with_brush(ui.painter(), |b| {
         crate::kit::well::paint(b, list, s, crate::kit::State::REST, None);
     });
-    let lang = crate::i18n::locale().code();
     let mut child = ui.new_child(UiBuilder::new().max_rect(list.shrink(2.0 * k)));
     egui::ScrollArea::vertical()
         .id_salt("content-list")
         .auto_shrink([false, false])
         .show(&mut child, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            let width = ui.available_width();
-            let mut last_cat = None;
-            for p in &packs {
-                if last_cat != Some(p.category) {
-                    last_cat = Some(p.category);
-                    let (r, _) = ui.allocate_exact_size(vec2(width, 24.0 * k), Sense::hover());
-                    with_brush(ui.painter(), |b| paint::section(b, r, s, p.category.key()));
-                }
-                let (r, resp) = ui.allocate_exact_size(vec2(width, 40.0 * k), Sense::click());
-                let status = app.samples.content().status(&p.id);
-                let selected = app.samples.window.selected.as_deref() == Some(p.id.as_str());
-                with_brush(ui.painter(), |b| {
-                    pack_row(b, r, s, p, &status, selected, resp.hovered(), lang)
-                });
-                if resp.clicked() {
-                    app.samples.window.selected = Some(p.id.clone());
-                    app.samples.window.confirm_remove = None;
-                }
-            }
+            grid(app, ui, s, &packs, lang, sort == PackSort::Category);
         });
     let Some(pack) = app
         .samples
         .window
         .selected
         .as_ref()
-        .and_then(|id| packs.iter().find(|p| &p.id == id))
+        .and_then(|id| all.iter().find(|p| &p.id == id))
         .cloned()
     else {
         return;
@@ -226,96 +235,530 @@ fn body(app: &mut CantusApp, ui: &mut Ui, s: &Style, area: Rect) {
         });
 }
 
-#[allow(clippy::too_many_arguments)]
-fn pack_row(
+/// The Packs page's filters (des-views): every pack, the installed ones, or one category.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum PackFilter {
+    #[default]
+    All,
+    Installed,
+    Category(cantus_content::manifest::Category),
+}
+
+/// How the Packs page orders its covers: by category under their titles, or by name, or
+/// largest first.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum PackSort {
+    #[default]
+    Category,
+    Name,
+    Size,
+}
+
+impl PackSort {
+    pub fn key(self) -> &'static str {
+        match self {
+            PackSort::Category => "samples.sort.category",
+            PackSort::Name => "samples.sort.name",
+            PackSort::Size => "samples.sort.size",
+        }
+    }
+
+    /// The next order, as the Sort key cycles.
+    pub fn next(self) -> PackSort {
+        match self {
+            PackSort::Category => PackSort::Name,
+            PackSort::Name => PackSort::Size,
+            PackSort::Size => PackSort::Category,
+        }
+    }
+}
+
+/// The filters the page offers for `packs`: All, Installed, then each category they have,
+/// in the manifest's order of categories.
+pub fn pack_filters(packs: &[Pack]) -> Vec<PackFilter> {
+    let mut cats: Vec<cantus_content::manifest::Category> = Vec::new();
+    for p in packs {
+        if !cats.contains(&p.category) {
+            cats.push(p.category);
+        }
+    }
+    cats.sort_by_key(|c| *c as u8);
+    [PackFilter::All, PackFilter::Installed]
+        .into_iter()
+        .chain(cats.into_iter().map(PackFilter::Category))
+        .collect()
+}
+
+/// The packs `filter` keeps, in `sort`'s order (`installed` says which are here).
+pub fn shown_packs(
+    packs: &[Pack],
+    filter: PackFilter,
+    sort: PackSort,
+    installed: impl Fn(&str) -> bool,
+    lang: &str,
+) -> Vec<Pack> {
+    let mut out: Vec<Pack> = packs
+        .iter()
+        .filter(|p| match filter {
+            PackFilter::All => true,
+            PackFilter::Installed => installed(&p.id),
+            PackFilter::Category(c) => p.category == c,
+        })
+        .cloned()
+        .collect();
+    match sort {
+        // Grouped by category, in the manifest's order within each.
+        PackSort::Category => out.sort_by_key(|p| p.category as u8),
+        PackSort::Name => out.sort_by_key(|p| p.name.get(lang).to_lowercase()),
+        PackSort::Size => out.sort_by_key(|p| std::cmp::Reverse(p.download_size())),
+    }
+    out
+}
+
+/// The page's head (des-views, *Packs*): how many packs, how many are here and what they
+/// weigh on disk; the filters as one segmented control; the order at the right.
+fn packs_head(app: &mut CantusApp, ui: &mut Ui, s: &Style, head: Rect, packs: &[Pack]) {
+    let k = s.k;
+    let room = super::room::Room::of(&s.t);
+    let lang = crate::i18n::locale().code();
+    let here: Vec<&Pack> = packs
+        .iter()
+        .filter(|p| app.samples.content().is_installed(&p.id))
+        .collect();
+    let on_disk: u64 = here.iter().map(|p| p.installed_size).sum();
+    let summary = tf(
+        "samples.packs_summary",
+        &[
+            ("n", &packs.len().to_string()),
+            ("here", &here.len().to_string()),
+            (
+                "size",
+                &if on_disk == 0 {
+                    "0 MB".to_string()
+                } else {
+                    size(on_disk)
+                },
+            ),
+        ],
+    );
+    let line = Rect::from_min_size(head.min, vec2(head.width(), 18.0 * k));
+    let row = Rect::from_min_max(pos2(head.left(), line.bottom() + 6.0 * k), head.max);
+    let filters = pack_filters(packs);
+    let labels: Vec<String> = filters
+        .iter()
+        .map(|f| match f {
+            PackFilter::All => t("samples.filter.all"),
+            PackFilter::Installed => t("samples.state.installed"),
+            PackFilter::Category(c) => t(c.key()),
+        })
+        .collect();
+    let widest = labels
+        .iter()
+        .map(|l| text::measure(ui.ctx(), &Text::new(l, Role::Control, room.ink1), s.tk()).x)
+        .fold(0.0f32, f32::max);
+    let sort_w = 150.0 * k;
+    let seg_w = ((widest + 20.0 * k) * filters.len() as f32).min(row.width() - sort_w - 16.0 * k);
+    let seg = Rect::from_min_size(row.min, vec2(seg_w, row.height()));
+    let sort = Rect::from_min_max(pos2(row.right() - sort_w, row.top()), row.max);
+    let resp = ui.interact(seg, Id::new("packs-filters"), Sense::click());
+    let hovered = resp
+        .hover_pos()
+        .and_then(|p| crate::kit::segmented::hit(seg, filters.len(), p.x));
+    if resp.clicked() {
+        if let Some(i) = hovered {
+            app.samples.window.filter = filters[i];
+        }
+    }
+    let chosen = filters
+        .iter()
+        .position(|f| *f == app.samples.window.filter)
+        .unwrap_or(0);
+    let sresp = ui.interact(sort, Id::new("packs-sort"), Sense::click());
+    if sresp.clicked() {
+        app.samples.window.sort = app.samples.window.sort.next();
+    }
+    if sresp.hovered() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            &t("samples.sort_tip"),
+            "",
+            crate::kit::hint::Caps::NONE,
+        );
+    }
+    let order = t(app.samples.window.sort.key());
+    let _ = lang;
+    with_brush(ui.painter(), |b| {
+        paint::line(
+            b,
+            line,
+            s,
+            Src::Str(&summary),
+            Role::Label,
+            room.ink3,
+            Align2::LEFT_CENTER,
+        );
+        let srcs: Vec<Src<'_>> = labels.iter().map(|l| Src::Str(l)).collect();
+        crate::kit::segmented::paint(
+            b,
+            seg,
+            s,
+            crate::kit::State::of(&resp, false),
+            &srcs,
+            chosen,
+            hovered,
+        );
+        // "Sort  Category": the word in ink 3, the order in ink 1, a chevron.
+        if sresp.hovered() {
+            b.rrect(sort, s.r(3.0), Fill::Solid(room.well_hi));
+        }
+        let g = Rect::from_center_size(
+            pos2(sort.right() - 10.0 * k, sort.center().y),
+            vec2(9.0, 9.0) * k,
+        );
+        crate::kit::glyph::paint(b, g, Glyph::Down, room.ink2);
+        let value = Text::new(&order, Role::Control, room.ink1)
+            .caps(false)
+            .align(Align2::RIGHT_CENTER);
+        let painted = text::paint(
+            b,
+            Rect::from_min_max(sort.min, pos2(g.left() - 6.0 * k, sort.bottom())),
+            &value,
+            s.tk(),
+        );
+        let right = painted.map_or(g.left(), |p| p.rect.left()) - 6.0 * k;
+        let _ = text::paint(
+            b,
+            Rect::from_min_max(sort.min, pos2(right, sort.bottom())),
+            &Text::key("samples.sort", Role::Label, room.ink3)
+                .caps(false)
+                .align(Align2::RIGHT_CENTER),
+            s.tk(),
+        );
+    });
+}
+
+/// The page's foot: where CC BY packs name their authors, and where packs are kept (a
+/// click shows the folder).
+fn packs_foot(app: &mut CantusApp, ui: &mut Ui, s: &Style, foot: Rect) {
+    let k = s.k;
+    let room = super::room::Room::of(&s.t);
+    let link_w = text::measure(
+        ui.ctx(),
+        &Text::key("samples.where_kept", Role::Label, room.accent),
+        s.tk(),
+    )
+    .x + 4.0 * k;
+    let link = Rect::from_min_max(pos2(foot.right() - link_w, foot.top()), foot.max);
+    let resp = ui.interact(link, Id::new("packs-where"), Sense::click());
+    with_brush(ui.painter(), |b| {
+        b.hline(foot.left(), foot.right(), foot.top(), b.px(), room.edge);
+        paint::line(
+            b,
+            Rect::from_min_max(foot.min, pos2(link.left() - 12.0 * k, foot.bottom())),
+            s,
+            Src::Key("samples.cc_by_note"),
+            Role::Label,
+            room.ink3,
+            Align2::LEFT_CENTER,
+        );
+        let ink = if resp.hovered() {
+            room.ink1
+        } else {
+            room.accent
+        };
+        paint::line(
+            b,
+            link,
+            s,
+            Src::Key("samples.where_kept"),
+            Role::Label,
+            ink,
+            Align2::RIGHT_CENTER,
+        );
+    });
+    if resp.hovered() {
+        let root = app.samples.content().root().display().to_string();
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            &t("samples.where_kept_tip"),
+            &root,
+            crate::kit::hint::Caps::NONE,
+        );
+    }
+    if resp.clicked() {
+        let root = app.samples.content().root().to_path_buf();
+        let _ = std::fs::create_dir_all(&root);
+        let _ = crate::app::reveal(&root);
+    }
+}
+
+/// A cover cell's measures at 100 % (des-views, *Packs*): the 128-px cover, its name, what
+/// it holds, and its state on one line under them.
+pub const COVER: f32 = 128.0;
+const CELL_GAP: f32 = 16.0;
+const CELL_H: f32 = COVER + 8.0 + 16.0 + 14.0 + 8.0 + 20.0;
+
+/// Where a cell's parts go: the cover, the name, the meta line and the state line.
+pub fn cell_rects(cell: Rect, k: f32) -> [Rect; 4] {
+    let cover = Rect::from_min_size(cell.min, vec2(COVER, COVER) * k);
+    let name = Rect::from_min_size(
+        pos2(cell.left(), cover.bottom() + 8.0 * k),
+        vec2(cell.width(), 16.0 * k),
+    );
+    let meta = Rect::from_min_size(
+        pos2(cell.left(), name.bottom()),
+        vec2(cell.width(), 14.0 * k),
+    );
+    let state = Rect::from_min_size(
+        pos2(cell.left(), meta.bottom() + 8.0 * k),
+        vec2(cell.width(), 20.0 * k),
+    );
+    [cover, name, meta, state]
+}
+
+/// What a cell's state line does when clicked.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum CellAction {
+    Get,
+    Cancel,
+    /// An installed pack: open it in the browser.
+    Open,
+}
+
+/// The packs as covers (r39:lo-rest): 128 px, r 8, drawn from what each holds; under
+/// each its name, what it is with its size and licence, and its state — *Installed* (a
+/// check on the cover), *Update · 4 MB*, a 4-px bar while it is fetched with *Cancel*, or
+/// an accent well *Get · 140 MB*. A click on a cover shows its details beside the grid.
+fn grid(app: &mut CantusApp, ui: &mut Ui, s: &Style, packs: &[Pack], lang: &str, grouped: bool) {
+    let k = s.k;
+    let width = ui.available_width();
+    let cell_w = COVER * k;
+    let gap = CELL_GAP * k;
+    let cols = (((width - 12.0 * k + gap) / (cell_w + gap)).floor() as usize).max(1);
+    let mut cells = Vec::new();
+    let mut last_cat = None;
+    let mut col = 0;
+    let mut row_rect: Option<Rect> = None;
+    for p in packs {
+        if grouped && last_cat != Some(p.category) {
+            last_cat = Some(p.category);
+            let (r, _) = ui.allocate_exact_size(vec2(width, 26.0 * k), Sense::hover());
+            with_brush(ui.painter(), |b| paint::section(b, r, s, p.category.key()));
+            col = 0;
+            row_rect = None;
+        }
+        if col == 0 {
+            let (r, _) = ui.allocate_exact_size(vec2(width, CELL_H * k + gap), Sense::hover());
+            row_rect = Some(r);
+        }
+        let Some(row) = row_rect else { continue };
+        let cell = Rect::from_min_size(
+            pos2(
+                row.left() + 12.0 * k + col as f32 * (cell_w + gap),
+                row.top(),
+            ),
+            vec2(cell_w, CELL_H * k),
+        );
+        cells.push((cell, p.clone()));
+        col = (col + 1) % cols;
+    }
+    let mut chosen = None;
+    let mut acted = None;
+    app.samples.window.covers.clear();
+    for (cell, p) in &cells {
+        let [cover, .., state] = cell_rects(*cell, k);
+        app.samples.window.covers.push((p.id.clone(), cover, state));
+    }
+    for (cell, p) in &cells {
+        if !ui.is_rect_visible(*cell) {
+            continue;
+        }
+        let [cover, ..] = cell_rects(*cell, k);
+        let status = match &app.samples.window.shown_busy {
+            Some((id, phase)) if *id == p.id => Status::Busy(Some(phase.clone())),
+            _ => app.samples.content().status(&p.id),
+        };
+        let selected = app.samples.window.selected.as_deref() == Some(p.id.as_str());
+        // The cover with its name and what it is: a click there shows its details.
+        let [_, _, meta, _] = cell_rects(*cell, k);
+        let resp = ui.interact(
+            cover.union(meta),
+            Id::new(("pack-cover", &p.id)),
+            Sense::click(),
+        );
+        let state = cell_rects(*cell, k)[3];
+        let act = match status {
+            Status::NotInstalled | Status::Update { .. } => Some(CellAction::Get),
+            Status::Busy(_) => Some(CellAction::Cancel),
+            Status::Installed { .. } => Some(CellAction::Open),
+        };
+        let act_resp =
+            act.map(|_| ui.interact(state, Id::new(("pack-state", &p.id)), Sense::click()));
+        let act_hovered = act_resp.as_ref().is_some_and(|r| r.hovered());
+        with_brush(ui.painter(), |b| {
+            pack_cell(
+                b,
+                *cell,
+                s,
+                p,
+                &status,
+                (selected, resp.hovered(), act_hovered),
+                lang,
+            )
+        });
+        if resp.hovered() {
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                p.name.get(lang),
+                &t("samples.pack_tip"),
+                crate::kit::hint::Caps::NONE,
+            );
+        }
+        if resp.clicked() {
+            chosen = Some(p.id.clone());
+        }
+        if act_resp.is_some_and(|r| r.clicked()) {
+            acted = act.map(|a| (a, p.id.clone()));
+        }
+    }
+    if let Some(id) = chosen {
+        app.samples.window.selected = Some(id);
+        app.samples.window.confirm_remove = None;
+    }
+    match acted {
+        Some((CellAction::Get, id)) => {
+            app.samples.window.selected = Some(id.clone());
+            app.samples.content().install(&id);
+        }
+        Some((CellAction::Cancel, id)) => app.samples.content().cancel(&id),
+        Some((CellAction::Open, id)) => {
+            // Its sounds in the browser's tree, the search let go of.
+            let dir = app.samples.content().pack_dir(&id);
+            app.samples.query.clear();
+            app.samples.scope = None;
+            app.samples.open.insert(dir);
+            app.samples.window.open = false;
+        }
+        None => {}
+    }
+}
+
+/// One cover cell: `look` is (selected, the cover hovered, the state line hovered).
+fn pack_cell(
     b: &mut crate::kit::Brush,
-    r: Rect,
+    cell: Rect,
     s: &Style,
     p: &Pack,
     status: &Status,
-    selected: bool,
-    hovered: bool,
+    look: (bool, bool, bool),
     lang: &str,
 ) {
     let k = s.k;
-    if selected {
-        b.rect(r, Fill::Solid(with_alpha(s.t.selection, 0.32)));
-        b.rect(
-            Rect::from_min_size(r.min, vec2(2.0 * k, r.height())),
-            Fill::Solid(s.t.highlight),
-        );
-    } else if hovered {
-        b.rect(r, Fill::Solid(crate::theme::tint(s.t.well, s.t.text, 0.06)));
+    let room = super::room::Room::of(&s.t);
+    let (selected, hovered, act_hovered) = look;
+    let [cover, name, meta, state] = cell_rects(cell, k);
+    paint::paint_icon(b, cover, s, paint::cover_of(&p.id), room.ink2);
+    // The chosen pack: an accent ring round its cover; the pointer's, a light one.
+    if selected || hovered {
+        let ring = if selected {
+            room.accent
+        } else {
+            with_alpha(room.ink1, 0.35)
+        };
+        b.rrect_stroke(cover.expand(2.0 * k), 10.0 * k, 1.5 * k, ring);
     }
-    let ir = Rect::from_center_size(
-        pos2(r.left() + 20.0 * k, r.center().y),
-        vec2(18.0, 15.0) * k,
-    );
-    paint::paint_icon(b, ir, s, Icon::Pack, s.t.text_dim);
-    let x = ir.right() + 10.0 * k;
-    let badge_w = 74.0 * k;
-    let name_r = Rect::from_min_max(
-        pos2(x, r.top() + 4.0 * k),
-        pos2(r.right() - badge_w - 6.0 * k, r.center().y + 2.0 * k),
-    );
+    // Installed: a check in `play` on a disc in the corner.
+    if matches!(status, Status::Installed { .. } | Status::Update { .. }) {
+        let c = pos2(cover.right() - 14.0 * k, cover.top() + 14.0 * k);
+        b.dot(c, 9.0 * k, with_alpha(room.gutter, 0.78));
+        let g = Rect::from_center_size(c, vec2(12.0, 12.0) * k);
+        crate::kit::glyph_browser::paint(b, g, crate::kit::glyph_browser::Glyph::Check, room.play);
+    }
     paint::line(
         b,
-        name_r,
+        name,
         s,
         Src::Str(p.name.get(lang)),
         Role::Control,
-        s.t.text,
+        room.ink1,
         Align2::LEFT_CENTER,
     );
-    let meta = format!("{} · {}", size(p.download_size()), p.licence);
-    let meta_r = Rect::from_min_max(
-        pos2(x, r.center().y),
-        pos2(r.right() - badge_w - 6.0 * k, r.bottom() - 4.0 * k),
-    );
-    paint::line(
-        b,
-        meta_r,
-        s,
-        Src::Str(&meta),
-        Role::Micro,
-        s.t.text_dim,
-        Align2::LEFT_CENTER,
-    );
-    // The state, as a chip at the right.
-    let (key, tone) = match status {
-        Status::NotInstalled => (None, s.t.text_dim),
-        Status::Installed { .. } => (Some("samples.state.installed"), s.t.led),
-        Status::Update { .. } => (Some("samples.state.update"), s.t.highlight),
-        Status::Busy(_) => (Some("samples.state.busy"), s.t.highlight),
+    // What it is, how many files where the manifest lists them, its licence.
+    let what = match &p.source {
+        Source::Files(f) => format!(
+            "{} \u{b7} {} \u{b7} {}",
+            t(p.category.key()),
+            f.len(),
+            p.licence
+        ),
+        _ => format!("{} \u{b7} {}", t(p.category.key()), p.licence),
     };
-    if let Some(key) = key {
-        let chip = Rect::from_center_size(
-            pos2(r.right() - badge_w * 0.5 - 6.0 * k, r.center().y),
-            vec2(badge_w, 18.0 * k),
-        );
-        b.rrect(
-            chip,
-            9.0 * k,
-            Fill::Solid(crate::theme::tint(s.t.well, tone, 0.22)),
-        );
-        b.rrect_stroke(chip, 9.0 * k, b.px(), with_alpha(tone, 0.6));
-        paint::line(
-            b,
-            chip,
-            s,
-            Src::Key(key),
-            Role::Micro,
-            s.t.text,
-            Align2::CENTER_CENTER,
-        );
+    let small = Text::new(&what, Role::Label, room.ink3)
+        .caps(false)
+        .align(Align2::LEFT_CENTER)
+        .policy(crate::kit::text::Policy::Elide(
+            crate::kit::text::Elide::End,
+        ));
+    let _ = crate::kit::text::paint(b, meta, &small, s.tk() * 10.0 / 11.0);
+    let label =
+        |b: &mut crate::kit::Brush, r: Rect, text: &str, ink: egui::Color32, align: Align2| {
+            paint::line(b, r, s, Src::Str(text), Role::Label, ink, align)
+        };
+    match status {
+        Status::Installed { .. } => {
+            label(
+                b,
+                state,
+                &t("samples.state.installed"),
+                room.ink2,
+                Align2::LEFT_CENTER,
+            );
+            let ink = if act_hovered { room.ink1 } else { room.accent };
+            label(b, state, &t("samples.open_pack"), ink, Align2::RIGHT_CENTER);
+        }
+        Status::Update { .. } => {
+            label(
+                b,
+                state,
+                &t("samples.state.installed"),
+                room.ink2,
+                Align2::LEFT_CENTER,
+            );
+            let ink = if act_hovered { room.ink1 } else { room.accent };
+            let words = tf("samples.update_size", &[("size", &size(p.download_size()))]);
+            label(b, state, &words, ink, Align2::RIGHT_CENTER);
+        }
+        Status::Busy(phase) => {
+            let f = fraction(phase.as_ref());
+            let bar = Rect::from_min_size(state.min, vec2(state.width(), 4.0 * k));
+            b.rrect(bar, 2.0 * k, Fill::Solid(room.well));
+            b.rrect(
+                Rect::from_min_size(bar.min, vec2(bar.width() * f, bar.height())),
+                2.0 * k,
+                Fill::Solid(room.accent),
+            );
+            let line = Rect::from_min_max(pos2(state.left(), bar.bottom() + 2.0 * k), state.max);
+            let pct = format!("{:.0}", f * 100.0);
+            let words = tf(
+                "samples.getting",
+                &[("pct", &pct), ("size", &size(p.download_size()))],
+            );
+            label(b, line, &words, room.ink3, Align2::LEFT_CENTER);
+            let ink = if act_hovered { room.ink1 } else { room.ink2 };
+            label(b, line, &t("samples.cancel"), ink, Align2::RIGHT_CENTER);
+        }
+        Status::NotInstalled => {
+            let fill = crate::kit::color::mix(
+                room.well,
+                room.accent,
+                if act_hovered { 0.30 } else { 0.18 },
+            );
+            b.rrect(state, s.r(3.0), Fill::Solid(fill));
+            let words = tf("samples.get", &[("size", &size(p.download_size()))]);
+            let ink = if act_hovered { room.ink1 } else { room.accent };
+            label(b, state, &words, ink, Align2::CENTER_CENTER);
+        }
     }
-    b.hline(
-        r.left() + 8.0 * k,
-        r.right() - 8.0 * k,
-        r.bottom() - b.px() * 0.5,
-        b.px(),
-        shade(s.t.well, -0.08),
-    );
 }
 
 /// Text that wraps to the width it is given (descriptions, credits, errors).
@@ -731,5 +1174,58 @@ mod space_tests {
             }
         }
         set_thread_locale(Locale::En);
+    }
+}
+
+#[cfg(test)]
+mod pack_page_tests {
+    use super::*;
+
+    /// r39:lo-rest — the Packs page's filters and orders, on the bundled manifest.
+    #[test]
+    fn the_filters_and_orders_keep_and_sort_the_packs() {
+        let packs = cantus_content::Manifest::bundled().packs;
+        assert!(packs.len() >= 3);
+        let filters = pack_filters(&packs);
+        assert_eq!(filters[..2], [PackFilter::All, PackFilter::Installed]);
+        let cats: Vec<_> = filters[2..]
+            .iter()
+            .map(|f| match f {
+                PackFilter::Category(c) => *c as u8,
+                _ => panic!("{f:?}"),
+            })
+            .collect();
+        let mut sorted = cats.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(cats, sorted, "each category once, in order");
+        let first = packs[0].id.clone();
+        let here = |id: &str| id == first;
+        let all = shown_packs(&packs, PackFilter::All, PackSort::Category, here, "en");
+        assert_eq!(all.len(), packs.len());
+        assert!(all
+            .windows(2)
+            .all(|w| w[0].category as u8 <= w[1].category as u8));
+        let installed = shown_packs(&packs, PackFilter::Installed, PackSort::Name, here, "en");
+        assert_eq!(installed.len(), 1);
+        assert_eq!(installed[0].id, first);
+        let cat = packs[0].category;
+        let one = shown_packs(
+            &packs,
+            PackFilter::Category(cat),
+            PackSort::Name,
+            here,
+            "en",
+        );
+        assert!(!one.is_empty() && one.iter().all(|p| p.category == cat));
+        let names = shown_packs(&packs, PackFilter::All, PackSort::Name, here, "en");
+        assert!(names
+            .windows(2)
+            .all(|w| w[0].name.en.to_lowercase() <= w[1].name.en.to_lowercase()));
+        let sizes = shown_packs(&packs, PackFilter::All, PackSort::Size, here, "en");
+        assert!(sizes
+            .windows(2)
+            .all(|w| w[0].download_size() >= w[1].download_size()));
+        assert_eq!(PackSort::Size.next(), PackSort::Category);
     }
 }

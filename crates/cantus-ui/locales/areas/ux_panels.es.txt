@@ -1,0 +1,27 @@
+# Área: las zonas del espacio de trabajo, el alcance del teclado y los recorridos de cada día (ronda 39, ux-b; ADR 0110). Cada clave tiene su gemela en ux_panels.en.txt.
+
+# El menú de una pestaña.
+ux.panels.collapse = Plegar zona
+ux.panels.expand = Desplegar zona
+ux.panels.maximise = Maximizar zona
+ux.panels.restore = Devolver las demás zonas
+ux.panels.folded_hint = {area} está plegada: haz clic para desplegarla
+
+# Las acciones (los nombres del mapa de teclas; la paleta, el diálogo de atajos).
+action.maximize-area = Maximizar la zona en la que se trabaja
+action.collapse-area = Plegar o desplegar la zona en la que se trabaja
+action.next-area = Zona siguiente
+action.previous-area = Zona anterior
+
+# Los recorridos de cada día: los dispositivos usados últimamente, a un clic.
+ux.paths.recent_instruments = Instrumentos recientes
+ux.paths.recent_effects = Efectos recientes
+ux.paths.insert_effect = Insertar {name}
+ux.paths.no_presets = El instrumento de la pista elegida no tiene presets que explorar
+action.browse-presets = Buscar un preset para la pista elegida
+
+# Las filas de menú que la paleta ejecuta sobre la zona o la selección en uso.
+ux.panels.float_area = Hacer flotar o acoplar la zona en la que se trabaja
+ux.panels.hide_area = Ocultar la zona en la que se trabaja
+ux.panels.selection_menu = Abrir el menú de la selección
+ux.panels.modulate_last = Modular el último parámetro movido…

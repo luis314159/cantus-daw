@@ -35,9 +35,10 @@ pub fn size(kind: EffectKind) -> (f64, f64) {
     (s.x as f64, s.y as f64)
 }
 
-/// Whether a kind has its own editor in the exported plug-in yet.
+/// Whether a kind has its own editor in the exported plug-in yet: an exported kind whose
+/// editor runs on [`FxHost`] (Delay's does, but Delay is not exported: ADR 0115).
 pub fn has_editor(kind: EffectKind) -> bool {
-    FxEditor::of(kind).is_some()
+    crate::desc::of(kind).is_some() && FxEditor::of(kind).is_some()
 }
 
 /// Where the editor's edits go: CLAP's output events, VST3's component handler.

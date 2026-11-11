@@ -193,6 +193,8 @@ pub fn render_with_progress(
     p.set_profiling(false);
     // A frozen render's reader waits for its blocks (ADR 0064).
     p.set_offline(true);
+    // The parts its tracks use (kits, note-effect chains), built here (ADR 0107).
+    p.hold_parts_for(&snap);
 
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {
@@ -223,7 +225,7 @@ pub fn render_with_progress(
                 p.settle();
             }
             EngineEvent::EffectNeed { effect, need } => {
-                let memory = crate::effects::EffectMemory::build(need, sr as f32);
+                let memory = crate::effects::EffectMemory::build(need.need(), sr as f32);
                 tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
                 p.settle();
             }

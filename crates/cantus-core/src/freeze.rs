@@ -758,6 +758,10 @@ const TRACK_COSMETIC: &[&str] = &[
     "soloed",
     // What a pass writes, never what plays (ADR 0068).
     "auto_mode",
+    // r39:arrange — the row it is drawn in and its lanes' own modes (ADR 0113).
+    "folder",
+    "lane_modes",
+    "glyph",
     // How the part is written as a score (ADR 0075).
     "score",
 ];

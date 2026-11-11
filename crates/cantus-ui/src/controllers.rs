@@ -1239,6 +1239,10 @@ pub fn stepped_param(
         typing: false,
         modulation: Some(m),
     };
+    // What drives it, in its hint's words (round 39, ADR 0109).
+    if resp.hovered() {
+        a::hint_drive(ui.ctx(), Some(offer));
+    }
     match a::menu(ui, resp, offer) {
         Some(a::Choice::Automate) => app.automate(target),
         Some(a::Choice::Reset) => {

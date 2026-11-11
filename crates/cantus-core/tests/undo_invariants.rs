@@ -279,6 +279,25 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 source,
                             };
                         }
+                        // r39:conv — Aula's response from a file: set, changed, cleared,
+                        // an empty path, and onto kinds that take none.
+                        if (e.spec.kind == EffectKind::Aula && rng.below(3) == 0)
+                            || rng.below(40) == 0
+                        {
+                            let ir = match rng.below(4) {
+                                0 => None,
+                                1 => Some(Box::new(cantus_core::IrFile::new(""))),
+                                n => Some(Box::new(cantus_core::IrFile {
+                                    path: format!("irs/hall {n}.wav"),
+                                    pack: (n == 3).then(|| "cantus-irs".to_string()),
+                                })),
+                            };
+                            return Command::SetEffectIr {
+                                strip: host,
+                                effect: e.id,
+                                ir,
+                            };
+                        }
                         if rng.below(3) == 0 {
                             return Command::SetEffectMix {
                                 strip: host,
@@ -6178,5 +6197,227 @@ fn round37_look_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command
                 None => (4, text("look.colour", Some("red".into()))),
             }
         }
+    }
+}
+
+/// r39:arrange — round 39 (ADR 0113): sections, folders, lane modes and a track's own icon,
+/// from a stream of their own among the others.
+#[test]
+fn the_arrangements_structure_undoes_and_redoes_among_the_others() {
+    let origins = [
+        Origin::User,
+        Origin::Script,
+        Origin::Ai,
+        Origin::Mcp,
+        Origin::System,
+    ];
+    let mut arranged = [[0usize; 2]; ARRANGE_KINDS];
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x3C6E_F372).wrapping_add(61));
+        let mut arng = Lcg(seed.wrapping_mul(0x5DEE_CE66).wrapping_add(113));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if arng.below(2) == 0 {
+                let (k, c) = round39_arrange_command(&mut arng, &mut scratch);
+                (Some(k), c)
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ok = bus.execute(cmd, origins[arng.below(5) as usize]).is_ok();
+            if let Some(k) = k {
+                arranged[k][usize::from(!ok)] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        arranged[..ARRANGE_KINDS - 1].iter().all(|k| k[0] > 0)
+            && arranged[ARRANGE_KINDS - 1][1] > 0,
+        "the arrangement's commands never applied or never refused: {arranged:?}"
+    );
+}
+
+/// Kinds of [`round39_arrange_command`]: 0 a section added, 1 a section set (resized,
+/// renamed), 2 a section removed, 3 a folder added, 4 a folder set (opened, closed,
+/// renamed), 5 a track put in or out of a folder, 6 a folder emptied and removed (one
+/// batch), 7 a lane's mode, 8 a track's own icon, 9 refused (an overlap, a folder not there,
+/// a bad icon id, a folder that still holds tracks).
+const ARRANGE_KINDS: usize = 10;
+
+fn round39_arrange_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::arrange::ArrangeCommand as A;
+    let bar = Ticks::beats(4).0;
+    let a = Command::Arrange;
+    let track = |rng: &mut Lcg, p: &Project| {
+        p.tracks
+            .get(rng.below(p.tracks.len() as u64 + 1) as usize)
+            .map(|t| t.id)
+    };
+    match rng.below(10) {
+        0 => {
+            // After the last section: never overlaps.
+            let end = project
+                .sections
+                .iter()
+                .map(|s| s.end().0)
+                .max()
+                .unwrap_or(0);
+            let section = Section {
+                id: SectionId(project.alloc_id()),
+                start: Ticks(end + bar * rng.below(3) as i64),
+                length: Ticks(bar * (1 + rng.below(8) as i64)),
+                name: format!("S{}", rng.below(9)),
+                color: (rng.below(2) == 0).then_some(Color::PALETTE[0]),
+            };
+            let index = rng.below(project.sections.len() as u64 + 1) as usize;
+            (0, a(A::InsertSection { index, section }))
+        }
+        1 if !project.sections.is_empty() => {
+            let i = rng.below(project.sections.len() as u64) as usize;
+            let mut s = project.sections[i].clone();
+            // Shorter, renamed: always inside its old span.
+            s.length = Ticks((s.length.0 / 2).max(1));
+            s.name = format!("R{}", rng.below(9));
+            (1, a(A::SetSection { section: s }))
+        }
+        2 if !project.sections.is_empty() => {
+            let i = rng.below(project.sections.len() as u64) as usize;
+            let id = project.sections[i].id;
+            (2, a(A::RemoveSection { id }))
+        }
+        3 => {
+            let folder = TrackFolder {
+                id: FolderId(project.alloc_id()),
+                name: format!("F{}", rng.below(9)),
+                color: Color::PALETTE[rng.below(4) as usize],
+                open: rng.below(2) == 0,
+            };
+            let index = rng.below(project.folders.len() as u64 + 1) as usize;
+            (3, a(A::InsertFolder { index, folder }))
+        }
+        4 if !project.folders.is_empty() => {
+            let i = rng.below(project.folders.len() as u64) as usize;
+            let mut f = project.folders[i].clone();
+            f.open = !f.open;
+            f.name = format!("G{}", rng.below(9));
+            (4, a(A::SetFolder { folder: f }))
+        }
+        5 if !project.folders.is_empty() && !project.tracks.is_empty() => {
+            let t = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+            let folder = (rng.below(3) != 0)
+                .then(|| project.folders[rng.below(project.folders.len() as u64) as usize].id);
+            (5, a(A::SetTrackFolder { track: t, folder }))
+        }
+        6 if !project.folders.is_empty() => {
+            let id = project.folders[rng.below(project.folders.len() as u64) as usize].id;
+            let mut commands: Vec<Command> = project
+                .tracks
+                .iter()
+                .filter(|t| t.folder == Some(id))
+                .map(|t| {
+                    a(A::SetTrackFolder {
+                        track: t.id,
+                        folder: None,
+                    })
+                })
+                .collect();
+            commands.push(a(A::RemoveFolder { id }));
+            (
+                6,
+                Command::Batch {
+                    label_key: "cmd.arrange.remove_folder".into(),
+                    commands,
+                },
+            )
+        }
+        7 if !project.tracks.is_empty() => {
+            let t = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+            let target = if rng.below(2) == 0 {
+                AutoTarget::TrackGain(t)
+            } else {
+                AutoTarget::TrackPan(t)
+            };
+            let mode = AutoMode::ALL.get(rng.below(5) as usize).copied();
+            (
+                7,
+                a(A::SetLaneMode {
+                    track: t,
+                    target,
+                    mode,
+                }),
+            )
+        }
+        8 if !project.tracks.is_empty() => {
+            let t = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+            let glyph = ["kick", "vocal", "guitar-electric"]
+                .get(rng.below(4) as usize)
+                .map(|g| g.to_string());
+            (8, a(A::SetTrackGlyph { track: t, glyph }))
+        }
+        _ => match rng.below(4) {
+            0 if !project.sections.is_empty() => {
+                // Over the first section: refused.
+                let s = project.sections[0].clone();
+                let section = Section {
+                    id: SectionId(project.alloc_id()),
+                    start: s.start,
+                    length: s.length,
+                    name: "X".into(),
+                    color: None,
+                };
+                (9, a(A::InsertSection { index: 0, section }))
+            }
+            1 => match track(rng, project) {
+                Some(t) => (
+                    9,
+                    a(A::SetTrackGlyph {
+                        track: t,
+                        glyph: Some("No Such Icon".into()),
+                    }),
+                ),
+                None => (
+                    9,
+                    a(A::RemoveFolder {
+                        id: FolderId(u64::MAX - 1),
+                    }),
+                ),
+            },
+            2 => match project.tracks.iter().find_map(|t| t.folder) {
+                Some(id) => (9, a(A::RemoveFolder { id })),
+                None => (
+                    9,
+                    a(A::RemoveSection {
+                        id: SectionId(u64::MAX - 2),
+                    }),
+                ),
+            },
+            _ => match track(rng, project) {
+                Some(t) => (
+                    9,
+                    a(A::SetTrackFolder {
+                        track: t,
+                        folder: Some(FolderId(u64::MAX - 3)),
+                    }),
+                ),
+                None => (
+                    9,
+                    a(A::RemoveSection {
+                        id: SectionId(u64::MAX - 4),
+                    }),
+                ),
+            },
+        },
     }
 }

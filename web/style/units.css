@@ -48,7 +48,7 @@
 
 /* Instruments and effects: cards that open a page */
 .units-wrap { background: var(--paper); }
-.tab-n { margin-left: 0.5rem; font-size: 0.8rem; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.tab-n { margin-left: 0.5rem; font-size: 0.8rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .unit-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr)); gap: 1.1rem; }
 .unit-card {
   width: 100%; height: 100%; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer;

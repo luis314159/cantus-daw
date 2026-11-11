@@ -103,6 +103,9 @@ impl Rig {
         let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
         let mut p = Processor::without_midi(SAMPLE_RATE, rx_engine, tx_engine);
         p.set_workers(workers);
+        // The parts its tracks use (Pulsus kits, note-effect chains), built here as an
+        // offline render builds them (ADR 0107).
+        p.hold_parts_for(&snap);
         for slot in snap.effect_slots() {
             let unit = EffectUnit::new(slot, SAMPLE_RATE as f32);
             tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
@@ -120,7 +123,7 @@ impl Rig {
                     p.settle();
                 }
                 EngineEvent::EffectNeed { effect, need } => {
-                    let memory = EffectMemory::build(need, SAMPLE_RATE as f32);
+                    let memory = EffectMemory::build(need.need(), SAMPLE_RATE as f32);
                     tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
                     p.settle();
                 }

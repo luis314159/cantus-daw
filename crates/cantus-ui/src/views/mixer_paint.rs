@@ -3,71 +3,55 @@
 //! reordering and changing the width mode by where the pointer is and what is held.
 
 use super::layout::{self, Fit, Row, WidthMode};
+use super::look::{self, W};
 use super::menu::Menu;
 use super::{desk, size, Geo, MixerView};
 use crate::app::CantusApp;
-use crate::kit::color::{shade, with_alpha};
+use crate::kit::color::{mix, with_alpha};
 use crate::kit::glyph::{self, Glyph};
-use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::{cap, chrome, hint, led, light, segmented, Brush, Fill, State, Style, Tok};
+use crate::kit::glyph_mixer as mg;
+use crate::kit::text::{self, Role, Src, Text};
+use crate::kit::{cap, hint, segmented, Brush, Fill, State, Style, Tok};
 use egui::{pos2, vec2, Align2, Id, Rect, Sense, Ui};
 
 /// The tokens the desk's own surfaces paint with (for inspect mode).
 const GROUND_TOKENS: &[Tok] = &[Tok::Panel, Tok::Strip, Tok::Sheen, Tok::Glow, Tok::GlowCool];
-const LEGEND_TOKENS: &[Tok] = &[Tok::Panel, Tok::TextDim];
 
-/// The desk's ground under everything, and the title row's band.
+/// The desk's ground (des-mixer): `base` under the strips, the header a `surface` band
+/// with its 1-px lit edge — panels separated by value, not by borders.
 pub(super) fn ground(b: &mut Brush, s: &Style, geo: &Geo) {
     let t = &s.t;
+    let p = look::Pal::of(s);
     b.register(geo.full, "mixer_ground", GROUND_TOKENS, &[]);
-    b.rect(b.snap_rect(geo.full), Fill::Solid(t.panel));
-    // r37:finish — judge 9: on a light theme the strips stand in a gutter a clear step
-    // darker than they are (strip, gap and well three values apart).
-    if !t.dark {
-        let gutter = Rect::from_min_max(
-            egui::pos2(geo.legend.right(), geo.strips.top()),
-            geo.strips.max,
-        );
-        b.rect(b.snap_rect(gutter), Fill::Solid(shade(t.panel, -0.11)));
+    b.rect(b.snap_rect(geo.full), Fill::Solid(p.base));
+    if geo.merged {
+        // The tab row is the dock's: its ground stays.
+        return;
     }
-    light::ambient(b, geo.full, t);
     let r = b.snap_rect(geo.title);
-    b.rect(r, Fill::V(shade(t.panel, 0.03), shade(t.panel, -0.01)));
-    light::sheen(b, r, t);
-    b.hline(
-        r.left(),
-        r.right(),
-        r.top() + b.px() * 0.5,
-        b.px(),
-        shade(t.panel, 0.08),
-    );
-    b.hline(
-        r.left(),
-        r.right(),
-        r.bottom() - b.px() * 0.5,
-        b.px(),
-        shade(t.panel, -0.15),
-    );
+    b.rect(r, Fill::Solid(p.surface));
+    let lit = if p.dark {
+        mix(p.surface, p.ink1, 0.07)
+    } else {
+        mix(p.surface, t.light, 0.6)
+    };
+    b.hline(r.left(), r.right(), r.top() + b.px() * 0.5, b.px(), lit);
 }
 
-/// FL's dock divider: four columns of pixels, dark in the middle.
+/// The right dock's edge: a 1-px seam `mix(base, edge, .6)` 6 pt left of it.
 pub(super) fn dividers(b: &mut Brush, s: &Style, geo: &Geo) {
-    let p = s.t.panel;
-    let px = b.px();
-    let left = b.snap(geo.left.right() + size::DIVIDER * 0.5 - 2.0 * px);
-    let right = b.snap(geo.right.left() - size::DIVIDER * 0.5 - 2.0 * px);
-    let xs = [Some(left), (geo.right.width() > 0.0).then_some(right)];
-    for x in xs.into_iter().flatten() {
-        for (i, d) in [-0.10, -0.10, -0.18, -0.08].iter().enumerate() {
-            b.vline(
-                x + i as f32 * px,
-                geo.rows.top(),
-                geo.rows.bottom() + size::HBAR,
-                px,
-                shade(p, *d),
-            );
-        }
+    if geo.right.width() <= 0.0 {
+        return;
     }
+    let p = look::Pal::of(s);
+    let x = b.snap(geo.right.left() - 6.0);
+    b.vline(
+        x + b.px() * 0.5,
+        geo.strips.top() + size::TOP,
+        geo.strips.bottom() - size::TOP,
+        b.px(),
+        mix(p.base, p.edge, 0.6),
+    );
 }
 
 /// One clickable spot in the title row.
@@ -75,9 +59,33 @@ fn key(ui: &Ui, rect: Rect, id: &str) -> egui::Response {
     ui.interact(rect, Id::new(("mixer-title", id)), Sense::click())
 }
 
-/// The title row: the desk's ▸ menu, `+`, the width modes, the wave view, the takes; at
-/// the right the desk-wide switches that only show when they have something to undo, and
-/// FL's "Mixer – <strip>".
+/// A header key drawn as Slate's well, 20 high.
+fn well_key(b: &mut Brush, r: Rect, p: &look::Pal, hot: bool) {
+    look::well(b, r, p, hot);
+}
+
+/// A small chevron down at `c` (2.5 across, 1.2 wide strokes).
+fn chevron(b: &mut Brush, c: egui::Pos2, ink: egui::Color32) {
+    b.segment(
+        pos2(c.x - 2.5, c.y - 1.25),
+        pos2(c.x, c.y + 1.25),
+        1.2,
+        ink,
+        true,
+    );
+    b.segment(
+        pos2(c.x, c.y + 1.25),
+        pos2(c.x + 2.5, c.y - 1.25),
+        1.2,
+        ink,
+        true,
+    );
+}
+
+/// The header (des-mixer, 28 high): the density (Compact · Wide · Large), the **Rows**
+/// menu (the desk's menu: which rows show, the colours, the pan law…), the solo chip while
+/// anything is soloed ("1 soloed · Clear"), a take being recorded; at the right the cable
+/// view's key and its options, *Snapshots ▾* and `+` (add a strip).
 pub(super) fn title(
     v: &mut MixerView,
     app: &mut CantusApp,
@@ -86,67 +94,45 @@ pub(super) fn title(
     s: &Style,
     geo: &Geo,
 ) {
-    let t = &s.t;
+    let p = look::Pal::of(s);
     let r = geo.title;
     let cy = r.center().y;
-    let mut x = r.left() + 4.0;
+    let ctx = ui.ctx().clone();
+    let mut x = r.left() + 12.0;
 
-    // ▸ the desk's menu.
-    let mr = Rect::from_min_size(pos2(x, cy - 11.0), vec2(22.0, 22.0));
-    let resp = key(ui, mr, "menu");
-    if resp.hovered() {
-        hint::set_text(ui.ctx(), &v.words.menu, "", hint::Caps::NONE);
-        b.rrect(mr, s.r(3.0), Fill::Solid(with_alpha(t.text, 0.08)));
-    }
-    glyph::paint(b, mr.shrink(5.0), Glyph::Menu, t.text);
-    if resp.clicked() {
-        v.popups.open(Menu::Desk, pos2(mr.left(), r.bottom()));
-    }
-    let resp = resp.on_hover_text(&v.words.menu);
-    let _ = resp;
-    x = mr.right() + 4.0;
-
-    // + a strip at the end of the desk.
-    let ar = Rect::from_min_size(pos2(x, cy - 10.0), vec2(20.0, 20.0));
-    let resp = key(ui, ar, "add");
-    let st = State::of(&resp, false);
-    light::raised(
-        b,
-        ar,
-        s.r(3.0),
-        shade(t.toolbar, if st.hovered { 0.0 } else { -0.04 }),
-        light::RaisedOpts::default(),
-    );
-    glyph::paint(b, ar.shrink(5.0), Glyph::Plus, t.text);
-    if resp.hovered() {
-        hint::set_text(ui.ctx(), &v.words.add_strip, "", hint::Caps::NONE);
-    }
-    if resp.on_hover_text(&v.words.add_strip).clicked() {
-        app.add_strip();
-    }
-    x = ar.right() + 8.0;
-
-    // The width modes.
+    // The density.
     let labels = [
         Src::Key(WidthMode::Compact.key()),
         Src::Key(WidthMode::Wide.key()),
         Src::Key(WidthMode::Xl.key()),
     ];
-    let wr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(192.0, 20.0));
+    // Equal cells (the kit's segmented control), each wide enough for the longest word.
+    let cell = WidthMode::ALL
+        .iter()
+        .map(|m| text::measure(&ctx, &Text::key(m.key(), Role::Control, p.ink1), s.tk()).x)
+        .fold(0.0f32, f32::max);
+    // On a narrow desk the cells give way first (the + key, Rows and the cable view's key
+    // keep their room).
+    let rows_w = (look::width_of(&ctx, s, &v.words.rows, 11.0, W::Regular) + 22.0).round();
+    let room = r.width() - 12.0 - 12.0 - rows_w - 8.0 - 24.0 - 8.0 - 10.0 - 24.0 - 8.0;
+    let seg_w = (3.0 * (cell + 20.0).max(44.0).round())
+        .min(room.max(90.0))
+        .floor();
+    let wr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(seg_w, 20.0));
     let resp = key(ui, wr, "width");
     let hovered = resp
         .hover_pos()
-        .and_then(|p| segmented::hit(wr, labels.len(), p.x));
+        .and_then(|q| segmented::hit(wr, labels.len(), q.x));
     let mode = v.prefs.current.width;
     if resp.clicked() {
         if let Some(i) = hovered {
-            let mut p = v.prefs.current;
-            p.width = WidthMode::from_index(i);
-            v.prefs.set(p);
+            let mut pr = v.prefs.current;
+            pr.width = WidthMode::from_index(i);
+            v.prefs.set(pr);
         }
     }
     if resp.hovered() {
-        hint::set_text(ui.ctx(), &v.words.modes, "", hint::Caps::NONE);
+        hint::set_text(&ctx, &v.words.modes, "", hint::Caps::NONE);
     }
     let _ = resp.on_hover_text(&v.words.modes);
     segmented::paint(
@@ -158,207 +144,183 @@ pub(super) fn title(
         mode.index(),
         hovered,
     );
-    x = wr.right() + 8.0;
+    x = wr.right() + 12.0;
 
-    // The meter-wave view (FL's Alt+W).
-    let kr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(20.0, 20.0));
-    let resp = key(ui, kr, "wave");
-    let on = app.settings.mixer_meter_wave;
-    let st = State::of(&resp, on);
-    cap::toolbar_key(b, kr, s, st, cap::KeyFace::Text(""));
-    let ink = if on {
-        t.highlight_glyph
-    } else if st.hovered {
-        t.text
-    } else {
-        t.text_dim
-    };
-    wave_glyph(b, kr.shrink(5.0), ink);
+    // Rows ▾: the desk's menu.
+    let rw = (look::width_of(&ctx, s, &v.words.rows, 11.0, W::Regular) + 22.0).round();
+    let kr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(rw, 20.0));
+    let resp = key(ui, kr, "menu");
+    let open = v.popups.is_open(Menu::Desk);
+    well_key(b, kr, &p, resp.hovered() || open);
+    look::say(
+        b,
+        s,
+        &v.words.rows,
+        kr.left() + 8.0,
+        cy + 4.0,
+        Align2::LEFT_BOTTOM,
+        rw - 16.0,
+        11.0,
+        W::Regular,
+        p.ink2,
+    );
+    chevron(b, pos2(kr.right() - 9.0, cy), p.ink3);
     if resp.hovered() {
-        hint::set_text(ui.ctx(), &v.words.wave, "", hint::Caps::NONE);
+        hint::set_text(&ctx, &v.words.rows_tip, "", hint::Caps::NONE);
     }
-    if resp.on_hover_text(&v.words.wave).clicked() {
-        app.run_action(crate::keymap::Action::ToggleMeterWave);
+    if resp.on_hover_text(&v.words.rows_tip).clicked() {
+        v.popups.open(Menu::Desk, pos2(kr.left(), r.bottom()));
     }
-    x = kr.right() + 10.0;
+    x = kr.right() + 8.0;
 
-    // The cable view (round 25): none, the selection's, all.
-    x = cable_view(v, ui, b, s, r, x);
+    // The Cables key (the owner's option C with B on demand): off at rest; on, the
+    // selection's cables under the strips; "Show all" in its options menu.
+    {
+        let kx = x;
+        let view = v.prefs.current.cables;
+        let lit = view != layout::CableView::Off;
+        let tw = look::width_of(&ctx, s, &v.words.cables, 11.0, W::Regular);
+        let narrow = r.width() < 480.0;
+        let kw = if narrow { 24.0 } else { (tw + 30.0).round() };
+        let kr = Rect::from_min_size(pos2(kx, cy - 10.0), vec2(kw, 20.0));
+        let resp = key(ui, kr, "cables");
+        let tint = mix(p.well, p.accent, 0.2);
+        if lit {
+            b.rrect(b.snap_rect(kr), 3.0, Fill::Solid(tint));
+        } else {
+            well_key(b, kr, &p, resp.hovered());
+        }
+        let ink = if lit {
+            mg::Ink::On(p.accent)
+        } else if resp.hovered() {
+            mg::Ink::Hover
+        } else {
+            mg::Ink::Rest
+        };
+        look::glyph(
+            b,
+            s,
+            pos2(kr.left() + 12.0, cy),
+            16.0,
+            mg::MGlyph::Routing,
+            ink,
+            if lit { tint } else { p.well },
+        );
+        if !narrow {
+            let wi = if lit { p.accent } else { p.ink2 };
+            look::say(
+                b,
+                s,
+                &v.words.cables,
+                kr.left() + 23.0,
+                cy + 4.0,
+                Align2::LEFT_BOTTOM,
+                tw + 2.0,
+                11.0,
+                W::Regular,
+                wi,
+            );
+        }
+        if resp.hovered() {
+            hint::set_text(&ctx, &v.words.cables_tip, "", hint::Caps::NONE);
+        }
+        if resp.clicked() {
+            let mut pr = v.prefs.current;
+            pr.cables = if lit {
+                layout::CableView::Off
+            } else {
+                layout::CableView::Selected
+            };
+            v.prefs.set(pr);
+        }
+        // Its options where the row has room before the + key at the right (the Rows
+        // menu has them too).
+        x = if kr.right() + 2.0 + OPTIONS_KEY + 8.0 <= r.right() - 10.0 - 24.0 - 8.0 {
+            cable_options(v, ui, b, s, r, kr.right() + 2.0) + 8.0
+        } else {
+            kr.right() + 8.0
+        };
+    }
+
+    // The solo chip: "1 soloed · Clear".
+    let soloed = app.project().strips.iter().filter(|s| s.soloed).count();
+    if soloed > 0 {
+        let mut buf = std::mem::take(&mut v.buf);
+        buf.clear();
+        super::rows::fill_n(&mut buf, &v.words.soloed, soloed);
+        let sw = look::width_of(&ctx, s, &buf, 11.0, W::Medium);
+        let cw = look::width_of(&ctx, s, &v.words.clear, 11.0, W::Regular);
+        let chip = Rect::from_min_size(pos2(x, cy - 10.0), vec2((sw + cw + 26.0).round(), 20.0));
+        // Only where it fits before the + key at the right (the Rows menu has *Solo off*).
+        if chip.right() <= r.right() - 42.0 {
+            let resp = key(ui, chip, "mixer.solo_off");
+            let fill = mix(p.surface, p.solo, if resp.hovered() { 0.24 } else { 0.16 });
+            b.rrect(b.snap_rect(chip), 4.0, Fill::Solid(fill));
+            look::say(
+                b,
+                s,
+                &buf,
+                chip.left() + 8.0,
+                cy + 4.0,
+                Align2::LEFT_BOTTOM,
+                sw + 2.0,
+                11.0,
+                W::Medium,
+                p.solo,
+            );
+            look::say(
+                b,
+                s,
+                &v.words.clear,
+                chip.right() - 8.0,
+                cy + 4.0,
+                Align2::RIGHT_BOTTOM,
+                cw + 2.0,
+                11.0,
+                W::Regular,
+                p.ink2,
+            );
+            if resp.hovered() {
+                hint::set_text(&ctx, &v.words.clear_tip, "", hint::Caps::NONE);
+            }
+            if resp.clicked() {
+                app.clear_strip_solos();
+            }
+            x = chip.right() + 8.0;
+        }
+        v.buf = buf;
+    }
 
     // Takes: the one running, or the list of those made.
     x = takes(v, app, ui, b, s, r, x);
 
-    // Snapshots (round 36, ADR 0093), where the right side leaves room. // r36:mix
-    let leds = usize::from(v.desk.any_solo) + usize::from(v.desk.any_muted); // r36:mix
-    x = super::vca_ui::snap_key(v, app, ui, b, s, r, x, 140.0 + 120.0 * leds as f32); // r36:mix
-
-    // The right side, from the right edge inwards.
+    // The right side, from the edge in: + (add a strip), Snapshots ▾, the cable view.
     let mut right = r.right() - 10.0;
-    right = title_text(v, app, b, s, r, right, x);
-    let desk_state = (v.desk.any_solo, v.desk.any_muted);
-    if desk_state.0 {
-        right = led_key(
-            v,
-            app,
-            ui,
-            b,
-            s,
-            r,
-            right,
-            x,
-            "mixer.solo_off",
-            Tok::Highlight,
-            true,
-        );
-    }
-    if desk_state.1 {
-        let _ = led_key(
-            v,
-            app,
-            ui,
-            b,
-            s,
-            r,
-            right,
-            x,
-            "mixer.unmute_all",
-            Tok::Led,
-            false,
-        );
-    }
-}
-
-/// A little sine in a square, for the wave view's key.
-fn wave_glyph(b: &mut Brush, r: Rect, color: egui::Color32) {
-    let mut pts = [egui::Pos2::ZERO; 13];
-    for (i, p) in pts.iter_mut().enumerate() {
-        let f = i as f32 / 12.0;
-        *p = pos2(
-            r.left() + r.width() * f,
-            r.center().y - (f * std::f32::consts::TAU).sin() * r.height() * 0.38,
-        );
-    }
-    b.polyline(&pts, 1.4, color);
-}
-
-/// An LED button in the title row, right-aligned at `right`; returns the new right edge.
-#[allow(clippy::too_many_arguments)]
-fn led_key(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    s: &Style,
-    r: Rect,
-    right: f32,
-    left: f32,
-    label: &'static str,
-    hue: Tok,
-    solo: bool,
-) -> f32 {
-    let w = text::measure(
-        ui.ctx(),
-        &Text::key(label, Role::Label, s.t.text).caps(true),
-        s.tk(),
-    )
-    .x + 30.0;
-    let kr = Rect::from_min_max(
-        pos2(right - w, r.center().y - 10.0),
-        pos2(right, r.center().y + 10.0),
-    );
-    // No room left of the title: the key gives way (the desk's menu has it too).
-    if kr.left() < left + 6.0 {
-        return right;
-    }
-    let resp = key(ui, kr, label);
-    led::button(
-        b,
-        kr,
-        &s.hue_of(hue),
-        State::of(&resp, true),
-        Src::Key(label),
-    );
-    let tip = if solo {
-        &v.words.solo_off
-    } else {
-        &v.words.unmute_all
-    };
+    let ar = Rect::from_min_max(pos2(right - 24.0, cy - 10.0), pos2(right, cy + 10.0));
+    let resp = key(ui, ar, "add");
+    well_key(b, ar, &p, resp.hovered());
+    look::plus(b, ar.center(), if resp.hovered() { p.ink1 } else { p.ink2 });
     if resp.hovered() {
-        hint::set_text(ui.ctx(), tip, "", hint::Caps::NONE);
+        hint::set_text(&ctx, &v.words.add_strip, "", hint::Caps::NONE);
     }
-    if resp.clicked() {
-        if solo {
-            app.clear_strip_solos();
-        } else {
-            app.unmute_all_strips();
-        }
+    if resp.on_hover_text(&v.words.add_strip).clicked() {
+        app.add_strip();
     }
-    kr.left() - 6.0
-}
-
-/// "Mixer – <strip>", the context part dimmed, right-aligned at `right` (FL's window
-/// title); the multi-selection's count before it. Returns the new right edge.
-fn title_text(
-    v: &mut MixerView,
-    app: &CantusApp,
-    b: &mut Brush,
-    s: &Style,
-    r: Rect,
-    right: f32,
-    left_limit: f32,
-) -> f32 {
-    let t = &s.t;
-    let ctx = b.ctx().clone();
-    let name = match app
-        .selected_strip
-        .and_then(|id| app.project().strip_index(id))
-    {
-        Some(i) => v.desk.name(app, i),
-        None => "",
-    };
-    let win = Text::key("kit.mixer.title", Role::Title, t.text_dim).align(Align2::RIGHT_CENTER);
-    let ww = text::measure(&ctx, &win, s.tk()).x;
-    let room = (right - left_limit - ww - 20.0).max(0.0);
-    let mut edge = right;
-    if !name.is_empty() && room > 24.0 {
-        let subj = Text::new(name, Role::Title, t.text)
-            .align(Align2::RIGHT_CENTER)
-            .policy(Policy::Elide(Elide::Middle));
-        let sw = text::measure(&ctx, &subj, s.tk()).x.min(room.min(220.0));
-        let sr = Rect::from_min_max(pos2(right - sw, r.top()), pos2(right, r.bottom()));
-        let _ = text::paint(b, sr, &subj, s.tk());
-        let dash = Text::new("\u{2013}", Role::Title, t.text_dim);
-        let dr = Rect::from_min_max(
-            pos2(sr.left() - 14.0, r.top()),
-            pos2(sr.left() - 2.0, r.bottom()),
-        );
-        let _ = text::paint(b, dr, &dash, s.tk());
-        edge = dr.left();
-    }
-    let wr = Rect::from_min_max(pos2(edge - ww - 1.0, r.top()), pos2(edge, r.bottom()));
-    // On a desk too narrow for it the word gives way rather than lie over the keys at
-    // the left (the panel's tab names the mixer already).
-    if wr.left() < left_limit + 4.0 {
-        return edge;
-    }
-    let _ = text::paint(b, wr, &win, s.tk());
-    edge = wr.left() - 12.0;
-    let multi = v.selection_len(app);
-    if multi > 1 {
-        use std::fmt::Write as _;
+    right = ar.left() - 8.0;
+    let n = app.project().mix.snapshots.len();
+    let snap_w = {
         v.buf.clear();
-        let _ = write!(v.buf, "{multi}");
-        let chip = Text::new(&v.buf, Role::Value, t.selection).align(Align2::RIGHT_CENTER);
-        let cw = text::measure(&ctx, &chip, s.tk()).x + 12.0;
-        let cr = Rect::from_min_max(
-            pos2(edge - cw, r.center().y - 9.0),
-            pos2(edge, r.center().y + 9.0),
-        );
-        crate::kit::well::paint(b, cr, s, State::REST, None);
-        let _ = text::paint(b, cr.shrink2(vec2(6.0, 0.0)), &chip, s.tk());
-        edge = cr.left() - 8.0;
+        use std::fmt::Write as _;
+        let _ = if n == 0 {
+            write!(v.buf, "{}", v.words.snap)
+        } else {
+            write!(v.buf, "{} {n}", v.words.snap)
+        };
+        text::measure(&ctx, &Text::new(&v.buf, Role::Control, p.ink1), s.tk()).x + 30.0
+    };
+    if right - snap_w > x + 80.0 {
+        let _ = super::vca_ui::snap_key(v, app, ui, b, s, r, right - snap_w, 0.0);
     }
-    edge
 }
 
 /// The take being recorded (its time, in the record colour; a click stops it), or the
@@ -426,8 +388,10 @@ fn takes(
     kr.right() + 8.0
 }
 
-/// The scrollbars: always visible under the middle (6 pt), and at the right when the desk
-/// is taller than its panel. Dragging the thumb scrolls; a click on the track pages.
+/// The scrollbars (des-mixer): 3 pt at the desk's foot under the middle, and at the
+/// right when the desk is taller than its panel — only while there is something to
+/// scroll; the track `mix(base, edge, .3)`, the thumb ink 4. Dragging the thumb scrolls;
+/// a click on the track pages.
 pub(super) fn scrollbars(
     v: &mut MixerView,
     ui: &mut Ui,
@@ -436,6 +400,7 @@ pub(super) fn scrollbars(
     geo: &Geo,
     fit: &Fit,
 ) {
+    let p = look::Pal::of(s);
     let (max_x, max_y) = v.scroll_max(geo, fit);
     let bars = [
         (
@@ -457,398 +422,290 @@ pub(super) fn scrollbars(
         let Some(rect) = rect else {
             continue;
         };
-        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+        if rect.width() <= 0.0 || rect.height() <= 0.0 || max <= 0.5 {
             continue;
         }
         let len = (view / content.max(1.0)).clamp(0.0, 1.0);
         let id = Id::new(("mixer-scrollbar", across));
-        let resp = ui.interact(rect.expand(2.0), id, Sense::click_and_drag());
+        let resp = ui.interact(rect.expand(3.0), id, Sense::click_and_drag());
         let scroll = if across {
             &mut v.scroll_x
         } else {
             &mut v.scroll_y
         };
         let full = if across { rect.width() } else { rect.height() };
+        let thumb_at = |scroll: f32| {
+            let start = scroll / content.max(1.0);
+            if across {
+                Rect::from_min_size(
+                    pos2(rect.left() + full * start, rect.top()),
+                    vec2((full * len).max(12.0), rect.height()),
+                )
+            } else {
+                Rect::from_min_size(
+                    pos2(rect.left(), rect.top() + full * start),
+                    vec2(rect.width(), (full * len).max(12.0)),
+                )
+            }
+        };
         if resp.dragged() {
             let d = resp.drag_delta();
             let moved = if across { d.x } else { d.y };
             *scroll = (*scroll + moved / full.max(1.0) * content).clamp(0.0, max);
         } else if resp.clicked() {
-            if let Some(p) = resp.interact_pointer_pos() {
-                let thumb = chrome::thumb(rect, s, *scroll / content.max(1.0), len);
+            if let Some(q) = resp.interact_pointer_pos() {
+                let thumb = thumb_at(*scroll);
                 let before = if across {
-                    p.x < thumb.left()
+                    q.x < thumb.left()
                 } else {
-                    p.y < thumb.top()
+                    q.y < thumb.top()
                 };
                 let page = view * 0.9;
                 *scroll = (*scroll + if before { -page } else { page }).clamp(0.0, max);
             }
         }
-        let start = *scroll / content.max(1.0);
-        chrome::scrollbar(b, rect, s, State::of(&resp, false), start, len);
+        let hot = resp.hovered() || resp.dragged();
+        b.rrect(
+            b.snap_rect(rect),
+            1.5,
+            Fill::Solid(mix(p.base, p.edge, 0.3)),
+        );
+        b.rrect(
+            b.snap_rect(thumb_at(*scroll)),
+            1.5,
+            Fill::Solid(if hot { p.ink3 } else { p.ink4 }),
+        );
+        if hot {
+            // r39:ux-a — the help line (ADR 0109).
+            let words = crate::i18n::t("ux.hint.scrollbar_page");
+            crate::kit::hint::fallback(ui.ctx(), &words, "", crate::kit::hint::Caps::NONE);
+        }
     }
 }
 
-/// The ticks of the fader's scale, as positions on the travel: every 6 dB where the
-/// taper is even (+12 … −24), then −30, −40, −60 and silence.
-pub(super) fn ticks() -> &'static [f32; 11] {
-    static TICKS: std::sync::OnceLock<[f32; 11]> = std::sync::OnceLock::new();
-    TICKS.get_or_init(|| {
-        let mut out = [0.0; 11];
-        for (o, (db, _)) in out.iter_mut().zip(SCALE) {
-            *o = crate::widgets::fader::pos_of(db);
-        }
-        out
-    })
-}
-
-/// The scale the legend prints beside the faders.
-const SCALE: [(f32, &str); 11] = [
-    (12.0, "+12"),
-    (6.0, "+6"),
-    (0.0, "0"),
-    (-6.0, "\u{2212}6"),
-    (-12.0, "\u{2212}12"),
-    (-18.0, "\u{2212}18"),
-    (-24.0, "\u{2212}24"),
-    (-30.0, "\u{2212}30"),
-    (-40.0, "\u{2212}40"),
-    (-60.0, "\u{2212}60"),
-    (cantus_core::MIN_GAIN_DB, "\u{2212}\u{221e}"),
-];
-
-/// The legend column: each row named once for the whole desk, the faders' dB scale
-/// beside the fader row, and the 3-dot handle that sets the meter : fader split.
-pub(super) fn legend(
+/// FL's next inserts (round 39, lo-mixer): where the desk ends before the panel does, the
+/// room up to its edge holds the next strips' places — numbered on from the last strip, in
+/// the look of an empty strip (the quiet body, the number in ink 4, a groove, the cap's
+/// ghost at 0 dB). They are only painted: nothing in the project, nothing in the engine,
+/// nothing that repaints. A click on one makes the strips up to it (one undo step) and
+/// selects it, ready to be routed to. Returns how many were painted.
+pub(super) fn ghosts(
     v: &mut MixerView,
+    app: &mut CantusApp,
     ui: &mut Ui,
     b: &mut Brush,
-    s: &Style,
-    geo: &Geo,
-    fit: &Fit,
-) {
-    let t = &s.t;
-    b.register(geo.legend, "mixer_legend", LEGEND_TOKENS, &[]);
-    let l = geo.legend;
-    let x0 = l.left() + 8.0;
-    let x1 = l.right() - 6.0;
-    for r in Row::ALL {
-        // The band's own cell is painted with the band (`band_legend`).
-        if r == Row::Cables {
-            continue;
+    pass: &super::strip::Pass,
+    from: f32,
+    to: f32,
+) -> usize {
+    let pitch = pass.prefs.width.pitch();
+    let have = app.project().strips.len();
+    let room = cantus_engine::MAX_STRIPS.saturating_sub(have);
+    let n = (((to - from) / pitch).floor().max(0.0) as usize).min(room);
+    let Some((na, _)) = pass.row(Row::Number) else {
+        return 0;
+    };
+    let p = pass.pal;
+    let s = pass.s;
+    let mode = pass.mode();
+    let g = look::geom(mode, false);
+    let travel = pass.fit.travel().map(|(a, z)| (pass.y0 + a, pass.y0 + z));
+    let bw = pitch - 2.0;
+    let mut clicked = None;
+    for k in 0..n {
+        let x = from + k as f32 * pitch;
+        let body = Rect::from_min_max(pos2(x, pass.clip.top()), pos2(x + bw, pass.clip.bottom()))
+            .intersect(pass.body(x, bw));
+        let resp = ui.interact(body, Id::new(("mixer-next-strip", k)), Sense::click());
+        look::body(b, body, &p, Some(p.empty));
+        if resp.hovered() {
+            b.rrect(
+                b.snap_rect(body),
+                3.0,
+                Fill::Solid(with_alpha(p.ink1, 0.03)),
+            );
+            let words = &v.words.next_strip;
+            hint::set_text(ui.ctx(), words, "", hint::Caps::NONE);
         }
-        let Some((a, z)) = fit.row(r) else {
-            continue;
-        };
-        let (a, z) = (geo.y0 + a, geo.y0 + z);
-        let box_ = if z - a > 30.0 {
-            Rect::from_min_max(pos2(x0, a), pos2(x1, a + 16.0))
-        } else {
-            Rect::from_center_size(pos2((x0 + x1) * 0.5, (a + z) * 0.5), vec2(x1 - x0, 16.0))
-        };
-        // r37:finish — the rows' names a size up, in the label ink (the judge: tiny
-        // capitals); a short form where the column is narrow.
-        let tt = Text::key(r.legend_key(), Role::Label, t.label)
-            .caps(true)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Abbreviate);
-        let _ = text::paint(b, box_, &tt, s.tk());
-    }
-    // The dB scale, where it does not collide with itself or with the row's name.
-    if let Some((a, z)) = fit.row(Row::Fader) {
-        let fr = Rect::from_min_max(pos2(x0, geo.y0 + a), pos2(x1, geo.y0 + z));
-        let cap = crate::kit::fader::CAP.y * s.k;
-        let travel = (fr.height() - cap).max(1.0);
-        let mut last = f32::NEG_INFINITY;
-        let name_bottom = fr.top() + 15.0;
-        for (i, p) in ticks().iter().enumerate() {
-            let y = fr.bottom() - cap * 0.5 - travel * p;
-            // Keep the ends, drop what would touch its neighbour.
-            let bottom_end = i == SCALE.len() - 1;
-            if y - last < 11.0 && !bottom_end {
-                continue;
-            }
-            if bottom_end && y - last < 11.0 {
-                continue;
-            }
-            let lr = Rect::from_min_max(pos2(x1 - 30.0, y - 6.5), pos2(x1, y + 6.5));
-            if lr.top() < name_bottom && lr.left() < x0 + 40.0 {
-                continue;
-            }
-            let tt = Text::new(SCALE[i].1, Role::Micro, t.text_dim)
-                .caps(false)
-                .align(Align2::RIGHT_CENTER);
-            let _ = text::paint(b, lr, &tt, s.tk());
-            last = y;
+        v.buf.clear();
+        {
+            use std::fmt::Write as _;
+            let _ = write!(v.buf, "{}", have + k + 1);
+        }
+        let base = na
+            + if mode == WidthMode::Compact {
+                14.0
+            } else {
+                15.0
+            };
+        look::say(
+            b,
+            s,
+            &v.buf,
+            x + bw * 0.5,
+            base,
+            Align2::CENTER_BOTTOM,
+            bw,
+            10.0,
+            W::Regular,
+            p.ink4,
+        );
+        if let Some((top, bot)) = travel {
+            let gx = x + g.groove_x;
+            look::groove(b, gx, top, bot, &p);
+            let cy = top + (bot - top) * look::law::frac(0.0);
+            look::cap_ghost(b, gx, cy, g.cap.x - 2.0, &p);
+        }
+        if resp.clicked() {
+            clicked = Some(have + k + 1);
         }
     }
-    ratio_handle(v, ui, b, s, geo, fit);
+    if let Some(upto) = clicked {
+        app.add_strips_up_to(upto);
+    }
+    n
 }
 
-/// The band's cell in the legend column — ROUTING, the key to its lines, the band's
-/// height handle — painted with the band (the desk's last pass) so it stands on top when
-/// the band is pinned to the desk's foot (round 26: the routing never scrolls out of
-/// sight; a hairline marks the strips running under it).
-pub(super) fn band_legend(
-    v: &mut MixerView,
-    ui: &mut Ui,
-    b: &mut Brush,
-    s: &Style,
-    geo: &Geo,
-    fit: &Fit,
-) {
-    let Some((a, z)) = fit.row(Row::Cables) else {
-        v.cable_key = None;
+/// The middle's overflow (des-mixer): a 20-pt fade into `base` at each edge with strips
+/// beyond it, and a pill with how many ("‹ 6", "6 ›"), vertically centred in its slot
+/// beside the middle (r39:lo-mixer: it covered the last strip's meter); a click on the pill
+/// scrolls a page towards them.
+pub(super) fn overflow(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo) {
+    let p = look::Pal::of(s);
+    let mid = geo.middle.intersect(geo.strips);
+    if mid.width() < 60.0 {
         return;
-    };
-    let t = &s.t;
-    let (a, z) = (geo.y0 + a, geo.y0 + z);
-    if geo.pinned {
-        let y = b.snap(a) + b.px() * 0.5;
-        b.hline(
-            geo.rows.left(),
-            geo.inner_right,
-            y,
-            b.px(),
-            shade(t.panel, -0.22),
-        );
-        b.hline(
-            geo.rows.left(),
-            geo.inner_right,
-            y + b.px(),
-            b.px(),
-            shade(t.panel, 0.06),
-        );
     }
-    let l = geo.legend;
-    let (x0, x1) = (l.left() + 8.0, l.right() - 6.0);
-    // Where every row's name goes (`legend`), kept clear of the handle at the right.
-    let handle = band_handle_rect(geo, a);
-    let box_ = if z - a > 30.0 {
-        Rect::from_min_max(pos2(x0, a), pos2(x1, a + 14.0))
-    } else {
-        Rect::from_center_size(pos2((x0 + x1) * 0.5, (a + z) * 0.5), vec2(x1 - x0, 14.0))
-    };
-    let box_ = Rect::from_min_max(
-        box_.min,
-        pos2(box_.right().min(handle.left() - 2.0), box_.bottom()),
-    );
-    let tt = Text::key(Row::Cables.legend_key(), Role::Micro, t.text_dim)
-        .align(Align2::LEFT_CENTER)
-        .policy(Policy::Abbreviate);
-    let name = text::paint(b, box_, &tt, s.tk()).map(|p| p.rect);
-    let opts = v.prefs.current.cable_opts;
-    v.cable_key = cables_key(ui, b, s, geo, fit, opts, name);
-    band_handle(v, ui, b, s, geo, fit);
-}
-
-/// Under ROUTING, what the band's lines mean, without a hover: a sample of each — an
-/// output thick, a send thin, a sidechain key dashed, as the band draws them — and its
-/// word; on hover, the whole sentence in the hint bar. Where the band is too short for
-/// the three lines under the name (below 40 pt, down to its least of 20 pt at 1280 ×
-/// 720), a **compact key**: the three samples side by side after the name, under the
-/// band's handle — an output plainly thicker than a send, a key's dash and its key mark —
-/// so the legend is never invisible, and the hover still says it all. A kind the view's
-/// options hide is dimmed, and the hover names it ("Hidden by the cable options:
-/// Outputs"), so a missing cable is never a mystery.
-#[allow(clippy::too_many_arguments)]
-fn cables_key(
-    ui: &mut Ui,
-    b: &mut Brush,
-    s: &Style,
-    geo: &Geo,
-    fit: &Fit,
-    opts: layout::CableOpts,
-    name: Option<Rect>,
-) -> Option<super::CableKey> {
-    use crate::kit::cable::{self, CableKind};
-    use layout::CableKindSel as K;
-    let (a, z) = fit.row(Row::Cables)?;
-    let t = &s.t;
-    let (a, z) = (geo.y0 + a, geo.y0 + z);
-    let l = geo.legend;
-    let (x0, x1) = (l.left() + 8.0, l.right() - 6.0);
-    let cell = Rect::from_min_max(pos2(l.left(), a), pos2(l.right(), z));
-    let name = name.unwrap_or(Rect::from_min_size(pos2(x0, (a + z) * 0.5), vec2(0.0, 0.0)));
-    let handle = band_handle_rect(geo, a);
-    // Below the row's name (which sits at the top of a tall row, centred in a short one).
-    let top = if z - a > 30.0 {
-        a + 13.0
-    } else {
-        (a + z) * 0.5 + 7.0
-    };
-    // Micro is capitals 8.5 pt (about 6 px tall): 9 px a line keeps them apart, so the
-    // name and the three lines fit the band's default 40 px.
-    const LINE: f32 = 9.0;
-    let full = z - top >= LINE * 3.0;
-    // The compact key: in a row after the name, under the handle (which holds the cell's
-    // top right), three samples of up to 12 pt with 3-pt gaps.
-    const GAP: f32 = 3.0;
-    let cx0 = name.right() + 5.0;
-    let cx1 = l.right() - 4.0;
-    let sw = ((cx1 - cx0 - 2.0 * GAP) / 3.0).min(12.0);
-    let cy = ((a + z) * 0.5).max(handle.bottom() + 4.5).min(z - 4.0);
-    let compact = !full && sw >= 6.0 && cy - 3.5 >= a;
-    let samples = [
-        ("cables.legend.output", CableKind::Output, K::Outputs),
-        (
-            "cables.legend.send",
-            CableKind::Send {
-                on: true,
-                pre: false,
+    let (mut left, mut right) = (0usize, 0usize);
+    let mut x = -v.scroll_x;
+    for item in &v.desk.middle {
+        let w = desk::item_width(item, geo.pitch);
+        if matches!(item, desk::Item::Strip(..)) {
+            if x + w <= 1.0 {
+                left += 1;
+            } else if x >= mid.width() - 1.0 {
+                right += 1;
+            }
+        }
+        x += w;
+    }
+    let ctx = ui.ctx().clone();
+    for (n, right_side) in [(left, false), (right, true)] {
+        if n == 0 {
+            continue;
+        }
+        let fade = if right_side {
+            Rect::from_min_max(pos2(mid.right() - 20.0, mid.top()), mid.max)
+        } else {
+            Rect::from_min_max(mid.min, pos2(mid.left() + 20.0, mid.bottom()))
+        };
+        // Ten slices of 2 pt, from clear to 85 % of the base, towards the edge.
+        for k in 0..10 {
+            let f = (k as f32 + 0.5) / 10.0;
+            let a = 0.85 * if right_side { f } else { 1.0 - f };
+            let sx = fade.left() + 2.0 * k as f32;
+            b.rect(
+                Rect::from_min_max(pos2(sx, fade.top()), pos2(sx + 2.0, fade.bottom())),
+                Fill::Solid(with_alpha(p.base, a)),
+            );
+        }
+        v.buf.clear();
+        {
+            use std::fmt::Write as _;
+            let _ = write!(v.buf, "{n}");
+        }
+        let lw = look::width_of(&ctx, s, &v.buf, 10.0, W::SemiBold);
+        let bw = (lw + 20.0).round();
+        let by = (mid.center().y - 9.0).round();
+        // r39:lo-mixer — in the slot beside the middle where there is one (never over a
+        // strip's meter), else at the middle's edge.
+        // r39:fix2 — each side's own slot (the right one may be wider: what is left of
+        // the room after the whole strips).
+        let bx = match right_side {
+            true if geo.slot_r > 0.0 => (mid.right() + (geo.slot_r - bw) * 0.5).round(),
+            false if geo.slot_l > 0.0 => {
+                (mid.left() - geo.slot_l + (geo.slot_l - bw) * 0.5).round()
+            }
+            true => mid.right() - bw - 2.0,
+            false => mid.left() + 2.0,
+        };
+        let pill = Rect::from_min_size(pos2(bx, by), vec2(bw, 18.0));
+        let resp = key(
+            ui,
+            pill,
+            if right_side {
+                "more-right"
+            } else {
+                "more-left"
             },
-            K::Sends,
-        ),
-        ("cables.legend.key", CableKind::Key, K::Keys),
-    ];
-    let mut marks = [Rect::NOTHING; 3];
-    if full || compact {
-        for (i, (key, kind, sel)) in samples.into_iter().enumerate() {
-            let (y, sx0, sx1, h) = if full {
-                (top + LINE * (i as f32 + 0.5), x0, x0 + 14.0, LINE - 0.5)
-            } else {
-                let x = cx0 + i as f32 * (sw + GAP);
-                (cy, x, x + sw, 7.0)
-            };
-            // Hidden by the options: dimmed, sample and word alike.
-            let dim = |c: egui::Color32| {
-                if opts.shows(sel) {
-                    c
-                } else {
-                    with_alpha(c, 0.32)
-                }
-            };
-            let ink = dim(t.text_dim);
-            // As the band strokes it: its width (in the compact key an output twice a
-            // send's, so the two never read alike at that size), and a key in the
-            // dynamics hue, dashed, ending in its key mark.
-            let w = if full {
-                s.s(cable::width(kind))
-            } else if kind == CableKind::Output {
-                s.s(2.8)
-            } else {
-                s.s(1.2)
-            };
-            let mut right = sx1;
-            if kind == CableKind::Key {
-                let hue = dim(t.hue_dynamics);
-                let glyph = if full { 8.0 } else { 6.0 };
-                let dashes_end = if full { x0 + 8.0 } else { sx1 - glyph - 0.5 };
-                let mut u = sx0;
-                while u + 2.5 <= dashes_end + 0.01 {
-                    b.segment(pos2(u, y), pos2(u + 2.5, y), w.max(s.s(1.2)), hue, false);
-                    u += 4.5;
-                }
-                let at = if full { x0 + 13.0 } else { sx1 - glyph * 0.5 };
-                cable::key_mark(b, s, pos2(at, y), s.s(glyph), hue);
-                right = right.max(at + glyph * 0.5);
-            } else {
-                b.segment(pos2(sx0, y), pos2(sx1, y), w, ink, false);
-            }
-            if full {
-                // Taller than the line, so an accent (ENVÍO) is not cut; nothing paints
-                // above.
-                let tr = Rect::from_min_max(pos2(x0 + 21.0, y - 6.5), pos2(x1, y + 6.5));
-                let tt = Text::key(key, Role::Micro, ink)
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Abbreviate);
-                if let Some(p) = text::paint(b, tr, &tt, s.tk()) {
-                    right = right.max(p.rect.right());
-                }
-            }
-            marks[i] = Rect::from_min_max(pos2(sx0, y - h * 0.5), pos2(right, y + h * 0.5));
-        }
-    }
-    let resp = ui.interact(
-        cell.intersect(geo.rows),
-        Id::new("mixer-cables-key"),
-        Sense::hover(),
-    );
-    if resp.hovered() {
-        // Built only while hovered: the hidden kinds, by name.
-        let mut hidden = String::new();
-        for k in layout::CableKindSel::ALL {
-            if !opts.shows(k) {
-                if !hidden.is_empty() {
-                    hidden.push_str(", ");
-                }
-                hidden.push_str(&crate::i18n::t(k.key()));
-            }
-        }
-        let value = if hidden.is_empty() {
-            hidden
+        );
+        let fill = if resp.hovered() {
+            mix(p.raised, p.ink1, 0.06)
         } else {
-            crate::i18n::tf("cables.legend.hidden", &[("kinds", &hidden)])
+            p.raised
         };
-        hint::set_text(
-            ui.ctx(),
-            &crate::i18n::t("cables.legend.hint"),
-            &value,
-            hint::Caps::NONE,
+        b.rrect(b.snap_rect(pill), 9.0, Fill::Solid(fill));
+        b.hline(
+            pill.left() + 6.0,
+            pill.right() - 6.0,
+            pill.top() + b.px() * 0.5,
+            b.px(),
+            mix(p.raised, p.ink1, 0.08),
         );
-    }
-    Some(super::CableKey {
-        cell,
-        name,
-        marks: (full || compact).then_some(marks),
-        compact,
-        handle,
-    })
-}
-
-/// The band's height handle: at the right of the legend cell, near the band's top edge
-/// (`a`, the row's top on screen).
-fn band_handle_rect(geo: &Geo, a: f32) -> Rect {
-    Rect::from_center_size(pos2(geo.legend.right() - 14.0, a + 5.0), vec2(22.0, 10.0))
-}
-
-/// FL's 3-dot handle between the meter and the fader: drag to move height between them,
-/// double-click to reset the split.
-fn ratio_handle(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo, fit: &Fit) {
-    let (Some((ma, mz)), Some((fa, fz))) = (fit.row(Row::Meter), fit.row(Row::Fader)) else {
-        return;
-    };
-    let flex = (mz - ma) + (fz - fa);
-    let y = geo.y0 + mz - 6.0;
-    let hr = Rect::from_center_size(pos2(geo.legend.right() - 14.0, y), vec2(24.0, 24.0)); // r37:finish
-    let resp = ui.interact(
-        // Never through a pinned band: only where the strips show (second review, 7).
-        hr.intersect(geo.strips),
-        Id::new("mixer-ratio"),
-        Sense::click_and_drag(),
-    );
-    let st = State::of(&resp, false);
-    if st.hovered {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-        hint::set_text(ui.ctx(), &v.words.ratio, "", hint::Caps::NONE);
-    }
-    let mut p = v.prefs.current;
-    if resp.dragged() {
-        let meter = (mz - ma) + resp.drag_delta().y;
-        p.ratio = layout::ratio_for(meter, flex, p.width); // r37:finish
-                                                           // Kept while dragging (the prefs write only when the value moves).
-        v.prefs.current = p;
-    }
-    if resp.drag_stopped() {
-        v.prefs.set(p);
-        v.prefs.save();
-    }
-    if resp.double_clicked() {
-        p.ratio = layout::DEFAULT_RATIO;
-        v.prefs.set(p);
-    }
-    let dot = if st.hovered || st.active {
-        s.t.text
-    } else {
-        s.t.text_dim
-    };
-    for i in -1..=1 {
-        b.circle(
-            pos2(hr.center().x + i as f32 * 4.0, hr.center().y),
-            1.2,
-            Fill::Solid(dot),
-        );
+        let buf = std::mem::take(&mut v.buf);
+        let cy = pill.center().y;
+        if right_side {
+            look::say(
+                b,
+                s,
+                &buf,
+                pill.left() + 7.0,
+                cy + 3.5,
+                Align2::LEFT_BOTTOM,
+                lw + 2.0,
+                10.0,
+                W::SemiBold,
+                p.ink2,
+            );
+            let c = pos2(pill.right() - 7.0, cy);
+            b.segment(pos2(c.x - 1.25, c.y - 2.5), c, 1.2, p.ink2, true);
+            b.segment(c, pos2(c.x - 1.25, c.y + 2.5), 1.2, p.ink2, true);
+        } else {
+            look::say(
+                b,
+                s,
+                &buf,
+                pill.right() - 7.0,
+                cy + 3.5,
+                Align2::RIGHT_BOTTOM,
+                lw + 2.0,
+                10.0,
+                W::SemiBold,
+                p.ink2,
+            );
+            let c = pos2(pill.left() + 7.0, cy);
+            b.segment(pos2(c.x + 1.25, c.y - 2.5), c, 1.2, p.ink2, true);
+            b.segment(c, pos2(c.x + 1.25, c.y + 2.5), 1.2, p.ink2, true);
+        }
+        v.buf = buf;
+        if resp.hovered() {
+            let words = if right_side {
+                &v.words.more_right
+            } else {
+                &v.words.more_left
+            };
+            let mut line = String::new();
+            super::rows::fill_n(&mut line, words, n);
+            hint::set_text(&ctx, &line, "", hint::Caps::NONE);
+        }
+        if resp.clicked() {
+            let page = ((mid.width() / geo.pitch).floor().max(1.0) - 1.0).max(1.0) * geo.pitch;
+            v.scroll_x = if right_side {
+                v.scroll_x + page
+            } else {
+                (v.scroll_x - page).max(0.0)
+            };
+        }
     }
 }
 
@@ -971,103 +828,6 @@ pub(super) fn strip_at(v: &MixerView, geo: &Geo, p: egui::Pos2) -> Option<cantus
     }
 }
 
-/// What the title row's right side needs: the window's title and the desk-wide keys
-/// that show (FL's "Mixer"; *Solo off*, *Unmute all*), so the left side gives way first.
-fn right_side_width(v: &MixerView, ui: &Ui, s: &Style, leds: bool) -> f32 {
-    let measure = |key: &'static str, role: Role, caps: bool| {
-        text::measure(ui.ctx(), &Text::key(key, role, s.t.text).caps(caps), s.tk()).x
-    };
-    let mut w = 10.0 + measure("kit.mixer.title", Role::Title, false) + 12.0 + 24.0;
-    if !leds {
-        return w;
-    }
-    if v.desk.any_solo {
-        w += measure("mixer.solo_off", Role::Label, true) + 36.0;
-    }
-    if v.desk.any_muted {
-        w += measure("mixer.unmute_all", Role::Label, true) + 36.0;
-    }
-    w
-}
-
-/// The title row's cable view (round 25, the owner's answer 1): the cables glyph and a
-/// three-way switch — *Off · Selected · All*, the selection's by default. Where the row
-/// has no room for the switch (a narrow desk, a large UI scale), the glyph alone is the
-/// key, and a click steps to the next view. The options key follows it (ADR 0043 §7)
-/// while the row has room; the desk's ▸ menu always has the options too. Returns the new
-/// left edge.
-fn cable_view(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, x: f32) -> f32 {
-    let t = &s.t;
-    let cy = r.center().y;
-    let view = v.prefs.current.cables;
-    let lit = view != layout::CableView::Off;
-    let room = r.right() - x - right_side_width(v, ui, s, true);
-    if room < 190.0 + OPTIONS_KEY + 4.0 {
-        let kr = Rect::from_min_size(pos2(x, cy - 10.0), vec2(20.0, 20.0));
-        let resp = key(ui, kr, "cables");
-        let st = State::of(&resp, lit);
-        cap::toolbar_key(b, kr, s, st, cap::KeyFace::Text(""));
-        let ink = if lit {
-            t.highlight_glyph
-        } else if st.hovered {
-            t.text
-        } else {
-            t.text_dim
-        };
-        glyph::paint(b, kr.shrink(4.0), Glyph::Cables, ink);
-        if resp.hovered() {
-            let name = crate::i18n::t(view.key());
-            hint::set_text(ui.ctx(), &v.words.cable_view, &name, hint::Caps::NONE);
-        }
-        if resp.clicked() {
-            let mut p = v.prefs.current;
-            p.cables = layout::CableView::from_index((view.index() + 1) % 3);
-            v.prefs.set(p);
-        }
-        // The options key follows while the row has room for it; where it has not, the
-        // desk's ▸ menu holds the same options (*Cable options ▸*).
-        // The desk-wide keys at the right give way to it (they are in the menu too).
-        let room = r.right() - x - right_side_width(v, ui, s, false);
-        if room >= 2.0 * OPTIONS_KEY + 8.0 {
-            return cable_options(v, ui, b, s, r, kr.right() + 4.0) + 8.0;
-        }
-        return kr.right() + 8.0;
-    }
-    let gr = Rect::from_min_size(pos2(x, cy - 8.0), vec2(16.0, 16.0));
-    glyph::paint(b, gr, Glyph::Cables, if lit { t.text } else { t.text_dim });
-    let labels = [
-        Src::Key(layout::CableView::Off.key()),
-        Src::Key(layout::CableView::Selected.key()),
-        Src::Key(layout::CableView::All.key()),
-    ];
-    let wr = Rect::from_min_size(pos2(gr.right() + 4.0, cy - 10.0), vec2(168.0, 20.0));
-    let resp = key(ui, gr.union(wr), "cables");
-    let hovered = resp
-        .hover_pos()
-        .and_then(|p| segmented::hit(wr, labels.len(), p.x));
-    if resp.clicked() {
-        if let Some(i) = hovered {
-            let mut p = v.prefs.current;
-            p.cables = layout::CableView::from_index(i);
-            v.prefs.set(p);
-        }
-    }
-    if resp.hovered() {
-        hint::set_text(ui.ctx(), &v.words.cable_view, "", hint::Caps::NONE);
-    }
-    let _ = resp.on_hover_text(&v.words.cable_view);
-    segmented::paint(
-        b,
-        wr,
-        &s.hue_of(Tok::Highlight),
-        State::REST,
-        &labels,
-        view.index(),
-        hovered,
-    );
-    cable_options(v, ui, b, s, r, wr.right() + 4.0) + 10.0
-}
-
 /// The options key's width.
 const OPTIONS_KEY: f32 = 20.0;
 
@@ -1102,72 +862,4 @@ fn cable_options(v: &mut MixerView, ui: &Ui, b: &mut Brush, s: &Style, r: Rect, 
         }
     }
     kr.right()
-}
-
-/// The cable band's handle (round 25): a 3-dot grip at the top of its legend cell; drag
-/// to make the band taller or shorter (20 to 64 pt), double-click for the default.
-fn band_handle(v: &mut MixerView, ui: &mut Ui, b: &mut Brush, s: &Style, geo: &Geo, fit: &Fit) {
-    let Some((a, _)) = fit.row(Row::Cables) else {
-        return;
-    };
-    let hr = band_handle_rect(geo, geo.y0 + a);
-    // The desk may hold the band at less than asked (too short a desk: the most that
-    // fits). The handle is never inert (third review): a drag starts from the band as it
-    // shows, so a drag down acts at its first point, and a drag up stops at what fits —
-    // no preference is ever written that nothing shows. The hint says when the desk is
-    // what holds it.
-    let held = fit.band + 0.5
-        < v.prefs
-            .current
-            .band
-            .clamp(layout::BAND_MIN, layout::BAND_MAX);
-    let resp = ui.interact(
-        hr.intersect(geo.rows),
-        Id::new("mixer-band-size"),
-        Sense::click_and_drag(),
-    );
-    let st = State::of(&resp, false);
-    if st.hovered || resp.dragged() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-        let words = if held {
-            &v.words.band_short
-        } else {
-            &v.words.band
-        };
-        hint::set_text(ui.ctx(), words, "", hint::Caps::NONE);
-    }
-    let mut p = v.prefs.current;
-    if resp.dragged() {
-        // The band is the bottom row: its top edge up makes it taller.
-        let from = p.band.min(fit.band);
-        let dy = resp.drag_delta().y;
-        p.band = if held && dy < 0.0 {
-            from
-        } else {
-            (from - dy).clamp(layout::BAND_MIN, layout::BAND_MAX)
-        };
-        v.prefs.current = p;
-    }
-    if resp.drag_stopped() {
-        v.prefs.set(p);
-        v.prefs.save();
-    }
-    if resp.double_clicked() {
-        p.band = layout::BAND;
-        v.prefs.set(p);
-    }
-    let dot = if st.hovered || st.active {
-        s.t.text
-    } else if held {
-        with_alpha(s.t.text_dim, 0.55)
-    } else {
-        s.t.text_dim
-    };
-    for i in -1..=1 {
-        b.circle(
-            pos2(hr.center().x + i as f32 * 4.0, hr.center().y),
-            1.2,
-            Fill::Solid(dot),
-        );
-    }
 }

@@ -1,0 +1,81 @@
+/* Shared tokens and parts for the round-39 web review mocks (not the site's code).
+   Tokens are the site's own (web/style/base.css), so the mocks keep Lapis stage. */
+@font-face { font-family: "Barlow SC"; src: url("../../../../../web/assets/fonts/barlow-semi-condensed-light.ttf"); font-weight: 300; }
+@font-face { font-family: "Barlow SC"; src: url("../../../../../web/assets/fonts/barlow-semi-condensed-regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Barlow SC"; src: url("../../../../../web/assets/fonts/barlow-semi-condensed-medium.ttf"); font-weight: 500; }
+@font-face { font-family: "Barlow SC"; src: url("../../../../../web/assets/fonts/barlow-semi-condensed-semibold.ttf"); font-weight: 600 800; }
+
+:root {
+  color-scheme: dark;
+  --paper: #1d2329; --paper-2: #262d34; --mist: #1a1f25; --mist-2: #20262d; --line: #323b44;
+  --ink: #e3e8ed; --ink-2: #b4bdc6; --ink-3: #909ca8; --strong: #f1f4f7;
+  --night: #181d22; --cell: #14191e;
+  --accent: #7ea2f6; --accent-text: #9db8f8; --accent-ink: #0a1234;
+  --accent-grad: linear-gradient(#97b5f8, #7ea2f6 55%, #6a8fe8);
+  --accent-tint: rgba(126, 162, 246, 0.14);
+  --gold: #e2b84a; --gold-text: #e9c466;
+  --win: #7ea2f6; --other: #5d6873; --lose: #e2622a;
+  --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 30px 60px -36px rgba(0,0,0,.85);
+  --lapis-ground:
+    radial-gradient(circle at 17px 17px, rgba(233,196,102,.12) 1.6px, transparent 2.2px) 0 0 / 34px 34px,
+    radial-gradient(80rem 50rem at 70% 20%, #2e4aa0 0%, #1a2a66 46%, #0a1234 100%);
+  --leaf: linear-gradient(135deg, #fff4c2 0%, #ebc455 25%, #b8862b 50%, #f3d478 72%, #8a5e14 100%);
+  --gold-rule: linear-gradient(90deg, rgba(226,184,74,.1), #e2b84a 8%, #f3d478 50%, #e2b84a 92%, rgba(226,184,74,.1));
+  --verm: linear-gradient(#ff8f55, #e2622a 60%, #c24a17);
+  --f: "Barlow SC", "Segoe UI", system-ui, sans-serif;
+  --wrap: 78rem; --g: clamp(1rem, 4vw, 3rem);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --paper: #f4f6f8; --paper-2: #ffffff; --mist: #e4e9ee; --mist-2: #d6dde3; --line: #c8d0d8;
+  --ink: #17202a; --ink-2: #38444f; --ink-3: #556170; --strong: #0f1720;
+  --night: #e9edf1; --cell: #dfe5ea;
+  --accent: #2443a8; --accent-text: #2443a8; --accent-ink: #fff;
+  --accent-grad: linear-gradient(#3352b8, #2443a8 55%, #1d3890);
+  --accent-tint: rgba(36, 67, 168, 0.09);
+  --gold: #b8862b; --gold-text: #7a5410;
+  --win: #2443a8; --other: #9aa6b2; --lose: #c24a17;
+  --shadow: 0 1px 0 #fff inset, 0 30px 50px -36px rgba(23,32,42,.45), 0 1px 3px rgba(23,32,42,.06);
+}
+/* the lapis stage keeps its night in both themes */
+.lapis {
+  color-scheme: dark; background: var(--lapis-ground); color: #f1f3fa;
+  --ink: #f1f3fa; --ink-2: #c3cce8; --ink-3: #9eaad6; --strong: #fff; --line: rgba(185,198,238,.22);
+  --accent: #7ea2f6; --accent-text: #b4c8fb; --accent-ink: #0a1234;
+  --accent-grad: linear-gradient(#a7c0fa, #7ea2f6 55%, #6a8fe8);
+  --gold-text: #f0cd6a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 400 1.125rem/1.55 var(--f); -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+img { display: block; max-width: 100%; }
+h1, h2, h3 { font-family: var(--f); font-weight: 600; line-height: 1.02; margin: 0; letter-spacing: -0.005em; text-wrap: balance; color: var(--strong); }
+p { margin: 0; text-wrap: pretty; }
+a { color: inherit; }
+.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--g); }
+.eyebrow { display: inline-flex; align-items: center; gap: .6rem; font: 600 .82rem/1 var(--f); letter-spacing: .14em; text-transform: uppercase; color: var(--gold-text); }
+.eyebrow::before { content: ""; width: 7px; height: 7px; transform: rotate(45deg); background: var(--leaf); }
+.lede { color: var(--ink-2); font-size: 1.3rem; line-height: 1.5; max-width: 40rem; }
+.muted { color: var(--ink-3); }
+.btn { display: inline-flex; align-items: center; gap: .55rem; padding: .85rem 1.3rem; border-radius: 8px; font: 600 1.05rem/1 var(--f); text-decoration: none; border: 0; white-space: nowrap; }
+.btn.primary { background: var(--accent-grad); color: var(--accent-ink); box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 10px 24px -12px rgba(126,162,246,.8); }
+.btn.ghost { background: transparent; color: var(--strong); box-shadow: 0 0 0 1px var(--line) inset; }
+.btn small { font-weight: 400; opacity: .75; font-size: .85rem; }
+.chip { display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .7rem; border-radius: 999px; font: 500 .9rem/1 var(--f); box-shadow: 0 0 0 1px var(--line) inset; color: var(--ink-2); }
+.play { width: 2.6rem; height: 2.6rem; border-radius: 50%; display: grid; place-items: center; background: var(--verm); color: #fff; flex: none; box-shadow: 0 6px 16px -6px rgba(226,98,42,.8); }
+.play svg { width: 1rem; height: 1rem; margin-left: 2px; }
+.card { background: var(--paper-2); border-radius: 12px; box-shadow: var(--shadow), 0 0 0 1px var(--line) inset; }
+
+/* nav */
+.nav { display: flex; align-items: center; gap: 1.6rem; height: 4.5rem; }
+.brand { display: inline-flex; align-items: center; gap: .6rem; font: 600 1.45rem/1 var(--f); color: var(--strong); text-decoration: none; }
+.brand img { width: 2.2rem; height: 2.2rem; }
+.links { display: flex; gap: 1.4rem; margin-left: auto; font-weight: 500; color: var(--ink-2); }
+.nav .tools { display: flex; align-items: center; gap: .7rem; }
+.seg { display: inline-flex; padding: 3px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line) inset; font: 600 .82rem/1 var(--f); }
+.seg span { padding: .4rem .55rem; border-radius: 4px; color: var(--ink-3); }
+.seg span.on { background: rgba(126,162,246,.22); color: var(--strong); }
+.burger { display: none; width: 2.6rem; height: 2.6rem; border-radius: 8px; box-shadow: 0 0 0 1px var(--line) inset; place-items: center; }
+@media (max-width: 52rem) { .links, .nav .seg { display: none; } .burger { display: grid; } .nav .tools { margin-left: auto; } }
+
+/* the mock's label, so nobody mistakes it for the site */
+.mock-tag { position: absolute; right: 8px; top: 8px; z-index: 99; font: 600 11px/1 var(--f); letter-spacing: .08em; text-transform: uppercase; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; }

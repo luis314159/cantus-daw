@@ -81,9 +81,10 @@ pub fn button(ui: &mut Ui, label: &str, primary: bool, enabled: bool, min_w: f32
     } else {
         Sense::hover()
     };
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, s.d(24.0)), sense);
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, s.d(28.0)), sense);
     paint_button(ui, rect, &resp, label, primary, enabled);
-    resp
+    // Its words on the help line (round 39, ADR 0109).
+    super::hint::said_with(resp, || label.to_string())
 }
 
 /// Paint a button in `rect` for `resp`.
@@ -100,6 +101,27 @@ pub fn paint_button(
         disabled: !enabled,
         ..State::of(resp, false)
     };
+    // A recessed family's dialog button is the kit's (integration of round 39: `el-topbar`'s
+    // and `el-controls`' buttons became one, `kit::dialog::button`).
+    if s.t.system.recessed() {
+        let kind = if primary {
+            crate::kit::dialog::Kind::Primary
+        } else {
+            crate::kit::dialog::Kind::Secondary
+        };
+        with_brush(ui.painter(), |b| {
+            crate::kit::dialog::button(
+                b,
+                rect,
+                &s,
+                st,
+                kind,
+                crate::kit::text::Src::Str(label),
+                None,
+            );
+        });
+        return;
+    }
     with_brush(ui.painter(), |b| {
         b.register(
             rect,
@@ -168,6 +190,14 @@ pub fn choice_key(
 ) -> Response {
     let s = Style::current();
     let resp = ui.interact(rect, id, Sense::click());
+    // Its word and its caption on the help line (round 39, ADR 0109).
+    let resp = super::hint::said_with(resp, || {
+        if caption.is_empty() {
+            word.to_string()
+        } else {
+            format!("{word} \u{b7} {caption}")
+        }
+    });
     let st = State::of(&resp, lit);
     with_brush(ui.painter(), |b| {
         b.register(

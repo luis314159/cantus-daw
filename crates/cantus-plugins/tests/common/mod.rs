@@ -679,6 +679,14 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("vdepth", 25.0),
             ("n4", 3.0),
         ],
+        // r39:conv
+        EffectKind::Aula => vec![
+            ("ir", 3.0),
+            ("damp", 0.3),
+            ("predelay", 20.0),
+            ("width", 1.2),
+            ("mix", 0.6),
+        ],
         _ => vec![],
     }
 }
@@ -748,6 +756,22 @@ pub enum Direct {
     Discrimen(Box<cantus_dsp::discrimen::Discrimen>),
     /// Speculum: a pure pass-through, no DSP on the signal (ADR 0056).
     Wire,
+    /// r39:conv — Aula, with the source and shape its kernel was built from.
+    Aula(Box<cantus_dsp::aula::Aula>, (u64, [u32; 9])),
+}
+
+/// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
+fn aula_kernel(
+    spec: &EffectSpec,
+    cap: Option<cantus_dsp::aula_kernel::Layout>,
+) -> std::sync::Arc<cantus_dsp::aula_kernel::Kernel> {
+    let (source, shape) = cantus_engine::fx::aula::want(spec);
+    let cap = cap.unwrap_or_else(|| cantus_dsp::aula::capacity_for(0));
+    let m = cantus_engine::fx::aula_store::build(
+        cantus_engine::fx::aula::AulaNeed { source, shape, cap },
+        SR,
+    );
+    m.kernel.expect("a kernel")
 }
 
 impl Direct {
@@ -788,6 +812,13 @@ impl Direct {
             }
             EffectKind::Analyzer => Direct::Wire,
             EffectKind::AutoTune => Direct::Tonus(Box::new(cantus_dsp::tonus::Tonus::new(SR))),
+            EffectKind::Aula => Direct::Aula(
+                Box::new(cantus_dsp::aula::Aula::with_kernel(
+                    SR,
+                    aula_kernel(spec, None),
+                )),
+                cantus_engine::fx::aula::want(spec),
+            ), // r39:conv
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -833,6 +864,17 @@ impl Direct {
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
             Direct::Wire => {}
+            Direct::Aula(x, have) => {
+                let want = fx::aula::want(spec);
+                if *have != want {
+                    let k = aula_kernel(spec, Some(x.convolver().cap()));
+                    let state = (k.cap() != x.convolver().cap())
+                        .then(|| Box::new(cantus_dsp::aula_conv::State::new(k.cap())));
+                    let _ = x.supply(k, state);
+                    *have = want;
+                }
+                x.set(&fx::aula::settings(spec));
+            }
         }
     }
 
@@ -861,6 +903,7 @@ impl Direct {
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
             Direct::Wire => {}
+            Direct::Aula(x, _) => x.reset(),
         }
     }
 
@@ -889,6 +932,7 @@ impl Direct {
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
             Direct::Wire => 0,
+            Direct::Aula(x, _) => x.latency(),
         }
     }
 
@@ -917,6 +961,7 @@ impl Direct {
             Direct::Impetus(x) => x.process(l, r, key),
             Direct::Discrimen(x) => x.process(l, r),
             Direct::Wire => {}
+            Direct::Aula(x, _) => x.process(l, r),
         }
     }
 }

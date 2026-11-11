@@ -357,6 +357,10 @@ nothing at 2560, the chip's least is its short line).
     in the light on the disc, a sheen. The hero's browser is 366 pt (458 px at 125 %, as
     wide as FL's panel) so a row holds its cover, its whole name, its waveform, its tempo
     and its length; the table's thumbnail is 48 pt and its gaps 6 pt.
+    *Round 39 (lo-rest): one mark per row type — a pack's row carries its cover, a folder
+    its glyph, a sound its own waveform (a plain audio glyph while it is read), never its
+    pack's cover; a pack's sounds showed covers and waveforms side by side while they were
+    read (`samples_browser::row_mark`).*
 59. **An area key's glyph is a small two-tone drawing**: its body in the key's ink (framed
     clips on lanes, a folder with its flap, a keyboard with notes at two pitches, faders
     with caps at different heights, framed steps, framed slots) and one accent in the

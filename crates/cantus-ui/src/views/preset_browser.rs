@@ -42,6 +42,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
     if !app.presets.open {
         return;
     }
+    // r39:ux-b — it closes on its own Esc (`preset_browser_keys`); said open, so nothing
+    // under it takes the key (ADR 0110).
+    crate::esc::open(ctx, crate::esc::Layer::Presets);
     // A target that went away (its track or insert deleted) closes it.
     if crate::preset_browser::unit_of(app, app.presets.target) != app.presets.unit {
         app.close_preset_browser();

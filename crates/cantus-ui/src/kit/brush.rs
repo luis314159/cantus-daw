@@ -554,6 +554,27 @@ impl Brush {
         self.tri(a, c, d);
     }
 
+    /// r39:el-views — an axis-aligned rect whose colour runs left to right through
+    /// `stops` (`t` 0 at the left … 1 at the right, ascending): a piano key's depth, a
+    /// black key's body. One quad per stop interval, colours per vertex.
+    pub fn hrect(&mut self, r: Rect, stops: &[(f32, Color32)]) {
+        let mut prev: Option<(f32, Color32)> = None;
+        for &(t, c) in stops {
+            let x = r.left() + r.width() * t.clamp(0.0, 1.0);
+            if let Some((x0, c0)) = prev {
+                if x > x0 {
+                    let a = self.v(Pos2::new(x0, r.top()), c0);
+                    let b = self.v(Pos2::new(x, r.top()), c);
+                    let cc = self.v(Pos2::new(x, r.bottom()), c);
+                    let d = self.v(Pos2::new(x0, r.bottom()), c0);
+                    self.tri(a, b, cc);
+                    self.tri(a, cc, d);
+                }
+            }
+            prev = Some((x, c));
+        }
+    }
+
     /// A horizontal line `w` physical-pixel-snapped points thick, on the pixel grid.
     pub fn hline(&mut self, x0: f32, x1: f32, y: f32, w: f32, color: Color32) {
         let w = (w * self.ppp).round().max(1.0) / self.ppp;

@@ -65,6 +65,10 @@ pub struct Layout {
     /// The dock's tree. `None` in a layout from before the dock.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dock: Option<serde_json::Value>,
+    /// The areas collapsed to their tab bar, with where each split was (round 39, ADR
+    /// 0110). Absent in older files: nothing folded.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folds: Vec<crate::views::workspace_fold::Fold>,
 }
 
 impl Layout {
@@ -80,6 +84,7 @@ impl Layout {
             show_arrangement: true,
             central: Central::Mixer,
             dock: dock_to_value(&default_dock()),
+            folds: Vec::new(),
         }
     }
 
@@ -113,14 +118,24 @@ impl Layout {
     /// This layout with the workspace's shape folded in: its tree, the sizes laid out
     /// last frame, which areas show and which editor is in front.
     pub fn capture(&self, ws: &Workspace, central: Central) -> Layout {
-        let (inspector, arrangement) = ws.measured_sizes();
+        // A maximised area's size is not the layout's (round 39): the sizes it had stay.
+        let (inspector, arrangement) = if ws.maximised().is_some() {
+            (None, None)
+        } else {
+            ws.measured_sizes()
+        };
         Layout {
             inspector: inspector.unwrap_or(self.inspector),
             arrangement: arrangement.unwrap_or(self.arrangement),
             show_inspector: ws.contains(Pane::Inspector),
             show_arrangement: ws.contains(Pane::Arrangement),
             central,
-            dock: dock_to_value(&ws.dock),
+            dock: dock_to_value(&ws.dock_for_layout()),
+            folds: ws
+                .folds()
+                .iter()
+                .map(|f| crate::views::workspace_fold::Fold { set: None, ..*f })
+                .collect(),
             ..self.clone()
         }
     }

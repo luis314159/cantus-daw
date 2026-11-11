@@ -1,0 +1,96 @@
+name: Site budget
+
+# The website's performance budget (round 39, docs/round39/web/analysis.md §4 P3): the trunk
+# build of web/ is served locally and measured by Lighthouse CI on its mobile preset (slow
+# 4G, a mid-range phone), three runs, the median held to:
+#   first visit (total transfer)  <= 1 MB        total-byte-weight
+#   largest contentful paint      <= 2.0 s       largest-contentful-paint
+#   cumulative layout shift       <= 0.02        cumulative-layout-shift
+#   accessibility                 100            categories:accessibility
+# and the WebAssembly <= 250 000 bytes gzipped (web/tools/wasm_budget.py, the one line
+# Lighthouse cannot measure). The limits live in web/lighthouserc.json and wasm_budget.py;
+# tools/web-budget.ps1 runs the same checks against a local build. It measures, it does not
+# deploy: site.yml publishes whatever this says.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "web/**"
+      - ".github/workflows/site-budget.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/site-budget.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-budget-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRUNK_VERSION: "0.21.14"
+  LHCI_VERSION: "0.15.1"
+
+jobs:
+  budget:
+    # Runs in luis314159/cantus-daw only, as site.yml does (the public repository's Actions
+    # minutes are free).
+    if: github.repository == 'luis314159/cantus-daw'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust and the WebAssembly target
+        working-directory: web
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: web
+
+      - name: Trunk
+        run: |
+          curl -fsSL "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Build the site
+        id: build
+        working-directory: web
+        env:
+          NO_COLOR: "false"
+        run: |
+          trunk build --release
+          # What site.yml publishes: every page pre-rendered (round 39, P1-1).
+          cargo run --features ssr -- prerender dist
+
+      - name: WebAssembly <= 250 000 bytes gzipped
+        run: python3 web/tools/wasm_budget.py web/dist
+
+      - uses: actions/setup-node@v4
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        with:
+          node-version: "22"
+
+      # The runner's Chrome; Lighthouse CI serves web/dist itself (gzip on), so the weights
+      # are what a visitor downloads (Cloudflare's Brotli makes them a little smaller).
+      # Measured even when the WebAssembly is over, so one run shows every line.
+      - name: Lighthouse CI
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        working-directory: web
+        run: npx --yes "@lhci/cli@${LHCI_VERSION}" autorun --config=./lighthouserc.json
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: web/target/lhci
+          if-no-files-found: ignore
+          retention-days: 14

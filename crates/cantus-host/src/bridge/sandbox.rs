@@ -727,6 +727,14 @@ impl Sandbox {
         *lock(&self.to_child) = None;
     }
 
+    /// Whether a worker of the helper took a job and has not finished it (round 39, fixes).
+    pub(crate) fn a_job_runs(&self) -> bool {
+        lock(&self.instances)
+            .values()
+            // SAFETY: the exchange is in the slot's mapping, which `r` keeps alive.
+            .any(|r| unsafe { &*r.slot.exchange() }.running())
+    }
+
     /// The culprits of an end, and the instances still loaded.
     fn find_culprits(&self, end: End) -> (HashSet<u32>, Vec<u32>) {
         let instances = lock(&self.instances);

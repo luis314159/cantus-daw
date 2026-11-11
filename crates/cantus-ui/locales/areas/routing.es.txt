@@ -97,14 +97,14 @@ routing.menu.routes = Sus rutas
 # Receives (views/inspector_receives.rs).
 routing.receives.band = Recibe
 routing.receives.master = Todos los canales llegan al máster
-routing.receives.tracks_only = Lo alimentan sus pistas (Entrada, arriba)
+routing.receives.tracks_only = Lo alimentan sus pistas (Entrada)
 routing.receives.none = Nada entra en este canal — enrutar aquí
 routing.receives.select = Clic: seleccionarlo · clic derecho: el menú de esta ruta
 routing.receives.twice = ×2
 routing.receives.twice_name = Se oye dos veces
 routing.receives.output = salida
 routing.receives.output_tip = Entra aquí como su salida · clic: convertirla en envío, o quitarla
-routing.receives.key = {effect}, ranura {n} ← sidechain
+routing.receives.key = {effect}, ranura {n} ← clave
 routing.receives.key_tip = Clic: abrir el efecto · clic derecho: el menú de esta ruta
 routing.menu.row_output = Salida → {to}
 routing.menu.row_send = Envío → {to}

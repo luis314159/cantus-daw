@@ -5,6 +5,7 @@
 //! module, a new variant and one line in each dispatch.
 
 pub mod anulus;
+pub mod aula; // r39:conv
 pub mod compressor;
 pub mod concentus;
 pub mod deesser;

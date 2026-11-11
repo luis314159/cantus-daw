@@ -44,3 +44,7 @@
 - [Round 37: content, instruments, scorecard](round-37.md) — beta.12 released 2026-11-08 (public ae3e51b0, private 25b565a7); two blind judges 20 & 22/26 after 13 look deliveries (icons, piano keys open); scorecard measured vs FL/REAPER; ticker 60 Hz fix
 - [Decision: round 39 = UX + graphics](decision-round39-ux-graphics.md) — owner 2026-11-08: all UX/graphics; a dedicated design agent draws every element by hand from blank sheets, owner approves; dancer off at start (r38)
 - [Round 38: at rest + Chorda scene](round-38.md) — beta.13 released 2026-11-09; quiet scorecard won window/quiet/rest vs REAPER and FL, memory lost; next = round 39 UX/graphics (docs/next-session.md)
+- [More agents for round 39](feedback-more-agents-r39.md) — owner 2026-11-09: several agents per visual aspect + more on pending items; cargo builders still ~3 (RAM); never during perf measurement
+- [Decision: Slate is the default look](decision-slate-default.md) — owner 2026-11-09 chose direction A Slate; icons set 1 rejected: more elegant, compare with FL and other DAWs; logo #03 default; Slate Lapis optional; dancers off site/README
+- [Round 39: UX + graphics](round-39.md) — Slate + kit + icons + every view redrawn, 24 themes, Delay window, Aula, memory 237→140 MB private quiet (still behind REAPER/FL); schema 61; closed as beta.14; next = docs/next-session.md (round 40)
+- [Themes must be legible](feedback-themes-legible.md) — every theme easy to work/read; measured non-text 3:1 + text 4.5:1 across all themes

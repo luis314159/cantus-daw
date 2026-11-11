@@ -19,7 +19,7 @@ pub fn of(file: &str) -> &'static [Sound] {
 }
 
 fn src(file: &str) -> String {
-    format!("units/sounds/{file}.mp3")
+    format!("/units/sounds/{file}.mp3")
 }
 
 /// The one excerpt playing on the page, so a second play stops the first.

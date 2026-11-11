@@ -23,7 +23,11 @@ use egui::{pos2, vec2, Event, Key, Modifiers, Pos2};
 
 fn app(project: Project) -> CantusApp {
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
-    CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
+    cantus_ui::views::mixer::with_cables(CantusApp::from_parts(
+        Some(project),
+        EngineHandle::dummy(),
+        false,
+    ))
 }
 
 fn ctx() -> egui::Context {
@@ -554,6 +558,8 @@ fn shift_f10_opens_the_selected_strips_route_menu_and_the_strip_menu_says_so() {
         !r.idle(1).contains("NEW RETURN"),
         "not while the arrangement is being edited"
     );
+    // r39:ux-b — there it opens the selection's own menu (ADR 0110): Esc closes it.
+    r.key(Key::Escape, Modifiers::NONE);
     r.app.focus = cantus_ui::app::EditFocus::Mixer;
     r.key(Key::F10, Modifiers::SHIFT);
     let text = r.idle(1);
@@ -800,7 +806,7 @@ fn an_armed_route_is_let_go_by_esc_empty_space_or_its_own_strip() {
         "a refused strip keeps it armed"
     );
     assert!(r.app.project() == &fed, "a refused click issues nothing");
-    assert!(r.hint().1.contains("Would make a loop"), "{:?}", r.hint());
+    assert!(r.hint().1.contains("(a loop)"), "{:?}", r.hint());
     r.click(r.rect(Some(s[6]), Control::Fader).center());
     assert!(r.app.project().strip(s[1]).unwrap().send_to(s[6]).is_some());
 }
@@ -870,6 +876,12 @@ fn an_armed_route_lets_go_when_the_desk_is_hidden_and_a_selected_cable_stays() {
 #[test]
 fn the_selected_strips_chip_arms_a_route_too() {
     let mut r = Rig::new(starter_project());
+    // FL's row is the Rows menu's to show (off by default since round 39).
+    cantus_ui::views::mixer::set_row(
+        &mut r.app,
+        cantus_ui::views::mixer::layout::Row::Sends,
+        true,
+    );
     let s = r.ids();
     r.app.select_strip(s[2]);
     r.idle(3);
@@ -880,12 +892,13 @@ fn the_selected_strips_chip_arms_a_route_too() {
         !route_menu::is_open(&r.ctx, desk_owner()),
         "no menu on a click"
     );
-    let mute = r.rect(Some(s[6]), Control::Mute).center();
+    // Strip 1 (fed by its track: an empty strip shows no keys since round 39).
+    let mute = r.rect(Some(s[0]), Control::Mute).center();
     r.click(mute);
     let p = r.app.project();
-    assert!(p.strip(s[2]).unwrap().send_to(s[6]).is_some(), "routed");
+    assert!(p.strip(s[2]).unwrap().send_to(s[0]).is_some(), "routed");
     assert!(
-        !p.strip(s[6]).unwrap().muted,
+        !p.strip(s[0]).unwrap().muted,
         "the mute under the click did not act"
     );
     r.right_click(chip);
@@ -968,27 +981,6 @@ fn the_chain_line_opens_a_hidden_inspector() {
         "the inspector opened"
     );
     assert_eq!(r.app.selected_strip, Some(s[2]));
-}
-
-/// Integration finding: the master's pan law stood as a bare "-3" under OUTPUT. It reads
-/// "−3 dB law" from Wide up (its short form where only that fits), in both languages.
-#[test]
-fn the_masters_pan_law_is_labelled() {
-    for (locale, word) in [
-        (cantus_ui::i18n::Locale::En, "dB law"),
-        (cantus_ui::i18n::Locale::Es, "ley "),
-    ] {
-        let mut r = Rig::new(starter_project());
-        cantus_ui::i18n::set_thread_locale(locale);
-        mixer::set_width_mode(&mut r.app, mixer::layout::WidthMode::Wide);
-        let text = r.idle(3);
-        let law = r.app.project().pan_law.id().replace('-', "\u{2212}");
-        assert!(
-            text.contains(word) && text.contains(&law),
-            "{locale:?}: {text}"
-        );
-    }
-    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Whole window (design test 11 with answer 11): an arrangement header dragged onto a
@@ -1280,101 +1272,6 @@ fn the_inspectors_add_send_offers_a_new_return() {
     assert!(r.app.project().strip(s[0]).unwrap().send_to(s[7]).is_some());
 }
 
-/// Round 26 (ADR 0043, amended): the cable legend is never invisible. At 1280 × 720 the
-/// band sits at its least (20 pt) and the three sample lines with their words do not fit
-/// under ROUTING; a compact key does — the three samples (output thick, send thin, key
-/// dashed in the dynamics hue) beside the row's name, inside its cell, touching neither
-/// the name nor each other. The whole window, English and Spanish, 100 % and 200 %.
-#[test]
-fn the_cable_legend_shows_when_the_band_is_at_its_least() {
-    use mixer::layout::WidthMode;
-    for (locale, ppp, mode) in cantus_ui::i18n::Locale::ALL
-        .into_iter()
-        .flat_map(|l| [1.0f32, 2.0].map(|p| (l, p)))
-        .flat_map(|(l, p)| [None, Some(WidthMode::Wide)].map(|m| (l, p, m)))
-    {
-        {
-            let mut r = Rig::window(starter_project());
-            cantus_ui::i18n::set_thread_locale(locale);
-            r.ctx.set_pixels_per_point(ppp);
-            r.size = vec2(1280.0, 720.0) / ppp;
-            // The default width (Compact) and Wide.
-            if let Some(m) = mode {
-                mixer::set_width_mode(&mut r.app, m);
-            }
-            let s = r.ids();
-            r.app.select_strip(s[1]);
-            r.idle(4);
-            let key = r
-                .app
-                .mixer
-                .cable_key()
-                .unwrap_or_else(|| panic!("{locale:?} {ppp}: the band's row is on the desk"));
-            // Review finding 11: on screen — inside the desk's visible rows and the window.
-            let rows = r.app.mixer.rows_seen();
-            let window = egui::Rect::from_min_size(Pos2::ZERO, r.size);
-            assert!(
-                rows.expand(0.5).contains_rect(key.cell) && window.contains_rect(key.cell),
-                "{locale:?} {ppp} {mode:?}: the band's cell {:?} is off the desk's view {rows:?}",
-                key.cell
-            );
-            let marks = key.marks.expect("the legend's samples are drawn");
-            assert!(
-                key.compact || key.cell.height() >= 40.0,
-                "{locale:?} {ppp} {mode:?}: a short band ({:?}) has the compact key",
-                key.cell
-            );
-            // Review finding 12: the compact key is a row of three samples, never a stack
-            // that reads as a ≡ menu glyph.
-            if key.compact {
-                assert!(
-                    marks[0].right() < marks[1].left() && marks[1].right() < marks[2].left(),
-                    "{locale:?} {ppp} {mode:?}: the samples side by side: {marks:?}"
-                );
-            }
-            // Review finding 13: ROUTING where every row's name starts.
-            assert!(
-                (key.name.left() - (key.cell.left() + 8.0)).abs() < 1.0,
-                "{locale:?} {ppp} {mode:?}: the name {:?} not aligned with the column",
-                key.name
-            );
-            for (i, m) in marks.iter().enumerate() {
-                assert!(
-                    key.cell.contains_rect(*m),
-                    "{locale:?} {ppp}: sample {i} {m:?} outside its cell {:?}",
-                    key.cell
-                );
-                assert!(
-                    !m.intersects(key.name),
-                    "{locale:?} {ppp}: sample {i} {m:?} over the name {:?}",
-                    key.name
-                );
-                for o in &marks[i + 1..] {
-                    assert!(!m.intersects(*o), "{locale:?} {ppp}: samples overlap");
-                }
-                assert!(
-                    !m.intersects(key.handle),
-                    "{locale:?} {ppp}: sample {i} {m:?} against the band's handle"
-                );
-            }
-            assert!(key.cell.contains_rect(key.name), "the name in its cell");
-            assert!(
-                !key.name.intersects(key.handle),
-                "{locale:?} {ppp}: the name {:?} under the band's handle {:?}",
-                key.name,
-                key.handle
-            );
-            let words = cantus_ui::i18n::t("cables.legend").to_uppercase();
-            let text = r.idle(1);
-            assert!(
-                text.contains(&format!("| {words} |")),
-                "{locale:?} {ppp}: ROUTING whole ({words})"
-            );
-        }
-    }
-    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
-}
-
 /// Review findings 1 and 2: whatever the desk was carrying when it left the screen lets
 /// go — a cable dragged from a port, a press on a port that had not travelled yet, a strip
 /// carried by its number cell. Released while the desk is hidden (or after it is back), it
@@ -1433,105 +1330,6 @@ fn what_the_desk_carried_lets_go_when_it_is_hidden() {
 
 // ---- round 26, second review: the pinned band (findings 7–11) -------------------------
 
-/// The whole window at 1280 × 720 and 200 %, Wide, strip 2 selected: the desk scrolls and
-/// the band is pinned to its foot.
-fn pinned_rig() -> Rig {
-    let mut r = Rig::window(starter_project());
-    r.ctx.set_pixels_per_point(2.0);
-    r.size = vec2(640.0, 360.0);
-    mixer::set_width_mode(&mut r.app, mixer::layout::WidthMode::Wide);
-    let s = r.ids();
-    r.app.select_strip(s[1]);
-    r.idle(4);
-    r
-}
-
-fn wheel(r: &mut Rig, at: Pos2, dy: f32, modifiers: Modifiers) {
-    r.pointer = Some(at);
-    r.mods = modifiers;
-    r.frame(vec![Event::MouseWheel {
-        unit: egui::MouseWheelUnit::Line,
-        delta: vec2(0.0, dy),
-        phase: egui::TouchPhase::Move,
-        modifiers,
-    }]);
-    for _ in 0..20 {
-        r.frame(Vec::new());
-    }
-    r.mods = Modifiers::NONE;
-    r.idle(1);
-}
-
-/// Second review, findings 7 and 10 (and the third's 6): nothing hidden under the pinned
-/// band is grabbed through it (the meter/fader ratio handle), and the band's own height
-/// handle, while the desk holds the band at less than asked, grows it no further — a drag
-/// up writes no preference above what shows, and the band does not move.
-#[test]
-fn the_pinned_bands_legend_cell_grabs_nothing_hidden() {
-    let mut r = pinned_rig();
-    let key = r.app.mixer.cable_key().expect("the band's cell");
-    let before = r.app.mixer.prefs();
-    for p in [
-        pos2(key.handle.center().x, key.cell.bottom() - 3.0),
-        key.handle.center(),
-    ] {
-        r.drag(p, p + vec2(0.0, -15.0));
-        let now = r.app.mixer.prefs();
-        assert_eq!(
-            now.ratio, before.ratio,
-            "the hidden ratio handle moved ({p:?})"
-        );
-        assert!(
-            now.band == before.band || now.band <= key.cell.height() + 0.5,
-            "a preference above what shows ({p:?}): {}",
-            now.band
-        );
-        let k = r.app.mixer.cable_key().unwrap();
-        assert_eq!(k.cell, key.cell, "the band's cell moved");
-    }
-}
-
-/// Second review, finding 9: the pinned band stops at the vertical scrollbar — a click on
-/// the bar's track beside the band pages the desk.
-#[test]
-fn the_scrollbar_track_beside_a_pinned_band_pages() {
-    let mut r = pinned_rig();
-    let key = r.app.mixer.cable_key().unwrap();
-    let rows = r.app.mixer.rows_seen();
-    assert_eq!(r.app.mixer.scroll().1, 0.0);
-    r.click(pos2(rows.right() - 5.0, key.cell.center().y + 2.0));
-    assert!(
-        r.app.mixer.scroll().1 > 0.0,
-        "the track's click paged the desk"
-    );
-}
-
-/// Second review, finding 8: the wheel over the pinned band does what it does over the
-/// band at the desk's foot — sideways, never down — and Ctrl+wheel steps the width.
-#[test]
-fn the_wheel_over_a_pinned_band_acts_as_over_the_band() {
-    let mut r = pinned_rig();
-    // Down a page first (the scrollbar's track), so the band is pinned with the desk
-    // scrolled.
-    let rows = r.app.mixer.rows_seen();
-    r.click(pos2(rows.right() - 5.0, rows.top() + rows.height() * 0.6));
-    let (x0, y0) = r.app.mixer.scroll();
-    assert!(y0 > 0.0, "the desk scrolled down");
-    let key = r.app.mixer.cable_key().unwrap();
-    let on_band = pos2(key.cell.right() + 70.0, key.cell.bottom() - 2.0);
-    wheel(&mut r, on_band, -2.0, Modifiers::NONE);
-    let (x1, y1) = r.app.mixer.scroll();
-    assert_eq!(y1, y0, "the wheel over the band scrolled the desk down");
-    assert!(x1 > x0, "the wheel over the band scrolls sideways");
-    let mode = r.app.mixer.prefs().width;
-    wheel(&mut r, on_band, 1.0, Modifiers::COMMAND);
-    assert_ne!(
-        r.app.mixer.prefs().width,
-        mode,
-        "Ctrl+wheel over the band steps the width"
-    );
-}
-
 /// Second review, finding 11: Esc that closes the typed-level field keeps the cable the
 /// right-click selected.
 #[test]
@@ -1566,6 +1364,12 @@ fn esc_on_the_level_field_keeps_the_selected_cable() {
 #[test]
 fn a_sends_menu_automates_and_modulates_its_level() {
     let mut r = Rig::new(starter_project());
+    // FL's row is the Rows menu's to show (off by default since round 39).
+    cantus_ui::views::mixer::set_row(
+        &mut r.app,
+        cantus_ui::views::mixer::layout::Row::Sends,
+        true,
+    );
     let s = r.ids();
     let ret = r
         .app

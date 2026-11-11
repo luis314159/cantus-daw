@@ -5,8 +5,15 @@
 //! from the stream's start (the instrument's grid), never from a host block, so any split
 //! gives the same bits. Everything is allocated in [`Convolver::new`]; `tick` allocates
 //! nothing.
+//!
+//! The response's spectra ([`Prepared`]) are shared: every convolver of one response holds
+//! the same ones (round 39, fixes). A convolver may be made [`Convolver::waiting`] for
+//! them — its lines allocated, its response silent — and given them later without
+//! allocating ([`Convolver::adopt`]): from then on it gives exactly what one made with them
+//! would, its delay line holding the inputs' spectra all along.
 
 use crate::math;
+use std::sync::Arc;
 
 /// The partition (samples): Chorda's chunk.
 pub const B: usize = 64;
@@ -69,31 +76,17 @@ impl Fft {
 /// One spectrum of `2B` real points: bins 0 … B.
 type Spec = ([f64; BINS], [f64; BINS]);
 
-#[derive(Clone, Debug)]
-pub struct Convolver {
-    fft: Fft,
-    /// The first B taps, and the last B inputs (newest at `hpos`).
+/// A response made ready to convolve: its first [`B`] taps, and its partitions after them
+/// as spectra. Made once (off the audio thread) and shared.
+#[derive(Debug)]
+pub struct Prepared {
     head: [f64; B],
-    hist: [f64; B],
-    hpos: usize,
-    /// The partitions after the head (`h[B(k+1) … B(k+2))`), as spectra.
     parts: Vec<Spec>,
-    /// The inputs' spectra, newest at `fpos` (a ring as long as `parts`).
-    fdl: Vec<Spec>,
-    fpos: usize,
-    /// The block being collected, the one before it, the tail's output for this block.
-    cur: [f64; B],
-    prev: [f64; B],
-    tail: [f64; B],
-    /// Samples into the current block (the stream's grid).
-    pos: usize,
-    /// Blocks in a row whose input was exactly zero (the state is all zero after enough).
-    quiet: usize,
 }
 
-impl Convolver {
-    /// A convolver with impulse response `h` (any length; at least one tap). Allocates.
-    pub fn new(h: &[f64]) -> Convolver {
+impl Prepared {
+    /// Response `h` (any length; at least one tap). Allocates.
+    pub fn new(h: &[f64]) -> Prepared {
         let fft = Fft::new();
         let mut head = [0.0; B];
         for (d, s) in head.iter_mut().zip(h) {
@@ -113,14 +106,65 @@ impl Convolver {
                 s
             })
             .collect();
-        let fdl = vec![([0.0; BINS], [0.0; BINS]); parts.len().max(1)];
+        Prepared { head, parts }
+    }
+
+    /// The partitions after the head a response `len` taps long has.
+    pub fn partitions_of(len: usize) -> usize {
+        len.saturating_sub(B).div_ceil(B)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Convolver {
+    fft: Fft,
+    /// The first B taps, and the last B inputs (newest at `hpos`).
+    head: [f64; B],
+    hist: [f64; B],
+    hpos: usize,
+    /// The response's spectra (the partitions after the head, `h[B(k+1) … B(k+2))`):
+    /// `None` while waiting for them (the head is then silent too).
+    prep: Option<Arc<Prepared>>,
+    /// How many partitions the response has (the delay line's length).
+    p: usize,
+    /// The inputs' spectra, newest at `fpos` (a ring as long as `parts`).
+    fdl: Vec<Spec>,
+    fpos: usize,
+    /// The block being collected, the one before it, the tail's output for this block.
+    cur: [f64; B],
+    prev: [f64; B],
+    tail: [f64; B],
+    /// Samples into the current block (the stream's grid).
+    pos: usize,
+    /// Blocks in a row whose input was exactly zero (the state is all zero after enough).
+    quiet: usize,
+}
+
+impl Convolver {
+    /// A convolver with impulse response `h` (any length; at least one tap). Allocates.
+    pub fn new(h: &[f64]) -> Convolver {
+        Convolver::with(Arc::new(Prepared::new(h)))
+    }
+
+    /// A convolver of a prepared response (shared). Allocates its lines.
+    pub fn with(prep: Arc<Prepared>) -> Convolver {
+        let mut c = Convolver::waiting(prep.parts.len());
+        c.head = prep.head;
+        c.prep = Some(prep);
+        c
+    }
+
+    /// A convolver whose response, `partitions` long after its head, comes later
+    /// ([`Self::adopt`]); silent until then. Allocates its lines.
+    pub fn waiting(partitions: usize) -> Convolver {
         Convolver {
-            fft,
-            head,
+            fft: Fft::new(),
+            head: [0.0; B],
             hist: [0.0; B],
             hpos: 0,
-            parts,
-            fdl,
+            prep: None,
+            p: partitions,
+            fdl: vec![([0.0; BINS], [0.0; BINS]); partitions.max(1)],
             fpos: 0,
             cur: [0.0; B],
             prev: [0.0; B],
@@ -130,15 +174,31 @@ impl Convolver {
         }
     }
 
+    /// Whether its response has not come yet.
+    pub fn is_waiting(&self) -> bool {
+        self.prep.is_none()
+    }
+
+    /// Its response, waited for: from the next sample on, it gives what a convolver made
+    /// with it would. Refused (false) for a response of another length. Allocates nothing.
+    pub fn adopt(&mut self, prep: Arc<Prepared>) -> bool {
+        if prep.parts.len() != self.p {
+            return false;
+        }
+        self.head = prep.head;
+        self.prep = Some(prep);
+        true
+    }
+
     /// The response's length in partitions after the head.
     pub fn partitions(&self) -> usize {
-        self.parts.len()
+        self.p
     }
 
     /// Whether every state is exactly zero (nothing more can come out until something
     /// goes in).
     pub fn at_rest(&self) -> bool {
-        self.quiet > self.parts.len() + 2 && self.cur.iter().all(|x| *x == 0.0)
+        self.quiet > self.p + 2 && self.cur.iter().all(|x| *x == 0.0)
     }
 
     pub fn reset(&mut self) {
@@ -175,13 +235,13 @@ impl Convolver {
         } else {
             0
         };
-        if self.parts.is_empty() {
+        if self.p == 0 {
             self.prev = self.cur;
             self.cur = [0.0; B];
             return;
         }
         // The newest input's spectrum: [previous block, this block].
-        let p = self.parts.len();
+        let p = self.p;
         self.fpos = (self.fpos + 1) % p;
         if self.quiet > p + 2 {
             // Every spectrum in the line is already zero.
@@ -203,10 +263,15 @@ impl Convolver {
         }
         self.prev = self.cur;
         self.cur = [0.0; B];
+        // Waiting for its response: the line keeps the inputs' spectra, the tail is silent.
+        let Some(prep) = &self.prep else {
+            self.tail = [0.0; B];
+            return;
+        };
         // Σ_k X_{m−k} · H_k for k = 1 … P (X_{m−1} is the one just made).
         let mut ar = [0.0; BINS];
         let mut ai = [0.0; BINS];
-        for (k, h) in self.parts.iter().enumerate() {
+        for (k, h) in prep.parts.iter().enumerate() {
             let x = &self.fdl[(self.fpos + p - k) % p];
             for b in 0..BINS {
                 ar[b] += x.0[b] * h.0[b] - x.1[b] * h.1[b];

@@ -36,30 +36,30 @@ pub fn ai() -> Html {
                 <div class="score-stage"><div class="backdrop">
                     <div class="window">
                         <div class="window-bar"><i></i><i></i><i></i><span>{ l.t("Cantus — an agent at work", "Cantus — un agente trabajando") }</span></div>
-                        <img src="ai/agent.webp" width="1400" height="875" loading="lazy"
+                        <img src="/ai/agent.webp" width="1400" height="875" loading="lazy"
                              alt={ l.t("Claude Code working in Cantus: the AI activity lists its calls, a card asks before a track is deleted", "Claude Code trabajando en Cantus: la actividad de IA lista sus llamadas, una tarjeta pregunta antes de borrar una pista") } />
                     </div>
                 </div></div>
                 <div class="score-more">
                     <figure>
-                        <img src="ai/stems.webp" width="1400" height="860" loading="lazy"
+                        <img src="/ai/stems.webp" width="1400" height="860" loading="lazy"
                              alt={ l.t("A song separated into drums, bass, other and vocals, each on its own track under a bus", "Una canción separada en batería, bajo, otros y voces, cada una en su pista bajo un bus") } />
                         <figcaption>{ l.t("Separate stems: the parts on their own tracks, at the original's level, in one undo step.", "Separar stems: las partes en pistas propias, al nivel del original, en un solo paso de deshacer.") }</figcaption>
                     </figure>
                     <figure>
-                        <img src="ai/mastering.webp" width="622" height="804" loading="lazy"
+                        <img src="/ai/mastering.webp" width="620" height="800" loading="lazy"
                              alt={ l.t("The mastering assistant: the target, the mix and the proposal measured, the octave balance and the proposed chain", "El asistente de mastering: el objetivo, la mezcla y la propuesta medidas, el balance por octavas y la cadena propuesta") } />
                         <figcaption>{ l.t("The mastering assistant: what it hears, what it proposes and why.", "El asistente de mastering: lo que oye, lo que propone y por qué.") }</figcaption>
                     </figure>
                 </div>
                 <div class="score-more ai-pair">
                     <figure>
-                        <img src="ai/settings.webp" width="780" height="468" loading="lazy"
+                        <img src="/ai/settings.webp" width="888" height="590" loading="lazy"
                              alt={ l.t("Settings ▸ AI: the AI area, external agents on 127.0.0.1 with a token, setups for six clients", "Ajustes ▸ IA: el área de IA, agentes externos en 127.0.0.1 con un token, configuración para seis clientes") } />
                         <figcaption>{ l.t("One switch for the whole area; a token per client; setups ready to paste.", "Un interruptor para toda el área; un token por cliente; configuraciones listas para pegar.") }</figcaption>
                     </figure>
                     <figure>
-                        <img src="ai/midi.webp" width="608" height="648" loading="lazy"
+                        <img src="/ai/midi.webp" width="600" height="640" loading="lazy"
                              alt={ l.t("Convert to MIDI: melody, notes and chords or drums, and the model it uses", "Convertir a MIDI: melodía, notas y acordes o batería, y el modelo que usa") } />
                         <figcaption>{ l.t("Convert to MIDI: a melody, chords or a drum loop, as notes on a new track.", "Convertir a MIDI: una melodía, acordes o un loop de batería, como notas en una pista nueva.") }</figcaption>
                     </figure>

@@ -1,12 +1,13 @@
 //! The desk's geometry (ADR 0024 §6, ADR 0041): the width modes, the rows every strip
 //! shares so they line up across the desk, and **fit first, then scroll**.
 //!
-//! Pure arithmetic, no egui: given the height the desk has, which rows are on and how the
-//! meter and the fader split the flexible height, [`fit`] says where each row goes. When
-//! the desk is short, rows drop in the ADR's order (the EQ bars, the width knob, the
-//! phase and swap switches, the readout, then the name shrinks, the send list shortens to
-//! two rows, the cable band to its least and the output chip goes); when even the minimum
-//! does not fit, the content is taller than the desk and the desk scrolls vertically.
+//! Pure arithmetic, no egui: given the height the desk has and which rows are on, [`fit`]
+//! says where each row goes — des-mixer's rows (round 39), in signal order: the sound
+//! (head, inserts, EQ, polarity · swap · width), the mix (pan, M · S · arm, the fader with
+//! its meter beside it, the level), the route (sends, the output, the socket). When the
+//! desk is short, rows leave in des-mixer's order (the EQ, the polarity row, the inserts
+//! fold to one line, the sends, the socket, the level, the output) and the fader keeps the
+//! rest; when even the minimum does not fit, the desk scrolls vertically.
 
 use serde::{Deserialize, Serialize};
 
@@ -14,26 +15,25 @@ use serde::{Deserialize, Serialize};
 /// steps through them; the choice is kept per window layout.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WidthMode {
-    /// 24 pt: FL's Compact (Plex Condensed needs a little more than FL's 20). Names run
-    /// up the strip.
+    /// 30 pt (des-mixer): a 12-px name runs up the strip, two keys fit.
     #[default]
     Compact,
-    /// 48 pt: names across, the fader's value under it, the output chip.
+    /// 60 pt: names across, four insert rows, the EQ curve, the level, two sends.
     Wide,
-    /// 76 pt: level, pan, sends and routing (round 25, ADR 0041 §9) — the strip's own
-    /// send rows, its output and its chain in one line; the inserts live in the inspector.
+    /// 94 pt ("Large"): unit names, the EQ's bands, pan and send values, the scale.
     Xl,
 }
 
 impl WidthMode {
     pub const ALL: [WidthMode; 3] = [WidthMode::Compact, WidthMode::Wide, WidthMode::Xl];
 
-    /// The strip's pitch in points at 100 %: its body and the 1-pt gap after it.
+    /// The strip's pitch in points at 100 %: its body (des-mixer: 30 / 60 / 94) and the 2 pt
+    /// of the desk after it.
     pub fn pitch(self) -> f32 {
         match self {
-            WidthMode::Compact => 24.0,
-            WidthMode::Wide => 48.0,
-            WidthMode::Xl => 76.0,
+            WidthMode::Compact => 32.0,
+            WidthMode::Wide => 62.0,
+            WidthMode::Xl => 96.0,
         }
     }
 
@@ -166,18 +166,15 @@ impl Row {
 
     /// The families the desk's ▾ menu can switch off. The number, the meter and the
     /// fader are the strip; they stay. The cable band follows the cable view instead.
-    pub const TOGGLES: [Row; 12] = [
-        Row::Name,
-        Row::MuteSolo,
-        Row::Pan,
-        Row::Readout,
-        Row::PhaseSwap,
-        Row::Width,
-        Row::Eq,
-        Row::FxRec,
+    pub const TOGGLES: [Row; 9] = [
         Row::Chain,
-        Row::Output,
+        Row::Eq,
+        Row::PhaseSwap,
+        Row::Pan,
+        Row::MuteSolo,
+        Row::Readout,
         Row::SendList,
+        Row::Output,
         Row::Sends,
     ];
 
@@ -210,7 +207,7 @@ impl Row {
     /// The bit a [`RowSet`] keeps it in. Fixed, not the row's place, so a desk saved
     /// before a row was added reads the same: the round-25 rows took the insert slots'
     /// old bit (12, now the chain that replaced them) and the free ones after it.
-    fn bit(self) -> u16 {
+    pub(crate) fn bit(self) -> u16 {
         let b = match self {
             Row::Number => 0,
             Row::Name => 1,
@@ -233,13 +230,14 @@ impl Row {
     }
 }
 
-/// Which cables the band draws (round 25, the owner's answer 1): none, the selection's
-/// (the default), or every one — those away from the selection faint. A desk
-/// preference, kept per window layout, never project data.
+/// Which cables the band draws: none (the default since round 39, the owner's option C:
+/// a strip says where it goes, its destinations light), the selection's (the header's
+/// Cables key, round 25's answer 1), or every one — those away from the selection faint
+/// ("Show all"). A desk preference, kept per window layout, never project data.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CableView {
-    Off,
     #[default]
+    Off,
     Selected,
     All,
 }
@@ -402,7 +400,7 @@ impl Default for CableOpts {
             outputs: true,
             sends: true,
             keys: true,
-            levels: true,
+            levels: false, // r39:el-mixer — des-mixer: the band is the sockets' row
             master: true,
         }
     }
@@ -444,8 +442,10 @@ impl CableOpts {
 pub struct RowSet(pub u16);
 
 impl Default for RowSet {
+    /// Every row but FL's "from the selected strip" row (des-mixer: the cables and the
+    /// sends list carry the routing; the Rows menu brings FL's row back).
     fn default() -> Self {
-        RowSet(u16::MAX)
+        RowSet(!Row::Sends.bit())
     }
 }
 
@@ -468,148 +468,119 @@ impl RowSet {
     }
 }
 
-/// The gap between rows, in points at 100 %.
-pub const GAP: f32 = 3.0;
+/// The gap between rows, in points at 100 % (Large: [`GAP_LARGE`]).
+pub const GAP: f32 = 4.0;
+pub const GAP_LARGE: f32 = 6.0;
 /// The space below the last row.
-pub const FOOT: f32 = 3.0;
-/// The meter's shortest; the fader's shortest and tallest (a fader longer than this
-/// is more travel than a hand wants: the rest goes to the meter).
-pub const METER_MIN: f32 = 48.0;
-
-/// The meter row's least in `mode`: from Wide up the strip's meter is the long one beside
-/// its fader and the row above holds its peak's number. // r37:finish
-pub fn meter_min(mode: WidthMode) -> f32 {
-    if mode == WidthMode::Compact {
-        METER_MIN
-    } else {
-        26.0
+pub const FOOT: f32 = 0.0;
+/// The fader's least travel per width mode (des-mixer: 120 / 112 / 150), and the cap's
+/// overhang above and below the travel (10 each).
+pub fn fader_min(mode: WidthMode) -> f32 {
+    match mode {
+        WidthMode::Compact => 120.0,
+        WidthMode::Wide => 112.0,
+        WidthMode::Xl => 150.0,
     }
 }
-pub const FADER_MIN: f32 = 80.0;
-pub const FADER_MAX: f32 = 440.0;
-/// The meter's share of the flexible height by default (the proof's 38 : 62).
-pub const DEFAULT_RATIO: f32 = 0.30; // r37:finish — the fader its long throw (was 0.38)
-/// A send row of Extra large: its height, and the fewest and most the list shows.
-pub const SEND_ROW: f32 = 24.0; // r37:finish — each row's targets 24 pt (was 15)
-pub const MIN_SEND_ROWS: usize = 1; // r37:finish (was 2)
-pub const MAX_SEND_ROWS: usize = 6;
-/// The cable band: its height by default, and the least and most its handle gives it.
-pub const BAND: f32 = 40.0;
-pub const BAND_MIN: f32 = 20.0;
-pub const BAND_MAX: f32 = 64.0;
+pub const OVERHANG: f32 = 10.0;
+/// The longest travel a hand wants; the desk's height beyond it stays below the strips.
+pub const FADER_MAX: f32 = 520.0;
+/// Kept for the saved desks' `ratio` (the meter now stands beside the fader: no split).
+pub const DEFAULT_RATIO: f32 = 0.30;
+/// A send row: Wide 14, Large 20 (des-mixer), and how many each shows.
+pub fn send_row(mode: WidthMode) -> f32 {
+    if mode == WidthMode::Xl {
+        20.0
+    } else {
+        14.0
+    }
+}
+pub fn send_rows(mode: WidthMode) -> usize {
+    match mode {
+        WidthMode::Compact => 3,
+        WidthMode::Wide => 2,
+        WidthMode::Xl => 3,
+    }
+}
+/// The socket row, where the cable band hangs (des-mixer: 18).
+pub const BAND: f32 = 18.0;
+pub const BAND_MIN: f32 = 18.0;
+pub const BAND_MAX: f32 = 18.0;
+/// The deepest the cable band grows (r39:el-cables: Subway's lanes on a dense desk).
+pub const BAND_DEEPEST: f32 = 160.0;
+/// The insert list folded to one summary line ("Comp · EQ").
+pub const INSERTS_FOLDED: f32 = 14.0;
+/// The least a strip's click target is, in points at 100 % (round 37).
+pub const TARGET: f32 = 24.0;
 
-/// A rotated name's height, and what it shrinks to when the desk is short.
-const NAME_TALL: f32 = 64.0;
-const NAME_SHORT: f32 = 40.0;
-/// A name set across the strip.
-const NAME_ACROSS: f32 = 18.0;
-
-/// What the rows that size themselves ask for.
-#[derive(Copy, Clone, Debug, PartialEq)]
+/// What the rows that size themselves ask for: the band's depth (des-mixer's 18, or 40
+/// while the level pills show).
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct Wants {
-    /// Send rows the Extra large list wants (the strip with the most sends, and the
-    /// "+ Send" row), clamped to [`MIN_SEND_ROWS`]…[`MAX_SEND_ROWS`].
     pub send_rows: usize,
-    /// The cable band's height (the legend's handle), clamped to
-    /// [`BAND_MIN`]…[`BAND_MAX`].
     pub band: f32,
 }
 
-impl Default for Wants {
-    fn default() -> Self {
-        Wants {
-            send_rows: MIN_SEND_ROWS,
-            band: BAND,
-        }
+/// The height of a row in `mode` (des-mixer's table, README "Rows"), 0 for a row the mode
+/// does not have. The fader is flexible (0 here).
+fn fixed(r: Row, mode: WidthMode, folded: bool, band: f32) -> f32 {
+    use WidthMode::*;
+    match (r, mode) {
+        (Row::Number, Compact) => 112.0,
+        (Row::Number, Wide) => 36.0,
+        (Row::Number, Xl) => 44.0,
+        (Row::Chain, Compact) => 10.0,
+        (Row::Chain, _) if folded => INSERTS_FOLDED,
+        (Row::Chain, Wide) => 68.0,
+        (Row::Chain, Xl) => 94.0,
+        (Row::Eq, Wide) => 22.0,
+        (Row::Eq, Xl) => 36.0,
+        (Row::PhaseSwap, Wide) => 24.0,
+        (Row::PhaseSwap, Xl) => 24.0,
+        (Row::Pan, Compact) => 22.0,
+        (Row::Pan, Wide) => 28.0,
+        (Row::Pan, Xl) => 40.0,
+        (Row::MuteSolo, Compact) => 48.0,
+        (Row::MuteSolo, Wide) => 24.0,
+        (Row::MuteSolo, Xl) => 24.0,
+        (Row::Readout, Wide) => 16.0,
+        (Row::Readout, Xl) => 18.0,
+        (Row::SendList, Compact) => 12.0,
+        (Row::SendList, Wide) => 28.0,
+        (Row::SendList, Xl) => 60.0,
+        (Row::Output, Compact) => 12.0,
+        (Row::Output, Wide) => 14.0,
+        (Row::Output, Xl) => 18.0,
+        (Row::Sends, _) => TARGET + 2.0,
+        (Row::Cables, _) => band,
+        _ => 0.0,
     }
 }
 
-/// The send rows a desk whose busiest strip has `most` sends wants: one more for the
-/// "+ Send" row, within the list's limits.
-pub fn send_rows_for(most: usize) -> usize {
-    // r37:finish — as many rows as the strip with the most sends has, no spare row under
-    // them all (the judge: a band of empty "+" rows): a strip with fewer sends has "+" after
-    // its last; one at the most adds from its route menu or FROM SELECTED.
-    most.clamp(MIN_SEND_ROWS, MAX_SEND_ROWS)
-}
-
-/// How much larger a width mode draws its controls (round 37, finish: FL's strip carries
-/// a large knob and lamps; a wide strip has the room). // r37:finish
-pub fn grow(mode: WidthMode) -> f32 {
-    match mode {
-        WidthMode::Compact => 1.0,
-        WidthMode::Wide => 1.1,
-        // r37:finish — 1.25, not 1.4: the fader keeps its long throw (the owner,
-        // 2026-11-06).
-        WidthMode::Xl => 1.25,
-    }
-}
-
-/// The fixed height of a row (the meter and the fader are flexible: 0).
-/// The least a strip's click target is, in points at 100 % (round 37: the owner found the
-/// phase, swap and mono switches too small to hit). // r37:finish
-pub const TARGET: f32 = 24.0;
-
-/// How many [`TARGET`]-sized keys sit side by side across a strip of `mode`. // r37:finish
-pub fn keys_per_row(mode: WidthMode) -> usize {
-    ((mode.pitch() + 0.5) / TARGET).floor().max(1.0) as usize
-}
-
-/// The height of a row holding `n` keys of [`TARGET`] in `mode`: as many rows of them as
-/// the strip's width needs. // r37:finish
-pub fn keys_height(n: usize, mode: WidthMode) -> f32 {
-    let rows = n.div_ceil(keys_per_row(mode)).max(1) as f32;
-    rows * TARGET + (rows - 1.0) * 2.0 + 2.0
-}
-
-/// A row of one 24-pt target (the sends' arrow, knob or route chip). // r37:finish
-fn layout_target_row() -> f32 {
-    TARGET + 2.0
-}
-
-fn fixed(r: Row, rotated: bool, name_short: bool, w: Wants, mode: WidthMode) -> f32 {
-    // r37:finish — the rows that hold the larger controls grow with them.
-    let g = grow(mode);
-    match r {
-        // r37:finish — phase, swap (and mono from Wide up); FX and record: real keys.
-        Row::PhaseSwap => keys_height(if mode == WidthMode::Compact { 2 } else { 3 }, mode),
-        Row::FxRec => keys_height(2, mode),
-        Row::Sends => layout_target_row(),           // r37:finish
-        Row::Number => 16.0 + 4.0 * (g - 1.0) / 0.4, // r37:finish
-        Row::MuteSolo => keys_height(2, mode),       // r37:finish — 24-pt targets
-        Row::Pan => (22.0 * g).round(),              // r37:finish
-        Row::Width => (22.0 * g).round(),            // r37:finish
-        _ => fixed_base(r, rotated, name_short, w),
-    }
-}
-
-fn fixed_base(r: Row, rotated: bool, name_short: bool, w: Wants) -> f32 {
-    match r {
-        Row::Number => 16.0,
-        Row::Name if !rotated => NAME_ACROSS,
-        Row::Name if name_short => NAME_SHORT,
-        Row::Name => NAME_TALL,
-        Row::Meter | Row::Fader => 0.0,
-        Row::MuteSolo => 14.0,
-        Row::Pan => 22.0,
-        Row::Readout => 16.0,
-        Row::PhaseSwap => 16.0,
-        Row::Width => 22.0,
-        Row::Eq => 26.0,
-        Row::FxRec => 14.0,
-        Row::Chain => 16.0,
-        Row::Output => 16.0,
-        Row::SendList => w.send_rows as f32 * SEND_ROW + 2.0,
-        Row::Sends => 18.0,
-        Row::Cables => w.band,
-    }
-}
+/// The rows a width mode has, top to bottom, in signal order: the sound (head, inserts,
+/// EQ, polarity · swap · width), the mix (pan, M · S · arm, the fader with its meter, the
+/// level), the route (sends, the output, FL's row when switched on, the socket).
+pub const ORDER: [Row; 12] = [
+    Row::Number,
+    Row::Chain,
+    Row::Eq,
+    Row::PhaseSwap,
+    Row::Pan,
+    Row::MuteSolo,
+    Row::Fader,
+    Row::Readout,
+    Row::SendList,
+    Row::Output,
+    Row::Sends,
+    Row::Cables,
+];
 
 /// Where every row of a strip goes.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Fit {
     /// Each row's `(top, bottom)` from the top of the strips, in points at 100 %; `None`
-    /// for a row that is off or dropped.
+    /// for a row that is off, dropped, or not in this width mode. The fader's span holds
+    /// the cap's overhang: its travel is [`Fit::travel`].
     pub rows: [Option<(f32, f32)>; ROWS],
     /// The strips' whole height: the desk's height when everything fits, more when the
     /// desk has to scroll.
@@ -620,10 +591,12 @@ pub struct Fit {
     pub scrolls: bool,
     /// Names run up the strip.
     pub rotated: bool,
-    /// Send rows shown (Extra large; 0 without the list).
+    /// Send rows shown (0 without the list).
     pub send_rows: usize,
     /// The cable band's height (0 without it).
     pub band: f32,
+    /// The insert list is folded to one summary line.
+    pub folded: bool,
 }
 
 impl Fit {
@@ -635,111 +608,85 @@ impl Fit {
     pub fn mid(&self, r: Row) -> Option<f32> {
         self.row(r).map(|(a, b)| (a + b) * 0.5)
     }
+
+    /// The fader's travel: its row less the cap's overhang at each end.
+    pub fn travel(&self) -> Option<(f32, f32)> {
+        self.row(Row::Fader)
+            .map(|(a, z)| (a + OVERHANG, (z - OVERHANG).max(a + OVERHANG + 1.0)))
+    }
 }
 
-/// The order rows give way in when the desk is short (ADR 0024 §6, ADR 0041 §9): the EQ
-/// bars, the width knob, phase and swap, the readout; then the name shrinks, the send
-/// list shortens to two rows, the cable band to its least, and the output chip goes. The
-/// band never goes while the cable view is on: it is the routing.
-const DROPS: [Drop; 8] = [
+/// The order rows give way in when the desk is short (des-mixer, "When the desk is
+/// short"): the EQ, the polarity row, the inserts fold to one line, the sends, the level,
+/// the output. Then the desk scrolls. The cable band stays: since round 39 it shows only
+/// when asked for (the header's Cables key), and then it is what was asked for.
+const DROPS: [Drop; 6] = [
     Drop::Off(Row::Eq),
-    Drop::Off(Row::Width),
     Drop::Off(Row::PhaseSwap),
+    Drop::Fold,
+    Drop::Off(Row::SendList),
     Drop::Off(Row::Readout),
-    Drop::NameShort,
-    Drop::FewerSends,
-    Drop::ShorterBand,
     Drop::Off(Row::Output),
 ];
 
 #[derive(Copy, Clone)]
 enum Drop {
     Off(Row),
-    NameShort,
-    FewerSends,
-    ShorterBand,
+    Fold,
 }
 
-/// Lay the rows out in `avail` points of height.
-///
-/// `mode` decides the rows that exist (the readout and the output chip from Wide, the
-/// chain and the send list at Extra large); `shown` is the ▾ menu's switches and the
-/// cable view (the band's bit); `ratio` is the meter's share of the flexible height (the
-/// 3-dot handle); `wants` is what the send list and the band ask for.
-pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, ratio: f32, wants: Wants) -> Fit {
-    let rotated = mode.rotated_names();
+/// Lay the rows out in `avail` points of height. `shown` is the Rows menu's switches and
+/// the cable view (the band's bit); `_ratio` and `_wants` are kept for the callers.
+pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, _ratio: f32, wants: Wants) -> Fit {
+    let band = wants.band.clamp(BAND, BAND_DEEPEST);
     let mut on = shown;
-    // Rows the width mode does not have.
-    if mode == WidthMode::Compact {
-        on.set(Row::Readout, false);
-        on.set(Row::Output, false);
-    }
-    if mode != WidthMode::Xl {
-        on.set(Row::Chain, false);
-        on.set(Row::SendList, false);
+    for r in Row::ALL {
+        if fixed(r, mode, false, band) == 0.0 && r != Row::Fader {
+            on.set(r, false);
+        }
     }
     on.set(Row::Number, true);
-    on.set(Row::Meter, true);
     on.set(Row::Fader, true);
-    let mut name_short = false;
-    let mut w = Wants {
-        send_rows: wants.send_rows.clamp(MIN_SEND_ROWS, MAX_SEND_ROWS),
-        band: wants.band.clamp(BAND_MIN, BAND_MAX),
+    let gap = if mode == WidthMode::Xl {
+        GAP_LARGE
+    } else {
+        GAP
     };
-    // Called once a frame: counts in place, allocates nothing.
-    let need = |on: RowSet, name_short: bool, w: Wants| -> f32 {
+    let mut folded = false;
+    let need = |on: RowSet, folded: bool| -> f32 {
         let (mut sum, mut n) = (0.0f32, 0usize);
-        for r in Row::ALL.iter().filter(|r| on.has(**r)) {
-            sum += fixed(*r, rotated, name_short, w, mode); // r37:finish
+        for r in ORDER.iter().filter(|r| on.has(**r)) {
+            sum += fixed(*r, mode, folded, band);
             n += 1;
         }
-        sum + GAP * n.saturating_sub(1) as f32 + FOOT + meter_min(mode) + FADER_MIN
-        // r37:finish
+        sum + gap * n.saturating_sub(1) as f32 + 2.0 * OVERHANG + fader_min(mode) + FOOT
     };
     let mut dropped = 0;
-    while need(on, name_short, w) > avail && dropped < DROPS.len() {
+    while need(on, folded) > avail && dropped < DROPS.len() {
         match DROPS[dropped] {
             Drop::Off(r) => on.set(r, false),
-            Drop::NameShort => name_short = rotated,
-            Drop::FewerSends => w.send_rows = MIN_SEND_ROWS,
-            // The most of the band that fits, never less than its least (third review:
-            // a jump to the least made a fitting 40-pt band vanish behind a 64-pt wish).
-            Drop::ShorterBand => {
-                let short = need(on, name_short, w) - avail;
-                w.band = (w.band - short).floor().max(BAND_MIN);
-            }
+            Drop::Fold => folded = mode != WidthMode::Compact && on.has(Row::Chain),
         }
         dropped += 1;
     }
-    let minimum = need(on, name_short, w);
+    let minimum = need(on, folded);
     let scrolls = minimum > avail + 0.5;
     let height = avail.max(minimum);
-    // The flexible height, split: the fader takes its share up to its tallest, the meter
-    // the rest.
-    // r37:finish — from Wide up the meter's share is halved: its long meter is beside the
-    // fader, so the fader takes the travel.
-    let m_min = meter_min(mode);
-    let flex = height - (minimum - m_min - FADER_MIN);
-    let ratio = ratio.clamp(0.15, 0.75) * if mode == WidthMode::Compact { 1.0 } else { 0.5 };
-    let fader = (flex * (1.0 - ratio)).round().clamp(FADER_MIN, FADER_MAX);
-    let fader = fader.min(flex - m_min).max(FADER_MIN);
-    let meter = (flex - fader).max(m_min);
-
+    let travel = (fader_min(mode) + height - minimum).min(FADER_MAX.max(fader_min(mode)));
     let mut rows = [None; ROWS];
     let mut y = 0.0f32;
     let mut first = true;
-    for r in Row::ALL {
+    for r in ORDER {
         if !on.has(r) {
             continue;
         }
         if !first {
-            y += GAP;
+            y += gap;
         }
         first = false;
         let h = match r {
-            Row::Meter => meter,
-            Row::Fader => fader,
-            _ => fixed(r, rotated, name_short, w, mode), // r37:finish
+            Row::Fader => travel + 2.0 * OVERHANG,
+            _ => fixed(r, mode, folded, band),
         };
         rows[r.index()] = Some((y, y + h));
         y += h;
@@ -749,22 +696,15 @@ pub fn fit(avail: f32, mode: WidthMode, shown: RowSet, ratio: f32, wants: Wants)
         height: height.max(y + FOOT),
         dropped,
         scrolls,
-        rotated,
+        rotated: mode.rotated_names(),
         send_rows: if on.has(Row::SendList) {
-            w.send_rows
+            send_rows(mode)
         } else {
             0
         },
-        band: if on.has(Row::Cables) { w.band } else { 0.0 },
+        band: if on.has(Row::Cables) { band } else { 0.0 },
+        folded,
     }
-}
-
-/// The ratio a drag of the 3-dot handle to `meter_h` points of meter asks for, given the
-/// flexible height `flex`.
-pub fn ratio_for(meter_h: f32, flex: f32, mode: WidthMode) -> f32 {
-    // r37:finish — from Wide up the share is halved in `fit`: the drag asks for twice.
-    let k = if mode == WidthMode::Compact { 1.0 } else { 2.0 };
-    (k * meter_h / flex.max(1.0)).clamp(0.15, 0.75)
 }
 
 #[cfg(test)]
@@ -775,252 +715,155 @@ mod tests {
         f.row(r).map(|(a, b)| b - a).unwrap_or(0.0)
     }
 
-    fn all() -> Wants {
-        Wants::default()
+    fn fit_at(h: f32, mode: WidthMode) -> Fit {
+        fit(h, mode, RowSet::default(), DEFAULT_RATIO, Wants::default())
     }
 
+    /// des-mixer's redline at 616 px of strip: every row of each density at its measured
+    /// height, in signal order, 4 apart (Large 6); the fader takes the rest.
     #[test]
-    fn a_tall_desk_shows_every_row_and_splits_the_rest() {
-        let f = fit(
-            900.0,
-            WidthMode::Compact,
-            RowSet::default(),
-            DEFAULT_RATIO,
-            all(),
-        );
-        assert_eq!(f.dropped, 0);
-        assert!(!f.scrolls);
-        for r in [
-            Row::Eq,
-            Row::Width,
-            Row::PhaseSwap,
-            Row::Sends,
-            Row::FxRec,
-            Row::Cables,
+    fn the_rows_are_the_redlines_heights_in_signal_order() {
+        let w = fit_at(616.0, WidthMode::Wide);
+        assert_eq!(w.dropped, 0);
+        for (r, h) in [
+            (Row::Number, 36.0),
+            (Row::Chain, 68.0),
+            (Row::Eq, 22.0),
+            (Row::PhaseSwap, 24.0),
+            (Row::Pan, 28.0),
+            (Row::MuteSolo, 24.0),
+            (Row::Readout, 16.0),
+            (Row::SendList, 28.0),
+            (Row::Output, 14.0),
+            (Row::Cables, 18.0),
         ] {
-            assert!(f.row(r).is_some(), "{r:?}");
+            assert_eq!(span(&w, r), h, "{r:?}");
         }
-        // Compact has no readout, output chip, chain or send list.
-        for r in [Row::Readout, Row::Output, Row::Chain, Row::SendList] {
-            assert!(f.row(r).is_none(), "{r:?}");
-        }
-        assert!(f.rotated);
-        assert!(span(&f, Row::Fader) >= FADER_MIN && span(&f, Row::Meter) >= METER_MIN);
-        assert_eq!(span(&f, Row::Cables), BAND);
-        // Rows are in order and never overlap.
+        assert_eq!(w.row(Row::Number), Some((0.0, 36.0)));
+        assert_eq!(w.row(Row::Chain), Some((40.0, 108.0)));
+        let (a, z) = w.travel().unwrap();
+        assert!(z - a >= fader_min(WidthMode::Wide));
+        assert!((w.height - 616.0).abs() < 0.5 && !w.scrolls);
         let mut last = -1.0;
-        for r in Row::ALL {
-            if let Some((a, b)) = f.row(r) {
+        for r in ORDER {
+            if let Some((a, b)) = w.row(r) {
                 assert!(a >= last && b > a, "{r:?}");
                 last = b;
             }
         }
-        assert!(last <= 900.0);
+        // No label column's rows, no separate meter, no FL row by default.
+        for r in [Row::Name, Row::Meter, Row::Width, Row::FxRec, Row::Sends] {
+            assert!(w.row(r).is_none(), "{r:?}");
+        }
+        let c = fit_at(616.0, WidthMode::Compact);
+        assert_eq!(span(&c, Row::Number), 112.0);
+        assert_eq!(span(&c, Row::Chain), 10.0);
+        assert_eq!(
+            span(&c, Row::MuteSolo),
+            48.0,
+            "M over S, 24 each (option C)"
+        );
+        assert_eq!(
+            span(&c, Row::SendList),
+            12.0,
+            "a dot per send (the owner's choice 3)"
+        );
+        for r in [Row::Eq, Row::PhaseSwap, Row::Readout] {
+            assert!(c.row(r).is_none(), "Compact has no {r:?}");
+        }
+        assert!(c.rotated);
+        let l = fit_at(616.0, WidthMode::Xl);
+        assert_eq!(span(&l, Row::Chain), 94.0);
+        assert_eq!(span(&l, Row::SendList), 60.0);
+        assert_eq!(l.row(Row::Chain).unwrap().0, 44.0 + GAP_LARGE);
+        assert_eq!(l.send_rows, 3);
     }
 
-    /// Design §4.5 and test 6: no insert slots in any mode; the send list and the chain
-    /// only at Extra large, the output chip from Wide, the band in every mode while the
-    /// cable view is on; Extra large's order is the owner's list.
+    /// The short desk (`strips-*`: Wide at 440 keeps everything, at 288 the EQ, polarity,
+    /// sends and socket leave and the inserts fold), then it scrolls.
     #[test]
-    fn extra_large_shows_sends_and_routing_not_inserts() {
-        let wants = Wants {
-            send_rows: 4,
-            band: 40.0,
-        };
-        let c = fit(1000.0, WidthMode::Compact, RowSet::default(), 0.38, wants);
-        let w = fit(1000.0, WidthMode::Wide, RowSet::default(), 0.38, wants);
-        let x = fit(1000.0, WidthMode::Xl, RowSet::default(), 0.38, wants);
-        assert!(c.row(Row::Output).is_none() && w.row(Row::Output).is_some());
-        assert!(w.row(Row::SendList).is_none() && w.row(Row::Chain).is_none());
-        assert!(x.row(Row::SendList).is_some() && x.row(Row::Chain).is_some());
-        assert_eq!(x.send_rows, 4);
-        assert_eq!(span(&x, Row::SendList), 4.0 * SEND_ROW + 2.0);
-        for f in [&c, &w, &x] {
-            assert_eq!(span(f, Row::Cables), 40.0);
-            assert!(f.row(Row::Sends).is_some(), "FL's row stays in every mode");
-        }
-        let order = [
-            Row::Fader,
-            Row::Readout,
-            Row::Eq,
-            Row::FxRec,
-            Row::Chain,
-            Row::Output,
-            Row::SendList,
-            Row::Sends,
-            Row::Cables,
-        ];
-        for pair in order.windows(2) {
-            let (a, b) = (x.row(pair[0]).unwrap(), x.row(pair[1]).unwrap());
-            assert!(a.1 <= b.0, "{:?} before {:?}", pair[0], pair[1]);
-        }
-        // The cable view off: no band, in any mode.
+    fn a_short_desk_drops_rows_in_des_mixers_order_then_scrolls() {
+        // Option C's 24-pt keys: Wide holds every row from 460 (was 440).
+        let tall = fit_at(460.0, WidthMode::Wide);
+        assert_eq!(tall.dropped, 0, "Wide at 460: nothing leaves");
+        // At rest the cable band is off (the owner's option C).
+        let mut rest = RowSet::default();
+        rest.set(Row::Cables, false);
+        let docked = fit(
+            288.0,
+            WidthMode::Wide,
+            rest,
+            DEFAULT_RATIO,
+            Wants::default(),
+        );
+        assert!(docked.row(Row::Eq).is_none() && docked.row(Row::PhaseSwap).is_none());
+        assert!(docked.folded && span(&docked, Row::Chain) == INSERTS_FOLDED);
+        assert!(docked.row(Row::SendList).is_none() && docked.row(Row::Cables).is_none());
+        assert!(docked.row(Row::Readout).is_some() && docked.row(Row::Output).is_some());
+        // Asked for, the band stays: the rows above it give way.
+        let asked = fit_at(288.0, WidthMode::Wide);
+        assert!(
+            asked.row(Row::Cables).is_some(),
+            "the band, when asked for, stays"
+        );
+        assert!(!docked.scrolls);
+        let tiny = fit_at(150.0, WidthMode::Wide);
+        assert_eq!(tiny.dropped, DROPS.len());
+        assert!(tiny.row(Row::Output).is_none() && tiny.row(Row::Readout).is_none());
+        assert!(tiny.scrolls && tiny.height > 150.0);
+        assert!(tiny.row(Row::Pan).is_some() && tiny.row(Row::MuteSolo).is_some());
+    }
+
+    #[test]
+    fn switched_off_rows_are_gone_and_fl_s_row_comes_back_on_request() {
+        let mut shown = RowSet::default();
+        shown.set(Row::Pan, false);
+        shown.set(Row::Sends, true);
+        let f = fit(900.0, WidthMode::Xl, shown, DEFAULT_RATIO, Wants::default());
+        assert!(f.row(Row::Pan).is_none());
+        let (out, fl, band) = (
+            f.row(Row::Output).unwrap(),
+            f.row(Row::Sends).unwrap(),
+            f.row(Row::Cables).unwrap(),
+        );
+        assert!(
+            out.1 <= fl.0 && fl.1 <= band.0,
+            "FL's row between the output and the socket"
+        );
+        // The head and the fader cannot be switched off.
+        let f = fit(
+            900.0,
+            WidthMode::Wide,
+            RowSet(0),
+            DEFAULT_RATIO,
+            Wants::default(),
+        );
+        assert!(f.row(Row::Fader).is_some() && f.row(Row::Number).is_some());
+        // The cable view off: no band.
         let mut shown = RowSet::default();
         shown.set(Row::Cables, false);
-        let off = fit(1000.0, WidthMode::Xl, shown, 0.38, wants);
-        assert!(off.row(Row::Cables).is_none() && off.band == 0.0);
-        // The send list's rows: as the busiest strip wants, within its limits.
-        assert_eq!(send_rows_for(0), MIN_SEND_ROWS);
-        assert_eq!(send_rows_for(3), 3); // r37:finish (no spare row)
-        assert_eq!(send_rows_for(16), MAX_SEND_ROWS);
-    }
-
-    #[test]
-    fn a_short_desk_drops_rows_in_order_then_scrolls() {
-        let full = fit(
+        let off = fit(
             900.0,
-            WidthMode::Compact,
-            RowSet::default(),
+            WidthMode::Wide,
+            shown,
             DEFAULT_RATIO,
-            all(),
+            Wants::default(),
         );
-        let need =
-            full.height - span(&full, Row::Meter) - span(&full, Row::Fader) + METER_MIN + FADER_MIN;
-        // Just short of everything: the EQ goes first.
-        let f = fit(
-            need - 1.0,
-            WidthMode::Compact,
-            RowSet::default(),
-            DEFAULT_RATIO,
-            all(),
-        );
-        assert_eq!(f.dropped, 1);
-        assert!(f.row(Row::Eq).is_none() && f.row(Row::Width).is_some());
-        assert!(!f.scrolls);
-        // Much shorter: every drop taken, the name shortened, then it scrolls.
-        let f = fit(
-            200.0,
-            WidthMode::Compact,
-            RowSet::default(),
-            DEFAULT_RATIO,
-            all(),
-        );
-        assert_eq!(f.dropped, DROPS.len());
-        assert!(f.row(Row::Eq).is_none() && f.row(Row::Width).is_none());
-        assert!(f.row(Row::PhaseSwap).is_none());
-        assert_eq!(span(&f, Row::Name), NAME_SHORT);
-        assert!(f.scrolls && f.height > 200.0);
-        // The sends, the switches and the band are still there to scroll to.
-        assert!(f.row(Row::Sends).is_some() && f.row(Row::FxRec).is_some());
-        assert_eq!(
-            span(&f, Row::Cables),
-            BAND_MIN,
-            "the band shrinks, never goes"
-        );
+        assert!(off.row(Row::Cables).is_none() && off.band == 0.0);
     }
 
-    /// The round-25 drop order, Extra large: the send list shortens before the band, the
-    /// band before the output chip.
-    #[test]
-    fn extra_large_gives_way_send_list_then_band_then_output() {
-        let wants = Wants {
-            send_rows: 6,
-            band: 48.0,
-        };
-        let full = fit(2000.0, WidthMode::Xl, RowSet::default(), 0.38, wants);
-        let need = |f: &Fit| {
-            f.height - span(f, Row::Meter) - span(f, Row::Fader)
-                + meter_min(WidthMode::Xl)
-                + FADER_MIN
-        }; // r37:finish
-        let base = need(&full);
-        // Everything up to the name shrinking (Extra large names lie flat: no change).
-        // The rows that go first, at their round-37 heights (the keys and knobs grew).
-        // r37:finish
-        let h = |r: Row| fixed(r, true, false, wants, WidthMode::Xl);
-        let lost = h(Row::Eq) + h(Row::Width) + h(Row::PhaseSwap) + h(Row::Readout) + 4.0 * GAP;
-        let f = fit(
-            base - lost - 1.0,
-            WidthMode::Xl,
-            RowSet::default(),
-            0.38,
-            wants,
-        );
-        assert_eq!(f.send_rows, MIN_SEND_ROWS, "the send list shortens first");
-        assert_eq!(span(&f, Row::Cables), 48.0);
-        assert!(f.row(Row::Output).is_some());
-        let lost2 = lost + (6 - MIN_SEND_ROWS) as f32 * SEND_ROW; // r37:finish
-        let f = fit(
-            base - lost2 - 1.0,
-            WidthMode::Xl,
-            RowSet::default(),
-            0.38,
-            wants,
-        );
-        // Then the band: by just what is missing (the most of it that fits, round 26).
-        assert_eq!(
-            span(&f, Row::Cables),
-            47.0,
-            "then the band, by the 1 pt short"
-        );
-        assert!(f.row(Row::Output).is_some());
-        let f = fit(
-            base - lost2 - 20.0,
-            WidthMode::Xl,
-            RowSet::default(),
-            0.38,
-            wants,
-        );
-        assert_eq!(
-            span(&f, Row::Cables),
-            28.0,
-            "then the band, by the 20 pt short"
-        );
-        assert!(f.row(Row::Output).is_some());
-        let lost3 = lost2 + (48.0 - BAND_MIN);
-        let f = fit(
-            base - lost3 - 1.0,
-            WidthMode::Xl,
-            RowSet::default(),
-            0.38,
-            wants,
-        );
-        assert!(f.row(Row::Output).is_none(), "then the output chip");
-        assert!(f.row(Row::Chain).is_some() && f.row(Row::SendList).is_some());
-    }
-
-    #[test]
-    fn the_ratio_moves_height_between_meter_and_fader() {
-        let a = fit(700.0, WidthMode::Wide, RowSet::default(), 0.25, all());
-        let b = fit(700.0, WidthMode::Wide, RowSet::default(), 0.5, all());
-        assert!(span(&b, Row::Meter) > span(&a, Row::Meter));
-        assert!(span(&b, Row::Fader) < span(&a, Row::Fader));
-        let total = |f: &Fit| span(f, Row::Meter) + span(f, Row::Fader);
-        assert!((total(&a) - total(&b)).abs() < 1.0);
-        // A very tall desk gives the fader its tallest and the meter the rest.
-        let t = fit(2000.0, WidthMode::Wide, RowSet::default(), 0.2, all());
-        assert_eq!(span(&t, Row::Fader), FADER_MAX);
-    }
-
-    #[test]
-    fn switched_off_rows_are_gone_and_wide_names_lie_flat() {
-        let mut shown = RowSet::default();
-        shown.toggle(Row::Sends);
-        shown.set(Row::Pan, false);
-        let f = fit(900.0, WidthMode::Xl, shown, DEFAULT_RATIO, all());
-        assert!(f.row(Row::Sends).is_none() && f.row(Row::Pan).is_none());
-        assert!(!f.rotated);
-        assert_eq!(span(&f, Row::Name), NAME_ACROSS);
-        assert!(f.row(Row::Readout).is_some() && f.row(Row::SendList).is_some());
-        // The meter and the fader cannot be switched off.
-        let f = fit(900.0, WidthMode::Wide, RowSet(0), DEFAULT_RATIO, all());
-        assert!(f.row(Row::Meter).is_some() && f.row(Row::Fader).is_some());
-        assert!(f.row(Row::Number).is_some());
-    }
-
-    /// A desk saved before round 25 reads the same: the old rows keep their bits, and a
-    /// desk that had switched the insert slots off has the chain that replaced them off.
+    /// A desk saved before reads the same: the old rows keep their bits.
     #[test]
     fn saved_row_switches_keep_their_meaning() {
-        // Round 24's bits: the EQ was 9, FL's send row 11, the insert slots 12.
         let old = RowSet(!(1 << 11) & !(1 << 12) & !(1 << 9));
         assert!(!old.has(Row::Sends) && !old.has(Row::Chain) && !old.has(Row::Eq));
         assert!(old.has(Row::Output) && old.has(Row::SendList) && old.has(Row::Cables));
         let bits: std::collections::BTreeSet<u16> = Row::ALL.iter().map(|r| r.bit()).collect();
         assert_eq!(bits.len(), ROWS, "every row has its own bit");
+        assert!(!Row::TOGGLES.contains(&Row::Cables));
         assert!(
-            !Row::TOGGLES.contains(&Row::Cables),
-            "the cable view drives the band"
+            !RowSet::default().has(Row::Sends),
+            "FL's row is off by default"
         );
     }
 
@@ -1030,36 +873,29 @@ mod tests {
         assert_eq!(WidthMode::Xl.step(1), WidthMode::Xl);
         assert_eq!(WidthMode::Compact.step(-1), WidthMode::Compact);
         assert!(WidthMode::Compact.rotated_names() && !WidthMode::Wide.rotated_names());
-        assert_eq!(
-            CableView::default(),
-            CableView::Selected,
-            "the owner's answer 1"
-        );
+        assert_eq!(WidthMode::Wide.pitch(), 62.0);
+        assert_eq!(CableView::default(), CableView::Off, "the owner's option C");
         assert_eq!(CableView::from_index(2), CableView::All);
     }
 
-    /// The options default to the band as round 25 drew it; the quick views are what
-    /// they say, and only the default is unfiltered.
+    /// The options default to the band as round 25 drew it, levels left out (des-mixer:
+    /// the band is the sockets' row); the quick views are what they say.
     #[test]
     fn cable_options_default_to_everything_and_presets_say_what_they_are() {
         let d = CableOpts::default();
         assert_eq!(d.scope, CableScope::Both);
-        assert!(d.outputs && d.sends && d.keys && d.levels && d.master);
-        assert!(!d.filtered());
-        assert_eq!(d.preset(), Some(CablePreset::Everything));
+        assert!(d.outputs && d.sends && d.keys && d.master);
         let s = CablePreset::Sends.opts();
         assert!(s.sends && !s.outputs && !s.keys && s.scope == CableScope::Out);
         assert!(s.filtered());
         assert_eq!(s.preset(), Some(CablePreset::Sends));
         let f = CablePreset::Feeders.opts();
         assert_eq!(f.scope, CableScope::In);
-        assert!(f.outputs && f.sends && f.keys);
         let mut o = d;
         o.toggle(CableKindSel::Keys);
         assert!(!o.keys && o.filtered() && o.preset().is_none());
         o.toggle(CableKindSel::Keys);
         assert_eq!(o, d);
-        // Scope: out takes the source's side, in the destination's, both either.
         assert!(CableScope::Out.takes(true, false) && !CableScope::Out.takes(false, true));
         assert!(CableScope::In.takes(false, true) && !CableScope::In.takes(true, false));
         assert!(CableScope::Both.takes(true, false) && CableScope::Both.takes(false, true));

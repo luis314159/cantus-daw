@@ -138,3 +138,44 @@ fn a_real_overrun_reaches_the_status_bar() {
         });
     }
 }
+
+/// The pictures' hook (round 39, `shots`): with dropouts hushed, an overrun on a busy machine
+/// never reaches the status line of a shot, though the engine still counts it.
+#[test]
+fn a_hushed_app_never_says_a_dropout() {
+    cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
+    let (engine, mut processor) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts(Some(project()), engine, false);
+    cantus_ui::views::transport::perf::hush_dropouts(&mut app);
+    app.sync_engine();
+    app.toggle_play();
+    let mut one = [0f32; 2];
+    for _ in 0..2_000 {
+        processor.process(&mut one, 2);
+        if processor.stats().last_dropout.is_some() {
+            break;
+        }
+    }
+    assert!(processor.stats().last_dropout.is_some(), "no block overran");
+    let ctx = support::ctx();
+    let size = egui::vec2(1600.0, 900.0);
+    let mut text = String::new();
+    for i in 0..3 {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            time: Some(i as f64 * 0.25),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |root| {
+            let mut frame = eframe::Frame::_new_kittest();
+            eframe::App::ui(&mut app, root, &mut frame);
+        });
+        out.textures_delta.clear();
+        text = support::painted_text(&out.shapes);
+    }
+    assert!(
+        app.engine.stats().last_dropout.is_some(),
+        "the engine still reports it"
+    );
+    assert!(!text.contains("Dropout: "), "hushed: {text}");
+}

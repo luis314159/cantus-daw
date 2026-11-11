@@ -53,6 +53,7 @@ pub fn function_of(kind: EffectKind) -> Function {
         }
         EffectKind::Analyzer => Function::Output,
         EffectKind::AutoTune => Function::Source,
+        EffectKind::Aula => Function::Space, // r39:conv
     }
 }
 
@@ -70,7 +71,24 @@ pub fn show(
     sh.ui.add_space(s.d(2.0));
     let top = sh.ui.cursor().top();
     match kind {
-        EffectKind::Eq | EffectKind::Compressor => {
+        EffectKind::Compressor => {
+            // des-mixer's mini view: Threshold, Ratio and the live Reduction as three
+            // values on the row's panel.
+            let params = kind.params();
+            let find = |k: &str| params.iter().find(|p| p.key == k);
+            columns(
+                sh,
+                app,
+                host,
+                slot,
+                &[
+                    find("thr").map(Col::Param).unwrap_or(Col::Empty),
+                    find("ratio").map(Col::Param).unwrap_or(Col::Empty),
+                    Col::Reduction,
+                ],
+            );
+        }
+        EffectKind::Eq => {
             let w = sh.width();
             let (r, resp) = sh
                 .ui
@@ -115,14 +133,25 @@ pub fn show(
                     }
                 }
             }
+            // des-mixer's mini view: its first three values on the row's panel; an effect
+            // with no editor of its own (Delay, Reverb) is edited and modulated only
+            // here, so every other parameter follows as a row (review 2: Reverb's
+            // pre-delay had no row).
+            let mut first = [Col::Empty; 3];
+            for (c, info) in first.iter_mut().zip(
+                kind.params()
+                    .iter()
+                    .filter(|p| p.key != "mix" && !p.stepped),
+            ) {
+                *c = Col::Param(info);
+            }
+            columns(sh, app, host, slot, &first);
             for info in kind
                 .params()
                 .iter()
                 .filter(|p| p.key != "mix" && !p.stepped)
-                // An effect with no editor of its own (Delay, Reverb) is edited and
-                // modulated only here: every one of its parameters (review 2: Reverb's
-                // pre-delay had no row).
-                .take(if kind.has_editor() { 3 } else { usize::MAX })
+                .skip(3)
+                .take(if kind.has_editor() { 0 } else { usize::MAX })
             {
                 let range = Range {
                     min: info.min,
@@ -213,17 +242,250 @@ pub fn show(
         MenuId::Sidechain(host, e),
         !takes,
     );
-    // A rule in the effect's hue down the left margin: these rows are the tile's.
-    let x = last.full.left() + s.s(4.0);
-    let hue = s.function(f).hue;
-    sh.b.rect(
-        Rect::from_min_max(
-            pos2(x, top),
-            pos2(x + s.s(2.0), last.full.bottom() - s.s(2.0)),
-        ),
-        Fill::Solid(with_alpha(hue, 0.7)),
-    );
+    let _ = (last, top);
     sh.ui.add_space(s.d(4.0));
+}
+
+/// A column of the mini view.
+#[derive(Copy, Clone)]
+enum Col<'p> {
+    Empty,
+    Param(&'p cantus_core::EffectParamInfo),
+    /// A compressor's gain reduction now (the strip's meter).
+    Reduction,
+}
+
+/// des-mixer's mini view (r39:lo-mixer): a 46-pt panel under the insert's row,
+/// `mix(base, surface, .55)`, holding up to three values — the label Regular 10 ink 3, the
+/// figure Regular 13 with its unit Regular 10 ink 3, a 3-pt bar under them; a compressor's
+/// reduction in the solo colour with its bar from the right (0.0 in ink 3 at rest). A
+/// value drags as any parameter (Shift for fine, a double-click resets) and is learnt,
+/// automated and modulated from here as from its row.
+fn columns(
+    sh: &mut Sheet<'_>,
+    app: &CantusApp,
+    host: StripId,
+    slot: &EffectSlot,
+    cols: &[Col<'_>],
+) {
+    use crate::views::mixer::look::{self, Pal, W};
+    let s = sh.s;
+    let pal = Pal::of(&s);
+    let w = sh.width();
+    let (r, _) = sh
+        .ui
+        .allocate_exact_size(Vec2::new(w, s.s(48.0)), Sense::hover());
+    let m = s.s(sheet::MARGIN);
+    let panel = Rect::from_min_max(
+        pos2(r.left() + m, r.top() - s.s(2.0)),
+        pos2(r.right() - m, r.bottom() - s.s(2.0)),
+    );
+    sh.b.rrect(
+        sh.b.snap_rect(panel),
+        4.0,
+        Fill::Solid(crate::kit::color::mix(pal.base, pal.surface, 0.55)),
+    );
+    let n = cols.len().max(1) as f32;
+    let cw = (panel.width() - s.s(16.0)) / n;
+    let e = slot.id;
+    for (i, col) in cols.iter().enumerate() {
+        let x = panel.left() + s.s(8.0) + cw * i as f32;
+        let cell = Rect::from_min_max(
+            pos2(x, panel.top()),
+            pos2(x + cw - s.s(10.0), panel.bottom()),
+        );
+        let label_y = cell.top() + s.s(15.0);
+        let value_y = cell.top() + s.s(32.0);
+        let bar = Rect::from_min_max(
+            pos2(cell.left(), cell.top() + s.s(38.0)),
+            pos2(cell.right(), cell.top() + s.s(41.0)),
+        );
+        match *col {
+            Col::Empty => {}
+            Col::Reduction => {
+                let gr = app.comp_gr_on_strip(host).flatten().unwrap_or(0.0).max(0.0);
+                let live = gr > 0.05 && !slot.bypass;
+                let label = sheet::name(sh.fmt.tr("inspector.reduction"));
+                look::say(
+                    sh.b,
+                    &s,
+                    &label,
+                    cell.left(),
+                    label_y,
+                    egui::Align2::LEFT_BOTTOM,
+                    cell.width(),
+                    10.0,
+                    W::Regular,
+                    pal.ink3,
+                );
+                let text = sh.fmt.get(
+                    cache::key(("insp-mini-gr", e)),
+                    sheet::bits((gr * 10.0).round()) ^ u64::from(live),
+                    |b| {
+                        if live {
+                            let _ = write!(b, "\u{2212}{gr:.1}");
+                        } else {
+                            b.push_str("0.0");
+                        }
+                    },
+                );
+                let vw = look::say(
+                    sh.b,
+                    &s,
+                    text,
+                    cell.left(),
+                    value_y,
+                    egui::Align2::LEFT_BOTTOM,
+                    cell.width(),
+                    13.0,
+                    W::Regular,
+                    if live { pal.solo } else { pal.ink3 },
+                );
+                look::say(
+                    sh.b,
+                    &s,
+                    "dB",
+                    cell.left() + vw + s.s(4.0),
+                    value_y,
+                    egui::Align2::LEFT_BOTTOM,
+                    s.s(20.0),
+                    10.0,
+                    W::Regular,
+                    pal.ink3,
+                );
+                sh.b.rrect(sh.b.snap_rect(bar), 1.5, Fill::Solid(pal.bar_track));
+                if live {
+                    let fw = (gr / 12.0).min(1.0) * bar.width();
+                    let lit = Rect::from_min_max(pos2(bar.right() - fw, bar.top()), bar.max);
+                    sh.b.rrect(sh.b.snap_rect(lit), 1.5, Fill::Solid(pal.solo));
+                }
+            }
+            Col::Param(info) => {
+                let range = Range {
+                    min: info.min,
+                    max: info.max,
+                    default: info.default,
+                    taper: if info.logarithmic {
+                        Taper::Log
+                    } else {
+                        Taper::Linear
+                    },
+                    stepped: info.stepped,
+                    bipolar: false,
+                };
+                let key = info.key;
+                let v = slot.spec.get(key);
+                let id = Id::new(("insp-fxp", e, key));
+                let mut d = sheet::drag(sh.ui, id, cell, v, &range, false);
+                let target = cantus_core::AutoTarget::Effect {
+                    effect: e,
+                    key: key.to_string(),
+                };
+                let live = super::modulators::wire_drag(
+                    sh,
+                    app,
+                    info.label_key,
+                    &mut d,
+                    cell,
+                    range.pos(v),
+                    target,
+                    true,
+                );
+                let shown = d.value.unwrap_or(v);
+                if let Some(nv) = d.value {
+                    sh.acts.push(Act::Merge(
+                        Command::SetEffectParam {
+                            strip: host,
+                            effect: e,
+                            key: key.to_string(),
+                            value: nv,
+                        },
+                        MergeKey::of(&("fx", e.0, key)),
+                    ));
+                }
+                if d.ended {
+                    sh.acts.push(Act::EndGesture);
+                }
+                let hot = d.resp.hovered() || d.resp.dragged();
+                let label = sheet::name(sh.fmt.tr(info.label_key));
+                look::say(
+                    sh.b,
+                    &s,
+                    &label,
+                    cell.left(),
+                    label_y,
+                    egui::Align2::LEFT_BOTTOM,
+                    cell.width(),
+                    10.0,
+                    W::Regular,
+                    pal.ink3,
+                );
+                let unit = info.unit;
+                let text = sh.fmt.get(
+                    cache::key(("insp-mini-v", e, key)),
+                    sheet::bits(shown),
+                    |b| sheet::unit(shown, unit, b),
+                );
+                // The figure, then its unit smaller ("−18.0" "dB").
+                let (fig, u) = match text.rsplit_once(' ') {
+                    Some((f, u)) if !unit.is_empty() => (f, u),
+                    _ => (text, ""),
+                };
+                let fig = sheet::name(fig);
+                let u = sheet::name(u);
+                let vw = look::say(
+                    sh.b,
+                    &s,
+                    &fig,
+                    cell.left(),
+                    value_y,
+                    egui::Align2::LEFT_BOTTOM,
+                    cell.width(),
+                    13.0,
+                    W::Regular,
+                    pal.ink1,
+                );
+                if !u.is_empty() {
+                    look::say(
+                        sh.b,
+                        &s,
+                        &u,
+                        cell.left() + vw + s.s(3.0),
+                        value_y,
+                        egui::Align2::LEFT_BOTTOM,
+                        (cell.width() - vw - s.s(3.0)).max(4.0),
+                        10.0,
+                        W::Regular,
+                        pal.ink3,
+                    );
+                }
+                let pos = range.pos(shown).clamp(0.0, 1.0);
+                sh.b.rrect(sh.b.snap_rect(bar), 1.5, Fill::Solid(pal.bar_track));
+                let fill =
+                    Rect::from_min_max(bar.min, pos2(bar.left() + bar.width() * pos, bar.bottom()));
+                if fill.width() > 0.5 {
+                    sh.b.rrect(
+                        sh.b.snap_rect(fill),
+                        1.5,
+                        Fill::Solid(if hot { pal.ink1 } else { pal.ink2 }),
+                    );
+                }
+                if let Some(lv) = live {
+                    let lx = bar.left() + bar.width() * lv.clamp(0.0, 1.0);
+                    sh.b.vline(lx, bar.top() - 3.0, bar.bottom() + 3.0, 2.0, s.t.hue_mod);
+                }
+                if hot {
+                    crate::kit::hint::set(
+                        sh.ui.ctx(),
+                        &label,
+                        crate::kit::hint::Caps::PARAM,
+                        d.resp.dragged(),
+                        |b| b.write_str(text),
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// A hosted plug-in: its format, whether it is here, and the latency it adds.

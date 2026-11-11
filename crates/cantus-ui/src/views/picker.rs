@@ -72,7 +72,7 @@ impl PickerView {
         self.prefs_path = Some(path);
     }
 
-    pub(super) fn store_prefs(&self) {
+    pub(crate) fn store_prefs(&self) {
         if let Some(p) = &self.prefs_path {
             if let Err(e) = self.prefs.save(p) {
                 log::warn!("device picker: could not save {}: {e}", p.display());
@@ -274,12 +274,16 @@ pub fn title(app: &CantusApp, purpose: &PickPurpose) -> (String, String) {
             let context = if *strip == cantus_core::StripId::MASTER {
                 t("picker.context.master")
             } else {
-                let name = app
-                    .project()
-                    .strip(*strip)
-                    .map(|s| s.name.clone())
-                    .unwrap_or_default();
-                tf("picker.context.strip", &[("name", &name)])
+                // The strip as the mixer and the inspector name it — its own name, else the
+                // first track feeding it, else "Strip n" (round 39, fixes: an unnamed strip
+                // left the subtitle "on —").
+                let mut name = String::new();
+                crate::views::inspector::strip_label(app, *strip, &mut name);
+                if name.is_empty() {
+                    t("picker.context.strip_gone")
+                } else {
+                    tf("picker.context.strip", &[("name", &name)])
+                }
             };
             (title, context)
         }
@@ -307,6 +311,9 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
     let Some(purpose) = app.picker.clone() else {
         return;
     };
+    // r39:ux-b — it closes on its own Esc (`picker_keys`); said open, so nothing under it
+    // takes the key (ADR 0110).
+    crate::esc::open(ctx, crate::esc::Layer::Picker);
     let sounds = app.samples.content().instruments();
     app.picker_view.refresh(&app.plugins.db, &sounds);
     app.picker_view.thumbs.pump(ctx);

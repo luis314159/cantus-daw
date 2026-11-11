@@ -121,3 +121,4 @@ freeze.ll.now_on = Low-latency monitoring on: what you monitor is heard without 
 freeze.ll.now_off = Low-latency monitoring off: everything is aligned again.
 freeze.chip.monitored = {ms} ms monitored
 freeze.cannot_cue_solo = {name} cannot be frozen: a mix cue solos {what} inside it, and a render holds no solo. Take the solo out of the cue first.
+freeze.freeze.short = FREEZE

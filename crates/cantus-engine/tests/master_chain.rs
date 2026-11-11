@@ -61,6 +61,8 @@ struct Rig {
     cap: rtrb::Consumer<f32>,
     p: Processor,
     events: Vec<EngineEvent>,
+    /// Each block's meters (its report, ADR 0107).
+    meters: Vec<Meters>,
     took: Vec<f32>,
 }
 
@@ -97,6 +99,7 @@ impl Rig {
             cap,
             p,
             events: Vec::new(),
+            meters: Vec::new(),
             took: Vec::new(),
         };
         rig.settle();
@@ -143,6 +146,7 @@ impl Rig {
             while let Ok(ev) = self.rx.pop() {
                 self.events.push(ev);
             }
+            self.meters.push(self.p.meters().clone());
             while let Ok(x) = self.cap.pop() {
                 self.took.push(x);
             }
@@ -158,21 +162,12 @@ impl Rig {
     }
 
     fn last_meters(&self) -> Option<&Meters> {
-        self.events.iter().rev().find_map(|e| match e {
-            EngineEvent::Meters(m) => Some(m),
-            _ => None,
-        })
+        self.meters.last()
     }
 
     /// The deepest master reduction any block reported.
     fn deepest_gr(&self) -> f32 {
-        self.events
-            .iter()
-            .filter_map(|e| match e {
-                EngineEvent::Meters(m) => Some(m.master_gr),
-                _ => None,
-            })
-            .fold(0.0, f32::max)
+        self.meters.iter().map(|m| m.master_gr).fold(0.0, f32::max)
     }
 }
 

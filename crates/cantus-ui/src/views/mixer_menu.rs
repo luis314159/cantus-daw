@@ -39,7 +39,6 @@ pub(super) enum Menu {
     Route(StripId),
     /// The route from the selected strip to this one (right-click on a send arrow).
     Arrow(StripId),
-    PanLaw,
     Takes,
     /// What to put in an empty insert slot.
     AddEffect(StripId),
@@ -89,6 +88,8 @@ enum ColorOf {
 /// What a row does.
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Act {
+    /// One of the effects inserted last, by its place in the recent list. // r39:ux-b
+    InsertRecent(StripId, u8),
     /// A snapshot or VCA action (round 36, ADR 0093). // r36:mix
     Mix(snap_menu::MixAct), // r36:mix
     /// The mastering assistant's panel (round 34, ADR 0084). // r34:listen
@@ -168,7 +169,11 @@ enum Act {
     CableKind(CableKindSel),
     CableLevels,
     CableMaster,
+    /// "Show all": every strip's cables, faint, the selection's lit (round 39).
+    CableShowAll,
     CablePreset(CablePreset),
+    /// How the cables are drawn: Patch, Flow or Subway (r39:el-cables; a setting).
+    CableStyle(Option<crate::settings::CableStyle>),
     /// Freeze the strip, or unfreeze what holds it (round 29, ADR 0064).
     Freeze(StripId),
     /// Bounce the whole strip in place.
@@ -197,7 +202,12 @@ impl Act {
     fn keeps_open(self) -> bool {
         matches!(
             self,
-            Act::CableScope(_) | Act::CableKind(_) | Act::CableLevels | Act::CableMaster
+            Act::CableScope(_)
+                | Act::CableKind(_)
+                | Act::CableLevels
+                | Act::CableMaster
+                | Act::CableShowAll
+                | Act::CableStyle(_)
         )
     }
 }
@@ -408,6 +418,12 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::act(Label::Key("track.solo_tip"), Act::Solo(id)).check(on(s.soloed)));
             e.push(Entry::act(Label::Key("track.mute_tip"), Act::Mute(id)).check(on(s.muted)));
             e.push(Entry::act(Label::Key("track.mono"), Act::Mono(id)).check(on(s.width <= 0.005)));
+            // r39:ux-b — *Add effect ▸* near the top, where a strip's daily work is: the
+            // picker and the effects inserted last a click away (ADR 0110). It was at the
+            // menu's foot, below the window's bottom at 1600 × 900.
+            if !app.project().is_vca(id) {
+                e.push(Entry::sub(Label::Key("effect.add"), Sub::AddEffect(id)));
+            }
             snap_menu::strip_rows(app, id, &mut e); // r36:mix
             if p.tracks_on_strip(id).next().is_some() {
                 // Recording (ADR 0025): the input, arm, and the mix take for a strip whose
@@ -507,7 +523,6 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::sub(Label::Key("comp.duck.menu"), Sub::Duck(id)));
             route_entries(app, id, &mut e);
             e.push(Entry::band("master.menu.effects"));
-            e.push(Entry::sub(Label::Key("effect.add"), Sub::AddEffect(id)));
             e.push(
                 Entry::act(
                     Label::Key("master.menu.fx_on"),
@@ -601,7 +616,6 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 .check(radio(sel.output.is_none())),
             );
         }
-        Menu::PanLaw => sub_entries(v, app, Sub::PanLaw, &mut e),
         Menu::Takes => {
             if app.mix_recorder.status().is_some() {
                 e.push(Entry::act(Label::Key("take.stop_tip"), Act::StopTake));
@@ -757,6 +771,30 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
         Sub::GroupVca(g) => snap_menu::group_entries(app, g, e), // r36:mix
         Sub::Cables => {
             let o = v.prefs.current.cable_opts;
+            // r39:el-mixer — the owner's option C with B on demand: the header's key shows
+            // the selection's cables; every strip's here.
+            e.push(
+                Entry::act(Label::Key("cables.show_all"), Act::CableShowAll).check(on(v
+                    .prefs
+                    .current
+                    .cables
+                    == CableView::All)),
+            );
+            // r39:el-cables — the cables' look, a setting of this machine (also in
+            // Settings ▸ Appearance).
+            e.push(Entry::band("cables.style"));
+            let chosen = app.settings.cable_style;
+            for st in crate::settings::CableStyle::ALL {
+                e.push(
+                    Entry::act(Label::Key(st.key()), Act::CableStyle(Some(st)))
+                        .check(radio(chosen == Some(st))),
+                );
+            }
+            // None chosen: the theme's own (a future theme may bring its own look).
+            e.push(
+                Entry::act(Label::Key("cables.style.theme"), Act::CableStyle(None))
+                    .check(radio(chosen.is_none())),
+            );
             e.push(Entry::band("cables.menu.scope"));
             for sc in CableScope::ALL {
                 e.push(
@@ -974,6 +1012,24 @@ fn sub_entries(v: &MixerView, app: &CantusApp, sub: Sub, e: &mut Vec<Entry>) {
                 )
                 .enabled(!full),
             );
+            // r39:ux-b — the effects inserted last, first (ADR 0110).
+            let recent =
+                crate::quick_devices::recent_seen(app, crate::picker_catalog::Role::Effect);
+            if !recent.is_empty() {
+                e.push(Entry::band("ux.paths.recent_effects"));
+                for (i, q) in recent.iter().enumerate() {
+                    e.push(
+                        Entry::act(
+                            Label::Own(crate::i18n::tf(
+                                "ux.paths.insert_effect",
+                                &[("name", &q.name)],
+                            )),
+                            Act::InsertRecent(id, i as u8),
+                        )
+                        .enabled(!full),
+                    );
+                }
+            }
             e.push(Entry::band("effect.add"));
             for kind in EffectKind::ALL.into_iter().filter(|k| k.offered()) {
                 // r37:library — the older Reverb is not offered
@@ -1095,28 +1151,35 @@ fn list(
     // Its size given: egui's first (sizing) pass would hold it to its default area size —
     // 400 points tall — and every row below that sat behind a scroll that does not show
     // (round 29, review 1: the strip menu ended at Mute; Freeze and Routing were below).
+    // The menu's sheet: in a popup a list paints its rows only (round 39, `des-controls`),
+    // and a bare area has no frame of its own to be the sheet. The area holds the sheet's
+    // edge too, or the rows would sit a pixel short and show a scroll bar.
+    let sheet = crate::kit::automate::frame();
+    let edge = sheet.total_margin().sum();
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
-        .default_size(vec2(width, h))
+        .default_size(vec2(width, h) + edge)
         .constrain(true)
         .show(ctx, |ui| {
-            egui::ScrollArea::vertical()
-                .max_height(max_h)
-                .show(ui, |ui| {
-                    let (resp, clicks) = crate::kit::widgets::menu_list(ui, &items, width);
-                    out.clicked = clicks.clicked;
-                    out.toggled = clicks.toggled;
-                    if let Some(p) = resp.hover_pos() {
-                        for i in 0..items.len() {
-                            let r = kmenu::row(resp.rect, &items, s.d(1.0), i);
-                            if r.contains(p) && items[i].is_action() {
-                                out.hovered = Some(i);
-                                out.row_of_hovered = Some(r);
+            sheet.show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .max_height(max_h)
+                    .show(ui, |ui| {
+                        let (resp, clicks) = crate::kit::widgets::menu_list(ui, &items, width);
+                        out.clicked = clicks.clicked;
+                        out.toggled = clicks.toggled;
+                        if let Some(p) = resp.hover_pos() {
+                            for i in 0..items.len() {
+                                let r = kmenu::row(resp.rect, &items, s.d(1.0), i);
+                                if r.contains(p) && items[i].is_action() {
+                                    out.hovered = Some(i);
+                                    out.row_of_hovered = Some(r);
+                                }
                             }
                         }
-                    }
-                });
+                    });
+            });
         });
     out.rect = area.response.rect;
     out
@@ -1284,13 +1347,11 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
         }
         return;
     }
-    let (pressed, escape, pointer) = ctx.input(|i| {
-        (
-            i.pointer.any_pressed(),
-            i.key_pressed(egui::Key::Escape),
-            i.pointer.interact_pos(),
-        )
-    });
+    // r39:ux-b — Esc closes it when it is what opened last (ADR 0110, `crate::esc`).
+    let layer = crate::esc::Layer::Other(egui::Id::new("cantus-mixer-menu-esc"));
+    crate::esc::open(&ctx, layer);
+    let escape = crate::esc::take(&ctx, layer);
+    let (pressed, pointer) = ctx.input(|i| (i.pointer.any_pressed(), i.pointer.interact_pos()));
     let inside = pointer.is_some_and(|p| {
         top.rect.contains(p)
             || sub_rect.contains(p)
@@ -1305,6 +1366,14 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
 fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
     let mut prefs = v.prefs.current;
     match act {
+        // r39:ux-b — the effects of the strip's menu (ADR 0110).
+        Act::InsertRecent(id, i) => {
+            let recent = crate::quick_devices::recent(app, crate::picker_catalog::Role::Effect);
+            if let Some(q) = recent.get(i as usize) {
+                let purpose = crate::picker::PickPurpose::AddEffect { strip: id };
+                crate::quick_devices::add(app, &q.key, purpose);
+            }
+        }
         Act::Mix(a) => snap_menu::apply(v, app, a), // r36:mix
         Act::Freeze(id) => match app.freeze_holding_strip(id) {
             Some(h) => app.unfreeze_target(h),
@@ -1565,6 +1634,18 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         }
         Act::CableMaster => {
             prefs.cable_opts.master = !prefs.cable_opts.master;
+            v.prefs.set(prefs);
+        }
+        Act::CableStyle(st) => {
+            app.settings.cable_style = st;
+            app.store_settings();
+        }
+        Act::CableShowAll => {
+            prefs.cables = if prefs.cables == CableView::All {
+                CableView::Selected
+            } else {
+                CableView::All
+            };
             v.prefs.set(prefs);
         }
         Act::CablePreset(pr) => {

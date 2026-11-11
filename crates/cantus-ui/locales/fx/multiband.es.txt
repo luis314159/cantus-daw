@@ -147,3 +147,4 @@ mb.key_own.short = Propia
 mb.key_ext.short = Sidechain
 mb.mode.0.short = Dinám.
 mb.mode.1.short = Divis.
+mb.place.0.short = Est.

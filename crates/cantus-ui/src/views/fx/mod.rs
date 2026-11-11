@@ -26,6 +26,8 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 
 /// Anulus, the ring modulator (round 28).
 pub mod anulus;
+/// Aula, the convolution reverb (round 39, ADR 0112). // r39:conv
+pub mod aula;
 /// What the displays paint with: tokens, and measured words on plates.
 pub mod canvas;
 /// Concentus, the chorus (Juno, Dimension) (round 28).
@@ -33,6 +35,8 @@ pub mod concentus;
 /// The kit's controls at the device's scale and hue, bound to the host's parameters.
 pub mod controls;
 pub mod deesser;
+/// Delay, the stereo delay: its echoes drawn in time (round 39, ADR 0115). // r39:delay
+pub mod delay;
 /// Discrimen, the transient splitter (round 28).
 pub mod discrimen;
 /// What the dynamics family's editors share: rates from counters, histories (round 28).
@@ -112,6 +116,8 @@ pub struct FxEditors {
     pub discrimen: discrimen::State,
     pub speculum: speculum::State,
     pub tonus: tonus::State,
+    pub aula: aula::State,   // r39:conv
+    pub delay: delay::State, // r39:delay
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
     /// The open editor's frame: its preset, its lists.
@@ -374,6 +380,8 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::TransientSplit => discrimen::FACTORY_PRESETS,
         EffectKind::Analyzer => speculum::FACTORY_PRESETS,
         EffectKind::AutoTune => tonus::FACTORY_PRESETS,
+        EffectKind::Aula => aula::FACTORY_PRESETS, // r39:conv
+        EffectKind::Delay => delay::FACTORY_PRESETS, // r39:delay
         _ => &[],
     }
 }
@@ -438,8 +446,11 @@ pub fn open_window_sized(
         device::remember_place(ctx, key, egui::Rect::from_min_size(to, size));
     }
     // Meters and histories move with the audio: at most 60 frames a second, through the
-    // ticker (16 ms asked of egui directly drew at the screen's rate, round 38).
-    crate::views::workspace_ticker::moving(ctx, crate::views::workspace_ticker::Reason::Live);
+    // ticker (16 ms asked of egui directly drew at the screen's rate, round 38). An editor
+    // that knows it is still asks for none (Delay's, round 39, ADR 0115).
+    if !out.at_rest {
+        crate::views::workspace_ticker::moving(ctx, crate::views::workspace_ticker::Reason::Live);
+    }
     !out.close
 }
 
@@ -474,6 +485,8 @@ pub enum Editor {
     Discrimen(Box<discrimen::State>),
     Speculum(Box<speculum::State>),
     Tonus(Box<tonus::State>),
+    Aula(Box<aula::State>),   // r39:conv
+    Delay(Box<delay::State>), // r39:delay
 }
 
 impl Editor {
@@ -503,6 +516,8 @@ impl Editor {
             EffectKind::TransientSplit => Some(Editor::Discrimen(Box::default())),
             EffectKind::Analyzer => Some(Editor::Speculum(Box::default())),
             EffectKind::AutoTune => Some(Editor::Tonus(Box::default())),
+            EffectKind::Aula => Some(Editor::Aula(Box::default())), // r39:conv
+            EffectKind::Delay => Some(Editor::Delay(Box::default())), // r39:delay
             _ => None,
         }
     }
@@ -533,6 +548,8 @@ impl Editor {
             Editor::Discrimen(st) => discrimen::editor(host, st, ui),
             Editor::Speculum(st) => speculum::editor(host, st, ui),
             Editor::Tonus(st) => tonus::editor(host, st, ui),
+            Editor::Aula(st) => aula::editor(host, st, ui), // r39:conv
+            Editor::Delay(st) => delay::editor(host, st, ui), // r39:delay
         }
     }
 }
@@ -571,6 +588,8 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::TransientSplit
         | EffectKind::Analyzer
         | EffectKind::AutoTune
+        | EffectKind::Aula // r39:conv
+        | EffectKind::Delay // r39:delay
         | EffectKind::External => {
             let mut pos = app.fx.pos;
             let mut designed = frame::designed_size(kind);
@@ -611,6 +630,8 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::TransientSplit => discrimen::framed(app, ui, strip, effect),
                     EffectKind::Analyzer => speculum::framed(app, ui, strip, effect),
                     EffectKind::AutoTune => tonus::framed(app, ui, strip, effect),
+                    EffectKind::Aula => aula::framed(app, ui, strip, effect), // r39:conv
+                    EffectKind::Delay => delay::framed(app, ui, strip, effect), // r39:delay
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
             );
@@ -650,6 +671,8 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::TransientSplit => discrimen::preview(ui, spec),
         EffectKind::Analyzer => speculum::preview(ui, spec),
         EffectKind::AutoTune => tonus::preview(ui, spec),
+        EffectKind::Aula => aula::preview(ui, spec), // r39:conv
+        EffectKind::Delay => delay::preview(ui, spec), // r39:delay
         _ => {
             let s = crate::kit::Style::current();
             let name = frame::tr(spec.kind.name_key());
@@ -683,6 +706,8 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::TransientSplit => discrimen::demo_setup(app, strip, effect),
         EffectKind::Analyzer => speculum::demo_setup(app, strip, effect),
         EffectKind::AutoTune => tonus::demo_setup(app, strip, effect),
+        EffectKind::Aula => aula::demo_setup(app, strip, effect), // r39:conv
+        EffectKind::Delay => delay::demo_setup(app, strip, effect), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
     }
@@ -714,6 +739,8 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::TransientSplit => discrimen::demo_feed(app),
         EffectKind::Analyzer => speculum::demo_feed(app),
         EffectKind::AutoTune => tonus::demo_feed(app),
+        EffectKind::Aula => aula::demo_feed(app), // r39:conv
+        EffectKind::Delay => delay::demo_feed(app), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}
     }

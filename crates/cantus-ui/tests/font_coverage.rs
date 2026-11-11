@@ -279,29 +279,86 @@ mod tests {
 }
 
 /// Only fonts whose licences are OSI-approved are built in (SignPath's condition,
-/// `docs/signing/README.md` §2): IBM Plex (OFL-1.1) and emoji-icon-font (MIT). egui's own
-/// defaults — Ubuntu Light (Ubuntu Font Licence) and Hack (Bitstream Vera licence) are not
-/// OSI-approved — are compiled out (`default_fonts` off for egui and eframe).
+/// `docs/signing/README.md` §2): IBM Plex, Barlow and Sofia Sans (all SIL OFL-1.1) and
+/// emoji-icon-font (MIT). egui's own defaults — Ubuntu Light (Ubuntu Font Licence) and Hack
+/// (Bitstream Vera licence) are not OSI-approved — are compiled out (`default_fonts` off for
+/// egui and eframe).
+///
+/// Round 39 (ADR 0111) updated this test: the kit bundles Barlow Semi Condensed and Sofia
+/// Sans for its faces (`kit/faces.rs`), so it no longer holds "only Plex"; it holds every
+/// built-in file is one of the bundled OFL/MIT files, and every chain is the face's file,
+/// then (when it differs) the Plex file of the same role, then the emoji fallback.
 #[test]
-fn only_plex_and_the_emoji_fallback_are_built_in() {
+fn only_ofl_faces_and_the_emoji_fallback_are_built_in() {
     assert_eq!(
         egui::FontDefinitions::builtin_font_names(),
         &[] as &[&str],
         "egui's default fonts are compiled in (a dependency turned `default_fonts` on)"
     );
-    let defs = design::font_definitions();
-    for key in defs.font_data.keys() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/fonts");
+    for licence in [
+        "LICENSE-OFL.txt",
+        "LICENSE-OFL-Barlow.txt",
+        "LICENSE-OFL-Sofia-Sans.txt",
+        "LICENSE-emoji-icon-font.txt",
+    ] {
+        let text = std::fs::read_to_string(dir.join(licence)).unwrap();
         assert!(
-            key == "emoji-icon-font" || !key.contains("Ubuntu") && !key.contains("Hack"),
-            "{key} is built in"
+            text.contains("SIL OPEN FONT LICENSE") || licence.contains("emoji"),
+            "{licence} is the OFL"
+        );
+    }
+    // The bundled files with an OSI-approved licence, by their bytes.
+    let allowed: Vec<(String, Vec<u8>)> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "ttf"))
+        .map(|p| {
+            let name = p.file_name().unwrap().to_string_lossy().into_owned();
+            assert!(
+                [
+                    "IBMPlex",
+                    "BarlowSemiCondensed-",
+                    "SofiaSans",
+                    "emoji-icon-font"
+                ]
+                .iter()
+                .any(|w| name.starts_with(w)),
+                "{name} is bundled without a known OFL/MIT licence"
+            );
+            (name, std::fs::read(&p).unwrap())
+        })
+        .collect();
+    let known = |bytes: &[u8]| allowed.iter().any(|(_, b)| b == bytes);
+    // Every face's own files (not only the current theme's) are bundled OFL files.
+    for face in cantus_ui::kit::system::Face::ALL {
+        for (key, bytes) in cantus_ui::kit::faces::data(face) {
+            assert!(known(bytes), "{face:?}: {key} is not a bundled OFL file");
+        }
+    }
+    let defs = design::font_definitions();
+    for (key, data) in &defs.font_data {
+        assert!(
+            known(&data.font),
+            "{key} is built in but is not a bundled OFL/MIT file"
         );
     }
     assert!(defs.font_data.contains_key("emoji-icon-font"));
-    // Every chain is one Plex face, then the emoji fallback: the same chains as before the
-    // defaults were compiled out, so the same glyph is chosen for every character.
+    // Every chain: the face's file, the Plex file of its role when that differs, then the
+    // emoji fallback — so a character the face lacks is drawn by Plex, never by nothing.
     for (family, chain) in &defs.families {
-        assert_eq!(chain.len(), 2, "{family:?}: {chain:?}");
-        assert_eq!(chain[1], "emoji-icon-font", "{family:?}: {chain:?}");
+        assert!((2..=3).contains(&chain.len()), "{family:?}: {chain:?}");
+        assert_eq!(
+            chain.last().map(String::as_str),
+            Some("emoji-icon-font"),
+            "{family:?}: {chain:?}"
+        );
+        for key in chain {
+            assert!(
+                defs.font_data.contains_key(key),
+                "{family:?}: {key} is not registered"
+            );
+        }
     }
 }
 

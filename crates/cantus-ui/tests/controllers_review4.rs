@@ -1198,6 +1198,9 @@ fn the_inspector_header_and_record_dot_learn() {
         .expect("a modulator");
     a.select_strip(s);
     a.selected_track = Some(t);
+    // Round 39 (des-mixer's insert row: number, name, kind, LED — no ring): the insert's
+    // mix is in its mini view under the row, opened by the row's mini-view key.
+    a.inspector.open_insert_view(fx);
     let inspector = armed_by_clicks(&mut a, egui::vec2(420.0, 2400.0), &mut |a, ui| {
         cantus_ui::views::inspector::show(a, ui)
     });
@@ -1250,6 +1253,8 @@ fn the_inspectors_arm_led_learns_the_arm() {
     });
     a.select_track(t);
     let armed = armed_by_clicks(&mut a, egui::vec2(420.0, 1800.0), &mut |a, ui| {
+        // Round 39 (des-mixer): Recording starts folded to one row, a click away.
+        cantus_ui::views::inspector::unfold(ui.ctx(), "rec.recording");
         cantus_ui::views::inspector::show(a, ui)
     });
     assert!(

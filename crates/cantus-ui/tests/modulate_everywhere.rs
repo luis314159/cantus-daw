@@ -122,10 +122,10 @@ fn every_native_instrument_editor_offers_modulate_on_every_control() {
 }
 
 /// Review 2: a send's level (its row under the source, its row under the return) and the
-/// inspector's pinned strip — a channel's and the master's volume, pan and width — offer
+/// inspector's Level section (round 39: where the pinned strip stood) — a channel's and the master's volume, pan and width — offer
 /// modulation too.
 #[test]
-fn sends_and_the_pinned_strip_offer_modulate() {
+fn sends_and_the_level_section_offer_modulate() {
     let mut a = app(cantus_ui::starter_project());
     let track = a.project().tracks[0].id;
     let s0 = a.project().tracks[0].strip.unwrap();
@@ -135,6 +135,8 @@ fn sends_and_the_pinned_strip_offer_modulate() {
     let wired = |a: &mut CantusApp, what: &str| {
         probe::start();
         paint(&ctx(), egui::vec2(360.0, 2400.0), 3, |ui| {
+            // r39:lo-mixer — the Level section stands where the pinned strip stood.
+            cantus_ui::views::inspector::unfold(ui.ctx(), "inspector.level");
             cantus_ui::views::inspector::show(a, ui)
         });
         let drawn = probe::take();
@@ -147,9 +149,9 @@ fn sends_and_the_pinned_strip_offer_modulate() {
     let drawn = wired(&mut a, "the channel");
     for key in [
         "inspector.send_level",
-        "kit.param.volume",
-        "kit.param.pan",
-        "kit.param.width",
+        "inspector.volume",
+        "inspector.pan",
+        "inspector.width",
     ] {
         assert!(has(&drawn, key), "the channel's {key} offers no Modulate…");
     }
@@ -161,7 +163,7 @@ fn sends_and_the_pinned_strip_offer_modulate() {
     );
     a.select_strip(StripId::MASTER);
     let drawn = wired(&mut a, "the master");
-    for key in ["kit.param.volume", "kit.param.pan", "kit.param.width"] {
+    for key in ["inspector.volume", "inspector.pan", "inspector.width"] {
         assert!(has(&drawn, key), "the master's {key} offers no Modulate…");
     }
 }

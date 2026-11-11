@@ -230,6 +230,7 @@ fn live_render(s: &Arc<Snapshot>, total: usize, workers: Option<usize>) -> Vec<f
     }
     tx.push(EngineMessage::Automation(AutomationRuntime::build(&live)))
         .unwrap();
+    p.hold_parts_for(&live); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(live)).unwrap();
     tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
     tx.push(EngineMessage::Play).unwrap();
@@ -439,6 +440,7 @@ fn stopped(p: &Project) -> (rtrb::Producer<EngineMessage>, Processor, TrackId) {
     for unit in cantus_engine::inst::units_for(&s, SR as f32, |_, _| false) {
         tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }
+    proc_.hold_parts_for(&s); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(s)).unwrap();
     let track = p.tracks[0].id;
     let mut warm = vec![0f32; 64 * 2];
@@ -570,6 +572,7 @@ fn loop_render(s: &Arc<Snapshot>, total: usize, sizes: &[usize]) -> Vec<f32> {
     for unit in cantus_engine::inst::units_for(s, SR as f32, |_, _| false) {
         tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }
+    p.hold_parts_for(s); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(s.clone())).unwrap();
     tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
     tx.push(EngineMessage::Play).unwrap();

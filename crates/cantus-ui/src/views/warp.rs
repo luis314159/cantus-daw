@@ -154,6 +154,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         punch: None,
         markers: None,
         tempo: None,
+        ..Default::default() // r39:el-arrange
     };
     let tempo = crate::views::bars::map(app.project());
     let painter = ui.painter_at(full);

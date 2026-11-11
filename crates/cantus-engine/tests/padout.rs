@@ -168,6 +168,7 @@ fn realtime(p: &Project, workers: Workers, len: usize) -> (Vec<f32>, u64) {
     let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
     let mut proc = Processor::without_midi(SR, rx_engine, tx_engine);
     proc.set_workers(workers);
+    proc.hold_parts_for(&snap); // ADR 0107
     for slot in snap.effect_slots() {
         tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(
             slot, SR as f32,
@@ -708,6 +709,7 @@ fn processing_time(p: &Project, len: usize) -> f64 {
         ))))
         .ok();
     }
+    proc.hold_parts_for(&snap); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     tx.push(EngineMessage::Seek(Ticks::ZERO)).ok();
     tx.push(EngineMessage::Play).ok();
@@ -736,6 +738,7 @@ fn chain_rests(p: &Project, len: usize) -> u64 {
         ))))
         .ok();
     }
+    proc.hold_parts_for(&snap); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(snap)).ok();
     tx.push(EngineMessage::Seek(Ticks::ZERO)).ok();
     tx.push(EngineMessage::Play).ok();

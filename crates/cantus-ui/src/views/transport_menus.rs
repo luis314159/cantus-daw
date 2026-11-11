@@ -1,20 +1,32 @@
-//! The top bar's left block (ADR 0052): the logo, the menus over the project's name and the
-//! hint panel. The project's name is renamed in place: a click on it opens the kit's field
-//! there (`title`), drawn after the bar's words so none shows under it.
+//! The top bar's menus block (ADR 0052; round 39, `dir-a`'s phase B): the mark, the menus
+//! over the project's name and its summary, in four forms as the bar narrows — full,
+//! compact (no summary), minimal (the mark, a ≡ key that holds every menu, the name on the
+//! bar's centre line) and bare (the mark and ≡). The project's name is renamed in place: a
+//! click on it opens the kit's field there (`title`), drawn after the bar's words.
 
+use super::layout::Brand;
+use super::paint::{self as p, ink1, ink2, ink3};
 use super::{title, Style};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::kit::color::{shade, with_alpha};
-use crate::kit::text::{self, Role, Text};
-use crate::kit::{with_brush, Fill};
+use crate::kit::glyph::Glyph;
+use crate::kit::text::Role;
+use crate::kit::{with_brush, Fill, State};
 use crate::views;
 use crate::views::workspace::Pane;
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
 use std::cell::RefCell;
 
-/// The logo's place at 100 %.
+/// The mark's side, and where the menus start after it, at 100 %.
+pub const MARK: f32 = 24.0;
 pub const LOGO_W: f32 = 34.0;
+/// The space between two menus' words, and the ≡ key's width.
+const MENU_GAP: f32 = 13.0;
+const MENU_KEY: f32 = 28.0;
+/// The most the name and the summary take before they elide (their whole in the hint).
+const NAME_MAX: f32 = 200.0;
+const SUMMARY_MAX: f32 = 180.0;
 
 thread_local! {
     /// The project's name and its dirty mark, rebuilt in place each frame.
@@ -30,125 +42,197 @@ const MENUS: [&str; 6] = [
     "menu.help",
 ];
 
-/// The menus' words: a size up on a bar drawn larger than the window (round 37). // r37:finish
-fn menu_role(s: &Style) -> Role {
-    // r37:finish — the title size at 100 % and up (the judge: menus too small).
-    if s.k >= 0.99 {
-        Role::Title
-    } else {
-        Role::Control
-    }
-}
+/// The menus' words: 12 Regular in ink 2, in title case (`dir-a`).
+const MENU_PX: f32 = 12.0;
 
 fn menu_word_width(ctx: &egui::Context, s: &Style, key: &str) -> f32 {
-    text::measure(
-        ctx,
-        &Text::key(key, menu_role(s), s.t.text).caps(true), // r37:finish
-        s.tk(),
-    )
-    .x + 11.0 * s.k // r37:finish (the bar's words are a size up; their gaps a little less)
+    p::measure_key(ctx, key, Role::Body, MENU_PX, s)
 }
 
-/// The menus' width in a row.
+/// The menus' width in a row, their gaps between them.
 pub fn left_widths(ctx: &egui::Context, s: &Style) -> f32 {
-    MENUS.iter().map(|k| menu_word_width(ctx, s, k)).sum()
+    let words: f32 = MENUS.iter().map(|k| menu_word_width(ctx, s, k)).sum();
+    words + MENU_GAP * s.k * (MENUS.len() - 1) as f32
 }
 
-/// The left block in `rect`: the logo, the menus over the project's name and the hint
-/// panel. Returns the panel's rect (the name's field goes there, drawn last).
-pub fn left_block(app: &mut CantusApp, ui: &mut Ui, rect: Rect, s: &Style) -> Option<Rect> {
+/// The name as the bar shows it (with the unsaved mark) into `out`.
+fn name_into(app: &CantusApp, out: &mut String) {
+    out.clear();
+    out.push_str(&app.project().name);
+    if app.bus.is_dirty() {
+        out.push_str(" \u{2022}");
+    }
+}
+
+/// The summary under the name, made again only when the song's facts change.
+fn with_summary<R>(app: &CantusApp, f: impl FnOnce(&str) -> R) -> R {
+    SUMMARY.with(|c| {
+        let mut c = c.borrow_mut();
+        let pr = app.project();
+        let key = (pr.tracks.len(), pr.strips.len(), pr.content_end().0);
+        if c.0 != Some(key) {
+            c.0 = Some(key);
+            c.1 = summary(app);
+        }
+        f(&c.1)
+    })
+}
+
+/// The menus block's width in each form ([`Brand`] order: full, compact, minimal, bare).
+pub fn brand_widths(app: &CantusApp, ctx: &egui::Context, s: &Style) -> [f32; 4] {
     let k = s.k;
-    let logo_r = Rect::from_center_size(
-        Pos2::new(rect.left() + 14.0 * k, rect.center().y),
-        Vec2::splat(28.0 * k),
+    let menus = left_widths(ctx, s);
+    let name = NAME.with(|n| {
+        let mut n = n.borrow_mut();
+        name_into(app, &mut n);
+        p::measure(ctx, &n, Role::Title, 13.0, s).min(NAME_MAX * k)
+    });
+    let summary =
+        with_summary(app, |w| p::measure(ctx, w, Role::Label, 11.0, s)).min(SUMMARY_MAX * k);
+    let mark = (MARK + 8.0 + MENU_KEY + 8.0) * k;
+    [
+        (LOGO_W * k + menus.max(name + 8.0 * k + summary)).ceil(),
+        (LOGO_W * k + menus.max(name)).ceil(),
+        (mark + name).ceil(),
+        (mark - 8.0 * k).ceil(),
+    ]
+}
+
+/// The menus block in `rect` (the bar's height) in `form`. Returns the name's line, where
+/// the rename field goes (drawn last).
+pub fn left_block(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    rect: Rect,
+    form: Brand,
+    s: &Style,
+) -> Option<Rect> {
+    let k = s.k;
+    let top = rect.top();
+    let logo_r = Rect::from_min_size(
+        Pos2::new(rect.left(), top + (rect.height() - MARK * k) * 0.5),
+        Vec2::splat(MARK * k),
     );
     views::workspace_widgets::paint_logo(ui.painter(), logo_r, app.appearance.logo, &s.t);
-    let body = Rect::from_min_max(
-        Pos2::new(rect.left() + LOGO_W * k, rect.top() + 3.0 * k),
-        Pos2::new(rect.right(), rect.bottom() - 3.0 * k),
-    );
-    let menu_r = Rect::from_min_size(body.min, Vec2::new(body.width(), 17.0 * k));
-    menus(app, ui, menu_r, s);
-    let hint_r = Rect::from_min_max(Pos2::new(body.left(), menu_r.bottom() + 1.0 * k), body.max);
-    if hint_r.width() < 60.0 * k {
-        return None;
-    }
-    // While the project is renamed, its field stands where the name is: the panel leaves
-    // the name out, so no word shows under the field.
-    let naming = title::naming(app);
-    NAME.with(|n| {
-        let mut name = n.borrow_mut();
-        name.clear();
-        if !naming {
-            name.push_str(&app.project().name);
-            if app.bus.is_dirty() {
-                name.push_str(" \u{2022}");
+    let mid = rect.center().y;
+    match form {
+        Brand::Full | Brand::Compact => {
+            // Menus on the upper line (baseline 19 of 44), the name under them (36).
+            let x = rect.left() + LOGO_W * k;
+            let menu_r = Rect::from_min_max(
+                Pos2::new(x, mid - 17.0 * k),
+                Pos2::new(rect.right(), mid - 1.0 * k),
+            );
+            menus(app, ui, menu_r, s);
+            let line = Rect::from_min_max(
+                Pos2::new(x, mid + 1.0 * k),
+                Pos2::new(rect.right(), mid + 17.0 * k),
+            );
+            name_line(app, ui, line, form == Brand::Full, s);
+            Some(line)
+        }
+        Brand::Minimal | Brand::Bare => {
+            let kr = Rect::from_min_size(
+                Pos2::new(logo_r.right() + 8.0 * k, mid - 12.0 * k),
+                Vec2::new(MENU_KEY * k, 24.0 * k),
+            );
+            menu_key(app, ui, kr, s);
+            if form == Brand::Bare {
+                return None;
             }
-        }
-        with_brush(ui.painter(), |b| {
-            // While renaming, the panel is the field's: no name and no idle hint under it.
-            // r37:finish — the idle hint is not drawn in the bar (the judge: a standing
-            // sentence read as wasted space); it is the panel's tooltip, and what the
-            // pointer finds still shows here.
-            let _ = naming;
-            SUMMARY.with(|c| {
-                let mut c = c.borrow_mut();
-                let p = app.project();
-                let key = (p.tracks.len(), p.strips.len(), p.content_end().0);
-                if c.0 != Some(key) {
-                    c.0 = Some(key);
-                    c.1 = summary(app);
-                }
-                views::hint::paint_panel_with(b, hint_r, s, &name, None, &c.1);
-            });
-        });
-    });
-    // The idle hint in full, where the bar shows its essentials: the panel's tooltip.
-    if let Some(key) = views::workspace_status::tool_hint_key(app) {
-        let resp = ui.interact(hint_r, Id::new("cantus-hint-panel"), Sense::hover());
-        if resp.hovered() {
-            let _ = resp.on_hover_text(t(key));
+            let line = Rect::from_min_max(
+                Pos2::new(kr.right() + 8.0 * k, mid - 9.0 * k),
+                Pos2::new(rect.right(), mid + 9.0 * k),
+            );
+            name_line(app, ui, line, false, s);
+            Some(line)
         }
     }
-    Some(hint_r)
 }
 
-/// The menu words: kit text in a box, each opening its menu.
+/// The name (13 Medium, ink 1) and, when `summary`, the song's summary after it (11, ink 3).
+fn name_line(app: &CantusApp, ui: &Ui, line: Rect, summary: bool, s: &Style) {
+    if title::naming(app) {
+        return;
+    }
+    let ctx = ui.ctx().clone();
+    NAME.with(|n| {
+        let mut n = n.borrow_mut();
+        name_into(app, &mut n);
+        let nw = p::measure(&ctx, &n, Role::Title, 13.0, s).min(line.width());
+        with_brush(ui.painter(), |b| {
+            let nr = Rect::from_min_size(line.min, Vec2::new(nw + 1.0, line.height()));
+            p::words(
+                b,
+                nr,
+                &n,
+                Role::Title,
+                13.0,
+                ink1(s),
+                Align2::LEFT_CENTER,
+                s,
+            );
+            if summary {
+                let sr =
+                    Rect::from_min_max(Pos2::new(nr.right() + 8.0 * s.k, line.top()), line.max);
+                if sr.width() > 20.0 * s.k {
+                    with_summary(app, |w| {
+                        p::words(b, sr, w, Role::Label, 11.0, ink3(s), Align2::LEFT_CENTER, s)
+                    });
+                }
+            }
+        });
+    });
+}
+
+/// The menu words: each opening its menu, the open one and the hovered one lifted.
 fn menus(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let mut x = r.left();
+    let k = s.k;
+    let mut x = r.left() - MENU_GAP * k * 0.5;
     for (i, key) in MENUS.iter().enumerate() {
-        let w = menu_word_width(ui.ctx(), s, key);
+        let w = menu_word_width(ui.ctx(), s, key) + MENU_GAP * k;
         let rect = Rect::from_min_size(Pos2::new(x, r.top()), Vec2::new(w, r.height()));
         x += w;
-        if rect.right() > r.right() + 0.5 {
+        if rect.right() > r.right() + MENU_GAP * k {
             break;
         }
         let resp = ui.interact(rect, Id::new(("toolbar-menu", i)), Sense::click());
+        // The help line (round 39, ADR 0109): which menu this word opens.
+        if resp.hovered() {
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                &tf("ux.hint.menu", &[("menu", &t(key))]),
+                "",
+                crate::kit::hint::Caps {
+                    menu: true,
+                    ..crate::kit::hint::Caps::NONE
+                },
+            );
+        }
         let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&resp));
         let build = open || resp.clicked();
         with_brush(ui.painter(), |b| {
             if resp.hovered() || open {
                 b.rrect(
-                    b.snap_rect(rect),
+                    b.snap_rect(rect.shrink2(Vec2::new(2.0 * k, 0.0))),
                     s.r(3.0),
-                    Fill::Solid(with_alpha(s.t.text, if open { 0.14 } else { 0.08 })),
+                    Fill::Solid(with_alpha(s.t.text, if open { 0.12 } else { 0.07 })),
                 );
             }
-            let _ = text::paint(
+            let ink = if resp.hovered() || open {
+                ink1(s)
+            } else {
+                ink2(s)
+            };
+            p::words_key(
                 b,
                 rect,
-                &Text::key(
-                    key,
-                    menu_role(s), // r37:finish
-                    if resp.hovered() || open {
-                        s.t.text
-                    } else {
-                        s.t.label // r37:finish — brighter at rest
-                    },
-                )
-                .caps(true)
-                .align(Align2::CENTER_CENTER),
-                s.tk(),
+                key,
+                Role::Body,
+                MENU_PX,
+                ink,
+                Align2::CENTER_CENTER,
+                s,
             );
         });
         // A closed menu costs nothing: its popup is built only while it shows.
@@ -157,6 +241,44 @@ fn menus(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 .style(menu_look)
                 .show(|ui| menu_body(app, ui, i));
         }
+    }
+}
+
+/// The ≡ key of the minimal form: every menu as a submenu.
+fn menu_key(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
+    let resp = ui.interact(r, Id::new("toolbar-menus-all"), Sense::click());
+    let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&resp));
+    let st = State::of(&resp, false);
+    with_brush(ui.painter(), |b| {
+        p::well(b, r, s, None);
+        p::tint(b, r, s, st, s.t.highlight, 0.2);
+        let st = if open {
+            State {
+                hovered: true,
+                ..st
+            }
+        } else {
+            st
+        };
+        p::icon(b, r, s, Glyph::Menu, st, s.t.highlight, 20.0);
+    });
+    if resp.hovered() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            &t("topbar.menus_all"),
+            "",
+            crate::kit::hint::Caps {
+                menu: true,
+                ..crate::kit::hint::Caps::NONE
+            },
+        );
+    }
+    if open || resp.clicked() {
+        egui::Popup::menu(&resp).style(menu_look).show(|ui| {
+            for (i, key) in MENUS.iter().enumerate() {
+                ui.menu_button(t(key), |ui| menu_body(app, ui, i));
+            }
+        });
     }
 }
 
@@ -206,9 +328,19 @@ pub(super) fn menu_look(style: &mut egui::Style) {
     style.override_font_id = Some(Role::Body.font(s.tk()));
 }
 fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
-    if ui.button(t("menu.new")).clicked() {
+    use crate::keymap::Action;
+    use crate::menu_commands::MenuCommand as M;
+    // r39:ux-b — every row that is an action shows its key (ADR 0110); the rest run the
+    // commands the palette offers under the same words.
+    let command = |app: &mut CantusApp, ui: &mut Ui, c: M| {
+        if views::hint::button(ui, t(c.key())).clicked() {
+            ui.close();
+            let ctx = ui.ctx().clone();
+            c.run(app, &ctx);
+        }
+    };
+    if views::arrangement::action_item(app, ui, Action::NewProject, "menu.new") {
         ui.close();
-        app.request_new();
     }
     // Round 31 (ADR 0072): the start page, with its templates and the recent projects.
     if views::arrangement::action_item(
@@ -219,22 +351,22 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
     ) {
         ui.close();
     }
-    if ui.button(t("demos.menu")).clicked() {
-        ui.close();
-        views::demos::show(app);
-    }
-    if ui.button(t("menu.open")).clicked() {
-        ui.close();
-        app.request_open();
+    for (action, key) in [
+        (Action::DemoSongs, "demos.menu"),
+        (Action::Open, "menu.open"),
+    ] {
+        if views::arrangement::action_item(app, ui, action, key) {
+            ui.close();
+        }
     }
     ui.separator();
-    if ui.button(t("menu.save")).clicked() {
-        ui.close();
-        app.save();
-    }
-    if ui.button(t("menu.save_as")).clicked() {
-        ui.close();
-        app.save_as();
+    for (action, key) in [
+        (Action::Save, "menu.save"),
+        (Action::SaveAs, "menu.save_as"),
+    ] {
+        if views::arrangement::action_item(app, ui, action, key) {
+            ui.close();
+        }
     }
     for (action, key) in [
         (
@@ -251,27 +383,17 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
         }
     }
     // Audio (ADR 0025): files in as clips, and every file of the project into its folder.
-    if ui.button(t("audioclips.menu.collect")).clicked() {
-        ui.close();
-        app.save();
-    }
+    command(app, ui, M::CollectAndSave);
     ui.separator();
-    if ui.button(t("audioclips.menu.import")).clicked() {
-        ui.close();
-        app.import_audio_dialog();
-    }
+    command(app, ui, M::ImportAudio);
     crate::dance_import::file_menu_item(app, ui); // r35:import
-    if ui.button(t("menu.export_wav")).clicked() {
+    if views::arrangement::action_item(app, ui, Action::ExportWav, "menu.export_wav") {
         ui.close();
-        app.export_dialog();
     }
     crate::video_export::menu_item(app, ui); // r35:video — File ▸ Export video…
     views::interop::file_menu(app, ui);
     ui.separator();
-    if ui.button(t("menu.quit")).clicked() {
-        ui.close();
-        app.request_quit = true;
-    }
+    command(app, ui, M::Quit);
 }
 
 fn edit_menu(app: &mut CantusApp, ui: &mut Ui) {
@@ -411,12 +533,18 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     }
     // The clip browser (round 26): link groups and clips to drag onto the arrangement.
     let mut shown = app.workspace.contains(Pane::Clips);
-    if ui.checkbox(&mut shown, t("action.toggle-clips")).changed() {
+    if views::hint::said(
+        ui.checkbox(&mut shown, t("action.toggle-clips")),
+        &t("action.toggle-clips"),
+    )
+    .changed()
+    {
         app.toggle_pane(Pane::Clips);
     }
-    if ui.button(t("picker.menu.open_picker")).clicked() {
+    if views::hint::button(ui, t("picker.menu.open_picker")).clicked() {
         ui.close();
-        app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
+        let ctx = ui.ctx().clone();
+        crate::menu_commands::MenuCommand::DevicePicker.run(app, &ctx);
     }
     // The command palette (round 31, ADR 0072).
     if views::arrangement::action_item(app, ui, Action::CommandPalette, "action.command-palette") {
@@ -437,21 +565,27 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
         }
     }
     ui.separator();
-    if ui.button(t("settings.appearance")).clicked() {
+    if views::hint::button(ui, t("settings.appearance")).clicked() {
         ui.close();
         app.show_theme_editor = true;
     }
-    if ui.button(t("menu.settings")).clicked() {
+    if views::hint::button(ui, t("menu.settings")).clicked() {
         ui.close();
         app.show_settings = true;
     }
     // Round 28 (ADR 0052): which groups the top bar shows, and in what order.
-    if ui.button(t("topbar.customise")).clicked() {
+    if views::hint::button(ui, t("topbar.customise")).clicked() {
         ui.close();
         super::more::open_customise(app);
     }
-    ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano"));
-    ui.checkbox(&mut app.show_stats, t("menu.stats"));
+    views::hint::said(
+        ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano")),
+        &t("menu.keyboard_piano"),
+    );
+    views::hint::said(
+        ui.checkbox(&mut app.show_stats, t("menu.stats")),
+        &t("menu.stats"),
+    );
 }
 
 /// Open the top bar's menu `i` (0 File … 4 Options, 5 Help) — the screenshots.
@@ -505,85 +639,70 @@ fn options_menu(app: &mut CantusApp, ui: &mut Ui) {
 fn help_menu(app: &mut CantusApp, ui: &mut Ui) {
     // The manual (the copy installed beside the program, in the interface's language),
     // the release notes and GitHub's forms for a bug or an idea (round 22).
-    for (key, doc) in [
-        ("about.menu.manual", crate::docs::Doc::Manual),
-        ("about.menu.notes", crate::docs::Doc::ReleaseNotes),
-    ] {
-        if ui.button(t(key)).clicked() {
+    use crate::menu_commands::MenuCommand as M;
+    let command = |app: &mut CantusApp, ui: &mut Ui, c: M| {
+        if views::hint::button(ui, t(c.key())).clicked() {
             ui.close();
-            crate::docs::open(doc);
+            let ctx = ui.ctx().clone();
+            c.run(app, &ctx);
         }
-    }
-    if ui.button(t("menu.shortcuts")).clicked() {
+    };
+    command(app, ui, M::Manual);
+    command(app, ui, M::ReleaseNotes);
+    if views::hint::button(ui, t("menu.shortcuts")).clicked() {
         ui.close();
         app.show_shortcuts = true;
     }
     ui.separator();
-    for (key, doc) in [
-        ("about.menu.bug", crate::docs::Doc::ReportBug),
-        ("about.menu.feature", crate::docs::Doc::RequestFeature),
-    ] {
-        if ui.button(t(key)).clicked() {
-            ui.close();
-            crate::docs::open(doc);
-        }
-    }
+    command(app, ui, M::ReportBug);
+    command(app, ui, M::SuggestFeature);
     ui.separator();
-    if ui.button(t("update.menu.check")).clicked() {
-        ui.close();
-        views::update::check_now(app);
-    }
-    if ui.button(t("menu.about")).clicked() {
+    command(app, ui, M::CheckForUpdates);
+    if views::hint::button(ui, t("menu.about")).clicked() {
         ui.close();
         app.show_about = true;
     }
     // About, scrolled to the credits: the Bible translations and every sound pack (round 26).
-    if ui.button(t("about.menu.credits")).clicked() {
-        ui.close();
-        let ctx = ui.ctx().clone();
-        views::about::show_credits(app, &ctx);
-    }
+    command(app, ui, M::Credits);
 }
 
 /// *View → Layout*: switch between saved window shapes, save the current one under a
 /// name, or go back to the built-in one.
 fn layout_menu(app: &mut CantusApp, ui: &mut Ui) {
-    ui.menu_button(t("menu.layout"), |ui| {
-        let current = app.layouts.current.name.clone();
-        let saved: Vec<String> = app.layouts.saved.iter().map(|l| l.name.clone()).collect();
-        for name in &saved {
-            if ui.selectable_label(*name == current, name).clicked() {
-                ui.close();
-                app.apply_layout(name);
+    let layout = ui
+        .menu_button(t("menu.layout"), |ui| {
+            let current = app.layouts.current.name.clone();
+            let saved: Vec<String> = app.layouts.saved.iter().map(|l| l.name.clone()).collect();
+            for name in &saved {
+                if views::hint::said(ui.selectable_label(*name == current, name), name).clicked() {
+                    ui.close();
+                    app.apply_layout(name);
+                }
             }
-        }
-        if !saved.is_empty() {
-            ui.separator();
-        }
-        if ui.button(t("layout.save_as")).clicked() {
-            ui.close();
-            // Offer the current name, so re-saving a layout is one keystroke.
-            let seed = if current == crate::layout::DEFAULT_NAME {
-                String::new()
-            } else {
-                current.clone()
-            };
-            app.naming_layout = Some(seed);
-        }
-        let is_saved = saved.contains(&current);
-        if ui
-            .add_enabled(is_saved, egui::Button::new(t("layout.delete")))
-            .clicked()
-        {
-            ui.close();
-            let ctx = ui.ctx().clone();
-            app.delete_layout(&current, &ctx);
-        }
-        if ui.button(t("layout.reset")).clicked() {
-            ui.close();
-            app.reset_layout();
-        }
-    });
+            if !saved.is_empty() {
+                ui.separator();
+            }
+            if views::hint::button(ui, t("layout.save_as")).clicked() {
+                ui.close();
+                let ctx = ui.ctx().clone();
+                crate::menu_commands::MenuCommand::SaveLayoutAs.run(app, &ctx);
+            }
+            let is_saved = saved.contains(&current);
+            if ui
+                .add_enabled(is_saved, egui::Button::new(t("layout.delete")))
+                .clicked()
+            {
+                ui.close();
+                let ctx = ui.ctx().clone();
+                app.delete_layout(&current, &ctx);
+            }
+            if views::hint::button(ui, t("layout.reset")).clicked() {
+                ui.close();
+                app.reset_layout();
+            }
+        })
+        .response;
+    views::hint::said(layout, &t("menu.layout"));
 }
 
 /// The **Clip** menu: everything goes through `run_action`, and every entry shows the key
@@ -674,13 +793,17 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
                 }
             }
         });
-        if ui.button(t("clip.color_reset")).clicked() {
-            app.set_clip_color(None);
-            ui.close();
+        let ctx = ui.ctx().clone();
+        for c in [crate::menu_commands::MenuCommand::ClipTrackColour] {
+            if views::hint::button(ui, t(c.key())).clicked() {
+                c.run(app, &ctx);
+                ui.close();
+            }
         }
         ui.separator();
-        if ui.button(t("clip.delete")).clicked() {
-            app.delete_clip_selection();
+        let c = crate::menu_commands::MenuCommand::DeleteClips;
+        if views::hint::button(ui, t(c.key())).clicked() {
+            c.run(app, &ctx);
             ui.close();
         }
     });
@@ -695,7 +818,7 @@ thread_local! {
     static SUMMARY: RefCell<(SummaryKey, String)> = const { RefCell::new((None, String::new())) };
 }
 
-/// The song in a line under its name: its tracks, its mixer strips, its bars and its
+/// The song in a line under its name: its tracks, its bars and its
 /// length. // r37:finish
 pub fn summary(app: &CantusApp) -> String {
     let p = app.project();
@@ -704,10 +827,9 @@ pub fn summary(app: &CantusApp) -> String {
     let bars = (end.0 + bar - 1) / bar;
     let secs = views::bars::seconds_between(p, cantus_core::Ticks(0), end).max(0.0) as u64;
     crate::i18n::tf(
-        "topbar.summary",
+        "topbar.summary_line",
         &[
             ("tracks", &p.tracks.len().to_string()),
-            ("strips", &p.strips.len().to_string()),
             ("bars", &bars.to_string()),
             ("time", &format!("{}:{:02}", secs / 60, secs % 60)),
         ],
@@ -716,7 +838,8 @@ pub fn summary(app: &CantusApp) -> String {
 
 #[cfg(test)]
 mod summary_tests {
-    /// The song's summary line: its tracks, strips, bars and length. // r37:finish
+    /// The song's summary line under its name: its tracks, bars and length (`dir-a`:
+    /// "9 tracks · 64 bars · 2:03").
     #[test]
     fn the_summary_counts_the_song() {
         crate::i18n::set_thread_locale(crate::i18n::Locale::En);
@@ -728,11 +851,7 @@ mod summary_tests {
         let line = super::summary(&app);
         let p = app.project();
         assert!(
-            line.starts_with(&format!(
-                "{} tracks \u{b7} {} strips",
-                p.tracks.len(),
-                p.strips.len()
-            )),
+            line.starts_with(&format!("{} tracks \u{b7} ", p.tracks.len())),
             "{line}"
         );
         assert!(

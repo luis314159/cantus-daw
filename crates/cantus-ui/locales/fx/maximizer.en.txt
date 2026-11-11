@@ -182,3 +182,4 @@ fx.max.ratio.short = RATIO
 fx.max.range.short = RANGE
 fx.max.knee.short = KNEE
 max.xmode.1.short = Min phase
+max.bands.1.short = None

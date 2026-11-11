@@ -66,6 +66,8 @@ pub const HOLD_BOUND: std::time::Duration = std::time::Duration::from_millis(250
 pub struct EngineHandle {
     tx: Producer<EngineMessage>,
     rx: Consumer<EngineEvent>,
+    /// The block's reports (ADR 0107): meters, stats, the modulators' values.
+    reports: Option<crate::report::Reports>,
     midi: MidiSender,
     _stream: Option<cpal::Stream>,
     pub device_name: String,
@@ -86,6 +88,14 @@ pub struct EngineHandle {
     /// For each track hosting a native or hosted instrument, the kind and serial of the
     /// unit the engine holds (or has been sent) for it.
     known_instruments: HashMap<TrackId, (UnitKind, u64)>,
+    /// Slot parts sent to the engine (ADR 0107) — Pulsus kits, note-effect chains — which
+    /// keeps every one: what it holds.
+    parts_sent: crate::parts::Needed,
+    /// Track and strip slots the engine has provisioned (ADR 0107), with what was sent.
+    cells_sent: (usize, usize),
+    /// Start-up compensation lines sent ahead of snapshots (ADR 0107): the engine holds at
+    /// least this many lines, for good.
+    pdc_lines: usize,
     dance_feeds: crate::dance::DanceFeeds, // r35:dancer — a dancer's feed, by track (ADR 0087)
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
@@ -129,8 +139,9 @@ pub struct EngineHandle {
     /// The consumer end of the analyser's ring.
     analyser: Option<Consumer<f32>>,
     /// The consumer ends of the scope rings (ADR 0056), which Speculum watches each, and
-    /// which were asked for since the last [`Self::release_unwatched_scopes`].
-    scopes: Vec<Consumer<crate::fx::speculum::ScopeChunk>>,
+    /// which were asked for since the last [`Self::release_unwatched_scopes`]. A ring is made
+    /// the first time a Speculum is watched in its place (ADR 0107); `None` until then.
+    scopes: Vec<Option<Consumer<crate::fx::speculum::ScopeChunk>>>,
     pub(crate) master_tap: Option<crate::master_tap::MasterTapReader>, // r35:stage
     scope_ids: [Option<EffectId>; crate::fx::speculum::MAX_SCOPES],
     scope_seen: [bool; crate::fx::speculum::MAX_SCOPES],
@@ -213,7 +224,13 @@ impl EngineHandle {
                 cantus_rt::thread::opt_out_of_power_throttling()
             )
         });
-        let mut processor = Processor::new(sample_rate as f64, rx_engine, tx_engine, midi_rx);
+        let mut processor = Box::new(Processor::new(
+            sample_rate as f64,
+            rx_engine,
+            tx_engine,
+            midi_rx,
+        ));
+        let reports = processor.take_reports();
         // The pool (ADR 0031 §2): its workers start now and wait for the stream's first
         // block, which tells them the period; each joins once it has promoted itself.
         processor.set_workers(match config.workers {
@@ -224,8 +241,6 @@ impl EngineHandle {
         processor.attach_capture(capture_tx);
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
         processor.attach_analyser(analyser_tx);
-        let (scope_tx, scope_rx) = scope_rings();
-        processor.attach_scopes(scope_tx);
         let (tap_tx, tap_rx) = crate::master_tap::pair(); // r35:stage
         processor.attach_master_tap(tap_tx); // r35:stage
                                              // The callback's first block raises its own thread (ADR 0031 R1; nothing on ASIO).
@@ -320,6 +335,7 @@ impl EngineHandle {
         let mut handle = EngineHandle {
             tx,
             rx,
+            reports,
             midi: MidiSender::new(midi_tx),
             _stream: Some(stream),
             device_name,
@@ -334,6 +350,9 @@ impl EngineHandle {
             send_failures: 0,
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
+            parts_sent: Default::default(),
+            cells_sent: (crate::parts::START_TRACKS, crate::parts::START_STRIPS),
+            pdc_lines: crate::pdc::START_LINES,
             dance_feeds: Default::default(), // r35:dancer
             samples: SampleCache::new(),
             frozen: crate::freeze::FrozenStore::default(),
@@ -357,7 +376,7 @@ impl EngineHandle {
             capture: Some(capture_rx),
             capture_target: CaptureTarget::Off,
             analyser: Some(analyser_rx),
-            scopes: scope_rx,
+            scopes: scope_rings(),
             master_tap: Some(tap_rx), // r35:stage
             scope_ids: [None; crate::fx::speculum::MAX_SCOPES],
             scope_seen: [false; crate::fx::speculum::MAX_SCOPES],
@@ -392,13 +411,12 @@ impl EngineHandle {
         let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
         let mut processor = Processor::without_midi(sample_rate, rx_engine, tx_engine);
-        let (scope_tx, scope_rx) = scope_rings();
-        processor.attach_scopes(scope_tx);
         let mut handle = Self::dummy();
         handle.tx = tx;
         handle.rx = rx;
+        handle.reports = processor.take_reports();
         handle.sample_rate = sample_rate;
-        handle.scopes = scope_rx;
+        handle.scopes = scope_rings();
         let (tap_tx, tap_rx) = crate::master_tap::pair(); // r35:stage
         processor.attach_master_tap(tap_tx); // r35:stage
         handle.master_tap = Some(tap_rx); // r35:stage
@@ -417,6 +435,7 @@ impl EngineHandle {
         EngineHandle {
             tx,
             rx,
+            reports: None,
             midi: MidiSender::new(midi_tx),
             _stream: None,
             device_name: "none".into(),
@@ -431,6 +450,9 @@ impl EngineHandle {
             send_failures: 0,
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
+            parts_sent: Default::default(),
+            cells_sent: (crate::parts::START_TRACKS, crate::parts::START_STRIPS),
+            pdc_lines: crate::pdc::START_LINES,
             dance_feeds: Default::default(), // r35:dancer
             samples: SampleCache::new(),
             frozen: crate::freeze::FrozenStore::default(),
@@ -596,8 +618,25 @@ impl EngineHandle {
         let Some(i) = self.scope_ids.iter().position(Option::is_none) else {
             return false;
         };
-        // What an earlier watcher left in the ring is not this one's.
-        while self.scopes[i].pop().is_ok() {}
+        // Its ring, made the first time this place is watched (ADR 0107), sent before the
+        // watch; what an earlier watcher left in it is not this one's.
+        if self.scopes[i].is_none() {
+            let (ring, reader) = RingBuffer::<crate::fx::speculum::ScopeChunk>::new(
+                crate::fx::speculum::SCOPE_CHUNKS,
+            );
+            if self
+                .tx
+                .push(EngineMessage::ScopeRing { index: i, ring })
+                .is_err()
+            {
+                self.send_failures += 1;
+                return false;
+            }
+            self.scopes[i] = Some(reader);
+        }
+        if let Some(r) = self.scopes[i].as_mut() {
+            while r.pop().is_ok() {}
+        }
         self.scope_ids[i] = Some(effect);
         self.scope_seen[i] = true;
         self.send(EngineMessage::WatchScopes(self.scope_ids));
@@ -635,7 +674,9 @@ impl EngineHandle {
         let Some(i) = self.scope_ids.iter().position(|s| *s == Some(effect)) else {
             return 0;
         };
-        let ring = &mut self.scopes[i];
+        let Some(ring) = self.scopes[i].as_mut() else {
+            return 0;
+        };
         let n = ring.slots();
         let mut lost = 0u64;
         for _ in 0..n {
@@ -654,7 +695,10 @@ impl EngineHandle {
     /// Chunks waiting in scope ring `i` (tests: a ring nobody watches stays empty).
     #[doc(hidden)]
     pub fn scope_ring_len(&self, i: usize) -> usize {
-        self.scopes.get(i).map_or(0, |r| r.slots())
+        self.scopes
+            .get(i)
+            .and_then(Option::as_ref)
+            .map_or(0, |r| r.slots())
     }
 
     /// Move the analyser's (input, output) pairs into `out`. Called once a frame.
@@ -796,6 +840,11 @@ impl EngineHandle {
         }
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
+        }
+        // r39:conv — Aula's responses from files, read before an engine asks for a kernel.
+        let samples = &self.samples;
+        for (path, err) in crate::fx::aula_store::prepare(&snapshot, &|p| samples.resolve(p)) {
+            log::warn!("impulse response {}: {err}", path.display());
         }
         // Audio clips' sources, at the device's rate (ADR 0025 §9).
         let rate = self.sample_rate.round() as u32;
@@ -1050,6 +1099,23 @@ impl EngineHandle {
                 self.send_failures += 1;
             }
         }
+        // Slot parts (ADR 0107): a kit per drum track, a chain per track with note effects,
+        // built here; the engine keeps every one, so only what it lacks is sent.
+        self.send_parts(crate::parts::needed(&snapshot));
+        // Its slots' pass buffers (ADR 0107): the engine provisions slots as songs grow.
+        self.send_cells(crate::parts::cells_needed(&snapshot));
+        // Compensation lines (ADR 0107): the engine's pool starts empty and is held to as
+        // many lines as this snapshot can need, before it lands — none for a song nothing
+        // in which can have latency.
+        let lines = crate::pdc::lines_needed(&snapshot);
+        if lines > self.pdc_lines {
+            let fresh = crate::pdc::short_lines(lines - self.pdc_lines);
+            if self.tx.push(EngineMessage::PdcLines(fresh)).is_ok() {
+                self.pdc_lines = lines;
+            } else {
+                self.send_failures += 1;
+            }
+        }
         // The graph's plan (ADR 0031 §1.2) is compiled here, off the audio thread, and only
         // when the routing differs from the last snapshot sent: a knob turn sends none.
         let key = crate::graph::topology_key(&snapshot);
@@ -1069,6 +1135,63 @@ impl EngineHandle {
             let plan = crate::graph::compile(&snapshot);
             self.send(EngineMessage::SetSnapshotPlanned(snapshot, plan));
         }
+    }
+
+    /// Send parts until the engine holds `need` of each (ADR 0107). A part the queue had no
+    /// room for is not counted: the engine asks for it (`EngineEvent::PartsNeed`).
+    fn send_parts(&mut self, need: crate::parts::Needed) {
+        let max = crate::messages::MAX_TRACKS;
+        let sr = self.sample_rate as f32;
+        while self.parts_sent.kits < need.kits.min(max) {
+            if self
+                .tx
+                .push(EngineMessage::AddPart(crate::parts::kit(sr)))
+                .is_err()
+            {
+                self.send_failures += 1;
+                break;
+            }
+            self.parts_sent.kits += 1;
+        }
+        while self.parts_sent.note_fx < need.note_fx.min(max) {
+            if self
+                .tx
+                .push(EngineMessage::AddPart(crate::parts::note_fx()))
+                .is_err()
+            {
+                self.send_failures += 1;
+                break;
+            }
+            self.parts_sent.note_fx += 1;
+        }
+    }
+
+    /// Provision slots until the engine has `need` track and strip slots (ADR 0107). A send
+    /// the queue had no room for is not counted: the engine asks for it.
+    fn send_cells(&mut self, need: (usize, usize)) {
+        let more = (
+            need.0.saturating_sub(self.cells_sent.0),
+            need.1.saturating_sub(self.cells_sent.1),
+        );
+        if more == (0, 0) {
+            return;
+        }
+        let cells = crate::parts::SlotCells::new(self.sample_rate as f32, more.0, more.1);
+        if self.tx.push(EngineMessage::Cells(Box::new(cells))).is_ok() {
+            self.cells_sent = (self.cells_sent.0 + more.0, self.cells_sent.1 + more.1);
+        } else {
+            self.send_failures += 1;
+        }
+    }
+
+    /// The track and strip slots the engine has provisioned (or been sent).
+    pub fn slots_sent(&self) -> (usize, usize) {
+        self.cells_sent
+    }
+
+    /// The slot parts sent to the engine, which holds every one (ADR 0107).
+    pub fn parts_sent(&self) -> crate::parts::Needed {
+        self.parts_sent
     }
 
     /// Ask for one track's instrument telemetry (its editor is open), or for none.
@@ -1095,6 +1218,11 @@ impl EngineHandle {
     /// audition out with `None`.
     pub fn preview(&mut self, sample: Option<(Arc<cantus_core::SampleData>, f32)>) {
         self.send(EngineMessage::Preview(sample));
+    }
+
+    /// The audition's level from now on, ramped in while it plays. // r39:fixes
+    pub fn set_preview_gain(&mut self, gain: f32) {
+        self.send(EngineMessage::PreviewGain(gain));
     }
 
     pub fn note_on(&mut self, track: TrackId, pitch: u8, velocity: u8) {
@@ -1151,19 +1279,6 @@ impl EngineHandle {
                     self.engine_position = tick;
                     self.playing = playing;
                 }
-                EngineEvent::Meters(m) => {
-                    for (p, v) in self.comp_peak.iter_mut().zip(m.comp) {
-                        *p = p.max(v);
-                    }
-                    self.rec.meter(&m);
-                    let tp = m.master_loudness.true_peak;
-                    true_peak = Some(true_peak.map_or(tp, |p| p.max(tp)));
-                    self.meters = m;
-                }
-                EngineEvent::Stats(s) => {
-                    self.rec.engine_latency(&s);
-                    self.stats = s;
-                }
                 EngineEvent::NoteInput(note) => self.note_inputs.push(note),
                 EngineEvent::Session(e) => self.session_events.push(e), // r33:session
                 EngineEvent::ControlInput(c) => self.control_inputs.push(c),
@@ -1197,9 +1312,21 @@ impl EngineHandle {
                     self.send(EngineMessage::PdcLines(lines));
                 }
                 EngineEvent::GarbageLines(lines) => drop(lines),
+                // ADR 0107: parts the engine lacked (a send that found the queue full).
+                EngineEvent::PartsNeed { kits, note_fx } => {
+                    let s = self.parts_sent;
+                    self.send_parts(crate::parts::Needed {
+                        kits: s.kits + kits,
+                        note_fx: s.note_fx + note_fx,
+                    })
+                }
+                EngineEvent::GarbagePart(part) => drop(part),
+                EngineEvent::CellsNeed { tracks, strips } => self.send_cells((tracks, strips)),
+                EngineEvent::GarbageCells(cells) => drop(cells),
                 EngineEvent::PingDone(job) => self.pings.push(job), // r36:external
                 EngineEvent::EffectNeed { effect, need } => {
-                    let memory = crate::effects::EffectMemory::build(need, self.sample_rate as f32);
+                    let memory =
+                        crate::effects::EffectMemory::build(need.need(), self.sample_rate as f32);
                     self.send(EngineMessage::EffectMemory { effect, memory });
                 }
                 EngineEvent::GarbageMemory(memory) => drop(memory),
@@ -1207,9 +1334,27 @@ impl EngineHandle {
                 EngineEvent::GarbageRecorder(rings) => self.rec.rings_back(rings),
                 EngineEvent::GarbagePreview(sample) => drop(sample),
                 EngineEvent::GarbageAutomation(rt) => drop(rt),
-                EngineEvent::Modulation(t) => self.modulation = t,
                 EngineEvent::GarbagePlan(plan) => drop(plan),
             }
+        }
+        // The blocks' reports (ADR 0107), each folded as its own event was.
+        if let Some(mut reports) = self.reports.take() {
+            n += reports.drain(|r| {
+                let m = &r.meters;
+                for (p, v) in self.comp_peak.iter_mut().zip(m.comp) {
+                    *p = p.max(v);
+                }
+                self.rec.meter(m);
+                let tp = m.master_loudness.true_peak;
+                true_peak = Some(true_peak.map_or(tp, |p| p.max(tp)));
+                self.meters.clone_from(m);
+                self.rec.engine_latency(&r.stats);
+                self.stats = r.stats;
+                if let Some(t) = r.modulation {
+                    self.modulation = t;
+                }
+            });
+            self.reports = Some(reports);
         }
         if let Some(tp) = true_peak {
             self.meters.master_loudness.true_peak = tp;
@@ -1333,14 +1478,8 @@ impl EngineHandle {
     }
 }
 
-/// The scope rings (ADR 0056), allocated here off the audio thread: producers for the
-/// processor, consumers for the handle.
-fn scope_rings() -> (
-    Vec<Producer<crate::fx::speculum::ScopeChunk>>,
-    Vec<Consumer<crate::fx::speculum::ScopeChunk>>,
-) {
-    use crate::fx::speculum::{MAX_SCOPES, SCOPE_CHUNKS};
-    (0..MAX_SCOPES)
-        .map(|_| RingBuffer::new(SCOPE_CHUNKS))
-        .unzip()
+/// The scope rings' places (ADR 0056), every one empty (ADR 0107): a ring is made off the
+/// audio thread the first time a Speculum is watched in it ([`EngineHandle::watch_scope`]).
+fn scope_rings() -> Vec<Option<Consumer<crate::fx::speculum::ScopeChunk>>> {
+    (0..crate::fx::speculum::MAX_SCOPES).map(|_| None).collect()
 }

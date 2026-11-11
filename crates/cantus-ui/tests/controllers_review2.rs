@@ -913,11 +913,15 @@ fn the_channel_rack_offers_learn_on_every_row() {
 #[test]
 fn the_mixer_offers_learn_on_every_strips_controls() {
     use cantus_ui::kit::automate::probe;
+    use cantus_ui::views::mixer::{self, layout::WidthMode};
     let mut a = keys_app();
+    // Round 39 (des-mixer's rows, "polarity · swap · width | — | 16 | 18"): Compact, the
+    // default, has no width knob on the strip; Wide puts it in the pan row (option C).
+    mixer::set_width_mode(&mut a, WidthMode::Wide);
     a.toggle_learn_mode();
     probe::start();
     paint(&ctx(), egui::vec2(1600.0, 700.0), 3, |ui| {
-        cantus_ui::views::mixer::show(&mut a, ui)
+        mixer::show(&mut a, ui)
     });
     let drawn = probe::take_learn();
     let strips: Vec<StripId> = a.project().tracks.iter().filter_map(|t| t.strip).collect();

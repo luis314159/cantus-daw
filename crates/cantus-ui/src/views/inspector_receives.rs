@@ -335,7 +335,17 @@ fn routed(sh: &mut Sheet<'_>, app: &CantusApp, from: StripId, host: StripId) {
         Id::new(("insp-recv-out", host.0, from.0)),
         Sense::click(),
     );
-    crate::kit::well::readout(sh.b, value, &s, State::of(&vr, false), &word, false);
+    // r39:lo-mixer — des-mixer's field.
+    super::look::field(
+        sh.b,
+        &s,
+        value,
+        State::of(&vr, false),
+        super::look::Lead::Mixer(crate::kit::glyph_mixer::MGlyph::Out),
+        &word,
+        "",
+        true,
+    );
     if vr.hovered() {
         let tip = sh.fmt.tr("routing.receives.output_tip");
         hint::set_text(
@@ -360,14 +370,6 @@ fn keyed(sh: &mut Sheet<'_>, app: &CantusApp, from: StripId, host: StripId, effe
     let s = sh.s.function(Function::Dynamics);
     let row = sh.row();
     let r = full_value(sh, &row);
-    let w = (r.width() * 0.44).max(s.s(80.0));
-    let value = Rect::from_min_max(pos2(r.right() - w, r.top()), r.max);
-    let name = Rect::from_min_max(
-        pos2(r.left() + s.s(20.0), r.top()),
-        pos2(value.left() - s.s(4.0), r.bottom()),
-    );
-    let route = Route::key(from, host, effect);
-    name_cell(sh, app, name, host, from, route, false);
     let stamp = app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60);
     let fx = sh
         .fmt
@@ -387,21 +389,36 @@ fn keyed(sh: &mut Sheet<'_>, app: &CantusApp, from: StripId, host: StripId, effe
             }
         });
     let fx = sheet::name(fx);
+    // The effect's words as wide as they need, up to three fifths of the row (round 39, ADR
+    // 0109: Spanish "EQ, ranura 2 ← clave" was cut); the source's name keeps the rest.
+    let need =
+        text::measure(sh.ui.ctx(), &Text::new(&fx, Role::Body, s.t.text), s.tk()).x + s.s(40.0);
+    let w = need
+        .min(r.width() * 0.6)
+        .max((r.width() * 0.44).max(s.s(80.0)));
+    let value = Rect::from_min_max(pos2(r.right() - w, r.top()), r.max);
+    let name = Rect::from_min_max(
+        pos2(r.left() + s.s(20.0), r.top()),
+        pos2(value.left() - s.s(4.0), r.bottom()),
+    );
+    let route = Route::key(from, host, effect);
+    name_cell(sh, app, name, host, from, route, false);
     let vr = sh.ui.interact(
         value,
         Id::new(("insp-recv-keyfx", host.0, effect.0)),
         Sense::click(),
     );
     let st = State::of(&vr, false);
-    crate::kit::well::paint(sh.b, value, &s, st, None);
-    let words = Text::new(&fx, Role::Body, s.t.text.gamma_multiply(st.alpha()))
-        .align(Align2::LEFT_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let _ = text::paint(
+    // r39:lo-mixer — des-mixer's field: the key glyph, the insert and its place.
+    super::look::field(
         sh.b,
-        value.shrink2(egui::vec2(s.s(6.0), 0.0)),
-        &words,
-        s.tk(),
+        &s,
+        value,
+        st,
+        super::look::Lead::Mixer(crate::kit::glyph_mixer::MGlyph::Key),
+        &fx,
+        "",
+        false,
     );
     if vr.hovered() {
         let tip = sh.fmt.tr("routing.receives.key_tip");

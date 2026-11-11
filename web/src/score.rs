@@ -35,18 +35,18 @@ pub fn score() -> Html {
                 <div class="score-stage"><div class="backdrop">
                     <div class="window">
                         <div class="window-bar"><i></i><i></i><i></i><span>{ l.t("Cantus — piano roll and score", "Cantus — piano roll y partitura") }</span></div>
-                        <img src="score/roll.webp" width="1400" height="760" loading="lazy"
+                        <img src="/score/roll.webp" width="1400" height="760" loading="lazy"
                              alt={ l.t("The piano roll with the engraved staff under it", "El piano roll con el pentagrama grabado debajo") } />
                     </div>
                 </div></div>
                 <div class="score-more">
                     <figure>
-                        <img src="score/pane.webp" width="900" height="400" loading="lazy"
+                        <img src="/score/pane.webp" width="900" height="400" loading="lazy"
                              alt={ l.t("The Score pane, in the light theme", "El panel Partitura, en el tema claro") } />
                         <figcaption>{ l.t("The Score pane, systems wrapped to its width.", "El panel Partitura, con los sistemas ajustados a su ancho.") }</figcaption>
                     </figure>
                     <figure class="paper">
-                        <img src="score/page.webp" width="830" height="452" loading="lazy"
+                        <img src="/score/page.webp" width="830" height="452" loading="lazy"
                              alt={ l.t("The top of a printed A4 page", "La parte de arriba de una página A4 impresa") } />
                         <figcaption>{ l.t("A page as the PDF prints it.", "Una página como la imprime el PDF.") }</figcaption>
                     </figure>

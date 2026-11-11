@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mock 3 — measured, with confidence</title>
+<script>if (location.search.includes("light")) document.documentElement.dataset.theme = "light";</script>
+<link rel="stylesheet" href="mock.css">
+<style>
+section { padding: 5.5rem 0 5rem; }
+.head { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: end; }
+.head h2 { font-size: clamp(2.6rem, 5vw, 4.4rem); margin-top: .9rem; }
+.head p { color: var(--ink-2); font-size: 1.15rem; }
+.rig { margin-top: 1rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+.panels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 2.6rem; }
+.panel { padding: 1.4rem 1.4rem 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
+.panel h3 { font-size: 1.25rem; display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.panel h3 small { font: 400 .85rem/1 var(--f); color: var(--ink-3); }
+.verdict { font: 600 .72rem/1 var(--f); letter-spacing: .1em; text-transform: uppercase; padding: .28rem .45rem; border-radius: 3px; background: var(--accent-tint); color: var(--accent-text); align-self: flex-start; }
+.panel.lost .verdict { background: rgba(226,98,42,.14); color: var(--lose); }
+.pair { display: grid; gap: .35rem; }
+.pair .label { font-size: .8rem; color: var(--ink-3); letter-spacing: .02em; }
+.row { display: grid; grid-template-columns: 4.6rem 1fr 3.4rem; align-items: center; gap: .55rem; font-size: .95rem; }
+.row .who { color: var(--ink-2); }
+.row .val { text-align: right; color: var(--ink-2); font-weight: 500; }
+.track { height: 12px; border-radius: 3px; background: var(--mist); position: relative; overflow: hidden; }
+.track i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--other); }
+.row.c .who, .row.c .val { color: var(--strong); font-weight: 600; }
+.row.c .track i { background: var(--win); }
+.panel.lost .row.c .track i { background: var(--lose); }
+.panel .why { font-size: .92rem; color: var(--ink-2); border-top: 1px solid var(--line); padding-top: .8rem; margin-top: auto; }
+.lower { font-size: .8rem; color: var(--ink-3); }
+/* features, honestly */
+.feat { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.feat .card { padding: 1.4rem; }
+.feat h4 { margin: 0 0 .7rem; font: 600 1.15rem/1.2 var(--f); color: var(--strong); }
+.big { font: 500 3rem/1 var(--f); color: var(--strong); }
+.big small { font-size: 1rem; color: var(--ink-3); margin-left: .3rem; }
+.feat ul { margin: .4rem 0 0; padding: 0; list-style: none; display: grid; gap: .35rem; font-size: .95rem; color: var(--ink-2); }
+.feat li { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px dashed var(--line); padding-bottom: .35rem; }
+.feat li span:last-child { color: var(--ink-3); white-space: nowrap; }
+.feat .only li span:last-child { color: var(--accent-text); }
+.foot { margin-top: 1.4rem; display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; font-size: .92rem; color: var(--ink-3); }
+.foot a { color: var(--accent-text); font-weight: 600; }
+@media (max-width: 52rem) {
+  section { padding: 3rem 0; }
+  .head { grid-template-columns: 1fr; gap: 1rem; }
+  .panels, .feat { grid-template-columns: 1fr; }
+  .panel:nth-child(n+3):not(.lost) { display: none; }
+}
+</style></head>
+<body>
+<div class="mock-tag">Mock 3 · measured — not the site</div>
+<section>
+  <div class="wrap">
+    <div class="head">
+      <div><span class="eyebrow">Measured, not claimed</span><h2>Faster to start. Quieter at rest. Heavier on memory.</h2></div>
+      <div><p>Cantus, REAPER and FL Studio, five starts each on the same quiet laptop, the same evening, watched by the same script — each beside what it is fair to compare it with. Where Cantus loses, it says so here first.</p>
+        <div class="rig"><span class="chip">Ryzen 7 7735HS · 31 GB</span><span class="chip">Windows 11</span><span class="chip">2026-11-09</span><span class="chip">beta.13 · REAPER 7.85 · FL 24.1.2</span></div></div>
+    </div>
+    <div class="panels">
+      <div class="card panel"><span class="verdict">Won</span><h3>Window ready <small>seconds · lower is better</small></h3>
+        <div class="pair"><span class="label">An empty song</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:30%"></i></span><span class="val">0.74</span></div>
+          <div class="row"><span class="who">REAPER</span><span class="track"><i style="width:71%"></i></span><span class="val">1.76</span></div></div>
+        <div class="pair"><span class="label">A beat starter</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:31%"></i></span><span class="val">0.76</span></div>
+          <div class="row"><span class="who">FL Studio</span><span class="track"><i style="width:100%"></i></span><span class="val">2.49</span></div></div>
+        <p class="why">2.4× sooner than REAPER, 3.3× sooner than FL Studio.</p></div>
+      <div class="card panel"><span class="verdict">Won</span><h3>Quiet <small>seconds · lower is better</small></h3>
+        <div class="pair"><span class="label">An empty song</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:26%"></i></span><span class="val">1.5</span></div>
+          <div class="row"><span class="who">REAPER</span><span class="track"><i style="width:34%"></i></span><span class="val">2.0</span></div></div>
+        <div class="pair"><span class="label">A beat starter</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:28%"></i></span><span class="val">1.6</span></div>
+          <div class="row"><span class="who">FL Studio</span><span class="track"><i style="width:100%"></i></span><span class="val">5.8</span></div></div>
+        <p class="why">Done working after it opens — under a tenth of a core.</p></div>
+      <div class="card panel"><span class="verdict">Won</span><h3>At rest <small>% of a core · lower is better</small></h3>
+        <div class="pair"><span class="label">An empty song</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:24%"></i></span><span class="val">1.6</span></div>
+          <div class="row"><span class="who">REAPER</span><span class="track"><i style="width:35%"></i></span><span class="val">2.3–3.7</span></div></div>
+        <div class="pair"><span class="label">A beat starter</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:30%"></i></span><span class="val">1.8–2.0</span></div>
+          <div class="row"><span class="who">FL Studio</span><span class="track"><i style="width:100%"></i></span><span class="val">6.6</span></div></div>
+        <p class="why">Every channel that hears silence stops running, to the same bits.</p></div>
+      <div class="card panel lost"><span class="verdict">Lost</span><h3>Memory <small>MB · lower is better</small></h3>
+        <div class="pair"><span class="label">An empty song</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:95%"></i></span><span class="val">237</span></div>
+          <div class="row"><span class="who">REAPER</span><span class="track"><i style="width:25%"></i></span><span class="val">62</span></div></div>
+        <div class="pair"><span class="label">A beat starter</span>
+          <div class="row c"><span class="who">Cantus</span><span class="track"><i style="width:96%"></i></span><span class="val">239</span></div>
+          <div class="row"><span class="who">FL Studio</span><span class="track"><i style="width:53%"></i></span><span class="val">133</span></div></div>
+        <p class="why">The engine reserves up front what its largest session could need, so the audio thread never waits. Growing it with the song is the work ahead.</p></div>
+    </div>
+    <div class="feat">
+      <div class="card"><h4>Features, against twelve DAWs</h4><div class="big">97<small>rows, each from the vendor's own manual</small></div>
+        <p class="lower" style="margin-top:.8rem">FL Studio, Live, Bitwig, Logic, Cubase, Pro Tools, Studio Pro, REAPER and four free DAWs. Checked 2026-11-04; re-run every release.</p></div>
+      <div class="card"><h4>22 rows where a leader has more <small class="lower">(missing or partial, 2026-11-04)</small></h4>
+        <ul><li><span>Convolution reverb</span><span>7 leaders</span></li><li><span>Ripple edit, insert time</span><span>6 leaders</span></li><li><span>Video track</span><span>5 leaders</span></li><li><span>AU hosting on macOS</span><span>5 leaders</span></li><li><span>Surround / Atmos</span><span>4 leaders</span></li></ul></div>
+      <div class="card only"><h4>3 rows no commercial leader has</h4>
+        <ul><li><span>An agent interface over MCP, each change one undo step</span><span>only</span></li><li><span>Open source, at this class</span><span>only</span></li><li><span>Offline equals real time, the same bits on three systems</span><span>tested</span></li></ul></div>
+    </div>
+    <div class="foot"><span>The script, the raw numbers and the whole matrix are in the repository. Run it on your machine.</span><span><a href="#">How it was measured →</a> &nbsp; <a href="#">All 97 rows →</a></span></div>
+  </div>
+</section>
+</body></html>

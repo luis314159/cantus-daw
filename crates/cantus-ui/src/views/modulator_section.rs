@@ -168,6 +168,7 @@ fn empty_row(sh: &mut Sheet<'_>, host: ModHost) {
         .ui
         .interact(r, Id::new(("mod-empty", host)), Sense::click());
     sheet::placeholder_well(sh.b, r, &s, State::of(&resp, false), "mods.empty");
+    let resp = crate::views::hint::said_with(resp, || crate::i18n::t("mods.empty")); // r39:ux-a
     if resp.clicked() {
         sh.acts.push(Act::Mod(ModAct::AddMenu(host, r)));
     }
@@ -466,12 +467,42 @@ pub fn wired_value(
     dim: bool,
     menu: bool,
 ) -> sheet::Drag {
-    crate::kit::automate::probe::note(probe, true);
     let base = if gain {
         sheet::gain_pos(v)
     } else {
         range.pos(v)
     };
+    let mut d = sh.value(rect, id, v, range, gain, name, write, f, dim);
+    if let Some(live) = wire_drag(sh, app, probe, &mut d, rect, base, target, menu) {
+        // Where modulation has it now: a tick across the value's bar (r39:lo-mixer).
+        let s = sh.s;
+        let bar = super::look::bar_rect(rect);
+        let x = bar.left() + bar.width() * live.clamp(0.0, 1.0);
+        let cy = bar.center().y;
+        sh.b.vline(x, cy - s.s(4.0), cy + s.s(4.0), s.s(2.0), s.t.hue_mod);
+        crate::kit::automate::probe::note_live(probe, "bar");
+    }
+    d
+}
+
+/// The wiring of [`wired_value`] around a value's drag that a row draws its own way
+/// (des-mixer's send level bar, round 39): the probe's notes, Alt+drag for the depth (the
+/// value's drag left out, nothing else), the signs of what drives it in `rect`, the learn
+/// mode's spot, a modulator's handle dropped on it and — with `menu` — the parameter's
+/// menu on a right-click. `base` is the value's position (0…1). Returns where modulation
+/// has it now while a modulator drives it, for the row to mark.
+#[allow(clippy::too_many_arguments)]
+pub fn wire_drag(
+    sh: &mut Sheet<'_>,
+    app: &CantusApp,
+    probe: &str,
+    d: &mut sheet::Drag,
+    rect: Rect,
+    base: f32,
+    target: AutoTarget,
+    menu: bool,
+) -> Option<f32> {
+    crate::kit::automate::probe::note(probe, true);
     let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
     let (m, n) = app.mod_offer(&target, base, &sh.s, &mut rings);
     crate::kit::automate::probe::note_learn(probe, m.learn.is_some());
@@ -481,7 +512,6 @@ pub fn wired_value(
         modulation: Some(m),
     };
     let depth_drag = crate::kit::automate::depth_drag(sh.ui, Some(offer));
-    let mut d = sh.value(rect, id, v, range, gain, name, write, f, dim);
     // Only the drag is the depth's: a double-click still resets the value (as the kit's
     // `Param` and the desk's controls do).
     if depth_drag && (d.resp.dragged() || d.resp.drag_stopped()) {
@@ -489,22 +519,15 @@ pub fn wired_value(
         d.ended = false;
     }
     let s = sh.s;
-    if offer.automated {
-        crate::kit::automate::mark(sh.b, rect, &s);
+    // The signs of what drives it — clip, controller (round 29, review 1 of ADR 0062),
+    // modulator — and its hint's words (round 39, ADR 0109).
+    let mut signs = offer.drivers();
+    signs.modulated |= n > 0;
+    crate::kit::automate::signs(sh.b, rect, &s, signs);
+    if d.resp.hovered() {
+        crate::kit::automate::hint_drive(sh.ui.ctx(), Some(offer));
     }
-    // Mapped to a controller (round 29, review 1 of ADR 0062).
-    if m.learn.is_some_and(|l| l.mapped) {
-        crate::kit::automate::learn_mark(sh.b, rect, &s);
-    }
-    if n > 0 {
-        crate::kit::automate::mod_mark(sh.b, rect, &s);
-        // Where modulation has it now: a tick on the well's level bar.
-        if let Some(live) = m.live {
-            let x = rect.left() + s.s(3.0);
-            let y = rect.bottom() - rect.height() * live.clamp(0.0, 1.0);
-            sh.b.hline(x - s.s(2.0), x + s.s(4.0), y, s.s(2.0), s.t.hue_mod);
-        }
-    }
+    let live = if n > 0 { m.live } else { None };
     let choice =
         crate::kit::automate::modulation_choice(sh.ui, &d.resp, Some(offer)).or_else(|| {
             if menu {
@@ -516,5 +539,5 @@ pub fn wired_value(
     if let Some(c) = choice {
         sh.acts.push(Act::Mod(ModAct::Param(target, c, rect)));
     }
-    d
+    live
 }

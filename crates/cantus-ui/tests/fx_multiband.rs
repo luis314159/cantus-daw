@@ -251,9 +251,10 @@ fn the_editor_paints_its_display_and_band_panel() {
     for want in [
         "4 of 8 bands",
         "Band 3",
-        // The cells' labels take their short forms; the full names are on the help line.
+        // The cells' labels take their short forms where they must (Slate's title case fits
+        // "Low ratio" whole; r39:el-controls); the full names are on the help line.
         "Thresh",
-        "Lo rat",
+        "Low ratio",
         "150 Hz",
         "2.6 kHz",
         "4.0:1",

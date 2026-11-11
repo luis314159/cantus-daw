@@ -27,10 +27,9 @@ WEB = os.path.join(ROOT, "web", "assets", "units")
 DOC = os.path.join(ROOT, "docs", "images", "units")
 
 NAMES = """aequalis comprimo terminus culmen multiplex sibilus porta tonsor impetus discrimen spatium
-fervor latitudo speculum tonus concentus flexus phasis tremor vibrans anulus translatio fluctus
+fervor latitudo speculum tonus aula concentus flexus phasis tremor vibrans anulus translatio fluctus
 unda calor modulus exemplar gravis organum lamina chorda pulsus delay""".split()
-# Delay has no window of its own: its pictures are the inspector's view of it, made by
-# `cargo run --release -p cantus-ui --example shoot_delay -- <shots> [--es]` (round 37).
+# Delay has its own window since round 39 (ADR 0115): `shoot_skins` shoots it like the rest.
 
 
 def fit(im, w):
@@ -38,8 +37,8 @@ def fit(im, w):
 
 
 def sharp(src, n, theme):
-    """The 100 % shot, or the 200 % one when the 100 % is narrower than a card (Delay's view
-    in the inspector): a small picture is never scaled up."""
+    """The 100 % shot, or the 200 % one when the 100 % is narrower than a card: a small
+    picture is never scaled up."""
     one = Image.open(os.path.join(src, f"{n}-{theme}-100.png")).convert("RGB")
     if one.width < 640:
         one = Image.open(os.path.join(src, f"{n}-{theme}-200.png")).convert("RGB")

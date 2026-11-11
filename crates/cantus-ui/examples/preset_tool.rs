@@ -145,12 +145,15 @@ fn export() {
 fn level_key(u: FileUnit) -> Option<(&'static str, f32, f32)> {
     match u {
         FileUnit::Instrument(k) => k.param("gain").map(|i| ("gain", i.min, i.max)),
-        FileUnit::Effect(k) => ["out", "gain", "makeup"].into_iter().find_map(|key| {
-            k.params()
-                .iter()
-                .find(|i| i.key == key)
-                .map(|i| (i.key, i.min, i.max))
-        }),
+        // Aula's output is `level` (dB), the only effect with that key.
+        FileUnit::Effect(k) => ["out", "gain", "makeup", "level"]
+            .into_iter()
+            .find_map(|key| {
+                k.params()
+                    .iter()
+                    .find(|i| i.key == key)
+                    .map(|i| (i.key, i.min, i.max))
+            }),
         FileUnit::Kits => None,
     }
 }

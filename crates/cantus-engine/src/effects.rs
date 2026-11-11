@@ -139,6 +139,29 @@ pub fn eq_bands(spec: &EffectSpec) -> [BandSettings; MAX_BANDS] {
 pub enum MemoryNeed {
     /// Aequalis's linear-phase convolver, with room for this resolution.
     EqLinear(cantus_dsp::aequalis::Resolution),
+    /// Aula's response, by what it is built from (ADR 0112). // r39:conv
+    Aula(crate::fx::aula::AulaNeed),
+}
+
+/// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
+/// enough to go by value (an EQ's resolution), or a handle to the unit's own mailbox where
+/// a larger one waits (Aula's response, `crate::need_mailbox`) — so the event stays within
+/// ADR 0107's 64 B. Cloning the handle on the audio thread counts a reference; it never
+/// allocates or frees there.
+#[derive(Clone, Debug)]
+pub enum NeedTicket {
+    EqLinear(cantus_dsp::aequalis::Resolution),
+    Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
+}
+
+impl NeedTicket {
+    /// The need itself — for a mailbox, the latest the unit wrote. Off the audio thread.
+    pub fn need(&self) -> MemoryNeed {
+        match self {
+            NeedTicket::EqLinear(r) => MemoryNeed::EqLinear(*r),
+            NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
+        }
+    }
 }
 
 /// What answers a [`MemoryNeed`]: built off the audio thread, and freed off it when an
@@ -146,6 +169,13 @@ pub enum MemoryNeed {
 #[derive(Debug)]
 pub enum EffectMemory {
     EqLinear(Box<cantus_dsp::aequalis::phase::LinearPhase>),
+    /// Aula's kernel (and a state when it needs more room). // r39:conv
+    Aula(Box<crate::fx::aula::Memory>),
+}
+
+/// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
+fn mailbox_for(kind: EffectKind) -> Option<std::sync::Arc<crate::need_mailbox::NeedMailbox>> {
+    (kind == EffectKind::Aula).then(Default::default)
 }
 
 impl EffectMemory {
@@ -155,6 +185,9 @@ impl EffectMemory {
             MemoryNeed::EqLinear(res) => EffectMemory::EqLinear(Box::new(
                 cantus_dsp::aequalis::phase::LinearPhase::new(sample_rate, res),
             )),
+            MemoryNeed::Aula(n) => {
+                EffectMemory::Aula(Box::new(crate::fx::aula_store::build(n, sample_rate)))
+            } // r39:conv
         }
     }
 }
@@ -169,6 +202,9 @@ pub struct EffectUnit {
     pub replaced: bool,
     /// The memory last asked for, so an unchanged need is asked for once.
     asked: Option<MemoryNeed>,
+    /// Where a request too large for the event waits (Aula's; [`NeedTicket`]): made with
+    /// the unit, off the audio thread.
+    mailbox: Option<std::sync::Arc<crate::need_mailbox::NeedMailbox>>,
     /// A hosted plug-in's timed parameter changes for the next pass (ADR 0057): room only
     /// for a hosted unit.
     pub automation: crate::modulator::AutoQueue,
@@ -200,6 +236,7 @@ impl EffectUnit {
             dsp,
             replaced: self.replaced,
             asked: self.asked,
+            mailbox: mailbox_for(self.kind),
             automation: self.automation.clone(),
             late: self.late,
             hint: self.hint,
@@ -225,6 +262,7 @@ impl EffectUnit {
             dsp,
             replaced: false,
             asked: None,
+            mailbox: mailbox_for(slot.spec.kind),
             automation: crate::modulator::AutoQueue::default(),
             late: 0,
             hint: None,
@@ -241,19 +279,34 @@ impl EffectUnit {
     pub fn memory_need(&self) -> Option<MemoryNeed> {
         match &self.dsp {
             Dsp::Eq(e) => e.linear_need().map(MemoryNeed::EqLinear),
+            Dsp::Fx(u) => u.memory_need(), // r39:conv
             _ => None,
         }
     }
 
     /// The need to ask the UI thread for, if it has changed since the last ask; `None`
-    /// otherwise. Allocation-free: the audio thread calls it after every snapshot.
-    pub fn take_request(&mut self) -> Option<MemoryNeed> {
+    /// otherwise — as the event carries it ([`NeedTicket`]). Allocation-free: the audio
+    /// thread calls it after every snapshot.
+    pub fn take_request(&mut self) -> Option<NeedTicket> {
         let need = self.memory_need();
         if need == self.asked {
             return None;
         }
+        let Some(want) = need else {
+            self.asked = None;
+            return None;
+        };
+        let ticket = match want {
+            MemoryNeed::EqLinear(r) => NeedTicket::EqLinear(r),
+            MemoryNeed::Aula(n) => {
+                // No mailbox (a unit not made by `new`): nothing to ask with.
+                let m = self.mailbox.as_ref()?;
+                m.write(&n);
+                NeedTicket::Aula(m.clone())
+            }
+        };
         self.asked = need;
-        need
+        Some(ticket)
     }
 
     /// The request could not be sent: ask again at the next chance.
@@ -270,6 +323,7 @@ impl EffectUnit {
             (EffectMemory::EqLinear(lp), Dsp::Eq(e)) => {
                 e.supply_linear(lp).map(EffectMemory::EqLinear)
             }
+            (memory, Dsp::Fx(u)) => u.supply(memory), // r39:conv
             (memory, _) => Some(memory),
         }
     }
@@ -323,6 +377,7 @@ impl EffectUnit {
             dsp: Dsp::Fx(unit),
             replaced: false,
             asked: None,
+            mailbox: mailbox_for(slot.spec.kind),
             automation: crate::modulator::AutoQueue::with_capacity(crate::modulator::HOSTED_QUEUE),
             late: 0,
             hint: None,

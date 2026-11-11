@@ -9,6 +9,15 @@ theme.ultraviolet = Ultravioleta (oscuro)
 theme.lagoon = Laguna (oscuro)
 theme.contrast = Alto contraste (oscuro)
 theme.contrast_light = Alto contraste (claro)
+# ronda 39 (ADR 0111): Pizarra, la predeterminada, y las dos familias opcionales.
+theme.slate_night = Pizarra Noche (oscuro)
+theme.slate_paper = Pizarra Papel (claro)
+theme.slate_lapis_night = Pizarra lapislázuli, Noche (oscuro)
+theme.slate_lapis_paper = Pizarra lapislázuli, Papel (claro)
+theme.graphite_night = Grafito y oro, Noche (oscuro)
+theme.graphite_paper = Grafito y oro, Papel (claro)
+theme.studio_ink_night = Tinta de estudio, Noche (oscuro)
+theme.studio_ink_paper = Tinta de estudio, Papel (claro)
 look.preview = Vista previa de {name}
 look.in_use.dark = En uso en el modo oscuro
 look.in_use.light = En uso en el modo claro
@@ -39,3 +48,25 @@ look.fader.tip = Capuchón del fader: cómo se ven todos los faders — el mezcl
 look.fader.note = Clásico es el capuchón marfil; Metal, uno mecanizado con su índice grabado y el brillo del tema. Todos los faders cambian a la vez.
 kit.fader.classic = Clásico
 kit.fader.metal = Metal
+# ronda 39, temas (ADR 0111 §2): los temas de las rondas 24–38 de vuelta, redibujados en el
+# sistema de diseño de la ronda 39 (`slate` es Peltre y `paper` es Tiza: la pareja derivada
+# de FL, con otro nombre), y los temas nuevos de la ronda 39; las fichas y grupos de
+# Ajustes ▸ Apariencia.
+theme.evergreen_night = Siempreverde, Noche (oscuro)
+theme.evergreen_paper = Siempreverde, Papel (claro)
+theme.bordeaux = Burdeos (oscuro)
+theme.print = Imprenta (claro)
+look.group.r39 = Familias de la ronda 39
+look.group.redrawn = De rondas anteriores, redibujados
+look.group.new = Nuevos
+look.group.access = Para baja visión
+look.family.cantus = Cantus Noche · Papel
+look.family.blue_hour = Hora azul · Luz de día
+look.family.pewter = Peltre · Tiza
+look.family.ink_gold = Tinta y oro · Pergamino
+look.family.ultraviolet = Ultravioleta
+look.family.lagoon = Laguna
+look.family.evergreen = Siempreverde, Noche · Papel
+look.family.bordeaux = Burdeos
+look.family.print = Imprenta
+look.family.contrast = Alto contraste

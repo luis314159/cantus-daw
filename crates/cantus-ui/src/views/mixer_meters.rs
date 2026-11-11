@@ -193,6 +193,11 @@ impl Meters {
         out
     }
 
+    /// A strip's level as its meter shows it now, in dB (the cables' Flow reads it).
+    pub fn level_db(&self, index: usize) -> f32 {
+        self.strips.get(index).map_or(SILENT, |c| c.level[0].db)
+    }
+
     /// The held peak of a strip, in dB (for its readout).
     pub fn held(&self, index: usize) -> f32 {
         self.strips.get(index).map_or(SILENT, |c| c.hold[0].db)

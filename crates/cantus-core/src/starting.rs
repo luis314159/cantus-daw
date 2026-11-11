@@ -178,6 +178,17 @@ pub fn start_of(kind: EffectKind) -> Start {
             "preset.discrimen.more_attack",
             &[("t.gain", 5.0), ("mode", 1.0), ("out", -1.9)],
         ),
+        // r39:conv — Aula starts in Cantus's own concert hall, a quarter wet, its level
+        // fitted to the dry's loudness (the integrated suite's `preset_render`).
+        K::Aula => preset(
+            "preset.aula.concert",
+            &[
+                ("ir", 7.0),
+                ("level", 1.4),
+                ("predelay", 12.0),
+                ("mix", 0.25),
+            ],
+        ),
     }
 }
 

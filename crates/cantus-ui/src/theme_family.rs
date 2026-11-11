@@ -129,10 +129,27 @@ pub const fn cantus_night_tokens() -> Tokens {
         hue_mod: hex(0xc1acfc),
         hue_space: hex(0xf49aca),
         hue_output: hex(0xa8d27a),
+        disabled: hex(0x605246),    // r39:el-controls
+        auto: hex(0xc1acfc),        // r39:el-controls
+        modulated: hex(0xf49aca),   // r39:el-controls
+        destructive: hex(0xc7503f), // r39:el-controls
+        primary_ink: hex(0x3a1a06), // r39:el-controls
+        meter_mid: hex(0x9cb273),   // r39:el-controls
+        fcap_hi: hex(0x877c73),     // r39:el-controls
+        fcap_mid: hex(0x605750),    // r39:el-controls
+        fcap_lo: hex(0x4a413c),     // r39:el-controls
+        cap_hi: hex(0x423934),      // r39:el-controls
+        cap_mid: hex(0x2b2420),     // r39:el-controls
+        cap_lo: hex(0x1d1613),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(8, 11, 14, 158), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x00, 0x00, 0x00, 0x99),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::from_rgba_unmultiplied_const(0x2b, 0x22, 0x1c, 50), // r37:finish — colour with strength
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::from_rgba_unmultiplied_const(0xff, 0xd9, 0xb0, 18),
         glow: Color32::from_rgba_unmultiplied_const(0xd4, 0x62, 0x2a, 30),
         glow_cool: Color32::from_rgba_unmultiplied_const(0x3e, 0x8e, 0x7e, 14),
@@ -149,6 +166,7 @@ pub const fn cantus_night_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 
@@ -231,10 +249,27 @@ pub const fn cantus_paper_tokens() -> Tokens {
         hue_mod: hex(0x7a4cc2),
         hue_space: hex(0xa94275),
         hue_output: hex(0x4f6b2c),
+        disabled: hex(0x9fa09c),    // r39:el-controls
+        auto: hex(0x7a4cc2),        // r39:el-controls
+        modulated: hex(0xa94275),   // r39:el-controls
+        destructive: hex(0xb8321f), // r39:el-controls
+        primary_ink: hex(0x3a1404), // r39:el-controls
+        meter_mid: hex(0xa2b670),   // r39:el-controls
+        fcap_hi: hex(0xffffff),     // r39:el-controls
+        fcap_mid: hex(0xf6f8f7),    // r39:el-controls
+        fcap_lo: hex(0xdce1df),     // r39:el-controls
+        cap_hi: hex(0xffffff),      // r39:el-controls
+        cap_mid: hex(0xf8faf9),     // r39:el-controls
+        cap_lo: hex(0xe0e5e3),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(34, 46, 58, 87), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x04, 0x04, 0x03, 0x38),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::TRANSPARENT,
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::TRANSPARENT,
         glow: Color32::TRANSPARENT,
         glow_cool: Color32::TRANSPARENT,
@@ -251,6 +286,7 @@ pub const fn cantus_paper_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 
@@ -331,10 +367,27 @@ pub const fn daylight_tokens() -> Tokens {
         hue_mod: hex(0x7347bf),
         hue_space: hex(0xa63e70),
         hue_output: hex(0x4c682a),
+        disabled: hex(0xa5acb6),    // r39:el-controls
+        auto: hex(0x7347bf),        // r39:el-controls
+        modulated: hex(0xa63e70),   // r39:el-controls
+        destructive: hex(0xcc2f27), // r39:el-controls
+        primary_ink: hex(0xffffff), // r39:el-controls
+        meter_mid: hex(0xafd36c),   // r39:el-controls
+        fcap_hi: hex(0xffffff),     // r39:el-controls
+        fcap_mid: hex(0xfafbfc),    // r39:el-controls
+        fcap_lo: hex(0xe5e8eb),     // r39:el-controls
+        cap_hi: hex(0xffffff),      // r39:el-controls
+        cap_mid: hex(0xfbfcfd),     // r39:el-controls
+        cap_lo: hex(0xe9ecf0),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(34, 46, 58, 87), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x03, 0x05, 0x08, 0x33),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::TRANSPARENT,
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::TRANSPARENT,
         glow: Color32::TRANSPARENT,
         glow_cool: Color32::TRANSPARENT,
@@ -351,6 +404,7 @@ pub const fn daylight_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 
@@ -425,10 +479,27 @@ pub const fn blue_hour_tokens() -> Tokens {
         hue_mod: hex(0xb9a4fa),
         hue_space: hex(0xf093c4),
         hue_output: hex(0x9ccf6a),
+        disabled: hex(0x515b68),    // r39:el-controls
+        auto: hex(0xb9a4fa),        // r39:el-controls
+        modulated: hex(0xf093c4),   // r39:el-controls
+        destructive: hex(0xc74e4e), // r39:el-controls
+        primary_ink: hex(0x061a3d), // r39:el-controls
+        meter_mid: hex(0xa7d26c),   // r39:el-controls
+        fcap_hi: hex(0x838991),     // r39:el-controls
+        fcap_mid: hex(0x5b6169),    // r39:el-controls
+        fcap_lo: hex(0x434951),     // r39:el-controls
+        cap_hi: hex(0x3b4149),      // r39:el-controls
+        cap_mid: hex(0x232931),     // r39:el-controls
+        cap_lo: hex(0x141a22),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(8, 11, 14, 158), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x00, 0x00, 0x00, 0x99),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::TRANSPARENT,
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::TRANSPARENT,
         glow: Color32::TRANSPARENT,
         glow_cool: Color32::TRANSPARENT,
@@ -445,6 +516,7 @@ pub const fn blue_hour_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 
@@ -523,10 +595,27 @@ pub const fn ultraviolet_tokens() -> Tokens {
         hue_mod: hex(0xd29bff),
         hue_space: hex(0xff8fd6),
         hue_output: hex(0xa6e36f),
+        disabled: hex(0x5a5171),    // r39:el-controls
+        auto: hex(0xd29bff),        // r39:el-controls
+        modulated: hex(0xff8fd6),   // r39:el-controls
+        destructive: hex(0xcc485e), // r39:el-controls
+        primary_ink: hex(0x2b0026), // r39:el-controls
+        meter_mid: hex(0x9fe580),   // r39:el-controls
+        fcap_hi: hex(0x898497),     // r39:el-controls
+        fcap_mid: hex(0x5f596c),    // r39:el-controls
+        fcap_lo: hex(0x474154),     // r39:el-controls
+        cap_hi: hex(0x3e384b),      // r39:el-controls
+        cap_mid: hex(0x262033),     // r39:el-controls
+        cap_lo: hex(0x161023),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(8, 11, 14, 158), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x00, 0x00, 0x00, 0xa0),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::TRANSPARENT,
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::TRANSPARENT,
         glow: Color32::TRANSPARENT,
         glow_cool: Color32::TRANSPARENT,
@@ -543,6 +632,7 @@ pub const fn ultraviolet_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 
@@ -621,10 +711,27 @@ pub const fn lagoon_tokens() -> Tokens {
         hue_mod: hex(0xc1acfc),
         hue_space: hex(0xf49aca),
         hue_output: hex(0xa8d27a),
+        disabled: hex(0x4d6162),    // r39:el-controls
+        auto: hex(0xc1acfc),        // r39:el-controls
+        modulated: hex(0xf49aca),   // r39:el-controls
+        destructive: hex(0xc45246), // r39:el-controls
+        primary_ink: hex(0x032a24), // r39:el-controls
+        meter_mid: hex(0x9fd47c),   // r39:el-controls
+        fcap_hi: hex(0x828e8e),     // r39:el-controls
+        fcap_mid: hex(0x596567),    // r39:el-controls
+        fcap_lo: hex(0x424e50),     // r39:el-controls
+        cap_hi: hex(0x394548),      // r39:el-controls
+        cap_mid: hex(0x222e31),     // r39:el-controls
+        cap_lo: hex(0x131f22),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(8, 11, 14, 158), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x00, 0x00, 0x00, 0x99),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::TRANSPARENT,
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::TRANSPARENT,
         glow: Color32::TRANSPARENT,
         glow_cool: Color32::TRANSPARENT,
@@ -641,6 +748,7 @@ pub const fn lagoon_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 
@@ -715,10 +823,27 @@ pub const fn high_contrast_tokens() -> Tokens {
         hue_mod: hex(0xd6b8ff),
         hue_space: hex(0xff9ed6),
         hue_output: hex(0xb6f07a),
+        disabled: hex(0x707070),    // r39:el-controls
+        auto: hex(0xd6b8ff),        // r39:el-controls
+        modulated: hex(0xff9ed6),   // r39:el-controls
+        destructive: hex(0xc94c4c), // r39:el-controls
+        primary_ink: hex(0x000000), // r39:el-controls
+        meter_mid: hex(0x9eea37),   // r39:el-controls
+        fcap_hi: hex(0x8d8d8d),     // r39:el-controls
+        fcap_mid: hex(0x5f5f5f),    // r39:el-controls
+        fcap_lo: hex(0x454545),     // r39:el-controls
+        cap_hi: hex(0x3b3b3b),      // r39:el-controls
+        cap_mid: hex(0x202020),     // r39:el-controls
+        cap_lo: hex(0x0f0f0f),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(8, 11, 14, 158), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x00, 0x00, 0x00, 0xc0),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::TRANSPARENT,
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::TRANSPARENT,
         glow: Color32::TRANSPARENT,
         glow_cool: Color32::TRANSPARENT,
@@ -735,6 +860,7 @@ pub const fn high_contrast_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 
@@ -814,10 +940,27 @@ pub const fn high_contrast_light_tokens() -> Tokens {
         hue_mod: hex(0x5a2aa8),
         hue_space: hex(0x8a1f55),
         hue_output: hex(0x375010),
+        disabled: hex(0x959595),    // r39:el-controls
+        auto: hex(0x5a2aa8),        // r39:el-controls
+        modulated: hex(0x8a1f55),   // r39:el-controls
+        destructive: hex(0xc00000), // r39:el-controls
+        primary_ink: hex(0xffffff), // r39:el-controls
+        meter_mid: hex(0x99da38),   // r39:el-controls
+        fcap_hi: hex(0xffffff),     // r39:el-controls
+        fcap_mid: hex(0xfcfcfc),    // r39:el-controls
+        fcap_lo: hex(0xe8e8e8),     // r39:el-controls
+        cap_hi: hex(0xffffff),      // r39:el-controls
+        cap_mid: hex(0xfdfdfd),     // r39:el-controls
+        cap_lo: hex(0xededed),      // r39:el-controls
+        scrim: Color32::from_rgba_unmultiplied_const(34, 46, 58, 87), // r39:el-controls
         shadow: Color32::from_rgba_premultiplied(0x00, 0x00, 0x00, 0x40),
         light: hex(0xffffff),
         dark_shade: hex(0x000000),
         track_veil: Color32::TRANSPARENT,
+        readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+        readout_soft: Color32::TRANSPARENT,
+        selection_tint: Color32::TRANSPARENT,
+        loop_edge: Color32::TRANSPARENT,
         sheen: Color32::TRANSPARENT,
         glow: Color32::TRANSPARENT,
         glow_cool: Color32::TRANSPARENT,
@@ -834,6 +977,7 @@ pub const fn high_contrast_light_tokens() -> Tokens {
         density: 1.0,
         text_scale: 1.0,
         generation: 0,
+        system: crate::kit::system::System::CLASSIC,
     }
 }
 

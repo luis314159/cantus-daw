@@ -5,7 +5,7 @@
 # Abreviar del kit usa cuando la etiqueta completa no cabe en su caja. Las genéricas
 # viven aquí; las de cada dispositivo, en su propio archivo.
 
-theme.slate = Pizarra (oscuro)
+theme.slate = Peltre (oscuro)
 
 # --- el editor de color: fichas del kit ---
 kit.group.surface = Superficies
@@ -303,10 +303,31 @@ kit.mixer.mono = Mono
 kit.mixer.phase = Fase
 kit.mixer.width.compact = Compacto
 kit.mixer.width.wide = Ancho
-kit.mixer.width.xl = Extra grande
-kit.mixer.width.xl.short = XL
+kit.mixer.width.xl = Grande
+kit.mixer.width.xl.short = Grande
 kit.mixer.add = Añadir una pista
 
 # ronda 37, acabado: el estado de un interruptor, en su ayuda
 kit.state.on = activado
 kit.state.off = desactivado
+# r39:el-controls — the control families' tokens (des-controls)
+kit.token.text.disabled = Palabras de un control que no se puede usar
+kit.token.accent.automated = Valor automatizado
+kit.token.accent.modulated = Valor modulado
+kit.token.accent.destructive = Botón destructivo
+kit.token.accent.primary_ink = Palabras del botón principal
+kit.token.meters.mid = Medidor, zona media
+kit.token.mixer.fader_cap_top = Tapa del fader, arriba
+kit.token.mixer.fader_cap_middle = Tapa del fader, centro
+kit.token.mixer.fader_cap_foot = Tapa del fader, pie
+kit.token.knob.cap_lit = Tapa de la perilla, lado iluminado
+kit.token.knob.cap_middle = Tapa de la perilla, centro
+kit.token.knob.cap_shade = Tapa de la perilla, lado en sombra
+kit.token.depth.scrim = Velo detrás de un diálogo
+kit.dialog.close = Cerrar
+kit.dialog.esc_cancels = cancela
+# r39:lapis2 — las lecturas, el tinte de la selección y los bordes del bucle de Pizarra lapislázuli
+kit.token.text.readout = Lecturas (posición, tiempo, tempo, números de compás)
+kit.token.text.readout_secondary = Lecturas, segunda tinta
+kit.token.accent.selection_tint = Tinte sobre lo seleccionado
+kit.token.editor.loop_edge = Bordes de la región de bucle

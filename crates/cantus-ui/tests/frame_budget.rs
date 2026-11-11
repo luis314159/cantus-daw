@@ -120,6 +120,8 @@ struct Rig {
     whole: bool,
     /// Where the pointer rests (a hovered cable), if anywhere.
     pointer: Option<egui::Pos2>,
+    /// The look, held while the rig lives (see [`one_look`]); dropped last.
+    _look: Look,
 }
 
 /// One frame's measurements.
@@ -135,12 +137,46 @@ struct Frame {
     repaint: Duration,
 }
 
+// ---- one look at a time ----------------------------------------------------------------
+
+/// The kit's tokens are process-wide (`kit::tokens::install`), and every test here builds
+/// an application (whose first frame installs the saved look, Slate Night since round 39)
+/// or applies a theme. Run in parallel, one test re-themed the window another was
+/// measuring in the middle of its run: the dancer's test saw the whole window go from the
+/// old Slate tokens to Slate Night's between its "hidden" and its "shown" frames, +3 100
+/// triangles that were not the dancer's (round 39), and round 37 saw "a whole inspector
+/// section" come and go the same way. So every test holds this while it draws — re-entrant
+/// on one thread, as the dancer's test holds two rigs at once.
+static LOOK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+thread_local! {
+    static LOOKS: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Holds the look for this thread until dropped.
+struct Look(#[allow(dead_code)] Option<std::sync::MutexGuard<'static, ()>>);
+
+fn one_look() -> Look {
+    let first = LOOKS.with(|n| {
+        n.set(n.get() + 1);
+        n.get() == 1
+    });
+    Look(first.then(|| LOOK.lock().unwrap_or_else(|e| e.into_inner())))
+}
+
+impl Drop for Look {
+    fn drop(&mut self) {
+        LOOKS.with(|n| n.set(n.get() - 1));
+    }
+}
+
 impl Rig {
     fn new(n: usize, whole: bool, size: egui::Vec2) -> Rig {
         Rig::with(grown(n), whole, size)
     }
 
     fn with(project: Project, whole: bool, size: egui::Vec2) -> Rig {
+        let look = one_look();
         cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
@@ -161,6 +197,7 @@ impl Rig {
             size,
             whole,
             pointer: None,
+            _look: look,
         }
     }
 
@@ -282,6 +319,7 @@ const HD: egui::Vec2 = egui::vec2(1920.0, 1080.0);
 /// The mixer alone, 64 strips playing at 1080p: what the desk itself costs.
 #[test]
 fn mixer64_alone_stays_in_budget() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, false, HD);
     rig.play();
     let frames = rig.run(20, 30);
@@ -311,6 +349,7 @@ fn mixer64_alone_stays_in_budget() {
 /// Sixteen strips: the same, and the desk costs no more than at 64.
 #[test]
 fn mixer16_alone_stays_in_budget() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, false, HD);
     rig.play();
     let frames = rig.run(20, 30);
@@ -326,6 +365,7 @@ fn mixer16_alone_stays_in_budget() {
 /// here is what the window must never exceed again.
 #[test]
 fn mixer64_window_stays_in_budget() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, true, HD);
     rig.play();
     let frames = rig.run(20, 30);
@@ -345,6 +385,7 @@ fn mixer64_window_stays_in_budget() {
 /// Nothing moving: the desk asks for no frame at all.
 #[test]
 fn an_idle_desk_requests_no_repaint() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, false, HD);
     // Never played: every meter is at silence from the first frame.
     let frames = rig.run(5, 5);
@@ -391,6 +432,7 @@ fn timing(name: &str, rig: &mut Rig, budget_ms: f64) {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer64_window_timing() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, true, HD);
     rig.play();
     timing("mixer64, whole window", &mut rig, 4.0);
@@ -399,6 +441,7 @@ fn mixer64_window_timing() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer16_window_timing() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, true, HD);
     rig.play();
     timing("mixer16, whole window", &mut rig, 2.5);
@@ -407,6 +450,7 @@ fn mixer16_window_timing() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer64_alone_timing() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(64, false, HD);
     rig.play();
     timing("mixer64, desk alone", &mut rig, 4.0);
@@ -415,6 +459,7 @@ fn mixer64_alone_timing() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer16_alone_timing() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::new(16, false, HD);
     rig.play();
     timing("mixer16, desk alone", &mut rig, 2.5);
@@ -467,6 +512,7 @@ fn cable_view(rig: &mut Rig, view: views::mixer::layout::CableView) {
 /// and *Off* none; the band stays idle when nothing moves.
 #[test]
 fn the_cable_band_costs_no_allocation_and_no_draw_call() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(wired(64), false, HD);
     rig.play();
@@ -516,9 +562,62 @@ fn the_cable_band_costs_no_allocation_and_no_draw_call() {
     }
 }
 
+/// r39:el-cables — every cable style on the wired desk (64 strips, 128 sends, 16 keys),
+/// *All*, playing: no allocation over the band off, no draw call of its own, and at rest
+/// no frame asked for. D ("Jack") draws five strokes a cord and a plug at each end, so its
+/// triangles are held to their own ceiling (measured, below), not A–C's.
+#[test]
+fn every_cable_style_costs_no_allocation_and_no_draw_call() {
+    use cantus_ui::settings::CableStyle;
+    use views::mixer::layout::CableView;
+    let mut rig = Rig::with(wired(64), false, HD);
+    rig.play();
+    cable_view(&mut rig, CableView::Off);
+    let (off_allocs, _, _, off_draws, _) = summary("mixer64 wired, cables off", &rig.run(20, 30));
+    cable_view(&mut rig, CableView::All);
+    for style in CableStyle::ALL {
+        rig.app.settings.cable_style = Some(style);
+        let frames = rig.run(10, 30);
+        let (allocs, bytes, tris, draws, _) =
+            summary(&format!("mixer64 wired, all, {style:?}"), &frames);
+        assert!(
+            allocs <= off_allocs,
+            "{style:?}: {allocs} allocations against {off_allocs}"
+        );
+        assert!(bytes <= 64 * 1024, "{style:?}: {bytes} B");
+        assert_eq!(
+            draws, off_draws,
+            "{style:?}: the band paints into the desk's mesh"
+        );
+        let ceiling = if style == CableStyle::Jack {
+            JACK_TRIS
+        } else {
+            120_000
+        };
+        assert!(tris <= ceiling, "{style:?}: {tris} triangles");
+    }
+    rig.stop();
+    rig.run(300, 0);
+    for style in CableStyle::ALL {
+        rig.app.settings.cable_style = Some(style);
+        rig.run(3, 0);
+        for f in &rig.run(3, 3) {
+            assert_eq!(
+                f.repaint,
+                Duration::MAX,
+                "{style:?}: the idle band asked for a frame"
+            );
+        }
+    }
+}
+
+/// D's triangles on the wired desk, *All*, every route at once (measured 2026-11-09).
+const JACK_TRIS: usize = 400_000;
+
 /// The wired desk at rest, cables on: no frame is asked for.
 #[test]
 fn a_wired_idle_desk_requests_no_repaint() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::with(wired(64), false, HD);
     cable_view(&mut rig, views::mixer::layout::CableView::All);
     for f in &rig.run(5, 5) {
@@ -529,6 +628,7 @@ fn a_wired_idle_desk_requests_no_repaint() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn mixer64_wired_all_timing() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let mut rig = Rig::with(wired(64), false, HD);
     cable_view(&mut rig, views::mixer::layout::CableView::All);
     rig.play();
@@ -595,9 +695,14 @@ fn fastest(frames: &[Frame]) -> Duration {
 ///   so a busy test machine does not decide it).
 #[test]
 fn the_band_in_wide_with_every_look_costs_no_allocation() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(wired_every_look(64), false, HD);
     views::mixer::set_width_mode(&mut rig.app, views::mixer::layout::WidthMode::Wide);
+    // Every look: the level pills too (an option of the cable view since round 39).
+    let mut p = rig.app.mixer.prefs();
+    p.cable_opts.levels = true;
+    rig.app.mixer.set_prefs(p);
     rig.play();
     cable_view(&mut rig, CableView::Off);
     // The pointer is reported every frame in every phase (an event costs egui its own
@@ -632,8 +737,7 @@ fn the_band_in_wide_with_every_look_costs_no_allocation() {
         .iter()
         .find(|d| d.lit && d.chips == [false, false])
         .expect("a lit cable on screen");
-    let path = cantus_ui::kit::cable::path(d.from, d.to, d.depth);
-    rig.pointer = Some(path.run_start + egui::vec2(3.0, 0.0));
+    rig.pointer = Some(rig.app.mixer.cable_point(&d));
     let all = rig.run(20, 30);
     let (all_max, all_bytes) = max_allocs(&all);
     let cables = rig.app.mixer.cables();
@@ -672,6 +776,7 @@ fn the_band_in_wide_with_every_look_costs_no_allocation() {
 /// ~17 allocations a hovered desk control costs; they are egui's, below.)
 #[test]
 fn the_hint_bar_costs_no_allocation() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_ui::kit::hint::{self, Caps};
     use std::fmt::Write as _;
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
@@ -796,6 +901,7 @@ fn the_hint_bar_costs_no_allocation() {
 /// than that.
 #[test]
 fn a_hovered_desk_control_costs_only_what_egui_charges_for_a_hover() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let away = egui::pos2(-100.0, -100.0);
     // The desk: 64 strips, Wide, a fader hovered.
     let mut rig = Rig::new(64, false, HD);
@@ -902,6 +1008,7 @@ fn hover_fader(rig: &mut Rig, index: usize) -> Vec<Frame> {
 /// that no local machine reproduces), a second is not.
 #[test]
 fn a_hovered_bus_with_many_inputs_costs_no_allocation() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(bus_desk(), false, HD);
     views::mixer::set_width_mode(&mut rig.app, views::mixer::layout::WidthMode::Wide);
@@ -929,18 +1036,15 @@ fn a_hovered_bus_with_many_inputs_costs_no_allocation() {
         "hovered: plain strip {plain}, bus {bus} allocations (worst frame); {into} cables into the bus, {lit} lit"
     );
     assert!(into >= 32, "the bus's inputs are drawn: {into}");
-    assert!(
-        lit >= 3,
-        "as many lit (with their marks) as the band holds apart: {lit}"
-    );
+    assert!(lit >= 32, "every input of the hovered bus lit: {lit}");
     assert!(
         rig.app
             .mixer
             .cables()
             .iter()
             .filter(|d| d.route.to == bus_id)
-            .all(|d| d.lit || d.yielded),
-        "every input reads as the bus's: lit, or in its colour without a mark"
+            .all(|d| d.lit && d.alpha == 1.0),
+        "every input reads as the bus's: lit, whole"
     );
     assert!(
         over.len() <= 1,
@@ -952,6 +1056,7 @@ fn a_hovered_bus_with_many_inputs_costs_no_allocation() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn a_hovered_bus_with_many_inputs_timing() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use views::mixer::layout::CableView;
     let mut rig = Rig::with(bus_desk(), false, HD);
     views::mixer::set_width_mode(&mut rig.app, views::mixer::layout::WidthMode::Wide);
@@ -1003,6 +1108,7 @@ fn test_clap() -> std::path::PathBuf {
 /// feedback's, the clocks) allocate nothing — a hosted parameter is looked up, not copied.
 #[test]
 fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_core::controller::*;
     let (engine, _processor) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
@@ -1052,6 +1158,7 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
 /// offers idle; and the offers alone, called over a drawn control, allocate nothing.
 #[test]
 fn an_editors_idle_stepped_controls_cost_no_allocation() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_core::{EffectKind, InstrumentKind, InstrumentSpec, NativeSpec};
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let ctx = egui::Context::default();
@@ -1153,6 +1260,7 @@ const WAVETABLE_EDITOR_ALLOCS: u64 = 1_560;
 /// frame. The test plug-in's fault selector has 25 steps.
 #[test]
 fn a_hosted_choices_word_asks_for_one_step() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     use cantus_core::controller::MappingTarget;
     let (engine, _processor) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
@@ -1317,6 +1425,7 @@ const HOSTED500_ALLOCS: u64 = 200;
 /// a scrolled frame allocates within its measured bound.
 #[test]
 fn a_500_parameter_plugin_scrolls_drawing_only_the_rows_in_view() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let frames = hosted500_frames(160);
     let warm = &frames[5..];
     for (i, f) in warm.iter().enumerate() {
@@ -1356,6 +1465,7 @@ fn a_500_parameter_plugin_scrolls_drawing_only_the_rows_in_view() {
 #[test]
 #[ignore = "timing: run in release with --ignored"]
 fn a_500_parameter_plugin_scroll_timing() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let frames = hosted500_frames(240);
     let mut ms: Vec<f64> = frames[20..]
         .iter()
@@ -1377,6 +1487,7 @@ const HOSTED_ONE_CARD_MAX_DRAWN: usize = 72;
 /// window — scrolled from its first row to its last: only the rows in view are drawn.
 #[test]
 fn one_page_of_500_parameters_draws_only_its_rows_in_view() {
+    let _look = one_look(); // one look at a time (r39:el-views)
     let frames = hosted_frames(160, five_hundred_in(500));
     let warm = &frames[5..];
     for (i, f) in warm.iter().enumerate() {

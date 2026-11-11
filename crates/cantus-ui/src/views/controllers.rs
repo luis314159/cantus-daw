@@ -275,6 +275,7 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let words = takeover_text(current);
     let (field, _) = MenuField::new(&words)
         .id(Id::new("ctl-pane-takeover"))
+        .name(&caption) // r39:ux-a — the help line (ADR 0109)
         .show_at(ui, tr);
     put(app, "new_takeover", tr);
     let options: Vec<(Takeover, String)> = [Takeover::Jump, Takeover::Pickup, Takeover::Scale]
@@ -304,11 +305,23 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let (px, py) = (tr.right() + 8.0 * k, tr.top());
     let pr = Rect::from_min_max(egui::pos2(px, py), egui::pos2(r.right() - 8.0 * k, py + h));
     if pr.width() > 40.0 * k {
+        // Where the whole sentence does not fit, its first one ("No MIDI input"); the whole
+        // on the help line (round 39, ADR 0109).
+        let whole = text::measure(ui.ctx(), &Text::new(&ports, Role::Label, s.t.text), s.tk()).x;
+        let shown = if whole > pr.width() {
+            ports.split(". ").next().unwrap_or(&ports)
+        } else {
+            &ports
+        };
+        let hover = ui.interact(pr, Id::new("ctl-pane-ports"), Sense::hover());
+        if hover.hovered() {
+            crate::kit::hint::set_text(ui.ctx(), &ports, "", crate::kit::hint::Caps::NONE);
+        }
         with_brush(ui.painter(), |b| {
             text::paint(
                 b,
                 pr,
-                &Text::new(&ports, Role::Label, s.t.text_dim)
+                &Text::new(shown, Role::Label, s.t.text_dim)
                     .align(Align2::RIGHT_CENTER)
                     .policy(Policy::Elide(Elide::End)),
                 s.tk(),

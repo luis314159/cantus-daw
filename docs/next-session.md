@@ -1,96 +1,129 @@
-# Prompt para la próxima sesión (ronda 39)
+# Prompt para la próxima sesión (ronda 40)
 
-*Escrito el 2026-11-09, al cerrar la ronda 38 (beta.13). El dueño pidió una ronda 39 **toda de
-UX y gráficos**, con un agente dedicado solo a diseñar y los elementos hechos a mano desde una
-hoja en blanco: «vamos por lo difícil, a mano, que nos dé los mejores resultados». El voicing
-de Chorda (tercera pasada, a medias) pasa a la ronda 40, salvo que el dueño diga otra cosa.
-Copia el bloque de abajo tal cual en una sesión nueva de Claude Code abierta en
-`F:\projects\cantus`.*
+*Escrito el 2026-11-10, al cerrar la ronda 39 (beta.14), y puesto al día el 2026-11-11 con las
+ramas tardías (lapis2, delay, themes, fix2). Es una **propuesta**: el dueño decide
+el orden y el alcance. La ronda 38 propuso para la 40 la tercera pasada del voicing de Chorda con
+la ABX 4, la edición en cascada (insertar y borrar tiempo) y el siguiente paso de la memoria; la
+reverb de convolución, que también estaba propuesta, ya salió en la ronda 39 (Aula). Antes de
+construir nada, el dueño mira la ronda 39 en su pantalla y decide lo que quedó abierto. Copia el
+bloque de abajo tal cual en una sesión nueva de Claude Code abierta en `F:\projects\cantus`.*
 
 ---
 
 Lee primero:
 - `CLAUDE.md`;
-- `docs/STATUS.md` (la cabecera, «The next session: what round 38 left» y la sección de la ronda 38);
-- `docs/BACKLOG-excellence.md` **§6j** (la ronda 39, el diagnóstico de la ventana completa y el estudio de los botones);
-- `docs/round38/integration.md` y `docs/scorecard/README.md` (las cifras que el aspecto nuevo no puede empeorar);
-- `research/ui/fl-look-2026-11/notes.md` y sus capturas, y `research/ui/owner-crops-2026-11-08/`;
-- la memoria: decision-round39-ux-graphics, ui-quality-bar, feedback-work-standards-r36, feedback-no-leftovers, feedback-review-cost, gotcha-boot-path, cantus-parallel-builders, feedback-showcase-sell, round-38.
+- `docs/STATUS.md` (la cabecera, «The next session: what round 39 left» y la sección de la ronda 39);
+- `docs/round39/integration.md` (sobre todo «The owner's decisions still open» y «What is left»);
+- `docs/round38/chorda.md` §2 (la tercera pasada del voicing, empezada y sin enviar);
+- `docs/round39/memory-measured.md`, `docs/adr/0107-the-engines-memory-grows-with-the-song.md` y `docs/scorecard/README.md`;
+- `docs/BACKLOG-excellence.md` §3 (la edición en cascada y el arrastre de secciones) y §6j (lo que la ronda 39 dejó para el dueño);
+- la memoria: round-39, decision-slate-default, feedback-more-agents-r39, ui-quality-bar, feedback-work-standards-r36, feedback-no-leftovers, feedback-review-cost, gotcha-boot-path, cantus-parallel-builders.
 
 Busca la excelencia (Colosenses 3:23). Escríbeme en español.
 
 ## 0. Antes de empezar
 
-1. Revisa los issues de `cantus-daw` y las corridas de la beta.13 (Release, macOS): si algo
+1. Revisa los issues de `cantus-daw` y las corridas de la beta.14 (Release, macOS): si algo
    falló, se arregla primero.
-2. Espacio: C: tenía 16 GB libres al cerrar la ronda 38 (la imagen de WSL vive ahí); para
-   Linux usa el clon `~/ci-r38-integ` (su `target/` ya está caliente) o uno propio solo si hay
-   espacio.
+2. **Mis ojos sobre la ronda 39** (`docs/beta-checklist.md`, *Ronda 39*): todo lo de esta ronda
+   se dibujó con el renderizador de CPU, nunca en una pantalla real. Mientras no lo vea en mi
+   pantalla, nada nuevo se apoya en el aspecto. Lo que encuentre se arregla antes que la ronda 40.
+3. **Mis decisiones abiertas** (las veintidós de `docs/round39/integration.md`). Pregúntame las que
+   frenen la ronda; las otras pueden esperar:
+   - el lugar del panel derecho del mezclador (junto a la última tira, o fijo en el borde);
+   - el medidor en *Nivel* del inspector (se conservó el de la tira fijada; la hoja no lo dibuja);
+   - qué oculta *Maximizar* (todo, como hoy, o deja el inspector al lado, como la hoja);
+   - «1/2» o «½ compás» en el menú de la rejilla;
+   - *Seguir* activado al arrancar;
+   - el selector de tipos del explorador (*Todo · Sonidos · Plug-ins · Presets*), que pide un ADR;
+   - la pista de mezclador propia de cada pad en el rack (un cambio de modelo);
+   - el arrastre de una sección que mueve la canción (va con la edición en cascada, abajo);
+   - las cinco preguntas de des-controls: el violeta de la perilla automatizada, el peso del
+     tapón del fader, los menús y diálogos de Papel, barras de valor en el inspector, Silencio
+     activado en gris;
+   - la revisión de los juegos de iconos 3–5 y sus preguntas abiertas;
+   - las unidades con caras de madera (siguen marrones porque esa es su cara, no el tema);
+   - Pizarra lapislázuli: si la línea del cursor de reproducción del arreglo va también en oro
+     (hoy solo su tapa; la línea es el acento, lapislázuli), y si el tinte de la selección
+     (18 % en Noche, 10 % en Papel) y el azul de su espacio tienen la fuerza justa;
+   - la fuerza de cada tema redibujado o nuevo en mi pantalla (la crema de Pergamino, el vino de
+     Burdeos, el violeta de Ultravioleta, el gris medio de Peltre);
+   - Delay: un tiempo sincronizado con el tempo (un parámetro y DSP nuevos; hoy *Al tempo* lo
+     fija una vez) y exportarlo como plug-in CLAP/VST3 (nunca lo fue; sus ids serían para
+     siempre);
+   - la ronda del tema vintage y qué hacer con los bailarines.
+4. Espacio: C: tenía unos 16 GB libres; para Linux usa el clon `~/ci-r38-integ` (su `target/`
+   ya está caliente). Ninguna medición de rendimiento con agentes corriendo.
 
-## Ronda 39: UX y gráficos, la ventana completa (BACKLOG §6j)
+## Ronda 40 (propuesta): Chorda de oído, la edición en cascada, la memoria
 
-**Por qué:**
-- Dije que «FL aún se ve a años luz de Cantus» y que «hay botones que se ven super feos». Los jueces de la ronda 37 dieron 20 y 22 de 26, pero juzgaron recortes; yo juzgo la ventana completa.
-- El estudio ampliado de los botones (§6j) encontró que el defecto es el **método**: íconos tecleados como coordenadas bajo reglas, nunca diseñados.
-- Medido contra FL:
-  - el ícono de FL ocupa ~30 % del botón, el nuestro 65–75 %;
-  - FL usa un pozo oscuro y plano; nosotros, plástico abombado con brillo;
-  - la tinta de FL es gris claro a dos tonos; la nuestra, blanca y maciza;
-  - FL hace un dibujo para cada tamaño;
-  - FL usa color solo para indicar estado.
+**Por qué estas tres:**
+- **Chorda** es nuestro piano y la tercera pasada quedó a medias en la ronda 38: el código del
+  voicing por registro está, plano (no cambia ninguna muestra); falta enviarlo.
+- **La edición en cascada / insertar y borrar tiempo** la tienen 6 de los 8 líderes
+  (`docs/scorecard/features.md`), y la ronda 39 dibujó el arrastre de secciones que la necesita.
+- **La memoria** es la única fila que seguimos perdiendo: 140 MB contra 62 de REAPER en una
+  canción vacía (por 78), 143 contra 133 de FL Studio en *Beat* (por 10), la beta.14 medida en
+  una máquina tranquila el 2026-11-11 (`docs/scorecard/README.md`); 97 MB menos que la beta.13.
 
-**Cómo se trabaja.** Rondas pequeñas, **tres agentes como máximo**:
+**Rondas pequeñas: dos o tres constructores**, con la revisión integrada a mitad de ronda.
 
-1. **Un agente diseñador, que solo diseña.**
-   - Nada reciclado y ningún atajo: cada botón, ícono, perilla, fader, medidor, pestaña, campo, menú y superficie se dibuja a mano desde una hoja en blanco, para su tamaño y su lugar.
-   - Entrega hojas SVG a 1:1 y a 4×, junto a la pieza equivalente de FL a la misma escala, en los tamaños donde aparece cada pieza (16, 20 y 24 px, y su 150 %), en Cantus Night y Cantus Paper.
-   - **Fase A, la dirección:**
-     - 2 o 3 direcciones de **ventana completa**: paleta, escala y familia tipográfica (OFL; revisa la licencia y los avisos de terceros), densidad, espaciado, la familia de botones e íconos, y cómo se ve todo en reposo (nada de «−∞» muerto);
-     - capturas de la app real (no del raster de CPU) junto a FL a la misma escala;
-     - **yo escojo**.
-   - **Fase B, las hojas por elemento**, empezando por lo que más se ve:
-     - la barra de transporte y de herramientas, y **el panel que se despliega de la barra** (metrónomo, ventanas, CPU/RAM, «Customise top bar…»: «está horrenda», §6j);
-     - los botones del mixer y del inspector;
-     - perillas y faders;
-     - las teclas del piano roll;
-     - los íconos del navegador.
-     - **Yo apruebo cada hoja ampliada.** Las reglas medibles salen de lo aprobado, no al revés.
-2. **Un constructor del kit** (`crates/cantus-ui/src/kit/`) que solo convierte en código las hojas aprobadas:
-   - antes, decide con un ADR cómo se dibuja (operaciones vectoriales propias del kit o SVG rasterizado a cada escala), con el presupuesto de cuadro medido;
-   - cada vista hereda del kit: ventana principal, mixer e inspector, arreglo, piano roll, rack, navegador, cada instrumento y efecto, diálogos, Ajustes, la primera configuración, menús y menús contextuales;
-   - ambos temas, al 100 % y al 150 %.
-3. **Un constructor de UX:**
-   - medir y acortar las rutas de clic que uso a diario;
-   - **una perilla automatizada lo dice** (en la ronda 38 creí que unas perillas estaban rotas y eran clips de automatización);
-   - la línea de ayuda nunca vacía;
-   - nada truncado;
-   - todo panel redimensionable y movible;
-   - alcance por teclado.
-   - Cada cosa con su prueba de extremo a extremo.
+1. **`chorda`: la tercera pasada del voicing y la ABX 4** (`docs/round38/chorda.md` §2).
+   - El ataque *fortissimo*: un camino directo que dependa de la velocidad.
+   - La coherencia estéreo del agudo (la correlación empeoró, 0,43 → 0,56) y el registro nasal
+     cerca del do central.
+   - Una segunda búsqueda; enviar el voicing elegido como predeterminado: subir `DSP_VERSION` con
+     los goldens en un commit y el tamaño medido del cambio (`CANTUS_GOLDEN_DUMP`), los 24 presets
+     reajustados a ±2 LU, la tercera enmienda del ADR 0098.
+   - **El kit ABX 4 para mí** (`chorda_abx`): yo escucho y mando el JSON. El oído decide.
+2. **`ripple`: insertar y borrar tiempo, y la edición en cascada.**
+   - Insertar tiempo y borrar tiempo en un rango: los clips partidos en los bordes, el resto de la
+     canción desplazado con su automatización, sus cambios de tempo y de compás, sus marcadores y
+     sus secciones.
+   - **El arrastre de una sección mueve sus compases en todas las pistas** (Ctrl copia, Shift
+     inserta), como dibujan las hojas de des-arrange (ADR 0113).
+   - Un modo de cascada en el arreglo (mover o borrar un clip desplaza lo que viene detrás en su
+     pista), si los líderes lo hacen así; investígalo primero en sus manuales.
+   - Cada operación un `Command` con su inversa exacta y su brazo en el fuzz de deshacer; una
+     prueba de extremo a extremo por `CantusApp::assemble`; un ADR.
+3. **`memory`: los bytes privados fuera del heap vivo** (ADR 0107).
+   - El heap vivo de Cantus en una canción vacía es de unos 25 MB; el resto de los 140 MB está en
+     los segmentos reservados del heap, los búferes del controlador gráfico, las pilas de los
+     hilos y los heaps de los controladores de audio y MIDI.
+   - Mapéalos con `tools/scorecard/memmap.ps1` sobre la release integrada; cada palanca que salga
+     con su ADR y su prueba (`memory_e2e` falla si un arranque crece una décima).
+   - **Nunca digas que ganamos sin medirlo**: el scorecard lo mide el integrador en una máquina
+     tranquila, con todo parado.
 
 **Lo que no cambia:**
-- Muéstrame avances seguido; **el que acepta soy yo** viendo ventanas completas. Los agentes jueces pueden encontrar defectos, pero no deciden.
-- El presupuesto de cuadro se mide: el aspecto nuevo no puede costar cuadros.
-- Ninguna función nueva fuera de UX y gráficos esta ronda.
+- Las reglas de `CLAUDE.md`, palabra por palabra: pruebas primero, nulos al bit, tiempo real,
+  esquema con migración y fixture, ambos idiomas, el kit dibujado a mano, una prueba de extremo a
+  extremo por función.
+- El aspecto de la ronda 39 no se toca salvo lo que yo pida después de verlo.
+- Muéstrame avances seguido; el que acepta soy yo.
 
 **Lista cuando:**
-- apruebo las ventanas completas en ambos temas;
+- apruebo la ABX 4 y la edición en cascada en mi pantalla;
 - la suite completa, clippy y fmt pasan en Windows y Linux;
-- STATUS, ADRs, el manual y las capturas de la web y el README están rehechos con el aspecto nuevo;
-- sale la **beta.14**: tienes mi permiso para aplastar a master, subir, publicar con
-  `tools/public/publish.sh` y etiquetar cuando todo esté en verde (como en la beta.13).
+- el scorecard se midió de nuevo en una máquina tranquila;
+- STATUS, ADRs y el manual están al día;
+- sale la **beta.15**, si me parece bien publicarla (pregúntame antes).
 
 ---
 
 **Lo que solo puedes hacer tú** (está en `docs/beta-checklist.md`):
-- conectar y desconectar la interfaz (el aviso de cambio de dispositivo);
-- la ABX de Chorda cuando llegue el kit 4 (ronda 40);
-- capturas de los botones que te molesten (van a la lista del diseñador; las que ya mandaste están en `research/ui/owner-crops-2026-11-08/`);
-- y lo pendiente de rondas anteriores: la UMC en dúplex, la Mac y la firma de código, la revisión legal, el permiso de la RVR1960 y el registro de la marca.
+- la ronda 39 en tu pantalla: Pizarra y Pizarra lapislázuli al 100, 125 y 150 %, los
+  veinticuatro temas, la barra superior, la cabecera del mezclador en la fila de pestañas, el
+  brillo de los cables a 60 Hz y los conectores, el selector de iconos de pista, la ventana de
+  Delay con una interfaz real sonando, el logo en la barra de tareas y en el `.exe`;
+- Aula de oído, y la licencia del paquete de OpenAIR;
+- la ventana de paquetes de sonidos con una descarga real;
+- la lectura legal de Pizarra junto a FL Studio;
+- y lo pendiente de rondas anteriores: la UMC en dúplex, la Mac y la firma de código, la revisión
+  legal, el permiso de la RVR1960 y el registro de la marca.
 
-**Después (propuesta, tú decides).** Ronda 40:
-- la tercera pasada del voicing de Chorda y la ABX 4;
-- la reverb de convolución (7 de 8 líderes la tienen);
-- la edición en cascada / insertar y borrar tiempo (6 de 8).
-
-Y luego, por cuántos líderes lo tienen: grupos de clips, AU y la sesión con la Mac, ARA fuera de proceso, la pista de vídeo, y la memoria del motor (el ADR que propone el scorecard).
+**Después (propuesta, tú decides).** Por cuántos líderes lo tienen: grupos de clips (6), AU y la
+sesión con la Mac (5), ARA fuera de proceso (5), la pista de vídeo (5). Y lo que la ronda 39 dejó
+como rondas propias: el tema vintage (un diseñador primero, luego constructores) y qué debe
+ser un bailarín en el aspecto Pizarra. (Los temas anteriores ya volvieron, redibujados, en la
+ronda 39.)

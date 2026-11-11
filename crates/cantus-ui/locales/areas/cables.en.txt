@@ -56,3 +56,18 @@ cables.preset.feeders = Only what feeds the selection
 cables.legend.hidden = Hidden by the cable options: {kinds}
 # Round 26: the band's handle while the desk holds the band at its least.
 cables.hint.band_short = Make the mixer taller or hide rows (the desk's menu): the desk is too short for a taller band
+
+# Round 39 (el-mixer): option C, B on demand
+cables.show_all = Show all
+
+# Round 39 (el-cables): the cables' three looks, a setting (the Cables menu, Settings > Appearance)
+cables.style = Cable style
+cables.style.patch = Patch
+cables.style.flow = Flow
+cables.style.subway = Subway
+cables.style.hint = The theme's own look, or: Patch hangs each cable from its jacks; Flow adds a gleam that travels along it while audio plays; Subway runs the routes in tidy lanes under the strips; Jack draws real patch cables, plugs and all.
+# Dragging a cable from an output jack: what a release does, or why it cannot.
+cables.drag.route = Route {from} to {to}
+cables.refused.loop = Refused: {through} already feeds {from} (a loop)
+cables.style.theme = The theme's
+cables.style.jack = Jack

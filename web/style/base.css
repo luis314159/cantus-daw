@@ -1,70 +1,107 @@
-/* Cantus site — tokens and base. The palette is the logo's own: copper and amber on
-   espresso, with the verdigris of its patina; light sections are a cool stone, not cream. */
-@font-face {
-  font-family: "Syne";
-  src: url("fonts/syne.ttf") format("truetype");
-  font-weight: 400 800;
-  font-display: swap;
+/* Cantus site — tokens and base (round 39). The palette is logo #03's: a lapis ground, gold
+   leaf and the vermilion of its waveform, over the calm grey-blue surfaces of the app's Slate.
+   Lapis is the accent (what you press, and state); gold is only a fine metallic mark or rule. */
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/fonts/barlow-semi-condensed-light.woff2") format("woff2"); font-weight: 300; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/fonts/barlow-semi-condensed-regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/fonts/barlow-semi-condensed-medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Barlow Semi Condensed"; src: url("/fonts/barlow-semi-condensed-semibold.woff2") format("woff2"); font-weight: 600 800; font-display: swap; }
+
+/* Slate Night (the default) — and the rack, which keeps Slate inside the lapis hero. */
+:root, :root .rack, :root .get-side {
+  color-scheme: dark;
+  /* sections */
+  --paper: #1d2329; --paper-2: #262d34; --mist: #1a1f25; --mist-2: #20262d; --line: #323b44;
+  --ink: #e3e8ed; --ink-2: #b4bdc6; --ink-3: #909ca8;
+  /* the quieter, darker sections (once the dark "stage") */
+  --night: #181d22; --night-2: #262d34; --night-3: #2b3239; --night-line: #323b44;
+  --night-ink: #e3e8ed; --night-ink-2: #b4bdc6; --strong: #f1f4f7;
+  --cell: #1a1f25; --cell-2: #20262d; --edge: #11151a; --gutter-bg: #14191e;
+  /* the accent: lapis, light on dark */
+  --accent: #7ea2f6; --accent-text: #7ea2f6; --accent-ink: #0a1234;
+  --accent-grad: linear-gradient(#97b5f8, #7ea2f6 55%, #6a8fe8);
+  --accent-glow: rgba(126, 162, 246, 0.38); --accent-tint: rgba(126, 162, 246, 0.16);
+  /* gold: marks and rules only */
+  --gold: #e2b84a; --gold-text: #e9c466;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 24px 48px -32px rgba(0, 0, 0, 0.8);
+  --scrim: rgba(8, 11, 15, 0.74);
 }
-@font-face {
-  font-family: "Instrument Sans";
-  src: url("fonts/instrumentsans.ttf") format("truetype");
-  font-weight: 400 700;
-  font-stretch: 75% 100%;
-  font-display: swap;
+/* Slate Paper */
+:root[data-theme="light"], :root[data-theme="light"] .rack, :root[data-theme="light"] .get-side {
+  color-scheme: light;
+  --paper: #f4f6f8; --paper-2: #fbfcfd; --mist: #e4e9ee; --mist-2: #d6dde3; --line: #c8d0d8;
+  --ink: #17202a; --ink-2: #38444f; --ink-3: #556170;
+  --night: #e9edf1; --night-2: #fbfcfd; --night-3: #e4e9ee; --night-line: #c8d0d8;
+  --night-ink: #17202a; --night-ink-2: #38444f; --strong: #17202a;
+  --cell: #d6dde3; --cell-2: #dde3e8; --edge: #b9c3cc; --gutter-bg: #dfe5ea;
+  --accent: #2443a8; --accent-text: #2443a8; --accent-ink: #ffffff;
+  --accent-grad: linear-gradient(#3352b8, #2443a8 55%, #1d3890);
+  --accent-glow: rgba(36, 67, 168, 0.38); --accent-tint: rgba(36, 67, 168, 0.10);
+  --gold: #b8862b; --gold-text: #7a5410;
+  --shadow: 0 1px 0 #fff inset, 0 24px 44px -34px rgba(23, 32, 42, 0.45), 0 1px 3px rgba(23, 32, 42, 0.06);
+  --scrim: rgba(23, 32, 42, 0.55);
+}
+/* The lapis stage (the hero, the download card, the verse): logo #03's tile, in both themes. */
+.lapis, .hero, .nav:not(.is-scrolled), .get-main, .verse {
+  color-scheme: dark;
+  --night-ink: #f1f3fa; --night-ink-2: #c3cce8; --strong: #ffffff; --night-line: rgba(185, 198, 238, 0.24);
+  --ink: #f1f3fa; --ink-2: #c3cce8; --ink-3: #93a1cf; --line: rgba(185, 198, 238, 0.24);
+  --mist: rgba(7, 13, 38, 0.5); --edge: rgba(185, 198, 238, 0.2);
+  --accent: #7ea2f6; --accent-text: #a9c0fa; --accent-ink: #0a1234;
+  --accent-grad: linear-gradient(#97b5f8, #7ea2f6 55%, #6a8fe8); --accent-glow: rgba(126, 162, 246, 0.38);
+  --gold: #e2b84a; --gold-text: #f0cd6a;
 }
 
 :root {
-  color-scheme: light;
-  --paper: #f3f5f4;
-  --paper-2: #ffffff;
-  --mist: #e5eae8;
-  --mist-2: #d6dedb;
-  --line: #cbd5d2;
-  --ink: #14100d;
-  --ink-2: #4a4540;
-  --ink-3: #85807a;
-  --copper: #d4622a;
-  --copper-deep: #a94617;
-  --amber: #f5ad3d;
-  --amber-pale: #ffdf9e;
-  --verdigris: #3e8e7e;
-  --verdigris-deep: #1f5f54;
-  --night: #120d0a;
-  --night-2: #1d1410;
-  --night-3: #2a1d15;
-  --night-line: #3b2a1f;
-  --night-ink: #f6ece2;
-  --night-ink-2: #c1a995;
-  --strong: #ffffff;
-  --cell: #25190f;
-  --cell-2: #33231a;
-  --grid-1: rgba(255, 214, 170, 0.10);
-  --grid-2: rgba(255, 214, 170, 0.045);
-  --glow: 0.30;
-  --sigil-bar: #ffdf9e;
+  /* the metals of #03, the same in both themes */
+  --lapis-ground:
+    radial-gradient(circle at 17px 17px, rgba(233, 196, 102, 0.13) 1.6px, transparent 2.2px) 0 0 / 34px 34px,
+    radial-gradient(70rem 46rem at 72% 32%, #2e4aa0 0%, #1a2a66 46%, #0a1234 100%);
+  --leaf: linear-gradient(135deg, #fff4c2 0%, #ebc455 25%, #b8862b 50%, #f3d478 72%, #8a5e14 100%);
+  --gold-rule: linear-gradient(90deg, rgba(226, 184, 74, 0.15), #e2b84a 6%, #f3d478 50%, #e2b84a 94%, rgba(226, 184, 74, 0.15));
+  /* The accent is #03's metal (the owner, round 39: the orange details become gold): a lit
+     cell or a key is gilded, light on top and dark below; text on it is the dark ink (AA on
+     every stop of --metal-key). The lapis stays for links and the primary Download button. */
+  --metal: linear-gradient(#f3d37a, #c9962e 58%, #8c6418);
+  --metal-key: linear-gradient(#f6dc8c, #d6a641 55%, #b4822a);
+  --metal-bar: linear-gradient(90deg, #8c6418, #c9962e 60%, #f3d37a);
+  --metal-lit: linear-gradient(#fff1c4, #f0cd6a);
+  --metal-glow: rgba(233, 196, 102, 0.75);
+  --metal-solid: #c9962e;
+  --on-metal: #1a1406;
+  /* the old names, now gold (some rules still say --verm) */
+  --verm: var(--metal-key);
+  --verm-bar: var(--metal-bar);
 
-  --display: "Syne", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-  --body: "Instrument Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: "Barlow Semi Condensed", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --body: "Barlow Semi Condensed", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 
   --gutter: clamp(1rem, 4vw, 3rem);
   --wrap: 76rem;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
+/* The older names, kept so every section speaks the new palette; declared again wherever the
+   tokens change, so that they resolve there. */
+:root, .lapis, .hero, .nav, .get-main, .verse, .rack, .get-side {
+  --copper: var(--accent); --copper-deep: var(--accent-text);
+  --amber: var(--gold); --amber-pale: var(--gold-text);
+  --verdigris: var(--accent); --verdigris-deep: var(--accent-text);
+}
+
 *,
 *::before,
 *::after { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; scroll-padding-top: 5rem; -webkit-text-size-adjust: 100%; background: var(--night); }
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; -webkit-text-size-adjust: 100%; background: var(--paper); }
 
 body {
   margin: 0;
-  background: var(--night);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--body);
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: clip;
@@ -75,23 +112,22 @@ img, svg { max-width: 100%; display: block; }
 
 h1, h2, h3, h4 {
   font-family: var(--display);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.04;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   margin: 0;
   text-wrap: balance;
 }
 p { margin: 0; text-wrap: pretty; }
-a { color: inherit; }
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 
 :focus-visible {
-  outline: 3px solid var(--amber);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
-  border-radius: 0.35rem;
+  border-radius: 4px;
 }
-.on-light :focus-visible, .section :focus-visible { outline-color: var(--verdigris-deep); }
 
-::selection { background: var(--copper); color: #fff; }
+::selection { background: var(--accent); color: var(--accent-ink); }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -105,65 +141,39 @@ a { color: inherit; }
   padding-inline: var(--gutter);
 }
 
-/* Buttons: one primary (copper, lit from above like the app's kit), one quiet. */
+/* Buttons: one primary (lapis, lit from above), one quiet (a Slate key, recessed). */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
-  font: 600 1rem/1 var(--body);
-  padding: 0.95rem 1.4rem;
-  border-radius: 0.65rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem;
+  font: 600 1.0625rem/1 var(--body); letter-spacing: 0.01em;
+  padding: 0.9rem 1.35rem;
+  border-radius: 6px;
   border: 1px solid transparent;
   text-decoration: none;
   cursor: pointer;
-  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), background 0.18s, border-color 0.18s;
+  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), background 0.18s, border-color 0.18s, color 0.18s;
 }
 .btn:active { transform: translateY(1px); }
 .btn-primary {
-  color: #fff;
-  background: linear-gradient(#ef8a43, var(--copper) 52%, var(--copper-deep));
-  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 10px 26px -10px rgba(212,98,42,.85);
+  color: var(--accent-ink);
+  background: var(--accent-grad);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) inset, 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 12px 26px -12px var(--accent-glow);
 }
-.btn-primary:hover { box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 14px 32px -10px rgba(212,98,42,1); }
-.btn-quiet { color: var(--ink); background: var(--paper-2); border-color: var(--line); }
-.btn-quiet:hover { border-color: var(--copper); color: var(--copper-deep); }
-.btn svg { width: 1.1rem; height: 1.1rem; flex: none; }
+.btn-primary:hover { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.24) inset, 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 16px 32px -12px var(--accent-glow); filter: brightness(1.05); }
+.btn-quiet { color: var(--ink); background: var(--mist); border-color: var(--edge); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset; }
+:root[data-theme="light"] .btn-quiet { background: var(--paper-2); border-color: var(--line); }
+:root[data-theme="light"] .lapis .btn-quiet, :root[data-theme="light"] .hero .btn-quiet, :root[data-theme="light"] .get-main .btn-quiet { background: var(--mist); border-color: var(--edge); }
+.btn-quiet:hover { border-color: var(--accent); color: var(--accent-text); }
+.btn svg { width: 1.05rem; height: 1.05rem; flex: none; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
 
-/* Day mode: the "stage" sections (nav, hero, engine, download, footer) swap to light by
-   remapping their tokens; sections that were already light stay as they are. */
-:root[data-theme="light"] {
-  --night: #ffffff;
-  --night-2: #f5f7f6;
-  --night-3: #e8edeb;
-  --night-line: #d3dbd8;
-  --night-ink: #1b1511;
-  --night-ink-2: #5b544d;
-  --strong: #14100d;
-  --cell: #e6ebe9;
-  --cell-2: #d6ddda;
-  --grid-1: rgba(212, 98, 42, 0.13);
-  --grid-2: rgba(212, 98, 42, 0.06);
-  --glow: 0.16;
-  --sigil-bar: #f0a032;
-  --paper: #eef2f0;
-}
-:root[data-theme="light"] .rack { box-shadow: 0 1px 0 #fff inset, 0 30px 60px -30px rgba(20, 16, 13, 0.35), 0 2px 6px rgba(20, 16, 13, 0.06); }
-:root[data-theme="light"] .sigil { filter: saturate(1.15) brightness(0.92); }
-:root[data-theme="light"] .verse { border: 1px solid var(--night-line); }
-:root[data-theme="light"] .backdrop { background: radial-gradient(34rem 20rem at 20% 0%, rgba(212,98,42,.22), transparent 70%), radial-gradient(30rem 20rem at 100% 100%, rgba(62,142,126,.18), transparent 70%), #e3e9e6; }
-:root[data-theme="light"] .night { background: radial-gradient(50rem 26rem at 90% 0%, rgba(62,142,126,.16), transparent 70%), var(--night-2); }
-:root[data-theme="light"] .get { background-image: radial-gradient(44rem 22rem at 0% 100%, rgba(212,98,42,.14), transparent 70%); }
-:root[data-theme="light"] .free-wrap { background: #fff; }
-:root[data-theme="light"] .chan b { background: linear-gradient(to top, var(--verdigris-deep), var(--verdigris) 55%, var(--amber)); }
-:root[data-theme="light"] .hero { background: radial-gradient(52rem 34rem at 82% 8%, rgba(212,98,42,var(--glow)), transparent 70%), radial-gradient(40rem 26rem at 8% 100%, rgba(62,142,126,.12), transparent 70%), linear-gradient(#fff, var(--night-2)); }
-
 .theme-toggle {
-  width: 2.5rem; height: 2.5rem; display: inline-grid; place-items: center; cursor: pointer;
-  border-radius: 0.6rem; border: 0; color: var(--night-ink-2);
-  background: color-mix(in srgb, var(--strong) 7%, transparent);
+  width: 2.4rem; height: 2.4rem; display: inline-grid; place-items: center; cursor: pointer;
+  border-radius: 6px; border: 0; color: var(--night-ink-2);
+  background: var(--mist); box-shadow: 0 0 0 1px var(--edge) inset;
 }
 .theme-toggle:hover { color: var(--strong); }
-.theme-toggle svg { width: 1.2rem; height: 1.2rem; }
+.theme-toggle svg { width: 1.1rem; height: 1.1rem; }

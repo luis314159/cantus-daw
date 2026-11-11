@@ -647,6 +647,14 @@
             ],
             "description": "Route the track into this strip (\"master\": straight to the master, with no inserts): a strip id (get_mixer), or \"master\"."
           },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z0-9-]{1,48}$",
+            "description": "The icon of the user's choice before the track's name, by its id in the track icon library (\"kick\", \"mic\", \"eguitar\", \"treble-clef\"…), or null for none."
+          },
           "expected_revision": {
             "type": "integer",
             "minimum": 0,
@@ -1981,6 +1989,7 @@
               "discrimen",
               "speculum",
               "tonus",
+              "aula",
               "eq",
               "compressor",
               "limiter",
@@ -2005,9 +2014,11 @@
               "transient_split",
               "analyzer",
               "autotune",
-              "auto_tune"
+              "auto_tune",
+              "convolution",
+              "convolution_reverb"
             ],
-            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
+            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
           },
           "index": {
             "type": "integer",
@@ -2184,6 +2195,7 @@
               "discrimen",
               "speculum",
               "tonus",
+              "aula",
               "eq",
               "compressor",
               "limiter",
@@ -2208,9 +2220,11 @@
               "transient_split",
               "analyzer",
               "autotune",
-              "auto_tune"
+              "auto_tune",
+              "convolution",
+              "convolution_reverb"
             ],
-            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
+            "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"
           },
           "neutral": {
             "type": "boolean",
@@ -2250,6 +2264,50 @@
         "destructiveHint": true,
         "idempotentHint": false,
         "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_impulse_response",
+      "title": "Load an impulse response",
+      "description": "Give Aula (the convolution reverb) an impulse response from a file — WAV, AIFF, FLAC or Ogg; mono, stereo or true stereo (4 channels) — inside the project's folder or the folders the user allowed, or null for Cantus's own (its ir parameter: rooms, halls, plates, springs, chambers). Refused until the user allows files. Its other settings are set_effect's params. One undo step.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "effect_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "An Aula (convolution reverb) effect (get_mixer lists them)."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4096,
+            "description": "A WAV, AIFF, FLAC or Ogg impulse response — 1 channel (mono), 2 (stereo) or 4 (true stereo: L→L, L→R, R→L, R→R) — inside the folders the user allowed; null goes back to Cantus's own response (the effect's `ir` parameter)."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "effect_id",
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Load an impulse response",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {

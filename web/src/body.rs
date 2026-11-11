@@ -1,4 +1,4 @@
-//! Engine, values, download, manual and footer.
+//! Engine, values, download, support and the manual (the footer is `foot.rs`).
 
 use yew::prelude::*;
 
@@ -274,9 +274,9 @@ pub fn more() -> Html {
                     <div class="more-col">
                         <h3>{ l.t("Manual", "Manual") }</h3>
                         <p>{ l.t("The quick-start manual, in English and Spanish, from install to a finished song, and the decisions behind the design.", "El manual de inicio rápido, en inglés y español, de la instalación a una canción terminada, y las decisiones detrás del diseño.") }</p>
-                        <a class="link" href={l.t("manual/en/index.html", "manual/es/index.html")}>{ l.t("Read the manual", "Leer el manual") }</a>
+                        <a class="link" href={l.t("/manual/en/index.html", "/manual/es/index.html")}>{ l.t("Read the manual", "Leer el manual") }</a>
                         <a class="link" href={format!("{GITHUB}/tree/master/docs")}>{ l.t("Design notes", "Notas de diseño") }</a>
-                        <a class="link" href="press/index.html">{ l.t("Press kit", "Kit de prensa") }</a>
+                        <a class="link" href="/press/index.html">{ l.t("Press kit", "Kit de prensa") }</a>
                     </div>
                     <div class="more-col">
                         <h3>{ l.t("Sounds & instruments", "Sonidos e instrumentos") }<span class="soon">{ l.t("In the works", "En camino") }</span></h3>
@@ -287,34 +287,12 @@ pub fn more() -> Html {
                         <h3>{ l.t("Back the project", "Apoya el proyecto") }</h3>
                         <p>{ l.t("Donations are voluntary and unlock nothing. The best help is still to make a song and tell us what got in your way.",
                                  "Las donaciones son voluntarias y no desbloquean nada. La mejor ayuda sigue siendo hacer una canción y contarnos qué te estorbó.") }</p>
-                        <a class="link" href="#support">{ l.t("Ways to support", "Formas de apoyar") }</a>
+                        <a class="link" href={format!("{}#support", crate::route::Page::new(l, crate::route::Route::Download).path())}>{ l.t("Ways to support", "Formas de apoyar") }</a>
                         <a class="link" href={format!("{GITHUB}/issues")}>{ l.t("Report a problem", "Reportar un problema") }</a>
                     </div>
                 </div>
             </div>
         </section>
-    }
-}
-
-#[function_component(Footer)]
-pub fn footer() -> Html {
-    let l = use_lang().lang;
-    html! {
-        <footer class="foot">
-            <div class="wrap foot-in">
-                <a class="brand" href="#top">{ icons::logo() }{ "Cantus" }</a>
-                <nav aria-label={l.t("Footer", "Pie de página")}>
-                    <a href={GITHUB}>{ "GitHub" }</a>
-                    <a href={format!("{GITHUB}/blob/master/PRIVACY.md")}>{ l.t("Privacy", "Privacidad") }</a>
-                    <a href={format!("{GITHUB}/blob/master/LICENSE")}>{ l.t("Licence", "Licencia") }</a>
-                    <a href={format!("{GITHUB}/blob/master/CONTRIBUTING.md")}>{ l.t("Contribute", "Contribuir") }</a>
-                    <a href={format!("{GITHUB}/blob/master/THIRD-PARTY-NOTICES.md")}>{ l.t("Third-party notices", "Avisos de terceros") }</a>
-                </nav>
-                <p>{ l.t("Created by Luis Ángel Almazán. Free software: app GPL-3.0-or-later, engine MPL-2.0. Cantus and its logos are trademarks of Luis Ángel Almazán. cantusdaw.com · cantusdaw.studio",
-                         "Creado por Luis Ángel Almazán. Software libre: app GPL-3.0-o-posterior, motor MPL-2.0. Cantus y sus logotipos son marcas de Luis Ángel Almazán. cantusdaw.com · cantusdaw.studio") }</p>
-                <p class="creed">{ l.t("Christ is King", "Viva Cristo Rey") }</p>
-            </div>
-        </footer>
     }
 }
 

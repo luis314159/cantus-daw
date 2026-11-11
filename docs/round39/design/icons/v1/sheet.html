@@ -1,0 +1,88 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus icons sheet</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="family.js"></script>
+<script src="glyphs-transport.js"></script>
+<script src="glyphs-transport2.js"></script>
+<script src="glyphs-tools.js"></script>
+<script src="glyphs-tools2.js"></script>
+<script src="glyphs-tools3.js"></script>
+<script src="glyphs-windows.js"></script>
+<script src="glyphs-windows2.js"></script>
+</head><body>
+<div id="out"></div>
+<script>
+// ?t=night|paper  &groups=transport,tools,windows  &on=1 (adds the on rows)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const groups = (q.get('groups') || 'transport').split(',');
+const withOn = q.get('on') !== '0';
+const GROUPS = {
+  transport: { title: 'Transport', names: [
+    ['toStart', 'to start'], ['skipBack', 'back'], ['play', 'play'], ['pause', 'pause'],
+    ['stop', 'stop'], ['record', 'record'], ['skipFwd', 'forward'], ['loop', 'loop'],
+    ['metronome', 'metronome'], ['countIn', 'count-in'], ['follow', 'follow']],
+    on: ['play', 'record', 'loop', 'metronome', 'countIn', 'follow'] },
+  tools: { title: 'Toolbar and top bar — tools', names: [
+    ['snap', 'snap'], ['undo', 'undo'], ['redo', 'redo'], ['draw', 'draw'],
+    ['select', 'select'], ['slice', 'slice'], ['erase', 'erase'], ['muteTool', 'mute'],
+    ['zoom', 'zoom'], ['pick', 'eyedropper'], ['gear', 'settings']],
+    on: ['snap', 'draw', 'select', 'slice', 'erase', 'muteTool', 'zoom', 'pick'] },
+  windows: { title: 'Toolbar and top bar — windows', names: [
+    ['arrangement', 'arrangement'], ['pianoRoll', 'piano roll'], ['rack', 'channel rack'],
+    ['mixer', 'mixer'], ['browser', 'browser'], ['plugins', 'plug-ins'],
+    ['inspector', 'inspector']],
+    on: ['arrangement', 'pianoRoll', 'rack', 'mixer', 'browser', 'plugins', 'inspector'] },
+};
+const COL = 66, LEFT = 128, PAD = 16;
+const k = INK[t];
+// ?strip=<size>: only the keys of the groups, in one tight row on the bar colour (for the
+// comparison sheets); &ids=a,b,c picks and orders the glyphs; &state=on shows them on.
+if (q.get('strip')) {
+  const c = +q.get('strip'), K = KEY[c], gap = Math.round(K / 8);
+  const ids = q.get('ids') ? q.get('ids').split(',') : groups.flatMap(g => GROUPS[g].names.map(n => n[0]));
+  const st = q.get('state') || 'rest';
+  let body = '';
+  ids.forEach((id, i) => { body += iconInKey(t, G[id], c, 6 + i * (K + gap), 6, st); });
+  const W = 12 + ids.length * (K + gap) - gap, H = K + 12;
+  document.body.style.background = k.bar;
+  document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.bar}"/>` + body);
+  document.body.setAttribute('data-w', W);
+  document.body.setAttribute('data-h', H);
+  throw new Error('strip done');
+}
+let y = PAD, body = '', maxW = 0;
+body += label(t, PAD, y + 14, `Cantus icon family — ${t === 'night' ? 'dark key (Night)' : 'light key (Paper)'} — 1:1 device pixels`, { size: 13, weight: 600 });
+y += 30;
+for (const g of groups) {
+  const grp = GROUPS[g];
+  body += label(t, PAD, y + 12, grp.title, { size: 12, weight: 600 });
+  y += 22;
+  grp.names.forEach(([id, name], i) => {
+    body += label(t, LEFT + i * COL + 27, y + 10, name, { size: 9.5, anchor: 'middle', dim: true });
+  });
+  y += 18;
+  const rows = SIZES.map(c => ({ c, state: 'rest' }));
+  if (withOn) [20, 30].forEach(c => rows.push({ c, state: 'on' }));
+  for (const r of rows) {
+    const K = KEY[r.c];
+    const pct = r.c === 24 ? '24 @100 %, 16 @150 %' : r.c === 30 ? '20 @150 %' : r.c === 36 ? '24 @150 %' : `${r.c} @100 %`;
+    body += label(t, PAD, y + K / 2 + 1, `${r.c} px${r.state === 'on' ? ' · on' : ''}`, { size: 10.5, weight: 600 });
+    body += label(t, PAD, y + K / 2 + 13, pct, { size: 8.5, dim: true });
+    grp.names.forEach(([id], i) => {
+      const x = LEFT + i * COL + Math.floor((54 - K) / 2);
+      if (r.state === 'on' && !grp.on.includes(id)) return;
+      body += iconInKey(t, G[id], r.c, x, y, r.state === 'on' ? 'on' : 'rest');
+    });
+    y += K + 8;
+  }
+  maxW = Math.max(maxW, LEFT + grp.names.length * COL + PAD);
+  y += 14;
+}
+const W = maxW, H = y + PAD;
+document.body.style.background = k.page;
+document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.page}"/>` + body);
+document.body.setAttribute('data-w', W);
+document.body.setAttribute('data-h', H);
+</script>
+</body></html>

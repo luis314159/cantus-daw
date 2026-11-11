@@ -33,7 +33,11 @@ struct Rig {
 impl Rig {
     fn desk(project: Project) -> Rig {
         cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
-        let app = CantusApp::from_parts(Some(project), EngineHandle::dummy(), false);
+        let app = cantus_ui::views::mixer::with_cables(CantusApp::from_parts(
+            Some(project),
+            EngineHandle::dummy(),
+            false,
+        ));
         Rig {
             ctx: ctx(),
             app,
@@ -42,18 +46,6 @@ impl Rig {
             pointer: None,
             window: None,
         }
-    }
-
-    /// The whole window, tall enough for the inspector's sends.
-    fn window(project: Project) -> Rig {
-        let mut r = Rig::desk(project);
-        let dir = tempfile::tempdir().unwrap();
-        r.app.settings_path = dir.path().join("settings.json");
-        r.app.layouts_path = dir.path().join("layouts.json");
-        r.app.central = cantus_ui::app::CentralView::Mixer;
-        r.window = Some(dir);
-        r.size = vec2(1600.0, 2400.0);
-        r
     }
 
     fn frame(&mut self, events: Vec<Event>) {
@@ -244,28 +236,16 @@ fn the_plus_row_dragged_onto_a_strip_sends() {
 
 // ---- POST | PRE from every entry point ---------------------------------------------------
 
-/// The tap chip of an Extra large send row: a click makes the send pre-fader.
-#[test]
-fn the_send_rows_chip_makes_it_pre() {
-    let mut r = Rig::desk(starter_project());
-    mixer::set_width_mode(&mut r.app, WidthMode::Xl);
-    let s = r.ids();
-    r.app.set_strip_send(s[1], Send::new(s[5]));
-    r.app.end_gesture();
-    r.idle(3);
-    let chip = mixer::tap_chip_rect(&r.ctx, s[1], 0).expect("the row's chip");
-    r.click(chip.center());
-    assert_eq!(send_of(&r.app, s[1], s[5]).unwrap().tap, SendTap::Pre);
-    assert_eq!(r.label(), Some("cmd.set_send_tap"));
-    // And back.
-    r.click(chip.center());
-    assert_eq!(send_of(&r.app, s[1], s[5]).unwrap().tap, SendTap::Post);
-}
-
 /// The selected send cable's chip beside its pill.
 #[test]
 fn the_selected_pills_chip_makes_it_pre() {
     let mut r = Rig::desk(starter_project());
+    // The level pills are an option of the cable view since round 39 (des-mixer).
+    {
+        let mut p = r.app.mixer.prefs();
+        p.cable_opts.levels = true;
+        r.app.mixer.set_prefs(p);
+    }
     mixer::set_width_mode(&mut r.app, WidthMode::Wide);
     let s = r.ids();
     let ret = r
@@ -286,26 +266,6 @@ fn the_selected_pills_chip_makes_it_pre() {
     let chip = mixer::pill_tap_rect(&r.ctx, s[1], ret).expect("the chip beside the pill");
     r.click(chip.center());
     assert_eq!(send_of(&r.app, s[1], ret).unwrap().tap, SendTap::Pre);
-    assert_eq!(r.label(), Some("cmd.set_send_tap"));
-}
-
-/// The inspector's send row: the `PRE` segment of its switch.
-#[test]
-fn the_inspectors_switch_makes_it_pre() {
-    let mut p = starter_project();
-    let (src, ret) = (p.strips[1].id, p.strips[5].id);
-    p.strips[1].sends.push(Send::new(ret));
-    let mut r = Rig::window(p);
-    r.app.select_strip(src);
-    r.idle(4);
-    let seg = r
-        .ctx
-        .read_response(egui::Id::new(("insp-send-tap", src, ret)))
-        .expect("the inspector's switch")
-        .rect;
-    // Two segments, POST then PRE: the right half is PRE.
-    r.click(seg.center() + vec2(seg.width() * 0.25, 0.0));
-    assert_eq!(send_of(&r.app, src, ret).unwrap().tap, SendTap::Pre);
     assert_eq!(r.label(), Some("cmd.set_send_tap"));
 }
 

@@ -38,6 +38,9 @@ rtrb.workspace = true
 # The taskbar identity and the running window's taskbar icon (ADR 0046).
 cantus-launch.workspace = true
 raw-window-handle = "0.6"
+# The Chorda scene baker's crew, kept for all a bake's passes (round 39, fixes): the version
+# already in the program (through the image codecs).
+rayon = "1.12"
 egui.workspace = true
 eframe.workspace = true
 rfd.workspace = true

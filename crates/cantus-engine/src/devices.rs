@@ -1270,7 +1270,9 @@ const SCRATCH_FRAMES: usize = 4096;
 /// The output stream callback's state: the processor, the loopback probe, and a scratch
 /// buffer (allocated here, on the UI thread) for devices that play integer samples.
 pub(crate) struct OutputDriver {
-    pub processor: crate::processor::Processor,
+    /// Boxed: the driver is moved by value through cpal's generic stream builders, one
+    /// frame each, on the thread that opens the device (the main thread, 1 MB on Windows).
+    pub processor: Box<crate::processor::Processor>,
     pub channels: usize,
     pub rate: f64,
     pub telemetry: Arc<DeviceTelemetry>,

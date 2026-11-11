@@ -277,6 +277,11 @@ pub fn row_key(b: &mut Brush, rect: Rect, s: &Style, st: State, face: KeyFace<'_
 
 fn key_with(b: &mut Brush, rect: Rect, s: &Style, st: State, face: KeyFace<'_>, drop: bool) {
     let red = matches!(face, KeyFace::Glyph(Glyph::Record)).then_some(Tok::Danger);
+    if s.t.system.recessed() {
+        b.register(rect, "toolbar_key", WELL_KEY_TOKENS, &[red]);
+        well_key(b, rect, s, st, face);
+        return;
+    }
     b.register(
         rect,
         "toolbar_key",
@@ -337,6 +342,18 @@ pub fn key_strip(
         .iter()
         .any(|f| matches!(f, KeyFace::Glyph(Glyph::Record)))
         .then_some(Tok::Danger);
+    if s.t.system.recessed() {
+        // Slate (round 39): a row of wells, each its own key, a hair apart.
+        b.register(strip, "toolbar_key", WELL_KEY_TOKENS, &[red]);
+        for (i, c) in cells.iter().enumerate() {
+            let st = states.get(i).copied().unwrap_or_default();
+            let key = c.shrink2(egui::vec2(s.s(1.0), 0.0));
+            if let Some(f) = faces.get(i) {
+                well_key(b, key, s, st, *f);
+            }
+        }
+        return;
+    }
     b.register(
         strip,
         "toolbar_key",
@@ -479,10 +496,179 @@ pub fn key_strip(
     }
 }
 
+/// The tokens a recessed key paints with (round 39).
+pub const WELL_KEY_TOKENS: &[Tok] = &[
+    Tok::Well,
+    Tok::InnerShadow,
+    Tok::Lip,
+    Tok::TextDim,
+    Tok::Text,
+    Tok::Highlight,
+    Tok::Focus,
+];
+
+/// How much of a recessed key's side its glyph's box takes: the glyph about a third of
+/// the key for the transport, about half for a line icon (`dir-a`'s parts sheet), inside
+/// the glyph's own box. // r39:kit
+pub const WELL_GLYPH_SHARE: f32 = 0.66;
+
+/// The fill of a recessed key in `st` (round 39, `dir-a`): the well at rest, a step lifted
+/// under the pointer, its own edge while held, the accent mixed in when on.
+pub fn well_fill(s: &Style, st: State) -> Color32 {
+    let t = &s.t;
+    if st.active {
+        super::color::opaque(t.inner_shadow)
+    } else if st.lit {
+        super::color::mix(t.well, t.highlight, if t.dark { 0.20 } else { 0.16 })
+    } else if st.hovered {
+        super::color::mix(t.well, t.text, if t.dark { 0.04 } else { 0.05 })
+    } else {
+        t.well
+    }
+}
+
+/// The ink of a recessed key's glyph: secondary at rest, primary under the pointer, the
+/// accent when on.
+pub fn well_ink(s: &Style, st: State) -> Color32 {
+    if st.lit {
+        s.t.highlight
+    } else if st.hovered || st.active {
+        s.t.text
+    } else {
+        s.t.text_dim
+    }
+}
+
+/// The well itself: a 1-px dark edge round its top and sides, a 1-px light lip along its
+/// foot, a flat floor — recessed, never a glossy cap. No gradient, no drop.
+pub fn well_body(b: &mut Brush, rect: Rect, r: f32, s: &Style, fill: Color32, a: f32) {
+    let px = b.px();
+    let rr = b.snap_rect(rect);
+    let edge = super::color::opaque(s.t.inner_shadow).gamma_multiply(a);
+    let lip = super::color::opaque(s.t.lip).gamma_multiply(a);
+    // The edge as the well's outline (all but its foot), the floor inside it, and the lip
+    // a hairline along the foot between the corners: two rounded shapes and a line, no
+    // more triangles than a raised key's (ADR 0108).
+    let body = Rect::from_min_max(rr.min, egui::pos2(rr.right(), rr.bottom() - px));
+    b.rrect(body, r, Fill::Solid(edge));
+    let floor = Rect::from_min_max(
+        egui::pos2(rr.left() + px, rr.top() + px),
+        egui::pos2(rr.right() - px, rr.bottom() - px),
+    );
+    b.rrect(
+        floor,
+        (r - px).max(0.0),
+        Fill::Solid(fill.gamma_multiply(a)),
+    );
+    let inset = (r * 0.6).max(px);
+    b.hline(
+        rr.left() + inset,
+        rr.right() - inset,
+        rr.bottom() - px * 0.5,
+        px,
+        lip,
+    );
+}
+
+/// A recessed key (round 39): [`well_body`] with its glyph or word.
+pub fn well_key(b: &mut Brush, rect: Rect, s: &Style, st: State, face: KeyFace<'_>) {
+    let a = st.alpha();
+    let r = s.s(s.t.radius);
+    // On is the accent — green for play, red for record (`dir-a`'s parts: colour is spent
+    // only on state).
+    let state_hue = match face {
+        KeyFace::Glyph(Glyph::Play | Glyph::Pause) => Some(s.t.led),
+        KeyFace::Glyph(Glyph::Record) => Some(s.t.danger),
+        _ => None,
+    };
+    let fill = match state_hue {
+        Some(h) if st.lit && !st.active => {
+            super::color::mix(s.t.well, h, if s.t.dark { 0.20 } else { 0.16 })
+        }
+        _ => well_fill(s, st),
+    };
+    well_body(b, rect, r, s, fill, a);
+    // The icon family (round 39), drawn for this key's height on the device: the glyph a
+    // third of the transport's key, half a tool's, as its designer set each pixel.
+    if let KeyFace::Glyph(g) = face {
+        let on = state_hue.unwrap_or(s.t.highlight);
+        let inks = super::icons::inks(s, st, on, fill);
+        if super::icons::paint(b, rect, g, &inks, a) {
+            if st.focused {
+                focus_ring(b, rect, r, s);
+            }
+            return;
+        }
+    }
+    let ink = match state_hue {
+        Some(h) if st.lit => h,
+        _ => well_ink(s, st),
+    }
+    .gamma_multiply(a);
+    match face {
+        KeyFace::Glyph(g) => {
+            let side = rect.width().min(rect.height()) * WELL_GLYPH_SHARE;
+            let ink = if g == Glyph::Record {
+                s.t.danger.gamma_multiply(a)
+            } else {
+                ink
+            };
+            let gr = Rect::from_center_size(rect.center(), egui::Vec2::splat(side));
+            glyph::paint(b, gr, g, ink);
+            if glyph::has_accent(g) {
+                // One ink at rest and on: the accent's second tone is the edge ink's job in
+                // Slate, not a second colour.
+                glyph::paint_accent(b, gr, g, ink);
+            }
+        }
+        KeyFace::Text(t) => {
+            let _ = text::paint(
+                b,
+                rect.shrink(s.s(2.0)),
+                &Text::new(t, Role::Micro, ink),
+                s.tk(),
+            );
+        }
+    }
+    if st.focused {
+        focus_ring(b, rect, r, s);
+    }
+}
+
 /// A key that carries a word (PAT, SONG; `key` is its i18n key): the toolbar key's object, its word in label caps
 /// — lit through in the highlight when it is the one on (round 37). The caller registers.
 pub fn word_key(b: &mut Brush, rect: Rect, s: &Style, st: State, key: &str) {
     let r = s.s(s.t.radius);
+    if s.t.system.recessed() {
+        // Slate: a radio choice is a lifted neutral pill, never a colour (`dir-a`).
+        let a = st.alpha();
+        let fill = if st.lit {
+            s.t.menu
+        } else if st.active {
+            super::color::opaque(s.t.inner_shadow)
+        } else if st.hovered {
+            super::color::mix(s.t.well, s.t.text, 0.04)
+        } else {
+            s.t.well
+        };
+        if st.lit {
+            b.rrect(b.snap_rect(rect), r, Fill::Solid(fill.gamma_multiply(a)));
+        } else {
+            well_body(b, rect, r, s, fill, a);
+        }
+        let ink = if st.lit || st.hovered {
+            s.t.text
+        } else {
+            s.t.text_dim
+        };
+        let _ = text::paint(
+            b,
+            rect.shrink2(egui::vec2(s.s(4.0), 0.0)),
+            &Text::key(key, Role::Control, ink.gamma_multiply(a)),
+            s.tk(),
+        );
+        return;
+    }
     let m = Material::of(&s.t);
     let base = key_base(s);
     let base = if st.hovered && !st.lit {

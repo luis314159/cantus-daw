@@ -206,6 +206,8 @@ fn knobs(ui: &mut egui::Ui) {
                 mapping: false,
                 live: Some(0.68),
                 learn: None,
+                drive: 0,
+                vca: false,
             },
         ),
         (
@@ -216,6 +218,8 @@ fn knobs(ui: &mut egui::Ui) {
                 mapping: false,
                 live: Some(0.52),
                 learn: None,
+                drive: 0,
+                vca: false,
             },
         ),
         (
@@ -226,6 +230,8 @@ fn knobs(ui: &mut egui::Ui) {
                 mapping: true,
                 live: Some(0.82),
                 learn: None,
+                drive: 0,
+                vca: false,
             },
         ),
         (0.2, &[], ModOffer::default()),

@@ -9,7 +9,6 @@ use crate::kit::glyph::Glyph;
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{with_brush, Style};
 use crate::views::interop::form;
-use crate::views::workspace_settings as ws;
 use cantus_core::TrackId;
 use egui::{pos2, vec2, Align2, Context, Id, Key, Rect, Sense};
 
@@ -107,9 +106,9 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
         .fixed_pos(at)
         .show(ctx, |ui| {
             ui.set_min_size(rect.size());
-            ws::frame(ui, rect, &s);
+            crate::kit::dialog::sheet(ui, rect, &s); // r39:el-controls
             let title = Rect::from_min_size(rect.min, vec2(rect.width(), TITLE * k));
-            if ws::title(ui, title, &s, Glyph::Plus, title_key) {
+            if crate::kit::dialog::head(ui, title, &s, Glyph::Plus, title_key) {
                 close = true;
             }
             let inner = Rect::from_min_max(

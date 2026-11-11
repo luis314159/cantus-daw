@@ -13,7 +13,7 @@
 //! and at the right scroll by their thumb and zoom by its ends.
 
 use super::clips_chrome::{self as chrome, Span, Toolbar, BAR};
-use super::{beats_to_ticks, ticks_to_beats, GRIDS};
+use super::{beats_to_ticks, ticks_to_beats};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use crate::icons::Icon;
@@ -31,6 +31,12 @@ use egui::{pos2, vec2, PointerButton, Pos2, Rect, Sense};
 #[path = "piano_roll_lanes.rs"]
 pub mod lanes;
 use lanes::LaneRow;
+/// The other clips' notes, faint, behind this one (round 39, des-views).
+#[path = "piano_roll_ghosts.rs"]
+mod ghosts;
+/// The keyboard as an instrument (round 39, des-views).
+#[path = "piano_roll_keys.rs"]
+mod keys;
 #[path = "piano_roll_paint.rs"]
 mod paint;
 /// The song's key in the piano roll (round 31, ADR 0069).
@@ -56,6 +62,10 @@ const SPLIT_H: f32 = 6.0;
 const KEY_MIN: f32 = 6.0;
 const KEY_MAX: f32 = 40.0;
 const RESIZE_GRIP: f32 = 8.0;
+
+/// What the head's selection readout was built for: the song's revision, the clip's note
+/// count, the selection's size and a sum of its ids, the language.
+type ReadoutKey = (u64, usize, usize, u64, crate::i18n::Locale);
 
 /// Mouse tools. FL letters (when the typing piano is off) or number keys 1–7.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -349,6 +359,12 @@ impl SelSet {
 
 #[derive(Debug)]
 pub struct PianoRollView {
+    /// The other clips' notes shown faintly behind this one (round 39), and whose they
+    /// are, as the head names them.
+    pub ghosts: bool,
+    pub ghost_names: String,
+    /// How far the toolbar folded on the last frame (`clips_chrome::fold`, r39:el-views).
+    pub bar_fold: u8,
     pub px_per_beat: f32,
     pub scroll_beats: f32,
     pub key_height: f32,
@@ -381,7 +397,9 @@ pub struct PianoRollView {
     last_grid: (f32, f32),
     /// The toolbar's note count, rebuilt when the count or the language changes (review of
     /// fix3: it kept the old language after a switch).
-    count: (usize, crate::i18n::Locale, String),
+    count: (Option<ReadoutKey>, String, String),
+    /// r39:lo-arrange — the grid follows the zoom (the grid menu's "Follow the zoom").
+    pub grid_auto: bool,
     /// A clip opened from the arrangement, to fit to the grid the next time it is laid out
     /// ([`fit_clip`]).
     fit_pending: Option<(TrackId, ClipId)>,
@@ -420,6 +438,9 @@ impl Default for PianoRollView {
             px_per_beat: 48.0,
             scroll_beats: 0.0,
             key_height: 14.0,
+            ghosts: true,
+            ghost_names: String::new(),
+            bar_fold: 0,
             top_lane: 84.0,
             grid: Ticks::SIXTEENTH,
             snap: true,
@@ -434,7 +455,8 @@ impl Default for PianoRollView {
             sel: SelSet::default(),
             axis: None,
             last_grid: (0.0, 0.0),
-            count: (usize::MAX, crate::i18n::Locale::En, String::new()),
+            count: (None, String::new(), String::new()),
+            grid_auto: false,
             fit_pending: None,
             lanes: lanes::LanesView::default(),
         }
@@ -634,7 +656,14 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             }
         }
     };
-    let keys_w = s.s(if axis.pads() { PAD_KEYS_W } else { KEYS_W });
+    // r39:el-views — the keyboard's depth follows its rows (56 at 8, 72 at 12, 88 at 18).
+    let keys_w = s.s(if axis.pads() {
+        PAD_KEYS_W
+    } else if axis.is_chromatic() {
+        keys::width_for(app.piano_roll.key_height)
+    } else {
+        KEYS_W
+    });
     // The staff under the piano roll when it is open (round 32, ADR 0075).
     let full =
         super::score_view::carve(app, ui, track_id, clip_id, ui.available_rect_before_wrap());
@@ -697,7 +726,13 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     app.selected_notes = selected;
 
     // ---- paint: everything read, nothing edited ---------------------------------------
-    let hover_key = keys_resp.hover_pos().map(|p| key_at(&geo, f.keys, p));
+    // r39:el-views — the row under the pointer, on the keyboard or in the grid: its key
+    // and its row are lit.
+    let hover_key = keys_resp
+        .hover_pos()
+        .map(|p| key_at(&geo, f.keys, p))
+        .or_else(|| resp.hover_pos().map(|p| geo.lane_at(p.y)));
+    let mut ghost_names = std::mem::take(&mut app.piano_roll.ghost_names);
     let hits = {
         let a: &CantusApp = app;
         let v = &a.piano_roll;
@@ -713,9 +748,27 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         let ph_x = geo.x(ticks_to_beats(ph));
         let grid_p = ui.painter().with_clip_rect(f.grid);
         let drawn = kit::with_brush(&grid_p, |b| {
-            paint::grid(b, a, &geo, clip, v.grid, &s);
+            paint::grid(b, a, &geo, clip, v.grid, hover_key, &s);
             scale::rows(b, a, &geo, &s); // r31 midi: the key's rows lit
-            let drawn = paint::notes(b, &geo, clip, &v.sel, &a.selected_notes, track_color, &s);
+            if v.ghosts {
+                ghosts::paint(b, a, &geo, track_id, clip_id, &mut ghost_names, &s);
+            } else {
+                ghost_names.clear();
+            }
+            let over = resp
+                .hover_pos()
+                .and_then(|p| geo.hit(&clip.notes, p))
+                .map(|h| h.0);
+            let drawn = paint::notes(
+                b,
+                &geo,
+                clip,
+                &v.sel,
+                &a.selected_notes,
+                track_color,
+                over,
+                &s,
+            );
             // Their per-note expression on them (ADR 0080).
             expr::paint_on_notes(b, &geo, clip, v.lanes.on_notes, &s);
             paint::recording(b, a, &geo, clip, &s);
@@ -736,7 +789,17 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             drawn
         });
         kit::with_brush(&ui.painter().with_clip_rect(f.keys), |b| {
-            paint::keys(b, &geo, f.keys, hover_key, &s);
+            let light = keys::KeyLight {
+                hover: hover_key,
+                heard: a.auditioned(track_id),
+                sounding: if a.engine.is_playing() {
+                    sounding(clip, ph)
+                } else {
+                    0
+                },
+                hue: track_color,
+            };
+            paint::keys(b, &geo, f.keys, &light, &s);
             scale::keys(b, a, &geo, f.keys, &s); // r31 midi: the key on the keyboard
         });
         kit::with_brush(&ui.painter().with_clip_rect(f.ruler), |b| {
@@ -811,11 +874,12 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
                     .map(|n| n.id)
             }),
             to_timeline: clip.start - clip.offset,
-            track_color,
         }
     };
     app.piano_roll_notes_drawn = hits.drawn;
+    app.piano_roll.ghost_names = ghost_names;
     chrome_parts(app, ui, &f, &hits, &s);
+    rows_field(app, ui, &f, &s);
     kit::with_brush(&ui.painter().with_clip_rect(f.vel_label), |b| {
         lanes::paint_cells(b, &app.piano_roll.lanes, &rows, &s)
     });
@@ -875,6 +939,21 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     app.piano_roll.axis = Some((key, axis));
 }
 
+/// The pitches of the clip's notes under content tick `at`, as a 128-bit set.
+fn sounding(clip: &cantus_core::Clip, at: Ticks) -> u128 {
+    let from = clip
+        .notes
+        .partition_point(|n| n.start < at - Ticks::beats(32));
+    let to = clip.notes.partition_point(|n| n.start <= at);
+    let mut set = 0u128;
+    for n in &clip.notes[from..to.max(from)] {
+        if !n.muted && n.end() > at && n.pitch < 128 {
+            set |= 1u128 << n.pitch;
+        }
+    }
+    set
+}
+
 /// What the painting pass found, for the input pass.
 struct Hits {
     drawn: usize,
@@ -886,7 +965,6 @@ struct Hits {
     vel_press: Option<NoteId>,
     /// Content ticks to the arrangement's: the ruler counts the arrangement's bars.
     to_timeline: Ticks,
-    track_color: egui::Color32,
 }
 
 /// An empty view's one line, in a box of its own.
@@ -1073,37 +1151,86 @@ fn split(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
 /// The small parts around the grid: FL's note-colour tab over the keyboard, the corners
 /// beside the bars, and the cell naming what the lower lane edits.
 fn chrome_parts(app: &CantusApp, ui: &egui::Ui, f: &Frame, hits: &Hits, s: &Style) {
-    let t = &s.t;
-    let ink = paint::NoteInk::of(hits.track_color, s);
+    let _ = hits;
     kit::with_brush(ui.painter(), |b| {
         chrome::corner(b, f.vcorner, s);
         chrome::corner(b, f.vel_corner, s);
-        b.register(f.corner, "note_tab", &[kit::Tok::Panel], &[]);
-        b.rect(b.snap_rect(f.corner), kit::Fill::Solid(t.panel));
-        // The tab: the note colour, slanted at its right edge (FL).
-        let c = f.corner.shrink2(vec2(s.s(4.0), s.s(4.0)));
-        let slant = c.height().min(s.s(18.0));
-        b.polygon(
-            &[
-                pos2(c.left(), c.bottom()),
-                pos2(c.left(), c.top() + s.s(3.0)),
-                pos2(c.right() - slant, c.top() + s.s(3.0)),
-                pos2(c.right(), c.bottom()),
-            ],
-            ink.outline,
-        );
-        let inner = c.shrink(1.0);
-        b.polygon(
-            &[
-                pos2(inner.left(), inner.bottom()),
-                pos2(inner.left(), inner.top() + s.s(3.0)),
-                pos2(inner.right() - slant, inner.top() + s.s(3.0)),
-                pos2(inner.right(), inner.bottom()),
-            ],
-            ink.bottom,
-        );
+        // r39:lo-arrange — des-views' corner over the keyboard: "Rows" and the rows' height
+        // in a well (it was FL's note-colour tab, a slanted swatch that said nothing).
+        let room = crate::views::room::Room::of(&s.t);
+        b.register(f.corner, "rows_corner", &[kit::Tok::Toolbar], &[]);
+        b.rect(b.snap_rect(f.corner), kit::Fill::Solid(room.surface));
+        let (well, label) = rows_cells(f.corner, s);
+        if well.width() > 4.0 {
+            let st = if ui.rect_contains_pointer(well) {
+                kit::State::HOVER
+            } else {
+                kit::State::REST
+            };
+            let n = app.piano_roll.key_height.round() as i64;
+            let mut digits = super::clips_chrome::Digits::default();
+            kit::well::readout(b, well, s, st, digits.fmt(n), true);
+        }
+        if label.width() > 8.0 {
+            let t = kit::text::Text::key("pianoroll.rows", kit::text::Role::Label, room.ink3)
+                .caps(false)
+                .align(egui::Align2::RIGHT_CENTER);
+            let _ = kit::text::paint(b, label, &t, s.tk());
+        }
     });
-    let _ = app;
+}
+
+/// Where the corner's well and its word are: the well 30 × 18 at the right, the word
+/// before it.
+fn rows_cells(corner: Rect, s: &Style) -> (Rect, Rect) {
+    let well = Rect::from_min_size(
+        pos2(corner.right() - s.s(36.0), corner.center().y - s.s(9.0)),
+        vec2(s.s(30.0), s.s(18.0)),
+    );
+    let label = Rect::from_min_max(
+        pos2(corner.left() + s.s(4.0), corner.top()),
+        pos2(well.left() - s.s(6.0), corner.bottom()),
+    );
+    (well, label)
+}
+
+/// The rows' well opens their heights (des-views: compact 8, default 12, tall 18);
+/// Ctrl+Alt+wheel over the grid still zooms them freely.
+fn rows_field(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
+    let (well, _) = rows_cells(f.corner, s);
+    if well.width() <= 4.0 {
+        return;
+    }
+    let resp = ui.interact(well, ui.id().with("pianoroll-rows"), Sense::click());
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), chrome::word("pianoroll.rows_tip"), "", Caps::NONE);
+    }
+    egui::Popup::menu(&resp)
+        .frame(egui::Frame::NONE)
+        .show(|ui| {
+            use kit::menu::{Check, Item};
+            const HEIGHTS: [(&str, f32); 3] = [
+                ("pianoroll.rows_compact", 8.0),
+                ("pianoroll.rows_default", 12.0),
+                ("pianoroll.rows_tall", 18.0),
+            ];
+            let now = app.piano_roll.key_height.round();
+            let items: Vec<Item<'_>> = HEIGHTS
+                .iter()
+                .map(|(k, h)| Item::Action {
+                    label: kit::text::Src::Key(k),
+                    check: Check::Radio(now == *h),
+                    shortcut: None,
+                    submenu: false,
+                    enabled: true,
+                })
+                .collect();
+            let (_, clicks) = kit::widgets::menu_list(ui, &items, 150.0);
+            if let Some(i) = clicks.clicked {
+                app.piano_roll.key_height = HEIGHTS[i].1;
+                ui.close();
+            }
+        });
 }
 
 /// A tool key's tooltip: its name and the shortcut bound right now.
@@ -1121,8 +1248,10 @@ fn tool_tip(app: &CantusApp, tool: Tool) -> String {
 fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId) {
     use crate::keymap::Action;
     let id = ui.id().with("pianoroll-toolbar");
-    let mut bar = Toolbar::new(ui);
-    if let Some(r) = bar.menu(ui, id.with("menu"), "pianoroll.menu") {
+    let mut bar = Toolbar::new(ui).named(kit::glyph::Glyph::PianoRoll);
+    // r39:lo-arrange — des-views' head: the panel's menu at the right end (dir-a's "…"),
+    // then the selection readout before it.
+    if let Some(r) = bar.menu_right(ui, id.with("menu"), || t("pianoroll.menu")) {
         egui::Popup::menu(&r).show(|ui| {
             for (action, key) in [
                 (Action::SelectAll, "menu.select_all"),
@@ -1136,48 +1265,54 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
             }
         });
     }
-    {
+    head_readout(app, ui, &mut bar, track, clip);
+    bar.title(ui, Src::Key("pianoroll.title"), None);
+    // r39:lo-arrange — the clip menu (des-views): the track's stripe, its name › the clip's.
+    let menu = {
         let a: &CantusApp = app;
         let clip_name = clip_of(a, track, clip)
             .map(|c| c.name.as_str())
             .unwrap_or("");
-        let track_name = a.project().track(track).map(|t| t.name.as_str());
-        bar.title(ui, Src::Str(clip_name), track_name);
+        let (track_name, stripe) = a
+            .project()
+            .track(track)
+            .map(|t| (t.name.as_str(), theme::track_color(t.color)))
+            .unwrap_or(("", crate::views::room::Room::of(&Style::current().t).ink3));
+        bar.clip_menu(ui, id.with("clip"), stripe, track_name, clip_name, || {
+            t("pianoroll.clip_menu.tip")
+        })
+    };
+    if let Some(r) = menu {
+        egui::Popup::menu(&r)
+            .frame(egui::Frame::NONE)
+            .show(|ui| clip_menu(app, ui, track, clip));
     }
-    bar.divider(ui);
-    for tool in Tool::ALL {
-        let lit = app.piano_roll.tool == tool;
-        let r = bar.key(
-            ui,
-            id.with(tool.label_key()),
-            tool.icon(),
-            lit,
-            true,
-            || tool_tip(app, tool),
-        );
-        if r.is_some_and(|r| r.clicked()) {
-            app.piano_roll.tool = tool;
-        }
-    }
-    bar.divider(ui);
-    let grid_key = GRIDS
+    // r39:el-views — one radio set, folded to the chosen tool when the row runs short.
+    let set = Tool::ALL.map(|t| (t.icon(), t.label_key()));
+    let chosen = Tool::ALL
         .iter()
-        .find(|(_, g)| *g == app.piano_roll.grid.0)
-        .map(|(k, _)| *k)
-        .unwrap_or("grid.sixteenth");
+        .position(|t| *t == app.piano_roll.tool)
+        .unwrap_or(0);
+    if let Some(i) = bar.tools(ui, id.with("tools"), &set, chosen, |i| {
+        tool_tip(app, Tool::ALL[i])
+    }) {
+        app.piano_roll.tool = Tool::ALL[i];
+    }
+    bar.divider(ui);
+    // r39:lo-arrange — the grid menu in musical order, Triplets, "Follow the zoom".
+    use super::arrangement::tools as grid;
+    let value = grid::field_value(app.piano_roll.grid, app.piano_roll.grid_auto, true);
     let caption = t("pianoroll.grid");
-    let field = bar.field(
-        ui,
-        id.with("grid"),
-        Some(&caption),
-        &t(grid_key),
-        64.0,
-        || t("pianoroll.grid_tip"),
-    );
+    let field = bar.field(ui, id.with("grid"), Some(&caption), &value, 54.0, || {
+        t("pianoroll.grid_tip")
+    });
     if let Some(r) = field {
+        let keys = app.keymap.display_for(Action::GridTriplets);
+        let keys = (!keys.is_empty()).then_some(keys);
         egui::Popup::menu(&r).frame(egui::Frame::NONE).show(|ui| {
-            if let Some(g) = super::arrangement::grid_menu(ui, app.piano_roll.grid) {
-                app.piano_roll.grid = g;
+            let v = &mut app.piano_roll;
+            if let Some(pick) = grid::grid_menu(ui, v.grid, v.grid_auto, keys.as_deref()) {
+                grid::apply(&mut v.grid, &mut v.grid_auto, pick);
                 ui.close();
             }
         });
@@ -1192,6 +1327,42 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     );
     if snap.is_some_and(|r| r.clicked()) {
         app.piano_roll.snap = !app.piano_roll.snap;
+    }
+    // r39:el-views — the ghosts, and whose they are.
+    let ghosts = bar.led(
+        ui,
+        id.with("ghosts"),
+        app.piano_roll.ghosts,
+        "pianoroll.ghosts",
+        70.0,
+        || t("pianoroll.ghosts_tip"),
+    );
+    if ghosts.is_some_and(|r| r.clicked()) {
+        app.piano_roll.ghosts = !app.piano_roll.ghosts;
+    }
+    if app.piano_roll.ghosts && !app.piano_roll.ghost_names.is_empty() {
+        let s = Style::current();
+        let names = kit::text::Text::new(
+            &app.piano_roll.ghost_names,
+            kit::text::Role::Label,
+            crate::views::room::Room::of(&s.t).ink3,
+        )
+        .align(egui::Align2::LEFT_CENTER);
+        let w = kit::text::measure(ui.ctx(), &names, s.tk())
+            .x
+            .min(180.0 * s.k)
+            + 6.0 * s.k;
+        // r39:lo-arrange — whose ghosts they are is the first word the row folds away.
+        if let Some(r) = bar.take_left_until(w / s.k, 20.0, chrome::fold::WORDS) {
+            kit::with_brush(ui.painter(), |b| {
+                let _ = kit::text::paint(
+                    b,
+                    r,
+                    &names.policy(kit::text::Policy::Elide(kit::text::Elide::End)),
+                    s.tk(),
+                );
+            });
+        }
     }
     scale::toolbar(app, ui, &mut bar, id); // r31 midi: the key, Scale, Fold, Snap
     let q = t("menu.quantize");
@@ -1231,15 +1402,146 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     if zoom.is_some_and(|r| r.clicked()) {
         zoom_to_notes(app, track, clip);
     }
-    let n = clip_of(app, track, clip).map_or(0, |c| c.notes.len());
-    let v = &mut app.piano_roll;
+    app.piano_roll.bar_fold = bar.fold();
+}
+
+/// r39:lo-arrange — des-views' selection readout: "8 notes selected" in ink 1, then its
+/// range in ink 3 ("F3 – F4 · velocity 89 – 102"); with nothing selected, the clip's count.
+/// Rebuilt only when the song, the selection or the language changes.
+fn head_readout(
+    app: &mut CantusApp,
+    ui: &egui::Ui,
+    bar: &mut Toolbar,
+    track: TrackId,
+    clip: ClipId,
+) {
+    let Some(c) = clip_of(app, track, clip) else {
+        return;
+    };
+    let sel = &app.selected_notes;
     let lang = crate::i18n::locale();
-    if (v.count.0, v.count.1) != (n, lang) {
-        v.count = (n, lang, tf("pianoroll.notes", &[("n", &n)]));
+    let key = (
+        app.bus.revision(),
+        c.notes.len(),
+        sel.len(),
+        sel.iter()
+            .fold(0u64, |h, n| h.wrapping_mul(31).wrapping_add(n.0)),
+        lang,
+    );
+    if app.piano_roll.count.0 != Some(key) {
+        let picked = c.notes.iter().filter(|n| sel.contains(&n.id));
+        let (mut lo, mut hi, mut vlo, mut vhi, mut n) = (u8::MAX, 0u8, u8::MAX, 0u8, 0usize);
+        for note in picked {
+            lo = lo.min(note.pitch);
+            hi = hi.max(note.pitch);
+            vlo = vlo.min(note.velocity);
+            vhi = vhi.max(note.velocity);
+            n += 1;
+        }
+        let (count, range) = if n == 0 {
+            (
+                tf("pianoroll.notes", &[("n", &c.notes.len())]),
+                String::new(),
+            )
+        } else {
+            let pitch = if lo == hi {
+                crate::controllers::note_name(lo)
+            } else {
+                format!(
+                    "{} – {}",
+                    crate::controllers::note_name(lo),
+                    crate::controllers::note_name(hi)
+                )
+            };
+            let vel = if vlo == vhi {
+                vlo.to_string()
+            } else {
+                format!("{vlo} – {vhi}")
+            };
+            (
+                tf("pianoroll.selected_notes", &[("n", &n)]),
+                tf(
+                    "pianoroll.selected_range",
+                    &[("pitch", &pitch), ("vel", &vel)],
+                ),
+            )
+        };
+        app.piano_roll.count = (Some(key), count, range);
     }
-    let text = std::mem::take(&mut v.count.2);
-    bar.readout_right(ui, &text, 96.0, false);
-    app.piano_roll.count.2 = text;
+    let (_, count, range) = &app.piano_roll.count;
+    bar.selection_right(ui, count, range);
+}
+
+/// r39:lo-arrange — the clip menu (des-views: the track's stripe › the clip): the track's
+/// note clips with a check on the one open, then the other tracks that have notes — a
+/// pick opens it here.
+fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId) {
+    use kit::menu::{Check, Item};
+    let mut picks: Vec<(TrackId, ClipId)> = Vec::new();
+    let mut labels: Vec<String> = Vec::new();
+    let mut bands: Vec<(usize, String)> = Vec::new();
+    {
+        let p = app.project();
+        let notes =
+            |c: &cantus_core::Clip| c.audio.is_none() && c.automation.is_none() && c.lane == 0;
+        if let Some(t) = p.track(track) {
+            bands.push((0, t.name.clone()));
+            for c in t.clips.iter().filter(|c| notes(c)) {
+                let (bar_n, _, _) = crate::views::bars::bbt(p, c.start);
+                let name = if c.name.is_empty() {
+                    t.name.as_str()
+                } else {
+                    c.name.as_str()
+                };
+                labels.push(tf(
+                    "pianoroll.clip_menu.at",
+                    &[("name", &name), ("bar", &bar_n)],
+                ));
+                picks.push((t.id, c.id));
+            }
+        }
+        let others: Vec<_> = p
+            .tracks
+            .iter()
+            .filter(|t| t.id != track)
+            .filter_map(|t| t.clips.iter().find(|c| notes(c)).map(|c| (t, c)))
+            .collect();
+        if !others.is_empty() {
+            bands.push((picks.len(), t("pianoroll.clip_menu.others")));
+            for (t, c) in others {
+                labels.push(t.name.clone());
+                picks.push((t.id, c.id));
+            }
+        }
+    }
+    let mut items: Vec<Item<'_>> = Vec::new();
+    let mut at: Vec<Option<usize>> = Vec::new();
+    for (i, label) in labels.iter().enumerate() {
+        for (_, band) in bands.iter().filter(|(b, _)| *b == i) {
+            if i > 0 {
+                items.push(Item::Separator);
+                at.push(None);
+            }
+            items.push(Item::Band(kit::text::Src::Str(band)));
+            at.push(None);
+        }
+        items.push(Item::Action {
+            label: kit::text::Src::Str(label),
+            check: Check::Radio(picks[i] == (track, clip)),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        });
+        at.push(Some(i));
+    }
+    let (_, clicks) = kit::widgets::menu_list(ui, &items, 220.0);
+    if let Some(i) = clicks.clicked.and_then(|k| at.get(k).copied().flatten()) {
+        let (t, c) = picks[i];
+        if (t, c) != (track, clip) {
+            app.open_clip_editor(t, c);
+        }
+        ui.close();
+    }
 }
 
 /// A clip opened from the arrangement (round 27, ADR 0051): its window — one period of a
@@ -1501,6 +1803,15 @@ fn interact(
             .map(|n| n.pitch)
     };
 
+    // r39:ux-a — what the ruler does, on the help line (ADR 0109).
+    if ruler_resp.hovered() {
+        crate::kit::hint::fallback(
+            ui.ctx(),
+            &crate::i18n::t("ux.hint.roll_ruler"),
+            "",
+            crate::kit::hint::Caps::NONE,
+        );
+    }
     if ruler_resp.clicked() {
         if let Some(pos) = ruler_resp.interact_pointer_pos() {
             let tick = geo.tick_at(pos.x).max(Ticks::ZERO);

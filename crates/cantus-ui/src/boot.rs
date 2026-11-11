@@ -141,8 +141,11 @@ impl Boot {
             use raw_window_handle::HasWindowHandle;
             cc.window_handle().ok().map(|h| h.as_raw())
         };
-        // The splash's own look, whatever the theme: Slate, FL's dark.
-        crate::kit::tokens::install(Tokens::slate());
+        // The splash's own look, whatever the theme: Slate Night, the default (round 39),
+        // in its face (the fonts stage installs it; the saved theme follows at assembly).
+        let slate = crate::theme_slate::slate_night_tokens();
+        crate::kit::system::set_face(slate.system.face);
+        crate::kit::tokens::install(slate);
         let logo = splash_image(&cc.egui_ctx, options.art.as_ref());
         Boot {
             options,
@@ -169,7 +172,11 @@ impl Boot {
     }
 
     /// Take one step. Returns the application once everything is in.
-    fn step(&mut self, ctx: &egui::Context) -> Option<CantusApp> {
+    /// The next stage. The application comes back boxed, and is built in a frame of its
+    /// own ([`Self::assemble`]): this one is inlined into the window's `ui`, so a value held
+    /// here sits on the main thread's stack (1 MB on Windows) under every stage — the
+    /// engine's start included (round 39's start-up crash).
+    fn step(&mut self, ctx: &egui::Context) -> Option<Box<CantusApp>> {
         match self.stage {
             Stage::Start => {
                 let (tx, rx) = channel();
@@ -279,67 +286,74 @@ impl Boot {
                 }
             }
             Stage::Assemble => {
-                let read = self.got.take()?;
-                let engine = self.engine.take()?;
-                let midi = self.midi_got.take().flatten();
-                let (project, path) = match read.project {
-                    Some((p, path)) => (Some(p), Some(path)),
-                    // Nothing to open: the program opens on a demo (round 19), so the first
-                    // thing anybody hears is what Cantus can do.
-                    None if !self.options.stress => (Some(crate::demos::startup_project()), None),
-                    None => (None, None),
-                };
-                // Its file known before the first compile (round 29, review 2).
-                let mut files = read.files;
-                files.project_path = path.clone();
-                let mut app = CantusApp::assemble(
-                    ctx,
-                    files,
-                    project,
-                    engine,
-                    midi,
-                    Some(read.plugins),
-                    self.owner,
-                    self.options.stress,
-                );
-                if path.is_some() {
-                    app.path = path;
-                }
-                if let Some((p, e)) = &read.refused {
-                    app.set_error(crate::recovery_text::open_failed(p, e));
-                } else if read.integrity_warning {
-                    app.set_error(crate::i18n::t("status.integrity"));
-                } else if read.links_repaired > 0 {
-                    app.set_error(crate::links::repaired_text(read.links_repaired));
-                } else if read.warps_repaired > 0 {
-                    app.set_error(crate::warp::repaired_text(read.warps_repaired));
-                } else if read.gain_envs_repaired > 0 {
-                    app.set_error(crate::i18n::tf(
-                        "clipfx.status.envs_repaired",
-                        &[("n", &read.gain_envs_repaired)],
-                    ));
-                } else if read.lateness_repaired > 0 {
-                    app.set_error(crate::i18n::tf(
-                        "freeze.lateness_repaired",
-                        &[("n", &read.lateness_repaired)],
-                    ));
-                }
-                // The journal of this session, after reading what gone ones left (round 22).
-                app.start_session(&app::data_dir());
-                self.options.apply_flags(&mut app);
-                if self.hide_verse {
-                    crate::views::verse::turn_off(&mut app);
-                } else if let Some(v) = self.verse.shown {
-                    app.verse = Some(crate::views::verse::Card::new(v.reference));
-                }
-                log::info!(
-                    "opened in {:.0} ms",
-                    self.started.elapsed().as_secs_f64() * 1000.0
-                );
-                return Some(app);
+                return self.assemble(ctx);
             }
         }
         None
+    }
+
+    /// The last stage: the application assembled, boxed. Never inlined into [`Self::step`]:
+    /// the application is large, and its frame is only on the stack while it is built.
+    #[inline(never)]
+    fn assemble(&mut self, ctx: &egui::Context) -> Option<Box<CantusApp>> {
+        let read = self.got.take()?;
+        let engine = self.engine.take()?;
+        let midi = self.midi_got.take().flatten();
+        let (project, path) = match read.project {
+            Some((p, path)) => (Some(p), Some(path)),
+            // Nothing to open: the program opens on a demo (round 19), so the first
+            // thing anybody hears is what Cantus can do.
+            None if !self.options.stress => (Some(crate::demos::startup_project()), None),
+            None => (None, None),
+        };
+        // Its file known before the first compile (round 29, review 2).
+        let mut files = read.files;
+        files.project_path = path.clone();
+        let mut app = Box::new(CantusApp::assemble(
+            ctx,
+            files,
+            project,
+            engine,
+            midi,
+            Some(read.plugins),
+            self.owner,
+            self.options.stress,
+        ));
+        if path.is_some() {
+            app.path = path;
+        }
+        if let Some((p, e)) = &read.refused {
+            app.set_error(crate::recovery_text::open_failed(p, e));
+        } else if read.integrity_warning {
+            app.set_error(crate::i18n::t("status.integrity"));
+        } else if read.links_repaired > 0 {
+            app.set_error(crate::links::repaired_text(read.links_repaired));
+        } else if read.warps_repaired > 0 {
+            app.set_error(crate::warp::repaired_text(read.warps_repaired));
+        } else if read.gain_envs_repaired > 0 {
+            app.set_error(crate::i18n::tf(
+                "clipfx.status.envs_repaired",
+                &[("n", &read.gain_envs_repaired)],
+            ));
+        } else if read.lateness_repaired > 0 {
+            app.set_error(crate::i18n::tf(
+                "freeze.lateness_repaired",
+                &[("n", &read.lateness_repaired)],
+            ));
+        }
+        // The journal of this session, after reading what gone ones left (round 22).
+        app.start_session(&app::data_dir());
+        self.options.apply_flags(&mut app);
+        if self.hide_verse {
+            crate::views::verse::turn_off(&mut app);
+        } else if let Some(v) = self.verse.shown {
+            app.verse = Some(crate::views::verse::Card::new(v.reference));
+        }
+        log::info!(
+            "opened in {:.0} ms",
+            self.started.elapsed().as_secs_f64() * 1000.0
+        );
+        Some(app)
     }
 }
 
@@ -364,7 +378,7 @@ fn paint(
     verse: SplashVerse,
 ) -> (Option<crate::views::verse::Painted>, bool) {
     let rect = ui.max_rect();
-    let s = Style::new(Tokens::slate());
+    let s = Style::new(crate::theme_slate::slate_night_tokens());
     let t = s.t;
     let full = size(verse != SplashVerse::None);
     let k = (rect.width() / full.x).min(rect.height() / full.y).max(0.1);
@@ -543,7 +557,7 @@ impl eframe::App for Shell {
                     // The window's title is the project's (ADR 0052), from the first frame.
                     let title = crate::views::transport::title::title_of(&app);
                     become_main_window(&ctx, &boot.options, &title);
-                    *self = Shell::Running(Box::new(app));
+                    *self = Shell::Running(app);
                 }
                 ctx.request_repaint_after(Duration::from_millis(16));
             }
@@ -594,7 +608,7 @@ fn splash_image(ctx: &egui::Context, art: Option<&Art>) -> Option<TextureHandle>
         })
         .or_else(|| {
             let px = (LOGO * scale as f32) as u32;
-            let t = Tokens::slate();
+            let t = crate::theme_slate::slate_night_tokens();
             let svg = logo::svg_for(logo::Logo::DEFAULT, logo::Tint::Original, &t, px);
             logo::render_svg(&svg, px)
         })?;

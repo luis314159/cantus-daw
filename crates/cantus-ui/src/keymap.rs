@@ -130,6 +130,10 @@ pub enum Action {
     ToolMute,
     ToolSlice,
     ToolPlayback,
+    /// r39:lo-arrange — the arrangement's zoom tool (dir-a's toolbar).
+    ToolZoom,
+    /// r39:lo-arrange — the grid's triplets on or off, in the view being worked in.
+    GridTriplets,
     // View
     ToggleTypingPiano,
     ViewPianoRoll,
@@ -238,6 +242,17 @@ pub enum Action {
     ToggleStreaming,
     /// File ▸ Export video… (unbound: the menu and the palette). // r35:video
     ExportVideo, // r35:video
+    // The workspace's areas (round 39, ADR 0110)
+    /// The area being worked in takes the whole workspace, or gives it back.
+    MaximizeArea,
+    /// The area being worked in folds to its tab bar, or opens again (Ctrl+Alt+C).
+    CollapseArea,
+    /// The focus to the next area on screen, in reading order (Ctrl+F6).
+    NextArea,
+    /// The focus to the area before (Ctrl+Shift+F6).
+    PreviousArea,
+    /// The preset browser on the selected track's instrument (Ctrl+F: find a preset).
+    BrowsePresets,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -305,7 +320,7 @@ impl Action {
         )
     }
 
-    pub const ALL: [Action; 122] = [
+    pub const ALL: [Action; 129] = [
         // r35:video — 122 with ExportVideo
         Action::PlayPause,
         Action::Stop,
@@ -367,6 +382,8 @@ impl Action {
         Action::ToolMute,
         Action::ToolSlice,
         Action::ToolPlayback,
+        Action::ToolZoom,
+        Action::GridTriplets,
         Action::ToggleTypingPiano,
         Action::ViewPianoRoll,
         Action::ViewChannelRack,
@@ -436,6 +453,12 @@ impl Action {
         Action::ToggleCompanion,
         Action::ToggleStreaming,
         Action::ExportVideo, // r35:video
+        // Round 39 (ADR 0110).
+        Action::MaximizeArea,
+        Action::CollapseArea,
+        Action::NextArea,
+        Action::PreviousArea,
+        Action::BrowsePresets,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -505,6 +528,8 @@ impl Action {
             Action::ToolMute => "tool-mute",
             Action::ToolSlice => "tool-slice",
             Action::ToolPlayback => "tool-playback",
+            Action::ToolZoom => "tool-zoom",
+            Action::GridTriplets => "grid-triplets",
             Action::ToggleTypingPiano => "toggle-typing-piano",
             Action::ViewPianoRoll => "view-piano-roll",
             Action::ViewChannelRack => "view-channel-rack",
@@ -560,6 +585,11 @@ impl Action {
             Action::ToggleCompanion => "toggle-companion",
             Action::ToggleStreaming => "toggle-streaming",
             Action::ExportVideo => "export-video", // r35:video
+            Action::MaximizeArea => "maximize-area",
+            Action::CollapseArea => "collapse-area",
+            Action::NextArea => "next-area",
+            Action::PreviousArea => "previous-area",
+            Action::BrowsePresets => "browse-presets",
             Action::NewFromTemplate => "new-from-template",
             Action::SaveAsTemplate => "save-as-template",
             Action::SaveTrackTemplate => "save-track-template",
@@ -600,7 +630,7 @@ impl Action {
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
             | TransposeOctaveUp | TransposeOctaveDown => Category::Notes,
             ToolDraw | ToolPaint | ToolSelect | ToolDelete | ToolMute | ToolSlice
-            | ToolPlayback => Category::Tools,
+            | ToolPlayback | ToolZoom | GridTriplets => Category::Tools,
             ToggleTypingPiano
             | ViewPianoRoll
             | ViewChannelRack
@@ -624,7 +654,12 @@ impl Action {
             | ViewScore
             | ToggleStage
             | ToggleCompanion
-            | ToggleStreaming => Category::View,
+            | ToggleStreaming
+            | MaximizeArea
+            | CollapseArea
+            | NextArea
+            | PreviousArea
+            | BrowsePresets => Category::View,
             MidiLearnMode => Category::Tools,
             LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
@@ -849,7 +884,7 @@ const TOOL_LETTERS: [(Action, Key); 7] = [
     (Action::ToolPlayback, Key::Y),
 ];
 
-const TOOL_DIGITS: [(Action, Key); 7] = [
+const TOOL_DIGITS: [(Action, Key); 8] = [
     (Action::ToolDraw, Key::Num1),
     (Action::ToolPaint, Key::Num2),
     (Action::ToolSelect, Key::Num3),
@@ -857,6 +892,7 @@ const TOOL_DIGITS: [(Action, Key); 7] = [
     (Action::ToolMute, Key::Num5),
     (Action::ToolSlice, Key::Num6),
     (Action::ToolPlayback, Key::Num7),
+    (Action::ToolZoom, Key::Num8),
 ];
 
 /// The shared spine every preset starts from: the shortcuts that are the same in every DAW
@@ -963,6 +999,8 @@ fn common() -> Vec<(Action, Binding)> {
         // there is no selection, so the two cannot share a key. `Z` for zoom-to-selection
         // is Live's, and it is the one most people arrive with.
         (LoopToSelection, Binding::shift(Key::L)),
+        // r39:lo-arrange — the grid menu's Triplets (dir-a's toolbar sheet: Shift 3).
+        (GridTriplets, Binding::shift(Key::Num3)),
         (ZoomToSelection, Binding::key(Key::Z)),
         // `Ctrl` + the arrows, so they do not collide with nudging notes or clips: the
         // modifier match is exact, so `Ctrl+ArrowUp` never fires `TransposeUp`.
@@ -1112,6 +1150,29 @@ fn common() -> Vec<(Action, Binding)> {
             Binding {
                 command: true,
                 ..Binding::alt(Key::I)
+            },
+        ),
+        // The workspace's areas (round 39, ADR 0110): Ctrl+F6 and Ctrl+Shift+F6 move between
+        // them (the platform's keys for the next pane); Ctrl+Alt+Enter maximises the one
+        // being worked in (Ctrl+Shift+Enter stops the session's clips).
+        (NextArea, Binding::cmd(Key::F6)),
+        // Ctrl+F finds a preset for the selected track's instrument (Ableton's Ctrl+F finds
+        // in its browser).
+        (BrowsePresets, Binding::cmd(Key::F)),
+        (PreviousArea, Binding::cmd_shift(Key::F6)),
+        (
+            MaximizeArea,
+            Binding {
+                command: true,
+                ..Binding::alt(Key::Enter)
+            },
+        ),
+        // Ctrl+Alt+C collapses it to its tab bar, or opens it again (Alt+C is the count-in).
+        (
+            CollapseArea,
+            Binding {
+                command: true,
+                ..Binding::alt(Key::C)
             },
         ),
     ]
@@ -1516,6 +1577,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 15 {
             map.fill_in(&NEW_IN_V15);
         }
+        if file.version.unwrap_or(1) < 16 {
+            map.fill_in(&NEW_IN_V16);
+        }
         Ok(map)
     }
 
@@ -1595,7 +1659,21 @@ struct KeymapFile {
 /// automation mode's key (round 31, ADR 0068); version 13 the score's (round 32, ADR 0075);
 /// version 14 the session view's (round 33, ADR 0077); version 15 the stage's (round 35,
 /// ADR 0091).
-pub const FILE_VERSION: u32 = 15;
+pub const FILE_VERSION: u32 = 16;
+
+/// Actions added in version 16 (round 39, ADR 0110): the workspace's areas — Ctrl+F6 and
+/// Ctrl+Shift+F6 move between them, Ctrl+Alt+Enter maximises one, Ctrl+Alt+C collapses it —
+/// and Ctrl+F, the preset browser.
+const NEW_IN_V16: [Action; 7] = [
+    Action::MaximizeArea,
+    Action::CollapseArea,
+    Action::NextArea,
+    Action::PreviousArea,
+    Action::BrowsePresets,
+    // r39:lo-arrange — the arrangement's zoom tool (8) and the grid's triplets (Shift+3).
+    Action::ToolZoom,
+    Action::GridTriplets,
+];
 
 /// Actions added in version 15 (round 35, ADR 0091): Alt+D shows or hides the dancers,
 /// Alt+Shift+D opens the companion window, Ctrl+Shift+D (Cmd+Shift+D) switches its
@@ -1950,7 +2028,7 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        assert_eq!(FILE_VERSION, 15);
+        assert_eq!(FILE_VERSION, 16);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {
             let m = p.keymap();

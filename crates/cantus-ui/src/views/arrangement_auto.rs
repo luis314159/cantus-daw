@@ -13,9 +13,8 @@
 
 use super::{ticks_to_beats, TimelineGeometry, TrackRow};
 use crate::app::CantusApp;
-use crate::kit::color::{mix, shade, with_alpha};
+use crate::kit::color::with_alpha;
 use crate::kit::hint::{self, Caps};
-use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{Brush, Fill, Style, Tok};
 use crate::views::auto_curve::{self as curve, Frame};
 use crate::views::clips_chrome::Tint;
@@ -27,7 +26,8 @@ use egui::{pos2, Align2, Pos2, Rect, Sense};
 
 /// An automation lane's height at the base row height.
 pub(super) fn lane_height(base: f32) -> f32 {
-    (base * 1.05).round().max(28.0)
+    // r39:el-arrange — 36 at the default 44-px row (the sheets).
+    (base * 36.0 / 44.0).round().max(24.0)
 }
 
 /// How many lanes a track has: one per distinct target among its automation clips.
@@ -99,6 +99,8 @@ pub struct State {
     drag: Option<PointDrag>,
     /// The scratch the curve is traced into.
     pts: Vec<Pos2>,
+    /// A point's value in words at the close zoom ("688 Hz"), written into one buffer.
+    label: String,
 }
 
 impl State {
@@ -163,10 +165,8 @@ pub(super) fn grounds(
                 pos2(rect.right(), r.top + r.height),
             );
             b.register(band, "auto_lane", &[Tok::Ink, Tok::Grid], &[]);
-            b.rect(
-                b.snap_rect(band),
-                Fill::Solid(with_alpha(t.ink, if t.dark { 0.30 } else { 0.07 })),
-            );
+            // r39:el-arrange — `base→gutter 28 %`.
+            b.rect(b.snap_rect(band), Fill::Solid(with_alpha(t.ink, 0.28)));
             b.hline(
                 rect.left(),
                 rect.right(),
@@ -208,11 +208,18 @@ pub(super) fn paint_body(
     ground: egui::Color32,
     lit: bool,
     pointer: Option<Pos2>,
+    project: &cantus_core::Project,
     s: &Style,
 ) {
     let Some(auto) = clip.automation.as_ref() else {
         return;
     };
+    // r39:lo-arrange — at the close zoom each point says its value (des-views: "688 Hz",
+    // Medium 9, ink 2); the range is read once a clip.
+    let range = (super::clip_content::Zoom::of(geo.px_per_beat)
+        == super::clip_content::Zoom::Close)
+        .then(|| cantus_core::automation::range::range_of(project, &auto.target))
+        .flatten();
     if inner.height() < 4.0 || inner.width() < 2.0 {
         return;
     }
@@ -250,11 +257,16 @@ pub(super) fn paint_body(
         let (ca, cb) = (rep - shift, rep_end - shift);
         st.pts.clear();
         curve::trace(auto, ca, cb, &f, 3.0, &mut st.pts);
+        // r39:el-views — by zoom (des-views): far, the line over its fill alone; then
+        // 2-r points; near, 3-r points; close, the curve handles always.
+        let zoom = super::clip_content::Zoom::of(geo.px_per_beat);
+        use super::clip_content::Zoom;
+        let line_w = if zoom == Zoom::Far { 1.2 } else { 1.5 };
         curve::paint(
             b,
             &st.pts,
             inner.bottom(),
-            curve::Ink::of(ink, 1.5 * s.k, s),
+            curve::Ink::of(ink, line_w * s.k, s),
         );
         // Points, when they are far enough apart to be told apart.
         let span_px = (cb - ca).0 as f32 * px_per_tick;
@@ -264,9 +276,19 @@ pub(super) fn paint_body(
             .filter(|p| p.tick >= ca && p.tick < cb)
             .count()
             .max(1);
-        if inner.height() >= 16.0 * s.k && span_px / n as f32 >= 7.0 * s.k {
-            let rad = 2.5 * s.k;
+        if zoom > Zoom::Far && inner.height() >= 16.0 * s.k && span_px / n as f32 >= 7.0 * s.k {
+            let rad = if zoom >= Zoom::Near { 3.0 } else { 2.0 } * s.k;
             let near = pointer.filter(|p| body.contains(*p));
+            // Where the last value's words ended: the next one is left out rather than
+            // drawn over it. The clip's name, at its left, counts as words already there.
+            let mut last_label = if range.is_some() && !clip.name.is_empty() {
+                use super::slate::{width, W};
+                inner.left().max(visible.left())
+                    + width(b.ctx(), &clip.name, W::Medium, 11.0, s)
+                    + 8.0 * s.k
+            } else {
+                f32::MIN
+            };
             for p in auto.points.iter().filter(|p| p.tick >= ca && p.tick <= cb) {
                 let c = f.point(p.tick, p.value);
                 if c.x < f.clip_left - rad || c.x > f.clip_right + rad {
@@ -274,8 +296,18 @@ pub(super) fn paint_body(
                 }
                 let hot = near.is_some_and(|q| q.distance(c) <= 6.0 * s.k);
                 curve::point(b, c, if hot { rad * 1.3 } else { rad }, ink, ground, hot);
+                if let Some(range) = range.as_ref() {
+                    st.label.clear();
+                    crate::automation::write_value(
+                        project,
+                        &auto.target,
+                        range.value(p.value),
+                        &mut st.label,
+                    );
+                    last_label = value_label(b, &st.label, c, inner, last_label, s);
+                }
             }
-            if lit || near.is_some() {
+            if lit || near.is_some() || zoom == Zoom::Close {
                 for i in 0..auto.points.len().saturating_sub(1) {
                     let (p, q) = (auto.points[i], auto.points[i + 1]);
                     if p.tick < ca || q.tick > cb {
@@ -297,8 +329,43 @@ pub(super) fn paint_body(
     }
 }
 
-/// The lanes' headers: the parameter's name over the device's, the value it has where
-/// the song is, in a band of the track's colour.
+/// A point's value at the close zoom (des-views: Medium 9, ink 2), above the point — under
+/// it where the lane's top is too near — and left out where it would touch the value before
+/// it (`after`, that value's right edge). Returns the right edge of what it drew.
+fn value_label(b: &mut Brush, text: &str, c: Pos2, inner: Rect, after: f32, s: &Style) -> f32 {
+    use super::slate::{say, Ink, W};
+    let k = s.k;
+    let (h, gap) = (11.0 * k, 4.0 * k);
+    let above = c.y - gap - h >= inner.top();
+    let (top, align) = if above {
+        (c.y - gap - h, Align2::CENTER_BOTTOM)
+    } else {
+        (c.y + gap, Align2::CENTER_TOP)
+    };
+    if top + h > inner.bottom() + 2.0 * k {
+        return after;
+    }
+    let w = super::slate::width(b.ctx(), text, W::Medium, 9.0, s);
+    if w + 2.0 * k > inner.width() {
+        return after;
+    }
+    // Centred on the point, kept inside the clip (a first or last point's words lean in).
+    let left = (c.x - w * 0.5).clamp(inner.left() + k, inner.right() - w - k);
+    if left < after + 4.0 * k {
+        return after;
+    }
+    let r = Rect::from_min_max(pos2(left - k, top), pos2(left + w + k, top + h));
+    match say(b, r, text, W::Medium, 9.0, Ink::of(s).ink2, align, s) {
+        Some(p) => p.rect.right(),
+        None => after,
+    }
+}
+
+/// r39:el-arrange — the lanes' headers in Slate (`des-arrange`, *Automation lane header*): a
+/// step back from the track's, the track's stripe continuing, a violet hanger from x 22,
+/// the envelope, the parameter (Medium 11) and its owner (10, ink 3), the value at the
+/// playhead, and the lane's mode as a chip (Read ink 2; Touch and Latch violet; Write red);
+/// under the pointer a close ×.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn paint_headers(
     b: &mut Brush,
@@ -307,15 +374,19 @@ pub(super) fn paint_headers(
     track: &Track,
     row: &TrackRow,
     clip: Rect,
-    tint: Tint,
+    _tint: Tint,
     s: &Style,
 ) {
-    let _ = track;
-    let t = &s.t;
+    use super::slate::{say, width, Ink, W};
+    let ink = Ink::of(s);
     let k = s.k;
     let base = app.arrangement.track_height;
     let lanes = app.auto_lanes();
     let project = app.project();
+    let pointer = b.ctx().input(|i| i.pointer.hover_pos());
+    let selected = app.selected_track == Some(track.id);
+    let hue = crate::theme::track_color(track.color);
+    let indent = 12.0 * k * f32::from(u8::from(track.folder.is_some()));
     let mut value = String::new();
     for (lane, target) in app.arrangement.auto.targets(i).iter().enumerate() {
         let Some(r) = lane_row(row, lane, base) else {
@@ -328,30 +399,35 @@ pub(super) fn paint_headers(
             pos2(clip.left(), r.top),
             pos2(clip.right(), r.top + r.height),
         );
-        b.register(band, "auto_header", &[Tok::Panel, Tok::Text], &[]);
+        b.register(band, "auto_header", &[Tok::Toolbar, Tok::Text], &[]);
         b.rect(
             b.snap_rect(band),
-            Fill::Solid(shade(t.panel, if t.dark { -0.04 } else { -0.03 })),
-        );
-        // The track's colour as a spine, so the lane reads as the track's.
-        let spine = Rect::from_min_max(band.min, pos2(band.left() + 4.0 * k, band.bottom()));
-        b.rect(
-            b.snap_rect(spine),
-            Fill::Solid(mix(tint.large, t.panel, 0.35)),
+            Fill::Solid(Ink::to(ink.surface, ink.base, 0.45)),
         );
         b.hline(
             band.left(),
             band.right(),
             band.bottom() - 0.5 * b.px(),
             b.px(),
-            t.grid,
+            Ink::to(ink.surface, ink.gutter, 0.75),
         );
-        // A small curve glyph: this row is automation.
+        // The track's stripe continues; the hanger from x 22.
+        let k_stripe = if selected {
+            1.0
+        } else {
+            ink.stripe_rest() * 0.8
+        };
+        let stripe = Rect::from_min_max(band.min, pos2(band.left() + 3.0 * k, band.bottom()));
+        b.rect(b.snap_rect(stripe), Fill::Solid(ink.tint(hue, k_stripe)));
+        let hx = band.left() + 22.0 * k + indent;
+        let hanger = Ink::a(ink.auto, 0.35);
+        b.vline(hx, band.top(), band.center().y, b.px(), hanger);
+        b.hline(hx, hx + 6.0 * k, band.center().y, b.px(), hanger);
         let g = Rect::from_center_size(
-            pos2(band.left() + 14.0 * k, band.center().y),
-            egui::vec2(12.0 * k, 9.0 * k),
+            pos2(hx + 14.0 * k, band.center().y),
+            egui::vec2(9.0 * k, 8.0 * k),
         );
-        glyph(b, g, with_alpha(t.text_dim, 0.9), k);
+        super::head::envelope(b, g, ink.auto, k);
         let (place, what) = crate::automation::target_parts(project, target);
         value.clear();
         if let Some(l) = lanes.iter().find(|l| &l.target == target) {
@@ -362,61 +438,111 @@ pub(super) fn paint_headers(
                 &mut value,
             );
         }
-        let right = Rect::from_min_max(
-            pos2(band.right() - 64.0 * k, band.top()),
-            pos2(band.right() - 6.0 * k, band.bottom()),
-        );
-        let _ = text::paint(
+        // The mode chip at the right, the value left of it.
+        let mode = cantus_core::arrange::lane_mode(track, target);
+        let chip = mode_chip(band, s);
+        let (word, c) = match mode {
+            cantus_core::AutoMode::Read => ("automodes.mode.read", ink.ink2),
+            cantus_core::AutoMode::Touch => ("automodes.mode.touch", ink.auto),
+            cantus_core::AutoMode::Latch => ("automodes.mode.latch", ink.auto),
+            cantus_core::AutoMode::Write => ("automodes.mode.write", ink.rec),
+        };
+        b.rrect(chip, s.r(3.0), Fill::Solid(ink.well));
+        let _ = say(
             b,
-            right,
-            &Text::new(&value, Role::Value, t.text).align(Align2::RIGHT_CENTER),
-            s.tk(),
+            chip,
+            super::chrome::word(word),
+            W::SemiBold,
+            9.0,
+            c,
+            Align2::CENTER_CENTER,
+            s,
         );
-        let names = Rect::from_min_max(
+        let hot = pointer.is_some_and(|p| band.contains(p));
+        let close = close_rect(band, s);
+        let vr = Rect::from_min_max(
+            pos2(chip.left() - 70.0 * k, band.top()),
+            pos2(chip.left() - 8.0 * k, band.bottom()),
+        );
+        let _ = say(
+            b,
+            vr,
+            &value,
+            W::Regular,
+            11.0,
+            ink.ink2,
+            Align2::RIGHT_CENTER,
+            s,
+        );
+        let vw = width(b.ctx(), &value, W::Regular, 11.0, s);
+        let names_right = if hot { close.left() } else { vr.right() - vw } - 6.0 * k;
+        let nr = Rect::from_min_max(
             pos2(g.right() + 6.0 * k, band.top()),
-            pos2(right.left() - 4.0 * k, band.bottom()),
+            pos2(names_right, band.bottom()),
         );
-        if r.height >= 30.0 * k {
-            let (top, bottom) = names.split_top_bottom_at_fraction(0.5);
-            let _ = text::paint(
-                b,
-                top.translate(egui::vec2(0.0, 2.0 * k)),
-                &Text::new(&what, Role::Label, t.text)
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
+        let used = say(
+            b,
+            nr,
+            &what,
+            W::Medium,
+            11.0,
+            ink.ink1,
+            Align2::LEFT_CENTER,
+            s,
+        );
+        if let Some(u) = used {
+            let or = Rect::from_min_max(pos2(u.rect.right() + 5.0 * k, band.top()), nr.max);
+            if or.width() > 12.0 * k {
+                let _ = say(
+                    b,
+                    or,
+                    &place,
+                    W::Regular,
+                    10.0,
+                    ink.ink3,
+                    Align2::LEFT_CENTER,
+                    s,
+                );
+            }
+        }
+        if hot {
+            let c = close.center();
+            let d = 3.0 * k;
+            b.segment(
+                c + egui::vec2(-d, -d),
+                c + egui::vec2(d, d),
+                1.2 * k,
+                ink.ink2,
+                true,
             );
-            let _ = text::paint(
-                b,
-                bottom.translate(egui::vec2(0.0, -2.0 * k)),
-                &Text::new(&place, Role::Micro, t.text_dim)
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
-            );
-        } else {
-            let _ = text::paint(
-                b,
-                names,
-                &Text::new(&format!("{what} \u{b7} {place}"), Role::Label, t.text)
-                    .align(Align2::LEFT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
+            b.segment(
+                c + egui::vec2(-d, d),
+                c + egui::vec2(d, -d),
+                1.2 * k,
+                ink.ink2,
+                true,
             );
         }
     }
 }
 
-/// The lane glyph: a little ramp and hold, drawn.
-fn glyph(b: &mut Brush, r: Rect, c: egui::Color32, k: f32) {
-    let pts = [
-        pos2(r.left(), r.bottom()),
-        pos2(r.left() + r.width() * 0.45, r.top()),
-        pos2(r.right() - r.width() * 0.2, r.top()),
-        pos2(r.right() - r.width() * 0.2, r.center().y),
-        pos2(r.right(), r.center().y),
-    ];
-    b.polyline(&pts, 1.25 * k, c);
+/// Where a lane header's mode chip is: 34 × 14 at the right.
+fn mode_chip(band: Rect, s: &Style) -> Rect {
+    let k = s.k;
+    Rect::from_center_size(
+        pos2(band.right() - 12.0 * k - 17.0 * k, band.center().y),
+        egui::vec2(34.0 * k, 14.0 * k),
+    )
+}
+
+/// Where a lane header's close × is (under the pointer): left of the value.
+fn close_rect(band: Rect, s: &Style) -> Rect {
+    let k = s.k;
+    let chip = mode_chip(band, s);
+    Rect::from_center_size(
+        pos2(chip.left() - 84.0 * k, band.center().y),
+        egui::vec2(14.0 * k, 14.0 * k),
+    )
 }
 
 /// The lanes' headers as controls: a click selects the lane's clips (the first opens in
@@ -461,6 +587,50 @@ pub(super) fn header_input(
             );
         }
         let clips = lane_clips(app, id, target);
+        // r39:el-arrange — the mode chip (the lane's own mode; ADR 0113) and the close ×.
+        let s = Style::current();
+        let chip = ui.interact(
+            mode_chip(band, &s).intersect(clip),
+            ui.id().with(("auto-lane-mode", id.0, lane)),
+            Sense::click(),
+        );
+        if chip.hovered() {
+            hint::set_text(
+                ui.ctx(),
+                &crate::i18n::t("arrange.lane.mode_tip"),
+                "",
+                Caps {
+                    menu: true,
+                    ..Caps::NONE
+                },
+            );
+        }
+        let now = app
+            .project()
+            .track(id)
+            .map(|t| cantus_core::arrange::lane_mode(t, target));
+        let tgt = target.clone();
+        crate::views::auto_modes::menu_on(app, &chip, now, move |app, m| {
+            let own = app.project().track(id).map(|t| t.auto_mode);
+            app.exec(Command::Arrange(cantus_core::ArrangeCommand::SetLaneMode {
+                track: id,
+                target: tgt,
+                mode: (own != Some(m)).then_some(m),
+            }));
+        });
+        if resp.hovered() || chip.hovered() {
+            let x = ui.interact(
+                close_rect(band, &s).intersect(clip),
+                ui.id().with(("auto-lane-close", id.0, lane)),
+                Sense::click(),
+            );
+            if x.hovered() {
+                hint::set_text(ui.ctx(), &crate::i18n::t("auto.lane.hide"), "", Caps::NONE);
+            }
+            if x.clicked() {
+                app.exec(Command::SetTrackAutomationOpen { id, open: false });
+            }
+        }
         if resp.clicked() {
             app.set_clip_selection(clips.iter().map(|c| (id, *c)).collect());
             if let Some(c) = clips.first() {
@@ -877,39 +1047,4 @@ pub(super) fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) ->
     };
     app.create_automation_clip(target);
     true
-}
-
-// ---- the track header's mode badge (round 31, ADR 0068) ---------------------------------
-
-/// Where a track header shows its automation mode: a badge at the name line's right, left
-/// of the arm lamp, the name giving way — or nowhere, when the name would be left too
-/// narrow to read (a very narrow header column).
-pub(super) fn badge_layout(hr: &mut super::paint::HeaderRects, s: &Style) -> Option<Rect> {
-    use crate::views::auto_modes::{BADGE_H, BADGE_W};
-    let k = s.k;
-    let w = BADGE_W * k;
-    let right = hr.name.right();
-    if hr.name.width() < w + 4.0 * k + 36.0 * k {
-        return None;
-    }
-    let h = (BADGE_H * k).min(hr.name.height());
-    let badge = Rect::from_min_max(
-        pos2(right - w, hr.name.center().y - h * 0.5),
-        pos2(right, hr.name.center().y + h * 0.5),
-    );
-    hr.name.max.x = badge.left() - 4.0 * k;
-    Some(badge)
-}
-
-/// Paint a track header's mode badge (lit while the arm is on).
-pub(super) fn paint_badge(
-    b: &mut Brush,
-    a: &CantusApp,
-    track: &cantus_core::Track,
-    r: Rect,
-    pointer: Option<Pos2>,
-    s: &Style,
-) {
-    let hot = pointer.is_some_and(|p| r.expand(2.0 * s.k).contains(p));
-    crate::views::auto_modes::paint_badge(b, r, track.auto_mode, a.auto_armed(), hot, s);
 }

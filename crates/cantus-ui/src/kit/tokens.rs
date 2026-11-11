@@ -266,6 +266,9 @@ macro_rules! kit_tokens {
             pub text_scale: f32,
             /// The theme generation these tokens were installed under.
             pub generation: u64,
+            /// The theme's design system (round 39, ADR 0111): its type family and how
+            /// its keys are built.
+            pub system: crate::kit::system::System,
         }
 
         /// A named token: every colour the kit paints resolves from one of these, so
@@ -345,6 +348,17 @@ kit_tokens! {
         Label label "text.label",
         /// "Slot 5", "Insert 12": placeholders only, deliberately faint.
         Placeholder placeholder "text.placeholder",
+        /// Words and marks of a control that cannot be used now (round 39, `des-controls`'
+        /// ink 4): faint on purpose, with no contrast promise.
+        Disabled disabled "text.disabled",
+        /// The transport's readouts (the position, the time, the tempo) and the rulers' bar
+        /// numbers (round 39, `lapis2`). Clear: each in its own place's ink, as Slate paints
+        /// it; a colour: that, at 4.5:1 on the bar and in its wells — the logo's gold in
+        /// Slate Lapis.
+        Readout readout "text.readout",
+        /// The same readouts' second ink (the time beside the position, a bar number away
+        /// from the playhead). Clear: their own ink.
+        ReadoutSoft readout_soft "text.readout_secondary",
     }
     Accents => {
         /// Cantus's own colour: the logo, the modified-preset dot, the splash.
@@ -366,6 +380,20 @@ kit_tokens! {
         Danger danger "accent.record",
         /// The FX-active bulb.
         FxOn fx_on "accent.fx_bulb",
+        /// An automation clip drives the value (round 39, `des-controls`): the knob's arc,
+        /// pointer and value and the lane sign — 4.5:1 on a card, a bar and a panel.
+        Auto auto "accent.automated",
+        /// A modulator drives the value: its swing band, live dot and sine sign.
+        Modulated modulated "accent.modulated",
+        /// The destructive button's fill (white words on it at 4.5:1).
+        Destructive destructive "accent.destructive",
+        /// The primary button's label on the accent (4.5:1).
+        PrimaryInk primary_ink "accent.primary_ink",
+        /// The selection's colour laid over a selected thing's own fill (round 39,
+        /// `lapis2`): a clip's body, a note, a mixer strip, the selected track's header and
+        /// lane, a list's row, the active tab — its alpha the strength on a large fill.
+        /// Clear keeps every selected fill as its view derives it (Slate).
+        SelectionTint selection_tint "accent.selection_tint",
     }
     Meters => {
         /// Behind the meters.
@@ -373,6 +401,8 @@ kit_tokens! {
         MeterLow meter_low "meters.low",
         /// From −6 dB.
         MeterHigh meter_high "meters.high",
+        /// The colour between low and high, at −9 dB (round 39).
+        MeterMid meter_mid "meters.mid",
         /// From 0 dB.
         MeterClip meter_clip "meters.clip",
     }
@@ -385,6 +415,10 @@ kit_tokens! {
         HeaderCell header_cell "mixer.number_cell",
         /// A fader cap at rest (the lightest object on a strip).
         Cap cap "mixer.fader_cap",
+        /// A fader or slider cap lit from above (round 39): its top, middle and foot.
+        FaderCapHi fcap_hi "mixer.fader_cap_top",
+        FaderCapMid fcap_mid "mixer.fader_cap_middle",
+        FaderCapLo fcap_lo "mixer.fader_cap_foot",
     }
     Knobs => {
         KnobBody knob_body "knob.body",
@@ -393,6 +427,11 @@ kit_tokens! {
         /// The 270° ring a value arc runs in.
         KnobTrack knob_track "knob.track",
         KnobPointer knob_pointer "knob.pointer",
+        /// A knob's cap lit from above (round 39, the radial light): its lit side, middle
+        /// and shaded side.
+        KnobCapHi cap_hi "knob.cap_lit",
+        KnobCapMid cap_mid "knob.cap_middle",
+        KnobCapLo cap_lo "knob.cap_shade",
     }
     Devices => {
         /// A device's ground, showing in the gutters between cards.
@@ -428,6 +467,9 @@ kit_tokens! {
         /// headers, clip bars): its colour, mixed in by its alpha. Clear leaves the
         /// colour as FL's band makes it; the colour cell keeps the bright hue either way.
         TrackVeil track_veil "editor.track_veil",
+        /// The loop region's edges, along its whole length (round 39, `lapis2`): the logo's
+        /// gold in Slate Lapis. Clear draws the region without them (Slate).
+        LoopEdge loop_edge "editor.loop_edge",
     }
     Menus => {
         Menu menu "menu.face",
@@ -475,6 +517,8 @@ kit_tokens! {
         Specular specular "depth.specular",
         /// The shadow a raised object casts on the surface under it.
         Drop drop "depth.drop",
+        /// The veil behind a dialog over the window (round 39), its alpha the strength.
+        Scrim scrim "depth.scrim",
     }
 }
 
@@ -595,6 +639,19 @@ impl Tokens {
             hue_mod: hex(0xc1acfc),
             hue_space: hex(0xf49aca),
             hue_output: hex(0x9ccf6a),
+            disabled: hex(0x878f95),    // r39:el-controls
+            auto: hex(0xd3c4fd),        // r39:el-controls
+            modulated: hex(0xf8badb),   // r39:el-controls
+            destructive: hex(0xc94d2a), // r39:el-controls
+            primary_ink: hex(0x000000), // r39:el-controls
+            meter_mid: hex(0xe2ee58),   // r39:el-controls
+            fcap_hi: hex(0x9fa5a7),     // r39:el-controls
+            fcap_mid: hex(0x7e8689),    // r39:el-controls
+            fcap_lo: hex(0x6c7478),     // r39:el-controls
+            cap_hi: hex(0x656e72),      // r39:el-controls
+            cap_mid: hex(0x535c61),     // r39:el-controls
+            cap_lo: hex(0x475157),      // r39:el-controls
+            scrim: Color32::from_rgba_unmultiplied_const(8, 11, 14, 158), // r39:el-controls
             shadow: Color32::from_rgba_premultiplied(0, 0, 0, 0x80),
             highlight_band: hex(0xffeb9d),
             key_white: hex(0xdadee6),
@@ -605,6 +662,10 @@ impl Tokens {
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
             track_veil: Color32::TRANSPARENT,
+            readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+            readout_soft: Color32::TRANSPARENT,
+            selection_tint: Color32::TRANSPARENT,
+            loop_edge: Color32::TRANSPARENT,
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
@@ -621,6 +682,7 @@ impl Tokens {
             density: 1.0,
             text_scale: 1.0,
             generation: 0,
+            system: crate::kit::system::System::CLASSIC,
         }
     }
 
@@ -684,6 +746,19 @@ impl Tokens {
             hue_mod: hex(0x7a4cc2),
             hue_space: hex(0xa94275),
             hue_output: hex(0x4f6b2c),
+            disabled: hex(0x9da6ab),    // r39:el-controls
+            auto: hex(0x7a4cc2),        // r39:el-controls
+            modulated: hex(0xa64173),   // r39:el-controls
+            destructive: hex(0xc4321a), // r39:el-controls
+            primary_ink: hex(0x000000), // r39:el-controls
+            meter_mid: hex(0xe2ee58),   // r39:el-controls
+            fcap_hi: hex(0xffffff),     // r39:el-controls
+            fcap_mid: hex(0xf4f6f7),    // r39:el-controls
+            fcap_lo: hex(0xd8dde0),     // r39:el-controls
+            cap_hi: hex(0xffffff),      // r39:el-controls
+            cap_mid: hex(0xf7f8f9),     // r39:el-controls
+            cap_lo: hex(0xdce1e4),      // r39:el-controls
+            scrim: Color32::from_rgba_unmultiplied_const(34, 46, 58, 87), // r39:el-controls
             shadow: Color32::from_rgba_premultiplied(0x1a, 0x1d, 0x23, 0x38),
             highlight_band: hex(0xf6c48a),
             key_white: hex(0xfbfcfd),
@@ -694,6 +769,10 @@ impl Tokens {
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
             track_veil: Color32::TRANSPARENT,
+            readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+            readout_soft: Color32::TRANSPARENT,
+            selection_tint: Color32::TRANSPARENT,
+            loop_edge: Color32::TRANSPARENT,
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
@@ -710,6 +789,7 @@ impl Tokens {
             density: 1.0,
             text_scale: 1.0,
             generation: 0,
+            system: crate::kit::system::System::CLASSIC,
         }
     }
 
@@ -772,6 +852,19 @@ impl Tokens {
             hue_mod: hex(0xa98bfa),
             hue_space: hex(0xf07ab8),
             hue_output: hex(0x9ccf6a),
+            disabled: hex(0x4d505a),    // r39:el-controls
+            auto: hex(0xa98bfa),        // r39:el-controls
+            modulated: hex(0xf07ab8),   // r39:el-controls
+            destructive: hex(0xc15353), // r39:el-controls
+            primary_ink: hex(0x3a2604), // r39:el-controls
+            meter_mid: hex(0x98ad5d),   // r39:el-controls
+            fcap_hi: hex(0x878685),     // r39:el-controls
+            fcap_mid: hex(0x606163),    // r39:el-controls
+            fcap_lo: hex(0x4a4b50),     // r39:el-controls
+            cap_hi: hex(0x424349),      // r39:el-controls
+            cap_mid: hex(0x2b2e35),     // r39:el-controls
+            cap_lo: hex(0x1d2029),      // r39:el-controls
+            scrim: Color32::from_rgba_unmultiplied_const(8, 11, 14, 158), // r39:el-controls
             shadow: Color32::from_rgba_premultiplied(0, 0, 0, 0x8c),
             highlight_band: hex(0xffe7a0),
             key_white: hex(0xd8d3c6),
@@ -782,6 +875,10 @@ impl Tokens {
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
             track_veil: Color32::TRANSPARENT,
+            readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+            readout_soft: Color32::TRANSPARENT,
+            selection_tint: Color32::TRANSPARENT,
+            loop_edge: Color32::TRANSPARENT,
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
@@ -798,6 +895,7 @@ impl Tokens {
             density: 1.0,
             text_scale: 1.0,
             generation: 0,
+            system: crate::kit::system::System::CLASSIC,
         }
     }
 
@@ -860,6 +958,19 @@ impl Tokens {
             hue_mod: hex(0x7045b3),
             hue_space: hex(0xa13d6e),
             hue_output: hex(0x4a6428),
+            disabled: hex(0xaea99e),    // r39:el-controls
+            auto: hex(0x7045b3),        // r39:el-controls
+            modulated: hex(0xa13d6e),   // r39:el-controls
+            destructive: hex(0xb03333), // r39:el-controls
+            primary_ink: hex(0xffffff), // r39:el-controls
+            meter_mid: hex(0xe2ee58),   // r39:el-controls
+            fcap_hi: hex(0xffffff),     // r39:el-controls
+            fcap_mid: hex(0xf4f2eb),    // r39:el-controls
+            fcap_lo: hex(0xd8d2c3),     // r39:el-controls
+            cap_hi: hex(0xffffff),      // r39:el-controls
+            cap_mid: hex(0xf7f5f0),     // r39:el-controls
+            cap_lo: hex(0xdcd6c7),      // r39:el-controls
+            scrim: Color32::from_rgba_unmultiplied_const(34, 46, 58, 87), // r39:el-controls
             shadow: Color32::from_rgba_premultiplied(0x1a, 0x15, 0x0e, 0x40),
             highlight_band: hex(0xeab27a),
             key_white: hex(0xfbf8f0),
@@ -870,6 +981,10 @@ impl Tokens {
             light: hex(0xffffff),
             dark_shade: hex(0x000000),
             track_veil: Color32::TRANSPARENT,
+            readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+            readout_soft: Color32::TRANSPARENT,
+            selection_tint: Color32::TRANSPARENT,
+            loop_edge: Color32::TRANSPARENT,
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
@@ -886,6 +1001,7 @@ impl Tokens {
             density: 1.0,
             text_scale: 1.0,
             generation: 0,
+            system: crate::kit::system::System::CLASSIC,
         }
     }
 
@@ -1010,6 +1126,48 @@ impl Tokens {
             hue_mod: base.hue_mod,
             hue_space: base.hue_space,
             hue_output: base.hue_output,
+            // r39:el-controls — the control families' tokens, from the palette's own.
+            disabled: mix(p.text_dim, p.panel, 0.55),
+            auto: base.hue_mod,
+            modulated: base.hue_space,
+            destructive: p.danger,
+            primary_ink: on_fill(p.gold_bright),
+            meter_mid: mix(p.meter_low, p.meter_high, 0.5),
+            fcap_hi: if dark {
+                mix(p.panel, p.text, 0.53)
+            } else {
+                Color32::WHITE
+            },
+            fcap_mid: if dark {
+                mix(p.panel, p.text, 0.34)
+            } else {
+                mix(p.panel, Color32::WHITE, 0.6)
+            },
+            fcap_lo: if dark {
+                mix(p.panel, p.text, 0.23)
+            } else {
+                mix(p.panel, p.text, 0.06)
+            },
+            cap_hi: if dark {
+                mix(p.panel, p.text, 0.19)
+            } else {
+                Color32::WHITE
+            },
+            cap_mid: if dark {
+                mix(p.panel, p.text, 0.08)
+            } else {
+                mix(p.panel, Color32::WHITE, 0.7)
+            },
+            cap_lo: if dark {
+                mix(p.panel, p.text, 0.01)
+            } else {
+                mix(p.panel, p.text, 0.04)
+            },
+            scrim: if dark {
+                Color32::from_rgba_unmultiplied_const(8, 11, 14, 158)
+            } else {
+                Color32::from_rgba_unmultiplied_const(34, 46, 58, 87)
+            },
             shadow: p.shadow,
             highlight_band: mix(p.gold_bright, Color32::WHITE, 0.55),
             key_white: p.white_key,
@@ -1020,6 +1178,10 @@ impl Tokens {
             light: Color32::WHITE,
             dark_shade: Color32::BLACK,
             track_veil: Color32::TRANSPARENT,
+            readout: Color32::TRANSPARENT, // r39:lapis2 — each readout in its own ink
+            readout_soft: Color32::TRANSPARENT,
+            selection_tint: Color32::TRANSPARENT,
+            loop_edge: Color32::TRANSPARENT,
             sheen: Color32::TRANSPARENT,
             glow: Color32::TRANSPARENT,
             glow_cool: Color32::TRANSPARENT,
@@ -1060,6 +1222,7 @@ impl Tokens {
             density: 1.0,
             text_scale: 1.0,
             generation: 0,
+            system: crate::kit::system::System::CLASSIC,
         };
         t.floor();
         t
@@ -1071,6 +1234,7 @@ impl Tokens {
         let mut t = Tokens::derive_from_palette(&theme.base_palette());
         apply_map(&mut t, &theme.kit);
         t.dark = theme.dark;
+        t.system = theme.system;
         theme.form.apply(&mut t);
         t.with_knobs(&theme.knobs)
     }
@@ -1140,6 +1304,24 @@ impl Tokens {
             menu_hover: s(self.menu_hover),
             row_white: s(self.row_white),
             row_black: s(self.row_black),
+            disabled: x(self.disabled),
+            // r39:lapis2 — a readout's own colour turns as text does; clear stays clear.
+            readout: if self.readout.a() == 0 {
+                self.readout
+            } else {
+                x(self.readout)
+            },
+            readout_soft: if self.readout_soft.a() == 0 {
+                self.readout_soft
+            } else {
+                x(self.readout_soft)
+            },
+            fcap_hi: s(self.fcap_hi),
+            fcap_mid: s(self.fcap_mid),
+            fcap_lo: s(self.fcap_lo),
+            cap_hi: s(self.cap_hi),
+            cap_mid: s(self.cap_mid),
+            cap_lo: s(self.cap_lo),
             ..*self
         }
     }
@@ -1179,6 +1361,22 @@ impl Tokens {
             self.knob_rim = ensure_contrast(self.knob_rim, self.deck, 3.0);
         }
         self.knob_track = ensure_contrast(self.knob_track, self.deck, 3.0);
+        // r39:el-controls — a driven value is read as a number in its sign's colour; the
+        // buttons' words on their fills.
+        let driven_on = [self.deck, self.panel, self.strip];
+        self.auto = ensure_contrast_all(self.auto, &driven_on, 4.5);
+        self.modulated = ensure_contrast_all(self.modulated, &driven_on, 4.5);
+        self.primary_ink = ensure_contrast(self.primary_ink, self.highlight, 4.5);
+        // r39:lapis2 — a readout's own colour reads on the bar, its wells and the panel.
+        let grounds = Self::readout_grounds(self).map(|(_, c)| c);
+        for c in [&mut self.readout, &mut self.readout_soft] {
+            if c.a() > 0 {
+                *c = ensure_contrast_all(*c, &grounds, 4.5);
+            }
+        }
+        if contrast(Color32::WHITE, self.destructive) < 4.5 {
+            self.destructive = ensure_contrast(self.destructive, Color32::WHITE, 4.5);
+        }
         for f in Function::ALL {
             let h = ensure_contrast_all(self.hue(f), &[self.deck, self.deck_title, self.ink], 4.5);
             match f {
@@ -1189,6 +1387,31 @@ impl Tokens {
                 Function::Space => self.hue_space = h,
                 Function::Output => self.hue_output = h,
             }
+        }
+    }
+
+    /// Where the readouts are read (r39:lapis2): the top bar and the rulers, their wells,
+    /// the panel.
+    fn readout_grounds(&self) -> [(&'static str, Color32); 3] {
+        [
+            ("toolbar", self.toolbar),
+            ("well", self.well),
+            ("panel", self.panel),
+        ]
+    }
+
+    /// The colour a readout is painted in (r39:lapis2): the theme's readout ink when it
+    /// has one (`soft` its second), else `own`, the ink its place paints it in.
+    pub fn readout_or(&self, own: Color32, soft: bool) -> Color32 {
+        let c = if soft {
+            self.readout_soft
+        } else {
+            self.readout
+        };
+        if c.a() == 0 {
+            own
+        } else {
+            c
         }
     }
 
@@ -1253,6 +1476,39 @@ impl Tokens {
             self.knob_body
         };
         add("knob boundary on deck", boundary, self.deck, 3.0);
+        // r39:el-controls — the control families (des-controls).
+        for (n, bg) in [
+            ("deck", self.deck),
+            ("panel", self.panel),
+            ("strip", self.strip),
+        ] {
+            add(&format!("automated value on {n}"), self.auto, bg, 4.5);
+            add(&format!("modulated value on {n}"), self.modulated, bg, 4.5);
+        }
+        add(
+            "primary button's words",
+            self.primary_ink,
+            self.highlight,
+            4.5,
+        );
+        add(
+            "destructive button's words",
+            Color32::WHITE,
+            self.destructive,
+            4.5,
+        );
+        // r39:lapis2 — the readouts, when a theme gives them a colour of their own.
+        for (n, c) in [
+            ("readout", self.readout),
+            ("readout_secondary", self.readout_soft),
+        ] {
+            if c.a() == 0 {
+                continue;
+            }
+            for (bn, bg) in Self::readout_grounds(self) {
+                add(&format!("{n} on {bn}"), c, bg, 4.5);
+            }
+        }
         add("focus on panel", self.focus, self.panel, 3.0);
         add("focus on ink", self.focus, self.ink, 3.0);
         add("selection on strip", self.selection, self.strip, 3.0);
@@ -1379,12 +1635,26 @@ pub fn current() -> Tokens {
     *installed().read().unwrap_or_else(|e| e.into_inner())
 }
 
+/// The installed theme's design system (round 39): for the few measures a widget takes
+/// before it has a style (a menu's rows).
+pub fn current_system() -> crate::kit::system::System {
+    installed().read().unwrap_or_else(|e| e.into_inner()).system
+}
+
 /// Install tokens for every widget and bump the theme generation, so cached layers
-/// re-render.
+/// re-render. The tokens already installed, installed again, change nothing (round 39,
+/// fixes): a bump made every cache keyed on the generation go cold, and the next frame
+/// was drawn as a first frame is — thousands of triangles fewer, whenever a look was
+/// applied again as it was (a poll of the system's or the taskbar's look, another rig in
+/// a test: the "stage_budget variance").
 pub fn install(mut t: Tokens) {
-    let g = GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
-    t.generation = g;
-    *installed().write().unwrap_or_else(|e| e.into_inner()) = t;
+    let mut slot = installed().write().unwrap_or_else(|e| e.into_inner());
+    t.generation = slot.generation;
+    if slot.generation != 0 && *slot == t {
+        return;
+    }
+    t.generation = GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+    *slot = t;
 }
 
 #[cfg(test)]
@@ -1421,10 +1691,17 @@ mod tests {
             // inner shadow are shadows.
             let l = |c: Color32| Hsl::of(super::super::color::opaque(c)).l;
             assert!(l(t.bevel) > l(t.bevel_shade), "{id}: the bevel is not lit");
-            assert!(
-                l(t.drop) < 0.3 && l(t.inner_shadow) < 0.3,
-                "{id}: shadows are dark"
-            );
+            assert!(l(t.drop) < 0.3, "{id}: the drop is a shadow");
+            if t.system.recessed() {
+                // A recessed family's inner shadow is its wells' edge (round 39): darker
+                // than the well, as a shadow is, whatever the light.
+                assert!(
+                    l(t.inner_shadow) < l(t.well),
+                    "{id}: the well's edge is lit"
+                );
+            } else {
+                assert!(l(t.inner_shadow) < 0.3, "{id}: shadows are dark");
+            }
             assert!(l(t.specular) > 0.8, "{id}: the specular is a highlight");
         }
         // Night is glossy metal and glass, Paper matte.

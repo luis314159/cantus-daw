@@ -1,12 +1,13 @@
-//! Cantus's icon, rendered at build time from the mark (ADR 0046): the website's C of waves
-//! and playhead with no tile behind it, in its designed amber → copper. Shared
-//! by two build scripts with `#[path]`: the app's (`build.rs`, which also bakes the
-//! splash) and the launcher's (`crates/cantus-launch/build.rs`) — in a release the
-//! launcher is the `cantus.exe` that the Start menu, the file association and Explorer
-//! show, so it carries the same icon.
+//! Cantus's icon, rendered at build time from logo #03, "the metal" (round 39, the owner's
+//! choice of 2026-11-09; the mark of ADR 0046 before): the full drawing from 48 px up, its
+//! designer's small masters below (`cantus-ui/assets/logos/small/03-*.svg`, the same files
+//! the interface draws with — `kit/logo_small.rs`). Shared by two build scripts with
+//! `#[path]`: the app's (`build.rs`, which also bakes the splash) and the launcher's
+//! (`crates/cantus-launch/build.rs`) — in a release the launcher is the `cantus.exe` that
+//! the Start menu, the file association and Explorer show, so it carries the same icon.
 //!
-//! The mark is the interface's own drawing (`kit/mark.rs`, which recolours it live for the
-//! running window), included here; the splash's logo is still #2, as designed.
+//! The running window's own icon on Windows is still the mark in the colour the user chose
+//! (`cantus_ui::window_icon`, ADR 0046); the splash shows #03 too.
 
 #[path = "../cantus-ui/src/kit/mark.rs"]
 #[allow(dead_code)]
@@ -15,13 +16,47 @@ mod mark;
 use resvg::{tiny_skia, usvg};
 use std::path::Path;
 
-pub const LOGO: &str = include_str!("../cantus-ui/assets/logos/02.svg");
+pub const LOGO: &str = include_str!("../cantus-ui/assets/logos/03.svg");
+
+/// #03's small masters, by the size each is drawn for.
+const SMALL: [(u32, &str); 6] = [
+    (
+        16,
+        include_str!("../cantus-ui/assets/logos/small/03-16.svg"),
+    ),
+    (
+        20,
+        include_str!("../cantus-ui/assets/logos/small/03-20.svg"),
+    ),
+    (
+        24,
+        include_str!("../cantus-ui/assets/logos/small/03-24.svg"),
+    ),
+    (
+        30,
+        include_str!("../cantus-ui/assets/logos/small/03-30.svg"),
+    ),
+    (
+        32,
+        include_str!("../cantus-ui/assets/logos/small/03-32.svg"),
+    ),
+    (
+        48,
+        include_str!("../cantus-ui/assets/logos/small/03-48.svg"),
+    ),
+];
 
 /// The files a build script that includes this one must be re-run for (relative to the
 /// including crate, which sits beside `cantus-app`).
-pub const SOURCES: [&str; 3] = [
+pub const SOURCES: [&str; 9] = [
     "../cantus-app/icon.rs",
-    "../cantus-ui/assets/logos/02.svg",
+    "../cantus-ui/assets/logos/03.svg",
+    "../cantus-ui/assets/logos/small/03-16.svg",
+    "../cantus-ui/assets/logos/small/03-20.svg",
+    "../cantus-ui/assets/logos/small/03-24.svg",
+    "../cantus-ui/assets/logos/small/03-30.svg",
+    "../cantus-ui/assets/logos/small/03-32.svg",
+    "../cantus-ui/assets/logos/small/03-48.svg",
     "../cantus-ui/src/kit/mark.rs",
 ];
 
@@ -38,9 +73,15 @@ pub fn render(svg: &str, px: u32) -> tiny_skia::Pixmap {
     pix
 }
 
-/// The icon at `px`: the mark drawn for that size (redrawn for the pixel grid below 40).
+/// The icon at `px`: #03's small master for that size below 48 px (the smallest drawn
+/// size at least `px`), the full drawing from 48 up.
 pub fn master(px: u32) -> tiny_skia::Pixmap {
-    render(&mark::mark_svg(px, &mark::MarkColours::ORIGINAL), px)
+    if px < 48 {
+        let svg = SMALL.iter().find(|(n, _)| *n >= px).unwrap_or(&SMALL[5]).1;
+        render(svg, px)
+    } else {
+        render(LOGO, px)
+    }
 }
 
 /// An `.ico` whose entries are PNG images (Windows Vista and later read them at any size).
@@ -78,9 +119,10 @@ pub fn ico(sizes: &[u32]) -> Vec<u8> {
 pub const EXE_SIZES: [u32; 9] = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 
 /// macOS's icon file (ADR 0066): PNG entries at every size Finder and the Dock ask for, 16
-/// to 1024 pixels (each point size at 1× and 2×). The mark sits inside the grid's margin
+/// to 1024 pixels (each point size at 1× and 2×). The icon sits inside the grid's margin
 /// (100 px of 1024 each side, Apple's icon template), so it stands as large in the Dock as
-/// its neighbours.
+/// its neighbours: #03's full drawing already has that margin (and its shadow) from 64 px
+/// up; a small master is set inside it.
 pub fn icns() -> Vec<u8> {
     const ENTRIES: [(&[u8; 4], u32); 10] = [
         (b"icp4", 16),
@@ -96,6 +138,13 @@ pub fn icns() -> Vec<u8> {
     ];
     let mut body = Vec::new();
     for (kind, px) in ENTRIES {
+        if px >= 64 {
+            let png = render(LOGO, px).encode_png().expect("png");
+            body.extend_from_slice(kind);
+            body.extend_from_slice(&(png.len() as u32 + 8).to_be_bytes());
+            body.extend_from_slice(&png);
+            continue;
+        }
         let inner = (px * 824).div_ceil(1024);
         let mark = master(inner);
         let mut tile = tiny_skia::Pixmap::new(px, px).expect("a size above zero");

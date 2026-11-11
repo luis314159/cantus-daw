@@ -111,13 +111,16 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     }
     let name = app.project().name.clone();
     let mut answer = None;
-    egui::Window::new(t("unsaved.title"))
+    crate::kit::dialog::window(t("unsaved.title")) // r39:el-controls
         .id(egui::Id::new("cantus-unsaved"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
         .show(ctx, |ui| {
-            form::band(ui, "unsaved.title");
+            // r39:el-controls — the kit's title row (its close key cancels).
+            if crate::kit::dialog::title(ui, &t("unsaved.title")) {
+                answer = Some(Answer::Cancel);
+            }
             ui.label(
                 egui::RichText::new(tf("unsaved.text", &[("name", &name)]))
                     .text_style(crate::design::caption())

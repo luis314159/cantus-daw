@@ -141,8 +141,25 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, pads: &[DrumPad]) {
         sh.label(row.label, "inspector.pad_actions", false);
         let gap = s.s(4.0);
         let w = (row.value.width() - gap) * 0.5;
-        let a = Rect::from_min_size(row.value.min, Vec2::new(w, row.value.height()));
-        let b = Rect::from_min_size(pos2(a.right() + gap, a.top()), a.size());
+        // Side by side when both words fit their halves, else one under the other (round
+        // 39, ADR 0109: a narrow inspector cut them to "EDIT…" and "REM…").
+        let need = |key: &str| {
+            let t = crate::kit::text::Text::key(key, crate::kit::text::Role::Label, s.t.text)
+                .caps(true);
+            crate::kit::text::measure(sh.ui.ctx(), &t, s.tk()).x + s.s(34.0)
+        };
+        let side = need("inspector.pad_edit").max(need("inspector.pad_remove")) <= w;
+        let (a, b) = if side {
+            let a = Rect::from_min_size(row.value.min, Vec2::new(w, row.value.height()));
+            (
+                a,
+                Rect::from_min_size(pos2(a.right() + gap, a.top()), a.size()),
+            )
+        } else {
+            let a = row.value;
+            let next = sh.row();
+            (a, next.value)
+        };
         let ra = sh
             .ui
             .interact(a, Id::new(("insp-pad-edit", t)), Sense::click());
@@ -168,6 +185,11 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, pads: &[DrumPad]) {
         }
         if rb.clicked() {
             sh.acts.push(Act::RemovePad(t, selected));
+        }
+        if ra.hovered() {
+            // r39:ux-a — the help line (ADR 0109).
+            let name = sh.fmt.tr("ux.hint.pad_edit");
+            hint::set_text(sh.ui.ctx(), name, "", Caps::NONE);
         }
         if rb.hovered() {
             let name = sh.fmt.tr("pad.remove_tip");

@@ -5,16 +5,18 @@
 //! editor's own toolbar shows, so the two never disagree. The rack is always on its grid:
 //! its lamp is lit and does not switch off.
 
-use super::{Style, STEP};
+use super::paint::{self as p, ink1, ink3};
+use super::Style;
 use crate::app::{CantusApp, CentralView, EditFocus};
 use crate::i18n::t;
+use crate::kit::glyph::Glyph;
 use crate::kit::hint::{self, Caps};
-use crate::kit::text::{self, Role, Text};
-use crate::kit::{self, with_brush, State};
+use crate::kit::text::Role;
+use crate::kit::{with_brush, State};
 use crate::views::workspace::Pane;
 use crate::views::GRIDS;
 use cantus_core::Ticks;
-use egui::{Id, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Align2, Id, Pos2, Rect, Sense, Ui};
 
 /// The editor the bar's snap speaks for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -29,15 +31,6 @@ pub enum Editor {
 }
 
 impl Editor {
-    fn glyph(self) -> crate::kit::glyph::Glyph {
-        match self {
-            Editor::Arrangement => Pane::Arrangement.glyph(),
-            Editor::PianoRoll | Editor::Pitch => Pane::PianoRoll.glyph(),
-            Editor::Rack => Pane::ChannelRack.glyph(),
-            Editor::Automation => crate::kit::glyph::Glyph::Automate,
-        }
-    }
-
     fn title_key(self) -> &'static str {
         match self {
             Editor::Arrangement => Pane::Arrangement.title_key(),
@@ -119,51 +112,53 @@ fn grid_key(grid: Ticks) -> &'static str {
         .unwrap_or("grid.custom")
 }
 
-fn parts(ctx: &egui::Context, s: &Style) -> (f32, f32) {
-    let tk = s.tk();
-    let grid = GRIDS
-        .iter()
-        .map(|(k, _)| k)
-        .chain(std::iter::once(&"grid.custom"))
-        .map(|k| text::measure(ctx, &Text::key(k, Role::Control, s.t.text), tk).x)
-        .fold(0.0, f32::max)
-        + 28.0 * s.k;
-    // r37:finish — snap is a key with the magnet (its name in its tip), not a lit word:
-    // the bar has every group at 1920 with it.
-    let _ = tk;
-    (grid, super::ROW_KEY * s.k)
+/// The grid cell's width: the sheet's 52, wider when the focused editor's grid (or the
+/// track a pitch editor quantises to) needs it — never cut.
+fn grid_w(app: &CantusApp, ctx: &egui::Context, s: &Style) -> f32 {
+    let e = focused(app);
+    let target = match e {
+        Editor::Pitch => app.selected_track.and_then(|tr| app.quantise_target(tr)),
+        _ => None,
+    };
+    let words = match target {
+        Some(o) => {
+            let name = app.project().track(o).map_or("", |t| t.name.as_str());
+            p::measure(ctx, name, Role::Body, 12.0, s).min(120.0 * s.k)
+        }
+        None => p::measure_key(ctx, grid_key(grid_of(app, e).0), Role::Body, 12.0, s),
+    };
+    (words + 26.0 * s.k).max(52.0 * s.k)
 }
 
-/// The editor's glyph's place at 100 %.
-const GLYPH_W: f32 = 21.0; // r37:finish (the glyph 16 pt)
-
-pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
-    let (grid, snap) = parts(ctx, s);
-    GLYPH_W * s.k + grid + STEP * s.k + snap
+/// The group's widths: compact (the magnet and a ▾) and full (the magnet and the grid).
+pub fn widths(app: &CantusApp, ctx: &egui::Context, s: &Style) -> (f32, f32) {
+    (40.0 * s.k, 28.0 * s.k + grid_w(app, ctx, s))
 }
 
-pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
+/// The magnet key and the grid in one well: snap on tints the magnet with the accent; the
+/// grid's value and ▾ open the grid list. Compact, the ▾ alone opens it.
+pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style, compact: bool) {
     let k = s.k;
     let e = focused(app);
-    let (grid, snap) = grid_of(app, e);
-    let (grid_w, snap_w) = parts(ui.ctx(), s);
-    let row_h = super::key_side(r, s);
-    // The editor it speaks for, by its glyph (its name in the hint).
-    let g = Rect::from_center_size(
-        Pos2::new(r.left() + 9.5 * k, r.center().y),
-        Vec2::splat(16.0 * k), // r37:finish (13: a muddy blob)
-    );
-    with_brush(ui.painter(), |b| {
-        crate::kit::glyph::paint(b, g, e.glyph(), s.t.text_dim)
-    });
-    let field = Rect::from_min_size(
-        Pos2::new(r.left() + GLYPH_W * k, r.center().y - row_h * 0.5),
-        Vec2::new(grid_w, row_h),
-    );
-    let resp = ui.interact(field, Id::new("toolbar-grid"), Sense::click());
+    let (grid, _) = grid_of(app, e);
+    let row = p::row(r, s);
+    let gw = if compact {
+        12.0 * k
+    } else {
+        grid_w(app, ui.ctx(), s)
+    };
+    let mr = p::cell(row, 0.0, 28.0 * k);
+    let field = p::cell(row, 28.0 * k, gw);
+    // The same group may be on the bar (compact) and in the More panel (its grid): ids per
+    // layer.
+    let layer = ui.layer_id().id;
+    let sresp = ui.interact(mr, Id::new("toolbar-snap").with(layer), Sense::click());
+    if sresp.clicked() {
+        toggle_snap(app, e);
+    }
+    let resp = ui.interact(field, Id::new("toolbar-grid").with(layer), Sense::click());
     let popup = egui::Popup::default_response_id(&resp);
     let open = egui::Popup::is_id_open(ui.ctx(), popup);
-    let st = State::of(&resp, open);
     // The pitch editor quantising to another track's notes: that track's name, as its own
     // bar says, and no grid checked in the list (review of fix3).
     let target = match e {
@@ -174,10 +169,55 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         Some(o) => app.project().track(o).map_or("", |t| t.name.as_str()),
         None => crate::views::clips_chrome::word(grid_key(grid)),
     };
+    let (_, snap_now) = grid_of(app, e);
+    let mut st = State::of(&sresp, snap_now);
+    if matches!(e, Editor::Rack | Editor::Pitch) {
+        st.disabled = true;
+        st.lit = true;
+    }
+    let gst = State::of(&resp, open);
     with_brush(ui.painter(), |b| {
-        kit::well::menu_field(b, field, s, st, value, false)
+        b.register(row, "toolbar_key", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+        p::joined(b, &[mr, field], s);
+        p::tint(b, mr, s, st.lit(snap_now), s.t.highlight, 0.2);
+        let ist = State {
+            disabled: false,
+            ..st
+        };
+        p::icon(b, mr, s, Glyph::Magnet, ist, s.t.highlight, 24.0);
+        p::tint(b, field, s, gst.lit(false), s.t.highlight, 0.2);
+        let chev_ink = if gst.hovered || open {
+            ink1(s)
+        } else {
+            ink3(s)
+        };
+        if compact {
+            p::chevron(b, field.center(), 2.0 * k, chev_ink, s);
+        } else {
+            let vr = Rect::from_min_max(
+                Pos2::new(field.left() + 8.0 * k, field.top()),
+                Pos2::new(field.right() - 16.0 * k, field.bottom()),
+            );
+            p::words(
+                b,
+                vr,
+                value,
+                Role::Body,
+                12.0,
+                ink1(s),
+                Align2::LEFT_CENTER,
+                s,
+            );
+            p::chevron(
+                b,
+                Pos2::new(field.right() - 10.0 * k, field.center().y),
+                2.5 * k,
+                chev_ink,
+                s,
+            );
+        }
     });
-    if st.hovered {
+    if gst.hovered {
         // The track is what Quantise moves to, not a grid (review of fix4): the hint says
         // so, as the pitch bar's caption does, and holds the whole name the field may cut.
         let what = if target.is_some() {
@@ -203,31 +243,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 }
             });
     }
-    // The SNAP lamp.
-    let sr = Rect::from_min_size(
-        Pos2::new(field.right() + STEP * k, field.top()),
-        Vec2::new(snap_w, row_h),
-    );
-    let resp = ui.interact(sr, Id::new("toolbar-snap"), Sense::click());
-    if resp.clicked() {
-        toggle_snap(app, e);
-    }
-    let (_, snap_now) = grid_of(app, e);
-    let mut st = State::of(&resp, snap_now).lit(snap_now);
-    if matches!(e, Editor::Rack | Editor::Pitch) {
-        st.disabled = true;
-    }
-    with_brush(ui.painter(), |b| {
-        crate::kit::cap::toolbar_key(
-            b,
-            sr,
-            s,
-            st,
-            crate::kit::cap::KeyFace::Glyph(crate::kit::glyph::Glyph::Magnet),
-        )
-    });
     // The key's words for a screen reader: its name and whether it is on.
-    resp.widget_info(|| {
+    sresp.widget_info(|| {
         egui::WidgetInfo::selected(
             egui::WidgetType::Checkbox,
             !st.disabled,
@@ -235,7 +252,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             t("pianoroll.snap"),
         )
     });
-    if st.hovered {
+    if sresp.hovered() {
         let tip = if e == Editor::Rack {
             t("topbar.snap_rack")
         } else if e == Editor::Pitch {
@@ -243,8 +260,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         } else {
             t("topbar.snap_tip")
         };
+        let tip = format!("{tip} \u{2014} {}", t(e.title_key()));
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
-        let _ = resp.on_hover_text(tip);
+        let _ = sresp.on_hover_text(tip);
     }
-    let _ = snap;
 }

@@ -8,12 +8,11 @@
 //! a value is formatted when it changes, not every frame.
 
 use super::{Act, MenuId, MenuOpen};
-use crate::kit::band;
 use crate::kit::color::{shade, with_alpha};
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::{cache, led, well, Brush, Fill, Function, State, Style, Tok};
+use crate::kit::{cache, well, Brush, Fill, Function, State, Style, Tok};
 use crate::widgets::knob::{pos_of, value_at, Taper};
 use egui::{pos2, Align2, Id, Pos2, Rect, Response, Sense, Ui, Vec2};
 use std::collections::HashMap;
@@ -25,8 +24,9 @@ pub const ROW: f32 = 24.0;
 pub const WELL_INSET: f32 = 2.0;
 /// The gap between the label column and the value.
 pub const GAP: f32 = 8.0;
-/// The side margin of rows inside the panel.
-pub const MARGIN: f32 = 8.0;
+/// The side margin of rows inside the panel (des-mixer: 12; 10 keeps a 220-pt panel's
+/// segmented values whole at 150 %).
+pub const MARGIN: f32 = 10.0;
 /// Pointer travel for a whole value range, as the house knobs (`widgets::knob`).
 const TRAVEL_PX: f32 = 200.0;
 const FINE: f32 = 0.2;
@@ -210,6 +210,16 @@ pub struct Drag {
     pub ended: bool,
 }
 
+/// Where a folding section ([`Sheet::fold`]) keeps whether it is open.
+fn fold_id(key: &str) -> Id {
+    Id::new(("insp-fold", key))
+}
+
+/// Open the folding section titled `key`, as a click on its folded row does.
+pub fn unfold(ctx: &egui::Context, key: &str) {
+    ctx.data_mut(|d| d.insert_temp(fold_id(key), true));
+}
+
 /// Sense a value in `rect`: vertical drag over 200 px for the whole travel (Shift for
 /// fine), double-click to reset. Gains ride the fader's travel.
 pub fn drag(ui: &mut Ui, id: Id, rect: Rect, v: f32, r: &Range, gain: bool) -> Drag {
@@ -249,47 +259,6 @@ pub fn drag(ui: &mut Ui, id: Id, rect: Rect, v: f32, r: &Range, gain: bool) -> D
 }
 
 // ---- painting -----------------------------------------------------------------------------
-
-/// The 2-pt level bar at a well's left edge: the value's share of its travel, from the
-/// bottom — or from the middle for a bipolar value.
-pub fn level_bar(b: &mut Brush, well: Rect, s: &Style, pos: f32, bipolar: bool, alpha: f32) {
-    let px = b.px();
-    let x0 = b.snap(well.left() + 2.0 * px);
-    let lane = Rect::from_min_max(
-        pos2(x0, well.top() + 2.0 * px),
-        pos2(x0 + b.snap(s.s(2.0)).max(px), well.bottom() - 2.0 * px),
-    );
-    b.rect(lane, Fill::Solid(with_alpha(s.hue, 0.18 * alpha)));
-    let y_of = |p: f32| lane.bottom() - lane.height() * p.clamp(0.0, 1.0);
-    let (a, z) = if bipolar {
-        let (m, y) = (y_of(0.5), y_of(pos));
-        (m.min(y), m.max(y))
-    } else {
-        (y_of(pos), lane.bottom())
-    };
-    if z - a > 0.25 * px {
-        b.rect(
-            Rect::from_min_max(pos2(lane.left(), a), pos2(lane.right(), z)),
-            Fill::Solid(s.hue.gamma_multiply(alpha)),
-        );
-    }
-}
-
-/// A well holding `value`; `bar` adds the level bar (position, bipolar).
-pub fn value_well(
-    b: &mut Brush,
-    rect: Rect,
-    s: &Style,
-    st: State,
-    value: &str,
-    numeric: bool,
-    bar: Option<(f32, bool)>,
-) {
-    well::readout(b, rect, s, st, value, numeric);
-    if let Some((p, bipolar)) = bar {
-        level_bar(b, rect, s, p, bipolar, st.alpha());
-    }
-}
 
 /// An italic placeholder in a well: an empty field says what would go there.
 pub fn placeholder_well(b: &mut Brush, rect: Rect, s: &Style, st: State, key: &str) {
@@ -431,57 +400,216 @@ impl<'a> Sheet<'a> {
         plus: bool,
         count: Option<Count<'_>>,
     ) -> BandClicks {
-        self.ui.add_space(self.s.d(4.0));
+        // r39:el-mixer — des-mixer's section: a hairline `mix(base, line, .55)` at its
+        // top, a small chevron (ink 4) and the title SemiBold 11 in ink 3, its state
+        // Regular 10 ink 3 at the right; the content 6 below.
+        use crate::kit::glyph_mixer::{Ink, MGlyph};
+        use crate::views::mixer::look::{self, W};
+        let _ = f;
         let w = self.width();
         let (rect, _) = self
             .ui
-            .allocate_exact_size(Vec2::new(w, self.s.s(band::BAND)), Sense::hover());
-        let s = self.s.function(f);
-        band::section(self.b, rect, &s, State::REST, Src::Key(key), power, false);
+            .allocate_exact_size(Vec2::new(w, self.s.s(26.0)), Sense::hover());
+        let s = self.s;
+        let p = look::Pal::of(&s);
+        let px = self.b.px();
+        let m = s.s(12.0);
+        self.b.hline(
+            rect.left() + m,
+            rect.right() - m,
+            self.b.snap(rect.top()) + px * 0.5,
+            px,
+            crate::kit::color::mix(p.base, p.line, 0.55),
+        );
+        let base = rect.top() + s.s(17.0);
+        let mut x = rect.left() + m;
+        // A section that folds: its title folds it again.
+        let fold_id = fold_id(key);
+        if self.ui.data(|d| d.get_temp::<bool>(fold_id)).is_some() {
+            let tr = Rect::from_min_max(rect.min, pos2(rect.right() - s.s(60.0), rect.bottom()));
+            let r = self.ui.interact(tr, fold_id.with("title"), Sense::click());
+            if r.hovered() {
+                let words =
+                    crate::i18n::tf("inspector.fold_tip", &[("what", &crate::i18n::t(key))]);
+                hint::set_text(self.ui.ctx(), &words, "", Caps::NONE);
+            }
+            if r.clicked() {
+                self.ui.data_mut(|d| d.insert_temp(fold_id, false));
+            }
+        }
+        look::glyph(
+            self.b,
+            &s,
+            pos2(x + 4.0, base - 4.0),
+            8.0,
+            MGlyph::FoldOpen,
+            Ink::Solid(p.ink4),
+            p.base,
+        );
+        x += s.s(13.0);
         let mut out = BandClicks::default();
-        if power.is_some() {
-            let lr = Rect::from_center_size(
-                pos2(rect.left() + s.s(13.0), rect.center().y),
-                Vec2::splat(s.s(16.0)),
-            );
+        if let Some(on) = power {
+            let lr = Rect::from_center_size(pos2(x + 5.0, base - 4.0), Vec2::splat(s.s(16.0)));
             let r = self
                 .ui
                 .interact(lr, Id::new(("insp-band-power", key)), Sense::click());
+            let ink = if on {
+                Ink::On(p.play)
+            } else if r.hovered() {
+                Ink::Hover
+            } else {
+                Ink::Off
+            };
+            look::glyph(self.b, &s, lr.center(), 12.0, MGlyph::Enable, ink, p.base);
             out.power = r.clicked();
             out.power_rect = Some(lr);
             if r.hovered() {
                 let name = self.fmt.tr(key);
                 hint::set_text(self.ui.ctx(), name, "", Caps::NONE);
             }
+            x += s.s(16.0);
         }
-        let mut right = rect.right() - s.s(6.0);
+        let mut right = rect.right() - m;
         if plus {
-            let pr = Rect::from_center_size(
-                pos2(right - s.s(8.0), rect.center().y),
-                Vec2::splat(s.s(16.0)),
-            );
+            let pr =
+                Rect::from_center_size(pos2(right - s.s(8.0), base - 4.0), Vec2::splat(s.s(16.0)));
             let r = self
                 .ui
                 .interact(pr, Id::new(("insp-band-plus", key)), Sense::click());
-            let st = State::of(&r, false);
-            glyph_key(self.b, pr, &s, st, Glyph::Plus);
+            if r.hovered() {
+                look::well(self.b, pr, &p, true);
+            }
+            look::glyph(
+                self.b,
+                &s,
+                pr.center(),
+                10.0,
+                MGlyph::Add,
+                if r.hovered() { Ink::Hover } else { Ink::Rest },
+                p.base,
+            );
+            if r.hovered() {
+                // What the + adds to, on the help line (round 39, ADR 0109).
+                let words = crate::i18n::tf("ux.hint.add", &[("what", &crate::i18n::t(key))]);
+                hint::set_text(self.ui.ctx(), &words, "", Caps::NONE);
+            }
             out.plus = r.clicked();
             out.plus_rect = Some(pr);
             right = pr.left() - s.s(6.0);
         }
+        let mut state_w = 0.0;
         if let Some(c) = count {
             let c = self.fmt.get(c.key, c.stamp, c.write);
-            let t = Text::new(c, Role::Value, s.t.text_dim)
-                .align(Align2::RIGHT_CENTER)
-                .policy(Policy::Elide(Elide::End));
-            let r = Rect::from_min_max(
-                pos2(right - s.s(56.0), rect.top()),
-                pos2(right, rect.bottom()),
+            state_w = look::say(
+                self.b,
+                &s,
+                c,
+                right,
+                base,
+                Align2::RIGHT_BOTTOM,
+                s.s(80.0),
+                10.0,
+                W::Regular,
+                p.ink3,
             );
-            let _ = text::paint(self.b, r, &t, s.tk());
         }
-        self.ui.add_space(self.s.d(4.0));
+        let title = self.fmt.tr(key);
+        look::say(
+            self.b,
+            &s,
+            title,
+            x,
+            base,
+            Align2::LEFT_BOTTOM,
+            (right - state_w - 8.0 - x).max(8.0),
+            11.0,
+            W::SemiBold,
+            p.ink3,
+        );
+        self.ui.add_space(self.s.d(2.0));
         out
+    }
+
+    /// A section that folds (des-mixer): folded, one 28-pt row — a chevron, its title
+    /// Medium 11 in ink 2, its state Regular 11 in ink 3 at the right — and a click opens
+    /// it; open, the section's own band, whose title folds it again. Returns whether it is
+    /// open (the caller then draws the section).
+    pub fn fold(&mut self, key: &str, open_by_default: bool, state: &str) -> bool {
+        use crate::kit::glyph_mixer::{Ink, MGlyph};
+        use crate::views::mixer::look::{self, W};
+        let id = fold_id(key);
+        let open = self
+            .ui
+            .data_mut(|d| *d.get_temp_mut_or_insert_with(id, || open_by_default));
+        if open {
+            return true;
+        }
+        let s = self.s;
+        let p = look::Pal::of(&s);
+        let w = self.width();
+        let (rect, resp) = self
+            .ui
+            .allocate_exact_size(Vec2::new(w, s.s(28.0)), Sense::click());
+        let m = s.s(12.0);
+        let px = self.b.px();
+        self.b.hline(
+            rect.left() + m,
+            rect.right() - m,
+            self.b.snap(rect.top()) + px * 0.5,
+            px,
+            crate::kit::color::mix(p.base, p.line, 0.55),
+        );
+        let hot = resp.hovered();
+        if hot {
+            self.b.rect(
+                rect.shrink2(Vec2::new(m * 0.5, 1.0)),
+                Fill::Solid(with_alpha(p.ink1, 0.03)),
+            );
+        }
+        let base = rect.top() + s.s(18.0);
+        let x = rect.left() + m;
+        look::glyph(
+            self.b,
+            &s,
+            pos2(x + 4.0, base - 4.0),
+            10.0,
+            MGlyph::FoldShut,
+            Ink::Solid(p.ink3),
+            p.base,
+        );
+        let sw = look::say(
+            self.b,
+            &s,
+            state,
+            rect.right() - m,
+            base,
+            Align2::RIGHT_BOTTOM,
+            w * 0.45,
+            11.0,
+            W::Regular,
+            p.ink3,
+        );
+        let title = self.fmt.tr(key);
+        look::say(
+            self.b,
+            &s,
+            title,
+            x + 13.0,
+            base,
+            Align2::LEFT_BOTTOM,
+            (w - 2.0 * m - 13.0 - sw - 8.0).max(8.0),
+            11.0,
+            W::Medium,
+            if hot { p.ink1 } else { p.ink2 },
+        );
+        if hot {
+            let name = self.fmt.tr(key);
+            hint::set_text(self.ui.ctx(), name, state, Caps::NONE);
+        }
+        if resp.clicked() {
+            self.ui.data_mut(|d| d.insert_temp(id, true));
+        }
+        false
     }
 
     /// Allocate one label | value row.
@@ -506,9 +634,10 @@ impl<'a> Sheet<'a> {
     /// A row's label: right-aligned, abbreviated when it does not fit, dimmed when the row
     /// does not apply.
     pub fn label(&mut self, r: Rect, key: &str, dim: bool) {
+        // r39:el-mixer — des-mixer: labels Regular 11 in ink 3, at the column's left.
         let a = if dim { 0.45 } else { 1.0 };
-        let t = Text::key(key, Role::Body, self.s.t.text_dim.gamma_multiply(a))
-            .align(Align2::RIGHT_CENTER)
+        let t = Text::key(key, Role::Label, self.s.t.placeholder.gamma_multiply(a))
+            .align(Align2::LEFT_CENTER)
             .policy(Policy::Abbreviate);
         let _ = text::paint(self.b, r, &t, self.s.tk());
     }
@@ -517,25 +646,94 @@ impl<'a> Sheet<'a> {
     pub fn text_row(&mut self, key: &str, text: &str, numeric: bool, dim: bool) -> Row {
         let row = self.row();
         self.label(row.label, key, dim);
-        let st = State {
-            disabled: dim,
-            ..State::REST
-        };
-        well::readout(self.b, row.value, &self.s, st, text, numeric);
+        // r39:lo-mixer — des-mixer: a figure or a name as text, no well.
+        super::look::text(self.b, &self.s, row.value, text, numeric, dim);
         row
     }
 
     /// A row whose value opens a list: a menu field. Opens (or closes) `menu` on click.
     pub fn menu_row(&mut self, key: &str, value: &str, menu: MenuId, dim: bool) -> Row {
-        let row = self.row();
+        let row = self.field_row();
         self.label(row.label, key, dim);
         self.menu_field(row.value, value, menu, dim);
         row
     }
 
+    /// A row for one of des-mixer's fields: 28 high, the field 24 (r39:lo-mixer).
+    pub fn field_row(&mut self) -> Row {
+        let w = self.width();
+        let (full, _) = self
+            .ui
+            .allocate_exact_size(Vec2::new(w, self.s.s(28.0)), Sense::hover());
+        let m = self.s.s(MARGIN);
+        let label = Rect::from_min_max(
+            pos2(full.left() + m, full.top()),
+            pos2(full.left() + m + self.col, full.bottom()),
+        );
+        let value = Rect::from_min_max(
+            pos2(label.right() + self.s.s(GAP), full.top() + self.s.s(2.0)),
+            pos2(full.right() - m, full.bottom() - self.s.s(2.0)),
+        );
+        Row { full, label, value }
+    }
+
     /// A menu field in `rect` that toggles `menu`.
     pub fn menu_field(&mut self, rect: Rect, value: &str, menu: MenuId, dim: bool) -> Response {
-        let id = Id::new(("insp-menu", menu));
+        self.menu_field_with(rect, super::look::Lead::None, value, "", menu, dim)
+    }
+
+    /// A row whose field opens `menu`, led by `lead`, its value's `detail` after it
+    /// (des-mixer's Output, Input, Key into, From).
+    pub fn menu_row_with(
+        &mut self,
+        key: &str,
+        lead: super::look::Lead,
+        value: &str,
+        detail: &str,
+        menu: MenuId,
+        dim: bool,
+    ) -> Row {
+        let row = self.field_row();
+        self.label(row.label, key, dim);
+        let id = Id::new(("insp-menu", menu)).with(key);
+        self.menu_field_id(id, row.value, lead, value, detail, menu, dim);
+        row
+    }
+
+    /// [`Self::menu_field`] led by `lead`, with `detail` after its value.
+    pub fn menu_field_with(
+        &mut self,
+        rect: Rect,
+        lead: super::look::Lead,
+        value: &str,
+        detail: &str,
+        menu: MenuId,
+        dim: bool,
+    ) -> Response {
+        self.menu_field_id(
+            Id::new(("insp-menu", menu)),
+            rect,
+            lead,
+            value,
+            detail,
+            menu,
+            dim,
+        )
+    }
+
+    /// [`Self::menu_field_with`] sensed as `id` (a list opened from two places at once —
+    /// the mini view's key and the Sidechain section's — needs two ids).
+    #[allow(clippy::too_many_arguments)]
+    fn menu_field_id(
+        &mut self,
+        id: Id,
+        rect: Rect,
+        lead: super::look::Lead,
+        value: &str,
+        detail: &str,
+        menu: MenuId,
+        dim: bool,
+    ) -> Response {
         let r = self.ui.interact(rect, id, Sense::click());
         let open = self.menu.as_ref().is_some_and(|m| m.id == menu);
         if r.clicked() && !dim {
@@ -563,7 +761,7 @@ impl<'a> Sheet<'a> {
                 },
             );
         }
-        well::menu_field(self.b, rect, &self.s, st, value, false);
+        super::look::field(self.b, &self.s, rect, st, lead, value, detail, true);
         r
     }
 
@@ -603,7 +801,16 @@ impl<'a> Sheet<'a> {
             );
             let _ = r.clone().on_hover_text(tip);
         }
-        well::menu_field(self.b, rect, &self.s, State::of(&r, open), value, false);
+        super::look::field(
+            self.b,
+            &self.s,
+            rect,
+            State::of(&r, open),
+            super::look::Lead::None,
+            value,
+            "",
+            true,
+        );
         r
     }
 
@@ -660,6 +867,36 @@ impl<'a> Sheet<'a> {
         self.led_row_of((), key, button_key, on, f, dim)
     }
 
+    /// A row holding an on/off setting as des-mixer's switch (26 × 14 at the row's right;
+    /// *Safe from snapshots*, *Hear the key*, *Low latency*). The whole row takes the click.
+    /// Returns a click (r39:lo-mixer).
+    pub fn switch_row(&mut self, key: &str, on: bool, dim: bool) -> bool {
+        let row = self.row();
+        self.label(row.label, key, dim);
+        let r = self
+            .ui
+            .interact(row.full, Id::new(("insp-switch", key)), Sense::click());
+        let st = State {
+            disabled: dim,
+            ..State::of(&r, on)
+        };
+        let m = self.s.s(MARGIN);
+        let sw = super::look::switch(
+            self.b,
+            &self.s,
+            row.full.right() - m,
+            row.full.center().y,
+            on,
+            st,
+        );
+        self.last_led = sw;
+        if r.hovered() {
+            let name = self.fmt.tr(key);
+            hint::set_text(self.ui.ctx(), name, "", Caps::NONE);
+        }
+        r.clicked() && !dim
+    }
+
     /// [`Self::led_row`] for a row a panel draws once per item — a modulator's switches —
     /// its id salted by `owner` so two items' rows never share one (fix4: two modulators'
     /// *Sync* and *Restart* switches clashed).
@@ -674,7 +911,9 @@ impl<'a> Sheet<'a> {
     ) -> bool {
         let row = self.row();
         self.label(row.label, key, dim);
-        let w = row.value.width().min(self.s.s(110.0));
+        // r39:lo-mixer — des-mixer's key, as wide as its word.
+        let word = self.fmt.tr(button_key).to_owned_if_needed();
+        let w = super::look::key_width(self.ui.ctx(), &self.s, &word, true).min(row.value.width());
         let br = Rect::from_min_size(row.value.min, Vec2::new(w, row.value.height()));
         let r = self.ui.interact(
             br,
@@ -689,7 +928,8 @@ impl<'a> Sheet<'a> {
             let name = self.fmt.tr(key);
             hint::set_text(self.ui.ctx(), name, "", Caps::NONE);
         }
-        led::button(self.b, br, &self.s.function(f), st, Src::Key(button_key));
+        let _ = f;
+        super::look::key(self.b, &self.s, br, st, Some(on), None, &word);
         self.last_led = br;
         r.clicked() && !dim
     }
@@ -724,8 +964,12 @@ impl<'a> Sheet<'a> {
         } else {
             range.pos(shown)
         };
-        well::readout(self.b, rect, &s, st, text, true);
-        level_bar(self.b, rect, &s, pos, range.bipolar, st.alpha());
+        // r39:lo-mixer — des-mixer's value: label · bar · value, no well.
+        let st = State {
+            active: d.resp.dragged(),
+            ..st
+        };
+        super::look::value(self.b, &s, rect, st, pos, range.bipolar, text);
         if d.resp.hovered() || d.resp.dragged() {
             hint::set(self.ui.ctx(), name, Caps::PARAM, d.resp.dragged(), |b| {
                 b.write_str(text)

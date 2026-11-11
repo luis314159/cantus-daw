@@ -68,6 +68,8 @@ pub struct Param<'a, F = fn(f32, &mut String)> {
     /// A number that is no parameter of anything (a drum pad's field): nothing can automate
     /// or modulate it, and the probe passes it by.
     plain: bool,
+    /// Detents (round 39): the value moves in this many steps and the knob shows them.
+    steps: Option<u8>,
 }
 
 impl<'a> Param<'a> {
@@ -88,6 +90,7 @@ impl<'a> Param<'a> {
             rings: &[],
             offer: None,
             plain: false,
+            steps: None,
         }
     }
 
@@ -108,6 +111,7 @@ impl<'a> Param<'a> {
             rings: self.rings,
             offer: self.offer,
             plain: self.plain,
+            steps: self.steps,
         }
     }
 }
@@ -117,6 +121,13 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
         self.taper = if on { Taper::Log } else { Taper::Linear };
         self
     }
+    /// A stepped knob of `n` detents (2…24, `des-controls`): the value snaps to them and the
+    /// knob draws them in place of its groove.
+    pub fn steps(mut self, n: u8) -> Self {
+        self.steps = Some(n).filter(|n| (2..=24).contains(n));
+        self
+    }
+
     pub fn size(mut self, s: KnobSize) -> Self {
         self.size = s;
         self
@@ -263,6 +274,25 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
         // Only a gesture moves the value: re-deriving it through a log taper when nothing
         // moved would store its round-trip error (2400 Hz → 2399.9995) on every frame.
         let p0 = pos_of(start, min, max, taper);
+        if let Some(n) = self.steps {
+            // Detents: a gesture moves the value in whole steps; a drag keeps its travel
+            // unrounded so small moves add up to the next step.
+            let key = resp.id.with("cantus-steps-raw");
+            if resp.drag_started() {
+                ui.ctx().data_mut(|d| d.remove::<f32>(key));
+            }
+            if (p - p0).abs() > 1e-6 {
+                let raw = if resp.dragged() {
+                    let r = ui.ctx().data(|d| d.get_temp::<f32>(key)).unwrap_or(p0) + (p - p0);
+                    ui.ctx().data_mut(|d| d.insert_temp(key, r));
+                    r
+                } else {
+                    p
+                };
+                let k = (n - 1) as f32;
+                p = (raw.clamp(0.0, 1.0) * k).round() / k;
+            }
+        }
         let mut v = if (p - p0).abs() > 1e-6 {
             value_at(p.clamp(0.0, 1.0), min, max, taper)
         } else {
@@ -292,9 +322,28 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
                 fmt(*self.value, b);
                 Ok(())
             });
+            // What drives it, in words (round 39, ADR 0109).
+            super::automate::hint_drive(ui.ctx(), self.offer);
         }
         let painter = ui.painter_at(rect.expand(8.0 * s.k));
+        // r39:el-controls — what drives it, before it is painted: the arc, the pointer and
+        // the value take the sign's colour and the knob wears the sign (`des-controls`).
+        if let Some(o) = self.offer {
+            super::automate::driving(o.drivers());
+            // Automated and held: where the clip had it when the hand took it.
+            if o.automated {
+                let key = resp.id.with("cantus-held-clip");
+                if resp.drag_started() {
+                    ui.ctx().data_mut(|d| d.insert_temp(key, p0));
+                }
+                if resp.dragged() {
+                    let at = ui.ctx().data(|d| d.get_temp::<f32>(key));
+                    super::automate::held_clip(at);
+                }
+            }
+        }
         formatted(fmt, *self.value, |text| {
+            super::knob::stepping(self.steps);
             with_brush(&painter, |b| match self.label {
                 Some(label) => {
                     let l = CellLook {
@@ -306,18 +355,11 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
                 }
                 None => knob::paint(b, rect.center(), &s, st, &look),
             });
-            if self.offer.is_some_and(|o| o.automated) {
-                with_brush(&painter, |b| super::automate::mark(b, rect, &s));
-            }
-            let modulated = self
-                .offer
-                .and_then(|o| o.modulation)
-                .is_some_and(|m| m.depth.is_some() && !m.mapping);
-            if modulated {
-                with_brush(&painter, |b| super::automate::mod_mark(b, rect, &s));
-            }
-            if self.offer.and_then(|o| o.learn()).is_some_and(|l| l.mapped) {
-                with_brush(&painter, |b| super::automate::learn_mark(b, rect, &s));
+            // The signs of what drives it (round 39, ADR 0109): clip, modulator, controller.
+            if let Some(o) = self.offer {
+                with_brush(&painter, |b| {
+                    super::automate::signs(b, rect, &s, o.drivers())
+                });
             }
             if self.offer.is_some_and(|o| o.modulation.is_some())
                 && super::automate::handle_in_flight(ui.ctx())
@@ -617,6 +659,14 @@ pub fn tile(
 pub fn tab(ui: &mut Ui, active: bool, label: Src<'_>, width: f32) -> Response {
     let s = Style::current();
     let (rect, resp) = allocate(ui, Vec2::new(width, s.d(chrome::TAB)), Sense::click());
+    // Its name on the help line (round 39, ADR 0109).
+    if resp.hovered() {
+        let words = match label {
+            Src::Key(k) => crate::i18n::t(k),
+            Src::Str(s) => s.to_string(),
+        };
+        hint::fallback(ui.ctx(), &words, "", Caps::NONE);
+    }
     let st = State::of(&resp, active);
     with_brush(ui.painter(), |b| chrome::tab(b, rect, &s, st, label));
     resp
@@ -655,6 +705,15 @@ pub fn splitter(
             egui::CursorIcon::ResizeVertical
         });
     }
+    // What it does, on the help line (round 39, ADR 0109).
+    if resp.hovered() || resp.dragged() {
+        hint::fallback(
+            ui.ctx(),
+            &crate::i18n::t("ux.hint.splitter"),
+            "",
+            Caps::NONE,
+        );
+    }
     let st = State::of(&resp, false);
     with_brush(ui.painter(), |b| chrome::splitter(b, rect, &s, st));
     resp
@@ -675,6 +734,15 @@ pub fn scrollbar(ui: &mut Ui, rect: Rect, id: egui::Id, start: &mut f32, len: f3
         let d = resp.drag_delta();
         let moved = if vertical { d.y } else { d.x } / full.max(1.0);
         *start = (*start + moved).clamp(0.0, (1.0 - len).max(0.0));
+    }
+    // What it does, on the help line (round 39, ADR 0109).
+    if resp.hovered() || resp.dragged() {
+        hint::fallback(
+            ui.ctx(),
+            &crate::i18n::t("ux.hint.scrollbar"),
+            "",
+            Caps::NONE,
+        );
     }
     let st = State::of(&resp, false);
     with_brush(ui.painter(), |b| {
@@ -709,14 +777,44 @@ pub struct MenuClicks {
 /// A menu's rows, `width` wide.
 pub fn menu_list(ui: &mut Ui, items: &[Item<'_>], width: f32) -> (Response, MenuClicks) {
     let s = Style::current();
-    let h = menu::height(items, s.d(1.0));
+    // As wide as its longest row (round 39, ADR 0109): a fixed width cut long entries.
+    let width = width.max(menu::width(ui.ctx(), items, &s));
+    let h = menu::height_in(items, &s);
     let (rect, resp) = allocate(ui, Vec2::new(width, h), Sense::click());
     let hovered = resp.hover_pos().and_then(|p| {
         (0..items.len())
-            .find(|&i| items[i].is_action() && menu::row(rect, items, s.d(1.0), i).contains(p))
+            .find(|&i| items[i].is_action() && menu::row_in(rect, items, &s, i).contains(p))
     });
+    // The row under the pointer on the help line (round 39, ADR 0109): an entry's words
+    // and its key; a band's or a separator's, the entry above it.
+    if let Some(p) = resp.hover_pos() {
+        let at = (0..items.len()).find(|&i| menu::row_in(rect, items, &s, i).contains(p));
+        let entry = at.and_then(|i| {
+            (0..=i).rev().find_map(|j| match items[j] {
+                Item::Action {
+                    label, shortcut, ..
+                } => Some((label, shortcut)),
+                Item::Band(label) if j == i => Some((label, None)),
+                _ => None,
+            })
+        });
+        if let Some((label, key)) = entry {
+            let words = match label {
+                Src::Key(k) => crate::i18n::t(k),
+                Src::Str(s) => s.to_string(),
+            };
+            hint::fallback(ui.ctx(), &words, key.unwrap_or(""), Caps::NONE);
+        }
+    }
+    // r39:ux-b — the keys walk it too (ADR 0110, `crate::menu_keys`).
+    let (hovered, ran) = crate::menu_keys::nav(ui, items, hovered);
+    // r39:el-controls — a row the keys lit in a menu that scrolls (`menu::fit`) is brought
+    // into view (the pointer is elsewhere: the keys lit it).
+    if let Some(i) = hovered.filter(|_| resp.hover_pos().is_none()) {
+        ui.scroll_to_rect(menu::row_in(rect, items, &s, i), None);
+    }
     let mut c = MenuClicks::default();
-    if resp.clicked() {
+    if resp.clicked() || ran {
         c.clicked = hovered;
     }
     if resp.secondary_clicked() {
@@ -730,7 +828,19 @@ pub fn menu_list(ui: &mut Ui, items: &[Item<'_>], width: f32) -> (Response, Menu
             )
         });
     }
-    with_brush(ui.painter(), |b| menu::paint(b, rect, &s, items, hovered));
+    // r39:el-controls — in a popup, the popup's frame is the sheet: several lists in one
+    // popup read as one menu (no boxes inside boxes, `des-controls`).
+    let in_popup = matches!(
+        ui.layer_id().order,
+        egui::Order::Foreground | egui::Order::Tooltip
+    );
+    with_brush(ui.painter(), |b| {
+        if s.t.system.recessed() {
+            super::menu_slate::paint(b, rect, &s, items, hovered, !in_popup)
+        } else {
+            menu::paint(b, rect, &s, items, hovered)
+        }
+    });
     (resp, c)
 }
 
@@ -856,7 +966,16 @@ impl<'a> LedButton<'a> {
         let mut st = State::of(&resp, lit);
         st.disabled = !self.enabled;
         if st.hovered {
-            hint::set_text(ui.ctx(), self.name, "", self.caps);
+            if self.name.is_empty() {
+                // r39:ux-a — no name of its own: its word (ADR 0109).
+                let words = match self.label {
+                    Src::Key(k) => crate::i18n::t(k),
+                    Src::Str(s) => s.to_string(),
+                };
+                hint::set_text(ui.ctx(), &words, "", self.caps);
+            } else {
+                hint::set_text(ui.ctx(), self.name, "", self.caps);
+            }
         }
         if ui.is_rect_visible(rect) {
             with_brush(ui.painter(), |b| led::button(b, rect, s, st, self.label));
@@ -971,7 +1090,23 @@ impl<'a> Segmented<'a> {
         let mut st = State::of(&resp, false);
         st.disabled = !self.enabled;
         if st.hovered {
-            hint::set_text(ui.ctx(), self.name, self.value, self.caps);
+            if self.name.is_empty() {
+                // No name of its own: the choice under the pointer says itself (round 39,
+                // ADR 0109 — the help line is never empty).
+                let at = resp
+                    .hover_pos()
+                    .and_then(|p| segmented::hit(rect, n, p.x))
+                    .and_then(|i| self.labels.get(i));
+                if let Some(label) = at {
+                    let words = match label {
+                        Src::Key(k) => crate::i18n::t(k),
+                        Src::Str(s) => s.to_string(),
+                    };
+                    hint::set_text(ui.ctx(), &words, self.value, self.caps);
+                }
+            } else {
+                hint::set_text(ui.ctx(), self.name, self.value, self.caps);
+            }
         }
         if ui.is_rect_visible(rect) {
             with_brush(ui.painter(), |b| {

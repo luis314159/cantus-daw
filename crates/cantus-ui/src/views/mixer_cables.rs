@@ -1,80 +1,91 @@
-//! The cable band under the strips (round 25, ADR 0041; design §3.1–3.2, §6): every
-//! strip's port, the routes as cables (`kit::cable`), level pills, edge chips for ends
-//! scrolled out of view, the hit test; and the hatching of a column a drag cannot drop
-//! on.
+//! The cable band under the strips (round 25, ADR 0041; round 39's look, des-mixer's
+//! `options-cables-*`): every strip's two jacks, the routes as cables in the user's style
+//! (`Settings::cable_style`: *Patch*, *Flow* — the default — or *Subway*, `mixer_wires`),
+//! level pills, edge chips for ends scrolled out of view, the hit test; and the hatching
+//! of a column a drag cannot drop on.
 //!
-//! **What is drawn.** The desk's cable view (the title row's switch) decides: *Selected*
-//! (the default, the owner's answer 1) draws the cables into and out of every selected
-//! strip; *All* draws every route but the implied ones to the master, those away from the
-//! selection faint; *Off* hides the band. Hovering a strip or a cable lights it in either
-//! mode, and the hint bar names it ("3 Keys → 15 Reverb · send · −6.0 dB · pre-fader").
-//! A send carries its level on a pill (Wide and Extra large; Compact on hover) with *PRE*
-//! in the cable's colour when it is pre-fader; a doubled signal its warning mark.
+//! **What is drawn.** Nothing at rest (the owner's option C); the header's Cables key
+//! shows the selection's cables, in and out; *Show all* draws every route — the others at
+//! 45 % — and a strip that receives (a bus, a return) its way to the master, so a chain
+//! reads end to end. Hovering a cable lights its whole route to the master (Kick → Drum
+//! bus → Master), drops everything else to 22 % and names the route by the pointer and in
+//! the hint bar. A send's width says its level; a key is amber and dashed.
 //!
-//! **The view's options** (the key beside the switch, ADR 0043 §7): the selection's
-//! cables can be what goes *out* of it, what comes *in*, or both (the default); outputs,
-//! sends and sidechain keys can each be hidden; the send levels and the selection's
-//! outputs into the master are details that can be left out. What is hidden is not drawn
-//! and so neither hit nor selected — Delete removes only a cable drawn on the last pass.
+//! **Flow.** While the transport plays and a cable's source has signal, a gleam travels
+//! along it, its speed and brightness by the level; its place comes from the transport's
+//! time. It asks for no frame of its own: it rides the meters' (none at rest).
 //!
-//! **What it does.** A port starts a drag (`mixer_drag`: plain = send, Ctrl = output,
-//! Alt = key); a lit cable's end mark moves that route; a click selects a cable (Delete
-//! removes it, Esc lets it go); right-click opens the route menu; dragging a pill sets the
-//! send's level (double-click: 0 dB); an edge chip scrolls its strip into view.
+//! **What it does.** An output jack starts a drag (`mixer_drag`: plain = send, Ctrl =
+//! output, Alt = key); an input jack a lit cable plugs into moves that route's end; a click
+//! selects a cable (Delete removes it, Esc lets it go); right-click opens the route menu;
+//! dragging a pill sets the send's level (double-click: 0 dB); an edge chip scrolls its
+//! strip into view.
 //!
-//! **Cost** (§6): the routes, the places and the doubled flags come from the desk's
-//! per-revision cache; a frame visits the edges once, strokes into the desk's one brush,
-//! keeps its lists' capacity and formats into the view's buffers — no allocation, no draw
-//! call of its own.
+//! **Cost.** The routes, the places and the doubled flags come from the desk's
+//! per-revision cache; a frame flattens each drawn cable once into the band's point list
+//! (24 segments a curve), strokes into the desk's one brush, keeps its lists' capacity and
+//! formats into the view's buffers — no allocation, no draw call of its own.
 
 use super::desk::{Place, MASTER_END};
 use super::drag::{self, Source, Target};
 use super::layout::{CableOpts, CableView, Row, WidthMode};
 use super::strip::{knob_input, pid, sense, strip_color, Part, Pass};
+use super::wires::{self, Kind, Tokens};
 use super::{in_selection, route_owner, Geo, MixerView};
 use crate::app::CantusApp;
-use crate::kit::cable::{self, CableKind, CableLook};
 use crate::kit::color::{on_fill, shade, with_alpha};
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Role, Text};
 use crate::kit::{Brush, Fill, Style, Tok};
+use crate::settings::CableStyle;
 use cantus_core::routing::{Edge, EdgeKind, End, Route};
 use cantus_core::{Dock, Send, StripId};
 use egui::{pos2, vec2, Align2, Key, Pos2, Rect, Sense, Ui};
 use std::fmt::Write as _;
 
-/// A port's centre under the band's top edge, and its radius, at 100 %.
-const PORT_Y: f32 = 6.0;
-const PORT_R: f32 = 3.5;
-use super::lanes;
-/// A pill's height: a cable hangs no lower than half of it above the band's foot.
+/// A pill's height.
 const PILL_H: f32 = 13.0;
 /// An edge chip's size.
 const CHIP: egui::Vec2 = vec2(30.0, 13.0);
+/// A jack's hit area's half width and height.
+const JACK_HIT: f32 = 6.0;
+/// The other strips' cables with *Show all* on, and everything off a hovered route.
+const OTHERS: f32 = 0.45;
+const DIMMED: f32 = 0.22;
+/// The longest chain a hovered route follows to the master.
+const CHAIN_MAX: usize = 16;
 
 /// One cable as the band drew it this frame (`MixerView::cables` shows them to tests).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Drawn {
     pub route: Route,
-    /// Its two ends on screen (a scrolled-out end: its edge chip).
+    /// Its two ends on screen: the source's output jack and the target's input jack (a
+    /// scrolled-out end: its edge chip).
     pub from: Pos2,
     pub to: Pos2,
+    /// Patch and Flow: the sag; Subway: the lane's depth below the jacks.
     pub depth: f32,
+    /// The selection's (or the hovered strip's, or the selected cable).
     pub lit: bool,
-    /// Whether it takes a lane: lit by the selection (or a selected cable), not by the
-    /// hover — lanes never move under an approaching pointer (round 26, ADR 0043 §2).
-    pub laned: bool,
+    /// On the hovered route (the hovered cable and its way to the master).
+    pub chain: bool,
+    /// Drawn only because of the pointer — the hovered strip's, or on the hovered route
+    /// (it takes no lane of its own: Subway's lanes never move under the pointer).
+    pub hover_only: bool,
+    /// How opaque it was drawn: 1, 0.45 (another strip's, *Show all*), 0.22 (off a
+    /// hovered route).
+    pub alpha: f32,
+    pub kind: Kind,
+    /// Its stroke's width.
+    pub width: f32,
+    /// Its signal now, 0…1 (the source's meter, and a send's level).
+    pub level: f32,
     /// The source's and the destination's end is an edge chip.
     pub chips: [bool; 2],
-    /// Its end mark shows, and where (`mixer_lanes`: never over another's glyph).
-    pub mark: bool,
-    pub mark_at: Pos2,
-    /// Lit by the hover, it found no depth of its own and yielded (`mixer_lanes`).
-    pub yielded: bool,
-    /// Lit by the hover, it hangs where the separations allow but could not nest.
-    pub relaxed: bool,
     /// Its index in the desk's edges.
     pub edge: u32,
+    /// Its points in the band's list (`MixerView::cable_path`).
+    pub path: (u32, u32),
 }
 
 /// The band's state between frames.
@@ -91,14 +102,46 @@ pub(crate) struct Band {
     pub keys_pass: u64,
     /// Where pills went this frame, so none overlaps another.
     pills: Vec<Rect>,
-    /// Scratch for the cables' depths, marks and grab areas (`mixer_lanes`).
-    pub(super) scratch: lanes::Scratch,
+    /// Every drawn cable's points, flattened.
+    pub pts: Vec<egui::Pos2>,
+    /// The cable under the pointer last frame, whose route to the master is drawn.
+    pub hot: Option<Route>,
+    /// The strips on that route after its target, to the master.
+    chain: Vec<StripId>,
+    /// The gleam's pieces drawn this frame (Flow; tests read it).
+    pub gleams: u32,
+    /// The channel's depth the cables asked for (Subway's lanes), for the next layout.
+    pub channel: f32,
+    /// Scratch: the subway's spans, order, sub-lanes and lanes; each jack's colour rank;
+    /// the strips that receive; the input jacks sensed.
+    spans: Vec<(Kind, f32, f32)>,
+    order: Vec<u32>,
+    sub: Vec<u16>,
+    lanes: Vec<f32>,
+    jack: Vec<[u8; 2]>,
+    receives: Vec<bool>,
+    sensed: Vec<f32>,
+    /// D: each route's catenary parameter, by its ends and sag (solved once, kept while
+    /// they hold); the routes a drop just made, settling since when; the routes before a
+    /// drag; whether a drag was on last frame; a shifted copy of a cord (its shadow).
+    cat: Vec<(Route, [u32; 4], f32)>,
+    settle: Vec<(Route, f64)>,
+    known: Vec<Route>,
+    was_dragging: bool,
+    tmp: Vec<Pos2>,
 }
 
 impl Band {
     /// Where this frame's pills went.
     pub fn pills(&self) -> &[Rect] {
         &self.pills
+    }
+
+    /// A drawn cable's points.
+    pub fn path(&self, d: &Drawn) -> &[Pos2] {
+        self.pts
+            .get(d.path.0 as usize..d.path.1 as usize)
+            .unwrap_or(&[])
     }
 }
 
@@ -111,13 +154,22 @@ pub(crate) fn route_of(e: &Edge) -> Route {
     }
 }
 
-/// Where the ports are this frame: each dock's first item, the master's port, the strip
-/// pitch, and the middle's visible span.
+fn kind_of(e: &Edge) -> Kind {
+    match e.kind {
+        EdgeKind::Output => Kind::Output,
+        EdgeKind::Send { .. } => Kind::Send,
+        EdgeKind::Key { .. } => Kind::Key,
+    }
+}
+
+/// Where the strips are this frame: each dock's first item, the master's centre and
+/// width, the strip pitch, and the middle's visible span.
 struct Ports {
     left: f32,
     middle: f32,
     right: f32,
     master: f32,
+    master_w: f32,
     pitch: f32,
     shown: (f32, f32),
 }
@@ -128,16 +180,18 @@ impl Ports {
             left: geo.left.left() + geo.master_w,
             middle: geo.middle.left() - v.scroll_x,
             right: geo.right.left(),
-            master: geo.left.left() + (geo.master_w - 1.0) * 0.5,
+            master: geo.left.left() + geo.master_w * 0.5,
+            master_w: geo.master_w,
             pitch: geo.pitch,
             shown: (geo.middle.left() + 2.0, geo.middle.right() - 2.0),
         }
     }
 
-    /// A port's x, and whether it shows (pinned docks always do; `None` is the master).
-    fn at(&self, place: Option<Place>) -> (f32, bool) {
+    /// A strip's centre, its two jacks' x, and whether it shows (pinned docks always do;
+    /// `None` is the master). A folded group's members share one point at its separator.
+    fn at(&self, place: Option<Place>) -> (f32, (f32, f32), bool) {
         let Some(p) = place else {
-            return (self.master, true);
+            return (self.master, wires::jacks(self.master, self.master_w), true);
         };
         let origin = match p.dock {
             Dock::Left => self.left,
@@ -146,7 +200,12 @@ impl Ports {
         };
         let x = origin + p.x(self.pitch);
         let shows = p.dock != Dock::Middle || (x >= self.shown.0 && x <= self.shown.1);
-        (x, shows)
+        let j = if p.folded {
+            (x, x)
+        } else {
+            wires::jacks(x, self.pitch)
+        };
+        (x, j, shows)
     }
 
     /// Where an end scrolled out of the middle shows: a chip at the side it went.
@@ -159,7 +218,7 @@ impl Ports {
     }
 }
 
-/// The band: ports, cables, pills, chips, across the whole desk width.
+/// The band: the channel, cables, jacks, pills, chips, across the whole desk width.
 pub(super) fn band(
     v: &mut MixerView,
     app: &mut CantusApp,
@@ -170,26 +229,48 @@ pub(super) fn band(
 ) {
     v.band.drawn.clear();
     v.band.pills.clear();
+    v.band.pts.clear();
+    v.band.gleams = 0;
     v.band.pass = ui.ctx().cumulative_pass_nr();
     let Some((a, z)) = pass.row(Row::Cables) else {
         v.band.selected = None;
+        v.band.hot = None;
         return;
     };
     let view = pass.prefs.cables;
     if view == CableView::Off {
         // Nothing shows: nothing stays selected (Delete must not remove a hidden cable).
         v.band.selected = None;
+        v.band.hot = None;
         return;
     }
     let s = pass.s;
+    let style = app.settings.cable_style_in(&s.t.system);
+    let jack_style = style == CableStyle::Jack;
     let area =
         Rect::from_min_max(pos2(geo.left.left(), a), pos2(geo.inner_right, z)).intersect(geo.rows);
     if area.height() <= 1.0 {
         return;
     }
-    b.register(area, "cable_band", BAND_TOKENS, &[Some(Tok::HueDynamics)]);
-    let port_y = a + PORT_Y;
-    let room = (z - port_y - PILL_H * 0.5 - 1.0).max(4.0);
+    b.register(area, "cable_band", BAND_TOKENS, &[]);
+    let tok = wires::tokens(&pass.pal, s.t.ink);
+    // The jacks: in the strip's foot row (A–C), on its bottom edge (D, whose plugs hang
+    // below it); the cables end at the jack, or at a seated plug's boot.
+    let jy = if jack_style {
+        a + wires::JACK_ROW
+    } else {
+        a + wires::JACK_Y
+    };
+    let ey = if jack_style { jy + wires::PLUG_LEN } else { jy };
+    let now = ui.input(|i| i.time);
+    // The channel under the strips: the cables' ground.
+    let channel = Rect::from_min_max(
+        pos2(area.left() + 2.0, a + wires::JACK_ROW + 2.0),
+        pos2(area.right() - 2.0, z - 2.0),
+    );
+    if channel.height() > 2.0 {
+        b.rrect(b.snap_rect(channel), 4.0, Fill::Solid(tok.channel));
+    }
     let ports = Ports::new(v, geo);
     if let Some(sel) = v.band.selected {
         if !v.desk.edges.iter().any(|e| route_of(e) == sel) {
@@ -202,65 +283,106 @@ pub(super) fn band(
         .filter(|p| geo.rows.contains(*p))
         .and_then(|p| super::paint::strip_at(v, geo, p));
     let opts = pass.prefs.cable_opts;
-    collect(v, app, &ports, view, opts, hovered_strip, port_y, room);
+    settling(v, dragging, now);
+    chain_of(v, app);
+    collect(v, app, &ports, view, opts, hovered_strip, ey, jack_style);
     if let Some(sel) = v.band.selected {
         // A selected cable scrolled out of sight (or no longer drawn) is let go.
         if !v.band.drawn.iter().any(|d| d.route == sel) {
             v.band.selected = None;
         }
     }
-    // Where they hang, where their marks sit and where each is grabbed (`mixer_lanes`).
-    let chosen = v
-        .band
-        .selected
-        .and_then(|r| v.band.drawn.iter().position(|d| d.route == r));
-    port_centers(v, geo, &ports, port_y);
-    lanes::place(&mut v.band.drawn, &mut v.band.scratch, room, chosen);
+    shape(v, style, ey, z - 3.0, now);
 
-    // The cable under the pointer: the nearest, a layer above winning a near-tie only.
-    // It is painted lit (and shows its pill) while it is pointed at.
+    // The cable under the pointer: the nearest within reach; the one drawn on top wins a
+    // tie. Its whole route is drawn from the next frame on (asked for once, on a change).
     let in_band = pointer.filter(|p| area.contains(*p) && !dragging);
-    let hot = in_band.and_then(|p| lanes::hot(&v.band.drawn, p));
-    // The band itself first, so the ports, pills, ends and chips sensed after it are on
-    // top of it.
-    let band = ui.interact(area, egui::Id::new("mixer-cable-band"), Sense::click());
-
-    // Faint cables under the hover's, the selection's on top of all.
-    for layer in 0..3 {
-        for k in 0..v.band.drawn.len() {
-            let d = v.band.drawn[k];
-            if lanes::layer(&d) != layer {
-                continue;
-            }
-            let mut look = look_of(v, s, &d);
-            look.lit |= hot == Some(k);
-            cable::paint(b, s, d.from, d.to, d.depth, &look);
+    let hot = in_band.and_then(|p| hit(v, p));
+    let hot_route = hot.map(|k| v.band.drawn[k].route);
+    if hot_route != v.band.hot {
+        v.band.hot = hot_route;
+        ui.ctx().request_repaint();
+    }
+    // How opaque each is: a hovered route lit and the rest dimmed; else the selection's
+    // whole and the others' (Show all) at 45 %.
+    for k in 0..v.band.drawn.len() {
+        let d = &mut v.band.drawn[k];
+        let on_route = hot == Some(k) || (hot.is_some() && d.chain);
+        d.alpha = match hot {
+            Some(_) if on_route => 1.0,
+            Some(_) => DIMMED,
+            None if d.lit || d.chain => 1.0,
+            None => OTHERS,
+        };
+        if hot.is_some() && on_route {
+            d.width += 0.5;
         }
     }
-    // The ports first: the chips and pills sensed after them are on top.
-    port_row(v, app, ui, b, pass, geo, &ports, port_y);
-    chips(v, app, ui, b, pass, geo, port_y, z);
+    let band = ui.interact(area, egui::Id::new("mixer-cable-band"), Sense::click());
+    paint(v, app, b, &tok, style, hot);
+    // The jacks first: the chips and pills sensed after them are on top.
+    jack_row(v, app, ui, b, pass, geo, &ports, &tok, jy, jack_style);
+    chips(v, app, ui, b, pass, geo, jy, z);
     // The send levels are a detail the options can leave out: then no pill is drawn or
     // grabbed (the level stays in the hint bar, the send row and the inspector).
     if opts.levels {
-        pills(
-            v,
-            app,
-            ui,
-            b,
-            pass,
-            hot,
-            port_y,
-            (area.left(), area.right()),
+        pills(v, app, ui, b, pass, hot, jy, (area.left(), area.right()));
+    }
+    ends(v, app, ui, pass, jack_style);
+    interact(v, app, ui, &band, hot);
+    if let (Some(k), Some(p)) = (hot, in_band) {
+        route_tip(v, app, b, s, geo, k, p);
+    }
+    // D: a dropped cord settles for 300 ms, a frame each tick, then nothing moves.
+    if jack_style && !v.band.settle.is_empty() {
+        crate::views::workspace_ticker::moving(
+            ui.ctx(),
+            crate::views::workspace_ticker::Reason::Animation,
         );
     }
-    ends(v, app, ui, b, pass);
-    interact(v, app, ui, &band, hot);
+}
+
+/// The routes a drop just made start settling (D): the desk's routes are noted when a
+/// drag starts, and those new when it ends settle from then on, for 300 ms.
+fn settling(v: &mut MixerView, dragging: bool, now: f64) {
+    let band = &mut v.band;
+    if dragging && !band.was_dragging {
+        band.known.clear();
+        band.known.extend(v.desk.edges.iter().map(route_of));
+    } else if !dragging && band.was_dragging {
+        for e in &v.desk.edges {
+            let r = route_of(e);
+            if !band.known.contains(&r) {
+                band.settle.push((r, now));
+            }
+        }
+    }
+    band.was_dragging = dragging;
+    band.settle
+        .retain(|(_, t0)| ((now - t0) * 1000.0) < f64::from(wires::SETTLE_MS));
+}
+
+/// The strips on the hovered route after its target, to the master (`Band::chain`).
+fn chain_of(v: &mut MixerView, app: &CantusApp) {
+    v.band.chain.clear();
+    let Some(r) = v.band.hot else {
+        return;
+    };
+    let p = app.project();
+    let mut at = r.to;
+    while !at.is_master() && v.band.chain.len() < CHAIN_MAX && !v.band.chain.contains(&at) {
+        v.band.chain.push(at);
+        match p.strip(at).map(|s| s.output) {
+            Some(Some(next)) => at = next,
+            _ => break,
+        }
+    }
 }
 
 /// The cables this frame draws, and where: the selection's (and the hovered strip's and
-/// the selected cable) lit, the rest faint in *All*; an output to the master only for the
-/// selection, as FL does (sixty identical cables into the master say nothing).
+/// the selected cable) lit, the rest at 45 % in *All*; an output to the master only for
+/// the selection, a strip that receives (*All*) and the hovered route — sixty identical
+/// cables into the master say nothing.
 ///
 /// The view's options filter first: a hidden kind (or the master outputs, when left
 /// out) is never drawn, so never hit-tested, selected or removed by Delete; the scope
@@ -274,11 +396,22 @@ fn collect(
     view: CableView,
     opts: CableOpts,
     hovered: Option<StripId>,
-    port_y: f32,
-    room: f32,
+    jy: f32,
+    jack: bool,
 ) {
     let selected = v.band.selected;
     let scope = opts.scope;
+    // Which strips receive: their way to the master is part of a chain (*All*).
+    v.band.receives.clear();
+    v.band.receives.resize(v.desk.place.len(), false);
+    for &(fi, ti) in &v.desk.ends {
+        if fi != MASTER_END {
+            if let Some(r) = v.band.receives.get_mut(ti as usize) {
+                *r = true;
+            }
+        }
+    }
+    let playing = app.engine.is_playing();
     for (i, e) in v.desk.edges.iter().enumerate() {
         let Some(&(fi, ti)) = v.desk.ends.get(i) else {
             continue;
@@ -291,10 +424,14 @@ fn collect(
             EdgeKind::Send { .. } => opts.sends,
             EdgeKind::Key { .. } => opts.keys,
         };
-        if !kind_shown || (e.is_master_output() && !opts.master) {
+        let route = route_of(e);
+        let chain = v.band.hot == Some(route)
+            || (matches!(e.kind, EdgeKind::Output) && v.band.chain.contains(&e.from));
+        // A hidden kind is never drawn, not even on a hovered route (so never hit, selected
+        // or removed); a hovered route shows its way to the master all the same.
+        if !kind_shown || (!chain && e.is_master_output() && !opts.master) {
             continue;
         }
-        let route = route_of(e);
         let to_master = ti == MASTER_END;
         let touches = scope.takes(
             in_selection(app, e.from),
@@ -303,17 +440,25 @@ fn collect(
         let hov = hovered.is_some_and(|h| scope.takes(h == e.from, !to_master && h == e.to));
         let chosen = selected == Some(route);
         let lit = touches || hov || chosen;
-        let show = if e.is_master_output() {
-            // Its source's side only (never the master's): what the scope says of it.
-            lit
-        } else {
-            match view {
-                CableView::Off => false,
-                CableView::Selected => lit,
-                CableView::All => true,
+        // Shown for `lit`: a master output only from its source's side (and in *All* from a
+        // strip that receives: the end of a chain), the rest by the view.
+        let receives = v.band.receives.get(fi as usize).copied().unwrap_or(false);
+        let shows = |lit: bool| {
+            if e.is_master_output() {
+                lit || (view == CableView::All && receives)
+            } else {
+                match view {
+                    CableView::Off => false,
+                    CableView::Selected => lit,
+                    CableView::All => true,
+                }
             }
         };
-        if !show {
+        let shown = shows(lit);
+        // What the pointer alone brings (a hovered strip's cables, the hovered route) takes
+        // no lane of its own: Subway's lanes never move under the pointer.
+        let settled = shows(touches || chosen);
+        if !shown && !chain {
             continue;
         }
         let Some(fp) = v.desk.place.get(fi as usize).copied() else {
@@ -327,72 +472,397 @@ fn collect(
                 None => continue,
             }
         };
-        let (mut fx, fshow) = ports.at(Some(fp));
-        let (mut tx, tshow) = ports.at(tp);
+        let (fc, (_, mut fx), fshow) = ports.at(Some(fp));
+        let (tc, (mut tx, _), tshow) = ports.at(tp);
         // Both ends scrolled out on the same side: nothing of it shows.
-        if !fshow && !tshow && (fx < ports.shown.0) == (tx < ports.shown.0) {
+        if !fshow && !tshow && (fc < ports.shown.0) == (tc < ports.shown.0) {
             continue;
         }
         if !fshow {
-            fx = ports.chip_x(fx);
+            fx = ports.chip_x(fc);
         }
         if !tshow {
-            tx = ports.chip_x(tx);
+            tx = ports.chip_x(tc);
         }
         if (tx - fx).abs() < 1.0 {
             continue;
         }
-        let (from, to) = (pos2(fx, port_y), pos2(tx, port_y));
+        let kind = kind_of(e);
+        // The signal: the source's meter (as the strip shows it), and a send's level.
+        let src_db = v.meters.level_db(fi as usize);
+        let (db, send_db) = match e.kind {
+            EdgeKind::Send { level, enabled, .. } => {
+                let g = if enabled { level } else { 0.0 };
+                let sdb = 20.0 * g.max(1e-6).log10();
+                (src_db + sdb, sdb)
+            }
+            _ => (src_db, 0.0),
+        };
+        let level = if playing {
+            ((db + 48.0) / 48.0).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         v.band.drawn.push(Drawn {
             route,
-            from,
-            to,
-            depth: cable::depth_for(from, to, room) * depth_share(&e.kind),
+            from: pos2(fx, jy),
+            to: pos2(tx, jy),
+            depth: 0.0,
             lit,
-            laned: touches || chosen,
+            chain,
+            hover_only: !settled,
+            alpha: 1.0,
+            kind,
+            width: if jack {
+                wires::jack_width(kind, send_db)
+            } else {
+                wires::width(kind, send_db)
+            },
+            level,
             chips: [!fshow, !tshow],
-            mark: false,
-            mark_at: Pos2::ZERO,
-            yielded: false,
-            relaxed: false,
             edge: i as u32,
+            path: (0, 0),
         });
     }
 }
 
-/// How deep a kind hangs, of the depth its span asks for: an output lowest, a send above
-/// it, a key above both — so an output and a send between the same two strips (a doubled
-/// signal, answer 5) or a key beside them are two cables, not one.
-fn depth_share(kind: &EdgeKind) -> f32 {
-    match kind {
-        EdgeKind::Output => 1.0,
-        EdgeKind::Send { .. } => 0.78,
-        EdgeKind::Key { .. } => 0.6,
+/// Each drawn cable's shape in the user's style, into the band's point list: a hanging
+/// curve (Patch, Flow; no lower than `floor`), or a subway route in its lane. The
+/// channel's depth the lanes need is kept for the next layout.
+fn shape(v: &mut MixerView, style: CableStyle, jy: f32, floor: f32, now: f64) {
+    let band = &mut v.band;
+    let room = (floor - jy).max(4.0);
+    if style == CableStyle::Jack {
+        // D: a catenary whose parameter is solved once per route (its ends and sag), a
+        // dropped cord's sag ringing down for 300 ms.
+        band.channel = wires::JACK_CHANNEL;
+        if band.cat.len() > 4 * band.drawn.len() + 16 {
+            band.cat.clear();
+        }
+        for k in 0..band.drawn.len() {
+            let d = band.drawn[k];
+            let s0 = wires::jack_sag(d.to.x - d.from.x).min((room - 5.0).max(4.0));
+            let s = match band.settle.iter().find(|(r, _)| *r == d.route) {
+                Some((_, t0)) => wires::settle(s0, ((now - t0) * 1000.0) as f32),
+                None => s0,
+            };
+            let key = [
+                d.from.x.to_bits(),
+                d.to.x.to_bits(),
+                d.from.y.to_bits(),
+                s.to_bits(),
+            ];
+            let ca = match band
+                .cat
+                .iter()
+                .find(|(r, kk, _)| *r == d.route && *kk == key)
+            {
+                Some((_, _, ca)) => *ca,
+                None => {
+                    let ca = wires::catenary_a(d.to.x - d.from.x, s);
+                    band.cat.retain(|(r, _, _)| *r != d.route);
+                    band.cat.push((d.route, key, ca));
+                    ca
+                }
+            };
+            let start = band.pts.len() as u32;
+            wires::jack_cord(&mut band.pts, d.from, d.to, s, ca);
+            let dd = &mut band.drawn[k];
+            dd.depth = s;
+            dd.path = (start, band.pts.len() as u32);
+        }
+    } else if style == CableStyle::Subway {
+        // The lanes of what the view shows; a cable drawn only for the hovered route runs
+        // below them all, so nothing under the pointer moves and the channel keeps its depth.
+        band.spans.clear();
+        for d in band.drawn.iter().filter(|d| !d.hover_only) {
+            band.spans.push((d.kind, d.from.x, d.to.x));
+        }
+        let deepest = wires::lanes(&band.spans, &mut band.order, &mut band.sub, &mut band.lanes);
+        band.channel =
+            (deepest + 2.0 * wires::CORNER + wires::JACK_Y - wires::JACK_ROW).max(wires::CHANNEL);
+        let (mut shown, mut extra) = (0usize, 0.0f32);
+        for k in 0..band.drawn.len() {
+            let d = band.drawn[k];
+            let lane = if d.hover_only {
+                extra += 1.0;
+                deepest.max(wires::LANE[2]) + wires::SUB * extra
+            } else {
+                shown += 1;
+                band.lanes[shown - 1]
+            }
+            .min(room);
+            let start = band.pts.len() as u32;
+            wires::subway(&mut band.pts, d.from, d.to, jy + lane);
+            let dd = &mut band.drawn[k];
+            dd.depth = lane;
+            dd.path = (start, band.pts.len() as u32);
+        }
+    } else {
+        band.channel = wires::CHANNEL;
+        for d in band.drawn.iter_mut() {
+            let k = wires::sag(d.to.x - d.from.x).min(room / 0.75);
+            let start = band.pts.len() as u32;
+            wires::patch(&mut band.pts, d.from, d.to, k);
+            d.depth = k;
+            d.path = (start, band.pts.len() as u32);
+        }
     }
 }
 
-/// How a drawn cable looks: its kind from its edge, its source's colour.
-fn look_of(v: &MixerView, s: &Style, d: &Drawn) -> CableLook {
-    let i = d.edge as usize;
-    let (fi, _) = v.desk.ends[i];
-    let e = v.desk.edges[i];
-    let kind = match e.kind {
-        EdgeKind::Output if e.to.is_master() => CableKind::Master,
-        EdgeKind::Output => CableKind::Output,
-        EdgeKind::Send { enabled, tap, .. } => CableKind::Send {
-            on: enabled,
-            pre: !tap.is_post(),
-        },
-        EdgeKind::Key { .. } => CableKind::Key,
+/// The cable under `p`: the nearest within reach of its stroke; a tie goes to the one
+/// drawn on top (the selection's), then the shorter.
+fn hit(v: &MixerView, p: Pos2) -> Option<usize> {
+    let mut best: Option<(usize, f32)> = None;
+    for (k, d) in v.band.drawn.iter().enumerate() {
+        let dist = wires::dist(v.band.path(d), p) - d.width * 0.5;
+        if dist > wires::HIT {
+            continue;
+        }
+        let better = match best {
+            None => true,
+            Some((j, bd)) => {
+                let o = &v.band.drawn[j];
+                if (dist - bd).abs() > 0.05 {
+                    dist < bd
+                } else if layer(d, None) != layer(o, None) {
+                    layer(d, None) > layer(o, None)
+                } else {
+                    (d.to.x - d.from.x).abs() < (o.to.x - o.from.x).abs()
+                }
+            }
+        };
+        if better {
+            best = Some((k, dist));
+        }
+    }
+    best.map(|(k, _)| k)
+}
+
+/// The layer a cable is painted in: the others', the selection's, the hovered route.
+fn layer(d: &Drawn, on_route: Option<bool>) -> u8 {
+    match on_route {
+        Some(true) => 2,
+        Some(false) => 0,
+        None => u8::from(d.lit || d.chain),
+    }
+}
+
+/// Every cable: its darker under-stroke, its stroke (a key, or a send switched off,
+/// dashed), and in *Flow* the gleam while its source plays; the others first, the hovered
+/// route on top. Each jack takes the colour of its strongest cable drawn at 45 % or more
+/// (output, then send, then key).
+fn paint(
+    v: &mut MixerView,
+    app: &CantusApp,
+    b: &mut Brush,
+    tok: &Tokens,
+    style: CableStyle,
+    hot: Option<usize>,
+) {
+    let flowing = style.gleams() && app.engine.is_playing();
+    let jack = style == CableStyle::Jack;
+    // The transport's time, in seconds: where every gleam is.
+    let t = if flowing {
+        let bpm = app.project().tempo_bpm.max(1.0);
+        app.engine.position().as_beats_f64() * 60.0 / bpm
+    } else {
+        0.0
     };
-    CableLook {
-        kind,
-        color: strip_color(v, s, fi as usize).unwrap_or(s.t.label),
-        lit: d.lit,
-        selected: v.band.selected == Some(d.route),
-        doubled: d.lit && v.desk.doubled.get(i).copied().unwrap_or(false),
-        mark: d.mark.then_some(d.mark_at),
-        related: d.yielded,
+    let n = v.band.drawn.len();
+    let jacks = v.desk.place.len() + 1;
+    v.band.jack.clear();
+    v.band.jack.resize(jacks, [u8::MAX; 2]);
+    for pass in 0..3u8 {
+        for k in 0..n {
+            let d = v.band.drawn[k];
+            let l = match hot {
+                Some(_) => layer(&d, Some(hot == Some(k) || d.chain)),
+                None => layer(&d, None),
+            };
+            if l != pass {
+                continue;
+            }
+            let selected = v.band.selected == Some(d.route);
+            let col = tok.of(d.kind);
+            let alpha = d.alpha;
+            let w = d.width + if selected { 0.75 } else { 0.0 };
+            let band = &mut v.band;
+            let pts = &band.pts[d.path.0 as usize..d.path.1 as usize];
+            if pts.len() < 2 {
+                continue;
+            }
+            let under = with_alpha(tok.under(col), alpha);
+            let ink = with_alpha(col, alpha);
+            let off = matches!(
+                v.desk.edges[d.edge as usize].kind,
+                EdgeKind::Send { enabled: false, .. }
+            );
+            if jack {
+                let lift = hot.is_some() && l == 2;
+                cord(
+                    b,
+                    tok,
+                    &mut band.tmp,
+                    pts,
+                    col,
+                    w,
+                    d.kind == Kind::Key,
+                    alpha,
+                    lift,
+                );
+            } else if d.kind == Kind::Key || off {
+                b.dashed(pts, w + 2.0, under, 4.0, 3.0);
+                b.dashed(pts, w, ink, 4.0, 3.0);
+            } else {
+                // Both ends lie under their jack's ring: no cap is seen, none is drawn.
+                b.polyline(pts, w + 2.0, under);
+                b.polyline(pts, w, ink);
+            }
+            if flowing && d.level > 0.0 && !off {
+                let gi = if jack {
+                    crate::kit::color::mix(col, egui::Color32::WHITE, 0.75)
+                } else {
+                    tok.gleam(col)
+                };
+                let g = with_alpha(gi, wires::gleam_alpha(d.level) * alpha);
+                let o = wires::gleam_offset(t, d.level);
+                let dash = if jack {
+                    wires::JACK_GLEAM
+                } else {
+                    wires::GLEAM
+                };
+                let mut count = 0u32;
+                wires::gleams_of(pts, o, dash, |a, z| {
+                    b.segment(a, z, w, g, false);
+                    count += 1;
+                });
+                band.gleams += count;
+            }
+            if alpha >= OTHERS - 1e-3 {
+                let (fi, ti) = v.desk.ends[d.edge as usize];
+                let rank = d.kind.rank() as u8;
+                let slot = |i: u32| {
+                    if i == MASTER_END {
+                        jacks - 1
+                    } else {
+                        i as usize
+                    }
+                };
+                for (i, side) in [(fi, 1usize), (ti, 0usize)] {
+                    if let Some(j) = v.band.jack.get_mut(slot(i)) {
+                        j[side] = j[side].min(rank);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The colour a jack's ring takes: its strongest cable's, or the ring at rest.
+fn jack_ink(v: &MixerView, tok: &Tokens, slot: usize, side: usize) -> Option<egui::Color32> {
+    let r = v.band.jack.get(slot)?[side];
+    match r {
+        0 => Some(tok.out),
+        1 => Some(tok.send),
+        2 => Some(tok.key),
+        _ => None,
+    }
+}
+
+/// One jack: a dark hole of radius 4 with a 1.25-px ring (its cable's colour when one is
+/// plugged in); the output carries a dot. A drop target's halo, a refused one's red ring
+/// and slash.
+fn jack(
+    b: &mut Brush,
+    tok: &Tokens,
+    p: &super::look::Pal,
+    c: Pos2,
+    out: bool,
+    ink: Option<egui::Color32>,
+    target: Target,
+) {
+    if target == Target::Valid {
+        b.circle(c, 8.0, Fill::Solid(with_alpha(tok.out, 0.22)));
+    }
+    let ring = match target {
+        Target::Refused => tok.refused,
+        _ => ink.unwrap_or(tok.ring),
+    };
+    b.circle(c, wires::JACK_R, Fill::Solid(tok.hole));
+    b.circle_stroke(c, wires::JACK_R - 0.6, 1.25, ring);
+    if out {
+        b.dot(c, 1.5, ink.unwrap_or(p.ink3));
+    }
+    if target == Target::Refused {
+        b.segment(
+            c - vec2(2.0, 2.0),
+            c + vec2(2.0, 2.0),
+            1.2,
+            tok.refused,
+            false,
+        );
+    }
+}
+
+/// The words by the pointer over a hovered cable: its whole route ("Kick → Drum bus →
+/// Master"), also in the hint bar with what it is.
+#[allow(clippy::too_many_arguments)]
+fn route_tip(
+    v: &mut MixerView,
+    app: &CantusApp,
+    b: &mut Brush,
+    s: &Style,
+    geo: &Geo,
+    k: usize,
+    p: Pos2,
+) {
+    let mut words = std::mem::take(&mut v.hint_buf);
+    route_words(v, app, k, &mut words);
+    let t = &s.t;
+    let tx = Text::new(&words, Role::Label, t.text).caps(false);
+    let size = text::measure(b.ctx(), &tx, s.tk());
+    let (w, h) = (size.x + 14.0, 18.0);
+    let mut r = Rect::from_min_size(pos2(p.x - w * 0.5, p.y - 40.0), vec2(w, h));
+    r = r.translate(vec2(
+        (geo.full.left() + 4.0 - r.left()).max(0.0) - (r.right() - geo.full.right() + 4.0).max(0.0),
+        0.0,
+    ));
+    let r = b.snap_rect(r);
+    b.rrect(r, 4.0, Fill::Solid(t.panel_raised));
+    b.rect(
+        Rect::from_min_size(r.min, vec2(r.width(), 1.0)),
+        Fill::Solid(crate::kit::color::mix(t.panel_raised, t.text, 0.08)),
+    );
+    let _ = text::paint(b, r, &tx.align(Align2::CENTER_CENTER), s.tk());
+    v.hint_buf = words;
+}
+
+/// Cable `k`'s whole route by name: its source, its target, and on to the master
+/// ("Kick → Drum bus → Master") when it is the hovered one.
+fn route_words(v: &MixerView, app: &CantusApp, k: usize, out: &mut String) {
+    let d = v.band.drawn[k];
+    out.clear();
+    let name = |out: &mut String, id: StripId| {
+        if id.is_master() {
+            out.push_str(&v.words.master);
+        } else if let Some(i) = app.project().strip_index(id) {
+            out.push_str(v.desk.name(app, i));
+        }
+    };
+    name(out, d.route.from);
+    out.push_str(" \u{2192} ");
+    name(out, d.route.to);
+    // The chain is the hovered cable's (`Band::chain`, from its target on).
+    if v.band.hot == Some(d.route) {
+        for &id in v.band.chain.iter().skip(1) {
+            out.push_str(" \u{2192} ");
+            name(out, id);
+        }
+        if !v.band.chain.is_empty() {
+            out.push_str(" \u{2192} ");
+            name(out, StripId::MASTER);
+        }
     }
 }
 
@@ -507,7 +977,7 @@ fn pills(
         if !lit || !(!compact || hot == Some(k) || chosen) {
             continue;
         }
-        let path = cable::path(d.from, d.to, d.depth);
+        let low = wires::lowest(v.band.path(&d));
         v.buf.clear();
         super::parts::write_level(&mut v.buf, level);
         let value = Text::new(&v.buf, Role::Value, t.text);
@@ -522,7 +992,7 @@ fn pills(
         } else {
             0.0
         };
-        let r = Rect::from_center_size(path.low, vec2(vw + tw + 14.0, PILL_H - 1.0));
+        let r = Rect::from_center_size(low, vec2(vw + tw + 14.0, PILL_H - 1.0));
         let r = b.snap_rect(r);
         // The selected send's tap chip rides beside its pill: placed, clipped and kept off
         // the other pills with it.
@@ -534,7 +1004,7 @@ fn pills(
             ))
         });
         let whole = chip.map_or(r, |c| r.union(c));
-        if whole.top() < port_y + s.s(PORT_R) + 1.0
+        if whole.top() < port_y + wires::JACK_R + 1.0
             || whole.left() < clip.0
             || whole.right() > clip.1
             || v.band.pills.iter().any(|p| p.intersects(whole.expand(2.0)))
@@ -542,8 +1012,7 @@ fn pills(
             continue;
         }
         v.band.pills.push(whole);
-        let look = look_of(v, s, &d);
-        let ink = cable::ink(s, &look);
+        let ink = wires::tokens(&pass.pal, t.ink).of(d.kind);
         let id = egui::Id::new(("mixer-cable-pill", d.route.from.0, d.route.to.0));
         let resp = sense(ui, pass, r, id, Sense::click_and_drag());
         let hovered = resp.as_ref().is_some_and(|r| r.hovered() || r.dragged());
@@ -636,10 +1105,12 @@ fn pills(
     }
 }
 
-/// Every port on screen: the master's, each strip's, a collapsed group's at its
-/// separator (where its members' cables gather).
+/// Every jack on screen: the master's two, each strip's input and output, a collapsed
+/// group's one at its separator (where its members' cables gather). The output jack
+/// starts a cable (`mixer_drag`); while one is dragged, the input jack under it shows
+/// whether a drop there works.
 #[allow(clippy::too_many_arguments)]
-fn port_row(
+fn jack_row(
     v: &mut MixerView,
     app: &mut CantusApp,
     ui: &Ui,
@@ -647,19 +1118,26 @@ fn port_row(
     pass: &Pass,
     geo: &Geo,
     ports: &Ports,
-    port_y: f32,
+    tok: &Tokens,
+    jy: f32,
+    d: bool,
 ) {
-    let dragging = drag::active(v);
-    port(
-        v,
-        app,
-        ui,
-        b,
-        pass,
-        None,
-        pos2(ports.master, port_y),
-        dragging,
-    );
+    let p = pass.pal;
+    let over = drag::over(v);
+    let target = |id: Option<StripId>| match over {
+        Some((s, t)) if s == id => t,
+        _ => Target::Idle,
+    };
+    let master_slot = v.desk.place.len();
+    let (mi, mo) = wires::jacks(ports.master, ports.master_w);
+    let ink = jack_ink(v, tok, master_slot, 0);
+    if d {
+        nut(b, tok, pos2(mi, jy), ink, target(None));
+        nut(b, tok, pos2(mo, jy), None, Target::Idle);
+    } else {
+        jack(b, tok, &p, pos2(mi, jy), false, ink, target(None));
+        jack(b, tok, &p, pos2(mo, jy), true, None, Target::Idle);
+    }
     let pitch = geo.pitch;
     for (dock, origin) in [
         (Dock::Left, ports.left),
@@ -679,21 +1157,28 @@ fn port_row(
                 Dock::Right => v.desk.right[k],
             };
             let w = super::desk::item_width(&item, pitch);
-            let c = pos2(x + (w - 1.0) * 0.5, port_y);
+            let c = x + (w - 2.0) * 0.5;
             x += w;
-            if dock == Dock::Middle && (c.x < ports.shown.0 || c.x > ports.shown.1) {
+            if dock == Dock::Middle && (c < ports.shown.0 || c > ports.shown.1) {
                 continue;
             }
             match item {
                 super::desk::Item::Strip(id, index) => {
-                    let lit = dragging || in_selection(app, id);
-                    port(v, app, ui, b, pass, Some((id, index)), c, lit);
+                    let (ix, ox) = wires::jacks(c, pitch);
+                    let ink = jack_ink(v, tok, index, 0);
+                    if d {
+                        nut(b, tok, pos2(ix, jy), ink, target(Some(id)));
+                    } else {
+                        jack(b, tok, &p, pos2(ix, jy), false, ink, target(Some(id)));
+                    }
+                    out_jack(v, app, ui, b, pass, tok, (id, index), pos2(ox, jy), d);
                 }
                 super::desk::Item::Separator(g) => {
                     let collapsed = app.project().strip_group(g).is_some_and(|g| g.collapsed);
-                    if collapsed {
-                        let s = pass.s;
-                        b.circle_stroke(c, s.s(PORT_R), s.s(1.2), with_alpha(s.t.text, 0.6));
+                    if collapsed && d {
+                        nut(b, tok, pos2(c, jy), None, Target::Idle);
+                    } else if collapsed {
+                        jack(b, tok, &p, pos2(c, jy), false, None, Target::Idle);
                     }
                 }
             }
@@ -701,89 +1186,51 @@ fn port_row(
     }
 }
 
-/// Every port's centre this frame, into the placement's scratch (no grab area lies on
-/// one): the master's and each strip's that shows.
-fn port_centers(v: &mut MixerView, geo: &Geo, ports: &Ports, port_y: f32) {
-    let out = &mut v.band.scratch.ports;
-    out.clear();
-    out.push(pos2(ports.master, port_y));
-    for (dock, origin) in [
-        (Dock::Left, ports.left),
-        (Dock::Middle, ports.middle),
-        (Dock::Right, ports.right),
-    ] {
-        let items = match dock {
-            Dock::Left => &v.desk.left,
-            Dock::Middle => &v.desk.middle,
-            Dock::Right => &v.desk.right,
-        };
-        let mut x = origin;
-        for item in items {
-            let w = super::desk::item_width(item, geo.pitch);
-            let c = pos2(x + (w - 1.0) * 0.5, port_y);
-            x += w;
-            if dock == Dock::Middle && (c.x < ports.shown.0 || c.x > ports.shown.1) {
-                continue;
-            }
-            if matches!(item, super::desk::Item::Strip(..)) {
-                out.push(c);
-            }
-        }
-    }
-}
-
-/// One port: a ring in the strip's colour, filled when the strip goes somewhere other
-/// than the master; larger while a drag is on or the strip is chosen. A press starts a
-/// cable (`mixer_drag`). The master's ring is a destination only.
+/// A strip's output jack: its strongest cable's colour on the ring and the dot; under the
+/// pointer a ring round it; armed (click mode) a ring in the selection's colour. A press
+/// starts a cable (`mixer_drag`).
 #[allow(clippy::too_many_arguments)]
-fn port(
+fn out_jack(
     v: &mut MixerView,
     app: &mut CantusApp,
     ui: &Ui,
     b: &mut Brush,
     pass: &Pass,
-    strip: Option<(StripId, usize)>,
+    tok: &Tokens,
+    (id, index): (StripId, usize),
     c: Pos2,
-    lit: bool,
+    d: bool,
 ) {
     let s = pass.s;
     let t = &s.t;
-    let resp = strip.and_then(|(id, _)| {
-        let r = lanes::port_rect(c);
-        sense(
-            ui,
-            pass,
-            r,
-            pid(Some(id), Part::Port),
-            Sense::click_and_drag(),
-        )
-    });
+    let r = jack_rect(c, d);
+    let resp = sense(
+        ui,
+        pass,
+        r,
+        pid(Some(id), Part::Port),
+        Sense::click_and_drag(),
+    );
     let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-    let (color, goes) = match strip {
-        Some((_, i)) => (
-            strip_color(v, s, i).unwrap_or(t.label),
-            v.desk.info(i).is_some_and(|x| x.goes),
-        ),
-        None => (t.text_dim, false),
-    };
-    let r = s.s(PORT_R) * if lit || hovered { 1.2 } else { 1.0 };
-    let w = s.s(1.4);
-    b.dot(c, r + w * 0.5, t.strip);
-    if goes {
-        b.dot(c, r + w * 0.5, color);
+    // The selected strip's own output lights in the accent, as des-mixer's socket did.
+    let ink = jack_ink(v, tok, index, 1).or_else(|| {
+        (app.selected_strip == Some(id) && v.band.drawn.iter().any(|d| d.route.from == id))
+            .then_some(tok.out)
+    });
+    if d {
+        nut(b, tok, c, ink, Target::Idle);
     } else {
-        b.circle_stroke(c, r, w, color);
+        jack(b, tok, &pass.pal, c, true, ink, Target::Idle);
     }
     if hovered {
-        b.circle_stroke(c, r + s.s(2.5), b.px(), with_alpha(t.text, 0.6));
+        b.circle_stroke(c, wires::JACK_R + 2.5, b.px(), with_alpha(t.text, 0.6));
     }
-    if strip.is_some_and(|(id, _)| drag::armed(v) == Some(id)) {
-        // Click mode: armed — a ring in the selection's colour around the port, and its
-        // core lit, until the click on a destination (or Esc) lets it go.
-        b.circle_stroke(c, r + s.s(3.0), s.s(1.6), t.selection);
-        b.dot(c, r * 0.55, t.selection);
+    if drag::armed(v) == Some(id) {
+        // Click mode: armed — a ring in the selection's colour around the jack, until the
+        // click on a destination (or Esc) lets it go.
+        b.circle_stroke(c, wires::JACK_R + 3.0, 1.6, t.selection);
     }
-    let (Some(resp), Some((id, _))) = (resp, strip) else {
+    let Some(resp) = resp else {
         return;
     };
     drag::source(v, app, ui, &resp, Source::Port(id));
@@ -793,52 +1240,44 @@ fn port(
     }
 }
 
-/// The ends of lit cables, as drag sources: the destination's mark moves where the route
-/// goes; the selected cable's source end (a dot on its first corner) moves where it comes
-/// from — the one way a key moves (a key belongs to its insert).
-fn ends(v: &mut MixerView, app: &mut CantusApp, ui: &Ui, b: &mut Brush, pass: &Pass) {
-    let s = pass.s;
-    // Every grab area `mixer_lanes` gave: each lit cable's shown end mark, and the
-    // selected cable's tail — each its own, never over a port (the selected cable's
-    // excepted) or another's.
-    for n in 0..v.band.scratch.sensors.len() {
-        let (i, tail, r) = v.band.scratch.sensors[n];
-        let d = v.band.drawn[i as usize];
-        if tail {
-            let at = r.center();
-            let look = look_of(v, s, &d);
-            b.dot(at, s.s(2.4), cable::ink(s, &look));
-            end_sensor(v, app, ui, pass, &d, End::Source, r);
-        } else {
-            end_sensor(v, app, ui, pass, &d, End::Destination, r);
+/// The input jacks lit cables plug into, as drag sources: pulling the plug moves where
+/// that route goes (the selected cable's first where several share a jack).
+fn ends(v: &mut MixerView, app: &mut CantusApp, ui: &Ui, pass: &Pass, jack: bool) {
+    v.band.sensed.clear();
+    let first = v
+        .band
+        .selected
+        .and_then(|r| v.band.drawn.iter().position(|d| d.route == r));
+    let n = v.band.drawn.len();
+    for k in first.into_iter().chain(0..n) {
+        let d = v.band.drawn[k];
+        if !d.lit || d.chips[1] || v.band.sensed.iter().any(|x| (x - d.to.x).abs() < 0.5) {
+            continue;
         }
-    }
-}
-
-fn end_sensor(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &Ui,
-    pass: &Pass,
-    d: &Drawn,
-    end: End,
-    r: Rect,
-) {
-    let id = egui::Id::new(("mixer-cable-end", d.edge, end == End::Source));
-    if let Some(resp) = sense(ui, pass, r, id, Sense::drag()) {
-        drag::source(
-            v,
-            app,
-            ui,
-            &resp,
-            Source::End {
-                route: d.route,
-                end,
-            },
-        );
-        if resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-            hint::set_text(ui.ctx(), &v.words.cable, "", Caps::NONE);
+        v.band.sensed.push(d.to.x);
+        // D: the cord ends at its plug's boot; the jack is 22 above.
+        let at = if jack {
+            d.to - vec2(0.0, wires::PLUG_LEN)
+        } else {
+            d.to
+        };
+        let r = jack_rect(at, jack);
+        let id = egui::Id::new(("mixer-cable-end", d.edge, false));
+        if let Some(resp) = sense(ui, pass, r, id, Sense::drag()) {
+            drag::source(
+                v,
+                app,
+                ui,
+                &resp,
+                Source::End {
+                    route: d.route,
+                    end: End::Destination,
+                },
+            );
+            if resp.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                hint::set_text(ui.ctx(), &v.words.cable, "", Caps::NONE);
+            }
         }
     }
 }
@@ -864,6 +1303,10 @@ fn interact(
             let at = resp.interact_pointer_pos().unwrap_or(resp.rect.center());
             crate::views::route_menu::open(&ctx, route_owner(), route, at);
         }
+    }
+    // r39:ux-a — the band's own words where no cable is pointed at (ADR 0109).
+    if hot.is_none() && resp.hovered() {
+        hint::fallback(&ctx, &crate::i18n::t("ux.hint.cable_band"), "", Caps::NONE);
     }
     if let (Some(k), true) = (hot, resp.hovered()) {
         describe(v, app, k);
@@ -905,18 +1348,14 @@ fn interact(
     }
 }
 
-/// The hint bar's words for cable `k`: its two strips into `hint_buf` ("3 Keys → 15
-/// Reverb"), what it is into `buf` ("send · −6.0 dB · pre-fader").
+/// The hint bar's words for cable `k`: its whole route into `hint_buf` ("Kick → Drum
+/// bus → Master"), what it is into `buf` ("send · −6.0 dB · pre-fader").
 fn describe(v: &mut MixerView, app: &CantusApp, k: usize) {
     let d = v.band.drawn[k];
     let i = d.edge as usize;
-    let (fi, ti) = v.desk.ends[i];
     let e = v.desk.edges[i];
     let mut names = std::mem::take(&mut v.hint_buf);
-    names.clear();
-    write_strip(&mut names, v, app, fi);
-    names.push_str(" \u{2192} ");
-    write_strip(&mut names, v, app, ti);
+    route_words(v, app, k, &mut names);
     v.hint_buf = names;
     v.buf.clear();
     match e.kind {
@@ -945,20 +1384,6 @@ fn describe(v: &mut MixerView, app: &CantusApp, k: usize) {
             }
         }
         EdgeKind::Key { .. } => v.buf.push_str(&v.words.kind[2]),
-    }
-}
-
-/// "3 Keys" (the number and the desk's name), or "M" for the master.
-fn write_strip(out: &mut String, v: &MixerView, app: &CantusApp, index: u32) {
-    if index == MASTER_END {
-        out.push_str(&v.words.master);
-        return;
-    }
-    let _ = write!(out, "{}", index + 1);
-    let name = v.desk.name(app, index as usize);
-    if !name.is_empty() {
-        out.push(' ');
-        out.push_str(name);
     }
 }
 
@@ -1005,11 +1430,6 @@ pub(super) fn column_hatch(b: &mut Brush, s: &Style, column: Rect, target: Targe
     }
 }
 
-/// The doubled-signal mark at the size of a send row.
-pub(super) fn doubled_mark_small(b: &mut Brush, s: &Style, center: Pos2) {
-    cable::doubled_mark(b, s, center, s.s(9.0));
-}
-
 const BAND_TOKENS: &[Tok] = &[
     Tok::Strip,
     Tok::Panel,
@@ -1017,3 +1437,152 @@ const BAND_TOKENS: &[Tok] = &[
     Tok::Danger,
     Tok::Selection,
 ];
+
+// ---- D, "Jack": the cord, the plugs and the jacks' nuts (README, "Cable style D") -----
+
+/// A cord, back to front: a two-pass shadow on the desk (offset 1.5, 2.5; lifted 3, 5 when
+/// hovered), a darker edge, the body, a key's spiral marks, a narrow highlight (a tube lit
+/// from above). `tmp` holds the shifted copies.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn cord(
+    b: &mut Brush,
+    tok: &Tokens,
+    tmp: &mut Vec<Pos2>,
+    pts: &[Pos2],
+    col: egui::Color32,
+    w: f32,
+    key: bool,
+    alpha: f32,
+    lift: bool,
+) {
+    use crate::kit::color::mix;
+    if pts.len() < 2 {
+        return;
+    }
+    let m = wires::material(tok.dark());
+    let (off, fade) = if lift {
+        (vec2(3.0, 5.0), (0.75, 0.8))
+    } else {
+        (vec2(1.5, 2.5), (1.0, 1.0))
+    };
+    let (sa, sb) = (
+        f32::from(m.shadow_a.0) / 255.0 * fade.0,
+        f32::from(m.shadow_a.1) / 255.0 * fade.1,
+    );
+    tmp.clear();
+    tmp.extend(pts.iter().map(|p| *p + off));
+    b.polyline(tmp, w + 6.0, with_alpha(m.shadow, sb * alpha));
+    b.polyline(tmp, w + 3.0, with_alpha(m.shadow, sa * alpha));
+    let edge = with_alpha(tok.jack_edge(col), alpha);
+    let body = with_alpha(col, alpha);
+    b.polyline(pts, w + 1.5, edge);
+    b.polyline(pts, w, body);
+    if key {
+        let mark = with_alpha(mix(col, egui::Color32::BLACK, 0.45), 0.8 * alpha);
+        b.dashed(pts, w, mark, 1.4, 3.2);
+    }
+    tmp.clear();
+    tmp.extend(pts.iter().map(|p| *p + vec2(-0.3, -0.22 * w)));
+    let hi = mix(col, egui::Color32::WHITE, 0.6);
+    b.polyline(
+        tmp,
+        0.35 * w,
+        with_alpha(hi, if lift { 0.85 } else { 0.6 } * alpha),
+    );
+}
+
+/// A plug from the layer atlas: seated (its nut at `at`, hanging 22 below) or free (its tip
+/// at `at`, 36 long, pointing up), its kind band in `band`, its boot `rec` when refused.
+/// Drawn once per (shape, colours, scale) by the SVG of des-mixer's parts.
+pub(super) fn plug(
+    b: &mut Brush,
+    tok: &Tokens,
+    at: Pos2,
+    band: egui::Color32,
+    boot: Option<egui::Color32>,
+    free: bool,
+    alpha: f32,
+) {
+    let m = wires::material(tok.dark());
+    let ppp = b.ppp();
+    let (w, h) = wires::plug_size(free);
+    let (pw, ph) = ((w * ppp).ceil(), (h * ppp).ceil());
+    let key = crate::kit::cache::key(("cables39-plug", free, band, boot, m, pw as u32, ph as u32));
+    let Some(uv) = b.layer(key, pw as usize, ph as usize, |pix| {
+        raster(&wires::plug_svg(&m, band, boot, free, ppp), pix)
+    }) else {
+        return;
+    };
+    let snap = |v: f32| (v * ppp).round() / ppp;
+    let r = Rect::from_min_size(
+        pos2(snap(at.x - w * 0.5), snap(at.y)),
+        vec2(pw / ppp, ph / ppp),
+    );
+    b.layer_quad(r, uv, alpha);
+}
+
+fn raster(doc: &str, pix: &mut tiny_skia::Pixmap) {
+    use resvg::usvg;
+    let Ok(tree) = usvg::Tree::from_str(doc, &usvg::Options::default()) else {
+        return;
+    };
+    let Some(mut out) = resvg::tiny_skia::Pixmap::new(pix.width(), pix.height()) else {
+        return;
+    };
+    resvg::render(&tree, Default::default(), &mut out.as_mut());
+    pix.data_mut().copy_from_slice(out.data());
+}
+
+fn ellipse(b: &mut Brush, c: Pos2, rx: f32, ry: f32, col: egui::Color32) {
+    let mut pts = [Pos2::ZERO; 24];
+    for (i, p) in pts.iter_mut().enumerate() {
+        let a = i as f32 / 24.0 * std::f32::consts::TAU;
+        *p = pos2(c.x + rx * a.cos(), c.y + ry * a.sin());
+    }
+    b.polygon(&pts, col);
+}
+
+fn ellipse_ring(b: &mut Brush, c: Pos2, rx: f32, ry: f32, w: f32, col: egui::Color32) {
+    let mut pts = [Pos2::ZERO; 25];
+    for (i, p) in pts.iter_mut().enumerate() {
+        let a = i as f32 / 24.0 * std::f32::consts::TAU;
+        *p = pos2(c.x + rx * a.cos(), c.y + ry * a.sin());
+    }
+    b.polyline(&pts, w, col);
+}
+
+/// A D jack on the strip's bottom edge: a nut 12 × 6 with its lit top 10 × 4; empty, its
+/// hole; a plug seated in it when a cable is (`ink`, its kind band). A drop target's halo
+/// (r 10, 25 %), a refused one's red ring 14 × 7.6.
+fn nut(b: &mut Brush, tok: &Tokens, c: Pos2, ink: Option<egui::Color32>, target: Target) {
+    use crate::kit::color::mix;
+    let m = wires::material(tok.dark());
+    if target == Target::Valid {
+        b.circle(c, 10.0, Fill::Solid(with_alpha(tok.out, 0.25)));
+    }
+    ellipse(b, c, 6.0, 3.0, m.nut);
+    ellipse(
+        b,
+        c - vec2(0.0, 0.6),
+        5.0,
+        2.0,
+        mix(m.nut, egui::Color32::WHITE, 0.25),
+    );
+    match ink {
+        Some(band) => plug(b, tok, c, band, None, false, 1.0),
+        None => ellipse(b, c, 3.0, 1.4, m.hole),
+    }
+    if target == Target::Refused {
+        ellipse_ring(b, c, 7.0, 3.8, 1.3, tok.refused);
+    }
+}
+
+/// A jack's sensed area: around the ring (A–C), or around the nut, reaching most of the
+/// way down its seated plug (D) — centred on the jack, where a dragged cable starts.
+fn jack_rect(c: Pos2, jack: bool) -> Rect {
+    if jack {
+        Rect::from_center_size(c, vec2(2.0 * JACK_HIT, 32.0))
+    } else {
+        Rect::from_center_size(c, vec2(2.0 * JACK_HIT, 2.0 * JACK_HIT + 2.0))
+    }
+}

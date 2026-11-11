@@ -1029,21 +1029,30 @@ fn clicking_the_racks_controls_arms_them() {
 /// bus strip's, and the master's volume, pan, width and effects switch.
 #[test]
 fn clicking_the_mixers_controls_arms_them() {
+    use cantus_ui::views::mixer::{self, layout::WidthMode};
     let mut a = keys_app();
     a.add_strip();
-    let armed = armed_by_clicks(&mut a, egui::vec2(1600.0, 700.0), &mut |a, ui| {
-        cantus_ui::views::mixer::show(a, ui)
-    });
+    let bus = a.project().strips.last().unwrap().id;
     let mut strips: Vec<StripId> = a.project().tracks.iter().filter_map(|t| t.strip).collect();
-    strips.push(a.project().strips.last().unwrap().id);
-    for s in strips {
+    // Round 39 (des-mixer, "Empty (nothing routed)": a number, a groove, a cap ghost, its
+    // socket): a strip nothing reaches has no controls to learn. A bus is fed: the
+    // track's strip sends to it.
+    a.set_strip_send(strips[0], Send::new(bus));
+    a.end_gesture();
+    strips.push(bus);
+    // Des-mixer's rows ("polarity · swap · width | — | 16 | 18"): Compact, the default,
+    // has no width knob on the strip; Wide puts it in the pan row (option C).
+    mixer::set_width_mode(&mut a, WidthMode::Wide);
+    let armed = armed_by_clicks(&mut a, egui::vec2(1600.0, 700.0), &mut |a, ui| {
+        mixer::show(a, ui)
+    });
+    for &s in &strips {
         for want in [
             MappingTarget::Param(AutoTarget::StripGain(s)),
             MappingTarget::Param(AutoTarget::StripPan(s)),
             MappingTarget::Param(AutoTarget::StripWidth(s)),
             MappingTarget::StripMute(s),
             MappingTarget::StripSolo(s),
-            MappingTarget::StripFx(s),
         ] {
             assert!(armed.contains(&want), "{want:?}: {armed:?}");
         }
@@ -1052,8 +1061,24 @@ fn clicking_the_mixers_controls_arms_them() {
         MappingTarget::Param(AutoTarget::MasterGain),
         MappingTarget::Param(AutoTarget::MasterPan),
         MappingTarget::Param(AutoTarget::MasterWidth),
-        MappingTarget::StripFx(StripId::MASTER),
     ] {
+        assert!(armed.contains(&want), "{want:?}: {armed:?}");
+    }
+    // The effects switch: des-mixer's strip has no FX bulb (its rows: the sound, the mix,
+    // the route — no FX row); the switch is the Inserts section's power in the inspector,
+    // where the strip's chain lives, and a click on it there arms it — for every strip
+    // and the master. (The strip's menu offers it too:
+    // `a_strips_effects_switch_and_record_arm_are_learnable`.)
+    for s in strips.into_iter().chain([StripId::MASTER]) {
+        if s.is_master() {
+            a.select_master();
+        } else {
+            a.select_strip(s);
+        }
+        let armed = armed_by_clicks(&mut a, egui::vec2(420.0, 1600.0), &mut |a, ui| {
+            cantus_ui::views::inspector::show(a, ui)
+        });
+        let want = MappingTarget::StripFx(s);
         assert!(armed.contains(&want), "{want:?}: {armed:?}");
     }
 }

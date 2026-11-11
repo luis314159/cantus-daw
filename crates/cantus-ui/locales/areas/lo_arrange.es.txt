@@ -1,0 +1,46 @@
+# Área: lo_arrange - ronda 39 (lo-arrange). Cada clave tiene su gemela en lo_arrange.en.txt
+# La fila de herramientas del arreglo (hojas b-toolbar de dir-a), sus herramientas, el menú
+# de la rejilla, Seguir; la cabecera del piano roll (des-views): el menú del clip y la lectura.
+arrange.tool.select = Seleccionar
+arrange.tool.draw = Dibujar
+arrange.tool.slice = Cortar
+arrange.tool.erase = Borrar
+arrange.tool.mute = Silenciar
+arrange.tool.zoom = Zoom
+arrange.tool.select.hint = Seleccionar — clic en un clip lo elige, arrastrar lo mueve, arrastrar su borde lo redimensiona
+arrange.tool.draw.hint = Dibujar — clic para añadir un clip, arrastra para estirarlo
+arrange.tool.slice.hint = Cortar — clic en un clip lo parte en dos sobre la rejilla
+arrange.tool.erase.hint = Borrar — clic en un clip, o arrastra sobre varios, para eliminarlos
+arrange.tool.mute.hint = Silenciar — clic en un clip, o arrastra sobre varios, para silenciarlos o no
+arrange.tool.zoom.hint = Zoom — clic acerca, Alt+clic aleja, arrastra sobre unos compases para encajarlos
+arrange.grid.tip = Rejilla — a qué se ajustan los clips (Ctrl al arrastrar: sin ajuste)
+arrange.grid.menu.bar = Compás
+arrange.grid.menu.beat = Tiempo
+arrange.grid.triplet_bar = 1 compás T
+arrange.grid.triplet_half = 1/2T
+arrange.grid.triplet_beat = 1/4T
+arrange.grid.triplet32 = 1/32T
+arrange.grid.triplets = Tresillos
+arrange.grid.follow_zoom = Seguir el zoom
+arrange.grid.off = Sin ajuste
+arrange.grid.auto = Auto · {grid}
+arrange.follow = Seguir
+arrange.follow.tip = Seguir — la vista mantiene a la vista el cursor de reproducción
+arrange.panel.clips = Clips seleccionados
+arrange.panel.snap = Ajustar a la rejilla
+arrange.notch.tip = Arrastra la esquina para repetir el clip
+arrange.resize.tip = Duración {bars} compases
+arrange.resize.keys = Alt: estirar · Ctrl: sin ajuste
+pianoroll.clip_menu.tip = El clip abierto aquí — clic para los otros clips de esta pista y las otras pistas
+pianoroll.clip_menu.at = {name} · compás {bar}
+pianoroll.clip_menu.others = Otras pistas
+pianoroll.selected_notes = {n} notas seleccionadas
+pianoroll.selected_range = {pitch} · velocidad {vel}
+lo_arrange.docks.show = Mostrar los paneles
+lo_arrange.docks.show_tip = Devolver las otras áreas como estaban
+lo_arrange.docks.tab_tip = {area} — devolver las áreas con esta delante
+pianoroll.rows = Filas
+pianoroll.rows_tip = Filas — la altura de una tecla: compacta, normal o alta (Ctrl+Alt+rueda sobre las notas las amplía)
+pianoroll.rows_compact = Compacta · 8
+pianoroll.rows_default = Normal · 12
+pianoroll.rows_tall = Alta · 18

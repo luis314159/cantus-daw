@@ -88,6 +88,23 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, rect: Rect, record: &egui::Response
         .show(|ui| body(app, ui));
 }
 
+/// The options opened from the record key alone (round 39, `dir-a`'s top bar has no ▾ beside
+/// it): a right-click on `record` opens or closes them under it. // r39:el-topbar
+pub fn popover(app: &mut CantusApp, ui: &mut Ui, record: &egui::Response, s: &Style) {
+    let open = egui::Popup::is_id_open(ui.ctx(), popup_id());
+    let toggle = record.secondary_clicked();
+    if !open && !toggle {
+        return;
+    }
+    egui::Popup::from_response(record)
+        .id(popup_id())
+        .open_memory(toggle.then_some(egui::SetOpenCommand::Toggle))
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .frame(frame_for(s))
+        .gap(4.0)
+        .show(|ui| body(app, ui));
+}
+
 fn kit_word(key: &'static str) -> &'static str {
     crate::views::clips_chrome::word(key)
 }
@@ -246,6 +263,13 @@ fn body(app: &mut CantusApp, ui: &mut Ui) {
 pub(crate) fn level(ui: &mut Ui, db: f32, s: &Style) -> (f32, bool) {
     let (r, resp) = ui.allocate_exact_size(vec2(90.0 * s.k, s.d(22.0)), Sense::click_and_drag());
     let mut v = db;
+    // r39:el-topbar — the drag is summed unrounded while it lasts (the bar's own level did
+    // this, review 1: a slow fine drag was rounded away each frame); the level lives here
+    // now, in the metronome's options and the More panel.
+    let raw_id = resp.id.with("raw");
+    if resp.drag_started() {
+        ui.data_mut(|d| d.insert_temp(raw_id, db));
+    }
     if resp.dragged() {
         let fine = if ui.input(|i| i.modifiers.shift) {
             0.2
@@ -253,7 +277,11 @@ pub(crate) fn level(ui: &mut Ui, db: f32, s: &Style) -> (f32, bool) {
             1.0
         };
         let d = resp.drag_delta();
-        v = (v + (d.x - d.y) * fine * 30.0 / 200.0).clamp(-24.0, 6.0);
+        let raw = (ui.data(|d| d.get_temp::<f32>(raw_id)).unwrap_or(db)
+            + (d.x - d.y) * fine * 30.0 / 200.0)
+            .clamp(-24.0, 6.0);
+        ui.data_mut(|d| d.insert_temp(raw_id, raw));
+        v = raw;
     }
     if resp.double_clicked() {
         v = 0.0;

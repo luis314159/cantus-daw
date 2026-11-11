@@ -1,0 +1,94 @@
+/* Round 39 — the lapis tiles (the download card, the verse), the download section, support,
+   the footer and a unit's page. Loaded after lapis.css. */
+
+/* A lapis tile: #03's ground with its faint gold dots, and its gold rim set 7 px inside. */
+.get-main, .verse {
+  position: relative; isolation: isolate; overflow: hidden;
+  background: var(--lapis-ground); border: 0; border-radius: 14px; color: var(--ink);
+  box-shadow: 0 30px 60px -36px rgba(7, 13, 38, 0.9);
+}
+.get-main::after, .verse::after {
+  content: ""; position: absolute; inset: 7px; border-radius: 9px; pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(226, 184, 74, 0.55);
+}
+.get-main .platform { font: 500 clamp(2rem, 3.6vw, 2.8rem)/1 var(--display); color: var(--strong); }
+.get-main .platform svg { color: var(--strong); width: 2rem; height: 2rem; }
+.get-main .ver { color: var(--ink-3); }
+.get-main .note { color: var(--ink-2); opacity: 1; font-size: 1.05rem; }
+.get-main .note a { color: var(--accent-text); }
+.get .btn-quiet { background: var(--mist); border-color: var(--edge); color: var(--ink); }
+.get .btn-quiet:hover { border-color: var(--accent); color: var(--accent-text); }
+:root[data-theme="light"] .get .platforms .btn-quiet, :root[data-theme="light"] .get-side .btn-quiet { background: var(--paper-2); border-color: var(--line); }
+.get-side { background: var(--paper-2); border: 0; border-radius: 14px; box-shadow: var(--shadow); color: var(--ink); }
+:root[data-theme="light"] .get-side { box-shadow: 0 0 0 1px var(--line), var(--shadow); }
+.get-side h3 { color: var(--strong); font-size: 1.3rem; }
+.get-side dt { color: var(--ink-3); opacity: 1; }
+.get-side dd { color: var(--ink); }
+.get-side dd a { color: var(--accent-text); font-weight: 600; }
+.get .platform-card, :root[data-theme="light"] .get .platform-card { background: var(--paper-2); border: 0; border-radius: 8px; box-shadow: var(--shadow); }
+:root[data-theme="light"] .get .platform-card { box-shadow: 0 0 0 1px var(--line); }
+.platform-card strong { font-weight: 600; font-size: 1.25rem; color: var(--strong); }
+.platform-card > span, .platform-card .platform-soon, .platform-note { color: var(--ink-3); }
+.platform-note a { color: var(--accent-text); }
+
+/* The verse: a small lapis tile; four gold staff lines behind it, the neume's tetragram. */
+.verse::before { opacity: 1; background: repeating-linear-gradient(to bottom, transparent 0 2.3rem, rgba(226, 184, 74, 0.16) 2.3rem calc(2.3rem + 1px)); }
+.verse blockquote { font: 400 clamp(1.5rem, 2.8vw, 2rem)/1.3 var(--display); color: var(--strong); letter-spacing: 0; }
+.verse figcaption { color: var(--ink-2); }
+:root[data-theme="light"] .verse { border: 0; }
+
+/* Support */
+.tiers li { font: 600 1.3rem/1 var(--display); }
+.tiers .any { border-style: dashed; }
+.way strong { font-weight: 600; }
+
+/* Footer: the gutter, under a gold hairline. */
+.foot { position: relative; background: var(--gutter-bg); color: var(--ink-3); border-top: 0; font-size: 1rem; }
+.foot::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--gold-rule); opacity: 0.6; }
+.foot-in .brand { color: var(--strong); }
+.foot p { opacity: 1; color: var(--ink-3); }
+.foot-in .brand img { width: 2rem; height: 2rem; }
+.foot a:hover { color: var(--strong); }
+.foot .creed, :root[data-theme="light"] .foot .creed { color: var(--gold-text); font: 500 1.1rem/1.2 var(--display); }
+
+/* A unit's page: a Slate dialog. */
+.unit-scrim { background: var(--scrim); }
+.unit-page { background: var(--paper-2); border-radius: 10px; }
+.up-head { background: var(--paper-2); border-bottom-color: var(--line); }
+.up-kind { color: var(--ink-3); }
+.up-title h3 { font-weight: 600; letter-spacing: 0; }
+.up-btn { background: var(--mist); border: 0; box-shadow: 0 0 0 1px var(--edge) inset; border-radius: 6px; }
+.up-btn:hover { box-shadow: 0 0 0 1px var(--accent) inset; color: var(--accent-text); }
+.up-shot { background: #11151a; }
+.up-shot figcaption { background: var(--paper); }
+.up-pitch { font-weight: 500; }
+.up-feats svg { color: var(--accent-text); }
+.up-meta li::before { color: var(--gold); }
+.unit-page h4 { font: 600 0.95rem/1 var(--body); letter-spacing: 0.02em; text-transform: none; }
+
+/* Phones: no row may push the page sideways. */
+@media (max-width: 40rem) {
+  .tabs { display: flex; }
+  .tab { flex: 1 1 auto; text-align: center; }
+  .song { padding: 0.8rem 1rem; }
+  .get-main, .get-side { padding: 1.4rem 1.2rem; }
+  .hero-cta .btn { flex: 1 1 100%; }
+}
+
+/* The download section: Slate; the old warm glow is gone. */
+.get { background-image: none; color: var(--ink); }
+
+/* The scorecard on a phone: one card per program, each value beside its column's name. */
+@media (max-width: 40rem) {
+  .measured table { min-width: 0; }
+  .measured thead { display: none; }
+  .measured table, .measured tbody, .measured tr, .measured th, .measured td { display: block; }
+  .measured tbody tr { padding: 0.9rem 1rem; border-bottom: 1px solid var(--line); }
+  .measured tbody tr:last-child { border-bottom: 0; }
+  .measured th, .measured td { border-bottom: 0; text-align: left; }
+  .measured tbody th { padding: 0 0 0.45rem; font-size: 1.1rem; }
+  .measured tr.ours th { box-shadow: none; }
+  .measured tr.ours { box-shadow: 3px 0 0 var(--gold) inset; }
+  .measured td { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
+  .measured td::before { content: attr(data-l); color: var(--ink-3); font-weight: 400; }
+}

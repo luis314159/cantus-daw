@@ -69,7 +69,7 @@ fn live(p: &Project, frames: usize, block: usize) -> (Vec<f32>, u64) {
     while let Ok(ev) = rx.pop() {
         match ev {
             EngineEvent::EffectNeed { effect, need } => {
-                let memory = EffectMemory::build(need, SR as f32);
+                let memory = EffectMemory::build(need.need(), SR as f32);
                 tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
                 proc.settle();
             }

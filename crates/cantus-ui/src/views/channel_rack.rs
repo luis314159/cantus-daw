@@ -78,6 +78,12 @@ const MAX_ROW_H: f32 = 44.0;
 const MELODIC_STEP_PITCH: Pitch = 60;
 /// A melodic track's single row edits *any* pitch; this marks that lane.
 const ANY_PITCH: usize = usize::MAX;
+/// The pattern map (r39:el-views, des-views: the rack's head): eight bars, four columns a
+/// bar.
+const MAP_BARS: usize = 8;
+const MAP_BEATS: usize = MAP_BARS * 4;
+/// One bar's cell in the map, and its height.
+const MAP_CELL: f32 = 22.0;
 
 #[derive(Debug)]
 pub struct ChannelRackView {
@@ -99,6 +105,12 @@ pub struct ChannelRackView {
     /// grid changes: a sixteen-bar pattern at a readable cell size is wider than any
     /// screen, and a pattern you have to scroll to see the end of is not a pattern.
     pub fit: bool,
+    /// How many steps the last frame showed (the pattern map's page, r39:el-views).
+    pub visible_steps: f32,
+    /// The pattern map's rect and how many bars it showed on the last frame.
+    pub map: Option<(egui::Rect, usize)>,
+    /// How many columns of sound the audio rows drew on the last frame.
+    pub audio_columns: std::cell::Cell<usize>,
     /// Gesture counter, so each paint stroke merges into one undo step.
     stroke: u64,
     /// While a stroke is running: whether it is switching steps on or off, and the last
@@ -109,6 +121,13 @@ pub struct ChannelRackView {
     rename: Option<(TrackId, usize, String)>,
     /// A track to scroll into view at the next layout ([`Self::reveal_track`]).
     reveal: Option<TrackId>,
+    /// The kits whose pads are folded under their own row (r39:lo-rest, the plate's
+    /// chevron): a view's state, not the song's.
+    pub folded: std::collections::HashSet<TrackId>,
+    /// The foot's "Add a channel" well and drop zone on the last frame.
+    pub foot: Option<(egui::Rect, egui::Rect)>,
+    /// Each kit's chevron on the last frame (r39:lo-rest; the tests aim through them).
+    pub kit_folds: Vec<(TrackId, egui::Rect)>,
     geometry: Option<RackGeometry>,
     /// Buffers the painters reuse, so a steady frame allocates nothing.
     scratch: Scratch,
@@ -117,7 +136,6 @@ pub struct ChannelRackView {
 #[derive(Debug, Default)]
 struct Scratch {
     at: Vec<Ticks>,
-    tints: chrome::Tints,
     /// The toolbar's readouts, rebuilt when what they say changes.
     counts: ((usize, usize), String),
     span: ((i64, i64, usize), String),
@@ -127,6 +145,10 @@ struct Scratch {
     /// The interface's language they were written in: a switch rebuilds them all (sound
     /// review 2: a kit's rows kept the old language until the next edit).
     locale: Option<crate::i18n::Locale>,
+    /// The pattern map's hits a beat over its first bars (r39:el-views), and what they
+    /// were counted for: rebuilt when the project or the pattern changes.
+    density: [u16; MAP_BEATS],
+    density_key: Option<(u64, i64, i64, usize)>,
 }
 
 impl Default for ChannelRackView {
@@ -140,10 +162,16 @@ impl Default for ChannelRackView {
             velocity: 100,
             selected_pad: 0,
             fit: true,
+            visible_steps: 0.0,
+            map: None,
+            audio_columns: std::cell::Cell::new(0),
             stroke: 0,
             paint: None,
             rename: None,
             reveal: None,
+            folded: Default::default(),
+            foot: None,
+            kit_folds: Vec::new(),
             geometry: None,
             scratch: Scratch::default(),
         }
@@ -355,6 +383,7 @@ fn layout_rows(rows: &mut Vec<RackRow>, app: &CantusApp, axes: &[Axis], top: f32
     for (i, (track, axis)) in app.project().tracks.iter().zip(axes).enumerate() {
         let pads = !track.instrument.is_chromatic();
         let single = !pads || axis.len() == 1;
+        let folded = app.rack.folded.contains(&track.id);
         rows.push(RackRow {
             top: y,
             height: row_h,
@@ -367,7 +396,7 @@ fn layout_rows(rows: &mut Vec<RackRow>, app: &CantusApp, axes: &[Axis], top: f32
             },
         });
         y += row_h;
-        if !single {
+        if !single && !folded {
             // Highest pad first, as in the piano roll: kick at the bottom.
             for lane in (0..axis.len()).rev() {
                 rows.push(RackRow {
@@ -557,6 +586,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     }
     app.rack.scratch = scratch;
     channels(app, ui, &f, &geo, pattern, &s);
+    foot(app, ui, &f, &geo, &s);
     interact(app, ui, &resp, &geo, pattern);
     if resp.hovered() {
         hint::set_text(ui.ctx(), chrome::word("rack.hint"), "", Caps::NONE);
@@ -566,7 +596,52 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 /// The rows' full height.
 fn content_height(geo_rows: usize, row_h: f32) -> f32 {
-    geo_rows as f32 * row_h
+    // r39:lo-rest — and the foot under them ("Add a channel", the drop zone).
+    geo_rows as f32 * row_h + paint::FOOT_H
+}
+
+/// The foot under the last row (des-views): "Add a channel" opens the instrument picker
+/// for a new channel at the end; the drop zone says where a sound from the browser makes
+/// one (the whole rack takes the drop, `samples::drop::Target::Rack`).
+fn foot(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &RackGeometry, s: &Style) {
+    let below = geo
+        .rows
+        .last()
+        .map_or(f.grid.top() - app.rack.scroll_y, |r| r.top + r.height);
+    let (add, zone) = paint::foot_rects(f.channels, f.grid, below, s);
+    app.rack.foot = Some((add, zone));
+    let seen = add.intersect(f.channels);
+    let hovered = seen.is_positive() && ui.rect_contains_pointer(seen);
+    if zone.intersects(f.grid) {
+        let lit = crate::samples::drop::hovered(app, ui.ctx()).is_some_and(|(_, t)| {
+            t == crate::samples::drop::Target::Rack
+                && ui
+                    .ctx()
+                    .pointer_latest_pos()
+                    .is_some_and(|p| zone.contains(p))
+        });
+        kit::with_brush(&ui.painter().with_clip_rect(f.grid), |b| {
+            paint::drop_zone(b, zone, lit, s)
+        });
+    }
+    if !seen.is_positive() {
+        return;
+    }
+    kit::with_brush(&ui.painter().with_clip_rect(f.channels), |b| {
+        paint::add_well(b, add, hovered, s)
+    });
+    let resp = ui.interact(seen, ui.id().with("rack-add-channel"), Sense::click());
+    if resp.hovered() {
+        hint::set_text(
+            ui.ctx(),
+            chrome::word("rack.add_channel_tip"),
+            "",
+            Caps::NONE,
+        );
+    }
+    if resp.clicked() {
+        app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
+    }
 }
 
 /// The wheel, the middle button and the two bars.
@@ -574,9 +649,13 @@ fn navigate(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, pattern: Pattern,
     let area = Rect::from_min_max(pos2(f.channels.left(), f.header.top()), f.grid.max);
     let over = ui.rect_contains_pointer(area);
     let pointer = ui.input(|i| i.pointer.hover_pos());
+    // r39:el-views — fitted, a page holds two bars at most (des-views: 128 steps packed
+    // into stripes cannot be read); the scroll bar pages through the rest.
+    let two_bars = (2 * app.project().time_signature.ticks_per_bar().0 / pattern.step.0.max(1))
+        .max(1) as usize;
     let v = &mut app.rack;
     if v.fit {
-        let fitted = f.grid.width() / pattern.count.max(1) as f32;
+        let fitted = f.grid.width() / pattern.count.clamp(1, two_bars) as f32;
         v.step_w = fitted.clamp(MIN_STEP_W, MAX_STEP_W);
         v.scroll_steps = 0.0;
     }
@@ -625,6 +704,7 @@ fn navigate(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, pattern: Pattern,
     let count = pattern.count as f32;
     let visible = f.grid.width() / v.step_w;
     v.scroll_steps = v.scroll_steps.clamp(0.0, (count - visible).max(0.0));
+    v.visible_steps = visible.min(count);
     let span = Span::new(v.scroll_steps, visible.min(count), count);
     let zoom = Some((f.grid.width() / MAX_STEP_W, f.grid.width() / MIN_STEP_W));
     if let Some(n) = chrome::bar(
@@ -670,7 +750,7 @@ fn count_rows(app: &CantusApp, axes: &[Axis]) -> usize {
         .iter()
         .zip(axes)
         .map(|(t, axis)| {
-            if t.instrument.is_chromatic() || axis.len() == 1 {
+            if t.instrument.is_chromatic() || axis.len() == 1 || app.rack.folded.contains(&t.id) {
                 1
             } else {
                 1 + axis.len()
@@ -717,7 +797,7 @@ fn channels(
     let pointer = ui
         .input(|i| i.pointer.hover_pos())
         .filter(|_| ui.rect_contains_pointer(clip));
-    let mut scratch = std::mem::take(&mut app.rack.scratch);
+    let scratch = std::mem::take(&mut app.rack.scratch);
     {
         let a: &CantusApp = app;
         kit::with_brush(&p, |b| {
@@ -730,8 +810,9 @@ fn channels(
                 let Some(axis) = scratch.axes.get(row.track) else {
                     continue;
                 };
-                let rr = paint::row_rects(strip_of(row), row.kind, s);
-                let tint = scratch.tints.of(theme::track_color(track.color), s);
+                let kit_row = row.kind == RowKind::Track && row.lane.is_none();
+                let rr = paint::row_rects(strip_of(row), row.kind, kit_row, s);
+                let hue = theme::track_color(track.color);
                 let mut digits = chrome::Digits::default();
                 let hovered = pointer.is_some_and(|p| rr.button.contains(p));
                 let look = match row.kind {
@@ -746,8 +827,10 @@ fn channels(
                         on: !track.muted,
                         selected: a.selected_track == Some(track.id)
                             && (row.lane.is_some() || axis.len() != 1),
-                        tint,
+                        hue,
                         button_hovered: hovered,
+                        kit: kit_row.then(|| (axis.len(), !a.rack.folded.contains(&track.id))),
+                        last_pad: false,
                     },
                     RowKind::Pad => {
                         let lane = row.lane.unwrap_or(0);
@@ -760,8 +843,11 @@ fn channels(
                             on: !pad.is_some_and(|p| p.muted),
                             selected: a.selected_track == Some(track.id)
                                 && index == Some(a.rack.selected_pad),
-                            tint,
+                            hue,
                             button_hovered: hovered,
+                            kit: None,
+                            // Highest pad first: lane 0 is the kit's last row.
+                            last_pad: lane == 0,
                         }
                     }
                 };
@@ -788,13 +874,28 @@ fn channels(
     }
     app.rack.scratch = scratch;
 
+    app.rack.kit_folds.clear();
     for row in geo.rows.iter().filter(|r| visible(r)) {
         let Some(id) = app.project().tracks.get(row.track).map(|t| t.id) else {
             continue;
         };
-        let rr = paint::row_rects(strip_of(row), row.kind, s);
+        let kit_row = row.kind == RowKind::Track && row.lane.is_none();
+        let rr = paint::row_rects(strip_of(row), row.kind, kit_row, s);
         match row.kind {
-            RowKind::Track => track_controls(app, ui, &rr, id, pattern),
+            RowKind::Track => {
+                track_controls(app, ui, &rr, id, pattern);
+                // r39:lo-rest — a kit's chevron folds its pads under its own row.
+                if let Some(fold) = rr.fold {
+                    app.rack.kit_folds.push((id, fold));
+                    let resp = ui.interact(fold, ui.id().with(("rack-fold", id.0)), Sense::click());
+                    if resp.hovered() {
+                        hint::set_text(ui.ctx(), chrome::word("rack.fold_tip"), "", Caps::NONE);
+                    }
+                    if resp.clicked() && !app.rack.folded.remove(&id) {
+                        app.rack.folded.insert(id);
+                    }
+                }
+            }
             RowKind::Pad => {
                 pad_controls(app, ui, &rr, id, row.track, row.lane.unwrap_or(0), pattern)
             }
@@ -1205,7 +1306,7 @@ fn pad_controls(
 /// new step gets, and at the right end the counts and the fit key.
 fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId, pattern: Pattern) {
     let id = ui.id().with("rack-toolbar");
-    let mut bar = Toolbar::new(ui);
+    let mut bar = Toolbar::new(ui).named(crate::kit::glyph::Glyph::Rack); // r39:el-views
     if let Some(r) = bar.menu(ui, id.with("menu"), "rack.menu") {
         egui::Popup::menu(&r).frame(egui::Frame::NONE).show(|ui| {
             let items = [kit::menu::Item::action(Src::Key("rack.fit"))];
@@ -1330,6 +1431,122 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId,
     let text = std::mem::take(&mut app.rack.scratch.counts.1);
     bar.readout_right(ui, &text, 150.0, false);
     app.rack.scratch.counts.1 = text;
+    pattern_map(app, ui, &mut bar, &pattern); // r39:el-views
+}
+
+/// The pattern's hits over its first eight bars, four columns a bar, counted once per
+/// change of the project or the pattern (every track's clip in the pattern's window).
+fn refresh_density(bus: &cantus_core::CommandBus, pattern: &Pattern, scratch: &mut Scratch) {
+    let bar = bus.project().time_signature.ticks_per_bar().0.max(1);
+    let key = (bus.revision(), pattern.start.0, bar, pattern.count);
+    if scratch.density_key == Some(key) {
+        return;
+    }
+    scratch.density_key = Some(key);
+    scratch.density = [0; MAP_BEATS];
+    let window = pattern.window().0;
+    for t in &bus.project().tracks {
+        let Some(c) = pattern.clip_on(t) else {
+            continue;
+        };
+        for n in &c.notes {
+            let at = n.start.0 - c.offset.0;
+            if at < 0 || at >= window {
+                continue;
+            }
+            let i = (at / bar) as usize * 4 + ((at % bar) * 4 / bar) as usize;
+            if let Some(d) = scratch.density.get_mut(i) {
+                *d = d.saturating_add(1);
+            }
+        }
+    }
+}
+
+/// The pattern map at the toolbar's right (des-views: a well of 8 × 22, the page in view a
+/// raised pill, density as 2-px bars). A click on a bar pages there.
+fn pattern_map(app: &mut CantusApp, ui: &mut egui::Ui, bar: &mut Toolbar, pattern: &Pattern) {
+    app.rack.map = None;
+    let per_bar = (app.project().time_signature.ticks_per_bar().0 / pattern.step.0.max(1)).max(1);
+    let bars = pattern.count.div_ceil(per_bar as usize).clamp(1, MAP_BARS);
+    if bars < 2 {
+        return; // one bar: nothing to page through
+    }
+    let Some(r) = bar.take_right(MAP_CELL * bars as f32, 20.0) else {
+        return;
+    };
+    app.rack.map = Some((r, bars));
+    refresh_density(&app.bus, pattern, &mut app.rack.scratch);
+    let s = bar.s;
+    let room = super::room::Room::of(&s.t);
+    let v = &app.rack;
+    let cell = r.width() / bars as f32;
+    let first = v.scroll_steps / per_bar as f32;
+    let shown = (v.visible_steps.max(1.0) / per_bar as f32).min(bars as f32);
+    let most = v.scratch.density[..bars * 4]
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0)
+        .max(1);
+    let resp = ui.interact(r, ui.id().with("rack-map"), egui::Sense::click());
+    kit::with_brush(ui.painter(), |b| {
+        b.register(r, "rack_map", &[kit::Tok::Well, kit::Tok::Selection], &[]);
+        let r = b.snap_rect(r);
+        b.rrect(r, s.r(3.0), kit::Fill::Solid(room.edge));
+        let well = if resp.hovered() {
+            room.well_hi
+        } else {
+            room.well
+        };
+        b.rrect(r.shrink(b.px()), s.r(3.0), kit::Fill::Solid(well));
+        // The page in view: a raised pill.
+        let page = egui::Rect::from_min_max(
+            egui::pos2(r.left() + first * cell, r.top() + s.s(2.0)),
+            egui::pos2(
+                (r.left() + (first + shown) * cell).min(r.right()),
+                r.bottom() - s.s(2.0),
+            ),
+        );
+        b.rrect(b.snap_rect(page), s.r(2.0), kit::Fill::Solid(room.raised));
+        // Each bar's beats: 2-px columns, as tall as their hits.
+        let foot = r.bottom() - s.s(4.0);
+        let tall = r.height() - s.s(8.0);
+        for (i, d) in v.scratch.density[..bars * 4].iter().enumerate() {
+            if *d == 0 {
+                continue;
+            }
+            let x = r.left() + (i / 4) as f32 * cell + s.s(4.0) + (i % 4) as f32 * s.s(4.0);
+            let h = (tall * *d as f32 / most as f32).max(b.px() * 2.0);
+            let col =
+                egui::Rect::from_min_max(egui::pos2(x, foot - h), egui::pos2(x + s.s(2.0), foot));
+            b.rect(b.snap_rect(col), kit::Fill::Solid(room.ink3));
+        }
+        // Bar lines between the cells.
+        for i in 1..bars {
+            let x = r.left() + i as f32 * cell;
+            b.vline(
+                x,
+                r.top() + s.s(5.0),
+                r.bottom() - s.s(5.0),
+                b.px(),
+                room.edge,
+            );
+        }
+    });
+    if resp.hovered() {
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            &t("rack.map_tip"),
+            "",
+            crate::kit::hint::Caps::NONE,
+        );
+    }
+    if let Some(p) = resp.interact_pointer_pos().filter(|_| resp.clicked()) {
+        let i = (((p.x - r.left()) / cell).floor() as usize).min(bars - 1);
+        let v = &mut app.rack;
+        v.fit = false;
+        v.scroll_steps = (i * per_bar as usize) as f32;
+    }
 }
 
 /// Make `id` the selected track, on the clip it has in the pattern's window, and point the
@@ -1601,4 +1818,41 @@ fn set_step(
         },
         key,
     );
+}
+
+#[cfg(test)]
+mod map_tests {
+    use super::*;
+
+    /// The pattern map counts every channel's hits a beat over the pattern's bars, once per
+    /// edit (r39:el-views): two bars of kicks on every beat and a hat on the second bar's
+    /// off-beats.
+    #[test]
+    fn the_pattern_map_counts_each_beat_s_hits() {
+        let mut p = cantus_core::Project::new("Map");
+        let mut kick = p.make_track("Kick".to_string());
+        let mut clip = p.make_clip("Beat", Ticks::ZERO, Ticks::beats(8));
+        for b in 0..8 {
+            clip.notes
+                .push(p.make_note(Ticks::beats(b), Ticks::SIXTEENTH, 36, 100));
+        }
+        for b in 4..8 {
+            let at = Ticks::beats(b) + Ticks::EIGHTH;
+            clip.notes.push(p.make_note(at, Ticks::SIXTEENTH, 42, 80));
+        }
+        clip.notes.sort_by_key(|n| n.start);
+        kick.clips.push(clip.clone());
+        p.tracks.push(kick);
+        let bus = cantus_core::CommandBus::new(p);
+        let pattern = Pattern::of(&clip, Ticks::SIXTEENTH);
+        let mut sc = Scratch::default();
+        refresh_density(&bus, &pattern, &mut sc);
+        assert_eq!(&sc.density[..4], &[1, 1, 1, 1]);
+        assert_eq!(&sc.density[4..8], &[2, 2, 2, 2]);
+        assert!(sc.density[8..].iter().all(|d| *d == 0));
+        // Counted once: the same revision and pattern leave it as it is.
+        sc.density[0] = 9;
+        refresh_density(&bus, &pattern, &mut sc);
+        assert_eq!(sc.density[0], 9);
+    }
 }

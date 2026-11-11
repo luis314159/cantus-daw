@@ -694,6 +694,24 @@ fn every_project_tool_answers_through_the_server() {
         "set_effect",
         json!({"effect_id": fx, "mix": 0.5}),
     );
+    // r39:conv — Aula back to Cantus's own response (a file is `tools_aula`'s test). It is a
+    // Files tool (it names a file on disk): refused while files are off, then one undo step.
+    let aula = step(
+        &mut app,
+        &mut c,
+        "add_effect",
+        json!({"strip_id": ustrip, "kind": "aula"}),
+    )["effect_id"]
+        .as_u64()
+        .unwrap();
+    let ir = json!({"effect_id": aula, "path": null});
+    let r = call(&mut app, &mut c, "set_impulse_response", ir.clone());
+    assert!(r.is_error, "files are off: {}", r.text);
+    app.settings.ai.allow_files = true;
+    let depth = app.bus.history().len();
+    ok(&mut app, &mut c, "set_impulse_response", ir);
+    assert_eq!(app.bus.history().len(), depth + 1, "one undo step");
+    app.settings.ai.allow_files = false;
     let fx = step(
         &mut app,
         &mut c,
@@ -800,6 +818,8 @@ fn every_project_tool_answers_through_the_server() {
         );
         called.insert(name.to_string());
     }
+    // Called above, outside `step` (a Files tool: refused, then allowed).
+    called.insert("set_impulse_response".to_string());
     let mine: std::collections::BTreeSet<String> = cantus_ai::tools_project::TOOLS
         .iter()
         .chain(cantus_ui::ai_tools::project_app::TOOLS)

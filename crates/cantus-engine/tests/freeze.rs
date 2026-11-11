@@ -870,7 +870,8 @@ impl Rig {
                     self.have.remove(&u.id);
                 }
                 EngineEvent::EffectNeed { effect, need } => {
-                    let memory = cantus_engine::effects::EffectMemory::build(need, SR as f32);
+                    let memory =
+                        cantus_engine::effects::EffectMemory::build(need.need(), SR as f32);
                     self.tx
                         .push(EngineMessage::EffectMemory { effect, memory })
                         .ok();

@@ -225,7 +225,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetEffectMix { strip: s, .. }
         | SetPluginParam { strip: s, .. }
         | SetPluginState { strip: s, .. }
-        | SetEffectMidiSource { strip: s, .. } => vec![strip(*s)],
+        | SetEffectMidiSource { strip: s, .. }
+        | SetEffectIr { strip: s, .. } => vec![strip(*s)], // r39:conv
         // ---- clips -----------------------------------------------------------------------
         InsertClip { track, clip } => match &clip.automation {
             Some(a) => vec![Target(a.target.clone())],
@@ -352,6 +353,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         // Each command of a batch is guarded as it is applied.
         Session(c) => crate::session::touches(c, project), // r33:session
         Mix(c) => crate::mix_cmd::touches(c, project), // r36:mix
+        // Names over bars, rows of the view and what a write pass does: nothing sounds. // r39:arrange
+        Arrange(_) => vec![], // r39:arrange
         Batch { .. } => vec![],
     }
 }

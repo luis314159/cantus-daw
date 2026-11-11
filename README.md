@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/window-night.png" alt="Cantus playing its demo song in Cantus Night: the sample browser, the arrangement, the mixer with its cables and the inspector">
+  <img src="docs/images/window-night.png" alt="Cantus playing its demo song in Slate Night: the sample browser, the arrangement, the mixer with its cables and the inspector">
 </p>
 
 > *"Whatever you do, work at it with all your heart."* — Colossians 3:23
@@ -42,6 +42,23 @@ leaves preview.
 
 ## Highlights
 
+- **A new look, drawn by hand: Slate** (ADRs 0108, 0111). Three whole-window directions were
+  drawn from blank sheets beside FL Studio, and Slate was chosen: a calm grey-blue room, panels
+  set apart by value rather than lines, one azure accent spent only on state, your track
+  colours as a stripe and a tint until a track is selected, Barlow Semi Condensed with
+  figures that never shift. Every icon is drawn for each size it sits at; **316 track icons**
+  in 17 families; a top bar in one row; the mixer and its inspector, the cables (four styles),
+  the piano roll's keyboard, the rack and the browser redrawn; logo #03. Slate Lapis,
+  Graphite and gold and Studio ink sit beside it, each dark and light, with the ten themes of
+  earlier versions redrawn in its system and four new ones — twenty-four, each measured easy
+  to read. Delay has a window of its own. It costs no frames: the whole window draws no more
+  than before, and nothing redraws at rest.
+- **Easier every day** (ADRs 0109, 0110, 0113, 0114). A control moved by automation, a
+  modulator, a controller or a VCA says so and how to take it back; the help line is never
+  empty and no word is cut off; recent instruments and effects one right-click away; every
+  area folds, maximises and is reached from the keyboard. The arrangement gains **sections**,
+  **folders**, a mode per automation lane, a track's own icon, and a tool row — Select, Draw,
+  Slice, Erase, Mute, Zoom — with **Follow**.
 - **Sounds for every style, heard before you choose** (ADRs 0098–0101, 0104). **511 factory
   presets** tagged by style and role, each one levelled and checked by a test, auditioned on
   a phrase or on your own clip before it touches the song — and **heard on the
@@ -50,13 +67,15 @@ leaves preview.
   - **Sectio** slices a loop across Exemplar's keys.
   - **Pulsus** gives every pad its own output and effect chain.
   - **Two sound packs of our own**, public domain (CC0), downloaded when you ask.
-- **Measured against FL Studio and REAPER, wins and losses alike** (ADRs 0102, 0106). On
-  the same quiet laptop, like against like: on an empty song Cantus's window is ready in
-  **0.74 s** against REAPER 7.85's 1.76 s, on a beat starter in **0.76 s** against FL Studio
-  24.1.2's 2.49 s, and it is done working sooner. **At rest it uses less CPU than both**
-  (1.6 % of a core against REAPER's 2.3–3.7 %, 2 % against FL Studio's 6.6 %): a channel
+- **Measured against FL Studio and REAPER, wins and losses alike** (ADRs 0102, 0106, 0107).
+  On the same quiet laptop, like against like (beta.14): on an empty song Cantus's window is
+  ready in **0.76 s** against REAPER 7.85's 1.76 s, on a beat starter in **0.77 s** against FL
+  Studio 24.1.2's 2.49 s, and it is done working sooner. **At rest it uses less CPU than both**
+  (1.1–1.5 % of a core against REAPER's 2.3–3.7 %, 2 % against FL Studio's 6.6 %): a channel
   whose effects hear silence stops running them, to the same bits. It still holds **more
-  memory** than both (237 MB against 62 and 133), and the
+  memory** than both. Round 39's engine makes its parts as the song needs them: beta.14 holds
+  **140 MB** on an empty song and **143 MB** on the beat starter (237 and 239 in beta.13),
+  against REAPER's 62 and FL Studio's 133: still behind both. The
   [scorecard](docs/scorecard/README.md) says so, with the method to repeat every number.
 - **The recording mode** (ADR 0092). *Prepare to record* bakes every strip that feeds the
   master and leaves only what you record live, so a heavy song plays at a low buffer: on the
@@ -71,7 +90,7 @@ leaves preview.
 
 - **A look drawn by hand, FL Studio first** (ADR 0024). Every knob, fader, meter, slot and
   window frame is painted by Cantus's own vector kit, crisp at any zoom from 75 % to 200 %
-  and on 4K. Twelve themes, **Cantus Night** by default; the taskbar icon is the Cantus
+  and on 4K. Twenty-four themes, **Slate Night** by default (ADR 0111); the taskbar icon is the Cantus
   mark, in the colour you choose.
 - **An FL-style mixer with cables.** Drag from a strip's port to another strip (a send, the
   only output with Ctrl, a sidechain key with Alt), pre- or post-fader sends, a routing
@@ -79,9 +98,10 @@ leaves preview.
 - **Linked clips and a clip browser.** A copied pattern stays the same clip until you make
   it unique; the clip browser (Alt+F5) shows every clip as a tile to drag in or paint with
   (B), as in FL's playlist.
-- **Twenty-five effects and ten instruments of its own**, researched against the best on
-  the market and measured — [each one shown below](#instruments), with what it does — plus
-  free sound packs, among them the **Salamander Grand Piano**, streamed from disk.
+- **Twenty-six effects and ten instruments of its own** — now with **Aula**, a convolution
+  reverb at zero latency (ADR 0112) — researched against the best on the market and
+  measured — [each one shown below](#instruments), with what it does — plus free sound
+  packs, among them the **Salamander Grand Piano**, streamed from disk.
 - **Each unit wears its own face** (ADR 0074): its colour, material, controls and the
   display that tells its story, drawn in vectors in light and dark themes. The CLAP and
   VST3 versions wear the same face in any DAW; *Units wear their own faces* switches back
@@ -98,10 +118,6 @@ leaves preview.
   first; **stem separation** and **audio to MIDI** by models downloaded from their makers
   when you ask; a **mastering assistant** that proposes a chain of our own effects per
   platform.
-- **A character that dances to your song** (ADRs 0087–0091, 0105). Eight characters of our own —
-  or your own Lottie, sprite sheet or DragonBones file — dance over the workspace to the
-  beat, driven by automation, modulators and notes; a companion window for streams; the
-  clip exported as an MP4, a WebM or a transparent MOV with the song's audio.
 - **Works with the market's DAWs.** Hosts **CLAP and VST3** plug-ins; ships its own effects as
   **CLAP/VST3** for any other DAW, bit-identical to the native ones; **MIDI files**, **stems**
   and **DAWproject** in and out.
@@ -390,8 +406,8 @@ simple synth every new track starts with, makes ten.
 
 ### Effects
 
-Twenty-three effects with a face of their own, each also a CLAP and VST3 plug-in for other DAWs,
-and Delay, edited in the inspector.
+Twenty-five effects, each in a window with a face of its own; all but Delay are also CLAP and
+VST3 plug-ins for other DAWs.
 Seven of them can be heard with and without, on the same excerpt of a demo song, at
 [cantusdaw.com](https://cantusdaw.com/#effects).
 
@@ -430,7 +446,10 @@ Seven of them can be heard with and without, on the same excerpt of a demo song,
 <td align="center" valign="top" width="25%"><a href="docs/images/units/anulus-dark.png"><img src="docs/images/units/thumbs/anulus.jpg" alt="Anulus, its window"></a><br><b>Anulus</b><br><sub>Ring modulator</sub></td>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/translatio-dark.png"><img src="docs/images/units/thumbs/translatio.jpg" alt="Translatio, its window"></a><br><b>Translatio</b><br><sub>Frequency shifter</sub></td>
 <td align="center" valign="top" width="25%"><a href="docs/images/units/fluctus-dark.png"><img src="docs/images/units/thumbs/fluctus.jpg" alt="Fluctus, its window"></a><br><b>Fluctus</b><br><sub>Volume shaper</sub></td>
-<td align="center" valign="top" width="25%"><a href="docs/images/units/delay-dark.png"><img src="docs/images/units/thumbs/delay.jpg" alt="Delay, in the inspector"></a><br><b>Delay</b><br><sub>Stereo delay</sub></td>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/delay-dark.png"><img src="docs/images/units/thumbs/delay.jpg" alt="Delay, its window"></a><br><b>Delay</b><br><sub>Stereo delay</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top" width="25%"><a href="docs/images/units/aula-dark.png"><img src="docs/images/units/thumbs/aula.jpg" alt="Aula, its window"></a><br><b>Aula</b><br><sub>Convolution reverb</sub></td>
 </tr>
 </table>
 
@@ -618,6 +637,23 @@ Spatium is a 16-line feedback delay network whose decay time is a curve you draw
 - Ducking with threshold, range, attack and release, keyed from any strip
 
 <sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-spatium) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/spatium-light.png)</sub>
+
+</details>
+<details>
+<summary><b>Aula</b> — Convolution reverb. A real room's reverb from its impulse response, at zero latency, with the response drawn as you shape it.</summary>
+
+<a href="docs/images/units/aula-dark.png"><img src="docs/images/units/aula-dark.png" alt="Aula — Convolution reverb, its window in Cantus"></a>
+
+Aula convolves the sound with an impulse response: a recording of how a room answers a click. It plays fifteen rooms, chambers, halls, plates and springs made by Cantus itself, your own WAV, AIFF or FLAC files — mono, stereo or true stereo — and a free pack of eight real spaces from the OpenAIR library. Stretch, length, decay, a gate, damping and cuts reshape the response itself, and the editor draws it as it will sound.
+
+- Zero latency: the first 64 taps in direct form, then partitions growing eightfold, each one's work spread evenly over the blocks before it is needed
+- Within 0.000031 % of a direct convolution (−130 dB of the peak), the same bits at any block size
+- Mono, stereo and true-stereo (four-channel) responses at 16, 24 or 32-bit float, any rate, up to 20 s
+- Fifteen responses made by Cantus, and a free CC BY pack of eight real spaces, credited
+- Stretch, length, attack, decay, a gate on the noise floor, low and high cuts, damping, reverse
+- A new response swaps in whole without a click, the tail of what played kept
+
+<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-aula) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/aula-light.png)</sub>
 
 </details>
 <details>
@@ -819,16 +855,16 @@ Fluctus makes the level follow a drawn curve that repeats with the song: the sid
 
 </details>
 <details>
-<summary><b>Delay</b> — Stereo delay. A stereo echo with ping-pong and repeats that darken, edited right in the inspector.</summary>
+<summary><b>Delay</b> — Stereo delay. A stereo echo whose window draws every repeat in time: drag them to set the time and the feedback.</summary>
 
-<a href="docs/images/units/delay-dark.png"><img src="docs/images/units/delay-dark.png" alt="Delay — Stereo delay, in the inspector of Cantus"></a>
+<a href="docs/images/units/delay-dark.png"><img src="docs/images/units/delay-dark.png" alt="Delay — Stereo delay, its window in Cantus"></a>
 
-Delay is Cantus's plain stereo echo: a time of up to two seconds, feedback, a tone filter inside the feedback path so each repeat is darker than the one before, and ping-pong between the sides. It has no window of its own: it opens under its insert in the inspector, where every parameter is automated and modulated like any other. A change of time glides through a fractional read head, so a sweep bends the pitch as tape does instead of clicking.
+Delay is Cantus's plain stereo echo: a time of up to two seconds, feedback, a tone filter inside the feedback path so each repeat is darker than the one before, and ping-pong between the sides. Its window draws the echoes in time — each repeat at its time, on its side when ping-pong is on, falling by the feedback and cooling in colour as the tone takes its highs — and the drawing is the control: drag across for the time, up and down for the feedback. Beside it, what is heard: the repeats to −60 dB, the tail and what the tone takes from each repeat. A change of time glides through a fractional read head, so a sweep bends the pitch as tape does instead of clicking.
 
-- Time from 1 ms to 2 s; a sweep glides and bends the pitch like tape, never clicks
+- Time from 1 ms to 2 s, or set from a note value at the song's tempo; a sweep bends the pitch like tape
 - Feedback up to 95 %, with a tone filter from 200 Hz to 20 kHz in the loop
 - Ping-pong between left and right, or straight stereo repeats
-- Dry/wet on the insert; every parameter automated and modulated from the inspector
+- The echoes drawn in time and dragged: across for the time, up and down for the feedback
 - Slapback, dotted eighth, dub spiral, tape echo, doubler and more, by style and role
 - Its two-second line is allocated once: nothing allocated or locked while it plays
 
@@ -844,14 +880,18 @@ and [docs/instruments/](docs/instruments/).
 
 ### The workspace
 
-Panels dock, split, float and remember their size. F5 / F6 / F7 / F9 bring up the
+Panels dock, split, float, fold to their tab and remember their size; a double-click on a
+tab maximises its area, and Ctrl+F6 moves between areas. F5 / F6 / F7 / F9 bring up the
 arrangement, channel rack, piano roll and mixer, Alt+F8 the sample browser, I the
-inspector; the hint bar names whatever is under the pointer. English and Spanish, and
+inspector. The top bar is one row — the transport, a large clock, the tempo, the meters and
+the windows — and what a narrow window cannot hold waits in **More**, each shortcut under
+its key. The help line names whatever is under the pointer, and what drives it. The
+interface's size follows the screen until you choose one. English and Spanish, and
 names in any script.
 
-| Cantus Night (dark, the default) | Cantus Paper (light) |
+| Slate Night (dark, the default) | Slate Paper (light) |
 |---|---|
-| ![Workspace, Cantus Night](docs/images/window-night-720.png) | ![Workspace, Cantus Paper](docs/images/window-paper-720.png) |
+| ![Workspace, Slate Night](docs/images/window-night-720.png) | ![Workspace, Slate Paper](docs/images/window-paper-720.png) |
 
 ### Mixer, cables and routing
 
@@ -860,12 +900,17 @@ names in any script.
   <img src="docs/images/inspector.png" width="20%" alt="The channel inspector">
 </p>
 
-The desk follows FL's strip: a colour number, the name, meter, mute and solo, pan, fader,
-phase and swap, the effect chain, the output and the sends — rows that line up across the
-desk, named once in a legend column. Under it, **cables**: drag from a strip's port to
-another, or click one and then the other; each send taps before or after the fader. The
-inspector shows the selected channel as a signal-flow sheet: inserts, the channel EQ you
-drag, sends, receives and routing, with the channel's own fader at the bottom.
+Each strip reads top to bottom in signal order — its head with the track's icon, the
+inserts, its own EQ curve, polarity and swap, pan, M | S and the arm, the fader with its
+meter, the sends as small knobs, the output — in three widths (Compact, Wide, Large), with
+no label column and no "−∞" at rest; the desk's controls share the workspace's tab row.
+**Cables**: drag from a strip's jack to another, or click one and then the other; each
+send taps before or after the fader; four styles — Patch, **Flow** (a light runs along a
+cable while sound goes through it), Subway and Jack — and a pointed cable lights its whole
+route to the master. The inspector shows the selected channel as a signal-flow sheet:
+source, inserts with a mini view, the EQ with its band table, sends and receives, then
+routing, sidechain, recording, automation (*Show in the arrangement*), **Level** and
+**Freeze**, each folded to one line until opened.
 
 <p>
   <img src="docs/images/matrix.png" width="49%" alt="The routing matrix">
@@ -888,8 +933,15 @@ track with the **paint tool** (B).
 |---|---|
 | ![Piano roll](docs/images/pianoroll.png) | ![Channel rack](docs/images/rack.png) |
 
-The piano roll has FL's seven tools and a velocity lane, and holds 20 000 notes on screen
-within its frame budget; in the channel rack a step *is* a note.
+The arrangement holds **sections** (named spans of bars above the tracks), **folders** of
+tracks, a mode per automation lane and a track's own icon (316, searchable in English and
+Spanish), and a tool row — Select, Draw, Slice, Erase, Mute, Zoom — with **Follow** and a
+grid menu in musical order with triplets; each clip draws its notes, hits or waveform at
+four zooms. The piano roll has FL's seven tools, a keyboard drawn as a piano (ivory and
+ebony at a real piano's widths, every C named), the other clips' notes as ghosts and a
+velocity lane, and holds 20 000 notes on screen within its frame budget; in the channel
+rack a step *is* a note, filled to its velocity, a kit's pads fold under its row, and a
+melodic channel shows its pattern as a small roll.
 
 ### The score
 
@@ -903,7 +955,7 @@ that show the beat, beams by the metre, a grand staff whose split follows the ha
 accidentals and courtesy accidentals in the song's key, tempo and metre changes, dynamics
 from velocity, 8va lines, in the SMuFL font Bravura.
 
-| The Score pane (Cantus Paper) | A printed page (A4) |
+| The Score pane (Slate Paper) | A printed page (A4) |
 |---|---|
 | ![The Score pane](docs/images/score-pane.png) | ![A printed page](docs/images/score-page.png) |
 
@@ -925,9 +977,9 @@ a new scene; *Arr. record* writes the launches into the arrangement as you play 
 to arr.* hands every track back to it. Enter, the arrows and the clipboard work on the grid;
 a pad, a key or a note learnt on a slot or a scene launches it.
 
-| Cantus Paper | A Launchpad's ring |
+| Slate Paper | A Launchpad's ring |
 |---|---|
-| ![The session view in Cantus Paper](docs/images/session-paper.png) | ![The orange ring a Launchpad shows](docs/images/session-ring.png) |
+| ![The session view in Slate Paper](docs/images/session-paper.png) | ![The orange ring a Launchpad shows](docs/images/session-ring.png) |
 
 A **Launchpad** (Mini MK3, X, Pro MK3) or an **APC** (mini mk2, APC40 mkII) is found when
 it is plugged in: the pads launch and light in the clips' colours — green while playing,
@@ -999,68 +1051,26 @@ drum model.
 Models are never in the installer: each is downloaded from its maker the first time, after
 you see its licence, size and origin, checked by SHA-256 and removable in Settings ▸ Models.
 
-### A dancer for your songs — characters, video, the stage
-
-![Fuga, Volta, Trino, Miso, Lana, Tic, Corchea and Sol dancing together on one stage, each its own routine](docs/round37/chars/family-hero.gif)
-
-Add a **Saltator** track and a character dances over your workspace **to the beat** — no
-automation needed. Its moves, travel, speed, energy, lift, spin, size, mood and colour are
-ordinary automation and modulator targets, MIDI learn reaches them, and notes from C3
-choose its sixteen moves like a drum map, so an automation clip changes the dance exactly
-on the bars where you drew it. *React to* makes it move with a channel's level or the whole
-song's. The dancer makes no sound: the tests hold every sample of a song with dancers
-equal, bit for bit, to the same song without them.
-
-![Trino dancing over the workspace while Neon Tide plays: the arrangement, the mixer with the dancer's strip, the inspector's Dance rows and its follower listening to the kick](docs/images/dance-stage.png)
-
-<p>
-  <img src="docs/images/dancer-window.png" width="56%" alt="Saltator's window: the stage with Fuga dancing under a spotlight, the eight characters as dancing tiles, sixteen move pads from C3, and Dance, Body, Look and Ears">
-  <img src="docs/images/dance-companion.png" width="40%" alt="The companion window's own pixels, with true transparency, over a desktop picture: Fuga dancing, the song's name and tempo, the bar and beat, the master's spectrum">
-</p>
-
-Eight characters of our own come with Cantus — led by **Fuga** the ninja (masked, a torn
-crimson scarf in the wind: flips, high kicks, a crouched landing) and **Volta** the mecha
-(a V visor of light, a core that pulses on the beat, jets for its rocket jump), then
-**Trino** the songbird, **Miso** the cat, **Lana** the lamb, **Tic** the metronome robot,
-**Corchea** the eighth note and **Sol** — each with every move and mood, in its own style,
-crisp at any size. Bring your own as **Lottie**
-(`.json`, `.lottie`), **Aseprite** or **TexturePacker** sprite sheets or **DragonBones**
-skeletons: Cantus reads them with its own players, runs no script in them, bounds every
-size, shows their licence first and copies them into the project.
-
-**The companion** (Alt+Shift+D; Alt+D shows or hides the dancers) keeps dancing in a small window above everything while you work —
-on Windows with true transparency, soft shadows and all; **streaming mode** (Ctrl+Shift+D)
-gives OBS or Streamlabs a window titled *Cantus Stage* with a transparent or chroma
-background, a fixed size and place, and a light visualiser of the song. Measured for an
-hour under OBS: about 3.4 % of one processor core.
-
-<p>
-  <img src="docs/images/video-export.png" width="56%" alt="Export video: the preview of the scrubbed moment, vertical 1080 × 1920, the stage background, a title, the encoders it will use and an estimate">
-  <img src="docs/images/dance-import.png" width="40%" alt="Importing a Lottie character: its licence, what it holds, and its animations mapped to Cantus's moves">
-</p>
-
-**File ▸ Export video…** turns the song into a clip with the dancers and the song's audio:
-**MP4** (H.264 and AAC from your system's encoders), **WebM**, or a **transparent MOV** or
-PNG frames for an editor — square, vertical or wide, 30 or 60 frames a second, on the stage,
-transparent, on a chroma key or black, with a title. Audio and picture are in sync to the
-sample: decoded back, 0.000 ms on every path.
-
 ### Sounds
 
 <p>
   <img src="docs/images/packs.png" width="60%" alt="Sound packs: the Salamander Grand Piano, installed, with its credit">
 </p>
 
-Free sound packs download on demand from *Sound packs…* — kits, percussion, a TX81Z and the
-**Salamander Grand Piano** (a Yamaha C5 in 16 velocity layers), which plays in Exemplar,
-streamed from disk through a sample cache. Packs are CC0, or CC BY with the credit shown on
-the pack's page and in *Help ▸ Credits*; the music you make with them is yours.
+Free sound packs download on demand from *Sound packs…* — each a cover drawn from what it
+holds, with *Get*, its progress or *Installed* — kits, percussion, a TX81Z, the OpenAIR
+impulse responses for Aula and the **Salamander Grand Piano** (a Yamaha C5 in 16 velocity
+layers), which plays in Exemplar, streamed from disk through a sample cache. Packs are CC0,
+or CC BY with the credit shown on the pack's page and in *Help ▸ Credits*; the music you
+make with them is yours. In the browser a search groups its sounds by pack or folder, a
+star keeps a sound among the **Favourites**, and the chosen sound's card plays, loops and
+sets its level as it plays.
 
 ### Make it yours
 
 <p>
   <img src="docs/images/appearance.png" width="40%" alt="The Appearance page">
-  <img src="docs/images/themes.png" width="58%" alt="The twelve themes">
+  <img src="docs/images/themes.png" width="58%" alt="The twenty-four themes">
 </p>
 
 Dark, light or follow the system; hue, saturation, brightness, contrast, depth, roundness,
@@ -1103,8 +1113,9 @@ cables drawn under the desk, the routing matrix, solo with connected routes, a t
 channel EQ, a dry/wet per insert slot, ten slots per strip, multi-selection with ganged
 faders, submixes, docks, groups with colours, a pan law per project, width and polarity.
 
-**Effects** (ADRs 0017–0018, 0026). The twenty-three above plus Delay and Reverb, each with presets, A/B, a display
-that is the control, and design notes in `docs/plugins/`; the twenty-three each in its own face (ADR 0074).
+**Effects** (ADRs 0017–0018, 0026). The twenty-five above, each in a window with presets, A/B, a display
+that is the control and a face of its own (ADRs 0074, 0115), plus the older Reverb, edited in the inspector;
+design notes in `docs/plugins/`.
 
 **Recording mode** (ADR 0092). *Prepare to record*: every strip that feeds the master (a bus
 with what it sums, a return with its sends) rendered after its inserts, sends and effect
@@ -1167,7 +1178,7 @@ and autosave (ADR 0006).
 
 **Interface** (ADRs 0007, 0009, 0010, 0024, 0046). English and Spanish, names in any script;
 every shortcut rebindable in `keymap.toml`, with presets modelled on FL Studio, Ableton Live
-and Bitwig; named layouts; twelve themes and the appearance settings above; one text field
+and Bitwig; named layouts; twenty-four themes and the appearance settings above; one text field
 everywhere (Enter or a click elsewhere keeps what you typed, Esc puts it back).
 
 </details>
@@ -1242,9 +1253,12 @@ application is GPL-3.0-or-later, and the program as distributed is one combined 
 it. See [ADR 0001](docs/adr/0001-license.md) and [ADR 0047](docs/adr/0047-licensing-revised.md);
 contributing: [CONTRIBUTING.md](CONTRIBUTING.md) and the [CLA](CLA.md); the name and
 logos: [TRADEMARKS.md](TRADEMARKS.md). The bundled fonts
-(IBM Plex Sans, Sans Condensed and Mono, in `crates/cantus-ui/assets/fonts/`) are licensed
-under the [SIL Open Font License 1.1](crates/cantus-ui/assets/fonts/LICENSE-OFL.txt) and
-shipped unmodified — "IBM Plex" is a Reserved Font Name.
+(in `crates/cantus-ui/assets/fonts/`) are licensed under the SIL Open Font License 1.1:
+IBM Plex Sans, Sans Condensed and Mono ([licence](crates/cantus-ui/assets/fonts/LICENSE-OFL.txt)),
+shipped unmodified — "IBM Plex" is a Reserved Font Name; Barlow Semi Condensed
+([licence](crates/cantus-ui/assets/fonts/LICENSE-OFL-Barlow.txt)) and Sofia Sans
+([licence](crates/cantus-ui/assets/fonts/LICENSE-OFL-Sofia-Sans.txt)), with tabular figures
+by default and without hinting (`tools/fonts/build_faces.py`).
 
 ## Support
 

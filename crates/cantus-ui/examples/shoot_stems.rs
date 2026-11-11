@@ -13,6 +13,9 @@ use cantus_ui::stems_ui::{self, run, Card, Separated, Stem, Target};
 use cantus_ui::CantusApp;
 use std::path::{Path, PathBuf};
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 fn wav(path: &Path, seconds: f32, f: f32) {
     let spec = hound::WavSpec {
         channels: 2,
@@ -118,7 +121,7 @@ fn main() {
     std::env::set_var("CANTUS_DATA_DIR", &tmp);
     let themes = [
         ("night", cantus_ui::theme::default_theme()),
-        ("paper", cantus_ui::theme::paper()),
+        ("paper", cantus_ui::theme::slate_paper()),
     ];
     for (tn, theme) in &themes {
         let context = || {
@@ -133,6 +136,8 @@ fn main() {
         let new_app = || {
             let mut app = CantusApp::from_parts(Some(p.clone()), EngineHandle::dummy(), false);
             app.settings_path = tmp.join("settings.json");
+            // A working studio: the demo interface (not "No audio").
+            studio::studio(&mut app, 256);
             app
         };
         // The panel before the first download, and while it separates.
@@ -155,7 +160,7 @@ fn main() {
             let mut frame = 0;
             shoot(
                 &ctx,
-                egui::vec2(900.0, 700.0),
+                egui::vec2(900.0, 1000.0),
                 scale,
                 6,
                 Some(&path),
@@ -170,6 +175,13 @@ fn main() {
                             }
                         });
                 },
+            );
+            // The crop the site and the README cut (`tools/shots/place.py`): the dialog.
+            studio::sidecar(
+                &path,
+                egui::vec2(900.0, 1000.0),
+                scale,
+                &[("dialog", studio::area(&ctx, "cantus-stems-dialog"))],
             );
             println!("wrote {}", path.display());
         }

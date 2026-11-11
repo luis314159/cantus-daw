@@ -5,7 +5,7 @@
 # uses when the full label does not fit its box. Generic ones live here; a device's own
 # go in that device's locale file.
 
-theme.slate = Slate (dark)
+theme.slate = Pewter (dark)
 
 # --- the colour editor: kit tokens ---
 kit.group.surface = Surfaces
@@ -303,10 +303,31 @@ kit.mixer.mono = Mono
 kit.mixer.phase = Phase
 kit.mixer.width.compact = Compact
 kit.mixer.width.wide = Wide
-kit.mixer.width.xl = Extra large
-kit.mixer.width.xl.short = XL
+kit.mixer.width.xl = Large
+kit.mixer.width.xl.short = Large
 kit.mixer.add = Add a track
 
 # round 37, finish: a switch's state, in its tip
 kit.state.on = on
 kit.state.off = off
+# r39:el-controls — the control families' tokens (des-controls)
+kit.token.text.disabled = Words of a control that cannot be used
+kit.token.accent.automated = Automated value
+kit.token.accent.modulated = Modulated value
+kit.token.accent.destructive = Destructive button
+kit.token.accent.primary_ink = Words on the primary button
+kit.token.meters.mid = Meter middle
+kit.token.mixer.fader_cap_top = Fader cap, top
+kit.token.mixer.fader_cap_middle = Fader cap, middle
+kit.token.mixer.fader_cap_foot = Fader cap, foot
+kit.token.knob.cap_lit = Knob cap, lit side
+kit.token.knob.cap_middle = Knob cap, middle
+kit.token.knob.cap_shade = Knob cap, shaded side
+kit.token.depth.scrim = Veil behind a dialog
+kit.dialog.close = Close
+kit.dialog.esc_cancels = cancels
+# r39:lapis2 — Slate Lapis's readouts, selection tint and loop edges
+kit.token.text.readout = Readouts (position, time, tempo, bar numbers)
+kit.token.text.readout_secondary = Readouts, second ink
+kit.token.accent.selection_tint = Tint over selected fills
+kit.token.editor.loop_edge = Loop region's edges

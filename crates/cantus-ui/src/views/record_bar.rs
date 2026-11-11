@@ -262,13 +262,15 @@ fn ask(app: &mut CantusApp, ctx: &egui::Context) {
     let est = rm::estimate(app, &plan, opts);
     let mut go = false;
     let mut cancel = false;
-    egui::Window::new(t("record.ask.title"))
+    crate::kit::dialog::window(t("record.ask.title")) // r39:el-controls
         .id(Id::new("cantus-record-ask"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
         .show(ctx, |ui| {
-            form::band(ui, "record.ask.title");
+            if crate::kit::dialog::title(ui, &t("record.ask.title")) {
+                cancel = true; // r39:el-controls
+            }
             para(ui, &t("record.ask.what"));
             para(
                 ui,
@@ -358,13 +360,15 @@ fn leave(app: &mut CantusApp, ctx: &egui::Context) {
         return;
     }
     let mut answer: Option<Option<bool>> = None;
-    egui::Window::new(t("record.leave.title"))
+    crate::kit::dialog::window(t("record.leave.title")) // r39:el-controls
         .id(Id::new("cantus-record-leave"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
         .show(ctx, |ui| {
-            form::band(ui, "record.leave.title");
+            if crate::kit::dialog::title(ui, &t("record.leave.title")) {
+                answer = Some(None); // r39:el-controls
+            }
             para(ui, &t("record.leave.text"));
             form::buttons(ui, |ui| {
                 if form::button(ui, &t("record.leave.keep"), true, true) {
@@ -413,13 +417,15 @@ fn offer(app: &mut CantusApp, ctx: &egui::Context) {
         .map(|t| crate::freeze::name_of(app.project(), t))
         .collect();
     let mut answer = None;
-    egui::Window::new(t("record.offer.title"))
+    crate::kit::dialog::window(t("record.offer.title")) // r39:el-controls
         .id(Id::new("cantus-record-offer"))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
         .show(ctx, |ui| {
-            form::band(ui, "record.offer.title");
+            if crate::kit::dialog::title(ui, &t("record.offer.title")) {
+                answer = Some(false); // r39:el-controls
+            }
             para(
                 ui,
                 &tf(

@@ -14,7 +14,7 @@ use egui::{pos2, vec2, Align2, Rect, Sense, Ui};
 use std::path::Path;
 
 /// The card's height at 100 %.
-pub const HEIGHT: f32 = 84.0; // r37:finish twelfth (was 124: judge, the card dominated)
+pub const HEIGHT: f32 = 118.0; // r39:lo-rest: name, place, a 38-high well, the keys (r37: 84)
 /// The least body height that keeps a card (below it the list has the room).
 pub const MIN_BODY: f32 = 330.0;
 
@@ -33,6 +33,23 @@ pub fn tags(name: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// What a sound is in numbers where its name and length are already shown (the preview
+/// strip under the card, r39:lo-rest): "48 kHz · Stereo".
+pub fn short_format(th: &Thumb) -> String {
+    let khz = th.rate as f32 / 1000.0;
+    let rate = if (khz - khz.round()).abs() < 0.05 {
+        format!("{khz:.0} kHz")
+    } else {
+        format!("{khz:.1} kHz")
+    };
+    let ch = match th.channels {
+        1 => t("samples.detail.mono"),
+        2 => t("samples.detail.stereo"),
+        n => format!("{n} ch"),
+    };
+    format!("{rate} \u{b7} {ch}")
 }
 
 /// The format line: "WAV · 48 kHz · Stereo · 2.6 s".
@@ -55,26 +72,87 @@ pub fn format_line(path: &Path, th: &Thumb) -> String {
     format!("{ext} \u{b7} {rate} \u{b7} {ch} \u{b7} {:.1} s", th.seconds)
 }
 
+/// Where a sound is: its pack or folder, then the folders down to it ("Cantus Starter
+/// Drums › Kicks").
+pub fn place(app: &mut CantusApp, path: &Path) -> String {
+    let user = app.settings.sample_folders.clone();
+    let roots = app.samples.roots(&user);
+    let Some(r) = roots.iter().find(|r| path.starts_with(&r.path)) else {
+        return path
+            .parent()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+    };
+    let mut out = r.label.clone();
+    if let Some(rel) = path.parent().and_then(|d| d.strip_prefix(&r.path).ok()) {
+        for part in rel.iter() {
+            out.push_str(" \u{203a} ");
+            out.push_str(&part.to_string_lossy());
+        }
+    }
+    out
+}
+
+/// A waveform's columns scaled so its loudest reaches the top (at most 16 times up).
+pub fn fitted(peaks: &[f32; samples_thumbs::COLUMNS]) -> [f32; samples_thumbs::COLUMNS] {
+    let top = peaks.iter().copied().fold(0.0f32, f32::max);
+    let gain = if top > 1e-6 {
+        (1.0 / top).min(16.0)
+    } else {
+        1.0
+    };
+    peaks.map(|p| (p * gain).min(1.0))
+}
+
+/// The preview's parts in `rect` (des-views, *Preview*): the name and the star on the
+/// first line, the place under it, the waveform's well, 38 high, then the keys' line.
+pub fn card_rects(rect: Rect, k: f32) -> (Rect, Rect, Rect, Rect, Rect) {
+    let inner = rect.shrink2(vec2(10.0 * k, 6.0 * k));
+    let title = Rect::from_min_size(inner.min, vec2(inner.width(), 18.0 * k));
+    let star = Rect::from_center_size(
+        pos2(inner.right() - 8.0 * k, title.center().y),
+        vec2(18.0, 18.0) * k,
+    );
+    let place = Rect::from_min_size(
+        pos2(inner.left(), title.bottom()),
+        vec2(inner.width(), 14.0 * k),
+    );
+    let well = Rect::from_min_size(
+        pos2(inner.left(), place.bottom() + 6.0 * k),
+        vec2(inner.width(), WELL * k),
+    );
+    let keys = Rect::from_min_max(pos2(inner.left(), well.bottom() + 6.0 * k), inner.max);
+    (title, star, place, well, keys)
+}
+
+/// The waveform's well, at 100 %.
+pub const WELL: f32 = 38.0;
+
 /// Draw the card for `path` in `rect`; returns the waveform's rect (a click plays).
 pub fn card(app: &mut CantusApp, ui: &mut Ui, s: &Style, rect: Rect, path: &Path) -> Rect {
     let k = s.k;
+    let room = super::room::Room::of(&s.t);
     let th = samples_thumbs::thumb(path);
     let stem = path
         .file_stem()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     let name = super::samples_browser::shown_name(&stem).to_string();
-    // r37:finish twelfth — compact: the name and its chips on one line, the format under
-    // it, then the waveform (the card is the sound's, not the panel's centrepiece).
-    let inner = rect.shrink2(vec2(10.0 * k, 6.0 * k));
-    let title = Rect::from_min_size(inner.min, vec2(inner.width(), 18.0 * k));
-    let fmt = Rect::from_min_size(
-        pos2(inner.left(), title.bottom()),
-        vec2(inner.width(), 14.0 * k),
-    );
-    let wave = Rect::from_min_max(pos2(inner.left(), fmt.bottom() + 4.0 * k), inner.max);
+    let where_ = place(app, path);
+    let (title, star, place_r, wave, _) = card_rects(rect, k);
     let resp = ui.interact(wave, egui::Id::new("samples-detail-wave"), Sense::click());
+    let star_resp = ui.interact(star, egui::Id::new("samples-detail-star"), Sense::click());
+    let starred = app.is_sample_favourite(path);
     let playing = app.samples.preview.is_playing(path);
+    // How much of it has been heard, while it plays.
+    let heard = app
+        .samples
+        .preview
+        .playing
+        .as_ref()
+        .filter(|(p, at, len)| p == path && at.elapsed() < *len)
+        .map(|(_, at, len)| (at.elapsed().as_secs_f32() / len.as_secs_f32().max(1e-3)).min(1.0));
     with_brush(ui.painter(), |b| {
         b.register(
             rect,
@@ -84,66 +162,96 @@ pub fn card(app: &mut CantusApp, ui: &mut Ui, s: &Style, rect: Rect, path: &Path
         );
         let m = crate::kit::light::Material::of(&s.t);
         crate::kit::light::recess(b, rect, s.r(4.0), shade(s.t.panel, -0.02), &m, 1.0, k);
-        // The chips first, right-aligned on the title line: the name takes what is left.
-        let mut x = inner.right();
+        // The star: outlined in ink 3, filled in `solo` once starred.
+        let (g, ink) = if starred {
+            (crate::kit::glyph_browser::Glyph::StarFilled, room.solo)
+        } else if star_resp.hovered() {
+            (crate::kit::glyph_browser::Glyph::Star, room.ink1)
+        } else {
+            (crate::kit::glyph_browser::Glyph::Star, room.ink3)
+        };
+        crate::kit::glyph_browser::paint(b, star.shrink(1.0 * k), g, ink);
+        paint::line(
+            b,
+            Rect::from_min_max(title.min, pos2(star.left() - 6.0 * k, title.bottom())),
+            s,
+            Src::Str(&name),
+            Role::Title,
+            room.ink1,
+            Align2::LEFT_CENTER,
+        );
+        // The place, and the sound's tags as chips at the line's right where they fit.
+        let mut x = place_r.right();
         for tag in tags(&stem).iter().rev() {
-            let w =
-                text::measure(b.ctx(), &Text::new(tag, Role::Label, s.t.text), s.tk()).x + 12.0 * k;
-            if x - w < inner.left() + 90.0 * k {
+            let tx = Text::new(tag, Role::Label, room.ink2).caps(false);
+            let w = text::measure(b.ctx(), &tx, s.tk() * 10.0 / 11.0).x + 10.0 * k;
+            if x - w < place_r.left() + 120.0 * k {
                 break;
             }
             let chip = Rect::from_min_max(
-                pos2(x - w, title.center().y - 8.0 * k),
-                pos2(x, title.center().y + 8.0 * k),
+                pos2(x - w, place_r.center().y - 7.0 * k),
+                pos2(x, place_r.center().y + 7.0 * k),
             );
             b.rrect(
                 chip,
                 chip.height() * 0.5,
-                Fill::Solid(with_alpha(
-                    s.t.selection,
-                    if s.t.dark { 0.22 } else { 0.14 },
-                )),
+                Fill::Solid(with_alpha(room.accent, 0.10)),
             );
             b.rrect_stroke(
                 chip,
                 chip.height() * 0.5,
                 b.px(),
-                with_alpha(s.t.selection, 0.55),
+                with_alpha(room.accent, 0.35),
             );
             let _ = text::paint(
                 b,
                 chip,
-                &Text::new(tag, Role::Label, s.t.text).align(Align2::CENTER_CENTER),
-                s.tk(),
+                &tx.align(Align2::CENTER_CENTER),
+                s.tk() * 10.0 / 11.0,
             );
-            x -= w + 5.0 * k;
+            x -= w + 4.0 * k;
         }
         paint::line(
             b,
-            Rect::from_min_max(title.min, pos2(x - 6.0 * k, title.bottom())),
+            Rect::from_min_max(place_r.min, pos2(x - 6.0 * k, place_r.bottom())),
             s,
-            Src::Str(&name),
-            Role::Body,
-            s.t.text,
+            Src::Str(&where_),
+            Role::Label,
+            room.ink3,
             Align2::LEFT_CENTER,
         );
+        // The well: `well` with its 1-px edge; the heard part in the accent, the rest
+        // well → ink 2 at 80 %, a 1-px ink 1 line where it plays.
+        let w = b.snap_rect(wave);
+        b.rrect(w, s.r(3.0), Fill::Solid(room.edge));
+        let fill = if resp.hovered() {
+            room.well_hi
+        } else {
+            room.well
+        };
+        b.rrect(w.shrink(b.px()), s.r(3.0), Fill::Solid(fill));
         if let Some(th) = th.as_ref() {
-            paint::line(
-                b,
-                fmt,
-                s,
-                Src::Str(&format_line(path, th)),
-                Role::Label,
-                s.t.text_dim,
-                Align2::LEFT_CENTER,
-            );
-            b.rrect(wave, s.r(3.0), Fill::Solid(with_alpha(s.t.text, 0.04)));
-            let ink = if playing || resp.hovered() {
-                s.t.highlight
-            } else {
-                s.t.selection
-            };
-            paint::wave(b, wave.shrink2(vec2(4.0 * k, 3.0 * k)), &th.peaks, ink, s);
+            let body = w.shrink2(vec2(4.0 * k, 3.0 * k));
+            let rest = crate::kit::color::mix(room.well, room.ink2, 0.80);
+            // Drawn to the sound's own loudest column (a quiet sound reads, not a flat
+            // line), at most 16 times up.
+            let peaks = fitted(&th.peaks);
+            let th = Thumb { peaks, ..**th };
+            let n = th.peaks.len();
+            match heard.filter(|_| n >= 4) {
+                Some(f) => {
+                    // The columns heard, and the rest from the same column on.
+                    let i = ((f * (n - 1) as f32).round() as usize).clamp(1, n - 2);
+                    let x = body.left() + body.width() * i as f32 / (n - 1) as f32;
+                    let a = Rect::from_min_max(body.min, pos2(x, body.bottom()));
+                    let z = Rect::from_min_max(pos2(x, body.top()), body.max);
+                    paint::wave(b, a, &th.peaks[..=i], room.accent, s);
+                    paint::wave(b, z, &th.peaks[i..], rest, s);
+                    let at = b.snap(body.left() + body.width() * f);
+                    b.vline(at, w.top() + b.px(), w.bottom() - b.px(), b.px(), room.ink1);
+                }
+                None => paint::wave(b, body, &th.peaks, room.accent, s),
+            }
         }
     });
     if resp.hovered() {
@@ -153,6 +261,17 @@ pub fn card(app: &mut CantusApp, ui: &mut Ui, s: &Style, rect: Rect, path: &Path
             &name,
             crate::kit::hint::Caps::NONE,
         );
+    }
+    if star_resp.hovered() {
+        let tip = if starred {
+            t("samples.unstar")
+        } else {
+            t("samples.star")
+        };
+        crate::kit::hint::set_text(ui.ctx(), &tip, &name, crate::kit::hint::Caps::NONE);
+    }
+    if star_resp.clicked() {
+        app.toggle_sample_favourite(path);
     }
     if resp.clicked() {
         if playing {

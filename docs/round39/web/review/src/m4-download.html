@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mock 4 — a download page that earns trust</title>
+<script>if (location.search.includes("light")) document.documentElement.dataset.theme = "light";</script>
+<link rel="stylesheet" href="mock.css">
+<style>
+.top { padding-bottom: 3.6rem; }
+.dl { display: grid; grid-template-columns: 1.15fr 1fr; gap: 3rem; align-items: center; padding-top: 2.4rem; }
+.dl h1 { font-size: clamp(2.8rem, 5.4vw, 4.8rem); font-weight: 500; margin: .9rem 0 1rem; }
+.dl .lede { font-size: 1.2rem; }
+.go { display: flex; gap: .8rem; align-items: center; margin-top: 1.6rem; flex-wrap: wrap; }
+.go .btn.primary { padding: 1.05rem 1.5rem; font-size: 1.15rem; }
+.meta { display: flex; gap: .5rem 1.2rem; flex-wrap: wrap; margin-top: 1rem; color: #b9c4e6; font-size: .95rem; }
+.meta b { color: #fff; font-weight: 500; }
+.others { margin-top: 1.2rem; font-size: .98rem; color: #c3cce8; }
+.others a { color: #b4c8fb; font-weight: 600; }
+.trust { background: rgba(7,13,38,.55); border-radius: 12px; box-shadow: 0 0 0 1px rgba(185,198,238,.22) inset; padding: 1.4rem 1.5rem; display: grid; gap: 1.05rem; }
+.trust h3 { font-size: 1.15rem; color: #fff; }
+.t { display: grid; grid-template-columns: 1.6rem 1fr; gap: .7rem; font-size: .98rem; color: #c3cce8; }
+.t b { color: #fff; font-weight: 600; display: block; }
+.t svg { width: 1.3rem; height: 1.3rem; margin-top: .15rem; color: #f0cd6a; }
+.t.warn svg { color: #ff9a62; }
+.hash { display: flex; align-items: center; gap: .5rem; margin-top: .4rem; font: 500 .85rem/1 ui-monospace, Consolas, monospace; background: rgba(0,0,0,.3); padding: .5rem .6rem; border-radius: 6px; color: #dfe6fb; }
+.hash span { margin-left: auto; font-family: var(--f); color: #b4c8fb; font-weight: 600; }
+.smart { display: flex; gap: .5rem; margin-top: .5rem; flex-wrap: wrap; }
+.smart span { font-size: .85rem; padding: .3rem .55rem; border-radius: 4px; background: rgba(255,255,255,.08); color: #e7ecfb; }
+.smart i { font-style: normal; color: #93a1cf; }
+/* below: first steps, the others, the rest */
+.below { padding: 3.6rem 0 4rem; }
+.below h2 { font-size: 2rem; margin-bottom: 1.4rem; }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.step { padding: 1.3rem 1.4rem; display: grid; gap: .5rem; align-content: start; }
+.step .n { font: 500 2.2rem/1 var(--f); color: var(--gold-text); }
+.step b { font-size: 1.15rem; color: var(--strong); }
+.step p { color: var(--ink-2); font-size: 1rem; }
+.plats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 2.6rem; }
+.plat { padding: 1.2rem 1.3rem; display: grid; grid-template-columns: 1fr auto; gap: .2rem 1rem; align-items: center; }
+.plat b { font-size: 1.15rem; color: var(--strong); }
+.plat small { grid-column: 1; color: var(--ink-3); font-size: .9rem; }
+.plat .btn { grid-row: 1 / 3; grid-column: 2; padding: .65rem .9rem; font-size: .95rem; }
+.plat.here { box-shadow: var(--shadow), 0 0 0 2px var(--accent) inset; }
+.req { margin-top: 2.6rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid var(--line); }
+.req div { padding: 1rem 1rem 0 0; }
+.req dt { font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.req dd { margin: .3rem 0 0; color: var(--ink); }
+.thanks { margin-top: 2.6rem; display: flex; justify-content: space-between; gap: 1.5rem; align-items: center; padding: 1.2rem 1.4rem; border-radius: 12px; background: var(--accent-tint); }
+.thanks p { color: var(--ink-2); } .thanks b { color: var(--strong); }
+@media (max-width: 52rem) {
+  .dl { grid-template-columns: 1fr; gap: 1.8rem; padding-top: 1rem; }
+  .go .btn { flex: 1; justify-content: center; }
+  .steps, .plats { grid-template-columns: 1fr; }
+  .req { grid-template-columns: 1fr 1fr; }
+  .thanks { flex-direction: column; align-items: flex-start; }
+}
+</style></head>
+<body>
+<div class="mock-tag">Mock 4 · download — not the site</div>
+<section class="lapis top">
+  <div class="wrap nav">
+    <a class="brand" href="#"><img src="../../../../../crates/cantus-ui/assets/logos/03.svg" alt="">Cantus</a>
+    <nav class="links"><span>Tour</span><span>Instruments</span><span>Effects</span><span>Listen</span><span>Measured</span><span>Manual</span></nav>
+    <div class="tools"><span class="seg"><span class="on">EN</span><span>ES</span></span>
+      <span class="burger"><svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1h16M1 7h16M1 13h16"/></svg></span></div>
+  </div>
+  <div class="wrap dl">
+    <div>
+      <span class="eyebrow">Download · free, for good</span>
+      <h1>Cantus for Windows</h1>
+      <p class="lede">The whole DAW, nothing locked. Installs for you alone — no administrator rights needed.</p>
+      <div class="go">
+        <a class="btn primary" href="#"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 1v10M3.5 7 8 11.5 12.5 7M2 15h12"/></svg>Download the installer</a>
+        <a class="btn ghost" href="#">Portable zip</a>
+      </div>
+      <div class="meta"><span><b>0.1.0-beta.13</b></span><span>Windows 11 · x64 (10 untested)</span><span>size and date from the release</span></div>
+      <p class="others">Not on Windows? <a href="#">Linux AppImage</a> · <a href="#">macOS preview</a> · <a href="#">build it yourself</a></p>
+    </div>
+    <div class="trust">
+      <h3>Before you open it</h3>
+      <div class="t warn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 2 1.5 17h17z"/><path d="M10 8v4M10 14.5v.5"/></svg>
+        <div><b>Not signed yet — Windows will ask once</b>Signing is on the beta's last mile; until then SmartScreen shows a blue window; this is the way through:
+          <div class="smart"><span>More info</span><i>→</i><span>Run anyway</span></div></div></div>
+      <div class="t"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 1.5 3 4.5v5c0 4.2 3 7.4 7 9 4-1.6 7-4.8 7-9v-5z"/><path d="m6.8 10 2.2 2.2 4.2-4.4"/></svg>
+        <div><b>Check it is ours</b>Built in the open by GitHub Actions from the tagged source. Compare its SHA-256:
+          <div class="hash">Get-FileHash .\Cantus-…-setup.exe<span>Copy</span></div></div></div>
+      <div class="t"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="8"/><path d="M6 10h8M10 6v8" transform="rotate(45 10 10)"/></svg>
+        <div><b>Nothing phones home</b>No account and no telemetry. Your projects, audio and MIDI stay on your computer.</div></div>
+    </div>
+  </div>
+</section>
+<section class="below">
+  <div class="wrap">
+    <h2>Your first ten minutes</h2>
+    <div class="steps">
+      <div class="card step"><span class="n">1</span><b>Pick your audio device</b><p>ASIO or WASAPI on Windows. The status bar shows the latency your driver reports, so you know what you are playing through.</p></div>
+      <div class="card step"><span class="n">2</span><b>Open a starter or a demo</b><p>Six demo songs ship with it — open Neon Tide and press space. Every sound in it is Cantus's own.</p></div>
+      <div class="card step"><span class="n">3</span><b>Make it yours</b><p>Draw a pattern in the channel rack, play it into the piano roll, mix it. The manual walks the whole path in English and Spanish.</p></div>
+    </div>
+    <div class="plats">
+      <div class="card plat here"><b>Windows</b><small>Installer or zip · x64 · this computer</small><a class="btn primary" href="#">Download</a></div>
+      <div class="card plat"><b>Linux</b><small>AppImage · Ubuntu 22.04 and later</small><a class="btn ghost" href="#">Download</a></div>
+      <div class="card plat"><b>macOS · preview</b><small>Universal disk image · unsigned</small><a class="btn ghost" href="#">Download</a></div>
+    </div>
+    <dl class="req">
+      <div><dt>Audio</dt><dd>Any device: ASIO, WASAPI, PipeWire, JACK, ALSA</dd></div>
+      <div><dt>Plug-ins</dt><dd>CLAP and VST3, out of process; ARA 2 on clips</dd></div>
+      <div><dt>Files</dt><dd>WAV, FLAC, MP3, Ogg; MIDI, stems, DAWproject</dd></div>
+      <div><dt>Source</dt><dd>App GPL-3.0-or-later · engine MPL-2.0</dd></div>
+    </dl>
+    <div class="thanks"><p><b>It stays free.</b> If Cantus helps you finish songs, you can help it grow — the program is the same whatever you give, or nothing.</p><a class="btn ghost" href="#">Ways to support</a></div>
+  </div>
+</section>
+</body></html>

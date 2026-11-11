@@ -29,7 +29,7 @@ use egui::{pos2, vec2, Align2, Id, Pos2, Rect, Sense};
 use std::fmt::Write as _;
 
 /// The tempo lane's height at full size.
-pub const TEMPO_H: f32 = 54.0;
+pub const TEMPO_H: f32 = 40.0; // r39:el-arrange (was 54: the sheets measure 40)
 
 /// What the tempo lane remembers between frames.
 #[derive(Clone, Debug, Default)]
@@ -320,44 +320,79 @@ pub(super) fn paint(
     head_paint(b, app, head, s);
 }
 
-/// The lane's header: its name and the tempo at the playhead, label and value.
+/// The lane's header (r39:el-arrange, the sheets' corner): "Tempo" (Medium 11, ink 2) and
+/// the tempo at the playhead (Regular 13, ink 1) with "BPM" (SemiBold 9, ink 3); under them
+/// "Metre 4/4" and the range the lane shows (10, ink 3).
 fn head_paint(b: &mut Brush, app: &CantusApp, head: Rect, s: &Style) {
+    use super::slate::{say, Ink, W};
     if head.width() < 20.0 || head.height() <= 0.0 {
         return;
     }
-    let t = &s.t;
+    let ink = Ink::of(s);
     let k = s.k;
-    b.rect(
-        b.snap_rect(head),
-        Fill::Solid(mix(t.ink, t.row_black, 0.25)),
-    );
+    b.rect(b.snap_rect(head), Fill::Solid(ink.surface));
     b.hline(
         head.left(),
         head.right(),
         head.bottom() - 0.5 * b.px(),
         b.px(),
-        t.grid_bar,
+        Ink::to(ink.surface, ink.gutter, 0.75),
     );
-    let inner = head.shrink2(vec2(8.0 * k, 4.0 * k));
-    let name = Rect::from_min_max(inner.min, pos2(inner.right(), inner.center().y));
-    let _ = text::paint(
+    let inner = head.shrink2(vec2(12.0 * k, 4.0 * k));
+    let top = Rect::from_min_max(inner.min, pos2(inner.right(), inner.center().y + 2.0 * k));
+    let bottom = Rect::from_min_max(pos2(inner.left(), inner.center().y + 2.0 * k), inner.max);
+    let _ = say(
         b,
-        name,
-        &Text::key("tempo.lane", Role::Label, t.text_dim)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End)),
-        s.tk(),
+        top,
+        &t_("tempo.lane"),
+        W::Medium,
+        11.0,
+        ink.ink2,
+        Align2::LEFT_CENTER,
+        s,
     );
     let mut words = String::new();
-    let _ = write!(words, "{:.1} {}", app.tempo_now(), t_("transport.bpm"));
-    let value = Rect::from_min_max(pos2(inner.left(), inner.center().y), inner.max);
-    let _ = text::paint(
+    let _ = write!(words, "{:.2}", app.tempo_now());
+    let bpm = Rect::from_min_max(pos2(top.right() - 26.0 * k, top.top()), top.max);
+    let _ = say(
         b,
-        value,
-        &Text::new(&words, Role::Value, t.text)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End)),
-        s.tk(),
+        bpm,
+        &t_("transport.bpm"),
+        W::SemiBold,
+        9.0,
+        ink.ink3,
+        Align2::RIGHT_CENTER,
+        s,
+    );
+    let val = Rect::from_min_max(top.min, pos2(bpm.left() - 3.0 * k, top.bottom()));
+    let _ = say(
+        b,
+        val,
+        &words,
+        W::Regular,
+        13.0,
+        ink.ink1,
+        Align2::RIGHT_CENTER,
+        s,
+    );
+    let sig = app.project().time_signature;
+    words.clear();
+    let _ = write!(
+        words,
+        "{} {}/{}",
+        t_("arrange.metre"),
+        sig.numerator,
+        sig.denominator
+    );
+    let _ = say(
+        b,
+        bottom,
+        &words,
+        W::Regular,
+        10.0,
+        ink.ink3,
+        Align2::LEFT_CENTER,
+        s,
     );
 }
 

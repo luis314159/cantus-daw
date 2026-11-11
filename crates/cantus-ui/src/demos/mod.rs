@@ -93,6 +93,11 @@ pub fn startup_project() -> Project {
     house::startup(false)
 }
 
+/// The house song whole, without its dancer (the README's pictures).
+pub fn house_without_dancer() -> Project {
+    house::build_without_dancer()
+}
+
 /// [`startup_project`] with the house song's dancer in it, as it opened until round 38 (the
 /// stage's shots and tests).
 pub fn startup_project_with_dancer() -> Project {

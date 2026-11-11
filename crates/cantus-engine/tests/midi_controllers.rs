@@ -142,13 +142,9 @@ impl Rig {
         for _ in 0..4 {
             self.proc.process(&mut out, 2);
         }
-        let mut tel = [0.0; einst::TELEMETRY_LEN];
-        while let Ok(e) = self.rx.pop() {
-            if let EngineEvent::Meters(m) = e {
-                tel = m.inst;
-            }
-        }
-        tel
+        while self.rx.pop().is_ok() {}
+        // The last block's report (ADR 0107).
+        self.proc.meters().inst
     }
 }
 

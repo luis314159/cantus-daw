@@ -11,10 +11,16 @@
 //! `A` is the latest of what reaches it, its output leaves at `P = A + own latency`, and
 //! an edge from `src` into `dst` is delayed by `A(dst) − P(src)`. Tracks leave at zero.
 //!
-//! The delay lines come from a pool of [`POOL`] lines, [`START_LEN`] samples each at
-//! start-up. An edge keeps its line across snapshots while its delay is unchanged, so an
-//! edit elsewhere does not click. A line's ring runs at exactly its delay, so its length
-//! is only a ceiling and the memory it touches is what the delay needs.
+//! The delay lines come from a pool of [`POOL`] places, **[`START_LINES`] of them filled at
+//! start-up** (ADR 0107; it was all 192, 12 MB, whether a project had latency or not):
+//! the rest is memory only once a project can need it. Before a snapshot that may need more
+//! lines than the engine holds, the UI thread sends them (`EngineMessage::PdcLines` of
+//! [`short_lines`], as many as [`lines_needed`] counts edges that can be delayed), so the
+//! application's engine never waits for one; an edge keeps its line across snapshots while
+//! its delay is unchanged, so an edit elsewhere does not click, and a new edge takes a line
+//! only once every kept edge has kept its own (no edge's line is ever taken from it). A
+//! line's ring runs at exactly its delay, so its length is only a ceiling and the memory it
+//! touches is what the delay needs.
 //!
 //! **Longer delays grow the pool, off the audio thread.** A linear-phase EQ asks for tens
 //! of thousands of samples, and every path in parallel with it needs a line that long.
@@ -36,14 +42,65 @@ pub const START_LEN: usize = 8192;
 pub const MAX_DELAY: usize = 1 << 19;
 /// Delay lines available. An edge that finds none free is left uncompensated and counted.
 pub const POOL: usize = 192;
+/// Lines a processor starts with (ADR 0107): 2 MB, enough for a new project's sixteen strips
+/// with latency on one and a few tracks
+/// (and for whatever drives a processor without sending lines ahead — a test, the bench);
+/// the application sends what a snapshot can need beyond them ([`lines_needed`]).
+pub const START_LINES: usize = 32;
 
 /// `count` new lines able to hold `delay` samples, rounded up so small changes in latency
 /// do not ask again. Allocates: for the UI thread (or an offline render) only.
 pub fn lines_for(count: usize, delay: usize) -> Vec<DelayLine> {
-    let len = delay.min(MAX_DELAY).next_power_of_two().max(START_LEN * 2);
+    // A short delay asked for (a pool that had no line at all) gets a start-up line; a
+    // longer one, the power of two above it, as it always did.
+    let len = delay.min(MAX_DELAY).next_power_of_two().max(START_LEN);
     (0..count.min(POOL))
         .map(|_| DelayLine::with_len(len))
         .collect()
+}
+
+/// `count` start-up lines ([`START_LEN`]), what a snapshot is sent ahead of it. Allocates.
+pub fn short_lines(count: usize) -> Vec<DelayLine> {
+    (0..count.min(POOL)).map(|_| DelayLine::new()).collect()
+}
+
+/// How many lines `snapshot` can need at most: one per edge that can be delayed — every
+/// track's (and its own lateness), every strip's output, send and insert dry path, every
+/// master insert's, the click's and the recorder's — and none at all when nothing in it
+/// can have latency (no insert, no instrument unit, no frozen render, no lateness, no
+/// outboard gear). Never more than [`POOL`]. What the backend holds the engine to before
+/// it sends the snapshot (ADR 0107).
+pub fn lines_needed(snapshot: &cantus_core::Snapshot) -> usize {
+    use cantus_core::InstrumentSpec;
+    let s = snapshot;
+    let latent = s
+        .strips
+        .iter()
+        .any(|st| !st.effects.is_empty() || st.frozen.is_some())
+        || !s.master_effects.is_empty()
+        || s.master_frozen.is_some()
+        || s.tracks.iter().any(|t| {
+            matches!(
+                t.instrument,
+                InstrumentSpec::Native(_) | InstrumentSpec::External(_)
+            ) || t.frozen.is_some()
+                || t.lateness.is_some()
+                || !t.external.is_empty()
+        });
+    if !latent {
+        return 0;
+    }
+    let tracks: usize = s
+        .tracks
+        .iter()
+        .map(|t| 1 + usize::from(t.lateness.is_some()))
+        .sum();
+    let strips: usize = s
+        .strips
+        .iter()
+        .map(|st| 1 + st.sends.len() + st.effects.len())
+        .sum();
+    (tracks + strips + s.master_effects.len() + 2).min(POOL)
 }
 
 /// Which edge a line serves.
@@ -82,6 +139,10 @@ pub struct DelayLine {
     pos: usize,
     /// Consecutive silent input samples; the line is empty once this reaches `delay`.
     silent: usize,
+    /// The output buffers of the edge its place serves (ADR 0107), for a place that had
+    /// none: given to the place when the line is supplied (`Processor::edges_for_lines`),
+    /// so a place holds edge buffers only once it holds a line. Empty once given.
+    pub(crate) out: [Vec<f32>; 2],
 }
 
 impl DelayLine {
@@ -98,6 +159,21 @@ impl DelayLine {
             buf_r: vec![0.0; len].into_boxed_slice(),
             pos: 0,
             silent: usize::MAX,
+            out: if len == 0 {
+                [Vec::new(), Vec::new()]
+            } else {
+                let mut pair = [
+                    vec![0.0; crate::graph::PASS_FRAMES],
+                    vec![0.0; crate::graph::PASS_FRAMES],
+                ];
+                // Touched here, off the audio thread (ADR 0031 R11).
+                for v in &mut pair {
+                    v.fill(f32::MIN_POSITIVE);
+                    std::hint::black_box(&mut *v);
+                    v.fill(0.0);
+                }
+                pair
+            },
         }
     }
 
@@ -213,9 +289,19 @@ impl Default for DelayLine {
 pub struct Lines(Box<[NodeCell<DelayLine>]>);
 
 impl Lines {
-    /// [`POOL`] lines of [`START_LEN`] samples.
+    /// [`POOL`] places, the first [`START_LINES`] holding a start-up line and the rest
+    /// empty (ADR 0107): more is memory only once a project can need it.
     pub fn new() -> Self {
-        Lines((0..POOL).map(|_| NodeCell::new(DelayLine::new())).collect())
+        Self::with(START_LINES)
+    }
+
+    /// [`POOL`] places, the first `n` holding a start-up line.
+    pub fn with(n: usize) -> Self {
+        Lines(
+            (0..POOL)
+                .map(|i| NodeCell::new(DelayLine::with_len(if i < n { START_LEN } else { 0 })))
+                .collect(),
+        )
     }
 
     /// Line `i`'s cell.
@@ -261,14 +347,29 @@ pub struct Compensation {
     need: (usize, usize),
     /// The last request made, so an unchanged shortfall is not asked for every snapshot.
     asked: (usize, usize),
+    /// Edges that want a line they do not have, given one in [`Self::finish`] once every
+    /// kept edge has kept its own.
+    pending: [(Edge, usize); POOL],
+    pending_n: usize,
 }
 
 impl Compensation {
+    /// The pool a processor starts with: [`START_LINES`] start-up lines.
     pub fn new() -> Self {
+        Self::with_lines(START_LINES)
+    }
+
+    /// A pool of `n` start-up lines (0: none at all).
+    pub fn with_lines(n: usize) -> Self {
+        let n = n.min(POOL);
+        let mut len = [0; POOL];
+        len[..n].fill(START_LEN);
         Compensation {
-            lines: Arc::new(Lines::new()),
+            lines: Arc::new(Lines::with(n)),
             edge: [None; POOL],
-            len: [START_LEN; POOL],
+            len,
+            pending: [(Edge::Click, 0); POOL],
+            pending_n: 0,
             delay: [0; POOL],
             total: 0,
             unserved: 0,
@@ -325,6 +426,7 @@ impl Compensation {
     pub fn begin(&mut self) -> [bool; POOL] {
         self.unserved = 0;
         self.need = (0, 0);
+        self.pending_n = 0;
         [false; POOL]
     }
 
@@ -346,31 +448,53 @@ impl Compensation {
             // Too short for the new delay: let it go and look for a longer one.
             self.release(i);
         }
-        // The shortest free line long enough, preferring one no edge holds; failing that,
-        // one whose edge has not been kept this round (that edge, if still wanted, then
-        // finds another — the cost is the content of one line, never correctness).
-        let free = (0..POOL)
-            .filter(|i| !kept[*i] && self.len[*i] >= delay)
-            .min_by_key(|i| (self.edge[*i].is_some(), self.len[*i]));
-        match free {
-            Some(i) => {
-                self.assign(i, edge, delay);
-                kept[i] = true;
-            }
-            None => {
-                self.unserved += 1;
-                self.need = (self.need.0 + 1, self.need.1.max(delay));
-            }
+        // A new line, chosen in `finish`: once every edge that keeps its line has kept it,
+        // no line an edge still wants is ever taken from it (ADR 0107 — a pool sized to
+        // what the project needs has no spare lines to make that harmless).
+        if self.pending_n < POOL {
+            self.pending[self.pending_n] = (edge, delay);
+            self.pending_n += 1;
+        } else {
+            self.unserved += 1;
+            self.need = (self.need.0 + 1, self.need.1.max(delay));
         }
     }
 
-    /// End of the assignment: lines no edge kept are freed.
+    /// End of the assignment: lines no edge kept are freed, then every edge waiting for a
+    /// line takes the shortest free one long enough, in the order it asked.
     pub fn finish(&mut self, kept: &[bool; POOL]) {
+        let mut kept = *kept;
         for (i, k) in kept.iter().enumerate() {
             if !k && self.edge[i].is_some() {
                 self.release(i);
             }
         }
+        for p in 0..std::mem::take(&mut self.pending_n) {
+            let (edge, delay) = self.pending[p];
+            let free = (0..POOL)
+                .filter(|i| !kept[*i] && self.edge[*i].is_none() && self.len[*i] >= delay)
+                .min_by_key(|i| self.len[*i]);
+            match free {
+                Some(i) => {
+                    self.assign(i, edge, delay);
+                    kept[i] = true;
+                }
+                None => {
+                    self.unserved += 1;
+                    self.need = (self.need.0 + 1, self.need.1.max(delay));
+                }
+            }
+        }
+    }
+
+    /// Line `i`'s length as the planner knows it (0: no line there yet).
+    pub fn len_of(&self, i: usize) -> usize {
+        self.len[i]
+    }
+
+    /// Lines in the pool (of any length).
+    pub fn held(&self) -> usize {
+        self.len.iter().filter(|l| **l > 0).count()
     }
 
     /// Lines to ask the UI thread for — `(count, longest delay)` — when the last snapshot
@@ -425,6 +549,11 @@ impl Default for Compensation {
 mod tests {
     use super::*;
 
+    /// A pool as it was before ADR 0107: every place holding a start-up line.
+    fn pool() -> Compensation {
+        Compensation::with_lines(POOL)
+    }
+
     /// Review 1 (ADR 0056): a line whose delay changes while it runs keeps what it holds —
     /// shorter, it skips ahead; longer, it waits only the difference — instead of starting
     /// empty (a dropout of its whole delay at every automated latency switch).
@@ -432,7 +561,7 @@ mod tests {
     fn a_new_delay_keeps_what_the_line_holds() {
         let ramp =
             |a: usize, n: usize| -> Vec<f32> { (a..a + n).map(|v| (v + 1) as f32).collect() };
-        let mut c = Compensation::new();
+        let mut c = pool();
         let mut kept = c.begin();
         c.want(&mut kept, Edge::Track(0), 100);
         c.finish(&kept);
@@ -488,7 +617,7 @@ mod tests {
 
     #[test]
     fn edges_keep_their_lines_while_their_delay_holds() {
-        let mut c = Compensation::new();
+        let mut c = pool();
         let mut kept = c.begin();
         c.want(&mut kept, Edge::Out(2), 100);
         c.want(&mut kept, Edge::Send(2, 0), 0);
@@ -511,7 +640,7 @@ mod tests {
 
     #[test]
     fn a_delay_longer_than_every_line_is_asked_for_once_and_served_after_supply() {
-        let mut c = Compensation::new();
+        let mut c = pool();
         let long = START_LEN * 3;
         let plan = |c: &mut Compensation| {
             let mut kept = c.begin();
@@ -551,5 +680,102 @@ mod tests {
         let mut r = l.clone();
         line.run(&mut l, &mut r);
         assert_eq!(l.iter().position(|x| *x != 0.0), Some(long));
+    }
+
+    /// ADR 0107: a processor's pool starts with [`START_LINES`] lines (it was 192 lines of
+    /// 2 × 32 KB, 12 MB, whether a project had latency or not), and can start with none.
+    #[test]
+    fn a_new_pool_holds_only_its_start_up_lines() {
+        let c = Compensation::new();
+        assert_eq!(c.held(), START_LINES);
+        let held = (0..POOL).filter(|&i| c.lines.get(i).is_some_and(|l| !l.is_empty()));
+        assert_eq!(held.count(), START_LINES);
+        let none = Compensation::with_lines(0);
+        assert_eq!(none.held(), 0);
+        assert!((0..POOL).all(|i| none.lines.get(i).is_some_and(|l| l.is_empty())));
+    }
+    /// ADR 0107: with just the lines a project needs, a new edge never takes the line of an
+    /// edge that keeps one — asked first or not, every kept edge keeps what its line holds.
+    #[test]
+    fn a_new_edge_never_takes_the_line_of_an_edge_that_keeps_one() {
+        let mut c = Compensation::with_lines(0);
+        c.supply(&mut short_lines(2));
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Out(1), 50);
+        c.want(&mut kept, Edge::Out(2), 60);
+        c.finish(&kept);
+        let (a, b) = (c.line_for(Edge::Out(1)), c.line_for(Edge::Out(2)));
+        assert!(a.is_some() && b.is_some());
+        // The new edge asks first; the two old ones after it.
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Out(3), 70);
+        c.want(&mut kept, Edge::Out(1), 50);
+        c.want(&mut kept, Edge::Out(2), 60);
+        c.finish(&kept);
+        assert_eq!(c.line_for(Edge::Out(1)), a);
+        assert_eq!(c.line_for(Edge::Out(2)), b);
+        assert_eq!(c.line_for(Edge::Out(3)), None);
+        assert_eq!(c.unserved, 1);
+        assert_eq!(
+            c.take_request(),
+            Some((1, 70)),
+            "asked for once: an empty place can take it"
+        );
+        // A third line arrives: the new edge has it at the next plan.
+        c.supply(&mut short_lines(1));
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Out(3), 70);
+        c.want(&mut kept, Edge::Out(1), 50);
+        c.want(&mut kept, Edge::Out(2), 60);
+        c.finish(&kept);
+        assert!(c.line_for(Edge::Out(3)).is_some());
+        assert_eq!((c.line_for(Edge::Out(1)), c.line_for(Edge::Out(2))), (a, b));
+        assert_eq!(c.unserved, 0);
+    }
+
+    /// An empty pool asks for what an edge needs and is served by a start-up line.
+    #[test]
+    fn an_empty_pool_asks_and_a_short_delay_gets_a_start_up_line() {
+        let mut c = Compensation::with_lines(0);
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Track(0), 64);
+        c.finish(&kept);
+        assert_eq!(c.unserved, 1);
+        let (count, delay) = c.take_request().expect("asked");
+        let mut fresh = lines_for(count, delay);
+        assert!(fresh.iter().all(|l| l.len() == START_LEN));
+        c.supply(&mut fresh);
+        let mut kept = c.begin();
+        c.want(&mut kept, Edge::Track(0), 64);
+        c.finish(&kept);
+        assert_eq!(c.unserved, 0);
+        assert_eq!(c.held(), 1);
+    }
+
+    /// What a snapshot can need: nothing without a unit that can have latency; otherwise
+    /// one line per edge that can be delayed.
+    #[test]
+    fn the_lines_a_snapshot_can_need() {
+        use cantus_core::{EffectKind, Project, Snapshot};
+        let mut p = Project::new("lines");
+        for _ in 0..3 {
+            let t = p.make_track("t");
+            p.tracks.push(t);
+        }
+        assert_eq!(lines_needed(&Snapshot::compile(&p, 1)), 0, "no latency");
+        let strip = p.tracks[0].strip.unwrap();
+        let e = p.make_effect(EffectKind::Limiter);
+        p.strip_mut(strip).unwrap().effects.push(e);
+        let snap = Snapshot::compile(&p, 1);
+        let want = snap.tracks.len()
+            + snap
+                .strips
+                .iter()
+                .map(|s| 1 + s.sends.len() + s.effects.len())
+                .sum::<usize>()
+            + snap.master_effects.len()
+            + 2;
+        assert_eq!(lines_needed(&snap), want.min(POOL));
+        assert!(want > 3);
     }
 }

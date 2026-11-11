@@ -33,10 +33,10 @@ use super::menu::Menu;
 use super::{in_selection, Geo, MixerView};
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
-use crate::kit::color::{safe_track, with_alpha, FillSize};
+use crate::kit::color::with_alpha;
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
-use crate::kit::{Brush, Fill, Function, Style};
+use crate::kit::{Brush, Fill, Style};
 use crate::routing_actions::{refusal_text, Gesture, Outcome, TrackDrag};
 use cantus_core::routing::order::Spot;
 use cantus_core::routing::{plan, End, Route, RouteKind, RouteRefusal};
@@ -77,6 +77,9 @@ pub(crate) struct Drag {
     over: Option<Over>,
     /// The lifted columns this frame (the strips a reorder carries), washed by `finish`.
     lifted: Vec<Rect>,
+    /// The dragged cable's points, and a shifted copy (capacity kept; r39:el-cables).
+    pts: Vec<Pos2>,
+    tmp: Vec<Pos2>,
     /// What each column says for the drag on, by project strip index (the master last),
     /// and what that was worked out for.
     checks: Vec<Option<Target>>,
@@ -396,6 +399,19 @@ pub(crate) fn active(v: &MixerView) -> bool {
     v.drag.on.is_some() || v.drag.track.is_some() || v.drag.armed.is_some()
 }
 
+/// The strip a cable being dragged is over, and what a drop there does (`None`: the
+/// master) — the band lights that strip's input jack (r39:el-cables).
+pub(super) fn over(v: &MixerView) -> Option<(Option<StripId>, Target)> {
+    let on = v.drag.on?;
+    if !on.what.routes() {
+        return None;
+    }
+    match v.drag.over {
+        Some(Over::Strip(s, _, t)) => Some((s, t)),
+        _ => None,
+    }
+}
+
 /// The strip a click armed a route from (click mode), if any: its port and ▼ chip show
 /// it armed until the destination's click, Esc, or a click elsewhere.
 pub(crate) fn armed(v: &MixerView) -> Option<StripId> {
@@ -563,6 +579,16 @@ fn source_strip(what: What) -> Option<StripId> {
 fn words(v: &MixerView, app: &CantusApp, what: What, g: Gesture, over: Option<Over>) -> String {
     let p = app.project();
     let name = |id: StripId| crate::views::route_menu::strip_label(app, id);
+    // des-mixer's words name the strips alone ("Route Chords to Drum bus").
+    let plain = |id: StripId| -> String {
+        if id.is_master() {
+            return v.words.master.clone();
+        }
+        p.strip_index(id)
+            .map(|i| v.desk.name(app, i).to_string())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| name(id))
+    };
     let over_strip = match over {
         Some(Over::Strip(s, _, _)) => Some(s.unwrap_or(StripId::MASTER)),
         _ => None,
@@ -619,6 +645,11 @@ fn words(v: &MixerView, app: &CantusApp, what: What, g: Gesture, over: Option<Ov
                 });
             };
             match refusal(app, what, g, to) {
+                // r39:el-cables — des-mixer's words for a loop.
+                Err(Some(RouteRefusal::Loop { through })) => tf(
+                    "cables.refused.loop",
+                    &[("through", &plain(through)), ("from", &plain(from))],
+                ),
                 Err(Some(r)) => refusal_text(p, from, r),
                 Err(None) if to == from => t("routing.refusal.itself"),
                 Err(None) => t("routing.refusal.already_there"),
@@ -633,7 +664,15 @@ fn words(v: &MixerView, app: &CantusApp, what: What, g: Gesture, over: Option<Ov
                         (false, _, false) => "routing.drag.send",
                         (false, _, true) => "routing.drag.send_many",
                     };
-                    let mut s = tf(key, &args);
+                    let mut s = if key == "routing.drag.output" {
+                        // r39:el-cables — "Route Chords to Drum bus".
+                        tf(
+                            "cables.drag.route",
+                            &[("from", &plain(from)), ("to", &plain(to))],
+                        )
+                    } else {
+                        tf(key, &args)
+                    };
                     if g == Gesture::Send && !to.is_master() {
                         if let Some(d) = crate::routing_actions::doubled_text(p, from, to) {
                             s.push_str(" \u{b7} ");
@@ -1049,17 +1088,6 @@ fn auto_scroll(v: &mut MixerView, geo: &Geo, p: Pos2, dt: f32, ctx: &egui::Conte
 
 // ---- what a drag looks like -----------------------------------------------------------
 
-/// The colour a drag from `strip` is drawn in: the strip's own, else the selection's.
-fn strip_ink(v: &MixerView, app: &CantusApp, s: &Style, strip: Option<StripId>) -> egui::Color32 {
-    strip
-        .and_then(|id| app.project().strip_index(id))
-        .and_then(|i| v.desk.info(i))
-        .and_then(|i| i.color)
-        .map_or(s.t.selection, |c| {
-            safe_track(crate::theme::track_color(c), s.t.dark, FillSize::Small)
-        })
-}
-
 #[allow(clippy::too_many_arguments)]
 fn paint_drag(
     v: &mut MixerView,
@@ -1074,6 +1102,7 @@ fn paint_drag(
     let t = &s.t;
     let g = gesture(ui);
     let over = v.drag.over;
+    let jack = app.settings.cable_style_in(&t.system) == crate::settings::CableStyle::Jack;
     // The column under the pointer: outlined, in the selection's colour when a drop
     // works there, the danger colour (and a wash) when it is refused.
     let refused = match over {
@@ -1123,23 +1152,19 @@ fn paint_drag(
                 );
             }
         }
-        What::Source(Source::Port(from)) => {
-            let ink = if g == Gesture::Key {
-                t.hue(Function::Dynamics)
-            } else {
-                strip_ink(v, app, s, Some(from))
-            };
-            rubber_band(b, on.anchor, p, g, ink, refused);
+        What::Source(Source::Port(_)) => {
+            let bufs = (&mut v.drag.pts, &mut v.drag.tmp);
+            rubber_band(b, s, bufs, (on.anchor, p), g, refused, jack);
         }
         What::Source(Source::End { route, .. }) => {
-            let ink = strip_ink(v, app, s, Some(route.from));
             let g = match route.kind {
                 RouteKind::Output => Gesture::Output,
                 RouteKind::Send => Gesture::Send,
                 RouteKind::Key(_) => Gesture::Key,
             };
             let gone = over.is_none();
-            rubber_band(b, on.anchor, p, g, ink, refused || gone);
+            let bufs = (&mut v.drag.pts, &mut v.drag.tmp);
+            rubber_band(b, s, bufs, (on.anchor, p), g, refused || gone, jack);
         }
         What::Track(_) => {}
     }
@@ -1171,43 +1196,64 @@ fn paint_drag(
     });
 }
 
-/// The cable being drawn: from `a` to the pointer, hanging below both, styled as the
-/// route it would make — an output solid, a send thinner, a key dashed.
-fn rubber_band(b: &mut Brush, a: Pos2, z: Pos2, g: Gesture, ink: egui::Color32, refused: bool) {
-    const N: usize = 24;
-    let dx = (z.x - a.x).abs();
-    let depth = (dx * 0.3).clamp(14.0, 60.0);
-    let (c1, c2) = (pos2(a.x, a.y + depth), pos2(z.x, z.y + depth));
-    let mut pts = [Pos2::ZERO; N + 1];
-    for (k, pt) in pts.iter_mut().enumerate() {
-        let u = k as f32 / N as f32;
-        let w = 1.0 - u;
-        let x = w * w * w * a.x + 3.0 * w * w * u * c1.x + 3.0 * w * u * u * c2.x + u * u * u * z.x;
-        let y = w * w * w * a.y + 3.0 * w * w * u * c1.y + 3.0 * w * u * u * c2.y + u * u * u * z.y;
-        *pt = pos2(x, y);
+/// The cable being drawn (r39:el-cables, des-mixer's drag): from `a` hanging to the
+/// pointer, P2 = (px, py + 0.55·k), ending in a plug of radius 3.5 — an output and a send
+/// in their colours, a key amber and dashed, a refused one red.
+fn rubber_band(
+    b: &mut Brush,
+    s: &Style,
+    (pts, tmp): (&mut Vec<Pos2>, &mut Vec<Pos2>),
+    (a, z): (Pos2, Pos2),
+    g: Gesture,
+    refused: bool,
+    jack: bool,
+) {
+    use super::wires;
+    let tok = wires::tokens(&super::look::Pal::of(s), s.t.ink);
+    if jack {
+        // D: the cord from the source's seated plug to a free plug held at the pointer,
+        // its tip up; refused, the free plug's boot turns `rec`.
+        let col = match g {
+            Gesture::Output => tok.out,
+            Gesture::Send => tok.send,
+            Gesture::Key => tok.key,
+        };
+        pts.clear();
+        wires::jack_dragged(
+            pts,
+            a + vec2(0.0, wires::PLUG_LEN),
+            z + vec2(0.0, wires::FREE_LEN),
+        );
+        super::cables::cord(b, &tok, tmp, pts, col, 3.2, g == Gesture::Key, 1.0, true);
+        super::cables::plug(b, &tok, a, col, None, false, 1.0);
+        super::cables::plug(b, &tok, z, col, refused.then_some(tok.refused), true, 1.0);
+        return;
     }
-    let ink = if refused { with_alpha(ink, 0.45) } else { ink };
-    let width = match g {
-        Gesture::Output => 2.5,
-        Gesture::Send => 1.75,
-        Gesture::Key => 1.5,
+    let (col, w) = match (refused, g) {
+        (true, _) => (tok.refused, 2.0),
+        (false, Gesture::Output) => (tok.out, 2.0),
+        (false, Gesture::Send) => (tok.send, 2.0),
+        (false, Gesture::Key) => (tok.key, 1.5),
     };
-    if g == Gesture::Key {
-        for k in (0..N).step_by(2) {
-            b.segment(pts[k], pts[k + 1], width, ink, false);
-        }
+    pts.clear();
+    wires::dragged(pts, a, z, wires::sag(z.x - a.x));
+    let under = tok.under(col);
+    if g == Gesture::Key && !refused {
+        b.dashed(pts, w + 2.0, under, 4.0, 3.0);
+        b.dashed(pts, w, col, 4.0, 3.0);
     } else {
-        b.polyline(&pts, width, ink);
+        b.polyline(pts, w + 2.0, under);
+        b.polyline(pts, w, col);
     }
-    b.dot(a, 3.0, ink);
-    match g {
-        Gesture::Output => b.dot(z, 4.0, ink),
-        Gesture::Send => {
-            b.segment(pos2(z.x - 4.5, z.y - 4.0), z, 1.75, ink, true);
-            b.segment(pos2(z.x + 4.5, z.y - 4.0), z, 1.75, ink, true);
-        }
-        Gesture::Key => b.circle_stroke(z, 3.5, 1.5, ink),
-    }
+    b.dot(a, w * 0.5, col);
+    // The plug: its colour, a 1-px under ring, a highlight.
+    b.dot(z, 4.0, under);
+    b.dot(z, 3.5, col);
+    b.dot(
+        z - vec2(1.0, 1.0),
+        1.0,
+        with_alpha(egui::Color32::WHITE, 0.5),
+    );
 }
 
 /// The words beside the pointer, on a raised chip kept inside the desk.
@@ -1499,7 +1545,8 @@ mod tests {
         // Ctrl: the only output; the modifier read live while carrying.
         r.mods = Modifiers::COMMAND;
         r.carry(Source::Port(s[1]), a, z);
-        assert!(r.words().contains("only output"), "{}", r.words());
+        // r39:el-cables — des-mixer's words: "Route 2 to 5".
+        assert!(r.words().starts_with("Route "), "{}", r.words());
         r.release();
         r.mods = Modifiers::NONE;
         assert_eq!(r.app.project().strip(s[1]).unwrap().output, Some(s[4]));
@@ -1554,7 +1601,11 @@ mod tests {
             matches!(r.app.mixer.drag.checks.first(), Some(Some(Target::Refused))),
             "the column says refused while carrying"
         );
-        assert!(r.words().contains("Would make a loop"), "{}", r.words());
+        assert!(
+            r.words().starts_with("Refused: ") && r.words().ends_with("(a loop)"),
+            "{}",
+            r.words()
+        );
         r.release();
         assert!(r.app.project() == &before, "nothing was issued");
         assert_eq!(r.app.bus.undo_label_key().map(str::to_string), label);

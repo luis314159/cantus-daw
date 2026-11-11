@@ -1,0 +1,34 @@
+# Round 39, el-views: the piano roll's ghosts, the browser's rows.
+pianoroll.ghosts = Ghosts
+pianoroll.ghosts_tip = Show the notes of the other clips faintly behind this one: this track's in its colour, other tracks' in grey
+# The toolbar folded to its chosen tool: the chevron that lists them all.
+el_views.tools_more = All the tools — the one in use is checked
+# The rack's pattern map.
+rack.map_tip = The pattern's bars: the hits in each beat, the page in view lifted — click a bar to page there
+# Round 39, lo-rest: the rack's plates and foot, the browser's results, preview and packs.
+rack.kit_pads = {n} pads
+rack.fold_tip = Show or hide this kit's pads
+rack.add_channel = Add a channel
+rack.add_channel_tip = Add a channel: choose its instrument
+rack.drop_title = Drop a sound here for a new channel
+rack.drop_sub = or onto a channel to replace its sample
+samples.section.favourites = Favourites
+samples.star = Star this sound: it is listed first, under Favourites
+samples.unstar = Take the star away
+samples.get = Get · {size}
+samples.update_size = Update · {size}
+samples.getting = {pct} % of {size}
+samples.pack_tip = Show this pack's details, licence and credits
+samples.show_more = Show the other {n} sounds
+samples.open_pack = Open
+samples.preview.loop = Loop: the sound starts again when it ends
+samples.packs_summary = {n} free packs · {here} installed · {size} on disk
+samples.filter.all = All
+samples.sort = Sort
+samples.sort.category = Category
+samples.sort.name = Name
+samples.sort.size = Size
+samples.sort_tip = Order the packs: by category, by name, or largest first — click for the next
+samples.cc_by_note = CC BY packs show their authors on the pack's page and in Help › Credits.
+samples.where_kept = Where packs are kept ›
+samples.where_kept_tip = Show the folder the packs are installed in

@@ -152,6 +152,18 @@ pub fn reaches(pane: Pane) -> bool {
         })
 }
 
+/// The menu rows that run `a` under other words (round 39, ADR 0110).
+fn action_also(a: Action) -> &'static [&'static str] {
+    match a {
+        Action::AddMarker => &["tempo.menu.add_marker", "tempo.menu.add_marker_playhead"],
+        Action::ToggleTempoTrack => &["tempo.view_menu"],
+        Action::CollapseArea => &["ux.panels.collapse", "ux.panels.expand"],
+        Action::MaximizeArea => &["ux.panels.maximise", "ux.panels.restore"],
+        Action::AutomateLastTweaked => &["auto.menu.last_tweaked"],
+        _ => &[],
+    }
+}
+
 /// Every entry, as the palette offers them now.
 pub fn entries(app: &mut CantusApp) -> Vec<Entry> {
     let mut out = Vec::new();
@@ -161,14 +173,19 @@ pub fn entries(app: &mut CantusApp) -> Vec<Entry> {
         }
         let (name, en) = both(&a.label_key());
         let detail = app.keymap.display_for(a);
-        out.push(Entry::new(
+        let mut e = Entry::new(
             Target::Action(a),
             Kind::Action,
             name,
             en,
             detail,
             Entry::action_key(a),
-        ));
+        );
+        // r39:ux-b — the menus' words for the same action find it too (ADR 0110).
+        for k in action_also(a) {
+            e = e.also(t(k));
+        }
+        out.push(e);
     }
     for p in PANES {
         let (name, en) = both(p.toggle_key());
@@ -183,14 +200,42 @@ pub fn entries(app: &mut CantusApp) -> Vec<Entry> {
     }
     for w in Window::ALL {
         let (name, en) = both(w.key());
-        out.push(Entry::new(
+        let mut e = Entry::new(
             Target::Window(w),
             Kind::Window,
             name,
             en,
             String::new(),
             Entry::window_key(w),
-        ));
+        );
+        // r39:ux-b — the View menu's words for the same window find it too (ADR 0110).
+        let menu = match w {
+            Window::Appearance => Some("settings.appearance"),
+            Window::TopBar => Some("topbar.customise"),
+            Window::Shortcuts => Some("menu.shortcuts"),
+            Window::About => Some("menu.about"),
+            Window::Start => None,
+        };
+        if let Some(k) = menu {
+            e = e.also(t(k));
+        }
+        out.push(e);
+    }
+    // r39:ux-b — every menu row that is not an action, under the menu's words (ADR 0110).
+    for c in crate::menu_commands::MenuCommand::ALL {
+        let (name, en) = both(c.key());
+        let mut e = Entry::new(
+            Target::Menu(c),
+            Kind::Action,
+            name,
+            en,
+            String::new(),
+            c.id(),
+        );
+        for k in c.also() {
+            e = e.also(t(k));
+        }
+        out.push(e);
     }
     for page in SettingsPage::ALL {
         let word = |l: Locale| crate::i18n::t_in(l, page.key());
@@ -203,14 +248,20 @@ pub fn entries(app: &mut CantusApp) -> Vec<Entry> {
             "workflow.palette.settings",
             &[("page", &word(Locale::En))],
         );
-        out.push(Entry::new(
+        let mut e = Entry::new(
             Target::Settings(page),
             Kind::Settings,
             name,
             en,
             String::new(),
             Entry::settings_key(page),
-        ));
+        );
+        // r39:ux-b — the Options menu's words for the page find it too (ADR 0110).
+        let item = format!("{}_item", page.key());
+        if crate::i18n::has(crate::i18n::locale(), &item) {
+            e = e.also(t(&item));
+        }
+        out.push(e);
     }
     crate::workflow::sync_templates(app);
     let sounds = app.samples.content().instruments();
@@ -359,6 +410,11 @@ pub fn run(app: &mut CantusApp, entry: &Entry) {
                 },
             };
             app.apply_pick(purpose, d.choice);
+        }
+        Target::Menu(c) => {
+            if let Some(ctx) = app.theme_ctx.clone() {
+                c.run(app, &ctx);
+            }
         }
         Target::Recent(path) => app.request_open_path(path.clone()),
         Target::Template(tpl) => app.request_template(tpl.clone()),

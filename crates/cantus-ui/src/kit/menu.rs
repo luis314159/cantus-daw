@@ -58,12 +58,31 @@ impl<'a> Item<'a> {
         }
     }
 
-    fn height(&self) -> f32 {
-        match self {
-            Item::Action { .. } => ROW,
-            Item::Band(_) => BAND,
-            Item::Separator => SEPARATOR,
+    /// Its height in `s` at 100 % (a recessed family's rows are `des-controls`' 24 pt, its
+    /// headings 24 and its separators 9).
+    pub fn height_in(&self, s: &Style) -> f32 {
+        self.height_of(s.t.system.recessed())
+    }
+
+    fn height_of(&self, recessed: bool) -> f32 {
+        if recessed {
+            match self {
+                Item::Action { .. } => super::menu_slate::ROW,
+                Item::Band(_) => super::menu_slate::HEAD,
+                Item::Separator => super::menu_slate::SEP,
+            }
+        } else {
+            match self {
+                Item::Action { .. } => ROW,
+                Item::Band(_) => BAND,
+                Item::Separator => SEPARATOR,
+            }
         }
+    }
+
+    /// Its height at 100 % in the installed theme's system.
+    fn height(&self) -> f32 {
+        self.height_of(installed_recessed())
     }
 
     /// Whether a click can act on it.
@@ -72,14 +91,47 @@ impl<'a> Item<'a> {
     }
 }
 
-/// The height of a menu of `items` at scale `k`, frame included.
+/// Whether the installed theme builds its keys recessed (Slate and its siblings).
+fn installed_recessed() -> bool {
+    super::tokens::current_system().recessed()
+}
+
+/// The sheet's padding at its top and foot in a system.
+fn pad(recessed: bool) -> f32 {
+    if recessed {
+        super::menu_slate::PAD
+    } else {
+        4.0
+    }
+}
+
+/// The height of a menu of `items` at scale `k`, frame included (the installed theme's
+/// rows: a view measures with it and paints with the installed style).
 pub fn height(items: &[Item<'_>], k: f32) -> f32 {
-    items.iter().map(|i| i.height()).sum::<f32>() * k + 8.0 * k
+    let r = installed_recessed();
+    items.iter().map(|i| i.height_of(r)).sum::<f32>() * k + 2.0 * pad(r) * k
+}
+
+/// The height of a menu of `items` in `s` (its density in), frame included.
+pub fn height_in(items: &[Item<'_>], s: &Style) -> f32 {
+    let (r, k) = (s.t.system.recessed(), s.d(1.0));
+    items.iter().map(|i| i.height_of(r)).sum::<f32>() * k + 2.0 * pad(r) * k
+}
+
+/// The rect of row `i` in a menu of `items` occupying `rect`, in `s`.
+pub fn row_in(rect: Rect, items: &[Item<'_>], s: &Style, i: usize) -> Rect {
+    let (r, k) = (s.t.system.recessed(), s.d(1.0));
+    let y = rect.top() + pad(r) * k + items[..i].iter().map(|it| it.height_of(r)).sum::<f32>() * k;
+    Rect::from_min_size(
+        Pos2::new(rect.left() + 4.0 * k, y),
+        Vec2::new(rect.width() - 8.0 * k, items[i].height_of(r) * k),
+    )
 }
 
 /// The rect of row `i` in a menu occupying `rect`.
 pub fn row(rect: Rect, items: &[Item<'_>], k: f32, i: usize) -> Rect {
-    let y = rect.top() + 4.0 * k + items[..i].iter().map(|it| it.height()).sum::<f32>() * k;
+    let r = installed_recessed();
+    let y = rect.top() + pad(r) * k + items[..i].iter().map(|it| it.height_of(r)).sum::<f32>() * k;
     Rect::from_min_size(
         Pos2::new(rect.left() + 4.0 * k, y),
         Vec2::new(rect.width() - 8.0 * k, items[i].height() * k),
@@ -88,6 +140,10 @@ pub fn row(rect: Rect, items: &[Item<'_>], k: f32, i: usize) -> Rect {
 
 /// Paint a menu in `rect` with `hovered` highlighted.
 pub fn paint(b: &mut Brush, rect: Rect, s: &Style, items: &[Item<'_>], hovered: Option<usize>) {
+    if s.t.system.recessed() {
+        super::menu_slate::paint(b, rect, s, items, hovered, true);
+        return;
+    }
     b.register(rect, "menu", TOKENS, &[]);
     let t = &s.t;
     let rect = b.snap_rect(rect);
@@ -110,7 +166,7 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, items: &[Item<'_>], hovered: 
     );
     let dim = with_alpha(t.menu_text, 0.72);
     for (i, it) in items.iter().enumerate() {
-        let rr = b.snap_rect(row(rect, items, s.d(1.0), i));
+        let rr = b.snap_rect(row_in(rect, items, s, i));
         match *it {
             Item::Separator => {
                 b.hline(
@@ -204,3 +260,60 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, items: &[Item<'_>], hovered: 
         }
     }
 }
+
+/// The width a menu of `items` needs for every row to read whole (round 39, ADR 0109): the
+/// check column, the words, the key and the chevron with their gaps, the frame's insets.
+pub fn width(ctx: &egui::Context, items: &[Item<'_>], s: &Style) -> f32 {
+    if s.t.system.recessed() {
+        return super::menu_slate::width(ctx, items, s);
+    }
+    let measure = |src: Src<'_>, role: Role, caps: bool| {
+        let t = Text {
+            src,
+            role,
+            caps,
+            align: Align2::LEFT_CENTER,
+            policy: Policy::Elide(Elide::End),
+            color: s.t.menu_text,
+        };
+        text::measure(ctx, &t, s.tk()).x
+    };
+    let inset = s.s(8.0);
+    items
+        .iter()
+        .map(|it| match *it {
+            Item::Separator => 0.0,
+            Item::Band(label) => inset + s.s(16.0) + measure(label, Role::Section, true),
+            Item::Action {
+                label,
+                shortcut,
+                submenu,
+                ..
+            } => {
+                let key = shortcut.map_or(0.0, |sc| {
+                    s.s(12.0) + measure(Src::Str(sc), Role::Body, false)
+                });
+                let chevron = if submenu { s.s(18.0) } else { 0.0 };
+                inset + s.s(22.0) + measure(label, Role::Body, false) + key + chevron + s.s(8.0)
+            }
+        })
+        .fold(0.0, f32::max)
+        + s.s(2.0)
+}
+
+/// A popup's contents kept inside the window (round 39, `des-controls`' overflow): a menu
+/// taller than the window scrolls (the wheel, or the keys walking it) instead of running
+/// off its foot; egui's popup then keeps the whole sheet on the screen, flipping it above
+/// its anchor where there is no room under it.
+pub fn fit<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let room = (ui.ctx().content_rect().height() - 2.0 * FIT_MARGIN).max(80.0);
+    egui::ScrollArea::vertical()
+        .id_salt("cantus-menu-fit")
+        .max_height(room)
+        .auto_shrink([true, true])
+        .show(ui, add)
+        .inner
+}
+
+/// What [`fit`] leaves between a menu and the window's edges, in points.
+pub const FIT_MARGIN: f32 = 8.0;

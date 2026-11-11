@@ -7,20 +7,17 @@
 //! the middle button pans, and the header column's edge can be dragged. The painting is
 //! in [`paint`]; this file is the state, the layout and the input.
 
-use super::clips_chrome::{self as chrome, Digits, Span, Tints, Toolbar, BAR};
+use super::clips_chrome::{self as chrome, Digits, Tints};
 use super::{beats_to_ticks, ticks_to_beats, GRIDS};
 use crate::app::CantusApp;
 
 use crate::i18n::{t, tf};
-use crate::icons::{self, Icon};
 use crate::kit::hint::{self, Caps};
 use crate::kit::menu::{Check, Item};
 use crate::kit::text::Src;
 use crate::kit::{self, Style};
 use crate::theme;
-use cantus_core::{
-    ClipId, Command, LoopRegion, MergeKey, Ticks, TrackId, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT,
-};
+use cantus_core::{ClipId, Command, LoopRegion, MergeKey, Ticks, TrackId};
 use egui::{pos2, vec2, PointerButton, Pos2, Rect, Sense};
 
 #[path = "arrangement_audio.rs"]
@@ -35,21 +32,49 @@ pub use audio::{warp as warp_api, Shown as AudioShown};
 /// Automation lanes and the curves in their clips (ADR 0027).
 #[path = "arrangement_auto.rs"]
 pub mod autolanes;
+/// A MIDI clip's content by zoom (round 39, des-views).
+#[path = "arrangement_paint_clip.rs"]
+pub mod clip_content;
 /// The comp on the playing lane: seams, take numbers, the comps' chip (ADR 0058).
 #[path = "arrangement_comp.rs"]
 pub mod comp;
+#[path = "arrangement_empty.rs"]
+pub mod empty;
+#[path = "arrangement_folders.rs"]
+pub mod folders;
+#[path = "arrangement_head.rs"]
+pub mod head;
+#[path = "arrangement_headers.rs"]
+mod headers;
+/// Round 39, *themes*: every theme easy to read, measured on what the painters paint.
+#[cfg(test)]
+#[path = "arrangement_legibility.rs"]
+mod legibility;
 /// The markers on the ruler (round 29, ADR 0060).
 #[path = "arrangement_markers.rs"]
 pub mod markers;
+#[path = "arrangement_menus.rs"]
+pub mod menus;
 #[path = "arrangement_paint.rs"]
 mod paint;
 #[path = "arrangement_rec.rs"]
 mod rec;
+#[path = "arrangement_ruler.rs"]
+pub mod ruler;
+/// r39:el-arrange — the arrangement in Slate (ADR 0111, 0113): its inks, the headers, the
+/// folders, the menus, the ruler and sections, the song map, the empty song.
+#[path = "arrangement_slate.rs"]
+pub(crate) mod slate;
+#[path = "arrangement_songmap.rs"]
+mod songmap;
 #[path = "arrangement_takes.rs"]
 mod takes;
 /// The tempo track and the metre chips (round 29, ADR 0060).
 #[path = "arrangement_tempo.rs"]
 pub mod tempo;
+/// r39:lo-arrange — the tool row and its tools (dir-a's `b-toolbar-*`).
+#[path = "arrangement_tools.rs"]
+pub mod tools;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.
@@ -60,14 +85,14 @@ pub use rec::{record_controls, RecordControls};
 /// its direct manipulation; putting the selection behind a modifier (FL's `Ctrl+drag`)
 /// would have hidden the thing nearly everything else in the playlist plan hangs off.
 /// Reaper splits the ruler the same way, for the same reason.
-const RULER_H: f32 = 26.0;
+const RULER_H: f32 = ruler::RULER_H;
 const LOOP_LANE_H: f32 = 8.0;
 /// How wide the grab zone on a header's bottom edge is.
 const DIVIDER_GRIP: f32 = 5.0;
 /// The header column: its width by default, and how far its edge may be dragged.
-const HEADER_W: f32 = 220.0;
-const HEADER_MIN: f32 = 150.0;
-const HEADER_MAX: f32 = 420.0;
+const HEADER_W: f32 = head::NORMAL;
+const HEADER_MIN: f32 = head::MIN_W;
+const HEADER_MAX: f32 = head::MAX_W;
 /// The base row height's range: the rows' zoom.
 const BASE_MIN: f32 = 22.0;
 const BASE_MAX: f32 = 120.0;
@@ -85,12 +110,20 @@ pub struct ArrangementView {
     pub scroll_beats: f32,
     /// How far the rows are scrolled up, in points.
     pub scroll_y: f32,
+    /// A track to scroll into view, with its lanes, on the next frame drawn (the
+    /// inspector's *Show in the arrangement*, round 39).
+    pub reveal: Option<TrackId>,
     /// The base row height. A track's own height is a multiple of this, so the interface
     /// scale and the per-track choice compose instead of fighting. Ctrl+Alt+wheel and the
     /// vertical bar's ends zoom it.
     pub track_height: f32,
-    /// The header column's width; its edge is a splitter.
+    /// The header column's width as the user left it; its edge is a splitter. A window
+    /// too narrow for it draws it narrower ([`Self::header_shown`]) and never stores that
+    /// (round 39, fixes).
     pub header_width: f32,
+    /// The header column's width as drawn last frame: [`Self::header_width`] within what
+    /// the arrangement's own width allows.
+    header_drawn: f32,
     /// A header divider being dragged: the track, and the height it started at.
     divider: Option<(TrackId, f32)>,
     /// A track header being dragged to reorder: the track, and where it would land.
@@ -132,6 +165,36 @@ pub struct ArrangementView {
     scratch: Scratch,
     /// The automation lanes: their order, what was drawn, a point being dragged.
     pub auto: autolanes::State,
+    // r39:el-arrange
+    /// The headers' words, rebuilt only when the song or the language changes.
+    words: head::Words,
+    /// The folder selected, and the one being renamed.
+    pub folder_selected: Option<cantus_core::FolderId>,
+    folder_rename: Option<(cantus_core::FolderId, String)>,
+    /// The page of a track's menu that is open.
+    menu_page: Option<(TrackId, menus::Page)>,
+    /// The track's own icon's picker.
+    pub glyphs: super::track_glyphs::Picker,
+    /// The ruler's memory (where play started) and the sections lane's.
+    pub ruler: ruler::State,
+    pub sections: ruler::sections::State,
+    /// The song map's or the vertical thumb's drag.
+    map_grab: Option<songmap::Grab>,
+    /// Where the empty song's starters were drawn.
+    pub empty: empty::Drawn,
+    /// Whether the sections and markers lane is shown (the corner's lanes menu).
+    pub show_sections: bool,
+    // r39:lo-arrange
+    /// The tool in hand (dir-a's radio set): view state, never an undo step.
+    pub tool: tools::Tool,
+    /// Follow: the view turns its page to keep the playhead in sight while the song plays.
+    pub follow: bool,
+    /// Where the playhead was when Follow last looked (in beats).
+    follow_last: Option<f32>,
+    /// The grid follows the zoom (the grid menu's "Follow the zoom").
+    pub grid_auto: bool,
+    /// A tool's gesture in progress (a clip drawn, a sweep, a range to zoom to).
+    gesture: Option<tools::Gesture>,
 }
 
 /// What the painters reuse from frame to frame.
@@ -139,6 +202,11 @@ pub struct ArrangementView {
 struct Scratch {
     /// A clip's repetitions of one note.
     at: Vec<Ticks>,
+    /// A far clip's contour: the highest and lowest note a pixel column (r39:el-views).
+    cols: Vec<(f32, f32)>,
+    /// Each MIDI clip's notes summed up for the rows, and the revision and note count
+    /// it was summed at (r39:el-views).
+    summaries: std::collections::HashMap<ClipId, (u64, usize, clip_content::Summary)>,
     /// A clip's label, with its "(muted)" when it has one.
     label: String,
     /// "muted", in the interface's language, and the language it was read in.
@@ -146,9 +214,6 @@ struct Scratch {
     locale: Option<crate::i18n::Locale>,
     tints: Tints,
     digits: Digits,
-    /// The toolbar's readouts, rebuilt only when what they say changes.
-    selected: (usize, String),
-    span: (Option<(Ticks, Ticks)>, String),
     /// "Track 5", "Track 6"…: the empty rows below the last track, named as FL names
     /// them, built once per language and count.
     placeholders: Vec<String>,
@@ -176,20 +241,9 @@ impl Scratch {
         if self.locale != Some(now) {
             self.locale = Some(now);
             self.muted_word = t("clip.muted_short");
-            self.selected.1.clear();
-            self.span.1.clear();
             self.placeholders.clear();
             self.counts.clear();
         }
-    }
-
-    /// The placeholder name of track number `n` (1-based).
-    fn placeholder(&mut self, n: usize) -> &str {
-        while self.placeholders.len() < n {
-            let k = self.placeholders.len() + 1;
-            self.placeholders.push(tf("track.new_name", &[("n", &k)]));
-        }
-        &self.placeholders[n - 1]
     }
 }
 
@@ -206,6 +260,9 @@ enum DragMode {
     TrimEnd,
     /// Slip: the window stays, the content moves under it.
     Slip,
+    /// r39:lo-arrange — the corner notch at the top right (des-arrange): the right edge
+    /// drawn out with the clip repeating — its loop switched on, at the length it had.
+    Loop,
 }
 
 /// A drag in progress. **Nothing is committed until the mouse comes up.**
@@ -240,11 +297,13 @@ impl Default for ArrangementView {
             px_per_beat: 26.0,
             scroll_beats: 0.0,
             scroll_y: 0.0,
+            reveal: None,
             // 40 px, not 64. The header used to hold a fader, a pan bar and a meter — a
             // mixer strip inside a track header — and it is why only four tracks fitted on
             // screen. Those live in the inspector now, which is what buys the density.
-            track_height: 40.0,
+            track_height: head::ROW,
             header_width: HEADER_W,
+            header_drawn: HEADER_W,
             divider: None,
             reorder: None,
             selecting: None,
@@ -264,6 +323,21 @@ impl Default for ArrangementView {
             audio: Default::default(),
             scratch: Scratch::default(),
             auto: Default::default(),
+            words: Default::default(),
+            folder_selected: None,
+            folder_rename: None,
+            menu_page: None,
+            glyphs: Default::default(),
+            ruler: Default::default(),
+            sections: Default::default(),
+            map_grab: None,
+            empty: Default::default(),
+            show_sections: true,
+            tool: tools::Tool::Select,
+            follow: true,
+            follow_last: None,
+            grid_auto: false,
+            gesture: None,
         }
     }
 }
@@ -277,6 +351,10 @@ pub struct HeaderHit {
     /// The name's letters, on the name line's height: a click there renames. `None` while
     /// the name is being edited.
     pub letters: Option<Rect>,
+    /// r39:el-arrange — its keys (M S ● A; the last two empty on a narrow header) and its
+    /// own icon's slot before the name.
+    pub keys: [Rect; 4],
+    pub glyph: Rect,
 }
 
 impl ArrangementView {
@@ -290,6 +368,12 @@ impl ArrangementView {
     /// Start renaming a track in place (a click on its name's letters does).
     pub fn begin_rename_track(&mut self, id: TrackId, name: String) {
         self.rename = Some((id, name));
+    }
+
+    /// The header column's width as drawn last frame (the stored one is
+    /// [`Self::header_width`]).
+    pub fn header_shown(&self) -> f32 {
+        self.header_drawn
     }
 
     /// Where each visible header and its name's letters were drawn this frame.
@@ -384,7 +468,7 @@ impl ArrangementView {
                 Some((d.delta, Ticks::ZERO, d.rows))
             }
             DragMode::TrimStart if r == d.anchor => Some((d.delta, -d.delta, 0)),
-            DragMode::TrimEnd if r == d.anchor => Some((Ticks::ZERO, d.delta, 0)),
+            DragMode::TrimEnd | DragMode::Loop if r == d.anchor => Some((Ticks::ZERO, d.delta, 0)),
             DragMode::Slip if r == d.anchor => Some((Ticks::ZERO, Ticks::ZERO, 0)),
             _ => None,
         }
@@ -416,7 +500,7 @@ impl ArrangementView {
                 copy: false,
             },
             DragMode::TrimStart => ClipDragResult::TrimStart { delta: d.delta },
-            DragMode::TrimEnd => ClipDragResult::TrimEnd { delta: d.delta },
+            DragMode::TrimEnd | DragMode::Loop => ClipDragResult::TrimEnd { delta: d.delta },
             DragMode::Slip => ClipDragResult::Slip { delta: d.delta },
         };
         Some((d.anchor, r))
@@ -433,30 +517,30 @@ impl ArrangementView {
 /// Where the view's regions are this frame.
 #[derive(Copy, Clone, Debug)]
 struct Frame {
-    /// Above the headers, beside the scroll bar and the ruler: the add-track key.
+    /// Above the headers, beside the ruler: the plus, the count, the lanes key; the top
+    /// lanes' own headers under it.
     corner: Rect,
     headers: Rect,
-    /// The horizontal scroll and zoom bar, above the ruler (FL).
-    hbar: Rect,
+    /// r39:el-arrange — the song map, the panel's foot (the horizontal scroll), and the
+    /// header column's foot beside it (the song's length).
+    map: Rect,
+    foot: Rect,
+    /// The ruler with the loop band, the punch lane, the numbers and the sections lane.
     ruler: Rect,
     lanes: Rect,
-    /// The vertical bar, right of the lanes, and the corner above it.
-    vbar: Rect,
-    vcorner: Rect,
     /// The header column's edge.
     split: Rect,
     /// The punch lane's height (zero while punch is off), between the loop lane and the
     /// bar numbers.
     punch_h: f32,
-    /// The marker lane's height (zero without markers), under the loop lane (ADR 0060).
+    /// The sections and markers lane's height (zero while hidden), the ruler's foot.
     markers_h: f32,
     /// The tempo track's lane, between the ruler and the tracks (empty while hidden).
     tempo: Rect,
 }
 
 impl Frame {
-    /// The regions, with the marker lane in the ruler and the tempo lane under it (round
-    /// 29, ADR 0060).
+    /// The regions (round 39: the song map at the foot, the sections under the numbers).
     fn with_lanes(
         full: Rect,
         header_w: f32,
@@ -465,33 +549,26 @@ impl Frame {
         tempo_h: f32,
         s: &Style,
     ) -> Frame {
-        let bar = s.s(BAR);
         let hx = full.left() + header_w;
-        let right = full.right() - bar;
-        let hbar = Rect::from_min_max(pos2(hx + 1.0, full.top()), pos2(right, full.top() + bar));
+        let right = full.right();
+        let map_h = s.s(songmap::MAP_H);
         let ruler = Rect::from_min_max(
-            pos2(hbar.left(), hbar.bottom()),
-            pos2(right, hbar.bottom() + RULER_H + punch_h + markers_h),
+            pos2(hx + 1.0, full.top()),
+            pos2(right, full.top() + s.s(RULER_H) + punch_h + markers_h),
         );
         let tempo = Rect::from_min_max(
-            pos2(hbar.left(), ruler.bottom()),
+            pos2(ruler.left(), ruler.bottom()),
             pos2(right, ruler.bottom() + tempo_h),
         );
-        let lanes = Rect::from_min_max(
-            pos2(hbar.left(), tempo.bottom()),
-            pos2(right, full.bottom()),
-        );
+        let bottom = full.bottom() - map_h;
+        let lanes = Rect::from_min_max(pos2(ruler.left(), tempo.bottom()), pos2(right, bottom));
         Frame {
             corner: Rect::from_min_max(full.min, pos2(hx, ruler.bottom())),
-            headers: Rect::from_min_max(pos2(full.left(), tempo.bottom()), pos2(hx, full.bottom())),
-            hbar,
+            headers: Rect::from_min_max(pos2(full.left(), tempo.bottom()), pos2(hx, bottom)),
+            map: Rect::from_min_max(pos2(ruler.left(), bottom), pos2(right, full.bottom())),
+            foot: Rect::from_min_max(pos2(full.left(), bottom), pos2(hx, full.bottom())),
             ruler,
             lanes,
-            vbar: Rect::from_min_max(pos2(right, tempo.bottom()), full.max),
-            vcorner: Rect::from_min_max(
-                pos2(right, full.top()),
-                pos2(full.right(), tempo.bottom()),
-            ),
             split: Rect::from_center_size(
                 pos2(hx + 0.5, (full.top() + full.bottom()) * 0.5),
                 vec2(s.s(kit::chrome::SPLITTER), full.height()),
@@ -511,206 +588,9 @@ impl Frame {
     }
 }
 
-/// A key's tooltip: the action's name and whatever key is bound to it *right now*
-/// (`Keymap::display_for`), so the toolbar teaches the shortcut rather than competing
-/// with it. Built only while the key is hovered.
-fn tip(app: &CantusApp, action: crate::keymap::Action, label: &str) -> String {
-    let keys = app.keymap.display_for(action);
-    if keys.is_empty() {
-        t(label)
-    } else {
-        format!("{} ({keys})", t(label))
-    }
-}
-
-/// The clip toolbar: the same shape as the piano roll's, for the same reason.
-///
-/// Everything here was already reachable from a menu and a shortcut, and that is not the
-/// same as being to hand. A row of keys above the thing they act on is how a musician
-/// finds out an operation exists at all.
-fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
-    use crate::keymap::Action;
-    let linked = crate::links::selection_is_linked(app.project(), &app.clip_selection());
-    let (muted, looping, color, selected) = {
-        let a: &CantusApp = app;
-        let first = if a.selected_clips.is_empty() {
-            a.selected_track.zip(a.selected_clip)
-        } else {
-            a.selected_clips.first().copied()
-        };
-        let n = if a.selected_clips.is_empty() {
-            usize::from(first.is_some())
-        } else {
-            a.selected_clips.len()
-        };
-        let (muted, looping, color) = first
-            .and_then(|(t, c)| a.project().track(t)?.clip(c))
-            .map(|c| (c.muted, c.content_length.is_some(), c.color))
-            .unwrap_or((false, false, None));
-        (muted, looping, color, n)
-    };
-    let id = ui.id().with("arrangement-toolbar");
-    let mut bar = Toolbar::new(ui);
-    if let Some(r) = bar.menu(ui, id.with("menu"), "arrangement.menu") {
-        egui::Popup::menu(&r)
-            .frame(egui::Frame::NONE)
-            .show(|ui| timeline_menu(app, ui, false));
-    }
-    bar.title(ui, Src::Key("arrangement.title"), None);
-    bar.divider(ui);
-    // `lit` is state, never a press: mute and repeat light up because the clip *is*
-    // muted or repeating, and the rest never light up at all.
-    for (action, icon, label, lit) in [
-        (Action::SplitClip, Icon::Slice, "clip.split", false),
-        (Action::GlueClips, Icon::Glue, "clip.glue", false),
-        (Action::Duplicate, Icon::Duplicate, "clip.duplicate", false),
-        (Action::ToggleClipMute, Icon::Mute, "clip.mute", muted),
-        (Action::ToggleClipLoop, Icon::Loop, "clip.loop_on", looping),
-    ] {
-        let key = bar.key(ui, id.with(label), icon, lit, true, || {
-            tip(app, action, label)
-        });
-        if key.is_some_and(|k| k.clicked()) {
-            app.run_action(action);
-        }
-    }
-    // Lit while the selection is a linked clip (ADR 0037); a press makes it unique.
-    let link = bar.key(ui, id.with("link"), Icon::Link, linked, linked, || {
-        tip(app, Action::MakeUnique, "clip.link_key")
-    });
-    if link.is_some_and(|k| k.clicked()) {
-        app.focus_arrangement();
-        app.run_action(Action::MakeUnique);
-    }
-    // The paint tool (B): lit while it is out; its source is the clip browser's tile.
-    let painting = app.clip_browser.painting();
-    let paint = bar.key(ui, id.with("paint"), Icon::Paint, painting, true, || {
-        tip(app, Action::ToolPaint, "links.paint.key")
-    });
-    if paint.is_some_and(|k| k.clicked()) {
-        app.focus_arrangement();
-        app.toggle_arrangement_paint();
-    }
-    // The colour key shows the colour rather than an icon of one.
-    let swatch = bar.swatch(ui, id.with("colour"), color.map(theme::track_color), || {
-        tip(app, Action::ClipColorNext, "clip.color")
-    });
-    if let Some(r) = swatch {
-        egui::Popup::menu(&r)
-            .frame(chrome::menu_frame())
-            .show(|ui| color_menu(app, ui, false));
-    }
-    let del = bar.key(ui, id.with("delete"), Icon::Delete, false, true, || {
-        tip(app, Action::Delete, "clip.delete")
-    });
-    if del.is_some_and(|k| k.clicked()) {
-        app.focus_arrangement();
-        app.delete_clip_selection();
-    }
-    bar.divider(ui);
-
-    // The same list the piano roll offers, with the same names: two grid pickers that
-    // disagree about what "1/8" is called would be a small cruelty.
-    let grid_key = grid_key(app.arrangement.grid);
-    let caption = t("arrangement.grid");
-    let field = bar.field(
-        ui,
-        id.with("grid"),
-        Some(&caption),
-        &t(grid_key),
-        64.0,
-        || t("arrangement.grid_tip"),
-    );
-    if let Some(r) = field {
-        egui::Popup::menu(&r).frame(egui::Frame::NONE).show(|ui| {
-            if let Some(g) = grid_menu(ui, app.arrangement.grid) {
-                app.arrangement.grid = g;
-                ui.close();
-            }
-        });
-    }
-    let snap = bar.led(
-        ui,
-        id.with("snap"),
-        app.arrangement.snap,
-        "pianoroll.snap",
-        58.0,
-        || t("arrangement.snap_tip"),
-    );
-    if snap.is_some_and(|r| r.clicked()) {
-        app.arrangement.snap = !app.arrangement.snap;
-    }
-
-    // The right end: what is selected, and what can be done with a time selection.
-    let bars_per = app.project().time_signature.ticks_per_bar().0 as f32;
-    let time_selection = app.time_selection;
-    // The selection's length in bars, through the metre changes (ADR 0060).
-    let span_bars = time_selection.map(|(from, to)| {
-        if crate::views::bars::map(app.project()).is_one_metre() {
-            (to - from).0 as f32 / bars_per
-        } else {
-            (crate::views::bars::bar_position(app.project(), to)
-                - crate::views::bars::bar_position(app.project(), from)) as f32
-        }
-    });
-    let scratch = &mut app.arrangement.scratch;
-    scratch.refresh_words();
-    if scratch.selected.0 != selected || scratch.selected.1.is_empty() {
-        scratch.selected = (selected, tf("arrangement.selected", &[("n", &selected)]));
-    }
-    if scratch.span.0 != time_selection || scratch.span.1.is_empty() {
-        // The time selection's length in bars, monospaced so it does not shift as it is
-        // dragged. Shown even when empty, so the readout is a place the eye learns.
-        let text = match time_selection {
-            Some((from, to)) => {
-                let _ = (from, to);
-                let bars = span_bars.unwrap_or(0.0);
-                tf("arrangement.selection", &[("bars", &format!("{bars:.2}"))])
-            }
-            None => t("arrangement.no_selection"),
-        };
-        scratch.span = (time_selection, text);
-    }
-    let (sel_text, span_text) = (
-        std::mem::take(&mut scratch.selected.1),
-        std::mem::take(&mut scratch.span.1),
-    );
-    bar.readout_right(ui, &sel_text, 84.0, false);
-    bar.readout_right(ui, &span_text, 120.0, false);
-    app.arrangement.scratch.selected.1 = sel_text;
-    app.arrangement.scratch.span.1 = span_text;
-    let has_selection = app.time_selection.is_some();
-    for (action, icon, key) in [
-        (
-            Action::LoopToSelection,
-            Icon::Loop,
-            "action.loop-to-selection",
-        ),
-        (
-            Action::ZoomToSelection,
-            Icon::Zoom,
-            "action.zoom-to-selection",
-        ),
-    ] {
-        let r = bar.key_right(ui, id.with(key), icon, false, has_selection, || {
-            tip(app, action, key)
-        });
-        if r.is_some_and(|r| r.clicked()) {
-            app.run_action(action);
-        }
-    }
-}
-
-/// The i18n key of a grid's name.
-fn grid_key(grid: Ticks) -> &'static str {
-    GRIDS
-        .iter()
-        .find(|(_, g)| *g == grid.0)
-        .map(|(k, _)| *k)
-        .unwrap_or("grid.custom")
-}
-
-/// The grid list, as a kit menu: returns the grid chosen.
+/// The grid list as a kit menu, for the channel rack and the top bar's snap: returns the
+/// grid chosen. The arrangement's and the piano roll's own grid menus are
+/// [`tools::grid_menu`] (r39:lo-arrange: musical order, Triplets, Follow the zoom).
 pub(crate) fn grid_menu(ui: &mut egui::Ui, current: Ticks) -> Option<Ticks> {
     let items: [Item<'_>; 8] = std::array::from_fn(|i| Item::Action {
         label: Src::Key(GRIDS[i].0),
@@ -796,10 +676,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         ui.max_rect(),
         crate::samples::drop::Target::Arrangement,
     );
-    toolbar(app, ui);
+    tools::toolbar(app, ui);
     let s = Style::current();
     let full = ui.available_rect_before_wrap();
-    if full.width() < 60.0 || full.height() < RULER_H + 2.0 * s.s(BAR) {
+    if full.width() < 60.0 || full.height() < s.s(RULER_H) + 2.0 * s.s(songmap::MAP_H) {
         return;
     }
     let punch_h = rec::punch_height(app, &s);
@@ -809,30 +689,86 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     let mut auto_st = std::mem::take(&mut app.arrangement.auto);
     auto_st.refresh(app);
     app.arrangement.auto = auto_st;
+    // The headers' and lanes' words, once per edit (r39:el-arrange).
+    let mut words = std::mem::take(&mut app.arrangement.words);
+    words.refresh(app);
+    app.arrangement.words = words;
     let v = &mut app.arrangement;
-    let most = HEADER_MAX.min(full.width() * 0.6).max(40.0);
-    v.header_width = v.header_width.clamp(HEADER_MIN.min(most), most);
-    let f = Frame::with_lanes(full, v.header_width, punch_h, markers_h, tempo_h, &s);
-    navigate(app, ui, &f, &s);
+    // What is drawn is clamped to the room there is; what is stored is not, so a first
+    // frame in a small window leaves the user's width for when it grows (round 39, fixes).
+    let shown = header_shown(v.header_width, full.width());
+    v.header_drawn = shown;
+    let f = Frame::with_lanes(full, shown, punch_h, markers_h, tempo_h, &s);
+    navigate(app, ui, &f);
+    // r39:lo-arrange — the grid that follows the zoom, and the page that follows the playhead.
+    tools::follow_zoom(&mut app.arrangement);
+    tools::follow_playhead(app, f.lanes);
     let mut geo = layout(app, &f);
+    // A track asked for (the inspector's *Show in the arrangement*): its row and lanes
+    // scrolled into view, 8 pt under the lanes' top, where they are not all seen.
+    if let Some(t) = app.arrangement.reveal.take() {
+        let row = app
+            .project()
+            .tracks
+            .iter()
+            .position(|x| x.id == t)
+            .and_then(|i| geo.rows.get(i))
+            .map(|r| (r.top, r.top + r.height + r.takes + r.auto + r.pitch));
+        if let Some((top, bottom)) = row.filter(|(a, z)| z > a) {
+            if top < f.lanes.top() || bottom > f.lanes.bottom() {
+                let v = &mut app.arrangement;
+                v.scroll_y = (v.scroll_y + top - f.lanes.top() - 8.0).max(0.0);
+                geo = layout(app, &f);
+            }
+        }
+    }
     timeline(app, ui, &f, &geo, &s);
-    headers(app, ui, &f, &geo, &s);
+    headers::headers(app, ui, &f, &geo, &s);
     corner(app, ui, &f, &s);
+    // r39:el-arrange — the song map is the horizontal scroll; a thin thumb the vertical.
+    songmap::show(app, ui, f.map, f.foot, f.lanes, &s);
+    let content = content_height(app) + s.s(head::ADD_ROW);
+    songmap::thumb(app, ui, f.lanes, content, &s);
     // The paint tool (B; round 26, ADR 0037), above the timeline while it is out.
     super::clip_browser::paint_tool(app, ui, f.lanes, &geo);
     let v = &mut app.arrangement;
+    let mut edge = shown;
     kit::widgets::splitter(
         ui,
         f.split,
         ui.id().with("arrangement-headers-edge"),
-        &mut v.header_width,
+        &mut edge,
         HEADER_W,
         HEADER_MIN..=HEADER_MAX,
     );
+    // Only the user's own move of the edge is stored.
+    if edge != shown {
+        v.header_width = edge;
+    }
+    if ui.rect_contains_pointer(f.split.expand(2.0)) {
+        let tip = crate::i18n::tf("arrange.splitter.tip", &[("w", &(shown.round() as i64))]);
+        hint::set_text(
+            ui.ctx(),
+            &tip,
+            chrome::word("arrange.splitter.fit"),
+            Caps::NONE,
+        );
+    }
+    // The track's own icon's picker, when open.
+    super::track_glyphs::show(app, ui.ctx());
     // The geometry is published last, so a click this frame is aimed with what was drawn.
+    let v = &mut app.arrangement;
     geo.scroll_beats = v.scroll_beats;
     v.geometry = Some(geo);
     app.session_view.arrangement_pass = Some(ui.ctx().cumulative_pass_nr()); // r33:launcher
+}
+
+/// The header column's width drawn in an arrangement `width` wide: the stored one within
+/// [`HEADER_MIN`] and the most the arrangement's width allows (60 % of it, at most
+/// [`HEADER_MAX`]).
+fn header_shown(stored: f32, width: f32) -> f32 {
+    let most = HEADER_MAX.min(width * 0.6).max(40.0);
+    stored.clamp(HEADER_MIN.min(most), most)
 }
 
 /// The song's length in beats, rounded up to a bar, plus room to keep writing.
@@ -856,22 +792,14 @@ fn song_beats(app: &CantusApp) -> f32 {
     ((end / per_bar).ceil() + 8.0) * per_bar
 }
 
-/// The rows' full height at the current zoom.
+/// The rows' full height at the current zoom: tracks, their lanes and folders' rows (a
+/// closed folder's members at none).
 fn content_height(app: &CantusApp) -> f32 {
-    let base = app.arrangement.track_height;
-    app.project()
-        .tracks
-        .iter()
-        .map(|t| {
-            (base * t.height()).round()
-                + takes::height(t, base)
-                + super::pitch_lane::height(t, base)
-        })
-        .sum()
+    folders::content_height(app.project(), app.arrangement.track_height)
 }
 
-/// The wheel, the middle button and the two bars.
-fn navigate(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
+/// The wheel and the middle button (the song map and the thumb are their own).
+fn navigate(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame) {
     let over_time = ui.rect_contains_pointer(Rect::from_min_max(f.ruler.min, f.lanes.max));
     let over_rows = ui.rect_contains_pointer(f.headers);
     let pointer = ui.input(|i| i.pointer.hover_pos());
@@ -917,539 +845,195 @@ fn navigate(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
         v.scroll_y -= delta.y;
     }
 
-    // The bars: scroll by the thumb, zoom by its ends.
-    let total = song_beats(app)
-        .max(app.arrangement.scroll_beats + f.lanes.width() / app.arrangement.px_per_beat);
+    // The rows never scroll past the add-track row.
+    let content = content_height(app) + app.arrangement.track_height;
     let v = &mut app.arrangement;
-    let visible = f.lanes.width() / v.px_per_beat;
-    let span = Span::new(v.scroll_beats, visible, total);
-    let zoom = Some((f.lanes.width() / PX_MAX, f.lanes.width() / PX_MIN));
-    if let Some(n) = chrome::bar(
-        ui,
-        f.hbar,
-        ui.id().with("arr-hbar"),
-        span,
-        zoom,
-        "views.nav.hbar",
-    ) {
-        v.scroll_beats = n.start.max(0.0);
-        v.px_per_beat = (f.lanes.width() / n.len).clamp(PX_MIN, PX_MAX);
-    }
-    let content = content_height(app);
-    let v = &mut app.arrangement;
-    let tail = v.track_height;
-    let span = Span::new(v.scroll_y.max(0.0), f.lanes.height(), content + tail);
-    // The span is in points at today's row height: showing more of the song means
-    // smaller rows, down to `BASE_MIN`.
-    let zoom = Some((
-        f.lanes.height() * v.track_height / BASE_MAX,
-        f.lanes.height() * v.track_height / BASE_MIN,
-    ));
-    if let Some(n) = chrome::bar(
-        ui,
-        f.vbar,
-        ui.id().with("arr-vbar"),
-        span,
-        zoom,
-        "views.nav.vbar",
-    ) {
-        let k = span.len / n.len.max(1.0);
-        let before = v.track_height;
-        v.track_height = (v.track_height * k).clamp(BASE_MIN, BASE_MAX);
-        v.scroll_y = n.start * (v.track_height / before);
-    }
-    let content = content_height(app);
-    let v = &mut app.arrangement;
-    let most = (content + v.track_height - f.lanes.height()).max(0.0);
+    let most = (content - f.lanes.height()).max(0.0);
     v.scroll_y = v.scroll_y.clamp(0.0, most);
-    kit::with_brush(ui.painter(), |b| chrome::corner(b, f.vcorner, s));
 }
 
 /// The rows where they are drawn this frame, into the geometry the last frame left.
 fn layout(app: &mut CantusApp, f: &Frame) -> TimelineGeometry {
     let v = &mut app.arrangement;
-    let mut geo = v.geometry.take().unwrap_or(TimelineGeometry {
-        left: 0.0,
-        width: 0.0,
-        ruler_top: 0.0,
-        loop_lane_bottom: 0.0,
-        body_top: 0.0,
-        px_per_beat: 1.0,
-        scroll_beats: 0.0,
-        rows: Vec::new(),
-        punch: None,
-        markers: None,
-        tempo: None,
-    });
+    let mut geo = v.geometry.take().unwrap_or_default();
     geo.left = f.lanes.left();
     geo.width = f.lanes.width();
     geo.ruler_top = f.ruler.top();
     geo.loop_lane_bottom = f.ruler.top() + LOOP_LANE_H;
     geo.body_top = f.lanes.top();
-    // The marker lane under the loop lane, the punch lane under it (ADR 0060).
-    geo.markers =
-        (f.markers_h > 0.0).then_some((geo.loop_lane_bottom, geo.loop_lane_bottom + f.markers_h));
-    let punch_top = geo.loop_lane_bottom + f.markers_h;
-    geo.punch = (f.punch_h > 0.0).then_some((punch_top, punch_top + f.punch_h));
+    geo.lanes_bottom = f.lanes.bottom();
+    // The punch lane under the loop lane; the sections and markers lane at the ruler's foot
+    // (r39:el-arrange; ADR 0060, 0113).
+    geo.punch =
+        (f.punch_h > 0.0).then_some((geo.loop_lane_bottom, geo.loop_lane_bottom + f.punch_h));
+    geo.markers = (f.markers_h > 0.0).then_some((f.ruler.bottom() - f.markers_h, f.ruler.bottom()));
     geo.tempo = (f.tempo.height() > 0.0).then_some((f.tempo.top(), f.tempo.bottom()));
     geo.px_per_beat = v.px_per_beat;
     geo.scroll_beats = v.scroll_beats;
     let (top, base) = (f.lanes.top() - v.scroll_y, v.track_height);
-    rows_into(&mut geo.rows, app.project(), top, base);
+    let mut rows = std::mem::take(&mut geo.rows);
+    let mut fr = std::mem::take(&mut geo.folders);
+    folders::rows_into(&mut rows, &mut fr, app.project(), top, base);
+    geo.rows = rows;
+    geo.folders = fr;
     geo
 }
 
-/// The add-track key, over the headers.
-fn corner(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
-    kit::with_brush(ui.painter(), |b| {
-        b.register(f.corner, "corner", &[kit::Tok::Panel], &[]);
-        b.rect(b.snap_rect(f.corner), kit::Fill::Solid(s.t.panel));
-    });
-    let key = Rect::from_min_size(
-        pos2(f.corner.left() + s.s(6.0), f.corner.bottom() - s.s(28.0)),
-        vec2(s.s(26.0), s.s(24.0)),
-    );
-    let resp = ui.interact(key, ui.id().with("arr-add-track"), Sense::click());
-    super::device_chrome::publish(ui.ctx(), super::device_chrome::Spot::AddTrack, key);
-    let st = kit::State::of(&resp, false);
-    kit::with_brush(ui.painter(), |b| {
-        kit::cap::toolbar_key(
-            b,
-            key,
-            s,
-            st,
-            kit::cap::KeyFace::Glyph(kit::glyph::Glyph::Plus),
-        )
-    });
-    let resp = if resp.hovered() {
-        let tip = t("swap.add_track_tip");
-        hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
-        resp.on_hover_text(tip)
-    } else {
-        resp
-    };
-    // Round 20: the key opens the device picker on the instruments; the new track hosts
-    // the one chosen.
-    if resp.clicked() {
-        app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
-    }
-    // Right-click: an instrument from the picker, a plain track, or an audio track.
-    egui::Popup::context_menu(&resp)
-        .frame(chrome::menu_frame())
-        .show(|ui| {
-            let items = [
-                Item::action(Src::Key("swap.add_instrument")),
-                Item::action(Src::Key("swap.add_plain_track")),
-                Item::action(Src::Key("rec.add_audio_track")),
-            ];
-            match kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
-                Some(0) => {
-                    app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
-                    ui.close();
-                }
-                Some(1) => {
-                    app.add_track();
-                    ui.close();
-                }
-                Some(2) => {
-                    app.add_audio_track();
-                    ui.close();
-                }
-                _ => {}
-            }
-        });
+/// The band under the loop (and punch) lane where the bar numbers are.
+fn numbers_rect(geo: &TimelineGeometry, ruler: Rect) -> Rect {
+    let top = geo.punch.map_or(geo.loop_lane_bottom, |p| p.1);
+    let bottom = geo.markers.map_or(ruler.bottom(), |m| m.0);
+    Rect::from_min_max(pos2(ruler.left(), top), pos2(ruler.right(), bottom))
 }
 
-/// The track headers.
-///
-/// **What is *not* here is the point.** Headers used to carry a fader, a pan bar and a
-/// meter — a mixer strip inside a track header, in 64 px, which is why only four tracks
-/// fitted on a screen. Those live in the inspector. What is left is what a header is
-/// *for*: which track this is (colour, number, icon, name) and whether it is sounding
-/// (the mute and solo lamps, a hairline meter) — FL's coloured block, in 40 px.
-fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeometry, s: &Style) {
-    let clip = f.headers;
-    let p = ui.painter().with_clip_rect(clip);
-    let pointer = ui
-        .input(|i| i.pointer.hover_pos())
-        .filter(|_| ui.rect_contains_pointer(clip));
-    let visible = |row: &TrackRow| {
-        row.top + row.height + row.takes + row.auto + row.pitch > clip.top()
-            && row.top < clip.bottom()
-    };
-    let row_rect = |row: &TrackRow| {
-        Rect::from_min_size(pos2(clip.left(), row.top), vec2(clip.width(), row.height))
-    };
-    let near = |c: Pos2| pointer.is_some_and(|p| p.distance(c) <= s.s(paint::LED));
-
-    // Paint, with the project borrowed and nothing edited.
-    let mut scratch = std::mem::take(&mut app.arrangement.scratch);
-    // The name's words at full size need this tall a line; a shorter one scales them.
-    let body_row = name_row(ui.ctx(), s);
-    let mut hits = std::mem::take(&mut app.arrangement.hits);
-    hits.clear();
+/// The corner over the headers (r39:el-arrange): a plus in a well (the add-track menu),
+/// "N tracks", the lanes key (what shows above the tracks); under it each top lane's own
+/// header ("Sections").
+fn corner(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, s: &Style) {
+    let ink = slate::Ink::of(s);
+    let k = s.k;
+    let row = Rect::from_min_max(
+        f.corner.min,
+        pos2(f.corner.right(), f.corner.top() + s.s(RULER_H)),
+    );
+    let plus = Rect::from_center_size(
+        pos2(row.left() + 18.0 * k, row.center().y),
+        vec2(20.0 * k, 18.0 * k),
+    );
+    let lanes_key = Rect::from_center_size(
+        pos2(row.right() - 18.0 * k, row.center().y),
+        vec2(20.0 * k, 18.0 * k),
+    );
+    let plus_r = ui.interact(plus, ui.id().with("arr-add-track"), Sense::click());
+    let lanes_r = ui.interact(lanes_key, ui.id().with("arr-lanes-key"), Sense::click());
+    super::device_chrome::publish(ui.ctx(), super::device_chrome::Spot::AddTrack, plus);
+    let sections = Rect::from_min_max(
+        pos2(f.corner.left(), f.corner.bottom() - f.markers_h),
+        f.corner.max,
+    );
     {
-        let a: &CantusApp = app;
-        let any_solo = a.project().tracks.iter().any(|t| t.soloed);
-        let bar = crate::views::bars::bar_len(a.project(), a.project().content_end())
-            .0
-            .max(1) as f32;
-        let song_len = ((a.project().content_end().0 as f32 / bar).ceil() * bar).max(bar);
-        let meters = a.engine.meters();
-        let v = &a.arrangement;
-        kit::with_brush(&p, |b| {
-            b.register(clip, "headers", &[kit::Tok::Panel], &[]);
-            b.rect(b.snap_rect(clip), kit::Fill::Solid(s.t.panel));
-            for (i, row) in geo.rows.iter().enumerate() {
-                let Some(track) = a.project().tracks.get(i).filter(|_| visible(row)) else {
-                    continue;
-                };
-                let mut hr = paint::header_rects(row_rect(row), s);
-                let rr = rec::layout(&mut hr, track, s);
-                // The automation mode's badge (round 31, ADR 0068): the name gives way to it.
-                let badge = autolanes::badge_layout(&mut hr, s);
-                let tint = scratch.tints.of(theme::track_color(track.color), s);
-                let grip = Rect::from_min_max(
-                    pos2(hr.row.left(), hr.row.bottom() - DIVIDER_GRIP),
-                    pos2(hr.row.right(), hr.row.bottom() + DIVIDER_GRIP),
-                );
-                let level = if i < meters.track_count {
-                    ((cantus_core::linear_to_db(meters.tracks[i]) + 60.0) / 60.0).clamp(0.0, 1.0)
-                } else {
-                    0.0
-                };
-                let st = paint::HeaderState {
-                    selected: a.selected_track == Some(track.id),
-                    hovered_mute: near(hr.mute),
-                    hovered_solo: near(hr.solo),
-                    silenced: any_solo && !track.soloed,
-                    renaming: v.rename.as_ref().is_some_and(|(r, _)| *r == track.id),
-                    drop_above: v.reorder.is_some_and(|(d, to)| d != track.id && to == i),
-                    divider: v.divider.is_some_and(|(d, _)| d == track.id)
-                        || (v.drag.is_none() && pointer.is_some_and(|p| grip.contains(p))),
-                    level,
-                    fit: (hr.name.height() / body_row).min(1.0),
-                };
-                let letters =
-                    paint::header(b, a, i, &hr, st, tint, song_len, &mut scratch.digits, s);
-                hits.push(HeaderHit {
-                    track: track.id,
-                    row: hr.row,
-                    letters,
-                });
-                rec::paint_header(b, a, track, &rr, tint, pointer, s);
-                if let Some(r) = badge {
-                    autolanes::paint_badge(b, a, track, r, pointer, s);
-                }
-                takes::paint_headers(b, a, track, row, clip, tint, s);
-                autolanes::paint_headers(b, a, i, track, row, clip, tint, s);
-                super::pitch_lane::paint_header(b, row, clip, tint.large, s);
-            }
-            // Below the last track, FL's empty rows: "Track 5" in a placeholder's faint
-            // text on a flat well, so the column reads as a list with room in it.
-            let base = v.track_height;
-            let mut top = geo.bottom();
-            let mut n = geo.rows.len() + 1;
-            scratch.refresh_words();
-            while top < clip.bottom() && base >= 8.0 {
-                let row = Rect::from_min_size(pos2(clip.left(), top), vec2(clip.width(), base));
-                if row.bottom() > clip.top() {
-                    let label = scratch.placeholder(n);
-                    paint::empty_header(b, row, label, s);
-                }
-                top += base;
-                n += 1;
-            }
-        });
-        // The icons are the house's vector icons, drawn over the headers' mesh; the one
-        // under the pointer is raised into the instrument chip that swaps it (round 20).
-        for (i, row) in geo.rows.iter().enumerate() {
-            let Some(track) = a.project().tracks.get(i).filter(|_| visible(row)) else {
-                continue;
-            };
-            let hr = paint::header_rects(row_rect(row), s);
-            let tint = scratch.tints.of(theme::track_color(track.color), s);
-            let over = pointer.is_some_and(|q| hr.icon.expand(s.s(3.0)).contains(q));
-            kit::with_brush(&p, |b| {
-                super::device_chrome::chip_plate(b, hr.icon, over, tint.on_large, s.k)
-            });
-            icons::paint_track_icon(&p, hr.icon, track.icon(), tint.on_large);
-            // A hosted instrument that stopped working (round 29, ADR 0063): its sign, and
-            // why as the icon's tip (review #34).
-            super::plugin_notice::paint_header_stopped(&p, hr.icon, a, track.id, s);
-            if over && a.plugins.instrument_crashed(track.id).is_some() {
-                let tip = super::plugin_notice::tip(
-                    a,
-                    super::plugin_notice::Target::Instrument(track.id),
-                );
-                let heading = crate::i18n::t("isolation.stopped_card");
-                crate::kit::hint::set_text(p.ctx(), &heading, &tip, crate::kit::hint::Caps::NONE);
-            }
-            // Frozen (round 29, ADR 0064).
-            super::freeze_view::paint_header_frozen(&p, hr.icon, a, track.id, s);
-        }
-    }
-    app.arrangement.scratch = scratch;
-    app.arrangement.hits = hits;
-
-    // Input.
-    let base = app.arrangement.track_height;
-    let mut to_delete = None;
-    let mut open_name = None;
-    for (i, row) in geo.rows.iter().enumerate() {
-        if !visible(row) {
-            continue;
-        }
-        let Some((id, muted, soloed, height)) = app
-            .project()
-            .tracks
-            .get(i)
-            .map(|t| (t.id, t.muted, t.soloed, t.height()))
-        else {
-            continue;
-        };
-        let mut hr = paint::header_rects(row_rect(row), s);
-        let rr = app
-            .project()
-            .tracks
-            .get(i)
-            .map(|t| rec::layout(&mut hr, t, s));
-        let badge = autolanes::badge_layout(&mut hr, s);
-        // The interactive area is shifted down by the grip: a row owns the divider *below*
-        // it and not the one above, so a press exactly on the line goes to the row whose
-        // height it changes. With the plain rect, both rows contained the line and the
-        // later one won, which turned every divider drag into a reorder of the row below.
-        let hit = Rect::from_min_max(
-            pos2(hr.row.left(), row.top + DIVIDER_GRIP),
-            pos2(hr.row.right(), row.top + row.height + DIVIDER_GRIP),
-        )
-        .intersect(clip);
-        let resp = ui.interact(
-            hit,
-            ui.id().with(("arr-header", id.0)),
-            Sense::click_and_drag(),
-        );
-        let lamp = |c: Pos2| Rect::from_center_size(c, egui::Vec2::splat(s.s(paint::LED + 8.0))); // r37:finish
-        let m = ui.interact(
-            lamp(hr.mute),
-            ui.id().with(("arr-mute", id.0)),
-            Sense::click(),
-        );
-        let so = ui.interact(
-            lamp(hr.solo),
-            ui.id().with(("arr-solo", id.0)),
-            Sense::click(),
-        );
-        // Round 27 (ADR 0051): the name's letters rename on a click — an I-beam over them
-        // and the hint says so; the rest of the header opens the instrument on a
-        // double-click. The lamps, the icon and the arm lamp write their own hints after.
-        let letters = app
-            .arrangement
-            .hits
-            .iter()
-            .find(|h| h.track == id)
-            .and_then(|h| h.letters);
-        // The letters are a widget of their own, sensed after this row and the rows above:
-        // on a short row they reach into the row above's band and this row's resize grip,
-        // and there too a click on them is this track's name (review 1).
-        let name = letters.map(|l| {
-            ui.interact(
-                l.intersect(clip),
-                ui.id().with(("arr-name", id.0)),
-                Sense::click_and_drag(),
-            )
-        });
-        let on_name = name.as_ref().is_some_and(|n| n.hovered());
-        if (resp.hovered() || on_name)
-            && app.arrangement.drag.is_none()
-            && app.arrangement.reorder.is_none()
-        {
-            let tip = if on_name {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-                "track.header.name_tip"
+        let words = &app.arrangement.words;
+        kit::with_brush(&ui.painter().with_clip_rect(f.corner), |b| {
+            b.register(f.corner, "corner", &[kit::Tok::Toolbar], &[]);
+            b.rect(b.snap_rect(f.corner), kit::Fill::Solid(ink.surface));
+            let well = if plus_r.hovered() {
+                ink.well_hi
             } else {
-                "track.header.tip"
+                ink.well
             };
-            if let Some(t) = app.project().track(id) {
-                let caps = Caps {
-                    menu: true,
-                    typed: on_name,
-                    ..Caps::NONE
-                };
-                hint::set_text(ui.ctx(), &t.name, chrome::word(tip), caps);
-            }
-        }
-        for (r, key) in [(&m, "track.mute_tip"), (&so, "track.solo_tip")] {
-            if r.hovered() {
-                hint::set_text(ui.ctx(), chrome::word(key), "", Caps::NONE);
-            }
-        }
-        // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
-        crate::controllers::learn_spot_in(
-            app,
-            ui,
-            m.rect,
-            clip,
-            cantus_core::controller::MappingTarget::TrackMute(id),
-        );
-        crate::controllers::learn_spot_in(
-            app,
-            ui,
-            so.rect,
-            clip,
-            cantus_core::controller::MappingTarget::TrackSolo(id),
-        );
-        if m.clicked() {
-            app.exec(Command::SetTrackMute { id, muted: !muted });
-        }
-        if so.clicked() {
-            app.exec(Command::SetTrackSolo {
-                id,
-                soloed: !soloed,
-            });
-        }
-        rename_in_place(app, ui, id, hr.name);
-        super::device_chrome::chip_input(app, ui, hr.icon, id, s.k);
-        // A device dragged from the browsing panel onto the header swaps its instrument; a
-        // track template dropped there lands after the track (round 31, ADR 0072).
-        let template = |p: Option<std::sync::Arc<crate::picker::DevicePayload>>| {
-            p.is_some_and(|p| matches!(p.0, crate::picker::PickChoice::TrackTemplate(_)))
-        };
-        let swap = if template(resp.dnd_hover_payload()) || template(resp.dnd_release_payload()) {
-            crate::picker::PickPurpose::AddInstrument { index: Some(i + 1) }
-        } else {
-            crate::picker::PickPurpose::ReplaceInstrument { track: id }
-        };
-        super::device_chrome::drop_target(app, ui, &resp, swap);
-        if let Some(rr) = &rr {
-            rec::header_input(app, ui, id, rr, s, clip);
-        }
-        takes::header_input(app, ui, id, row, clip, s);
-        if let Some(r) = badge {
-            super::auto_modes::badge_input(app, ui, id, r, clip);
-        }
-        autolanes::header_input(app, ui, i, id, row, clip);
-
-        let grip = Rect::from_min_max(
-            pos2(hr.row.left(), row.top + row.height - DIVIDER_GRIP),
-            pos2(hr.row.right(), row.top + row.height + DIVIDER_GRIP),
-        );
-        if resp.hover_pos().is_some_and(|p| grip.contains(p))
-            || app.arrangement.divider.map(|(d, _)| d) == Some(id)
-        {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
-        }
-        // A click selects; on the letters it also opens the name, selected, in place (the
-        // owner's rule of 2026-10-14: only there, and never by typing). A double-click
-        // anywhere else opens the instrument — FL's channel button.
-        if resp.clicked() {
-            app.select_track(id);
-        }
-        if name.as_ref().is_some_and(|n| n.clicked()) {
-            app.select_track(id);
-            // Opened once every row has run: another track's open name commits first,
-            // whether its row comes before this one or after.
-            open_name = Some(id);
-        }
-        if resp.double_clicked() {
-            app.open_track_instrument(id);
-        }
-        // A drag from the letters reorders, as from the rest of the header (never a resize:
-        // the letters are not the grip).
-        let from_name = name.as_ref().filter(|n| {
-            n.drag_started_by(PointerButton::Primary)
-                || n.dragged_by(PointerButton::Primary)
-                || n.drag_stopped()
-        });
-        let d = from_name.unwrap_or(&resp);
-        // A drag that starts on the divider resizes; anywhere else it reorders. Decided at
-        // the **press origin**, never at the pointer: egui reports a drag only once the
-        // pointer has travelled, by which time it has left the five-pixel grip.
-        if d.drag_started_by(PointerButton::Primary) {
-            let origin = ui.input(|i| i.pointer.press_origin());
-            if from_name.is_none() && origin.is_some_and(|p| grip.contains(p)) {
-                app.arrangement.divider = Some((id, height));
+            b.rrect(plus, s.r(3.0), kit::Fill::Solid(ink.edge));
+            b.rrect(plus.shrink(b.px()), s.r(3.0), kit::Fill::Solid(well));
+            let c = plus.center();
+            let pc = if plus_r.hovered() { ink.ink1 } else { ink.ink2 };
+            b.hline(c.x - 4.0 * k, c.x + 4.0 * k, c.y, 1.2 * k, pc);
+            b.vline(c.x, c.y - 4.0 * k, c.y + 4.0 * k, 1.2 * k, pc);
+            let count = Rect::from_min_max(
+                pos2(plus.right() + 8.0 * k, row.top()),
+                pos2(lanes_key.left() - 4.0 * k, row.bottom()),
+            );
+            let _ = slate::say(
+                b,
+                count,
+                &words.count,
+                slate::W::Regular,
+                11.0,
+                ink.ink3,
+                egui::Align2::LEFT_CENTER,
+                s,
+            );
+            let lc = if lanes_r.hovered() {
+                ink.ink1
             } else {
-                app.select_track(id);
-                app.arrangement.reorder = Some((id, i));
-                // Round 25 (answer 11): the track is also a payload the mixer takes — on a
-                // strip it routes there.
-                egui::DragAndDrop::set_payload(ui.ctx(), crate::routing_actions::TrackDrag(id));
+                ink.ink3
+            };
+            for (i, w) in [10.0, 7.0, 10.0].iter().enumerate() {
+                let y = lanes_key.center().y - 3.0 * k + 3.0 * k * i as f32;
+                let x0 = lanes_key.center().x - 5.0 * k;
+                b.hline(x0, x0 + w * k, y, 1.2 * k, lc);
             }
-        }
-        if d.dragged_by(PointerButton::Primary) {
-            if let Some(pos) = d.interact_pointer_pos() {
-                if let Some((did, start_h)) = app.arrangement.divider {
-                    if did == id {
-                        let origin = ui
-                            .input(|i| i.pointer.press_origin())
-                            .map(|p| p.y)
-                            .unwrap_or(pos.y);
-                        let height = start_h + (pos.y - origin) / base;
-                        app.exec_merging(
-                            Command::SetTrackHeight {
-                                id,
-                                height: height.clamp(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT),
-                            },
-                            MergeKey::of(&("height", id.0)),
-                        );
-                    }
-                } else if app.arrangement.reorder.map(|(d, _)| d) == Some(id) {
-                    // Outside the headers and lanes (held over the mixer, which routes
-                    // it): no drop line here — the track would stay where it is.
-                    let home = f.headers.union(f.lanes);
-                    let to = if home.contains(pos) {
-                        geo.rows
-                            .iter()
-                            .position(|r| pos.y < r.top + r.height * 0.5)
-                            .unwrap_or(geo.rows.len().saturating_sub(1))
-                    } else {
-                        i
-                    };
-                    app.arrangement.reorder = Some((id, to));
-                }
+            if sections.height() > 0.0 {
+                let g = slate::Ink::to(ink.surface, ink.base, 0.35);
+                b.rect(b.snap_rect(sections), kit::Fill::Solid(g));
+                let r = sections.shrink2(vec2(12.0 * k, 0.0));
+                let _ = slate::say(
+                    b,
+                    r,
+                    &words.sections_word,
+                    slate::W::Regular,
+                    11.0,
+                    ink.ink3,
+                    egui::Align2::LEFT_CENTER,
+                    s,
+                );
             }
-        }
-        if d.drag_stopped() {
-            app.arrangement.divider = None;
-            if let Some((did, to)) = app.arrangement.reorder.take() {
-                // Released outside the arrangement (on the mixer, which routed it): the
-                // track stays where it is.
-                let home = f.headers.union(f.lanes);
-                let inside = ui
-                    .input(|i| i.pointer.latest_pos())
-                    .is_none_or(|p| home.contains(p));
-                if did == id && to != i && inside {
-                    app.exec(Command::MoveTrack { id: did, index: to });
-                }
-            }
-            app.end_gesture();
-        }
-        for r in std::iter::once(&resp).chain(name.as_ref()) {
-            egui::Popup::context_menu(r)
-                .frame(chrome::menu_frame())
-                .show(|ui| {
-                    track_menu(app, ui, id, &mut to_delete);
-                });
-        }
+        });
     }
-    // A click on a name's letters (round 27, ADR 0051 §2): a name still open on another
-    // track — its row ran before the click reached its field — commits as a click away
-    // would, then this one opens, selected, in the same click.
-    if let Some(id) = open_name {
-        match app.arrangement.rename.take() {
-            Some((rid, text)) if rid != id => commit_track_name(app, rid, &text),
-            same => app.arrangement.rename = same,
-        }
-        if app.arrangement.rename.is_none() {
-            if let Some(name) = app.project().track(id).map(|t| t.name.clone()) {
-                app.arrangement.rename = Some((id, name));
-            }
-        }
+    if plus_r.hovered() {
+        hint::set_text(ui.ctx(), chrome::word("swap.add_track_tip"), "", Caps::NONE);
     }
-    if let Some(id) = to_delete {
-        app.delete_track(id);
+    // A click: an instrument from the picker (round 20); a right-click: every kind of
+    // track, and the instruments chosen last (ux-b, ADR 0110).
+    if plus_r.clicked() {
+        app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
     }
+    egui::Popup::context_menu(&plus_r)
+        .frame(chrome::menu_frame())
+        .show(|ui| menus::add_track(app, ui, None));
+    if lanes_r.hovered() {
+        hint::set_text(ui.ctx(), chrome::word("arrange.lanes.tip"), "", Caps::NONE);
+    }
+    egui::Popup::menu(&lanes_r)
+        .frame(chrome::menu_frame())
+        .show(|ui| lanes_menu(app, ui));
+}
+
+/// The top lanes' menu: what shows above the tracks.
+fn lanes_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
+    use crate::keymap::Action;
+    let tempo_on = app.tempo_lane_shown();
+    let marker_key = app.keymap.display_for(Action::AddMarker);
+    let tempo_key = app.keymap.display_for(Action::ToggleTempoTrack);
+    let items = [
+        Item::Action {
+            label: Src::Key("arrange.lanes.sections"),
+            check: if app.arrangement.show_sections {
+                Check::On
+            } else {
+                Check::Off
+            },
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        },
+        Item::Action {
+            label: Src::Key("arrange.lanes.tempo"),
+            check: if tempo_on { Check::On } else { Check::Off },
+            shortcut: (!tempo_key.is_empty()).then_some(tempo_key.as_str()),
+            submenu: false,
+            enabled: true,
+        },
+        Item::Separator,
+        Item::Action {
+            label: Src::Key("arrange.lanes.add_marker"),
+            check: Check::None,
+            shortcut: (!marker_key.is_empty()).then_some(marker_key.as_str()),
+            submenu: false,
+            enabled: true,
+        },
+        Item::action(Src::Key("arrange.lanes.add_section")),
+    ];
+    match kit::widgets::menu_list(ui, &items, 240.0).1.clicked {
+        Some(0) => app.arrangement.show_sections = !app.arrangement.show_sections,
+        Some(1) => app.run_action(Action::ToggleTempoTrack),
+        Some(3) => app.run_action(Action::AddMarker),
+        Some(4) => {
+            app.arrangement.show_sections = true;
+            let at = app.engine.position();
+            let _ = ruler::sections::add_here(app, at);
+        }
+        _ => return,
+    }
+    ui.close();
 }
 
 /// Rename `id` to `text` (trimmed), unless that is empty or its name already: one
@@ -1464,180 +1048,6 @@ fn commit_track_name(app: &mut CantusApp, id: TrackId, text: &str) {
     }
 }
 
-/// The name editor over a header's name, while that track is being renamed.
-fn rename_in_place(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId, at: Rect) {
-    let Some((rid, name)) = app.arrangement.rename.as_mut().filter(|(r, _)| *r == id) else {
-        return;
-    };
-    let rid = *rid;
-    // The kit's field (round 26): the name selected as it opens; Enter or a click
-    // elsewhere renames, Esc leaves the name as it was.
-    // Its words as large as the line allows: on a short row a full-size field overflowed
-    // into the rows round it.
-    let fit = (at.height() / name_row(ui.ctx(), &Style::current())).min(1.0);
-    let out = kit::field::Field::new(egui::Id::new(("track-rename", rid.0)))
-        .scale(fit)
-        .opens_when_shown()
-        .show(ui, at, name);
-    if out.event == Some(kit::field::Event::Cancel) {
-        app.arrangement.rename = None;
-        return;
-    }
-    if out.event == Some(kit::field::Event::Commit) {
-        if let Some((_, text)) = app.arrangement.rename.take() {
-            commit_track_name(app, rid, &text);
-        }
-    }
-}
-
-/// The track's own menu, in the kit's menu: height presets, an icon, and delete.
-///
-/// Presets as well as the divider because a divider is for *aiming* and a preset is for
-/// *agreeing*: getting six tracks to exactly the same height by hand is a job nobody
-/// should be given.
-fn track_menu(
-    app: &mut CantusApp,
-    ui: &mut egui::Ui,
-    id: TrackId,
-    to_delete: &mut Option<TrackId>,
-) {
-    // Recording first: arm, input, takes (`arrangement_rec`).
-    if rec::track_menu(app, ui, id) {
-        ui.close();
-        return;
-    }
-    // Automation: its fader, pan or level, and its lanes (ADR 0027).
-    if autolanes::track_menu(app, ui, id) {
-        ui.close();
-        return;
-    }
-    // The pitch lane (round 28, ADR 0054).
-    if super::pitch_lane::track_menu(app, ui, id) {
-        ui.close();
-        return;
-    }
-    // Freeze and bounce in place (round 29, ADR 0064).
-    if super::freeze_view::track_menu(app, ui, id) {
-        ui.close();
-        return;
-    }
-    // External gear (round 36, ADR 0094). r36:external
-    if crate::external_service::track_menu(app, ui, id) {
-        ui.close(); // r36:external
-        return; // r36:external
-    }
-    // Its parts by a model (round 34, ADR 0085). // r34:stems
-    if crate::stems_ui::track_menu(app, ui, id) {
-        ui.close(); // r34:stems
-        return; // r34:stems
-    } // r34:stems
-      // MIDI controllers (round 29, ADR 0062): learn the track's volume, pan, mute, solo, arm.
-    if crate::controllers::track_menu(app, ui, id) {
-        ui.close();
-        return;
-    }
-    let current = app.project().track(id).map(|t| t.height()).unwrap_or(1.0);
-    let width = 220.0;
-    let heights: [Item<'_>; 6] = [
-        Item::Band(Src::Key("track.height")),
-        radio(
-            TRACK_HEIGHTS[0].0,
-            (current - TRACK_HEIGHTS[0].1).abs() < 0.01,
-        ),
-        radio(
-            TRACK_HEIGHTS[1].0,
-            (current - TRACK_HEIGHTS[1].1).abs() < 0.01,
-        ),
-        radio(
-            TRACK_HEIGHTS[2].0,
-            (current - TRACK_HEIGHTS[2].1).abs() < 0.01,
-        ),
-        radio(
-            TRACK_HEIGHTS[3].0,
-            (current - TRACK_HEIGHTS[3].1).abs() < 0.01,
-        ),
-        Item::action(Src::Key("track.height_all")),
-    ];
-    match kit::widgets::menu_list(ui, &heights, width).1.clicked {
-        Some(i @ 1..=4) => {
-            app.exec(Command::SetTrackHeight {
-                id,
-                height: TRACK_HEIGHTS[i - 1].1,
-            });
-            ui.close();
-        }
-        Some(5) => {
-            app.set_all_track_heights(current);
-            ui.close();
-        }
-        _ => {}
-    }
-    kit::widgets::menu_list(ui, &[Item::Band(Src::Key("track.icon"))], width);
-    let s = Style::current();
-    let chosen = app.project().track(id).and_then(|t| t.icon);
-    ui.horizontal(|ui| {
-        for icon in cantus_core::TrackIcon::ALL {
-            let (rect, resp) = ui.allocate_exact_size(vec2(s.s(26.0), s.s(26.0)), Sense::click());
-            let on = chosen == Some(icon);
-            let st = kit::State::of(&resp, on);
-            kit::with_brush(ui.painter(), |b| {
-                kit::cap::toolbar_key(b, rect, &s, st, kit::cap::KeyFace::Text(""))
-            });
-            let ink = if on {
-                s.t.highlight_glyph
-            } else if resp.hovered() {
-                s.t.text
-            } else {
-                s.t.text_dim
-            };
-            icons::paint_track_icon(ui.painter(), rect.shrink(s.s(6.0)), icon, ink);
-            if resp.on_hover_text(t(icon.label_key())).clicked() {
-                app.exec(Command::SetTrackIcon {
-                    id,
-                    icon: Some(icon),
-                });
-                ui.close();
-            }
-        }
-    });
-    let rest = [
-        Item::action(Src::Key("track.icon_auto")),
-        Item::Separator,
-        Item::action(Src::Key("track.delete")),
-    ];
-    match kit::widgets::menu_list(ui, &rest, width).1.clicked {
-        Some(0) => {
-            app.exec(Command::SetTrackIcon { id, icon: None });
-            ui.close();
-        }
-        Some(2) => {
-            *to_delete = Some(id);
-            ui.close();
-        }
-        _ => {}
-    }
-}
-
-/// A menu row with a radio mark.
-fn radio(key: &str, on: bool) -> Item<'_> {
-    Item::Action {
-        label: Src::Key(key),
-        check: Check::Radio(on),
-        shortcut: None,
-        submenu: false,
-        enabled: true,
-    }
-}
-
-/// The height presets, as multiples of the base row. Small enough to scan a long song,
-/// tall enough to read a clip's contents, and two steps in between.
-pub const TRACK_HEIGHTS: [(&str, f32); 4] = [
-    ("track.height_small", 0.6),
-    ("track.height_medium", 1.0),
-    ("track.height_large", 1.8),
-    ("track.height_huge", 3.0),
-];
-
 /// Where the timeline was drawn, in screen coordinates.
 ///
 /// Recorded every frame so that anything outside `show` — a test aiming at a clip, and
@@ -1645,7 +1055,7 @@ pub const TRACK_HEIGHTS: [(&str, f32); 4] = [
 /// pixels by *asking* rather than by mirroring the layout constants. A test that
 /// recomputes the layout is a test that breaks the day a toolbar is added, which is
 /// exactly what happened.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct TimelineGeometry {
     pub left: f32,
     /// How wide the timeline was drawn. Zoom-to-selection needs it and cannot recompute
@@ -1668,6 +1078,10 @@ pub struct TimelineGeometry {
     pub markers: Option<(f32, f32)>,
     /// The tempo track's top and bottom, while it is shown (ADR 0060).
     pub tempo: Option<(f32, f32)>,
+    /// r39:el-arrange — where each folder's own row was drawn (ADR 0113), and the lanes'
+    /// bottom (above the song map).
+    pub folders: Vec<folders::FolderRow>,
+    pub lanes_bottom: f32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -1706,45 +1120,33 @@ impl TimelineGeometry {
     pub fn row_at(&self, y: f32) -> Option<usize> {
         self.rows
             .iter()
-            .position(|r| y >= r.top && y < r.top + r.height)
+            .position(|r| r.height > 0.0 && y >= r.top && y < r.top + r.height)
     }
 
-    /// One past the bottom of the last row.
+    /// One past the bottom of the last row (a track's with its lanes, or a folder's).
     pub fn bottom(&self) -> f32 {
-        self.rows
-            .last()
-            .map(|r| r.top + r.height + r.takes + r.auto + r.pitch)
-            .unwrap_or(self.body_top)
+        let rows = self
+            .rows
+            .iter()
+            .map(|r| r.top + r.height + r.takes + r.auto + r.pitch);
+        let folders = self.folders.iter().map(|f| f.top + f.height);
+        let most = rows.chain(folders).fold(f32::NEG_INFINITY, f32::max);
+        if most.is_finite() {
+            most
+        } else {
+            self.body_top
+        }
     }
 }
 
 /// Where each track's row sits, given the base row height. One function, so the headers
-/// and the timeline can never disagree about which stripe belongs to which track — which
-/// they would the first time one of them forgot that heights vary.
+/// and the timeline can never disagree about which stripe belongs to which track (round 39:
+/// folders' rows among them, a closed folder's members at no height — ADR 0113).
 pub fn rows_of(project: &cantus_core::Project, top: f32, base: f32) -> Vec<TrackRow> {
     let mut rows = Vec::with_capacity(project.tracks.len());
-    rows_into(&mut rows, project, top, base);
+    let mut folders = Vec::new();
+    folders::rows_into(&mut rows, &mut folders, project, top, base);
     rows
-}
-
-/// [`rows_of`] into a buffer the caller keeps, so a frame allocates nothing.
-fn rows_into(rows: &mut Vec<TrackRow>, project: &cantus_core::Project, top: f32, base: f32) {
-    rows.clear();
-    let mut y = top;
-    for t in &project.tracks {
-        let height = (base * t.height()).round();
-        let takes = takes::height(t, base);
-        let auto = autolanes::height(t, base);
-        let pitch = super::pitch_lane::height(t, base);
-        rows.push(TrackRow {
-            top: y,
-            height,
-            takes,
-            auto,
-            pitch,
-        });
-        y += height + takes + auto + pitch;
-    }
 }
 
 /// Hit test result: which clip the pointer is over, and where in it.
@@ -1755,6 +1157,82 @@ struct Hit {
     mode: DragMode,
     /// An audio clip's fade or gain handle, which a press there drags instead.
     handle: Option<AudioHandle>,
+    /// r39:lo-arrange — where the clip is drawn, and its colour: the resize edge's light,
+    /// the loop notch and the Slice tool's cut are drawn on it.
+    body: Rect,
+    hue: egui::Color32,
+    /// Whether the clip has a loop notch (a note clip in a lane at least 14 high).
+    notch: bool,
+}
+
+/// r39:lo-arrange — where a clip's loop notch is: 9 px at its top right corner.
+fn notch_rect(body: Rect, k: f32) -> Rect {
+    Rect::from_min_max(
+        pos2(body.right() - 9.0 * k, body.top()),
+        pos2(body.right(), body.top() + 9.0 * k),
+    )
+}
+
+/// r39:lo-arrange — des-arrange's *Resize*: the edge under the pointer lights 4 px (the
+/// clip's colour + 20 % white), and stays lit while it is dragged; a note clip under the
+/// pointer shows its loop notch, lit when the pointer is on it.
+fn edge_light(
+    b: &mut kit::Brush,
+    v: &ArrangementView,
+    hover: Option<Hit>,
+    anchor: Option<(Rect, egui::Color32)>,
+    s: &Style,
+) {
+    let room = super::room::Room::of(&s.t);
+    let w = 4.0 * s.k;
+    let strip = |b: &mut kit::Brush, body: Rect, hue: egui::Color32, left: bool| {
+        let r = if left {
+            Rect::from_min_max(body.min, pos2(body.left() + w, body.bottom()))
+        } else {
+            Rect::from_min_max(pos2(body.right() - w, body.top()), body.max)
+        };
+        let r = b.snap_rect(r.intersect(body));
+        b.rrect(
+            r,
+            s.r(2.0),
+            kit::Fill::Solid(kit::color::mix(hue, room.white, 0.2)),
+        );
+    };
+    let notch = |b: &mut kit::Brush, body: Rect, hot: bool| {
+        let n = notch_rect(body, s.k);
+        let ink = if hot {
+            room.ink1
+        } else {
+            kit::color::with_alpha(room.ink1, 0.45)
+        };
+        b.polygon(&[n.left_top(), n.right_top(), n.right_bottom()], ink);
+    };
+    if let Some(d) = v.drag.as_ref() {
+        if let Some((body, hue)) = anchor {
+            match d.mode {
+                DragMode::TrimStart => strip(b, body, hue, true),
+                DragMode::TrimEnd => strip(b, body, hue, false),
+                DragMode::Loop => {
+                    strip(b, body, hue, false);
+                    notch(b, body, true);
+                }
+                _ => {}
+            }
+        }
+        return;
+    }
+    let tools_resize = matches!(v.tool, tools::Tool::Select | tools::Tool::Draw);
+    let Some(h) = hover.filter(|h| h.handle.is_none() && tools_resize) else {
+        return;
+    };
+    match h.mode {
+        DragMode::TrimStart => strip(b, h.body, h.hue, true),
+        DragMode::TrimEnd => strip(b, h.body, h.hue, false),
+        _ => {}
+    }
+    if h.notch {
+        notch(b, h.body, h.mode == DragMode::Loop);
+    }
 }
 
 /// How wide the trim zone at each end of a clip is. Wide enough to aim at, never more
@@ -1770,6 +1248,9 @@ struct ClipHits {
     at_press: Option<Hit>,
     /// Where the clip being renamed was drawn.
     renaming: Option<Rect>,
+    /// r39:lo-arrange — where the clip a trim or a loop drag holds is drawn now, and its
+    /// colour (its edge stays lit while it is dragged).
+    anchor: Option<(Rect, egui::Color32)>,
 }
 
 /// Paint every clip that is on screen — its chrome and, in one pass over its notes, the
@@ -1796,6 +1277,8 @@ fn clips(
     audio::begin_frame(&mut scratch.audio);
     scratch.refresh_words();
     // Linked clips (ADR 0037): the groups' sizes and the selection's groups, once.
+    // r39:el-views — the playhead while the song plays: the clips under it are lit.
+    let playhead = app.engine.is_playing().then(|| app.engine.position());
     let marks = crate::links::LinkMarks::of(app.project(), &app.clip_selection());
     let mut counts = std::mem::take(&mut scratch.counts);
     let n_rows = geo.rows.len() as i32;
@@ -1821,10 +1304,19 @@ fn clips(
         _ => dropped = None,
     }
     let landings = dropped.as_ref().map(|(_, m)| m);
+    // r39:lo-arrange — des-arrange's clip states: the selected track's clips `lit`, the
+    // clips of a track another track's solo silences `dim`.
+    let any_solo = app.project().tracks.iter().any(|t| t.soloed);
+    let moving = v.drag.as_ref().is_some_and(|d| d.mode == DragMode::Move);
+    let ink = slate::Ink::of(s);
     for (i, track) in app.project().tracks.iter().enumerate() {
         let Some(here) = geo.rows.get(i).copied() else {
             continue;
         };
+        // A closed folder's member is not drawn (r39:el-arrange).
+        if here.height <= 0.0 {
+            continue;
+        }
         let track_color = theme::track_color(track.color);
         for clip in &track.clips {
             let r = (track.id, clip.id);
@@ -1874,6 +1366,37 @@ fn clips(
                 pos2(x1.max(x0 + 2.0), target.top + target.height - inset),
             );
             let color = clip.color.map(theme::track_color).unwrap_or(track_color);
+            // r39:lo-arrange — a clip being moved leaves its slot dashed (ink 3, 4/3) and
+            // rides lifted, a shadow under it (des-arrange, *Moving a clip*).
+            let lifted =
+                moving && (dstart != Ticks::ZERO || drows != 0) && v.preview(sel, r).is_some();
+            if lifted {
+                let home = if clip.automation.is_some() || clip.lane > 0 {
+                    target
+                } else {
+                    here
+                };
+                let (h0, h1) = (
+                    geo.x(ticks_to_beats(clip.start)),
+                    geo.x(ticks_to_beats(
+                        clip.start + clip.length.max(Ticks::SIXTEENTH),
+                    )),
+                );
+                let slot = Rect::from_min_max(
+                    pos2(h0, home.top + inset),
+                    pos2(h1.max(h0 + 2.0), home.top + home.height - inset),
+                );
+                let (slot, px) = (b.snap_rect(slot), b.px());
+                paint::dashed_rect(b, slot, lanes, px, ink.ink3, 4.0 * s.k, 3.0 * s.k);
+                let shade = if s.t.dark { 0.35 } else { 0.12 };
+                let room = super::room::Room::of(&s.t);
+                b.rrect_soft(
+                    body.translate(egui::vec2(0.0, 3.0 * s.k)),
+                    s.r(3.0),
+                    kit::Fill::Solid(kit::color::with_alpha(room.black, shade)),
+                    4.0 * s.k,
+                );
+            }
             let renaming = v.rename_clip.as_ref().is_some_and(|(c, _)| *c == r);
             let reserve = match clip.audio.as_ref() {
                 Some(a) => audio::badge_width(
@@ -1905,6 +1428,11 @@ fn clips(
                         .clips
                         .iter()
                         .any(|c| c.lane == 0 && c.start == clip.start && c.name == clip.name),
+                // r39:el-views — des-views' clip states.
+                playing: playhead.is_some_and(|p| start <= p && p < start + length),
+                near: geo.px_per_beat >= 20.0,
+                lit: app.selected_track == Some(track.id) || lifted,
+                dim: any_solo && !track.soloed,
             };
             let linked = marks.count(clip).map(|n| {
                 while counts.len() < n {
@@ -1983,93 +1511,49 @@ fn clips(
                     ground,
                     sel,
                     pointer,
+                    app.project(),
                     s,
                 );
             }
             if !clip.notes.is_empty() && inner.height() > 2.0 && inner.width() > 4.0 {
-                // r37:finish — the notes fill the clip's height: a row per pitch in use,
-                // folded as a piano roll folds (the contour kept, the empty pitches
-                // between left out), so a bass line spread over two octaves reads at the
-                // size a drum line does. One 128-bit mask, no allocation.
-                let mask = clip
-                    .notes
-                    .iter()
-                    .fold(0u128, |m, n| m | 1u128 << (n.pitch & 127));
-                let above = |p: u8| {
-                    mask.checked_shr(u32::from(p & 127) + 1)
-                        .unwrap_or(0)
-                        .count_ones() as f32
-                };
-                let used = mask.count_ones() as f32; // r37:finish
-                let span = used.max(3.0); // r37:finish
-                                          // The rows in use, centred: one drum's hits sit across the middle.
-                let row_h = inner.height() / span; // r37:finish
-                let top_pad = (inner.height() - used * row_h) * 0.5; // r37:finish
+                // r39:el-views — the content by zoom (des-views' rules,
+                // `arrangement_paint_clip.rs`).
                 let ink = paint::note_ink(&look, s);
-                // r37:finish — a bar at least 2 px tall on its pitch row.
-                let half = (row_h * 0.42).max(1.0).min((inner.height() * 0.3).max(1.0)); // r37:finish
-                let (left, right) = (
-                    inner.left().max(lanes.left()),
-                    inner.right().min(lanes.right()),
-                );
-                let last_on = beats_to_ticks(vis_r.max(0.0)) - start + shown.offset;
-                // Notes are sorted by start: a clip that does not repeat starts the pass
-                // at the first note that can reach the left edge (a long lookback, for
-                // held notes), so scrolling far into a long clip costs no more.
-                let skip = if shown.period().is_none() {
-                    let first_on =
-                        beats_to_ticks(vis_l.max(0.0)) - start + shown.offset - Ticks::beats(64);
-                    clip.notes.partition_point(|n| n.start < first_on)
-                } else {
-                    0
+                let rev = app.bus.revision();
+                let sum = match scratch.summaries.get(&clip.id) {
+                    Some(&(r, n, sum)) if r == rev && n == clip.notes.len() => sum,
+                    _ => {
+                        let sum = clip_content::Summary::of(clip);
+                        scratch
+                            .summaries
+                            .insert(clip.id, (rev, clip.notes.len(), sum));
+                        sum
+                    }
                 };
-                // r37:finish — a piano roll in miniature: each note a bar at its pitch row and
-                // its true length (2 px at least), and a pixel's gap only between two notes
-                // that follow each other on the same row (each row's last end remembered).
-                let mut last_end = [f32::NEG_INFINITY; 128];
-                for n in &clip.notes[skip..] {
-                    if shown.period().is_none() && n.start > last_on {
-                        break; // sorted by start: the rest are off the right edge
-                    }
-                    shown.timeline_positions(n.start, &mut scratch.at);
-                    for on in scratch.at.iter().copied() {
-                        let b0 = ticks_to_beats(on);
-                        let b1 = ticks_to_beats(on + n.length);
-                        if b1 < vis_l || b0 > vis_r {
-                            continue;
-                        }
-                        let (nx0, nx1) = (geo.x(b0).max(left), geo.x(b1).min(right));
-                        if nx1 <= nx0 {
-                            continue;
-                        }
-                        let ny = inner.top() + top_pad + above(n.pitch) * row_h + row_h * 0.5; // r37:finish
-                                                                                               // r37:finish — a piano roll in miniature: a held note a bar with a
-                                                                                               // pixel's gap at its end (repeated notes read apart), a short hit a
-                                                                                               // clean block as wide as it is tall (up to 5 px), not a tick.
-                        let px = b.px();
-                        let row = usize::from(n.pitch & 127);
-                        // Touching the note before it on its row: a pixel of ground first.
-                        let x0 = if nx0 < last_end[row] + px {
-                            // Wholly under the bar before it (dense hits zoomed out): it
-                            // is that bar already.
-                            if nx1 <= last_end[row] + px {
-                                continue;
-                            }
-                            last_end[row] + px
+                let m = clip_content::Midi {
+                    sum,
+                    clip,
+                    shown,
+                    inner,
+                    left: inner.left().max(lanes.left()),
+                    right: inner.right().min(lanes.right()),
+                    vis: (vis_l, vis_r),
+                    ink,
+                    ground: paint::body_ground(&look, s),
+                    drums: matches!(track.instrument, cantus_core::InstrumentSpec::Pulsus(_)),
+                    roles: clip_content::Roles::of(track.instrument.pulsus()), // r39:lo-rest
+                    px_per_beat: geo.px_per_beat,
+                    attack: {
+                        let (c, a) = if s.t.dark {
+                            (s.t.light, 0.35)
                         } else {
-                            nx0
+                            (s.t.dark_shade, 0.18)
                         };
-                        let x1 = nx1.max(x0 + 2.0).min(right.max(x0 + 2.0));
-                        if x0 >= right {
-                            continue;
-                        }
-                        last_end[row] = x1;
-                        b.rect(
-                            Rect::from_min_max(pos2(x0, ny - half), pos2(x1, ny + half)),
-                            kit::Fill::Solid(ink),
-                        );
-                    }
-                }
+                        // r39:lo-arrange — a silenced clip's attacks quiet with its notes.
+                        (c, if look.dim { a * 0.32 } else { a })
+                    },
+                };
+                clip_content::midi(b, geo, &m, &mut scratch.at, &mut scratch.cols);
             }
             // A frozen track's clip (ADR 0064): in a render now, under a frosted veil.
             if clip.automation.is_none() && clip.lane == 0 && held.held_tracks.contains(&track.id) {
@@ -2093,17 +1577,39 @@ fn clips(
                     d += period;
                 }
             }
+            // r39:lo-arrange — a note clip's loop notch (9 px at its top right).
+            let notch = clip.audio.is_none()
+                && clip.automation.is_none()
+                && clip.lane == 0
+                && body.height() >= 14.0 * s.k
+                && body.width() >= 36.0 * s.k;
+            if v.drag.as_ref().is_some_and(|d| {
+                d.anchor == r
+                    && matches!(
+                        d.mode,
+                        DragMode::TrimStart | DragMode::TrimEnd | DragMode::Loop
+                    )
+            }) {
+                out.anchor = Some((body, color));
+            }
             let test = |pos: Pos2| -> Option<Hit> {
                 if clip.lane > 0 || !body.contains(pos) || !lanes.contains(pos) {
                     return None;
                 }
+                let hit = |mode, handle| Hit {
+                    track: track.id,
+                    clip: clip.id,
+                    mode,
+                    handle,
+                    body,
+                    hue: color,
+                    notch,
+                };
                 if let Some(handle) = audio_h.and_then(|h| h.at(pos)) {
-                    return Some(Hit {
-                        track: track.id,
-                        clip: clip.id,
-                        mode: DragMode::Move,
-                        handle: Some(handle),
-                    });
+                    return Some(hit(DragMode::Move, Some(handle)));
+                }
+                if notch && notch_rect(body, s.k).contains(pos) {
+                    return Some(hit(DragMode::Loop, None));
                 }
                 let zone = edge_zone(body.width());
                 let mode = if pos.x < body.left() + zone {
@@ -2113,12 +1619,7 @@ fn clips(
                 } else {
                     DragMode::Move
                 };
-                Some(Hit {
-                    track: track.id,
-                    clip: clip.id,
-                    mode,
-                    handle: None,
-                })
+                Some(hit(mode, None))
             };
             if let Some(h) = pointer.and_then(test) {
                 out.hover = Some(h);
@@ -2149,17 +1650,30 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     let mut auto_st = std::mem::take(&mut app.arrangement.auto);
     auto_st.drawn.clear();
     let lanes_p = ui.painter().with_clip_rect(f.lanes);
+    let mut ruler_st = std::mem::take(&mut app.arrangement.ruler);
     let hits = {
         let a: &CantusApp = app;
+        // r39:el-arrange — the ruler in Slate, the sections and markers lane at its foot.
+        let mut rst = std::mem::take(&mut ruler_st);
         kit::with_brush(&ui.painter().with_clip_rect(f.ruler), |b| {
-            paint::ruler(b, a, view, f.ruler, s);
+            ruler::paint(
+                b,
+                a,
+                &mut rst,
+                view,
+                f.ruler,
+                numbers_rect(view, f.ruler),
+                s,
+            );
             rec::paint_punch(b, a, view, f.ruler, s);
             if let Some((top, bottom)) = view.markers {
                 let lane =
                     Rect::from_min_max(pos2(f.ruler.left(), top), pos2(f.ruler.right(), bottom));
+                ruler::sections::paint(b, a, view, lane, s);
                 markers::paint(b, a, view, lane, s);
             }
         });
+        ruler_st = rst;
         // The tempo track under the ruler, its name and tempo in the header column.
         if f.tempo.height() > 0.0 {
             let head = f.tempo_head();
@@ -2168,7 +1682,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             });
         }
         kit::with_brush(&lanes_p, |b| {
-            paint::lanes(b, a, view, f.lanes, s);
+            ruler::grid(b, a, view, f.lanes, s);
             takes::grounds(b, a, view, f.lanes, s);
             autolanes::grounds(b, &auto_st, a.arrangement.track_height, view, f.lanes, s);
             super::pitch_lane::paint(b, a, view, f.lanes, s);
@@ -2188,18 +1702,17 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     };
     app.arrangement.scratch = scratch;
     app.arrangement.auto = auto_st;
+    app.arrangement.ruler = ruler_st;
     kit::with_brush(&lanes_p, |b| {
         takes::overlay(b, app, view, f.lanes, s);
         rec::paint_live(b, app, view, f.lanes, s);
-        paint::overlay(b, app, &app.arrangement, view, f.lanes, s)
+        ruler::overlay(b, app, &app.arrangement, view, f.lanes, s);
+        // r39:lo-arrange — the resize edge's light and the loop notch, on the clip the
+        // pointer finds (des-arrange: nothing is drawn on a clip until then); the tools'.
+        edge_light(b, &app.arrangement, hits.hover, hits.anchor, s);
+        tools::paint(b, app, view, f.lanes, hits.hover, pointer, s);
     });
     rec::paint_live_waves(&lanes_p, app, view, f.lanes, s);
-    if app.project().tracks.is_empty() {
-        kit::with_brush(&lanes_p, |b| {
-            let tx = kit::text::Text::key("track.add", kit::text::Role::Title, s.t.text_dim);
-            let _ = kit::text::paint(b, f.lanes.shrink(20.0), &tx, s.tk());
-        });
-    }
     let hit = hits.hover;
     let hit_at_press = hits.at_press;
 
@@ -2277,7 +1790,9 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     } else if let Some(h) = hit {
         if app.arrangement.drag.is_none() {
             ui.ctx().set_cursor_icon(match h.mode {
-                DragMode::TrimStart | DragMode::TrimEnd => egui::CursorIcon::ResizeHorizontal,
+                DragMode::TrimStart | DragMode::TrimEnd | DragMode::Loop => {
+                    egui::CursorIcon::ResizeHorizontal
+                }
                 _ => egui::CursorIcon::Grab,
             });
         }
@@ -2315,8 +1830,33 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             map.snap(t, grid.max(Ticks(1)))
         }
     };
+    // r39:lo-arrange — the tool in hand takes the lanes' clicks and drags first; the Select
+    // tool's (and the Draw tool's on a clip) are the view's own below.
+    let tool_cx = tools::Ctx {
+        view,
+        body_top,
+        snap_to: &snap_to,
+        mods,
+        hit,
+        at_press: hit_at_press,
+    };
+    tools::hover(app, ui, &tool_cx, pointer);
+    let tool = app.arrangement.tool;
+    let tool_click = resp.clicked()
+        && resp
+            .interact_pointer_pos()
+            .is_some_and(|pos| tools::click(app, &tool_cx, pos));
+    let tool_drag = resp.drag_started_by(PointerButton::Primary)
+        && press.is_some_and(|pos| tools::drag_start(app, &tool_cx, pos));
+    let tool_dragged = resp.dragged_by(PointerButton::Primary)
+        && resp
+            .interact_pointer_pos()
+            .is_some_and(|pos| tools::dragged(app, &tool_cx, pos));
+    if resp.drag_stopped() {
+        tools::drag_stop(app, &tool_cx);
+    }
 
-    if resp.clicked() {
+    if resp.clicked() && !tool_click {
         if let Some(pos) = resp.interact_pointer_pos() {
             if pos.y < body_top {
                 let beats = view.beats(pos.x).max(0.0);
@@ -2347,7 +1887,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             }
         }
     }
-    if resp.double_clicked() {
+    // The other tools' clicks are theirs: a double-click is two of them (the Draw tool's on
+    // an empty lane two clips, not a clip and a four-bar one under it).
+    let doubles = tool == tools::Tool::Select || (tool == tools::Tool::Draw && hit.is_some());
+    if resp.double_clicked() && doubles {
         if let Some((h, handle)) = hit.and_then(|h| h.handle.map(|x| (h, x))) {
             audio::edit::reset(app, (h.track, h.clip), handle);
         } else if let Some(h) = hit {
@@ -2391,13 +1934,27 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             _ => None,
         };
     }
+    // r39:ux-b — Shift+F10 on the selected clip opens its menu (ADR 0110).
+    let by_key = crate::menu_keys::take_clip(ui.ctx());
+    if let Some((t, c)) = by_key {
+        app.arrangement.menu_clip = Some((t, c));
+        app.arrangement.audio.menu = None;
+        app.arrangement.menu_at = None;
+        clip_menu_opened(app, t, c);
+    }
     let fade_menu = audio::edit::menu_fade(app.arrangement.audio.menu);
     let menu_target = app
         .arrangement
         .menu_clip
         .filter(|(t, c)| app.project().track(*t).and_then(|t| t.clip(*c)).is_some());
     let handle_menu = app.arrangement.audio.menu;
-    egui::Popup::context_menu(&resp)
+    let popup = egui::Popup::context_menu(&resp);
+    let popup = if by_key.is_some() {
+        popup.open_memory(Some(egui::containers::SetOpenCommand::Bool(true)))
+    } else {
+        popup
+    };
+    popup
         .frame(chrome::menu_frame())
         .show(|ui| match (menu_target, fade_menu) {
             (Some(r), Some(fade)) => audio::edit::fade_menu(app, ui, r, fade),
@@ -2408,7 +1965,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         });
     audio::edit::editor_window(app, ui.ctx());
 
-    if resp.drag_started_by(PointerButton::Primary) {
+    if resp.drag_started_by(PointerButton::Primary) && !tool_drag {
         if let Some(pos) = press {
             if pos.y < body_top {
                 app.arrangement.drag = None;
@@ -2461,7 +2018,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             }
         }
     }
-    if resp.dragged_by(PointerButton::Primary) {
+    if resp.dragged_by(PointerButton::Primary) && !tool_dragged {
         if let Some(pos) = resp.interact_pointer_pos() {
             if app.arrangement.audio.drag.is_some() {
                 audio::edit::update(app, pos, mods.shift);
@@ -2472,7 +2029,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                 // Snap the *result*, not the movement: the user is aiming the edge at a
                 // bar line, not measuring how far they dragged.
                 let delta = match mode {
-                    DragMode::TrimEnd => {
+                    DragMode::TrimEnd | DragMode::Loop => {
                         snap_to(anchor_start + anchor_length + raw, mods.command)
                             - (anchor_start + anchor_length)
                     }
@@ -2484,7 +2041,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                     use crate::audio_clips::{clamp_edit, WindowEdit};
                     let edit = match mode {
                         DragMode::TrimStart => Some(WindowEdit::TrimStart),
-                        DragMode::TrimEnd => Some(WindowEdit::TrimEnd),
+                        DragMode::TrimEnd | DragMode::Loop => Some(WindowEdit::TrimEnd),
                         DragMode::Slip => Some(WindowEdit::Slip),
                         DragMode::Move => None,
                     };
@@ -2532,7 +2089,93 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             }
         }
     }
+    // r39:el-arrange — a time range being drawn says where and how long ("43.1 – 46.1 ·
+    // 3 bars"); a clip being moved, where it lands.
+    if let (Some(_), Some((a, b))) = (app.arrangement.selecting, app.time_selection) {
+        let p = app.project();
+        let (ab, abeat, _) = crate::views::bars::bbt(p, a);
+        let (bb, bbeat, _) = crate::views::bars::bbt(p, b);
+        let bars = crate::views::bars::bar_position(p, b) - crate::views::bars::bar_position(p, a);
+        let text = crate::i18n::tf(
+            "arrange.range.tip",
+            &[
+                ("from", &format!("{ab}.{abeat}")),
+                ("to", &format!("{bb}.{bbeat}")),
+                ("bars", &format!("{bars:.1}")),
+            ],
+        );
+        hint::set_text(ui.ctx(), &text, "", Caps::NONE);
+    }
+    if let Some(d) = app
+        .arrangement
+        .drag
+        .as_ref()
+        .filter(|d| d.mode == DragMode::Move)
+    {
+        let p = app.project();
+        let (bar, beat, _) = crate::views::bars::bbt(p, d.anchor_start + d.delta);
+        let name = crate::clips::clip_of(p, d.anchor)
+            .map(|c| c.name.clone())
+            .unwrap_or_default();
+        let text = crate::i18n::tf(
+            "arrange.move.tip",
+            &[("name", &name), ("at", &format!("{bar}.{beat}"))],
+        );
+        hint::set_text(
+            ui.ctx(),
+            &text,
+            chrome::word("arrange.move.keys"),
+            Caps::NONE,
+        );
+    }
+    // r39:lo-arrange — a resize says the length it lands on (des-arrange: "Length 8 bars ·
+    // Alt: stretch"); the loop notch says what it does.
+    if let Some(d) = app.arrangement.drag.as_ref().filter(|d| {
+        matches!(
+            d.mode,
+            DragMode::TrimStart | DragMode::TrimEnd | DragMode::Loop
+        )
+    }) {
+        let p = app.project();
+        let (from, to) = match d.mode {
+            DragMode::TrimStart => (d.anchor_start + d.delta, d.anchor_start + d.anchor_length),
+            _ => (d.anchor_start, d.anchor_start + d.anchor_length + d.delta),
+        };
+        let bars =
+            crate::views::bars::bar_position(p, to) - crate::views::bars::bar_position(p, from);
+        let bars = if (bars - bars.round()).abs() < 1e-3 {
+            format!("{}", bars.round() as i64)
+        } else {
+            format!("{bars:.2}")
+        };
+        let text = crate::i18n::tf("arrange.resize.tip", &[("bars", &bars)]);
+        hint::set_text(
+            ui.ctx(),
+            &text,
+            chrome::word("arrange.resize.keys"),
+            Caps::NONE,
+        );
+    } else if hit.is_some_and(|h| h.mode == DragMode::Loop)
+        && matches!(tool, tools::Tool::Select | tools::Tool::Draw)
+    {
+        hint::set_text(ui.ctx(), chrome::word("arrange.notch.tip"), "", Caps::NONE);
+    }
     if resp.drag_stopped() {
+        // r39:ux-b — a loop drawn in the loop lane is heard looping at once (FL's and
+        // Logic's way; ADR 0110): the switch goes on in the same step of undo as the brace.
+        if let Some(a) = app.arrangement.looping {
+            let p = app.project();
+            let drawn = p
+                .loop_region
+                .as_ref()
+                .is_some_and(|r| (r.start == a || r.end == a) && r.end > r.start);
+            if drawn && !p.loop_enabled {
+                app.exec_merging(
+                    Command::SetLoopEnabled { enabled: true },
+                    MergeKey::of(&"loop"),
+                );
+            }
+        }
         app.arrangement.looping = None;
         app.arrangement.selecting = None;
         audio::edit::end(app);
@@ -2542,19 +2185,26 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         }; // r33:launcher
         if let Some(d) = app.arrangement.drag.take().filter(|d| !session(app, d)) {
             // r33:launcher
-            app.commit_clip_drag(
-                d.anchor,
-                match d.mode {
-                    DragMode::Move => ClipDragResult::Move {
-                        delta: d.delta,
-                        rows: d.rows,
-                        copy: d.copy,
+            if d.mode == DragMode::Loop {
+                // r39:lo-arrange — the loop notch: the clip repeats, drawn out to its end.
+                tools::commit_loop(app, d.anchor, d.delta);
+            } else {
+                app.commit_clip_drag(
+                    d.anchor,
+                    match d.mode {
+                        DragMode::Move => ClipDragResult::Move {
+                            delta: d.delta,
+                            rows: d.rows,
+                            copy: d.copy,
+                        },
+                        DragMode::TrimStart => ClipDragResult::TrimStart { delta: d.delta },
+                        DragMode::TrimEnd | DragMode::Loop => {
+                            ClipDragResult::TrimEnd { delta: d.delta }
+                        }
+                        DragMode::Slip => ClipDragResult::Slip { delta: d.delta },
                     },
-                    DragMode::TrimStart => ClipDragResult::TrimStart { delta: d.delta },
-                    DragMode::TrimEnd => ClipDragResult::TrimEnd { delta: d.delta },
-                    DragMode::Slip => ClipDragResult::Slip { delta: d.delta },
-                },
-            );
+                );
+            }
         } else if let Some((a, b)) = app.arrangement.marquee.take() {
             let band = Rect::from_two_pos(a, b);
             let mut picked = Vec::new();
@@ -2603,17 +2253,16 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         let lane = Rect::from_min_max(pos2(f.ruler.left(), top), pos2(f.ruler.right(), bottom));
         markers::input(app, ui, view, lane, s);
     }
-    let numbers_top = view
-        .punch
-        .map(|p| p.1)
-        .or(view.markers.map(|m| m.1))
-        .unwrap_or(view.loop_lane_bottom);
-    let numbers = Rect::from_min_max(pos2(f.ruler.left(), numbers_top), f.ruler.max);
+    let numbers = numbers_rect(view, f.ruler);
     tempo::metre_input(app, ui, view, numbers, s);
     tempo::input(app, ui, view, f.tempo, s);
     takes::input(app, ui, view, f.lanes, s);
     autolanes::input(app, ui, f.lanes, s);
     super::pitch_lane::input(app, ui, view, f.lanes, s);
+    // r39:el-arrange — a new song's canvas says how to begin (over the timeline's response).
+    if app.project().tracks.is_empty() && app.project().folders.is_empty() {
+        empty::show(app, ui, f.lanes, s);
+    }
 }
 
 /// What a finished clip drag asks the application to do.
@@ -2691,6 +2340,49 @@ fn menu(app: &mut CantusApp, ui: &mut egui::Ui, entries: &[Entry<'_>]) -> Option
 /// right-click (its *Paste* lands where the menu was opened); the ▸ menu pastes at the
 /// playhead, as the keys do.
 fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
+    let _ = timeline_menu_after(app, ui, at_pointer, &[]);
+}
+
+/// r39:lo-arrange — the tool row's panel menu (dir-a's "…"): what the old row's keys did to
+/// the selected clips (split, glue, duplicate, mute, repeat, make unique, the paint tool,
+/// delete), the time selection's two, the snap, then the timeline's own entries — one menu.
+pub(super) fn panel_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
+    use crate::keymap::Action;
+    let snap = app.arrangement.snap;
+    let entries = [
+        Entry::Band("arrange.panel.clips"),
+        Entry::Run(Action::SplitClip, "clip.split"),
+        Entry::Run(Action::GlueClips, "clip.glue"),
+        Entry::Run(Action::Duplicate, "clip.duplicate"),
+        Entry::Run(Action::ToggleClipMute, "clip.mute"),
+        Entry::Run(Action::ToggleClipLoop, "clip.loop_on"),
+        Entry::Run(Action::MakeUnique, "clip.make_unique"),
+        Entry::Run(Action::ToolPaint, "links.paint.key"),
+        Entry::Run(Action::Delete, "clip.delete"),
+        Entry::Separator,
+        Entry::Run(Action::LoopToSelection, "action.loop-to-selection"),
+        Entry::Run(Action::ZoomToSelection, "action.zoom-to-selection"),
+        Entry::Toggle("arrange.panel.snap", snap),
+        Entry::Separator,
+    ];
+    match timeline_menu_after(app, ui, false, &entries) {
+        Some(12) => {
+            app.arrangement.snap = !snap;
+            ui.close();
+        }
+        Some(_) => ui.close(),
+        None => {}
+    }
+}
+
+/// The timeline's menu after `before` (another menu's own entries, one list): returns the
+/// index of one of those clicked (an action of theirs has already run).
+fn timeline_menu_after(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    at_pointer: bool,
+    before: &[Entry<'_>],
+) -> Option<usize> {
     use crate::keymap::Action;
     app.focus_arrangement();
     // The tempo map's entries (round 29, ADR 0060) in the same menu (review 2: a second
@@ -2721,7 +2413,13 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         Entry::Own(metre),
         Entry::Toggle("tempo.view_menu", app.tempo_lane_shown()),
     ];
-    match menu(app, ui, &entries) {
+    let all: Vec<Entry<'_>> = before.iter().chain(&entries).copied().collect();
+    let n = before.len();
+    let clicked = menu(app, ui, &all)?;
+    if clicked < n {
+        return Some(clicked);
+    }
+    match Some(clicked - n) {
         Some(0) => {
             if !at_pointer {
                 app.arrangement.menu_at = None;
@@ -2764,6 +2462,7 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         Some(_) => ui.close(),
         None => {}
     }
+    None
 }
 
 /// Where the timeline menu's *Add a marker* and *Add a metre change* act: the point the
@@ -2906,12 +2605,6 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
 /// gain); the menu and the inspector both come here. Returns how many were set.
 pub fn normalize_selection(app: &mut CantusApp) -> usize {
     audio::edit::normalize(app)
-}
-
-/// The height a track name's words need at full size (the body face's row).
-fn name_row(ctx: &egui::Context, s: &Style) -> f32 {
-    let font = kit::text::Role::Body.font(s.tk());
-    ctx.fonts_mut(|f| f.row_height(&font)).max(1.0)
 }
 
 /// The height a clip label's words need at full size (the label face's row).

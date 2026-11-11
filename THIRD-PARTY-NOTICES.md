@@ -103,7 +103,9 @@ Felker, et al.), and the notices musl carries from FreeBSD and Sun Microsystems
 
 | Font | Where | Copyright | Licence |
 |---|---|---|---|
-| IBM Plex Sans, Sans Condensed and Mono (Light, Regular, Medium, SemiBold, Condensed Italic) | Cantus's interface (`crates/cantus-ui/assets/fonts/`) | © 2017 IBM Corp., with Reserved Font Name "Plex" | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL.txt`, printed below |
+| IBM Plex Sans, Sans Condensed and Mono (ExtraLight, Light, Regular, Medium, SemiBold, Condensed Italic) | Cantus's interface (`crates/cantus-ui/assets/fonts/`) | © 2017 IBM Corp., with Reserved Font Name "Plex" | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL.txt`, printed below |
+| Barlow Semi Condensed 1.408 (ExtraLight, Light, Regular, Medium, SemiBold) | the Slate themes' interface, round 39 (`crates/cantus-ui/assets/fonts/`); modified by `tools/fonts/build_faces.py` — tabular figures by default, hinting removed (the licence allows it: no Reserved Font Name) | © 2017 The Barlow Project Authors (https://github.com/jpt/barlow) | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL-Barlow.txt`, printed below |
+| Sofia Sans 4.101 (Semi Condensed 500, 600, 650; Condensed 600; Extra Condensed 200, 300) | the Graphite and gold themes' interface, round 39 (`crates/cantus-ui/assets/fonts/`); static instances of the variable fonts made by `tools/fonts/build_faces.py`, with tabular figures by default and no hinting (no Reserved Font Name) | © 2019 The Sofia Sans Project Authors (https://github.com/lettersoup/Sofia-Sans) | SIL Open Font License 1.1 — `crates/cantus-ui/assets/fonts/LICENSE-OFL-Sofia-Sans.txt`, printed below |
 | Bravura 1.482 (SMuFL) | the score's music font: the screen, MusicXML's engraving and the PDF, which embeds a subset (`crates/cantus-score/assets/`) | © 2015 Steinberg Media Technologies GmbH, with Reserved Font Name "Bravura" | SIL Open Font License 1.1 — `crates/cantus-score/assets/LICENSE-Bravura-OFL.txt`, printed below |
 | emoji-icon-font | the symbol fallback after every Plex face (`crates/cantus-ui/assets/fonts/`, as egui distributed it) | © 2014 John Slegers | MIT — `crates/cantus-ui/assets/fonts/LICENSE-emoji-icon-font.txt`, printed below |
 
@@ -122,6 +124,202 @@ with Reserved Font Name "Bravura".
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded, 
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
+```
+
+### `LICENSE-OFL-Barlow.txt`
+
+```text
+Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded, 
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
+```
+
+### `LICENSE-OFL-Sofia-Sans.txt`
+
+```text
+Copyright 2019 The Sofia Sans Project Authors (https://github.com/lettersoup/Sofia-Sans)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://scripts.sil.org/OFL
 
 
 -----------------------------------------------------------
@@ -512,6 +710,8 @@ CC BY's one condition is credit to the author. Each pack's credit, as its licens
 - **DRSKit acoustic drums** (CC BY 4.0) — “DRSKit” by the DrumGizmo team and Jes Eiler (DRSDrums) (https://drumgizmo.org/wiki/doku.php?id=kits:drskit), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
   Licence file in the pack: `README.md`.
   About crediting, in the author's words: *“When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution.”*
+- **OpenAIR Impulse Responses** (CC BY 4.0) — Impulse responses from OpenAIR, www.openairlib.net — Adam Townsell, Damian T. Murphy (Audiolab, University of York), James Cadwallader, Matt Rogalsky — CC BY 4.0 — CC BY 4.0: https://creativecommons.org/licenses/by/4.0/legalcode
+  Licence file in the pack: `Licences/CC-BY-4.0.txt`.
 
 ### Under CC0 — no credit asked, given gladly
 

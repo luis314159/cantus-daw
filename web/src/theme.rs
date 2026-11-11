@@ -1,7 +1,10 @@
 //! Day and night. The choice is remembered; without one, the system's preference decides.
-//! (`index.html` applies it before the first paint, so there is no flash.)
+//! (`index.html` applies it before the first paint, so there is no flash.) The nav's and the
+//! footer's switches share one [`ThemeCtx`], provided by `<App/>`.
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+use yew::prelude::*;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Theme {
     Night,
     Day,
@@ -10,7 +13,12 @@ pub enum Theme {
 const KEY: &str = "cantus-theme";
 
 impl Theme {
+    /// The page's theme; night in the pre-renderer (the page's script corrects it before the
+    /// first paint, and the app reads it again when it starts).
     pub fn detect() -> Self {
+        if !cfg!(target_arch = "wasm32") {
+            return Theme::Night;
+        }
         let Some(win) = web_sys::window() else {
             return Theme::Night;
         };
@@ -43,6 +51,9 @@ impl Theme {
 
     /// Sets `data-theme` on the page and remembers the choice.
     pub fn apply(self, remember: bool) {
+        if !cfg!(target_arch = "wasm32") {
+            return;
+        }
         let Some(win) = web_sys::window() else { return };
         if let Some(root) = win.document().and_then(|d| d.document_element()) {
             let _ = root.set_attribute("data-theme", self.name());
@@ -53,4 +64,24 @@ impl Theme {
             }
         }
     }
+}
+
+/// The theme, and a way to change it (applied and remembered), shared by every switch.
+#[derive(Clone, PartialEq)]
+pub struct ThemeCtx {
+    pub theme: Theme,
+    pub set: Callback<Theme>,
+}
+
+impl ThemeCtx {
+    /// Day to night or night to day.
+    pub fn flip(&self) -> Callback<MouseEvent> {
+        let (set, next) = (self.set.clone(), self.theme.toggled());
+        Callback::from(move |_| set.emit(next))
+    }
+}
+
+#[hook]
+pub fn use_theme() -> ThemeCtx {
+    use_context::<ThemeCtx>().expect("ThemeCtx is provided by <App/>")
 }

@@ -135,6 +135,7 @@ pub fn hue_of(kind: EffectKind) -> Function {
         }
         EffectKind::Analyzer => Function::Output,
         EffectKind::AutoTune => Function::Source,
+        EffectKind::Aula => Function::Space, // r39:conv
     }
 }
 
@@ -438,6 +439,9 @@ pub struct Out {
     pub close: bool,
     /// Where the window's own buttons were drawn (round 20), when it has them.
     pub window: Option<crate::kit::window_ctl::WindowRects>,
+    /// Nothing in the editor moves this frame: its window asks for no next frame (ADR
+    /// 0106, 0115). Most editors leave it off, and their window draws at the meters' rate.
+    pub at_rest: bool,
 }
 
 impl Default for Out {
@@ -449,6 +453,7 @@ impl Default for Out {
             moved: Vec2::ZERO,
             close: false,
             window: None,
+            at_rest: false,
         }
     }
 }
@@ -647,6 +652,7 @@ pub fn show(
         moved,
         close: std::mem::take(&mut chrome.close),
         window: out.window,
+        at_rest: false,
     }
 }
 

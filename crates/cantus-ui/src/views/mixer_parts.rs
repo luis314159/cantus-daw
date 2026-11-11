@@ -3,23 +3,19 @@
 //! strip, a group's separator and the `+` after the last strip.
 
 use super::layout::{self, Row, WidthMode};
+use super::look::{self, W};
 use super::menu::Menu;
-use super::strip::{
-    fader_input, fx_rec, knob_input, knob_style, meter_hint, meter_rects, peak_readout, pid, sense,
-    wave, write_db, write_pan, Part, Pass, Snap,
-};
+use super::rows::Col;
+use super::strip::{knob_input, pid, sense, write_db, Part, Pass, Snap};
 use super::{MixerView, Renaming};
 use crate::app::CantusApp;
-use crate::kit::color::{on_fill, safe_track, shade, with_alpha, FillSize};
-use crate::kit::fader::{self as kfader, FaderLook};
+use crate::kit::color::{mix, on_fill, safe_track, with_alpha, FillSize};
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::hint::{self, Caps};
 use crate::kit::knob::{self, KnobLook, KnobSize};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
-use crate::kit::{light, meter, Brush, Fill, State, Tok};
-use crate::widgets::fader::{pos_of, UNITY_POS};
-use cantus_core::{Command, GroupId, MergeKey, Send, StripId};
-use cantus_engine::CaptureTarget;
+use crate::kit::{Brush, Fill, State, Tok};
+use cantus_core::{Command, GroupId, Send, StripId};
 use egui::{pos2, vec2, Align2, Rect, Sense, Ui};
 use std::fmt::Write as _;
 
@@ -79,7 +75,6 @@ pub(super) fn sends_row(
             b.rrect(r, s.r(3.0), Fill::Solid(with_alpha(t.selection, 0.18)));
         }
         let g = Rect::from_center_size(pos2(r.left() + 7.0, sy), vec2(12.0, 12.0)); // r37:finish
-        glyph::paint(b, g, Glyph::Down, t.selection);
         v.buf.clear();
         match sn.output.and_then(|o| app.project().strip_number(o)) {
             Some(n) => {
@@ -87,7 +82,16 @@ pub(super) fn sends_row(
             }
             None => v.buf.push('M'),
         }
-        let nr = Rect::from_min_max(pos2(g.right() + 1.0, r.top()), pos2(r.right(), r.bottom()));
+        let mut nr =
+            Rect::from_min_max(pos2(g.right() + 1.0, r.top()), pos2(r.right(), r.bottom()));
+        // The arrow where the number still fits beside it; else the number alone, whole
+        // (round 39, ADR 0109: "10" in a compact strip was cut to an ellipsis).
+        let nw = text::measure(&ctx, &Text::new(&v.buf, Role::Label, t.selection), s.tk()).x;
+        if nw <= nr.width() {
+            glyph::paint(b, g, Glyph::Down, t.selection);
+        } else {
+            nr = r;
+        }
         let _ = text::paint(
             b,
             nr,
@@ -126,7 +130,7 @@ pub(super) fn sends_row(
     let loops = v.desk.would_cycle.get(sn.index).copied().unwrap_or(true);
     if let Some(send) = send {
         // A linked send is a knob: its level.
-        let ks = knob_style(pass).scaled(if pass.mode() == WidthMode::Compact {
+        let ks = pass.s.scaled(if pass.mode() == WidthMode::Compact {
             0.72
         } else {
             0.8
@@ -290,472 +294,6 @@ pub(super) fn open_chain(app: &mut CantusApp, strip: Option<StripId>) {
     app.show_pane(crate::views::workspace::Pane::Inspector);
 }
 
-/// The chain in one line (Extra large; round 25, the owner's answer 7): "EQ · Comp · +1"
-/// in a well, dimmed while the chain is switched out. A click opens the inspector at the
-/// strip, where the inserts live; an empty chain's "+ Effect" opens the effect picker.
-/// Right-click: the menu of the insert under the pointer (or the quick list to add one).
-#[allow(clippy::too_many_arguments)]
-pub(super) fn chain_row(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    pass: &mut Pass,
-    sn: &Snap,
-    x: f32,
-    bw: f32,
-) {
-    let Some((a, z)) = pass.row(Row::Chain) else {
-        return;
-    };
-    let s = pass.s;
-    let t = &s.t;
-    let master = sn.id.is_master();
-    let r = Rect::from_min_max(pos2(x + 3.0, a), pos2(x + bw - 3.0, z));
-    let id = if master { None } else { Some(sn.id) };
-    let resp = sense(ui, pass, r, pid(id, Part::Chain), Sense::click());
-    let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-    b.register(r, "chain_line", CHAIN_TOKENS, &[]);
-    // r37:finish — a chip standing off the strip, not a black hole in it.
-    let m = light::Material::of(t); // r37:finish
-    let line = v.desk.chain(if master { None } else { Some(sn.index) });
-    let empty = line.is_empty();
-    // r37:finish — judge 9: no empty inset boxes; an empty chain is its "+" alone until
-    // the pointer is on it.
-    if !empty || hovered {
-        light::chip(b, r, s.r(3.0), chip_base(t), &m, hovered);
-    }
-    // Inserts whose plug-in stopped working (round 29, review #17): the line in the danger
-    // colour, and their tips with the chain's.
-    let stopped = stopped_inserts(app, sn.id);
-    let inner = r.shrink2(vec2(4.0, 0.0));
-    if empty {
-        // An icon, not a word forty times across the desk: the hint bar says it.
-        let ink = with_alpha(t.text_dim, if hovered { 0.9 } else { 0.45 });
-        let g = Rect::from_center_size(r.center(), vec2(9.0, 9.0));
-        glyph::paint(b, g, Glyph::Plus, ink);
-    } else {
-        let ink = if !stopped.is_empty() {
-            t.danger
-        } else if sn.fx_on {
-            t.text
-        } else {
-            with_alpha(t.text, 0.5)
-        };
-        // r37:finish — where the whole line does not fit, its first insert and how many
-        // more ("Comp +1"), never a name cut ("Comp · Mult…").
-        let tk = s.tk() * super::desk::CHAIN_TEXT;
-        let whole = text::measure(ui.ctx(), &Text::new(line, Role::Label, ink), tk).x;
-        let shown: &str = if whole > inner.width() + 0.5 {
-            let mut parts = line.split(super::desk::CHAIN_SEP);
-            let first = parts.next().unwrap_or("");
-            let more: usize = parts
-                .map(|p| {
-                    p.strip_prefix('+')
-                        .and_then(|n| n.parse().ok())
-                        .unwrap_or(1)
-                })
-                .sum();
-            v.buf.clear();
-            v.buf.push_str(first);
-            if more > 0 {
-                let _ = write!(v.buf, " +{more}");
-            }
-            &v.buf
-        } else {
-            line
-        };
-        let tt = Text::new(shown, Role::Label, ink)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End));
-        let _ = text::paint(b, inner, &tt, tk);
-    }
-    let Some(resp) = resp else {
-        return;
-    };
-    if hovered {
-        let tip = if empty {
-            &v.words.chain_empty
-        } else {
-            &v.words.chain
-        };
-        let body = chain_body(line, &stopped);
-        hint::set_text(
-            ui.ctx(),
-            tip,
-            &body,
-            Caps {
-                menu: true,
-                ..Caps::NONE
-            },
-        );
-    }
-    if resp.clicked() {
-        if empty {
-            open_chain(app, id);
-            app.open_picker(crate::picker::PickPurpose::AddEffect { strip: sn.id });
-        } else {
-            open_chain(app, id);
-        }
-    }
-    if resp.secondary_clicked() {
-        let at = resp.interact_pointer_pos().unwrap_or(r.left_bottom());
-        let menu = match chain_effect_at(app, ui, s, sn.id, inner, at.x) {
-            Some(fx) => Menu::Slot(sn.id, fx),
-            None => Menu::AddEffect(sn.id),
-        };
-        v.popups.open(menu, at);
-    }
-}
-
-/// The insert whose name in the chain line is under `x` (built on a right-click only:
-/// it measures the names it shows).
-fn chain_effect_at(
-    app: &CantusApp,
-    ui: &Ui,
-    s: &crate::kit::Style,
-    strip: StripId,
-    inner: Rect,
-    x: f32,
-) -> Option<cantus_core::EffectId> {
-    let effects = app.project().effects_of(strip)?;
-    let mut left = inner.left();
-    let sep = text::measure(
-        ui.ctx(),
-        &Text::new(super::desk::CHAIN_SEP, Role::Label, s.t.text),
-        s.tk() * super::desk::CHAIN_TEXT,
-    )
-    .x;
-    for e in effects.iter().take(2) {
-        let name = super::desk::short_name(e);
-        let w = text::measure(
-            ui.ctx(),
-            &Text::new(&name, Role::Label, s.t.text),
-            s.tk() * super::desk::CHAIN_TEXT,
-        )
-        .x;
-        if x < left + w + sep * 0.5 {
-            return Some(e.id);
-        }
-        left += w + sep;
-    }
-    None
-}
-
-/// Where the strip's output goes (Wide and up): a menu-field chip "→ 12 Bus" ("→ M" for
-/// the master); a click lists every destination. The master's own output is the device.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn output_row(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    pass: &mut Pass,
-    sn: &Snap,
-    x: f32,
-    bw: f32,
-) {
-    let Some((a, z)) = pass.row(Row::Output) else {
-        return;
-    };
-    if sn.id.is_master() {
-        return;
-    }
-    let s = pass.s;
-    let r = Rect::from_min_max(pos2(x + 3.0, a), pos2(x + bw - 3.0, z));
-    let resp = sense(ui, pass, r, pid(Some(sn.id), Part::Output), Sense::click());
-    let open = v.popups.is_open(Menu::Route(sn.id));
-    let st = resp.as_ref().map_or(State::REST, |r| State::of(r, open));
-    v.buf.clear();
-    v.buf.push_str("\u{2192} ");
-    let p = app.project();
-    match sn.output.and_then(|o| p.strip_index(o)) {
-        Some(i) => {
-            let _ = write!(v.buf, "{}", i + 1);
-            if pass.mode() == WidthMode::Xl {
-                let name = v.desk.name(app, i);
-                if !name.is_empty() {
-                    v.buf.push(' ');
-                    v.buf.push_str(name);
-                }
-            }
-        }
-        None => v.buf.push('M'),
-    }
-    // A chip, not a menu field: its ▾ would leave no room for "→ 12" on a Wide strip.
-    let m = light::Material::of(&s.t); // r37:finish
-    light::chip(b, r, s.r(3.0), chip_base(&s.t), &m, st.hovered); // r37:finish
-    let ink = if sn.output.is_some() {
-        s.t.text
-    } else {
-        s.t.text_dim
-    };
-    let tt = Text::new(&v.buf, Role::Label, ink)
-        .align(Align2::CENTER_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let _ = text::paint(b, r.shrink2(vec2(3.0, 0.0)), &tt, s.tk() * 0.92);
-    let Some(resp) = resp else {
-        return;
-    };
-    if st.hovered {
-        hint::set_text(
-            ui.ctx(),
-            &v.words.output,
-            &v.buf,
-            Caps {
-                menu: true,
-                ..Caps::NONE
-            },
-        );
-    }
-    if resp.clicked() || resp.secondary_clicked() {
-        v.popups
-            .open(Menu::Route(sn.id), pos2(r.left(), r.bottom()));
-    }
-}
-
-/// The strip's own sends (Extra large; design §4.5): one row each — its switch, the
-/// destination's number and name, the `POST | PRE` switch (answer 4) and the level as a
-/// bar along the row's foot. Drag on a row: the level (the house rules; double-click is
-/// 0 dB); a click on the name selects the destination; right-click: the route's menu. A
-/// doubled signal (answer 5) carries the warning mark. The row after the last send is
-/// "+ Send" (a click lists the destinations; a drag from it makes a cable), and a strip
-/// with more sends than rows ends in "+n", which opens the inspector.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn send_list(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    pass: &mut Pass,
-    sn: &Snap,
-    x: f32,
-    bw: f32,
-) {
-    let Some((a, _)) = pass.row(Row::SendList) else {
-        return;
-    };
-    if sn.id.is_master() {
-        return;
-    }
-    let s = pass.s;
-    let t = &s.t;
-    let rows = pass.fit.send_rows;
-    let count = app.project().strip(sn.id).map_or(0, |st| st.sends.len());
-    // Every row but the last holds a send; the last holds a send only when it is the
-    // strip's last, else "+ Send" or "+n".
-    let shown = if count > rows { rows - 1 } else { count };
-    for k in 0..rows {
-        let y = a + 1.0 + k as f32 * layout::SEND_ROW;
-        let r = Rect::from_min_max(
-            pos2(x + 2.0, y),
-            pos2(x + bw - 2.0, y + layout::SEND_ROW), // r37:finish — a 24-pt row
-        );
-        if k < shown {
-            let Some(send) = app
-                .project()
-                .strip(sn.id)
-                .and_then(|st| st.sends.get(k))
-                .copied()
-            else {
-                continue;
-            };
-            send_row(v, app, ui, b, pass, sn, k, send, r);
-        } else if k == shown && count > rows {
-            v.buf.clear();
-            let _ = write!(v.buf, "+{}", count - shown);
-            let resp = sense(ui, pass, r, pid(Some(sn.id), Part::SendAdd), Sense::click());
-            let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-            let ink = if hovered { t.text } else { t.text_dim };
-            let tt = Text::new(&v.buf, Role::Label, ink).align(Align2::CENTER_CENTER);
-            let _ = text::paint(b, r, &tt, s.tk() * 0.9);
-            if let Some(resp) = resp {
-                if hovered {
-                    hint::set_text(ui.ctx(), &v.words.send_more, &v.buf, Caps::NONE);
-                }
-                if resp.clicked() {
-                    open_chain(app, Some(sn.id));
-                }
-            }
-        } else if k == shown && count < cantus_core::MAX_SENDS {
-            // r37:finish — "+ Send" takes every row left under the sends: one tall drop
-            // target, not a "+" over empty rows (the judge: dead space under the sends).
-            let rest = Rect::from_min_max(
-                r.min,
-                pos2(r.right(), a + 1.0 + rows as f32 * layout::SEND_ROW),
-            );
-            send_add(v, app, ui, b, pass, sn, rest);
-        }
-    }
-}
-
-/// One send row of [`send_list`].
-#[allow(clippy::too_many_arguments)]
-fn send_row(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    pass: &mut Pass,
-    sn: &Snap,
-    k: usize,
-    send: Send,
-    r: Rect,
-) {
-    let s = pass.s;
-    let t = &s.t;
-    let ctx = ui.ctx().clone();
-    let id = pid(Some(sn.id), Part::SendRow(k as u8));
-    let resp = sense(ui, pass, r, id, Sense::click_and_drag());
-    let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-    b.register(r, "send_row", SEND_TOKENS, &[Some(Tok::HueSpace)]);
-    if hovered || resp.as_ref().is_some_and(|r| r.dragged()) {
-        b.rrect(r, s.r(2.0), Fill::Solid(with_alpha(t.text, 0.06)));
-    }
-    // The switch.
-    let lc = pos2(r.left() + 5.0, r.center().y - 0.5);
-    // r37:finish — the switch's target is 24 pt across (its lamp stays small).
-    let lamp_r = Rect::from_min_max(r.min, pos2(r.left() + layout::TARGET, r.bottom()));
-    crate::kit::led::paint(b, lc, s.s(7.0), send.enabled, s, Tok::Led, Tok::Strip, 1.0);
-    // The tap at the right: one chip sized to its word ("PRE" lit, "POST" dim; a click
-    // switches it), so the word is never cut to fit two segments.
-    let tap_k = s.tk() * 0.88;
-    let tap_w = crate::kit::tap::chip_width(&ctx, s, send.tap, tap_k);
-    // r37:finish — the chip's target the row's whole height, and 24 pt wide at least.
-    let tap_r = Rect::from_min_max(pos2(r.right() - tap_w.max(layout::TARGET), r.top()), r.max);
-    let doubled = v.desk.send_doubled(sn.index, k);
-    // The destination: its name, or its number when it has none (both are in the hint
-    // bar; a 76-pt strip has room for one).
-    let p = app.project();
-    let to = p.strip_index(send.to);
-    v.buf.clear();
-    if let Some(i) = to {
-        let name = v.desk.name(app, i);
-        if name.is_empty() {
-            let _ = write!(v.buf, "{}", i + 1);
-        } else {
-            v.buf.push_str(name);
-        }
-    }
-    let mut nr = Rect::from_min_max(
-        pos2(lc.x + 6.0, r.top()),
-        pos2(tap_r.left() - 2.0, r.bottom() - 2.0),
-    );
-    if doubled {
-        let dc = pos2(nr.right() - 4.0, nr.center().y);
-        super::cables::doubled_mark_small(b, s, dc);
-        nr.max.x -= 9.0;
-    }
-    let ink = if send.enabled {
-        t.text
-    } else {
-        with_alpha(t.text, 0.5)
-    };
-    let tt = Text::new(&v.buf, Role::Label, ink)
-        .align(Align2::LEFT_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let _ = text::paint(b, nr, &tt, s.tk() * 0.88);
-    // The level, along the foot, in the space hue (sends are space).
-    let foot = Rect::from_min_max(
-        pos2(nr.left(), r.bottom() - 2.0),
-        pos2(r.right(), r.bottom()),
-    );
-    let mut level = send.level.clamp(0.0, 1.0);
-    // The level is a parameter (review 2): a modulator's handle dropped on the row
-    // connects it, an Alt-drag (or a mapping modulator) edits the depth; its right-click
-    // menu offers automation and *Modulate…*.
-    let dm = super::strip::DeskMod::new(
-        app,
-        cantus_core::AutoTarget::Send {
-            strip: sn.id,
-            to: send.to,
-        },
-        level,
-        s,
-    );
-    if let Some(resp) = &resp {
-        let depth = dm.input(app, ui, resp);
-        if let Some(p) = knob_input(v, ui, pass, resp, level, 1.0, !depth) {
-            level = p;
-            app.set_strip_send(sn.id, Send { level: p, ..send });
-        }
-        if resp.drag_stopped() && !depth {
-            app.end_gesture();
-        }
-    }
-    dm.paint_drop(b, ui, resp.as_ref(), r, s);
-    let fb = b.snap_rect(foot);
-    b.rect(fb, Fill::Solid(with_alpha(t.text_dim, 0.18)));
-    if level > 0.0 {
-        let lit = Rect::from_min_max(fb.min, pos2(fb.left() + fb.width() * level, fb.bottom()));
-        let c = if send.enabled {
-            t.hue_space
-        } else {
-            with_alpha(t.hue_space, 0.45)
-        };
-        b.rect(b.snap_rect(lit), Fill::Solid(c));
-    }
-    // Where modulation has the level now: a tick on the foot, in the modulation hue.
-    if let Some(live) = dm.live {
-        let x = fb.left() + fb.width() * live.clamp(0.0, 1.0);
-        b.rect(
-            Rect::from_min_max(pos2(x - 1.0, fb.top() - 2.0), pos2(x + 1.0, fb.bottom())),
-            Fill::Solid(t.hue_mod),
-        );
-    }
-    if let Some(tap) =
-        crate::kit::tap::chip(ui, b, s, tap_r, pass.clip, id.with("tap"), send.tap, tap_k)
-    {
-        app.set_send_tap(sn.id, send.to, tap);
-    }
-    let Some(resp) = resp else {
-        return;
-    };
-    let on_lamp = resp
-        .interact_pointer_pos()
-        .is_some_and(|p| lamp_r.contains(p));
-    if hovered || resp.dragged() {
-        let name = v.buf.as_str();
-        let tap = if send.tap.is_post() {
-            &v.words.tap[0]
-        } else {
-            &v.words.tap[1]
-        };
-        hint::set(&ctx, &v.words.send_row, Caps::PARAM, resp.dragged(), |w| {
-            write!(w, "{name} \u{b7} ")?;
-            write_level(w, level);
-            write!(w, " \u{b7} {tap}")
-        });
-    }
-    if resp.double_clicked() {
-        // knob_input took it: 0 dB.
-    } else if resp.clicked() {
-        if on_lamp {
-            app.set_strip_send(
-                sn.id,
-                Send {
-                    enabled: !send.enabled,
-                    ..send
-                },
-            );
-            app.end_gesture();
-        } else if to.is_some() {
-            app.select_strip(send.to);
-        }
-    }
-    if resp.secondary_clicked() {
-        let at = resp.interact_pointer_pos().unwrap_or(r.left_bottom());
-        let route = cantus_core::routing::Route::send(sn.id, send.to);
-        crate::views::route_menu::open(&ctx, super::route_owner(), route, at);
-    }
-    if doubled && hovered {
-        let p = app.project();
-        if let Some(text) = crate::routing_actions::doubled_text(p, sn.id, send.to) {
-            let _ = resp.on_hover_text(text);
-        }
-    }
-}
-
 /// "−6.0 dB" for a linear send level, written without allocating.
 pub(super) fn write_level(w: &mut String, level: f32) {
     if level <= 0.0 {
@@ -765,68 +303,10 @@ pub(super) fn write_level(w: &mut String, level: f32) {
     }
 }
 
-/// The "+ Send" row: a click lists the destinations (with *New return ▸*), a drag from
-/// it makes a cable (as from the strip's port).
-#[allow(clippy::too_many_arguments)]
-fn send_add(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    pass: &mut Pass,
-    sn: &Snap,
-    r: Rect,
-) {
-    let s = pass.s;
-    let t = &s.t;
-    let resp = sense(
-        ui,
-        pass,
-        r,
-        pid(Some(sn.id), Part::SendAdd),
-        Sense::click_and_drag(),
-    );
-    let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-    // r37:finish — quiet at rest: a small "+" in the first free row, nothing else (the
-    // judge: empty boxes read as dead space); the whole drop target lit under the pointer
-    // or on the selected strip.
-    let lit = hovered || app.selected_strip == Some(sn.id);
-    if lit {
-        b.rrect(
-            b.snap_rect(r.shrink(1.0)),
-            s.r(2.0),
-            Fill::Solid(with_alpha(t.well, if hovered { 0.30 } else { 0.16 })),
-        );
-        b.rrect_stroke(
-            b.snap_rect(r.shrink(1.0)),
-            s.r(2.0),
-            b.px(),
-            with_alpha(t.text_dim, if hovered { 0.7 } else { 0.3 }),
-        );
-    }
-    let ink = with_alpha(t.text_dim, if hovered { 0.9 } else { 0.40 });
-    let first = Rect::from_min_size(r.min, vec2(r.width(), layout::SEND_ROW.min(r.height())));
-    let g = Rect::from_center_size(first.center(), vec2(12.0, 12.0)); // r37:finish
-    glyph::paint(b, g, Glyph::Plus, ink);
-    let Some(resp) = resp else {
-        return;
-    };
-    super::drag::source(v, app, ui, &resp, super::drag::Source::Port(sn.id));
-    if hovered {
-        hint::set_text(ui.ctx(), &v.words.send_add, "", Caps::NONE);
-    }
-    if resp.clicked() {
-        let at = pos2(r.left(), r.bottom());
-        crate::views::route_menu::open_add_send(ui.ctx(), super::route_owner(), sn.id, at);
-    }
-}
-
-const CHAIN_TOKENS: &[Tok] = &[Tok::Well, Tok::Text, Tok::TextDim];
-const SEND_TOKENS: &[Tok] = &[Tok::Led, Tok::Text, Tok::TextDim];
-
-/// The master: a strip like the others, with a stereo meter, a balance (the pan law does
-/// not apply to it, ADR 0012), no mute, solo, swap, EQ or sends — its sends row holds the
-/// project's pan law instead, which is where somebody mixing looks for it.
+/// The master (des-mixer): a strip like the others at the desk's left — "M" and
+/// "Master" in its head, its inserts, its polarity and width, the balance, mono, the fader
+/// with its scale's numbers and its two channels, its level, "→ Out 1–2" (Large: the
+/// short-term loudness) and its socket. The pan law is in its menu.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn master(
     v: &mut MixerView,
@@ -838,9 +318,8 @@ pub(super) fn master(
     w: f32,
 ) {
     let s = pass.s;
-    let t = &s.t;
-    let bw = w - 1.0;
-    let cx = x + bw * 0.5;
+    let p = pass.pal;
+    let bw = w;
     let ctx = ui.ctx().clone();
     let mut m = app.project().master.clone();
     // An automated master shows what its clips give it (ADR 0027).
@@ -854,41 +333,94 @@ pub(super) fn master(
         }
     }
     let body = pass.body(x, bw);
-    crate::kit::light::plate(
-        b,
-        body,
-        t.strip,
-        None,
-        &crate::kit::light::Material::of(t),
-        1.0,
-    ); // r37:finish
+    // The master is chosen like a strip (ADR 0026): a click on its head shows its chain
+    // in the inspector, a right-click is its menu.
+    let chosen = crate::views::inspector::subject(app) == crate::views::inspector::Subject::Master;
+    look::body(b, body, &p, chosen.then(|| mix(p.surface, p.ink1, 0.05)));
+    look::stripe(b, body, p.ink3);
     let target = super::drag::target(v, app, ui, None, body);
     super::cables::column_hatch(b, s, body, target);
-    // The master is chosen like a strip (ADR 0026): a click on its number or name shows
-    // its chain in the inspector, a right-click is its menu.
-    let chosen = crate::views::inspector::subject(app) == crate::views::inspector::Subject::Master;
-    let mut head = Rect::NOTHING;
+    let sn = Snap::master(&m);
+    let c = Col {
+        x,
+        w: bw,
+        sn,
+        master: true,
+        selected: chosen,
+        chosen,
+        hue: None,
+        dim: false,
+        frozen: false,
+        vca: false,
+        empty: false,
+    };
     if let Some((a, z)) = pass.row(Row::Number) {
-        let cell = b.snap_rect(Rect::from_min_max(pos2(x, a), pos2(x + bw, z)));
-        head = head.union(cell);
-        let fill = t.header_cell;
-        b.rect(cell, Fill::V(shade(fill, 0.03), shade(fill, -0.03)));
-        if chosen {
-            b.rrect_stroke(cell.shrink(b.px() * 1.5), 0.0, b.px() * 1.5, t.selection);
+        let head = Rect::from_min_max(pos2(x, a), pos2(x + bw, z));
+        let cx = x + bw * 0.5;
+        let name = &v.words.master_short;
+        let weight = W::Medium;
+        if pass.mode() == WidthMode::Compact {
+            look::say(
+                b,
+                s,
+                "M",
+                cx,
+                a + 14.0,
+                Align2::CENTER_BOTTOM,
+                bw,
+                10.0,
+                W::SemiBold,
+                p.ink3,
+            );
+            let room = (z - a) - 26.0;
+            let (t, k) = look::words(name, 12.0, weight, p.ink1, s.tk());
+            let t = t
+                .align(Align2::CENTER_BOTTOM)
+                .policy(Policy::Rotate90(Elide::End));
+            let nr = Rect::from_min_max(pos2(cx - 8.0, z - 4.0 - room), pos2(cx + 8.0, z - 4.0));
+            let _ = text::paint(b, nr, &t, k);
+        } else {
+            let large = pass.mode() == WidthMode::Xl;
+            look::say(
+                b,
+                s,
+                "M",
+                cx,
+                a + 15.0,
+                Align2::CENTER_BOTTOM,
+                bw,
+                10.0,
+                W::SemiBold,
+                p.ink3,
+            );
+            let (size, base) = if large { (13.0, 31.0) } else { (12.0, 30.0) };
+            look::say(
+                b,
+                s,
+                name,
+                cx,
+                a + base,
+                Align2::CENTER_BOTTOM,
+                bw - 6.0,
+                size,
+                weight,
+                p.ink1,
+            );
+            if large {
+                look::say(
+                    b,
+                    s,
+                    &v.words.out_main,
+                    cx,
+                    a + 42.0,
+                    Align2::CENTER_BOTTOM,
+                    bw - 6.0,
+                    10.0,
+                    W::Regular,
+                    p.ink3,
+                );
+            }
         }
-        let _ = text::paint(b, cell, &Text::new("M", Role::Label, on_fill(fill)), s.tk());
-    }
-    if let Some((a, z)) = pass.row(Row::Name) {
-        let nr = Rect::from_min_max(pos2(x + 2.0, a), pos2(x + bw - 2.0, z - 2.0));
-        head = head.union(nr);
-        let ink = if chosen { t.text } else { t.label };
-        let tt = Text::key("mixer.master", Role::Label, ink)
-            .caps(true)
-            .align(Align2::CENTER_BOTTOM)
-            .policy(Policy::Elide(Elide::End));
-        let _ = text::paint(b, nr, &tt, s.tk());
-    }
-    if head.is_positive() {
         if let Some(resp) = sense(ui, pass, head, pid(None, Part::Head), Sense::click()) {
             if resp.hovered() {
                 hint::set_text(
@@ -911,304 +443,14 @@ pub(super) fn master(
             }
         }
     }
-    // r37:finish — from Wide up the master's meter is beside its fader, as the strips' are
-    // (the judge: a postage stamp); the row above holds its peak's number.
-    let beside = pass.mode() != WidthMode::Compact && pass.row(Row::Fader).is_some();
-    let mut master_levels = None;
-    if let Some((a, z)) = pass.row(Row::Meter) {
-        let levels = v
-            .meters
-            .master(app.engine.meters().master, pass.now, pass.wave);
-        master_levels = Some(levels);
-        let mut top = a;
-        if pass.mode() != WidthMode::Compact && (z - a >= 72.0 || (beside && z - a >= 15.0)) {
-            let pr = Rect::from_min_max(pos2(x + 3.0, a), pos2(x + bw - 3.0, a + 15.0));
-            let held = v.meters.master_held();
-            peak_readout(v, ui, b, pass, pr, held, None, None);
-            top = a + 18.0;
-        }
-        let (mr, _) = meter_rects(pass.mode(), x, bw, top, z, false);
-        let mr = mr.expand2(vec2(4.0, 0.0));
-        if pass.wave {
-            wave(b, s, mr, Some(v.meters.master_wave()), None);
-        } else if !beside {
-            pass.meters.paint(b, mr, &levels);
-        }
-        if let Some(resp) = sense(ui, pass, mr, pid(None, Part::Meter), Sense::hover()) {
-            meter_hint(v, ui, &resp, mr);
-        }
-    }
-    // Balance.
-    if let Some(py) = pass.mid(Row::Pan) {
-        let c = pos2(cx, py);
-        let mut pos = (m.pan.clamp(-1.0, 1.0) + 1.0) * 0.5;
-        let resp = sense(
-            ui,
-            pass,
-            Rect::from_center_size(c, vec2(22.0, 22.0) * super::layout::grow(pass.mode())), // r37:finish
-            pid(None, Part::Pan),
-            Sense::click_and_drag(),
-        );
-        let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
-        let ks = knob_style(pass);
-        let dm = super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterPan, pos, &ks);
-        if let Some(resp) = &resp {
-            let depth = dm.input(app, ui, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5, !depth) {
-                pos = p;
-                app.exec_merging(
-                    Command::SetMasterPan { pan: p * 2.0 - 1.0 },
-                    MergeKey::of(&"master-pan"),
-                );
-            }
-            if resp.drag_stopped() && !depth {
-                app.end_gesture();
-            }
-            if st.hovered {
-                hint::set(&ctx, &v.words.balance, Caps::PARAM, resp.dragged(), |b| {
-                    write_pan(b, pos * 2.0 - 1.0);
-                    Ok(())
-                });
-            }
-        }
-        knob::paint(
-            b,
-            c,
-            &ks,
-            st,
-            &KnobLook {
-                live: dm.live,
-                rings: dm.rings(),
-                ..KnobLook::new(KnobSize::Mini, pos, 0.5)
-            },
-        );
-        dm.paint_drop(
-            b,
-            ui,
-            resp.as_ref(),
-            Rect::from_center_size(c, vec2(22.0, 22.0) * super::layout::grow(pass.mode())), // r37:finish
-            s,
-        );
-    }
-    // The fader, and its value.
-    if let Some((a, z)) = pass.row(Row::Fader) {
-        let half = if pass.mode() == WidthMode::Compact {
-            11.0
-        } else {
-            14.0
-        };
-        let fr = Rect::from_min_max(pos2(cx - half, a), pos2(cx + half, z));
-        let mut gain = m.gain_db;
-        let resp = sense(
-            ui,
-            pass,
-            fr,
-            pid(None, Part::Fader),
-            Sense::click_and_drag(),
-        );
-        let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
-        let dm =
-            super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterGain, pos_of(gain), s);
-        if let Some(resp) = &resp {
-            let depth = dm.input(app, ui, resp);
-            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain, !depth) {
-                gain = g;
-                app.exec_merging(
-                    Command::SetMasterGain { gain_db: g },
-                    MergeKey::of(&"master"),
-                );
-            }
-            if resp.drag_stopped() && !depth {
-                app.end_gesture();
-            }
-            if st.hovered {
-                hint::set(&ctx, &v.words.master, Caps::PARAM, resp.dragged(), |b| {
-                    write_db(b, gain, true);
-                    Ok(())
-                });
-            }
-        }
-        let fs = super::strip::fader_style(pass); // r37:finish
-        kfader::paint(
-            b,
-            fr,
-            &fs, // r37:finish
-            st,
-            &FaderLook {
-                pos: pos_of(gain),
-                ticks: super::paint::ticks(),
-                unity: Some(UNITY_POS),
-            },
-        );
-        dm.fader_mark(b, fr, &fs); // r37:finish
-        dm.paint_drop(b, ui, resp.as_ref(), fr, s);
-        // r37:finish — the master's two channels beside its fader, the fader's length.
-        if let Some(levels) = master_levels.filter(|_| beside && !pass.wave) {
-            let mw = 14.0;
-            let mx = (cx + half + 4.0).min(x + bw - mw - 6.0);
-            let mr = Rect::from_min_max(pos2(mx, a + 2.0), pos2(mx + mw, z - 2.0));
-            pass.meters.paint(b, mr, &levels);
-            let inner = mr.shrink(b.px());
-            for db in [0.0f32, -6.0, -12.0, -24.0, -48.0] {
-                let y = b.snap_mid(inner.bottom() - inner.height() * meter::pos_of_db(db));
-                b.hline(
-                    mr.right() + 1.0,
-                    mr.right() + if db == 0.0 { 4.0 } else { 3.0 },
-                    y,
-                    b.px(),
-                    with_alpha(s.t.text_dim, if db == 0.0 { 0.7 } else { 0.45 }),
-                );
-            }
-        }
-        if let Some((ra, rz)) = pass.row(Row::Readout) {
-            let rr = Rect::from_min_max(pos2(x + 3.0, ra), pos2(x + bw - 3.0, rz));
-            v.buf.clear();
-            write_db(&mut v.buf, gain, false);
-            crate::kit::well::readout(b, rr, s, State::REST, &v.buf, true);
-        }
-    }
-    // Polarity: a 24-pt key, lit through while inverted (round 37). // r37:finish
-    if let Some(row) = pass.row(Row::PhaseSwap) {
-        let r = super::strip::key_cells(pass.mode(), 1, cx, row)[0];
-        let resp = sense(ui, pass, r, pid(None, Part::Phase), Sense::click());
-        let on = m.phase_invert;
-        let st = resp
-            .as_ref()
-            .map_or(State::REST, |r| State::of(r, on))
-            .lit(on);
-        crate::kit::cap::row_key(
-            b,
-            r.shrink(1.0),
-            s,
-            st,
-            crate::kit::cap::KeyFace::Glyph(Glyph::Phase),
-        );
-        if let Some(resp) = resp {
-            let name = &v.words.phase;
-            resp.widget_info(|| {
-                egui::WidgetInfo::selected(
-                    egui::WidgetType::Checkbox,
-                    true,
-                    on,
-                    super::strip::state_tip(name, on),
-                )
-            });
-            let resp = if st.hovered {
-                let tip = super::strip::state_tip(name, on);
-                hint::set_text(&ctx, &tip, "", Caps::NONE);
-                resp.on_hover_text(tip)
-            } else {
-                resp
-            };
-            if resp.clicked() {
-                app.exec(Command::SetMasterPhaseInvert {
-                    invert: !m.phase_invert,
-                });
-            }
-        }
-    }
-    // Width.
-    if let Some(wy) = pass.mid(Row::Width) {
-        let c = pos2(cx, wy);
-        let mut pos = (m.width / 2.0).clamp(0.0, 1.0);
-        let resp = sense(
-            ui,
-            pass,
-            Rect::from_center_size(c, vec2(22.0, 22.0) * super::layout::grow(pass.mode())), // r37:finish
-            pid(None, Part::Width),
-            Sense::click_and_drag(),
-        );
-        let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
-        let ks = knob_style(pass);
-        let dm = super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterWidth, pos, &ks);
-        if let Some(resp) = &resp {
-            let depth = dm.input(app, ui, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5, !depth) {
-                pos = p;
-                app.exec_merging(
-                    Command::SetMasterWidth { width: p * 2.0 },
-                    MergeKey::of(&"master-width"),
-                );
-            }
-            if resp.drag_stopped() && !depth {
-                app.end_gesture();
-            }
-            if st.hovered {
-                hint::set(&ctx, &v.words.width, Caps::PARAM, resp.dragged(), |b| {
-                    write!(b, "{:.0} %", pos * 200.0)
-                });
-            }
-        }
-        knob::paint(
-            b,
-            c,
-            &ks.function(crate::kit::Function::Space),
-            st,
-            &KnobLook {
-                live: dm.live,
-                rings: dm.rings(),
-                ..KnobLook::new(KnobSize::Mini, pos, 0.5)
-            },
-        );
-        dm.paint_drop(
-            b,
-            ui,
-            resp.as_ref(),
-            Rect::from_center_size(c, vec2(22.0, 22.0) * super::layout::grow(pass.mode())), // r37:finish
-            s,
-        );
-    }
-    let sn = Snap::master(&m);
-    fx_rec(v, app, ui, b, pass, &sn, cx, CaptureTarget::Master);
-    // Its chain in one line (Extra large), as a strip's (ADR 0026; round 25).
-    chain_row(v, app, ui, b, pass, &sn, x, bw);
-    // The pan law: in the output chip's row from Wide up (the master's output is the
-    // device), else in FL's send row.
-    if let Some(sy) = pass.mid(Row::Output).or(pass.mid(Row::Sends)) {
-        let law = app.project().pan_law;
-        let r = Rect::from_center_size(pos2(cx, sy), vec2(bw - 6.0, 16.0));
-        let resp = sense(ui, pass, r, pid(None, Part::Send), Sense::click());
-        let open = v.popups.is_open(Menu::PanLaw);
-        let st = resp.as_ref().map_or(State::REST, |r| State::of(r, open));
-        let m = light::Material::of(&s.t); // r37:finish
-                                           // "−3 dB law" — never a bare number under OUTPUT; "−3 dB" where that is all that
-                                           // fits (Compact's narrow master).
-        light::chip(b, r, s.r(3.0), chip_base(&s.t), &m, st.hovered); // r37:finish
-        for template in [&v.words.pan_law_chip, &v.words.pan_law_short] {
-            v.buf.clear();
-            let (before, after) = template.split_once("{law}").unwrap_or((template, ""));
-            v.buf.push_str(before);
-            for ch in law.id().chars() {
-                v.buf.push(if ch == '-' { '\u{2212}' } else { ch });
-            }
-            v.buf.push_str(after);
-            let tt = Text::new(&v.buf, Role::Micro, t.text).caps(false);
-            if text::measure(&ctx, &tt, s.tk()).x <= r.width() - 6.0 {
-                break;
-            }
-        }
-        let tt = Text::new(&v.buf, Role::Micro, t.text)
-            .caps(false)
-            .align(Align2::CENTER_CENTER)
-            .policy(Policy::Elide(Elide::End));
-        let _ = text::paint(b, r.shrink2(vec2(3.0, 0.0)), &tt, s.tk());
-        if let Some(resp) = resp {
-            if resp.hovered() {
-                hint::set_text(
-                    &ctx,
-                    &v.words.pan_law,
-                    &v.buf,
-                    Caps {
-                        menu: true,
-                        ..Caps::NONE
-                    },
-                );
-            }
-            if resp.on_hover_text(&v.words.pan_law).clicked() {
-                v.popups.open(Menu::PanLaw, pos2(r.left(), r.bottom()));
-            }
-        }
-    }
+    super::rows::inserts(v, app, ui, b, pass, &c);
+    super::rows::eq(v, app, ui, b, pass, &c);
+    super::rows::polarity(v, app, ui, b, pass, &c);
+    super::rows::pan(v, app, ui, b, pass, &c);
+    super::rows::msr(v, app, ui, b, pass, &c);
+    super::rows::fader(v, app, ui, b, pass, &c);
+    super::rows::level(v, ui, b, pass, &c);
+    super::rows::output(v, app, ui, b, pass, &c);
 }
 
 /// A group's separator: a column in the group's colour with its name running up it, a
@@ -1252,16 +494,18 @@ pub(super) fn separator(
             body.min,
             pos2(body.left() + 3.0, body.bottom()),
         )),
-        Fill::Solid(safe_track(
+        Fill::Solid(crate::kit::color::track_mark(
             crate::theme::track_color(color),
-            t.dark,
-            FillSize::Small,
+            t,
         )),
     );
     let ink = on_fill(fill);
-    if let Some((a, z)) = pass.row(Row::Number) {
-        let g =
-            Rect::from_center_size(pos2(body.center().x + 1.0, (a + z) * 0.5), vec2(10.0, 10.0));
+    // des-mixer's head: the chevron stands where a strip's number does (Compact's number
+    // sits on the head's first 14 points; Wide and Large centre it in a shorter head).
+    let head = pass.row(Row::Number);
+    if let Some((a, z)) = head {
+        let cy = if z - a > 48.0 { a + 9.0 } else { (a + z) * 0.5 };
+        let g = Rect::from_center_size(pos2(body.center().x + 1.0, cy), vec2(10.0, 10.0));
         glyph::paint(b, g, if collapsed { Glyph::Menu } else { Glyph::Down }, ink);
     }
     let renaming = matches!(v.rename, Some((Renaming::Group(g), _)) if g == gid);
@@ -1270,7 +514,9 @@ pub(super) fn separator(
             v.rename_at = Some(Rect::from_min_size(pos2(x, a), vec2(bw, 16.0)));
         }
     }
-    let top = pass.row(Row::Name).or(pass.row(Row::Meter)).map(|r| r.0);
+    // The name runs up the column from below the chevron to the fader's foot, the way a
+    // Compact strip's name runs up its head (des-mixer's desk has no name or meter row).
+    let top = head.map(|(a, z)| if z - a > 48.0 { a + 18.0 } else { z });
     let bottom = pass.row(Row::Fader).map(|r| r.1);
     if let (Some(a), Some(z), false) = (top, bottom, renaming) {
         if let Some(group) = app.project().strip_group(gid) {
@@ -1281,7 +527,17 @@ pub(super) fn separator(
             let _ = text::paint(b, nr, &tt, s.tk());
         }
     }
-    if let Some(y) = pass.mid(Row::FxRec).or(pass.mid(Row::Sends)) {
+    // The member count at the foot, in the strips' output row (or the last row there is).
+    let foot = [
+        Row::Output,
+        Row::SendList,
+        Row::Readout,
+        Row::Sends,
+        Row::FxRec,
+    ]
+    .into_iter()
+    .find_map(|r| pass.mid(r));
+    if let Some(y) = foot {
         v.buf.clear();
         let _ = write!(v.buf, "{members}");
         let cr = Rect::from_center_size(pos2(body.center().x + 1.0, y), vec2(bw, 12.0));
@@ -1369,16 +625,22 @@ pub(super) fn add_button(
         .unwrap_or(r.top() + 12.0)
         .max(r.top() + 12.0);
     let side = r.width().clamp(18.0, 24.0);
-    crate::kit::cap::row_key(
-        b,
-        Rect::from_center_size(pos2(r.center().x, y), vec2(side, side)),
-        s,
-        State {
-            hovered,
-            ..State::REST
-        },
-        crate::kit::cap::KeyFace::Glyph(Glyph::Plus),
-    );
+    // r39:el-mixer — des-mixer: the header's `+` adds a strip; here a faint `+` at rest,
+    // the key only under the pointer.
+    if !hovered {
+        look::plus(b, pos2(r.center().x, y), look::Pal::of(s).ink4);
+    } else {
+        crate::kit::cap::row_key(
+            b,
+            Rect::from_center_size(pos2(r.center().x, y), vec2(side, side)),
+            s,
+            State {
+                hovered,
+                ..State::REST
+            },
+            crate::kit::cap::KeyFace::Glyph(Glyph::Plus),
+        );
+    }
     if let Some(resp) = resp {
         if hovered {
             hint::set_text(ui.ctx(), &v.words.add_strip, "", Caps::NONE);
@@ -1455,9 +717,4 @@ pub fn chain_body(line: &str, stopped: &[String]) -> String {
 /// asked for it to be seen).
 pub fn chain_hint(app: &CantusApp, strip: cantus_core::StripId, line: &str) -> String {
     chain_body(line, &stopped_inserts(app, strip))
-}
-
-/// A strip chip's face: a step off the strip, toward the light (round 37). // r37:finish
-fn chip_base(t: &crate::kit::Tokens) -> egui::Color32 {
-    shade(t.strip, if t.dark { 0.07 } else { 0.04 })
 }

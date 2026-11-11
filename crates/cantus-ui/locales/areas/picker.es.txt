@@ -9,6 +9,7 @@ picker.context.new_track = para una pista nueva
 picker.context.track = en {name}
 picker.context.strip = en {name}
 picker.context.master = en el máster
+picker.context.strip_gone = en un canal que ya no está en el proyecto
 picker.search = Buscar entre {n} dispositivos…
 picker.search.name = Buscar: nombre, fabricante, tipo, el nombre de un preset
 picker.close = Cerrar (Esc)

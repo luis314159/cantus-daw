@@ -643,14 +643,14 @@ fn macro_band(
     let cr = kit::with_brush(&ui.painter_at(rect), |b| {
         shell::macro_card(b, rect, s, &[], open)
     });
-    if ui
-        .interact(
-            cr.title,
-            ui.id().with(("macro-title", track.0)),
-            egui::Sense::click(),
-        )
-        .clicked()
-    {
+    // r39:ux-a — the band's title says it folds (ADR 0109).
+    let title = ui.interact(
+        cr.title,
+        ui.id().with(("macro-title", track.0)),
+        egui::Sense::click(),
+    );
+    let title = crate::views::hint::said_with(title, || crate::i18n::t("ux.hint.fold_macros"));
+    if title.clicked() {
         app.inst.macros_closed = open;
     }
     if !open {
@@ -795,14 +795,14 @@ fn mod_band(
     let cr = kit::with_brush(&ui.painter_at(rect), |b| {
         shell::mod_card(b, rect, s, &chips, open)
     });
-    if ui
-        .interact(
-            cr.title,
-            ui.id().with(("mod-title", track.0)),
-            egui::Sense::click(),
-        )
-        .clicked()
-    {
+    // r39:ux-a — the band's title says it folds (ADR 0109).
+    let title = ui.interact(
+        cr.title,
+        ui.id().with(("mod-title", track.0)),
+        egui::Sense::click(),
+    );
+    let title = crate::views::hint::said_with(title, || crate::i18n::t("ux.hint.fold_mods"));
+    if title.clicked() {
         app.inst.mods_closed = open;
     }
     if !open {
@@ -839,6 +839,8 @@ fn keyboard_band(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, s: &Sty
         ui.id().with(("inst-keys", track.0)),
         egui::Sense::click_and_drag(),
     );
+    // r39:ux-a — what the keys do, on the help line (ADR 0109).
+    let resp = crate::views::hint::said_with(resp, || crate::i18n::t("ux.hint.keyboard"));
     let pointer = resp.interact_pointer_pos();
     let down = resp.is_pointer_button_down_on();
     let under = pointer.and_then(|p| key_at(keys, p));
@@ -899,6 +901,8 @@ pub fn key_at(rect: Rect, pos: Pos2) -> Option<u8> {
 /// `350 Hz`, `12 ms`, `-3.5 dB`, `+7 st`, `-12 ct`, `50 %`.
 pub fn write_readout(v: f32, unit: &str, b: &mut String) {
     let _ = match unit {
+        // One decimal from 10 kHz (round 39, ADR 0109): "20.00 kHz" did not fit a cell.
+        "Hz" if v >= 10_000.0 => write!(b, "{:.1} kHz", v / 1_000.0),
         "Hz" if v >= 1_000.0 => write!(b, "{:.2} kHz", v / 1_000.0),
         "Hz" => write!(b, "{v:.0} Hz"),
         "ms" if v >= 1_000.0 => write!(b, "{:.2} s", v / 1_000.0),
@@ -1145,7 +1149,9 @@ pub fn source_color(tag: &str) -> egui::Color32 {
 
 /// A source's short label: the tag, as the chips and rings print it (`LFO1`, `VEL`).
 pub fn source_label(tag: &str) -> String {
-    tag.to_uppercase()
+    // An MPE source by its gesture alone ("BEND", not "MPE.BEND", which no chip held —
+    // round 39, ADR 0109); its family's colour says it is MPE.
+    tag.strip_prefix("mpe.").unwrap_or(tag).to_uppercase()
 }
 
 /// The house knob of rounds 15–17, kept while the editors move onto the kit (ADR 0024
@@ -1177,6 +1183,7 @@ pub fn param_knob_as(
     let label = label
         .map(str::to_string)
         .unwrap_or_else(|| t(info.label_key));
+    let name = label.clone();
     let mut knob = Knob::new(&mut v, info.min..=info.max, info.default)
         .diameter(diameter)
         .log(info.logarithmic)
@@ -1187,6 +1194,19 @@ pub fn param_knob_as(
         knob = knob.ring(c.amount, source_color(c.src));
     }
     let r = ui.add(knob);
+    // Its name and value on the help line, as the kit's knobs (round 39, ADR 0109).
+    if r.hovered() || r.dragged() {
+        crate::kit::hint::set(
+            ui.ctx(),
+            &name,
+            crate::kit::hint::Caps::PARAM,
+            r.dragged(),
+            |b| {
+                write_readout(v, info.unit, b);
+                Ok(())
+            },
+        );
+    }
     if r.changed() {
         app.set_inst_value(track, key, v, true);
     }
@@ -1398,11 +1418,11 @@ pub fn inspector_strip(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, s
     preview(ui, spec);
     // The dancer has no macros to turn there: its line and the editor's button.
     let dancer = spec.kind == InstrumentKind::Dancer;
-    if ui
+    let open = ui
         .button(t("inst.open_editor"))
-        .on_hover_text(t("inst.open_editor_tip"))
-        .clicked()
-    {
+        .on_hover_text(t("inst.open_editor_tip"));
+    // r39:ux-a — on the help line too (ADR 0109).
+    if crate::views::hint::said_with(open, || t("inst.open_editor_tip")).clicked() {
         app.open_inst_editor(track);
     }
     if dancer {

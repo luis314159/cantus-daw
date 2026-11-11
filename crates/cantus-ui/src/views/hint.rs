@@ -29,6 +29,8 @@ thread_local! {
     /// The hint read this frame, copied out of the slot (reused: no allocation once grown).
     static SEEN: RefCell<(String, String, Caps, bool)> =
         RefCell::new((String::with_capacity(48), String::with_capacity(24), Caps::NONE, false));
+    /// What drives the hovered control, in words (round 39, ADR 0109): empty when nothing.
+    static DRIVEN: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
 /// Copy the current hint into the thread's buffers and run `f` on it: `(name, value,
@@ -44,6 +46,11 @@ fn with_hint<R>(ctx: &Context, f: impl FnOnce(Option<(&str, &str, Caps, bool)>) 
                 seen.1.push_str(&h.value);
                 seen.2 = h.caps;
                 seen.3 = h.live;
+                DRIVEN.with(|d| {
+                    let mut d = d.borrow_mut();
+                    d.clear();
+                    d.push_str(&h.driven);
+                });
                 true
             }
             None => false,
@@ -105,8 +112,15 @@ pub fn paint_panel_with(
         // A hint wider than its line — its name, or its name and value (not a live value
         // being dragged) — takes both lines, wrapped (the project's name gives way while it
         // shows): at a laptop's width many are (final review: "…a taller band: ma…"). In
-        // the hint's own size when two lines hold it, else the small one.
+        // the hint's own size when two lines hold it, else the small one. A driven control
+        // (round 39, ADR 0109) always does: what drives it and how to take it back follow
+        // its name and value, live or not.
+        let driven = DRIVEN.with(|d| {
+            let d = d.borrow();
+            (h.is_some() && !d.is_empty()).then(|| d.clone())
+        });
         let long = match h {
+            Some((name, value, _, _)) if driven.is_some() => Some((name, value)),
             Some((name, value, _, live)) if !live || value.is_empty() => {
                 let nw = text::measure(&ctx, &Text::new(name, Role::Label, t.text), tk).x;
                 let vw = if value.is_empty() {
@@ -142,17 +156,34 @@ pub fn paint_panel_with(
                 .min_by(|x, y| x.0.total_cmp(&y.0))
                 .map(|(_, two)| two);
             // A name and its value: the name its own line, whole, the value under it.
-            let by_value =
-                (!value.is_empty() && measure(name, tk) <= room && measure(value, tk) <= room)
-                    .then(|| {
-                        format!(
-                            "{name}
+            let by_value = (driven.is_none()
+                && !value.is_empty()
+                && measure(name, tk) <= room
+                && measure(value, tk) <= room)
+                .then(|| {
+                    format!(
+                        "{name}
 {value}"
-                        )
-                    });
+                    )
+                });
             let broken = by_value.or(broken);
+            // A driven control (round 39, ADR 0109): what drives it on the first line —
+            // after its name and value where they fit — and how to take it back on the
+            // second.
+            let driven_lines = driven.as_ref().map(|d| {
+                let (what, back) = d.split_once('\n').unwrap_or((d.as_str(), ""));
+                let head = format!("{words} \u{b7} {what}");
+                let head = if measure(&head, tk) <= room {
+                    head
+                } else {
+                    what.to_string()
+                };
+                format!("{head}\n{back}")
+            });
             let (words, scale, rows): (std::borrow::Cow<'_, str>, f32, usize) =
-                if measure(&words, tk * 0.9) <= room {
+                if let Some(two) = driven_lines {
+                    (std::borrow::Cow::Owned(two), 1.0, 2)
+                } else if measure(&words, tk * 0.9) <= room {
                     (words, 0.9, 1)
                 } else if let Some(two) = broken {
                     (std::borrow::Cow::Owned(two), 1.0, 2)
@@ -188,28 +219,7 @@ pub fn paint_panel_with(
         // The capability icons at the bar's right, for any hint — one line or wrapped
         // (last pass: a wrapped hint lost them); their room is out of `text_r` either way.
         if let Some((_, _, caps, _)) = h {
-            let mut x = rect.right() - 6.0 * k - icon;
-            for (on, g) in [
-                (caps.warning, Glyph::Warning),
-                (caps.typed, Glyph::Typed),
-                (caps.menu, Glyph::MouseMenu),
-                (caps.automatable, Glyph::Automate),
-            ] {
-                if on {
-                    let gr = Rect::from_min_size(
-                        Pos2::new(x, rect.center().y - icon * 0.5),
-                        Vec2::splat(icon),
-                    );
-                    let ink = if g == Glyph::Warning {
-                        t.danger
-                    } else {
-                        t.text_dim
-                    };
-                    b.register(gr, "hint_icon", &[Tok::TextDim, Tok::Danger], &[]);
-                    glyph::paint(b, gr, g, ink);
-                    x -= icon + 4.0 * k;
-                }
-            }
+            paint_caps(b, rect.right() - 6.0 * k, rect.center().y, caps, s);
         }
         match h {
             Some(_) if long.is_some() => {}
@@ -285,6 +295,129 @@ pub fn paint_panel_with(
             }
         }
     });
+}
+
+/// The capability icons (automatable, has a menu, can be typed into, needs attention) laid
+/// right to left from `right`, centred on `y`; returns the width they took. The hint panel
+/// and the status line's help line (round 39, `el-topbar`) both draw them.
+pub fn paint_caps(b: &mut Brush, right: f32, y: f32, caps: Caps, s: &Style) -> f32 {
+    let k = s.k;
+    let icon = 13.0 * k;
+    let mut x = right - icon;
+    for (on, g) in [
+        (caps.warning, Glyph::Warning),
+        (caps.typed, Glyph::Typed),
+        (caps.menu, Glyph::MouseMenu),
+        (caps.automatable, Glyph::Automate),
+    ] {
+        if on {
+            let gr = Rect::from_min_size(Pos2::new(x, y - icon * 0.5), Vec2::splat(icon));
+            let ink = if g == Glyph::Warning {
+                s.t.danger
+            } else {
+                s.t.text_dim
+            };
+            b.register(gr, "hint_icon", &[Tok::TextDim, Tok::Danger], &[]);
+            glyph::paint(b, gr, g, ink);
+            x -= icon + 4.0 * k;
+        }
+    }
+    right - (x + icon)
+}
+
+/// A response whose hover writes `words` on the help line, unless its own control wrote
+/// something more precise this frame (round 39, ADR 0109): for the few stock widgets a
+/// menu still builds and the views' own `interact` rects.
+pub fn said(resp: egui::Response, words: &str) -> egui::Response {
+    if resp.hovered() {
+        hint::fallback(&resp.ctx, words, "", Caps::NONE);
+    }
+    resp
+}
+
+/// [`said`] with words made only when it is hovered (a frame that does not point at it
+/// formats nothing).
+pub fn said_with(resp: egui::Response, words: impl FnOnce() -> String) -> egui::Response {
+    if resp.hovered() && !hint::written(&resp.ctx) {
+        hint::set_text(&resp.ctx, &words(), "", Caps::NONE);
+    }
+    resp
+}
+
+/// A menu's entry (a stock button in an egui menu) that says its words on the help line.
+pub fn button(ui: &mut egui::Ui, words: String) -> egui::Response {
+    let r = ui.button(words.as_str());
+    said(r, &words)
+}
+
+/// The words a stock egui widget paints in a menu or popup (a checkbox, a button the menus
+/// still build): the help line's fallback for the entry under the pointer, said as the
+/// entry says itself (round 39, ADR 0109).
+fn menu_words(ctx: &Context) -> Option<String> {
+    let p = ctx.pointer_latest_pos()?;
+    let hit = ctx.viewport(|v| {
+        v.interact_widgets
+            .hovered
+            .iter()
+            .filter_map(|id| v.this_pass.widgets.get(*id))
+            .filter(|w| {
+                w.layer_id.order == Order::Foreground
+                    && w.sense.senses_click()
+                    && w.interact_rect.contains(p)
+            })
+            .map(|w| (w.layer_id, w.interact_rect))
+            .next()
+    })?;
+    let words = ctx.graphics(|g| {
+        let mut out = String::new();
+        for c in g.get(hit.0)?.all_entries() {
+            if let egui::Shape::Text(t) = &c.shape {
+                let r = t.galley.rect.translate(t.pos.to_vec2());
+                if hit.1.contains_rect(r.shrink(0.5)) && !t.galley.text().trim().is_empty() {
+                    if !out.is_empty() {
+                        out.push_str("  ");
+                    }
+                    out.push_str(t.galley.text().trim());
+                }
+            }
+        }
+        (!out.is_empty()).then_some(out)
+    })?;
+    Some(words)
+}
+
+/// The help line is never empty (round 39, ADR 0109): where no control wrote a hint this
+/// frame but the pointer shows a resize or a move — a window's edge, a dock's or a panel's
+/// separator, egui's own — it says so. Runs after every view has drawn.
+pub fn from_cursor(ctx: &Context) {
+    use egui::CursorIcon as C;
+    if hint::written(ctx) || ctx.pointer_latest_pos().is_none() {
+        return;
+    }
+    let key = match ctx.output(|o| o.cursor_icon) {
+        C::ResizeHorizontal
+        | C::ResizeVertical
+        | C::ResizeColumn
+        | C::ResizeRow
+        | C::ResizeEast
+        | C::ResizeWest
+        | C::ResizeNorth
+        | C::ResizeSouth
+        | C::ResizeNeSw
+        | C::ResizeNwSe
+        | C::ResizeNorthEast
+        | C::ResizeNorthWest
+        | C::ResizeSouthEast
+        | C::ResizeSouthWest => "ux.hint.resize",
+        C::Move | C::Grab | C::Grabbing | C::AllScroll => "ux.hint.move",
+        _ => {
+            if let Some(words) = menu_words(ctx) {
+                hint::set_text(ctx, &words, "", Caps::NONE);
+            }
+            return;
+        }
+    };
+    hint::set_text(ctx, &crate::i18n::t(key), "", Caps::NONE);
 }
 
 /// The value pill: while a control is dragged, its value rides 12 pt right of the pointer.

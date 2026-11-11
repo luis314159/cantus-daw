@@ -27,6 +27,11 @@ pub enum Target {
     Session, // r33:launcher
     /// An Exemplar's Slices card: the loop sliced into it (ADR 0099). // r37:piano
     Slicer { track: TrackId }, // r37:piano
+    /// An Aula's editor: the file is its impulse response (ADR 0112). // r39:conv
+    Aula {
+        strip: cantus_core::StripId,
+        effect: cantus_core::EffectId,
+    }, // r39:conv
 }
 
 #[derive(Clone, Default)]
@@ -125,6 +130,13 @@ pub fn land(app: &mut CantusApp, path: &Path, target: Target, rect: Rect, pos: P
             // r37:piano
             app.slice_into_track(track, path, cantus_core::sectio::SliceMode::Markers);
         }
+        // r39:conv
+        Target::Aula { strip, effect } => crate::views::fx::aula::set_file(
+            app,
+            strip,
+            effect,
+            Some(path.to_string_lossy().to_string()),
+        ),
     }
     app.samples.notice = Some(crate::i18n::tf(
         "samples.notice.dropped",

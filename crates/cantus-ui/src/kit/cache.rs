@@ -52,6 +52,9 @@ pub struct KitCache {
     /// atlas when either changes (a dark↔light theme switch changes the options).
     font_options: Option<egui::epaint::text::TextOptions>,
     font_face: Option<Arc<egui::FontData>>,
+    /// This cache's fonts, numbered across the process ([`fonts_seen`]): a new context or a
+    /// rebuilt atlas takes the next number.
+    fonts_epoch: u64,
     pass: u64,
     /// Inspect mode's registry; `None` while the mode is off.
     pub inspect: Option<super::inspect::Registry>,
@@ -107,6 +110,20 @@ pub fn key(v: impl Hash) -> u64 {
 pub fn ckey(c: Color32) -> u32 {
     u32::from_le_bytes(c.to_array())
 }
+
+/// Which fonts this context measures with (round 39): a key for any measurement cache,
+/// which must not outlive the fonts it measured with — a theme switch changes the face
+/// mid-frame, and the new fonts arrive only at the next pass. Numbered across the process,
+/// not per context (round 39, *themes*): a cache kept per thread (the top bar's widths, the
+/// status line's) must not take a new context's first fonts for an old one's — a window
+/// shot in one face after another in Barlow kept Barlow's widths, lost Help off the menus
+/// and cut the status line.
+pub fn fonts_seen(ctx: &Context) -> u64 {
+    with(ctx, |c| c.fonts_epoch)
+}
+
+/// The last fonts number handed out ([`fonts_seen`]).
+static FONTS_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// This context's kit cache (a brush keeps the handle for its frame).
 pub fn handle(ctx: &Context) -> Arc<Mutex<KitCache>> {
@@ -167,6 +184,9 @@ impl KitCache {
             self.galleys.clear();
             self.fits.clear();
             self.stats.font_rebuilds += 1;
+        }
+        if rebuilt || self.fonts_epoch == 0 {
+            self.fonts_epoch = FONTS_EPOCH.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
         }
         self.font_fill = fill;
         self.font_options = Some(options);

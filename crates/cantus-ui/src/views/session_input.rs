@@ -158,7 +158,16 @@ fn header(app: &mut CantusApp, ui: &mut Ui, geo: &Geometry, s: &Style) {
     // Launch quantisation: the label, then its value in a menu field.
     x = label(ui, s, x, y, "session.header.quantize");
     let q = app.project().session.settings.launch_quantize;
-    let rq = row(x, 70.0);
+    // As wide as its value needs (round 39, ADR 0109: "1 compás" was cut).
+    let words = t(q.label_key());
+    let need = text::measure(
+        ui.ctx(),
+        &Text::new(&words, Role::Control, s.t.text),
+        s.tk(),
+    )
+    .x / k
+        + 30.0;
+    let rq = row(x, need.max(70.0));
     let resp = ui.interact(rq, Id::new("cantus-session-quant"), Sense::click());
     let open = egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&resp));
     with_brush(ui.painter(), |b| {

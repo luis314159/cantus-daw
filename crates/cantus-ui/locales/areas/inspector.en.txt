@@ -53,3 +53,26 @@ param.amp_release.short = Release
 param.filter_release.short = Release
 pad.choke.short = Choke
 kit.mixer.mute.short = Mute
+
+# Round 39 (el-mixer): the head says what is shown
+inspector.ctx.strip = Mixer strip
+inspector.add_effect = Add an effect
+inspector.bypassed = Bypassed
+inspector.level = Level
+inspector.automation = Automation
+freeze.section = Freeze
+inspector.key_into = Key into
+inspector.key_from = From
+inspector.none = None
+inspector.lanes = {n} lanes
+inspector.lanes_label = Lanes
+inspector.lane_read = Read
+inspector.frozen = Frozen
+inspector.has_input = Input set
+inspector.volume = Volume
+inspector.pan = Pan
+inspector.width = Width
+inspector.reduction = Reduction
+inspector.send_pre = Before the fader
+inspector.eq_display_tip = Drag a band’s point: its frequency and gain; right-drag: its Q; double-click: back to 0 dB
+inspector.fold_tip = Fold {what}

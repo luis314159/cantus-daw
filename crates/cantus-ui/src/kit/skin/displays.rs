@@ -365,9 +365,13 @@ fn make(s: &Style) -> DisplayInk {
         Display::Glass => {
             let g = shade(t.deck, if t.dark { -0.12 } else { -0.08 });
             let text = ensure_contrast(t.text, g, 4.5);
+            // The trace on the glass's own ground, whatever the theme's deck (round 39: a
+            // paper deck a shade cooler put the limiter's red at 4.49:1).
+            let trace = ensure_contrast(plain.trace, g, 4.5);
             DisplayInk {
                 look: Display::Glass,
                 ground: g,
+                trace,
                 ground_top: shade(g, 0.03),
                 text,
                 dim: ensure_contrast(t.text_dim, g, 3.0),

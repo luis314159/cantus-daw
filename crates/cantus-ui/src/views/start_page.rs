@@ -17,7 +17,6 @@ use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{well, with_brush, Brush, Fill, State, Style};
 use crate::templates::{ProjectTemplate, TemplateRef, TrackTemplate};
 use crate::views::interop::form;
-use crate::views::workspace_settings as ws;
 use egui::{pos2, vec2, Align2, Context, Id, Key, Rect, Sense, Ui};
 use std::path::PathBuf;
 
@@ -252,9 +251,9 @@ fn show(
         .fixed_pos(at)
         .show(ctx, |ui| {
             ui.set_min_size(rect.size());
-            ws::frame(ui, rect, &s);
+            crate::kit::dialog::sheet(ui, rect, &s); // r39:el-controls
             let title = Rect::from_min_size(rect.min, vec2(rect.width(), TITLE * k));
-            if ws::title(ui, title, &s, Glyph::Plus, "workflow.start.title") {
+            if crate::kit::dialog::head(ui, title, &s, Glyph::Plus, "workflow.start.title") {
                 out = Out::Close;
             }
             let body = Rect::from_min_max(

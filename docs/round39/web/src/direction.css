@@ -1,0 +1,178 @@
+/* Round 39 — the site's direction mock, matched to logo #03 and the app's Slate.
+   Two directions in one sheet: html[data-dir="a"] (Lapis stage) and [data-dir="b"]
+   (Slate, gilt). html[data-theme] is dark or light, as on the site. Only the mock: the
+   site's own CSS is built from the chosen one. */
+@font-face { font-family: "Barlow SC"; src: url("../../../../../fonts/barlow-semi-condensed/BarlowSemiCondensed-Light.ttf"); font-weight: 300; }
+@font-face { font-family: "Barlow SC"; src: url("../../../../../fonts/barlow-semi-condensed/BarlowSemiCondensed-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Barlow SC"; src: url("../../../../../fonts/barlow-semi-condensed/BarlowSemiCondensed-Medium.ttf"); font-weight: 500; }
+@font-face { font-family: "Barlow SC"; src: url("../../../../../fonts/barlow-semi-condensed/BarlowSemiCondensed-SemiBold.ttf"); font-weight: 600; }
+@font-face { font-family: "Barlow SC"; src: url("../../../../../fonts/barlow-semi-condensed/BarlowSemiCondensed-Bold.ttf"); font-weight: 700; }
+
+:root {
+  /* the logo's metals (#03): lapis ground, gold leaf, the vermilion of its waveform */
+  --lapis-950: #070d26; --lapis-900: #0a1234; --lapis-800: #121f52; --lapis-700: #1a2a66;
+  --lapis-600: #24398a; --lapis-500: #2e4aa0; --lapis-300: #8ea4e8; --lapis-200: #b9c6ee;
+  --gold-50: #fff4c2; --gold-200: #f3d478; --gold-300: #ebc455; --gold-500: #c9972f;
+  --gold-700: #8a5e14; --gold-800: #6b470c;
+  --verm-300: #ff8a4c; --verm-500: #e2622a; --verm-700: #b7410e;
+  --leaf: linear-gradient(135deg, #fff4c2 0%, #ebc455 25%, #b8862b 50%, #f3d478 72%, #8a5e14 100%);
+
+  --display: "Barlow SC", "Segoe UI", system-ui, sans-serif;
+  --body: "Barlow SC", "Segoe UI", system-ui, sans-serif;
+  --wrap: 76rem;
+  --gutter: clamp(1rem, 4vw, 3rem);
+  --r-key: 4px; --r-card: 8px; --r-stage: 14px;
+}
+
+/* Slate Night (the app's tokens) */
+:root[data-theme="dark"], :root[data-theme="dark"] .slate {
+  color-scheme: dark;
+  --gutter-bg: #14191e; --base: #1d2329; --alt: #181d22; --surface: #262d34; --raised: #2b3239;
+  --well: #1a1f25; --well-hi: #20262d; --edge: #11151a; --line: #323b44;
+  --ink-1: #e3e8ed; --ink-2: #b4bdc6; --ink-3: #909ca8; --ink-4: #47515b;
+  --gold-mark: #e2b84a; --gold-text: #e9c466;
+  --lapis-text: #7ea2f6;
+  --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 24px 48px -32px rgba(0,0,0,.8);
+}
+/* Slate Paper */
+:root[data-theme="light"], :root[data-theme="light"] .slate {
+  color-scheme: light;
+  --gutter-bg: #c5cdd5; --base: #f4f6f8; --alt: #e9edf1; --surface: #fbfcfd; --raised: #ffffff;
+  --well: #d6dde3; --well-hi: #dde3e8; --edge: #b9c3cc; --line: #c8d0d8;
+  --ink-1: #17202a; --ink-2: #38444f; --ink-3: #556170; --ink-4: #a9b3bd;
+  --gold-mark: #b8862b; --gold-text: #7a5410;
+  --lapis-text: #2443a8;
+  --shadow: 0 1px 0 #fff inset, 0 24px 44px -34px rgba(23,32,42,.45), 0 1px 3px rgba(23,32,42,.06);
+}
+
+/* The accent: lapis, from logo #03 (owner, 2026-11-09) — #7EA2F6 on dark, #2443A8 on light.
+   It is spent on what you press and on state; gold stays a fine metallic mark or rule. */
+:root[data-theme="dark"], :root[data-theme="dark"] .slate, :root[data-dir="a"] .stage {
+  --accent-flat: #7ea2f6; --accent: linear-gradient(#97b5f8, #7ea2f6 55%, #6a8fe8);
+  --accent-ink: #0a1234; --accent-glow: rgba(126,162,246,.40); --accent-rim: rgba(255,255,255,.18);
+  --accent-text: #7ea2f6;
+}
+:root[data-theme="light"], :root[data-theme="light"] .slate {
+  --accent-flat: #2443a8; --accent: linear-gradient(#3352b8, #2443a8 55%, #1d3890);
+  --accent-ink: #ffffff; --accent-glow: rgba(36,67,168,.40); --accent-rim: rgba(255,255,255,.14);
+  --accent-text: #2443a8;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--base); }
+body {
+  margin: 0; background: var(--base); color: var(--ink-2);
+  font: 400 1.1875rem/1.55 var(--body); font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased; overflow-x: clip;
+}
+h1, h2, h3, h4 { font-family: var(--display); color: var(--ink-1); margin: 0; text-wrap: balance; }
+p { margin: 0; text-wrap: pretty; }
+a { color: var(--lapis-text); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+img, svg { display: block; max-width: 100%; }
+.wrap { width: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* Buttons: one primary (the accent, lit from above, rimmed), one quiet (a Slate key). */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
+  font: 600 1.0625rem/1 var(--body); letter-spacing: .01em; white-space: nowrap;
+  padding: .9rem 1.35rem; border-radius: 6px; border: 1px solid transparent; text-decoration: none;
+}
+.btn svg { width: 1.05rem; height: 1.05rem; flex: none; }
+.btn-primary {
+  color: var(--accent-ink); background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-rim) inset, 0 1px 0 rgba(255,255,255,.35) inset, 0 12px 26px -12px var(--accent-glow);
+}
+.btn-quiet { color: var(--ink-1); background: var(--well); border-color: var(--edge); box-shadow: 0 1px 0 rgba(255,255,255,.05) inset; }
+:root[data-theme="light"] .btn-quiet { background: var(--surface); border-color: var(--line); }
+.btn-sm { padding: .6rem .95rem; font-size: .98rem; }
+
+/* The section mark: the logo's lozenge and a gold rule, then a quiet word. */
+.mark { display: flex; align-items: center; gap: .7rem; margin-bottom: 1.1rem; font: 600 .95rem/1 var(--body); letter-spacing: .02em; color: var(--ink-3); }
+.mark::before { content: ""; width: 9px; height: 9px; transform: rotate(45deg); background: var(--leaf); box-shadow: 0 0 0 1px rgba(90,58,8,.35); flex: none; }
+.mark i { display: block; width: 2.4rem; height: 1px; background: var(--gold-mark); opacity: .8; }
+.sec-head { max-width: 50rem; margin-bottom: clamp(1.8rem, 4vw, 2.8rem); }
+.sec-head h2 { font-weight: 500; font-size: clamp(2.3rem, 4.6vw, 3.6rem); line-height: 1.02; letter-spacing: -.005em; }
+.sec-head p { margin-top: 1rem; max-width: 46rem; color: var(--ink-2); font-size: 1.22rem; }
+.section { padding-block: clamp(4rem, 9vw, 7.5rem); }
+.section.alt { background: var(--alt); }
+/* a gold hairline between sections, the logo's inner rim */
+.rule { height: 1px; background: linear-gradient(90deg, transparent, var(--gold-mark) 20%, var(--gold-mark) 80%, transparent); opacity: .35; }
+
+/* ---- Nav ---- */
+.nav { position: relative; z-index: 5; }
+.nav-in { display: flex; align-items: center; gap: 1.6rem; height: 4.25rem; }
+.brand { display: inline-flex; align-items: center; gap: .65rem; color: var(--ink-1); text-decoration: none; font: 600 1.45rem/1 var(--display); letter-spacing: .01em; }
+.brand img, .brand svg { width: 2rem; height: 2rem; }
+.brand sup { font-size: .55rem; font-weight: 500; color: var(--ink-3); margin-left: -.35rem; align-self: flex-start; margin-top: .55rem; }
+.nav-links { display: flex; gap: 1.5rem; margin-left: auto; }
+.nav-links a { color: var(--ink-2); text-decoration: none; font-weight: 500; font-size: 1.05rem; }
+.nav-links a.on { color: var(--ink-1); box-shadow: 0 2px 0 var(--accent-flat); padding-bottom: 2px; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 6px; background: var(--well); box-shadow: 0 0 0 1px var(--edge) inset; }
+.seg button { border: 0; font: 600 .85rem/1 var(--body); color: var(--ink-3); background: transparent; padding: .45rem .6rem; border-radius: 4px; letter-spacing: .04em; }
+.seg button[aria-pressed="true"] { color: var(--ink-1); background: var(--raised); box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 1px 2px rgba(0,0,0,.25); }
+.icon-key { width: 2.4rem; height: 2.4rem; display: grid; place-items: center; border-radius: 6px; background: var(--well); box-shadow: 0 0 0 1px var(--edge) inset; color: var(--ink-2); border: 0; }
+.icon-key svg { width: 1.1rem; height: 1.1rem; }
+.nav .btn { padding: .7rem 1.1rem; font-size: 1rem; }
+
+/* ---- Hero ---- */
+.hero { position: relative; isolation: isolate; }
+.hero-in { position: relative; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 2rem; align-items: center; padding-block: 3.5rem 3rem; }
+.chip { display: inline-flex; align-items: center; gap: .6rem; padding: .3rem .85rem .3rem .3rem; border-radius: 999px; font-size: 1rem; color: var(--ink-2); text-decoration: none; background: color-mix(in srgb, var(--ink-1) 5%, transparent); box-shadow: 0 0 0 1px var(--line) inset; margin-bottom: 1.6rem; }
+.chip b { font: 700 .78rem/1 var(--body); letter-spacing: .08em; text-transform: uppercase; padding: .38rem .55rem; border-radius: 999px; color: var(--gold-text); box-shadow: 0 0 0 1px var(--gold-mark) inset; background: transparent; }
+.chip i { font-style: normal; color: var(--accent-text); }
+.hero h1 { font-weight: 300; font-size: clamp(3.6rem, 8.4vw, 7.4rem); line-height: .92; letter-spacing: -.02em; }
+.hero h1 .stop { color: var(--gold-mark); }
+.hero-sub { margin-top: 1.5rem; max-width: 34rem; font-size: 1.3rem; line-height: 1.5; color: var(--ink-2); }
+.hero-cta { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+.hero-meta { margin-top: 1.2rem; font-size: .98rem; color: var(--ink-3); }
+.hero-meta b { font-weight: 500; color: var(--ink-2); }
+.hero-art { justify-self: center; width: min(100%, 23rem); }
+
+/* A: the hero is the tile — lapis ground, the dots, the gilded C; in both themes. */
+:root[data-dir="a"] .stage {
+  --ink-1: #f1f3fa; --ink-2: #c3cce8; --ink-3: #93a1cf; --line: rgba(185,198,238,.22); --surface: rgba(7,13,38,.45);
+  --well: rgba(7,13,38,.55); --edge: rgba(185,198,238,.18); --raised: #2a3f8f; --gold-text: #f0cd6a; --gold-mark: #e2b84a; --lapis-text: #a9c0fa; --accent-text: #a9c0fa;
+  color: var(--ink-2);
+}
+:root[data-dir="a"] .stage-bg {
+  position: absolute; inset: 0; z-index: -1;
+  background:
+    radial-gradient(circle at 17px 17px, rgba(233,196,102,.13) 1.6px, transparent 2.2px) 0 0 / 34px 34px,
+    radial-gradient(70rem 46rem at 72% 32%, #2e4aa0 0%, #1a2a66 46%, #0a1234 100%);
+}
+:root[data-dir="a"] .stage-bg::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, rgba(226,184,74,.15), #e2b84a 6%, #f3d478 50%, #e2b84a 94%, rgba(226,184,74,.15)); opacity: .85; }
+:root[data-dir="a"] .hero-wrap > .stage-bg { bottom: 9.5rem; }
+.hero-wrap { position: relative; isolation: isolate; }
+:root[data-dir="a"] .hero-tile { display: none; }
+
+/* B: Slate all through; the lapis lives in the tile and its glow. */
+:root[data-dir="b"] .stage-bg { position: absolute; inset: 0; z-index: -1;
+  background: radial-gradient(34rem 28rem at 78% 34%, rgba(46,74,160,.34), transparent 70%), radial-gradient(40rem 22rem at 0% 0%, rgba(46,74,160,.10), transparent 70%); }
+:root[data-dir="b"][data-theme="light"] .stage-bg { background: radial-gradient(34rem 28rem at 78% 34%, rgba(46,74,160,.16), transparent 70%); }
+:root[data-dir="b"] .hero-c { display: none; }
+.hero-tile img { width: 100%; filter: drop-shadow(0 30px 40px rgba(7,13,38,.45)); }
+
+/* ---- The channel rack (the playable groove) ---- */
+.rack { position: relative; border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow); color: var(--ink-2); overflow: hidden;
+}
+.rack-head { display: flex; align-items: center; gap: 1rem; padding: .7rem .9rem .7rem 1.1rem; background: var(--raised); box-shadow: 0 1px 0 rgba(255,255,255,.04) inset; }
+.rack-head strong { font: 500 1.05rem/1 var(--display); color: var(--ink-1); display: flex; align-items: center; gap: .55rem; }
+.rack-head strong::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--verm-500); box-shadow: 0 0 8px var(--verm-500); }
+.rack-tempo { margin-left: auto; display: flex; align-items: center; gap: .7rem; font-size: .95rem; color: var(--ink-3); }
+.slider { width: 7.5rem; height: 4px; border-radius: 2px; background: var(--well); position: relative; box-shadow: 0 0 0 1px var(--edge) inset; }
+.slider::before { content: ""; position: absolute; inset: 0 45% 0 0; border-radius: 2px; background: var(--ink-3); }
+.slider::after { content: ""; position: absolute; left: 55%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: linear-gradient(#f4f6f8, #b4bdc6); box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.bpm { font: 300 1.5rem/1 var(--display); color: var(--ink-1); min-width: 4.6rem; }
+.bpm small { font: 400 .8rem/1 var(--body); color: var(--ink-3); margin-left: .2rem; }
+.key { font: 500 .95rem/1 var(--body); color: var(--ink-2); padding: .5rem .8rem; border-radius: 4px; background: var(--well); box-shadow: 0 0 0 1px var(--edge) inset; border: 0; display: inline-flex; gap: .4rem; align-items: center; }
+.key.play { color: #fff; background: linear-gradient(#ef7a45, var(--verm-500) 55%, var(--verm-700)); box-shadow: 0 1px 0 rgba(255,255,255,.3) inset; }
+.key.play svg { width: .7rem; height: .7rem; }
+.rack-grid { display: grid; gap: 6px; padding: 1rem 1.1rem 1.1rem; }
+.rack-row { display: grid; grid-template-columns: 6rem repeat(16, minmax(0, 1fr)); gap: 5px; align-items: stretch; }
+.rack-row > span { display: flex; align-items: center; gap: .6rem; font-size: 1rem; color: var(--ink-1); }
+.rack-row > span::before { content: ""; width: 3px; align-self: stretch; border-radius: 2px; background: var(--c); }
+.step { height: 2.4rem; border-radius: 3px; background: var(--well); box-shadow: 0 1px 0 var(--edge) inset; }
+.step.b { background: var(--well-hi); }
+.step.on { background: linear-gradient(#ff9a63, var(--verm-500) 60%, #c94d1a); box-shadow: 0 1px 0 rgba(255,255,255,.3) inset; }
+.step.now { box-shadow: 0 0 0 2px var(--accent-flat) inset; }
+.rack-foot { padding: .1rem 1.1rem 1rem; font-size: .95rem; color: var(--ink-3); }

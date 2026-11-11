@@ -35,7 +35,7 @@ pub fn effect_use(kind: EffectKind) -> &'static str {
         K::Saturator => "Saturation and colour: tape, tube, overdrive, a drawn waveshaper, oversampled. Warmth, grit, harmonics, loudness without peaks.",
         K::Stereo => "Stereo control: width, mid/side balance, mono bass below a frequency, Haas widening, panning. Mono compatibility, a wider chorus.",
         K::Maximizer => "Mastering maximizer: multiband dynamics into a limiter, loud and clean. The last unit on the master for streaming loudness.",
-        K::Delay => "Tempo delay with feedback, tone and ping-pong. Echoes, slapback, throws on a send.",
+        K::Delay => "Stereo delay, 1 ms to 2 s (set in ms; no tempo sync), with feedback, tone and ping-pong. Echoes, slapback, throws on a send.",
         K::Reverb => "The simple reverb (older projects); Spatium is the full one.",
         K::External => "A hosted CLAP/VST3 plug-in, chosen by the user in Cantus.",
         K::Chorus => "Chorus (Juno-style, Dimension-style, modern): width and motion on pads, keys, guitars, a doubled voice.",
@@ -51,6 +51,8 @@ pub fn effect_use(kind: EffectKind) -> &'static str {
         K::TransientSplit => "Transient splitter: separate gain and processing of the attack and the body.",
         K::Analyzer => "Analyser (spectrum, loudness, stereo): passes its sound through unchanged; for looking.",
         K::AutoTune => "Real-time pitch correction to a key and scale, from natural to hard-tuned, with created vibrato.",
+        // r39:conv
+        K::Aula => "Convolution reverb: a real room from its impulse response — Cantus's own rooms, halls, plates and springs, a WAV the user loads (mono, stereo, true stereo), or a free pack; shape it with stretch, length, decay, damping and cuts, pre-delay and width.",
     }
 }
 

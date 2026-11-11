@@ -1,0 +1,97 @@
+stype-1.jpg	File:Fender SRV Stratocaster Front and Back.jpg	https://commons.wikimedia.org/wiki/File:Fender_SRV_Stratocaster_Front_and_Back.jpg
+stype-2.jpg	File:Fender Stratocaster 40.jpg	https://commons.wikimedia.org/wiki/File:Fender_Stratocaster_40.jpg
+stype-3.jpg	File:Fender Stratocaster Headstock.jpg	https://commons.wikimedia.org/wiki/File:Fender_Stratocaster_Headstock.jpg
+ttype-1.jpg	File:Fender Broadcaster (1950), Fender Telecaster (1953), EMP Museum.jpg	https://commons.wikimedia.org/wiki/File:Fender_Broadcaster_(1950),_Fender_Telecaster_(1953),_EMP_Museum.jpg
+ttype-2.jpg	File:Fender Custom Shop Telecaster, Kopfplatte -- 2024 -- 0037.jpg	https://commons.wikimedia.org/wiki/File:Fender_Custom_Shop_Telecaster,_Kopfplatte_--_2024_--_0037.jpg
+ttype-3.png	File:Fender Telecaster American Vintage 1952 transparent.png	https://commons.wikimedia.org/wiki/File:Fender_Telecaster_American_Vintage_1952_transparent.png
+singlecut-1.jpg	File:Gibson '59 Les Paul Junior DC TV Yellow.jpg	https://commons.wikimedia.org/wiki/File:Gibson_%2759_Les_Paul_Junior_DC_TV_Yellow.jpg
+singlecut-2.jpg	File:Gibson Les Paul Classic.jpg	https://commons.wikimedia.org/wiki/File:Gibson_Les_Paul_Classic.jpg
+singlecut-3.jpg	File:1974 Gibson Les Paul Custom.JPG	https://commons.wikimedia.org/wiki/File:1974_Gibson_Les_Paul_Custom.JPG
+doublehorn-1.jpg	File:Gibson SG Standard 2006.jpg	https://commons.wikimedia.org/wiki/File:Gibson_SG_Standard_2006.jpg
+doublehorn-2.jpg	File:Gibson sg standard ebony.jpg	https://commons.wikimedia.org/wiki/File:Gibson_sg_standard_ebony.jpg
+doublehorn-3.jpg	File:Gibson SG Standard.jpg	https://commons.wikimedia.org/wiki/File:Gibson_SG_Standard.jpg
+superstrat-1.jpg	File:Ibanez RG350EXZ BK Electric Guitar c.a. 2011.jpg	https://commons.wikimedia.org/wiki/File:Ibanez_RG350EXZ_BK_Electric_Guitar_c.a._2011.jpg
+superstrat-2.jpg	File:Guitar action Ibanez RG 770.jpg	https://commons.wikimedia.org/wiki/File:Guitar_action_Ibanez_RG_770.jpg
+superstrat-3.jpg	File:Ibanez RG series headstock.jpg	https://commons.wikimedia.org/wiki/File:Ibanez_RG_series_headstock.jpg
+semihollow-1.jpg	File:Gibson ES-335 sunburst.jpg	https://commons.wikimedia.org/wiki/File:Gibson_ES-335_sunburst.jpg
+semihollow-2.jpg	File:Gibson ES-335.jpg	https://commons.wikimedia.org/wiki/File:Gibson_ES-335.jpg
+semihollow-3.jpg	File:Gibson ES-335 red.jpg	https://commons.wikimedia.org/wiki/File:Gibson_ES-335_red.jpg
+offset-1.jpg	File:Fender Jazzmaster c.1990, Made in USA - body.jpg	https://commons.wikimedia.org/wiki/File:Fender_Jazzmaster_c.1990,_Made_in_USA_-_body.jpg
+offset-2.jpg	File:1965 Fender Jazzmaster (by Vacant Fever).jpg	https://commons.wikimedia.org/wiki/File:1965_Fender_Jazzmaster_(by_Vacant_Fever).jpg
+offset-3.png	File:Fender Jaguar & Jazzmaster @ Leturiaga.png	https://commons.wikimedia.org/wiki/File:Fender_Jaguar_%26_Jazzmaster_@_Leturiaga.png
+vbody-1.jpg	File:Gibson FlyingV.jpg	https://commons.wikimedia.org/wiki/File:Gibson_FlyingV.jpg
+vbody-2.jpg	File:Gibson Flying V White.jpg	https://commons.wikimedia.org/wiki/File:Gibson_Flying_V_White.jpg
+vbody-3.jpg	File:Gibson Flying V 1967 Black Ebony.jpg	https://commons.wikimedia.org/wiki/File:Gibson_Flying_V_1967_Black_Ebony.jpg
+pointed-1.jpg	File:Gibson Explorer dark red.jpg	https://commons.wikimedia.org/wiki/File:Gibson_Explorer_dark_red.jpg
+pointed-2.jpg	File:JacksonKE2.jpg	https://commons.wikimedia.org/wiki/File:JacksonKE2.jpg
+pointed-3.jpg	File:Gibson Explorer, Firebird and Flying V - Gibson Memphis (2018-09-10 21.26.09 by Michael Gaylard).jpg	https://commons.wikimedia.org/wiki/File:Gibson_Explorer,_Firebird_and_Flying_V_-_Gibson_Memphis_(2018-09-10_21.26.09_by_Michael_Gaylard).jpg
+archtop-1.jpg	File:Gibson TG-50 Archtop Tenor (1955) & Gibson L-7 Archtop Guitar (1947) - 2012 Northwest Handmade Musical Instrument Exhibit.jpg	https://commons.wikimedia.org/wiki/File:Gibson_TG-50_Archtop_Tenor_(1955)_%26_Gibson_L-7_Archtop_Guitar_(1947)_-_2012_Northwest_Handmade_Musical_Instrument_Exhibit.jpg
+archtop-2.jpg	File:LeeRitenourSignatureGibsonL5.jpg	https://commons.wikimedia.org/wiki/File:LeeRitenourSignatureGibsonL5.jpg
+archtop-3.jpg	File:Gibson L-5 Dragon Museum Piece, Hong Kong Museum of Art.jpg	https://commons.wikimedia.org/wiki/File:Gibson_L-5_Dragon_Museum_Piece,_Hong_Kong_Museum_of_Art.jpg
+dread-1.jpg	File:Martin D-28 body left (2011-01-02 by irish10567).jpg	https://commons.wikimedia.org/wiki/File:Martin_D-28_body_left_(2011-01-02_by_irish10567).jpg
+dread-2.jpg	File:Martin D-28 Acoustic Guitar.jpg	https://commons.wikimedia.org/wiki/File:Martin_D-28_Acoustic_Guitar.jpg
+dread-3.jpg	File:Matrin D-28 Headstock.jpg	https://commons.wikimedia.org/wiki/File:Matrin_D-28_Headstock.jpg
+om-1.jpg	File:C. F. Martin OM-1 body (taken on 2017-11-08 by Christopher Sessums).jpg	https://commons.wikimedia.org/wiki/File:C._F._Martin_OM-1_body_(taken_on_2017-11-08_by_Christopher_Sessums).jpg
+om-2.jpg	File:C. F. Martin OM-18 Authentic 1933 (2015-01-26 15.38.42 by sbaimo).jpg	https://commons.wikimedia.org/wiki/File:C._F._Martin_OM-18_Authentic_1933_(2015-01-26_15.38.42_by_sbaimo).jpg
+om-3.jpg	File:C. F. Martin OM-18 Authentic 1933 (2015-01-17 13.37.28 by sbaimo).jpg	https://commons.wikimedia.org/wiki/File:C._F._Martin_OM-18_Authentic_1933_(2015-01-17_13.37.28_by_sbaimo).jpg
+jumbo-1.jpg	File:1960GibsonJ-200.jpg	https://commons.wikimedia.org/wiki/File:1960GibsonJ-200.jpg
+jumbo-2.jpg	File:Gibson J-200.jpg	https://commons.wikimedia.org/wiki/File:Gibson_J-200.jpg
+jumbo-3.jpg	File:CBGB 2009 Fancy acoustic Gibson J-200 Custom.jpg	https://commons.wikimedia.org/wiki/File:CBGB_2009_Fancy_acoustic_Gibson_J-200_Custom.jpg
+parlor-1.png	File:Parlor guitar inlay of fretboard.png	https://commons.wikimedia.org/wiki/File:Parlor_guitar_inlay_of_fretboard.png
+parlor-2.jpg	File:1890s parlor guitar.jpg	https://commons.wikimedia.org/wiki/File:1890s_parlor_guitar.jpg
+parlor-3.jpg	File:Kay K1160 parlor guitar.jpg	https://commons.wikimedia.org/wiki/File:Kay_K1160_parlor_guitar.jpg
+cutdread-1.jpg	File:Epiphone PR-5E VS Cutaway Acoustic Electric Guitar (Vintage Sunburst).jpg	https://commons.wikimedia.org/wiki/File:Epiphone_PR-5E_VS_Cutaway_Acoustic_Electric_Guitar_(Vintage_Sunburst).jpg
+cutdread-2.jpg	File:Breedlove Guitar Cutaway Closeup.jpg	https://commons.wikimedia.org/wiki/File:Breedlove_Guitar_Cutaway_Closeup.jpg
+cutdread-3.jpg	File:Epiphone PR775SC Acoustic Guitar with saddle pickup.jpg	https://commons.wikimedia.org/wiki/File:Epiphone_PR775SC_Acoustic_Guitar_with_saddle_pickup.jpg
+classical-1.jpg	File:Guitar May 2009-1.jpg	https://commons.wikimedia.org/wiki/File:Guitar_May_2009-1.jpg
+classical-2.jpg	File:Classical Guitar two views.jpg	https://commons.wikimedia.org/wiki/File:Classical_Guitar_two_views.jpg
+classical-3.png	File:Classical Guitar two views2.png	https://commons.wikimedia.org/wiki/File:Classical_Guitar_two_views2.png
+twelve-1.jpg	File:Suzuki 12-string guitar body.jpg	https://commons.wikimedia.org/wiki/File:Suzuki_12-string_guitar_body.jpg
+twelve-2.jpg	File:Höfner 12 string acoustic guitar.jpg	https://commons.wikimedia.org/wiki/File:H%C3%B6fner_12_string_acoustic_guitar.jpg
+twelve-3.jpg	File:Yamaha FG720S-12.jpg	https://commons.wikimedia.org/wiki/File:Yamaha_FG720S-12.jpg
+pbass-1.jpg	File:Fender Precision Bass Lyte Body 1.jpg	https://commons.wikimedia.org/wiki/File:Fender_Precision_Bass_Lyte_Body_1.jpg
+pbass-2.jpg	File:Fender AP P-Bass 20230730.jpg	https://commons.wikimedia.org/wiki/File:Fender_AP_P-Bass_20230730.jpg
+pbass-3.jpg	File:Fender AP P-Bass 20230801.jpg	https://commons.wikimedia.org/wiki/File:Fender_AP_P-Bass_20230801.jpg
+jbass-1.jpg	File:Fender jazz bass special PJ-555 1987 E94.jpg	https://commons.wikimedia.org/wiki/File:Fender_jazz_bass_special_PJ-555_1987_E94.jpg
+jbass-2.jpg	File:Fender Jazz-Bass 1966.jpg	https://commons.wikimedia.org/wiki/File:Fender_Jazz-Bass_1966.jpg
+jbass-3.jpg	File:Fender Jazz Bass Special.jpg	https://commons.wikimedia.org/wiki/File:Fender_Jazz_Bass_Special.jpg
+fretless-1.jpg	File:1 body of Yamaha fretless bass guitar RBX250 F.jpg	https://commons.wikimedia.org/wiki/File:1_body_of_Yamaha_fretless_bass_guitar_RBX250_F.jpg
+fretless-2.jpg	File:Yamaha fretless bass guitar RBX250 F.jpg	https://commons.wikimedia.org/wiki/File:Yamaha_fretless_bass_guitar_RBX250_F.jpg
+fretless-3.jpg	File:0 Yamaha fretless bass guitar RBX250 F.jpg	https://commons.wikimedia.org/wiki/File:0_Yamaha_fretless_bass_guitar_RBX250_F.jpg
+acbass-1.jpg	File:Ibanez AEB5E Acoustic Bass 2 20100730.jpg	https://commons.wikimedia.org/wiki/File:Ibanez_AEB5E_Acoustic_Bass_2_20100730.jpg
+acbass-2.jpg	File:Acoustic bass guitar 1.jpg	https://commons.wikimedia.org/wiki/File:Acoustic_bass_guitar_1.jpg
+acbass-3.jpg	File:Acoustic bass guitar 2.jpg	https://commons.wikimedia.org/wiki/File:Acoustic_bass_guitar_2.jpg
+requinto-1.jpg	File:Guitarra de son o requinto jarocho de cuatro cuerdas 01.jpg	https://commons.wikimedia.org/wiki/File:Guitarra_de_son_o_requinto_jarocho_de_cuatro_cuerdas_01.jpg
+requinto-2.jpg	File:Requinto jarocho y una leona.jpg	https://commons.wikimedia.org/wiki/File:Requinto_jarocho_y_una_leona.jpg
+requinto-3.jpg	File:Construcción de un requinto jarocho 01.jpg	https://commons.wikimedia.org/wiki/File:Construcci%C3%B3n_de_un_requinto_jarocho_01.jpg
+guitarron-1.jpg	File:Mariachi instruments.jpg	https://commons.wikimedia.org/wiki/File:Mariachi_instruments.jpg
+guitarron-2.jpg	File:Un mariachi goloso.jpg	https://commons.wikimedia.org/wiki/File:Un_mariachi_goloso.jpg
+guitarron-3.jpg	File:Mexican Guitarron.jpg	https://commons.wikimedia.org/wiki/File:Mexican_Guitarron.jpg
+bajosexto-1.jpg	File:Music wall.jpg	https://commons.wikimedia.org/wiki/File:Music_wall.jpg
+jarana-1.jpg	File:Jarana de frente.JPG	https://commons.wikimedia.org/wiki/File:Jarana_de_frente.JPG
+jarana-2.jpg	File:Puente de jarana 03.jpg	https://commons.wikimedia.org/wiki/File:Puente_de_jarana_03.jpg
+jarana-3.jpg	File:Puente de jarana 01.jpg	https://commons.wikimedia.org/wiki/File:Puente_de_jarana_01.jpg
+resonator-1.jpg	File:Man playing an acoustic brazilian guitar (Violão) on Marco Zero Square, Refice, Pernambuco, Brazil.jpg	https://commons.wikimedia.org/wiki/File:Man_playing_an_acoustic_brazilian_guitar_(Viol%C3%A3o)_on_Marco_Zero_Square,_Refice,_Pernambuco,_Brazil.jpg
+resonator-2.jpg	File:1926-7 1st National Resophonic guitar, Museum of Making Music.jpg	https://commons.wikimedia.org/wiki/File:1926-7_1st_National_Resophonic_guitar,_Museum_of_Making_Music.jpg
+resonator-3.jpg	File:Resonator Style0.jpg	https://commons.wikimedia.org/wiki/File:Resonator_Style0.jpg
+baritone-1.jpg	File:Striebel Peter Autschbach Baritone.jpg	https://commons.wikimedia.org/wiki/File:Striebel_Peter_Autschbach_Baritone.jpg
+baritone-2.jpg	File:Fender baritone custom.jpg	https://commons.wikimedia.org/wiki/File:Fender_baritone_custom.jpg
+baritone-3.jpg	File:Regular, Baritone, Bass guitars.jpg	https://commons.wikimedia.org/wiki/File:Regular,_Baritone,_Bass_guitars.jpg
+shapes-1.jpg	File:Body Shape Guitars.jpg	https://commons.wikimedia.org/wiki/File:Body_Shape_Guitars.jpg
+shapes-2.jpg	File:Body Shape Guitars Modified-Version of author-Mistermoab (as-Mistermoab-original-16 February 2016).jpg	https://commons.wikimedia.org/wiki/File:Body_Shape_Guitars_Modified-Version_of_author-Mistermoab_(as-Mistermoab-original-16_February_2016).jpg
+shapes-3.png	File:Breedlove Guitar Body Shapes.png	https://commons.wikimedia.org/wiki/File:Breedlove_Guitar_Body_Shapes.png
+vihuela-1.jpg	File:Vihuela Mexicana.jpg	https://commons.wikimedia.org/wiki/File:Vihuela_Mexicana.jpg
+vihuela-2.jpg	File:Vihuela Mexicana 001.JPG	https://commons.wikimedia.org/wiki/File:Vihuela_Mexicana_001.JPG
+vihuela-3.png	File:Vihuela mexicana.png	https://commons.wikimedia.org/wiki/File:Vihuela_mexicana.png
+travel-1.jpg	File:2002 Martin Backpacker (2010-10-18 03.14.20 by fenderfish).jpg	https://commons.wikimedia.org/wiki/File:2002_Martin_Backpacker_(2010-10-18_03.14.20_by_fenderfish).jpg
+travel-2.jpg	File:Meg and rahul, Norbulingka Institute, Martin Backpacker Travel Guitar.jpg	https://commons.wikimedia.org/wiki/File:Meg_and_rahul,_Norbulingka_Institute,_Martin_Backpacker_Travel_Guitar.jpg
+travel-3.jpg	File:2002 Martin Backpacker - slide play (2010-10-18 03.14.21 by fenderfish).jpg	https://commons.wikimedia.org/wiki/File:2002_Martin_Backpacker_-_slide_play_(2010-10-18_03.14.21_by_fenderfish).jpg
+bajosexto-1.jpg	File:Bajo sexto.jpg	https://commons.wikimedia.org/wiki/File:Bajo_sexto.jpg
+bajosexto-2.jpg	File:Bajo sexto ? - I can't read the tagger! 12 String Something - Homestead Pickin' Parlor (2007-08-10 05.51.16 by kc7fys).jpg	https://commons.wikimedia.org/wiki/File:Bajo_sexto_%3F_-_I_can%27t_read_the_tagger!_12_String_Something_-_Homestead_Pickin%27_Parlor_(2007-08-10_05.51.16_by_kc7fys).jpg
+bajosexto-3.jpg	File:Bajo Sexto Taco at the Country Music Hall of Fame.JPG	https://commons.wikimedia.org/wiki/File:Bajo_Sexto_Taco_at_the_Country_Music_Hall_of_Fame.JPG
+charango-1.jpg	File:Bolivian charango 001.jpg	https://commons.wikimedia.org/wiki/File:Bolivian_charango_001.jpg
+charango-2.jpg	File:Charango sid.jpg	https://commons.wikimedia.org/wiki/File:Charango_sid.jpg
+cuatro-1.jpg	File:Cuatro puertorriqueño, modelo histórico.JPG	https://commons.wikimedia.org/wiki/File:Cuatro_puertorrique%C3%B1o,_modelo_hist%C3%B3rico.JPG
+cuatro-2.jpg	File:Cuatro Puertorriqueño (unordinary).JPG	https://commons.wikimedia.org/wiki/File:Cuatro_Puertorrique%C3%B1o_(unordinary).JPG
+tres-1.jpg	File:Tres cubano.jpg	https://commons.wikimedia.org/wiki/File:Tres_cubano.jpg
+tres-2.jpg	File:Tres cubano2.jpg	https://commons.wikimedia.org/wiki/File:Tres_cubano2.jpg

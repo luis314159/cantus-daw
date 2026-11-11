@@ -1,0 +1,34 @@
+# Ronda 39, el-views: los fantasmas del piano roll, las filas del navegador.
+pianoroll.ghosts = Fantasmas
+pianoroll.ghosts_tip = Mostrar tenues detrás de este clip las notas de los demás: las de esta pista en su color, las de otras pistas en gris
+# La barra plegada a su herramienta elegida: el desplegable que las lista todas.
+el_views.tools_more = Todas las herramientas: la que está en uso lleva la marca
+# El mapa del patrón del rack.
+rack.map_tip = Los compases del patrón: los golpes de cada tiempo, la página a la vista en relieve; clic en un compás para ir a él
+# Ronda 39, lo-rest: las placas y el pie del rack, los resultados, la escucha y los paquetes del navegador.
+rack.kit_pads = {n} pads
+rack.fold_tip = Mostrar u ocultar los pads de este kit
+rack.add_channel = Añadir un canal
+rack.add_channel_tip = Añadir un canal: elige su instrumento
+rack.drop_title = Suelta aquí un sonido para un canal nuevo
+rack.drop_sub = o sobre un canal para cambiar su muestra
+samples.section.favourites = Favoritos
+samples.star = Marcar este sonido con una estrella: aparece primero, en Favoritos
+samples.unstar = Quitar la estrella
+samples.get = Obtener · {size}
+samples.update_size = Actualizar · {size}
+samples.getting = {pct} % de {size}
+samples.pack_tip = Mostrar los detalles, la licencia y los créditos de este paquete
+samples.show_more = Mostrar los otros {n} sonidos
+samples.open_pack = Abrir
+samples.preview.loop = Bucle: el sonido vuelve a empezar cuando termina
+samples.packs_summary = {n} paquetes gratuitos · {here} instalados · {size} en disco
+samples.filter.all = Todos
+samples.sort = Orden
+samples.sort.category = Categoría
+samples.sort.name = Nombre
+samples.sort.size = Tamaño
+samples.sort_tip = Ordenar los paquetes: por categoría, por nombre o del mayor al menor; clic para el siguiente
+samples.cc_by_note = Los paquetes CC BY muestran a sus autores en la página del paquete y en Ayuda › Créditos.
+samples.where_kept = Dónde se guardan los paquetes ›
+samples.where_kept_tip = Mostrar la carpeta donde se instalan los paquetes

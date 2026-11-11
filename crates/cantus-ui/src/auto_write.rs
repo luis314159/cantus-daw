@@ -148,9 +148,12 @@ impl CantusApp {
             {
                 p.master.auto_mode
             }
+            // r39:el-arrange — a lane's own mode over its track's (ADR 0113).
             _ => crate::automation::host_track(p, target, self.selected_track)
                 .and_then(|t| p.track(t))
-                .map_or(AutoMode::Read, |t| t.auto_mode),
+                .map_or(AutoMode::Read, |t| {
+                    cantus_core::arrange::lane_mode(t, target)
+                }),
         }
     }
 
@@ -176,7 +179,11 @@ impl CantusApp {
     /// Whether any track or the master writes when armed.
     pub fn any_writing_mode(&self) -> bool {
         let p = self.project();
-        p.master.auto_mode.writes() || p.tracks.iter().any(|t| t.auto_mode.writes())
+        p.master.auto_mode.writes()
+            || p.tracks.iter().any(|t| {
+                t.auto_mode.writes() || t.lane_modes.iter().any(|l| l.mode.writes())
+                // r39:el-arrange
+            })
     }
 
     /// The window a pass writes in: the punch range when punch is on, else everything.
@@ -453,7 +460,10 @@ impl CantusApp {
             .project()
             .tracks
             .iter()
-            .filter(|t| t.auto_mode == AutoMode::Write)
+            .filter(|t| {
+                t.auto_mode == AutoMode::Write
+                    || t.lane_modes.iter().any(|l| l.mode == AutoMode::Write) // r39:el-arrange
+            })
             .map(|t| t.id)
             .collect();
         let master_wrote =

@@ -214,19 +214,14 @@ fn the_mixer_draws_faders_with_a_scale_and_a_readout() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    for want in [
-        "+12",
-        "\u{2212}12",
-        "\u{2212}30",
-        "\u{2212}60",
-        "\u{2212}\u{221e}",
-        "+0.0",
-    ] {
-        assert!(
-            text.contains(want),
-            "the mixer never painted {want:?}: {text}"
-        );
-    }
+    // Round 39 (`el-mixer`, des-mixer's desk): no legend column with its dB scale and no
+    // −∞ at rest; from Wide up each fader's level is its value row (as `mixer_desk`'s
+    // `wider_modes_show_more` reads it).
+    assert!(text.contains("| 0.0 |"), "the faders' level: {text}");
+    assert!(
+        !text.contains('\u{221e}'),
+        "no minus infinity at rest: {text}"
+    );
 }
 
 /// Tab through the mixer and press an arrow at every control that claims them, checking
@@ -376,8 +371,9 @@ fn the_toolbar_is_drawn_by_the_kit() {
     assert!(meshes >= 1, "the toolbar paints through the kit's brush");
     let text = painted_text(&out.shapes);
     // Round 37: the clock's bar and beat large, its ticks a size down (two texts); the
-    // tempo's tenth small beside the whole BPM.
-    for expected in ["FILE", "VIEW", "1.1", ".000", "120", ".0"] {
+    // tempo's tenth small beside the whole BPM. Round 39 (ADR 0111): the menus are title
+    // case ("File", no longer "FILE").
+    for expected in ["File", "View", "1.1", ".000", "120", ".0"] {
         assert!(
             text.contains(expected),
             "the toolbar did not paint {expected:?}; painted: {text}"
@@ -1674,13 +1670,10 @@ fn the_mixer_shows_pan_width_and_polarity() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    // The pan law, on the master.
-    assert!(
-        text.contains("\u{2212}3 dB"),
-        "the mixer never painted the pan law: {text}"
-    );
-    // The desk: the master first, then every strip by number, fed or not.
-    let m = text.find("MASTER").expect("a master strip");
+    // Round 39 (`el-mixer`): the pan law lives in the master's menu, not on the strip
+    // (`mixer_desk::the_master_carries_the_pan_law`). The desk: the master first, then
+    // every strip by number, fed or not.
+    let m = text.find("| Master |").expect("a master strip");
     let one = text.find("| 1 |").expect("strip 1");
     assert!(m < one, "the master must be on the left: {text}");
     assert!(
@@ -1971,8 +1964,9 @@ fn clip_editing_is_visible_in_the_menu_bar() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
+    // Round 39 (ADR 0111): the menus are title case ("Clip", no longer "CLIP").
     assert!(
-        text.contains("CLIP"),
+        text.contains("Clip"),
         "the menu bar has no Clip menu: {text}"
     );
 }
@@ -1997,10 +1991,13 @@ fn the_arrangement_toolbar_is_a_row_of_icons_with_a_grid_picker() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    // The snap switch is an LED button, whose word is set in capitals (ADR 0024 §4).
-    for want in ["Arrangement", "Grid", "1 bar", "SNAP", "1 selected"] {
+    // r39:lo-arrange — dir-a's tool row: the name, the tools, the grid's well, Follow and
+    // the panel's menu (the clip operations moved into that menu and the clip's own); the
+    // snap is the grid's ("No snap") — compared without case.
+    let upper = text.to_uppercase();
+    for want in ["Arrangement", "Grid", "1 bar", "Follow"] {
         assert!(
-            text.contains(want),
+            upper.contains(&want.to_uppercase()),
             "the toolbar never painted {want:?}: {text}"
         );
     }
@@ -3387,15 +3384,9 @@ fn the_mixer_paints_solo_fx_eq_and_sends() {
     });
     out.textures_delta.clear();
     let text = painted_text(&out.shapes);
-    // The rows are named once, in the legend; "Solo off" shows while a strip is soloed.
-    // Round 25: FL's send row reads "From selected"; the cable band is "Routing".
-    for want in [
-        "| FROM SELECTED |",
-        "| FX \u{b7} RECORD |",
-        "| EQ |",
-        "| ROUTING |",
-        "SOLO OFF",
-    ] {
+    // Round 39 (`el-mixer`, des-mixer's desk): no label column and FL's row off by default;
+    // while a strip is soloed the header says how many and offers to clear them.
+    for want in ["| 1 soloed |", "| Clear |"] {
         assert!(
             text.contains(want),
             "the mixer never painted {want:?}: {text}"
@@ -3504,18 +3495,21 @@ fn groups_gather_fold_and_dissolve() {
 fn width_modes_show_more_of_each_strip() {
     use cantus_ui::views::mixer::layout::WidthMode;
     let mut a = app(starter_project());
+    // Round 39 (`el-mixer`, des-mixer's desk): no row names; Compact has no level row,
+    // Wide adds it (as `mixer_desk::wider_modes_show_more`), Large names the inserts.
     let compact = paint_mixer(&mut a, 1600.0);
-    assert!(compact.contains("| FROM SELECTED |"), "{compact}");
-    assert!(!compact.contains("| VALUE |"), "{compact}");
+    assert!(
+        !compact.contains("| 0.0 |"),
+        "Compact has no level row: {compact}"
+    );
     views::mixer::set_width_mode(&mut a, WidthMode::Wide);
     let wide = paint_mixer(&mut a, 1600.0);
-    assert!(wide.contains("| VALUE |"), "{wide}");
-    assert!(wide.contains("| OUTPUT |"), "{wide}");
+    assert!(wide.contains("| 0.0 |"), "the level: {wide}");
     views::mixer::set_width_mode(&mut a, WidthMode::Xl);
+    let s0 = a.project().strips[0].id;
+    a.add_effect(s0, EffectKind::Eq);
     let xl = paint_mixer(&mut a, 1600.0);
-    assert!(xl.contains("| FX CHAIN |"), "{xl}");
-    assert!(xl.contains("| SENDS |"), "{xl}");
-    assert!(!xl.contains("| INSERTS |"), "{xl}");
+    assert!(xl.contains("| Aequalis |"), "{xl}");
     assert!(compact.contains("| 16 |"), "every strip is still there");
 }
 

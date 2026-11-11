@@ -341,8 +341,29 @@ impl Rig {
                     let lines = cantus_engine::pdc::lines_for(count, delay);
                     self.tx.push(EngineMessage::PdcLines(lines)).unwrap();
                 }
+                // ADR 0107: the slots a snapshot waits for, built here as the backend does.
+                EngineEvent::CellsNeed { tracks, strips } => {
+                    let (t, s) = self.p.slots_ready();
+                    let cells = cantus_engine::parts::SlotCells::new(
+                        48_000.0,
+                        tracks.saturating_sub(t),
+                        strips.saturating_sub(s),
+                    );
+                    self.tx.push(EngineMessage::Cells(Box::new(cells))).unwrap();
+                }
+                // ADR 0107: the parts a track waits for, built here as the backend does.
+                EngineEvent::PartsNeed { kits, note_fx } => {
+                    for _ in 0..kits {
+                        let kit = cantus_engine::parts::kit(48_000.0);
+                        self.tx.push(EngineMessage::AddPart(kit)).unwrap();
+                    }
+                    for _ in 0..note_fx {
+                        let chain = cantus_engine::parts::note_fx();
+                        self.tx.push(EngineMessage::AddPart(chain)).unwrap();
+                    }
+                }
                 EngineEvent::EffectNeed { effect, need } => {
-                    let memory = EffectMemory::build(need, 48_000.0);
+                    let memory = EffectMemory::build(need.need(), 48_000.0);
                     self.tx
                         .push(EngineMessage::EffectMemory { effect, memory })
                         .unwrap();
@@ -439,6 +460,12 @@ fn audio_thread_scenario(workers: Option<Workers>) {
     gate.spec.set("look", 5.0).unwrap();
     gate.midi_from = Some(p.tracks[0].id);
     p.strip_mut(s1).unwrap().effects.push(gate);
+    // Aula (ADR 0112): a new response asked for through its mailbox (the event carries a
+    // handle, ADR 0107's 64 B), built off the audio thread, swapped in, the old handed back.
+    let mut aula = p.make_effect(EffectKind::Aula);
+    aula.spec.set("mix", 0.3).unwrap();
+    let aula_id = aula.id;
+    p.strip_mut(s1).unwrap().effects.push(aula);
     let mut rig = Rig::with(workers);
     rig.snapshot(&p);
     rig.tx
@@ -471,6 +498,14 @@ fn audio_thread_scenario(workers: Option<Workers>) {
         rig.p.stats().latency_samples as usize,
         latency_of(Mode::LinearPhase, Resolution::VeryHigh, 48_000.0)
     );
+    // Aula's response and shape changed: asked for (twice, the second before the first
+    // arrives), delivered, swapped.
+    for (k, v) in [("ir", 3.0), ("decay", 0.6)] {
+        let e = p.strip_mut(s1).unwrap().effect_mut(aula_id).unwrap();
+        e.spec.set(k, v).unwrap();
+        rig.snapshot(&p);
+        rig.play("aula: a new response", 10);
+    }
     // Soft bypass, the chain switch, back to Medium (it fits), back to zero latency.
     p.strip_mut(s0).unwrap().effect_mut(eq_id).unwrap().bypass = true;
     rig.snapshot(&p);
@@ -2396,4 +2431,305 @@ fn a_split_kit_never_allocates() {
             rig.allocations
         );
     }
+}
+
+/// A drum project: `n` Pulsus tracks of kicks and snares, eight beats at 120 BPM.
+fn drum_project(n: usize) -> Project {
+    let mut p = Project::new("kits");
+    p.tempo_bpm = 120.0;
+    for k in 0..n {
+        add_drum_track(&mut p, &format!("Drums {k}"));
+    }
+    p
+}
+
+fn add_drum_track(p: &mut Project, name: &str) {
+    let mut t = p.make_track(name);
+    t.instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+    let mut clip = p.make_clip("Beat", Ticks::ZERO, Ticks::beats(8));
+    for s in 0..16i64 {
+        let pitch = [36u8, 38, 42, 38][(s % 4) as usize];
+        clip.notes
+            .push(p.make_note(Ticks::EIGHTH * s, Ticks::SIXTEENTH, pitch, 100));
+    }
+    t.clips.push(clip);
+    p.tracks.push(t);
+}
+
+/// ADR 0107: Pulsus kits built off the audio thread. A kit arriving while the song plays
+/// (asked for by the engine and answered by the rig, as the backend does), a kit given back
+/// by a track that stops being a drum track and taken by a new one, a drum track gone: the
+/// audio thread places, configures and moves kits without one allocation or free.
+#[test]
+fn kits_arriving_and_moving_never_allocate() {
+    let mut p = drum_project(2);
+    let mut rig = Rig::with(Some(Workers::parallel(2)));
+    // No kit sent with the snapshot: the engine asks, the rig answers between blocks.
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("kits asked for and placed", 20);
+    assert_eq!(rig.p.parts_held().kits, 2);
+    assert_eq!(rig.p.stats().kits_waiting, 0);
+    // One drum track becomes a synth and a new drum track comes: the kit moves.
+    p.tracks[0].instrument = InstrumentSpec::Firmus(Default::default());
+    add_drum_track(&mut p, "Drums 2");
+    rig.snapshot(&p);
+    rig.play("a kit moved", 40);
+    // A drum track gone, then every track gone.
+    p.tracks.pop();
+    rig.snapshot(&p);
+    rig.play("a drum track gone", 10);
+    p.tracks.clear();
+    rig.snapshot(&p);
+    rig.play("every track gone", 10);
+    assert_eq!(rig.p.parts_held().kits, 2, "kits are kept, never freed");
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "kits allocated or freed on the audio thread: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// ADR 0107: the block's report in its mailbox — posted while the reader drains it, and
+/// folded while the reader is late — never allocates or frees on the audio thread.
+#[test]
+fn the_reports_mailbox_never_allocates() {
+    let p = demo_project();
+    let mut rig = Rig::new();
+    let mut reports = rig.p.take_reports().expect("the reading end");
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("start", 10);
+    let mut read = 0;
+    for _ in 0..20 {
+        rig.play("drained every block", 1);
+        read += reports.drain(|r| assert!(r.blocks >= 1));
+    }
+    rig.play("a late reader: folded", 40);
+    // The boxes in flight came as they were; the rest was folded and goes with the next.
+    let in_flight = reports.drain(|r| assert_eq!(r.blocks, 1));
+    rig.play("after the late reader", 1);
+    let mut blocks = 0;
+    reports.drain(|r| blocks += r.blocks as usize);
+    assert!(read >= 20, "{read} reports read");
+    assert_eq!(in_flight, cantus_engine::report::BOXES - 1);
+    assert_eq!(
+        blocks,
+        40 - in_flight + 1,
+        "the folded report stands for the rest"
+    );
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the reports allocated or freed on the audio thread: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// ADR 0107: compensation lines that grow from a small pool. A latent insert put on a
+/// strip while the song plays — every parallel path then needs a line, more than the pool
+/// holds — is
+/// asked for, answered between blocks and swapped in, and taken out again: no allocation
+/// or free on the audio thread.
+#[test]
+fn compensation_lines_growing_from_few_never_allocate() {
+    let mut p = demo_project();
+    // Twenty tracks more on the master, beside the latent strip: more lines than a
+    // processor starts with.
+    for k in 0..20 {
+        let mut t = p.make_track(format!("Extra {k}"));
+        t.strip = None;
+        let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(8));
+        clip.notes
+            .push(p.make_note(Ticks::ZERO, Ticks::beats(4), 48 + k as u8, 90));
+        t.clips.push(clip);
+        p.tracks.push(t);
+    }
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut rig = Rig::with(Some(Workers::parallel(2)));
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("no latency, no line", 10);
+    let mut lim = p.make_effect(EffectKind::Limiter);
+    let _ = lim.spec.set("look", 5.0);
+    let lim_id = lim.id;
+    p.strip_mut(s0).unwrap().effects.push(lim);
+    rig.snapshot(&p);
+    rig.play("a latent insert: lines asked for and swapped in", 40);
+    assert!(rig.p.stats().latency_samples > 0, "the limiter is latent");
+    assert_eq!(rig.p.stats().pdc_unserved, 0, "every edge has its line");
+    assert!(
+        rig.p.lines_held() > cantus_engine::pdc::START_LINES,
+        "the pool grew: {} lines",
+        rig.p.lines_held()
+    );
+    p.strip_mut(s0).unwrap().effects.retain(|e| e.id != lim_id);
+    rig.snapshot(&p);
+    rig.play("the insert gone", 10);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "compensation allocated or freed on the audio thread: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// ADR 0107: slots that grow with the song. While the demo plays, a snapshot with more
+/// tracks and strips than the processor has slots for waits; its cells — asked for and
+/// answered between blocks — are swapped in, it installs, and the bare slots' memory goes
+/// back; then most of it is taken away again. Not one allocation or free on the callback or
+/// the pool's workers.
+#[test]
+fn slots_provisioned_while_playing_never_allocate() {
+    let mut p = demo_project();
+    let mut rig = Rig::with(Some(Workers::parallel(2)));
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("the demo", 10);
+    for k in 0..40 {
+        let s = p.make_strip(format!("Bus {k}"));
+        p.strips.push(s);
+    }
+    for k in 0..30 {
+        let mut t = p.make_track(format!("More {k}"));
+        let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(8));
+        clip.notes
+            .push(p.make_note(Ticks::beats(k % 4), Ticks::beats(2), 48 + k as u8, 90));
+        t.clips.push(clip);
+        p.tracks.push(t);
+    }
+    rig.snapshot(&p);
+    rig.play(
+        "a wide song: its slots asked for, provisioned, installed",
+        40,
+    );
+    assert_eq!(rig.p.stats().cells_waiting, 0, "the wide song installed");
+    assert!(rig.p.slots_ready().0 >= p.tracks.len());
+    assert!(rig.p.slots_ready().1 >= p.strips.len());
+    p.tracks.truncate(2);
+    rig.snapshot(&p);
+    rig.play("back to two tracks", 10);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "provisioning allocated or freed on the audio thread: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// ADR 0107: a scope ring made the first time a Speculum is watched — sent to the engine
+/// and taken into its place between blocks — never allocates or frees on the audio thread.
+#[test]
+fn a_scope_ring_arriving_never_allocates() {
+    use cantus_engine::fx::speculum::{ScopeChunk, MAX_SCOPES, SCOPE_CHUNKS};
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let scope = p.make_effect(EffectKind::Analyzer);
+    let id = scope.id;
+    p.strip_mut(s0).unwrap().effects.push(scope);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("no scope watched", 10);
+    let (ring, mut reader) = rtrb::RingBuffer::<ScopeChunk>::new(SCOPE_CHUNKS);
+    rig.tx
+        .push(EngineMessage::ScopeRing { index: 0, ring })
+        .unwrap();
+    let mut ids = [None; MAX_SCOPES];
+    ids[0] = Some(id);
+    rig.tx.push(EngineMessage::WatchScopes(ids)).unwrap();
+    rig.play("its ring arrives and is filled", 40);
+    assert!(reader.slots() > 0, "the watched scope's frames came");
+    while reader.pop().is_ok() {}
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "a scope ring allocated or freed on the audio thread: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+// r39:conv — Aula (ADR 0112) on the audio thread: its response swapped level by level (a
+// shape changed: a kernel asked for, built off the thread, delivered), a longer one that
+// needs a new state (the old state handed back), the mix glided, a seek and a stop. Not
+// one allocation while processing.
+#[test]
+fn aula_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut aula = p.make_effect(EffectKind::Aula);
+    for (k, v) in [("ir", 0.0), ("mix", 0.4), ("predelay", 15.0)] {
+        aula.spec.set(k, v).unwrap();
+    }
+    let id = aula.id;
+    p.strip_mut(s0).unwrap().effects.push(aula);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("start", 40);
+    let set = |p: &mut Project, k: &str, v: f32| {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        e.spec.set(k, v).unwrap();
+    };
+    set(&mut p, "decay", 0.6);
+    set(&mut p, "damp", 0.5);
+    rig.snapshot(&p);
+    rig.play("a new shape", 200);
+    // The cathedral: longer than the studio's room, so a new state comes with it.
+    set(&mut p, "ir", 9.0);
+    rig.snapshot(&p);
+    rig.play("a longer response", 200);
+    set(&mut p, "mix", 0.9);
+    set(&mut p, "predelay", 120.0);
+    set(&mut p, "width", 0.5);
+    rig.snapshot(&p);
+    rig.play("the audio thread's own controls", 40);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(1))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// r39:fixes — the browser's audition with its level moved as it plays (a drag sends one
+/// level a frame): the ramp and the message neither allocate nor free; the sample it lets
+/// go of at its end is handed back, never freed here.
+#[test]
+fn an_audition_s_level_moved_as_it_plays_never_allocates() {
+    let p = Project::new("audition");
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.play("warm", 4);
+    let sample = Arc::new(SampleData {
+        stream: None,
+        rate: 44_100,
+        channels: 2,
+        frames: (0..2 * 44_100)
+            .map(|i| math::sin(i as f32 * 0.003))
+            .collect::<Vec<_>>()
+            .into(),
+    });
+    rig.tx
+        .push(EngineMessage::Preview(Some((sample, 0.5))))
+        .unwrap();
+    rig.allocations.clear();
+    for i in 0..60 {
+        rig.tx
+            .push(EngineMessage::PreviewGain(0.1 + 0.01 * i as f32))
+            .unwrap();
+        rig.play("audition level", 1);
+    }
+    rig.tx.push(EngineMessage::PreviewGain(0.2)).unwrap();
+    rig.play("audition to its end", 400);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audition's level allocated: {:?}",
+        rig.allocations
+    );
 }

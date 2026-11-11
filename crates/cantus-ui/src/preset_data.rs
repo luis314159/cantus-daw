@@ -248,6 +248,12 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/autotune.toml",
         include_str!("../presets/effects/autotune.toml"),
     ),
+    // r39:conv
+    (
+        FileUnit::Effect(EffectKind::Aula),
+        "presets/effects/aula.toml",
+        include_str!("../presets/effects/aula.toml"),
+    ),
 ];
 
 /// Read one file's text.

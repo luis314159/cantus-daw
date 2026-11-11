@@ -12,6 +12,8 @@ use cantus_ui::i18n::{self, Locale};
 use cantus_ui::kit::appearance::Mode;
 use cantus_ui::{raster, welcome_project};
 use std::path::{Path, PathBuf};
+#[path = "shots_common/studio.rs"]
+mod studio;
 
 type Setup = fn(&mut CantusApp);
 
@@ -96,6 +98,9 @@ fn shoot(dir: &Path, dark: bool, name: &str, f: Setup, locale: Locale, zoom: f32
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     app.attach(&ctx);
     demo::setup(&mut app);
+    // The dummy engine's "Audio device unavailable" line, said before the demo studio was
+    // there, off the status bar (round 39: no picture says "no device").
+    app.set_status(String::new());
     f(&mut app);
     let theme = if dark { "slate" } else { "paper" };
     let path = dir.join(format!("audio-{theme}-{name}.png"));
@@ -107,6 +112,14 @@ fn shoot(dir: &Path, dark: bool, name: &str, f: Setup, locale: Locale, zoom: f32
         8,
         Some(&path),
         |root| app.frame(root),
+    );
+    // The crop the manual cuts (`tools/shots/place.py`): the popover, with a margin.
+    let pop = cantus_ui::views::audio_popover::last_rect(&ctx).map(|r| r.expand(10.0));
+    studio::sidecar(
+        &path,
+        egui::vec2(w / zoom, h / zoom),
+        zoom,
+        &[("popover", pop)],
     );
     println!("{}", path.display());
 }

@@ -127,10 +127,6 @@ pub fn tick(app: &mut CantusApp, ctx: &egui::Context) {
     // maximised again after the scene's frames).
     if f >= 50 {
         size_browser(app);
-        // The headers' width again: the arrangement clamps it to its own width, and on the
-        // scene's first frames (the window not yet maximised) it was narrower (judge 7:
-        // "Per…ion" on Paper).
-        app.arrangement.header_width = 240.0;
     }
     // Where each area is, in pixels, for the judge's crops (`judge_real.py`): written
     // beside the data on every frame whose layout differs from the last one written, so
@@ -152,7 +148,7 @@ fn setup(app: &mut CantusApp) {
     app.audio_setup.first_run = None;
     app.verse = None;
     app.workflow.start.close();
-    let preset = std::env::var("CANTUS_SHOT_THEME").unwrap_or_else(|_| "cantus_night".into());
+    let preset = std::env::var("CANTUS_SHOT_THEME").unwrap_or_else(|_| "slate_night".into());
     let dark = crate::kit::appearance::PRESETS
         .iter()
         .find(|(id, _)| *id == preset)

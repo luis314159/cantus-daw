@@ -13,7 +13,10 @@ trunk build --release        # static site in web/dist/
 
 If Trunk says `invalid value '1' for '--no-color'`, unset the `NO_COLOR` environment variable.
 `src/top.rs` holds the version and the download links; `src/lang.rs` the EN/ES switch.
-Fonts are Syne and Instrument Sans (SIL OFL, licences in `assets/fonts/`).
+The type is Barlow Semi Condensed (SIL OFL, licence in `assets/fonts/`), the app's own (round 39).
+The look follows logo #03 (round 39): Slate surfaces, lapis for what you press, gold only in
+fine marks and rules; the tokens are at the top of `style/base.css`, and `style/lapis.css` and
+`style/stage.css` dress the sections, the lapis tiles and the footer.
 
 ## The demo songs on the page
 
@@ -32,8 +35,12 @@ copies it into `dist/manual/`. **The generated pages are committed** (the deploy
 build the manual): run the script and commit `assets/manual/` whenever `docs/manual/` changes.
 Run it **before** `trunk build`: the press kit (`assets/press/`) and the 404 page use the `manual/manual.css` it copies.
 `tools/og.html` and `tools/logo.html` are the sources of `assets/og.png` (the share image)
-and `assets/press/cantus-logo-1024.png`; re-render them with headless Chrome
-(`--window-size=1200,760`, then crop to 1200×630) when the tagline or the logo changes.
+and `assets/press/cantus-logo-1024.png`; `tools/touch.html` and `tools/fav32.html` of
+`assets/apple-touch-icon.png` and `assets/favicon-32.png`. Re-render them with headless Edge or
+Chrome (`--window-size=1200,760`, then crop to 1200×630; the icons with
+`--default-background-color=00000000`) when the tagline or the logo changes. The logo is #03:
+`assets/press/cantus-logo.svg` is `crates/cantus-ui/assets/logos/03.svg`; `assets/logo.svg` (the
+bars' mark) and `assets/favicon.svg` are its 48- and 32-px small masters.
 
 ## The effects' with/without excerpts
 

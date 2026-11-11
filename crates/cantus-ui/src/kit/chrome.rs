@@ -33,6 +33,10 @@ pub const SPLITTER: f32 = 4.0;
 
 /// Paint a tab; `st.lit` is the active one.
 pub fn tab(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
+    if s.t.system.recessed() {
+        tab_slate(b, rect, s, st, label);
+        return;
+    }
     b.register(rect, "tab", TAB_TOKENS, &[]);
     let rect = b.snap_rect(rect);
     let a = st.alpha();
@@ -150,6 +154,10 @@ pub fn thumb(rect: Rect, s: &Style, start: f32, len: f32) -> Rect {
 
 /// Paint a scrollbar: a sunken track, a raised thumb with grips at both ends.
 pub fn scrollbar(b: &mut Brush, rect: Rect, s: &Style, st: State, start: f32, len: f32) {
+    if s.t.system.recessed() {
+        scrollbar_slate(b, rect, s, st, start, len);
+        return;
+    }
     let toks = if s.t.dark {
         SCROLLBAR_TOKENS
     } else {
@@ -195,6 +203,159 @@ pub fn scrollbar(b: &mut Brush, rect: Rect, s: &Style, st: State, start: f32, le
     if st.hovered || st.active {
         let vertical = rect.height() > rect.width();
         let grip = shade(base, -0.22);
+        for end in [0.0f32, 1.0] {
+            for i in 0..2 {
+                let o = s.s(3.0 + 2.0 * i as f32);
+                if vertical {
+                    let y = if end == 0.0 {
+                        th.top() + o
+                    } else {
+                        th.bottom() - o
+                    };
+                    b.hline(
+                        th.left() + s.s(1.5),
+                        th.right() - s.s(1.5),
+                        b.snap_mid(y),
+                        b.px(),
+                        grip,
+                    );
+                } else {
+                    let x = if end == 0.0 {
+                        th.left() + o
+                    } else {
+                        th.right() - o
+                    };
+                    b.vline(
+                        b.snap_mid(x),
+                        th.top() + s.s(1.5),
+                        th.bottom() - s.s(1.5),
+                        b.px(),
+                        grip,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The tokens a Slate tab paints with (round 39).
+pub const SLATE_TAB_TOKENS: &[Tok] = &[
+    Tok::Panel,
+    Tok::Toolbar,
+    Tok::Menu,
+    Tok::Text,
+    Tok::TextDim,
+    Tok::Placeholder,
+    Tok::Focus,
+];
+
+/// A tab in a recessed family (round 39, `des-controls`' switches sheet): the active one
+/// cut from the panel's body (6-pt corners on top) and merged with it, its word Medium in
+/// ink 1; the keyboard's focus a 2-pt accent bar inside its top; the others Regular in
+/// ink 3, under the hand ink 2 on a pill a step lifted.
+fn tab_slate(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
+    b.register(rect, "tab", SLATE_TAB_TOKENS, &[]);
+    let rect = b.snap_rect(rect);
+    let a = st.alpha();
+    let f = |c: egui::Color32| c.gamma_multiply(a);
+    let t = &s.t;
+    let r = s.s(6.0).min(rect.height() * 0.5);
+    if st.lit {
+        b.rrect(rect, r, Fill::Solid(f(t.panel)));
+        b.rect(
+            Rect::from_min_max(Pos2::new(rect.left(), rect.center().y), rect.max),
+            Fill::Solid(f(t.panel)),
+        );
+        // The focus ring's bar, or (r39:lapis2) the selection's where the theme tints its
+        // selection: the active tab marked in lapis in Slate Lapis; Slate marks none.
+        let mark = if st.focused {
+            Some(t.focus)
+        } else if t.selection_tint.a() > 0 {
+            Some(t.selection)
+        } else {
+            None
+        };
+        if let Some(mark) = mark {
+            let u = s.s(2.0);
+            b.rect(
+                b.snap_rect(Rect::from_min_max(
+                    Pos2::new(rect.left() + s.s(4.0), rect.top()),
+                    Pos2::new(rect.right() - s.s(4.0), rect.top() + u),
+                )),
+                Fill::Solid(f(mark)),
+            );
+        }
+    } else if st.hovered {
+        let pill = rect.shrink2(Vec2::new(s.s(1.0), s.s(3.0)));
+        b.rrect(
+            pill,
+            s.s(4.0),
+            Fill::Solid(f(super::color::mix(t.toolbar, t.menu, 0.7))),
+        );
+    }
+    let (color, role) = if st.disabled {
+        (t.disabled, Role::Body)
+    } else if st.lit {
+        (t.text, Role::Control)
+    } else if st.hovered {
+        (t.text_dim, Role::Body)
+    } else {
+        (t.placeholder, Role::Body)
+    };
+    let tt = Text {
+        src: label,
+        role,
+        caps: false,
+        align: Align2::CENTER_CENTER,
+        policy: Policy::Elide(Elide::End),
+        color: f(color),
+    };
+    let _ = text::paint(b, rect.shrink2(Vec2::new(s.s(8.0), 0.0)), &tt, s.tk());
+}
+
+/// The tokens a Slate scrollbar paints with (round 39).
+pub const SLATE_SCROLLBAR_TOKENS: &[Tok] = &[
+    Tok::Panel,
+    Tok::Well,
+    Tok::Placeholder,
+    Tok::TextDim,
+    Tok::Text,
+];
+
+/// A scrollbar in a recessed family (round 39, `des-controls`): it floats over the content
+/// — at rest a 4-pt thumb a step of ink 3 over the panel and no lane; under the pointer a
+/// lane of the well with the thumb grown to the bar's width, ink 2 at 55 % (ink 2 dragged),
+/// and the grips at its ends that say an end drag zooms.
+fn scrollbar_slate(b: &mut Brush, rect: Rect, s: &Style, st: State, start: f32, len: f32) {
+    b.register(rect, "scrollbar", SLATE_SCROLLBAR_TOKENS, &[]);
+    let t = &s.t;
+    let vertical = rect.height() > rect.width();
+    let a = st.alpha();
+    let th = thumb(rect, s, start, len);
+    let hot = st.hovered || st.active;
+    let th = if hot {
+        let r = rect.width().min(rect.height()) * 0.5;
+        b.rrect(rect, r, Fill::Solid(t.well.gamma_multiply(a)));
+        th.shrink(b.px())
+    } else {
+        let w = s.s(4.0).min(rect.width().min(rect.height()));
+        if vertical {
+            Rect::from_center_size(th.center(), Vec2::new(w, th.height()))
+        } else {
+            Rect::from_center_size(th.center(), Vec2::new(th.width(), w))
+        }
+    };
+    let fill = if st.active {
+        t.text_dim
+    } else if hot {
+        super::color::mix(t.well, t.text_dim, 0.55)
+    } else {
+        super::color::mix(t.panel, t.placeholder, 0.55)
+    };
+    let rr = th.width().min(th.height()) * 0.5;
+    b.rrect(b.snap_rect(th), rr, Fill::Solid(fill.gamma_multiply(a)));
+    if hot {
+        let grip = if t.dark { t.text } else { t.light };
         for end in [0.0f32, 1.0] {
             for i in 0..2 {
                 let o = s.s(3.0 + 2.0 * i as f32);

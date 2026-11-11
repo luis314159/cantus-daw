@@ -10,7 +10,7 @@ use crate::i18n::t;
 use crate::kit::hint::{self, Caps};
 use crate::kit::menu::{Check, Item};
 use crate::kit::text::Src;
-use crate::kit::{cache, segmented, well, Fill, Function, State};
+use crate::kit::{cache, segmented, Fill, Function, State};
 use crate::record_session::{input_choices, input_label, monitor_key};
 use cantus_core::audio::{MonitorMode, TrackInput};
 use cantus_core::{Command, MergeKey, StripId, TrackId};
@@ -45,7 +45,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
     let dim = input.is_none();
 
     // The input: a list, and the level along the well's foot while armed.
-    let row = sh.row();
+    let row = sh.field_row();
     sh.label(row.label, "rec.audio_in", false);
     let id = Id::new(("insp-rec-input", tid.0));
     let resp = sh.ui.interact(row.value, id, Sense::click());
@@ -58,7 +58,17 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
             None => b.push_str(&t("rec.no_input_choice")),
         },
     );
-    well::menu_field(sh.b, row.value, &s, State::of(&resp, open), text, false);
+    // r39:lo-mixer — des-mixer's field: the input glyph, the input, a chevron.
+    super::look::field(
+        sh.b,
+        &s,
+        row.value,
+        State::of(&resp, open),
+        super::look::Lead::Mixer(crate::kit::glyph_mixer::MGlyph::Into),
+        text,
+        "",
+        true,
+    );
     if resp.hovered() {
         hint::set_text(
             sh.ui.ctx(),
@@ -198,15 +208,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
     }
     // Low-latency monitoring (round 29, ADR 0064 §4): on a track with an input, where it
     // is monitored (the record options and the audio chip have it for every track).
-    if !dim
-        && sh.led_row(
-            "freeze.ll.row",
-            "freeze.ll.on",
-            app.settings.low_latency,
-            Function::Dynamics,
-            false,
-        )
-    {
+    if !dim && sh.switch_row("freeze.ll.row", app.settings.low_latency, false) {
         sh.acts
             .push(Act::Freeze(crate::views::freeze_view::InspAct::LowLatency(
                 !app.settings.low_latency,
@@ -226,12 +228,30 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
 /// The channel sheet's *Freeze* row (round 29, ADR 0064): under the recording rows, for a
 /// track or a strip.
 pub fn freeze_row(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option<StripId>) {
+    lateness_row(sh, app, subject);
+    let Some((target, holder)) = freeze_target(app, subject, strip) else {
+        return;
+    };
+    let key = if holder.is_some() {
+        "freeze.frozen"
+    } else {
+        "freeze.freeze"
+    };
+    if sh.led_row("freeze.row", key, holder.is_some(), Function::Source, false) {
+        sh.acts.push(Act::Freeze(match holder {
+            Some(h) => crate::views::freeze_view::InspAct::Unfreeze(h),
+            None => crate::views::freeze_view::InspAct::Freeze(target),
+        }));
+    }
+}
+
+/// The delay a bounced track keeps (`Track::lateness`, review 3): shown, and cleared.
+pub fn lateness_row(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject) {
     let track = match subject {
         Subject::Track(t) | Subject::Clip(t, _) | Subject::Notes(t, _) => Some(t),
         _ => None,
     };
     let p = app.project();
-    // The delay a bounced track keeps (`Track::lateness`, review 3): shown, and cleared.
     if let Some((id, l)) = track.and_then(|t| p.track(t).and_then(|x| x.lateness.map(|l| (t, l)))) {
         let ms = l.frames as f64 * 1000.0 / l.rate.max(1) as f64;
         // Its figure from the sheet's cache, its tip made when pointed at (review 4).
@@ -246,32 +266,31 @@ pub fn freeze_row(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: 
                 .push(Act::Exec(Command::SetTrackLateness { id, lateness: None }));
         }
     }
+}
+
+/// What a freeze from here freezes, and what holds it frozen now (its own freeze, or a
+/// frozen strip it feeds — a click gives that one back).
+pub fn freeze_target(
+    app: &CantusApp,
+    subject: Subject,
+    strip: Option<StripId>,
+) -> Option<(cantus_core::FreezeTarget, Option<cantus_core::FreezeTarget>)> {
+    let track = match subject {
+        Subject::Track(t) | Subject::Clip(t, _) | Subject::Notes(t, _) => Some(t),
+        _ => None,
+    };
+    let p = app.project();
     let target = match (track, strip) {
         (Some(t), _) => p.freeze_target_of_track(t),
         (None, Some(s)) => Some(cantus_core::FreezeTarget::Strip(s)),
         _ => None,
-    };
-    let Some(target) = target else {
-        return;
-    };
-    // What holds it: its own freeze, or a frozen strip it feeds — the row says so and a
-    // click gives that one back.
+    }?;
     let holder = match (track, target) {
         (Some(t), _) => app.freeze_holding_track(t),
         (None, cantus_core::FreezeTarget::Strip(s)) => app.freeze_holding_strip(s),
         _ => None,
     };
-    let key = if holder.is_some() {
-        "freeze.frozen"
-    } else {
-        "freeze.freeze"
-    };
-    if sh.led_row("freeze.row", key, holder.is_some(), Function::Source, false) {
-        sh.acts.push(Act::Freeze(match holder {
-            Some(h) => crate::views::freeze_view::InspAct::Unfreeze(h),
-            None => crate::views::freeze_view::InspAct::Freeze(target),
-        }));
-    }
+    Some((target, holder))
 }
 
 /// The input list: *No input*, then each input of the open device; with none open, it

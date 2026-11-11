@@ -211,36 +211,31 @@ fn the_layout_name_dialog_is_a_kit_dialog_in_the_middle() {
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
-/// Visual 5: at a laptop's 1280 × 720 the hint bar shows a long hint whole (on two lines
-/// where one is too short) — the band handle's reason when the desk holds the band, in both
-/// languages, its advice first.
+/// Visual 5: at a laptop's 1280 × 720 the help line shows a long hint whole (on two small
+/// lines where one is too short), in both languages. Integration of round 39: the band
+/// handle this test pointed at left with `el-mixer`'s desk (the band is the 18-pt socket
+/// row) and the help line moved to the status line with `el-topbar`; a clip's hint — its
+/// name and every gesture it takes — is the long one now.
 #[test]
 fn a_long_hint_reads_whole_at_1280_by_720() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
         cantus_ui::i18n::set_thread_locale(locale);
-        r.app.central = cantus_ui::app::CentralView::Mixer;
-        let mut p = r.app.mixer.prefs();
-        p.band = cantus_ui::views::mixer::layout::BAND_MAX;
-        r.app.mixer.set_prefs(p);
+        cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
         r.idle(3);
-        let handle = r
-            .ctx
-            .read_response(egui::Id::new("mixer-band-size"))
-            .expect("the band's handle")
-            .rect;
-        r.pointer = Some(handle.center());
-        let texts = r.idle(3);
-        let want = cantus_ui::i18n::t("cables.hint.band_short");
+        let g = r.app.arrangement.geometry().expect("the timeline");
+        r.pointer = Some(pos2(g.x(2.0), g.rows[0].top + 20.0));
+        r.idle(3);
+        let h = cantus_ui::kit::hint::current(&r.ctx).expect("the clip's hint");
+        let texts = r.idle(1);
         let flat = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+        let shown = hint_bar_texts(&r, &texts);
         assert!(
-            texts.iter().any(|(s, _)| flat(s) == flat(&want)),
-            "{locale:?}: {want:?} not whole in the hint bar: {:?}",
-            texts
+            shown
                 .iter()
-                .filter(|(_, at)| at.top() < 60.0)
-                .map(|(s, _)| s.as_str())
-                .collect::<Vec<_>>()
+                .any(|s| !s.ends_with('\u{2026}') && flat(s).contains(&flat(&h.name))),
+            "{locale:?}: {:?} not whole on the help line: {shown:?}",
+            h.name
         );
     }
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
@@ -508,21 +503,27 @@ fn a_wrapped_hint_keeps_its_capability_icons() {
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
-/// Last pass, 3: the inspector's pinned strip never runs a caption into its value
-/// ("VOLUMEN+0.0 dB"), whatever the inspector's width with a side pane open, in both
-/// languages: inside every readout, no two words touch.
+/// Last pass, 3 (round 39: the Level section stands where the pinned strip stood): the
+/// inspector's Level rows never run a caption into its value ("VOLUMEN+0.0 dB"), whatever
+/// the inspector's width with a side pane open, in both languages: on each row of the
+/// section, no two words touch.
 #[test]
-fn the_pinned_strip_never_runs_a_caption_into_its_value() {
+fn the_level_section_never_runs_a_caption_into_its_value() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
         cantus_ui::i18n::set_thread_locale(locale);
-        cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
+        cantus_ui::views::inspector::unfold(&r.ctx, "inspector.level");
         r.app.show_pane(cantus_ui::views::workspace::Pane::Devices);
+        // A strip chosen on the desk: its sheet is the channel alone, Level in sight.
+        let s0 = r.app.project().tracks[0].strip.expect("a strip");
+        r.app.select_strip(s0);
+        let captions: Vec<String> = ["inspector.volume", "inspector.pan", "inspector.width"]
+            .iter()
+            .map(|k| cantus_ui::i18n::t(k))
+            .collect();
         let mut w = 1160.0;
         while w <= 1420.0 {
             r.size = vec2(w, 720.0);
-            // What can be seen: a value scrolled away under the pinned strip is painted
-            // (clipped) where the strip's readout is, and is not on screen.
             r.idle(2);
             let texts: Vec<(String, egui::Rect)> = r
                 .frame_clipped(Vec::new())
@@ -530,26 +531,35 @@ fn the_pinned_strip_never_runs_a_caption_into_its_value() {
                 .filter(|(_, _, seen)| seen.width() > 0.5 && seen.height() > 0.5)
                 .map(|(t, _, seen)| (t, seen))
                 .collect();
-            let items = cantus_ui::kit::inspect::items(&r.ctx);
-            for well in items
+            let mut rows = 0;
+            for (cap, at) in texts
                 .iter()
-                .filter(|i| i.part == "readout" && i.rect.left() > w * 0.6 && i.rect.top() > 360.0)
+                .filter(|(t, at)| captions.contains(&t.trim().to_string()) && at.left() > w * 0.6)
             {
-                let inside: Vec<&(String, egui::Rect)> = texts
+                rows += 1;
+                let line: Vec<&(String, egui::Rect)> = texts
                     .iter()
-                    .filter(|(s, at)| !s.trim().is_empty() && well.rect.contains_rect(*at))
+                    .filter(|(t, b)| {
+                        !t.trim().is_empty()
+                            && (b.center().y - at.center().y).abs() < 4.0
+                            && b.left() > w * 0.6
+                    })
                     .collect();
-                for (i, a) in inside.iter().enumerate() {
-                    for b in &inside[i + 1..] {
+                for (i, a) in line.iter().enumerate() {
+                    for b in &line[i + 1..] {
                         assert!(
                             !a.1.shrink(0.5).intersects(b.1.shrink(0.5)),
-                            "{locale:?} at {w} pt: {:?} runs into {:?}",
+                            "{locale:?} at {w} pt, {cap}: {:?} runs into {:?}",
                             a.0,
                             b.0
                         );
                     }
                 }
             }
+            assert!(
+                rows > 0 || w > 1400.0,
+                "{locale:?} at {w} pt: the Level rows seen"
+            );
             w += 2.0;
         }
     }

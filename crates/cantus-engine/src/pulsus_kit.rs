@@ -131,3 +131,104 @@ pub fn configure(drums: &mut Pulsus, kit: &PulsusParams, samples: &[Option<Arc<S
         }
     }
 }
+
+/// A track slot's drum machine (ADR 0107): none until a kit is assigned to its track.
+///
+/// A Pulsus holds ≈ 120 KB (its voice pool, its pad and layer tables); every one of the
+/// 256 track slots held one whether its track was a drum track or not (31 MB on an empty
+/// song). Now a kit is built off the audio thread (`crate::parts::kit`) and sent in
+/// (`EngineMessage::AddPart`) before the snapshot that needs it, as the native instruments
+/// are; the processor keeps the kits it was given and moves them between slots as tracks
+/// start and stop hosting Pulsus — never allocating, never freeing. An empty slot plays
+/// nothing and hears nothing, which is what a slot whose kit has not arrived must do.
+#[derive(Clone, Debug, Default)]
+pub struct SlotKit(Option<Box<Pulsus>>);
+
+impl SlotKit {
+    /// No kit.
+    pub const fn empty() -> Self {
+        SlotKit(None)
+    }
+
+    /// A kit, as `build` made it.
+    pub fn with(kit: Box<Pulsus>) -> Self {
+        SlotKit(Some(kit))
+    }
+
+    pub fn is_some(&self) -> bool {
+        self.0.is_some()
+    }
+
+    /// The kit, to be configured or played.
+    #[inline]
+    pub fn get(&mut self) -> Option<&mut Pulsus> {
+        self.0.as_deref_mut()
+    }
+
+    pub fn take(&mut self) -> Option<Box<Pulsus>> {
+        self.0.take()
+    }
+
+    pub fn put(&mut self, kit: Box<Pulsus>) -> Option<Box<Pulsus>> {
+        self.0.replace(kit)
+    }
+
+    #[inline]
+    pub fn note_on(&mut self, pitch: u8, velocity: u8, tag: u64) {
+        if let Some(k) = self.get() {
+            k.note_on(pitch, velocity, tag);
+        }
+    }
+
+    #[inline]
+    pub fn trigger(&mut self, pitch: u8, velocity: u8, hit: cantus_dsp::pulsus::Hit) {
+        if let Some(k) = self.get() {
+            k.trigger(pitch, velocity, hit);
+        }
+    }
+
+    #[inline]
+    pub fn note_off(&mut self, pitch: u8, tag: u64) {
+        if let Some(k) = self.get() {
+            k.note_off(pitch, tag);
+        }
+    }
+
+    #[inline]
+    pub fn controller(&mut self, cc: u8, value: f32) {
+        if let Some(k) = self.get() {
+            k.controller(cc, value);
+        }
+    }
+
+    #[inline]
+    pub fn all_notes_off(&mut self) {
+        if let Some(k) = self.get() {
+            k.all_notes_off();
+        }
+    }
+
+    #[inline]
+    pub fn reset(&mut self) {
+        if let Some(k) = self.get() {
+            k.reset();
+        }
+    }
+
+    #[inline]
+    pub fn active_voices(&self) -> usize {
+        self.0.as_ref().map_or(0, |k| k.active_voices())
+    }
+
+    /// Render, adding (`Pulsus::process_add`); nothing without a kit.
+    #[inline]
+    pub fn process_add(&mut self, left: &mut [f32], right: &mut [f32]) -> bool {
+        self.get().is_some_and(|k| k.process_add(left, right))
+    }
+
+    /// Render bus by bus (`Pulsus::process_buses`); nothing without a kit.
+    #[inline]
+    pub fn process_buses(&mut self, n: usize, out: &mut cantus_dsp::pulsus::BusOut<'_>) -> bool {
+        self.get().is_some_and(|k| k.process_buses(n, out))
+    }
+}

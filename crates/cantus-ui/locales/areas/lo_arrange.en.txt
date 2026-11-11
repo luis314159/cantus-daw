@@ -1,0 +1,46 @@
+# Area: lo_arrange - round 39 (lo-arrange). Every key has its twin in lo_arrange.es.txt
+# The arrangement's tool row (dir-a's b-toolbar sheets), its tools, the grid menu, Follow;
+# the piano roll's head (des-views): the clip menu and the selection readout.
+arrange.tool.select = Select
+arrange.tool.draw = Draw
+arrange.tool.slice = Slice
+arrange.tool.erase = Erase
+arrange.tool.mute = Mute
+arrange.tool.zoom = Zoom
+arrange.tool.select.hint = Select — click a clip to pick it, drag to move it, drag its edge to resize it
+arrange.tool.draw.hint = Draw — click to add a clip, drag to stretch it
+arrange.tool.slice.hint = Slice — click a clip to cut it in two on the grid
+arrange.tool.erase.hint = Erase — click a clip, or drag across clips, to delete them
+arrange.tool.mute.hint = Mute — click a clip, or drag across clips, to mute or unmute them
+arrange.tool.zoom.hint = Zoom — click to zoom in, Alt-click to zoom out, drag across bars to fit them
+arrange.grid.tip = Grid — what clips snap to (Ctrl while dragging: no snap)
+arrange.grid.menu.bar = Bar
+arrange.grid.menu.beat = Beat
+arrange.grid.triplet_bar = 1 bar T
+arrange.grid.triplet_half = 1/2T
+arrange.grid.triplet_beat = 1/4T
+arrange.grid.triplet32 = 1/32T
+arrange.grid.triplets = Triplets
+arrange.grid.follow_zoom = Follow the zoom
+arrange.grid.off = No snap
+arrange.grid.auto = Auto · {grid}
+arrange.follow = Follow
+arrange.follow.tip = Follow — the view keeps the playhead in sight
+arrange.panel.clips = Selected clips
+arrange.panel.snap = Snap to the grid
+arrange.notch.tip = Drag the corner to repeat the clip
+arrange.resize.tip = Length {bars} bars
+arrange.resize.keys = Alt: stretch · Ctrl: no snap
+pianoroll.clip_menu.tip = The clip open here — click for this track's other clips and the other tracks
+pianoroll.clip_menu.at = {name} · bar {bar}
+pianoroll.clip_menu.others = Other tracks
+pianoroll.selected_notes = {n} notes selected
+pianoroll.selected_range = {pitch} · velocity {vel}
+lo_arrange.docks.show = Show the docks
+lo_arrange.docks.show_tip = Give the other areas back, as they were
+lo_arrange.docks.tab_tip = {area} — give the areas back with this one in front
+pianoroll.rows = Rows
+pianoroll.rows_tip = Rows — how tall a key is: compact, default or tall (Ctrl+Alt+wheel over the notes zooms them)
+pianoroll.rows_compact = Compact · 8
+pianoroll.rows_default = Default · 12
+pianoroll.rows_tall = Tall · 18

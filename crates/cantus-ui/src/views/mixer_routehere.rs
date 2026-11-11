@@ -56,6 +56,11 @@ pub(super) fn plate(
     let dragging = super::drag::active(v);
     let hovered = !dragging && ui.rect_contains_pointer(r);
     let pr = b.snap_rect(plate.shrink2(vec2(1.0, 1.0)));
+    // r39:el-mixer — des-mixer's empty strip is its number, a groove and its socket: the
+    // plate shows only under the pointer.
+    if !hovered && !dragging {
+        return;
+    }
     b.register(pr, "route_here", TOKENS, &[]);
     if hovered {
         b.rrect(pr, s.r(3.0), Fill::Solid(with_alpha(t.selection, 0.14)));

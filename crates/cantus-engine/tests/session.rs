@@ -180,6 +180,7 @@ impl Rig {
     }
 
     fn install(&mut self, snap: Arc<Snapshot>) {
+        self.p.hold_parts_for(&snap); // ADR 0107
         self.tx
             .push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
             .ok();

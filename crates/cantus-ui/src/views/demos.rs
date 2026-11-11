@@ -147,12 +147,15 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     let mut close = false;
     let mut save_first = false;
     let project_name = app.project().name.clone();
-    egui::Window::new(t("demos.picker.title"))
+    crate::kit::dialog::window(t("demos.picker.title")) // r39:el-controls
         .id(window_id())
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
         .show(ctx, |ui| {
+            if crate::kit::dialog::title(ui, &t("demos.picker.title")) {
+                close = true; // r39:el-controls
+            }
             let p = &mut app.demos;
             if p.confirm {
                 form::band(ui, "demos.picker.unsaved");
@@ -165,7 +168,7 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
                     .color(Style::current().t.text_dim),
                 );
                 form::buttons(ui, |ui| {
-                    close = form::button(ui, &t("demos.picker.cancel"), false, true);
+                    close |= form::button(ui, &t("demos.picker.cancel"), false, true);
                     if form::button(ui, &t("demos.picker.discard"), false, true) {
                         open_now = Some(p.selected);
                     }
@@ -205,7 +208,7 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
                     .color(Style::current().t.text_dim),
             );
             form::buttons(ui, |ui| {
-                close = form::button(ui, &t("demos.picker.cancel"), false, true);
+                close |= form::button(ui, &t("demos.picker.cancel"), false, true);
                 if form::button(ui, &t("demos.picker.open"), true, true) {
                     open_now = Some(p.selected);
                 }

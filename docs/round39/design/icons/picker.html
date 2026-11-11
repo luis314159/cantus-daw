@@ -1,0 +1,191 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Track icon picker</title>
+<style>
+@font-face{font-family:'Barlow SC';font-weight:400;src:url(file:///F:/projects/daw-r39/fonts/barlow-semi-condensed/BarlowSemiCondensed-Regular.ttf)}
+@font-face{font-family:'Barlow SC';font-weight:500;src:url(file:///F:/projects/daw-r39/fonts/barlow-semi-condensed/BarlowSemiCondensed-Medium.ttf)}
+@font-face{font-family:'Barlow SC';font-weight:600;src:url(file:///F:/projects/daw-r39/fonts/barlow-semi-condensed/BarlowSemiCondensed-SemiBold.ttf)}
+html,body{margin:0;padding:0} svg text{font-family:'Barlow SC';font-variant-numeric:tabular-nums}
+</style>
+<script src="v1/glyphs-transport.js"></script>
+<script src="v1/glyphs-tools.js"></script>
+<script src="v1/glyphs-tools2.js"></script>
+<script src="v1/glyphs-tools3.js"></script>
+<script>window.G1 = G;</script>
+<script src="family.js"></script>
+<script src="glyphs-n-transport.js"></script>
+<script src="glyphs-n-tools.js"></script>
+<script src="glyphs-n-tools2.js"></script>
+<script src="glyphs-n-windows.js"></script>
+<script src="glyphs-m-mixer.js"></script>
+<script src="glyphs-m-mixer2.js"></script>
+<script src="glyphs-b-browser.js"></script>
+<script src="glyphs-b-browser2.js"></script>
+<script src="glyphs-t-tracks.js"></script>
+<script src="glyphs-t-tracks2.js"></script>
+<script src="glyphs-t-tracks3.js"></script>
+<script src="glyphs-t-lib.js"></script>
+<script src="glyphs-t-lib2.js"></script>
+<script src="glyphs-t-lib3.js"></script>
+<script src="glyphs-t-add-a.js"></script>
+<script src="glyphs-t-add-a-names.js"></script>
+<script src="glyphs-t-add-b.js"></script>
+<script src="glyphs-t-add-c.js"></script>
+<script src="glyphs-t-final.js"></script>
+<script src="glyphs-t-guitars.js"></script>
+<script src="glyphs-t-guitars-e.js"></script>
+<script src="glyphs-t-guitars-a.js"></script>
+<script src="glyphs-t-guitars-mx.js"></script>
+<script src="glyphs-t-guitars-pick.js"></script>
+<script src="glyphs-t-guitars-px.js"></script>
+<script src="glyphs-t-guitars-px-fix.js"></script>
+<script src="glyphs-t-guitars-px-fix2.js"></script>
+<script src="glyphs-t-guitars-px-fix3.js"></script>
+<script src="glyphs-t-guitars-px-fix4.js"></script>
+<script src="glyphs-t-guitars-px-fix5.js"></script>
+<script src="glyphs-t-families.js"></script>
+</head><body><div id="out"></div>
+<script>
+// The track icon picker at 125 %: every measure is logical (1x) and multiplied by Z; the
+// icons are the family's own 125 % drawings (12 → 15, 14 → 18, 16 → 20, 24 → 30 px).
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const Z = 1.25;
+const RAISED = t === 'night' ? '#2f373f' : '#fbfcfd', BASE = k.base, HI = k.wellHi;
+const HUE = { chords: t === 'night' ? '#6f8cf0' : '#3d5fd0', kick: t === 'night' ? '#e0794f' : '#c2532a', vox: t === 'night' ? '#b07ae0' : '#8648c0', bass: t === 'night' ? '#7fbf5a' : '#4f8f2e' };
+const z = v => Math.round(v * Z * 2) / 2;
+const T = (x, y, s, size, col, weight = 400, anchor = 'start') =>
+  `<text x="${z(x)}" y="${z(y)}" font-size="${(size * Z).toFixed(2)}" font-weight="${weight}" fill="${col}" text-anchor="${anchor}">${s}</text>`;
+const rect = (x, y, w, h, fill, r = 0, extra = '') => `<rect x="${z(x)}" y="${z(y)}" width="${z(w)}" height="${z(h)}" rx="${r * Z}" fill="${fill}" ${extra}/>`;
+const icon = (g, S, x, y, main, second, cut) => `<g style="--main:${main};--second:${second};--cut:${cut || k.surface};--rec:${k.rec}" transform="translate(${Math.round(x * Z)},${Math.round(y * Z)})">${drawing(g[S])}</g>`;
+let b = '';
+// ---- the picker
+function picker(px, py, selected, hover) {
+  const W = 300, P = 12, CELL = 32, GAP = 2, COLS = 8;
+  let y = py + P;
+  let s = '';
+  let body = [];
+  body.push(T(px + P, y + 13, 'Track icon', 13, k.ink1, 500));
+  body.push(T(px + W - P, y + 13, 'Chords', 12, k.ink3, 400, 'end'));
+  y += 22;
+  // search
+  body.push(rect(px + P, y, W - 2 * P, 24, k.edge, 4) + rect(px + P, y + 1, W - 2 * P, 22, k.well, 3));
+  body.push(icon(N.search, 18, px + P + 6, y + 5, k.ink3, k.ink4));
+  body.push(T(px + P + 26, y + 16, 'Search icons — English, español or a word', 12, k.ink3));
+  y += 32;
+  // None, then the groups
+  const cellAt = (c, r0) => [px + P + c * (CELL + GAP), r0];
+  const noneSel = selected === 'none';
+  body.push(rect(px + P, y, 2 * CELL + GAP, CELL, noneSel ? mix(k.well, k.accent, 0.2) : k.well, 4, noneSel ? `stroke="${k.accent}"` : ''));
+  body.push(T(px + P + CELL + GAP / 2, y + 20, 'None', 12, k.ink2, 400, 'middle'));
+  body.push(T(px + P + 2 * (CELL + GAP) + 4, y + 20, 'the track shows its type icon only', 10, k.ink3));
+  y += CELL + 8;
+  // Recent: the icons this user chose last, newest first (one row, not scrolled)
+  body.push(T(px + P, y + 10, 'Recent', 11, k.ink3, 600));
+  y += 16;
+  ['kick', 'bass', 'keys', 'mic', 'eguitar', 'pad', 'crash', 'trebleClef'].forEach((id, i) => {
+    const [cx, cy] = cellAt(i, y);
+    if (id === selected) body.push(rect(cx, cy, CELL, CELL, mix(RAISED, k.accent, 0.2), 4, `stroke="${k.accent}" stroke-width="${Z}"`));
+    body.push(icon(N[id], 30, cx + 4, cy + 4, id === selected ? k.accent : k.ink2, id === selected ? mix(k.accent, RAISED, 0.45) : k.ink3, id === selected ? mix(RAISED, k.accent, 0.2) : RAISED));
+  });
+  y += CELL + 8;
+  body.push(rect(px + P, y, W - 2 * P, 1, k.rule));
+  y += 8;
+  const VIEW = 520, vy = y, groups = [];
+  const bodyMain = body;
+  body = groups;
+  const cell = (id, cx, cy, sel, hov) => {
+    let c = '';
+    const bg = sel ? mix(RAISED, k.accent, 0.2) : hov ? HI : RAISED;
+    if (sel) c += rect(cx, cy, CELL, CELL, bg, 4, `stroke="${k.accent}" stroke-width="${Z}"`);
+    else if (hov) c += rect(cx, cy, CELL, CELL, bg, 4);
+    c += icon(N[id], 30, cx + 4, cy + 4, sel ? k.accent : hov ? k.ink1 : k.ink2, sel ? mix(k.accent, RAISED, 0.45) : hov ? k.ink2 : k.ink3, bg);
+    return c;
+  };
+  const rows = (ids) => {
+    ids.forEach((id, i) => {
+      const [cx, cy] = cellAt(i % COLS, y + Math.floor(i / COLS) * (CELL + GAP));
+      body.push(cell(id, cx, cy, id === selected, id === hover));
+    });
+    y += Math.ceil(ids.length / COLS) * (CELL + GAP) + 6;
+  };
+  for (const f of window.TRACK_FAMILIES) {
+    body.push(T(px + P, y + 10, f[0], 11, k.ink3, 600));
+    y += 16;
+    rows(f[1]);
+    for (const [st, ids] of (f[2] || [])) { body.push(T(px + P, y + 9, st, 10, k.ink3)); y += 13; rows(ids); }
+    y += 2;
+  }
+  body = bodyMain;
+  const total = y - vy;
+  body.push(`<clipPath id="pv"><rect x="${z(px)}" y="${z(vy)}" width="${z(W)}" height="${z(VIEW)}"/></clipPath><g clip-path="url(#pv)">${groups.join('')}</g>`);
+  body.push(`<rect x="${z(px)}" y="${z(vy + VIEW - 20)}" width="${z(W)}" height="${z(20)}" fill="url(#fade)"/>`);
+  body.push(rect(px + W - 6, vy, 3, VIEW, mix(RAISED, k.edge, 0.3), 1.5) + rect(px + W - 6, vy, 3, VIEW * VIEW / total, k.ink4, 1.5));
+  y = vy + VIEW + 4;
+  // footer
+  body.push(rect(px + 1, y, W - 2, 1, k.rule));
+  y += 8;
+  body.push(T(px + P, y + 12, 'The icon takes the track\'s colour.', 10, k.ink3));
+  body.push(T(px + W - P, y + 12, 'Hover: its name in the hint line', 10, k.ink4 === '#47515b' ? k.ink3 : k.ink3, 400, 'end'));
+  y += 24;
+  const H = y - py;
+  s += `<rect x="${z(px) + 3}" y="${z(py) + 6}" width="${z(W)}" height="${z(H)}" rx="${8 * Z}" fill="${t === 'night' ? 'rgba(0,0,0,0.45)' : 'rgba(40,55,70,0.18)'}" filter="url(#blur)"/>`;
+  s += rect(px, py, W, H, k.edge, 8) + rect(px + 0.8, py + 0.8, W - 1.6, H - 1.6, RAISED, 7.2);
+  s += rect(px + 8, py + 1, W - 16, 1, t === 'night' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.8)');
+  return { svg: s + body.join(''), h: H };
+}
+// ---- a track header (arrangement): stripe, type icon, the user's icon, name
+function header(x, y, name, typeG, userG, hue, sel, hoverIcon) {
+  const W = 220, H = 30;
+  let s = rect(x, y, W, H, sel ? mix(k.surface, hue, 0.13) : k.surface, 0);
+  s += rect(x, y, 3, H, sel ? hue : mix(hue, k.surface, 0.28));
+  s += icon(typeG, 18, x + 9, y + 8, k.ink3, k.ink4);
+  if (hoverIcon) s += rect(x + 26, y + 5, 20, 20, HI, 4, `stroke="${k.accent}" stroke-width="${Z}"`);
+  if (userG) s += icon(userG, 20, x + 28, y + 7, sel ? hue : mix(hue, k.ink2, 0.35), mix(hue, k.surface, 0.5), hoverIcon ? HI : sel ? mix(k.surface, hue, 0.13) : k.surface);
+  else s += rect(x + 31, y + 14, 10, 1, k.ink4);
+  s += T(x + 52, y + 19.5, name, 12, sel ? k.ink1 : k.ink2, sel ? 500 : 400);
+  s += T(x + W - 10, y + 19.5, 'M  S', 10, k.ink3, 600, 'end');
+  return s;
+}
+// ---- a mixer strip head (Wide 60 and Compact 30)
+function stripHead(x, y, num, name, userG, hue, sel, compact) {
+  const W = compact ? 30 : 60, H = compact ? 92 : 36;
+  let s = rect(x, y, W, H, sel ? mix(k.surface, hue, 0.13) : k.surface, 3) + rect(x, y, W, 3, sel ? hue : mix(hue, k.surface, 0.28), 1.5);
+  if (compact) {
+    s += T(x + W / 2, y + 16, num, 10, k.ink3, 400, 'middle');
+    if (userG) s += icon(userG, 15, x + 9, y + 21, sel ? hue : mix(hue, k.ink2, 0.35), mix(hue, k.surface, 0.5), sel ? mix(k.surface, hue, 0.13) : k.surface);
+    s += `<text transform="translate(${z(x + 19)},${z(y + 88)}) rotate(-90)" font-size="${12 * Z}" fill="${k.ink1}">${name}</text>`;
+  } else {
+    s += T(x + W / 2, y + 15, num, 10, k.ink3, 400, 'middle');
+    if (userG) s += icon(userG, 18, x + 6, y + 19, sel ? hue : mix(hue, k.ink2, 0.35), mix(hue, k.surface, 0.5), sel ? mix(k.surface, hue, 0.13) : k.surface);
+    s += T(x + (userG ? 23 : 30), y + 30, name, 12, sel ? k.ink1 : k.ink1, sel ? 500 : 400, userG ? 'start' : 'middle');
+  }
+  return s;
+}
+const L = 16;
+b += T(L, 20, `Track icons — the picker, a track header and a mixer strip head — Slate ${t === 'night' ? 'Night' : 'Paper'} — 125 %`, 13, k.ink1, 600);
+// the arrangement headers, with the picker open from the Chords header
+const hx = L, hy = 40;
+b += T(hx, hy - 4, 'Arrangement headers: the type icon, then the user\'s icon (16 px) in the track\'s colour', 10, k.ink3);
+b += rect(hx, hy, 220, 4 * 31, BASE);
+[['Kick', N.audio, N.kick, HUE.kick, false, false], ['Bass', N.midi, N.bass, HUE.bass, false, false], ['Chords', N.midi, N.keys, HUE.chords, true, true], ['Vox', N.audio, null, HUE.vox, false, false]]
+  .forEach(([n, ty, u, h, sel, hov], i) => { b += header(hx, hy + i * 31, n, ty, u, h, sel, hov); });
+const pk = picker(hx + 232, hy + 62, 'keys', 'snare');
+b += `<line x1="${z(hx + 205)}" y1="${z(hy + 77)}" x2="${z(hx + 232)}" y2="${z(hy + 77)}" stroke="${k.accent}" stroke-width="1" stroke-dasharray="2 2" opacity="0.6"/>`;
+b += pk.svg;
+// mixer strip heads
+const mx = hx, my = hy + 4 * 31 + 40;
+b += T(mx, my - 4, 'Mixer strip heads: Wide, Compact', 10, k.ink3);
+b += rect(mx, my, 220, 144, BASE);
+[['1', 'Kick', N.kick, HUE.kick, false], ['2', 'Bass', N.bass, HUE.bass, false], ['6', 'Chords', N.keys, HUE.chords, true]].forEach(([n, nm, u, h, sel], i) => {
+  b += stripHead(mx + 4 + i * 62, my + 4, n, nm, u, h, sel, false);
+});
+[['1', 'Kick', N.kick, HUE.kick, false], ['2', 'Bass', N.bass, HUE.bass, false], ['6', 'Chords', N.keys, HUE.chords, true], ['9', 'Vox', null, HUE.vox, false]].forEach(([n, nm, u, h, sel], i) => {
+  b += stripHead(mx + 4 + i * 32, my + 46, n, nm, u, h, sel, true);
+});
+const W = Math.ceil((hx + 232 + 300 + 16) * Z), H = Math.ceil(Math.max(hy + 62 + pk.h + 16, my + 154) * Z);
+document.body.style.background = k.surface;
+document.getElementById('out').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${RAISED}" stop-opacity="0"/><stop offset="1" stop-color="${RAISED}" stop-opacity="1"/></linearGradient><filter id="blur"><feGaussianBlur stdDeviation="${4 * Z}"/></filter></defs><style>${'.f1{fill:var(--main)} .f2{fill:var(--second)} .s1{fill:none;stroke:var(--main)} .s2{fill:none;stroke:var(--second)} .cut{fill:var(--cut)} .scut{fill:none;stroke:var(--cut)} .fr{fill:var(--rec)}'}</style><rect width="${W}" height="${H}" fill="${k.surface}"/>${b}</svg>`;
+document.body.setAttribute('data-w', W);
+document.body.setAttribute('data-h', H);
+</script></body></html>

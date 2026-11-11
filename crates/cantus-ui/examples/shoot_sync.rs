@@ -1,6 +1,6 @@
 //! Sync (round 33, ADR 0078–0079), screenshotted without a screen:
 //!
-//! - `bar-<state>`: the top bar at 1920 px with the Sync group — `off`; `link` (Link on,
+//! - `bar-<state>`: the top bar at 2560 px with the Sync group — `off`; `link` (Link on,
 //!   two peers, locked); `clock` (following a MIDI clock, pulling in); `failed` (Link could
 //!   not open the network);
 //! - `settings-<state>`: Settings ▸ MIDI — `clock` (an input followed, two outputs sending
@@ -20,6 +20,9 @@ use cantus_ui::{welcome_project, CantusApp};
 use egui::vec2;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
+
+#[path = "shots_common/studio.rs"]
+mod studio;
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -66,9 +69,9 @@ fn context(theme: &str) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let t = if theme == "paper" {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     } else {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     };
     cantus_ui::theme::apply(&t, &ctx);
     ctx
@@ -83,9 +86,9 @@ fn app_for(theme: &str, what: &str) -> CantusApp {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     let (preset, mode) = if theme == "paper" {
-        ("paper", Mode::Light)
+        ("slate_paper", Mode::Light)
     } else {
-        ("cantus_night", Mode::Dark)
+        ("slate_night", Mode::Dark)
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
@@ -141,6 +144,8 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
     let ctx = context(theme);
     let mut app = app_for(theme, what);
     app.attach(&ctx);
+    // A working studio: the demo interface (not "No audio").
+    studio::studio(&mut app, 256);
     if what.starts_with("settings") {
         cantus_ui::views::workspace_settings::demo_midi(
             &mut app,
@@ -162,7 +167,9 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
         );
         return;
     }
-    let size = vec2(1920.0 / scale, 54.0);
+    // 2560 px: at 1920 the demo interface's chip takes the room and Sync folds into More
+    // (round 39), and the picture is of the group.
+    let size = vec2(2560.0 / scale, 54.0);
     cantus_ui::raster::shoot(&ctx, size, scale, 6, Some(path), |root| {
         egui::Panel::top(egui::Id::new("toolbar"))
             .frame(egui::Frame::NONE)
@@ -172,4 +179,41 @@ fn shoot(path: &std::path::Path, what: &str, theme: &str, scale: f32) {
             .frame(egui::Frame::NONE.fill(cantus_ui::kit::Style::current().t.panel))
             .show(root, |_| {});
     });
+    // The crop the site and the README cut (`tools/shots/place.py`): the Sync group with its
+    // neighbours on the bar, and every group's own rect.
+    let mut rects: Vec<(String, Option<egui::Rect>)> = Vec::new();
+    if let Some((bar, l)) = transport::last_layout(&ctx) {
+        let at = |sp: transport::layout::Span| {
+            egui::Rect::from_min_max(
+                egui::pos2(bar.left() + sp.x0, bar.top()),
+                egui::pos2(bar.left() + sp.x1, bar.bottom()),
+            )
+        };
+        let placed = l.placed();
+        for p in placed {
+            rects.push((format!("group-{}", p.group.id()), Some(at(p.span))));
+        }
+        let sync = placed
+            .iter()
+            .position(|p| p.group == transport::layout::Group::Sync);
+        // The group and up to two neighbours a side that sit beside it (not across the
+        // bar's free middle).
+        let around = sync.map(|i| {
+            let near = |a: usize, b: usize| placed[b].span.x0 - placed[a].span.x1 < 24.0;
+            let (mut first, mut last) = (i, i);
+            while first > 0 && i - first < 2 && near(first - 1, first) {
+                first -= 1;
+            }
+            while last + 1 < placed.len() && last - i < 2 && near(last, last + 1) {
+                last += 1;
+            }
+            at(placed[first].span)
+                .union(at(placed[last].span))
+                .expand2(egui::vec2(6.0, 0.0))
+        });
+        rects.push(("sync-bar".into(), around));
+    }
+    let named: Vec<(&str, Option<egui::Rect>)> =
+        rects.iter().map(|(n, r)| (n.as_str(), *r)).collect();
+    studio::sidecar(path, size, scale, &named);
 }

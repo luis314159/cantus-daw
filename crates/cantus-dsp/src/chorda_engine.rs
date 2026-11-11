@@ -196,6 +196,33 @@ impl std::fmt::Debug for Chorda {
 impl Chorda {
     /// Allocates every voice, lane and string: off the audio thread.
     pub fn new(fs: f32) -> Chorda {
+        Chorda::make(fs, false)
+    }
+
+    /// [`Self::new`], its body's responses taken if they are made at this rate and else
+    /// waited for — never synthesised here ([`Body::waiting`]; round 39, fixes): what a unit
+    /// made on the interface's thread is. [`Self::take_body`] gives them when they are made.
+    pub fn new_waiting(fs: f32) -> Chorda {
+        Chorda::make(fs, true)
+    }
+
+    /// Whether its body waits for its responses.
+    pub fn body_waiting(&self) -> bool {
+        self.body.is_waiting()
+    }
+
+    /// Its body's responses, if they are made now (lock-free, allocates nothing: the audio
+    /// thread). Whether it has them.
+    pub fn take_body(&mut self) -> bool {
+        self.body.take()
+    }
+
+    /// Its body's responses made now if they are not: offline only (allocates).
+    pub fn make_body(&mut self) {
+        self.body.make();
+    }
+
+    fn make(fs: f32, wait: bool) -> Chorda {
         let fs = if fs > 0.0 { fs as f64 } else { 48_000.0 };
         // Room for each key's loop at any tuning the settings allow (A4 415 … 466, the
         // widest stretch): a third more than the reference keyboard's period.
@@ -229,7 +256,11 @@ impl Chorda {
             pos: 0,
             sym: Sympathetic::new(&caps, &reference, fs),
             board: Soundboard::new(fs),
-            body: Body::new(fs, &Voicing::default().body),
+            body: if wait {
+                Body::waiting(fs)
+            } else {
+                Body::new(fs, &Voicing::default().body)
+            },
             regs: Registers::new(fs, &Voicing::default().reg),
             reg_w: std::array::from_fn(|i| Registers::weights(LOWEST + i as u8)),
             bus: [[[0.0; CHUNK]; 2]; 3],

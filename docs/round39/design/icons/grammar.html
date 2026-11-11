@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Icon grammar</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="v1/glyphs-transport.js"></script>
+<script src="v1/glyphs-transport2.js"></script>
+<script src="v1/glyphs-tools.js"></script>
+<script src="v1/glyphs-tools2.js"></script>
+<script src="v1/glyphs-tools3.js"></script>
+<script>window.G1 = G;</script>
+<script src="family.js"></script>
+<script src="glyphs-n-transport.js"></script>
+<script src="glyphs-n-transport2.js"></script>
+<script src="glyphs-n-tools.js"></script>
+<script src="glyphs-n-tools2.js"></script>
+<script src="glyphs-n-windows.js"></script>
+</head><body><div id="out"></div>
+<script>
+const t = new URLSearchParams(location.search).get('t') || 'night';
+const k = SLATE[t];
+const W = 1240, PADX = 24;
+let b = '', y = 20;
+const T = (x, yy, s, o = {}) => { b += label(t, x, yy, s, o); };
+const wrap = (x, yy, txt, n = 150, size = 11.5) => {
+  let line = '';
+  txt.split(' ').forEach(w => {
+    if ((line + ' ' + w).length > n) { T(x, yy, line, { size }); line = w; yy += 16; } else line = line ? line + ' ' + w : w;
+  });
+  T(x, yy, line, { size });
+  return yy;
+};
+
+T(PADX, y + 16, 'Cantus icon family — the grammar (second pass, on Slate)', { size: 20, weight: 600 });
+T(PADX, y + 36, 'Drawn for Slate\'s keys: 16, 20, 24 px at 100 % and 24, 30, 36 px at 150 %. Five device sizes, five drawings per glyph; nothing is scaled from another size.', { size: 12, dim: true });
+y += 62;
+
+// 1. Sizes
+T(PADX, y + 14, '1 · Sizes, weights, proportions', { size: 14, weight: 600 });
+y += 26;
+const cx = [PADX, 120, 300, 400, 490, 600, 700, 800, 900];
+['key (device px)', 'where', 'line', 'line glyph', 'play (≈ 0.4)', 'stop', 'record Ø', 'pause bars', 'radius']
+  .forEach((c, i) => T(cx[i], y + 12, c, { size: 10.5, dim: true }));
+y += 18;
+[[16, 'mixer strip, inspector', '1 px', '10', '6', '5', '7', '2 + 2 + 2', '3'],
+ [20, 'toolbars', '1 px', '12', '8', '6', '9', '3 + 2 + 3', '3'],
+ [24, 'top bar · 16 @150 %', '1 px', '14', '10', '8', '11', '3 + 2 + 3', '4'],
+ [30, '20 @150 %', '2 px', '18', '12', '10', '13', '3 + 4 + 3', '5'],
+ [36, '24 @150 %', '2 px', '22', '14', '12', '16', '4 + 4 + 4', '6']].forEach(r => {
+  b += `<rect x="${PADX}" y="${y}" width="${W - 2 * PADX}" height="1" fill="${k.rule}"/>`;
+  r.forEach((v, i) => T(cx[i], y + 16, String(v), { size: 12, weight: i === 0 ? 600 : 400 }));
+  y += 24;
+});
+y += 8;
+
+// 2. Magnified keys with their zones
+T(PADX, y + 14, '2 · A glyph in its key (magnified; one square = one device pixel)', { size: 14, weight: 600 });
+y += 28;
+const Z = { 16: 9, 20: 7.5, 24: 6.5, 30: 5.2, 36: 4.4 };
+let x = PADX;
+const yTop = y;
+const sample = { 16: 'loop', 20: 'metronome', 24: 'play', 30: 'pianoRoll', 36: 'loop' };
+KEYS.forEach(K => {
+  const z = Z[K], side = K * z, box = { 16: 10, 20: 12, 24: 14, 30: 18, 36: 22 }[K];
+  b += `<g transform="translate(${x},${yTop}) scale(${z})">${iconKey(t, N[sample[K]], K, 0, 0, 'rest', '')}</g>`;
+  let grid = '';
+  for (let i = 1; i < K; i++) grid += `<line x1="${x + i * z}" y1="${yTop}" x2="${x + i * z}" y2="${yTop + side}"/><line x1="${x}" y1="${yTop + i * z}" x2="${x + side}" y2="${yTop + i * z}"/>`;
+  b += `<g stroke="${t === 'night' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'}" stroke-width="1">${grid}</g>`;
+  const o = (K - box) / 2;
+  b += `<rect x="${x + o * z}" y="${yTop + o * z}" width="${box * z}" height="${box * z}" fill="none" stroke="rgba(92,175,233,0.6)" stroke-dasharray="4 3"/>`;
+  b += `<rect x="${x}" y="${yTop + K * 0.3 * z}" width="${side}" height="${K * 0.4 * z}" fill="rgba(93,206,138,0.07)"/>`;
+  T(x, yTop + side + 16, `key ${K} · ${sample[K]}`, { size: 11.5, weight: 600 });
+  x += side + 24;
+});
+y = yTop + 36 * 4.4 + 30;
+T(PADX, y + 6, 'Dashed: the line glyph box (≈ 0.6 of the key). Tinted band: the middle 0.4 of the key, the height of a solid (play).', { size: 10.5, dim: true });
+y += 26;
+
+// 3. Inks
+T(PADX, y + 14, '3 · The inks — Slate\'s tokens', { size: 14, weight: 600 });
+y += 28;
+const states = [['rest', '', 'ink 2 for the glyph, ink 3 for its second ink'], ['hover', '', 'ink 1 and ink 2 (the well lifts to well-hi)'],
+  ['on', '', 'the accent and the accent mixed into the well; the well takes 20 % of the accent'], ['on', 'play', 'play is green'],
+  ['on', 'rec', 'record is red — the only colour at rest as well'], ['off', '', 'ink 4']];
+states.forEach(([st, kind, txt], i) => {
+  const yy = y + i * 34;
+  const g = kind === 'play' ? N.play : kind === 'rec' ? N.record : N.loop;
+  b += iconKey(t, g, 24, PADX, yy, st, kind);
+  b += iconKey(t, N.metronome, 24, PADX + 30, yy, st, kind);
+  const ink = inks(t, st, kind);
+  T(PADX + 70, yy + 16, `${st}${kind ? ' · ' + kind : ''}`, { size: 12, weight: 600 });
+  T(PADX + 170, yy + 16, `${ink.main} / ${ink.second}`, { size: 11.5 });
+  T(PADX + 330, yy + 16, txt, { size: 11.5, dim: true });
+});
+y += states.length * 34 + 10;
+
+// 4. Rules
+T(PADX, y + 14, '4 · The rules (learned from Ableton, Bitwig, Logic, Studio One and FL — see the private study)', { size: 14, weight: 600 });
+y += 26;
+[['One vocabulary', 'Monoline: one weight per size (1 px at keys 16–24, 2 px at 30–36). Transport primitives are filled. A glyph that is a mass — the speaker, the gear, the small plug, the metronome — is filled. Nothing else.'],
+ ['One idea per glyph', 'An icon names its window or tool; it does not draw a diagram of it. Pills for clips, a piano\'s keys, a fader, a folder, a plug, a sidebar, scissors.'],
+ ['Symmetry rests', 'Where a metaphor allows it, it is symmetric: loop is two opposed arrows (rotational), the piano and the plug are mirror-symmetric.'],
+ ['Heads grow from strokes', 'An arrowhead is its stroke\'s own end: a three-row pixel head where the stroke is 1 px, a chevron of the stroke\'s weight with round joins where it is 2 px.'],
+ ['Negative space', 'The metronome\'s rod is cut out of its body (the key\'s own well shows through); the magnet\'s caps and the speaker\'s cone are cut apart by one pixel of air.'],
+ ['Pixels at small sizes', 'At 16–24 px a 45° line is a clean pixel staircase (pencil, scissors, eyedropper); curves keep half-pixel centres so their straight runs stay crisp.'],
+ ['Optical size', 'Play is 0.4 of the key; stop is smaller (a square weighs more); record is larger (a circle weighs less). Triangles sit right of centre by a sixth of their width.'],
+ ['State is colour', 'No glyph changes shape when on. Colour is spent on state only: the accent, green for play, red for record.']].forEach(([h, txt]) => {
+  T(PADX, y + 13, h, { size: 12, weight: 600 });
+  y = wrap(PADX + 170, y + 13, txt) + 12;
+});
+const H = Math.ceil(y + 16);
+document.body.style.background = k.surface;
+document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.surface}"/>` + b);
+document.body.setAttribute('data-w', W);
+document.body.setAttribute('data-h', H);
+</script></body></html>

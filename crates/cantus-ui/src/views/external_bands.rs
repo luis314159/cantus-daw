@@ -19,8 +19,24 @@ use cantus_core::Command;
 use egui::Ui;
 
 pub fn page(app: &mut CantusApp, ui: &mut Ui) {
+    let top = ui.cursor().top();
     units_band(app, ui);
+    let split = ui.cursor().top();
     surfaces_band(app, ui);
+    // Published geometry ([`last_bands`]): the site's pictures cut the page in two here.
+    let (x, end) = (ui.max_rect().x_range(), ui.cursor().top());
+    let bands = [
+        egui::Rect::from_x_y_ranges(x, top..=split),
+        egui::Rect::from_x_y_ranges(x, split..=end),
+    ];
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(egui::Id::new("external-bands"), bands));
+}
+
+/// Where [`page`] drew its two bands last frame, the external units' and the control
+/// surfaces' (round 39, `shots`: the site's pictures are cut from them).
+pub fn last_bands(ctx: &egui::Context) -> Option<[egui::Rect; 2]> {
+    ctx.data(|d| d.get_temp(egui::Id::new("external-bands")))
 }
 
 /// A stepper field: its words, and which way it was clicked (−1, 0, 1).

@@ -51,6 +51,8 @@ pub struct Previewer {
     pub playing: Option<(PathBuf, Instant, Duration)>,
     /// The last decode error, for the status line.
     pub error: Option<String>,
+    /// The preview card's loop key (r39:lo-rest): a sound that ends starts again.
+    pub looping: bool,
 }
 
 impl Default for Previewer {
@@ -76,6 +78,7 @@ impl Default for Previewer {
             done,
             recent: VecDeque::new(),
             pending: None,
+            looping: false,
             playing: None,
             error: None,
         }
@@ -150,6 +153,16 @@ pub struct ContentWindow {
     pub selected: Option<String>,
     /// A removal waiting for its confirmation.
     pub confirm_remove: Option<String>,
+    /// The covers drawn on the last frame: each pack's id, its cover and its state line
+    /// (r39:lo-rest; the tests aim through them).
+    pub covers: Vec<(String, egui::Rect, egui::Rect)>,
+    /// The Packs page's filter and order (r39:lo-rest).
+    pub filter: crate::views::samples_content::PackFilter,
+    pub sort: crate::views::samples_content::PackSort,
+    /// A test hook: draw this pack as being fetched, at this phase (the shots show the
+    /// download's bar without a download). Never set by the program.
+    #[doc(hidden)]
+    pub shown_busy: Option<(String, cantus_content::Phase)>,
 }
 
 /// One drawn row of the browser, for tests and the drag code.
@@ -201,6 +214,10 @@ pub struct Samples {
     pub open: HashSet<PathBuf>,
     listings: HashMap<PathBuf, Vec<Entry>>,
     pub query: String,
+    /// r39:lo-rest — the pack or folder a search is kept to (its chip says so).
+    pub scope: Option<PathBuf>,
+    /// The search's groups shown whole ("Show the other …").
+    pub groups_open: HashSet<PathBuf>,
     index: Option<Index>,
     indexer: Option<Indexer>,
     indexed_roots: Vec<PathBuf>,
@@ -341,6 +358,13 @@ impl crate::app::CantusApp {
         self.engine.preview(Some((s, gain)));
     }
 
+    /// The browser's preview level to the audition playing: ramped in by the engine, the
+    /// sound going on (round 39, fixes).
+    pub fn set_audition_level(&mut self) {
+        let gain = AUDITION_GAIN * crate::views::samples_thumbs::preview_volume();
+        self.engine.set_preview_gain(gain);
+    }
+
     /// Stop the audition (a fade, in the engine).
     pub fn stop_audition(&mut self) {
         self.samples.preview.playing = None;
@@ -401,6 +425,24 @@ impl crate::app::CantusApp {
         }
         self.samples.open.insert(dir);
         self.samples.refresh();
+    }
+
+    /// Star a sound, or take its star away (the preview's star, r39:lo-rest): kept in the
+    /// settings, listed first in the browser.
+    pub fn toggle_sample_favourite(&mut self, path: &Path) {
+        let favs = &mut self.settings.sample_favourites;
+        match favs.iter().position(|p| p == path) {
+            Some(i) => {
+                favs.remove(i);
+            }
+            None => favs.push(path.to_path_buf()),
+        }
+        self.store_settings();
+    }
+
+    /// Whether a sound is starred.
+    pub fn is_sample_favourite(&self, path: &Path) -> bool {
+        self.settings.sample_favourites.iter().any(|p| p == path)
     }
 
     pub fn remove_sample_folder(&mut self, dir: &Path) {

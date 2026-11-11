@@ -1,6 +1,10 @@
 //! The window's and the taskbar's icon, in the colour the appearance names (ADR 0046).
 //!
-//! The icon is the website's mark (`kit::mark`), rendered here at the exact sizes the
+//! In its original colours (the default, *Automatic* and *Original*) the icon is logo #03,
+//! "the metal" — the app's logo since round 39 (ADR 0111), the same drawing as the
+//! executable's icon: its designer's small masters below 48 px, the full drawing above. A
+//! colour the user chose paints the website's mark (`kit::mark`) in it. Rendered at the
+//! exact sizes the
 //! window's monitor wants and handed to the window: on Windows both of its icons
 //! (`cantus_launch::taskicon` — the taskbar's and the title bar's), elsewhere through
 //! eframe's viewport command. It is redone only when the colour or the monitor's scale
@@ -109,10 +113,27 @@ fn native_handle(window: &impl raw_window_handle::HasWindowHandle) -> Option<isi
     }
 }
 
-/// The mark in `c` at `px` pixels (premultiplied).
+/// Whether `c` is the icon's own colours, where the window shows logo #03 itself.
+pub fn is_logo(c: &MarkColours) -> bool {
+    *c == MarkColours::ORIGINAL || *c == MarkColours::ON_LIGHT
+}
+
+/// The icon in `c` at `px` pixels (premultiplied): logo #03 in its own colours, else the
+/// mark in `c`.
 pub fn render(c: &MarkColours, px: u32) -> Option<resvg::tiny_skia::Pixmap> {
+    use crate::kit::logo::{svg_for, Logo, Tint};
     use resvg::{tiny_skia, usvg};
-    let tree = usvg::Tree::from_str(&mark_svg(px, c), &usvg::Options::default()).ok()?;
+    let svg = if is_logo(c) {
+        svg_for(
+            Logo::DEFAULT,
+            Tint::Original,
+            &crate::kit::tokens::Tokens::slate(),
+            px,
+        )
+    } else {
+        mark_svg(px, c)
+    };
+    let tree = usvg::Tree::from_str(&svg, &usvg::Options::default()).ok()?;
     let mut pix = tiny_skia::Pixmap::new(px, px)?;
     let scale = px as f32 / tree.size().width().max(tree.size().height());
     resvg::render(
@@ -150,10 +171,31 @@ pub fn icon_data(c: &MarkColours, px: u32) -> Option<egui::IconData> {
 mod tests {
     use super::*;
 
+    /// Round 39: in its own colours the window's icon is logo #03, a tile that fills the
+    /// square (the executable's icon too).
+    #[test]
+    fn the_icon_in_its_own_colours_is_logo_three() {
+        for c in [MarkColours::ORIGINAL, MarkColours::ON_LIGHT] {
+            assert!(is_logo(&c));
+            for px in [16, 20, 24, 32, 40, 48, 64, 256] {
+                let pix = render(&c, px).expect("renders");
+                assert_eq!((pix.width(), pix.height()), (px, px));
+                let a = |x: u32, y: u32| pix.pixel(x, y).unwrap().alpha();
+                if px < 48 {
+                    // The small masters fill the square (the full drawing has a margin).
+                    assert!(a(1, px / 2) > 200, "{px}: the tile reaches the edge");
+                }
+                assert!(a(px / 2, px / 2) > 200, "{px}: the tile is behind the C");
+            }
+        }
+        assert!(!is_logo(&MarkColours::from_one([0x2f, 0x7c, 0xf6])));
+    }
+
     #[test]
     fn the_mark_renders_at_every_icon_size_with_nothing_behind_it() {
+        let mark = MarkColours::from_one([0xeb, 0x80, 0x30]);
         for px in [16, 20, 24, 32, 40, 48, 64, 256] {
-            let pix = render(&MarkColours::ORIGINAL, px).expect("renders");
+            let pix = render(&mark, px).expect("renders");
             assert_eq!((pix.width(), pix.height()), (px, px));
             // No tile: the corners are transparent, and something is drawn.
             let a = |x: u32, y: u32| pix.pixel(x, y).unwrap().alpha();
@@ -166,9 +208,7 @@ mod tests {
                 "{px}: {:.0} % of the square is drawn",
                 share * 100.0
             );
-            assert!(png(&MarkColours::ORIGINAL, px)
-                .unwrap()
-                .starts_with(b"\x89PNG"));
+            assert!(png(&mark, px).unwrap().starts_with(b"\x89PNG"));
         }
         let icon = icon_data(&MarkColours::from_one([0x2f, 0x7c, 0xf6]), 32).unwrap();
         assert_eq!(icon.rgba.len(), 32 * 32 * 4);

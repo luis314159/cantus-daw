@@ -550,6 +550,26 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
             Pos2::new(x0 + s.s(50.0), rect.top()),
             Pos2::new(rect.right() - s.s(6.0), rect.bottom()),
         );
+        // Two lines, broken before the stretch, where one does not hold it (round 39,
+        // ADR 0109: Spanish cut "Estiramiento").
+        let whole = ktext::measure(b.ctx(), &Text::new(&text, Role::Body, s.t.text), s.tk()).x;
+        if whole > tr.width() {
+            if let Some(at) = text.rfind(" \u{b7} ") {
+                let two = format!("{}\n{}", &text[..at], &text[at + " \u{b7} ".len()..]);
+                let ctx = b.ctx().clone();
+                let g = crate::views::audio_parts::wrapped(
+                    &ctx,
+                    &two,
+                    Role::Body,
+                    s.tk(),
+                    tr.width(),
+                    2,
+                );
+                let yy = tr.center().y - g.size().y * 0.5;
+                b.text(Pos2::new(b.snap(tr.left()), b.snap(yy)), g, s.t.text, 0.0);
+                return;
+            }
+        }
         let _ = ktext::paint(
             b,
             tr,

@@ -65,6 +65,8 @@ pub enum EffectKind {
     Analyzer,
     /// Tonus, the real-time auto-tuner (`fx::tonus`, round 28).
     AutoTune,
+    /// Aula, the convolution reverb (`fx::aula`, round 39, ADR 0112). // r39:conv
+    Aula,
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -177,7 +179,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 25] = [
+    pub const ALL: [EffectKind; 26] = [
+        // r39:conv: 26 with Aula
         EffectKind::Eq,
         EffectKind::Compressor,
         EffectKind::Limiter,
@@ -203,6 +206,7 @@ impl EffectKind {
         EffectKind::TransientSplit,
         EffectKind::Analyzer,
         EffectKind::AutoTune,
+        EffectKind::Aula, // r39:conv
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
@@ -239,6 +243,7 @@ impl EffectKind {
             EffectKind::TransientSplit => fx::discrimen::NAME_KEY,
             EffectKind::Analyzer => fx::speculum::NAME_KEY,
             EffectKind::AutoTune => fx::tonus::NAME_KEY,
+            EffectKind::Aula => fx::aula::NAME_KEY, // r39:conv
         }
     }
 
@@ -271,6 +276,7 @@ impl EffectKind {
             EffectKind::TransientSplit => fx::discrimen::params(),
             EffectKind::Analyzer => fx::speculum::params(),
             EffectKind::AutoTune => fx::tonus::params(),
+            EffectKind::Aula => fx::aula::params(), // r39:conv
         }
     }
 
@@ -303,12 +309,14 @@ impl EffectKind {
             EffectKind::TransientSplit => fx::discrimen::SPARSE,
             EffectKind::Analyzer => fx::speculum::SPARSE,
             EffectKind::AutoTune => fx::tonus::SPARSE,
+            EffectKind::Aula => fx::aula::SPARSE, // r39:conv
         }
     }
 
-    /// A kind with an editor of its own, rather than a row of knobs per parameter.
+    /// A kind with an editor of its own, rather than a row of knobs per parameter. Every
+    /// kind but the old Reverb (Delay has had its window since round 39, ADR 0115).
     pub fn has_editor(self) -> bool {
-        !matches!(self, EffectKind::Delay | EffectKind::Reverb)
+        !matches!(self, EffectKind::Reverb)
     }
 
     /// A kind whose detector can listen to another strip.
@@ -340,6 +348,7 @@ impl EffectKind {
             EffectKind::TransientSplit => fx::discrimen::TAKES_SIDECHAIN,
             EffectKind::Analyzer => fx::speculum::TAKES_SIDECHAIN,
             EffectKind::AutoTune => fx::tonus::TAKES_SIDECHAIN,
+            EffectKind::Aula => fx::aula::TAKES_SIDECHAIN, // r39:conv
         }
     }
 
@@ -360,6 +369,7 @@ impl EffectKind {
             EffectKind::TransientSplit => fx::discrimen::TAKES_NOTES,
             EffectKind::Analyzer => fx::speculum::TAKES_NOTES,
             EffectKind::AutoTune => fx::tonus::TAKES_NOTES,
+            EffectKind::Aula => fx::aula::TAKES_NOTES, // r39:conv
             _ => false,
         }
     }
@@ -383,6 +393,7 @@ impl EffectKind {
             EffectKind::TransientSplit => fx::discrimen::CHOICES,
             EffectKind::Analyzer => fx::speculum::CHOICES,
             EffectKind::AutoTune => fx::tonus::CHOICES,
+            EffectKind::Aula => fx::aula::CHOICES, // r39:conv
             _ => &[],
         }
     }
@@ -402,6 +413,10 @@ pub struct EffectSpec {
     /// then not written, so a native effect's JSON is what it always was.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external: Option<Box<ExternalPlugin>>,
+    /// Aula's response from a file (round 39, ADR 0112; schema 60); `None` for every other
+    /// kind and for Aula playing one of Cantus's own, and then not written. // r39:conv
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ir: Option<Box<fx::aula::IrFile>>,
 }
 
 impl EffectSpec {
@@ -418,6 +433,7 @@ impl EffectSpec {
             kind,
             params,
             external: None,
+            ir: None, // r39:conv
         }
     }
 
@@ -427,6 +443,7 @@ impl EffectSpec {
             kind: EffectKind::External,
             params: BTreeMap::new(),
             external: Some(Box::new(plugin)),
+            ir: None, // r39:conv
         }
     }
 

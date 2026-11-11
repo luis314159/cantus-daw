@@ -48,7 +48,18 @@ struct Band {
 }
 
 pub fn build() -> Project {
-    let mut p = song(true).finish();
+    with_markers(song(true).finish())
+}
+
+/// The whole song without its dancer: the README's pictures (round 39, the owner: no dancer
+/// on the site or in the README). Built without it rather than with it removed: the dancer
+/// takes the desk's first free strip, which a removal would leave named after it. (Until
+/// round 39's `fix2` that strip was the drum bus: a bus fed only by strips counted as free.)
+pub fn build_without_dancer() -> Project {
+    with_markers(song(false).finish())
+}
+
+fn with_markers(mut p: Project) -> Project {
     // r37:finish — the sections as markers: named once in the ruler, as a song's form is
     // read (the clips that say the same go quiet under them).
     for (key, at, _) in FORM {

@@ -59,6 +59,10 @@ pub fn paint(
 ) {
     let area = Rect::from_center_size(c, Vec2::splat(diameter));
     b.register(area, "led", TOKENS, &[Some(color), Some(ground)]);
+    if s.t.system.recessed() {
+        slate_lamp(b, c, diameter, lit, false, s, s.t.get(color), alpha);
+        return;
+    }
     lamp(
         b,
         c,
@@ -178,6 +182,10 @@ fn lamp_vector(
 pub fn button(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
     use super::skin::{switches, SwitchShape};
     let shape = s.skin.switch;
+    if s.t.system.recessed() && matches!(shape, SwitchShape::Plain) {
+        button_slate(b, rect, s, st, label);
+        return;
+    }
     let toks = match shape {
         SwitchShape::Plain => {
             if s.t.dark {
@@ -275,6 +283,89 @@ pub fn button(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
         },
         policy: Policy::Abbreviate,
         color: ink,
+    };
+    let _ = text::paint(b, tr, &t, s.tk());
+    if st.focused {
+        focus_ring(b, rect, r, s);
+    }
+}
+
+/// The enable lamp in a recessed family (round 39, `des-controls`): on, a disc of its
+/// colour with a 2.5-pt halo at 18 % and a highlight; off (bypassed), a hollow 1.5-pt ring
+/// in ink 4 — ink 2 under the hand. Flat: no glass, no socket.
+#[allow(clippy::too_many_arguments)]
+pub fn slate_lamp(
+    b: &mut Brush,
+    c: Pos2,
+    diameter: f32,
+    lit: bool,
+    hovered: bool,
+    s: &Style,
+    color: Color32,
+    alpha: f32,
+) {
+    let c = Pos2::new(b.snap_mid(c.x), b.snap_mid(c.y));
+    let r = diameter * 0.5;
+    if lit {
+        b.circle(
+            c,
+            r + 2.5 * s.k,
+            Fill::Solid(super::color::with_alpha(color, 0.18 * alpha)),
+        );
+        b.circle(c, r, Fill::Solid(color.gamma_multiply(alpha)));
+        b.circle(
+            c + Vec2::new(-r * 0.3, -r * 0.3),
+            (r * 0.32).max(b.px() * 0.7),
+            Fill::Solid(super::color::with_alpha(s.t.light, 0.45 * alpha)),
+        );
+    } else {
+        let ink = if hovered { s.t.text_dim } else { s.t.disabled };
+        let w = 1.5 * s.k;
+        b.circle_stroke(c, r - w * 0.5, w, ink.gamma_multiply(alpha));
+    }
+}
+
+/// The tokens a Slate LED button paints with (for inspect mode).
+pub const SLATE_BUTTON_TOKENS: &[Tok] = &[
+    Tok::Well,
+    Tok::InnerShadow,
+    Tok::Lip,
+    Tok::Led,
+    Tok::Disabled,
+    Tok::Text,
+    Tok::TextDim,
+    Tok::Focus,
+];
+
+/// An LED button in a recessed family: a recessed key, the enable lamp (8 pt) at its left
+/// lit in the section's hue when on, its word in title case — ink 1 when on, ink 2 off.
+fn button_slate(b: &mut Brush, rect: Rect, s: &Style, st: State, label: Src<'_>) {
+    b.register(rect, "led_button", SLATE_BUTTON_TOKENS, &[s.hue_tok]);
+    let a = st.alpha();
+    let r = s.s(s.t.radius);
+    let fill = super::cap::well_fill(s, State { lit: false, ..st });
+    super::cap::well_body(b, rect, r, s, fill, a);
+    let d = s.s(8.0);
+    let c = Pos2::new(rect.left() + s.s(7.0) + d * 0.5, rect.center().y);
+    slate_lamp(b, c, d, st.lit, st.hovered, s, s.t.led, a);
+    let ink = if st.disabled {
+        s.t.disabled
+    } else if st.lit || st.hovered {
+        s.t.text
+    } else {
+        s.t.text_dim
+    };
+    let tr = Rect::from_min_max(
+        Pos2::new(c.x + d * 0.5 + s.s(5.0), rect.top()),
+        Pos2::new(rect.right() - s.s(5.0), rect.bottom()),
+    );
+    let t = Text {
+        src: label,
+        role: Role::Label,
+        caps: false,
+        align: Align2::LEFT_CENTER,
+        policy: Policy::Abbreviate,
+        color: ink.gamma_multiply(a),
     };
     let _ = text::paint(b, tr, &t, s.tk());
     if st.focused {

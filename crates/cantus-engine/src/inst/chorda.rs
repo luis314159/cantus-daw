@@ -454,6 +454,8 @@ pub fn ensure(tuning: Tuning, fs: f32) -> Arc<Keyboard> {
     let tuning = settled(tuning);
     let key = key_of(tuning, fs);
     let here = || {
+        // The body's responses with it, as the designer makes them (r39:fixes).
+        cantus_dsp::chorda::body::warm(fs as f64);
         let k = Arc::new(Keyboard::compute(tuning, fs as f64, threads()));
         insert(key, k.clone());
         k
@@ -711,7 +713,10 @@ impl Unit {
         for (i, info) in PARAMS.iter().enumerate() {
             base[i] = info.default;
         }
-        let mut dsp = Chorda::new(fs);
+        // r39:fixes — its body's responses are never synthesised here (16 ms at a rate not
+        // yet made, on the interface's thread when Chorda is chosen): taken if the designer
+        // has made them, else waited for as the keyboard is (`follow_design`).
+        let mut dsp = Chorda::new_waiting(fs);
         let key = key_of(Tuning::default(), fs);
         let have = match lookup(key) {
             Some(k) => {
@@ -774,6 +779,15 @@ impl Unit {
     /// Take the keyboard asked for if it is there. Offline (never the audio thread) it is
     /// waited for — designed on the spot if the designer cannot keep it — once.
     fn follow_design(&mut self) {
+        // r39:fixes — the body's responses: taken when the designer has made them
+        // (lock-free, no allocation); offline, made on the spot.
+        if self.dsp.body_waiting() {
+            if self.offline {
+                self.dsp.make_body();
+            } else {
+                self.dsp.take_body();
+            }
+        }
         if self.have == Some(self.want) {
             return;
         }

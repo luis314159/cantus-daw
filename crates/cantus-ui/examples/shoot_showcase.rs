@@ -30,6 +30,9 @@ use cantus_ui::raster;
 use cantus_ui::{demos, welcome_project, CantusApp};
 use std::path::{Path, PathBuf};
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 const POINTS: (f32, f32) = (1280.0, 720.0);
 const ZOOM: f32 = 1.5;
 /// The block the manual engine runs: what the bar reads as the buffer.
@@ -45,20 +48,13 @@ fn studio(ctx: &egui::Context, project: Project, dark: bool, engine: EngineHandl
     app.appearance_path = tmp.join("appearance.json");
     let mode = if dark { Mode::Dark } else { Mode::Light };
     app.appearance.mode = mode;
-    let preset = if dark { "cantus_night" } else { "cantus_paper" };
+    let preset = if dark { "slate_night" } else { "slate_paper" };
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(ctx);
-    cantus_ui::audio_setup::demo::setup(&mut app);
-    if let Some(live) = app.audio_setup.demo.as_mut() {
-        live.driver = "ASIO".into();
-        live.device = "ASIO4ALL v2".into();
-        live.wanted = live.device.clone();
-        live.block = BLOCK as u32;
-    }
-    app.audio_setup.scan = None;
+    // The demo interface, and no dropout on the status line.
+    studio::studio(&mut app, BLOCK as u32);
     app.samples.content_root = Some(tmp.join("Content"));
     app.settings.sample_folders.clear();
-    app.settings.audio.device = Some("ASIO4ALL v2".into());
     // Renders (the mode's, made in the background) never in the user's cache.
     app.engine.frozen.set_app_dir(tmp.join("renders"));
     app.set_status(String::new());

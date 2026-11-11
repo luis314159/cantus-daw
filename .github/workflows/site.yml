@@ -12,7 +12,12 @@ on:
     branches: [master]
     paths:
       - "web/**"
+      # The page shows the DAW's version from here (web/build.rs): a release's bump redeploys.
+      - "Cargo.toml"
       - ".github/workflows/site.yml"
+  # A new release's sizes and hashes reach the download page (tools/release_json.py).
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -56,17 +61,51 @@ jobs:
           curl -fsSL "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz" | tar -xz -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
+      # The download page's version, sizes, date and SHA-256 come from the latest release,
+      # asked once here (round 39): the visitor's browser never calls api.github.com. On
+      # failure the committed assets/release.json is kept.
+      - name: The latest release's facts
+        working-directory: web
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/release_json.py assets/release.json
+
       - name: Build the site
         working-directory: web
         env:
           NO_COLOR: "false"
         run: trunk build --release
 
+      # Every page as its own static file (round 39, P1-1): the same program, run natively, renders
+      # each address of src/route.rs in both languages into dist/<path>/index.html, and writes
+      # sitemap.xml with the date of the commit being published.
+      - name: Pre-render every page
+        working-directory: web
+        run: cargo run --features ssr -- prerender dist --lastmod "$(git log -1 --format=%cs)"
+
+      # GitHub's counts for the proof strip (stats.json) and the releases feed (releases.xml),
+      # asked at build time so the visitor's browser asks no one else (web-extra, round 39).
+      # When GitHub does not answer it writes neither and the strip stays hidden.
+      - name: Release counts and the releases feed
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 web/tools/site_data.py --out web/dist
+
       - name: Check what will be published
         run: |
           test -f web/dist/index.html
           test -f web/dist/manual/en/index.html
           test -f web/dist/_headers
+          # The pre-rendered pages: each address its own file, its text in the HTML.
+          for p in es download es/download studio ai roadmap measured learn instruments/unda es/effects/aequalis; do
+            test -f "web/dist/$p/index.html" || { echo "web/dist/$p/index.html is missing"; exit 1; }
+          done
+          grep -q "Finish the song" web/dist/index.html
+          grep -q "Termina la canción" web/dist/es/index.html
+          grep -q '"@type":"SoftwareApplication"' web/dist/index.html
+          grep -q "<lastmod>" web/dist/sitemap.xml
+          # The units' long text, which the WebAssembly fetches (src/unit_text.rs).
+          test -s web/dist/unit-text.json
           # Every folder of pictures and media the pages use reaches the site (a copy-dir
           # link in index.html each): round 35's dance/ was left out and its section went
           # live with no video and no pictures.

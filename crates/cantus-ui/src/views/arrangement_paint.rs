@@ -6,365 +6,20 @@
 //! Nothing is copied: the old view cloned every track, notes and all, every frame, which
 //! on the stress project was 18 MB a frame (`rendering-performance.md` §2).
 
-use super::{ArrangementView, Scratch, TimelineGeometry, LOOP_LANE_H};
+use super::Scratch;
 use crate::app::CantusApp;
 use crate::kit::color::{mix, shade, with_alpha};
-use crate::kit::light::{self, RaisedOpts};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{Brush, Fill, Style, Tok};
 use crate::views::clips_chrome::Tint;
-use crate::views::ticks_to_beats;
 use cantus_core::{ClipId, TrackId};
-use egui::{pos2, vec2, Align2, Pos2, Rect};
+use egui::{pos2, Align2, Rect};
 
-/// What the lanes paint with (for inspect mode).
-const LANE_TOKENS: &[Tok] = &[
-    Tok::Glow,
-    Tok::GlowCool,
-    Tok::RowBlack,
-    Tok::RowWhite,
-    Tok::Grid,
-    Tok::GridStrong,
-    Tok::GridBar,
-];
-/// What the ruler paints with.
-const RULER_TOKENS: &[Tok] = &[
-    Tok::Ink,
-    Tok::RowBlack,
-    Tok::GridStrong,
-    Tok::GridBar,
-    Tok::Text,
-    Tok::TextDim,
-    Tok::Highlight,
-    Tok::Selection,
-    Tok::Playhead,
-];
-/// What a header paints with besides its track's colour.
-const HEADER_TOKENS: &[Tok] = &[
-    Tok::Selection,
-    Tok::Led,
-    Tok::Highlight,
-    Tok::Focus,
-    Tok::TrackVeil,
-];
+/// How much of the selection tint a selected clip's body takes (r39:lapis2).
+const CLIP_TINT: f32 = 1.5;
+
 /// What a clip paints with besides its colour.
 const CLIP_TOKENS: &[Tok] = &[Tok::RowBlack, Tok::RowWhite, Tok::Selection, Tok::TrackVeil];
-
-/// The lanes' ground: a lane per track in the editor's row colour, every other bar a
-/// step lighter so bars can be counted, and FL's line ladder — step, beat, and a bar line
-/// three pixels wide with a dark core.
-pub(super) fn lanes(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect: Rect, s: &Style) {
-    b.register(rect, "lanes", LANE_TOKENS, &[]);
-    let t = &s.t;
-    let rect = b.snap_rect(rect);
-    b.rect(rect, Fill::Solid(t.row_black));
-    let ts = app.project().time_signature;
-    let per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
-    let first = geo.scroll_beats.max(0.0);
-    let last = geo.beats(rect.right());
-    // Through the metre changes (ADR 0060): every bar its own length.
-    let map = crate::views::bars::map(app.project());
-    let several = !map.is_one_metre();
-    // r37:finish — zoomed out (a bar under 28 px) the ground alternates by four bars, a
-    // phrase, and the bar lines thin: every bar shaded and 3 px wide read as a barcode.
-    let narrow = per_bar * geo.px_per_beat < 28.0;
-    let group: i64 = if narrow { 4 } else { 1 };
-    if several && per_bar * geo.px_per_beat >= 6.0 {
-        crate::views::bars::each_bar(&map, first, last, |n, start, len| {
-            if (n - 1).div_euclid(group) % 2 == 1 {
-                let x0 = geo.x(start).max(rect.left());
-                let x1 = geo.x(start + len).min(rect.right());
-                if x1 > x0 {
-                    b.rect(
-                        b.snap_rect(Rect::from_min_max(
-                            pos2(x0, rect.top()),
-                            pos2(x1, rect.bottom()),
-                        )),
-                        Fill::Solid(t.row_white),
-                    );
-                }
-            }
-        });
-    }
-    // Alternate bars.
-    let bar_px = per_bar * geo.px_per_beat;
-    if bar_px >= 6.0 && !several {
-        let mut bar = (first / per_bar).floor();
-        while bar * per_bar <= last {
-            if (bar as i64).div_euclid(group) % 2 == 1 {
-                let x0 = geo.x(bar * per_bar).max(rect.left());
-                let x1 = geo.x((bar + 1.0) * per_bar).min(rect.right());
-                if x1 > x0 {
-                    b.rect(
-                        b.snap_rect(Rect::from_min_max(
-                            pos2(x0, rect.top()),
-                            pos2(x1, rect.bottom()),
-                        )),
-                        Fill::Solid(t.row_white),
-                    );
-                }
-            }
-            bar += 1.0;
-        }
-    }
-    // The theme's glows (ADR 0046 §8): under the lines and the clips, over the rows.
-    crate::kit::light::ambient(b, rect, t);
-    // Lane separators: one line under each visible row, and on down the empty rows.
-    let base = app.arrangement.track_height;
-    let mut y = geo.bottom() + base;
-    while base >= 8.0 && y < rect.bottom() {
-        if y > rect.top() {
-            b.hline(rect.left(), rect.right(), y - 0.5 * b.px(), b.px(), t.grid);
-        }
-        y += base;
-    }
-    for r in &geo.rows {
-        let y = r.top + r.height;
-        if y < rect.top() || r.top > rect.bottom() {
-            continue;
-        }
-        b.hline(
-            rect.left(),
-            rect.right(),
-            y - 0.5 * b.px(),
-            b.px(),
-            t.grid_strong,
-        );
-    }
-    // The line ladder, through the metre changes.
-    let bar_side = mix(t.grid_bar, t.row_black, 0.55);
-    let thin_bar = mix(t.grid_bar, t.grid_strong, 0.6); // r37:finish
-    crate::views::bars::ladder(&map, first, last, geo.px_per_beat, 7.0, |l| {
-        let x = geo.x(l.beat);
-        if l.bar && narrow {
-            // r37:finish — every fourth bar (a phrase) strong, the rest a hairline.
-            let n = (l.beat / per_bar).round() as i64;
-            let strong = several || n.rem_euclid(4) == 0;
-            b.vline(
-                x,
-                rect.top(),
-                rect.bottom(),
-                b.px(),
-                if strong { t.grid_bar } else { thin_bar },
-            );
-        } else if l.bar {
-            b.vline(x, rect.top(), rect.bottom(), 3.0 * b.px(), bar_side);
-            b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_bar);
-        } else {
-            b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_strong);
-        }
-    });
-}
-
-/// The ruler: the loop lane with its brace on top, the bar numbers below, the time
-/// selection over both, and the playhead's marker.
-pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect: Rect, s: &Style) {
-    b.register(rect, "ruler", RULER_TOKENS, &[]);
-    let t = &s.t;
-    let rect = b.snap_rect(rect);
-    let ground = mix(t.ink, t.row_black, 0.55);
-    b.rect(rect, Fill::V(shade(ground, 0.02), ground));
-    let loop_lane = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + LOOP_LANE_H));
-    b.rect(b.snap_rect(loop_lane), Fill::Solid(t.ink));
-    // Below the loop lane, the punch lane while punch is on (`arrangement_rec`).
-    // Under the marker lane and the punch lane, when they are there (ADR 0060).
-    let numbers_top = geo
-        .punch
-        .map(|p| p.1)
-        .or(geo.markers.map(|m| m.1))
-        .unwrap_or(loop_lane.bottom());
-    b.hline(
-        rect.left(),
-        rect.right(),
-        rect.bottom() - 0.5 * b.px(),
-        b.px(),
-        t.grid_bar,
-    );
-
-    let ts = app.project().time_signature;
-    let per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
-    let first = geo.scroll_beats.max(0.0);
-    let last = geo.beats(rect.right());
-    let map = crate::views::bars::map(app.project());
-    // Ticks: beats short, bars full height of the number lane (through the metre changes).
-    crate::views::bars::ladder(&map, first, last, geo.px_per_beat, 7.0, |l| {
-        let x = geo.x(l.beat);
-        let top = if l.bar {
-            numbers_top
-        } else {
-            rect.bottom() - 4.0 * s.k
-        };
-        b.vline(
-            x,
-            top,
-            rect.bottom(),
-            b.px(),
-            if l.bar { t.grid_bar } else { t.grid_strong },
-        );
-    });
-    // Bar numbers, thinned by doubling so they stay ones a musician counts in.
-    let bar_px = per_bar * geo.px_per_beat;
-    let mut every = 1i64;
-    while bar_px * (every as f32) < 44.0 * s.k {
-        // r37:finish (28: dense)
-        every *= 2;
-    }
-    let mut digits = crate::views::clips_chrome::Digits::default();
-    if !map.is_one_metre() {
-        // Each bar where it starts, numbered through the metre changes; the thinning by
-        // the narrowest bar in view, so numbers never collide.
-        let mut narrow = f32::MAX;
-        crate::views::bars::each_bar(&map, first, last, |_, _, len| narrow = narrow.min(len));
-        let mut every = 1i64;
-        while narrow * geo.px_per_beat * (every as f32) < 44.0 * s.k && every < 1024 {
-            // r37:finish
-            every *= 2;
-        }
-        // A metre change's chip at its bar line, the bar's number after it.
-        let chips = super::tempo::chips(app);
-        crate::views::bars::each_bar(&map, first, last, |n, start, _| {
-            let x = geo.x(start);
-            let tick = crate::views::beats_to_ticks(start);
-            let mut after = 0.0;
-            if let Some((_, sig)) = chips.iter().find(|(t, _)| *t == tick) {
-                let r = super::tempo::chip_rect(b.ctx(), x, numbers_top, rect.bottom(), *sig, s);
-                after = super::tempo::paint_chip(b, r, *sig, false, s);
-            }
-            if (n - 1).rem_euclid(every) != 0 {
-                return;
-            }
-            let label = Rect::from_min_max(
-                pos2(x + 3.0 * s.k + after, numbers_top),
-                pos2(
-                    x + narrow * geo.px_per_beat * every as f32 - 2.0 * s.k,
-                    rect.bottom() - 1.0,
-                ),
-            );
-            let color = if (n - 1) % 4 == 0 { t.text } else { t.text_dim };
-            let role = if (n - 1) % 4 == 0 {
-                Role::Title
-            } else {
-                Role::Control
-            }; // r37:finish
-            let tx = Text::new(digits.fmt(n), role, color)
-                .align(Align2::LEFT_CENTER)
-                .policy(Policy::Elide(Elide::End));
-            let _ = text::paint(b, label, &tx, s.tk());
-        });
-    }
-    let mut bar = ((first / per_bar).floor() as i64 / every) * every;
-    while map.is_one_metre() && (bar as f32) * per_bar <= last {
-        let x = geo.x(bar as f32 * per_bar);
-        let label = Rect::from_min_max(
-            pos2(x + 3.0 * s.k, numbers_top),
-            pos2(x + bar_px * every as f32 - 2.0 * s.k, rect.bottom() - 1.0),
-        );
-        // Every fourth bar is a phrase: its number in full-strength text, as in FL.
-        let color = if (bar % 4) == 0 { t.text } else { t.text_dim };
-        let n = digits.fmt(bar + 1);
-        // r37:finish — the numbers a size up, a phrase's a size more.
-        let role = if (bar % 4) == 0 {
-            Role::Title
-        } else {
-            Role::Control
-        };
-        let tx = Text::new(n, role, color)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End));
-        let _ = text::paint(b, label, &tx, s.tk());
-        bar += every;
-    }
-
-    // The loop brace: a bracket, whose ends are what get dragged.
-    if let Some(l) = &app.project().loop_region {
-        let x0 = geo.x(ticks_to_beats(l.start));
-        let x1 = geo.x(ticks_to_beats(l.end));
-        let a = if app.project().loop_enabled { 1.0 } else { 0.4 };
-        let c = with_alpha(t.highlight, a);
-        let bar_r = Rect::from_min_max(
-            pos2(x0, loop_lane.top() + 2.0),
-            pos2(x1, loop_lane.bottom() - 2.0),
-        );
-        b.rect(
-            b.snap_rect(bar_r),
-            Fill::Solid(with_alpha(t.highlight, 0.55 * a)),
-        );
-        for x in [x0, x1] {
-            b.rect(
-                b.snap_rect(Rect::from_min_max(
-                    pos2(x - 1.5, loop_lane.top() + 1.0),
-                    pos2(x + 1.5, loop_lane.bottom()),
-                )),
-                Fill::Solid(c),
-            );
-        }
-    }
-    // The time selection: brightest here, where its edges are aimed at.
-    if let Some((from, to)) = app.time_selection {
-        let x0 = geo.x(ticks_to_beats(from));
-        let x1 = geo.x(ticks_to_beats(to));
-        let band = Rect::from_min_max(pos2(x0, numbers_top), pos2(x1, rect.bottom()));
-        b.rect(
-            b.snap_rect(band),
-            Fill::Solid(with_alpha(t.selection, 0.45)),
-        );
-        for x in [x0, x1] {
-            b.vline(x, rect.top(), rect.bottom(), b.px(), t.selection);
-        }
-    }
-    // The playhead's marker: a triangle on the ruler's floor, pointing at the lanes.
-    let ph = geo.x(ticks_to_beats(app.engine.position()));
-    if ph >= rect.left() - 6.0 && ph <= rect.right() + 6.0 {
-        let k = s.k;
-        b.polygon(
-            &[
-                pos2(ph - 5.0 * k, rect.bottom() - 8.0 * k),
-                pos2(ph + 5.0 * k, rect.bottom() - 8.0 * k),
-                pos2(ph, rect.bottom()),
-            ],
-            t.playhead,
-        );
-    }
-}
-
-/// The time selection's wash and the playhead's line over the lanes, after the clips.
-pub(super) fn overlay(
-    b: &mut Brush,
-    app: &CantusApp,
-    v: &ArrangementView,
-    geo: &TimelineGeometry,
-    rect: Rect,
-    s: &Style,
-) {
-    let t = &s.t;
-    if let Some((from, to)) = app.time_selection {
-        let x0 = geo.x(ticks_to_beats(from));
-        let x1 = geo.x(ticks_to_beats(to));
-        let column = Rect::from_min_max(pos2(x0, rect.top()), pos2(x1, rect.bottom()));
-        b.rect(
-            b.snap_rect(column),
-            Fill::Solid(with_alpha(t.selection, 0.10)),
-        );
-        for x in [x0, x1] {
-            b.vline(
-                x,
-                rect.top(),
-                rect.bottom(),
-                b.px(),
-                with_alpha(t.selection, 0.8),
-            );
-        }
-    }
-    if let Some((a, c)) = v.marquee_rect() {
-        let r = Rect::from_two_pos(a, c);
-        b.rect(r, Fill::Solid(with_alpha(t.selection, 0.16)));
-        b.rrect_stroke(r, 0.0, b.px(), t.selection);
-    }
-    let ph = geo.x(ticks_to_beats(app.engine.position()));
-    if ph >= rect.left() && ph <= rect.right() {
-        b.vline(ph, rect.top(), rect.bottom(), 1.5 * s.k, t.playhead);
-    }
-}
 
 /// Whether a clip is in the selection, without copying the selection.
 pub(super) fn is_selected(app: &CantusApp, r: (TrackId, ClipId)) -> bool {
@@ -375,333 +30,10 @@ pub(super) fn is_selected(app: &CantusApp, r: (TrackId, ClipId)) -> bool {
     }
 }
 
-/// Where the parts of a track header go, so the painter and the input agree.
-#[derive(Copy, Clone, Debug)]
-pub(super) struct HeaderRects {
-    pub row: Rect,
-    /// The colour cell with the track's number: the grab handle for reordering.
-    pub cell: Rect,
-    pub icon: Rect,
-    pub name: Rect,
-    pub mute: Pos2,
-    pub solo: Pos2,
-    /// The record-arm lamp, left of mute (ADR 0025; painted by `arrangement_rec`).
-    pub arm: Pos2,
-    /// The whole piece in miniature, when the row is tall enough to hold it.
-    pub map: Option<Rect>,
-}
-
-/// The LEDs' diameter at 100 %.
-pub(super) const LED: f32 = 11.0;
-
-pub(super) fn header_rects(row: Rect, s: &Style) -> HeaderRects {
-    let k = s.k;
-    let inner = Rect::from_min_max(
-        pos2(row.left() + 1.0, row.top()),
-        pos2(row.right() - 1.0, row.bottom() - 1.0),
-    );
-    let cell = Rect::from_min_max(inner.min, pos2(inner.left() + 18.0 * k, inner.bottom()));
-    // The name line: the top of a tall row (the map goes under it), the middle of a short one.
-    let tall = inner.height() >= 34.0 * k;
-    let line_h = 20.0 * k;
-    let line = if tall {
-        Rect::from_min_max(
-            pos2(cell.right(), inner.top() + 2.0 * k),
-            pos2(inner.right(), inner.top() + 2.0 * k + line_h),
-        )
-    } else {
-        Rect::from_center_size(
-            pos2((cell.right() + inner.right()) * 0.5, inner.center().y),
-            vec2(inner.right() - cell.right(), line_h.min(inner.height())),
-        )
-    };
-    let solo = pos2(line.right() - 14.0 * k, line.center().y); // r37:finish (room for the level meter)
-    let mute = pos2(solo.x - (LED + 8.0) * k, line.center().y); // r37:finish
-    let arm = pos2(mute.x - (LED + 8.0) * k, line.center().y); // r37:finish
-    let icon = Rect::from_center_size(
-        pos2(cell.right() + 12.0 * k, line.center().y),
-        // No taller than the name line: on a short row a full-size icon overlapped the rows
-        // round it.
-        vec2(1.0, 1.0) * (15.0 * k).min(line.height()),
-    );
-    let name = Rect::from_min_max(
-        pos2(icon.right() + 5.0 * k, line.top()),
-        pos2(arm.x - LED * 0.5 * k - 6.0 * k, line.bottom()),
-    );
-    let map = tall.then(|| {
-        Rect::from_min_max(
-            pos2(cell.right() + 6.0 * k, line.bottom() + 3.0 * k),
-            pos2(
-                inner.right() - 6.0 * k,
-                (inner.bottom() - 5.0 * k).max(line.bottom() + 6.0 * k),
-            ),
-        )
-    });
-    HeaderRects {
-        row: inner,
-        cell,
-        icon,
-        name,
-        mute,
-        solo,
-        arm,
-        map,
-    }
-}
-
-/// What a header shows beyond what the track says: the pointer and the view's state.
-#[derive(Copy, Clone, Debug, Default)]
-pub(super) struct HeaderState {
-    pub selected: bool,
-    pub hovered_mute: bool,
-    pub hovered_solo: bool,
-    /// Silenced by another track's solo.
-    pub silenced: bool,
-    /// Being renamed: the name is an editor, not text.
-    pub renaming: bool,
-    /// Where a dragged header would land: a line on this row's top edge.
-    pub drop_above: bool,
-    /// Its bottom edge is being dragged or aimed at.
-    pub divider: bool,
-    /// How much the name's words are scaled to fit the name line (1 but on short rows,
-    /// where the full-size words would overflow into the rows round it).
-    pub fit: f32,
-    /// The track's peak, 0…1 of the meter's range.
-    pub level: f32,
-}
-
-/// One track header: FL's coloured block — the colour cell with the number, the icon's
-/// place, the name elided in the middle and tinted toward the colour, the mute and solo
-/// lamps, the song in miniature, and the level as a hairline along the bottom. Returns
-/// where the name's letters were drawn, on the name line's height (round 27, ADR 0051: a
-/// click there renames); `None` while it is being renamed or when nothing fitted.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn header(
-    b: &mut Brush,
-    app: &CantusApp,
-    index: usize,
-    r: &HeaderRects,
-    st: HeaderState,
-    tint: Tint,
-    song_len: f32,
-    digits: &mut crate::views::clips_chrome::Digits,
-    s: &Style,
-) -> Option<Rect> {
-    let track = app.project().tracks.get(index)?;
-    b.register(r.row, "track_header", HEADER_TOKENS, &[]);
-    let t = &s.t;
-    // r37:finish — on a light theme the header stays neutral, the track's colour only in
-    // its cell at the left (judge 8: a pastel wash on every surface read as candy and
-    // lowered the text's contrast).
-    let (face, on_face) = match (t.dark, st.selected) {
-        (true, false) => (tint.large, tint.on_large),
-        (true, true) => (shade(tint.large, 0.06), tint.on_large),
-        (false, false) => (t.panel_raised, t.text),
-        (false, true) => (t.strip_selected, t.text),
-    };
-    light::raised(
-        b,
-        r.row,
-        s.r(2.0),
-        face,
-        RaisedOpts {
-            drop: false,
-            k: s.k,
-            depth: t.depth,
-            ..Default::default()
-        },
-    );
-    // The colour cell: the pastel of the same hue, raised, with the track's number.
-    light::raised(
-        b,
-        r.cell.shrink(2.0 * s.k),
-        s.r(2.0),
-        tint.small,
-        RaisedOpts {
-            drop: false,
-            k: s.k,
-            depth: t.depth,
-            ..Default::default()
-        },
-    );
-    if st.selected {
-        b.rrect_stroke(r.cell.shrink(1.0 * s.k), s.r(3.0), 1.5 * s.k, t.selection);
-    }
-    let n = digits.fmt(index as i64 + 1);
-    let num = Text::new(n, Role::Label, tint.on_small) // r37:finish — a size up, one crisp digit
-        .align(Align2::CENTER_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let num_box = if r.map.is_some() {
-        Rect::from_min_size(
-            r.cell.min + vec2(0.0, 4.0 * s.k),
-            vec2(r.cell.width(), 16.0 * s.k),
-        )
-    } else {
-        r.cell
-    };
-    let _ = text::paint(b, num_box.shrink2(vec2(2.0 * s.k, 0.0)), &num, s.tk());
-
-    // The name, tinted toward the colour; dimmed when the track is not sounding.
-    let mut letters = None;
-    if !st.renaming {
-        let quiet = track.muted || st.silenced;
-        let ink = if quiet {
-            with_alpha(on_face, 0.55)
-        } else {
-            on_face
-        };
-        let name = Text::new(&track.name, Role::Body, ink)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::Middle));
-        // r37:finish — a name a little too long is set a little smaller, whole, before it is
-        // cut in the middle (judge 7: "Per…ion" where a few points were missing).
-        let tk = s.tk() * st.fit;
-        let need = text::measure(b.ctx(), &name, tk).x;
-        let tk = if need > r.name.width() && need * 0.88 <= r.name.width() {
-            tk * (r.name.width() / need)
-        } else {
-            tk
-        };
-        letters = text::paint(b, r.name, &name, tk)
-            .map(|p| Rect::from_x_y_ranges(p.rect.x_range(), r.name.y_range()));
-    }
-
-    // r37:finish — mute and solo as labelled keys (M, S), lit when they act: a muted
-    // track's M in the highlight, a soloed track's S in the selection's colour; a track
-    // silenced by someone else's solo shows its S dimmed.
-    let side = (LED + 6.0) * s.k; // r37:finish
-    letter_key(
-        b,
-        r.mute,
-        side,
-        "M",
-        track.muted,
-        t.highlight,
-        st.hovered_mute,
-        1.0,
-        s,
-    );
-    letter_key(
-        b,
-        r.solo,
-        side,
-        "S",
-        track.soloed,
-        t.selection,
-        st.hovered_solo,
-        if st.silenced { 0.5 } else { 1.0 },
-        s,
-    );
-
-    // The song in miniature: every clip to scale on a faint line, so the chorus can be
-    // found without scrolling — the best thing FL's headers do. A line and not a slot:
-    // a slot with one long clip in it reads as a progress bar.
-    if let Some(map) = r.map {
-        if map.height() >= 3.0 && song_len > 0.0 {
-            let line = Rect::from_min_max(
-                pos2(map.left(), map.bottom() - 4.0 * s.k),
-                pos2(map.right(), map.bottom() - 1.0 * s.k),
-            );
-            b.rect(
-                b.snap_rect(line),
-                Fill::Solid(with_alpha(
-                    shade(face, if t.dark { -0.12 } else { -0.10 }),
-                    0.8,
-                )),
-            );
-            let inner = line;
-            for clip in &track.clips {
-                let x0 = inner.left() + clip.start.0 as f32 / song_len * inner.width();
-                let x1 = inner.left() + clip.end().0 as f32 / song_len * inner.width();
-                let c = if clip.muted {
-                    with_alpha(tint.small, 0.35)
-                } else {
-                    tint.small
-                };
-                // r37:finish — each clip its own segment, a pixel apart from the next, so
-                // the map reads as the song's clips (a run read as one bar with a
-                // glitch where a section was empty).
-                b.rect(
-                    Rect::from_min_max(
-                        pos2(x0, inner.top()),
-                        pos2((x1 - b.px()).max(x0 + 1.0), inner.bottom()),
-                    ),
-                    Fill::Solid(c),
-                );
-            }
-        }
-    }
-    // r37:finish — the level as a slim meter standing at the header's right edge, in the
-    // meter's colours (a hairline under the name read as a stray line).
-    {
-        let w = (3.0 * s.k).max(b.px() * 2.0);
-        let well = Rect::from_min_max(
-            pos2(r.row.right() - w - 2.0 * s.k, r.row.top() + 3.0 * s.k),
-            pos2(r.row.right() - 2.0 * s.k, r.row.bottom() - 3.0 * s.k),
-        );
-        b.rect(b.snap_rect(well), Fill::Solid(t.meter_well));
-        if st.level > 0.0 {
-            let c = if st.level > 0.9 {
-                t.meter_clip
-            } else if st.level > 0.75 {
-                t.meter_high
-            } else {
-                t.meter_low
-            };
-            let h = well.height() * st.level.clamp(0.0, 1.0);
-            b.rect(
-                b.snap_rect(Rect::from_min_max(
-                    pos2(well.left(), well.bottom() - h),
-                    well.max,
-                )),
-                Fill::Solid(c),
-            );
-        }
-    }
-    if st.drop_above {
-        b.hline(
-            r.row.left(),
-            r.row.right(),
-            r.row.top(),
-            2.0 * s.k,
-            t.selection,
-        );
-    }
-    if st.divider {
-        b.hline(
-            r.row.left(),
-            r.row.right(),
-            r.row.bottom() + 0.5,
-            2.0 * s.k,
-            t.focus,
-        );
-    }
-    letters
-}
-
-/// An empty row below the last track: the header's shape, flat and faint, with the name
-/// the next track would get (FL's "Track 31").
-pub(super) fn empty_header(b: &mut Brush, row: Rect, label: &str, s: &Style) {
-    let t = &s.t;
-    b.register(row, "empty_header", &[Tok::Panel, Tok::Placeholder], &[]);
-    let inner = Rect::from_min_max(
-        pos2(row.left() + 1.0, row.top()),
-        pos2(row.right() - 1.0, row.bottom() - 1.0),
-    );
-    let face = shade(t.panel, -0.03);
-    b.rrect(b.snap_rect(inner), s.r(2.0), Fill::Solid(face));
-    let tx = Text::new(label, Role::Body, t.placeholder)
-        .align(Align2::LEFT_CENTER)
-        .policy(Policy::Elide(Elide::End));
-    let name = Rect::from_min_max(
-        pos2(inner.left() + 24.0 * s.k, inner.top()),
-        pos2(
-            inner.right() - 6.0 * s.k,
-            inner.top() + (20.0 * s.k).min(inner.height()),
-        ),
-    );
-    let _ = text::paint(b, name, &tx, s.tk());
-}
+/// r39:lo-arrange — how far a clip another track's solo silences (`dim`) steps toward the
+/// lane, and how strong its notes stay: silenced at a glance, its music still legible.
+const DIM: f32 = 0.62;
+const DIM_NOTES: f32 = 0.32;
 
 /// How a clip looks this frame.
 #[derive(Copy, Clone, Debug)]
@@ -723,6 +55,18 @@ pub(super) struct ClipLook {
     /// moment): no title bar, its content at the clip's full height (round 37, finish:
     /// a song's sections read once across the tracks, the music under them). // r37:finish
     pub quiet: bool,
+    /// Under the playhead while the song plays (r39:el-views, des-views: a step brighter
+    /// with a lit top).
+    pub playing: bool,
+    /// The zoom is near or close (20 px a beat and more): a short lane's clip 80 px wide
+    /// names itself there (r39:el-views).
+    pub near: bool,
+    /// r39:lo-arrange — des-arrange's `lit`: a clip of the selected track (the selection's
+    /// tint, no edge); a selected clip is lit and edged.
+    pub lit: bool,
+    /// r39:lo-arrange — des-arrange's `dim`: another track's solo silences it (its tint at
+    /// 60 %, its notes at half).
+    pub dim: bool,
 }
 
 /// The chrome of one clip: a body in a deep (or pale) version of its colour, a title bar
@@ -754,19 +98,46 @@ pub(super) fn clip_chrome(
             mix(look.tint.large, ground, if t.dark { 0.55 } else { 0.25 }),
         )
     };
-    let bar_c = if look.selected {
+    let bar_c = if look.selected || look.lit {
         shade(bar_c, if t.dark { 0.06 } else { -0.04 })
     } else {
         bar_c
     };
+    // r39:lo-arrange — lit: the body a step toward its colour; dim: toward the lane.
+    let body_c = if (look.selected || look.lit) && !look.muted {
+        mix(body_c, look.tint.large, 0.10)
+    } else {
+        body_c
+    };
+    // r39:lapis2 — a selected clip's body through the theme's selection tint (none in
+    // Slate).
+    let body_c = if look.selected && !look.muted {
+        crate::kit::color::selected_fill(body_c, t.selection_tint, CLIP_TINT)
+    } else {
+        body_c
+    };
+    let (bar_c, body_c) = if look.dim && !look.muted {
+        (mix(bar_c, ground, DIM), mix(body_c, ground, DIM))
+    } else {
+        (bar_c, body_c)
+    };
     let r = s.r(2.0);
     let body = b.snap_rect(body);
+    // r39:el-views — playing: a step brighter (des-views: the rest tint + 6 %).
+    let body_c = if look.playing && !look.muted {
+        mix(body_c, look.tint.large, 0.06)
+    } else {
+        body_c
+    };
     b.rrect(body, r, Fill::Solid(shade(body_c, -0.12)));
     b.rrect(
         body.shrink(b.px()),
         (r - b.px()).max(0.0),
         Fill::Solid(body_c),
     );
+    if look.muted {
+        muted_hatch(b, body.shrink(b.px()), visible, s);
+    }
     let title_h = if look.quiet {
         0.0
     } else {
@@ -785,6 +156,17 @@ pub(super) fn clip_chrome(
             title.top() + 1.5 * b.px(),
             b.px(),
             shade(bar_c, 0.12 * t.depth),
+        );
+    }
+    if look.playing && !look.muted {
+        // Its lit top: a line of the colour lifted toward white.
+        let room = crate::views::room::Room::of(t);
+        b.hline(
+            body.left() + b.px(),
+            body.right() - b.px(),
+            body.top() + 1.5 * b.px(),
+            b.px(),
+            mix(look.tint.large, room.white, 0.45),
         );
     }
     if look.selected {
@@ -807,6 +189,11 @@ pub(super) fn clip_chrome(
     // then in the hover hint (round 27).
     let fit = label_fit(title_h > 0.0, body.height(), look.label_row);
     let fit = fit.filter(|_| !look.quiet); // r37:finish
+                                           // r39:el-views — des-views: a lane without the strip names a clip over its content
+                                           // only when it is selected, or 80 px wide at the near and close zooms; elsewhere the
+                                           // content has the room (the name is in the hover hint).
+    let shown_w = body.right().min(visible.right()) - body.left().max(visible.left());
+    let fit = fit.filter(|_| title_h > 0.0 || look.selected || (look.near && shown_w >= 80.0 * k));
     if let (false, true, Some(fit)) = (look.renaming, body.width() >= 14.0 * k, fit) {
         let line = if title_h > 0.0 {
             Rect::from_min_max(body.min, pos2(body.right(), body.top() + title_h))
@@ -821,6 +208,8 @@ pub(super) fn clip_chrome(
         };
         let ink = if look.muted {
             with_alpha(ink, 0.6)
+        } else if look.dim {
+            with_alpha(ink, 0.45)
         } else {
             ink
         };
@@ -880,7 +269,7 @@ pub(super) fn clip_chrome(
 /// places on the clip (they start at its corner), so the pattern does not crawl as the
 /// view scrolls.
 #[allow(clippy::too_many_arguments)]
-fn dashed_rect(
+pub(super) fn dashed_rect(
     b: &mut Brush,
     r: Rect,
     visible: Rect,
@@ -921,8 +310,38 @@ fn dashes(lo: f32, hi: f32, vis_lo: f32, vis_hi: f32, step: f32) -> impl Iterato
         .take_while(move |x| *x < end)
 }
 
+/// The body's ground under a clip's content, as [`clip_chrome`] paints it (r39:el-views).
+pub(super) fn body_ground(look: &ClipLook, s: &Style) -> egui::Color32 {
+    let t = &s.t;
+    let ground = if t.dark { t.row_black } else { t.row_white };
+    if look.muted {
+        return mix(mix(look.tint.large, ground, 0.65), ground, 0.5);
+    }
+    let c = mix(look.tint.large, ground, if t.dark { 0.55 } else { 0.25 });
+    let c = if look.selected || look.lit {
+        mix(c, look.tint.large, 0.10)
+    } else {
+        c
+    };
+    if look.dim {
+        mix(c, ground, DIM)
+    } else {
+        c
+    }
+}
+
 /// The colour a clip's notes are drawn in on its body.
 pub(super) fn note_ink(look: &ClipLook, s: &Style) -> egui::Color32 {
+    let ink = note_ink_full(look, s);
+    if look.dim && !look.muted {
+        with_alpha(ink, DIM_NOTES)
+    } else {
+        ink
+    }
+}
+
+/// [`note_ink`] before a solo dims it.
+fn note_ink_full(look: &ClipLook, s: &Style) -> egui::Color32 {
     let t = &s.t;
     if look.muted {
         t.text_dim
@@ -965,107 +384,46 @@ pub(super) fn label_fit(bar: bool, body_h: f32, label_row: f32) -> Option<f32> {
     (fit >= MIN_LABEL_FIT).then_some(fit)
 }
 
-/// The height of a clip's title bar: none on a body too short to hold one.
+/// The height of a clip's name strip: none on a body too short to hold one.
+///
+/// r39:el-views — des-views: a 13-px strip in lanes of 44 and taller. This branch's
+/// default lane is 40 (the merged tree's 44): the strip starts at a 40-px lane, so the
+/// default keeps it either way.
 pub(super) fn title_height(body: Rect, k: f32) -> f32 {
-    if body.height() >= 22.0 * k {
-        14.0 * k
+    if body.height() >= 36.0 * k {
+        13.0 * k
     } else {
         0.0
     }
 }
 
-/// A small key with a letter on it (a track header's M and S), centred on `c`, `side`
-/// across: the kit's object, lit through in `on` while it acts. // r37:finish
-#[allow(clippy::too_many_arguments)]
-pub(super) fn letter_key(
-    b: &mut Brush,
-    c: egui::Pos2,
-    side: f32,
-    letter: &str,
-    lit: bool,
-    on: egui::Color32,
-    hovered: bool,
-    alpha: f32,
-    s: &Style,
-) {
-    let rect = key_face(b, c, side, lit, on, hovered, alpha, s);
-    let t = &s.t;
-    let ink = if lit {
-        crate::kit::color::on_fill(on)
-    } else {
-        t.label
-    };
-    let _ = text::paint(
-        b,
-        rect,
-        &Text::new(letter, Role::Section, ink.gamma_multiply(alpha))
-            .align(Align2::CENTER_CENTER)
-            .caps(false),
-        s.tk(),
+/// A muted clip's hatch (des-views): 1-px diagonals every 6 px in ink 4 at 35 %, drawn
+/// only where the clip is on screen, anchored to the clip so they do not crawl.
+fn muted_hatch(b: &mut Brush, body: Rect, visible: Rect, s: &Style) {
+    let k = s.k;
+    let room = crate::views::room::Room::of(&s.t);
+    let c = with_alpha(room.ink4, 0.35);
+    let step = 6.0 * k;
+    let h = body.height();
+    let (l, r) = (
+        body.left().max(visible.left()),
+        body.right().min(visible.right()),
     );
-}
-
-/// r37:finish — the record arm: a key with the record dot (not a second "R" beside the
-/// automation badge's), the dot red at rest and bright on a red key while armed.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn dot_key(
-    b: &mut Brush,
-    c: egui::Pos2,
-    side: f32,
-    lit: bool,
-    on: egui::Color32,
-    hovered: bool,
-    alpha: f32,
-    s: &Style,
-) {
-    let rect = key_face(b, c, side, lit, on, hovered, alpha, s);
-    let dot = if lit {
-        crate::kit::color::mix(on, s.t.text, 0.55)
-    } else {
-        with_alpha(on, 0.85)
-    };
-    b.circle(
-        rect.center(),
-        side * 0.2,
-        Fill::Solid(dot.gamma_multiply(alpha)),
-    );
-}
-
-#[allow(clippy::too_many_arguments)]
-fn key_face(
-    b: &mut Brush,
-    c: egui::Pos2,
-    side: f32,
-    lit: bool,
-    on: egui::Color32,
-    hovered: bool,
-    alpha: f32,
-    s: &Style,
-) -> Rect {
-    let t = &s.t;
-    let rect = Rect::from_center_size(c, vec2(side, side * 0.86));
-    let m = light::Material::of(t);
-    let base = if lit {
-        on
-    } else if hovered {
-        shade(t.panel_raised, 0.06)
-    } else {
-        t.panel_raised
-    };
-    light::object(
-        b,
-        rect,
-        s.r(2.5),
-        base,
-        &m,
-        light::ObjectOpts {
-            drop: false,
-            k: s.k,
-            alpha,
-            ..Default::default()
-        },
-    );
-    rect
+    if r <= l || h <= 0.0 {
+        return;
+    }
+    // A line from (x, bottom) to (x + h, top), clipped to [l, r].
+    let first = body.left() + ((l - h - body.left()) / step).floor().max(0.0) * step;
+    let mut x = first;
+    while x < r {
+        let (x0, x1) = (x, x + h);
+        let (a, z) = (x0.max(l), x1.min(r));
+        if z > a {
+            let y = |xx: f32| body.bottom() - (xx - x0);
+            b.segment(pos2(a, y(a)), pos2(z, y(z)), b.px(), c, false);
+        }
+        x += step;
+    }
 }
 
 #[cfg(test)]

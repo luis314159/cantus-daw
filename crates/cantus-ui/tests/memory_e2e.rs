@@ -121,6 +121,9 @@ fn what_the_parts_hold() {
     };
     at("Firmus", &|| Box::new(cantus_dsp::Firmus::new(48_000.0)));
     at("Pulsus", &|| Box::new(cantus_dsp::Pulsus::new(48_000.0)));
+    at("note-effect chain", &|| {
+        Box::new(cantus_engine::notefx::Chain::new())
+    });
     SIZES_ON.store(true, Relaxed);
     at("processor (manual)", &|| {
         Box::new(EngineHandle::manual(48_000.0))
@@ -151,6 +154,14 @@ fn what_a_start_holds() {
     steps.push(("fonts and style", mb()));
     let (engine, proc_) = EngineHandle::manual(48_000.0);
     steps.push(("the processor", mb()));
+    // `assemble` computes Exemplar's built-in sounds on a thread beside the window
+    // (`cantus-warm-builtins`); what they hold landed in whichever step that thread finished
+    // in — "assembled", "three frames" or the demo's, by the machine's load (integration,
+    // round 39: the empty song measured 12.9 MB once, 10.9 every other time, the total the
+    // same). Computed here first, they are a step of their own (the thread then finds them
+    // made) and every later step is the main thread's alone.
+    let _ = cantus_dsp::exemplar::builtin::builtins();
+    steps.push(("Exemplar's built-in sounds (beside the window)", mb()));
     let mut app = CantusApp::assemble(
         &ctx,
         files,
@@ -172,27 +183,41 @@ fn what_a_start_holds() {
         eprintln!("{m:8.1} MB  (+{:7.1})  {what}", m - last);
         last = *m;
     }
-    // Bounds from round 38's measure (the processor 96 MB, an empty song and its first
-    // frames +11, the demo +39), about a tenth above it: more memory held by a start fails
-    // here, not first in the scorecard. Lower them as ADR 0102's engine-memory work lands.
+    // Bounds from round 39's measure (ADR 0107: the processor 8.0 MB, 59.7 MB in all where
+    // round 38 held 145.5), about a tenth above it: more memory held by a start fails here,
+    // not first in the scorecard. Re-measured on the integrated tree (the kit's Barlow faces,
+    // Aula, the help line), with Exemplar's built-ins a step of their own: built-ins +6.0,
+    // an empty song and its first frames +7.8, the demo +37.7 — 59.7 MB in all, the same as
+    // the memory branch measured, so the merge added nothing held at start; the 11.4 and
+    // 40.2 measured before each held a share of the built-ins, by the thread's timing.
     let step = |what: &str| {
         let i = steps.iter().position(|(w, _)| *w == what).expect(what);
         steps[i].1 - steps[i - 1].1
     };
     let processor = step("the processor");
+    let builtins = step("Exemplar's built-in sounds (beside the window)");
     let empty = step("assembled on an empty song") + step("three frames");
     let demo = step("the demo opened, three frames");
+    let total = steps.last().map_or(0.0, |s| s.1);
     assert!(
-        processor <= 106.0,
-        "the processor holds {processor:.1} MB (96 measured)"
+        processor <= 9.0,
+        "the processor holds {processor:.1} MB (8.0 measured; 96 before ADR 0107)"
     );
     assert!(
-        empty <= 16.0,
-        "an empty song and its frames hold {empty:.1} MB (11 measured)"
+        builtins <= 6.6,
+        "Exemplar's built-in sounds hold {builtins:.1} MB (6.0 measured)"
     );
     assert!(
-        demo <= 45.0,
-        "the demo holds {demo:.1} MB more (39 measured)"
+        empty <= 8.6,
+        "an empty song and its frames hold {empty:.1} MB (7.8 measured)"
+    );
+    assert!(
+        demo <= 41.5,
+        "the demo holds {demo:.1} MB more (37.7 measured)"
+    );
+    assert!(
+        total <= 66.0,
+        "a start on the demo holds {total:.1} MB (59.7 measured; 145.5 before ADR 0107)"
     );
     drop(proc_);
 }

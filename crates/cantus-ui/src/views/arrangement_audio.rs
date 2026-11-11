@@ -225,6 +225,8 @@ pub struct Shown<'a> {
 #[derive(Debug, Default)]
 pub struct Scratch {
     cols: [Vec<(f32, f32)>; 2],
+    /// The loudness under each column (r39:el-views), the envelope's smoothed mean.
+    loud: Vec<(f32, f32)>,
     /// A warped clip's run of columns (ADR 0061).
     run: Vec<(f32, f32)>,
     pts: Vec<Pos2>,
@@ -578,8 +580,17 @@ fn wave(
         let d = Ticks(((x - geo.x(shown.start.as_beats_f64() as f32) as f64) / px_per_tick) as i64);
         clipfx::column_gain(shown, crossing, gain, d)
     };
+    // r39:el-views — the content by zoom (des-views): far, the loudness alone; at the
+    // default zoom the peak envelope with the loudness inside it as its texture; near and
+    // close, peak and loudness in two tones, the channels apart and named when close.
+    let zoom = super::clip_content::Zoom::of(geo.px_per_beat);
+    use super::clip_content::Zoom;
     let h = inner.height() / lanes_n as f32;
-    let fill = with_alpha(ink, 0.92);
+    let (peak_c, loud_c) = match zoom {
+        Zoom::Far => (None, ink),
+        Zoom::Default => (Some(with_alpha(ink, 0.62)), ink),
+        Zoom::Near | Zoom::Close => (Some(with_alpha(ink, 0.55)), mix(ink, s.t.light, 0.25)),
+    };
     for c in 0..lanes_n {
         let band = Rect::from_min_max(
             pos2(x0, inner.top() + h * c as f32),
@@ -591,7 +602,22 @@ fn wave(
             band
         };
         b.hline(x0, x1, band.center().y, b.px(), with_alpha(ink, 0.28));
-        fill_peaks(b, band, &scratch.cols[c], column_gain, fill);
+        if let Some(pc) = peak_c {
+            fill_peaks(b, band, &scratch.cols[c], column_gain, pc);
+        }
+        loudness(&scratch.cols[c], &mut scratch.loud);
+        fill_peaks(b, band, &scratch.loud, column_gain, loud_c);
+        if stereo && zoom == Zoom::Close && band.height() >= 14.0 * s.k {
+            let name = if c == 0 { "L" } else { "R" };
+            let tx = Text::new(name, Role::Micro, with_alpha(ink, 0.9))
+                .caps(false)
+                .align(Align2::LEFT_TOP);
+            let at = Rect::from_min_size(
+                pos2(inner.left().max(lanes.left()) + 4.0 * s.k, band.top() + 1.0),
+                vec2(12.0 * s.k, 12.0 * s.k),
+            );
+            let _ = text::paint(b, at, &tx, s.tk());
+        }
         if stereo && c == 0 {
             b.hline(
                 x0,
@@ -601,6 +627,36 @@ fn wave(
                 with_alpha(s.t.shadow, 0.45),
             );
         }
+    }
+}
+
+/// The loudness under each column: the peak envelope's half-range, averaged over seven
+/// columns and scaled as a sine's RMS is to its peak — the body of the sound, smooth,
+/// without the transients' spikes. Into `out`, reused.
+#[allow(clippy::needless_range_loop)]
+fn loudness(cols: &[(f32, f32)], out: &mut Vec<(f32, f32)>) {
+    out.clear();
+    let n = cols.len();
+    let half = |i: usize| ((cols[i].1 - cols[i].0) * 0.5).max(0.0);
+    let mut sum = 0.0f32;
+    let w = 3usize;
+    for i in 0..n.min(w + 1) {
+        sum += half(i);
+    }
+    for i in 0..n {
+        let lo = i.saturating_sub(w);
+        let hi = (i + w).min(n - 1);
+        if i > 0 {
+            if i + w < n {
+                sum += half(i + w);
+            }
+            if i > w {
+                sum -= half(i - w - 1);
+            }
+        }
+        let a = (sum / (hi - lo + 1) as f32) * std::f32::consts::FRAC_1_SQRT_2;
+        let mid = (cols[i].0 + cols[i].1) * 0.5;
+        out.push((mid - a, mid + a));
     }
 }
 

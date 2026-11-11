@@ -170,6 +170,75 @@ fn span(t: &PTri, inv: f32, sy: f32, xa: usize, xb: usize) -> (usize, usize) {
     (a, b.max(a))
 }
 
+/// The bake's workers, made once per bake and kept for all its passes (round 39, fixes): the
+/// rows' passes and each blur used to start their own scoped threads — up to 13 a call,
+/// about twenty calls a full bake, a few hundred thread starts (several milliseconds on
+/// Windows). `threads` in all, the baking thread among them; a pass hands out its bands to
+/// whichever is free, so the bits never depend on how many there are.
+pub(super) struct Crew {
+    pool: Option<rayon::ThreadPool>,
+    threads: usize,
+}
+
+impl Crew {
+    pub(super) fn new(threads: usize) -> Crew {
+        let threads = threads.max(1);
+        let pool = if threads > 1 {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads - 1)
+                .thread_name(|i| format!("cantus-chorda-bake-{i}"))
+                .build()
+                .ok()
+        } else {
+            None
+        };
+        let threads = if pool.is_some() { threads } else { 1 };
+        Crew { pool, threads }
+    }
+
+    /// Runs `work` on as many of the crew as there are `parts` (at most all of it, this
+    /// thread among them), and returns when every one has returned.
+    fn run(&self, parts: usize, work: &(impl Fn() + Sync)) {
+        let n = self.threads.min(parts.max(1));
+        match &self.pool {
+            Some(pool) if n > 1 => pool.in_place_scope(|s| {
+                for _ in 1..n {
+                    s.spawn(|_| work());
+                }
+                work();
+            }),
+            _ => work(),
+        }
+    }
+
+    /// Runs `f` on each of `items`, one item to a worker (the last on this thread), and
+    /// returns when every one is done.
+    fn each<T: Send>(&self, mut items: Vec<T>, f: impl Fn(usize, T) + Sync) {
+        let Some(last) = items.pop() else { return };
+        let n = items.len();
+        match &self.pool {
+            Some(pool) if n > 0 => pool.in_place_scope(|s| {
+                let f = &f;
+                for (i, item) in items.into_iter().enumerate() {
+                    s.spawn(move |_| f(i, item));
+                }
+                f(n, last);
+            }),
+            _ => {
+                for (i, item) in items.into_iter().enumerate() {
+                    f(i, item);
+                }
+                f(n, last);
+            }
+        }
+    }
+
+    /// How many work at once.
+    fn threads(&self) -> usize {
+        self.threads
+    }
+}
+
 /// Rows a thread takes at a time. The scene's cost is uneven down the picture (the piano's
 /// rows cost many times the sky's), so the rows go out in small bands to whichever thread is
 /// free instead of one block each — a fixed split left most threads idle while one finished
@@ -177,11 +246,11 @@ fn span(t: &PTri, inv: f32, sy: f32, xa: usize, xb: usize) -> (usize, usize) {
 const BAND: usize = 8;
 
 /// Run `f(first_row, end_row, chunk_a, chunk_b, chunk_c)` over the rows (each `w` long) of
-/// three buffers, in bands of [`BAND`] rows shared among `threads`.
+/// three buffers, in bands of [`BAND`] rows shared among the `crew`.
 fn rows3<A: Send, B: Send, C: Send>(
     h: usize,
     w: usize,
-    threads: usize,
+    crew: &Crew,
     a: &mut [A],
     b: &mut [B],
     c: &mut [C],
@@ -204,21 +273,15 @@ fn rows3<A: Send, B: Send, C: Send>(
         let y = i * BAND;
         f(y, y + a.len() / w, a, b, c);
     };
-    let helpers = threads.max(1).min(h.div_ceil(BAND)) - 1;
-    std::thread::scope(|s| {
-        for _ in 0..helpers {
-            s.spawn(work);
-        }
-        work();
-    });
+    crew.run(h.div_ceil(BAND), &work);
 }
 
 /// Run `f(first_row, end_row, chunk)` over the rows (each `w` long) of `a`, in bands of
-/// [`BAND`] rows shared among `threads`.
+/// [`BAND`] rows shared among the `crew`.
 fn rows1<A: Send>(
     h: usize,
     w: usize,
-    threads: usize,
+    crew: &Crew,
     a: &mut [A],
     f: impl Fn(usize, usize, &mut [A]) + Sync,
 ) {
@@ -232,13 +295,7 @@ fn rows1<A: Send>(
         let y = i * BAND;
         f(y, y + a.len() / w, a);
     };
-    let helpers = threads.max(1).min(h.div_ceil(BAND)) - 1;
-    std::thread::scope(|s| {
-        for _ in 0..helpers {
-            s.spawn(work);
-        }
-        work();
-    });
+    crew.run(h.div_ceil(BAND), &work);
 }
 
 /// A depth buffer of `geo` seen from `cam`: samples' triangle and barycentrics.
@@ -250,7 +307,7 @@ struct GBuf {
     bary: Vec<[f32; 2]>,
 }
 
-fn gbuf(geo: &Geo, cam: &Camera, w: usize, h: usize, threads: usize) -> GBuf {
+fn gbuf(geo: &Geo, cam: &Camera, w: usize, h: usize, crew: &Crew) -> GBuf {
     let mut pt = Vec::with_capacity(geo.tris.len());
     project(cam, &geo.tris, &mut pt);
     let mut depth = vec![f32::MAX; w * h];
@@ -259,7 +316,7 @@ fn gbuf(geo: &Geo, cam: &Camera, w: usize, h: usize, threads: usize) -> GBuf {
     rows3(
         h,
         w,
-        threads,
+        crew,
         &mut depth,
         &mut tri,
         &mut bary,
@@ -282,14 +339,14 @@ struct Shadow {
 }
 
 impl Shadow {
-    fn of(geo: &Geo, st: &Stage, n: usize, threads: usize) -> Shadow {
+    fn of(geo: &Geo, st: &Stage, n: usize, crew: &Crew) -> Shadow {
         let cam = Camera::look(
             st.key_pos,
             st.key_aim * 4.0 + st.key_pos,
             n as f32 * 0.32,
             Pos2::new(n as f32 * 0.5, n as f32 * 0.5),
         );
-        let g = gbuf(geo, &cam, n, n, threads);
+        let g = gbuf(geo, &cam, n, n, crew);
         Shadow {
             cam,
             n,
@@ -415,7 +472,7 @@ fn shade_buf(
     cam: &Camera,
     g: &GBuf,
     ao: &[f32],
-    threads: usize,
+    crew: &Crew,
 ) -> Vec<Lin> {
     let mut out = vec![[0.0f32; 3]; g.w * g.h];
     let eye = if cam.flip {
@@ -427,40 +484,28 @@ fn shade_buf(
         cam.eye
     };
     let w = g.w;
-    let mut dummy_a = vec![0u8; g.w * g.h];
-    let mut dummy_b = vec![0u8; g.w * g.h];
-    rows3(
-        g.h,
-        w,
-        threads,
-        &mut out,
-        &mut dummy_a,
-        &mut dummy_b,
-        |y0, y1, o, _, _| {
-            for y in y0..y1 {
-                for x in 0..w {
-                    let k = y * w + x;
-                    let t = g.tri[k];
-                    if t == u32::MAX {
-                        o[(y - y0) * w + x] = lscale(st.sky, 0.5);
-                        continue;
-                    }
-                    let (p, n, uv, m, kk) = surface(geo, t, g.bary[k]);
-                    let fp = g.depth[k] / cam.k;
-                    o[(y - y0) * w + x] = light_at(st, sh, eye, p, n, uv, m, kk, fp, ao[k]);
+    rows1(g.h, w, crew, &mut out, |y0, y1, o| {
+        for y in y0..y1 {
+            for x in 0..w {
+                let k = y * w + x;
+                let t = g.tri[k];
+                if t == u32::MAX {
+                    o[(y - y0) * w + x] = lscale(st.sky, 0.5);
+                    continue;
                 }
+                let (p, n, uv, m, kk) = surface(geo, t, g.bary[k]);
+                let fp = g.depth[k] / cam.k;
+                o[(y - y0) * w + x] = light_at(st, sh, eye, p, n, uv, m, kk, fp, ao[k]);
             }
-        },
-    );
+        }
+    });
     out
 }
 
 /// Ambient occlusion from the depth buffer: how many nearby samples stand in front.
-fn occlusion(g: &GBuf, k_px: f32, threads: usize) -> Vec<f32> {
+fn occlusion(g: &GBuf, k_px: f32, crew: &Crew) -> Vec<f32> {
     let mut ao = vec![1.0f32; g.w * g.h];
     let (w, h) = (g.w, g.h);
-    let mut da = vec![0u8; w * h];
-    let mut db = vec![0u8; w * h];
     const DIRS: [(f32, f32); 8] = [
         (1.0, 0.0),
         (0.707, 0.707),
@@ -471,40 +516,32 @@ fn occlusion(g: &GBuf, k_px: f32, threads: usize) -> Vec<f32> {
         (0.0, -1.0),
         (0.707, -0.707),
     ];
-    rows3(
-        h,
-        w,
-        threads,
-        &mut ao,
-        &mut da,
-        &mut db,
-        |y0, y1, o, _, _| {
-            for y in y0..y1 {
-                for x in 0..w {
-                    let z = g.depth[y * w + x];
-                    if z == f32::MAX {
+    rows1(h, w, crew, &mut ao, |y0, y1, o| {
+        for y in y0..y1 {
+            for x in 0..w {
+                let z = g.depth[y * w + x];
+                if z == f32::MAX {
+                    continue;
+                }
+                let r = (0.16 * k_px / z).clamp(2.0, 60.0);
+                let mut occ = 0.0;
+                for (i, (dx, dy)) in DIRS.iter().enumerate() {
+                    let rr = r * (0.45 + 0.55 * ((i * 5 + x + y) % 4) as f32 / 3.0);
+                    let sx = (x as f32 + dx * rr) as isize;
+                    let sy = (y as f32 + dy * rr) as isize;
+                    if sx < 0 || sy < 0 || sx >= w as isize || sy >= h as isize {
                         continue;
                     }
-                    let r = (0.16 * k_px / z).clamp(2.0, 60.0);
-                    let mut occ = 0.0;
-                    for (i, (dx, dy)) in DIRS.iter().enumerate() {
-                        let rr = r * (0.45 + 0.55 * ((i * 5 + x + y) % 4) as f32 / 3.0);
-                        let sx = (x as f32 + dx * rr) as isize;
-                        let sy = (y as f32 + dy * rr) as isize;
-                        if sx < 0 || sy < 0 || sx >= w as isize || sy >= h as isize {
-                            continue;
-                        }
-                        let d = g.depth[sy as usize * w + sx as usize];
-                        let diff = z - d;
-                        if diff > 0.015 && diff < 0.6 {
-                            occ += 1.0 - diff / 0.6;
-                        }
+                    let d = g.depth[sy as usize * w + sx as usize];
+                    let diff = z - d;
+                    if diff > 0.015 && diff < 0.6 {
+                        occ += 1.0 - diff / 0.6;
                     }
-                    o[(y - y0) * w + x] = (1.0 - occ / 8.0 * 1.1).clamp(0.25, 1.0);
                 }
+                o[(y - y0) * w + x] = (1.0 - occ / 8.0 * 1.1).clamp(0.25, 1.0);
             }
-        },
-    );
+        }
+    });
     ao
 }
 
@@ -516,7 +553,7 @@ fn lines(
     cam: &Camera,
     g: &GBuf,
     col: &mut [Lin],
-    threads: usize,
+    crew: &Crew,
 ) {
     /// One line, projected and lit, ready to cover its samples.
     struct Stroke {
@@ -596,7 +633,7 @@ fn lines(
     // a row walks only the samples near the line (|q · nrm| is a sample's distance to it,
     // linear along the row; widened by two samples, each still takes the exact test).
     let w = g.w;
-    rows1(g.h, w, threads, col, |r0, r1, out| {
+    rows1(g.h, w, crew, col, |r0, r1, out| {
         for s in &strokes {
             let reach = (s.wpx * 0.5 + 0.5) as f64;
             for y in s.y0.max(r0)..s.y1.min(r1) {
@@ -635,7 +672,7 @@ fn lines(
 }
 
 /// A separable box blur of `img` (`w` × `h`), radius `r`, run twice (near a Gaussian).
-fn blur(img: &mut [Lin], w: usize, h: usize, r: usize, threads: usize) {
+fn blur(img: &mut [Lin], w: usize, h: usize, r: usize, crew: &Crew) {
     if r == 0 || w == 0 || h == 0 {
         return;
     }
@@ -644,7 +681,7 @@ fn blur(img: &mut [Lin], w: usize, h: usize, r: usize, threads: usize) {
         // Along the rows: each row alone.
         {
             let img = &*img;
-            rows1(h, w, threads, &mut tmp, |y0, y1, out| {
+            rows1(h, w, crew, &mut tmp, |y0, y1, out| {
                 for y in y0..y1 {
                     let mut acc = [0.0f32; 3];
                     let row = &img[y * w..(y + 1) * w];
@@ -668,7 +705,7 @@ fn blur(img: &mut [Lin], w: usize, h: usize, r: usize, threads: usize) {
         }
         // Down the columns: each column's running sum in its own order, the columns shared
         // among the threads in bands (walked row by row, for the cache).
-        let bands = threads.clamp(1, w);
+        let bands = crew.threads().clamp(1, w);
         let per = w.div_ceil(bands);
         let mut cols: Vec<Vec<&mut [Lin]>> = (0..bands).map(|_| Vec::with_capacity(h)).collect();
         for row in img[..w * h].chunks_mut(w) {
@@ -681,34 +718,32 @@ fn blur(img: &mut [Lin], w: usize, h: usize, r: usize, threads: usize) {
             }
         }
         let tmp = &tmp;
-        std::thread::scope(|s| {
-            for (b, mut band) in cols.into_iter().enumerate() {
-                let x0 = b * per;
-                let bw = band.first().map_or(0, |r| r.len());
-                if bw == 0 {
-                    continue;
+        crew.each(cols, |b, mut band| {
+            let x0 = b * per;
+            let bw = band.first().map_or(0, |r| r.len());
+            if bw == 0 {
+                return;
+            }
+            {
+                let mut acc = vec![[0.0f32; 3]; bw];
+                for y in 0..=r.min(h - 1) {
+                    for (cx, a) in acc.iter_mut().enumerate() {
+                        *a = ladd(*a, tmp[y * w + x0 + cx]);
+                    }
                 }
-                s.spawn(move || {
-                    let mut acc = vec![[0.0f32; 3]; bw];
-                    for y in 0..=r.min(h - 1) {
-                        for (cx, a) in acc.iter_mut().enumerate() {
-                            *a = ladd(*a, tmp[y * w + x0 + cx]);
+                for (y, out) in band.iter_mut().enumerate() {
+                    let n = (y + r).min(h - 1) - y.saturating_sub(r) + 1;
+                    for (cx, a) in acc.iter_mut().enumerate() {
+                        out[cx] = lscale(*a, 1.0 / n as f32);
+                        if y + r + 1 < h {
+                            *a = ladd(*a, tmp[(y + r + 1) * w + x0 + cx]);
+                        }
+                        if y >= r {
+                            let o = tmp[(y - r) * w + x0 + cx];
+                            *a = [a[0] - o[0], a[1] - o[1], a[2] - o[2]];
                         }
                     }
-                    for (y, out) in band.iter_mut().enumerate() {
-                        let n = (y + r).min(h - 1) - y.saturating_sub(r) + 1;
-                        for (cx, a) in acc.iter_mut().enumerate() {
-                            out[cx] = lscale(*a, 1.0 / n as f32);
-                            if y + r + 1 < h {
-                                *a = ladd(*a, tmp[(y + r + 1) * w + x0 + cx]);
-                            }
-                            if y >= r {
-                                let o = tmp[(y - r) * w + x0 + cx];
-                                *a = [a[0] - o[0], a[1] - o[1], a[2] - o[2]];
-                            }
-                        }
-                    }
-                });
+                }
             }
         });
     }
@@ -740,15 +775,16 @@ pub fn bake(
         c: Pos2::new(cam.c.x * ss as f32, cam.c.y * ss as f32),
         ..*cam
     };
-    let shadow = Shadow::of(geo, st, if q.full { 1536 } else { 768 }, threads);
-    let g = gbuf(geo, &scam, sw, sh_, threads);
+    let crew = &Crew::new(threads);
+    let shadow = Shadow::of(geo, st, if q.full { 1536 } else { 768 }, crew);
+    let g = gbuf(geo, &scam, sw, sh_, crew);
     let ao = if q.full {
-        occlusion(&g, scam.k, threads)
+        occlusion(&g, scam.k, crew)
     } else {
         vec![1.0; sw * sh_]
     };
-    let mut col = shade_buf(geo, st, Some(&shadow), &scam, &g, &ao, threads);
-    lines(geo, st, Some(&shadow), &scam, &g, &mut col, threads);
+    let mut col = shade_buf(geo, st, Some(&shadow), &scam, &g, &ao, crew);
+    lines(geo, st, Some(&shadow), &scam, &g, &mut col, crew);
     // The polished floor's mirror image, at half the samples, blurred as a gloss blurs it.
     if let (Some((mg, strength)), true) = (mirror, q.full) {
         let (mw, mh) = (sw / 2, sh_ / 2);
@@ -758,16 +794,16 @@ pub fn bake(
             flip: true,
             ..scam
         };
-        let mgb = gbuf(mg, &mcam, mw, mh, threads);
+        let mgb = gbuf(mg, &mcam, mw, mh, crew);
         let mao = vec![1.0; mw * mh];
-        let mut mc = shade_buf(mg, st, Some(&shadow), &mcam, &mgb, &mao, threads);
+        let mut mc = shade_buf(mg, st, Some(&shadow), &mcam, &mgb, &mao, crew);
         for (i, t) in mgb.tri.iter().enumerate() {
             if *t == u32::MAX {
                 mc[i] = [0.0; 3];
             }
         }
-        blur(&mut mc, mw, mh, 2, threads);
-        rows1(sh_, sw, threads, &mut col, |y0, y1, c| {
+        blur(&mut mc, mw, mh, 2, crew);
+        rows1(sh_, sw, crew, &mut col, |y0, y1, c| {
             for y in y0..y1 {
                 for x in 0..sw {
                     let k = y * sw + x;
@@ -795,8 +831,8 @@ pub fn bake(
             .fold(0.0f32, f32::max)
             + 0.6;
         let mut far = col.clone();
-        blur(&mut far, sw, sh_, (2 * ss).max(2), threads);
-        rows1(sh_, sw, threads, &mut col, |y0, y1, c| {
+        blur(&mut far, sw, sh_, (2 * ss).max(2), crew);
+        rows1(sh_, sw, crew, &mut col, |y0, y1, c| {
             for k in y0 * sw..y1 * sw {
                 let z = g.depth[k];
                 let coc = ((z - far_end) / (far_end * 0.8)).clamp(0.0, 1.0);
@@ -811,7 +847,7 @@ pub fn bake(
         if bw > 4 && bh > 4 {
             let mut bright = vec![[0.0f32; 3]; bw * bh];
             let colr = &col;
-            rows1(bh, bw, threads, &mut bright, |y0, y1, out| {
+            rows1(bh, bw, crew, &mut bright, |y0, y1, out| {
                 for y in y0..y1 {
                     for x in 0..bw {
                         let mut acc = [0.0f32; 3];
@@ -832,10 +868,10 @@ pub fn bake(
                     }
                 }
             });
-            blur(&mut bright, bw, bh, 3 * ss, threads);
+            blur(&mut bright, bw, bh, 3 * ss, crew);
             let mut wide = bright.clone();
-            blur(&mut wide, bw, bh, 9 * ss, threads);
-            rows1(sh_, sw, threads, &mut col, |y0, y1, cc| {
+            blur(&mut wide, bw, bh, 9 * ss, crew);
+            rows1(sh_, sw, crew, &mut col, |y0, y1, cc| {
                 for y in y0..y1 {
                     for x in 0..sw {
                         let k = (y / 4).min(bh - 1) * bw + (x / 4).min(bw - 1);
@@ -851,7 +887,7 @@ pub fn bake(
     let mut px = vec![0u8; w * h * 4];
     let n = (ss * ss) as f32;
     let col = &col;
-    rows1(h, w * 4, threads, &mut px, |y0, y1, out| {
+    rows1(h, w * 4, crew, &mut px, |y0, y1, out| {
         for y in y0..y1 {
             for x in 0..w {
                 let mut acc = [0.0f32; 3];

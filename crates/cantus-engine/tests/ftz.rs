@@ -92,6 +92,7 @@ fn rig(seen: &Arc<AtomicU64>) -> (Processor, rtrb::Producer<EngineMessage>) {
         let unit = EffectUnit::from_fx(slot, Box::new(Probe(seen.clone())));
         tx.push(EngineMessage::AddEffect(Box::new(unit))).unwrap();
     }
+    proc_.hold_parts_for(&snap); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     tx.push(EngineMessage::Play).unwrap();
     proc_.settle();
@@ -166,6 +167,7 @@ fn render_bits(p: &Project, flush: bool, blocks: usize) -> Vec<u32> {
     for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
         tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }
+    proc_.hold_parts_for(&snap); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     proc_.settle();
     while let Ok(ev) = erx.pop() {

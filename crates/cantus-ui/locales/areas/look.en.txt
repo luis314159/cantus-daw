@@ -9,6 +9,15 @@ theme.ultraviolet = Ultraviolet (dark)
 theme.lagoon = Lagoon (dark)
 theme.contrast = High contrast (dark)
 theme.contrast_light = High contrast (light)
+# round 39 (ADR 0111): Slate, the default, and the two optional families.
+theme.slate_night = Slate Night (dark)
+theme.slate_paper = Slate Paper (light)
+theme.slate_lapis_night = Slate Lapis, Night (dark)
+theme.slate_lapis_paper = Slate Lapis, Paper (light)
+theme.graphite_night = Graphite and gold, Night (dark)
+theme.graphite_paper = Graphite and gold, Paper (light)
+theme.studio_ink_night = Studio ink, Night (dark)
+theme.studio_ink_paper = Studio ink, Paper (light)
 look.preview = Preview of {name}
 look.in_use.dark = In use for dark mode
 look.in_use.light = In use for light mode
@@ -39,3 +48,24 @@ look.fader.tip = Fader cap: how every fader looks — the mixer, VCAs and the un
 look.fader.note = Classic is the ivory cap; Metal a machined cap with an engraved index and the theme's shine. Every fader changes at once.
 kit.fader.classic = Classic
 kit.fader.metal = Metal
+# round 39, themes (ADR 0111 §2): the themes of rounds 24–38 back, redrawn in round 39's
+# design system (`slate` is Pewter and `paper` is Chalk now: the FL-derived pair, renamed),
+# and the themes new in round 39; Settings ▸ Appearance's tiles and groups.
+theme.evergreen_night = Evergreen Night (dark)
+theme.evergreen_paper = Evergreen Paper (light)
+theme.bordeaux = Bordeaux (dark)
+theme.print = Print (light)
+look.group.r39 = Round 39's families
+look.group.redrawn = From earlier rounds, redrawn
+look.group.new = New
+look.group.access = For low vision
+look.family.cantus = Cantus Night · Paper
+look.family.blue_hour = Blue Hour · Daylight
+look.family.pewter = Pewter · Chalk
+look.family.ink_gold = Ink & Gold · Parchment
+look.family.ultraviolet = Ultraviolet
+look.family.lagoon = Lagoon
+look.family.evergreen = Evergreen Night · Paper
+look.family.bordeaux = Bordeaux
+look.family.print = Print
+look.family.contrast = High contrast

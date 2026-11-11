@@ -665,11 +665,7 @@ fn ink_of(app: &CantusApp, auto: &Automation) -> egui::Color32 {
                 .map(|c| c.color.unwrap_or(t.color))
         })
         .unwrap_or(cantus_core::Color::PALETTE[0]);
-    crate::kit::color::safe_track(
-        crate::theme::track_color(color),
-        s.t.dark,
-        crate::kit::color::FillSize::Small,
-    )
+    crate::kit::color::track_mark(crate::theme::track_color(color), &s.t)
 }
 
 /// The pointer in the canvas: points, rings, the marquee, drawing; Delete and Ctrl+A.

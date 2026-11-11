@@ -784,18 +784,22 @@ pub fn popups(app: &mut CantusApp, ctx: &Context) {
             .fixed_pos(at)
             .constrain(true)
             .show(ctx, |ui| {
-                let (resp, c) = crate::kit::widgets::menu_list(ui, &items, width);
-                chosen = c.clicked;
-                with_brush(ui.painter(), |b| {
-                    for (i, t) in previews.iter().enumerate() {
-                        let row = crate::kit::menu::row(resp.rect, &items, s.d(1.0), i);
-                        let r = Rect::from_center_size(
-                            Pos2::new(row.right() - 6.0 * k - sw.x * 0.5, row.center().y),
-                            sw,
-                        );
-                        super::appearance_look::paint_preview(b, r, t, k * 0.5);
-                        swatches.push((bases[i].clone(), r));
-                    }
+                // The menu's sheet (a bare area has no frame to be it: round 39's lists in a
+                // popup paint their rows only).
+                crate::kit::automate::frame().show(ui, |ui| {
+                    let (resp, c) = crate::kit::widgets::menu_list(ui, &items, width);
+                    chosen = c.clicked;
+                    with_brush(ui.painter(), |b| {
+                        for (i, t) in previews.iter().enumerate() {
+                            let row = crate::kit::menu::row(resp.rect, &items, s.d(1.0), i);
+                            let r = Rect::from_center_size(
+                                Pos2::new(row.right() - 6.0 * k - sw.x * 0.5, row.center().y),
+                                sw,
+                            );
+                            super::appearance_look::paint_preview(b, r, t, k * 0.5);
+                            swatches.push((bases[i].clone(), r));
+                        }
+                    });
                 });
             });
         ctx.data_mut(|d| d.insert_temp(swatches_id(), swatches));

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mock 1 — product-first hero</title>
+<script>if (location.search.includes("light")) document.documentElement.dataset.theme = "light";</script>
+<link rel="stylesheet" href="mock.css">
+<style>
+.hero { padding-bottom: 0; position: relative; overflow: hidden; }
+.hero .wrap { position: relative; }
+.hero-copy { text-align: center; padding-top: 3.2rem; padding-bottom: 2.4rem; display: grid; justify-items: center; gap: 1.25rem; }
+.hero h1 { font-size: clamp(3.4rem, 8.2vw, 7.4rem); font-weight: 500; letter-spacing: -0.02em; }
+.hero h1 i { font-style: normal; background: var(--leaf); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero .lede { text-align: center; max-width: 44rem; font-size: 1.4rem; }
+.ctas { display: flex; gap: .8rem; flex-wrap: wrap; justify-content: center; margin-top: .4rem; }
+.facts { display: flex; gap: 1.1rem; flex-wrap: wrap; justify-content: center; color: var(--ink-3); font-size: .98rem; }
+.facts b { color: var(--ink-2); font-weight: 500; }
+.facts span + span::before { content: "·"; margin-right: 1.1rem; color: var(--gold-text); }
+/* the product, large, on the lapis */
+.stage { position: relative; margin: 0 auto; max-width: 86rem; padding: 0 var(--g); }
+.window { border-radius: 12px 12px 0 0; overflow: hidden; box-shadow: 0 0 0 1px rgba(185,198,238,.28), 0 -20px 80px -20px rgba(126,162,246,.45), 0 40px 80px -30px #000; position: relative; }
+.window img { width: 100%; }
+.playhead { position: absolute; top: 15.5%; bottom: 50.2%; left: 61.2%; width: 2px; background: #ffd25c; box-shadow: 0 0 12px #ffd25c; }
+.listen { position: absolute; left: calc(var(--g) + 1.4rem); bottom: 1.4rem; display: flex; align-items: center; gap: .85rem; padding: .6rem 1rem .6rem .6rem; border-radius: 999px; background: rgba(10,18,52,.86); backdrop-filter: blur(10px); box-shadow: 0 0 0 1px rgba(185,198,238,.3), 0 12px 30px -10px #000; color: #f1f3fa; }
+.listen b { display: block; font-weight: 600; }
+.listen small { color: #b9c4e6; font-size: .85rem; }
+.wave { display: flex; gap: 3px; align-items: center; height: 1.6rem; margin-left: .4rem; }
+.wave i { width: 3px; border-radius: 2px; background: #e2622a; }
+.real { position: absolute; right: calc(var(--g) + 1.4rem); bottom: 1.4rem; font-size: .85rem; color: #c3cce8; background: rgba(10,18,52,.75); padding: .4rem .7rem; border-radius: 6px; }
+/* the proof strip, measured */
+.proof { background: var(--paper); border-top: 1px solid transparent; border-image: var(--gold-rule) 1; }
+.proof .wrap { display: grid; grid-template-columns: repeat(4, 1fr) 1.25fr; gap: 0; padding-top: 1.8rem; padding-bottom: 1.8rem; }
+.stat { padding: 0 1.4rem; border-left: 1px solid var(--line); }
+.stat:first-child { border-left: 0; padding-left: 0; }
+.stat .n { font: 500 2.5rem/1 var(--f); color: var(--strong); letter-spacing: -0.01em; }
+.stat .n small { font-size: 1.1rem; color: var(--ink-3); margin-left: .2rem; }
+.stat p { font-size: .98rem; color: var(--ink-2); margin-top: .4rem; line-height: 1.35; }
+.stat.lose .n { color: var(--ink-2); }
+.stat .tag { display: inline-block; font: 600 .72rem/1 var(--f); letter-spacing: .1em; text-transform: uppercase; padding: .25rem .4rem; border-radius: 3px; margin-bottom: .5rem; background: var(--accent-tint); color: var(--accent-text); }
+.stat.lose .tag { background: rgba(226,98,42,.14); color: var(--lose); }
+.proof .how { font-size: .92rem; color: var(--ink-3); align-self: center; padding-left: 1.4rem; border-left: 1px solid var(--line); }
+.proof .how a { color: var(--accent-text); font-weight: 600; }
+@media (max-width: 52rem) {
+  .hero-copy { text-align: left; justify-items: start; padding-top: 1.4rem; padding-bottom: 1.6rem; gap: 1rem; }
+  .hero .lede { text-align: left; font-size: 1.2rem; }
+  .ctas { justify-content: stretch; width: 100%; } .ctas .btn { flex: 1; justify-content: center; }
+  .facts { display: none; }
+  .facts span + span::before { margin-right: .9rem; }
+  .window { border-radius: 10px 10px 0 0; } .window img { width: 175%; max-width: none; transform: translateX(-24%); }
+  .playhead { left: 63%; }
+  .listen { left: 50%; transform: translateX(-50%); bottom: .9rem; white-space: nowrap; }
+  .real { display: none; }
+  .proof .wrap { grid-template-columns: 1fr 1fr; gap: 1.4rem 0; }
+  .stat:nth-child(3) { border-left: 0; padding-left: 0; }
+  .stat .n { font-size: 2.1rem; }
+  .proof .how { grid-column: 1 / -1; border-left: 0; padding-left: 0; }
+  .phone-note { display: flex !important; }
+  .desk-only { display: none !important; } .phone-only { display: inline-flex !important; }
+  .nav .btn { display: none; }
+  .listen .wave { display: none; } .listen { padding-right: 1.2rem; }
+}
+.phone-only { display: none; }
+.phone-note { display: none; gap: .6rem; align-items: center; font-size: .95rem; color: var(--ink-2); }
+</style></head>
+<body>
+<div class="mock-tag">Mock 1 · hero — not the site</div>
+<section class="hero lapis">
+  <div class="wrap nav">
+    <a class="brand" href="#"><img src="../../../../../crates/cantus-ui/assets/logos/03.svg" alt="">Cantus</a>
+    <nav class="links"><span>Tour</span><span>Instruments</span><span>Effects</span><span>Listen</span><span>Measured</span><span>Manual</span></nav>
+    <div class="tools">
+      <span class="seg"><span class="on">EN</span><span>ES</span></span>
+      <a class="btn primary" href="#" style="padding:.7rem 1.05rem">Download</a>
+      <span class="burger"><svg width="18" height="14" viewBox="0 0 18 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1h16M1 7h16M1 13h16"/></svg></span>
+    </div>
+  </div>
+  <div class="wrap hero-copy">
+    <span class="eyebrow">Free · open source · beta 13</span>
+    <h1>Finish the song<i>.</i></h1>
+    <p class="lede">A complete DAW — arrange, record, mix and master — with nine instruments and twenty-five effects of its own. No account, no subscription, no telemetry.</p>
+    <div class="ctas">
+      <a class="btn primary phone-only" href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 10V1M4.5 4.5 8 1l3.5 3.5M3 8v6h10V8"/></svg>Send the link to my computer</a>
+      <a class="btn primary desk-only" href="#"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 1v10M3.5 7 8 11.5 12.5 7M2 15h12"/></svg>Download for Windows <small>64-bit</small></a>
+      <a class="btn ghost" href="#">Play a groove in your browser</a>
+    </div>
+    <div class="facts"><span><b>Windows</b> &amp; <b>Linux</b></span><span>macOS preview</span><span>CLAP · VST3 · ARA 2</span><span>ASIO · WASAPI · PipeWire</span></div>
+    <div class="phone-note"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="14" height="10" rx="1.5"/><path d="M6 16h6"/></svg>Cantus is a desktop program: Windows, Linux, macOS preview</div>
+  </div>
+  <div class="stage">
+    <div class="window">
+      <img src="../../../../../web/assets/app-mixer-xl.png" alt="Cantus playing the demo song Neon Tide: the arrangement, the mixer and the inspector">
+
+    </div>
+    <div class="listen">
+      <span class="play"><svg viewBox="0 0 12 12" fill="currentColor"><path d="M2 1v10l9-5z"/></svg></span>
+      <span><b>Hear this song</b><small>Neon Tide · made and mastered in Cantus</small></span>
+      <span class="wave"><i style="height:30%"></i><i style="height:70%"></i><i style="height:45%"></i><i style="height:100%"></i><i style="height:60%"></i><i style="height:85%"></i><i style="height:40%"></i><i style="height:65%"></i><i style="height:30%"></i></span>
+    </div>
+    <span class="real">The real program, playing — a muted 12-s loop with this poster</span>
+  </div>
+</section>
+<section class="proof">
+  <div class="wrap">
+    <div class="stat"><span class="tag">Won</span><div class="n">0.74<small>s</small></div><p>to a ready window — 2.4× sooner than REAPER</p></div>
+    <div class="stat"><span class="tag">Won</span><div class="n">3.3×</div><p>sooner than FL Studio on a comparable starter</p></div>
+    <div class="stat"><span class="tag">Won</span><div class="n">1.6<small>%</small></div><p>of a core at rest — REAPER 2.3–3.7 %, FL 6.6 %</p></div>
+    <div class="stat lose"><span class="tag">Lost</span><div class="n">237<small>MB</small></div><p>memory on an empty song — REAPER 62 MB</p></div>
+    <p class="how">Same laptop, same evening, same script, five starts each (2026-11-09).<br><a href="#">See how it was measured →</a></p>
+  </div>
+</section>
+</body></html>

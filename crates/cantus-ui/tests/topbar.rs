@@ -160,7 +160,8 @@ fn the_tap_key_and_its_shortcut_tap() {
         Keymap::default().bindings_for(Action::TogglePatternMode)[0].to_string(),
         "L"
     );
-    let tap = r.text("TAP").expect("the TAP key is on the bar");
+    // Round 39 (`dir-a`): the tempo well's unit taps — "BPM", "TAP" while a run goes on.
+    let tap = r.text("BPM").expect("the tempo's unit is on the bar");
     r.click(tap.center());
     assert_eq!(r.app.topbar.tap.taps(), 1);
     assert!(
@@ -255,7 +256,7 @@ fn pattern_mode_plays_the_edited_clip_alone() {
         region.start,
         "from the pattern's top"
     );
-    assert!(r.painted().contains("PAT"), "{}", r.painted());
+    assert!(r.app.project().pattern_mode, "the switch says pattern");
     // Recording is refused, with the way out.
     r.app.run_action(Action::Record);
     assert!(!r.app.is_recording());
@@ -382,10 +383,25 @@ fn the_window_title_follows_the_project_through_the_boot_path() {
         "boot titles the main window with the project:\n{assemble}"
     );
     let app = include_str!("../src/app.rs");
-    let frame = &app[app
+    // Line endings removed: a Windows checkout (core.autocrlf) adds a byte a line, and the
+    // window below is counted in characters of the source as written.
+    let frame = app[app
         .find("pub fn frame(&mut self, root: &mut egui::Ui) {")
-        .unwrap()..];
-    assert!(frame[..3000].contains("views::transport::title::sync(self, ctx);"));
+        .unwrap()..]
+        .replace('\r', "");
+    // Every frame, before the first panel is drawn (round 39: the window was "the first
+    // 3 000 characters", which the kit's screen-scale block at the frame's top outgrew;
+    // what the test means is that the title is synced before anything is shown).
+    let sync = frame
+        .find("views::transport::title::sync(self, ctx);")
+        .expect("the frame syncs the title");
+    let first_panel = frame
+        .find("Panel::top")
+        .expect("the frame draws the top bar");
+    assert!(
+        sync < first_panel,
+        "the title is synced before the top bar is drawn"
+    );
     let mut r = Rig::new();
     let name = r.app.project().name.clone();
     let titled = |r: &Rig, want: &str| {
@@ -439,16 +455,12 @@ fn the_snap_follows_the_editor_being_worked_in() {
     r.app.central = cantus_ui::app::CentralView::PianoRoll;
     r.idle(2);
     assert_eq!(transport::snap_editor(&r.app).0, "piano_roll");
-    // The snap key (round 37: a magnet at the group's right end) switches the piano
+    // The snap key switches the piano
     // roll's snap.
     let before = r.app.piano_roll.snap;
-    assert!(r.group(Group::Snap).is_some(), "the snap group");
-    let key = r
-        .ctx
-        .read_response(egui::Id::new("toolbar-snap"))
-        .map(|k| k.rect)
-        .expect("the snap key");
-    r.click(key.center());
+    // The magnet (round 39, `dir-a`): the first key of the group's well.
+    let group = r.group(Group::Snap).expect("the snap group");
+    r.click(pos2(group.left() + 14.0, group.center().y));
     assert_ne!(r.app.piano_roll.snap, before);
     assert!(r.app.arrangement.snap, "the arrangement's is its own");
 }
@@ -461,7 +473,11 @@ fn the_metronome_voice_and_accent_are_set_and_undone() {
     let wood = r.text("Woodblock").expect("the voices in the options");
     r.click(wood.center());
     assert_eq!(r.app.project().recording.click_sound, ClickSound::Wood);
-    let accent = r.text("DOWNBEAT").expect("the accent lamp");
+    // r39:el-controls — an LED key's word in title case in Slate.
+    let accent = r
+        .text("Downbeat")
+        .or_else(|| r.text("DOWNBEAT"))
+        .expect("the accent lamp");
     r.click(accent.center());
     assert!(!r.app.project().recording.click_accent);
     r.app.undo();
@@ -470,17 +486,19 @@ fn the_metronome_voice_and_accent_are_set_and_undone() {
     assert!(r.app.project().recording.click_accent);
 }
 
-/// At 900 px the least important groups fold into ⋯ — and work there, their own menus
-/// and popovers included (review 1: opening one closed the overflow and itself).
+/// At 900 px the least used groups fold into More and others go compact — and work in the
+/// panel, their own menus and popovers included (review 1: opening one closed the overflow
+/// and itself).
 #[test]
 fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
     let mut r = Rig::new();
     r.size = vec2(900.0, 700.0);
     r.idle(3);
     let (_, l) = transport::last_layout(&r.ctx).unwrap();
-    for g in [Group::Windows, Group::Snap, Group::Metronome] {
+    for g in [Group::Windows, Group::Metronome] {
         assert!(l.folded().contains(&g), "{g:?}: {l:?}");
     }
+    assert!(l.is_compact(Group::Snap), "{l:?}");
     assert!(l.span_of(Group::Transport).is_some());
     transport::open_overflow(&mut r.app);
     r.idle(2);
@@ -492,9 +510,13 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
             .map(|(_, r)| *r)
             .unwrap()
     };
-    // The fifth key: the mixer (one strip of 22-pt keys).
+    // The sixth key: the mixer (seven keys across the section, each 6 apart).
     let windows = at(Group::Windows);
-    let mixer = pos2(windows.left() + 4.0 * 22.0 + 11.0, windows.center().y);
+    let pitch = (284.0 + 6.0) / 7.0;
+    let mixer = pos2(
+        windows.left() + 5.0 * pitch + 12.0,
+        windows.top() + 18.0 + 15.0,
+    );
     let shown = r
         .app
         .workspace
@@ -510,12 +532,13 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
         transport::overflow_open(&r.app),
         "a click inside keeps it open"
     );
-    // The folded snap's grid list opens from the overflow and sets the grid.
+    // The compact snap's grid is under *Also here*: its list opens from the panel and
+    // sets the grid.
     let snap = at(Group::Snap);
-    r.click(pos2(snap.left() + 30.0, snap.center().y));
+    r.click(pos2(snap.left() + 50.0, snap.center().y));
     assert!(
         transport::overflow_open(&r.app),
-        "the grid list did not close ⋯"
+        "the grid list did not close the panel"
     );
     let eighth = cantus_ui::i18n::t("grid.eighth");
     let item = r
@@ -532,17 +555,12 @@ fn a_narrow_window_folds_groups_that_still_work_in_the_overflow() {
         Ticks::EIGHTH,
         "the focused editor's grid"
     );
-    // The folded metronome's options open from it too.
-    let metro = at(Group::Metronome);
-    let down = pos2(metro.right() - 7.0, metro.center().y);
-    r.click(down);
+    // The folded metronome's choices are in its section: the sound is one click.
+    let wood = r.text("Woodblock").expect("the metronome's sound");
+    r.click(wood.center());
     assert!(transport::overflow_open(&r.app));
-    assert!(
-        r.text("Woodblock").is_some(),
-        "the metronome's options are open"
-    );
-    // A click on the window itself closes it (round 37: at the window's foot, clear of
-    // the overflow, which holds more now the bar is drawn larger).
+    assert_eq!(r.app.project().recording.click_sound, ClickSound::Wood);
+    // A click on the window itself closes it.
     r.click(pos2(60.0, 680.0));
     assert!(!transport::overflow_open(&r.app));
 }
@@ -562,11 +580,11 @@ fn customising_hides_and_reorders_groups_and_keeps_them() {
         .1
         .span_of(Group::Tools)
         .is_none());
-    // Drag PAT / SONG (second since round 37) by its grip above the transport.
+    // Drag the transport (second since round 39) by its grip above PAT / SONG.
     let mode = r.text("Pattern / song").unwrap();
     let transport_row = r.text("Transport").unwrap();
-    let grip = pos2(mode.left() - 30.0, mode.center().y);
-    let to = pos2(grip.x, transport_row.center().y + 2.0);
+    let grip = pos2(transport_row.left() - 30.0, transport_row.center().y);
+    let to = pos2(grip.x, mode.center().y + 2.0);
     r.idle(30);
     r.pointer = Some(grip);
     r.idle(2);
@@ -579,7 +597,7 @@ fn customising_hides_and_reorders_groups_and_keeps_them() {
     r.frame(vec![Rig::button(to, false)]);
     r.idle(2);
     let order = cantus_ui::views::transport::layout::resolve(&r.app.settings.topbar.order);
-    assert_eq!(&order[..2], &[Group::Mode, Group::Transport], "{order:?}");
+    assert_eq!(&order[..2], &[Group::Transport, Group::Mode], "{order:?}");
     let saved = std::fs::read_to_string(&r.app.settings_path).unwrap();
     assert!(saved.contains("\"tools\""), "{saved}");
     // Reset: the default bar.
@@ -591,9 +609,15 @@ fn customising_hides_and_reorders_groups_and_keeps_them() {
 #[test]
 fn the_meter_shows_loudness_when_asked_and_remembers() {
     let mut r = Rig::new();
-    let lufs = r.text("LUFS").expect("the meter's switch");
-    r.click(lufs.center());
+    // Round 39 (`dir-a`): the mode's word at the meter's left switches it.
+    let peak = r.text("Peak").expect("the meter's mode");
+    r.click(peak.center());
     assert!(r.app.settings.topbar.meter_lufs);
+    assert!(r.text("LUFS").is_some(), "{}", r.painted());
+    // The figures are the lanes' words on the help line.
+    let meter = r.group(Group::Meter).unwrap();
+    r.pointer = Some(pos2(meter.right() - 30.0, meter.center().y));
+    r.idle(3);
     assert!(r.painted().contains("TP"), "{}", r.painted());
     let saved = std::fs::read_to_string(&r.app.settings_path).unwrap();
     assert!(saved.contains("\"meter_lufs\": true"), "{saved}");
@@ -625,9 +649,8 @@ fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
         .filter(|(_, rr)| perf.contains_rect(*rr))
         .map(|(t, _)| t.as_str())
         .collect();
-    for w in ["CPU", "RAM", "VOICES", "DROPS"] {
-        assert!(inside.contains(&w), "{inside:?}");
-    }
+    // Round 39 (`dir-a`): the CPU as a graph with its number, the memory beside it.
+    assert!(inside.iter().any(|t| t.ends_with(" %")), "{inside:?}");
     if cfg!(any(windows, target_os = "linux")) {
         let near: Vec<_> = r
             .texts
@@ -654,8 +677,8 @@ fn the_performance_moved_from_the_status_bar_to_the_top_bar() {
             .any(|t| t.contains("MIDI") || t.contains("voices")),
         "{status:?}"
     );
-    // The chip's words (no device here: "No audio — click to set up") are the top bar's.
-    let chip = cantus_ui::i18n::t("devices.chip.none");
+    // The device group's words (no device here: "No device") are the top bar's.
+    let chip = cantus_ui::i18n::t("topbar.device_none");
     assert!(!status.iter().any(|t| *t == chip), "{status:?}");
     assert!(
         r.texts
@@ -685,12 +708,23 @@ fn the_pattern_switch_is_one_command() {
 #[test]
 fn a_slow_fine_drag_moves_the_click_level() {
     let mut r = Rig::new();
+    // Round 39: the level is in the metronome's options (its ▾ on the bar).
+    transport::open_metronome_options(&r.ctx);
+    r.idle(3);
+    let label = r
+        .text(&cantus_ui::i18n::t("rec.click_level"))
+        .expect("the level's row in the options");
     let well = r
         .texts
         .iter()
-        .find(|(t, _)| t.starts_with('+') && t.ends_with("dB"))
+        .find(|(t, rr)| {
+            t.starts_with('+')
+                && t.ends_with("dB")
+                && (rr.center().y - label.center().y).abs() < 8.0
+                && rr.left() > label.left()
+        })
         .map(|(_, rr)| *rr)
-        .expect("the click's level on the bar");
+        .expect("the click's level in the metronome's options");
     let at = well.center();
     let button = |pos: Pos2, pressed: bool| Event::PointerButton {
         pos,
@@ -731,9 +765,9 @@ fn a_slow_fine_drag_moves_the_click_level() {
 fn an_over_while_the_meter_is_folded_is_held() {
     let mut r = Rig::new();
     r.app.settings.topbar.meter_lufs = true;
-    r.size = vec2(900.0, 700.0);
+    r.size = vec2(700.0, 700.0);
     r.idle(3);
-    assert!(r.group(Group::Meter).is_none(), "the meter folds at 900");
+    assert!(r.group(Group::Meter).is_none(), "the meter folds at 700");
     let mut m = r.app.engine.meters().clone();
     m.master_loudness.true_peak = 1.2; // +1.6 dBTP
     r.app.engine.set_meters(m.clone());
@@ -742,6 +776,14 @@ fn an_over_while_the_meter_is_folded_is_held() {
     r.app.engine.set_meters(m);
     r.idle(2);
     transport::open_overflow(&mut r.app);
+    r.idle(3);
+    // In the panel, the meter's figures are its words on the help line.
+    let meter = transport::last_overflow(&r.ctx)
+        .into_iter()
+        .find(|(g, _)| *g == Group::Meter)
+        .map(|(_, rr)| rr)
+        .expect("the meter in the panel");
+    r.pointer = Some(pos2(meter.right() - 30.0, meter.center().y));
     r.idle(3);
     let text = r.painted();
     assert!(text.contains("TP 1.6"), "{text}");
@@ -815,12 +857,12 @@ fn the_audio_popover_hangs_under_the_bar_and_the_chip_closes_it() {
     let mut r = Rig::new();
     let chip = r.group(Group::Device).expect("the chip on the bar");
     let (bar, _) = transport::last_layout(&r.ctx).unwrap();
-    r.click(pos2(chip.center().x, chip.top() + 8.0));
+    r.click(chip.center());
     assert!(r.app.audio_setup.popover, "opened");
     let pop = cantus_ui::views::audio_popover::last_rect(&r.ctx).expect("drawn");
     assert!(pop.top() >= bar.bottom(), "{pop:?} under {bar:?}");
     assert!(!pop.intersects(chip), "{pop:?} clear of {chip:?}");
-    r.click(pos2(chip.center().x, chip.top() + 8.0));
+    r.click(chip.center());
     assert!(!r.app.audio_setup.popover, "the chip closed it");
 }
 

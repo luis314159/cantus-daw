@@ -686,9 +686,8 @@ impl Processor {
                 t.ids[k] = m.id.0;
                 t.values[k] = m.now * m.amount_now;
             }
-            if self.tx.push(EngineEvent::Modulation(t)).is_err() {
-                self.stats.dropped_events += 1;
-            }
+            // In the block's report (ADR 0107).
+            self.modulation = Some(t);
         }
         let nodes = self.nodes.clone();
         let mut moving = false;

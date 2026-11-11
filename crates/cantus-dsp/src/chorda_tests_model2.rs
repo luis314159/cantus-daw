@@ -358,3 +358,42 @@ fn load_at(mut c: Chorda, fs: f64) -> f64 {
     }
     best
 }
+
+/// Round 39 (fixes): a body made waiting for its responses synthesises nothing where it is
+/// made, sounds only its direct path meanwhile, and once given them sounds, from the next
+/// block on, exactly as a body made with them — its lines held the inputs all along.
+#[test]
+fn a_waiting_body_takes_its_responses_and_then_sounds_as_one_made_with_them() {
+    use super::body::{self, Body, BodyVoicing};
+    let fs = 41_000.0;
+    let before = body::made_on_this_thread();
+    let mut waiting = Body::waiting(fs);
+    assert_eq!(body::made_on_this_thread(), before, "nothing synthesised");
+    assert!(waiting.is_waiting());
+    assert!(!waiting.take(), "not made yet");
+    let mut made = Body::new(fs, &BodyVoicing::default());
+    assert!(body::is_warm(fs), "made, and published for the waiting");
+    let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+    let mut rnd = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 11) as f64 / (1u64 << 53) as f64 - 0.5
+    };
+    // 10 blocks of 64 with something going in, then the responses, then 40 blocks more.
+    for _ in 0..640 {
+        let (l, r) = (rnd(), rnd());
+        let _ = waiting.tick(l, r);
+        let _ = made.tick(l, r);
+    }
+    assert!(waiting.take(), "made by the body made with them");
+    assert!(!waiting.is_waiting());
+    for i in 0..2_560 {
+        let (l, r) = if i < 1_000 {
+            (rnd(), rnd())
+        } else {
+            (0.0, 0.0)
+        };
+        assert_eq!(waiting.tick(l, r), made.tick(l, r), "sample {i}");
+    }
+}

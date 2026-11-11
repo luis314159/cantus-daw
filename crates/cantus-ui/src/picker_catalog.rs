@@ -370,6 +370,7 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
             vec![C::Utility],
         ),
         ("tonus", PickChoice::Effect(E::AutoTune), vec![C::Pitch]),
+        ("aula", PickChoice::Effect(E::Aula), vec![C::Space]), // r39:conv
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {

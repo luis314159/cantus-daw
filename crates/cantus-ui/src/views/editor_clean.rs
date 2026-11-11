@@ -43,13 +43,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             ui.set_min_size(size);
             parts::panel(ui, rect, &st);
             let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 34.0 * k));
-            close |= crate::views::workspace_settings::title(
-                ui,
-                head,
-                &st,
-                Glyph::Warning,
-                "editor.clean.title",
-            );
+            close |= crate::kit::dialog::head(ui, head, &st, Glyph::Warning, "editor.clean.title");
             let foot = Rect::from_min_max(
                 Pos2::new(rect.left() + 18.0 * k, rect.bottom() - 48.0 * k),
                 Pos2::new(rect.right() - 18.0 * k, rect.bottom() - 14.0 * k),

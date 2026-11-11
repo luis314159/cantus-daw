@@ -7,10 +7,11 @@
 //! copy is told and shown the release page; an installed copy downloads, verifies and
 //! installs on quit.
 
-use super::workspace_settings::{frame as window_face, note, title, LABEL_W};
+use super::workspace_settings::{note, LABEL_W};
 use super::workspace_widgets as w;
 use crate::app::{config_dir, data_dir, CantusApp, APP_VERSION};
 use crate::i18n::{t, tf};
+use crate::kit::dialog::{head as title, sheet as window_face}; // r39:el-controls
 use crate::kit::glyph::Glyph;
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::led_button;

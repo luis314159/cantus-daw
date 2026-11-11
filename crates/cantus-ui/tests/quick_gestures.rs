@@ -202,12 +202,14 @@ impl Rig {
         at
     }
 
-    /// The song in miniature under the name line: also the header, not its name.
+    /// The line under the name (the instrument's): also the header, not its name.
+    /// r39:el-arrange — round 39's header has no song in miniature; its second line starts
+    /// with the type icon (the instrument chip, which swaps): aimed past it, at its words.
     fn header_map(&self, i: usize) -> Pos2 {
         let (row, letters) = self.header(i);
         pos2(
-            letters.left() + 4.0,
-            (letters.bottom() + row.bottom()) * 0.5 - 2.0,
+            letters.left() + 40.0,
+            (letters.bottom() + row.bottom()) * 0.5,
         )
     }
 

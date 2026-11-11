@@ -183,6 +183,22 @@ impl Processor {
             return;
         }
         let count = workers.count.min(MAX_WORKERS);
+        // The working memory of each slot the pool runs (ADR 0107): made here, off the
+        // audio thread, for the slots this pool has and no more.
+        for slot in 1..=count {
+            if let Some(mut s) = self
+                .nodes
+                .scratch
+                .get(slot)
+                .and_then(|c| c.try_borrow_mut())
+            {
+                if s.is_bare() {
+                    let mut fresh = exec::Scratch::new();
+                    fresh.prefault();
+                    *s = fresh;
+                }
+            }
+        }
         let mut cfg = Config::new(count, crate::graph::MAX_NODES);
         cfg.max_edges = crate::graph::MAX_NODES * 40;
         cfg.period = std::time::Duration::ZERO;

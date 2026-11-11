@@ -680,7 +680,7 @@ impl Unit {
 }
 
 /// The skin of a unit (its family's sheet); [`PLAIN`] for what has none — the legacy
-/// delay and reverb and hosted plug-ins.
+/// reverb and hosted plug-ins.
 pub fn of(unit: Unit) -> &'static Skin {
     if !enabled() {
         return &PLAIN;

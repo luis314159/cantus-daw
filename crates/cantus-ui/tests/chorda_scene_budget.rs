@@ -543,3 +543,49 @@ fn a_bake_is_the_same_on_any_number_of_threads() {
         }
     }
 }
+
+/// Round 39 (fixes): the bake's crew is made once per bake and kept for all its passes,
+/// and the occlusion and shading passes write one buffer instead of three — and the
+/// pictures are the ones the baker made before, to the bit: their hashes, measured with the
+/// round-38 baker (Windows; another system's maths library may round a `powf` apart).
+/// `CANTUS_GOLDEN_DUMP=1` prints them.
+#[test]
+fn a_bake_keeps_the_bits_it_had() {
+    let size = egui::vec2(300.0, 130.0);
+    let mut spec = cantus_core::NativeSpec::new(InstrumentKind::Chorda);
+    let mut got = Vec::new();
+    for (lid, room) in [(1.0, 0.5), (0.4, 0.95)] {
+        spec.set("lid", lid);
+        spec.set("room", room);
+        for dark in [true, false] {
+            let i = scene::Inputs::of(&spec, dark);
+            for q in [scene::PREVIEW, scene::FULL] {
+                let img = scene::render(&i, size, 1.5, q, 5, 16_384);
+                let mut h = 0xcbf2_9ce4_8422_2325u64;
+                for p in &img.pixels {
+                    for b in p.to_array() {
+                        h ^= b as u64;
+                        h = h.wrapping_mul(0x0100_0000_01b3);
+                    }
+                }
+                got.push(h);
+            }
+        }
+    }
+    if std::env::var_os("CANTUS_GOLDEN_DUMP").is_some() {
+        eprintln!("bake hashes: {got:#018x?}");
+    }
+    if cfg!(windows) {
+        const WANT: [u64; 8] = [
+            0x28b1eff6494ae58a,
+            0xba46ae801cafc89d,
+            0xc02de581f5bb97a5,
+            0xbdbd8da6076bde98,
+            0x4d7bdafe3f01e1f1,
+            0x2016b1018bea747f,
+            0x87452a152d8594e5,
+            0x4bf57adfe2f0f169,
+        ];
+        assert_eq!(got, WANT, "the bake's bits moved");
+    }
+}

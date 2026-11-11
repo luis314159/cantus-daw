@@ -61,9 +61,9 @@ fn context(theme: &str) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let t = if theme == "paper" {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     } else {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     };
     cantus_ui::theme::apply(&t, &ctx);
     ctx
@@ -133,9 +133,9 @@ fn app_for(theme: &str) -> CantusApp {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     let (preset, mode) = if theme == "paper" {
-        ("paper", Mode::Light)
+        ("slate_paper", Mode::Light)
     } else {
-        ("cantus_night", Mode::Dark)
+        ("slate_night", Mode::Dark)
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));

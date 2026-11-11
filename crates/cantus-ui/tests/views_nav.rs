@@ -310,8 +310,7 @@ fn dragging_an_end_of_the_scroll_bar_zooms() {
     );
     let g = a.arrangement.geometry().unwrap();
     let px = a.arrangement.px_per_beat;
-    // Where the thumb's right end is: the bar runs along the top of the ruler, and the
-    // thumb covers what is shown of the song.
+    // Where the thumb's right end is: the song map, whose frame covers what is shown.
     let visible = g.width / px;
     let total = {
         let per_bar = 4.0;
@@ -319,8 +318,10 @@ fn dragging_an_end_of_the_scroll_bar_zooms() {
         ((end / per_bar).ceil() + 8.0) * per_bar
     }
     .max(visible);
-    let bar_y = g.ruler_top - 6.0;
-    let end_x = g.left + g.width * (visible / total) - 3.0;
+    // r39:el-arrange — the bar is the song map at the panel's foot (under the lanes): its
+    // frame's right end.
+    let bar_y = g.lanes_bottom + 7.0;
+    let end_x = g.left + g.width * (visible / total) - 1.0;
     let button = |pos, pressed| egui::Event::PointerButton {
         pos,
         button: egui::PointerButton::Primary,

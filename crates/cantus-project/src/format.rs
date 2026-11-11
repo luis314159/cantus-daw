@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 59; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character)
+pub const SCHEMA_VERSION: u32 = 61; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -302,6 +302,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_56_to_57, // r37:drums — a kit's own gain
     migrate_57_to_58, // r37:scene — Chorda's look
     migrate_58_to_59, // r37:chars — the songbird written into dancers that named no character
+    migrate_59_to_60, // r39:conv — Aula's response from a file
+    migrate_60_to_61, // r39:arrange — sections, folders, lane modes (ADR 0113)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1050,6 +1052,20 @@ fn migrate_53_to_54(value: &mut Value) -> Result<(), String> {
 /// dancer that named no character showed the default — the songbird, before — so every
 /// dancer saved without one gets `character` = `builtin:songbird` written into its text,
 /// and a song keeps the dancer it had; a character already named is kept. // r37:chars
+/// Schema 60 (round 39, ADR 0112): Aula, the convolution reverb — a new effect kind, and an
+/// effect's optional `ir` (a response from a file). Nothing older has either, so nothing is
+/// written: an older file reads as it did. // r39:conv
+fn migrate_59_to_60(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 61 (round 39, ADR 0113): the project gains `sections` and `folders`, a track its
+/// `folder` and its lanes' own modes (`lane_modes`), every one defaulting to none — what an
+/// older project means. Nothing to write. // r39:arrange
+fn migrate_60_to_61(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
     let tracks = value
         .get_mut("project")
@@ -1372,7 +1388,7 @@ mod tests {
     #[test]
     fn schema_25_keeps_the_round_28_kinds() {
         use cantus_core::{EffectKind as K, InstrumentKind};
-        let new_kinds = &K::ALL[12..];
+        let new_kinds = &K::ALL[12..25]; // r39:conv: round 28's kinds (Aula came later)
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v25.cantus")).unwrap();
         let p = parse(&text, true).unwrap().file.project;

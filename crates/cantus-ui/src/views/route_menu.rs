@@ -1055,13 +1055,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, owner: Id) {
         apply(app, &ctx, p);
         return;
     }
-    let (pressed, escape, pointer) = ctx.input(|i| {
-        (
-            i.pointer.any_pressed(),
-            i.key_pressed(egui::Key::Escape),
-            i.pointer.interact_pos(),
-        )
-    });
+    // r39:ux-b — Esc closes it when it is what opened last (ADR 0110, `crate::esc`).
+    let layer = crate::esc::Layer::Other(egui::Id::new("cantus-route-menu-esc"));
+    crate::esc::open(&ctx, layer);
+    let escape = crate::esc::take(&ctx, layer);
+    let (pressed, pointer) = ctx.input(|i| (i.pointer.any_pressed(), i.pointer.interact_pos()));
     let inside = pointer.is_some_and(|p| top.rect.contains(p) || sub_rect.contains(p));
     if escape || (pressed && !inside && !open.fresh) {
         close(&ctx, owner);

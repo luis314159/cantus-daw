@@ -595,6 +595,19 @@ pub struct Track {
     /// something, by scene id. Empty — every older track — has none. // r33:session
     #[serde(default, skip_serializing_if = "Vec::is_empty")] // r33:session
     pub slots: Vec<crate::session::Slot>, // r33:session
+    /// The folder the track is in (schema 61, ADR 0113); `None` — every older track — is
+    /// none. // r39:arrange
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<crate::arrange::FolderId>, // r39:arrange
+    /// Automation lanes with a mode of their own over [`Self::auto_mode`] (schema 61, ADR
+    /// 0113). Empty — every older track — follows the track's. // r39:arrange
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lane_modes: Vec<crate::arrange::LaneMode>, // r39:arrange
+    /// An icon of the user's choice, shown before the name to find the track at a glance
+    /// (a glyph id of the track icon library; schema 61, ADR 0113), beside the type icon
+    /// the instrument gives (`icon`). `None` — every older track — is none. // r39:arrange
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub glyph: Option<String>, // r39:arrange
 }
 
 /// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
@@ -964,6 +977,38 @@ pub struct MixerStrip {
 }
 
 impl MixerStrip {
+    /// A strip as the desk makes it: unnamed, nothing on it, at unity, to the master, in
+    /// the middle of the desk. [`Project::make_strip`] gives it its id; [`Project::strip_is_free`]
+    /// compares against it.
+    pub fn fresh(id: StripId) -> MixerStrip {
+        MixerStrip {
+            id,
+            name: String::new(),
+            gain_db: 0.0,
+            pan: 0.0,
+            width: 1.0,
+            phase_invert: false,
+            muted: false,
+            soloed: false,
+            swap_channels: false,
+            fx_enabled: true,
+            effects: Vec::new(),
+            eq: StripEq::default(),
+            output: None,
+            sends: Vec::new(),
+            color: None,
+            dock: Dock::Middle,
+            group: None,
+            modulators: Vec::new(),
+            frozen: None,
+            kind: Default::default(), // r36:mix
+            vcas: Vec::new(),         // r36:mix
+            recall_safe: false,       // r36:mix
+            solo_safe: false,         // r36:mix
+            pan_law: None,            // r37:drums
+        }
+    }
+
     // r37:drums
     /// Whether the strip is the desk's: every strip but a pad's chain, which lives on its
     /// pad (ADR 0100 §6). What every list of strips a user picks from or sees filters by.
@@ -1237,6 +1282,14 @@ pub struct Project {
     /// and effects. Empty — every older project — is none, and is not written.
     #[serde(default, skip_serializing_if = "Vec::is_empty")] // r36:external
     pub external_units: Vec<crate::external_unit::ExternalUnit>, // r36:external
+    /// The song's sections, a lane of named spans above the tracks (schema 61, ADR 0113).
+    /// Empty — every older project — is none, and is not written. // r39:arrange
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sections: Vec<crate::arrange::Section>, // r39:arrange
+    /// The folders tracks are grouped in (schema 61, ADR 0113); a track names its own
+    /// (`Track::folder`). // r39:arrange
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folders: Vec<crate::arrange::TrackFolder>, // r39:arrange
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1288,6 +1341,8 @@ impl Project {
             grooves: Vec::new(),
             session: Default::default(), // r33:session
             external_units: Vec::new(),  // r36:external
+            sections: Vec::new(),        // r39:arrange
+            folders: Vec::new(),         // r39:arrange
             next_id: 1,
         }
     }
@@ -1417,19 +1472,34 @@ impl Project {
 
     /// r37:fixes — whether `s` may be handed to a new track: the one rule every path that
     /// makes tracks follows (a new track, a sample dropped on the rack, imported audio or
-    /// MIDI, a pitch or transcription track). An audio strip (never a VCA, a pad's chain or
-    /// a pad's own strip) that no track plays into, through its own output or a pad's, and
-    /// that no pad's chain or own strip plays into.
+    /// MIDI, a pitch or transcription track).
+    ///
+    /// r39:fix2 — a strip is free only when it is an unused channel of the desk, the way
+    /// FL hands out its next free insert:
+    ///
+    /// - an audio strip (never a VCA, a pad's chain or a pad's own strip);
+    /// - no track plays into it, through its own output or a pad's;
+    /// - **nothing routes into it** — no strip's output, no send, and no effect keyed from
+    ///   it (a bus fed only by other strips, such as a drum bus, is a bus, not a free
+    ///   channel: a new track landing on it took its name and every drum strip read
+    ///   "→ Dancer");
+    /// - **nothing was set on it** — as [`MixerStrip::fresh`] makes it in all but its id and
+    ///   its dock: no name, colour or group, no inserts, EQ or modulators, at unity, centred,
+    ///   not muted or soloed, to the master with no sends, under no VCA, not frozen. A strip
+    ///   someone named, coloured or dressed is one they meant for something.
     pub fn strip_is_free(&self, s: &MixerStrip) -> bool {
         s.kind == crate::vca::StripKind::Audio // r36:mix
             && !self.tracks.iter().any(|t| t.strip == Some(s.id))
             && !self.tracks.iter().any(|t| t.feeds_through_bus(s.id)) // r37:drums
-            && !self.strips.iter().any(|x| {
-                matches!(
-                    x.kind,
-                    crate::vca::StripKind::Chain | crate::vca::StripKind::Pad
-                ) && x.output == Some(s.id)
-            })
+            && !self
+                .strips
+                .iter()
+                .any(|x| x.id != s.id && (x.feeds().any(|to| to == s.id) || x.keys().any(|k| k == s.id)))
+            && {
+                let mut fresh = MixerStrip::fresh(s.id);
+                fresh.dock = s.dock;
+                *s == fresh
+            }
     }
 
     /// The free strips ([`Self::strip_is_free`]) in the order new tracks take them: the
@@ -1701,37 +1771,17 @@ impl Project {
             lateness: None,
             note_fx: Vec::new(),
             score: Default::default(),
-            slots: Vec::new(), // r33:session
+            slots: Vec::new(),      // r33:session
+            folder: None,           // r39:arrange
+            lane_modes: Vec::new(), // r39:arrange
+            glyph: None,            // r39:arrange
         }
     }
 
     pub fn make_strip(&mut self, name: impl Into<String>) -> MixerStrip {
-        MixerStrip {
-            id: StripId(self.alloc_id()),
-            name: name.into(),
-            gain_db: 0.0,
-            pan: 0.0,
-            width: 1.0,
-            phase_invert: false,
-            muted: false,
-            soloed: false,
-            swap_channels: false,
-            fx_enabled: true,
-            effects: Vec::new(),
-            eq: StripEq::default(),
-            output: None,
-            sends: Vec::new(),
-            color: None,
-            dock: Dock::Middle,
-            group: None,
-            modulators: Vec::new(),
-            frozen: None,
-            kind: Default::default(), // r36:mix
-            vcas: Vec::new(),         // r36:mix
-            recall_safe: false,       // r36:mix
-            solo_safe: false,         // r36:mix
-            pan_law: None,            // r37:drums
-        }
+        let mut strip = MixerStrip::fresh(StripId(self.alloc_id()));
+        strip.name = name.into();
+        strip
     }
 
     pub fn make_clip(&mut self, name: impl Into<String>, start: Ticks, length: Ticks) -> Clip {
@@ -2243,6 +2293,73 @@ mod strip_tests {
             !p.routing_would_cycle(s3, Some(s1)),
             "3 → 1 runs the same way as the key: no loop"
         );
+    }
+
+    /// r39:fix2 — a strip is free only when nothing routes into it and nothing was set on
+    /// it. Fails before the fix: a bus fed only by other strips (the house demo's drum bus)
+    /// counted as free, and the next new track landed on it.
+    #[test]
+    fn a_bus_fed_by_strips_or_a_dressed_strip_is_not_free() {
+        let fresh = |p: &Project| -> Vec<StripId> { p.free_strips().collect() };
+        let mut p = Project::default();
+        let ids: Vec<StripId> = p.strips.iter().map(|s| s.id).collect();
+        assert_eq!(
+            fresh(&p).len(),
+            DEFAULT_STRIPS,
+            "a new project's strips are all free"
+        );
+        // A bus: strip 2 leaves into strip 1, and no track plays into either.
+        p.strips[1].output = Some(ids[0]);
+        assert!(
+            !p.strip_is_free(&p.strips[0]),
+            "a bus fed by a strip is not free"
+        );
+        assert!(
+            !p.strip_is_free(&p.strips[1]),
+            "nor the strip routed into it"
+        );
+        assert_eq!(p.first_free_strip(), Some(ids[2]));
+        let t = p.make_track("Dancer");
+        assert_eq!(t.strip, Some(ids[2]), "a new track skips the bus");
+        // A send into a strip; an effect keyed from one.
+        p.strips[3].sends.push(Send::new(ids[4]));
+        let mut comp = p.make_effect(crate::effect::EffectKind::Compressor);
+        comp.sidechain = Some(ids[6]);
+        p.strips[5].effects.push(comp);
+        assert!(
+            !p.strip_is_free(&p.strips[4]),
+            "a send's destination is a return"
+        );
+        assert!(
+            !p.strip_is_free(&p.strips[6]),
+            "a sidechain's key is in use"
+        );
+        assert!(
+            !p.strip_is_free(&p.strips[5]),
+            "a strip with an insert is not free"
+        );
+        // What someone set on a strip: each alone makes it not free.
+        let set: [fn(&mut MixerStrip); 8] = [
+            |s| s.name = "Vox".into(),
+            |s| s.color = Some(Color::PALETTE[2]),
+            |s| s.gain_db = -6.0,
+            |s| s.pan = 0.5,
+            |s| s.muted = true,
+            |s| s.soloed = true,
+            |s| s.eq.bands[0].gain_db = 3.0,
+            |s| s.vcas.push(StripId(999_999)),
+        ];
+        for (k, f) in set.iter().enumerate() {
+            let mut q = Project::default();
+            f(&mut q.strips[0]);
+            assert!(!q.strip_is_free(&q.strips[0]), "change {k} leaves it free");
+            assert!(q.strip_is_free(&q.strips[1]), "its neighbour stays free");
+        }
+        // Its dock is only where it sits: a docked fresh strip is still free (after the
+        // middle's, as before).
+        let q = Project::default();
+        let right = q.strips.iter().find(|s| s.dock == Dock::Right).unwrap();
+        assert!(q.strip_is_free(right));
     }
 
     #[test]

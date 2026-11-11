@@ -330,7 +330,8 @@ fn key_chosen(st: &EqEditor) -> bool {
 type Pill = dyn Fn(f32, &mut String);
 
 fn slope_pill(v: f32, b: &mut String) {
-    let _ = write!(b, "{:.0} dB/oct", (v / 6.0).round() * 6.0);
+    // "24 dB" (round 39, ADR 0109): "24 dB/oct" did not fit the pill; its label says slope.
+    let _ = write!(b, "{:.0} dB", (v / 6.0).round() * 6.0);
 }
 
 fn ratio_pill(v: f32, b: &mut String) {

@@ -1,4 +1,5 @@
-//! Where Cantus is going, and the questions people ask first.
+//! Where Cantus is going (the /roadmap page) and the questions people ask first (the home's
+//! FAQ chapter): one section until round 39 split the home into chapters and pages.
 
 use yew::prelude::*;
 
@@ -6,13 +7,11 @@ use crate::lang::use_lang;
 use crate::shelf::use_shelf;
 use crate::top::GITHUB;
 
-#[function_component(Ahead)]
-pub fn ahead() -> Html {
+#[function_component(Roadmap)]
+pub fn roadmap() -> Html {
     let l = use_lang().lang;
-    // Once the latest release carries the Linux and macOS files (shelf.rs), the roadmap
-    // and the answer below say so instead of "coming soon".
-    let shelf = use_shelf();
-    let mac = shelf.macos;
+    // Once the latest release carries the macOS file (shelf.rs), the roadmap says so.
+    let mac = use_shelf().macos;
     let three = if mac {
         l.t(
             "macOS out of preview: signed, notarised and tried on real Macs",
@@ -24,17 +23,6 @@ pub fn ahead() -> Html {
             "macOS, primero como vista previa, luego firmado y probado en Mac reales",
         )
     };
-    let other_systems = if mac {
-        l.t("Yes. Cantus runs on Windows and Linux — an installer for Windows and one AppImage for every Linux distribution, the whole test suite run on both every round — and macOS has a preview: one universal disk image for Apple silicon and Intel, built and tested on GitHub's macOS machines, not yet signed and not yet opened on a real Mac. The first time, macOS blocks it: System Settings → Privacy & Security → Open Anyway. Please report what goes wrong.",
-            "Sí. Cantus funciona en Windows y Linux — un instalador para Windows y un AppImage para toda distribución Linux, con todas las pruebas pasadas en ambos en cada ronda — y macOS tiene una vista previa: una imagen de disco universal para Apple silicon e Intel, compilada y probada en las máquinas macOS de GitHub, aún sin firmar y aún no abierta en un Mac real. La primera vez macOS la bloquea: Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente. Cuéntanos lo que falle.")
-    } else if shelf.linux {
-        l.t("Yes for Linux: one AppImage for every distribution from Ubuntu 22.04 on, with the whole test suite run on Linux every round. macOS is next, first as a preview.",
-            "Sí para Linux: un AppImage para toda distribución desde Ubuntu 22.04, con todas las pruebas pasadas en Linux en cada ronda. macOS es lo siguiente, primero como vista previa.")
-    } else {
-        l.t("Cantus is made for Windows, Linux and macOS: Windows has its installer today, and the Linux and macOS files are next. Meanwhile you can build it from source.",
-            "Cantus está hecho para Windows, Linux y macOS: Windows tiene su instalador hoy, y los archivos de Linux y macOS son lo siguiente. Mientras tanto puedes compilarlo desde el código.")
-    };
-
     let col = |title: &'static str, items: Vec<&'static str>| {
         html! {
             <div class="road-col">
@@ -42,10 +30,6 @@ pub fn ahead() -> Html {
                 <ul>{ for items.into_iter().map(|t| html! { <li>{ t }</li> }) }</ul>
             </div>
         }
-    };
-
-    let faq = |q: &'static str, a: Html| {
-        html! { <details class="qa"><summary>{ q }</summary><div class="qa-a">{ a }</div></details> }
     };
 
     html! {
@@ -60,7 +44,7 @@ pub fn ahead() -> Html {
                 <div class="road">
                     { col(l.t("Works today", "Funciona hoy"), vec![
                         l.t("Record, sequence, mix and export a whole song, on Windows and Linux", "Grabar, secuenciar, mezclar y exportar una canción completa, en Windows y Linux"),
-                        l.t("Ten instruments and twenty-five effects of its own, a modelled grand piano among them", "Diez instrumentos y veinticinco efectos propios, entre ellos un piano de cola modelado"),
+                        crate::counts::ahead_units(l),
                         l.t("The recording mode: the song baked, only your take live", "El modo de grabación: la canción pre-renderizada, solo tu toma en vivo"),
                         l.t("VCA faders, mixer snapshots and scene cues", "Faders VCA, snapshots del mezclador y cues de escena"),
                         l.t("An audio editor with spectral repair and noise reduction", "Un editor de audio con reparación espectral y reducción de ruido"),
@@ -84,8 +68,42 @@ pub fn ahead() -> Html {
                     ]) }
                 </div>
 
-                <div class="faq" id="faq">
-                    <h3>{ l.t("Questions people ask first", "Las preguntas que más se hacen") }</h3>
+            </div>
+        </section>
+    }
+}
+
+#[function_component(Faq)]
+pub fn faq() -> Html {
+    let l = use_lang().lang;
+    // Once the latest release carries the Linux and macOS files (shelf.rs), the answer about
+    // other systems says so instead of "coming soon".
+    let shelf = use_shelf();
+    let mac = shelf.macos;
+    let other_systems = if mac {
+        l.t("Yes. Cantus runs on Windows and Linux — an installer for Windows and one AppImage for every Linux distribution, the whole test suite run on both every round — and macOS has a preview: one universal disk image for Apple silicon and Intel, built and tested on GitHub's macOS machines, not yet signed and not yet opened on a real Mac. The first time, macOS blocks it: System Settings → Privacy & Security → Open Anyway. Please report what goes wrong.",
+            "Sí. Cantus funciona en Windows y Linux — un instalador para Windows y un AppImage para toda distribución Linux, con todas las pruebas pasadas en ambos en cada ronda — y macOS tiene una vista previa: una imagen de disco universal para Apple silicon e Intel, compilada y probada en las máquinas macOS de GitHub, aún sin firmar y aún no abierta en un Mac real. La primera vez macOS la bloquea: Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente. Cuéntanos lo que falle.")
+    } else if shelf.linux {
+        l.t("Yes for Linux: one AppImage for every distribution from Ubuntu 22.04 on, with the whole test suite run on Linux every round. macOS is next, first as a preview.",
+            "Sí para Linux: un AppImage para toda distribución desde Ubuntu 22.04, con todas las pruebas pasadas en Linux en cada ronda. macOS es lo siguiente, primero como vista previa.")
+    } else {
+        l.t("Cantus is made for Windows, Linux and macOS: Windows has its installer today, and the Linux and macOS files are next. Meanwhile you can build it from source.",
+            "Cantus está hecho para Windows, Linux y macOS: Windows tiene su instalador hoy, y los archivos de Linux y macOS son lo siguiente. Mientras tanto puedes compilarlo desde el código.")
+    };
+
+    // The first two answers stand open: they are what most visitors came to ask.
+    let asked = std::cell::Cell::new(0);
+    let faq = |q: &'static str, a: Html| {
+        let open = asked.get() < 2;
+        asked.set(asked.get() + 1);
+        html! { <details class="qa" {open}><summary>{ q }</summary><div class="qa-a">{ a }</div></details> }
+    };
+
+    html! {
+        <section class="section ahead faq-wrap" id="faq">
+            <div class="wrap">
+                <div class="faq">
+                    <h2>{ l.t("Questions people ask first", "Las preguntas que más se hacen") }</h2>
                     { faq(l.t("Is it really free?", "¿De verdad es gratis?"), html! { <p>{ l.t(
                         "Yes. The whole DAW is free and nothing essential sits behind a paywall. Optional sound packs and donations may fund the work later; they never unlock the essentials.",
                         "Sí. El DAW completo es gratis y nada esencial está detrás de un muro de pago. Los paquetes de sonidos opcionales y las donaciones podrán financiar el trabajo más adelante; nunca desbloquean lo esencial.") }</p> }) }

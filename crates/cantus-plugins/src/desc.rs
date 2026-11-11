@@ -56,7 +56,7 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 23] = [
+pub static ALL: [Descriptor; 24] = [ // r39:conv: 24 with Aula
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -337,6 +337,20 @@ pub static ALL: [Descriptor; 23] = [
         vst3_categories: "Fx|Pitch Shift",
         description: "Real-time pitch correction to a key and scale, a set of notes or the notes you play, from natural to hard-tuned, formants kept.",
         compiled: cfg!(feature = "tonus"),
+    },
+    // r39:conv — Aula (ADR 0112): Cantus's own responses by its `ir` parameter (a file is
+    // the DAW's: a plug-in's state holds numbers only).
+    Descriptor {
+        kind: EffectKind::Aula,
+        name: "Aula",
+        full_name: "Cantus Aula",
+        slug: "aula",
+        clap_id: "com.github.lalmazan.cantus.aula",
+        vst3_cid: [0xE572AB2F, 0x65BBF685, 0x49C41E7C, 0xC17FCA6C],
+        clap_features: &[FX, "reverb", STEREO],
+        vst3_categories: "Fx|Reverb",
+        description: "Convolution reverb: rooms, halls, plates, springs and chambers made by Cantus, zero latency, shaped by stretch, length, decay, damping and cuts.",
+        compiled: cfg!(feature = "aula"),
     },
 ];
 

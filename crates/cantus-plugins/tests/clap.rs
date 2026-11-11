@@ -225,6 +225,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Analyzer => "avg",
             // The test signal is not a voice: the throat works on it all the same.
             EffectKind::AutoTune => "throat",
+            EffectKind::Aula => "mix", // r39:conv
             _ => "thr",
         };
         let table = params::table(kind);

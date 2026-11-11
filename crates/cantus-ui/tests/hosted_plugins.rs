@@ -98,11 +98,12 @@ fn the_generic_editor_shows_the_plugins_parameters_in_its_own_words() {
     // The frame's header sets the name in capitals, and the cells their labels.
     let lower = text.to_lowercase();
     assert!(lower.contains("cantus test gain"), "{text}");
-    assert!(text.contains("GAIN"), "{text}");
+    assert!(lower.contains("| gain |"), "{text}"); // r39:el-controls — title case in Slate
     assert!(lower.contains("latency"), "{text}");
     // The pill sets the unit a hair apart from the number, not after a space.
     assert!(
-        text.replace(' ', "").contains("-4.5dB"),
+        // r39:el-controls — Slate sets the unit apart, a size down.
+        text.replace([' ', '|'], "").contains("-4.5dB"),
         "the plug-in's own text for the value: {text}"
     );
     assert!(

@@ -34,17 +34,15 @@ fn play(p: &Project) -> (Meters, EngineStats) {
     let (mut tx, rx) = rtrb::RingBuffer::<EngineMessage>::new(64);
     let (etx, mut erx) = rtrb::RingBuffer::<EngineEvent>::new(256);
     let mut proc_ = Processor::without_midi(48_000.0, rx, etx);
+    proc_.hold_parts_for(&snap); // ADR 0107
     tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     tx.push(EngineMessage::Play).unwrap();
     let mut buf = vec![0.0f32; 512 * 2];
     let mut meters = Meters::default();
     for _ in 0..4 {
         proc_.process(&mut buf, 2);
-        while let Ok(ev) = erx.pop() {
-            if let EngineEvent::Meters(m) = ev {
-                meters = m;
-            }
-        }
+        while erx.pop().is_ok() {}
+        meters = proc_.meters().clone();
     }
     (meters, *proc_.stats())
 }

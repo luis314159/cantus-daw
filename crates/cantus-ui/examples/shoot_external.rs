@@ -13,14 +13,17 @@ use cantus_ui::{welcome_project, CantusApp};
 use egui::vec2;
 use std::path::PathBuf;
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 fn context(theme: &str) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let t = if theme == "paper" {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     } else {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     };
     cantus_ui::theme::apply(&t, &ctx);
     ctx
@@ -35,9 +38,9 @@ fn app_for(theme: &str) -> CantusApp {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     let (preset, mode) = if theme == "paper" {
-        ("paper", Mode::Light)
+        ("slate_paper", Mode::Light)
     } else {
-        ("cantus_night", Mode::Dark)
+        ("slate_night", Mode::Dark)
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
@@ -159,6 +162,18 @@ fn main() {
                                 )
                             });
                     },
+                );
+                // The crops the site and the README cut (`tools/shots/place.py`): the two
+                // bands, the external units' and the control surfaces'.
+                let bands = cantus_ui::views::workspace_settings::external_bands::last_bands(&ctx);
+                studio::sidecar(
+                    &path,
+                    vec2(1000.0, 560.0),
+                    scale,
+                    &[
+                        ("external", bands.map(|b| b[0])),
+                        ("surfaces", bands.map(|b| b[1])),
+                    ],
                 );
                 println!("wrote {}", path.display());
             }

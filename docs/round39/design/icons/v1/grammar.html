@@ -1,0 +1,93 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Icon grammar</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="family.js"></script>
+<script src="glyphs-transport.js"></script>
+<script src="glyphs-transport2.js"></script>
+<script src="glyphs-tools.js"></script>
+<script src="glyphs-tools2.js"></script>
+<script src="glyphs-tools3.js"></script>
+<script src="glyphs-windows.js"></script>
+<script src="glyphs-windows2.js"></script>
+</head><body><div id="out"></div>
+<script>
+const t = new URLSearchParams(location.search).get('t') || 'night';
+const k = INK[t];
+const W = 1240;
+let b = '', y = 20;
+const P = 24;
+const T = (x, yy, s, o = {}) => { b += label(t, x, yy, s, o); };
+
+T(P, y + 16, 'Cantus icon family — the grammar', { size: 20, weight: 600 });
+T(P, y + 36, 'Every glyph is drawn by hand for each device size below; nothing is scaled from another size. ' +
+  'These rules were read off the drawings, not imposed before them.', { size: 12, dim: true });
+y += 60;
+
+// 1. Sizes table
+const cols = ['canvas (device px)', 'key height', 'where it is used', 'primary line', 'detail line',
+  'line-glyph box', 'play (≈ ⅓ key)', 'stop (≈ ¼ key)', 'record Ø'];
+const rows = [
+  [16, 24, 'mixer strip, inspector @100 %', '1', '1', '12', '8', '6', '9'],
+  [20, 30, 'toolbars, browser @100 %', '1', '1', '14', '10', '8', '11'],
+  [24, 36, 'top bar + transport @100 %; 16 @150 %', '2', '1', '18', '12', '10', '13'],
+  [30, 45, '20 @150 %', '2', '1', '22', '15', '11', '16'],
+  [36, 54, '24 @150 %', '3', '2', '26', '18', '14', '19'],
+];
+const cx = [P, 140, 220, 470, 560, 640, 740, 840, 940];
+T(P, y + 14, '1 · Sizes, weights, proportions', { size: 14, weight: 600 });
+y += 26;
+cols.forEach((c, i) => T(cx[i], y + 12, c, { size: 10.5, dim: true }));
+y += 18;
+rows.forEach(r => {
+  b += `<rect x="${P}" y="${y}" width="${W - 2 * P}" height="1" fill="${k.rule}"/>`;
+  r.forEach((v, i) => T(cx[i], y + 16, String(v), { size: 12, weight: i === 0 ? 600 : 400 }));
+  y += 24;
+});
+T(P, y + 16, 'The 150 % sizes are their own drawings at device pixels (24, 30, 36), so a 16-px glyph at 150 % and a 24-px glyph at 100 % share one drawing. ' +
+  'Lines are whole pixels: odd widths on half-pixel centres, even widths on whole ones.', { size: 11, dim: true });
+y += 40;
+
+// 2. The grid: one key per size, magnified, with its zones.
+T(P, y + 14, '2 · How a glyph sits in its key (magnified; one square = one device pixel)', { size: 14, weight: 600 });
+y += 28;
+const Z = { 16: 9, 20: 7.5, 24: 6, 30: 5, 36: 4.2 };
+let x = P;
+const yTop = y;
+SIZES.forEach((c, idx) => {
+  const K = KEY[c], z = Z[c], off = Math.floor((K - c) / 2);
+  const side = K * z;
+  const gx = x, gy = yTop;
+  b += `<rect x="${gx}" y="${gy}" width="${side}" height="${side}" rx="${RADIUS[c] * z}" fill="${k.well}" stroke="${k.edge}"/>`;
+  // pixel grid
+  let grid = '';
+  for (let i = 1; i < K; i++) {
+    grid += `<line x1="${gx + i * z}" y1="${gy}" x2="${gx + i * z}" y2="${gy + side}"/>`;
+    grid += `<line x1="${gx}" y1="${gy + i * z}" x2="${gx + side}" y2="${gy + i * z}"/>`;
+  }
+  b += `<g stroke="${t === 'night' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'}" stroke-width="1">${grid}</g>`;
+  // the third-of-key band (solid primitives) and the line-glyph box
+  const third = K / 3;
+  b += `<rect x="${gx}" y="${gy + third * z}" width="${side}" height="${third * z}" fill="rgba(120,170,255,0.10)"/>`;
+  const box = [12, 14, 18, 22, 26][idx];
+  const bo = (K - box) / 2;
+  b += `<rect x="${gx + Math.floor(bo) * z}" y="${gy + Math.floor(bo) * z}" width="${box * z}" height="${box * z}" fill="none" stroke="rgba(255,170,60,0.55)" stroke-dasharray="4 3"/>`;
+  b += `<rect x="${gx + off * z}" y="${gy + off * z}" width="${c * z}" height="${c * z}" fill="none" stroke="rgba(140,220,140,0.45)"/>`;
+  // a glyph: play for the solids, gear for the line glyphs, drawn on the grid
+  const gl = idx % 2 === 0 ? G.play : G.gear;
+  b += `<g style="${themeVars(t)}" transform="translate(${gx + off * z},${gy + off * z}) scale(${z})">${glyphSvg(gl[c])}</g>`;
+  T(gx, gy + side + 16, `${c} px in a ${K}-px key`, { size: 11.5, weight: 600 });
+  T(gx, gy + side + 30, idx % 2 === 0 ? 'play: one third of the key' : 'gear: inside the line box', { size: 10.5, dim: true });
+  x += side + 22;
+});
+y = yTop + 54 * 4.2 + 44;
+b += `<rect x="${P}" y="${y}" width="12" height="10" fill="rgba(120,170,255,0.25)"/>`;
+T(P + 18, y + 9, 'the middle third: a solid primitive (play, pause, record) is as tall as this band', { size: 10.5, dim: true });
+b += `<rect x="${P + 470}" y="${y}" width="12" height="10" fill="none" stroke="rgba(255,170,60,0.8)" stroke-dasharray="3 2"/>`;
+T(P + 488, y + 9, 'the line box (half the key): tools and windows stay inside it', { size: 10.5, dim: true });
+b += `<rect x="${P + 850}" y="${y}" width="12" height="10" fill="none" stroke="rgba(140,220,140,0.8)"/>`;
+T(P + 868, y + 9, 'the canvas, origin floored to a whole pixel', { size: 10.5, dim: true });
+y += 30;
+window.__y = y; window.__b = b;
+</script>
+<script src="grammar2.js"></script>
+</body></html>

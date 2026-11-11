@@ -92,7 +92,7 @@ rec.capture_strip = Grabar la salida del canal a un archivo
 rec.arm_strip_tip = Armar la entrada de este canal para grabar
 
 # Las filas de grabación del inspector.
-rec.audio_in = Entrada de audio
+rec.audio_in = Entrada audio
 rec.trim = Ajuste
 rec.arm_row = Grabar
 rec.armed = Armar

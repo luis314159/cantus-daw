@@ -52,6 +52,8 @@ struct Key {
     locale: Locale,
     tk: u32,
     ppp: u32,
+    /// The fonts measured with (round 39): a theme's face measures differently.
+    face: u64,
 }
 
 #[derive(Default)]
@@ -218,6 +220,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         locale: crate::i18n::locale(),
         tk: tk.to_bits(),
         ppp: ctx.pixels_per_point().to_bits(),
+        face: crate::kit::cache::fonts_seen(&ctx),
     };
 
     // The audio chip is the top bar's now (round 28, ADR 0052): the readouts start at the
@@ -327,18 +330,100 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
                     cap::KeyFace::Glyph(g),
                 );
             }
-            let msg = Text::new(
-                &app.status.text,
-                Role::Label,
-                if app.status.error {
-                    tok.danger
+            // r39:el-topbar — the help line (`dir-a`): what the pointer rests on, its value
+            // and what drives it, in the status line's place while something is hovered
+            // (the top bar no longer has a hint panel); the status message otherwise.
+            let hovered = crate::kit::hint::read(&ctx, |h| {
+                h.map(|h| {
+                    let mut w = h.name.clone();
+                    if !h.value.is_empty() {
+                        w.push_str(" \u{b7} ");
+                        w.push_str(&h.value);
+                    }
+                    (w, h.driven.clone(), h.caps)
+                })
+            });
+            // The help line is what the old hint panel was (integration of round 39): it
+            // registers as `hint_panel` and keeps the capability icons at its right.
+            b.register(line, "hint_panel", super::hint::PANEL_TOKENS, &[]);
+            if let Some((name, driven, caps)) = hovered {
+                let icons = super::hint::paint_caps(b, line.right(), line.center().y, caps, &s);
+                let line = Rect::from_min_max(
+                    line.min,
+                    Pos2::new(line.right() - icons - gap * 0.5, line.bottom()),
+                );
+                let nw = text::measure(&ctx, &Text::new(&name, Role::Label, tok.text), tk).x;
+                // Nothing cut (ADR 0109): a hint wider than the line is set whole in two
+                // small lines, as the old hint panel wrapped it (integration of round 39).
+                let dw = if driven.is_empty() {
+                    0.0
                 } else {
-                    tok.text_dim
-                },
-            )
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End));
-            let _ = text::paint(b, line, &msg, tk);
+                    text::measure(&ctx, &Text::new(&driven, Role::Label, tok.text_dim), tk).x + gap
+                };
+                if nw + dw > line.width() {
+                    let words = if driven.is_empty() {
+                        name.clone()
+                    } else {
+                        format!("{name} \u{b7} {}", driven.replace('\n', " \u{b7} "))
+                    };
+                    let g =
+                        super::audio_parts::wrapped(&ctx, &words, Role::Micro, tk, line.width(), 2);
+                    let y = line.center().y - g.size().y * 0.5;
+                    b.text(Pos2::new(b.snap(line.left()), b.snap(y)), g, tok.text, 0.0);
+                } else {
+                    let first = Rect::from_min_max(
+                        line.min,
+                        Pos2::new((line.left() + nw + 1.0).min(line.right()), line.bottom()),
+                    );
+                    let _ = text::paint(
+                        b,
+                        first,
+                        &Text::new(&name, Role::Label, tok.text)
+                            .align(Align2::LEFT_CENTER)
+                            .policy(Policy::Elide(Elide::End)),
+                        tk,
+                    );
+                    let rest =
+                        Rect::from_min_max(Pos2::new(first.right() + gap, line.top()), line.max);
+                    if !driven.is_empty() && rest.width() > 40.0 * k {
+                        let _ = text::paint(
+                            b,
+                            rest,
+                            &Text::new(&driven, Role::Label, tok.text_dim)
+                                .align(Align2::LEFT_CENTER)
+                                .policy(Policy::Elide(Elide::End)),
+                            tk,
+                        );
+                    }
+                }
+            } else {
+                let msg = Text::new(
+                    &app.status.text,
+                    Role::Label,
+                    if app.status.error {
+                        tok.danger
+                    } else {
+                        tok.text_dim
+                    },
+                )
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End));
+                // A message wider than the line: two small lines, whole (ADR 0109).
+                if text::measure(&ctx, &msg, tk).x > line.width() {
+                    let g = super::audio_parts::wrapped(
+                        &ctx,
+                        &app.status.text,
+                        Role::Micro,
+                        tk,
+                        line.width(),
+                        2,
+                    );
+                    let y = line.center().y - g.size().y * 0.5;
+                    b.text(Pos2::new(b.snap(line.left()), b.snap(y)), g, msg.color, 0.0);
+                } else {
+                    let _ = text::paint(b, line, &msg, tk);
+                }
+            }
             let mut x = right_edge;
             for (i, it) in items.iter().enumerate() {
                 if !keep[i] {

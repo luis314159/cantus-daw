@@ -5,14 +5,15 @@
 //! momentary over short-term, a tick at −14 LUFS (the streaming services' level), and
 //! the momentary, short-term, integrated (since play) and true-peak numbers.
 
+use super::paint::{self as p, ink1, ink3};
 use super::Style;
 use crate::app::CantusApp;
 use crate::i18n::t;
-use crate::kit::color::with_alpha;
+use crate::kit::color::mix;
 use crate::kit::hint::{self, Caps};
-use crate::kit::meter::{self, Levels};
-use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
-use crate::kit::{segmented, shell, with_brush, State};
+
+use crate::kit::text::Role;
+use crate::kit::{with_brush, Fill};
 use cantus_core::linear_to_db;
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
 use std::cell::RefCell;
@@ -86,42 +87,125 @@ pub fn watch(app: &mut CantusApp) {
 }
 
 thread_local! {
-    static WORDS: RefCell<(String, String)> =
-        RefCell::new((String::with_capacity(24), String::with_capacity(48)));
+    static WORDS: RefCell<String> = RefCell::new(String::with_capacity(48));
 }
 
-const MODES: [Src<'static>; 2] = [Src::Key("topbar.meter.peak"), Src::Key("topbar.meter.lufs")];
+const MODES: [&str; 2] = ["topbar.meter.peak", "topbar.meter.lufs"];
 
-fn toggle_w(ctx: &egui::Context, s: &Style) -> f32 {
+/// The bar meter's scale (`dir-a`): dB to a place along the lanes, the ticks at −48, −24,
+/// −12, −6 and 0 where the sheet draws them.
+const SCALE: [(f32, f32); 7] = [
+    (-60.0, 0.0),
+    (-48.0, 0.12),
+    (-24.0, 0.42),
+    (-12.0, 0.62),
+    (-6.0, 0.76),
+    (0.0, 0.9),
+    (6.0, 1.0),
+];
+
+/// Where `db` sits along the lanes, 0…1.
+pub fn pos_of(db: f32) -> f32 {
+    if !db.is_finite() || db <= SCALE[0].0 {
+        return 0.0;
+    }
+    for w in SCALE.windows(2) {
+        let ((d0, p0), (d1, p1)) = (w[0], w[1]);
+        if db <= d1 {
+            return p0 + (p1 - p0) * (db - d0) / (d1 - d0);
+        }
+    }
+    1.0
+}
+
+/// The level at a place along the lanes (the hint under the pointer).
+pub fn db_at(pos: f32) -> f32 {
+    let pos = pos.clamp(0.0, 1.0);
+    for w in SCALE.windows(2) {
+        let ((d0, p0), (d1, p1)) = (w[0], w[1]);
+        if pos <= p1 {
+            return d0 + (d1 - d0) * (pos - p0) / (p1 - p0).max(1e-6);
+        }
+    }
+    SCALE[6].0
+}
+
+/// The mode word's width (10 Medium).
+fn label_w(ctx: &egui::Context, s: &Style) -> f32 {
     MODES
         .iter()
-        .map(|m| match m {
-            Src::Key(k) => text::measure(ctx, &Text::key(k, Role::Control, s.t.text), s.tk()).x,
-            Src::Str(_) => 0.0,
-        })
+        .map(|k| p::measure_key(ctx, k, Role::Control, 10.0, s))
         .fold(0.0, f32::max)
-        * 2.0
-        + 2.0 * 10.0 * s.k
-        + 4.0 * s.k
 }
 
-/// The lanes' least width in the one-row meter, at 100 %. // r37:finish
-const LANES_MIN: f32 = 56.0;
-
-/// The meter's least and most width.
+/// The meter's widths: compact (the lanes alone, 92) and full (the mode word before them,
+/// 132), wider where a language's word needs it.
 pub fn widths(ctx: &egui::Context, s: &Style) -> (f32, f32) {
-    let readout = text::measure(
-        ctx,
-        &Text::new("\u{2212}88.8 LUFS", Role::Value, s.t.text),
-        s.tk(),
-    )
-    .x;
-    // r37:finish — one row (the meter bridge): the switch, the lanes, the readout.
-    let min = toggle_w(ctx, s) + readout + LANES_MIN * s.k + 16.0 * s.k;
-    (min, min.max(300.0 * s.k))
+    let full = (8.0 * s.k + label_w(ctx, s) + 4.0 * s.k + 88.0 * s.k + 10.0 * s.k).max(132.0 * s.k);
+    (92.0 * s.k, full)
 }
 
-pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
+/// The two lanes in `lanes` (each 3 high, 2 apart, the scale's ticks under them): grooves
+/// at rest — never "−∞" — and the levels in green, amber from −6 dB, red from −1.
+fn lanes_paint(
+    b: &mut crate::kit::Brush,
+    lanes: Rect,
+    s: &Style,
+    levels: [f32; 2],
+    hold: f32,
+    lufs: bool,
+) {
+    let k = s.k;
+    let groove = mix(s.t.well, p::ink4(s), 0.28);
+    let (amber, red) = (pos_of(-6.0), pos_of(-1.0));
+    for (i, lv) in levels.into_iter().enumerate() {
+        let lane = Rect::from_min_size(
+            Pos2::new(lanes.left(), lanes.top() + i as f32 * 5.0 * k),
+            Vec2::new(lanes.width(), 3.0 * k),
+        );
+        let lane = b.snap_rect(lane);
+        b.rrect(lane, 1.0 * k, Fill::Solid(groove));
+        let at = pos_of(lv);
+        if at <= 0.0 {
+            continue;
+        }
+        let seg = |b: &mut crate::kit::Brush, f0: f32, f1: f32, c: egui::Color32| {
+            if f1 > f0 {
+                let r = Rect::from_min_max(
+                    Pos2::new(lane.left() + lane.width() * f0, lane.top()),
+                    Pos2::new(lane.left() + lane.width() * f1, lane.bottom()),
+                );
+                b.rect(b.snap_rect(r), Fill::Solid(c));
+            }
+        };
+        seg(b, 0.0, at.min(amber), s.t.meter_low);
+        seg(b, amber, at.min(red), s.t.meter_high);
+        seg(b, red, at, s.t.meter_clip);
+    }
+    let ticks_y = lanes.top() + 11.0 * k;
+    for db in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
+        let x = b.snap_mid(lanes.left() + lanes.width() * pos_of(db));
+        let (h, c) = if db == 0.0 {
+            (3.0, ink3(s))
+        } else {
+            (2.0, p::ink4(s))
+        };
+        b.vline(x, ticks_y, ticks_y + h * k, b.px(), c);
+    }
+    let mark = if lufs { TARGET_LUFS } else { hold };
+    if mark.is_finite() && pos_of(mark) > 0.0 {
+        let x = b.snap_mid(lanes.left() + lanes.width() * pos_of(mark));
+        b.vline(
+            x,
+            lanes.top() - 1.0 * k,
+            lanes.top() + 9.0 * k,
+            b.px(),
+            ink1(s),
+        );
+    }
+}
+
+pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style, compact: bool) {
     let k = s.k;
     let m = app.engine.meters();
     let peaks = m.master;
@@ -130,197 +214,136 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     // Fed once a frame by `watch`, drawn or not.
     let held = app.topbar.hold.peak();
     let true_peak = app.topbar.hold.true_peak();
-    // r37:finish — one row: the PEAK / LUFS switch, the lanes, the readout (the meter
-    // bridge: the system meters are the row under it). The loudness footer is the lanes'
-    // hint, and a click on the lanes lets the held peaks go.
-    let row_h = 18.0 * k;
-    let top = Rect::from_center_size(r.center(), Vec2::new(r.width(), row_h));
-    let tr = Rect::from_min_size(top.min, Vec2::new(toggle_w(ui.ctx(), s), row_h));
-    let readout_w = text::measure(
-        ui.ctx(),
-        &Text::new("\u{2212}88.8 LUFS", Role::Value, s.t.text),
-        s.tk(),
-    )
-    .x;
-    let lufs_now = app.settings.topbar.meter_lufs;
-    let (x0, x1) = (tr.right() + 6.0 * k, top.right() - readout_w - 8.0 * k);
-    // In loudness the lanes are the upper half and the short-term, integrated and true-peak
-    // figures a line under them (the TP the manual says to click); in peak, the lanes
-    // alone, full height.
-    let (lanes, foot) = if lufs_now {
-        (
-            Rect::from_min_max(
-                Pos2::new(x0, r.center().y - 10.0 * k),
-                Pos2::new(x1, r.center().y - 2.0 * k),
-            ),
-            Rect::from_min_max(
-                Pos2::new(x0, r.center().y - 1.0 * k),
-                Pos2::new(x1, r.center().y + 10.0 * k),
-            ),
-        )
+    let (_, full) = widths(ui.ctx(), s);
+    let row = p::row(r, s);
+    let mw = if compact { 92.0 * k } else { full };
+    let well = Rect::from_min_size(row.min, Vec2::new(mw, row.height()));
+    let x0 = if compact {
+        8.0 * k
     } else {
-        let l = Rect::from_min_max(
-            Pos2::new(x0, r.center().y - 6.5 * k),
-            Pos2::new(x1, r.center().y + 6.5 * k),
-        );
-        (l, l)
+        mw - 88.0 * k - 10.0 * k
     };
-    let tresp = ui.interact(tr, Id::new("toolbar-meter-mode"), Sense::click());
-    let hovered = tresp
-        .hover_pos()
-        .and_then(|p| segmented::hit(tr, MODES.len(), p.x));
-    if tresp.clicked() {
-        if let Some(i) = hovered {
-            let want = i == 1;
-            if want != lufs {
-                app.settings.topbar.meter_lufs = want;
-                app.store_settings();
-            }
-        }
-    }
-    if tresp.hovered() {
-        hint::set_text(ui.ctx(), &t("topbar.meter.mode_tip"), "", Caps::NONE);
-    }
-    let lufs = app.settings.topbar.meter_lufs;
-    // The readout at the right: a click lets the held peak go.
-    let rr = Rect::from_min_max(
-        Pos2::new(lanes.right() + 4.0 * k, top.top()),
-        Pos2::new(top.right() - 2.0 * k, top.bottom()),
+    let lanes = Rect::from_min_max(
+        Pos2::new(well.left() + x0, well.top() + 6.0 * k),
+        Pos2::new(well.right() - 10.0 * k, well.top() + 15.0 * k),
     );
-    let rresp = ui.interact(rr, Id::new("toolbar-meter-readout"), Sense::click());
-    // The footer's figures too (the TP the manual says to click), in loudness.
-    let fresp = ui.interact(foot, Id::new("toolbar-meter-foot"), Sense::click());
-    if rresp.clicked() || (lufs && fresp.clicked()) {
+    let label_r = Rect::from_min_max(
+        well.min,
+        Pos2::new(well.left() + x0 - 2.0 * k, well.bottom()),
+    );
+    let lresp = ui.interact(well, Id::new("toolbar-master"), Sense::click());
+    let mresp =
+        (!compact).then(|| ui.interact(label_r, Id::new("toolbar-meter-mode"), Sense::click()));
+    let toggle = mresp.as_ref().is_some_and(|r| r.clicked()) || lresp.secondary_clicked();
+    if toggle {
+        app.settings.topbar.meter_lufs = !lufs;
+        app.store_settings();
+    }
+    if lresp.clicked() {
         app.topbar.hold.clear();
     }
-    let clip = held >= 1.0;
+    let lufs = app.settings.topbar.meter_lufs;
     let db = |v: f32| linear_to_db(v);
     let levels = if lufs {
-        Levels {
-            level: [loud.momentary, loud.short_term],
-            hold: [loud.momentary, loud.short_term],
-        }
+        [loud.momentary, loud.short_term]
     } else {
-        Levels {
-            level: [db(peaks[0]), db(peaks[1])],
-            hold: [db(held); 2],
-        }
+        [db(peaks[0]), db(peaks[1])]
     };
-    let lresp = ui.interact(lanes, Id::new("toolbar-master"), Sense::hover());
-    WORDS.with(|w| {
-        let mut w = w.borrow_mut();
-        let (readout, footer) = &mut *w;
-        readout.clear();
-        footer.clear();
-        let num = |out: &mut String, v: f32| {
-            if v.is_finite() {
-                if v < 0.0 {
-                    let _ = write!(out, "\u{2212}{:.1}", -v);
+    let clip = held >= 1.0;
+    if mresp.as_ref().is_some_and(|r| r.hovered()) {
+        hint::set_text(ui.ctx(), &t("topbar.meter.mode_tip"), "", Caps::NONE);
+    } else if lresp.hovered() {
+        WORDS.with(|w| {
+            let mut w = w.borrow_mut();
+            w.clear();
+            let num = |out: &mut String, v: f32| {
+                if v.is_finite() {
+                    if v < 0.0 {
+                        let _ = write!(out, "\u{2212}{:.1}", -v);
+                    } else {
+                        let _ = write!(out, "{v:.1}");
+                    }
                 } else {
-                    let _ = write!(out, "{v:.1}");
+                    out.push('\u{2014}');
                 }
-            } else {
-                out.push('\u{2014}');
-            }
-        };
-        if lufs {
-            if loud.momentary.is_finite() {
-                num(readout, loud.momentary);
-            } else {
-                readout.push_str("\u{2212}\u{221e}"); // r37:finish
-            }
-            readout.push_str(" LUFS");
-            footer.push_str("S ");
-            num(footer, loud.short_term);
-            footer.push_str("  I ");
-            num(footer, loud.integrated);
-            footer.push_str("  TP ");
-            let tp = if true_peak > 0.0 {
-                db(true_peak)
-            } else {
-                f32::NEG_INFINITY
             };
-            num(footer, tp);
-        } else {
-            // r37:finish — silence reads as minus infinity, as a strip's meter does (judge
-            // 7: a bare dash read unfinished).
-            if held > 0.0 {
-                num(readout, db(held));
+            if lufs {
+                w.push_str("M ");
+                num(&mut w, loud.momentary);
+                w.push_str("  S ");
+                num(&mut w, loud.short_term);
+                w.push_str("  I ");
+                num(&mut w, loud.integrated);
+                w.push_str("  TP ");
+                let tp = if true_peak > 0.0 {
+                    db(true_peak)
+                } else {
+                    f32::NEG_INFINITY
+                };
+                num(&mut w, tp);
             } else {
-                readout.push_str("\u{2212}\u{221e}");
+                num(
+                    &mut w,
+                    if held > 0.0 {
+                        db(held)
+                    } else {
+                        f32::NEG_INFINITY
+                    },
+                );
+                w.push_str(" dB");
+                if let Some(p) = lresp.hover_pos() {
+                    let pos = (p.x - lanes.left()) / lanes.width().max(1.0);
+                    let _ = write!(w, "  \u{b7}  {:.1} dB", db_at(pos));
+                }
             }
-            readout.push_str(" dB");
-        }
-        if lufs && fresp.hovered() {
-            hint::set_text(ui.ctx(), &t("topbar.meter.lufs_tip"), footer, Caps::NONE);
-        }
-        if rresp.hovered() {
-            let name = if lufs {
+            // Its name short on the help line, the figures after it; what they mean and
+            // what a click does in the tooltip.
+            hint::set_text(ui.ctx(), &t("topbar.group.meter"), &w, Caps::NONE);
+            let tip = if lufs {
                 t("topbar.meter.lufs_tip")
             } else {
                 t("topbar.meter.peak_tip")
             };
-            hint::set_text(ui.ctx(), &name, readout, Caps::NONE);
-        }
-        if let Some(p) = lresp.hover_pos().filter(|_| !lufs) {
-            let pos = (p.x - lanes.left()) / lanes.width().max(1.0);
-            hint::set(ui.ctx(), &t("kit.mixer.master"), Caps::NONE, false, |b| {
-                write!(b, "{:.1} dB", meter::db_at(pos))
-            });
-        }
-        with_brush(ui.painter(), |b| {
-            let st = State::of(&tresp, false);
-            segmented::paint(b, tr, s, st, &MODES, usize::from(lufs), hovered);
-            let ink = if clip && !lufs { s.t.danger } else { s.t.text };
-            let _ = text::paint(
-                b,
-                rr,
-                &Text::new(readout, Role::Value, ink)
-                    .align(Align2::RIGHT_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
-            );
-            b.register(lanes, "meter", meter::TOKENS, &[]);
-            shell::horizontal_meter(b, lanes, s, &levels);
-            let inner = lanes.shrink(b.px() * 1.5);
-            let mark = |b: &mut crate::kit::Brush, v: f32, ink| {
-                let x = inner.left() + inner.width() * meter::pos_of_db(v);
-                b.vline(b.snap_mid(x), inner.top(), inner.bottom(), b.px(), ink);
-            };
-            // r37:finish — the scale under the lanes at rest and playing alike: ticks at −48,
-            // −24, −12, −6 and 0 dB, so the empty well reads as a meter waiting.
-            if !lufs {
-                for v in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
-                    let x = inner.left() + inner.width() * meter::pos_of_db(v);
-                    b.vline(
-                        b.snap_mid(x),
-                        inner.bottom() - inner.height() * 0.35,
-                        inner.bottom(),
-                        b.px(),
-                        // On the well's own dark (both themes): its readable ink.
-                        with_alpha(
-                            crate::kit::color::on_fill(s.t.meter_well),
-                            if v == 0.0 { 0.70 } else { 0.40 },
-                        ),
-                    );
-                }
-            }
-            if lufs {
-                mark(b, TARGET_LUFS, with_alpha(s.t.text, 0.7));
-            } else if held > 0.0 {
-                mark(b, db(held), s.t.text);
-            }
-            if lufs {
-                let _ = text::paint(
-                    b,
-                    foot,
-                    &Text::new(footer, Role::Micro, s.t.text_dim)
-                        .align(Align2::LEFT_CENTER)
-                        .policy(Policy::Elide(Elide::End)),
-                    s.tk(),
-                );
-            }
+            let _ = lresp.clone().on_hover_text(tip);
         });
+    }
+    with_brush(ui.painter(), |b| {
+        b.register(well, "meter", crate::kit::meter::TOKENS, &[]);
+        p::well(b, well, s, None);
+        if !compact {
+            let hov = mresp.as_ref().is_some_and(|r| r.hovered());
+            let ink = if hov { ink1(s) } else { ink3(s) };
+            let lr = Rect::from_min_max(Pos2::new(well.left() + 8.0 * k, well.top()), label_r.max);
+            p::words_key(
+                b,
+                lr,
+                MODES[usize::from(lufs)],
+                Role::Control,
+                10.0,
+                ink,
+                Align2::LEFT_CENTER,
+                s,
+            );
+        }
+        lanes_paint(
+            b,
+            lanes,
+            s,
+            levels,
+            if held > 0.0 {
+                db(held)
+            } else {
+                f32::NEG_INFINITY
+            },
+            lufs,
+        );
+        if clip && !lufs {
+            let lamp = Rect::from_min_size(
+                Pos2::new(well.right() - 7.0 * k, well.top() + 5.0 * k),
+                Vec2::new(3.0 * k, 9.0 * k),
+            );
+            b.rrect(b.snap_rect(lamp), 1.0 * k, Fill::Solid(s.t.meter_clip));
+        }
     });
 }
 

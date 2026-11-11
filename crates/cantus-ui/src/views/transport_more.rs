@@ -1,44 +1,42 @@
-//! The **⋯** key at the bar's right end and what hangs from it (ADR 0052):
+//! The **More** key at the bar's right end and what hangs from it (ADR 0052; round 39,
+//! `dir-a`'s phase B):
 //!
-//! - **The overflow menu**: every group the window is too narrow for, drawn by the same
-//!   code at the same size — usable there as on the bar — each under its name; and at the
-//!   bottom *Customise top bar…*. A click inside it, or inside a popover it opened (the
-//!   metronome's options, the grid list…), keeps it open; a click elsewhere, Esc or the ⋯
-//!   key closes it.
+//! - **The More panel** (`panel`): built from what the bar folded — each large group a
+//!   section, the small folds one-line rows under *Also here* — usable there as on the bar.
+//!   The key carries the number of folded groups in a small pill. A click inside the panel,
+//!   or inside a popover it opened (the metronome's options, the grid list…), keeps it open;
+//!   a click elsewhere, Esc or the More key closes it.
 //! - **Customise top bar…** (also in *View* and on a right-click of the bar): every group
 //!   in the bar's order — tick to show, drag by its grip to reorder, *Reset* for the
-//!   FL-like default. Kept in `Settings::topbar`.
+//!   default. Kept in `Settings::topbar`.
 
-use super::layout::{self, Group};
-use super::{draw, key_in, Style, HEIGHT};
+use super::layout::{self, Group, Layout};
+use super::paint as p;
+use super::{strip_tip, Style};
 use crate::app::CantusApp;
 use crate::i18n::t;
-use crate::kit::cap::KeyFace;
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::tokens::Tok;
-use crate::kit::{band, led, with_brush, Fill, State};
-use egui::{vec2, Align2, Id, Order, Pos2, Rect, Sense, Ui, Vec2};
-
-/// The ⋯ key's width at 100 %.
-pub const KEY_W: f32 = 24.0; // r37:finish — a 24-pt target
+use crate::kit::{led, with_brush, Fill, State};
+use egui::{vec2, Align2, Id, Order, Pos2, Rect, Sense, Ui};
 
 /// The customise panel's state.
 #[derive(Debug, Default)]
 pub struct Customise {
     pub open: bool,
-    /// The overflow menu is open (its own state: see [`key`]).
+    /// The overflow panel is open (its own state: see [`key`]).
     pub overflow: bool,
     /// The row being dragged, and where it would land.
     drag: Option<(usize, usize)>,
 }
 
-/// Open the overflow menu (screenshots and tests).
+/// Open the overflow panel (screenshots and tests).
 pub fn open_overflow(app: &mut CantusApp) {
     app.topbar.customise.overflow = true;
 }
 
-/// Whether the overflow menu is open.
+/// Whether the overflow panel is open.
 pub fn overflow_open(app: &CantusApp) -> bool {
     app.topbar.customise.overflow
 }
@@ -48,46 +46,68 @@ pub fn open_customise(app: &mut CantusApp) {
     app.topbar.customise.open = true;
 }
 
-/// The ⋯ key, `folded` the groups it holds, and the overflow menu while it is open.
+/// The More key in `r`, the number of folded groups in a raised pill at its top right, and
+/// the panel while it is open.
 ///
-/// The menu's open state is the bar's own, not egui's one popup slot: the folded groups'
+/// The panel's open state is the bar's own, not egui's one popup slot: the folded groups'
 /// own menus and popovers (the grid list, the metronome's options, the metre's editor, the
-/// zoom steps…) are popups of their own, and opening one must not close the menu that
+/// zoom steps…) are popups of their own, and opening one must not close the panel that
 /// holds the group (review 1).
-pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Style) {
+pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, l: &Layout, s: &Style) {
     let k = s.k;
-    let kr = Rect::from_center_size(r.center(), Vec2::new(r.width(), super::KEY * k));
     let open = app.topbar.customise.overflow;
-    let n = folded.len();
-    let resp = key_in(
-        ui,
-        kr,
-        s,
-        KeyFace::Glyph(Glyph::More),
-        open,
-        "overflow",
-        || {
-            if n == 0 {
-                t("topbar.more_none")
-            } else {
-                crate::i18n::tf_count("topbar.more_tip", n, &[])
-            }
-        },
-    );
-    // A dot on the key when groups are folded into it — in the device's colour when the
-    // audio device is folded and something is wrong with it (round 20's chip, still seen).
-    if n > 0 {
-        with_brush(ui.painter(), |b| {
-            let c = Pos2::new(kr.right() - 4.0 * k, kr.top() + 4.0 * k);
-            let ink = match crate::views::audio_chip::health(app) {
-                crate::views::audio_chip::Health::Good => s.t.highlight,
-                h if folded.contains(&Group::Device) => s.t.get(h.tok()),
-                _ => s.t.highlight,
-            };
-            let radius = if ink == s.t.highlight { 2.5 } else { 3.5 };
-            b.circle(c, radius * k, Fill::Solid(ink));
-        });
-    }
+    let n = l.folded().len();
+    let resp = ui.interact(r, Id::new(("toolbar-key", "overflow")), Sense::click());
+    let st = State::of(&resp, false);
+    with_brush(ui.painter(), |b| {
+        b.register(r, "toolbar_key", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+        let fill = open.then(|| crate::kit::color::opaque(s.t.inner_shadow));
+        p::well(b, r, s, fill);
+        p::tint(b, r, s, st, s.t.highlight, 0.2);
+        let gst = State {
+            hovered: st.hovered || open,
+            ..st
+        };
+        p::icon(b, r, s, Glyph::More, gst, s.t.highlight, 24.0);
+        if n > 0 {
+            // The count in a 13×11 raised pill at the key's top right.
+            let pill = Rect::from_min_size(
+                Pos2::new(r.left() + 21.0 * k, r.top() - 3.0 * k),
+                vec2(13.0 * k, 11.0 * k),
+            );
+            let bad = l.folded().contains(&Group::Device)
+                && crate::views::audio_chip::health(app) != crate::views::audio_chip::Health::Good;
+            let fill = if bad { s.t.meter_high } else { s.t.menu };
+            b.rrect(b.snap_rect(pill), 5.5 * k, crate::kit::Fill::Solid(fill));
+            b.rrect_stroke(
+                b.snap_rect(pill).shrink(b.px() * 0.5),
+                5.0 * k,
+                b.px(),
+                crate::kit::color::opaque(s.t.inner_shadow),
+            );
+            let mut w = [0u8; 2];
+            let digit = (b'0' + n.min(9) as u8) as char;
+            let word = digit.encode_utf8(&mut w);
+            let ink = if bad { s.t.ink } else { p::ink2(s) };
+            p::words(
+                b,
+                pill,
+                word,
+                Role::Micro,
+                8.5,
+                ink,
+                Align2::CENTER_CENTER,
+                s,
+            );
+        }
+    });
+    let resp = strip_tip(ui, resp, || {
+        if n == 0 {
+            t("topbar.more_none")
+        } else {
+            crate::i18n::tf_count("topbar.more_tip", n, &[])
+        }
+    });
     if resp.clicked() {
         app.topbar.customise.overflow = !open;
     }
@@ -96,8 +116,8 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
     }
     let ctx = ui.ctx().clone();
     // Closed by Esc (when no popover of its own is open), or by a click on the window
-    // itself — not inside the menu, nor inside a popover it opened (a foreground layer),
-    // nor on the ⋯ key.
+    // itself — not inside the panel, nor inside a popover it opened (a foreground layer),
+    // nor on the More key.
     let id = Id::new("toolbar-overflow");
     let last = ctx.data(|d| d.get_temp::<Rect>(id.with("rect")));
     let (click, at) = ctx.input(|i| (i.pointer.any_click(), i.pointer.interact_pos()));
@@ -114,123 +134,8 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
         app.topbar.customise.overflow = false;
         return;
     }
-    // Hanging from the key, its right edge on the key's, scrolling when taller than the
-    // room below the bar.
-    let room = (ctx.content_rect().bottom() - r.bottom() - 24.0 * k).max(80.0 * k);
-    let area = egui::Area::new(id)
-        // Under the popovers it opens (they are foreground layers), over the workspace.
-        .order(Order::Middle)
-        .pivot(egui::Align2::RIGHT_TOP)
-        .fixed_pos(Pos2::new(kr.right(), r.bottom() + 2.0 * k))
-        .show(&ctx, |ui| {
-            crate::views::record_options::frame_for(s).show(ui, |ui| {
-                egui::ScrollArea::vertical()
-                    .max_height(room)
-                    .min_scrolled_height(room.min(320.0 * k))
-                    .auto_shrink([true, true])
-                    .show(ui, |ui| overflow(app, ui, folded));
-            });
-        });
-    ctx.data_mut(|d| d.insert_temp(id.with("rect"), area.response.rect));
-}
-
-/// The folded groups, each under its name, and *Customise top bar…*.
-fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
-    let s = Style::current();
-    let k = s.k;
-    ui.spacing_mut().item_spacing = vec2(0.0, 2.0 * k);
-    let (wants, n) = super::wants_cached(app, ui.ctx());
-    let width = folded
-        .iter()
-        .filter_map(|g| wants[..n].iter().find(|w| w.group == *g))
-        .map(|w| w.max)
-        .fold(220.0 * k, f32::max);
-    // A tall group takes the bar's height, a short one a row's.
-    let tall_h = (HEIGHT * s.t.density).round();
-    let row_h = (tall_h * 0.5).round();
-    // Where each folded group went (tests click into them).
-    let mut drawn: Vec<(Group, Rect)> = Vec::with_capacity(folded.len());
-    for g in folded {
-        let (band_r, _) = ui.allocate_exact_size(vec2(width, s.s(band::BAND)), Sense::hover());
-        // r37:finish — the group's shortcut at the band's right: what folded is still one
-        // key away (the owner, round 37).
-        let keys = shortcut_of(app, *g);
-        with_brush(ui.painter(), |b| {
-            band::section(
-                b,
-                band_r,
-                &s,
-                State::REST,
-                Src::Key(g.name_key()),
-                None,
-                false,
-            );
-            if !keys.is_empty() {
-                let _ = text::paint(
-                    b,
-                    band_r.shrink2(vec2(8.0 * k, 0.0)),
-                    &Text::new(&keys, Role::Micro, s.t.text_dim)
-                        .caps(false)
-                        .align(Align2::RIGHT_CENTER)
-                        .policy(Policy::Elide(Elide::End)),
-                    s.tk(),
-                );
-            }
-        });
-        let w = wants[..n]
-            .iter()
-            .find(|w| w.group == *g)
-            // At its most: the menu has the room the bar had not (the chip whole).
-            .map_or(width, |w| w.max);
-        let h = if g.tall() { tall_h } else { row_h };
-        let (row, _) = ui.allocate_exact_size(vec2(width, h), Sense::hover());
-        let r = Rect::from_min_size(row.min, vec2(w, h));
-        // r37:finish — at the size it has on the bar.
-        let gs = super::group_style_at(*g, ui.ctx().content_rect().width());
-        draw(*g, app, ui, r, &gs);
-        drawn.push((*g, r));
-    }
-    ui.ctx()
-        .data_mut(|d| d.insert_temp(Id::new("cantus-topbar-overflow"), drawn));
-    if !folded.is_empty() {
-        ui.add_space(4.0 * k);
-    }
-    let items = [crate::kit::menu::Item::action(Src::Key("topbar.customise"))];
-    let (_, c) = crate::kit::widgets::menu_list(ui, &items, width / k);
-    if c.clicked.is_some() {
-        open_customise(app);
-        app.topbar.customise.overflow = false;
-    }
-}
-
-/// The keys that do what a folded group does, as the overflow menu shows them: the area
-/// keys' F-keys, undo's, the metronome's, play's — empty for a group without one.
-/// // r37:finish
-pub fn shortcut_of(app: &CantusApp, g: Group) -> String {
-    use crate::keymap::Action as A;
-    let actions: &[A] = match g {
-        Group::Transport => &[A::PlayPause],
-        Group::Undo => &[A::Undo, A::Redo],
-        Group::Metronome => &[A::ToggleMetronome],
-        Group::Windows => &[
-            A::ToggleBrowser,
-            A::ViewArrangement,
-            A::ViewChannelRack,
-            A::ViewPianoRoll,
-            A::ViewMixer,
-        ],
-        _ => &[],
-    };
-    let mut out = String::new();
-    for a in actions {
-        if let Some(b) = app.keymap.bindings_for(*a).first() {
-            if !out.is_empty() {
-                out.push_str("  ");
-            }
-            out.push_str(&b.display());
-        }
-    }
-    out
+    let rect = super::panel::show(app, &ctx, r, l, s);
+    ctx.data_mut(|d| d.insert_temp(id.with("rect"), rect));
 }
 
 // ---- customise -----------------------------------------------------------------------

@@ -189,6 +189,11 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         Sound { file: "tonus-tight", name: ("Tight: quick, still human", "Ajustada: rápida, aún humana"), what: ("Vocal — Pop, R&B", "Voz — Pop, R&B"), on: "vocal" },
         Sound { file: "tonus-hard", name: ("Hard tune", "Afinación dura"), what: ("Vocal — Trap · Hip-hop, Pop", "Voz — Trap · Hip-hop, Pop"), on: "vocal" },
     ]),
+    ("aula", &[
+        Sound { file: "aula-concert", name: ("Hall at 25 %", "Sala al 25 %"), what: ("Bus — Film · Game, Worship · Gospel", "Bus — Cine · Videojuegos, Alabanza · Gospel"), on: "creative" },
+        Sound { file: "aula-drum_room", name: ("Drum room", "Sala para batería"), what: ("Drums — Pop, Rock", "Batería — Pop, Rock"), on: "drums" },
+        Sound { file: "aula-vocal_plate", name: ("Vocal plate", "Placa vocal"), what: ("Vocal — Pop, R&B", "Voz — Pop, R&B"), on: "vocal" },
+    ]),
 ];
 
 /// The dry sources the effects are heard on, by role (`source-<role>.mp3`).

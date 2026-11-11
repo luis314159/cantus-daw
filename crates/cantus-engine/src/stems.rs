@@ -622,6 +622,8 @@ fn run(
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
     // A frozen render's reader waits for its blocks (ADR 0064).
     p.set_offline(true);
+    // The parts its tracks use (kits, note-effect chains), built here (ADR 0107).
+    p.hold_parts_for(&snap);
     for slot in snap.effect_slots() {
         let unit = make_unit(slot, sr as f32);
         tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();

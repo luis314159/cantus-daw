@@ -77,6 +77,27 @@ pub(crate) struct Scratch {
 }
 
 impl Scratch {
+    /// A pool slot's working memory before a pool runs it (ADR 0107): nothing allocated.
+    pub fn bare() -> Self {
+        Scratch {
+            mono: Vec::new(),
+            buf_l: Vec::new(),
+            buf_r: Vec::new(),
+            dry_l: Vec::new(),
+            dry_r: Vec::new(),
+            edge_l: Vec::new(),
+            edge_r: Vec::new(),
+            inter: Vec::new(),
+            events: Vec::new(),
+            prof: crate::profile::SlotProfile::bare(),
+        }
+    }
+
+    /// Not made yet ([`Self::bare`]).
+    pub fn is_bare(&self) -> bool {
+        self.mono.is_empty()
+    }
+
     pub fn new() -> Self {
         let buf = || vec![0.0; PASS_FRAMES];
         Scratch {
@@ -93,7 +114,7 @@ impl Scratch {
         }
     }
 
-    fn prefault(&mut self) {
+    pub(crate) fn prefault(&mut self) {
         for v in [
             &mut self.mono,
             &mut self.buf_l,
@@ -128,6 +149,105 @@ pub(crate) struct StripCells {
     pub state: NodeCell<StripSlot>,
     pub out: ShareCell<StripOut>,
     pub key: ShareCell<KeyBuf>,
+}
+
+/// A track slot's memory, built off the audio thread (ADR 0107): full when `full`, or bare
+/// — its pass buffers empty — for a slot not provisioned yet. Swapped into a slot's cells by
+/// `Processor::provision`, between passes, allocation-free.
+pub(crate) struct TrackParts {
+    pub state: TrackSlot,
+    pub out: TrackOut,
+    pub outbox: Outbox,
+}
+
+impl TrackParts {
+    pub fn make(sample_rate: f32, full: bool) -> Self {
+        if full {
+            TrackParts {
+                state: TrackSlot::new(sample_rate),
+                out: TrackOut::new(),
+                outbox: Outbox::new(),
+            }
+        } else {
+            TrackParts {
+                state: TrackSlot::bare(sample_rate),
+                out: TrackOut::bare(),
+                outbox: Outbox::bare(),
+            }
+        }
+    }
+
+    /// Its pass buffers touched here, so the audio thread never takes their first page
+    /// faults (ADR 0031 R11) once they are swapped in.
+    pub fn prefault(&mut self) {
+        touch(&mut self.out.l);
+        touch(&mut self.out.r);
+        touch(&mut self.state.send_l);
+        touch(&mut self.state.send_r);
+    }
+}
+
+impl TrackCells {
+    pub fn of(p: TrackParts) -> Self {
+        TrackCells {
+            state: NodeCell::new(p.state),
+            out: ShareCell::new(p.out),
+            outbox: ShareCell::new(p.outbox),
+        }
+    }
+}
+
+/// A strip slot's memory, as [`TrackParts`] is a track slot's.
+pub(crate) struct StripParts {
+    pub state: StripSlot,
+    pub out: StripOut,
+    pub key: KeyBuf,
+}
+
+impl StripParts {
+    pub fn make(full: bool) -> Self {
+        let frames = if full { PASS_FRAMES } else { 0 };
+        StripParts {
+            state: StripSlot::new(),
+            out: if full {
+                StripOut::new()
+            } else {
+                StripOut::bare()
+            },
+            key: KeyBuf {
+                l: vec![0.0; frames],
+                r: vec![0.0; frames],
+                pass: 0,
+            },
+        }
+    }
+
+    /// As [`TrackParts::prefault`].
+    pub fn prefault(&mut self) {
+        let o = &mut self.out;
+        for v in [
+            &mut o.post_l,
+            &mut o.post_r,
+            &mut o.pre_l,
+            &mut o.pre_r,
+            &mut o.out_l,
+            &mut o.out_r,
+            &mut self.key.l,
+            &mut self.key.r,
+        ] {
+            touch(v);
+        }
+    }
+}
+
+impl StripCells {
+    pub fn of(p: StripParts) -> Self {
+        StripCells {
+            state: NodeCell::new(p.state),
+            out: ShareCell::new(p.out),
+            key: ShareCell::new(p.key),
+        }
+    }
 }
 
 /// What leaves a strip's fader, kept for the inserts keyed from it; valid in the pass
@@ -258,37 +378,32 @@ impl Nodes {
     /// here, off the audio thread — the first `tracks` track and `strips` strip cells
     /// (`MAX_TRACKS`, `MAX_STRIPS` for a processor that plays; fewer for a range render's
     /// checkpoint, never played — r34:listen, ADR 0083).
+    ///
+    /// Only the first `ready` of each are provisioned (ADR 0107): the rest are bare — their
+    /// pass buffers empty — until `Processor::provision` swaps full ones in; no track or
+    /// strip is ever given a bare slot.
     pub fn with_cells(
         sample_rate: f64,
         slots: usize,
         lines: Arc<Lines>,
-        tracks: usize,
-        strips: usize,
+        (tracks, strips): (usize, usize),
+        (ready_tracks, ready_strips): (usize, usize),
     ) -> Self {
         let sr = sample_rate as f32;
         let atoms = |n: usize| (0..n).map(|_| AtomicU32::new(0)).collect::<Box<[_]>>();
-        let pair = || [vec![0.0; PASS_FRAMES], vec![0.0; PASS_FRAMES]];
         let mut n = Nodes {
             tracks: (0..tracks.min(MAX_TRACKS))
-                .map(|_| TrackCells {
-                    state: NodeCell::new(TrackSlot::new(sr)),
-                    out: ShareCell::new(TrackOut::new()),
-                    outbox: ShareCell::new(Outbox::new()),
-                })
+                .map(|i| TrackCells::of(TrackParts::make(sr, i < ready_tracks)))
                 .collect(),
             strips: (0..strips.min(MAX_STRIPS))
-                .map(|_| StripCells {
-                    state: NodeCell::new(StripSlot::new()),
-                    out: ShareCell::new(StripOut::new()),
-                    key: ShareCell::new(KeyBuf {
-                        l: vec![0.0; PASS_FRAMES],
-                        r: vec![0.0; PASS_FRAMES],
-                        pass: 0,
-                    }),
-                })
+                .map(|i| StripCells::of(StripParts::make(i < ready_strips)))
                 .collect(),
             edges: (0..crate::pdc::POOL)
-                .map(|_| ShareCell::new(pair()))
+                // A place's edge buffers are its line's (ADR 0107): none where no line is.
+                .map(|i| {
+                    let pair = lines.get(i).map(|mut l| std::mem::take(&mut l.out));
+                    ShareCell::new(pair.unwrap_or_default())
+                })
                 .collect(),
             lines,
             listeners: (0..MAX_LISTENERS)
@@ -307,7 +422,16 @@ impl Nodes {
             }),
             input: ShareCell::new(crate::processor::rec::InputBlock::new()),
             scratch: (0..slots.max(1))
-                .map(|_| cantus_rt::CachePadded::new(NodeCell::new(Scratch::new())))
+                .map(|i| {
+                    // The callback's slot made now; a worker's when a pool with it starts
+                    // (`Processor::set_workers`, ADR 0107).
+                    let s = if i == 0 {
+                        Scratch::new()
+                    } else {
+                        Scratch::bare()
+                    };
+                    cantus_rt::CachePadded::new(NodeCell::new(s))
+                })
                 .collect(),
             analysis: NodeCell::new(Analysis {
                 ring: None,

@@ -19,6 +19,8 @@ use crate::tool::{ToolClass, ToolDef, ToolRun};
 
 #[path = "tools_args.rs"]
 pub mod args;
+#[path = "tools_aula.rs"]
+pub mod aula; // r39:conv
 #[path = "tools_json.rs"]
 pub mod json;
 #[path = "tools_mixer.rs"]
@@ -141,6 +143,10 @@ pub static TOOLS: &[ToolDef] = &[
         "Set an effect's parameters by key in their units (several at once), reset keys to defaults, bypass, the slot's dry/wet mix, its sidechain source strip, its place in the chain; a hosted plug-in's parameters by id. One undo step."),
     tool!("replace_effect", "Replace an effect", Destructive, mx::replace_effect_schema, Edit(mx::replace_effect),
         "Put another kind of effect in an effect's place (the old one's settings go, so the user is asked). Answers the new effect_id. One undo step."),
+    // r39:conv
+    // A Files tool (ADR 0081): it names a file on disk (the policy test `agent_file_policy`).
+    tool!("set_impulse_response", "Load an impulse response", Files, aula::set_impulse_response_schema, Edit(aula::set_impulse_response),
+        "Give Aula (the convolution reverb) an impulse response from a file — WAV, AIFF, FLAC or Ogg; mono, stereo or true stereo (4 channels) — inside the project's folder or the folders the user allowed, or null for Cantus's own (its ir parameter: rooms, halls, plates, springs, chambers). Refused until the user allows files. Its other settings are set_effect's params. One undo step."),
     // --- movement ----------------------------------------------------------------------------
     tool!("automate", "Automate a parameter", Edit, md::automate_schema, Edit(md::automate),
         "Draw automation of any parameter — a track's or strip's level, pan, width, a send, an effect's or instrument's parameter, a modulator's amount — as points in the parameter's own unit with FL's shapes (curve with tension, s_curve, hold, stairs, pulse, wave). Into the lane's clip already under the first point, or a new automation clip. It never draws over the user's points: where any clip of this parameter already has points in the span, it is refused, and replace_automation redraws it (the user is asked). Answers clip_id. One undo step."),

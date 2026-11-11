@@ -246,6 +246,85 @@ pub const TONUS: Skin = Skin {
     },
 };
 
+// r39:conv — Aula, the convolution reverb (ADR 0112): a hall's brass plaque — warm brushed
+// brass, the impulse response seen through a darkened pane in gold, the pre-delay and the
+// cuts in a cool slate blue.
+pub const AULA: Skin = Skin {
+    key: "fx.aula",
+    surface: Tint {
+        hue: 40.0,
+        sat: 0.24,
+        amount: 0.5,
+    },
+    // Gold, not Fervor's amber (26°, vinyl) nor Speculum's lime (78°, matte).
+    accent: Some(Pair {
+        dark: hsl(46.0, 0.80, 0.62),
+        light: hsl(42.0, 0.82, 0.32),
+    }),
+    accent2: Some(Pair {
+        dark: hsl(206.0, 0.42, 0.66),
+        light: hsl(210.0, 0.50, 0.36),
+    }),
+    material: Material::Brushed,
+    display: Display::Glass,
+    knob: KnobShape::Soft,
+    switch: SwitchShape::Lamp,
+    lettering: Lettering {
+        case: Case::AsIs,
+        tracking: 0.08,
+        weight: Weight::Medium,
+        condensed: false,
+        mono_values: false,
+    },
+    plate: Plate::Stripe,
+    ornaments: Ornaments {
+        screws: true,
+        vents: false,
+        rules: true,
+        rack_ears: false,
+    },
+};
+
+// r39:delay — Delay, the stereo delay (ADR 0115): a tape echo at night — an oxblood vinyl
+// box, the echoes on a phosphor screen in coral that cools to rust as the tone darkens each
+// repeat, skirted knobs, a rocker, an engraved name, screws and printed rules.
+pub const DELAY: Skin = Skin {
+    key: "fx.delay",
+    surface: Tint {
+        hue: 350.0,
+        sat: 0.30,
+        amount: 0.5,
+    },
+    // Coral, not Tonus's magenta (326°, glass) nor Terminus's red (4°, matte, dynamics).
+    accent: Some(Pair {
+        dark: hsl(354.0, 0.80, 0.68),
+        light: hsl(352.0, 0.72, 0.42),
+    }),
+    // A repeat the tone has darkened: rust.
+    accent2: Some(Pair {
+        dark: hsl(16.0, 0.50, 0.56),
+        light: hsl(14.0, 0.60, 0.34),
+    }),
+    material: Material::Tolex,
+    display: Display::Phosphor,
+    knob: KnobShape::Skirted,
+    switch: SwitchShape::Rocker,
+    lettering: Lettering {
+        case: Case::Upper,
+        tracking: 0.12,
+        weight: Weight::Medium,
+        condensed: false,
+        mono_values: true,
+    },
+    plate: Plate::Engraved,
+    ornaments: Ornaments {
+        screws: true,
+        vents: false,
+        rules: true,
+        rack_ears: false,
+    },
+};
+
 /// The sheet of an effect of this family.
 pub fn of(kind: EffectKind) -> Option<&'static Skin> {
     match kind {
@@ -255,6 +334,8 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::Stereo => Some(&LATITUDO),
         EffectKind::Analyzer => Some(&SPECULUM),
         EffectKind::AutoTune => Some(&TONUS),
+        EffectKind::Aula => Some(&AULA),   // r39:conv
+        EffectKind::Delay => Some(&DELAY), // r39:delay
         _ => None,
     }
 }
@@ -264,7 +345,10 @@ mod tests {
     use super::*;
 
     /// Every sheet of this family.
-    const ALL: [&Skin; 6] = [&AEQUALIS, &FERVOR, &SPATIUM, &LATITUDO, &SPECULUM, &TONUS];
+    const ALL: [&Skin; 8] = [
+        &AEQUALIS, &FERVOR, &SPATIUM, &LATITUDO, &SPECULUM, &TONUS, &AULA,  // r39:conv
+        &DELAY, // r39:delay
+    ];
 
     fn gap(a: &Skin, b: &Skin, dark: bool) -> f32 {
         let (x, y) = (

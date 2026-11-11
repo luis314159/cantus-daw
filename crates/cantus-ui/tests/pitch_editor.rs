@@ -251,7 +251,8 @@ impl Rig {
     fn word_starting(&self, w: &str) -> Pos2 {
         self.texts
             .iter()
-            .find(|(t, _)| t.starts_with(w))
+            // Without case: a lamp key's word is title case in Slate (round 39).
+            .find(|(t, _)| t.to_uppercase().starts_with(&w.to_uppercase()))
             .map(|(_, r)| r.center())
             .unwrap_or_else(|| panic!("{w:?} not drawn: {:?}", self.texts))
     }
@@ -1234,7 +1235,7 @@ fn the_pitch_bar_keeps_its_more_key_at_every_width() {
         r.size = vec2(w, 900.0);
         r.idle(3);
         let folded = r.app.pitch.view.bar_folded;
-        let drawn = |word: &str| r.texts.iter().any(|(t, _)| t == word);
+        let drawn = |word: &str| r.texts.iter().any(|(t, _)| t.eq_ignore_ascii_case(word));
         if folded.iter().any(|f| *f) {
             assert!(
                 drawn("\u{2026}"),
@@ -1286,7 +1287,10 @@ fn a_very_narrow_bar_offers_everything_in_its_more_menu() {
     for (i, w) in [(3usize, "Scale"), (4, "Tonic"), (5, "Original")] {
         if folded[i] {
             assert!(
-                r.texts.iter().any(|(t, _)| t.contains(w)),
+                // Band titles are drawn in capitals (the kit's menus): compare without case.
+                r.texts
+                    .iter()
+                    .any(|(t, _)| t.to_lowercase().contains(&w.to_lowercase())),
                 "{w}: {:?}",
                 r.texts
             );

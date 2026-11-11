@@ -39,6 +39,7 @@ pub fn save(table: &Table, values: &[f32]) -> Vec<u8> {
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
+        ir: None, // r39:conv
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,

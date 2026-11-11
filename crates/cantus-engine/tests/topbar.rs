@@ -29,11 +29,8 @@ fn play(snap: Snapshot, from: Ticks, frames: usize) -> (Vec<f32>, Meters) {
         let mut buf = vec![0f32; n * 2];
         p.process(&mut buf, 2);
         out.extend_from_slice(&buf);
-        while let Ok(e) = rx.pop() {
-            if let EngineEvent::Meters(m) = e {
-                meters = m;
-            }
-        }
+        while rx.pop().is_ok() {}
+        meters = p.meters().clone();
     }
     (out, meters)
 }

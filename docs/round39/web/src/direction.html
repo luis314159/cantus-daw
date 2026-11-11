@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en" data-dir="a" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cantus — direction mock</title>
+<script>
+  /* ?dir=a|b&theme=dark|light picks the direction and the theme before the first paint */
+  (function () {
+    var q = new URLSearchParams(location.search), r = document.documentElement;
+    r.setAttribute("data-dir", q.get("dir") === "b" ? "b" : "a");
+    r.setAttribute("data-theme", q.get("theme") === "light" ? "light" : "dark");
+  })();
+</script>
+<link rel="stylesheet" href="direction.css" />
+<link rel="stylesheet" href="direction-2.css" />
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="leaf" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stop-color="#FFF4C2"/><stop offset="0.25" stop-color="#EBC455"/><stop offset="0.5" stop-color="#B8862B"/><stop offset="0.72" stop-color="#F3D478"/><stop offset="1" stop-color="#8A5E14"/></linearGradient>
+    <linearGradient id="verm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF8A4C"/><stop offset="1" stop-color="#B7410E"/></linearGradient>
+    <radialGradient id="lapis" cx="0.4" cy="0.35" r="0.85"><stop offset="0" stop-color="#2E4AA0"/><stop offset="0.6" stop-color="#1A2A66"/><stop offset="1" stop-color="#0A1234"/></radialGradient>
+    <filter id="emb" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity="0.5"/></filter>
+    <!-- #03 at small sizes: the tile, the rim, the C and the waveform; no dots or flourishes -->
+    <symbol id="mark" viewBox="0 0 64 64">
+      <rect x="1" y="1" width="62" height="62" rx="14" fill="url(#lapis)"/>
+      <rect x="4" y="4" width="56" height="56" rx="11" fill="none" stroke="url(#leaf)" stroke-width="1.4"/>
+      <path d="M43.4 42.6 A15.5 15.5 0 1 1 43.4 21.4" fill="none" stroke="url(#leaf)" stroke-width="7.2"/>
+      <g fill="url(#verm)"><rect x="28.4" y="28.5" width="2.2" height="7" rx="1.1"/><rect x="31.9" y="26" width="2.2" height="12" rx="1.1"/><rect x="35.4" y="27.5" width="2.2" height="9" rx="1.1"/><rect x="38.9" y="29.5" width="2.2" height="5" rx="1.1"/></g>
+      <rect x="1" y="1" width="62" height="62" rx="14" fill="none" stroke="#fff" stroke-opacity=".14"/>
+    </symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 3.5v17l14.5-8.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z" fill="currentColor"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></g></symbol>
+    <symbol id="i-gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.4 1.1 2.9.8.1-.7.4-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.6 9.6 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .6 1.4.2 2.4.1 2.7.7.7 1 1.6 1 2.7 0 3.9-2.3 4.7-4.6 5 .4.3.7.9.7 1.9v2.8c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></symbol>
+    <symbol id="i-win" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5.2l7.4-1v7.2H3zm8.4-1.2L21 2.6v8.8h-9.6zM3 12.6h7.4v7.2L3 18.8zm8.4 0H21v8.8l-9.6-1.4z"/></symbol>
+  </defs>
+</svg>
+
+<div class="hero-wrap stage">
+<div class="stage-bg"></div>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top"><img src="../../../../../logo/docs/round39/design/logo/m03/03-32.svg" alt="" />Cantus<sup>™</sup></a>
+    <nav class="nav-links">
+      <a href="#product">Product</a><a href="#record">Recording</a><a class="on" href="#units">Instruments</a><a href="#listen">Listen</a><a href="#features">Features</a><a href="#measured">Measured</a><a href="#faq">FAQ</a>
+    </nav>
+    <div class="seg"><button aria-pressed="true">EN</button><button aria-pressed="false">ES</button></div>
+    <button class="icon-key" aria-label="Day mode"><svg class="t-dark"><use href="#i-sun"/></svg></button>
+    <a class="btn btn-primary" href="#download">Download</a>
+  </div>
+</header>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-in">
+      <div>
+        <a class="chip" href="#record"><b>New</b><span>The recording mode: the whole song baked, only your take live</span><i>→</i></a>
+        <h1>Finish the song<span class="stop">.</span></h1>
+        <p class="hero-sub">Cantus is a free, open-source DAW for Windows and Linux, with a macOS preview, written in Rust. Sequence, record, mix and export — with no account, no subscription and no telemetry.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#download"><svg><use href="#i-down"/></svg>Download the beta</a>
+          <a class="btn btn-quiet" href="#rack">Play a groove first</a>
+        </div>
+        <p class="hero-meta"><b>0.1.0-beta.13</b> · Windows · Linux · macOS (preview) · app GPL-3.0-or-later · engine MPL-2.0</p>
+      </div>
+      <div class="hero-art">
+        <svg class="hero-c" viewBox="196 196 600 632" aria-hidden="true">
+          <g filter="url(#emb)">
+            <path d="M711.8,702.7 A285,285 0 1 1 711.8,321.3 L673.8,363.4 A200,200 0 1 0 673.8,660.6 Z" fill="url(#leaf)"/>
+            <path d="M711.8,702.7 A285,285 0 1 1 711.8,321.3 L673.8,363.4 A200,200 0 1 0 673.8,660.6 Z" fill="none" stroke="#5A3A08" stroke-opacity=".55" stroke-width="3"/>
+            <path d="M711.8,287.3 l34,34 l-34,34 l-34,-34 Z" fill="url(#leaf)" stroke="#5A3A08" stroke-opacity=".5" stroke-width="3"/>
+            <path d="M711.8,668.7 l34,34 l-34,34 l-34,-34 Z" fill="url(#leaf)" stroke="#5A3A08" stroke-opacity=".5" stroke-width="3"/>
+          </g>
+          <path d="M300,420 C290,470 290,554 300,604" stroke="#FFF8DA" stroke-opacity=".55" stroke-width="10" fill="none" stroke-linecap="round"/>
+          <g fill="url(#verm)"><rect x="470" y="477" width="16" height="70" rx="8"/><rect x="498" y="452" width="16" height="120" rx="8"/><rect x="526" y="427" width="16" height="170" rx="8"/><rect x="554" y="457" width="16" height="110" rx="8"/><rect x="582" y="437" width="16" height="150" rx="8"/><rect x="610" y="472" width="16" height="80" rx="8"/><rect x="638" y="487" width="16" height="50" rx="8"/></g>
+        </svg>
+        <div class="hero-tile"><img src="../../../../crates/cantus-ui/assets/logos/03.svg" alt="" /></div>
+      </div>
+    </div>
+    <div class="rack slate" id="rack">
+      <div class="rack-head">
+        <strong>Channel rack — try it</strong>
+        <div class="rack-tempo"><span>Tempo</span><div class="slider"></div><span class="bpm">124<small>BPM</small></span></div>
+        <button class="key">Clear</button><button class="key">Groove</button><button class="key play"><svg><use href="#i-pause"/></svg>Stop</button>
+      </div>
+      <div class="rack-grid" id="grid"></div>
+      <p class="rack-foot">Click any cell. The sound is made in your browser, right now — nothing is downloaded.</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<section class="section" id="units">
+  <div class="wrap">
+    <header class="sec-head">
+      <div class="mark"><i></i><span>Its own instruments and effects</span></div>
+      <h2>Instruments and effects of its own</h2>
+      <p>Nine instruments and twenty-four effects come with Cantus, free — twenty-three with a face of their own, and Delay, edited in the inspector; each researched against the best on the market, measured, and drawn in vectors in light and dark themes. Open any of them to see it large.</p>
+    </header>
+    <div class="seg tabs"><button aria-pressed="true">Instruments<span class="n">9</span></button><button aria-pressed="false">Effects<span class="n">24</span></button></div>
+    <ul class="unit-grid" id="units-grid"></ul>
+    <p class="units-foot">Plus Firmus, the simple synth every new track starts with, a Delay and a Reverb — and any CLAP or VST3 plug-in you own.</p>
+  </div>
+</section>
+
+<div class="rule"></div>
+<section class="section alt" id="listen">
+  <div class="wrap">
+    <header class="sec-head">
+      <div class="mark"><i></i><span>Listen</span></div>
+      <h2>Hear what it makes</h2>
+      <p>Excerpts of the six demo songs that come with Cantus. Every sound is one of its own instruments and effects, mastered on the song's own master channel.</p>
+    </header>
+    <ol class="songs" id="songs"></ol>
+  </div>
+</section>
+<div class="rule"></div>
+
+<section class="section" id="measured">
+  <div class="wrap">
+    <header class="sec-head">
+      <div class="mark"><i></i><span>Measured</span></div>
+      <h2>Measured, not claimed</h2>
+      <p>Cantus, FL Studio and REAPER started five times each on the same quiet laptop, the same evening, watched from outside by the same script — each beside what it is compared with. Where Cantus loses, it says so.</p>
+    </header>
+    <div class="measured-table">
+      <table>
+        <thead><tr><th>Program</th><th>Window ready</th><th>Quiet</th><th>Private memory</th><th>CPU at rest</th></tr></thead>
+        <tbody>
+          <tr class="ours"><th>Cantus 0.1.0-beta.13 — an empty song</th><td class="win" data-l="Window ready">0.74 s</td><td data-l="Quiet">1.5 s</td><td data-l="Private memory">237 MB</td><td data-l="CPU at rest">1.6 % of a core</td></tr>
+          <tr><th>REAPER 7.85 — an empty project</th><td class="win" data-l="Window ready">1.76 s</td><td data-l="Quiet">2.0 s</td><td data-l="Private memory">62 MB</td><td data-l="CPU at rest">2.3–3.7 %</td></tr>
+          <tr class="ours"><th>Cantus 0.1.0-beta.13 — the Beat starter</th><td class="win" data-l="Window ready">0.76 s</td><td data-l="Quiet">1.6 s</td><td data-l="Private memory">239 MB</td><td data-l="CPU at rest">1.8–2.0 %</td></tr>
+          <tr><th>FL Studio 24.1.2 — its template</th><td class="win" data-l="Window ready">2.49 s</td><td data-l="Quiet">5.8 s</td><td data-l="Private memory">133 MB</td><td data-l="CPU at rest">6.6 %</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="points">
+      <li><h3>First on screen</h3><p>Cantus's window is ready 2.4× sooner than REAPER's and 3.3× sooner than FL Studio's, and it is done working sooner too.</p></li>
+      <li><h3>Quiet when nothing plays</h3><p>At rest Cantus uses less CPU than both: every channel whose effects hear silence stops running them, to the same bits.</p></li>
+      <li><h3>Still to win</h3><p>Memory: Cantus holds more than both, because its audio engine reserves in advance what its largest session could need. Making that reservation grow with the song is the work ahead.</p></li>
+    </ul>
+    <p class="note">AMD Ryzen 7 7735HS, 31 GB, Windows 11, High performance plan, nothing else open. FL Studio is a trademark of Image-Line; REAPER of Cockos. Measured 2026-11-09. <a href="#">Method and results</a> · <a href="#">Feature matrix</a></p>
+  </div>
+</section>
+
+<div class="rule"></div>
+<section class="section alt" id="download">
+  <div class="wrap">
+    <header class="sec-head">
+      <div class="mark"><i></i><span>Download</span></div>
+      <h2>Get the beta</h2>
+    </header>
+    <div class="get-grid">
+      <article class="get-main stage">
+        <div class="stage-bg"></div>
+        <div class="platform"><svg><use href="#i-win"/></svg>Windows 11</div>
+        <p class="ver">Cantus 0.1.0-beta.13 · 64-bit</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="#"><svg><use href="#i-down"/></svg>Download the installer</a>
+          <a class="btn btn-quiet" href="#"><svg><use href="#i-gh"/></svg>Source code</a>
+        </div>
+        <p class="lead">The newest installer, no administrator rights needed. A portable zip, the plug-ins alone and the SHA-256 sums are on the downloads page.</p>
+        <p class="lead"><a href="#">All downloads, release notes and checksums</a></p>
+      </article>
+      <aside class="get-side">
+        <h3>What you need</h3>
+        <dl>
+          <dt>System</dt><dd>Windows 11, x64 (Windows 10 untested)</dd>
+          <dt>Audio</dt><dd>Any device — WASAPI and ASIO</dd>
+          <dt>Plug-ins</dt><dd>CLAP, VST3; ARA 2 on audio clips</dd>
+          <dt>Cost</dt><dd>Free</dd>
+          <dt>Windows</dt><dd><span class="ok">Available</span></dd>
+          <dt>Linux</dt><dd><span class="ok">Available</span></dd>
+          <dt>macOS</dt><dd><span class="ok">Available</span> · preview, unsigned</dd>
+        </dl>
+      </aside>
+    </div>
+    <ul class="platforms">
+      <li><strong>Windows</strong><span>Windows 11 · installer, no administrator</span><a class="btn btn-quiet btn-sm" href="#"><svg><use href="#i-down"/></svg>Download</a></li>
+      <li><strong>Linux</strong><span>x86-64 · one AppImage for every distribution</span><a class="btn btn-quiet btn-sm" href="#"><svg><use href="#i-down"/></svg>Download</a></li>
+      <li><strong>macOS · preview</strong><span>Apple silicon and Intel · unsigned disk image</span><a class="btn btn-quiet btn-sm" href="#"><svg><use href="#i-down"/></svg>Download the preview</a></li>
+    </ul>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="brand" href="#top"><img src="../../../../../logo/docs/round39/design/logo/m03/03-32.svg" alt="" />Cantus<sup>™</sup></a>
+    <span>Free and open source · made with all our heart (Colossians 3:23)</span>
+    <nav><a href="#">Manual</a><a href="#">Press kit</a><a href="#">GitHub</a><a href="#">Privacy</a></nav>
+  </div>
+</footer>
+
+<script>
+  /* the rack: four rows, sixteen steps; the units' cards; the songs */
+  var rows = [["Kick", "#e0703c", "1000100010001000"], ["Clap", "#d9a23a", "0000100000001000"], ["Hi-hat", "#b9b24a", "0010001000100011"], ["Bass", "#9a7be8", "1001001010010010"]];
+  var g = document.getElementById("grid");
+  rows.forEach(function (r) {
+    var h = '<div class="rack-row" style="--c:' + r[1] + '"><span>' + r[0] + "</span>";
+    for (var i = 0; i < 16; i++) h += '<div class="step' + (Math.floor(i / 4) % 2 ? " b" : "") + (r[2][i] === "1" ? " on" : "") + (i === 6 ? " now" : "") + '"></div>';
+    g.insertAdjacentHTML("beforeend", h + "</div>");
+  });
+  var units = [["unda", "Unda", "Wavetable synth", "Three wavetable oscillators with additive and granular engines, and Serum and Surge table import."],
+    ["calor", "Calor", "Analog-modelling polysynth", "Five self-oscillating filters and sixteen voice cards whose analog drift is reproducible."],
+    ["modulus", "Modulus", "FM synth", "Eight-operator FM with a free matrix that reads and writes DX7 SysEx."],
+    ["exemplar", "Exemplar", "Multisampler", "A multisampler that reads SFZ, Decent Sampler and SF2/SF3, with alias-free resampling by default."],
+    ["gravis", "Gravis", "Bass instrument", "One bass, three engines (808, synth and modelled string), with a drive that keeps the fundamental."],
+    ["organum", "Organum", "Tonewheel organ", "A 91-wheel tonewheel organ with modelled key click and a rotary speaker, flat in CPU."]];
+  var u = document.getElementById("units-grid");
+  units.forEach(function (x, i) {
+    u.insertAdjacentHTML("beforeend", '<li><div class="card' + (i === 1 ? " hover" : "") + '"><span class="pic"><img src="../../../../web/assets/units/' + x[0] + '-thumb.webp" alt="" /><span class="hear"><svg><use href="#i-play"/></svg></span></span><span class="txt"><strong>' + x[1] + '</strong><span class="kind">' + x[2] + '</span><span class="pitch">' + x[3] + '</span><span class="more">See it large →</span></span></div></li>');
+  });
+  var songs = [["Neon Tide", "House", 0, "1:12 / 1:30"], ["Morning Light", "Pop ballad", -1], ["Sunday Strut", "Funk and soul", -1], ["Paper Lanterns", "Lo-fi hip-hop", -1], ["Aurora", "Cinematic", -1], ["Midnight Static", "Trap", -1]];
+  var s = document.getElementById("songs");
+  songs.forEach(function (x) {
+    var on = x[2] === 0;
+    s.insertAdjacentHTML("beforeend", '<li class="song' + (on ? " on" : "") + '"><span class="pbtn"><svg><use href="#i-' + (on ? "pause" : "play") + '"/></svg></span><div><strong>' + x[0] + '</strong><span class="style">' + x[1] + '</span></div><div class="bar"><i style="--p:' + (on ? "80%" : "0%") + '"></i></div><span class="time">' + (on ? x[3] : "–") + "</span></li>");
+  });
+  /* the theme key shows the other theme's icon */
+  if (document.documentElement.getAttribute("data-theme") === "light") document.querySelector(".icon-key use").setAttribute("href", "#i-moon");
+  /* the page's height, for the renderer */
+  document.fonts.ready.then(function () { setTimeout(function () { document.body.setAttribute("data-h", document.documentElement.scrollHeight); }, 300); });
+</script>
+</body>
+</html>

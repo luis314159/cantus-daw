@@ -3687,3 +3687,59 @@ fn a_bounce_of_one_of_two_crossed_clips_is_refused_and_a_range_keeps_the_crossfa
     let n = after.len().min(live.len());
     within(&after[..n], &live[..n], 1e-5, "the crossfade kept whole");
 }
+
+/// r39:lo-mixer — the inspector's Freeze section says what a frozen strip's render holds:
+/// "n inserts rendered · size", the count the strip's playing inserts (a bypassed one is
+/// not), the size the render's file the engine plays it from.
+#[test]
+fn the_inspector_says_how_many_inserts_were_rendered_and_how_big_the_render_is() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("freeze-figures");
+    let strip = app.project().tracks[0].strip.unwrap();
+    // The delay already there, a compressor, and a bypassed EQ: two inserts play.
+    app.add_effect(strip, EffectKind::Compressor);
+    app.add_effect(strip, EffectKind::Eq);
+    let eq = app
+        .project()
+        .strip(strip)
+        .unwrap()
+        .effects
+        .last()
+        .unwrap()
+        .id;
+    app.exec(Command::SetEffectBypass {
+        strip,
+        effect: eq,
+        bypass: true,
+    });
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_some());
+    app.select_strip(strip);
+    let rate = app.engine.sample_rate.round() as u32;
+    let content = app
+        .project()
+        .frozen(FreezeTarget::Strip(strip))
+        .unwrap()
+        .content
+        .clone();
+    let file = app
+        .engine
+        .frozen
+        .opened_path(&content, rate)
+        .or_else(|| app.engine.frozen.path_of(&content, rate))
+        .expect("the render's file");
+    let mb = std::fs::metadata(&file).unwrap().len() as f64 / 1_048_576.0;
+    let size = if mb >= 10.0 {
+        format!("{mb:.0} MB")
+    } else {
+        format!("{mb:.1} MB")
+    };
+    let text = support::paint(&ctx, egui::vec2(360.0, 2400.0), 3, |ui| {
+        cantus_ui::views::inspector::unfold(ui.ctx(), "freeze.section");
+        cantus_ui::views::inspector::show(&mut app, ui)
+    });
+    let want = format!("2 inserts rendered \u{b7} {size}");
+    assert!(text.contains(&want), "{want:?} in {text}");
+    assert!(text.contains("Unfreeze"), "the key says Unfreeze: {text}");
+}

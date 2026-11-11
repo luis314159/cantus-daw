@@ -18,6 +18,8 @@ use cantus_ui::i18n::{self, Locale};
 use cantus_ui::kit::appearance::Mode;
 use cantus_ui::{raster, views, welcome_project};
 use std::path::PathBuf;
+#[path = "shots_common/studio.rs"]
+mod studio;
 
 fn bars(n: i64) -> Ticks {
     Ticks::beats(4 * n)
@@ -161,6 +163,8 @@ fn main() {
             app.appearance_path = tmp.join("appearance.json");
             app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
             app.attach(&ctx);
+            // A working studio: the demo interface (not "No audio").
+            studio::studio(&mut app, 256);
             setup(&mut app);
             if what == "audio-track" {
                 // The audio track in the inspector (its input and its audio, no

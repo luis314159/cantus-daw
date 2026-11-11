@@ -18,9 +18,9 @@ fn context(dark: bool) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let theme = if dark {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     } else {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     ctx

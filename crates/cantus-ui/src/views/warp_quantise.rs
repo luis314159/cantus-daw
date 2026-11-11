@@ -11,7 +11,6 @@ use crate::kit::glyph::Glyph;
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Role, Src, Text};
 use crate::kit::{self, well, State, Style};
-use crate::views::workspace_settings as ws;
 use crate::views::GRIDS;
 use cantus_core::Ticks;
 use egui::{pos2, vec2, Align2, Context, Id, Key, Rect, Sense};
@@ -68,9 +67,9 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
         .fixed_pos(at)
         .show(ctx, |ui| {
             ui.set_min_size(rect.size());
-            ws::frame(ui, rect, &s);
+            crate::kit::dialog::sheet(ui, rect, &s); // r39:el-controls
             let title = Rect::from_min_size(rect.min, vec2(size.x, TITLE * k));
-            if ws::title(ui, title, &s, Glyph::Warp, "warp.quantise.title") {
+            if crate::kit::dialog::head(ui, title, &s, Glyph::Warp, "warp.quantise.title") {
                 close = true;
             }
             let inner = Rect::from_min_max(

@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>phone frame</title>
+<style>html, body { margin: 0; background: #000; } iframe { display: block; border: 0; width: 390px; height: 900px; }</style></head>
+<body>
+<!-- Edge headless will not make a window narrower than about 500 px, so the phone page is
+     laid out at 390 px inside this frame (render.sh crops the shot to the frame). -->
+<iframe id="f"></iframe>
+<script>
+  var f = document.getElementById("f");
+  f.src = "direction.html" + location.search;
+  var tries = 0;
+  (function wait() {
+    var h = null;
+    try { h = f.contentDocument && f.contentDocument.body && f.contentDocument.body.getAttribute("data-h"); } catch (e) {}
+    if (h) { f.style.height = h + "px"; document.body.setAttribute("data-h", h); }
+    else if (tries++ < 200) setTimeout(wait, 50);
+  })();
+</script>
+</body></html>

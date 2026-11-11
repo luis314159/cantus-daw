@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus track icons, additions A</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="family.js"></script>
+<script src="glyphs-t-tracks.js"></script>
+<script src="glyphs-t-tracks2.js"></script>
+<script src="glyphs-t-tracks3.js"></script>
+<script src="glyphs-t-lib.js"></script>
+<script src="glyphs-t-lib2.js"></script>
+<script src="glyphs-t-lib3.js"></script>
+<script src="glyphs-t-add-a.js"></script>
+<script src="glyphs-t-add-a-names.js"></script>
+</head><body><div id="out"></div>
+<script>
+// Set 6 additions by icons-a: every glyph at 12, 14, 16, 24 and 36 px (1:1, ink 2 with ink 3),
+// its 16 px in a track's colour, then its English and Spanish names; the variants drawn for
+// the hard ones follow, the chosen one marked.
+//   ?t=night|paper            the review sheet
+//   ?t=…&only=a,b,c           just those ids (for reading a few at once)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const HUES = t === 'night' ? ['#e0794f', '#d9b24a', '#7fbf5a', '#4fb3c8', '#6f8cf0', '#b07ae0', '#e06c9f']
+  : ['#c2532a', '#a8801a', '#4f8f2e', '#1f8197', '#3d5fd0', '#8648c0', '#c0457a'];
+const SIZES = [12, 14, 16, 24, 36];
+const glyph = (id, S, x, y, ink, ink2) =>
+  `<g style="--main:${ink};--second:${ink2};--cut:${k.surface}" transform="translate(${x},${y})">${N[id] ? drawing(N[id][S]) : ''}</g>`;
+const txt = (x, y, s, o = {}) => `<text x="${x}" y="${y}" font-family="Segoe UI, sans-serif" font-size="${o.size || 10}" font-weight="${o.weight || 400}" text-anchor="${o.anchor || 'start'}" fill="${o.fill || k.ink2}">${s}</text>`;
+const PAD = 20, CW = 156, COLS = 7, RH = 96;
+const W = PAD * 2 + COLS * CW;
+let y = PAD, body = '', n = 0;
+function cell(id, i, x, yy, names, mark) {
+  // the sizes on one baseline, centred on the cell
+  const span = SIZES.reduce((a, S) => a + S, 0) + (SIZES.length - 1) * 5;
+  let gx = Math.round(x + (CW - span) / 2);
+  for (const S of SIZES) { body += glyph(id, S, gx, yy + 36 - S, k.ink2, k.ink3); gx += S + 5; }
+  const h = HUES[i % HUES.length];
+  body += glyph(id, 16, Math.round(x + CW / 2 - 8), yy + 42, h, mix(h, k.surface, 0.45));
+  body += txt(x + CW / 2, yy + 72, names[0], { anchor: 'middle', fill: k.ink1 });
+  body += txt(x + CW / 2, yy + 84, names[1] + (mark || ''), { anchor: 'middle', fill: k.ink3 });
+}
+function section(title, list, wordsOf, markOf) {
+  body += txt(PAD, y + 14, title, { size: 12, weight: 600, fill: k.ink3 });
+  body += `<rect x="${PAD}" y="${y + 20}" width="${W - 2 * PAD}" height="1" fill="${k.rule}"/>`;
+  y += 28;
+  list.forEach((id, i) => cell(id, n++, PAD + (i % COLS) * CW, y + Math.floor(i / COLS) * RH, wordsOf(id), markOf ? markOf(id) : ''));
+  y += Math.ceil(list.length / COLS) * RH + 4;
+}
+const only = q.get('only');
+body += txt(PAD, y + 16, `Cantus track icons — set 6 additions A (cymbals, Latin &amp; Mexican, world) — Slate ${t === 'night' ? 'Night' : 'Paper'} — 1:1`, { size: 15, weight: 600, fill: k.ink1 });
+body += txt(PAD, y + 34, 'Each cell: 12, 14, 16, 24, 36 px at rest (ink 2, ink 3); below, 16 px in a track\'s colour; English, then Spanish.', { size: 10, fill: k.ink3 });
+y += 48;
+if (only) {
+  section('Selection', only.split(','), id => (window.TRACK_WORDS_A[id] || [id, '']));
+} else {
+  for (const [title, list] of window.TRACK_IDS_A) section(title, list, id => window.TRACK_WORDS_A[id]);
+  body += txt(PAD, y + 18, 'Variants drawn for the hard ones (✓ chosen)', { size: 13, weight: 600, fill: k.ink1 });
+  y += 26;
+  for (const [title, list, chosen] of window.TRACK_VARIANTS_A) section(title, list, id => [id, ''], id => id === chosen ? '✓ chosen' : '');
+}
+document.body.style.background = k.surface;
+const H = y + PAD;
+document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.surface}"/>` + body);
+document.body.setAttribute('data-w', W);
+document.body.setAttribute('data-h', H);
+</script></body></html>

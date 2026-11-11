@@ -10,6 +10,7 @@
 #![warn(missing_debug_implementations)]
 
 pub mod ara; // r36:ara (ADR 0097)
+pub mod arrange; // r39:arrange (ADR 0113): sections, folders, lane modes
 pub mod audio;
 pub mod audio_edit; // r36:editor — the audio editor's edits as pure functions (ADR 0096)
 pub mod audio_time;
@@ -62,6 +63,7 @@ pub mod time;
 pub mod vca; // r36:mix
 pub mod warp;
 
+pub use arrange::{ArrangeCommand, FolderId, LaneMode, Section, SectionId, TrackFolder}; // r39:arrange
 pub use audio::{
     AudioRegion,
     AudioSource,
@@ -88,6 +90,7 @@ pub use effect::{
 pub use external::PluginIsolation;
 pub use external_unit::{ExternalLink, ExternalUnit, ExternalUnitId}; // r36:external
 pub use freeze::{FreezeTarget, Frozen};
+pub use fx::aula::IrFile; // r39:conv
 pub use groove::{ClipGroove, Groove, GrooveId, GrooveSource, SwingGrid};
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
 pub use instrument::{

@@ -159,6 +159,12 @@ pub fn paint_as(
     look: &FaderLook<'_>,
     with: FaderCap,
 ) {
+    if s.t.system.recessed() {
+        // Slate and its siblings (round 39, `des-controls`): one cap, lit from above.
+        let d = super::automate::current_driving();
+        super::fader_slate::paint(b, rect, s, st, look, d);
+        return;
+    }
     match with {
         FaderCap::Classic => paint_classic(b, rect, s, st, look),
         FaderCap::Metal => paint_metal(b, rect, s, st, look),

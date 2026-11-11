@@ -39,11 +39,140 @@ pub struct Info {
     pub label: Label,
     /// Its own colour, else its first track's, else its group's.
     pub color: Option<Color>,
-    /// It carries a working compressor: its gain-reduction lane shows.
-    pub compressor: bool,
     /// It goes somewhere other than the master (an output to a strip, or a send): its
     /// port is filled.
     pub goes: bool,
+    /// The icon of its first track that wears one (round 39, ADR 0113 §4): drawn on the
+    /// strip's head in the track's colour.
+    pub glyph: Option<crate::views::track_glyphs::TrackGlyph>,
+}
+
+/// One insert as a strip lists it: the kind's short name ("Comp"), the unit's
+/// ("Comprimo"), whether it plays, and whether a sidechain keys it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Insert {
+    pub kind: String,
+    pub unit: String,
+    pub on: bool,
+    pub keyed: bool,
+    /// The strip its key listens to (a project index).
+    pub key_src: Option<usize>,
+}
+
+fn inserts_of(p: &cantus_core::Project, effects: &[EffectSlot]) -> Vec<Insert> {
+    effects
+        .iter()
+        .map(|e| Insert {
+            kind: short_name(e),
+            unit: crate::history_text::effect_name(e),
+            on: !e.bypass,
+            keyed: e.sidechain.is_some(),
+            key_src: e.sidechain.and_then(|k| p.strip_index(k)),
+        })
+        .collect()
+}
+
+/// Points an EQ thumbnail is sampled at, 20 Hz … 20 kHz.
+pub const EQ_PTS: usize = 64;
+
+/// One strip's EQ thumbnail: its response in dB and what it was made from.
+#[derive(Clone, Copy, Debug)]
+pub struct EqThumb {
+    key: u64,
+    pub db: [f32; EQ_PTS],
+    /// Anything shapes the sound (a flat EQ is one quiet line).
+    pub shaped: bool,
+    /// Where its bands are, as a share of the thumbnail's width (20 Hz … 20 kHz, by
+    /// octaves): the strip's own three when they shape it, else the first EQ insert's first
+    /// three playing bands (r39:lo-mixer — Large's band dots on the real bands).
+    pub dots: [Option<f32>; 3],
+}
+
+impl Default for EqThumb {
+    fn default() -> Self {
+        EqThumb {
+            key: u64::MAX,
+            db: [0.0; EQ_PTS],
+            shaped: false,
+            dots: [None; 3],
+        }
+    }
+}
+
+/// What a thumbnail is made of, as a hash: the strip's bands and every EQ insert's switch
+/// and parameters.
+fn eq_key(eq: Option<&cantus_core::StripEq>, effects: &[EffectSlot]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    if let Some(eq) = eq {
+        for b in &eq.bands {
+            (b.freq_hz.to_bits(), b.gain_db.to_bits(), b.q.to_bits()).hash(&mut h);
+        }
+    }
+    for e in effects
+        .iter()
+        .filter(|e| e.spec.kind == cantus_core::EffectKind::Eq)
+    {
+        e.bypass.hash(&mut h);
+        for (k, v) in &e.spec.params {
+            (k, v.to_bits()).hash(&mut h);
+        }
+    }
+    h.finish()
+}
+
+impl EqThumb {
+    /// Bring the thumbnail up to date with `eq` and `effects`; a hash when nothing moved.
+    fn update(&mut self, eq: Option<&cantus_core::StripEq>, effects: &[EffectSlot]) {
+        let key = eq_key(eq, effects);
+        if key == self.key {
+            return;
+        }
+        self.key = key;
+        let sr = 48_000.0;
+        let mut strip = cantus_dsp::ChannelEq::default();
+        let own = eq.filter(|e| !e.is_flat());
+        if let Some(e) = own {
+            for (i, b) in e.bands.iter().enumerate() {
+                strip.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
+            }
+        }
+        let inserts: Vec<_> = effects
+            .iter()
+            .filter(|e| e.spec.kind == cantus_core::EffectKind::Eq && !e.bypass)
+            .map(|e| cantus_engine::eq_bands(&e.spec))
+            .collect();
+        let at = |hz: f32| ((hz.max(20.0) / 20.0).log10() / 3.0).clamp(0.0, 1.0);
+        self.dots = [None; 3];
+        match own {
+            Some(e) => {
+                for (d, b) in self.dots.iter_mut().zip(&e.bands) {
+                    *d = Some(at(b.freq_hz));
+                }
+            }
+            None => {
+                if let Some(bands) = inserts.first() {
+                    for (d, b) in self.dots.iter_mut().zip(bands.iter().filter(|b| b.active)) {
+                        *d = Some(at(b.freq));
+                    }
+                }
+            }
+        }
+        self.shaped = false;
+        for (i, d) in self.db.iter_mut().enumerate() {
+            let f = i as f32 / (EQ_PTS - 1) as f32;
+            let hz = 20.0 * 1000f32.powf(f);
+            let mut v = 0.0;
+            if own.is_some() {
+                v += strip.magnitude_db(sr, hz);
+            }
+            for bands in &inserts {
+                v += cantus_dsp::Aequalis::response_db(bands, sr, hz);
+            }
+            *d = v;
+            self.shaped |= v.abs() > 0.05;
+        }
+    }
 }
 
 /// Where a strip's port is, in any width mode: its dock, and how many strips and group
@@ -64,7 +193,7 @@ impl Place {
         if self.folded {
             before + SEPARATOR * 0.5
         } else {
-            before + (pitch - 1.0) * 0.5
+            before + (pitch - 2.0) * 0.5
         }
     }
 }
@@ -108,6 +237,27 @@ pub struct Desk {
     pub most_sends: usize,
     pub any_solo: bool,
     pub any_muted: bool,
+    /// Per project strip, and the master's: its inserts as the strip lists them (round 39,
+    /// des-mixer: the insert rows in the strip).
+    pub inserts: Vec<Vec<Insert>>,
+    pub master_inserts: Vec<Insert>,
+    /// Per project strip: how many routes leave it (option C's "3 routes").
+    pub routes_out: Vec<u16>,
+    /// Per project strip: how many strips send into it, and how many output into it.
+    pub sends_in: Vec<u16>,
+    pub outputs_in: Vec<u16>,
+    /// Per project strip: silent because another strip is soloed (not its own mute).
+    pub silenced: Vec<bool>,
+    /// Per project strip: its tracks have an input (its arm key shows).
+    pub armable: Vec<bool>,
+    /// Per project strip a VCA reaches: what the VCAs add to its fader, in dB (the tick
+    /// across its groove).
+    pub vca_offset: Vec<Option<f32>>,
+    /// Per project strip, and the master's: the EQ the strip's thumbnail draws — its own
+    /// three bands and its playing Aequalis inserts — sampled at [`EQ_PTS`] points, worked
+    /// out again only when what it is made of changes (round 39, des-mixer's EQ row).
+    pub eq: Vec<EqThumb>,
+    pub master_eq: EqThumb,
     /// Per project strip: anything feeds it (`routing::is_fed`) — no Route here plate.
     pub fed: Vec<bool>,
     /// Where the send arrows were worked out for: (revision, selected strip).
@@ -263,6 +413,69 @@ impl Desk {
         self.chain
             .extend(p.strips.iter().map(|s| chain_text(&s.effects)));
         self.master_chain = chain_text(&p.master.effects);
+        self.inserts.clear();
+        self.inserts
+            .extend(p.strips.iter().map(|s| inserts_of(p, &s.effects)));
+        self.master_inserts = inserts_of(p, &p.master.effects);
+        // How many routes leave each strip: its output to a strip, its sends, its keys.
+        self.routes_out.clear();
+        self.routes_out.extend(p.strips.iter().map(|s| {
+            let keys = p
+                .strips
+                .iter()
+                .filter(|o| o.effects.iter().any(|e| e.sidechain == Some(s.id)))
+                .count();
+            (usize::from(s.output.is_some()) + s.sends.len() + keys) as u16
+        }));
+        self.sends_in.clear();
+        self.sends_in.resize(p.strips.len(), 0);
+        self.outputs_in.clear();
+        self.outputs_in.resize(p.strips.len(), 0);
+        for s in &p.strips {
+            if let Some(i) = s.output.and_then(|o| p.strip_index(o)) {
+                self.outputs_in[i] += 1;
+            }
+            for send in &s.sends {
+                if let Some(i) = p.strip_index(send.to) {
+                    self.sends_in[i] += 1;
+                }
+            }
+        }
+        let soloed: Vec<StripId> = p.strips.iter().filter(|s| s.soloed).map(|s| s.id).collect();
+        self.silenced.clear();
+        self.silenced.extend(p.strips.iter().map(|s| {
+            !soloed.is_empty()
+                && !s.soloed
+                && !s.muted
+                && !s.feeds().any(|t| soloed.contains(&t))
+                && !p
+                    .strips
+                    .iter()
+                    .any(|o| o.soloed && o.feeds().any(|t| t == s.id))
+        }));
+        self.eq.resize(p.strips.len(), EqThumb::default());
+        for (t, s) in self.eq.iter_mut().zip(&p.strips) {
+            t.update(Some(&s.eq), &s.effects);
+        }
+        self.master_eq.update(None, &p.master.effects);
+        self.vca_offset.clear();
+        self.vca_offset
+            .extend(p.strips.iter().enumerate().map(|(i, s)| {
+                let governed = self.vca_marks.get(i).is_some_and(|m| m.governed > 0);
+                governed.then(|| {
+                    p.vca_governing(s.id)
+                        .iter()
+                        .filter_map(|v| p.strip(*v))
+                        .map(|v| v.gain_db)
+                        .sum()
+                })
+            }));
+        self.armable.clear();
+        self.armable.extend(
+            p.strips
+                .iter()
+                .map(|s| p.tracks_on_strip(s.id).next().is_some()),
+        );
         self.most_sends = 0;
         self.any_solo = false;
         self.any_muted = false;
@@ -279,15 +492,17 @@ impl Desk {
                 .color
                 .or_else(|| first.map(|i| p.tracks[i].color))
                 .or_else(|| s.group.and_then(|g| p.strip_group(g)).map(|g| g.color));
-            let compressor = s
-                .effects
+            let glyph = p
+                .tracks
                 .iter()
-                .any(|e| e.spec.kind == cantus_core::EffectKind::Compressor && !e.bypass);
+                .filter(|t| t.strip == Some(s.id))
+                .find_map(|t| t.glyph.as_deref())
+                .and_then(crate::views::track_glyphs::by_id);
             self.info.push(Info {
                 label,
                 color,
-                compressor,
                 goes: s.output.is_some() || !s.sends.is_empty(),
+                glyph,
             });
             self.most_sends = self.most_sends.max(s.sends.len());
             self.any_solo |= s.soloed;
@@ -347,14 +562,6 @@ impl Desk {
     }
 
     /// Whether send `k` of the strip at `index` doubles its signal (answer 5).
-    pub fn send_doubled(&self, index: usize, k: usize) -> bool {
-        self.first_edge
-            .get(index)
-            .and_then(|e| self.doubled.get(*e as usize + 1 + k))
-            .copied()
-            .unwrap_or(false)
-    }
-
     /// The chain line of a strip (`None`: the master's).
     pub fn chain(&self, index: Option<usize>) -> &str {
         match index {
@@ -401,6 +608,7 @@ pub fn short_name(e: &EffectSlot) -> String {
         K::TransientSplit => "mixer.chain.discrimen",
         K::Analyzer => "mixer.chain.speculum",
         K::AutoTune => "mixer.chain.tonus",
+        K::Aula => "mixer.chain.aula", // r39:conv
     };
     crate::i18n::t(key)
 }
@@ -408,8 +616,6 @@ pub fn short_name(e: &EffectSlot) -> String {
 /// What separates the names in a chain line: a middle dot between thin spaces, so
 /// "EQ · Comp · +1" fits a 76-pt strip.
 pub const CHAIN_SEP: &str = "\u{2009}\u{b7}\u{2009}";
-/// The chain line's text size, of the label size.
-pub const CHAIN_TEXT: f32 = 0.88;
 
 /// A chain in one line (the owner's answer 7): the first two inserts by their short
 /// names, then how many more — "EQ · Comp · +1"; empty without inserts.
@@ -534,7 +740,7 @@ mod tests {
             (p4.dock, p4.strips, p4.seps, p4.folded),
             (Dock::Middle, 3, 0, false)
         );
-        assert_eq!(p4.x(24.0), 3.0 * 24.0 + 11.5);
+        assert_eq!(p4.x(32.0), 3.0 * 32.0 + 15.0);
         // A chain line.
         a.add_effect(ids[0], EffectKind::Eq);
         a.add_effect(ids[0], EffectKind::Compressor);
@@ -546,5 +752,75 @@ mod tests {
             "the owner's example"
         );
         assert_eq!(d.chain(Some(1)), "");
+    }
+
+    /// r39:lo-mixer — Large's band dots sit on the strip's real bands: a strip whose EQ is
+    /// not flat puts its three dots at its bands' frequencies (by octaves over 20 Hz …
+    /// 20 kHz), moved when a band moves; a flat strip has none; an EQ insert's playing
+    /// bands take their place when the strip's own EQ is flat.
+    #[test]
+    fn the_band_dots_follow_the_strips_real_bands() {
+        use cantus_core::EqField;
+        let mut a = CantusApp::from_parts(None, EngineHandle::dummy(), false);
+        let id = a.project().strips[0].id;
+        let mut d = Desk::default();
+        d.refresh(&a);
+        assert!(!d.eq[0].shaped, "flat at first");
+        assert_eq!(d.eq[0].dots, [None; 3], "a flat strip has no dots");
+        for (band, gain) in [(0u8, 2.0f32), (1, -2.5), (2, 1.6)] {
+            a.exec(Command::SetStripEq {
+                id,
+                band,
+                field: EqField::Gain,
+                value: gain,
+            });
+        }
+        a.exec(Command::SetStripEq {
+            id,
+            band: 1,
+            field: EqField::Freq,
+            value: 632.0,
+        });
+        d.refresh(&a);
+        let t = d.eq[0];
+        assert!(t.shaped, "the EQ shapes it");
+        let at = |hz: f32| (hz / 20.0).log10() / 3.0;
+        for (dot, hz) in t.dots.iter().zip([100.0f32, 632.0, 8_000.0]) {
+            let f = dot.expect("a dot per band");
+            assert!((f - at(hz)).abs() < 1e-4, "{f} at {hz} Hz");
+        }
+        // The curve dips where the bell is: the sample nearest the dot is the lowest.
+        let i = (t.dots[1].unwrap() * (EQ_PTS - 1) as f32).round() as usize;
+        let low = (0..EQ_PTS)
+            .min_by(|x, y| t.db[*x].total_cmp(&t.db[*y]))
+            .unwrap();
+        assert!(i.abs_diff(low) <= 2, "the bell's dot {i} at the dip {low}");
+        // Flat again, an EQ insert's bands lead the dots.
+        for band in 0..3u8 {
+            a.exec(Command::SetStripEq {
+                id,
+                band,
+                field: EqField::Gain,
+                value: 0.0,
+            });
+        }
+        a.add_effect(id, EffectKind::Eq);
+        d.refresh(&a);
+        let spec = &a.project().strips[0].effects[0].spec;
+        let want: Vec<f32> = cantus_engine::eq_bands(spec)
+            .iter()
+            .filter(|b| b.active)
+            .take(3)
+            .map(|b| at(b.freq.max(20.0)))
+            .collect();
+        let got: Vec<f32> = d.eq[0].dots.iter().flatten().copied().collect();
+        assert_eq!(
+            got.len(),
+            want.len(),
+            "a dot per playing band of the insert"
+        );
+        for (g, w) in got.iter().zip(&want) {
+            assert!((g - w.clamp(0.0, 1.0)).abs() < 1e-4);
+        }
     }
 }

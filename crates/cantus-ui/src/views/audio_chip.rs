@@ -360,3 +360,183 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
         glyph::paint(b, gr, Glyph::Down, s.t.text_dim);
     });
 }
+
+// ---- round 39: the top bar's device group (`dir-a`'s phase B) ----------------- r39:el-topbar
+
+/// What the bar's device group says: the interface's name while it runs, else the
+/// sentence (no device, lost, not responding) — and whether it is that warning.
+fn bar_line<R>(f: impl FnOnce(&str, bool) -> R) -> R {
+    CACHE.with(|c| {
+        let c = c.borrow();
+        let k = &c.key;
+        if k.live && !k.lost && !k.stalled && !c.name.is_empty() {
+            f(&c.name, false)
+        } else if !k.live {
+            f(crate::views::clips_chrome::word("topbar.device_none"), true)
+        } else {
+            f(&c.text, true)
+        }
+    })
+}
+
+/// What the bar's widths depend on (the words it says).
+pub fn bar_key(app: &CantusApp, ctx: &egui::Context) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let s = Style::current();
+    refresh(app, ctx, &s);
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    bar_line(|w, bad| (w, bad).hash(&mut h));
+    h.finish()
+}
+
+/// The words' least and most room on the bar (the sheet's 104; a long name or sentence
+/// elides in its middle, whole in the hint).
+const BAR_MIN: f32 = 104.0;
+const BAR_MAX: f32 = 180.0;
+
+/// The device group's widths: compact (the speaker key, 30) and full (the words).
+pub fn bar_widths(app: &CantusApp, ctx: &egui::Context, s: &Style) -> (f32, f32) {
+    refresh(app, ctx, s);
+    let w = bar_line(|w, bad| {
+        let role = if bad { Role::Control } else { Role::Label };
+        let tk = s.tk() * 11.0 / role.size().max(1.0);
+        text::measure(ctx, &Text::new(w, role, s.t.text), tk).x
+    });
+    (
+        30.0 * s.k,
+        (w + 43.0 * s.k).clamp(BAR_MIN * s.k, BAR_MAX * s.k),
+    )
+}
+
+/// The device group in the key row `row`: a well with the speaker, the interface's name
+/// (11, ink 2) and a ▾ — or the warning and the words in amber; compact, the speaker key
+/// (with the warning at its corner). A click opens the popover.
+pub fn show_bar(app: &mut CantusApp, ui: &mut Ui, column: Rect, s: &Style, compact: bool) {
+    use crate::views::transport::paint as p;
+    let ctx = ui.ctx().clone();
+    refresh(app, &ctx, s);
+    let (_, full) = bar_widths(app, &ctx, s);
+    let w = if compact { 30.0 * s.k } else { full };
+    let row = p::row(column, s);
+    let rect = Rect::from_min_size(row.min, Vec2::new(w.min(row.width()), row.height()));
+    let resp = ui.interact(rect, ui.id().with("audio-chip"), Sense::click());
+    // The popover hangs under the whole bar, not under the key (review 2).
+    let column = Rect::from_min_max(
+        egui::pos2(rect.left(), column.top()),
+        egui::pos2(rect.right(), column.bottom()),
+    );
+    app.audio_setup.hit(&ctx, Hit::Chip, column);
+    if resp.clicked() {
+        audio_setup::toggle_popover(app);
+    }
+    let open = app.audio_setup.popover;
+    if resp.hovered() {
+        let tip = t("devices.chip.tip");
+        CACHE.with(|c| {
+            hint::set_text(
+                &ctx,
+                &tip,
+                &c.borrow().text,
+                Caps {
+                    menu: true,
+                    ..Caps::NONE
+                },
+            )
+        });
+    }
+    let st = State::of(&resp, false);
+    let k = s.k;
+    with_brush(ui.painter(), |b| {
+        b.register(
+            rect,
+            "audio-chip",
+            &[Tok::Well, Tok::Text, Tok::TextDim],
+            &[Some(Tok::MeterHigh)],
+        );
+        p::well(b, rect, s, None);
+        p::tint(b, rect, s, st, s.t.highlight, 0.2);
+        let gst = if open {
+            State {
+                hovered: true,
+                ..st
+            }
+        } else {
+            st
+        };
+        bar_line(|words, bad| {
+            if compact {
+                speaker(b, rect, s, gst);
+                if bad {
+                    let g = Rect::from_center_size(
+                        Pos2::new(rect.right() - 6.0 * k, rect.top() + 6.0 * k),
+                        Vec2::splat(8.0 * k),
+                    );
+                    glyph::paint(b, g, Glyph::Warning, s.t.meter_high);
+                }
+                return;
+            }
+            let gc = Rect::from_center_size(
+                Pos2::new(rect.left() + 13.0 * k, rect.center().y),
+                Vec2::splat(20.0 * k),
+            );
+            if bad {
+                let g = Rect::from_center_size(gc.center(), Vec2::splat(11.0 * k));
+                glyph::paint(b, g, Glyph::Warning, s.t.meter_high);
+            } else {
+                speaker(b, gc, s, gst);
+            }
+            let tr = Rect::from_min_max(
+                Pos2::new(rect.left() + 25.0 * k, rect.top()),
+                Pos2::new(rect.right() - 18.0 * k, rect.bottom()),
+            );
+            let (role, ink) = if bad {
+                (Role::Control, s.t.meter_high)
+            } else if st.hovered || open {
+                (Role::Label, s.t.text)
+            } else {
+                (Role::Label, s.t.text_dim)
+            };
+            let _ = text::paint(
+                b,
+                tr,
+                &Text::new(words, role, ink)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::Middle)),
+                s.tk() * 11.0 / role.size().max(1.0),
+            );
+            let ink = if st.hovered || open {
+                p::ink1(s)
+            } else {
+                p::ink3(s)
+            };
+            p::chevron(
+                b,
+                Pos2::new(rect.right() - 10.0 * k, rect.center().y),
+                2.5 * k,
+                ink,
+                s,
+            );
+        });
+    });
+}
+
+/// The dialogs' foot line (`dir-a`): "Now: …" what the sound goes through, and whether it
+/// is well. // r39:el-topbar
+pub fn status_line(app: &CantusApp, ctx: &egui::Context) -> (String, bool) {
+    let s = Style::current();
+    refresh(app, ctx, &s);
+    let good = health(app) == Health::Good;
+    CACHE.with(|c| (tf("topbar.now", &[("what", &c.borrow().text)]), good))
+}
+
+/// The device group's glyph (el-topbar's sheet, r39:lo-mixer): the family's sounding
+/// speaker (set 4), drawn for its 16-pt box on the device, in the key's inks; the kit's
+/// device glyph where the family has no drawing.
+fn speaker(b: &mut crate::kit::Brush, c: Rect, s: &crate::kit::Style, st: State) {
+    let inks = crate::kit::icons::inks(s, st, s.t.highlight, s.t.well);
+    let r = Rect::from_center_size(c.center(), Vec2::splat(s.s(16.0)));
+    let g = crate::kit::glyph_browser::Glyph::Speaker;
+    if !crate::kit::glyph_browser::paint_inks(b, r, g, &inks) {
+        crate::views::transport::paint::icon(b, c, s, Glyph::Device, st, s.t.highlight, 20.0);
+    }
+}

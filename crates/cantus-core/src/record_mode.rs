@@ -237,7 +237,8 @@ fn is_master(cmd: &Command) -> bool {
         | SetEffectMix { strip, .. }
         | SetPluginParam { strip, .. }
         | SetPluginState { strip, .. }
-        | SetEffectMidiSource { strip, .. } => *strip == StripId::MASTER,
+        | SetEffectMidiSource { strip, .. }
+        | SetEffectIr { strip, .. } => *strip == StripId::MASTER, // r39:conv
         SetStripEq { id, .. }
         | SetStripPhaseInvert { id, .. }
         | SetStripSwapChannels { id, .. } => *id == StripId::MASTER,

@@ -80,6 +80,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     let open_resp = ui
         .interact(open, Id::new("devices-open-picker"), Sense::click())
         .on_hover_text(t("picker.panel.open"));
+    let open_resp = super::hint::said_with(open_resp, || t("picker.panel.open")); // r39:ux-a
     with_brush(ui.painter(), |b| {
         let st = crate::kit::State::of(&open_resp, false);
         crate::kit::cap::toolbar_key(
@@ -95,7 +96,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         vec2(full.width() - 2.0 * pad, s.s(24.0)),
     );
     // The kit's field (round 26), with room for the magnifier.
-    let hint = t("picker.search.name");
+    // The panel's own words, shorter than the picker's (round 39, ADR 0109: they were cut).
+    let hint = t("ux.words.devices_search");
     crate::kit::field::Field::new(Id::new("devices-search"))
         .hint(&hint)
         .pad(18.0, 0.0)
@@ -212,6 +214,10 @@ fn rows(
         );
         if resp.hovered() {
             hovered = Some(key.clone());
+            // r39:ux-a — what it is and how it is used, on the help line (ADR 0109).
+            let d = &v.catalog[*i];
+            let words = crate::i18n::tf("ux.hint.device", &[("name", &d.name), ("what", &d.what)]);
+            crate::kit::hint::set_text(ui.ctx(), &words, "", crate::kit::hint::Caps::NONE);
         }
         if resp.clicked() {
             v.panel.selected = Some(key.clone());

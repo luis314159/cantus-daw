@@ -141,10 +141,8 @@ fn a_strip_click_shows_the_channel_and_a_track_click_the_track() {
         !text.contains(&cantus_ui::i18n::t("inspector.track_level")),
         "{text}"
     );
-    assert!(
-        text.contains(&cantus_ui::i18n::t(EffectKind::Eq.name_key())),
-        "{text}"
-    );
+    // Round 39: the insert row sets the unit's name and its kind apart ("Aequalis", "EQ").
+    assert!(text.contains("Aequalis"), "{text}");
     // A clip: its rows, above the channel.
     let clip = a.project().tracks[0].clips[0].id;
     a.select_clip(keys, clip);

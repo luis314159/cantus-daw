@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 /// Which theme the interface shows.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum Mode {
-    /// The default: Cantus Night (ADR 0046), the website's night stage.
+    /// The default: Slate Night (round 39, ADR 0111).
     #[default]
     Dark,
     Light,
@@ -42,25 +42,66 @@ pub type BaseRef = String;
 pub type PresetEntry = (&'static str, fn() -> Theme);
 
 /// The shipped presets, by the id a [`BaseRef`] names them with, in the order the
-/// Appearance page lists them: round 25's family (ADR 0046), then the older presets.
-pub const PRESETS: [PresetEntry; 12] = [
+/// Appearance page lists them (round 39, ADR 0111): Slate, then Slate Lapis, then the two
+/// optional families; the themes of rounds 24–38, redrawn in round 39's design system and
+/// under their old ids (`slate` is Pewter and `paper` is Chalk now, the FL-derived pair
+/// renamed); the themes new in round 39; the high-contrast pair.
+pub const PRESETS: [PresetEntry; 24] = [
+    ("slate_night", theme::slate_night),
+    ("slate_paper", theme::slate_paper),
+    ("slate_lapis_night", theme::slate_lapis_night),
+    ("slate_lapis_paper", theme::slate_lapis_paper),
+    ("graphite_night", theme::graphite_night),
+    ("graphite_paper", theme::graphite_paper),
+    ("studio_ink_night", theme::studio_ink_night),
+    ("studio_ink_paper", theme::studio_ink_paper),
+    ("cantus_night", crate::theme_redrawn::cantus_night),
+    ("cantus_paper", crate::theme_redrawn::cantus_paper),
+    ("blue_hour", crate::theme_redrawn::blue_hour),
+    ("daylight", crate::theme_redrawn::daylight),
+    ("slate", crate::theme_redrawn::pewter),
+    ("paper", crate::theme_redrawn::chalk),
+    ("ink_gold", crate::theme_redrawn::ink_and_gold),
+    ("parchment", crate::theme_redrawn::parchment),
+    ("ultraviolet", crate::theme_redrawn::ultraviolet),
+    ("lagoon", crate::theme_redrawn::lagoon),
+    ("evergreen_night", crate::theme_added::evergreen_night),
+    ("evergreen_paper", crate::theme_added::evergreen_paper),
+    ("bordeaux", crate::theme_added::bordeaux),
+    ("print", crate::theme_added::print),
+    ("contrast", theme::high_contrast),
+    ("contrast_light", theme::high_contrast_light),
+];
+
+/// The presets of rounds 24–38 as those releases wrote them (Classic: raised keys, the
+/// gradients), by the id they had and have again. Named nowhere in the interface: an old
+/// `theme.json` that is exactly one of them is that preset chosen, not a theme of the
+/// user's ([`Appearance::from_legacy`]), and shows the preset of its id, redrawn.
+///
+/// Round 39 first retired these ten and showed Slate for a setting that named one; the
+/// owner asked for them back (2026-11-10), so every id names its own theme again and no
+/// setting is moved.
+pub const CLASSIC: [PresetEntry; 10] = [
     ("cantus_night", theme::cantus_night),
     ("cantus_paper", theme::cantus_paper),
     ("daylight", theme::daylight),
     ("blue_hour", theme::blue_hour),
     ("ultraviolet", theme::ultraviolet),
     ("lagoon", theme::lagoon),
-    ("contrast", theme::high_contrast),
-    ("contrast_light", theme::high_contrast_light),
     ("slate", theme::slate),
     ("ink_gold", theme::ink_and_gold),
     ("paper", theme::paper),
     ("parchment", theme::parchment),
 ];
 
-/// The preset a fresh install shows in each mode: Cantus Night and its light twin.
-pub const DEFAULT_DARK: &str = "cantus_night";
-pub const DEFAULT_LIGHT: &str = "cantus_paper";
+/// The preset a fresh install shows in each mode: Slate Night and Slate Paper.
+pub const DEFAULT_DARK: &str = "slate_night";
+pub const DEFAULT_LIGHT: &str = "slate_paper";
+
+/// Whether `id` names a shipped preset.
+pub fn is_preset(id: &str) -> bool {
+    PRESETS.iter().any(|(k, _)| *k == id)
+}
 
 /// The i18n key of a preset's name (`theme.<id>`).
 pub fn preset_name_key(id: &str) -> String {
@@ -193,9 +234,9 @@ impl Appearance {
             }
         }
         if mode == Mode::Dark {
-            theme::cantus_night()
+            theme::slate_night()
         } else {
-            theme::cantus_paper()
+            theme::slate_paper()
         }
     }
 
@@ -374,6 +415,23 @@ impl Appearance {
     /// An appearance around an old theme file.
     pub fn from_legacy(t: Theme) -> Appearance {
         let mut a = Appearance::default();
+        // A `theme.json` that is exactly one of the old presets (what earlier releases
+        // wrote for a preset chosen) is no theme of the user's: it is that preset chosen,
+        // and shows it, redrawn (round 39), in its own mode. Paper, which every release of
+        // that era wrote on its first run before anyone chose anything, leaves the
+        // appearance as a fresh install has it (ADR 0046).
+        let classic = CLASSIC
+            .iter()
+            .find(|(_, make)| t.knobs.is_neutral() && make().palette() == t.palette());
+        if let Some((id, _)) = classic {
+            a.logo = t.logo;
+            if *id != "paper" {
+                let mode = if t.dark { Mode::Dark } else { Mode::Light };
+                a.assign(mode, format!("preset:{id}"));
+                a.mode = mode;
+            }
+            return a;
+        }
         let mode = if t.dark { Mode::Dark } else { Mode::Light };
         let name = if t.name.trim().is_empty() {
             "My theme".to_string()
@@ -535,13 +593,13 @@ mod tests {
             mode: Mode::System,
             ..Default::default()
         };
-        assert_eq!(a.resolve(true).name, "Cantus Night");
-        assert_eq!(a.resolve(false).name, "Cantus Paper");
+        assert_eq!(a.resolve(true).name, "Slate Night");
+        assert_eq!(a.resolve(false).name, "Slate Paper");
         a.mode = Mode::Dark;
-        assert_eq!(a.resolve(false).name, "Cantus Night");
+        assert_eq!(a.resolve(false).name, "Slate Night");
         // Any preset may serve either mode.
-        a.assign(Mode::Light, "preset:parchment".into());
-        assert_eq!(a.resolve_mode(Mode::Light).name, "Parchment");
+        a.assign(Mode::Light, "preset:graphite_night".into());
+        assert_eq!(a.resolve_mode(Mode::Light).name, "Graphite Night");
     }
 
     #[test]
@@ -579,7 +637,7 @@ mod tests {
         });
         a.reset_all(Mode::Dark);
         assert!(a.dark.is_pristine());
-        assert_eq!(a.dark.base, "preset:cantus_night");
+        assert_eq!(a.dark.base, "preset:slate_night");
     }
 
     #[test]
@@ -613,19 +671,23 @@ mod tests {
         let json = export_theme(&saved);
         let name = a.import(&json).unwrap();
         assert_eq!(name, "Warm slate 2");
-        a.duplicate("preset:paper", "My paper");
+        a.duplicate("preset:slate_paper", "My paper");
         assert!(a.themes.iter().any(|t| t.name == "My paper"));
         a.delete("Warm slate");
         assert_eq!(
-            a.dark.base, "preset:cantus_night",
+            a.dark.base, "preset:slate_night",
             "a mode loses a deleted base gracefully"
         );
     }
 
     #[test]
     fn an_old_theme_json_keeps_loading() {
-        // A file written before the kit, the knobs and the modes: the 22 colours only.
-        let mut v = serde_json::to_value(theme::ink_and_gold()).unwrap();
+        // A file written before the kit, the knobs and the modes: the 22 colours only —
+        // a theme of the user's own (one colour changed from a preset; an untouched preset
+        // is that preset chosen).
+        let mut mine = theme::ink_and_gold();
+        mine.panel = "#20232b".into();
+        let mut v = serde_json::to_value(&mine).unwrap();
         for k in ["kit", "knobs", "form", "logo"] {
             v.as_object_mut().unwrap().remove(k);
         }
@@ -633,7 +695,7 @@ mod tests {
         let a = Appearance::from_json(&old).unwrap();
         assert_eq!(a.mode, Mode::Dark);
         let t = a.resolve(false);
-        assert_eq!(t.palette(), theme::ink_and_gold().palette());
+        assert_eq!(t.palette(), mine.palette());
         // Its kit tokens are derived from its colours, and legible.
         assert!(t.kit_tokens().legibility_failures().is_empty());
         // And an appearance file round-trips.
@@ -682,19 +744,20 @@ mod tests {
         let t = a.resolve(false);
         let k = t.kit_tokens();
         assert_eq!(k.depth, 0.0);
-        // Cantus Night's 3-point corners, twice as round.
-        assert_eq!(k.radius, 6.0);
+        // Slate's 4-point corners, twice as round.
+        assert_eq!(k.radius, 8.0);
         assert!(k.density < 1.0 && (k.text_scale - 1.2).abs() < 1e-6);
         assert_eq!(t.logo.number, 7);
     }
 
     #[test]
-    fn a_fresh_install_shows_the_website_s_theme_and_a_saved_choice_is_kept() {
+    fn a_fresh_install_shows_slate_and_an_old_choice_shows_its_theme() {
         let a = Appearance::default();
         assert_eq!(a.mode, Mode::Dark);
-        assert_eq!(a.dark.base, "preset:cantus_night");
-        assert_eq!(a.light.base, "preset:cantus_paper");
-        // A file a user saved before round 25 names Slate and Paper: it keeps them.
+        assert_eq!(a.dark.base, "preset:slate_night");
+        assert_eq!(a.light.base, "preset:slate_paper");
+        // A file a user saved before round 39 names a theme of rounds 24–38 (here round 24's
+        // FL-derived Slate and Paper): it shows that theme, redrawn — Pewter and Chalk.
         let mut old = serde_json::to_value(Appearance::default()).unwrap();
         let o = old.as_object_mut().unwrap();
         o.insert(
@@ -707,8 +770,9 @@ mod tests {
         );
         o.remove("icon");
         let back = Appearance::from_json(&old.to_string()).unwrap();
-        assert_eq!(back.resolve_mode(Mode::Dark).name, "Slate");
-        assert_eq!(back.resolve_mode(Mode::Light).name, "Paper");
+        assert_eq!(back.dark.base, "preset:slate");
+        assert_eq!(back.resolve_mode(Mode::Dark).name, "Pewter");
+        assert_eq!(back.resolve_mode(Mode::Light).name, "Chalk");
         // …and, written before the icon existed, the automatic mark (as designed on a dark
         // taskbar, which is where every earlier release's icon was seen).
         assert_eq!(back.icon, IconColour::Auto);
@@ -798,5 +862,80 @@ mod tests {
             pale < 3.0,
             "the designed amber reads on white after all ({pale:.2}:1)"
         );
+    }
+
+    #[test]
+    fn every_old_preset_id_names_its_own_theme_again_keeping_the_slot_s_changes() {
+        // Round 39 retired the ten themes of rounds 24–38 and showed Slate for them; the
+        // owner asked for them back (2026-11-10): each id names its theme, redrawn, in its
+        // own light, and a mode's own changes stay on top.
+        let mut names = std::collections::BTreeSet::new();
+        for (id, classic) in CLASSIC {
+            let (_, make) = PRESETS.iter().find(|(k, _)| *k == id).expect(id);
+            let redrawn = make();
+            assert_eq!(redrawn.dark, classic().dark, "{id} keeps its light");
+            assert!(redrawn.system.recessed(), "{id} is of round 39's system");
+            assert_ne!(redrawn.palette(), classic().palette(), "{id} is redrawn");
+            assert!(!redrawn.name.starts_with("Slate"), "{id}: {}", redrawn.name);
+            names.insert(redrawn.name.clone());
+            for mode in [Mode::Dark, Mode::Light] {
+                let mut a = Appearance::default();
+                a.assign(mode, format!("preset:{id}"));
+                a.set_token(mode, Tok::Cap, Color32::from_rgb(1, 2, 3));
+                let back = Appearance::from_json(&a.to_json()).unwrap();
+                assert_eq!(back.slot(mode).base, format!("preset:{id}"), "{id}");
+                assert_eq!(
+                    back.slot(mode)
+                        .overrides
+                        .get(Tok::Cap.key())
+                        .map(String::as_str),
+                    Some("#010203"),
+                    "{id}: the mode's own changes stay"
+                );
+                assert_eq!(back.base_theme(&format!("preset:{id}"), mode), redrawn);
+                assert_eq!(
+                    back.resolve_mode(mode).kit_tokens().cap,
+                    Color32::from_rgb(1, 2, 3)
+                );
+            }
+        }
+        assert_eq!(names.len(), CLASSIC.len(), "each its own name");
+        // The FL-derived pair carry no product's name and do not collide with Slate.
+        assert_eq!(crate::theme_redrawn::pewter().name, "Pewter");
+        assert_eq!(crate::theme_redrawn::chalk().name, "Chalk");
+        // A user's own theme is theirs, untouched.
+        let mut a = Appearance::default();
+        let mine = theme::cantus_night();
+        a.themes.push(Theme {
+            name: "Mine".into(),
+            ..mine
+        });
+        a.assign(Mode::Dark, "user:Mine".into());
+        let back = Appearance::from_json(&a.to_json()).unwrap();
+        assert_eq!(back.dark.base, "user:Mine");
+        assert_eq!(back.resolve_mode(Mode::Dark).name, "Mine");
+        // A `theme.json` of the old days that is exactly an old dark preset: that preset,
+        // redrawn, in the dark mode; a light one in the light mode.
+        let old = serde_json::to_string(&theme::lagoon()).unwrap();
+        let a = Appearance::from_json(&old).unwrap();
+        assert!(a.themes.is_empty(), "no user theme made of a preset");
+        assert_eq!(
+            (a.mode, a.dark.base.as_str(), a.resolve(false).name.as_str()),
+            (Mode::Dark, "preset:lagoon", "Lagoon")
+        );
+        let old = serde_json::to_string(&theme::daylight()).unwrap();
+        let a = Appearance::from_json(&old).unwrap();
+        assert_eq!(
+            (
+                a.mode,
+                a.light.base.as_str(),
+                a.resolve(false).name.as_str()
+            ),
+            (Mode::Light, "preset:daylight", "Daylight")
+        );
+        // Paper, which every release of that era wrote on its first run: a fresh install.
+        let old = serde_json::to_string(&theme::paper()).unwrap();
+        let a = Appearance::from_json(&old).unwrap();
+        assert_eq!(a, Appearance::default());
     }
 }

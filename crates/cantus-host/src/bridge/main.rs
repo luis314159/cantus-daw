@@ -716,15 +716,27 @@ impl MainThread for BridgeMain {
         if !self.gone() {
             // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps alive.
             let x = unsafe { &*self.slot.exchange() };
+            // A job past the hang limit is laid on this plug-in only if a worker took it and
+            // has not finished it (round 39, fixes). One never taken waits behind another
+            // that hangs or died — a neighbour's — and is that one's to answer for, judged
+            // on its own slot: on a loaded machine a helper killed by a fail-fast abort can
+            // take seconds to end, and the job its neighbour sent meanwhile was laid the
+            // end (beta.12's release run, a gain's abort counted for no one). With no job
+            // of the helper running at all, its workers took none: ended, on nobody.
             if let Some(t) = self.status.unfinished_for(x) {
                 if t > self.pool.hang_limit() {
-                    self.sandbox.kill_blaming(
-                        &format!(
-                            "{} stopped responding while it processed audio",
-                            self.info.name
-                        ),
-                        Some(self.instance),
-                    );
+                    if x.running() {
+                        self.sandbox.kill_blaming(
+                            &format!(
+                                "{} stopped responding while it processed audio",
+                                self.info.name
+                            ),
+                            Some(self.instance),
+                        );
+                    } else if !self.sandbox.a_job_runs() {
+                        self.sandbox
+                            .kill_blaming("the plug-in sandbox stopped taking audio", None);
+                    }
                 }
             }
         }

@@ -88,7 +88,7 @@ who does not want the faces can have the plain look back.
    keyed by the switch and a digest of every sheet (`skin::sheets_digest`), so a picture made
    plain — or before a sheet changed — is never shown for a face.
 6. **What keeps the plain look**: hosted plug-ins' Cantus view (it is not one of our units),
-   the legacy delay and reverb, everything outside a unit's window, and every unit when the
+   the legacy reverb (Delay has its window and face since round 39, ADR 0115), everything outside a unit's window, and every unit when the
    switch is off. **The exported CLAP/VST3 plug-ins** have no settings file: they always wear
    their unit's face (their window's set-up, `cantus_plugins::editor::prepare`, sets it on,
    as its thread may be the host's).

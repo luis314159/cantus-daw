@@ -13,11 +13,11 @@ use super::audio_parts::{self as parts};
 use crate::app::CantusApp;
 use crate::audio_setup::{self as setup, interfaces, latency, Hit, Measure};
 use crate::i18n::{t, tf};
-use crate::kit::color::{shade, with_alpha};
+use crate::kit::color::shade;
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::meter::MIN_DB;
 use crate::kit::text::{self, Elide, Policy, Role, Text};
-use crate::kit::{band, with_brush, Fill, State, Style, Tok};
+use crate::kit::{with_brush, Fill, State, Style, Tok};
 use crate::views::workspace_ticker::{self as ticker, Reason};
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
 
@@ -78,7 +78,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let (r, _) = ui.allocate_exact_size(screen.size(), Sense::click());
             with_brush(ui.painter(), |b| {
-                b.rect(r, Fill::Solid(with_alpha(s.t.shadow, 0.55)));
+                b.rect(r, Fill::Solid(super::workspace_settings::scrim_fill(&s)));
             });
         });
     let size = (SIZE * k).min(screen.size() - Vec2::splat(24.0));
@@ -89,7 +89,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             ui.set_min_size(size);
             parts::panel(ui, rect, &s);
-            let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 34.0 * k));
+            let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 44.0 * k));
             if super::workspace_settings::title(ui, head, &s, Glyph::Device, "devices.first.title")
             {
                 setup::close_first_run(app);
@@ -134,30 +134,33 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
     }
 }
 
-/// A step's band: its number in a lit disc, its title in the band's caps.
+/// A step's head (`dir-a`): its number in a ring on the steps' thin line, its title in 13
+/// Medium.
 fn step(ui: &mut Ui, n: u32, key: &str) {
     let s = Style::current();
     let k = s.k;
-    let (r, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 22.0 * k), Sense::hover());
+    let (r, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0 * k), Sense::hover());
     with_brush(ui.painter(), |b| {
-        let title = Rect::from_min_max(Pos2::new(r.left() + 22.0 * k, r.top()), r.max);
-        band::section(b, title, &s, State::REST, text::Src::Key(key), None, false);
         let c = Pos2::new(r.left() + 10.0 * k, r.center().y);
-        b.circle(
+        b.circle(c, 10.0 * k, Fill::Solid(s.t.panel));
+        b.circle_stroke(
             c,
-            9.0 * k,
-            Fill::V(shade(s.t.selection, 0.08), shade(s.t.selection, -0.08)),
+            9.5 * k,
+            1.0 * k,
+            crate::kit::color::mix(s.t.toolbar, s.t.text_dim, 0.5),
         );
         let digit = n.to_string();
         let _ = text::paint(
             b,
             Rect::from_center_size(c, Vec2::splat(18.0 * k)),
-            &Text::new(
-                &digit,
-                Role::Label,
-                crate::kit::color::on_fill(s.t.selection),
-            )
-            .align(Align2::CENTER_CENTER),
+            &Text::new(&digit, Role::Control, s.t.text).align(Align2::CENTER_CENTER),
+            s.tk(),
+        );
+        let title = Rect::from_min_max(Pos2::new(r.left() + 32.0 * k, r.top()), r.max);
+        let _ = text::paint(
+            b,
+            title,
+            &Text::key(key, Role::Title, s.t.text).align(Align2::LEFT_CENTER),
             s.tk(),
         );
     });
@@ -183,6 +186,11 @@ fn cards(app: &mut CantusApp, ui: &mut Ui) {
         return;
     }
     let current = setup::current_key(app);
+    if s.t.system.recessed() {
+        // r39:el-topbar — `dir-a`: the interfaces as rows, the best first with its tag.
+        rows(app, ui, &list, current.as_deref());
+        return;
+    }
     let gap = 10.0 * k;
     let per_row = ((ui.available_width() + gap) / (CARD.x * k + gap))
         .floor()
@@ -563,5 +571,137 @@ fn footer(app: &mut CantusApp, ui: &mut Ui, r: Rect) {
     app.audio_setup.hit(right.ctx(), Hit::FirstDone, done.rect);
     if done.clicked() {
         setup::finish_first_run(app, heard);
+    }
+}
+
+/// The interfaces as `dir-a`'s first run draws them: a row each — its kind's glyph, its
+/// name (12 Medium) and what it is (11, ink 3) — the first one (the setup's own choice,
+/// the list is ranked) tagged "Recommended", the chosen one a raised row with the accent's
+/// bar and a check. // r39:el-topbar
+fn rows(app: &mut CantusApp, ui: &mut Ui, list: &[interfaces::Interface], current: Option<&str>) {
+    let s = Style::current();
+    let k = s.k;
+    for (i, iface) in list.iter().enumerate().take(6) {
+        let (r, _) =
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0 * k), Sense::hover());
+        let r = Rect::from_min_max(Pos2::new(r.left() + 32.0 * k, r.top()), r.max);
+        let resp = ui.interact(r, Id::new(("audio-card", i)), Sense::click());
+        app.audio_setup.hit(ui.ctx(), Hit::Card(i), r);
+        let lit = current == Some(iface.key.as_str());
+        let kind = match iface.kind {
+            interfaces::Kind::Interface => "devices.kind.interface",
+            interfaces::Kind::BuiltIn => "devices.kind.builtin",
+            interfaces::Kind::Headphones => "devices.kind.headphones",
+            interfaces::Kind::Display => "devices.kind.display",
+            interfaces::Kind::Virtual => "devices.kind.virtual",
+        };
+        let mut sub = t(kind);
+        if iface.has_asio() && cantus_engine::devices::asio_built() {
+            sub.push_str(" · ASIO");
+        }
+        let hovered = resp.hovered();
+        with_brush(ui.painter(), |b| {
+            b.register(
+                r,
+                "audio-row",
+                &[Tok::Menu, Tok::Text, Tok::TextDim, Tok::Highlight],
+                &[],
+            );
+            let row = b.snap_rect(r.shrink2(Vec2::new(0.0, 2.0 * k)));
+            let fill = if lit {
+                s.t.menu
+            } else if hovered {
+                crate::kit::color::mix(s.t.panel, s.t.text, 0.05)
+            } else {
+                s.t.panel
+            };
+            b.rrect(row, s.r(4.0), Fill::Solid(fill));
+            if lit {
+                let bar = Rect::from_min_size(row.min, Vec2::new(2.0 * k, row.height()));
+                b.rect(bar, Fill::Solid(s.t.highlight));
+            }
+            let g = Rect::from_center_size(
+                Pos2::new(row.left() + 20.0 * k, row.center().y),
+                Vec2::splat(16.0 * k),
+            );
+            glyph::paint(b, g, Glyph::Device, s.t.text_dim);
+            let name_w = text::measure(
+                b.ctx(),
+                &Text::new(&iface.key, Role::Control, s.t.text),
+                s.tk(),
+            )
+            .x
+            .min(row.width() * 0.5);
+            let nr = Rect::from_min_size(
+                Pos2::new(row.left() + 40.0 * k, row.top()),
+                Vec2::new(name_w + 1.0, row.height()),
+            );
+            let _ = text::paint(
+                b,
+                nr,
+                &Text::new(&iface.key, Role::Control, s.t.text)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::Middle)),
+                s.tk(),
+            );
+            let tag_w = if i == 0 {
+                text::measure(
+                    b.ctx(),
+                    &Text::key("topbar.audio.recommended", Role::Label, s.t.text),
+                    s.tk(),
+                )
+                .x + 16.0 * k
+            } else {
+                0.0
+            };
+            let right = row.right() - 36.0 * k;
+            let sr = Rect::from_min_max(
+                Pos2::new(nr.right() + 10.0 * k, row.top()),
+                Pos2::new(right - tag_w - 8.0 * k, row.bottom()),
+            );
+            let _ = text::paint(
+                b,
+                sr,
+                &Text::new(&sub, Role::Label, s.t.text_dim)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
+            if i == 0 {
+                let tr = Rect::from_min_size(
+                    Pos2::new(right - tag_w, row.center().y - 8.0 * k),
+                    Vec2::new(tag_w, 16.0 * k),
+                );
+                b.rrect_stroke(
+                    b.snap_rect(tr).shrink(b.px() * 0.5),
+                    8.0 * k,
+                    b.px(),
+                    s.t.highlight,
+                );
+                let _ = text::paint(
+                    b,
+                    tr,
+                    &Text::key("topbar.audio.recommended", Role::Label, s.t.highlight)
+                        .align(Align2::CENTER_CENTER),
+                    s.tk(),
+                );
+            }
+            if lit {
+                let c = Pos2::new(row.right() - 18.0 * k, row.center().y);
+                b.polyline(
+                    &[
+                        Pos2::new(c.x - 5.0 * k, c.y),
+                        Pos2::new(c.x - 1.5 * k, c.y + 3.5 * k),
+                        Pos2::new(c.x + 5.0 * k, c.y - 4.0 * k),
+                    ],
+                    1.6 * k,
+                    s.t.highlight,
+                );
+            }
+        });
+        let resp = super::hint::said_with(resp, || format!("{} \u{2014} {sub}", iface.key));
+        if resp.clicked() && !lit {
+            setup::choose_interface(app, &iface.key);
+        }
     }
 }

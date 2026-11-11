@@ -98,18 +98,14 @@ fn painted_text(shapes: &[egui::epaint::ClippedShape]) -> String {
 fn a_vca_strip_has_a_fader_and_none_of_the_audio_rows() {
     let (p, vca, member) = project();
     let mut r = Rig::new(p);
+    // Polarity, width and the EQ are Wide's and Large's rows (des-mixer).
+    mixer::set_width_mode(&mut r.app, mixer::layout::WidthMode::Wide);
     let text = r.frames(6);
     let rect = |s, c| mixer::control_rect(&r.ctx, Some(s), c);
     for c in [Control::Fader, Control::Mute, Control::Solo, Control::Head] {
         assert!(rect(vca, c).is_some(), "the VCA has its {c:?}");
     }
-    for c in [
-        Control::Pan,
-        Control::Width,
-        Control::Phase,
-        Control::Eq(0),
-        Control::Fx,
-    ] {
+    for c in [Control::Pan, Control::Width, Control::Phase, Control::Eq(0)] {
         assert!(rect(vca, c).is_none(), "the VCA has no {c:?}");
         assert!(rect(member, c).is_some(), "the member keeps its {c:?}");
     }

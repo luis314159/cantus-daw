@@ -25,6 +25,13 @@
 
 pub mod aequalis;
 pub mod anulus;
+// r39:conv — Aula, the convolution reverb (ADR 0112)
+pub mod aula;
+pub mod aula_conv;
+pub mod aula_fft;
+pub mod aula_gen;
+pub mod aula_kernel;
+pub mod aula_shape;
 pub mod beat;
 pub mod calor;
 pub mod chorda;

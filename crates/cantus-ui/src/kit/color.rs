@@ -129,6 +129,16 @@ pub fn veiled(c: Color32, veil: Color32) -> Color32 {
     mix(c, opaque(veil), veil.a() as f32 / 255.0)
 }
 
+/// `c` as a selected thing's fill (round 39, `lapis2`): mixed toward the selection tint's
+/// colour by the tint's alpha × `gain`, at most all the way. A clear tint leaves `c`
+/// exactly as it is — the views' own selection, as Slate paints it.
+pub fn selected_fill(c: Color32, tint: Color32, gain: f32) -> Color32 {
+    if tint.a() == 0 {
+        return c;
+    }
+    mix(c, opaque(tint), (tint.a() as f32 / 255.0 * gain).min(1.0))
+}
+
 /// Relative luminance, WCAG 2.1.
 pub fn luminance(c: Color32) -> f32 {
     let ch = |v: u8| {
@@ -241,6 +251,36 @@ pub fn safe_track(c: Color32, dark_theme: bool, size: FillSize) -> Color32 {
         l: hsl.l.clamp(l_band.0, l_band.1),
     }
     .rgb()
+}
+
+/// A track's colour as a mark of its own — a colour cell, a chip, a strip's or a header's
+/// stripe — on the bars of the theme `t` (round 39, *themes*): the safe band's colour, and
+/// on a light theme its lightness taken down (hue and saturation kept) until it reads at
+/// 3:1 on the bars, the strips and the selected strip (WCAG 1.4.11: a light theme's pale
+/// yellows and oranges stood at 1.5–1.8:1). A dark theme's marks are the band's as they
+/// were. Kept per colour and theme, so a frame's many marks cost one search each.
+pub fn track_mark(c: Color32, t: &super::Tokens) -> Color32 {
+    let m = safe_track(c, t.dark, FillSize::Small);
+    if t.dark {
+        return m;
+    }
+    let bars = [t.toolbar, t.strip, t.strip_selected];
+    type Seen = (Color32, [Color32; 3], Color32);
+    thread_local! {
+        static SEEN: std::cell::RefCell<Vec<Seen>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    SEEN.with(|v| {
+        let mut v = v.borrow_mut();
+        if let Some((_, _, out)) = v.iter().find(|(k, b, _)| *k == m && *b == bars) {
+            return *out;
+        }
+        let out = ensure_contrast_all(m, &bars, 3.0);
+        if v.len() >= 64 {
+            v.clear();
+        }
+        v.push((m, bars, out));
+        out
+    })
 }
 
 /// Whether `c` already sits in the safe band (the picker shows both side by side).

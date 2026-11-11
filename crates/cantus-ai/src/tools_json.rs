@@ -159,6 +159,8 @@ pub fn track_summary(p: &Project, t: &Track) -> Value {
         "frozen": t.frozen.is_some(),
         "session_clips": t.slots.iter().filter(|s| s.clip.is_some()).count(),
         "color": color_hex(t.color),
+        // r39:arrange — the icon of the user's choice before its name (ADR 0113).
+        "icon": t.glyph,
     })
     .tap(|v| {
         if !p.tracks.is_empty() {

@@ -236,12 +236,10 @@ fn every_strip_reports_its_compressors_reduction_to_the_desk() {
     for _ in 0..200 {
         let mut buf = vec![0f32; 512 * 2];
         proc.process(&mut buf, 2);
-        while let Ok(ev) = rx.pop() {
-            if let EngineEvent::Meters(m) = ev {
-                deepest[0] = deepest[0].max(m.strip_gr[lead_index]);
-                deepest[1] = deepest[1].max(m.strip_gr[bass_index]);
-            }
-        }
+        while rx.pop().is_ok() {}
+        let m = proc.meters();
+        deepest[0] = deepest[0].max(m.strip_gr[lead_index]);
+        deepest[1] = deepest[1].max(m.strip_gr[bass_index]);
     }
     assert!(
         deepest[0] > 6.0,

@@ -71,7 +71,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) -> Option<Link> {
             ui.set_min_size(size);
             parts::panel(ui, rect, &s);
             let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 32.0 * k));
-            if super::workspace_settings::title(ui, head, &s, Glyph::Help, "about.title") {
+            if crate::kit::dialog::head(ui, head, &s, Glyph::Help, "about.title") {
                 open = false;
             }
             let body = Rect::from_min_max(

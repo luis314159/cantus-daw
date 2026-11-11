@@ -18,6 +18,7 @@ pub mod popup;
 pub mod record;
 
 use crate::app::CantusApp;
+use crate::drive::drive_tag;
 use crate::i18n::{t, tf};
 use crate::kit::automate::{Choice, ModOffer};
 use crate::kit::{Function, Style};
@@ -137,7 +138,7 @@ pub fn host_for(
 
 impl CantusApp {
     /// Every route into each target, compiled once per project revision.
-    fn mod_routes(&self) -> std::sync::Arc<Routes> {
+    pub(crate) fn mod_routes(&self) -> std::sync::Arc<Routes> {
         let rev = self.bus.revision();
         let mut cache = self.modulators.cache.borrow_mut();
         if let Some((r, routes)) = cache.as_ref() {
@@ -209,16 +210,28 @@ impl CantusApp {
             ),
             None => list.and_then(|l| l.first()).map(|x| x.1),
         };
+        // MIDI learn (round 29, ADR 0062).
+        let learn = self.learn_offer(&cantus_core::controller::MappingTarget::Param(
+            target.clone(),
+        ));
+        // A VCA scaling a strip's level (round 39, ADR 0109): only asked on a desk with one.
+        let vca = match target {
+            AutoTarget::StripGain(s) => {
+                let p = self.project();
+                p.has_vca() && !p.vca_governing(*s).is_empty()
+            }
+            _ => false,
+        };
+        // What drives it, for its hint's words (round 39, ADR 0109).
+        let driven =
+            list.is_some_and(|l| !l.is_empty()) || learn.mapped || vca || self.is_automated(target);
         let offer = ModOffer {
             depth,
             mapping: mapping.is_some(),
             live: (n > 0).then_some(live.clamp(0.0, 1.0)),
-            // MIDI learn (round 29, ADR 0062).
-            learn: Some(
-                self.learn_offer(&cantus_core::controller::MappingTarget::Param(
-                    target.clone(),
-                )),
-            ),
+            learn: Some(learn),
+            drive: if driven { drive_tag(target) } else { 0 },
+            vca,
         };
         (offer, n)
     }

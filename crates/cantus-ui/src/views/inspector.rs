@@ -29,6 +29,8 @@ mod channel;
 mod eq;
 #[path = "inspector_hosted.rs"]
 mod hosted;
+#[path = "inspector_look.rs"]
+pub(crate) mod look; // r39:lo-mixer
 #[path = "inspector_menus.rs"]
 mod menus;
 #[path = "inspector_mini.rs"]
@@ -44,12 +46,12 @@ mod modulators;
 mod notefx;
 #[path = "inspector_pads.rs"]
 mod pads;
-#[path = "inspector_pinned.rs"]
-mod pinned;
 #[path = "inspector_receives.rs"]
 mod receives;
 #[path = "inspector_record.rs"]
 mod record;
+#[path = "inspector_sections.rs"]
+mod sections; // r39:el-mixer
 #[path = "inspector_sends.rs"]
 mod sends;
 #[path = "inspector_sheet.rs"]
@@ -79,7 +81,6 @@ pub const RAIL: f32 = 24.0;
 /// How close a drag must come to [`WIDTH`] to land on it.
 const SNAP: f32 = 10.0;
 const TITLE: f32 = 28.0;
-const PINNED: f32 = 150.0;
 
 /// What the inspector is about.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -150,6 +151,8 @@ pub enum Act {
     ForgetSlot(EffectId),
     /// Note effects and grooves (round 31, ADR 0069).
     NoteFx(notefx::NfAct),
+    /// *Show in the arrangement*: the track's automation lanes, in view (round 39).
+    ShowLanes(TrackId),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -180,7 +183,6 @@ pub struct Inspector {
     /// Where the scrollbar asked the sheet to be.
     scroll_to: Option<f32>,
     chan: channel::Chan,
-    pin: pinned::Meter,
 }
 
 impl Default for Inspector {
@@ -201,7 +203,6 @@ impl Default for Inspector {
             native: None,
             scroll_to: None,
             chan: channel::Chan::default(),
-            pin: pinned::Meter::default(),
         }
     }
 }
@@ -280,6 +281,12 @@ pub fn desired_width(app: &CantusApp) -> f32 {
     } else {
         app.inspector.width
     }
+}
+
+/// Screenshots and tests: unfold the section titled `key` (round 39, des-mixer: routing,
+/// recording, automation, level, freeze start folded), as a click on its folded row does.
+pub fn unfold(ctx: &egui::Context, key: &str) {
+    sheet::unfold(ctx, key);
 }
 
 /// The subject: what was clicked last, when the selection still agrees with it; else
@@ -409,14 +416,11 @@ impl Inspector {
         self.edge(ui, rect, &s);
         let title = Rect::from_min_size(rect.min, Vec2::new(rect.width(), s.s(TITLE)));
         self.title(app, ui, title, &s, subject);
-        let pin_h = s.s(PINNED).min((rect.height() - title.height()) * 0.5);
-        let pin = Rect::from_min_max(pos2(rect.left(), rect.bottom() - pin_h), rect.max);
-        let body = Rect::from_min_max(
-            pos2(rect.left(), title.bottom()),
-            pos2(rect.right(), pin.top()),
-        );
-        // FL's inspector column: the tiles sit on the lighter ground behind them.
-        self.brush.rect(body, Fill::Solid(s.t.panel_light));
+        // r39:lo-mixer — every subject's level is its Level section (des-mixer): no
+        // pinned strip at the panel's foot.
+        let body = Rect::from_min_max(pos2(rect.left(), title.bottom()), rect.max);
+        // r39:el-mixer — des-mixer: the sections on the panel's base.
+        self.brush.rect(body, Fill::Solid(s.t.panel));
         self.brush.flush(&painter);
 
         self.acts.clear();
@@ -451,9 +455,6 @@ impl Inspector {
         if bar.dragged() {
             self.scroll_to = Some(start * content);
         }
-        self.brush.begin(ui.ctx());
-        pinned::show(self, app, ui, pin, &s, subject);
-        self.brush.flush(&painter);
         menus::show(self, app, ui, &s);
         let acts = std::mem::take(&mut self.acts);
         for a in acts.iter().cloned() {
@@ -469,7 +470,9 @@ impl Inspector {
         let painter = ui.painter().clone();
         self.brush.begin(ui.ctx());
         let w = ui.available_width();
-        let col = (w * 0.36).clamp(84.0, 120.0);
+        // r39:el-mixer — des-mixer's label column, left-aligned; wide enough for the Spanish
+        // labels whole ("Automatización", "Comp. retardo").
+        let col = (w * 0.34).clamp(80.0, 120.0);
         let strip = strip_of(app, subject);
         // What sits above the channel: the track, the clip or the notes.
         {
@@ -516,12 +519,25 @@ impl Inspector {
         let mut chan = std::mem::take(&mut self.chan);
         {
             let mut sh = self.sheet(ui, s, col);
-            // The Modulators of the track, its channel, the master (ADR 0057): after what
-            // the subject is, before the channel's signal flow.
-            for (host, key) in modulators::hosts(app, subject) {
-                modulators::show(&mut sh, app, host, key);
-            }
             channel::show(&mut sh, &mut chan, app, subject, strip);
+            // The Modulators of the track, its channel, the master (ADR 0057): folded with
+            // their count after the channel's sections (des-mixer), a click away.
+            for (host, key) in modulators::hosts(app, subject) {
+                let n = app.project().modulators(host).map_or(0, |l| l.len());
+                let count = sheet::name(sh.fmt.get(
+                    cache::key(("insp-mods-n", host)),
+                    n as u64,
+                    |b| {
+                        if n > 0 {
+                            use std::fmt::Write as _;
+                            let _ = write!(b, "{n}");
+                        }
+                    },
+                ));
+                if sh.fold(key, n > 0, &count) {
+                    modulators::show(&mut sh, app, host, key);
+                }
+            }
             sh.ui.add_space(s.d(10.0));
         }
         self.chan = chan;
@@ -570,8 +586,10 @@ impl Inspector {
             .vline(rect.left() + px * 0.5, rect.top(), rect.bottom(), px, line);
     }
 
-    /// The title row: ▸ (the panel's menu), "Mixer – Keys" with the context dimmed, and a
-    /// chevron that collapses the panel to its rail.
+    /// The head (des-mixer, 28 high): `surface`, a 3-pt stripe in the subject's colour at
+    /// its left, the strip's number (Regular 10, ink 3) and its name (Medium 13, ink 1),
+    /// what it is at the right (Regular 11, ink 3: "Mixer strip", "Track"…) and the more
+    /// key (the panel's menu: its width, collapse).
     fn title(
         &mut self,
         app: &CantusApp,
@@ -580,101 +598,117 @@ impl Inspector {
         s: &Style,
         subject: Subject,
     ) {
+        use crate::views::mixer::look::{self, W};
+        let p = look::Pal::of(s);
         let b = &mut self.brush;
-        let t = &s.t;
         b.register(
             rect,
             "title_row",
             &[
-                crate::kit::Tok::Panel,
+                crate::kit::Tok::Strip,
                 crate::kit::Tok::Text,
                 crate::kit::Tok::TextDim,
-                crate::kit::Tok::Sheen,
             ],
             &[],
         );
+        b.rect(b.snap_rect(rect), Fill::Solid(p.surface));
+        let stripe = subject_hue(app, subject).unwrap_or(p.ink3);
         b.rect(
-            b.snap_rect(rect),
-            Fill::V(shade(t.panel, 0.03), shade(t.panel, -0.01)),
+            b.snap_rect(Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height()))),
+            Fill::Solid(stripe),
         );
-        crate::kit::light::sheen(b, rect, t);
-        b.hline(
-            rect.left(),
-            rect.right(),
-            rect.bottom() - b.px() * 0.5,
-            b.px(),
-            shade(t.panel, -0.15),
+        let base = rect.top() + 18.0;
+        // The more key at the right: the panel's menu.
+        let more = Rect::from_center_size(
+            pos2(rect.right() - 16.0, rect.center().y),
+            Vec2::new(20.0, 20.0),
         );
-        let menu = Rect::from_center_size(
-            pos2(rect.left() + s.s(14.0), rect.center().y),
-            Vec2::splat(s.s(20.0)),
-        );
-        let mr = ui.interact(menu, Id::new("inspector-title-menu"), Sense::click());
-        glyph::paint(
+        let mr = ui.interact(more, Id::new("inspector-title-menu"), Sense::click());
+        if mr.hovered() {
+            look::well(b, more, &p, true);
+        }
+        look::glyph(
             b,
-            menu.shrink(s.s(4.0)),
-            Glyph::Menu,
-            if mr.hovered() { t.text } else { t.text_dim },
+            s,
+            more.center(),
+            12.0,
+            crate::kit::glyph_mixer::MGlyph::More,
+            if mr.hovered() {
+                crate::kit::glyph_mixer::Ink::Hover
+            } else {
+                crate::kit::glyph_mixer::Ink::Rest
+            },
+            p.surface,
         );
+        if mr.hovered() {
+            // r39:ux-a — the help line (ADR 0109).
+            let name = self.fmt.tr("ux.hint.inspector_menu");
+            hint::set_text(ui.ctx(), name, "", Caps::NONE);
+        }
         if mr.clicked() {
             self.menu = match self.menu {
                 Some(m) if m.id == MenuId::Panel => None,
                 _ => Some(MenuOpen {
                     id: MenuId::Panel,
-                    anchor: menu,
+                    anchor: more,
                 }),
             };
         }
-        let fold = Rect::from_center_size(
-            pos2(rect.right() - s.s(14.0), rect.center().y),
-            Vec2::splat(s.s(20.0)),
-        );
-        let fr = ui.interact(fold, Id::new("inspector-title-fold"), Sense::click());
-        glyph::paint(
-            b,
-            fold.shrink(s.s(5.0)),
-            Glyph::Next,
-            if fr.hovered() { t.text } else { t.text_dim },
-        );
-        if fr.hovered() {
-            let name = self.fmt.tr("inspector.collapse");
-            hint::set_text(ui.ctx(), name, "", Caps::NONE);
-        }
-        if fr.clicked() {
-            self.collapsed = true;
-        }
-        let area = Rect::from_min_max(
-            pos2(menu.right() + s.s(4.0), rect.top()),
-            pos2(fold.left() - s.s(4.0), rect.bottom()),
-        );
         let ctx_key = context_key(subject);
+        let what = self.fmt.tr(ctx_key);
+        let b = &mut self.brush;
+        let ww = look::width_of(b.ctx(), s, what, 11.0, W::Regular);
+        let room = rect.width() - 12.0 - 28.0;
+        let what_w = ww.min(room * 0.45);
+        look::say(
+            b,
+            s,
+            what,
+            more.left() - 4.0,
+            base,
+            Align2::RIGHT_BOTTOM,
+            what_w + 1.0,
+            11.0,
+            W::Regular,
+            p.ink3,
+        );
+        let mut x = rect.left() + 12.0;
+        if let Some(n) = match subject {
+            Subject::Strip(id) => app.project().strip_number(id),
+            _ => None,
+        } {
+            let num = self.fmt.get(cache::key(("insp-num", n)), n as u64, |w| {
+                use std::fmt::Write as _;
+                let _ = write!(w, "{n}");
+            });
+            let b = &mut self.brush;
+            let nw = look::say(
+                b,
+                s,
+                num,
+                x,
+                base,
+                Align2::LEFT_BOTTOM,
+                24.0,
+                10.0,
+                W::Regular,
+                p.ink3,
+            );
+            x += nw + 6.0;
+        }
         let name = subject_name(&mut self.fmt, app, subject);
-        let ctx_t = Text::key(ctx_key, Role::Title, t.text_dim).align(Align2::LEFT_CENTER);
-        let cw = text::measure(b.ctx(), &ctx_t, s.tk())
-            .x
-            .min(area.width() * 0.45);
-        let _ = text::paint(
-            b,
-            Rect::from_min_size(area.min, Vec2::new(cw + 1.0, area.height())),
-            &ctx_t,
-            s.tk(),
-        );
-        let dash = Text::new("\u{2013}", Role::Title, t.text_dim).align(Align2::CENTER_CENTER);
-        let dx = area.left() + cw + s.s(4.0);
-        let _ = text::paint(
-            b,
-            Rect::from_min_size(pos2(dx, area.top()), Vec2::new(s.s(8.0), area.height())),
-            &dash,
-            s.tk(),
-        );
-        let nt = Text::new(name, Role::Title, t.text)
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::Middle));
-        let _ = text::paint(
-            b,
-            Rect::from_min_max(pos2(dx + s.s(12.0), area.top()), area.max),
-            &nt,
-            s.tk(),
+        let right = more.left() - 8.0 - what_w;
+        look::say(
+            &mut self.brush,
+            s,
+            name,
+            x,
+            base,
+            Align2::LEFT_BOTTOM,
+            (right - x).max(10.0),
+            13.0,
+            W::Medium,
+            p.ink1,
         );
     }
 
@@ -751,11 +785,30 @@ fn audio_track(app: &CantusApp, t: cantus_core::TrackId) -> bool {
 
 fn context_key(s: Subject) -> &'static str {
     match s {
-        Subject::Strip(_) | Subject::Master => "kit.mixer.title",
+        Subject::Strip(_) | Subject::Master => "inspector.ctx.strip",
         Subject::Track(_) => "inspector.ctx.track",
         Subject::Clip(..) => "inspector.ctx.clip",
         Subject::Notes(..) => "inspector.ctx.notes",
     }
+}
+
+/// The subject's colour: a strip's own, else its first track's; a track's.
+fn subject_hue(app: &CantusApp, s: Subject) -> Option<egui::Color32> {
+    let p = app.project();
+    let c = match s {
+        Subject::Strip(id) => {
+            let st = p.strip(id)?;
+            st.color.or_else(|| {
+                p.tracks
+                    .iter()
+                    .find(|t| t.strip == Some(id))
+                    .map(|t| t.color)
+            })?
+        }
+        Subject::Track(t) | Subject::Clip(t, _) | Subject::Notes(t, _) => p.track(t)?.color,
+        Subject::Master => return None,
+    };
+    Some(crate::theme::track_color(c))
 }
 
 /// The subject's name: a strip's own, else the first track feeding it, else its number.
@@ -829,6 +882,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::Warp(w) => warp::apply(app, w),
         Act::Link(t, c, a) => track::apply_link(app, t, c, a),
         Act::NoteFx(a) => notefx::apply(app, a),
+        Act::ShowLanes(t) => app.show_automation_in_arrangement(t),
         Act::Flat(id) => {
             let commands = (0..3u8)
                 .map(|band| Command::SetStripEq {

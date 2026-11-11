@@ -181,3 +181,4 @@ lim.selection.short = Selección
 lim.range.short = LRA
 lim.true_peak.short = PR máx.
 lim.auto_reset.short = al repr.
+lim.freeze.short = CONGEL.

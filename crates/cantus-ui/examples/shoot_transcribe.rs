@@ -16,14 +16,17 @@ use cantus_ui::transcribe_ui::run;
 use cantus_ui::{views, CantusApp};
 use std::path::PathBuf;
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 fn context(dark: bool) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let theme = if dark {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     } else {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     ctx
@@ -114,6 +117,13 @@ fn main() {
                             .show(root, |ui| views::arrangement::show(&mut app, ui));
                         cantus_ui::transcribe_ui::view::show(&mut app, root.ctx());
                     });
+                    // The crop the site and the README cut (`tools/shots/place.py`).
+                    studio::sidecar(
+                        &out,
+                        egui::vec2(1200.0, 720.0),
+                        k,
+                        &[("dialog", studio::area(&ctx, "cantus-transcribe"))],
+                    );
                     println!("{}", out.display());
                 }
             }

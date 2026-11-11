@@ -344,43 +344,40 @@ fn ducking_from_a_strip_is_one_step() {
     assert_eq!(a.project().strip(s1).unwrap().effects.len(), n);
 }
 
-/// A strip with a compressor shows a gain-reduction meter on the desk.
+/// A strip with a compressor shows its gain reduction. Round 39: des-mixer's strip has no
+/// reduction lane beside its meter (its meter is the two bars on the fader's law); the
+/// reduction is on the compressor's insert row in the inspector, "the reduction in `solo`
+/// with a bar from the right; stopped: 0.0 in ink 3" (des-mixer, the inspector's sheet).
 #[test]
-fn the_desk_shows_gain_reduction_on_a_compressor_strip() {
+fn a_compressor_strip_shows_its_gain_reduction() {
     let _turn = turn();
     let (mut a, s0, _fx) = with_comp();
     let ctx = ctx();
-    // How many gain-reduction lanes the desk shows filling.
-    let red_bars = |a: &mut CantusApp| {
-        let mut n = 0;
-        for i in 0..2 {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SIZE)),
-                time: Some(i as f64 * 0.25),
-                ..Default::default()
-            };
-            let mut out = ctx.run_ui(input, |ui| {
-                egui::CentralPanel::default().show(ui, |ui| cantus_ui::views::mixer::show(a, ui));
-            });
-            out.textures_delta.clear();
-            n = a.mixer.gr_lanes_filling();
-        }
-        n
+    let track = a.project().tracks[0].id;
+    // The inspector of the strip's track, as a click on the track selects it.
+    let sheet = |a: &mut CantusApp| {
+        paint(&ctx, egui::vec2(400.0, 1400.0), 3, |ui| {
+            cantus_ui::views::inspector::show(a, ui)
+        })
     };
     assert_eq!(
         a.comp_gr_on_strip(s0),
         Some(None),
-        "no engine: a lane, with nothing reported"
+        "no engine: a reading, with nothing reported"
     );
-    assert_eq!(red_bars(&mut a), 0);
-    // With telemetry reporting (a demo stands in for the engine), the lane fills.
+    a.select_track(track);
+    let text = sheet(&mut a);
+    assert!(text.contains("| 0.0 dB |"), "at rest, 0.0: {text}");
+    // With telemetry reporting (a demo stands in for the engine), the row reads it.
     let fx = a.project().strip(s0).unwrap().effects[0].id;
     comp_editor::demo_setup(&mut a, s0, fx);
     a.open_effect_editor(s0, fx);
     paint_editors(&mut a, SIZE);
+    let text = sheet(&mut a);
     let gr = a.comp_gr_on_strip(s0).flatten().expect("reported");
     assert!(gr > 0.5, "the demo is compressing: {gr}");
-    assert_eq!(red_bars(&mut a), 1, "one strip, one lane filling");
+    let reading = format!("| \u{2212}{gr:.1} dB |");
+    assert!(text.contains(&reading), "{reading} on the row: {text}");
     // A strip without one shows none.
     let s1 = a
         .project()
@@ -390,6 +387,9 @@ fn the_desk_shows_gain_reduction_on_a_compressor_strip() {
         .find(|id| *id != s0)
         .unwrap();
     assert_eq!(a.comp_gr_on_strip(s1), None);
+    a.select_strip(s1);
+    let text = sheet(&mut a);
+    assert!(!text.contains(&reading), "{text}");
 }
 
 /// Every factory preset sets what it names — and only real parameters.

@@ -55,3 +55,18 @@ cables.preset.feeders = Solo lo que entra a la selección
 cables.legend.hidden = Ocultos por las opciones de cables: {kinds}
 # Ronda 26: el asa de la banda mientras la mesa la mantiene en su mínimo.
 cables.hint.band_short = Haz el mezclador más alto u oculta filas (el menú de la mesa): la mesa es demasiado baja para una banda más alta
+
+# Ronda 39 (el-mixer): opción C, B a demanda
+cables.show_all = Mostrar todos
+
+# Ronda 39 (el-cables): los tres aspectos de los cables, un ajuste (el menú Cables, Ajustes > Apariencia)
+cables.style = Estilo de cables
+cables.style.patch = Latiguillo
+cables.style.flow = Flujo
+cables.style.subway = Metro
+cables.style.hint = El aspecto propio del tema, o: Latiguillo cuelga cada cable de sus conectores; Flujo añade un brillo que recorre el cable mientras suena el audio; Metro lleva las rutas en carriles ordenados bajo los canales; Jack dibuja cables de conexión reales, con sus clavijas.
+# Al arrastrar un cable desde un conector de salida: lo que hace soltarlo, o por qué no puede.
+cables.drag.route = Enrutar {from} a {to}
+cables.refused.loop = Rechazado: {through} ya alimenta a {from} (un bucle)
+cables.style.theme = La del tema
+cables.style.jack = Jack

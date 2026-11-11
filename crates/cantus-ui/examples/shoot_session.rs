@@ -17,14 +17,17 @@ use cantus_ui::views::session;
 use cantus_ui::CantusApp;
 use std::path::{Path, PathBuf};
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 fn context(dark: bool) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let theme = if dark {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     } else {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     };
     cantus_ui::theme::apply(&theme, &ctx);
     // The application's own scroll bars (solid, six points), as the window has them.
@@ -99,9 +102,11 @@ fn window(out: &Path, dark: bool) {
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     let mode = app.appearance.mode;
-    let preset = if dark { "cantus_night" } else { "cantus_paper" };
+    let preset = if dark { "slate_night" } else { "slate_paper" };
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(&ctx);
+    // A working studio: the demo interface (not "No audio").
+    studio::studio(&mut app, 256);
     app.show_pane(cantus_ui::views::workspace::Pane::Session);
     let theme = if dark { "slate" } else { "paper" };
     let path = out.join(format!("session-window-{theme}-1600x900.png"));
@@ -130,9 +135,10 @@ fn midi(out: &Path, dark: bool, zoom: f32) {
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     let mode = app.appearance.mode;
-    let preset = if dark { "cantus_night" } else { "cantus_paper" };
+    let preset = if dark { "slate_night" } else { "slate_paper" };
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(&ctx);
+    studio::studio(&mut app, 256);
     app.settings.ui_scale = zoom;
     app.settings.mpe_ports = vec!["Seaboard RISE 2".into()];
     cantus_ui::views::workspace_settings::demo_midi(
@@ -154,6 +160,13 @@ fn midi(out: &Path, dark: bool, zoom: f32) {
         egui::vec2(1600.0, 900.0)
     };
     cantus_ui::raster::shoot(&ctx, size, zoom, 8, Some(&path), |root| app.frame(root));
+    // The crop the site and the README cut (`tools/shots/place.py`): the Settings window.
+    studio::sidecar(
+        &path,
+        size,
+        zoom,
+        &[("settings", studio::area(&ctx, "cantus-settings"))],
+    );
     println!("{}", path.display());
 }
 

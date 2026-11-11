@@ -1456,6 +1456,69 @@ fn main() {
             n.set_text(FINISH_KEY, Some("walnut".into())).unwrap();
         }
     }
+    // Schema 60 (round 39, ADR 0112): Aula on the second strip, playing a response from a
+    // file (from a pack, so its credit is kept), with its response shaped and a quarter wet.
+    // r39:conv
+    if upto >= 60 {
+        let mut aula = p.make_effect(EffectKind::Aula);
+        for (k, v) in [
+            ("ir", 9.0),
+            ("predelay", 18.0),
+            ("stretch", 1.25),
+            ("decay", 0.8),
+            ("low", 120.0),
+            ("damp", 0.35),
+            ("mix", 0.25),
+        ] {
+            aula.spec.set(k, v).unwrap();
+        }
+        aula.spec.ir = Some(Box::new(IrFile {
+            path: "irs/Hall A.wav".into(),
+            pack: Some("cantus-impulse-responses".into()),
+        }));
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        p.strip_mut(s).unwrap().effects.push(aula);
+    }
+    // Schema 61 (round 39, ADR 0113): two sections (an intro of 4 bars, a verse of 8 in
+    // the palette's second colour), the first two tracks in a closed folder, and the first
+    // track's level lane touching while the track reads. // r39:arrange
+    if upto >= 61 {
+        use cantus_core::arrange::{FolderId, LaneMode, Section, SectionId, TrackFolder};
+        let bar = Ticks::beats(4);
+        let intro = SectionId(p.alloc_id());
+        let verse = SectionId(p.alloc_id());
+        p.sections.push(Section {
+            id: intro,
+            start: Ticks::ZERO,
+            length: Ticks(bar.0 * 4),
+            name: "Intro".into(),
+            color: None,
+        });
+        p.sections.push(Section {
+            id: verse,
+            start: Ticks(bar.0 * 4),
+            length: Ticks(bar.0 * 8),
+            name: "Verse".into(),
+            color: Some(cantus_core::Color::PALETTE[1]),
+        });
+        let folder = FolderId(p.alloc_id());
+        p.folders.push(TrackFolder {
+            id: folder,
+            name: "Drums".into(),
+            color: cantus_core::Color::PALETTE[0],
+            open: false,
+        });
+        for t in p.tracks.iter_mut().take(2) {
+            t.folder = Some(folder);
+        }
+        if let Some(t) = p.tracks.first_mut() {
+            t.lane_modes.push(LaneMode {
+                target: AutoTarget::TrackGain(t.id),
+                mode: cantus_core::AutoMode::Touch,
+            });
+            t.glyph = Some("kick".into());
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

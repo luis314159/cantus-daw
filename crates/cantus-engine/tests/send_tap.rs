@@ -301,7 +301,7 @@ fn play_live(project: &Project, frames: usize) -> Vec<f32> {
                 p.settle();
             }
             EngineEvent::EffectNeed { effect, need } => {
-                let memory = EffectMemory::build(need, SR as f32);
+                let memory = EffectMemory::build(need.need(), SR as f32);
                 tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
                 p.settle();
             }

@@ -563,6 +563,20 @@ pub fn map(
             crate::kit::hint::set_text(ui.ctx(), &zone_tip(n, z), "", crate::kit::hint::Caps::NONE);
         }
     }
+    // r39:ux-a — the map where no zone is under the pointer (ADR 0109).
+    if resp.hovered() && !crate::kit::hint::written(ui.ctx()) {
+        let key = if zones.is_empty() {
+            "smp.drop_here"
+        } else {
+            "ux.hint.sampler_map"
+        };
+        crate::kit::hint::set_text(
+            ui.ctx(),
+            &crate::i18n::t(key),
+            "",
+            crate::kit::hint::Caps::NONE,
+        );
+    }
     if resp.clicked() {
         resp.request_focus();
         if let Some(p) = resp.interact_pointer_pos() {

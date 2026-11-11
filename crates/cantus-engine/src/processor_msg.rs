@@ -54,6 +54,16 @@ impl Processor {
                     }
                 }
                 EngineMessage::ReplaceInstrument(unit) => self.replace_instrument(unit),
+                EngineMessage::AddPart(part) => self.part_arrived(part),
+                EngineMessage::Cells(cells) => self.cells_arrived(cells),
+                // ADR 0107: a ring made the first time its scope is watched. The cell had
+                // none (each index is sent once), so nothing is freed here.
+                EngineMessage::ScopeRing { index, ring } => {
+                    match self.nodes.scopes.get(index).map(|c| c.try_borrow_mut()) {
+                        Some(Some(mut tap)) if tap.ring.is_none() => tap.ring = Some(ring),
+                        _ => self.nodes.conflict(),
+                    }
+                }
                 EngineMessage::SetInstrumentProbe(track) => {
                     self.probed = track;
                     self.meters.inst = [0.0; crate::inst::TELEMETRY_LEN];
@@ -130,6 +140,7 @@ impl Processor {
                 EngineMessage::Panic => self.panic(),
                 EngineMessage::PdcLines(mut lines) => {
                     self.pdc.supply(&mut lines);
+                    self.edges_for_lines();
                     if self.tx.push(EngineEvent::GarbageLines(lines)).is_err() {
                         // Queue full: freed here. Extremely unlikely (queue holds 4096).
                         self.stats.dropped_events += 1;
@@ -168,6 +179,7 @@ impl Processor {
                     }
                 }
                 EngineMessage::Preview(None) => self.preview.stop(),
+                EngineMessage::PreviewGain(gain) => self.preview.set_gain(gain), // r39:fixes
             }
         }
     }

@@ -151,11 +151,12 @@ mod tests {
             Appearance::default().mode,
             "the default mode is left alone"
         );
-        // A dark preset the user chose is kept, and shown.
+        // A dark preset the user chose shows that preset, redrawn in round 39's system.
         let ink = serde_json::to_string(&theme::ink_and_gold()).unwrap();
         let a = migrate(&ink).unwrap();
         assert_eq!(a.mode, Mode::Dark);
         assert_eq!(a.dark.base, "preset:ink_gold");
+        assert!(a.themes.is_empty());
     }
 
     #[test]
@@ -181,7 +182,9 @@ mod tests {
         )
         .unwrap();
         let (a, _) = load(dir.path());
+        // Parchment chosen: its light shows Parchment, redrawn in round 39's system.
         assert_eq!(a.light.base, "preset:parchment");
+        assert_eq!(a.mode, Mode::Light);
         save(&a, &p).unwrap();
         let (back, _) = load(dir.path());
         assert_eq!(back, a);

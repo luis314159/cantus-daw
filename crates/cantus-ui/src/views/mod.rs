@@ -68,6 +68,8 @@ pub mod preset_browser_keys; // r37:library
 pub mod preset_browser_rows; // r37:library
 pub mod start_page;
 pub mod template_name;
+/// r39:el-arrange — a track's own icon: the library and its picker (ADR 0113).
+pub mod track_glyphs;
 pub mod video_export; // r35:video — the video dialog (ADR 0088)
                       // Round 29 (ADR 0064): freezing and low-latency monitoring on screen.
 pub mod clipfx_settings;
@@ -81,6 +83,7 @@ pub mod pulsus_editor;
 pub mod record_bar; // r36:record (ADR 0092): the banner, the questions, the popover rows
 pub mod record_options;
 pub mod recovery;
+pub mod room; // r39:el-views — the design's names for the tokens
 pub mod route_menu;
 pub mod routing;
 pub mod samples_browser;
@@ -103,6 +106,7 @@ pub mod warp;
 pub mod warp_quantise;
 pub mod workspace;
 pub mod workspace_device;
+pub mod workspace_fold; // r39:ux-b
 pub mod workspace_frame;
 pub mod workspace_settings;
 pub mod workspace_skin;

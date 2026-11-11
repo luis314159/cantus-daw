@@ -1,8 +1,45 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-09 (round 38: **at rest costs nothing** — every strip with inserts, the master chain and the reverb rest exactly in silence, held to the bit by twins; no view draws at the screen's rate; idle threads sleep; Chorda's keyboard designed on intent; **nothing dances at start**, and a dancer holds still after 10 s (ADR 0106); **Chorda's scene** baked ~4× faster, its previews whole (ADR 0104 amended); the start-up rows measured again on a quiet machine, like against like: Cantus wins window, quiet and at rest against REAPER and FL Studio and loses memory. Version **0.1.0-beta.13** (Windows, Linux, and macOS as an unsigned preview). Schema 59, `DSP_VERSION` 6, keymap 15. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 554 pass on Windows (102 ignored), the engine fuzz 1 106 at `CANTUS_WORKERS=3`, 6 515 on Linux (102 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both
+**Updated:** 2026-11-11 (round 39: **the whole window redrawn by hand** — three directions drawn from blank sheets and **Slate** chosen by the owner as the default look, Graphite and gold, Studio ink and **Slate Lapis** beside it (a night-blue room, lapis on the selection, gold readouts), **the ten older themes back, redrawn in its system** (Pewter and Chalk the FL-derived pair, renamed) and four new ones — twenty-four, every one measured easy to read (ADR 0111); the kit draws the approved sheets (ADR 0108): Barlow Semi Condensed, recessed wells, an icon family drawn for each device size (sets 2–5) and **316 track icons**, logo **#03** the default and the application's icon; the top bar in one row with its More panel, every control family, the mixer and its inspector (Level, Show in the arrangement, Freeze figures), cables in four styles, the piano roll's keyboard as an instrument, the rack, the browser (grouped search, favourites, the preview card, the Sound packs window) and the arrangement (sections, folders, a mode per lane, a track's icon, the tools and Follow — ADRs 0113, 0114); **a driven control says so, the help line is never empty, nothing truncated** (ADR 0109); panels fold and maximise, the keyboard reaches every menu, the daily click paths counted and shortened (ADR 0110); **Aula**, the convolution reverb (ADR 0112); **Delay's own window**, its echoes drawn in time and dragged (ADR 0115); **the engine's memory grows with the song** (ADR 0107): the processor 95.8 → 8.0 MB, private memory 237 → 140 MB on an empty song (measured on a quiet machine; still behind REAPER and FL Studio); the website rebuilt from its review. Version **0.1.0-beta.14** (Windows, Linux, and macOS as an unsigned preview). Schema 61, `DSP_VERSION` 6, keymap 16. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 781 pass on Windows (106 ignored), the engine fuzz 1 145 at `CANTUS_WORKERS=3`, 6 742 on Linux (106 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 39 left
+
+Round 39 is on **master** (squashed) and published to `luis314159/cantus-daw`;
+**`v0.1.0-beta.14`** is released for Windows and Linux, with macOS as an unsigned preview
+(2026-11-11). The account: `docs/round39/integration.md`; one report per builder beside it
+(`ux-a`, `ux-b`, `memory`, `kit`, `conv`, `fixes`, `icons`, `lapis`, `el-*`, `lo-*`, `shots`,
+`web/`, and the late `lapis2`, `delay`, `themes`, `fix2`). The prompt for the next session is
+`docs/next-session.md`:
+
+1. **The owner's eyes on the new look** (`docs/beta-checklist.md`, *Ronda 39*): Slate and Slate
+   Lapis at 100, 125 and 150 % on a real screen in Night and Paper, the twenty-four themes,
+   the new top bar, the header in the tab row, the cables' gleam at 60 Hz and the plugs, the
+   track icon picker, Delay's window with a real interface playing, the logo in the taskbar and
+   the `.exe`, Aula by ear, the Sound packs window with a real download. Every
+   picture of this round was drawn by the CPU renderer; the owner's acceptance on whole windows
+   is the round's own test.
+2. **The owner's open decisions** (`docs/round39/integration.md`, twenty-two of them): the
+   right dock's place; the meter in Level; what maximise hides; "1/2" or "½ bar"; Follow on at
+   start; the browser's kinds switch; a pad's own mixer track; the section drag that ripples the
+   song; des-controls' five questions (the automated knob's violet, the fader cap's weight,
+   Paper's menus and dialogs, value bars in the inspector, Mute on = grey); icon sets 3–5; the
+   units with wooden faces; Slate Lapis's playhead line in gold, and its tint's and room's
+   strength; each redrawn and new theme's strength (Parchment's cream, Bordeaux's wine,
+   Ultraviolet's violet, Pewter's mid-grey); Delay's time synced to the tempo, and Delay as a
+   CLAP/VST3 plug-in; the vintage theme's round; the dancers.
+3. **Memory** (ADR 0107, the scorecard's one lost row): 140 MB on an empty song against REAPER's
+   62 (by 78) and 143 on *Beat* against FL Studio's 133 (by 10), the release measured on a quiet
+   machine on 2026-11-11 (`docs/scorecard/README.md`, `docs/round39/memory-measured.md`): 97 MB
+   less than beta.13; window, quiet and at rest as beta.13's, still won against both.
+   The live heap is about 25 MB; map the rest with `tools/scorecard/memmap.ps1` (the heap's
+   reserved segments, the graphics driver, thread stacks, the drivers' heaps), each lever an ADR.
+4. **Round 40 (proposed)**: Chorda's third voicing pass and ABX 4 (`docs/round38/chorda.md`);
+   ripple edit / insert and delete time (6 of 8 leaders), with the section drag that moves the
+   song; memory's next item.
+5. **The owner's own** (`docs/beta-checklist.md`): the legal reading of Slate beside FL Studio,
+   the OpenAIR pack's licence, and everything rounds 30–38 left.
 
 ## The next session: what round 38 left
 
@@ -527,6 +564,35 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 39: UX and graphics, the whole window drawn by hand — Slate, the kit, the icon family, every view; Aula; the engine's memory (requested 2026-11-08)
+
+**The ask:** BACKLOG §6j — *"FL aún se ve a años luz de Cantus"*; every element drawn by hand
+from a blank sheet, the owner accepting on whole windows. Three design directions (phase A),
+the owner's choice of Slate and his approval of each element sheet (phase B: des-mixer,
+des-controls, des-views, des-arrange, dir-a's top bar), builders turning the sheets into code
+(kit, el-topbar, el-controls, el-mixer, el-cables, el-views, el-arrange), UX builders (ux-a,
+ux-b), and the owner's additions on the way: Aula, memory, the website, logo #03, Slate Lapis,
+316 track icons. Close-out builders (lo-arrange, lo-mixer, lo-rest) closed every leftover;
+after the owner's look at the merged tree, lapis2 (Slate Lapis told from Slate), delay
+(Delay's own window), themes (the older themes back, redrawn, and four new) and fix2 (the
+integrated tree's defects). Account: `docs/round39/integration.md`.
+
+| Part | What changed |
+|---|---|
+| The design system (ADR 0111; supersedes 0046 §1–2) | Slate the default (base `#1D2329`, azure `#5CAFE9` / `#1F6EC2`, Barlow Semi Condensed), Graphite and gold, Studio ink and Slate Lapis beside it, each Night and Paper, and high contrast; Slate Lapis told from Slate by a night-blue room at Slate's luminance, lapis on the selection and gold readouts and loop edges (four new tokens, clear in every other theme; Slate held to the pixel by a window golden); the ten themes of rounds 24–38 first retired, then **back, redrawn** in round 39's system (Pewter and Chalk the FL-derived pair, renamed), and four new (Evergreen Night and Paper, Bordeaux, Print): twenty-four; every theme measured at 3:1 for what carries meaning and 4.5:1 for text, the menus and the status line whole in every face; a theme carries a system (its face, its keys); the interface's size follows the screen until the user picks one. |
+| How the kit draws (ADR 0108) | The kit's own vectors; static richness rasterised once per shape, size and inks into the layer atlas; recessed wells; faces with tabular figures (1.59 MB of OFL fonts); idle without "−∞". |
+| Icons and logo | Set 1 rejected; set 2 approved (transport, tools, windows); sets 3–5 (mixer, browser, the rest) in use, pending the owner's review; set 6 (316 track icons in 17 families, searchable EN/ES); each drawn per device size. Logo #03 the default and the application's icon (ADR 0111 §9). |
+| The window | The top bar in one 44-pt row and its More panel; the dialogs on one frame; every control family with its driven signs; des-mixer's strips, desk and inspector (Level, Show in the arrangement, Freeze figures); cables Patch · Flow · Subway · Jack (Flow the default); the piano roll's keyboard, ghost notes; the rack's plates, kit folds and *Add a channel*; the browser's grouped search, favourites, preview card and Sound packs covers; clip content at four zooms. Whole window with 64 strips 96 584 → 46 855 triangles. |
+| The arrangement (ADRs 0113, 0114; schema 61) | Sections, folders, a mode per automation lane, a track's own icon (nine commands with inverses and a fuzz arm); the tools Select, Draw, Slice, Erase, Mute, Zoom (keymap 16), Follow, the grid menu in musical order with Triplets, the panel menu; clip states; a maximised area's row of tabs. |
+| UX (ADRs 0109, 0110; keymap 16) | A driven control wears its sign and says what drives it; the help line never empty (0 of 1 700+ controls silent); nothing truncated (0 cut texts in 440 view-looks); areas fold, maximise and scroll; every menu row reachable from the keyboard; 13 daily click paths counted, four shortened. |
+| Delay's window (ADR 0115) | Delay's own window in a tape echo's face, kept in the inspector too: the echoes drawn in time from the unit's own model, dragged for time and feedback in one undo step; *At the tempo* sets the time once from a note value; *What is heard*. No DSP changed. |
+| Aula (ADR 0112; schema 60) | A convolution reverb at zero latency, exact at any block split, within −130 dB of direct convolution; fifteen generated responses, files, the OpenAIR pack (CC BY 4.0). |
+| Memory (ADR 0107) | The processor 95.8 → 8.0 MB (kits and chains only where needed, the report in a mailbox, a growing compensation pool, slots that grow with the song); private memory 237 → 140 MB on an empty song, 239 → 143 on *Beat*, the release on a quiet machine (141 and 145 on a loaded one) — still behind REAPER's 62 and FL Studio's 133. The release build's start-up stack overflow fixed (large parts on the heap; an 8 MB guard stack). |
+| Measured (`docs/scorecard/README.md`) | Quiet machine, 2026-11-11, like against like: beta.14 on an empty song 0.76 s / 1.5 s / 140 MB / 1.1 % against REAPER's 1.76 s / 2.0 s / 62 MB / 2.3–3.7 %; on *Beat* 0.77 s / 1.5 s / 143 MB / 2.0 % against FL Studio's 2.49 s / 5.8 s / 133 MB / 6.6 % (theirs from 2026-11-09). Window, quiet and at rest as beta.13's within the noise; memory 97 MB less, still lost (by 78 and 10 MB). |
+| Fixes (BACKLOG §8) | A shared helper's crash blamed right; Chorda made without waiting for its body; the scene baker's one pool; the `stage_budget` variance's cause; the stored header width; a preview's level live; the picker names the strip; the idle repaint traced to a test rig. On the integrated tree (`fix2`): the icon picker's click away lands on nothing; a strip is free only when nothing routes into it and nothing was set on it (`Project::strip_is_free`), so a new track no longer takes a bus; the mixer folds only what does not fit, its overflow slot sized to its count; the desk's stripes at 3:1 on light themes. |
+| The website | Rebuilt from its review: the program in the hero, a proof strip, every page pre-rendered (86, EN and ES), sub-pages, the release feed, the budget in CI; Lighthouse mobile 98–99 / 100 / 100 / 100. The dancers off the site and the README (they stay in the app). |
+| Verified only in emulation | Every picture and gesture of the round: the CPU renderer and synthetic input through `assemble`; the owner's screen, ears and devices are in `docs/beta-checklist.md`. |
 
 ## Round 38: at rest costs nothing, and Chorda's picture follows its controls (requested 2026-11-08)
 

@@ -349,7 +349,7 @@ impl Rig {
                     self.cells.note(&self.p);
                 }
                 EngineEvent::EffectNeed { effect, need } => {
-                    let memory = crate::effects::EffectMemory::build(need, sr);
+                    let memory = crate::effects::EffectMemory::build(need.need(), sr);
                     self.tx
                         .push(EngineMessage::EffectMemory { effect, memory })
                         .ok();
@@ -364,6 +364,8 @@ impl Rig {
     /// Install `snap` on a running copy, as playback installs an edit: the automation's
     /// runtime first, then the snapshot with its plan.
     fn install(&mut self, snap: &Arc<Snapshot>, sr: f32) {
+        // What a track the edit adds uses is there before the edit lands (ADR 0107).
+        self.p.hold_parts_for(snap);
         self.tx
             .push(EngineMessage::Automation(
                 crate::automation::Runtime::build(snap),
@@ -407,6 +409,8 @@ fn fresh(
     let mut p = Processor::without_midi(sr as f64, rx_engine, tx_engine);
     p.set_profiling(false);
     p.set_offline(true);
+    // The parts its tracks use (kits, note-effect chains), built here (ADR 0107).
+    p.hold_parts_for(snap);
     let mut rig = Rig {
         p,
         tx,

@@ -135,6 +135,27 @@ impl Face {
     };
 }
 
+thread_local! {
+    static UNIT_INK: std::cell::Cell<Option<Color32>> = const { std::cell::Cell::new(None) };
+}
+
+/// Paint with a value's unit set in `ink` (round 39, `des-controls`: "2.40 kHz", the unit a
+/// size down in ink 3): the Slate painters of a value wrap their text in it.
+pub fn with_unit_ink<R>(ink: Option<Color32>, f: impl FnOnce() -> R) -> R {
+    let before = UNIT_INK.with(|c| c.replace(ink));
+    let r = f();
+    UNIT_INK.with(|c| c.set(before));
+    r
+}
+
+/// The ink of a value's unit for `face` (the role's own face only: a unit's lettering on a
+/// display keeps its display's ink).
+fn unit_ink(face: Face) -> Option<Color32> {
+    (face == Face::ROLE)
+        .then(|| UNIT_INK.with(|c| c.get()))
+        .flatten()
+}
+
 fn job(s: &str, role: Role, k: f32, face: Face) -> LayoutJob {
     let mut j = LayoutJob::default();
     let format = |r: Role| {
@@ -162,7 +183,12 @@ fn job(s: &str, role: Role, k: f32, face: Face) -> LayoutJob {
     match (role, s.split_once(' ')) {
         (Role::Value | Role::Hero, Some((num, unit))) if !unit.is_empty() => {
             j.append(num, 0.0, format(role));
-            j.append(unit, 2.0 * k, format(Role::Label));
+            let mut f = format(Role::Label);
+            // r39:el-controls — the unit in ink 3 in a recessed family (the role's own face).
+            if let Some(ink) = unit_ink(face) {
+                f.color = ink;
+            }
+            j.append(unit, 2.0 * k, f);
         }
         _ => j.append(s, 0.0, format(role)),
     }
@@ -266,6 +292,10 @@ pub fn fit_face(
     let ppp = ctx.pixels_per_point();
     let wq = (width * ppp).floor() as i32;
     let locale = matches!(text.src, Src::Key(_)).then(crate::i18n::locale);
+    let unit = matches!(text.role, Role::Value | Role::Hero)
+        .then(|| unit_ink(face))
+        .flatten()
+        .map(cache::ckey);
     let base = cache::key((
         text.src,
         locale,
@@ -274,6 +304,7 @@ pub fn fit_face(
         text.policy,
         k.to_bits(),
         ppp.to_bits(),
+        unit,
     ));
     // The role's own face keeps the key it always had; a lettering is part of the key.
     let key = if face == Face::ROLE {
@@ -352,6 +383,76 @@ pub fn measure_face(ctx: &Context, text: &Text<'_>, k: f32, face: Face) -> Vec2 
     })
 }
 
+/// Every kit text cut on this thread while a probe runs (round 39, ADR 0109): what it
+/// says whole, what was painted, where, and how it was cut — elided with "…", or not
+/// painted at all (a box too small for an ellipsis, or too short for the line). A test
+/// renders the views with it on and fails on any; off (the app), it costs a flag read.
+pub mod probe {
+    use std::cell::RefCell;
+
+    /// One text the kit could not paint whole.
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct Cut {
+        /// The text whole, in the interface's language.
+        pub full: String,
+        /// What was painted ("" when nothing was).
+        pub shown: String,
+        /// The box it had.
+        pub rect: egui::Rect,
+        /// "elided" or "dropped".
+        pub how: &'static str,
+    }
+
+    thread_local! {
+        static CUTS: RefCell<Option<Vec<Cut>>> = const { RefCell::new(None) };
+    }
+
+    /// Start noting (what was noted before is dropped).
+    pub fn start() {
+        CUTS.with(|c| *c.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// Whether cuts are being noted.
+    pub fn on() -> bool {
+        CUTS.with(|c| c.borrow().is_some())
+    }
+
+    pub(super) fn note(cut: Cut) {
+        CUTS.with(|c| {
+            if let Some(v) = c.borrow_mut().as_mut() {
+                v.push(cut);
+            }
+        });
+    }
+
+    /// The cuts noted since [`start`] (and stop noting them).
+    pub fn take() -> Vec<Cut> {
+        CUTS.with(|c| c.borrow_mut().take()).unwrap_or_default()
+    }
+}
+
+/// Note a cut text while the probe runs: `shown` is what was painted (`None`: nothing).
+fn note_cut(text: &Text<'_>, shown: Option<&Galley>, rect: Rect) {
+    if !probe::on() {
+        return;
+    }
+    let full = resolve(text.src, text.caps);
+    let (shown, how) = match shown {
+        Some(g) => (g.text().to_string(), "elided"),
+        None => (String::new(), "dropped"),
+    };
+    // An abbreviation that fits (`<key>.short`) is a designed form, not a cut.
+    if (how == "elided" && !shown.contains('\u{2026}')) || full.trim().is_empty() {
+        return;
+    }
+    probe::note(probe::Cut {
+        full,
+        shown,
+        rect,
+        how,
+    });
+}
+
 /// Paint `text` inside `rect` at scale `k`: fitted by its policy, aligned, never outside.
 /// Returns `None` when nothing could be painted (the box is too small for an ellipsis).
 pub fn paint(brush: &mut Brush, rect: Rect, text: &Text<'_>, k: f32) -> Option<Painted> {
@@ -372,11 +473,18 @@ pub fn paint_face(
     } else {
         (rect.width(), rect.height())
     };
-    let (g, shortened) = brush.with_cache(|ctx, c| fit_face(ctx, c, text, k, w, face))?;
+    let Some((g, shortened)) = brush.with_cache(|ctx, c| fit_face(ctx, c, text, k, w, face)) else {
+        note_cut(text, None, rect);
+        return None;
+    };
     let size = g.size();
     // A box too short for the line is a layout bug; paint nothing rather than overlap.
     if size.y > h * 1.34 + 1.0 {
+        note_cut(text, None, rect);
         return None;
+    }
+    if shortened {
+        note_cut(text, Some(&g), rect);
     }
     let snap = |v: f32| brush.snap(v);
     if rotated {

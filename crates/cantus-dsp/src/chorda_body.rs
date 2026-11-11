@@ -17,8 +17,9 @@
 //! on the instrument's grid once its input has been silent for longer than its lines, so the
 //! instrument reaches an exact rest.
 
-use super::conv::Convolver;
+use super::conv::{Convolver, Prepared};
 use crate::math;
+use std::sync::{Arc, OnceLock};
 
 /// A small, fixed variation (−1…1) hashed from `i` and a seed.
 fn hash(i: u64, seed: u64) -> f64 {
@@ -260,11 +261,15 @@ pub fn responses(v: &BodyVoicing, fs: f64) -> [Vec<f64>; 2] {
     h
 }
 
-/// The responses made this session, by sample rate and voicing: synthesised once, shared by
-/// every unit (made off the audio thread; a unit at a rate already made costs a copy).
-fn cached(v: &BodyVoicing, fs: f64) -> std::sync::Arc<[Vec<f64>; 2]> {
-    use std::sync::{Arc, Mutex, OnceLock};
-    type Made = Vec<(u64, BodyVoicing, Arc<[Vec<f64>; 2]>)>;
+/// A body's two responses (left, right), ready to convolve and shared.
+type Pair = Arc<[Arc<Prepared>; 2]>;
+
+/// The responses made this session, by sample rate and voicing, ready to convolve:
+/// synthesised once, shared by every unit (made off the audio thread; a unit at a rate
+/// already made shares them — round 39, fixes: their spectra too, not a copy each).
+fn cached(v: &BodyVoicing, fs: f64) -> Pair {
+    use std::sync::Mutex;
+    type Made = Vec<(u64, BodyVoicing, Pair)>;
     static MADE: OnceLock<Mutex<Made>> = OnceLock::new();
     let made = MADE.get_or_init(|| Mutex::new(Vec::new()));
     let key = fs.to_bits();
@@ -273,19 +278,79 @@ fn cached(v: &BodyVoicing, fs: f64) -> std::sync::Arc<[Vec<f64>; 2]> {
             return h.clone();
         }
     }
-    let h = Arc::new(responses(v, fs));
+    MADE_HERE.with(|n| n.set(n.get() + 1));
+    let [l, r] = responses(v, fs);
+    let h = Arc::new([Arc::new(Prepared::new(&l)), Arc::new(Prepared::new(&r))]);
     if let Ok(mut m) = made.lock() {
         if m.len() < 64 {
             m.push((key, *v, h.clone()));
         }
     }
+    if *v == BodyVoicing::default() {
+        publish(fs, &h);
+    }
     h
 }
 
-/// Make the body's responses for `fs` now (the boot path's warm-up, beside the keyboard's
+thread_local! {
+    /// The responses this thread has synthesised (the tests: none on the interface's).
+    static MADE_HERE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many bodies' responses this thread has synthesised: what a test of a thread that
+/// must never wait for them reads.
+pub fn made_on_this_thread() -> u64 {
+    MADE_HERE.with(|n| n.get())
+}
+
+/// The shipped voicing's responses by sample rate, for a body made waiting to take without
+/// a lock or an allocation (the audio thread): each slot written once.
+const READY: usize = 16;
+static READY_AT: [OnceLock<(u64, Pair)>; READY] = [const { OnceLock::new() }; READY];
+
+fn publish(fs: f64, h: &Pair) {
+    let key = fs.to_bits();
+    for slot in &READY_AT {
+        match slot.get() {
+            Some((k, _)) if *k == key => return,
+            Some(_) => continue,
+            None => {
+                if slot.set((key, h.clone())).is_ok() {
+                    return;
+                }
+                if slot.get().is_some_and(|(k, _)| *k == key) {
+                    return;
+                }
+            }
+        }
+    }
+}
+
+/// The shipped voicing's responses at `fs`, if made. Lock-free, allocates nothing.
+fn ready(fs: f64) -> Option<&'static Pair> {
+    let key = fs.to_bits();
+    READY_AT
+        .iter()
+        .filter_map(OnceLock::get)
+        .find(|(k, _)| *k == key)
+        .map(|(_, h)| h)
+}
+
+/// Whether a body made waiting at `fs` can be given its responses later: they are made,
+/// or there is room to publish them.
+fn can_wait(fs: f64) -> bool {
+    ready(fs).is_some() || READY_AT.iter().any(|s| s.get().is_none())
+}
+
+/// Make the body's responses for `fs` now (the designer's worker, beside the keyboard's
 /// design), so the first unit at that rate does not pay for them.
 pub fn warm(fs: f64) {
     let _ = cached(&BodyVoicing::default(), fs);
+}
+
+/// Whether the shipped voicing's responses at `fs` are made.
+pub fn is_warm(fs: f64) -> bool {
+    ready(fs).is_some()
 }
 
 /// The body: two convolvers, the panned bridge forces in, the microphones out — the direct
@@ -300,22 +365,94 @@ pub struct Body {
     shelf: f64,
     tilt_a: f64,
     tilt: [f64; 2],
+    /// The rate it waits at for the shipped voicing's responses (made waiting), else 0.
+    waiting_at: f64,
 }
 
 impl Body {
     /// Allocates and synthesises (off the audio thread).
     pub fn new(fs: f64, v: &BodyVoicing) -> Body {
-        let v = *v;
-        let h = cached(&v, fs);
+        let h = cached(v, fs);
+        Body::of(
+            fs,
+            v,
+            Convolver::with(h[0].clone()),
+            Convolver::with(h[1].clone()),
+        )
+    }
+
+    fn of(fs: f64, v: &BodyVoicing, left: Convolver, right: Convolver) -> Body {
         Body {
-            left: Convolver::new(&h[0]),
-            right: Convolver::new(&h[1]),
+            left,
+            right,
             direct: v.direct,
             level: 1.0,
             shelf: 0.0,
             tilt_a: math::exp(-std::f64::consts::TAU * 2_500.0 / fs),
             tilt: [0.0; 2],
+            waiting_at: 0.0,
         }
+    }
+
+    /// The shipped voicing's body, its responses taken if they are made and else waited
+    /// for — never synthesised here (round 39, fixes: a unit made on the interface's thread
+    /// at a rate not yet made paid 16 ms for them). Until [`Self::take`] gives them, its
+    /// resonance is silent. With no room left to wait (sixteen rates this session) they are
+    /// made at once. Allocates its lines.
+    pub fn waiting(fs: f64) -> Body {
+        let v = BodyVoicing::default();
+        if let Some(h) = ready(fs) {
+            return Body::of(
+                fs,
+                &v,
+                Convolver::with(h[0].clone()),
+                Convolver::with(h[1].clone()),
+            );
+        }
+        if !can_wait(fs) {
+            return Body::new(fs, &v);
+        }
+        let len = ((v.length * fs.min(48_000.0)) as usize).max(1);
+        let p = Prepared::partitions_of(len);
+        let mut b = Body::of(fs, &v, Convolver::waiting(p), Convolver::waiting(p));
+        b.waiting_at = fs;
+        b
+    }
+
+    /// Whether it waits for its responses.
+    pub fn is_waiting(&self) -> bool {
+        self.waiting_at != 0.0
+    }
+
+    /// Its responses, if they are made now: from the next sample it sounds as a body made
+    /// with them would (its lines held the inputs meanwhile). Lock-free, allocates nothing:
+    /// for the audio thread.
+    pub fn take(&mut self) -> bool {
+        if self.waiting_at == 0.0 {
+            return true;
+        }
+        let Some(h) = ready(self.waiting_at) else {
+            return false;
+        };
+        self.adopt(h);
+        true
+    }
+
+    /// Its responses made now if they are not (offline: a render waits for them).
+    /// Allocates.
+    pub fn make(&mut self) {
+        if self.waiting_at == 0.0 {
+            return;
+        }
+        let h = cached(&BodyVoicing::default(), self.waiting_at);
+        self.adopt(&h);
+    }
+
+    fn adopt(&mut self, h: &Pair) {
+        let l = self.left.adopt(h[0].clone());
+        let r = self.right.adopt(h[1].clone());
+        debug_assert!(l && r, "a response of the length waited for");
+        self.waiting_at = 0.0;
     }
 
     /// The tilt: the top raised or lowered by `db`.

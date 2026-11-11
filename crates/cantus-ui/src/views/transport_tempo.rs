@@ -1,7 +1,10 @@
-//! The tempo block (ADR 0052): the tempo in a well (drag it, wheel it, double-click for
-//! 120), **TAP** (the average of the last taps; a pause starts again; one undo step per
-//! run, `tap`), and the **time signature**, a well that opens its editor: the beats, the
-//! note value, the usual metres in one click (`Command::SetTimeSignature`).
+//! The tempo block (ADR 0052; round 39, `dir-a`'s phase B): the tempo in a well — its whole
+//! BPM 15 Regular in ink 1, its thousandths 11 in ink 3, "BPM" 9 SemiBold — drag it, wheel
+//! it, double-click for 120; a click on "BPM" taps the tempo (it reads "TAP" in the accent
+//! while a run of taps goes on; the average of the last taps, a pause starts again, one undo
+//! step per run, `tap`); and the **time signature** in a well that opens its editor: the
+//! beats, the note value, the usual metres in one click (`Command::SetTimeSignature`).
+//! Compact, the metre leaves the bar for the More panel.
 //!
 //! With a tempo track (round 29, ADR 0060) the well shows the tempo at the playhead —
 //! inside a ramp, its value there — and dragging, the wheel, a double-click and tap tempo
@@ -9,16 +12,16 @@
 //! the metre in force and its editor edits that change, the bars after it keeping their
 //! numbers.
 
-use super::{key_in, key_rect, tip, Style, ROW_KEY, STEP};
+use super::paint::{self as p, ink1, ink2, ink3};
+use super::{tip, Style};
 use crate::app::CantusApp;
 use crate::i18n::t;
 use crate::keymap::Action;
-use crate::kit::cap::KeyFace;
 use crate::kit::hint::{self, Caps};
-use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
+use crate::kit::text::{Role, Src};
 use crate::kit::{self, with_brush, State};
 use cantus_core::TimeSignature;
-use egui::{vec2, Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{vec2, Align2, Id, Pos2, Rect, Sense, Ui};
 use std::cell::RefCell;
 use std::fmt::Write as _;
 
@@ -27,79 +30,67 @@ thread_local! {
         RefCell::new((String::with_capacity(12), String::with_capacity(8)));
 }
 
+/// The tempo well's width: the sheet's 78, wider where "888.888 BPM" needs it.
 fn bpm_w(ctx: &egui::Context, s: &Style) -> f32 {
-    text::measure(ctx, &Text::new("888.8", Role::Hero, s.t.text), s.tk()).x
-        + text::measure(
-            ctx,
-            &Text::key("transport.bpm", Role::Micro, s.t.text),
-            s.tk(),
-        )
-        .x
-        + 18.0 * s.k
+    let w = 8.0 * s.k
+        + p::measure(ctx, "888", Role::Body, 15.0, s)
+        + p::measure(ctx, ".888", Role::Label, 11.0, s)
+        + 3.0 * s.k
+        + unit_w(ctx, s)
+        + 6.0 * s.k;
+    w.max(78.0 * s.k)
 }
 
-fn tap_w(ctx: &egui::Context, s: &Style) -> f32 {
-    let w = text::measure(
+/// The unit's width: "BPM", or "TAP" while tapping.
+fn unit_w(ctx: &egui::Context, s: &Style) -> f32 {
+    p::measure_key(ctx, "transport.bpm", Role::Micro, 9.0, s).max(p::measure_key(
         ctx,
-        &Text::key("topbar.tap", Role::Micro, s.t.text).caps(true),
-        s.tk(),
-    )
-    .x + 12.0 * s.k;
-    w.max(ROW_KEY * s.k)
-}
-
-fn metre_w(ctx: &egui::Context, s: &Style) -> f32 {
-    text::measure(ctx, &Text::new("32/32", Role::Value, s.t.text), s.tk()).x + 12.0 * s.k
-}
-
-pub fn width(ctx: &egui::Context, s: &Style) -> f32 {
-    bpm_w(ctx, s) + tap_w(ctx, s) + metre_w(ctx, s) + 2.0 * STEP * s.k
-}
-
-pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
-    let k = s.k;
-    let ctx = ui.ctx().clone();
-    // As tall as a key of the row it sits in.
-    let well_h = super::key_side(r, s);
-    let bpm_r = Rect::from_min_size(
-        Pos2::new(r.left(), r.center().y - well_h * 0.5),
-        Vec2::new(bpm_w(&ctx, s), well_h),
-    );
-    tempo(app, ui, bpm_r, s);
-    let tap_r = key_rect(r, bpm_r.right() + STEP * k, s);
-    let tap_r = Rect::from_min_size(tap_r.min, Vec2::new(tap_w(&ctx, s), tap_r.height()));
-    let resp = key_in(
-        ui,
-        tap_r,
+        "topbar.tap",
+        Role::Micro,
+        9.0,
         s,
-        KeyFace::Text(crate::views::clips_chrome::word("topbar.tap")),
-        app.topbar.tap.taps() > 0,
-        "tap",
-        || tip(app, "topbar.tap_tip", Some(Action::TapTempo)),
-    );
-    if resp.clicked() {
-        app.run_action(Action::TapTempo);
-    }
+    ))
+}
+
+/// The metre well's width: the sheet's 34, wider for "12/8" and "32/32".
+fn metre_w(ctx: &egui::Context, s: &Style) -> f32 {
+    (p::measure(ctx, "12/16", Role::Body, 12.0, s) + 8.0 * s.k).max(34.0 * s.k)
+}
+
+/// The block's widths: compact (the tempo alone) and full (the metre after it, 4 apart).
+pub fn widths(ctx: &egui::Context, s: &Style) -> (f32, f32) {
+    let b = bpm_w(ctx, s);
+    (b, b + 4.0 * s.k + metre_w(ctx, s))
+}
+
+pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style, compact: bool) {
+    let ctx = ui.ctx().clone();
+    let row = p::row(r, s);
+    let bpm_r = p::cell(row, 0.0, bpm_w(&ctx, s));
+    tempo(app, ui, bpm_r, s);
     // MIDI learn mode (round 29, ADR 0062): tap tempo and the tempo itself.
-    crate::controllers::learn_action_spot(app, ui, tap_r, Action::TapTempo);
     crate::controllers::learn_spot(
         app,
         ui,
         bpm_r,
         cantus_core::controller::MappingTarget::Tempo,
     );
-    let metre_r = Rect::from_min_size(
-        Pos2::new(tap_r.right() + STEP * k, bpm_r.top()),
-        Vec2::new(metre_w(&ctx, s), well_h),
-    );
-    metre(app, ui, metre_r, s);
+    if !compact {
+        let metre_r = p::cell(row, bpm_r.width() + 4.0 * s.k, metre_w(&ctx, s));
+        metre_field(app, ui, metre_r, s);
+    }
 }
 
 /// The tempo, in a well: drag up or down (Shift for fine), the wheel steps it by one,
-/// double-click returns to 120.
+/// double-click returns to 120; a click on its unit taps.
 fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
     let k = s.k;
     let resp = ui.interact(well, Id::new("toolbar-tempo"), Sense::click_and_drag());
+    let ur = Rect::from_min_max(
+        Pos2::new(well.right() - unit_w(ui.ctx(), s) - 7.0 * k, well.top()),
+        well.max,
+    );
+    let tap_r = ui.interact(ur, Id::new("toolbar-tap"), Sense::click());
     app.topbar.tempo_well = Some(well);
     // A gesture moves the point that governs the playhead by its own amount (review 2:
     // inside a ramp the value shown is the ramp's there, and writing it back moved the
@@ -115,7 +106,7 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
         };
         by -= (resp.drag_delta().y * fine) as f64;
     }
-    if resp.hovered() {
+    if resp.hovered() || tap_r.hovered() {
         // The wheel's own notches (one is one BPM), not the smoothed scroll that spreads
         // a notch over frames (review 2: a notch moved it by five).
         // Fractions (a touchpad, a smooth wheel) add up to a whole step (review 3); a
@@ -167,70 +158,83 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
         app.topbar.tempo_rest = 0.0;
         app.end_gesture();
     }
+    if tap_r.clicked() {
+        app.run_action(Action::TapTempo);
+    }
+    crate::controllers::learn_action_spot(app, ui, ur, Action::TapTempo);
     let bpm = super::sync::followed_tempo(app).unwrap_or_else(|| app.tempo_now()); // r33:sync
+    let tapping = app.topbar.tap.taps() > 0;
     let st = State::of(&resp, false);
-    if st.hovered {
+    if tap_r.hovered() {
+        let tip = tip(app, "topbar.tap_tip", Some(Action::TapTempo));
+        hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
+    } else if st.hovered {
         hint::set(
             ui.ctx(),
             &t("workspace.tempo"),
             Caps::PARAM,
             resp.dragged(),
-            |b| write!(b, "{bpm:.1} {}", t("transport.bpm")),
+            |b| write!(b, "{bpm:.3} {}", t("transport.bpm")),
         );
     }
-    let unit_w = text::measure(
-        ui.ctx(),
-        &Text::key("transport.bpm", Role::Micro, s.t.text),
-        s.tk(),
-    )
-    .x + 10.0 * k;
     WORDS.with(|v| {
         let mut v = v.borrow_mut();
         let value = &mut v.0;
         value.clear();
-        let _ = write!(value, "{bpm:.1}");
+        let _ = write!(value, "{bpm:.3}");
+        let (whole, frac) = value.split_at(value.find('.').unwrap_or(value.len()));
         with_brush(ui.painter(), |b| {
-            kit::well::paint(b, well, s, st, None);
-            let vr = Rect::from_min_max(well.min, Pos2::new(well.right() - unit_w, well.bottom()));
-            let ink = if resp.dragged() { s.t.focus } else { s.t.text };
-            // r37:finish — the whole BPM large, its tenth a size down (FL's display; read
-            // "124" at a glance).
-            let vr = vr.shrink2(Vec2::new(4.0 * k, 0.0));
-            if let Some(at) = value.find('.') {
-                let (whole, tenth) = value.split_at(at);
-                let tt = Text::new(tenth, Role::Value, ink).align(Align2::RIGHT_BOTTOM);
-                let tw = text::measure(b.ctx(), &tt, s.tk()).x;
-                let foot = vr.bottom() - 4.0 * k;
-                let tr = Rect::from_min_max(
-                    Pos2::new(vr.right() - tw, vr.top()),
-                    Pos2::new(vr.right(), foot),
-                );
-                let _ = text::paint(b, tr, &tt, s.tk());
-                let wr = Rect::from_min_max(vr.min, Pos2::new(tr.left(), foot + 2.0 * k));
-                let _ = text::paint(
-                    b,
-                    wr,
-                    &Text::new(whole, Role::Hero, ink)
-                        .align(Align2::RIGHT_BOTTOM)
-                        .policy(Policy::Elide(Elide::End)),
-                    s.tk(),
-                );
-            } else {
-                let _ = text::paint(
-                    b,
-                    vr,
-                    &Text::new(value, Role::Hero, ink)
-                        .align(Align2::RIGHT_CENTER)
-                        .policy(Policy::Elide(Elide::End)),
-                    s.tk(),
-                );
-            }
-            let ur = Rect::from_min_max(Pos2::new(well.right() - unit_w, well.top()), well.max);
-            let _ = text::paint(
+            b.register(well, "tempo", kit::well::TOKENS, &[]);
+            p::well(b, well, s, None);
+            p::tint(
                 b,
-                ur.shrink2(Vec2::new(2.0 * k, 0.0)),
-                &Text::key("transport.bpm", Role::Micro, s.t.text_dim).align(Align2::LEFT_CENTER),
-                s.tk(),
+                well,
+                s,
+                State {
+                    hovered: st.hovered || tap_r.hovered(),
+                    ..State::REST
+                },
+                s.t.highlight,
+                0.2,
+            );
+            // r39:lapis2 — the tempo is a readout (the logo's gold in Slate Lapis).
+            let ink = if resp.dragged() {
+                s.t.focus
+            } else {
+                s.t.readout_or(ink1(s), false)
+            };
+            let x0 = well.left() + 8.0 * k;
+            let ww = p::measure(b.ctx(), whole, Role::Body, 15.0, s);
+            // One baseline for the whole and its thousandths: both sit on the well's
+            // lower third, the larger figure a point higher in its box.
+            let wr = Rect::from_min_max(
+                Pos2::new(x0, well.top()),
+                Pos2::new(x0 + ww + 1.0, well.bottom() - 2.0 * k),
+            );
+            p::words(b, wr, whole, Role::Body, 15.0, ink, Align2::LEFT_CENTER, s);
+            let fr = Rect::from_min_max(
+                Pos2::new(wr.right() - 1.0, well.top() + 4.0 * k),
+                Pos2::new(ur.left(), well.bottom() - 2.0 * k),
+            );
+            let fi = if resp.dragged() { ink } else { ink3(s) };
+            p::words(b, fr, frac, Role::Label, 11.0, fi, Align2::LEFT_CENTER, s);
+            let (unit, ui_ink) = if tapping {
+                ("topbar.tap", s.t.highlight)
+            } else if tap_r.hovered() {
+                ("transport.bpm", ink1(s))
+            } else {
+                ("transport.bpm", ink3(s))
+            };
+            let uw = Rect::from_min_max(ur.min, Pos2::new(well.right() - 6.0 * k, ur.bottom()));
+            p::words_key(
+                b,
+                uw,
+                unit,
+                Role::Micro,
+                9.0,
+                ui_ink,
+                Align2::RIGHT_CENTER,
+                s,
             );
         });
     });
@@ -309,8 +313,7 @@ fn metre_popup() -> Id {
     Id::new("toolbar-metre-editor")
 }
 
-fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
-    let k = s.k;
+pub(super) fn metre_field(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
     let resp = ui.interact(well, Id::new("toolbar-metre"), Sense::click());
     let open = egui::Popup::is_id_open(ui.ctx(), metre_popup());
     let ts = app.metre_now();
@@ -328,14 +331,19 @@ fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
             hint::set_text(ui.ctx(), &t("topbar.metre_tip"), value, caps);
         }
         with_brush(ui.painter(), |b| {
-            kit::well::paint(b, well, s, st, None);
-            let _ = text::paint(
+            b.register(well, "metre", kit::well::TOKENS, &[]);
+            p::well(b, well, s, None);
+            p::tint(b, well, s, st.lit(false), s.t.highlight, 0.2);
+            let ink = if st.hovered || open { ink1(s) } else { ink2(s) };
+            p::words(
                 b,
-                well.shrink2(Vec2::new(4.0 * k, 0.0)),
-                &Text::new(value, Role::Value, s.t.text)
-                    .align(Align2::CENTER_CENTER)
-                    .policy(Policy::Elide(Elide::End)),
-                s.tk(),
+                well,
+                value,
+                Role::Body,
+                12.0,
+                ink,
+                Align2::CENTER_CENTER,
+                s,
             );
         });
     });

@@ -73,6 +73,9 @@ mod session_rt;
 
 #[path = "processor_msg.rs"]
 mod msg;
+/// Snapshots, delay compensation, chains, and handing things back.
+#[path = "processor_parts.rs"]
+pub(crate) mod parts_rt;
 /// The block: passes, the pool, and what is folded back after each.
 #[path = "processor_pass.rs"]
 mod pass;
@@ -85,7 +88,6 @@ pub(crate) mod rec;
 /// Calls into `cantus-rt` (FTZ/DAZ, the callback's priority), behind one small seam.
 #[path = "graph/rt_shim.rs"]
 mod rt_shim;
-/// Snapshots, delay compensation, chains, and handing things back.
 #[path = "processor_snap.rs"]
 mod snap;
 
@@ -164,6 +166,16 @@ pub struct Processor {
     scratch_effects: Vec<Box<EffectUnit>>,
     /// Native instrument units received but not yet claimed by a snapshot.
     incoming_instruments: Vec<Box<NativeUnit>>,
+    /// The parts a slot holds only while its track uses them — Pulsus kits, note-effect
+    /// chains — that are in no slot now (ADR 0107, `processor_parts.rs`).
+    parts: parts_rt::Spares,
+    /// Track and strip slots provisioned (ADR 0107): the first `ready` of each have their
+    /// pass buffers; a track or strip is only ever given one of them.
+    ready: (usize, usize),
+    /// A snapshot waiting for slots to be provisioned, with its plan; the slots last asked
+    /// for (`EngineEvent::CellsNeed`).
+    cells_wait: Option<(Arc<Snapshot>, Option<Box<GraphPlan>>)>,
+    cells_asked: (usize, usize),
     /// The track whose instrument reports telemetry (its editor is open).
     probed: Option<TrackId>,
     transport: Transport,
@@ -174,8 +186,8 @@ pub struct Processor {
     pool: Option<EnginePool>,
     /// Each slot's track and strip id, mirrored here so the control phase finds a slot
     /// without borrowing every node.
-    track_ids: [Option<TrackId>; MAX_TRACKS],
-    strip_ids: [Option<StripId>; MAX_STRIPS],
+    track_ids: Box<[Option<TrackId>; MAX_TRACKS]>,
+    strip_ids: Box<[Option<StripId>; MAX_STRIPS]>,
     /// Snapshot track index → slot index.
     track_to_slot: Vec<usize>,
     /// Snapshot strip index → strip slot index.
@@ -221,7 +233,13 @@ pub struct Processor {
     mpe: msg::mpe_live::MpeLive, // r33:mpe — live MPE (ADR 0080)
     recording: bool,
     stats: EngineStats,
-    meters: Meters,
+    meters: Box<Meters>,
+    /// The block's report on its way out (ADR 0107): meters, stats and the modulators'
+    /// values, in a mailbox of their own; its reading end until someone takes it.
+    reports: crate::report::Outbox,
+    reports_in: Option<crate::report::Reports>,
+    /// The modulators' values made this block, for its report.
+    modulation: Option<crate::modulator::ModTelemetry>,
     /// Whether `transport.playing` was true on the previous block (to emit note-offs).
     was_playing: bool,
     capture_target: CaptureTarget,
@@ -247,17 +265,17 @@ pub struct Processor {
     follow_lates: Box<[usize]>,
     follow_n: usize,
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
-    pdc: crate::pdc::Compensation,
+    pdc: Box<crate::pdc::Compensation>,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
     /// The master's loudness meter, fed after the master strip (ADR 0052).
-    master_loud: master_run::MasterLoud,
+    master_loud: Box<master_run::MasterLoud>,
     edge_l: Vec<f32>,
     edge_r: Vec<f32>,
     /// How late each strip slot's fader output is against the timeline, in samples: the
     /// compensation it waits for plus its own inserts' latency (ADR 0018's `P`).
-    strip_post: [usize; MAX_STRIPS],
+    strip_post: Box<[usize; MAX_STRIPS]>,
     /// Each strip slot's input arrival, as planned (ADR 0018's `A`).
-    strip_arrive: [usize; MAX_STRIPS],
+    strip_arrive: Box<[usize; MAX_STRIPS]>,
     /// A render's floor under one snapshot strip's arrival (index, frames): a bounce
     /// through its inserts enters the chain as late as it did live (review 3).
     arrive_floor: Option<(usize, usize)>,
@@ -298,7 +316,7 @@ pub struct Processor {
     pub(crate) input: crate::recorder::InputPort,
     pub(crate) record_rings: Option<Box<crate::recorder::RecordRings>>,
     /// Input and recording state.
-    live: rec::Live,
+    live: Box<rec::Live>,
     /// The master's insert chain (ADR 0026, `graph/master.rs`).
     master: master::MasterChain,
     /// The recording mode's baked master (ADR 0092 §3). // r36:record
@@ -309,7 +327,7 @@ pub struct Processor {
     prof: crate::profile::Profiler,
     sync: Option<Box<sync_run::SyncRun>>, // r33:sync
     // r36:external
-    ext: ext_midi::ExtMidi,
+    ext: Box<ext_midi::ExtMidi>,
 }
 
 impl Processor {
@@ -319,29 +337,39 @@ impl Processor {
         tx: Producer<EngineEvent>,
         midi_rx: Consumer<MidiEvent>,
     ) -> Self {
-        Self::with_cells(sample_rate, rx, tx, midi_rx, MAX_TRACKS, MAX_STRIPS) // r34:listen
+        let ready = (crate::parts::START_TRACKS, crate::parts::START_STRIPS); // ADR 0107
+        Self::with_cells(
+            sample_rate,
+            rx,
+            tx,
+            midi_rx,
+            (MAX_TRACKS, MAX_STRIPS),
+            ready,
+        )
     }
 
     // r34:listen — a range render's checkpoint keeps the cells its song uses (ADR 0083).
     /// [`Self::new`] with only the first `tracks` track and `strips` strip cells
-    /// (`Nodes::with_cells`): a checkpoint's processor, copied from, never played.
+    /// (`Nodes::with_cells`): a checkpoint's processor, copied from, never played. The first
+    /// `ready` of each are provisioned (ADR 0107).
     pub(crate) fn with_cells(
         sample_rate: f64,
         rx: Consumer<EngineMessage>,
         tx: Producer<EngineEvent>,
         midi_rx: Consumer<MidiEvent>,
-        tracks: usize,
-        strips: usize,
+        cells: (usize, usize),
+        ready: (usize, usize),
     ) -> Self {
         let sr = sample_rate as f32;
-        let pdc = crate::pdc::Compensation::new();
+        let pdc = Box::new(crate::pdc::Compensation::new());
+        let (reports, reports_in) = crate::report::mailbox();
         let workers = pool::Workers::from_env();
         let nodes = Arc::new(Nodes::with_cells(
             sample_rate,
             pool::SLOTS,
             pdc.lines.clone(),
-            tracks,
-            strips,
+            cells,
+            ready,
         ));
         let mut p = Processor {
             sample_rate,
@@ -354,12 +382,16 @@ impl Processor {
             incoming_effects: Vec::with_capacity(MAX_PENDING_EFFECTS),
             scratch_effects: Vec::with_capacity(MAX_EFFECTS_PER_TRACK),
             incoming_instruments: Vec::with_capacity(MAX_TRACKS),
+            parts: parts_rt::Spares::new(),
+            ready,
+            cells_wait: None,
+            cells_asked: (0, 0),
             probed: None,
             transport: Transport::new(sample_rate),
             nodes,
             pool: None,
-            track_ids: [None; MAX_TRACKS],
-            strip_ids: [None; MAX_STRIPS],
+            track_ids: Box::new([None; MAX_TRACKS]),
+            strip_ids: Box::new([None; MAX_STRIPS]),
             track_to_slot: Vec::with_capacity(MAX_TRACKS),
             strip_to_slot: Vec::with_capacity(MAX_STRIPS),
             strip_play_order: Vec::with_capacity(MAX_STRIPS),
@@ -390,7 +422,10 @@ impl Processor {
                 sample_rate,
                 ..Default::default()
             },
-            meters: Meters::default(),
+            meters: Box::default(),
+            reports,
+            reports_in: Some(reports_in),
+            modulation: None,
             was_playing: false,
             capture_target: CaptureTarget::Off,
             capture_slot: None,
@@ -405,11 +440,11 @@ impl Processor {
                 .into_boxed_slice(),
             follow_n: 0,
             pdc,
-            master_loud: master_run::MasterLoud::new(sr),
+            master_loud: Box::new(master_run::MasterLoud::new(sr)),
             edge_l: vec![0.0; PASS_FRAMES],
             edge_r: vec![0.0; PASS_FRAMES],
-            strip_post: [0; MAX_STRIPS],
-            strip_arrive: [0; MAX_STRIPS],
+            strip_post: Box::new([0; MAX_STRIPS]),
+            strip_arrive: Box::new([0; MAX_STRIPS]),
             arrive_floor: None,
             master_arrive: 0,
             latency_sig: 0,
@@ -428,13 +463,13 @@ impl Processor {
             flush_denormals: true,
             input: Default::default(),
             record_rings: None,
-            live: rec::Live::new(),
+            live: Box::new(rec::Live::new()),
             master: master::MasterChain::new(),
             auto: auto::AutoState::new(),
             prof: crate::profile::Profiler::new(),
             sync: None, // r33:sync
             // r36:external
-            ext: Default::default(),
+            ext: Box::default(),
         };
         p.prefault();
         p.set_workers(workers);
@@ -851,16 +886,24 @@ impl Processor {
             heard: self.heard_position(),
             playing: self.transport.is_playing(),
         });
-        // The meters' true peak starts again only once a report got through: one the
-        // queue had no room for loses no over.
-        if self
-            .tx
-            .push(EngineEvent::Meters(self.meters.clone()))
-            .is_ok()
-        {
+        // The meters, the stats and the modulators' values in their own mailbox (ADR
+        // 0107). The meters' true peak starts again only once a report got through: a
+        // block folded into the next one loses no over.
+        let modulation = self.modulation.take();
+        if self.reports.post(&self.meters, &self.stats, modulation) {
             self.master_loud.sent();
         }
-        let _ = self.tx.push(EngineEvent::Stats(self.stats));
+    }
+
+    /// The reading end of the block's reports (ADR 0107), for whoever shows them — the
+    /// backend takes it when it builds the processor. `None` once taken.
+    pub fn take_reports(&mut self) -> Option<crate::report::Reports> {
+        self.reports_in.take()
+    }
+
+    /// The last block's meters, as its report carried them (a test's look).
+    pub fn meters(&self) -> &Meters {
+        &self.meters
     }
 
     /// Handle every pending message now, outside a block — for an offline render, which
@@ -1051,7 +1094,12 @@ fn apply_instrument(
         // Written into the kit's fixed tables in place: this runs on the audio thread,
         // once per snapshot, and must not allocate (ADR 0005). The snapshot carries the
         // decoded audio (`SampleCache::attach`).
-        InstrumentSpec::Pulsus(k) => crate::pulsus_kit::configure(&mut slot.drums, k, samples),
+        // A slot whose kit has not been given yet is configured when it is (ADR 0107).
+        InstrumentSpec::Pulsus(k) => {
+            if let Some(d) = slot.drums.get() {
+                crate::pulsus_kit::configure(d, k, samples);
+            }
+        }
     }
 }
 
@@ -1084,5 +1132,25 @@ fn wave(w: cantus_core::Waveform) -> Wave {
         cantus_core::Waveform::Triangle => Wave::Triangle,
         cantus_core::Waveform::Saw => Wave::Saw,
         cantus_core::Waveform::Square => Wave::Square,
+    }
+}
+
+#[cfg(test)]
+mod stack_size {
+    use super::*;
+
+    /// Round 39's start-up crash (`thread 'main' has overflowed its stack`, Windows' 1 MB
+    /// main thread): the processor — 63.6 KB inline then — is built on the thread that opens
+    /// the device and moved by value through `EngineHandle::start` and cpal's generic stream
+    /// builders, a frame of one or more copies each (1 MB of frames in the release build).
+    /// Its large parts live on the heap now, and the output driver holds it boxed; these
+    /// bounds keep a large value from sliding back in.
+    #[test]
+    fn the_processor_and_its_driver_are_small_to_move() {
+        let processor = std::mem::size_of::<Processor>();
+        let driver = std::mem::size_of::<crate::devices::OutputDriver>();
+        eprintln!("Processor {processor} B, OutputDriver {driver} B");
+        assert!(processor <= 16 << 10, "Processor is {processor} B inline");
+        assert!(driver <= 1 << 10, "OutputDriver is {driver} B inline");
     }
 }

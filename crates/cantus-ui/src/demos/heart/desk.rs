@@ -157,6 +157,13 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
         Some("preset.phasis.phase90_script"),
         &[("rate", 0.35), ("mix", 0.5)],
     );
+    // r39:conv — and Aula's spring tank after it, the amplifier's own reverb.
+    s.insert(
+        b.guitar.strip,
+        K::Aula,
+        Some("preset.aula.spring_guitar"),
+        &[("mix", 0.2)],
+    );
     hp(s, b.guitar.strip, 140.0);
     // The topline: Tonus hard-tunes it to F minor, with a created vibrato on the long
     // notes and the throat a little shorter; then EQ, compression and a light double.

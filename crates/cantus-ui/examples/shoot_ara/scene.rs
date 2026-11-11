@@ -47,8 +47,8 @@ pub fn shots(out: &Path, scale: f32) {
         .expect("scan")
         .remove(0);
     let themes = [
-        ("slate", cantus_ui::theme::slate()),
-        ("paper", cantus_ui::theme::paper()),
+        ("slate", cantus_ui::theme::slate_night()),
+        ("paper", cantus_ui::theme::slate_paper()),
     ];
     let context = |theme: &cantus_ui::theme::Theme| {
         let ctx = egui::Context::default();

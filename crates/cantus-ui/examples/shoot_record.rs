@@ -63,7 +63,7 @@ fn shoot(
     app.appearance_path = tmp.join("appearance.json");
     app.appearance.mode = if dark { Mode::Dark } else { Mode::Light };
     let mode = app.appearance.mode;
-    let preset = if dark { "cantus_night" } else { "cantus_paper" };
+    let preset = if dark { "slate_night" } else { "slate_paper" };
     app.appearance.assign(mode, format!("preset:{preset}"));
     app.attach(&ctx);
     // Renders (a frozen target with none is made in the background) never in the user's cache.

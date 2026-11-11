@@ -47,6 +47,9 @@ use cantus_ui::{demos, CantusApp};
 use egui::{Rect, Vec2};
 use std::path::{Path, PathBuf};
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 /// A context with the program's fonts and style.
 fn context() -> egui::Context {
     let ctx = egui::Context::default();
@@ -83,19 +86,12 @@ fn studio(
         app.appearance.fader = cantus_ui::kit::fader::FaderCap::Metal;
     }
     app.attach(ctx);
-    // The demo interface of the audio setup, as on a machine with one plugged in.
-    cantus_ui::audio_setup::demo::setup(&mut app);
-    if let Some(live) = app.audio_setup.demo.as_mut() {
-        live.driver = "ASIO".into();
-        live.device = "ASIO4ALL v2".into();
-        live.wanted = live.device.clone();
-        live.block = 256;
-    }
-    app.audio_setup.scan = None;
+    // The demo interface of the audio setup, as on a machine with one plugged in, and no
+    // dropout on the status line.
+    studio::studio(&mut app, 256);
     // No sound packs but the shot's own: nothing of this machine's shows.
     app.samples.content_root = Some(tmp.join("Content"));
     app.settings.sample_folders.clear();
-    app.settings.audio.device = Some("ASIO4ALL v2".into());
     app.set_status(String::new());
     app
 }
@@ -220,7 +216,7 @@ fn alone(
     draw: fn(&mut CantusApp, &mut egui::Ui),
 ) -> Canvas {
     let ctx = context();
-    let (mut app, mut processor) = playing(&ctx, "cantus_night", song(), 6, setup);
+    let (mut app, mut processor) = playing(&ctx, "slate_night", song(), 6, setup);
     let mut audio = vec![0f32; 800 * 2];
     let k = ppp(); // r37:finish (the shot below is at k)
     raster::shoot(&ctx, egui::vec2(size.0, size.1) / k, k, 10, None, |root| {
@@ -259,7 +255,9 @@ fn sixteen_bars(app: &mut CantusApp, width: f32) {
 /// The whole of the song the program opens on (*Neon Tide*: intro, build, drop, break,
 /// drop, outro), for the hero.
 fn whole_song() -> cantus_core::Project {
-    (demos::find("house").expect("the house demo").build)()
+    // No dancer in the README's pictures (the owner, round 39): the song keeps Trino in
+    // the program, the pictures are of the song without it.
+    demos::house_without_dancer()
 }
 
 /// The hero: the whole song across the arrangement, the desk Extra large under it with the
@@ -460,7 +458,7 @@ fn trimmed(canvas: &Canvas, margin: f32) -> Rect {
 /// A context in Cantus Night (the default theme), for the views drawn alone.
 fn night() -> egui::Context {
     let ctx = context();
-    cantus_ui::theme::apply(&cantus_ui::theme_family::cantus_night(), &ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::slate_night(), &ctx);
     ctx
 }
 
@@ -606,7 +604,7 @@ fn score_app(ctx: &egui::Context, preset: &str) -> CantusApp {
 /// The piano roll with the staff under it (Alt+S), in Cantus Night.
 fn score_roll() -> Canvas {
     let ctx = night();
-    let mut app = score_app(&ctx, "cantus_night");
+    let mut app = score_app(&ctx, "slate_night");
     app.score.split_open = true;
     app.score.split_h = 290.0;
     app.score.split_space = 8.5;
@@ -618,8 +616,8 @@ fn score_roll() -> Canvas {
 /// The Score pane, in Cantus Paper.
 fn score_pane() -> Canvas {
     let ctx = context();
-    cantus_ui::theme::apply(&cantus_ui::theme::paper(), &ctx);
-    let mut app = score_app(&ctx, "cantus_paper");
+    cantus_ui::theme::apply(&cantus_ui::theme::slate_paper(), &ctx);
+    let mut app = score_app(&ctx, "slate_paper");
     app.score.pane_space = 8.0;
     raster::shoot(&ctx, egui::vec2(900.0, 400.0), 1.0, 4, None, |ui| {
         cantus_ui::views::score_view::show(&mut app, ui)
@@ -631,7 +629,7 @@ fn score_page() -> Canvas {
     use cantus_score::layout::{engrave, Format, LayoutOptions, Paper};
     use cantus_ui::views::score_paint::{paint, Placement, ScoreInk};
     let ctx = context();
-    let mut app = score_app(&ctx, "cantus_paper");
+    let mut app = score_app(&ctx, "slate_paper");
     app.settings.export.tags.artist = "Cantus".into();
     let score = cantus_ui::score::score_of(
         &app,
@@ -677,7 +675,7 @@ fn instrument(kind: &str) -> (Canvas, Option<Rect>) {
     let mut app = studio(
         &ctx,
         cantus_ui::welcome_project(),
-        "cantus_night",
+        "slate_night",
         EngineHandle::dummy(),
     );
     // Exemplar plays the Salamander Grand Piano where its archive is on this machine.
@@ -814,7 +812,7 @@ fn themes() -> Canvas {
     let mut app = studio(
         &ctx,
         cantus_ui::welcome_project(),
-        "cantus_night",
+        "slate_night",
         EngineHandle::dummy(),
     );
     let (cols, chip, gap) = (6usize, Vec2::new(200.0, 92.0), 14.0);
@@ -1010,7 +1008,7 @@ fn shoot_one(name: &str, dir: &Path) {
     match name {
         "window-night" => save(
             &window_with(
-                "cantus_night",
+                "slate_night",
                 (1920.0, 1080.0),
                 whole_song(),
                 22,
@@ -1025,7 +1023,7 @@ fn shoot_one(name: &str, dir: &Path) {
         // of the area keys needs.
         "window-wide" => save(
             &window_with(
-                "cantus_night",
+                "slate_night",
                 (2400.0, 1350.0),
                 whole_song(),
                 22,
@@ -1036,12 +1034,12 @@ fn shoot_one(name: &str, dir: &Path) {
             &path,
         ),
         "window-night-720" => save(
-            &window("cantus_night", (1280.0, 720.0), compact),
+            &window("slate_night", (1280.0, 720.0), compact),
             None,
             &path,
         ),
         "window-paper-720" => save(
-            &window("cantus_paper", (1280.0, 720.0), compact),
+            &window("slate_paper", (1280.0, 720.0), compact),
             None,
             &path,
         ),
@@ -1056,7 +1054,7 @@ fn shoot_one(name: &str, dir: &Path) {
         "matrix" => save(&alone((700.0, 600.0), nothing, draw_routing), None, &path),
         // The top of the window: the clip browser, the arrangement and the inspector.
         "linked" => {
-            let c = window("cantus_night", (1760.0, 1000.0), linked);
+            let c = window("slate_night", (1760.0, 1000.0), linked);
             let top = Rect::from_min_size(
                 egui::Pos2::ZERO,
                 egui::vec2(1760.0, LINKED_ARRANGEMENT + 52.0),

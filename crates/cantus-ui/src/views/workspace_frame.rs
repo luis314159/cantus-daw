@@ -28,29 +28,55 @@ enum After {
 pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     let ctx = ui.ctx().clone();
     let mut ws = std::mem::take(&mut app.workspace);
-    let area = ui.max_rect();
+    let whole = ui.max_rect();
+    // r39:lo-arrange — while an area is maximised, the areas it hid fold to one row of
+    // their tabs at the foot (des-arrange's maximised arrangement).
+    let hidden = ws.hidden_by_maximise();
+    let row_h = (super::workspace_fold::DOCKS_ROW * Style::current().k).round();
+    let (area, row) = if !hidden.is_empty() && whole.height() > row_h * 4.0 {
+        let split = whole.bottom() - row_h;
+        (
+            Rect::from_min_max(whole.min, Pos2::new(whole.right(), split)),
+            Some(Rect::from_min_max(
+                Pos2::new(whole.left(), split),
+                whole.max,
+            )),
+        )
+    } else {
+        (whole, None)
+    };
     ws.before(app, &ctx, area);
     let s = Style::current();
-    let style = skin::dock_style(&s, ui.style(), ctx.pixels_per_point());
+    let mut style = skin::dock_style(&s, ui.style(), ctx.pixels_per_point());
+    // A folded area is smaller than the dock's least size (round 39, ADR 0110).
+    style.separator.extra = ws.separator_floor(style.separator.extra);
     let tab_bar = style.tab_bar.height;
+    let (unfold, maximise);
     {
         let Workspace {
             dock,
             active,
             focused,
             bars,
+            tab_ends,
             titles,
             menu,
+            folds,
             ..
         } = &mut ws;
+        let folded: Vec<Pane> = folds.iter().map(|f| f.pane).collect();
         let mut viewer = Viewer {
             app,
             ctx: ctx.clone(),
             active,
             focused: *focused,
             bars,
+            tab_ends,
             titles,
             menu,
+            folded: &folded,
+            unfold: None,
+            maximise: None,
             buf: String::new(),
             tk: s.tk(),
         };
@@ -65,7 +91,25 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             .show_tab_name_on_hover(false)
             .show_leaf_close_all_buttons(false)
             .show_leaf_collapse_buttons(false)
-            .show_inside(ui, &mut viewer);
+            .show_inside(
+                &mut ui.new_child(egui::UiBuilder::new().max_rect(area)),
+                &mut viewer,
+            );
+        unfold = viewer.unfold;
+        maximise = viewer.maximise;
+    }
+    if let Some(p) = unfold {
+        ws.unfold(p);
+    }
+    if let Some(p) = maximise {
+        ws.toggle_maximise(p);
+    }
+    if let Some(r) = row {
+        match super::workspace_fold::docks_row(ui, r, &hidden, &app.keymap) {
+            Some(super::workspace_fold::RowPick::Pane(p)) => ws.toggle(p),
+            Some(super::workspace_fold::RowPick::Restore) => ws.restore_maximised(),
+            None => {}
+        }
     }
     let then = ws.after(app, ui, area, tab_bar);
     app.workspace = ws;
@@ -84,8 +128,14 @@ struct Viewer<'a> {
     active: &'a [Pane],
     focused: Option<Pane>,
     bars: &'a [Rect],
+    tab_ends: &'a mut [f32],
     titles: &'a mut Titles,
     menu: &'a mut Option<TabMenu>,
+    /// The areas folded to their tab bar: their view is not drawn, a rail is.
+    folded: &'a [Pane],
+    /// A folded area clicked open, a tab double-clicked: done once the dock is back.
+    unfold: Option<Pane>,
+    maximise: Option<Pane>,
     buf: String,
     tk: f32,
 }
@@ -102,7 +152,33 @@ impl TabViewer for Viewer<'_> {
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Pane) {
+        // Folded (round 39, ADR 0110): the rail, not the view.
+        if self.folded.contains(tab) {
+            if super::workspace_fold::rail(ui, *tab) {
+                self.unfold = Some(*tab);
+            }
+            return;
+        }
         let app = &mut *self.app;
+        // r39:lo-mixer — the mixer's header shares the tab row above it (des-mixer): the
+        // room right of the tabs, when the desk is docked under a bar and it is wide enough.
+        if *tab == Pane::Mixer {
+            let body = ui.max_rect();
+            app.mixer.bar_room = self
+                .bars
+                .iter()
+                .zip(self.tab_ends.iter())
+                .find(|(b, _)| {
+                    (b.bottom() - body.top()).abs() < 3.0 && (b.left() - body.left()).abs() < 3.0
+                })
+                .map(|(b, end)| {
+                    Rect::from_min_max(
+                        egui::pos2(end + 12.0, b.top()),
+                        egui::pos2(b.right() - 4.0, b.bottom()),
+                    )
+                })
+                .filter(|r| r.width() >= 420.0);
+        }
         // A click in the mixer makes it the thing the arrows and M / S act on (§10). The
         // arrangement and the editors say so themselves when they are clicked.
         if *tab == Pane::Mixer
@@ -143,6 +219,13 @@ impl TabViewer for Viewer<'_> {
         // The tab bar it sits in: a tab that overflows its bar is clipped by it, never
         // painted over the next area.
         let r = response.rect;
+        // Where the tabs of its bar end (the mixer's header takes the room after them).
+        for (b, end) in self.bars.iter().zip(self.tab_ends.iter_mut()) {
+            if (b.top() - r.top()).abs() < 3.0 && b.left() <= r.left() + 1.0 && r.left() < b.right()
+            {
+                *end = end.max(r.right());
+            }
+        }
         let Some(clip) = self
             .bars
             .iter()
@@ -170,11 +253,20 @@ impl TabViewer for Viewer<'_> {
                 },
             );
         }
+        // A double-click on a tab maximises its area, or gives the others back
+        // (round 39, ADR 0110: VS Code's and Bitwig's gesture).
+        if response.double_clicked() && !matches!(*tab, Pane::Device(_)) {
+            self.maximise = Some(*tab);
+        }
         if response.secondary_clicked() {
             let at = response
                 .interact_pointer_pos()
                 .unwrap_or(response.rect.left_bottom());
-            *self.menu = Some(TabMenu { pane: *tab, at });
+            *self.menu = Some(TabMenu {
+                pane: *tab,
+                at,
+                fresh: true,
+            });
         }
     }
 
@@ -321,6 +413,9 @@ impl Workspace {
             }
         }
 
+        // Folded areas held at their tab bar's size (round 39, ADR 0110).
+        self.keep_folds();
+
         // What the tabs need to know while they are painted.
         self.active.clear();
         self.bars.clear();
@@ -336,6 +431,8 @@ impl Workspace {
                 ));
             }
         }
+        self.tab_ends.clear();
+        self.tab_ends.extend(self.bars.iter().map(|b| b.left()));
         self.focused = self.dock.focused_leaf().and_then(|p| {
             let leaf = self.dock.leaf(p).ok()?;
             leaf.tabs.get(leaf.active.0).copied()
@@ -618,16 +715,35 @@ impl Workspace {
     fn tab_menu(&mut self, ctx: &Context) -> Option<After> {
         let menu = self.menu?;
         let floating = self.is_floating(menu.pane);
-        let items = [
+        // Round 39 (ADR 0110): collapse and maximise beside float and hide.
+        let mut rows: Vec<(Item<'static>, TabAct)> = vec![(
             Item::action(Src::Key(if floating {
                 "workspace.menu.dock"
             } else {
                 "workspace.menu.float"
             })),
-            Item::action(Src::Key("workspace.menu.hide")),
-            Item::Separator,
-            Item::action(Src::Key("layout.reset")),
-        ];
+            TabAct::Float,
+        )];
+        if self.is_folded(menu.pane) {
+            rows.push((Item::action(Src::Key("ux.panels.expand")), TabAct::Fold));
+        } else if self.can_fold(menu.pane) {
+            rows.push((Item::action(Src::Key("ux.panels.collapse")), TabAct::Fold));
+        }
+        if self.maximised().is_some() {
+            rows.push((
+                Item::action(Src::Key("ux.panels.restore")),
+                TabAct::Maximise,
+            ));
+        } else if !floating && !matches!(menu.pane, Pane::Device(_)) {
+            rows.push((
+                Item::action(Src::Key("ux.panels.maximise")),
+                TabAct::Maximise,
+            ));
+        }
+        rows.push((Item::action(Src::Key("workspace.menu.hide")), TabAct::Hide));
+        rows.push((Item::Separator, TabAct::None));
+        rows.push((Item::action(Src::Key("layout.reset")), TabAct::Reset));
+        let items: Vec<Item<'static>> = rows.iter().map(|r| r.0).collect();
         let s = Style::current();
         let width = 200.0 * s.k;
         let mut chosen = None;
@@ -639,28 +755,45 @@ impl Workspace {
                 let (_, c) = crate::kit::widgets::menu_list(ui, &items, width);
                 chosen = c.clicked;
             });
-        let outside = ctx.input(|i| i.pointer.any_click())
+        let fresh = std::mem::take(&mut self.menu.as_mut().expect("open").fresh);
+        let outside = !fresh
+            && ctx.input(|i| i.pointer.any_click())
             && !ctx
                 .pointer_interact_pos()
                 .is_some_and(|p| area.response.rect.contains(p));
-        let escape = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+        let escape = crate::esc::take(ctx, crate::esc::Layer::TabMenu);
         let mut then = None;
-        match chosen {
-            Some(0) => self.toggle_float(menu.pane),
-            Some(1) => {
+        match chosen.map(|i| rows[i].1) {
+            Some(TabAct::Float) => self.toggle_float(menu.pane),
+            Some(TabAct::Fold) => self.toggle_fold(menu.pane),
+            Some(TabAct::Maximise) => self.toggle_maximise(menu.pane),
+            Some(TabAct::Hide) => {
                 if let Pane::Device(k) = menu.pane {
                     device::mark_closed(ctx, k);
                 }
                 self.hide(menu.pane);
             }
-            Some(3) => then = Some(After::ResetLayout),
+            Some(TabAct::Reset) => then = Some(After::ResetLayout),
             _ => {}
         }
         if chosen.is_some() || outside || escape {
             self.menu = None;
+        } else {
+            crate::esc::open(ctx, crate::esc::Layer::TabMenu);
         }
         then
     }
+}
+
+/// What a row of a tab's menu does.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum TabAct {
+    Float,
+    Fold,
+    Maximise,
+    Hide,
+    Reset,
+    None,
 }
 
 /// `rect` moved so its edges meet the nearest edge of `bounds` or of `others` within

@@ -195,29 +195,67 @@ thing you hear is music. Press `Space` to play it. Nothing dances at start: the 
 (*File ▸ Demo songs*) keeps its dancer, and you can add one to any song
 ([Saltator](dancer.md)).
 
-- **The top bar** (see [below](#the-top-bar)): the menus over the project's name and the
-  hint panel, then the transport, the tempo, the metronome, the position, the meters and
-  more — one group per function.
+- **The top bar** (see [below](#the-top-bar)): one row — the menus over the project's name,
+  then the transport, the metronome, the tempo, the clock, the grid, the windows, and at the
+  right the meters, the audio device, Settings and **More**.
 - **The arrangement** (centre): tracks and their clips on a timeline.
 - **The clip browser** (`Alt+F5`, *View ▸ Clip browser*): every clip of the song as a
   tile, beside the arrangement (see [chapter 5](#clips-in-the-arrangement)).
 - **The lower zone**: the Mixer, the Piano roll and the Channel rack as tabs.
 - **The inspector** (right, `I`): everything about the selected track, strip or clip.
-- **The status bar** (bottom): what is under the pointer, plug-in latency, samples loading,
-  the typing keyboard's octave and minimised devices.
+- **The status line** (bottom): the **help line** — what is under the pointer, its value,
+  what drives it (an automation clip, a modulator, a controller, a VCA) and the keys that
+  act on it — then plug-in latency, samples loading, the typing keyboard's octave and
+  minimised devices. Every control says something there; nothing is left blank.
 
 Every area can be shown or hidden with its window key or its function key (`F5`
 arrangement, `Alt+F5` clip browser, `F6` channel rack, `F7` piano roll, `F9` mixer,
-`Alt+F8` browser, `I` inspector). Drag the splitters to resize; right-click a tab to float it in its own
-window; save the arrangement of the window under *View ▸ Layout ▸ Save layout…*. The
-interface zooms from 75 % to 200 % (`Ctrl+Plus`, `Ctrl+Minus`, `Ctrl+0`). Twelve themes —
-Cantus Night (the default), Cantus Paper, Daylight, Blue Hour, high-contrast dark and light
-and more, each with a preview — the colours, the logo and the taskbar icon's colour are
-under *View ▸ Appearance*. Each theme has its own **materials** (group *Depth*): how light
-falls on the controls — the bevel on a raised key and its shade, the shadow inside a
-well, the light on a well's lip, the shine on metal and glass, the shadow an object casts.
-Cantus Night is metal and glass, Cantus Paper matte; recolour any of them, or turn the
-theme's depth down for a flat look. The faders have two caps to choose from in *View ▸ Appearance ▸ Faders*: **Classic** (the ivory cap, the default) and **Metal** (machined, with an engraved index and the theme's shine); every fader — the mixer, VCAs, the units — changes at once.
+`Alt+F8` browser, `I` inspector). Drag the splitters to resize (a right-click resets one, a
+double-click folds or unfolds it); right-click a tab for its menu:
+
+- **Collapse area** (`Ctrl+Alt+C`) folds the area to its tab bar — or, in a row, to a thin
+  rail with its glyph — and keeps its place; *Expand area*, a click on the rail or a drag of
+  the folded line brings it back exactly as it was.
+- **Maximise area** (a double-click on its tab, or `Ctrl+Alt+Enter`) gives it the whole
+  workspace; the hidden areas wait in a row of tabs at its foot — click one to bring the
+  areas back with it in front, or *Show the docks*. Again, or showing any area, gives the
+  others back. Floating windows stay.
+- **Float** puts it in a window of its own; **Dock** brings it back.
+
+`Ctrl+F6` and `Ctrl+Shift+F6` move the keyboard's focus from area to area (the focused tab's
+glyph is lit); `Shift+F10` opens what a right-click on the selection opens; `Esc` closes what
+opened last. Every area that holds more than it shows scrolls. Save the arrangement of the
+window under *View ▸ Layout ▸ Save layout…*; the layout is kept between sessions.
+
+**The look.** Cantus is drawn in **Slate**: a calm grey-blue room where panels are set apart
+by value rather than by lines, one azure accent means *on* or *selected* and nothing else,
+and your track colours are a stripe and a tint until you select a track — then it lights
+across the window (its header, clips, strip and the inspector). The type is Barlow Semi
+Condensed, whose figures keep their width as they count; keys and fields are flat wells
+with a dark edge and a light lip; in silence nothing reads "−∞". *Settings ▸ Appearance*
+(`Ctrl+,`) holds every theme as a picture, in four groups: round 39's **families** —
+**Slate** (the default), **Slate Lapis** (a night-blue room, the selection in lapis, and the logo's gold on
+the clock, the rulers' numbers, the playhead and the loop), **Graphite and gold** and **Studio ink**; the themes of
+earlier versions, **redrawn** in the new look — **Cantus Night · Paper** (espresso and the
+logo's copper, verdigris on the selection), **Blue Hour · Daylight** (deep navy, and white
+with blue), **Pewter · Chalk** (slate grey with orange and lime, and its chalk twin: the
+old *Slate* and *Paper*, renamed), **Ink & Gold · Parchment**, **Ultraviolet** and
+**Lagoon**; the **new** ones — **Evergreen Night · Paper** (forest green and brass, with
+real patch cords in the mixer), **Bordeaux** (wine and rose gold) and **Print** (black ink on
+white paper and one vermilion); and the **high-contrast** pair (every text at 7:1). A click
+sets a family in both lights; a theme made in one light (Ultraviolet, Lagoon, Bordeaux,
+Print) also switches the window to that mode. Then the mode (**Night**, **Paper**, or follow
+the system), the cable style, the taskbar icon's colours, and the recolouring (hue,
+saturation, brightness, contrast, every colour role, or click an element to recolour it). A
+setting saved by an earlier version opens in the theme it names, with your own colour
+changes kept; themes you made yourself are untouched. In the high-contrast themes and your
+own older ones the faders still offer two caps (*Faders*: **Classic** and **Metal**); every
+other theme draws one cap, lit from above.
+
+**The size** follows your screen until you choose one: about 125 % on a 1920-pixel screen
+(less when Windows already scales), never under 100 % nor over 200 %. `Ctrl+Plus`,
+`Ctrl+Minus` and `Ctrl+0`, or *Settings ▸ Appearance*, set your own, which is kept; a size you
+chose in an earlier version is kept too.
 
 **Typing a name or a value** works the same everywhere — renaming a track, a clip, a pad
 or a strip, a search, a level: the field opens with its words selected, so typing
@@ -266,79 +304,78 @@ back.
 
 ### The top bar
 
-The top bar is FL Studio's strip in two rows: one group per function, a thin divider
-between the columns. The transport, the metronome and the clock (bars.beats.ticks large,
-the time and the metre on a line under them) take the bar's height; the others are one row
-high and stack two to a column (PAT / SONG over the tempo, the snap over undo, the windows
-over the inputs, the master meter over CPU/RAM/voices/drops — a console's meter bridge —
-and the audio chip over the tools). On a wide window the transport, the tempo and the
-clock are drawn a size up (keys of 31 pt at 1920 pixels). **At 1920 × 1080 every group is
-on the bar.** On a narrower window (or at a larger zoom) groups wait in ⋯ at the bar's
-right end, each under its name with its shortcut, in this order: the area keys first
-(F5…), then CPU/RAM, then the metronome's options, sync, the tools, the snap and the
-inputs; the transport, the clock, the tempo, undo / redo and the audio chip stay. On a
-full bar the audio chip shows your interface's name and latency (point at it for the whole
-line), and the whole line when there is room.
+The top bar is one row, 44 points high. Every key sits in a recessed well on its centre
+line; a key that is on is tinted inside its well — green for play, red for record, the
+accent for the rest. The groups pack in two clusters: at the left the menus, Pat / Song,
+the transport, the metronome, the tempo, the clock, the grid, undo and the windows; at the
+right the system meters, the inputs, the master meter, the audio device, the tools,
+**Settings** (the gear) and **More**. At 1920 × 1080 and 100 % only the tools wait in More
+(in Spanish the inputs too); at a larger size more groups fold.
 
-- **The menus and the hint panel**: *File, Edit, Clip, View, Help* over the project's name
-  and the hint for whatever is under the pointer — with nothing under it, the song's summary
-  (tracks · strips · bars · length). **Click the name** to rename the
-  project in place (`Enter` keeps it, `Esc` leaves); the window's title follows it, with
-  `•` while there are unsaved changes.
-- **PAT / SONG** (`L`): *song mode* plays the arrangement; *pattern mode* plays the clip
+- **The menus**: *File, Edit, Clip, View, Help* over the project's name and its summary
+  (`9 tracks · 16 bars · 0:30`). **Click the name** to rename the project in place
+  (`Enter` keeps it, `Esc` leaves); the window's title follows it, with `•` while there are
+  unsaved changes. On a narrow bar the menus become one ≡ key holding each menu as a
+  submenu. Every row of the menus shows its shortcut, or is in the command palette under
+  the same words.
+- **Pat / Song** (`L`): *song mode* plays the arrangement; *pattern mode* plays the clip
   you are editing in the piano roll or the channel rack — with whatever the rack shows
   on the other tracks in that stretch — alone and looped, and the clock counts from the
   pattern's start; the playhead stays in the pattern (Home or a click outside it goes to
   its top). Choosing another note clip changes what plays; selecting a track, an audio
-  clip or nothing keeps the pattern. Leaving pattern mode puts
-  the playhead back where the song was. Pattern mode does not record, and cannot be
-  switched on in the middle of a take (a take belongs to
-  the song: switch to song mode first) and export always renders the song. It is saved
-  with the project.
-- **Transport**: go to start, play, stop, record and its ▾ options, loop.
-- **Tempo**: the BPM (drag, wheel, double-click for 120); **TAP** (`Shift+T`): tap at least
-  twice — the tempo is the average of your last taps, a pause starts again, and each run
-  of taps is one undo step; the **time signature**: click it for the beats (‹ ›), the
-  note value and the usual metres.
-- **Metronome** (`Ctrl+M`): its switch, the **count-in** (off, 1, 2, 4 bars) and the
-  click's **level** (drag, wheel, double-click for 0 dB). Its ▾ holds the **sound**
-  (*Classic*, *Woodblock*, *Beep*), the **accent** on the first beat of each bar, and
-  **when** it plays (always, while recording, during the count-in). The sound and the
-  accent are saved with the song.
-- **Position**: bars.beats.ticks and the time, the metre beside them; while recording, the
-  take's time.
-- **Grid and snap**: the grid and the SNAP lamp of the editor you are working in — the
-  arrangement, the piano roll or the channel rack (always on its grid); with an audio clip
-  in the piano roll's place, the pitch editor's grid (what *Quantise timing* moves notes
-  to), and with an automation clip, the arrangement's grid the automation editor snaps
-  to. The same values as the editor's own toolbar.
-- **Undo** and **redo**, and the **window keys** (browser, arrangement, rack, piano roll,
-  mixer, inspector).
-- **CPU, RAM, voices, drops**: the audio callback's load (its histogram in the tooltip),
-  the memory Cantus uses, the voices sounding and the dropouts counted (the latest one's
-  cause in the tooltip, and said on the status line when it happens).
-- **Master meter**: *Peak* shows the left and right peaks and holds the highest of the
-  last two seconds (click the number to reset it); *LUFS* shows the master's loudness —
-  momentary in the top lane, short-term below, with a mark at −14 LUFS (the streaming
-  services' level), and underneath the short-term, the integrated loudness of the pass
-  (from Play; it holds after Stop) and the highest true peak since you
-  pressed play (click the number to reset it).
-- **Inputs**: the typing keyboard (`Ctrl+T`), the **MIDI** lamp (it lights as notes come
-  in; the number is the inputs open) and **Armed** (how many tracks will record; click to
-  arm the selected one).
+  clip or nothing keeps the pattern. Leaving pattern mode puts the playhead back where the
+  song was. Pattern mode does not record, and cannot be switched on in the middle of a take
+  (a take belongs to the song: switch to song mode first); export always renders the song.
+  It is saved with the project.
+- **Transport**: go to start, play, stop, record, loop. **Right-click the record key** for
+  the recording options (count-in, punch, takes).
+- **Metronome** (`Ctrl+M`): its key and its ▾ in one well. The ▾ holds the **count-in**
+  (off, 1, 2, 4 bars), the click's **level**, the **sound** (*Classic*, *Woodblock*,
+  *Beep*), the **accent** on the first beat of each bar and **when** it plays (always,
+  while recording, during the count-in). The sound and the accent are saved with the song.
+- **Tempo**: `124.000 BPM` — drag it, turn the wheel, double-click for 120; **click the
+  unit to tap** (`Shift+T`): it reads *TAP* in the accent while you tap; tap at least
+  twice — the tempo is the average of your last taps, a pause starts again, and each run of
+  taps is one undo step. Beside it the **time signature**: click it for the beats, the note
+  value and the usual metres.
+- **The clock**: the time large and thin, `bar · beat` under it; while recording it turns
+  red and the take's time takes the time's place.
+- **Grid and snap**: the magnet and the grid in one well — the grid and snap of the editor
+  you are working in (the arrangement, the piano roll or the channel rack); with an audio
+  clip in the piano roll's place, the pitch editor's grid, and with an automation clip, the
+  arrangement's grid. The same values as the editor's own toolbar.
+- **Undo** and **redo**, and the seven **window keys**: browser, arrangement, rack, piano
+  roll, the plug-in window (`F8`), mixer, inspector. The session view is on `Tab` and in
+  *View*; the typing keyboard on `Ctrl+T` and the status line; automation's arm and modes
+  on their keys and in the palette.
+- **CPU, memory, dropouts**: the audio callback's load as a small graph with its number,
+  the memory Cantus uses, and dropouts as a red pill when there are any (the latest one's
+  cause on the status line).
+- **Inputs**: the **MIDI** lamp (it lights as notes come in) and the armed ring with how
+  many tracks will record.
+- **Master meter**: two thin lanes with the scale's ticks, grooves at rest (never "−∞") and
+  a clip lamp. Its figures are on the help line when you point at it: *Peak* shows the left
+  and right peaks and holds the highest of the last two seconds; *LUFS* shows the master's
+  loudness — momentary, short-term, the integrated loudness of the pass (from Play; it holds
+  after Stop) and the highest true peak since you pressed play (click to reset).
 - **Sync** (shown while Link or an outside clock is followed, or when you show it in
   *Customise top bar…*): **LINK** and its peers, **Q** (Link's quantum) and **EXT** (the
   source's tempo and lock light) — see [Playing in sync](#playing-in-sync-ableton-link-midi-clock-and-time-code).
-- **The audio chip** (see [the audio chip](#the-audio-chip)) and the **tools**: the
-  element picker, the appearance page, and the interface's zoom.
+- **The audio device** (see [the audio chip](#the-audio-chip)): its name, or the amber
+  warning with *No device*; then the **tools**: the element picker and the interface's
+  zoom; the gear opens **Settings**.
 
-**A narrow window** folds the least important groups — whole — into the **⋯** menu at the
-right end, where they work as on the bar — their own menus and popovers included; a
-group folded earlier comes back as soon as it fits. The menus never fold: they sit above
-the hint panel, in its width. A dot on ⋯ says something is folded there (red when it is
-the audio chip and the audio needs a look). **Customise top bar…** (in ⋯, in *View*, or
-right-click the bar): tick a group to show or hide it, drag it by its grip to move it,
-*Reset* for the default. Your arrangement is kept.
+**More.** On a narrower window (or at a larger size) the groups fold in a fixed order — the
+tools, the inputs, CPU and memory, the windows, then compact forms of the device, the
+metronome, the meter, the tempo, the clock and the menus — and wait in **More**, which
+shows how many are folded. Its panel lays them out in sections: *Metronome* (its key,
+switch and shortcut; count-in, level, sound, accent), *Windows* (each key with its shortcut
+under it), *Performance* (CPU, memory, voices and dropouts as graphs of the last 30 s with
+their numbers), *Inputs* (the ports, the armed tracks by name) and *Tools and zoom*
+(− 100 % +); smaller pieces under *Also here*. Everything works there as on the bar; a group
+comes back to the bar as soon as it fits. The transport always stays. **Customise top
+bar…** (at the foot of More, in *View*, or right-click the bar): tick a group to show or
+hide it, drag it by its grip to move it, *Reset* for the default. Your order is kept.
 
 ## 4. Record audio and MIDI
 
@@ -685,8 +722,8 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
   slides the content inside the clip.
 - **Split** at the playhead: `Ctrl+E`. **Glue**: `Ctrl+J`. **Duplicate**: `Ctrl+D` (press
   again to keep tiling). **Mute**: `0`. **Rename**: `F2`. **Colour**: `Ctrl+Shift+C`.
-- **Time selection**: drag in the ruler's lower lane; the top strip is the loop. `Shift+L`
-  loops the selection, `Z` zooms to it.
+- **Time selection**: drag in the ruler's lower lane; the top strip is the loop — a loop drawn
+  there loops at once (one undo step). `Shift+L` loops the selection, `Z` zooms to it.
 - **Audio clips** have handles for fade in, fade out and gain (double-click one to reset
   it; right-click a fade for its curve) and a menu with *Normalize*, *Reverse*, *Reset clip
   gain* and *Remove fades*.
@@ -733,8 +770,87 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
   copies of that clip only; each stroke is one undo step; `Esc` puts the tool away.
   Double-click a tile to select all its copies.
 
-The **grid** (the arrangement's toolbar) starts at one bar; choose finer values for
-detail. Scroll with the wheel, `Shift+wheel` for time, `Ctrl+wheel` to zoom.
+Scroll with the wheel, `Shift+wheel` for time, `Ctrl+wheel` to zoom. Under the lanes, the
+**song map** is the horizontal scroll bar: every track a line where it has clips, the view a
+frame — drag the frame, drag its ends to zoom, press elsewhere to go there.
+
+### The arrangement's tools, Follow and the grid
+
+The arrangement's toolbar holds its name, the **tools**, the **grid**, **Follow** and the
+panel menu **…**. The tools are a radio set — the chosen one is lit — and the keys are FL's
+letters and the number row while the arrangement has the focus (the piano roll's tools
+otherwise):
+
+| Tool | Key | What it does |
+|---|---|---|
+| Select | `E` or `3` | Click a clip to pick it, drag it to move it, drag its edge to resize it; a drag on empty lanes selects. In hand at start |
+| Draw | `P` or `1` | Click an empty lane to add a bar-long clip in the grid cell you clicked; drag to draw it to the length dragged. On a clip it moves and resizes, as Select |
+| Slice | `C` or `6` | Click a clip to cut it in two on the grid; the cut is drawn under the pointer first |
+| Erase | `D` or `4` | Click a clip, or drag across clips, to delete them (one undo step) |
+| Mute | `T` or `5` | Click a clip, or drag across clips, to mute or unmute them |
+| Zoom | `8` | Click to zoom in at the pointer, `Alt`+click to zoom out, drag across bars to fit them |
+
+`B` (or `2`) is still the paint tool of the clip browser (see above), and `Z` zooms to the
+selection. The other actions of the old row — split, glue, duplicate, mute, repeat, make
+unique, delete, loop and zoom to the selection, *Snap to the grid* — are in the panel menu
+**…** and in the clip's menu, with their keys.
+
+- **Follow** (on at start): while the song plays, the view turns the page when the playhead
+  leaves it, starts outside it or wraps round the loop. A view you scrolled away yourself is
+  left alone.
+- **The grid** (it starts at one bar): its menu lists the values in musical order — *Bar*,
+  1/2, *Beat*, 1/8, 1/16, 1/32 — with a check on the current one, then **Triplets**
+  (`Shift+3`; a value and its triplet, "1/8T") and **Follow the zoom** (the grid becomes the
+  finest value whose lines stand at least 12 points apart). `Ctrl` while dragging ignores the
+  grid. The piano roll's grid menu is the same.
+- On a narrow window the toolbar folds: first the grid's and Follow's words, then the name
+  becomes its glyph, then the tools become the chosen one and a chevron that lists them all.
+
+**What the clips show.** A clip's content is drawn at four zooms: far, a MIDI clip's pitch
+contour, a drum clip's pulse and an audio clip's loudness; closer, the notes in rows ranked by
+pitch (a melody in pitch order), each drum a row, the waveform's peaks and loudness; close, the
+notes at their length and brightness by velocity, the stereo sides apart (*L*, *R*), an
+automation lane's values beside its points ("−15.0 dB"). The selected track's clips are lit a
+step; while a track is soloed, the others' clips are dimmed; a clip under the playhead
+brightens while it plays; a muted clip is hatched. Moving a clip leaves its old place dashed
+and the clip riding over a soft shadow, with "Drop → 3.1" on the help line; resizing lights
+the edge and the help line says the length it lands on (`Alt` stretches, `Ctrl` ignores the
+grid). Point at a MIDI clip and a small **notch** shows in its top right corner: drag it to
+repeat the clip at its length (one undo step).
+
+### Sections, folders, track headers and a track's icon
+
+- **Sections** are named spans of bars in a lane under the ruler (*Sections*), each with its
+  length ("8 bars"); the one playing is the strongest. Add one from the lane's menu or from
+  the lanes key in the corner above the headers (of the time selection, or four bars). Click
+  a section to select it, double-click to rename it, drag it along the bars (one undo step),
+  drag its end to change its length; its menu selects or loops its time and removes it.
+  Dragging a section moves the section itself; moving the music under it with it is planned.
+- **Folders**: the add-track menu's *Folder*, or a track's menu ▸ *Put in a new folder*. A
+  folder is a row of its own with a chevron, its name and M · S (they mute and solo its
+  members, in one step); its lane shows the members' clips as thin bars. Closed, it is one
+  row ("Folder · 4 tracks → Drum bus") and its members take no height; open, the members are
+  indented under it. Drop a header between two members to put it in their folder, anywhere
+  else to take it out; *Take out of its folder* and *Ungroup* do it from the menu.
+- **Track headers**: the number, the name, a line under it (the instrument, the armed input
+  with its meter, or *Frozen*), a slim meter, and M S ● A as letters at rest — gathered into
+  one well under the pointer; only the engaged key is lit (S amber, ● red, A violet; M
+  outlined amber when a solo silences the track). Heights 24, 32, 44 (the default), 64 (with
+  the level as a slider) and 96 (with the inserts in words), from the track's menu ▸
+  *Height*, or any height by dragging a row's foot (`Alt`: every track). Drag the headers'
+  edge for their width (120–360).
+- **A mode per automation lane**: an automation lane's header shows its **mode chip** (Read,
+  Touch, Latch, Write); click it to give that lane a mode of its own over its track's.
+- **A track's own icon**: the track's menu ▸ *Icon…*, or a click on the icon before its name,
+  opens the **icon picker**: 316 drawings in 17 families (drums, percussion, tuned percussion,
+  guitars and basses, strings, winds and brass, keys, electronic, voice, sound and FX, mix,
+  marks and shapes…), the ones you used lately in a row at the top, **None** to take it away,
+  and a search field that finds an icon by its English or Spanish name or an alias, accents
+  aside. The icon shows before the track's name, on its mixer strip's head and in the
+  inspector. Each pick is one undo step.
+- **An empty song** offers *Start your song* with three starters (an instrument track, a
+  drum kit, an audio track), a place to drop a sound, a loop or a MIDI file, and *Or open a
+  demo song*.
 
 ### The tempo track and markers
 
@@ -808,6 +924,24 @@ edits that clip's notes.
 quantizes, `Ctrl+C`/`Ctrl+V` copy and paste. Velocities are stems in the lane under the
 grid: drag them, or `Alt+wheel` over a note. A drum kit shows one named row per pad.
 
+**The keyboard and the notes.** The keyboard at the left is drawn as a piano: ivory and
+ebony keys at a real piano's widths (C to E share five rows, F to B seven, so only E|F and
+B|C fall on row lines), every C named in its key, middle C heavier. The key under the
+pointer is lit, the key a click sounds is lit more, and while the song plays the keys
+sounding light in the track's colour. The corner above it, **Rows**, sets the rows' height:
+*Compact 8*, *Default 12* or *Tall 18* (`Ctrl+Alt+wheel` over the notes zooms them freely).
+A note's fill follows its velocity, with a brighter attack and its name inside once it is
+wide enough; a selected note is lifted and ringed; a muted note is hollow.
+
+**Ghosts** (the *Ghosts* lamp in the head, on by default) shows the other clips' notes
+faintly behind this one — the same track's in its colour, other tracks' in grey — and the
+head names whose they are ("Pluck · Lead · Choir"). They are never selected or moved.
+
+**The head** says which clip is open: the track's stripe and name › the clip's name, a menu
+of this track's other clips and the other tracks' (*Other tracks*), and, with notes selected,
+how many and their range ("6 notes selected · E4 – C5 · velocity 90 – 95"). Its tools,
+grid, Snap, Ghosts and the scale's parts fold on a narrow window, as the arrangement's do.
+
 **Lanes under the notes.** Under the grid, each clip shows its velocity lane and the lanes it
 holds. The **+** in the velocity lane's cell adds one: **Release velocity** (how fast each
 note is let go — drag its stems; a ring on the floor is a note with none), **Pitch bend**,
@@ -830,8 +964,26 @@ under the splitter; when there are more than fit, the wheel over their cells scr
 MIDI files bring their bends, pressure and controllers into these lanes and take them out
 again on export, with each note's release velocity.
 
+### The channel rack
+
 The **channel rack** (`F6`) shows every track as a row of steps over the selected clip's
 bars: click a step on, right-click it off, drag to paint. A step is an ordinary note.
+
+- **A row** is the channel's lamp, its two knobs, its mixer track, its **name plate** and its
+  steps; the channel's colour is a stripe at the left (whole when selected), and the selected
+  row is tinted across the grid. A lit step is filled from its floor to its velocity in the
+  channel's colour; beats two and four sit a step lighter.
+- **A drum kit** lists its pads under its own row, stepped in, with a tree line; its plate
+  says how many pads it has ("3 pads"). **Its chevron folds the pads** under the kit's row (the
+  row keeps showing their hits) and opens them again.
+- **A melodic channel** shows its pattern as a small piano roll in one well across the page,
+  and an audio channel its sound's waveform.
+- **Two bars a page** when the rack is fitted; the **pattern map** at the head's right shows
+  every bar of the pattern (the page in view raised, each beat's hits as a mark) — click a bar
+  to page there; the scroll bar pages through the rest.
+- **At the foot**: **Add a channel** opens the instrument picker for a new channel at the
+  end; under it a drop zone — *Drop a sound here for a new channel*, *or onto a channel to
+  replace its sample* — lights while you drag a sound from the browser over it.
 
 ### The pitch editor
 
@@ -1030,7 +1182,7 @@ several, and they add up on top of its automation.
 - **Everywhere**: every knob of Cantus's instruments and effects, the mixer's faders, pans
   and widths (the master's too), every **send's level** (its knob and row on the desk, its
   cable's level, the inspector's send and receive rows; a send's right-click menu has
-  *Automate* and *Modulate…* for it), the inspector's pinned strip and a hosted plug-in's
+  *Automate* and *Modulate…* for it), the inspector's Level section and a hosted plug-in's
   parameters take a modulator the same way. So does a modulator's own **amount**: let a
   random source move how deep an LFO goes (one level of nesting). Chorda's tuning (A4,
   stretch, stiffness) is set, never automated or modulated.
@@ -1322,29 +1474,53 @@ part or a drum loop into notes on a new track: see [Convert audio to MIDI](audio
 ![The mixer](../img/mixer.png)
 
 Each track feeds a **strip** of the mixer (`F9`); strips feed the **master** at the left,
-or another strip (a bus). A strip has its level meter, mute and solo, pan, fader, phase
-and swap, width, a three-band EQ, its inserts and its sends. Click to select, `Ctrl+click`
-to add, `Shift+click` for a run; dragging one fader of a selection moves them all. With
-the mixer focused, `M` mutes, `S` solos, `Alt+Left`/`Alt+Right` move the strip.
-`Ctrl+wheel` changes the strips' width; at *Extra large* each strip shows a one-line summary
-of its chain (click it to open the inspector). The desk's ▾ menu ▸ *Insert panel* docks the
-selected strip's ten insert slots at the desk's right: click a slot to open its effect, an
-empty one to open the inspector where inserts are added; each mixer layout keeps the choice.
+or another strip (a bus). A strip reads from top to bottom in the order the signal takes:
+its **head** (the number over the name, the track's icon, the arm dot), the **inserts** (a
+dot and the unit's kind for each; the first free row a faint `+`), its own **EQ curve**,
+polarity and swap, **pan** (and the width knob), **M | S** as one pill, the **fader** with
+its meter beside it and its level under it, the **sends** as small knobs, and the
+**output** ("Master" quietly, or "→ Drum bus"). Nothing reads "−∞" at rest; there is no
+label column. Three widths — **Compact**, **Wide** and **Large** (the unit's name on each
+insert, the send levels in dB, the EQ bands as dots on the curve, the master's short-term
+LUFS) — on the desk's header or with `Ctrl+wheel`; a short desk gives way row by row (the EQ,
+the polarity row, the inserts to one summary line, the sends…) and then scrolls. When the
+mixer is docked under a bar with room, its header — the widths, **Rows ▾** (which rows the
+strips show, *From the selected strip* among them, and *Insert panel*), the solo chip
+("1 soloed · Clear"), **Cables**, **Snapshots** and `+` — sits on the workspace's row of
+tabs, right of the tabs. Click a strip to select it (its body tinted, its stripe whole),
+`Ctrl+click` to add, `Shift+click` for a run; dragging one fader of a selection moves them
+all. With the mixer focused, `M` mutes, `S` solos, `Alt+Left`/`Alt+Right` move the strip.
+A muted strip goes quiet in ink; a strip silenced by another's solo shows its M ringed in
+the solo colour.
 
-- **Inserts** (up to ten per strip): click an empty slot to choose an effect in the device
-  picker, or right-click it for the quick list. On a filled slot, click the lamp to bypass
-  it and the name to open its window; right-click to swap, move or remove it. In the
-  inspector, each insert has a **Mix** ring (dry/wet).
-- **Sends**: select a strip, then look at the *Sends* row of the others — click the ▲ of
-  the strip you want to send to (a reverb return, a parallel compressor); a knob then sets
-  the send's level. Each send taps **after the fader (POST, the default) or before it
-  (PRE)** — click its PRE/POST chip; a PRE send keeps sounding when you pull the fader down.
-- **Cables**: each strip has a port. Drag from it to another strip, or click it and then
-  the destination (`Esc` cancels): plain makes a send at 0 dB, `Ctrl` makes it the strip's
-  only output, `Alt` makes it a sidechain key. The selected strip's cables (or all, or
-  none — the switch above the desk, with a filter for which kinds) are drawn in a band
-  under the desk; click a cable to select it, drag its end to move it, `Delete` removes it.
-  A doubled path is allowed and marked. Every change is one undo step.
+- **Inserts** (up to ten per strip): click the `+` row (or right-click the strip ▸ *Add
+  effect ▸*, where the five effects you used last are at the top) to choose an effect in the
+  device picker. A click on the inserts shows the strip's chain in the inspector, where each
+  insert opens its window, has its lamp (bypass) and a **Mix** (dry/wet); right-click an
+  insert on the strip for its menu. A keyed insert shows its key glyph ("← Kick" when you
+  point at it, the source strip outlined).
+- **Sends**: a send is a small knob under its destination's name (Wide and Large; in Compact
+  a dot — click it for its knob); its value in dB shows in the name's place while you point
+  at it or drag. To make one, drag a cable (below), use the inspector's *Sends ▸ Add a send*,
+  or turn on *Rows ▾ ▸ From the selected strip* and click the ▲ of the strip you want to send
+  to. Each send taps **after the fader (the default) or before it** — its menu ▸ *Before the
+  fader*; a send before the fader keeps sounding when you pull the fader down.
+- **Cables**: each strip has two **jacks** in its foot — its input and its output. Drag from
+  an output jack to another strip, or click one and then the destination (`Esc` cancels):
+  plain makes a send at 0 dB, `Ctrl` makes it the strip's only output, `Alt` makes it a
+  sidechain key; while you drag, the help line says what it will do ("Route Chords to Drum
+  bus") or why it cannot ("Refused: Kick already feeds Drum bus (a loop)"). At rest nothing
+  is drawn; under a strip its routes read in words ("→ Drum bus", "3 routes"), and the strip
+  under the pointer lights the strips it reaches. **Cables** in the header draws the
+  selected strip's cables in a band under the desk (*Show all* in its menu draws every route,
+  the others dimmed); point at a cable and its **whole route to the master** lights while the
+  rest dims; click a cable to select it, pull its plug out of the input jack to move it,
+  `Delete` removes it. Every change is one undo step. **Four styles**, in the Cables menu ▸
+  *Cable style* or in *Settings ▸ Appearance*: **Patch** (curves that hang between the jacks),
+  **Flow** (the default: Patch with a light that runs along a cable while sound goes through
+  it, faster when louder, still when stopped), **Subway** (straight runs in lanes that never
+  overlap, with rounded corners) and **Jack** (plugs and cords that sag and settle for a moment
+  when you drop them). *The theme's* follows the look's own style.
 - **Routing**: right-click a strip ▸ *Routing* ▸ *Output* or *Send to*, `Shift+F10` for the
   selected strip's route menu, or select several strips and *Create submix from selected*.
   In a cable's or a send's route menu, *Level ▸ Type a level…* takes a level in dB (−∞ to
@@ -1359,6 +1535,44 @@ empty one to open the inspector where inserts are added; each mixer layout keeps
   `F12` closes every floating one.
 
 **Solo** follows the routing: a soloed strip is heard with what feeds it and what it feeds.
+
+### The inspector
+
+The inspector (`I`) shows the selected track, strip or clip as a signal-flow sheet. For a
+strip, under its head (the colour, the number, the name, *Mixer strip* and the ⋯ menu):
+
+- **Source** — what plays into the strip: the track's icon, the instrument's name and the
+  track's; a click shows the track, the arrow opens the instrument. A bus or a return lists
+  the strips routed into it; the master says *The whole mix*.
+- **Inserts** — a row per insert (its number, the unit and its kind, its lamp, a mini view's
+  key under the pointer) and one *+ Add an effect* row. The **mini view** opens under the row
+  with three of the unit's values to drag (a compressor: Threshold, Ratio and its live
+  Reduction); each keeps *Learn*, *Modulate…* and automation. Drag a row by its number to
+  reorder: it lifts, and a line shows where it lands.
+- **Equaliser** — the strip's EQ curve to drag, and under it a band table: each band's
+  frequency, gain and Q, each figure draggable.
+- **Sends** and **Receives** — each send its switch, name, level bar and value; an empty
+  section is *+ Add a send*.
+
+Then the sections that fold to one line each, with their state at the right — a click on a
+title opens or closes it:
+
+- **Routing** — the output, the input, the channel's polarity, swap and mono, the delay
+  compensation and the latency.
+- **Sidechain** — which insert it keys and from which strip.
+- **Recording** — the input, monitoring, the trim, *Armed*, *Low latency*.
+- **Automation** — the strip's track's mode (*Read · Touch · Latch · Write*), a line per lane
+  with a small picture of it and its points, and **Show in the arrangement**: it opens the
+  track's automation lanes, scrolls the arrangement to them and gives it the focus (one undo
+  step).
+- **Level** — volume, pan and width as bars with their values, the VCAs the strip follows,
+  *Mute · solo*, *Safe from snapshots* and *Safe from solo*; under the volume a slim meter on
+  the same scale (green, yellow, amber, the clip colour above, a peak hold). With several
+  strips selected the volume moves them together. Level takes the place of the old pinned
+  strip at the panel's foot.
+- **Freeze** — **Freeze strip** (or *Unfreeze*) and what it does; frozen, how many inserts
+  were rendered and the render's size on disk ("2 inserts rendered · 12 MB").
+- **Modulators** — open when the strip has some.
 
 ### Freeze and bounce in place
 
@@ -1562,32 +1776,51 @@ choices are remembered.
 
 ## 9. Sounds: the browser and sound packs
 
-The **browser** (`Alt+F8`, the first window key) docks at the left. It lists the sound
-packs you installed and *My folders* (click **+** to add any folder of samples).
+The **browser** (`Alt+F8`, the first window key) docks at the left. It lists your
+**Favourites**, the sound packs you installed (*Packs*) and *My folders* (click **+** to add
+any folder of samples).
 
 ![The sample browser](../img/browser.png)
 
-- **Click** a sound to hear it; click again to stop. Type in the search field to find
-  sounds across every pack and folder.
+- **Click** a sound to hear it; click again to stop. Each row has one mark for what it is: a
+  pack its cover, a folder the folder glyph, a sound its own small waveform; tree lines show
+  where a sound lives.
+- **Search**: type in the search field to find sounds across every pack and folder. The
+  match is lit inside each name. The results are **grouped by the pack or folder they are
+  in**, each group titled with its count; five a group until *Show the other N sounds*; each
+  hit shows its place under its name ("Kicks › Hard"). Click a group's title to keep the
+  search to that place: a **chip** says so (click its × to let go), and another chip names the
+  family tab chosen.
 - The **tabs** under the search (*All*, *Drums*, *Loops*, *Melodic*, *FX*) keep one family
-  of sounds, read from their names. The sounds are a table: each row shows its pack's
-  **cover**, its name, its **waveform**, its **tempo** and its **length** in columns, and
-  its **key** where its name says it ("Chord Stab Am", "Drum Loop 124 BPM").
-- The sound chosen gets a **card** under the list: its format (WAV · 44.1 kHz · Stereo ·
-  4.0 s), a larger waveform (click it to play) and its tags.
-- The **preview strip** at the browser's foot shows the sound chosen: ▶ / ■ to play or stop
-  it, how far it has played, and the **preview level** (click or drag along it; the sound
-  starts again at the new level).
+  of sounds, read from their names; the counts follow the tab.
+- The sound chosen gets a **card**: its name with its **star** at the right, where it lives,
+  its tags, and a **waveform well** — click it to play; while it plays the heard part is lit
+  and a line shows where it is. Under the well the card's keys: **play**, **loop** (the sound
+  starts again when it ends), the **preview level** (drag it while the sound plays — it does
+  not start again), and the numbers ("0:00.4 / 0:01.2 · 48 kHz · Stereo").
+- **The star** keeps a sound in **Favourites**, listed first in the browser; it belongs to
+  this computer's settings, not to the song.
 - **Drag** a sound onto a **Pulsus pad** (the pad plays it), onto **Exemplar**'s key map (a
-  zone on that key), onto the **channel rack** (a new sample channel with its own strip),
-  or onto the **arrangement** (an audio clip where you drop it). Each drop is one undo step.
+  zone on that key), onto the **channel rack** (a new sample channel with its own strip, or
+  onto a channel to replace its sample), or onto the **arrangement** (an audio clip where you
+  drop it). Each drop is one undo step.
 - With nothing installed, the browser offers **Start with a drum kit**: *Download* fetches
-  *Cantus Starter Drums* (81 one-shots, 33 MB). *Sound packs…* (or *More packs…*) lists
-  the others — Karoryfer's kits, VCSL and VSCO 2 percussion, a TX81Z for Exemplar, the
-  **Salamander Grand Piano** (a Yamaha C5, 16 velocity layers) and **DRSKit**, an acoustic
-  drum kit recorded by the DrumGizmo team — with their size, licence
-  and credits; *Install*, *Update*, *Remove*, *Show the folder*, and *Install from a
-  file…* for computers without internet.
+  *Cantus Starter Drums* (81 one-shots, 33 MB).
+
+**The Sound packs window** (*Sound packs…*, or *More packs…*) shows every pack as a
+**cover** drawn from what it holds (drum rings, a waveform, a keyboard, an impulse
+response…), grouped by category, with its name, what it is, how many files and its licence,
+and **its state**: *Get · 140 MB* (a click fetches it); while it downloads, a thin bar,
+"42 % of 54 MB" and *Cancel*; *Installed* with a check, and *Open* (it opens in the
+browser's tree); or *Update · 4 MB*. Its head counts the packs ("8 free packs · 3 installed ·
+471 MB on disk") and filters them (*All · Installed* and each category); **Sort** at the
+right orders them by category, name or size. Click a cover for its page beside the grid:
+details, licence and credits, *Install*, *Update*, *Remove*, *Show the folder*, and *Install
+from a file…* for computers without internet. *Where packs are kept ›* at the foot shows the
+folder. The packs: Cantus's own, Karoryfer's kits, VCSL and VSCO 2 percussion, a TX81Z for
+Exemplar, the **Salamander Grand Piano** (a Yamaha C5, 16 velocity layers), **DRSKit**, an
+acoustic drum kit recorded by the DrumGizmo team, and the **OpenAIR Impulse Responses** for
+[Aula](#aula-the-convolution-reverb).
 
 Every pack is free. Most are **CC0** (no credit needed); the Salamander Grand Piano is
 **CC BY 3.0** and DRSKit **CC BY 4.0**: their credit is shown on their page in *Sound
@@ -1678,12 +1911,12 @@ The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander),
 Fervor (saturation), Latitudo (stereo), Speculum (analyser), Tonus (pitch correction),
 Concentus (chorus), Flexus (flanger), Phasis (phaser), Tremor (tremolo and auto-pan),
 Vibrans (vibrato), Anulus (ring modulator), Translatio (frequency shifter), Fluctus (volume
-shaper), Delay and Reverb.
+shaper), Aula (convolution reverb), Delay and Reverb.
 
 ### Each unit's face
 
 Each of Cantus's effects and instruments wears a face of its own — all but the simple
-Delay and Reverb and Firmus, the synth every new track starts with, which keep the kit's
+Reverb and Firmus, the synth every new track starts with, which keep the kit's
 plain look — as hardware does and as the best plug-ins do: its colour and the material of its panel (brushed metal, wood, matte
 paint, vinyl amp covering, glass…), the look of its display (a glowing screen, an LCD, ink on paper, an
 oscilloscope's grid), the shape of its knobs and switches (a value ring, a skirted knob, a
@@ -1894,6 +2127,83 @@ Each file is scanned
 in a separate process, so a plug-in that crashes while being scanned is blocked, not
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
+
+### Aula, the convolution reverb
+
+**Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an
+**impulse response** — a recording of how a room answers a single click — the way the room
+itself would. Insert it from **Add insert ▾ ▸ Space ▸ Aula**; it starts in Cantus's *Concert
+hall*, a quarter wet, 12 ms late (the preset *Hall at 25 %*).
+
+**Where the response comes from** (the *Source* card):
+
+- **Cantus's own** — fifteen responses Cantus makes itself, the same on every computer, with
+  nothing to download: *Studio room*, *Small room*, *Wood room*, *Live room*, *Ambience*,
+  *Chamber*, *Stone chamber*, *Concert hall*, *Large hall*, *Cathedral*, *Plate*, *Vocal
+  plate*, *Dark plate*, *Spring* and *Long spring*. All are true stereo: a sound on the left
+  is heard on both sides, as in a room.
+- **A file** — **Load file** (or drop a file on the editor) takes a WAV, AIFF, FLAC or Ogg
+  response: one channel (mono), two (stereo: left to left, right to right) or four (**true
+  stereo**, in the order left→left, left→right, right→left, right→right, as Waves, Altiverb
+  and REAPER write it), 16, 24 or 32-bit float, at any sample rate (Aula converts it), up to
+  20 seconds. The file stays where it is; the project remembers its path. A file that is
+  missing is said in the card, and the reverb is silent until it is back. **Back to Cantus's
+  own** forgets the file.
+- **A free pack** — *Samples ▸ Get more ▸ OpenAIR Impulse Responses* downloads eight real
+  spaces measured by the OpenAIR library of the University of York (two churches in
+  Nashville, York Minster, a mausoleum, a woman's club hall, a marble hall, a typing room and a
+  slinky spring), under CC BY 4.0. Its credit is shown in the card whenever one of its files
+  plays; credit OpenAIR (www.openairlib.net) and the authors named there when you publish
+  music made with them.
+
+**The picture** is the response in decibels over time, after the pre-delay, as the controls
+below shape it — it moves as soon as a knob does. While a new response is being prepared the
+display says *Building the response…*; the old one keeps playing until the new one is swapped
+in whole, without a click, and the tail of what was playing is kept.
+
+| Card | Controls |
+|---|---|
+| Length and time | **Stretch** (50–200 %: a bigger or smaller room, lower or higher), **Length** (the part kept, faded at its end), **Reverse** (the response backwards: a swell into the sound) |
+| Envelope | **Attack** (the response faded in), **Decay** (100 % as recorded; lower, the tail dies sooner), **Gate** (where the response falls this far under its peak it ends: takes a recording's noise floor away; *Off* at −120 dB) |
+| Tone | **Low cut** and **High cut** (12 dB per octave, applied to the response), **Damping** (the highs die away faster as the tail goes on) |
+| Output | **Pre-delay** (0–500 ms), **Width** (0 mono … 200 %), **Mix** (dry and wet crossfaded), **Level** |
+
+**Exact and light.** Aula adds no latency: the first 64 samples of the response are played
+directly and the rest in partitions that grow eightfold, each one's work spread evenly over
+the blocks before it is needed, so a long hall costs the same in every block. It is within
+−130 dB of a direct convolution, gives the same bits at any buffer size, and exports, freezes
+and renders stems exactly as it plays. At 0 % mix it passes the sound untouched, to the bit.
+
+**In another DAW.** The exported CLAP and VST3 *Cantus Aula* plays Cantus's own fifteen
+responses (a plug-in's state holds numbers, not files). Agents set its numbers with
+`set_effect` and load a file with `set_impulse_response` (only once you allowed files, and
+only inside the folders you allowed).
+
+### Delay, the stereo delay
+
+**Delay** is Cantus's stereo echo: a time up to two seconds, feedback, a tone filter in the
+feedback path so each repeat is darker than the one before, and ping-pong between the sides.
+Insert it from **Add insert ▾ ▸ Space ▸ Delay**; a click on its insert opens its window (the
+mini view under the insert keeps the time, the feedback, the tone and the dry/wet at hand).
+
+**The echoes** are the window's picture and its control: the left side above the centre line,
+the right below; the sound at 0, then each repeat at its time, its height its level against the
+first, its colour cooling from the face's coral to rust as the tone takes its highs. With
+**Ping-pong** on, the first repeat is on the left and they cross from side to side; off, each
+side repeats itself. **Drag** on the picture: across for the time (the first repeat follows the
+pointer), up and down for the feedback (the dashed level lines follow it) — one step of undo.
+Shift is fine; a double-click goes back to 375 ms and 40 %. While sound plays, each repeat
+lights as the sound reaches it; at rest nothing moves.
+
+| Card | Controls |
+|---|---|
+| What is heard | the repeats to −60 dB, the tail they make, what the tone takes from each repeat at 8 kHz, the side of the first |
+| Time | **Time** (1 ms … 2 s); **At the tempo**: a note value at the song's tempo sets the time once — it does not follow a tempo change |
+| Repeats | **Feedback** (0–95 %), **Tone** (200 Hz … 20 kHz, in the feedback path) |
+| Output | **Ping-pong**, **Mix** (the repeats against the dry sound) |
+
+A change of time glides, so a sweep bends the pitch as tape does. Delay is not exported as a
+CLAP or VST3 plug-in.
 
 ### Plug-ins from other makers: installing and using them
 
@@ -2156,7 +2466,8 @@ templates in `projects`, track templates in `tracks`; each is a `.cantus` file, 
 template from an older version opens as any project does.
 
 **Settings** (`Ctrl+,`, or the **Options** menu, which also opens each page directly;
-*View ▸ Settings…* still works). The window has a sidebar of pages, as FL's options:
+*View ▸ Settings…* still works). The window has a sidebar of pages, as FL's options, and
+opens on the page you left, in the next session too:
 *General* (the verse at start, on or off, and the
 Spanish Bible), *Audio* (driver, devices, rate, buffer, latency, the record offset, and the *Audio
 cores* at work — the audio thread and the cores helping it, `1` for the audio thread
@@ -2164,9 +2475,10 @@ alone — each count shown with an engine and a model it is known from, drawn at
 of the list and large under the field: `4 · V4 · Fulvia`, `12 · V12 · Enzo`, more than
 16 a turbo-ramjet; the line under it says how many are at work now, counted the same way;
 the real-time priority each audio thread was given is the last line of the band),
-*MIDI*, *Appearance* (language — English or Español —, interface size, *Units wear their
-own faces* — on or off, see [Each unit's face](#each-units-face) —, colours, keyboard
-shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
+*MIDI*, *Appearance* (language — English or Español —, the look's family and its mode —
+see [the look](#3-the-workspace) —, interface size, the cable style, *Units wear their
+own faces* — on or off, see [Each unit's face](#each-units-face) —, colours, the taskbar
+icon's colours, keyboard shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
 least recently used samples go first — and *Clear cache*; it lives in
 `%LOCALAPPDATA%\Cantus\cache\samples`, or in a portable copy's `data` folder), *Updates*,
 *Plug-ins* and *AI* (see [AI agents](#ai-agents-mcp) below).
@@ -2245,7 +2557,8 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Left` `Right` (`Shift`: a bar) | Nudge |
 | `Up` `Down` (`Shift`: an octave) | Transpose notes |
 | `Q` | Quantize |
-| `P` `B` `E` `D` `T` `C` `Y` or `1`–`7` | Piano roll tools; in the arrangement, `B` or `2` is the paint tool |
+| `P` `B` `E` `D` `T` `C` `Y` or `1`–`7` | Piano roll tools; in the arrangement `E` `P` `C` `D` `T` (or `3` `1` `6` `4` `5`) pick Select, Draw, Slice, Erase and Mute, `8` Zoom, and `B` or `2` is the paint tool |
+| `Shift+3` | The grid's triplets |
 | `Shift+L` · `Z` | Loop the time selection · zoom to it |
 | `Alt+A` | Automate the last parameter you moved |
 | `Alt+Shift+A` | Link the last parameter you moved to a MIDI controller |
@@ -2255,12 +2568,16 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Alt+F5` | Clip browser |
 | `F8` · `F12` | The selected track's instrument · close floating devices |
 | `M` · `S` · `Alt+Left`/`Alt+Right` | Mixer: mute · solo · move the strip |
-| `Alt+F9` · `Shift+F10` | The routing matrix · the selected strip's route menu |
+| `Alt+F9` | The routing matrix |
 | `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Make unique · link the selection to this clip · select linked copies · link to… |
 | `Ctrl+T` | Typing keyboard plays notes |
 | `Ctrl+Plus` · `Ctrl+Minus` · `Ctrl+0` | Interface zoom |
 | `Ctrl+,` | Settings |
 | `Ctrl+Shift+P` · `Alt+H` | The command palette · the undo history |
+| `Ctrl+F` | Find a preset for the selected track's instrument |
+| `Ctrl+F6` · `Ctrl+Shift+F6` | The next area · the area before |
+| `Ctrl+Alt+Enter` · `Ctrl+Alt+C` | Maximise the area you work in (again: give the others back) · collapse or expand it |
+| `Shift+F10` | The menu of the selection (in the mixer: the selected strip's route menu) |
 | `Alt+S` · `Alt+Shift+S` | The score under the piano roll · the Score pane |
 | `Tab` · `Enter` · `Shift+Enter` | Session ⇄ arrangement · launch the slot · launch the scene |
 | `Ctrl+Enter` · `Ctrl+Shift+Enter` · `Alt+Enter` | Stop the track's clip · stop all · record into the slot |
@@ -2352,7 +2669,11 @@ This is a beta. What we know about:
 - **macOS is a preview**: the disk image is not signed by Apple yet, and it has been tested on
   GitHub's macOS machines, not yet on a Mac at a desk. **Mackie Control and HUI** were tested
   with emulated units; tell us how your surface behaves ([External gear](external-gear.md)).
-- **Not in this beta**: several arrangements per project.
+- **Not in this beta**: several arrangements per project. Dragging a **section** moves the
+  section itself, not the music under it; insert and delete time are not in this beta.
+- **The new look** (Slate, round 39) was checked in pictures the program draws itself, not yet
+  on many real screens: if anything overlaps, is cut off or looks blurred at your screen's
+  scale, please send a screenshot. The themes of earlier versions are back, redrawn in it.
 - **Sectio** (the slicer, §10) finds about 92 % of the hits within 10 ms on clean loops and
   about 76 % on real recorded drums (88 % within 20 ms); brushed or ridden jazz drums are the
   hardest (43–65 %). Move a slice by hand, or re-slice at another sensitivity, where it
@@ -2363,7 +2684,6 @@ This is a beta. What we know about:
   under its CPU budget), not yet all tuned by ear; about twenty quiet, dynamic presets sit
   under their window by design. Ducking presets (Porta and Comprimo *Duck*) need a key
   signal routed to them before they do anything.
-- In the browser, changing the **preview level** restarts the sound that is playing.
 - **AI**: an assistant panel inside Cantus (with your own key or a local model) and
   generating audio are not in this beta — agents connect from outside through MCP (§11).
   Stems and audio to MIDI run on the processor (the graphics processor is used only where

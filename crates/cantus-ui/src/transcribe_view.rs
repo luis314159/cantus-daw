@@ -62,13 +62,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             ui.set_min_size(size);
             parts::panel(ui, rect, &s);
             let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 34.0 * k));
-            if crate::views::workspace_settings::title(
-                ui,
-                head,
-                &s,
-                Glyph::PianoRoll,
-                "transcribe.title",
-            ) {
+            if crate::kit::dialog::head(ui, head, &s, Glyph::PianoRoll, "transcribe.title") {
                 close = true;
             }
             let foot = Rect::from_min_max(

@@ -427,6 +427,19 @@ impl Default for SlotProfile {
 }
 
 impl SlotProfile {
+    /// A pool slot's profile before a pool runs it (ADR 0107): nothing allocated; never
+    /// charged, since no node runs on a slot the pool does not have.
+    pub fn bare() -> Self {
+        SlotProfile {
+            on: true,
+            current: 0,
+            mark: None,
+            block: Vec::new(),
+            touched: Vec::new(),
+            charged: 0,
+        }
+    }
+
     /// Allocates: built with the pool's scratch.
     pub fn new() -> Self {
         SlotProfile {

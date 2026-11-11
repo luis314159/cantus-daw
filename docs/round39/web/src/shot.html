@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8" /><title>shot frame</title>
+<style>html, body { margin: 0; background: #000; } iframe { display: block; border: 0; height: 900px; }</style></head>
+<body>
+<!-- Copied into web/dist/ by shoot-built.sh (never committed there): sets the theme and the
+     language the site remembers, opens the built site in a frame of the given width, and when
+     it has settled, grows the frame to the page's height and reports it (body[data-h]) and
+     any element wider than the frame (body[data-wide]). -->
+<iframe id="f"></iframe>
+<script>
+  var q = new URLSearchParams(location.search);
+  try { localStorage.setItem("cantus-theme", q.get("theme") || "dark"); localStorage.setItem("cantus-lang", q.get("lang") || "en"); } catch (e) {}
+  var w = +(q.get("w") || 1440), f = document.getElementById("f");
+  f.style.width = w + "px";
+  f.src = "./";
+  var last = -1, same = 0;
+  (function wait() {
+    var d = null;
+    try { d = f.contentDocument; } catch (e) {}
+    var h = d && d.querySelector("footer") ? d.documentElement.scrollHeight : -1;
+    if (h > 0 && h === last) same++; else same = 0;
+    last = h;
+    if (same >= 6) {
+      f.style.height = h + "px";
+      var wide = [];
+      d.querySelectorAll("body *").forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        if (r.width > 0 && r.right > w + 1 && !el.closest(".measured-table, .fx-list, .unit-scrim")) wide.push((el.className || el.tagName) + ":" + Math.round(r.right));
+      });
+      document.body.setAttribute("data-wide", (d.documentElement.scrollWidth > w ? "page " + d.documentElement.scrollWidth + "; " : "") + wide.slice(0, 8).join(" | "));
+      document.body.setAttribute("data-h", h);
+    } else setTimeout(wait, 150);
+  })();
+</script>
+</body></html>

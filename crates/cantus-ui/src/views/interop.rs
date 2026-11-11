@@ -141,25 +141,11 @@ pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
     ui.separator();
     if ui.button(t("interop.menu.import_midi")).clicked() {
         ui.close();
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("MIDI", &midi::EXTENSIONS)
-            .pick_file()
-        {
-            open_midi_import(app, &path);
-        }
+        import_midi_dialog(app);
     }
     if ui.button(t("interop.menu.export_midi")).clicked() {
         ui.close();
-        let scope = if app.selected_clip.is_some() {
-            MidiScope::Clip
-        } else {
-            MidiScope::Song
-        };
-        app.interop.midi_export = Some(MidiExportDialog {
-            scope,
-            ppq: midi::DEFAULT_PPQ,
-            played: true,
-        });
+        export_midi_dialog(app);
     }
     // Stems in any format, from the export dialog (ADR 0033).
     let busy = app.export.busy();
@@ -168,28 +154,71 @@ pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
         .clicked()
     {
         ui.close();
-        crate::views::export::open(app, Some(cantus_export::Scope::Stems));
+        export_stems_dialog(app);
     }
     ui.separator();
     if ui.button(t("interop.menu.import_dawproject")).clicked() {
         ui.close();
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("DAWproject", &[dawproject::EXTENSION])
-            .pick_file()
-        {
-            import_dawproject_from(app, &path);
-        }
+        import_dawproject_dialog(app);
     }
     if ui.button(t("interop.menu.export_dawproject")).clicked() {
         ui.close();
-        let name = format!("{}.{}", app.project().name, dawproject::EXTENSION);
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("DAWproject", &[dawproject::EXTENSION])
-            .set_file_name(name)
-            .save_file()
-        {
-            export_dawproject_to(app, &path);
-        }
+        export_dawproject_dialog(app);
+    }
+}
+
+// r39:ux-b — each File-menu row's work, shared with the command palette (ADR 0110).
+
+/// *Import MIDI…*: the system's file dialog, then the import's own.
+pub fn import_midi_dialog(app: &mut CantusApp) {
+    if let Some(path) = rfd::FileDialog::new()
+        .add_filter("MIDI", &midi::EXTENSIONS)
+        .pick_file()
+    {
+        open_midi_import(app, &path);
+    }
+}
+
+/// *Export MIDI…*: the selected clip, or the song.
+pub fn export_midi_dialog(app: &mut CantusApp) {
+    let scope = if app.selected_clip.is_some() {
+        MidiScope::Clip
+    } else {
+        MidiScope::Song
+    };
+    app.interop.midi_export = Some(MidiExportDialog {
+        scope,
+        ppq: midi::DEFAULT_PPQ,
+        played: true,
+    });
+}
+
+/// *Export stems…*: the export dialog on stems (nothing while an export runs).
+pub fn export_stems_dialog(app: &mut CantusApp) {
+    if !app.export.busy() {
+        crate::views::export::open(app, Some(cantus_export::Scope::Stems));
+    }
+}
+
+/// *Import DAWproject…*.
+pub fn import_dawproject_dialog(app: &mut CantusApp) {
+    if let Some(path) = rfd::FileDialog::new()
+        .add_filter("DAWproject", &[dawproject::EXTENSION])
+        .pick_file()
+    {
+        import_dawproject_from(app, &path);
+    }
+}
+
+/// *Export DAWproject…*.
+pub fn export_dawproject_dialog(app: &mut CantusApp) {
+    let name = format!("{}.{}", app.project().name, dawproject::EXTENSION);
+    if let Some(path) = rfd::FileDialog::new()
+        .add_filter("DAWproject", &[dawproject::EXTENSION])
+        .set_file_name(name)
+        .save_file()
+    {
+        export_dawproject_to(app, &path);
     }
 }
 
@@ -425,7 +454,7 @@ pub fn export_midi_notes(
 }
 
 fn dialog(title: String) -> egui::Window<'static> {
-    egui::Window::new(title)
+    crate::kit::dialog::window(title) // r39:el-controls
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
@@ -568,6 +597,15 @@ pub(crate) mod form {
     /// A push button: a cap with its word; `primary` wears the highlight.
     pub fn button(ui: &mut Ui, label: &str, primary: bool, enabled: bool) -> bool {
         let s = Style::current();
+        if s.t.system.recessed() {
+            // r39:el-controls — the kit's dialog buttons (`kit::dialog`).
+            let kind = if primary {
+                crate::kit::dialog::Kind::Primary
+            } else {
+                crate::kit::dialog::Kind::Secondary
+            };
+            return crate::kit::dialog::button_ui(ui, label, kind, enabled);
+        }
         let t = Text::new(label, Role::Control, s.t.text);
         let w = text::measure(ui.ctx(), &t, s.tk()).x + s.s(28.0);
         let sense = if enabled {
@@ -576,6 +614,8 @@ pub(crate) mod form {
             Sense::hover()
         };
         let (r, resp) = ui.allocate_exact_size(Vec2::new(w.max(s.s(76.0)), s.s(26.0)), sense);
+        // r39:ux-a — its word on the help line (ADR 0109).
+        let resp = crate::views::hint::said_with(resp, || label.to_string());
         let mut st = State::of(&resp, false);
         st.disabled = !enabled;
         with_brush(ui.painter(), |b| {
@@ -653,6 +693,9 @@ pub(crate) mod form {
 
     /// A row of buttons, right-aligned, the way a dialog ends.
     pub fn buttons<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+        if Style::current().t.system.recessed() {
+            return crate::kit::dialog::footer(ui, add); // r39:el-controls
+        }
         ui.add_space(8.0);
         // One button high: a layout given the rest of the window's height centres the
         // buttons in it, far under the words (round 24, the recovery dialog's shots).
@@ -681,6 +724,9 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
         .map(|c| c.name.clone());
     let (mut export, mut close) = (false, false);
     dialog(t("interop.midi_export.title")).show(ctx, |ui| {
+        if crate::kit::dialog::title(ui, &t("interop.midi_export.title")) {
+            close = true; // r39:el-controls
+        }
         form::band(ui, "interop.midi_export.what");
         if form::choice(
             ui,
@@ -747,7 +793,7 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
             }),
         );
         form::buttons(ui, |ui| {
-            close = form::button(ui, &t("interop.cancel"), false, true);
+            close |= form::button(ui, &t("interop.cancel"), false, true);
             export = form::button(ui, &t("interop.export"), true, true);
         });
     });
@@ -785,6 +831,9 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
         .to_string();
     let bar = crate::views::bars::bbt(app.project(), d.at).0;
     dialog(t("interop.midi_import.title")).show(ctx, |ui| {
+        if crate::kit::dialog::title(ui, &t("interop.midi_import.title")) {
+            close = true; // r39:el-controls
+        }
         ui.label(tf(
             "interop.midi_import.summary",
             &[
@@ -824,7 +873,7 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
         }
         hint(ui, tf("interop.midi_import.at", &[("bar", &bar)]));
         form::buttons(ui, |ui| {
-            close = form::button(ui, &t("interop.cancel"), false, true);
+            close |= form::button(ui, &t("interop.cancel"), false, true);
             import = form::button(ui, &t("interop.import"), true, true);
         });
     });
@@ -1199,12 +1248,15 @@ fn report_window(app: &mut CantusApp, ctx: &egui::Context) {
         return;
     };
     let mut close = false;
-    egui::Window::new(w.title.clone())
+    crate::kit::dialog::window(w.title.clone()) // r39:el-controls
         .collapsible(false)
         .resizable(true)
         .default_width(space::GRID * 110.0)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .show(ctx, |ui| {
+            if crate::kit::dialog::title(ui, &w.title) {
+                close = true; // r39:el-controls
+            }
             let dropped: Vec<_> = w.report.dropped_items().collect();
             let kept: Vec<_> = w
                 .report
@@ -1232,7 +1284,7 @@ fn report_window(app: &mut CantusApp, ctx: &egui::Context) {
                     }
                 });
             let clicked = form::buttons(ui, |ui| form::button(ui, &t("interop.close"), true, true));
-            close = clicked || ui.input(|i| i.key_pressed(egui::Key::Escape));
+            close |= clicked || ui.input(|i| i.key_pressed(egui::Key::Escape));
         });
     if close {
         app.interop.report = None;

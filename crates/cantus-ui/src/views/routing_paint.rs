@@ -13,7 +13,7 @@
 //! hollow ring elsewhere, and a diamond in the source hue where an insert hears its notes.
 
 use super::{Col, Geometry, Gesture, Grid, Refused, RoutingView, Row, NUM_W};
-use crate::kit::color::{on_fill, safe_track, shade, with_alpha, FillSize};
+use crate::kit::color::{on_fill, shade, with_alpha};
 use crate::kit::knob::{START, SWEEP};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{cable, focus_ring, tap, Brush, Fill, Function, Style, Tok};
@@ -43,7 +43,7 @@ const HEAD_TOKENS: &[Tok] = &[
 
 /// A row's or column's colour on a chip, clamped to the safe band.
 fn chip(c: Option<cantus_core::Color>, s: &Style) -> Option<Color32> {
-    c.map(|c| safe_track(crate::theme::track_color(c), s.t.dark, FillSize::Small))
+    c.map(|c| crate::kit::color::track_mark(crate::theme::track_color(c), &s.t))
 }
 
 /// The cells, the dock dividers, the band, the crosshair and the focus ring.

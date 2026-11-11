@@ -1037,7 +1037,10 @@ pub fn import_commands(
             lateness: None,
             note_fx: Vec::new(),
             score: Default::default(),
-            slots: Vec::new(), // r33:session
+            slots: Vec::new(),      // r33:session
+            folder: None,           // r39:arrange
+            lane_modes: Vec::new(), // r39:arrange
+            glyph: None,            // r39:arrange
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

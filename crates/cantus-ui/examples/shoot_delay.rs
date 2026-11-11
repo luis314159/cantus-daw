@@ -1,10 +1,11 @@
-//! Delay's pictures for its unit card (round 37, ADR 0101 §7). Delay has no editor window
-//! of its own: it is edited in the inspector, in the view that opens under its insert's tile
-//! (every parameter, its switch, its dry/wet). This draws the application on a track with
-//! Delay on its *Dotted eighth* preset, that view open in an inspector made wide enough for a
-//! card, and keeps the inspector's part from the insert's tile to the view's last row —
-//! written as `shoot_skins` names its shots (`delay-{slate,paper}-{100,200}.png`), so
-//! `web/tools/units_pictures.py` makes the card's and the README's pictures from them.
+//! Delay in the inspector (round 39, ADR 0115). Delay has had its own window since round 39
+//! — its pictures on the site and in the README are `shoot_skins`' now, like every other
+//! unit's. It also stays in the inspector, as the other windowed effects do: a click on its
+//! insert opens the window, and the mini view under it holds the quick controls (the time,
+//! the feedback and the tone, the dry/wet). This draws the application on a track with Delay
+//! on its *Dotted eighth* preset and keeps the inspector's part from the inserts' band to
+//! the mini view's last row (`delay-inspector-{slate,paper}-{100,200}.png`), and the whole
+//! window with Delay's open over it (`delay-app-{slate,paper}.png`).
 //!
 //! `cargo run --release -p cantus-ui --example shoot_delay -- <dir> [--es]`
 
@@ -20,8 +21,8 @@ use std::path::{Path, PathBuf};
 const SIZE: egui::Vec2 = egui::vec2(1600.0, 1000.0);
 /// The inspector's width for the picture: a card is about 1.6 times as wide as tall.
 const INSPECTOR: f32 = 360.0;
-/// From a row's value field back to the sheet's edge: its label column and the tile's margin.
-const LABELS: f32 = 137.0;
+/// From the insert's tile up to above the inserts' band: the band's title.
+const TOP: f32 = 32.0;
 /// The preset the picture shows.
 const PRESET: &str = "delay.preset.dotted_eighth";
 
@@ -92,16 +93,17 @@ fn shoot(dir: &Path, paper: bool, ppp: f32) {
         frame += 1;
         app.frame(root);
     });
-    let first = rect_of(&ctx, egui::Id::new(("insp-fxp", effect, "time_ms")))
-        .expect("Delay's view is drawn");
+    let tile = rect_of(&ctx, egui::Id::new(("insp-tile", effect))).expect("Delay's insert");
     let mix = rect_of(&ctx, egui::Id::new(("insp-fx-mix", effect))).expect("its mix row");
-    // The sheet's own margins: from the inserts' band over the tile to the key's row.
     let area = egui::Rect::from_min_max(
-        egui::pos2(first.left() - LABELS, first.top() - 70.0),
-        egui::pos2(first.right() + 14.0, mix.bottom() + 28.0),
+        egui::pos2(tile.left() - 10.0, tile.top() - TOP),
+        egui::pos2(tile.right() + 10.0, mix.bottom() + 40.0),
     );
     let theme = if paper { "paper" } else { "slate" };
-    let path = dir.join(format!("delay-{theme}-{}.png", (ppp * 100.0) as u32));
+    let path = dir.join(format!(
+        "delay-inspector-{theme}-{}.png",
+        (ppp * 100.0) as u32
+    ));
     crop(&canvas, area, ppp, &path);
     println!(
         "{} ({:.0} x {:.0} pt)",
@@ -109,6 +111,31 @@ fn shoot(dir: &Path, paper: bool, ppp: f32) {
         area.width(),
         area.height()
     );
+}
+
+/// The whole window with Delay's open over it, opened as a click on the insert opens it.
+fn shoot_app(dir: &Path, paper: bool) {
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    let (mut app, strip, effect) = app(paper);
+    app.attach(&ctx);
+    app.select_strip(strip);
+    app.open_effect_editor(strip, effect);
+    // Left of the inspector, so the insert it opened from shows beside it.
+    app.fx.pos = Some(egui::pos2(200.0, 96.0));
+    cantus_ui::views::fx::demo_feed(&mut app, EffectKind::Delay);
+    let theme = if paper { "paper" } else { "slate" };
+    let path = dir.join(format!("delay-app-{theme}.png"));
+    let mut frame = 0;
+    raster::shoot(&ctx, SIZE, 1.0, 10, Some(&path), |root| {
+        if frame == 2 {
+            app.workspace.impose_sizes(INSPECTOR, 0.0);
+        }
+        frame += 1;
+        app.frame(root);
+    });
+    println!("{}", path.display());
 }
 
 fn main() {
@@ -121,5 +148,6 @@ fn main() {
         for ppp in [1.0, 2.0] {
             shoot(&dir, paper, ppp);
         }
+        shoot_app(&dir, paper);
     }
 }

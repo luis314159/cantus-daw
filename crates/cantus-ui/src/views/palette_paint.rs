@@ -69,9 +69,12 @@ pub(super) fn show(st: &mut Palette, uses: &Uses, ctx: &Context) -> Out {
             i.key_pressed(Key::Escape),
         )
     });
-    if escape {
+    // Esc closes what opened last (round 39, ADR 0110): the palette's own only when it is
+    // the newest surface open.
+    if escape && crate::esc::take(ctx, crate::esc::Layer::Palette) {
         return Out::Close;
     }
+    crate::esc::open(ctx, crate::esc::Layer::Palette);
     st.rerank(uses);
     let chrome = (PAD + s.t.density * FIELD + GAP + GAP + KEYS + PAD) * k;
     let width = (WIDTH * k).min(screen.width() - 16.0);

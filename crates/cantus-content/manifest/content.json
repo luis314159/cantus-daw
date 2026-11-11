@@ -1777,6 +1777,85 @@
    "checked": "2026-11-06",
    "installed_size": 91028790,
    "source": {"zip": {"url": "https://github.com/luis314159/cantus-daw/releases/download/content-r37/cantus-loops-1.zip", "size": 60033092, "sha256": "872991f18a8010df4b1911813d1451244f77879ae9d6dd7f0b89ba7a4ae59e33", "strip": "cantus-loops/"}}
+  },
+  {
+   "id": "openair-impulse-responses",
+   "version": 1,
+   "name": {
+    "en": "OpenAIR Impulse Responses",
+    "es": "Respuestas al impulso de OpenAIR"
+   },
+   "description": {
+    "en": "Eight real spaces measured by the OpenAIR library (University of York) for Aula, Cantus's convolution reverb: churches, a cathedral, a mausoleum, halls, a typing room and a slinky spring.",
+    "es": "Ocho espacios reales medidos por la biblioteca OpenAIR (Universidad de York) para Aula, la reverb de convolución de Cantus: iglesias, una catedral, un mausoleo, salas, una sala de mecanografía y un muelle de juguete."
+   },
+   "category": "fx",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "Licences/CC-BY-4.0.txt",
+   "credits": [
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 1st Baptist Church Nashville \u2014 Adam Townsell",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=406",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    },
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 St. George's Episcopal Church \u2014 Adam Townsell",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=688",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    },
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 York Minster \u2014 Damian T. Murphy, Audiolab, University of York",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=797",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    },
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 Spokane Woman's Club \u2014 James Cadwallader",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=659",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    },
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 Elveden Hall (Suffolk, England) \u2014 Matt Rogalsky",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=459",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    },
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 Terry's Typing Room \u2014 Damian T. Murphy, Audiolab, University of York",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=740",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    },
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 Hamilton Mausoleum \u2014 Damian T. Murphy, Audiolab, University of York",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=502",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    },
+    {
+     "name": "OpenAIR, www.openairlib.net \u2014 Slinky IR \u2014 OpenAIR",
+     "url": "https://www.openair.hosted.york.ac.uk/?page_id=652",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"
+    }
+   ],
+   "checked": "2026-11-09",
+   "installed_size": 19376275,
+   "source": {
+    "files": [
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/1st-baptist-nashville/stereo/1st_baptist_nashville_far_close.wav", "to": "Impulse responses/1st Baptist Church Nashville.wav", "size": 1757758, "sha256": "696f8b88e5944c5280cb4dd3bc58a00345ec9a32480fa41dccc937070d442112"},
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/st-georges-episcopal-church/stereo/st_georges_medium.wav", "to": "Impulse responses/St George's Episcopal Church.wav", "size": 1757758, "sha256": "cad17609d49b025a06204b0cb248a38717327f9d1d3c16fc4954ecc0cb0a33b3"},
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/york-minster/stereo/minster1_000_ortf_48k.wav", "to": "Impulse responses/York Minster.wav", "size": 2880044, "sha256": "2fbf0285a8d4bb083b32d052d2e0359e1bc59cc426ec93098ad4e322862afb63"},
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/spokane-womans-club/stereo/spokane_womans_club_ir.wav", "to": "Impulse responses/Spokane Woman's Club.wav", "size": 1588186, "sha256": "75414f9e4ca34839f809932f877c82ea46363502ca6e291360afe551fb9e0c90"},
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/elveden-hall-suffolk-england/stereo/1a_marble_hall.wav", "to": "Impulse responses/Elveden Hall Marble Hall.wav", "size": 1416536, "sha256": "951b9c4dcac29421787211cb99ba75c8e792d7727f63dc4579755f70f5bad000"},
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/terrys-typing-room/stereo/terrys_typing_ortf.wav", "to": "Impulse responses/Terry's Typing Room.wav", "size": 3341002, "sha256": "7067e9dd04938cd32d56a92c59afc7696a7fdac325ffb44e1c095f5da1031b3e"},
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/hamilton-mausoleum/stereo/hm2_000_ortf_48k.wav", "to": "Impulse responses/Hamilton Mausoleum.wav", "size": 4320044, "sha256": "395dc0ba9003aeaaa52a66f425c5d0316748805ab9fc1af4f9936503f1e22a92"},
+     {"url": "https://webfiles.york.ac.uk/OPENAIR/IRs/slinky-ir/mono/slinky_ir.wav", "to": "Impulse responses/Slinky Spring.wav", "size": 2296290, "sha256": "cad790a7e990d789623af4573c668cdf21f6c9099a2b1636747d5a08c30895c8"},
+     {"url": "https://creativecommons.org/licenses/by/4.0/legalcode.txt", "to": "Licences/CC-BY-4.0.txt", "size": 18657, "sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411"}
+    ]
+   },
+   "attribution": {
+    "title": "OpenAIR — the Open Acoustic Impulse Response Library",
+    "author": "Adam Townsell, Damian T. Murphy (Audiolab, University of York), James Cadwallader and Matt Rogalsky",
+    "url": "https://www.openair.hosted.york.ac.uk/",
+    "line": "Impulse responses from OpenAIR, www.openairlib.net — Adam Townsell, Damian T. Murphy (Audiolab, University of York), James Cadwallader, Matt Rogalsky — CC BY 4.0"
+   }
   }
  ]
 }

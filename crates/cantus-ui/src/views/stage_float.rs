@@ -310,6 +310,8 @@ pub(crate) fn sense(
 /// for it otherwise).
 fn tip(resp: egui::Response, key: &str) -> egui::Response {
     if resp.hovered() {
+        // r39:ux-a — on the help line too, not only in a tooltip (ADR 0109).
+        crate::kit::hint::set_text(&resp.ctx, &t(key), "", crate::kit::hint::Caps::NONE);
         resp.on_hover_text(t(key))
     } else {
         resp

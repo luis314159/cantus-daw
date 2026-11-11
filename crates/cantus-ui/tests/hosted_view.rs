@@ -312,8 +312,10 @@ fn the_search_filters_by_name_and_by_group() {
     a.set_hosted_view(Target::Insert(fx), HostedView::Cantus);
     a.fx.hosted.filter = "lat".into();
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
-    assert!(text.contains("| LATENCY |"), "{text}");
-    assert!(!text.contains("| GAIN |"), "filtered out: {text}");
+    // r39:el-controls — the cells' labels in title case in Slate.
+    let lower = text.to_lowercase();
+    assert!(lower.contains("| latency |"), "{text}");
+    assert!(!lower.contains("| gain |"), "filtered out: {text}");
     assert!(text.contains("1 of 3 parameters"), "{text}");
     a.fx.hosted.filter = "nothing like it".into();
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
@@ -352,7 +354,7 @@ fn a_hosted_instruments_cantus_view_has_its_meters_its_switch_and_keeps_its_stat
         cantus_ui::views::plugin_view_inst::window(&mut a, &c);
     });
     assert!(text.to_lowercase().contains("cantus test synth"), "{text}");
-    assert!(text.contains("| GAIN |"), "{text}");
+    assert!(text.to_lowercase().contains("| gain |"), "{text}"); // r39:el-controls
     assert!(
         text.contains("| TEMPO SEEN |"),
         "a meter, its name whole: {text}"

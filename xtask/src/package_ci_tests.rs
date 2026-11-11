@@ -103,6 +103,45 @@ fn the_release_s_linux_job_installs_every_package_ci_does() {
     }
 }
 
+// The site's own reader of the workspace version, the same code `web/build.rs` runs.
+#[path = "../../web/site_version.rs"]
+mod site_version;
+
+/// The website shows the DAW's version (round 39: it said beta.11 through beta.13). It is
+/// not typed into the site: `web/build.rs` reads `[workspace.package] version` and hands it
+/// to `web/src/top.rs` as `CANTUS_VERSION`; here that reading must give the version every
+/// crate of the workspace builds with, and the site must not type a version of its own.
+/// (site.yml also deploys when only `Cargo.toml` changes; CI does not run for site.yml, so
+/// that line is not read here.)
+#[test]
+fn the_site_shows_the_workspace_s_version() {
+    let ws_version = site_version::workspace_version(&read("Cargo.toml"));
+    assert_eq!(ws_version.as_deref(), Some(crate::package::VERSION));
+    let top = read("web/src/top.rs");
+    assert!(
+        top.contains("pub const VERSION: &str = env!(\"CANTUS_VERSION\");"),
+        "web/src/top.rs must take its VERSION from build.rs"
+    );
+    assert!(
+        !top.contains(&format!("\"{}\"", crate::package::VERSION)) && !top.contains("\"0.1.0-"),
+        "web/src/top.rs types a version by hand"
+    );
+    let build = read("web/build.rs");
+    assert!(build.contains("site_version::workspace_version(&toml)"));
+    assert!(build.contains("cargo:rustc-env=CANTUS_VERSION={version}"));
+    assert!(build.contains("cargo:rerun-if-changed=../Cargo.toml"));
+    let sample = "[package]\nversion = \"9\"\n[workspace.package]\nedition = \"2021\"\n\
+                  version = \"1.2.3-beta.4\" # x\n";
+    assert_eq!(
+        site_version::workspace_version(sample).as_deref(),
+        Some("1.2.3-beta.4")
+    );
+    assert_eq!(
+        site_version::workspace_version("[package]\nversion = \"9\"\n"),
+        None
+    );
+}
+
 /// GitHub's glob for `paths`: `*` is any run of characters but `/`, `**` any run at all,
 /// `?` one character but `/`.
 fn glob(pat: &[u8], path: &[u8]) -> bool {
@@ -190,6 +229,8 @@ fn ci_runs_for_code_and_for_what_tests_read_but_not_for_documents_alone() {
         "THIRD-PARTY-NOTICES.md",
         "PRIVACY.md",
         "web/src/top.rs",
+        "web/build.rs",
+        "web/site_version.rs",
         ".github/workflows/ci.yml",
         ".github/workflows/release.yml",
         "xtask/installer/cantus.nsi",

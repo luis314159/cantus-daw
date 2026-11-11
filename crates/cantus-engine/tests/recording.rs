@@ -172,15 +172,9 @@ fn every_input_channel_is_metered() {
     x[3 * 10] = 0.25;
     x[3 * 20 + 1] = -0.5;
     rig.run(&x);
-    let meters = rig
-        .events()
-        .into_iter()
-        .rev()
-        .find_map(|e| match e {
-            EngineEvent::Meters(m) => Some(m),
-            _ => None,
-        })
-        .unwrap();
+    rig.events();
+    // The last block's report (ADR 0107).
+    let meters = rig.p.meters().clone();
     assert_eq!(meters.input_count, 3);
     assert_eq!(&meters.inputs[..3], &[0.25, 0.5, 0.0]);
 }

@@ -1,0 +1,24 @@
+{
+  "ci": {
+    "collect": {
+      "staticDistDir": "./dist",
+      "url": ["http://localhost/"],
+      "numberOfRuns": 3,
+      "settings": {
+        "chromeFlags": "--headless=new --no-sandbox"
+      }
+    },
+    "assert": {
+      "assertions": {
+        "total-byte-weight": ["error", { "maxNumericValue": 1048576, "aggregationMethod": "median" }],
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2000, "aggregationMethod": "median" }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.02, "aggregationMethod": "median" }],
+        "categories:accessibility": ["error", { "minScore": 1, "aggregationMethod": "median" }]
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": "./target/lhci"
+    }
+  }
+}

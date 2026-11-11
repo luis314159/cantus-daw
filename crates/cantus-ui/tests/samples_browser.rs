@@ -921,9 +921,14 @@ fn a_chosen_sound_shows_its_card_and_its_waveform_plays_it() {
     let (card, wave) = g.detail.expect("the chosen sound's card");
     let inside = |s: &str| texts.iter().any(|(t, r)| t == s && card.contains_rect(*r));
     assert!(inside("Pad Swell F#m"), "its name: {texts:?}");
+    // r39:lo-rest — where it lives under its name; on the keys' line inside the card,
+    // its length and what it is in numbers.
+    assert!(inside("Sounds"), "its place: {texts:?}");
     assert!(
-        inside("WAV \u{b7} 44.1 kHz \u{b7} Mono \u{b7} 0.1 s"),
-        "its format: {texts:?}"
+        texts
+            .iter()
+            .any(|(t, r)| t == "0:00.1 \u{b7} 44.1 kHz \u{b7} Mono" && card.contains_rect(*r)),
+        "its numbers in the card: {texts:?}"
     );
     assert!(
         inside("F#m") && inside("Melodic"),
@@ -1017,35 +1022,324 @@ fn the_sound_rows_are_a_table_and_a_name_drops_its_tempo() {
     );
 }
 
-/// Round 37 (finish, thirteenth delivery; ADR 0103 §58): a sound in a pack shows its
-/// pack's cover at the row's left; one in a folder of the user's, a waveform.
+/// Round 39 (r39:lo-rest; amends round 37's ADR 0103 §58, a sound in a pack drew its pack's
+/// cover): one mark a row type.
 #[test]
-fn a_sound_in_a_pack_shows_its_packs_cover() {
-    use cantus_ui::views::samples_browser::file_icon;
-    use cantus_ui::views::samples_paint::{cover_of, Icon};
-    let packs = vec![
-        (
-            PathBuf::from("C/Content/cantus-loops"),
-            "cantus-loops".to_string(),
-        ),
-        (
-            PathBuf::from("C/Content/cantus-one-shots"),
-            "cantus-one-shots".to_string(),
-        ),
-    ];
-    assert_eq!(
-        file_icon(&packs, Path::new("C/Content/cantus-loops/Bass/Acid.wav")),
-        cover_of("cantus-loops")
+fn every_row_type_has_one_mark() {
+    // r39:lo-rest — a sound shows its waveform, or the audio glyph while it is read; never
+    // its pack's cover (that is the pack's own row's). Folders show the folder glyph.
+    use cantus_ui::views::samples_browser::{row_mark, RowKindMark as K, RowMark as M};
+    assert_eq!(row_mark(K::Pack, false), M::Cover);
+    assert_eq!(row_mark(K::Pack, true), M::Cover);
+    assert_eq!(row_mark(K::Folder, false), M::Folder);
+    assert_eq!(row_mark(K::Sound, true), M::Waveform);
+    assert_eq!(row_mark(K::Sound, false), M::AudioGlyph);
+}
+
+/// Search until the hits are listed.
+fn searched(ctx: &egui::Context, a: &mut CantusApp, query: &str) {
+    a.samples.query = query.into();
+    for _ in 0..400 {
+        frame(ctx, a, vec![]);
+        if !a.samples.indexing() && !a.samples.geometry.as_ref().unwrap().rows.is_empty() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// Round 39 (r39:lo-rest; des-views, *Search*): the hits are grouped by the pack or folder
+/// they are in, each group titled with its count, five shown until "Show the other …";
+/// a hit says where it lives under its name; a group's title keeps the search to it, which
+/// a chip says, and the chip's click lets go.
+#[test]
+fn a_search_is_grouped_and_a_groups_chip_keeps_it_to_one_place() {
+    let f = fixture();
+    for i in 3..=8 {
+        wav(&f.user.join(format!("Kick {i}.wav")), 50.0 + i as f32);
+    }
+    let mut a = browser_app(&f, empty_manifest());
+    let ctx = ctx();
+    frame(&ctx, &mut a, vec![]);
+    searched(&ctx, &mut a, "kick");
+    let texts = texts_at(&ctx, &mut a, 300.0);
+    let has = |t: &[(String, Rect)], s: &str| t.iter().any(|(x, _)| x == s);
+    assert!(
+        has(&texts, "Test Kit") && has(&texts, "My Sounds"),
+        "{texts:?}"
     );
-    assert_eq!(
-        file_icon(
-            &packs,
-            Path::new("C/Content/cantus-one-shots/Drums/Kick.wav")
-        ),
-        cover_of("cantus-one-shots")
+    assert!(
+        has(&texts, "2") && has(&texts, "7"),
+        "each group's count: {texts:?}"
     );
-    assert_eq!(
-        file_icon(&packs, Path::new("D/My Sounds/kick.wav")),
-        Icon::Wave
+    // My Sounds holds seven kicks: five, then the link.
+    let mine = |a: &CantusApp| {
+        a.samples
+            .geometry
+            .as_ref()
+            .unwrap()
+            .rows
+            .iter()
+            .filter(|r| r.path.starts_with(&f.user))
+            .count()
+    };
+    assert_eq!(mine(&a), 5, "five until asked");
+    let (_, more) = texts
+        .iter()
+        .find(|(t, _)| t == "Show the other 2 sounds")
+        .expect("the link")
+        .clone();
+    click(&ctx, &mut a, more.center());
+    assert_eq!(mine(&a), 7, "the group whole");
+    // A hit is 36 high and says where it lives under its name.
+    let k1 = row(&a, &f.content.join("test-kit/Kicks/Kick 1.wav"));
+    assert!((k1.height() - 36.0).abs() < 0.5, "{k1:?}");
+    let texts = texts_at(&ctx, &mut a, 300.0);
+    assert!(
+        texts.iter().any(|(t, r)| t == "Kicks"
+            && k1.contains_rect(r.shrink(0.5))
+            && r.top() > k1.center().y - 2.0),
+        "its place under its name: {texts:?}"
     );
+    // The group's title keeps the search to it.
+    let (_, title) = texts.iter().find(|(t, _)| t == "Test Kit").unwrap().clone();
+    click(&ctx, &mut a, title.center());
+    assert_eq!(
+        a.samples.scope.as_deref(),
+        Some(f.content.join("test-kit").as_path())
+    );
+    let mut hits = row_names(&a);
+    hits.sort();
+    assert_eq!(hits, ["Kick 1.wav", "Kick 2.wav"], "the pack's alone");
+    let texts = texts_at(&ctx, &mut a, 300.0);
+    let chip = texts
+        .iter()
+        .filter(|(t, _)| t == "Test Kit")
+        .map(|(_, r)| *r)
+        .min_by(|x, y| x.top().total_cmp(&y.top()))
+        .expect("the chip");
+    click(&ctx, &mut a, chip.center());
+    assert!(a.samples.scope.is_none(), "the chip lets go");
+    assert_eq!(mine(&a), 7, "every place again");
+}
+
+/// Round 39 (r39:lo-rest; des-views, *Preview*): the chosen sound's preview is a 38-high
+/// well with its waveform, its name and where it lives; its star keeps it under
+/// *Favourites*, first in the browser, kept in the settings.
+#[test]
+fn the_preview_s_star_lists_a_sound_under_favourites() {
+    use cantus_ui::views::samples_thumbs;
+    let f = fixture();
+    let mut a = browser_app(&f, empty_manifest());
+    a.samples.open.insert(f.user.clone());
+    let ctx = ctx();
+    let kick = f.user.join("My kick.wav");
+    for _ in 0..400 {
+        frame(&ctx, &mut a, vec![]);
+        if samples_thumbs::thumb(&kick).is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let at = row(&a, &kick).center();
+    click(&ctx, &mut a, at);
+    a.stop_audition();
+    let texts = texts_at(&ctx, &mut a, 300.0);
+    let (card, wave) = a
+        .samples
+        .geometry
+        .as_ref()
+        .unwrap()
+        .detail
+        .expect("the card");
+    assert!(
+        (wave.height() - 38.0).abs() < 0.5,
+        "the well is 38 high: {wave:?}"
+    );
+    let inside = |s: &str| texts.iter().any(|(t, r)| t == s && card.contains_rect(*r));
+    assert!(inside("My kick") && inside("My Sounds"), "{texts:?}");
+    // Its keys are inside the card: play, loop beside it, the level.
+    let g = a.samples.geometry.as_ref().unwrap();
+    let key = g.preview_key.expect("the play key");
+    let level = g.preview_level.expect("the level");
+    assert!(
+        card.contains_rect(key) && card.contains_rect(level),
+        "{key:?} {level:?} in {card:?}"
+    );
+    assert!(key.top() > wave.bottom(), "under the well");
+    let lp = key.translate(vec2(key.width() + 4.0, 0.0));
+    click(&ctx, &mut a, lp.center());
+    assert!(a.samples.preview.looping, "the loop key");
+    click(&ctx, &mut a, lp.center());
+    assert!(!a.samples.preview.looping);
+    // The star at the card's top right.
+    let star = pos2(card.right() - 18.0, card.top() + 15.0);
+    click(&ctx, &mut a, star);
+    assert!(a.is_sample_favourite(&kick), "starred");
+    let saved = cantus_ui::settings::Settings::load(&a.settings_path);
+    assert_eq!(
+        saved.sample_favourites,
+        std::slice::from_ref(&kick),
+        "kept in the settings"
+    );
+    frame(&ctx, &mut a, vec![]);
+    let first = a.samples.geometry.as_ref().unwrap().rows.first().cloned();
+    assert_eq!(first.map(|r| r.path), Some(kick.clone()), "listed first");
+    let texts = texts_at(&ctx, &mut a, 300.0);
+    assert!(texts.iter().any(|(t, _)| t == "Favourites"), "{texts:?}");
+    click(&ctx, &mut a, star);
+    assert!(!a.is_sample_favourite(&kick), "and the star taken away");
+}
+
+/// Round 39 (r39:lo-rest; des-views, *Packs*): the Sound packs window shows each pack as a
+/// 128-px cover with its state — installed, or "Get · size" — and a click on "Get" fetches
+/// it, the cover then saying it is installed.
+#[test]
+fn the_packs_page_shows_covers_and_get_fetches_a_pack() {
+    let f = fixture();
+    let src = f.content.join("test-kit/Kicks/Kick 1.wav");
+    let licence = f.content.join("test-kit/LICENSE");
+    let entry = |p: &Path, to: &str| {
+        let b = std::fs::read(p).unwrap();
+        FileEntry {
+            url: cantus_content::fetch::file_url(p),
+            to: to.into(),
+            size: b.len() as u64,
+            sha256: cantus_content::fetch::sha256_file(p).unwrap(),
+        }
+    };
+    let pack = Pack {
+        id: "more-kicks".into(),
+        version: 1,
+        name: Text {
+            en: "More Kicks".into(),
+            es: "Más bombos".into(),
+        },
+        description: Text {
+            en: "d".into(),
+            es: "d".into(),
+        },
+        category: Category::Drums,
+        recommended: false,
+        licence: "CC0-1.0".into(),
+        licence_url: "https://creativecommons.org/publicdomain/zero/1.0/legalcode".into(),
+        licence_file: "LICENSE".into(),
+        credits: vec![],
+        checked: "2026-11-10".into(),
+        installed_size: 10_000,
+        source: Source::Files(vec![
+            entry(&src, "Kicks/Kick.wav"),
+            entry(&licence, "LICENSE"),
+        ]),
+        attribution: None,
+        instruments: vec![],
+        build: None,
+    };
+    let mut a = browser_app(
+        &f,
+        Manifest {
+            format: 1,
+            updated: "2026-11-10".into(),
+            packs: vec![pack],
+        },
+    );
+    a.samples.window.open = true;
+    let ctx = ctx();
+    let text = paint(&ctx, SIZE, 3, |ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::samples_content::window(&mut a, &ctx);
+    });
+    assert!(text.contains("Get · 1 MB"), "{text}");
+    // The page's head and foot (des-views): the counts, the filters, the order, where
+    // CC BY packs credit their authors and where packs are kept.
+    for w in [
+        "1 free packs · 0 installed",
+        "All",
+        "Installed",
+        "Drums",
+        "Sort",
+        "Category",
+        "Where packs are kept ›",
+        "CC BY packs show their authors",
+    ] {
+        assert!(text.contains(w), "{w:?} in {text}");
+    }
+    // While it is fetched (the window's test hook): the bar's words and Cancel.
+    a.samples.window.shown_busy = Some((
+        "more-kicks".into(),
+        cantus_content::Phase::Downloading {
+            done: 47,
+            total: 100,
+        },
+    ));
+    let busy = paint(&support::ctx(), SIZE, 3, |ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::samples_content::window(&mut a, &ctx);
+    });
+    assert!(
+        busy.contains("42 % of 1 MB") && busy.contains("Cancel"),
+        "{busy}"
+    );
+    a.samples.window.shown_busy = None;
+    let (_, cover, state) = a
+        .samples
+        .window
+        .covers
+        .iter()
+        .find(|(id, _, _)| id == "more-kicks")
+        .cloned()
+        .expect("its cover");
+    assert!((cover.width() - 128.0).abs() < 0.5 && (cover.height() - 128.0).abs() < 0.5);
+    let window = |a: &mut CantusApp, events: Vec<Event>| {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SIZE)),
+            events,
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            let ctx = ui.ctx().clone();
+            a.poll_samples(&ctx);
+            cantus_ui::views::samples_content::window(a, &ctx);
+        })
+        .textures_delta
+        .clear();
+    };
+    let at = state.center();
+    window(&mut a, vec![Event::PointerMoved(at)]);
+    window(&mut a, vec![Event::PointerMoved(at), press(at, true)]);
+    window(&mut a, vec![Event::PointerMoved(at), press(at, false)]);
+    for _ in 0..400 {
+        window(&mut a, vec![]);
+        if a.samples.content().is_installed("more-kicks") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(
+        a.samples.content().is_installed("more-kicks"),
+        "Get fetched it"
+    );
+    // A context of its own: a painted pass starts its clock at 0.
+    let text = paint(&support::ctx(), SIZE, 3, |ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::samples_content::window(&mut a, &ctx);
+    });
+    assert!(
+        text.contains("Installed") && text.contains("Open"),
+        "{text}"
+    );
+    // Kept to what is installed, it is there; to nothing else, it is not.
+    a.samples.window.filter = cantus_ui::views::samples_content::PackFilter::Installed;
+    let _ = paint(&support::ctx(), SIZE, 3, |ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::samples_content::window(&mut a, &ctx);
+    });
+    assert_eq!(a.samples.window.covers.len(), 1);
+    a.samples.window.filter =
+        cantus_ui::views::samples_content::PackFilter::Category(Category::Instruments);
+    let _ = paint(&support::ctx(), SIZE, 3, |ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::samples_content::window(&mut a, &ctx);
+    });
+    assert!(a.samples.window.covers.is_empty(), "no instruments");
 }

@@ -1,0 +1,142 @@
+# Aula convolution reverb: factory presets (round 39, ADR 0112; the format of ADR 0101).
+# Names are locale keys (locales/areas/aula.*.txt). Every one plays Cantus's own responses
+# (`ir`), so it sounds the same on every machine with nothing to download.
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.aula.concert"
+note = "Cantus's concert hall, a quarter wet: what an insert starts with."
+styles = ["film", "worship"]
+roles = ["bus"]
+[preset.values]
+"ir" = 7
+"level" = 1.4
+"mix" = 0.25
+"predelay" = 12
+
+[[preset]]
+key = "preset.aula.drum_room"
+note = "A studio room around a kit, its lows kept out of the reverb."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"ir" = 0
+"level" = 2.6
+"low" = 150
+"mix" = 0.3
+
+[[preset]]
+key = "preset.aula.vocal_plate"
+note = "A bright plate behind a voice, a little late, its lows cut."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"ir" = 11
+"level" = 1.3
+"low" = 200
+"mix" = 0.2
+"predelay" = 40
+
+[[preset]]
+key = "preset.aula.cathedral"
+note = "Six seconds of stone."
+styles = ["worship", "ambient"]
+roles = ["creative"]
+[preset.values]
+"ir" = 9
+"level" = 1.9
+"mix" = 0.35
+"predelay" = 20
+
+[[preset]]
+key = "preset.aula.spring_guitar"
+note = "The amplifier's spring tank, its drip and all."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"ir" = 13
+"level" = 0.9
+"mix" = 0.3
+
+[[preset]]
+key = "preset.aula.reverse_swell"
+note = "A large hall played backwards: the sound swells into itself."
+styles = ["film", "ambient"]
+roles = ["creative"]
+[preset.values]
+"ir" = 8
+"length" = 0.5
+"level" = 2.1
+"mix" = 0.4
+"reverse" = 1
+
+[[preset]]
+key = "preset.aula.gated_drums"
+note = "A stone chamber cut short: the eighties' gated snare."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"ir" = 6
+"length" = 0.22
+"level" = 3.6
+"low" = 100
+"mix" = 0.35
+
+[[preset]]
+key = "preset.aula.dark_hall"
+note = "A large hall whose highs die away first."
+styles = ["film"]
+roles = ["bus"]
+[preset.values]
+"damp" = 0.7
+"high" = 6000
+"ir" = 8
+"level" = 1.6
+"mix" = 0.25
+
+[[preset]]
+key = "preset.aula.small_ambience"
+note = "Air around a dry sound, never a tail."
+styles = ["pop"]
+roles = ["bus"]
+[preset.values]
+"ir" = 4
+"level" = 1.5
+"mix" = 0.2
+
+[[preset]]
+key = "preset.aula.huge_space"
+note = "The cathedral stretched twice as large and darkened."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"damp" = 0.4
+"ir" = 9
+"level" = 0.7
+"mix" = 0.3
+"stretch" = 2
+
+[[preset]]
+key = "preset.aula.wood_room"
+note = "A warm wooden room for acoustic guitar and voice."
+styles = ["worship", "pop"]
+roles = ["vocal"]
+[preset.values]
+"high" = 9000
+"ir" = 2
+"level" = 2.1
+"mix" = 0.25
+"predelay" = 8
+
+[[preset]]
+key = "preset.aula.long_spring"
+note = "The long spring tank, darker: a dub echo-chamber in one unit."
+styles = ["rock", "film"]
+roles = ["creative"]
+[preset.values]
+"damp" = 0.3
+"ir" = 14
+"level" = 3.5
+"low" = 120
+"mix" = 0.35

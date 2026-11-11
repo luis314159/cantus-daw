@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus track icons, additions B</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="family.js"></script>
+<script src="glyphs-t-tracks.js"></script>
+<script src="glyphs-t-tracks2.js"></script>
+<script src="glyphs-t-tracks3.js"></script>
+<script src="glyphs-t-lib.js"></script>
+<script src="glyphs-t-lib2.js"></script>
+<script src="glyphs-t-lib3.js"></script>
+<script src="glyphs-t-add-b.js"></script>
+</head><body><div id="out"></div>
+<script>
+// ?t=night|paper                    icons-b's families, each icon at 12, 14, 16 and 24 px (1:1),
+//                                   then in a track colour at 16, with English and Spanish names
+// ?t=…&ids=a,b,c                    one group of the given ids (variants)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const HUES = t === 'night' ? ['#e0794f', '#d9b24a', '#7fbf5a', '#4fb3c8', '#6f8cf0', '#b07ae0', '#e06c9f']
+  : ['#c2532a', '#a8801a', '#4f8f2e', '#1f8197', '#3d5fd0', '#8648c0', '#c0457a'];
+const glyph = (id, S, x, y, ink, ink2) => N[id] ?
+  `<g style="--main:${ink};--second:${ink2};--cut:${k.surface}" transform="translate(${x},${y})">${drawing(N[id][S])}</g>`
+  : `<rect x="${x}" y="${y}" width="${S}" height="${S}" fill="#f00"/>`;
+const groups = q.get('ids') ? [['Variants', q.get('ids').split(',')]] : window.TRACK_ADD_B;
+const NEW = new Set(window.TRACK_ADD_B_NEW || []);
+const SZ = [12, 14, 16, 24], OFF = [0, 18, 38, 60];
+const PAD = 16, CW = 140, COLS = +(q.get('cols') || 9), RH = 70;
+const W = PAD * 2 + COLS * CW;
+let y = PAD, body = '', n = 0;
+const total = groups.reduce((a, [, l]) => a + l.filter(id => NEW.has(id)).length, 0);
+body += label(t, PAD, y + 14, `Cantus track icons — set 6 additions B — Slate ${t === 'night' ? 'Night' : 'Paper'} — 1:1 device pixels`, { size: 13, weight: 600 });
+y += 22;
+body += label(t, PAD, y + 10, `Each icon at 12, 14, 16 and 24 px in ink 2 / ink 3, then 16 px in a track colour. ${total} new icons; a dot marks the new ones, the rest are set 6's.`, { size: 10, dim: true });
+y += 22;
+for (const [title, list] of groups) {
+  body += `<text x="${PAD}" y="${y + 13}" font-family="Segoe UI" font-size="12" font-weight="600" fill="${k.ink3}">${title}</text>`;
+  body += `<rect x="${PAD}" y="${y + 19}" width="${W - 2 * PAD}" height="1" fill="${k.rule}"/>`;
+  y += 28;
+  list.forEach((id, i) => {
+    const x = PAD + (i % COLS) * CW, yy = y + Math.floor(i / COLS) * RH;
+    SZ.forEach((S, j) => { body += glyph(id, S, x + OFF[j], yy + 24 - S, k.ink2, k.ink3); });
+    const h = HUES[n++ % HUES.length];
+    body += glyph(id, 16, x + 92, yy + 8, h, mix(h, k.surface, 0.45));
+    const w = (window.TRACK_WORDS || {})[id] || [id, ''];
+    if (NEW.has(id)) body += `<circle cx="${x + 116}" cy="${yy + 4}" r="2" fill="${k.accent}"/>`;
+    body += `<text x="${x}" y="${yy + 40}" font-family="Segoe UI" font-size="10" fill="${k.ink1}">${w[0]}</text>`;
+    body += `<text x="${x}" y="${yy + 53}" font-family="Segoe UI" font-size="10" fill="${k.ink3}">${w[1]}</text>`;
+  });
+  y += Math.ceil(list.length / COLS) * RH + 6;
+}
+const H = Math.ceil(y + PAD);
+document.body.style.background = k.surface;
+document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${k.surface}"/>` + body);
+document.body.setAttribute('data-w', W);
+document.body.setAttribute('data-h', H);
+</script></body></html>

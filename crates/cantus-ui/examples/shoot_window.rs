@@ -27,6 +27,9 @@ struct Case {
     zoom: f32,
     locale: Locale,
     setup: Setup,
+    /// The demo song the program opens on (Neon Tide), as the round 39 designs draw it,
+    /// instead of the welcome project.
+    song: bool,
 }
 
 /// A case's own setup of the application.
@@ -52,6 +55,10 @@ fn appearance_themes(a: &mut CantusApp) {
     a.show_theme_editor = true;
     a.appearance_page.tab = cantus_ui::views::appearance::Tab::Themes;
 }
+/// The unsaved-changes question (round 39, `el-controls`: a dialog on `kit::dialog`).
+fn unsaved(a: &mut CantusApp) {
+    a.unsaved_prompt = Some(cantus_ui::views::unsaved::Then::New);
+}
 fn settings(a: &mut CantusApp) {
     a.show_settings = true;
 }
@@ -62,8 +69,8 @@ fn no_inspector(a: &mut CantusApp) {
 fn cases() -> Vec<Case> {
     let mut v = Vec::new();
     for (theme, preset, dark) in [
-        ("cantus_night", "cantus_night", true),
-        ("cantus_paper", "cantus_paper", false),
+        ("slate_night", "slate_night", true),
+        ("slate_paper", "slate_paper", false),
     ] {
         for size in [(1280.0, 720.0), (1920.0, 1080.0)] {
             v.push(Case {
@@ -74,9 +81,11 @@ fn cases() -> Vec<Case> {
                 zoom: 1.0,
                 locale: Locale::En,
                 setup: nothing,
+                song: false,
             });
         }
-        let extra: [Extra; 10] = [
+        let extra: [Extra; 11] = [
+            ("unsaved", 1.0, Locale::En, unsaved),
             ("pianoroll", 1.0, Locale::En, piano_roll),
             ("rack", 1.0, Locale::En, rack),
             ("appearance", 1.0, Locale::En, appearance),
@@ -97,12 +106,13 @@ fn cases() -> Vec<Case> {
                 zoom,
                 locale,
                 setup,
+                song: false,
             });
         }
     }
     // Every other shipped theme: as it opens, its Themes page, both languages, three zooms.
     for (preset, make) in cantus_ui::kit::appearance::PRESETS {
-        if preset == "cantus_night" || preset == "cantus_paper" {
+        if preset == "slate_night" || preset == "slate_paper" {
             continue;
         }
         let dark = make().dark;
@@ -123,6 +133,27 @@ fn cases() -> Vec<Case> {
                 zoom,
                 locale,
                 setup,
+                song: false,
+            });
+        }
+    }
+    // Round 39: every shipped theme on the song the program opens on, at 100 % and at
+    // 125 % on 1920 × 1080 (the default there, ADR 0111 §7).
+    for (preset, make) in cantus_ui::kit::appearance::PRESETS {
+        let dark = make().dark;
+        for (size, zoom, tag) in [
+            ((1280.0, 720.0), 1.0, "song"),
+            ((1920.0, 1080.0), 1.25, "song125"),
+        ] {
+            v.push(Case {
+                name: Box::leak(format!("{tag}-{preset}").into_boxed_str()),
+                preset,
+                dark,
+                size,
+                zoom,
+                locale: Locale::En,
+                setup: nothing,
+                song: true,
             });
         }
     }
@@ -135,7 +166,12 @@ fn shoot(dir: &Path, case: &Case) {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let tmp = std::env::temp_dir().join("cantus-shoot-window");
-    let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+    let project = if case.song {
+        cantus_ui::demos::startup_project()
+    } else {
+        welcome_project()
+    };
+    let mut app = CantusApp::from_parts(Some(project), EngineHandle::dummy(), false);
     // Never touch the user's files.
     app.settings_path = tmp.join("settings.json");
     app.layouts_path = tmp.join("layouts.json");

@@ -591,6 +591,7 @@ fn live(p: &Project, start: Ticks, frames: usize) -> Vec<f32> {
     let (mut tx, rx) = rtrb::RingBuffer::<EngineMessage>::new(256);
     let (etx, mut erx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
     let mut proc_ = Processor::without_midi(SR as f64, rx, etx);
+    proc_.hold_parts_for(&snap); // its kits and note-effect chains (ADR 0107)
     for unit in cantus_engine::inst::units_for(&snap, SR, |_, _| false) {
         tx.push(EngineMessage::AddInstrument(unit)).unwrap();
         proc_.settle();

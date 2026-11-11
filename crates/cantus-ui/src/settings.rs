@@ -101,6 +101,8 @@ impl AudioSettings {
 /// How much of each mixer strip is shown — FL's layout sizes, reduced to the three that
 /// differ in *what* is shown rather than by a few pixels. A preference, not project data:
 /// the same desk is compact on a laptop and wide on a studio screen.
+pub use crate::kit::system::CableStyle;
+
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MixerDensity {
     /// Narrow strips: pan, switches, fader, meter, route. No width bar, EQ bars or sends.
@@ -129,11 +131,19 @@ pub struct Settings {
     pub locale: Option<String>,
     pub autosave_seconds: u64,
     pub ui_scale: f32,
+    /// The scale follows the screen (round 39, `screen_scale`): true on a fresh install
+    /// until the user picks a scale; false in a file written before, which keeps its own.
+    #[serde(default)]
+    pub ui_scale_follows_screen: bool,
     pub mixer_density: MixerDensity,
     /// Show each strip's recent level as a scrolling envelope (FL's meter-wave view).
     pub mixer_meter_wave: bool,
     /// The user's own sample folders, listed in the sample browser under the packs.
     pub sample_folders: Vec<std::path::PathBuf>,
+    /// The sounds starred in the browser's preview (r39:lo-rest), listed first in the
+    /// browser under *Favourites*.
+    #[serde(default)]
+    pub sample_favourites: Vec<std::path::PathBuf>,
     /// Play a sample when it is clicked in the browser.
     pub sample_audition: bool,
     /// The verse at start (BACKLOG §6c): on by default, and which Spanish translation.
@@ -197,6 +207,9 @@ pub struct Settings {
     /// The start page (templates, recent projects) opens when Cantus starts without a
     /// project to open (round 31, the owner's decision 2026-10-26, ADR 0072). On by default.
     pub start_page_at_start: bool,
+    /// The Settings page chosen last, by its key (round 39, ADR 0110): Settings opens on
+    /// it again, across sessions — the owner's Ctrl+, is Audio's.
+    pub settings_page: Option<String>,
     /// The editor each hosted plug-in opens in — its own window or Cantus's view of its
     /// parameters — by the plug-in's stable id, when the user made one the default
     /// (ADR 0073). Empty: every plug-in opens its own editor.
@@ -223,6 +236,16 @@ pub struct Settings {
     /// a port with none is a grid when its name says it is a Launchpad or an APC.
     #[serde(default)]
     pub grids: Vec<crate::controllers::grid::GridChoice>,
+    /// How the mixer draws its routing cables (round 39, r39:el-cables): the user's
+    /// choice in the Cables key's menu or Settings ▸ Appearance, or `None` — the theme's
+    /// own (its design system's [`CableStyle`]; Slate's is *Flow*, the owner's choice of
+    /// 2026-11-09). A preference of this machine, never project data.
+    #[serde(default)]
+    pub cable_style: Option<CableStyle>,
+    /// The track icons chosen last on this machine, newest first (round 39, ADR 0113: the
+    /// picker's recent row). A preference, never project data.
+    #[serde(default)]
+    pub track_icons_recent: Vec<String>,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -310,9 +333,11 @@ impl Default for Settings {
             locale: None,
             autosave_seconds: DEFAULT_AUTOSAVE_SECONDS,
             ui_scale: DEFAULT_UI_SCALE,
+            ui_scale_follows_screen: true,
             mixer_density: MixerDensity::Normal,
             mixer_meter_wave: false,
             sample_folders: Vec::new(),
+            sample_favourites: Vec::new(),
             sample_audition: true,
             verse: crate::verse::VerseSettings::default(),
             audio_setup: Default::default(),
@@ -337,6 +362,7 @@ impl Default for Settings {
             show_clip_gain: false,
             touch_glide_ms: DEFAULT_TOUCH_GLIDE_MS,
             start_page_at_start: true,
+            settings_page: None,
             hosted_views: crate::hosted_view::ViewDefaults::default(),
             unit_faces: true,
             sync: Default::default(), // r33:sync
@@ -346,11 +372,19 @@ impl Default for Settings {
             stems: Default::default(), // r34:stems
             stage: Default::default(), // r35:stage
             grids: Vec::new(),
+            cable_style: None,
+            track_icons_recent: Vec::new(),
         }
     }
 }
 
 impl Settings {
+    /// The cables' look in a theme of design system `sys`: the user's choice, else the
+    /// theme's own (r39:el-cables).
+    pub fn cable_style_in(&self, sys: &crate::kit::system::System) -> CableStyle {
+        self.cable_style.unwrap_or(sys.cables)
+    }
+
     /// The curve automatic crossfades take, or `None` when they are off (ADR 0070): what
     /// the command bus is told.
     pub fn auto_crossfades(&self) -> Option<cantus_core::crossfade::XfadeCurve> {
@@ -541,6 +575,7 @@ mod tests {
             locale: Some("es".into()),
             autosave_seconds: 30,
             ui_scale: 1.25,
+            ui_scale_follows_screen: false,
             mixer_density: MixerDensity::Compact,
             mixer_meter_wave: true,
             updates: UpdateSettings {
@@ -711,5 +746,33 @@ mod tests {
         assert_eq!(old.audio.driver, None);
         assert_eq!(old.audio.input_device, None);
         assert_eq!(old.audio.record_offset_frames, 0);
+    }
+
+    /// r39:el-cables — the cables' look: a file written before it follows the theme
+    /// (Slate's own is Flow); a choice is kept; a theme file names its own.
+    #[test]
+    fn the_cable_style_follows_the_theme_unless_chosen() {
+        use crate::kit::system::System;
+        let old: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(old.cable_style, None);
+        assert_eq!(old.cable_style_in(&System::SLATE), CableStyle::Flow);
+        let chosen = Settings {
+            cable_style: Some(CableStyle::Subway),
+            ..Settings::default()
+        };
+        let back: Settings =
+            serde_json::from_str(&serde_json::to_string(&chosen).unwrap()).unwrap();
+        assert_eq!(back.cable_style_in(&System::SLATE), CableStyle::Subway);
+        let theme = System {
+            cables: CableStyle::Patch,
+            ..System::SLATE
+        };
+        assert_eq!(
+            old.cable_style_in(&theme),
+            CableStyle::Patch,
+            "a theme's own"
+        );
+        let read: System = serde_json::from_str(r#"{"cables":"Subway"}"#).unwrap();
+        assert_eq!(read.cables, CableStyle::Subway);
     }
 }

@@ -21,6 +21,9 @@ use egui::vec2;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
+#[path = "shots_common/studio.rs"]
+mod studio;
+
 fn schema() -> Value {
     json!({"type": "object", "properties": {}})
 }
@@ -89,9 +92,9 @@ fn context(theme: &str) -> egui::Context {
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
     let t = if theme == "paper" {
-        cantus_ui::theme::paper()
+        cantus_ui::theme::slate_paper()
     } else {
-        cantus_ui::theme_family::cantus_night()
+        cantus_ui::theme::slate_night()
     };
     cantus_ui::theme::apply(&t, &ctx);
     ctx
@@ -106,9 +109,9 @@ fn app_for(theme: &str, ctx: &egui::Context) -> CantusApp {
     app.keymap_path = tmp.join("keymap.toml");
     app.appearance_path = tmp.join("appearance.json");
     let (preset, mode) = if theme == "paper" {
-        ("paper", Mode::Light)
+        ("slate_paper", Mode::Light)
     } else {
-        ("cantus_night", Mode::Dark)
+        ("slate_night", Mode::Dark)
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
@@ -179,6 +182,8 @@ fn shoot(path: &Path, what: &str, theme: &str) {
     let ctx = context(theme);
     let mut app = app_for(theme, &ctx);
     app.attach(&ctx);
+    // A working studio: the demo interface, so the bar names it (not "No audio").
+    studio::studio(&mut app, 256);
     match what {
         bar if bar.starts_with("bar") => {
             if !bar.contains("none") {
@@ -216,7 +221,15 @@ fn shoot(path: &Path, what: &str, theme: &str) {
         }
         _ => agent_at_work(&mut app, theme),
     }
-    cantus_ui::raster::shoot(&ctx, vec2(1600.0, 1000.0), 1.0, 8, Some(path), |root| {
-        app.frame(root)
-    });
+    let size = vec2(1600.0, 1000.0);
+    cantus_ui::raster::shoot(&ctx, size, 1.0, 8, Some(path), |root| app.frame(root));
+    // The crop the site and the README cut (`tools/shots/place.py`): the Settings window.
+    if what == "settings" {
+        studio::sidecar(
+            path,
+            size,
+            1.0,
+            &[("settings", studio::area(&ctx, "cantus-settings"))],
+        );
+    }
 }

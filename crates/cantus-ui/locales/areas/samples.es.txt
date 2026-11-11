@@ -117,6 +117,6 @@ samples.family.drums = Batería
 samples.family.loops = Loops
 samples.family.melodic = Melódico
 samples.family.fx = FX
-samples.preview.volume = Nivel de la escucha (el sonido vuelve a empezar al nuevo nivel)
+samples.preview.volume = Nivel de la escucha (se oye al momento, mientras arrastras)
 samples.detail.mono = Mono
 samples.detail.stereo = Estéreo

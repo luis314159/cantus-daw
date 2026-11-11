@@ -498,6 +498,8 @@ pub fn inspector_rows(
         sh.ui.id().with(("dance-insp", track.0)),
         Sense::click(),
     );
+    // r39:ux-a — the help line (ADR 0109).
+    let open = crate::views::hint::said_with(open, || t("ux.hint.dancer_character"));
     if open.clicked() {
         sh.acts
             .push(crate::views::inspector::Act::OpenInstrument(track));

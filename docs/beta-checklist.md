@@ -249,6 +249,105 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
       una cerca del límite. Tres pasadas, la mediana. Anota versión, interfaz, driver y
       temperatura al empezar, y pásame los números; luego lo mismo con Surge XT (VI, §4).
 
+### El aspecto nuevo en tu pantalla (ronda 39, ADR 0108–0114) <!-- r39:docs -->
+
+Todo lo de la ronda 39 se dibujó con el renderizador de CPU (`raster.rs`) y se probó con clics
+sintéticos; nada se vio en un monitor ni con un ratón de verdad. Usa la release de la beta.14 (o la
+release integrada que te pase) en tu monitor. Para cada punto, si
+algo se solapa, sale cortado, se ve borroso o no se entiende, haz una captura (Win+Shift+S) y
+pásamela con la escala y el tema.
+
+- [ ] **Pizarra y Pizarra lapislázuli a 100, 125 y 150 %**: con un proyecto de demostración
+      abierto (*Archivo ▸ Canciones de demostración ▸ Neon Tide*), abre *Ajustes ▸ Apariencia* y
+      elige **Pizarra**, modo *Noche*. Pon la escala de la interfaz en 100 % (`Ctrl+0`, luego
+      `Ctrl+Menos` o `Ctrl+Más` hasta leer 100 % en el zoom de la barra, o en *Más*), y mira la ventana
+      entera con el arreglo, el mezclador, el piano roll (`F7`), el rack (`F6`) y el explorador
+      (`Alt+F8`) delante, uno a la vez. Repite a 125 % y a 150 %. Luego todo en *Papel*, y luego en
+      **Pizarra lapislázuli** (Noche y Papel): debe distinguirse de Pizarra a primera vista — un
+      espacio azul noche, la selección en lapislázuli, y en oro el reloj, el tempo, los números de
+      las reglas, la tapa del cursor de reproducción y los bordes del bucle; dime si el tinte de
+      la selección y el azul tienen la fuerza justa. Anota si el texto se ve nítido y si algún
+      icono se ve movido de su píxel.
+- [ ] **Los veinticuatro temas**: en *Ajustes ▸ Apariencia*, a 125 %, elige uno a uno los temas
+      redibujados (Cantus Noche y Papel, Hora azul, Luz de día, Peltre, Tiza, Tinta y oro,
+      Pergamino, Ultravioleta, Laguna) y los nuevos (Siempreverde Noche y Papel, Burdeos,
+      Imprenta) con Neon Tide sonando y el mezclador abajo. En cada uno: ¿se lee todo sin
+      esfuerzo (las palabras de los clips, las líneas de compás, los colores de las pistas, el
+      solo y la grabación)? ¿Tiene la fuerza justa (la crema de Pergamino, el vino de Burdeos, el
+      violeta de Ultravioleta, el gris medio de Peltre)? Si usabas un tema en la beta.13, Cantus
+      debe abrir en él, redibujado. Los menús de arriba deben verse enteros (con *Ayuda*) en todos.
+- [ ] **La ventana de Delay con una interfaz real**: en una pista con voz o guitarra, *Añadir
+      inserción ▾ ▸ Espacio ▸ Delay* y clic en la inserción: se abre su ventana. Toca: cada
+      repetición debe encenderse cuando el sonido llega a ella, y la ventana quedarse quieta en
+      silencio. Arrastra los ecos a lo ancho (tiempo) y arriba o abajo (realimentación); `Ctrl+Z`
+      lo deshace de una vez. Prueba *Al tempo* con una negra y el ping-pong.
+- [ ] **El tamaño que sigue a la pantalla**: en una carpeta de datos nueva (o tras borrar
+      `%APPDATA%\Cantus\settings.json`, guardando antes una copia), abre Cantus: en una pantalla de
+      1920 píxeles con Windows al 100 %, la interfaz debe salir al 125 %; con Windows al 125 %, al
+      100 % de Cantus. Dime tu pantalla, la escala de Windows y lo que salió.
+- [ ] **La barra superior nueva**: a 1920 × 1080 y 125 %, la barra es una sola fila: el logo y los
+      menús sobre el nombre del proyecto, Pat/Canción, el transporte y el bucle, el metrónomo, el
+      tempo y el compás, el reloj grande, la rejilla, deshacer, las ventanas; a la derecha los
+      medidores, las entradas, el máster, el dispositivo, Ajustes y **Más**. Pulsa Play: el reloj
+      corre sin que las cifras bailen; graba un compás (`R`): el reloj se pone rojo. Haz la ventana
+      más estrecha poco a poco: los grupos deben pasar a **Más** sin chocar; abre **Más** y prueba
+      el metrónomo, una ventana y el zoom desde ahí. Repite con la interfaz en español.
+- [ ] **La cabecera del mezclador en la fila de pestañas**: con el mezclador acoplado bajo el
+      arreglo, la densidad (Compacta · Ancha · Grande), *Filas*, *Cables*, *Instantáneas* y `+`
+      deben estar en la misma fila que las pestañas *Mezclador · Piano roll · Rack*, a su derecha.
+      Arrastra una pestaña a otro sitio y de vuelta, haz doble clic en una pestaña (maximiza) y otra
+      vez (devuelve), y haz flotar el mezclador (clic derecho en su pestaña): flotando, la cabecera
+      vuelve a su propia fila. Nada debe quedar encima de las pestañas.
+- [ ] **El brillo de los cables a 60 Hz y los conectores**: con Neon Tide sonando, el mezclador al
+      frente, elige el Kick y pulsa **Cables**: en estilo *Flujo* (el predeterminado) una luz corta
+      recorre el cable, más rápida cuanto más suena. Debe moverse suave, sin saltos ni parpadeo, y
+      quedarse quieta al parar. Pasa el puntero por un cable: se ilumina su ruta hasta el máster.
+      Cambia a **Jack** (menú de *Cables* ▸ *Estilo de cables*), arrastra desde la salida de Chords
+      hasta el Drum bus y suelta: el cable cuelga, oscila 0,3 s y se queda quieto. Mira a 125 % y
+      150 % que los anillos de los conectores y los enchufes se vean nítidos.
+- [ ] **El selector de iconos de pista**: clic derecho en el encabezado de una pista ▸ *Icono…*;
+      escribe «guitarra», luego «piano», luego «kick»: deben aparecer en español y en inglés.
+      Elige uno: sale delante del nombre de la pista y en la cabeza de su tira del mezclador
+      (Compacta, Ancha y Grande). Clic en el icono para cambiarlo; *Ninguno* lo quita; `Ctrl+Z` lo
+      deshace. Mira las familias (sobre todo las guitarras) a 100 % y 150 %.
+- [ ] **El logo #03 en la barra de tareas y en el .exe**: instala la beta.14 y mira el icono del
+      instalador, el del acceso directo, el del `.exe` en el Explorador (vista de iconos grandes y
+      de lista), el de la barra de tareas con Cantus abierto (con la barra clara y oscura de
+      Windows) y la ventana de *Alt+Tab*. A 16 px debe leerse una C dorada con su cruz, sin
+      manchas. En *Ajustes ▸ Apariencia*, el color del icono de la barra de tareas sigue pintando la
+      marca.
+- [ ] **Aula de oído**: en una pista con voz o guitarra, *Añadir inserción ▾ ▸ Espacio ▸ Aula*.
+      Escucha las quince respuestas propias (*Studio room* … *Long spring*), sobre todo las placas
+      y los dos muelles, y dime cuáles suenan mal o falsas. Carga un archivo de respuesta tuyo
+      (*Cargar archivo*) mientras suena: el cambio no debe hacer clic. Prueba *Muestras ▸ Conseguir más ▸ Respuestas al
+      impulso de OpenAIR* y la catedral de York. Mira la CPU con una catedral larga a tu buffer de
+      siempre.
+- [ ] **El estado de descarga de los paquetes con una descarga real**: en una carpeta de datos sin
+      paquetes (o tras quitar uno en la ventana), abre *Paquetes de sonidos…*: cada paquete es una
+      portada con *Obtener · tamaño*. Pulsa *Obtener* en uno pequeño: debe verse la barra de 4 px,
+      «42 % de … MB» que avanza y *Cancelar*; al terminar, *Instalado* con la marca verde y *Abrir*.
+      Prueba *Cancelar* a media descarga en otro: vuelve a *Obtener*. Los filtros (*Todos ·
+      Instalados* …) y *Orden* deben funcionar. (En la ronda el estado de descarga solo se dibujó
+      con un gancho de prueba.)
+- [ ] **El explorador**: busca «kick»: los resultados salen agrupados por paquete o carpeta, cinco
+      por grupo y «Mostrar los otros N sonidos»; clic en el título de un grupo deja la búsqueda en
+      ese sitio (una ficha con ×). Marca un sonido con la estrella: aparece arriba en *Favoritos*,
+      también tras cerrar y abrir Cantus. En la tarjeta: reproducir, bucle y nivel; mueve el nivel
+      mientras suena: no debe volver a empezar.
+- [ ] **El arreglo con un ratón de verdad**: prueba las herramientas de la fila (Seleccionar `E`,
+      Dibujar `P`, Cortar `C`, Borrar `D`, Silenciar `T`, Zoom `8`), *Seguir* con la canción
+      sonando (la página pasa cuando el cursor sale de la vista), el menú de la rejilla y los
+      tresillos (`Shift+3`), la esquina de un clip de notas para repetirlo, crear una sección y una
+      carpeta (clic derecho en el carril de secciones; *Meter en una carpeta nueva* en el menú de la
+      pista), y maximizar el arreglo (doble clic en su pestaña): abajo queda la fila de pestañas.
+- [ ] **El inspector**: elige una tira; abre *Nivel* (el medidor fino bajo el volumen debe moverse
+      al sonar y quedarse quieto en silencio), *Automatización ▸ Mostrar en el arreglo* (el arreglo
+      se abre en los carriles de esa pista), y congela una tira (*Congelar la tira*): debe decir
+      cuántas inserciones se renderizaron y cuánto ocupa.
+- [ ] **El teclado**: `Ctrl+F6` pasa de una zona a otra; `Shift+F10` sobre un clip abre su menú y
+      las flechas lo recorren; `Esc` cierra lo último que se abrió; `Ctrl+F` sobre una pista abre
+      sus presets.
+
 ### En reposo (ronda 38, ADR 0106) <!-- r38:scorecard -->
 
 Probado en esta máquina con la interfaz del portátil; lo que solo un aparato confirma:
@@ -316,6 +415,16 @@ Necesita tu hardware; en la ronda se probó todo con una interfaz virtual y con 
       licencia de Cisco a la vista antes, nunca incluido en Cantus); Cisco paga las regalías
       de H.264 solo por su binario descargado así. Confirmar que el flujo cumple sus
       condiciones.
+- [ ] **Lectura legal de Pizarra junto a FL Studio** (ronda 39, ADR 0111): preguntaste si
+      parecerse a FL podía traer problemas. Mi lectura es de riesgo bajo: los valores son otros
+      (el fondo de FL es `#253035` con paneles `#34444E`; Pizarra `#1D2329` y `#262D34`), el
+      acento es azul donde FL usa naranja y lima, y los iconos, la letra, el logo y el nombre son
+      de Cantus, dibujados desde una hoja en blanco. La opinión es de un abogado, antes de hacer
+      público el aspecto en más sitios.
+- [ ] **La licencia del paquete de OpenAIR** (ronda 39, ADR 0112): el aviso CC BY 4.0 de sus
+      páginas se leyó en la copia del Internet Archive de junio de 2024 (el certificado del sitio
+      había caducado; no se saltó nada). Confírmalo en el sitio cuando vuelva, antes de anunciar
+      el paquete.
 - [ ] **Firmar `cantus-mcp.exe` y `cantus-ml.exe`** con el resto de los programas cuando
       haya firma de código.
 - [ ] **Revisión legal de Chorda** frente a las patentes de modelado de piano que nombra el

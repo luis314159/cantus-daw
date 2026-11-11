@@ -377,7 +377,7 @@ fn twins(
         for u in [&mut a, &mut b, &mut c, &mut d] {
             u.configure(to);
             if let Some(need) = u.take_request() {
-                drop(u.supply(cantus_engine::EffectMemory::build(need, SAMPLE_RATE)));
+                drop(u.supply(cantus_engine::EffectMemory::build(need.need(), SAMPLE_RATE)));
             }
         }
     }
@@ -444,6 +444,9 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::TransientSplit => (true, true),
         EffectKind::Analyzer => (true, true),
         EffectKind::AutoTune => (true, true),
+        // r39:conv — Aula rests once its delay lines are clear (its room's length and the
+        // largest partition's slack): about 9 s for the concert hall, 20 s for heavy.
+        EffectKind::Aula => (true, true),
         _ => (false, false),
     }
 }
@@ -536,10 +539,11 @@ per_kind! {
     discrimen => EffectKind::TransientSplit,
     speculum => EffectKind::Analyzer,
     tonus => EffectKind::AutoTune,
+    aula => EffectKind::Aula, // r39:conv
 }
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists twenty-five: a new kind must be added there.
-    assert_eq!(EffectKind::ALL.len(), 25);
+    // `per_kind!` lists twenty-six: a new kind must be added there.
+    assert_eq!(EffectKind::ALL.len(), 26); // r39:conv: Aula
 }

@@ -80,7 +80,7 @@ pub fn show(app: &mut CantusApp, ctx: &Context) {
         .fixed_pos(rect.min)
         .show(ctx, |ui| {
             ui.set_min_size(size);
-            ws::frame(ui, rect, &s);
+            crate::kit::dialog::sheet(ui, rect, &s); // r39:el-controls
             let Some(card) = app.dance_import.card.as_mut() else {
                 return;
             };
@@ -90,7 +90,7 @@ pub fn show(app: &mut CantusApp, ctx: &Context) {
             } else {
                 "dance_import.title"
             };
-            if ws::title(ui, head, &s, Glyph::StarFilled, title_key) {
+            if crate::kit::dialog::head(ui, head, &s, Glyph::StarFilled, title_key) {
                 act = Some(false);
             }
             let foot = Rect::from_min_max(
@@ -619,9 +619,9 @@ fn failed(app: &mut CantusApp, ctx: &Context) {
         .fixed_pos(at)
         .show(ctx, |ui| {
             ui.set_min_size(size);
-            ws::frame(ui, rect, &s);
+            crate::kit::dialog::sheet(ui, rect, &s); // r39:el-controls
             let head = Rect::from_min_size(rect.min, vec2(rect.width(), HEAD * k));
-            if ws::title(ui, head, &s, Glyph::Warning, "dance_import.failed.title") {
+            if crate::kit::dialog::head(ui, head, &s, Glyph::Warning, "dance_import.failed.title") {
                 close = true;
             }
             let inner = Rect::from_min_max(

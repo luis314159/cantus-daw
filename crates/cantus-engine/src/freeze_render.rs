@@ -168,6 +168,8 @@ pub fn render_tapped(
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
     p.set_profiling(false);
     p.set_offline(true);
+    // The parts its tracks use (kits, note-effect chains), built here (ADR 0107).
+    p.hold_parts_for(&snap);
     if let (TapPoint::Strip(i), true) = (point, opts.arrive > 0) {
         p.set_arrive_floor(Some((i, opts.arrive)));
     }
@@ -316,7 +318,7 @@ fn serve(
                 p.settle();
             }
             EngineEvent::EffectNeed { effect, need } => {
-                let memory = crate::effects::EffectMemory::build(need, sr as f32);
+                let memory = crate::effects::EffectMemory::build(need.need(), sr as f32);
                 tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
                 p.settle();
             }
@@ -361,6 +363,8 @@ pub fn strip_arrival(
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
     p.set_profiling(false);
     p.set_offline(true);
+    // The parts its tracks use (kits, note-effect chains), built here (ADR 0107).
+    p.hold_parts_for(&snap);
     for slot in snap.effect_slots() {
         let unit = match effects.iter().find(|(id, _)| *id == slot.id) {
             Some((_, l)) => EffectUnit::latency_stand_in(slot, sr as f32, *l),

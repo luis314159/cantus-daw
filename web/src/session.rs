@@ -35,22 +35,22 @@ pub fn session() -> Html {
                 <div class="score-stage"><div class="backdrop">
                     <div class="window">
                         <div class="window-bar"><i></i><i></i><i></i><span>{ l.t("Cantus — session view", "Cantus — vista de sesión") }</span></div>
-                        <img src="session/grid.webp" width="1400" height="720" loading="lazy"
+                        <img src="/session/grid.webp" width="1400" height="720" loading="lazy"
                              alt={ l.t("The session view: an 8 × 8 set playing, a clip's panel open", "La vista de sesión: un set de 8 × 8 sonando, el panel de un clip abierto") } />
                     </div>
                 </div></div>
                 <div class="session-bar">
-                    <img src="session/sync-bar.webp" width="874" height="54" loading="lazy"
+                    <img src="/session/sync-bar.webp" width="381" height="44" loading="lazy"
                          alt={ l.t("The top bar with Link on: two peers, quantum 4, the tempo it follows", "La barra superior con Link encendido: dos pares, cuanto 4, el tempo que sigue") } />
                 </div>
                 <div class="score-more">
                     <figure>
-                        <img src="session/mpe-lanes.webp" width="1200" height="720" loading="lazy"
+                        <img src="/session/mpe-lanes.webp" width="1200" height="720" loading="lazy"
                              alt={ l.t("The piano roll's per-note lanes: bend, pressure and timbre", "Los carriles por nota del piano roll: inflexión, presión y timbre") } />
                         <figcaption>{ l.t("Each note keeps its own bend, pressure and timbre.", "Cada nota guarda su inflexión, su presión y su timbre.") }</figcaption>
                     </figure>
                     <figure>
-                        <img src="session/midi-ports.webp" width="778" height="760" loading="lazy"
+                        <img src="/session/midi-ports.webp" width="888" height="590" loading="lazy"
                              alt={ l.t("Settings ▸ MIDI: each port's notes, controls, clock, time code, MPE and grid", "Ajustes ▸ MIDI: notas, controles, reloj, código de tiempo, MPE y rejilla de cada puerto") } />
                         <figcaption>{ l.t("Every port in one row: notes, controls, clock, time code, MPE, grid.", "Cada puerto en una fila: notas, controles, reloj, código de tiempo, MPE, rejilla.") }</figcaption>
                     </figure>

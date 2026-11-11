@@ -1,0 +1,91 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cantus icons — mixer</title>
+<style>html,body{margin:0;padding:0}</style>
+<script src="v1/glyphs-transport.js"></script>
+<script src="v1/glyphs-transport2.js"></script>
+<script src="v1/glyphs-tools.js"></script>
+<script src="v1/glyphs-tools2.js"></script>
+<script src="v1/glyphs-tools3.js"></script>
+<script>window.G1 = G;</script>
+<script src="family.js"></script>
+<script src="glyphs-n-transport.js"></script>
+<script src="glyphs-n-tools.js"></script>
+<script src="glyphs-n-tools2.js"></script>
+<script src="glyphs-n-windows.js"></script>
+<script src="glyphs-m-mixer.js"></script>
+<script src="glyphs-m-mixer2.js"></script>
+<script src="glyphs-b-browser.js"></script>
+<script src="glyphs-b-browser2.js"></script>
+<script src="glyphs-r-rest.js"></script>
+<script src="glyphs-r-rest2.js"></script>
+<script src="glyphs-r-small.js"></script>
+</head><body><div id="out"></div>
+<script>
+// ?t=night|paper &set=mixer|browser            rows = glyphs; per size: bare (quiet), well (rest), on
+// ?t=…&strip=<size>&ids=a,b&state=…&bare=1    one row (for comparisons)
+const q = new URLSearchParams(location.search);
+const t = q.get('t') || 'night';
+const k = SLATE[t];
+const SETS = {
+  mixer: { title: 'Mixer strip and inspector', rows: [
+    ['phase', 'polarity Ø', [12, 16, 18], [18, 24, 27], ''], ['swap', 'swap L/R', [12, 16, 18], [18, 24, 27], ''],
+    ['mono', 'mono', [12, 16, 18], [18, 24, 27], ''], ['link', 'link', [12, 16, 18], [18, 24, 27], ''],
+    ['arm', 'arm', [14, 16, 18], [21, 24, 27], 'rec'], ['enable', 'enable', [12, 14, 16], [18, 21, 24], 'play'],
+    ['fx', 'FX on/off', [14, 16], [21, 24], ''], ['send', 'send', [12, 14, 16], [18, 21, 24], ''],
+    ['out', 'output', [12], [18], ''], ['into', 'input', [12], [18], ''], ['ret', 'return', [12], [18], ''],
+    ['key', 'sidechain key', [12, 14], [18, 21], ''], ['routing', 'routing (cables)', [16, 20], [24, 30], ''],
+    ['freeze', 'freeze', [12, 14], [18, 21], ''], ['vca', 'VCA', [14, 16], [21, 24], ''],
+    ['lamp', 'insert lamp on', [10], [15], 'play'], ['lampOff', 'insert bypassed', [10], [15], ''],
+    ['grip', 'grip', [12], [18], ''], ['miniView', 'mini view', [12, 16], [18, 24], ''],
+    ['more', 'more', [12, 16], [18, 24], ''], ['add', 'add', [10, 12], [15, 18], ''],
+    ['foldOpen', 'section open', [8, 10], [12, 15], ''], ['foldShut', 'section folded', [8, 10], [12, 15], '']] },
+  browser: { title: 'Browser', rows: window.BROWSER_ROWS || [] },
+  rest: { title: 'The rest of glyph.rs', rows: window.REST_ROWS || [] },
+};
+function done(W, H, body, bg) {
+  document.body.style.background = bg;
+  document.getElementById('out').innerHTML = svgDoc(t, W, H, `<rect width="${W}" height="${H}" fill="${bg}"/>` + body);
+  document.body.setAttribute('data-w', W);
+  document.body.setAttribute('data-h', H);
+}
+const set = SETS[q.get('set') || 'mixer'];
+if (q.get('strip')) {
+  const C = +q.get('strip'), st = q.get('state') || 'rest', bare = q.get('bare') === '1';
+  const ids = q.get('ids').split(',');
+  const kinds = Object.fromEntries(set.rows.map(r => [r[0], r[4]]));
+  let body = '', x = 6;
+  ids.forEach(id => {
+    const sz = N[id] && N[id][C] ? C : null;
+    if (!sz) return;
+    body += bare ? bareGlyph(t, N[id], C, x, 6, st === 'on' ? 'on' : 'quiet', kinds[id]) : anyKey(t, N[id], C, x, 6, st, st === 'on' ? kinds[id] : '');
+    x += C + Math.max(3, Math.round(C / 5));
+  });
+  done(x + 3, C + 12, body, k.surface);
+} else {
+  const PAD = 16, LEFT = 130;
+  let y = PAD, body = '', maxW = 0;
+  body += label(t, PAD, y + 14, `Cantus icon family — ${set.title} — Slate ${t === 'night' ? 'Night' : 'Paper'} — 1:1 device pixels`, { size: 13, weight: 600 });
+  y += 26;
+  body += label(t, PAD, y + 10, 'Each size: bare at rest (quiet ink, no well) · in a well at rest · in a well on · bare on. Left of the bar: 100 %; right: the same at 150 %.', { size: 10, dim: true });
+  y += 24;
+  for (const [id, name, s1, s15, kind] of set.rows) {
+    const rh = Math.max(...s15, 20) + 8;
+    body += label(t, PAD, y + rh / 2 + 3, name, { size: 11, weight: 600 });
+    let x = LEFT;
+    const cell = (C) => {
+      const yy = y + Math.floor((rh - C) / 2);
+      body += bareGlyph(t, N[id], C, x, yy, 'quiet', kind); x += C + 4;
+      body += anyKey(t, N[id], C, x, yy, 'rest', ''); x += C + 4;
+      body += anyKey(t, N[id], C, x, yy, 'on', kind); x += C + 4;
+      body += bareGlyph(t, N[id], C, x, yy, 'on', kind); x += C + 14;
+    };
+    s1.forEach(cell);
+    x = Math.max(x, LEFT + 3 * (4 * 22 + 26));
+    body += `<rect x="${x - 8}" y="${y + 2}" width="1" height="${rh - 4}" fill="${k.rule}"/>`;
+    s15.forEach(cell);
+    maxW = Math.max(maxW, x + PAD);
+    y += rh + 4;
+  }
+  done(Math.max(maxW, 900), y + PAD, body, k.surface);
+}
+</script></body></html>

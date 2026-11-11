@@ -1,7 +1,5 @@
-//! Cantus visual identity as **data**. The default theme is **Cantus Night** (ADR 0046):
-//! the website's night stage — espresso surfaces, the logo's copper and amber, its
-//! verdigris patina — with **Cantus Paper** as its light twin (`theme_family.rs`, with six
-//! more). The older presets (Slate, Ink & Gold, Paper, Parchment) stay selectable. Every
+//! Cantus visual identity as **data**. The default theme is **Slate Night** (round 39, ADR
+//! 0111), with Slate Paper its light twin; [`PRESETS`] lists every shipped theme. Every
 //! colour lives in a JSON file the user can edit; the app reloads it while running.
 
 use egui::{Color32, CornerRadius, Stroke, Visuals};
@@ -92,9 +90,15 @@ pub struct Theme {
     /// The logo and its tint.
     #[serde(default, skip_serializing_if = "LogoChoice::is_default")]
     pub logo: LogoChoice,
+    /// The design system (round 39, ADR 0111): the type family and how keys are built.
+    /// Absent in files written before it: Classic (IBM Plex, raised keys), so a theme a
+    /// user made keeps its look.
+    #[serde(default, skip_serializing_if = "System::is_classic")]
+    pub system: System,
 }
 
 use crate::kit::logo::LogoChoice;
+pub use crate::kit::system::System;
 pub use crate::kit::tokens::{Form, KitMap, ThemeKnobs};
 
 fn default_true() -> bool {
@@ -246,6 +250,7 @@ impl Theme {
             kit: KitMap::new(),
             form: Form::default(),
             logo: LogoChoice::default(),
+            system: System::CLASSIC,
         }
     }
 
@@ -494,33 +499,61 @@ pub use crate::theme_family::{
     blue_hour, cantus_night, cantus_paper, daylight, high_contrast, high_contrast_light, lagoon,
     ultraviolet,
 };
+pub use crate::theme_graphite::{graphite_night, graphite_paper};
+pub use crate::theme_slate::{slate_night, slate_paper};
+pub use crate::theme_slate_lapis::{slate_lapis_night, slate_lapis_paper};
+pub use crate::theme_studio_ink::{studio_ink_night, studio_ink_paper};
 
 /// A named theme preset: i18n key + constructor.
 pub type Preset = (&'static str, fn() -> Theme);
 
-/// Every shipped theme, in the order the Appearance page lists them: round 25's family
-/// first (the default and its twin, then the rest), then the older presets.
-pub const PRESETS: [Preset; 12] = [
-    ("theme.cantus_night", cantus_night),
-    ("theme.cantus_paper", cantus_paper),
-    ("theme.daylight", daylight),
-    ("theme.blue_hour", blue_hour),
-    ("theme.ultraviolet", ultraviolet),
-    ("theme.lagoon", lagoon),
+/// Every shipped theme, in the order the Appearance page lists them (round 39, ADR 0111):
+/// Slate, the default, and its light twin; Slate Lapis, Slate with a lapis accent and gold
+/// details (the logo's metal); the two optional families, Graphite and gold and Studio
+/// ink, each Night and Paper; the themes of rounds 24–38 redrawn in round 39's design
+/// system ([`crate::theme_redrawn`]: Cantus Night and Paper, Blue Hour and Daylight, Pewter
+/// and Chalk — the FL-derived Slate and Paper renamed —, Ink & Gold and Parchment,
+/// Ultraviolet, Lagoon); the themes new in round 39 ([`crate::theme_added`]: Evergreen Night
+/// and Paper, Bordeaux, Print); and the high-contrast pair for low vision.
+///
+/// The constructors of rounds 24–38 as they were ([`cantus_night`], [`slate`], [`paper`],
+/// …, Classic's raised keys and gradients) stay in the code, named nowhere in the interface:
+/// the tests that hold the kit's machinery (the gradients, the materials, the golden
+/// sheets) draw with them, and an old `theme.json` that is exactly one of them is
+/// recognised by them ([`crate::kit::appearance::CLASSIC`]).
+pub const PRESETS: [Preset; 24] = [
+    ("theme.slate_night", slate_night),
+    ("theme.slate_paper", slate_paper),
+    ("theme.slate_lapis_night", slate_lapis_night),
+    ("theme.slate_lapis_paper", slate_lapis_paper),
+    ("theme.graphite_night", graphite_night),
+    ("theme.graphite_paper", graphite_paper),
+    ("theme.studio_ink_night", studio_ink_night),
+    ("theme.studio_ink_paper", studio_ink_paper),
+    ("theme.cantus_night", crate::theme_redrawn::cantus_night),
+    ("theme.cantus_paper", crate::theme_redrawn::cantus_paper),
+    ("theme.blue_hour", crate::theme_redrawn::blue_hour),
+    ("theme.daylight", crate::theme_redrawn::daylight),
+    ("theme.slate", crate::theme_redrawn::pewter),
+    ("theme.paper", crate::theme_redrawn::chalk),
+    ("theme.ink_gold", crate::theme_redrawn::ink_and_gold),
+    ("theme.parchment", crate::theme_redrawn::parchment),
+    ("theme.ultraviolet", crate::theme_redrawn::ultraviolet),
+    ("theme.lagoon", crate::theme_redrawn::lagoon),
+    ("theme.evergreen_night", crate::theme_added::evergreen_night),
+    ("theme.evergreen_paper", crate::theme_added::evergreen_paper),
+    ("theme.bordeaux", crate::theme_added::bordeaux),
+    ("theme.print", crate::theme_added::print),
     ("theme.contrast", high_contrast),
     ("theme.contrast_light", high_contrast_light),
-    ("theme.slate", slate),
-    ("theme.ink_gold", ink_and_gold),
-    ("theme.paper", paper),
-    ("theme.parchment", parchment),
 ];
 
 /// What a fresh install starts with, and the fallback whenever a theme file cannot be
-/// read: **Cantus Night**, the theme that goes with the website (ADR 0046, the owner's
-/// request of 2026-10-10). Cantus Paper is its light twin, one click away, and "follow the
-/// system" too. A saved appearance keeps whatever it names.
+/// read: **Slate Night** (round 39, ADR 0111 — the owner chose `dir-a`'s direction on
+/// 2026-11-09). Slate Paper is its light twin, one click away, and "follow the system"
+/// too. A saved appearance keeps whatever it names.
 pub fn default_theme() -> Theme {
-    cantus_night()
+    slate_night()
 }
 
 fn current() -> &'static RwLock<Palette> {
@@ -541,6 +574,9 @@ pub fn apply(theme: &Theme, ctx: &egui::Context) {
     // value handed to egui below — never read back from the process-wide slot another
     // thread may be filling (second review, 13).
     let kit = theme.kit_tokens();
+    // The theme's face (round 39, ADR 0111) before its tokens: a face change reinstalls
+    // the fonts, and the next frame lays text out in it.
+    crate::design::use_face(ctx, kit.system.face);
     crate::kit::tokens::install(kit);
     ctx.set_theme(if pal.dark {
         egui::Theme::Dark
@@ -870,14 +906,8 @@ mod tests {
             let t = make().kit_tokens();
             let bad = t.legibility_failures();
             assert!(bad.is_empty(), "{key}: {bad:#?}");
-            let name = make().name;
-            let family = crate::theme_family::FAMILY
-                .iter()
-                .any(|(_, f)| f().name == name);
-            if !family {
-                // The older presets were built before this floor; they keep the kit's.
-                continue;
-            }
+            // Every shipped theme is of a family now (round 39): round 25's floor holds for
+            // each.
             let checks = [
                 ("meter low on its well", t.meter_low, t.meter_well, 3.0),
                 ("meter high on its well", t.meter_high, t.meter_well, 3.0),
@@ -909,6 +939,44 @@ mod tests {
                     "{key}: {what} is {got:.2}:1, below {need}:1 ({} on {})",
                     to_hex(fg),
                     to_hex(bg)
+                );
+            }
+            // A recessed key (round 39, ADR 0111): its glyph at rest reads on its well, and
+            // lit in the accent on the accent-tinted well (cap::well_fill).
+            if t.system.recessed() {
+                let s = crate::kit::Style::new(t);
+                for (what, st, need) in [
+                    ("a key's glyph at rest", crate::kit::State::REST, 4.5),
+                    (
+                        "a key's glyph under the pointer",
+                        crate::kit::State {
+                            hovered: true,
+                            ..crate::kit::State::REST
+                        },
+                        4.5,
+                    ),
+                    (
+                        "a lit key's glyph",
+                        crate::kit::State {
+                            lit: true,
+                            ..crate::kit::State::REST
+                        },
+                        3.0,
+                    ),
+                ] {
+                    let got = contrast(
+                        crate::kit::cap::well_ink(&s, st),
+                        crate::kit::cap::well_fill(&s, st),
+                    );
+                    assert!(
+                        got + 1e-3 >= need,
+                        "{key}: {what} is {got:.2}:1, below {need}:1"
+                    );
+                }
+                // The well shows against the bar it is cut into.
+                assert!(
+                    contrast(t.well, t.toolbar) >= 1.05,
+                    "{key}: the well is lost in its bar"
                 );
             }
             // High contrast means it: 7:1 (WCAG AAA) for every text role.
@@ -959,16 +1027,21 @@ mod tests {
     }
 
     #[test]
-    fn the_default_theme_is_cantus_night() {
-        // ADR 0046: the default is Cantus Night, the website's night palette; Cantus Paper
-        // is its light twin.
+    fn the_default_theme_is_slate_night() {
+        // Round 39 (ADR 0111): the owner chose Slate, `dir-a`'s direction; Slate Paper is
+        // its light twin. The design's values, exactly.
         let d = default_theme().palette();
         assert!(d.dark, "the shipped default is a dark theme");
-        assert_eq!(default_theme().name, "Cantus Night");
-        // The website's night and copper, exactly.
-        assert_eq!(to_hex(d.ink), "#120d0a");
-        assert_eq!(to_hex(default_theme().kit_tokens().brand), "#d4622a");
-        assert!(!cantus_paper().palette().dark);
+        assert_eq!(default_theme().name, "Slate Night");
+        let t = default_theme().kit_tokens();
+        assert_eq!(to_hex(t.ink), "#14191e", "the gutter");
+        assert_eq!(to_hex(t.panel), "#1d2329", "the base");
+        assert_eq!(to_hex(t.toolbar), "#262d34", "the surface");
+        assert_eq!(to_hex(t.text), "#e3e8ed", "ink 1");
+        assert_eq!(to_hex(t.highlight), "#5cafe9", "the accent");
+        assert_eq!(t.system, crate::kit::system::System::SLATE);
+        assert!(!slate_paper().palette().dark);
+        assert_eq!(slate_paper().kit_tokens().system, t.system);
         assert!(
             luminance(d.ink) < 0.1,
             "the canvas should be dark, got {}",

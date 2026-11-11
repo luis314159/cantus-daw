@@ -118,7 +118,7 @@ pub fn listen() -> Html {
                 if let Some(old) = audio.borrow_mut().take() {
                     let _ = old.pause();
                 }
-                if let Ok(a) = HtmlAudioElement::new_with_src(&format!("demos/{}.mp3", SONGS[i].id)) {
+                if let Ok(a) = HtmlAudioElement::new_with_src(&format!("/demos/{}.mp3", SONGS[i].id)) {
                     let _ = a.play();
                     *audio.borrow_mut() = Some(a);
                     progress.set((0.0, 0.0));
@@ -137,7 +137,7 @@ pub fn listen() -> Html {
             <li class={classes!("song", is_cur.then_some("is-current"), is_playing.then_some("is-playing"))}>
                 <button type="button" class="song-btn" onclick={click} aria-label={label}>{ icon }</button>
                 <div class="song-name"><strong>{ song.title }</strong><span>{ l.t(song.style.0, song.style.1) }</span></div>
-                <div class="song-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={format!("{frac:.0}")}>
+                <div class="song-bar" role="progressbar" aria-label={format!("{}, {}", song.title, l.t("played", "reproducido"))} aria-valuemin="0" aria-valuemax="100" aria-valuenow={format!("{frac:.0}")}>
                     <i style={format!("width:{frac:.1}%")}></i>
                 </div>
                 <span class="song-time">{ if is_cur && len > 0.0 { format!("{} / {}", clock(pos), clock(len)) } else { String::from("\u{2013}") } }</span>

@@ -47,7 +47,11 @@ pub fn read_ok(h: &mut BareHost, name: &str, args: Value) -> Value {
 pub fn edit(h: &mut BareHost, name: &str, args: Value) -> Result<Value, ToolError> {
     let t = tool(name);
     assert!(
-        matches!(t.class, ToolClass::Edit | ToolClass::Destructive),
+        // A Files tool may edit too (`set_impulse_response` stores a path: one undo step).
+        matches!(
+            t.class,
+            ToolClass::Edit | ToolClass::Destructive | ToolClass::Files
+        ),
         "{name} edits but is {:?}",
         t.class
     );

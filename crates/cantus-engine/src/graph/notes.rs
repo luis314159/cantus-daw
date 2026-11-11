@@ -35,6 +35,16 @@ pub(crate) struct Outbox {
 }
 
 impl Outbox {
+    /// An outbox of a slot not provisioned yet (ADR 0107): no ring, nothing allocated. Never
+    /// written: no track is given an unprovisioned slot.
+    pub(crate) fn bare() -> Self {
+        Outbox {
+            notes: Box::default(),
+            written: 0,
+            floor: 0,
+        }
+    }
+
     pub(crate) fn new() -> Self {
         Outbox {
             notes: vec![(0, FxNote::AllOff); OUTBOX].into_boxed_slice(),
