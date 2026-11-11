@@ -36,7 +36,9 @@ jobs:
     if: github.repository == 'luis314159/cantus-daw'
     name: test (macos-latest)
     runs-on: macos-latest
-    timeout-minutes: 120
+    # 180 (beta.14): the suite with its retries took 91 min and clippy for both Macs 12, so the
+    # schedule fuzz was cut at 120.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - name: Rust (the pinned toolchain, and Intel's target)
