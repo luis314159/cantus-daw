@@ -1953,6 +1953,16 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
 - The visual details only use reveals: alignment, wording, empty states, error messages
   that tell you what to do, consistent icons; a design review of every view against FL.
 - Localisation beyond EN/ES (PT, FR, DE, JA) once strings settle.
+- ~~**A shared helper's crash blamed on no one**~~ — **closed** (beta.12's CI; round 39's
+  `fixes`, then `abort-blame` after beta.14's CI and release runs failed `session_faults9`'s
+  hundred aborts, 2 and 6 of 100). Two causes. `fixes`: a job never taken was laid the end
+  (the neighbour blamed). `abort-blame`: the helper's main thread named the neighbour for a
+  whole request or tick — its own bookkeeping and the writing of its answer included — so a
+  lagging main thread still busy with the neighbour when the gain aborted made two
+  candidates, nobody's. The mark now covers only calls into the plug-in (ADR 0063 §9); held
+  on any machine by `CANTUS_TEST_SANDBOX_LAG` (7 of 7 nobody before, 0 after). Left by
+  design: a fail-fast while the main thread is truly in a neighbour's code stays nobody's
+  (`docs/round39/abort-blame.md`).
 - **A scroll-bar zoom test that failed once** (round 39's integration, 2026-11-09):
   `views_nav::dragging_an_end_of_the_scroll_bar_zooms` failed once in the whole cantus-ui
   suite (`pulling the bar's end out did not zoom out: 26 → 26` — the press missed the thumb's

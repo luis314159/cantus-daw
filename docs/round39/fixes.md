@@ -32,6 +32,10 @@ spinning threads, the condition that shows the race; `CANTUS_ABORTS` another cou
 load: one processing thread, the gain hanging on it, both slots past the limit at the same
 frame, in both insertion orders).
 
+**Later (abort-blame, after beta.14's CI):** a second cause remained — the main thread's
+mark named the neighbour while it wrote the neighbour's answer, so the end had two
+candidates and was nobody's. See `abort-blame.md`.
+
 ## 2. Chorda model 2's constructor costs 17–20 ms
 
 **Measured** (dsp at opt 3): the body's two responses at a rate not yet made cost 16.3 ms;

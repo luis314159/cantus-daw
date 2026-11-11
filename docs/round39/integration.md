@@ -366,7 +366,9 @@ Studio's 133 (by 10 MB).
   not catch a stack overflow at start): none fell, every window open at 30 s — an empty song
   136 MB private at 30 s, the *Beat* starter 138 MB, a first start that opens the demo song
   *Neon Tide* 179 MB.
-- Known flaky, each in BACKLOG §8: `cantus-sandbox::session_faults9` (beta.12's), `views_nav`'s
+- `cantus-sandbox::session_faults9` (beta.12's) failed on both Windows runs at the first beta.14
+  tag (2 and 6 of 100): a real race, fixed at the root (`abort-blame.md`, ADR 0063 §9) and the
+  tag moved. Known flaky, each in BACKLOG §8: `views_nav`'s
   scroll-bar zoom test (failed once in 124 runs); `agent_tools::export_writes_only_where_allowed…`
   failed once on "Access is denied" in the shared temporary folder and passed 14 of 14 alone.
 - macOS: at the tag, on GitHub's runners.

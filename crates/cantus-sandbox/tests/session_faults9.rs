@@ -9,6 +9,16 @@
 //! looked at first — the neighbour, for a job no worker ever took. With
 //! `CANTUS_ABORT_LOAD=24` (threads spinning beside the test) it showed within a few rounds;
 //! a job is now laid on its plug-in only if a worker took it.
+//!
+//! The race that stayed (beta.14's CI and release runs, "the gain not blamed in 2 of 100",
+//! "6 of 100"; round 39, abort-blame): the neighbour's value, set just before the settle,
+//! is a request its helper's main thread serves while the gain's job runs, and every tick
+//! mirrors the neighbour; a loaded runner's main thread lags there — still answering the
+//! neighbour, or put off the processor in its tick, when the gain aborts. The main thread's
+//! word named the neighbour for the whole request and the whole tick, its own bookkeeping
+//! included, so the end had two candidates — the gain's job and the neighbour — and was
+//! laid on nobody. The word now names a plug-in only while the main thread runs its code.
+//! `CANTUS_TEST_SANDBOX_LAG` holds that lag on any machine (the last test).
 
 mod support;
 
@@ -175,4 +185,59 @@ fn a_hang_is_laid_on_the_job_that_runs_never_on_one_waiting_behind_it() {
         assert_eq!(rig.host.crashes_this_session(Format::Clap, GAIN_ID), 1);
         assert_eq!(rig.host.crashes_this_session(Format::Vst3, VST3_GAIN_ID), 0);
     }
+}
+
+/// The race that stayed, held on any machine (round 39, abort-blame): the helper's main
+/// thread lags 60 ms over its own work about the neighbour (instance 2) — each answer, each
+/// tick's mirroring, after the plug-in's calls, as a loaded runner's main thread is put off
+/// the processor there — so the gain aborts while the neighbour's value, set just before the
+/// settle, is still being answered. The end is the gain's alone, every round: the helper's
+/// own work names no plug-in. (Before the fix, 7 of 7 laid on nobody.)
+#[test]
+fn an_abort_while_the_neighbours_answer_is_written_is_still_the_gains() {
+    let _g = serial();
+    // Set for the helpers this test starts, and gone after it whatever happens.
+    struct Unset;
+    impl Drop for Unset {
+        fn drop(&mut self) {
+            std::env::remove_var("CANTUS_TEST_SANDBOX_LAG");
+        }
+    }
+    let _unset = Unset;
+    std::env::set_var("CANTUS_TEST_SANDBOX_LAG", "2:60");
+    let mut nobody = Vec::new();
+    for round in 0..7 {
+        let project = demo_project();
+        let strip = strip_of(&project, 0);
+        let mut rig = Rig::new(project, patient_host());
+        let a = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
+        let b = rig.insert(strip, VST3_GAIN_ID, PluginIsolation::Together);
+        rig.set_param(strip, a, P_GAIN, -6.0);
+        rig.set_param(strip, b, V_GAIN, -3.0);
+        rig.settle();
+        rig.engine.seek(Ticks::ZERO);
+        rig.engine.play();
+        for _ in 0..(round % 7) {
+            rig.block(256);
+        }
+        rig.set_param(strip, a, P_FAULT, ABORT_PROCESS);
+        for _ in 0..20 {
+            rig.block(256);
+        }
+        frames_until(&mut rig, Duration::from_secs(10), |r| crash_notices(r) >= 2);
+        rig.engine.stop();
+        assert_eq!(crash_notices(&rig), 2, "round {round}: {:?}", rig.notices);
+        if !rig.host.crash_culprit(a) {
+            nobody.push(round);
+        }
+        assert!(
+            !rig.host.crash_culprit(b),
+            "round {round}: not the neighbour"
+        );
+        assert_eq!(rig.host.crashes_this_session(Format::Vst3, VST3_GAIN_ID), 0);
+    }
+    assert!(
+        nobody.is_empty(),
+        "the gain not blamed in rounds {nobody:?}"
+    );
 }

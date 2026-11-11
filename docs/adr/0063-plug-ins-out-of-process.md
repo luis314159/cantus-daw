@@ -573,6 +573,28 @@ Three tests failed now and then on GitHub's runners; each had a cause, none a sh
   beta.5 release run). `support::infos` refuses to run with a fault armed in the
   environment.
 
+### 9. Amended, round 39 (2026-11-11): the main thread names a plug-in only in its code
+
+A fail-fast abort runs no handler, so its end is laid on the one candidate among the
+instance the main thread names (`MAIN_AT`) and the jobs running (§3); two are nobody's. The
+main thread named an instance for far more than its code: a request's whole span (the
+plug-in's call, then the helper's own mirroring and its answer serialised and written to
+the pipe) and a tick's whole turn (the bookkeeping between the plug-in's calls). A loaded
+runner's main thread lags there: still answering a value set on a neighbour just before a
+settle, or put off the processor in the neighbour's tick, when the gain aborted in its job —
+two candidates, the end laid on nobody (beta.14's CI and release runs, `session_faults9`'s
+hundred aborts: 2 and 6 of 100). Now each call into a plug-in's main half or window made
+while mirroring it (in a tick or after a request) names it alone (`serve::marked`); a
+request's mark covers the request's own calls and ends before the mirroring and the answer;
+every frame the main thread writes is written naming no plug-in (`Server::send` under
+`blame::calling(0)`). A crash in the helper's own code is no plug-in's anyway. A main thread
+truly inside a neighbour's code at the instant another plug-in fail-fasts is still two
+candidates — nothing in the process says which thread called the fail-fast — and stays
+nobody's. For tests, `CANTUS_TEST_SANDBOX_LAG=<instance>:<ms>` makes the helper's own work
+about one instance (its answers, its tick's mirroring) that much longer: the hundred-abort
+scenario with 60 ms was nobody's in 100 of 100 rounds before, 0 of 500 after
+(`session_faults9.rs`, `docs/round39/abort-blame.md`).
+
 ## Consequences
 
 - New: `cantus_rt::{shm, ipc}`, `cantus_host::bridge::{slot, proto, sandbox, audio, main}`,

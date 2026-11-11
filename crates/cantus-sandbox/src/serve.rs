@@ -87,6 +87,40 @@ mod late_tests {
         assert_eq!(late_of(Some("150")), Duration::from_millis(150));
         assert_eq!(late_of(Some("999999")), Duration::from_secs(1));
     }
+
+    #[test]
+    fn the_lag_knob_names_an_instance_and_is_capped() {
+        assert_eq!(slow_of(None), None);
+        assert_eq!(slow_of(Some("nonsense")), None);
+        assert_eq!(slow_of(Some("x:50")), None);
+        assert_eq!(slow_of(Some("2:50")), Some((2, Duration::from_millis(50))));
+        assert_eq!(
+            slow_of(Some(" 3 : 999999")),
+            Some((3, Duration::from_secs(1)))
+        );
+    }
+}
+
+/// For tests (`CANTUS_TEST_SANDBOX_LAG=<instance>:<ms>`): the main thread takes that much
+/// longer over its own work about that instance — each answer to a request about it, each
+/// tick's mirroring of it — after the plug-in's calls, as a loaded runner's main thread lags,
+/// put off the processor in the helper's own code (round 39, abort-blame). Read once;
+/// capped as the timers' knob is.
+fn lag(instance: Option<u32>) {
+    static SLOW: OnceLock<Option<(u32, Duration)>> = OnceLock::new();
+    let slow =
+        SLOW.get_or_init(|| slow_of(std::env::var("CANTUS_TEST_SANDBOX_LAG").ok().as_deref()));
+    if let (Some((n, d)), Some(i)) = (slow, instance) {
+        if *n == i {
+            std::thread::sleep(*d);
+        }
+    }
+}
+
+/// What the lag knob's text says: the instance and how much longer.
+fn slow_of(text: Option<&str>) -> Option<(u32, Duration)> {
+    let (n, ms) = text?.split_once(':')?;
+    Some((n.trim().parse().ok()?, late_of(Some(ms))))
 }
 
 /// The main thread's progress: bumped by its loop and by the pulse.
@@ -152,16 +186,20 @@ impl Instance {
     }
 
     /// Its requests (window ones handled here) and the values that changed.
+    /// Each call into the plug-in (its main half, its window) names the instance; the
+    /// bookkeeping between them names none ([`marked`]).
     fn news(&mut self) -> (Vec<WireNotice>, Vec<(u32, f64)>) {
+        let at = self.rt.instance;
         let mut notices = Vec::new();
-        for n in self.main.idle() {
+        let idle = marked(at, || self.main.idle());
+        for n in idle {
             match &n {
                 Notice::EditorResized(size) => {
                     if let Some(w) = self.window.as_mut() {
-                        w.fit(*size);
+                        marked(at, || w.fit(*size));
                     }
                 }
-                Notice::EditorClosed => self.close_window(),
+                Notice::EditorClosed => marked(at, || self.close_window()),
                 _ => {}
             }
             if let Some(w) = proto::WireNotice::of(&n) {
@@ -169,22 +207,25 @@ impl Instance {
             }
         }
         if self.window.as_ref().is_some_and(|w| w.closed()) {
-            self.close_window();
+            marked(at, || self.close_window());
             notices.push(WireNotice::EditorClosed);
         }
         if let Some(w) = self.window.as_mut() {
             if let Some(size) = w.take_resize() {
-                if let Some(taken) = self.main.resize_editor(size) {
-                    w.fit(taken);
+                if let Some(taken) = marked(at, || self.main.resize_editor(size)) {
+                    marked(at, || w.fit(taken));
                 }
             }
         }
         if notices.contains(&WireNotice::ParamsChanged) {
-            self.ids = self.main.params().iter().map(|p| p.id).collect();
+            self.ids = marked(at, || self.main.params())
+                .iter()
+                .map(|p| p.id)
+                .collect();
         }
         let mut values = Vec::new();
         for id in &self.ids {
-            if let Some(v) = self.main.param_value(*id) {
+            if let Some(v) = marked(at, || self.main.param_value(*id)) {
                 if self.told.get(id).map(|x| x.to_bits()) != Some(v.to_bits()) {
                     self.told.insert(*id, v);
                     values.push((*id, v));
@@ -196,11 +237,12 @@ impl Instance {
 
     /// Everything Cantus mirrors, after a call.
     fn after(&mut self) -> After {
+        let at = self.rt.instance;
         let (notices, _) = self.news();
         let values: Vec<(u32, f64)> = self
             .ids
             .iter()
-            .filter_map(|id| self.main.param_value(*id).map(|v| (*id, v)))
+            .filter_map(|id| marked(at, || self.main.param_value(*id)).map(|v| (*id, v)))
             .collect();
         for (id, v) in &values {
             self.told.insert(*id, *v);
@@ -208,7 +250,7 @@ impl Instance {
         After {
             notices,
             values,
-            latency: self.main.latency(),
+            latency: marked(at, || self.main.latency()),
         }
     }
 
@@ -233,6 +275,16 @@ impl Instance {
             expression: self.main.expression_support(),
         }
     }
+}
+
+/// Runs `f` — a call into an instance's plug-in code — with the main thread naming that
+/// instance in the lobby (`MAIN_AT`) and to its crash handler. The main thread names a
+/// plug-in only while it runs the plug-in's code: a fail-fast abort in another plug-in's
+/// job while the helper did its own work about this one (mirrored its values, wrote its
+/// answer) was laid on nobody, two candidates for one end (round 39, abort-blame).
+fn marked<R>(instance: u32, f: impl FnOnce() -> R) -> R {
+    let _at = crate::platform::blame::calling(instance);
+    f()
 }
 
 fn failure(e: HostError) -> Failure {
@@ -266,7 +318,10 @@ struct Server {
 }
 
 impl Server {
+    /// Writes a frame — the helper's own code, whatever call it is made in: the main
+    /// thread names no plug-in meanwhile (round 39, abort-blame; see [`Server::handle`]).
     fn send(&mut self, msg: &Message, blob: &[u8]) -> bool {
+        let _own = crate::platform::blame::calling(0);
         proto::write_frame(&mut *out_lock(&self.out), msg, blob).is_ok()
     }
 
@@ -424,11 +479,20 @@ impl Server {
     }
 
     /// One call; `None` for Quit.
+    ///
+    /// The main thread names the call's instance in the lobby (`MAIN_AT`) while it runs the
+    /// call, and each later call into the plug-in (what is mirrored after it, [`marked`]);
+    /// no plug-in while it does the helper's own work: the mirroring's bookkeeping, the
+    /// answer written, a frame sent. A crash no handler sees (a fail-fast abort) is laid on
+    /// the one candidate among the instance the main thread names and the jobs running; a
+    /// lagging main thread still answering the neighbour, or mirroring it in a tick, made the
+    /// neighbour a second candidate, and a gain's abort in its job was laid on nobody (round
+    /// 39, abort-blame: beta.14's CI, 2 and 6 of 100).
     fn handle(&mut self, req: Request, blob: Vec<u8>) -> Option<()> {
         let id = req.id;
         // Its time limit runs from now (review #37).
         self.send(&Message::Started { id }, &[]);
-        let _at = instance_of(&req.call).map(crate::platform::blame::calling);
+        let at = instance_of(&req.call).map(crate::platform::blame::calling);
         let mut reply_blob = Vec::new();
         let mut named = None;
         let result = match req.call {
@@ -500,8 +564,12 @@ impl Server {
                 result
             }
         };
+        // The call is over: what is mirrored after it marks its own calls into the plug-in,
+        // and the answer is the helper's own work.
+        drop(at);
         let after =
             named.and_then(|n| self.instances.get_mut(&n).map(|i| Box::new((n, i.after()))));
+        lag(named);
         self.send(&Message::Reply { id, result, after }, &reply_blob);
         Some(())
     }
@@ -529,11 +597,12 @@ impl Server {
     fn tick(&mut self) {
         let mut news = Vec::new();
         for (n, inst) in &mut self.instances {
-            let _at = crate::platform::blame::calling(*n);
+            // Each call into the plug-in names it; the mirroring around them names none.
             let mut out = ParamOut::new();
-            inst.main.flush(&[], &mut out);
+            marked(*n, || inst.main.flush(&[], &mut out));
             let flushed: Vec<WireEvent> = out.events().iter().map(WireEvent::of).collect();
             let (notices, values) = inst.news();
+            lag(Some(*n));
             if !notices.is_empty() || !values.is_empty() || !flushed.is_empty() {
                 news.push(Message::News {
                     instance: *n,
