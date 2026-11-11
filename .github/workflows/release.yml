@@ -240,7 +240,8 @@ jobs:
     if: github.repository == 'luis314159/cantus-daw' && vars.CANTUS_RELEASE_MACOS == 'true'
     name: macos (disk image)
     runs-on: macos-latest
-    timeout-minutes: 150
+    # 180 (beta.14): the suite took 84 min and the disk image 36, 130 of the 150 there were.
+    timeout-minutes: 180
     env:
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
