@@ -223,6 +223,36 @@ pub fn write_wav(path: &Path, s: &Stereo, float: bool) -> Result<(), String> {
     w.finalize().map_err(|e| e.to_string())
 }
 
+/// 24-bit FLAC (`cantus-export`'s encoder, the export dialog's): lossless, about half a
+/// 24-bit WAV, and played by every current browser — the kit as a web page's (`--flac`).
+pub fn write_flac(path: &Path, s: &Stereo) -> Result<(), String> {
+    use cantus_export::settings::{Depth, Dither, Tags};
+    let mut samples = Vec::with_capacity(s.l.len() * 2);
+    for (a, b) in s.l.iter().zip(&s.r) {
+        samples.push(*a);
+        samples.push(*b);
+    }
+    let audio = cantus_export::Audio {
+        rate: SR,
+        channels: 2,
+        samples,
+    };
+    let mut out = std::io::BufWriter::new(std::fs::File::create(path).map_err(|e| e.to_string())?);
+    let mut progress = |_: f32| true;
+    cantus_export::encode::flac(
+        &mut out,
+        &audio,
+        Depth::Int24,
+        Dither::Off,
+        &Tags::default(),
+        "",
+        &mut progress,
+    )
+    .map_err(|e| format!("{e:?}"))?;
+    use std::io::Write as _;
+    out.flush().map_err(|e| e.to_string())
+}
+
 pub fn read_wav(path: &Path) -> Result<Stereo, String> {
     let mut r = hound::WavReader::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let spec = r.spec();

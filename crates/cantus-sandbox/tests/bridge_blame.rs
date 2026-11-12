@@ -199,7 +199,8 @@ fn a_crash_reporter_that_hands_back_changes_nothing() {
 }
 
 /// Two jobs running when a plug-in aborts (a fail-fast: no handler runs): nothing says
-/// whose — neither is laid on (review isolation-4 #32, review #21).
+/// whose — neither is laid on (review isolation-4 #32, review #21); both are told they are
+/// suspects, so a reload runs each alone (ADR 0063 §10).
 #[cfg(windows)]
 #[test]
 fn a_fail_fast_with_two_jobs_running_is_nobodys() {
@@ -223,7 +224,7 @@ fn a_fail_fast_with_two_jobs_running_is_nobodys() {
     let b_blame = crashed_within(b.as_mut(), Duration::from_secs(2))
         .expect("ended")
         .0;
-    assert_eq!((a_blame, b_blame), (Blame::Unknown, Blame::Unknown));
+    assert_eq!((a_blame, b_blame), (Blame::Suspect, Blame::Suspect));
 }
 
 /// The last plug-in of a helper, removed: its destructor runs to its end — the helper is

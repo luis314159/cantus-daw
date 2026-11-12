@@ -307,9 +307,14 @@ pub fn width(ctx: &egui::Context, items: &[Item<'_>], s: &Style) -> f32 {
 /// its anchor where there is no room under it.
 pub fn fit<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let room = (ui.ctx().content_rect().height() - 2.0 * FIT_MARGIN).max(80.0);
+    // `min_scrolled_height` too: a popup's first frame (egui's sizing pass) measures it in
+    // `default_area_size` (400 pt tall), and the scroll area took those 400 as its room —
+    // a menu taller than that scrolled in a window with room for all of it (the View menu,
+    // 2026-11-11). With both, it is as tall as its content up to the window's room.
     egui::ScrollArea::vertical()
         .id_salt("cantus-menu-fit")
         .max_height(room)
+        .min_scrolled_height(room)
         .auto_shrink([true, true])
         .show(ui, add)
         .inner

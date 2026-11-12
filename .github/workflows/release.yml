@@ -308,6 +308,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # The website's deploy is started once the release is out (the last step).
+      actions: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -387,3 +389,10 @@ jobs:
             *) args+=(--latest) ;;
           esac
           gh release create "$tag" dist/* "${args[@]}"
+      # A release this workflow's token publishes starts no other workflow, so the site's
+      # `release: published` never fired and the download page kept the last release's
+      # files (beta.14, 2026-11-11); a dispatch is the one event that token may start.
+      - name: The website's download page gets the new files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site.yml --ref master --repo "$GITHUB_REPOSITORY"

@@ -1,0 +1,96 @@
+{
+  "schema": "cantus-r39-decisiones/1",
+  "name": "Luis Angel",
+  "answers": {
+    "q01": {
+      "pick": "borde",
+      "comment": "Rellenar con vacios, duda se pueden crear grupos, como hacer un crupo de canales de baterias etc?"
+    },
+    "q02": {
+      "pick": "inspector",
+      "comment": "Configurable esto, no?"
+    },
+    "q03": {
+      "recientes": "cinco",
+      "riel": "bien",
+      "atajo": "bien"
+    },
+    "q04": {
+      "comment": "Configurable, tener ambas opciones, default la opcion de abajo"
+    },
+    "q05": {
+      "pick": "fraccion"
+    },
+    "q06": {
+      "pick": "si"
+    },
+    "q07": {
+      "pick": "r40"
+    },
+    "q08": {
+      "pick": "mantener"
+    },
+    "q09": {
+      "pick": "asi"
+    },
+    "q10": {
+      "pick": "flow"
+    },
+    "q11": {
+      "quiero": [
+        "grabar",
+        "llave"
+      ]
+    },
+    "q12": {
+      "violeta": "mantener",
+      "tapon": "asi",
+      "papel": "mejorar",
+      "barras": "si",
+      "mute": "color",
+      "comment": "No entiendo lo de silencio activado"
+    },
+    "q13": {
+      "pick": "despues"
+    },
+    "q14": {
+      "pick": "si",
+      "comment": "Seleccionable a escoger como fl studio"
+    },
+    "q15": {
+      "set3": "aprobar",
+      "set4": "aprobar",
+      "set5": "aprobar"
+    },
+    "q16": {
+      "pick": "mantener"
+    },
+    "q17": {
+      "linea": "lapis",
+      "tinte": "justo",
+      "azul": "mas"
+    },
+    "q18": {
+      "pergamino": "justo",
+      "burdeos": "fuerte",
+      "ultravioleta": "justo",
+      "peltre": "fuerte",
+      "impresion": "justo"
+    },
+    "q19": {
+      "pick": "asi"
+    },
+    "q20": {
+      "vintage": "despues",
+      "bailarin": "redisenar"
+    },
+    "q21": {
+      "pick": "no"
+    },
+    "q22": {
+      "sync": "si",
+      "plugin": "si"
+    }
+  },
+  "updatedAt": "2026-11-12T03:43:43.560Z"
+}

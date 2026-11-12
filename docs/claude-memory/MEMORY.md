@@ -48,3 +48,5 @@
 - [Decision: Slate is the default look](decision-slate-default.md) — owner 2026-11-09 chose direction A Slate; icons set 1 rejected: more elegant, compare with FL and other DAWs; logo #03 default; Slate Lapis optional; dancers off site/README
 - [Round 39: UX + graphics](round-39.md) — Slate + kit + icons + every view redrawn, 24 themes, Delay window, Aula, memory 237→140 MB private quiet (still behind REAPER/FL); schema 61; closed as beta.14; next = docs/next-session.md (round 40)
 - [Themes must be legible](feedback-themes-legible.md) — every theme easy to work/read; measured non-text 3:1 + text 4.5:1 across all themes
+- [Decision: Chorda as good as Salamander](decision-chorda-like-salamander.md) — owner 2026-11-12: round 40 first; his ABX baseline 0–7 vs Salamander, bass worse than model 1
+- [Decision: round 39 answers](decision-round39-answers.md) — owner 2026-11-12 answered the 22: dock at edge, configurable maximise/top bar, mute in colour, pad mixer track like FL, softer Bordeaux/Pewter, Delay sync+plug-in; no legal review

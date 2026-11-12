@@ -977,14 +977,6 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     crate::views::video_export::show(app, ctx);
 }
 
-/// File ▸ Export video… (the File menu is egui's own, as its other entries).
-pub fn menu_item(app: &mut CantusApp, ui: &mut egui::Ui) {
-    if ui.button(t("video.menu")).clicked() {
-        ui.close();
-        open(app);
-    }
-}
-
 /// Why a render cannot start now, in words naming the export running (audio or video);
 /// `None` when none runs (review 2 #3: never a silent refusal).
 pub fn busy_words(app: &CantusApp) -> Option<String> {

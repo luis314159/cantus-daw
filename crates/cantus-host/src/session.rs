@@ -199,6 +199,10 @@ pub struct Hosted {
     pub(crate) crashed: Option<String>,
     /// Whose doing its helper's end was, while it has stopped.
     pub(crate) blame: Option<Blame>,
+    /// Runs in a helper of its own for the session, wherever the project puts it: an end
+    /// of its shared helper was one of several plug-ins' and nothing chose between them
+    /// (a suspect, ADR 0063 §10) — its next end names it. Gone when where it runs changes.
+    pub(crate) apart: bool,
     pub(crate) cpu: iso::CpuWatch,
     /// Just inserted, its load answered later (an isolated plug-in): its values and state
     /// go into the project when it loads, in the insert's undo step.
@@ -244,6 +248,7 @@ impl Hosted {
             isolation,
             crashed: None,
             blame: None,
+            apart: false,
             cpu: iso::CpuWatch::default(),
             fresh: false,
             moving: false,
@@ -286,6 +291,11 @@ impl Hosted {
     /// Where it runs (round 29).
     pub fn isolation(&self) -> PluginIsolation {
         self.isolation
+    }
+
+    /// It runs alone for the session after an end nothing chose between (ADR 0063 §10).
+    pub fn apart(&self) -> bool {
+        self.apart
     }
 
     /// What it costs, measured over the last half second (round 29).
@@ -1137,6 +1147,7 @@ impl PluginHost {
         // Moved to another process: another load (ADR 0073).
         h.load = next_load();
         h.isolation = inst.isolation;
+        h.apart = false;
         h.crashed = None;
         h.blame = None;
         h.params = h.main.params();

@@ -240,6 +240,7 @@ layout.default = Predeterminado
 menu.layout = Disposición
 layout.save_as = Guardar disposición…
 layout.delete = Eliminar esta disposición
+layout.delete_none = Esta es la disposición de fábrica: no hay una disposición guardada que eliminar
 layout.reset = Restablecer disposición
 layout.name = Nombre de la disposición
 layout.save = Guardar

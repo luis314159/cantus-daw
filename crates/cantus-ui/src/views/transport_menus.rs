@@ -282,15 +282,17 @@ fn menu_key(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
 }
 
+/// One of the bar's menus, kept inside the window: one taller than it scrolls (the owner,
+/// 2026-11-11: View ran off the foot of a 1080-px screen with nothing to scroll).
 fn menu_body(app: &mut CantusApp, ui: &mut Ui, i: usize) {
-    match i {
+    crate::kit::menu::fit(ui, |ui| match i {
         0 => file_menu(app, ui),
         1 => edit_menu(app, ui),
         2 => clip_menu(app, ui),
         3 => view_menu(app, ui),
         4 => options_menu(app, ui),
         _ => help_menu(app, ui),
-    }
+    });
 }
 
 /// The menus' look (ADR 0024 §4, FL 2026): the kit's menu face, 22-pt rows, the hover
@@ -327,133 +329,246 @@ pub(super) fn menu_look(style: &mut egui::Style) {
     style.spacing.menu_margin = egui::Margin::same(4);
     style.override_font_id = Some(Role::Body.font(s.tk()));
 }
+/// What a row of one of the bar's menus does.
+#[derive(Clone)]
+enum Do {
+    Run(crate::keymap::Action),
+    Command(crate::menu_commands::MenuCommand),
+    Undo,
+    Redo,
+    Shortcuts,
+    About,
+    ExportVideo,
+    Pane(Pane),
+    TempoLane,
+    Layout(String),
+    Appearance,
+    Settings,
+    Customise,
+    KeyboardPiano,
+    Stats,
+    Band,
+    Separator,
+}
+
+/// One row of a bar menu: its words, its check, the action whose key it shows, whether it
+/// can be chosen now, and what it does.
+struct Row {
+    words: Words,
+    check: crate::kit::menu::Check,
+    key: Option<crate::keymap::Action>,
+    enabled: bool,
+    what: Do,
+}
+
+/// A row's words: a string key, or text made now (an undo's name, a layout's name).
+enum Words {
+    Key(&'static str),
+    Text(String),
+}
+
+impl Row {
+    fn new(words: &'static str, what: Do) -> Row {
+        Row {
+            words: Words::Key(words),
+            check: crate::kit::menu::Check::None,
+            key: match what {
+                Do::Run(a) => Some(a),
+                _ => None,
+            },
+            enabled: true,
+            what,
+        }
+    }
+    fn run(action: crate::keymap::Action, words: &'static str) -> Row {
+        Row::new(words, Do::Run(action))
+    }
+    fn command(c: crate::menu_commands::MenuCommand) -> Row {
+        Row::new(c.key(), Do::Command(c))
+    }
+    fn separator() -> Row {
+        Row::new("", Do::Separator)
+    }
+    fn band(words: Words) -> Row {
+        Row {
+            words,
+            ..Row::new("", Do::Band)
+        }
+    }
+    fn checked(mut self, on: bool) -> Row {
+        self.check = if on {
+            crate::kit::menu::Check::On
+        } else {
+            crate::kit::menu::Check::Off
+        };
+        self
+    }
+    fn key(mut self, action: crate::keymap::Action) -> Row {
+        self.key = Some(action);
+        self
+    }
+    fn enabled(mut self, on: bool) -> Row {
+        self.enabled = on;
+        self
+    }
+    fn text(mut self, words: String) -> Row {
+        self.words = Words::Text(words);
+        self
+    }
+}
+
+/// A bar menu's rows as one kit menu (round 39's light rows, one frame, each action's key
+/// on the right) — every bar menu alike. They were egui's own buttons and check boxes and a
+/// kit menu per row: rows of two heights and boxed entries, until the owner's screen showed
+/// them (2026-11-11). A click closes the menu and does what the row says.
+fn bar_menu(app: &mut CantusApp, ui: &mut Ui, rows: &[Row]) {
+    bar_menu_at(app, ui, rows, 240.0);
+}
+
+/// [`bar_menu`] at least `width` wide (a second list under the first, as wide as it).
+fn bar_menu_at(app: &mut CantusApp, ui: &mut Ui, rows: &[Row], width: f32) {
+    let Some(what) = bar_list(app, ui, rows, width) else {
+        return;
+    };
+    ui.close();
+    let ctx = ui.ctx().clone();
+    run_row(app, &ctx, what);
+}
+
+/// [`bar_menu`]'s list alone: the row chosen, if one was.
+fn bar_list(app: &CantusApp, ui: &mut Ui, rows: &[Row], width: f32) -> Option<Do> {
+    use crate::kit::menu::Item;
+    use crate::kit::text::Src;
+    let keys: Vec<Option<String>> = rows
+        .iter()
+        .map(|r| {
+            r.key
+                .and_then(|a| app.keymap.bindings_for(a).first().map(|b| b.display()))
+        })
+        .collect();
+    let items: Vec<Item<'_>> = rows
+        .iter()
+        .zip(&keys)
+        .map(|(r, k)| {
+            let label = match &r.words {
+                Words::Key(key) => Src::Key(key),
+                Words::Text(text) => Src::Str(text),
+            };
+            match r.what {
+                Do::Band => Item::Band(label),
+                Do::Separator => Item::Separator,
+                _ => Item::Action {
+                    label,
+                    check: r.check,
+                    shortcut: k.as_deref(),
+                    submenu: false,
+                    enabled: r.enabled,
+                },
+            }
+        })
+        .collect();
+    let clicked = crate::kit::widgets::menu_list(ui, &items, width)
+        .1
+        .clicked?;
+    let row = &rows[clicked];
+    row.enabled.then(|| row.what.clone())
+}
+
+fn run_row(app: &mut CantusApp, ctx: &egui::Context, what: Do) {
+    match what {
+        Do::Run(a) => app.run_action(a),
+        Do::Command(c) => c.run(app, ctx),
+        Do::Undo => app.undo(),
+        Do::Redo => app.redo(),
+        Do::Shortcuts => app.show_shortcuts = true,
+        Do::About => app.show_about = true,
+        Do::ExportVideo => crate::video_export::open(app),
+        Do::Pane(pane) => app.toggle_pane(pane),
+        Do::TempoLane => app.toggle_tempo_lane(),
+        Do::Layout(name) => app.apply_layout(&name),
+        Do::Appearance => app.show_theme_editor = true,
+        Do::Settings => app.show_settings = true,
+        Do::Customise => super::more::open_customise(app),
+        Do::KeyboardPiano => app.keyboard_piano = !app.keyboard_piano,
+        Do::Stats => app.show_stats = !app.show_stats,
+        Do::Band | Do::Separator => {}
+    }
+}
+
 fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
     use crate::menu_commands::MenuCommand as M;
     // r39:ux-b — every row that is an action shows its key (ADR 0110); the rest run the
     // commands the palette offers under the same words.
-    let command = |app: &mut CantusApp, ui: &mut Ui, c: M| {
-        if views::hint::button(ui, t(c.key())).clicked() {
-            ui.close();
-            let ctx = ui.ctx().clone();
-            c.run(app, &ctx);
-        }
-    };
-    if views::arrangement::action_item(app, ui, Action::NewProject, "menu.new") {
-        ui.close();
-    }
-    // Round 31 (ADR 0072): the start page, with its templates and the recent projects.
-    if views::arrangement::action_item(
-        app,
-        ui,
-        crate::keymap::Action::NewFromTemplate,
-        "action.new-from-template",
-    ) {
-        ui.close();
-    }
-    for (action, key) in [
-        (Action::DemoSongs, "demos.menu"),
-        (Action::Open, "menu.open"),
-    ] {
-        if views::arrangement::action_item(app, ui, action, key) {
-            ui.close();
-        }
-    }
-    ui.separator();
-    for (action, key) in [
-        (Action::Save, "menu.save"),
-        (Action::SaveAs, "menu.save_as"),
-    ] {
-        if views::arrangement::action_item(app, ui, action, key) {
-            ui.close();
-        }
-    }
-    for (action, key) in [
-        (
-            crate::keymap::Action::SaveAsTemplate,
-            "action.save-as-template",
-        ),
-        (
-            crate::keymap::Action::SaveTrackTemplate,
-            "action.save-track-template",
-        ),
-    ] {
-        if views::arrangement::action_item(app, ui, action, key) {
-            ui.close();
-        }
-    }
-    // Audio (ADR 0025): files in as clips, and every file of the project into its folder.
-    command(app, ui, M::CollectAndSave);
-    ui.separator();
-    command(app, ui, M::ImportAudio);
-    crate::dance_import::file_menu_item(app, ui); // r35:import
-    if views::arrangement::action_item(app, ui, Action::ExportWav, "menu.export_wav") {
-        ui.close();
-    }
-    crate::video_export::menu_item(app, ui); // r35:video — File ▸ Export video…
-    views::interop::file_menu(app, ui);
-    ui.separator();
-    command(app, ui, M::Quit);
+    let rows = [
+        Row::run(Action::NewProject, "menu.new"),
+        // Round 31 (ADR 0072): the start page, with its templates and the recent projects.
+        Row::run(Action::NewFromTemplate, "action.new-from-template"),
+        Row::run(Action::DemoSongs, "demos.menu"),
+        Row::run(Action::Open, "menu.open"),
+        Row::separator(),
+        Row::run(Action::Save, "menu.save"),
+        Row::run(Action::SaveAs, "menu.save_as"),
+        Row::run(Action::SaveAsTemplate, "action.save-as-template"),
+        Row::run(Action::SaveTrackTemplate, "action.save-track-template"),
+        // Audio (ADR 0025): every file of the project into its folder.
+        Row::command(M::CollectAndSave),
+        Row::separator(),
+        Row::command(M::ImportAudio),
+        // r35:import — for the selected dancer; with none, the status says what to do.
+        Row::command(M::ImportCharacter),
+        Row::run(Action::ExportWav, "menu.export_wav"),
+        // r35:video
+        Row::new("video.menu", Do::ExportVideo),
+        // Round 17: MIDI, stems (ADR 0033) and DAWproject.
+        Row::separator(),
+        Row::command(M::ImportMidi),
+        Row::command(M::ExportMidi),
+        Row::command(M::ExportStems).enabled(!app.export.busy()),
+        Row::separator(),
+        Row::command(M::ImportDawProject),
+        Row::command(M::ExportDawProject),
+        Row::separator(),
+        Row::command(M::Quit),
+    ];
+    bar_menu(app, ui, &rows);
 }
 
 fn edit_menu(app: &mut CantusApp, ui: &mut Ui) {
-    let undo = app
-        .bus
-        .undo_label_key()
-        .map(|k| tf("menu.undo_named", &[("what", &t(k))]));
-    let redo = app
-        .bus
-        .redo_label_key()
-        .map(|k| tf("menu.redo_named", &[("what", &t(k))]));
-    if ui
-        .add_enabled(
-            undo.is_some(),
-            egui::Button::new(undo.unwrap_or_else(|| t("menu.undo"))),
-        )
-        .clicked()
-    {
-        ui.close();
-        app.undo();
-    }
-    if ui
-        .add_enabled(
-            redo.is_some(),
-            egui::Button::new(redo.unwrap_or_else(|| t("menu.redo"))),
-        )
-        .clicked()
-    {
-        ui.close();
-        app.redo();
-    }
-    ui.separator();
+    use crate::keymap::Action;
+    let undo = app.bus.undo_label_key();
+    let redo = app.bus.redo_label_key();
     // Through `run_action`, not straight to the note methods: these mean one thing in the
     // piano roll and another in the arrangement (ADR 0010).
-    use crate::keymap::Action;
-    for (action, key) in [
-        (Action::Cut, "menu.cut"),
-        (Action::Copy, "menu.copy"),
-        (Action::Paste, "menu.paste"),
-        (Action::Duplicate, "menu.duplicate"),
-    ] {
-        if views::arrangement::action_item(app, ui, action, key) {
-            ui.close();
-        }
-    }
-    ui.separator();
-    for (action, key) in [
-        (Action::SelectAll, "menu.select_all"),
-        (Action::Delete, "menu.delete"),
-        (Action::Quantize, "menu.quantize"),
-    ] {
-        if views::arrangement::action_item(app, ui, action, key) {
-            ui.close();
-        }
-    }
-    // The selected strip's route menu (round 25): with its key, as every item here.
-    ui.separator();
-    if views::arrangement::action_item(app, ui, Action::RouteMenu, "routing.menu.route_menu") {
-        ui.close();
-    }
+    let rows = [
+        Row::new("menu.undo", Do::Undo)
+            .text(undo.map_or_else(
+                || t("menu.undo"),
+                |k| tf("menu.undo_named", &[("what", &t(k))]),
+            ))
+            .key(Action::Undo)
+            .enabled(undo.is_some()),
+        Row::new("menu.redo", Do::Redo)
+            .text(redo.map_or_else(
+                || t("menu.redo"),
+                |k| tf("menu.redo_named", &[("what", &t(k))]),
+            ))
+            .key(Action::Redo)
+            .enabled(redo.is_some()),
+        Row::separator(),
+        Row::run(Action::Cut, "menu.cut"),
+        Row::run(Action::Copy, "menu.copy"),
+        Row::run(Action::Paste, "menu.paste"),
+        Row::run(Action::Duplicate, "menu.duplicate"),
+        Row::separator(),
+        Row::run(Action::SelectAll, "menu.select_all"),
+        Row::run(Action::Delete, "menu.delete"),
+        Row::run(Action::Quantize, "menu.quantize"),
+        // The selected strip's route menu (round 25).
+        Row::separator(),
+        Row::run(Action::RouteMenu, "routing.menu.route_menu"),
+    ];
+    bar_menu(app, ui, &rows);
 }
 
 /// The area a View menu key shows or hides (what its check says), for a controller's
@@ -478,20 +593,24 @@ pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
     })
 }
 
+/// The **View** menu: every area with its check and its key, the tempo track, the stage, the
+/// devices and the clip browser, the layouts in a band of their own (no submenu), the
+/// interface's zoom, and the settings.
 fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
-    // Every area, with its key: the same toggles as the toolbar's window keys, and the
-    // Routing tab after the mixer (round 25).
-    let areas = std::iter::once(Pane::Browser)
-        .chain(Pane::ZONES)
-        .chain(std::iter::once(Pane::Routing))
-        // The controller mappings (round 29, ADR 0062).
-        .chain(std::iter::once(Pane::Controllers))
-        // The undo history (round 31, ADR 0072).
-        .chain(std::iter::once(Pane::History))
-        // The Score pane (round 32, ADR 0075).
-        .chain(std::iter::once(Pane::Score)) // r33:launcher (its `;` moved below)
-        .chain(std::iter::once(Pane::Session)); // r33:launcher
+    use crate::menu_commands::MenuCommand as M;
+    let mut rows: Vec<Row> = Vec::new();
+    // Every area, with its key: the same toggles as the toolbar's window keys, the Routing
+    // tab after the mixer (round 25), the controller mappings (round 29, ADR 0062), the undo
+    // history (round 31, ADR 0072), the score (round 32, ADR 0075), the session view
+    // (round 33).
+    let areas = std::iter::once(Pane::Browser).chain(Pane::ZONES).chain([
+        Pane::Routing,
+        Pane::Controllers,
+        Pane::History,
+        Pane::Score,
+        Pane::Session,
+    ]);
     for pane in areas {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
@@ -503,56 +622,54 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             Pane::Controllers => Action::ViewControllers,
             Pane::History => Action::ViewHistory,
             Pane::Score => Action::ViewScore,
-            Pane::Session => Action::ToggleSessionView, // r33:launcher
+            Pane::Session => Action::ToggleSessionView,
             _ => Action::ToggleInspector,
         };
-        let mut shown = app.workspace.contains(pane);
-        let shortcut = app
-            .keymap
-            .bindings_for(action)
-            .first()
-            .map(|b| b.display())
-            .unwrap_or_default();
-        if ui
-            .checkbox(&mut shown, format!("{}    {shortcut}", t(pane.title_key())))
-            .changed()
-        {
-            app.toggle_pane(pane);
-        }
+        rows.push(
+            Row::new(pane.title_key(), Do::Pane(pane))
+                .checked(app.workspace.contains(pane))
+                .key(action),
+        );
     }
     // The arrangement's tempo track (round 29, ADR 0060).
-    crate::tempo_ui::view_menu_entry(app, ui);
-    crate::stage::view_menu(app, ui); // r35:stage — View ▸ Stage, Companion window, Streaming mode
-                                      // The devices panel (round 20) and the full device picker.
-    let mut shown = app.workspace.contains(Pane::Devices);
-    if ui
-        .checkbox(&mut shown, t("picker.menu.view_devices"))
-        .changed()
-    {
-        app.toggle_pane(Pane::Devices);
+    rows.push(
+        Row::new("tempo.view_menu", Do::TempoLane)
+            .checked(app.tempo_lane_shown())
+            .key(Action::ToggleTempoTrack),
+    );
+    // The stage, its companion window and streaming (round 35).
+    let stage = &app.settings.stage;
+    rows.push(Row::run(Action::ToggleStage, "stage.view.stage").checked(!stage.hidden));
+    rows.push(
+        Row::run(Action::ToggleCompanion, "stage.view.companion").checked(stage.companion_open),
+    );
+    rows.push(Row::run(Action::ToggleStreaming, "stage.view.streaming").checked(stage.streaming));
+    // The devices panel (round 20), the clip browser (round 26), the full device picker and
+    // the command palette (round 31, ADR 0072).
+    rows.push(
+        Row::new("picker.menu.view_devices", Do::Pane(Pane::Devices))
+            .checked(app.workspace.contains(Pane::Devices)),
+    );
+    rows.push(
+        Row::new("action.toggle-clips", Do::Pane(Pane::Clips))
+            .checked(app.workspace.contains(Pane::Clips)),
+    );
+    rows.push(Row::command(M::DevicePicker));
+    rows.push(Row::run(Action::CommandPalette, "action.command-palette"));
+    // The layouts (round 30): the saved ones to choose, then save, delete and reset.
+    rows.push(Row::separator());
+    rows.push(Row::band(Words::Key("menu.layout")));
+    let current = app.layouts.current.name.clone();
+    for layout in &app.layouts.saved {
+        let mut row = Row::new("", Do::Layout(layout.name.clone())).text(layout.name.clone());
+        row.check = crate::kit::menu::Check::Radio(layout.name == current);
+        rows.push(row);
     }
-    // The clip browser (round 26): link groups and clips to drag onto the arrangement.
-    let mut shown = app.workspace.contains(Pane::Clips);
-    if views::hint::said(
-        ui.checkbox(&mut shown, t("action.toggle-clips")),
-        &t("action.toggle-clips"),
-    )
-    .changed()
-    {
-        app.toggle_pane(Pane::Clips);
-    }
-    if views::hint::button(ui, t("picker.menu.open_picker")).clicked() {
-        ui.close();
-        let ctx = ui.ctx().clone();
-        crate::menu_commands::MenuCommand::DevicePicker.run(app, &ctx);
-    }
-    // The command palette (round 31, ADR 0072).
-    if views::arrangement::action_item(app, ui, Action::CommandPalette, "action.command-palette") {
-        ui.close();
-    }
-    ui.separator();
-    layout_menu(app, ui);
-    ui.separator();
+    let is_saved = app.layouts.saved.iter().any(|l| l.name == current);
+    rows.push(Row::command(M::SaveLayoutAs));
+    rows.push(Row::command(M::DeleteLayout).enabled(is_saved));
+    rows.push(Row::command(M::ResetLayout));
+    rows.push(Row::separator());
     for (action, key) in [
         (Action::ZoomIn, "workspace.zoom_in"),
         (Action::ZoomOut, "workspace.zoom_out"),
@@ -560,32 +677,16 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
         (Action::PickElement, "theme.inspect"),
         (Action::CloseFloating, "workspace.close_floating"),
     ] {
-        if views::arrangement::action_item(app, ui, action, key) {
-            ui.close();
-        }
+        rows.push(Row::run(action, key));
     }
-    ui.separator();
-    if views::hint::button(ui, t("settings.appearance")).clicked() {
-        ui.close();
-        app.show_theme_editor = true;
-    }
-    if views::hint::button(ui, t("menu.settings")).clicked() {
-        ui.close();
-        app.show_settings = true;
-    }
+    rows.push(Row::separator());
+    rows.push(Row::new("settings.appearance", Do::Appearance));
+    rows.push(Row::new("menu.settings", Do::Settings));
     // Round 28 (ADR 0052): which groups the top bar shows, and in what order.
-    if views::hint::button(ui, t("topbar.customise")).clicked() {
-        ui.close();
-        super::more::open_customise(app);
-    }
-    views::hint::said(
-        ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano")),
-        &t("menu.keyboard_piano"),
-    );
-    views::hint::said(
-        ui.checkbox(&mut app.show_stats, t("menu.stats")),
-        &t("menu.stats"),
-    );
+    rows.push(Row::new("topbar.customise", Do::Customise));
+    rows.push(Row::new("menu.keyboard_piano", Do::KeyboardPiano).checked(app.keyboard_piano));
+    rows.push(Row::new("menu.stats", Do::Stats).checked(app.show_stats));
+    bar_menu(app, ui, &rows);
 }
 
 /// Open the top bar's menu `i` (0 File … 4 Options, 5 Help) — the screenshots.
@@ -640,148 +741,79 @@ fn help_menu(app: &mut CantusApp, ui: &mut Ui) {
     // The manual (the copy installed beside the program, in the interface's language),
     // the release notes and GitHub's forms for a bug or an idea (round 22).
     use crate::menu_commands::MenuCommand as M;
-    let command = |app: &mut CantusApp, ui: &mut Ui, c: M| {
-        if views::hint::button(ui, t(c.key())).clicked() {
-            ui.close();
-            let ctx = ui.ctx().clone();
-            c.run(app, &ctx);
-        }
-    };
-    command(app, ui, M::Manual);
-    command(app, ui, M::ReleaseNotes);
-    if views::hint::button(ui, t("menu.shortcuts")).clicked() {
-        ui.close();
-        app.show_shortcuts = true;
-    }
-    ui.separator();
-    command(app, ui, M::ReportBug);
-    command(app, ui, M::SuggestFeature);
-    ui.separator();
-    command(app, ui, M::CheckForUpdates);
-    if views::hint::button(ui, t("menu.about")).clicked() {
-        ui.close();
-        app.show_about = true;
-    }
-    // About, scrolled to the credits: the Bible translations and every sound pack (round 26).
-    command(app, ui, M::Credits);
-}
-
-/// *View → Layout*: switch between saved window shapes, save the current one under a
-/// name, or go back to the built-in one.
-fn layout_menu(app: &mut CantusApp, ui: &mut Ui) {
-    let layout = ui
-        .menu_button(t("menu.layout"), |ui| {
-            let current = app.layouts.current.name.clone();
-            let saved: Vec<String> = app.layouts.saved.iter().map(|l| l.name.clone()).collect();
-            for name in &saved {
-                if views::hint::said(ui.selectable_label(*name == current, name), name).clicked() {
-                    ui.close();
-                    app.apply_layout(name);
-                }
-            }
-            if !saved.is_empty() {
-                ui.separator();
-            }
-            if views::hint::button(ui, t("layout.save_as")).clicked() {
-                ui.close();
-                let ctx = ui.ctx().clone();
-                crate::menu_commands::MenuCommand::SaveLayoutAs.run(app, &ctx);
-            }
-            let is_saved = saved.contains(&current);
-            if ui
-                .add_enabled(is_saved, egui::Button::new(t("layout.delete")))
-                .clicked()
-            {
-                ui.close();
-                let ctx = ui.ctx().clone();
-                app.delete_layout(&current, &ctx);
-            }
-            if views::hint::button(ui, t("layout.reset")).clicked() {
-                ui.close();
-                app.reset_layout();
-            }
-        })
-        .response;
-    views::hint::said(layout, &t("menu.layout"));
+    let rows = [
+        Row::command(M::Manual),
+        Row::command(M::ReleaseNotes),
+        Row::new("menu.shortcuts", Do::Shortcuts),
+        Row::separator(),
+        Row::command(M::ReportBug),
+        Row::command(M::SuggestFeature),
+        Row::separator(),
+        Row::command(M::CheckForUpdates),
+        Row::new("menu.about", Do::About),
+        // About, scrolled to the credits: the Bible translations and every sound pack
+        // (round 26).
+        Row::command(M::Credits),
+    ];
+    bar_menu(app, ui, &rows);
 }
 
 /// The **Clip** menu: everything goes through `run_action`, and every entry shows the key
-/// bound to it, so the menu teaches the shortcut instead of replacing it.
+/// bound to it, so the menu teaches the shortcut instead of replacing it. Two kit lists
+/// round the clip colours' swatches.
 fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
+    use crate::menu_commands::MenuCommand as M;
     // FL's Tools ▸ Last tweaked ▸ Create automation clip, here where clips are made
-    // (ADR 0027): enabled once a parameter has been moved, and saying which.
+    // (ADR 0027): enabled once a parameter has been moved, and saying which; FL's *Link to
+    // controller* for the same parameter (round 29, review 1 of ADR 0062).
     let tweaked = app
         .automation
         .last_tweaked
         .clone()
         .map(|t| crate::automation::target_name(app.project(), &t));
-    ui.add_enabled_ui(tweaked.is_some(), |ui| {
-        if views::arrangement::action_item(
-            app,
-            ui,
-            Action::AutomateLastTweaked,
-            "auto.menu.last_tweaked",
-        ) {
-            ui.close();
-        }
-        // FL's *Link to controller* for the same parameter (round 29, review 1 of ADR
-        // 0062): the way into a hosted plug-in's own window from the mouse.
-        if views::arrangement::action_item(
-            app,
-            ui,
-            Action::LinkLastTweaked,
-            "action.link-last-tweaked",
-        ) {
-            ui.close();
-        }
-    });
-    if let Some(name) = tweaked {
-        let _ = crate::kit::widgets::menu_list(
-            ui,
-            &[crate::kit::menu::Item::Band(crate::kit::text::Src::Str(
-                &name,
-            ))],
-            240.0,
-        );
-    }
-    ui.separator();
     let selection = app.clip_selection();
+    let any = !selection.is_empty();
     let (muted, looping) = selection
         .first()
         .and_then(|(t, c)| app.project().track(*t)?.clip(*c))
         .map(|c| (c.muted, c.content_length.is_some()))
         .unwrap_or((false, false));
+    let mut rows = vec![
+        Row::run(Action::AutomateLastTweaked, "auto.menu.last_tweaked").enabled(tweaked.is_some()),
+        Row::run(Action::LinkLastTweaked, "action.link-last-tweaked").enabled(tweaked.is_some()),
+    ];
+    if let Some(name) = tweaked {
+        rows.push(Row::band(Words::Text(name)));
+    }
+    rows.push(Row::separator());
     // The whole menu is about the clip selection; with none there is nothing to enable.
-    ui.add_enabled_ui(!selection.is_empty(), |ui| {
-        for (action, key) in [
-            (Action::SplitClip, "clip.split"),
-            (Action::GlueClips, "clip.glue"),
-            (Action::Duplicate, "clip.duplicate"),
-            // Linked clips (ADR 0037).
-            (Action::MakeUnique, "clip.make_unique"),
-            (Action::LinkClips, "action.link-clips"),
-            (Action::SelectLinked, "clip.select_linked"),
-            (Action::LinkTo, "clip.link_to"),
-        ] {
-            if views::arrangement::action_item(app, ui, action, key) {
-                ui.close();
-            }
-        }
-        ui.separator();
-        let mute_key = if muted { "clip.unmute" } else { "clip.mute" };
-        if views::arrangement::action_item(app, ui, Action::ToggleClipMute, mute_key) {
-            ui.close();
-        }
-        let loop_key = if looping {
-            "clip.loop_off"
-        } else {
-            "clip.loop_on"
-        };
-        if views::arrangement::action_item(app, ui, Action::ToggleClipLoop, loop_key) {
-            ui.close();
-        }
-        ui.separator();
+    for (action, key) in [
+        (Action::SplitClip, "clip.split"),
+        (Action::GlueClips, "clip.glue"),
+        (Action::Duplicate, "clip.duplicate"),
+        // Linked clips (ADR 0037).
+        (Action::MakeUnique, "clip.make_unique"),
+        (Action::LinkClips, "action.link-clips"),
+        (Action::SelectLinked, "clip.select_linked"),
+        (Action::LinkTo, "clip.link_to"),
+    ] {
+        rows.push(Row::run(action, key).enabled(any));
+    }
+    rows.push(Row::separator());
+    let mute_key = if muted { "clip.unmute" } else { "clip.mute" };
+    rows.push(Row::run(Action::ToggleClipMute, mute_key).enabled(any));
+    let loop_key = if looping {
+        "clip.loop_off"
+    } else {
+        "clip.loop_on"
+    };
+    rows.push(Row::run(Action::ToggleClipLoop, loop_key).enabled(any));
+    rows.push(Row::separator());
+    bar_menu(app, ui, &rows);
+    let width = ui.min_rect().width();
+    // The clip's colour: the palette's swatches, then the track's own.
+    ui.add_enabled_ui(any, |ui| {
         ui.horizontal(|ui| {
             let name = t("clip.color");
             for c in cantus_core::Color::PALETTE {
@@ -793,20 +825,13 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
                 }
             }
         });
-        let ctx = ui.ctx().clone();
-        for c in [crate::menu_commands::MenuCommand::ClipTrackColour] {
-            if views::hint::button(ui, t(c.key())).clicked() {
-                c.run(app, &ctx);
-                ui.close();
-            }
-        }
-        ui.separator();
-        let c = crate::menu_commands::MenuCommand::DeleteClips;
-        if views::hint::button(ui, t(c.key())).clicked() {
-            c.run(app, &ctx);
-            ui.close();
-        }
     });
+    let rows = [
+        Row::command(M::ClipTrackColour).enabled(any),
+        Row::separator(),
+        Row::command(M::DeleteClips).enabled(any),
+    ];
+    bar_menu_at(app, ui, &rows, width);
 }
 
 /// What a summary line was made from: the tracks, the strips, the song's end.

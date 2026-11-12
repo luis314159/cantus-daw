@@ -48,6 +48,8 @@ pub struct HostedInst {
     pub(super) crashed: Option<String>,
     /// Whose doing its helper's end was, while it has stopped.
     pub(super) blame: Option<crate::backend::Blame>,
+    /// Runs alone for the session after an end nothing chose between (`Hosted::apart`).
+    pub(super) apart: bool,
     pub(super) cpu: super::iso::CpuWatch,
     /// Just put on its track, its load answered later (an isolated plug-in): the undo key
     /// of the step that put it there, its own (review isolation-6 #8, #16) — its values and
@@ -123,6 +125,11 @@ impl HostedInst {
         self.isolation
     }
 
+    /// It runs alone for the session after an end nothing chose between (ADR 0063 §10).
+    pub fn apart(&self) -> bool {
+        self.apart
+    }
+
     /// What it costs, measured over the last half second (round 29).
     pub fn cpu(&self) -> Option<super::CpuFigure> {
         self.cpu.figure
@@ -184,6 +191,7 @@ impl HostedInst {
             isolation,
             crashed: None,
             blame: None,
+            apart: false,
             cpu: super::iso::CpuWatch::default(),
             load_key: None,
             moving: false,
@@ -537,6 +545,7 @@ impl PluginHost {
         // Moved to another process: another load (ADR 0073).
         h.load = crate::session::next_load();
         h.isolation = inst.isolation;
+        h.apart = false;
         h.crashed = None;
         h.blame = None;
         h.params = h.main.params();

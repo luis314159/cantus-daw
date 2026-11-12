@@ -12,6 +12,9 @@
 //!   helper on the first strip, its hidden *Fault* makes it abort inside `process` while
 //!   the song plays, and the corner card says so, in the stack it shares with an audio
 //!   notice (an interface unplugged); also at a narrow window (`crash-narrow`);
+//! - `crash-suspects`: two test gains in one helper, the first aborting while the helper's
+//!   main thread is held in the second's code (`CANTUS_TEST_SANDBOX_LAG_IN`): the card says
+//!   Cantus could not tell which one crashed, and what *Reload all* does (ADR 0063 §10);
 //! - `manager`: Settings' plug-in manager, *Where third-party plug-ins run*, with the
 //!   plug-in that stopped remembered.
 
@@ -160,6 +163,79 @@ fn crash_app() -> CantusApp {
     app
 }
 
+/// Two plug-ins stopped by an end nothing chose between (ADR 0063 §10): the card.
+fn suspects_app() -> CantusApp {
+    // The helper's main thread 30 ms in each call into its second plug-in.
+    std::env::set_var("CANTUS_TEST_SANDBOX_LAG_IN", "2:30");
+    let (engine, mut processor) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts_with(
+        Some(welcome_project()),
+        engine,
+        false,
+        Some(cantus_core::PluginIsolation::Together),
+    );
+    app.plugins
+        .set_sandboxes(cantus_host::bridge::Sandboxes::new(sandbox_exe()));
+    views::plugins::demo_setup(&mut app, &test_gain(), false);
+    let strip = app.project().tracks[0].strip.expect("a strip");
+    let info = app.plugins.db.effects().first().map(|p| (*p).clone());
+    if let Some(info) = info {
+        app.add_plugin(strip, &info);
+        app.add_plugin(strip, &info);
+    }
+    app.sync_engine();
+    let first = app
+        .project()
+        .strip(strip)
+        .and_then(|s| s.effects.iter().find(|e| e.spec.external.is_some()))
+        .map(|e| e.id);
+    app.select_strip(strip);
+    let mut buf = vec![0f32; 512];
+    let mut frame = |app: &mut CantusApp| {
+        processor.process(&mut buf, 2);
+        app.engine.poll();
+        for n in app.plugins.idle(&mut app.bus, &mut app.engine) {
+            views::plugin_notice::on_notice(app, n);
+        }
+        app.sync_engine();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    };
+    for _ in 0..400 {
+        frame(&mut app);
+    }
+    app.engine.play();
+    for _ in 0..64 {
+        frame(&mut app);
+    }
+    let Some(e) = first else {
+        return app;
+    };
+    // Until the end is one nothing chose between (the main thread held in the second's
+    // code nearly always is).
+    for _ in 0..5 {
+        app.set_plugin_param(strip, e, 4, 0.0, false);
+        for _ in 0..4 {
+            frame(&mut app);
+        }
+        app.set_plugin_param(strip, e, 4, 1.0, false);
+        for _ in 0..2000 {
+            frame(&mut app);
+            if app.plugin_crashes.waiting.len() == 2 {
+                break;
+            }
+        }
+        if app.plugins.crash_suspect(e) {
+            break;
+        }
+        views::plugin_notice::answer(&mut app, views::plugin_notice::Answer::Reload);
+        for _ in 0..400 {
+            frame(&mut app);
+        }
+    }
+    std::env::remove_var("CANTUS_TEST_SANDBOX_LAG_IN");
+    app
+}
+
 fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
     for (theme_name, theme) in [
         ("night", cantus_ui::theme::cantus_night()),
@@ -174,6 +250,24 @@ fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
             cantus_ui::design::install_style(&ctx);
             cantus_ui::theme::apply(&theme, &ctx);
             let mut app = crash_app();
+            let path = dir.join(format!("isolation-{kind}-{theme_name}-{code}-{ppp}x.png"));
+            shoot(&ctx, size, ppp, 6, Some(&path), |root| app.frame(root));
+            println!("wrote {}", path.display());
+        }
+        for (kind, size) in [
+            ("crash-suspects", egui::vec2(1280.0, 760.0)),
+            ("crash-suspects-narrow", egui::vec2(820.0, 620.0)),
+            // One of them left on the card (the other's insert removed): its own words.
+            ("crash-suspect-one-narrow", egui::vec2(820.0, 620.0)),
+        ] {
+            let ctx = egui::Context::default();
+            cantus_ui::design::install_fonts(&ctx);
+            cantus_ui::design::install_style(&ctx);
+            cantus_ui::theme::apply(&theme, &ctx);
+            let mut app = suspects_app();
+            if kind.starts_with("crash-suspect-one") {
+                app.plugin_crashes.waiting.truncate(1);
+            }
             let path = dir.join(format!("isolation-{kind}-{theme_name}-{code}-{ppp}x.png"));
             shoot(&ctx, size, ppp, 6, Some(&path), |root| app.frame(root));
             println!("wrote {}", path.display());
@@ -523,6 +617,17 @@ fn waiting_app(name: &str) -> CantusApp {
 }
 
 fn main() {
+    // The whole window's frame needs more than the main thread's stack (as the other
+    // shoots run).
+    std::thread::Builder::new()
+        .stack_size(64 << 20)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn run() {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
     let ppp: f32 = args.next().and_then(|s| s.parse().ok()).unwrap_or(1.0);

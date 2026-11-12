@@ -86,46 +86,6 @@ pub fn toggle_shown(app: &mut crate::app::CantusApp) {
     app.store_settings();
 }
 
-/// View ▸ Stage, Companion window, Streaming mode (after the tempo track's entry).
-pub fn view_menu(app: &mut crate::app::CantusApp, ui: &mut egui::Ui) {
-    use crate::i18n::t;
-    use crate::keymap::Action;
-    let key = |app: &crate::app::CantusApp, a: Action| {
-        app.keymap
-            .bindings_for(a)
-            .first()
-            .map(|b| b.display())
-            .unwrap_or_default()
-    };
-    let rows = [
-        (
-            Action::ToggleStage,
-            "stage.view.stage",
-            !app.settings.stage.hidden,
-        ),
-        (
-            Action::ToggleCompanion,
-            "stage.view.companion",
-            app.settings.stage.companion_open,
-        ),
-        (
-            Action::ToggleStreaming,
-            "stage.view.streaming",
-            app.settings.stage.streaming,
-        ),
-    ];
-    for (a, label, on) in rows {
-        let mut shown = on;
-        let k = key(app, a);
-        if ui
-            .checkbox(&mut shown, format!("{}    {k}", t(label)))
-            .changed()
-        {
-            action(app, a);
-        }
-    }
-}
-
 /// Redraws a second while the song plays (a dancer's pose changes every frame): 30, what a
 /// video plays at — half the display's frames, half the drawing and uploading.
 pub const PLAY_RATE: f64 = 30.0;

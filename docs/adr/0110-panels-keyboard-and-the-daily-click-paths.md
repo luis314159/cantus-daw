@@ -86,6 +86,26 @@ it, or clear the selection behind both.
    the shortcuts, the layout's name, and — said open so nothing under them takes the key —
    the device picker and the preset browser.
 
+### Amended, round 39 after beta.14 (2026-11-11): the bar's menus are kit menus, kept in the window
+
+The owner's screen showed the bar's *View* menu running off the foot of a 1080-px window with
+nothing to scroll, its rows egui's own check boxes and buttons (two heights, boxed entries);
+File, Edit, Clip and Help were the same mix — a kit menu per row beside stock buttons.
+
+- **One kit menu each.** File, Edit, Clip, View and Help are rows (`Row`: words, check, the
+  action whose key shows, enabled, what it does) drawn by one `kit::widgets::menu_list`
+  (`transport_menus::bar_menu`): one row height, each action's key at the right, an
+  unavailable entry dimmed — never a button. A click closes the menu, then does the row's
+  work (`run_action`, a `MenuCommand`, or the menu's own: undo, the layouts, the settings).
+  View's *Layout* submenu became a band of its own rows; Clip's colours stay swatches between
+  two lists of one width. *Import character…* is always enabled: with no dancer selected it
+  says so on the status line, as the Mac's bar does.
+- **Kept in the window.** Every bar menu runs inside `kit::menu::fit`. `fit` now sets the
+  scroll area's `min_scrolled_height` as well as its `max_height`: egui sizes a popup's
+  first frame in `default_area_size` (400 pt tall), and the scroll area took those 400 as
+  all its room, so any menu taller than 400 scrolled even with room for all of it. It is
+  now as tall as its content up to the window, and scrolls past that.
+
 ## Consequences
 
 - A daily path that gets longer fails a named test; a menu row with no key and no palette
@@ -102,6 +122,10 @@ it, or clear the selection behind both.
 
 ## What the tests hold
 
+`tests/menus_in_window.rs` (the bar's View menu, opened by its word: whole at 1600 × 900 —
+taller than 600 pt, its last row painted, no word cut — a check switching its area and
+closing the menu; in a 520-pt window inside it all the same and scrolling to its last row;
+without the `fit` amendment it fails "the menu is 400 pt tall"),
 `tests/click_paths.rs` (each path through `assemble`, its count held),
 `tests/panels.rs` (a dragged splitter kept across sessions; collapse to a bar and to a rail
 and back where it was, kept across sessions; maximise by a double-click and back; float and

@@ -417,10 +417,17 @@ fn eight_voices_render_within_budget() {
         .map(|k| (0.0, 8.0, *k, 100))
         .collect();
     let p = project(busy(), &chord);
-    let t0 = std::time::Instant::now();
-    let out = render_opts(&p, 512, 0.0);
-    let secs = out.len() as f64 / 2.0 / 48_000.0;
-    let took = t0.elapsed().as_secs_f64();
+    // The best of three renders, as the house's budget tests keep: preemption on a shared
+    // machine can only add time. The macOS job's pool step (`CANTUS_WORKERS=3`, every test
+    // of the binary rendering on three workers at once on a 3-vCPU runner) took 10.19 s for
+    // one render that takes 1.1 s here (2026-11-11).
+    let (mut took, mut secs) = (f64::INFINITY, 0.0);
+    for _ in 0..3 {
+        let t0 = std::time::Instant::now();
+        let out = render_opts(&p, 512, 0.0);
+        took = took.min(t0.elapsed().as_secs_f64());
+        secs = out.len() as f64 / 2.0 / 48_000.0;
+    }
     println!("eight voices (stack 2) for {secs:.1} s of audio took {took:.2} s");
     assert!(took < secs * 2.0, "{took:.2} s for {secs:.1} s of audio");
 }

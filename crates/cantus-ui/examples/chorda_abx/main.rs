@@ -2,7 +2,7 @@
 //! preference test, Chorda's model 2 against the Salamander Grand and against model 1.
 //!
 //! ```text
-//! cargo run --release -p cantus-ui --example chorda_abx -- <dir> [<downloads>]
+//! cargo run --release -p cantus-ui --example chorda_abx -- <dir> [<downloads>] [--flac]
 //! ```
 //!
 //! Renders every listening phrase (`chorda_kit/phrases.rs`, `listen`) through the real
@@ -12,7 +12,8 @@
 //! integrated, the same target for the three, lowered together if a peak would pass
 //! −1 dBFS), trims them to one length, and writes into `<dir>`:
 //!
-//! - `audio/<opaque>.wav` (24-bit, 48 kHz; names hashed with a salt drawn per kit, so a
+//! - `audio/<opaque>.wav` (24-bit, 48 kHz — or `.flac`, the same samples losslessly in about
+//!   half the bytes, with `--flac`: the kit as a web page's; names hashed with a salt drawn per kit, so a
 //!   file's name never says which piano it is),
 //! - `index.html` — one page, no network, no external script: the ABX (16 trials per
 //!   comparison, X drawn at random each trial, answers kept in the browser and offered as a
@@ -51,7 +52,10 @@ fn db(x: f32) -> f64 {
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let all: Vec<String> = std::env::args().skip(1).collect();
+    let flac = all.iter().any(|a| a == "--flac");
+    let args: Vec<String> = all.into_iter().filter(|a| a != "--flac").collect();
+    let ext = if flac { "flac" } else { "wav" };
     let Some(dir) = args.first().map(PathBuf::from) else {
         eprintln!("usage: chorda_abx <dir> [<downloads>]");
         std::process::exit(2);
@@ -101,7 +105,7 @@ fn main() {
             h = h.wrapping_mul(0x0100_0000_01b3);
         }
         h ^= h >> 29;
-        format!("{h:016x}.wav")
+        format!("{h:016x}.{ext}")
     };
     for ph in phrases::all().into_iter().filter(|p| p.listen) {
         let mut renders: Vec<Stereo> = sources
@@ -142,7 +146,11 @@ fn main() {
                 files.push(',');
             }
             let _ = write!(files, "\"{}|{name}\":\"{file}\"", ph.id);
-            render::write_wav(&path, s, false).expect("the WAV is written");
+            if flac {
+                render::write_flac(&path, s).expect("the FLAC is written");
+            } else {
+                render::write_wav(&path, s, false).expect("the WAV is written");
+            }
             let _ = writeln!(
                 levels,
                 "{},{name},{l:.2},{p:.2},{g:.2},{:.2},{:.2}",

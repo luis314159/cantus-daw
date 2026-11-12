@@ -2,6 +2,9 @@
 //!
 //! - `settings-<page>`: Settings with its pages' sidebar, on General, Audio and Plug-ins;
 //! - `options`: the top bar's *Options* menu open;
+//! - `menu-file`, `menu-edit`, `menu-clip`, `menu-help`: the bar's other menus;
+//! - `view`, `view-short`: its *View* menu, one kit menu, in a full window and in a short one
+//!   where it scrolls instead of running off the window's foot (the owner, 2026-11-11);
 //! - `picker-clap`: the device picker on an empty CLAP shelf (*Scan for plug-ins*, *Find
 //!   more plug-ins…*);
 //! - `count-in`: the count-in chip's menu (*Before recording*, *Also on play*), and the
@@ -109,6 +112,12 @@ fn main() {
         "engines-200",
         "settings-plugins",
         "options",
+        "view",
+        "view-short",
+        "menu-file",
+        "menu-edit",
+        "menu-clip",
+        "menu-help",
         "picker-clap",
         "count-in",
         "scan-notice",
@@ -160,6 +169,30 @@ fn main() {
                         vec2(1500.0, 620.0),
                         |_, _| {},
                         |_, ctx| engines_gallery(ctx),
+                    ),
+                    w if w.starts_with("menu-") => {
+                        let i = match w {
+                            "menu-file" => 0,
+                            "menu-edit" => 1,
+                            "menu-clip" => 2,
+                            _ => 5,
+                        };
+                        shoot(
+                            &path,
+                            &ctx,
+                            &mut app,
+                            vec2(1500.0, 1080.0),
+                            |_, ctx| transport::open_menu(ctx, i),
+                            |_, _| {},
+                        )
+                    }
+                    "view" | "view-short" => shoot(
+                        &path,
+                        &ctx,
+                        &mut app,
+                        vec2(1500.0, if what == "view" { 1080.0 } else { 520.0 }),
+                        |_, ctx| transport::open_menu(ctx, 3),
+                        |_, _| {},
                     ),
                     "options" => shoot(
                         &path,

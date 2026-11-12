@@ -136,37 +136,6 @@ pub fn report_line(item: &cantus_project::ReportItem) -> String {
 
 // ---- the File menu ------------------------------------------------------------------
 
-/// The interchange entries of the File menu, after "Export audio…".
-pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
-    ui.separator();
-    if ui.button(t("interop.menu.import_midi")).clicked() {
-        ui.close();
-        import_midi_dialog(app);
-    }
-    if ui.button(t("interop.menu.export_midi")).clicked() {
-        ui.close();
-        export_midi_dialog(app);
-    }
-    // Stems in any format, from the export dialog (ADR 0033).
-    let busy = app.export.busy();
-    if ui
-        .add_enabled(!busy, egui::Button::new(t("interop.menu.export_stems")))
-        .clicked()
-    {
-        ui.close();
-        export_stems_dialog(app);
-    }
-    ui.separator();
-    if ui.button(t("interop.menu.import_dawproject")).clicked() {
-        ui.close();
-        import_dawproject_dialog(app);
-    }
-    if ui.button(t("interop.menu.export_dawproject")).clicked() {
-        ui.close();
-        export_dawproject_dialog(app);
-    }
-}
-
 // r39:ux-b — each File-menu row's work, shared with the command palette (ADR 0110).
 
 /// *Import MIDI…*: the system's file dialog, then the import's own.

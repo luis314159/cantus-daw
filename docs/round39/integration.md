@@ -399,7 +399,49 @@ with a real mouse. The owner's checks are in `docs/beta-checklist.md` (*Ronda 39
 - The MIDI lamp, the device names and the dropout graph with a real device.
 - The website on Cloudflare, `site.yml` on the runner, a real phone and a screen reader.
 
-## The owner's decisions still open
+## The owner's answers (2026-11-12)
+
+The owner answered the twenty-two below on the decisions survey (`decisiones/2026-11-12-luis-angel.json`,
+handed out as a zip to the people he knows too). Each numbered as below.
+
+**To change (round 40's leftovers item, each looked at on the owner's screen):**
+- **1.** The right dock **pinned at the window's edge** (the sheet), the room before it filled with
+  the empty numbered strips. He asked whether channels can be grouped (a drums group): they can — a
+  bus (strips routed to it, as the welcome song's *Drum bus*) and VCA groups (round 36); worth a
+  word in the manual where FL users look for "groups".
+- **2.** Maximise **keeps the inspector beside the area** (the sheet) — and **configurable** (a
+  setting: the whole workspace, or with the inspector).
+- **4.** The top bar: **configurable, both options** — a setting that brings back the automation arm
+  and modes and the typing-keyboard key; the default is today's bar without them.
+- **12.** Paper's **menus and dialogs to be improved**; **value bars in the inspector**: yes; **Mute
+  on in colour**, not grey (he asked what "Mute on" meant: the M key of a muted strip, lit); the
+  automated knob's violet and the fader cap's weight stay.
+- **14.** **A pad's own mixer track: yes, chosen per pad as in FL Studio** (a pad's mixer track
+  picker, not one forced per pad) — a model change and a schema bump.
+- **17.** Slate Lapis: the playhead line stays lapis (cap gold), the selection tint is right, **the
+  room bluer** — confirmed by the owner (2026-11-12): the whole window's surfaces (panels, the
+  arrangement's and the mixer's grounds, the wells) visibly bluer and further from plain Slate,
+  i.e. a stronger saturation gain than × 1.7 Night / × 1.8 Paper; the accents, the selection tint,
+  the playhead line and plain Slate unchanged. Show him two or three strengths side by side in
+  Night and Paper, each keeping ADR 0111's contrast, and let him choose.
+- **18.** **Bordeaux and Pewter too strong** (to be softened, legibility kept — ADR 0111's
+  contrast rule); Parchment, Ultraviolet and Print right.
+- **20.** **The dancer redrawn for the Slate look**; the vintage theme's round later.
+
+**Features wanted:**
+- **7.** The section drag that moves the song — **round 40**, with insert and delete time.
+- **11.** **Both**: *Hear the key* (sidechain audition) and *Record: before FX · after FX*.
+- **22.** **Delay's time synced to the tempo** and **Delay as a CLAP/VST3 plug-in**.
+- **13.** The browser's kinds switch — **later**.
+
+**Kept as they are:** 3 (the fold's rail, five recents, Ctrl+Alt+Enter), 5 ("1/2"), 6 (Follow on at
+start), 8 (the meter in Level), 9 (the click targets), 10 (Flow), 15 (**icon sets 3–5 approved**), 16
+(the wooden faces), 19 (names cut in the middle where a place is narrower).
+
+**21.** The legal reading of Slate beside FL Studio: **the owner decided a lawyer's opinion is not
+needed**.
+
+## The owner's decisions as they were left open (answered above)
 
 Collected from every report; each is the owner's alone. The builders built the sheet or the
 safer reading and said so.

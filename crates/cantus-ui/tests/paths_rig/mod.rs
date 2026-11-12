@@ -69,6 +69,8 @@ pub struct Rig {
     pub count: Count,
     tex: cantus_ui::raster::Textures,
     shapes: Vec<egui::epaint::ClippedShape>,
+    /// The window's size in points: [`SIZE`], unless a test makes it shorter or wider.
+    pub size: Vec2,
 }
 
 /// A data folder of the test binary's own (anything that reads `CANTUS_DATA_DIR`), with a
@@ -137,6 +139,7 @@ impl Rig {
             count: Count::default(),
             tex: Default::default(),
             shapes: Vec::new(),
+            size: SIZE,
         };
         r.idle(4);
         r
@@ -151,7 +154,7 @@ impl Rig {
         ];
         ev.extend(events);
         let input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SIZE)),
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
             time: Some(self.t),
             predicted_dt: 1.0 / 60.0,
             events: ev,
@@ -191,7 +194,7 @@ impl Rig {
     pub fn shoot(&self, path: &Path) {
         let prims = self.ctx.tessellate(self.shapes.clone(), 1.0);
         let bg = self.ctx.global_style().visuals.panel_fill;
-        let mut c = cantus_ui::raster::Canvas::new(SIZE.x as usize, SIZE.y as usize, bg);
+        let mut c = cantus_ui::raster::Canvas::new(self.size.x as usize, self.size.y as usize, bg);
         c.paint(&prims, &self.tex, 1.0);
         let _ = c.write_png(path);
     }
@@ -209,7 +212,7 @@ impl Rig {
     pub fn close_window(&mut self) {
         self.t += 1.0 / 60.0;
         let mut input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SIZE)),
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.size)),
             time: Some(self.t),
             predicted_dt: 1.0 / 60.0,
             events: vec![Event::PointerMoved(self.pointer)],

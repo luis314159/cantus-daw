@@ -39,5 +39,5 @@ las tres versiones de una frase) y la misma duración. No se les hizo nada más.
 - Tus notas — "metálico", "delgado", "apagado", "ataque sintético", "sin cuerpo", "demasiada
   sala" — son a lo que apunta la siguiente pasada de voicing.
 
-Las respuestas se guardan en este navegador (almacenamiento local) hasta que empieces de
+Escribe tu nombre arriba: va en los resultados. Las respuestas se guardan en este navegador (almacenamiento local) hasta que empieces de
 nuevo; recargar la página continúa donde estabas.

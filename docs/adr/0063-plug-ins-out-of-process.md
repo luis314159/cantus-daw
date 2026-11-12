@@ -595,6 +595,36 @@ about one instance (its answers, its tick's mirroring) that much longer: the hun
 scenario with 60 ms was nobody's in 100 of 100 rounds before, 0 of 500 after
 (`session_faults9.rs`, `docs/round39/abort-blame.md`).
 
+### 10. Amended, round 39 (2026-11-11): an end nothing chooses between is settled by the next
+
+§9 left one end by design: a main thread inside a neighbour's code — put off the processor
+there, as a loaded 4-vCPU runner's is — when another plug-in fail-fasts in its job. The CI run
+after §9 saw it once in a hundred (`session_faults9`). Nothing in the process says which
+thread called the fail-fast (only the system's error reporting or a debugger knows), so
+§3's rule stands: an end with several candidates is laid on none, never on an innocent
+neighbour. What changed is what follows it:
+
+- **Suspects.** The several candidates of such an end (rule 5 of `culprits`: the instance
+  the main thread named and those whose job ran) are its suspects (`sandbox::suspects`); each
+  is told `Blame::Suspect` — not counted, not remembered, no *Run individually* offered — and
+  the end is logged with them. An end Cantus decided, a handler's *outside*, an end nothing
+  points at, or one laid on someone has none; the other plug-ins of the helper stay
+  `Unknown`, never moved.
+- **Reloaded, each runs alone for the session.** A suspect reloaded (the card's *Reload*,
+  the slot's menu) is loaded in a helper of its own (`Hosted::apart`) — wherever the project
+  puts it, which is unchanged, and `isolation()` still says so, so nothing moves it back. Its
+  next end has one candidate: the culprit is named, counted and offered its own process as
+  any other; the innocent one plays on. Where it runs changing (the menu, the machine's
+  default) ends `apart`. Only after such an end: one more helper per suspect, never per
+  plug-in of the group.
+- **Said.** The card's body says Cantus could not tell which one crashed and that, reloaded,
+  each runs alone this session (`isolation.crashed.body_suspects`, `body_suspect_one`); the
+  slot's tip says *Alone this session* while it is.
+
+For tests, `CANTUS_TEST_SANDBOX_LAG_IN=<instance>:<ms>` holds the helper's main thread that
+much longer *inside* each call into one instance's code, still naming it: the hundred-abort
+scenario's first end is then nobody's nearly every time (5 of 5), and settled by the next.
+
 ## Consequences
 
 - New: `cantus_rt::{shm, ipc}`, `cantus_host::bridge::{slot, proto, sandbox, audio, main}`,
@@ -697,6 +727,14 @@ scenario with 60 ms was nobody's in 100 of 100 rounds before, 0 of 500 after
   test gain's quiet tag (`TAG_QUIETLY`) is its own doing — and `session_faults6.rs`'s
   parking test now holds its claim with it. `cantus-ui`: a bake dropped for another project
   lets its preparation go.
+- Round 39, §10: `session_faults9.rs` — an end nothing chooses between (the knob holding the
+  main thread in the neighbour's code) names both suspects, and reloaded each alone the
+  gain's next abort is laid on it, counted once, the neighbour playing on and the project
+  unchanged; every one of the hundred aborts is the gain's or both suspects', never the
+  neighbour's. `bridge_blame.rs` — a fail-fast with two jobs running: both suspects.
+  `sandbox.rs`'s unit test — suspects only when several candidates and none laid on.
+  `cantus-ui/tests/plugin_isolation_suspects.rs` — the same through the app: the card's
+  words, *Reload all*, the tip, the next card for the culprit alone.
 - Review isolation-6 (`session_faults6.rs`): a slow silent load fails at its limit and its
   helper and neighbour live, and a slow silent state is no hang — at the shipped ratio; a
   preparation is its owner's and its content's; a render without its instance says so; a

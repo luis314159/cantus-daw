@@ -236,20 +236,3 @@ impl CantusApp {
         });
     }
 }
-
-/// The View menu's *Tempo track* switch (the menu bar's stock rows, as the others there).
-pub fn view_menu_entry(app: &mut CantusApp, ui: &mut egui::Ui) {
-    let mut shown = app.tempo_lane_shown();
-    let key = app
-        .keymap
-        .bindings_for(Action::ToggleTempoTrack)
-        .first()
-        .map(|b| b.display())
-        .unwrap_or_default();
-    if ui
-        .checkbox(&mut shown, format!("{}    {key}", t("tempo.view_menu")))
-        .changed()
-    {
-        app.toggle_tempo_lane();
-    }
-}

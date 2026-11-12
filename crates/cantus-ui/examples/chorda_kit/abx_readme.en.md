@@ -38,5 +38,5 @@ versions of a phrase) and trimmed to the same length. Nothing else was done to t
 - Your notes — "metallic", "thin", "dull", "synthetic attack", "no body", "too much room" —
   are what the next voicing pass aims at.
 
-Answers are kept in this browser (local storage) until you start again; reloading the page
+Write your name at the top: it goes with the results. Answers are kept in this browser (local storage) until you start again; reloading the page
 continues where you were.

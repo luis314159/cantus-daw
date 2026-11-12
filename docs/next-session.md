@@ -23,13 +23,21 @@ Busca la excelencia (Colosenses 3:23). Escríbeme en español.
 
 ## 0. Antes de empezar
 
-1. Revisa los issues de `cantus-daw` y las corridas de la beta.14 (Release, macOS): si algo
-   falló, se arregla primero.
+1. Revisa los issues de `cantus-daw` y las corridas de CI del último commit: si algo falló, se
+   arregla primero. (Lo que mostraron las corridas de la beta.14 y la pantalla del dueño ya se
+   arregló después de la etiqueta: `docs/round39/after-beta14.md`.)
 2. **Mis ojos sobre la ronda 39** (`docs/beta-checklist.md`, *Ronda 39*): todo lo de esta ronda
    se dibujó con el renderizador de CPU, nunca en una pantalla real. Mientras no lo vea en mi
    pantalla, nada nuevo se apoya en el aspecto. Lo que encuentre se arregla antes que la ronda 40.
-3. **Mis decisiones abiertas** (las veintidós de `docs/round39/integration.md`). Pregúntame las que
-   frenen la ronda; las otras pueden esperar:
+3. **Mis decisiones de la ronda 39: ya las contesté** (2026-11-12, `docs/round39/integration.md`,
+   «The owner's answers»). Hazlas en la ronda 40 como un constructor más (`decided`): el panel del
+   mezclador al borde, Maximizar con el inspector y configurable, la barra superior configurable
+   (por defecto la de hoy), Papel en menús y diálogos, barras de valor en el inspector, Silencio en
+   color, un pista de mezclador elegible por pad como en FL, Pizarra lapislázuli más azul, Burdeos y
+   Peltre más suaves, el bailarín redibujado para Pizarra; y como funciones: Escuchar la llave,
+   Grabar antes/después de efectos, Delay sincronizado al tempo y como plug-in CLAP/VST3. Si mis
+   conocidos contestaron (el zip de decisiones), te paso sus JSON. La lista de cuando estaban
+   abiertas, por referencia:
    - el lugar del panel derecho del mezclador (junto a la última tira, o fijo en el borde);
    - el medidor en *Nivel* del inspector (se conservó el de la tira fijada; la hoja no lo dibuja);
    - qué oculta *Maximizar* (todo, como hoy, o deja el inspector al lado, como la hoja);
@@ -68,14 +76,20 @@ Busca la excelencia (Colosenses 3:23). Escríbeme en español.
 
 **Rondas pequeñas: dos o tres constructores**, con la revisión integrada a mitad de ronda.
 
-1. **`chorda`: la tercera pasada del voicing y la ABX 4** (`docs/round38/chorda.md` §2).
+1. **`chorda`: la tercera pasada del voicing y la ABX 4** (`docs/round38/chorda.md` §2). **La meta,
+   en mis palabras: que suene tan bien como el Salamander.** Mi ABX del 2026-11-12 (la línea base,
+   `docs/round39/after-beta14.md` §6): distingo Chorda 2 del Salamander 16 de 16 y prefiero el
+   Salamander 7 de 7; prefiero el modelo 2 al 1 (6 a 1), salvo en *Notas graves solas*, donde gana
+   el modelo 1 — el bajo es lo primero que hay que mirar.
    - El ataque *fortissimo*: un camino directo que dependa de la velocidad.
    - La coherencia estéreo del agudo (la correlación empeoró, 0,43 → 0,56) y el registro nasal
      cerca del do central.
    - Una segunda búsqueda; enviar el voicing elegido como predeterminado: subir `DSP_VERSION` con
      los goldens en un commit y el tamaño medido del cambio (`CANTUS_GOLDEN_DUMP`), los 24 presets
      reajustados a ±2 LU, la tercera enmienda del ADR 0098.
-   - **El kit ABX 4 para mí** (`chorda_abx`): yo escucho y mando el JSON. El oído decide.
+   - **El kit ABX 4 para mí y mis conocidos** (`chorda_abx --flac`, un zip de ~21 MB que cabe en
+     un correo; cada quien escribe su nombre y descarga su JSON). La línea base es mi ABX de la
+     beta.14. El oído decide.
 2. **`ripple`: insertar y borrar tiempo, y la edición en cascada.**
    - Insertar tiempo y borrar tiempo en un rango: los clips partidos en los bordes, el resto de la
      canción desplazado con su automatización, sus cambios de tempo y de compás, sus marcadores y

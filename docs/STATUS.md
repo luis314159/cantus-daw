@@ -10,7 +10,12 @@ Round 39 is on **master** (squashed) and published to `luis314159/cantus-daw`;
 **`v0.1.0-beta.14`** is released for Windows and Linux, with macOS as an unsigned preview
 (2026-11-11). The account: `docs/round39/integration.md`; one report per builder beside it
 (`ux-a`, `ux-b`, `memory`, `kit`, `conv`, `fixes`, `icons`, `lapis`, `el-*`, `lo-*`, `shots`,
-`web/`, and the late `lapis2`, `delay`, `themes`, `fix2`). The prompt for the next session is
+`web/`, and the late `lapis2`, `delay`, `themes`, `fix2`). After the tag (`docs/round39/after-beta14.md`):
+a shared helper's end nothing chooses between is settled by the next (ADR 0063 §10); the bar's
+menus are one kit menu each and stay in the window (ADR 0110, amended — the owner's screen showed
+View running off it); the release starts the site's deploy; the owner answered the round's
+decisions and took Chorda's listening test (two zips he hands out; a site version with its own
+store was built and dropped by the owner as too much setup). The prompt for the next session is
 `docs/next-session.md`:
 
 1. **The owner's eyes on the new look** (`docs/beta-checklist.md`, *Ronda 39*): Slate and Slate
@@ -20,7 +25,9 @@ Round 39 is on **master** (squashed) and published to `luis314159/cantus-daw`;
    the `.exe`, Aula by ear, the Sound packs window with a real download. Every
    picture of this round was drawn by the CPU renderer; the owner's acceptance on whole windows
    is the round's own test.
-2. **The owner's open decisions** (`docs/round39/integration.md`, twenty-two of them): the
+2. **The owner's decisions — answered 2026-11-12** (`docs/round39/integration.md`, «The owner's
+   answers»: the changes and features he chose are round 40's `decided` item). As they were left
+   open: the
    right dock's place; the meter in Level; what maximise hides; "1/2" or "½ bar"; Follow on at
    start; the browser's kinds switch; a pad's own mixer track; the section drag that ripples the
    song; des-controls' five questions (the automated knob's violet, the fader cap's weight,

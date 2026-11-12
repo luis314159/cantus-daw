@@ -240,6 +240,7 @@ layout.default = Default
 menu.layout = Layout
 layout.save_as = Save layout…
 layout.delete = Delete this layout
+layout.delete_none = This layout is the built-in one: there is no saved layout to delete
 layout.reset = Reset layout
 layout.name = Layout name
 layout.save = Save

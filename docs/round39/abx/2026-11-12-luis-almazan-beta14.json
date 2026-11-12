@@ -1,0 +1,634 @@
+{
+ "created": "2026-11-12T03:17:06.181Z",
+ "lang": "en",
+ "abx1": [
+  {
+   "phrase": "ff_chord",
+   "a": "salamander",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 12,
+   "heard": {
+    "a": 4,
+    "b": 2,
+    "x": 6
+   },
+   "at": "2026-11-12T03:17:58.562Z"
+  },
+  {
+   "phrase": "fast_run",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "a",
+   "answer": "a",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "b": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:18:03.867Z"
+  },
+  {
+   "phrase": "bass",
+   "a": "salamander",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 2,
+   "heard": {
+    "a": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:18:08.018Z"
+  },
+  {
+   "phrase": "soft_chords",
+   "a": "salamander",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 5,
+   "heard": {
+    "a": 2,
+    "b": 2,
+    "x": 1
+   },
+   "at": "2026-11-12T03:18:18.363Z"
+  },
+  {
+   "phrase": "ballad",
+   "a": "salamander",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 2,
+   "heard": {
+    "a": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:18:23.747Z"
+  },
+  {
+   "phrase": "ff_chord",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:18:29.620Z"
+  },
+  {
+   "phrase": "top",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "b",
+   "answer": "b",
+   "plays": 14,
+   "heard": {
+    "a": 5,
+    "x": 5,
+    "b": 4
+   },
+   "at": "2026-11-12T03:18:52.796Z"
+  },
+  {
+   "phrase": "middle_c",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "a",
+   "answer": "a",
+   "plays": 6,
+   "heard": {
+    "a": 1,
+    "x": 2,
+    "b": 3
+   },
+   "at": "2026-11-12T03:19:02.356Z"
+  },
+  {
+   "phrase": "ballad",
+   "a": "salamander",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 2,
+   "heard": {
+    "a": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:19:06.140Z"
+  },
+  {
+   "phrase": "bass",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "b",
+   "answer": "b",
+   "plays": 4,
+   "heard": {
+    "a": 1,
+    "x": 2,
+    "b": 1
+   },
+   "at": "2026-11-12T03:19:13.925Z"
+  },
+  {
+   "phrase": "ff_chord",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:19:18.357Z"
+  },
+  {
+   "phrase": "fast_run",
+   "a": "salamander",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 5,
+   "heard": {
+    "a": 1,
+    "x": 2,
+    "b": 2
+   },
+   "at": "2026-11-12T03:19:27.213Z"
+  },
+  {
+   "phrase": "ballad",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "a",
+   "answer": "a",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:19:32.845Z"
+  },
+  {
+   "phrase": "middle_c",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:19:37.197Z"
+  },
+  {
+   "phrase": "soft_chords",
+   "a": "salamander",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:19:42.413Z"
+  },
+  {
+   "phrase": "top",
+   "a": "chorda2",
+   "b": "salamander",
+   "x": "a",
+   "answer": "a",
+   "plays": 4,
+   "heard": {
+    "a": 1,
+    "x": 2,
+    "b": 1
+   },
+   "at": "2026-11-12T03:19:48.262Z"
+  }
+ ],
+ "abx2": [
+  {
+   "phrase": "soft_chords",
+   "a": "chorda2",
+   "b": "chorda1",
+   "x": "b",
+   "answer": "b",
+   "plays": 4,
+   "heard": {
+    "a": 1,
+    "b": 2,
+    "x": 1
+   },
+   "at": "2026-11-12T03:20:06.470Z"
+  },
+  {
+   "phrase": "top",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:20:13.582Z"
+  },
+  {
+   "phrase": "ballad",
+   "a": "chorda2",
+   "b": "chorda1",
+   "x": "a",
+   "answer": "a",
+   "plays": 2,
+   "heard": {
+    "a": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:20:16.943Z"
+  },
+  {
+   "phrase": "ballad",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:20:21.774Z"
+  },
+  {
+   "phrase": "bass",
+   "a": "chorda2",
+   "b": "chorda1",
+   "x": "a",
+   "answer": "a",
+   "plays": 12,
+   "heard": {
+    "a": 4,
+    "b": 5,
+    "x": 3
+   },
+   "at": "2026-11-12T03:20:36.855Z"
+  },
+  {
+   "phrase": "middle_c",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 7,
+   "heard": {
+    "a": 2,
+    "x": 2,
+    "b": 3
+   },
+   "at": "2026-11-12T03:20:45.463Z"
+  },
+  {
+   "phrase": "soft_chords",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "b": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:20:49.951Z"
+  },
+  {
+   "phrase": "fast_run",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "b": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:20:54.991Z"
+  },
+  {
+   "phrase": "soft_chords",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 2,
+   "heard": {
+    "a": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:20:57.888Z"
+  },
+  {
+   "phrase": "top",
+   "a": "chorda2",
+   "b": "chorda1",
+   "x": "a",
+   "answer": "a",
+   "plays": 2,
+   "heard": {
+    "a": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:21:01.552Z"
+  },
+  {
+   "phrase": "ff_chord",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "a",
+   "answer": "a",
+   "plays": 2,
+   "heard": {
+    "a": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:21:04.056Z"
+  },
+  {
+   "phrase": "middle_c",
+   "a": "chorda2",
+   "b": "chorda1",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:21:08.224Z"
+  },
+  {
+   "phrase": "fast_run",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:21:12.016Z"
+  },
+  {
+   "phrase": "ff_chord",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:21:16.216Z"
+  },
+  {
+   "phrase": "fast_run",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "b": 1,
+    "x": 1
+   },
+   "at": "2026-11-12T03:21:19.728Z"
+  },
+  {
+   "phrase": "bass",
+   "a": "chorda1",
+   "b": "chorda2",
+   "x": "b",
+   "answer": "b",
+   "plays": 3,
+   "heard": {
+    "a": 1,
+    "x": 1,
+    "b": 1
+   },
+   "at": "2026-11-12T03:21:25.608Z"
+  }
+ ],
+ "pref": [
+  {
+   "phrase": "bass",
+   "one": "chorda1",
+   "two": "chorda2",
+   "choice": "one",
+   "note": "",
+   "plays": 11,
+   "heard": {
+    "one": 6,
+    "two": 5
+   },
+   "at": "2026-11-12T03:22:17.834Z"
+  },
+  {
+   "phrase": "soft_chords",
+   "one": "chorda2",
+   "two": "chorda1",
+   "choice": "one",
+   "note": "",
+   "plays": 3,
+   "heard": {
+    "one": 2,
+    "two": 1
+   },
+   "at": "2026-11-12T03:22:25.034Z"
+  },
+  {
+   "phrase": "ff_chord",
+   "one": "chorda2",
+   "two": "chorda1",
+   "choice": "one",
+   "note": "",
+   "plays": 7,
+   "heard": {
+    "one": 5,
+    "two": 2
+   },
+   "at": "2026-11-12T03:22:39.682Z"
+  },
+  {
+   "phrase": "soft_chords",
+   "one": "salamander",
+   "two": "chorda2",
+   "choice": "one",
+   "note": "",
+   "plays": 7,
+   "heard": {
+    "one": 4,
+    "two": 3
+   },
+   "at": "2026-11-12T03:22:59.259Z"
+  },
+  {
+   "phrase": "top",
+   "one": "salamander",
+   "two": "chorda2",
+   "choice": "one",
+   "note": "",
+   "plays": 4,
+   "heard": {
+    "one": 2,
+    "two": 2
+   },
+   "at": "2026-11-12T03:23:10.811Z"
+  },
+  {
+   "phrase": "bass",
+   "one": "chorda2",
+   "two": "salamander",
+   "choice": "two",
+   "note": "",
+   "plays": 5,
+   "heard": {
+    "one": 2,
+    "two": 3
+   },
+   "at": "2026-11-12T03:23:42.268Z"
+  },
+  {
+   "phrase": "middle_c",
+   "one": "chorda2",
+   "two": "salamander",
+   "choice": "two",
+   "note": "",
+   "plays": 10,
+   "heard": {
+    "one": 5,
+    "two": 5
+   },
+   "at": "2026-11-12T03:24:08.061Z"
+  },
+  {
+   "phrase": "top",
+   "one": "chorda2",
+   "two": "chorda1",
+   "choice": "one",
+   "note": "",
+   "plays": 3,
+   "heard": {
+    "one": 2,
+    "two": 1
+   },
+   "at": "2026-11-12T03:24:12.837Z"
+  },
+  {
+   "phrase": "fast_run",
+   "one": "chorda2",
+   "two": "salamander",
+   "choice": "two",
+   "note": "",
+   "plays": 4,
+   "heard": {
+    "one": 2,
+    "two": 2
+   },
+   "at": "2026-11-12T03:24:18.613Z"
+  },
+  {
+   "phrase": "ballad",
+   "one": "chorda1",
+   "two": "chorda2",
+   "choice": "two",
+   "note": "",
+   "plays": 2,
+   "heard": {
+    "one": 1,
+    "two": 1
+   },
+   "at": "2026-11-12T03:24:21.085Z"
+  },
+  {
+   "phrase": "fast_run",
+   "one": "chorda1",
+   "two": "chorda2",
+   "choice": "two",
+   "note": "",
+   "plays": 2,
+   "heard": {
+    "one": 1,
+    "two": 1
+   },
+   "at": "2026-11-12T03:24:23.957Z"
+  },
+  {
+   "phrase": "ff_chord",
+   "one": "chorda2",
+   "two": "salamander",
+   "choice": "two",
+   "note": "",
+   "plays": 3,
+   "heard": {
+    "one": 1,
+    "two": 2
+   },
+   "at": "2026-11-12T03:24:34.222Z"
+  },
+  {
+   "phrase": "middle_c",
+   "one": "chorda1",
+   "two": "chorda2",
+   "choice": "two",
+   "note": "",
+   "plays": 5,
+   "heard": {
+    "one": 2,
+    "two": 3
+   },
+   "at": "2026-11-12T03:24:43.446Z"
+  },
+  {
+   "phrase": "ballad",
+   "one": "chorda2",
+   "two": "salamander",
+   "choice": "two",
+   "note": "",
+   "plays": 6,
+   "heard": {
+    "one": 3,
+    "two": 3
+   },
+   "at": "2026-11-12T03:25:00.598Z"
+  }
+ ],
+ "listener": "Luis Almazan"
+}

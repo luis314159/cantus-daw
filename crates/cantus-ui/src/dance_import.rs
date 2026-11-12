@@ -682,22 +682,6 @@ pub fn selected_dancer(app: &CantusApp) -> Option<TrackId> {
     (n.kind == cantus_core::InstrumentKind::Dancer).then_some(track)
 }
 
-/// *File ▸ Import character…*: for the selected dancer (dimmed, with a word why, for
-/// any other track).
-pub fn file_menu_item(app: &mut CantusApp, ui: &mut egui::Ui) {
-    let dancer = selected_dancer(app);
-    let r = ui.add_enabled(dancer.is_some(), egui::Button::new(t("dance_import.menu")));
-    let r = if dancer.is_none() {
-        r.on_disabled_hover_text(t("dance_import.menu.needs_dancer"))
-    } else {
-        r
-    };
-    if r.clicked() {
-        ui.close();
-        menu_pick(app);
-    }
-}
-
 /// *Import character…* chosen from a menu (the window's File menu, macOS's menu bar): for
 /// the selected dancer; with none, the status says what to do (AppKit's items cannot be
 /// dimmed per frame, so the Mac's says it in words).

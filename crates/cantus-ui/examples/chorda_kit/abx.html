@@ -25,6 +25,7 @@ button:disabled { opacity:.45; cursor:default; }
 .tabs button { border-radius:8px 8px 0 0; }
 table { border-collapse:collapse; width:100%; }
 td, th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+input#who { font:inherit; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; flex:1 1 220px; min-width:0; }
 textarea { width:100%; font:inherit; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px; }
 .ok { color:var(--ok); } .warn { color:var(--warn); }
 .lang { float:right; }
@@ -35,8 +36,11 @@ textarea { width:100%; font:inherit; background:var(--bg); color:var(--ink); bor
 <div class="lang"><button id="lang-en">EN</button> <button id="lang-es">ES</button></div>
 <h1 data-t="title"></h1>
 <p class="mute" data-t="intro"></p>
+<div class="row" style="margin:12px 0 16px"><label for="who" data-t="who"></label><input id="who" autocomplete="name"></div>
+<p id="msg" class="warn" hidden></p>
 <div class="row tabs" id="tabs"></div>
 <section id="view"></section>
+<p class="mute" data-t="credit"></p>
 </main>
 <script>
 "use strict";
@@ -59,6 +63,11 @@ const T = {
   res_abx: "{name}: {k} of {n} correct — p = {p}", res_none: "not taken yet", res_partial: "{k} of {done} so far",
   res_pref: "Preference, {pair}: {a} for {an}, {b} for {bn}, {s} no preference (sign test p = {p})",
   sig: "Significant at 5 %: you can tell them apart.", nsig: "Not significant: no reliable difference heard.",
+  credit: "The reference piano is the Salamander Grand Piano by Alexander Holm (CC BY 3.0, creativecommons.org/licenses/by/3.0), played by Cantus's sampler.",
+  saved: "Saved: Luis sees your results.", cant_save: "This page cannot save from your account: download the results and send the file to Luis.",
+  copy_here: "Your browser would not save the file. Copy this text and send it to Luis:", reset_sure: "Sure? Press again to erase everything",
+  everyone: "Every listener", imported: "Imported: {n}", import_files: "Import the .json files listeners sent you", bad_file: "Not a results file: {f}",
+  who: "Your name", need_name: "Write your name at the top first: the results say whose they are.",
   download: "Download results (JSON)", reset: "Start again (erases the answers)", reset_q: "Erase every answer and draw new trials?",
   reveal: "Answers per trial", src_salamander: "Salamander Grand", src_chorda1: "Chorda model 1", src_chorda2: "Chorda model 2"
  },
@@ -74,6 +83,11 @@ const T = {
   res_abx: "{name}: {k} de {n} aciertos — p = {p}", res_none: "aún sin hacer", res_partial: "{k} de {done} por ahora",
   res_pref: "Preferencia, {pair}: {a} por {an}, {b} por {bn}, {s} sin preferencia (prueba de signos p = {p})",
   sig: "Significativo al 5 %: los distingues.", nsig: "No significativo: no se oye una diferencia fiable.",
+  credit: "El piano de referencia es el Salamander Grand Piano de Alexander Holm (CC BY 3.0, creativecommons.org/licenses/by/3.0), tocado por el sampler de Cantus.",
+  saved: "Guardado: Luis ve tus resultados.", cant_save: "Desde tu cuenta esta página no puede guardar: descarga los resultados y mándale el archivo a Luis.",
+  copy_here: "Tu navegador no guardó el archivo. Copia este texto y mándaselo a Luis:", reset_sure: "¿Seguro? Pulsa otra vez para borrarlo todo",
+  everyone: "Todos los oyentes", imported: "Importados: {n}", import_files: "Importar los archivos .json que te mandaron", bad_file: "No es un archivo de resultados: {f}",
+  who: "Tu nombre", need_name: "Escribe tu nombre arriba primero: los resultados dicen de quién son.",
   download: "Descargar resultados (JSON)", reset: "Empezar de nuevo (borra las respuestas)", reset_q: "¿Borrar todas las respuestas y sortear ensayos nuevos?",
   reveal: "Respuestas por ensayo", src_salamander: "Salamander Grand", src_chorda1: "Chorda modelo 1", src_chorda2: "Chorda modelo 2"
  }
@@ -111,7 +125,72 @@ let st;
 try { st = JSON.parse(localStorage.getItem(KEY)); } catch (e) { st = null; }
 if (!st || !st.abx1) st = fresh();
 lang = st.lang || "en";
-function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} push(); }
+// Opened from a folder the page keeps the answers in this browser and downloads a file. Opened
+// as a claude.ai page it also saves them for its owner (`db`, each listener's own document) and
+// shows the owner every listener's scores.
+const online = { db: null, uid: null, owner: false, downloads: null, writable: null, everyone: [], timer: null };
+function say(text, ok) { const m = document.getElementById("msg"); m.textContent = text; m.className = ok ? "ok" : "warn"; m.hidden = !text; }
+function slugOf(s) { return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "listener"; }
+async function saveFile(name, text, where) {
+ if (online.downloads) { try { await online.downloads.save({ filename: name, data: text }); } catch (e) { if (e && e.code !== "declined") showText(text, where); } return; }
+ if (window.claude) { showText(text, where); return; }
+ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "application/json" })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 2000);
+}
+function showText(text, where) { const t = el("textarea"); t.value = text; t.rows = 8; t.readOnly = true; where.appendChild(el("p", tr("copy_here"))); where.appendChild(t); t.focus(); t.select(); }
+function push() {
+ if (!online.db || !online.uid || online.writable === false) return;
+ clearTimeout(online.timer);
+ online.timer = setTimeout(async () => {
+  if (!(st.listener || "").trim()) return;
+  try { await online.db.doc("abx/" + online.uid).set({ listener: st.listener.trim(), results: JSON.parse(JSON.stringify(st)), updatedAt: new Date().toISOString() }); online.writable = true; say(tr("saved"), true); }
+  catch (e) { if (e && (e.code === "invalid_argument" || e.code === "not_granted")) { online.writable = false; say(tr("cant_save")); } }
+ }, 1200);
+}
+function scoreOf(s, t) { const list = (s && s[t]) || []; const done = list.filter(x => x.answer !== null); return { k: done.filter(x => x.answer === x.x).length, n: done.length, of: list.length }; }
+function prefOf(s, pair) { let a = 0, b = 0, same = 0; for (const q of (s && s.pref) || []) { if (q.choice === null || [q.one, q.two].sort().join() !== pair.slice().sort().join()) continue; if (q.choice === "same") same++; else if ((q.choice === "one" ? q.one : q.two) === pair[0]) a++; else b++; } return { a, b, same }; }
+function everyoneTable(c) {
+ c.appendChild(el("h2", tr("everyone")));
+ const tb = el("table");
+ const head = el("tr"); for (const h of [tr("who"), tr("tab_abx1"), tr("tab_abx2"), tr("src_chorda2") + " / " + tr("src_salamander"), tr("src_chorda2") + " / " + tr("src_chorda1")]) head.appendChild(el("th")).textContent = h;
+ tb.appendChild(head);
+ for (const d of online.everyone) {
+  const s = d.results || {}; const row = el("tr");
+  const cells = [d.listener || "?"];
+  for (const t of ["abx1", "abx2"]) { const r = scoreOf(s, t); cells.push(r.n ? r.k + " / " + r.n + (r.n === r.of ? "  (p = " + binomTail(r.k, r.n).toFixed(3) + ")" : "") : "—"); }
+  for (const pair of [TESTS.abx1, ["chorda2", "chorda1"]]) { const r = prefOf(s, pair); cells.push(r.a + " · " + r.b + " · " + r.same); }
+  for (const v of cells) row.appendChild(el("td")).textContent = v;
+  tb.appendChild(row);
+  const notes = ((s.pref) || []).filter(q => q.note && q.note.trim()).map(q => PHRASE_NAMES[lang][q.phrase] + ": " + q.note.trim());
+  if (notes.length) { const nr = el("tr"); const td = el("td"); td.colSpan = 5; td.className = "mute"; td.textContent = notes.join(" · "); nr.appendChild(td); tb.appendChild(nr); }
+ }
+ c.appendChild(tb);
+ const lab = el("label"); lab.textContent = tr("import_files"); lab.htmlFor = "import-files";
+ const inp = el("input"); inp.type = "file"; inp.id = "import-files"; inp.accept = ".json,application/json"; inp.multiple = true;
+ const out = el("p", undefined, "mute");
+ inp.onchange = async () => {
+  let n = 0;
+  for (const f of inp.files) {
+   let d; try { d = JSON.parse(await f.text()); } catch (e) { out.textContent = tr("bad_file", { f: f.name }); return; }
+   if (!d || !d.abx1 || !d.pref) { out.textContent = tr("bad_file", { f: f.name }); return; }
+   const who = String(d.listener || f.name.replace(/\.json$/i, ""));
+   try { await online.db.doc("abx/import-" + slugOf(who)).set({ listener: who, results: d, updatedAt: new Date().toISOString(), source: "import" }); n++; } catch (e) { out.textContent = String(e && e.code || e); return; }
+  }
+  out.textContent = tr("imported", { n: n }); inp.value = "";
+ };
+ const box = el("div", undefined, "row"); box.style.marginTop = "12px"; box.appendChild(lab); box.appendChild(inp); c.appendChild(box); c.appendChild(out);
+}
+async function goOnline() {
+ if (!(window.claude && window.claude.use)) return;
+ const use = n => window.claude.use(n).catch(() => null);
+ const [user, db, downloads] = await Promise.all([use("user"), use("db"), use("downloads")]);
+ online.downloads = downloads;
+ if (!user || !db) { say(tr("cant_save")); return; }
+ online.uid = await user.id(); online.owner = await user.isOwner(); online.db = db;
+ if (!online.uid) { say(tr("cant_save")); return; }
+ push();
+ if (online.owner) db.collection("abx").onSnapshot(q => { online.everyone = q.docs.map(x => x.data() || {}).sort((a, b) => String(a.listener).localeCompare(String(b.listener))); if (tab === "res") render(); }, () => {});
+}
 save();
 // The transport: one element per slot; switching keeps the place.
 // `cur`: the trial or question on screen — every press of a slot counts in its `plays`
@@ -202,9 +281,19 @@ function results(c) {
   c.appendChild(el("p", tr("res_pref", { pair: tr("src_" + pair[0]) + " / " + tr("src_" + pair[1]), a: a, an: tr("src_" + pair[0]), b: b, bn: tr("src_" + pair[1]), s: s, p: p.toFixed(3) })));
  }
  const r = el("div", undefined, "row");
- r.appendChild(btn(tr("download"), () => { const blob = new Blob([JSON.stringify(st, null, 1)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "chorda-abx-results.json"; a.click(); }, "primary"));
- r.appendChild(btn(tr("reset"), () => { if (confirm(tr("reset_q"))) { st = fresh(); save(); shown = null; tab = "abx1"; render(); } }));
+ r.appendChild(btn(tr("download"), () => {
+  // Whose results: a listener's name in the file and in its name, so several can be told apart.
+  const who = (st.listener || "").trim();
+  if (!who) { say(tr("need_name")); document.getElementById("who").focus(); return; }
+  saveFile("chorda-abx-" + slugOf(who) + ".json", JSON.stringify(st, null, 1), c);
+ }, "primary"));
+ const reset = btn(tr("reset"), () => {
+  if (!reset.dataset.armed) { reset.dataset.armed = "1"; reset.textContent = tr("reset_sure"); setTimeout(() => { delete reset.dataset.armed; reset.textContent = tr("reset"); }, 5000); return; }
+  const who = st.listener; st = fresh(); st.listener = who; save(); shown = null; tab = "abx1"; render();
+ });
+ r.appendChild(reset);
  c.appendChild(r);
+ if (online.owner) everyoneTable(c);
  const done = ["abx1", "abx2"].every(t => st[t].every(x => x.answer !== null));
  if (done) {
   c.appendChild(el("h2", tr("reveal")));
@@ -215,8 +304,12 @@ function results(c) {
 }
 document.getElementById("lang-en").onclick = () => { lang = "en"; st.lang = lang; save(); render(); };
 document.getElementById("lang-es").onclick = () => { lang = "es"; st.lang = lang; save(); render(); };
-document.addEventListener("keydown", e => { if (e.target.tagName === "TEXTAREA") return; const k = e.key.toLowerCase(); if (players[k]) play(k); else if (k === "1" && players.one) play("one"); else if (k === "2" && players.two) play("two"); else if (k === " ") { e.preventDefault(); stopAll(); } });
+document.addEventListener("keydown", e => { if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return; const k = e.key.toLowerCase(); if (players[k]) play(k); else if (k === "1" && players.one) play("one"); else if (k === "2" && players.two) play("two"); else if (k === " ") { e.preventDefault(); stopAll(); } });
+const whoBox = document.getElementById("who");
+whoBox.value = st.listener || "";
+whoBox.oninput = () => { st.listener = whoBox.value; save(); };
 render();
+goOnline();
 </script>
 </body>
 </html>

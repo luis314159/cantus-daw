@@ -254,7 +254,15 @@ pub fn card(app: &CantusApp) -> Option<Card> {
     } else {
         (None, tf("isolation.crashed.many", &[("n", &w.len())]))
     };
-    let body = if one {
+    // An end nothing chose between: said, and what the reload does about it (ADR 0063 §10)
+    // — in the body's three lines, in place of the usual words.
+    let body = if w.iter().any(|c| suspect(app, c.target)) {
+        t(if one {
+            "isolation.crashed.body_suspect_one"
+        } else {
+            "isolation.crashed.body_suspects"
+        })
+    } else if one {
         format!(
             "{} {}",
             t("isolation.crashed.body_one"),
@@ -313,6 +321,15 @@ pub fn card(app: &CantusApp) -> Option<Card> {
         buttons,
         reasons,
     })
+}
+
+/// One of several plug-ins its helper's end could be laid on, nothing choosing between
+/// them (ADR 0063 §10).
+fn suspect(app: &CantusApp, target: Target) -> bool {
+    match target {
+        Target::Insert(e) => app.plugins.crash_suspect(e),
+        Target::Instrument(tr) => app.plugins.instrument_crash_suspect(tr),
+    }
 }
 
 /// The plug-in on the card offered its own process: one its helper's end is laid on, that
@@ -561,6 +578,10 @@ pub fn tip(app: &CantusApp, target: Target) -> String {
             .hosted_instrument(tr)
             .map(|h| (h.isolation(), h.cpu())),
     };
+    let apart = match target {
+        Target::Insert(e) => app.plugins.hosted(e).is_some_and(|h| h.apart()),
+        Target::Instrument(tr) => app.plugins.hosted_instrument(tr).is_some_and(|h| h.apart()),
+    };
     // One that crashed while it loaded has no instance: where it was tried, and why.
     let (runs, cpu) = match (loaded, plugin_of(app, target)) {
         (Some(l), _) => l,
@@ -568,6 +589,9 @@ pub fn tip(app: &CantusApp, target: Target) -> String {
         _ => return String::new(),
     };
     let mut lines = vec![tf("isolation.tip.runs", &[("mode", &t(runs.label_key()))])];
+    if apart {
+        lines.push(t("isolation.tip.apart"));
+    }
     if let Some(why) = crashed {
         lines.push(tf(
             "isolation.tip.stopped",

@@ -539,3 +539,30 @@ fn every_job_building_the_av1_assembly_installs_nasm() {
         "the release's three systems and the Mac's dmg job: {seen}"
     );
 }
+
+/// A release published with the workflow's own token starts no other workflow: the site's
+/// `release: published` never fired at beta.14 and the download page kept beta.13's files.
+/// The release's publish job starts the site's deploy itself, by the one event that token
+/// may start (a dispatch), and the site's workflow takes it.
+#[test]
+fn a_published_release_starts_the_sites_deploy() {
+    let release = read(".github/workflows/release.yml");
+    let publish = jobs(&release)
+        .into_iter()
+        .find(|(name, _)| name == "publish")
+        .map(|(_, text)| text)
+        .expect("the release's publish job");
+    let created = publish
+        .find("gh release create")
+        .expect("it creates the release");
+    let started = publish
+        .find("gh workflow run site.yml")
+        .expect("it starts the site's deploy");
+    assert!(started > created, "after the release exists");
+    assert!(publish.contains("actions: write"), "the token may start it");
+    let site = read(".github/workflows/site.yml");
+    assert!(
+        site.contains("\n  workflow_dispatch:"),
+        "the site takes a dispatch"
+    );
+}

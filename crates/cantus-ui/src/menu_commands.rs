@@ -44,6 +44,9 @@ pub enum MenuCommand {
     FloatArea,
     HideArea,
     ResetLayout,
+    /// View ▸ *Delete this layout* (its own row since the bar's menus are kit menus, ADR 0110
+    /// amended): the palette reaches it too.
+    DeleteLayout,
     /// What a right-click on the selection opens: the clip's, the track's, the strip's menu
     /// (Shift+F10 outside the mixer), walked with the arrows.
     SelectionMenu,
@@ -52,7 +55,7 @@ pub enum MenuCommand {
 }
 
 impl MenuCommand {
-    pub const ALL: [MenuCommand; 30] = [
+    pub const ALL: [MenuCommand; 31] = [
         MenuCommand::CollectAndSave,
         MenuCommand::ImportAudio,
         MenuCommand::ImportCharacter,
@@ -81,6 +84,7 @@ impl MenuCommand {
         MenuCommand::FloatArea,
         MenuCommand::HideArea,
         MenuCommand::ResetLayout,
+        MenuCommand::DeleteLayout,
         MenuCommand::SelectionMenu,
         MenuCommand::ModulateLastTweaked,
     ];
@@ -116,6 +120,7 @@ impl MenuCommand {
             MenuCommand::FloatArea => "ux.panels.float_area",
             MenuCommand::HideArea => "ux.panels.hide_area",
             MenuCommand::ResetLayout => "layout.reset",
+            MenuCommand::DeleteLayout => "layout.delete",
             MenuCommand::SelectionMenu => "ux.panels.selection_menu",
             MenuCommand::ModulateLastTweaked => "ux.panels.modulate_last",
         }
@@ -193,6 +198,15 @@ impl MenuCommand {
                 }
             }
             MenuCommand::ResetLayout => app.reset_layout(),
+            // The layout in use, if it is a saved one; the built-in one cannot be deleted.
+            MenuCommand::DeleteLayout => {
+                let current = app.layouts.current.name.clone();
+                if app.layouts.saved.iter().any(|l| l.name == current) {
+                    app.delete_layout(&current, ctx);
+                } else {
+                    app.set_status(crate::i18n::t("layout.delete_none"));
+                }
+            }
             MenuCommand::SelectionMenu => {
                 if app.focus == crate::app::EditFocus::Mixer {
                     if let Some(s) = app.selected_strip {

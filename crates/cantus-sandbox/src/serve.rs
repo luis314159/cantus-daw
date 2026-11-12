@@ -117,6 +117,22 @@ fn lag(instance: Option<u32>) {
     }
 }
 
+/// For tests (`CANTUS_TEST_SANDBOX_LAG_IN=<instance>:<ms>`): each call into that instance's
+/// plug-in code on the main thread takes that much longer, still naming it — a main thread
+/// put off the processor inside a neighbour's call, so another plug-in's fail-fast abort
+/// has two candidates, the end nothing chooses between (ADR 0063 §10). Read once; capped as
+/// the timers' knob is.
+fn lag_inside(instance: u32) {
+    static SLOW: OnceLock<Option<(u32, Duration)>> = OnceLock::new();
+    let slow =
+        SLOW.get_or_init(|| slow_of(std::env::var("CANTUS_TEST_SANDBOX_LAG_IN").ok().as_deref()));
+    if let Some((n, d)) = slow {
+        if *n == instance {
+            std::thread::sleep(*d);
+        }
+    }
+}
+
 /// What the lag knob's text says: the instance and how much longer.
 fn slow_of(text: Option<&str>) -> Option<(u32, Duration)> {
     let (n, ms) = text?.split_once(':')?;
@@ -284,7 +300,9 @@ impl Instance {
 /// answer) was laid on nobody, two candidates for one end (round 39, abort-blame).
 fn marked<R>(instance: u32, f: impl FnOnce() -> R) -> R {
     let _at = crate::platform::blame::calling(instance);
-    f()
+    let r = f();
+    lag_inside(instance);
+    r
 }
 
 fn failure(e: HostError) -> Failure {

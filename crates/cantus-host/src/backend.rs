@@ -252,6 +252,10 @@ pub enum Blame {
     This,
     /// Another instance of its helper was.
     Neighbour,
+    /// It is one of several the end could be laid on, and nothing chose between them (a
+    /// fail-fast abort while two plug-ins' code ran): laid on none, and reloaded it runs in
+    /// a helper of its own for the session, so its next end names it (ADR 0063 §10).
+    Suspect,
     /// Nothing says which.
     Unknown,
 }

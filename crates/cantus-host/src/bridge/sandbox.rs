@@ -358,7 +358,7 @@ pub(crate) enum End {
 ///    the main thread was calling into (loaded or leaving) and those whose job was running.
 ///
 /// More than one candidate is nobody's (`Blame::Unknown`): never an innocent neighbour
-/// remembered as a crasher.
+/// remembered as a crasher — those candidates are its [`suspects`].
 pub(crate) fn culprits(
     end: End,
     crash_at: u32,
@@ -376,17 +376,46 @@ pub(crate) fn culprits(
     if instances.len() == 1 && (!named(main_at) || instances.contains(&main_at)) {
         return instances.iter().copied().collect();
     }
-    if end != End::Observed || crash_at == OUTSIDE {
-        return HashSet::new();
+    match candidates(end, crash_at, main_at, running) {
+        Some(c) if c.len() == 1 => c,
+        _ => HashSet::new(),
+    }
+}
+
+/// Rule 5's candidates: an end no handler named (a fail-fast abort on Windows) — the
+/// instance the main thread was calling into and those whose job was running. `None` for
+/// any other end.
+fn candidates(end: End, crash_at: u32, main_at: u32, running: &[u32]) -> Option<HashSet<u32>> {
+    if end != End::Observed || crash_at != 0 {
+        return None;
     }
     let mut candidates: HashSet<u32> = running.iter().copied().collect();
-    if named(main_at) {
+    if main_at != 0 && main_at != OUTSIDE {
         candidates.insert(main_at);
     }
-    if candidates.len() == 1 {
-        return candidates;
+    Some(candidates)
+}
+
+/// The instances an end could be laid on when nothing chose between them (ADR 0063 §10):
+/// the several candidates of rule 5 when [`culprits`] lays it on none — a fail-fast abort
+/// while two plug-ins' code ran, the helper's main thread in one and a worker in the other,
+/// and nothing in the process says which thread aborted. Each is told it is a suspect, and
+/// reloaded runs in a helper of its own for the session: its next end has one candidate.
+/// Empty whenever the end is laid on someone, or nothing points at anyone.
+pub(crate) fn suspects(
+    end: End,
+    crash_at: u32,
+    main_at: u32,
+    running: &[u32],
+    instances: &[u32],
+) -> HashSet<u32> {
+    if !culprits(end, crash_at, main_at, running, instances).is_empty() {
+        return HashSet::new();
     }
-    HashSet::new()
+    match candidates(end, crash_at, main_at, running) {
+        Some(c) if c.len() > 1 => c,
+        _ => HashSet::new(),
+    }
 }
 
 /// Whether the gap since the last judgement (milliseconds) is longer than the silence
@@ -506,6 +535,8 @@ pub struct Sandbox {
     pauses: AtomicU64,
     /// The instances its end is laid on, once it ended; empty when nothing said which.
     blamed: Mutex<Option<HashSet<u32>>>,
+    /// When it was laid on none: the instances it could have been (its [`suspects`]).
+    suspected: Mutex<HashSet<u32>>,
     /// The user stopped it from this instance's waiting card (and its plug-in's name).
     user_stop: Mutex<Option<(u32, String)>>,
     ending: Arc<Ending>,
@@ -601,6 +632,7 @@ impl Sandbox {
             judged_ms: AtomicU64::new(0),
             pauses: AtomicU64::new(0),
             blamed: Mutex::new(None),
+            suspected: Mutex::new(HashSet::new()),
             user_stop: Mutex::new(None),
             ending: ending.clone(),
             pool: Arc::downgrade(pool),
@@ -707,7 +739,16 @@ impl Sandbox {
         {
             let mut b = lock(&self.blamed);
             if b.is_none() {
-                let (laid, live) = self.find_culprits(end);
+                let (laid, suspected, live) = self.find_culprits(end);
+                if !suspected.is_empty() {
+                    let mut s: Vec<u32> = suspected.iter().copied().collect();
+                    s.sort();
+                    log::warn!(
+                        "helper {} ended with no handler while instances {s:?} ran: laid on                          none; reloaded, each runs alone",
+                        self.serial
+                    );
+                }
+                *lock(&self.suspected) = suspected;
                 // A plug-in that crashed while it left is counted all the same.
                 self.ending.tell_departed(&laid, &live);
                 *b = Some(laid);
@@ -735,8 +776,8 @@ impl Sandbox {
             .any(|r| unsafe { &*r.slot.exchange() }.running())
     }
 
-    /// The culprits of an end, and the instances still loaded.
-    fn find_culprits(&self, end: End) -> (HashSet<u32>, Vec<u32>) {
+    /// The culprits of an end, its suspects, and the instances still loaded.
+    fn find_culprits(&self, end: End) -> (HashSet<u32>, HashSet<u32>, Vec<u32>) {
         let instances = lock(&self.instances);
         let running: Vec<u32> = instances
             .iter()
@@ -745,14 +786,10 @@ impl Sandbox {
             .map(|(n, _)| *n)
             .collect();
         let all: Vec<u32> = instances.keys().copied().collect();
-        let laid = culprits(
-            end,
-            self.lobby.crash_at(),
-            self.lobby.main_at(),
-            &running,
-            &all,
-        );
-        (laid, all)
+        let (crash_at, main_at) = (self.lobby.crash_at(), self.lobby.main_at());
+        let laid = culprits(end, crash_at, main_at, &running, &all);
+        let suspected = suspects(end, crash_at, main_at, &running, &all);
+        (laid, suspected, all)
     }
 
     /// Who this helper's end is laid on, from `instance`'s side.
@@ -760,6 +797,7 @@ impl Sandbox {
         match lock(&self.blamed).as_ref() {
             Some(set) if set.contains(&instance) => Blame::This,
             Some(set) if !set.is_empty() => Blame::Neighbour,
+            Some(_) if lock(&self.suspected).contains(&instance) => Blame::Suspect,
             _ => Blame::Unknown,
         }
     }
@@ -1741,6 +1779,28 @@ mod tests {
         assert_eq!(culprits(seen, 0, 3, &[1], &all), set(&[]));
         // One plug-in in it: its own end.
         assert_eq!(culprits(seen, 0, 0, &[], &[7]), set(&[7]));
+    }
+
+    /// An end laid on none because several were busy names them suspects — and only
+    /// then: an end laid on someone, a handler's *outside*, an end Cantus decided, or one
+    /// nothing points at has none (ADR 0063 §10).
+    #[test]
+    fn an_end_several_could_have_made_names_them_suspects() {
+        let all = [1, 2, 3];
+        let seen = End::Observed;
+        assert_eq!(suspects(seen, 0, 0, &[1, 2], &all), set(&[1, 2]));
+        assert_eq!(suspects(seen, 0, 3, &[1], &all), set(&[1, 3]));
+        // The main thread and a job in the same plug-in: one candidate, laid on it.
+        assert_eq!(suspects(seen, 0, 2, &[2], &all), set(&[]));
+        assert_eq!(culprits(seen, 0, 2, &[2], &all), set(&[2]));
+        assert_eq!(suspects(seen, 0, 0, &[2], &all), set(&[]));
+        assert_eq!(suspects(seen, 2, 3, &[1], &all), set(&[]));
+        assert_eq!(suspects(seen, OUTSIDE, 3, &[1], &all), set(&[]));
+        assert_eq!(suspects(End::Decided(None), 0, 3, &[1], &all), set(&[]));
+        assert_eq!(suspects(End::Decided(Some(1)), 0, 3, &[2], &all), set(&[]));
+        assert_eq!(suspects(seen, 0, 0, &[], &all), set(&[]));
+        // One plug-in in it: its own end, no suspects.
+        assert_eq!(suspects(seen, 0, 7, &[7], &[7]), set(&[]));
     }
 
     /// The only plug-in of a helper is laid its end whatever thread it crashed on — its

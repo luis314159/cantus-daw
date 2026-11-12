@@ -1960,9 +1960,13 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
   whole request or tick — its own bookkeeping and the writing of its answer included — so a
   lagging main thread still busy with the neighbour when the gain aborted made two
   candidates, nobody's. The mark now covers only calls into the plug-in (ADR 0063 §9); held
-  on any machine by `CANTUS_TEST_SANDBOX_LAG` (7 of 7 nobody before, 0 after). Left by
-  design: a fail-fast while the main thread is truly in a neighbour's code stays nobody's
-  (`docs/round39/abort-blame.md`).
+  on any machine by `CANTUS_TEST_SANDBOX_LAG` (7 of 7 nobody before, 0 after). What §9 left
+  by design — a fail-fast while the main thread is truly in a neighbour's code, 1 of 100 on
+  the next CI run — is now settled by the next end: both are suspects, laid on neither, and
+  reloaded each runs alone for the session, so the culprit's next crash names it (ADR 0063
+  §10, `CANTUS_TEST_SANDBOX_LAG_IN`; `docs/round39/abort-blame.md`). Telling the aborting
+  thread at once would take the system's error reporting (a WER runtime-exception module)
+  or a debugger on the helper: not needed now.
 - **A scroll-bar zoom test that failed once** (round 39's integration, 2026-11-09):
   `views_nav::dragging_an_end_of_the_scroll_bar_zooms` failed once in the whole cantus-ui
   suite (`pulling the bar's end out did not zoom out: 26 → 26` — the press missed the thumb's

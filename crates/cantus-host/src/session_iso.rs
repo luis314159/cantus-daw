@@ -231,6 +231,20 @@ impl PluginHost {
         }
     }
 
+    /// Where a reload loads a plug-in the project puts at `chosen`: a helper of its own
+    /// while it is `apart` (ADR 0063 §10) — if it runs in a helper at all — else there.
+    fn reload_isolation(
+        &self,
+        chosen: Option<PluginIsolation>,
+        apart: bool,
+    ) -> Option<PluginIsolation> {
+        if apart && self.effective_isolation(chosen).isolated() {
+            Some(PluginIsolation::Individually)
+        } else {
+            chosen
+        }
+    }
+
     /// The backend that loads `info` where `chosen` says, and where that is.
     pub(crate) fn backend_for_plugin(
         &mut self,
@@ -423,6 +437,22 @@ impl PluginHost {
         }
     }
 
+    /// Whether a crashed slot's plug-in is one of several its helper's end could be laid on,
+    /// nothing choosing between them: its card says so, and a reload runs it alone for the
+    /// session (ADR 0063 §10).
+    pub fn crash_suspect(&self, effect: EffectId) -> bool {
+        self.slots
+            .get(&effect)
+            .is_some_and(|h| h.blame == Some(Blame::Suspect))
+    }
+
+    /// [`Self::crash_suspect`] for a track's hosted instrument.
+    pub fn instrument_crash_suspect(&self, track: TrackId) -> bool {
+        self.instruments
+            .get(&track)
+            .is_some_and(|h| h.blame == Some(Blame::Suspect))
+    }
+
     /// How many times `info`'s plug-in crashed in this session.
     pub fn crashes_this_session(&self, format: Format, id: &str) -> u32 {
         self.crash_counts
@@ -506,13 +536,21 @@ impl PluginHost {
         let values = old.flushed.clone();
         let info = old.info.clone();
         let setup = self.setup;
-        match self.instantiate(&info, plugin.isolation, &state, &values, setup, false) {
+        // A suspect of an end nothing chose between runs alone from now on (ADR 0063 §10).
+        old.apart |= old.blame == Some(Blame::Suspect);
+        let chosen = self.reload_isolation(plugin.isolation, old.apart);
+        match self.instantiate(&info, chosen, &state, &values, setup, false) {
             Ok(inst) => {
                 let gone = std::mem::replace(&mut old.main, inst.main);
                 self.retire(gone);
                 // Reloaded: another load (ADR 0073).
                 old.load = crate::session::next_load();
-                old.isolation = inst.isolation;
+                // Alone, it is still where the project puts it: nothing moves it back.
+                old.isolation = if old.apart {
+                    self.effective_isolation(plugin.isolation)
+                } else {
+                    inst.isolation
+                };
                 old.crashed = None;
                 old.blame = None;
                 old.restarting = false;
@@ -643,13 +681,21 @@ impl PluginHost {
         let values = old.flushed.clone();
         let info = old.info.clone();
         let setup = self.setup;
-        match self.instantiate(&info, plugin.isolation, &state, &values, setup, false) {
+        // A suspect of an end nothing chose between runs alone from now on (ADR 0063 §10).
+        old.apart |= old.blame == Some(Blame::Suspect);
+        let chosen = self.reload_isolation(plugin.isolation, old.apart);
+        match self.instantiate(&info, chosen, &state, &values, setup, false) {
             Ok(inst) => {
                 let gone = std::mem::replace(&mut old.main, inst.main);
                 self.retire(gone);
                 // Reloaded: another load (ADR 0073).
                 old.load = crate::session::next_load();
-                old.isolation = inst.isolation;
+                // Alone, it is still where the project puts it: nothing moves it back.
+                old.isolation = if old.apart {
+                    self.effective_isolation(plugin.isolation)
+                } else {
+                    inst.isolation
+                };
                 old.crashed = None;
                 old.blame = None;
                 old.restarting = false;
