@@ -217,11 +217,38 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         ),
         // fx:contract — the side round's stubs: the placeholder's gain; each builder
         // replaces its own line with its unit's heaviest settings.
-        EffectKind::AutoFilter => set(&mut s, &[("out", 6.0)]), // fx:contract (cribrum)
-        EffectKind::Pedal => set(&mut s, &[("out", 6.0)]),      // fx:contract (fragor)
+        // fx:cribrum — both filters (a driven ladder at 24 dB/oct into three formants), 4×
+        // oversampling, every source on every target.
+        EffectKind::AutoFilter => set(
+            &mut s,
+            &[
+                ("mix", 1.0),
+                ("os", 2.0),
+                ("a.model", 1.0),
+                ("a.slope", 1.0),
+                ("a.cut", 800.0),
+                ("a.res", 0.7),
+                ("a.drive", 12.0),
+                ("b.on", 1.0),
+                ("b.mode", 5.0),
+                ("b.res", 0.5),
+                ("spread", 0.5),
+                ("lfo.shape", 6.0),
+                ("lfo.stereo", 90.0),
+                ("lfo.cut", 2.0),
+                ("lfo.res", 0.2),
+                ("lfo.vowel", 1.0),
+                ("env.cut", 1.5),
+                ("cur.cut", -1.0),
+                ("cur.vowel", 1.0),
+                ("cur.smooth", 10.0),
+                ("out", -3.0),
+            ],
+        ),
+        EffectKind::Pedal => set(&mut s, &[("out", 6.0)]), // fx:contract (fragor)
         EffectKind::TimeShaper => set(&mut s, &[("out", 6.0)]), // fx:contract (lapsus)
-        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),       // fx:contract (vetus)
-        EffectKind::Utility => set(&mut s, &[("out", 6.0)]),    // fx:contract (libra)
+        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),  // fx:contract (vetus)
+        EffectKind::Utility => set(&mut s, &[("out", 6.0)]), // fx:contract (libra)
     }
     s
 }

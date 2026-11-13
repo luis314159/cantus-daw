@@ -2733,3 +2733,58 @@ fn an_audition_s_level_moved_as_it_plays_never_allocates() {
         rig.allocations
     );
 }
+
+// fx:cribrum — Cribrum (ADR 0130, provisional) on the audio thread: both filters, every
+// source moving, oversampling switched while it plays (its state cleared, its latency
+// changed), the mix glided in from 0 and out to it, a seek and a stop. Not one allocation.
+#[test]
+fn cribrum_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::AutoFilter);
+    for (k, v) in [
+        ("mix", 1.0),
+        ("a.model", 1.0),
+        ("a.slope", 1.0),
+        ("b.on", 1.0),
+        ("b.mode", 5.0),
+        ("lfo.cut", 2.0),
+        ("lfo.shape", 6.0),
+        ("env.cut", 1.0),
+        ("cur.cut", -1.0),
+        ("cur.smooth", 8.0),
+    ] {
+        fx.spec.set(k, v).unwrap();
+    }
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("start", 40);
+    let set = |p: &mut Project, k: &str, v: f32| {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        e.spec.set(k, v).unwrap();
+    };
+    set(&mut p, "os", 2.0);
+    set(&mut p, "route", 1.0);
+    rig.snapshot(&p);
+    rig.play("oversampled, in parallel", 60);
+    set(&mut p, "mix", 0.0);
+    rig.snapshot(&p);
+    rig.play("the mix out to 0", 60);
+    set(&mut p, "mix", 0.6);
+    set(&mut p, "lfo.sync", 0.0);
+    rig.snapshot(&p);
+    rig.play("back in, free", 40);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}

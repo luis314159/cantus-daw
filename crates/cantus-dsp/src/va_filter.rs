@@ -311,6 +311,33 @@ impl VaFilter {
         self.s.iter().chain(self.e.iter()).all(|x| *x == 0.0)
     }
 
+    // fx:cribrum — what Cribrum (the auto filter) reads of a filter it drives: the last
+    // solution's four taps (its mode mixing), and whether everything that reaches the next
+    // output is +0.0 as a new filter's is (ADR 0031 §5.1's exact rest).
+
+    /// The last sample's solution: the four stages' outputs of a four-pole model, or
+    /// `[band-pass, low-pass, 0, 0]` of the state-variable. // fx:cribrum
+    #[inline]
+    pub fn taps(&self) -> [f32; 4] {
+        self.e
+    }
+
+    /// The integrators and the last two solutions are +0.0, bit for bit: nothing of a
+    /// signal is left (the tuning's sag may still be on its way). // fx:cribrum
+    pub fn quiet(&self) -> bool {
+        self.s
+            .iter()
+            .chain(self.e.iter())
+            .chain(self.p.iter())
+            .all(|x| x.to_bits() == 0)
+    }
+
+    /// Every state that shapes the next output (integrators, the last two solutions, the
+    /// tuning's sag) is +0.0, bit for bit: a new filter. // fx:cribrum
+    pub fn at_rest(&self) -> bool {
+        self.quiet() && self.sag.to_bits() == 0
+    }
+
     /// One sample. `g` is `tan(π·cutoff/fs)` for the cutoff shown ([`super::math::tan_pi`]);
     /// the model applies its own warp.
     #[inline]

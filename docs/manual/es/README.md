@@ -2079,7 +2079,7 @@ Tonsor (recortador), Impetus (moldeador de transitorios), Discrimen (divisor de
 transitorios), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Speculum
 (analizador), Tonus (corrección de afinación), Concentus (chorus), Flexus (flanger), Phasis
 (phaser), Tremor (trémolo y auto-pan), Vibrans (vibrato), Anulus (modulador en anillo),
-Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Aula (reverb de convolución), Delay y Reverb.
+Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Cribrum (filtro automático), Aula (reverb de convolución), Delay y Reverb.
 
 ### La cara de cada unidad
 
@@ -2315,6 +2315,44 @@ ValhallaSupermassive*. Cada archivo se revisa en un
 proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin tumbar
 Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros
 DAW.
+
+### Cribrum, el filtro automático
+
+**Cribrum** (en latín, *una criba*) es un filtro que se mueve a tempo con la canción: dos
+filtros de modelo analógico — los mismos cinco circuitos que los sintetizadores de Cantus
+(SVF, ladder de transistores, OTA en cascada, diode ladder, Sallen-Key) — en serie o en
+paralelo, movidos por un **LFO**, un **seguidor de envolvente** y una **curva que dibujas**. Se
+inserta desde el selector (está en EQ y en Modulación); empieza en *Barrido de compás*, un
+ladder resonante que sube y baja una vez por compás, para que se oiga al momento.
+
+**Lo que pasa.** La imagen de la ventana es la música cribada: su espectro en granos,
+iluminados hasta lo que sale de los filtros y con una marca donde entró, bajo la respuesta de
+los dos filtros mientras se mueven. Arrastra el tirador de un filtro a lo ancho para su corte y
+arriba y abajo para su resonancia (Mayús es más fino; un doble clic devuelve los dos). El
+tirador del filtro elegido está sobre un riel que muestra hasta dónde puede llevarlo su
+movimiento.
+
+**Movimiento.** Elige el LFO, el seguidor o la curva en su tecla: su imagen se mueve en la pista
+a tempo con la canción, sus controles están al lado y, debajo, sus **profundidades** hacia el
+corte (en octavas), la resonancia y la vocal. Las tres fuentes se suman. El LFO va con la
+canción de 1/64 a ocho compases (con puntillo y tresillo) o libre en Hz, con siete formas
+(entre ellas muestreo y retención y una *deriva* suave) y fase estéreo. El seguidor oye la pista
+o un **sidechain** — un bombo que abre el filtro de un pad; su **rango** decide cuánto del
+nivel mueve el filtro (estrecho, solo el ataque de cada nota lo abre: el wah de envolvente del
+preset *Wah que llora*). La curva se dibuja como la de
+Fluctus y la de los clips de automatización (arrastra un punto, arrastra un tramo para curvarlo,
+doble clic para añadir o quitar uno) y se suaviza para que un escalón nunca haga clic.
+
+**Los filtros.** Cada uno tiene su modelo, su respuesta (paso bajo, paso banda, paso alto,
+notch, pico donde el modelo la da, y un filtro de **vocal** que habla A-E-I-O-U), 12 o
+24 dB/oct, corte, resonancia (todos los modelos cantan afinados desde el 95 %), drive y vocal.
+El segundo filtro puede seguir el movimiento, ignorarlo o moverse al revés. La apertura
+estéreo separa el corte de los dos canales.
+
+**Exacto.** Con la mezcla al 0 % Cribrum deja pasar el sonido intacto, bit a bit. Un render
+desde cualquier compás mueve los filtros como el render completo en ese punto; el render
+offline es igual al tiempo real con cualquier tamaño de búfer. El sobremuestreo (2× o 4×)
+mantiene limpio un filtro con drive; su latencia (una o dos muestras) se compensa.
 
 ### Aula, la reverb de convolución
 

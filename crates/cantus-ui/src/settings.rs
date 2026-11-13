@@ -218,6 +218,10 @@ pub struct Settings {
     /// display and controls (round 32, ADR 0074). On by default; off, every unit wears the
     /// theme's plain look.
     pub unit_faces: bool,
+    /// fx:colourways — the colourway each unit kind wears, by unit (`cribrum`) and colourway
+    /// id (`nocturne`); a unit not named wears its default (ADR 0130 §Colourways). A choice
+    /// of how the windows look: never in a song, never heard.
+    pub unit_colourways: std::collections::BTreeMap<String, String>,
     /// Ableton Link, MIDI clock and time code, and what each MIDI port does (round 33,
     /// ADR 0078–0079; Settings ▸ MIDI). r33:sync
     pub sync: crate::views::transport::sync_service::SyncSettings,
@@ -365,12 +369,13 @@ impl Default for Settings {
             settings_page: None,
             hosted_views: crate::hosted_view::ViewDefaults::default(),
             unit_faces: true,
-            sync: Default::default(), // r33:sync
-            mpe_ports: Vec::new(),    // r33:mpe
+            unit_colourways: std::collections::BTreeMap::new(), // fx:colourways
+            sync: Default::default(),                           // r33:sync
+            mpe_ports: Vec::new(),                              // r33:mpe
             mpe_zones: cantus_core::model::note_expr::zones::MpeZones::standard(), // r33:mpe
-            ai: Default::default(),   // r34:mcp
-            stems: Default::default(), // r34:stems
-            stage: Default::default(), // r35:stage
+            ai: Default::default(),                             // r34:mcp
+            stems: Default::default(),                          // r34:stems
+            stage: Default::default(),                          // r35:stage
             grids: Vec::new(),
             cable_style: None,
             track_icons_recent: Vec::new(),

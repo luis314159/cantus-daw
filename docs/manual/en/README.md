@@ -1911,7 +1911,7 @@ The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander),
 Fervor (saturation), Latitudo (stereo), Speculum (analyser), Tonus (pitch correction),
 Concentus (chorus), Flexus (flanger), Phasis (phaser), Tremor (tremolo and auto-pan),
 Vibrans (vibrato), Anulus (ring modulator), Translatio (frequency shifter), Fluctus (volume
-shaper), Aula (convolution reverb), Delay and Reverb.
+shaper), Cribrum (auto filter), Aula (convolution reverb), Delay and Reverb.
 
 ### Each unit's face
 
@@ -2127,6 +2127,42 @@ Each file is scanned
 in a separate process, so a plug-in that crashes while being scanned is blocked, not
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
+
+### Cribrum, the auto filter
+
+**Cribrum** (Latin for *a sieve*) is a filter that moves in time with the song: two
+analog-modelled filters — the same five circuits as Cantus's synths (state-variable,
+transistor ladder, OTA cascade, diode ladder, Sallen-Key) — in series or in parallel, moved by
+an **LFO**, an **envelope follower** and a **curve you draw**. Insert it from the picker
+(it is under EQ and under Modulation); it starts on *Bar sweep*, a resonant ladder swept once
+a bar, so it is heard at once.
+
+**What passes.** The window's picture is the music sieved: its spectrum as grains, lit up to
+what comes out of the filters and capped where it went in, under the response of both filters
+as they move. Drag a filter's handle across for its cutoff and up and down for its resonance
+(Shift is finer; a double-click puts both back). The chosen filter's handle sits on a rail
+that shows how far its movement can take it.
+
+**Movement.** Choose the LFO, the follower or the curve on its key: its picture moves on the
+lane in time with the song, its own controls are beside it, and under them its **depths**
+onto the cutoff (in octaves), the resonance and the vowel. The three sources add up. The LFO
+runs on the song from 1/64 to eight bars (dotted and triplet) or free in Hz, in seven waves
+(sample & hold and a smooth *drift* among them), with a stereo phase. The follower hears the
+track or a **sidechain** — a kick opening a pad's filter; its **range** sets how much of the
+level moves the filter (narrow it and only each note's attack opens the filter: the envelope
+wah of the *Cry wah* preset). The curve is drawn as Fluctus's and
+the automation clips are (drag a point, drag a segment to bend it, double-click to add or
+remove one) and smoothed so a step never clicks.
+
+**The filters.** Each has its model, its response (low-, band-, high-pass, notch, peak where
+the model gives it, and a **vowel** filter that talks A-E-I-O-U), 12 or 24 dB/oct, cutoff,
+resonance (every model sings in tune from 95 %), drive and vowel. The second filter can follow
+the movement, ignore it or move the other way. Spread opens the two channels' cutoffs apart.
+
+**Exact.** At 0 % mix Cribrum passes the sound untouched, to the bit. A render from any bar
+moves the filters as the whole render does there; offline equals real time at any buffer size.
+Oversampling (2× or 4×) keeps a driven filter clean; its latency (a sample or two) is
+compensated.
 
 ### Aula, the convolution reverb
 

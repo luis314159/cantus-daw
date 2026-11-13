@@ -157,6 +157,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Compressor => Vec2::new(crate::views::comp_editor::designed_width(), 780.0),
         // Culmen: gain over time and the loudness, the bands and the curve, two rows of cells.
         EffectKind::Maximizer => Vec2::new(1180.0, 720.0),
+        // Cribrum: the display over the movement card over the filter and output cards.
+        EffectKind::AutoFilter => Vec2::new(1120.0, 800.0), // fx:cribrum
         _ => Vec2::new(1000.0, 640.0),
     }
 }
