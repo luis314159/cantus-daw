@@ -95,6 +95,7 @@ pub fn settings(spec: &EffectSpec) -> CribrumSettings {
             att_ms: spec.get("env.att"),
             rel_ms: spec.get("env.rel"),
             gain_db: spec.get("env.gain"),
+            range_db: spec.get("env.range"),
         },
         env_depth: depth(spec, &["env.cut", "env.res", "env.vowel"]),
         curve: CurveParams {

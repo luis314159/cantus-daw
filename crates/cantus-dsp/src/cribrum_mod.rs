@@ -109,20 +109,21 @@ pub fn wave(w: Wave, phase: f64, cycle: i64, edge: f32, seed: u64) -> f32 {
     }
 }
 
-/// The follower's level (linear, after its sensitivity) as a modulation: 0 at −48 dBFS
-/// and below, 1 at 0 dBFS and above, straight in decibels between — so a quiet passage
-/// and a loud one both move the filter.
+/// The follower's level (linear, after its sensitivity) as a modulation: 0 at `range` dB
+/// below full scale and lower, 1 at 0 dBFS and above, straight in decibels between — a wide
+/// range moves the filter for a quiet passage and a loud one alike; a narrow one only between
+/// a strum's attack and its ring (an envelope wah's "wow").
 #[inline]
-pub fn env_amount(level: f32) -> f32 {
-    if level <= 0.003_981 {
-        // −48 dB.
+pub fn env_amount(level: f32, range: f32) -> f32 {
+    let range = range.clamp(1.0, 120.0);
+    if level <= 1e-6 {
         return 0.0;
     }
-    ((20.0 * math::log10(level) + ENV_FLOOR_DB) / ENV_FLOOR_DB).clamp(0.0, 1.0)
+    ((20.0 * math::log10(level) + range) / range).clamp(0.0, 1.0)
 }
 
-/// Where the follower's modulation starts, dB below full scale.
-pub const ENV_FLOOR_DB: f32 = 48.0;
+/// The follower's range by default: the movement starts this far below full scale, dB.
+pub const ENV_RANGE_DB: f32 = 48.0;
 
 /// The smoothing window's points.
 const TAPS: usize = 9;

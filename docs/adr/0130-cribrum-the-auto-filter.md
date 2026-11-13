@@ -44,7 +44,9 @@ A new effect kind, `EffectKind::AutoFilter` — **Cribrum** (Latin, *the sieve*)
    resonance and the vowel: the modulation family's LFO (ADR 0055: on the song or free; its
    six waves and a *drift*, the sample-and-hold's values joined by a raised cosine), a
    peak follower (`dynfx_follow`) on the input or the sidechain (`TAKES_SIDECHAIN`), mapped
-   from −48 to 0 dBFS, and Fluctus's drawn curve (sixteen points, the automation editor's
+   straight in dB over its **range** (`env.range`, 48 dB by default: none at −48 dBFS, all of
+   it at 0 dBFS after the sensitivity; narrowed, only a note's attack moves the filter — an
+   envelope wah that closes between strums), and Fluctus's drawn curve (sixteen points, the automation editor's
    segment shapes). The second filter takes `track` of the movement (−100 … 100 %); a stereo
    spread opens the channels' cutoffs apart. The synced lengths are the family's seventeen plus
    1/32 triplet and 1/64 (`cribrum.div.{i}`).
@@ -77,7 +79,9 @@ A new effect kind, `EffectKind::AutoFilter` — **Cribrum** (Latin, *the sieve*)
    the responses as keys with their curves drawn, cutoff a size up) and *Output* (mix a size
    up). The face (`kit/skin/side.rs`) comes in three colourways (§Colourways below).
 9. **Starting preset** (ADR 0071): *Bar sweep* — a resonant ladder at 24 dB/oct swept 1.5
-   octaves either way once a bar, fully wet. Sixteen factory presets by style and role.
+   octaves either way once a bar, fully wet. Eighteen factory presets by style and role; the
+   envelope wah *Cry wah* is the voicing the owner chose on a guitar among three (rest 250 Hz,
+   attack 12 ms, release 450 ms), *Classic wah* and *Funk quack* beside it.
 10. **Exported** as `Cantus Cribrum` (CLAP/VST3), its curve points grouped *Curve point 1 …
     16*.
 

@@ -117,6 +117,8 @@ pub struct EnvParams {
     pub att_ms: f32,
     pub rel_ms: f32,
     pub gain_db: f32,
+    /// The levels it spans, dB below full scale.
+    pub range_db: f32,
 }
 
 impl Default for EnvParams {
@@ -126,6 +128,7 @@ impl Default for EnvParams {
             att_ms: 5.0,
             rel_ms: 150.0,
             gain_db: 0.0,
+            range_db: modulation::ENV_RANGE_DB,
         }
     }
 }
@@ -623,7 +626,7 @@ impl Cribrum {
                 _ => (xl, xr),
             };
             let level = self.follow.run_pair(kl * self.env_gain, kr * self.env_gain);
-            let env = modulation::env_amount(level);
+            let env = modulation::env_amount(level, self.set.env.range_db);
             let cur = self.curve.at(self.clock.song(i), tempo);
             let g = &mut self.gl;
             let mut d = [[0.0f32; 3]; 3];

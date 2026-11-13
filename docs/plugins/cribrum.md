@@ -18,7 +18,7 @@ octaves), the resonance and the vowel.
 | Editor | `crates/cantus-ui/src/views/fx/cribrum.rs`, `cribrum_display.rs` (what passes), `cribrum_move.rs` (the movement card), `cribrum_curve.rs` (the curve on the lane) |
 | Face | `crates/cantus-ui/src/kit/skin/side.rs`: three colourways the user chooses in the window's ⋯ menu — *Nocturne* (`CRIBRUM`, the face), *Brass*, *Petrol* (ADR 0130 §Colourways) |
 | Strings | `crates/cantus-ui/locales/fx/cribrum.{en,es}.txt` |
-| Presets | `crates/cantus-ui/presets/effects/autofilter.toml` (sixteen; *Bar sweep* is the starting preset) |
+| Presets | `crates/cantus-ui/presets/effects/autofilter.toml` (eighteen; *Bar sweep* is the starting preset; *Cry wah*, *Classic wah* and *Funk quack* the envelope wahs) |
 | Tests | `crates/cantus-engine/tests/fx_cribrum.rs`, `rt_memory::cribrum_never_allocates`, the family's contract; `crates/cantus-ui/tests/cribrum_e2e.rs`; the CLAP/VST3 tests over every descriptor |
 | Exported | `Cantus Cribrum` (CLAP `com.github.lalmazan.cantus.cribrum`); its curve points grouped as *Curve point 1 … 16* for hosts |
 
@@ -70,7 +70,8 @@ input to the bit with no latency. An insert from the picker loads *Bar sweep* (A
 | `lfo.phase`, `lfo.stereo` | 0 … 360°, 0 … 180° | 0 | where it starts; the right channel ahead |
 | `env.key` | input / sidechain | input | what the follower hears |
 | `env.att`, `env.rel` | 0.1 … 500 ms, 1 … 2 000 ms | 5, 150 ms | |
-| `env.gain` | −24 … +24 dB | 0 | sensitivity; the movement is the level from −48 to 0 dBFS |
+| `env.gain` | −24 … +24 dB | 0 | sensitivity |
+| `env.range` | 6 … 60 dB | 48 dB | the levels the movement spans: none `range` dB below full scale, all of it at 0 dBFS (after the sensitivity); narrow, only the attacks move the filter |
 | `cur.div` | 1/64 … 8/1 | 1/1 | the curve's length, on the song |
 | `cur.smooth` | 0 … 50 ms | 2 ms | a Hann window over the curve, centred: a step becomes a slope |
 | `{lfo,env,cur}.cut` | −6 … +6 oct | 0 | the source's depth onto the cutoffs |

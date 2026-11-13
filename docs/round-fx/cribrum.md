@@ -47,13 +47,30 @@ See ADR 0130 *What the tests hold*: self-oscillation within ±4.5 cents; drawn =
 after ~1.5 s at heavy settings; the sound examples level-matched within 1 dB of their dry
 versions.
 
+## The owner's listening (Phase B)
+
+- The guitar set: everything good but the first auto-wah ("muy abierto, poco wah"). Three
+  envelope wahs rendered (classic, deep, funk); he chose **deep**: it is now **Cry wah**
+  (rest 250 Hz, Q about 6, attack 12 ms, release 450 ms); *Classic wah* and *Funk quack* are
+  presets of their own. Measured on the guitar render (the follower at its default 48 dB
+  range): Cry wah rests at about 530 Hz between strums and each strum throws it to about
+  1 kHz; the DI guitar sustains, so its level falls only about 8 dB between strums. A new
+  `env.range` (6 … 60 dB, default 48 — no change at the default) narrows the levels the
+  follower spans, for a wah that closes further between notes (computed from the levels
+  measured: at a 12 dB range and a 2.5-octave depth these strums would sweep about 1.8 octaves;
+  not rendered); the presets keep the voicing the owner heard and chose.
+- Carbonthief's FLACs are **32-bit**, which Cantus's FLAC decoder (`claxon`) refuses
+  ("header without bits per sample info"); the renders read WAVs made from them with ffmpeg.
+  A sampler user loading such a file would meet the same refusal — noted for the decoder's
+  owner.
+
 ## Sound examples
 
 `compartir\cribrum\sound\` (the audition sources: a sweep, drums on a synced LFO, a talking
 vowel, an envelope wah, each with its dry twin, level-matched within 1 dB) and
 `compartir\cribrum\sound\guitar\` (the owner's reference progression on Carbonthief's CC0
-DI guitar: `00-guitar-di`, an auto-wah, a synced sweep, a vowel, *Gated steps*; README credits
-the guitar) — `render_cribrum` and `render_cribrum_guitar` (the samples' folder passed in, never
+DI guitar: `00-guitar-di`, *Cry wah*, *Classic wah*, *Funk quack*, a synced sweep, a vowel, *Gated steps*; README credits
+the guitar; the three wahs) — `render_cribrum` and `render_cribrum_guitar` (the samples' folder passed in, never
 committed).
 
 ## Tests

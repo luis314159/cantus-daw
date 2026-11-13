@@ -242,7 +242,7 @@ pub fn shape_keys(
     let gap = s.d(2.0);
     let w = (rect.width() - gap * 5.0) / 6.0;
     let name = frame::tr("fx.cribrum.c.s");
-    for i in 0..6usize {
+    for (i, seg) in SEGMENT_KEYS.iter().enumerate() {
         let r = Rect::from_min_size(
             pos2(rect.left() + i as f32 * (w + gap), rect.top()),
             vec2(w, rect.height()),
@@ -261,7 +261,7 @@ pub fn shape_keys(
         if resp.hovered() {
             hint::set_text(
                 ui.ctx(),
-                frame::tr(SEGMENT_KEYS[i]),
+                frame::tr(seg),
                 frame::tr("cribrum.segment_tip"),
                 Caps::NONE,
             );

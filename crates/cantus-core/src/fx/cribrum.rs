@@ -35,6 +35,7 @@
 //! | `env.key` | the follower hears the input or the sidechain | input / sidechain | input |
 //! | `env.att`, `env.rel` | the follower's times | 0.1 … 500 ms, 1 … 2 000 ms | 5, 150 ms |
 //! | `env.gain` | the follower's sensitivity | −24 … +24 dB | 0 |
+//! | `env.range` | the levels the follower spans: full movement at 0 dBFS (after the sensitivity), none this far below | 6 … 60 dB | 48 dB |
 //! | `cur.div` | the drawn curve's length, on the song | 1/64 … 8/1 | 1/1 |
 //! | `cur.smooth` | the curve's smoothing, so a step never clicks | 0 … 50 ms | 2 ms |
 //! | `{lfo,env,cur}.cut` | the source's depth onto the cutoffs | −6 … +6 oct | 0 |
@@ -318,7 +319,7 @@ const LFO: [EffectParamInfo; 7] = [
 ];
 const LFO_DEPTHS: [EffectParamInfo; 3] = depths!("lfo");
 
-const ENV: [EffectParamInfo; 4] = [
+const ENV: [EffectParamInfo; 5] = [
     p(
         "env.key",
         "fx.cribrum.env.key",
@@ -355,6 +356,16 @@ const ENV: [EffectParamInfo; 4] = [
         -24.0,
         24.0,
         0.0,
+        "dB",
+        false,
+        false,
+    ),
+    p(
+        "env.range",
+        "fx.cribrum.env.range",
+        6.0,
+        60.0,
+        48.0,
         "dB",
         false,
         false,
@@ -402,7 +413,7 @@ pub fn globals() -> impl Iterator<Item = &'static EffectParamInfo> {
 }
 
 /// How many parameters are not a point's.
-pub const GLOBALS: usize = 5 + 7 + 7 + 2 + 7 + 3 + 4 + 3 + 2 + 3;
+pub const GLOBALS: usize = 5 + 7 + 7 + 2 + 7 + 3 + 5 + 3 + 2 + 3;
 
 /// The key of one field of one point: `c3.y`.
 pub fn point_key(point: usize, field: &str) -> String {

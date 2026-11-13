@@ -640,12 +640,20 @@ fn the_follower_moves_the_cutoff_with_the_level() {
     assert!(cut_after(&s, 0.9, None) > 2_500.0);
 }
 
-/// The follower's map: nothing below −48 dBFS, all of it at full scale.
+/// The follower's map: nothing below its range (−48 dBFS by default), all of it at full
+/// scale.
 #[test]
 fn the_followers_level_maps_in_decibels() {
-    assert_eq!(modulation::env_amount(0.0), 0.0);
-    assert_eq!(modulation::env_amount(0.001), 0.0);
-    assert!((modulation::env_amount(1.0) - 1.0).abs() < 1e-6);
-    let half = modulation::env_amount(crate::math::db_to_gain(-24.0));
+    assert_eq!(modulation::env_amount(0.0, 48.0), 0.0);
+    assert_eq!(modulation::env_amount(0.001, 48.0), 0.0);
+    assert!((modulation::env_amount(1.0, 48.0) - 1.0).abs() < 1e-6);
+    let half = modulation::env_amount(crate::math::db_to_gain(-24.0), 48.0);
     assert!((half - 0.5).abs() < 1e-4, "{half}");
+    // A narrow range: the movement spans 12 dB only.
+    let narrow = modulation::env_amount(crate::math::db_to_gain(-6.0), 12.0);
+    assert!((narrow - 0.5).abs() < 1e-4, "{narrow}");
+    assert_eq!(
+        modulation::env_amount(crate::math::db_to_gain(-13.0), 12.0),
+        0.0
+    );
 }

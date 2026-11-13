@@ -407,7 +407,9 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         ("AutoFilter", "env.key") => Some("the follower's, shown when it is chosen"),
         ("AutoFilter", "cur.div") => Some("the curve's, shown when it is chosen"),
         ("AutoFilter", "lfo.div") => Some("the rate shown in beats only while synced"),
-        ("AutoFilter", k) if k.starts_with('c') && k.as_bytes().get(1).is_some_and(u8::is_ascii_digit) => {
+        ("AutoFilter", k)
+            if k.starts_with('c') && k.as_bytes().get(1).is_some_and(u8::is_ascii_digit) =>
+        {
             Some("a curve point's, drawn on the curve's lane")
         }
         _ => None,

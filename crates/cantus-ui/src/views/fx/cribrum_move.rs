@@ -500,6 +500,7 @@ fn source_controls(
             controls::param(ui, s, host, "env.att", Size::M);
             controls::param(ui, s, host, "env.rel", Size::M);
             controls::param(ui, s, host, "env.gain", Size::M);
+            controls::param(ui, s, host, "env.range", Size::M);
         }
         _ => {
             controls::param_with(ui, s, host, "cur.div", Size::M, Some(&super::div_pill));

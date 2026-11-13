@@ -28,7 +28,7 @@ fn source(role: Role, bpm: f64) -> Project {
             for c in &first {
                 let mut c = c.clone();
                 c.id = cantus_core::ClipId(p.alloc_id());
-                c.start = c.start + Ticks::beats(4 * aud::BARS as i64 * rep);
+                c.start += Ticks::beats(4 * aud::BARS as i64 * rep);
                 p.tracks[t].clips.push(c);
             }
         }
@@ -85,6 +85,9 @@ fn render_to(p: &Project, path: &Path, title: &str) {
     println!("{}", path.display());
 }
 
+/// One sound example: its file's name, its source, its title and Cribrum's settings.
+type Example = (&'static str, Role, &'static str, Vec<(&'static str, f32)>);
+
 fn main() {
     let dir = std::env::args()
         .nth(1)
@@ -92,7 +95,7 @@ fn main() {
         .unwrap_or_else(|| PathBuf::from("target/sounds/cribrum"));
     std::fs::create_dir_all(&dir).expect("output dir");
     let bpm = 120.0;
-    let examples: [(&str, Role, &str, Vec<(&str, f32)>); 4] = [
+    let examples: [Example; 4] = [
         (
             "1-sweep",
             Role::Bus,

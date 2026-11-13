@@ -149,6 +149,8 @@ cribrum.reach = Alcance del corte
 # Presets de fábrica
 preset.cribrum.bar_sweep = Barrido de compás
 preset.cribrum.cry_wah = Wah que llora
+preset.cribrum.classic_wah = Wah clásico
+preset.cribrum.funk_wah = Wah funk
 preset.cribrum.dub_sweep = Barrido dub
 preset.cribrum.pump_filter = Filtro que bombea
 preset.cribrum.talking = Lead que habla
@@ -175,3 +177,4 @@ cribrum.colourway = Acabado
 cribrum.colourway.nocturne = Nocturno
 cribrum.colourway.brass = Latón
 cribrum.colourway.petrol = Petróleo
+fx.cribrum.env.range = Rango

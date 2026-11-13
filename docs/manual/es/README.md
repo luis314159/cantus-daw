@@ -2337,7 +2337,9 @@ a tempo con la canción, sus controles están al lado y, debajo, sus **profundid
 corte (en octavas), la resonancia y la vocal. Las tres fuentes se suman. El LFO va con la
 canción de 1/64 a ocho compases (con puntillo y tresillo) o libre en Hz, con siete formas
 (entre ellas muestreo y retención y una *deriva* suave) y fase estéreo. El seguidor oye la pista
-o un **sidechain** — un bombo que abre el filtro de un pad. La curva se dibuja como la de
+o un **sidechain** — un bombo que abre el filtro de un pad; su **rango** decide cuánto del
+nivel mueve el filtro (estrecho, solo el ataque de cada nota lo abre: el wah de envolvente del
+preset *Wah que llora*). La curva se dibuja como la de
 Fluctus y la de los clips de automatización (arrastra un punto, arrastra un tramo para curvarlo,
 doble clic para añadir o quitar uno) y se suaviza para que un escalón nunca haga clic.
 

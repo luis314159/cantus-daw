@@ -85,9 +85,7 @@ pub fn framed(
     );
     // The colourway chosen is the user's for every Cribrum, kept in the settings.
     if let Some(id) = st.colourway.take() {
-        if let Some(name) =
-            crate::kit::skin::colourway_unit(crate::kit::skin::Unit::Effect(KIND))
-        {
+        if let Some(name) = crate::kit::skin::colourway_unit(crate::kit::skin::Unit::Effect(KIND)) {
             app.set_unit_colourway(name, id);
         }
     }
@@ -147,7 +145,11 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     st.chips = chips;
     // A colourway chosen: worn at once on this thread (an exported plug-in's window keeps it
     // for its session); Cantus's window also keeps it in the settings (`framed`).
-    if let Some(w) = out.more.and_then(|i| i.checked_sub(1)).and_then(|i| ways.get(i)) {
+    if let Some(w) = out
+        .more
+        .and_then(|i| i.checked_sub(1))
+        .and_then(|i| ways.get(i))
+    {
         if let Some(name) = crate::kit::skin::colourway_unit(unit) {
             crate::kit::skin::set_colourway(name, w.id);
             st.colourway = Some(w.id);

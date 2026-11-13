@@ -370,12 +370,12 @@ impl Default for Settings {
             hosted_views: crate::hosted_view::ViewDefaults::default(),
             unit_faces: true,
             unit_colourways: std::collections::BTreeMap::new(), // fx:colourways
-            sync: Default::default(), // r33:sync
-            mpe_ports: Vec::new(),    // r33:mpe
+            sync: Default::default(),                           // r33:sync
+            mpe_ports: Vec::new(),                              // r33:mpe
             mpe_zones: cantus_core::model::note_expr::zones::MpeZones::standard(), // r33:mpe
-            ai: Default::default(),   // r34:mcp
-            stems: Default::default(), // r34:stems
-            stage: Default::default(), // r35:stage
+            ai: Default::default(),                             // r34:mcp
+            stems: Default::default(),                          // r34:stems
+            stage: Default::default(),                          // r35:stage
             grids: Vec::new(),
             cable_style: None,
             track_icons_recent: Vec::new(),

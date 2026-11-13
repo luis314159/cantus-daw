@@ -2148,7 +2148,9 @@ lane in time with the song, its own controls are beside it, and under them its *
 onto the cutoff (in octaves), the resonance and the vowel. The three sources add up. The LFO
 runs on the song from 1/64 to eight bars (dotted and triplet) or free in Hz, in seven waves
 (sample & hold and a smooth *drift* among them), with a stereo phase. The follower hears the
-track or a **sidechain** — a kick opening a pad's filter. The curve is drawn as Fluctus's and
+track or a **sidechain** — a kick opening a pad's filter; its **range** sets how much of the
+level moves the filter (narrow it and only each note's attack opens the filter: the envelope
+wah of the *Cry wah* preset). The curve is drawn as Fluctus's and
 the automation clips are (drag a point, drag a segment to bend it, double-click to add or
 remove one) and smoothed so a step never clicks.
 

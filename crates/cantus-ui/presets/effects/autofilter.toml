@@ -19,20 +19,51 @@ roles = ["creative", "bus"]
 
 [[preset]]
 key = "preset.cribrum.cry_wah"
-note = "The follower's wah: a band-pass that opens as the guitar or the keys are played harder, a quarter of the dry under it."
+note = "The envelope wah: a narrow band-pass resting low (250 Hz), thrown up by each strum or note and falling back slowly: the wow."
 styles = ["rock", "rnb"]
 roles = ["creative"]
 [preset.values]
-"a.cut" = 650
-"a.drive" = 6
+"a.cut" = 250
 "a.mode" = 1
-"a.res" = 0.5
+"a.res" = 0.87
 "env.att" = 12
-"env.cut" = 2
-"env.gain" = 6
+"env.cut" = 6
+"env.gain" = -18
+"env.rel" = 450
+"mix" = 1
+"out" = 5.2
+
+[[preset]]
+key = "preset.cribrum.classic_wah"
+note = "A tighter envelope wah: resting at 350 Hz, a quicker fall (a quarter second)."
+styles = ["rock", "rnb"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 350
+"a.mode" = 1
+"a.res" = 0.89
+"env.att" = 8
+"env.cut" = 5.7
+"env.gain" = -20
+"env.rel" = 250
+"mix" = 1
+"out" = 5.8
+
+[[preset]]
+key = "preset.cribrum.funk_wah"
+note = "The funk quack: a higher Q, a 3 ms attack and a 90 ms release."
+styles = ["rnb", "pop"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 420
+"a.mode" = 1
+"a.res" = 0.92
+"env.att" = 3
+"env.cut" = 5.2
+"env.gain" = -20
 "env.rel" = 90
-"mix" = 0.75
-"out" = 9.9
+"mix" = 1
+"out" = 5.2
 
 [[preset]]
 key = "preset.cribrum.dub_sweep"

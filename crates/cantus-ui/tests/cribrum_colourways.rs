@@ -43,7 +43,10 @@ fn the_colourway_is_the_users_kept_through_a_restart_and_worn_at_once() {
     app.set_unit_colourway("cribrum", "brass");
     assert_eq!(skin::of(UNIT).key, "fx.cribrum.brass");
     assert_eq!(
-        app.settings.unit_colourways.get("cribrum").map(String::as_str),
+        app.settings
+            .unit_colourways
+            .get("cribrum")
+            .map(String::as_str),
         Some("brass")
     );
     // Another unit is untouched.
@@ -54,11 +57,18 @@ fn the_colourway_is_the_users_kept_through_a_restart_and_worn_at_once() {
     assert_eq!(skin::of(UNIT).key, "fx.cribrum");
     let app = assemble();
     assert_eq!(
-        app.settings.unit_colourways.get("cribrum").map(String::as_str),
+        app.settings
+            .unit_colourways
+            .get("cribrum")
+            .map(String::as_str),
         Some("brass"),
         "kept in settings.json"
     );
-    assert_eq!(skin::of(UNIT).key, "fx.cribrum.brass", "applied by assemble");
+    assert_eq!(
+        skin::of(UNIT).key,
+        "fx.cribrum.brass",
+        "applied by assemble"
+    );
 
     // An id a later version no longer has: the face, never a missing sheet.
     skin::set_colourway("cribrum", "gone");

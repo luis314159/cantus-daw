@@ -732,7 +732,14 @@ pub fn colourways(unit: Unit) -> &'static [Colourway] {
 /// family (`fx.cribrum` → `cribrum`).
 pub fn colourway_unit(unit: Unit) -> Option<&'static str> {
     let first = colourways(unit).first()?;
-    Some(first.sheet.key.rsplit('.').next().unwrap_or(first.sheet.key))
+    Some(
+        first
+            .sheet
+            .key
+            .rsplit('.')
+            .next()
+            .unwrap_or(first.sheet.key),
+    )
 }
 
 /// The colourway a unit wears on this thread: the chosen one, else its default.
@@ -755,7 +762,11 @@ pub fn set_colourways<'a>(choices: impl IntoIterator<Item = (&'a str, &'a str)>)
     COLOURWAYS.with(|c| {
         let mut v = c.borrow_mut();
         v.clear();
-        v.extend(choices.into_iter().map(|(u, id)| (u.to_string(), id.to_string())));
+        v.extend(
+            choices
+                .into_iter()
+                .map(|(u, id)| (u.to_string(), id.to_string())),
+        );
     });
     COLOURWAY_EPOCH.with(|e| e.set(e.get().wrapping_add(1)));
 }
