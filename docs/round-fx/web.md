@@ -125,6 +125,50 @@ Not done, on purpose:
   (`main.rs`), which would restart any timed entrance midway; and fading the hero's words would
   delay the mobile LCP (its element is the hero's text). The hero's life is ambient instead.
 
+## 3b. Motion v2: "más marcado" (the owner, 2026-11-13)
+
+The owner saw v1 served locally and asked for more presence and travel, still tasteful. The same
+effects, each turned up (every value is in `web/style/motion.css`):
+
+| What | v1 | v2 |
+|---|---|---|
+| Rise of sections and cards | 26 px + 1.5 % scale, over 180 px of scroll | 64 px + 4.5 % scale, over 280 px; headings 80 px, their lede a beat later |
+| A row of cards as a wave | 28 / 56 / 84 px apart | 70 / 140 / 210 px apart |
+| Measured bars | draw over entry 20 % → cover 45 % | entry 30 % → cover 55 % (they draw while you watch) |
+| Card hover | lift 5 px, shadow 34/60 px, picture 1.045 | lift 10 px and 1.2 % larger, a two-layer shadow with a lapis glow, picture 1.09 and up 1.5 %, a light crossing the picture once, the arrow 8 px |
+| Light across the hero's program | 11 s period, peak 20 % gold | 8 s period, wider band, peak 38 % white over 28 % gold |
+| Spark on the gold rules | 3 px, 22 rem, 9 s | 5 px, 34 rem, double glow, 7 s |
+| Page arrival | 10 px, 0.42 s | 34 px + 1.5 % scale, 0.6 s |
+| Download press | press 0.975, arrow bob 3 px, gold line 3 px | hover lift 2 px, press 0.95 (80 ms in), bob 5 px, a flash of light crosses the key, gold line 4 px |
+| Playing ring | to 1.55× | to 1.8×, 2.5 px |
+| Day/night cross-fade | 0.45 s | 0.6 s |
+
+Still transform and opacity only, still off with reduced motion (`tools/motion.mjs` passes on
+seven pages at 1440 and 390 px), and no element is left half-shown.
+
+**Budgets, v1 → v2** (Lighthouse mobile, 5 runs each, medians, same PC, the same hour, with two
+other builders compiling on the machine):
+
+| Line | Budget | v1 | v2 |
+|---|---|---|---|
+| Largest contentful paint | ≤ 2.0 s | 1.865 s (1.859–2.001) | 1.997 s (1.878–2.019) |
+| Total blocking time | — | 92 ms (86–174) | 103 ms (80–190) |
+| First contentful paint | — | 1.239 s | 1.230 s |
+| Style and layout (main thread) | — | 559 ms | 591 ms |
+| Cumulative layout shift | ≤ 0.02 | 0 | 0 |
+| Accessibility | 100 | 100 | 100 |
+| Performance score | — | 99 | 98 |
+| First visit | ≤ 1 MB | 691 156 B | 691 597 B |
+| WebAssembly gzip | ≤ 250 000 B | 232 444 B | 232 444 B (no Rust changed) |
+
+Every line holds; Lighthouse CI's assertions passed for both. LCP's runs fall in two clusters on
+this PC, about 1.86 s and about 2.0 s, for v1 and v2 alike: v1 had three runs in the low one and
+v2 one. The LCP element is the hero's text, which no animation touches. So the median moved
+with that noise, not with the motion, but it sits at the edge of its budget here. The blocking
+time and style work grew by about 10 and 30 ms.
+
+The GIFs: `C:\projects\daw-fx\compartir\web\motion\v2\` (v1 kept in `motion\`).
+
 ## 4. Budgets, before and after
 
 Both built from the same sources' data (the latest release, beta.14, fetched with
@@ -166,12 +210,13 @@ its line before and after alike.
 
 ## 6. What only the owner can judge
 
-- Whether the light theme's page heads (white, dot grid, deep blue — like the home's hero)
-  are the look he wants for the download, unit and Measured pages, or whether he would rather
-  keep them lapis in both themes (then the bar over them needs its light words back).
-- The motion's amount: the hero's light (11 s), the spark on the rules (9 s), the size of the
-  rise (26 px) and of the card lift (5 px) are single numbers in `motion.css`.
-- The pictures: `C:\projects\daw-fx\compartir\web\before\`, `after\` and `motion\`.
+- Answered 2026-11-13: the white page heads in the light theme stay; the motion was turned up
+  (§3b).
+- Whether v2's amount is right: each value is one number in `motion.css`, between v1's and
+  anything stronger.
+- The pictures: `C:\projects\daw-fx\compartir\web\before\` and `after\`, plus the GIFs in
+  `motion\` (v1) and `motion\v2\`.
+- Publishing waits for round 40 (the owner): nothing here has been pushed or deployed.
 
 ## 7. The release shown on the download page
 
