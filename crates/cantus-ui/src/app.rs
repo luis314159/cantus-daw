@@ -532,6 +532,8 @@ impl CantusApp {
         app.settings_path = settings_path;
         // Units wear their own faces, or the plain look (round 32, ADR 0074).
         app.apply_unit_faces();
+        // fx:colourways — and each unit kind its colourway (ADR 0130 §Colourways).
+        app.apply_unit_colourways();
         // The user's automatic crossfades (round 31, ADR 0070) on the bus.
         app.apply_editing_settings();
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
@@ -1170,6 +1172,27 @@ impl CantusApp {
     /// that draws: at start (the boot's assemble) and whenever the choice changes.
     pub fn apply_unit_faces(&mut self) {
         crate::kit::skin::set_enabled(self.settings.unit_faces);
+    }
+
+    /// fx:colourways — every unit kind wears the colourway the settings name (ADR 0130
+    /// §Colourways), on the thread that draws: at start and whenever one changes.
+    pub fn apply_unit_colourways(&mut self) {
+        crate::kit::skin::set_colourways(
+            self.settings
+                .unit_colourways
+                .iter()
+                .map(|(u, id)| (u.as_str(), id.as_str())),
+        );
+    }
+
+    /// fx:colourways — choose `unit`'s colourway: kept in the settings and worn at once by
+    /// every open window of that kind.
+    pub fn set_unit_colourway(&mut self, unit: &str, id: &str) {
+        self.settings
+            .unit_colourways
+            .insert(unit.to_string(), id.to_string());
+        self.apply_unit_colourways();
+        self.store_settings();
     }
 
     pub fn store_settings(&mut self) {

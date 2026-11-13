@@ -171,3 +171,7 @@ cmd.cribrum_point = Move curve point
 cmd.cribrum_point_add = Add curve point
 cmd.cribrum_point_remove = Remove curve point
 cmd.cribrum_handle_reset = Reset the filter's cutoff and resonance
+cribrum.colourway = Colourway
+cribrum.colourway.nocturne = Nocturne
+cribrum.colourway.brass = Brass
+cribrum.colourway.petrol = Petrol

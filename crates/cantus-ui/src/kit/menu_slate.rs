@@ -161,6 +161,14 @@ pub fn paint(
                         );
                     }
                     Check::Off | Check::None => {}
+                    // fx:colourways
+                    Check::Swatch(c, on) => {
+                        let col = Rect::from_center_size(
+                            Pos2::new(cx, cy),
+                            egui::Vec2::new(s.s(20.0), rr.height()),
+                        );
+                        super::menu::swatch(b, col, c, on, if on { t.focus } else { quiet }, s);
+                    }
                 }
                 let mut right = rr.right() - s.s(8.0);
                 if submenu {

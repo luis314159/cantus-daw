@@ -75,12 +75,43 @@ A new effect kind, `EffectKind::AutoFilter` — **Cribrum** (Latin, *the sieve*)
    one's lane in time with the song, its controls and its depths as two titled groups, the
    cutoff's reach in Hz; the curve edited on the lane as Fluctus's), *Filter A/B* (one card,
    the responses as keys with their curves drawn, cutoff a size up) and *Output* (mix a size
-   up). The face (`kit/skin/side.rs`): its colour awaits the owner's pick among three rendered
-   variants; the placeholder is racing-green lacquer, lime on glass, coral movement.
+   up). The face (`kit/skin/side.rs`) comes in three colourways (§Colourways below).
 9. **Starting preset** (ADR 0071): *Bar sweep* — a resonant ladder at 24 dB/oct swept 1.5
    octaves either way once a bar, fully wet. Sixteen factory presets by style and role.
 10. **Exported** as `Cantus Cribrum` (CLAP/VST3), its curve points grouped *Curve point 1 …
     16*.
+
+## Colourways (extends ADR 0074 §5)
+
+The owner, shown three colour variants of Cribrum's face, asked for all three, the user to
+choose. So a unit's face may come in **colourways**: named palettes over the same face (the
+same knobs, switches, lettering, plate and ornaments; another tint, accents, material and
+display), declared with its sheet.
+
+1. **Data.** `kit::skin::Colourway { id, name_key, sheet }`; `skin::colourways(unit)` lists a
+   unit's, its default first (empty: one face). Each colourway's sheet has a key of its own
+   (`fx.cribrum`, `fx.cribrum.brass`, `fx.cribrum.petrol`), so no cache keyed by a sheet
+   shows one colourway in another's place; the picker's thumbnails are keyed by the choices
+   too (`sheets_digest`).
+2. **Cribrum's three**, every display a lit screen, dark in both themes: **Nocturne** (its
+   face: violet carbon, ice-cyan phosphor, amber), **Brass** (gold anodised, teal fluorescent
+   display, brick), **Petrol** (teal-blue lacquer, hot-orange phosphor, lime).
+3. **A user preference per unit kind**, never in a song and never heard: `settings.json`'s
+   `unit_colourways` (`{ "cribrum": "brass" }`), applied on the thread that draws by
+   `CantusApp::apply_unit_colourways` — at start in `CantusApp::assemble` (the boot path) and
+   whenever one changes; a unit not named, or an id a later version no longer has, wears its
+   face. `skin::of` returns the chosen colourway's sheet, so every open window of the kind
+   repaints at once.
+4. **Where it is chosen**: the unit window's ⋯ menu, a *Colourway* heading and a row per
+   colourway with its **swatch** (its surface, accent and second voice; `menu::Check::Swatch`,
+   ringed when chosen) — the menu's own keyboard and screen-reader path.
+5. **The exported CLAP/VST3 window** has no settings file: it opens in the face, and a
+   colourway chosen there is worn for the rest of that window's session (the thread's choice);
+   it is not saved with the plug-in's state (a look, not a sound).
+6. **The promises**: every colourway keeps the themes' contrast floor (text 4.5:1, non-text
+   3:1) in every preset (`skin::contrast_failures`, tested); the distinctness rule (no other
+   unit wears a face's hue and material) holds for the **default** colourway — an alternative
+   may resemble another unit's face, the user's choice.
 
 ## Consequences
 
@@ -90,7 +121,8 @@ A new effect kind, `EffectKind::AutoFilter` — **Cribrum** (Latin, *the sieve*)
 - The curve smoothing's window costs nine curve readings per grid point (every `smooth/8`
   samples), none per sample between; the filters cost one or two ZDF solves per channel per
   sample (three in vowel mode), times the oversampling.
-- The colour is one sheet in `side.rs`: the owner's pick is a change of data only.
+- A colourway is a sheet of data in its family's file; Fragor and Lapsus may declare theirs
+  in `side.rs`'s `colourways` the same way.
 
 ## What the tests hold
 

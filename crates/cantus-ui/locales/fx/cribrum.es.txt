@@ -171,3 +171,7 @@ cmd.cribrum_point = Mover punto de la curva
 cmd.cribrum_point_add = Añadir punto de la curva
 cmd.cribrum_point_remove = Quitar punto de la curva
 cmd.cribrum_handle_reset = Devolver el corte y la resonancia del filtro
+cribrum.colourway = Acabado
+cribrum.colourway.nocturne = Nocturno
+cribrum.colourway.brass = Latón
+cribrum.colourway.petrol = Petróleo

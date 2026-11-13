@@ -16,7 +16,7 @@ octaves), the resonance and the vowel.
 | DSP | `crates/cantus-dsp/src/cribrum.rs`, `cribrum_filter.rs` (the models in their modes, the vowels), `cribrum_mod.rs` (the waves, the follower's map, the curve's smoothing), `cribrum_response.rs` (what the editor draws); tests in `cribrum_tests.rs` |
 | Engine glue | `crates/cantus-engine/src/fx/cribrum.rs` |
 | Editor | `crates/cantus-ui/src/views/fx/cribrum.rs`, `cribrum_display.rs` (what passes), `cribrum_move.rs` (the movement card), `cribrum_curve.rs` (the curve on the lane) |
-| Face | `crates/cantus-ui/src/kit/skin/side.rs` (`CRIBRUM`) |
+| Face | `crates/cantus-ui/src/kit/skin/side.rs`: three colourways the user chooses in the window's ⋯ menu — *Nocturne* (`CRIBRUM`, the face), *Brass*, *Petrol* (ADR 0130 §Colourways) |
 | Strings | `crates/cantus-ui/locales/fx/cribrum.{en,es}.txt` |
 | Presets | `crates/cantus-ui/presets/effects/autofilter.toml` (sixteen; *Bar sweep* is the starting preset) |
 | Tests | `crates/cantus-engine/tests/fx_cribrum.rs`, `rt_memory::cribrum_never_allocates`, the family's contract; `crates/cantus-ui/tests/cribrum_e2e.rs`; the CLAP/VST3 tests over every descriptor |
@@ -108,6 +108,9 @@ model plays its low-pass (and the display draws that).
   slope, the responses as keys with their curves; cutoff (a size up), resonance, drive, vowel,
   and for B its *Follows* and its on/off lamp.
 - **Output**: routing, oversampling, spread, mix (a size up), output.
+- **Colourway** (the ⋯ menu): Nocturne (violet carbon, ice cyan, amber), Brass (gold
+  anodised, teal, brick) or Petrol (teal-blue lacquer, hot orange, lime), each row with its
+  swatch; kept for every Cribrum in the settings, never in the song.
 
 ## Measured
 

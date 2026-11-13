@@ -31,6 +31,35 @@ pub enum Check {
     Off,
     On,
     Radio(bool),
+    /// fx:colourways — a colourway's swatch (surface, accent, second voice), ringed when
+    /// chosen: a radio row that shows what it picks.
+    Swatch([egui::Color32; 3], bool),
+}
+
+/// fx:colourways — a swatch in the check column: three stripes, a ring when chosen.
+pub fn swatch(
+    b: &mut super::Brush,
+    col: Rect,
+    c: [egui::Color32; 3],
+    on: bool,
+    ink: egui::Color32,
+    s: &super::Style,
+) {
+    let r = Rect::from_center_size(col.center(), Vec2::new(s.s(14.0), s.s(10.0)));
+    let w = r.width() / 3.0;
+    for (i, colour) in c.iter().enumerate() {
+        let x = r.left() + w * i as f32;
+        b.rect(
+            Rect::from_min_max(Pos2::new(x, r.top()), Pos2::new(x + w, r.bottom())),
+            super::Fill::Solid(*colour),
+        );
+    }
+    b.rrect_stroke(
+        r.expand(if on { s.s(1.5) } else { s.s(0.5) }),
+        s.s(2.0),
+        if on { s.s(1.2) } else { s.s(0.6) },
+        ink,
+    );
 }
 
 /// One row of a menu.
@@ -217,6 +246,7 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, items: &[Item<'_>], hovered: 
                         }
                     }
                     Check::None => {}
+                    Check::Swatch(c, on) => swatch(b, col, c, on, ink, s), // fx:colourways
                 }
                 let mut right = rr.right() - s.s(8.0);
                 if submenu {
