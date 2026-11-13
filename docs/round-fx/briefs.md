@@ -156,3 +156,13 @@ The name is a proposal (*Tabula*, the board).
 - **Done when**: an empty board is a null; a board of one pedal equals that unit inserted
   alone, to the bit; reordering is one undo step; the exported plug-in exposes the macros and
   reloads the whole board from its state; the design sheet approved.
+
+**Added 2026-11-13 (the owner: reuse the engines we already have).** No pedal gets a new
+engine: each is the existing unit (`fx::make` of its kind), so a pedal is bit-identical to
+that unit inserted alone. What to design per unit is its **pedal face** — the 3–4 controls the
+pedal shows (e.g. Concentus: Rate, Depth, Mix; Delay: Time, Feedback, Mix; Spatium's spring
+style as the amp-style "Reverb" pedal) and a button that opens the unit's full editor; a
+table of every unit's face in the ADR. **Gaps for a full guitar board**, each reusing what
+exists, to be scoped with the integrator: an **octaver / pitch shifter / whammy** (Tonus's
+tracker and `psola*.rs`), the **rotary speaker** as an effect (`organum_rotary.rs`, BACKLOG
+§3b *Still open*), a **Uni-Vibe** voicing (likely a Phasis mode); a looper is out of scope.
