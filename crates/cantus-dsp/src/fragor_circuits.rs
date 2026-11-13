@@ -267,6 +267,23 @@ fn npn(c: u8, b: u8, e: u8, q: (f64, f64, f64)) -> Nl {
     }
 }
 
+/// A transistor biased by a divider (`r_top` from `vcc`, `r_bot` to ground) with an emitter
+/// resistor `re`: its transconductance and base resistance at its operating point
+/// (Ebers–Moll in the forward-active region, solved by fixed-point iteration).
+fn linear_bias(vcc: f64, r_top: f64, r_bot: f64, re: f64, q: (f64, f64, f64)) -> (f64, f64) {
+    let (is, bf, _) = q;
+    let vth = vcc * r_bot / (r_top + r_bot);
+    let rth = r_top * r_bot / (r_top + r_bot);
+    let mut ic = 1e-3;
+    for _ in 0..60 {
+        let vbe = VT * crate::math::ln(ic / is + 1.0);
+        // vth = ib·rth + vbe + (ib + ic)·re, with ib = ic / β.
+        ic = ((vth - vbe) / (rth / bf + re * (1.0 + 1.0 / bf))).max(1e-9);
+    }
+    let gm = ic / VT;
+    (gm, bf / gm)
+}
+
 fn diodes(a: u8, b: u8) -> Nl {
     Nl::DiodePair {
         a,
@@ -315,15 +332,10 @@ impl Pedal {
         c.c(h, 0, 0.47e-6); // C8 0.47 µF
                             // NJM3404A-class: about 1.2 MHz, 0.6 V/µs.
         c.opamp(
-            ps,
-            m,
-            int,
-            o,
-            1.2e6,
-            1e5,
-            30e-12,
-            50.0,
-            Some(0.6e6 * 30e-12),
+            ps, m, int, o, 1.2e6, 1e5, 30e-12, 50.0,
+            // Its 0.6 V/µs is never reached at 22.3 of gain (4 V at 5 kHz asks 0.13 V/µs):
+            // the op-amp is linear here, a port fewer (with it the stage took 3.7 iterations).
+            None,
         );
         c.r(o, k, 2.2e3); // R14 2.2 kΩ
         c.c(k, d, 0.47e-6); // C9 0.47 µF
@@ -435,7 +447,12 @@ impl Pedal {
         c.r(b1, 0, 100e3); // R3 100 kΩ
         c.r(vcc, c1, 15e3); // R6 15 kΩ
         c.r(e1, 0, 3.3e3); // R4 3.3 kΩ
-        c.nl(npn(c1, b1, e1, Q_BC239)); // Q1
+                           // Q1, the output booster: 3.3 kΩ of emitter degeneration and a base that sees well
+                           // under a volt keep it linear (its collector swings about ±0.7 V around 4 V), so it
+                           // is its exact linearisation at its operating point — two ports fewer.
+        let (gm, rpi) = linear_bias(VCC, 430e3, 100e3, 3.3e3, Q_BC239);
+        c.r(b1, e1, rpi);
+        c.vccs(e1, c1, b1, e1, gm);
         c.c(c1, vo, 100e-9); // C2 100 nF
         c.r(vo, 0, 100e3); // Volume 100 kΩ (B), its whole track
         c.out(&[(vo, 1.0)]);

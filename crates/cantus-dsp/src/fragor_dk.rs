@@ -68,10 +68,11 @@ const ROWS: usize = MAX_NL + MAX_C + MAX_OUT;
 const GMIN: f64 = 1e-12;
 /// Newton's iterations per sample at most, and its tolerance (volts).
 const ITER: usize = 40;
-/// Newton stops once a step is below this: the next would be about its square (quadratic
-/// convergence), so the answer is good to ~10⁻⁹ V; the currents are then taken to first
-/// order at the new voltages.
-const STOP: f64 = 1e-5;
+/// Newton stops once a step is below this and takes it, the currents to first order at
+/// the new voltages: what is left after a step Δ on an exponential port is about
+/// Δ²/(2·n·Vt) — here under 10⁻⁷ V, some −140 dB of a volt. (At 10⁻⁵ every sample paid a
+/// second iteration only to confirm the first.)
+const STOP: f64 = 7e-5;
 /// The largest step an op-amp's differential input takes in one iteration.
 const SLEW_STEP: f64 = 0.5;
 /// The largest step the predictor takes from the last answer (volts).
@@ -162,6 +163,7 @@ pub struct Circuit {
     inputs: [(u8, f64); MAX_IN],
     ni: usize,
     e: [Nl; MAX_E],
+    dev: [Dev; MAX_E],
     ne: usize,
     dims: usize,
     /// Each port's block of ports (an NPN's two share one): `[lo, hi)`.
@@ -173,6 +175,9 @@ pub struct Circuit {
     cap_row: usize,
     out_row: usize,
     rows: usize,
+    /// Newton iterations and samples so far (a diagnostic: the solver's cost).
+    iters: u64,
+    steps: u64,
     // ---- derived from the values (rebuilt when one moves) ----
     ginv: [[f64; MAX_N]; MAX_N],
     /// G⁻¹ S: each node's share of each entry of `q = [inputs, capacitor histories]`.
@@ -203,6 +208,7 @@ pub struct Circuit {
     /// The ports' voltages at the last two samples.
     v: [f64; MAX_NL],
     v1: [f64; MAX_NL],
+    v2: [f64; MAX_NL],
     /// The last sample's `q` and port currents (what the node voltages are read from).
     q_last: [f64; MAX_Q],
     i_last: [f64; MAX_NL],
@@ -231,6 +237,7 @@ impl Circuit {
                 is: 0.0,
                 nvt: 1.0,
             }; MAX_E],
+            dev: [Dev::NONE; MAX_E],
             ne: 0,
             dims: 0,
             block: [(0, 0); MAX_NL],
@@ -239,6 +246,8 @@ impl Circuit {
             cap_row: 0,
             out_row: 0,
             rows: 0,
+            iters: 0,
+            steps: 0,
             ginv: [[0.0; MAX_N]; MAX_N],
             tq: [[0.0; MAX_Q]; MAX_N],
             gn: [[0.0; MAX_NL]; MAX_N],
@@ -254,6 +263,7 @@ impl Circuit {
             j: [0.0; MAX_C],
             v: [0.0; MAX_NL],
             v1: [0.0; MAX_NL],
+            v2: [0.0; MAX_NL],
             q_last: [0.0; MAX_Q],
             i_last: [0.0; MAX_NL],
             y0: [0.0; MAX_OUT],
@@ -339,6 +349,7 @@ impl Circuit {
         self.dims += e.dims();
         assert!(self.dims <= MAX_NL);
         self.e[self.ne] = e;
+        self.dev[self.ne] = Dev::of(&e);
         self.ne += 1;
     }
 
@@ -690,35 +701,99 @@ fn cap_exp(x: f64) -> f64 {
     fast_exp(x)
 }
 
+/// A nonlinear element's constants, the divisions done once (each sample's work is
+/// multiplications: a division costs as much as several of them, and a transistor needed
+/// eight a Newton iteration).
+#[derive(Copy, Clone, Debug)]
+enum Dev {
+    /// `is`, `1/(n·Vt)`, `is/(n·Vt)`.
+    Pair { is: f64, inv: f64, g: f64 },
+    /// `1/Vt`, `is/βf`, `is/βr`, `is`, and the derivatives' factors.
+    Npn {
+        inv: f64,
+        ibf: f64,
+        ibr: f64,
+        is: f64,
+        dbe_b: f64,
+        dbc_b: f64,
+        dbe_c: f64,
+        dbc_c: f64,
+    },
+    /// `2·gm/Imax`, `Imax`, `gm`.
+    Slew { k2: f64, imax: f64, gm: f64 },
+}
+
+impl Dev {
+    const NONE: Dev = Dev::Pair {
+        is: 0.0,
+        inv: 0.0,
+        g: 0.0,
+    };
+
+    fn of(e: &Nl) -> Dev {
+        match *e {
+            Nl::DiodePair { is, nvt, .. } => Dev::Pair {
+                is,
+                inv: 1.0 / nvt,
+                g: is / nvt,
+            },
+            Nl::Npn { is, bf, br, vt, .. } => Dev::Npn {
+                inv: 1.0 / vt,
+                ibf: is / bf,
+                ibr: is / br,
+                is,
+                dbe_b: is / bf / vt,
+                dbc_b: is / br / vt,
+                dbe_c: is / vt,
+                dbc_c: -is / vt * (1.0 + 1.0 / br),
+            },
+            Nl::Slew { gm, imax, .. } => Dev::Slew {
+                k2: 2.0 * gm / imax,
+                imax,
+                gm,
+            },
+        }
+    }
+}
+
 /// Port currents `i` and their derivatives `∂i/∂v` (block diagonal: an NPN couples its two
 /// ports) at port voltages `v`.
 #[inline]
-fn currents(e: &[Nl], v: &[f64; MAX_NL], i: &mut [f64; MAX_NL], di: &mut [[f64; MAX_NL]; MAX_NL]) {
+fn currents(e: &[Dev], v: &[f64; MAX_NL], i: &mut [f64; MAX_NL], di: &mut [[f64; MAX_NL]; MAX_NL]) {
     let mut d = 0;
     for el in e {
         match *el {
-            Nl::DiodePair { is, nvt, .. } => {
-                let ep = cap_exp(v[d] / nvt);
+            Dev::Pair { is, inv, g } => {
+                let ep = cap_exp(v[d] * inv);
                 let em = 1.0 / ep;
                 i[d] = is * (ep - em);
-                di[d][d] = is * (ep + em) / nvt;
+                di[d][d] = g * (ep + em);
                 d += 1;
             }
-            Nl::Npn { is, bf, br, vt, .. } => {
-                let ebe = cap_exp(v[d] / vt);
-                let ebc = cap_exp(v[d + 1] / vt);
+            Dev::Npn {
+                inv,
+                ibf,
+                ibr,
+                is,
+                dbe_b,
+                dbc_b,
+                dbe_c,
+                dbc_c,
+            } => {
+                let ebe = cap_exp(v[d] * inv);
+                let ebc = cap_exp(v[d + 1] * inv);
                 let (ef, er) = (ebe - 1.0, ebc - 1.0);
                 // Port d: the base current; port d + 1: the collector current.
-                i[d] = is / bf * ef + is / br * er;
-                i[d + 1] = is * (ef - er) - is / br * er;
-                di[d][d] = is / bf * ebe / vt;
-                di[d][d + 1] = is / br * ebc / vt;
-                di[d + 1][d] = is * ebe / vt;
-                di[d + 1][d + 1] = -is * ebc / vt * (1.0 + 1.0 / br);
+                i[d] = ibf * ef + ibr * er;
+                i[d + 1] = is * (ef - er) - ibr * er;
+                di[d][d] = dbe_b * ebe;
+                di[d][d + 1] = dbc_b * ebc;
+                di[d + 1][d] = dbe_c * ebe;
+                di[d + 1][d + 1] = dbc_c * ebc;
                 d += 2;
             }
-            Nl::Slew { gm, imax, .. } => {
-                let t = 1.0 - 2.0 / (cap_exp(2.0 * gm * v[d] / imax) + 1.0);
+            Dev::Slew { k2, imax, gm } => {
+                let t = 1.0 - 2.0 / (cap_exp(k2 * v[d]) + 1.0);
                 i[d] = imax * t;
                 di[d][d] = gm * (1.0 - t * t);
                 d += 1;
@@ -768,7 +843,8 @@ impl Circuit {
         }
         let mut di = [[0.0; MAX_NL]; MAX_NL];
         for _ in 0..iters {
-            currents(&self.e[..self.ne], &self.v, &mut i, &mut di);
+            self.iters += 1;
+            currents(&self.dev[..self.ne], &self.v, &mut i, &mut di);
             // F = p + K i − v;  J = K ∂i/∂v − I;  Δ = −J⁻¹ F.
             let mut f = [0.0; MAX_NL];
             let mut j = [[0.0; MAX_NL]; MAX_NL];
@@ -811,7 +887,7 @@ impl Circuit {
             }
             self.limit_step(&f);
         }
-        currents(&self.e[..self.ne], &self.v, &mut i, &mut di);
+        currents(&self.dev[..self.ne], &self.v, &mut i, &mut di);
         (i, false)
     }
 
@@ -863,9 +939,15 @@ impl Circuit {
         self.lin(&self.oq[o], &self.oi[o], &self.q_last, &self.i_last)
     }
 
+    /// Newton iterations per sample so far (a diagnostic).
+    pub fn iterations_per_step(&self) -> f64 {
+        self.iters as f64 / self.steps.max(1) as f64
+    }
+
     /// One sample: inputs `u` in, outputs (relative to the operating point) into `y`.
     #[inline]
     pub fn step(&mut self, u: &[f64], y: &mut [f64; MAX_OUT]) {
+        self.steps += 1;
         let q = self.q(u, 1.0);
         let m = self.ni + self.nc;
         let rows = self.rows;
@@ -877,12 +959,14 @@ impl Circuit {
         }
         let mut p = [0.0; MAX_NL];
         p[..self.dims].copy_from_slice(&acc[..self.dims]);
-        // Start Newton from the line through the last two answers, a step of at most
-        // PREDICT volts (past a junction's knee a straight line overshoots by volts).
+        // Start Newton from the parabola through the last three answers, a step of at
+        // most PREDICT volts from the last (past a junction's knee a curve overshoots).
         let v1 = self.v;
         for k in 0..self.dims {
-            self.v[k] += (self.v[k] - self.v1[k]).clamp(-PREDICT, PREDICT);
+            let guess = 3.0 * (self.v[k] - self.v1[k]) + self.v2[k];
+            self.v[k] += (guess - self.v[k]).clamp(-PREDICT, PREDICT);
         }
+        self.v2 = self.v1;
         self.v1 = v1;
         let (i, ok) = self.newton(&p, ITER);
         let i = if ok {
@@ -939,6 +1023,7 @@ impl Circuit {
         let p = self.ports_p(&q);
         let i = self.newton(&p, 400).0;
         self.v1 = self.v;
+        self.v2 = self.v;
         self.q_last = q;
         self.i_last = i;
         self.y0 = [0.0; MAX_OUT];
@@ -972,6 +1057,7 @@ impl Circuit {
             j: self.j,
             v: self.v,
             v1: self.v1,
+            v2: self.v2,
             q: self.q_last,
             i: self.i_last,
             y0: self.y0,
@@ -983,6 +1069,7 @@ impl Circuit {
         self.j = s.j;
         self.v = s.v;
         self.v1 = s.v1;
+        self.v2 = s.v2;
         self.q_last = s.q;
         self.i_last = s.i;
         self.y0 = s.y0;
@@ -995,6 +1082,7 @@ pub struct State {
     j: [f64; MAX_C],
     v: [f64; MAX_NL],
     v1: [f64; MAX_NL],
+    v2: [f64; MAX_NL],
     q: [f64; MAX_Q],
     i: [f64; MAX_NL],
     y0: [f64; MAX_OUT],
@@ -1006,6 +1094,7 @@ impl Default for State {
             j: [0.0; MAX_C],
             v: [0.0; MAX_NL],
             v1: [0.0; MAX_NL],
+            v2: [0.0; MAX_NL],
             q: [0.0; MAX_Q],
             i: [0.0; MAX_NL],
             y0: [0.0; MAX_OUT],

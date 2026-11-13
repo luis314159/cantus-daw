@@ -428,3 +428,106 @@ fn cpu_per_pedal() {
         }
     }
 }
+
+#[test]
+#[ignore]
+fn profile_parts() {
+    let x = pluck(110.0, 1.0, 0.4, 4);
+    let rate = 192_000.0;
+    for m in Model::ALL {
+        let mut p = Pedal::new(m, rate as f64);
+        // The note at 4x, interpolated (as the oversampler gives it).
+        let xs: Vec<f64> = (0..x.len() * 4)
+            .map(|i| {
+                let (j, f) = (i / 4, (i % 4) as f64 / 4.0);
+                let a = x[j] as f64;
+                let b = *x.get(j + 1).unwrap_or(&0.0) as f64;
+                a + (b - a) * f
+            })
+            .collect();
+        let t = std::time::Instant::now();
+        let mut acc = 0.0;
+        for v in &xs {
+            acc += p.tick(*v);
+        }
+        let ns = t.elapsed().as_secs_f64() / xs.len() as f64 * 1e9;
+        let parts = match m {
+            Model::Silicon => 2,
+            Model::Muff => 3,
+            _ => 1,
+        };
+        let it: Vec<String> = (0..parts)
+            .map(|i| format!("{:.2}", p.part(i).iterations_per_step()))
+            .collect();
+        println!("  iterations per part: {it:?}");
+        // The board around it.
+        let mut s = board([Some(m), None, None]);
+        s.mono = true;
+        let mut f = fresh(&s);
+        let (mut l, mut r) = (x.clone(), x.clone());
+        let t = std::time::Instant::now();
+        for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+            f.process(a, b);
+        }
+        let board_ns = t.elapsed().as_secs_f64() / xs.len() as f64 * 1e9;
+        println!("{m:?}: pedal {ns:.0} ns/tick, board {board_ns:.0} ns/tick {acc:.1}");
+    }
+}
+
+#[test]
+#[ignore]
+fn profile_solver() {
+    use super::dk::{Circuit, Nl};
+    let dt = 1.0 / 192_000.0;
+    let n = 2_000_000;
+    // A linear RC, then the same with a diode pair.
+    for with_diode in [false, true] {
+        let mut c = Circuit::new(3, dt);
+        c.input(1, 100.0);
+        c.r(1, 2, 1e3);
+        c.c(2, 0, 1e-7);
+        c.r(2, 3, 1e3);
+        c.c(3, 0, 1e-8);
+        if with_diode {
+            c.nl(Nl::DiodePair {
+                a: 3,
+                b: 0,
+                is: 2.52e-9,
+                nvt: 0.045,
+            });
+        }
+        c.out(&[(3, 1.0)]);
+        c.solve_dc(&[0.0]);
+        let mut y = [0.0; 2];
+        let t = std::time::Instant::now();
+        let mut acc = 0.0;
+        for i in 0..n {
+            let x = 0.5 * crate::math::sin(i as f64 * 0.003);
+            c.step(&[x], &mut y);
+            acc += y[0];
+        }
+        println!(
+            "diode {with_diode}: {:.1} ns/step, {:.2} iterations {acc:.1}",
+            t.elapsed().as_secs_f64() / n as f64 * 1e9,
+            c.iterations_per_step()
+        );
+    }
+    let t = std::time::Instant::now();
+    let mut acc = 0.0;
+    for i in 0..n {
+        acc += dk::fast_exp(i as f64 * 1e-6 - 1.0);
+    }
+    println!(
+        "fast_exp {:.1} ns {acc:.1}",
+        t.elapsed().as_secs_f64() / n as f64 * 1e9
+    );
+    let t = std::time::Instant::now();
+    let mut acc = 0.0;
+    for i in 0..n {
+        acc += crate::math::sin(i as f64 * 0.003);
+    }
+    println!(
+        "sin {:.1} ns {acc:.1}",
+        t.elapsed().as_secs_f64() / n as f64 * 1e9
+    );
+}
