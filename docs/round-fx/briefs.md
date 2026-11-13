@@ -216,3 +216,9 @@ the site's budget (loaded only on the try page), CPU in a worklet at 128-frame q
 whether `SharedArrayBuffer` (needs COOP/COEP headers on Cloudflare) is required, and that the
 output equals the native render to the bit (the determinism tests, run in WASM). It would be
 the honest proof no other DAW's site offers: the real effect, not a recording.
+
+**Added 2026-11-13 (the owner: pedals of any size).** "Los pedales deberían poder tener
+diferentes tamaños si se quiere, no limites el tamaño": on the board, each pedal has its
+natural size and shape (mini, standard, wide, double-wide, round) and the user can change it;
+the board lays out mixed widths, scaling to a legible floor and then scrolling or wrapping —
+never clipping. Fragor's kit carries it; the pedalboard stores each pedal's size with its view.
