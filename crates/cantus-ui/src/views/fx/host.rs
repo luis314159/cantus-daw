@@ -353,6 +353,7 @@ impl Drop for DawHost<'_> {
                 params: Default::default(),
                 external: None,
                 ir: None, // r39:conv
+                lapsus: None, // fx:lapsus (the bank: phase B)
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));

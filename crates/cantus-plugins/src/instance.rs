@@ -578,6 +578,7 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
         ir: None, // r39:conv
+        lapsus: None, // fx:lapsus (the bank: phase B)
     }
 }
 
