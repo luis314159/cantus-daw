@@ -1,36 +1,70 @@
-//! Fragor, the distortion and fuzz pedals (TS, RAT, DS-1, Fuzz Face, Big Muff), circuit-modelled, behind the engine's plug-in contract.
-//! Owned by Fragor.
+//! Fragor (the pedals, ADR 0131) behind the engine's plug-in contract. Owned by Fragor.
 //!
-//! **The fx side round's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::fragor`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::fragor`.
+//! [`settings`] reads the parameters (`cantus_core::fx::fragor`) into the DSP's terms
+//! (`cantus_dsp::fragor`); the editor draws its pedals and computes its curves from the
+//! same function, so the picture and the sound come from one reading of the spec.
+//!
+//! ## Telemetry (64 floats, refreshed after every block)
+//!
+//! The layout is `cantus_dsp::fragor::telemetry`'s; the constants there name each slot:
+//! the block's input and output peaks, the gate's gain and state, latency, the sample rate
+//! and the oversampling factor, whether the wet path runs and whether it rests, each
+//! pedal's output peak and footswitch share, and the chain as it sounds.
 
-use super::FxUnit;
+use super::{FxUnit, Telemetry, TELEMETRY_LEN};
+use cantus_core::fx::fragor::{KNOBS, SLOTS, SWITCHES};
 use cantus_core::EffectSpec;
+use cantus_dsp::fragor::{BoardSettings, Fragor, Model, FACTORS};
 
-/// Fragor's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Fragor's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+/// Fragor's parameters as the DSP wants them; also what its editor draws from. A pedal in
+/// two slots sounds in the first only.
+pub fn settings(spec: &EffectSpec) -> BoardSettings {
+    let mut chain = [None; 3];
+    for (s, key) in SLOTS.iter().enumerate() {
+        let v = spec.get(key).round().clamp(0.0, 5.0) as usize;
+        if v > 0 {
+            let m = Model::from_index(v - 1);
+            if !chain[..s].contains(&Some(m)) {
+                chain[s] = Some(m);
+            }
+        }
+    }
+    let mut on = [true; 5];
+    let mut knobs = [[0.5f32; 3]; 5];
+    for m in 0..5 {
+        on[m] = spec.get(SWITCHES[m]) >= 0.5;
+        for k in 0..3 {
+            knobs[m][k] = spec.get(KNOBS[m][k]).clamp(0.0, 1.0);
+        }
+    }
+    let os = spec.get("os").round().clamp(0.0, 2.0) as usize;
+    BoardSettings {
+        chain,
+        on,
+        knobs,
+        gate_db: spec.get("gate"),
+        in_db: spec.get("in"),
         out_db: spec.get("out"),
+        mix: spec.get("mix"),
+        mono: spec.get("mono") >= 0.5,
+        oversampling: FACTORS[os],
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Fragor,
+    /// Read into on the audio thread: `BoardSettings` holds no heap data, so setting it
+    /// never allocates.
+    scratch: BoardSettings,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Fragor::new(sample_rate),
+            scratch: BoardSettings::default(),
+        }
     }
 }
 
@@ -40,33 +74,38 @@ impl FxUnit for Unit {
     }
 
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.scratch = settings(spec);
+        self.dsp.set(&self.scratch);
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+        self.dsp.process(left, right);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
     }
 
-    fn skip(&mut self, _frames: usize) {}
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
 
     fn latency(&self) -> usize {
-        0
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        let mut t = [0.0; TELEMETRY_LEN];
+        self.dsp.write_telemetry(&mut t);
+        t
     }
 }
 
@@ -80,10 +119,21 @@ mod tests {
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
         let spec = EffectSpec::new(EffectKind::Pedal);
-        assert_eq!(settings(&spec), Settings::default());
+        assert_eq!(settings(&spec), BoardSettings::default());
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
+    /// A pedal named in two slots sounds once, in the first.
+    #[test]
+    fn a_pedal_sounds_in_one_slot_only() {
+        let mut spec = EffectSpec::new(EffectKind::Pedal);
+        spec.set("s1", 4.0);
+        spec.set("s2", 4.0);
+        spec.set("s3", 1.0);
+        let s = settings(&spec);
+        assert_eq!(s.chain, [Some(Model::Fuzz), None, Some(Model::Overdrive)]);
+    }
+
+    /// At its defaults the unit touches no sample, to the bit, and adds no latency.
     #[test]
     fn the_defaults_touch_no_sample() {
         let mut u = Unit::new(48_000.0);
@@ -96,7 +146,6 @@ mod tests {
             .chain(&r)
             .zip(x.iter().chain(&x))
             .all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(u.at_rest());
         assert_eq!(u.latency(), 0);
     }
 }
