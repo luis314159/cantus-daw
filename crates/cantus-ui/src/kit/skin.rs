@@ -83,6 +83,9 @@ pub mod switches;
 // Chorda's scene: its materials and lights (ADR 0104). r37:scene
 #[path = "skin/scene.rs"]
 pub mod scene;
+// The finishes of pedals (Fragor, ADR 0131; any board of pedals). fx:fragor
+#[path = "skin/pedals.rs"]
+pub mod pedals;
 #[path = "skin/textures.rs"]
 mod textures;
 

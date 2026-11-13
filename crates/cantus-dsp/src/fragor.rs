@@ -187,7 +187,9 @@ pub struct Fragor {
     dip_dir: i8,
     fade_step: f32,
     /// The pedals: five for each channel (the second idle in mono).
-    pedals: Box<[[Pedal; PEDALS]; 2]>,
+    /// Built on the heap one by one (ten circuits are too large for a thread's stack).
+    /// Channel `ch`'s pedal `i` is `pedals[ch * PEDALS + i]`.
+    pedals: Box<[Pedal]>,
     os: [os::Oversampler; 2],
     gate: gate::Gate,
     gate_thr: f32,
@@ -251,10 +253,13 @@ impl Fragor {
         let sr = sample_rate.max(1.0);
         let target = BoardSettings::default();
         let rate = sr as f64 * 4.0;
-        let pedals = Box::new([
-            Model::ALL.map(|m| Pedal::new(m, rate)),
-            Model::ALL.map(|m| Pedal::new(m, rate)),
-        ]);
+        let mut v: Vec<Pedal> = Vec::with_capacity(2 * PEDALS);
+        for _ in 0..2 {
+            for m in Model::ALL {
+                v.push(Pedal::new(m, rate));
+            }
+        }
+        let pedals = v.into_boxed_slice();
         let mut f = Fragor {
             sr,
             knobs: target.knobs,
@@ -313,10 +318,8 @@ impl Fragor {
     fn rebuild_rate(&mut self, factor: usize) {
         self.factor = factor;
         let rate = self.sr as f64 * factor as f64;
-        for ch in self.pedals.iter_mut() {
-            for (p, m) in ch.iter_mut().zip(Model::ALL) {
-                *p = Pedal::new(m, rate);
-            }
+        for (i, p) in self.pedals.iter_mut().enumerate() {
+            *p = Pedal::new(Model::ALL[i % PEDALS], rate);
         }
         for o in &mut self.os {
             o.configure(factor, false);
@@ -330,7 +333,7 @@ impl Fragor {
             for m in self.chain.iter().flatten() {
                 let i = m.index();
                 let k = self.knobs[i].map(|v| v as f64);
-                let p = &mut self.pedals[ch][i];
+                let p = &mut self.pedals[ch * PEDALS + i];
                 p.set_knobs(k);
                 p.snap();
             }
@@ -442,7 +445,7 @@ impl Fragor {
             if moved && self.in_chain(i) && self.fade[i] > 0.0 {
                 let kn = self.knobs[i].map(|v| v as f64);
                 for ch in 0..2 {
-                    let p = &mut self.pedals[ch][i];
+                    let p = &mut self.pedals[ch * PEDALS + i];
                     p.set_knobs(kn);
                     if self.idle {
                         p.snap();
@@ -490,8 +493,8 @@ impl Fragor {
                 // Switched on: from rest, with the knobs as they are.
                 let kn = self.knobs[i].map(|v| v as f64);
                 for ch in 0..2 {
-                    self.pedals[ch][i].set_knobs(kn);
-                    self.pedals[ch][i].snap();
+                    self.pedals[ch * PEDALS + i].set_knobs(kn);
+                    self.pedals[ch * PEDALS + i].snap();
                 }
             }
             self.fade[i] = if to > f {
@@ -533,7 +536,7 @@ impl Fragor {
                 if f <= 0.0 {
                     continue;
                 }
-                let y = self.pedals[ch][i].tick(v);
+                let y = self.pedals[ch * PEDALS + i].tick(v);
                 let pk = &mut self.tel.pedal_peak[i];
                 *pk = pk.max(y.abs() as f32);
                 v = if f >= 1.0 { y } else { v + f as f64 * (y - v) };

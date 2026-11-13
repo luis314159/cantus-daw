@@ -137,7 +137,7 @@ pub fn hue_of(kind: EffectKind) -> Function {
         EffectKind::AutoTune => Function::Source,
         EffectKind::Aula => Function::Space,      // r39:conv
         EffectKind::AutoFilter => Function::Tone, // fx:contract
-        EffectKind::Pedal => Function::Dynamics,  // fx:contract
+        EffectKind::Pedal => Function::Tone,      // fx:fragor (drive, as Fervor)
         EffectKind::TimeShaper => Function::Mod,  // fx:contract
         EffectKind::LoFi => Function::Tone,       // fx:contract
         EffectKind::Utility => Function::Output,  // fx:contract
@@ -157,6 +157,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Compressor => Vec2::new(crate::views::comp_editor::designed_width(), 780.0),
         // Culmen: gain over time and the loudness, the bands and the curve, two rows of cells.
         EffectKind::Maximizer => Vec2::new(1180.0, 720.0),
+        // Fragor: the sound over the pedalboard, the board's controls beside it.
+        EffectKind::Pedal => Vec2::new(1140.0, 720.0), // fx:fragor
         _ => Vec2::new(1000.0, 640.0),
     }
 }

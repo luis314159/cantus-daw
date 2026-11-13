@@ -6,7 +6,15 @@
 //! theirs). Each builder replaces its own sheet here — and only its own — with one that
 //! differs from every other unit's in hue or material, display included.
 
-use super::{tone, Skin};
+use super::super::color::Hsl;
+use super::{
+    tone, Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin,
+    SwitchShape, Tint, Weight,
+}; // fx:fragor
+
+const fn hsl(h: f32, s: f32, l: f32) -> Hsl {
+    Hsl { h, s, l }
+} // fx:fragor
 use cantus_core::EffectKind;
 
 /// Cribrum, the auto filter: for now Aequalis's look (a filter is the EQ's cousin).
@@ -15,11 +23,44 @@ pub const CRIBRUM: Skin = Skin {
     ..tone::AEQUALIS
 };
 
-/// Fragor, the pedals: for now Fervor's look (drive and colour).
+// fx:fragor — Fragor's own face (ADR 0131): a stage at night — a matte black board
+// under a magenta-red accent with a cyan second voice, the sound drawn in phosphor, skirted
+// knobs, rocker switches, engraved capitals and screws. Its pedals wear their own finishes
+// (`skin/pedals.rs`).
 pub const FRAGOR: Skin = Skin {
     key: "fx.fragor",
-    ..tone::FERVOR
-};
+    surface: Tint {
+        hue: 250.0,
+        sat: 0.14,
+        amount: 0.40,
+    },
+    accent: Some(Pair {
+        dark: hsl(338.0, 0.86, 0.63),
+        light: hsl(338.0, 0.74, 0.42),
+    }),
+    accent2: Some(Pair {
+        dark: hsl(186.0, 0.72, 0.58),
+        light: hsl(192.0, 0.82, 0.30),
+    }),
+    material: Material::Matte,
+    display: Display::Phosphor,
+    knob: KnobShape::Skirted,
+    switch: SwitchShape::Rocker,
+    lettering: Lettering {
+        case: Case::Upper,
+        tracking: 0.12,
+        weight: Weight::SemiBold,
+        condensed: true,
+        mono_values: false,
+    },
+    plate: Plate::Engraved,
+    ornaments: Ornaments {
+        screws: true,
+        vents: false,
+        rules: true,
+        rack_ears: false,
+    },
+}; // fx:fragor
 
 /// Lapsus, the time shaper: for now Delay's look (the song's recent past, drawn in time).
 pub const LAPSUS: Skin = Skin {

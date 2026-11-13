@@ -55,7 +55,7 @@ pub fn function_of(kind: EffectKind) -> Function {
         EffectKind::AutoTune => Function::Source,
         EffectKind::Aula => Function::Space,      // r39:conv
         EffectKind::AutoFilter => Function::Tone, // fx:contract
-        EffectKind::Pedal => Function::Dynamics,  // fx:contract
+        EffectKind::Pedal => Function::Tone,      // fx:fragor (drive, as Fervor)
         EffectKind::TimeShaper => Function::Mod,  // fx:contract
         EffectKind::LoFi => Function::Tone,       // fx:contract
         EffectKind::Utility => Function::Output,  // fx:contract
