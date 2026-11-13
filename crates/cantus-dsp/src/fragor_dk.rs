@@ -72,11 +72,31 @@ const ITER: usize = 40;
 /// convergence), so the answer is good to ~10⁻⁹ V; the currents are then taken to first
 /// order at the new voltages.
 const STOP: f64 = 1e-5;
-/// The largest step a junction voltage takes in one iteration (volts): keeps Newton on the
-/// exponential's good side.
-const JUNCTION_STEP: f64 = 0.1;
 /// The largest step an op-amp's differential input takes in one iteration.
 const SLEW_STEP: f64 = 0.5;
+/// The largest step the predictor takes from the last answer (volts).
+const PREDICT: f64 = 0.05;
+
+/// SPICE's junction limiting: the new forward voltage of a junction (`vt` its thermal
+/// voltage times emission coefficient, `is` its saturation current), given the old.
+fn pnjlim(new: f64, old: f64, vt: f64, is: f64) -> f64 {
+    let vcrit = vt * math::ln(vt / (std::f64::consts::SQRT_2 * is));
+    if new > vcrit && (new - old).abs() > 2.0 * vt {
+        if old > 0.0 {
+            let arg = 1.0 + (new - old) / vt;
+            if arg > 0.0 {
+                old + vt * math::ln(arg)
+            } else {
+                vcrit
+            }
+        } else {
+            vt * math::ln(new / vt)
+        }
+    } else {
+        new
+    }
+}
+
 /// Exponents are capped here (e^80 ≈ 5.5·10³⁴): a diverging iterate never overflows.
 const EXP_CAP: f64 = 80.0;
 
@@ -349,7 +369,7 @@ impl Circuit {
     pub fn rebuild_for(&mut self, dc: bool) {
         let n = self.n;
         let mut a = [[0.0f64; MAX_N]; MAX_N];
-        let mut stamp = |a: &mut [[f64; MAX_N]; MAX_N], p: u8, q: u8, g: f64| {
+        let stamp = |a: &mut [[f64; MAX_N]; MAX_N], p: u8, q: u8, g: f64| {
             let (p, q) = (p as usize, q as usize);
             if p > 0 {
                 a[p - 1][p - 1] += g;
@@ -705,27 +725,44 @@ fn currents(
 }
 
 impl Circuit {
-    /// The largest step a port takes in one Newton iteration.
-    fn step_limit(&self) -> f64 {
-        let mut lim = f64::INFINITY;
-        for e in &self.e[..self.ne] {
-            lim = lim.min(match e {
-                Nl::Slew { .. } => SLEW_STEP,
-                _ => JUNCTION_STEP,
-            });
+    /// Take Newton's step `dv`, each junction limited as SPICE limits it (`pnjlim`): a
+    /// forward step past the junction's critical voltage grows only logarithmically, so
+    /// the exponential never runs away; reverse steps and small ones are taken whole. An
+    /// op-amp's input moves at most [`SLEW_STEP`] at a time.
+    fn limit_step(&mut self, dv: &[f64; MAX_NL]) {
+        let mut d = 0;
+        for k in 0..self.ne {
+            match self.e[k] {
+                Nl::DiodePair { is, nvt, .. } => {
+                    let (old, new) = (self.v[d], self.v[d] + dv[d]);
+                    // Symmetric: limit the magnitude on whichever side conducts.
+                    let s = if new >= 0.0 { 1.0 } else { -1.0 };
+                    let o = if old * s > 0.0 { old * s } else { 0.0 };
+                    self.v[d] = s * pnjlim(new * s, o, nvt, is);
+                    d += 1;
+                }
+                Nl::Npn { is, vt, .. } => {
+                    for _ in 0..2 {
+                        self.v[d] = pnjlim(self.v[d] + dv[d], self.v[d], vt, is);
+                        d += 1;
+                    }
+                }
+                Nl::Slew { .. } => {
+                    self.v[d] += dv[d].clamp(-SLEW_STEP, SLEW_STEP);
+                    d += 1;
+                }
+            }
         }
-        lim
     }
 
     /// Solve `p + K i(v) − v = 0` from the current `self.v`; returns the port currents.
     #[inline]
-    fn newton(&mut self, p: &[f64; MAX_NL], iters: usize) -> [f64; MAX_NL] {
+    fn newton(&mut self, p: &[f64; MAX_NL], iters: usize) -> ([f64; MAX_NL], bool) {
         let d = self.dims;
         let mut i = [0.0; MAX_NL];
         if d == 0 {
-            return i;
+            return (i, true);
         }
-        let lim = self.step_limit();
         let mut di = [[0.0; MAX_NL]; MAX_NL];
         for _ in 0..iters {
             #[cfg(test)]
@@ -758,11 +795,10 @@ impl Circuit {
             for x in f.iter().take(d) {
                 big = big.max(x.abs());
             }
-            let scale = if big > lim { lim / big } else { 1.0 };
-            for (v, x) in self.v.iter_mut().zip(&f).take(d) {
-                *v += x * scale;
-            }
             if big < STOP {
+                for (v, x) in self.v.iter_mut().zip(&f).take(d) {
+                    *v += x;
+                }
                 // Converged: the currents at the new voltages, to first order.
                 let mut out = i;
                 for (r, o) in out.iter_mut().enumerate().take(d) {
@@ -770,11 +806,12 @@ impl Circuit {
                         *o += di[r][c] * x;
                     }
                 }
-                return out;
+                return (out, true);
             }
+            self.limit_step(&f);
         }
         currents(&self.e[..self.ne], &self.v, &mut i, &mut di);
-        i
+        (i, false)
     }
 
     /// `q = [inputs, capacitor histories]`.
@@ -832,13 +869,21 @@ impl Circuit {
         }
         let mut p = [0.0; MAX_NL];
         p.copy_from_slice(&acc[..MAX_NL]);
-        // Start Newton from the line through the last two answers.
+        // Start Newton from the line through the last two answers, a step of at most
+        // PREDICT volts (past a junction's knee a straight line overshoots by volts).
         let v1 = self.v;
         for k in 0..self.dims {
-            self.v[k] = 2.0 * self.v[k] - self.v1[k];
+            self.v[k] += (self.v[k] - self.v1[k]).clamp(-PREDICT, PREDICT);
         }
         self.v1 = v1;
-        let i = self.newton(&p, ITER);
+        let (i, ok) = self.newton(&p, ITER);
+        let i = if ok {
+            i
+        } else {
+            // Not converged from the prediction: again from the last answer, patiently.
+            self.v = v1;
+            self.newton(&p, ITER * 8).0
+        };
         for (col, id) in self.ai.iter().zip(&i).take(self.dims) {
             for (a, c) in acc.iter_mut().zip(col) {
                 *a += c * id;
@@ -869,7 +914,7 @@ impl Circuit {
         for step in 1..=STEPS {
             q = self.q(u, step as f64 / STEPS as f64);
             let p = self.ports_p(&q);
-            i = self.newton(&p, 400);
+            i = self.newton(&p, 400).0;
         }
         // Each capacitor holds its DC voltage and carries no current: its history source
         // is (2C/T)·v_c − i_c = (2C/T)·v_c.
@@ -884,7 +929,7 @@ impl Circuit {
         // The transient's own answer at that point is the zero of the outputs.
         let q = self.q(u, 1.0);
         let p = self.ports_p(&q);
-        let i = self.newton(&p, 400);
+        let i = self.newton(&p, 400).0;
         self.v1 = self.v;
         self.q_last = q;
         self.i_last = i;

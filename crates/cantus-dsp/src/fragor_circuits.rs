@@ -114,7 +114,7 @@ pub struct Pedal {
 /// What a pedal's output is scaled by at full volume, so that at the knobs' defaults
 /// and half volume a guitar-level note (−18 dBFS RMS) comes out about as loud as it went in.
 /// Measured by `fragor_tests::calibration`.
-pub const CAL_DB: [f64; 5] = [0.0, 0.0, 0.0, 0.0, 0.0];
+pub const CAL_DB: [f64; 5] = [14.2, 6.4, 3.8, 15.9, -1.7];
 
 impl Pedal {
     /// A pedal sampled at `rate` (the oversampled rate), knobs at their defaults, resting.
@@ -607,10 +607,12 @@ impl Pedal {
 }
 
 /// The fuzz's Bias knob as a battery: 1 is a fresh 9 V cell (about 2 Ω inside); turning it
-/// down drains it — the voltage falls and the internal resistance climbs, as a cell's does
-/// near the end of its life — which starves the transistors into the sputtering, gated fuzz
-/// of a dying battery.
+/// down drains it to 1.2 V — the voltage falls and the internal resistance climbs to 1 kΩ,
+/// as a cell's does near the end of its life — which starves the transistors into the
+/// sputtering, gated fuzz of a dying battery (below about 3 V a decaying note collapses
+/// instead of fading: `fragor_tests::the_dying_battery_gates_a_decaying_note`).
 pub fn battery(bias: f64) -> (f64, f64) {
     let b = bias.clamp(0.0, 1.0);
-    (4.0 + 5.0 * b, 2.0 + 600.0 * (1.0 - b) * (1.0 - b))
+    // Squared, so the knob spends its travel where the sound changes most (1.2 – 5 V).
+    (1.2 + 7.8 * b * b, 2.0 + 1000.0 * (1.0 - b) * (1.0 - b))
 }

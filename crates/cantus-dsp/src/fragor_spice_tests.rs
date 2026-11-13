@@ -84,7 +84,7 @@ impl Net {
 /// The nonlinear elements' currents into each node and their conductances, at `x`.
 fn nonlinear(net: &Net, x: &[f64], f: &mut [f64], jac: &mut [Vec<f64>]) {
     let v = |n: usize| if n == 0 { 0.0 } else { x[n - 1] };
-    let mut add_i = |f: &mut [f64], n: usize, i: f64| {
+    let add_i = |f: &mut [f64], n: usize, i: f64| {
         if n > 0 {
             f[n - 1] += i;
         }
