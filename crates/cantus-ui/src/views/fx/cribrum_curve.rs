@@ -281,5 +281,5 @@ fn glyph(b: &mut Brush, r: Rect, shape: u8, ink: egui::Color32, k: f32) {
             pos2(r.left() + r.width() * u, r.bottom() - r.height() * v)
         })
         .collect();
-    b.polyline(&pts, 1.3 * k, ink);
+    b.polyline(&pts, 1.0 * k, ink);
 }

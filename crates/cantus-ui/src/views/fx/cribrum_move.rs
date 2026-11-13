@@ -333,16 +333,16 @@ fn lane_paint(
                 };
                 if l.stereo > 0.0 {
                     let right: Vec<Pos2> = (0..M).map(|j| pt(j, st_off)).collect();
-                    b.polyline(&right, 1.0 * k, with_alpha(second, 0.7));
+                    b.polyline(&right, 0.8 * k, with_alpha(second, 0.7));
                 }
                 let left: Vec<Pos2> = (0..M).map(|j| pt(j, 0.0)).collect();
                 b.area(&left, plot.center().y, ink.fill(0.35));
-                canvas::trace(b, &left, 2.0 * k, ink.hue, &ink);
+                canvas::trace(b, &left, 1.3 * k, ink.hue, &ink);
                 b.vline(x(0.5), plot.top(), plot.bottom(), b.px(), ink.grid_strong);
                 if live {
                     let ph = tl[tel::PHASE_L].clamp(0.0, 1.0) * 0.5;
-                    b.vline(x(ph), plot.top(), plot.bottom(), 1.2 * k, second);
-                    b.dot(pos2(x(ph), y(0.5 + 0.5 * tl[tel::MOD_L])), 3.5 * k, second);
+                    b.vline(x(ph), plot.top(), plot.bottom(), 0.8 * k, second);
+                    b.dot(pos2(x(ph), y(0.5 + 0.5 * tl[tel::MOD_L])), 2.6 * k, second);
                 }
                 if l.synced {
                     let i = cs_div_index(cs.lfo.beats);
@@ -365,7 +365,7 @@ fn lane_paint(
                         .map(|(i, v)| pos2(x((i + TRAIL - n) as f32 / (TRAIL - 1) as f32), y(*v)))
                         .collect();
                     b.area(&pts, plot.bottom(), ink.fill(0.45));
-                    canvas::trace(b, &pts, 1.8 * k, ink.hue, &ink);
+                    canvas::trace(b, &pts, 1.2 * k, ink.hue, &ink);
                 }
                 if live {
                     let db = tl[t::ENV_DB];
@@ -393,20 +393,20 @@ fn lane_paint(
                     b.vline(x(q as f32 / 4.0), plot.top(), plot.bottom(), b.px(), ink.grid);
                 }
                 b.area(&pts, plot.bottom(), ink.fill(0.45));
-                canvas::trace(b, &pts, 2.0 * k, ink.hue, &ink);
+                canvas::trace(b, &pts, 1.3 * k, ink.hue, &ink);
                 let marked = super::curve::marked(st, cs);
                 for (i, p) in cs.curve.points.iter().enumerate() {
                     let Some(p) = p else { continue };
                     let at = pos2(x(p.x), y(p.y));
-                    b.dot(at, 4.0 * k, ink.hue);
+                    b.dot(at, 3.0 * k, ink.hue);
                     if marked == Some(i) {
-                        b.circle_stroke(at, 7.0 * k, 1.5 * k, ink.text);
+                        b.circle_stroke(at, 6.0 * k, 1.0 * k, ink.text);
                     }
                 }
                 if live {
                     let ph = tl[t::CURVE_PHASE].clamp(0.0, 1.0);
-                    b.vline(x(ph), plot.top(), plot.bottom(), 1.2 * k, second);
-                    b.dot(pos2(x(ph), y(tl[t::CURVE])), 3.5 * k, second);
+                    b.vline(x(ph), plot.top(), plot.bottom(), 0.8 * k, second);
+                    b.dot(pos2(x(ph), y(tl[t::CURVE])), 2.6 * k, second);
                 }
                 let i = cs_div_index(cs.curve.beats);
                 let _ = std::fmt::Write::write_fmt(
@@ -586,5 +586,5 @@ fn wave_glyph(b: &mut Brush, r: Rect, w: Wave, ink: egui::Color32, k: f32) {
             pos2(r.left() + r.width() * u as f32, r.center().y - v * r.height() * 0.5)
         })
         .collect();
-    b.polyline(&pts, 1.3 * k, ink);
+    b.polyline(&pts, 1.0 * k, ink);
 }

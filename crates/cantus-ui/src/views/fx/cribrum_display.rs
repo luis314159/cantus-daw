@@ -349,7 +349,7 @@ fn paint(
         let now = line(&vs);
         if live {
             let set = line(&base);
-            b.dashed(&set, 1.0 * k, with_alpha(ink.text, 0.35), 4.0 * k, 3.0 * k);
+            b.dashed(&set, 0.8 * k, with_alpha(ink.text, 0.35), 4.0 * k, 3.0 * k);
         }
         b.area(&now, plot.bottom(), ink.fill(0.45));
         if b_on {
@@ -361,10 +361,10 @@ fn paint(
                         pos2(map.x(hz), map.y(db as f32))
                     })
                     .collect();
-                b.polyline(&one, 1.0 * k, with_alpha(color, 0.55));
+                b.polyline(&one, 0.8 * k, with_alpha(color, 0.55));
             }
         }
-        canvas::trace(b, &now, 2.2 * k, ink.hue, &ink);
+        canvas::trace(b, &now, 1.4 * k, ink.hue, &ink);
         // The handles: the reach of the movement, the cutoff as set (a ring) and now (a dot).
         for f in 0..2 {
             if f == 1 && !b_on {
@@ -383,26 +383,26 @@ fn paint(
                 let (x0, x1) = (map.x(c * 2f32.powf(lo)), map.x(c * 2f32.powf(hi)));
                 let y = at_set.y;
                 let rail = with_alpha(color, 0.55);
-                b.hline(x0, x1, y, 1.5 * k, rail);
+                b.hline(x0, x1, y, 0.8 * k, rail);
                 for x in [x0, x1] {
-                    b.vline(x, y - 4.0 * k, y + 4.0 * k, 1.5 * k, rail);
+                    b.vline(x, y - 3.5 * k, y + 3.5 * k, 0.8 * k, rail);
                 }
                 if live {
                     let xn = map.x(vs[f].cut);
-                    b.hline(at_set.x.min(xn), at_set.x.max(xn), y, 3.0 * k, color);
-                    b.dot(pos2(xn, y), 3.0 * k, color);
+                    b.hline(at_set.x.min(xn), at_set.x.max(xn), y, 1.6 * k, color);
+                    b.dot(pos2(xn, y), 2.4 * k, color);
                 }
             }
             b.circle_stroke(
                 at_set,
-                7.5 * k,
-                if chosen { 2.0 } else { 1.2 } * k,
+                6.5 * k,
+                if chosen { 1.3 } else { 0.9 } * k,
                 with_alpha(color, if chosen { 1.0 } else { 0.7 }),
             );
             if live {
-                b.dot(at_now, 4.0 * k, color);
+                b.dot(at_now, 2.8 * k, color);
             } else {
-                b.dot(at_set, 3.0 * k, color);
+                b.dot(at_set, 2.2 * k, color);
             }
             let letter = if f == 0 { "A" } else { "B" };
             let t = Text::new(letter, Role::Micro, ink.text).caps(false);
@@ -429,7 +429,7 @@ fn plate(b: &mut Brush, map: Map, ink: &Ink, k: f32) {
         let y = map.y(db);
         let mut hz = LO;
         while hz <= HI * 1.01 {
-            b.dot(pos2(map.x(hz), y), 0.9 * k, ink.grid);
+            b.dot(pos2(map.x(hz), y), 0.7 * k, ink.grid);
             hz *= 2f32.powf(1.0 / 3.0);
         }
         db += 6.0;
@@ -610,7 +610,7 @@ pub fn mode_glyph(b: &mut Brush, r: Rect, mode: Mode, ink: Color32, k: f32) {
             pos2(r.left() + r.width() * u, r.bottom() - r.height() * vv)
         })
         .collect();
-    b.polyline(&pts, 1.3 * k, ink);
+    b.polyline(&pts, 1.0 * k, ink);
 }
 
 /// The inspector's picture: the response as set, and its words.
@@ -633,7 +633,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
             })
             .collect();
         b.area(&pts, plot.bottom(), ink.fill(0.4));
-        canvas::trace(b, &pts, 1.4 * k, ink.hue, &ink);
+        canvas::trace(b, &pts, 1.0 * k, ink.hue, &ink);
         let model = super::model_index(cs.a.model);
         let mut w = String::new();
         w.push_str(frame::tr(super::MODEL_SHORT[model]));
