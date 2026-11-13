@@ -65,8 +65,8 @@ Fluctus (round 28) shapes volume only; nothing in Cantus bent time.
    chooses the pattern, a cycle has begun since anything that was not the pattern's own,
    the glides landed; a skip runs the level's glide and the pattern's own joins as a run
    would. At its defaults it rests after the history's length of silence (4 s).
-10. **The face** (`kit/skin/side.rs`, `fx.lapsus`): a DJ's deck at midnight — petrol matte
-    (192°), an amber VFD (36°) with the level in ice blue (190°), soft knobs, lamp keys, a
+10. **The face** (`kit/skin/side.rs`, `fx.lapsus`): a DJ's deck at midnight — petrol under
+    smoked glass (192°), an amber VFD (36°) with the level in ice blue (190°), soft knobs, lamp keys, a
     painted stripe, vents and rules.
 
 ## Consequences

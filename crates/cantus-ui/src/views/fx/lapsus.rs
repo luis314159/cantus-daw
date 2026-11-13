@@ -1,7 +1,7 @@
 //! Lapsus's editor: the time shaper (fx side round, ADR 0132 provisional).
 //!
 //! *Lapsus* is Latin for a slip, a glide — and the window is a deck at midnight: an amber
-//! VFD over a petrol-dark body. Its centre is **the timeline**: one cycle of the pattern,
+//! VFD over a petrol body under smoked glass. Its centre is **the timeline**: one cycle of the pattern,
 //! the time curve above (how far behind the music it reads: flat at the top is the music
 //! as it comes, a 45° fall is the tape stopped, a held step a repeat) over the cycle's
 //! input drawn faintly, the level curve below it; while it plays, the playhead and **the

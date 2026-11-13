@@ -22,11 +22,12 @@ pub const FRAGOR: Skin = Skin {
 };
 
 // fx:lapsus — Lapsus's own face (ADR 0132, provisional).
-/// Lapsus, the time shaper (*a slip*): a DJ's deck at midnight — a petrol body in matte
-/// paint, the time curve glowing amber on a vacuum-fluorescent screen (the old decks'
-/// displays), the level in ice blue, soft rubber knobs, lamp keys, a painted stripe across
-/// the header, vents and printed rules, upper-case lettering and mono readouts. No other
-/// unit is matte at this hue, and none has an amber VFD over it.
+/// Lapsus, the time shaper (*a slip*): a DJ's deck at midnight — a petrol body under smoked
+/// glass (a CD deck's top), the time curve glowing amber on a vacuum-fluorescent screen
+/// (the old decks' displays), the level in ice blue, soft rubber knobs, lamp keys, a
+/// painted stripe across the header, vents and printed rules, upper-case lettering and
+/// mono readouts. Every unit with an accent within 20° of amber is another material
+/// (Phasis is matte, Fervor vinyl, Aula brushed, Chorda lacquer…): glass is free there.
 pub const LAPSUS: Skin = Skin {
     key: "fx.lapsus",
     surface: super::Tint {
@@ -58,7 +59,7 @@ pub const LAPSUS: Skin = Skin {
             l: 0.32,
         },
     }),
-    material: super::Material::Matte,
+    material: super::Material::Glass,
     display: super::Display::Vfd,
     knob: super::KnobShape::Soft,
     switch: super::SwitchShape::Lamp,
