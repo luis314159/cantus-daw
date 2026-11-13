@@ -187,14 +187,14 @@ pub fn display(
             .enumerate()
             .map(|(i, (x, _))| pos2(px(i), py(*x, lvl * 1.1 / 1.1)))
             .collect();
-        b.polyline(&input, 1.3 * k, with_alpha(ink.dim, 0.75));
+        b.polyline(&input, 1.0 * k, with_alpha(ink.dim, 0.75));
         let output: Vec<Pos2> = cv
             .cycle
             .iter()
             .enumerate()
             .map(|(i, (_, y))| pos2(px(i), py(*y, ymax)))
             .collect();
-        canvas::trace(b, &output, 2.0 * k, odd, &ink);
+        canvas::trace(b, &output, 1.5 * k, odd, &ink);
         if playing {
             if let Some((i, (_, y))) = cv
                 .cycle
@@ -286,24 +286,81 @@ pub fn display(
             );
         }
         let bw = hp.width() / HARMONICS as f32;
+        // The harmonics that shape the sound: the strongest three above the fundamental,
+        // and any within 6 dB of the strongest.
+        let mut order: Vec<usize> = (1..HARMONICS).collect();
+        order.sort_by(|a, c| cv.harm[*c].total_cmp(&cv.harm[*a]));
+        let loudest = order.first().map_or(-200.0, |h| cv.harm[*h]);
+        let dominant = |h: usize| {
+            h > 0
+                && cv.harm[h] > -floor + 6.0
+                && (order.iter().take(3).any(|o| *o == h) || cv.harm[h] > loudest - 6.0)
+        };
         for h in 0..HARMONICS {
             let v = cv.harm[h].clamp(-floor, 0.0);
-            let x0 = hp.left() + bw * h as f32 + bw * 0.18;
-            let x1 = hp.left() + bw * (h as f32 + 1.0) - bw * 0.18;
+            let x0 = hp.left() + bw * h as f32 + bw * 0.2;
+            let x1 = hp.left() + bw * (h as f32 + 1.0) - bw * 0.2;
             let top = hp.top() + hp.height() * (-v / floor);
-            let col = if (h + 1) % 2 == 1 { odd } else { even };
+            let is_odd = (h + 1) % 2 == 1;
+            let col = if is_odd { odd } else { even };
+            let strong = dominant(h);
             if v > -floor + 0.5 {
-                b.rect(
-                    Rect::from_min_max(pos2(x0, top), pos2(x1, hp.bottom())),
-                    Fill::V(col, with_alpha(col, 0.35)),
-                );
+                let bar = Rect::from_min_max(pos2(x0, top), pos2(x1, hp.bottom()));
+                if is_odd {
+                    // Odd: a solid bar.
+                    let a = if strong || h == 0 { 1.0 } else { 0.72 };
+                    b.rect(bar, Fill::V(with_alpha(col, a), with_alpha(col, a * 0.3)));
+                } else {
+                    // Even: an outline, hatched — told from odd by its shape, not only
+                    // its colour.
+                    let a = if strong { 1.0 } else { 0.72 };
+                    b.rect(bar, Fill::Solid(with_alpha(col, 0.12 * a)));
+                    canvas::hatch(
+                        b,
+                        bar.shrink(1.0 * k),
+                        4.0 * k,
+                        b.px(),
+                        with_alpha(col, 0.55 * a),
+                    );
+                    let w = b.px().max(1.0 * k);
+                    b.vline(
+                        bar.left() + w * 0.5,
+                        bar.top(),
+                        bar.bottom(),
+                        w,
+                        with_alpha(col, a),
+                    );
+                    b.vline(
+                        bar.right() - w * 0.5,
+                        bar.top(),
+                        bar.bottom(),
+                        w,
+                        with_alpha(col, a),
+                    );
+                    b.hline(
+                        bar.left(),
+                        bar.right(),
+                        bar.top() + w * 0.5,
+                        w,
+                        with_alpha(col, a),
+                    );
+                }
+                if strong {
+                    // A cap and a mark over the harmonics that dominate.
+                    b.hline(x0 - 2.0 * k, x1 + 2.0 * k, top, 1.5 * k, ink.text);
+                    b.circle(
+                        pos2((x0 + x1) * 0.5, top - 6.0 * k),
+                        2.0 * k,
+                        Fill::Solid(ink.text),
+                    );
+                }
             }
             canvas::putf(
                 b,
                 pos2((x0 + x1) * 0.5, hp.bottom() + 10.0 * k),
                 Align2::CENTER_CENTER,
                 Role::Micro,
-                ink.dim,
+                if strong { ink.text } else { ink.dim },
                 k,
                 None,
                 format_args!("{}", h + 1),
@@ -320,10 +377,10 @@ pub fn display(
             k,
             None,
         );
-        b.rect(
-            Rect::from_center_size(pos2(r1.left() - 7.0 * k, ly), vec2(7.0 * k, 7.0 * k)),
-            Fill::Solid(even),
-        );
+        let sw = Rect::from_center_size(pos2(r1.left() - 7.0 * k, ly), vec2(8.0 * k, 8.0 * k));
+        b.rect(sw, Fill::Solid(with_alpha(even, 0.12)));
+        canvas::hatch(b, sw, 3.0 * k, b.px(), even);
+        b.rrect_stroke(sw, 0.0, b.px().max(k), even);
         let r2 = canvas::put(
             b,
             pos2(r1.left() - 18.0 * k, ly),

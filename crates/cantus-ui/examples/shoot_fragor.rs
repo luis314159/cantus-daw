@@ -8,7 +8,7 @@
 //! triangle muff), and two with a slot free (the silicon distortion and the op-amp
 //! distortion, its footswitch off) — at rest and playing, in Slate (the default look)
 //! and Paper, English and Spanish, at 75 %, 100 %, 150 % and 200 %; and the inspector's
-//! strip.
+//! strip. `FRAGOR_LOOK=a|b|c` renders in one of the palettes on offer (`variant-<x>-…`).
 
 use cantus_engine::EngineHandle;
 use cantus_ui::raster::shoot;
@@ -67,6 +67,17 @@ fn main() {
     use cantus_ui::i18n::Locale;
     let kind = cantus_core::EffectKind::Pedal;
     let only = std::env::var("FRAGOR_ONLY").ok();
+    // `FRAGOR_LOOK=a|b|c`: the window in one of the palettes on offer to the owner (the
+    // files named `variant-<x>-…`).
+    let look = std::env::var("FRAGOR_LOOK").ok();
+    let prefix = match look.as_deref() {
+        Some(l @ ("a" | "b" | "c")) => {
+            let i = (l.as_bytes()[0] - b'a') as usize;
+            cantus_ui::kit::skin::set_override(Some(cantus_ui::kit::skin::FRAGOR_LOOKS[i]));
+            format!("variant-{l}-")
+        }
+        _ => String::new(),
+    };
     for state in ["board", "two"] {
         for playing in [false, true] {
             for dark in [true, false] {
@@ -81,13 +92,16 @@ fn main() {
                             continue;
                         }
                         let name = format!(
-                            "fragor-{state}-{}-{}-{}-k{}.png",
+                            "{prefix}fragor-{state}-{}-{}-{}-k{}.png",
                             if playing { "playing" } else { "rest" },
                             if dark { "slate" } else { "paper" },
                             lang.code(),
                             (k * 100.0) as u32
                         );
-                        if only.as_ref().is_some_and(|o| !name.contains(o.as_str())) {
+                        if only
+                            .as_ref()
+                            .is_some_and(|o| !o.split(',').any(|p| name.contains(p)))
+                        {
                             continue;
                         }
                         cantus_ui::i18n::set_locale(lang);

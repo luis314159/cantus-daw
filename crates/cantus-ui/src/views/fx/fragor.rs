@@ -43,6 +43,14 @@ pub const NAMES: [&str; 5] = [
     "fragor.model.4",
     "fragor.model.5",
 ];
+/// Each pedal's artwork.
+pub const MOTIFS: [pd::Motif; 5] = [
+    pd::Motif::Waves,
+    pd::Motif::Circuit,
+    pd::Motif::Square,
+    pd::Motif::Burst,
+    pd::Motif::Nested,
+];
 pub const SUBS: [&str; 5] = [
     "fragor.sub.od",
     "fragor.sub.op",
@@ -257,6 +265,7 @@ fn board_ui(
                         finish: &pedals::FRAGOR[*m],
                         name: Src::Key(NAMES[*m]),
                         sub: Src::Key(SUBS[*m]),
+                        motif: MOTIFS[*m],
                         knobs: &knobs,
                         on,
                         glow: if on { 0.25 + 0.75 * st.glow[*m] } else { 0.0 },

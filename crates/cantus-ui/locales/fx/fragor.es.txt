@@ -63,7 +63,7 @@ fragor.knob.filter = Filtro
 fragor.knob.volume = Volumen
 fragor.knob.dist = Dist
 fragor.knob.fuzz = Fuzz
-fragor.knob.bias = Polariz.
+fragor.knob.bias = Bias
 fragor.knob.sustain = Sustain
 # La ventana.
 fragor.card.sound = Sonido de la cadena

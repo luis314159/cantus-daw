@@ -19,7 +19,7 @@ const fn hsl(h: f32, s: f32, l: f32) -> Hsl {
 pub struct Finish {
     /// The enclosure's paint.
     pub body: Hsl,
-    /// The band across its face, under the name.
+    /// The accent printed in its artwork (one colour beside the lettering).
     pub band: Hsl,
     /// The lettering and the knobs' scale printed on the paint.
     pub ink: Hsl,

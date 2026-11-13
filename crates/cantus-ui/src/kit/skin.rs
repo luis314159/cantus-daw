@@ -69,6 +69,8 @@ mod tone;
 // fx:contract — the fx side round's placeholder faces (each builder replaces its own).
 #[path = "skin/side.rs"]
 mod side;
+/// Fragor's palettes on offer to the owner (shown by `shoot_fragor`). fx:fragor
+pub use side::FRAGOR_LOOKS;
 
 #[path = "skin/displays.rs"]
 pub mod displays;
