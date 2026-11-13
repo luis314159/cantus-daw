@@ -322,15 +322,20 @@ impl VaFilter {
         self.e
     }
 
-    /// Every state that shapes the next output (integrators, the last two solutions, the
-    /// tuning's sag) is +0.0, bit for bit: a new filter. // fx:cribrum
-    pub fn at_rest(&self) -> bool {
+    /// The integrators and the last two solutions are +0.0, bit for bit: nothing of a
+    /// signal is left (the tuning's sag may still be on its way). // fx:cribrum
+    pub fn quiet(&self) -> bool {
         self.s
             .iter()
             .chain(self.e.iter())
             .chain(self.p.iter())
             .all(|x| x.to_bits() == 0)
-            && self.sag.to_bits() == 0
+    }
+
+    /// Every state that shapes the next output (integrators, the last two solutions, the
+    /// tuning's sag) is +0.0, bit for bit: a new filter. // fx:cribrum
+    pub fn at_rest(&self) -> bool {
+        self.quiet() && self.sag.to_bits() == 0
     }
 
     /// One sample. `g` is `tan(π·cutoff/fs)` for the cutoff shown ([`super::math::tan_pi`]);

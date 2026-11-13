@@ -632,3 +632,4 @@ fn the_followers_level_maps_in_decibels() {
     let half = modulation::env_amount(crate::math::db_to_gain(-24.0));
     assert!((half - 0.5).abs() < 1e-4, "{half}");
 }
+

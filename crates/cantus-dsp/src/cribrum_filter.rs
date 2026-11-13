@@ -230,8 +230,26 @@ impl Chan {
     }
 
     /// One sample through the filter `v` at sample rate `fs` (the oversampled rate).
+    ///
+    /// A filter left with nothing of a signal in it (every integrator and solution +0.0
+    /// after a sample of +0.0 out) is made new: the synths' tuning trim keeps a sag in a
+    /// resonant state-variable even in silence, which no new filter has, so without this a
+    /// silent filter would never be one (ADR 0031 §5.1's rest).
     #[inline]
     pub fn tick(&mut self, x: f32, v: &Voice, fs: f32) -> f32 {
+        let y = self.run(x, v, fs);
+        if y.to_bits() == 0 {
+            for f in &mut self.f {
+                if f.quiet() && !f.at_rest() {
+                    *f = VaFilter::default();
+                }
+            }
+        }
+        y
+    }
+
+    #[inline]
+    fn run(&mut self, x: f32, v: &Voice, fs: f32) -> f32 {
         let (mode, slope24) = effective(v.model, v.mode, v.slope24);
         if mode == Mode::Vowel {
             return self.vowel(x, v, fs);

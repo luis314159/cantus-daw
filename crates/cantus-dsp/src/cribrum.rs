@@ -657,12 +657,22 @@ impl Cribrum {
                 }
             }
             let mut y = [0.0f32; 2];
-            for (ch, x) in [xl, xr].into_iter().enumerate() {
-                let dry = self.delay_dry(ch, x);
+            for (ch, (raw, x)) in [(l[i], xl), (r[i], xr)].into_iter().enumerate() {
+                let dry = self.delay_dry(ch, raw);
                 let a = voices[0][ch];
                 let b = voices[1][ch];
                 let wet = self.wet(ch, x, &a, b_on.then_some(&b));
-                y[ch] = (dry + (wet - dry) * mix) * out;
+                // At mix 0 (gliding out, until the block ends and the filters stop) exactly
+                // what the unit gives once they have: the dry, its zeros' signs and all.
+                y[ch] = if mix == 0.0 {
+                    if out == 1.0 {
+                        dry
+                    } else {
+                        dry * out
+                    }
+                } else {
+                    (dry + (wet - dry) * mix) * out
+                };
             }
             self.dry_pos = (self.dry_pos + 1) % DRY_MAX;
             l[i] = y[0];
