@@ -65,7 +65,19 @@ pub fn start_of(kind: EffectKind) -> Start {
         K::External => Start::Neutral(Hosted),
         // fx:contract — the side round's stubs start at their defaults until each builder
         // gives its unit a starting preset or its real reason for none (ADR 0071).
-        K::AutoFilter => Start::Neutral(Flat), // fx:contract (cribrum)
+        // fx:cribrum — a resonant ladder swept once a bar: the insert moves at once.
+        K::AutoFilter => preset(
+            "preset.cribrum.bar_sweep",
+            &[
+                ("mix", 1.0),
+                ("a.model", 1.0),
+                ("a.slope", 1.0),
+                ("a.cut", 1_200.0),
+                ("a.res", 0.45),
+                ("lfo.div", 3.0),
+                ("lfo.cut", 1.5),
+            ],
+        ),
         K::Pedal => Start::Neutral(Flat),      // fx:contract (fragor)
         K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)
         K::LoFi => Start::Neutral(Flat),       // fx:contract (vetus)

@@ -1,4 +1,274 @@
 # Cribrum auto filter: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's contract: none yet — cribrum's builder writes them here.
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.cribrum.bar_sweep"
+note = "A resonant ladder swept up and down once a bar: what the insert starts with."
+styles = ["house", "pop"]
+roles = ["creative", "bus"]
+[preset.values]
+"a.cut" = 1200
+"a.model" = 1
+"a.res" = 0.45
+"a.slope" = 1
+"lfo.cut" = 1.5
+"lfo.div" = 3
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.cry_wah"
+note = "The follower's wah: a narrow band-pass that opens as the guitar or the keys are played harder."
+styles = ["rock", "rnb"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 450
+"a.mode" = 1
+"a.res" = 0.72
+"env.att" = 4
+"env.cut" = 2.4
+"env.gain" = 6
+"env.rel" = 90
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.dub_sweep"
+note = "Two bars down and up through a driven, singing ladder: the dub engineer's hand on the filter."
+styles = ["lofi", "film"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 500
+"a.drive" = 6
+"a.model" = 1
+"a.res" = 0.8
+"a.slope" = 1
+"lfo.cut" = 2.8
+"lfo.div" = 2
+"mix" = 1
+"os" = 1
+
+[[preset]]
+key = "preset.cribrum.pump_filter"
+note = "The sidechain pump without a key: the low-pass closes on every beat and opens again by the off-beat."
+styles = ["house", "pop"]
+roles = ["bus"]
+[preset.values]
+"a.cut" = 260
+"a.res" = 0.25
+"c0.t" = -0.6
+"c0.y" = 0
+"c1.s" = 2
+"c1.x" = 0.5
+"c1.y" = 1
+"cur.cut" = 3.6
+"cur.div" = 8
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.talking"
+note = "A lead that talks: the vowel filter wanders A, E, I, O on the half bar."
+styles = ["pop", "film"]
+roles = ["creative", "vocal"]
+[preset.values]
+"a.mode" = 5
+"a.res" = 0.45
+"a.vowel" = 2
+"lfo.div" = 5
+"lfo.vowel" = 2
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.telephone"
+note = "A voice down a telephone line: a steep band from 450 Hz to 3 kHz, a little driven."
+styles = ["film", "lofi"]
+roles = ["vocal"]
+[preset.values]
+"a.cut" = 450
+"a.drive" = 10
+"a.mode" = 2
+"a.slope" = 1
+"b.cut" = 3000
+"b.on" = 1
+"b.slope" = 1
+"b.track" = 0
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.rising_build"
+note = "The build before the drop: the low-pass opens over eight bars, from the bass to the air."
+styles = ["house", "pop"]
+roles = ["bus"]
+[preset.values]
+"a.cut" = 140
+"a.model" = 1
+"a.res" = 0.5
+"a.slope" = 1
+"c0.t" = 0.4
+"c0.y" = 0
+"c1.s" = 2
+"c1.x" = 0.98
+"c1.y" = 1
+"cur.cut" = 6
+"cur.div" = 0
+"cur.smooth" = 20
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.wobble"
+note = "The wobble on the eighths: a driven ladder swept three octaves, for bass and growls."
+styles = ["trap", "house"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 240
+"a.drive" = 9
+"a.model" = 1
+"a.res" = 0.62
+"a.slope" = 1
+"lfo.cut" = 3
+"lfo.div" = 11
+"mix" = 1
+"os" = 1
+
+[[preset]]
+key = "preset.cribrum.acid"
+note = "The squelch: a diode ladder near self-oscillation, opened by every note's attack."
+styles = ["house", "trap"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 320
+"a.drive" = 12
+"a.model" = 3
+"a.res" = 0.86
+"a.slope" = 1
+"env.att" = 1
+"env.cut" = 2.6
+"env.gain" = 6
+"env.rel" = 160
+"mix" = 1
+"os" = 1
+
+[[preset]]
+key = "preset.cribrum.hat_shimmer"
+note = "Hats and cymbals breathing: a high-pass moving on the sixteenths, the sides apart."
+styles = ["house", "trap"]
+roles = ["drums"]
+[preset.values]
+"a.cut" = 4000
+"a.mode" = 2
+"a.res" = 0.35
+"lfo.cut" = 1
+"lfo.div" = 14
+"lfo.shape" = 1
+"lfo.stereo" = 90
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.gated_steps"
+note = "A rhythm of held steps on the bar: the filter jumps on the grid, softened so it never clicks."
+styles = ["trap", "house"]
+roles = ["drums", "creative"]
+[preset.values]
+"a.cut" = 220
+"a.res" = 0.55
+"c0.s" = 2
+"c0.t" = 0
+"c1.s" = 2
+"c1.x" = 0.125
+"c1.y" = 0.2
+"c2.on" = 1
+"c2.s" = 2
+"c2.x" = 0.25
+"c2.y" = 0.6
+"c3.on" = 1
+"c3.s" = 2
+"c3.x" = 0.375
+"c3.y" = 0.1
+"c4.on" = 1
+"c4.s" = 2
+"c4.x" = 0.5
+"c4.y" = 1
+"c5.on" = 1
+"c5.s" = 2
+"c5.x" = 0.625
+"c5.y" = 0.3
+"c6.on" = 1
+"c6.s" = 2
+"c6.x" = 0.75
+"c6.y" = 0.8
+"c7.on" = 1
+"c7.s" = 2
+"c7.x" = 0.875
+"c7.y" = 0.1
+"cur.cut" = 4
+"cur.smooth" = 3
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.radio_drift"
+note = "An old radio tuning itself: a band-pass drifting slowly across the middle."
+styles = ["lofi", "ambient"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 1200
+"a.mode" = 1
+"a.res" = 0.4
+"lfo.cut" = 1.4
+"lfo.div" = 1
+"lfo.shape" = 6
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.dj_low"
+note = "The DJ's low-pass, still: turn the cutoff (or automate it) to take the mix down to its bass."
+styles = ["house", "pop"]
+roles = ["bus"]
+[preset.values]
+"a.cut" = 2500
+"a.res" = 0.2
+"a.slope" = 1
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.dj_high"
+note = "The DJ's high-pass, still: turn the cutoff up to thin the mix before the drop."
+styles = ["house", "pop"]
+roles = ["bus"]
+[preset.values]
+"a.cut" = 60
+"a.mode" = 2
+"a.res" = 0.2
+"a.slope" = 1
+"mix" = 1
+
+[[preset]]
+key = "preset.cribrum.stereo_drift"
+note = "Two filters drifting apart in the stereo field over four bars: slow, wide movement for pads."
+styles = ["ambient", "film"]
+roles = ["creative"]
+[preset.values]
+"a.cut" = 1500
+"a.res" = 0.35
+"b.cut" = 90
+"b.mode" = 2
+"b.on" = 1
+"b.track" = 0
+"lfo.cut" = 1.2
+"lfo.div" = 1
+"lfo.shape" = 6
+"lfo.stereo" = 180
+"mix" = 1
+"spread" = 0.6
+
+[[preset]]
+key = "preset.cribrum.vowel_pad"
+note = "A pad that sings as it swells: the follower moves the vowel from O to A."
+styles = ["ambient", "worship"]
+roles = ["creative"]
+[preset.values]
+"a.mode" = 5
+"a.res" = 0.35
+"a.vowel" = 3
+"env.att" = 60
+"env.rel" = 600
+"env.vowel" = -3
+"mix" = 1

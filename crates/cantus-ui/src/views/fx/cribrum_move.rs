@@ -99,8 +99,9 @@ pub fn card(
             let src = Rect::from_min_size(body.min, vec2(SRC_W * k, body.height()));
             ui.allocate_rect(src, Sense::hover());
             source_keys(st, ui, s, src, tel_now, cs);
-            // The controls, right-aligned; the lane between.
-            let ctl_w = (SW_W + 4.0 + controls::cells_width(&[Size::M; 4])) * k;
+            // The controls, right-aligned in two groups; the lane between.
+            let pad = GROUP_PAD * k;
+            let ctl_w = (SW_W + 4.0 + controls::cells_width(&[Size::M; 4])) * k + 2.0 * pad;
             let lane = Rect::from_min_max(
                 pos2(src.right() + 8.0 * k, body.top()),
                 pos2(body.right() - ctl_w - 8.0 * k, body.bottom()),
@@ -108,14 +109,84 @@ pub fn card(
             ui.allocate_rect(lane, Sense::hover());
             lane_paint(ui, s, lane, st, tel_now, cs);
             let ctl = Rect::from_min_max(pos2(lane.right() + 8.0 * k, body.top()), body.max);
-            let mut child = ui.new_child(
+            let gh = (ctl.height() - 4.0 * k) * 0.5;
+            let g1 = Rect::from_min_size(ctl.min, vec2(ctl.width(), gh));
+            let g2 = Rect::from_min_size(pos2(ctl.left(), g1.bottom() + 4.0 * k), g1.size());
+            let reach = reach_words(cs, st.source);
+            with_brush(&ui.painter_at(ctl.expand(2.0)), |b| {
+                for (g, key) in [(g1, SOURCES[st.source].0), (g2, "cribrum.depth")] {
+                    crate::kit::light::sunken(b, g, 5.0 * k, s.t.well, 0.45, s.t.depth);
+                    canvas::put(
+                        b,
+                        pos2(g.left() + pad, g.top() + 4.0 * k),
+                        Align2::LEFT_TOP,
+                        &Text::key(key, Role::Micro, s.t.text_dim).caps(true),
+                        k,
+                        None,
+                    );
+                }
+                if let Some((label, value)) = &reach {
+                    let at = pos2(g2.right() - pad, g2.top() + 4.0 * k);
+                    canvas::put(
+                        b,
+                        at,
+                        Align2::RIGHT_TOP,
+                        &Text::new(label, Role::Micro, s.t.text_dim).caps(true),
+                        k,
+                        None,
+                    );
+                    canvas::put(
+                        b,
+                        pos2(at.x, g2.center().y + 4.0 * k),
+                        Align2::RIGHT_CENTER,
+                        &Text::new(value, Role::Value, s.hue).caps(false),
+                        k,
+                        None,
+                    );
+                }
+            });
+            let inner = |g: Rect| {
+                Rect::from_min_max(
+                    pos2(g.left() + pad, g.top() + 18.0 * k),
+                    pos2(g.right() - pad, g.bottom() - 2.0 * k),
+                )
+            };
+            let mut c1 = ui.new_child(
                 egui::UiBuilder::new()
-                    .max_rect(ctl)
-                    .layout(egui::Layout::top_down(egui::Align::Min)),
+                    .max_rect(inner(g1))
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
             );
-            controls_ui(host, st.source, &mut child, s, cs);
+            source_controls(host, st.source, &mut c1, s, cs);
+            let mut c2 = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(inner(g2))
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            depth_controls(host, st.source, &mut c2, s);
         },
     );
+}
+
+/// The inner margin of a group of controls, points at 100 %.
+const GROUP_PAD: f32 = 8.0;
+
+/// Where the chosen source can take filter A's cutoff, as words: ("Cutoff reach",
+/// "280 Hz - 2.6 kHz"); `None` when it does not move the cutoff.
+fn reach_words(cs: &CribrumSettings, source: usize) -> Option<(String, String)> {
+    let d = [cs.lfo_depth, cs.env_depth, cs.curve_depth][source].cut;
+    if d == 0.0 {
+        return None;
+    }
+    let (lo, hi) = match source {
+        0 => (-d.abs(), d.abs()),
+        _ => (d.min(0.0), d.max(0.0)),
+    };
+    let c = cs.a.cut;
+    let mut v = String::new();
+    controls::write_readout(c * 2f32.powf(lo), "Hz", &mut v);
+    v.push_str(" \u{2013} ");
+    controls::write_readout(c * 2f32.powf(hi), "Hz", &mut v);
+    Some((frame::tr("cribrum.reach").to_string(), v))
 }
 
 /// The three sources as keys: each its name, its depth onto the cutoff, and a bar with its
@@ -363,8 +434,8 @@ fn cs_div_index(beats: f64) -> usize {
         .unwrap_or(8)
 }
 
-/// The chosen source's controls: a column of switches and a row of cells, then its depths.
-fn controls_ui(
+/// The chosen source's own controls: a column of switches, then a row of cells.
+fn source_controls(
     host: &mut dyn FxHost,
     source: usize,
     ui: &mut egui::Ui,
@@ -373,58 +444,57 @@ fn controls_ui(
 ) {
     let gap = egui::Vec2::new(s.d(4.0), s.d(4.0));
     ui.spacing_mut().item_spacing = gap;
-    ui.horizontal(|ui| {
-        controls::column(ui, s, SW_W, |ui| match source {
-            0 => {
-                let labels = [Src::Key("modfx.sync.0"), Src::Key("modfx.sync.1")];
-                controls::segmented_param(ui, s, host, "lfo.sync", &labels, SW_W);
-                shape_keys(host, ui, s, SW_W);
-            }
-            1 => {
-                let labels = [Src::Key("cribrum.key.0"), Src::Key("cribrum.key.1")];
-                controls::segmented_param(ui, s, host, "env.key", &labels, SW_W);
-                controls::caption(ui, s, Src::Key("cribrum.env.how"), SW_W);
-            }
-            _ => {
-                controls::caption(ui, s, Src::Key("cribrum.curve.how"), SW_W);
-            }
-        });
-        match source {
-            0 => {
-                if cs.lfo.synced {
-                    controls::param_with(ui, s, host, "lfo.div", Size::M, Some(&super::div_pill));
-                } else {
-                    controls::param_with(ui, s, host, "lfo.rate", Size::M, Some(&modfx::hz_pill));
-                }
-                controls::param_with(ui, s, host, "lfo.phase", Size::M, Some(&modfx::deg_pill));
-                controls::param_with(ui, s, host, "lfo.stereo", Size::M, Some(&modfx::deg_pill));
-                let stepped = matches!(
-                    cs.lfo.wave,
-                    Wave::Square | Wave::SawUp | Wave::SawDown | Wave::Hold
-                );
-                ui.add_enabled_ui(stepped, |ui| {
-                    controls::param_with(ui, s, host, "lfo.edge", Size::M, Some(&modfx::pct_pill));
-                });
-            }
-            1 => {
-                controls::param(ui, s, host, "env.att", Size::M);
-                controls::param(ui, s, host, "env.rel", Size::M);
-                controls::param(ui, s, host, "env.gain", Size::M);
-            }
-            _ => {
-                controls::param_with(ui, s, host, "cur.div", Size::M, Some(&super::div_pill));
-                controls::param(ui, s, host, "cur.smooth", Size::M);
-            }
+    controls::column(ui, s, SW_W, |ui| match source {
+        0 => {
+            let labels = [Src::Key("modfx.sync.0"), Src::Key("modfx.sync.1")];
+            controls::segmented_param(ui, s, host, "lfo.sync", &labels, SW_W);
+            shape_keys(host, ui, s, SW_W);
+        }
+        1 => {
+            let labels = [Src::Key("cribrum.key.0"), Src::Key("cribrum.key.1")];
+            controls::segmented_param(ui, s, host, "env.key", &labels, SW_W);
+            controls::caption(ui, s, Src::Key("cribrum.env.how"), SW_W);
+        }
+        _ => {
+            controls::caption(ui, s, Src::Key("cribrum.curve.how"), SW_W);
         }
     });
-    ui.horizontal(|ui| {
-        controls::column(ui, s, SW_W, |ui| {
-            controls::caption(ui, s, Src::Key("cribrum.depth"), SW_W);
-        });
-        for (key, label) in DEPTHS[source].into_iter().zip(DEPTH_LABELS) {
-            super::param_labelled(ui, s, host, key, label, Size::M, None);
+    match source {
+        0 => {
+            if cs.lfo.synced {
+                controls::param_with(ui, s, host, "lfo.div", Size::M, Some(&super::div_pill));
+            } else {
+                controls::param_with(ui, s, host, "lfo.rate", Size::M, Some(&modfx::hz_pill));
+            }
+            controls::param_with(ui, s, host, "lfo.phase", Size::M, Some(&modfx::deg_pill));
+            controls::param_with(ui, s, host, "lfo.stereo", Size::M, Some(&modfx::deg_pill));
+            let stepped = matches!(
+                cs.lfo.wave,
+                Wave::Square | Wave::SawUp | Wave::SawDown | Wave::Hold
+            );
+            ui.add_enabled_ui(stepped, |ui| {
+                controls::param_with(ui, s, host, "lfo.edge", Size::M, Some(&modfx::pct_pill));
+            });
         }
-    });
+        1 => {
+            controls::param(ui, s, host, "env.att", Size::M);
+            controls::param(ui, s, host, "env.rel", Size::M);
+            controls::param(ui, s, host, "env.gain", Size::M);
+        }
+        _ => {
+            controls::param_with(ui, s, host, "cur.div", Size::M, Some(&super::div_pill));
+            controls::param(ui, s, host, "cur.smooth", Size::M);
+        }
+    }
+}
+
+/// The chosen source's depths onto the cutoff, the resonance and the vowel.
+fn depth_controls(host: &mut dyn FxHost, source: usize, ui: &mut egui::Ui, s: &Style) {
+    let gap = egui::Vec2::new(s.d(4.0), s.d(4.0));
+    ui.spacing_mut().item_spacing = gap;
+    for (key, label) in DEPTHS[source].into_iter().zip(DEPTH_LABELS) {
+        super::param_labelled(ui, s, host, key, label, Size::M, None);
+    }
 }
 
 /// The LFO's seven waves as keys with their shapes drawn on them.

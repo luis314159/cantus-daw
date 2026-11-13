@@ -110,8 +110,8 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     out
 }
 
-/// The movement card's height at 100 %.
-const MOVE_H: f32 = 222.0;
+/// The movement card's height at 100 %: two groups of cells, each with its title.
+const MOVE_H: f32 = 262.0;
 
 fn body_ui(
     host: &mut dyn FxHost,
@@ -125,20 +125,66 @@ fn body_ui(
     let k = s.k;
     let mut g = Grid::new(body, s);
     let area = g.rest();
-    let row3 = controls::card_height(Size::M) * k;
+    // The focal controls (cutoff, mix) are a size up: the lower row is an L card.
+    let row3 = controls::card_height(Size::L) * k;
     let row2 = MOVE_H * k;
     let gap = s.d(4.0);
     let row1 = (area.height() - row2 - row3 - 2.0 * gap).max(200.0 * k);
     let r1 = g.full(row1);
     st.filter = st.filter.min(1);
+    // The light of the deck: the theme's glows on the ground the cards stand on.
+    with_brush(&ui.painter_at(body), |b| {
+        crate::kit::light::ambient(b, body, &s.t);
+    });
     display::card(host, st, ui, s, r1, tel, cs);
     let r2 = g.full(row2);
+    lift(ui, s, r2, false);
     movement::card(host, st, ui, s, r2, tel, cs);
     let w = [FILTER_W, OUTPUT_W];
     let sum: f32 = w.iter().sum();
     let r3: Vec<Rect> = g.row(row3, &w.map(|x| x / sum)).collect();
+    // The filter being edited is the card in hand: lifted higher, its rim lit.
+    lift(ui, s, r3[0], true);
     filter_card(host, st, ui, s, r3[0], cs);
+    lift(ui, s, r3[1], false);
     output_card(host, ui, s, r3[1]);
+    rim(ui, s, r3[0]);
+}
+
+/// A card's shadow on the deck, painted before the card: a soft drop below it — deeper
+/// for the card in hand (`high`).
+fn lift(ui: &egui::Ui, s: &Style, rect: Rect, high: bool) {
+    let k = s.k;
+    let (dy, feather, alpha) = if high {
+        (4.0, 10.0, 0.55)
+    } else {
+        (2.0, 6.0, 0.35)
+    };
+    let shade = if s.t.drop.a() > 0 {
+        s.t.drop
+    } else {
+        s.t.dark_shade
+    };
+    with_brush(&ui.painter_at(rect.expand(12.0 * k)), |b| {
+        b.rrect_soft(
+            rect.translate(vec2(0.0, dy * k)),
+            s.r(6.0),
+            crate::kit::Fill::Solid(crate::kit::color::with_alpha(shade, alpha)),
+            feather * k,
+        );
+    });
+}
+
+/// The card in hand's rim: a hairline of its accent round it, after it is drawn.
+fn rim(ui: &egui::Ui, s: &Style, rect: Rect) {
+    with_brush(&ui.painter_at(rect.expand(2.0 * s.k)), |b| {
+        b.rrect_stroke(
+            rect,
+            s.r(6.0),
+            1.0 * s.k,
+            crate::kit::color::with_alpha(s.hue, 0.55),
+        );
+    });
 }
 
 /// The filter card's and the output card's widths at 100 % (their shares of the row).
@@ -276,7 +322,7 @@ fn filter_card(
                 });
             });
             ui.add_enabled_ui(!b_off, |ui| {
-                controls::param(ui, s, host, keys[3], Size::M);
+                controls::param(ui, s, host, keys[3], Size::L);
                 controls::param(ui, s, host, keys[4], Size::M);
                 controls::param(ui, s, host, keys[5], Size::M);
                 let vowel = effective(p.model, p.mode, p.slope24).0 == Mode::Vowel;
@@ -439,7 +485,7 @@ fn output_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) 
                 controls::segmented_param(ui, s, host, "os", &os, w);
             });
             controls::param(ui, s, host, "spread", Size::M);
-            controls::param(ui, s, host, "mix", Size::M);
+            controls::param(ui, s, host, "mix", Size::L);
             controls::param(ui, s, host, "out", Size::M);
         },
     );

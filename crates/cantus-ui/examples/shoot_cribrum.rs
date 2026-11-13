@@ -79,6 +79,10 @@ fn main() {
         scales
     };
     std::fs::create_dir_all(&dir).expect("output dir");
+    if args.iter().any(|a| a == "--variants") {
+        variants(&dir);
+        return;
+    }
     use cantus_ui::i18n::Locale;
     for state in ["rest", "playing", "vowel"] {
         for paper in [false, true] {
@@ -128,5 +132,136 @@ fn main() {
             views::fx::cribrum::preview(ui, &spec);
         });
         println!("{}", path.display());
+    }
+}
+
+// ---- the colour variants the owner chooses among (fx side round, Phase B) ---------------
+
+use cantus_ui::kit::color::Hsl;
+use cantus_ui::kit::skin::{
+    Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin, SwitchShape,
+    Tint, Weight,
+};
+
+const fn pair(h: f32, s: f32, dl: f32, h2: f32, s2: f32, ll: f32) -> Pair {
+    Pair {
+        dark: Hsl { h, s, l: dl },
+        light: Hsl {
+            h: h2,
+            s: s2,
+            l: ll,
+        },
+    }
+}
+
+/// Cribrum's sheet with another tint, accents, material and display (each variant's key its
+/// own, so no cache keyed by a sheet shows one variant in another's picture).
+const fn variant(
+    key: &'static str,
+    surface: Tint,
+    accent: Pair,
+    accent2: Pair,
+    material: Material,
+    display: Display,
+) -> Skin {
+    Skin {
+        key,
+        surface,
+        accent: Some(accent),
+        accent2: Some(accent2),
+        material,
+        display,
+        knob: KnobShape::Cap,
+        switch: SwitchShape::Lamp,
+        lettering: Lettering {
+            case: Case::Upper,
+            tracking: 0.10,
+            weight: Weight::SemiBold,
+            condensed: true,
+            mono_values: true,
+        },
+        plate: Plate::Legend,
+        ornaments: Ornaments {
+            screws: true,
+            vents: false,
+            rules: true,
+            rack_ears: false,
+        },
+    }
+}
+
+/// A — *Nocturne*: violet carbon weave, the response ice-cyan on smoked glass, the movement
+/// amber. (No other unit is violet carbon; the flanger's violet is lacquer.)
+const VARIANT_A: Skin = variant(
+    "fx.cribrum.variant_a",
+    Tint {
+        hue: 272.0,
+        sat: 0.26,
+        amount: 0.6,
+    },
+    pair(190.0, 0.80, 0.66, 194.0, 0.80, 0.30),
+    pair(40.0, 0.90, 0.64, 34.0, 0.80, 0.36),
+    Material::Carbon,
+    Display::Glass,
+);
+
+/// B — *Brass instrument*: gold anodised aluminium, the response teal on a fluorescent
+/// display, the movement brick. (No other unit is gold anodised.)
+const VARIANT_B: Skin = variant(
+    "fx.cribrum.variant_b",
+    Tint {
+        hue: 48.0,
+        sat: 0.34,
+        amount: 0.6,
+    },
+    pair(172.0, 0.72, 0.56, 176.0, 0.80, 0.26),
+    pair(8.0, 0.78, 0.66, 6.0, 0.70, 0.42),
+    Material::Anodised,
+    Display::Vfd,
+);
+
+/// C — *Petrol lacquer*: deep teal-blue lacquer, the response hot orange on a phosphor
+/// screen, the movement lime. (No other unit is petrol lacquer; Spatium's lacquer is
+/// indigo.)
+const VARIANT_C: Skin = variant(
+    "fx.cribrum.variant_c",
+    Tint {
+        hue: 192.0,
+        sat: 0.34,
+        amount: 0.6,
+    },
+    pair(24.0, 0.95, 0.62, 20.0, 0.85, 0.40),
+    pair(84.0, 0.70, 0.62, 88.0, 0.70, 0.28),
+    Material::Lacquer,
+    Display::Phosphor,
+);
+
+/// The variants' pictures: the demo playing, Slate English and Paper Spanish at 100 %.
+fn variants(dir: &std::path::Path) {
+    use cantus_ui::i18n::Locale;
+    let dir = dir.join("colour");
+    std::fs::create_dir_all(&dir).expect("output dir");
+    for (name, sheet) in [("a", &VARIANT_A), ("b", &VARIANT_B), ("c", &VARIANT_C)] {
+        let fails = cantus_ui::kit::skin::contrast_failures(sheet);
+        println!("variant {name}: {} contrast failures {:?}", fails.len(), fails);
+        for (paper, lang) in [(false, Locale::En), (true, Locale::Es)] {
+            cantus_ui::i18n::set_locale(lang);
+            let ctx = context(paper);
+            cantus_ui::kit::skin::set_override(Some(sheet));
+            let mut app = app_with("playing");
+            views::fx::frame::shell_of(KIND).set_scale(&ctx, 1.0);
+            let size = views::fx::frame::designed_size(KIND);
+            let path = dir.join(format!(
+                "variant-{name}-{}-{}-k100.png",
+                if paper { "paper" } else { "slate" },
+                lang.code()
+            ));
+            shoot(&ctx, size, 1.0, 6, Some(&path), |root| {
+                let ctx = root.ctx().clone();
+                views::fx::window(&mut app, &ctx);
+            });
+            cantus_ui::kit::skin::set_override(None);
+            println!("{}", path.display());
+        }
     }
 }

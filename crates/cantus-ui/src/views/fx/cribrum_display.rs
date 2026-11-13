@@ -355,14 +355,25 @@ fn paint(
             let at_set = handle(map, &base[f], sr);
             let at_now = handle(map, &vs[f], sr);
             let (lo, hi) = reach(cs, f);
-            if hi - lo > 0.01 {
+            let chosen = st.filter == f;
+            // The reach of the movement, for the filter in hand: a rail through its handle
+            // from the lowest cutoff the sources can take it to the highest, ticked at
+            // both ends, the stretch it has moved now drawn solid.
+            if chosen && hi - lo > 0.01 {
                 let c = base[f].cut;
                 let (x0, x1) = (map.x(c * 2f32.powf(lo)), map.x(c * 2f32.powf(hi)));
                 let y = at_set.y;
-                let track = Rect::from_min_max(pos2(x0, y - 2.0 * k), pos2(x1, y + 2.0 * k));
-                b.rrect(track, 2.0 * k, Fill::Solid(with_alpha(second, 0.40)));
+                let rail = with_alpha(color, 0.55);
+                b.hline(x0, x1, y, 1.5 * k, rail);
+                for x in [x0, x1] {
+                    b.vline(x, y - 4.0 * k, y + 4.0 * k, 1.5 * k, rail);
+                }
+                if live {
+                    let xn = map.x(vs[f].cut);
+                    b.hline(at_set.x.min(xn), at_set.x.max(xn), y, 3.0 * k, color);
+                    b.dot(pos2(xn, y), 3.0 * k, color);
+                }
             }
-            let chosen = st.filter == f;
             b.circle_stroke(
                 at_set,
                 7.5 * k,
