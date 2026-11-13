@@ -120,3 +120,35 @@ pub const JEWEL: Hsl = hsl(34.0, 1.0, 0.52);
 pub const BRASS: Hsl = hsl(42.0, 0.55, 0.42);
 pub const BRASS_LIGHT: Hsl = hsl(44.0, 0.60, 0.62);
 pub const BRASS_DARK: Hsl = hsl(38.0, 0.55, 0.20);
+pub const BAKELITE_BROWN: Hsl = hsl(22.0, 0.45, 0.16);
+pub const BAKELITE_BROWN_TOP: Hsl = hsl(24.0, 0.40, 0.28);
+pub const GETTER_DARK: Hsl = hsl(215.0, 0.10, 0.32);
+
+/// An enclosure's case. Each pedal its natural size; any pedal can wear any (the kit lays
+/// out what it is handed).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Shape {
+    /// A narrow box: two knobs over a third.
+    Mini,
+    /// The common box.
+    Standard,
+    /// A wide box with room for bigger knobs.
+    Wide,
+    /// Two standard boxes' width: up to six knobs.
+    Double,
+    /// A round case.
+    Round,
+}
+
+impl Shape {
+    /// Width × height at 100 %, in points.
+    pub const fn size(self) -> (f32, f32) {
+        match self {
+            Shape::Mini => (124.0, 270.0),
+            Shape::Standard => (176.0, 296.0),
+            Shape::Wide => (236.0, 300.0),
+            Shape::Double => (340.0, 296.0),
+            Shape::Round => (236.0, 236.0),
+        }
+    }
+}

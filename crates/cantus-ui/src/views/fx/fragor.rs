@@ -23,7 +23,7 @@ use crate::kit::text::Src;
 use crate::kit::{with_brush, Function, Style};
 use cantus_core::fx::fragor::{KNOBS, MODELS, SLOTS, SWITCHES};
 use cantus_core::{EffectId, EffectKind, StripId};
-use egui::{pos2, vec2, Pos2, Rect, Sense};
+use egui::{pos2, vec2, Pos2, Rect, Sense, Vec2};
 use std::fmt::Write as _;
 
 #[path = "fragor_view.rs"]
@@ -42,6 +42,23 @@ pub const NAMES: [&str; 5] = [
     "fragor.model.3",
     "fragor.model.4",
     "fragor.model.5",
+];
+/// Each pedal's case, its natural size: the overdrive and the op-amp distortion in the
+/// common box, the silicon distortion a mini, the fuzz round, the muff wide.
+pub const SHAPES: [pd::Shape; 5] = [
+    pd::Shape::Standard,
+    pd::Shape::Standard,
+    pd::Shape::Mini,
+    pd::Shape::Round,
+    pd::Shape::Wide,
+];
+/// Each pedal's paint: metal flake, crinkle, metal flake, hammertone, brushed.
+pub const TEXTURES: [pd::Texture; 5] = [
+    pd::Texture::Sparkle,
+    pd::Texture::Crinkle,
+    pd::Texture::Sparkle,
+    pd::Texture::Hammer,
+    pd::Texture::Brushed,
 ];
 /// Each pedal's lettering.
 pub const LETTERS: [pd::Letter; 5] = [
@@ -82,6 +99,15 @@ pub struct State {
     glow: [f32; 5],
     /// The tubes' glow, 0 … 1 (0.5 at rest).
     tubes: f32,
+    /// Each pedal's view size (an index of [`VIEW_SIZES`]: compact, standard, large).
+    pub view_sizes: [u8; 5],
+    /// The clock the cables' streaks run by, when the screenshot tool sets it (else the
+    /// window's own time).
+    pub anim_time: Option<f64>,
+    /// Where each slot's pedal was drawn last frame (the screenshot tool crops by them).
+    pub pedal_rects: [Option<Rect>; 3],
+    /// How far the board is scrolled sideways when its pedals do not fit (0 … 1).
+    scroll: f32,
     /// A pedal being dragged to another slot: its slot and where it was grabbed.
     drag: Option<(usize, egui::Vec2)>,
     /// The input and output meters, dBFS, falling smoothly.
@@ -214,14 +240,7 @@ fn body_ui(
     }
     let strip: Vec<Rect> = g.row(STRIP_H * k, &[1.0]).collect();
     with_brush(&ui.painter_at(strip[0]), |b| {
-        super::valve_draw::strip(
-            b,
-            s,
-            strip[0],
-            8,
-            st.tubes,
-            Src::Key("picker.dev.fragor.name"),
-        );
+        super::valve_draw::strip(b, s, strip[0], st.tubes, Src::Key("picker.dev.fragor.name"));
     });
     let rest = g.rest();
     let cols: Vec<Rect> = g
@@ -236,32 +255,63 @@ struct BoardGeo {
     pedals: [Rect; 3],
     jack_in: Pos2,
     jack_out: Pos2,
+    /// The board's content is wider than its window: its width, and how far it is scrolled.
+    overflow: Option<(f32, f32)>,
 }
 
-fn board_geo(r: Rect, k: f32) -> BoardGeo {
+/// The view-size choices of a pedal (compact, standard, large): a preference of the view,
+/// never heard.
+pub const VIEW_SIZES: [f32; 3] = [0.85, 1.0, 1.15];
+
+/// The board's layout in `r`: each slot's pedal at its natural size (its shape, times its
+/// view size), the row fitted to the window — scaled down as far as a legible floor, then
+/// scrolled sideways from `scroll` (0 … 1) — and bottom-aligned on the board.
+fn board_geo(
+    r: Rect,
+    k: f32,
+    shapes: [Option<pd::Shape>; 3],
+    views: [f32; 3],
+    scroll: f32,
+) -> BoardGeo {
     let margin = 44.0 * k;
+    let gap = 26.0;
     let inner = Rect::from_min_max(
         pos2(r.left() + margin, r.top() + 12.0 * k),
-        pos2(r.right() - margin, r.bottom() - 10.0 * k),
+        pos2(r.right() - margin, r.bottom() - 14.0 * k),
     );
-    let w = inner.width() / 3.0;
-    // The pedals' scale: as large as the slot allows, their proportions kept.
+    // Natural sizes at 100 % (an empty slot: a narrow place to add one).
+    let sizes: [Vec2; 3] = std::array::from_fn(|i| match shapes[i] {
+        Some(sh) => pd::size_of(sh) * views[i],
+        None => Vec2::new(124.0, pd::SIZE.y),
+    });
+    let total_w = sizes.iter().map(|s| s.x).sum::<f32>() + 2.0 * gap;
+    let max_h = sizes.iter().map(|s| s.y).fold(0.0, f32::max);
     let avail_h = inner.height() - 64.0 * k;
-    let scale = (avail_h / pd::SIZE.y)
-        .min((w - 18.0 * k) / pd::SIZE.x)
-        .max(0.3 * k);
-    let size = pd::SIZE * scale;
+    // As large as the window allows; never under 55 % of the window's own scale.
+    let fit = (avail_h / max_h).min(inner.width() / total_w);
+    let floor = 0.55 * k;
+    let scale = fit.max(floor);
+    let content_w = total_w * scale;
+    let overflow = (content_w > inner.width() + 0.5).then_some(content_w);
+    let shift = overflow.map_or(0.0, |w| (w - inner.width()) * scroll.clamp(0.0, 1.0));
+    let start = if overflow.is_some() {
+        inner.left() - shift
+    } else {
+        inner.center().x - content_w * 0.5
+    };
     let mut pedals = [Rect::NOTHING; 3];
-    for (i, p) in pedals.iter_mut().enumerate() {
-        let x = inner.left() + w * (i as f32 + 0.5);
-        let c = pos2(x, inner.bottom() - size.y * 0.5 - 6.0 * k);
-        *p = Rect::from_center_size(c, size);
+    let mut x = start;
+    for i in 0..3 {
+        let sz = sizes[i] * scale;
+        pedals[i] = Rect::from_min_size(pos2(x, inner.bottom() - sz.y - 4.0 * k), sz);
+        x += sz.x + gap * scale;
     }
-    let jy = pedals[0].top() - 2.0 * k;
+    let jy = inner.bottom() - max_h * scale - 6.0 * k;
     BoardGeo {
         pedals,
         jack_in: pos2(r.left() + 20.0 * k, jy),
         jack_out: pos2(r.right() - 20.0 * k, jy),
+        overflow: overflow.map(|w| (w, shift)),
     }
 }
 
@@ -277,7 +327,13 @@ fn board_ui(
     let k = s.k;
     let spec = host.spec().clone();
     let dark = s.t.dark;
-    let geo = board_geo(r, k);
+    let shapes: [Option<pd::Shape>; 3] =
+        std::array::from_fn(|i| model_of(spec.get(SLOTS[i])).map(|m| SHAPES[m]));
+    let views: [f32; 3] = std::array::from_fn(|i| {
+        model_of(spec.get(SLOTS[i])).map_or(1.0, |m| VIEW_SIZES[st.view_sizes[m] as usize % 3])
+    });
+    let geo = board_geo(r, k, shapes, views, st.scroll);
+    st.pedal_rects = geo.pedals.map(Some);
     let chain: [Option<usize>; 3] = std::array::from_fn(|i| model_of(spec.get(SLOTS[i])));
     // The LEDs follow each pedal's output, smoothed (a lamp, not a meter).
     for m in 0..5 {
@@ -291,6 +347,9 @@ fn board_ui(
         st.glow[m] += (target - st.glow[m]) * 0.35;
     }
     let hot = st.hot;
+    let gate_on = spec.get("gate") > cantus_core::fx::fragor::GATE_OFF_DB;
+    let time = st.anim_time.unwrap_or_else(|| ui.input(|i| i.time));
+    let mut flowing = false;
     let mut hits: [Option<pd::Hits>; 3] = [None; 3];
     with_brush(&ui.painter_at(r), |b| {
         pd::board(b, s, r, dark);
@@ -322,6 +381,8 @@ fn board_ui(
                         sub: Src::Key(SUBS[*m]),
                         motif: MOTIFS[*m],
                         letter: LETTERS[*m],
+                        texture: TEXTURES[*m],
+                        shape: SHAPES[*m],
                         knobs: &knobs,
                         on,
                         glow: if on { 0.25 + 0.75 * st.glow[*m] } else { 0.0 },
@@ -355,6 +416,8 @@ fn board_ui(
                 sub: Src::Key(SUBS[m]),
                 motif: MOTIFS[m],
                 letter: LETTERS[m],
+                texture: TEXTURES[m],
+                shape: SHAPES[m],
                 knobs: &knobs,
                 on: spec.get(SWITCHES[m]) >= 0.5,
                 glow: 0.3,
@@ -364,15 +427,81 @@ fn board_ui(
             let r = Rect::from_min_size(p - grab, geo.pedals[from].size());
             pd::enclosure(b, s, r, &e);
         }
-        // The cables: the track's jack → each pedal in turn → the output.
+        // The cables: the track's jack → each pedal in turn → the output, the signal
+        // flowing in them as loud as it is at that point (after the gate; after each pedal
+        // its output, or what passes it when its footswitch is off).
+        let lv = |db: f32| ((db + 60.0) / 60.0).clamp(0.0, 1.0);
+        let mut level = if tel[t::GATE] > 0.0 || !gate_on {
+            lv(tel[t::IN_PEAK])
+        } else {
+            0.0
+        };
         let mut from = geo.jack_in;
         let lift = 34.0 * k;
-        for h in hits.iter().flatten() {
-            pd::cable(b, s, from, h.jack_in, lift);
+        for (i, h) in hits.iter().enumerate() {
+            let Some(h) = h else { continue };
+            pd::cable_with(
+                b,
+                s,
+                from,
+                h.jack_in,
+                lift,
+                Some(pd::Energy { level, time }),
+            );
+            if let Some(m) = chain[i] {
+                if spec.get(SWITCHES[m]) >= 0.5 {
+                    level = lv(tel[t::PEDAL_PEAK + m]);
+                }
+            }
             from = h.jack_out;
         }
-        pd::cable(b, s, from, geo.jack_out, lift);
+        let out_level = lv(tel[t::OUT_PEAK]).min(level.max(lv(tel[t::OUT_PEAK])));
+        pd::cable_with(
+            b,
+            s,
+            from,
+            geo.jack_out,
+            lift,
+            Some(pd::Energy {
+                level: out_level,
+                time,
+            }),
+        );
+        flowing = level > 0.01 || out_level > 0.01;
     });
+    // While the signal flows the streaks move: repaint; at silence nothing does.
+    if flowing && st.anim_time.is_none() {
+        ui.ctx().request_repaint();
+    }
+    // A board wider than its window scrolls sideways: a kit scrollbar at its foot, and the
+    // wheel (Shift+wheel, or a sideways wheel) over it.
+    if let Some((content, _)) = geo.overflow {
+        let bar = Rect::from_min_max(
+            pos2(r.left() + 12.0 * k, r.bottom() - 9.0 * k),
+            pos2(r.right() - 12.0 * k, r.bottom() - 3.0 * k),
+        );
+        let len = (r.width() - 88.0 * k) / content;
+        let mut start = st.scroll * (1.0 - len).max(0.0);
+        crate::kit::widgets::scrollbar(
+            ui,
+            bar,
+            ui.id().with("fragor-board-scroll"),
+            &mut start,
+            len,
+        );
+        if ui.rect_contains_pointer(r) {
+            let d = ui.input(|i| i.smooth_scroll_delta);
+            let dx = if d.x != 0.0 {
+                d.x
+            } else if ui.input(|i| i.modifiers.shift) {
+                d.y
+            } else {
+                0.0
+            };
+            start = (start - dx / content).clamp(0.0, (1.0 - len).max(0.0));
+        }
+        st.scroll = if len < 1.0 { start / (1.0 - len) } else { 0.0 };
+    }
     // Interaction. Registered before the knobs and the footswitch so they win where they
     // overlap: each pedal's body drags it to another slot (the two swap), right-click
     // offers to replace or remove it; an empty slot clicked offers the pedals not on the
@@ -403,7 +532,9 @@ fn board_ui(
                         }
                     }
                 }
-                pedal_menu(host, &resp, i, m, &chain);
+                if let Some(v) = pedal_menu(host, &resp, i, m, &chain, st.view_sizes[m]) {
+                    st.view_sizes[m] = v;
+                }
             }
             None => {
                 add_menu(host, &resp, i, &chain);
@@ -514,9 +645,11 @@ fn pedal_menu(
     slot: usize,
     model: usize,
     chain: &[Option<usize>; 3],
-) {
-    use crate::kit::menu::Item;
+    view: u8,
+) -> Option<u8> {
+    use crate::kit::menu::{Check, Item};
     let mut chosen = None;
+    let mut sized = None;
     egui::Popup::context_menu(resp)
         .frame(crate::kit::automate::frame())
         .show(|ui| {
@@ -527,14 +660,32 @@ fn pedal_menu(
                 .iter()
                 .map(|m| Item::action(Src::Key(NAMES[*m])))
                 .collect();
-            items.push(Item::Separator);
             items.push(Item::action(Src::Key("fragor.remove")));
-            if let Some(i) = crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
-                chosen = Some(if i < others.len() {
-                    others[i] as f32 + 1.0
-                } else {
-                    0.0
+            items.push(Item::Separator);
+            for (v, key) in ["fragor.size.0", "fragor.size.1", "fragor.size.2"]
+                .iter()
+                .enumerate()
+            {
+                items.push(Item::Action {
+                    label: Src::Key(key),
+                    check: if v as u8 == view {
+                        Check::Radio(true)
+                    } else {
+                        Check::Radio(false)
+                    },
+                    shortcut: None,
+                    submenu: false,
+                    enabled: true,
                 });
+            }
+            if let Some(i) = crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
+                if i < others.len() {
+                    chosen = Some(others[i] as f32 + 1.0);
+                } else if i == others.len() {
+                    chosen = Some(0.0);
+                } else if i > others.len() + 1 {
+                    sized = Some((i - others.len() - 2) as u8);
+                }
                 ui.close();
             }
         });
@@ -546,6 +697,7 @@ fn pedal_menu(
         };
         host.set_many(&[(SLOTS[slot], v)], label);
     }
+    sized
 }
 
 /// An empty slot's menu (a click): the pedals not on the board.
@@ -702,5 +854,5 @@ pub fn model_of(v: f32) -> Option<usize> {
 /// Where the board's pedals stand in a board of `r` at scale `k` (for the tests and the
 /// screenshot tool).
 pub fn pedal_rects(r: Rect, k: f32) -> [Rect; 3] {
-    board_geo(r, k).pedals
+    board_geo(r, k, [Some(pd::Shape::Standard); 3], [1.0; 3], 0.0).pedals
 }

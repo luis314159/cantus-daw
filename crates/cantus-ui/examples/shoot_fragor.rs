@@ -21,10 +21,19 @@ fn app_with(state: &str, playing: bool) -> CantusApp {
     let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
     app.demo_editor("fragor");
     let (strip, effect, _) = app.fx.open.expect("Fragor is open");
+    if state == "board" {
+        // A mini, the round fuzz and a wide box on one board.
+        views::fx::host::DawHost::new(&mut app, strip, effect, "fragor").set_many(
+            &[("s1", 3.0), ("s2", 4.0), ("s3", 5.0), ("si.dist", 0.6)],
+            "cmd.fx_preset",
+        );
+    }
     if state == "two" {
+        // Two standard boxes, the second at the large view size, and a free slot.
+        app.fx.fragor.view_sizes[1] = 2;
         views::fx::host::DawHost::new(&mut app, strip, effect, "fragor").set_many(
             &[
-                ("s1", 3.0),
+                ("s1", 1.0),
                 ("s2", 2.0),
                 ("s3", 0.0),
                 ("si.dist", 0.8),
@@ -93,9 +102,37 @@ fn time_frames() {
     );
 }
 
+/// The cables' energy as frames (`FRAGOR_ANIM=1`): the board playing, Slate, 100 %, 30
+/// frames at 30 per second, then an animated WebP of them (Python's PIL, if present).
+fn anim_frames(dir: &std::path::Path) {
+    std::fs::create_dir_all(dir).expect("anim dir");
+    let ctx = context(true);
+    let mut app = app_with("board", true);
+    let kind = cantus_core::EffectKind::Pedal;
+    views::fx::frame::shell_of(kind).set_scale(&ctx, 1.0);
+    let size = views::fx::frame::designed_size(kind);
+    for i in 0..30 {
+        app.fx.fragor.anim_time = Some(i as f64 / 30.0);
+        let path = dir.join(format!("frame-{i:02}.png"));
+        shoot(&ctx, size, 1.0, 2, Some(&path), |root| {
+            let ctx = root.ctx().clone();
+            views::fx::window(&mut app, &ctx);
+        });
+        println!("{}", path.display());
+    }
+}
+
 fn main() {
     if std::env::var_os("FRAGOR_TIME").is_some() {
         time_frames();
+        return;
+    }
+    if std::env::var_os("FRAGOR_ANIM").is_some() {
+        let dir = std::env::args()
+            .nth(1)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("target/shots/fragor-anim"));
+        anim_frames(&dir);
         return;
     }
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -116,8 +153,9 @@ fn main() {
                         // The sheet: everything at 100 %; the other scales for the board
                         // playing in Slate (and Spanish at 150 %).
                         let main = k == 1.0;
-                        let extra =
-                            state == "board" && playing && dark && (lang == Locale::En || k == 1.5);
+                        let extra = playing
+                            && ((state == "board" && (k == 1.5 || (dark && lang == Locale::En)))
+                                || (state == "two" && k == 2.0 && dark && lang == Locale::En));
                         if !main && !extra {
                             continue;
                         }
@@ -145,6 +183,17 @@ fn main() {
                             views::fx::window(&mut app, &ctx);
                         });
                         println!("{}", path.display());
+                        if k == 2.0 {
+                            for (i, r) in app.fx.fragor.pedal_rects.iter().flatten().enumerate() {
+                                println!(
+                                    "PEDAL {state} {i} {:.0} {:.0} {:.0} {:.0}",
+                                    r.left(),
+                                    r.top(),
+                                    r.right(),
+                                    r.bottom()
+                                );
+                            }
+                        }
                     }
                 }
             }

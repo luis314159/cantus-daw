@@ -2179,6 +2179,46 @@ responses (a plug-in's state holds numbers, not files). Agents set its numbers w
 `set_effect` and load a file with `set_impulse_response` (only once you allowed files, and
 only inside the folders you allowed).
 
+### Fragor, the pedals
+
+**Fragor** (Latin for *a crash, a roar*) is a pedalboard of distortion and fuzz: up to three
+pedals in any order, each modelled from its circuit — the knobs move the circuit's own
+resistors, so every position sounds as the pedal does. Insert it from **Add insert ▾ ▸
+Distortion ▸ Fragor**; it starts with the green overdrive on the board, pushing gently.
+
+**The pedals:**
+
+- **Green overdrive** — Drive, Tone, Level. Soft clipping in an op-amp's loop and a mid
+  hump: the classic push for a lead, and tightening for a distortion after it.
+- **Op-amp distortion** — Distortion, Filter, Volume. A slow op-amp into hard-clipping
+  diodes; turn the Filter up to take the fizz off.
+- **Silicon distortion** — Dist, Tone, Level. A transistor boost and hard clipping, the
+  middle scooped by the tone.
+- **Germanium fuzz** — Fuzz, Bias, Volume. Two germanium transistors; **Bias** is the
+  battery: at 100 % it is fresh, turned down it drains, and below about a third a fading
+  note sputters and gates as on a dying battery.
+- **Triangle muff** — Sustain, Tone, Volume. Two clipping stages for endless sustain, the
+  mid scoop of its tone stack.
+
+**The board:** drag a pedal to another slot (the two swap places); click an empty slot to
+add a pedal; right-click a pedal to put another in its place or take it off the board. The
+footswitch under each pedal bypasses it without a click. Right-click a knob for its menu
+(automate, modulate, learn a controller, reset); double-click resets it.
+
+**Over the board,** the display shows one cycle of the note going in (faint) and coming
+out at the level playing, and its harmonics — odd ones solid, even ones hatched, the
+dominant ones marked — with the total distortion. The valve amp's tubes glow a little
+brighter while sound plays.
+
+**Beside it:** **Gate** (before the pedals: off at −90 dB), **Input** (the level into the
+pedals), **Mix**, **Output**, **Quality** (oversampling 2×, 4× or 8×; more removes more
+aliasing and costs more) and **Stereo / Mono** (one circuit for both channels, as a real
+pedal).
+
+*History:* the five circuits are those of the Ibanez TS808 Tube Screamer, the ProCo RAT,
+the Boss DS-1, the Dallas Arbiter Fuzz Face and the Electro-Harmonix Big Muff π, modelled
+from their published schematics; the names and the pictures in Cantus are its own.
+
 ### Delay, the stereo delay
 
 **Delay** is Cantus's stereo echo: a time up to two seconds, feedback, a tone filter in the

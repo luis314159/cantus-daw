@@ -11,6 +11,8 @@
 //! locale).
 
 use super::canvas;
+use super::pedal_art;
+pub use super::pedal_art::{Letter, Motif, Texture};
 use crate::kit::color::{ensure_contrast, mix, with_alpha, Hsl};
 use crate::kit::skin::pedals::{self as pal, Finish};
 use crate::kit::text::{self as ktext, Elide, Policy, Role, Src, Text};
@@ -19,8 +21,15 @@ use egui::{pos2, vec2, Align2, Color32, Pos2, Rect};
 
 /// The most knobs an enclosure carries.
 pub const MAX_KNOBS: usize = 6;
-/// An enclosure's proportions at 100 %: width × height.
+/// A standard enclosure's proportions at 100 %: width × height.
 pub const SIZE: egui::Vec2 = egui::Vec2::new(176.0, 296.0);
+pub use crate::kit::skin::pedals::Shape;
+
+/// A shape's proportions at 100 %: width × height.
+pub fn size_of(shape: Shape) -> egui::Vec2 {
+    let (w, h) = shape.size();
+    egui::Vec2::new(w, h)
+}
 
 /// One knob on an enclosure.
 #[derive(Copy, Clone, Debug)]
@@ -44,6 +53,10 @@ pub struct Enclosure<'a> {
     pub motif: Motif,
     /// How its name is lettered.
     pub letter: Letter,
+    /// The paint's surface.
+    pub texture: Texture,
+    /// The case: mini, standard, wide, double or round.
+    pub shape: Shape,
     pub knobs: &'a [Knob<'a>],
     /// The footswitch: engaged or bypassed.
     pub on: bool,
@@ -79,36 +92,144 @@ fn lighter(h: Hsl, dl: f32) -> Color32 {
     .rgb()
 }
 
-/// The knobs' centres and radius inside an enclosure `r` with `n` knobs: one row of up to
-/// three, two rows above that.
-fn knob_layout(r: Rect, n: usize, u: f32) -> ([Pos2; MAX_KNOBS], f32) {
-    let mut out = [Pos2::ZERO; MAX_KNOBS];
-    let rows = if n > 3 { 2 } else { 1 };
-    let per = n.div_ceil(rows).max(1);
-    let radius = if per >= 3 { 16.5 * u } else { 21.0 * u };
-    let top = r.top() + 50.0 * u;
-    let row_h = 66.0 * u;
-    let mut i = 0;
-    for row in 0..rows {
-        let in_row = (n - row * per).min(per);
-        let span = r.width() - 24.0 * u;
-        for j in 0..in_row {
-            let x = r.left() + 12.0 * u + span * (j as f32 + 0.5) / in_row as f32;
-            out[i] = pos2(x, top + row as f32 * row_h);
-            i += 1;
-        }
-    }
-    (out, radius)
+/// Where a shape puts its parts, in its own units (`u`, the enclosure's scale).
+struct Layout {
+    knobs: [Pos2; MAX_KNOBS],
+    radii: [f32; MAX_KNOBS],
+    art: Rect,
+    name_y: f32,
+    led: Pos2,
+    switch: Pos2,
+    jacks: [Pos2; 2],
 }
 
-/// An enclosure in `r` (laid out in its own proportions: [`SIZE`] scaled to `r`'s width).
-/// Shapes and words.
+fn layout(r: Rect, shape: Shape, n: usize, u: f32) -> Layout {
+    let mut knobs = [Pos2::ZERO; MAX_KNOBS];
+    let mut radii = [0.0; MAX_KNOBS];
+    let (l, t, w) = (r.left(), r.top(), r.width());
+    let cx = r.center().x;
+    let row = |knobs: &mut [Pos2; MAX_KNOBS],
+               radii: &mut [f32; MAX_KNOBS],
+               from: usize,
+               count: usize,
+               y: f32,
+               span: f32,
+               kr: f32| {
+        for j in 0..count {
+            knobs[from + j] = pos2(cx - span * 0.5 + span * (j as f32 + 0.5) / count as f32, y);
+            radii[from + j] = kr;
+        }
+    };
+    let jacks = [pos2(l + 34.0 * u, t), pos2(r.right() - 34.0 * u, t)];
+    match shape {
+        Shape::Mini => {
+            // Two knobs side by side, a third smaller one under them.
+            let top = n.min(2);
+            row(
+                &mut knobs,
+                &mut radii,
+                0,
+                top,
+                t + 50.0 * u,
+                w - 16.0 * u,
+                15.0 * u,
+            );
+            if n > 2 {
+                knobs[2] = pos2(cx, t + 102.0 * u);
+                radii[2] = 12.0 * u;
+            }
+            let art_top = if n > 2 { 132.0 } else { 90.0 };
+            Layout {
+                knobs,
+                radii,
+                art: Rect::from_min_max(
+                    pos2(l + 10.0 * u, t + art_top * u),
+                    pos2(r.right() - 10.0 * u, r.bottom() - 74.0 * u),
+                ),
+                name_y: r.bottom() - 82.0 * u,
+                led: pos2(cx, t + 17.0 * u),
+                switch: pos2(cx, r.bottom() - 36.0 * u),
+                jacks: [pos2(l + 26.0 * u, t), pos2(r.right() - 26.0 * u, t)],
+            }
+        }
+        Shape::Round => {
+            // Three knobs across the upper disc, the art in its middle, the switch below.
+            let rad = w * 0.5;
+            let cy = t + rad;
+            row(
+                &mut knobs,
+                &mut radii,
+                0,
+                n.min(3),
+                t + 70.0 * u,
+                174.0 * u,
+                17.0 * u,
+            );
+            let jy = |x: f32| cy - (rad * rad - (x - cx) * (x - cx)).max(0.0).sqrt();
+            let (jl, jr) = (cx - rad * 0.42, cx + rad * 0.42);
+            Layout {
+                knobs,
+                radii,
+                art: Rect::from_center_size(pos2(cx, t + 142.0 * u), vec2(150.0 * u, 60.0 * u)),
+                name_y: t + 172.0 * u,
+                led: pos2(cx, t + 26.0 * u),
+                switch: pos2(cx, t + 206.0 * u),
+                jacks: [pos2(jl, jy(jl)), pos2(jr, jy(jr))],
+            }
+        }
+        Shape::Standard | Shape::Wide | Shape::Double => {
+            let per = if n > 3 { n.div_ceil(2) } else { n.max(1) };
+            let kr = match shape {
+                Shape::Standard => 16.5,
+                _ => 19.0,
+            } * u;
+            let span = w - 24.0 * u;
+            row(
+                &mut knobs,
+                &mut radii,
+                0,
+                n.min(per),
+                t + 50.0 * u,
+                span,
+                kr,
+            );
+            if n > per {
+                row(
+                    &mut knobs,
+                    &mut radii,
+                    per,
+                    n - per,
+                    t + 116.0 * u,
+                    span,
+                    kr,
+                );
+            }
+            let rows = if n > per { 2.0 } else { 1.0 };
+            Layout {
+                knobs,
+                radii,
+                art: Rect::from_min_max(
+                    pos2(l + 14.0 * u, t + (94.0 + 66.0 * (rows - 1.0)) * u),
+                    pos2(r.right() - 14.0 * u, r.bottom() - 74.0 * u),
+                ),
+                name_y: r.bottom() - 84.0 * u,
+                led: pos2(cx, t + 17.0 * u),
+                switch: pos2(cx, r.bottom() - 38.0 * u),
+                jacks,
+            }
+        }
+    }
+}
+
+/// An enclosure in `r`, laid out in its own proportions (`r` is [`size_of`] its shape at
+/// some scale). Shapes and words.
 pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
     let k = s.k;
     // The enclosure's own scale: everything on its face is measured in it.
-    let u = r.width() / SIZE.x;
+    let u = r.width() / size_of(e.shape).x;
     let f = e.finish;
-    let rr = 14.0 * u;
+    let round = e.shape == Shape::Round;
+    let rr = if round { r.width() * 0.5 } else { 14.0 * u };
     // The shadow it casts on the board.
     let lift = if e.lifted { 18.0 } else { 7.0 } * u;
     b.rrect_soft(
@@ -123,20 +244,16 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
         rr,
         Fill::V(lighter(f.body, 0.08), lighter(f.body, -0.07)),
     );
-    if f.metallic {
-        // A fine sheen: hairlines a little lighter, every 3 points, barely there.
-        let mut y = r.top() + 4.0 * u;
-        while y < r.bottom() - 4.0 * u {
-            b.hline(
-                r.left() + 5.0 * u,
-                r.right() - 5.0 * u,
-                y,
-                b.px(),
-                with_alpha(lighter(f.body, 0.12), 0.10),
-            );
-            y += 3.0 * u;
-        }
-    }
+    let print = ensure_contrast(c(f.ink), c(f.body), 4.5);
+    pedal_art::texture(
+        b,
+        u,
+        if round { r.shrink(r.width() * 0.15) } else { r },
+        e.texture,
+        lighter(f.body, 0.30),
+        lighter(f.body, -0.25),
+        e.motif as u32 * 7919 + 17,
+    );
     b.rrect_stroke(
         r.shrink(0.5 * b.px()),
         rr,
@@ -149,50 +266,63 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
         b.px(),
         with_alpha(lighter(f.body, -0.22), 0.5),
     );
-    // The face's pattern and border, printed under everything on it.
-    let print = ensure_contrast(c(f.ink), c(f.body), 4.5);
-    face_pattern(b, u, r, e.motif, print, c(f.band));
-    // Four screws in the corners.
-    for (dx, dy) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
-        let cx = if dx > 0.0 { r.left() } else { r.right() } + dx * 11.0 * u;
-        let cy = if dy > 0.0 { r.top() } else { r.bottom() } + dy * 11.0 * u;
-        let p = pos2(cx, cy);
-        b.circle(
-            p,
-            3.4 * u,
-            Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+    if !round {
+        pedal_art::border(b, u, r, e.motif, print, c(f.band));
+        // Four screws in the corners.
+        for (dx, dy) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+            let cx = if dx > 0.0 { r.left() } else { r.right() } + dx * 11.0 * u;
+            let cy = if dy > 0.0 { r.top() } else { r.bottom() } + dy * 11.0 * u;
+            let p = pos2(cx, cy);
+            b.circle(
+                p,
+                3.4 * u,
+                Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+            );
+            b.segment(
+                p + vec2(-2.2, -1.1) * u,
+                p + vec2(2.2, 1.1) * u,
+                0.9 * u,
+                c(pal::CHROME_DARK),
+                false,
+            );
+        }
+    } else {
+        // A round case: a chrome rim and a ring of fine dots inside it.
+        b.circle_stroke(
+            r.center(),
+            r.width() * 0.5 - 1.5 * u,
+            2.0 * u,
+            with_alpha(c(pal::CHROME_LIGHT), 0.7),
         );
-        b.segment(
-            p + vec2(-2.2, -1.1) * u,
-            p + vec2(2.2, 1.1) * u,
-            0.9 * u,
-            c(pal::CHROME_DARK),
-            false,
-        );
+        for i in 0..60 {
+            let a = std::f32::consts::TAU * i as f32 / 60.0;
+            let p = r.center() + vec2(a.cos(), a.sin()) * (r.width() * 0.5 - 9.0 * u);
+            b.circle(p, 0.8 * u, Fill::Solid(with_alpha(c(f.band), 0.6)));
+        }
     }
+    let n = e.knobs.len().min(MAX_KNOBS);
+    let lay = layout(r, e.shape, n, u);
     // The jacks on the top edge.
-    let jack_in = pos2(r.left() + 34.0 * u, r.top());
-    let jack_out = pos2(r.right() - 34.0 * u, r.top());
-    for j in [jack_in, jack_out] {
+    for j in lay.jacks {
         let jr = Rect::from_center_size(j + vec2(0.0, -2.5 * u), vec2(20.0 * u, 8.0 * u));
         b.rrect(jr, 2.0 * u, Fill::V(c(pal::CHROME_LIGHT), c(pal::NICKEL)));
         b.rrect_stroke(jr, 2.0 * u, b.px(), c(pal::CHROME_DARK));
     }
-    // The knobs: a printed scale, a skirted cap and its pointer, the name under it.
-    let n = e.knobs.len().min(MAX_KNOBS);
-    let (centres, kr) = knob_layout(r, n, u);
     let ink = c(f.ink);
     let mut hits = Hits {
         body: r,
         knobs: [Rect::NOTHING; MAX_KNOBS],
         n,
         switch: Rect::NOTHING,
-        jack_in,
-        jack_out,
+        jack_in: lay.jacks[0],
+        jack_out: lay.jacks[1],
     };
-    let per = if n > 3 { n.div_ceil(2) } else { n.max(1) };
+    // The artwork first, under the knobs.
+    let accent = c(f.band);
+    pedal_art::motif(b, u, lay.art, e.motif, print, accent);
+    // The knobs: a printed scale, a skirted cap and its pointer, the name under it.
     for (i, kn) in e.knobs.iter().take(MAX_KNOBS).enumerate() {
-        let p = centres[i];
+        let (p, kr) = (lay.knobs[i], lay.radii[i]);
         knob(b, s, p, kr, u, kn, f);
         hits.knobs[i] =
             Rect::from_center_size(p + vec2(0.0, 7.0 * u), vec2(kr * 2.7, kr * 2.0 + 30.0 * u));
@@ -202,248 +332,32 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
             caps: true,
             align: Align2::CENTER_CENTER,
             policy: Policy::Elide(Elide::End),
-            color: with_alpha(ink, if kn.hot { 1.0 } else { 0.9 }),
+            color: with_alpha(print, if kn.hot { 1.0 } else { 0.92 }),
         };
-        let w = r.width() / per as f32 - 4.0 * u;
-        let lr = Rect::from_center_size(p + vec2(0.0, kr + 15.0 * u), vec2(w, 13.0 * k));
+        let lw = (kr * 2.0 + 30.0 * u).max(46.0 * u);
+        let lr = Rect::from_center_size(p + vec2(0.0, kr + 14.0 * u), vec2(lw, 13.0 * k));
+        b.rrect(
+            Rect::from_center_size(
+                lr.center(),
+                vec2(ktext::measure(b.ctx(), &t, k).x.min(lw) + 6.0 * u, 12.0 * k),
+            ),
+            2.0 * u,
+            Fill::Solid(with_alpha(c(f.body), 0.75)),
+        );
         ktext::paint(b, lr, &t, k);
     }
-    // The artwork: a motif printed on the paint, the name lettered under it.
-    let rows = if n > 3 { 2.0 } else { 1.0 };
-    let art_top = r.top() + (100.0 + 66.0 * (rows - 1.0)) * u;
-    let art = Rect::from_min_max(
-        pos2(r.left() + 16.0 * u, art_top),
-        pos2(r.right() - 16.0 * u, art_top + 50.0 * u),
-    );
-    let accent = c(f.band);
-    motif(b, u, art, e.motif, print, accent);
-    let name_r = Rect::from_center_size(
-        pos2(r.center().x, art.bottom() + 14.0 * u),
-        vec2(r.width() - 20.0 * u, 20.0 * k),
-    );
-    lettering(b, k, u, name_r, e.name, e.letter, print, accent);
-    let sub = Text {
-        src: e.sub,
-        role: Role::Micro,
-        caps: false,
-        align: Align2::CENTER_CENTER,
-        policy: Policy::Elide(Elide::End),
-        color: with_alpha(print, 0.85),
+    let _ = ink;
+    let name_w = if round {
+        168.0 * u
+    } else {
+        r.width() - 16.0 * u
     };
-    let sub_r = Rect::from_center_size(
-        pos2(r.center().x, art.bottom() + 31.0 * u),
-        vec2(r.width() - 22.0 * u, 13.0 * k),
-    );
-    ktext::paint(b, sub_r, &sub, k);
-    // The LED and the footswitch.
-    let led = pos2(r.center().x, art.bottom() + 52.0 * u);
-    led_lamp(b, u, led, f, e.on, e.glow);
-    let sw = pos2(r.center().x, r.bottom() - 46.0 * u);
-    footswitch(b, s, u, sw, e.switch_hot);
-    hits.switch = Rect::from_center_size(sw, vec2(64.0 * u, 64.0 * u));
+    let name_r = Rect::from_center_size(pos2(r.center().x, lay.name_y), vec2(name_w, 22.0 * k));
+    pedal_art::lettering(b, k, u, name_r, e.name, e.letter, print, accent, c(f.body));
+    led_lamp(b, u, lay.led, f, e.on, e.glow);
+    footswitch(b, s, u, lay.switch, e.switch_hot);
+    hits.switch = Rect::from_center_size(lay.switch, vec2(64.0 * u, 64.0 * u));
     hits
-}
-
-/// The line art printed on an enclosure, original to Cantus: each a picture of what its
-/// circuit does, in fine strokes of the print colour with one accent.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Motif {
-    /// Nothing printed but the name.
-    Plain,
-    /// Three sines bent harder and harder into soft clipping (an overdrive).
-    Waves,
-    /// An op-amp's triangle driving a pair of diodes to ground, crossed by a stripe.
-    Circuit,
-    /// A square wave over a lattice of dots (hard clipping, silicon).
-    Square,
-    /// A round emblem with a transistor's symbol and a burst of rays (a fuzz).
-    Burst,
-    /// Nested triangles and the curve of a scooped middle (two clipping stages, a tone stack).
-    Nested,
-}
-
-/// Paint `m` in `r` (`u` the enclosure's scale).
-pub fn motif(b: &mut Brush, u: f32, r: Rect, m: Motif, print: Color32, accent: Color32) {
-    let fine = 1.0 * u;
-    let c0 = r.center();
-    let mut pts = [Pos2::ZERO; 49];
-    match m {
-        Motif::Plain => {}
-        Motif::Waves => {
-            for (i, g) in [1.0f32, 3.0, 9.0].iter().enumerate() {
-                for (j, p) in pts.iter_mut().enumerate() {
-                    let x = j as f32 / 48.0;
-                    let s = (std::f32::consts::TAU * 1.5 * x).sin();
-                    let y = (g * s).tanh() / g.tanh();
-                    *p = pos2(r.left() + r.width() * x, c0.y - y * r.height() * 0.38);
-                }
-                let (w, col) = match i {
-                    2 => (1.6 * u, accent),
-                    1 => (fine, with_alpha(print, 0.8)),
-                    _ => (fine, with_alpha(print, 0.45)),
-                };
-                b.polyline(&pts, w, col);
-            }
-            b.hline(
-                r.left(),
-                r.right(),
-                c0.y,
-                fine * 0.7,
-                with_alpha(print, 0.3),
-            );
-        }
-        Motif::Circuit => {
-            // The stripe behind, corner to corner.
-            let band = [
-                pos2(r.left() + r.width() * 0.55, r.top()),
-                pos2(r.right(), r.top()),
-                pos2(r.left() + r.width() * 0.45, r.bottom()),
-                pos2(r.left(), r.bottom()),
-            ];
-            b.polygon(
-                &[band[0], band[1], band[2], band[3]],
-                with_alpha(accent, 0.85),
-            );
-            let h = r.height() * 0.62;
-            let tri = [
-                pos2(c0.x - h * 0.55, c0.y - h * 0.5),
-                pos2(c0.x - h * 0.55, c0.y + h * 0.5),
-                pos2(c0.x + h * 0.45, c0.y),
-                pos2(c0.x - h * 0.55, c0.y - h * 0.5),
-            ];
-            b.polyline(&tri, 1.3 * u, print);
-            // Its inputs and its output, and the two diodes to ground.
-            for dy in [-0.25f32, 0.25] {
-                let y = c0.y + h * dy;
-                b.segment(
-                    pos2(r.left() + 4.0 * u, y),
-                    pos2(tri[0].x, y),
-                    fine,
-                    print,
-                    false,
-                );
-            }
-            let ox = tri[2].x + 14.0 * u;
-            b.segment(tri[2], pos2(r.right() - 6.0 * u, c0.y), fine, print, false);
-            for (k, up) in [(0.0f32, true), (10.0, false)] {
-                let x = ox + k * u;
-                let (a, z) = (c0.y + 4.0 * u, c0.y + 18.0 * u);
-                b.segment(pos2(x, c0.y), pos2(x, z + 4.0 * u), fine, print, false);
-                let (tip, base) = if up {
-                    (a, a + 7.0 * u)
-                } else {
-                    (a + 7.0 * u, a)
-                };
-                b.polyline(
-                    &[
-                        pos2(x - 4.0 * u, base),
-                        pos2(x + 4.0 * u, base),
-                        pos2(x, tip),
-                        pos2(x - 4.0 * u, base),
-                    ],
-                    fine,
-                    print,
-                );
-                b.segment(
-                    pos2(x - 4.0 * u, tip),
-                    pos2(x + 4.0 * u, tip),
-                    fine,
-                    print,
-                    false,
-                );
-            }
-            b.segment(
-                pos2(ox - 4.0 * u, c0.y + 22.0 * u),
-                pos2(ox + 14.0 * u, c0.y + 22.0 * u),
-                fine,
-                print,
-                false,
-            );
-        }
-        Motif::Square => {
-            for ix in 0..9 {
-                for iy in 0..3 {
-                    let p = pos2(
-                        r.left() + r.width() * (ix as f32 + 0.5) / 9.0,
-                        r.top() + r.height() * (iy as f32 + 0.5) / 3.0,
-                    );
-                    b.circle(p, 1.1 * u, Fill::Solid(with_alpha(print, 0.4)));
-                }
-            }
-            for (j, p) in pts.iter_mut().enumerate() {
-                let x = j as f32 / 48.0;
-                let s = (std::f32::consts::TAU * 2.0 * x).sin();
-                let y = (6.0 * s).clamp(-1.0, 1.0);
-                *p = pos2(r.left() + r.width() * x, c0.y - y * r.height() * 0.32);
-            }
-            b.polyline(&pts, 1.6 * u, accent);
-        }
-        Motif::Burst => {
-            let rad = r.height() * 0.42;
-            for k in 0..36 {
-                let a = std::f32::consts::TAU * k as f32 / 36.0;
-                let d = vec2(a.cos(), a.sin());
-                let len = if k % 3 == 0 { 1.55 } else { 1.3 };
-                b.segment(
-                    c0 + d * rad * 1.12,
-                    c0 + d * rad * len,
-                    fine,
-                    with_alpha(accent, 0.9),
-                    false,
-                );
-            }
-            b.circle_stroke(c0, rad, 1.3 * u, print);
-            // The transistor: its base, collector and emitter (the arrow).
-            let (bx, top, bot) = (c0.x - rad * 0.25, c0.y - rad * 0.5, c0.y + rad * 0.5);
-            b.segment(pos2(bx, top), pos2(bx, bot), 1.6 * u, print, false);
-            b.segment(
-                pos2(c0.x - rad * 0.85, c0.y),
-                pos2(bx, c0.y),
-                fine,
-                print,
-                false,
-            );
-            let col = pos2(c0.x + rad * 0.35, c0.y - rad * 0.75);
-            let emi = pos2(c0.x + rad * 0.35, c0.y + rad * 0.75);
-            b.segment(pos2(bx, c0.y - rad * 0.2), col, fine, print, false);
-            b.segment(pos2(bx, c0.y + rad * 0.2), emi, fine, print, false);
-            let dir = (emi - pos2(bx, c0.y + rad * 0.2)).normalized();
-            let side = vec2(-dir.y, dir.x);
-            b.polygon(
-                &[
-                    emi,
-                    emi - dir * 6.0 * u + side * 3.0 * u,
-                    emi - dir * 6.0 * u - side * 3.0 * u,
-                ],
-                print,
-            );
-        }
-        Motif::Nested => {
-            for (k, s) in [1.0f32, 0.72, 0.44].iter().enumerate() {
-                let h = r.height() * 0.95 * s;
-                let w = h * 1.15;
-                let tri = [
-                    pos2(c0.x, c0.y - h * 0.55),
-                    pos2(c0.x + w * 0.5, c0.y + h * 0.45),
-                    pos2(c0.x - w * 0.5, c0.y + h * 0.45),
-                    pos2(c0.x, c0.y - h * 0.55),
-                ];
-                let col = if k == 0 {
-                    print
-                } else {
-                    with_alpha(print, 0.6)
-                };
-                b.polyline(&tri, fine, col);
-            }
-            // The middle scooped out: a gentle curve across, its low point at the centre.
-            for (j, p) in pts.iter_mut().enumerate() {
-                let x = j as f32 / 48.0;
-                let y = 0.55 - 0.9 * (std::f32::consts::PI * x).sin();
-                *p = pos2(r.left() + r.width() * x, c0.y - y * r.height() * 0.32);
-            }
-            b.polyline(&pts, 1.6 * u, accent);
-        }
-    }
 }
 
 /// A pedal knob at `p`, radius `kr` (`u` the enclosure's scale): a printed scale of eleven
@@ -578,6 +492,22 @@ pub fn footswitch(b: &mut Brush, s: &Style, u: f32, p: Pos2, hot: bool) {
 /// A patch cable from jack `a` to jack `b_` (both on top edges): up out of one, over, and
 /// down into the other, sagging `lift` above the higher jack; a nickel plug at each end.
 pub fn cable(b: &mut Brush, s: &Style, a: Pos2, b_: Pos2, lift: f32) {
+    cable_with(b, s, a, b_, lift, None);
+}
+
+/// The signal in a cable: its level (0 … 1, at that point of the chain) and the clock the
+/// streaks travel by (seconds).
+#[derive(Copy, Clone, Debug)]
+pub struct Energy {
+    pub level: f32,
+    pub time: f64,
+}
+
+/// [`cable`] with energy flowing in it: a warm core and streaks of amber light travelling
+/// from `a` to `b_` (the signal's direction), as bright as the level there — the mixer's
+/// cable gleam (round 39), in the valves' amber. At silence nothing moves and nothing
+/// glows.
+pub fn cable_with(b: &mut Brush, s: &Style, a: Pos2, b_: Pos2, lift: f32, energy: Option<Energy>) {
     let k = s.k;
     let top = a.y.min(b_.y) - lift;
     let c1 = pos2(a.x, top);
@@ -598,6 +528,18 @@ pub fn cable(b: &mut Brush, s: &Style, a: Pos2, b_: Pos2, lift: f32) {
     b.polyline(&pts, 6.0 * k, c(pal::CABLE));
     let sheen: [Pos2; 33] = pts.map(|q| q + vec2(-1.0, -1.2) * k);
     b.polyline(&sheen, 1.4 * k, with_alpha(c(pal::CABLE_SHEEN), 0.8));
+    if let Some(e) = energy.filter(|e| e.level > 0.01) {
+        use crate::views::mixer::wires;
+        let l = e.level.clamp(0.0, 1.0);
+        let amber = c(pal::JEWEL);
+        let light = crate::kit::color::mix(amber, c(pal::CHROME_LIGHT), 0.45);
+        b.polyline(&pts, 2.2 * k, with_alpha(amber, 0.18 + 0.22 * l));
+        let g = with_alpha(light, wires::gleam_alpha(l) * (0.4 + 0.6 * l));
+        let o = wires::gleam_offset(e.time, l) * k;
+        wires::gleams_of(&pts, o, wires::GLEAM * 1.6 * k, |p, q| {
+            b.segment(p, q, 1.8 * k, g, true);
+        });
+    }
     for (j, end) in [(a, a0), (b_, b0)] {
         let plug = Rect::from_min_max(
             pos2(j.x - 5.0 * k, end.y - 2.0 * k),
@@ -736,230 +678,4 @@ pub fn board_jack(b: &mut Brush, s: &Style, p: Pos2, label: Src<'_>, ink: Color3
         k,
         None,
     );
-}
-
-/// How a pedal's name is lettered: as boutique pedals differ, each its own.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Letter {
-    /// Capitals between two fine rules (art deco).
-    Deco,
-    /// Technical capitals in brackets, as on a drawing.
-    Technical,
-    /// Heavy capitals.
-    Bold,
-    /// Upper and lower case over a swash.
-    Script,
-    /// Wide capitals between two small triangles.
-    Wide,
-}
-
-/// The name lettered in `r` in style `l`.
-pub fn lettering(
-    b: &mut Brush,
-    k: f32,
-    u: f32,
-    r: Rect,
-    name: Src<'_>,
-    l: Letter,
-    print: Color32,
-    accent: Color32,
-) {
-    let (role, caps) = match l {
-        Letter::Deco => (Role::Title, true),
-        Letter::Technical => (Role::Value, true),
-        Letter::Bold => (Role::Hero, true),
-        Letter::Script => (Role::Title, false),
-        Letter::Wide => (Role::Section, true),
-    };
-    let t = Text {
-        src: name,
-        role,
-        caps,
-        align: Align2::CENTER_CENTER,
-        policy: Policy::Elide(Elide::End),
-        color: print,
-    };
-    let inner = r.shrink2(vec2(16.0 * u, 0.0));
-    let w = ktext::paint(b, inner, &t, k).map_or(inner.width() * 0.6, |p| p.rect.width());
-    let (x0, x1) = (r.center().x - w * 0.5, r.center().x + w * 0.5);
-    let fine = 0.8 * u;
-    match l {
-        Letter::Deco => {
-            for dy in [-1.0f32, 1.0] {
-                let y = r.center().y + dy * r.height() * 0.5;
-                b.hline(x0 - 6.0 * u, x1 + 6.0 * u, y, fine, with_alpha(print, 0.8));
-                b.hline(x0, x1, y + dy * 2.0 * u, fine, with_alpha(accent, 0.9));
-            }
-        }
-        Letter::Technical => {
-            for (x, s) in [(x0 - 7.0 * u, 1.0f32), (x1 + 7.0 * u, -1.0)] {
-                let (t, b_) = (r.top() + 2.0 * u, r.bottom() - 2.0 * u);
-                b.polyline(
-                    &[
-                        pos2(x + s * 4.0 * u, t),
-                        pos2(x, t),
-                        pos2(x, b_),
-                        pos2(x + s * 4.0 * u, b_),
-                    ],
-                    fine,
-                    accent,
-                );
-            }
-        }
-        Letter::Bold => {
-            b.hline(x0, x1, r.bottom() + 1.0 * u, 1.6 * u, accent);
-        }
-        Letter::Script => {
-            let mut pts = [Pos2::ZERO; 25];
-            for (j, p) in pts.iter_mut().enumerate() {
-                let x = j as f32 / 24.0;
-                let y = r.bottom() + 1.0 * u + (std::f32::consts::PI * x).sin() * 3.0 * u;
-                *p = pos2(x0 - 4.0 * u + (w + 8.0 * u) * x, y);
-            }
-            b.polyline(&pts, 1.1 * u, accent);
-        }
-        Letter::Wide => {
-            for (x, s) in [(x0 - 9.0 * u, 1.0f32), (x1 + 9.0 * u, -1.0)] {
-                let y = r.center().y;
-                b.polygon(
-                    &[
-                        pos2(x - s * 4.0 * u, y - 4.0 * u),
-                        pos2(x + s * 3.0 * u, y),
-                        pos2(x - s * 4.0 * u, y + 4.0 * u),
-                    ],
-                    accent,
-                );
-            }
-        }
-    }
-}
-
-/// The pattern over a whole face, under its knobs (`r` the enclosure, `u` its scale): a
-/// border and a ground pattern of the motif's family, in the finest strokes.
-pub fn face_pattern(b: &mut Brush, u: f32, r: Rect, m: Motif, print: Color32, accent: Color32) {
-    let fine = 0.7 * u;
-    let inset = r.shrink(9.0 * u);
-    match m {
-        Motif::Plain => {}
-        Motif::Waves => {
-            // Art deco: a fine double frame with fans in its corners.
-            b.rrect_stroke(inset, 8.0 * u, fine, with_alpha(print, 0.35));
-            b.rrect_stroke(
-                inset.shrink(3.0 * u),
-                6.0 * u,
-                fine,
-                with_alpha(accent, 0.45),
-            );
-            for (cx, cy, sx, sy) in [
-                (inset.left(), inset.top(), 1.0f32, 1.0f32),
-                (inset.right(), inset.top(), -1.0, 1.0),
-                (inset.left(), inset.bottom(), 1.0, -1.0),
-                (inset.right(), inset.bottom(), -1.0, -1.0),
-            ] {
-                let o = pos2(cx + sx * 3.0 * u, cy + sy * 3.0 * u);
-                for i in 0..5 {
-                    let a = std::f32::consts::FRAC_PI_2 * i as f32 / 4.0;
-                    let d = vec2(a.cos() * sx, a.sin() * sy);
-                    b.segment(o, o + d * 12.0 * u, fine, with_alpha(accent, 0.5), false);
-                }
-            }
-        }
-        Motif::Circuit => {
-            // A drawing's grid, faint, and a title block's rule at the bottom.
-            let step = 11.0 * u;
-            let mut x = inset.left();
-            while x <= inset.right() {
-                b.vline(
-                    x,
-                    inset.top(),
-                    inset.bottom(),
-                    fine * 0.8,
-                    with_alpha(print, 0.07),
-                );
-                x += step;
-            }
-            let mut y = inset.top();
-            while y <= inset.bottom() {
-                b.hline(
-                    inset.left(),
-                    inset.right(),
-                    y,
-                    fine * 0.8,
-                    with_alpha(print, 0.07),
-                );
-                y += step;
-            }
-            b.rrect_stroke(inset, 3.0 * u, fine, with_alpha(print, 0.3));
-        }
-        Motif::Square => {
-            // A crystal's lattice: fine hexagons over the whole face.
-            let s = 9.0 * u;
-            let h = s * 0.866;
-            let mut row = 0;
-            let mut y = inset.top() + h;
-            while y < inset.bottom() - h {
-                let off = if row % 2 == 1 { s * 0.75 } else { 0.0 };
-                let mut x = inset.left() + s + off;
-                while x < inset.right() - s {
-                    let mut hex = [Pos2::ZERO; 7];
-                    for (i, p) in hex.iter_mut().enumerate() {
-                        let a = std::f32::consts::FRAC_PI_3 * i as f32;
-                        *p = pos2(x + a.cos() * s * 0.5, y + a.sin() * s * 0.5);
-                    }
-                    b.polyline(&hex, fine * 0.8, with_alpha(print, 0.08));
-                    x += s * 1.5;
-                }
-                y += h;
-                row += 1;
-            }
-        }
-        Motif::Burst => {
-            // A scalloped border: small arcs round the face.
-            let n = 14;
-            for side in 0..2 {
-                let y = if side == 0 {
-                    inset.top()
-                } else {
-                    inset.bottom()
-                };
-                for i in 0..n {
-                    let x = inset.left() + inset.width() * (i as f32 + 0.5) / n as f32;
-                    b.circle_stroke(
-                        pos2(x, y),
-                        inset.width() / n as f32 * 0.5,
-                        fine,
-                        with_alpha(accent, 0.45),
-                    );
-                }
-            }
-            b.vline(
-                inset.left(),
-                inset.top(),
-                inset.bottom(),
-                fine,
-                with_alpha(accent, 0.45),
-            );
-            b.vline(
-                inset.right(),
-                inset.top(),
-                inset.bottom(),
-                fine,
-                with_alpha(accent, 0.45),
-            );
-        }
-        Motif::Nested => {
-            // Sawtooth borders top and bottom.
-            let n = 16;
-            for (y, dir) in [(inset.top(), 1.0f32), (inset.bottom(), -1.0)] {
-                let mut pts = [Pos2::ZERO; 33];
-                for (i, p) in pts.iter_mut().enumerate() {
-                    let x = inset.left() + inset.width() * i as f32 / 32.0;
-                    let up = if i % 2 == 0 { 0.0 } else { 5.0 * u };
-                    *p = pos2(x, y + dir * up);
-                }
-                let _ = n;
-                b.polyline(&pts, fine, with_alpha(accent, 0.65));
-            }
-        }
-    }
 }

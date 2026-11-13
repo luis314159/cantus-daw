@@ -104,3 +104,6 @@ preset.fragor.drum_smash = Batería aplastada
 preset.fragor.synth_fuzz = Fuzz de sintetizador
 preset.fragor.vocal_grit = Voz con grano
 preset.fragor.lofi_radio = Radio pequeña
+fragor.size.0 = Compacto
+fragor.size.1 = Tamaño normal
+fragor.size.2 = Grande

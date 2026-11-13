@@ -93,3 +93,48 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         _ => None,
     }
 }
+
+// fx:fragor — the two palettes the owner was shown beside the one he chose (2026-11-13):
+// kept as data, to become Fragor's colourways when the colourway mechanism lands.
+/// B: cream and brass, vintage.
+pub const FRAGOR_B: Skin = Skin {
+    key: "fx.fragor.b",
+    surface: Tint {
+        hue: 42.0,
+        sat: 0.30,
+        amount: 0.55,
+    },
+    accent: Some(Pair {
+        dark: hsl(44.0, 0.60, 0.56),
+        light: hsl(40.0, 0.70, 0.32),
+    }),
+    accent2: Some(Pair {
+        dark: hsl(8.0, 0.50, 0.60),
+        light: hsl(6.0, 0.55, 0.36),
+    }),
+    material: Material::Brushed,
+    display: Display::Vfd,
+    ..FRAGOR
+}; // fx:fragor
+/// C: steel with a single signal red.
+pub const FRAGOR_C: Skin = Skin {
+    key: "fx.fragor.c",
+    surface: Tint {
+        hue: 212.0,
+        sat: 0.06,
+        amount: 0.30,
+    },
+    accent: Some(Pair {
+        dark: hsl(4.0, 0.80, 0.58),
+        light: hsl(2.0, 0.74, 0.44),
+    }),
+    accent2: Some(Pair {
+        dark: hsl(210.0, 0.08, 0.78),
+        light: hsl(214.0, 0.10, 0.38),
+    }),
+    material: Material::Anodised,
+    display: Display::Scope,
+    ..FRAGOR
+}; // fx:fragor
+/// Fragor's colourways besides its own face: B, C. fx:fragor
+pub const FRAGOR_COLOURWAYS: [&Skin; 2] = [&FRAGOR_B, &FRAGOR_C];

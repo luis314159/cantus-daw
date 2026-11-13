@@ -2368,6 +2368,49 @@ Cantus (el estado de un plug-in guarda números, no archivos). Los agentes ajust
 `set_effect` y cargan un archivo con `set_impulse_response` (solo si permitiste los archivos, y
 solo dentro de las carpetas que permitiste).
 
+### Fragor, los pedales
+
+**Fragor** (latín, *estruendo*) es una tabla de pedales de distorsión y fuzz: hasta tres
+pedales en cualquier orden, cada uno modelado a partir de su circuito — las perillas mueven
+las resistencias del propio circuito, así que cada posición suena como el pedal. Insértalo
+desde **Añadir inserto ▾ ▸ Distorsión ▸ Fragor**; empieza con el overdrive verde en la
+tabla, empujando suavemente.
+
+**Los pedales:**
+
+- **Overdrive verde** — Ganancia, Tono, Nivel. Recorte suave en el lazo de un amplificador
+  operacional y medios realzados: el empuje clásico para un solo, y para apretar una
+  distorsión detrás.
+- **Distorsión operacional** — Distorsión, Filtro, Volumen. Un amplificador operacional
+  lento hacia diodos de recorte duro; sube el Filtro para quitar el zumbido agudo.
+- **Distorsión de silicio** — Dist, Tono, Nivel. Un realce de transistor y recorte duro,
+  los medios hundidos por el tono.
+- **Fuzz de germanio** — Fuzz, Bias, Volumen. Dos transistores de germanio; **Bias** es la
+  batería: al 100 % está nueva, al bajarla se agota, y por debajo de un tercio una nota que
+  se apaga chisporrotea y se corta como con una batería moribunda.
+- **Muff triangular** — Sustain, Tono, Volumen. Dos etapas de recorte para un sustain sin
+  fin, los medios hundidos de su control de tono.
+
+**La tabla:** arrastra un pedal a otra posición (los dos se intercambian); haz clic en una
+posición vacía para añadir un pedal; con clic derecho sobre un pedal pones otro en su lugar
+o lo quitas de la tabla. El interruptor de pie de cada pedal lo anula sin chasquido. Clic
+derecho sobre una perilla abre su menú (automatizar, modular, aprender un controlador,
+restablecer); doble clic la restablece.
+
+**Sobre la tabla,** la pantalla muestra un ciclo de la nota que entra (tenue) y que sale al
+nivel que suena, y sus armónicos — los impares macizos, los pares rayados, los dominantes
+marcados — con la distorsión total. Las válvulas del amplificador brillan un poco más
+mientras suena.
+
+**Al lado:** **Puerta** (antes de los pedales: apagada en −90 dB), **Entrada** (el nivel que
+entra a los pedales), **Mezcla**, **Salida**, **Calidad** (sobremuestreo 2×, 4× u 8×; más
+quita más aliasing y cuesta más) y **Estéreo / Mono** (un solo circuito para los dos
+canales, como un pedal de verdad).
+
+*Historia:* los cinco circuitos son los del Ibanez TS808 Tube Screamer, el ProCo RAT, el
+Boss DS-1, el Dallas Arbiter Fuzz Face y el Electro-Harmonix Big Muff π, modelados a partir
+de sus esquemas publicados; los nombres y los dibujos en Cantus son propios.
+
 ### Delay, el delay estéreo
 
 **Delay** es el eco estéreo de Cantus: un tiempo de hasta dos segundos, realimentación, un filtro
