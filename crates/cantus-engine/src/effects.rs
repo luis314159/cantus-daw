@@ -141,6 +141,8 @@ pub enum MemoryNeed {
     EqLinear(cantus_dsp::aequalis::Resolution),
     /// Aula's response, by what it is built from (ADR 0112). // r39:conv
     Aula(crate::fx::aula::AulaNeed),
+    /// Lapsus's history, in frames (ADR 0132, provisional). // fx:lapsus
+    Lapsus(usize),
 }
 
 /// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
@@ -152,6 +154,7 @@ pub enum MemoryNeed {
 pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
+    Lapsus(usize), // fx:lapsus
 }
 
 impl NeedTicket {
@@ -160,6 +163,7 @@ impl NeedTicket {
         match self {
             NeedTicket::EqLinear(r) => MemoryNeed::EqLinear(*r),
             NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
+            NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n), // fx:lapsus
         }
     }
 }
@@ -171,6 +175,8 @@ pub enum EffectMemory {
     EqLinear(Box<cantus_dsp::aequalis::phase::LinearPhase>),
     /// Aula's kernel (and a state when it needs more room). // r39:conv
     Aula(Box<crate::fx::aula::Memory>),
+    /// Lapsus's history. // fx:lapsus
+    Lapsus(Box<cantus_dsp::lapsus::Ring>),
 }
 
 /// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
@@ -188,6 +194,7 @@ impl EffectMemory {
             MemoryNeed::Aula(n) => {
                 EffectMemory::Aula(Box::new(crate::fx::aula_store::build(n, sample_rate)))
             } // r39:conv
+            MemoryNeed::Lapsus(n) => EffectMemory::Lapsus(Box::new(cantus_dsp::lapsus::Ring::new(n))), // fx:lapsus
         }
     }
 }
@@ -304,6 +311,7 @@ impl EffectUnit {
                 m.write(&n);
                 NeedTicket::Aula(m.clone())
             }
+            MemoryNeed::Lapsus(n) => NeedTicket::Lapsus(n), // fx:lapsus
         };
         self.asked = need;
         Some(ticket)

@@ -60,7 +60,7 @@ impl Lapsus {
             return c;
         }
         self.cyc = self.cycle_of(self.active, self.origin, so);
-        self.dc = [(i64::MIN, 0.0); 2];
+        self.dc = [(i64::MIN, 0.0); 4];
         self.cyc
     }
 
@@ -81,8 +81,77 @@ impl Lapsus {
             }
         }
         let d = self.delay_in(self.active, c, so);
-        self.dc = [self.dc[1], (so, d)];
+        self.dc = [self.dc[1], self.dc[2], self.dc[3], (so, d)];
         d
+    }
+
+    /// Whether the delay jumps at `so` (sample `t` of cycle `c`): its step there leaves
+    /// the steps on both sides — the line the last two samples drew and the one the next
+    /// draws — by more than [`JUMP`]. A function of the pattern alone (the next sample's
+    /// delay is the curve's, known ahead), so a skip finds the same jumps a run does. The
+    /// read that would have gone on: its delay here and its step.
+    fn jump_at(&mut self, c: &Cycle, so: i64, t: i64) -> Option<(f64, f64)> {
+        if t < 2 || self.xf == 0 {
+            return None;
+        }
+        let d = self.delay_cached(c, so);
+        let d1 = self.delay_cached(c, so - 1);
+        let d2 = self.delay_cached(c, so - 2);
+        let (e0, e1) = (d - d1, d1 - d2);
+        if (e0 - e1).abs() <= JUMP {
+            return None;
+        }
+        if so + 1 < c.b1 {
+            let e2 = self.delay_cached(c, so + 1) - d;
+            if (e2 - e0).abs() <= JUMP {
+                return None;
+            }
+        }
+        Some((d1 + e1, e1))
+    }
+
+    /// What every sample does before it reads, run or skipped: the cycle (its first sample
+    /// starts the glide and the joins again), a jump's join, the level's glide. The cycle,
+    /// the place in it and the delay and the one before.
+    #[inline]
+    fn advance(&mut self, so: i64) -> (Cycle, i64, f64, f64, f64) {
+        let c = self.cycle_at(so);
+        let t = so - c.b0;
+        let u = (so as f64 - c.e0) / c.len;
+        let slot = self.active;
+        if t == 0 {
+            // The cycle begins again: only the pattern counts from here.
+            self.glide = self.bank[slot].vol.at(u, self.shape) as f32;
+            self.ghost.on = false;
+            if !self.overridden() {
+                self.dirty = false;
+            }
+        }
+        if let Some((d, slope)) = self.jump_at(&c, so, t) {
+            self.ghost = Ghost {
+                on: true,
+                d,
+                slope,
+                vol: self.glide,
+                left: self.xf,
+                len: self.xf,
+            };
+        }
+        let d = self.delay_cached(&c, so);
+        let d1 = if t >= 1 { self.delay_cached(&c, so - 1) } else { d };
+        let target = self.bank[slot].vol.at(u, self.shape) as f32;
+        self.glide_to(target);
+        (c, t, u, d, d1)
+    }
+
+    /// The fading read moves on a sample.
+    #[inline]
+    fn ghost_on(&mut self) {
+        if self.ghost.on {
+            self.ghost.d += self.ghost.slope;
+            self.ghost.left -= 1;
+            self.ghost.on = self.ghost.left > 0;
+        }
     }
 
     /// The volume curve's level at the output's song sample now (no glide).
@@ -242,39 +311,7 @@ impl Lapsus {
         let so = self.clock.song(i) - self.ahead as i64;
         self.apply_due(n, so);
         self.hist.write(n, xl, xr);
-        let c = self.cycle_at(so);
-        let t = so - c.b0;
-        let u = (so as f64 - c.e0) / c.len;
-        let slot = self.active;
-        if t == 0 {
-            // The cycle begins again: only the pattern counts from here.
-            self.glide = self.bank[slot].vol.at(u, self.shape) as f32;
-            self.ghost.on = false;
-            if !self.overridden() {
-                self.dirty = false;
-            }
-        }
-        let d = self.delay_cached(&c, so);
-        let d1 = if t >= 1 { self.delay_cached(&c, so - 1) } else { d };
-        // A jump: the delay leaves the line its last two samples drew (the sample after a
-        // jump is measured across it, and is not one).
-        if t >= 2 && self.xf > 0 && self.jumped != so - 1 {
-            let d2 = self.delay_in(slot, &c, so - 2);
-            let pred = 2.0 * d1 - d2;
-            if (d - pred).abs() > JUMP {
-                self.jumped = so;
-                self.ghost = Ghost {
-                    on: true,
-                    d: pred,
-                    slope: d1 - d2,
-                    vol: self.glide,
-                    left: self.xf,
-                    len: self.xf,
-                };
-            }
-        }
-        let target = self.bank[slot].vol.at(u, self.shape) as f32;
-        self.glide_to(target);
+        let (c, t, u, d, d1) = self.advance(so);
         let to_end = c.b1 - so;
         let mut v = self.glide;
         // Towards the next cycle's level where the time does not jump there (where it does,
@@ -295,10 +332,8 @@ impl Lapsus {
             let w = rc((len - f64::from(g.left) + 1.0) / (len + 1.0));
             yl = gl * g.vol * (1.0 - w) + yl * w;
             yr = gr * g.vol * (1.0 - w) + yr * w;
-            self.ghost.d += g.slope;
-            self.ghost.left -= 1;
-            self.ghost.on = self.ghost.left > 0;
         }
+        self.ghost_on();
         if joins && to_end <= i64::from(self.xf) {
             let f = f64::from(self.xf);
             let w = rc((f - to_end as f64 + 1.0) / (f + 1.0));
@@ -336,24 +371,23 @@ impl Lapsus {
     /// `frames` of silence were not processed (at rest): the level's glide and the cycle
     /// run as they would have.
     pub fn skip(&mut self, frames: usize) {
-        let flat = self.bank[self.active].vol.constant();
-        if flat == Some(self.glide) {
-            self.rest_cycles(frames);
-        } else {
-            for i in 0..frames {
-                let so = self.clock.song(i) - self.ahead as i64;
-                let c = self.cycle_at(so);
-                let u = (so as f64 - c.e0) / c.len;
-                let target = self.bank[self.active].vol.at(u, self.shape) as f32;
-                if so == c.b0 {
-                    self.glide = target;
-                    if !self.overridden() {
-                        self.dirty = false;
-                    }
-                } else {
-                    self.glide_to(target);
-                }
+        // Where the level is flat and landed, only the last joins' worth of samples can
+        // leave anything behind (a join lasts `xfade`); elsewhere every sample glides.
+        let flat = self.bank[self.active].vol.constant() == Some(self.glide);
+        let from = if flat {
+            let w = (self.xf as usize + 1).min(frames);
+            self.rest_cycles(frames - w);
+            if frames - w > 0 {
+                self.ghost.on = false;
             }
+            frames - w
+        } else {
+            0
+        };
+        for i in from..frames {
+            let so = self.clock.song(i) - self.ahead as i64;
+            self.advance(so);
+            self.ghost_on();
         }
         self.hist.skip(frames);
         self.clock.skip(frames);

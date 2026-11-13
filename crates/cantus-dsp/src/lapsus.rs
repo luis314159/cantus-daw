@@ -223,13 +223,11 @@ pub struct Lapsus {
     origin: Option<i64>,
     active: usize,
     cyc: Cycle,
-    /// The delay at the last two song samples evaluated: (sample, delay). A cache.
-    dc: [(i64, f64); 2],
+    /// The delay at the last four song samples evaluated: (sample, delay). A cache.
+    dc: [(i64, f64); 4],
     glide: f32,
     kv: f32,
     ghost: Ghost,
-    /// The output song sample of the last jump the detector found.
-    jumped: i64,
     /// Something not of the pattern alone happened since the cycle began (a switch, a jump).
     dirty: bool,
     mix: Glide,
@@ -266,11 +264,10 @@ impl Lapsus {
             origin: None,
             active: 0,
             cyc: Cycle::default(),
-            dc: [(i64::MIN, 0.0); 2],
+            dc: [(i64::MIN, 0.0); 4],
             glide: 1.0,
             kv: 1.0,
             ghost: Ghost::default(),
-            jumped: i64::MIN,
             dirty: false,
             mix: Glide::new(1.0, 10.0, sample_rate, 1e-6),
             out: Glide::new(1.0, 10.0, sample_rate, 1e-6),
@@ -436,8 +433,8 @@ impl Lapsus {
         self.blocks = 0;
     }
 
-    /// At rest: everything a read could see is silence, no crossfade runs, no note chooses
-    /// the pattern, the cycle has begun again since anything that is not the pattern's own
+    /// At rest: everything a read could see is silence (so a join fading reads silence
+    /// too: the pattern's own joins run on through a skip), no note chooses the pattern, the cycle has begun again since anything that is not the pattern's own
     /// (so the volume's glide is where a new unit's is), and the glides have landed.
     pub fn at_rest(&self) -> bool {
         self.rest_blocker().is_none()
@@ -446,8 +443,6 @@ impl Lapsus {
     pub fn rest_blocker(&self) -> Option<&'static str> {
         if !self.hist.silent(self.clock.stream(0)) {
             Some("the history holds sound")
-        } else if self.ghost.on {
-            Some("a join is fading")
         } else if self.note_n > 0 || self.held_n > 0 || self.latched.is_some() || self.origin.is_some() {
             Some("a note chose the pattern")
         } else if self.dirty {
@@ -489,7 +484,7 @@ impl Lapsus {
     /// The cycle's cache and the delay's cache start again.
     fn invalidate(&mut self) {
         self.cyc.valid = false;
-        self.dc = [(i64::MIN, 0.0); 2];
+        self.dc = [(i64::MIN, 0.0); 4];
     }
 
     fn overridden(&self) -> bool {
