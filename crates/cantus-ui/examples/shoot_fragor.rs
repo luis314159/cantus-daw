@@ -8,7 +8,7 @@
 //! triangle muff), and two with a slot free (the silicon distortion and the op-amp
 //! distortion, its footswitch off) — at rest and playing, in Slate (the default look)
 //! and Paper, English and Spanish, at 75 %, 100 %, 150 % and 200 %; and the inspector's
-//! strip. `FRAGOR_LOOK=a|b|c` renders in one of the palettes on offer (`variant-<x>-…`).
+//! strip.
 
 use cantus_engine::EngineHandle;
 use cantus_ui::raster::shoot;
@@ -57,7 +57,47 @@ fn context(dark: bool) -> egui::Context {
     ctx
 }
 
+/// The frame budget (`FRAGOR_TIME=1`): the window's whole UI pass — layout, the display's
+/// curves, the pedals, the tubes, every widget — timed over 300 frames while playing (the
+/// telemetry fed afresh each frame so the meters and glows move), in Slate at 100 %. The
+/// tessellation and the GPU are not in it; the UI pass is what this window adds.
+fn time_frames() {
+    let ctx = context(true);
+    let mut app = app_with("board", true);
+    let kind = cantus_core::EffectKind::Pedal;
+    views::fx::frame::shell_of(kind).set_scale(&ctx, 1.0);
+    let size = views::fx::frame::designed_size(kind);
+    let input = || egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+        ..Default::default()
+    };
+    let mut times = vec![];
+    for i in 0..330 {
+        fragor::demo_feed_at(&mut app, if i % 2 == 0 { 0.35 } else { 0.2 });
+        let t = std::time::Instant::now();
+        let _ = ctx.run_ui(input(), |root| {
+            let c = root.ctx().clone();
+            views::fx::window(&mut app, &c);
+        });
+        if i >= 30 {
+            times.push(t.elapsed().as_secs_f64() * 1e3);
+        }
+    }
+    times.sort_by(f64::total_cmp);
+    let mean = times.iter().sum::<f64>() / times.len() as f64;
+    println!(
+        "Fragor's window, playing: UI pass mean {mean:.2} ms, median {:.2} ms, 95th {:.2} ms, worst {:.2} ms (of 16.7 ms at 60 Hz)",
+        times[times.len() / 2],
+        times[times.len() * 95 / 100],
+        times[times.len() - 1]
+    );
+}
+
 fn main() {
+    if std::env::var_os("FRAGOR_TIME").is_some() {
+        time_frames();
+        return;
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let dir = args
         .first()
@@ -67,17 +107,7 @@ fn main() {
     use cantus_ui::i18n::Locale;
     let kind = cantus_core::EffectKind::Pedal;
     let only = std::env::var("FRAGOR_ONLY").ok();
-    // `FRAGOR_LOOK=a|b|c`: the window in one of the palettes on offer to the owner (the
-    // files named `variant-<x>-…`).
-    let look = std::env::var("FRAGOR_LOOK").ok();
-    let prefix = match look.as_deref() {
-        Some(l @ ("a" | "b" | "c")) => {
-            let i = (l.as_bytes()[0] - b'a') as usize;
-            cantus_ui::kit::skin::set_override(Some(cantus_ui::kit::skin::FRAGOR_LOOKS[i]));
-            format!("variant-{l}-")
-        }
-        _ => String::new(),
-    };
+    let prefix = String::new();
     for state in ["board", "two"] {
         for playing in [false, true] {
             for dark in [true, false] {

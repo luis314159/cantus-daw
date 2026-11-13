@@ -87,6 +87,8 @@ pub mod lapsus;
 pub mod libra;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
 pub mod pedal_draw;
+/// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
+pub mod valve_draw;
 /// Vetus, lo-fi (fx side round). // fx:contract
 pub mod vetus;
 

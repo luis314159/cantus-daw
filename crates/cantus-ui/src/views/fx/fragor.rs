@@ -43,6 +43,14 @@ pub const NAMES: [&str; 5] = [
     "fragor.model.4",
     "fragor.model.5",
 ];
+/// Each pedal's lettering.
+pub const LETTERS: [pd::Letter; 5] = [
+    pd::Letter::Deco,
+    pd::Letter::Technical,
+    pd::Letter::Bold,
+    pd::Letter::Script,
+    pd::Letter::Wide,
+];
 /// Each pedal's artwork.
 pub const MOTIFS: [pd::Motif; 5] = [
     pd::Motif::Waves,
@@ -72,6 +80,8 @@ pub struct State {
     hot: Option<(usize, usize)>,
     /// The LEDs' glow, smoothed (by model).
     glow: [f32; 5],
+    /// The tubes' glow, 0 … 1 (0.5 at rest).
+    tubes: f32,
     /// A pedal being dragged to another slot: its slot and where it was grabbed.
     drag: Option<(usize, egui::Vec2)>,
     /// The input and output meters, dBFS, falling smoothly.
@@ -146,7 +156,9 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
 /// The side column's width at 100 %.
 const SIDE_W: f32 = 236.0;
 /// The display's height at 100 %.
-const SOUND_H: f32 = 196.0;
+const SOUND_H: f32 = 184.0;
+/// The tube strip's height at 100 %.
+const STRIP_H: f32 = 84.0;
 
 fn body_ui(
     host: &mut dyn FxHost,
@@ -176,9 +188,41 @@ fn body_ui(
         |ui, cr| {
             if let Some(d) = cr.display {
                 view::display(host, st, ui, &st_tone, d, tel);
+                with_brush(&ui.painter_at(d), |b| {
+                    super::valve_draw::glass(b, &st_tone, d)
+                });
             }
         },
     );
+    // The valve amp behind the board: its tubes glow steadily, a little brighter with the
+    // signal (slowly — a lamp, never a meter), still at rest.
+    {
+        use cantus_dsp::fragor::telemetry as t;
+        let peak = tel[t::OUT_PEAK];
+        let target = if peak > -60.0 {
+            0.5 + 0.5 * ((peak + 60.0) / 60.0).clamp(0.0, 1.0)
+        } else {
+            0.5
+        };
+        let d = target - st.tubes;
+        if d.abs() > 1e-3 {
+            st.tubes += d * 0.08;
+            ui.ctx().request_repaint();
+        } else {
+            st.tubes = target;
+        }
+    }
+    let strip: Vec<Rect> = g.row(STRIP_H * k, &[1.0]).collect();
+    with_brush(&ui.painter_at(strip[0]), |b| {
+        super::valve_draw::strip(
+            b,
+            s,
+            strip[0],
+            8,
+            st.tubes,
+            Src::Key("picker.dev.fragor.name"),
+        );
+    });
     let rest = g.rest();
     let cols: Vec<Rect> = g
         .row(rest.height(), &[(total - side) / total, side / total])
@@ -277,6 +321,7 @@ fn board_ui(
                         name: Src::Key(NAMES[*m]),
                         sub: Src::Key(SUBS[*m]),
                         motif: MOTIFS[*m],
+                        letter: LETTERS[*m],
                         knobs: &knobs,
                         on,
                         glow: if on { 0.25 + 0.75 * st.glow[*m] } else { 0.0 },
@@ -309,6 +354,7 @@ fn board_ui(
                 name: Src::Key(NAMES[m]),
                 sub: Src::Key(SUBS[m]),
                 motif: MOTIFS[m],
+                letter: LETTERS[m],
                 knobs: &knobs,
                 on: spec.get(SWITCHES[m]) >= 0.5,
                 glow: 0.3,

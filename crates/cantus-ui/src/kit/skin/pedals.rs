@@ -100,3 +100,23 @@ pub const NICKEL: Hsl = hsl(210.0, 0.06, 0.72);
 pub const CHROME_DARK: Hsl = hsl(215.0, 0.08, 0.30);
 pub const CHROME_LIGHT: Hsl = hsl(210.0, 0.10, 0.93);
 pub const SHADOW: Hsl = hsl(0.0, 0.0, 0.0);
+
+// The valve amp's parts (Fragor's tube strip, `views/fx/valve_draw.rs`): a physical object
+// too, the same in every theme.
+pub const GRILLE: Hsl = hsl(30.0, 0.06, 0.13);
+pub const GRILLE_TOP: Hsl = hsl(30.0, 0.06, 0.19);
+pub const GRILLE_HOLE: Hsl = hsl(30.0, 0.10, 0.05);
+/// A filament's light: warm orange-amber.
+pub const FILAMENT: Hsl = hsl(30.0, 1.0, 0.56);
+pub const BAKELITE: Hsl = hsl(20.0, 0.10, 0.07);
+pub const BAKELITE_TOP: Hsl = hsl(20.0, 0.08, 0.16);
+pub const PLATE: Hsl = hsl(220.0, 0.04, 0.30);
+pub const PLATE_SEAM: Hsl = hsl(220.0, 0.04, 0.18);
+pub const MICA: Hsl = hsl(40.0, 0.20, 0.80);
+pub const GETTER: Hsl = hsl(210.0, 0.08, 0.72);
+pub const GLASS: Hsl = hsl(195.0, 0.15, 0.88);
+/// An amber jewel pilot light.
+pub const JEWEL: Hsl = hsl(34.0, 1.0, 0.52);
+pub const BRASS: Hsl = hsl(42.0, 0.55, 0.42);
+pub const BRASS_LIGHT: Hsl = hsl(44.0, 0.60, 0.62);
+pub const BRASS_DARK: Hsl = hsl(38.0, 0.55, 0.20);

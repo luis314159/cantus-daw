@@ -23,24 +23,29 @@ pub const CRIBRUM: Skin = Skin {
     ..tone::AEQUALIS
 };
 
-// fx:fragor — Fragor's face (ADR 0131). The owner turned down the first (magenta and
-// cyan, 2026-11-13); until he picks one of the three below, a neutral placeholder: a
-// steel-grey accent, the sound drawn on a dark scope (a device's dark screen in every
-// theme), skirted knobs, rocker switches, engraved capitals and screws. Its pedals wear
+// fx:fragor — Fragor's face (ADR 0131), the owner's pick (palette A, 2026-11-13): a valve
+// amp at night — warm amber, a tube's glow, on dark matte; the sound drawn on an amber
+// phosphor screen behind glass (dark in every theme, as a device's screen), a cream second
+// voice, skirted knobs, rocker switches, engraved capitals, screws and rules. Its tubes,
+// grille, jewel lights and brass are drawn by `views/fx/valve_draw.rs`; its pedals wear
 // their own finishes (`skin/pedals.rs`).
 pub const FRAGOR: Skin = Skin {
     key: "fx.fragor",
-    surface: Tint::NONE,
+    surface: Tint {
+        hue: 32.0,
+        sat: 0.16,
+        amount: 0.35,
+    },
     accent: Some(Pair {
-        dark: hsl(210.0, 0.05, 0.86),
-        light: hsl(210.0, 0.06, 0.26),
+        dark: hsl(36.0, 0.92, 0.58),
+        light: hsl(30.0, 0.85, 0.38),
     }),
     accent2: Some(Pair {
-        dark: hsl(210.0, 0.05, 0.58),
-        light: hsl(210.0, 0.06, 0.46),
+        dark: hsl(44.0, 0.40, 0.82),
+        light: hsl(28.0, 0.45, 0.28),
     }),
     material: Material::Matte,
-    display: Display::Scope,
+    display: Display::Phosphor,
     knob: KnobShape::Skirted,
     switch: SwitchShape::Rocker,
     lettering: Lettering {
@@ -58,71 +63,6 @@ pub const FRAGOR: Skin = Skin {
         rack_ears: false,
     },
 }; // fx:fragor
-
-// fx:fragor — the three palettes the owner chooses from (`examples/shoot_fragor.rs`
-// renders the window in each; the one he picks becomes `FRAGOR` and these go).
-/// A: warm amber, a tube's glow, on dark matte.
-pub const FRAGOR_A: Skin = Skin {
-    key: "fx.fragor.a",
-    surface: Tint {
-        hue: 32.0,
-        sat: 0.16,
-        amount: 0.35,
-    },
-    accent: Some(Pair {
-        dark: hsl(36.0, 0.92, 0.58),
-        light: hsl(30.0, 0.85, 0.38),
-    }),
-    accent2: Some(Pair {
-        dark: hsl(44.0, 0.40, 0.82),
-        light: hsl(28.0, 0.45, 0.28),
-    }),
-    display: Display::Phosphor,
-    ..FRAGOR
-}; // fx:fragor
-/// B: cream and brass, vintage: brushed metal, a brass glow and an oxblood second voice.
-pub const FRAGOR_B: Skin = Skin {
-    key: "fx.fragor.b",
-    surface: Tint {
-        hue: 42.0,
-        sat: 0.30,
-        amount: 0.55,
-    },
-    accent: Some(Pair {
-        dark: hsl(44.0, 0.60, 0.56),
-        light: hsl(40.0, 0.70, 0.32),
-    }),
-    accent2: Some(Pair {
-        dark: hsl(8.0, 0.50, 0.60),
-        light: hsl(6.0, 0.55, 0.36),
-    }),
-    material: Material::Brushed,
-    display: Display::Vfd,
-    ..FRAGOR
-}; // fx:fragor
-/// C: steel with a single signal red.
-pub const FRAGOR_C: Skin = Skin {
-    key: "fx.fragor.c",
-    surface: Tint {
-        hue: 212.0,
-        sat: 0.06,
-        amount: 0.30,
-    },
-    accent: Some(Pair {
-        dark: hsl(4.0, 0.80, 0.58),
-        light: hsl(2.0, 0.74, 0.44),
-    }),
-    accent2: Some(Pair {
-        dark: hsl(210.0, 0.08, 0.78),
-        light: hsl(214.0, 0.10, 0.38),
-    }),
-    material: Material::Anodised,
-    display: Display::Scope,
-    ..FRAGOR
-}; // fx:fragor
-
-/// The three palettes on offer, A, B, C. fx:fragor
-pub const FRAGOR_LOOKS: [&Skin; 3] = [&FRAGOR_A, &FRAGOR_B, &FRAGOR_C];
 
 /// Lapsus, the time shaper: for now Delay's look (the song's recent past, drawn in time).
 pub const LAPSUS: Skin = Skin {

@@ -42,6 +42,8 @@ pub struct Enclosure<'a> {
     pub sub: Src<'a>,
     /// The artwork printed on the face.
     pub motif: Motif,
+    /// How its name is lettered.
+    pub letter: Letter,
     pub knobs: &'a [Knob<'a>],
     /// The footswitch: engaged or bypassed.
     pub on: bool,
@@ -147,6 +149,9 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
         b.px(),
         with_alpha(lighter(f.body, -0.22), 0.5),
     );
+    // The face's pattern and border, printed under everything on it.
+    let print = ensure_contrast(c(f.ink), c(f.body), 4.5);
+    face_pattern(b, u, r, e.motif, print, c(f.band));
     // Four screws in the corners.
     for (dx, dy) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
         let cx = if dx > 0.0 { r.left() } else { r.right() } + dx * 11.0 * u;
@@ -210,22 +215,13 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
         pos2(r.left() + 16.0 * u, art_top),
         pos2(r.right() - 16.0 * u, art_top + 50.0 * u),
     );
-    let print = ensure_contrast(ink, c(f.body), 4.5);
     let accent = c(f.band);
     motif(b, u, art, e.motif, print, accent);
-    let t = Text {
-        src: e.name,
-        role: Role::Title,
-        caps: true,
-        align: Align2::CENTER_CENTER,
-        policy: Policy::Elide(Elide::End),
-        color: print,
-    };
     let name_r = Rect::from_center_size(
         pos2(r.center().x, art.bottom() + 14.0 * u),
         vec2(r.width() - 20.0 * u, 20.0 * k),
     );
-    ktext::paint(b, name_r, &t, k);
+    lettering(b, k, u, name_r, e.name, e.letter, print, accent);
     let sub = Text {
         src: e.sub,
         role: Role::Micro,
@@ -740,4 +736,230 @@ pub fn board_jack(b: &mut Brush, s: &Style, p: Pos2, label: Src<'_>, ink: Color3
         k,
         None,
     );
+}
+
+/// How a pedal's name is lettered: as boutique pedals differ, each its own.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Letter {
+    /// Capitals between two fine rules (art deco).
+    Deco,
+    /// Technical capitals in brackets, as on a drawing.
+    Technical,
+    /// Heavy capitals.
+    Bold,
+    /// Upper and lower case over a swash.
+    Script,
+    /// Wide capitals between two small triangles.
+    Wide,
+}
+
+/// The name lettered in `r` in style `l`.
+pub fn lettering(
+    b: &mut Brush,
+    k: f32,
+    u: f32,
+    r: Rect,
+    name: Src<'_>,
+    l: Letter,
+    print: Color32,
+    accent: Color32,
+) {
+    let (role, caps) = match l {
+        Letter::Deco => (Role::Title, true),
+        Letter::Technical => (Role::Value, true),
+        Letter::Bold => (Role::Hero, true),
+        Letter::Script => (Role::Title, false),
+        Letter::Wide => (Role::Section, true),
+    };
+    let t = Text {
+        src: name,
+        role,
+        caps,
+        align: Align2::CENTER_CENTER,
+        policy: Policy::Elide(Elide::End),
+        color: print,
+    };
+    let inner = r.shrink2(vec2(16.0 * u, 0.0));
+    let w = ktext::paint(b, inner, &t, k).map_or(inner.width() * 0.6, |p| p.rect.width());
+    let (x0, x1) = (r.center().x - w * 0.5, r.center().x + w * 0.5);
+    let fine = 0.8 * u;
+    match l {
+        Letter::Deco => {
+            for dy in [-1.0f32, 1.0] {
+                let y = r.center().y + dy * r.height() * 0.5;
+                b.hline(x0 - 6.0 * u, x1 + 6.0 * u, y, fine, with_alpha(print, 0.8));
+                b.hline(x0, x1, y + dy * 2.0 * u, fine, with_alpha(accent, 0.9));
+            }
+        }
+        Letter::Technical => {
+            for (x, s) in [(x0 - 7.0 * u, 1.0f32), (x1 + 7.0 * u, -1.0)] {
+                let (t, b_) = (r.top() + 2.0 * u, r.bottom() - 2.0 * u);
+                b.polyline(
+                    &[
+                        pos2(x + s * 4.0 * u, t),
+                        pos2(x, t),
+                        pos2(x, b_),
+                        pos2(x + s * 4.0 * u, b_),
+                    ],
+                    fine,
+                    accent,
+                );
+            }
+        }
+        Letter::Bold => {
+            b.hline(x0, x1, r.bottom() + 1.0 * u, 1.6 * u, accent);
+        }
+        Letter::Script => {
+            let mut pts = [Pos2::ZERO; 25];
+            for (j, p) in pts.iter_mut().enumerate() {
+                let x = j as f32 / 24.0;
+                let y = r.bottom() + 1.0 * u + (std::f32::consts::PI * x).sin() * 3.0 * u;
+                *p = pos2(x0 - 4.0 * u + (w + 8.0 * u) * x, y);
+            }
+            b.polyline(&pts, 1.1 * u, accent);
+        }
+        Letter::Wide => {
+            for (x, s) in [(x0 - 9.0 * u, 1.0f32), (x1 + 9.0 * u, -1.0)] {
+                let y = r.center().y;
+                b.polygon(
+                    &[
+                        pos2(x - s * 4.0 * u, y - 4.0 * u),
+                        pos2(x + s * 3.0 * u, y),
+                        pos2(x - s * 4.0 * u, y + 4.0 * u),
+                    ],
+                    accent,
+                );
+            }
+        }
+    }
+}
+
+/// The pattern over a whole face, under its knobs (`r` the enclosure, `u` its scale): a
+/// border and a ground pattern of the motif's family, in the finest strokes.
+pub fn face_pattern(b: &mut Brush, u: f32, r: Rect, m: Motif, print: Color32, accent: Color32) {
+    let fine = 0.7 * u;
+    let inset = r.shrink(9.0 * u);
+    match m {
+        Motif::Plain => {}
+        Motif::Waves => {
+            // Art deco: a fine double frame with fans in its corners.
+            b.rrect_stroke(inset, 8.0 * u, fine, with_alpha(print, 0.35));
+            b.rrect_stroke(
+                inset.shrink(3.0 * u),
+                6.0 * u,
+                fine,
+                with_alpha(accent, 0.45),
+            );
+            for (cx, cy, sx, sy) in [
+                (inset.left(), inset.top(), 1.0f32, 1.0f32),
+                (inset.right(), inset.top(), -1.0, 1.0),
+                (inset.left(), inset.bottom(), 1.0, -1.0),
+                (inset.right(), inset.bottom(), -1.0, -1.0),
+            ] {
+                let o = pos2(cx + sx * 3.0 * u, cy + sy * 3.0 * u);
+                for i in 0..5 {
+                    let a = std::f32::consts::FRAC_PI_2 * i as f32 / 4.0;
+                    let d = vec2(a.cos() * sx, a.sin() * sy);
+                    b.segment(o, o + d * 12.0 * u, fine, with_alpha(accent, 0.5), false);
+                }
+            }
+        }
+        Motif::Circuit => {
+            // A drawing's grid, faint, and a title block's rule at the bottom.
+            let step = 11.0 * u;
+            let mut x = inset.left();
+            while x <= inset.right() {
+                b.vline(
+                    x,
+                    inset.top(),
+                    inset.bottom(),
+                    fine * 0.8,
+                    with_alpha(print, 0.07),
+                );
+                x += step;
+            }
+            let mut y = inset.top();
+            while y <= inset.bottom() {
+                b.hline(
+                    inset.left(),
+                    inset.right(),
+                    y,
+                    fine * 0.8,
+                    with_alpha(print, 0.07),
+                );
+                y += step;
+            }
+            b.rrect_stroke(inset, 3.0 * u, fine, with_alpha(print, 0.3));
+        }
+        Motif::Square => {
+            // A crystal's lattice: fine hexagons over the whole face.
+            let s = 9.0 * u;
+            let h = s * 0.866;
+            let mut row = 0;
+            let mut y = inset.top() + h;
+            while y < inset.bottom() - h {
+                let off = if row % 2 == 1 { s * 0.75 } else { 0.0 };
+                let mut x = inset.left() + s + off;
+                while x < inset.right() - s {
+                    let mut hex = [Pos2::ZERO; 7];
+                    for (i, p) in hex.iter_mut().enumerate() {
+                        let a = std::f32::consts::FRAC_PI_3 * i as f32;
+                        *p = pos2(x + a.cos() * s * 0.5, y + a.sin() * s * 0.5);
+                    }
+                    b.polyline(&hex, fine * 0.8, with_alpha(print, 0.08));
+                    x += s * 1.5;
+                }
+                y += h;
+                row += 1;
+            }
+        }
+        Motif::Burst => {
+            // A scalloped border: small arcs round the face.
+            let n = 14;
+            for side in 0..2 {
+                let y = if side == 0 {
+                    inset.top()
+                } else {
+                    inset.bottom()
+                };
+                for i in 0..n {
+                    let x = inset.left() + inset.width() * (i as f32 + 0.5) / n as f32;
+                    b.circle_stroke(
+                        pos2(x, y),
+                        inset.width() / n as f32 * 0.5,
+                        fine,
+                        with_alpha(accent, 0.45),
+                    );
+                }
+            }
+            b.vline(
+                inset.left(),
+                inset.top(),
+                inset.bottom(),
+                fine,
+                with_alpha(accent, 0.45),
+            );
+            b.vline(
+                inset.right(),
+                inset.top(),
+                inset.bottom(),
+                fine,
+                with_alpha(accent, 0.45),
+            );
+        }
+        Motif::Nested => {
+            // Sawtooth borders top and bottom.
+            let n = 16;
+            for (y, dir) in [(inset.top(), 1.0f32), (inset.bottom(), -1.0)] {
+                let mut pts = [Pos2::ZERO; 33];
+                for (i, p) in pts.iter_mut().enumerate() {
+                    let x = inset.left() + inset.width() * i as f32 / 32.0;
+                    let up = if i % 2 == 0 { 0.0 } else { 5.0 * u };
+                    *p = pos2(x, y + dir * up);
+                }
+                let _ = n;
+                b.polyline(&pts, fine, with_alpha(accent, 0.65));
+            }
+        }
+    }
 }
