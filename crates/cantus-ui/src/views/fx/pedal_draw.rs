@@ -532,12 +532,14 @@ pub fn cable_with(b: &mut Brush, s: &Style, a: Pos2, b_: Pos2, lift: f32, energy
         use crate::views::mixer::wires;
         let l = e.level.clamp(0.0, 1.0);
         let amber = c(pal::JEWEL);
-        let light = crate::kit::color::mix(amber, c(pal::CHROME_LIGHT), 0.45);
-        b.polyline(&pts, 2.2 * k, with_alpha(amber, 0.18 + 0.22 * l));
-        let g = with_alpha(light, wires::gleam_alpha(l) * (0.4 + 0.6 * l));
+        let light = crate::kit::color::mix(amber, c(pal::CHROME_LIGHT), 0.55);
+        b.polyline(&pts, 2.4 * k, with_alpha(amber, 0.30 + 0.30 * l));
+        let a_g = wires::gleam_alpha(l) * (0.6 + 0.4 * l);
         let o = wires::gleam_offset(e.time, l) * k;
-        wires::gleams_of(&pts, o, wires::GLEAM * 1.6 * k, |p, q| {
-            b.segment(p, q, 1.8 * k, g, true);
+        wires::gleams_of(&pts, o, wires::GLEAM * 2.4 * k, |p, q| {
+            // A halo and a hot core: a pulse of light moving down the cable.
+            b.segment(p, q, 5.0 * k, with_alpha(amber, 0.35 * a_g), true);
+            b.segment(p, q, 2.4 * k, with_alpha(light, a_g), true);
         });
     }
     for (j, end) in [(a, a0), (b_, b0)] {

@@ -46,10 +46,17 @@ pub struct Curves {
 /// The display's cache: the board copy and the last curves with what they were for.
 #[derive(Default)]
 pub struct Cache {
-    dsp: Option<Box<Fragor>>,
+    /// What the curves shown were computed for.
     key: Option<(BoardSettings, i32)>,
     curves: Curves,
+    /// A computation running on its own thread (the chain played through a copy of the
+    /// board takes milliseconds — never on the window's frame): what for, and its answer.
+    pending: Option<((BoardSettings, i32), std::sync::mpsc::Receiver<Curves>)>,
+    /// When the last one started (window time, seconds).
+    started: f64,
 }
+
+type Key = (BoardSettings, i32);
 
 impl std::fmt::Debug for Cache {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -115,14 +122,48 @@ fn level_db(tel: &[f32; 64]) -> i32 {
     ((db / 2.0).round() * 2.0) as i32
 }
 
-fn curves<'a>(c: &'a mut Cache, s: &BoardSettings, db: i32) -> &'a Curves {
-    let key = (s.clone(), db);
-    if c.key.as_ref() != Some(&key) {
-        let dsp = c.dsp.get_or_insert_with(|| Box::new(Fragor::new(SR)));
-        c.curves = compute(dsp, s, cantus_dsp::math::db_to_gain(db as f32));
-        c.key = Some(key);
+/// The curves for `s` at `db`: the last computed (shown at once), a new computation
+/// started on a thread when the settings change, and when only the level does, at most
+/// four times a second. `true` while one runs (the window repaints until it lands).
+fn curves(c: &mut Cache, s: &BoardSettings, db: i32, now: f64) -> (Curves, bool) {
+    if let Some((k, rx)) = &c.pending {
+        if let Ok(cv) = rx.try_recv() {
+            c.key = Some(k.clone());
+            c.curves = cv;
+            c.pending = None;
+        }
     }
-    &c.curves
+    let key: Key = (s.clone(), db);
+    if c.key.is_none() && c.pending.is_none() {
+        // The window's first frame: computed here, once, so it opens with its picture.
+        let mut dsp = Fragor::new(SR);
+        c.curves = compute(&mut dsp, s, cantus_dsp::math::db_to_gain(db as f32));
+        c.key = Some(key);
+        c.started = now;
+        return (c.curves.clone(), false);
+    }
+    let settings_moved = c.key.as_ref().is_none_or(|k| k.0 != *s);
+    let due = settings_moved || now - c.started > 0.25;
+    if c.key.as_ref() != Some(&key) && c.pending.is_none() && due {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (sk, level) = (s.clone(), cantus_dsp::math::db_to_gain(db as f32));
+        let spawned = std::thread::Builder::new()
+            .name("fragor-curves".into())
+            .spawn(move || {
+                let mut dsp = Fragor::new(SR);
+                let _ = tx.send(compute(&mut dsp, &sk, level));
+            });
+        if spawned.is_ok() {
+            c.pending = Some((key.clone(), rx));
+            c.started = now;
+        } else {
+            // No thread to be had: compute here, once.
+            let mut dsp = Fragor::new(SR);
+            c.curves = compute(&mut dsp, s, cantus_dsp::math::db_to_gain(db as f32));
+            c.key = Some(key);
+        }
+    }
+    (c.curves.clone(), c.pending.is_some() || c.key.is_none())
 }
 
 pub fn display(
@@ -137,7 +178,12 @@ pub fn display(
     let settings = unit::settings(&spec);
     let db = level_db(tel);
     let playing = tel[t::IN_PEAK] > -60.0;
-    let cv = curves(&mut st.curves, &settings, db).clone();
+    let now = ui.input(|i| i.time);
+    let (cv, busy) = curves(&mut st.curves, &settings, db, now);
+    if busy {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(16));
+    }
     let k = s.k;
     let ink = Ink::of(s);
     let odd = ink.voice(s.hue, false);

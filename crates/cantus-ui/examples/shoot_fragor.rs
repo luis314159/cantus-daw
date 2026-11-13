@@ -68,8 +68,8 @@ fn context(dark: bool) -> egui::Context {
 
 /// The frame budget (`FRAGOR_TIME=1`): the window's whole UI pass — layout, the display's
 /// curves, the pedals, the tubes, every widget — timed over 300 frames while playing (the
-/// telemetry fed afresh each frame so the meters and glows move), in Slate at 100 %. The
-/// tessellation and the GPU are not in it; the UI pass is what this window adds.
+/// telemetry fed afresh each frame so the meters and glows move), in Slate at 100 %, with
+/// the tessellation; the GPU's work is not in it.
 fn time_frames() {
     let ctx = context(true);
     let mut app = app_with("board", true);
@@ -80,14 +80,23 @@ fn time_frames() {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
         ..Default::default()
     };
+    // Settle the context (fonts, the atlas) on frames that paint nothing.
+    for _ in 0..3 {
+        let mut out = ctx.run_ui(input(), |_| {});
+        out.textures_delta.clear();
+    }
     let mut times = vec![];
     for i in 0..330 {
         fragor::demo_feed_at(&mut app, if i % 2 == 0 { 0.35 } else { 0.2 });
         let t = std::time::Instant::now();
-        let _ = ctx.run_ui(input(), |root| {
+        let out = ctx.run_ui(input(), |root| {
             let c = root.ctx().clone();
             views::fx::window(&mut app, &c);
         });
+        let mut out = out;
+        let _ = ctx.tessellate(std::mem::take(&mut out.shapes), out.pixels_per_point);
+        // No renderer here: the font atlas's uploads are taken as done.
+        out.textures_delta.clear();
         if i >= 30 {
             times.push(t.elapsed().as_secs_f64() * 1e3);
         }
@@ -106,12 +115,14 @@ fn time_frames() {
 /// frames at 30 per second, then an animated WebP of them (Python's PIL, if present).
 fn anim_frames(dir: &std::path::Path) {
     std::fs::create_dir_all(dir).expect("anim dir");
-    let ctx = context(true);
     let mut app = app_with("board", true);
     let kind = cantus_core::EffectKind::Pedal;
-    views::fx::frame::shell_of(kind).set_scale(&ctx, 1.0);
     let size = views::fx::frame::designed_size(kind);
     for i in 0..30 {
+        // A fresh context per frame: the raster renderer gets the whole glyph atlas only
+        // on a context's first frame.
+        let ctx = context(true);
+        views::fx::frame::shell_of(kind).set_scale(&ctx, 1.0);
         app.fx.fragor.anim_time = Some(i as f64 / 30.0);
         let path = dir.join(format!("frame-{i:02}.png"));
         shoot(&ctx, size, 1.0, 2, Some(&path), |root| {
