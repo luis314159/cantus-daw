@@ -16,7 +16,7 @@ const args = process.argv.slice(2);
 const opt = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
 const positional = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--only");
 const dist = resolve(positional[0] ?? join(import.meta.dirname, "..", "dist"));
-const pages = (opt("--only") ?? "/,/es/download/,/instruments/,/measured/,/studio/").split(",");
+const pages = (opt("--only") ?? "/,/es/download/,/instruments/,/effects/comprimo/,/measured/,/studio/,/learn/").split(",");
 
 // In the page: the properties every @keyframes animates, by rule name.
 function keyframeProps() {
@@ -47,7 +47,7 @@ async function settle() {
     .map((a) => `${a.animationName ?? a.transitionProperty ?? "?"} on ${a.effect?.target?.className || a.effect?.target?.localName}`);
   const scrollDriven = document.getAnimations().filter((a) => a.timeline && a.timeline !== document.timeline).length;
   // a revealed element at rest: opaque and in its place
-  const off = [...document.querySelectorAll(".uc-li, .m-card, .steps li, .sys-card, .stat, .songs, .fx-item, main h2")]
+  const off = [...document.querySelectorAll(".uc-li, .m-card, .steps li, .sys-card, .stat, .songs, .song, .fx-list, .fx-item, .studio-card, .facts li, .promises li, main h2")]
     .filter((el) => { const cs = getComputedStyle(el); return cs.opacity !== "1" || !["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(cs.transform); })
     .slice(0, 5).map((el) => `${el.localName}.${el.className}`);
   return { running, scrollDriven, off };
@@ -67,17 +67,20 @@ try {
   }
   console.log(`keyframes: ${Object.keys(kf).length} rules, ${Object.keys(kf).join(" ")}`);
   for (const page of pages) {
-    for (const reduced of [true, false]) {
-      await visit(tab, origin + page, { width: 1440, height: 900, scheme: "light", reducedMotion: reduced });
+    for (const [reduced, width] of [[true, 1440], [false, 1440], [true, 390], [false, 390]]) {
+      await visit(tab, origin + page, { width, height: width < 600 ? 844 : 900, scheme: "light", reducedMotion: reduced });
       const r = await tab.eval(settle);
       if (reduced) {
-        if (r.running.length) breaches.push(`${page} (reduced motion): still animating — ${r.running.slice(0, 4).join("; ")}`);
-        if (r.scrollDriven) breaches.push(`${page} (reduced motion): ${r.scrollDriven} scroll-driven animations`);
-        if (r.off.length) breaches.push(`${page} (reduced motion): not at rest — ${r.off.join("; ")}`);
+        if (r.running.length) breaches.push(`${page} ${width} (reduced motion): still animating — ${r.running.slice(0, 4).join("; ")}`);
+        if (r.scrollDriven) breaches.push(`${page} ${width} (reduced motion): ${r.scrollDriven} scroll-driven animations`);
+        if (r.off.length) breaches.push(`${page} ${width} (reduced motion): not at rest — ${r.off.join("; ")}`);
+      } else if (r.off.length) {
+        // with motion, once the whole page has been scrolled past, every reveal has finished
+        breaches.push(`${page} ${width} (motion): left half-shown — ${r.off.join("; ")}`);
       } else if (r.scrollDriven === 0 && r.running.length === 0) {
         breaches.push(`${page} (motion allowed): no animation at all — is motion.css loaded?`);
       }
-      console.log(`${page.padEnd(16)} ${reduced ? "reduce   " : "motion ok"}  running ${r.running.length}  scroll-driven ${r.scrollDriven}  not at rest ${r.off.length}${process.env.MOTION_DEBUG ? ` ${r.off.join(" | ")}` : ""}`);
+      console.log(`${page.padEnd(16)} ${String(width).padEnd(5)}${reduced ? "reduce   " : "motion ok"}  running ${r.running.length}  scroll-driven ${r.scrollDriven}  not at rest ${r.off.length}${process.env.MOTION_DEBUG ? ` ${r.off.join(" | ")}` : ""}`);
     }
   }
 } finally {

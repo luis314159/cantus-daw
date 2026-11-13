@@ -11,9 +11,12 @@
 
   /* ── Sections and cards rise into place as they come into view ───────────────────────── */
   @supports (animation-timeline: view()) {
+    /* Only what scrolls with the page: inside a box that scrolls on its own (the effects'
+       list on a phone, the songs' clipped list) the view would be that box's, and the item
+       would stay half-shown — so those lists rise whole. */
     main > section:not(.hero) h2,
     main > section:not(.hero) .lede,
-    .uc-li, .m-card, .mx-card, .steps li, .sys-card, .studio-card, .fx-item, .songs,
+    .uc-li, .m-card, .mx-card, .steps li, .sys-card, .studio-card, .fx-list, .songs,
     .facts li, .promises li, .learn-group, .proof-songs li, .stat, .way, .tiers li,
     .verse, .get-main, .get-side, .platform-card, .spot, .backdrop, .faq details,
     .uf-shot, .uf-pager a, .reqs > div, .stays-free, .m-method article, .chips li {
