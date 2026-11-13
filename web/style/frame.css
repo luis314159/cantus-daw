@@ -176,10 +176,11 @@
 :root[data-theme="light"] .nav:not(.is-scrolled) .lang button[aria-pressed="true"] { background: #2443a8; color: #ffffff; }
 :root[data-theme="light"] .hero .btn-quiet,
 :root[data-theme="light"] .page-band .btn-quiet {
-  background: transparent; color: #1b2c7a; border: 1.5px solid #2443a8; box-shadow: none;
+  /* white, not clear: the dot grid stays out of its words (its "411 MB") */
+  background: #ffffff; color: #1b2c7a; border: 1.5px solid #2443a8; box-shadow: none;
 }
 :root[data-theme="light"] .hero .btn-quiet:hover,
-:root[data-theme="light"] .page-band .btn-quiet:hover { background: rgba(36, 67, 168, 0.08); color: #1b2c7a; }
+:root[data-theme="light"] .page-band .btn-quiet:hover { background: #eef1fa; color: #1b2c7a; }
 :root[data-theme="light"] .hero-window {
   box-shadow: 0 0 0 1px rgba(27, 44, 122, 0.18), 0 30px 60px -28px rgba(27, 44, 122, 0.5), 0 8px 20px -12px rgba(23, 32, 42, 0.35);
 }

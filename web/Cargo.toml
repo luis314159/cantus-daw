@@ -25,7 +25,7 @@ gloo-timers = "0.3"
 # Already in the build through Yew: the release check awaits `fetch` (shelf.rs).
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
-  "Window", "Document", "Response", "MediaQueryList", "DomTokenList", "HtmlInputElement", "HtmlAudioElement", "HtmlMediaElement", "HtmlElement", "Navigator", "Element", "HtmlElement", "Storage",
+  "Window", "Document", "Response", "MediaQueryList", "DomTokenList", "HtmlInputElement", "HtmlAudioElement", "HtmlMediaElement", "HtmlElement", "Navigator", "Element", "HtmlElement", "Storage", "Event", "EventTarget",
   "History", "Location", "HtmlAnchorElement", "MouseEvent", "PopStateEvent", "ScrollRestoration", "ScrollToOptions", "ScrollBehavior",
   "AudioContext", "AudioContextState", "AudioDestinationNode", "AudioNode", "AudioParam", "AudioBuffer",
   "AudioBufferSourceNode", "OscillatorNode", "OscillatorType", "GainNode", "BiquadFilterNode",

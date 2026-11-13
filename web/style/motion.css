@@ -1,0 +1,155 @@
+/* Motion (round fx, the owner 2026-11-13: "animaciones y cosas interesantes para pulir más el
+   sitio"). Every rule here moves only transform and opacity, so the compositor runs it and no
+   layout is redone; all of it sits inside `prefers-reduced-motion: no-preference`, so a visitor
+   who asks for less motion gets the page as it was (base.css's reduce rule stays the backstop).
+   What reveals on scroll is driven by the scroll itself (animation-timeline: view()), with no
+   script: a browser without it (Firefox today) simply shows everything at rest. Nothing waits
+   for a timer to be shown, and the app redrawing the pre-rendered page restarts nothing that
+   is visible. */
+
+@media (prefers-reduced-motion: no-preference) {
+
+  /* ── Sections and cards rise into place as they come into view ───────────────────────── */
+  @supports (animation-timeline: view()) {
+    main > section:not(.hero) h2,
+    main > section:not(.hero) .lede,
+    .uc-li, .m-card, .mx-card, .steps li, .sys-card, .studio-card, .fx-item, .songs,
+    .facts li, .promises li, .learn-group, .proof-songs li, .stat, .way, .tiers li,
+    .verse, .get-main, .get-side, .platform-card, .spot, .backdrop, .faq details,
+    .uf-shot, .uf-pager a, .reqs > div, .stays-free, .m-method article, .chips li {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry var(--rise-at, 0px) entry calc(var(--rise-at, 0px) + 180px);
+    }
+    /* a row of cards arrives as a wave, left to right */
+    :is(.uc-li, .m-card, .steps li, .sys-card, .studio-card, .stat, .way, .tiers li, .platform-card, .chips li, .reqs > div):nth-child(4n + 2) { --rise-at: 28px; }
+    :is(.uc-li, .m-card, .steps li, .sys-card, .studio-card, .stat, .way, .tiers li, .platform-card, .chips li, .reqs > div):nth-child(4n + 3) { --rise-at: 56px; }
+    :is(.uc-li, .m-card, .steps li, .sys-card, .studio-card, .stat, .way, .tiers li, .platform-card, .chips li, .reqs > div):nth-child(4n + 4) { --rise-at: 84px; }
+
+    /* Measured: each bar draws itself out from zero as its card arrives; the value follows. */
+    .bar .track i {
+      transform-origin: left center;
+      animation: draw linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 45%;
+    }
+    .bar .val {
+      animation: fade linear both;
+      animation-timeline: view();
+      animation-range: entry 40% cover 45%;
+    }
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
+  @keyframes draw { from { transform: scaleX(0); } to { transform: none; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ── The hero: a slow light crosses the program's glass ──────────────────────────────── */
+  .hero-window { position: relative; }
+  .hero-window::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: linear-gradient(104deg, transparent 38%, rgba(255, 255, 255, 0.08) 45%, rgba(255, 244, 194, 0.2) 50%, rgba(255, 255, 255, 0.08) 55%, transparent 62%);
+    transform: translateX(-110%);
+    animation: gleam 11s cubic-bezier(0.45, 0, 0.25, 1) 2.4s infinite;
+  }
+  @keyframes gleam { 0% { transform: translateX(-110%); } 24%, 100% { transform: translateX(110%); } }
+
+  /* ── A signal runs along the gold hairlines (#03's rule): a spark, then rest ─────────── */
+  .proof::after, .page-band::before {
+    content: ""; position: absolute; left: 0; width: min(22rem, 30vw); height: 3px; pointer-events: none; z-index: 2;
+    background: radial-gradient(closest-side, #fff4c2, rgba(243, 212, 120, 0.85) 35%, rgba(226, 184, 74, 0) 100%);
+    filter: drop-shadow(0 0 4px rgba(243, 212, 120, 0.8));
+    transform: translateX(-100%); opacity: 0;
+    animation: signal 9s cubic-bezier(0.55, 0, 0.35, 1) 1.6s infinite;
+  }
+  .proof::after { top: -1px; }
+  .page-band::before { bottom: -1px; }
+  @keyframes signal {
+    0% { transform: translateX(-100%); opacity: 0; }
+    3% { opacity: 1; }
+    30% { opacity: 1; }
+    34%, 100% { transform: translateX(100vw); opacity: 0; }
+  }
+
+  /* ── Cards lift: a deeper shadow fades in under them, the picture leans in ───────────── */
+  .unit-card, .studio-card, .steps li, .sys-card, .m-card, .uf-pager a, .proof-songs a, .platform-card {
+    position: relative;
+    transition: transform 0.35s var(--ease), border-color 0.2s, color 0.2s;
+  }
+  .unit-card::after, .studio-card::after, .steps li::after, .sys-card::after, .uf-pager a::after, .proof-songs a::after, .platform-card::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+    box-shadow: 0 34px 60px -30px rgba(7, 13, 38, 0.75), 0 0 0 1px var(--accent);
+    opacity: 0; transition: opacity 0.35s var(--ease);
+  }
+  :root[data-theme="light"] :is(.unit-card, .studio-card, .steps li, .sys-card, .uf-pager a, .proof-songs a, .platform-card)::after {
+    box-shadow: 0 30px 50px -30px rgba(27, 44, 122, 0.55), 0 0 0 1px var(--accent);
+  }
+  .unit-card:hover, .unit-card:focus-visible, .studio-card:hover, .steps li:hover, .sys-card:hover,
+  .uf-pager a:hover, .proof-songs a:hover, .platform-card:hover { transform: translateY(-5px); }
+  :is(.unit-card, .studio-card, .steps li, .sys-card, .uf-pager a, .proof-songs a, .platform-card):is(:hover, :focus-visible)::after { opacity: 1; }
+  .unit-card, .studio-card, .steps li, .sys-card, .uf-pager a, .proof-songs a, .platform-card { isolation: isolate; }
+  /* the shadow is drawn outside the card, so the card no longer clips: its picture does */
+  .unit-card, .studio-card { overflow: visible; }
+  .uc-pic { overflow: hidden; border-radius: 8px 8px 0 0; }
+  .studio-card img { border-radius: 8px 8px 0 0; }
+  .uc-pic img { transition: transform 0.6s var(--ease); }
+  .unit-card:hover .uc-pic img, .unit-card:focus-visible .uc-pic img { transform: scale(1.045); }
+  /* the arrow in "See it large →" steps forward */
+  .uc-more { display: inline-block; transition: transform 0.35s var(--ease), color 0.2s; }
+  .unit-card:hover .uc-more, .unit-card:focus-visible .uc-more { transform: translateX(4px); }
+
+  /* ── The download buttons: the arrow bobs while pointed at, the key gives under a press,
+        and a file that starts downloading answers (main.rs adds `is-sent` for 1.6 s): the
+        arrow drops through and a gold line runs under the label. ─────────────────────────── */
+  .btn { position: relative; overflow: hidden; }
+  .btn:active { transform: translateY(1px) scale(0.975); }
+  .btn-primary svg { transition: transform 0.3s var(--ease); }
+  .btn-primary:hover svg { animation: bob 1.1s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: none; } 50% { transform: translateY(3px); } }
+  .btn.is-sent svg { animation: drop 0.9s var(--ease) both; }
+  @keyframes drop {
+    0% { transform: none; opacity: 1; }
+    40% { transform: translateY(130%); opacity: 0; }
+    41% { transform: translateY(-130%); opacity: 0; }
+    100% { transform: none; opacity: 1; }
+  }
+  .btn.is-sent::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; pointer-events: none;
+    background: var(--metal-bar); transform-origin: left center;
+    animation: sent 1.6s var(--ease) both;
+  }
+  @keyframes sent { 0% { transform: scaleX(0); opacity: 1; } 70% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+
+  /* ── Players: a ring breathes out of the button while the sound plays ─────────────────── */
+  .song-btn, .ab-play { position: relative; }
+  .hear-btn { position: relative; }
+  :is(.hear.is-playing .hear-btn, .song.is-playing .song-btn, .ab-play.is-on, .card-play.is-on)::after {
+    content: ""; position: absolute; inset: -1px; border-radius: 50%; pointer-events: none;
+    box-shadow: 0 0 0 2px var(--accent);
+    animation: ring 1.45s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  }
+  .hear.is-playing .hear-btn::after { box-shadow: 0 0 0 2px var(--metal-solid); animation-duration: 0.968s; } /* two beats of Neon Tide, 124 BPM */
+  @keyframes ring { from { transform: scale(1); opacity: 0.85; } to { transform: scale(1.55); opacity: 0; } }
+  /* before the first play, the hero's button invites once in a while */
+  .hear:not(.is-playing) .hear-btn::after {
+    content: ""; position: absolute; inset: -1px; border-radius: 50%; pointer-events: none;
+    box-shadow: 0 0 0 2px var(--metal-glow);
+    animation: ring 1.6s cubic-bezier(0.2, 0.6, 0.3, 1) 3s 3;
+    opacity: 0;
+  }
+
+  /* ── Moving between pages: the new page settles in (app.rs marks a page the visitor went
+        to, never the one the address opened, so the first paint is never held back) ────── */
+  main.is-arriving { animation: arrive 0.42s var(--ease) both; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  /* ── Day and night: the page cross-fades (theme.rs, the View Transitions API where there
+        is one), and the switch's icon turns in ─────────────────────────────────────────── */
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.45s; animation-timing-function: var(--ease); }
+  .theme-toggle svg { animation: turn-in 0.5s var(--ease); }
+  @keyframes turn-in { from { transform: rotate(-80deg) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+
+/* With reduced motion, the page changes theme at once (the base rule cannot reach these). */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

@@ -49,14 +49,36 @@ impl Theme {
         }
     }
 
-    /// Sets `data-theme` on the page and remembers the choice.
+    /// Sets `data-theme` on the page and remembers the choice. A switch the visitor flips
+    /// (`remember`) cross-fades the page where the browser has view transitions (motion.css
+    /// sets the fade, and takes it away with reduced motion); elsewhere it changes at once.
     pub fn apply(self, remember: bool) {
         if !cfg!(target_arch = "wasm32") {
             return;
         }
         let Some(win) = web_sys::window() else { return };
-        if let Some(root) = win.document().and_then(|d| d.document_element()) {
-            let _ = root.set_attribute("data-theme", self.name());
+        let name = self.name();
+        let set = move || {
+            if let Some(root) = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.document_element())
+            {
+                let _ = root.set_attribute("data-theme", name);
+            }
+        };
+        let faded = remember
+            && win.document().is_some_and(|doc| {
+                use wasm_bindgen::JsCast;
+                js_sys::Reflect::get(&doc, &"startViewTransition".into())
+                    .ok()
+                    .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
+                    .is_some_and(|f| {
+                        let cb = wasm_bindgen::closure::Closure::once_into_js(set);
+                        f.call1(&doc, &cb).is_ok()
+                    })
+            });
+        if !faded {
+            set();
         }
         if remember {
             if let Ok(Some(store)) = win.local_storage() {
