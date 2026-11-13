@@ -178,3 +178,41 @@ with the cabinet by IR — useful on bass, keys and vocals too, not only guitar)
 a voicing of Phasis, not a new unit. Names and schema/ADR numbers are set in that contract.
 Wave 3 is bigger than one builder: plan two or three (the board; pitch; amp and rotary), never
 more than two compiling at once.
+
+## web-fx — try the effects on the website (after the units are done; asked 2026-11-13)
+
+*The owner:* "Incluso en la página web pon los audios de guitarras con algo para probar los
+efectos de nuestro sistema, que sea interactivo, ya cuando terminemos … todo pregrabado pero
+unos ejemplos interactivos, e incluso ejemplos de screenshots." Today the site has a
+with/without player for seven effects (`web/assets/fx/audio/*-{without,with}.mp3`,
+`units_data.rs`'s `ab:`) on excerpts of the demo songs.
+
+- **A "Try it" player per effect and on one page for all**: the reference guitar progression
+  (`C:\projects\daw-fx\refs\audio\README.md` — Carbonthief, CC0, credited on the page) and one
+  or two other sources (a drum loop, a synth or a voice — from our demo songs), each rendered
+  **by Cantus itself** through every unit and several of its factory presets. The visitor
+  picks the source, the effect and the preset and switches **Bypass ↔ On** with no gap and no
+  jump in time (all files the same length and aligned to the sample; switch on a shared
+  clock, crossfade a few ms); a level-matched toggle; for Fragor, the chain built from pedals.
+  Pre-rendered, so it is honest and costs no DSP in the page.
+- **Each preset with its picture**: the unit's window as it looks with that preset (our
+  `shoot` examples), shown beside the player and changing with it; the picture is the real
+  editor, not a mock-up.
+- Sized for the site's budgets (`site-budget.yml`): compressed audio (Opus/MP3 at a quality
+  measured not to colour the comparison), loaded on demand; works on mobile; keyboard and
+  screen reader; both languages.
+- A render tool in the repository (as `render_fx_ab`) so every release re-renders them.
+
+## Backlog note for the integrator (add to BACKLOG §6a at the merge)
+
+**The effects running live in the browser** (the owner, 2026-11-13: "no sé incluso si se
+pueda llevar nativamente a web para hacer pruebas reales en la página … ver más después en el
+backlog"). Feasible to study: the site is already Rust → WebAssembly (Yew), and `cantus-dsp`
+is pure Rust with deterministic maths and no OS code. The path: compile the units' DSP (or
+`cantus-engine`'s `FxUnit`s) to a WASM module run in a Web Audio **AudioWorklet**, with the
+same kit editor drawn by egui on a canvas (egui runs on the web) or a lighter page control;
+the visitor's own file or microphone as a source. To measure first: the module's size against
+the site's budget (loaded only on the try page), CPU in a worklet at 128-frame quanta,
+whether `SharedArrayBuffer` (needs COOP/COEP headers on Cloudflare) is required, and that the
+output equals the native render to the bit (the determinism tests, run in WASM). It would be
+the honest proof no other DAW's site offers: the real effect, not a recording.
