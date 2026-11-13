@@ -1,8 +1,107 @@
 # Lapsus (fx side round) — owned by Lapsus. Every key here needs its twin in lapsus.es.txt.
 effect.lapsus = Lapsus time shaper
 fx.lapsus.about = Bends time and volume to the beat: tape stops, half-time, stutters and scratches, drawn as envelopes.
-fx.lapsus.out = Output
 picker.dev.lapsus.name = Lapsus
 picker.dev.lapsus.what = Time shaper
 picker.dev.lapsus.about = Bends time and volume to the beat: tape stops, half-time, stutters and scratches, drawn as envelopes.
 mixer.chain.lapsus = Time
+
+# Parameters
+fx.lapsus.slot = Pattern
+fx.lapsus.mix = Mix
+fx.lapsus.xfade = Crossfade
+fx.lapsus.smooth = Smooth
+fx.lapsus.notes = Notes
+fx.lapsus.retrig = Restart on note
+fx.lapsus.key = 1st note
+fx.lapsus.ahead = Ahead
+fx.lapsus.out = Output
+
+# What a note does
+lapsus.notes.0 = Off
+lapsus.notes.1 = Switch
+lapsus.notes.2 = Hold
+
+# The cards
+lapsus.card.timeline = Time and level
+lapsus.card.bank = Bank
+lapsus.card.pattern = Pattern
+lapsus.card.joins = Joins
+lapsus.card.notes = Notes
+lapsus.card.output = Output
+
+# The timeline
+lapsus.lane.time = Time
+lapsus.lane.level = Level
+lapsus.now = now
+lapsus.before = Before the cycle: silence
+lapsus.speed = Speed
+lapsus.idle = Through: the sound passes untouched. Choose a pattern in the bank, or play its note.
+lapsus.timeline_tip = The pattern playing
+lapsus.timeline_how = Above, how far behind the music it reads (flat at the top: as it comes; down at 45°: the tape stopped). Below, the level.
+
+# The pattern card
+lapsus.length = Length in bars
+lapsus.grid = Grid
+lapsus.draw = Draw
+lapsus.tool.points = Points
+lapsus.tool.pencil = Pencil
+lapsus.edit = Edit
+lapsus.edit.copy = Copy
+lapsus.edit.paste = Paste
+lapsus.edit.clear = Clear
+lapsus.each_note = Each note
+lapsus.beats = beats
+lapsus.len.0 = ¼ bar
+lapsus.len.1 = ½ bar
+lapsus.len.2 = 1 bar
+lapsus.len.3 = 2 bars
+lapsus.len.4 = 4 bars
+
+# The bank
+lapsus.row.0 = Stop
+lapsus.row.1 = Speed
+lapsus.row.2 = Repeat
+lapsus.row.3 = Reverse
+lapsus.row.4 = Scratch
+lapsus.row.5 = Level
+lapsus.pad_how = Click to play this pattern, or play its note.
+lapsus.keys_play = play the 36 patterns
+
+# The factory bank's patterns
+lapsus.slot.0 = Through
+lapsus.slot.1 = Tape stop
+lapsus.slot.2 = Tape stop ½
+lapsus.slot.3 = Tape stop ¼
+lapsus.slot.4 = Tape start
+lapsus.slot.5 = Stop and start
+lapsus.slot.6 = Half time
+lapsus.slot.7 = Half time ½
+lapsus.slot.8 = Half time ¼
+lapsus.slot.9 = Quarter time
+lapsus.slot.10 = Slow down
+lapsus.slot.11 = Wobble
+lapsus.slot.12 = Repeat the third
+lapsus.slot.13 = Stutter ⅛
+lapsus.slot.14 = Stutter 1/16
+lapsus.slot.15 = Roll build
+lapsus.slot.16 = Beat repeat
+lapsus.slot.17 = Gated stutter
+lapsus.slot.18 = Reverse ½
+lapsus.slot.19 = Reverse every 2nd
+lapsus.slot.20 = Reverse the last beat
+lapsus.slot.21 = Rewind
+lapsus.slot.22 = Reverse swell
+lapsus.slot.23 = Backspin
+lapsus.slot.24 = Baby scratch
+lapsus.slot.25 = Chirp
+lapsus.slot.26 = Transformer
+lapsus.slot.27 = Tear
+lapsus.slot.28 = Scribble
+lapsus.slot.29 = Drag
+lapsus.slot.30 = Trance gate
+lapsus.slot.31 = Off the beat
+lapsus.slot.32 = Pump
+lapsus.slot.33 = Fade in
+lapsus.slot.34 = Chop
+lapsus.slot.35 = Echo repeat

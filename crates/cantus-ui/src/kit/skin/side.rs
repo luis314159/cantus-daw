@@ -21,10 +21,61 @@ pub const FRAGOR: Skin = Skin {
     ..tone::FERVOR
 };
 
-/// Lapsus, the time shaper: for now Delay's look (the song's recent past, drawn in time).
+// fx:lapsus — Lapsus's own face (ADR 0132, provisional).
+/// Lapsus, the time shaper (*a slip*): a DJ's deck at midnight — a petrol body in matte
+/// paint, the time curve glowing amber on a vacuum-fluorescent screen (the old decks'
+/// displays), the level in ice blue, soft rubber knobs, lamp keys, a painted stripe across
+/// the header, vents and printed rules, upper-case lettering and mono readouts. No other
+/// unit is matte at this hue, and none has an amber VFD over it.
 pub const LAPSUS: Skin = Skin {
     key: "fx.lapsus",
-    ..tone::DELAY
+    surface: super::Tint {
+        hue: 192.0,
+        sat: 0.26,
+        amount: 0.6,
+    },
+    accent: Some(super::Pair {
+        dark: super::super::color::Hsl {
+            h: 36.0,
+            s: 0.95,
+            l: 0.60,
+        },
+        light: super::super::color::Hsl {
+            h: 32.0,
+            s: 0.90,
+            l: 0.36,
+        },
+    }),
+    accent2: Some(super::Pair {
+        dark: super::super::color::Hsl {
+            h: 190.0,
+            s: 0.75,
+            l: 0.66,
+        },
+        light: super::super::color::Hsl {
+            h: 194.0,
+            s: 0.80,
+            l: 0.32,
+        },
+    }),
+    material: super::Material::Matte,
+    display: super::Display::Vfd,
+    knob: super::KnobShape::Soft,
+    switch: super::SwitchShape::Lamp,
+    lettering: super::Lettering {
+        case: super::Case::Upper,
+        tracking: 0.08,
+        weight: super::Weight::SemiBold,
+        condensed: false,
+        mono_values: true,
+    },
+    plate: super::Plate::Stripe,
+    ornaments: super::Ornaments {
+        screws: false,
+        vents: true,
+        rules: true,
+        rack_ears: false,
+    },
 };
 
 /// Vetus, lo-fi: for now Speculum's look.

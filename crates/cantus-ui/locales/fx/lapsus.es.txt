@@ -1,8 +1,107 @@
 # Lapsus (ronda lateral de efectos) — de Lapsus. Cada clave necesita su gemela en lapsus.en.txt.
 effect.lapsus = Lapsus moldeador de tiempo
 fx.lapsus.about = Dobla el tiempo y el volumen al compás: paradas de cinta, medio tiempo, tartamudeos y scratch, dibujados como envolventes.
-fx.lapsus.out = Salida
 picker.dev.lapsus.name = Lapsus
 picker.dev.lapsus.what = Moldeador de tiempo
 picker.dev.lapsus.about = Dobla el tiempo y el volumen al compás: paradas de cinta, medio tiempo, tartamudeos y scratch, dibujados como envolventes.
 mixer.chain.lapsus = Tiempo
+
+# Parámetros
+fx.lapsus.slot = Patrón
+fx.lapsus.mix = Mezcla
+fx.lapsus.xfade = Fundido
+fx.lapsus.smooth = Suavizado
+fx.lapsus.notes = Notas
+fx.lapsus.retrig = Reinicio con nota
+fx.lapsus.key = 1.ª nota
+fx.lapsus.ahead = Anticipo
+fx.lapsus.out = Salida
+
+# Qué hace una nota
+lapsus.notes.0 = No
+lapsus.notes.1 = Cambia
+lapsus.notes.2 = Mantiene
+
+# Las tarjetas
+lapsus.card.timeline = Tiempo y nivel
+lapsus.card.bank = Banco
+lapsus.card.pattern = Patrón
+lapsus.card.joins = Uniones
+lapsus.card.notes = Notas
+lapsus.card.output = Salida
+
+# La línea de tiempo
+lapsus.lane.time = Tiempo
+lapsus.lane.level = Nivel
+lapsus.now = ahora
+lapsus.before = Antes del ciclo: silencio
+lapsus.speed = Velocidad
+lapsus.idle = Directo: el sonido pasa intacto. Elige un patrón en el banco o toca su nota.
+lapsus.timeline_tip = El patrón que suena
+lapsus.timeline_how = Arriba, cuánto lee por detrás de la música (plano arriba: tal como llega; bajando a 45°: la cinta parada). Abajo, el nivel.
+
+# La tarjeta del patrón
+lapsus.length = Compases
+lapsus.grid = Rejilla
+lapsus.draw = Dibujo
+lapsus.tool.points = Puntos
+lapsus.tool.pencil = Lápiz
+lapsus.edit = Edición
+lapsus.edit.copy = Copiar
+lapsus.edit.paste = Pegar
+lapsus.edit.clear = Borrar
+lapsus.each_note = Cada nota
+lapsus.beats = tiempos
+lapsus.len.0 = ¼ compás
+lapsus.len.1 = ½ compás
+lapsus.len.2 = 1 compás
+lapsus.len.3 = 2 compases
+lapsus.len.4 = 4 compases
+
+# El banco
+lapsus.row.0 = Parada
+lapsus.row.1 = Velocidad
+lapsus.row.2 = Repetir
+lapsus.row.3 = Reversa
+lapsus.row.4 = Scratch
+lapsus.row.5 = Nivel
+lapsus.pad_how = Clic para tocar este patrón, o toca su nota.
+lapsus.keys_play = tocan los 36 patrones
+
+# Los patrones de fábrica
+lapsus.slot.0 = Directo
+lapsus.slot.1 = Parada de cinta
+lapsus.slot.2 = Parada de cinta ½
+lapsus.slot.3 = Parada de cinta ¼
+lapsus.slot.4 = Arranque de cinta
+lapsus.slot.5 = Para y arranca
+lapsus.slot.6 = Medio tiempo
+lapsus.slot.7 = Medio tiempo ½
+lapsus.slot.8 = Medio tiempo ¼
+lapsus.slot.9 = Cuarto de tiempo
+lapsus.slot.10 = Frenada
+lapsus.slot.11 = Disco alabeado
+lapsus.slot.12 = Repite el tercero
+lapsus.slot.13 = Tartamudeo ⅛
+lapsus.slot.14 = Tartamudeo 1/16
+lapsus.slot.15 = Redoble creciente
+lapsus.slot.16 = Repetición de tiempo
+lapsus.slot.17 = Tartamudeo cortado
+lapsus.slot.18 = Reversa ½
+lapsus.slot.19 = Reversa cada dos
+lapsus.slot.20 = Reversa del último tiempo
+lapsus.slot.21 = Rebobinado
+lapsus.slot.22 = Reversa creciente
+lapsus.slot.23 = Giro atrás
+lapsus.slot.24 = Baby scratch
+lapsus.slot.25 = Chirp
+lapsus.slot.26 = Transformer
+lapsus.slot.27 = Tear
+lapsus.slot.28 = Garabato
+lapsus.slot.29 = Arrastre
+lapsus.slot.30 = Puerta trance
+lapsus.slot.31 = A contratiempo
+lapsus.slot.32 = Bombeo
+lapsus.slot.33 = Entrada gradual
+lapsus.slot.34 = Picado
+lapsus.slot.35 = Eco repetido
