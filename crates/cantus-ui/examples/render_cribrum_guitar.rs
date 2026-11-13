@@ -3,7 +3,8 @@
 //! read with Cantus's own decoder and resampled to 48 kHz with its resampler, then played
 //! through Cribrum's DSP on the song's clock and written as FLAC beside the dry guitar
 //! (`00-guitar-di.flac`, peak −6 dBFS), each processed file level-matched to it within 1 dB.
-//! The samples are not in the repository: pass their folder.
+//! The samples are not in the repository: pass their folder (Carbonthief's FLACs are 32-bit,
+//! which Cantus's FLAC decoder does not read yet: pass a folder of WAVs made from them).
 //!
 //! ```text
 //! cargo run -p cantus-ui --example render_cribrum_guitar -- <SampleData dir> <out dir>
@@ -22,15 +23,24 @@ const BARS: usize = 8;
 
 /// The chord of each bar (`README.md`).
 const CHORDS: [&str; 4] = [
-    "Sample07 (A Minor).flac",
-    "Sample15 (F Major).flac",
-    "Sample22 (C Major).flac",
-    "Sample17 (G Major).flac",
+    "Sample07 (A Minor)",
+    "Sample15 (F Major)",
+    "Sample22 (C Major)",
+    "Sample17 (G Major)",
 ];
 
-/// One strum, stereo interleaved at 48 kHz.
-fn strum(dir: &Path, file: &str) -> Vec<f32> {
-    let d = cantus_engine::SampleCache::decode_source(&dir.join(file)).expect("decoded");
+/// One strum, stereo interleaved at 48 kHz: the `.flac`, or a `.wav` made from it where the
+/// decoder cannot read the FLAC (Carbonthief's are 32-bit, which `claxon` does not decode).
+fn strum(dir: &Path, stem: &str) -> Vec<f32> {
+    let d = ["flac", "wav"]
+        .iter()
+        .find_map(|ext| {
+            let p = dir.join(format!("{stem}.{ext}"));
+            p.exists()
+                .then(|| cantus_engine::SampleCache::decode_source(&p).ok())
+                .flatten()
+        })
+        .expect("decoded");
     let ch = d.channels as usize;
     let mut x: Vec<f32> = d.frames.to_vec();
     if d.rate != RATE {
