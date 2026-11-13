@@ -15,6 +15,7 @@ roles = ["creative", "bus"]
 "lfo.cut" = 1.5
 "lfo.div" = 3
 "mix" = 1
+"out" = 3
 
 [[preset]]
 key = "preset.cribrum.cry_wah"
@@ -30,6 +31,7 @@ roles = ["creative"]
 "env.gain" = 6
 "env.rel" = 90
 "mix" = 1
+"out" = 13.7
 
 [[preset]]
 key = "preset.cribrum.dub_sweep"
@@ -46,6 +48,7 @@ roles = ["creative"]
 "lfo.div" = 2
 "mix" = 1
 "os" = 1
+"out" = -1.6
 
 [[preset]]
 key = "preset.cribrum.pump_filter"
@@ -76,6 +79,7 @@ roles = ["creative", "vocal"]
 "lfo.div" = 5
 "lfo.vowel" = 2
 "mix" = 1
+"out" = -2
 
 [[preset]]
 key = "preset.cribrum.telephone"
@@ -92,6 +96,7 @@ roles = ["vocal"]
 "b.slope" = 1
 "b.track" = 0
 "mix" = 1
+"out" = -0.7
 
 [[preset]]
 key = "preset.cribrum.rising_build"
@@ -128,6 +133,7 @@ roles = ["creative"]
 "lfo.div" = 11
 "mix" = 1
 "os" = 1
+"out" = -1
 
 [[preset]]
 key = "preset.cribrum.acid"
@@ -146,6 +152,7 @@ roles = ["creative"]
 "env.rel" = 160
 "mix" = 1
 "os" = 1
+"out" = -0.6
 
 [[preset]]
 key = "preset.cribrum.hat_shimmer"
@@ -161,6 +168,7 @@ roles = ["drums"]
 "lfo.shape" = 1
 "lfo.stereo" = 90
 "mix" = 1
+"out" = 15.4
 
 [[preset]]
 key = "preset.cribrum.gated_steps"
@@ -202,6 +210,7 @@ roles = ["drums", "creative"]
 "cur.cut" = 4
 "cur.smooth" = 3
 "mix" = 1
+"out" = -0.6
 
 [[preset]]
 key = "preset.cribrum.radio_drift"
@@ -216,6 +225,7 @@ roles = ["creative"]
 "lfo.div" = 1
 "lfo.shape" = 6
 "mix" = 1
+"out" = 12.6
 
 [[preset]]
 key = "preset.cribrum.dj_low"
@@ -239,6 +249,7 @@ roles = ["bus"]
 "a.res" = 0.2
 "a.slope" = 1
 "mix" = 1
+"out" = 3.1
 
 [[preset]]
 key = "preset.cribrum.stereo_drift"
@@ -257,6 +268,7 @@ roles = ["creative"]
 "lfo.shape" = 6
 "lfo.stereo" = 180
 "mix" = 1
+"out" = 3.8
 "spread" = 0.6
 
 [[preset]]
@@ -272,3 +284,4 @@ roles = ["creative"]
 "env.rel" = 600
 "env.vowel" = -3
 "mix" = 1
+"out" = 7.6

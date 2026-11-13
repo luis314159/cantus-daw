@@ -688,7 +688,21 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("mix", 0.6),
         ],
         // fx:contract — the side round's five: each builder writes its own settings line.
-        EffectKind::AutoFilter => vec![("out", -6.0)], // fx:contract
+        // fx:cribrum — both filters, every source moving, oversampled.
+        EffectKind::AutoFilter => vec![
+            ("mix", 0.9),
+            ("os", 1.0),
+            ("a.model", 1.0),
+            ("a.slope", 1.0),
+            ("a.res", 0.6),
+            ("b.on", 1.0),
+            ("b.mode", 5.0),
+            ("lfo.cut", 2.0),
+            ("lfo.stereo", 90.0),
+            ("env.cut", 1.0),
+            ("cur.vowel", 1.0),
+            ("out", -3.0),
+        ],
         EffectKind::Pedal => vec![("out", -6.0)],      // fx:contract
         EffectKind::TimeShaper => vec![("out", -6.0)], // fx:contract
         EffectKind::LoFi => vec![("out", -6.0)],       // fx:contract
@@ -767,6 +781,8 @@ pub enum Direct {
     /// fx:contract — the side round's stubs, until each builder names its DSP here: the
     /// engine's unit.
     Stub(Box<dyn cantus_engine::fx::FxUnit>),
+    /// fx:cribrum — Cribrum, the auto filter.
+    Cribrum(Box<cantus_dsp::cribrum::Cribrum>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -828,9 +844,10 @@ impl Direct {
                 )),
                 cantus_engine::fx::aula::want(spec),
             ), // r39:conv
-            EffectKind::AutoFilter => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::AutoFilter, SR).unwrap())
-            } // fx:contract
+            EffectKind::AutoFilter => Direct::Cribrum(Box::new(cantus_dsp::cribrum::Cribrum::new(
+                SR,
+                cantus_engine::fx::fluctus::shape_at,
+            ))), // fx:cribrum
             EffectKind::Pedal => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Pedal, SR).unwrap())
             } // fx:contract
@@ -888,6 +905,7 @@ impl Direct {
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
             Direct::Stub(x) => x.configure(spec), // fx:contract
+            Direct::Cribrum(x) => x.set(&fx::cribrum::settings(spec)), // fx:cribrum
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -928,6 +946,7 @@ impl Direct {
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
             Direct::Stub(x) => x.reset(), // fx:contract
+            Direct::Cribrum(x) => x.reset(), // fx:cribrum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -958,6 +977,7 @@ impl Direct {
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
             Direct::Stub(x) => x.latency(), // fx:contract
+            Direct::Cribrum(x) => x.latency(), // fx:cribrum
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -988,6 +1008,7 @@ impl Direct {
             Direct::Impetus(x) => x.process(l, r, key),
             Direct::Discrimen(x) => x.process(l, r),
             Direct::Stub(x) => x.process(l, r, key), // fx:contract
+            Direct::Cribrum(x) => x.process(l, r, key), // fx:cribrum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

@@ -695,6 +695,28 @@ pub const EFFECTS: [Unit; 25] = [
         thumb: (640, 410),
     },
 
+    // fx:cribrum — Cribrum, the auto filter (fx side round).
+    Unit {
+        file: "cribrum",
+        name: "Cribrum",
+        kind: ("Auto filter", "Filtro automático"),
+        pitch: ("Two analog filters moved in time with the song, over a picture of the music they sieve.", "Dos filtros analógicos movidos a tempo con la canción, sobre una imagen de la música que criban."),
+        what: long!(("Cribrum (Latin for a sieve) is two analog-modelled filters — the same five circuits as Cantus's synths: state-variable, transistor ladder, OTA cascade, diode ladder and Sallen-Key — in series or in parallel, moved by an LFO on the song, an envelope follower on the track or a sidechain, and a curve you draw. Each source has its own depth onto the cutoff, the resonance and the vowel. Its window draws the music sieved: the spectrum as grains, lit where it passes and dimmed where it is held back, under both filters' responses as they move; drag a filter's handle across for its cutoff and up and down for its resonance.", "Cribrum (en latín, una criba) son dos filtros de modelo analógico — los mismos cinco circuitos que los sintetizadores de Cantus: SVF, ladder de transistores, OTA en cascada, diode ladder y Sallen-Key — en serie o en paralelo, movidos por un LFO a tempo, un seguidor de envolvente sobre la pista o un sidechain, y una curva que dibujas. Cada fuente tiene su propia profundidad hacia el corte, la resonancia y la vocal. Su ventana dibuja la música cribada: el espectro en granos, iluminados donde pasa y apagados donde se retiene, bajo la respuesta de los dos filtros mientras se mueven; arrastra el tirador de un filtro a lo ancho para su corte y arriba y abajo para su resonancia.")),
+        features: long!(&[
+            ("Five filter circuits, low/band/high-pass, notch, peak and a talking vowel filter, 12 or 24 dB/oct", "Cinco circuitos de filtro, paso bajo, banda y alto, notch, pico y un filtro de vocales que habla, 12 o 24 dB/oct"),
+            ("Resonance that sings in tune: self-oscillation within ±5 cents, measured", "Resonancia que canta afinada: autooscilación dentro de ±5 cents, medida"),
+            ("An LFO from 1/64 to 8 bars on the song, an envelope follower with sidechain, a drawn curve", "Un LFO de 1/64 a 8 compases a tempo, un seguidor de envolvente con sidechain, una curva dibujada"),
+            ("Follows the song position: a render from any bar matches the full render, to the bit", "Sigue la posición de la canción: un render desde cualquier compás coincide con el completo, bit a bit"),
+            ("Two filters in series or parallel, a stereo spread, oversampling up to 4×", "Dos filtros en serie o en paralelo, apertura estéreo, sobremuestreo hasta 4×"),
+            ("Wah, dub sweep, pump filter, talking lead, telephone, rising build, acid and more", "Wah, barrido dub, filtro que bombea, lead que habla, teléfono, subida, acid y más"),
+        ]),
+        presets: Some(16),
+        plugin: true,
+        ab: None,
+        big: (1800, 1286),
+        thumb: (640, 457),
+    },
+
     // r37:library — Delay: its card plays its presets too. r39:delay — its own window (ADR 0115).
     Unit {
         file: "delay",

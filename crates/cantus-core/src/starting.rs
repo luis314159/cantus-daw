@@ -76,6 +76,7 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("a.res", 0.45),
                 ("lfo.div", 3.0),
                 ("lfo.cut", 1.5),
+                ("out", 3.0),
             ],
         ),
         K::Pedal => Start::Neutral(Flat),      // fx:contract (fragor)

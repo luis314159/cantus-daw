@@ -107,7 +107,13 @@ pub fn card(
                 pos2(body.right() - ctl_w - 8.0 * k, body.bottom()),
             );
             ui.allocate_rect(lane, Sense::hover());
-            lane_paint(ui, s, lane, st, tel_now, cs);
+            st.lane = Some(lane_map(lane, k).plot);
+            if st.source == 2 {
+                super::curve::edit(host, st, ui, lane_map(lane, k), cs, k);
+            }
+            // What is drawn is what is now set (an edit above may have moved it).
+            let now = cantus_engine::fx::cribrum::settings(host.spec());
+            lane_paint(ui, s, lane, st, tel_now, &now);
             let ctl = Rect::from_min_max(pos2(lane.right() + 8.0 * k, body.top()), body.max);
             let gh = (ctl.height() - 4.0 * k) * 0.5;
             let g1 = Rect::from_min_size(ctl.min, vec2(ctl.width(), gh));
@@ -156,7 +162,7 @@ pub fn card(
                     .max_rect(inner(g1))
                     .layout(egui::Layout::left_to_right(egui::Align::Center)),
             );
-            source_controls(host, st.source, &mut c1, s, cs);
+            source_controls(host, st, st.source, &mut c1, s, cs);
             let mut c2 = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(inner(g2))
@@ -299,10 +305,7 @@ fn lane_paint(
     let k = s.k;
     let live = super::display::live(tl);
     let second = ink.voice(s.hue, true);
-    let plot = Rect::from_min_max(
-        pos2(r.left() + 8.0 * k, r.top() + 22.0 * k),
-        pos2(r.right() - 8.0 * k, r.bottom() - 18.0 * k),
-    );
+    let plot = lane_map(r, k).plot;
     let tempo = if tl[tel::TEMPO] > 0.0 {
         tl[tel::TEMPO]
     } else {
@@ -391,8 +394,14 @@ fn lane_paint(
                 }
                 b.area(&pts, plot.bottom(), ink.fill(0.45));
                 canvas::trace(b, &pts, 2.0 * k, ink.hue, &ink);
-                for p in cs.curve.points.iter().flatten() {
-                    b.dot(pos2(x(p.x), y(p.y)), 3.5 * k, ink.hue);
+                let marked = super::curve::marked(st, cs);
+                for (i, p) in cs.curve.points.iter().enumerate() {
+                    let Some(p) = p else { continue };
+                    let at = pos2(x(p.x), y(p.y));
+                    b.dot(at, 4.0 * k, ink.hue);
+                    if marked == Some(i) {
+                        b.circle_stroke(at, 7.0 * k, 1.5 * k, ink.text);
+                    }
                 }
                 if live {
                     let ph = tl[t::CURVE_PHASE].clamp(0.0, 1.0);
@@ -426,6 +435,16 @@ fn lane_paint(
     });
 }
 
+/// The lane's plot inside its rect.
+fn lane_map(r: Rect, k: f32) -> super::curve::Map {
+    super::curve::Map {
+        plot: Rect::from_min_max(
+            pos2(r.left() + 10.0 * k, r.top() + 24.0 * k),
+            pos2(r.right() - 10.0 * k, r.bottom() - 12.0 * k),
+        ),
+    }
+}
+
 /// The index of a synced length by its beats.
 fn cs_div_index(beats: f64) -> usize {
     cantus_dsp::cribrum::modulation::DIVISIONS
@@ -437,6 +456,7 @@ fn cs_div_index(beats: f64) -> usize {
 /// The chosen source's own controls: a column of switches, then a row of cells.
 fn source_controls(
     host: &mut dyn FxHost,
+    st: &State,
     source: usize,
     ui: &mut egui::Ui,
     s: &Style,
@@ -456,7 +476,8 @@ fn source_controls(
             controls::caption(ui, s, Src::Key("cribrum.env.how"), SW_W);
         }
         _ => {
-            controls::caption(ui, s, Src::Key("cribrum.curve.how"), SW_W);
+            controls::caption(ui, s, Src::Key("cribrum.curve.segment"), SW_W);
+            super::curve::shape_keys(host, st, ui, s, SW_W, cs);
         }
     });
     match source {
@@ -484,6 +505,10 @@ fn source_controls(
         _ => {
             controls::param_with(ui, s, host, "cur.div", Size::M, Some(&super::div_pill));
             controls::param(ui, s, host, "cur.smooth", Size::M);
+            if let Some(n) = super::curve::marked(st, cs) {
+                let key = cantus_core::fx::cribrum::point_keys()[n][3];
+                controls::param(ui, s, host, key, Size::M);
+            }
         }
     }
 }

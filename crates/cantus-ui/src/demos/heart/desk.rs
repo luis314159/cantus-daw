@@ -150,6 +150,14 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
     );
     hp(s, b.pad.strip, 170.0);
     hp(s, b.arp.strip, 260.0);
+    // fx:cribrum — the arp through Cribrum's bar sweep, half wet: the resonant ladder rises
+    // and falls once a bar under the song.
+    s.insert(
+        b.arp.strip,
+        K::AutoFilter,
+        Some("preset.cribrum.bar_sweep"),
+        &[("mix", 0.5)],
+    );
     // The guitar through a Phase 90 (script), slow enough to breathe.
     s.insert(
         b.guitar.strip,

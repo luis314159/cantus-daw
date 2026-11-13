@@ -289,6 +289,25 @@ fn edit(
         st.view.drag = None;
         host.end_gesture();
     }
+    // A click takes a filter's handle into the Filter card; a double-click puts its cutoff
+    // and resonance back to their defaults (one step).
+    if let Some(p) = resp.interact_pointer_pos() {
+        let near = (0..2)
+            .filter(|f| shown(*f))
+            .map(|f| (f, handle(map, &set[f], sr).distance(p)))
+            .filter(|(_, d)| *d <= 16.0 * k)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(f, _)| f);
+        if let Some(f) = near {
+            if resp.clicked() {
+                st.filter = f;
+            }
+            if resp.double_clicked() {
+                let keys = super::FILTER_KEYS[f];
+                host.apply(&[(keys[3], None), (keys[4], None)], "cmd.cribrum_handle_reset", None);
+            }
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

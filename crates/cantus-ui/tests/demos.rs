@@ -516,7 +516,8 @@ fn the_showcase_plays_round_28() {
         .collect();
     // fx:contract — the side round's five (26..31) join the showcase when their builders
     // put them in it (`demos/heart/desk.rs`); each then widens this range past its own.
-    for kind in K::ALL[12..26].iter() {
+    for kind in K::ALL[12..27].iter() {
+        // fx:cribrum — Cribrum (26) is in it (the arp).
         assert!(
             slots.iter().any(|e| e.spec.kind == *kind),
             "no {kind:?} in the showcase"

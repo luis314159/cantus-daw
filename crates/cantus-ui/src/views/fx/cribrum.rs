@@ -24,6 +24,8 @@ use egui::{pos2, vec2, Pos2, Rect, Sense};
 
 #[path = "cribrum_display.rs"]
 mod display;
+#[path = "cribrum_curve.rs"]
+mod curve;
 #[path = "cribrum_move.rs"]
 mod movement;
 
@@ -48,8 +50,15 @@ pub struct State {
     view: display::View,
     /// The follower's recent movement, for its lane.
     trail: movement::Trail,
-    /// Where the display was drawn last frame (tests point at it).
+    /// The curve's point whose segment the shape keys edit.
+    pub point: Option<usize>,
+    /// A drag on the curve, and the number that folds its steps into one undo step.
+    grab: Option<curve::Grab>,
+    gesture: u64,
+    /// Where the display's plot was drawn last frame (tests point at it).
     pub display: Option<Rect>,
+    /// Where the movement lane's plot was drawn last frame.
+    pub lane: Option<Rect>,
 }
 
 /// Cribrum's editor in Cantus's own window: the host is the project.
