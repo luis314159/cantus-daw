@@ -169,6 +169,69 @@ time and style work grew by about 10 and 30 ms.
 
 The GIFs: `C:\projects\daw-fx\compartir\web\motion\v2\` (v1 kept in `motion\`).
 
+## 3c. Motion v3: the scroll tells a story (the owner, 2026-11-13)
+
+"Ponte más creativo con el webpage, cuando scrollees que pase algo." Four pieces, one story —
+the program comes together, a signal runs through it, it plays, and it is measured:
+
+1. **The program assembles itself** (home hero, desktop). On arrival the hero's window is an
+   exploded view: the top bar, the browser, the arrangement, the mixer and the inspector lifted
+   off a dimmed plate in depth, each edged in a gold hairline, the whole tilted back (CSS 3D:
+   `perspective`, `rotateX`, `translate3d`). The first 560 px of scroll set the parts down and
+   the plate lights up; once landed, the parts fade into the real picture beneath, which
+   is never moved, faded or replaced (it is the page's LCP). The parts are the same picture
+   five times (`top.rs`, `.hw-parts`, `aria-hidden`), each cropped to its panel by the tour's
+   own coordinates — no new image is downloaded. The text above is never covered.
+2. **A gold cable down the page** (desktop ≥ 70 rem). A rail runs in the margin two rem left
+   of the text (`app.rs`, `.cable`). It is lit from the top of the screen to its middle, a
+   glowing head at the middle and a pulse of light running down it every 2.6 s (the app's
+   cables with energy). As each chapter's heading reaches the middle, a branch draws from the
+   cable to the heading's gold lozenge, so the cable connects the chapters one by one. The
+   hero, the pages' heads and the footer stand above it.
+3. **The scroll is the playhead** (the tour's arrangement, every width). A gold playhead
+   crosses the arrangement's clips as the picture scrolls through the screen, the clips it
+   has passed lit in lapis.
+4. **Measured races** (every width). Each pair of bars draws at one speed, so the shorter bar
+   — the faster program — reaches its end first. Each figure appears, at its true value,
+   when its bar arrives; nothing ticks through numbers that were never measured. It runs
+   over the lowest fifth of the screen, so a pair already in view when the page opens is
+   complete.
+
+Not done from the list, on purpose: pinning a section to the scroll (a scroll trap on a phone
+and for keyboard users), and moving the dot grid's background (a repaint, not a transform).
+
+Rules held: scroll-driven only (`animation-timeline: scroll()/view()` and named view
+timelines), transform and opacity only, no script added for motion. The site already has the
+release check and the router, but nothing scroll-related runs in a script. Without scroll-driven
+animations (Firefox today), or with reduced motion, the page is the still, complete one: the
+picture whole, no cable, bars and figures at their values. On a phone the hero and the cable
+are off, while the playhead and the race remain. `tools/motion.mjs` passes on seven pages at
+1440 and 390 px (keyframes transform/opacity only, nothing animating or hidden under reduced
+motion, nothing left half-shown with motion), and the quick contrast run is clean.
+
+**Budgets, v2 → v3** (Lighthouse mobile, 5 runs each, medians, run back to back on the same PC; two other builders were compiling, so this was not a quiet moment):
+
+| Line | Budget | v2 | v3 |
+|---|---|---|---|
+| Largest contentful paint | ≤ 2.0 s | 1.963 s (1.958–1.965) | 1.961 s (1.960–1.963) |
+| LCP element | — | the hero's picture | the hero's picture (never animated) |
+| Total blocking time | — | 149 ms (80–218) | 88 ms (68–231) |
+| First contentful paint | — | 1.104 s | 1.210 s |
+| Style and layout (main thread) | — | 542 ms | 459 ms |
+| Cumulative layout shift | ≤ 0.02 | 0.000 | 0.000 |
+| Accessibility | 100 | 100 | 100 |
+| Performance score | — | 97 | 98 |
+| First visit | ≤ 1 MB | 691606 B | 694427 B |
+| WebAssembly gzip | ≤ 250 000 B | 232 444 B | 233 085 B |
+
+Every line holds, and Lighthouse CI's assertions pass for both. LCP is unchanged: it is the
+hero's picture, which v3 never touches, and its runs are tight (1.96 s). The first visit grows by
+2.8 KB: the parts' markup and the CSS. The five parts reuse the picture already loaded, so no
+image bytes are added. Blocking time and style work came out lower for v3; with this spread
+(the same build's runs vary by 150 ms), read that as unchanged rather than faster.
+
+The GIFs: `C:\projects\daw-fx\compartir\web\motion\v3\` (v1 in `motion\`, v2 in `motion\v2\`).
+
 ## 4. Budgets, before and after
 
 Both built from the same sources' data (the latest release, beta.14, fetched with
@@ -216,6 +279,8 @@ its line before and after alike.
   anything stronger.
 - The pictures: `C:\projects\daw-fx\compartir\web\before\` and `after\`, plus the GIFs in
   `motion\` (v1) and `motion\v2\`.
+- v3's story (§3c): the exploded hero, the cable, the playhead and the race. Each is one block
+  of `motion.css` and can be taken out alone.
 - Publishing waits for round 40 (the owner): nothing here has been pushed or deployed.
 
 ## 7. The release shown on the download page
