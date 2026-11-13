@@ -58,12 +58,17 @@ fn string(hz: f32, secs: f32, vel: f32, seed: u64, palm: bool) -> Vec<f32> {
         out.push(a);
         p = (p + 1) % len;
     }
-    // The pickup hears the string's velocity: a first difference, softened.
-    let mut prev = 0.0;
+    // The pickup: the string's displacement with its DC taken away (a 40 Hz high-pass),
+    // and a gentle low-pass for the pickup's own resonance and the cable (about 5 kHz).
+    let (mut x1, mut y1, mut lp) = (0.0f32, 0.0f32, 0.0f32);
+    let r = 1.0 - std::f32::consts::TAU * 40.0 / SR;
+    let a = 1.0 - math::exp(-std::f32::consts::TAU * 5_000.0 / SR);
     out.iter_mut().for_each(|v| {
-        let d = *v - prev;
-        prev = *v;
-        *v = d;
+        let y = *v - x1 + r * y1;
+        x1 = *v;
+        y1 = y;
+        lp += a * (y - lp);
+        *v = lp;
     });
     out
 }
@@ -96,7 +101,10 @@ fn riff() -> Vec<f32> {
     }
     chord(&mut v, 98.0, 2.0, 0.5, 20);
     chord(&mut v, 110.0, 2.5, 0.5, 30);
-    for (i, hz) in [164.81f32, 196.0, 220.0, 246.94, 293.66, 329.63].iter().enumerate() {
+    for (i, hz) in [164.81f32, 196.0, 220.0, 246.94, 293.66, 329.63]
+        .iter()
+        .enumerate()
+    {
         let s = string(*hz, 0.4, 0.7, 40 + i as u64, false);
         mix(&mut v, &s, 3.0 + 0.25 * i as f32, 1.0);
     }
@@ -114,7 +122,9 @@ fn note() -> Vec<f32> {
 
 /// A saw lead: a phrase of eight notes, each a naive saw with a soft attack.
 fn synth() -> Vec<f32> {
-    let notes = [220.0f32, 261.63, 329.63, 392.0, 329.63, 293.66, 261.63, 220.0];
+    let notes = [
+        220.0f32, 261.63, 329.63, 392.0, 329.63, 293.66, 261.63, 220.0,
+    ];
     let mut v = vec![];
     for (i, hz) in notes.iter().enumerate() {
         let n = (0.375 * SR) as usize;
@@ -135,6 +145,14 @@ fn normalise(v: &mut [f32], peak: f32) {
     let m = v.iter().fold(0.0f32, |m, x| m.max(x.abs())).max(1e-9);
     v.iter_mut().for_each(|x| *x *= peak / m);
 }
+
+/// One render: the file, the chain, its knobs, what to say of it.
+type Run = (
+    &'static str,
+    Vec<Model>,
+    Vec<(Model, [f32; 3])>,
+    &'static str,
+);
 
 fn through(s: &BoardSettings, x: &[f32]) -> Vec<f32> {
     let mut f = Fragor::new(SR);
@@ -178,7 +196,9 @@ fn write(dir: &Path, name: &str, v: &[f32], notes: &mut String, what: &str) -> f
     }
     w.finalize().unwrap();
     let db = 20.0 * math::log10(g);
-    notes.push_str(&format!("{name}\n  {what}\n  scaled {db:+.1} dB to peak at -3 dBFS\n\n"));
+    notes.push_str(&format!(
+        "{name}\n  {what}\n  scaled {db:+.1} dB to peak at -3 dBFS\n\n"
+    ));
     println!("{}", dir.join(name).display());
     db
 }
@@ -195,9 +215,15 @@ fn main() {
          licensed). 48 kHz, 24-bit, the same signal on both sides.\n\n",
     );
     let g = riff();
-    write(&dir, "00-di-guitar.wav", &g, &mut notes, "The DI guitar, dry: the riff every file plays.");
+    write(
+        &dir,
+        "00-di-guitar.wav",
+        &g,
+        &mut notes,
+        "The DI guitar, dry: the riff every file plays.",
+    );
     use Model::*;
-    let runs: [(&str, Vec<Model>, Vec<(Model, [f32; 3])>, &str); 6] = [
+    let runs: [Run; 6] = [
         ("01-green-overdrive.wav", vec![Overdrive], vec![(Overdrive, [0.6, 0.55, 0.5])], "Green overdrive: Drive 60 %, Tone 55 %, Level 50 %."),
         ("02-op-amp-distortion.wav", vec![OpAmp], vec![(OpAmp, [0.7, 0.35, 0.5])], "Op-amp distortion: Distortion 70 %, Filter 35 %, Volume 50 %."),
         ("03-silicon-distortion.wav", vec![Silicon], vec![(Silicon, [0.6, 0.5, 0.5])], "Silicon distortion: Dist 60 %, Tone 50 %, Level 50 %."),

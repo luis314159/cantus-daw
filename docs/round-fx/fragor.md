@@ -17,3 +17,33 @@ site card, AI description, demos, the finishing suite.
 | Docs | `docs/adr/0131-fragor-the-pedals.md`, this file | — |
 
 The measurements and what each test holds are in the ADR.
+
+## Measured in Phase A
+
+- **Against the schematics** (an independent SPICE-class analysis of each whole circuit,
+  `fragor_spice_tests`): TS808, RAT, DS-1, Fuzz Face within 0.1 dB from 80 Hz to 3 kHz
+  and 0.25 dB at 8 kHz; Big Muff within 0.08 dB to 1 kHz, 0.5 dB at 8 kHz.
+- **Published operating points:** Fuzz Face Q2 collector 4.7 V, Q1 0.7 V (ElectroSmash's
+  targets 4.5 V and 0.5 – 0.7 V); Big Muff input booster collector 7.0 V (ElectroSmash 7 V).
+- **Aliasing** (2.5 kHz at 300 mV, op-amp distortion at 80 %, 48 kHz): −30.0 dB at 2×,
+  −53.6 dB at 4× (default), −63.1 dB at 8×.
+- **The dying battery:** fresh, a decaying note's output holds within 1 dB while its input
+  falls 24 dB; at Bias 10 % it collapses 20 dB faster than the input (the sweep in
+  `compartir/fragor/sound/07-…`: the note's end 12 dB under its start when fresh, 45 – 70 dB
+  under it at Bias 35 % and below).
+- **CPU per pedal**, mono, 48 kHz, release build, a plucked note (`fragor_tests::cpu_per_pedal`,
+  `--ignored`), measured **while other builders kept this machine at 100 % load** — read
+  them as upper bounds; to be measured again on a quiet machine:
+
+  | Pedal | 2× | 4× (default) | 8× |
+  |---|---|---|---|
+  | Green overdrive (1 port) | 2.8 % | 4.5 % | 8.1 % |
+  | Op-amp distortion (2) | 4.0 % | 6.5 % | 11.5 % |
+  | Silicon distortion (2 ‖ 2) | 9.7 % | 13.7 % | 21.6 % |
+  | Germanium fuzz (4) | 5.6 % | 9.7 % | 16.4 % |
+  | Triangle muff (2 ‖ 3 ‖ 5) | 12.2 % | 22 % | 41 % |
+
+  Too much for the Silicon and the Muff: Phase B makes Newton a chord method (the
+  factorisation kept while the ports barely move), linearises the Muff's output booster
+  (3.3 kΩ of emitter degeneration: linear to within the model's own error) and measures
+  again.

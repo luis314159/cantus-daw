@@ -36,6 +36,9 @@
 //! pedal settles into. The board returns a pedal to that exact state after a stretch of
 //! digital silence (`fragor.rs`).
 
+// Dense linear algebra on small fixed arrays reads best with its indices.
+#![allow(clippy::needless_range_loop)]
+
 use crate::math;
 
 /// Nodes at most, ground excluded.
@@ -56,12 +59,9 @@ pub const MAX_E: usize = 4;
 pub const MAX_OUT: usize = 2;
 /// Entries of `q`: the inputs and the capacitors' history sources.
 const MAX_Q: usize = MAX_IN + MAX_C;
-/// Rows of the fused per-sample matrix: the ports (0 …), the capacitors' voltages (from
-/// [`CAP_ROW`]), the outputs (from [`OUT_ROW`]); padded to a multiple of four so the
-/// columns vectorise.
-const ROWS: usize = 20;
-const CAP_ROW: usize = MAX_NL;
-const OUT_ROW: usize = MAX_NL + MAX_C;
+/// Rows of the fused per-sample matrix at most: the ports, the capacitors' voltages, the
+/// outputs, one after the other.
+const ROWS: usize = MAX_NL + MAX_C + MAX_OUT;
 
 /// SPICE's minimum conductance to ground, on every node, so a node joined to the rest only
 /// through capacitors still has a voltage at DC.
@@ -168,6 +168,11 @@ pub struct Circuit {
     block: [(u8, u8); MAX_NL],
     outs: [[f64; MAX_N]; MAX_OUT],
     nout: usize,
+    /// Where the capacitors' and the outputs' rows start in the fused matrix, and how many
+    /// rows it has (ports, then capacitors, then outputs: only what the circuit has).
+    cap_row: usize,
+    out_row: usize,
+    rows: usize,
     // ---- derived from the values (rebuilt when one moves) ----
     ginv: [[f64; MAX_N]; MAX_N],
     /// G⁻¹ S: each node's share of each entry of `q = [inputs, capacitor histories]`.
@@ -231,6 +236,9 @@ impl Circuit {
             block: [(0, 0); MAX_NL],
             outs: [[0.0; MAX_N]; MAX_OUT],
             nout: 0,
+            cap_row: 0,
+            out_row: 0,
+            rows: 0,
             ginv: [[0.0; MAX_N]; MAX_N],
             tq: [[0.0; MAX_Q]; MAX_N],
             gn: [[0.0; MAX_NL]; MAX_N],
@@ -541,6 +549,10 @@ impl Circuit {
                 }
             }
         }
+        self.cap_row = dims;
+        self.out_row = dims + self.nc;
+        self.rows = self.out_row + self.nout;
+        let (cap_row, out_row) = (self.cap_row, self.out_row);
         self.aq = [[0.0; ROWS]; MAX_Q];
         self.ai = [[0.0; ROWS]; MAX_NL];
         for j in 0..m {
@@ -548,18 +560,18 @@ impl Circuit {
                 self.aq[j][r] = self.pq[r][j];
             }
             for k in 0..self.nc {
-                self.aq[j][CAP_ROW + k] = self.vq[k][j];
+                self.aq[j][cap_row + k] = self.vq[k][j];
             }
             for o in 0..self.nout {
-                self.aq[j][OUT_ROW + o] = self.oq[o][j];
+                self.aq[j][out_row + o] = self.oq[o][j];
             }
         }
         for d in 0..dims {
             for k in 0..self.nc {
-                self.ai[d][CAP_ROW + k] = self.vi[k][d];
+                self.ai[d][cap_row + k] = self.vi[k][d];
             }
             for o in 0..self.nout {
-                self.ai[d][OUT_ROW + o] = self.oi[o][d];
+                self.ai[d][out_row + o] = self.oi[o][d];
             }
         }
     }
@@ -643,10 +655,6 @@ fn solve_small(m: &mut [[f64; MAX_NL]; MAX_NL], b: &mut [f64; MAX_NL], d: usize)
     }
 }
 
-/// Newton iterations counted, for the tests.
-#[cfg(test)]
-pub static ITERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
 /// `e^x` for the junctions, our own and fast: `2^k · e^r` with `|r| ≤ ln2/2` and a
 /// degree-10 Taylor polynomial (relative error below 10⁻¹¹ — far under what the device
 /// models know), ordinary arithmetic in a fixed order, so the same bits everywhere. The
@@ -654,7 +662,7 @@ pub static ITERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsiz
 #[inline]
 pub fn fast_exp(x: f64) -> f64 {
     const LOG2E: f64 = std::f64::consts::LOG2_E;
-    const LN2_HI: f64 = 6.931_471_803_691_238_2e-1;
+    const LN2_HI: f64 = 6.931_471_803_691_238e-1;
     const LN2_LO: f64 = 1.908_214_929_270_587_7e-10;
     let x = x.clamp(-700.0, EXP_CAP);
     // Round to nearest by truncation of x·log₂e ± ½ (a plain conversion: `round` is a
@@ -685,12 +693,7 @@ fn cap_exp(x: f64) -> f64 {
 /// Port currents `i` and their derivatives `∂i/∂v` (block diagonal: an NPN couples its two
 /// ports) at port voltages `v`.
 #[inline]
-fn currents(
-    e: &[Nl],
-    v: &[f64; MAX_NL],
-    i: &mut [f64; MAX_NL],
-    di: &mut [[f64; MAX_NL]; MAX_NL],
-) {
+fn currents(e: &[Nl], v: &[f64; MAX_NL], i: &mut [f64; MAX_NL], di: &mut [[f64; MAX_NL]; MAX_NL]) {
     let mut d = 0;
     for el in e {
         match *el {
@@ -765,8 +768,6 @@ impl Circuit {
         }
         let mut di = [[0.0; MAX_NL]; MAX_NL];
         for _ in 0..iters {
-            #[cfg(test)]
-            ITERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             currents(&self.e[..self.ne], &self.v, &mut i, &mut di);
             // F = p + K i − v;  J = K ∂i/∂v − I;  Δ = −J⁻¹ F.
             let mut f = [0.0; MAX_NL];
@@ -840,7 +841,13 @@ impl Circuit {
     }
 
     #[inline]
-    fn lin(&self, rq: &[f64; MAX_Q], ri: &[f64; MAX_NL], q: &[f64; MAX_Q], i: &[f64; MAX_NL]) -> f64 {
+    fn lin(
+        &self,
+        rq: &[f64; MAX_Q],
+        ri: &[f64; MAX_NL],
+        q: &[f64; MAX_Q],
+        i: &[f64; MAX_NL],
+    ) -> f64 {
         let m = self.ni + self.nc;
         let mut acc = 0.0;
         for (a, b) in rq.iter().zip(q).take(m) {
@@ -861,14 +868,15 @@ impl Circuit {
     pub fn step(&mut self, u: &[f64], y: &mut [f64; MAX_OUT]) {
         let q = self.q(u, 1.0);
         let m = self.ni + self.nc;
+        let rows = self.rows;
         let mut acc = [0.0f64; ROWS];
         for (col, qj) in self.aq.iter().zip(&q).take(m) {
-            for (a, c) in acc.iter_mut().zip(col) {
+            for (a, c) in acc.iter_mut().zip(col).take(rows) {
                 *a += c * qj;
             }
         }
         let mut p = [0.0; MAX_NL];
-        p.copy_from_slice(&acc[..MAX_NL]);
+        p[..self.dims].copy_from_slice(&acc[..self.dims]);
         // Start Newton from the line through the last two answers, a step of at most
         // PREDICT volts (past a junction's knee a straight line overshoots by volts).
         let v1 = self.v;
@@ -885,17 +893,17 @@ impl Circuit {
             self.newton(&p, ITER * 8).0
         };
         for (col, id) in self.ai.iter().zip(&i).take(self.dims) {
-            for (a, c) in acc.iter_mut().zip(col) {
+            for (a, c) in acc.iter_mut().zip(col).take(rows) {
                 *a += c * id;
             }
         }
         for k in 0..self.nc {
-            self.j[k] = 2.0 * self.gc[k] * acc[CAP_ROW + k] - self.j[k];
+            self.j[k] = 2.0 * self.gc[k] * acc[self.cap_row + k] - self.j[k];
         }
         self.q_last = q;
         self.i_last = i;
         for (o, yo) in y.iter_mut().enumerate().take(self.nout) {
-            *yo = acc[OUT_ROW + o] - self.y0[o];
+            *yo = acc[self.out_row + o] - self.y0[o];
         }
     }
 

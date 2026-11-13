@@ -32,7 +32,12 @@ fn knobs_without_a_pedal_touch_no_sample() {
     let dry = render_of(&demo_project());
     let mut p = demo_project();
     let f = add_effect(&mut p, EffectKind::Pedal);
-    for (k, v) in [("ge.fuzz", 1.0), ("od.drive", 0.9), ("mono", 1.0), ("os", 2.0)] {
+    for (k, v) in [
+        ("ge.fuzz", 1.0),
+        ("od.drive", 0.9),
+        ("mono", 1.0),
+        ("os", 2.0),
+    ] {
         set(&mut p, f, k, v);
     }
     assert_null(&dry, &render_of(&p), 0.0, "an empty board");

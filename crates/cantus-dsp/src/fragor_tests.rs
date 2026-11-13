@@ -232,7 +232,9 @@ fn the_dry_path_is_the_input_delayed_by_the_latency() {
 fn a_footswitch_does_not_click() {
     let n = 24_000;
     let w = std::f32::consts::TAU * 110.0 / SR;
-    let x: Vec<f32> = (0..n).map(|i| 0.3 * crate::math::sin(w * i as f32)).collect();
+    let x: Vec<f32> = (0..n)
+        .map(|i| 0.3 * crate::math::sin(w * i as f32))
+        .collect();
     let mut s = board([Some(Model::Silicon), None, None]);
     let mut f = fresh(&s);
     let (a, _) = run(&mut f, &x[..n / 2], &x[..n / 2], 64);
@@ -293,7 +295,11 @@ fn decay_levels(model: Model, knobs: [f32; 3]) -> (Vec<f32>, Vec<f32>) {
     let win = (SR * 0.1) as usize;
     let lv = |v: &[f32]| {
         v.chunks(win)
-            .map(|c| 10.0 * crate::math::log10(c.iter().map(|s| s * s).sum::<f32>() / c.len() as f32 + 1e-30))
+            .map(|c| {
+                10.0 * crate::math::log10(
+                    c.iter().map(|s| s * s).sum::<f32>() / c.len() as f32 + 1e-30,
+                )
+            })
             .collect::<Vec<f32>>()
     };
     (lv(&x), lv(&y))
@@ -307,7 +313,10 @@ fn the_dying_battery_gates_a_decaying_note() {
     let (inp, fresh_out) = decay_levels(Model::Fuzz, [1.0, 1.0, 1.0]);
     let (_, dying) = decay_levels(Model::Fuzz, [1.0, 0.1, 1.0]);
     for (k, (i, (a, b))) in inp.iter().zip(fresh_out.iter().zip(&dying)).enumerate() {
-        println!("{:.1} s: in {i:+6.1} dB, fresh {a:+6.1} dB, dying {b:+6.1} dB", k as f32 * 0.1);
+        println!(
+            "{:.1} s: in {i:+6.1} dB, fresh {a:+6.1} dB, dying {b:+6.1} dB",
+            k as f32 * 0.1
+        );
     }
     // Windows where the input is at −30 and −54 dB(ish): 1.0 s and 2.0 s in (the input
     // falls 10 dB a second).
@@ -319,7 +328,10 @@ fn the_dying_battery_gates_a_decaying_note() {
     let gate = (0..inp.len() - 4)
         .map(|k| (dying[k] - dying[k + 4]) - (inp[k] - inp[k + 4]))
         .fold(f32::MIN, f32::max);
-    assert!(gate > 18.0, "dying battery: the output falls only {gate} dB more than the input");
+    assert!(
+        gate > 18.0,
+        "dying battery: the output falls only {gate} dB more than the input"
+    );
 }
 
 /// Aliasing: a 2.5 kHz sine at 300 mV through the op-amp distortion near full gain, at
@@ -372,14 +384,17 @@ fn aliasing_is_measured() {
 fn calibration() {
     let x = pluck(147.0, 1.0, 1.0, 21);
     let rms = |v: &[f32]| (v.iter().map(|s| s * s).sum::<f32>() / v.len() as f32).sqrt();
-    let g = 10f32.powf(-18.0 / 20.0) / rms(&x);
+    let g = crate::math::db_to_gain(-18.0) / rms(&x);
     let x: Vec<f32> = x.iter().map(|v| v * g).collect();
     let mut worst = vec![];
     for m in Model::ALL {
         let mut f = fresh(&board([Some(m), None, None]));
         let (y, _) = run(&mut f, &x, &x, 256);
         let d = 20.0 * crate::math::log10(rms(&y) / rms(&x));
-        println!("{m:?}: {d:+.1} dB (CAL_DB {:+.1})", circuits::CAL_DB[m.index()]);
+        println!(
+            "{m:?}: {d:+.1} dB (CAL_DB {:+.1})",
+            circuits::CAL_DB[m.index()]
+        );
         worst.push((m, d));
     }
     assert!(worst.iter().all(|(_, d)| d.abs() < 1.0), "{worst:?}");
@@ -406,7 +421,10 @@ fn cpu_per_pedal() {
                 }
                 best = best.min(t.elapsed().as_secs_f64());
             }
-            println!("{os}x {m:?}: {:.2} % of a core (mono, 48 kHz)", best * 100.0);
+            println!(
+                "{os}x {m:?}: {:.2} % of a core (mono, 48 kHz)",
+                best * 100.0
+            );
         }
     }
 }

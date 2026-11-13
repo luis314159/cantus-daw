@@ -8,6 +8,8 @@
 //! The DSP is measured by playing a 10 µV sine through it (far below where anything
 //! clips) and reading the output's amplitude at that frequency over whole cycles.
 
+#![allow(clippy::needless_range_loop)]
+
 use super::circuits::{taper_a, Model, Pedal, D_IS, D_N, FUZZ_SOURCE, VT};
 use crate::math;
 
@@ -26,7 +28,10 @@ impl Cx {
     }
     fn div(self, o: Cx) -> Cx {
         let d = o.0 * o.0 + o.1 * o.1;
-        Cx((self.0 * o.0 + self.1 * o.1) / d, (self.1 * o.0 - self.0 * o.1) / d)
+        Cx(
+            (self.0 * o.0 + self.1 * o.1) / d,
+            (self.1 * o.0 - self.0 * o.1) / d,
+        )
     }
     fn abs(self) -> f64 {
         (self.0 * self.0 + self.1 * self.1).sqrt()
@@ -169,7 +174,11 @@ fn stamp(net: &Net, w: Option<f64>, m: &mut [Vec<Cx>], rhs: &mut [Cx], ac: bool,
                 put(m, q, br + 1, Cx(-1.0, 0.0));
                 put(m, br + 1, p, Cx(1.0, 0.0));
                 put(m, br + 1, q, Cx(-1.0, 0.0));
-                rhs[br] = if ac { Cx(acv, 0.0) } else { Cx(dc * scale, 0.0) };
+                rhs[br] = if ac {
+                    Cx(acv, 0.0)
+                } else {
+                    Cx(dc * scale, 0.0)
+                };
                 br += 1;
             }
             E::Op {
@@ -244,9 +253,14 @@ fn dc(net: &Net) -> Vec<f64> {
                 }
                 f[r] = s;
             }
-            let mut jac: Vec<Vec<f64>> = (0..size).map(|r| m[r].iter().map(|c| c.0).collect()).collect();
+            let mut jac: Vec<Vec<f64>> = (0..size)
+                .map(|r| m[r].iter().map(|c| c.0).collect())
+                .collect();
             nonlinear(net, &x, &mut f, &mut jac);
-            let mut jm: Vec<Vec<Cx>> = jac.iter().map(|r| r.iter().map(|g| Cx(*g, 0.0)).collect()).collect();
+            let mut jm: Vec<Vec<Cx>> = jac
+                .iter()
+                .map(|r| r.iter().map(|g| Cx(*g, 0.0)).collect())
+                .collect();
             let mut d: Vec<Cx> = f.iter().map(|v| Cx(-v, 0.0)).collect();
             solve(&mut jm, &mut d);
             let big = d.iter().map(|c| c.0.abs()).fold(0.0, f64::max);
@@ -267,7 +281,14 @@ fn ac(net: &Net, op: &[f64], hz: f64) -> f64 {
     let size = net.nodes + net.branches();
     let mut m = vec![vec![Cx(0.0, 0.0); size]; size];
     let mut rhs = vec![Cx(0.0, 0.0); size];
-    stamp(net, Some(std::f64::consts::TAU * hz), &mut m, &mut rhs, true, 1.0);
+    stamp(
+        net,
+        Some(std::f64::consts::TAU * hz),
+        &mut m,
+        &mut rhs,
+        true,
+        1.0,
+    );
     let mut f = vec![0.0; size];
     let mut jac = vec![vec![0.0; size]; size];
     nonlinear(net, op, &mut f, &mut jac);
@@ -336,11 +357,17 @@ fn ts(drive: f64, tone: f64) -> Net {
     let [a, p, m, g, o1, t1, m2, w, rc, o2, oc, lv] = std::array::from_fn(|_| n.node());
     n.el.extend([C(src, a, 1e-6), R(a, p, 1e3), R(p, vref, 10e3)]);
     n.el.extend([R(m, g, 4.7e3), C(g, 0, 47e-9)]);
-    n.el.extend([R(m, o1, 51e3 + pot(500e3 * taper_a(drive))), C(m, o1, 51e-12)]);
+    n.el.extend([
+        R(m, o1, 51e3 + pot(500e3 * taper_a(drive))),
+        C(m, o1, 51e-12),
+    ]);
     n.el.push(Diodes(m, o1));
     opamp(&mut n, p, m, o1, 3e6, 1e5);
     n.el.extend([R(o1, t1, 1e3), C(t1, 0, 0.22e-6), R(t1, vref, 10e3)]);
-    n.el.extend([R(t1, w, pot(20e3 * tone)), R(w, m2, pot(20e3 * (1.0 - tone)))]);
+    n.el.extend([
+        R(t1, w, pot(20e3 * tone)),
+        R(w, m2, pot(20e3 * (1.0 - tone))),
+    ]);
     n.el.extend([C(w, rc, 0.22e-6), R(rc, 0, 220.0), R(o2, m2, 1e3)]);
     opamp(&mut n, t1, m2, o2, 3e6, 1e5);
     n.el.extend([C(o2, oc, 1e-6), R(oc, lv, 1e3), R(lv, 0, 100e3)]);
@@ -358,11 +385,19 @@ fn rat(dist: f64, filter: f64) -> Net {
     n.el.extend([R(src, 0, 1e6), C(src, a, 22e-9), R(a, vref, 1e6)]);
     n.el.extend([R(a, p, 1e3), C(p, 0, 1e-9)]);
     n.el.extend([R(m, o, pot(100e3 * taper_a(dist))), C(m, o, 100e-12)]);
-    n.el.extend([R(m, g1, 47.0), C(g1, 0, 2.2e-6), R(m, g2, 560.0), C(g2, 0, 4.7e-6)]);
+    n.el.extend([
+        R(m, g1, 47.0),
+        C(g1, 0, 2.2e-6),
+        R(m, g2, 560.0),
+        C(g2, 0, 4.7e-6),
+    ]);
     let gbw = 0.3e6 * 30e-12 / (2.0 * VT) / (std::f64::consts::TAU * 30e-12);
     opamp(&mut n, p, m, o, gbw, 2e5);
     n.el.extend([C(o, b, 4.7e-6), R(b, d, 1e3), Diodes(d, 0)]);
-    n.el.extend([R(d, f, 1.5e3 + pot(100e3 * taper_a(filter))), C(f, 0, 3.3e-9)]);
+    n.el.extend([
+        R(d, f, 1.5e3 + pot(100e3 * taper_a(filter))),
+        C(f, 0, 3.3e-9),
+    ]);
     n.el.extend([C(f, j, 22e-9), R(j, 0, 1e6)]);
     n.out = vec![(j, 1.0)];
     n
@@ -379,18 +414,36 @@ fn ds1(dist: f64, tone: f64) -> Net {
         std::array::from_fn(|_| n.node());
     n.el.extend([C(src, b1, 47e-9), R(b1, vref, 470e3)]);
     follower(&mut n, b1, e1, 50.0);
-    n.el.extend([R(e1, 0, 10e3), C(e1, x, 0.47e-6), R(x, vref, 100e3), C(x, b2, 47e-9)]);
-    n.el.extend([R(b2, 0, 100e3), R(c2, b2, 470e3), C(c2, b2, 250e-12), R(vcc, c2, 10e3)]);
+    n.el.extend([
+        R(e1, 0, 10e3),
+        C(e1, x, 0.47e-6),
+        R(x, vref, 100e3),
+        C(x, b2, 47e-9),
+    ]);
+    n.el.extend([
+        R(b2, 0, 100e3),
+        R(c2, b2, 470e3),
+        C(c2, b2, 250e-12),
+        R(vcc, c2, 10e3),
+    ]);
     n.el.extend([R(e2, 0, 22.0), Q(c2, b2, e2, 1e-14, 400.0, 4.0)]);
     n.el.extend([C(c2, y, 68e-9), R(y, vref, 100e3)]);
     follower(&mut n, y, ps, 50.0);
     n.el.extend([R(m, o, 100e3), C(m, o, 100e-12)]);
     n.el.extend([R(m, h, 4.7e3 + pot(100e3 * (1.0 - dist))), C(h, 0, 0.47e-6)]);
     opamp(&mut n, ps, m, o, 1.2e6, 1e5);
-    n.el.extend([R(o, k, 2.2e3), C(k, d, 0.47e-6), Diodes(d, vref), C(d, 0, 0.01e-6)]);
+    n.el.extend([
+        R(o, k, 2.2e3),
+        C(k, d, 0.47e-6),
+        Diodes(d, vref),
+        C(d, 0, 0.01e-6),
+    ]);
     n.el.extend([C(d, hp1, 0.022e-6), R(hp1, hh, 2.2e3), R(hh, vref, 6.8e3)]);
     n.el.extend([R(d, ll, 6.8e3), C(ll, vref, 0.1e-6)]);
-    n.el.extend([R(ll, w, pot(20e3 * tone)), R(w, hh, pot(20e3 * (1.0 - tone)))]);
+    n.el.extend([
+        R(ll, w, pot(20e3 * tone)),
+        R(w, hh, pot(20e3 * (1.0 - tone))),
+    ]);
     n.el.push(R(w, vref, 100e3));
     n.out = vec![(w, 1.0), (vref, -1.0)];
     n
@@ -409,8 +462,17 @@ fn ff(fuzz: f64, bias: f64) -> Net {
     n.el.extend([C(src, b1, 2.2e-6), R(vcc, c1, 33e3)]);
     n.el.push(Q(c1, b1, 0, 85.8e-9, 85.0, 20.0));
     n.el.extend([Q(c2, c1, e2, 120.8e-9, 120.0, 20.0), R(e2, b1, 100e3)]);
-    n.el.extend([R(e2, w, pot(1e3 * (1.0 - fuzz))), R(w, 0, pot(1e3 * fuzz)), C(w, 0, 20e-6)]);
-    n.el.extend([R(o, c2, 8.2e3), R(vcc, o, 470.0), C(o, v, 0.01e-6), R(v, 0, 500e3)]);
+    n.el.extend([
+        R(e2, w, pot(1e3 * (1.0 - fuzz))),
+        R(w, 0, pot(1e3 * fuzz)),
+        C(w, 0, 20e-6),
+    ]);
+    n.el.extend([
+        R(o, c2, 8.2e3),
+        R(vcc, o, 470.0),
+        C(o, v, 0.01e-6),
+        R(v, 0, 500e3),
+    ]);
     n.out = vec![(v, 1.0)];
     n
 }
@@ -426,18 +488,44 @@ fn bmp(sustain: f64, tone: f64) -> Net {
     let [b3, c3, e3, dd, q2n, b2, c2, e2, dd2] = std::array::from_fn(|_| n.node());
     let [ll, hh, w, b1, c1, e1, vo] = std::array::from_fn(|_| n.node());
     n.el.extend([R(src, r, 39e3), C(r, b4, 1e-6), R(b4, 0, 47e3)]);
-    n.el.extend([R(c4, b4, 470e3), C(c4, b4, 470e-12), R(vcc, c4, 10e3), R(e4, 0, 100.0)]);
+    n.el.extend([
+        R(c4, b4, 470e3),
+        C(c4, b4, 470e-12),
+        R(vcc, c4, 10e3),
+        R(e4, 0, 100.0),
+    ]);
     n.el.extend([q(c4, b4, e4), C(c4, st, 1e-6)]);
-    n.el.extend([R(st, sw, pot(100e3 * (1.0 - sustain))), R(sw, sb, pot(100e3 * sustain))]);
+    n.el.extend([
+        R(st, sw, pot(100e3 * (1.0 - sustain))),
+        R(sw, sb, pot(100e3 * sustain)),
+    ]);
     n.el.extend([R(sb, 0, 1e3), C(sw, qn, 100e-9), R(qn, b3, 10e3)]);
     n.el.extend([R(b3, 0, 100e3), R(c3, b3, 470e3), C(c3, b3, 470e-12)]);
-    n.el.extend([Diodes(c3, dd), C(dd, b3, 1e-6), R(vcc, c3, 10e3), R(e3, 0, 150.0)]);
+    n.el.extend([
+        Diodes(c3, dd),
+        C(dd, b3, 1e-6),
+        R(vcc, c3, 10e3),
+        R(e3, 0, 150.0),
+    ]);
     n.el.extend([q(c3, b3, e3), C(c3, q2n, 100e-9), R(q2n, b2, 10e3)]);
     n.el.extend([R(b2, 0, 100e3), R(c2, b2, 470e3), C(c2, b2, 470e-12)]);
-    n.el.extend([Diodes(c2, dd2), C(dd2, b2, 1e-6), R(vcc, c2, 10e3), R(e2, 0, 150.0)]);
+    n.el.extend([
+        Diodes(c2, dd2),
+        C(dd2, b2, 1e-6),
+        R(vcc, c2, 10e3),
+        R(e2, 0, 150.0),
+    ]);
     n.el.push(q(c2, b2, e2));
-    n.el.extend([R(c2, ll, 39e3), C(ll, 0, 10e-9), C(c2, hh, 4e-9), R(hh, 0, 22e3)]);
-    n.el.extend([R(hh, w, pot(100e3 * (1.0 - tone))), R(w, ll, pot(100e3 * tone))]);
+    n.el.extend([
+        R(c2, ll, 39e3),
+        C(ll, 0, 10e-9),
+        C(c2, hh, 4e-9),
+        R(hh, 0, 22e3),
+    ]);
+    n.el.extend([
+        R(hh, w, pot(100e3 * (1.0 - tone))),
+        R(w, ll, pot(100e3 * tone)),
+    ]);
     n.el.extend([C(w, b1, 100e-9), R(vcc, b1, 430e3), R(b1, 0, 100e3)]);
     n.el.extend([R(vcc, c1, 15e3), R(e1, 0, 3.3e3), q(c1, b1, e1)]);
     n.el.extend([C(c1, vo, 100e-9), R(vo, 0, 100e3)]);

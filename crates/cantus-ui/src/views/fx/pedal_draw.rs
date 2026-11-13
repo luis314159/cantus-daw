@@ -114,7 +114,11 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
         lift * 1.6,
     );
     // The paint: lit from above, a bevel round the edge.
-    b.rrect(r, rr, Fill::V(lighter(f.body, 0.08), lighter(f.body, -0.07)));
+    b.rrect(
+        r,
+        rr,
+        Fill::V(lighter(f.body, 0.08), lighter(f.body, -0.07)),
+    );
     if f.metallic {
         // A fine sheen: hairlines a little lighter, every 3 points, barely there.
         let mut y = r.top() + 4.0 * u;
@@ -146,7 +150,11 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
         let cx = if dx > 0.0 { r.left() } else { r.right() } + dx * 11.0 * u;
         let cy = if dy > 0.0 { r.top() } else { r.bottom() } + dy * 11.0 * u;
         let p = pos2(cx, cy);
-        b.circle(p, 3.4 * u, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
+        b.circle(
+            p,
+            3.4 * u,
+            Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+        );
         b.segment(
             p + vec2(-2.2, -1.1) * u,
             p + vec2(2.2, 1.1) * u,
@@ -179,10 +187,8 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
     for (i, kn) in e.knobs.iter().take(MAX_KNOBS).enumerate() {
         let p = centres[i];
         knob(b, s, p, kr, u, kn, f);
-        hits.knobs[i] = Rect::from_center_size(
-            p + vec2(0.0, 7.0 * u),
-            vec2(kr * 2.7, kr * 2.0 + 30.0 * u),
-        );
+        hits.knobs[i] =
+            Rect::from_center_size(p + vec2(0.0, 7.0 * u), vec2(kr * 2.7, kr * 2.0 + 30.0 * u));
         let t = Text {
             src: kn.label,
             role: Role::Micro,
@@ -266,7 +272,13 @@ pub fn knob(b: &mut Brush, s: &Style, p: Pos2, kr: f32, u: f32, kn: &Knob<'_>, f
         } else {
             (kr + 3.5 * u, kr + 6.0 * u)
         };
-        b.segment(p + d * r0, p + d * r1, 1.3 * u, with_alpha(ink, alpha), true);
+        b.segment(
+            p + d * r0,
+            p + d * r1,
+            1.3 * u,
+            with_alpha(ink, alpha),
+            true,
+        );
     }
     b.circle(
         p + vec2(0.0, 3.0 * u),
@@ -292,12 +304,7 @@ pub fn knob(b: &mut Brush, s: &Style, p: Pos2, kr: f32, u: f32, kn: &Knob<'_>, f
         kr * 0.74,
         Fill::V(lighter(f.cap, 0.20), lighter(f.cap, 0.03)),
     );
-    b.circle_stroke(
-        p,
-        kr * 0.74,
-        b.px(),
-        with_alpha(lighter(f.cap, 0.34), 0.7),
-    );
+    b.circle_stroke(p, kr * 0.74, b.px(), with_alpha(lighter(f.cap, 0.34), 0.7));
     let a = crate::kit::knob::angle(v);
     let d = vec2(a.cos(), a.sin());
     let pointer = if kn.hot {
@@ -305,7 +312,13 @@ pub fn knob(b: &mut Brush, s: &Style, p: Pos2, kr: f32, u: f32, kn: &Knob<'_>, f
     } else {
         c(pal::CHROME_LIGHT)
     };
-    b.segment(p + d * (kr * 0.16), p + d * (kr * 0.95), 2.4 * u, pointer, true);
+    b.segment(
+        p + d * (kr * 0.16),
+        p + d * (kr * 0.95),
+        2.4 * u,
+        pointer,
+        true,
+    );
 }
 
 /// The LED (`u` the enclosure's scale): dark glass when off; lit, a lens and a halo whose
@@ -396,9 +409,22 @@ pub fn cable(b: &mut Brush, s: &Style, a: Pos2, b_: Pos2, lift: f32) {
     let sheen: [Pos2; 33] = pts.map(|q| q + vec2(-1.0, -1.2) * k);
     b.polyline(&sheen, 1.4 * k, with_alpha(c(pal::CABLE_SHEEN), 0.8));
     for (j, end) in [(a, a0), (b_, b0)] {
-        let plug = Rect::from_min_max(pos2(j.x - 5.0 * k, end.y - 2.0 * k), pos2(j.x + 5.0 * k, j.y - 4.0 * k));
-        b.rrect(plug, 2.0 * k, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
-        b.hline(plug.left(), plug.right(), plug.center().y, b.px(), c(pal::CHROME_DARK));
+        let plug = Rect::from_min_max(
+            pos2(j.x - 5.0 * k, end.y - 2.0 * k),
+            pos2(j.x + 5.0 * k, j.y - 4.0 * k),
+        );
+        b.rrect(
+            plug,
+            2.0 * k,
+            Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+        );
+        b.hline(
+            plug.left(),
+            plug.right(),
+            plug.center().y,
+            b.px(),
+            c(pal::CHROME_DARK),
+        );
     }
 }
 
@@ -411,27 +437,61 @@ pub fn board(b: &mut Brush, s: &Style, r: Rect, dark: bool) {
     let mut y = r.top() + 26.0 * k;
     while y < r.bottom() - 10.0 * k {
         b.rect(
-            Rect::from_min_max(pos2(r.left() + 8.0 * k, y), pos2(r.right() - 8.0 * k, y + 3.0 * k)),
+            Rect::from_min_max(
+                pos2(r.left() + 8.0 * k, y),
+                pos2(r.right() - 8.0 * k, y + 3.0 * k),
+            ),
             Fill::Solid(with_alpha(c(pal::SHADOW), 0.25)),
         );
-        b.hline(r.left() + 8.0 * k, r.right() - 8.0 * k, y + 3.0 * k, b.px(), with_alpha(slat, 0.9));
+        b.hline(
+            r.left() + 8.0 * k,
+            r.right() - 8.0 * k,
+            y + 3.0 * k,
+            b.px(),
+            with_alpha(slat, 0.9),
+        );
         y += 34.0 * k;
     }
     b.rrect_stroke(r, 10.0 * k, 1.5 * k, with_alpha(c(pal::SHADOW), 0.5));
 }
 
+/// Words and marks on the board: the theme's secondary text, moved until it reads at
+/// 4.5:1 on the board (which keeps its own colour in every theme).
+pub fn board_ink(s: &Style) -> Color32 {
+    let board = c(pal::BOARD_SLAT.get(s.t.dark));
+    ensure_contrast(s.t.text_dim, board, 4.5)
+}
+
 /// An empty place on the board: a dashed outline, a plus and its words.
 pub fn empty_slot(b: &mut Brush, s: &Style, r: Rect, label: Src<'_>, hot: bool) {
     let k = s.k;
-    let ink = if hot { s.t.highlight } else { with_alpha(s.t.text_dim, 0.85) };
+    let ink = if hot { s.t.highlight } else { board_ink(s) };
     let x0 = r.left();
     let (x1, y0, y1) = (r.right(), r.top(), r.bottom());
-    let corners = [pos2(x0, y0), pos2(x1, y0), pos2(x1, y1), pos2(x0, y1), pos2(x0, y0)];
+    let corners = [
+        pos2(x0, y0),
+        pos2(x1, y0),
+        pos2(x1, y1),
+        pos2(x0, y1),
+        pos2(x0, y0),
+    ];
     b.dashed(&corners, 1.5 * k, ink, 6.0 * k, 5.0 * k);
     let p = r.center() - vec2(0.0, 14.0 * k);
     b.circle_stroke(p, 16.0 * k, 1.5 * k, ink);
-    b.segment(p - vec2(7.0 * k, 0.0), p + vec2(7.0 * k, 0.0), 2.0 * k, ink, true);
-    b.segment(p - vec2(0.0, 7.0 * k), p + vec2(0.0, 7.0 * k), 2.0 * k, ink, true);
+    b.segment(
+        p - vec2(7.0 * k, 0.0),
+        p + vec2(7.0 * k, 0.0),
+        2.0 * k,
+        ink,
+        true,
+    );
+    b.segment(
+        p - vec2(0.0, 7.0 * k),
+        p + vec2(0.0, 7.0 * k),
+        2.0 * k,
+        ink,
+        true,
+    );
     let t = Text {
         src: label,
         role: Role::Label,
@@ -440,7 +500,15 @@ pub fn empty_slot(b: &mut Brush, s: &Style, r: Rect, label: Src<'_>, hot: bool) 
         policy: Policy::Elide(Elide::End),
         color: ink,
     };
-    ktext::paint(b, Rect::from_center_size(r.center() + vec2(0.0, 22.0 * k), vec2(r.width() - 12.0 * k, 16.0 * k)), &t, k);
+    ktext::paint(
+        b,
+        Rect::from_center_size(
+            r.center() + vec2(0.0, 22.0 * k),
+            vec2(r.width() - 12.0 * k, 16.0 * k),
+        ),
+        &t,
+        k,
+    );
 }
 
 /// Where a dragged pedal will land: a lit bar at `x` from `y0` to `y1`.

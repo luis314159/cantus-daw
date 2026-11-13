@@ -108,7 +108,11 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let chip = [chips.latency(lat, sr)];
     for (m, slot) in st.meters.0.iter_mut().zip([t::IN_PEAK, t::OUT_PEAK]) {
         let v = tel[slot].max(-90.0);
-        *m = if v > *m { v } else { (*m - 1.5).max(v).max(-90.0) };
+        *m = if v > *m {
+            v
+        } else {
+            (*m - 1.5).max(v).max(-90.0)
+        };
     }
     let out_db = [st.meters.0[1], st.meters.0[1]];
     let look = frame::Look {
@@ -236,7 +240,7 @@ fn board_ui(
     let mut hits: [Option<pd::Hits>; 3] = [None; 3];
     with_brush(&ui.painter_at(r), |b| {
         pd::board(b, s, r, dark);
-        let ink = s.t.text_dim;
+        let ink = pd::board_ink(s);
         pd::board_jack(b, s, geo.jack_in, Src::Key("fragor.jack.in"), ink);
         pd::board_jack(b, s, geo.jack_out, Src::Key("fragor.jack.out"), ink);
         for (i, m) in chain.iter().enumerate() {
@@ -307,19 +311,33 @@ fn board_ui(
                 let d = KIND.param(key).map_or(0.5, |p| p.default);
                 host.set(key, d, None);
             }
-            let mut tip = String::new();
-            let _ = write!(
-                tip,
-                "{} {:.0} %",
-                frame::tr(knob_labels(m)[j]),
-                spec.get(key) * 100.0
-            );
-            resp.on_hover_text(tip);
+            if resp.hovered() || resp.dragged() {
+                // The help line: the parameter's whole name (the pedal's and the knob's)
+                // and its value.
+                let name = KIND.param(key).map_or("", |p| frame::tr(p.label_key));
+                let v = spec.get(key);
+                crate::kit::hint::set(
+                    ui.ctx(),
+                    name,
+                    crate::kit::hint::Caps::PARAM,
+                    resp.dragged(),
+                    |b| write!(b, "{:.0} %", v * 100.0),
+                );
+            }
         }
         let id = ui.id().with(("fragor-switch", i));
         let resp = ui.interact(h.switch, id, Sense::click());
         if resp.hovered() {
             st.hot = Some((i, 3));
+            let key = SWITCHES[m];
+            let name = KIND.param(key).map_or("", |p| frame::tr(p.label_key));
+            let on = spec.get(key) >= 0.5;
+            let word = frame::tr(if on {
+                "fragor.onoff.1"
+            } else {
+                "fragor.onoff.0"
+            });
+            crate::kit::hint::set_text(ui.ctx(), name, word, crate::kit::hint::Caps::NONE);
         }
         if resp.clicked() {
             let key = SWITCHES[m];
@@ -333,10 +351,18 @@ fn board_ui(
 /// carry the pedal's, for automation lanes and menus).
 pub const FACE: [[&str; 3]; 5] = [
     ["fragor.knob.drive", "fragor.knob.tone", "fragor.knob.level"],
-    ["fragor.knob.distortion", "fragor.knob.filter", "fragor.knob.volume"],
+    [
+        "fragor.knob.distortion",
+        "fragor.knob.filter",
+        "fragor.knob.volume",
+    ],
     ["fragor.knob.dist", "fragor.knob.tone", "fragor.knob.level"],
     ["fragor.knob.fuzz", "fragor.knob.bias", "fragor.knob.volume"],
-    ["fragor.knob.sustain", "fragor.knob.tone", "fragor.knob.volume"],
+    [
+        "fragor.knob.sustain",
+        "fragor.knob.tone",
+        "fragor.knob.volume",
+    ],
 ];
 
 pub fn knob_labels(m: usize) -> [&'static str; 3] {

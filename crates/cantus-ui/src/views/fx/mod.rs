@@ -81,12 +81,12 @@ pub mod vibrans;
 pub mod cribrum;
 /// Fragor, the distortion and fuzz pedals (fx side round). // fx:contract
 pub mod fragor;
-/// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
-pub mod pedal_draw;
 /// Lapsus, the time and volume shaper (fx side round). // fx:contract
 pub mod lapsus;
 /// Libra, the utility (fx side round). // fx:contract
 pub mod libra;
+/// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
+pub mod pedal_draw;
 /// Vetus, lo-fi (fx side round). // fx:contract
 pub mod vetus;
 

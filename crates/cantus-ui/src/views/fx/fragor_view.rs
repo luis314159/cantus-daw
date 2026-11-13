@@ -149,7 +149,13 @@ pub fn display(
     let hr = Rect::from_min_max(pos2(tr.right(), d.top()), d.max);
     with_brush(&ui.painter_at(d), |b| {
         canvas::ground_b(b, d, &ink, s.hue_tok);
-        b.vline(b.snap_mid(tr.right()), d.top() + 6.0 * k, d.bottom() - 6.0 * k, b.px(), ink.grid);
+        b.vline(
+            b.snap_mid(tr.right()),
+            d.top() + 6.0 * k,
+            d.bottom() - 6.0 * k,
+            b.px(),
+            ink.grid,
+        );
         // ---- one cycle: the note going in (faint) and coming out ----
         let plot = Rect::from_min_max(
             tr.min + vec2(14.0 * k, 24.0 * k),
@@ -168,7 +174,13 @@ pub fn display(
             let y = plot.center().y - plot.height() * 0.5 * f / 1.1;
             b.hline(plot.left(), plot.right(), b.snap_mid(y), b.px(), ink.grid);
         }
-        b.hline(plot.left(), plot.right(), b.snap_mid(plot.center().y), b.px(), ink.grid_strong);
+        b.hline(
+            plot.left(),
+            plot.right(),
+            b.snap_mid(plot.center().y),
+            b.px(),
+            ink.grid_strong,
+        );
         let input: Vec<Pos2> = cv
             .cycle
             .iter()
@@ -199,7 +211,12 @@ pub fn display(
             let t = Text::key(key, Role::Micro, ink.dim).caps(true);
             canvas::put(b, at, al, &t, k, None);
         };
-        word(b, pos2(plot.left(), d.top() + 12.0 * k), Align2::LEFT_CENTER, "fragor.cycle");
+        word(
+            b,
+            pos2(plot.left(), d.top() + 12.0 * k),
+            Align2::LEFT_CENTER,
+            "fragor.cycle",
+        );
         canvas::putf(
             b,
             pos2(plot.right(), d.top() + 12.0 * k),
@@ -220,7 +237,13 @@ pub fn display(
             k,
             None,
         );
-        b.hline(r_out.left() - 16.0 * k, r_out.left() - 4.0 * k, ly, 2.0 * k, odd);
+        b.hline(
+            r_out.left() - 16.0 * k,
+            r_out.left() - 4.0 * k,
+            ly,
+            2.0 * k,
+            odd,
+        );
         let r_in = canvas::put(
             b,
             pos2(r_out.left() - 24.0 * k, ly),
@@ -229,13 +252,24 @@ pub fn display(
             k,
             None,
         );
-        b.hline(r_in.left() - 16.0 * k, r_in.left() - 4.0 * k, ly, 1.3 * k, with_alpha(ink.dim, 0.75));
+        b.hline(
+            r_in.left() - 16.0 * k,
+            r_in.left() - 4.0 * k,
+            ly,
+            1.3 * k,
+            with_alpha(ink.dim, 0.75),
+        );
         // ---- the harmonics ----
         let hp = Rect::from_min_max(
             hr.min + vec2(18.0 * k, 24.0 * k),
             hr.max - vec2(64.0 * k, 22.0 * k),
         );
-        word(b, pos2(hp.left(), d.top() + 12.0 * k), Align2::LEFT_CENTER, "fragor.harmonics");
+        word(
+            b,
+            pos2(hp.left(), d.top() + 12.0 * k),
+            Align2::LEFT_CENTER,
+            "fragor.harmonics",
+        );
         let floor = 72.0f32;
         for db_line in [0.0f32, -24.0, -48.0, -72.0] {
             let y = hp.top() + hp.height() * (-db_line / floor);
@@ -337,7 +371,14 @@ pub fn meters(ui: &mut egui::Ui, s: &Style, d: Rect, db: [f32; 2]) {
         for (i, (key, v)) in rows.iter().enumerate() {
             let cy = y0 + h * (i as f32 + 0.5);
             let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-            canvas::put(b, pos2(d.left() + 8.0 * k, cy), Align2::LEFT_CENTER, &t, k, None);
+            canvas::put(
+                b,
+                pos2(d.left() + 8.0 * k, cy),
+                Align2::LEFT_CENTER,
+                &t,
+                k,
+                None,
+            );
             let track = Rect::from_min_max(pos2(left, cy - 4.0 * k), pos2(right, cy + 4.0 * k));
             b.rrect(track, 2.0 * k, Fill::Solid(ink.grid));
             if *v > -60.0 {
@@ -351,11 +392,24 @@ pub fn meters(ui: &mut egui::Ui, s: &Style, d: Rect, db: [f32; 2]) {
                 "–".to_string()
             };
             let t = Text::new(&words, Role::Value, ink.text);
-            canvas::put(b, pos2(d.right() - 8.0 * k, cy), Align2::RIGHT_CENTER, &t, k, None);
+            canvas::put(
+                b,
+                pos2(d.right() - 8.0 * k, cy),
+                Align2::RIGHT_CENTER,
+                &t,
+                k,
+                None,
+            );
         }
         for m in [-48.0f32, -36.0, -24.0, -12.0, 0.0] {
             let xx = b.snap_mid(x(m));
-            b.vline(xx, y0 + 2.0 * h + k, y0 + 2.0 * h + 5.0 * k, b.px(), ink.dim);
+            b.vline(
+                xx,
+                y0 + 2.0 * h + k,
+                y0 + 2.0 * h + 5.0 * k,
+                b.px(),
+                ink.dim,
+            );
         }
     });
 }
@@ -380,17 +434,30 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         for (i, m) in chain.iter().enumerate() {
             let f = &pedals::FRAGOR[*m];
             let r = Rect::from_min_size(
-                pos2(rect.left() + 6.0 * k + (w + gap) * i as f32, rect.top() + 7.0 * k),
+                pos2(
+                    rect.left() + 6.0 * k + (w + gap) * i as f32,
+                    rect.top() + 7.0 * k,
+                ),
                 vec2(w, rect.height() - 14.0 * k),
             );
             let on = s.on[*m];
-            b.rrect(r, 5.0 * k, Fill::Solid(with_alpha(f.body.rgb(), if on { 1.0 } else { 0.4 })));
+            b.rrect(
+                r,
+                5.0 * k,
+                Fill::Solid(with_alpha(f.body.rgb(), if on { 1.0 } else { 0.4 })),
+            );
             let ink_c = crate::kit::color::ensure_contrast(f.ink.rgb(), f.body.rgb(), 4.5);
             let t = Text::key(NAMES[*m], Role::Micro, ink_c).caps(true);
             crate::kit::text::paint(b, r.shrink2(vec2(6.0 * k, 0.0)), &t, k);
             if i + 1 < chain.len() {
                 let y = r.center().y;
-                b.segment(pos2(r.right() + 2.0 * k, y), pos2(r.right() + gap - 2.0 * k, y), 1.5 * k, ink.dim, true);
+                b.segment(
+                    pos2(r.right() + 2.0 * k, y),
+                    pos2(r.right() + gap - 2.0 * k, y),
+                    1.5 * k,
+                    ink.dim,
+                    true,
+                );
             }
         }
     });

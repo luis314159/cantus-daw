@@ -8,8 +8,8 @@
 
 use super::super::color::Hsl;
 use super::{
-    tone, Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin,
-    SwitchShape, Tint, Weight,
+    tone, Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin, SwitchShape,
+    Tint, Weight,
 }; // fx:fragor
 
 const fn hsl(h: f32, s: f32, l: f32) -> Hsl {

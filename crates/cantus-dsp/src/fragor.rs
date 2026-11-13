@@ -39,12 +39,12 @@
 
 use crate::math;
 
-/// The circuit solver (the DK method).
-#[path = "fragor_dk.rs"]
-pub mod dk;
 /// The five pedals' circuits.
 #[path = "fragor_circuits.rs"]
 pub mod circuits;
+/// The circuit solver (the DK method).
+#[path = "fragor_dk.rs"]
+pub mod dk;
 /// The gate before the pedals.
 #[path = "fragor_gate.rs"]
 pub mod gate;
@@ -166,7 +166,6 @@ fn glide(v: &mut f32, to: f32, a: f32, eps: f32) -> bool {
     true
 }
 
-
 /// Fragor, stereo.
 #[derive(Clone, Debug)]
 pub struct Fragor {
@@ -272,7 +271,10 @@ impl Fragor {
             dip_dir: 0,
             fade_step: 1.0 / (FADE_MS * 0.001 * sr).max(1.0),
             pedals,
-            os: [os::Oversampler::new(4, false), os::Oversampler::new(4, false)],
+            os: [
+                os::Oversampler::new(4, false),
+                os::Oversampler::new(4, false),
+            ],
             gate: gate::Gate::new(sr),
             gate_thr: 0.0,
             delay: [[0.0; DELAY_MAX]; 2],
@@ -666,8 +668,7 @@ impl Fragor {
         {
             return Some("footswitch fading");
         }
-        if self.in_db != t.in_db || self.out_db != t.out_db || self.mix != t.mix.clamp(0.0, 1.0)
-        {
+        if self.in_db != t.in_db || self.out_db != t.out_db || self.mix != t.mix.clamp(0.0, 1.0) {
             return Some("gains gliding");
         }
         let (ig, og, mx) = (gain_of(self.in_db), gain_of(self.out_db), self.mix);
@@ -750,8 +751,8 @@ pub mod telemetry {
 }
 
 #[cfg(test)]
-#[path = "fragor_tests.rs"]
-mod tests;
-#[cfg(test)]
 #[path = "fragor_spice_tests.rs"]
 mod spice_tests;
+#[cfg(test)]
+#[path = "fragor_tests.rs"]
+mod tests;

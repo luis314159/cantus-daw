@@ -75,10 +75,8 @@ fn main() {
                         // The sheet: everything at 100 %; the other scales for the board
                         // playing in Slate (and Spanish at 150 %).
                         let main = k == 1.0;
-                        let extra = state == "board"
-                            && playing
-                            && dark
-                            && (lang == Locale::En || k == 1.5);
+                        let extra =
+                            state == "board" && playing && dark && (lang == Locale::En || k == 1.5);
                         if !main && !extra {
                             continue;
                         }

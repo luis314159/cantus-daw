@@ -122,7 +122,11 @@ impl Pedal {
         let dt = 1.0 / rate;
         let mut p = Pedal {
             model,
-            parts: [Circuit::new(1, dt), Circuit::new(1, dt), Circuit::new(1, dt)],
+            parts: [
+                Circuit::new(1, dt),
+                Circuit::new(1, dt),
+                Circuit::new(1, dt),
+            ],
             nparts: 1,
             knob_r: [(0, 0); 6],
             knobs: [f64::NAN; 3],
@@ -203,8 +207,8 @@ impl Pedal {
         c.c(g1, 0, 2.2e-6); // C5 2.2 µF
         c.r(m, g2, 560.0); // R5 560 Ω
         c.c(g2, 0, 4.7e-6); // C6 4.7 µF
-        // LM308 with C3 = 30 pF: slew rate 0.3 V/µs (ElectroSmash, from the datasheet), so
-        // Imax = 9 µA, and gm = Imax / 2Vt of its bipolar input pair: unity gain at ~1 MHz.
+                            // LM308 with C3 = 30 pF: slew rate 0.3 V/µs (ElectroSmash, from the datasheet), so
+                            // Imax = 9 µA, and gm = Imax / 2Vt of its bipolar input pair: unity gain at ~1 MHz.
         let imax = 0.3e6 * 30e-12;
         let gbw = imax / (2.0 * VT) / (std::f64::consts::TAU * 30e-12);
         c.opamp(p, m, int, o, gbw, 2e5, 30e-12, 50.0, Some(imax));
@@ -309,8 +313,18 @@ impl Pedal {
         c.c(m, o, 100e-12); // C7 100 pF
         let dist = c.r(m, h, 4.7e3); // VR1 100 kΩ (B) Distortion + R13 4.7 kΩ
         c.c(h, 0, 0.47e-6); // C8 0.47 µF
-        // NJM3404A-class: about 1.2 MHz, 0.6 V/µs.
-        c.opamp(ps, m, int, o, 1.2e6, 1e5, 30e-12, 50.0, Some(0.6e6 * 30e-12));
+                            // NJM3404A-class: about 1.2 MHz, 0.6 V/µs.
+        c.opamp(
+            ps,
+            m,
+            int,
+            o,
+            1.2e6,
+            1e5,
+            30e-12,
+            50.0,
+            Some(0.6e6 * 30e-12),
+        );
         c.r(o, k, 2.2e3); // R14 2.2 kΩ
         c.c(k, d, 0.47e-6); // C9 0.47 µF
         c.nl(diodes(d, vref)); // D4, D5 1N4148, to the 4.5 V reference
