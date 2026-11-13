@@ -81,6 +81,25 @@ Spanish page, whose pictures show the editors in Spanish) and the README's `docs
 Paper, EN and ES), converted to WebP at quality 82; the editor's, external gear's, the
 surfaces' and ARA's (`-es` for Spanish, ARA's has one) are crops of the round-36 shots in `docs/round36/{editor,external,ara}/`.
 
+## Contrast, motion and pictures (checked on the built site)
+
+Three scripts drive headless Chrome or Edge over the DevTools protocol with Node 22's own
+WebSocket — no npm package; `CHROME_PATH` chooses the browser. Each serves `dist/` itself.
+From Git Bash, prefix them with `MSYS_NO_PATHCONV=1` (or a page such as `/` becomes a Windows path).
+
+```text
+node tools/contrast.mjs [dist] [--quick] [--only /download/,/es/] [--json out.json]
+node tools/motion.mjs [dist]
+node tools/shoot.mjs <out-dir> [dist] [--only /,/download/] [--full] [--el .selector] [--frames /,24,120]
+```
+
+- `contrast.mjs` opens every page (or `--quick`: one of each kind, both languages) in the light
+  and the dark scheme, 1440 and 390 px wide, and measures every visible text against the pixels
+  behind it (WCAG AA: 4.5:1, large text 3:1). About 2 minutes for `--quick`, 20 for all.
+- `motion.mjs` holds `style/motion.css` to its rules: keyframes move only transform and
+  opacity, and with reduced motion nothing animates and nothing is left hidden.
+- `shoot.mjs` writes the first screen (and with `--full` the whole page) of each page.
+
 ## Publishing
 
 `.github/workflows/site.yml` builds the site and publishes it, with `wrangler deploy` and

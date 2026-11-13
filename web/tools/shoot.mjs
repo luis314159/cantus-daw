@@ -69,7 +69,17 @@ try {
           }
           writeFileSync(`${base}.png`, png(await tab.send("Page.captureScreenshot", { format: "png" })));
           if (args.includes("--full")) {
-            const h = await tab.eval(() => document.scrollingElement.scrollHeight);
+            // down the page and back, so every lazy picture has loaded
+            const h = await tab.eval(async () => {
+              for (let y = 0; y < document.scrollingElement.scrollHeight; y += innerHeight) {
+                window.scrollTo({ top: y, behavior: "instant" });
+                await new Promise((r) => setTimeout(r, 120));
+              }
+              window.scrollTo({ top: 0, behavior: "instant" });
+              await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }))));
+              await new Promise((r) => setTimeout(r, 200));
+              return document.scrollingElement.scrollHeight;
+            });
             const shot = await tab.send("Page.captureScreenshot", {
               format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width, height: Math.min(h, 16000), scale: 1 },
             });

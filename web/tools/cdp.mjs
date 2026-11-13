@@ -101,7 +101,9 @@ export async function launch(browserPath = findBrowser()) {
 
 /** A tab: `send` within its session, `once(event)` waits for one event, `eval` runs a function. */
 export async function openTab(b) {
-  const { targetId } = await b.send("Target.createTarget", { url: "about:blank" });
+  // Each tab in a window of its own: a tab behind another is hidden, and a hidden page never
+  // draws a frame (requestAnimationFrame waits for ever).
+  const { targetId } = await b.send("Target.createTarget", { url: "about:blank", newWindow: true });
   const { sessionId } = await b.send("Target.attachToTarget", { targetId, flatten: true });
   const send = (m, p) => b.send(m, p, sessionId);
   const once = (method, ms = 30000) => new Promise((ok, fail) => {

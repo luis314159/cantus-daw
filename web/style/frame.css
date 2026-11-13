@@ -165,7 +165,7 @@
   --edge: rgba(36, 67, 168, 0.3); --mist: #eef1fa;
   --accent: #2443a8; --accent-text: #2443a8; --accent-ink: #ffffff;
   --accent-grad: linear-gradient(#3352b8, #2443a8 55%, #1d3890); --accent-glow: rgba(36, 67, 168, 0.38);
-  --gold: #8a6212; --gold-text: #8a6212;
+  --gold: #8a6212; --gold-text: #7a5410; /* 4.8:1 even on a dot of the grid */
 }
 :root[data-theme="light"] .hero,
 :root[data-theme="light"] .page-band {

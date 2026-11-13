@@ -8,7 +8,10 @@ name: Site budget
 #   cumulative layout shift       <= 0.02        cumulative-layout-shift
 #   accessibility                 100            categories:accessibility
 # and the WebAssembly <= 250 000 bytes gzipped (web/tools/wasm_budget.py, the one line
-# Lighthouse cannot measure). The limits live in web/lighthouserc.json and wasm_budget.py;
+# Lighthouse cannot measure). Then every kind of page, both languages, light and dark, 1440 and
+# 390 px, has each text measured against the pixels behind it (WCAG AA, web/tools/contrast.mjs
+# --quick), and the motion is held to transform/opacity and to stillness under reduced motion
+# (web/tools/motion.mjs). The limits live in web/lighthouserc.json and wasm_budget.py;
 # tools/web-budget.ps1 runs the same checks against a local build. It measures, it does not
 # deploy: site.yml publishes whatever this says.
 
@@ -77,6 +80,16 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
           node-version: "22"
+
+      # The runner's Chrome, driven by Node over DevTools (no npm package): every text at AA
+      # in both schemes (round fx, after the download page's head was white on white in the
+      # light theme), and the motion's rules.
+      - name: Contrast and motion
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        working-directory: web
+        run: |
+          node tools/contrast.mjs dist --quick
+          node tools/motion.mjs dist
 
       # The runner's Chrome; Lighthouse CI serves web/dist itself (gzip on), so the weights
       # are what a visitor downloads (Cloudflare's Brotli makes them a little smaller).

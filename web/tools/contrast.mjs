@@ -41,10 +41,11 @@ function allPages() {
   return out.sort();
 }
 
-/** One page of each kind, both languages: what CI measures. */
+/** One page of each kind, both languages: what CI measures. The manual (two long generated
+ *  pages, minutes each) is left to the full run. */
 function quickPages(all) {
   const kinds = new Map();
-  for (const p of all) {
+  for (const p of all.filter((p) => !p.includes("/manual/"))) {
     const tail = p.replace(/^\/es\//, "/");
     const kind = tail.replace(/^\/(instruments|effects)\/[^/]+\/$/, "/$1/*/");
     const key = `${p.startsWith("/es/") ? "es" : "en"}:${kind}`;
@@ -84,15 +85,27 @@ function collect() {
     if (!ops.has(e)) ops.set(e, parseFloat(getComputedStyle(e).opacity) * opacity(e.parentElement));
     return ops.get(e);
   };
+  // The page's text nodes, found once with where they lie on the page (a long page — the
+  // manual — would otherwise be walked whole on every screen); those in a sticky or fixed box
+  // (the bar) are looked at on every screen.
+  if (!window.__texts || window.__textsH !== document.scrollingElement.scrollHeight) {
+    window.__textsH = document.scrollingElement.scrollHeight;
+    const pinned = (e) => { for (; e; e = e.parentElement) { const p = getComputedStyle(e).position; if (p === "sticky" || p === "fixed") return true; } return false; };
+    window.__texts = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+      const el = t.parentElement;
+      if (!t.data.trim() || !el || el.closest("script, style, noscript, template, title")) continue;
+      const b = el.getBoundingClientRect();
+      window.__texts.push({ t, el, top: b.top + scrollY, bottom: b.bottom + scrollY, pin: pinned(el) });
+    }
+  }
   const byEl = new Map();
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let t = walker.nextNode(); t; t = walker.nextNode()) {
-    if (!t.data.trim()) continue;
-    const el = t.parentElement;
-    if (!el) continue;
+  for (const { t, el, top, bottom, pin } of window.__texts) {
+    if (!pin && (bottom < scrollY - 50 || top > scrollY + H + 50)) continue;
+    if (!t.isConnected) continue;
     const box = el.getBoundingClientRect();
     if (box.bottom <= 0 || box.top >= H || box.width === 0) continue;
-    if (el.closest("script, style, noscript, template, title")) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility !== "visible" || cs.display === "none") continue;
     const op = opacity(el);
