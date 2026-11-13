@@ -127,3 +127,32 @@ Bitcrusher roles.
   the tuner within ±1 cent on a sine and ±3 on a sung note from the pitch tests' material; the
   delay exact to the sample; presets (mono check, flip phase, align 1 ms, …); the design
   sheet approved.
+
+## tabula — the pedalboard, with amp and cabinet (wave 3, ADR 0134; asked 2026-11-13)
+
+*The owner:* "¿el plugin de efectos podría ser como una pedalera simulation, donde adentro
+podamos poner múltiples efectos? … algo gráfico donde quitas, pones, ajustas, cambias orden."
+He chose wave 3 (after Lapsus and Vetus/Libra) and **an amp and cabinet inside**. It is
+BACKLOG §3b's *Distructor-like multi-effect* and *amp and cabinet simulation with IR loading*.
+The name is a proposal (*Tabula*, the board).
+
+- **A container unit**: an ordered list of pedals, each **any of our native units** (Fragor's
+  drives, Cribrum as wah/auto-wah, Concentus, Flexus, Phasis, Tremor, Delay, Spatium, Aula,
+  Porta, Comprimo, Libra's tuner, Vetus …), added from a pedal picker, removed, bypassed by its
+  footswitch, reordered by drag, adjusted on the pedal; serial with an optional parallel split
+  (A/B paths and a mixer); **macros** (8, mapped to any pedal's parameters — the exported
+  plug-in's fixed parameter list) and **randomise** within musical ranges.
+- **Amp + cabinet**: amp models (preamp stages, tone stack, power amp sag — circuits from
+  published schematics, as Fragor's) and a cabinet by impulse response (Aula's convolution;
+  factory IRs we make or CC0/CC BY, user IRs dropped in), a mic position on the cab.
+- **Model and engine**: the children's specs inside the slot's spec (schema bump), commands
+  with exact inverses for add/remove/move/bypass (undo fuzz arms), automation keys per pedal
+  (`p{n}.<key>`, as Tympanum's), children built off the audio thread with the snapshot, the
+  latency summed and reported, exact rest when every child rests.
+- **The display**: a top-down board in 2D vector with the kit — **reusing Fragor's
+  enclosure/knob/footswitch/cable component** (`views/fx/pedal_draw.rs`); not the scene
+  engine of ADR 0126 (round 40's, still in flux), which may later give an optional
+  photographic view.
+- **Done when**: an empty board is a null; a board of one pedal equals that unit inserted
+  alone, to the bit; reordering is one undo step; the exported plug-in exposes the macros and
+  reloads the whole board from its state; the design sheet approved.
