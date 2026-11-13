@@ -142,3 +142,5 @@ cribrum.target.vowel = Vocal
 fx.cribrum.res.short = Reson.
 fx.cribrum.drive.short = Satur.
 fx.cribrum.spread.short = Apertura
+cribrum.slope_short.0 = 12 dB
+cribrum.slope_short.1 = 24 dB

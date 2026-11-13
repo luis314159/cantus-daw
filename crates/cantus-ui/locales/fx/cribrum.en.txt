@@ -142,3 +142,5 @@ cribrum.target.vowel = Vowel
 fx.cribrum.res.short = Reso
 fx.cribrum.drive.short = Drive
 fx.cribrum.spread.short = Spread
+cribrum.slope_short.0 = 12 dB
+cribrum.slope_short.1 = 24 dB

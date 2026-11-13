@@ -124,7 +124,7 @@ fn main() {
                 ("lfo.shape", 1.0),
                 ("lfo.cut", 1.8),
                 ("lfo.stereo", 90.0),
-                ("out", 6.0),
+                ("out", 14.0),
             ],
         ),
         (
@@ -139,7 +139,7 @@ fn main() {
                 ("lfo.div", 5.0),
                 ("lfo.shape", 0.0),
                 ("lfo.vowel", 2.0),
-                ("out", 3.0),
+                ("out", -2.0),
             ],
         ),
         (
@@ -155,7 +155,7 @@ fn main() {
                 ("env.rel", 120.0),
                 ("env.gain", 6.0),
                 ("env.cut", 4.0),
-                ("out", 2.0),
+                ("out", 3.5),
             ],
         ),
     ];
