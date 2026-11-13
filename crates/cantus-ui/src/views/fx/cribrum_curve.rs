@@ -106,7 +106,11 @@ pub fn edit(
     cs: &CribrumSettings,
     k: f32,
 ) {
-    let resp = ui.interact(map.plot, ui.id().with("cribrum-curve"), Sense::click_and_drag());
+    let resp = ui.interact(
+        map.plot,
+        ui.id().with("cribrum-curve"),
+        Sense::click_and_drag(),
+    );
     let fine = ui.input(|i| i.modifiers.shift);
     let place = |px: f32| {
         let u = map.u(px);
@@ -158,7 +162,10 @@ pub fn edit(
         host.end_gesture();
     }
     if resp.clicked() {
-        if let Some(n) = resp.interact_pointer_pos().and_then(|p| nearest(cs, map, p, k)) {
+        if let Some(n) = resp
+            .interact_pointer_pos()
+            .and_then(|p| nearest(cs, map, p, k))
+        {
             st.point = Some(n);
         }
     }

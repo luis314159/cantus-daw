@@ -415,8 +415,12 @@ impl Cribrum {
             seed: SEED,
         };
         self.lfo.set(&lfo, &self.clock);
-        self.curve
-            .set(&s.curve.points, self.shape, s.curve.beats, s.curve.smooth_ms);
+        self.curve.set(
+            &s.curve.points,
+            self.shape,
+            s.curve.beats,
+            s.curve.smooth_ms,
+        );
         self.follow.set(
             Detect::Peak,
             s.env.att_ms.clamp(0.01, 5_000.0),
@@ -618,9 +622,7 @@ impl Cribrum {
                 Some((a, b)) if i < a.len() && i < b.len() => (sane(a[i]), sane(b[i])),
                 _ => (xl, xr),
             };
-            let level = self
-                .follow
-                .run_pair(kl * self.env_gain, kr * self.env_gain);
+            let level = self.follow.run_pair(kl * self.env_gain, kr * self.env_gain);
             let env = modulation::env_amount(level);
             let cur = self.curve.at(self.clock.song(i), tempo);
             let g = &mut self.gl;

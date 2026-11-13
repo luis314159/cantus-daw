@@ -293,14 +293,7 @@ fn source_keys(
 
 /// The chosen source drawn in time: two cycles of the LFO, the follower's last seconds, or
 /// one cycle of the curve; the playhead where the song is.
-fn lane_paint(
-    ui: &egui::Ui,
-    s: &Style,
-    r: Rect,
-    st: &State,
-    tl: &[f32; 64],
-    cs: &CribrumSettings,
-) {
+fn lane_paint(ui: &egui::Ui, s: &Style, r: Rect, st: &State, tl: &[f32; 64], cs: &CribrumSettings) {
     let ink = Ink::of(s);
     let k = s.k;
     let live = super::display::live(tl);
@@ -390,7 +383,13 @@ fn lane_paint(
                     })
                     .collect();
                 for q in 1..4 {
-                    b.vline(x(q as f32 / 4.0), plot.top(), plot.bottom(), b.px(), ink.grid);
+                    b.vline(
+                        x(q as f32 / 4.0),
+                        plot.top(),
+                        plot.bottom(),
+                        b.px(),
+                        ink.grid,
+                    );
                 }
                 b.area(&pts, plot.bottom(), ink.fill(0.45));
                 canvas::trace(b, &pts, 1.3 * k, ink.hue, &ink);
@@ -583,7 +582,10 @@ fn wave_glyph(b: &mut Brush, r: Rect, w: Wave, ink: egui::Color32, k: f32) {
             let u = j as f64 / (M - 1) as f64;
             let c = (u * cycles).min(cycles - 1e-4);
             let v = wave(w, c - c.floor(), c.floor() as i64, 0.15, 11);
-            pos2(r.left() + r.width() * u as f32, r.center().y - v * r.height() * 0.5)
+            pos2(
+                r.left() + r.width() * u as f32,
+                r.center().y - v * r.height() * 0.5,
+            )
         })
         .collect();
     b.polyline(&pts, 1.0 * k, ink);

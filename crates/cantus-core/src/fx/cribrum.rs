@@ -319,7 +319,16 @@ const LFO: [EffectParamInfo; 7] = [
 const LFO_DEPTHS: [EffectParamInfo; 3] = depths!("lfo");
 
 const ENV: [EffectParamInfo; 4] = [
-    p("env.key", "fx.cribrum.env.key", 0.0, 1.0, 0.0, "", false, true),
+    p(
+        "env.key",
+        "fx.cribrum.env.key",
+        0.0,
+        1.0,
+        0.0,
+        "",
+        false,
+        true,
+    ),
     p(
         "env.att",
         "fx.cribrum.env.att",

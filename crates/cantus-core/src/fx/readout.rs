@@ -36,8 +36,8 @@ pub fn parse_readout(text: &str, unit: &str) -> Option<f32> {
     // `lufs` before `s`.
     for suffix in [
         // fx:cribrum — `oct` (Cribrum's depths and spread) before `ct`.
-        "khz", "hz", "db/oct", "ms", "db", "lufs", "st", "oct", "ct", ":1", "%", "\u{b0}", "x",
-        "s", "k",
+        "khz", "hz", "db/oct", "ms", "db", "lufs", "st", "oct", "ct", ":1", "%", "\u{b0}", "x", "s",
+        "k",
     ] {
         if let Some(rest) = s.strip_suffix(suffix) {
             s = rest.trim_end();

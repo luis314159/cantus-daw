@@ -703,10 +703,10 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("cur.vowel", 1.0),
             ("out", -3.0),
         ],
-        EffectKind::Pedal => vec![("out", -6.0)],      // fx:contract
+        EffectKind::Pedal => vec![("out", -6.0)], // fx:contract
         EffectKind::TimeShaper => vec![("out", -6.0)], // fx:contract
-        EffectKind::LoFi => vec![("out", -6.0)],       // fx:contract
-        EffectKind::Utility => vec![("out", -6.0)],    // fx:contract
+        EffectKind::LoFi => vec![("out", -6.0)],  // fx:contract
+        EffectKind::Utility => vec![("out", -6.0)], // fx:contract
         _ => vec![],
     }
 }
@@ -945,7 +945,7 @@ impl Direct {
             Direct::Tonsor(x) => x.reset(),
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
-            Direct::Stub(x) => x.reset(), // fx:contract
+            Direct::Stub(x) => x.reset(),    // fx:contract
             Direct::Cribrum(x) => x.reset(), // fx:cribrum
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
@@ -976,7 +976,7 @@ impl Direct {
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
-            Direct::Stub(x) => x.latency(), // fx:contract
+            Direct::Stub(x) => x.latency(),    // fx:contract
             Direct::Cribrum(x) => x.latency(), // fx:cribrum
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),

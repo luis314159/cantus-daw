@@ -124,11 +124,31 @@ impl Default for Voice {
 
 /// A tenor's formants for A, E, I, O, U: (Hz, dB, bandwidth Hz) of the first three.
 pub const FORMANTS: [[(f32, f32, f32); 3]; 5] = [
-    [(650.0, 0.0, 50.0), (1_080.0, -6.0, 90.0), (2_650.0, -7.0, 120.0)],
-    [(400.0, 0.0, 70.0), (1_700.0, -14.0, 80.0), (2_600.0, -12.0, 100.0)],
-    [(290.0, 0.0, 40.0), (1_870.0, -15.0, 90.0), (2_800.0, -18.0, 100.0)],
-    [(400.0, 0.0, 40.0), (800.0, -10.0, 80.0), (2_600.0, -12.0, 100.0)],
-    [(350.0, 0.0, 40.0), (600.0, -20.0, 60.0), (2_700.0, -17.0, 100.0)],
+    [
+        (650.0, 0.0, 50.0),
+        (1_080.0, -6.0, 90.0),
+        (2_650.0, -7.0, 120.0),
+    ],
+    [
+        (400.0, 0.0, 70.0),
+        (1_700.0, -14.0, 80.0),
+        (2_600.0, -12.0, 100.0),
+    ],
+    [
+        (290.0, 0.0, 40.0),
+        (1_870.0, -15.0, 90.0),
+        (2_800.0, -18.0, 100.0),
+    ],
+    [
+        (400.0, 0.0, 40.0),
+        (800.0, -10.0, 80.0),
+        (2_600.0, -12.0, 100.0),
+    ],
+    [
+        (350.0, 0.0, 40.0),
+        (600.0, -20.0, 60.0),
+        (2_700.0, -17.0, 100.0),
+    ],
 ];
 
 /// The vowel filter's level after its band-passes (they keep a narrow share of a broad
@@ -138,7 +158,11 @@ pub const VOWEL_MAKEUP: f32 = 4.0;
 /// The formants at vowel `v` (0 … 4), the cutoff `cut` (1 kHz: the table's), the
 /// resonance `res`: (Hz, linear gain, bandwidth Hz) each.
 pub fn formants(v: f32, cut: f32, res: f32) -> [(f32, f32, f32); 3] {
-    let v = if v.is_finite() { v.clamp(0.0, 4.0) } else { 0.0 };
+    let v = if v.is_finite() {
+        v.clamp(0.0, 4.0)
+    } else {
+        0.0
+    };
     let i = (v.floor() as usize).min(3);
     let t = v - i as f32;
     let shift = (cut / 1_000.0).clamp(0.25, 4.0);

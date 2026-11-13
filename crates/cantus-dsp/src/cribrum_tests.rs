@@ -158,7 +158,10 @@ fn at_mix_zero_only_the_gain_is_heard() {
     let (mut l, mut r) = (x.clone(), x.clone());
     drive(&mut u, &mut l, &mut r, 0, || 512);
     let g = crate::math::db_to_gain(-6.0);
-    assert!(l.iter().zip(&x).all(|(y, x)| y.to_bits() == (x * g).to_bits()));
+    assert!(l
+        .iter()
+        .zip(&x)
+        .all(|(y, x)| y.to_bits() == (x * g).to_bits()));
 }
 
 // ---- the synths' filters --------------------------------------------------------------
@@ -294,7 +297,10 @@ fn at_full_resonance_every_model_sings_on_its_cutoff() {
                 worst = worst.max(err.abs());
                 line.push_str(&format!(" {fc:>5}Hz {err:+5.1}¢"));
                 let peak = tail.iter().fold(0f32, |m, v| m.max(v.abs()));
-                assert!(peak < 4.0 && peak > 0.01, "{model:?} at {fc} Hz: amplitude {peak}");
+                assert!(
+                    peak < 4.0 && peak > 0.01,
+                    "{model:?} at {fc} Hz: amplitude {peak}"
+                );
                 assert!(
                     err.abs() <= 5.0,
                     "{os}x {model:?} self-oscillates {err:+.2} cents off {fc} Hz"
@@ -337,7 +343,11 @@ fn a_render_from_bar_five_moves_as_bar_five_of_the_whole_render() {
     let part = cutoffs(&s, &x[bar5..], bar5 as i64);
     // The glides start where they are set: from the first sample.
     if let Some(i) = (0..n).find(|&i| whole[bar5 + i].to_bits() != part[i].to_bits()) {
-        panic!("the cutoff differs at {i}: {} vs {}", whole[bar5 + i], part[i]);
+        panic!(
+            "the cutoff differs at {i}: {} vs {}",
+            whole[bar5 + i],
+            part[i]
+        );
     }
     let (mut lf, mut rf) = (x.clone(), x.clone());
     drive(&mut unit(&s), &mut lf, &mut rf, 0, || 480);
@@ -345,7 +355,11 @@ fn a_render_from_bar_five_moves_as_bar_five_of_the_whole_render() {
     drive(&mut unit(&s), &mut lp, &mut rp, bar5 as i64, || 256);
     let settle = (0.05 * SR) as usize;
     let worst = (settle..n)
-        .map(|i| (lf[bar5 + i] - lp[i]).abs().max((rf[bar5 + i] - rp[i]).abs()))
+        .map(|i| {
+            (lf[bar5 + i] - lp[i])
+                .abs()
+                .max((rf[bar5 + i] - rp[i]).abs())
+        })
         .fold(0f32, f32::max);
     assert!(worst < 1e-5, "after 50 ms the renders differ by {worst}");
 }
@@ -616,7 +630,10 @@ fn the_follower_moves_the_cutoff_with_the_level() {
     };
     let quiet = cut_after(&s, 0.003, None);
     let loud = cut_after(&s, 0.9, None);
-    assert!((quiet - 200.0).abs() < 0.1 && loud > 2_500.0, "{quiet} {loud}");
+    assert!(
+        (quiet - 200.0).abs() < 0.1 && loud > 2_500.0,
+        "{quiet} {loud}"
+    );
     s.env.key = true;
     assert!(cut_after(&s, 0.9, Some(0.0)) < 210.0);
     assert!(cut_after(&s, 0.0, Some(0.9)) > 2_500.0);
@@ -632,4 +649,3 @@ fn the_followers_level_maps_in_decibels() {
     let half = modulation::env_amount(crate::math::db_to_gain(-24.0));
     assert!((half - 0.5).abs() < 1e-4, "{half}");
 }
-

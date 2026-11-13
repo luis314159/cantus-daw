@@ -15,10 +15,10 @@ use cantus_core::fx::cribrum::point_keys;
 use cantus_core::EffectSpec;
 use cantus_dsp::cribrum::filter::{model_of, Mode};
 use cantus_dsp::cribrum::modulation::{division_beats, Wave};
+use cantus_dsp::cribrum::Cribrum;
 use cantus_dsp::cribrum::{
     CribrumSettings, CurveParams, Depth, EnvParams, FilterParams, LfoParams, OS_FACTORS,
 };
-use cantus_dsp::cribrum::Cribrum;
 use cantus_dsp::fluctus::{CurvePoint, POINTS};
 
 /// One filter's settings under its prefix (`a` or `b`).
@@ -56,7 +56,10 @@ pub fn settings(spec: &EffectSpec) -> CribrumSettings {
             });
         }
     }
-    let os = spec.get("os").round().clamp(0.0, (OS_FACTORS.len() - 1) as f32) as usize;
+    let os = spec
+        .get("os")
+        .round()
+        .clamp(0.0, (OS_FACTORS.len() - 1) as f32) as usize;
     CribrumSettings {
         mix: spec.get("mix"),
         out_db: spec.get("out"),

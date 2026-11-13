@@ -203,13 +203,15 @@ pub fn card(
 /// The spectrum of what the analyser tap brought: the input (first of each pair) and the
 /// output, falling slowly. Only when the tap brought something new.
 fn update_spectrum(v: &mut View, pairs: &std::collections::VecDeque<(f32, f32)>, sr: f32) {
-    let a = v.analyser.get_or_insert_with(|| SpectrumAnalyser::new(4096));
+    let a = v
+        .analyser
+        .get_or_insert_with(|| SpectrumAnalyser::new(4096));
     let n = a.size();
     let sig = (
         pairs.len(),
-        pairs
-            .back()
-            .map_or(0, |p| (u64::from(p.0.to_bits()) << 32) | u64::from(p.1.to_bits())),
+        pairs.back().map_or(0, |p| {
+            (u64::from(p.0.to_bits()) << 32) | u64::from(p.1.to_bits())
+        }),
     );
     if pairs.len() < n || v.analysed == Some(sig) {
         return;
@@ -304,7 +306,11 @@ fn edit(
             }
             if resp.double_clicked() {
                 let keys = super::FILTER_KEYS[f];
-                host.apply(&[(keys[3], None), (keys[4], None)], "cmd.cribrum_handle_reset", None);
+                host.apply(
+                    &[(keys[3], None), (keys[4], None)],
+                    "cmd.cribrum_handle_reset",
+                    None,
+                );
             }
         }
     }
@@ -435,9 +441,21 @@ fn plate(b: &mut Brush, map: Map, ink: &Ink, k: f32) {
         db += 6.0;
     }
     for hz in [100.0f32, 1_000.0, 10_000.0] {
-        b.vline(map.x(hz), plot.top(), plot.bottom(), b.px(), ink.grid_strong);
+        b.vline(
+            map.x(hz),
+            plot.top(),
+            plot.bottom(),
+            b.px(),
+            ink.grid_strong,
+        );
     }
-    b.hline(plot.left(), plot.right(), map.y(0.0), b.px(), ink.grid_strong);
+    b.hline(
+        plot.left(),
+        plot.right(),
+        map.y(0.0),
+        b.px(),
+        ink.grid_strong,
+    );
     for (hz, word) in [
         (50.0f32, "50"),
         (100.0, "100"),
@@ -458,7 +476,12 @@ fn plate(b: &mut Brush, map: Map, ink: &Ink, k: f32) {
             None,
         );
     }
-    for (db, word) in [(12.0f32, "+12"), (0.0, "0"), (-12.0, "\u{2212}12"), (-24.0, "\u{2212}24")] {
+    for (db, word) in [
+        (12.0f32, "+12"),
+        (0.0, "0"),
+        (-12.0, "\u{2212}12"),
+        (-24.0, "\u{2212}24"),
+    ] {
         let t = Text::new(word, Role::Micro, ink.dim).caps(false);
         canvas::put(
             b,
@@ -628,7 +651,13 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         let pts: Vec<Pos2> = (0..121)
             .map(|j| {
                 let hz = LO * (HI / LO).powf(j as f32 / 120.0);
-                let db = response::chain_db(&vs[0], cs.b_on.then_some(&vs[1]), cs.parallel, hz, 48_000.0);
+                let db = response::chain_db(
+                    &vs[0],
+                    cs.b_on.then_some(&vs[1]),
+                    cs.parallel,
+                    hz,
+                    48_000.0,
+                );
                 pos2(map.x(hz), map.y(db))
             })
             .collect();

@@ -94,7 +94,9 @@ fn cribrum_on_a_strip_sweeps_the_master_in_an_offline_render_and_undoes() {
     // far above its darkest.
     let h = highs_by_eighth(&swept);
     let bar2 = &h[8..16];
-    let (lo, hi) = bar2.iter().fold((f64::MAX, 0f64), |(a, b), v| (a.min(*v), b.max(*v)));
+    let (lo, hi) = bar2
+        .iter()
+        .fold((f64::MAX, 0f64), |(a, b), v| (a.min(*v), b.max(*v)));
     assert!(hi > 6.0 * lo, "the sweep moves the highs: {lo:e} … {hi:e}");
 
     // A control changed as the editor changes it: the cutoff down to 200 Hz, the sweep off.

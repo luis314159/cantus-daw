@@ -125,5 +125,10 @@ fn a_render_from_bar_five_sweeps_as_bar_five_of_the_whole_render() {
     let n = (part.len() / 2).min(whole.len() / 2 - bar5);
     assert!(n > 96_000, "the song runs past bar 5");
     assert!(part[..2 * n].iter().any(|v| v.abs() > 0.01), "bar 5 sounds");
-    assert_null(&whole[2 * bar5..2 * (bar5 + n)], &part[..2 * n], 0.0, "from bar 5");
+    assert_null(
+        &whole[2 * bar5..2 * (bar5 + n)],
+        &part[..2 * n],
+        0.0,
+        "from bar 5",
+    );
 }

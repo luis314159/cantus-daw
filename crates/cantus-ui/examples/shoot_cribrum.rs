@@ -139,8 +139,8 @@ fn main() {
 
 use cantus_ui::kit::color::Hsl;
 use cantus_ui::kit::skin::{
-    Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin, SwitchShape,
-    Tint, Weight,
+    Case, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin, SwitchShape, Tint,
+    Weight,
 };
 
 const fn pair(h: f32, s: f32, dl: f32, h2: f32, s2: f32, ll: f32) -> Pair {
@@ -243,7 +243,11 @@ fn variants(dir: &std::path::Path) {
     std::fs::create_dir_all(&dir).expect("output dir");
     for (name, sheet) in [("a", &VARIANT_A), ("b", &VARIANT_B), ("c", &VARIANT_C)] {
         let fails = cantus_ui::kit::skin::contrast_failures(sheet);
-        println!("variant {name}: {} contrast failures {:?}", fails.len(), fails);
+        println!(
+            "variant {name}: {} contrast failures {:?}",
+            fails.len(),
+            fails
+        );
         for (paper, lang) in [(false, Locale::En), (true, Locale::Es)] {
             cantus_ui::i18n::set_locale(lang);
             let ctx = context(paper);

@@ -225,9 +225,10 @@ fn cribrum_wears_a_face_of_its_own() {
         if other.key == me.key || other.is_plain() {
             continue;
         }
-        let near = (other.surface.hue - me.surface.hue).abs().min(
-            360.0 - (other.surface.hue - me.surface.hue).abs(),
-        ) < 20.0;
+        let near = (other.surface.hue - me.surface.hue)
+            .abs()
+            .min(360.0 - (other.surface.hue - me.surface.hue).abs())
+            < 20.0;
         assert!(
             !(near && other.material == me.material),
             "{u:?} wears Cribrum's hue and material"

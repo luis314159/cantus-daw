@@ -79,10 +79,10 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("out", 3.0),
             ],
         ),
-        K::Pedal => Start::Neutral(Flat),      // fx:contract (fragor)
+        K::Pedal => Start::Neutral(Flat), // fx:contract (fragor)
         K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)
-        K::LoFi => Start::Neutral(Flat),       // fx:contract (vetus)
-        K::Utility => Start::Neutral(Flat),    // fx:contract (libra)
+        K::LoFi => Start::Neutral(Flat),  // fx:contract (vetus)
+        K::Utility => Start::Neutral(Flat), // fx:contract (libra)
         K::Multiband => preset(
             "mb.preset.glue",
             &[

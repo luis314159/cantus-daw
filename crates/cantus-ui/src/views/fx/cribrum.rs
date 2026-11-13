@@ -22,10 +22,10 @@ use cantus_dsp::cribrum::filter::{effective, Mode, MODELS};
 use cantus_dsp::cribrum::{t, CribrumSettings};
 use egui::{pos2, vec2, Pos2, Rect, Sense};
 
-#[path = "cribrum_display.rs"]
-mod display;
 #[path = "cribrum_curve.rs"]
 mod curve;
+#[path = "cribrum_display.rs"]
+mod display;
 #[path = "cribrum_move.rs"]
 mod movement;
 
@@ -314,7 +314,10 @@ fn filter_card(
                         ui.add_enabled_ui(!voice, |ui| {
                             model_field(host, ui, s, keys[0], half);
                         });
-                        let slopes = [Src::Key("cribrum.slope_short.0"), Src::Key("cribrum.slope_short.1")];
+                        let slopes = [
+                            Src::Key("cribrum.slope_short.0"),
+                            Src::Key("cribrum.slope_short.1"),
+                        ];
                         let (eff, s24) = effective(p.model, p.mode, p.slope24);
                         let can24 = eff != Mode::Vowel && effective(p.model, p.mode, true).1;
                         ui.add_enabled_ui(can24, |ui| {

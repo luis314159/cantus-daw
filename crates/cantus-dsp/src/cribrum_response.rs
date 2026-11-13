@@ -102,7 +102,11 @@ pub fn response(v: &Voice, f: f32, fs: f32) -> C {
             let s = jw(f, v.cut, fs, 1.0);
             let k = 4.0 * r;
             let st = C::ONE.div(C::ONE.add(s));
-            let comp = if mode == Mode::Low { 1.0 + 0.5 * k } else { 1.0 };
+            let comp = if mode == Mode::Low {
+                1.0 + 0.5 * k
+            } else {
+                1.0
+            };
             let u = C::ONE.div(C::ONE.add(st.powi(4).scale(k))).scale(comp);
             let y = |i: usize| u.mul(st.powi(i));
             let mix = |c: &[f64]| {
