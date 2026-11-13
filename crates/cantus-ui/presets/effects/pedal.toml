@@ -1,4 +1,188 @@
-# Fragor pedals: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's contract: none yet — fragor's builder writes them here.
+# Fragor pedals: factory presets (ADR 0101). Names are locale keys (locales/fx/fragor.*.txt).
+# Each sets the pedals on the board (`s1` … `s3`: 1 green overdrive, 2 op-amp distortion,
+# 3 silicon distortion, 4 germanium fuzz, 5 triangle muff) and their knobs.
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.fragor.green_push"
+note = "The green overdrive pushing gently: what an insert starts with."
+styles = ["rock", "pop"]
+roles = ["lead"]
+[preset.values]
+"s1" = 1
+"od.drive" = 0.45
+"od.tone" = 0.55
+"od.level" = 0.55
+
+[[preset]]
+key = "preset.fragor.blues_edge"
+note = "Just past clean: the overdrive at a quarter, the guitar's dynamics kept."
+styles = ["rock", "jazz"]
+roles = ["lead"]
+[preset.values]
+"s1" = 1
+"od.drive" = 0.25
+"od.tone" = 0.5
+"od.level" = 0.6
+
+[[preset]]
+key = "preset.fragor.stacked_lead"
+note = "The overdrive tightening the op-amp distortion: a singing lead."
+styles = ["rock"]
+roles = ["lead"]
+[preset.values]
+"s1" = 1
+"s2" = 2
+"od.drive" = 0.3
+"od.tone" = 0.6
+"od.level" = 0.7
+"op.dist" = 0.55
+"op.filter" = 0.35
+"op.vol" = 0.5
+
+[[preset]]
+key = "preset.fragor.rat_rhythm"
+note = "The op-amp distortion for chords: thick, the filter taking the fizz off."
+styles = ["rock"]
+roles = ["pluck"]
+[preset.values]
+"s1" = 2
+"op.dist" = 0.6
+"op.filter" = 0.45
+"op.vol" = 0.5
+
+[[preset]]
+key = "preset.fragor.silicon_crunch"
+note = "The silicon distortion at crunch: hard clipping with a scooped middle."
+styles = ["rock", "pop"]
+roles = ["pluck"]
+[preset.values]
+"s1" = 3
+"si.dist" = 0.55
+"si.tone" = 0.45
+"si.level" = 0.5
+
+[[preset]]
+key = "preset.fragor.metal_wall"
+note = "Silicon distortion into the op-amp, the gate closing the pauses."
+styles = ["rock"]
+roles = ["pluck"]
+[preset.values]
+"s1" = 3
+"s2" = 2
+"si.dist" = 0.9
+"si.tone" = 0.35
+"si.level" = 0.45
+"op.dist" = 0.4
+"op.filter" = 0.5
+"op.vol" = 0.45
+"gate" = -55
+
+[[preset]]
+key = "preset.fragor.vintage_fuzz"
+note = "The germanium fuzz on a fresh battery: round, cleaning up with the guitar's volume."
+styles = ["rock"]
+roles = ["lead"]
+[preset.values]
+"s1" = 4
+"ge.fuzz" = 0.8
+"ge.bias" = 1.0
+"ge.vol" = 0.5
+
+[[preset]]
+key = "preset.fragor.dying_battery"
+note = "The germanium fuzz starved: notes sputter and gate as they fade."
+styles = ["rock", "lofi"]
+roles = ["creative"]
+[preset.values]
+"s1" = 4
+"ge.fuzz" = 1.0
+"ge.bias" = 0.25
+"ge.vol" = 0.65
+
+[[preset]]
+key = "preset.fragor.muff_sustain"
+note = "The triangle muff: endless sustain under a lead."
+styles = ["rock"]
+roles = ["lead"]
+[preset.values]
+"s1" = 5
+"mf.sustain" = 0.7
+"mf.tone" = 0.45
+"mf.vol" = 0.5
+
+[[preset]]
+key = "preset.fragor.doom_bass"
+note = "The muff under a bass, dark, half blended with the clean low end."
+styles = ["rock"]
+roles = ["bass"]
+[preset.values]
+"s1" = 5
+"mf.sustain" = 0.6
+"mf.tone" = 0.3
+"mf.vol" = 0.5
+"mix" = 0.6
+
+[[preset]]
+key = "preset.fragor.bass_grit"
+note = "The op-amp distortion blended under a bass: grit on top, the lows untouched."
+styles = ["rock", "pop"]
+roles = ["bass"]
+[preset.values]
+"s1" = 2
+"op.dist" = 0.4
+"op.filter" = 0.6
+"op.vol" = 0.5
+"mix" = 0.5
+
+[[preset]]
+key = "preset.fragor.drum_smash"
+note = "Silicon distortion blended into drums: smack and room, the transients kept."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"s1" = 3
+"si.dist" = 0.5
+"si.tone" = 0.55
+"si.level" = 0.5
+"mix" = 0.4
+
+[[preset]]
+key = "preset.fragor.synth_fuzz"
+note = "A synth through the fuzz and the muff: a buzzing, wide lead."
+styles = ["house", "trap"]
+roles = ["lead"]
+[preset.values]
+"s1" = 4
+"s2" = 5
+"ge.fuzz" = 0.7
+"ge.bias" = 0.9
+"ge.vol" = 0.5
+"mf.sustain" = 0.4
+"mf.tone" = 0.55
+"mf.vol" = 0.5
+
+[[preset]]
+key = "preset.fragor.vocal_grit"
+note = "A little overdrive blended under a voice: edge without losing the words."
+styles = ["rock", "pop"]
+roles = ["vocal"]
+[preset.values]
+"s1" = 1
+"od.drive" = 0.4
+"od.tone" = 0.65
+"od.level" = 0.5
+"mix" = 0.35
+
+[[preset]]
+key = "preset.fragor.lofi_radio"
+note = "The op-amp distortion with its filter closed: a small radio's speaker."
+styles = ["lofi"]
+roles = ["fx"]
+[preset.values]
+"s1" = 2
+"op.dist" = 0.3
+"op.filter" = 0.85
+"op.vol" = 0.6
+"mono" = 1

@@ -24,7 +24,6 @@ fn floor(unit: Unit) -> usize {
         // fx:contract — the side round's stubs have no presets yet: each builder deletes its
         // own line when its twelve land.
         Unit::Effect(EffectKind::AutoFilter) => 0, // fx:contract (cribrum)
-        Unit::Effect(EffectKind::Pedal) => 0,      // fx:contract (fragor)
         Unit::Effect(EffectKind::TimeShaper) => 0, // fx:contract (lapsus)
         Unit::Effect(EffectKind::LoFi) => 0,       // fx:contract (vetus)
         Unit::Effect(EffectKind::Utility) => 0,    // fx:contract (libra)

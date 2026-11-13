@@ -66,7 +66,16 @@ pub fn start_of(kind: EffectKind) -> Start {
         // fx:contract — the side round's stubs start at their defaults until each builder
         // gives its unit a starting preset or its real reason for none (ADR 0071).
         K::AutoFilter => Start::Neutral(Flat), // fx:contract (cribrum)
-        K::Pedal => Start::Neutral(Flat),      // fx:contract (fragor)
+        // fx:fragor — the green overdrive on the board, pushing gently.
+        K::Pedal => preset(
+            "preset.fragor.green_push",
+            &[
+                ("s1", 1.0),
+                ("od.drive", 0.45),
+                ("od.tone", 0.55),
+                ("od.level", 0.55),
+            ],
+        ),
         K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)
         K::LoFi => Start::Neutral(Flat),       // fx:contract (vetus)
         K::Utility => Start::Neutral(Flat),    // fx:contract (libra)

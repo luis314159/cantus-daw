@@ -72,6 +72,8 @@ pub struct State {
     hot: Option<(usize, usize)>,
     /// The LEDs' glow, smoothed (by model).
     glow: [f32; 5],
+    /// A pedal being dragged to another slot: its slot and where it was grabbed.
+    drag: Option<(usize, egui::Vec2)>,
     /// The input and output meters, dBFS, falling smoothly.
     meters: Meters,
 }
@@ -251,8 +253,17 @@ fn board_ui(
         let ink = pd::board_ink(s);
         pd::board_jack(b, s, geo.jack_in, Src::Key("fragor.jack.in"), ink);
         pd::board_jack(b, s, geo.jack_out, Src::Key("fragor.jack.out"), ink);
+        let dragging = st.drag.map(|d| d.0);
+        let pointer = ui.ctx().pointer_latest_pos();
+        let mut lifted = None;
         for (i, m) in chain.iter().enumerate() {
             match m {
+                Some(m) if dragging == Some(i) => {
+                    // Lifted off the board: drawn last, where the hand is.
+                    let r = geo.pedals[i].shrink2(vec2(6.0 * k, 0.0));
+                    pd::empty_slot(b, s, r, Src::Key("fragor.add"), false);
+                    lifted = Some(*m);
+                }
                 Some(m) => {
                     let on = spec.get(SWITCHES[*m]) >= 0.5;
                     let labels = knob_labels(*m);
@@ -280,6 +291,33 @@ fn board_ui(
                 }
             }
         }
+        // Where a dragged pedal would land, and the pedal itself in the hand.
+        if let (Some(m), Some(p), Some((from, grab))) = (lifted, pointer, st.drag) {
+            if let Some(to) = slot_at(&geo, p).filter(|t| *t != from) {
+                let t = geo.pedals[to].expand(6.0 * k);
+                pd::drop_marker(b, s, t.left(), t.top(), t.bottom());
+                pd::drop_marker(b, s, t.right(), t.top(), t.bottom());
+            }
+            let labels = knob_labels(m);
+            let knobs: [Knob; 3] = std::array::from_fn(|j| Knob {
+                label: Src::Key(labels[j]),
+                value: spec.get(KNOBS[m][j]),
+                hot: false,
+            });
+            let e = Enclosure {
+                finish: &pedals::FRAGOR[m],
+                name: Src::Key(NAMES[m]),
+                sub: Src::Key(SUBS[m]),
+                motif: MOTIFS[m],
+                knobs: &knobs,
+                on: spec.get(SWITCHES[m]) >= 0.5,
+                glow: 0.3,
+                lifted: true,
+                switch_hot: false,
+            };
+            let r = Rect::from_min_size(p - grab, geo.pedals[from].size());
+            pd::enclosure(b, s, r, &e);
+        }
         // The cables: the track's jack → each pedal in turn → the output.
         let mut from = geo.jack_in;
         let lift = 34.0 * k;
@@ -289,9 +327,53 @@ fn board_ui(
         }
         pd::cable(b, s, from, geo.jack_out, lift);
     });
-    // Interaction: the knobs drag up and down (Shift: finely), a double click resets;
-    // the footswitch clicks.
+    // Interaction. Registered before the knobs and the footswitch so they win where they
+    // overlap: each pedal's body drags it to another slot (the two swap), right-click
+    // offers to replace or remove it; an empty slot clicked offers the pedals not on the
+    // board.
     st.hot = None;
+    let pointer = ui.ctx().pointer_latest_pos();
+    for i in 0..3 {
+        let id = ui.id().with(("fragor-slot", i));
+        let resp = ui.interact(geo.pedals[i], id, Sense::click_and_drag());
+        match chain[i] {
+            Some(m) => {
+                if resp.drag_started() {
+                    if let Some(p) = pointer {
+                        st.drag = Some((i, p - geo.pedals[i].min));
+                    }
+                }
+                if resp.drag_stopped() {
+                    if let (Some((from, _)), Some(p)) = (st.drag.take(), pointer) {
+                        if let Some(to) = slot_at(&geo, p) {
+                            if to != from {
+                                let a = spec.get(SLOTS[from]);
+                                let b = spec.get(SLOTS[to]);
+                                host.set_many(
+                                    &[(SLOTS[from], b), (SLOTS[to], a)],
+                                    "fragor.cmd.move",
+                                );
+                            }
+                        }
+                    }
+                }
+                pedal_menu(host, &resp, i, m, &chain);
+            }
+            None => {
+                add_menu(host, &resp, i, &chain);
+                if resp.hovered() {
+                    crate::kit::hint::set_text(
+                        ui.ctx(),
+                        frame::tr("fragor.add"),
+                        "",
+                        crate::kit::hint::Caps::NONE,
+                    );
+                }
+            }
+        }
+    }
+    // The knobs drag up and down (Shift: finely), a double click resets, a right-click
+    // opens the parameter's menu (automate, modulate, learn, reset); the footswitch clicks.
     for (i, h) in hits.iter().enumerate() {
         let (Some(h), Some(m)) = (h, chain[i]) else {
             continue;
@@ -316,9 +398,20 @@ fn board_ui(
             if resp.drag_stopped() {
                 host.end_gesture();
             }
+            let default = KIND.param(key).map_or(0.5, |p| p.default);
             if resp.double_clicked() {
-                let d = KIND.param(key).map_or(0.5, |p| p.default);
-                host.set(key, d, None);
+                host.set(key, default, None);
+            }
+            let offer = crate::kit::automate::Offer {
+                automated: host.can_automate() && host.automated(key),
+                typing: false,
+                modulation: None,
+            };
+            match crate::kit::automate::menu(ui, &resp, offer) {
+                Some(crate::kit::automate::Choice::Automate) => host.automate(key),
+                Some(crate::kit::automate::Choice::Reset) => host.set(key, default, None),
+                Some(crate::kit::automate::Choice::Type) | None => {}
+                Some(c) => host.modulate(key, c, resp.rect),
             }
             if resp.hovered() || resp.dragged() {
                 // The help line: the parameter's whole name (the pedal's and the knob's)
@@ -336,11 +429,12 @@ fn board_ui(
         }
         let id = ui.id().with(("fragor-switch", i));
         let resp = ui.interact(h.switch, id, Sense::click());
+        let key = SWITCHES[m];
+        let name = KIND.param(key).map_or("", |p| frame::tr(p.label_key));
+        let learnt = controls::stepped_offer(ui, s, host, key, name, &resp);
+        let on = spec.get(key) >= 0.5;
         if resp.hovered() {
             st.hot = Some((i, 3));
-            let key = SWITCHES[m];
-            let name = KIND.param(key).map_or("", |p| frame::tr(p.label_key));
-            let on = spec.get(key) >= 0.5;
             let word = frame::tr(if on {
                 "fragor.onoff.1"
             } else {
@@ -348,11 +442,90 @@ fn board_ui(
             });
             crate::kit::hint::set_text(ui.ctx(), name, word, crate::kit::hint::Caps::NONE);
         }
-        if resp.clicked() {
-            let key = SWITCHES[m];
-            let on = spec.get(key) >= 0.5;
+        if resp.clicked() && !learnt {
             host.set(key, if on { 0.0 } else { 1.0 }, None);
         }
+    }
+    if !ui.input(|i| i.pointer.any_down()) {
+        st.drag = None;
+    }
+}
+
+/// The slot under `p`, if any.
+fn slot_at(geo: &BoardGeo, p: Pos2) -> Option<usize> {
+    (0..3).find(|i| {
+        let r = geo.pedals[*i];
+        let half = r.width() * 0.5 + (r.width() * 0.3);
+        (p.x - r.center().x).abs() <= half && p.y >= r.top() - r.height() * 0.3
+    })
+}
+
+/// A pedal's own menu (a right-click on its body): another pedal in its place (one not
+/// on the board), or off the board.
+fn pedal_menu(
+    host: &mut dyn FxHost,
+    resp: &egui::Response,
+    slot: usize,
+    model: usize,
+    chain: &[Option<usize>; 3],
+) {
+    use crate::kit::menu::Item;
+    let mut chosen = None;
+    egui::Popup::context_menu(resp)
+        .frame(crate::kit::automate::frame())
+        .show(|ui| {
+            let others: Vec<usize> = (0..MODELS.len())
+                .filter(|m| *m != model && !chain.contains(&Some(*m)))
+                .collect();
+            let mut items: Vec<Item> = others
+                .iter()
+                .map(|m| Item::action(Src::Key(NAMES[*m])))
+                .collect();
+            items.push(Item::Separator);
+            items.push(Item::action(Src::Key("fragor.remove")));
+            if let Some(i) = crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
+                chosen = Some(if i < others.len() {
+                    others[i] as f32 + 1.0
+                } else {
+                    0.0
+                });
+                ui.close();
+            }
+        });
+    if let Some(v) = chosen {
+        let label = if v == 0.0 {
+            "fragor.cmd.remove"
+        } else {
+            "fragor.cmd.add"
+        };
+        host.set_many(&[(SLOTS[slot], v)], label);
+    }
+}
+
+/// An empty slot's menu (a click): the pedals not on the board.
+fn add_menu(host: &mut dyn FxHost, resp: &egui::Response, slot: usize, chain: &[Option<usize>; 3]) {
+    use crate::kit::menu::Item;
+    let mut chosen = None;
+    egui::Popup::menu(resp)
+        .frame(crate::kit::automate::frame())
+        .show(|ui| {
+            let free: Vec<usize> = (0..MODELS.len())
+                .filter(|m| !chain.contains(&Some(*m)))
+                .collect();
+            let items: Vec<Item> = free
+                .iter()
+                .map(|m| Item::action(Src::Key(NAMES[*m])))
+                .collect();
+            if let Some(i) = crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
+                chosen = Some(free[i]);
+                ui.close();
+            }
+        });
+    if let Some(m) = chosen {
+        host.set_many(
+            &[(SLOTS[slot], m as f32 + 1.0), (SWITCHES[m], 1.0)],
+            "fragor.cmd.add",
+        );
     }
 }
 
