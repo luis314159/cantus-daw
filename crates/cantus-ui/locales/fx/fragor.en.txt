@@ -1,0 +1,8 @@
+# Fragor (fx side round) — owned by Fragor. Every key here needs its twin in fragor.es.txt.
+effect.fragor = Fragor pedals
+fx.fragor.about = Distortion and fuzz pedals modelled from their circuits: overdrive, distortion and fuzz, from gentle to wild.
+fx.fragor.out = Output
+picker.dev.fragor.name = Fragor
+picker.dev.fragor.what = Distortion pedals
+picker.dev.fragor.about = Distortion and fuzz pedals modelled from their circuits: overdrive, distortion and fuzz, from gentle to wild.
+mixer.chain.fragor = Pedal

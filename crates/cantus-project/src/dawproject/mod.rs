@@ -468,7 +468,12 @@ pub fn effect_device_name(kind: EffectKind) -> String {
         EffectKind::TransientSplit => "Discrimen".into(),
         EffectKind::Analyzer => "Speculum".into(),
         EffectKind::AutoTune => "Tonus".into(),
-        EffectKind::Aula => "Aula".into(), // r39:conv
+        EffectKind::Aula => "Aula".into(),          // r39:conv
+        EffectKind::AutoFilter => "Cribrum".into(), // fx:contract
+        EffectKind::Pedal => "Fragor".into(),       // fx:contract
+        EffectKind::TimeShaper => "Lapsus".into(),  // fx:contract
+        EffectKind::LoFi => "Vetus".into(),         // fx:contract
+        EffectKind::Utility => "Libra".into(),      // fx:contract
         EffectKind::Delay => "Delay".into(),
         EffectKind::Reverb => "Reverb".into(),
         #[allow(unreachable_patterns)]

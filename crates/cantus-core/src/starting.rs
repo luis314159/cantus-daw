@@ -63,6 +63,13 @@ pub fn start_of(kind: EffectKind) -> Start {
         K::Limiter | K::Maximizer | K::Clipper => Start::Neutral(MustNotSurprise),
         K::Analyzer => Start::Neutral(Measures),
         K::External => Start::Neutral(Hosted),
+        // fx:contract — the side round's stubs start at their defaults until each builder
+        // gives its unit a starting preset or its real reason for none (ADR 0071).
+        K::AutoFilter => Start::Neutral(Flat), // fx:contract (cribrum)
+        K::Pedal => Start::Neutral(Flat),      // fx:contract (fragor)
+        K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)
+        K::LoFi => Start::Neutral(Flat),       // fx:contract (vetus)
+        K::Utility => Start::Neutral(Flat),    // fx:contract (libra)
         K::Multiband => preset(
             "mb.preset.glue",
             &[

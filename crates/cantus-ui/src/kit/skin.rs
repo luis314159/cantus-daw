@@ -66,6 +66,9 @@ mod instruments;
 mod modulation;
 #[path = "skin/tone.rs"]
 mod tone;
+// fx:contract — the fx side round's placeholder faces (each builder replaces its own).
+#[path = "skin/side.rs"]
+mod side;
 
 #[path = "skin/displays.rs"]
 pub mod displays;
@@ -695,6 +698,7 @@ pub fn of(unit: Unit) -> &'static Skin {
         Unit::Effect(kind) => dynamics::of(kind)
             .or_else(|| modulation::of(kind))
             .or_else(|| tone::of(kind))
+            .or_else(|| side::of(kind)) // fx:contract
             .unwrap_or(&PLAIN),
         Unit::Instrument(kind) => instruments::of(kind),
         Unit::Pulsus => &instruments::PULSUS,

@@ -61,8 +61,13 @@ impl Subject {
             EffectKind::TransientSplit => "discrimen",
             EffectKind::Analyzer => "speculum",
             EffectKind::AutoTune => "tonus",
-            EffectKind::Aula => "aula",   // r39:conv
-            EffectKind::Delay => "delay", // r39:delay
+            EffectKind::Aula => "aula",          // r39:conv
+            EffectKind::AutoFilter => "cribrum", // fx:contract
+            EffectKind::Pedal => "fragor",       // fx:contract
+            EffectKind::TimeShaper => "lapsus",  // fx:contract
+            EffectKind::LoFi => "vetus",         // fx:contract
+            EffectKind::Utility => "libra",      // fx:contract
+            EffectKind::Delay => "delay",        // r39:delay
             _ => "eq",
         }
     }

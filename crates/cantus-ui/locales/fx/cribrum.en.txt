@@ -1,0 +1,8 @@
+# Cribrum (fx side round) — owned by Cribrum. Every key here needs its twin in cribrum.es.txt.
+effect.cribrum = Cribrum auto filter
+fx.cribrum.about = An analog-modelled filter moved by an envelope, a tempo-synced LFO or the signal's own level.
+fx.cribrum.out = Output
+picker.dev.cribrum.name = Cribrum
+picker.dev.cribrum.what = Auto filter
+picker.dev.cribrum.about = An analog-modelled filter moved by an envelope, a tempo-synced LFO or the signal's own level.
+mixer.chain.cribrum = Filter

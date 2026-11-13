@@ -53,6 +53,11 @@ pub fn effect_use(kind: EffectKind) -> &'static str {
         K::AutoTune => "Real-time pitch correction to a key and scale, from natural to hard-tuned, with created vibrato.",
         // r39:conv
         K::Aula => "Convolution reverb: a real room from its impulse response — Cantus's own rooms, halls, plates and springs, a WAV the user loads (mono, stereo, true stereo), or a free pack; shape it with stretch, length, decay, damping and cuts, pre-delay and width.",
+        K::AutoFilter => "Auto filter (being built: for now it passes the sound through, with an output gain): analog filter models moved by an envelope, a tempo-synced LFO or a follower — sweeps, wobbles, auto-wah.", // fx:contract
+        K::Pedal => "Distortion and fuzz pedals (being built: for now it passes the sound through, with an output gain): circuit-modelled overdrive, distortion and fuzz for guitars, bass and synths.", // fx:contract
+        K::TimeShaper => "Time and volume shaper, Gross Beat class (being built: for now it passes the sound through, with an output gain): tape stops, half-time, stutters and scratches synced to the song.", // fx:contract
+        K::LoFi => "Lo-fi (being built: for now it passes the sound through, with an output gain): bit crushing, sample-rate reduction, vinyl crackle and tape wear.", // fx:contract
+        K::Utility => "Utility (being built: for now it passes the sound through, with an output gain): gain, polarity, channel swaps and mono, a delay to align, a tuner.", // fx:contract
     }
 }
 

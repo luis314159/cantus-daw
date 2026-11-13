@@ -56,7 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 24] = [ // r39:conv: 24 with Aula
+pub static ALL: [Descriptor; 29] = [
+    // fx:contract: 29 with the side round's five
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -351,6 +352,68 @@ pub static ALL: [Descriptor; 24] = [ // r39:conv: 24 with Aula
         vst3_categories: "Fx|Reverb",
         description: "Convolution reverb: rooms, halls, plates, springs and chambers made by Cantus, zero latency, shaped by stretch, length, decay, damping and cuts.",
         compiled: cfg!(feature = "aula"),
+    },
+    // fx:contract — the fx side round's five (provisional ADRs 0130–0133); ids are
+    // forever once released, by the module's rule.
+    Descriptor {
+        kind: EffectKind::AutoFilter, // fx:contract
+        name: "Cribrum",
+        full_name: "Cantus Cribrum",
+        slug: "cribrum",
+        clap_id: "com.github.lalmazan.cantus.cribrum",
+        vst3_cid: [0x8280FB5B, 0xB86C9415, 0x7A1AD8E5, 0x364DDEC1],
+        clap_features: &[FX, "filter", STEREO],
+        vst3_categories: "Fx|Filter",
+        description: "Auto filter: analog filter models moved by an envelope, a synced LFO or a follower.",
+        compiled: cfg!(feature = "cribrum"),
+    },
+    Descriptor {
+        kind: EffectKind::Pedal, // fx:contract
+        name: "Fragor",
+        full_name: "Cantus Fragor",
+        slug: "fragor",
+        clap_id: "com.github.lalmazan.cantus.fragor",
+        vst3_cid: [0x60CC77ED, 0x2C45A210, 0x3147B7A4, 0x0E1527BE],
+        clap_features: &[FX, "distortion", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description: "Distortion and fuzz pedals, modelled from their circuits.",
+        compiled: cfg!(feature = "fragor"),
+    },
+    Descriptor {
+        kind: EffectKind::TimeShaper, // fx:contract
+        name: "Lapsus",
+        full_name: "Cantus Lapsus",
+        slug: "lapsus",
+        clap_id: "com.github.lalmazan.cantus.lapsus",
+        vst3_cid: [0x83B3C333, 0x81E2521A, 0x89A21D39, 0xEAA7BF03],
+        clap_features: &[FX, "glitch", STEREO],
+        vst3_categories: "Fx|Modulation",
+        description: "Time and volume shaper: tape stops, half-time, stutters and scratches, synced to the song.",
+        compiled: cfg!(feature = "lapsus"),
+    },
+    Descriptor {
+        kind: EffectKind::LoFi, // fx:contract
+        name: "Vetus",
+        full_name: "Cantus Vetus",
+        slug: "vetus",
+        clap_id: "com.github.lalmazan.cantus.vetus",
+        vst3_cid: [0xAF6ED6C2, 0x8D427D1A, 0xFC4FB59B, 0x1B6199E3],
+        clap_features: &[FX, "distortion", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description: "Lo-fi: fewer bits, a lower sample rate, vinyl and tape wear.",
+        compiled: cfg!(feature = "vetus"),
+    },
+    Descriptor {
+        kind: EffectKind::Utility, // fx:contract
+        name: "Libra",
+        full_name: "Cantus Libra",
+        slug: "libra",
+        clap_id: "com.github.lalmazan.cantus.libra",
+        vst3_cid: [0x035BD1F4, 0x20D86106, 0x99631CB5, 0xBC149313],
+        clap_features: &[FX, "utility", STEREO],
+        vst3_categories: "Fx|Tools",
+        description: "Utility: gain, polarity, channel operations, alignment and a tuner.",
+        compiled: cfg!(feature = "libra"),
     },
 ];
 

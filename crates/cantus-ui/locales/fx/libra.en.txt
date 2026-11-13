@@ -1,0 +1,8 @@
+# Libra (fx side round) — owned by Libra. Every key here needs its twin in libra.es.txt.
+effect.libra = Libra utility
+fx.libra.about = The everyday tools of a channel: gain, polarity, channel swaps and mono, a delay to align, a tuner.
+fx.libra.out = Output
+picker.dev.libra.name = Libra
+picker.dev.libra.what = Utility
+picker.dev.libra.about = The everyday tools of a channel: gain, polarity, channel swaps and mono, a delay to align, a tuner.
+mixer.chain.libra = Util

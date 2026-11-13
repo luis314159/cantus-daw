@@ -1,0 +1,8 @@
+# Libra (ronda lateral de efectos) — de Libra. Cada clave necesita su gemela en libra.en.txt.
+effect.libra = Libra utilidad
+fx.libra.about = Las herramientas de cada día de un canal: ganancia, polaridad, intercambio de canales y mono, un retardo para alinear, un afinador.
+fx.libra.out = Salida
+picker.dev.libra.name = Libra
+picker.dev.libra.what = Utilidad
+picker.dev.libra.about = Las herramientas de cada día de un canal: ganancia, polaridad, intercambio de canales y mono, un retardo para alinear, un afinador.
+mixer.chain.libra = Util

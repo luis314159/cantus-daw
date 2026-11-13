@@ -1519,6 +1519,25 @@ fn main() {
             t.glyph = Some("kick".into());
         }
     }
+    // fx:contract — Schema 62 (the fx side round, ADRs 0130–0133; provisional — renumbered
+    // when merged after round 40): one insert of each of the five new kinds on the second
+    // strip, Cribrum's placeholder at −3 dB. Each builder adds its own settings here.
+    if upto >= 62 {
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        for kind in [
+            EffectKind::AutoFilter,
+            EffectKind::Pedal,
+            EffectKind::TimeShaper,
+            EffectKind::LoFi,
+            EffectKind::Utility,
+        ] {
+            let mut e = p.make_effect(kind);
+            if kind == EffectKind::AutoFilter {
+                e.spec.set("out", -3.0).unwrap();
+            }
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

@@ -1,0 +1,8 @@
+# Vetus (fx side round) — owned by Vetus. Every key here needs its twin in vetus.es.txt.
+effect.vetus = Vetus lo-fi
+fx.vetus.about = Ages the sound: fewer bits, a lower sample rate, the crackle of vinyl and the wear of tape.
+fx.vetus.out = Output
+picker.dev.vetus.name = Vetus
+picker.dev.vetus.what = Lo-fi
+picker.dev.vetus.about = Ages the sound: fewer bits, a lower sample rate, the crackle of vinyl and the wear of tape.
+mixer.chain.vetus = Lo-fi

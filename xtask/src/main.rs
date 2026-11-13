@@ -79,7 +79,12 @@ fn feature(d: &Descriptor) -> &'static str {
         "discrimen" => "discrimen,editor",
         "speculum" => "speculum,editor",
         "tonus" => "tonus,editor",
-        "aula" => "aula,editor", // r39:conv
+        "aula" => "aula,editor",       // r39:conv
+        "cribrum" => "cribrum,editor", // fx:contract
+        "fragor" => "fragor,editor",   // fx:contract
+        "lapsus" => "lapsus,editor",   // fx:contract
+        "vetus" => "vetus,editor",     // fx:contract
+        "libra" => "libra,editor",     // fx:contract
         other => panic!("no feature for {other}"),
     }
 }

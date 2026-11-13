@@ -1686,6 +1686,11 @@ impl CantusApp {
             "speculum" => EffectKind::Analyzer,
             "tonus" => EffectKind::AutoTune,
             "aula" | "convolution" => EffectKind::Aula, // r39:conv
+            "cribrum" | "autofilter" => EffectKind::AutoFilter, // fx:contract
+            "fragor" | "pedal" => EffectKind::Pedal,    // fx:contract
+            "lapsus" | "timeshaper" => EffectKind::TimeShaper, // fx:contract
+            "vetus" | "lofi" => EffectKind::LoFi,       // fx:contract
+            "libra" | "utility" => EffectKind::Utility, // fx:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

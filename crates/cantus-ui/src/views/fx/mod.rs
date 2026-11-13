@@ -76,6 +76,18 @@ pub mod tremor;
 /// Vibrans, the vibrato (round 28).
 pub mod vibrans;
 
+// fx:contract — the fx side round's five editors (provisional ADRs 0130–0133).
+/// Cribrum, the auto filter (fx side round). // fx:contract
+pub mod cribrum;
+/// Fragor, the distortion and fuzz pedals (fx side round). // fx:contract
+pub mod fragor;
+/// Lapsus, the time and volume shaper (fx side round). // fx:contract
+pub mod lapsus;
+/// Libra, the utility (fx side round). // fx:contract
+pub mod libra;
+/// Vetus, lo-fi (fx side round). // fx:contract
+pub mod vetus;
+
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.
 pub const PAIRS: usize = 16_384;
 
@@ -116,8 +128,13 @@ pub struct FxEditors {
     pub discrimen: discrimen::State,
     pub speculum: speculum::State,
     pub tonus: tonus::State,
-    pub aula: aula::State,   // r39:conv
-    pub delay: delay::State, // r39:delay
+    pub aula: aula::State,       // r39:conv
+    pub cribrum: cribrum::State, // fx:contract
+    pub fragor: fragor::State,   // fx:contract
+    pub lapsus: lapsus::State,   // fx:contract
+    pub vetus: vetus::State,     // fx:contract
+    pub libra: libra::State,     // fx:contract
+    pub delay: delay::State,     // r39:delay
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
     /// The open editor's frame: its preset, its lists.
@@ -381,6 +398,11 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::Analyzer => speculum::FACTORY_PRESETS,
         EffectKind::AutoTune => tonus::FACTORY_PRESETS,
         EffectKind::Aula => aula::FACTORY_PRESETS, // r39:conv
+        EffectKind::AutoFilter => cribrum::FACTORY_PRESETS, // fx:contract
+        EffectKind::Pedal => fragor::FACTORY_PRESETS, // fx:contract
+        EffectKind::TimeShaper => lapsus::FACTORY_PRESETS, // fx:contract
+        EffectKind::LoFi => vetus::FACTORY_PRESETS, // fx:contract
+        EffectKind::Utility => libra::FACTORY_PRESETS, // fx:contract
         EffectKind::Delay => delay::FACTORY_PRESETS, // r39:delay
         _ => &[],
     }
@@ -485,8 +507,13 @@ pub enum Editor {
     Discrimen(Box<discrimen::State>),
     Speculum(Box<speculum::State>),
     Tonus(Box<tonus::State>),
-    Aula(Box<aula::State>),   // r39:conv
-    Delay(Box<delay::State>), // r39:delay
+    Aula(Box<aula::State>),       // r39:conv
+    Cribrum(Box<cribrum::State>), // fx:contract
+    Fragor(Box<fragor::State>),   // fx:contract
+    Lapsus(Box<lapsus::State>),   // fx:contract
+    Vetus(Box<vetus::State>),     // fx:contract
+    Libra(Box<libra::State>),     // fx:contract
+    Delay(Box<delay::State>),     // r39:delay
 }
 
 impl Editor {
@@ -517,6 +544,11 @@ impl Editor {
             EffectKind::Analyzer => Some(Editor::Speculum(Box::default())),
             EffectKind::AutoTune => Some(Editor::Tonus(Box::default())),
             EffectKind::Aula => Some(Editor::Aula(Box::default())), // r39:conv
+            EffectKind::AutoFilter => Some(Editor::Cribrum(Box::default())), // fx:contract
+            EffectKind::Pedal => Some(Editor::Fragor(Box::default())), // fx:contract
+            EffectKind::TimeShaper => Some(Editor::Lapsus(Box::default())), // fx:contract
+            EffectKind::LoFi => Some(Editor::Vetus(Box::default())), // fx:contract
+            EffectKind::Utility => Some(Editor::Libra(Box::default())), // fx:contract
             EffectKind::Delay => Some(Editor::Delay(Box::default())), // r39:delay
             _ => None,
         }
@@ -549,6 +581,11 @@ impl Editor {
             Editor::Speculum(st) => speculum::editor(host, st, ui),
             Editor::Tonus(st) => tonus::editor(host, st, ui),
             Editor::Aula(st) => aula::editor(host, st, ui), // r39:conv
+            Editor::Cribrum(st) => cribrum::editor(host, st, ui), // fx:contract
+            Editor::Fragor(st) => fragor::editor(host, st, ui), // fx:contract
+            Editor::Lapsus(st) => lapsus::editor(host, st, ui), // fx:contract
+            Editor::Vetus(st) => vetus::editor(host, st, ui), // fx:contract
+            Editor::Libra(st) => libra::editor(host, st, ui), // fx:contract
             Editor::Delay(st) => delay::editor(host, st, ui), // r39:delay
         }
     }
@@ -589,6 +626,11 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::Analyzer
         | EffectKind::AutoTune
         | EffectKind::Aula // r39:conv
+        | EffectKind::AutoFilter // fx:contract
+        | EffectKind::Pedal // fx:contract
+        | EffectKind::TimeShaper // fx:contract
+        | EffectKind::LoFi // fx:contract
+        | EffectKind::Utility // fx:contract
         | EffectKind::Delay // r39:delay
         | EffectKind::External => {
             let mut pos = app.fx.pos;
@@ -631,6 +673,11 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::Analyzer => speculum::framed(app, ui, strip, effect),
                     EffectKind::AutoTune => tonus::framed(app, ui, strip, effect),
                     EffectKind::Aula => aula::framed(app, ui, strip, effect), // r39:conv
+                    EffectKind::AutoFilter => cribrum::framed(app, ui, strip, effect), // fx:contract
+                    EffectKind::Pedal => fragor::framed(app, ui, strip, effect), // fx:contract
+                    EffectKind::TimeShaper => lapsus::framed(app, ui, strip, effect), // fx:contract
+                    EffectKind::LoFi => vetus::framed(app, ui, strip, effect), // fx:contract
+                    EffectKind::Utility => libra::framed(app, ui, strip, effect), // fx:contract
                     EffectKind::Delay => delay::framed(app, ui, strip, effect), // r39:delay
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
@@ -672,6 +719,11 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::Analyzer => speculum::preview(ui, spec),
         EffectKind::AutoTune => tonus::preview(ui, spec),
         EffectKind::Aula => aula::preview(ui, spec), // r39:conv
+        EffectKind::AutoFilter => cribrum::preview(ui, spec), // fx:contract
+        EffectKind::Pedal => fragor::preview(ui, spec), // fx:contract
+        EffectKind::TimeShaper => lapsus::preview(ui, spec), // fx:contract
+        EffectKind::LoFi => vetus::preview(ui, spec), // fx:contract
+        EffectKind::Utility => libra::preview(ui, spec), // fx:contract
         EffectKind::Delay => delay::preview(ui, spec), // r39:delay
         _ => {
             let s = crate::kit::Style::current();
@@ -707,6 +759,11 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::Analyzer => speculum::demo_setup(app, strip, effect),
         EffectKind::AutoTune => tonus::demo_setup(app, strip, effect),
         EffectKind::Aula => aula::demo_setup(app, strip, effect), // r39:conv
+        EffectKind::AutoFilter => cribrum::demo_setup(app, strip, effect), // fx:contract
+        EffectKind::Pedal => fragor::demo_setup(app, strip, effect), // fx:contract
+        EffectKind::TimeShaper => lapsus::demo_setup(app, strip, effect), // fx:contract
+        EffectKind::LoFi => vetus::demo_setup(app, strip, effect), // fx:contract
+        EffectKind::Utility => libra::demo_setup(app, strip, effect), // fx:contract
         EffectKind::Delay => delay::demo_setup(app, strip, effect), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
@@ -740,6 +797,11 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::Analyzer => speculum::demo_feed(app),
         EffectKind::AutoTune => tonus::demo_feed(app),
         EffectKind::Aula => aula::demo_feed(app), // r39:conv
+        EffectKind::AutoFilter => cribrum::demo_feed(app), // fx:contract
+        EffectKind::Pedal => fragor::demo_feed(app), // fx:contract
+        EffectKind::TimeShaper => lapsus::demo_feed(app), // fx:contract
+        EffectKind::LoFi => vetus::demo_feed(app), // fx:contract
+        EffectKind::Utility => libra::demo_feed(app), // fx:contract
         EffectKind::Delay => delay::demo_feed(app), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}

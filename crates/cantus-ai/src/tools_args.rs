@@ -522,7 +522,12 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
         K::TransientSplit => ("discrimen", "Discrimen"),
         K::Analyzer => ("speculum", "Speculum"),
         K::AutoTune => ("tonus", "Tonus"),
-        K::Aula => ("aula", "Aula"), // r39:conv
+        K::Aula => ("aula", "Aula"),             // r39:conv
+        K::AutoFilter => ("cribrum", "Cribrum"), // fx:contract
+        K::Pedal => ("fragor", "Fragor"),        // fx:contract
+        K::TimeShaper => ("lapsus", "Lapsus"),   // fx:contract
+        K::LoFi => ("vetus", "Vetus"),           // fx:contract
+        K::Utility => ("libra", "Libra"),        // fx:contract
     }
 }
 
@@ -557,6 +562,12 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("auto_tune", EffectKind::AutoTune),
     ("convolution", EffectKind::Aula),        // r39:conv
     ("convolution_reverb", EffectKind::Aula), // r39:conv
+    ("auto_filter", EffectKind::AutoFilter),  // fx:contract
+    ("pedal", EffectKind::Pedal),             // fx:contract
+    ("time_shaper", EffectKind::TimeShaper),  // fx:contract
+    ("lofi", EffectKind::LoFi),               // fx:contract
+    ("bitcrusher", EffectKind::LoFi),         // fx:contract
+    ("utility", EffectKind::Utility),         // fx:contract
 ];
 
 /// A native effect kind offered for a new insert, by its id or one of its

@@ -67,6 +67,17 @@ pub enum EffectKind {
     AutoTune,
     /// Aula, the convolution reverb (`fx::aula`, round 39, ADR 0112). // r39:conv
     Aula,
+    // fx:contract — the fx side round's five (provisional ADRs 0130–0133).
+    /// Cribrum, the auto filter (`fx::cribrum`, fx side round). // fx:contract
+    AutoFilter, // fx:contract
+    /// Fragor, the distortion and fuzz pedals (`fx::fragor`, fx side round). // fx:contract
+    Pedal, // fx:contract
+    /// Lapsus, the time and volume shaper (`fx::lapsus`, fx side round). // fx:contract
+    TimeShaper, // fx:contract
+    /// Vetus, lo-fi: bits, rate, vinyl, tape wear (`fx::vetus`, fx side round). // fx:contract
+    LoFi, // fx:contract
+    /// Libra, the utility: gain, polarity, channels, alignment (`fx::libra`). // fx:contract
+    Utility, // fx:contract
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -179,7 +190,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 26] = [
+    pub const ALL: [EffectKind; 31] = [
+        // fx:contract: 31 with the side round's five
         // r39:conv: 26 with Aula
         EffectKind::Eq,
         EffectKind::Compressor,
@@ -206,7 +218,12 @@ impl EffectKind {
         EffectKind::TransientSplit,
         EffectKind::Analyzer,
         EffectKind::AutoTune,
-        EffectKind::Aula, // r39:conv
+        EffectKind::Aula,       // r39:conv
+        EffectKind::AutoFilter, // fx:contract
+        EffectKind::Pedal,      // fx:contract
+        EffectKind::TimeShaper, // fx:contract
+        EffectKind::LoFi,       // fx:contract
+        EffectKind::Utility,    // fx:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
@@ -244,6 +261,11 @@ impl EffectKind {
             EffectKind::Analyzer => fx::speculum::NAME_KEY,
             EffectKind::AutoTune => fx::tonus::NAME_KEY,
             EffectKind::Aula => fx::aula::NAME_KEY, // r39:conv
+            EffectKind::AutoFilter => fx::cribrum::NAME_KEY, // fx:contract
+            EffectKind::Pedal => fx::fragor::NAME_KEY, // fx:contract
+            EffectKind::TimeShaper => fx::lapsus::NAME_KEY, // fx:contract
+            EffectKind::LoFi => fx::vetus::NAME_KEY, // fx:contract
+            EffectKind::Utility => fx::libra::NAME_KEY, // fx:contract
         }
     }
 
@@ -277,6 +299,11 @@ impl EffectKind {
             EffectKind::Analyzer => fx::speculum::params(),
             EffectKind::AutoTune => fx::tonus::params(),
             EffectKind::Aula => fx::aula::params(), // r39:conv
+            EffectKind::AutoFilter => fx::cribrum::params(), // fx:contract
+            EffectKind::Pedal => fx::fragor::params(), // fx:contract
+            EffectKind::TimeShaper => fx::lapsus::params(), // fx:contract
+            EffectKind::LoFi => fx::vetus::params(), // fx:contract
+            EffectKind::Utility => fx::libra::params(), // fx:contract
         }
     }
 
@@ -310,6 +337,11 @@ impl EffectKind {
             EffectKind::Analyzer => fx::speculum::SPARSE,
             EffectKind::AutoTune => fx::tonus::SPARSE,
             EffectKind::Aula => fx::aula::SPARSE, // r39:conv
+            EffectKind::AutoFilter => fx::cribrum::SPARSE, // fx:contract
+            EffectKind::Pedal => fx::fragor::SPARSE, // fx:contract
+            EffectKind::TimeShaper => fx::lapsus::SPARSE, // fx:contract
+            EffectKind::LoFi => fx::vetus::SPARSE, // fx:contract
+            EffectKind::Utility => fx::libra::SPARSE, // fx:contract
         }
     }
 
@@ -349,6 +381,11 @@ impl EffectKind {
             EffectKind::Analyzer => fx::speculum::TAKES_SIDECHAIN,
             EffectKind::AutoTune => fx::tonus::TAKES_SIDECHAIN,
             EffectKind::Aula => fx::aula::TAKES_SIDECHAIN, // r39:conv
+            EffectKind::AutoFilter => fx::cribrum::TAKES_SIDECHAIN, // fx:contract
+            EffectKind::Pedal => fx::fragor::TAKES_SIDECHAIN, // fx:contract
+            EffectKind::TimeShaper => fx::lapsus::TAKES_SIDECHAIN, // fx:contract
+            EffectKind::LoFi => fx::vetus::TAKES_SIDECHAIN, // fx:contract
+            EffectKind::Utility => fx::libra::TAKES_SIDECHAIN, // fx:contract
         }
     }
 
@@ -370,6 +407,11 @@ impl EffectKind {
             EffectKind::Analyzer => fx::speculum::TAKES_NOTES,
             EffectKind::AutoTune => fx::tonus::TAKES_NOTES,
             EffectKind::Aula => fx::aula::TAKES_NOTES, // r39:conv
+            EffectKind::AutoFilter => fx::cribrum::TAKES_NOTES, // fx:contract
+            EffectKind::Pedal => fx::fragor::TAKES_NOTES, // fx:contract
+            EffectKind::TimeShaper => fx::lapsus::TAKES_NOTES, // fx:contract
+            EffectKind::LoFi => fx::vetus::TAKES_NOTES, // fx:contract
+            EffectKind::Utility => fx::libra::TAKES_NOTES, // fx:contract
             _ => false,
         }
     }
@@ -394,6 +436,11 @@ impl EffectKind {
             EffectKind::Analyzer => fx::speculum::CHOICES,
             EffectKind::AutoTune => fx::tonus::CHOICES,
             EffectKind::Aula => fx::aula::CHOICES, // r39:conv
+            EffectKind::AutoFilter => fx::cribrum::CHOICES, // fx:contract
+            EffectKind::Pedal => fx::fragor::CHOICES, // fx:contract
+            EffectKind::TimeShaper => fx::lapsus::CHOICES, // fx:contract
+            EffectKind::LoFi => fx::vetus::CHOICES, // fx:contract
+            EffectKind::Utility => fx::libra::CHOICES, // fx:contract
             _ => &[],
         }
     }

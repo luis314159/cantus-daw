@@ -1,0 +1,8 @@
+# Fragor (ronda lateral de efectos) — de Fragor. Cada clave necesita su gemela en fragor.en.txt.
+effect.fragor = Fragor pedales
+fx.fragor.about = Pedales de distorsión y fuzz modelados a partir de sus circuitos: overdrive, distorsión y fuzz, de suave a salvaje.
+fx.fragor.out = Salida
+picker.dev.fragor.name = Fragor
+picker.dev.fragor.what = Pedales de distorsión
+picker.dev.fragor.about = Pedales de distorsión y fuzz modelados a partir de sus circuitos: overdrive, distorsión y fuzz, de suave a salvaje.
+mixer.chain.fragor = Pedal

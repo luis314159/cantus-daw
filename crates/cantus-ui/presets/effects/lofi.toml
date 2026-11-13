@@ -1,0 +1,4 @@
+# Vetus lo-fi: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's contract: none yet — vetus's builder writes them here.
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).

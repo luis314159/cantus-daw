@@ -29,6 +29,13 @@ pub mod translatio;
 pub mod tremor;
 pub mod vibrans;
 
+// fx:contract — the fx side round's five units (provisional ADRs 0130–0133).
+pub mod cribrum; // fx:contract
+pub mod fragor; // fx:contract
+pub mod lapsus; // fx:contract
+pub mod libra; // fx:contract
+pub mod vetus; // fx:contract
+
 /// How any parameter's value is printed and read back (shared by the DAW's knobs and the
 /// exported plug-ins, ADR 0020).
 pub mod readout;

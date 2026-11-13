@@ -33,6 +33,13 @@ pub mod translatio;
 pub mod tremor;
 pub mod vibrans;
 
+// fx:contract — the fx side round's five units (provisional ADRs 0130–0133).
+pub mod cribrum; // fx:contract
+pub mod fragor; // fx:contract
+pub mod lapsus; // fx:contract
+pub mod libra; // fx:contract
+pub mod vetus; // fx:contract
+
 /// Numbers a plug-in reports to its editor each block: meters, gain reduction per band,
 /// loudness — whatever its display needs. Their meaning is the plug-in's own; they travel
 /// in `Meters::fx` for the effect whose editor is open.
@@ -592,6 +599,11 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::Analyzer => Box::new(speculum::Unit::new(sample_rate)),
         EffectKind::AutoTune => Box::new(tonus::Unit::new(sample_rate)),
         EffectKind::Aula => Box::new(aula::Unit::new(sample_rate)), // r39:conv
+        EffectKind::AutoFilter => Box::new(cribrum::Unit::new(sample_rate)), // fx:contract
+        EffectKind::Pedal => Box::new(fragor::Unit::new(sample_rate)), // fx:contract
+        EffectKind::TimeShaper => Box::new(lapsus::Unit::new(sample_rate)), // fx:contract
+        EffectKind::LoFi => Box::new(vetus::Unit::new(sample_rate)), // fx:contract
+        EffectKind::Utility => Box::new(libra::Unit::new(sample_rate)), // fx:contract
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

@@ -687,6 +687,12 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("width", 1.2),
             ("mix", 0.6),
         ],
+        // fx:contract — the side round's five: each builder writes its own settings line.
+        EffectKind::AutoFilter => vec![("out", -6.0)], // fx:contract
+        EffectKind::Pedal => vec![("out", -6.0)],      // fx:contract
+        EffectKind::TimeShaper => vec![("out", -6.0)], // fx:contract
+        EffectKind::LoFi => vec![("out", -6.0)],       // fx:contract
+        EffectKind::Utility => vec![("out", -6.0)],    // fx:contract
         _ => vec![],
     }
 }
@@ -758,6 +764,9 @@ pub enum Direct {
     Wire,
     /// r39:conv — Aula, with the source and shape its kernel was built from.
     Aula(Box<cantus_dsp::aula::Aula>, (u64, [u32; 9])),
+    /// fx:contract — the side round's stubs, until each builder names its DSP here: the
+    /// engine's unit.
+    Stub(Box<dyn cantus_engine::fx::FxUnit>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -819,6 +828,21 @@ impl Direct {
                 )),
                 cantus_engine::fx::aula::want(spec),
             ), // r39:conv
+            EffectKind::AutoFilter => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::AutoFilter, SR).unwrap())
+            } // fx:contract
+            EffectKind::Pedal => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::Pedal, SR).unwrap())
+            } // fx:contract
+            EffectKind::TimeShaper => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::TimeShaper, SR).unwrap())
+            } // fx:contract
+            EffectKind::LoFi => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::LoFi, SR).unwrap())
+            } // fx:contract
+            EffectKind::Utility => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::Utility, SR).unwrap())
+            } // fx:contract
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -863,6 +887,7 @@ impl Direct {
             Direct::Tonsor(x) => x.set(&fx::tonsor::settings(spec)),
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
+            Direct::Stub(x) => x.configure(spec), // fx:contract
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -902,6 +927,7 @@ impl Direct {
             Direct::Tonsor(x) => x.reset(),
             Direct::Impetus(x) => x.reset(),
             Direct::Discrimen(x) => x.reset(),
+            Direct::Stub(x) => x.reset(), // fx:contract
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -931,6 +957,7 @@ impl Direct {
             Direct::Tonsor(x) => x.latency(),
             Direct::Impetus(x) => x.latency(),
             Direct::Discrimen(x) => x.latency(),
+            Direct::Stub(x) => x.latency(), // fx:contract
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -960,6 +987,7 @@ impl Direct {
             Direct::Tonsor(x) => x.process(l, r),
             Direct::Impetus(x) => x.process(l, r, key),
             Direct::Discrimen(x) => x.process(l, r),
+            Direct::Stub(x) => x.process(l, r, key), // fx:contract
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

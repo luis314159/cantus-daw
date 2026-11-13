@@ -83,6 +83,11 @@ const ON_THE_KIT: &[&str] = &[
     "views/fx/translatio.rs",
     "views/fx/tremor.rs",
     "views/fx/vibrans.rs",
+    "views/fx/cribrum.rs", // fx:contract
+    "views/fx/fragor.rs",  // fx:contract
+    "views/fx/lapsus.rs",  // fx:contract
+    "views/fx/vetus.rs",   // fx:contract
+    "views/fx/libra.rs",   // fx:contract
     "views/arrangement_markers.rs",
     "views/arrangement_tempo.rs",
     "views/bars.rs",

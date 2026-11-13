@@ -21,6 +21,13 @@ fn floor(unit: Unit) -> usize {
         Unit::Effect(EffectKind::External) => 0,
         // The older Reverb is no longer offered (Spatium is the reverb): old projects keep it.
         Unit::Effect(EffectKind::Reverb) => 0,
+        // fx:contract — the side round's stubs have no presets yet: each builder deletes its
+        // own line when its twelve land.
+        Unit::Effect(EffectKind::AutoFilter) => 0, // fx:contract (cribrum)
+        Unit::Effect(EffectKind::Pedal) => 0,      // fx:contract (fragor)
+        Unit::Effect(EffectKind::TimeShaper) => 0, // fx:contract (lapsus)
+        Unit::Effect(EffectKind::LoFi) => 0,       // fx:contract (vetus)
+        Unit::Effect(EffectKind::Utility) => 0,    // fx:contract (libra)
         Unit::Effect(_) => 12,
     }
 }

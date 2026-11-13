@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 61; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 62; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes); fx: 62 the side round's five kinds (provisional — renumbered when merged after round 40, r40 uses 62–70)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -304,6 +304,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_58_to_59, // r37:chars — the songbird written into dancers that named no character
     migrate_59_to_60, // r39:conv — Aula's response from a file
     migrate_60_to_61, // r39:arrange — sections, folders, lane modes (ADR 0113)
+    migrate_61_to_62, // fx: provisional — renumbered when merged after round 40 (r40 uses 62–70)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1066,6 +1067,13 @@ fn migrate_60_to_61(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 62 (the fx side round, ADRs 0130–0133): five new effect kinds — Cribrum, Fragor,
+/// Lapsus, Vetus and Libra. Nothing older has any of them, so nothing is written.
+// fx: provisional — renumbered when merged after round 40 (r40 uses 62–70)
+fn migrate_61_to_62(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
     let tracks = value
         .get_mut("project")
@@ -1409,6 +1417,38 @@ mod tests {
             .iter()
             .any(|t| t.instrument.native().map(|n| n.kind) == Some(InstrumentKind::Chorda)));
         let old = std::fs::read_to_string(dir.join("v24.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .strips
+            .iter()
+            .flat_map(|s| s.effects.iter())
+            .all(|e| !new_kinds.contains(&e.spec.kind)));
+    }
+
+    /// fx:contract — Schema 62 (the fx side round, provisional): the fixture holds one insert
+    /// of each of the five new kinds, in order, on the second strip; every older file
+    /// (61) opens with none of them.
+    #[test]
+    fn schema_62_keeps_the_fx_side_rounds_kinds() {
+        use cantus_core::EffectKind as K;
+        let new_kinds = &K::ALL[26..31];
+        assert_eq!(
+            new_kinds,
+            [K::AutoFilter, K::Pedal, K::TimeShaper, K::LoFi, K::Utility]
+        );
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v62.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        assert_eq!(slots[0].spec.get("out"), -3.0);
+        assert!(slots[1..].iter().all(|e| e.spec.get("out") == 0.0));
+        let old = std::fs::read_to_string(dir.join("v61.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p
             .strips

@@ -228,6 +228,13 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("mix", 0.5),
             ],
         ),
+        // fx:contract — the side round's stubs: the placeholder's gain; each builder
+        // replaces its own line with its unit's heaviest settings (as the engine tests').
+        EffectKind::AutoFilter => set(&mut s, &[("out", 6.0)]), // fx:contract (cribrum)
+        EffectKind::Pedal => set(&mut s, &[("out", 6.0)]),      // fx:contract (fragor)
+        EffectKind::TimeShaper => set(&mut s, &[("out", 6.0)]), // fx:contract (lapsus)
+        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),       // fx:contract (vetus)
+        EffectKind::Utility => set(&mut s, &[("out", 6.0)]),    // fx:contract (libra)
     }
     s
 }
@@ -355,7 +362,12 @@ pub fn kind_id(kind: EffectKind) -> &'static str {
         EffectKind::TransientSplit => "discrimen",
         EffectKind::Analyzer => "speculum",
         EffectKind::AutoTune => "tonus",
-        EffectKind::Aula => "aula", // r39:conv
+        EffectKind::Aula => "aula",          // r39:conv
+        EffectKind::AutoFilter => "cribrum", // fx:contract
+        EffectKind::Pedal => "fragor",       // fx:contract
+        EffectKind::TimeShaper => "lapsus",  // fx:contract
+        EffectKind::LoFi => "vetus",         // fx:contract
+        EffectKind::Utility => "libra",      // fx:contract
     }
 }
 

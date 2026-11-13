@@ -254,6 +254,32 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/aula.toml",
         include_str!("../presets/effects/aula.toml"),
     ),
+    // fx:contract — the fx side round's five (each builder fills its own file).
+    (
+        FileUnit::Effect(EffectKind::AutoFilter), // fx:contract
+        "presets/effects/autofilter.toml",
+        include_str!("../presets/effects/autofilter.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Pedal), // fx:contract
+        "presets/effects/pedal.toml",
+        include_str!("../presets/effects/pedal.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::TimeShaper), // fx:contract
+        "presets/effects/timeshaper.toml",
+        include_str!("../presets/effects/timeshaper.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::LoFi), // fx:contract
+        "presets/effects/lofi.toml",
+        include_str!("../presets/effects/lofi.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Utility), // fx:contract
+        "presets/effects/utility.toml",
+        include_str!("../presets/effects/utility.toml"),
+    ),
 ];
 
 /// Read one file's text.

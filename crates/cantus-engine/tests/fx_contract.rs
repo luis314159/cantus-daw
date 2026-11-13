@@ -447,6 +447,11 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         // r39:conv — Aula rests once its delay lines are clear (its room's length and the
         // largest partition's slack): about 9 s for the concert hall, 20 s for heavy.
         EffectKind::Aula => (true, true),
+        EffectKind::AutoFilter => (true, true), // fx:contract
+        EffectKind::Pedal => (true, true),      // fx:contract
+        EffectKind::TimeShaper => (true, true), // fx:contract
+        EffectKind::LoFi => (true, true),       // fx:contract
+        EffectKind::Utility => (true, true),    // fx:contract
         _ => (false, false),
     }
 }
@@ -540,10 +545,15 @@ per_kind! {
     speculum => EffectKind::Analyzer,
     tonus => EffectKind::AutoTune,
     aula => EffectKind::Aula, // r39:conv
+    cribrum => EffectKind::AutoFilter, // fx:contract
+    fragor => EffectKind::Pedal, // fx:contract
+    lapsus => EffectKind::TimeShaper, // fx:contract
+    vetus => EffectKind::LoFi, // fx:contract
+    libra => EffectKind::Utility, // fx:contract
 }
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists twenty-six: a new kind must be added there.
-    assert_eq!(EffectKind::ALL.len(), 26); // r39:conv: Aula
+    // `per_kind!` lists thirty-one: a new kind must be added there. // fx:contract
+    assert_eq!(EffectKind::ALL.len(), 31); // fx:contract: the side round's five
 }

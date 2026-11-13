@@ -1,0 +1,8 @@
+# Lapsus (fx side round) — owned by Lapsus. Every key here needs its twin in lapsus.es.txt.
+effect.lapsus = Lapsus time shaper
+fx.lapsus.about = Bends time and volume to the beat: tape stops, half-time, stutters and scratches, drawn as envelopes.
+fx.lapsus.out = Output
+picker.dev.lapsus.name = Lapsus
+picker.dev.lapsus.what = Time shaper
+picker.dev.lapsus.about = Bends time and volume to the beat: tape stops, half-time, stutters and scratches, drawn as envelopes.
+mixer.chain.lapsus = Time

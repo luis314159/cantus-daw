@@ -107,6 +107,11 @@ impl Locale {
                 include_str!("../locales/fx/discrimen.en.txt"),
                 include_str!("../locales/fx/speculum.en.txt"),
                 include_str!("../locales/fx/tonus.en.txt"),
+                include_str!("../locales/fx/cribrum.en.txt"), // fx:contract
+                include_str!("../locales/fx/fragor.en.txt"),  // fx:contract
+                include_str!("../locales/fx/lapsus.en.txt"),  // fx:contract
+                include_str!("../locales/fx/vetus.en.txt"),   // fx:contract
+                include_str!("../locales/fx/libra.en.txt"),   // fx:contract
                 include_str!("../locales/inst/chorda.en.txt"),
                 include_str!("../locales/areas/topbar.en.txt"),
                 include_str!("../locales/areas/pitch.en.txt"),
@@ -227,6 +232,11 @@ impl Locale {
                 include_str!("../locales/fx/discrimen.es.txt"),
                 include_str!("../locales/fx/speculum.es.txt"),
                 include_str!("../locales/fx/tonus.es.txt"),
+                include_str!("../locales/fx/cribrum.es.txt"), // fx:contract
+                include_str!("../locales/fx/fragor.es.txt"),  // fx:contract
+                include_str!("../locales/fx/lapsus.es.txt"),  // fx:contract
+                include_str!("../locales/fx/vetus.es.txt"),   // fx:contract
+                include_str!("../locales/fx/libra.es.txt"),   // fx:contract
                 include_str!("../locales/inst/chorda.es.txt"),
                 include_str!("../locales/areas/topbar.es.txt"),
                 include_str!("../locales/areas/pitch.es.txt"),

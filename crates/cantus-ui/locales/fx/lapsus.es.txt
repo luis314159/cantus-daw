@@ -1,0 +1,8 @@
+# Lapsus (ronda lateral de efectos) — de Lapsus. Cada clave necesita su gemela en lapsus.en.txt.
+effect.lapsus = Lapsus moldeador de tiempo
+fx.lapsus.about = Dobla el tiempo y el volumen al compás: paradas de cinta, medio tiempo, tartamudeos y scratch, dibujados como envolventes.
+fx.lapsus.out = Salida
+picker.dev.lapsus.name = Lapsus
+picker.dev.lapsus.what = Moldeador de tiempo
+picker.dev.lapsus.about = Dobla el tiempo y el volumen al compás: paradas de cinta, medio tiempo, tartamudeos y scratch, dibujados como envolventes.
+mixer.chain.lapsus = Tiempo

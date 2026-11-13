@@ -608,7 +608,12 @@ pub fn short_name(e: &EffectSlot) -> String {
         K::TransientSplit => "mixer.chain.discrimen",
         K::Analyzer => "mixer.chain.speculum",
         K::AutoTune => "mixer.chain.tonus",
-        K::Aula => "mixer.chain.aula", // r39:conv
+        K::Aula => "mixer.chain.aula",          // r39:conv
+        K::AutoFilter => "mixer.chain.cribrum", // fx:contract
+        K::Pedal => "mixer.chain.fragor",       // fx:contract
+        K::TimeShaper => "mixer.chain.lapsus",  // fx:contract
+        K::LoFi => "mixer.chain.vetus",         // fx:contract
+        K::Utility => "mixer.chain.libra",      // fx:contract
     };
     crate::i18n::t(key)
 }

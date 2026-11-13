@@ -96,6 +96,13 @@ pub mod va;
 pub mod vibrans;
 pub mod voices;
 
+// fx:contract — the fx side round's five units (provisional ADRs 0130–0133).
+pub mod cribrum; // fx:contract
+pub mod fragor; // fx:contract
+pub mod lapsus; // fx:contract
+pub mod libra; // fx:contract
+pub mod vetus; // fx:contract
+
 /// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`
 /// render the same project to the same bits, on any machine; a change that moves any
 /// unit's output bits (an algorithm, a coefficient, a [`math`] function) bumps it — once,

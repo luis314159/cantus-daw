@@ -1,0 +1,8 @@
+# Cribrum (ronda lateral de efectos) — de Cribrum. Cada clave necesita su gemela en cribrum.en.txt.
+effect.cribrum = Cribrum filtro automático
+fx.cribrum.about = Un filtro de modelo analógico movido por una envolvente, un LFO sincronizado con el tempo o el propio nivel de la señal.
+fx.cribrum.out = Salida
+picker.dev.cribrum.name = Cribrum
+picker.dev.cribrum.what = Filtro automático
+picker.dev.cribrum.about = Un filtro de modelo analógico movido por una envolvente, un LFO sincronizado con el tempo o el propio nivel de la señal.
+mixer.chain.cribrum = Filtro

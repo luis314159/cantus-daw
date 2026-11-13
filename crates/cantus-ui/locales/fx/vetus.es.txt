@@ -1,0 +1,8 @@
+# Vetus (ronda lateral de efectos) — de Vetus. Cada clave necesita su gemela en vetus.en.txt.
+effect.vetus = Vetus lo-fi
+fx.vetus.about = Envejece el sonido: menos bits, una frecuencia de muestreo más baja, el crujido del vinilo y el desgaste de la cinta.
+fx.vetus.out = Salida
+picker.dev.vetus.name = Vetus
+picker.dev.vetus.what = Lo-fi
+picker.dev.vetus.about = Envejece el sonido: menos bits, una frecuencia de muestreo más baja, el crujido del vinilo y el desgaste de la cinta.
+mixer.chain.vetus = Lo-fi
