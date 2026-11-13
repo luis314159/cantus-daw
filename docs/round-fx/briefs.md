@@ -166,3 +166,15 @@ table of every unit's face in the ADR. **Gaps for a full guitar board**, each re
 exists, to be scoped with the integrator: an **octaver / pitch shifter / whammy** (Tonus's
 tracker and `psola*.rs`), the **rotary speaker** as an effect (`organum_rotary.rs`, BACKLOG
 §3b *Still open*), a **Uni-Vibe** voicing (likely a Phasis mode); a looper is out of scope.
+
+**Added 2026-11-13 (the owner: the pedals that come out of this are Cantus effects too).**
+Every new engine wave 3 makes is **a full unit of the family on its own** — its own
+`EffectKind`, insertable on any strip, its panel with a personality (design sheet approved
+first), presets, starting preset, manual page, site card and CLAP/VST3 export — and *also*
+a pedal on the board. So wave 3 has its own contract commit declaring, beside the board, one
+kind per new unit: the **pitch unit** (octaver, pitch shifter and harmoniser, whammy — BACKLOG
+§3b *Pitch and creative*), the **rotary speaker** (§3b *Still open*), the **amp** (amp models
+with the cabinet by IR — useful on bass, keys and vocals too, not only guitar); the Uni-Vibe is
+a voicing of Phasis, not a new unit. Names and schema/ADR numbers are set in that contract.
+Wave 3 is bigger than one builder: plan two or three (the board; pitch; amp and rotary), never
+more than two compiling at once.
