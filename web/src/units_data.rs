@@ -445,7 +445,7 @@ pub const EFFECTS: [Unit; 25] = [
         presets: Some(15),
         plugin: true,
         ab: None,
-        big: (2280, 1600),
+        big: (1710, 1200),
         thumb: (640, 449),
     },
 

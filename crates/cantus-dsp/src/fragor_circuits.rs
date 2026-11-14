@@ -6,9 +6,9 @@
 //! |---|---|---|---|
 //! | Green overdrive | Ibanez TS808 Tube Screamer | clipping amp (diodes in the feedback) + active tone + level | 1 |
 //! | Op-amp distortion | ProCo RAT | LM308 gain stage with its slew rate, diodes to ground, Filter, volume | 2 |
-//! | Silicon distortion | Boss DS-1 | transistor booster ‖ op-amp gain (slew) + diodes to ground + tone/level | 2 ‖ 2 |
+//! | Silicon distortion | Boss DS-1 | transistor booster ‖ op-amp gain (linear: its slew rate is never reached) + diodes to ground + tone/level | 2 ‖ 1 |
 //! | Germanium fuzz | Dallas Arbiter Fuzz Face (AC128) | the whole circuit, battery included | 4 |
-//! | Triangle muff | Electro-Harmonix Big Muff π (V3) | input booster ‖ clipping stage ‖ clipping stage + tone + output booster | 2 ‖ 3 ‖ 5 |
+//! | Triangle muff | Electro-Harmonix Big Muff π (V3) | input booster ‖ clipping stage ‖ clipping stage + tone + output booster (linearised) | 2 ‖ 3 ‖ 3 |
 //!
 //! `‖` is where a pedal is split into separately solved parts (a dimension of Newton is
 //! paid per port, so the parts stay small):

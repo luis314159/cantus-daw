@@ -1,6 +1,6 @@
 # ADR 0131 — Fragor, the pedals
 
-**Status:** proposed (fx side round, provisional number — renumbered at merge) · **Date:**
+**Status:** accepted (the owner's verdicts on the design, v3), pending integration (fx side round, provisional number — renumbered at merge) · **Date:**
 2026-11-13 · **Schema:** none beyond the contract's 62 (the kind's new parameters are read
 with their defaults from older files) · **Relates to:** ADR 0004 (commands), ADR 0005 (the
 audio thread), ADR 0018 (null defaults), ADR 0020 (our plug-ins outside Cantus), ADR 0026
@@ -31,7 +31,7 @@ rule and solved every oversampled sample by the **DK method** (Yeh, Abel & Smith
 *Automated physical modeling of nonlinear audio circuits*, IEEE TASLP 2010; Holters &
 Zölzer, DAFx-11): nodal analysis reduces the circuit to its nonlinear ports (one per diode
 pair, two per transistor, one per slewing op-amp) and Newton's method solves only those —
-one to five unknowns — each sample, from a bounded linear prediction, with SPICE's
+one to four unknowns — each sample, from a bounded quadratic prediction, with SPICE's
 junction limiting (`pnjlim`). Capacitors are their trapezoidal companions; the state is one
 history source per capacitor; the per-sample work is two passes of independent
 multiply-adds over precomputed columns, rebuilt only when a knob moves a resistor. All in
@@ -49,9 +49,9 @@ independent analysis to check it against (below). Its cost is a small Newton per
 |---|---|---|---|
 | Green overdrive | Ibanez TS808 — ElectroSmash, *Tube Screamer analysis* | in one | 1 |
 | Op-amp distortion | ProCo RAT — ElectroSmash, *ProCo RAT* | in one | 2 |
-| Silicon distortion | Boss DS-1 (DS-1A) — ElectroSmash, *Boss DS-1 analysis* | booster ‖ gain stage (split at U1a's follower: exact) | 2 ‖ 2 |
+| Silicon distortion | Boss DS-1 (DS-1A) — ElectroSmash, *Boss DS-1 analysis* | booster ‖ gain stage (split at U1a's follower: exact) | 2 ‖ 1 |
 | Germanium fuzz | Dallas Arbiter Fuzz Face, AC128 — ElectroSmash, *Fuzz Face*; Silicon Chip, Dec. 2024 | in one, battery included | 4 |
-| Triangle muff | Electro-Harmonix Big Muff π V3 — ElectroSmash, *Big Muff Pi analysis* | three parts joined at R19 and R12 | 2 ‖ 3 ‖ 5 |
+| Triangle muff | Electro-Harmonix Big Muff π V3 — ElectroSmash, *Big Muff Pi analysis* | three parts joined at R19 and R12 | 2 ‖ 3 ‖ 3 |
 
 The ElectroSmash pages (CC BY-SA articles; only facts and component values are used) were
 read from their archive at electrosmash.mas-effects.com — the original site did not
@@ -78,7 +78,8 @@ ported from any implementation.
   R4 100 kΩ, C3 47 nF; Q2 2SC2240 (β 400) with R5 100 kΩ, R7 470 kΩ ∥ C4 250 pF collector
   to base, R8 10 kΩ, R9 22 Ω; C5 68 nF, R10 100 kΩ. U1b: feedback R11 100 kΩ ∥ C7 100 pF;
   Dist 100 kΩ (B) + R13 4.7 kΩ + C8 0.47 µF to ground (gain 1 … 22.3, ElectroSmash's
-  formula); NJM3404A-class (1.2 MHz, 0.6 V/µs); R14 2.2 kΩ, C9 0.47 µF, two 1N4148 to the
+  formula); NJM3404A-class (1.2 MHz; its 0.6 V/µs is never reached at 22.3 of gain — 4 V
+  at 5 kHz asks 0.13 V/µs — so the op-amp is linear here, a port fewer); R14 2.2 kΩ, C9 0.47 µF, two 1N4148 to the
   4.5 V reference, C10 10 nF; tone C11 22 nF + R15 2.2 kΩ / R17 6.8 kΩ (high-pass,
   1 063 Hz) and R16 6.8 kΩ / C12 0.1 µF (low-pass, 234 Hz), Tone 20 kΩ (B) between them,
   Level 100 kΩ (B). D8 (the + input's protection) is left out: ElectroSmash shows it never
@@ -95,7 +96,10 @@ ported from any implementation.
   clipping stages R20/R16 100 kΩ, R17/R15 470 kΩ ∥ C12/C11 470 pF, two 1N914 in series
   with C6/C7 1 µF from collector to base, R18/R11 10 kΩ, R21/R10 150 Ω, C13 100 nF,
   R12 10 kΩ; tone R8 39 kΩ / C8 10 nF and C9 4 nF / R5 22 kΩ, Tone 100 kΩ (B); output
-  booster R7 430 kΩ, R3 100 kΩ, R6 15 kΩ, R4 3.3 kΩ, C2 100 nF, Volume 100 kΩ (B). All
+  booster R7 430 kΩ, R3 100 kΩ, R6 15 kΩ, R4 3.3 kΩ, C2 100 nF, Volume 100 kΩ (B) — its
+  3.3 kΩ of emitter degeneration keeps it linear well past the signal the tone stack hands
+  it, so it is its exact small-signal linearisation at its operating point (rπ and gm from
+  the DC solve), two ports fewer. All
   four transistors BC239 (β 300). The three parts are joined at R19 and R12: each drives
   the resistor against the next stage's base voltage of the previous sample and hands it
   the current that flows — a loop of gain about 0.2, so one oversampled sample of delay in
@@ -133,27 +137,72 @@ oversamplers are cleared — the state a new unit has — and silence then costs
 ### Defaults and the starting preset
 
 Every default is a null: the board is empty and the gate off (0 dB gains). The knobs
-default to noon (the fuzz's battery fresh). The starting preset (ADR 0071, Phase B) puts
-the green overdrive on the board, so the insert sounds at once.
+default to noon (the fuzz's battery fresh). The starting preset (ADR 0071) is *Green
+push* — the green overdrive on the board, drive 45 %, tone 55 %, level 55 % — so the
+insert sounds at once. Fifteen factory presets (`presets/effects/pedal.toml`) cover guitar
+(green push, blues edge, stacked lead, op-amp rhythm, silicon crunch, metal wall, vintage
+fuzz, dying battery, muff sustain), bass (doom bass, bass grit), drums (drum smash), synths
+(synth fuzz), voice (vocal grit) and a lo-fi radio, each brought to its role's level by
+`preset_tool fit` (the pedals' calibration makes noon unity on a guitar's note; a preset
+pushed harder is louder, so its output comes down). The guitar and bass presets play one
+circuit (mono), as a pedal does: half the CPU. The unit's preset CPU budget is 0.25 of a
+core (`preset_measure::budget`; 0.10 for most effects, Chorda's 0.20): circuits solved by
+Newton every oversampled sample cost more than curves.
 
 ### The editor
 
-The board seen from above: the pedals as original vector enclosures in finishes of
-Cantus's own (`kit/skin/pedals.rs`: jade, graphite, copper, oxblood, steel — no product's
-colours, graphics or lettering; the UI names are generic descriptions, the products only
-here and in the manual's history note), knobs with printed scales, footswitches, LEDs that
-glow with the signal, top jacks and patch cables; over the board, the chain's transfer and
-harmonics at the level playing, computed by a copy of the DSP. The drawing is a reusable
-component (`views/fx/pedal_draw.rs`): an enclosure is data (finish, name, up to six knobs,
-footswitch, LED), with cables, empty slots and a drop marker for drag-reordering — a future
-board of all of Cantus's effects can draw its pedals with it.
+Its face is palette A of the three the owner was shown (warm amber, a valve amp's
+character); B (cream and brass) and C (steel with one signal red) are kept as data
+(`kit::skin::FRAGOR_COLOURWAYS`) for when colourways land. Its panels are smoked glass,
+as a valve's envelope and the screen's pane (near this amber the other materials are worn
+by Phasis, Fervor, Chorda, Aula, Lapsus and Clipper, and siblings never look alike), and
+its second voice a filament's white heat, nearly unsaturated, so the display's two voices
+never share a hue. From the top:
+
+- **The sound of the chain** — one cycle of a 200 Hz note in and out at the level playing,
+  and its first twelve harmonics, odd solid and even hatched, the dominant ones marked, with
+  the THD; an amber screen behind glass, dark in every theme. A copy of the board computes
+  it **on its own thread** (a new computation when the settings change, at most four a
+  second when only the level does; the first one at once): on the window's thread it cost
+  most of a frame (34.6 ms mean with the song playing).
+- **A valve amp's tube strip** behind a perforated grille: preamp and power tubes with
+  incandescent filaments, plates with depth, micas, getters, glass and bakelite bases,
+  glowing steadily at rest and brightening slowly with the signal; amber jewel lights and a
+  brass name plate (`views/fx/valve_draw.rs`, reusable).
+- **The board**: the pedals as original vector enclosures (`views/fx/pedal_draw.rs`,
+  `pedal_art.rs`, `kit/skin/pedals.rs`) — each its finish (jade, graphite, copper, oxblood,
+  steel), surface texture (metal flake, crinkle, hammertone, brushed), border, a large
+  original illustration and its own lettering, which **never elides** (a smaller cut, then
+  two lines); knobs with printed scales, footswitch, LED, top jacks, patch cables. **No
+  product's colours, graphics, lettering or logos**; the UI names are generic descriptions,
+  the products only here and in the manual's history note. Pedals come in five shapes —
+  mini, standard, wide, double and round, data in the kit — and the board lays mixed widths
+  out, scales them down to a legible floor (55 %) and then scrolls sideways (the kit's
+  scrollbar, the wheel); each pedal's size (compact, standard, large) is a view preference
+  of the editor's session. **Energy flows in the cables**: amber streaks travel in the
+  signal's direction, as bright and dense as the level at that point of the chain (after the
+  gate; after each pedal its output), still and dark at silence — the mixer's cable gleam
+  (round 39) in the valves' amber; the window repaints only while it flows.
+- **Interaction**: each slot has a numbered tag above it, the slot parameter's own control
+  (its menu: automate, modulate, learn); drag a pedal onto another slot (they swap, one command, one undo step);
+  click an empty slot for the pedals not on the board; right-click a pedal to replace or
+  remove it or choose its size; every knob is its parameter (drag, double-click to reset,
+  the parameter menu: automate, modulate, learn, reset); the footswitch is a stepped
+  parameter. Beside the board: gate and input, output and mix, quality (2×/4×/8×, stereo or
+  mono), and the levels.
 
 ## Consequences
 
 - A distortion voice that is a circuit: the five pedals behave as their circuits do at
   every knob position, because the knobs move the circuit's resistors.
 - CPU: a Newton solve per oversampled sample per pedal — more than a waveshaper; measured
-  per pedal in `docs/round-fx/fragor.md` (to be measured again on a quiet machine).
+  per pedal in `docs/round-fx/fragor.md` (to be measured again on a quiet machine: every
+  measurement this round was taken with other builders holding the machine at full load).
+- The editor's frame with the window open and the song playing, 1140 × 800 at 100 %: 7.6 ms
+  mean, 6.7 median, 14.7 at the 95th percentile (dev profile, loaded machine;
+  `FRAGOR_TIME=1 cargo run -p cantus-ui --example shoot_fragor`).
+- Cantus's FLAC reader (claxon) does not read 32-bit integer FLAC: the CC0 guitar used for
+  the listening set (Carbonthief) had to be decoded outside. For the backlog.
 - The models are as good as their component values and device models: transistor β and
   diode parameters are typical values, not a measured unit's. Pedals vary unit to unit
   (germanium most of all); the owner's ears judge the result.
@@ -184,3 +233,12 @@ board of all of Cantus's effects can draw its pedals with it.
   turned, block-size independence, footswitches off as the project delayed by the latency,
   latency and telemetry through the contract; `fx_contract`'s split invariance and exact
   rest.
+- `cantus-ui` `fragor_e2e`: on the boot path (`CantusApp::assemble`, the real engine
+  handle), Fragor inserted on a playing strip the way the picker does sounds its starting
+  preset in the master (brighter than without it), a knob turned through the editor's host
+  is one command, a pedal moved to another slot is one step, and undo returns the render
+  to the bit. The showcase demo plays Fragor on its guitar
+  (`demos::the_showcase_plays_round_28`).
+- `cantus-plugins`: Fragor exported as CLAP and VST3 renders bit-identical to the engine's
+  unit (two pedals on, `tests/common`'s settings); its parameter ids are appended to the
+  golden list.

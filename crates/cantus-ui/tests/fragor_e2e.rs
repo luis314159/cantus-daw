@@ -2,7 +2,7 @@
 //! with the real engine handle; Fragor inserted on a playing track's strip the way the
 //! picker inserts it (its starting preset: the green overdrive on the board); the song
 //! rendered offline through the engine's compile — the path export, freeze and stems take —
-//! and the overdrive heard in the master; a knob turned through the editor's host (one
+//! and the overdrive heard in the master, clipping (12 dB more in is far less out); a knob turned through the editor's host (one
 //! command), a pedal moved to another slot (one step) and undone to the bit.
 
 use cantus_core::*;
@@ -45,16 +45,9 @@ fn rendered(app: &mut CantusApp) -> Vec<f32> {
     .samples
 }
 
-/// The share of the energy above 3 kHz (a first difference's energy against the signal's:
-/// distortion adds harmonics, so it rises).
-fn brightness(x: &[f32]) -> f64 {
-    let (mut d, mut e) = (0.0f64, 0.0f64);
-    for f in x.chunks_exact(2).collect::<Vec<_>>().windows(2) {
-        let (a, b) = (f[0][0] as f64, f[1][0] as f64);
-        d += (b - a) * (b - a);
-        e += b * b;
-    }
-    d / e.max(1e-30)
+fn rms_db(x: &[f32]) -> f64 {
+    let e: f64 = x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>() / x.len().max(1) as f64;
+    10.0 * e.max(1e-30).log10()
 }
 
 fn same(a: &[f32], b: &[f32]) -> bool {
@@ -85,8 +78,26 @@ fn fragor_on_a_playing_strip_distorts_the_master_and_undoes() {
     assert_eq!(spec.get("s1"), 1.0, "the green overdrive on the board");
     let driven = rendered(&mut app);
     assert!(!same(&dry, &driven), "heard in the master");
-    let (b0, b1) = (brightness(&dry), brightness(&driven));
-    assert!(b1 > b0 * 1.2, "harmonics added: {b0} → {b1}");
+    // A circuit that clips: 12 dB more into the pedal is far less than 12 dB more out of it
+    // (a linear path, the master's included, would pass all twelve).
+    assert!(
+        app.project().master.effects.is_empty(),
+        "nothing else on the path bends"
+    );
+    let mut host = cantus_ui::views::fx::host::DawHost::new(&mut app, strip, effect, "fragor");
+    host.set("in", 12.0, None);
+    drop(host);
+    let pushed = rendered(&mut app);
+    let rise = rms_db(&pushed) - rms_db(&driven);
+    assert!(
+        rise < 8.0,
+        "the overdrive compresses: +12 dB in, {rise:+.1} dB out"
+    );
+    app.undo();
+    assert!(
+        same(&driven, &rendered(&mut app)),
+        "the input undone to the bit"
+    );
 
     // A knob turned through the editor's host, as the drag does: one command.
     let mut host = cantus_ui::views::fx::host::DawHost::new(&mut app, strip, effect, "fragor");

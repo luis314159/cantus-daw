@@ -435,7 +435,7 @@ fn profile_parts() {
     let x = pluck(110.0, 1.0, 0.4, 4);
     let rate = 192_000.0;
     for m in Model::ALL {
-        let mut p = Pedal::new(m, rate as f64);
+        let mut p = Pedal::new(m, rate);
         // The note at 4x, interpolated (as the oversampler gives it).
         let xs: Vec<f64> = (0..x.len() * 4)
             .map(|i| {

@@ -660,6 +660,34 @@ pub fn drop_marker(b: &mut Brush, s: &Style, x: f32, y0: f32, y1: f32) {
 }
 
 /// A jack on the board's edge (where the track comes in or goes out), with its word.
+/// A slot's place in the chain, a small numbered tag on the board above it (`n`: "1" …):
+/// the slot's own control — its parameter's menu (automate, learn) is offered on it.
+pub fn slot_tag(b: &mut Brush, s: &Style, r: Rect, n: &str, hot: bool) {
+    let k = s.k;
+    let ink = if hot { s.t.highlight } else { board_ink(s) };
+    b.rrect(
+        r,
+        3.0 * k,
+        Fill::Solid(with_alpha(c(pal::BOARD_SLAT.get(s.t.dark)), 0.9)),
+    );
+    b.rrect_stroke(r, 3.0 * k, b.px(), with_alpha(ink, 0.8));
+    canvas::put(
+        b,
+        r.center(),
+        Align2::CENTER_CENTER,
+        &Text {
+            src: Src::Str(n),
+            role: Role::Micro,
+            caps: false,
+            align: Align2::CENTER_CENTER,
+            policy: Policy::Elide(Elide::End),
+            color: ink,
+        },
+        k,
+        None,
+    );
+}
+
 pub fn board_jack(b: &mut Brush, s: &Style, p: Pos2, label: Src<'_>, ink: Color32) {
     let k = s.k;
     let jr = Rect::from_center_size(p, vec2(20.0 * k, 9.0 * k));

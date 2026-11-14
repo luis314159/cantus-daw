@@ -74,6 +74,7 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("od.drive", 0.45),
                 ("od.tone", 0.55),
                 ("od.level", 0.55),
+                ("out", -3.5),
             ],
         ),
         K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)

@@ -266,6 +266,14 @@ pub const VIEW_SIZES: [f32; 3] = [0.85, 1.0, 1.15];
 /// The board's layout in `r`: each slot's pedal at its natural size (its shape, times its
 /// view size), the row fitted to the window — scaled down as far as a legible floor, then
 /// scrolled sideways from `scroll` (0 … 1) — and bottom-aligned on the board.
+/// Where a slot's numbered tag sits: centred above its pedal (or its empty place).
+fn slot_tag_rect(pedal: Rect, k: f32) -> Rect {
+    Rect::from_center_size(
+        pos2(pedal.center().x, pedal.top() - 15.0 * k),
+        vec2(16.0 * k, 13.0 * k),
+    )
+}
+
 fn board_geo(
     r: Rect,
     k: f32,
@@ -468,6 +476,11 @@ fn board_ui(
             }),
         );
         flowing = level > 0.01 || out_level > 0.01;
+        // Each slot's numbered tag above it: its place in the chain.
+        for (i, n) in ["1", "2", "3"].iter().enumerate() {
+            let tr = slot_tag_rect(geo.pedals[i], k);
+            pd::slot_tag(b, s, tr, n, ui.rect_contains_pointer(tr));
+        }
     });
     // While the signal flows the streaks move: repaint; at silence nothing does.
     if flowing && st.anim_time.is_none() {
@@ -511,6 +524,18 @@ fn board_ui(
     for i in 0..3 {
         let id = ui.id().with(("fragor-slot", i));
         let resp = ui.interact(geo.pedals[i], id, Sense::click_and_drag());
+        // The slot's tag: the slot parameter's own control (automate, modulate, learn).
+        let tag = ui.interact(
+            slot_tag_rect(geo.pedals[i], k),
+            id.with("tag"),
+            Sense::click(),
+        );
+        let slot_name = KIND.param(SLOTS[i]).map_or("", |p| frame::tr(p.label_key));
+        controls::stepped_offer(ui, s, host, SLOTS[i], slot_name, &tag);
+        if tag.hovered() {
+            let what = chain[i].map_or_else(|| frame::tr("fragor.add"), |m| frame::tr(NAMES[m]));
+            crate::kit::hint::set_text(ui.ctx(), slot_name, what, crate::kit::hint::Caps::NONE);
+        }
         match chain[i] {
             Some(m) => {
                 if resp.drag_started() {
@@ -555,10 +580,9 @@ fn board_ui(
         let (Some(h), Some(m)) = (h, chain[i]) else {
             continue;
         };
-        for j in 0..h.n {
+        for (j, (knob, key)) in h.knobs.iter().zip(KNOBS[m]).take(h.n).enumerate() {
             let id = ui.id().with(("fragor-knob", i, j));
-            let resp = ui.interact(h.knobs[j], id, Sense::click_and_drag());
-            let key = KNOBS[m][j];
+            let resp = ui.interact(*knob, id, Sense::click_and_drag());
             if resp.hovered() || resp.dragged() {
                 st.hot = Some((i, j));
             }

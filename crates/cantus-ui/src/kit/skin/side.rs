@@ -24,8 +24,8 @@ pub const CRIBRUM: Skin = Skin {
 };
 
 // fx:fragor — Fragor's face (ADR 0131), the owner's pick (palette A, 2026-11-13): a valve
-// amp at night — warm amber, a tube's glow, on dark matte; the sound drawn on an amber
-// phosphor screen behind glass (dark in every theme, as a device's screen), a cream second
+// amp at night — warm amber, a tube's glow, on smoked glass; the sound drawn on an amber
+// phosphor screen behind glass (dark in every theme, as a device's screen), a white-hot second
 // voice, skirted knobs, rocker switches, engraved capitals, screws and rules. Its tubes,
 // grille, jewel lights and brass are drawn by `views/fx/valve_draw.rs`; its pedals wear
 // their own finishes (`skin/pedals.rs`).
@@ -41,10 +41,15 @@ pub const FRAGOR: Skin = Skin {
         light: hsl(30.0, 0.85, 0.38),
     }),
     accent2: Some(Pair {
-        dark: hsl(44.0, 0.40, 0.82),
+        // A filament's white heat, nearly unsaturated: the second voice keeps its own
+        // colour beside the amber, not a second amber (the displays' rule).
+        dark: hsl(44.0, 0.18, 0.84),
         light: hsl(28.0, 0.45, 0.28),
     }),
-    material: Material::Matte,
+    // Smoked glass, as a valve's envelope and the screen's pane: the amber family's
+    // matte, brushed, anodised, lacquer, carbon and vinyl are taken near this hue
+    // (Phasis, Fervor, Chorda, Aula …).
+    material: Material::Glass,
     display: Display::Phosphor,
     knob: KnobShape::Skirted,
     switch: SwitchShape::Rocker,
