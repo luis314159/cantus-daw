@@ -818,8 +818,8 @@ pub enum Direct {
     Wire,
     /// r39:conv — Aula, with the source and shape its kernel was built from.
     Aula(Box<cantus_dsp::aula::Aula>, (u64, [u32; 9])),
-    /// fx:contract — the side round's stubs, until each builder names its DSP here: the
-    /// engine's unit.
+    /// fx:fragor — the engine's unit itself (Fragor's board, its circuits and oversampling
+    /// live in the engine's `fx::fragor`).
     Stub(Box<dyn cantus_engine::fx::FxUnit>),
     /// fx:cribrum — Cribrum, the auto filter.
     Cribrum(Box<cantus_dsp::cribrum::Cribrum>),

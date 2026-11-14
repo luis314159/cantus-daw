@@ -1521,7 +1521,7 @@ fn main() {
     }
     // fx:contract — Schema 62 (the fx side round, ADRs 0130–0133; provisional — renumbered
     // when merged after round 40): one insert of each of the five new kinds on the second
-    // strip, Cribrum's placeholder at −3 dB. Each builder adds its own settings here.
+    // strip, Cribrum's output at −3 dB; each unit's own settings below.
     if upto >= 62 {
         let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
         for kind in [

@@ -21,8 +21,6 @@ fn floor(unit: Unit) -> usize {
         Unit::Effect(EffectKind::External) => 0,
         // The older Reverb is no longer offered (Spatium is the reverb): old projects keep it.
         Unit::Effect(EffectKind::Reverb) => 0,
-        // fx:contract — the side round's stubs have no presets yet: each builder deletes its
-        // own line when its twelve land.
         Unit::Effect(_) => 12,
     }
 }

@@ -215,8 +215,6 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("mix", 0.5),
             ],
         ),
-        // fx:contract — the side round's stubs: the placeholder's gain; each builder
-        // replaces its own line with its unit's heaviest settings.
         // fx:cribrum — both filters (a driven ladder at 24 dB/oct into three formants), 4×
         // oversampling, every source on every target.
         EffectKind::AutoFilter => set(
