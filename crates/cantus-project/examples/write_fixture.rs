@@ -1535,6 +1535,20 @@ fn main() {
             if kind == EffectKind::AutoFilter {
                 e.spec.set("out", -3.0).unwrap();
             }
+            // fx:lapsus — Lapsus with a volume pattern of its own in slot 5.
+            if kind == EffectKind::TimeShaper {
+                use cantus_core::fx::lapsus::{Bank, Pattern, Point};
+                let mut bank = Bank::default();
+                bank.vol.insert(
+                    4,
+                    Pattern {
+                        len: 1,
+                        points: vec![Point::new(0.0, 1.0).shape(2), Point::new(0.5, 0.25)],
+                        name: Some("Half gate".into()),
+                    },
+                );
+                e.spec.lapsus = Some(Box::new(bank));
+            }
             p.strip_mut(s).unwrap().effects.push(e);
         }
     }

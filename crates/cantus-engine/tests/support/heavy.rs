@@ -263,7 +263,20 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", -6.0),
             ],
         ), // fx:fragor
-        EffectKind::TimeShaper => set(&mut s, &[("out", 6.0)]), // fx:contract (lapsus)
+        // fx:lapsus — the roll build (fifteen jumps a bar, each a join) under a trance gate,
+        // mixed with the dry, a long crossfade and glide, and lookahead (long kernels).
+        EffectKind::TimeShaper => set(
+            &mut s,
+            &[
+                ("tslot", 16.0),
+                ("vslot", 5.0),
+                ("mix", 0.8),
+                ("xfade", 6.0),
+                ("smooth", 4.0),
+                ("ahead", 5.0),
+                ("out", 6.0),
+            ],
+        ),
         // fx:vetus — every module on: dithered mu-law bits, the hold behind both its filters,
         // a synced wow, dropouts and wear, every noise (following the music, so it rests),
         // the gramophone's band, Character half way.

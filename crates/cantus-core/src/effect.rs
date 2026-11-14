@@ -464,6 +464,11 @@ pub struct EffectSpec {
     /// kind and for Aula playing one of Cantus's own, and then not written. // r39:conv
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ir: Option<Box<fx::aula::IrFile>>,
+    /// Lapsus's patterns where they differ from its factory bank (ADR 0132, provisional);
+    /// `None` for every other kind and for a Lapsus on the factory bank, and then not
+    /// written. // fx:lapsus
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lapsus: Option<Box<fx::lapsus::Bank>>,
 }
 
 impl EffectSpec {
@@ -480,7 +485,8 @@ impl EffectSpec {
             kind,
             params,
             external: None,
-            ir: None, // r39:conv
+            ir: None,     // r39:conv
+            lapsus: None, // fx:lapsus
         }
     }
 
@@ -490,7 +496,8 @@ impl EffectSpec {
             kind: EffectKind::External,
             params: BTreeMap::new(),
             external: Some(Box::new(plugin)),
-            ir: None, // r39:conv
+            ir: None,     // r39:conv
+            lapsus: None, // fx:lapsus
         }
     }
 

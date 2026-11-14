@@ -1507,6 +1507,16 @@ fragor in 1094220446
 fragor mix 1469012833
 fragor mono 1921445482
 fragor os 1580477207
+lapsus tslot 1247311
+lapsus vslot 1057260845
+lapsus mix 1469012833
+lapsus xfade 1882707433
+lapsus smooth 24442543
+lapsus notes 58810058
+lapsus retrig 732878986
+lapsus tkey 339133402
+lapsus vkey 691688416
+lapsus ahead 1243899150
 vetus mix 1469012833
 vetus char 676070173
 vetus bits.on 1663402752

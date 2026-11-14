@@ -64,6 +64,8 @@ pub struct PluginHost {
     /// Bumped whenever a value changes (the editor's own edits, the host's automation, a
     /// state load): the frame keeps what it formats until then.
     revision: u64,
+    /// fx:lapsus — the bank generation `spec` holds.
+    lapsus_gen: u64,
     /// The other side of A/B (the plug-in's values), and whether B is the side showing.
     other: Option<Vec<f32>>,
     on_b: bool,
@@ -88,6 +90,7 @@ impl PluginHost {
             sink,
             active: Vec::new(),
             revision: 0,
+            lapsus_gen: u64::MAX, // fx:lapsus
             other: None,
             on_b: false,
         }
@@ -111,6 +114,13 @@ impl PluginHost {
                     changed = true;
                 }
             }
+        }
+        // fx:lapsus — Lapsus's bank, when the main thread has a new one (a state loaded).
+        let g = self.shared.lapsus.generation();
+        if g != self.lapsus_gen {
+            self.lapsus_gen = g;
+            self.spec.lapsus = self.shared.lapsus.get();
+            changed = true;
         }
         if changed {
             self.revision += 1;
@@ -190,6 +200,21 @@ impl FxHost for PluginHost {
             let value = v.unwrap_or(p.default);
             self.edit(p.index as u32, value, gesture.is_some());
         }
+    }
+
+    // fx:lapsus — a slot of the bank: kept by the instance, posted to its processor, saved
+    // in its state.
+    fn set_lapsus_pattern(
+        &mut self,
+        lane: cantus_core::fx::lapsus::Lane,
+        slot: u8,
+        pattern: Option<cantus_core::fx::lapsus::Pattern>,
+        _gesture: Option<u64>,
+    ) {
+        self.shared.lapsus.set_pattern(lane, slot, pattern);
+        self.lapsus_gen = self.shared.lapsus.generation();
+        self.spec.lapsus = self.shared.lapsus.get();
+        self.revision += 1;
     }
 
     fn end_gesture(&mut self) {

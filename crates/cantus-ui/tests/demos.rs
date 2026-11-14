@@ -516,10 +516,9 @@ fn the_showcase_plays_round_28() {
         .collect();
     // fx:contract — the side round's five (26..31) join the showcase when their builders
     // put them in it (`demos/heart/desk.rs`); each then widens this range past its own.
-    let side = [K::Pedal, K::LoFi]; // fx:fragor, fx:vetus
-    for kind in K::ALL[12..27].iter().chain(side.iter()) {
-        // fx:cribrum — Cribrum (26) is in it (the arp); fx:fragor — Fragor (27), the guitar;
-        // fx:vetus — Vetus (29), the percussion.
+    // fx:cribrum — Cribrum (26) is in it (the arp); fx:fragor — Fragor (27), the guitar;
+    // fx:lapsus — Lapsus (28), the fills; fx:vetus — Vetus (29), the percussion.
+    for kind in K::ALL[12..30].iter() {
         assert!(
             slots.iter().any(|e| e.spec.kind == *kind),
             "no {kind:?} in the showcase"

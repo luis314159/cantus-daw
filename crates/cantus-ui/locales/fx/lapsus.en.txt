@@ -1,8 +1,178 @@
 # Lapsus (fx side round) — owned by Lapsus. Every key here needs its twin in lapsus.es.txt.
 effect.lapsus = Lapsus time shaper
 fx.lapsus.about = Bends time and volume to the beat: tape stops, half-time, stutters and scratches, drawn as envelopes.
-fx.lapsus.out = Output
 picker.dev.lapsus.name = Lapsus
 picker.dev.lapsus.what = Time shaper
 picker.dev.lapsus.about = Bends time and volume to the beat: tape stops, half-time, stutters and scratches, drawn as envelopes.
 mixer.chain.lapsus = Time
+
+# Parameters
+fx.lapsus.mix = Mix
+fx.lapsus.xfade = Crossfade
+fx.lapsus.smooth = Smooth
+fx.lapsus.notes = Notes
+fx.lapsus.retrig = Restart on note
+fx.lapsus.ahead = Ahead
+fx.lapsus.out = Output
+
+# What a note does
+lapsus.notes.0 = Off
+lapsus.notes.1 = Switch
+lapsus.notes.2 = Hold
+
+# The cards
+lapsus.card.timeline = Time and level
+lapsus.card.bank = Banks
+lapsus.card.pattern = Pattern
+lapsus.card.joins = Joins
+lapsus.card.notes = Notes
+lapsus.card.output = Output
+
+# The timeline
+lapsus.lane.time = Time
+lapsus.lane.level = Level
+lapsus.now = now
+lapsus.before = Before the cycle: silence
+lapsus.speed = Speed
+lapsus.idle = Through: the sound passes untouched. Choose a pattern in the bank, or play its note.
+lapsus.timeline_tip = The pattern playing
+
+# The pattern card
+lapsus.length = Length in bars
+lapsus.grid = Grid
+lapsus.draw = Draw
+lapsus.tool.points = Points
+lapsus.tool.pencil = Pencil
+lapsus.edit = Edit
+lapsus.edit.copy = Copy
+lapsus.edit.paste = Paste
+lapsus.edit.clear = Clear
+lapsus.each_note = Each note
+lapsus.beats = beats
+lapsus.len.0 = 1/4 bar
+lapsus.len.1 = 1/2 bar
+lapsus.len.2 = 1 bar
+lapsus.len.3 = 2 bars
+lapsus.len.4 = 4 bars
+
+# The bank
+lapsus.pad_how = Click: play this pattern. Right-click: the factory's pattern back. Its note plays it too.
+
+# The two banks' parameters
+fx.lapsus.tslot = Time pattern
+fx.lapsus.vslot = Volume pattern
+fx.lapsus.tkey = Time note
+fx.lapsus.vkey = Volume note
+fx.lapsus.tkey.short = Time
+fx.lapsus.vkey.short = Volume
+lapsus.first_notes = First notes
+lapsus.bank.time = Time
+lapsus.bank.vol = Volume
+lapsus.bank.which = Bank shown
+
+# The banks' rows and patterns
+lapsus.trow.0 = Stop
+lapsus.trow.1 = Speed
+lapsus.trow.2 = Repeat
+lapsus.trow.3 = Reverse
+lapsus.trow.4 = Scratch
+lapsus.trow.5 = Juggle
+lapsus.vrow.0 = Gate
+lapsus.vrow.1 = Rhythm
+lapsus.vrow.2 = Pump
+lapsus.vrow.3 = Fade
+lapsus.vrow.4 = Tremolo
+lapsus.vrow.5 = Cut
+lapsus.tslot.0 = Through
+lapsus.tslot.1 = Tape stop
+lapsus.tslot.2 = Tape stop ½
+lapsus.tslot.3 = Tape stop ¼
+lapsus.tslot.4 = Tape start
+lapsus.tslot.5 = Stop and start
+lapsus.tslot.6 = Half time
+lapsus.tslot.7 = Half time ½
+lapsus.tslot.8 = Half time ¼
+lapsus.tslot.9 = Quarter time
+lapsus.tslot.10 = Slow down
+lapsus.tslot.11 = Wobble
+lapsus.tslot.12 = Repeat the third
+lapsus.tslot.13 = Stutter ⅛
+lapsus.tslot.14 = Stutter 1/16
+lapsus.tslot.15 = Stutter 1/32
+lapsus.tslot.16 = Roll build
+lapsus.tslot.17 = Beat repeat
+lapsus.tslot.18 = Reverse ½
+lapsus.tslot.19 = Reverse every 2nd
+lapsus.tslot.20 = Reverse the last beat
+lapsus.tslot.21 = Reverse each beat
+lapsus.tslot.22 = Rewind
+lapsus.tslot.23 = Backspin
+lapsus.tslot.24 = Baby scratch
+lapsus.tslot.25 = Slow scratch
+lapsus.tslot.26 = Tear
+lapsus.tslot.27 = Scribble
+lapsus.tslot.28 = Drag
+lapsus.tslot.29 = Scratch back
+lapsus.tslot.30 = Half bar twice
+lapsus.tslot.31 = Beat juggle
+lapsus.tslot.32 = Dotted repeat
+lapsus.tslot.33 = Triplet stutter
+lapsus.tslot.34 = Stutter ½
+lapsus.tslot.35 = Echo repeat
+lapsus.vslot.0 = Through
+lapsus.vslot.1 = On the beat
+lapsus.vslot.2 = Off the beat
+lapsus.vslot.3 = Gate 1/16
+lapsus.vslot.4 = Gate 1/32
+lapsus.vslot.5 = Trance gate
+lapsus.vslot.6 = Trance gate 2
+lapsus.vslot.7 = Trance gate 3
+lapsus.vslot.8 = Trance gate 4
+lapsus.vslot.9 = Triplets
+lapsus.vslot.10 = Tresillo
+lapsus.vslot.11 = Gallop
+lapsus.vslot.12 = Pump
+lapsus.vslot.13 = Pump ½
+lapsus.vslot.14 = Hard pump
+lapsus.vslot.15 = Soft pump
+lapsus.vslot.16 = Duck ⅛
+lapsus.vslot.17 = Swell
+lapsus.vslot.18 = Fade in
+lapsus.vslot.19 = Fade out
+lapsus.vslot.20 = Fade in and out
+lapsus.vslot.21 = Fade the last beat
+lapsus.vslot.22 = Fade the last half
+lapsus.vslot.23 = Tape stop fade
+lapsus.vslot.24 = Tremolo ⅛
+lapsus.vslot.25 = Tremolo 1/16
+lapsus.vslot.26 = Slow tremolo
+lapsus.vslot.27 = Saw down
+lapsus.vslot.28 = Saw up
+lapsus.vslot.29 = Echo fade
+lapsus.vslot.30 = Cut the last beat
+lapsus.vslot.31 = Cut two and four
+lapsus.vslot.32 = Cut each half's end
+lapsus.vslot.33 = Transformer
+lapsus.vslot.34 = Chop
+lapsus.vslot.35 = Mute
+lapsus.timeline_how = Drag a point (Shift: off the grid), double-click to add or remove one, drag a line to bend it; the pencil paints steps. Above, how far behind the music it reads; below, the level.
+cmd.lapsus_pattern = Edit a Lapsus pattern
+
+# Factory presets
+preset.lapsus.half_time = Half time
+preset.lapsus.tape_stop = Tape stop
+preset.lapsus.tape_stop_bar = Tape stop, a bar
+preset.lapsus.tape_start = Tape start
+preset.lapsus.slow_down = Slow down
+preset.lapsus.wobble = Warped record
+preset.lapsus.roll_build = Roll build
+preset.lapsus.beat_repeat = Beat repeat
+preset.lapsus.gated_stutter = Gated stutter
+preset.lapsus.reverse_half = Reverse half
+preset.lapsus.backspin = Backspin
+preset.lapsus.baby_scratch = Baby scratch
+preset.lapsus.transformer = Transformer
+preset.lapsus.trance_gate = Trance gate
+preset.lapsus.pump = Pump
+preset.lapsus.half_time_chop = Half time chop
+preset.lapsus.echo_repeat = Echo repeat

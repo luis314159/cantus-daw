@@ -2789,6 +2789,60 @@ fn cribrum_never_allocates() {
     );
 }
 
+// fx:lapsus — Lapsus (ADR 0132, provisional) on the audio thread: patterns switched by the
+// slot and by a track's notes (each a join), a pattern with jumps, the lookahead turned on
+// (its history asked for, built off the thread and swapped in, the old one handed back),
+// a seek and a stop. Not one allocation.
+#[test]
+fn lapsus_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let bass = p.tracks[1].id;
+    let mut fx = p.make_effect(EffectKind::TimeShaper);
+    for (k, v) in [
+        ("tslot", 1.0),
+        ("vslot", 12.0),
+        ("tkey", 35.0),
+        ("vkey", 42.0),
+        ("xfade", 4.0),
+    ] {
+        fx.spec.set(k, v).unwrap();
+    }
+    fx.midi_from = Some(bass);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("start", 40);
+    let set = |p: &mut Project, k: &str, v: f32| {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        e.spec.set(k, v).unwrap();
+    };
+    set(&mut p, "tslot", 16.0);
+    set(&mut p, "vslot", 5.0);
+    rig.snapshot(&p);
+    rig.play("the roll build", 60);
+    set(&mut p, "ahead", 40.0);
+    set(&mut p, "mix", 0.5);
+    rig.snapshot(&p);
+    rig.play("lookahead: new history", 60);
+    set(&mut p, "notes", 1.0);
+    set(&mut p, "retrig", 1.0);
+    rig.snapshot(&p);
+    rig.play("notes switch and retrigger", 60);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
 // fx:vetus — Vetus (ADR 0133, provisional) on the audio thread: every module on, each switched
 // off and on again while it plays (a module that lands off is made new), the rate and the
 // medium moved, the wow synced and then free, a seek and a stop. Not one allocation.

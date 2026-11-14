@@ -24,6 +24,7 @@ pub mod desc;
 pub mod editor;
 pub mod ftz;
 pub mod instance;
+pub mod lapsus_bank; // fx:lapsus
 pub mod memory; // r39:conv
 pub mod params;
 pub mod state;

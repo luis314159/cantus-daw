@@ -190,10 +190,64 @@ pub const FRAGOR: Skin = Skin {
     },
 }; // fx:fragor
 
-/// Lapsus, the time shaper: for now Delay's look (the song's recent past, drawn in time).
+// fx:lapsus — Lapsus's own face (ADR 0132, provisional; v3 after the integration review).
+/// Lapsus, the time shaper (*a slip*): a DJ mixer at midnight — a dark teal-petrol body in
+/// matte rubberised paint (a mixer's top plate), the time curve glowing amber on a
+/// vacuum-fluorescent screen (the old decks' displays), the level and the controls in ice
+/// blue, soft rubber knobs, lamp keys, a painted stripe across the header and printed rules,
+/// upper-case lettering and mono readouts. Its accent is the ice blue, so its material is
+/// one no unit wears near that hue (anodised, brushed, lacquer, carbon, glass and vinyl
+/// are taken there; amber was taken in every finish but paper). The body sits 18° from
+/// Cribrum's Petrol and the ice blue 18° from Cribrum's cyan (`tests` below).
 pub const LAPSUS: Skin = Skin {
     key: "fx.lapsus",
-    ..tone::DELAY
+    surface: super::Tint {
+        hue: 174.0,
+        sat: 0.26,
+        amount: 0.6,
+    },
+    accent: Some(super::Pair {
+        dark: super::super::color::Hsl {
+            h: 208.0,
+            s: 0.72,
+            l: 0.68,
+        },
+        light: super::super::color::Hsl {
+            h: 212.0,
+            s: 0.80,
+            l: 0.34,
+        },
+    }),
+    accent2: Some(super::Pair {
+        dark: super::super::color::Hsl {
+            h: 36.0,
+            s: 0.95,
+            l: 0.60,
+        },
+        light: super::super::color::Hsl {
+            h: 32.0,
+            s: 0.90,
+            l: 0.36,
+        },
+    }),
+    material: super::Material::Matte,
+    display: super::Display::Vfd,
+    knob: super::KnobShape::Soft,
+    switch: super::SwitchShape::Lamp,
+    lettering: super::Lettering {
+        case: super::Case::Upper,
+        tracking: 0.08,
+        weight: super::Weight::SemiBold,
+        condensed: false,
+        mono_values: true,
+    },
+    plate: super::Plate::Stripe,
+    ornaments: super::Ornaments {
+        screws: false,
+        vents: false,
+        rules: true,
+        rack_ears: false,
+    },
 };
 
 // fx:vetus — Vetus's face (ADR 0133, provisional) in three colourways (ADR 0130
@@ -426,64 +480,154 @@ pub const FRAGOR_C: Skin = Skin {
 /// Fragor's colourways besides its own face: B, C. fx:fragor
 pub const FRAGOR_COLOURWAYS: [&Skin; 2] = [&FRAGOR_B, &FRAGOR_C];
 
+// fx:lapsus — the side round's faces never wear another's look (the integration review:
+// Fragor and Lapsus were both amber glass; Lapsus's blue was Cribrum's, its body Petrol's).
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::{colourways, of, Skin, Unit};
+    use super::{CRIBRUM, FRAGOR, FRAGOR_COLOURWAYS, LAPSUS, LIBRA, VETUS};
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
         d.min(360.0 - d)
     }
 
-    /// A contract placeholder still borrowing a sibling's look (a builder's face not merged
-    /// on this branch yet): it is that sibling's face, not one of its own.
-    fn placeholder(s: &Skin) -> bool {
-        (s.key == "fx.lapsus"
-            && s.material == tone::DELAY.material
-            && s.accent == tone::DELAY.accent)
-            || (s.key == "fx.libra"
-                && s.material == tone::LATITUDO.material
-                && s.accent == tone::LATITUDO.accent)
+    /// Two hues within this many degrees are one colour at a glance.
+    const BAND: f32 = 15.0;
+
+    /// The side round's faces as drawn: a placeholder still wearing a sibling's look
+    /// (Vetus, Libra until their builders draw them) joins the moment it is drawn.
+    fn faces() -> Vec<&'static Skin> {
+        [&CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA]
+            .into_iter()
+            .filter(|s| !is_placeholder(s))
+            .collect()
     }
 
-    /// fx:libra — no unit of ours, in any family, shares both accent hue (within 20°) and
-    /// material with a side-round unit's face (its default colourway; an alternative may
-    /// resemble another unit, the user's choice — ADR 0130 §Colourways), as the other
-    /// families' tests hold for theirs. Every pair that does is named.
+    /// The faces and the colourways a user can choose for them.
+    fn faces_and_colourways() -> Vec<&'static Skin> {
+        let mut v = faces();
+        for u in Unit::all() {
+            v.extend(colourways(u).iter().map(|c| c.sheet));
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        v.retain(|s| seen.insert(s.key));
+        v
+    }
+
+    /// A sheet that is another unit's look under a key of its own.
+    fn is_placeholder(s: &Skin) -> bool {
+        Unit::all().into_iter().map(of).any(|o| {
+            o.key != s.key
+                && o.surface == s.surface
+                && o.accent == s.accent
+                && o.accent2 == s.accent2
+                && o.material == s.material
+                && o.display == s.display
+        })
+    }
+
+    /// The unit a sheet belongs to (`fx.cribrum.brass` → `cribrum`).
+    fn unit_of(key: &str) -> &str {
+        key.split('.').nth(1).unwrap_or(key)
+    }
+
+    /// The hues a sheet's voices read in, the nearly grey ones left out.
+    fn voices(s: &Skin) -> Vec<f32> {
+        [s.accent, s.accent2]
+            .into_iter()
+            .flatten()
+            .filter(|p| p.dark.s >= 0.3)
+            .map(|p| p.dark.h)
+            .collect()
+    }
+
+    /// A body tinted enough to read as a colour of its own.
+    fn tinted(s: &Skin) -> bool {
+        s.surface.sat * s.surface.amount >= 0.1
+    }
+
+    /// The house rule (every family's): no face shares a material and an accent within
+    /// 20° with any other unit's face or colourway.
     #[test]
-    fn no_unit_of_any_family_shares_hue_and_material_with_ours() {
-        let ours = [
-            EffectKind::AutoFilter,
-            EffectKind::Pedal,
-            EffectKind::TimeShaper,
-            EffectKind::LoFi,
-            EffectKind::Utility,
-        ];
-        let mut alike = Vec::new();
-        for kind in ours {
-            let s = of(kind).expect("a side-round sheet");
-            if placeholder(s) {
-                continue;
-            }
-            let h = s.accent.expect("an accent").dark.h;
-            for unit in super::super::Unit::all() {
-                let other = super::super::of(unit);
-                if other.key == s.key || placeholder(other) {
+    fn no_face_of_the_side_round_shares_material_and_accent_with_another_unit() {
+        let mut others: Vec<&'static Skin> = Unit::all().into_iter().map(of).collect();
+        others.extend(faces_and_colourways());
+        others.extend(FRAGOR_COLOURWAYS);
+        let mut bad = Vec::new();
+        for s in faces() {
+            let a = s.accent.expect("a face has an accent").dark.h;
+            for o in &others {
+                let Some(oa) = o.accent else { continue };
+                if unit_of(o.key) == unit_of(s.key) || is_placeholder(o) {
                     continue;
                 }
-                let Some(oa) = other.accent else { continue };
-                if other.material == s.material && hue_gap(h, oa.dark.h) <= 20.0 {
-                    let pair = if s.key < other.key {
-                        format!("{} and {}", s.key, other.key)
-                    } else {
-                        format!("{} and {}", other.key, s.key)
-                    };
-                    if !alike.contains(&pair) {
-                        alike.push(pair);
-                    }
+                if s.material == o.material && hue_gap(a, oa.dark.h) <= 20.0 {
+                    bad.push(format!(
+                        "{} and {}: {:?} near {a:.0}°",
+                        s.key, o.key, s.material
+                    ));
                 }
             }
         }
-        assert!(alike.is_empty(), "look alike: {}", alike.join("; "));
+        bad.sort();
+        bad.dedup();
+        assert!(
+            bad.is_empty(),
+            "{}",
+            bad.join(
+                "
+"
+            )
+        );
+    }
+
+    /// Within the round, whatever the material: no two units' sheets speak in the same
+    /// two voices (in either order), nor tint the body alike under a shared voice.
+    #[test]
+    fn the_side_round_s_sheets_never_share_their_palette() {
+        let all = faces_and_colourways();
+        let mut bad = Vec::new();
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                if unit_of(a.key) == unit_of(b.key) {
+                    continue;
+                }
+                let (va, vb) = (voices(a), voices(b));
+                let near = |h: f32, y: &[f32]| y.iter().any(|g| hue_gap(h, *g) <= BAND);
+                let covered = |x: &[f32], y: &[f32]| x.iter().all(|h| near(*h, y));
+                if va.len() > 1 && vb.len() > 1 && covered(&va, &vb) && covered(&vb, &va) {
+                    bad.push(format!("{} and {}: the same voices", a.key, b.key));
+                }
+                if tinted(a)
+                    && tinted(b)
+                    && hue_gap(a.surface.hue, b.surface.hue) <= BAND
+                    && va.iter().any(|h| near(*h, &vb))
+                {
+                    bad.push(format!("{} and {}: one body under one voice", a.key, b.key));
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{}",
+            bad.join(
+                "
+"
+            )
+        );
+    }
+
+    /// The finding that made these tests, pinned: Lapsus is neither Fragor's amber glass
+    /// nor Cribrum's ice blue on Petrol's body.
+    #[test]
+    fn lapsus_wears_neither_fragor_s_glass_nor_cribrum_s_blue_and_petrol() {
+        assert_ne!(LAPSUS.material, FRAGOR.material);
+        let ice = LAPSUS.accent.unwrap().dark.h;
+        assert!(hue_gap(ice, CRIBRUM.accent.unwrap().dark.h) > BAND);
+        assert!(hue_gap(LAPSUS.surface.hue, super::CRIBRUM_PETROL.surface.hue) > BAND);
+        // The owner's pairing kept: the time curve amber, the level ice blue.
+        assert!(hue_gap(LAPSUS.accent2.unwrap().dark.h, 36.0) <= 4.0);
+        assert!((190.0..=230.0).contains(&ice));
     }
 }

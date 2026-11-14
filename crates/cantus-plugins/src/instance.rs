@@ -308,6 +308,8 @@ pub struct Shared {
     /// Speculum's frames its tap could not take (the editor drained too late), since the
     /// editor last asked (ADR 0056, review 1).
     pub scope_lost: AtomicU64,
+    /// fx:lapsus — Lapsus's banks, posted to the processor (`crate::lapsus_bank`).
+    pub lapsus: crate::lapsus_bank::BankPost,
     /// Frames the analyser tap has taken since the instance was made: an editor's count
     /// of what it drained is measured against it ([`Self::clock_of_drained`]).
     pub tapped: AtomicU64,
@@ -357,6 +359,7 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
+            lapsus: Default::default(), // fx:lapsus
             tapped: AtomicU64::new(0),
         })
     }
@@ -531,11 +534,15 @@ impl Shared {
 
     /// The state to save: `EffectSpec` JSON (`crate::state`).
     pub fn save_state(&self) -> Vec<u8> {
-        crate::state::save(self.table, &self.values())
+        // fx:lapsus — the bank beside the values.
+        crate::state::save_with_bank(self.table, &self.values(), self.lapsus.get().as_deref())
     }
 
     pub fn load_state(&self, bytes: &[u8]) -> Result<(), String> {
         let values = crate::state::load(self.table, bytes)?;
+        if self.table.kind == cantus_core::EffectKind::TimeShaper {
+            self.lapsus.set(crate::state::load_bank(bytes)); // fx:lapsus
+        }
         self.set_all(&values);
         Ok(())
     }
@@ -561,7 +568,9 @@ impl Shared {
 
     /// The spec the current values make — what a DAW slot would hold.
     pub fn spec(&self) -> EffectSpec {
-        spec_of(self.table, &self.values())
+        let mut s = spec_of(self.table, &self.values());
+        s.lapsus = self.lapsus.get(); // fx:lapsus
+        s
     }
 }
 
@@ -577,7 +586,8 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
-        ir: None, // r39:conv
+        ir: None,     // r39:conv
+        lapsus: None, // fx:lapsus (the bank: phase B)
     }
 }
 
@@ -682,6 +692,13 @@ pub struct Processor {
     /// Memory built off the audio thread for what the unit asks while it runs (Aula's
     /// kernels, ADR 0112). // r39:conv
     memory: Option<crate::memory::Memory>,
+    /// fx:lapsus — the bank's rings while this processor lives, and a bank that could not
+    /// go back yet.
+    lapsus: Option<(
+        rtrb::Consumer<crate::lapsus_bank::Post>,
+        Producer<crate::lapsus_bank::Post>,
+    )>,
+    lapsus_held: Option<crate::lapsus_bank::Post>,
     /// The host's transport at the start of the current block, when it gives one.
     transport: Option<HostTransport>,
     /// Transports the host sent inside the block (CLAP events): offset, transport.
@@ -702,6 +719,11 @@ impl Drop for Processor {
         if let (Some(tx), Ok(mut p)) = (self.pairs.take(), self.shared.pairs.lock()) {
             p.0 = Some(tx);
         }
+        // fx:lapsus
+        if let Some((rx, gtx)) = self.lapsus.take() {
+            self.shared.lapsus.give_back(Some(rx), Some(gtx));
+        }
+        drop(self.lapsus_held.take());
     }
 }
 
@@ -711,7 +733,8 @@ impl Processor {
         let table = shared.table;
         let seen_generation = shared.generation.load(Ordering::Acquire);
         let base: Box<[f32]> = shared.values().into_boxed_slice();
-        let spec = spec_of(table, &base);
+        let mut spec = spec_of(table, &base);
+        spec.lapsus = shared.lapsus.get(); // fx:lapsus
         let slot = EffectSlot {
             id: EffectId(0),
             bypass: false,
@@ -741,11 +764,17 @@ impl Processor {
         bypass.gain = bypass.target;
         let pairs = shared.pairs.lock().ok().and_then(|mut p| p.0.take());
         // r39:conv
-        let memory = (unit.kind == cantus_core::EffectKind::Aula)
+        let memory = (unit.kind == cantus_core::EffectKind::Aula
+            || unit.kind == cantus_core::EffectKind::TimeShaper) // fx:lapsus
             .then(|| crate::memory::Memory::start(sample_rate));
+        let lapsus = (unit.kind == cantus_core::EffectKind::TimeShaper)
+            .then(|| shared.lapsus.lend())
+            .flatten(); // fx:lapsus
         Processor {
             pairs,
             memory,
+            lapsus,
+            lapsus_held: None,
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
             n_moves: 0,
@@ -882,6 +911,17 @@ impl Processor {
 
     /// Take everything the main thread changed since the last look.
     fn pull_main(&mut self) {
+        // fx:lapsus — a bank the main thread posted, swapped in (the old one goes back).
+        if let Some((rx, gtx)) = self.lapsus.as_mut() {
+            if crate::lapsus_bank::take_newest(
+                rx,
+                gtx,
+                &mut self.lapsus_held,
+                &mut self.spec.lapsus,
+            ) {
+                self.dirty = true;
+            }
+        }
         let g = self.shared.generation.load(Ordering::Acquire);
         if g != self.seen_generation {
             self.seen_generation = g;

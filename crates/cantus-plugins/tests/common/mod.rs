@@ -710,7 +710,15 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("ge.fuzz", 0.8),
             ("out", -6.0),
         ], // fx:fragor
-        EffectKind::TimeShaper => vec![("out", -6.0)], // fx:contract
+        // fx:lapsus — the roll build under a trance gate, mixed, long joins.
+        EffectKind::TimeShaper => vec![
+            ("tslot", 16.0),
+            ("vslot", 5.0),
+            ("mix", 0.8),
+            ("xfade", 4.0),
+            ("smooth", 3.0),
+            ("out", -3.0),
+        ],
         // fx:vetus — every module on, the dither and the noise's hashes, Character up.
         EffectKind::LoFi => vec![
             ("char", 0.4),
@@ -885,9 +893,15 @@ impl Direct {
             EffectKind::Pedal => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Pedal, SR).unwrap())
             } // fx:contract
+            // fx:lapsus — the engine's unit with its history, as `EffectUnit::new` gives it.
             EffectKind::TimeShaper => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::TimeShaper, SR).unwrap())
-            } // fx:contract
+                let mut u = cantus_engine::fx::make(EffectKind::TimeShaper, SR).unwrap();
+                u.configure(spec);
+                if let Some(need) = u.memory_need() {
+                    drop(u.supply(cantus_engine::EffectMemory::build(need, SR)));
+                }
+                Direct::Stub(u)
+            }
             EffectKind::LoFi => {
                 Direct::Vetus(Box::new(cantus_dsp::vetus::Vetus::new(SR))) // fx:vetus
             } // fx:contract

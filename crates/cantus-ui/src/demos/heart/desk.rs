@@ -97,6 +97,14 @@ fn drums_desk(s: &mut Song, b: &Band, d: &Desk) {
 }
 
 fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
+    // fx:lapsus — the fills through Lapsus's beat repeat, half wet: the second beat comes
+    // round again under them.
+    s.insert(
+        b.fills.strip,
+        K::TimeShaper,
+        Some("preset.lapsus.beat_repeat"),
+        &[("mix", 0.5)],
+    );
     // The bass: mono below its fundamental's octave, and a follower from the kick ducks
     // its fader (the modulators, `moves.rs`).
     s.insert(
