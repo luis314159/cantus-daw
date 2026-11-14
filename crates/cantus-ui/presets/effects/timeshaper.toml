@@ -10,6 +10,7 @@ styles = ["trap", "house"]
 roles = ["creative", "drums"]
 [preset.values]
 "mix" = 1
+"out" = 3.1
 "tslot" = 7
 "vslot" = 0
 
@@ -27,9 +28,10 @@ roles = ["creative", "bus"]
 key = "preset.lapsus.tape_stop_bar"
 note = "The whole bar winding down to a stop, and back on the line."
 styles = ["trap", "lofi"]
-roles = ["creative", "fx"]
+roles = ["creative", "bus"]
 [preset.values]
 "mix" = 1
+"out" = 4.7
 "tslot" = 1
 "vslot" = 23
 
@@ -37,7 +39,7 @@ roles = ["creative", "fx"]
 key = "preset.lapsus.tape_start"
 note = "Every bar spins up from still in its first beat."
 styles = ["lofi", "trap"]
-roles = ["creative", "fx"]
+roles = ["creative", "drums"]
 [preset.values]
 "mix" = 1
 "tslot" = 4
@@ -47,7 +49,7 @@ roles = ["creative", "fx"]
 key = "preset.lapsus.slow_down"
 note = "From full speed to half, steadily over the bar."
 styles = ["lofi", "film"]
-roles = ["creative", "fx"]
+roles = ["creative", "bus"]
 [preset.values]
 "mix" = 1
 "tslot" = 10
@@ -57,7 +59,7 @@ roles = ["creative", "fx"]
 key = "preset.lapsus.wobble"
 note = "A warped record: the pitch sways a quarter tone, twice a bar."
 styles = ["lofi"]
-roles = ["creative", "keys"]
+roles = ["creative"]
 [preset.values]
 "mix" = 1
 "tslot" = 11
@@ -90,6 +92,7 @@ styles = ["house", "pop"]
 roles = ["creative", "vocal"]
 [preset.values]
 "mix" = 1
+"out" = 2.3
 "tslot" = 14
 "vslot" = 3
 
@@ -97,7 +100,7 @@ roles = ["creative", "vocal"]
 key = "preset.lapsus.reverse_half"
 note = "Each bar's second half runs its first back."
 styles = ["pop", "film"]
-roles = ["creative", "fx"]
+roles = ["creative", "vocal"]
 [preset.values]
 "mix" = 1
 "tslot" = 18
@@ -130,6 +133,7 @@ styles = ["trap"]
 roles = ["creative", "vocal"]
 [preset.values]
 "mix" = 1
+"out" = 2.4
 "tslot" = 24
 "vslot" = 33
 
@@ -137,7 +141,7 @@ roles = ["creative", "vocal"]
 key = "preset.lapsus.trance_gate"
 note = "The trance gate in sixteenths, the time untouched."
 styles = ["house", "pop"]
-roles = ["pad", "creative"]
+roles = ["creative", "bus"]
 [preset.values]
 "mix" = 1
 "tslot" = 0
@@ -147,7 +151,7 @@ roles = ["pad", "creative"]
 key = "preset.lapsus.pump"
 note = "The sidechain's duck on every beat, without a key."
 styles = ["house", "pop"]
-roles = ["bus", "pad"]
+roles = ["bus", "creative"]
 [preset.values]
 "mix" = 1
 "tslot" = 0
@@ -160,6 +164,7 @@ styles = ["trap", "lofi"]
 roles = ["creative", "drums"]
 [preset.values]
 "mix" = 1
+"out" = 3.3
 "tslot" = 7
 "vslot" = 34
 
@@ -167,8 +172,9 @@ roles = ["creative", "drums"]
 key = "preset.lapsus.echo_repeat"
 note = "The bar's first sixteenth sixteen times, each quieter: a repeat that fades like an echo."
 styles = ["house", "film"]
-roles = ["fx", "creative"]
+roles = ["creative", "drums"]
 [preset.values]
 "mix" = 1
+"out" = 0.7
 "tslot" = 35
 "vslot" = 29

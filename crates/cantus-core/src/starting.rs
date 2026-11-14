@@ -70,7 +70,7 @@ pub fn start_of(kind: EffectKind) -> Start {
         // fx:lapsus — half time every half bar: heard at once, musical on drums and loops.
         K::TimeShaper => preset(
             "preset.lapsus.half_time",
-            &[("mix", 1.0), ("tslot", 7.0), ("vslot", 0.0)],
+            &[("mix", 1.0), ("out", 3.1), ("tslot", 7.0), ("vslot", 0.0)],
         ),
         K::LoFi => Start::Neutral(Flat),    // fx:contract (vetus)
         K::Utility => Start::Neutral(Flat), // fx:contract (libra)

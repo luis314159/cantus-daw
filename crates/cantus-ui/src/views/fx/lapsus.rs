@@ -458,18 +458,7 @@ fn notes_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
 /// A note number as its name: 48 → C3.
 pub fn note_pill(v: f32, b: &mut String) {
     const NAMES: [&str; 12] = [
-        "C",
-        "C\u{266f}",
-        "D",
-        "D\u{266f}",
-        "E",
-        "F",
-        "F\u{266f}",
-        "G",
-        "G\u{266f}",
-        "A",
-        "A\u{266f}",
-        "B",
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
     ];
     use std::fmt::Write as _;
     let n = v.round().clamp(0.0, 127.0) as i32;

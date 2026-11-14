@@ -25,7 +25,7 @@ side round's, provisional). Plug-in page `docs/plugins/lapsus.md`.
   preset field (the vents ornament) removed.
 - **The face**: petrol under smoked glass, an amber VFD, ice-blue level (differs from every
   unit's: the family's sibling tests pass).
-- **Presets**: seventeen, with styles and roles; **Half time** the starting preset.
+- **Presets**: seventeen, with styles and roles, levelled to the library (preset_render); **Half time** the starting preset.
 - **The exported CLAP/VST3**: bit-identical to the engine's unit; notes through both formats;
   the banks carried in its state and posted to its processor without locks or allocation.
 - **Docs**: ADR 0132, `docs/plugins/lapsus.md`, the manual (EN and ES), the site's card, the
@@ -53,6 +53,18 @@ side round's, provisional). Plug-in page `docs/plugins/lapsus.md`.
   `views::fx::lapsus::edit::tests`, the presets' and skins' suites, `demos`.
 - `cantus-plugins` the CLAP/VST3 suites, `notes.rs` (Lapsus added), `ids` (ten ids blessed),
   `lapsus_bank::tests`.
+
+## The finishing suite
+
+`cargo test -p cantus-core -p cantus-dsp -p cantus-engine -p cantus-project -p cantus-plugins
+-p cantus-ui -p cantus-ai --no-fail-fast`: 5 767 passed, 4 failed on the first run — the
+presets' roles (effects take creative, drums, bus, vocal), a ♯ no bundled face draws (now #),
+the slot parameters' learn offers (now on the banks' names) and six presets' levels — each
+fixed and its binary run again green. `cargo clippy --workspace --all-targets -- -D warnings`
+and `cargo clippy -p cantus-plugins --no-default-features --all-targets -- -D warnings`: clean.
+`cargo fmt -p` on every crate touched. Not run: the Linux check in WSL (no push this round).
+The frame budget with the window open and audio playing was not measured: other builders'
+compilations ran the whole time (BUILDING: never measure beside a build) — for the integrator.
 
 ## Shared files touched (each line marked `// fx:lapsus`)
 

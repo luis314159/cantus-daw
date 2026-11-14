@@ -78,6 +78,17 @@ fn lapsus_on_a_strip_shapes_the_master_in_an_offline_render_and_undoes() {
     let effect = app.project().strip(strip).unwrap().effects[0].id;
     let spec = app.project().effect(strip, effect).unwrap().spec.clone();
     assert_eq!(spec.get("tslot"), 7.0, "half time ½ is the starting preset");
+    assert!(
+        spec.get("out") > 0.0,
+        "levelled as the library levels its presets"
+    );
+    // Its output at unity, as the editor's knob sets it, so the dry song compares bit for bit.
+    app.exec(Command::SetEffectParam {
+        strip,
+        effect,
+        key: "out".into(),
+        value: 0.0,
+    });
     let half = rendered(&mut app);
     assert!(half.iter().all(|v| v.is_finite()));
     assert_ne!(half, dry, "half time is heard in the master");

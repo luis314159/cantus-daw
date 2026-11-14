@@ -130,6 +130,26 @@ pub fn card(
             Lane::Time => cantus_engine::fx::lapsus::settings(host.spec()).tslot,
             Lane::Vol => cantus_engine::fx::lapsus::settings(host.spec()).vslot,
         };
+        // What each bank plays, under the switch: each its parameter's control too — a
+        // click shows that bank, its menu automates, modulates or learns it.
+        for (j, l) in Lane::ALL.into_iter().enumerate() {
+            let half = sw.width() * 0.5;
+            let cell = Rect::from_min_size(
+                pos2(sw.left() + half * j as f32, sw.bottom() + 3.0 * k),
+                vec2(half, 16.0 * k),
+            );
+            let resp = ui.interact(cell, ui.id().with(("lapsus-plays", j)), Sense::click());
+            let key = l.keys().0;
+            let name = host
+                .spec()
+                .kind
+                .param(key)
+                .map_or("", |i| frame::tr(i.label_key));
+            let learnt = controls::stepped_offer(ui, s, host, key, name, &resp);
+            if resp.clicked() && !learnt {
+                st.bank = l;
+            }
+        }
         let ink = Ink::of(s);
         let cyan = modfx::face::second_voice(s, &ink).unwrap_or(ink.faint);
         let colour = |l: Lane| if l == Lane::Time { ink.hue } else { cyan };
