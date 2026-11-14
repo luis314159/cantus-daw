@@ -2148,7 +2148,7 @@ undo.
 
 **The banks.** The pads show the time bank or the volume bank (the switch on top names what
 each plays). A click plays a pattern; a right-click gives a slot the factory's pattern back.
-Notes play them too: from *Time note* (C4) up for the time bank, from *Vol. note* (C1) up for
+Notes play them too: from *Time note* (C4) up for the time bank, from *Volume note* (C1) up for
 the volume bank — switched until another note, or only while held (*Each note*), and from
 their beginning with *Restart on note*. Route a track's notes to it from the insert's menu.
 

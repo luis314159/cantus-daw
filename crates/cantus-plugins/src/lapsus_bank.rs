@@ -15,6 +15,9 @@ use std::sync::Mutex;
 /// A bank posted: `None` is the factory's.
 pub type Post = Option<Box<Bank>>;
 
+/// A ring's two ends, each kept while nobody has it.
+type Ends = (Option<Producer<Post>>, Option<Consumer<Post>>);
+
 /// Room in each ring: a drag posts one bank a frame; the processor takes one a block.
 const ROOM: usize = 32;
 
@@ -24,8 +27,8 @@ pub struct BankPost {
     main: Mutex<Post>,
     /// Bumped at every new bank: an editor's copy tells it is stale.
     gen: AtomicU64,
-    to_audio: Mutex<(Option<Producer<Post>>, Option<Consumer<Post>>)>,
-    back: Mutex<(Option<Producer<Post>>, Option<Consumer<Post>>)>,
+    to_audio: Mutex<Ends>,
+    back: Mutex<Ends>,
 }
 
 impl Default for BankPost {

@@ -164,7 +164,8 @@ fn body_ui(
     let mut g = Grid::new(body, s);
     let area = g.rest();
     let gap = s.d(4.0);
-    let row2 = controls::card_height(Size::M) * k;
+    // A size up: the notes card's two note cells sit under their caption.
+    let row2 = controls::card_height(Size::L) * k;
     let row1 = (area.height() - row2 - gap).max(300.0 * k);
     let bank_share = (BANK_W * k / area.width()).clamp(0.2, 0.4);
     let r1: Vec<Rect> = g.row(row1, &[1.0 - bank_share, bank_share]).collect();
@@ -440,8 +441,16 @@ fn notes_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
                 controls::segmented_param(ui, &sn, host, "notes", &modes, w);
                 controls::led_param(ui, &sn, host, "retrig", Src::Key("fx.lapsus.retrig"), w);
             });
-            controls::param_with(ui, &sn, host, "tkey", Size::M, Some(&note_pill));
-            controls::param_with(ui, &sn, host, "vkey", Size::M, Some(&note_pill));
+            // The first note of each bank, under one caption: each cell names its bank
+            // in a whole word (`.short`), the parameter keeps its full name for hosts.
+            let kw = controls::cells_width(&[Size::M, Size::M]);
+            controls::column(ui, &sn, kw, |ui| {
+                controls::caption(ui, &sn, Src::Key("lapsus.first_notes"), kw);
+                ui.horizontal(|ui| {
+                    controls::param_with(ui, &sn, host, "tkey", Size::M, Some(&note_pill));
+                    controls::param_with(ui, &sn, host, "vkey", Size::M, Some(&note_pill));
+                });
+            });
         },
     );
 }

@@ -2337,8 +2337,8 @@ rejilla), doble clic para añadir o quitar uno, arrastra una línea para curvarl
 
 **Los bancos.** Los botones muestran el banco de tiempo o el de volumen (el selector de arriba
 nombra lo que toca cada uno). Un clic toca un patrón; un clic derecho devuelve a la ranura el
-patrón de fábrica. Las notas también los tocan: desde *Nota tpo.* (C4) hacia arriba el banco
-de tiempo, desde *Nota vol.* (C1) el de volumen — cambiando hasta la siguiente nota, o solo
+patrón de fábrica. Las notas también los tocan: desde *Nota tiempo* (C4) hacia arriba el banco
+de tiempo, desde *Nota volumen* (C1) el de volumen — cambiando hasta la siguiente nota, o solo
 mientras se mantienen (*Cada nota*), y desde su inicio con *Reinicio con nota*. Envíale las
 notas de una pista desde el menú del inserto.
 
