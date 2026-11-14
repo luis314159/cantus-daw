@@ -91,6 +91,7 @@ From Git Bash, prefix them with `MSYS_NO_PATHCONV=1` (or a page such as `/` beco
 node tools/contrast.mjs [dist] [--quick] [--only /download/,/es/] [--json out.json]
 node tools/motion.mjs [dist]
 node tools/shoot.mjs <out-dir> [dist] [--only /,/download/] [--full] [--el .selector] [--frames /,24,120]
+node tools/frames.mjs [dist] [--page /] [--width 1440] [--cpu 4] [--runs 3] [--css "rules"]
 ```
 
 - `contrast.mjs` opens every page (or `--quick`: one of each kind, both languages) in the light
@@ -99,6 +100,9 @@ node tools/shoot.mjs <out-dir> [dist] [--only /,/download/] [--full] [--el .sele
 - `motion.mjs` holds `style/motion.css` to its rules: keyframes move only transform and
   opacity, and with reduced motion nothing animates and nothing is left hidden.
 - `shoot.mjs` writes the first screen (and with `--full` the whole page) of each page.
+- `frames.mjs` scrolls a page 12 px a frame with the CPU slowed (`--cpu 4`) and reports frame
+  times; `--css` switches an effect off to find what a cost comes from. Compare two builds back
+  to back on a quiet machine.
 
 ## Publishing
 

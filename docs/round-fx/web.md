@@ -232,6 +232,69 @@ image bytes are added. Blocking time and style work came out lower for v3; with 
 
 The GIFs: `C:\projects\daw-fx\compartir\web\motion\v3\` (v1 in `motion\`, v2 in `motion\v2\`).
 
+## 3d. Motion v4: every piece of content arrives in its own way (the owner, 2026-11-13)
+
+"Quiero más animaciones, que el contenido salga con alguna animación padre al ir scrolleando."
+One entrance per kind of content, so the page has a rhythm rather than one rise everywhere:
+
+| Content | Entrance | Widths |
+|---|---|---|
+| Section headings | swing in from the left, leaning (`skewX`), and stand up straight | all |
+| Program pictures (the tour, the spotlight, the effects' window, a unit's page) | emerge from depth: tilted back 24°, lower and smaller, settling flat; then a light crosses them once | desktop |
+| Instrument and effect cards | dealt onto the table: from below and to the left, each at its own slant (−7°, +6°, −3°), a wave across the row | desktop (phones keep v2's rise) |
+| The studio's cards | fold down from a hinge at their top edge | desktop |
+| The download page's first steps | turn in like pages, hinged at the left | desktop |
+| The effects' list | laid like pedals on a board, each turning flat in turn | desktop |
+| Feature lists (features, the engine's facts, the promises, the requirements, the learn hub) | cascade from the left; the icon pops in with a small overshoot and its strokes draw themselves; the promises' check marks draw | all |
+| The demo songs | rows one after another, each progress track drawn left to right (one timeline for the list, since the list clips) | all |
+| Footer | its columns settle down like a curtain, one after another; the logo turns in | all |
+| Measured | v3's race | all |
+
+Every entrance is scroll-driven, so a visitor who jumps (End, a link, a search) lands on
+finished content. Without scroll-driven animations, or with reduced motion, everything is simply
+there. Transform and opacity everywhere except the icons' strokes (`stroke-dashoffset` on 24-px
+SVGs, cheap).
+
+**What was measured and taken out.** `tools/frames.mjs` (new) scrolls the home top to bottom
+12 px a frame with the CPU slowed 4×, and reports the frame intervals:
+- **A clip-path wipe on the headings:** with it, 9.4 % of frames went over 25 ms; switched off
+  alone, 2.0 %. The headings now lean in with a transform.
+- **A lapis glow drifting in the navy bands:** a large layer; switched off alone, 2.5 %. Removed.
+- `tools/motion.mjs` allows `stroke-dashoffset` by name for the strokes and nothing else.
+
+**Frame times, v3 → v4** (the home, 1440 px; runs interleaved v3, v4, v3, v4; two Rust builders
+compiling on the machine, so the 4× numbers swing between runs):
+
+| CPU | v3: median · p95 · over 25 ms | v4: median · p95 · over 25 ms |
+|---|---|---|
+| 1× (this PC, a Ryzen 7 laptop) | 7.0 · 7.5 ms · 0 % / 6.9 · 7.4 ms · 0 % | 7.0 · 8.2 ms · 0 % / 6.9 · 8.2 ms · 0.2 % |
+| 4× (a slow machine) | 13.5 · 27.0 ms · 7.0 % / 12.9 · 26.6 ms · 6.9 % | 16.4 · 33.4 ms · 16.0 % / 16.8 · 33.2 ms · 16.9 % |
+| 4×, phone width (390 px) | 9.8 · 20.3 ms · 1.0 % / 10.2 · 20.3 ms · 1.7 % | 10.1 · 18.6 ms · 0.8 % / 11.8 · 22.7 ms · 2.7 % |
+
+On a mid laptop it holds 60 fps with room: p95 8 ms against a 16.7 ms frame. On a phone it costs
+nothing measurable, because the heavy entrances are desktop-only. On a desktop with a CPU four
+times slower, v4 does cost frames: the 3D entrances of the large pictures, and the many
+timelines. Switch-off runs to split that remaining cost were inconclusive under the builders'
+load (the same build moved by more than the effects did). To lighten it, the pictures' depth
+and light entrances are the first candidates; measure again on a quiet machine.
+
+**Lighthouse, v3 → v4** (mobile preset, 5 runs each, medians, back to back, builders compiling):
+
+| Line | Budget | v3 | v4 |
+|---|---|---|---|
+| Largest contentful paint | ≤ 2.0 s | 1.962 s (1.959–1.964) | 1.960 s (1.960–1.963) |
+| Total blocking time | — | 163 ms (98–250) | 70 ms (59–166) |
+| Style and layout (main thread) | — | 527 ms | 439 ms |
+| Cumulative layout shift | ≤ 0.02 | 0.000 | 0.000 |
+| Accessibility | 100 | 100 | 100 |
+| Performance score | — | 97 | 99 |
+| First visit | ≤ 1 MB | 694427 B | 696140 B |
+| WebAssembly gzip | ≤ 250 000 B | 233 085 B | 233 085 B (no Rust changed) |
+
+Lighthouse CI's assertions pass for both; the LCP element is still the hero's picture. Blocking time and style work came out lower for v4, within this machine's noise (v3's own runs span 98–250 ms): read as unchanged. The first visit grows by 1.7 KB of CSS.
+
+The GIFs: `C:\projects\daw-fx\compartir\web\motion\v4\` (eleven, one per entrance and a phone scroll; v1–v3 kept).
+
 ## 4. Budgets, before and after
 
 Both built from the same sources' data (the latest release, beta.14, fetched with
@@ -281,6 +344,8 @@ its line before and after alike.
   `motion\` (v1) and `motion\v2\`.
 - v3's story (§3c): the exploded hero, the cable, the playhead and the race. Each is one block
   of `motion.css` and can be taken out alone.
+- v4's entrances (§3d): one per kind of content. They are a block of their own at the end of
+  `motion.css`, and the desktop-only ones sit in their own media query.
 - Publishing waits for round 40 (the owner): nothing here has been pushed or deployed.
 
 ## 7. The release shown on the download page

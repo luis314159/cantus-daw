@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // The site's motion, held to its rules (round fx, docs/round-fx/web.md):
-//   1. every @keyframes moves only transform and opacity (no layout, no paint-heavy property);
+//   1. every @keyframes moves only transform and opacity (no layout, no paint-heavy property),
+//      but for one named exception measured cheap (the icons' strokes);
 //   2. with `prefers-reduced-motion: reduce`, nothing is left animating once the page settles
 //      — scrolled from top to bottom — and nothing is left hidden or displaced by a reveal;
 //   3. without it, the motion is really there (so rule 2 is not passing on an empty page).
@@ -47,7 +48,7 @@ async function settle() {
     .map((a) => `${a.animationName ?? a.transitionProperty ?? "?"} on ${a.effect?.target?.className || a.effect?.target?.localName}`);
   const scrollDriven = document.getAnimations().filter((a) => a.timeline && a.timeline !== document.timeline).length;
   // a revealed element at rest: opaque and in its place
-  const off = [...document.querySelectorAll(".uc-li, .m-card, .steps li, .sys-card, .stat, .songs, .song, .fx-list, .fx-item, .studio-card, .facts li, .promises li, main h2")]
+  const off = [...document.querySelectorAll(".uc-li, .m-card, .steps li, .sys-card, .stat, .songs, .song, .song-bar, .fx-list, .fx-list li, .fx-item, .studio-card, .facts li, .promises li, .flist li, .flist .ico, .foot-cols > *, .foot-bar, .foot-brand .brand img, .backdrop, .spot, main h2")]
     .filter((el) => { const cs = getComputedStyle(el); return cs.opacity !== "1" || !["none", "matrix(1, 0, 0, 1, 0, 0)"].includes(cs.transform); })
     .slice(0, 5).map((el) => `${el.localName}.${el.className}`);
   return { running, scrollDriven, off };
@@ -61,8 +62,11 @@ try {
   await visit(tab, `${origin}/`, { width: 1440, height: 900, scheme: "dark", reducedMotion: false });
   const kf = await tab.eval(keyframeProps);
   const allowed = new Set(["transform", "opacity", "animation-timing-function"]);
+  // One exception, measured cheap with tools/frames.mjs (docs/round-fx/web.md §3d): the icons'
+  // strokes draw on 24-px SVGs.
+  const measured = { stroke: ["stroke-dashoffset"] };
   for (const [name, props] of Object.entries(kf)) {
-    const bad = props.filter((p) => !allowed.has(p));
+    const bad = props.filter((p) => !allowed.has(p) && !(measured[name] ?? []).includes(p));
     if (bad.length) breaches.push(`@keyframes ${name} animates ${bad.join(", ")}`);
   }
   console.log(`keyframes: ${Object.keys(kf).length} rules, ${Object.keys(kf).join(" ")}`);
