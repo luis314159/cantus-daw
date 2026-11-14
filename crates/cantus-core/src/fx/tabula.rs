@@ -389,6 +389,32 @@ pub fn apply_macros(spec: &mut EffectSpec) {
     }
 }
 
+/// The inverse of [`EffectSpec::flat_params`]: `flat` becomes the spec's whole parameter
+/// map — for a board, its own keys its own and each pedal's `p{id}.{key}` that pedal's
+/// (a pedal `flat` names nothing of holds nothing). What an exact undo writes back.
+pub fn put_flat_params(spec: &mut EffectSpec, flat: &std::collections::BTreeMap<String, f32>) {
+    if spec.kind != EffectKind::Board || spec.board.is_none() {
+        spec.params = flat.clone();
+        return;
+    }
+    spec.params = flat
+        .iter()
+        .filter(|(k, _)| split_key(k).is_none())
+        .map(|(k, v)| (k.clone(), *v))
+        .collect();
+    if let Some(b) = spec.board.as_deref_mut() {
+        for p in &mut b.pedals {
+            p.spec.params = flat
+                .iter()
+                .filter_map(|(k, v)| match split_key(k) {
+                    Some((id, key)) if id == p.id => Some((key.to_string(), *v)),
+                    _ => None,
+                })
+                .collect();
+        }
+    }
+}
+
 /// Repair every board of a project after a load ([`Board::sanitize`]), and take a board off
 /// any slot that is not one. Returns how many things it dropped.
 pub fn repair_project(project: &mut crate::model::Project) -> usize {

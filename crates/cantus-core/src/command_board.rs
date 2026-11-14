@@ -9,22 +9,71 @@
 //! | `SetPedalOn`, `SetPedalShape` | the old value |
 //! | `SetMacroMaps` | the old list |
 //! | `SetMacroName` | the old name |
+//! | `SetEffectIr`/`SetLapsusPattern` with a pedal | the pedal's old response / pattern |
 //!
 //! Refusals: a slot that is not a board, a duplicate id, a kind that may not be a pedal
-//! (`fx::tabula::pedal_allowed`), more than `MAX_PEDALS`, a map to a missing pedal or key,
-//! a macro past `MACROS`. An id's kind never changes (replacing a pedal is Remove + Insert
-//! in one `Batch`).
+//! (`fx::tabula::pedal_allowed`), a pedal holding a board, more than `MAX_PEDALS`, a map to
+//! a missing pedal or key (or a value that is not a number, or a target another macro
+//! moves), a macro past `MACROS`. An id's kind never changes (replacing a pedal is Remove +
+//! Insert in one `Batch`).
 //!
-//! **The wave-3 contract**: every body refuses with `"board: phase A"` until the tabula
-//! builder writes it (with its undo-fuzz arm in `tests/undo_invariants.rs`).
+//! **The canonical board** every command leaves: `EffectSpec::board` is `None` exactly when
+//! the board has no pedal and no macro, and the macro list never ends in a macro with no
+//! name and no maps — so a command and its inverse give back the very bytes it started
+//! from.
 
-use crate::command::{Command, CommandError};
+use crate::command::{slot_mut, Command, CommandError};
+use crate::effect::{EffectKind, EffectSlot};
 use crate::fx::lapsus::{Lane, Pattern};
-use crate::fx::tabula::{MacroMap, Path, Pedal, PedalId, PedalShape};
+use crate::fx::tabula::{
+    pedal_allowed, Board, Macro, MacroMap, Path, Pedal, PedalId, PedalShape, MACROS, MAX_PEDALS,
+};
 use crate::model::{EffectId, Project, StripId};
 
-fn phase_a() -> CommandError {
-    CommandError::InvalidValue("board: phase A".into())
+fn refuse(why: &str) -> CommandError {
+    CommandError::InvalidValue(format!("board: {why}"))
+}
+
+/// The board slot `effect` on `strip`; refused when it is not a board.
+fn board_slot(
+    project: &mut Project,
+    strip: StripId,
+    effect: EffectId,
+) -> Result<&mut EffectSlot, CommandError> {
+    let e = slot_mut(project, strip, effect)?;
+    if e.spec.kind != EffectKind::Board {
+        return Err(refuse("not a board"));
+    }
+    Ok(e)
+}
+
+/// The board of a slot, made when it has none (put back by [`settle`]).
+fn board_of(e: &mut EffectSlot) -> &mut Board {
+    e.spec.board.get_or_insert_with(Default::default)
+}
+
+/// The canonical form: no trailing empty macro, and no board at all when it is empty.
+fn settle(e: &mut EffectSlot) {
+    if let Some(b) = e.spec.board.as_deref_mut() {
+        while b.macros.last().is_some_and(|m| *m == Macro::default()) {
+            b.macros.pop();
+        }
+        if b.pedals.is_empty() && b.macros.is_empty() {
+            e.spec.board = None;
+        }
+    }
+}
+
+/// Whether `map` may be one of macro `macro_`'s targets on `board`: its pedal is there, its
+/// key is that pedal's, its ends are numbers, and no other macro moves that target.
+fn map_ok(board: &Board, macro_: usize, map: &MacroMap) -> bool {
+    let target = board
+        .pedal(map.pedal)
+        .is_some_and(|p| p.spec.kind.param(&map.key).is_some());
+    let other = board
+        .macro_of(map.pedal, &map.key)
+        .is_some_and(|m| m != macro_);
+    target && !other && map.from.is_finite() && map.to.is_finite()
 }
 
 pub(crate) fn insert_pedal(
@@ -35,8 +84,49 @@ pub(crate) fn insert_pedal(
     pedal: Pedal,
     maps: Vec<(u8, usize, MacroMap)>,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, index, pedal, maps);
-    Err(phase_a())
+    let e = board_slot(project, strip, effect)?;
+    if !pedal_allowed(pedal.spec.kind) {
+        return Err(refuse("a kind that may not be a pedal"));
+    }
+    if pedal.spec.board.is_some() {
+        return Err(refuse("a board inside a pedal"));
+    }
+    let b = crate::fx::tabula::board(&e.spec);
+    if b.pedal(pedal.id).is_some() {
+        return Err(refuse("a pedal id the board holds"));
+    }
+    if b.pedals.len() >= MAX_PEDALS {
+        return Err(refuse("a board holds sixteen pedals"));
+    }
+    // The maps come back with the pedal they move, each at its place in its macro's list.
+    let mut probe = b.clone();
+    let at = index.min(probe.pedals.len());
+    let id = pedal.id;
+    probe.pedals.insert(at, pedal);
+    for (m, pos, map) in &maps {
+        let m = usize::from(*m);
+        if m >= MACROS || map.pedal != id || !map_ok(&probe, m, map) {
+            return Err(refuse("a macro map"));
+        }
+        if probe.macros.len() <= m {
+            probe.macros.resize_with(m + 1, Macro::default);
+        }
+        let list = &mut probe.macros[m].maps;
+        if list
+            .iter()
+            .any(|x| x.pedal == map.pedal && x.key == map.key)
+        {
+            return Err(refuse("a macro map twice"));
+        }
+        list.insert((*pos).min(list.len()), map.clone());
+    }
+    *board_of(e) = probe;
+    settle(e);
+    Ok(Command::RemovePedal {
+        strip,
+        effect,
+        pedal: id,
+    })
 }
 
 pub(crate) fn remove_pedal(
@@ -45,8 +135,33 @@ pub(crate) fn remove_pedal(
     effect: EffectId,
     pedal: PedalId,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, pedal);
-    Err(phase_a())
+    let e = board_slot(project, strip, effect)?;
+    let Some(index) = crate::fx::tabula::board(&e.spec).index_of(pedal) else {
+        return Err(refuse("no such pedal"));
+    };
+    let b = board_of(e);
+    let gone = b.pedals.remove(index);
+    let mut maps = Vec::new();
+    for (m, mac) in b.macros.iter_mut().enumerate() {
+        let mut pos = 0;
+        mac.maps.retain(|x| {
+            let keep = x.pedal != pedal;
+            if !keep {
+                // Each at the place it had: put back in this order, each lands there.
+                maps.push((m as u8, pos, x.clone()));
+            }
+            pos += 1;
+            keep
+        });
+    }
+    settle(e);
+    Ok(Command::InsertPedal {
+        strip,
+        effect,
+        index,
+        pedal: Box::new(gone),
+        maps,
+    })
 }
 
 pub(crate) fn move_pedal(
@@ -57,8 +172,36 @@ pub(crate) fn move_pedal(
     index: usize,
     path: Path,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, pedal, index, path);
-    Err(phase_a())
+    let e = board_slot(project, strip, effect)?;
+    let Some(old) = crate::fx::tabula::board(&e.spec).index_of(pedal) else {
+        return Err(refuse("no such pedal"));
+    };
+    let b = board_of(e);
+    let mut p = b.pedals.remove(old);
+    let old_path = std::mem::replace(&mut p.path, path);
+    b.pedals.insert(index.min(b.pedals.len()), p);
+    Ok(Command::MovePedal {
+        strip,
+        effect,
+        pedal,
+        index: old,
+        path: old_path,
+    })
+}
+
+/// The pedal `pedal` of the board slot, to change in place.
+fn pedal_mut(
+    project: &mut Project,
+    strip: StripId,
+    effect: EffectId,
+    pedal: PedalId,
+) -> Result<&mut Pedal, CommandError> {
+    let e = board_slot(project, strip, effect)?;
+    e.spec
+        .board
+        .as_deref_mut()
+        .and_then(|b| b.pedal_mut(pedal))
+        .ok_or_else(|| refuse("no such pedal"))
 }
 
 pub(crate) fn set_pedal_on(
@@ -68,8 +211,14 @@ pub(crate) fn set_pedal_on(
     pedal: PedalId,
     on: bool,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, pedal, on);
-    Err(phase_a())
+    let p = pedal_mut(project, strip, effect, pedal)?;
+    let old = std::mem::replace(&mut p.on, on);
+    Ok(Command::SetPedalOn {
+        strip,
+        effect,
+        pedal,
+        on: old,
+    })
 }
 
 pub(crate) fn set_pedal_shape(
@@ -79,8 +228,14 @@ pub(crate) fn set_pedal_shape(
     pedal: PedalId,
     shape: Option<PedalShape>,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, pedal, shape);
-    Err(phase_a())
+    let p = pedal_mut(project, strip, effect, pedal)?;
+    let old = std::mem::replace(&mut p.shape, shape);
+    Ok(Command::SetPedalShape {
+        strip,
+        effect,
+        pedal,
+        shape: old,
+    })
 }
 
 pub(crate) fn set_macro_maps(
@@ -90,8 +245,32 @@ pub(crate) fn set_macro_maps(
     macro_: u8,
     maps: Vec<MacroMap>,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, macro_, maps);
-    Err(phase_a())
+    let m = usize::from(macro_);
+    if m >= MACROS {
+        return Err(refuse("a macro past the rail"));
+    }
+    let e = board_slot(project, strip, effect)?;
+    let b = crate::fx::tabula::board(&e.spec);
+    for (i, map) in maps.iter().enumerate() {
+        let twice = maps[..i]
+            .iter()
+            .any(|x| x.pedal == map.pedal && x.key == map.key);
+        if twice || !map_ok(b, m, map) {
+            return Err(refuse("a macro map"));
+        }
+    }
+    let b = board_of(e);
+    if b.macros.len() <= m {
+        b.macros.resize_with(m + 1, Macro::default);
+    }
+    let old = std::mem::replace(&mut b.macros[m].maps, maps);
+    settle(e);
+    Ok(Command::SetMacroMaps {
+        strip,
+        effect,
+        macro_,
+        maps: old,
+    })
 }
 
 pub(crate) fn set_macro_name(
@@ -101,8 +280,25 @@ pub(crate) fn set_macro_name(
     macro_: u8,
     name: Option<String>,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, macro_, name);
-    Err(phase_a())
+    let m = usize::from(macro_);
+    if m >= MACROS {
+        return Err(refuse("a macro past the rail"));
+    }
+    // A name of nothing but spaces is no name: "Macro n" again.
+    let name = name.filter(|n| !n.trim().is_empty());
+    let e = board_slot(project, strip, effect)?;
+    let b = board_of(e);
+    if b.macros.len() <= m {
+        b.macros.resize_with(m + 1, Macro::default);
+    }
+    let old = std::mem::replace(&mut b.macros[m].name, name);
+    settle(e);
+    Ok(Command::SetMacroName {
+        strip,
+        effect,
+        macro_,
+        name: old,
+    })
 }
 
 /// `Command::SetEffectIr` with `pedal: Some(_)`: the response of a board's pedal whose kind
@@ -114,8 +310,23 @@ pub(crate) fn set_pedal_ir(
     ir: Option<Box<crate::fx::aula::IrFile>>,
     pedal: Option<PedalId>,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, ir, pedal);
-    Err(phase_a())
+    let Some(id) = pedal else {
+        return Err(refuse("no pedal"));
+    };
+    let p = pedal_mut(project, strip, effect, id)?;
+    if !p.spec.kind.takes_ir() && ir.is_some() {
+        return Err(CommandError::InvalidValue("impulse response".into()));
+    }
+    if ir.as_ref().is_some_and(|f| f.path.trim().is_empty()) {
+        return Err(CommandError::InvalidValue("impulse response path".into()));
+    }
+    let old = std::mem::replace(&mut p.spec.ir, ir);
+    Ok(Command::SetEffectIr {
+        strip,
+        effect,
+        ir: old,
+        pedal,
+    })
 }
 
 /// `Command::SetLapsusPattern` with `pedal: Some(_)`: a board's Lapsus pedal's bank.
@@ -128,26 +339,35 @@ pub(crate) fn set_pedal_lapsus(
     pattern: Option<Box<Pattern>>,
     pedal: Option<PedalId>,
 ) -> Result<Command, CommandError> {
-    let _ = (project, strip, effect, lane, slot, pattern, pedal);
-    Err(phase_a())
+    let Some(id) = pedal else {
+        return Err(refuse("no pedal"));
+    };
+    let p = pedal_mut(project, strip, effect, id)?;
+    if p.spec.kind != EffectKind::TimeShaper {
+        return Err(CommandError::InvalidValue("time pattern".into()));
+    }
+    if usize::from(slot) >= crate::fx::lapsus::SLOTS {
+        return Err(CommandError::InvalidValue(format!("pattern slot {slot}")));
+    }
+    let pattern = pattern.map(|x| Box::new(x.sanitized(lane)));
+    let bank = p.spec.lapsus.get_or_insert_with(Default::default);
+    let old = match pattern {
+        Some(x) => bank.lane_mut(lane).insert(slot, *x),
+        None => bank.lane_mut(lane).remove(&slot),
+    };
+    if bank.is_empty() {
+        p.spec.lapsus = None;
+    }
+    Ok(Command::SetLapsusPattern {
+        strip,
+        effect,
+        lane,
+        slot,
+        pattern: old.map(Box::new),
+        pedal,
+    })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The contract: every body refuses, so nothing reaches a project half-built.
-    #[test]
-    fn every_board_command_refuses_until_phase_a() {
-        let mut p = Project::new("board");
-        let r = insert_pedal(
-            &mut p,
-            StripId::MASTER,
-            EffectId(1),
-            0,
-            Pedal::new(PedalId(0), crate::EffectSpec::new(crate::EffectKind::Delay)),
-            Vec::new(),
-        );
-        assert_eq!(r, Err(phase_a()));
-    }
-}
+#[path = "command_board_tests.rs"]
+mod tests;

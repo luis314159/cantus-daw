@@ -72,7 +72,8 @@ impl FxState {
         if exact {
             e.mix = self.mix;
             if e.spec.external.is_none() {
-                e.spec.params = self.params.clone();
+                // fx3:tabula — a board's `p{id}.…` back into its pedals.
+                crate::fx::tabula::put_flat_params(&mut e.spec, &self.params);
             }
             return;
         }
