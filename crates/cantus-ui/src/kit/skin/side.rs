@@ -196,11 +196,128 @@ pub const LAPSUS: Skin = Skin {
     ..tone::DELAY
 };
 
-/// Vetus, lo-fi: for now Speculum's look.
-pub const VETUS: Skin = Skin {
-    key: "fx.vetus",
-    ..tone::SPECULUM
-};
+// fx:vetus — Vetus's face (ADR 0133, provisional) in three colourways (ADR 0130
+// §Colourways); the first, Sleeve, is its face. The record and the spectrum sit on a dark
+// display in every colourway and theme (the round's rule for displays); the record keeps its
+// own colours (`skin/records.rs`).
+
+/// Vetus's face apart from its colours: dials with printed scales, bat-handle toggles, a
+/// badge, screws and vents, wide spaced capitals — a hi-fi of the seventies.
+const fn vetus(
+    key: &'static str,
+    surface: Tint,
+    accent: Pair,
+    accent2: Pair,
+    material: Material,
+    display: Display,
+) -> Skin {
+    Skin {
+        key,
+        surface,
+        accent: Some(accent),
+        accent2: Some(accent2),
+        material,
+        display,
+        knob: KnobShape::Dial,
+        switch: SwitchShape::Bat,
+        lettering: Lettering {
+            case: Case::Upper,
+            tracking: 0.14,
+            weight: Weight::SemiBold,
+            condensed: false,
+            mono_values: true,
+        },
+        plate: Plate::Badge,
+        ornaments: Ornaments {
+            screws: true,
+            vents: true,
+            rules: false,
+            rack_ears: false,
+        },
+    }
+}
+
+/// Vetus, lo-fi (*old*) — **Sleeve**, its face: a record sleeve's printed card in warm
+/// cream, the music vermilion on a dark phosphor screen, the medium's band teal. No other
+/// unit is vermilion on paper.
+pub const VETUS: Skin = vetus(
+    "fx.vetus",
+    Tint {
+        hue: 36.0,
+        sat: 0.30,
+        amount: 0.55,
+    },
+    Pair {
+        dark: chsl(12.0, 0.82, 0.63),
+        light: chsl(10.0, 0.78, 0.40),
+    },
+    Pair {
+        dark: chsl(176.0, 0.55, 0.58),
+        light: chsl(182.0, 0.75, 0.26),
+    },
+    Material::Paper,
+    Display::Phosphor,
+);
+
+/// Vetus in **Walnut**: a hi-fi cabinet's oiled walnut, brass on a fluorescent display, the
+/// band ivory.
+pub const VETUS_WALNUT: Skin = vetus(
+    "fx.vetus.walnut",
+    Tint {
+        hue: 24.0,
+        sat: 0.36,
+        amount: 0.6,
+    },
+    Pair {
+        dark: chsl(44.0, 0.78, 0.60),
+        light: chsl(38.0, 0.75, 0.32),
+    },
+    Pair {
+        dark: chsl(40.0, 0.30, 0.84),
+        light: chsl(24.0, 0.55, 0.28),
+    },
+    Material::Wood,
+    Display::Vfd,
+);
+
+/// Vetus in **Cassette**: a tape's black shell, its label's red, the band amber.
+pub const VETUS_CASSETTE: Skin = vetus(
+    "fx.vetus.cassette",
+    Tint {
+        hue: 220.0,
+        sat: 0.08,
+        amount: 0.5,
+    },
+    Pair {
+        dark: chsl(356.0, 0.80, 0.62),
+        light: chsl(354.0, 0.75, 0.42),
+    },
+    Pair {
+        dark: chsl(40.0, 0.90, 0.62),
+        light: chsl(32.0, 0.80, 0.34),
+    },
+    Material::Matte,
+    Display::Scope,
+);
+
+/// Vetus's colourways, its face first.
+pub const VETUS_COLOURWAYS: [Colourway; 3] = [
+    Colourway {
+        id: "sleeve",
+        name_key: "vetus.colourway.sleeve",
+        sheet: &VETUS,
+    },
+    Colourway {
+        id: "walnut",
+        name_key: "vetus.colourway.walnut",
+        sheet: &VETUS_WALNUT,
+    },
+    Colourway {
+        id: "cassette",
+        name_key: "vetus.colourway.cassette",
+        sheet: &VETUS_CASSETTE,
+    },
+]; // fx:vetus
 
 /// Libra, the utility: for now Latitudo's look (the stereo utility).
 pub const LIBRA: Skin = Skin {
@@ -212,6 +329,7 @@ pub const LIBRA: Skin = Skin {
 pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
     match kind {
         EffectKind::AutoFilter => &CRIBRUM_COLOURWAYS, // fx:cribrum
+        EffectKind::LoFi => &VETUS_COLOURWAYS,        // fx:vetus
         _ => &[],
     }
 }

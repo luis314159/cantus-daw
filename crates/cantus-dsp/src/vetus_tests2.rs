@@ -315,3 +315,24 @@ fn it_rests_and_is_then_as_good_as_new() {
     }
     assert_eq!(a.rest_blocker(), Some("the noise plays in silence"));
 }
+
+/// The response the editor draws is the one heard: within 0.1 dB from 40 Hz to 16 kHz for
+/// every medium.
+#[test]
+fn the_drawn_band_is_the_heard_band() {
+    for medium in Medium::ALL {
+        let s = VetusSettings {
+            tone_on: true,
+            medium,
+            lo: 180.0,
+            hi: 5_000.0,
+            res: 0.5,
+            ..VetusSettings::default()
+        };
+        for hz in [40.0f32, 120.0, 400.0, 1_100.0, 2_600.0, 7_000.0, 16_000.0] {
+            let heard = db(level(&run(&s, &sine(hz, 0.25, 48_000))[24_000..], hz) / 0.25);
+            let drawn = tone_db(&s, hz, SR);
+            assert!((heard - drawn).abs() < 0.1, "{medium:?} at {hz} Hz: heard {heard:.2}, drawn {drawn:.2}");
+        }
+    }
+}

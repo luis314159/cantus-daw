@@ -88,6 +88,9 @@ pub mod scene;
 // The finishes of pedals (Fragor, ADR 0131; any board of pedals). fx:fragor
 #[path = "skin/pedals.rs"]
 pub mod pedals;
+// The record Vetus draws (ADR 0133). fx:vetus
+#[path = "skin/records.rs"]
+pub mod records;
 #[path = "skin/textures.rs"]
 mod textures;
 

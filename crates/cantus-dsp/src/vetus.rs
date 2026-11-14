@@ -267,6 +267,39 @@ impl VetusSettings {
     }
 }
 
+/// The tone module's response at `hz` (dB), as heard: each trapezoidal state-variable
+/// section is its analogue prototype at the pre-warped frequency, so this is exact.
+pub fn tone_db(s: &VetusSettings, hz: f32, sample_rate: f32) -> f32 {
+    let w = |f: f32| {
+        let nyq = 0.4999 * f64::from(sample_rate);
+        math::tan(std::f64::consts::PI * f64::from(f).clamp(1e-3, nyq) / f64::from(sample_rate))
+    };
+    let at = w(hz);
+    // |N(s)/D(s)|² at s = jΩ for a section at `fc`: (a0 + a1·s + a2·s²) / (1 + s/q + s²).
+    let section = |fc: f32, q: f64, num: [f64; 3]| -> f64 {
+        let o = at / w(fc);
+        let (nr, ni) = (num[0] - num[2] * o * o, num[1] * o);
+        let (dr, di) = (1.0 - o * o, o / q);
+        (nr * nr + ni * ni) / (dr * dr + di * di)
+    };
+    let q = std::f64::consts::FRAC_1_SQRT_2 + 2.3 * f64::from(s.res.clamp(0.0, 1.0));
+    let (lo, hi) = (s.lo.min(0.45 * sample_rate), s.hi.min(0.45 * sample_rate));
+    let mut p = section(lo, q, [0.0, 0.0, 1.0]) * section(hi, q, [1.0, 0.0, 0.0]);
+    let (bells, steep) = s.medium.colour();
+    if steep {
+        p *= section(hi, std::f64::consts::FRAC_1_SQRT_2, [1.0, 0.0, 0.0]);
+    }
+    for (fc, bq, db) in bells {
+        if db != 0.0 {
+            let a = math::exp2(f64::from(db) / 40.0 * std::f64::consts::LOG2_10);
+            let k = 1.0 / (f64::from(bq) * a);
+            // The bell's prototype: (1 + k·A²·s + s²) / (1 + k·s + s²).
+            p *= section(fc, 1.0 / k, [1.0, k * a * a, 1.0]);
+        }
+    }
+    (10.0 * math::log10(p.max(1e-30))) as f32
+}
+
 #[cfg(test)]
 #[path = "vetus_tests.rs"]
 mod tests;
