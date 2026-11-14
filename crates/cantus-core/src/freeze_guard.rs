@@ -226,7 +226,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetPluginParam { strip: s, .. }
         | SetPluginState { strip: s, .. }
         | SetEffectMidiSource { strip: s, .. }
-        | SetEffectIr { strip: s, .. } => vec![strip(*s)], // r39:conv
+        | SetEffectIr { strip: s, .. } // r39:conv
+        | SetLapsusPattern { strip: s, .. } => vec![strip(*s)], // fx:lapsus
         // ---- clips -----------------------------------------------------------------------
         InsertClip { track, clip } => match &clip.automation {
             Some(a) => vec![Target(a.target.clone())],

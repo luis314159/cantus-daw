@@ -174,6 +174,17 @@ pub trait FxHost {
         self.set_many(&values, label_key);
     }
 
+    /// fx:lapsus — one slot of Lapsus's banks: a pattern of its own, or `None` (the
+    /// factory's), as one step of undo; the steps of one `gesture` merge into one.
+    fn set_lapsus_pattern(
+        &mut self,
+        _lane: cantus_core::fx::lapsus::Lane,
+        _slot: u8,
+        _pattern: Option<cantus_core::fx::lapsus::Pattern>,
+        _gesture: Option<u64>,
+    ) {
+    }
+
     /// Replace every parameter with `params` (a preset, the other side of A/B): what it
     /// names is set, everything else goes back to its default. One step.
     fn load(&mut self, params: &std::collections::BTreeMap<String, f32>, label_key: &str) {
@@ -323,6 +334,7 @@ pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> boo
         | C::SetEffectSidechain { effect: e, .. }
         | C::SetEffectMidiSource { effect: e, .. }
         | C::SetEffectIr { effect: e, .. } // r39:conv
+        | C::SetLapsusPattern { effect: e, .. } // fx:lapsus
         | C::SetEffectMix { effect: e, .. }
         | C::SetPluginParam { effect: e, .. }
         | C::SetPluginState { effect: e, .. } => *e == effect,
@@ -352,7 +364,8 @@ impl Drop for DawHost<'_> {
                 kind: self.spec.kind,
                 params: Default::default(),
                 external: None,
-                ir: None, // r39:conv
+                ir: None,     // r39:conv
+                lapsus: None, // fx:lapsus (the bank: phase B)
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));
@@ -686,6 +699,34 @@ impl FxHost for DawHost<'_> {
     fn load(&mut self, params: &std::collections::BTreeMap<String, f32>, label_key: &str) {
         self.app
             .apply_fx_params(self.strip, self.effect, params, label_key);
+    }
+
+    // fx:lapsus
+    fn set_lapsus_pattern(
+        &mut self,
+        lane: cantus_core::fx::lapsus::Lane,
+        slot: u8,
+        pattern: Option<cantus_core::fx::lapsus::Pattern>,
+        gesture: Option<u64>,
+    ) {
+        let cmd = cantus_core::Command::SetLapsusPattern {
+            strip: self.strip,
+            effect: self.effect,
+            lane,
+            slot,
+            pattern: pattern.map(Box::new),
+        };
+        match gesture {
+            Some(g) => {
+                self.app.exec_merging(
+                    cmd,
+                    cantus_core::MergeKey::of(&(self.tag, self.effect.0, "lapsus", g)),
+                );
+            }
+            None => {
+                self.app.exec(cmd);
+            }
+        }
     }
 
     fn context(&self) -> String {

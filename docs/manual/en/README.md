@@ -1911,7 +1911,8 @@ The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander),
 Fervor (saturation), Latitudo (stereo), Speculum (analyser), Tonus (pitch correction),
 Concentus (chorus), Flexus (flanger), Phasis (phaser), Tremor (tremolo and auto-pan),
 Vibrans (vibrato), Anulus (ring modulator), Translatio (frequency shifter), Fluctus (volume
-shaper), Cribrum (auto filter), Aula (convolution reverb), Delay and Reverb.
+shaper), Cribrum (auto filter), Fragor (distortion pedals), Lapsus (time shaper), Aula
+(convolution reverb), Delay and Reverb.
 
 ### Each unit's face
 
@@ -2254,6 +2255,36 @@ pedal).
 *History:* the five circuits are those of the Ibanez TS808 Tube Screamer, the ProCo RAT,
 the Boss DS-1, the Dallas Arbiter Fuzz Face and the Electro-Harmonix Big Muff π, modelled
 from their published schematics; the names and the pictures in Cantus are its own.
+
+### Lapsus, the time shaper
+
+**Lapsus** (Latin for *a slip*) bends time and level to the beat, as FL Studio's Gross Beat
+does: tape stops and starts, half time, stutters and rolls, reverse, scratches, gates and
+pumps. It holds two banks of thirty-six patterns — **time** patterns and **volume**
+patterns — chosen apart and played together. Insert it from the picker (under Modulation);
+it starts on *Half time* (every half bar's first beat an octave down), so it is heard at once.
+
+**The timeline.** The time curve is drawn above, the level below, over the longer of the two
+patterns' cycles. The time curve's height is **how far behind the music it reads**: flat at
+the top is the music as it comes; a line falling at the diagonal is the tape stopped; half
+that slope is half speed; steeper is reverse; a held step is a repeat. What lies before the
+cycle's start is never read (*Before the cycle: silence*). While it plays, the playhead
+crosses both lanes and **the slip** — the dashed line to the ruler — shows where the music is
+read from. Drag a point (Shift: off the grid), double-click to add or remove one, drag a line
+to bend it; choose *Pencil* to paint steps a grid cell at a time. Every edit is one step of
+undo.
+
+**The banks.** The pads show the time bank or the volume bank (the switch on top names what
+each plays). A click plays a pattern; a right-click gives a slot the factory's pattern back.
+Notes play them too: from *Time note* (C4) up for the time bank, from *Volume note* (C1) up for
+the volume bank — switched until another note, or only while held (*Each note*), and from
+their beginning with *Restart on note*. Route a track's notes to it from the insert's menu.
+
+**Exact.** With both banks on *Through* (pattern 1) Lapsus passes the sound untouched, to the
+bit. Jumps of the time curve are crossfaded (*Crossfade*, 2 ms), the level glides
+(*Smooth*); a tape stop ends on the bar's own sample at any tempo, and a render from any bar
+is the whole render there. *Ahead* lets the time curve read the future at the cost of that
+much latency (compensated).
 
 ### Delay, the stereo delay
 

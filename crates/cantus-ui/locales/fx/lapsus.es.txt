@@ -1,8 +1,178 @@
 # Lapsus (ronda lateral de efectos) — de Lapsus. Cada clave necesita su gemela en lapsus.en.txt.
 effect.lapsus = Lapsus moldeador de tiempo
 fx.lapsus.about = Dobla el tiempo y el volumen al compás: paradas de cinta, medio tiempo, tartamudeos y scratch, dibujados como envolventes.
-fx.lapsus.out = Salida
 picker.dev.lapsus.name = Lapsus
 picker.dev.lapsus.what = Moldeador de tiempo
 picker.dev.lapsus.about = Dobla el tiempo y el volumen al compás: paradas de cinta, medio tiempo, tartamudeos y scratch, dibujados como envolventes.
 mixer.chain.lapsus = Tiempo
+
+# Parámetros
+fx.lapsus.mix = Mezcla
+fx.lapsus.xfade = Fundido
+fx.lapsus.smooth = Suavizado
+fx.lapsus.notes = Notas
+fx.lapsus.retrig = Reinicio con nota
+fx.lapsus.ahead = Anticipo
+fx.lapsus.out = Salida
+
+# Qué hace una nota
+lapsus.notes.0 = No
+lapsus.notes.1 = Cambia
+lapsus.notes.2 = Mantiene
+
+# Las tarjetas
+lapsus.card.timeline = Tiempo y nivel
+lapsus.card.bank = Bancos
+lapsus.card.pattern = Patrón
+lapsus.card.joins = Uniones
+lapsus.card.notes = Notas
+lapsus.card.output = Salida
+
+# La línea de tiempo
+lapsus.lane.time = Tiempo
+lapsus.lane.level = Nivel
+lapsus.now = ahora
+lapsus.before = Antes del ciclo: silencio
+lapsus.speed = Velocidad
+lapsus.idle = Directo: el sonido pasa intacto. Elige un patrón en el banco o toca su nota.
+lapsus.timeline_tip = El patrón que suena
+
+# La tarjeta del patrón
+lapsus.length = Compases
+lapsus.grid = Rejilla
+lapsus.draw = Dibujo
+lapsus.tool.points = Puntos
+lapsus.tool.pencil = Lápiz
+lapsus.edit = Edición
+lapsus.edit.copy = Copiar
+lapsus.edit.paste = Pegar
+lapsus.edit.clear = Borrar
+lapsus.each_note = Cada nota
+lapsus.beats = tiempos
+lapsus.len.0 = 1/4 de compás
+lapsus.len.1 = 1/2 compás
+lapsus.len.2 = 1 compás
+lapsus.len.3 = 2 compases
+lapsus.len.4 = 4 compases
+
+# El banco
+lapsus.pad_how = Clic: toca este patrón. Clic derecho: vuelve el patrón de fábrica. Su nota también lo toca.
+
+# Los parámetros de los dos bancos
+fx.lapsus.tslot = Patrón de tiempo
+fx.lapsus.vslot = Patrón de volumen
+fx.lapsus.tkey = Nota tiempo
+fx.lapsus.vkey = Nota volumen
+fx.lapsus.tkey.short = Tiempo
+fx.lapsus.vkey.short = Volumen
+lapsus.first_notes = Primeras notas
+lapsus.bank.time = Tiempo
+lapsus.bank.vol = Volumen
+lapsus.bank.which = Banco a la vista
+
+# Las filas y los patrones de los bancos
+lapsus.trow.0 = Parada
+lapsus.trow.1 = Velocidad
+lapsus.trow.2 = Repetir
+lapsus.trow.3 = Reversa
+lapsus.trow.4 = Scratch
+lapsus.trow.5 = Malabares
+lapsus.vrow.0 = Puerta
+lapsus.vrow.1 = Ritmo
+lapsus.vrow.2 = Bombeo
+lapsus.vrow.3 = Fundido
+lapsus.vrow.4 = Trémolo
+lapsus.vrow.5 = Corte
+lapsus.tslot.0 = Directo
+lapsus.tslot.1 = Parada de cinta
+lapsus.tslot.2 = Parada de cinta ½
+lapsus.tslot.3 = Parada de cinta ¼
+lapsus.tslot.4 = Arranque de cinta
+lapsus.tslot.5 = Para y arranca
+lapsus.tslot.6 = Medio tiempo
+lapsus.tslot.7 = Medio tiempo ½
+lapsus.tslot.8 = Medio tiempo ¼
+lapsus.tslot.9 = Cuarto de tiempo
+lapsus.tslot.10 = Frenada
+lapsus.tslot.11 = Disco alabeado
+lapsus.tslot.12 = Repite el tercero
+lapsus.tslot.13 = Tartamudeo ⅛
+lapsus.tslot.14 = Tartamudeo 1/16
+lapsus.tslot.15 = Tartamudeo 1/32
+lapsus.tslot.16 = Redoble creciente
+lapsus.tslot.17 = Repetición de tiempo
+lapsus.tslot.18 = Reversa ½
+lapsus.tslot.19 = Reversa cada dos
+lapsus.tslot.20 = Reversa del último tiempo
+lapsus.tslot.21 = Reversa en cada tiempo
+lapsus.tslot.22 = Rebobinado
+lapsus.tslot.23 = Giro atrás
+lapsus.tslot.24 = Baby scratch
+lapsus.tslot.25 = Scratch lento
+lapsus.tslot.26 = Tear
+lapsus.tslot.27 = Garabato
+lapsus.tslot.28 = Arrastre
+lapsus.tslot.29 = Scratch atrás
+lapsus.tslot.30 = Medio compás dos veces
+lapsus.tslot.31 = Malabar de tiempos
+lapsus.tslot.32 = Repetición con puntillo
+lapsus.tslot.33 = Tartamudeo de tresillo
+lapsus.tslot.34 = Tartamudeo ½
+lapsus.tslot.35 = Eco repetido
+lapsus.vslot.0 = Directo
+lapsus.vslot.1 = En el tiempo
+lapsus.vslot.2 = A contratiempo
+lapsus.vslot.3 = Puerta 1/16
+lapsus.vslot.4 = Puerta 1/32
+lapsus.vslot.5 = Puerta trance
+lapsus.vslot.6 = Puerta trance 2
+lapsus.vslot.7 = Puerta trance 3
+lapsus.vslot.8 = Puerta trance 4
+lapsus.vslot.9 = Tresillos
+lapsus.vslot.10 = Tresillo cubano
+lapsus.vslot.11 = Galope
+lapsus.vslot.12 = Bombeo
+lapsus.vslot.13 = Bombeo ½
+lapsus.vslot.14 = Bombeo fuerte
+lapsus.vslot.15 = Bombeo suave
+lapsus.vslot.16 = Agacha ⅛
+lapsus.vslot.17 = Crecida
+lapsus.vslot.18 = Entrada gradual
+lapsus.vslot.19 = Salida gradual
+lapsus.vslot.20 = Entra y sale
+lapsus.vslot.21 = Apaga el último tiempo
+lapsus.vslot.22 = Apaga la última mitad
+lapsus.vslot.23 = Caída de parada
+lapsus.vslot.24 = Trémolo ⅛
+lapsus.vslot.25 = Trémolo 1/16
+lapsus.vslot.26 = Trémolo lento
+lapsus.vslot.27 = Sierra abajo
+lapsus.vslot.28 = Sierra arriba
+lapsus.vslot.29 = Eco que se apaga
+lapsus.vslot.30 = Corta el último tiempo
+lapsus.vslot.31 = Corta dos y cuatro
+lapsus.vslot.32 = Corta el final de cada mitad
+lapsus.vslot.33 = Transformer
+lapsus.vslot.34 = Picado
+lapsus.vslot.35 = Silencio
+lapsus.timeline_how = Arrastra un punto (Mayús: fuera de la rejilla), doble clic para añadir o quitar uno, arrastra una línea para curvarla; el lápiz pinta escalones. Arriba, cuánto lee por detrás de la música; abajo, el nivel.
+cmd.lapsus_pattern = Editar un patrón de Lapsus
+
+# Presets de fábrica
+preset.lapsus.half_time = Medio tiempo
+preset.lapsus.tape_stop = Parada de cinta
+preset.lapsus.tape_stop_bar = Parada de cinta, un compás
+preset.lapsus.tape_start = Arranque de cinta
+preset.lapsus.slow_down = Frenada
+preset.lapsus.wobble = Disco alabeado
+preset.lapsus.roll_build = Redoble creciente
+preset.lapsus.beat_repeat = Repetición de tiempo
+preset.lapsus.gated_stutter = Tartamudeo cortado
+preset.lapsus.reverse_half = Media reversa
+preset.lapsus.backspin = Giro atrás
+preset.lapsus.baby_scratch = Baby scratch
+preset.lapsus.transformer = Transformer
+preset.lapsus.trance_gate = Puerta trance
+preset.lapsus.pump = Bombeo
+preset.lapsus.half_time_chop = Medio tiempo picado
+preset.lapsus.echo_repeat = Eco repetido

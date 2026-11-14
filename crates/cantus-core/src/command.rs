@@ -595,6 +595,16 @@ pub enum Command {
         effect: EffectId,
         ir: Option<Box<crate::fx::aula::IrFile>>,
     },
+    /// fx:lapsus — one slot of one of Lapsus's banks ([`crate::EffectSpec::lapsus`], ADR
+    /// 0132): a pattern of its own (sanitized into the bank's ranges), or `None`, the
+    /// factory's again. Refused for any other kind and a slot past the bank.
+    SetLapsusPattern {
+        strip: StripId,
+        effect: EffectId,
+        lane: crate::fx::lapsus::Lane,
+        slot: u8,
+        pattern: Option<Box<crate::fx::lapsus::Pattern>>,
+    },
 
     // --- clips ------------------------------------------------------------------------
     InsertClip {
@@ -1050,6 +1060,7 @@ impl Command {
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
             SetEffectIr { .. } => "cmd.set_effect_ir", // r39:conv
+            SetLapsusPattern { .. } => "cmd.lapsus_pattern", // fx:lapsus
             SetTrackHeight { .. } => "cmd.set_track_height",
             SetTrackIcon { .. } => "cmd.set_track_icon",
             SetTrackMute { .. } => "cmd.set_track_mute",
@@ -2517,6 +2528,38 @@ impl Command {
                     strip,
                     effect,
                     ir: old,
+                })
+            }
+            // fx:lapsus
+            SetLapsusPattern {
+                strip,
+                effect,
+                lane,
+                slot,
+                pattern,
+            } => {
+                let e = slot_mut(project, strip, effect)?;
+                if e.spec.kind != crate::EffectKind::TimeShaper {
+                    return Err(CommandError::InvalidValue("time pattern".into()));
+                }
+                if usize::from(slot) >= crate::fx::lapsus::SLOTS {
+                    return Err(CommandError::InvalidValue(format!("pattern slot {slot}")));
+                }
+                let pattern = pattern.map(|p| Box::new(p.sanitized(lane)));
+                let bank = e.spec.lapsus.get_or_insert_with(Default::default);
+                let old = match pattern {
+                    Some(p) => bank.lane_mut(lane).insert(slot, *p),
+                    None => bank.lane_mut(lane).remove(&slot),
+                };
+                if bank.is_empty() {
+                    e.spec.lapsus = None;
+                }
+                Ok(SetLapsusPattern {
+                    strip,
+                    effect,
+                    lane,
+                    slot,
+                    pattern: old.map(Box::new),
                 })
             }
             ClearEffectParam { strip, effect, key } => {

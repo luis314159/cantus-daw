@@ -2079,7 +2079,8 @@ Tonsor (recortador), Impetus (moldeador de transitorios), Discrimen (divisor de
 transitorios), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Speculum
 (analizador), Tonus (corrección de afinación), Concentus (chorus), Flexus (flanger), Phasis
 (phaser), Tremor (trémolo y auto-pan), Vibrans (vibrato), Anulus (modulador en anillo),
-Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Cribrum (filtro automático), Aula (reverb de convolución), Delay y Reverb.
+Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Cribrum (filtro automático),
+Fragor (pedales de distorsión), Lapsus (moldeador de tiempo), Aula (reverb de convolución), Delay y Reverb.
 
 ### La cara de cada unidad
 
@@ -2448,6 +2449,38 @@ canales, como un pedal de verdad).
 *Historia:* los cinco circuitos son los del Ibanez TS808 Tube Screamer, el ProCo RAT, el
 Boss DS-1, el Dallas Arbiter Fuzz Face y el Electro-Harmonix Big Muff π, modelados a partir
 de sus esquemas publicados; los nombres y los dibujos en Cantus son propios.
+
+### Lapsus, el moldeador de tiempo
+
+**Lapsus** (en latín, *un desliz*) dobla el tiempo y el nivel al compás, como el Gross Beat de
+FL Studio: paradas y arranques de cinta, medio tiempo, tartamudeos y redobles, reversa,
+scratch, puertas y bombeos. Tiene dos bancos de treinta y seis patrones — patrones de
+**tiempo** y patrones de **volumen** — elegidos por separado y tocados juntos. Insértalo desde
+el selector (en Modulación); empieza en *Medio tiempo* (el primer tiempo de cada medio compás
+una octava abajo), así que se oye enseguida.
+
+**La línea de tiempo.** La curva de tiempo arriba y el nivel abajo, sobre el ciclo más largo
+de los dos patrones. La altura de la curva de tiempo es **cuánto lee por detrás de la
+música**: plana arriba es la música tal como llega; bajando por la diagonal, la cinta parada;
+la mitad de esa pendiente, media velocidad; más empinada, reversa; un escalón sostenido, una
+repetición. Lo que hay antes del inicio del ciclo nunca se lee (*Antes del ciclo: silencio*).
+Mientras suena, el cursor cruza las dos franjas y **el desliz** — la línea discontinua hasta
+la regla — muestra de dónde se lee la música. Arrastra un punto (Mayús: fuera de la
+rejilla), doble clic para añadir o quitar uno, arrastra una línea para curvarla; elige
+*Lápiz* para pintar escalones de una celda de la rejilla. Cada edición es un paso de deshacer.
+
+**Los bancos.** Los botones muestran el banco de tiempo o el de volumen (el selector de arriba
+nombra lo que toca cada uno). Un clic toca un patrón; un clic derecho devuelve a la ranura el
+patrón de fábrica. Las notas también los tocan: desde *Nota tiempo* (C4) hacia arriba el banco
+de tiempo, desde *Nota volumen* (C1) el de volumen — cambiando hasta la siguiente nota, o solo
+mientras se mantienen (*Cada nota*), y desde su inicio con *Reinicio con nota*. Envíale las
+notas de una pista desde el menú del inserto.
+
+**Exacto.** Con los dos bancos en *Directo* (patrón 1) Lapsus deja pasar el sonido intacto,
+bit a bit. Los saltos de la curva de tiempo se funden (*Fundido*, 2 ms) y el nivel se desliza
+(*Suavizado*); una parada de cinta termina en la muestra exacta del compás a cualquier tempo,
+y un render desde cualquier compás es el render completo ahí. *Anticipo* deja que la curva
+lea el futuro a cambio de esa latencia (compensada).
 
 ### Delay, el delay estéreo
 

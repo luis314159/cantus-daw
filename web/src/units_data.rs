@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 25] = [
+pub const EFFECTS: [Unit; 28] = [ // fx: Cribrum, Fragor and Lapsus
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -737,6 +737,27 @@ pub const EFFECTS: [Unit; 25] = [
         ab: None,
         big: (1800, 1286),
         thumb: (640, 457),
+    },
+
+    // fx:lapsus — Lapsus, the time shaper (fx side round).
+    Unit {
+        file: "lapsus",
+        name: "Lapsus",
+        kind: ("Time shaper", "Moldeador de tiempo"),
+        pitch: ("Tape stops, half time, stutters, reverse and scratches drawn on the beat: Gross Beat's job, exact to the sample.", "Paradas de cinta, medio tiempo, tartamudeos, reversa y scratch dibujados al compás: el trabajo de Gross Beat, exacto a la muestra."),
+        what: long!(("Lapsus (Latin for a slip) bends time and level to the beat. As Gross Beat does, it holds 36 time patterns and 36 volume patterns, chosen apart and played together by their knobs, their pads or a note of each bank's range. A time pattern draws how far behind the music it reads — flat is the music, a fall at the diagonal is the tape stopped, half that is half speed, steeper is reverse, a held step a repeat — and its window shows it over the music, with the slip from where the song is to where it is read.", "Lapsus (en latín, un desliz) dobla el tiempo y el nivel al compás. Como Gross Beat, tiene 36 patrones de tiempo y 36 de volumen, elegidos por separado y tocados juntos con sus perillas, sus botones o una nota del rango de cada banco. Un patrón de tiempo dibuja cuánto lee por detrás de la música — plano es la música, una caída por la diagonal es la cinta parada, la mitad es media velocidad, más empinada es reversa, un escalón una repetición — y su ventana lo muestra sobre la música, con el desliz desde donde va la canción hasta donde se lee.")),
+        features: long!(&[
+            ("36 time and 36 volume patterns, combined freely, each switched by notes or automation", "36 patrones de tiempo y 36 de volumen, combinados libremente, cada uno cambiado por notas o automatización"),
+            ("Draw them: points, tension, six segment shapes, a pencil snapped to the grid", "Dibújalos: puntos, tensión, seis formas de tramo, un lápiz ajustado a la rejilla"),
+            ("Every jump crossfaded (30× smoother than a hard join, measured); a 32-tap sinc read, −95 dB", "Cada salto con fundido (30 veces más suave que un corte, medido); lectura con sinc de 32 tomas, −95 dB"),
+            ("A tape stop ends on the bar to the sample at any tempo; a render from any bar matches the full render, to the bit", "Una parada de cinta termina en la muestra del compás a cualquier tempo; un render desde cualquier compás coincide con el completo, bit a bit"),
+            ("Tape stop and start, half and quarter time, rolls, beat repeats, reverse, backspin, scratches, gates and pumps", "Parada y arranque de cinta, medio y cuarto de tiempo, redobles, repeticiones, reversa, giro atrás, scratch, puertas y bombeos"),
+        ]),
+        presets: Some(17),
+        plugin: true,
+        ab: None,
+        big: (1800, 1098),
+        thumb: (640, 391),
     },
 
     // r37:library — Delay: its card plays its presets too. r39:delay — its own window (ADR 0115).

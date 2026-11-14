@@ -161,6 +161,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::AutoFilter => Vec2::new(1120.0, 800.0), // fx:cribrum
         // Fragor: the sound over the pedalboard, the board's controls beside it.
         EffectKind::Pedal => Vec2::new(1140.0, 800.0), // fx:fragor
+        // Lapsus: the timeline and the bank beside it over a row of four cards.
+        EffectKind::TimeShaper => Vec2::new(1180.0, 720.0), // fx:lapsus
         _ => Vec2::new(1000.0, 640.0),
     }
 }

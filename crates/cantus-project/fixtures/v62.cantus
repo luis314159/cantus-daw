@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 62,
   "app_version": "fixture",
-  "saved_at": 1794580057,
+  "saved_at": 1794618259,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3455,7 +3455,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "008ef29d647e6a08743c6032c2dbf0c8be34825f99a10b3e3741190ec1320fe4"
+          "content": "ae74310aa25e30ee2c7bd90a537c9d2097e4cbc6642e733cc95997043ba36710"
         }
       },
       {
@@ -3557,7 +3557,36 @@
             "spec": {
               "kind": "TimeShaper",
               "params": {
-                "out": 0.0
+                "ahead": 0.0,
+                "mix": 1.0,
+                "notes": 2.0,
+                "out": 0.0,
+                "retrig": 0.0,
+                "smooth": 1.0,
+                "tkey": 60.0,
+                "tslot": 0.0,
+                "vkey": 24.0,
+                "vslot": 0.0,
+                "xfade": 2.0
+              },
+              "lapsus": {
+                "vol": {
+                  "4": {
+                    "len": 1,
+                    "points": [
+                      {
+                        "x": 0.0,
+                        "y": 1.0,
+                        "s": 2
+                      },
+                      {
+                        "x": 0.5,
+                        "y": 0.25
+                      }
+                    ],
+                    "name": "Half gate"
+                  }
+                }
               }
             },
             "mix": 1.0,
@@ -6309,5 +6338,5 @@
     ],
     "next_id": 133
   },
-  "integrity": "55bd76e04504966da94c3a6a1a22ddeed876ca3680ee2032df902762667e4d12"
+  "integrity": "1c439f0107b3bff3efed055ae2af17048596b2923e1029761e017e9ac1c4849a"
 }
