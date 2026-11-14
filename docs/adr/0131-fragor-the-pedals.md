@@ -152,8 +152,10 @@ Newton every oversampled sample cost more than curves.
 ### The editor
 
 Its face is palette A of the three the owner was shown (warm amber, a valve amp's
-character); B (cream and brass) and C (steel with one signal red) are kept as data
-(`kit::skin::FRAGOR_COLOURWAYS`) for when colourways land. Its panels are smoked glass,
+character); B and C are offered as its colourways (ADR 0130 §Colourways; the integration,
+2026-11-14), **Cream** (cream and brass, on printed card — brushed metal near this brass is
+Aula's and Calor's — with a bottle-green second voice) and **Steel** (steel with one signal
+red), chosen in the window's ⋯ menu (`kit::skin::FRAGOR_COLOURWAYS`). Its panels are smoked glass,
 as a valve's envelope and the screen's pane (near this amber the other materials are worn
 by Phasis, Fervor, Chorda, Aula, Lapsus and Clipper, and siblings never look alike), and
 its second voice a filament's white heat, nearly unsaturated, so the display's two voices

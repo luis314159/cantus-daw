@@ -107,3 +107,7 @@ preset.fragor.lofi_radio = Radio pequeña
 fragor.size.0 = Compacto
 fragor.size.1 = Tamaño normal
 fragor.size.2 = Grande
+fragor.colourway = Acabado
+fragor.colourway.valve = Válvula
+fragor.colourway.cream = Crema
+fragor.colourway.steel = Acero

@@ -100,8 +100,9 @@ Two new effect kinds: `EffectKind::LoFi` (Latin *vetus*, old), `fx::vetus`, and
     keeps a choice for its session.
 13. **The face** comes in three colourways: **Cassette** (the face, the owner's choice: a
     tape's glossy black lacquer, its label's red, the band a label's cream), **Sleeve** (a
-    record sleeve's light cream card, vermilion and teal) and **Walnut** (oiled walnut, brass
-    on a fluorescent display). Every display is dark in both themes; no vents (the owner).
+    record sleeve's light cream card, vermilion and teal) and **Walnut** (oiled walnut, old
+    gold on a fluorescent display — at 31°: a brass at 44° on wood was 8° from Anulus's, and
+    every offered colourway keeps the house rule since the integration). Every display is dark in both themes; no vents (the owner).
 14. **Starting preset** (ADR 0071): *Worn cassette* — wow and flutter, tape hiss, the tape's
     band, a little wear, at its fitted level. Fourteen factory presets by style and role.
 15. **Exported** as `Cantus Vetus` (CLAP/VST3), bit-identical to the engine's unit.

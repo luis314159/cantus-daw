@@ -1,10 +1,8 @@
-//! The fx side round's faces (provisional ADRs 0130–0133). **The contract's placeholders**:
-//! each new unit wears a sibling's look under a key of its own, so every unit keeps a sheet
-//! of its own (`tests/skins.rs`) until its builder draws the real face. The looks are
-//! borrowed from the tone family, whose tests compare its sheets among themselves only (the
-//! dynamics and modulation families refuse a stranger sharing a hue and a material with
-//! theirs). Each builder replaces its own sheet here — and only its own — with one that
-//! differs from every other unit's in hue or material, display included.
+//! The fx side round's faces (provisional ADRs 0130–0133): Cribrum, Fragor, Lapsus, Vetus and
+//! Libra, and the colourways the user can choose for them (ADR 0130 §Colourways). The tests
+//! below hold every face **and every offered colourway** to the house rule: none shares a
+//! material and an accent within 20° with any other unit's face or colourway, and no two of
+//! the round's sheets speak in the same voices.
 
 use super::super::color::Hsl;
 use super::{
@@ -105,7 +103,8 @@ pub const CRIBRUM_BRASS: Skin = cribrum(
 );
 
 /// Cribrum in **Petrol**: deep teal-blue lacquer, the response hot orange on a phosphor
-/// screen, the movement lime.
+/// screen, the movement lime. The orange sits at 20° (it was 24°, 19° from Chorda's gold
+/// lacquer: the house rule wants more than 20°).
 pub const CRIBRUM_PETROL: Skin = cribrum(
     "fx.cribrum.petrol",
     Tint {
@@ -114,8 +113,8 @@ pub const CRIBRUM_PETROL: Skin = cribrum(
         amount: 0.6,
     },
     Pair {
-        dark: chsl(24.0, 0.95, 0.62),
-        light: chsl(20.0, 0.85, 0.40),
+        dark: chsl(20.0, 0.95, 0.62),
+        light: chsl(16.0, 0.85, 0.40),
     },
     Pair {
         dark: chsl(84.0, 0.70, 0.62),
@@ -334,8 +333,8 @@ pub const VETUS_SLEEVE: Skin = vetus(
     Display::Phosphor,
 );
 
-/// Vetus in **Walnut**: a hi-fi cabinet's oiled walnut, brass on a fluorescent display, the
-/// band ivory.
+/// Vetus in **Walnut**: a hi-fi cabinet's oiled walnut, old gold on a fluorescent display,
+/// the band ivory. The gold sits at 31° (a brass at 44° was 8° from Anulus's on wood).
 pub const VETUS_WALNUT: Skin = vetus(
     "fx.vetus.walnut",
     Tint {
@@ -344,8 +343,8 @@ pub const VETUS_WALNUT: Skin = vetus(
         amount: 0.6,
     },
     Pair {
-        dark: chsl(44.0, 0.78, 0.60),
-        light: chsl(38.0, 0.75, 0.32),
+        dark: chsl(31.0, 0.78, 0.60),
+        light: chsl(30.0, 0.75, 0.32),
     },
     Pair {
         dark: chsl(40.0, 0.30, 0.84),
@@ -418,6 +417,7 @@ pub const LIBRA: Skin = Skin {
 pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
     match kind {
         EffectKind::AutoFilter => &CRIBRUM_COLOURWAYS, // fx:cribrum
+        EffectKind::Pedal => &FRAGOR_COLOURWAYS,       // fx:fragor
         EffectKind::LoFi => &VETUS_COLOURWAYS,         // fx:vetus
         _ => &[],
     }
@@ -435,11 +435,13 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
     }
 }
 
-// fx:fragor — the two palettes the owner was shown beside the one he chose (2026-11-13):
-// kept as data, to become Fragor's colourways when the colourway mechanism lands.
-/// B: cream and brass, vintage.
+// fx:fragor — the two palettes the owner was shown beside the one he chose (2026-11-13),
+// offered as Fragor's colourways (ADR 0130 §Colourways) after his own, Valve.
+/// **Cream**: cream and brass, vintage — a printed card's cream (paper: brushed metal near
+/// this brass is Aula's and Calor's), the second voice a bottle green (a brick red beside the
+/// brass spoke in Vetus's two voices, and beside Cribrum's Brass body).
 pub const FRAGOR_B: Skin = Skin {
-    key: "fx.fragor.b",
+    key: "fx.fragor.cream",
     surface: Tint {
         hue: 42.0,
         sat: 0.30,
@@ -450,16 +452,16 @@ pub const FRAGOR_B: Skin = Skin {
         light: hsl(40.0, 0.70, 0.32),
     }),
     accent2: Some(Pair {
-        dark: hsl(8.0, 0.50, 0.60),
-        light: hsl(6.0, 0.55, 0.36),
+        dark: hsl(120.0, 0.45, 0.58),
+        light: hsl(124.0, 0.50, 0.30),
     }),
-    material: Material::Brushed,
+    material: Material::Paper,
     display: Display::Vfd,
     ..FRAGOR
 }; // fx:fragor
-/// C: steel with a single signal red.
+/// **Steel**: steel with a single signal red.
 pub const FRAGOR_C: Skin = Skin {
-    key: "fx.fragor.c",
+    key: "fx.fragor.steel",
     surface: Tint {
         hue: 212.0,
         sat: 0.06,
@@ -477,15 +479,31 @@ pub const FRAGOR_C: Skin = Skin {
     display: Display::Scope,
     ..FRAGOR
 }; // fx:fragor
-/// Fragor's colourways besides its own face: B, C. fx:fragor
-pub const FRAGOR_COLOURWAYS: [&Skin; 2] = [&FRAGOR_B, &FRAGOR_C];
+/// Fragor's colourways, its face first: Valve (the owner's pick), Cream and Steel. fx:fragor
+pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
+    Colourway {
+        id: "valve",
+        name_key: "fragor.colourway.valve",
+        sheet: &FRAGOR,
+    },
+    Colourway {
+        id: "cream",
+        name_key: "fragor.colourway.cream",
+        sheet: &FRAGOR_B,
+    },
+    Colourway {
+        id: "steel",
+        name_key: "fragor.colourway.steel",
+        sheet: &FRAGOR_C,
+    },
+];
 
 // fx:lapsus — the side round's faces never wear another's look (the integration review:
 // Fragor and Lapsus were both amber glass; Lapsus's blue was Cribrum's, its body Petrol's).
 #[cfg(test)]
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
-    use super::{CRIBRUM, FRAGOR, FRAGOR_COLOURWAYS, LAPSUS, LIBRA, VETUS};
+    use super::{CRIBRUM, FRAGOR, LAPSUS, LIBRA, VETUS};
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -495,8 +513,7 @@ mod tests {
     /// Two hues within this many degrees are one colour at a glance.
     const BAND: f32 = 15.0;
 
-    /// The side round's faces as drawn: a placeholder still wearing a sibling's look
-    /// (Vetus, Libra until their builders draw them) joins the moment it is drawn.
+    /// The side round's faces as drawn (a sheet still wearing a sibling's look is left out).
     fn faces() -> Vec<&'static Skin> {
         [&CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA]
             .into_iter()
@@ -547,15 +564,15 @@ mod tests {
         s.surface.sat * s.surface.amount >= 0.1
     }
 
-    /// The house rule (every family's): no face shares a material and an accent within
-    /// 20° with any other unit's face or colourway.
+    /// The house rule (every family's): no face of the round, and no colourway a user can
+    /// choose for it, shares a material and an accent within 20° with any other unit's face
+    /// or colourway.
     #[test]
-    fn no_face_of_the_side_round_shares_material_and_accent_with_another_unit() {
+    fn no_face_or_colourway_of_the_side_round_shares_material_and_accent_with_another_unit() {
         let mut others: Vec<&'static Skin> = Unit::all().into_iter().map(of).collect();
         others.extend(faces_and_colourways());
-        others.extend(FRAGOR_COLOURWAYS);
         let mut bad = Vec::new();
-        for s in faces() {
+        for s in faces_and_colourways() {
             let a = s.accent.expect("a face has an accent").dark.h;
             for o in &others {
                 let Some(oa) = o.accent else { continue };

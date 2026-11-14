@@ -66,11 +66,9 @@ mod instruments;
 mod modulation;
 #[path = "skin/tone.rs"]
 mod tone;
-// fx:contract — the fx side round's placeholder faces (each builder replaces its own).
+// fx:contract — the fx side round's faces and their colourways.
 #[path = "skin/side.rs"]
 mod side;
-/// Fragor's colourways besides its face (data until the colourway mechanism). fx:fragor
-pub use side::FRAGOR_COLOURWAYS;
 
 #[path = "skin/displays.rs"]
 pub mod displays;

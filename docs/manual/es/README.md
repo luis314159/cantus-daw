@@ -2517,6 +2517,11 @@ entra a los pedales), **Mezcla**, **Salida**, **Calidad** (sobremuestreo 2×, 4�
 quita más aliasing y cuesta más) y **Estéreo / Mono** (un solo circuito para los dos
 canales, como un pedal de verdad).
 
+**Su aspecto:** el menú **⋯** de la ventana ofrece tres acabados — **Válvula** (el ámbar de
+un amplificador de válvulas de noche, su cara), **Crema** (cartón crema y latón) y **Acero**
+(acero con un solo rojo de señal). La elección es tuya para todos los Fragor y se guarda
+entre sesiones; nunca cambia el sonido.
+
 *Historia:* los cinco circuitos son los del Ibanez TS808 Tube Screamer, el ProCo RAT, el
 Boss DS-1, el Dallas Arbiter Fuzz Face y el Electro-Harmonix Big Muff π, modelados a partir
 de sus esquemas publicados; los nombres y los dibujos en Cantus son propios.

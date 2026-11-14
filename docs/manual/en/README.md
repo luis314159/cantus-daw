@@ -2318,6 +2318,11 @@ pedals), **Mix**, **Output**, **Quality** (oversampling 2×, 4× or 8×; more re
 aliasing and costs more) and **Stereo / Mono** (one circuit for both channels, as a real
 pedal).
 
+**Its look:** the window's **⋯** menu offers three colourways — **Valve** (the amber of a
+valve amp at night, its face), **Cream** (cream card and brass) and **Steel** (steel with one
+signal red). The choice is yours for every Fragor and is kept between sessions; it never
+changes the sound.
+
 *History:* the five circuits are those of the Ibanez TS808 Tube Screamer, the ProCo RAT,
 the Boss DS-1, the Dallas Arbiter Fuzz Face and the Electro-Harmonix Big Muff π, modelled
 from their published schematics; the names and the pictures in Cantus are its own.

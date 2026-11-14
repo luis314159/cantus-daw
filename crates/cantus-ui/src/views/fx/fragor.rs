@@ -112,6 +112,8 @@ pub struct State {
     drag: Option<(usize, egui::Vec2)>,
     /// The input and output meters, dBFS, falling smoothly.
     meters: Meters,
+    /// A colourway chosen in the ⋯ menu this frame, for the host to keep.
+    colourway: Option<&'static str>,
 }
 
 /// Two meters, dBFS; new, at the floor.
@@ -139,6 +141,12 @@ pub fn framed(
     }
     st.chrome.reset_for(effect.0);
     let out = editor(&mut DawHost::new(app, strip, effect, "fragor"), &mut st, ui);
+    // The colourway chosen is the user's for every Fragor, kept in the settings.
+    if let Some(id) = st.colourway.take() {
+        if let Some(name) = crate::kit::skin::colourway_unit(crate::kit::skin::Unit::Effect(KIND)) {
+            app.set_unit_colourway(name, id);
+        }
+    }
     app.fx.fragor = st;
     out
 }
@@ -161,6 +169,25 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
         };
     }
     let out_db = [st.meters.0[1], st.meters.0[1]];
+    // The ⋯ menu's colourways (ADR 0130 §Colourways), each row with its swatch.
+    let unit = crate::kit::skin::Unit::Effect(KIND);
+    let ways = crate::kit::skin::colourways(unit);
+    let wearing = crate::kit::skin::colourway_of(unit).map(|w| w.id);
+    let dark = Style::current().t.dark;
+    let mut more: Vec<crate::kit::menu::Item<'_>> = Vec::with_capacity(ways.len() + 1);
+    more.push(crate::kit::menu::Item::Band(Src::Key("fragor.colourway")));
+    for w in ways {
+        more.push(crate::kit::menu::Item::Action {
+            label: Src::Key(w.name_key),
+            check: crate::kit::menu::Check::Swatch(
+                crate::kit::skin::swatch(w.sheet, dark),
+                wearing == Some(w.id),
+            ),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        });
+    }
     let look = frame::Look {
         kind: KIND,
         chips: &chip,
@@ -168,7 +195,7 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
             level: out_db,
             hold: out_db,
         }),
-        more: &[],
+        more: &more,
     };
     let mut chrome = std::mem::take(&mut st.chrome);
     let out = frame::show(ui, host, &mut chrome, &look, |ui, s, body, host| {
@@ -176,6 +203,18 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     });
     st.chrome = chrome;
     st.chips = chips;
+    // A colourway chosen: worn at once on this thread (an exported plug-in's window keeps it
+    // for its session); Cantus's window also keeps it in the settings (`framed`).
+    if let Some(w) = out
+        .more
+        .and_then(|i| i.checked_sub(1))
+        .and_then(|i| ways.get(i))
+    {
+        if let Some(name) = crate::kit::skin::colourway_unit(unit) {
+            crate::kit::skin::set_colourway(name, w.id);
+            st.colourway = Some(w.id);
+        }
+    }
     out
 }
 

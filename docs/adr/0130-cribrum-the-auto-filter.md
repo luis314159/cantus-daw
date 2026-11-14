@@ -114,8 +114,9 @@ display), declared with its sheet.
    it is not saved with the plug-in's state (a look, not a sound).
 6. **The promises**: every colourway keeps the themes' contrast floor (text 4.5:1, non-text
    3:1) in every preset (`skin::contrast_failures`, tested); the distinctness rule (no other
-   unit wears a face's hue and material) holds for the **default** colourway — an alternative
-   may resemble another unit's face, the user's choice.
+   unit wears a face's hue and material) holds for **every colourway offered**, not only the
+   default (the integration, 2026-11-14: `side.rs`'s tests; Petrol's orange moved 24° → 20°,
+   19° from Chorda's gold lacquer before).
 
 ## Consequences
 
@@ -125,8 +126,9 @@ display), declared with its sheet.
 - The curve smoothing's window costs nine curve readings per grid point (every `smooth/8`
   samples), none per sample between; the filters cost one or two ZDF solves per channel per
   sample (three in vowel mode), times the oversampling.
-- A colourway is a sheet of data in its family's file; Fragor and Lapsus may declare theirs
-  in `side.rs`'s `colourways` the same way.
+- A colourway is a sheet of data in its family's file: Cribrum, Fragor (Valve, Cream, Steel)
+  and Vetus (Cassette, Sleeve, Walnut) declare theirs in `side.rs`'s `colourways`; Lapsus
+  may the same way.
 
 ## What the tests hold
 

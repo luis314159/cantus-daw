@@ -1,14 +1,15 @@
 //! Fragor's window without a screen (the fx side round, ADR 0131): the design sheet.
 //!
 //! ```text
-//! cargo run -p cantus-ui --example shoot_fragor -- [out-dir]
+//! cargo run -p cantus-ui --example shoot_fragor -- [out-dir] [--colourways]
 //! ```
 //!
 //! Two boards — three pedals (the green overdrive into the germanium fuzz into the
 //! triangle muff), and two with a slot free (the silicon distortion and the op-amp
 //! distortion, its footswitch off) — at rest and playing, in Slate (the default look)
 //! and Paper, English and Spanish, at 75 %, 100 %, 150 % and 200 %; and the inspector's
-//! strip.
+//! strip. With `--colourways`, the three-pedal board playing in each colourway (ADR 0130
+//! §Colourways), Slate English and Paper Spanish at 100 %, into `<out-dir>/colour/final/`.
 
 use cantus_engine::EngineHandle;
 use cantus_ui::raster::shoot;
@@ -152,6 +153,10 @@ fn main() {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("target/shots/fragor"));
     std::fs::create_dir_all(&dir).expect("output dir");
+    if args.iter().any(|a| a == "--colourways") {
+        colourways(&dir);
+        return;
+    }
     use cantus_ui::i18n::Locale;
     let kind = cantus_core::EffectKind::Pedal;
     let only = std::env::var("FRAGOR_ONLY").ok();
@@ -226,4 +231,37 @@ fn main() {
         });
         println!("{}", path.display());
     }
+}
+
+/// The colourways as the user chooses them (ADR 0130 §Colourways): the three-pedal board
+/// playing in each, Slate English and Paper Spanish at 100 %, into `<dir>/colour/final/`.
+fn colourways(dir: &std::path::Path) {
+    use cantus_ui::i18n::Locale;
+    use cantus_ui::kit::skin;
+    let kind = cantus_core::EffectKind::Pedal;
+    let dir = dir.join("colour").join("final");
+    std::fs::create_dir_all(&dir).expect("output dir");
+    let unit = skin::Unit::Effect(kind);
+    for w in skin::colourways(unit) {
+        for (dark, lang) in [(true, Locale::En), (false, Locale::Es)] {
+            cantus_ui::i18n::set_locale(lang);
+            let ctx = context(dark);
+            skin::set_colourway(skin::colourway_unit(unit).expect("a unit"), w.id);
+            let mut app = app_with("board", true);
+            views::fx::frame::shell_of(kind).set_scale(&ctx, 1.0);
+            let size = views::fx::frame::designed_size(kind);
+            let path = dir.join(format!(
+                "fragor-{}-{}-{}-k100.png",
+                w.id,
+                if dark { "slate" } else { "paper" },
+                lang.code()
+            ));
+            shoot(&ctx, size, 1.0, 6, Some(&path), |root| {
+                let ctx = root.ctx().clone();
+                views::fx::window(&mut app, &ctx);
+            });
+            println!("{}", path.display());
+        }
+    }
+    skin::set_colourways(std::iter::empty());
 }
