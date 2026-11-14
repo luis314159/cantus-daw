@@ -427,6 +427,28 @@ pub const EFFECTS: [Unit; 25] = [
         thumb: (640, 394),
     },
 
+    // fx:fragor — Fragor, the pedals (ADR 0131, provisional).
+    Unit {
+        file: "fragor",
+        name: "Fragor",
+        kind: ("Distortion pedals", "Pedales de distorsión"),
+        pitch: ("Five distortion and fuzz pedals modelled from their circuits, up to three on a board in any order, a valve amp glowing behind them.", "Cinco pedales de distorsión y fuzz modelados a partir de sus circuitos, hasta tres en una tabla en cualquier orden, un amplificador de válvulas brillando detrás."),
+        what: long!(("Fragor is a pedalboard: a green overdrive, an op-amp distortion, a silicon distortion, a germanium fuzz and a triangle muff, each solved from its schematic every sample — so the knobs move the circuit itself and every position sounds as the pedal does. Chain up to three in any order, drag them to reorder, gate the noise before them, and watch one cycle of the note and its harmonics change as you play. Turn the fuzz's Bias down and its battery dies: notes sputter and gate as they fade.", "Fragor es una tabla de pedales: un overdrive verde, una distorsión operacional, una distorsión de silicio, un fuzz de germanio y un muff triangular, cada uno resuelto a partir de su esquema en cada muestra — así las perillas mueven el propio circuito y cada posición suena como el pedal. Encadena hasta tres en cualquier orden, arrástralos para reordenarlos, cierra el ruido con la puerta antes de ellos y mira cómo cambian un ciclo de la nota y sus armónicos mientras tocas. Baja el Bias del fuzz y su batería se agota: las notas chisporrotean y se cortan al apagarse.")),
+        features: long!(&[
+            ("Circuits solved each sample (the DK method): every small-signal response within 0.1 dB of an independent analysis of the schematic", "Circuitos resueltos en cada muestra (el método DK): cada respuesta de pequeña señal a 0,1 dB de un análisis independiente del esquema"),
+            ("Five pedals: overdrive, op-amp distortion with its slew rate, silicon distortion, germanium fuzz with a dying-battery Bias, triangle muff", "Cinco pedales: overdrive, distorsión operacional con su velocidad de subida, distorsión de silicio, fuzz de germanio con un Bias de batería agotada, muff triangular"),
+            ("Up to three in any order; footswitches that never move the latency; a noise gate before the chain", "Hasta tres en cualquier orden; interruptores que nunca cambian la latencia; una puerta de ruido antes de la cadena"),
+            ("Oversampled 2×, 4× or 8× (aliasing −54 dB at the default 4×)", "Sobremuestreo 2×, 4× u 8× (aliasing −54 dB en el 4× por defecto)"),
+            ("One cycle in and out and the harmonics, odd and even, live", "Un ciclo de entrada y salida y los armónicos, impares y pares, en vivo"),
+            ("Fifteen factory presets for guitar, bass, drums, synths and voice", "Quince presets de fábrica para guitarra, bajo, batería, sintetizadores y voz"),
+        ]),
+        presets: Some(15),
+        plugin: true,
+        ab: None,
+        big: (1710, 1200),
+        thumb: (640, 449),
+    },
+
     // r39:conv — Aula, the convolution reverb (ADR 0112).
     Unit {
         file: "aula",

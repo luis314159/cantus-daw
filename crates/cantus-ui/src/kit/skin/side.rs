@@ -11,6 +11,10 @@ use super::{
     tone, Case, Colourway, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin,
     SwitchShape, Tint, Weight,
 };
+
+const fn hsl(h: f32, s: f32, l: f32) -> Hsl {
+    Hsl { h, s, l }
+} // fx:fragor
 use cantus_core::EffectKind;
 
 // fx:cribrum — Cribrum's own face (ADR 0130, provisional), in three colourways the user
@@ -140,11 +144,51 @@ pub const CRIBRUM_COLOURWAYS: [Colourway; 3] = [
     },
 ];
 
-/// Fragor, the pedals: for now Fervor's look (drive and colour).
+// fx:fragor — Fragor's face (ADR 0131), the owner's pick (palette A, 2026-11-13): a valve
+// amp at night — warm amber, a tube's glow, on smoked glass; the sound drawn on an amber
+// phosphor screen behind glass (dark in every theme, as a device's screen), a white-hot second
+// voice, skirted knobs, rocker switches, engraved capitals, screws and rules. Its tubes,
+// grille, jewel lights and brass are drawn by `views/fx/valve_draw.rs`; its pedals wear
+// their own finishes (`skin/pedals.rs`).
 pub const FRAGOR: Skin = Skin {
     key: "fx.fragor",
-    ..tone::FERVOR
-};
+    surface: Tint {
+        hue: 32.0,
+        sat: 0.16,
+        amount: 0.35,
+    },
+    accent: Some(Pair {
+        dark: hsl(36.0, 0.92, 0.58),
+        light: hsl(30.0, 0.85, 0.38),
+    }),
+    accent2: Some(Pair {
+        // A filament's white heat, nearly unsaturated: the second voice keeps its own
+        // colour beside the amber, not a second amber (the displays' rule).
+        dark: hsl(44.0, 0.18, 0.84),
+        light: hsl(28.0, 0.45, 0.28),
+    }),
+    // Smoked glass, as a valve's envelope and the screen's pane: the amber family's
+    // matte, brushed, anodised, lacquer, carbon and vinyl are taken near this hue
+    // (Phasis, Fervor, Chorda, Aula …).
+    material: Material::Glass,
+    display: Display::Phosphor,
+    knob: KnobShape::Skirted,
+    switch: SwitchShape::Rocker,
+    lettering: Lettering {
+        case: Case::Upper,
+        tracking: 0.12,
+        weight: Weight::SemiBold,
+        condensed: true,
+        mono_values: false,
+    },
+    plate: Plate::Engraved,
+    ornaments: Ornaments {
+        screws: true,
+        vents: false,
+        rules: true,
+        rack_ears: false,
+    },
+}; // fx:fragor
 
 /// Lapsus, the time shaper: for now Delay's look (the song's recent past, drawn in time).
 pub const LAPSUS: Skin = Skin {
@@ -183,3 +227,48 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         _ => None,
     }
 }
+
+// fx:fragor — the two palettes the owner was shown beside the one he chose (2026-11-13):
+// kept as data, to become Fragor's colourways when the colourway mechanism lands.
+/// B: cream and brass, vintage.
+pub const FRAGOR_B: Skin = Skin {
+    key: "fx.fragor.b",
+    surface: Tint {
+        hue: 42.0,
+        sat: 0.30,
+        amount: 0.55,
+    },
+    accent: Some(Pair {
+        dark: hsl(44.0, 0.60, 0.56),
+        light: hsl(40.0, 0.70, 0.32),
+    }),
+    accent2: Some(Pair {
+        dark: hsl(8.0, 0.50, 0.60),
+        light: hsl(6.0, 0.55, 0.36),
+    }),
+    material: Material::Brushed,
+    display: Display::Vfd,
+    ..FRAGOR
+}; // fx:fragor
+/// C: steel with a single signal red.
+pub const FRAGOR_C: Skin = Skin {
+    key: "fx.fragor.c",
+    surface: Tint {
+        hue: 212.0,
+        sat: 0.06,
+        amount: 0.30,
+    },
+    accent: Some(Pair {
+        dark: hsl(4.0, 0.80, 0.58),
+        light: hsl(2.0, 0.74, 0.44),
+    }),
+    accent2: Some(Pair {
+        dark: hsl(210.0, 0.08, 0.78),
+        light: hsl(214.0, 0.10, 0.38),
+    }),
+    material: Material::Anodised,
+    display: Display::Scope,
+    ..FRAGOR
+}; // fx:fragor
+/// Fragor's colourways besides its own face: B, C. fx:fragor
+pub const FRAGOR_COLOURWAYS: [&Skin; 2] = [&FRAGOR_B, &FRAGOR_C];

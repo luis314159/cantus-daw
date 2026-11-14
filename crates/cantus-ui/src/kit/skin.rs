@@ -69,6 +69,8 @@ mod tone;
 // fx:contract — the fx side round's placeholder faces (each builder replaces its own).
 #[path = "skin/side.rs"]
 mod side;
+/// Fragor's colourways besides its face (data until the colourway mechanism). fx:fragor
+pub use side::FRAGOR_COLOURWAYS;
 
 #[path = "skin/displays.rs"]
 pub mod displays;
@@ -83,6 +85,9 @@ pub mod switches;
 // Chorda's scene: its materials and lights (ADR 0104). r37:scene
 #[path = "skin/scene.rs"]
 pub mod scene;
+// The finishes of pedals (Fragor, ADR 0131; any board of pedals). fx:fragor
+#[path = "skin/pedals.rs"]
+pub mod pedals;
 #[path = "skin/textures.rs"]
 mod textures;
 

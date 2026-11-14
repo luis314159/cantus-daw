@@ -245,7 +245,24 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", -3.0),
             ],
         ),
-        EffectKind::Pedal => set(&mut s, &[("out", 6.0)]), // fx:contract (fragor)
+        // fx:fragor — three pedals (the muff, the fuzz on a tired battery, the silicon
+        // distortion), 8x, stereo, the gate on, half wet.
+        EffectKind::Pedal => set(
+            &mut s,
+            &[
+                ("s1", 5.0),
+                ("s2", 4.0),
+                ("s3", 3.0),
+                ("mf.sustain", 0.8),
+                ("ge.fuzz", 0.9),
+                ("ge.bias", 0.5),
+                ("si.dist", 0.8),
+                ("gate", -70.0),
+                ("os", 2.0),
+                ("mix", 0.5),
+                ("out", -6.0),
+            ],
+        ), // fx:fragor
         EffectKind::TimeShaper => set(&mut s, &[("out", 6.0)]), // fx:contract (lapsus)
         EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),  // fx:contract (vetus)
         EffectKind::Utility => set(&mut s, &[("out", 6.0)]), // fx:contract (libra)

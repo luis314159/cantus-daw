@@ -79,7 +79,17 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("out", 3.0),
             ],
         ),
-        K::Pedal => Start::Neutral(Flat), // fx:contract (fragor)
+        // fx:fragor — the green overdrive on the board, pushing gently.
+        K::Pedal => preset(
+            "preset.fragor.green_push",
+            &[
+                ("s1", 1.0),
+                ("od.drive", 0.45),
+                ("od.tone", 0.55),
+                ("od.level", 0.55),
+                ("out", -3.5),
+            ],
+        ),
         K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)
         K::LoFi => Start::Neutral(Flat),  // fx:contract (vetus)
         K::Utility => Start::Neutral(Flat), // fx:contract (libra)

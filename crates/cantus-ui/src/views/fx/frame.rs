@@ -137,7 +137,7 @@ pub fn hue_of(kind: EffectKind) -> Function {
         EffectKind::AutoTune => Function::Source,
         EffectKind::Aula => Function::Space,      // r39:conv
         EffectKind::AutoFilter => Function::Tone, // fx:contract
-        EffectKind::Pedal => Function::Dynamics,  // fx:contract
+        EffectKind::Pedal => Function::Tone,      // fx:fragor (drive, as Fervor)
         EffectKind::TimeShaper => Function::Mod,  // fx:contract
         EffectKind::LoFi => Function::Tone,       // fx:contract
         EffectKind::Utility => Function::Output,  // fx:contract
@@ -159,6 +159,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Maximizer => Vec2::new(1180.0, 720.0),
         // Cribrum: the display over the movement card over the filter and output cards.
         EffectKind::AutoFilter => Vec2::new(1120.0, 800.0), // fx:cribrum
+        // Fragor: the sound over the pedalboard, the board's controls beside it.
+        EffectKind::Pedal => Vec2::new(1140.0, 800.0), // fx:fragor
         _ => Vec2::new(1000.0, 640.0),
     }
 }

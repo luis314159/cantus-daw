@@ -703,7 +703,13 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("cur.vowel", 1.0),
             ("out", -3.0),
         ],
-        EffectKind::Pedal => vec![("out", -6.0)], // fx:contract
+        EffectKind::Pedal => vec![
+            ("s1", 1.0),
+            ("s2", 4.0),
+            ("od.drive", 0.7),
+            ("ge.fuzz", 0.8),
+            ("out", -6.0),
+        ], // fx:fragor
         EffectKind::TimeShaper => vec![("out", -6.0)], // fx:contract
         EffectKind::LoFi => vec![("out", -6.0)],  // fx:contract
         EffectKind::Utility => vec![("out", -6.0)], // fx:contract

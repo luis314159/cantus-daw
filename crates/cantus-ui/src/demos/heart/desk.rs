@@ -158,6 +158,14 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
         Some("preset.cribrum.bar_sweep"),
         &[("mix", 0.5)],
     );
+    // fx:fragor — the guitar first through Fragor's green overdrive, just pushed: the
+    // edge a player keeps on all night.
+    s.insert(
+        b.guitar.strip,
+        K::Pedal,
+        Some("preset.fragor.green_push"),
+        &[("od.drive", 0.3)],
+    );
     // The guitar through a Phase 90 (script), slow enough to breathe.
     s.insert(
         b.guitar.strip,

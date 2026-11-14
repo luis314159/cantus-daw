@@ -376,6 +376,18 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         // A synced rate's division: shown while synced.
         (_, "div") => Some("the rate shown in beats only while synced"),
         ("Eq", "lp_res") => Some("linear phase only"),
+        // fx:fragor — a footswitch of a pedal not on the board: nothing of it is drawn.
+        ("Pedal", k)
+            if k.ends_with(".on") && {
+                let model = ["od.", "op.", "si.", "ge.", "mf."]
+                    .iter()
+                    .position(|p| k.starts_with(p))
+                    .map(|i| i as f32 + 1.0);
+                !["s1", "s2", "s3"].iter().any(|s| Some(get(s)) == model)
+            } =>
+        {
+            Some("a pedal not on the board draws nothing")
+        }
         ("Saturator", "c.sym") => Some("the curve editor's page"),
         // Drawn by `segmented_param` / `param_with` on a page the demo does not show.
         ("Analyzer", "sync" | "beats") => Some("the analyser's timing page"),
