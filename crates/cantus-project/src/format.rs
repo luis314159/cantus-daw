@@ -1457,6 +1457,28 @@ mod tests {
             .all(|e| !new_kinds.contains(&e.spec.kind)));
     }
 
+    /// fx:lapsus — schema 62's Lapsus carries a bank of its own (a volume pattern in slot 5,
+    /// named), read back as written; the others hold none.
+    #[test]
+    fn schema_62_carries_lapsus_s_bank() {
+        use cantus_core::fx::lapsus::Lane;
+        use cantus_core::EffectKind as K;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v62.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let all: Vec<_> = p.strips.iter().flat_map(|s| s.effects.iter()).collect();
+        let lapsus = all.iter().find(|e| e.spec.kind == K::TimeShaper).unwrap();
+        let bank = lapsus.spec.lapsus.as_deref().expect("a bank");
+        assert!(bank.time.is_empty());
+        let mine = bank.pattern(Lane::Vol, 4);
+        assert_eq!((mine.len, mine.points.len()), (1, 2));
+        assert_eq!(mine.name.as_deref(), Some("Half gate"));
+        assert!(all
+            .iter()
+            .filter(|e| e.spec.kind != K::TimeShaper)
+            .all(|e| e.spec.lapsus.is_none()));
+    }
+
     /// Schema 26 (round 28, ADR 0052): the fixture's metronome has the woodblock voice and
     /// no accent, and the song is saved in pattern mode; an older file (25) opens with the
     /// classic accented click in song mode — what it always played.
