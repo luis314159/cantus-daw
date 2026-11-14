@@ -37,8 +37,10 @@ const CUT_MIN: f32 = 30.0;
 const CUT_MAX: f32 = 2_000.0;
 /// The comparator's hysteresis, as a share of the fundamental's peak.
 const HYSTERESIS: f32 = 0.2;
-/// An edge sooner than this share of the period guided is a harmonic's.
+/// An edge sooner than this share of the period the tracker hears is a harmonic's; of the
+/// divider's own period, a smaller share.
 const REFRACTORY: f32 = 0.6;
+const REFRACTORY_OWN: f32 = 0.4;
 /// The follower's release, seconds.
 const FOLLOW_S: f32 = 0.03;
 /// Below this peak the comparator does not move (−80 dBFS).
@@ -332,9 +334,12 @@ impl Divider {
         if self.follow <= GATE {
             return;
         }
-        let p = self.known_period();
-        let refractory = if p > 0.0 {
-            REFRACTORY * p
+        // The tracker's period is trusted further than the divider's own (which a missed
+        // edge can double: a refractory time from it must not keep the double).
+        let refractory = if self.guide > 0.0 {
+            REFRACTORY * self.guide
+        } else if self.period > 0.0 {
+            REFRACTORY_OWN * self.period
         } else {
             self.sr / 2_000.0
         };
