@@ -389,6 +389,19 @@ pub fn apply_macros(spec: &mut EffectSpec) {
     }
 }
 
+/// The slots as the engine is sent them (the snapshot): each board's macro targets stored
+/// ([`ensure_macro_keys`]) and set from their macros ([`apply_macros`]), so a mapped knob
+/// plays where its macro puts it.
+pub fn prepared(mut slots: Vec<crate::effect::EffectSlot>) -> Vec<crate::effect::EffectSlot> {
+    for e in &mut slots {
+        if e.spec.kind == EffectKind::Board && e.spec.board.is_some() {
+            ensure_macro_keys(&mut e.spec);
+            apply_macros(&mut e.spec);
+        }
+    }
+    slots
+}
+
 /// The inverse of [`EffectSpec::flat_params`]: `flat` becomes the spec's whole parameter
 /// map — for a board, its own keys its own and each pedal's `p{id}.{key}` that pedal's
 /// (a pedal `flat` names nothing of holds nothing). What an exact undo writes back.

@@ -135,22 +135,21 @@ impl KnownPedals {
     /// Before a snapshot holding `slots` goes: forget every pedal it no longer holds; a
     /// board sent whole now (`sent_whole`) brings its pedals; for every other board, a unit
     /// for each pedal the engine has not got, to send as `AddPedal` before the snapshot.
-    pub fn update<'a>(
+    pub fn update(
         &mut self,
-        slots: impl Iterator<Item = &'a EffectSlot> + Clone,
+        slots: &[&EffectSlot],
         sent_whole: impl Fn(EffectId) -> bool,
         sample_rate: f32,
     ) -> Vec<(EffectId, PedalId, Box<EffectUnit>)> {
-        let held = |e: EffectId, id: PedalId, k: cantus_core::EffectKind| {
-            slots.clone().any(|s| {
+        self.0.retain(|&(e, id, k)| {
+            slots.iter().any(|s| {
                 s.id == e
                     && s.spec
                         .pedals()
                         .iter()
                         .any(|p| p.id == id && p.spec.kind == k)
             })
-        };
-        self.0.retain(|&(e, id, k)| held(e, id, k));
+        });
         let mut out = Vec::new();
         for s in slots {
             let whole = sent_whole(s.id);
@@ -178,6 +177,50 @@ impl KnownPedals {
 
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+}
+
+/// Where the processor's boards run — a strip's slot (`usize::MAX`: the master) and the
+/// board's id — found when memory is asked for, so each block hands back what they let go
+/// without looking through every strip.
+#[derive(Copy, Clone, Debug)]
+pub struct Boards {
+    at: [(usize, EffectId); 64],
+    n: usize,
+}
+
+impl Default for Boards {
+    fn default() -> Self {
+        Boards {
+            at: [(0, EffectId(0)); 64],
+            n: 0,
+        }
+    }
+}
+
+impl Boards {
+    pub fn clear(&mut self) {
+        self.n = 0;
+    }
+
+    /// One more (beyond 64 boards, the rest hand back their pedals when they go).
+    pub fn push(&mut self, slot: usize, effect: EffectId) {
+        if self.n < self.at.len() {
+            self.at[self.n] = (slot, effect);
+            self.n += 1;
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.n
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.n == 0
+    }
+
+    pub fn at(&self, i: usize) -> (usize, EffectId) {
+        self.at[i]
     }
 }
 

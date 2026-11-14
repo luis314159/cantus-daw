@@ -451,6 +451,7 @@ impl Processor {
         self.capture_slot = o.capture_slot;
         self.analysed = o.analysed;
         self.analysed_pedal = o.analysed_pedal; // fx3:contract
+        self.boards = o.boards; // fx3:tabula
         self.scoped = o.scoped;
         self.scoped_delay = o.scoped_delay;
         self.lates = o.lates.clone();
@@ -632,6 +633,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         capture_slot: _,
         analysed: _,
         analysed_pedal: _, // fx3:contract
+        boards: _,         // fx3:tabula
         scoped: _,
         scoped_delay: _,
         master_tap: _, // r35:stage
