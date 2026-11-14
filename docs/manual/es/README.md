@@ -2080,7 +2080,7 @@ transitorios), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Spec
 (analizador), Tonus (corrección de afinación), Concentus (chorus), Flexus (flanger), Phasis
 (phaser), Tremor (trémolo y auto-pan), Vibrans (vibrato), Anulus (modulador en anillo),
 Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Cribrum (filtro automático),
-Fragor (pedales de distorsión), Lapsus (moldeador de tiempo), Vetus (lo-fi), Aula (reverb de convolución), Delay y Reverb.
+Fragor (pedales de distorsión), Lapsus (moldeador de tiempo), Vetus (lo-fi), Libra (utilidad), Aula (reverb de convolución), Delay y Reverb.
 
 ### La cara de cada unidad
 
@@ -2401,6 +2401,30 @@ la banda del medio (arrastra sus bordes).
 ruido, el dither, los cortes y el desgaste van fijados a la canción: un render desde cualquier
 compás, offline o en reproducción, con cualquier tamaño de búfer, tiene el mismo crujido en los
 mismos sitios.
+
+### Libra, la utilidad
+
+**Libra** (en latín, *la balanza*) reúne las correcciones de cada día de un canal. Se
+inserta como un cable: nada cambia hasta que lo pides.
+
+**Los canales.** *Estéreo*, *Intercambiar*, *Mono* (los dos sumados: comprueba una mezcla
+en mono), *Izquierdo* o *Derecho* en ambos lados, *Mid* o *Side* solos (escucha la anchura
+por sí sola). **Invierte la polaridad** de cualquiera de los canales; **Quitar DC** elimina
+una continua; **Silencio**.
+
+**Los retardos** atrasan cada canal hasta 100 ms, en muestras enteras: dos micrófonos sobre
+una misma fuente alineados a la muestra. Muéstralos en ms o en muestras.
+
+**La imagen y la ganancia.** El **balance** baja un lado, nunca sube el otro (el balance del
+máster); la **anchura** de mono (0 %) al doble (200 %); la **ganancia** ±36 dB.
+
+**La ventana.** En el centro una **balanza** de latón: su brazo se inclina con el balance y
+lo marca en una escala fina, sus brazos alcanzan tanto como la imagen, cada platillo lleva el
+nivel, el retardo y la polaridad de su canal, y la **correlación** recorre su pie (hacia −1,
+los canales se cancelan en mono). Arrástrala a los lados para el balance y arriba y abajo
+para la anchura; doble clic para centrarla. A su lado el **afinador** — la nota, sus cents y
+su frecuencia, su La de referencia (de 415 a 466 Hz) arrastrado arriba y abajo — y el
+**goniómetro**.
 
 ### Aula, la reverb de convolución
 

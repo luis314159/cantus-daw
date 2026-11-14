@@ -825,6 +825,8 @@ pub enum Direct {
     Cribrum(Box<cantus_dsp::cribrum::Cribrum>),
     /// fx:vetus — Vetus, lo-fi.
     Vetus(Box<cantus_dsp::vetus::Vetus>),
+    /// fx:libra — Libra, the utility.
+    Libra(Box<cantus_dsp::libra::Libra>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -906,7 +908,10 @@ impl Direct {
                 Direct::Vetus(Box::new(cantus_dsp::vetus::Vetus::new(SR))) // fx:vetus
             } // fx:contract
             EffectKind::Utility => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Utility, SR).unwrap())
+                Direct::Libra(Box::new(cantus_dsp::libra::Libra::new(
+                    SR,
+                    cantus_core::balance_gains,
+                ))) // fx:libra
             } // fx:contract
             k => panic!("{k:?} is not exported"),
         };
@@ -955,6 +960,7 @@ impl Direct {
             Direct::Stub(x) => x.configure(spec), // fx:contract
             Direct::Cribrum(x) => x.set(&fx::cribrum::settings(spec)), // fx:cribrum
             Direct::Vetus(x) => x.set(&fx::vetus::settings(spec)), // fx:vetus
+            Direct::Libra(x) => x.set(&fx::libra::settings(spec)), // fx:libra
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -997,6 +1003,7 @@ impl Direct {
             Direct::Stub(x) => x.reset(),    // fx:contract
             Direct::Cribrum(x) => x.reset(), // fx:cribrum
             Direct::Vetus(x) => x.reset(),   // fx:vetus
+            Direct::Libra(x) => x.reset(),   // fx:libra
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1029,6 +1036,7 @@ impl Direct {
             Direct::Stub(x) => x.latency(),    // fx:contract
             Direct::Cribrum(x) => x.latency(), // fx:cribrum
             Direct::Vetus(x) => x.latency(),   // fx:vetus
+            Direct::Libra(x) => x.latency(),   // fx:libra
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1061,6 +1069,7 @@ impl Direct {
             Direct::Stub(x) => x.process(l, r, key), // fx:contract
             Direct::Cribrum(x) => x.process(l, r, key), // fx:cribrum
             Direct::Vetus(x) => x.process(l, r),     // fx:vetus
+            Direct::Libra(x) => x.process(l, r),     // fx:libra
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

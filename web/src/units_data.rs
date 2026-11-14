@@ -449,6 +449,28 @@ pub const EFFECTS: [Unit; 28] = [ // fx: Cribrum, Fragor and Lapsus
         thumb: (640, 449),
     },
 
+    // fx:libra — Libra, the utility (ADR 0133, provisional).
+    Unit {
+        file: "libra",
+        name: "Libra",
+        kind: ("Utility", "Utilidad"),
+        pitch: ("A channel's everyday corrections — gain, balance, width, polarity, swaps and mono, mid and side, DC, a delay to align two microphones — under a brass balance that weighs left against right.", "Las correcciones de cada día de un canal — ganancia, balance, anchura, polaridad, intercambios y mono, mid y side, continua, un retardo para alinear dos micrófonos — bajo una balanza de latón que pesa izquierda contra derecha."),
+        what: long!(("Libra is the utility every channel needs. Swap, sum to mono, take one side or listen to the mid or the side alone; invert either channel's polarity; remove DC; delay each channel by whole samples to align two microphones; narrow or widen the image; balance it; set the gain. At its centre a brass balance tilts with the balance, its pans holding each channel's level, delay and polarity, the correlation along its foot; beside it a tuner and a goniometer.", "Libra es la utilidad que necesita cada canal. Intercambia, suma en mono, toma un lado o escucha solo el mid o el side; invierte la polaridad de cualquiera de los canales; quita la continua; retrasa cada canal en muestras enteras para alinear dos micrófonos; estrecha o ensancha la imagen; equilíbrala; fija la ganancia. En su centro una balanza de latón se inclina con el balance, sus platillos con el nivel, el retardo y la polaridad de cada canal, la correlación en su pie; a su lado un afinador y un goniómetro.")),
+        features: long!(&[
+            ("A wire at its defaults, to the bit; 0 dB exact", "Un cable en sus valores por defecto, bit a bit; 0 dB exactos"),
+            ("Delays in whole samples, exact, shown in ms or samples", "Retardos en muestras enteras, exactos, en ms o en muestras"),
+            ("Stereo, swap, mono, left or right to both, mid, side", "Estéreo, intercambiar, mono, izquierdo o derecho a ambos, mid, side"),
+            ("A tuner within ±1 cent on a sine, its reference A from 415 to 466 Hz", "Un afinador a ±1 cent sobre un seno, su La de 415 a 466 Hz"),
+            ("A goniometer and the correlation", "Un goniómetro y la correlación"),
+            ("Fourteen factory presets: mono check, polarity flips, alignment, Haas width, mid and side", "Catorce presets de fábrica: comprobar en mono, invertir polaridad, alinear, anchura Haas, mid y side"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1770, 900),
+        thumb: (640, 325),
+    },
+
     // fx:vetus — Vetus, lo-fi (ADR 0133, provisional).
     Unit {
         file: "vetus",

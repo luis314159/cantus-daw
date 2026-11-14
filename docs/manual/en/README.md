@@ -1912,7 +1912,7 @@ Fervor (saturation), Latitudo (stereo), Speculum (analyser), Tonus (pitch correc
 Concentus (chorus), Flexus (flanger), Phasis (phaser), Tremor (tremolo and auto-pan),
 Vibrans (vibrato), Anulus (ring modulator), Translatio (frequency shifter), Fluctus (volume
 shaper), Cribrum (auto filter), Fragor (distortion pedals), Lapsus (time shaper), Vetus
-(lo-fi), Aula (convolution reverb), Delay and Reverb.
+(lo-fi), Libra (utility), Aula (convolution reverb), Delay and Reverb.
 
 ### Each unit's face
 
@@ -2208,6 +2208,28 @@ noise floor (drag it up for fewer bits) and the medium's band (drag its edges).
 **Exact.** With every module off Vetus passes the sound untouched, to the bit. The noise, the
 dither, the dropouts and the wear are fixed to the song: a render from any bar, offline or
 playing, at any buffer size, has the same crackle in the same places.
+
+### Libra, the utility
+
+**Libra** (Latin for *the balance*) holds a channel's everyday corrections. It inserts as a
+wire — nothing changes until you ask.
+
+**The channels.** *Stereo*, *Swap*, *Mono* (both summed: check a mix in mono), *Left* or
+*Right* on both sides, *Mid* or *Side* alone (listen to the width by itself). **Invert
+polarity** of either channel; **DC removal** takes an offset away; **Mute**.
+
+**The delays** make each channel late by up to 100 ms, in whole samples — two microphones
+on one source brought into line to the sample. Show them in ms or in samples.
+
+**The image and the gain.** The **balance** turns one side down, never the other up (the
+master's balance); **width** from mono (0 %) to twice as wide (200 %); the **gain** ±36 dB.
+
+**The window.** At the centre a brass **balance**: its beam tilts with the balance and reads
+it on a fine scale, its arms reach as wide as the image, each pan holds its channel's level,
+delay and polarity, and the **correlation** runs along its foot (towards −1, the channels
+cancel in mono). Drag it across for the balance and up and down for the width;
+double-click to centre it. Beside it the **tuner** — the note, its cents and its frequency,
+its reference A (415 to 466 Hz) dragged up and down — and the **goniometer**.
 
 ### Aula, the convolution reverb
 

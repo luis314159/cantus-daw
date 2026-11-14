@@ -1,8 +1,8 @@
 # ADR 0133 — Vetus and Libra, lo-fi and utility
 
-**Status:** Vetus accepted (the owner approved its design v2, 2026-11-13: "síguele, se ve
-chido"); Libra proposed, its design sheet waiting for the owner (fx side round, provisional
-number — renumbered at merge) ·
+**Status:** accepted — Vetus's design v2 approved by the owner (2026-11-13: "síguele, se ve
+chido"), Libra's balance (v2) his choice (2026-11-14) (fx side round, provisional number —
+renumbered at merge) ·
 **Date:** 2026-11-13 · **Schema:** none of its own (the contract's 62 declared the kinds;
 Vetus's table is the kind's parameters, read with their defaults from older files) ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
@@ -135,6 +135,48 @@ Two new effect kinds: `EffectKind::LoFi` (Latin *vetus*, old), `fx::vetus`, and
 - `cantus-ui`: `vetus_face` (its own face; three colourways keeping contrast and painting the
   editor).
 
-### Libra
+### Libra (the decision)
 
-To be written by its builder (after Vetus's design is approved).
+1. **A channel's everyday corrections**, in order: DC removal (a 5 Hz first-order
+   high-pass), the channel operation (stereo, swap, mono, left or right to both, mid, side —
+   `(a ± b)/2` on both sides), polarity per channel (inverted as `0 − x`, so silence stays
+   +0.0), a delay per channel in **whole samples** (`round(ms·fs/1000)`, up to 100 ms; the
+   lines are always written, so a delay set later has its history), width (mid/side, the
+   side's share 0 … 2), the balance (ADR 0012's: `cantus_core::balance_gains`, unity at the
+   centre and on the near side — the master's), the gain (±36 dB, on the contract's `out`
+   key) and mute. The gain, balance, width and mute glide over ~20 ms; the rest are the
+   console's buttons, at once.
+2. **Null and rest**: every stage at its identity is skipped, not multiplied by one, so the
+   defaults are a wire to the bit and 0 dB is exact; at rest when the glides have landed, the
+   lines hold only +0.0 and the DC filter's state is +0.0 (flushed under 1e-15 per sample,
+   made new when DC removal is off).
+3. **No starting preset**: a utility inserts as a wire (ADR 0071's exception: it corrects
+   what the user asks for). Its presets' levels are by design (`preset_measure`): a pad, a
+   listen to one side.
+4. **The window** (the owner's choice, v2): a **brass balance** at the centre — the beam
+   tilting with the balance (the heavier side down) and its pointer on a fine scale, the
+   arms' reach the width, each pan holding its channel's level, delay and polarity in words,
+   the correlation along its foot; dragged across for the balance, up and down for the width.
+   Around it the **tuner** (the streaming tracker `pitch::PitchTracker` on the output, read
+   by `libra::tuner_reading` against a reference A of 415 … 466 Hz dragged beside it; the
+   needle eases and rests in the middle when nothing is voiced) and the **goniometer** (the
+   output's mid and side, 24 points a block in the telemetry). The tuner runs on the
+   window's thread from the analyser tap: nothing on the audio thread.
+5. **The face**: blue-grey anodised aluminium, signal green on a dark phosphor screen, amber
+   for the balance and width marks; the balance's brass is an object's colour
+   (`kit/skin/scales.rs`).
+6. **Exported** as `Cantus Libra`, bit-identical to the engine's unit.
+
+### Libra (what the tests hold)
+
+- `cantus-dsp` (`libra_tests.rs`): the defaults a wire and a new unit at rest; the delay
+  exact to the sample (1 ms and 0.25 ms at 48 kHz); the channel operations and polarity; width
+  0 is mono and the balance never raises a side; the DC goes and the render is the same at
+  every block size; mute glides and it rests; the tuner within ±1 cent on sines (A = 440 and
+  432) and ±3 cents on the pitch tests' sung vowel.
+- `cantus-engine`: the mapping and the null; `fx_libra` (a wire, −6 dB is half and the delay
+  whole samples through the engine, block sizes, live = offline); `fx_contract`;
+  `rt_memory::libra_never_allocates`.
+- `cantus-ui`: `libra_e2e` (on the boot path: inserted, a wire to the bit; −6 dB is half; the
+  side alone; undone, the wire again); the showcase's bass through *Bass in mono*.
+- `cantus-plugins`: the CLAP/VST3 tests with Libra's `Direct` arm.

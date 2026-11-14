@@ -20,8 +20,9 @@ fn libra_at_its_defaults_renders_exactly_as_no_libra() {
 
 #[test]
 fn minus_six_db_is_half_and_the_delay_is_whole_samples() {
-    let reference = render_of(&demo_project());
-    let mut p = demo_project();
+    // One track, so the master is that strip's sound alone.
+    let reference = render_of(&lead_only());
+    let mut p = lead_only();
     let fx = add_effect(&mut p, EffectKind::Utility);
     set_all(&mut p, fx, &[("out", -6.020_6), ("delay.l", 1.0)]);
     let out = render_of(&p);

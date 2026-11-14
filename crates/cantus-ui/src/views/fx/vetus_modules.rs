@@ -25,7 +25,9 @@ fn module(
     let on = host.spec().get(on_key) >= 0.5;
     let (_, clicked, lamp) =
         controls::card_lamp_live(ui, s, rect, Src::Key(title), on, |ui, _| body(host, ui));
-    if clicked && !controls::card_lamp_offer(ui, s, host, on_key, lamp.as_ref()) {
+    // The lamp is the switch's control every frame (its menu, learn), not only when clicked.
+    let learnt = controls::card_lamp_offer(ui, s, host, on_key, lamp.as_ref());
+    if clicked && !learnt {
         host.set(on_key, if on { 0.0 } else { 1.0 }, None);
     }
 }

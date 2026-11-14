@@ -182,6 +182,14 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
         Some("preset.vetus.dusty_drums"),
         &[("mix", 0.65)],
     );
+    // fx:libra — the bass through Libra's *Bass in mono*: its stereo recording made one, the
+    // DC gone.
+    s.insert(
+        b.bass.strip,
+        K::Utility,
+        Some("preset.libra.bass_mono"),
+        &[],
+    );
     // The guitar through a Phase 90 (script), slow enough to breathe.
     s.insert(
         b.guitar.strip,

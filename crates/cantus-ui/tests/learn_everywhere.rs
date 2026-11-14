@@ -388,6 +388,8 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         {
             Some("a pedal not on the board draws nothing")
         }
+        // fx:vetus — the wow's rate in beats: shown while the wow is synced.
+        ("LoFi", "wow.div") => Some("the wow's rate in beats only while synced"),
         ("Saturator", "c.sym") => Some("the curve editor's page"),
         // Drawn by `segmented_param` / `param_with` on a page the demo does not show.
         ("Analyzer", "sync" | "beats") => Some("the analyser's timing page"),
