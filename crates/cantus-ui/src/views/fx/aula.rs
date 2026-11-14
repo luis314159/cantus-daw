@@ -156,7 +156,12 @@ pub fn set_file(app: &mut CantusApp, strip: StripId, effect: EffectId, path: Opt
         })
     });
     let name = ir.as_ref().map(|f| f.name().to_string());
-    app.exec(Command::SetEffectIr { strip, effect, ir });
+    app.exec(Command::SetEffectIr {
+        strip,
+        effect,
+        ir,
+        pedal: None, // fx3:contract
+    });
     if let Some(name) = name {
         app.set_status(crate::i18n::tf("aula.status.loaded", &[("name", &name)]));
     }

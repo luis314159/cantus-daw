@@ -51,6 +51,10 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/lapsus.en.txt"),  // fx:contract
                 include_str!("../../cantus-ui/locales/fx/vetus.en.txt"),   // fx:contract
                 include_str!("../../cantus-ui/locales/fx/libra.en.txt"),   // fx:contract
+                include_str!("../../cantus-ui/locales/fx/tabula.en.txt"),  // fx3:contract
+                include_str!("../../cantus-ui/locales/fx/saltus.en.txt"),  // fx3:contract
+                include_str!("../../cantus-ui/locales/fx/rota.en.txt"),    // fx3:contract
+                include_str!("../../cantus-ui/locales/fx/arca.en.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/delay.en.txt"),   // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
@@ -85,6 +89,10 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/lapsus.es.txt"),  // fx:contract
                 include_str!("../../cantus-ui/locales/fx/vetus.es.txt"),   // fx:contract
                 include_str!("../../cantus-ui/locales/fx/libra.es.txt"),   // fx:contract
+                include_str!("../../cantus-ui/locales/fx/tabula.es.txt"),  // fx3:contract
+                include_str!("../../cantus-ui/locales/fx/saltus.es.txt"),  // fx3:contract
+                include_str!("../../cantus-ui/locales/fx/rota.es.txt"),    // fx3:contract
+                include_str!("../../cantus-ui/locales/fx/arca.es.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/delay.es.txt"),   // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],

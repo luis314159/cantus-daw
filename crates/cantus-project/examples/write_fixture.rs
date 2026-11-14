@@ -1552,6 +1552,47 @@ fn main() {
             p.strip_mut(s).unwrap().effects.push(e);
         }
     }
+    // fx3:contract — Schema 63 (the fx side round's wave 3, ADRs 0134–0137; provisional —
+    // renumbered when merged after round 40): on the second strip a board — Fragor's green
+    // overdrive on A, Delay at 250 ms on B (a split), macro 1 named Drive moving the
+    // overdrive's drive from 20 to 80 %, at 25 % — then one insert of each of Saltus, Rota
+    // and Arca. Each builder adds its own settings here.
+    if upto >= 63 {
+        use cantus_core::fx::tabula::{Board, Macro, MacroMap, Path, Pedal, PedalId};
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut e = p.make_effect(EffectKind::Board);
+        let mut fragor = EffectSpec::new(EffectKind::Pedal);
+        fragor.set("s1", 1.0).unwrap();
+        let mut delay = EffectSpec::new(EffectKind::Delay);
+        delay.set("time_ms", 250.0).unwrap();
+        e.spec.board = Some(Box::new(Board {
+            pedals: vec![
+                Pedal {
+                    path: Path::A,
+                    ..Pedal::new(PedalId(0), fragor)
+                },
+                Pedal {
+                    path: Path::B,
+                    ..Pedal::new(PedalId(1), delay)
+                },
+            ],
+            macros: vec![Macro {
+                name: Some("Drive".into()),
+                maps: vec![MacroMap {
+                    pedal: PedalId(0),
+                    key: "od.drive".into(),
+                    from: 0.2,
+                    to: 0.8,
+                }],
+            }],
+        }));
+        e.spec.set("m1", 0.25).unwrap();
+        p.strip_mut(s).unwrap().effects.push(e);
+        for kind in [EffectKind::PitchShift, EffectKind::Rotary, EffectKind::Amp] {
+            let e = p.make_effect(kind);
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

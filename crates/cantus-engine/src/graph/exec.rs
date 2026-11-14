@@ -266,6 +266,8 @@ pub(crate) struct Analysis {
     pub eq_deltas: Option<[f32; METERED_EQ_BANDS]>,
     pub comp: Option<[f32; 3]>,
     pub fx: Option<crate::fx::Telemetry>,
+    /// fx3:contract — the analysed board's open pedal's telemetry.
+    pub fx_pedal: Option<crate::fx::Telemetry>,
 }
 
 /// A watched Speculum's ring (ADR 0056): the chunk being filled, whose it is, and the
@@ -439,6 +441,7 @@ impl Nodes {
                 eq_deltas: None,
                 comp: None,
                 fx: None,
+                fx_pedal: None, // fx3:contract
             }),
             scopes: (0..crate::fx::speculum::MAX_SCOPES)
                 .map(|_| NodeCell::new(ScopeTap::default()))

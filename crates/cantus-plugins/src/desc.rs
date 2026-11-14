@@ -56,8 +56,8 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 29] = [
-    // fx:contract: 29 with the side round's five
+pub static ALL: [Descriptor; 33] = [
+    // fx3:contract: 33 with wave 3's four
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -414,6 +414,56 @@ pub static ALL: [Descriptor; 29] = [
         vst3_categories: "Fx|Tools",
         description: "Utility: gain, polarity, channel operations, alignment and a tuner.",
         compiled: cfg!(feature = "libra"),
+    },
+    // fx3:contract — the fx side round's wave 3 (provisional ADRs 0134–0137); ids are
+    // forever once released, by the module's rule.
+    Descriptor {
+        kind: EffectKind::Board, // fx3:contract
+        name: "Tabula",
+        full_name: "Cantus Tabula",
+        slug: "tabula",
+        clap_id: "com.github.lalmazan.cantus.tabula",
+        vst3_cid: [0xA28BD282, 0xBA48590F, 0x35C8BC62, 0x0CCF7313],
+        clap_features: &[FX, "multi-effects", STEREO],
+        vst3_categories: "Fx",
+        description: "Pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros.",
+        compiled: cfg!(feature = "tabula"),
+    },
+    Descriptor {
+        kind: EffectKind::PitchShift, // fx3:contract
+        name: "Saltus",
+        full_name: "Cantus Saltus",
+        slug: "saltus",
+        clap_id: "com.github.lalmazan.cantus.saltus",
+        vst3_cid: [0xCECA3718, 0xF4DDB4E5, 0xDBABF3C7, 0xFE35322C],
+        clap_features: &[FX, "pitch-shifter", STEREO],
+        vst3_categories: "Fx|Pitch Shift",
+        description: "Pitch: an octaver, a pitch shifter and harmoniser, and a whammy.",
+        compiled: cfg!(feature = "saltus"),
+    },
+    Descriptor {
+        kind: EffectKind::Rotary, // fx3:contract
+        name: "Rota",
+        full_name: "Cantus Rota",
+        slug: "rota",
+        clap_id: "com.github.lalmazan.cantus.rota",
+        vst3_cid: [0xB3A52B72, 0x37C662B9, 0x7C8B54DF, 0x80048288],
+        clap_features: &[FX, "modulation", STEREO],
+        vst3_categories: "Fx|Modulation",
+        description: "Rotary speaker: horn and drum, slow and fast, heard through two microphones.",
+        compiled: cfg!(feature = "rota"),
+    },
+    Descriptor {
+        kind: EffectKind::Amp, // fx3:contract
+        name: "Arca",
+        full_name: "Cantus Arca",
+        slug: "arca",
+        clap_id: "com.github.lalmazan.cantus.arca",
+        vst3_cid: [0x84B3FE43, 0x91BC4B10, 0xB2BE25F4, 0xBCF6F1BC],
+        clap_features: &[FX, "distortion", STEREO],
+        vst3_categories: "Fx|Distortion",
+        description: "Amp and cabinet: preamp, tone stack and power amp from their circuits, the cabinet by impulse response.",
+        compiled: cfg!(feature = "arca"),
     },
 ];
 

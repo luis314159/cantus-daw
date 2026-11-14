@@ -1,0 +1,8 @@
+# Saltus (fx side round, wave 3) — owned by the saltus builder. Every key here needs its twin in saltus.es.txt.
+effect.saltus = Saltus pitch
+fx.saltus.about = An octaver, a pitch shifter and harmoniser, and a whammy pedal, following the notes it hears.
+fx.saltus.out = Output
+picker.dev.saltus.name = Saltus
+picker.dev.saltus.what = Pitch
+picker.dev.saltus.about = An octaver, a pitch shifter and harmoniser, and a whammy pedal, following the notes it hears.
+mixer.chain.saltus = Pitch

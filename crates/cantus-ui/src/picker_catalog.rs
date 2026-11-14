@@ -79,6 +79,8 @@ pub enum Category {
     Dynamics,
     Space,
     Distortion,
+    /// Guitar and amp: the pedalboard and the amp (fx side round, wave 3). // fx3:contract
+    Guitar,
     Modulation,
     /// Pitch and vocal tools: the tuner (round 28).
     Pitch,
@@ -98,11 +100,12 @@ impl Category {
         Category::OtherInstruments,
         Category::Visual, // r35:dancer
     ];
-    pub const EFFECTS: [Category; 9] = [
+    pub const EFFECTS: [Category; 10] = [
         Category::Eq,
         Category::Dynamics,
         Category::Space,
         Category::Distortion,
+        Category::Guitar, // fx3:contract
         Category::Modulation,
         Category::Pitch,
         Category::Stereo,
@@ -132,6 +135,7 @@ impl Category {
             Category::Dynamics => "picker.cat.dynamics",
             Category::Space => "picker.cat.space",
             Category::Distortion => "picker.cat.distortion",
+            Category::Guitar => "picker.cat.guitar", // fx3:contract
             Category::Modulation => "picker.cat.modulation",
             Category::Pitch => "picker.cat.pitch",
             Category::Stereo => "picker.cat.stereo",
@@ -157,6 +161,7 @@ impl Category {
             Category::Dynamics => "dynamics dinamica",
             Category::Space => "space espacio",
             Category::Distortion => "distortion saturation distorsion saturacion",
+            Category::Guitar => "guitar guitars amp amplifier guitarra guitarras amplificador", // fx3:contract
             Category::Modulation => "modulation modulacion",
             Category::Pitch => "pitch tuning tuner vocal afinacion afinador voz",
             Category::Stereo => "stereo estereo",
@@ -170,6 +175,7 @@ impl Category {
         match self {
             Category::Synths | Category::Samplers | Category::OtherInstruments => Function::Source,
             Category::Keys | Category::Bass | Category::Eq | Category::Distortion => Function::Tone,
+            Category::Guitar => Function::Tone, // fx3:contract
             Category::Drums | Category::Dynamics | Category::Mastering => Function::Dynamics,
             Category::Modulation | Category::Visual => Function::Mod, // r35:dancer
             Category::Pitch => Function::Source,
@@ -384,6 +390,19 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
         ), // fx:contract
         ("vetus", PickChoice::Effect(E::LoFi), vec![C::Distortion]), // fx:contract
         ("libra", PickChoice::Effect(E::Utility), vec![C::Utility]), // fx:contract
+        // fx3:contract — wave 3: the board and the amp on the guitar shelf.
+        (
+            "tabula",
+            PickChoice::Effect(E::Board),
+            vec![C::Guitar, C::Distortion],
+        ), // fx3:contract
+        ("saltus", PickChoice::Effect(E::PitchShift), vec![C::Pitch]), // fx3:contract
+        ("rota", PickChoice::Effect(E::Rotary), vec![C::Modulation]),  // fx3:contract
+        (
+            "arca",
+            PickChoice::Effect(E::Amp),
+            vec![C::Guitar, C::Distortion],
+        ), // fx3:contract
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {

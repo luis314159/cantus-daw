@@ -1324,10 +1324,18 @@ impl EngineHandle {
                 EngineEvent::CellsNeed { tracks, strips } => self.send_cells((tracks, strips)),
                 EngineEvent::GarbageCells(cells) => drop(cells),
                 EngineEvent::PingDone(job) => self.pings.push(job), // r36:external
-                EngineEvent::EffectNeed { effect, need } => {
+                EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } => {
                     let memory =
                         crate::effects::EffectMemory::build(need.need(), self.sample_rate as f32);
-                    self.send(EngineMessage::EffectMemory { effect, memory });
+                    self.send(EngineMessage::EffectMemory {
+                        effect,
+                        pedal,
+                        memory,
+                    });
                 }
                 EngineEvent::GarbageMemory(memory) => drop(memory),
                 EngineEvent::Record(mark) => self.rec.mark(mark),

@@ -1,0 +1,8 @@
+# Arca (ronda lateral de efectos, ola 3) — del constructor de arca. Cada clave necesita su gemela en arca.en.txt.
+effect.arca = Arca amplificador
+fx.arca.about = Un amplificador de guitarra y su caja: las válvulas del previo, el control de tonos y la etapa de potencia modelados desde sus circuitos, la caja por respuesta al impulso.
+fx.arca.out = Salida
+picker.dev.arca.name = Arca
+picker.dev.arca.what = Amplificador
+picker.dev.arca.about = Un amplificador de guitarra y su caja: las válvulas del previo, el control de tonos y la etapa de potencia modelados desde sus circuitos, la caja por respuesta al impulso.
+mixer.chain.arca = Ampli

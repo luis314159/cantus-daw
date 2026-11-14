@@ -65,6 +65,7 @@ picker.cat.eq = EQ
 picker.cat.dynamics = Dynamics
 picker.cat.space = Space
 picker.cat.distortion = Distortion
+picker.cat.guitar = Guitar and amp
 picker.cat.modulation = Modulation
 picker.cat.pitch = Pitch · vocal
 picker.cat.stereo = Stereo

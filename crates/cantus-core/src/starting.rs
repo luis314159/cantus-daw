@@ -39,11 +39,27 @@ pub enum Neutral {
     Hosted,
 }
 
+/// A starting preset that is more than values (fx3:contract, ADR 0134): a whole spec —
+/// a board's pedals — built by a function, with its label key.
+#[derive(Copy, Clone, Debug)]
+pub struct StartingSpec {
+    pub label_key: &'static str,
+    pub spec: fn() -> EffectSpec,
+}
+
+impl PartialEq for StartingSpec {
+    fn eq(&self, other: &Self) -> bool {
+        self.label_key == other.label_key && std::ptr::fn_addr_eq(self.spec, other.spec)
+    }
+}
+
 /// What an insert of a kind starts with.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Start {
     Preset(StartingPreset),
     Neutral(Neutral),
+    /// A whole spec (fx3:contract): Tabula's rig.
+    Spec(StartingSpec),
 }
 
 const fn preset(label_key: &'static str, params: &'static [(&'static str, f32)]) -> Start {
@@ -114,6 +130,17 @@ pub fn start_of(kind: EffectKind) -> Start {
         // fx:libra — a utility inserts as a wire: it corrects what the user asks for, and a
         // starting preset would change a level or an image nobody asked to change.
         K::Utility => Start::Neutral(Flat),
+        // fx3:contract — Tabula starts as the owner's guitar rig: Fragor's green overdrive at
+        // a low drive, Concentus, Delay and Spatium's spring (ADR 0134).
+        K::Board => Start::Spec(StartingSpec {
+            label_key: "preset.tabula.guitar_rig",
+            spec: crate::fx::tabula::guitar_rig,
+        }),
+        // fx3:contract — wave 3's stubs start at their defaults until each builder gives
+        // its unit a starting preset or its real reason for none (ADR 0071).
+        K::PitchShift => Start::Neutral(Flat), // fx3:saltus
+        K::Rotary => Start::Neutral(Flat),     // fx3:rota
+        K::Amp => Start::Neutral(Flat),        // fx3:arca
         K::Multiband => preset(
             "mb.preset.glue",
             &[
@@ -247,7 +274,7 @@ pub fn start_of(kind: EffectKind) -> Start {
 pub fn starting_preset(kind: EffectKind) -> Option<StartingPreset> {
     match start_of(kind) {
         Start::Preset(p) => Some(p),
-        Start::Neutral(_) => None,
+        Start::Neutral(_) | Start::Spec(_) => None,
     }
 }
 
@@ -255,6 +282,13 @@ pub fn starting_preset(kind: EffectKind) -> Option<StartingPreset> {
 /// key the kind does not have is left out (none does: a test holds every key to its
 /// kind). Returns the preset's label key, or `None` for a unit that starts neutral.
 pub fn apply(spec: &mut EffectSpec) -> Option<&'static str> {
+    // fx3:contract — a whole spec replaces the values and the board it holds.
+    if let Start::Spec(s) = start_of(spec.kind) {
+        let new = (s.spec)();
+        spec.params = new.params;
+        spec.board = new.board;
+        return Some(s.label_key);
+    }
     let p = starting_preset(spec.kind)?;
     for (k, v) in p.params {
         let _ = spec.set(k, *v);
@@ -302,6 +336,13 @@ mod tests {
                     }
                 }
                 Start::Neutral(_) => assert_eq!(starting_spec(kind), EffectSpec::new(kind)),
+                // fx3:contract — a whole spec of its kind that differs from the defaults.
+                Start::Spec(s) => {
+                    let built = (s.spec)();
+                    assert_eq!(built.kind, kind);
+                    assert_ne!(built, EffectSpec::new(kind), "{kind:?}: it changes nothing");
+                    assert_eq!(starting_spec(kind), built);
+                }
             }
         }
         assert_eq!(

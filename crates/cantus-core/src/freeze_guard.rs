@@ -227,7 +227,14 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetPluginState { strip: s, .. }
         | SetEffectMidiSource { strip: s, .. }
         | SetEffectIr { strip: s, .. } // r39:conv
-        | SetLapsusPattern { strip: s, .. } => vec![strip(*s)], // fx:lapsus
+        | SetLapsusPattern { strip: s, .. } // fx:lapsus
+        | InsertPedal { strip: s, .. } // fx3:contract
+        | RemovePedal { strip: s, .. }
+        | MovePedal { strip: s, .. }
+        | SetPedalOn { strip: s, .. }
+        | SetPedalShape { strip: s, .. }
+        | SetMacroMaps { strip: s, .. }
+        | SetMacroName { strip: s, .. } => vec![strip(*s)],
         // ---- clips -----------------------------------------------------------------------
         InsertClip { track, clip } => match &clip.automation {
             Some(a) => vec![Target(a.target.clone())],

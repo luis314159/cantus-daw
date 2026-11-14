@@ -410,7 +410,7 @@ impl Processor {
                 m.gr = m.gr.max(gr);
             }
             if let Some(a) = ana.as_mut() {
-                read_meters(a, e);
+                read_meters(a, e, self.analysed_pedal);
             }
         }
         self.prof.enter(Node::Engine);

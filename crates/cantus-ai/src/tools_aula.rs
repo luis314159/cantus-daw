@@ -74,7 +74,12 @@ pub fn set_impulse_response(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
         .name("name", name)
         .nested("strip", words::strip(p, strip));
     Ok(plan(
-        Command::SetEffectIr { strip, effect, ir },
+        Command::SetEffectIr {
+            strip,
+            effect,
+            ir,
+            pedal: None, // fx3:contract
+        },
         said,
         json!({"effect_id": effect.0, "path": path}),
     ))

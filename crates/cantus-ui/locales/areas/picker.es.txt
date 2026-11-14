@@ -65,6 +65,7 @@ picker.cat.eq = EQ
 picker.cat.dynamics = Dinámica
 picker.cat.space = Espacio
 picker.cat.distortion = Distorsión
+picker.cat.guitar = Guitarra y amplificador
 picker.cat.modulation = Modulación
 picker.cat.pitch = Afinación · voz
 picker.cat.stereo = Estéreo

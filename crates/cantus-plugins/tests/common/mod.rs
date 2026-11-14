@@ -747,6 +747,11 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("pan", 0.25),
             ("out", -6.0),
         ], // fx:libra
+        // fx3:contract — wave 3's four: each builder writes its own settings line.
+        EffectKind::Board => vec![("out", -6.0)], // fx3:tabula
+        EffectKind::PitchShift => vec![("out", -6.0)], // fx3:saltus
+        EffectKind::Rotary => vec![("out", -6.0)], // fx3:rota
+        EffectKind::Amp => vec![("out", -6.0)],   // fx3:arca
         _ => vec![],
     }
 }
@@ -913,6 +918,18 @@ impl Direct {
                     cantus_core::balance_gains,
                 ))) // fx:libra
             } // fx:contract
+            // fx3:contract — wave 3's stubs: the engine's units (each builder names its DSP
+            // here and drops its Stub arm; the board stays the engine's own unit).
+            EffectKind::Board => {
+                Direct::Stub(Box::new(cantus_engine::fx::tabula::Unit::build(spec, SR)))
+            } // fx3:tabula
+            EffectKind::PitchShift => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::PitchShift, SR).unwrap())
+            } // fx3:saltus
+            EffectKind::Rotary => {
+                Direct::Stub(cantus_engine::fx::make(EffectKind::Rotary, SR).unwrap())
+            } // fx3:rota
+            EffectKind::Amp => Direct::Stub(cantus_engine::fx::make(EffectKind::Amp, SR).unwrap()), // fx3:arca
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);

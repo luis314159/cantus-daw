@@ -335,6 +335,12 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", 6.0),
             ],
         ), // fx:libra
+        // fx3:contract — wave 3's stubs: the placeholder's gain; each builder replaces its
+        // own line with its unit's heaviest settings (tabula: a full board).
+        EffectKind::Board => set(&mut s, &[("out", 6.0)]), // fx3:tabula
+        EffectKind::PitchShift => set(&mut s, &[("out", 6.0)]), // fx3:saltus
+        EffectKind::Rotary => set(&mut s, &[("out", 6.0)]), // fx3:rota
+        EffectKind::Amp => set(&mut s, &[("out", 6.0)]),   // fx3:arca
     }
     s
 }
@@ -468,6 +474,10 @@ pub fn kind_id(kind: EffectKind) -> &'static str {
         EffectKind::TimeShaper => "lapsus",  // fx:contract
         EffectKind::LoFi => "vetus",         // fx:contract
         EffectKind::Utility => "libra",      // fx:contract
+        EffectKind::Board => "tabula",       // fx3:contract
+        EffectKind::PitchShift => "saltus",  // fx3:contract
+        EffectKind::Rotary => "rota",        // fx3:contract
+        EffectKind::Amp => "arca",           // fx3:contract
     }
 }
 

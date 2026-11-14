@@ -103,6 +103,12 @@ pub mod lapsus; // fx:contract
 pub mod libra; // fx:contract
 pub mod vetus; // fx:contract
 
+// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+pub mod arca; // fx3:contract
+pub mod rota; // fx3:contract
+pub mod saltus; // fx3:contract
+pub mod tabula; // fx3:contract
+
 /// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`
 /// render the same project to the same bits, on any machine; a change that moves any
 /// unit's output bits (an algorithm, a coefficient, a [`math`] function) bumps it — once,

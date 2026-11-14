@@ -474,6 +474,10 @@ pub fn effect_device_name(kind: EffectKind) -> String {
         EffectKind::TimeShaper => "Lapsus".into(),  // fx:contract
         EffectKind::LoFi => "Vetus".into(),         // fx:contract
         EffectKind::Utility => "Libra".into(),      // fx:contract
+        EffectKind::Board => "Tabula".into(),       // fx3:contract
+        EffectKind::PitchShift => "Saltus".into(),  // fx3:contract
+        EffectKind::Rotary => "Rota".into(),        // fx3:contract
+        EffectKind::Amp => "Arca".into(),           // fx3:contract
         EffectKind::Delay => "Delay".into(),
         EffectKind::Reverb => "Reverb".into(),
         #[allow(unreachable_patterns)]

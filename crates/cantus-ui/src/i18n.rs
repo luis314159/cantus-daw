@@ -112,6 +112,10 @@ impl Locale {
                 include_str!("../locales/fx/lapsus.en.txt"),  // fx:contract
                 include_str!("../locales/fx/vetus.en.txt"),   // fx:contract
                 include_str!("../locales/fx/libra.en.txt"),   // fx:contract
+                include_str!("../locales/fx/tabula.en.txt"),  // fx3:contract
+                include_str!("../locales/fx/saltus.en.txt"),  // fx3:contract
+                include_str!("../locales/fx/rota.en.txt"),    // fx3:contract
+                include_str!("../locales/fx/arca.en.txt"),    // fx3:contract
                 include_str!("../locales/inst/chorda.en.txt"),
                 include_str!("../locales/areas/topbar.en.txt"),
                 include_str!("../locales/areas/pitch.en.txt"),
@@ -237,6 +241,10 @@ impl Locale {
                 include_str!("../locales/fx/lapsus.es.txt"),  // fx:contract
                 include_str!("../locales/fx/vetus.es.txt"),   // fx:contract
                 include_str!("../locales/fx/libra.es.txt"),   // fx:contract
+                include_str!("../locales/fx/tabula.es.txt"),  // fx3:contract
+                include_str!("../locales/fx/saltus.es.txt"),  // fx3:contract
+                include_str!("../locales/fx/rota.es.txt"),    // fx3:contract
+                include_str!("../locales/fx/arca.es.txt"),    // fx3:contract
                 include_str!("../locales/inst/chorda.es.txt"),
                 include_str!("../locales/areas/topbar.es.txt"),
                 include_str!("../locales/areas/pitch.es.txt"),

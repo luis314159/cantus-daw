@@ -245,6 +245,13 @@ pub fn glyph(b: &mut Brush, rect: Rect, cat: Category, c: Color32, w: f32) {
             b.hline(x0, x0 + ww, y0 + hh * 0.82, w * 0.4, with_alpha(c, 0.5));
             wave(b, &|u| ((u * TAU * 1.5).sin() * 1.8).clamp(-1.0, 1.0), 0.32);
         }
+        // fx3:contract — Guitar and amp: strings, the middle one plucked.
+        Category::Guitar => {
+            for v in [0.16, 0.33, 0.67, 0.84] {
+                b.hline(x0, x0 + ww, y0 + hh * v, w * 0.6, with_alpha(c, 0.55));
+            }
+            wave(b, &|u| (u * TAU * 3.0).sin() * (1.0 - u), 0.12);
+        }
         Category::Modulation => {
             wave(b, &|u| (u * TAU * 2.0).sin() * (0.35 + 0.65 * u), 0.4);
         }

@@ -145,7 +145,8 @@ fn native_words(app: &CantusApp, target: &MappingTarget) -> Option<(i32, Vec<Wor
     match target {
         MappingTarget::Param(AutoTarget::Effect { effect, key }) => {
             let host = p.effect_host(*effect)?;
-            let kind = p.effect(host, *effect)?.spec.kind;
+            // fx3:contract — routed: a board's `p{id}.…` speaks its pedal's words.
+            let (kind, key) = p.effect(host, *effect)?.spec.resolve(key)?;
             let info = kind.param(key)?;
             if !info.stepped {
                 return None;

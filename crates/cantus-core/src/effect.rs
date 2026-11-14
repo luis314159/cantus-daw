@@ -78,6 +78,15 @@ pub enum EffectKind {
     LoFi, // fx:contract
     /// Libra, the utility: gain, polarity, channels, alignment (`fx::libra`). // fx:contract
     Utility, // fx:contract
+    // fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+    /// Tabula, the pedalboard: native units as pedals ([`EffectSpec::board`]). // fx3:contract
+    Board, // fx3:contract
+    /// Saltus, pitch: octaver, shifter, harmoniser, whammy (`fx::saltus`). // fx3:contract
+    PitchShift, // fx3:contract
+    /// Rota, the rotary speaker (`fx::rota`). // fx3:contract
+    Rotary, // fx3:contract
+    /// Arca, amp and cabinet (`fx::arca`). // fx3:contract
+    Amp, // fx3:contract
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -190,7 +199,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 31] = [
+    pub const ALL: [EffectKind; 35] = [
+        // fx3:contract: 35 with wave 3's four
         // fx:contract: 31 with the side round's five
         // r39:conv: 26 with Aula
         EffectKind::Eq,
@@ -224,6 +234,10 @@ impl EffectKind {
         EffectKind::TimeShaper, // fx:contract
         EffectKind::LoFi,       // fx:contract
         EffectKind::Utility,    // fx:contract
+        EffectKind::Board,      // fx3:contract
+        EffectKind::PitchShift, // fx3:contract
+        EffectKind::Rotary,     // fx3:contract
+        EffectKind::Amp,        // fx3:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
@@ -266,6 +280,10 @@ impl EffectKind {
             EffectKind::TimeShaper => fx::lapsus::NAME_KEY, // fx:contract
             EffectKind::LoFi => fx::vetus::NAME_KEY, // fx:contract
             EffectKind::Utility => fx::libra::NAME_KEY, // fx:contract
+            EffectKind::Board => fx::tabula::NAME_KEY, // fx3:contract
+            EffectKind::PitchShift => fx::saltus::NAME_KEY, // fx3:contract
+            EffectKind::Rotary => fx::rota::NAME_KEY, // fx3:contract
+            EffectKind::Amp => fx::arca::NAME_KEY,  // fx3:contract
         }
     }
 
@@ -304,6 +322,10 @@ impl EffectKind {
             EffectKind::TimeShaper => fx::lapsus::params(), // fx:contract
             EffectKind::LoFi => fx::vetus::params(), // fx:contract
             EffectKind::Utility => fx::libra::params(), // fx:contract
+            EffectKind::Board => fx::tabula::params(), // fx3:contract
+            EffectKind::PitchShift => fx::saltus::params(), // fx3:contract
+            EffectKind::Rotary => fx::rota::params(), // fx3:contract
+            EffectKind::Amp => fx::arca::params(),  // fx3:contract
         }
     }
 
@@ -342,6 +364,10 @@ impl EffectKind {
             EffectKind::TimeShaper => fx::lapsus::SPARSE, // fx:contract
             EffectKind::LoFi => fx::vetus::SPARSE, // fx:contract
             EffectKind::Utility => fx::libra::SPARSE, // fx:contract
+            EffectKind::Board => fx::tabula::SPARSE, // fx3:contract
+            EffectKind::PitchShift => fx::saltus::SPARSE, // fx3:contract
+            EffectKind::Rotary => fx::rota::SPARSE, // fx3:contract
+            EffectKind::Amp => fx::arca::SPARSE,  // fx3:contract
         }
     }
 
@@ -349,6 +375,17 @@ impl EffectKind {
     /// kind but the old Reverb (Delay has had its window since round 39, ADR 0115).
     pub fn has_editor(self) -> bool {
         !matches!(self, EffectKind::Reverb)
+    }
+
+    /// A kind that plays an impulse response from a file ([`EffectSpec::ir`],
+    /// `Command::SetEffectIr`): Aula, and Arca's cabinet once its builder says so.
+    /// // fx3:contract
+    pub fn takes_ir(self) -> bool {
+        match self {
+            EffectKind::Aula => true,
+            EffectKind::Amp => false, // fx3:arca — the cabinet's user IR
+            _ => false,
+        }
     }
 
     /// A kind whose detector can listen to another strip.
@@ -386,6 +423,10 @@ impl EffectKind {
             EffectKind::TimeShaper => fx::lapsus::TAKES_SIDECHAIN, // fx:contract
             EffectKind::LoFi => fx::vetus::TAKES_SIDECHAIN, // fx:contract
             EffectKind::Utility => fx::libra::TAKES_SIDECHAIN, // fx:contract
+            EffectKind::Board => fx::tabula::TAKES_SIDECHAIN, // fx3:contract
+            EffectKind::PitchShift => fx::saltus::TAKES_SIDECHAIN, // fx3:contract
+            EffectKind::Rotary => fx::rota::TAKES_SIDECHAIN, // fx3:contract
+            EffectKind::Amp => fx::arca::TAKES_SIDECHAIN,  // fx3:contract
         }
     }
 
@@ -412,6 +453,10 @@ impl EffectKind {
             EffectKind::TimeShaper => fx::lapsus::TAKES_NOTES, // fx:contract
             EffectKind::LoFi => fx::vetus::TAKES_NOTES, // fx:contract
             EffectKind::Utility => fx::libra::TAKES_NOTES, // fx:contract
+            EffectKind::Board => fx::tabula::TAKES_NOTES, // fx3:contract
+            EffectKind::PitchShift => fx::saltus::TAKES_NOTES, // fx3:contract
+            EffectKind::Rotary => fx::rota::TAKES_NOTES, // fx3:contract
+            EffectKind::Amp => fx::arca::TAKES_NOTES,  // fx3:contract
             _ => false,
         }
     }
@@ -441,6 +486,10 @@ impl EffectKind {
             EffectKind::TimeShaper => fx::lapsus::CHOICES, // fx:contract
             EffectKind::LoFi => fx::vetus::CHOICES, // fx:contract
             EffectKind::Utility => fx::libra::CHOICES, // fx:contract
+            EffectKind::Board => fx::tabula::CHOICES, // fx3:contract
+            EffectKind::PitchShift => fx::saltus::CHOICES, // fx3:contract
+            EffectKind::Rotary => fx::rota::CHOICES, // fx3:contract
+            EffectKind::Amp => fx::arca::CHOICES,  // fx3:contract
             _ => &[],
         }
     }
@@ -469,6 +518,11 @@ pub struct EffectSpec {
     /// written. // fx:lapsus
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lapsus: Option<Box<fx::lapsus::Bank>>,
+    /// Tabula's pedals and macros (ADR 0134, provisional; schema 63); `None` for every other
+    /// kind and for an empty board, and then not written. Its pedals' parameters are
+    /// addressed `p{id}.{key}` through the routed API ([`EffectSpec::param`]). // fx3:contract
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board: Option<Box<fx::tabula::Board>>,
 }
 
 impl EffectSpec {
@@ -487,6 +541,7 @@ impl EffectSpec {
             external: None,
             ir: None,     // r39:conv
             lapsus: None, // fx:lapsus
+            board: None,  // fx3:contract
         }
     }
 
@@ -498,33 +553,166 @@ impl EffectSpec {
             external: Some(Box::new(plugin)),
             ir: None,     // r39:conv
             lapsus: None, // fx:lapsus
+            board: None,  // fx3:contract
         }
     }
 
     /// Whether this effect can be keyed from another strip: by kind for the native ones,
-    /// by what the scan found for a hosted plug-in (a second audio input).
+    /// by what the scan found for a hosted plug-in (a second audio input), and for a board
+    /// when one of its pedals can (fx3:contract).
     pub fn takes_sidechain(&self) -> bool {
-        self.kind.takes_sidechain() || self.external.as_ref().is_some_and(|e| e.sidechain)
+        self.kind.takes_sidechain()
+            || self.external.as_ref().is_some_and(|e| e.sidechain)
+            || self.pedal_specs().any(|s| s.takes_sidechain())
     }
 
-    pub fn get(&self, key: &str) -> f32 {
-        match self.params.get(key) {
-            Some(v) => *v,
-            None => self.kind.param(key).map(|i| i.default).unwrap_or(0.0),
+    /// Whether this effect can hear a track's notes: by kind, and for a board when one of
+    /// its pedals can (fx3:contract).
+    pub fn takes_notes(&self) -> bool {
+        self.kind.takes_notes() || self.pedal_specs().any(|s| s.takes_notes())
+    }
+
+    // ---- the routed API (fx3:contract, ADR 0134): a board's `p{id}.{key}` is its pedal's
+    // ---- `key`; every other key, and every key of every other kind, is the spec's own.
+
+    /// The pedals' specs of a board (none for every other kind).
+    fn pedal_specs(&self) -> impl Iterator<Item = &EffectSpec> {
+        self.pedals().iter().map(|p| &p.spec)
+    }
+
+    /// The spec that holds `key` and its key there: a board's pedal for `p{id}.…`, this
+    /// spec otherwise; `None` for a pedal the board does not hold. No allocation.
+    fn leaf<'k>(&self, key: &'k str) -> Option<(&EffectSpec, &'k str)> {
+        if self.kind == EffectKind::Board {
+            if let Some((id, rest)) = fx::tabula::split_key(key) {
+                let p = self.board.as_deref()?.pedal(id)?;
+                return Some((&p.spec, rest));
+            }
         }
+        Some((self, key))
+    }
+
+    fn leaf_mut<'k>(&mut self, key: &'k str) -> Option<(&mut EffectSpec, &'k str)> {
+        if self.kind == EffectKind::Board {
+            if let Some((id, rest)) = fx::tabula::split_key(key) {
+                let p = self.board.as_deref_mut()?.pedal_mut(id)?;
+                return Some((&mut p.spec, rest));
+            }
+        }
+        Some((self, key))
+    }
+
+    /// The kind and the key inside it that `key` addresses (a board's pedal's own, for
+    /// `p{id}.…`) — what a choice's words or a readout are looked up by.
+    pub fn resolve<'k>(&self, key: &'k str) -> Option<(EffectKind, &'k str)> {
+        self.leaf(key).map(|(s, k)| (s.kind, k))
+    }
+
+    /// The parameter `key` addresses: the kind's, or a board's pedal's.
+    pub fn param(&self, key: &str) -> Option<&'static EffectParamInfo> {
+        let (s, k) = self.leaf(key)?;
+        s.kind.param(k)
+    }
+
+    /// A parameter's value: as stored, else its default (0 for a key nothing has).
+    pub fn get(&self, key: &str) -> f32 {
+        let Some((s, k)) = self.leaf(key) else {
+            return 0.0;
+        };
+        match s.params.get(k) {
+            Some(v) => *v,
+            None => s.kind.param(k).map(|i| i.default).unwrap_or(0.0),
+        }
+    }
+
+    /// A parameter's value as stored, `None` when it is not (it reads as its default).
+    pub fn stored(&self, key: &str) -> Option<f32> {
+        let (s, k) = self.leaf(key)?;
+        s.params.get(k).copied()
     }
 
     /// Set a parameter, clamping to its range. `None` for a key the effect does not have.
     pub fn set(&mut self, key: &str, value: f32) -> Option<f32> {
-        let info = self.kind.param(key)?;
+        let (s, k) = self.leaf_mut(key)?;
+        let info = s.kind.param(k)?;
         let v = if value.is_finite() {
             value.clamp(info.min, info.max)
         } else {
             info.default
         };
         let v = if info.stepped { v.round() } else { v };
-        self.params.insert(key.to_string(), v);
+        s.params.insert(k.to_string(), v);
         Some(v)
+    }
+
+    /// Take a parameter back to "never set"; the value it had stored, if any.
+    pub fn clear(&mut self, key: &str) -> Option<f32> {
+        let (s, k) = self.leaf_mut(key)?;
+        s.params.remove(k)
+    }
+
+    /// The stored value of `key`, to write in place: never inserts (the audio thread's
+    /// automation and macros write through this). `None` when it is not stored.
+    pub fn value_mut(&mut self, key: &str) -> Option<&mut f32> {
+        let (s, k) = self.leaf_mut(key)?;
+        s.params.get_mut(k)
+    }
+
+    /// Store `key` at its current value so later writes are writes ([`Self::value_mut`]),
+    /// never insertions. Allocates: off the audio thread. `false` for a key the effect does
+    /// not have.
+    pub fn ensure(&mut self, key: &str) -> bool {
+        let Some((s, k)) = self.leaf_mut(key) else {
+            return false;
+        };
+        if s.kind.param(k).is_none() {
+            return false;
+        }
+        if !s.params.contains_key(k) {
+            let v = s.get(k);
+            s.params.insert(k.to_string(), v);
+        }
+        true
+    }
+
+    /// Every key the spec addresses: its kind's, then each pedal's `p{id}.{key}` in signal
+    /// order. Allocates.
+    pub fn param_keys(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.kind.params().iter().map(|i| i.key.into()).collect();
+        for p in self.pedals() {
+            v.extend(
+                p.spec
+                    .kind
+                    .params()
+                    .iter()
+                    .map(|i| fx::tabula::pedal_key(p.id, i.key)),
+            );
+        }
+        v
+    }
+
+    /// A board's pedals in signal order (none for every other kind).
+    pub fn pedals(&self) -> &[fx::tabula::Pedal] {
+        match self.board.as_deref() {
+            Some(b) if self.kind == EffectKind::Board => &b.pedals,
+            _ => &[],
+        }
+    }
+
+    /// The stored values by their keys as the routed API names them: the spec's own map,
+    /// with a board's pedals' stored values added as `p{id}.{key}` (borrowed when there
+    /// are none — every kind but a board with pedals).
+    pub fn flat_params(&self) -> std::borrow::Cow<'_, BTreeMap<String, f32>> {
+        if self.pedals().is_empty() {
+            return std::borrow::Cow::Borrowed(&self.params);
+        }
+        let mut m = self.params.clone();
+        for p in self.pedals() {
+            for (k, v) in &p.spec.params {
+                m.insert(fx::tabula::pedal_key(p.id, k), *v);
+            }
+        }
+        std::borrow::Cow::Owned(m)
     }
 }
 
@@ -594,6 +782,70 @@ mod tests {
             "there are 24 bands, 0 to 23"
         );
         assert_eq!(s.params.len(), 2);
+    }
+
+    /// fx3:contract — a board's `p{id}.{key}` reaches its pedal: read, set (clamped),
+    /// stored, cleared, written in place, ensured; a missing pedal is nothing, and the
+    /// board's own keys and every other kind's are what they always were.
+    #[test]
+    fn a_boards_pedal_keys_are_routed_to_its_pedals() {
+        use fx::tabula::{Board, Pedal, PedalId};
+        let mut s = EffectSpec::new(EffectKind::Board);
+        assert!(s.param("p0.time_ms").is_none(), "no pedal yet");
+        assert_eq!(s.get("p0.time_ms"), 0.0);
+        assert!(s.set("p0.time_ms", 1.0).is_none());
+        s.board = Some(Box::new(Board {
+            pedals: vec![
+                Pedal::new(PedalId(0), EffectSpec::new(EffectKind::Delay)),
+                Pedal::new(PedalId(12), EffectSpec::new(EffectKind::Eq)),
+            ],
+            macros: Vec::new(),
+        }));
+        assert_eq!(
+            s.param("p0.time_ms"),
+            EffectKind::Delay.param("time_ms"),
+            "the child's info"
+        );
+        assert_eq!(s.resolve("p12.b3.gain"), Some((EffectKind::Eq, "b3.gain")));
+        assert_eq!(s.resolve("out"), Some((EffectKind::Board, "out")));
+        assert_eq!(s.get("p12.b3.gain"), 0.0);
+        assert_eq!(s.stored("p12.b3.gain"), None, "a sparse EQ stores nothing");
+        assert_eq!(s.set("p12.b3.gain", 40.0), Some(30.0));
+        assert_eq!(s.stored("p12.b3.gain"), Some(30.0));
+        *s.value_mut("p12.b3.gain").unwrap() = 6.0;
+        assert_eq!(s.get("p12.b3.gain"), 6.0);
+        assert_eq!(s.clear("p12.b3.gain"), Some(6.0));
+        assert!(s.value_mut("p12.b3.gain").is_none(), "never inserts");
+        assert!(s.ensure("p12.b3.gain"));
+        assert_eq!(s.value_mut("p12.b3.gain").copied(), Some(0.0));
+        assert!(!s.ensure("p12.nope") && !s.ensure("p5.out"));
+        assert!(s.param("p5.out").is_none(), "no pedal 5");
+        assert_eq!(s.set("ab", 2.0), Some(1.0), "the board's own");
+        let keys = s.param_keys();
+        assert_eq!(
+            keys.len(),
+            12 + DELAY_PARAMS.len() + EffectKind::Eq.params().len()
+        );
+        assert!(keys.iter().all(|k| s.param(k).is_some()));
+        let flat = s.flat_params();
+        assert_eq!(flat.get("p0.time_ms"), Some(&375.0));
+        assert_eq!(flat.get("ab"), Some(&1.0));
+        // The board takes a key or notes when a pedal does (Aequalis's dynamic bands are keyed).
+        assert_eq!(s.takes_sidechain(), EffectKind::Eq.takes_sidechain());
+        assert!(!EffectSpec::new(EffectKind::Board).takes_sidechain());
+        assert_eq!(
+            s.takes_notes(),
+            EffectKind::Delay.takes_notes() || EffectKind::Eq.takes_notes()
+        );
+        // Every other kind: a `p`-key is its own (Fluctus has `p0.on`).
+        let f = EffectSpec::new(EffectKind::VolumeShaper);
+        assert_eq!(
+            f.param("p0.on"),
+            EffectKind::VolumeShaper.param("p0.on"),
+            "not routed"
+        );
+        let json = serde_json::to_string(&EffectSpec::new(EffectKind::Delay)).unwrap();
+        assert!(!json.contains("board"), "a native spec's JSON is unchanged");
     }
 
     #[test]

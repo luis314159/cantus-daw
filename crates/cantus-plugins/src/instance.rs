@@ -588,6 +588,7 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         external: None,
         ir: None,     // r39:conv
         lapsus: None, // fx:lapsus (the bank: phase B)
+        board: None,  // fx3:contract (a board's content: the tabula builder's)
     }
 }
 

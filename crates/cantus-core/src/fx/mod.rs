@@ -36,6 +36,12 @@ pub mod lapsus; // fx:contract
 pub mod libra; // fx:contract
 pub mod vetus; // fx:contract
 
+// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+pub mod arca; // fx3:contract
+pub mod rota; // fx3:contract
+pub mod saltus; // fx3:contract
+pub mod tabula; // fx3:contract
+
 /// How any parameter's value is printed and read back (shared by the DAW's knobs and the
 /// exported plug-ins, ADR 0020).
 pub mod readout;

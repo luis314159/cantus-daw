@@ -105,6 +105,17 @@ pub enum EngineMessage {
     /// taken out while it restarts): swapped in where the old one was, the old one stopped
     /// and handed back, and delay compensation planned again for the new latency.
     ReplaceEffect(Box<EffectUnit>),
+    /// fx3:contract — a pedal built off the audio thread for a board the engine runs (ADR
+    /// 0134): the board adopts it (`FxUnit::adopt`), or it comes back as
+    /// [`EngineEvent::GarbageEffect`]. Must precede the snapshot whose board holds it.
+    AddPedal {
+        effect: EffectId,
+        pedal: cantus_core::fx::tabula::PedalId,
+        unit: Box<EffectUnit>,
+    },
+    /// fx3:contract — feed the open pedal editor's telemetry (`Meters::fx_pedal`) from
+    /// this pedal of the analysed board ([`Self::SetAnalyser`]), or stop (`None`).
+    SetAnalysedPedal(Option<cantus_core::fx::tabula::PedalId>),
     /// A native instrument's unit for one track (ADR 0023). Must precede the snapshot in
     /// which that track hosts that kind.
     AddInstrument(Box<crate::inst::NativeUnit>),
@@ -188,6 +199,8 @@ pub enum EngineMessage {
     /// [`EngineEvent::GarbageMemory`].
     EffectMemory {
         effect: EffectId,
+        /// fx3:contract — for one of a board's pedals (`None`: the effect itself).
+        pedal: Option<cantus_core::fx::tabula::PedalId>,
         memory: crate::effects::EffectMemory,
     },
     /// Rings for the armed tracks of the next recording pass (ADR 0025). The old set, if
@@ -234,6 +247,9 @@ pub struct Meters {
     pub comp: [f32; 3],
     /// The analysed plug-in's telemetry (`crate::fx::FxUnit::telemetry`).
     pub fx: crate::fx::Telemetry,
+    /// fx3:contract — the analysed board's open pedal's telemetry
+    /// (`EngineMessage::SetAnalysedPedal`; `FxUnit::pedal_telemetry`).
+    pub fx_pedal: crate::fx::Telemetry,
     /// The probed track's instrument telemetry (`crate::inst::InstrumentUnit::telemetry`).
     pub inst: crate::inst::Telemetry,
     /// Each input channel's peak this block (ADR 0025); the first `input_count` are live.
@@ -281,6 +297,7 @@ impl Default for Meters {
             eq_deltas: [0.0; METERED_EQ_BANDS],
             comp: [0.0; 3],
             fx: [0.0; crate::fx::TELEMETRY_LEN],
+            fx_pedal: [0.0; crate::fx::TELEMETRY_LEN], // fx3:contract
             inst: [0.0; crate::inst::TELEMETRY_LEN],
             input_count: 0,
             inputs: [0.0; crate::recorder::MAX_INPUTS],
@@ -490,6 +507,9 @@ pub enum EngineEvent {
     /// Until it arrives the effect keeps running its previous path.
     EffectNeed {
         effect: EffectId,
+        /// fx3:contract — one of a board's pedals asks (`None`: the effect itself); the
+        /// answer carries it back.
+        pedal: Option<cantus_core::fx::tabula::PedalId>,
         need: crate::effects::NeedTicket,
     },
     /// Effect memory handed back; the UI drops it.

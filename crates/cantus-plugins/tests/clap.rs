@@ -231,6 +231,10 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::TimeShaper => "out", // fx:contract
             EffectKind::LoFi => "out",       // fx:contract
             EffectKind::Utility => "out",    // fx:contract
+            EffectKind::Board => "out",      // fx3:contract
+            EffectKind::PitchShift => "out", // fx3:contract
+            EffectKind::Rotary => "out",     // fx3:contract
+            EffectKind::Amp => "out",        // fx3:contract
             _ => "thr",
         };
         let table = params::table(kind);

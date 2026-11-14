@@ -163,11 +163,11 @@ pub trait FxHost {
     /// number folds into one step — a drag of several bands at once.
     fn apply(&mut self, edits: &[(&str, Option<f32>)], label_key: &str, gesture: Option<u64>) {
         let _ = gesture;
-        let kind = self.spec().kind;
+        let spec = self.spec(); // fx3:contract: routed (a board's `p{id}.…`)
         let values: Vec<(&str, f32)> = edits
             .iter()
             .map(|(k, v)| {
-                let v = v.unwrap_or_else(|| kind.param(k).map_or(0.0, |i| i.default));
+                let v = v.unwrap_or_else(|| spec.param(k).map_or(0.0, |i| i.default));
                 (*k, v)
             })
             .collect();
@@ -366,6 +366,7 @@ impl Drop for DawHost<'_> {
                 external: None,
                 ir: None,     // r39:conv
                 lapsus: None, // fx:lapsus (the bank: phase B)
+                board: None,  // fx3:contract (a board's content: the tabula builder's)
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));
@@ -459,7 +460,7 @@ impl FxHost for DawHost<'_> {
     }
 
     fn set_learn_range(&mut self, key: &str, from: f32, to: f32) {
-        let Some(info) = self.spec.kind.param(key) else {
+        let Some(info) = self.spec.param(key) else {
             return;
         };
         let span = info.max - info.min;
@@ -476,7 +477,7 @@ impl FxHost for DawHost<'_> {
     }
 
     fn mapping_reaches(&self, key: &str, value: f32) -> bool {
-        let Some(info) = self.spec.kind.param(key) else {
+        let Some(info) = self.spec.param(key) else {
             return true;
         };
         let span = info.max - info.min;
@@ -715,6 +716,7 @@ impl FxHost for DawHost<'_> {
             lane,
             slot,
             pattern: pattern.map(Box::new),
+            pedal: None, // fx3:contract (a pedal's: the tabula builder's PedalHost)
         };
         match gesture {
             Some(g) => {

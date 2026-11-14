@@ -218,6 +218,7 @@ fn a_right_click_gives_a_slot_the_factorys_pattern_back() {
             points: vec![model::Point::new(0.0, 0.3)],
             name: None,
         })),
+        pedal: None, // fx3:contract
     });
     assert!(spec(&a, s0).lapsus.is_some());
     let (_, _, pads) = places(&mut a, &ctx);

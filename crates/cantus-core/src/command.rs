@@ -594,6 +594,9 @@ pub enum Command {
         strip: StripId,
         effect: EffectId,
         ir: Option<Box<crate::fx::aula::IrFile>>,
+        /// fx3:contract — a board's pedal's response (`None`: the slot's own).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pedal: Option<crate::fx::tabula::PedalId>,
     },
     /// fx:lapsus — one slot of one of Lapsus's banks ([`crate::EffectSpec::lapsus`], ADR
     /// 0132): a pattern of its own (sanitized into the bank's ranges), or `None`, the
@@ -604,6 +607,67 @@ pub enum Command {
         lane: crate::fx::lapsus::Lane,
         slot: u8,
         pattern: Option<Box<crate::fx::lapsus::Pattern>>,
+        /// fx3:contract — a board's Lapsus pedal's bank (`None`: the slot's own).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pedal: Option<crate::fx::tabula::PedalId>,
+    },
+    // fx3:contract — Tabula's board (ADR 0134; `crate::command_board`). Each is refused on
+    // a slot that is not a board; each returns its exact inverse.
+    /// A pedal into a board at `index` of its signal order, with the macro maps it brings
+    /// back (`(macro, position in its list, map)`, the inverse of a removal). Refused for an
+    /// id the board holds, a kind that may not be a pedal, a seventeenth pedal, and a map to
+    /// a key the pedal has not.
+    InsertPedal {
+        strip: StripId,
+        effect: EffectId,
+        index: usize,
+        pedal: Box<crate::fx::tabula::Pedal>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        maps: Vec<(u8, usize, crate::fx::tabula::MacroMap)>,
+    },
+    /// A pedal out of its board, with every macro map to it; the inverse puts both back.
+    RemovePedal {
+        strip: StripId,
+        effect: EffectId,
+        pedal: crate::fx::tabula::PedalId,
+    },
+    /// A pedal to `index` of the signal order and onto `path`; its own inverse.
+    MovePedal {
+        strip: StripId,
+        effect: EffectId,
+        pedal: crate::fx::tabula::PedalId,
+        index: usize,
+        path: crate::fx::tabula::Path,
+    },
+    /// A pedal's footswitch.
+    SetPedalOn {
+        strip: StripId,
+        effect: EffectId,
+        pedal: crate::fx::tabula::PedalId,
+        on: bool,
+    },
+    /// How a pedal is drawn (`None`: its unit's natural shape).
+    SetPedalShape {
+        strip: StripId,
+        effect: EffectId,
+        pedal: crate::fx::tabula::PedalId,
+        shape: Option<crate::fx::tabula::PedalShape>,
+    },
+    /// What one macro moves (`macro_` 0…7 is `m1` … `m8`): the whole list at once.
+    SetMacroMaps {
+        strip: StripId,
+        effect: EffectId,
+        #[serde(rename = "macro")]
+        macro_: u8,
+        maps: Vec<crate::fx::tabula::MacroMap>,
+    },
+    /// One macro's name (`None`: "Macro n").
+    SetMacroName {
+        strip: StripId,
+        effect: EffectId,
+        #[serde(rename = "macro")]
+        macro_: u8,
+        name: Option<String>,
     },
 
     // --- clips ------------------------------------------------------------------------
@@ -1061,6 +1125,13 @@ impl Command {
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
             SetEffectIr { .. } => "cmd.set_effect_ir", // r39:conv
             SetLapsusPattern { .. } => "cmd.lapsus_pattern", // fx:lapsus
+            InsertPedal { .. } => "cmd.insert_pedal",  // fx3:contract
+            RemovePedal { .. } => "cmd.remove_pedal",  // fx3:contract
+            MovePedal { .. } => "cmd.move_pedal",      // fx3:contract
+            SetPedalOn { .. } => "cmd.pedal_on",       // fx3:contract
+            SetPedalShape { .. } => "cmd.pedal_shape", // fx3:contract
+            SetMacroMaps { .. } => "cmd.macro_maps",   // fx3:contract
+            SetMacroName { .. } => "cmd.macro_name",   // fx3:contract
             SetTrackHeight { .. } => "cmd.set_track_height",
             SetTrackIcon { .. } => "cmd.set_track_icon",
             SetTrackMute { .. } => "cmd.set_track_mute",
@@ -2445,7 +2516,8 @@ impl Command {
                 value,
             } => {
                 let e = slot_mut(project, strip, effect)?;
-                let stored = e.spec.params.get(&key).copied();
+                // fx3:contract — routed: a board's `p{id}.…` is its pedal's.
+                let stored = e.spec.stored(&key);
                 e.spec
                     .set(&key, value)
                     .ok_or_else(|| CommandError::InvalidValue(format!("effect param {key}")))?;
@@ -2504,7 +2576,8 @@ impl Command {
                     }
                 }
                 let e = slot_mut(project, strip, effect)?;
-                if source.is_some() && !e.spec.kind.takes_notes() {
+                if source.is_some() && !e.spec.takes_notes() {
+                    // fx3:contract: a board hears notes when a pedal does
                     return Err(CommandError::InvalidValue("midi source".into()));
                 }
                 let old = std::mem::replace(&mut e.midi_from, source);
@@ -2515,9 +2588,18 @@ impl Command {
                 })
             }
             // r39:conv
-            SetEffectIr { strip, effect, ir } => {
+            SetEffectIr {
+                strip,
+                effect,
+                ir,
+                pedal,
+            } => {
+                if pedal.is_some() {
+                    // fx3:contract — a pedal's response: the tabula builder's.
+                    return crate::command_board::set_pedal_ir(project, strip, effect, ir, pedal);
+                }
                 let e = slot_mut(project, strip, effect)?;
-                if e.spec.kind != crate::EffectKind::Aula && ir.is_some() {
+                if !e.spec.kind.takes_ir() && ir.is_some() {
                     return Err(CommandError::InvalidValue("impulse response".into()));
                 }
                 if ir.as_ref().is_some_and(|f| f.path.trim().is_empty()) {
@@ -2528,6 +2610,7 @@ impl Command {
                     strip,
                     effect,
                     ir: old,
+                    pedal: None,
                 })
             }
             // fx:lapsus
@@ -2537,7 +2620,14 @@ impl Command {
                 lane,
                 slot,
                 pattern,
+                pedal,
             } => {
+                if pedal.is_some() {
+                    // fx3:contract — a pedal's bank: the tabula builder's.
+                    return crate::command_board::set_pedal_lapsus(
+                        project, strip, effect, lane, slot, pattern, pedal,
+                    );
+                }
                 let e = slot_mut(project, strip, effect)?;
                 if e.spec.kind != crate::EffectKind::TimeShaper {
                     return Err(CommandError::InvalidValue("time pattern".into()));
@@ -2560,14 +2650,60 @@ impl Command {
                     lane,
                     slot,
                     pattern: old.map(Box::new),
+                    pedal: None,
                 })
             }
+            // fx3:contract — Tabula's board (`crate::command_board`, the tabula builder's).
+            InsertPedal {
+                strip,
+                effect,
+                index,
+                pedal,
+                maps,
+            } => crate::command_board::insert_pedal(project, strip, effect, index, *pedal, maps),
+            RemovePedal {
+                strip,
+                effect,
+                pedal,
+            } => crate::command_board::remove_pedal(project, strip, effect, pedal),
+            MovePedal {
+                strip,
+                effect,
+                pedal,
+                index,
+                path,
+            } => crate::command_board::move_pedal(project, strip, effect, pedal, index, path),
+            SetPedalOn {
+                strip,
+                effect,
+                pedal,
+                on,
+            } => crate::command_board::set_pedal_on(project, strip, effect, pedal, on),
+            SetPedalShape {
+                strip,
+                effect,
+                pedal,
+                shape,
+            } => crate::command_board::set_pedal_shape(project, strip, effect, pedal, shape),
+            SetMacroMaps {
+                strip,
+                effect,
+                macro_,
+                maps,
+            } => crate::command_board::set_macro_maps(project, strip, effect, macro_, maps),
+            SetMacroName {
+                strip,
+                effect,
+                macro_,
+                name,
+            } => crate::command_board::set_macro_name(project, strip, effect, macro_, name),
             ClearEffectParam { strip, effect, key } => {
                 let e = slot_mut(project, strip, effect)?;
-                if e.spec.kind.param(&key).is_none() {
+                // fx3:contract — routed: a board's `p{id}.…` is its pedal's.
+                if e.spec.param(&key).is_none() {
                     return Err(CommandError::InvalidValue(format!("effect param {key}")));
                 }
-                Ok(match e.spec.params.remove(&key) {
+                Ok(match e.spec.clear(&key) {
                     Some(old) => SetEffectParam {
                         strip,
                         effect,
@@ -3581,7 +3717,7 @@ fn check_effect_routes(
 }
 
 /// One insert of a strip or of the master.
-fn slot_mut(
+pub(crate) fn slot_mut(
     project: &mut Project,
     strip: StripId,
     effect: EffectId,

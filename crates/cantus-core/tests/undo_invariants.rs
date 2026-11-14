@@ -296,6 +296,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 strip: host,
                                 effect: e.id,
                                 ir,
+                                pedal: None, // fx3:contract
                             };
                         }
                         // fx:lapsus — a slot of Lapsus's banks: a pattern of its own (out
@@ -325,6 +326,7 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 lane,
                                 slot: rng.below(40) as u8,
                                 pattern,
+                                pedal: None, // fx3:contract
                             };
                         }
                         if rng.below(3) == 0 {

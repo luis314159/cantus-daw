@@ -528,6 +528,10 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
         K::TimeShaper => ("lapsus", "Lapsus"),   // fx:contract
         K::LoFi => ("vetus", "Vetus"),           // fx:contract
         K::Utility => ("libra", "Libra"),        // fx:contract
+        K::Board => ("tabula", "Tabula"),        // fx3:contract
+        K::PitchShift => ("saltus", "Saltus"),   // fx3:contract
+        K::Rotary => ("rota", "Rota"),           // fx3:contract
+        K::Amp => ("arca", "Arca"),              // fx3:contract
     }
 }
 
@@ -560,14 +564,25 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("analyzer", EffectKind::Analyzer),
     ("autotune", EffectKind::AutoTune),
     ("auto_tune", EffectKind::AutoTune),
-    ("convolution", EffectKind::Aula),        // r39:conv
-    ("convolution_reverb", EffectKind::Aula), // r39:conv
-    ("auto_filter", EffectKind::AutoFilter),  // fx:contract
-    ("pedal", EffectKind::Pedal),             // fx:contract
-    ("time_shaper", EffectKind::TimeShaper),  // fx:contract
-    ("lofi", EffectKind::LoFi),               // fx:contract
-    ("bitcrusher", EffectKind::LoFi),         // fx:contract
-    ("utility", EffectKind::Utility),         // fx:contract
+    ("convolution", EffectKind::Aula),         // r39:conv
+    ("convolution_reverb", EffectKind::Aula),  // r39:conv
+    ("auto_filter", EffectKind::AutoFilter),   // fx:contract
+    ("pedal", EffectKind::Pedal),              // fx:contract
+    ("time_shaper", EffectKind::TimeShaper),   // fx:contract
+    ("lofi", EffectKind::LoFi),                // fx:contract
+    ("bitcrusher", EffectKind::LoFi),          // fx:contract
+    ("utility", EffectKind::Utility),          // fx:contract
+    ("pedalboard", EffectKind::Board),         // fx3:contract
+    ("board", EffectKind::Board),              // fx3:contract
+    ("pitch_shifter", EffectKind::PitchShift), // fx3:contract
+    ("octaver", EffectKind::PitchShift),       // fx3:contract
+    ("harmonizer", EffectKind::PitchShift),    // fx3:contract
+    ("whammy", EffectKind::PitchShift),        // fx3:contract
+    ("rotary", EffectKind::Rotary),            // fx3:contract
+    ("leslie", EffectKind::Rotary),            // fx3:contract
+    ("amp", EffectKind::Amp),                  // fx3:contract
+    ("amplifier", EffectKind::Amp),            // fx3:contract
+    ("cabinet", EffectKind::Amp),              // fx3:contract
 ];
 
 /// A native effect kind offered for a new insert, by its id or one of its

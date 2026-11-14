@@ -1,0 +1,8 @@
+# Saltus (ronda lateral de efectos, ola 3) — del constructor de saltus. Cada clave necesita su gemela en saltus.en.txt.
+effect.saltus = Saltus tono
+fx.saltus.about = Un octavador, un desplazador de tono y armonizador, y un pedal whammy, que siguen las notas que oye.
+fx.saltus.out = Salida
+picker.dev.saltus.name = Saltus
+picker.dev.saltus.what = Tono
+picker.dev.saltus.about = Un octavador, un desplazador de tono y armonizador, y un pedal whammy, que siguen las notas que oye.
+mixer.chain.saltus = Tono

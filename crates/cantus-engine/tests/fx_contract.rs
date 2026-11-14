@@ -452,6 +452,10 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::TimeShaper => (true, true), // fx:contract
         EffectKind::LoFi => (true, true),       // fx:contract
         EffectKind::Utility => (true, true),    // fx:contract
+        EffectKind::Board => (true, true),      // fx3:tabula
+        EffectKind::PitchShift => (true, true), // fx3:saltus
+        EffectKind::Rotary => (true, true),     // fx3:rota
+        EffectKind::Amp => (true, true),        // fx3:arca
         _ => (false, false),
     }
 }
@@ -550,10 +554,14 @@ per_kind! {
     lapsus => EffectKind::TimeShaper, // fx:contract
     vetus => EffectKind::LoFi, // fx:contract
     libra => EffectKind::Utility, // fx:contract
+    tabula => EffectKind::Board, // fx3:contract
+    saltus => EffectKind::PitchShift, // fx3:contract
+    rota => EffectKind::Rotary, // fx3:contract
+    arca => EffectKind::Amp, // fx3:contract
 }
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists thirty-one: a new kind must be added there. // fx:contract
-    assert_eq!(EffectKind::ALL.len(), 31); // fx:contract: the side round's five
+    // `per_kind!` lists thirty-five: a new kind must be added there. // fx3:contract
+    assert_eq!(EffectKind::ALL.len(), 35); // fx3:contract: wave 3's four
 }

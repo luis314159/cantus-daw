@@ -143,6 +143,8 @@ pub enum MemoryNeed {
     Aula(crate::fx::aula::AulaNeed),
     /// Lapsus's history, in frames (ADR 0132, provisional). // fx:lapsus
     Lapsus(usize),
+    /// Tabula's alignment and dry lines, in frames (ADR 0134, provisional). // fx3:contract
+    Tabula(usize),
 }
 
 /// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
@@ -155,6 +157,7 @@ pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
     Lapsus(usize), // fx:lapsus
+    Tabula(usize), // fx3:contract
 }
 
 impl NeedTicket {
@@ -164,6 +167,7 @@ impl NeedTicket {
             NeedTicket::EqLinear(r) => MemoryNeed::EqLinear(*r),
             NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
             NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n), // fx:lapsus
+            NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n), // fx3:contract
         }
     }
 }
@@ -177,6 +181,8 @@ pub enum EffectMemory {
     Aula(Box<crate::fx::aula::Memory>),
     /// Lapsus's history. // fx:lapsus
     Lapsus(Box<cantus_dsp::lapsus::Ring>),
+    /// Tabula's lines. // fx3:contract
+    Tabula(Box<crate::fx::tabula::Lines>),
 }
 
 /// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
@@ -197,6 +203,9 @@ impl EffectMemory {
             MemoryNeed::Lapsus(n) => {
                 EffectMemory::Lapsus(Box::new(cantus_dsp::lapsus::Ring::new(n)))
             } // fx:lapsus
+            MemoryNeed::Tabula(n) => {
+                EffectMemory::Tabula(Box::new(crate::fx::tabula::Lines::new(n)))
+            } // fx3:contract
         }
     }
 }
@@ -261,6 +270,11 @@ impl EffectUnit {
             EffectKind::Reverb => Dsp::Reverb(Reverb::new(sample_rate)),
             EffectKind::Eq => Dsp::Eq(Box::new(Aequalis::realtime(sample_rate))),
             EffectKind::Compressor => Dsp::Comp(Box::new(Comprimo::new(sample_rate))),
+            // fx3:contract — a board builds its pedals here, off the audio thread.
+            EffectKind::Board => Dsp::Fx(Box::new(crate::fx::tabula::Unit::build(
+                &slot.spec,
+                sample_rate,
+            ))),
             other => Dsp::Fx(
                 crate::fx::make(other, sample_rate).expect("every other kind is a plug-in unit"),
             ),
@@ -314,6 +328,7 @@ impl EffectUnit {
                 NeedTicket::Aula(m.clone())
             }
             MemoryNeed::Lapsus(n) => NeedTicket::Lapsus(n), // fx:lapsus
+            MemoryNeed::Tabula(n) => NeedTicket::Tabula(n), // fx3:contract
         };
         self.asked = need;
         Some(ticket)
@@ -322,6 +337,59 @@ impl EffectUnit {
     /// The request could not be sent: ask again at the next chance.
     pub fn forget_request(&mut self) {
         self.asked = None;
+    }
+
+    // fx3:contract — a board's pedals (ADR 0134; `FxUnit`'s defaults for every other unit).
+
+    /// A pedal built for this board (`EngineMessage::AddPedal`); what comes back is dropped
+    /// off the audio thread. No allocation.
+    pub fn adopt(
+        &mut self,
+        pedal: cantus_core::fx::tabula::PedalId,
+        unit: Box<EffectUnit>,
+    ) -> Option<Box<EffectUnit>> {
+        match &mut self.dsp {
+            Dsp::Fx(u) => u.adopt(pedal, unit),
+            _ => Some(unit),
+        }
+    }
+
+    /// A pedal that has faded out, to be dropped off the audio thread.
+    pub fn take_retired(&mut self) -> Option<Box<EffectUnit>> {
+        match &mut self.dsp {
+            Dsp::Fx(u) => u.take_retired(),
+            _ => None,
+        }
+    }
+
+    /// The pedals inside this unit (none but a board's).
+    pub fn pedals_mut(&mut self) -> &mut [crate::fx::tabula::Kid] {
+        match &mut self.dsp {
+            Dsp::Fx(u) => u.pedals_mut(),
+            _ => &mut [],
+        }
+    }
+
+    /// One pedal inside this unit.
+    pub fn pedal_mut(
+        &mut self,
+        pedal: cantus_core::fx::tabula::PedalId,
+    ) -> Option<&mut EffectUnit> {
+        self.pedals_mut()
+            .iter_mut()
+            .find(|k| k.pedal == pedal)
+            .map(|k| &mut k.unit)
+    }
+
+    /// What one pedal's editor draws (`EngineMessage::SetAnalysedPedal`).
+    pub fn pedal_telemetry(
+        &self,
+        pedal: cantus_core::fx::tabula::PedalId,
+    ) -> Option<crate::fx::Telemetry> {
+        match &self.dsp {
+            Dsp::Fx(u) => u.pedal_telemetry(pedal),
+            _ => None,
+        }
     }
 
     /// Hand the unit memory built for it. What comes back — memory it replaced, or what

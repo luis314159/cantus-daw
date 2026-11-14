@@ -519,6 +519,7 @@ fn the_showcase_plays_round_28() {
     // fx:cribrum — Cribrum (26) is in it (the arp); fx:fragor — Fragor (27), the guitar;
     // fx:lapsus — Lapsus (28), the fills; fx:vetus — Vetus (29), the percussion;
     // fx:libra — Libra (30), the bass.
+    // fx3:contract — wave 3's four (31..35) join when their builders put them in it.
     for kind in K::ALL[12..31].iter() {
         assert!(
             slots.iter().any(|e| e.spec.kind == *kind),

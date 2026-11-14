@@ -1,0 +1,34 @@
+# Tabula (ronda lateral de efectos, ola 3) — del constructor de tabula. Cada clave necesita su gemela en tabula.en.txt.
+effect.tabula = Tabula pedalera
+fx.tabula.about = Una pedalera con los efectos de Cantus: saturaciones, filtros, modulación, retardos, reverberaciones y el amplificador como pedales en cualquier orden, una división A/B y ocho macros.
+picker.dev.tabula.name = Tabula
+picker.dev.tabula.what = Pedalera
+picker.dev.tabula.about = Una pedalera con los efectos de Cantus: saturaciones, filtros, modulación, retardos, reverberaciones y el amplificador como pedales en cualquier orden, una división A/B y ocho macros.
+mixer.chain.tabula = Pedalera
+
+# Los parámetros de la pedalera.
+fx.tabula.m1 = Macro 1
+fx.tabula.m2 = Macro 2
+fx.tabula.m3 = Macro 3
+fx.tabula.m4 = Macro 4
+fx.tabula.m5 = Macro 5
+fx.tabula.m6 = Macro 6
+fx.tabula.m7 = Macro 7
+fx.tabula.m8 = Macro 8
+fx.tabula.in = Entrada
+fx.tabula.out = Salida
+fx.tabula.mix = Mezcla
+fx.tabula.ab = Balance A/B
+
+# El preset de inicio (ADR 0071).
+preset.tabula.guitar_rig = Equipo de guitarra
+
+# Las órdenes de la pedalera, como las nombra el historial.
+cmd.insert_pedal = Añadir un pedal
+cmd.remove_pedal = Quitar un pedal
+cmd.move_pedal = Mover un pedal
+cmd.pedal_on = Encender o apagar un pedal
+cmd.pedal_shape = Cambiar la forma de un pedal
+cmd.macro_maps = Asignar una macro
+cmd.macro_name = Nombrar una macro
+cmd.tabula_randomise = Pedalera al azar

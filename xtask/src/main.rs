@@ -85,6 +85,10 @@ fn feature(d: &Descriptor) -> &'static str {
         "lapsus" => "lapsus,editor",   // fx:contract
         "vetus" => "vetus,editor",     // fx:contract
         "libra" => "libra,editor",     // fx:contract
+        "tabula" => "tabula,editor",   // fx3:contract
+        "saltus" => "saltus,editor",   // fx3:contract
+        "rota" => "rota,editor",       // fx3:contract
+        "arca" => "arca,editor",       // fx3:contract
         other => panic!("no feature for {other}"),
     }
 }

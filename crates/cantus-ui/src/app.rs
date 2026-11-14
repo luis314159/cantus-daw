@@ -1734,6 +1734,10 @@ impl CantusApp {
             "lapsus" | "timeshaper" => EffectKind::TimeShaper, // fx:contract
             "vetus" | "lofi" => EffectKind::LoFi,       // fx:contract
             "libra" | "utility" => EffectKind::Utility, // fx:contract
+            "tabula" | "board" | "pedalboard" => EffectKind::Board, // fx3:contract
+            "saltus" | "pitch" => EffectKind::PitchShift, // fx3:contract
+            "rota" | "rotary" => EffectKind::Rotary,    // fx3:contract
+            "arca" | "amp" => EffectKind::Amp,          // fx3:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

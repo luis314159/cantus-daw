@@ -247,6 +247,8 @@ pub struct Processor {
     capture_slot: Option<usize>,
     /// The effect the analyser looks at.
     analysed: Option<cantus_core::EffectId>,
+    /// fx3:contract — the analysed board's pedal whose editor is open.
+    analysed_pedal: Option<cantus_core::fx::tabula::PedalId>,
     /// The Speculums whose signals go to the scope rings (ADR 0056).
     scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// How late each watched Speculum's signal is against the transport (`scope_delays`).
@@ -430,6 +432,7 @@ impl Processor {
             capture_target: CaptureTarget::Off,
             capture_slot: None,
             analysed: None,
+            analysed_pedal: None, // fx3:contract
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
             scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
             master_tap: Default::default(), // r35:stage

@@ -869,11 +869,19 @@ impl Rig {
                 EngineEvent::GarbageEffect(u) => {
                     self.have.remove(&u.id);
                 }
-                EngineEvent::EffectNeed { effect, need } => {
+                EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } => {
                     let memory =
                         cantus_engine::effects::EffectMemory::build(need.need(), SR as f32);
                     self.tx
-                        .push(EngineMessage::EffectMemory { effect, memory })
+                        .push(EngineMessage::EffectMemory {
+                            effect,
+                            pedal,
+                            memory,
+                        })
                         .ok();
                     self.p.settle();
                 }

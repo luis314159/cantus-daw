@@ -1,0 +1,8 @@
+# Arca (fx side round, wave 3) — owned by the arca builder. Every key here needs its twin in arca.es.txt.
+effect.arca = Arca amp
+fx.arca.about = A guitar amp and its cabinet: preamp valves, the tone stack and the power amp modelled from their circuits, the cabinet by impulse response.
+fx.arca.out = Output
+picker.dev.arca.name = Arca
+picker.dev.arca.what = Amp
+picker.dev.arca.about = A guitar amp and its cabinet: preamp valves, the tone stack and the power amp modelled from their circuits, the cabinet by impulse response.
+mixer.chain.arca = Amp

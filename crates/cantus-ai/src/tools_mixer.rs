@@ -311,8 +311,9 @@ fn host_of(p: &Project, a: A<'_>) -> Res<StripId> {
 }
 
 fn kind_schema() -> Value {
-    // fx:contract — the description names the side round's five (each builder words its own).
-    json!({"enum": args::effect_words(), "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"})
+    // fx:contract — the description names the side round's units (each builder words its own;
+    // fx3:contract — wave 3's four).
+    json!({"enum": args::effect_words(), "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard), saltus (pitch: octaver, shifter, harmoniser, whammy), rota (rotary speaker), arca (amp and cabinet) — those four being built: for now each passes the sound through. Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"})
 }
 
 fn params_schema() -> Value {
@@ -324,7 +325,8 @@ fn params_schema() -> Value {
 pub fn apply_params(spec: &mut EffectSpec, params: &Map<String, Value>) -> Res<Vec<(String, f32)>> {
     let mut out = Vec::new();
     for (k, v) in params {
-        let info = spec.kind.param(k).ok_or_else(|| {
+        // fx3:contract — routed: a board's `p{id}.…` is its pedal's.
+        let info = spec.param(k).ok_or_else(|| {
             ToolError::bad(
                 k.as_str(),
                 format!(

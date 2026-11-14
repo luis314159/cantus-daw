@@ -60,6 +60,7 @@ pub fn save_with_bank(
         external: None,
         ir: None,                                    // r39:conv
         lapsus: lapsus.map(|b| Box::new(b.clone())), // fx:lapsus
+        board: None, // fx3:contract (the board travels here: the tabula builder's `save_spec_extras`)
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,

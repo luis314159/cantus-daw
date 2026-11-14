@@ -280,6 +280,27 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/utility.toml",
         include_str!("../presets/effects/utility.toml"),
     ),
+    // fx3:contract — wave 3's four (each builder fills its own file).
+    (
+        FileUnit::Effect(EffectKind::Board), // fx3:contract
+        "presets/effects/board.toml",
+        include_str!("../presets/effects/board.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::PitchShift), // fx3:contract
+        "presets/effects/pitchshift.toml",
+        include_str!("../presets/effects/pitchshift.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Rotary), // fx3:contract
+        "presets/effects/rotary.toml",
+        include_str!("../presets/effects/rotary.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Amp), // fx3:contract
+        "presets/effects/amp.toml",
+        include_str!("../presets/effects/amp.toml"),
+    ),
 ];
 
 /// Read one file's text.

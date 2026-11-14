@@ -56,7 +56,7 @@ impl AutoTarget {
             AutoTarget::MasterWidth => Command::SetMasterWidth { width: v },
             AutoTarget::Effect { effect, key } => {
                 let strip = project.effect_host(*effect)?;
-                project.effect(strip, *effect)?.spec.kind.param(key)?;
+                project.effect(strip, *effect)?.spec.param(key)?; // fx3:contract: routed
                 Command::SetEffectParam {
                     strip,
                     effect: *effect,

@@ -45,6 +45,13 @@ impl Processor {
                     }
                 }
                 EngineMessage::ReplaceEffect(unit) => self.replace_effect(unit),
+                // fx3:contract — Tabula's pedals (ADR 0134).
+                EngineMessage::AddPedal {
+                    effect,
+                    pedal,
+                    unit,
+                } => self.adopt_pedal(effect, pedal, unit),
+                EngineMessage::SetAnalysedPedal(p) => self.analysed_pedal = p,
                 EngineMessage::AddInstrument(unit) => {
                     if self.incoming_instruments.len() < self.incoming_instruments.capacity() {
                         self.incoming_instruments.push(unit);
@@ -147,8 +154,12 @@ impl Processor {
                     }
                     self.compensate();
                 }
-                EngineMessage::EffectMemory { effect, memory } => {
-                    self.supply_effect(effect, memory);
+                EngineMessage::EffectMemory {
+                    effect,
+                    pedal,
+                    memory,
+                } => {
+                    self.supply_effect(effect, pedal, memory);
                 }
                 EngineMessage::AttachRecorder(rings) => {
                     self.live.new_pass();
@@ -217,8 +228,17 @@ impl Processor {
     fn supply_effect(
         &mut self,
         effect: cantus_core::EffectId,
+        pedal: Option<cantus_core::fx::tabula::PedalId>,
         memory: crate::effects::EffectMemory,
     ) {
+        // fx3:contract — memory for one of a board's pedals goes to that pedal.
+        let supply = |u: &mut EffectUnit, m| match pedal {
+            None => u.supply(m),
+            Some(p) => match u.pedal_mut(p) {
+                Some(k) => k.supply(m),
+                None => Some(m),
+            },
+        };
         let nodes = self.nodes.clone();
         let mut memory = Some(memory);
         let mut back = None;
@@ -228,7 +248,7 @@ impl Processor {
             }
             if let Some(mut st) = nodes.strip(slot) {
                 if let Some(u) = st.effects.iter_mut().find(|e| e.id == effect) {
-                    back = memory.take().and_then(|m| u.supply(m));
+                    back = memory.take().and_then(|m| supply(u, m));
                     break;
                 }
             }
@@ -241,7 +261,7 @@ impl Processor {
                 .chain(self.incoming_effects.iter_mut())
                 .find(|e| e.id == effect);
             back = match unit {
-                Some(u) => u.supply(m),
+                Some(u) => supply(u, m),
                 None => Some(m),
             };
         }
@@ -255,15 +275,74 @@ impl Processor {
         self.request_memory();
     }
 
+    /// fx3:contract — a pedal for a board the engine runs (`EngineMessage::AddPedal`): the
+    /// board adopts it, or it goes back to be dropped (no such board, no room).
+    fn adopt_pedal(
+        &mut self,
+        effect: cantus_core::EffectId,
+        pedal: cantus_core::fx::tabula::PedalId,
+        unit: Box<EffectUnit>,
+    ) {
+        let nodes = self.nodes.clone();
+        let mut unit = Some(unit);
+        let mut back = None;
+        for slot in 0..MAX_STRIPS {
+            if self.strip_ids[slot].is_none() {
+                continue;
+            }
+            if let Some(mut st) = nodes.strip(slot) {
+                if let Some(u) = st.effects.iter_mut().find(|e| e.id == effect) {
+                    back = unit.take().and_then(|k| u.adopt(pedal, k));
+                    break;
+                }
+            }
+        }
+        if let Some(k) = unit.take() {
+            let host = self
+                .master
+                .effects
+                .iter_mut()
+                .chain(self.incoming_effects.iter_mut())
+                .find(|e| e.id == effect);
+            back = match host {
+                Some(u) => u.adopt(pedal, k),
+                None => Some(k),
+            };
+        }
+        if let Some(back) = back {
+            if self.tx.push(EngineEvent::GarbageEffect(back)).is_err() {
+                self.stats.dropped_events += 1;
+            }
+        }
+    }
+
     /// Ask the UI thread for memory any effect's settings need and it has not got (ADR
     /// 0022). Each need is asked for once; the effect runs its previous path meanwhile.
     pub(super) fn request_memory(&mut self) {
         let nodes = self.nodes.clone();
         let ask = |e: &mut Box<EffectUnit>, tx: &mut Producer<EngineEvent>| {
             if let Some(need) = e.take_request() {
-                let ev = EngineEvent::EffectNeed { effect: e.id, need };
+                let ev = EngineEvent::EffectNeed {
+                    effect: e.id,
+                    pedal: None,
+                    need,
+                };
                 if tx.push(ev).is_err() {
                     e.forget_request();
+                }
+            }
+            // fx3:contract — and each of a board's pedals, by its id.
+            let effect = e.id;
+            for k in e.pedals_mut() {
+                if let Some(need) = k.unit.take_request() {
+                    let ev = EngineEvent::EffectNeed {
+                        effect,
+                        pedal: Some(k.pedal),
+                        need,
+                    };
+                    if tx.push(ev).is_err() {
+                        k.unit.forget_request();
+                    }
                 }
             }
         };

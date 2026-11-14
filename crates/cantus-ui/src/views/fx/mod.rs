@@ -85,10 +85,21 @@ pub mod fragor;
 pub mod lapsus;
 /// Libra, the utility (fx side round). // fx:contract
 pub mod libra;
+// fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
+/// Arca, amp and cabinet (fx side round, wave 3). // fx3:contract
+pub mod arca;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
 /// The pedals' artwork: textures, illustrations, lettering. // fx:fragor
 pub mod pedal_art;
 pub mod pedal_draw;
+/// Rota, the rotary speaker (fx side round, wave 3). // fx3:contract
+pub mod rota;
+/// Saltus, pitch (fx side round, wave 3). // fx3:contract
+pub mod saltus;
+/// Tabula, the pedalboard (fx side round, wave 3). // fx3:contract
+pub mod tabula;
+/// Tabula's pedal faces: one row per unit (each unit's builder edits its own). // fx3:contract
+pub mod tabula_faces;
 pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
@@ -141,6 +152,10 @@ pub struct FxEditors {
     pub lapsus: lapsus::State,   // fx:contract
     pub vetus: vetus::State,     // fx:contract
     pub libra: libra::State,     // fx:contract
+    pub tabula: tabula::State,   // fx3:contract
+    pub saltus: saltus::State,   // fx3:contract
+    pub rota: rota::State,       // fx3:contract
+    pub arca: arca::State,       // fx3:contract
     pub delay: delay::State,     // r39:delay
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
@@ -410,6 +425,10 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::TimeShaper => lapsus::FACTORY_PRESETS, // fx:contract
         EffectKind::LoFi => vetus::FACTORY_PRESETS, // fx:contract
         EffectKind::Utility => libra::FACTORY_PRESETS, // fx:contract
+        EffectKind::Board => tabula::FACTORY_PRESETS, // fx3:contract
+        EffectKind::PitchShift => saltus::FACTORY_PRESETS, // fx3:contract
+        EffectKind::Rotary => rota::FACTORY_PRESETS, // fx3:contract
+        EffectKind::Amp => arca::FACTORY_PRESETS,  // fx3:contract
         EffectKind::Delay => delay::FACTORY_PRESETS, // r39:delay
         _ => &[],
     }
@@ -520,6 +539,10 @@ pub enum Editor {
     Lapsus(Box<lapsus::State>),   // fx:contract
     Vetus(Box<vetus::State>),     // fx:contract
     Libra(Box<libra::State>),     // fx:contract
+    Tabula(Box<tabula::State>),   // fx3:contract
+    Saltus(Box<saltus::State>),   // fx3:contract
+    Rota(Box<rota::State>),       // fx3:contract
+    Arca(Box<arca::State>),       // fx3:contract
     Delay(Box<delay::State>),     // r39:delay
 }
 
@@ -556,6 +579,10 @@ impl Editor {
             EffectKind::TimeShaper => Some(Editor::Lapsus(Box::default())), // fx:contract
             EffectKind::LoFi => Some(Editor::Vetus(Box::default())), // fx:contract
             EffectKind::Utility => Some(Editor::Libra(Box::default())), // fx:contract
+            EffectKind::Board => Some(Editor::Tabula(Box::default())), // fx3:contract
+            EffectKind::PitchShift => Some(Editor::Saltus(Box::default())), // fx3:contract
+            EffectKind::Rotary => Some(Editor::Rota(Box::default())), // fx3:contract
+            EffectKind::Amp => Some(Editor::Arca(Box::default())),  // fx3:contract
             EffectKind::Delay => Some(Editor::Delay(Box::default())), // r39:delay
             _ => None,
         }
@@ -593,6 +620,10 @@ impl Editor {
             Editor::Lapsus(st) => lapsus::editor(host, st, ui), // fx:contract
             Editor::Vetus(st) => vetus::editor(host, st, ui), // fx:contract
             Editor::Libra(st) => libra::editor(host, st, ui), // fx:contract
+            Editor::Tabula(st) => tabula::editor(host, st, ui), // fx3:contract
+            Editor::Saltus(st) => saltus::editor(host, st, ui), // fx3:contract
+            Editor::Rota(st) => rota::editor(host, st, ui), // fx3:contract
+            Editor::Arca(st) => arca::editor(host, st, ui), // fx3:contract
             Editor::Delay(st) => delay::editor(host, st, ui), // r39:delay
         }
     }
@@ -638,6 +669,10 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::TimeShaper // fx:contract
         | EffectKind::LoFi // fx:contract
         | EffectKind::Utility // fx:contract
+        | EffectKind::Board // fx3:contract
+        | EffectKind::PitchShift // fx3:contract
+        | EffectKind::Rotary // fx3:contract
+        | EffectKind::Amp // fx3:contract
         | EffectKind::Delay // r39:delay
         | EffectKind::External => {
             let mut pos = app.fx.pos;
@@ -685,6 +720,10 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::TimeShaper => lapsus::framed(app, ui, strip, effect), // fx:contract
                     EffectKind::LoFi => vetus::framed(app, ui, strip, effect), // fx:contract
                     EffectKind::Utility => libra::framed(app, ui, strip, effect), // fx:contract
+                    EffectKind::Board => tabula::framed(app, ui, strip, effect), // fx3:contract
+                    EffectKind::PitchShift => saltus::framed(app, ui, strip, effect), // fx3:contract
+                    EffectKind::Rotary => rota::framed(app, ui, strip, effect), // fx3:contract
+                    EffectKind::Amp => arca::framed(app, ui, strip, effect), // fx3:contract
                     EffectKind::Delay => delay::framed(app, ui, strip, effect), // r39:delay
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
@@ -731,6 +770,10 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::TimeShaper => lapsus::preview(ui, spec), // fx:contract
         EffectKind::LoFi => vetus::preview(ui, spec), // fx:contract
         EffectKind::Utility => libra::preview(ui, spec), // fx:contract
+        EffectKind::Board => tabula::preview(ui, spec), // fx3:contract
+        EffectKind::PitchShift => saltus::preview(ui, spec), // fx3:contract
+        EffectKind::Rotary => rota::preview(ui, spec), // fx3:contract
+        EffectKind::Amp => arca::preview(ui, spec),  // fx3:contract
         EffectKind::Delay => delay::preview(ui, spec), // r39:delay
         _ => {
             let s = crate::kit::Style::current();
@@ -771,6 +814,10 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::TimeShaper => lapsus::demo_setup(app, strip, effect), // fx:contract
         EffectKind::LoFi => vetus::demo_setup(app, strip, effect), // fx:contract
         EffectKind::Utility => libra::demo_setup(app, strip, effect), // fx:contract
+        EffectKind::Board => tabula::demo_setup(app, strip, effect), // fx3:contract
+        EffectKind::PitchShift => saltus::demo_setup(app, strip, effect), // fx3:contract
+        EffectKind::Rotary => rota::demo_setup(app, strip, effect), // fx3:contract
+        EffectKind::Amp => arca::demo_setup(app, strip, effect),  // fx3:contract
         EffectKind::Delay => delay::demo_setup(app, strip, effect), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
@@ -809,6 +856,10 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::TimeShaper => lapsus::demo_feed(app), // fx:contract
         EffectKind::LoFi => vetus::demo_feed(app), // fx:contract
         EffectKind::Utility => libra::demo_feed(app), // fx:contract
+        EffectKind::Board => tabula::demo_feed(app), // fx3:contract
+        EffectKind::PitchShift => saltus::demo_feed(app), // fx3:contract
+        EffectKind::Rotary => rota::demo_feed(app), // fx3:contract
+        EffectKind::Amp => arca::demo_feed(app),  // fx3:contract
         EffectKind::Delay => delay::demo_feed(app), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}

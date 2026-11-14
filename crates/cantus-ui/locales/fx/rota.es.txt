@@ -1,0 +1,8 @@
+# Rota (ronda lateral de efectos, ola 3) — del constructor de rota. Cada clave necesita su gemela en rota.en.txt.
+effect.rota = Rota altavoz rotatorio
+fx.rota.about = Un altavoz rotatorio: bocina y tambor girando lento o rápido, acelerando entre ambos, escuchados con dos micrófonos.
+fx.rota.out = Salida
+picker.dev.rota.name = Rota
+picker.dev.rota.what = Altavoz rotatorio
+picker.dev.rota.about = Un altavoz rotatorio: bocina y tambor girando lento o rápido, acelerando entre ambos, escuchados con dos micrófonos.
+mixer.chain.rota = Rotatorio

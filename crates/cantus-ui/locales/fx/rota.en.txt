@@ -1,0 +1,8 @@
+# Rota (fx side round, wave 3) — owned by the rota builder. Every key here needs its twin in rota.es.txt.
+effect.rota = Rota rotary speaker
+fx.rota.about = A rotary speaker: horn and drum spinning slow or fast, ramping between them, heard through two microphones.
+fx.rota.out = Output
+picker.dev.rota.name = Rota
+picker.dev.rota.what = Rotary speaker
+picker.dev.rota.about = A rotary speaker: horn and drum spinning slow or fast, ramping between them, heard through two microphones.
+mixer.chain.rota = Rotary

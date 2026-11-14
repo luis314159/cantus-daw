@@ -362,10 +362,18 @@ impl Rig {
                         self.tx.push(EngineMessage::AddPart(chain)).unwrap();
                     }
                 }
-                EngineEvent::EffectNeed { effect, need } => {
+                EngineEvent::EffectNeed {
+                    effect,
+                    pedal,
+                    need,
+                } => {
                     let memory = EffectMemory::build(need.need(), 48_000.0);
                     self.tx
-                        .push(EngineMessage::EffectMemory { effect, memory })
+                        .push(EngineMessage::EffectMemory {
+                            effect,
+                            pedal,
+                            memory,
+                        })
                         .unwrap();
                 }
                 _ => {}

@@ -117,6 +117,7 @@ fn lapsus_on_a_strip_shapes_the_master_in_an_offline_render_and_undoes() {
             points: vec![model::Point::new(0.0, 0.0)],
             name: None,
         })),
+        pedal: None, // fx3:contract
     });
     assert_eq!(rendered(&mut app), dry, "a flat time curve is a wire");
     app.undo();

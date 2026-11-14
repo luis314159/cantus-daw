@@ -58,6 +58,11 @@ pub fn effect_use(kind: EffectKind) -> &'static str {
         K::TimeShaper => "Time shaper, Gross Beat class: two banks of 36 drawn patterns played together — time patterns (how far behind the music it reads: tape stop and start, half and quarter time, stutters and rolls, beat repeats, reverse, rewind, backspin, scratches) and volume patterns (gates, trance gates, pumps, fades, tremolos, cuts) — on cycles of 1/4 to 4 bars synced to the song, chosen by tslot/vslot (automatable) or by notes (time from C4, volume from C1; switch or hold, optional restart). Both on Through (slot 1) is a wire; starts on Half time.", // fx:lapsus
         K::LoFi => "Lo-fi: six modules, each switched on with its key (bits.on, rate.on, wob.on, age.on, noise.on, tone.on) — bits (1..24, rounding/truncation/mu-law, dither), sample rate (1..48 kHz, raw with its aliasing, filtered, or smoothed), wow and flutter in cents (wow synced or free, part of it drifting), age (tape dropouts and wear), noise (vinyl crackle and pops, tape or vinyl hiss, 50/60 Hz hum, optionally following the music) and tone (the band of tape, radio, telephone or gramophone) — and Character (char), which takes every module that is on towards its oldest. Cassettes, 8-bit, dusty drums, AM radio, telephone, gramophone, VHS. Starts as a worn cassette; every module off is a wire.", // fx:vetus
         K::Utility => "Utility: gain (out, ±36 dB), balance (pan, −1..1, the master's balance law), width (0..2, 0 is mono), the channel operation (chan: 0 stereo, 1 swap, 2 mono, 3 left to both, 4 right to both, 5 mid, 6 side), polarity per channel (pol.l, pol.r), DC removal (dc), a delay per channel in ms applied in whole samples (delay.l, delay.r — to align two microphones), mute; its window shows a tuner (tuner.ref is its A, 415..466 Hz), a goniometer and the correlation. Mono checks, phase flips, alignment, a pad, listening to mid or side. Inserts as a wire.", // fx:libra
+        // fx3:contract — wave 3 (each builder words its own once its unit is built).
+        K::Board => "Pedalboard (being built: for now it passes the sound through, with its in and out gains): Cantus's own effects as pedals in any order, an A/B split and eight macros (m1..m8).", // fx3:tabula
+        K::PitchShift => "Pitch (being built: for now it passes the sound through, with an output gain): octaver, pitch shifter and harmoniser, whammy.", // fx3:saltus
+        K::Rotary => "Rotary speaker (being built: for now it passes the sound through, with an output gain): horn and drum, slow and fast.", // fx3:rota
+        K::Amp => "Amp and cabinet (being built: for now it passes the sound through, with an output gain): preamp, tone stack, power amp and the cabinet by impulse response, for guitar, bass, keys and voice.", // fx3:arca
     }
 }
 
@@ -165,6 +170,8 @@ pub fn effect_entry(kind: EffectKind) -> Value {
         .collect();
     let starting = match start_of(kind) {
         Start::Preset(p) => json!({"preset": en(p.label_key), "sets": sets(p.params)}),
+        // fx3:contract — a whole spec (Tabula's rig): its name.
+        Start::Spec(s) => json!({"preset": en(s.label_key)}),
         Start::Neutral(n) => json!({"neutral": match n {
             Neutral::Flat => "flat by design: the curve or image is yours to make",
             Neutral::Sounds => "its defaults already do the job audibly",

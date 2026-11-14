@@ -128,9 +128,19 @@ fn parallel_equals_serial_across_a_ramp() {
         tx.push(EngineMessage::SetSnapshotPlanned(snap, plan)).ok();
         proc.settle();
         while let Ok(ev) = rx.pop() {
-            if let EngineEvent::EffectNeed { effect, need } = ev {
+            if let EngineEvent::EffectNeed {
+                effect,
+                pedal,
+                need,
+            } = ev
+            {
                 let memory = EffectMemory::build(need.need(), SR as f32);
-                tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+                tx.push(EngineMessage::EffectMemory {
+                    effect,
+                    pedal,
+                    memory,
+                })
+                .ok();
                 proc.settle();
             }
         }

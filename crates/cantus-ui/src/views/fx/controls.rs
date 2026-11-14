@@ -552,7 +552,7 @@ pub fn param_with(
     format: Option<Pill<'_>>,
 ) -> Response {
     let spec = host.spec();
-    let Some(info) = spec.kind.param(key) else {
+    let Some(info) = spec.param(key) else {
         return ui.allocate_response(Vec2::ZERO, Sense::hover());
     };
     let mut c = Cell::param(info, spec.get(key)).size(size);
@@ -596,7 +596,7 @@ pub fn led_param(
     width: f32,
 ) -> Response {
     let on = host.spec().get(key) >= 0.5;
-    let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
+    let name = host.spec().param(key).map_or("", |i| tr(i.label_key));
     let r = led(ui, s, on, label, name, width);
     let learnt = stepped_offer(ui, s, host, key, name, &r);
     if r.clicked() && !learnt {
@@ -664,7 +664,7 @@ fn stepped_offer_marked(
     {
         return false;
     }
-    let Some(info) = host.spec().kind.param(key) else {
+    let Some(info) = host.spec().param(key) else {
         return false;
     };
     let v = host.spec().get(key);
@@ -780,7 +780,7 @@ pub fn segmented_param(
 ) -> Option<usize> {
     let spec = host.spec();
     let now = spec.get(key).round().max(0.0) as usize;
-    let name = spec.kind.param(key).map_or("", |i| tr(i.label_key));
+    let name = spec.param(key).map_or("", |i| tr(i.label_key));
     let (resp, r) = crate::kit::widgets::Segmented::new(now, labels)
         .name(name)
         .size(width, ROW)
@@ -1110,7 +1110,7 @@ pub fn card_lamp_offer(
     let Some(r) = lamp else {
         return false;
     };
-    let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
+    let name = host.spec().param(key).map_or("", |i| tr(i.label_key));
     stepped_offer(ui, s, host, key, name, r)
 }
 

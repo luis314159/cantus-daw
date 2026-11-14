@@ -133,7 +133,11 @@ fn flush(tap: &mut super::exec::ScopeTap) {
 
 /// The analysed unit's readings, for the meters.
 #[inline]
-pub(crate) fn read_meters(a: &mut Analysis, e: &EffectUnit) {
+pub(crate) fn read_meters(
+    a: &mut Analysis,
+    e: &EffectUnit,
+    pedal: Option<cantus_core::fx::tabula::PedalId>,
+) {
     if let Some(d) = e.eq_deltas() {
         a.eq_deltas = Some(d);
     }
@@ -142,6 +146,10 @@ pub(crate) fn read_meters(a: &mut Analysis, e: &EffectUnit) {
     }
     if let Some(t) = e.telemetry() {
         a.fx = Some(t);
+    }
+    // fx3:contract — the open pedal's editor, inside the analysed board.
+    if let Some(t) = pedal.and_then(|p| e.pedal_telemetry(p)) {
+        a.fx_pedal = Some(t);
     }
 }
 
@@ -326,7 +334,7 @@ pub(crate) fn strip_chain(
         if let Some(a) = ana.as_mut() {
             analyse(a, l, r);
             if !off {
-                read_meters(a, e);
+                read_meters(a, e, ctx.analysed_pedal);
             }
         }
         // A watched Speculum: its signal to its scope ring (ADR 0056).

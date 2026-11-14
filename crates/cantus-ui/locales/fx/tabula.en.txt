@@ -1,0 +1,34 @@
+# Tabula (fx side round, wave 3) — owned by the tabula builder. Every key here needs its twin in tabula.es.txt.
+effect.tabula = Tabula pedalboard
+fx.tabula.about = A pedalboard of Cantus's own effects: drives, filters, modulation, delays, reverbs and the amp as pedals in any order, an A/B split and eight macros.
+picker.dev.tabula.name = Tabula
+picker.dev.tabula.what = Pedalboard
+picker.dev.tabula.about = A pedalboard of Cantus's own effects: drives, filters, modulation, delays, reverbs and the amp as pedals in any order, an A/B split and eight macros.
+mixer.chain.tabula = Board
+
+# The board's own parameters.
+fx.tabula.m1 = Macro 1
+fx.tabula.m2 = Macro 2
+fx.tabula.m3 = Macro 3
+fx.tabula.m4 = Macro 4
+fx.tabula.m5 = Macro 5
+fx.tabula.m6 = Macro 6
+fx.tabula.m7 = Macro 7
+fx.tabula.m8 = Macro 8
+fx.tabula.in = Input
+fx.tabula.out = Output
+fx.tabula.mix = Mix
+fx.tabula.ab = A/B balance
+
+# The starting preset (ADR 0071).
+preset.tabula.guitar_rig = Guitar rig
+
+# The board's commands, as the history names them.
+cmd.insert_pedal = Add a pedal
+cmd.remove_pedal = Remove a pedal
+cmd.move_pedal = Move a pedal
+cmd.pedal_on = Switch a pedal
+cmd.pedal_shape = Change a pedal's shape
+cmd.macro_maps = Map a macro
+cmd.macro_name = Name a macro
+cmd.tabula_randomise = Randomise the board

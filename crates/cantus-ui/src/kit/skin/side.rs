@@ -413,6 +413,35 @@ pub const LIBRA: Skin = Skin {
     },
 }; // fx:libra
 
+// fx3:contract — wave 3's placeholder faces (provisional ADRs 0134–0137): each unit wears
+// a tone-family sibling's look under a key of its own (the tests here leave a placeholder
+// out) until its builder draws the real face — one that differs from every other unit's in
+// hue or material, display included.
+
+/// Tabula, the pedalboard: for now Fervor's look (drive and colour). // fx3:tabula
+pub const TABULA: Skin = Skin {
+    key: "fx.tabula",
+    ..super::tone::FERVOR
+};
+
+/// Saltus, pitch: for now Tonus's look (the pitch unit's cousin). // fx3:saltus
+pub const SALTUS: Skin = Skin {
+    key: "fx.saltus",
+    ..super::tone::TONUS
+};
+
+/// Rota, the rotary speaker: for now Spatium's look. // fx3:rota
+pub const ROTA: Skin = Skin {
+    key: "fx.rota",
+    ..super::tone::SPATIUM
+};
+
+/// Arca, amp and cabinet: for now Aequalis's look. // fx3:arca
+pub const ARCA: Skin = Skin {
+    key: "fx.arca",
+    ..super::tone::AEQUALIS
+};
+
 /// fx:colourways — the colourways a unit of the side round offers (empty: one face).
 pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
     match kind {
@@ -431,6 +460,10 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::TimeShaper => Some(&LAPSUS),
         EffectKind::LoFi => Some(&VETUS),
         EffectKind::Utility => Some(&LIBRA),
+        EffectKind::Board => Some(&TABULA),      // fx3:tabula
+        EffectKind::PitchShift => Some(&SALTUS), // fx3:saltus
+        EffectKind::Rotary => Some(&ROTA),       // fx3:rota
+        EffectKind::Amp => Some(&ARCA),          // fx3:arca
         _ => None,
     }
 }
