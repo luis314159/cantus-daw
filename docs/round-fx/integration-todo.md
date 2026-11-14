@@ -46,3 +46,13 @@ What the builders left for integration, and findings for elsewhere. Struck when 
   the web crate is outside the workspace, so nothing caught it): build the site at the end.
 - Lapsus: patterns count 4/4 bars from the song start (a 3/4 song's bars are not followed) —
   a later decision; frame budget not measured; its pre-split drum examples are stale.
+
+## After Lapsus v3 (367b1dbe — matte teal-petrol, ice blue main accent, amber second voice)
+
+- `side.rs` now holds the round's distinctness tests (default faces; sheets' voices). Found
+  but not failing (colourways are not yet held to the house rule): **Cribrum's Petrol**
+  (lacquer, 24°) is 19° from **Chorda** (lacquer, 43°); **Fragor's B** (brushed, 44°) clashes
+  with **Aula** (brushed, 46°) and **Analog** (brushed, 24°) — fix both before those
+  colourways ship, then hold colourways to the house rule too.
+- Lapsus's knobs and selected keys turned ice blue (amber stays the time curve): the owner
+  approves or not (v3 sheet with the three side by side in `compartir\lapsus\design\v3\`).
