@@ -194,6 +194,31 @@ pub const SOUNDS: &[(&str, &[Sound])] = &[
         Sound { file: "aula-drum_room", name: ("Drum room", "Sala para batería"), what: ("Drums — Pop, Rock", "Batería — Pop, Rock"), on: "drums" },
         Sound { file: "aula-vocal_plate", name: ("Vocal plate", "Placa vocal"), what: ("Vocal — Pop, R&B", "Voz — Pop, R&B"), on: "vocal" },
     ]),
+    ("cribrum", &[
+        Sound { file: "cribrum-bar_sweep", name: ("Bar sweep", "Barrido de compás"), what: ("Bus — Pop, House · EDM", "Bus — Pop, House · EDM"), on: "creative" },
+        Sound { file: "cribrum-cry_wah", name: ("Cry wah", "Wah que llora"), what: ("Creative — R&B, Rock", "Creativo — R&B, Rock"), on: "creative" },
+        Sound { file: "cribrum-talking", name: ("Talking lead", "Lead que habla"), what: ("Vocal — Pop, Film · Game", "Voz — Pop, Cine · Videojuegos"), on: "vocal" },
+    ]),
+    ("fragor", &[
+        Sound { file: "fragor-green_push", name: ("Green push", "Empuje verde"), what: ("Creative — Pop, Rock", "Creativo — Pop, Rock"), on: "creative" },
+        Sound { file: "fragor-drum_smash", name: ("Drum smash", "Batería aplastada"), what: ("Drums — House · EDM, Rock", "Batería — House · EDM, Rock"), on: "drums" },
+        Sound { file: "fragor-vocal_grit", name: ("Vocal grit", "Voz con grano"), what: ("Vocal — Pop, Rock", "Voz — Pop, Rock"), on: "vocal" },
+    ]),
+    ("lapsus", &[
+        Sound { file: "lapsus-half_time", name: ("Half time", "Medio tiempo"), what: ("Drums — Trap · Hip-hop, House · EDM", "Batería — Trap · Hip-hop, House · EDM"), on: "drums" },
+        Sound { file: "lapsus-tape_stop", name: ("Tape stop", "Parada de cinta"), what: ("Bus — Trap · Hip-hop, Pop, House · EDM", "Bus — Trap · Hip-hop, Pop, House · EDM"), on: "creative" },
+        Sound { file: "lapsus-wobble", name: ("Warped record", "Disco alabeado"), what: ("Creative — Lo-fi", "Creativo — Lo-fi"), on: "creative" },
+    ]),
+    ("vetus", &[
+        Sound { file: "vetus-worn_cassette", name: ("Worn cassette", "Casete gastado"), what: ("Bus — Pop, Lo-fi", "Bus — Pop, Lo-fi"), on: "creative" },
+        Sound { file: "vetus-lofi_hip_hop", name: ("Lo-fi hip-hop keys", "Teclados lo-fi hip-hop"), what: ("Creative — Lo-fi, Jazz · Soul", "Creativo — Lo-fi, Jazz · Soul"), on: "creative" },
+        Sound { file: "vetus-dusty_drums", name: ("Dusty drums", "Batería polvorienta"), what: ("Drums — Trap · Hip-hop, Lo-fi", "Batería — Trap · Hip-hop, Lo-fi"), on: "drums" },
+    ]),
+    ("libra", &[
+        Sound { file: "libra-mono_check", name: ("Mono check", "Comprobar en mono"), what: ("Bus — Pop, House · EDM", "Bus — Pop, House · EDM"), on: "creative" },
+        Sound { file: "libra-flip_left", name: ("Flip the left", "Invertir el izquierdo"), what: ("Drums — Rock, Film · Game", "Batería — Rock, Cine · Videojuegos"), on: "drums" },
+        Sound { file: "libra-haas_wide", name: ("Haas width", "Anchura Haas"), what: ("Creative — Pop, Ambient · Cinematic", "Creativo — Pop, Ambient · Cinemático"), on: "creative" },
+    ]),
 ];
 
 /// The dry sources the effects are heard on, by role (`source-<role>.mp3`).

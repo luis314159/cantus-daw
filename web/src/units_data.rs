@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 28] = [ // fx: Cribrum, Fragor and Lapsus
+pub const EFFECTS: [Unit; 30] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -445,7 +445,7 @@ pub const EFFECTS: [Unit; 28] = [ // fx: Cribrum, Fragor and Lapsus
         presets: Some(15),
         plugin: true,
         ab: None,
-        big: (1710, 1200),
+        big: (1800, 1263),
         thumb: (640, 449),
     },
 
@@ -467,7 +467,7 @@ pub const EFFECTS: [Unit; 28] = [ // fx: Cribrum, Fragor and Lapsus
         presets: Some(14),
         plugin: true,
         ab: None,
-        big: (1770, 900),
+        big: (1800, 915),
         thumb: (640, 325),
     },
 
@@ -489,7 +489,7 @@ pub const EFFECTS: [Unit; 28] = [ // fx: Cribrum, Fragor and Lapsus
         presets: Some(14),
         plugin: true,
         ab: None,
-        big: (1680, 1200),
+        big: (1800, 1286),
         thumb: (640, 457),
     },
 

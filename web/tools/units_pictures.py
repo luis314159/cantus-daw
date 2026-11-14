@@ -28,7 +28,7 @@ DOC = os.path.join(ROOT, "docs", "images", "units")
 
 NAMES = """aequalis comprimo terminus culmen multiplex sibilus porta tonsor impetus discrimen spatium
 fervor latitudo speculum tonus aula concentus flexus phasis tremor vibrans anulus translatio fluctus
-unda calor modulus exemplar gravis organum lamina chorda pulsus delay""".split()
+cribrum fragor lapsus vetus libra unda calor modulus exemplar gravis organum lamina chorda pulsus delay""".split()
 # Delay has its own window since round 39 (ADR 0115): `shoot_skins` shoots it like the rest.
 
 
