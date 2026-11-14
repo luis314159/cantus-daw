@@ -264,8 +264,39 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
             ],
         ), // fx:fragor
         EffectKind::TimeShaper => set(&mut s, &[("out", 6.0)]), // fx:contract (lapsus)
-        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),       // fx:contract (vetus)
-        EffectKind::Utility => set(&mut s, &[("out", 6.0)]),    // fx:contract (libra)
+        // fx:vetus — every module on: dithered mu-law bits, the hold behind both its filters,
+        // a synced wow, dropouts and wear, every noise (following the music, so it rests),
+        // the gramophone's band, Character half way.
+        EffectKind::LoFi => set(
+            &mut s,
+            &[
+                ("char", 0.5),
+                ("bits.on", 1.0),
+                ("bits.depth", 6.0),
+                ("bits.dither", 1.0),
+                ("bits.mode", 2.0),
+                ("rate.on", 1.0),
+                ("rate.hz", 9_000.0),
+                ("rate.filter", 2.0),
+                ("wob.on", 1.0),
+                ("wow", 30.0),
+                ("wow.sync", 1.0),
+                ("flut", 8.0),
+                ("age.on", 1.0),
+                ("age.drop", 0.7),
+                ("age.wear", 0.6),
+                ("noise.on", 1.0),
+                ("crackle", 0.8),
+                ("hiss", 0.5),
+                ("hum", 0.3),
+                ("noise.follow", 1.0),
+                ("tone.on", 1.0),
+                ("tone.medium", 3.0),
+                ("mix", 0.8),
+                ("out", -3.0),
+            ],
+        ), // fx:vetus
+        EffectKind::Utility => set(&mut s, &[("out", 6.0)]), // fx:contract (libra)
     }
     s
 }

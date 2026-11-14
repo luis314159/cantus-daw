@@ -105,7 +105,7 @@ impl Vetus {
             let g = self.on[RATE].next();
             if g > 0.0 {
                 let rate = math::exp2(self.rate_l.value);
-                let h = self.rate.run(v, self.clock.stream(i), rate, rate_filter);
+                let h = self.rate.run(v, song, rate, rate_filter);
                 v = blend(v, h, g);
             }
             // 3. Wobble.
@@ -323,9 +323,14 @@ impl Vetus {
         None
     }
 
-    /// `frames` of silence skipped at rest: the clock and the lines count on, and the
-    /// hold's phase is where a new unit's would be.
+    /// `frames` of silence skipped at rest: the clock and the lines count on, the hold's
+    /// phase is where a new unit's would be, and the grid is on the cell of the last sample
+    /// skipped (what processing the silence would have left: a glide moved after the rest
+    /// then steps on the same samples).
     pub fn skip(&mut self, frames: usize) {
+        if frames == 0 {
+            return;
+        }
         self.clock.skip(frames);
         if self.wob_live {
             for l in &mut self.lines {
@@ -333,6 +338,10 @@ impl Vetus {
             }
         }
         let rate = math::exp2(self.rate_l.value);
-        self.rate.rest_at(self.clock.stream(0), rate);
+        self.rate.rest_at(self.clock.song(0), rate);
+        let cell = (self.clock.song(0) - 1).div_euclid(GRID);
+        if cell != self.cell {
+            self.grid(cell);
+        }
     }
 }

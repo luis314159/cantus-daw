@@ -2788,3 +2788,70 @@ fn cribrum_never_allocates() {
         FIRST.with(|f| f.get())
     );
 }
+
+// fx:vetus — Vetus (ADR 0133, provisional) on the audio thread: every module on, each switched
+// off and on again while it plays (a module that lands off is made new), the rate and the
+// medium moved, the wow synced and then free, a seek and a stop. Not one allocation.
+#[test]
+fn vetus_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::LoFi);
+    for k in [
+        "bits.on",
+        "bits.dither",
+        "rate.on",
+        "wob.on",
+        "wow.sync",
+        "age.on",
+        "noise.on",
+        "tone.on",
+    ] {
+        fx.spec.set(k, 1.0).unwrap();
+    }
+    for (k, v) in [
+        ("char", 0.4),
+        ("rate.filter", 2.0),
+        ("hum", 0.3),
+        ("tone.medium", 3.0),
+    ] {
+        fx.spec.set(k, v).unwrap();
+    }
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("start", 40);
+    let set = |p: &mut Project, k: &str, v: f32| {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        e.spec.set(k, v).unwrap();
+    };
+    for k in [
+        "bits.on", "rate.on", "wob.on", "age.on", "noise.on", "tone.on",
+    ] {
+        set(&mut p, k, 0.0);
+    }
+    rig.snapshot(&p);
+    rig.play("every module off", 60);
+    for k in [
+        "bits.on", "rate.on", "wob.on", "age.on", "noise.on", "tone.on",
+    ] {
+        set(&mut p, k, 1.0);
+    }
+    set(&mut p, "rate.hz", 3_000.0);
+    set(&mut p, "tone.medium", 2.0);
+    set(&mut p, "wow.sync", 0.0);
+    rig.snapshot(&p);
+    rig.play("back on, moved", 60);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}

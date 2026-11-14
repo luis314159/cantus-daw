@@ -16,7 +16,7 @@
 //!   upwards: the sound of a 90s sampler. *Anti-alias*: a 6-pole Butterworth low-pass at
 //!   0.45 of the new rate before the hold, so nothing folds. *Anti-alias and smoothing*: a
 //!   4-pole one after it too, so the steps are smoothed away: only the bandwidth is lost.
-//!   While nothing sounds the phase is a function of the stream sample (`n·rate/fs`), so a
+//!   While nothing sounds the phase is a function of the song sample (`n·rate/fs`), so a
 //!   unit that rested is where a new one would be.
 
 use crate::math;
@@ -207,19 +207,19 @@ impl Rate {
         }
     }
 
-    /// The phase a new unit would have before stream sample `n` at this rate.
+    /// The phase a new unit would have before song sample `n` at this rate.
     #[inline]
     fn canonical(n: i64, inc: f64) -> f64 {
         (n as f64 * inc).rem_euclid(1.0)
     }
 
-    /// Skipped at rest up to stream sample `n`: the phase a new unit's would be there.
+    /// Skipped at rest up to song sample `n`: the phase a new unit's would be there.
     pub fn rest_at(&mut self, n: i64, rate: f32) {
         let inc = (f64::from(rate) / f64::from(self.sr)).min(1.0);
         self.phase = Self::canonical(n, inc);
     }
 
-    /// One stereo sample at stream sample `n`, the new rate `rate` Hz.
+    /// One stereo sample at song sample `n`, the new rate `rate` Hz.
     #[inline]
     pub fn run(&mut self, x: [f32; 2], n: i64, rate: f32, filter: RateFilter) -> [f32; 2] {
         let inc = (f64::from(rate) / f64::from(self.sr)).min(1.0);
