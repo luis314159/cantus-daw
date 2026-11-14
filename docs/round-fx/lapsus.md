@@ -23,8 +23,10 @@ side round's, provisional). Plug-in page `docs/plugins/lapsus.md`.
   banks behind a Time / Volume switch with their pads drawn and a keyboard with both ranges;
   a pad's right-click restores the factory's pattern. Finer strokes; the dashes under the
   preset field (the vents ornament) removed.
-- **The face**: petrol under smoked glass, an amber VFD, ice-blue level (differs from every
-  unit's: the family's sibling tests pass).
+- **The face** (v3, after the integration review found it Fragor's amber glass with Cribrum's
+  blue): a teal-petrol body in matte rubberised paint, the time curve amber on a VFD, the
+  level and the controls ice blue (208°); `kit/skin/side.rs`'s tests keep the round's faces
+  apart from each other and from every unit. Sheet: `compartir/lapsus/design/v3/`.
 - **Presets**: seventeen, with styles and roles, levelled to the library (preset_render); **Half time** the starting preset.
 - **The exported CLAP/VST3**: bit-identical to the engine's unit; notes through both formats;
   the banks carried in its state and posted to its processor without locks or allocation.

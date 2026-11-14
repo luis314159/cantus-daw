@@ -241,8 +241,7 @@ fn paint(
 ) {
     let ink = Ink::of(s);
     let k = s.k;
-    let amber = ink.hue;
-    let cyan = modfx::face::second_voice(s, &ink).unwrap_or(ink.faint);
+    let (amber, cyan) = voices(s, &ink);
     with_brush(&ui.painter_at(r), |b| {
         canvas::ground_b(b, r, &ink, s.hue_tok);
         lanes_grid(b, map, &ink, sh.beats, super::GRIDS[st.grid].1 as f32);
@@ -593,7 +592,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &cantus_core::EffectSpec) -> egui::Respo
     let (rect, resp) = ui.allocate_exact_size(vec2(w, h), egui::Sense::hover());
     let ink = Ink::of(&s);
     let k = s.k;
-    let cyan = modfx::face::second_voice(&s, &ink).unwrap_or(ink.faint);
+    let (amber, cyan) = voices(&s, &ink);
     with_brush(&ui.painter_at(rect), |b| {
         canvas::ground_b(b, rect, &ink, s.hue_tok);
         let plot = Rect::from_min_max(
@@ -603,11 +602,11 @@ pub fn preview(ui: &mut egui::Ui, spec: &cantus_core::EffectSpec) -> egui::Respo
         let half = plot.height() * 0.5;
         let top = Rect::from_min_size(plot.min, vec2(plot.width(), half - 1.0 * k));
         let bot = Rect::from_min_max(pos2(plot.left(), plot.top() + half + 1.0 * k), plot.max);
-        thumb(b, top, Lane::Time, &tp, ink.hue, k);
+        thumb(b, top, Lane::Time, &tp, amber, k);
         thumb(b, bot, Lane::Vol, &vp, cyan, k);
         let x = plot.right() + 10.0 * k;
         for (lane, sl, y, c) in [
-            (Lane::Time, ts, top.center().y, ink.hue),
+            (Lane::Time, ts, top.center().y, amber),
             (Lane::Vol, vs, bot.center().y, cyan),
         ] {
             canvas::putf(
@@ -739,4 +738,14 @@ fn drum(n: usize, tempo: f64, noise: &mut u32) -> f32 {
     let th = (n % eighth) as f32 / 48_000.0;
     let hat = w * exp(-th * 90.0) * 0.25;
     kick + snare + hat
+}
+
+/// The display's two voices, (time, level): in Lapsus's face the time curve is the second
+/// accent's amber and the level the face's ice blue (the accent the kit paints its controls
+/// in); in the kit's plain look the theme's hue and the faint line, as before.
+pub(super) fn voices(s: &Style, ink: &Ink) -> (Color32, Color32) {
+    match modfx::face::second_voice(s, ink) {
+        Some(amber) => (amber, ink.hue),
+        None => (ink.hue, ink.faint),
+    }
 }

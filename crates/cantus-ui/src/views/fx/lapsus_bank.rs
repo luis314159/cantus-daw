@@ -11,7 +11,6 @@ use super::super::canvas::{self, Ink};
 use super::super::controls;
 use super::super::frame;
 use super::super::host::FxHost;
-use super::super::modfx;
 use super::{Playing, State};
 use crate::kit::color::with_alpha;
 use crate::kit::hint::{self, Caps};
@@ -151,8 +150,8 @@ pub fn card(
             }
         }
         let ink = Ink::of(s);
-        let cyan = modfx::face::second_voice(s, &ink).unwrap_or(ink.faint);
-        let colour = |l: Lane| if l == Lane::Time { ink.hue } else { cyan };
+        let (amber, cyan) = super::grid::voices(s, &ink);
+        let colour = |l: Lane| if l == Lane::Time { amber } else { cyan };
         let spec = host.spec();
         with_brush(&ui.painter_at(r), |b| {
             // What each bank plays, under the switch.
@@ -240,7 +239,7 @@ pub fn card(
                 ),
                 vec2(pads.width(), KEYS_H * k),
             );
-            keyboard(b, kb, s, ls, playing, ink.hue, cyan, k);
+            keyboard(b, kb, s, ls, playing, amber, cyan, k);
         });
     });
 }

@@ -81,10 +81,17 @@ palette kept, the display dark in every theme, and the sound heard on a real gui
     their curves (a right-click restores the factory's), the keyboard with both note ranges.
     Strokes are fine (hairline grids, a 1.4-point curve, hollow handles, a pixel playhead);
     the display is a dark VFD in every theme.
-12. **The face** (`kit/skin/side.rs`, `fx.lapsus`): a DJ's deck at midnight — petrol under
-    smoked glass (192°), an amber VFD (36°) with the level in ice blue (190°), soft knobs,
-    lamp keys, a painted stripe and printed rules. Glass because Phasis holds matte with an
-    amber accent (the family's sibling test).
+12. **The face** (`kit/skin/side.rs`, `fx.lapsus`): a DJ mixer at midnight — a dark
+    teal-petrol body (174°) in matte rubberised paint, the time curve amber (36°) on a VFD,
+    the level and the controls ice blue (208°), soft knobs, lamp keys, a painted stripe and
+    printed rules. *Amended after the integration review:* the first face was petrol under
+    smoked glass with an amber accent — Fragor's material and accent — and its ice blue
+    (190°) and body (192°) were Cribrum's cyan and its Petrol colourway's body. Amber is
+    taken in every finish but paper, so the ice blue became the accent and the amber the
+    second voice (the views draw the time curve in the second voice), on matte, which no
+    unit wears near 208°. `side.rs`'s tests hold it: no face of the round shares a material
+    and an accent within 20° with any unit or colourway, and no two of the round's sheets
+    share both voices or a tinted body under a shared voice (15° bands).
 13. **Presets and start** (ADR 0071, 0101): seventeen factory presets pairing a time
     pattern and a volume one (*Tape stop* with *Fade the last beat*: a tape head's level
     falls with its speed); an insert starts on **Half time**.
