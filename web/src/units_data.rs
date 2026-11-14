@@ -449,6 +449,28 @@ pub const EFFECTS: [Unit; 25] = [
         thumb: (640, 449),
     },
 
+    // fx:vetus — Vetus, lo-fi (ADR 0133, provisional).
+    Unit {
+        file: "vetus",
+        name: "Vetus",
+        kind: ("Lo-fi", "Lo-fi"),
+        pitch: ("A sound aged as an old medium ages it — bits, sample rate, wow and flutter, worn tape, crackle and the band of tape, radio, telephone or gramophone — with one knob that takes it back in time.", "Un sonido envejecido como lo envejece un medio antiguo — bits, muestreo, wow y flutter, cinta gastada, crujido y la banda de la cinta, la radio, el teléfono o el gramófono — con un mando que lo lleva atrás en el tiempo."),
+        what: long!(("Vetus is six modules in the order a recording travels: a cheap converter's bits and sample rate (raw, with its aliasing, or filtered), a tape's wow and flutter, dropouts and wear, crackle, hiss and hum, and the band of the medium that plays it back. Character ages every module that is on at once, and the label prints the year it takes you to. At the centre a cassette — or an LP, your choice — wears every module: the reels waver, the tape creases, dust sparks at the head; beside it the spectrum shows the converter's Nyquist, the bits' noise floor and the medium's band, dragged where you want them.", "Vetus son seis módulos en el orden que recorre una grabación: los bits y el muestreo de un conversor barato (crudo, con su aliasing, o filtrado), el wow y el flutter de una cinta, cortes y desgaste, crujido, siseo y zumbido, y la banda del medio que lo reproduce. El Carácter envejece a la vez cada módulo encendido, y la etiqueta imprime el año al que te lleva. En el centro un casete — o un LP, a tu elección — lleva cada módulo: los carretes vacilan, la cinta se arruga, el polvo chispea en el cabezal; a su lado el espectro muestra el Nyquist del conversor, el suelo de ruido de los bits y la banda del medio, que arrastras donde quieras.")),
+        features: long!(&[
+            ("Bits from 1 to 24 (rounding, truncation, μ-law, dither); 24 bits without dither passes the sound untouched", "Bits de 1 a 24 (redondeo, truncado, ley μ, dither); 24 bits sin dither deja el sonido intacto"),
+            ("Sample rate down to 1 kHz: raw (a 9 kHz tone at 8 kHz folds back at full level) or filtered (−54 dB)", "Muestreo hasta 1 kHz: crudo (un tono de 9 kHz a 8 kHz se pliega a nivel completo) o filtrado (−54 dB)"),
+            ("Wow and flutter in cents, the wow free or on the song, partly drifting as a tape's", "Wow y flutter en cents, el wow libre o con la canción, en parte a la deriva como el de una cinta"),
+            ("Crackle, hiss, hum, dropouts and wear fixed to the song: the same in any render, from any bar", "Crujido, siseo, zumbido, cortes y desgaste fijados a la canción: iguales en cualquier render, desde cualquier compás"),
+            ("Tape, radio, telephone and gramophone bands, drawn exactly as they sound (within 0.1 dB)", "Bandas de cinta, radio, teléfono y gramófono, dibujadas tal como suenan (a 0,1 dB)"),
+            ("Fourteen factory presets: cassettes, lo-fi hip-hop, dusty drums, 8-bit, AM radio, telephone, gramophone, VHS", "Catorce presets de fábrica: casetes, lo-fi hip-hop, baterías polvorientas, 8 bits, radio AM, teléfono, gramófono, VHS"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1680, 1200),
+        thumb: (640, 457),
+    },
+
     // r39:conv — Aula, the convolution reverb (ADR 0112).
     Unit {
         file: "aula",

@@ -2079,7 +2079,7 @@ Tonsor (recortador), Impetus (moldeador de transitorios), Discrimen (divisor de
 transitorios), Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Speculum
 (analizador), Tonus (corrección de afinación), Concentus (chorus), Flexus (flanger), Phasis
 (phaser), Tremor (trémolo y auto-pan), Vibrans (vibrato), Anulus (modulador en anillo),
-Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Cribrum (filtro automático), Aula (reverb de convolución), Delay y Reverb.
+Translatio (desplazador de frecuencia), Fluctus (moldeador de volumen), Cribrum (filtro automático), Vetus (lo-fi), Aula (reverb de convolución), Delay y Reverb.
 
 ### La cara de cada unidad
 
@@ -2353,6 +2353,53 @@ estéreo separa el corte de los dos canales.
 desde cualquier compás mueve los filtros como el render completo en ese punto; el render
 offline es igual al tiempo real con cualquier tamaño de búfer. El sobremuestreo (2× o 4×)
 mantiene limpio un filtro con drive; su latencia (una o dos muestras) se compensa.
+
+### Vetus, lo-fi
+
+**Vetus** (en latín, *viejo*) envejece un sonido como lo envejecía un medio antiguo.
+Insértalo desde el selector (en Distorsión); empieza en *Casete gastado* — wow y flutter, el
+siseo de la cinta, su banda y un poco de desgaste — así que se oye enseguida.
+
+**Seis módulos**, en el orden que recorre una grabación — digitalizada, puesta en un medio,
+gastada, reproducida —, cada uno encendido con la luz del título de su tarjeta (sus controles
+responden aunque esté apagado, atenuados, para prepararlo antes de oírlo):
+
+- **Bits** — de 1 a 24 bits (fraccionarios: un barrido nunca salta), *Redondeo*, *Truncado*
+  (la aspereza de un conversor barato) o *Ley μ* (la del teléfono: los sonidos suaves
+  conservan más niveles), con o sin **dither**. A 24 bits sin dither deja el sonido intacto.
+- **Muestreo** — hasta 1 kHz. *Crudo*: lo que pasa del nuevo Nyquist se pliega y los escalones
+  suenan por encima: el sonido de un sampler antiguo. *Filtrado* pone antes un filtro
+  antialias (nada se pliega); *Suavizado* añade otro después (solo se pierde el ancho de banda).
+- **Wow y flutter** — la oscilación lenta y la rápida de la velocidad de una cinta, en cents
+  sea cual sea su ritmo; el wow libre o con la canción, en parte a la deriva como el de una
+  cinta de verdad.
+- **Edad** — cortes (el nivel cae y los agudos se apagan un momento) y desgaste (el nivel y el
+  brillo vagan despacio).
+- **Ruido** — el crujido y los golpes de un disco, el siseo de la cinta o del vinilo, el
+  zumbido de la red a 50 o 60 Hz. *Seguir* hace que solo suene mientras suena la música.
+- **Tono** — la banda del medio que lo reproduce: cinta, radio, teléfono o gramófono, cada uno
+  con su color (el realce del cabezal, el pico del micrófono de carbón, las resonancias de una
+  bocina). Elegir un medio pone su banda; sus dos bordes y su resonancia siguen siendo tuyos.
+
+**Carácter** es el mando que lo envejece todo a la vez: cada módulo encendido se acerca a su
+estado más viejo (menos bits, menos muestreo, más wow, más crujido, una banda más estrecha) y
+la etiqueta imprime el año al que lleva el sonido. Qué módulos están encendidos decide el
+sabor; el Carácter, cuánto atrás.
+
+**La ventana.** En el centro, el objeto que envejece — un **casete** (los carretes girando, la
+ventana de nivel con el último segundo de la música, la cinta arrugada por la edad, una chispa
+en el cabezal cuando cae un chasquido) o un **LP** en su tocadiscos (el surco con la música de
+sus últimas vueltas, descentrado por el wow, con polvo y rayas): elígelo en el menú **⋯** de la
+ventana, junto al acabado. Gira el objeto hacia atrás (arrastra a su alrededor contra las
+agujas del reloj) para subir el Carácter; doble clic para dejarlo nuevo. A su lado, **lo que
+sale**: el espectro de la salida sobre el de la entrada, con el Nyquist del conversor
+(arrástralo a los lados para el muestreo), el suelo de ruido de los bits (arriba, menos bits) y
+la banda del medio (arrastra sus bordes).
+
+**Exacto.** Con todos los módulos apagados Vetus deja pasar el sonido intacto, bit a bit. El
+ruido, el dither, los cortes y el desgaste van fijados a la canción: un render desde cualquier
+compás, offline o en reproducción, con cualquier tamaño de búfer, tiene el mismo crujido en los
+mismos sitios.
 
 ### Aula, la reverb de convolución
 

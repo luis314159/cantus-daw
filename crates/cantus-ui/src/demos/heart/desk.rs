@@ -166,6 +166,14 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
         Some("preset.fragor.green_push"),
         &[("od.drive", 0.3)],
     );
+    // fx:vetus — the percussion through Vetus's dusty drums, two thirds wet: a 12-bit
+    // sampler's grain and a little vinyl under the groove.
+    s.insert(
+        b.perc.strip,
+        K::LoFi,
+        Some("preset.vetus.dusty_drums"),
+        &[("mix", 0.65)],
+    );
     // The guitar through a Phase 90 (script), slow enough to breathe.
     s.insert(
         b.guitar.strip,

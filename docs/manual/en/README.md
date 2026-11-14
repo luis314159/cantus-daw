@@ -1911,7 +1911,7 @@ The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander),
 Fervor (saturation), Latitudo (stereo), Speculum (analyser), Tonus (pitch correction),
 Concentus (chorus), Flexus (flanger), Phasis (phaser), Tremor (tremolo and auto-pan),
 Vibrans (vibrato), Anulus (ring modulator), Translatio (frequency shifter), Fluctus (volume
-shaper), Cribrum (auto filter), Aula (convolution reverb), Delay and Reverb.
+shaper), Cribrum (auto filter), Vetus (lo-fi), Aula (convolution reverb), Delay and Reverb.
 
 ### Each unit's face
 
@@ -2163,6 +2163,50 @@ the movement, ignore it or move the other way. Spread opens the two channels' cu
 moves the filters as the whole render does there; offline equals real time at any buffer size.
 Oversampling (2× or 4×) keeps a driven filter clean; its latency (a sample or two) is
 compensated.
+
+### Vetus, lo-fi
+
+**Vetus** (Latin for *old*) ages a sound the way an old medium aged it. Insert it from the
+picker (under Distortion); it starts on *Worn cassette* — wow and flutter, tape hiss, the
+tape's band and a little wear — so it is heard at once.
+
+**Six modules**, in the order a recording travels — digitised, put on a medium, worn, played
+back — each switched on by the lamp in its card's title (its controls answer while it is off,
+dimmed, so you can set a module up before you hear it):
+
+- **Bits** — 1 to 24 bits (fractional: a sweep never jumps), *Rounding*, *Truncation* (a cheap
+  converter's rougher grit) or *μ-law* (the telephone's: quiet sounds keep more levels), with
+  or without **dither**. At 24 bits without dither it passes the sound untouched.
+- **Sample rate** — down to 1 kHz. *Raw*, what lies above the new Nyquist folds back and the
+  steps ring above it: the sound of an old sampler. *Filtered* puts an anti-alias filter before
+  it (nothing folds back); *Smoothed* adds a filter after it (only the bandwidth is lost).
+- **Wow and flutter** — the slow and the fast swing of a tape's speed, in cents whatever their
+  rate; the wow free or on the song, part of it drifting as a real tape's does.
+- **Age** — dropouts (the level falls and the top dulls for a moment) and wear (the level and
+  the brightness wander slowly).
+- **Noise** — a record's crackle and pops, the hiss of tape or of a vinyl surface, mains hum at
+  50 or 60 Hz. *Follow* lets it play only while the music does.
+- **Tone** — the band of the medium that plays it back: tape, radio, telephone or gramophone,
+  each with its colour (a tape head's bump, a carbon microphone's peak, a horn's resonances).
+  Choosing a medium sets its band; its two edges and their resonance stay yours.
+
+**Character** is the one knob that ages everything at once: every module that is on moves
+towards its oldest (fewer bits, a lower rate, more wow, more crackle, a narrower band) and the
+label prints the year it takes the sound back to. Which modules are on decides the flavour;
+Character, how far back.
+
+**The window.** At the centre, the object that ages — a **cassette** (the reels turning, the
+level window holding the last second of the music, the tape creased with age, a spark at the
+head when a tick falls) or an **LP** on its turntable (the groove holding the music of its
+last turns, off its spindle with the wow, dusty and scratched): choose it in the window's
+**⋯** menu, beside the colourway. Turn the object back (drag round it anticlockwise) to raise
+Character; double-click to make it new. Beside it, **what comes out**: the output's spectrum
+over the input's, with the converter's Nyquist (drag it across for the sample rate), the bits'
+noise floor (drag it up for fewer bits) and the medium's band (drag its edges).
+
+**Exact.** With every module off Vetus passes the sound untouched, to the bit. The noise, the
+dither, the dropouts and the wear are fixed to the song: a render from any bar, offline or
+playing, at any buffer size, has the same crackle in the same places.
 
 ### Aula, the convolution reverb
 

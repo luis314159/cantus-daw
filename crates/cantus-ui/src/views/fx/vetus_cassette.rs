@@ -64,19 +64,55 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, look: &Look, groove: &Groove,
         ],
         16,
     );
-    // The shell: its shadow, the black plastic, a hairline of light on its edge.
+    let label = Rect::from_min_max(
+        sh.min + vec2(9.0, 7.0) * unit,
+        pos2(sh.right() - 9.0 * unit, sh.top() + 45.0 * unit),
+    );
+    // The window over the reels: the packs and the hubs seen through it, behind the label.
+    let win = Rect::from_center_size(
+        pos2(sh.center().x, label.top() + 25.0 * unit),
+        vec2(62.0 * unit, 16.0 * unit),
+    );
+    let spin = look.turn * TAU * 1.7 + if v.wob_on { look.speed_ct * 0.01 } else { 0.0 };
+    // The packs of tape: the left full early in the side, the right growing.
+    let along = 0.35;
+    let reel_l = pos2(win.left() + 13.0 * unit, win.center().y);
+    let reel_r = pos2(win.right() - 13.0 * unit, win.center().y);
+    let (pack_l, pack_r) = (
+        (6.0 + 7.0 * (1.0 - along)) * unit,
+        (6.0 + 7.0 * along) * unit,
+    );
+    // The shell's shadow on the well.
     b.rrect_soft(
         sh.translate(vec2(3.0 * k, 5.0 * k)),
         4.0 * unit,
         Fill::Solid(with_alpha(rgb(paint::ARM_SHADOW), 0.55)),
         10.0 * k,
     );
+    // Inside the smoky shell: the tape from each pack down round its post and along the
+    // bottom, seen faintly through the plastic.
+    let y_tape = sh.bottom() - 9.0 * unit;
+    for (c, pack, x) in [
+        (reel_l, pack_l, sh.left() + 12.0 * unit),
+        (reel_r, pack_r, sh.right() - 12.0 * unit),
+    ] {
+        b.circle(c, pack, Fill::Solid(with_alpha(rgb(paint::TAPE), 0.9)));
+        let side = if x < c.x { -1.0 } else { 1.0 };
+        b.segment(
+            c + vec2(side * pack, 0.0),
+            pos2(x + side * 1.4 * unit, y_tape),
+            0.8 * k,
+            with_alpha(rgb(paint::TAPE_SHINE), 0.9),
+            false,
+        );
+    }
+    // The shell: its shadow, the smoked plastic, a hairline of light on its edge.
     b.rrect(
         sh,
         4.0 * unit,
         Fill::V(
-            rgb(paint::SHELL_LIGHT).lerp_to_gamma(rgb(paint::SHELL), 0.7),
-            rgb(paint::SHELL),
+            with_alpha(rgb(paint::SHELL_LIGHT).lerp_to_gamma(rgb(paint::SHELL), 0.7), 0.86),
+            with_alpha(rgb(paint::SHELL), 0.84),
         ),
     );
     b.rrect_stroke(
@@ -102,27 +138,37 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, look: &Look, groove: &Groove,
             false,
         );
     }
-    let label = Rect::from_min_max(
-        sh.min + vec2(9.0, 7.0) * unit,
-        pos2(sh.right() - 9.0 * unit, sh.top() + 45.0 * unit),
-    );
-    // The window over the reels: the packs and the hubs seen through it, behind the label.
-    let win = Rect::from_center_size(
-        pos2(sh.center().x, label.top() + 25.0 * unit),
-        vec2(62.0 * unit, 16.0 * unit),
-    );
     b.rrect(win, 2.0 * unit, Fill::Solid(rgb(paint::WINDOW)));
-    let spin = look.turn * TAU * 1.7 + if v.wob_on { look.speed_ct * 0.01 } else { 0.0 };
-    // The packs of tape: the left full early in the side, the right growing.
-    let along = 0.35;
-    let reel_l = pos2(win.left() + 13.0 * unit, win.center().y);
-    let reel_r = pos2(win.right() - 13.0 * unit, win.center().y);
-    let (pack_l, pack_r) = (
-        (6.0 + 7.0 * (1.0 - along)) * unit,
-        (6.0 + 7.0 * along) * unit,
+    // The strand between the packs along the window's foot, a sheen running on it.
+    let foot = win.bottom() - 1.6 * unit;
+    b.segment(
+        pos2(reel_l.x, foot),
+        pos2(reel_r.x, foot),
+        0.9 * k,
+        rgb(paint::TAPE),
+        false,
+    );
+    let gleam = (look.turn * 3.0).fract();
+    let gx = reel_l.x + (reel_r.x - reel_l.x) * gleam;
+    b.segment(
+        pos2((gx - 4.0 * unit).max(reel_l.x), foot),
+        pos2((gx + 4.0 * unit).min(reel_r.x), foot),
+        0.9 * k,
+        with_alpha(rgb(paint::TAPE_SHINE), 0.9),
+        false,
     );
     for (c, pack) in [(reel_l, pack_l), (reel_r, pack_r)] {
         b.circle(c, pack, Fill::Solid(rgb(paint::TAPE)));
+        // The pack's sheen: the light along its oxide.
+        b.arc(
+            c,
+            pack * 0.78,
+            -2.4,
+            -1.4,
+            pack * 0.3,
+            with_alpha(rgb(paint::TAPE_SHINE), 0.22),
+            false,
+        );
         b.circle_stroke(
             c,
             pack - 0.6 * k,
