@@ -17,6 +17,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 const RATE: u32 = 48_000;
+
+/// A sound example: its file, its source, its title, the time slot, other settings.
+type Example = (
+    &'static str,
+    Role,
+    &'static str,
+    f32,
+    &'static [(&'static str, f32)],
+);
 const BARS: i64 = 8;
 
 /// The source for `role`, its two bars played four times.
@@ -28,7 +37,7 @@ fn source(role: Role, bpm: f64) -> Project {
             for c in &first {
                 let mut c = c.clone();
                 c.id = cantus_core::ClipId(p.alloc_id());
-                c.start = c.start + Ticks::beats(4 * aud::BARS as i64 * rep);
+                c.start += Ticks::beats(4 * aud::BARS as i64 * rep);
                 p.tracks[t].clips.push(c);
             }
         }
@@ -88,7 +97,7 @@ fn main() {
     std::fs::create_dir_all(&dir).expect("output dir");
     let bpm = 120.0;
     // (file, source, title, time slot (0-based), other settings)
-    let examples: [(&str, Role, &str, f32, &[(&str, f32)]); 6] = [
+    let examples: [Example; 6] = [
         (
             "1-tape-stop-drums",
             Role::Drums,

@@ -19,6 +19,9 @@ use cantus_export::{export_rendered, Audio, ExportSettings, Format};
 use std::path::{Path, PathBuf};
 
 const RATE: u32 = 48_000;
+
+/// A sound example: its file, its title, Lapsus's settings.
+type Example = (&'static str, &'static str, &'static [(&'static str, f32)]);
 const BPM: f64 = 90.0;
 const BARS: usize = 8;
 
@@ -167,7 +170,7 @@ fn main() {
     let dry_rms = rms(&l, &r);
     write(&l, &r, &dir.join("00-guitar-di.flac"), "The DI guitar, dry");
     // (file, title, settings): slots are 0-based (time 4 is index 3).
-    let examples: [(&str, &str, &[(&str, f32)]); 6] = [
+    let examples: [Example; 6] = [
         (
             "01-tape-stop-quarter",
             "Tape stop ¼ with Fade the last beat: each bar's last beat winds down onto the line",
