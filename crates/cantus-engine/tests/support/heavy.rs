@@ -296,7 +296,21 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", -3.0),
             ],
         ), // fx:vetus
-        EffectKind::Utility => set(&mut s, &[("out", 6.0)]), // fx:contract (libra)
+        // fx:libra — every stage at work: DC removal, the sides swapped, a channel inverted,
+        // both delayed, wider, balanced, gained.
+        EffectKind::Utility => set(
+            &mut s,
+            &[
+                ("dc", 1.0),
+                ("chan", 1.0),
+                ("pol.l", 1.0),
+                ("delay.l", 12.5),
+                ("delay.r", 40.0),
+                ("width", 1.6),
+                ("pan", -0.4),
+                ("out", 6.0),
+            ],
+        ), // fx:libra
     }
     s
 }

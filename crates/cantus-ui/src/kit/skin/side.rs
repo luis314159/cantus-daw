@@ -320,11 +320,45 @@ pub const VETUS_COLOURWAYS: [Colourway; 3] = [
     },
 ]; // fx:vetus
 
-/// Libra, the utility: for now Latitudo's look (the stereo utility).
+// fx:libra — Libra's face (ADR 0133, provisional): a measuring instrument — blue-grey
+// anodised aluminium, the needle and the cloud a signal green on an oscilloscope's graticule
+// (dark in every theme), the balance and width amber; plain caps, lamp keys, an engraved
+// legend, screws and rules. Green near this hue is wood (Porta) or anodised 40° away
+// (Translatio): no unit wears it on anodised aluminium.
 pub const LIBRA: Skin = Skin {
     key: "fx.libra",
-    ..tone::LATITUDO
-};
+    surface: Tint {
+        hue: 212.0,
+        sat: 0.12,
+        amount: 0.45,
+    },
+    accent: Some(Pair {
+        dark: chsl(142.0, 0.60, 0.56),
+        light: chsl(146.0, 0.70, 0.27),
+    }),
+    accent2: Some(Pair {
+        dark: chsl(36.0, 0.85, 0.62),
+        light: chsl(30.0, 0.80, 0.34),
+    }),
+    material: Material::Anodised,
+    display: Display::Scope,
+    knob: KnobShape::Cap,
+    switch: SwitchShape::Lamp,
+    lettering: Lettering {
+        case: Case::Upper,
+        tracking: 0.08,
+        weight: Weight::SemiBold,
+        condensed: false,
+        mono_values: true,
+    },
+    plate: Plate::Engraved,
+    ornaments: Ornaments {
+        screws: true,
+        vents: false,
+        rules: true,
+        rack_ears: false,
+    },
+}; // fx:libra
 
 /// fx:colourways — the colourways a unit of the side round offers (empty: one face).
 pub fn colourways(kind: EffectKind) -> &'static [Colourway] {

@@ -106,6 +106,7 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("age.on", 1.0),
                 ("age.drop", 0.2),
                 ("age.wear", 0.3),
+                ("out", -2.9),
             ],
         ), // fx:vetus
         K::Utility => Start::Neutral(Flat), // fx:contract (libra)

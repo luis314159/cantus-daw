@@ -8,18 +8,18 @@ note = "A worn cassette: wow and flutter, tape hiss, the tape's band, a little a
 styles = ["lofi", "pop"]
 roles = ["creative", "keys", "bus"]
 [preset.values]
+"age.drop" = 0.2
+"age.on" = 1
+"age.wear" = 0.3
+"crackle" = 0
+"flut" = 5
+"hiss" = 0.3
+"noise.on" = 1
+"out" = -2.9
+"tone.hi" = 10000
+"tone.on" = 1
 "wob.on" = 1
 "wow" = 14
-"flut" = 5
-"noise.on" = 1
-"crackle" = 0
-"hiss" = 0.3
-"tone.on" = 1
-"tone.hi" = 10000
-"age.on" = 1
-"age.drop" = 0.2
-"age.wear" = 0.3
-"out" = 0
 
 [[preset]]
 key = "preset.vetus.lofi_hip_hop"
@@ -27,22 +27,22 @@ note = "Lo-fi hip-hop keys: a warbling tape, vinyl dust that follows the music, 
 styles = ["lofi", "jazz"]
 roles = ["keys", "pad"]
 [preset.values]
+"age.drop" = 0.15
+"age.on" = 1
 "char" = 0.25
-"wob.on" = 1
-"wow" = 16
-"wow.drift" = 0.7
-"flut" = 4
-"noise.on" = 1
 "crackle" = 0.45
+"flut" = 4
 "hiss" = 0.2
 "hiss.kind" = 1
 "noise.follow" = 0.6
-"tone.on" = 1
-"tone.lo" = 70
+"noise.on" = 1
+"out" = -1.3
 "tone.hi" = 8000
-"age.on" = 1
-"age.drop" = 0.15
-"out" = 0
+"tone.lo" = 70
+"tone.on" = 1
+"wob.on" = 1
+"wow" = 16
+"wow.drift" = 0.7
 
 [[preset]]
 key = "preset.vetus.dusty_drums"
@@ -50,18 +50,18 @@ note = "A 12-bit sampler at 26 kHz, truncating behind its anti-alias filter, a l
 styles = ["lofi", "trap"]
 roles = ["drums"]
 [preset.values]
-"bits.on" = 1
 "bits.depth" = 12
 "bits.mode" = 1
-"rate.on" = 1
-"rate.hz" = 26040
-"rate.filter" = 1
-"noise.on" = 1
+"bits.on" = 1
 "crackle" = 0.35
 "hiss" = 0
 "hiss.kind" = 1
 "noise.follow" = 1
-"out" = 0
+"noise.on" = 1
+"out" = -0.4
+"rate.filter" = 1
+"rate.hz" = 26040
+"rate.on" = 1
 
 [[preset]]
 key = "preset.vetus.eight_bit"
@@ -69,11 +69,11 @@ note = "An 8-bit console: 8 bits at 11 kHz, raw — the grit and the aliasing."
 styles = ["house", "pop"]
 roles = ["lead", "pluck", "creative"]
 [preset.values]
-"bits.on" = 1
 "bits.depth" = 8
-"rate.on" = 1
-"rate.hz" = 11025
+"bits.on" = 1
 "out" = 0
+"rate.hz" = 11025
+"rate.on" = 1
 
 [[preset]]
 key = "preset.vetus.crushed"
@@ -81,12 +81,12 @@ note = "Crushed: 5 bits at 6 kHz, raw — destruction for a drum bus or an effec
 styles = ["trap", "house"]
 roles = ["drums", "fx"]
 [preset.values]
-"bits.on" = 1
 "bits.depth" = 5
-"rate.on" = 1
-"rate.hz" = 6000
+"bits.on" = 1
 "mix" = 0.7
-"out" = 0
+"out" = -1.1
+"rate.hz" = 6000
+"rate.on" = 1
 
 [[preset]]
 key = "preset.vetus.am_radio"
@@ -94,19 +94,19 @@ note = "AM radio: the broadcast band, mu-law grit, a little hum and hiss."
 styles = ["film", "pop"]
 roles = ["vocal", "creative"]
 [preset.values]
-"tone.on" = 1
-"tone.medium" = 1
-"tone.lo" = 120
-"tone.hi" = 4500
-"tone.res" = 0.35
-"bits.on" = 1
 "bits.depth" = 9
 "bits.mode" = 2
-"noise.on" = 1
+"bits.on" = 1
 "crackle" = 0
 "hiss" = 0.3
 "hum" = 0.25
-"out" = 0
+"noise.on" = 1
+"out" = -2.8
+"tone.hi" = 4500
+"tone.lo" = 120
+"tone.medium" = 1
+"tone.on" = 1
+"tone.res" = 0.35
 
 [[preset]]
 key = "preset.vetus.telephone"
@@ -114,18 +114,18 @@ note = "A telephone call: the telephone band, its carbon microphone, 8 kHz behin
 styles = ["film", "pop", "trap"]
 roles = ["vocal"]
 [preset.values]
-"tone.on" = 1
-"tone.medium" = 2
-"tone.lo" = 300
-"tone.hi" = 3400
-"tone.res" = 0.3
-"rate.on" = 1
-"rate.hz" = 8000
-"rate.filter" = 1
-"bits.on" = 1
 "bits.depth" = 8
 "bits.mode" = 2
-"out" = 0
+"bits.on" = 1
+"out" = -3.2
+"rate.filter" = 1
+"rate.hz" = 8000
+"rate.on" = 1
+"tone.hi" = 3400
+"tone.lo" = 300
+"tone.medium" = 2
+"tone.on" = 1
+"tone.res" = 0.3
 
 [[preset]]
 key = "preset.vetus.gramophone"
@@ -133,19 +133,19 @@ note = "A gramophone: the horn's band and resonances, crackle and pops, a slow w
 styles = ["film", "jazz"]
 roles = ["vocal", "keys", "creative"]
 [preset.values]
-"tone.on" = 1
-"tone.medium" = 3
-"tone.lo" = 180
-"tone.hi" = 5000
-"noise.on" = 1
 "crackle" = 0.6
+"flut" = 2
 "hiss" = 0.3
 "hiss.kind" = 1
+"noise.on" = 1
+"out" = -6.5
+"tone.hi" = 5000
+"tone.lo" = 180
+"tone.medium" = 3
+"tone.on" = 1
 "wob.on" = 1
 "wow" = 10
 "wow.rate" = 0.55
-"flut" = 2
-"out" = 0
 
 [[preset]]
 key = "preset.vetus.dusty_record"
@@ -153,10 +153,10 @@ note = "An old record under the mix: crackle and surface noise only, the music u
 styles = ["lofi", "rnb", "jazz"]
 roles = ["bus", "master"]
 [preset.values]
-"noise.on" = 1
 "crackle" = 0.4
 "hiss" = 0.15
 "hiss.kind" = 1
+"noise.on" = 1
 "out" = 0
 
 [[preset]]
@@ -165,13 +165,13 @@ note = "A warped tape: deep wow on the bar, drifting, with flutter — a seasick
 styles = ["ambient", "lofi"]
 roles = ["pad", "keys"]
 [preset.values]
-"wob.on" = 1
-"wow" = 45
-"wow.sync" = 1
-"wow.div" = 3
-"wow.drift" = 0.6
 "flut" = 8
 "out" = 0
+"wob.on" = 1
+"wow" = 45
+"wow.div" = 3
+"wow.drift" = 0.6
+"wow.sync" = 1
 
 [[preset]]
 key = "preset.vetus.vhs"
@@ -179,20 +179,20 @@ note = "A VHS soundtrack: a dull top, wavering speed, dropouts and tape hiss."
 styles = ["film", "ambient", "lofi"]
 roles = ["pad", "bus"]
 [preset.values]
+"age.drop" = 0.5
+"age.on" = 1
+"age.wear" = 0.6
+"crackle" = 0
+"flut" = 6
+"hiss" = 0.35
+"noise.on" = 1
+"out" = -2.6
+"tone.hi" = 7000
+"tone.lo" = 60
+"tone.on" = 1
 "wob.on" = 1
 "wow" = 9
 "wow.rate" = 0.3
-"flut" = 6
-"age.on" = 1
-"age.drop" = 0.5
-"age.wear" = 0.6
-"noise.on" = 1
-"crackle" = 0
-"hiss" = 0.35
-"tone.on" = 1
-"tone.lo" = 60
-"tone.hi" = 7000
-"out" = 0
 
 [[preset]]
 key = "preset.vetus.old_sampler"
@@ -200,12 +200,12 @@ note = "An old sampler at 12 bits and 22 kHz, smoothed: its grain without the fo
 styles = ["trap", "rnb", "lofi"]
 roles = ["drums", "keys", "pluck"]
 [preset.values]
-"bits.on" = 1
 "bits.depth" = 12
-"rate.on" = 1
-"rate.hz" = 22050
-"rate.filter" = 2
+"bits.on" = 1
 "out" = 0
+"rate.filter" = 2
+"rate.hz" = 22050
+"rate.on" = 1
 
 [[preset]]
 key = "preset.vetus.time_worn"
@@ -213,25 +213,25 @@ note = "Every module on at gentle settings, Character half way: the whole medium
 styles = ["lofi", "film"]
 roles = ["creative", "bus"]
 [preset.values]
-"char" = 0.5
-"bits.on" = 1
+"age.drop" = 0.1
+"age.on" = 1
+"age.wear" = 0.2
 "bits.depth" = 14
-"rate.on" = 1
-"rate.hz" = 32000
+"bits.on" = 1
+"char" = 0.5
+"crackle" = 0.2
+"flut" = 2
+"hiss" = 0.15
+"noise.on" = 1
+"out" = -0.3
 "rate.filter" = 2
+"rate.hz" = 32000
+"rate.on" = 1
+"tone.hi" = 14000
+"tone.lo" = 40
+"tone.on" = 1
 "wob.on" = 1
 "wow" = 6
-"flut" = 2
-"age.on" = 1
-"age.drop" = 0.1
-"age.wear" = 0.2
-"noise.on" = 1
-"crackle" = 0.2
-"hiss" = 0.15
-"tone.on" = 1
-"tone.lo" = 40
-"tone.hi" = 14000
-"out" = 0
 
 [[preset]]
 key = "preset.vetus.chiptune_bass"
@@ -239,9 +239,9 @@ note = "A chiptune bass: 6 bits, truncated, at 16 kHz raw — buzzing, square-ed
 styles = ["house", "trap"]
 roles = ["bass"]
 [preset.values]
-"bits.on" = 1
 "bits.depth" = 6
 "bits.mode" = 1
-"rate.on" = 1
-"rate.hz" = 16000
+"bits.on" = 1
 "out" = 0
+"rate.hz" = 16000
+"rate.on" = 1

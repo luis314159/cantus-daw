@@ -2855,3 +2855,40 @@ fn vetus_never_allocates() {
         FIRST.with(|f| f.get())
     );
 }
+
+// fx:libra — Libra (ADR 0133, provisional) on the audio thread: every stage at work, the
+// delays, the channel operation and the mute changed while it plays, a seek and a stop.
+#[test]
+fn libra_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::Utility);
+    for (k, v) in [("dc", 1.0), ("chan", 2.0), ("delay.l", 5.0), ("width", 1.5)] {
+        fx.spec.set(k, v).unwrap();
+    }
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("start", 40);
+    let set = |p: &mut Project, k: &str, v: f32| {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        e.spec.set(k, v).unwrap();
+    };
+    set(&mut p, "delay.r", 80.0);
+    set(&mut p, "chan", 6.0);
+    set(&mut p, "mute", 1.0);
+    rig.snapshot(&p);
+    rig.play("moved", 60);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}

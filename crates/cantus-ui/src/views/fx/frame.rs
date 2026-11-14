@@ -163,6 +163,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Pedal => Vec2::new(1140.0, 800.0), // fx:fragor
         // Vetus: the record and what comes out beside Character, over six module cards.
         EffectKind::LoFi => Vec2::new(1120.0, 800.0), // fx:vetus
+        // Libra: the measure (tuner, goniometer, levels) over four small cards.
+        EffectKind::Utility => Vec2::new(1000.0, 600.0), // fx:libra
         _ => Vec2::new(1000.0, 640.0),
     }
 }

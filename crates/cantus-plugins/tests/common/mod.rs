@@ -729,7 +729,16 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("mix", 0.8),
             ("out", -3.0),
         ], // fx:vetus
-        EffectKind::Utility => vec![("out", -6.0)],    // fx:contract
+        // fx:libra — every stage at work.
+        EffectKind::Utility => vec![
+            ("dc", 1.0),
+            ("chan", 2.0),
+            ("pol.r", 1.0),
+            ("delay.l", 3.3),
+            ("width", 0.6),
+            ("pan", 0.25),
+            ("out", -6.0),
+        ], // fx:libra
         _ => vec![],
     }
 }
@@ -931,7 +940,7 @@ impl Direct {
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
             Direct::Stub(x) => x.configure(spec), // fx:contract
             Direct::Cribrum(x) => x.set(&fx::cribrum::settings(spec)), // fx:cribrum
-            Direct::Vetus(x) => x.set(&fx::vetus::settings(spec)),     // fx:vetus
+            Direct::Vetus(x) => x.set(&fx::vetus::settings(spec)), // fx:vetus
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -1037,7 +1046,7 @@ impl Direct {
             Direct::Discrimen(x) => x.process(l, r),
             Direct::Stub(x) => x.process(l, r, key), // fx:contract
             Direct::Cribrum(x) => x.process(l, r, key), // fx:cribrum
-            Direct::Vetus(x) => x.process(l, r),        // fx:vetus
+            Direct::Vetus(x) => x.process(l, r),     // fx:vetus
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }
