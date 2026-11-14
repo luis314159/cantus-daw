@@ -23,9 +23,10 @@ fn module(
     body: impl FnOnce(&mut dyn FxHost, &mut egui::Ui),
 ) {
     let on = host.spec().get(on_key) >= 0.5;
-    let (_, clicked, lamp) = controls::card_lamp(ui, s, rect, Src::Key(title), Some(on), |ui, _| {
-        body(host, ui)
-    });
+    let (_, clicked, lamp) =
+        controls::card_lamp(ui, s, rect, Src::Key(title), Some(on), |ui, _| {
+            body(host, ui)
+        });
     if clicked && !controls::card_lamp_offer(ui, s, host, on_key, lamp.as_ref()) {
         host.set(on_key, if on { 0.0 } else { 1.0 }, None);
     }
@@ -53,7 +54,11 @@ fn choice_keys(
         Sense::hover(),
     );
     let w = (rect.width() - gap * (cols - 1) as f32) / cols as f32;
-    let name = host.spec().kind.param(key).map_or("", |i| frame::tr(i.label_key));
+    let name = host
+        .spec()
+        .kind
+        .param(key)
+        .map_or("", |i| frame::tr(i.label_key));
     let mut chosen = None;
     for (i, label) in labels.iter().enumerate() {
         let (row, col) = (i / cols, i % cols);
@@ -155,51 +160,86 @@ fn cell_w(
 }
 
 pub fn bits(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, _cs: &VetusSettings) {
-    module(host, ui, s, rect, "vetus.card.bits", "bits.on", |host, ui| {
-        cell(host, ui, s, "bits.depth", "vetus.l.bits", Size::M, Some(&super::bits_pill));
-        let w = 164.0;
-        controls::column(ui, s, w, |ui| {
-            controls::caption(ui, s, Src::Key("fx.vetus.bits.mode"), w);
-            choice_keys(
+    module(
+        host,
+        ui,
+        s,
+        rect,
+        "vetus.card.bits",
+        "bits.on",
+        |host, ui| {
+            cell(
                 host,
                 ui,
                 s,
-                "bits.mode",
-                &["vetus.bits_mode.0", "vetus.bits_mode.1", "vetus.bits_mode.2"],
-                2,
-                w,
-                true,
+                "bits.depth",
+                "vetus.l.bits",
+                Size::M,
+                Some(&super::bits_pill),
             );
-        });
-        let w = 72.0;
-        controls::column(ui, s, w, |ui| {
-            controls::led_param(ui, s, host, "bits.dither", Src::Key("fx.vetus.bits.dither"), w);
-        });
-    });
+            let w = 164.0;
+            controls::column(ui, s, w, |ui| {
+                controls::caption(ui, s, Src::Key("fx.vetus.bits.mode"), w);
+                choice_keys(
+                    host,
+                    ui,
+                    s,
+                    "bits.mode",
+                    &[
+                        "vetus.bits_mode.0",
+                        "vetus.bits_mode.1",
+                        "vetus.bits_mode.2",
+                    ],
+                    2,
+                    w,
+                    true,
+                );
+            });
+            let w = 72.0;
+            controls::column(ui, s, w, |ui| {
+                controls::led_param(
+                    ui,
+                    s,
+                    host,
+                    "bits.dither",
+                    Src::Key("fx.vetus.bits.dither"),
+                    w,
+                );
+            });
+        },
+    );
 }
 
 pub fn rate(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, _cs: &VetusSettings) {
-    module(host, ui, s, rect, "vetus.card.rate", "rate.on", |host, ui| {
-        cell(host, ui, s, "rate.hz", "vetus.l.rate", Size::M, None);
-        let w = 184.0;
-        controls::column(ui, s, w, |ui| {
-            controls::caption(ui, s, Src::Key("fx.vetus.rate.filter"), w);
-            choice_keys(
-                host,
-                ui,
-                s,
-                "rate.filter",
-                &[
-                    "vetus.rate_filter.0",
-                    "vetus.rate_filter.1",
-                    "vetus.rate_filter.2",
-                ],
-                2,
-                w,
-                true,
-            );
-        });
-    });
+    module(
+        host,
+        ui,
+        s,
+        rect,
+        "vetus.card.rate",
+        "rate.on",
+        |host, ui| {
+            cell(host, ui, s, "rate.hz", "vetus.l.rate", Size::M, None);
+            let w = 184.0;
+            controls::column(ui, s, w, |ui| {
+                controls::caption(ui, s, Src::Key("fx.vetus.rate.filter"), w);
+                choice_keys(
+                    host,
+                    ui,
+                    s,
+                    "rate.filter",
+                    &[
+                        "vetus.rate_filter.0",
+                        "vetus.rate_filter.1",
+                        "vetus.rate_filter.2",
+                    ],
+                    2,
+                    w,
+                    true,
+                );
+            });
+        },
+    );
 }
 
 /// The width at 100 % of a cell whose label is two words.
@@ -208,29 +248,95 @@ const WIDE: f32 = 96.0;
 /// A synced wow's length as its name.
 fn div_pill(v: f32, out: &mut String) {
     const NAMES: [&str; 17] = [
-        "8/1", "4/1", "2/1", "1/1", "1/2\u{b7}", "1/2", "1/4\u{b7}", "1/2T", "1/4", "1/8\u{b7}",
-        "1/4T", "1/8", "1/16\u{b7}", "1/8T", "1/16", "1/16T", "1/32",
+        "8/1",
+        "4/1",
+        "2/1",
+        "1/1",
+        "1/2\u{b7}",
+        "1/2",
+        "1/4\u{b7}",
+        "1/2T",
+        "1/4",
+        "1/8\u{b7}",
+        "1/4T",
+        "1/8",
+        "1/16\u{b7}",
+        "1/8T",
+        "1/16",
+        "1/16T",
+        "1/32",
     ];
     out.push_str(NAMES[(v.round().max(0.0) as usize).min(16)]);
 }
 
 pub fn wobble(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, cs: &VetusSettings) {
     let synced = matches!(cs.wow_rate, cantus_dsp::modfx_lfo::Rate::Beats(_));
-    module(host, ui, s, rect, "vetus.card.wobble", "wob.on", |host, ui| {
-        cell(host, ui, s, "wow", "vetus.l.wow", Size::M, Some(&depth_pill));
-        if synced {
-            cell_w(host, ui, s, "wow.div", "vetus.l.wow_rate", Size::M, Some(&div_pill), Some(WIDE));
-        } else {
-            cell_w(host, ui, s, "wow.rate", "vetus.l.wow_rate", Size::M, None, Some(WIDE));
-        }
-        cell(host, ui, s, "wow.drift", "vetus.l.drift", Size::M, None);
-        cell(host, ui, s, "flut", "vetus.l.flutter", Size::M, Some(&depth_pill));
-        cell_w(host, ui, s, "flut.rate", "vetus.l.flutter_rate", Size::M, None, Some(WIDE));
-        let w = 66.0;
-        controls::column(ui, s, w, |ui| {
-            controls::led_param(ui, s, host, "wow.sync", Src::Key("vetus.l.sync"), w);
-        });
-    });
+    module(
+        host,
+        ui,
+        s,
+        rect,
+        "vetus.card.wobble",
+        "wob.on",
+        |host, ui| {
+            cell(
+                host,
+                ui,
+                s,
+                "wow",
+                "vetus.l.wow",
+                Size::M,
+                Some(&depth_pill),
+            );
+            if synced {
+                cell_w(
+                    host,
+                    ui,
+                    s,
+                    "wow.div",
+                    "vetus.l.wow_rate",
+                    Size::M,
+                    Some(&div_pill),
+                    Some(WIDE),
+                );
+            } else {
+                cell_w(
+                    host,
+                    ui,
+                    s,
+                    "wow.rate",
+                    "vetus.l.wow_rate",
+                    Size::M,
+                    None,
+                    Some(WIDE),
+                );
+            }
+            cell(host, ui, s, "wow.drift", "vetus.l.drift", Size::M, None);
+            cell(
+                host,
+                ui,
+                s,
+                "flut",
+                "vetus.l.flutter",
+                Size::M,
+                Some(&depth_pill),
+            );
+            cell_w(
+                host,
+                ui,
+                s,
+                "flut.rate",
+                "vetus.l.flutter_rate",
+                Size::M,
+                None,
+                Some(WIDE),
+            );
+            let w = 66.0;
+            controls::column(ui, s, w, |ui| {
+                controls::led_param(ui, s, host, "wow.sync", Src::Key("vetus.l.sync"), w);
+            });
+        },
+    );
 }
 
 /// A depth in cents, without the sign a pitch would carry: "12 ct".
@@ -246,41 +352,86 @@ pub fn age(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, _cs:
 }
 
 pub fn noise(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, _cs: &VetusSettings) {
-    module(host, ui, s, rect, "vetus.card.noise", "noise.on", |host, ui| {
-        cell(host, ui, s, "crackle", "vetus.l.crackle", Size::M, None);
-        cell(host, ui, s, "hiss", "vetus.l.hiss", Size::M, None);
-        cell(host, ui, s, "hum", "vetus.l.hum", Size::M, None);
-        cell(host, ui, s, "noise.follow", "vetus.l.follow", Size::M, None);
-        let w = 98.0;
-        controls::column(ui, s, w, |ui| {
-            controls::caption(ui, s, Src::Key("vetus.l.hiss_kind"), w);
-            let kinds = [Src::Key("vetus.hiss_kind.0"), Src::Key("vetus.hiss_kind.1")];
-            controls::segmented_param(ui, s, host, "hiss.kind", &kinds, w);
-            controls::caption(ui, s, Src::Key("vetus.l.mains"), w);
-            let hz = [Src::Key("vetus.hum_hz.0"), Src::Key("vetus.hum_hz.1")];
-            controls::segmented_param(ui, s, host, "hum.hz", &hz, w);
-        });
-    });
+    module(
+        host,
+        ui,
+        s,
+        rect,
+        "vetus.card.noise",
+        "noise.on",
+        |host, ui| {
+            cell(host, ui, s, "crackle", "vetus.l.crackle", Size::M, None);
+            cell(host, ui, s, "hiss", "vetus.l.hiss", Size::M, None);
+            cell(host, ui, s, "hum", "vetus.l.hum", Size::M, None);
+            cell(host, ui, s, "noise.follow", "vetus.l.follow", Size::M, None);
+            let w = 98.0;
+            controls::column(ui, s, w, |ui| {
+                controls::caption(ui, s, Src::Key("vetus.l.hiss_kind"), w);
+                let kinds = [Src::Key("vetus.hiss_kind.0"), Src::Key("vetus.hiss_kind.1")];
+                controls::segmented_param(ui, s, host, "hiss.kind", &kinds, w);
+                controls::caption(ui, s, Src::Key("vetus.l.mains"), w);
+                let hz = [Src::Key("vetus.hum_hz.0"), Src::Key("vetus.hum_hz.1")];
+                controls::segmented_param(ui, s, host, "hum.hz", &hz, w);
+            });
+        },
+    );
 }
 
 pub fn tone(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, _cs: &VetusSettings) {
-    module(host, ui, s, rect, "vetus.card.tone", "tone.on", |host, ui| {
-        let w = 160.0;
-        controls::column(ui, s, w, |ui| {
-            controls::caption(ui, s, Src::Key("fx.vetus.tone.medium"), w);
-            if let Some(i) = choice_keys(host, ui, s, "tone.medium", &super::MEDIUM_KEYS, 2, w, false) {
-                // A medium brings its band: one step of undo with the choice.
-                let (lo, hi) = cantus_core::fx::vetus::MEDIUM_BANDS[i];
-                host.set_many(
-                    &[("tone.medium", i as f32), ("tone.lo", lo), ("tone.hi", hi)],
-                    "vetus.cmd.medium",
-                );
-            }
-        });
-        cell_w(host, ui, s, "tone.lo", "vetus.l.low", Size::M, None, Some(WIDE - 6.0));
-        cell_w(host, ui, s, "tone.hi", "vetus.l.high", Size::M, None, Some(WIDE - 6.0));
-        cell_w(host, ui, s, "tone.res", "vetus.l.res", Size::M, None, Some(WIDE - 6.0));
-    });
+    module(
+        host,
+        ui,
+        s,
+        rect,
+        "vetus.card.tone",
+        "tone.on",
+        |host, ui| {
+            let w = 160.0;
+            controls::column(ui, s, w, |ui| {
+                controls::caption(ui, s, Src::Key("fx.vetus.tone.medium"), w);
+                if let Some(i) =
+                    choice_keys(host, ui, s, "tone.medium", &super::MEDIUM_KEYS, 2, w, false)
+                {
+                    // A medium brings its band: one step of undo with the choice.
+                    let (lo, hi) = cantus_core::fx::vetus::MEDIUM_BANDS[i];
+                    host.set_many(
+                        &[("tone.medium", i as f32), ("tone.lo", lo), ("tone.hi", hi)],
+                        "vetus.cmd.medium",
+                    );
+                }
+            });
+            cell_w(
+                host,
+                ui,
+                s,
+                "tone.lo",
+                "vetus.l.low",
+                Size::M,
+                None,
+                Some(WIDE - 6.0),
+            );
+            cell_w(
+                host,
+                ui,
+                s,
+                "tone.hi",
+                "vetus.l.high",
+                Size::M,
+                None,
+                Some(WIDE - 6.0),
+            );
+            cell_w(
+                host,
+                ui,
+                s,
+                "tone.res",
+                "vetus.l.res",
+                Size::M,
+                None,
+                Some(WIDE - 6.0),
+            );
+        },
+    );
 }
 
 /// The inspector's picture: a small record, and the modules that are on in words.

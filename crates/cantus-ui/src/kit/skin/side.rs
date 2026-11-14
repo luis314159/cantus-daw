@@ -329,7 +329,7 @@ pub const LIBRA: Skin = Skin {
 pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
     match kind {
         EffectKind::AutoFilter => &CRIBRUM_COLOURWAYS, // fx:cribrum
-        EffectKind::LoFi => &VETUS_COLOURWAYS,        // fx:vetus
+        EffectKind::LoFi => &VETUS_COLOURWAYS,         // fx:vetus
         _ => &[],
     }
 }

@@ -332,7 +332,10 @@ fn the_drawn_band_is_the_heard_band() {
         for hz in [40.0f32, 120.0, 400.0, 1_100.0, 2_600.0, 7_000.0, 16_000.0] {
             let heard = db(level(&run(&s, &sine(hz, 0.25, 48_000))[24_000..], hz) / 0.25);
             let drawn = tone_db(&s, hz, SR);
-            assert!((heard - drawn).abs() < 0.1, "{medium:?} at {hz} Hz: heard {heard:.2}, drawn {drawn:.2}");
+            assert!(
+                (heard - drawn).abs() < 0.1,
+                "{medium:?} at {hz} Hz: heard {heard:.2}, drawn {drawn:.2}"
+            );
         }
     }
 }

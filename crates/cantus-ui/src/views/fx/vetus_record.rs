@@ -98,7 +98,6 @@ impl Groove {
             self.push(*y);
         }
     }
-
 }
 
 /// What the record shows: the settings after Character and the telemetry.
@@ -194,7 +193,12 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, look: &Look, groove: &Groove,
         16,
     );
     b.circle(c, r * 1.065, Fill::Solid(rgb(paint::PLATTER)));
-    b.circle_stroke(c, r * 1.065, 1.0 * k, with_alpha(rgb(paint::PLATTER_LIGHT), 0.55));
+    b.circle_stroke(
+        c,
+        r * 1.065,
+        1.0 * k,
+        with_alpha(rgb(paint::PLATTER_LIGHT), 0.55),
+    );
     // The strobe marks: they stand still at the right speed and sway with the wow.
     let sway = look.speed_ct * 0.004;
     for i in 0..120 {
@@ -225,7 +229,12 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, look: &Look, groove: &Groove,
     arm(b, &g, look, k);
     if look.clicks > 0.0 && v.noise_on {
         let a = (look.clicks / 6.0).min(1.0);
-        b.circle_stroke(g.stylus, 5.0 * k, 0.8 * k, with_alpha(rgb(paint::FLASH), 0.6 * a));
+        b.circle_stroke(
+            g.stylus,
+            5.0 * k,
+            0.8 * k,
+            with_alpha(rgb(paint::FLASH), 0.6 * a),
+        );
         b.dot(g.stylus, 1.6 * k, with_alpha(rgb(paint::FLASH), 0.9 * a));
     }
 }
@@ -236,8 +245,13 @@ fn sheen(b: &mut Brush, c: Pos2, r: f32, k: f32, v: &VetusSettings) {
     let worn = 1.0 - 0.5 * (v.character + if v.age_on { v.age.wear } else { 0.0 }).min(1.0);
     let (r0, r1) = (r * 0.37, r * 0.975);
     for centre in [-PI * 0.30, PI * 0.70] {
-        for (span, a) in [(0.40f32, 0.020), (0.28, 0.024), (0.18, 0.028), (0.10, 0.034), (0.045, 0.04)]
-        {
+        for (span, a) in [
+            (0.40f32, 0.020),
+            (0.28, 0.024),
+            (0.18, 0.028),
+            (0.10, 0.034),
+            (0.045, 0.04),
+        ] {
             b.arc(
                 c,
                 (r0 + r1) * 0.5,
@@ -260,14 +274,22 @@ fn marks(b: &mut Brush, c: Pos2, r: f32, spin: f32, v: &VetusSettings, k: f32) {
         for i in 0..grains {
             let rr = r * (0.38 + 0.6 * u(i, 1));
             let a = u(i, 2) * TAU + spin;
-            b.dot(polar(c, rr, a), 0.45 * k, with_alpha(rgb(paint::GROOVE), 0.16));
+            b.dot(
+                polar(c, rr, a),
+                0.45 * k,
+                with_alpha(rgb(paint::GROOVE), 0.16),
+            );
         }
         let specks = (v.noise.crackle * 48.0) as u64;
         for i in 0..specks {
             let rr = r * (0.39 + 0.58 * u(i, 3));
             let a = u(i, 4) * TAU + spin;
             let size = (0.55 + 0.8 * u(i, 5)) * k;
-            b.dot(polar(c, rr, a), size, with_alpha(rgb(paint::DUST), 0.45 + 0.35 * u(i, 6)));
+            b.dot(
+                polar(c, rr, a),
+                size,
+                with_alpha(rgb(paint::DUST), 0.45 + 0.35 * u(i, 6)),
+            );
         }
         if v.noise.hum > 0.0 {
             let n = if v.noise.hum_60 { 60.0 } else { 50.0 };
@@ -315,7 +337,9 @@ fn music(b: &mut Brush, g: &Geo, c: Pos2, groove: &Groove, look: &Look, accent: 
     } else {
         1
     };
-    let levels = v.bits_on.then(|| cantus_dsp::math::exp2(v.bits * 0.5).clamp(2.0, 18.0));
+    let levels = v
+        .bits_on
+        .then(|| cantus_dsp::math::exp2(v.bits * 0.5).clamp(2.0, 18.0));
     let width = 0.03 * r;
     for turn in 0..TURNS {
         let mut top = Vec::with_capacity(PER_TURN + 1);
@@ -342,7 +366,11 @@ fn music(b: &mut Brush, g: &Geo, c: Pos2, groove: &Groove, look: &Look, accent: 
         }
         let fade = [0.85f32, 0.5, 0.28][turn];
         b.between(&top, &bot, with_alpha(accent, 0.38 * fade));
-        b.polyline(&top, (if turn == 0 { 1.0 } else { 0.8 }) * k, with_alpha(accent, fade));
+        b.polyline(
+            &top,
+            (if turn == 0 { 1.0 } else { 0.8 }) * k,
+            with_alpha(accent, fade),
+        );
         b.polyline(&bot, 0.6 * k, with_alpha(accent, 0.6 * fade));
     }
 }
@@ -364,21 +392,57 @@ fn label(
     let paper = rgb(paint::LABEL_NEW).lerp_to_gamma(rgb(paint::LABEL_OLD), age);
     let lr = r * 0.33;
     b.circle(c, lr, Fill::Solid(paper));
-    b.circle_stroke(c, lr * 0.92, 0.8 * k, with_alpha(rgb(paint::LABEL_ACCENT), 0.8));
-    b.circle_stroke(c, lr * 0.89, 0.5 * k, with_alpha(rgb(paint::LABEL_ACCENT), 0.6));
+    b.circle_stroke(
+        c,
+        lr * 0.92,
+        0.8 * k,
+        with_alpha(rgb(paint::LABEL_ACCENT), 0.8),
+    );
+    b.circle_stroke(
+        c,
+        lr * 0.89,
+        0.5 * k,
+        with_alpha(rgb(paint::LABEL_ACCENT), 0.6),
+    );
     let ink = rgb(paint::LABEL_INK);
     let name = Text::new("VETUS", Role::Section, ink).caps(false);
-    super::super::canvas::put(b, c + vec2(0.0, -lr * 0.42), Align2::CENTER_CENTER, &name, k, None);
+    super::super::canvas::put(
+        b,
+        c + vec2(0.0, -lr * 0.42),
+        Align2::CENTER_CENTER,
+        &name,
+        k,
+        None,
+    );
     let medium = if v.tone_on {
         frame::tr(super::MEDIUM_KEYS[v.medium as usize])
     } else {
         frame::tr("vetus.label.record")
     };
     let m = Text::new(medium, Role::Micro, ink).caps(false);
-    super::super::canvas::put(b, c + vec2(0.0, lr * 0.30), Align2::CENTER_CENTER, &m, k, None);
+    super::super::canvas::put(
+        b,
+        c + vec2(0.0, lr * 0.30),
+        Align2::CENTER_CENTER,
+        &m,
+        k,
+        None,
+    );
     let year = super::year_text(v.character);
-    let y = Text::new(&year, Role::Micro, with_alpha(rgb(paint::LABEL_ACCENT), 1.0)).caps(false);
-    super::super::canvas::put(b, c + vec2(0.0, lr * 0.58), Align2::CENTER_CENTER, &y, k, None);
+    let y = Text::new(
+        &year,
+        Role::Micro,
+        with_alpha(rgb(paint::LABEL_ACCENT), 1.0),
+    )
+    .caps(false);
+    super::super::canvas::put(
+        b,
+        c + vec2(0.0, lr * 0.58),
+        Align2::CENTER_CENTER,
+        &y,
+        k,
+        None,
+    );
     let _ = (s, second, Medium::Tape);
     // The spindle and the hole round it.
     b.dot(spindle, r * 0.032, with_alpha(rgb(paint::VINYL), 0.9));
@@ -390,7 +454,11 @@ fn label(
 fn arm(b: &mut Brush, g: &Geo, look: &Look, k: f32) {
     let r = g.r;
     let pivot = g.c + vec2(r * 0.98, -r * 0.80);
-    let shake = if look.s.wob_on { look.flutter * 0.7 * k } else { 0.0 };
+    let shake = if look.s.wob_on {
+        look.flutter * 0.7 * k
+    } else {
+        0.0
+    };
     let tip = g.stylus + vec2(shake, -shake * 0.5);
     let dir = (tip - pivot).normalized();
     let head = tip - dir * (r * 0.16);

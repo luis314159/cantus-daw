@@ -22,12 +22,12 @@ use cantus_dsp::modfx_clock::tel;
 use cantus_dsp::vetus::{t, VetusSettings};
 use egui::{pos2, vec2, Align2, Rect, Sense};
 
+#[path = "vetus_modules.rs"]
+mod modules;
 #[path = "vetus_record.rs"]
 mod record;
 #[path = "vetus_spectrum.rs"]
 mod spectrum;
-#[path = "vetus_modules.rs"]
-mod modules;
 
 pub(crate) const KIND: EffectKind = EffectKind::LoFi;
 
@@ -192,32 +192,45 @@ fn display(
     rect: Rect,
     tel: &[f32; 64],
 ) {
-    controls::card(ui, s, rect, Src::Key("vetus.card.record"), None, |ui, cr| {
-        let r = cr.body;
-        let k = s.k;
-        let rec_w = (r.height() * 1.18).min(r.width() * 0.56);
-        let rec = Rect::from_min_size(r.min, vec2(rec_w, r.height()));
-        let spec = Rect::from_min_max(pos2(rec.right() + 4.0 * k, r.top()), r.max);
-        st.record = Some(rec);
-        st.plot = Some(spectrum::map_of(spec, k).plot);
-        st.groove.update(host.pairs());
-        spectrum::update(&mut st.spectrum, host.pairs(), host.sample_rate());
-        record::edit(host, st, ui, rec);
-        spectrum::edit(host, &mut st.spectrum, ui, spectrum::map_of(spec, k), k);
-        let cs = cantus_engine::fx::vetus::settings(host.spec());
-        let look = record::Look::of(&cs, tel, live(tel));
-        let sr = host.sample_rate();
-        let ink = super::canvas::Ink::of(s);
-        with_brush(&ui.painter_at(r), |b| {
-            super::canvas::ground_b(b, r, &ink, s.hue_tok);
-            record::paint(b, rec, s, &look, &st.groove, k);
-            spectrum::paint(b, s, spec, &st.spectrum, &cs, sr, k);
-            // The seam between the turntable's well and the screen: a hairline.
-            b.vline(rec.right() + 2.0 * k, r.top(), r.bottom(), 0.8 * k, ink.edge);
-            words(b, s, rec, &look, k);
-            super::canvas::edge_b(b, r, &ink);
-        });
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("vetus.card.record"),
+        None,
+        |ui, cr| {
+            let r = cr.body;
+            let k = s.k;
+            let rec_w = (r.height() * 1.18).min(r.width() * 0.56);
+            let rec = Rect::from_min_size(r.min, vec2(rec_w, r.height()));
+            let spec = Rect::from_min_max(pos2(rec.right() + 4.0 * k, r.top()), r.max);
+            st.record = Some(rec);
+            st.plot = Some(spectrum::map_of(spec, k).plot);
+            st.groove.update(host.pairs());
+            spectrum::update(&mut st.spectrum, host.pairs(), host.sample_rate());
+            record::edit(host, st, ui, rec);
+            spectrum::edit(host, &mut st.spectrum, ui, spectrum::map_of(spec, k), k);
+            let cs = cantus_engine::fx::vetus::settings(host.spec());
+            let look = record::Look::of(&cs, tel, live(tel));
+            let sr = host.sample_rate();
+            let ink = super::canvas::Ink::of(s);
+            with_brush(&ui.painter_at(r), |b| {
+                super::canvas::ground_b(b, r, &ink, s.hue_tok);
+                record::paint(b, rec, s, &look, &st.groove, k);
+                spectrum::paint(b, s, spec, &st.spectrum, &cs, sr, k);
+                // The seam between the turntable's well and the screen: a hairline.
+                b.vline(
+                    rec.right() + 2.0 * k,
+                    r.top(),
+                    r.bottom(),
+                    0.8 * k,
+                    ink.edge,
+                );
+                words(b, s, rec, &look, k);
+                super::canvas::edge_b(b, r, &ink);
+            });
+        },
+    );
 }
 
 /// The record's corner words: the speed and its deviation; the modules sounding.
@@ -243,32 +256,52 @@ fn words(b: &mut crate::kit::Brush, s: &Style, r: Rect, look: &record::Look, k: 
 }
 
 /// Character, the mix and the output: the one knob that ages everything, a size up.
-fn character_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, tel: &[f32; 64]) {
+fn character_card(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: Rect,
+    tel: &[f32; 64],
+) {
     let _ = tel;
-    controls::card(ui, s, rect, Src::Key("vetus.card.character"), None, |ui, cr| {
-        let w = cr.body.width() / s.k;
-        controls::column(ui, s, w, |ui| {
-            ui.vertical_centered(|ui| {
-                controls::param_with(ui, s, host, "char", Size::XL, Some(&|v: f32, out: &mut String| {
-                    controls::write_readout(v, "%", out);
-                }));
-                let era = year_text(host.spec().get("char"));
-                let (er, _) = ui.allocate_exact_size(vec2(w * s.k, s.d(16.0)), Sense::hover());
-                let ink = super::canvas::Ink::of(s);
-                with_brush(ui.painter(), |b| {
-                    let t = Text::new(&era, Role::Value, s.t.text_dim).caps(false);
-                    super::canvas::put(b, er.center(), Align2::CENTER_CENTER, &t, s.k, None);
-                    let _ = ink;
-                });
-                ui.horizontal(|ui| {
-                    let pad = ((w - 2.0 * 64.0 - 4.0) * 0.5).max(0.0);
-                    ui.add_space(pad * s.k);
-                    controls::param(ui, s, host, "mix", Size::M);
-                    controls::param(ui, s, host, "out", Size::M);
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("vetus.card.character"),
+        None,
+        |ui, cr| {
+            let w = cr.body.width() / s.k;
+            controls::column(ui, s, w, |ui| {
+                ui.vertical_centered(|ui| {
+                    controls::param_with(
+                        ui,
+                        s,
+                        host,
+                        "char",
+                        Size::XL,
+                        Some(&|v: f32, out: &mut String| {
+                            controls::write_readout(v, "%", out);
+                        }),
+                    );
+                    let era = year_text(host.spec().get("char"));
+                    let (er, _) = ui.allocate_exact_size(vec2(w * s.k, s.d(16.0)), Sense::hover());
+                    let ink = super::canvas::Ink::of(s);
+                    with_brush(ui.painter(), |b| {
+                        let t = Text::new(&era, Role::Value, s.t.text_dim).caps(false);
+                        super::canvas::put(b, er.center(), Align2::CENTER_CENTER, &t, s.k, None);
+                        let _ = ink;
+                    });
+                    ui.horizontal(|ui| {
+                        let pad = ((w - 2.0 * 64.0 - 4.0) * 0.5).max(0.0);
+                        ui.add_space(pad * s.k);
+                        controls::param(ui, s, host, "mix", Size::M);
+                        controls::param(ui, s, host, "out", Size::M);
+                    });
                 });
             });
-        });
-    });
+        },
+    );
 }
 
 /// The era Character dates the label with: this year at 0, a century back at 100 %.

@@ -96,7 +96,9 @@ fn peak_to(l: &mut [f32], r: &mut [f32], db: f32) {
 
 /// The lo-fi demo with only the tracks `keep` names, rendered from bar 5 for eight bars.
 fn demo_part(keep: &dyn Fn(&str) -> bool) -> (Vec<f32>, Vec<f32>) {
-    let mut p: Project = (cantus_ui::demos::find("lofi").expect("the lo-fi demo").build)();
+    let mut p: Project = (cantus_ui::demos::find("lofi")
+        .expect("the lo-fi demo")
+        .build)();
     for t in &mut p.tracks {
         t.muted = !keep(&t.name.to_lowercase());
     }
@@ -106,7 +108,7 @@ fn demo_part(keep: &dyn Fn(&str) -> bool) -> (Vec<f32>, Vec<f32>) {
         tail_seconds: 0.5,
         ..Default::default()
     };
-    let out = cantus_engine::render(Arc::new(cantus_engine::Snapshot::compile(&p, 1)), &opts)
+    let out = cantus_engine::render(Arc::new(cantus_core::Snapshot::compile(&p, 1)), &opts)
         .expect("rendered")
         .samples;
     let (mut l, mut r): (Vec<f32>, Vec<f32>) = out.chunks_exact(2).map(|c| (c[0], c[1])).unzip();
@@ -206,7 +208,13 @@ fn set_of(
     readme: &mut String,
 ) {
     std::fs::create_dir_all(out).expect("out dir");
-    write(&x.0, &x.1, &out.join(format!("{dry_name}.flac")), dry_title, "Vetus");
+    write(
+        &x.0,
+        &x.1,
+        &out.join(format!("{dry_name}.flac")),
+        dry_title,
+        "Vetus",
+    );
     let _ = writeln!(readme, "- `{dry_name}.flac` — {dry_title} (dry)");
     let dry = rms(&x.0, &x.1);
     for (name, title, params, sweep) in examples {
@@ -359,7 +367,8 @@ fn main() {
     );
     readme.push_str("\nGuitar: Carbonthief, CC0.\n\n");
     let start = 16 * 36_000; // bar 5 at 80 BPM, 48 kHz (36 000 samples a beat)
-    let drums = demo_part(&|n: &str| n.contains("drum") || n.contains("kit"));
+    let drums =
+        demo_part(&|n: &str| n.contains("kick") || n.contains("snare") || n.contains("hats"));
     readme.push_str("## drums/ — the Paper Lanterns demo's kit (80 BPM, bars 5–12)\n\n");
     set_of(
         &out.join("drums"),

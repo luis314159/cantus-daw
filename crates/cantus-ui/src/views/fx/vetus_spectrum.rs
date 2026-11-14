@@ -172,7 +172,11 @@ pub fn tone_db(s: &VetusSettings, hz: f32, sr: f32) -> f32 {
 pub fn edit(host: &mut dyn FxHost, v: &mut View, ui: &egui::Ui, map: Map, k: f32) {
     let sr = host.sample_rate();
     let set = cantus_engine::fx::vetus::settings(host.spec());
-    let resp = ui.interact(map.plot.expand(6.0 * k), ui.id().with("vetus-spectrum"), Sense::drag());
+    let resp = ui.interact(
+        map.plot.expand(6.0 * k),
+        ui.id().with("vetus-spectrum"),
+        Sense::drag(),
+    );
     let near = |p: Pos2| -> Option<Grab> {
         let mut best: Option<(Grab, f32)> = None;
         for (g, at, on) in handles(map, &set, sr) {
@@ -238,7 +242,13 @@ pub fn paint(b: &mut Brush, s: &Style, r: Rect, v: &View, set: &VetusSettings, s
     let second = ink.voice(s.hue, true);
     // The grid: decades and every 24 dB, their numbers at the edges.
     for hz in [100.0f32, 1_000.0, 10_000.0] {
-        b.vline(map.x(hz), plot.top(), plot.bottom(), 0.8 * k, ink.grid_strong);
+        b.vline(
+            map.x(hz),
+            plot.top(),
+            plot.bottom(),
+            0.8 * k,
+            ink.grid_strong,
+        );
     }
     for hz in [50.0f32, 200.0, 500.0, 2_000.0, 5_000.0] {
         b.vline(map.x(hz), plot.top(), plot.bottom(), 0.6 * k, ink.grid);
@@ -252,12 +262,26 @@ pub fn paint(b: &mut Brush, s: &Style, r: Rect, v: &View, set: &VetusSettings, s
             format!("\u{2212}{}", -db as i32)
         };
         let t = Text::new(&w, Role::Micro, ink.dim).caps(false);
-        canvas::put(b, pos2(plot.left() - 5.0 * k, map.y(db)), Align2::RIGHT_CENTER, &t, k, None);
+        canvas::put(
+            b,
+            pos2(plot.left() - 5.0 * k, map.y(db)),
+            Align2::RIGHT_CENTER,
+            &t,
+            k,
+            None,
+        );
         db -= 24.0;
     }
     for (hz, w) in [(100.0f32, "100"), (1_000.0, "1k"), (10_000.0, "10k")] {
         let t = Text::new(w, Role::Micro, ink.dim).caps(false);
-        canvas::put(b, pos2(map.x(hz), plot.bottom() + 3.0 * k), Align2::CENTER_TOP, &t, k, None);
+        canvas::put(
+            b,
+            pos2(map.x(hz), plot.bottom() + 3.0 * k),
+            Align2::CENTER_TOP,
+            &t,
+            k,
+            None,
+        );
     }
     // Past the Nyquist: hatched where it folds back, dimmed where it is filtered.
     if e.rate_on {
@@ -273,7 +297,9 @@ pub fn paint(b: &mut Brush, s: &Style, r: Rect, v: &View, set: &VetusSettings, s
     }
     // The input, faint, and the output filled.
     let line = |spec: &[f32; BINS]| -> Vec<Pos2> {
-        (0..BINS).map(|i| pos2(map.x(bin_hz(i)), map.y(spec[i]))).collect()
+        (0..BINS)
+            .map(|i| pos2(map.x(bin_hz(i)), map.y(spec[i])))
+            .collect()
     };
     let has = v.spec_out.iter().any(|d| *d > BOT + 1.0);
     if has {
@@ -305,19 +331,41 @@ pub fn paint(b: &mut Brush, s: &Style, r: Rect, v: &View, set: &VetusSettings, s
         super::super::controls::write_readout(e.hi, "Hz", &mut w);
         let t = Text::new(&w, Role::Micro, second).caps(false);
         let mid = map.x((e.lo * e.hi).sqrt());
-        canvas::put(b, pos2(mid, map.yr(0.0) - 9.0 * k), Align2::CENTER_BOTTOM, &t, k, Some(ink.plate));
+        canvas::put(
+            b,
+            pos2(mid, map.yr(0.0) - 9.0 * k),
+            Align2::CENTER_BOTTOM,
+            &t,
+            k,
+            Some(ink.plate),
+        );
     }
     // The quantiser's floor.
     if e.bits_on {
         let y = map.y(floor_db(e.bits));
         if y < plot.bottom() {
-            canvas::dashed(b, pos2(plot.left(), y), pos2(plot.right(), y), 1.0 * k, ink.hue, 5.0 * k, 3.0 * k);
+            canvas::dashed(
+                b,
+                pos2(plot.left(), y),
+                pos2(plot.right(), y),
+                1.0 * k,
+                ink.hue,
+                5.0 * k,
+                3.0 * k,
+            );
             let mut w = String::new();
             super::bits_pill(e.bits, &mut w);
             w.push_str("  ");
             super::super::controls::write_readout(floor_db(e.bits), "dB", &mut w);
             let t = Text::new(&w, Role::Micro, ink.text).caps(false);
-            canvas::put(b, pos2(plot.right() - 4.0 * k, y - 3.0 * k), Align2::RIGHT_BOTTOM, &t, k, Some(ink.plate));
+            canvas::put(
+                b,
+                pos2(plot.right() - 4.0 * k, y - 3.0 * k),
+                Align2::RIGHT_BOTTOM,
+                &t,
+                k,
+                Some(ink.plate),
+            );
         }
     }
     // The converter's Nyquist.
@@ -331,10 +379,21 @@ pub fn paint(b: &mut Brush, s: &Style, r: Rect, v: &View, set: &VetusSettings, s
         let t = Text::new(&w, Role::Micro, ink.text).caps(false);
         let left = x > plot.center().x;
         let at = pos2(x + if left { -6.0 } else { 6.0 } * k, plot.top() + 6.0 * k);
-        let align = if left { Align2::RIGHT_CENTER } else { Align2::LEFT_CENTER };
+        let align = if left {
+            Align2::RIGHT_CENTER
+        } else {
+            Align2::LEFT_CENTER
+        };
         canvas::put(b, at, align, &t, k, Some(ink.plate));
     }
     let title = Text::key("vetus.spec.title", Role::Micro, ink.dim).caps(true);
-    canvas::put(b, pos2(r.left() + 8.0 * k, r.top() + 6.0 * k), Align2::LEFT_TOP, &title, k, None);
+    canvas::put(
+        b,
+        pos2(r.left() + 8.0 * k, r.top() + 6.0 * k),
+        Align2::LEFT_TOP,
+        &title,
+        k,
+        None,
+    );
     let _ = vec2(0.0, 0.0);
 }
