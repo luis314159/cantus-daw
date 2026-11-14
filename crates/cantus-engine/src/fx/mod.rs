@@ -225,10 +225,11 @@ pub trait FxUnit: Send + std::fmt::Debug {
         &mut []
     }
 
-    /// The song position for a unit that holds others: `late(k)` is the position as pedal
-    /// `k` (its index in signal order) hears it — the board's own lateness plus the latency
-    /// before it, exact across tempo maps (`earlier_in`). Called before each `process`
-    /// when [`Self::follows_song`]; must not allocate. Default: ignored.
+    /// The song position for a unit that holds others: `late(d)` is the position `d`
+    /// samples later than the board hears it — the board's own lateness plus `d`, the
+    /// latency inside the board before a pedal, exact across tempo maps (`earlier_in`;
+    /// fx3:tabula). Called before each `process` when [`Self::follows_song`]; must not
+    /// allocate. Default: ignored.
     fn set_position_late(&mut self, late: &dyn Fn(usize) -> SongPosition) {
         let _ = late;
     }
