@@ -711,8 +711,8 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("out", -6.0),
         ], // fx:fragor
         EffectKind::TimeShaper => vec![("out", -6.0)], // fx:contract
-        EffectKind::LoFi => vec![("out", -6.0)],  // fx:contract
-        EffectKind::Utility => vec![("out", -6.0)], // fx:contract
+        EffectKind::LoFi => vec![("out", -6.0)],       // fx:contract
+        EffectKind::Utility => vec![("out", -6.0)],    // fx:contract
         _ => vec![],
     }
 }

@@ -264,8 +264,8 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
             ],
         ), // fx:fragor
         EffectKind::TimeShaper => set(&mut s, &[("out", 6.0)]), // fx:contract (lapsus)
-        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),  // fx:contract (vetus)
-        EffectKind::Utility => set(&mut s, &[("out", 6.0)]), // fx:contract (libra)
+        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),       // fx:contract (vetus)
+        EffectKind::Utility => set(&mut s, &[("out", 6.0)]),    // fx:contract (libra)
     }
     s
 }
