@@ -1549,3 +1549,14 @@ vetus tone.medium 1578830366
 vetus tone.lo 1113891268
 vetus tone.hi 1215248530
 vetus tone.res 1790397057
+libra pan 1331031788
+libra width 361197087
+libra chan 743180649
+libra pol.l 1713327862
+libra pol.r 1612662148
+libra dc 1444726064
+libra delay.l 894917226
+libra delay.r 928472464
+libra delay.unit 468034372
+libra mute 1443274580
+libra tuner.ref 1811138280

@@ -8,7 +8,7 @@
 
 use super::super::color::Hsl;
 use super::{
-    tone, Case, Colourway, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin,
+    Case, Colourway, Display, KnobShape, Lettering, Material, Ornaments, Pair, Plate, Skin,
     SwitchShape, Tint, Weight,
 };
 
@@ -314,7 +314,7 @@ pub const VETUS: Skin = vetus(
 );
 
 /// Vetus in **Sleeve**: a record sleeve's card in a light, clean cream, the music vermilion,
-/// the band teal.
+/// the band a printer's blue (teal beside vermilion is Cribrum's Brass).
 pub const VETUS_SLEEVE: Skin = vetus(
     "fx.vetus.sleeve",
     Tint {
@@ -327,8 +327,8 @@ pub const VETUS_SLEEVE: Skin = vetus(
         light: chsl(10.0, 0.78, 0.40),
     },
     Pair {
-        dark: chsl(176.0, 0.55, 0.58),
-        light: chsl(182.0, 0.75, 0.26),
+        dark: chsl(214.0, 0.62, 0.68),
+        light: chsl(218.0, 0.62, 0.34),
     },
     Material::Paper,
     Display::Phosphor,

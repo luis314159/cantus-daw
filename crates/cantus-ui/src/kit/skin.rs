@@ -91,6 +91,9 @@ pub mod pedals;
 // The record Vetus draws (ADR 0133). fx:vetus
 #[path = "skin/records.rs"]
 pub mod records;
+// The balance Libra draws (ADR 0133). fx:libra
+#[path = "skin/scales.rs"]
+pub mod scales;
 #[path = "skin/textures.rs"]
 mod textures;
 

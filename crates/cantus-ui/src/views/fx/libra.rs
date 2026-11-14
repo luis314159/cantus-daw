@@ -18,6 +18,8 @@ use crate::kit::{with_brush, Style};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use egui::{vec2, Rect, Sense};
 
+#[path = "libra_balance.rs"]
+mod balance;
 #[path = "libra_display.rs"]
 mod display;
 
@@ -126,7 +128,7 @@ fn body_ui(
             ui.ctx().request_repaint();
         }
     });
-    let r2: Vec<Rect> = g.row(row, &[0.27, 0.17, 0.21, 0.14, 0.21]).collect();
+    let r2: Vec<Rect> = g.row(row, &[0.27, 0.17, 0.25, 0.15, 0.16]).collect();
     channels(host, ui, s, r2[0]);
     switches(host, ui, s, r2[1]);
     delays(host, ui, s, r2[2]);
@@ -193,6 +195,7 @@ fn labelled(
     };
     let mut c = controls::Cell::param(info, spec.get(key))
         .size(Size::M)
+        .width(90.0)
         .label(Src::Key(label));
     if let Some(f) = pill {
         c = c.format(f);
@@ -210,8 +213,12 @@ fn labelled(
 fn chan_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, width: f32) {
     let k = s.k;
     let now = host.spec().get("chan").round().max(0.0) as usize;
-    let (cols, gap, h) = (4usize, s.d(3.0), s.d(controls::ROW));
-    let (rect, _) = ui.allocate_exact_size(vec2(width * k, 2.0 * h + gap), Sense::hover());
+    let (cols, gap, h) = (3usize, s.d(3.0), s.d(controls::ROW));
+    let rows = CHAN_KEYS.len().div_ceil(cols) as f32;
+    let (rect, _) = ui.allocate_exact_size(
+        vec2(width * k, rows * h + (rows - 1.0) * gap),
+        Sense::hover(),
+    );
     let w = (rect.width() - gap * (cols - 1) as f32) / cols as f32;
     let name = frame::tr("fx.libra.chan");
     for (i, key) in CHAN_KEYS.iter().enumerate() {
@@ -259,7 +266,9 @@ fn delays(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
         let pill = move |v: f32, out: &mut String| {
             if samples {
                 let n = (v * 0.001 * sr).round();
-                let _ = std::fmt::Write::write_fmt(out, format_args!("{n:.0} smp"));
+                // The unit is the switch beside them ("Shown in: Samples"): the whole
+                // word does not fit a pill.
+                let _ = std::fmt::Write::write_fmt(out, format_args!("{n:.0}"));
             } else {
                 controls::write_readout(v, "ms", out);
             }
@@ -296,7 +305,6 @@ fn image(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
 fn gain(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
     controls::card(ui, s, rect, Src::Key("libra.card.gain"), None, |ui, _| {
         controls::param(ui, s, host, "out", Size::M);
-        labelled(host, ui, s, "tuner.ref", "libra.l.tuner_a", None);
     });
 }
 
