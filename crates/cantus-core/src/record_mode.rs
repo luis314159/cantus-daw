@@ -238,7 +238,8 @@ fn is_master(cmd: &Command) -> bool {
         | SetPluginParam { strip, .. }
         | SetPluginState { strip, .. }
         | SetEffectMidiSource { strip, .. }
-        | SetEffectIr { strip, .. } => *strip == StripId::MASTER, // r39:conv
+        | SetEffectIr { strip, .. } // r39:conv
+        | SetLapsusPattern { strip, .. } => *strip == StripId::MASTER, // fx:lapsus
         SetStripEq { id, .. }
         | SetStripPhaseInvert { id, .. }
         | SetStripSwapChannels { id, .. } => *id == StripId::MASTER,

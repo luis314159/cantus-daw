@@ -119,6 +119,10 @@ pub fn card(
                 if resp.clicked() && i != knob {
                     host.set(slot_key, i as f32, None);
                 }
+                // The factory's pattern back in this slot.
+                if resp.secondary_clicked() {
+                    host.set_lapsus_pattern(lane, i as u8, None, None);
+                }
                 if resp.hovered() {
                     hint::set_text(
                         ui.ctx(),

@@ -67,7 +67,11 @@ pub fn start_of(kind: EffectKind) -> Start {
         // gives its unit a starting preset or its real reason for none (ADR 0071).
         K::AutoFilter => Start::Neutral(Flat), // fx:contract (cribrum)
         K::Pedal => Start::Neutral(Flat),      // fx:contract (fragor)
-        K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)
+        // fx:lapsus — half time every half bar: heard at once, musical on drums and loops.
+        K::TimeShaper => preset(
+            "preset.lapsus.half_time",
+            &[("mix", 1.0), ("tslot", 7.0), ("vslot", 0.0)],
+        ),
         K::LoFi => Start::Neutral(Flat),       // fx:contract (vetus)
         K::Utility => Start::Neutral(Flat),    // fx:contract (libra)
         K::Multiband => preset(

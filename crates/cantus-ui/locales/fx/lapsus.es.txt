@@ -36,7 +36,6 @@ lapsus.before = Antes del ciclo: silencio
 lapsus.speed = Velocidad
 lapsus.idle = Directo: el sonido pasa intacto. Elige un patrón en el banco o toca su nota.
 lapsus.timeline_tip = El patrón que suena
-lapsus.timeline_how = Arriba, cuánto lee por detrás de la música (plano arriba: tal como llega; bajando a 45°: la cinta parada). Abajo, el nivel.
 
 # La tarjeta del patrón
 lapsus.length = Compases
@@ -57,7 +56,7 @@ lapsus.len.3 = 2 compases
 lapsus.len.4 = 4 compases
 
 # El banco
-lapsus.pad_how = Clic para tocar este patrón, o toca su nota.
+lapsus.pad_how = Clic: toca este patrón. Clic derecho: vuelve el patrón de fábrica. Su nota también lo toca.
 
 # Los parámetros de los dos bancos
 fx.lapsus.tslot = Patrón de tiempo
@@ -153,3 +152,24 @@ lapsus.vslot.32 = Corta el final de cada mitad
 lapsus.vslot.33 = Transformer
 lapsus.vslot.34 = Picado
 lapsus.vslot.35 = Silencio
+lapsus.timeline_how = Arrastra un punto (Mayús: fuera de la rejilla), doble clic para añadir o quitar uno, arrastra una línea para curvarla; el lápiz pinta escalones. Arriba, cuánto lee por detrás de la música; abajo, el nivel.
+cmd.lapsus_pattern = Editar un patrón de Lapsus
+
+# Presets de fábrica
+preset.lapsus.half_time = Medio tiempo
+preset.lapsus.tape_stop = Parada de cinta
+preset.lapsus.tape_stop_bar = Parada de cinta, un compás
+preset.lapsus.tape_start = Arranque de cinta
+preset.lapsus.slow_down = Frenada
+preset.lapsus.wobble = Disco alabeado
+preset.lapsus.roll_build = Redoble creciente
+preset.lapsus.beat_repeat = Repetición de tiempo
+preset.lapsus.gated_stutter = Tartamudeo cortado
+preset.lapsus.reverse_half = Media reversa
+preset.lapsus.backspin = Giro atrás
+preset.lapsus.baby_scratch = Baby scratch
+preset.lapsus.transformer = Transformer
+preset.lapsus.trance_gate = Puerta trance
+preset.lapsus.pump = Bombeo
+preset.lapsus.half_time_chop = Medio tiempo picado
+preset.lapsus.echo_repeat = Eco repetido

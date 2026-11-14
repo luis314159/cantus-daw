@@ -44,6 +44,8 @@ use egui::Rect;
 
 #[path = "lapsus_bank.rs"]
 mod bank;
+#[path = "lapsus_edit.rs"]
+mod edit;
 #[path = "lapsus_grid.rs"]
 mod grid;
 
@@ -69,6 +71,11 @@ pub struct State {
     pub tool: usize,
     /// The bank the pads show and the pattern card edits.
     pub bank: Lane,
+    /// A drag on the timeline, and the number that folds its steps into one undo step.
+    drag: Option<edit::Drag>,
+    gesture: u64,
+    /// A pattern copied, to paste into any slot.
+    clip: Option<model::Pattern>,
     /// The input's level across the cycle, under the time curve.
     wave: grid::Wave,
     /// Where the timeline's lanes were drawn last frame (tests point at them).
@@ -86,6 +93,9 @@ impl Default for State {
             grid: 2,
             tool: 0,
             bank: Lane::Time,
+            drag: None,
+            gesture: 0,
+            clip: None,
             wave: grid::Wave::default(),
             lanes: None,
             pads: None,
@@ -250,7 +260,11 @@ fn pattern_card(
             controls::column(ui, s, half, |ui| {
                 controls::caption(ui, s, Src::Key("lapsus.length"), half);
                 let labels = ["\u{bc}", "\u{bd}", "1", "2", "4"].map(Src::Str);
-                let _ = controls::segmented(ui, s, len, &labels, frame::tr("lapsus.length"), half);
+                if let Some(i) =
+                    controls::segmented(ui, s, len, &labels, frame::tr("lapsus.length"), half)
+                {
+                    edit::set_len(host, lane, slot, i as u8);
+                }
                 controls::caption(ui, s, Src::Key("lapsus.grid"), half);
                 let labels = GRIDS.map(|(g, _)| Src::Str(g));
                 if let Some(i) =
@@ -274,8 +288,32 @@ fn pattern_card(
                 // Actions, not a choice: a key each (phase B: what they do).
                 ui.horizontal(|ui| {
                     let w2 = (half - 4.0) / 2.0;
-                    for key in ["lapsus.edit.copy", "lapsus.edit.paste"] {
-                        let _ = controls::key(ui, s, Src::Key(key), frame::tr(key), w2, false);
+                    let copy = controls::key(
+                        ui,
+                        s,
+                        Src::Key("lapsus.edit.copy"),
+                        frame::tr("lapsus.edit.copy"),
+                        w2,
+                        false,
+                    );
+                    if copy.clicked() {
+                        let p = model::pattern_of(host.spec().lapsus.as_deref(), lane, slot);
+                        st.clip = Some(p.clone());
+                    }
+                    let paste = ui.add_enabled_ui(st.clip.is_some(), |ui| {
+                        controls::key(
+                            ui,
+                            s,
+                            Src::Key("lapsus.edit.paste"),
+                            frame::tr("lapsus.edit.paste"),
+                            w2,
+                            false,
+                        )
+                    });
+                    if paste.inner.clicked() {
+                        if let Some(p) = st.clip.clone() {
+                            host.set_lapsus_pattern(lane, slot as u8, Some(p), None);
+                        }
                     }
                 });
             });

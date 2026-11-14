@@ -1,4 +1,174 @@
 # Lapsus time shaper: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's contract: none yet — lapsus's builder writes them here.
+# Each names a time pattern and a volume pattern of the factory banks (`tslot`, `vslot`, 0-based).
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.lapsus.half_time"
+note = "Half time every half bar: each half bar's first beat an octave down. What the insert starts with."
+styles = ["trap", "house"]
+roles = ["creative", "drums"]
+[preset.values]
+"mix" = 1
+"tslot" = 7
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.tape_stop"
+note = "Tape stop on the last beat, its level falling with its speed: every bar winds down onto the next."
+styles = ["trap", "house", "pop"]
+roles = ["creative", "bus"]
+[preset.values]
+"mix" = 1
+"tslot" = 3
+"vslot" = 21
+
+[[preset]]
+key = "preset.lapsus.tape_stop_bar"
+note = "The whole bar winding down to a stop, and back on the line."
+styles = ["trap", "lofi"]
+roles = ["creative", "fx"]
+[preset.values]
+"mix" = 1
+"tslot" = 1
+"vslot" = 23
+
+[[preset]]
+key = "preset.lapsus.tape_start"
+note = "Every bar spins up from still in its first beat."
+styles = ["lofi", "trap"]
+roles = ["creative", "fx"]
+[preset.values]
+"mix" = 1
+"tslot" = 4
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.slow_down"
+note = "From full speed to half, steadily over the bar."
+styles = ["lofi", "film"]
+roles = ["creative", "fx"]
+[preset.values]
+"mix" = 1
+"tslot" = 10
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.wobble"
+note = "A warped record: the pitch sways a quarter tone, twice a bar."
+styles = ["lofi"]
+roles = ["creative", "keys"]
+[preset.values]
+"mix" = 1
+"tslot" = 11
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.roll_build"
+note = "The build: a beat, then eighths, sixteenths and thirty-seconds."
+styles = ["house", "pop"]
+roles = ["drums", "creative"]
+[preset.values]
+"mix" = 1
+"tslot" = 16
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.beat_repeat"
+note = "The second beat again, twice, in the second half of each bar."
+styles = ["house", "trap"]
+roles = ["drums", "creative"]
+[preset.values]
+"mix" = 1
+"tslot" = 17
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.gated_stutter"
+note = "Every beat's first sixteenth four times, cut in sixteenths."
+styles = ["house", "pop"]
+roles = ["creative", "vocal"]
+[preset.values]
+"mix" = 1
+"tslot" = 14
+"vslot" = 3
+
+[[preset]]
+key = "preset.lapsus.reverse_half"
+note = "Each bar's second half runs its first back."
+styles = ["pop", "film"]
+roles = ["creative", "fx"]
+[preset.values]
+"mix" = 1
+"tslot" = 18
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.backspin"
+note = "The last beat spun back hard, dying on the bar."
+styles = ["trap", "house"]
+roles = ["creative", "bus"]
+[preset.values]
+"mix" = 1
+"tslot" = 23
+"vslot" = 21
+
+[[preset]]
+key = "preset.lapsus.baby_scratch"
+note = "Back and forth on every eighth, as a hand on the record."
+styles = ["trap", "rock"]
+roles = ["creative", "vocal"]
+[preset.values]
+"mix" = 1
+"tslot" = 24
+"vslot" = 0
+
+[[preset]]
+key = "preset.lapsus.transformer"
+note = "Baby scratches cut by a scratcher's fader."
+styles = ["trap"]
+roles = ["creative", "vocal"]
+[preset.values]
+"mix" = 1
+"tslot" = 24
+"vslot" = 33
+
+[[preset]]
+key = "preset.lapsus.trance_gate"
+note = "The trance gate in sixteenths, the time untouched."
+styles = ["house", "pop"]
+roles = ["pad", "creative"]
+[preset.values]
+"mix" = 1
+"tslot" = 0
+"vslot" = 5
+
+[[preset]]
+key = "preset.lapsus.pump"
+note = "The sidechain's duck on every beat, without a key."
+styles = ["house", "pop"]
+roles = ["bus", "pad"]
+[preset.values]
+"mix" = 1
+"tslot" = 0
+"vslot" = 12
+
+[[preset]]
+key = "preset.lapsus.half_time_chop"
+note = "Half time every half bar, chopped in sixteenths."
+styles = ["trap", "lofi"]
+roles = ["creative", "drums"]
+[preset.values]
+"mix" = 1
+"tslot" = 7
+"vslot" = 34
+
+[[preset]]
+key = "preset.lapsus.echo_repeat"
+note = "The bar's first sixteenth sixteen times, each quieter: a repeat that fades like an echo."
+styles = ["house", "film"]
+roles = ["fx", "creative"]
+[preset.values]
+"mix" = 1
+"tslot" = 35
+"vslot" = 29

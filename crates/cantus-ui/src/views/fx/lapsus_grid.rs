@@ -185,14 +185,30 @@ pub fn card(
                     * f64::from(host.sample_rate())) as f32;
                 st.wave.feed(host.pairs(), span_phase(tel, &sh), span);
             }
-            let resp = ui.interact(
-                map.time.union(map.level),
-                ui.id().with("lapsus-timeline"),
-                egui::Sense::click_and_drag(),
-            );
+            let mut hovered = false;
+            for (lane, rect, reps, beats) in [
+                (Lane::Time, map.time, sh.reps.0, sh.time.beats),
+                (Lane::Vol, map.level, sh.reps.1, sh.vol.beats),
+            ] {
+                let resp = ui.interact(
+                    rect,
+                    ui.id().with(("lapsus-lane", lane as u8)),
+                    egui::Sense::click_and_drag(),
+                );
+                hovered |= resp.hovered();
+                let place = super::edit::Place {
+                    lane,
+                    rect,
+                    reps,
+                    beats,
+                };
+                super::edit::lane(host, st, ui, &resp, place, playing.of(lane), k);
+            }
+            // What is drawn is what is now set (an edit above may have moved it).
+            let sh = Shown::of(host, playing);
             let spec = host.spec();
             paint(ui, s, r, map, st, tel, &sh, spec, playing, tempo);
-            if resp.hovered() {
+            if hovered {
                 hint::set_text(
                     ui.ctx(),
                     frame::tr("lapsus.timeline_tip"),

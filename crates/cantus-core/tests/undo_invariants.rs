@@ -298,6 +298,31 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 ir,
                             };
                         }
+                        // fx:lapsus — a slot of Lapsus's banks: a pattern of its own (out
+                        // of range on purpose, so sanitizing is undone too), the factory's
+                        // again, a slot past the bank, and onto kinds that have none.
+                        if (e.spec.kind == EffectKind::TimeShaper && rng.below(3) == 0)
+                            || rng.below(60) == 0
+                        {
+                            use cantus_core::fx::lapsus::{Lane, Pattern, Point};
+                            let lane = if rng.below(2) == 0 { Lane::Time } else { Lane::Vol };
+                            let pattern = (rng.below(4) != 0).then(|| {
+                                Box::new(Pattern {
+                                    len: rng.below(7) as u8,
+                                    points: (0..rng.below(5))
+                                        .map(|_| Point::new(rng.f32(-0.2, 1.2), rng.f32(-1.5, 1.5)))
+                                        .collect(),
+                                    name: None,
+                                })
+                            });
+                            return Command::SetLapsusPattern {
+                                strip: host,
+                                effect: e.id,
+                                lane,
+                                slot: rng.below(40) as u8,
+                                pattern,
+                            };
+                        }
                         if rng.below(3) == 0 {
                             return Command::SetEffectMix {
                                 strip: host,

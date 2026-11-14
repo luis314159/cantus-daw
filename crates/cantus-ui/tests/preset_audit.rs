@@ -25,7 +25,6 @@ fn floor(unit: Unit) -> usize {
         // own line when its twelve land.
         Unit::Effect(EffectKind::AutoFilter) => 0, // fx:contract (cribrum)
         Unit::Effect(EffectKind::Pedal) => 0,      // fx:contract (fragor)
-        Unit::Effect(EffectKind::TimeShaper) => 0, // fx:contract (lapsus)
         Unit::Effect(EffectKind::LoFi) => 0,       // fx:contract (vetus)
         Unit::Effect(EffectKind::Utility) => 0,    // fx:contract (libra)
         Unit::Effect(_) => 12,
