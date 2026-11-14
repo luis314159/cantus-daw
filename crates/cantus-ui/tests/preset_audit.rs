@@ -23,8 +23,8 @@ fn floor(unit: Unit) -> usize {
         Unit::Effect(EffectKind::Reverb) => 0,
         // fx:contract — the side round's stubs have no presets yet: each builder deletes its
         // own line when its twelve land.
-        Unit::Effect(EffectKind::LoFi) => 0,       // fx:contract (vetus)
-        Unit::Effect(EffectKind::Utility) => 0,    // fx:contract (libra)
+        Unit::Effect(EffectKind::LoFi) => 0, // fx:contract (vetus)
+        Unit::Effect(EffectKind::Utility) => 0, // fx:contract (libra)
         Unit::Effect(_) => 12,
     }
 }

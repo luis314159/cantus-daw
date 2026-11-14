@@ -95,8 +95,8 @@ pub fn start_of(kind: EffectKind) -> Start {
             "preset.lapsus.half_time",
             &[("mix", 1.0), ("out", 3.1), ("tslot", 7.0), ("vslot", 0.0)],
         ),
-        K::LoFi => Start::Neutral(Flat),       // fx:contract (vetus)
-        K::Utility => Start::Neutral(Flat),    // fx:contract (libra)
+        K::LoFi => Start::Neutral(Flat),    // fx:contract (vetus)
+        K::Utility => Start::Neutral(Flat), // fx:contract (libra)
         K::Multiband => preset(
             "mb.preset.glue",
             &[

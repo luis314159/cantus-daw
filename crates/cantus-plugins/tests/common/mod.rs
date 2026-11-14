@@ -719,8 +719,8 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("smooth", 3.0),
             ("out", -3.0),
         ],
-        EffectKind::LoFi => vec![("out", -6.0)],       // fx:contract
-        EffectKind::Utility => vec![("out", -6.0)],    // fx:contract
+        EffectKind::LoFi => vec![("out", -6.0)], // fx:contract
+        EffectKind::Utility => vec![("out", -6.0)], // fx:contract
         _ => vec![],
     }
 }
