@@ -26,7 +26,11 @@ fn at_mix_zero_any_pattern_is_a_wire() {
     let reference = render_of(&demo_project());
     let mut p = demo_project();
     let fx = add_effect(&mut p, EffectKind::TimeShaper);
-    set_all(&mut p, fx, &[("slot", 15.0), ("mix", 0.0), ("xfade", 7.0)]);
+    set_all(
+        &mut p,
+        fx,
+        &[("tslot", 16.0), ("vslot", 5.0), ("mix", 0.0), ("xfade", 7.0)],
+    );
     assert_null(&reference, &render_of(&p), 0.0, "mix 0");
 }
 
@@ -34,43 +38,55 @@ fn peak_diff(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0.0, f32::max)
 }
 
+/// Every pattern of each bank alone (the other bank on *Through*), then a few together.
+fn settings_to_check() -> Vec<(f32, f32)> {
+    let mut v: Vec<(f32, f32)> = (0..SLOTS).map(|t| (t as f32, 0.0)).collect();
+    v.extend((1..SLOTS).map(|k| (0.0, k as f32)));
+    v.extend([(3.0, 21.0), (18.0, 5.0), (24.0, 12.0), (6.0, 30.0)]);
+    v
+}
+
 #[test]
-fn every_factory_pattern_is_heard_and_through_is_not() {
+fn every_factory_pattern_of_both_banks_is_heard_and_through_is_not() {
     let reference = render_of(&demo_project());
-    for slot in 0..SLOTS {
+    for (t, v) in settings_to_check() {
         let mut p = demo_project();
         let fx = add_effect(&mut p, EffectKind::TimeShaper);
-        set(&mut p, fx, "slot", slot as f32);
+        set_all(&mut p, fx, &[("tslot", t), ("vslot", v)]);
         let d = peak_diff(&render_of(&p), &reference);
-        if slot == 0 {
-            assert_eq!(d, 0.0, "Through");
+        if (t, v) == (0.0, 0.0) {
+            assert_eq!(d, 0.0, "Through and Through");
         } else {
-            assert!(d > 0.02, "slot {} changes the sound: {d}", slot + 1);
+            assert!(d > 0.02, "time {} with volume {} changes the sound: {d}", t + 1.0, v + 1.0);
         }
     }
 }
 
-fn shaped(slot: f32) -> Project {
+fn shaped(t: f32, v: f32) -> Project {
     let mut p = demo_project();
     let fx = add_effect(&mut p, EffectKind::TimeShaper);
-    set_all(&mut p, fx, &[("slot", slot), ("mix", 0.9), ("xfade", 3.0)]);
+    set_all(
+        &mut p,
+        fx,
+        &[("tslot", t), ("vslot", v), ("mix", 0.9), ("xfade", 3.0)],
+    );
     p
 }
 
 #[test]
 fn the_render_does_not_depend_on_the_block_size_while_it_works() {
-    for slot in [1.0, 15.0, 24.0, 30.0] {
-        let p = shaped(slot);
+    for (t, v) in [(1.0, 0.0), (16.0, 0.0), (24.0, 12.0), (0.0, 30.0)] {
+        let p = shaped(t, v);
         let reference = render_with(&p, 512);
         for block in [1usize, 7, 64, 1000, 4096] {
-            assert_null(&reference, &render_with(&p, block), 0.0, &format!("slot {slot}, block {block}"));
+            assert_null(&reference, &render_with(&p, block), 0.0, &format!("{t}/{v}, block {block}"));
         }
     }
 }
 
 #[test]
 fn live_playback_renders_what_the_offline_render_does() {
-    let p = shaped(16.0);
+    let p = shaped(16.0, 5.0);
     let offline = render_of(&p);
     assert_null(&offline, &realtime(&p, offline.len()), 0.0, "live");
 }
@@ -87,10 +103,10 @@ fn every_pattern_from_bar_five_is_bar_five_of_the_whole_render() {
     c.start = Ticks::beats(16);
     base.tracks[0].clips.push(c);
     let bar5 = 16 * 24_000; // frames at 120 BPM, 48 kHz
-    for slot in 0..SLOTS {
+    for (t, v) in settings_to_check() {
         let mut p = base.clone();
         let fx = add_effect(&mut p, EffectKind::TimeShaper);
-        set_all(&mut p, fx, &[("slot", slot as f32), ("mix", 0.85)]);
+        set_all(&mut p, fx, &[("tslot", t), ("vslot", v), ("mix", 0.85)]);
         let whole = render_from(&p, Ticks::beats(0), 256);
         let part = render_from(&p, Ticks::beats(16), 300);
         let n = (part.len() / 2).min(whole.len() / 2 - bar5);
@@ -100,14 +116,14 @@ fn every_pattern_from_bar_five_is_bar_five_of_the_whole_render() {
             &whole[2 * bar5..2 * (bar5 + n)],
             &part[..2 * n],
             0.0,
-            &format!("slot {} from bar 5", slot + 1),
+            &format!("time {} with volume {} from bar 5", t + 1.0, v + 1.0),
         );
     }
 }
 
-/// *Tape stop ¼* (slot 4) at three tempos: the bar plays as it arrives from the sample the
-/// engine starts bar 2 on — the stop ended on that line — and the stop's last moments
-/// before it are still and quiet.
+/// *Tape stop ¼* (time 4) with *Fade the last beat* (volume 22) at three tempos: the bar
+/// plays as it arrives from the sample the engine starts bar 2 on — the stop ended on that
+/// line — and the stop's last moments before it are still and quiet.
 #[test]
 fn a_tape_stop_ends_on_the_bar_to_the_sample_at_60_120_and_174() {
     for tempo in [60.0, 120.0, 174.0] {
@@ -116,7 +132,7 @@ fn a_tape_stop_ends_on_the_bar_to_the_sample_at_60_120_and_174() {
         let reference = render_of(&dry);
         let mut p = dry.clone();
         let fx = add_effect(&mut p, EffectKind::TimeShaper);
-        set(&mut p, fx, "slot", 3.0);
+        set_all(&mut p, fx, &[("tslot", 3.0), ("vslot", 21.0)]);
         let out = render_of(&p);
         let bar2 = ((4.0 * 60.0 / tempo) * 48_000.0f64).round() as usize;
         let span = 2 * 4_000;
@@ -141,12 +157,13 @@ fn a_tape_stop_ends_on_the_bar_to_the_sample_at_60_120_and_174() {
 
 #[test]
 fn a_tracks_notes_choose_the_pattern() {
-    // The bass plays notes 36 and 43: with the first slot's note at 35, they play slots 2
-    // (a tape stop) and 9 (half time every beat) while held.
+    // The bass plays notes 36 and 43: with time pattern 1's note at 35 they play time 2 (a
+    // tape stop) and 9 (half time every beat), and from volume 1's at 24 volume 13 (a pump)
+    // and 20 (a fade out), while held.
     let mut p = demo_project();
     let bass = p.tracks[1].id;
     let fx = add_effect(&mut p, EffectKind::TimeShaper);
-    set(&mut p, fx, "key", 35.0);
+    set(&mut p, fx, "tkey", 35.0);
     let wire = render_of(&p);
     assert_null(&render_of(&demo_project()), &wire, 0.0, "no notes routed: a wire");
     strip_of(&mut p, 0)

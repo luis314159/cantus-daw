@@ -63,13 +63,28 @@ fn s_curve(x: f32, y: f32) -> CurvePoint {
 
 const TAPE: f32 = 1.0 / 7.0;
 
-fn tape_stop() -> Pattern {
-    Pattern::new(4.0, &[bent(0.0, 0.0, TAPE), pt(1.0, 0.5)], &[pt(0.0, 1.0), pt(1.0, 0.0)])
+/// A time pattern and a volume pattern of the same length, played together (the two banks'
+/// slot 1).
+#[derive(Copy, Clone, Debug)]
+struct Pair {
+    time: Pattern,
+    vol: Pattern,
+}
+
+fn pair(beats: f64, time: &[CurvePoint], vol: &[CurvePoint]) -> Pair {
+    Pair {
+        time: Pattern::new(Lane::Time, beats, time),
+        vol: Pattern::new(Lane::Vol, beats, vol),
+    }
+}
+
+fn tape_stop() -> Pair {
+    pair(4.0, &[bent(0.0, 0.0, TAPE), pt(1.0, 0.5)], &[pt(0.0, 1.0), pt(1.0, 0.0)])
 }
 
 /// A bar played, its last beat stopping: from the next bar's line it plays as it arrives.
-fn stop_last_beat() -> Pattern {
-    Pattern::new(
+fn stop_last_beat() -> Pair {
+    pair(
         4.0,
         &[pt(0.0, 0.0), bent(0.75, 0.0, TAPE), pt(1.0, 0.125)],
         &[pt(0.0, 1.0), pt(0.75, 1.0), pt(1.0, 0.0)],
@@ -77,22 +92,22 @@ fn stop_last_beat() -> Pattern {
 }
 
 /// The patterns the bar-5 and split tests run: one of each family.
-fn families() -> Vec<(&'static str, Pattern)> {
+fn families() -> Vec<(&'static str, Pair)> {
     vec![
         ("tape stop", tape_stop()),
-        ("half time ½", Pattern::new(2.0, &[pt(0.0, 0.0), pt(1.0, 0.5)], &[])),
+        ("half time ½", pair(2.0, &[pt(0.0, 0.0), pt(1.0, 0.5)], &[])),
         (
             "stutter 1/16",
-            Pattern::new(
+            pair(
                 1.0,
                 &[held(0.0, 0.0), held(0.25, 0.25), held(0.5, 0.5), held(0.75, 0.75)],
                 &[],
             ),
         ),
-        ("reverse ½", Pattern::new(4.0, &[pt(0.0, 0.0), pt(0.5, 0.0), pt(1.0, 1.0)], &[])),
+        ("reverse ½", pair(4.0, &[pt(0.0, 0.0), pt(0.5, 0.0), pt(1.0, 1.0)], &[])),
         (
             "scratch",
-            Pattern::new(
+            pair(
                 1.0,
                 &[s_curve(0.0, 0.0), s_curve(0.25, 0.25), s_curve(0.5, 0.0), s_curve(0.75, 0.25)],
                 &[],
@@ -100,7 +115,7 @@ fn families() -> Vec<(&'static str, Pattern)> {
         ),
         (
             "gate",
-            Pattern::new(
+            pair(
                 4.0,
                 &[],
                 &(0..16)
@@ -110,7 +125,7 @@ fn families() -> Vec<(&'static str, Pattern)> {
         ),
         (
             "tape start",
-            Pattern::new(
+            pair(
                 4.0,
                 &[bent(0.0, 0.0, -TAPE), pt(0.25, 0.125), pt(1.0, 0.125)],
                 &[pt(0.0, 0.0), pt(0.25, 1.0), pt(1.0, 1.0)],
@@ -119,16 +134,21 @@ fn families() -> Vec<(&'static str, Pattern)> {
     ]
 }
 
-fn unit_with(p: &Pattern, s: LapsusSettings) -> Lapsus {
+fn unit_with(p: &Pair, s: LapsusSettings) -> Lapsus {
     let mut u = Lapsus::new(SR, shape);
-    u.set_pattern(1, p);
-    u.set(&LapsusSettings { slot: 1, ..s });
+    u.set_pattern(Lane::Time, 1, &p.time);
+    u.set_pattern(Lane::Vol, 1, &p.vol);
+    u.set(&LapsusSettings {
+        tslot: 1,
+        vslot: 1,
+        ..s
+    });
     u.ensure_memory();
     u.reset();
     u
 }
 
-fn unit(p: &Pattern) -> Lapsus {
+fn unit(p: &Pair) -> Lapsus {
     unit_with(p, LapsusSettings::default())
 }
 
@@ -202,7 +222,7 @@ fn the_defaults_touch_no_sample_with_or_without_memory() {
 fn a_flat_curve_is_a_null_through_the_full_path() {
     // Points on the line at 0 and a volume held at 1: the sample-by-sample path, every
     // read a whole sample.
-    let p = Pattern::new(1.0, &[held(0.0, 0.0), held(0.5, 0.0)], &[held(0.0, 1.0), held(0.7, 1.0)]);
+    let p = pair(1.0, &[held(0.0, 0.0), held(0.5, 0.0)], &[held(0.0, 1.0), held(0.7, 1.0)]);
     let mut u = unit(&p);
     let x = music(30_000);
     let (mut l, mut r) = (x.clone(), x.clone());
@@ -218,7 +238,7 @@ fn a_flat_curve_is_a_null_through_the_full_path() {
 #[test]
 fn half_time_reads_the_cycle_at_half_speed() {
     // One bar at 120 BPM (96 000 samples): the output at t is the input at t/2.
-    let p = Pattern::new(4.0, &[pt(0.0, 0.0), pt(1.0, 0.5)], &[]);
+    let p = pair(4.0, &[pt(0.0, 0.0), pt(1.0, 0.5)], &[]);
     let mut u = unit(&p);
     let x = sine(96_000, 300.0, 0.3);
     let (mut l, mut r) = (x.clone(), x.clone());
@@ -278,9 +298,17 @@ fn every_block_size_renders_the_same_bits_with_notes() {
         let x = music(60_000);
         let run = |split: &mut dyn FnMut() -> usize| {
             let mut u = unit(&p);
-            u.set_pattern(4, &families()[2].1);
+            u.set_pattern(Lane::Time, 4, &families()[2].1.time);
+            u.set_pattern(Lane::Vol, 6, &families()[5].1.vol);
             let (mut l, mut r) = (x.clone(), x.clone());
-            let notes = [(9_000usize, Note::On(52)), (21_000, Note::Off(52)), (30_001, Note::On(49)), (41_000, Note::AllOff)];
+            let notes = [
+                (9_000usize, Note::On(64)),
+                (12_345, Note::On(30)),
+                (21_000, Note::Off(64)),
+                (25_000, Note::Off(30)),
+                (30_001, Note::On(61)),
+                (41_000, Note::AllOff),
+            ];
             let mut at = 0;
             while at < x.len() {
                 let b = split().clamp(1, x.len() - at);
@@ -383,7 +411,7 @@ fn read_faster_than_real_time_the_band_above_its_nyquist_is_filtered_first() {
 fn a_slow_tape_stop_changes_kernel_without_a_step() {
     // The delay leaves 0 slowly and crosses 1, 2, 16 and 24 samples: the kernels hand over
     // with no step in a 1 kHz tone.
-    let p = Pattern::new(4.0, &[bent(0.0, 0.0, TAPE), pt(1.0, 0.5)], &[]);
+    let p = pair(4.0, &[bent(0.0, 0.0, TAPE), pt(1.0, 0.5)], &[]);
     let mut u = unit_with(&p, LapsusSettings { xfade_ms: 0.0, ..LapsusSettings::default() });
     let x = sine(20_000, 1_000.0, 0.0);
     let (mut l, mut r) = (x.clone(), x.clone());
@@ -395,26 +423,28 @@ fn a_slow_tape_stop_changes_kernel_without_a_step() {
 #[test]
 fn a_held_note_plays_its_slot_and_its_release_gives_the_slot_back() {
     let mut u = unit(&tape_stop());
-    u.set_pattern(5, &families()[2].1);
+    u.set_pattern(Lane::Time, 5, &families()[2].1.time);
+    u.set_pattern(Lane::Vol, 7, &families()[5].1.vol);
     let x = music(4_096);
     let (mut l, mut r) = (x.clone(), x.clone());
-    u.note(100, Note::On(48 + 5));
+    u.note(100, Note::On(60 + 5));
+    u.note(200, Note::On(24 + 7));
     drive(&mut u, &mut l[..1_000], &mut r[..1_000], 120.0, 0, || 1_000);
-    assert_eq!(u.active(), 5);
+    assert_eq!((u.active(Lane::Time), u.active(Lane::Vol)), (5, 7));
     assert!(!u.at_rest());
-    u.note(10, Note::Off(48 + 5));
+    u.note(10, Note::Off(60 + 5));
     drive(&mut u, &mut l[1_000..], &mut r[1_000..], 120.0, 1_000, || 512);
-    assert_eq!(u.active(), 1);
+    assert_eq!((u.active(Lane::Time), u.active(Lane::Vol)), (1, 7), "each bank its own");
     // A note out of the bank's range is not a slot.
-    u.note(0, Note::On(48 + 40));
+    u.note(0, Note::On(60 + 40));
     drive(&mut u, &mut l[..64], &mut r[..64], 120.0, 4_096, || 64);
-    assert_eq!(u.active(), 1);
+    assert_eq!(u.active(Lane::Time), 1);
 }
 
 #[test]
 fn retrigger_starts_the_pattern_on_the_note() {
-    // A tape stop retriggered mid-bar starts where the note lands: at the note, the read is
-    // live again (a new cycle), a bar later it has stopped.
+    // A tape stop (and its fade) retriggered mid-bar starts where the notes land: at the
+    // note, the read is live again (a new cycle), a bar later it has stopped.
     let s = LapsusSettings { retrig: true, notes: NoteMode::Switch, ..LapsusSettings::default() };
     let mut u = unit_with(&stop_last_beat(), s);
     let x = music(150_000);
@@ -424,7 +454,8 @@ fn retrigger_starts_the_pattern_on_the_note() {
     while done < x.len() {
         let b = 500.min(x.len() - done);
         if at >= done && at < done + b {
-            u.note(at - done, Note::On(49));
+            u.note(at - done, Note::On(61));
+            u.note(at - done, Note::On(25));
         }
         u.set_transport(&Transport { playing: true, tempo_bpm: 120.0, samples: done as i64 });
         u.process(&mut l[done..done + b], &mut r[done..done + b]);
@@ -493,4 +524,36 @@ fn lookahead_delays_everything_by_its_latency_and_a_flat_curve_is_then_a_pure_de
     drive(&mut u, &mut l, &mut r, 120.0, 0, || 333);
     assert!(l[..480].iter().all(|v| *v == 0.0));
     assert!(same(&l[480..], &x[..x.len() - 480]));
+}
+
+#[test]
+fn the_time_and_the_volume_run_on_cycles_of_their_own() {
+    // A beat-long stutter under a bar-long fade in: after a beat and a half the time cycle
+    // is half through its second turn, the volume three eighths through its first.
+    let mut u = Lapsus::new(SR, shape);
+    u.set_pattern(
+        Lane::Time,
+        2,
+        &Pattern::new(Lane::Time, 1.0, &[held(0.0, 0.0), held(0.5, 0.5)]),
+    );
+    u.set_pattern(
+        Lane::Vol,
+        3,
+        &Pattern::new(Lane::Vol, 4.0, &[pt(0.0, 0.0), pt(1.0, 1.0)]),
+    );
+    u.set(&LapsusSettings {
+        tslot: 2,
+        vslot: 3,
+        ..LapsusSettings::default()
+    });
+    u.ensure_memory();
+    u.reset();
+    let x = music(36_000);
+    let (mut l, mut r) = (x.clone(), x.clone());
+    drive(&mut u, &mut l, &mut r, 120.0, 0, || 500);
+    let mut tel = [0.0f32; 64];
+    u.telemetry(&mut tel);
+    assert!((tel[t::PHASE] - 0.5).abs() < 1e-3, "{}", tel[t::PHASE]);
+    assert!((tel[t::VPHASE] - 0.375).abs() < 1e-3, "{}", tel[t::VPHASE]);
+    assert_eq!((tel[t::BEATS], tel[t::VBEATS]), (1.0, 4.0));
 }

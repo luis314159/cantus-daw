@@ -17,19 +17,23 @@ use cantus_core::fx::lapsus as model;
 use cantus_core::EffectSpec;
 use cantus_dsp::fluctus::CurvePoint;
 use cantus_dsp::lapsus::{
-    Lapsus, LapsusSettings, Note, NoteMode, Pattern, MAX_POINTS, SLOTS, TIME_HI, TIME_LO,
+    Lane, Lapsus, LapsusSettings, Note, NoteMode, Pattern, MAX_POINTS, SLOTS, TIME_HI, TIME_LO,
 };
 
 /// Lapsus's parameters as the DSP wants them; also what its editor draws from.
 pub fn settings(spec: &EffectSpec) -> LapsusSettings {
+    let slot = |k: &str| spec.get(k).round().clamp(0.0, (SLOTS - 1) as f32) as usize;
+    let key = |k: &str| spec.get(k).round().clamp(0.0, 127.0) as u8;
     LapsusSettings {
-        slot: spec.get("slot").round().clamp(0.0, (SLOTS - 1) as f32) as usize,
+        tslot: slot("tslot"),
+        vslot: slot("vslot"),
         mix: spec.get("mix"),
         xfade_ms: spec.get("xfade"),
         smooth_ms: spec.get("smooth"),
         notes: NoteMode::from_index(spec.get("notes")),
         retrig: spec.get("retrig") >= 0.5,
-        key: spec.get("key").round().clamp(0.0, 127.0) as u8,
+        tkey: key("tkey"),
+        vkey: key("vkey"),
         ahead_ms: spec.get("ahead"),
         out_db: spec.get("out"),
     }
@@ -49,31 +53,41 @@ fn points(src: &[model::Point], out: &mut [CurvePoint; MAX_POINTS]) -> usize {
     n
 }
 
-/// A model pattern as the DSP plays it. Allocation-free.
-pub fn pattern(p: &model::Pattern) -> Pattern {
-    let (mut t, mut v) = ([CurvePoint::default(); MAX_POINTS], [CurvePoint::default(); MAX_POINTS]);
-    let (nt, nv) = (points(&p.time, &mut t), points(&p.vol, &mut v));
-    Pattern::new(p.beats(), &t[..nt], &v[..nv])
+/// The DSP's lane of a model lane.
+pub fn lane(l: model::Lane) -> Lane {
+    match l {
+        model::Lane::Time => Lane::Time,
+        model::Lane::Vol => Lane::Vol,
+    }
+}
+
+/// A model pattern of `l` as the DSP plays it. Allocation-free.
+pub fn pattern(l: model::Lane, p: &model::Pattern) -> Pattern {
+    let mut pts = [CurvePoint::default(); MAX_POINTS];
+    let n = points(&p.points, &mut pts);
+    Pattern::new(lane(l), p.beats(), &pts[..n])
 }
 
 #[derive(Clone, Debug)]
 pub struct Unit {
     dsp: Lapsus,
-    /// Which slots hold the factory's pattern now, so a configure skips them.
-    factory: [bool; SLOTS],
+    /// Which slots of each bank hold the factory's pattern now, so a configure skips them.
+    factory: [[bool; SLOTS]; 2],
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
         let mut dsp = Lapsus::new(sample_rate, shape_at);
-        // The factory bank, built here (off the audio thread) and loaded.
-        for (slot, p) in model::factory().iter().enumerate() {
-            dsp.set_pattern(slot, &pattern(p));
+        // The factory banks, built here (off the audio thread) and loaded.
+        for l in model::Lane::ALL {
+            for (slot, p) in model::factory(l).iter().enumerate() {
+                dsp.set_pattern(lane(l), slot, &pattern(l, p));
+            }
         }
         dsp.reset();
         Unit {
             dsp,
-            factory: [true; SLOTS],
+            factory: [[true; SLOTS]; 2],
         }
     }
 
@@ -82,14 +96,16 @@ impl Unit {
         &self.dsp
     }
 
-    /// Hand slot `slot` the bank's pattern if it differs from what the DSP holds.
-    fn load(&mut self, slot: usize, p: &model::Pattern, is_factory: bool) {
-        let (mut t, mut v) = ([CurvePoint::default(); MAX_POINTS], [CurvePoint::default(); MAX_POINTS]);
-        let (nt, nv) = (points(&p.time, &mut t), points(&p.vol, &mut v));
-        if self.dsp.pattern_differs(slot, p.beats(), &t[..nt], &v[..nv]) {
-            self.dsp.set_pattern(slot, &Pattern::new(p.beats(), &t[..nt], &v[..nv]));
+    /// Hand slot `slot` of `l` the bank's pattern if it differs from what the DSP holds.
+    fn load(&mut self, l: model::Lane, slot: usize, p: &model::Pattern, is_factory: bool) {
+        let mut pts = [CurvePoint::default(); MAX_POINTS];
+        let n = points(&p.points, &mut pts);
+        let dl = lane(l);
+        if self.dsp.pattern_differs(dl, slot, p.beats(), &pts[..n]) {
+            self.dsp
+                .set_pattern(dl, slot, &Pattern::new(dl, p.beats(), &pts[..n]));
         }
-        self.factory[slot] = is_factory;
+        self.factory[dl as usize][slot] = is_factory;
     }
 }
 
@@ -101,11 +117,16 @@ impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
         self.dsp.set(&settings(spec));
         let bank = spec.lapsus.as_deref();
-        for slot in 0..SLOTS {
-            match bank.and_then(|b| b.slots.get(&(slot as u8))) {
-                Some(own) => self.load(slot, own, false),
-                None if !self.factory[slot] => self.load(slot, &model::factory()[slot], true),
-                None => {}
+        for l in model::Lane::ALL {
+            let li = lane(l) as usize;
+            for slot in 0..SLOTS {
+                match bank.and_then(|b| b.lane(l).get(&(slot as u8))) {
+                    Some(own) => self.load(l, slot, own, false),
+                    None if !self.factory[li][slot] => {
+                        self.load(l, slot, &model::factory(l)[slot], true)
+                    }
+                    None => {}
+                }
             }
         }
     }
@@ -196,21 +217,23 @@ mod tests {
     fn the_settings_read_every_key() {
         let mut spec = EffectSpec::new(EffectKind::TimeShaper);
         for (k, v) in [
-            ("slot", 7.0),
+            ("tslot", 7.0),
+            ("vslot", 9.0),
             ("mix", 0.5),
             ("xfade", 5.0),
             ("smooth", 3.0),
             ("notes", 1.0),
             ("retrig", 1.0),
-            ("key", 60.0),
+            ("tkey", 70.0),
+            ("vkey", 10.0),
             ("ahead", 20.0),
             ("out", -3.0),
         ] {
             spec.set(k, v);
         }
         let s = settings(&spec);
-        assert_eq!((s.slot, s.mix, s.xfade_ms, s.smooth_ms), (7, 0.5, 5.0, 3.0));
-        assert_eq!((s.notes, s.retrig, s.key), (NoteMode::Switch, true, 60));
+        assert_eq!((s.tslot, s.vslot, s.mix, s.xfade_ms, s.smooth_ms), (7, 9, 0.5, 5.0, 3.0));
+        assert_eq!((s.notes, s.retrig, s.tkey, s.vkey), (NoteMode::Switch, true, 70, 10));
         assert_eq!((s.ahead_ms, s.out_db), (20.0, -3.0));
     }
 
@@ -231,25 +254,33 @@ mod tests {
     }
 
     #[test]
-    fn the_factory_bank_is_loaded_and_a_banks_own_slot_replaces_it() {
+    fn the_factory_banks_are_loaded_and_a_banks_own_slot_replaces_it() {
         let mut u = Unit::new(48_000.0);
-        for (slot, p) in model::factory().iter().enumerate() {
-            assert_eq!(u.dsp().pattern(slot), &pattern(p), "slot {slot}");
+        for l in model::Lane::ALL {
+            for (slot, p) in model::factory(l).iter().enumerate() {
+                assert_eq!(u.dsp().pattern(lane(l), slot), &pattern(l, p), "{l:?} {slot}");
+            }
         }
         let mut spec = EffectSpec::new(EffectKind::TimeShaper);
         let mine = model::Pattern {
             len: 0,
-            time: vec![model::Point::new(0.0, 0.0), model::Point::new(1.0, 0.5)],
-            ..model::Pattern::default()
+            points: vec![model::Point::new(0.0, 0.0), model::Point::new(1.0, 0.5)],
+            name: None,
         };
         let mut bank = model::Bank::default();
-        bank.slots.insert(3, mine.clone());
+        bank.vol.insert(3, mine.clone());
         spec.lapsus = Some(Box::new(bank));
         u.configure(&spec);
-        assert_eq!(u.dsp().pattern(3), &pattern(&mine));
+        let (t, v) = (model::Lane::Time, model::Lane::Vol);
+        assert_eq!(u.dsp().pattern(Lane::Vol, 3), &pattern(v, &mine));
+        assert_eq!(
+            u.dsp().pattern(Lane::Time, 3),
+            &pattern(t, &model::factory(t)[3]),
+            "the other bank's slot 4 stays"
+        );
         // Back to the factory's when the bank lets the slot go.
         u.configure(&EffectSpec::new(EffectKind::TimeShaper));
-        assert_eq!(u.dsp().pattern(3), &pattern(&model::factory()[3]));
+        assert_eq!(u.dsp().pattern(Lane::Vol, 3), &pattern(v, &model::factory(v)[3]));
     }
 
     #[test]

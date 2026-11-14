@@ -2744,7 +2744,7 @@ fn lapsus_never_allocates() {
     let s0 = p.tracks[0].strip.unwrap();
     let bass = p.tracks[1].id;
     let mut fx = p.make_effect(EffectKind::TimeShaper);
-    for (k, v) in [("slot", 1.0), ("key", 35.0), ("xfade", 4.0)] {
+    for (k, v) in [("tslot", 1.0), ("vslot", 12.0), ("tkey", 35.0), ("vkey", 42.0), ("xfade", 4.0)] {
         fx.spec.set(k, v).unwrap();
     }
     fx.midi_from = Some(bass);
@@ -2758,7 +2758,8 @@ fn lapsus_never_allocates() {
         let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
         e.spec.set(k, v).unwrap();
     };
-    set(&mut p, "slot", 15.0);
+    set(&mut p, "tslot", 16.0);
+    set(&mut p, "vslot", 5.0);
     rig.snapshot(&p);
     rig.play("the roll build", 60);
     set(&mut p, "ahead", 40.0);

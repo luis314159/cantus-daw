@@ -219,12 +219,13 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         // replaces its own line with its unit's heaviest settings.
         EffectKind::AutoFilter => set(&mut s, &[("out", 6.0)]), // fx:contract (cribrum)
         EffectKind::Pedal => set(&mut s, &[("out", 6.0)]),      // fx:contract (fragor)
-        // fx:lapsus — the roll build (fifteen jumps a bar, each a join), mixed with the dry,
-        // a long crossfade and glide, and lookahead (every read a long kernel).
+        // fx:lapsus — the roll build (fifteen jumps a bar, each a join) under a trance gate,
+        // mixed with the dry, a long crossfade and glide, and lookahead (long kernels).
         EffectKind::TimeShaper => set(
             &mut s,
             &[
-                ("slot", 15.0),
+                ("tslot", 16.0),
+                ("vslot", 5.0),
                 ("mix", 0.8),
                 ("xfade", 6.0),
                 ("smooth", 4.0),

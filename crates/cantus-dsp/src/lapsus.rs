@@ -1,34 +1,37 @@
 //! Lapsus, the time shaper (ADR 0132, provisional): Gross Beat's job — tape stops, half
-//! time, stutters, reverse, scratches and gates — drawn as two curves over a cycle synced
-//! to the song, with Ableton's Beat Repeat and Effectrix ideas on top.
+//! time, stutters, reverse, scratches and gates — drawn as a time curve and a volume curve,
+//! each chosen from its own bank of thirty-six and running on its own cycle synced to the
+//! song, with Ableton's Beat Repeat and Effectrix ideas on top.
 //!
-//! - **The time curve** gives, at each moment of the cycle, the **delay** behind the live
+//! - **The time curve** gives, at each moment of its cycle, the **delay** behind the live
 //!   signal in cycle lengths: flat 0 is the signal as it arrives (and, read as a whole
 //!   sample, the same bits); a slope is a speed (`1 − slope`: half a 45° slope is half
 //!   speed, 45° is still, steeper is reverse); a held step is a repeat. It reads the
 //!   unit's own history of the input ([`read`]), interpolated without zipper.
-//! - **The volume curve** multiplies what is read (gates, pumps, the tape's fading level),
-//!   through a one-pole glide (`smooth`).
-//! - **The cycle** is the pattern's length in quarter notes, **a function of the song
+//! - **The volume curve** multiplies what is read (gates, pumps, fades), through a one-pole
+//!   glide (`smooth`).
+//! - **Each cycle** is its pattern's length in quarter notes, **a function of the song
 //!   sample** (the family's clock): bar *k* starts on the sample the engine puts bar *k*
 //!   on, at every tempo — a tape stop ends on the bar to the sample. With `retrig`, a note
-//!   starts the cycle where it lands.
-//! - **Nothing before the cycle's start is read** (zeros), and everything that carries
-//!   state across samples — the volume's glide, a crossfade, the jump detector — starts
-//!   again at each cycle's first sample from the pattern alone: a render from bar 5 is the
-//!   bars from 5 of the whole render, to the bit, whatever the music before.
+//!   starts its lane's cycle where it lands.
+//! - **Nothing before the time cycle's start is read** (zeros), and everything that carries
+//!   state across samples starts again at its own cycle's first sample from the pattern
+//!   alone — the joins and the jump detector at the time cycle's, the volume's glide at the
+//!   volume cycle's: a render from bar 5 is the bars from 5 of the whole render, to the
+//!   bit, whatever the music before.
 //! - **Joins**: where the time curve jumps inside a cycle (a repeat, a step), the old read
 //!   carries on at its speed and fades out over `xfade` while the new one fades in (an
 //!   equal-gain raised cosine); where it jumps at the cycle's end, the fade is placed
 //!   *before* the line, onto the next cycle's first read, so the next bar starts on its
 //!   line at full weight. A pattern switched by a note or the slot fades the same way.
-//! - **Notes** (`TAKES_NOTES`): note `key + k` plays slot `k` — switched until another
-//!   note, or held while the key is down — and, with `retrig`, from its beginning.
+//! - **Notes** (`TAKES_NOTES`): note `tkey + k` plays time pattern `k`, `vkey + k` volume
+//!   pattern `k` — switched until another note, or held while the key is down — and, with
+//!   `retrig`, from its beginning.
 //! - **Lookahead** (`ahead`): the whole output later by that much (reported as latency),
 //!   so the time curve may read that far into the future and the sinc has its taps.
 //!
 //! The history is built off the audio thread ([`Lapsus::memory_need`] → [`Ring`]): one bar
-//! of the bank's longest pattern at 60 BPM, plus the lookahead.
+//! of the time bank's longest pattern at 60 BPM, plus the lookahead.
 
 #[path = "lapsus_curve.rs"]
 pub mod curve;
@@ -43,7 +46,7 @@ use crate::modfx_line::Glide;
 pub use curve::{Curve, MAX_POINTS};
 pub use read::{History, Ring};
 
-/// Patterns in the bank.
+/// Patterns in each bank.
 pub const SLOTS: usize = 36;
 /// The slowest tempo the history is sized for: a pattern read further back at a slower
 /// tempo reads silence there.
@@ -55,16 +58,35 @@ pub const JUMP: f64 = 0.5;
 const MAX_NOTES: usize = 64;
 /// How the volume's glide lands.
 const SNAP: f32 = 1e-7;
-/// The time curve's range, in cycle lengths.
+/// A time curve's range, in cycle lengths.
 pub const TIME_LO: f32 = -1.0;
 pub const TIME_HI: f32 = 1.0;
+
+/// The two banks.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Lane {
+    Time = 0,
+    Vol = 1,
+}
+
+impl Lane {
+    pub const ALL: [Lane; 2] = [Lane::Time, Lane::Vol];
+
+    /// A curve's range and its value with no point.
+    pub fn range(self) -> (f32, f32, f32) {
+        match self {
+            Lane::Time => (TIME_LO, TIME_HI, 0.0),
+            Lane::Vol => (0.0, 1.0, 1.0),
+        }
+    }
+}
 
 /// What a note does.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum NoteMode {
     /// Notes are ignored.
     Off,
-    /// A note switches the pattern until another note does.
+    /// A note switches its bank's pattern until another note does.
     Switch,
     /// A note plays its pattern while it is held; the slot's own comes back on release.
     #[default]
@@ -83,16 +105,20 @@ impl NoteMode {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LapsusSettings {
-    /// The slot playing when no note chooses one, 0 … 35.
-    pub slot: usize,
+    /// The time pattern playing when no note chooses one, 0 … 35.
+    pub tslot: usize,
+    /// The volume pattern playing when no note chooses one, 0 … 35.
+    pub vslot: usize,
     /// The shaped signal against the dry, 0 … 1.
     pub mix: f32,
     pub xfade_ms: f32,
     pub smooth_ms: f32,
     pub notes: NoteMode,
     pub retrig: bool,
-    /// The note of slot 0.
-    pub key: u8,
+    /// The note of time pattern 0.
+    pub tkey: u8,
+    /// The note of volume pattern 0.
+    pub vkey: u8,
     pub ahead_ms: f32,
     pub out_db: f32,
 }
@@ -100,48 +126,67 @@ pub struct LapsusSettings {
 impl Default for LapsusSettings {
     fn default() -> Self {
         LapsusSettings {
-            slot: 0,
+            tslot: 0,
+            vslot: 0,
             mix: 1.0,
             xfade_ms: 2.0,
             smooth_ms: 1.0,
             notes: NoteMode::Hold,
             retrig: false,
-            key: 48,
+            tkey: 60,
+            vkey: 24,
             ahead_ms: 0.0,
             out_db: 0.0,
         }
     }
 }
 
-/// One pattern as the DSP plays it.
+impl LapsusSettings {
+    fn slot(&self, lane: Lane) -> usize {
+        match lane {
+            Lane::Time => self.tslot,
+            Lane::Vol => self.vslot,
+        }
+    }
+    fn key(&self, lane: Lane) -> u8 {
+        match lane {
+            Lane::Time => self.tkey,
+            Lane::Vol => self.vkey,
+        }
+    }
+}
+
+/// One pattern as the DSP plays it: its length and its curve.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Pattern {
     /// Quarter notes in a cycle.
     pub beats: f64,
-    pub time: Curve,
-    pub vol: Curve,
+    pub curve: Curve,
 }
 
 impl Pattern {
-    /// Nothing moves: no delay, full level, a bar long.
-    pub const THROUGH: Pattern = Pattern {
+    /// No delay, a bar long.
+    pub const THROUGH_TIME: Pattern = Pattern {
         beats: 4.0,
-        time: Curve::flat(0.0),
-        vol: Curve::flat(1.0),
+        curve: Curve::flat(0.0),
+    };
+    /// Full level, a bar long.
+    pub const THROUGH_VOL: Pattern = Pattern {
+        beats: 4.0,
+        curve: Curve::flat(1.0),
     };
 
-    /// A pattern from points (allocation-free).
-    pub fn new(beats: f64, time: &[CurvePoint], vol: &[CurvePoint]) -> Pattern {
-        let mut p = Pattern::THROUGH;
-        p.beats = beats;
-        p.time.set(time, TIME_LO, TIME_HI);
-        p.vol.set(vol, 0.0, 1.0);
-        p
+    /// `lane`'s pattern from points (allocation-free).
+    pub fn new(lane: Lane, beats: f64, points: &[CurvePoint]) -> Pattern {
+        let (lo, hi, empty) = lane.range();
+        let mut curve = Curve::flat(empty);
+        curve.set(points, lo, hi);
+        Pattern { beats, curve }
     }
 
-    /// Whether it changes nothing (a flat zero delay at full level).
-    pub fn is_through(&self) -> bool {
-        self.time.constant() == Some(0.0) && self.vol.constant() == Some(1.0)
+    /// Whether it changes nothing in `lane`.
+    pub fn is_through(&self, lane: Lane) -> bool {
+        self.curve.constant() == Some(lane.range().2)
     }
 }
 
@@ -155,13 +200,12 @@ pub enum Note {
 }
 
 /// The read that fades out where the time curve jumped: the old position carrying on at
-/// its speed, at its level.
+/// its speed.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 struct Ghost {
     on: bool,
     d: f64,
     slope: f64,
-    vol: f32,
     left: u32,
     len: u32,
 }
@@ -175,19 +219,55 @@ struct Cycle {
     b1: i64,
     e0: f64,
     len: f64,
-    /// The next cycle's first read: its delay and level.
-    d_first: f64,
-    v_first: f32,
+    /// The next cycle's first value: the time lane's delay (samples), the volume's level.
+    first: f64,
     /// Whether the time curve jumps at the cycle's end.
     wrap_jump: bool,
+}
+
+/// One bank's state: the pattern playing and what chose it, its cycle.
+#[derive(Copy, Clone, Debug)]
+struct LaneState {
+    active: usize,
+    held: [u8; SLOTS],
+    held_n: usize,
+    latched: Option<u8>,
+    origin: Option<i64>,
+    cyc: Cycle,
+    /// Something not of the pattern alone happened since the cycle began.
+    dirty: bool,
+}
+
+impl LaneState {
+    const NEW: LaneState = LaneState {
+        active: 0,
+        held: [0; SLOTS],
+        held_n: 0,
+        latched: None,
+        origin: None,
+        cyc: Cycle {
+            valid: false,
+            b0: 0,
+            b1: 0,
+            e0: 0.0,
+            len: 1.0,
+            first: 0.0,
+            wrap_jump: false,
+        },
+        dirty: false,
+    };
+
+    fn overridden(&self) -> bool {
+        self.held_n > 0 || self.latched.is_some() || self.origin.is_some()
+    }
 }
 
 /// Lapsus's own telemetry, after the family's header (`modfx_clock::tel`).
 pub mod t {
     use crate::modfx_clock::tel::OWN;
-    /// The slot playing (0 … 35).
+    /// The time pattern playing (0 … 35).
     pub const SLOT: usize = OWN;
-    /// Where in the cycle (0 … 1) at the end of the last block.
+    /// Where in the time cycle (0 … 1) at the end of the last block.
     pub const PHASE: usize = OWN + 1;
     /// The time curve's value (cycle lengths) there.
     pub const DELAY: usize = OWN + 2;
@@ -195,16 +275,24 @@ pub mod t {
     pub const LEVEL: usize = OWN + 3;
     /// The read's speed against real time.
     pub const SPEED: usize = OWN + 4;
-    /// Quarter notes in the cycle.
+    /// Quarter notes in the time cycle.
     pub const BEATS: usize = OWN + 5;
-    /// 1 while a note chooses the pattern.
+    /// 1 while a note chooses a pattern.
     pub const NOTE: usize = OWN + 6;
-    /// The slot the knob sets.
+    /// The time slot the knob sets.
     pub const KNOB: usize = OWN + 7;
     /// Seconds of history held.
     pub const HELD_S: usize = OWN + 8;
     /// 1 while a join's crossfade runs.
     pub const JOIN: usize = OWN + 9;
+    /// The volume pattern playing (0 … 35).
+    pub const VSLOT: usize = OWN + 10;
+    /// Where in the volume cycle (0 … 1).
+    pub const VPHASE: usize = OWN + 11;
+    /// Quarter notes in the volume cycle.
+    pub const VBEATS: usize = OWN + 12;
+    /// The volume slot the knob sets.
+    pub const VKNOB: usize = OWN + 13;
 }
 
 #[derive(Clone, Debug)]
@@ -212,38 +300,31 @@ pub struct Lapsus {
     sr: f32,
     set: LapsusSettings,
     shape: ShapeFn,
-    bank: Box<[Pattern; SLOTS]>,
+    banks: Box<[[Pattern; SLOTS]; 2]>,
     clock: Clock,
     hist: History,
     notes: [(i64, Note); MAX_NOTES],
     note_n: usize,
-    held: [u8; SLOTS],
-    held_n: usize,
-    latched: Option<u8>,
-    origin: Option<i64>,
-    active: usize,
-    cyc: Cycle,
+    lanes: [LaneState; 2],
     /// The delay at the last four song samples evaluated: (sample, delay). A cache.
     dc: [(i64, f64); 4],
     glide: f32,
     kv: f32,
     ghost: Ghost,
-    /// Something not of the pattern alone happened since the cycle began (a switch, a jump).
-    dirty: bool,
     mix: Glide,
     out: Glide,
     ahead: usize,
     xf: u32,
     fv: u32,
     tel: [f32; 24],
-    /// The last tick's phase, delay (lengths), level and speed, for the telemetry.
-    last: [f32; 4],
+    /// The last tick's time phase, delay (lengths), level, speed and volume phase.
+    last: [f32; 5],
     blocks: u32,
 }
 
 impl Lapsus {
-    /// A unit whose segments take `shape` (the automation editor's `Shape::at`). Its bank is
-    /// *Through* everywhere until [`Lapsus::set_pattern`]; its history is empty until
+    /// A unit whose segments take `shape` (the automation editor's `Shape::at`). Its banks
+    /// are *Through* everywhere until [`Lapsus::set_pattern`]; its history is empty until
     /// [`Lapsus::supply`] (a read of the past is silence meanwhile; the live signal passes).
     pub fn new(sample_rate: f32, shape: ShapeFn) -> Lapsus {
         // The kernels, here, off the audio thread.
@@ -253,29 +334,23 @@ impl Lapsus {
             sr: sample_rate,
             set,
             shape,
-            bank: Box::new([Pattern::THROUGH; SLOTS]),
+            banks: Box::new([[Pattern::THROUGH_TIME; SLOTS], [Pattern::THROUGH_VOL; SLOTS]]),
             clock: Clock::new(),
             hist: History::default(),
             notes: [(0, Note::AllOff); MAX_NOTES],
             note_n: 0,
-            held: [0; SLOTS],
-            held_n: 0,
-            latched: None,
-            origin: None,
-            active: 0,
-            cyc: Cycle::default(),
+            lanes: [LaneState::NEW; 2],
             dc: [(i64::MIN, 0.0); 4],
             glide: 1.0,
             kv: 1.0,
             ghost: Ghost::default(),
-            dirty: false,
             mix: Glide::new(1.0, 10.0, sample_rate, 1e-6),
             out: Glide::new(1.0, 10.0, sample_rate, 1e-6),
             ahead: 0,
             xf: 0,
             fv: 0,
             tel: [0.0; 24],
-            last: [0.0, 0.0, 1.0, 1.0],
+            last: [0.0, 0.0, 1.0, 1.0, 0.0],
             blocks: 0,
         };
         u.set(&set);
@@ -287,23 +362,23 @@ impl Lapsus {
         &self.set
     }
 
-    pub fn pattern(&self, slot: usize) -> &Pattern {
-        &self.bank[slot.min(SLOTS - 1)]
+    pub fn pattern(&self, lane: Lane, slot: usize) -> &Pattern {
+        &self.banks[lane as usize][slot.min(SLOTS - 1)]
     }
 
-    /// The slot playing now.
-    pub fn active(&self) -> usize {
-        self.active
+    /// The pattern of `lane` playing now.
+    pub fn active(&self, lane: Lane) -> usize {
+        self.lanes[lane as usize].active
     }
 
     pub fn latency(&self) -> usize {
         self.ahead
     }
 
-    /// History frames the bank and the lookahead need: the longest pattern at
+    /// History frames the time bank and the lookahead need: the longest time pattern at
     /// [`MIN_TEMPO`], the lookahead and the longest kernel.
     pub fn need_frames(&self) -> usize {
-        let beats = self.bank.iter().map(|p| p.beats).fold(0.0, f64::max);
+        let beats = self.banks[0].iter().map(|p| p.beats).fold(0.0, f64::max);
         let past = (beats * 60.0 / MIN_TEMPO * f64::from(self.sr)).ceil() as usize;
         past + self.ahead + read::MAX_TAPS + 8
     }
@@ -341,7 +416,8 @@ impl Lapsus {
         let ahead = (f64::from(s.ahead_ms.clamp(0.0, 250.0)) * 0.001 * sr).round() as usize;
         if ahead != self.ahead {
             self.ahead = ahead;
-            self.invalidate();
+            self.invalidate(Lane::Time);
+            self.invalidate(Lane::Vol);
         }
         self.mix.target = s.mix.clamp(0.0, 1.0);
         self.out.target = if s.out_db == 0.0 {
@@ -350,37 +426,45 @@ impl Lapsus {
             crate::math::db_to_gain(s.out_db)
         };
         self.set = LapsusSettings {
-            slot: s.slot.min(SLOTS - 1),
+            tslot: s.tslot.min(SLOTS - 1),
+            vslot: s.vslot.min(SLOTS - 1),
             ..*s
         };
         if s.notes == NoteMode::Off {
-            self.held_n = 0;
-            self.latched = None;
-            self.origin = None;
+            for l in &mut self.lanes {
+                l.held_n = 0;
+                l.latched = None;
+                l.origin = None;
+            }
         }
-        self.choose_at(self.so_next());
+        let so = self.so_next();
+        self.choose_at(Lane::Time, so);
+        self.choose_at(Lane::Vol, so);
     }
 
-    /// Set slot `slot`'s pattern; a change to the one playing fades into it.
-    pub fn set_pattern(&mut self, slot: usize, p: &Pattern) {
+    /// Set slot `slot` of `lane`'s bank; a change to the one playing fades into it.
+    pub fn set_pattern(&mut self, lane: Lane, slot: usize, p: &Pattern) {
         let slot = slot.min(SLOTS - 1);
-        if self.bank[slot] == *p {
+        let li = lane as usize;
+        if self.banks[li][slot] == *p {
             return;
         }
-        if slot == self.active {
+        let playing = slot == self.lanes[li].active;
+        if playing && lane == Lane::Time {
             self.start_ghost_at(self.so_next());
         }
-        self.bank[slot] = *p;
-        if slot == self.active {
-            self.invalidate();
-            self.dirty = true;
+        self.banks[li][slot] = *p;
+        if playing {
+            self.invalidate(lane);
+            self.lanes[li].dirty = true;
         }
     }
 
-    /// Whether `points` would change slot `slot`'s curves or length (the engine's check).
-    pub fn pattern_differs(&self, slot: usize, beats: f64, time: &[CurvePoint], vol: &[CurvePoint]) -> bool {
-        let p = &self.bank[slot.min(SLOTS - 1)];
-        p.beats != beats || !p.time.same_as(time, TIME_LO, TIME_HI) || !p.vol.same_as(vol, 0.0, 1.0)
+    /// Whether `points` would change slot `slot` of `lane` (the engine's check).
+    pub fn pattern_differs(&self, lane: Lane, slot: usize, beats: f64, points: &[CurvePoint]) -> bool {
+        let p = &self.banks[lane as usize][slot.min(SLOTS - 1)];
+        let (lo, hi, _) = lane.range();
+        p.beats != beats || !p.curve.same_as(points, lo, hi)
     }
 
     pub fn set_transport(&mut self, t: &Transport) {
@@ -393,11 +477,14 @@ impl Lapsus {
             // The past is another part of the song now: nothing before here is heard.
             self.hist.restart(n);
             self.ghost.on = false;
-            self.invalidate();
+            self.invalidate(Lane::Time);
+            self.invalidate(Lane::Vol);
             self.glide = self.level_now();
-            self.dirty = true;
+            self.lanes[0].dirty = true;
+            self.lanes[1].dirty = true;
         } else if self.clock.tempo() != tempo {
-            self.invalidate();
+            self.invalidate(Lane::Time);
+            self.invalidate(Lane::Vol);
         }
     }
 
@@ -419,14 +506,17 @@ impl Lapsus {
         self.clock.reset();
         self.hist.clear(0);
         self.note_n = 0;
-        self.held_n = 0;
-        self.latched = None;
-        self.origin = None;
-        self.active = self.set.slot;
+        for lane in Lane::ALL {
+            let l = &mut self.lanes[lane as usize];
+            l.held_n = 0;
+            l.latched = None;
+            l.origin = None;
+            l.active = self.set.slot(lane);
+            l.dirty = false;
+            self.invalidate(lane);
+        }
         self.ghost = Ghost::default();
-        self.invalidate();
         self.glide = self.level_now();
-        self.dirty = false;
         self.mix.jump(self.mix.target);
         self.out.jump(self.out.target);
         self.tel = [0.0; 24];
@@ -434,8 +524,9 @@ impl Lapsus {
     }
 
     /// At rest: everything a read could see is silence (so a join fading reads silence
-    /// too: the pattern's own joins run on through a skip), no note chooses the pattern, the cycle has begun again since anything that is not the pattern's own
-    /// (so the volume's glide is where a new unit's is), and the glides have landed.
+    /// too: the pattern's own joins run on through a skip), no note chooses a pattern,
+    /// each lane's cycle has begun again since anything that was not its pattern's own (so
+    /// the volume's glide is where a new unit's is), and the glides have landed.
     pub fn at_rest(&self) -> bool {
         self.rest_blocker().is_none()
     }
@@ -443,10 +534,10 @@ impl Lapsus {
     pub fn rest_blocker(&self) -> Option<&'static str> {
         if !self.hist.silent(self.clock.stream(0)) {
             Some("the history holds sound")
-        } else if self.note_n > 0 || self.held_n > 0 || self.latched.is_some() || self.origin.is_some() {
-            Some("a note chose the pattern")
-        } else if self.dirty {
-            Some("the cycle has not begun again")
+        } else if self.note_n > 0 || self.lanes.iter().any(LaneState::overridden) {
+            Some("a note chose a pattern")
+        } else if self.lanes.iter().any(|l| l.dirty) {
+            Some("a cycle has not begun again")
         } else if !self.mix.still() || !self.out.still() {
             Some("a glide is moving")
         } else {
@@ -459,36 +550,37 @@ impl Lapsus {
         self.clock.song(0) - self.ahead as i64
     }
 
-    /// The pattern a note or the slot chooses; switching at output song sample `so` fades
-    /// into it.
-    fn choose_at(&mut self, so: i64) {
+    /// The pattern a note or the knob chooses for `lane`; switching at output song sample
+    /// `so` fades into it.
+    fn choose_at(&mut self, lane: Lane, so: i64) {
+        let l = self.lanes[lane as usize];
         let want = match self.set.notes {
-            NoteMode::Off => self.set.slot,
-            NoteMode::Switch => self.latched.map_or(self.set.slot, usize::from),
+            NoteMode::Off => self.set.slot(lane),
+            NoteMode::Switch => l.latched.map_or(self.set.slot(lane), usize::from),
             NoteMode::Hold => {
-                if self.held_n > 0 {
-                    usize::from(self.held[self.held_n - 1])
+                if l.held_n > 0 {
+                    usize::from(l.held[l.held_n - 1])
                 } else {
-                    self.set.slot
+                    self.set.slot(lane)
                 }
             }
         };
-        if want != self.active {
-            self.start_ghost_at(so);
-            self.active = want;
-            self.invalidate();
-            self.dirty = true;
+        if want != l.active {
+            if lane == Lane::Time {
+                self.start_ghost_at(so);
+            }
+            self.lanes[lane as usize].active = want;
+            self.invalidate(lane);
+            self.lanes[lane as usize].dirty = true;
         }
     }
 
-    /// The cycle's cache and the delay's cache start again.
-    fn invalidate(&mut self) {
-        self.cyc.valid = false;
-        self.dc = [(i64::MIN, 0.0); 4];
-    }
-
-    fn overridden(&self) -> bool {
-        self.held_n > 0 || self.latched.is_some() || self.origin.is_some()
+    /// The lane's cycle cache (and the time lane's delay cache) start again.
+    fn invalidate(&mut self, lane: Lane) {
+        self.lanes[lane as usize].cyc.valid = false;
+        if lane == Lane::Time {
+            self.dc = [(i64::MIN, 0.0); 4];
+        }
     }
 }
 
