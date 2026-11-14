@@ -144,7 +144,11 @@ impl Lapsus {
             };
         }
         let d = self.delay_cached(&c, so);
-        let d1 = if t >= 1 { self.delay_cached(&c, so - 1) } else { d };
+        let d1 = if t >= 1 {
+            self.delay_cached(&c, so - 1)
+        } else {
+            d
+        };
         (c, t, u, d, d1)
     }
 
@@ -358,7 +362,11 @@ impl Lapsus {
         // joins there, not before it).
         let mut v = self.glide;
         let to_end_v = cv.b1 - so;
-        let fv = if self.xf > 0 { self.fv.min(self.xf) } else { self.fv };
+        let fv = if self.xf > 0 {
+            self.fv.min(self.xf)
+        } else {
+            self.fv
+        };
         if fv > 0 && to_end_v <= i64::from(fv) && v != cv.first as f32 {
             let f = f64::from(fv);
             v += (cv.first as f32 - v) * rc((f - to_end_v as f64 + 1.0) / (f + 1.0));

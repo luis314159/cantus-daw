@@ -194,7 +194,9 @@ impl EffectMemory {
             MemoryNeed::Aula(n) => {
                 EffectMemory::Aula(Box::new(crate::fx::aula_store::build(n, sample_rate)))
             } // r39:conv
-            MemoryNeed::Lapsus(n) => EffectMemory::Lapsus(Box::new(cantus_dsp::lapsus::Ring::new(n))), // fx:lapsus
+            MemoryNeed::Lapsus(n) => {
+                EffectMemory::Lapsus(Box::new(cantus_dsp::lapsus::Ring::new(n)))
+            } // fx:lapsus
         }
     }
 }

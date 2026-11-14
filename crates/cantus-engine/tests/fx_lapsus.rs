@@ -29,13 +29,21 @@ fn at_mix_zero_any_pattern_is_a_wire() {
     set_all(
         &mut p,
         fx,
-        &[("tslot", 16.0), ("vslot", 5.0), ("mix", 0.0), ("xfade", 7.0)],
+        &[
+            ("tslot", 16.0),
+            ("vslot", 5.0),
+            ("mix", 0.0),
+            ("xfade", 7.0),
+        ],
     );
     assert_null(&reference, &render_of(&p), 0.0, "mix 0");
 }
 
 fn peak_diff(a: &[f32], b: &[f32]) -> f32 {
-    a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0.0, f32::max)
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| (x - y).abs())
+        .fold(0.0, f32::max)
 }
 
 /// Every pattern of each bank alone (the other bank on *Through*), then a few together.
@@ -57,7 +65,12 @@ fn every_factory_pattern_of_both_banks_is_heard_and_through_is_not() {
         if (t, v) == (0.0, 0.0) {
             assert_eq!(d, 0.0, "Through and Through");
         } else {
-            assert!(d > 0.02, "time {} with volume {} changes the sound: {d}", t + 1.0, v + 1.0);
+            assert!(
+                d > 0.02,
+                "time {} with volume {} changes the sound: {d}",
+                t + 1.0,
+                v + 1.0
+            );
         }
     }
 }
@@ -79,7 +92,12 @@ fn the_render_does_not_depend_on_the_block_size_while_it_works() {
         let p = shaped(t, v);
         let reference = render_with(&p, 512);
         for block in [1usize, 7, 64, 1000, 4096] {
-            assert_null(&reference, &render_with(&p, block), 0.0, &format!("{t}/{v}, block {block}"));
+            assert_null(
+                &reference,
+                &render_with(&p, block),
+                0.0,
+                &format!("{t}/{v}, block {block}"),
+            );
         }
     }
 }
@@ -144,14 +162,22 @@ fn a_tape_stop_ends_on_the_bar_to_the_sample_at_60_120_and_174() {
         );
         let before = &out[2 * (bar2 - 1)..2 * bar2];
         assert!(
-            before.iter().zip(&reference[2 * (bar2 - 1)..2 * bar2]).any(|(a, b)| a != b),
+            before
+                .iter()
+                .zip(&reference[2 * (bar2 - 1)..2 * bar2])
+                .any(|(a, b)| a != b),
             "{tempo} BPM: the sample before the line is the stop's"
         );
         let quiet = out[2 * (bar2 - 480)..2 * (bar2 - 150)]
             .iter()
             .fold(0f32, |m, v| m.max(v.abs()));
-        let loud = reference[..2 * bar2].iter().fold(0f32, |m, v| m.max(v.abs()));
-        assert!(quiet < 0.05 * loud, "{tempo} BPM: still before the line ({quiet} of {loud})");
+        let loud = reference[..2 * bar2]
+            .iter()
+            .fold(0f32, |m, v| m.max(v.abs()));
+        assert!(
+            quiet < 0.05 * loud,
+            "{tempo} BPM: still before the line ({quiet} of {loud})"
+        );
     }
 }
 
@@ -165,7 +191,12 @@ fn a_tracks_notes_choose_the_pattern() {
     let fx = add_effect(&mut p, EffectKind::TimeShaper);
     set(&mut p, fx, "tkey", 35.0);
     let wire = render_of(&p);
-    assert_null(&render_of(&demo_project()), &wire, 0.0, "no notes routed: a wire");
+    assert_null(
+        &render_of(&demo_project()),
+        &wire,
+        0.0,
+        "no notes routed: a wire",
+    );
     strip_of(&mut p, 0)
         .effects
         .iter_mut()

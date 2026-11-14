@@ -586,7 +586,7 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
-        ir: None, // r39:conv
+        ir: None,     // r39:conv
         lapsus: None, // fx:lapsus (the bank: phase B)
     }
 }
@@ -913,8 +913,12 @@ impl Processor {
     fn pull_main(&mut self) {
         // fx:lapsus — a bank the main thread posted, swapped in (the old one goes back).
         if let Some((rx, gtx)) = self.lapsus.as_mut() {
-            if crate::lapsus_bank::take_newest(rx, gtx, &mut self.lapsus_held, &mut self.spec.lapsus)
-            {
+            if crate::lapsus_bank::take_newest(
+                rx,
+                gtx,
+                &mut self.lapsus_held,
+                &mut self.spec.lapsus,
+            ) {
                 self.dirty = true;
             }
         }

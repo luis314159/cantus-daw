@@ -2744,7 +2744,13 @@ fn lapsus_never_allocates() {
     let s0 = p.tracks[0].strip.unwrap();
     let bass = p.tracks[1].id;
     let mut fx = p.make_effect(EffectKind::TimeShaper);
-    for (k, v) in [("tslot", 1.0), ("vslot", 12.0), ("tkey", 35.0), ("vkey", 42.0), ("xfade", 4.0)] {
+    for (k, v) in [
+        ("tslot", 1.0),
+        ("vslot", 12.0),
+        ("tkey", 35.0),
+        ("vkey", 42.0),
+        ("xfade", 4.0),
+    ] {
         fx.spec.set(k, v).unwrap();
     }
     fx.midi_from = Some(bass);

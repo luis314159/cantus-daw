@@ -86,12 +86,20 @@ fn drag(a: &mut CantusApp, ctx: &egui::Context, from: egui::Pos2, to: egui::Pos2
     let p = egui::PointerButton::Primary;
     NOW.with(|t| t.set(t.get() + 1.0));
     frame(a, ctx, vec![egui::Event::PointerMoved(from)]);
-    frame(a, ctx, vec![egui::Event::PointerMoved(from), button(from, true, p)]);
+    frame(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(from), button(from, true, p)],
+    );
     for i in 1..=4 {
         let at = from + (to - from) * (i as f32 / 4.0);
         frame(a, ctx, vec![egui::Event::PointerMoved(at)]);
     }
-    frame(a, ctx, vec![egui::Event::PointerMoved(to), button(to, false, p)]);
+    frame(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(to), button(to, false, p)],
+    );
     frame(a, ctx, vec![]);
 }
 
@@ -116,7 +124,11 @@ fn pad(pads: egui::Rect, i: usize) -> egui::Pos2 {
 fn it_starts_on_its_starting_preset_and_a_pad_of_each_bank_chooses_its_pattern() {
     let (mut a, s0, _) = with_lapsus();
     let ctx = ctx();
-    assert_eq!(spec(&a, s0).get("tslot"), 7.0, "half time ½, the starting preset");
+    assert_eq!(
+        spec(&a, s0).get("tslot"),
+        7.0,
+        "half time ½, the starting preset"
+    );
     let (_, _, pads) = places(&mut a, &ctx);
     click(&mut a, &ctx, pad(pads, 3));
     assert_eq!(spec(&a, s0).get("tslot"), 3.0);
@@ -150,8 +162,15 @@ fn the_timeline_edits_the_playing_pattern_one_step_at_a_time() {
     assert!((p.points[1].y - 0.75).abs() < 0.02, "{:?}", p.points);
     assert!(spec(&a, s0).lapsus.is_some(), "the bank holds the slot now");
     a.undo();
-    assert_eq!(pattern(&a, s0, Lane::Time, 7), before, "the drag was one step");
-    assert!(spec(&a, s0).lapsus.is_none(), "and the bank is the factory's again");
+    assert_eq!(
+        pattern(&a, s0, Lane::Time, 7),
+        before,
+        "the drag was one step"
+    );
+    assert!(
+        spec(&a, s0).lapsus.is_none(),
+        "and the bank is the factory's again"
+    );
     // A double-click on an empty place adds a point; on it, takes it away.
     let at = egui::pos2(
         time.left() + time.width() * 0.125,
@@ -164,16 +183,25 @@ fn the_timeline_edits_the_playing_pattern_one_step_at_a_time() {
     // The pencil paints held steps, a grid cell each.
     a.fx.lapsus.tool = 1;
     let from = egui::pos2(time.left() + 4.0, time.top() + time.height() * 0.25);
-    let to = egui::pos2(time.left() + time.width() * 0.2, time.top() + time.height() * 0.25);
+    let to = egui::pos2(
+        time.left() + time.width() * 0.2,
+        time.top() + time.height() * 0.25,
+    );
     drag(&mut a, &ctx, from, to);
     let p = pattern(&a, s0, Lane::Time, 7);
     assert!(
-        p.points.iter().any(|q| q.s == model::SHAPE_HOLD && (q.y - 0.25).abs() < 0.02),
+        p.points
+            .iter()
+            .any(|q| q.s == model::SHAPE_HOLD && (q.y - 0.25).abs() < 0.02),
         "{:?}",
         p.points
     );
     a.undo();
-    assert_eq!(pattern(&a, s0, Lane::Time, 7).points.len(), 2, "the stroke was one step");
+    assert_eq!(
+        pattern(&a, s0, Lane::Time, 7).points.len(),
+        2,
+        "the stroke was one step"
+    );
 }
 
 #[test]
@@ -195,7 +223,10 @@ fn a_right_click_gives_a_slot_the_factorys_pattern_back() {
     let (_, _, pads) = places(&mut a, &ctx);
     click_with(&mut a, &ctx, pad(pads, 9), egui::PointerButton::Secondary);
     assert!(spec(&a, s0).lapsus.is_none(), "the factory's again");
-    assert_eq!(pattern(&a, s0, Lane::Time, 9), model::factory(Lane::Time)[9]);
+    assert_eq!(
+        pattern(&a, s0, Lane::Time, 9),
+        model::factory(Lane::Time)[9]
+    );
 }
 
 #[test]

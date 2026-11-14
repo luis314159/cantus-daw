@@ -269,7 +269,10 @@ impl History {
                 self.tap(i + 2, lo, hi),
             );
             let f = frac as f32;
-            (hermite(m.0, a.0, b.0, c.0, f), hermite(m.1, a.1, b.1, c.1, f))
+            (
+                hermite(m.0, a.0, b.0, c.0, f),
+                hermite(m.1, a.1, b.1, c.1, f),
+            )
         };
         let mix = |a: (f32, f32), b: (f32, f32), w: f64| {
             let w = w as f32;
@@ -290,7 +293,15 @@ impl History {
     }
 
     /// The sinc whose cut-off suits `speed`, as far as `behind` lets the kernel reach.
-    fn sinc_at_speed(&self, i: i64, frac: f64, lo: i64, hi: i64, behind: f64, speed: f32) -> (f32, f32) {
+    fn sinc_at_speed(
+        &self,
+        i: i64,
+        frac: f64,
+        lo: i64,
+        hi: i64,
+        behind: f64,
+        speed: f32,
+    ) -> (f32, f32) {
         let k = kernels();
         let fits = |n: usize| behind >= (k.k[n].taps / 2) as f64;
         let (a, b, w) = if speed <= 1.0 {

@@ -76,7 +76,11 @@ fn progression(dir: &Path) -> (Vec<f32>, Vec<f32>) {
             }
         }
     }
-    let peak = l.iter().chain(&r).fold(0f32, |m, v| m.max(v.abs())).max(1e-9);
+    let peak = l
+        .iter()
+        .chain(&r)
+        .fold(0f32, |m, v| m.max(v.abs()))
+        .max(1e-9);
     let g = cantus_dsp::math::db_to_gain(-6.0) / peak;
     for v in l.iter_mut().chain(r.iter_mut()) {
         *v *= g;
@@ -85,7 +89,11 @@ fn progression(dir: &Path) -> (Vec<f32>, Vec<f32>) {
 }
 
 fn rms(l: &[f32], r: &[f32]) -> f32 {
-    let s: f64 = l.iter().chain(r).map(|v| f64::from(*v) * f64::from(*v)).sum();
+    let s: f64 = l
+        .iter()
+        .chain(r)
+        .map(|v| f64::from(*v) * f64::from(*v))
+        .sum();
     (s / (l.len() + r.len()) as f64).sqrt() as f32
 }
 

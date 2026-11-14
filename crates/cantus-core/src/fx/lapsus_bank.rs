@@ -81,9 +81,15 @@ pub(super) fn time() -> [Pattern; SLOTS] {
         // 3 Tape stop over the last half bar.
         pat(BAR, vec![p(0.0, 0.0), p(0.5, 0.0).bend(TAPE), p(1.0, 0.25)]),
         // 4 Tape stop over the last beat.
-        pat(BAR, vec![p(0.0, 0.0), p(0.75, 0.0).bend(TAPE), p(1.0, 0.125)]),
+        pat(
+            BAR,
+            vec![p(0.0, 0.0), p(0.75, 0.0).bend(TAPE), p(1.0, 0.125)],
+        ),
         // 5 Tape start: the first beat spins up from still.
-        pat(BAR, vec![p(0.0, 0.0).bend(-TAPE), p(0.25, 0.125), p(1.0, 0.125)]),
+        pat(
+            BAR,
+            vec![p(0.0, 0.0).bend(-TAPE), p(0.25, 0.125), p(1.0, 0.125)],
+        ),
         // 6 Stop and start: up in the first beat, down in the last.
         pat(
             BAR,
@@ -136,9 +142,15 @@ pub(super) fn time() -> [Pattern; SLOTS] {
         // 22 Every beat's second eighth runs its first back.
         pat(QUARTER, vec![p(0.0, 0.0), p(0.5, 0.0), p(1.0, 1.0)]),
         // 23 Rewind: the last eighth winds back, faster and faster (to −3×).
-        pat(BAR, vec![p(0.0, 0.0), p(0.875, 0.0).bend(TAPE), p(1.0, 0.25)]),
+        pat(
+            BAR,
+            vec![p(0.0, 0.0), p(0.875, 0.0).bend(TAPE), p(1.0, 0.25)],
+        ),
         // 24 Backspin: the last beat spun back hard.
-        pat(BAR, vec![p(0.0, 0.0), p(0.75, 0.0).bend(-0.1), p(1.0, 0.75)]),
+        pat(
+            BAR,
+            vec![p(0.0, 0.0), p(0.75, 0.0).bend(-0.1), p(1.0, 0.75)],
+        ),
         // ---- Row 5: scratch.
         // 25 Baby scratch: back and forth on every eighth.
         pat(QUARTER, scratch.clone()),
@@ -165,17 +177,22 @@ pub(super) fn time() -> [Pattern; SLOTS] {
         // 29 Drag: the record held back by the hand, then let go.
         pat(BAR, vec![s(0.0, 0.0), s(0.5, 0.2)]),
         // 30 Scratch back: three beats as they come, one stroke back and forth in the last.
-        pat(
-            BAR,
-            vec![p(0.0, 0.0), s(0.75, 0.0), s(0.875, 0.1)],
-        ),
+        pat(BAR, vec![p(0.0, 0.0), s(0.75, 0.0), s(0.875, 0.1)]),
         // ---- Row 6: juggles.
         // 31 The first half bar twice.
         pat(BAR, vec![h(0.0, 0.0), h(0.5, 0.5)]),
         // 32 Beat juggle: one, one, three, three.
-        pat(BAR, vec![h(0.0, 0.0), h(0.25, 0.25), h(0.5, 0.0), h(0.75, 0.25)]),
+        pat(
+            BAR,
+            vec![h(0.0, 0.0), h(0.25, 0.25), h(0.5, 0.0), h(0.75, 0.25)],
+        ),
         // 33 Dotted repeat: the first dotted eighth, over and over.
-        pat(BAR, (0..6).map(|k| h(k as f32 * 0.1875, k as f32 * 0.1875)).collect()),
+        pat(
+            BAR,
+            (0..6)
+                .map(|k| h(k as f32 * 0.1875, k as f32 * 0.1875))
+                .collect(),
+        ),
         // 34 Triplet stutter: every beat's first triplet eighth, three times.
         pat(QUARTER, steps(3, |k| k as f32 / 3.0)),
         // 35 Every half bar's first sixteenth, eight times.
@@ -252,9 +269,15 @@ pub(super) fn vol() -> [Pattern; SLOTS] {
         // 25 Tremolo on the eighths.
         pat(QUARTER, vec![s(0.0, 1.0), s(0.5, 0.2)]),
         // 26 Tremolo on the sixteenths.
-        pat(QUARTER, vec![s(0.0, 1.0), s(0.25, 0.2), s(0.5, 1.0), s(0.75, 0.2)]),
+        pat(
+            QUARTER,
+            vec![s(0.0, 1.0), s(0.25, 0.2), s(0.5, 1.0), s(0.75, 0.2)],
+        ),
         // 27 Slow tremolo: twice a bar.
-        pat(BAR, vec![s(0.0, 1.0), s(0.25, 0.3), s(0.5, 1.0), s(0.75, 0.3)]),
+        pat(
+            BAR,
+            vec![s(0.0, 1.0), s(0.25, 0.3), s(0.5, 1.0), s(0.75, 0.3)],
+        ),
         // 28 Saw down on every beat.
         pat(QUARTER, vec![p(0.0, 1.0), p(1.0, 0.1)]),
         // 29 Saw up on every beat.

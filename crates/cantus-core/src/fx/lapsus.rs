@@ -77,13 +77,40 @@ pub const PARAMS: &[EffectParamInfo] = &[
     p("tslot", "fx.lapsus.tslot", 0.0, 35.0, 0.0, "", false, true),
     p("vslot", "fx.lapsus.vslot", 0.0, 35.0, 0.0, "", false, true),
     p("mix", "fx.lapsus.mix", 0.0, 1.0, 1.0, "%", false, false),
-    p("xfade", "fx.lapsus.xfade", 0.0, 20.0, 2.0, "ms", false, false),
-    p("smooth", "fx.lapsus.smooth", 0.0, 20.0, 1.0, "ms", false, false),
+    p(
+        "xfade",
+        "fx.lapsus.xfade",
+        0.0,
+        20.0,
+        2.0,
+        "ms",
+        false,
+        false,
+    ),
+    p(
+        "smooth",
+        "fx.lapsus.smooth",
+        0.0,
+        20.0,
+        1.0,
+        "ms",
+        false,
+        false,
+    ),
     p("notes", "fx.lapsus.notes", 0.0, 2.0, 2.0, "", false, true),
     p("retrig", "fx.lapsus.retrig", 0.0, 1.0, 0.0, "", false, true),
     p("tkey", "fx.lapsus.tkey", 0.0, 92.0, 60.0, "", false, true),
     p("vkey", "fx.lapsus.vkey", 0.0, 92.0, 24.0, "", false, true),
-    p("ahead", "fx.lapsus.ahead", 0.0, 250.0, 0.0, "ms", false, false),
+    p(
+        "ahead",
+        "fx.lapsus.ahead",
+        0.0,
+        250.0,
+        0.0,
+        "ms",
+        false,
+        false,
+    ),
     p("out", "fx.lapsus.out", -24.0, 24.0, 0.0, "dB", false, false),
 ];
 
@@ -292,7 +319,10 @@ mod tests {
         assert_eq!(get("ahead"), 0.0);
         assert_eq!(get("out"), 0.0);
         for lane in Lane::ALL {
-            assert!(factory(lane)[0].points.is_empty(), "{lane:?} slot 1 is Through");
+            assert!(
+                factory(lane)[0].points.is_empty(),
+                "{lane:?} slot 1 is Through"
+            );
         }
     }
 
@@ -304,7 +334,10 @@ mod tests {
                 assert_ne!(a.key, b.key);
             }
         }
-        assert!(PARAMS.iter().any(|i| i.key == "out"), "the contract's key stays");
+        assert!(
+            PARAMS.iter().any(|i| i.key == "out"),
+            "the contract's key stays"
+        );
     }
 
     #[test]
@@ -318,7 +351,11 @@ mod tests {
     fn the_factory_banks_are_within_the_model() {
         for lane in Lane::ALL {
             for (i, p) in factory(lane).iter().enumerate() {
-                assert_eq!(p, &p.sanitized(lane), "{lane:?} {i}: as sanitizing makes it");
+                assert_eq!(
+                    p,
+                    &p.sanitized(lane),
+                    "{lane:?} {i}: as sanitizing makes it"
+                );
                 // Within a bar, so a bank that is the factory's needs one bar of memory.
                 assert!(p.beats() <= 4.0, "{lane:?} {i}");
             }

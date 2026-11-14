@@ -58,9 +58,9 @@ impl Wave {
     pub fn feed(&mut self, pairs: &VecDeque<(f32, f32)>, phase_end: f32, span: f32) {
         let sig = (
             pairs.len(),
-            pairs
-                .back()
-                .map_or(0, |p| (u64::from(p.0.to_bits()) << 32) | u64::from(p.1.to_bits())),
+            pairs.back().map_or(0, |p| {
+                (u64::from(p.0.to_bits()) << 32) | u64::from(p.1.to_bits())
+            }),
         );
         if pairs.is_empty() || sig == self.sig || span < 1.0 {
             return;
@@ -323,8 +323,20 @@ fn lanes_grid(b: &mut Brush, map: Map, ink: &Ink, beats: f32, step: f32) {
     }
     for q in [0.25f32, 0.5, 0.75] {
         let c = with_alpha(ink.grid, 0.7);
-        b.hline(map.time.left(), map.time.right(), b.snap_mid(map.yt(q)), px, c);
-        b.hline(map.level.left(), map.level.right(), b.snap_mid(map.yl(q)), px, c);
+        b.hline(
+            map.time.left(),
+            map.time.right(),
+            b.snap_mid(map.yt(q)),
+            px,
+            c,
+        );
+        b.hline(
+            map.level.left(),
+            map.level.right(),
+            b.snap_mid(map.yl(q)),
+            px,
+            c,
+        );
     }
 }
 
@@ -336,7 +348,15 @@ fn before_the_cycle(b: &mut Brush, map: Map, ink: &Ink, rep: usize, reps: usize,
     let c = pos2(map.x(u1), map.yt(1.0));
     let d = pos2(map.x(u0), map.yt(1.0));
     b.polygon(&[a, c, d], with_alpha(ink.faint, 0.12));
-    canvas::dashed(b, a, c, b.px(), with_alpha(ink.grid_strong, 0.9), 3.0 * k, 3.0 * k);
+    canvas::dashed(
+        b,
+        a,
+        c,
+        b.px(),
+        with_alpha(ink.grid_strong, 0.9),
+        3.0 * k,
+        3.0 * k,
+    );
     if rep == 0 {
         let t = Text::key("lapsus.before", Role::Micro, ink.dim);
         canvas::put(
@@ -458,7 +478,10 @@ fn header(
             .unwrap_or_else(|| super::slot_name(lane, slot));
         let room = Rect::from_min_max(
             pos2(w.right() + 6.0 * k, y - 8.0 * k),
-            pos2((w.right() + 250.0 * k).min(tr.left() - 12.0 * k), y + 8.0 * k),
+            pos2(
+                (w.right() + 250.0 * k).min(tr.left() - 12.0 * k),
+                y + 8.0 * k,
+            ),
         );
         canvas::line_in(
             b,
@@ -511,7 +534,13 @@ fn playhead(
             4.0 * k,
             3.0 * k,
         );
-        b.hline(rx, x, map.time.top() - 1.0 * k, 1.5 * k, with_alpha(amber, 0.5));
+        b.hline(
+            rx,
+            x,
+            map.time.top() - 1.0 * k,
+            1.5 * k,
+            with_alpha(amber, 0.5),
+        );
     }
     let tip = map.time.top();
     b.polygon(

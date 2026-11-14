@@ -46,11 +46,17 @@ fn pt(x: f32, y: f32) -> CurvePoint {
 }
 
 fn bent(x: f32, y: f32, tension: f32) -> CurvePoint {
-    CurvePoint { tension, ..pt(x, y) }
+    CurvePoint {
+        tension,
+        ..pt(x, y)
+    }
 }
 
 fn held(x: f32, y: f32) -> CurvePoint {
-    CurvePoint { shape: 2, ..pt(x, y) }
+    CurvePoint {
+        shape: 2,
+        ..pt(x, y)
+    }
 }
 
 fn s_curve(x: f32, y: f32) -> CurvePoint {
@@ -79,7 +85,11 @@ fn pair(beats: f64, time: &[CurvePoint], vol: &[CurvePoint]) -> Pair {
 }
 
 fn tape_stop() -> Pair {
-    pair(4.0, &[bent(0.0, 0.0, TAPE), pt(1.0, 0.5)], &[pt(0.0, 1.0), pt(1.0, 0.0)])
+    pair(
+        4.0,
+        &[bent(0.0, 0.0, TAPE), pt(1.0, 0.5)],
+        &[pt(0.0, 1.0), pt(1.0, 0.0)],
+    )
 }
 
 /// A bar played, its last beat stopping: from the next bar's line it plays as it arrives.
@@ -100,16 +110,29 @@ fn families() -> Vec<(&'static str, Pair)> {
             "stutter 1/16",
             pair(
                 1.0,
-                &[held(0.0, 0.0), held(0.25, 0.25), held(0.5, 0.5), held(0.75, 0.75)],
+                &[
+                    held(0.0, 0.0),
+                    held(0.25, 0.25),
+                    held(0.5, 0.5),
+                    held(0.75, 0.75),
+                ],
                 &[],
             ),
         ),
-        ("reverse ½", pair(4.0, &[pt(0.0, 0.0), pt(0.5, 0.0), pt(1.0, 1.0)], &[])),
+        (
+            "reverse ½",
+            pair(4.0, &[pt(0.0, 0.0), pt(0.5, 0.0), pt(1.0, 1.0)], &[]),
+        ),
         (
             "scratch",
             pair(
                 1.0,
-                &[s_curve(0.0, 0.0), s_curve(0.25, 0.25), s_curve(0.5, 0.0), s_curve(0.75, 0.25)],
+                &[
+                    s_curve(0.0, 0.0),
+                    s_curve(0.25, 0.25),
+                    s_curve(0.5, 0.0),
+                    s_curve(0.75, 0.25),
+                ],
                 &[],
             ),
         ),
@@ -166,14 +189,23 @@ fn noise(n: usize, seed: u32) -> Vec<f32> {
 
 fn sine(n: usize, hz: f64, phase: f64) -> Vec<f32> {
     (0..n)
-        .map(|i| crate::math::sin(std::f64::consts::TAU * hz * i as f64 / f64::from(SR) + phase) as f32)
+        .map(|i| {
+            crate::math::sin(std::f64::consts::TAU * hz * i as f64 / f64::from(SR) + phase) as f32
+        })
         .collect()
 }
 
 /// Music-like: three partials and some noise, so a stray step shows.
 fn music(n: usize) -> Vec<f32> {
-    let (a, b, c, w) = (sine(n, 110.0, 0.0), sine(n, 440.0, 1.0), sine(n, 2_637.0, 2.0), noise(n, 7));
-    (0..n).map(|i| 0.4 * a[i] + 0.25 * b[i] + 0.1 * c[i] + 0.1 * w[i]).collect()
+    let (a, b, c, w) = (
+        sine(n, 110.0, 0.0),
+        sine(n, 440.0, 1.0),
+        sine(n, 2_637.0, 2.0),
+        noise(n, 7),
+    );
+    (0..n)
+        .map(|i| 0.4 * a[i] + 0.25 * b[i] + 0.1 * c[i] + 0.1 * w[i])
+        .collect()
 }
 
 fn same(a: &[f32], b: &[f32]) -> bool {
@@ -184,7 +216,14 @@ fn same(a: &[f32], b: &[f32]) -> bool {
 }
 
 /// Play `l`/`r` through `u` from song sample `start` at `tempo`, in blocks from `split`.
-fn drive(u: &mut Lapsus, l: &mut [f32], r: &mut [f32], tempo: f64, start: i64, mut split: impl FnMut() -> usize) {
+fn drive(
+    u: &mut Lapsus,
+    l: &mut [f32],
+    r: &mut [f32],
+    tempo: f64,
+    start: i64,
+    mut split: impl FnMut() -> usize,
+) {
     let n = l.len();
     let mut at = 0;
     while at < n {
@@ -222,7 +261,11 @@ fn the_defaults_touch_no_sample_with_or_without_memory() {
 fn a_flat_curve_is_a_null_through_the_full_path() {
     // Points on the line at 0 and a volume held at 1: the sample-by-sample path, every
     // read a whole sample.
-    let p = pair(1.0, &[held(0.0, 0.0), held(0.5, 0.0)], &[held(0.0, 1.0), held(0.7, 1.0)]);
+    let p = pair(
+        1.0,
+        &[held(0.0, 0.0), held(0.5, 0.0)],
+        &[held(0.0, 1.0), held(0.7, 1.0)],
+    );
     let mut u = unit(&p);
     let x = music(30_000);
     let (mut l, mut r) = (x.clone(), x.clone());
@@ -245,7 +288,8 @@ fn half_time_reads_the_cycle_at_half_speed() {
     drive(&mut u, &mut l, &mut r, 120.0, 0, || 512);
     let mut worst = 0.0f64;
     for t in (2_000..90_000).step_by(37) {
-        let want = crate::math::sin(std::f64::consts::TAU * 300.0 * (t as f64 / 2.0) / 48_000.0 + 0.3);
+        let want =
+            crate::math::sin(std::f64::consts::TAU * 300.0 * (t as f64 / 2.0) / 48_000.0 + 0.3);
         worst = worst.max((f64::from(l[t]) - want).abs());
     }
     assert!(worst < 1e-4, "half time read within {worst:e}");
@@ -262,8 +306,14 @@ fn a_tape_stop_ends_on_the_bar_to_the_sample_at_60_120_and_174() {
         drive(&mut u, &mut l, &mut r, tempo, 0, || 441);
         // From the bar's own sample, the next bar plays as it arrives, to the bit.
         let b = bar2 as usize;
-        assert!(same(&l[b..b + 2_000], &x[b..b + 2_000]), "{tempo} BPM: the bar starts on its sample");
-        assert!(l[b - 1].to_bits() != x[b - 1].to_bits(), "{tempo} BPM: the sample before is the stop's");
+        assert!(
+            same(&l[b..b + 2_000], &x[b..b + 2_000]),
+            "{tempo} BPM: the bar starts on its sample"
+        );
+        assert!(
+            l[b - 1].to_bits() != x[b - 1].to_bits(),
+            "{tempo} BPM: the sample before is the stop's"
+        );
         // The last 10 ms before the join are the stop's end: still, silent.
         let quiet = l[b - 480..b - 150].iter().fold(0f32, |m, v| m.max(v.abs()));
         // The level falls with the speed: 10 ms before the line it is 0.01 … 0.03 of it.
@@ -286,8 +336,14 @@ fn bar_five_is_bar_five_of_the_whole_render_whatever_came_before() {
             let mut part = unit(&p);
             let (mut pl, mut pr) = (x[b5 as usize..].to_vec(), x[b5 as usize..].to_vec());
             drive(&mut part, &mut pl, &mut pr, tempo, b5, || 300);
-            assert!(same(&wl[b5 as usize..], &pl), "{name} at {tempo}: left from bar 5");
-            assert!(same(&wr[b5 as usize..], &pr), "{name} at {tempo}: right from bar 5");
+            assert!(
+                same(&wl[b5 as usize..], &pl),
+                "{name} at {tempo}: left from bar 5"
+            );
+            assert!(
+                same(&wr[b5 as usize..], &pr),
+                "{name} at {tempo}: right from bar 5"
+            );
         }
     }
 }
@@ -330,14 +386,19 @@ fn every_block_size_renders_the_same_bits_with_notes() {
         let reference = run(&mut || 512);
         for split in [1usize, 7, 64, 4_096] {
             let out = run(&mut || split);
-            assert!(same(&out.0, &reference.0) && same(&out.1, &reference.1), "{name}: blocks of {split}");
+            assert!(
+                same(&out.0, &reference.0) && same(&out.1, &reference.1),
+                "{name}: blocks of {split}"
+            );
         }
     }
 }
 
 /// The largest second difference: where a waveform steps, it shows.
 fn roughness(x: &[f32]) -> f32 {
-    x.windows(3).map(|w| (w[2] - 2.0 * w[1] + w[0]).abs()).fold(0.0, f32::max)
+    x.windows(3)
+        .map(|w| (w[2] - 2.0 * w[1] + w[0]).abs())
+        .fold(0.0, f32::max)
 }
 
 #[test]
@@ -347,17 +408,34 @@ fn the_joins_do_not_click_and_without_a_crossfade_they_would() {
     let x = sine(96_000, 220.0, 0.0);
     let smooth_in = roughness(&x);
     let measure = |xfade_ms: f32| {
-        let mut u = unit_with(p, LapsusSettings { xfade_ms, ..LapsusSettings::default() });
+        let mut u = unit_with(
+            p,
+            LapsusSettings {
+                xfade_ms,
+                ..LapsusSettings::default()
+            },
+        );
         let (mut l, mut r) = (x.clone(), x.clone());
         drive(&mut u, &mut l, &mut r, 120.0, 0, || 256);
         let y = &l[4_000..];
-        let (i, m) = y.windows(3).map(|w| (w[2] - 2.0 * w[1] + w[0]).abs()).enumerate().fold((0, 0.0f32), |a, (i, v)| if v > a.1 { (i, v) } else { a });
-        eprintln!("  xfade {xfade_ms}: worst at {} (cycle position {})", i + 4_001, (i + 4_001) % 24_000);
+        let (i, m) = y
+            .windows(3)
+            .map(|w| (w[2] - 2.0 * w[1] + w[0]).abs())
+            .enumerate()
+            .fold((0, 0.0f32), |a, (i, v)| if v > a.1 { (i, v) } else { a });
+        eprintln!(
+            "  xfade {xfade_ms}: worst at {} (cycle position {})",
+            i + 4_001,
+            (i + 4_001) % 24_000
+        );
         m
     };
     let (with, without) = (measure(2.0), measure(0.0));
     eprintln!("joins: second difference {with:.5} with 2 ms, {without:.5} without, the sine's own {smooth_in:.5}");
-    assert!(with < 4.0 * smooth_in, "a 2 ms join stays within four times the sine's own curvature");
+    assert!(
+        with < 4.0 * smooth_in,
+        "a 2 ms join stays within four times the sine's own curvature"
+    );
     assert!(without > 20.0 * smooth_in, "the measure sees a hard join");
 }
 
@@ -412,12 +490,21 @@ fn a_slow_tape_stop_changes_kernel_without_a_step() {
     // The delay leaves 0 slowly and crosses 1, 2, 16 and 24 samples: the kernels hand over
     // with no step in a 1 kHz tone.
     let p = pair(4.0, &[bent(0.0, 0.0, TAPE), pt(1.0, 0.5)], &[]);
-    let mut u = unit_with(&p, LapsusSettings { xfade_ms: 0.0, ..LapsusSettings::default() });
+    let mut u = unit_with(
+        &p,
+        LapsusSettings {
+            xfade_ms: 0.0,
+            ..LapsusSettings::default()
+        },
+    );
     let x = sine(20_000, 1_000.0, 0.0);
     let (mut l, mut r) = (x.clone(), x.clone());
     drive(&mut u, &mut l, &mut r, 120.0, 0, || 128);
     let (a, b) = (roughness(&x), roughness(&l));
-    assert!(b < 1.05 * a, "the read stays as smooth as the tone: {b} against {a}");
+    assert!(
+        b < 1.05 * a,
+        "the read stays as smooth as the tone: {b} against {a}"
+    );
 }
 
 #[test]
@@ -433,8 +520,19 @@ fn a_held_note_plays_its_slot_and_its_release_gives_the_slot_back() {
     assert_eq!((u.active(Lane::Time), u.active(Lane::Vol)), (5, 7));
     assert!(!u.at_rest());
     u.note(10, Note::Off(60 + 5));
-    drive(&mut u, &mut l[1_000..], &mut r[1_000..], 120.0, 1_000, || 512);
-    assert_eq!((u.active(Lane::Time), u.active(Lane::Vol)), (1, 7), "each bank its own");
+    drive(
+        &mut u,
+        &mut l[1_000..],
+        &mut r[1_000..],
+        120.0,
+        1_000,
+        || 512,
+    );
+    assert_eq!(
+        (u.active(Lane::Time), u.active(Lane::Vol)),
+        (1, 7),
+        "each bank its own"
+    );
     // A note out of the bank's range is not a slot.
     u.note(0, Note::On(60 + 40));
     drive(&mut u, &mut l[..64], &mut r[..64], 120.0, 4_096, || 64);
@@ -445,7 +543,11 @@ fn a_held_note_plays_its_slot_and_its_release_gives_the_slot_back() {
 fn retrigger_starts_the_pattern_on_the_note() {
     // A tape stop (and its fade) retriggered mid-bar starts where the notes land: at the
     // note, the read is live again (a new cycle), a bar later it has stopped.
-    let s = LapsusSettings { retrig: true, notes: NoteMode::Switch, ..LapsusSettings::default() };
+    let s = LapsusSettings {
+        retrig: true,
+        notes: NoteMode::Switch,
+        ..LapsusSettings::default()
+    };
     let mut u = unit_with(&stop_last_beat(), s);
     let x = music(150_000);
     let (mut l, mut r) = (x.clone(), x.clone());
@@ -457,14 +559,23 @@ fn retrigger_starts_the_pattern_on_the_note() {
             u.note(at - done, Note::On(61));
             u.note(at - done, Note::On(25));
         }
-        u.set_transport(&Transport { playing: true, tempo_bpm: 120.0, samples: done as i64 });
+        u.set_transport(&Transport {
+            playing: true,
+            tempo_bpm: 120.0,
+            samples: done as i64,
+        });
         u.process(&mut l[done..done + b], &mut r[done..done + b]);
         done += b;
     }
     // The cycle from the note: 96 000 samples on, the bar's line of the retriggered stop.
     let end = at + 96_000;
-    assert!(same(&l[end..end + 1_000], &x[end..end + 1_000]), "the next cycle starts live on its sample");
-    let quiet = l[end - 480..end - 150].iter().fold(0f32, |m, v| m.max(v.abs()));
+    assert!(
+        same(&l[end..end + 1_000], &x[end..end + 1_000]),
+        "the next cycle starts live on its sample"
+    );
+    let quiet = l[end - 480..end - 150]
+        .iter()
+        .fold(0f32, |m, v| m.max(v.abs()));
     assert!(quiet < 0.03, "stopped before it ({quiet})");
 }
 
@@ -491,7 +602,10 @@ fn it_comes_to_rest_and_a_skip_is_exactly_silence_processed() {
     // a processes silence; b skips it: then the same input gives the same bits.
     let (mut l, mut r) = (vec![0.0; 7_777], vec![0.0; 7_777]);
     a.process(&mut l, &mut r);
-    assert!(l.iter().chain(&r).all(|v| v.to_bits() == 0), "silence in, silence out");
+    assert!(
+        l.iter().chain(&r).all(|v| v.to_bits() == 0),
+        "silence in, silence out"
+    );
     b.skip(7_777);
     let y = music(20_000);
     let (mut al, mut ar, mut bl, mut br) = (y.clone(), y.clone(), y.clone(), y.clone());
@@ -506,9 +620,15 @@ fn the_history_is_sized_by_the_longest_pattern_at_60_bpm() {
     let mut u = Lapsus::new(SR, shape);
     // Every slot *Through* (a bar): one bar at 60 BPM, four seconds.
     assert_eq!(u.memory_need(), Some(4 * 48_000 + read::MAX_TAPS + 8));
-    u.set(&LapsusSettings { ahead_ms: 100.0, ..LapsusSettings::default() });
+    u.set(&LapsusSettings {
+        ahead_ms: 100.0,
+        ..LapsusSettings::default()
+    });
     assert_eq!(u.latency(), 4_800);
-    assert_eq!(u.memory_need(), Some(4 * 48_000 + 4_800 + read::MAX_TAPS + 8));
+    assert_eq!(
+        u.memory_need(),
+        Some(4 * 48_000 + 4_800 + read::MAX_TAPS + 8)
+    );
     u.ensure_memory();
     assert_eq!(u.memory_need(), None);
 }
@@ -516,7 +636,10 @@ fn the_history_is_sized_by_the_longest_pattern_at_60_bpm() {
 #[test]
 fn lookahead_delays_everything_by_its_latency_and_a_flat_curve_is_then_a_pure_delay() {
     let mut u = Lapsus::new(SR, shape);
-    u.set(&LapsusSettings { ahead_ms: 10.0, ..LapsusSettings::default() });
+    u.set(&LapsusSettings {
+        ahead_ms: 10.0,
+        ..LapsusSettings::default()
+    });
     u.ensure_memory();
     u.reset();
     let x = music(10_000);

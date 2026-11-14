@@ -334,7 +334,10 @@ impl Lapsus {
             sr: sample_rate,
             set,
             shape,
-            banks: Box::new([[Pattern::THROUGH_TIME; SLOTS], [Pattern::THROUGH_VOL; SLOTS]]),
+            banks: Box::new([
+                [Pattern::THROUGH_TIME; SLOTS],
+                [Pattern::THROUGH_VOL; SLOTS],
+            ]),
             clock: Clock::new(),
             hist: History::default(),
             notes: [(0, Note::AllOff); MAX_NOTES],
@@ -461,7 +464,13 @@ impl Lapsus {
     }
 
     /// Whether `points` would change slot `slot` of `lane` (the engine's check).
-    pub fn pattern_differs(&self, lane: Lane, slot: usize, beats: f64, points: &[CurvePoint]) -> bool {
+    pub fn pattern_differs(
+        &self,
+        lane: Lane,
+        slot: usize,
+        beats: f64,
+        points: &[CurvePoint],
+    ) -> bool {
         let p = &self.banks[lane as usize][slot.min(SLOTS - 1)];
         let (lo, hi, _) = lane.range();
         p.beats != beats || !p.curve.same_as(points, lo, hi)
@@ -472,7 +481,8 @@ impl Lapsus {
         let (was, before, tempo) = (self.clock.playing(), self.clock.song(0), self.clock.tempo());
         self.clock.set(t);
         let started = t.playing && !was;
-        let moved = t.playing && was && self.clock.tempo() == tempo && (t.samples - before).abs() > 2;
+        let moved =
+            t.playing && was && self.clock.tempo() == tempo && (t.samples - before).abs() > 2;
         if started || moved {
             // The past is another part of the song now: nothing before here is heard.
             self.hist.restart(n);

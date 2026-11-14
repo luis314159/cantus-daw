@@ -15,7 +15,12 @@ pub enum Drag {
     /// Point `i` (in place order) of the lane's pattern moves.
     Point(Lane, usize),
     /// The segment from point `i` bends: its tension when the drag began, the pointer then.
-    Tension { lane: Lane, i: usize, from: f32, y0: f32 },
+    Tension {
+        lane: Lane,
+        i: usize,
+        from: f32,
+        y0: f32,
+    },
     /// The pencil paints steps.
     Pencil(Lane),
 }
@@ -154,9 +159,21 @@ pub fn lane(
                 if let Some(at) = at {
                     st.drag = Some(Drag::Point(lane, at));
                 }
-                set(host, model::Pattern { points: pts, ..pattern.clone() }, Some(st.gesture));
+                set(
+                    host,
+                    model::Pattern {
+                        points: pts,
+                        ..pattern.clone()
+                    },
+                    Some(st.gesture),
+                );
             }
-            Drag::Tension { lane: l, i, from, y0 } if l == lane && i < pattern.points.len() => {
+            Drag::Tension {
+                lane: l,
+                i,
+                from,
+                y0,
+            } if l == lane && i < pattern.points.len() => {
                 // Dragging up bulges the segment up, whichever way it runs.
                 let mut pts = pattern.points.clone();
                 let next = pts[(i + 1) % pts.len()].y;
@@ -169,7 +186,14 @@ pub fn lane(
                 if pts[i].s == SHAPE_HOLD {
                     pts[i].s = 0;
                 }
-                set(host, model::Pattern { points: pts, ..pattern.clone() }, Some(st.gesture));
+                set(
+                    host,
+                    model::Pattern {
+                        points: pts,
+                        ..pattern.clone()
+                    },
+                    Some(st.gesture),
+                );
             }
             Drag::Pencil(l) if l == lane => {
                 let u = place.phase(p.x);
@@ -185,7 +209,14 @@ pub fn lane(
                     pts.push(Point::new(x0, place.value(p.y)).shape(SHAPE_HOLD));
                     let (pts, _) = sorted(pts, None);
                     if pts != pattern.points {
-                        set(host, model::Pattern { points: pts, ..pattern.clone() }, Some(st.gesture));
+                        set(
+                            host,
+                            model::Pattern {
+                                points: pts,
+                                ..pattern.clone()
+                            },
+                            Some(st.gesture),
+                        );
                     }
                 }
             }
@@ -210,7 +241,14 @@ pub fn lane(
             None => return,
         }
         let (pts, _) = sorted(pts, None);
-        set(host, model::Pattern { points: pts, ..pattern.clone() }, None);
+        set(
+            host,
+            model::Pattern {
+                points: pts,
+                ..pattern.clone()
+            },
+            None,
+        );
     }
 }
 
@@ -242,7 +280,10 @@ mod tests {
         assert_eq!(p.value(50.0), 0.0, "the top is now");
         assert_eq!(p.value(250.0), 1.0);
         let v = place(Lane::Vol, 4);
-        assert!((v.phase(150.0) - 0.5).abs() < 1e-6, "the first of four turns");
+        assert!(
+            (v.phase(150.0) - 0.5).abs() < 1e-6,
+            "the first of four turns"
+        );
         assert_eq!(v.value(50.0), 1.0, "the top is full");
         assert_eq!(p.cells(0.25), 16);
     }

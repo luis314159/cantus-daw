@@ -364,7 +364,7 @@ impl Drop for DawHost<'_> {
                 kind: self.spec.kind,
                 params: Default::default(),
                 external: None,
-                ir: None, // r39:conv
+                ir: None,     // r39:conv
                 lapsus: None, // fx:lapsus (the bank: phase B)
             };
             let spec = std::mem::replace(&mut self.spec, empty);

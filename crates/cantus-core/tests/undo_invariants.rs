@@ -305,7 +305,11 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                             || rng.below(60) == 0
                         {
                             use cantus_core::fx::lapsus::{Lane, Pattern, Point};
-                            let lane = if rng.below(2) == 0 { Lane::Time } else { Lane::Vol };
+                            let lane = if rng.below(2) == 0 {
+                                Lane::Time
+                            } else {
+                                Lane::Vol
+                            };
                             let pattern = (rng.below(4) != 0).then(|| {
                                 Box::new(Pattern {
                                     len: rng.below(7) as u8,

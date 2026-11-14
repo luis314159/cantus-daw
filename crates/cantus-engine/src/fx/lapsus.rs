@@ -232,8 +232,14 @@ mod tests {
             spec.set(k, v);
         }
         let s = settings(&spec);
-        assert_eq!((s.tslot, s.vslot, s.mix, s.xfade_ms, s.smooth_ms), (7, 9, 0.5, 5.0, 3.0));
-        assert_eq!((s.notes, s.retrig, s.tkey, s.vkey), (NoteMode::Switch, true, 70, 10));
+        assert_eq!(
+            (s.tslot, s.vslot, s.mix, s.xfade_ms, s.smooth_ms),
+            (7, 9, 0.5, 5.0, 3.0)
+        );
+        assert_eq!(
+            (s.notes, s.retrig, s.tkey, s.vkey),
+            (NoteMode::Switch, true, 70, 10)
+        );
         assert_eq!((s.ahead_ms, s.out_db), (20.0, -3.0));
     }
 
@@ -258,7 +264,11 @@ mod tests {
         let mut u = Unit::new(48_000.0);
         for l in model::Lane::ALL {
             for (slot, p) in model::factory(l).iter().enumerate() {
-                assert_eq!(u.dsp().pattern(lane(l), slot), &pattern(l, p), "{l:?} {slot}");
+                assert_eq!(
+                    u.dsp().pattern(lane(l), slot),
+                    &pattern(l, p),
+                    "{l:?} {slot}"
+                );
             }
         }
         let mut spec = EffectSpec::new(EffectKind::TimeShaper);
@@ -280,7 +290,10 @@ mod tests {
         );
         // Back to the factory's when the bank lets the slot go.
         u.configure(&EffectSpec::new(EffectKind::TimeShaper));
-        assert_eq!(u.dsp().pattern(Lane::Vol, 3), &pattern(v, &model::factory(v)[3]));
+        assert_eq!(
+            u.dsp().pattern(Lane::Vol, 3),
+            &pattern(v, &model::factory(v)[3])
+        );
     }
 
     #[test]

@@ -233,8 +233,8 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", 6.0),
             ],
         ),
-        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]),       // fx:contract (vetus)
-        EffectKind::Utility => set(&mut s, &[("out", 6.0)]),    // fx:contract (libra)
+        EffectKind::LoFi => set(&mut s, &[("out", 6.0)]), // fx:contract (vetus)
+        EffectKind::Utility => set(&mut s, &[("out", 6.0)]), // fx:contract (libra)
     }
     s
 }

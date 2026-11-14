@@ -85,7 +85,11 @@ fn lapsus_on_a_strip_shapes_the_master_in_an_offline_render_and_undoes() {
     // middle is not (the first beat read at half speed).
     let bar = 96_000usize;
     for at in [0, bar / 2, bar, bar + bar / 2] {
-        assert_eq!(half[2 * at], dry[2 * at], "the cycle starts on the music at {at}");
+        assert_eq!(
+            half[2 * at],
+            dry[2 * at],
+            "the cycle starts on the music at {at}"
+        );
     }
     let mid = &half[2 * (bar / 4)..2 * (bar / 2 - 1_000)];
     let dmid = &dry[2 * (bar / 4)..2 * (bar / 2 - 1_000)];
@@ -105,7 +109,11 @@ fn lapsus_on_a_strip_shapes_the_master_in_an_offline_render_and_undoes() {
     });
     assert_eq!(rendered(&mut app), dry, "a flat time curve is a wire");
     app.undo();
-    assert_eq!(rendered(&mut app), half, "undone: half time again, to the bit");
+    assert_eq!(
+        rendered(&mut app),
+        half,
+        "undone: half time again, to the bit"
+    );
 
     // A pad of the volume bank: the trance gate cuts the master in sixteenths.
     app.exec(Command::SetEffectParam {
