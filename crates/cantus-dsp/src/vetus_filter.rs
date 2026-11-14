@@ -147,7 +147,7 @@ impl Svf {
 
 /// The quality factors of a Butterworth low-pass of `2·N` poles as `N` sections.
 pub const BUTTER4: [f32; 2] = [0.541_196_1, 1.306_563];
-pub const BUTTER6: [f32; 3] = [0.517_638_1, 0.707_106_8, 1.931_851_6];
+pub const BUTTER6: [f32; 3] = [0.517_638_1, std::f32::consts::FRAC_1_SQRT_2, 1.931_851_6];
 
 #[cfg(test)]
 mod tests {

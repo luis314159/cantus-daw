@@ -32,6 +32,7 @@ fn module(
 
 /// A grid of keys for a stepped parameter, `cols` across, each its value: the lit one the
 /// value now. Every key is the parameter's control (its menu, learn).
+#[allow(clippy::too_many_arguments)]
 fn choice_keys(
     host: &mut dyn FxHost,
     ui: &mut egui::Ui,

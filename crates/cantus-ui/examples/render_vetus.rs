@@ -197,6 +197,7 @@ type Example = (
 
 /// Writes `examples` through `x` beside its dry twin, level-matched, and their lines for
 /// the README.
+#[allow(clippy::too_many_arguments)]
 fn set_of(
     out: &Path,
     x: &(Vec<f32>, Vec<f32>),
