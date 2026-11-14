@@ -228,11 +228,66 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("mix", 0.5),
             ],
         ),
-        // fx:contract — the side round's stubs: the placeholder's gain; each builder
-        // replaces its own line with its unit's heaviest settings (as the engine tests').
-        EffectKind::AutoFilter => set(&mut s, &[("out", 6.0)]), // fx:contract (cribrum)
-        EffectKind::Pedal => set(&mut s, &[("out", 6.0)]),      // fx:contract (fragor)
-        EffectKind::TimeShaper => set(&mut s, &[("out", 6.0)]), // fx:contract (lapsus)
+        // fx:cribrum — both filters (a driven ladder at 24 dB/oct into three formants), 4×
+        // oversampling, every source on every target.
+        EffectKind::AutoFilter => set(
+            &mut s,
+            &[
+                ("mix", 1.0),
+                ("os", 2.0),
+                ("a.model", 1.0),
+                ("a.slope", 1.0),
+                ("a.cut", 800.0),
+                ("a.res", 0.7),
+                ("a.drive", 12.0),
+                ("b.on", 1.0),
+                ("b.mode", 5.0),
+                ("b.res", 0.5),
+                ("spread", 0.5),
+                ("lfo.shape", 6.0),
+                ("lfo.stereo", 90.0),
+                ("lfo.cut", 2.0),
+                ("lfo.res", 0.2),
+                ("lfo.vowel", 1.0),
+                ("env.cut", 1.5),
+                ("cur.cut", -1.0),
+                ("cur.vowel", 1.0),
+                ("cur.smooth", 10.0),
+                ("out", -3.0),
+            ],
+        ),
+        // fx:fragor — three pedals (the muff, the fuzz on a tired battery, the silicon
+        // distortion), 8x, stereo, the gate on, half wet.
+        EffectKind::Pedal => set(
+            &mut s,
+            &[
+                ("s1", 5.0),
+                ("s2", 4.0),
+                ("s3", 3.0),
+                ("mf.sustain", 0.8),
+                ("ge.fuzz", 0.9),
+                ("ge.bias", 0.5),
+                ("si.dist", 0.8),
+                ("gate", -70.0),
+                ("os", 2.0),
+                ("mix", 0.5),
+                ("out", -6.0),
+            ],
+        ), // fx:fragor
+        // fx:lapsus — the roll build (fifteen jumps a bar, each a join) under a trance gate,
+        // mixed with the dry, a long crossfade and glide, and lookahead (long kernels).
+        EffectKind::TimeShaper => set(
+            &mut s,
+            &[
+                ("tslot", 16.0),
+                ("vslot", 5.0),
+                ("mix", 0.8),
+                ("xfade", 6.0),
+                ("smooth", 4.0),
+                ("ahead", 5.0),
+                ("out", 6.0),
+            ],
+        ),
         // fx:vetus — every module on: dithered mu-law bits, the hold behind both its filters,
         // a synced wow, dropouts and wear, every noise (following the music, so it rests),
         // the gramophone's band, Character half way.
