@@ -6,10 +6,11 @@
 //! as it comes, a 45° fall is the tape stopped, a held step a repeat) over the cycle's
 //! input drawn faintly, the level curve below it; while it plays, the playhead and **the
 //! slip** — the line from where the song is to where Lapsus is reading it from, marked on
-//! the ruler. Beside it **the bank**: thirty-six patterns as pads in six rows (stops,
-//! speed, repeats, reverse, scratch, level), each drawn small, the playing one lit, the
-//! keyboard under it naming the note that plays each. Under them the pattern's length and
-//! grid, the joins, the notes and the output.
+//! the ruler. Beside it **the banks** (as Gross Beat's, a time pattern and a volume pattern
+//! chosen apart): thirty-six of each as pads in six rows, the bank shown chosen by a
+//! switch that names what each plays, the playing pad lit, and the keyboard under them
+//! with the two note ranges that play them. Under them the shown pattern's length and the
+//! pencil's grid, the joins, the notes and the output.
 
 use super::controls::{self, Size};
 use super::frame;
@@ -20,9 +21,25 @@ use crate::app::CantusApp;
 use crate::kit::shell::Grid;
 use crate::kit::text::Src;
 use crate::kit::{Function, Style};
-use cantus_core::fx::lapsus as model;
+use cantus_core::fx::lapsus::{self as model, Lane};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use cantus_dsp::lapsus::{t, LapsusSettings, Pattern};
+
+/// Where in the window the two banks' patterns are read from: the playing slot of each.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Playing {
+    pub time: usize,
+    pub vol: usize,
+}
+
+impl Playing {
+    pub fn of(&self, lane: Lane) -> usize {
+        match lane {
+            Lane::Time => self.time,
+            Lane::Vol => self.vol,
+        }
+    }
+}
 use egui::Rect;
 
 #[path = "lapsus_bank.rs"]
@@ -50,6 +67,8 @@ pub struct State {
     pub grid: usize,
     /// The drawing tool: 0 points, 1 the pencil.
     pub tool: usize,
+    /// The bank the pads show and the pattern card edits.
+    pub bank: Lane,
     /// The input's level across the cycle, under the time curve.
     wave: grid::Wave,
     /// Where the timeline's lanes were drawn last frame (tests point at them).
@@ -66,6 +85,7 @@ impl Default for State {
             chips: frame::ChipText::default(),
             grid: 2,
             tool: 0,
+            bank: Lane::Time,
             wave: grid::Wave::default(),
             lanes: None,
             pads: None,
@@ -138,14 +158,14 @@ fn body_ui(
     let row1 = (area.height() - row2 - gap).max(300.0 * k);
     let bank_share = (BANK_W * k / area.width()).clamp(0.2, 0.4);
     let r1: Vec<Rect> = g.row(row1, &[1.0 - bank_share, bank_share]).collect();
-    let playing = playing_slot(tel, ls);
+    let playing = playing(tel, ls);
     grid::card(host, st, ui, s, r1[0], tel, playing);
     bank::card(host, st, ui, s, r1[1], tel, ls, playing);
 
     let w = [
         PATTERN_W + 16.0,
         controls::cells_width(&[Size::M, Size::M]) + 16.0,
-        NOTES_W + 4.0 + controls::cells_width(&[Size::M]) + 16.0,
+        NOTES_W + 4.0 + controls::cells_width(&[Size::M, Size::M]) + 16.0,
         controls::cells_width(&[Size::M, Size::M, Size::M]) + 16.0,
     ];
     let sum: f32 = w.iter().sum();
@@ -179,24 +199,32 @@ fn body_ui(
     );
 }
 
-/// The slot playing: the telemetry's while the unit runs, the knob's otherwise.
-fn playing_slot(tel: &[f32; 64], ls: &LapsusSettings) -> usize {
+/// The slots playing: the telemetry's while the unit runs, the knobs' otherwise.
+fn playing(tel: &[f32; 64], ls: &LapsusSettings) -> Playing {
+    let of = |i: usize| (tel[i].round().max(0.0) as usize).min(model::SLOTS - 1);
     if tel[cantus_dsp::modfx_clock::tel::BLOCKS] > 0.0 {
-        (tel[t::SLOT].round().max(0.0) as usize).min(model::SLOTS - 1)
+        Playing {
+            time: of(t::SLOT),
+            vol: of(t::VSLOT),
+        }
     } else {
-        ls.slot
+        Playing {
+            time: ls.tslot,
+            vol: ls.vslot,
+        }
     }
 }
 
-/// The pattern in `slot` of the host's bank, as the DSP plays it.
-pub fn pattern_of(spec: &EffectSpec, slot: usize) -> Pattern {
-    cantus_engine::fx::lapsus::pattern(model::pattern_of(spec.lapsus.as_deref(), slot))
+/// The pattern in `slot` of `lane` of the host's banks, as the DSP plays it.
+pub fn pattern_of(spec: &EffectSpec, lane: Lane, slot: usize) -> Pattern {
+    let m = model::pattern_of(spec.lapsus.as_deref(), lane, slot);
+    cantus_engine::fx::lapsus::pattern(lane, m)
 }
 
 /// The pattern card's column width at 100 %.
 const PATTERN_W: f32 = 268.0;
 /// The notes card's column width at 100 %.
-const NOTES_W: f32 = 196.0;
+const NOTES_W: f32 = 176.0;
 
 /// The pattern playing: its length and the pencil's grid; how it is drawn.
 fn pattern_card(
@@ -205,9 +233,11 @@ fn pattern_card(
     ui: &mut egui::Ui,
     s: &Style,
     rect: Rect,
-    slot: usize,
+    playing: Playing,
 ) {
-    let len = model::pattern_of(host.spec().lapsus.as_deref(), slot).len as usize;
+    let lane = st.bank;
+    let slot = playing.of(lane);
+    let len = model::pattern_of(host.spec().lapsus.as_deref(), lane, slot).len as usize;
     controls::card(
         ui,
         s,
@@ -253,49 +283,93 @@ fn pattern_card(
     );
 }
 
-/// The bank's factory names (`lapsus.slot.{i}`).
-pub const SLOT_KEYS: [&str; model::SLOTS] = [
-    "lapsus.slot.0",
-    "lapsus.slot.1",
-    "lapsus.slot.2",
-    "lapsus.slot.3",
-    "lapsus.slot.4",
-    "lapsus.slot.5",
-    "lapsus.slot.6",
-    "lapsus.slot.7",
-    "lapsus.slot.8",
-    "lapsus.slot.9",
-    "lapsus.slot.10",
-    "lapsus.slot.11",
-    "lapsus.slot.12",
-    "lapsus.slot.13",
-    "lapsus.slot.14",
-    "lapsus.slot.15",
-    "lapsus.slot.16",
-    "lapsus.slot.17",
-    "lapsus.slot.18",
-    "lapsus.slot.19",
-    "lapsus.slot.20",
-    "lapsus.slot.21",
-    "lapsus.slot.22",
-    "lapsus.slot.23",
-    "lapsus.slot.24",
-    "lapsus.slot.25",
-    "lapsus.slot.26",
-    "lapsus.slot.27",
-    "lapsus.slot.28",
-    "lapsus.slot.29",
-    "lapsus.slot.30",
-    "lapsus.slot.31",
-    "lapsus.slot.32",
-    "lapsus.slot.33",
-    "lapsus.slot.34",
-    "lapsus.slot.35",
+/// The time bank's factory names (`lapsus.tslot.{i}`).
+pub const TSLOT_KEYS: [&str; model::SLOTS] = [
+    "lapsus.tslot.0",
+    "lapsus.tslot.1",
+    "lapsus.tslot.2",
+    "lapsus.tslot.3",
+    "lapsus.tslot.4",
+    "lapsus.tslot.5",
+    "lapsus.tslot.6",
+    "lapsus.tslot.7",
+    "lapsus.tslot.8",
+    "lapsus.tslot.9",
+    "lapsus.tslot.10",
+    "lapsus.tslot.11",
+    "lapsus.tslot.12",
+    "lapsus.tslot.13",
+    "lapsus.tslot.14",
+    "lapsus.tslot.15",
+    "lapsus.tslot.16",
+    "lapsus.tslot.17",
+    "lapsus.tslot.18",
+    "lapsus.tslot.19",
+    "lapsus.tslot.20",
+    "lapsus.tslot.21",
+    "lapsus.tslot.22",
+    "lapsus.tslot.23",
+    "lapsus.tslot.24",
+    "lapsus.tslot.25",
+    "lapsus.tslot.26",
+    "lapsus.tslot.27",
+    "lapsus.tslot.28",
+    "lapsus.tslot.29",
+    "lapsus.tslot.30",
+    "lapsus.tslot.31",
+    "lapsus.tslot.32",
+    "lapsus.tslot.33",
+    "lapsus.tslot.34",
+    "lapsus.tslot.35",
 ];
 
-/// Slot `i`'s factory name, translated.
-pub fn slot_name(i: usize) -> &'static str {
-    frame::tr(SLOT_KEYS[i.min(model::SLOTS - 1)])
+/// The volume bank's factory names (`lapsus.vslot.{i}`).
+pub const VSLOT_KEYS: [&str; model::SLOTS] = [
+    "lapsus.vslot.0",
+    "lapsus.vslot.1",
+    "lapsus.vslot.2",
+    "lapsus.vslot.3",
+    "lapsus.vslot.4",
+    "lapsus.vslot.5",
+    "lapsus.vslot.6",
+    "lapsus.vslot.7",
+    "lapsus.vslot.8",
+    "lapsus.vslot.9",
+    "lapsus.vslot.10",
+    "lapsus.vslot.11",
+    "lapsus.vslot.12",
+    "lapsus.vslot.13",
+    "lapsus.vslot.14",
+    "lapsus.vslot.15",
+    "lapsus.vslot.16",
+    "lapsus.vslot.17",
+    "lapsus.vslot.18",
+    "lapsus.vslot.19",
+    "lapsus.vslot.20",
+    "lapsus.vslot.21",
+    "lapsus.vslot.22",
+    "lapsus.vslot.23",
+    "lapsus.vslot.24",
+    "lapsus.vslot.25",
+    "lapsus.vslot.26",
+    "lapsus.vslot.27",
+    "lapsus.vslot.28",
+    "lapsus.vslot.29",
+    "lapsus.vslot.30",
+    "lapsus.vslot.31",
+    "lapsus.vslot.32",
+    "lapsus.vslot.33",
+    "lapsus.vslot.34",
+    "lapsus.vslot.35",
+];
+
+/// Slot `i`'s factory name in `lane`, translated.
+pub fn slot_name(lane: Lane, i: usize) -> &'static str {
+    let i = i.min(model::SLOTS - 1);
+    frame::tr(match lane {
+        Lane::Time => TSLOT_KEYS[i],
+        Lane::Vol => VSLOT_KEYS[i],
+    })
 }
 
 /// The lengths' names (`lapsus.len.{i}`).
@@ -328,7 +402,8 @@ fn notes_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
                 controls::segmented_param(ui, &sn, host, "notes", &modes, w);
                 controls::led_param(ui, &sn, host, "retrig", Src::Key("fx.lapsus.retrig"), w);
             });
-            controls::param_with(ui, &sn, host, "key", Size::M, Some(&note_pill));
+            controls::param_with(ui, &sn, host, "tkey", Size::M, Some(&note_pill));
+            controls::param_with(ui, &sn, host, "vkey", Size::M, Some(&note_pill));
         },
     );
 }
@@ -344,19 +419,19 @@ pub fn note_pill(v: f32, b: &mut String) {
     let _ = write!(b, "{}{}", NAMES[(n % 12) as usize], n / 12 - 1);
 }
 
-/// The inspector's picture: the playing pattern's two curves, small, with its name.
+/// The inspector's picture: the two playing patterns, small, with their names.
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     grid::preview(ui, spec)
 }
 
 /// The settings `--editor lapsus` and the screenshot tool open it with: *Tape stop ¼* —
-/// three beats as they come, the last one stopping on the bar.
+/// three beats as they come, the last one stopping on the bar — with *Fade the last beat*.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
     DawHost::new(app, strip, effect, "lapsus").set_many(DEMO, "cmd.fx_preset");
 }
 
 /// The demo's settings.
-pub const DEMO: &[(&str, f32)] = &[("slot", 3.0), ("mix", 1.0)];
+pub const DEMO: &[(&str, f32)] = &[("tslot", 3.0), ("vslot", 21.0), ("mix", 1.0)];
 
 /// What a playing engine would feed the editor, for screenshots with no engine: a drum
 /// loop (kick, snare, hats) through the unit for a bar and a half, its telemetry, the

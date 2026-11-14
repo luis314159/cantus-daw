@@ -87,14 +87,14 @@ fn main() {
         .unwrap_or_else(|| PathBuf::from("target/sounds/lapsus"));
     std::fs::create_dir_all(&dir).expect("output dir");
     let bpm = 120.0;
-    // (file, source, title, slot (0-based), other settings)
+    // (file, source, title, time slot (0-based), other settings)
     let examples: [(&str, Role, &str, f32, &[(&str, f32)]); 6] = [
         (
             "1-tape-stop-drums",
             Role::Drums,
-            "Tape stop ¼: three beats as they come, the fourth stopping on the bar",
+            "Tape stop ¼ with Fade the last beat: the fourth beat stopping on the bar",
             3.0,
-            &[],
+            &[("vslot", 21.0)],
         ),
         (
             "2-half-time-drums",
@@ -107,7 +107,7 @@ fn main() {
             "3-roll-build-drums",
             Role::Drums,
             "Roll build: a beat, then eighths, sixteenths and thirty-seconds of each",
-            15.0,
+            16.0,
             &[],
         ),
         (
@@ -127,15 +127,15 @@ fn main() {
         (
             "6-backspin-bus",
             Role::Bus,
-            "Backspin: the last beat spun back hard, coming to rest on the bar",
+            "Backspin with Fade the last beat: the last beat spun back hard, dying on the bar",
             23.0,
-            &[],
+            &[("vslot", 21.0)],
         ),
     ];
     for (name, role, title, slot, more) in examples {
         let dry = source(role, bpm);
         render_to(&dry, &dir.join(format!("{name}-dry.flac")), title);
-        let mut params = vec![("slot", slot)];
+        let mut params = vec![("tslot", slot)];
         params.extend_from_slice(more);
         let wet = with_lapsus(dry, &params);
         render_to(&wet, &dir.join(format!("{name}.flac")), title);

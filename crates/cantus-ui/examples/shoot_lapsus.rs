@@ -5,9 +5,10 @@
 //! cargo run -p cantus-ui --example shoot_lapsus -- [out-dir] [scales…]
 //! ```
 //!
-//! Three states — *Tape stop ¼* at rest (nothing playing), the same playing (a drum loop's
-//! telemetry and analyser pairs fed as a playing engine would), and *Reverse ½* playing
-//! (the slip at its longest) — in Slate and Paper, English and Spanish, at the scales given
+//! Three states — *Tape stop ¼* with *Fade the last beat* at rest (nothing playing), the
+//! same playing (a drum loop's telemetry and analyser pairs fed as a playing engine would),
+//! and *Reverse ½* under *Tremolo ⅛* playing with the volume bank on the pads (the slip at
+//! its longest) — in Slate and Paper, English and Spanish, at the scales given
 //! (75, 100, 150 and 200 % unless named; every state in Slate English at each, the rest at
 //! 100 %); plus the inspector's preview.
 
@@ -25,10 +26,14 @@ fn app_with(state: &str) -> CantusApp {
     let (strip, effect, _) = app.fx.open.expect("Lapsus is open");
     if state == "reverse" {
         views::fx::host::DawHost::new(&mut app, strip, effect, "lapsus")
-            .set_many(&[("slot", 18.0)], "cmd.fx_preset");
+            .set_many(&[("tslot", 18.0), ("vslot", 24.0)], "cmd.fx_preset");
     }
     if state != "rest" {
         views::fx::demo_feed(&mut app, KIND);
+    }
+    if state == "reverse" {
+        // The volume bank on the pads: the switch's other side.
+        app.fx.lapsus.bank = cantus_core::fx::lapsus::Lane::Vol;
     }
     app.fx.pos = Some(egui::pos2(0.0, 0.0));
     app

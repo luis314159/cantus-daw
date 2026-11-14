@@ -25,7 +25,7 @@ pub const FRAGOR: Skin = Skin {
 /// Lapsus, the time shaper (*a slip*): a DJ's deck at midnight — a petrol body under smoked
 /// glass (a CD deck's top), the time curve glowing amber on a vacuum-fluorescent screen
 /// (the old decks' displays), the level in ice blue, soft rubber knobs, lamp keys, a
-/// painted stripe across the header, vents and printed rules, upper-case lettering and
+/// painted stripe across the header and printed rules, upper-case lettering and
 /// mono readouts. Every unit with an accent within 20° of amber is another material
 /// (Phasis is matte, Fervor vinyl, Aula brushed, Chorda lacquer…): glass is free there.
 pub const LAPSUS: Skin = Skin {
@@ -73,7 +73,7 @@ pub const LAPSUS: Skin = Skin {
     plate: super::Plate::Stripe,
     ornaments: super::Ornaments {
         screws: false,
-        vents: true,
+        vents: false,
         rules: true,
         rack_ears: false,
     },
