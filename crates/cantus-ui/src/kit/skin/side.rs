@@ -341,7 +341,7 @@ pub const LIBRA: Skin = Skin {
         light: chsl(30.0, 0.80, 0.34),
     }),
     material: Material::Anodised,
-    display: Display::Scope,
+    display: Display::Phosphor,
     knob: KnobShape::Cap,
     switch: SwitchShape::Lamp,
     lettering: Lettering {
@@ -425,3 +425,65 @@ pub const FRAGOR_C: Skin = Skin {
 }; // fx:fragor
 /// Fragor's colourways besides its own face: B, C. fx:fragor
 pub const FRAGOR_COLOURWAYS: [&Skin; 2] = [&FRAGOR_B, &FRAGOR_C];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hue_gap(a: f32, b: f32) -> f32 {
+        let d = (a - b).rem_euclid(360.0);
+        d.min(360.0 - d)
+    }
+
+    /// A contract placeholder still borrowing a sibling's look (a builder's face not merged
+    /// on this branch yet): it is that sibling's face, not one of its own.
+    fn placeholder(s: &Skin) -> bool {
+        (s.key == "fx.lapsus"
+            && s.material == tone::DELAY.material
+            && s.accent == tone::DELAY.accent)
+            || (s.key == "fx.libra"
+                && s.material == tone::LATITUDO.material
+                && s.accent == tone::LATITUDO.accent)
+    }
+
+    /// fx:libra — no unit of ours, in any family, shares both accent hue (within 20°) and
+    /// material with a side-round unit's face (its default colourway; an alternative may
+    /// resemble another unit, the user's choice — ADR 0130 §Colourways), as the other
+    /// families' tests hold for theirs. Every pair that does is named.
+    #[test]
+    fn no_unit_of_any_family_shares_hue_and_material_with_ours() {
+        let ours = [
+            EffectKind::AutoFilter,
+            EffectKind::Pedal,
+            EffectKind::TimeShaper,
+            EffectKind::LoFi,
+            EffectKind::Utility,
+        ];
+        let mut alike = Vec::new();
+        for kind in ours {
+            let s = of(kind).expect("a side-round sheet");
+            if placeholder(s) {
+                continue;
+            }
+            let h = s.accent.expect("an accent").dark.h;
+            for unit in super::super::Unit::all() {
+                let other = super::super::of(unit);
+                if other.key == s.key || placeholder(other) {
+                    continue;
+                }
+                let Some(oa) = other.accent else { continue };
+                if other.material == s.material && hue_gap(h, oa.dark.h) <= 20.0 {
+                    let pair = if s.key < other.key {
+                        format!("{} and {}", s.key, other.key)
+                    } else {
+                        format!("{} and {}", other.key, s.key)
+                    };
+                    if !alike.contains(&pair) {
+                        alike.push(pair);
+                    }
+                }
+            }
+        }
+        assert!(alike.is_empty(), "look alike: {}", alike.join("; "));
+    }
+}

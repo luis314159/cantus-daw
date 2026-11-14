@@ -126,14 +126,15 @@ fn body_ui(
             ui.ctx().request_repaint();
         }
     });
-    let r2: Vec<Rect> = g.row(row, &[0.37, 0.25, 0.20, 0.18]).collect();
+    let r2: Vec<Rect> = g.row(row, &[0.27, 0.17, 0.21, 0.14, 0.21]).collect();
     channels(host, ui, s, r2[0]);
-    delays(host, ui, s, r2[1]);
-    image(host, ui, s, r2[2]);
-    gain(host, ui, s, r2[3]);
+    switches(host, ui, s, r2[1]);
+    delays(host, ui, s, r2[2]);
+    image(host, ui, s, r2[3]);
+    gain(host, ui, s, r2[4]);
 }
 
-/// The channels: the operation as keys, the polarities, DC and mute.
+/// The channels: the operation as keys.
 fn channels(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
     controls::card(
         ui,
@@ -142,18 +143,31 @@ fn channels(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
         Src::Key("libra.card.channels"),
         None,
         |ui, _| {
-            let w = 236.0;
+            let w = 280.0;
             controls::column(ui, s, w, |ui| {
-                controls::caption(ui, s, Src::Key("fx.libra.chan"), w);
+                controls::caption(ui, s, Src::Key("libra.l.operation"), w);
                 chan_keys(host, ui, s, w);
             });
-            let w = 132.0;
+        },
+    );
+}
+
+/// The switches: each channel's polarity, DC removal and mute.
+fn switches(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("libra.card.switches"),
+        None,
+        |ui, _| {
+            let w = 168.0;
             controls::column(ui, s, w, |ui| {
-                controls::caption(ui, s, Src::Key("libra.l.switches"), w);
+                controls::caption(ui, s, Src::Key("libra.l.polarity"), w);
                 let half = (w - 4.0) * 0.5;
                 ui.horizontal(|ui| {
-                    controls::led_param(ui, s, host, "pol.l", Src::Key("libra.l.pol_l"), half);
-                    controls::led_param(ui, s, host, "pol.r", Src::Key("libra.l.pol_r"), half);
+                    controls::led_param(ui, s, host, "pol.l", Src::Key("libra.l.left"), half);
+                    controls::led_param(ui, s, host, "pol.r", Src::Key("libra.l.right"), half);
                 });
                 ui.horizontal(|ui| {
                     controls::led_param(ui, s, host, "dc", Src::Key("libra.l.dc"), half);
@@ -162,6 +176,34 @@ fn channels(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
             });
         },
     );
+}
+
+/// A cell on `key` with its own short label (the card says what it belongs to).
+fn labelled(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    key: &'static str,
+    label: &'static str,
+    pill: Option<controls::Pill<'_>>,
+) {
+    let spec = host.spec();
+    let Some(info) = spec.kind.param(key) else {
+        return;
+    };
+    let mut c = controls::Cell::param(info, spec.get(key))
+        .size(Size::M)
+        .label(Src::Key(label));
+    if let Some(f) = pill {
+        c = c.format(f);
+    }
+    let out = c.show_in(ui, s, host, key);
+    if let Some(v) = out.changed {
+        host.set(key, v, Some(key));
+    }
+    if out.done {
+        host.end_gesture();
+    }
 }
 
 /// The operation's seven keys, four and three.
@@ -222,13 +264,12 @@ fn delays(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
                 controls::write_readout(v, "ms", out);
             }
         };
-        controls::param_with(ui, s, host, "delay.l", Size::M, Some(&pill));
-        controls::param_with(ui, s, host, "delay.r", Size::M, Some(&pill));
-        let w = 92.0;
+        labelled(host, ui, s, "delay.l", "libra.l.left", Some(&pill));
+        labelled(host, ui, s, "delay.r", "libra.l.right", Some(&pill));
+        let w = 76.0;
         controls::column(ui, s, w, |ui| {
-            controls::caption(ui, s, Src::Key("fx.libra.delay.unit"), w);
-            let units = [Src::Key("libra.unit.0"), Src::Key("libra.unit.1")];
-            controls::segmented_param(ui, s, host, "delay.unit", &units, w);
+            controls::caption(ui, s, Src::Key("libra.l.shown_in"), w);
+            controls::led_param(ui, s, host, "delay.unit", Src::Key("libra.unit.1"), w);
         });
     });
 }
@@ -255,7 +296,7 @@ fn image(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
 fn gain(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
     controls::card(ui, s, rect, Src::Key("libra.card.gain"), None, |ui, _| {
         controls::param(ui, s, host, "out", Size::M);
-        controls::param(ui, s, host, "tuner.ref", Size::M);
+        labelled(host, ui, s, "tuner.ref", "libra.l.tuner_a", None);
     });
 }
 
@@ -320,8 +361,12 @@ pub fn demo_feed(app: &mut CantusApp) {
             phase = (phase + f0 * vib / sr).fract();
             let x = (phase * std::f32::consts::TAU).sin();
             let voice = 0.3 * x + 0.12 * (2.0 * phase * std::f32::consts::TAU).sin();
-            l[i] = voice;
-            r[i] = voice * 0.8 + 0.05 * (t * 1_300.0).sin();
+            // The left microphone 0.6 ms further away: the same voice, later.
+            let late = (phase - f0 * 0.000_6).rem_euclid(1.0);
+            let far = 0.3 * (late * std::f32::consts::TAU).sin()
+                + 0.12 * (2.0 * late * std::f32::consts::TAU).sin();
+            l[i] = far * 0.9;
+            r[i] = voice * 0.8 + 0.02 * (t * 1_300.0).sin();
         }
         let dry = l.clone();
         d.process(&mut l, &mut r);

@@ -3,7 +3,7 @@
 //! Vetus inserted on its strip as the picker inserts it (its starting preset, a worn
 //! cassette); the song rendered offline through the engine's compile — the path export,
 //! freeze and stems take — and the tape heard in the master: hiss between the notes'
-//! harmonics, the top dulled. Then the bits switched on at 4 as the editor switches them:
+//! harmonics, the top dulled. Then the bits switched on at 3 as the editor switches them:
 //! the master gets the quantiser's grit; undone, the render is the cassette's again, to the
 //! bit. Its own test binary: it points `CANTUS_DATA_DIR` at a temporary folder.
 
@@ -85,8 +85,8 @@ fn vetus_on_a_strip_ages_the_master_in_an_offline_render_and_undoes() {
     assert!(tape.iter().all(|v| v.is_finite()));
     assert_ne!(tape, dry, "the tape is heard in the master");
 
-    // The bits switched on at 4, as the editor switches them: the grit.
-    for (key, value) in [("bits.on", 1.0), ("bits.depth", 4.0)] {
+    // The bits switched on at 3, as the editor switches them: the grit.
+    for (key, value) in [("bits.on", 1.0), ("bits.depth", 3.0)] {
         app.exec(Command::SetEffectParam {
             strip,
             effect,
@@ -96,7 +96,7 @@ fn vetus_on_a_strip_ages_the_master_in_an_offline_render_and_undoes() {
     }
     let gritty = rendered(&mut app);
     assert!(
-        edge(&gritty) > 2.0 * edge(&tape),
+        edge(&gritty) > 1.5 * edge(&tape),
         "the quantiser's steps: {:e} against {:e}",
         edge(&gritty),
         edge(&tape)

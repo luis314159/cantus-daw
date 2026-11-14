@@ -111,7 +111,10 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, look: &Look, groove: &Groove,
         sh,
         4.0 * unit,
         Fill::V(
-            with_alpha(rgb(paint::SHELL_LIGHT).lerp_to_gamma(rgb(paint::SHELL), 0.7), 0.86),
+            with_alpha(
+                rgb(paint::SHELL_LIGHT).lerp_to_gamma(rgb(paint::SHELL), 0.7),
+                0.86,
+            ),
             with_alpha(rgb(paint::SHELL), 0.84),
         ),
     );

@@ -109,7 +109,9 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("out", -2.9),
             ],
         ), // fx:vetus
-        K::Utility => Start::Neutral(Flat), // fx:contract (libra)
+        // fx:libra — a utility inserts as a wire: it corrects what the user asks for, and a
+        // starting preset would change a level or an image nobody asked to change.
+        K::Utility => Start::Neutral(Flat),
         K::Multiband => preset(
             "mb.preset.glue",
             &[

@@ -81,8 +81,71 @@ fn one(dir: &Path, state: &str, paper: bool, lang: cantus_ui::i18n::Locale, k: f
     println!("{}", path.display());
 }
 
+/// The frame budget (`VETUS_TIME=1`): the window's whole UI pass — layout, the cassette (or
+/// the record with `--record`), the spectrum (a new analysis each frame: 800 new samples on
+/// the tap), the cards — timed over 300 frames while playing, Slate at 100 %, with the
+/// tessellation; the GPU's work is not in it.
+fn time_frames() {
+    let ctx = context(false);
+    let mut app = app_with("playing");
+    views::fx::frame::shell_of(KIND).set_scale(&ctx, 1.0);
+    let size = views::fx::frame::designed_size(KIND);
+    let input = || egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+        ..Default::default()
+    };
+    for _ in 0..3 {
+        let mut out = ctx.run_ui(input(), |_| {});
+        out.textures_delta.clear();
+    }
+    let mut tel = app.fx.injected.unwrap_or([0.0; 64]);
+    let mut times = vec![];
+    let mut n = 0u32;
+    for i in 0..330 {
+        // A frame's worth of new sound on the tap, the record turned on, a tick now and then.
+        let pairs: Vec<f32> = (0..800)
+            .flat_map(|j| {
+                n = n.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let x = ((i * 800 + j) as f32 * 0.031).sin() * 0.3;
+                let y = x + (n >> 9) as f32 / (1u32 << 23) as f32 * 0.01;
+                [x, y]
+            })
+            .collect();
+        app.fx.feed(&pairs);
+        tel[cantus_dsp::vetus::t::TURN] = (i as f32 / 108.0).fract();
+        tel[cantus_dsp::vetus::t::CLICKS] = (i % 3) as f32;
+        tel[cantus_dsp::modfx_clock::tel::BLOCKS] = i as f32 + 1.0;
+        app.fx.injected = Some(tel);
+        let t = std::time::Instant::now();
+        let mut out = ctx.run_ui(input(), |root| {
+            let c = root.ctx().clone();
+            views::fx::window(&mut app, &c);
+        });
+        let _ = ctx.tessellate(std::mem::take(&mut out.shapes), out.pixels_per_point);
+        out.textures_delta.clear();
+        if i >= 30 {
+            times.push(t.elapsed().as_secs_f64() * 1e3);
+        }
+    }
+    times.sort_by(f64::total_cmp);
+    let mean = times.iter().sum::<f64>() / times.len() as f64;
+    println!(
+        "Vetus's window, playing: UI pass mean {mean:.2} ms, median {:.2} ms, 95th {:.2} ms, worst {:.2} ms (of 16.7 ms at 60 Hz)",
+        times[times.len() / 2],
+        times[times.len() * 95 / 100],
+        times[times.len() - 1]
+    );
+}
+
 fn main() {
     use cantus_ui::i18n::Locale;
+    if std::env::args().any(|a| a == "--record") {
+        views::fx::unit_view::set_view("vetus", "record");
+    }
+    if std::env::var_os("VETUS_TIME").is_some() {
+        time_frames();
+        return;
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let dir = args
         .first()

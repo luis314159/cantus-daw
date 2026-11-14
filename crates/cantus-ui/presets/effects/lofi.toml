@@ -6,7 +6,7 @@
 key = "preset.vetus.worn_cassette"
 note = "A worn cassette: wow and flutter, tape hiss, the tape's band, a little age — what the insert starts with."
 styles = ["lofi", "pop"]
-roles = ["creative", "keys", "bus"]
+roles = ["creative", "bus"]
 [preset.values]
 "age.drop" = 0.2
 "age.on" = 1
@@ -25,7 +25,7 @@ roles = ["creative", "keys", "bus"]
 key = "preset.vetus.lofi_hip_hop"
 note = "Lo-fi hip-hop keys: a warbling tape, vinyl dust that follows the music, the cassette's band, a little Character."
 styles = ["lofi", "jazz"]
-roles = ["keys", "pad"]
+roles = ["creative"]
 [preset.values]
 "age.drop" = 0.15
 "age.on" = 1
@@ -67,7 +67,7 @@ roles = ["drums"]
 key = "preset.vetus.eight_bit"
 note = "An 8-bit console: 8 bits at 11 kHz, raw — the grit and the aliasing."
 styles = ["house", "pop"]
-roles = ["lead", "pluck", "creative"]
+roles = ["creative"]
 [preset.values]
 "bits.depth" = 8
 "bits.on" = 1
@@ -79,7 +79,7 @@ roles = ["lead", "pluck", "creative"]
 key = "preset.vetus.crushed"
 note = "Crushed: 5 bits at 6 kHz, raw — destruction for a drum bus or an effect send."
 styles = ["trap", "house"]
-roles = ["drums", "fx"]
+roles = ["drums"]
 [preset.values]
 "bits.depth" = 5
 "bits.on" = 1
@@ -131,7 +131,7 @@ roles = ["vocal"]
 key = "preset.vetus.gramophone"
 note = "A gramophone: the horn's band and resonances, crackle and pops, a slow wow."
 styles = ["film", "jazz"]
-roles = ["vocal", "keys", "creative"]
+roles = ["vocal", "creative"]
 [preset.values]
 "crackle" = 0.6
 "flut" = 2
@@ -163,7 +163,7 @@ roles = ["bus", "master"]
 key = "preset.vetus.warped_tape"
 note = "A warped tape: deep wow on the bar, drifting, with flutter — a seasick pad."
 styles = ["ambient", "lofi"]
-roles = ["pad", "keys"]
+roles = ["creative"]
 [preset.values]
 "flut" = 8
 "out" = 0
@@ -177,7 +177,7 @@ roles = ["pad", "keys"]
 key = "preset.vetus.vhs"
 note = "A VHS soundtrack: a dull top, wavering speed, dropouts and tape hiss."
 styles = ["film", "ambient", "lofi"]
-roles = ["pad", "bus"]
+roles = ["bus"]
 [preset.values]
 "age.drop" = 0.5
 "age.on" = 1
@@ -198,7 +198,7 @@ roles = ["pad", "bus"]
 key = "preset.vetus.old_sampler"
 note = "An old sampler at 12 bits and 22 kHz, smoothed: its grain without the fold."
 styles = ["trap", "rnb", "lofi"]
-roles = ["drums", "keys", "pluck"]
+roles = ["drums"]
 [preset.values]
 "bits.depth" = 12
 "bits.on" = 1
@@ -237,7 +237,7 @@ roles = ["creative", "bus"]
 key = "preset.vetus.chiptune_bass"
 note = "A chiptune bass: 6 bits, truncated, at 16 kHz raw — buzzing, square-edged lows."
 styles = ["house", "trap"]
-roles = ["bass"]
+roles = ["creative"]
 [preset.values]
 "bits.depth" = 6
 "bits.mode" = 1

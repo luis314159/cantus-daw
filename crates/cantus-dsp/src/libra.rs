@@ -360,6 +360,15 @@ impl Libra {
     }
 }
 
+/// The tuner's reading of a frequency against the reference A (415 … 466 Hz): the MIDI note
+/// nearest and the cents off it (−50 … 50). The editor feeds it the streaming tracker's
+/// voiced frames (`pitch::PitchTracker`) of the output.
+pub fn tuner_reading(f0: f32, reference: f32) -> (i32, f32) {
+    let x = 69.0 + 12.0 * crate::math::log2(f0 / reference.clamp(415.0, 466.0));
+    let note = x.round();
+    (note as i32, (x - note) * 100.0)
+}
+
 #[cfg(test)]
 #[path = "libra_tests.rs"]
 mod tests;

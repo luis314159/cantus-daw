@@ -1,4 +1,130 @@
 # Libra utility: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's contract: none yet — libra's builder writes them here.
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.libra.mono_check"
+note = "Mono check: both channels summed, to hear how the mix folds down."
+styles = ["pop", "house"]
+roles = ["master", "bus"]
+[preset.values]
+"chan" = 2
+"out" = 0
+
+[[preset]]
+key = "preset.libra.flip_left"
+note = "The left channel's polarity flipped: a microphone wired backwards, or a check against its pair."
+styles = ["rock", "film"]
+roles = ["drums", "vocal"]
+[preset.values]
+"out" = 0
+"pol.l" = 1
+
+[[preset]]
+key = "preset.libra.flip_both"
+note = "Both channels' polarity flipped: against another track that cancels it."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"out" = 0
+"pol.l" = 1
+"pol.r" = 1
+
+[[preset]]
+key = "preset.libra.align_1ms"
+note = "The right 1 ms late: a second microphone about 34 cm further brought into line."
+styles = ["rock", "jazz"]
+roles = ["drums"]
+[preset.values]
+"delay.r" = 1.0
+"out" = 0
+
+[[preset]]
+key = "preset.libra.haas_wide"
+note = "The Haas trick: the right 12 ms late, a mono sound spread across without a chorus."
+styles = ["pop", "ambient"]
+roles = ["creative"]
+[preset.values]
+"delay.r" = 12.0
+"out" = 0
+
+[[preset]]
+key = "preset.libra.dc_clean"
+note = "DC removed: a recording with an offset centred again, nothing else touched."
+styles = ["film", "rock"]
+roles = ["vocal", "bus"]
+[preset.values]
+"dc" = 1
+"out" = 0
+
+[[preset]]
+key = "preset.libra.mid_only"
+note = "The mid alone: what both sides share, to hear the centre of a mix."
+styles = ["pop", "house"]
+roles = ["master"]
+[preset.values]
+"chan" = 5
+"out" = 0
+
+[[preset]]
+key = "preset.libra.side_only"
+note = "The side alone: what differs between the channels, to hear the width."
+styles = ["pop", "house"]
+roles = ["master"]
+[preset.values]
+"chan" = 6
+"out" = 0
+
+[[preset]]
+key = "preset.libra.swap"
+note = "Left and right swapped."
+styles = ["film", "pop"]
+roles = ["bus", "creative"]
+[preset.values]
+"chan" = 1
+"out" = 0
+
+[[preset]]
+key = "preset.libra.narrow"
+note = "Narrowed to half its width: a pad or an overhead that takes too much room."
+styles = ["pop", "rnb"]
+roles = ["drums"]
+[preset.values]
+"out" = 0
+"width" = 0.5
+
+[[preset]]
+key = "preset.libra.wider"
+note = "Half again as wide: more side, the centre untouched."
+styles = ["ambient", "pop"]
+roles = ["creative"]
+[preset.values]
+"out" = 0
+"width" = 1.5
+
+[[preset]]
+key = "preset.libra.pad_minus_12"
+note = "A 12 dB pad before a plug-in that wants a lower level."
+styles = ["rock", "trap"]
+roles = ["bus", "drums"]
+[preset.values]
+"out" = -12
+
+[[preset]]
+key = "preset.libra.left_to_both"
+note = "The left channel on both sides: a stereo recording with one good microphone."
+styles = ["film", "rock"]
+roles = ["vocal"]
+[preset.values]
+"chan" = 3
+"out" = 0
+
+[[preset]]
+key = "preset.libra.bass_mono"
+note = "Mono with the DC gone: a bass or a kick recorded in stereo, made one."
+styles = ["trap", "house"]
+roles = ["drums"]
+[preset.values]
+"chan" = 2
+"dc" = 1
+"out" = 0

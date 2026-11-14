@@ -1,7 +1,8 @@
 # ADR 0133 — Vetus and Libra, lo-fi and utility
 
-**Status:** proposed (fx side round, provisional number — renumbered at merge); Vetus's
-Phase A (DSP, engine, design sheet) waits for the owner's verdict, Libra not yet built ·
+**Status:** Vetus accepted (the owner approved its design v2, 2026-11-13: "síguele, se ve
+chido"); Libra proposed, its design sheet waiting for the owner (fx side round, provisional
+number — renumbered at merge) ·
 **Date:** 2026-11-13 · **Schema:** none of its own (the contract's 62 declared the kinds;
 Vetus's table is the kind's parameters, read with their defaults from older files) ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
@@ -75,6 +76,35 @@ Two new effect kinds: `EffectKind::LoFi` (Latin *vetus*, old), `fx::vetus`, and
     glide has landed, the lines, the hold and every filter are +0.0 (states under 1e-15 are
     flushed on the grid) — and the noise is off or follows a silent input. A noise that
     plays in silence is never at rest.
+
+11. **The editor** — a window of its own (1120 × 800 at 100 %): at the centre the object
+    that ages, **a cassette or an LP**, the user's choice (below); beside it *what comes out*
+    (the output's spectrum over the input's, the converter's Nyquist, the bits' noise floor
+    and the medium's band drawn and dragged there); *Character* a size up beside them, with
+    the year it takes the sound back to; the six modules as cards in the signal's order,
+    each card's lamp its switch. **A module's controls stay usable while it is off**
+    (dimmed, they respond: set a module up before hearing it — the owner's note;
+    `controls::card_lamp_live`). Turning the object back (dragging round it anticlockwise)
+    raises Character; a double-click makes it new.
+12. **Two objects, a view preference** (the owner's verdict on the design): *the cassette*
+    (the default — its reels turning with the song, wavering with the wow; a smoked shell
+    showing its tape; a level window holding the last second of the music, stepped by the
+    bits and faceted by the rate; the tape creased and the label faded with age; dust, a
+    spark at the head when a tick falls; the medium or the tape's type and the year printed
+    on the label) and *the LP* (its groove the music of its last three turns at 33⅓, off its
+    spindle with the wow, the strobe marks swaying, scratched, dusty, the hum's ripple, the
+    label dated). The choice is a **user preference per unit kind**, like a colourway (ADR
+    0130 §Colourways): `settings.json`'s `unit_views` (`{ "vetus": "record" }`), applied in
+    `CantusApp::assemble` and when it changes (`views::fx::unit_view`), chosen in the window's
+    ⋯ menu above the colourways; never in a song, never heard. The exported plug-in's window
+    keeps a choice for its session.
+13. **The face** comes in three colourways: **Cassette** (the face, the owner's choice: a
+    tape's glossy black lacquer, its label's red, the band a label's cream), **Sleeve** (a
+    record sleeve's light cream card, vermilion and teal) and **Walnut** (oiled walnut, brass
+    on a fluorescent display). Every display is dark in both themes; no vents (the owner).
+14. **Starting preset** (ADR 0071): *Worn cassette* — wow and flutter, tape hiss, the tape's
+    band, a little wear, at its fitted level. Fourteen factory presets by style and role.
+15. **Exported** as `Cantus Vetus` (CLAP/VST3), bit-identical to the engine's unit.
 
 ## Consequences
 

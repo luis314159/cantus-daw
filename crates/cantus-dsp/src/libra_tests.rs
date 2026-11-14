@@ -190,3 +190,61 @@ fn it_rests_after_a_silence_and_mute_glides() {
     }
     assert_eq!(u.rest_blocker(), None);
 }
+
+/// The tuner (the streaming tracker, then the reading) on what it will hear.
+fn tuned(x: &[f32], reference: f32) -> Vec<(i32, f32)> {
+    let mut tr = crate::pitch::PitchTracker::new(SR);
+    let mut out = Vec::new();
+    for v in x {
+        if let Some(f) = tr.push(*v) {
+            if f.voiced && f.f0 > 0.0 {
+                out.push(tuner_reading(f.f0, reference));
+            }
+        }
+    }
+    out
+}
+
+/// On a sine the tuner reads within ±1 cent, at 440 and at another A.
+#[test]
+fn the_tuner_reads_a_sine_within_one_cent() {
+    for (reference, hz, note, cents) in [
+        (440.0f32, 440.0f32, 69, 0.0f32),
+        (440.0, 440.0 * crate::math::exp2(13.0 / 1200.0), 69, 13.0),
+        (440.0, 110.0 * crate::math::exp2(-21.0 / 1200.0), 45, -21.0),
+        (
+            432.0,
+            432.0 * 1.5 * crate::math::exp2(-1.955 / 1200.0),
+            76,
+            0.0,
+        ),
+    ] {
+        let x: Vec<f32> = (0..48_000)
+            .map(|i| {
+                0.4 * crate::math::sin(
+                    std::f32::consts::TAU * ((f64::from(hz) * i as f64 / 48_000.0).fract() as f32),
+                )
+            })
+            .collect();
+        let r = tuned(&x, reference);
+        assert!(r.len() > 10, "voiced");
+        for (n, c) in &r[5..] {
+            assert_eq!(*n, note, "{hz} Hz against A = {reference}");
+            assert!((c - cents).abs() <= 1.0, "{hz} Hz: {c:.2} ct, want {cents}");
+        }
+    }
+}
+
+/// On a sung vowel (the pitch tests' synthetic voice) it reads within ±3 cents.
+#[test]
+fn the_tuner_reads_a_sung_note_within_three_cents() {
+    use crate::pitch::testkit::{voice, Vowel};
+    let hz = 220.0 * crate::math::exp2(7.0 / 1200.0);
+    let x = voice(SR, 1.0, Vowel::A, 0.5, move |_| hz);
+    let r = tuned(&x, 440.0);
+    assert!(r.len() > 10, "voiced");
+    for (n, c) in &r[5..] {
+        assert_eq!(*n, 57);
+        assert!((c - 7.0).abs() <= 3.0, "{c:.2} ct");
+    }
+}
