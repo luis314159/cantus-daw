@@ -197,12 +197,12 @@ pub const LAPSUS: Skin = Skin {
 };
 
 // fx:vetus — Vetus's face (ADR 0133, provisional) in three colourways (ADR 0130
-// §Colourways); the first, Sleeve, is its face. The record and the spectrum sit on a dark
-// display in every colourway and theme (the round's rule for displays); the record keeps its
-// own colours (`skin/records.rs`).
+// §Colourways); the first, Cassette, is its face (the owner's choice, 2026-11-13). The record,
+// the cassette and the spectrum sit on a dark display in every colourway and theme (the
+// round's rule for displays); the objects keep their own colours (`skin/records.rs`).
 
 /// Vetus's face apart from its colours: dials with printed scales, bat-handle toggles, a
-/// badge, screws and vents, wide spaced capitals — a hi-fi of the seventies.
+/// badge, screws, wide spaced capitals — a hi-fi deck of the seventies, without the vents.
 const fn vetus(
     key: &'static str,
     surface: Tint,
@@ -222,7 +222,7 @@ const fn vetus(
         switch: SwitchShape::Bat,
         lettering: Lettering {
             case: Case::Upper,
-            tracking: 0.14,
+            tracking: 0.12,
             weight: Weight::SemiBold,
             condensed: false,
             mono_values: true,
@@ -230,22 +230,43 @@ const fn vetus(
         plate: Plate::Badge,
         ornaments: Ornaments {
             screws: true,
-            vents: true,
+            vents: false,
             rules: false,
             rack_ears: false,
         },
     }
 }
 
-/// Vetus, lo-fi (*old*) — **Sleeve**, its face: a record sleeve's printed card in warm
-/// cream, the music vermilion on a dark phosphor screen, the medium's band teal. No other
-/// unit is vermilion on paper.
+/// Vetus, lo-fi (*old*) — **Cassette**, its face: a tape's glossy black shell, its label's
+/// red, the medium's band a label's cream, on a dark phosphor screen. Red near this hue is
+/// matte (Limiter) or vinyl covering (Delay): lacquer is free there.
 pub const VETUS: Skin = vetus(
     "fx.vetus",
     Tint {
-        hue: 36.0,
-        sat: 0.30,
-        amount: 0.55,
+        hue: 222.0,
+        sat: 0.06,
+        amount: 0.40,
+    },
+    Pair {
+        dark: chsl(354.0, 0.78, 0.62),
+        light: chsl(354.0, 0.72, 0.42),
+    },
+    Pair {
+        dark: chsl(44.0, 0.40, 0.82),
+        light: chsl(30.0, 0.45, 0.30),
+    },
+    Material::Lacquer,
+    Display::Phosphor,
+);
+
+/// Vetus in **Sleeve**: a record sleeve's card in a light, clean cream, the music vermilion,
+/// the band teal.
+pub const VETUS_SLEEVE: Skin = vetus(
+    "fx.vetus.sleeve",
+    Tint {
+        hue: 38.0,
+        sat: 0.22,
+        amount: 0.35,
     },
     Pair {
         dark: chsl(12.0, 0.82, 0.63),
@@ -280,42 +301,22 @@ pub const VETUS_WALNUT: Skin = vetus(
     Display::Vfd,
 );
 
-/// Vetus in **Cassette**: a tape's black shell, its label's red, the band amber.
-pub const VETUS_CASSETTE: Skin = vetus(
-    "fx.vetus.cassette",
-    Tint {
-        hue: 220.0,
-        sat: 0.08,
-        amount: 0.5,
-    },
-    Pair {
-        dark: chsl(356.0, 0.80, 0.62),
-        light: chsl(354.0, 0.75, 0.42),
-    },
-    Pair {
-        dark: chsl(40.0, 0.90, 0.62),
-        light: chsl(32.0, 0.80, 0.34),
-    },
-    Material::Matte,
-    Display::Scope,
-);
-
 /// Vetus's colourways, its face first.
 pub const VETUS_COLOURWAYS: [Colourway; 3] = [
     Colourway {
+        id: "cassette",
+        name_key: "vetus.colourway.cassette",
+        sheet: &VETUS,
+    },
+    Colourway {
         id: "sleeve",
         name_key: "vetus.colourway.sleeve",
-        sheet: &VETUS,
+        sheet: &VETUS_SLEEVE,
     },
     Colourway {
         id: "walnut",
         name_key: "vetus.colourway.walnut",
         sheet: &VETUS_WALNUT,
-    },
-    Colourway {
-        id: "cassette",
-        name_key: "vetus.colourway.cassette",
-        sheet: &VETUS_CASSETTE,
     },
 ]; // fx:vetus
 

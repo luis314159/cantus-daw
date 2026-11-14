@@ -222,6 +222,9 @@ pub struct Settings {
     /// id (`nocturne`); a unit not named wears its default (ADR 0130 §Colourways). A choice
     /// of how the windows look: never in a song, never heard.
     pub unit_colourways: std::collections::BTreeMap<String, String>,
+    /// fx:vetus — the view each unit kind shows, by unit (`vetus`) and view id (`cassette`);
+    /// a unit not named shows its default (ADR 0133). Never in a song, never heard.
+    pub unit_views: std::collections::BTreeMap<String, String>,
     /// Ableton Link, MIDI clock and time code, and what each MIDI port does (round 33,
     /// ADR 0078–0079; Settings ▸ MIDI). r33:sync
     pub sync: crate::views::transport::sync_service::SyncSettings,
@@ -370,6 +373,7 @@ impl Default for Settings {
             hosted_views: crate::hosted_view::ViewDefaults::default(),
             unit_faces: true,
             unit_colourways: std::collections::BTreeMap::new(), // fx:colourways
+            unit_views: std::collections::BTreeMap::new(),      // fx:vetus
             sync: Default::default(),                           // r33:sync
             mpe_ports: Vec::new(),                              // r33:mpe
             mpe_zones: cantus_core::model::note_expr::zones::MpeZones::standard(), // r33:mpe

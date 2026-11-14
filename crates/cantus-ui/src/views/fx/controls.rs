@@ -1079,6 +1079,24 @@ pub fn card_lamp<R>(
     card_full(ui, s, rect, title, on, None, body)
 }
 
+/// fx:vetus — [`card_lamp`] whose controls stay usable while its section is off: dimmed,
+/// but they respond, so a section is set up before it is switched on (the owner, ADR 0133).
+pub fn card_lamp_live<R>(
+    ui: &mut Ui,
+    s: &Style,
+    rect: Rect,
+    title: Src<'_>,
+    on: bool,
+    body: impl FnOnce(&mut Ui, &CardRects) -> R,
+) -> (R, bool, Option<Response>) {
+    card_full(ui, s, rect, title, Some(on), Some(LIVE), body)
+}
+
+/// fx:vetus — the opacity of a live section's controls while it is off.
+const LIVE_DIM: f32 = 0.55;
+/// fx:vetus — [`card_full`]'s marker for a live section (a display height no card asks).
+const LIVE: f32 = -1.0;
+
 /// The lamp of a [`card_lamp`] as the stepped parameter `key`'s control: its menu, its
 /// mapped mark, the learn mode. `true` while the learn mode has it: the caller then does
 /// not flip it.
@@ -1120,6 +1138,9 @@ fn card_full<R>(
     display: Option<f32>,
     body: impl FnOnce(&mut Ui, &CardRects) -> R,
 ) -> (R, bool, Option<Response>) {
+    // fx:vetus — a live section (`card_lamp_live`): no display, its controls dimmed.
+    let live = display == Some(LIVE);
+    let display = display.filter(|_| !live);
     let look = CardLook {
         title,
         switchable: on.is_some(),
@@ -1161,7 +1182,11 @@ fn card_full<R>(
         child.spacing_mut().item_spacing = gap;
     }
     if on == Some(false) {
-        child.disable();
+        if live {
+            child.multiply_opacity(LIVE_DIM); // fx:vetus
+        } else {
+            child.disable();
+        }
     }
     let r = body(&mut child, &rects);
     (r, clicked, lamp)

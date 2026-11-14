@@ -534,7 +534,8 @@ impl CantusApp {
         app.apply_unit_faces();
         // fx:colourways — and each unit kind its colourway (ADR 0130 §Colourways).
         app.apply_unit_colourways();
-        // The user's automatic crossfades (round 31, ADR 0070) on the bus.
+        app.apply_unit_views(); // fx:vetus
+                                // The user's automatic crossfades (round 31, ADR 0070) on the bus.
         app.apply_editing_settings();
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
         views::plugin_notice::apply_default(&mut app);
@@ -1192,6 +1193,25 @@ impl CantusApp {
             .unit_colourways
             .insert(unit.to_string(), id.to_string());
         self.apply_unit_colourways();
+        self.store_settings();
+    }
+
+    /// fx:vetus — the units' chosen views (ADR 0133), worn on the thread that draws.
+    pub fn apply_unit_views(&mut self) {
+        crate::views::fx::unit_view::set_views(
+            self.settings
+                .unit_views
+                .iter()
+                .map(|(u, id)| (u.as_str(), id.as_str())),
+        );
+    }
+
+    /// fx:vetus — choose `unit`'s view: kept in the settings and shown at once.
+    pub fn set_unit_view(&mut self, unit: &str, id: &str) {
+        self.settings
+            .unit_views
+            .insert(unit.to_string(), id.to_string());
+        self.apply_unit_views();
         self.store_settings();
     }
 

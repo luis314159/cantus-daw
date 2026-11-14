@@ -120,3 +120,25 @@ vetus.colourway.sleeve = Funda
 vetus.colourway.walnut = Nogal
 vetus.colourway.cassette = Casete
 vetus.speed = velocidad
+vetus.view = Objeto
+vetus.card.cassette = El casete
+vetus.tape_speed = 4,76 cm/s
+vetus.view.cassette = El casete
+vetus.view.record = El disco
+vetus.tape_type = Tipo I
+
+# Presets de fábrica.
+preset.vetus.worn_cassette = Casete gastado
+preset.vetus.lofi_hip_hop = Teclados lo-fi hip-hop
+preset.vetus.dusty_drums = Batería polvorienta
+preset.vetus.eight_bit = Consola de ocho bits
+preset.vetus.crushed = Triturado
+preset.vetus.am_radio = Radio AM
+preset.vetus.telephone = Llamada telefónica
+preset.vetus.gramophone = Gramófono
+preset.vetus.dusty_record = Disco polvoriento
+preset.vetus.warped_tape = Cinta deformada
+preset.vetus.vhs = Banda sonora VHS
+preset.vetus.old_sampler = Sampler antiguo
+preset.vetus.time_worn = Gastado por el tiempo
+preset.vetus.chiptune_bass = Bajo chiptune

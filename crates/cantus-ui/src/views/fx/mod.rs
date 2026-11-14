@@ -89,10 +89,11 @@ pub mod libra;
 /// The pedals' artwork: textures, illustrations, lettering. // fx:fragor
 pub mod pedal_art;
 pub mod pedal_draw;
+pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
 /// Vetus, lo-fi (fx side round). // fx:contract
-pub mod vetus;
+pub mod vetus; // fx:vetus — a unit's chosen drawing (Vetus's record or cassette)
 
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.
 pub const PAIRS: usize = 16_384;

@@ -91,6 +91,11 @@ impl Groove {
         self.last = Some(sig);
     }
 
+    /// The peaks, oldest first (a segment's each).
+    pub fn peaks(&self) -> &[f32] {
+        &self.peaks
+    }
+
     /// The groove as a playing engine would have cut it (pictures with no engine).
     pub fn seed(&mut self, out: &[f32]) {
         *self = Groove::default();
@@ -492,9 +497,19 @@ fn arm(b: &mut Brush, g: &Geo, look: &Look, k: f32) {
 /// The drag on the record: turning it back (anticlockwise) ages everything that is on.
 pub fn edit(host: &mut dyn FxHost, st: &mut State, ui: &egui::Ui, rect: Rect) {
     let g = geo(rect);
-    let disc = Rect::from_center_size(g.c, Vec2::splat(g.r * 2.0));
+    edit_at(host, st, ui, g.c, g.r * 1.05);
+}
+
+/// The turn-back drag round `c` within `reach` (the record's, or the cassette's window).
+pub fn edit_at(host: &mut dyn FxHost, st: &mut State, ui: &egui::Ui, c: Pos2, reach: f32) {
+    let g = Geo {
+        c,
+        r: reach / 1.05,
+        stylus: c,
+    };
+    let disc = Rect::from_center_size(g.c, Vec2::splat(reach * 2.0));
     let resp = ui.interact(disc, ui.id().with("vetus-record"), Sense::click_and_drag());
-    let inside = |p: Pos2| (p - g.c).length() <= g.r * 1.05;
+    let inside = |p: Pos2| (p - g.c).length() <= reach;
     if resp.double_clicked() && resp.interact_pointer_pos().is_some_and(inside) {
         host.set("char", 0.0, None);
         st.turning = None;

@@ -22,8 +22,23 @@ use cantus_dsp::modfx_clock::tel;
 use cantus_dsp::vetus::{t, VetusSettings};
 use egui::{pos2, vec2, Align2, Rect, Sense};
 
+#[path = "vetus_cassette.rs"]
+mod cassette;
 #[path = "vetus_modules.rs"]
 mod modules;
+
+/// The unit's name for its view preference (`settings.json`'s `unit_views`).
+pub const VIEW_UNIT: &str = "vetus";
+/// Its two objects: the cassette is the default (the owner's choice).
+pub const VIEWS: [(&str, &str); 2] = [
+    ("cassette", "vetus.view.cassette"),
+    ("record", "vetus.view.record"),
+];
+
+/// Whether the window shows the record (else the cassette).
+pub fn shows_record() -> bool {
+    super::unit_view::is(VIEW_UNIT, "record", VIEWS[0].0)
+}
 #[path = "vetus_record.rs"]
 mod record;
 #[path = "vetus_spectrum.rs"]
@@ -61,6 +76,8 @@ pub struct State {
     pub plot: Option<Rect>,
     /// A colourway chosen in the ⋯ menu this frame, for the host to keep.
     colourway: Option<&'static str>,
+    /// A view chosen in the ⋯ menu this frame, for the host to keep.
+    view: Option<&'static str>,
 }
 
 /// Vetus's editor in Cantus's own window: the host is the project.
@@ -85,6 +102,10 @@ pub fn framed(
             app.set_unit_colourway(name, id);
         }
     }
+    // The object chosen is the user's for every Vetus too.
+    if let Some(id) = st.view.take() {
+        app.set_unit_view(VIEW_UNIT, id);
+    }
     app.fx.vetus = st;
     out
 }
@@ -101,7 +122,19 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let ways = crate::kit::skin::colourways(unit);
     let wearing = crate::kit::skin::colourway_of(unit).map(|w| w.id);
     let dark = Style::current().t.dark;
-    let mut more: Vec<crate::kit::menu::Item<'_>> = Vec::with_capacity(ways.len() + 1);
+    let mut more: Vec<crate::kit::menu::Item<'_>> = Vec::with_capacity(ways.len() + 4);
+    // The object first (record or cassette), then the colourways.
+    more.push(crate::kit::menu::Item::Band(Src::Key("vetus.view")));
+    let record = shows_record();
+    for (id, key) in VIEWS {
+        more.push(crate::kit::menu::Item::Action {
+            label: Src::Key(key),
+            check: crate::kit::menu::Check::Radio((id == "record") == record),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        });
+    }
     if !ways.is_empty() {
         more.push(crate::kit::menu::Item::Band(Src::Key("vetus.colourway")));
     }
@@ -129,9 +162,19 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     });
     st.chrome = chrome;
     st.chips = chips;
-    if let Some(w) = out
+    // The rows: 0 the object's band, 1 … 2 the objects, 3 the colourways' band, then them.
+    if let Some(i) = out
         .more
         .and_then(|i| i.checked_sub(1))
+        .filter(|i| *i < VIEWS.len())
+    {
+        let id = VIEWS[i].0;
+        super::unit_view::set_view(VIEW_UNIT, id);
+        st.view = Some(id);
+    }
+    if let Some(w) = out
+        .more
+        .and_then(|i| i.checked_sub(VIEWS.len() + 2))
         .and_then(|i| ways.get(i))
     {
         if let Some(name) = crate::kit::skin::colourway_unit(unit) {
@@ -196,7 +239,11 @@ fn display(
         ui,
         s,
         rect,
-        Src::Key("vetus.card.record"),
+        Src::Key(if shows_record() {
+            "vetus.card.record"
+        } else {
+            "vetus.card.cassette"
+        }),
         None,
         |ui, cr| {
             let r = cr.body;
@@ -208,7 +255,12 @@ fn display(
             st.plot = Some(spectrum::map_of(spec, k).plot);
             st.groove.update(host.pairs());
             spectrum::update(&mut st.spectrum, host.pairs(), host.sample_rate());
-            record::edit(host, st, ui, rec);
+            if shows_record() {
+                record::edit(host, st, ui, rec);
+            } else {
+                let (c, reach) = cassette::grip(rec);
+                record::edit_at(host, st, ui, c, reach);
+            }
             spectrum::edit(host, &mut st.spectrum, ui, spectrum::map_of(spec, k), k);
             let cs = cantus_engine::fx::vetus::settings(host.spec());
             let look = record::Look::of(&cs, tel, live(tel));
@@ -216,7 +268,11 @@ fn display(
             let ink = super::canvas::Ink::of(s);
             with_brush(&ui.painter_at(r), |b| {
                 super::canvas::ground_b(b, r, &ink, s.hue_tok);
-                record::paint(b, rec, s, &look, &st.groove, k);
+                if shows_record() {
+                    record::paint(b, rec, s, &look, &st.groove, k);
+                } else {
+                    cassette::paint(b, rec, s, &look, &st.groove, k);
+                }
                 spectrum::paint(b, s, spec, &st.spectrum, &cs, sr, k);
                 // The seam between the turntable's well and the screen: a hairline.
                 b.vline(
@@ -236,8 +292,13 @@ fn display(
 /// The record's corner words: the speed and its deviation; the modules sounding.
 fn words(b: &mut crate::kit::Brush, s: &Style, r: Rect, look: &record::Look, k: f32) {
     let ink = super::canvas::Ink::of(s);
-    let mut w = String::from("33\u{2153} ");
-    w.push_str(frame::tr("vetus.rpm"));
+    let mut w = if shows_record() {
+        let mut w = String::from("33\u{2153} ");
+        w.push_str(frame::tr("vetus.rpm"));
+        w
+    } else {
+        String::from(frame::tr("vetus.tape_speed"))
+    };
     if look.s.wob_on && look.playing {
         w.push_str("  \u{b7}  ");
         w.push_str(frame::tr("vetus.speed"));

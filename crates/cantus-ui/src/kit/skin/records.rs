@@ -40,3 +40,18 @@ pub const ARM: Hsl = hsl(210.0, 0.06, 0.78);
 pub const ARM_DARK: Hsl = hsl(210.0, 0.06, 0.36);
 pub const ARM_SHADOW: Hsl = hsl(0.0, 0.0, 0.0);
 pub const CARTRIDGE: Hsl = hsl(8.0, 0.55, 0.38);
+
+// The cassette (the owner's second object, 2026-11-13).
+/// Its shell: black plastic, a lighter edge where the light catches it.
+pub const SHELL: Hsl = hsl(220.0, 0.06, 0.10);
+pub const SHELL_LIGHT: Hsl = hsl(220.0, 0.06, 0.30);
+pub const SCREW: Hsl = hsl(210.0, 0.05, 0.55);
+/// The window over the reels, smoked.
+pub const WINDOW: Hsl = hsl(220.0, 0.10, 0.06);
+/// The tape: brown oxide, its sheen.
+pub const TAPE: Hsl = hsl(22.0, 0.45, 0.22);
+pub const TAPE_SHINE: Hsl = hsl(26.0, 0.40, 0.42);
+/// The reels' white hubs, the capstan's steel, the pinch roller's rubber.
+pub const HUB: Hsl = hsl(40.0, 0.10, 0.86);
+pub const CAPSTAN: Hsl = hsl(210.0, 0.06, 0.72);
+pub const PINCH: Hsl = hsl(220.0, 0.05, 0.16);

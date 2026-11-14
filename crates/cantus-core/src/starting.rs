@@ -91,8 +91,24 @@ pub fn start_of(kind: EffectKind) -> Start {
             ],
         ),
         K::TimeShaper => Start::Neutral(Flat), // fx:contract (lapsus)
-        K::LoFi => Start::Neutral(Flat),       // fx:contract (vetus)
-        K::Utility => Start::Neutral(Flat),    // fx:contract (libra)
+        // fx:vetus — a worn cassette: wow and flutter, hiss, the tape's band, a little age.
+        K::LoFi => preset(
+            "preset.vetus.worn_cassette",
+            &[
+                ("wob.on", 1.0),
+                ("wow", 14.0),
+                ("flut", 5.0),
+                ("noise.on", 1.0),
+                ("crackle", 0.0),
+                ("hiss", 0.3),
+                ("tone.on", 1.0),
+                ("tone.hi", 10_000.0),
+                ("age.on", 1.0),
+                ("age.drop", 0.2),
+                ("age.wear", 0.3),
+            ],
+        ), // fx:vetus
+        K::Utility => Start::Neutral(Flat), // fx:contract (libra)
         K::Multiband => preset(
             "mb.preset.glue",
             &[

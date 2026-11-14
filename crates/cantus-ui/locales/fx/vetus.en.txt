@@ -120,3 +120,25 @@ vetus.colourway.sleeve = Sleeve
 vetus.colourway.walnut = Walnut
 vetus.colourway.cassette = Cassette
 vetus.speed = speed
+vetus.view = Object
+vetus.card.cassette = The cassette
+vetus.tape_speed = 4.76 cm/s
+vetus.view.cassette = The cassette
+vetus.view.record = The record
+vetus.tape_type = Type I
+
+# Factory presets.
+preset.vetus.worn_cassette = Worn cassette
+preset.vetus.lofi_hip_hop = Lo-fi hip-hop keys
+preset.vetus.dusty_drums = Dusty drums
+preset.vetus.eight_bit = Eight-bit console
+preset.vetus.crushed = Crushed
+preset.vetus.am_radio = AM radio
+preset.vetus.telephone = Telephone call
+preset.vetus.gramophone = Gramophone
+preset.vetus.dusty_record = Dusty record
+preset.vetus.warped_tape = Warped tape
+preset.vetus.vhs = VHS soundtrack
+preset.vetus.old_sampler = Old sampler
+preset.vetus.time_worn = Time-worn
+preset.vetus.chiptune_bass = Chiptune bass

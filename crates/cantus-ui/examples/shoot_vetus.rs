@@ -35,6 +35,8 @@ fn app_with(state: &str) -> CantusApp {
                 ("rate.filter", 1.0),
                 ("char", 0.6),
                 ("wow", 8.0),
+                // A module off: its card dimmed, its controls still answering.
+                ("age.on", 0.0),
             ],
             "cmd.fx_preset",
         );
@@ -94,13 +96,26 @@ fn main() {
         .collect();
     let scales = if scales.is_empty() { vec![1.0] } else { scales };
     std::fs::create_dir_all(&dir).expect("output dir");
+    // The object: the cassette unless `--record`.
+    let record = args.iter().any(|a| a == "--record");
+    if record {
+        views::fx::unit_view::set_view("vetus", "record");
+    }
+    let obj = if record { "record-" } else { "cassette-" };
     if args.iter().any(|a| a == "--colourways") {
         use cantus_ui::kit::skin;
         let unit = skin::Unit::Effect(KIND);
         for w in skin::colourways(unit) {
             skin::set_colourway("vetus", w.id);
             for (paper, lang) in [(false, Locale::En), (true, Locale::Es)] {
-                one(&dir, "playing", paper, lang, 1.0, &format!("{}-", w.id));
+                one(
+                    &dir,
+                    "playing",
+                    paper,
+                    lang,
+                    1.0,
+                    &format!("{obj}{}-", w.id),
+                );
             }
         }
         skin::set_colourways(std::iter::empty());
@@ -108,14 +123,14 @@ fn main() {
     }
     for state in ["rest", "playing"] {
         for (paper, lang) in [(false, Locale::En), (true, Locale::Es)] {
-            one(&dir, state, paper, lang, 1.0, "");
+            one(&dir, state, paper, lang, 1.0, obj);
         }
     }
     for &k in scales.iter().filter(|k| **k != 1.0) {
-        one(&dir, "playing", false, Locale::En, k, "");
+        one(&dir, "playing", false, Locale::En, k, obj);
     }
-    one(&dir, "telephone", false, Locale::En, 1.0, "");
-    one(&dir, "telephone", true, Locale::Es, 1.0, "");
+    one(&dir, "telephone", false, Locale::En, 1.0, obj);
+    one(&dir, "telephone", true, Locale::Es, 1.0, obj);
     for paper in [false, true] {
         cantus_ui::i18n::set_locale(Locale::En);
         let ctx = context(paper);
