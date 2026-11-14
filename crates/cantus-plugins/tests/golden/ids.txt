@@ -1356,3 +1356,13 @@ libra vst3 035BD1F420D8610699631CB5BC149313
 libra out 723138143
 libra cantus.sidechain 1368826709
 libra cantus.bypass 710603219
+lapsus tslot 1247311
+lapsus vslot 1057260845
+lapsus mix 1469012833
+lapsus xfade 1882707433
+lapsus smooth 24442543
+lapsus notes 58810058
+lapsus retrig 732878986
+lapsus tkey 339133402
+lapsus vkey 691688416
+lapsus ahead 1243899150

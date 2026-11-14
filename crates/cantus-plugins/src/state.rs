@@ -26,6 +26,25 @@ pub const VERSION: u32 = 1;
 /// The state of a plug-in whose values (one per parameter, the table's order) are
 /// `values`.
 pub fn save(table: &Table, values: &[f32]) -> Vec<u8> {
+    save_with_bank(table, values, None)
+}
+
+/// fx:lapsus — Lapsus's bank, if the plug-in holds one (`EffectSpec::lapsus`).
+pub fn load_bank(bytes: &[u8]) -> Option<Box<cantus_core::fx::lapsus::Bank>> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    let bank = value.get("lapsus")?.clone();
+    serde_json::from_value::<cantus_core::fx::lapsus::Bank>(bank)
+        .ok()
+        .filter(|b| !b.is_empty())
+        .map(Box::new)
+}
+
+/// [`save`], with Lapsus's bank beside the values (fx:lapsus).
+pub fn save_with_bank(
+    table: &Table,
+    values: &[f32],
+    lapsus: Option<&cantus_core::fx::lapsus::Bank>,
+) -> Vec<u8> {
     let sparse = table.kind.sparse();
     let mut params = BTreeMap::new();
     for p in &table.params[..table.spec_count] {
@@ -40,7 +59,7 @@ pub fn save(table: &Table, values: &[f32]) -> Vec<u8> {
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
         ir: None, // r39:conv
-        lapsus: None, // fx:lapsus (the bank: phase B)
+        lapsus: lapsus.map(|b| Box::new(b.clone())), // fx:lapsus
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,

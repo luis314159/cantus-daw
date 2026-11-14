@@ -690,7 +690,15 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
         // fx:contract — the side round's five: each builder writes its own settings line.
         EffectKind::AutoFilter => vec![("out", -6.0)], // fx:contract
         EffectKind::Pedal => vec![("out", -6.0)],      // fx:contract
-        EffectKind::TimeShaper => vec![("out", -6.0)], // fx:contract
+        // fx:lapsus — the roll build under a trance gate, mixed, long joins.
+        EffectKind::TimeShaper => vec![
+            ("tslot", 16.0),
+            ("vslot", 5.0),
+            ("mix", 0.8),
+            ("xfade", 4.0),
+            ("smooth", 3.0),
+            ("out", -3.0),
+        ],
         EffectKind::LoFi => vec![("out", -6.0)],       // fx:contract
         EffectKind::Utility => vec![("out", -6.0)],    // fx:contract
         _ => vec![],
@@ -834,9 +842,15 @@ impl Direct {
             EffectKind::Pedal => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Pedal, SR).unwrap())
             } // fx:contract
+            // fx:lapsus — the engine's unit with its history, as `EffectUnit::new` gives it.
             EffectKind::TimeShaper => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::TimeShaper, SR).unwrap())
-            } // fx:contract
+                let mut u = cantus_engine::fx::make(EffectKind::TimeShaper, SR).unwrap();
+                u.configure(spec);
+                if let Some(need) = u.memory_need() {
+                    drop(u.supply(cantus_engine::EffectMemory::build(need, SR)));
+                }
+                Direct::Stub(u)
+            }
             EffectKind::LoFi => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::LoFi, SR).unwrap())
             } // fx:contract
