@@ -161,7 +161,7 @@ impl Default for LoquaxSettings {
 const SNAP: f32 = 1e-6;
 /// While a tuning glide moves, the banks are retuned every this many samples (and once
 /// more where it lands).
-pub const RETUNE: u32 = 32;
+pub const RETUNE: u32 = 64;
 /// The carrier followers' times (attack 0: the normalised carrier never exceeds 1).
 const CARRIER_RELEASE_MS: f32 = 30.0;
 /// The level made up so the vocoded output is about the modulator's (flatten 1).

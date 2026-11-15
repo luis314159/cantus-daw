@@ -43,8 +43,13 @@ fn the_output_follows_the_voice_and_more_bands_carry_more() {
     let speech = phrase(SR, 6.0, 0.5);
     let notes = chord(&CHORD);
     let base = carrier_alone(speech.len());
-    let (base_ncm, base_corr) = (ncm(&speech, &base, SR), spectral_correlation(&speech, &base, SR));
-    eprintln!("carrier shaped by noise, not the voice: NCM {base_ncm:.3}, spectral r {base_corr:.3}");
+    let (base_ncm, base_corr) = (
+        ncm(&speech, &base, SR),
+        spectral_correlation(&speech, &base, SR),
+    );
+    eprintln!(
+        "carrier shaped by noise, not the voice: NCM {base_ncm:.3}, spectral r {base_corr:.3}"
+    );
     let mut last = 0.0;
     let mut scores = Vec::new();
     for &n in &[8usize, 16, 32, 64] {
@@ -53,7 +58,11 @@ fn the_output_follows_the_voice_and_more_bands_carry_more() {
         let corr = spectral_correlation(&speech, &l, SR);
         eprintln!(
             "{n:2} bands: NCM {score:.3} (octaves {}), spectral r {corr:.3}",
-            bands.iter().map(|r| format!("{r:.2}")).collect::<Vec<_>>().join(" ")
+            bands
+                .iter()
+                .map(|r| format!("{r:.2}"))
+                .collect::<Vec<_>>()
+                .join(" ")
         );
         scores.push((n, score, corr));
         assert!(score > base_ncm + 0.2, "{n}: {score} vs {base_ncm}");
@@ -86,8 +95,14 @@ fn the_consonants_come_through() {
     let (full, _) = vocoded(&on(32), &speech, &notes);
     let (bp, np) = ncm_bands(&speech, &plain, SR);
     let (bf, nf) = ncm_bands(&speech, &full, SR);
-    eprintln!("consonants off: NCM {np:.3}, 4 k {:.2}, 8 k {:.2}", bp[5], bp[6]);
-    eprintln!("consonants on:  NCM {nf:.3}, 4 k {:.2}, 8 k {:.2}", bf[5], bf[6]);
+    eprintln!(
+        "consonants off: NCM {np:.3}, 4 k {:.2}, 8 k {:.2}",
+        bp[5], bp[6]
+    );
+    eprintln!(
+        "consonants on:  NCM {nf:.3}, 4 k {:.2}, 8 k {:.2}",
+        bf[5], bf[6]
+    );
     assert!(bf[6] > bp[6] + 0.025, "8 kHz: {} vs {}", bf[6], bp[6]);
     assert!(bf[5] >= bp[5], "4 kHz: {} vs {}", bf[5], bp[5]);
     assert!(nf > np, "{nf} vs {np}");
@@ -146,7 +161,11 @@ fn a_formant_shift_moves_the_voice_and_not_the_notes() {
     let (up, _) = vocoded(&s, &vowel, &notes);
     s.formant = -7.0;
     let (down, _) = vocoded(&s, &vowel, &notes);
-    let (c0, cu, cd) = (centroid(&flat[24_000..]), centroid(&up[24_000..]), centroid(&down[24_000..]));
+    let (c0, cu, cd) = (
+        centroid(&flat[24_000..]),
+        centroid(&up[24_000..]),
+        centroid(&down[24_000..]),
+    );
     eprintln!("centroid: −7 st {cd:.0} Hz, 0 {c0:.0} Hz, +7 st {cu:.0} Hz");
     assert!(cu > c0 * 1.2 && cd < c0 / 1.2, "{cd} {c0} {cu}");
     // The pitch is the carrier's (A2, 110 Hz) whatever the formants do.
@@ -255,7 +274,13 @@ fn a_sidechain_carries_and_swap_trades_the_roles() {
     // The "pad" on the sidechain: the unit's own synthesiser rendered alone.
     let mut pad = carrier::Synth::new(SR);
     for &k in &CHORD {
-        pad.note(NoteKind::On { key: k, velocity: 0.8 }, true);
+        pad.note(
+            NoteKind::On {
+                key: k,
+                velocity: 0.8,
+            },
+            true,
+        );
     }
     let (pl, pr): (Vec<f32>, Vec<f32>) = (0..speech.len()).map(|_| pad.tick()).unzip();
     let mut s = on(32);
@@ -318,4 +343,36 @@ fn spread_sends_alternate_bands_left_and_right() {
     let (el, er) = (rms_db(&l[24_000..]), rms_db(&r[24_000..]));
     // The tone leaks into bands 5 and 7 (odd: right) well down.
     assert!(el > er + 12.0, "{el} {er}");
+}
+
+#[test]
+fn the_synthesiser_steals_the_oldest_voice_and_a_zero_velocity_releases() {
+    let mut s = carrier::Synth::new(SR);
+    for k in 40..60u8 {
+        s.note(
+            NoteKind::On {
+                key: k,
+                velocity: 0.7,
+            },
+            true,
+        );
+        s.tick();
+    }
+    assert_eq!(s.sounding(), carrier::MAX_VOICES);
+    // Velocity 0 is a release, as MIDI has it; the voice fades and ends.
+    for k in 40..60u8 {
+        s.note(
+            NoteKind::On {
+                key: k,
+                velocity: 0.0,
+            },
+            true,
+        );
+    }
+    assert!(!s.any_held());
+    for _ in 0..(SR as usize * 4) {
+        s.tick();
+    }
+    assert_eq!(s.sounding(), 0);
+    assert!(s.at_rest());
 }

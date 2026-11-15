@@ -78,8 +78,13 @@ pub struct NoteEvent {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum NoteKind {
     /// A key pressed, velocity 0 … 1 (0 is a release, as MIDI has it).
-    On { key: u8, velocity: f32 },
-    Off { key: u8 },
+    On {
+        key: u8,
+        velocity: f32,
+    },
+    Off {
+        key: u8,
+    },
     /// Every key released (the engine's panic, a transport stop).
     AllOff,
 }

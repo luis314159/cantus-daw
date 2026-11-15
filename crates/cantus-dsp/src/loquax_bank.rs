@@ -20,6 +20,9 @@
 //! state is flushed to +0.0 under 10⁻¹⁵ ([`crate::va::math::flush`]): after a silence the
 //! bank reaches +0.0 exactly (a new bank's state) in a few seconds at most.
 
+// The bands' loops index several parallel arrays (structure-of-arrays, vectorised).
+#![allow(clippy::needless_range_loop)]
+
 use crate::math;
 use crate::va::math::flush;
 
@@ -117,15 +120,15 @@ pub fn design(lo: f32, hi: f32, m: usize, sr: f32) -> BandDesign {
     let lo = f64::from(lo).clamp(1.0, hi * 0.999);
     // The centre (the edges' geometric mean) is kept exactly, and so is the width in
     // octaves: the digital edges are moved together, their ratio unchanged, until their
-    // warped geometric mean is the warped centre (Newton on ln tan; four steps reach f64's
-    // precision from the edges as given).
+    // warped geometric mean is the warped centre (Newton on ln tan: the edges as given are
+    // within cents, so two steps reach 10⁻¹⁰).
     let warp = |f: f64| math::tan(core::f64::consts::PI * f / sr64);
     let c = (lo * hi).sqrt();
     let ratio = hi / lo;
     let target = 2.0 * math::ln(warp(c));
     let k = core::f64::consts::PI / sr64;
     let mut x = lo;
-    for _ in 0..4 {
+    for _ in 0..2 {
         let f = math::ln(warp(x)) + math::ln(warp(ratio * x)) - target;
         let d = 2.0 * k / math::sin(2.0 * k * x) + 2.0 * k * ratio / math::sin(2.0 * k * ratio * x);
         x = (x - f / d).clamp(lo * 0.5, edge_max / ratio);
@@ -167,7 +170,10 @@ pub fn design(lo: f32, hi: f32, m: usize, sr: f32) -> BandDesign {
             // The normalised band-pass (w/Q)·s / (s² + (w/Q)·s + w²) at the centre s = i.
             let wq = w / q;
             let num = centre.scale(wq);
-            let den = centre.mul(centre).add(centre.scale(wq)).add(C::new(w * w, 0.0));
+            let den = centre
+                .mul(centre)
+                .add(centre.scale(wq))
+                .add(C::new(w * w, 0.0));
             gain = gain.mul(num.div(den));
             d.sections[found] = Section {
                 g: (w0 * w) as f32,
@@ -199,7 +205,14 @@ pub const MIN_BAND_HZ: f32 = 50.0;
 
 /// The bank's band edges: `n` centres from `lo` to `hi` Hz, each `width` spacings wide and
 /// at least `min_hz` wide. Returns (centre, low edge, high edge) for band `i`.
-pub fn layout_min(i: usize, n: usize, lo: f32, hi: f32, width: f32, min_hz: f32) -> (f32, f32, f32) {
+pub fn layout_min(
+    i: usize,
+    n: usize,
+    lo: f32,
+    hi: f32,
+    width: f32,
+    min_hz: f32,
+) -> (f32, f32, f32) {
     let n = n.clamp(MIN_BANDS, MAX_BANDS);
     let (lo, hi) = (lo.max(10.0), hi.max(lo * 1.5));
     let span = math::log2(hi / lo);

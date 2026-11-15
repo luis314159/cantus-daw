@@ -1,6 +1,6 @@
 //! Loquax: the null, the banks' response, block-size independence, rest.
 
-use super::bank::{design, layout, Bank, BandDesign, MAX_BANDS};
+use super::bank::{design, layout, BandDesign, Bank, MAX_BANDS};
 use super::measure::{phrase, response_db};
 use super::*;
 
@@ -109,7 +109,10 @@ fn the_defaults_touch_no_sample() {
     // A −0.0 passes as −0.0.
     let (mut l, mut r) = (vec![-0.0f32; 64], vec![-0.0f32; 64]);
     q.process(&mut l, &mut r, None, &[]);
-    assert!(l.iter().chain(&r).all(|x| x.to_bits() == (-0.0f32).to_bits()));
+    assert!(l
+        .iter()
+        .chain(&r)
+        .all(|x| x.to_bits() == (-0.0f32).to_bits()));
     assert_eq!(q.latency(), 0);
 }
 
@@ -165,7 +168,10 @@ fn every_band_is_the_butterworth_band_pass_it_was_designed_as() {
                     // Long enough for the narrowest band (64 bands, order 8, 96 kHz) to ring out.
                     let ir = band_ir(&d, m, 1 << 18);
                     let centre = response_db(&ir, d.centre, sr);
-                    assert!(centre.abs() < 0.02, "{sr} order {order} n {n} band {i}: {centre}");
+                    assert!(
+                        centre.abs() < 0.02,
+                        "{sr} order {order} n {n} band {i}: {centre}"
+                    );
                     assert!((d.hi / d.lo - hi / lo).abs() < 1e-4 * hi / lo);
                     assert!(d.lo <= lo * 1.0001 && d.lo > lo * 0.97, "{} {lo}", d.lo);
                     for &f in &[d.lo, d.hi] {
@@ -187,7 +193,10 @@ fn every_band_is_the_butterworth_band_pass_it_was_designed_as() {
                         if want > -60.0 {
                             worst = worst.max((got - want).abs());
                         }
-                        assert!((got - want).abs() < tol, "{sr} o{order} n{n} b{i} {f} Hz: {got} vs {want}");
+                        assert!(
+                            (got - want).abs() < tol,
+                            "{sr} o{order} n{n} b{i} {f} Hz: {got} vs {want}"
+                        );
                     }
                 }
             }
@@ -341,13 +350,8 @@ fn a_held_key_keeps_it_from_rest_and_starts_when_engaged() {
     s.synth.noise = 0.0;
     q.set(&s);
     // The voice says "aa": the held key's carrier is heard.
-    let voice = crate::pitch::testkit::voice(
-        SR,
-        0.5,
-        crate::pitch::testkit::Vowel::A,
-        0.5,
-        |_| 120.0,
-    );
+    let voice =
+        crate::pitch::testkit::voice(SR, 0.5, crate::pitch::testkit::Vowel::A, 0.5, |_| 120.0);
     let (mut l, mut r) = (voice.clone(), voice.clone());
     render(&mut q, &mut l, &mut r, None, &[], 256);
     assert_eq!(q.tel[t::VOICES], 1.0);
@@ -382,7 +386,11 @@ fn a_new_band_count_relayouts_and_the_view_names_every_band() {
         q.bands(&mut v);
         let want = n.clamp(8, 64);
         assert_eq!(v.bands, want);
-        assert!((v.analysis_hz[0] - 100.0).abs() < 1.0, "{}", v.analysis_hz[0]);
+        assert!(
+            (v.analysis_hz[0] - 100.0).abs() < 1.0,
+            "{}",
+            v.analysis_hz[0]
+        );
         let top = v.analysis_hz[want - 1];
         assert!((top - 8_000.0).abs() < 1.0, "{top}");
         assert!(v.analysis_hz[..want].windows(2).all(|w| w[1] > w[0]));

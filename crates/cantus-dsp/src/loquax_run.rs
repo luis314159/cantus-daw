@@ -1,5 +1,8 @@
 //! Loquax's sample loop and the banks' tuning (a child of [`super`]).
 
+// The bands' loops index several parallel arrays (structure-of-arrays, vectorised).
+#![allow(clippy::needless_range_loop)]
+
 use super::bank::{design, layout_min, BandDesign, CENTRE_MAX, MAX_BANDS, MIN_BAND_HZ};
 use super::carrier::NoteEvent;
 use super::{t, Loquax, Source, FLAT_CAP, FLAT_FLOOR, MAKEUP, NOISE_SEED, RETUNE};
@@ -35,7 +38,14 @@ impl Loquax {
             s.attack_ms.to_bits(),
             s.release_ms.to_bits(),
         ];
-        let key_s = [key_a[0], key_a[1], key_a[2], key_a[3], key_a[4], g.formant.value.to_bits()];
+        let key_s = [
+            key_a[0],
+            key_a[1],
+            key_a[2],
+            key_a[3],
+            key_a[4],
+            g.formant.value.to_bits(),
+        ];
         let (redo_a, redo_s) = (key_a != self.key_a, key_s != self.key_s);
         let mut da = [BandDesign::default(); MAX_BANDS];
         let mut ds = [BandDesign::default(); MAX_BANDS];
@@ -230,7 +240,8 @@ impl Loquax {
                 } else if self.robot_open && lvl < gate_off {
                     self.robot_open = false;
                 }
-                self.synth.drone(self.robot_open, s.robot_note.clamp(12.0, 108.0));
+                self.synth
+                    .drone(self.robot_open, s.robot_note.clamp(12.0, 108.0));
             }
             // The carrier.
             let (mut cl, mut cr) = if use_ext { ext } else { (0.0, 0.0) };

@@ -92,8 +92,7 @@ pub fn phrase(sr: f32, seconds: f32, peak: f32) -> Vec<f32> {
             let lift = if k == 0 { 12.0 } else { 0.0 };
             let f0 = move |t: f64| {
                 let tt = t0 + t as f32;
-                (135.0 - 4.0 * (tt % 8.0) + lift * (1.0 - (t as f32 / dur).min(1.0)))
-                    .max(70.0)
+                (135.0 - 4.0 * (tt % 8.0) + lift * (1.0 - (t as f32 / dur).min(1.0))).max(70.0)
             };
             let vow = voice(sr, dur, v, 0.9, f0);
             add_shaped(&mut out, &vow, at, sr, 0.02, 0.04);
@@ -168,7 +167,10 @@ pub fn band_energies(frames: &[Vec<f32>], sr: f32, bands: &[(f32, f32)]) -> Vec<
     bands
         .iter()
         .map(|&(lo, hi)| {
-            let (a, b) = ((lo / bin).ceil() as usize, ((hi / bin).floor() as usize).max(1));
+            let (a, b) = (
+                (lo / bin).ceil() as usize,
+                ((hi / bin).floor() as usize).max(1),
+            );
             frames
                 .iter()
                 .map(|f| {
