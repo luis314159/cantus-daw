@@ -7,13 +7,13 @@
 //!
 //! ```text
 //!        ┌──────────────────────────── dry ────────────────────────────────────────┐
-//!  in ─┬─ freeze gate ─ pre-delay ─ bloom taps ─ diffusers ─ tank ─ wet tone ─ width ─ duck ─ mix ─ out
+//!  in ─┬─ pre-delay ─ bloom taps ─ diffusers ─ freeze gate ─ tank ─ wet tone ─ width ─ duck ─ mix ─ out
 //!      │                                          (8 or 16 lines, ↺ shimmer)       │
 //!      └─ (or the sidechain key) ─ ducking detector ───────────────────────────────┘
 //! ```
 //!
-//! - The way in ([`input`]): the freeze gate, the pre-delay (ms; the engine converts a
-//!   synced value with [`sync_ms`]), the bloom, four modulated diffusers a side.
+//! - The way in ([`input`]): the pre-delay (ms; the engine converts a synced value with
+//!   [`sync_ms`]), the bloom, four modulated diffusers a side, the freeze gate.
 //! - The tank ([`tank`]): 8 or 16 modulated lines, an all-pass in each, the Hadamard
 //!   matrix, Jot's absorption in three bands (decay, high damping, low damping), infinite,
 //!   freeze, and the shimmer's exchange through the shifters ([`shift`]).

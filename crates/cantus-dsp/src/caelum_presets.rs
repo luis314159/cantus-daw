@@ -157,7 +157,8 @@ pub fn sub_cloud() -> CaelumSettings {
     }
 }
 
-/// Infinite, climbing for good: the octaves rise, the top fades, the energy stays.
+/// Infinite, climbing: the octaves keep rising and fade into the top; what does not
+/// climb is held.
 pub fn endless_ascent() -> CaelumSettings {
     CaelumSettings {
         size: 0.9,
@@ -263,7 +264,7 @@ pub fn factory() -> Vec<Preset> {
         p("Freeze Swell", "Endless and swelling; Freeze holds a chord.", freeze_swell()),
         p("Ducked Vocal Space", "Steps aside while the voice sings.", ducked_vocal()),
         p("Sub Cloud", "A dark cloud an octave below.", sub_cloud()),
-        p("Endless Ascent", "Infinite; the octaves climb, the energy stays.", endless_ascent()),
+        p("Endless Ascent", "Infinite; the octaves climb and fade into the top.", endless_ascent()),
         p("Glass Plate", "A bright small plate with a hint of shimmer.", glass_plate()),
         p("Fourth Rise", "A fourth and an octave above anything.", fourth_rise()),
         p("Black Sky", "A minute of dark space, no shimmer.", black_sky()),

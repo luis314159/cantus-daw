@@ -50,8 +50,7 @@ impl Default for SineTable {
 /// frequency counts down).
 pub fn phase_inc(hz: f64, sample_rate: f32) -> u32 {
     let turns = hz / sample_rate as f64;
-    let v = (turns - turns.floor()) * 4_294_967_296.0;
-    (v as u64 & 0xFFFF_FFFF) as u32
+    ((turns * 4_294_967_296.0).round() as i64) as u32
 }
 
 /// The TPT one-pole's coefficient for a corner at `hz`.

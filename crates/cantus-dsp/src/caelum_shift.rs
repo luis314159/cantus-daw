@@ -11,12 +11,18 @@
 //! oldest shifter there is — a delay line read by moving heads — made for diffuse feedback:
 //!
 //! - **Three heads**, a third of a turn apart, each reading the line at a delay that sweeps
-//!   once per grain (80 ms) — down for a shift up, up for a shift down — through a Hann
+//!   once per grain (120 ms) — down for a shift up, up for a shift down — through a Hann
 //!   window. Three Hann windows a third apart **sum to exactly one**, so a coherent signal
 //!   (a held chord) keeps its amplitude with no ripple; and **their squares sum to exactly
 //!   one half**, so a diffuse signal (where the heads read uncorrelated samples) keeps a
 //!   constant power with no ripple either. Two heads give one or the other, never both —
 //!   the flutter of cheap shimmers.
+//! - **Each grain starts at its own offset** (0 to 12 ms, drawn from the grain's number).
+//!   With evenly spaced heads, a pure tone's phase differs between neighbouring heads by
+//!   the same amount at every hand-over, so the resultant's phase turns steadily and the
+//!   tone comes out detuned — up to `1.5 / (G·|1 − r|)` Hz, 40 cents for an octave down
+//!   at 220 Hz. Drawn offsets make that turn random from one hand-over to the next: the
+//!   tone keeps its interval on average, its power spread a little around it.
 //! - **An energy normaliser** brings the output's power to the input's: the power of the
 //!   input read at the heads' mean delay against the power of what the heads made, over
 //!   150 ms, as a gain between ½ and 2 (√2 for a diffuse tail, where the three heads
@@ -30,9 +36,17 @@ use crate::math;
 use crate::rest::ZeroRun;
 
 /// The grain: one sweep of a head, ms.
-pub const GRAIN_MS: f32 = 80.0;
+pub const GRAIN_MS: f32 = 120.0;
 /// The heads' phases, a third of a turn apart.
 const OFFSETS: [u32; 3] = [0, 1_431_655_765, 2_863_311_531];
+/// The most a grain's start is moved, ms (each grain's own, drawn from its number).
+pub const JITTER_MS: f32 = 12.0;
+
+/// A grain's offset, 0…1, from its number and its head.
+fn draw(epoch: u32, head: u32) -> f32 {
+    crate::spatium::model::hash01(epoch, 0x51A7 ^ head.wrapping_mul(0x9E37))
+}
+
 /// The normaliser's gain range.
 pub const NORM_MIN: f32 = 0.5;
 pub const NORM_MAX: f32 = 2.0;
@@ -45,8 +59,14 @@ pub struct Shifter {
     pub buf: Vec<f32>,
     mask: usize,
     w: usize,
-    phase: u32,
-    inc: u32,
+    /// The heads' phase: the low 32 bits a turn, the high ones the count of turns (each
+    /// head's grain number, which draws its offset).
+    phase: u64,
+    inc: u64,
+    /// The heads' delay offsets for their current grains, and the grain each was drawn for.
+    base: [f32; 3],
+    epoch: [u32; 3],
+    jitter: f32,
     grain: f32,
     /// The normaliser's two powers: the input at the heads' mean delay, and the heads' sum.
     pub p_in: f32,
@@ -67,13 +87,16 @@ impl Shifter {
     /// A shifter whose heads start at `origin` (2³² a turn).
     pub fn with_origin(sample_rate: f32, origin: u32) -> Self {
         let grain = (GRAIN_MS * 0.001 * sample_rate).round();
-        let size = (grain as usize + 8).next_power_of_two();
+        let size = (grain as usize + (JITTER_MS * 0.001 * sample_rate) as usize + 8).next_power_of_two();
         Shifter {
             buf: vec![0.0; size],
             mask: size - 1,
             w: 0,
-            phase: origin,
+            phase: origin as u64,
             inc: 0,
+            base: [0.0; 3],
+            epoch: [u32::MAX; 3],
+            jitter: (JITTER_MS * 0.001 * sample_rate).round(),
             grain,
             p_in: 0.0,
             p_out: 0.0,
@@ -95,8 +118,8 @@ impl Shifter {
         self.ratio = r;
         // The delay moves by (1 − r) samples a sample: (1 − r) / grain turns of the phase.
         let turns = (1.0 - r as f64) / self.grain as f64;
-        let v = (turns - turns.floor()) * 4_294_967_296.0;
-        self.inc = (v as u64 & 0xFFFF_FFFF) as u32;
+        // Signed, in 2³² a turn, sign-extended: a shift up counts the turns down.
+        self.inc = ((turns * 4_294_967_296.0).round() as i64) as u64;
     }
 
     pub fn ratio(&self) -> f32 {
@@ -105,7 +128,7 @@ impl Shifter {
 
     /// The heads' mean delay, samples: what the shimmer adds to a pass of the loop.
     pub fn mean_delay(&self) -> f32 {
-        1.0 + 0.5 * self.grain
+        1.0 + 0.5 * self.grain + 0.5 * self.jitter
     }
 
     /// The normaliser's gain now.
@@ -124,10 +147,19 @@ impl Shifter {
         let w = self.w;
         self.buf[w] = x;
         let mut y = 0.0f32;
-        for off in OFFSETS {
-            let ph = self.phase.wrapping_add(off);
+        for (k, off) in OFFSETS.iter().enumerate() {
+            let p = self.phase.wrapping_add(*off as u64);
+            let ph = p as u32;
+            let epoch = (p >> 32) as u32;
+            if epoch != self.epoch[k] {
+                // A new grain (its window is at zero): a new offset, drawn from its number.
+                self.epoch[k] = epoch;
+                // Whole samples: the interpolation loses what it loses at the same fraction
+                // in every grain.
+                self.base[k] = (self.jitter * draw(epoch, (k as u32).wrapping_add(self.origin))).floor();
+            }
             let win = (1.0 - t.cos(ph)) * (1.0 / 3.0);
-            let d = 1.0 + self.grain * (ph as f32 * (1.0 / 4_294_967_296.0));
+            let d = 1.0 + self.base[k] + self.grain * (ph as f32 * (1.0 / 4_294_967_296.0));
             let n = d as usize;
             let f = d - n as f32;
             let a = self.buf[w.wrapping_sub(n) & mask];
@@ -165,7 +197,7 @@ impl Shifter {
     /// ticks would move them.
     pub fn skip(&mut self, n: usize) {
         self.w = (self.w + n) & self.mask;
-        self.phase = self.phase.wrapping_add(self.inc.wrapping_mul(n as u32));
+        self.phase = self.phase.wrapping_add(self.inc.wrapping_mul(n as u64));
     }
 
     /// Everything cleared but the count (the phase and the write position, which a new
@@ -181,7 +213,9 @@ impl Shifter {
     pub fn reset(&mut self) {
         self.clear();
         self.w = 0;
-        self.phase = self.origin;
+        self.phase = self.origin as u64;
+        self.epoch = [u32::MAX; 3];
+        self.base = [0.0; 3];
     }
 }
 
@@ -221,22 +255,38 @@ mod tests {
         ((acc / sum) as f32, (near / sum) as f32)
     }
 
+    /// A pure tone through the heads: its pitch moves by the interval. A delay-line
+    /// shifter cannot be exact on a pure tone — as the windows hand over from one head to
+    /// the next, the resultant's phase turns by what the input's phase differs between
+    /// them, `f·G/3` — so the tone's centre is off by up to `1.5 / (G·|1 − r|)` Hz
+    /// (12.5 Hz at 120 ms for an octave up) and its power spreads into sidebands at the
+    /// heads' rate. Measured and held here; a reverb's tail, which has no phase for the
+    /// heads to share, is not detuned (`the_shimmer_moves_a_tail_by_its_interval`).
     #[test]
-    fn an_octave_up_doubles_the_frequency() {
+    fn a_tone_moves_by_its_interval() {
         let t = SineTable::new();
-        for (st, want) in [(12.0f32, 880.0f32), (7.0, 659.26), (-12.0, 220.0), (5.0, 587.33)] {
-            let mut s = Shifter::new(FS);
-            s.set_semitones(st);
-            let x = sine(440.0, 48_000);
-            let y: Vec<f32> = x.iter().map(|v| s.tick(*v, &t)).collect();
-            let (got, share) = centroid(&y[12_000..24_000], want * 0.8, want * 1.25, want);
-            let cents = 1200.0 * math::log2(got / want);
-            eprintln!(
-                "{st:+} st: centre {got:.1} Hz for {want:.1} ({cents:+.1} cents), {:.0} % within 25 cents",
-                share * 100.0
-            );
-            assert!(cents.abs() < 10.0, "{st}: {got} Hz");
+        let mut worst_cents = 0.0f32;
+        let mut worst_share = 1.0f32;
+        for (st, ratio) in [(12.0f32, 2.0f32), (7.0, 1.498_307), (-12.0, 0.5), (5.0, 1.334_84)] {
+            for f in [220.0f32, 440.0, 523.25, 1_000.0] {
+                let mut s = Shifter::new(FS);
+                s.set_semitones(st);
+                let x = sine(f, 36_000);
+                let y: Vec<f32> = x.iter().map(|v| s.tick(*v, &t)).collect();
+                let want = f * ratio;
+                let (got, share) = centroid(&y[12_000..24_000], want * 0.8, want * 1.25, want);
+                let cents = 1200.0 * math::log2(got / want);
+                eprintln!(
+                    "{st:+} st on {f} Hz: centre {got:.1} Hz for {want:.1} ({cents:+.1} cents), {:.0} % within 25 cents",
+                    share * 100.0
+                );
+                worst_cents = worst_cents.max(cents.abs());
+                worst_share = worst_share.min(share);
+            }
         }
+        eprintln!("worst: {worst_cents:.1} cents off, {:.0} % within 25 cents", worst_share * 100.0);
+        assert!(worst_cents < 50.0);
+        assert!(worst_share > 0.5);
     }
 
     /// Noise in: the power out equals the power in within 0.3 dB, with no ripple at the

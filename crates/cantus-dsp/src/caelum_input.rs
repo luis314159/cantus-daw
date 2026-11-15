@@ -1,4 +1,4 @@
-//! Caelum's way in: the freeze gate, the pre-delay, the **bloom** and the input diffusers.
+//! Caelum's way in: the pre-delay, the **bloom**, the input diffusers and the freeze gate.
 //!
 //! ## Bloom
 //!
@@ -206,8 +206,8 @@ impl InputStage {
         let g = self.in_gain;
         let w = self.w;
         // `+ 0.0`: a −0.0 in is written as +0.0 (ADR 0031 §5.1).
-        self.buf[0][w] = l * g + 0.0;
-        self.buf[1][w] = r * g + 0.0;
+        self.buf[0][w] = l + 0.0;
+        self.buf[1][w] = r + 0.0;
         glide(&mut self.predelay, self.predelay_target, kt, 1e-3);
         glide(&mut self.bloom, self.bloom_target, kg * 0.25, 1e-6);
         glide(&mut self.bloom_t, self.bloom_t_target, kt, 1e-3);
@@ -243,6 +243,12 @@ impl InputStage {
             x[side] = v;
         }
         self.w = (w + 1) & self.mask;
+        // The freeze gate, at the tank's door: what is on its way stays on its way (the
+        // pre-delay and the bloom keep listening), and nothing reaches a frozen tank.
+        if g != 1.0 {
+            x[0] *= g;
+            x[1] *= g;
+        }
         (x[0], x[1])
     }
 
