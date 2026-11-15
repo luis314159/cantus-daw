@@ -25,7 +25,11 @@ fn take() -> Vec<f32> {
             s = s.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             let n = ((s >> 8) as f32 / (1u32 << 23) as f32 - 1.0) * 0.02;
             let t = i as f32 / 48_000.0;
-            let env = if (12_000..30_000).contains(&i) { 0.4 } else { 0.0 };
+            let env = if (12_000..30_000).contains(&i) {
+                0.4
+            } else {
+                0.0
+            };
             n + env * math::sin(std::f32::consts::TAU * 330.0 * t)
         })
         .collect()

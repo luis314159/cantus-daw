@@ -141,7 +141,10 @@ fn a_module_at_mix_zero_hands_its_input_on_to_the_bit() {
     assert_eq!(bits(&l[lat..]), bits(&x[..x.len() - lat]));
     // Both at mix 0, the de-reverb at amount 0 too.
     let s = PurusSettings {
-        hum: HumSettings { mix: 0.0, ..hum_on() },
+        hum: HumSettings {
+            mix: 0.0,
+            ..hum_on()
+        },
         verb: VerbSettings {
             mix: 0.0,
             amount_db: 0.0,
@@ -209,7 +212,11 @@ fn the_delta_is_the_input_delayed_minus_the_output_to_the_bit() {
         for i in lat..x.len() {
             let xd = x[i - lat];
             // The output is the chain times the unit's level: undo it to compare.
-            let (yl0, yr0) = if g == 1.0 { (yl[i], yr[i]) } else { (yl[i] / g, yr[i] / g) };
+            let (yl0, yr0) = if g == 1.0 {
+                (yl[i], yr[i])
+            } else {
+                (yl[i] / g, yr[i] / g)
+            };
             let want_l = if g == 1.0 { xd - yl0 } else { (xd - yl0) * g };
             let want_r = if g == 1.0 { xd - yr0 } else { (xd - yr0) * g };
             if g == 1.0 {
@@ -241,7 +248,11 @@ fn one_modules_delta_is_what_that_module_takes_out() {
     };
     let (h, _) = run(&only_hum, &x, 64);
     for i in lat..x.len() {
-        assert_eq!(d[i].to_bits(), (x[i - lat] - h[i - lat]).to_bits(), "at {i}");
+        assert_eq!(
+            d[i].to_bits(),
+            (x[i - lat] - h[i - lat]).to_bits(),
+            "at {i}"
+        );
     }
     // The de-reverb's: the hum's output (delayed) minus the whole output.
     let mut s = both;
@@ -302,7 +313,10 @@ fn it_comes_to_rest_exactly_and_its_twins_agree() {
             if a.at_rest() {
                 // The drain cuts nothing that sounds: the sample it came on is silent.
                 let m = l[l.len() - 1].abs();
-                assert!(m < 1e-9, "{s:?}: loud at the drain: {m} after {blocks} blocks");
+                assert!(
+                    m < 1e-9,
+                    "{s:?}: loud at the drain: {m} after {blocks} blocks"
+                );
             }
         }
         assert!(b.at_rest());

@@ -118,7 +118,9 @@ impl VerbSettings {
 pub fn size_for(sample_rate: f32) -> usize {
     let r = (sample_rate / 48_000.0).max(1e-3);
     let oct = math::log2(r).round() as i32;
-    (1024.0 * math::exp2(oct as f32)).round().clamp(256.0, 4096.0) as usize
+    (1024.0 * math::exp2(oct as f32))
+        .round()
+        .clamp(256.0, 4096.0) as usize
 }
 
 /// The module's latency at a sample rate, samples.

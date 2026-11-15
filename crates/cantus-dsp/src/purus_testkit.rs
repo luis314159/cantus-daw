@@ -42,7 +42,9 @@ pub fn hum(
 ) -> Vec<f32> {
     let n = (seconds as f64 * sr as f64) as usize;
     let mut rng = Noise::new(seed);
-    let ph: Vec<f64> = (0..24).map(|_| rng.next() as f64 * std::f64::consts::PI).collect();
+    let ph: Vec<f64> = (0..24)
+        .map(|_| rng.next() as f64 * std::f64::consts::PI)
+        .collect();
     let mut theta = 0.0f64;
     let mut out = Vec::with_capacity(n);
     for i in 0..n {
@@ -137,7 +139,8 @@ pub fn room(sr: f32, t60: f32, drr_db: f32, keep_ms: f32, seed: u32) -> (Vec<f32
     let late = (keep_ms * 0.001 * sr) as usize;
     // Early reflections: six taps, falling, alternating in sign.
     for j in 0..6 {
-        let at = onset + ((late - onset) as f32 * (j as f32 + 0.5 + 0.3 * rng.next()) / 6.0) as usize;
+        let at =
+            onset + ((late - onset) as f32 * (j as f32 + 0.5 + 0.3 * rng.next()) / 6.0) as usize;
         let t = at as f64 / sr as f64;
         let s = if j % 2 == 0 { 1.0 } else { -1.0 };
         h[at] += (s * 0.5 * math::exp(-delta * t)) as f32;
@@ -210,7 +213,11 @@ pub fn db(x: f64) -> f64 {
 
 /// The least-squares gain of `x` onto `target`: `<x, t> / <t, t>`.
 pub fn projection(x: &[f32], target: &[f32]) -> f64 {
-    let xt: f64 = x.iter().zip(target).map(|(a, b)| *a as f64 * *b as f64).sum();
+    let xt: f64 = x
+        .iter()
+        .zip(target)
+        .map(|(a, b)| *a as f64 * *b as f64)
+        .sum();
     xt / energy(target).max(1e-30)
 }
 
@@ -265,4 +272,36 @@ pub fn render(
         i = e;
     }
     (l, r)
+}
+
+/// The hum generator's running phase (radians, unwrapped by whole turns of 1000), sample
+/// by sample, for `f0(t)`.
+pub fn hum_phase(sr: f32, n: usize, f0: impl Fn(f64) -> f64) -> Vec<f64> {
+    let mut theta = 0.0f64;
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / sr as f64;
+            let v = theta;
+            theta += TAU * f0(t) / sr as f64;
+            if theta > TAU * 1000.0 {
+                theta -= TAU * 1000.0;
+            }
+            v
+        })
+        .collect()
+}
+
+/// Harmonic `k`'s amplitude in `x`, following the phase `theta` (a drifting hum's), over a
+/// Hann window: what is left of that harmonic, however it moved.
+pub fn level_following(x: &[f32], theta: &[f64], k: usize) -> f64 {
+    let n = x.len().min(theta.len());
+    let (mut re, mut im, mut wsum) = (0.0f64, 0.0f64, 0.0f64);
+    for i in 0..n {
+        let w = 0.5 - 0.5 * math::cos(TAU * i as f64 / n as f64);
+        let (s, c) = math::sin_cos(k as f64 * theta[i]);
+        re += w * x[i] as f64 * c;
+        im -= w * x[i] as f64 * s;
+        wsum += w;
+    }
+    2.0 * (re * re + im * im).sqrt() / wsum
 }

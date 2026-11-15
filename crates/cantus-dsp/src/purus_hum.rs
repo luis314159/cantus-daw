@@ -143,13 +143,6 @@ impl C {
     fn norm2(self) -> f64 {
         self.re * self.re + self.im * self.im
     }
-    #[inline]
-    fn sub(self, o: C) -> C {
-        C {
-            re: self.re - o.re,
-            im: self.im - o.im,
-        }
-    }
 }
 
 /// A notch's coefficients (normalised by `a0`).
@@ -182,16 +175,30 @@ struct Lane {
     /// Notch sections (transposed direct form II).
     s1: [f64; MAX_HARMONICS],
     s2: [f64; MAX_HARMONICS],
-    /// Gentle: the learned hum, the band's short-term amplitude (two poles), its long-term
-    /// one, whether learning is held and for how many more samples.
+    /// Gentle: the hum learned (each harmonic's complex amplitude), the same smoothed (two
+    /// poles), and two snapshots of that (20–40 ms old, to unlearn a note's first
+    /// milliseconds).
     est: [C; MAX_HARMONICS],
-    fast1: [C; MAX_HARMONICS],
-    fast2: [C; MAX_HARMONICS],
-    slow: [C; MAX_HARMONICS],
+    s_a: [C; MAX_HARMONICS],
+    s_b: [C; MAX_HARMONICS],
+    back_a: [C; MAX_HARMONICS],
+    back_b: [C; MAX_HARMONICS],
+    /// What the hum learned does not explain, in each harmonic's band (three poles).
+    e1: [C; MAX_HARMONICS],
+    e2: [C; MAX_HARMONICS],
+    e3: [C; MAX_HARMONICS],
+    /// Whether learning is held, for how many more samples, how long the band has been
+    /// busy without a break.
     held: [bool; MAX_HARMONICS],
+    /// The band's usual remainder, and whether learning was held in this snapshot period.
+    floor: [f64; MAX_HARMONICS],
+    dirty: [bool; MAX_HARMONICS],
     hold_left: [u32; MAX_HARMONICS],
-    /// Samples since this lane first heard something (to seed the long-term estimate).
+    busy_run: [u32; MAX_HARMONICS],
+    /// Samples since this lane first heard something (it learns freely at first), and the
+    /// snapshots' count.
     heard: u32,
+    snap: u32,
 }
 
 /// The de-hum module.
@@ -202,6 +209,8 @@ pub struct Dehum {
     /// The nominal the tracker centres on, and the fundamental now.
     nominal: f64,
     f0: f64,
+    /// The loop's rate of change of the fundamental, Hz per grid step.
+    rate: f64,
     /// The reference: `e^{jθ}` at the fundamental, and its step.
     z1: C,
     step: C,
@@ -209,11 +218,13 @@ pub struct Dehum {
     za: C,
     step_a: C,
     /// The tracker's demodulators (two poles), last look, and Auto's.
-    q1: [C; TRACK_HARMONICS],
-    q2: [C; TRACK_HARMONICS],
-    q_prev: [C; TRACK_HARMONICS],
+    q1: [C; MAX_HARMONICS],
+    q2: [C; MAX_HARMONICS],
+    q3: [C; MAX_HARMONICS],
+    q_prev: [C; MAX_HARMONICS],
     qa1: [C; AUTO_HARMONICS],
     qa2: [C; AUTO_HARMONICS],
+    qa3: [C; AUTO_HARMONICS],
     auto_votes: u32,
     auto_looks: u32,
     /// Grid position (samples since the last look).
@@ -224,24 +235,39 @@ pub struct Dehum {
     width: f64,
     coef: [Coef; MAX_HARMONICS],
     lanes: [Lane; 2],
+    /// Per-sample constants: the demodulators' and the gate's one-pole steps, the
+    /// canceller's rate (from the width now), and the gentle mode's lengths in samples.
+    cd: f64,
+    cg: f64,
+    c_up: f64,
+    c_down: f64,
+    mu: f64,
+    learn_len: u32,
+    hold_len: u32,
+    escape_len: u32,
+    snap_len: u32,
 }
 
 impl Dehum {
     pub fn new(sample_rate: f32) -> Self {
+        let fs = sample_rate as f64;
         let mut d = Dehum {
-            fs: sample_rate as f64,
+            fs,
             s: HumSettings::default(),
             nominal: 50.0,
             f0: 50.0,
+            rate: 0.0,
             z1: C::ONE,
             step: C::ONE,
             za: C::ONE,
             step_a: C::ONE,
-            q1: [C::ZERO; TRACK_HARMONICS],
-            q2: [C::ZERO; TRACK_HARMONICS],
-            q_prev: [C::ZERO; TRACK_HARMONICS],
+            q1: [C::ZERO; MAX_HARMONICS],
+            q2: [C::ZERO; MAX_HARMONICS],
+            q3: [C::ZERO; MAX_HARMONICS],
+            q_prev: [C::ZERO; MAX_HARMONICS],
             qa1: [C::ZERO; AUTO_HARMONICS],
             qa2: [C::ZERO; AUTO_HARMONICS],
+            qa3: [C::ZERO; AUTO_HARMONICS],
             auto_votes: 0,
             auto_looks: 0,
             tick: 0,
@@ -249,24 +275,47 @@ impl Dehum {
             width: 2.0,
             coef: [Coef::default(); MAX_HARMONICS],
             lanes: [Lane::default(), Lane::default()],
+            cd: 1.0 - math::exp(-2.0 * std::f64::consts::PI * DEMOD_HZ / fs),
+            cg: 1.0 - math::exp(-2.0 * std::f64::consts::PI * GATE_HZ / fs),
+            c_up: 1.0 - math::exp(-1.0 / (FLOOR_UP_S * fs)),
+            c_down: 1.0 - math::exp(-1.0 / (FLOOR_DOWN_S * fs)),
+            mu: 0.0,
+            learn_len: (LEARN_S * fs) as u32,
+            hold_len: (HOLD_S * fs) as u32,
+            escape_len: (ESCAPE_S * fs) as u32,
+            snap_len: ((SNAP_S * fs) as u32).max(1),
         };
         d.reset();
         d
     }
 }
 
-/// The two-pole demodulators' corner, Hz (the tracker and the gate's short-term band).
-const DEMOD_HZ: f64 = 8.0;
-/// The gate's long-term estimate's time constant, s.
-const SLOW_S: f64 = 1.0;
-/// The tracker's loop time constant, s.
-const LOOP_S: f64 = 0.25;
-/// Gentle: when the long-term estimate is seeded from the short one, s after the first sound.
-const SEED_S: f64 = 0.06;
+/// The tracker's (and the meters') three-pole demodulators' corner, Hz.
+const DEMOD_HZ: f64 = 3.0;
+/// Gentle: the three-pole band of what the hum learned does not explain, Hz.
+const GATE_HZ: f64 = 6.0;
+/// The tracker's loop: its natural frequency, Hz, and damping.
+const LOOP_HZ: f64 = 0.5;
+const LOOP_DAMPING: f64 = 0.8;
+/// The readings the loop averages: those within this of their weighted median, Hz.
+const TRIM_HZ: f64 = 0.3;
+/// Gentle: how long it learns freely (twice as fast, no gate) after the first sound, s.
+const LEARN_S: f64 = 0.3;
 /// Gentle: how long learning stays held after the band is clear again, s.
 const HOLD_S: f64 = 0.05;
-/// Gentle: a band this far from the hum learned (relative amplitude) holds the learning.
+/// Gentle: a band busy this long without a break is taken for a hum that changed, and
+/// learned slowly (a sixteenth of the rate), s.
+const ESCAPE_S: f64 = 3.0;
+/// Gentle: the snapshots' period, s.
+const SNAP_S: f64 = 0.02;
+/// Gentle: what the hum learned does not explain, this much of it (relative amplitude),
+/// holds the learning.
 const GATE_REL: f64 = 0.5;
+/// Gentle: the band's usual remainder is risen to over this, s, fallen from over this, s,
+/// and a note must stand this many times above it.
+const FLOOR_UP_S: f64 = 4.0;
+const FLOOR_DOWN_S: f64 = 0.05;
+const FLOOR_TIMES: f64 = 2.0;
 /// Gentle: below this amplitude nothing holds the learning (−100 dBFS).
 const GATE_FLOOR: f64 = 1e-5;
 
@@ -300,6 +349,7 @@ impl Dehum {
         if nominal_moved {
             self.nominal = Self::nominal_of(&s);
             self.f0 = self.nominal;
+            self.rate = 0.0;
             self.retune();
         }
         if old.gentle != s.gentle {
@@ -312,13 +362,16 @@ impl Dehum {
     pub fn reset(&mut self) {
         self.nominal = Self::nominal_of(&self.s);
         self.f0 = self.nominal;
+        self.rate = 0.0;
         self.z1 = C::ONE;
         self.za = C::ONE;
-        self.q1 = [C::ZERO; TRACK_HARMONICS];
-        self.q2 = [C::ZERO; TRACK_HARMONICS];
-        self.q_prev = [C::ZERO; TRACK_HARMONICS];
+        self.q1 = [C::ZERO; MAX_HARMONICS];
+        self.q2 = [C::ZERO; MAX_HARMONICS];
+        self.q3 = [C::ZERO; MAX_HARMONICS];
+        self.q_prev = [C::ZERO; MAX_HARMONICS];
         self.qa1 = [C::ZERO; AUTO_HARMONICS];
         self.qa2 = [C::ZERO; AUTO_HARMONICS];
+        self.qa3 = [C::ZERO; AUTO_HARMONICS];
         self.auto_votes = 0;
         self.auto_looks = 0;
         self.tick = 0;
@@ -341,6 +394,7 @@ impl Dehum {
 
     /// The reference steps and every section's coefficients from `f0`, `g` and `width`.
     fn retune(&mut self) {
+        self.mu = std::f64::consts::PI * self.width / self.fs;
         let w = 2.0 * std::f64::consts::PI * self.f0 / self.fs;
         let (s, c) = math::sin_cos(w);
         self.step = C { re: c, im: s };
@@ -370,7 +424,7 @@ impl Dehum {
     /// Harmonic `k`'s (0 = the fundamental) level in the input as the tracker hears it
     /// (its band, 8 Hz), linear amplitude.
     pub fn level(&self, k: usize) -> f64 {
-        self.q2.get(k).map_or(0.0, |q| q.norm2().sqrt())
+        self.q3.get(k).map_or(0.0, |q| q.norm2().sqrt())
     }
 
     /// Harmonic `k`'s depth now, dB (0 when it is not taken out).
@@ -451,31 +505,75 @@ impl Dehum {
 
     /// The frequency-locked loop's step; whether the fundamental moved.
     fn follow(&mut self) -> bool {
-        let mut acc = 0.0;
-        let mut wsum = 0.0;
+        // Each harmonic's own reading of the hum's offset from the reference, Hz, and its
+        // weight (its band's strength); the reading is their weighted median, so a
+        // neighbouring tone leaking into one band cannot pull the loop.
+        let mut df = [0.0f64; TRACK_HARMONICS];
+        let mut w = [0.0f64; TRACK_HARMONICS];
+        let mut n = 0;
         for k in 0..TRACK_HARMONICS {
-            let q = self.q2[k];
+            let q = self.q3[k];
             let p = self.q_prev[k];
             self.q_prev[k] = q;
             if (k + 1) as f64 * self.f0 >= 0.45 * self.fs {
                 continue;
             }
-            let r = q.mul(C { re: p.re, im: -p.im });
-            let w = r.norm2().sqrt();
-            if w <= 0.0 {
+            let r = q.mul(C {
+                re: p.re,
+                im: -p.im,
+            });
+            let m = r.norm2().sqrt();
+            if m <= 0.0 {
                 continue;
             }
             let phi = math::atan2(r.im, r.re);
-            let df = phi * self.fs / (2.0 * std::f64::consts::PI * (k + 1) as f64 * GRID as f64);
-            acc += w * df;
-            wsum += w;
+            df[n] = phi * self.fs / (2.0 * std::f64::consts::PI * (k + 1) as f64 * GRID as f64);
+            w[n] = m;
+            n += 1;
         }
-        if wsum < 1e-12 {
+        let total: f64 = w[..n].iter().sum();
+        if total < 1e-12 {
             return false;
         }
-        let gain = GRID as f64 / (self.fs * LOOP_S);
-        let f = (self.f0 + gain * acc / wsum)
-            .clamp(self.nominal - TRACK_RANGE_HZ, self.nominal + TRACK_RANGE_HZ);
+        for i in 1..n {
+            let mut j = i;
+            while j > 0 && df[j - 1] > df[j] {
+                df.swap(j - 1, j);
+                w.swap(j - 1, j);
+                j -= 1;
+            }
+        }
+        let mut acc = 0.0;
+        let mut median = df[n - 1];
+        for i in 0..n {
+            acc += w[i];
+            if acc >= 0.5 * total {
+                median = df[i];
+                break;
+            }
+        }
+        // The weighted mean of the readings near the median: robust, and without the
+        // median's own bias (which reading it picks moves with each band's ripple).
+        let (mut sum, mut ws) = (0.0, 0.0);
+        for i in 0..n {
+            if (df[i] - median).abs() <= TRIM_HZ {
+                sum += w[i] * df[i];
+                ws += w[i];
+            }
+        }
+        let e = sum / ws;
+        // A second-order loop (a ramp followed without a lag), critically damped-ish.
+        let wt = 2.0 * std::f64::consts::PI * LOOP_HZ * GRID as f64 / self.fs;
+        let g1 = 2.0 * LOOP_DAMPING * wt;
+        let g2 = wt * wt;
+        let lo = self.nominal - TRACK_RANGE_HZ;
+        let hi = self.nominal + TRACK_RANGE_HZ;
+        let mut f = self.f0 + g1 * e + self.rate;
+        self.rate += g2 * e;
+        if f <= lo || f >= hi {
+            f = f.clamp(lo, hi);
+            self.rate = 0.0;
+        }
         let moved = f != self.f0;
         self.f0 = f;
         moved
@@ -490,8 +588,8 @@ impl Dehum {
             return false;
         }
         self.auto_votes = 0;
-        let main: f64 = self.q2[..AUTO_HARMONICS].iter().map(|q| q.norm2()).sum();
-        let alt: f64 = self.qa2.iter().map(|q| q.norm2()).sum();
+        let main: f64 = self.q3[..AUTO_HARMONICS].iter().map(|q| q.norm2()).sum();
+        let alt: f64 = self.qa3.iter().map(|q| q.norm2()).sum();
         if !(alt > 4.0 * main && alt > 1e-12) {
             self.auto_looks = 0;
             return false;
@@ -502,17 +600,22 @@ impl Dehum {
         }
         self.nominal = if self.nominal == 60.0 { 50.0 } else { 60.0 };
         self.f0 = self.nominal;
+        self.rate = 0.0;
         self.za = C::ONE;
-        self.q1 = [C::ZERO; TRACK_HARMONICS];
-        self.q2 = [C::ZERO; TRACK_HARMONICS];
-        self.q_prev = [C::ZERO; TRACK_HARMONICS];
+        self.q1 = [C::ZERO; MAX_HARMONICS];
+        self.q2 = [C::ZERO; MAX_HARMONICS];
+        self.q3 = [C::ZERO; MAX_HARMONICS];
+        self.q_prev = [C::ZERO; MAX_HARMONICS];
         self.qa1 = [C::ZERO; AUTO_HARMONICS];
         self.qa2 = [C::ZERO; AUTO_HARMONICS];
+        self.qa3 = [C::ZERO; AUTO_HARMONICS];
         self.auto_looks = 0;
-        for l in &mut self.lanes {
-            l.est = [C::ZERO; MAX_HARMONICS];
-            l.slow = [C::ZERO; MAX_HARMONICS];
-            l.heard = 0;
+        // What was learned at the old frequency means nothing at the new one.
+        let notch = self.lanes.clone();
+        self.lanes = [Lane::default(), Lane::default()];
+        for (l, n) in self.lanes.iter_mut().zip(notch) {
+            l.s1 = n.s1;
+            l.s2 = n.s2;
         }
         true
     }
@@ -535,12 +638,14 @@ impl Dehum {
         }
         // The tracker and the meters, on the mono sum.
         let m = 0.5 * (l as f64 + r as f64);
-        let cd = 1.0 - math::exp(-2.0 * std::f64::consts::PI * DEMOD_HZ / self.fs);
-        for k in 0..TRACK_HARMONICS {
+        let cd = self.cd;
+        for k in 0..MAX_HARMONICS {
             let d = z[k].conj_scale(2.0 * m);
             self.q1[k].lerp(d, cd);
             let q1 = self.q1[k];
             self.q2[k].lerp(q1, cd);
+            let q2 = self.q2[k];
+            self.q3[k].lerp(q2, cd);
         }
         if self.s.mode == HumMode::Auto {
             let mut za = self.za;
@@ -549,12 +654,14 @@ impl Dehum {
                 self.qa1[k].lerp(d, cd);
                 let q1 = self.qa1[k];
                 self.qa2[k].lerp(q1, cd);
+                let q2 = self.qa2[k];
+                self.qa3[k].lerp(q2, cd);
                 za = za.mul(self.za);
             }
             self.za = renorm(self.za.mul(self.step_a));
         }
         let out = if self.s.gentle {
-            (self.gentle(0, l as f64, &z, cd), self.gentle(1, r as f64, &z, cd))
+            (self.gentle(0, l as f64, &z), self.gentle(1, r as f64, &z))
         } else {
             (self.notches(0, l as f64), self.notches(1, r as f64))
         };
@@ -580,12 +687,10 @@ impl Dehum {
     }
 
     #[inline]
-    fn gentle(&mut self, ch: usize, x: f64, z: &[C; MAX_HARMONICS], cd: f64) -> f64 {
-        let fs = self.fs;
-        let mu = std::f64::consts::PI * self.width / fs;
-        let cs = 1.0 - math::exp(-1.0 / (SLOW_S * fs));
-        let seed = (SEED_S * fs) as u32;
-        let hold = (HOLD_S * fs) as u32;
+    fn gentle(&mut self, ch: usize, x: f64, z: &[C; MAX_HARMONICS]) -> f64 {
+        let mu = self.mu;
+        let cg = self.cg;
+        let learn = self.learn_len;
         let lane = &mut self.lanes[ch];
         let mut hum = 0.0;
         let mut taken = 0.0;
@@ -598,41 +703,92 @@ impl Dehum {
             taken += (1.0 - self.g[k]) * h;
         }
         let e = x - hum;
-        if lane.heard <= seed && (lane.heard > 0 || x != 0.0) {
+        let learning = lane.heard < learn;
+        if learning && (lane.heard > 0 || x != 0.0) {
             lane.heard += 1;
+        }
+        lane.snap += 1;
+        let snap = lane.snap >= self.snap_len;
+        if snap {
+            lane.snap = 0;
         }
         for k in 0..MAX_HARMONICS {
             if self.g[k] >= 1.0 {
                 continue;
             }
-            let d = z[k].conj_scale(2.0 * x);
-            lane.fast1[k].lerp(d, cd);
-            let f1 = lane.fast1[k];
-            lane.fast2[k].lerp(f1, cd);
-            if lane.heard == seed {
-                lane.slow[k] = lane.fast2[k];
-            }
-            let f = lane.fast2[k];
-            let s = lane.slow[k];
-            let s2 = s.norm2();
-            let off = f.sub(s).norm2();
-            let lim = GATE_REL * s2.sqrt() + GATE_FLOOR;
-            let busy = lane.heard > seed && off > lim * lim && f.norm2() > s2;
-            if busy {
-                lane.held[k] = true;
-                lane.hold_left[k] = hold;
-            } else if lane.hold_left[k] > 0 {
-                lane.hold_left[k] -= 1;
+            // What the hum learned does not explain, in the harmonic's band (three poles).
+            let d = z[k].conj_scale(2.0 * e);
+            lane.e1[k].lerp(d, cg);
+            let v = lane.e1[k];
+            lane.e2[k].lerp(v, cg);
+            let v = lane.e2[k];
+            lane.e3[k].lerp(v, cg);
+            let left = lane.e3[k];
+            // The hum learned, without the canceller's own ripple (a neighbour's beat
+            // against the reference makes the raw estimate shake): two poles.
+            let raw = lane.est[k];
+            lane.s_a[k].lerp(raw, cg);
+            let v = lane.s_a[k];
+            lane.s_b[k].lerp(v, cg);
+            let est = lane.s_b[k];
+            // What the band usually holds beyond the hum (a neighbour's leak, the hum's own
+            // small error): risen to slowly, fallen from quickly — a steady remainder is
+            // not a note, and is learned.
+            let size = left.norm2().sqrt();
+            let c = if size > lane.floor[k] {
+                self.c_up
             } else {
-                lane.held[k] = false;
+                self.c_down
+            };
+            lane.floor[k] += (size - lane.floor[k]) * c;
+            let lim = (GATE_REL * est.norm2().sqrt()).max(FLOOR_TIMES * lane.floor[k]) + GATE_FLOOR;
+            // Not the hum gone (that is learned at once).
+            let sum = C {
+                re: est.re + left.re,
+                im: est.im + left.im,
+            };
+            let gone = sum.norm2() < 0.25 * est.norm2();
+            let busy = !learning && size > lim && !gone;
+            if busy {
+                if !lane.held[k] {
+                    // The note's first milliseconds, learned before it was heard, unlearned.
+                    lane.est[k] = lane.back_a[k];
+                    lane.s_a[k] = lane.back_a[k];
+                    lane.s_b[k] = lane.back_a[k];
+                }
+                lane.held[k] = true;
+                lane.hold_left[k] = self.hold_len;
+                lane.busy_run[k] = lane.busy_run[k].saturating_add(1);
+            } else {
+                lane.busy_run[k] = 0;
+                if lane.hold_left[k] > 0 {
+                    lane.hold_left[k] -= 1;
+                } else {
+                    lane.held[k] = false;
+                }
             }
-            if !lane.held[k] {
-                let u = z[k].conj_scale(2.0 * mu * e);
+            let step = if learning {
+                2.0 * mu
+            } else if !lane.held[k] {
+                mu
+            } else if lane.busy_run[k] > self.escape_len {
+                mu / 16.0
+            } else {
+                0.0
+            };
+            if step > 0.0 {
+                let u = z[k].conj_scale(2.0 * step * e);
                 lane.est[k].re += u.re;
                 lane.est[k].im += u.im;
-                if lane.heard > seed {
-                    lane.slow[k].lerp(d, cs);
+            }
+            lane.dirty[k] |= lane.held[k];
+            if snap {
+                // Only a period the band was clear for the whole of is kept to go back to.
+                if !lane.dirty[k] {
+                    lane.back_a[k] = lane.back_b[k];
+                    lane.back_b[k] = lane.s_b[k];
                 }
+                lane.dirty[k] = false;
             }
         }
         x - taken
