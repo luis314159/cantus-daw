@@ -138,9 +138,20 @@ pub fn start_of(kind: EffectKind) -> Start {
         }),
         // fx3:contract — wave 3's stubs start at their defaults until each builder gives
         // its unit a starting preset or its real reason for none (ADR 0071).
-        K::PitchShift => Start::Neutral(Flat), // fx3:saltus
-        K::Rotary => Start::Neutral(Flat),     // fx3:rota
-        K::Amp => Start::Neutral(Flat),        // fx3:arca
+        // fx3:saltus — the twelve-string: an octave up at 60 % over the dry, by the poly
+        // engine (chords stay chords) — heard at once on a guitar, a synth or a whole mix.
+        K::PitchShift => preset(
+            "preset.saltus.twelve_string",
+            &[
+                ("engine", 1.0),
+                ("st1", 12.0),
+                ("lvl1", 0.6),
+                ("dry", 1.0),
+                ("out", -1.3),
+            ],
+        ), // fx3:saltus
+        K::Rotary => Start::Neutral(Flat), // fx3:rota
+        K::Amp => Start::Neutral(Flat),    // fx3:arca
         K::Multiband => preset(
             "mb.preset.glue",
             &[

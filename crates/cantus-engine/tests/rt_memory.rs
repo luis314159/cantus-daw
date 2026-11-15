@@ -3092,3 +3092,62 @@ fn tabula_never_allocates() {
         FIRST.with(|f| f.get())
     );
 }
+
+// fx3:saltus — Saltus (ADR 0135, provisional) on the audio thread: the harmony hearing the
+// chords of another track (notes on and off at their samples), then every engine in turn —
+// the poly vocoder, the analog divider, the clean octave, the whammy played by those notes —
+// each change moving the latency, a seek and a stop. Not one allocation.
+#[test]
+fn saltus_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let notes_from = p.tracks[1].id;
+    let mut fx = p.make_effect(EffectKind::PitchShift);
+    fx.midi_from = Some(notes_from);
+    for (k, v) in [("mode", 1.0), ("hsrc", 1.0), ("lvl2", 0.6), ("dry", 1.0)] {
+        fx.spec.set(k, v).unwrap();
+    }
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("harmony on the chords", 40);
+    let set = |p: &mut Project, kv: &[(&str, f32)]| {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+    };
+    for (phase, kv) in [
+        ("poly", &[("mode", 0.0), ("engine", 1.0), ("st1", 12.0)][..]),
+        (
+            "analog octave",
+            &[("mode", 2.0), ("sub2", 0.5), ("up1", 0.4)][..],
+        ),
+        ("clean octave", &[("ostyle", 1.0)][..]),
+        (
+            "whammy by notes",
+            &[
+                ("mode", 3.0),
+                ("engine", 0.0),
+                ("wsrc", 1.0),
+                ("toe", -12.0),
+            ][..],
+        ),
+    ] {
+        set(&mut p, kv);
+        rig.snapshot(&p);
+        rig.play(phase, 30);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}

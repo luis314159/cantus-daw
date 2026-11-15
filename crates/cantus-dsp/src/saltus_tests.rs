@@ -147,6 +147,11 @@ pub(super) fn every_setting() -> Vec<(&'static str, SaltusSettings)> {
     whp.engine = Engine::Poly;
     whp.dry = 0.3;
     v.push(("whammy poly", whp));
+    let mut whn = wh;
+    whn.whammy_notes = true;
+    whn.pedal = 0.0;
+    whn.glide_ms = 25.0;
+    v.push(("whammy by notes", whn));
     v
 }
 
@@ -341,7 +346,7 @@ fn at_rest_is_exact_in_every_mode() {
     for (name, s) in every_setting() {
         let mut a = Saltus::new(SR);
         a.set(&s);
-        if s.harmony_source != HarmonySource::Scale {
+        if s.harmony_source != HarmonySource::Scale || s.whammy_notes {
             a.note(0, NoteEvent::On(64));
         }
         run_on(&mut a, &l, &r, 0);
@@ -483,4 +488,72 @@ fn a_copy_is_the_unit() {
         let y = run_on(&mut d, &l2, &r2, 0);
         assert_same(&x, &y, name);
     }
+}
+
+/// The whammy played by notes: a note held takes the pedal to the toe along the glide, the
+/// release brings it back where the pedal is set, at the note's own sample whatever the
+/// block size, and nothing moves while the notes do not play it.
+#[test]
+fn the_whammy_follows_the_notes_held() {
+    let mut s = SaltusSettings::default();
+    s.mode = Mode::Whammy;
+    s.whammy_notes = true;
+    s.pedal = 0.25;
+    s.glide_ms = 5.0;
+    let mut u = Saltus::new(SR);
+    u.set(&s);
+    assert_eq!(
+        u.pedal_now(),
+        0.25,
+        "a new unit starts where the pedal is set"
+    );
+    let z = vec![0.0f32; 4_800];
+    u.note(100, NoteEvent::On(60));
+    run_on(&mut u, &z[..200], &z[..200], 0);
+    assert!(
+        u.pedal_now() > 0.25 && u.pedal_now() < 0.9,
+        "{}",
+        u.pedal_now()
+    );
+    assert!(!u.at_rest(), "a note held plays the pedal");
+    run_on(&mut u, &z, &z, 0);
+    assert_eq!(u.pedal_now(), 1.0, "100 ms is twenty glides: at the toe");
+    u.note(0, NoteEvent::Off(60));
+    run_on(&mut u, &z, &z, 0);
+    assert_eq!(u.pedal_now(), 0.25, "released: back where it is set");
+    // The same notes when the notes do not play it: the pedal never moves.
+    let mut off = s;
+    off.whammy_notes = false;
+    let mut v = Saltus::new(SR);
+    v.set(&off);
+    v.note(0, NoteEvent::On(60));
+    run_on(&mut v, &z, &z, 0);
+    assert_eq!(v.pedal_now(), 0.25);
+    // Sample-accurate: blocks of 1 and of 333 the same bits.
+    let (l, r) = material(5);
+    let render = |block: usize| {
+        let mut u = Saltus::new(SR);
+        u.set(&s);
+        let (mut a, mut b) = (l.clone(), r.clone());
+        let mut at = 0;
+        while at < a.len() {
+            let n = block.min(a.len() - at);
+            for (t, e) in [
+                (3_001usize, NoteEvent::On(62)),
+                (15_555, NoteEvent::Off(62)),
+            ] {
+                if t >= at && t < at + n {
+                    u.note(t - at, e);
+                }
+            }
+            u.process(&mut a[at..at + n], &mut b[at..at + n]);
+            at += n;
+        }
+        (a, b)
+    };
+    assert_same(
+        &render(1),
+        &render(333),
+        "the whammy by notes, blocks of 333",
+    );
 }

@@ -354,9 +354,26 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 &[("in", -3.0), ("out", 2.0), ("mix", 0.85), ("ab", 0.4)],
             );
         }
-        EffectKind::PitchShift => set(&mut s, &[("out", 6.0)]), // fx3:saltus
-        EffectKind::Rotary => set(&mut s, &[("out", 6.0)]),     // fx3:rota
-        EffectKind::Amp => set(&mut s, &[("out", 6.0)]),        // fx3:arca
+        // fx3:saltus — the poly engine (its dearest) with both voices, spread, the dry
+        // under them, formants moved and the throat shifted.
+        EffectKind::PitchShift => set(
+            &mut s,
+            &[
+                ("engine", 1.0),
+                ("st1", 7.0),
+                ("pan1", -0.5),
+                ("st2", -12.0),
+                ("ct2", 15.0),
+                ("lvl2", 0.8),
+                ("pan2", 0.6),
+                ("dry", 0.5),
+                ("formant", 0.0),
+                ("throat", -3.0),
+                ("out", 6.0),
+            ],
+        ), // fx3:saltus
+        EffectKind::Rotary => set(&mut s, &[("out", 6.0)]), // fx3:rota
+        EffectKind::Amp => set(&mut s, &[("out", 6.0)]),    // fx3:arca
     }
     s
 }

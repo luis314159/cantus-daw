@@ -9,7 +9,7 @@
 //! | **Shift** | two voices, each moved by a fixed interval (semitones and cents) | mono: PSOLA, formants kept · poly: phase vocoder | 128 · 4 095 |
 //! | **Harmony** | two voices a number of *scale degrees* from the note heard — in a key and scale, in the chord held on MIDI, or singing the notes held | PSOLA | 128 |
 //! | **Octave** | one and two octaves down and one up — from a divider that follows the note (no latency), or clean by PSOLA | divider · PSOLA | 0 · 128 |
-//! | **Whammy** | one voice swept by a pedal between a heel and a toe interval, glided | mono: PSOLA · poly: phase vocoder | 128 · 4 095 |
+//! | **Whammy** | one voice swept by a pedal between a heel and a toe interval, glided — or pressed to the toe while a MIDI note is held | mono: PSOLA · poly: phase vocoder | 128 · 4 095 |
 //!
 //! - **Mono** ([`crate::psola::Shifter`], ADR 0053): the pitch base's streaming tracker
 //!   ([`crate::pitch::PitchTracker`]) hears the note and pitch-synchronous grains move it,
@@ -194,6 +194,10 @@ pub struct SaltusSettings {
     pub heel: f32,
     pub toe: f32,
     pub glide_ms: f32,
+    /// The whammy played by the notes held on MIDI: while a note is held the pedal goes to
+    /// the toe (gliding there), and back to where `pedal` sets it when every note is
+    /// released — the momentary pedal.
+    pub whammy_notes: bool,
     /// The octaves' levels, 0 … 1: one down, two down, one up.
     pub sub1: f32,
     pub sub2: f32,
@@ -228,6 +232,7 @@ impl Default for SaltusSettings {
             heel: 0.0,
             toe: 12.0,
             glide_ms: 40.0,
+            whammy_notes: false,
             sub1: 1.0,
             sub2: 0.0,
             up1: 0.0,
@@ -502,7 +507,7 @@ impl Saltus {
             self.enter(self.path);
         }
         if !self.started {
-            self.pedal = s.pedal.clamp(0.0, 1.0);
+            self.pedal = self.pedal_target();
         }
         self.voices.retarget(&self.s, &self.keys);
     }
@@ -539,15 +544,32 @@ impl Saltus {
         self.dry.reset();
         self.keys.clear();
         self.n_events = 0;
-        self.pedal = self.s.pedal.clamp(0.0, 1.0);
+        self.pedal = self.pedal_target();
         self.level_db = -120.0;
         self.started = false;
         self.voices.retarget(&self.s, &self.keys);
     }
 
-    /// Whether the held notes can reach the output (the Harmony mode on MIDI).
+    /// Whether the held notes can reach the output (the Harmony mode on MIDI, the whammy
+    /// played by notes).
     fn hears_notes(&self) -> bool {
-        self.s.mode == Mode::Harmony && self.s.harmony_source != HarmonySource::Scale
+        (self.s.mode == Mode::Harmony && self.s.harmony_source != HarmonySource::Scale)
+            || self.whammy_by_notes()
+    }
+
+    /// Whether the notes held play the whammy's pedal.
+    fn whammy_by_notes(&self) -> bool {
+        self.s.mode == Mode::Whammy && self.s.whammy_notes
+    }
+
+    /// Where the whammy's pedal is going: the toe while a note plays it, else where it is
+    /// set.
+    pub fn pedal_target(&self) -> f32 {
+        if self.whammy_by_notes() && !self.keys.is_empty() {
+            1.0
+        } else {
+            self.s.pedal.clamp(0.0, 1.0)
+        }
     }
 
     pub fn at_rest(&self) -> bool {
@@ -561,7 +583,7 @@ impl Saltus {
         if self.n_events > 0 || (self.hears_notes() && !self.keys.is_empty()) {
             return Some("a note is held");
         }
-        if self.pedal != self.s.pedal.clamp(0.0, 1.0) {
+        if self.pedal != self.pedal_target() {
             return Some("the pedal is moving");
         }
         match self.path {
@@ -643,7 +665,7 @@ impl Saltus {
     /// The whammy's pedal, one sample on.
     #[inline]
     fn glide_pedal(&mut self) {
-        let t = self.s.pedal.clamp(0.0, 1.0);
+        let t = self.pedal_target();
         if self.pedal != t {
             let v = self.pedal + (t - self.pedal) * self.k_pedal;
             // Landed within the snap, or stalled (the step under half an ulp).
