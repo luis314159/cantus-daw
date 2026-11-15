@@ -207,11 +207,13 @@ fn infinite_does_not_grow_over_five_minutes() {
         );
         let line: Vec<String> = w.iter().map(|d| format!("{d:.1}")).collect();
         let top = w.iter().cloned().fold(f64::MIN, f64::max);
-        let tail = &w[6..];
+        // An infinite tank fed without a pause climbs to the ceiling (in about two
+        // minutes at 0.3 RMS) and stays: the last two minutes.
+        let tail = &w[18..];
         let spread = tail.iter().cloned().fold(f64::MIN, f64::max)
             - tail.iter().cloned().fold(f64::MAX, f64::min);
         eprintln!(
-            "{name}, fed noise for 5 min: energy per 10 s (dB): {}; top {top:.1}, ceiling {ceiling:.1}, spread after 1 min {spread:.2}",
+            "{name}, fed noise for 5 min: energy per 10 s (dB): {}; top {top:.1}, ceiling {ceiling:.1}, spread over the last 2 min {spread:.2}",
             line.join(" ")
         );
         assert!(top < ceiling + 1.5, "{name}: past the ceiling: {top:.1} dB");
@@ -629,4 +631,22 @@ fn cpu_at_eight_and_sixteen_lines() {
         }
         eprintln!("{name}: {:.2} % of a core", best / 60.0 * 100.0);
     }
+    // Spatium (16 lines, its fitted absorption) in the same run, for scale.
+    let mut best = f64::MAX;
+    for _ in 0..3 {
+        let mut sp = crate::spatium::Spatium::new(FS);
+        sp.set(&crate::spatium::SpatiumSettings {
+            style: crate::spatium::model::Style::Room,
+            mix: 0.3,
+            ..Default::default()
+        });
+        let (mut ol, mut or) = (l.clone(), r.clone());
+        let t0 = std::time::Instant::now();
+        for (a, b) in ol.chunks_mut(256).zip(or.chunks_mut(256)) {
+            sp.process(a, b, None);
+        }
+        best = best.min(t0.elapsed().as_secs_f64());
+        std::hint::black_box((ol, or));
+    }
+    eprintln!("Spatium (Room), for scale: {:.2} % of a core", best / 60.0 * 100.0);
 }
