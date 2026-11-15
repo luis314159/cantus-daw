@@ -54,6 +54,7 @@ fn busy() -> PhasisSettings {
         },
         spread: 0.25,
         out_db: -1.0,
+        ..PhasisSettings::default() // fx3:arca: the style's fields
     }
 }
 
