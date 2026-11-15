@@ -441,26 +441,39 @@ impl std::fmt::Debug for Pair {
     }
 }
 
-/// Run `x` through a line in place (it comes out `len` frames late), counting its silence.
+/// Run `x` through a line in place (it comes out `len` frames late), counting its silence:
+/// whole runs swapped with the ring (a copy each way), the silence counted from the input's
+/// zero tail.
 #[inline]
 fn run_line(lines: &mut Lines, r: &mut Region, xl: &mut [f32], xr: &mut [f32]) {
     let (bl, br) = (
         &mut lines.left[r.off..r.off + r.len],
         &mut lines.right[r.off..r.off + r.len],
     );
-    for (a, b) in xl.iter_mut().zip(xr.iter_mut()) {
-        let p = r.pos;
-        let (yl, yr) = (bl[p], br[p]);
-        bl[p] = *a;
-        br[p] = *b;
-        r.quiet = if a.to_bits() == 0 && b.to_bits() == 0 {
-            (r.quiet + 1).min(r.len)
+    let n = xl.len().min(xr.len());
+    let mut i = 0;
+    while i < n {
+        let k = (n - i).min(r.len - r.pos);
+        let (a, b) = (&mut xl[i..i + k], &mut xr[i..i + k]);
+        // Silence: the zeros at the end of what goes in (both channels, bit for bit).
+        let tail = a
+            .iter()
+            .zip(b.iter())
+            .rev()
+            .take_while(|(x, y)| x.to_bits() == 0 && y.to_bits() == 0)
+            .count();
+        r.quiet = if tail == k {
+            (r.quiet + k).min(r.len)
         } else {
-            0
+            tail.min(r.len)
         };
-        *a = yl;
-        *b = yr;
-        r.pos = if p + 1 == r.len { 0 } else { p + 1 };
+        a.swap_with_slice(&mut bl[r.pos..r.pos + k]);
+        b.swap_with_slice(&mut br[r.pos..r.pos + k]);
+        r.pos += k;
+        if r.pos == r.len {
+            r.pos = 0;
+        }
+        i += k;
     }
 }
 

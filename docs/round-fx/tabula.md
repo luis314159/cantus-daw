@@ -38,7 +38,7 @@ scrolling; a face of its own without the vents), phase B.
 
 ## Measured
 
-- **CPU**: see the last section (`cantus-engine/examples/tabula_overhead.rs`).
+- **CPU**: eight pedals (Fragor, Comprimo, Concentus, Phasis, Tremor, Delay, Spatium, Libra at their starting presets) as eight inserts 1203.1 ms, on one board 1210.9 ms for ten seconds at 48 kHz in blocks of 256, best of seven: **the board costs 0.65 %** of its pedals (`cantus-engine/examples/tabula_overhead.rs`, release, measured 2026-11-15 on the owner's PC with another builder compiling beside it — 1.27 % before the lines were swapped by whole runs instead of sample by sample).
 - **Sounds** (`C:\projects\daw-fx\compartir\tabula\sound\`): on the CC0 DI guitar, each
   level-matched to the dry file within 0.01 dB: the rig (out −4.5 dB), a parallel split
   (−4.0 dB), a macro sweep (−4.9 dB).
