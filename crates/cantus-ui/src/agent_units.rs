@@ -162,7 +162,32 @@ pub fn effect_entry(kind: EffectKind) -> Value {
         .collect();
     let presets: Vec<Value> = crate::views::fx::factory_presets(kind)
         .iter()
-        .map(|(label, values)| json!({"name": en(label), "sets": sets(values)}))
+        .map(|(label, values)| {
+            if kind != EffectKind::Board {
+                return json!({"name": en(label), "sets": sets(values)});
+            }
+            // fx3:tabula — a board preset is a whole board: its own values, and its pedals
+            // in order (loaded whole: what `sets` cannot say).
+            let own: Vec<(&str, f32)> = values
+                .iter()
+                .filter(|(k, _)| kind.param(k).is_some())
+                .copied()
+                .collect();
+            let map: std::collections::BTreeMap<String, f32> =
+                values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+            let pedals: Vec<Value> = cantus_core::fx::tabula_presets::from_flat(&map)
+                .map(|s| {
+                    s.pedals()
+                        .iter()
+                        .map(|p| {
+                            json!({"id": p.id.0, "unit": effect_names(p.spec.kind).0,
+                                "lane": format!("{:?}", p.path).to_lowercase()})
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            json!({"name": en(label), "sets": sets(&own), "pedals": pedals})
+        })
         .collect();
     let user: Vec<String> = crate::views::fx::user_presets(kind)
         .into_iter()

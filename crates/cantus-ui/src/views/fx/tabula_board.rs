@@ -990,7 +990,7 @@ pub fn picker(
     b.rrect_soft(
         r.translate(vec2(0.0, 8.0 * k)),
         8.0 * k,
-        Fill::Solid(with_alpha(Color32::BLACK, 0.45)),
+        Fill::Solid(with_alpha(pal::SHADOW.rgb(), 0.45)),
         18.0 * k,
     );
     b.rrect(r, 8.0 * k, Fill::Solid(t.panel));
