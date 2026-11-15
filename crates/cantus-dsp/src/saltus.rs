@@ -6,18 +6,18 @@
 //!
 //! | Mode | What it does | Engine | Latency at 48 kHz |
 //! |---|---|---|---|
-//! | **Shift** | two voices, each moved by a fixed interval (semitones and cents) | mono: PSOLA, formants kept · poly: phase vocoder | 128 · 2 047 |
+//! | **Shift** | two voices, each moved by a fixed interval (semitones and cents) | mono: PSOLA, formants kept · poly: phase vocoder | 128 · 4 095 |
 //! | **Harmony** | two voices a number of *scale degrees* from the note heard — in a key and scale, in the chord held on MIDI, or singing the notes held | PSOLA | 128 |
 //! | **Octave** | one and two octaves down and one up — from a divider that follows the note (no latency), or clean by PSOLA | divider · PSOLA | 0 · 128 |
-//! | **Whammy** | one voice swept by a pedal between a heel and a toe interval, glided | mono: PSOLA · poly: phase vocoder | 128 · 2 047 |
+//! | **Whammy** | one voice swept by a pedal between a heel and a toe interval, glided | mono: PSOLA · poly: phase vocoder | 128 · 4 095 |
 //!
 //! - **Mono** ([`crate::psola::Shifter`], ADR 0053): the pitch base's streaming tracker
 //!   ([`crate::pitch::PitchTracker`]) hears the note and pitch-synchronous grains move it,
 //!   keeping its formants (or letting them follow, or moving them by the *throat*). For a
 //!   voice, a lead line, a bass: anything that plays one note at a time.
-//! - **Poly** ([`poly::Poly`]): a streaming phase-locked vocoder (2 048 points at 48 kHz,
-//!   hops of 256) that moves every partial at once, the spectral envelope kept by the true
-//!   envelope (the stretcher's). For chords and whole mixes; it costs 43 ms.
+//! - **Poly** ([`poly::Poly`]): a streaming phase-locked vocoder (4 096 points at 48 kHz,
+//!   hops of 512) that moves every partial at once, the spectral envelope kept by the true
+//!   envelope (the stretcher's). For chords and whole mixes; it costs 85 ms.
 //! - **The divider** ([`octave::Divider`]): a comparator on the note's fundamental (behind
 //!   a low-pass the tracker keeps just above it), and sub-octave sines locked to its edges,
 //!   carrying the note's level; the octave up is the fundamental rectified. Nothing waits
@@ -62,6 +62,9 @@ mod tests;
 #[cfg(test)]
 #[path = "saltus_tests_measure.rs"]
 mod tests_measure;
+#[cfg(test)]
+#[path = "saltus_tests_poly.rs"]
+mod tests_poly;
 
 use voice::{Keys, Voices};
 
@@ -93,7 +96,7 @@ pub enum Engine {
     /// One note at a time, formants kept, 2.7 ms.
     #[default]
     Mono,
-    /// Chords and mixes, by phase vocoder, 43 ms.
+    /// Chords and mixes, by phase vocoder, 85 ms.
     Poly,
 }
 

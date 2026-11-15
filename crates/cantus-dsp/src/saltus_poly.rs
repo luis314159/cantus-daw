@@ -1,8 +1,8 @@
 //! Saltus's poly engine: a **streaming phase-locked vocoder** that moves every partial of
 //! a chord or a mix at once.
 //!
-//! Frames of `N` (2 048 at 48 kHz, ≈ 43 ms: long enough to keep a guitar chord's low
-//! partials apart) every `N/8` samples, Hann windows in and out. In each frame the
+//! Frames of `N` (4 096 at 48 kHz, ≈ 85 ms: long enough to keep a guitar chord's low
+//! partials apart, [`FRAME_48K`]) every `N/8` samples, Hann windows in and out. In each frame the
 //! partials are found (the spectrum's peaks) and **each peak's region is moved whole** to
 //! its new frequency, its magnitudes read between bins by a windowed sinc — the
 //! stretcher's way (Laroche–Dolson, round 29), so a partial's lobe keeps its shape and
@@ -32,8 +32,13 @@ use crate::rest::ZeroRun;
 use crate::stretch::env::Envelope;
 use std::f32::consts::PI;
 
-/// The frame at 48 kHz (scaled with the rate to the nearest power of two).
-pub const FRAME_48K: usize = 2_048;
+/// The frame at 48 kHz (scaled with the rate to the nearest power of two): 85 ms. At
+/// 2 048 (the design's first figure) a minor third at A3 — 220 and 262 Hz, 1.8 bins apart —
+/// is one lobe and moves as one: its partials came out 30 cents off and 40 dB down; at
+/// 4 096 they are within 0.01 cent and 3 dB, and a real strum's spectrum moves within
+/// 0.6 dB. 8 192 resolves a chord better still (its residue −50 dB against −20) but smears
+/// a strum's attack over 170 ms ([`Poly::with_frame`] makes one for listening).
+pub const FRAME_48K: usize = 4_096;
 /// Hops per frame.
 const OVERLAP: usize = 8;
 /// The bins at the bottom (DC and its lobe) and Nyquist keep their analysed phase.
@@ -206,8 +211,14 @@ impl Poly {
     }
 
     pub fn new(sample_rate: f32) -> Self {
+        Self::with_frame(sample_rate, Self::frame_at(sample_rate))
+    }
+
+    /// A vocoder with frames of `n` (a power of two, 256 … 16 384): to listen to another
+    /// trade between a chord's resolution and an attack's smear. The unit uses [`Self::new`].
+    pub fn with_frame(sample_rate: f32, n: usize) -> Self {
         let sr = sample_rate.max(8_000.0);
-        let n = Self::frame_at(sr);
+        let n = n.next_power_of_two().clamp(256, 16_384);
         let h = n / OVERLAP;
         let bins = n / 2 + 1;
         let win: Vec<f32> = (0..n)

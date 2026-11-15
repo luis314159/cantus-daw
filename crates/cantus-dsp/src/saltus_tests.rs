@@ -221,7 +221,7 @@ fn each_mode_reports_its_fixed_latency() {
     };
     let table: [(SaltusSettings, [usize; 3]); 7] = [
         (d, [118, 128, 256]),
-        (with(&|s| s.engine = Engine::Poly), [2_047, 2_047, 4_095]),
+        (with(&|s| s.engine = Engine::Poly), [4_095, 4_095, 8_191]),
         (with(&|s| s.mode = Mode::Harmony), [118, 128, 256]),
         (with(&|s| s.mode = Mode::Octave), [0, 0, 0]),
         (
@@ -237,7 +237,7 @@ fn each_mode_reports_its_fixed_latency() {
                 s.mode = Mode::Whammy;
                 s.engine = Engine::Poly;
             }),
-            [2_047, 2_047, 4_095],
+            [4_095, 4_095, 8_191],
         ),
     ];
     for (s, want) in table {
