@@ -16,7 +16,7 @@
 //!
 //! Both give an **amount** `a` (0 … 1) per channel; the band gain is
 //! `G = 1 − a·mix·(1 − 10^(−depth/20))` — linear in the amount, so the shape drawn is the
-//! level heard and the envelope's straight lines are straight in level. A depth of
+//! level heard. A depth of
 //! [`DEPTH_INF`] or more ducks to silence.
 //!
 //! ## Where it acts
@@ -418,6 +418,9 @@ mod run;
 #[cfg(test)]
 #[path = "cedo_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "cedo_tests_measure.rs"]
+mod tests_measure;
 #[cfg(test)]
 #[path = "cedo_tests_shared.rs"]
 mod tests_shared;

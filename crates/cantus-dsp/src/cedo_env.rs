@@ -8,9 +8,9 @@
 //!   above it **triggers**; the **hold** counts from the *last* such sample, so a kick's
 //!   low half-cycles that dip under the threshold do not let go as long as the hold covers
 //!   them.
-//! - **The envelope** is the duck's *amount*, 0 (none) … 1 (the full depth). It rises by
-//!   `1/attack` a sample (a straight line, so it reaches the full depth exactly `attack`
-//!   samples after the trigger; 0 is at once), stays while triggered or held, then falls
+//! - **The envelope** is the duck's *amount*, 0 (none) … 1 (the full depth). It rises along
+//!   an S (`3p² − 2p³`, no corner at either end) and reaches the full depth exactly `attack`
+//!   samples after the trigger (0 is at once), stays while triggered or held, then falls
 //!   over exactly `release` samples along the release shape — **linear**, **exponential**
 //!   (`(1 − e^{−5p})/(1 − e^{−5})`: quick, then easing in, landing on 0 at the release's end)
 //!   or an **S-curve** (`3p² − 2p³`). A trigger while it falls attacks again from where it is.
@@ -215,13 +215,16 @@ impl Envelope {
                 self.i = 0;
             }
             if self.stage == Stage::Attack {
-                // From where it was, a straight line: exactly 1 after `attack` samples
-                // from 0 (counted, not accumulated).
+                // From where it was to 1 along an S (`3p² − 2p³`, no corner at either end,
+                // so the attack splatters least), exactly 1 after `attack` samples
+                // (counted, not accumulated).
                 self.i += 1;
-                let a = if t.attack == 0 {
+                let a = if t.attack == 0 || self.i >= t.attack {
                     1.0
                 } else {
-                    self.from as f64 + self.i as f64 / t.attack as f64
+                    let p = self.i as f64 / t.attack as f64;
+                    let from = self.from as f64;
+                    from + (1.0 - from) * p * p * (3.0 - 2.0 * p)
                 };
                 if a >= 1.0 {
                     self.a = 1.0;

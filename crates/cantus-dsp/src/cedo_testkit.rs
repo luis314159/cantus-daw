@@ -140,7 +140,11 @@ pub fn grid_sample(num: i128, den: i128, bpm: i128, rate: i128) -> i64 {
 /// A sine.
 pub fn sine(hz: f32, amp: f32, n: usize, rate: f32) -> Vec<f32> {
     (0..n)
-        .map(|i| amp * math::sin(std::f32::consts::TAU * hz * ((i % rate as usize) as f32 / rate)))
+        .map(|i| {
+            // The phase in f64: an f32 argument jitters by −68 dB over a second.
+            let t = (i % rate as usize) as f64 / rate as f64;
+            amp * math::sin(std::f64::consts::TAU * hz as f64 * t) as f32
+        })
         .collect()
 }
 
