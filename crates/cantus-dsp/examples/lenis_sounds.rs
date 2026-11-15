@@ -394,7 +394,7 @@ fn write(path: &Path, x: &[f32]) {
 /// The gentle setting: Soft, a little depth, the default selectivity.
 fn gentle() -> LenisSettings {
     LenisSettings {
-        depth: 0.35,
+        depth: 0.5,
         sharpness: 0.5,
         selectivity: 0.5,
         attack_ms: 5.0,
@@ -407,7 +407,7 @@ fn gentle() -> LenisSettings {
 /// The strong setting: Hard, deep, more selective of nothing (a lower threshold), faster.
 fn strong() -> LenisSettings {
     LenisSettings {
-        depth: 0.6,
+        depth: 0.9,
 
         selectivity: 0.3,
         attack_ms: 3.0,
@@ -485,14 +485,14 @@ fn main() {
         &out,
         "01-guitar",
         &guitar,
-        700.0,
+        150.0,
         Some(FocusBand {
             on: true,
             hz: 3_500.0,
             amount: 0.5,
             width_oct: 1.5,
         }),
-        0.2,
+        0.3,
         &mut log,
     );
     set(&out, "02-voice", &voice(), 1_000.0, None, 0.45, &mut log);
