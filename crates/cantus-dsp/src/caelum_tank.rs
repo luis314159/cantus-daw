@@ -109,6 +109,11 @@ const OUT_ROWS: [usize; 2] = [6, 9];
 const OUT_ROWS8: [usize; 2] = [6, 1];
 const SHIM_ROWS16: [usize; CHANNELS] = [10, 12, 7, 15];
 const SHIM_ROWS8: [usize; CHANNELS] = [2, 4, 7, 3];
+/// Rows for the early taps' two outputs.
+const EARLY_ROWS: [usize; 2] = [11, 13];
+const EARLY_ROWS8: [usize; 2] = [7, 2];
+/// The early taps' level against the lines' ends.
+const EARLY_GAIN: f32 = 0.7;
 
 /// Entry `j` of row `r` of the Sylvester–Hadamard matrix (±1).
 pub fn hadamard_entry(r: usize, j: usize) -> f32 {
@@ -213,18 +218,33 @@ pub fn line_lengths(size: f32, n: usize, sample_rate: f32) -> [f32; MAX_LINES] {
     out
 }
 
-/// The in-loop all-passes' lengths, samples: 3 to 12 ms, fixed (a length that moved
-/// would click), distinct primes.
-pub fn allpass_lengths(sample_rate: f32) -> [usize; MAX_LINES] {
-    let mut f = [0.0f32; MAX_LINES];
-    let mut out = [0usize; MAX_LINES];
+/// All-passes in each line.
+pub const STAGES: usize = 2;
+
+/// The in-loop all-passes' lengths, samples: in each line one of 3 to 12 ms and one of
+/// 1 to 4 ms, fixed (a length that moved would click), all distinct primes.
+pub fn allpass_lengths(sample_rate: f32) -> [[usize; STAGES]; MAX_LINES] {
+    let mut f = [0.0f32; MAX_LINES * STAGES];
+    let mut out = [[0usize; STAGES]; MAX_LINES];
     for i in 0..MAX_LINES {
-        let ms = 3.0 + 9.0 * hash01(i as u32, 307);
-        let p = nearest_prime(((ms * 0.001 * sample_rate) as u32).max(7), &f[..i]);
-        f[i] = p as f32;
-        out[i] = p as usize;
+        for st in 0..STAGES {
+            let ms = if st == 0 {
+                3.0 + 9.0 * hash01(i as u32, 307)
+            } else {
+                1.0 + 3.0 * hash01(i as u32, 311)
+            };
+            let k = i * STAGES + st;
+            let p = nearest_prime(((ms * 0.001 * sample_rate) as u32).max(7), &f[..k]);
+            f[k] = p as f32;
+            out[i][st] = p as usize;
+        }
     }
     out
+}
+
+/// Each line's all-passes' summed length, samples (what they add to its loop).
+pub fn allpass_totals(ap: &[[usize; STAGES]; MAX_LINES]) -> [usize; MAX_LINES] {
+    core::array::from_fn(|i| ap[i].iter().sum())
 }
 
 /// What the decay is set to.
@@ -257,6 +277,8 @@ pub struct TankDesign {
     pub lo: [f32; MAX_LINES],
     pub high_hz: f32,
     pub low_hz: f32,
+    /// The middle's decay, s (infinite: `f32::INFINITY`).
+    pub t60: f32,
 }
 
 /// The gain a pass of `len` samples loses in a decay of `t60` s.
@@ -272,6 +294,7 @@ impl TankDesign {
         decay: &Decay,
         ap: &[usize; MAX_LINES],
     ) -> Self {
+        // `ap`: each line's all-passes' summed length ([`allpass_totals`]).
         let lengths = line_lengths(size, lines, sample_rate);
         let mut d = TankDesign {
             sample_rate,
@@ -283,6 +306,11 @@ impl TankDesign {
             lo: [1.0; MAX_LINES],
             high_hz: decay.high_hz.clamp(200.0, 0.45 * sample_rate),
             low_hz: decay.low_hz.clamp(20.0, 2_000.0),
+            t60: if decay.infinite {
+                f32::INFINITY
+            } else {
+                decay.t60_s
+            },
         };
         let hr = decay.high_ratio.clamp(0.02, 1.0);
         let lr = decay.low_ratio.clamp(0.1, 4.0);
@@ -405,7 +433,7 @@ pub struct Tank {
     ap_mask: usize,
     ap_buf: Vec<f32>,
     ap_w: usize,
-    ap_len: [usize; MAX_LINES],
+    ap_len: [[usize; STAGES]; MAX_LINES],
     diff: f32,
     diff_target: f32,
     hs: [OnePole; MAX_LINES],
@@ -428,6 +456,11 @@ pub struct Tank {
     b: [[f32; MAX_LINES]; 2],
     c: [[f32; MAX_LINES]; 2],
     rows: [[f32; MAX_LINES]; CHANNELS],
+    /// The early taps: each line read a second time, part of the way along (12–42 % of
+    /// its length), into two more output rows — so a vast tank speaks before its shortest
+    /// line has gone round once. Outside the loop, so the decay does not see them.
+    early: [[f32; MAX_LINES]; 2],
+    tap_frac: [f32; MAX_LINES],
     shifters: [Shifter; CHANNELS],
     amount: [f32; CHANNELS],
     amount_target: [f32; CHANNELS],
@@ -441,10 +474,13 @@ pub struct Tank {
     sh_hp_on: bool,
     sh_lp_on: bool,
     shimmer: Shimmer,
+    /// The decay owed by the time a sample spends in a shifter (its mean delay, which the
+    /// line's absorption does not see): without it a shimmered tail would ring longer.
+    sh_loss: f32,
     /// What the shimmer gave back last sample (the meter's).
     sh_power: f32,
     zeros: [ZeroRun; MAX_LINES],
-    ap_zeros: [ZeroRun; MAX_LINES],
+    ap_zeros: [ZeroRun; MAX_LINES * STAGES],
     quiet: usize,
     table: SineTable,
     configured: bool,
@@ -456,7 +492,7 @@ impl Tank {
         let need = (fs * (MAX_LINE_MS + MAX_DEPTH_MS + 2.0) * 0.001) as usize + 8;
         let size = need.next_power_of_two();
         let ap_len = allpass_lengths(fs);
-        let ap_size = (ap_len.iter().max().copied().unwrap_or(1) + 2).next_power_of_two();
+        let ap_size = (ap_len.iter().flatten().max().copied().unwrap_or(1) + 2).next_power_of_two();
         let mut depth_scale = [0.0; MAX_LINES];
         let mut lfo = [0u32; MAX_LINES];
         for i in 0..MAX_LINES {
@@ -475,7 +511,7 @@ impl Tank {
                 low_hz: 250.0,
                 low_ratio: 1.0,
             },
-            &ap_len,
+            &allpass_totals(&ap_len),
         );
         let mut t = Tank {
             sr: fs,
@@ -495,7 +531,7 @@ impl Tank {
             depth_scale,
             ap_size,
             ap_mask: ap_size - 1,
-            ap_buf: vec![0.0; ap_size * MAX_LINES],
+            ap_buf: vec![0.0; ap_size * MAX_LINES * STAGES],
             ap_w: 0,
             ap_len,
             diff: 0.0,
@@ -518,6 +554,8 @@ impl Tank {
             b: [[0.0; MAX_LINES]; 2],
             c: [[0.0; MAX_LINES]; 2],
             rows: [[0.0; MAX_LINES]; CHANNELS],
+            early: [[0.0; MAX_LINES]; 2],
+            tap_frac: core::array::from_fn(|i| 0.12 + 0.3 * hash01(i as u32, 331)),
             shifters: [
                 Shifter::with_origin(fs, 0),
                 Shifter::with_origin(fs, 0x5555_0000),
@@ -535,9 +573,10 @@ impl Tank {
             sh_hp_on: false,
             sh_lp_on: false,
             shimmer: Shimmer::default(),
+            sh_loss: 1.0,
             sh_power: 0.0,
             zeros: [ZeroRun::FULL; MAX_LINES],
-            ap_zeros: [ZeroRun::FULL; MAX_LINES],
+            ap_zeros: [ZeroRun::FULL; MAX_LINES * STAGES],
             quiet: usize::MAX / 2,
             table: SineTable::new(),
             configured: false,
@@ -549,12 +588,18 @@ impl Tank {
     fn set_rows(&mut self, n: usize) {
         let k = 1.0 / (n as f32).sqrt();
         let out_rows = if n == 16 { OUT_ROWS } else { OUT_ROWS8 };
+        let early_rows = if n == 16 { EARLY_ROWS } else { EARLY_ROWS8 };
         let shim = if n == 16 { SHIM_ROWS16 } else { SHIM_ROWS8 };
         for i in 0..MAX_LINES {
             let on = i < n;
             for s in 0..2 {
                 self.b[s][i] = if on { k * hadamard_entry(IN_ROWS[s], i) } else { 0.0 };
                 self.c[s][i] = if on { k * hadamard_entry(out_rows[s], i) } else { 0.0 };
+                self.early[s][i] = if on {
+                    EARLY_GAIN * k * hadamard_entry(early_rows[s], i)
+                } else {
+                    0.0
+                };
             }
             for (ch, r) in shim.iter().enumerate() {
                 self.rows[ch][i] = if on { k * hadamard_entry(*r, i) } else { 0.0 };
@@ -582,7 +627,7 @@ impl Tank {
         self.buf.iter_mut().for_each(|x| *x = 0.0);
         self.ap_buf.iter_mut().for_each(|x| *x = 0.0);
         self.zeros = [ZeroRun::FULL; MAX_LINES];
-        self.ap_zeros = [ZeroRun::FULL; MAX_LINES];
+        self.ap_zeros = [ZeroRun::FULL; MAX_LINES * STAGES];
         for s in &mut self.shifters {
             s.clear();
         }
@@ -663,6 +708,11 @@ impl Tank {
         }
         self.g_hi = one_pole_g(d.high_hz, self.sr);
         self.g_lo = one_pole_g(d.low_hz, self.sr);
+        self.sh_loss = if d.t60.is_finite() {
+            pass_gain(self.shifters[0].mean_delay(), d.t60, self.sr) as f32
+        } else {
+            1.0
+        };
         self.design = d.clone();
     }
 
@@ -676,9 +726,9 @@ impl Tank {
         }
     }
 
-    /// The in-loop all-passes' gain (0…0.6).
+    /// The in-loop all-passes. gain (0…0.7).
     pub fn set_diffusion(&mut self, g: f32) {
-        self.diff_target = g.clamp(0.0, 0.6);
+        self.diff_target = g.clamp(0.0, 0.7);
     }
 
     pub fn set_freeze(&mut self, on: bool) {
@@ -808,8 +858,20 @@ impl Tank {
         let g = self.diff;
         let mut y = [0.0f32; MAX_LINES];
         let mut peak = 0.0f32;
+        let (mut el, mut er) = (0.0f32, 0.0f32);
         for i in 0..n {
             glide(&mut self.len[i], self.len_target[i], self.k_len, 1e-3);
+            {
+                let t = self.len[i] * self.tap_frac[i];
+                let k = t as usize;
+                let f = t - k as f32;
+                let base = i * size;
+                let a = self.buf[base + (w.wrapping_sub(k) & mask)];
+                let b = self.buf[base + (w.wrapping_sub(k + 1) & mask)];
+                let x = a + (b - a) * f;
+                el += self.early[0][i] * x;
+                er += self.early[1][i] * x;
+            }
             let mut d = self.len[i];
             let ph = self.lfo[i];
             self.lfo[i] = ph.wrapping_add(self.lfo_inc[i]);
@@ -835,14 +897,18 @@ impl Tank {
             };
             let out = if out.abs() < 1e-20 { 0.0 } else { out };
             self.interp[i] = out;
-            // The line's own all-pass.
-            let ab = i * self.ap_size;
-            let dd = self.ap_buf[ab + (ap_w.wrapping_sub(self.ap_len[i]) & self.ap_mask)];
-            let v = out + g * dd;
-            let v = if v.abs() < 1e-20 || drain { 0.0 } else { v };
-            peak = peak.max(v.abs());
-            self.ap_buf[ab + ap_w] = v;
-            y[i] = dd - g * v;
+            // The line's own all-passes.
+            let mut x = out;
+            for st in 0..STAGES {
+                let ab = (i * STAGES + st) * self.ap_size;
+                let dd = self.ap_buf[ab + (ap_w.wrapping_sub(self.ap_len[i][st]) & self.ap_mask)];
+                let v = x + g * dd;
+                let v = if v.abs() < 1e-20 || drain { 0.0 } else { v };
+                peak = peak.max(v.abs());
+                self.ap_buf[ab + ap_w] = v;
+                x = dd - g * v;
+            }
+            y[i] = x;
         }
         // Absorption: the high shelf, the low shelf, the middle's gain.
         let mut e = 0.0f32;
@@ -863,8 +929,8 @@ impl Tank {
                 v[i] += (y[i] * FREEZE_GAIN - v[i]) * f;
             }
         }
-        let mut ol = 0.0f32;
-        let mut or = 0.0f32;
+        let mut ol = el;
+        let mut or = er;
         for i in 0..n {
             ol += self.c[0][i] * v[i];
             or += self.c[1][i] * v[i];
@@ -938,6 +1004,7 @@ impl Tank {
                 z = self.sh_lp[ch].run(z, &self.sh_lp_c).0;
             }
             let give = self.give[ch];
+            z *= self.sh_loss;
             let delta = self.keep[ch] * s + give * z;
             pw += give * give * z * z;
             for i in 0..n {
@@ -954,7 +1021,10 @@ impl Tank {
         let aps = self.ap_size;
         for i in 0..self.n {
             self.zeros[i].wrote(&self.buf[i * size..(i + 1) * size], self.w, n);
-            self.ap_zeros[i].wrote(&self.ap_buf[i * aps..(i + 1) * aps], self.ap_w, n);
+            for st in 0..STAGES {
+                let k = i * STAGES + st;
+                self.ap_zeros[k].wrote(&self.ap_buf[k * aps..(k + 1) * aps], self.ap_w, n);
+            }
         }
         for s in &mut self.shifters {
             s.wrote(n);
@@ -969,7 +1039,7 @@ impl Tank {
         if !self.zeros[..n].iter().all(|r| r.covers(self.size)) {
             return Some("tank lines");
         }
-        if !self.ap_zeros[..n].iter().all(|r| r.covers(self.ap_size)) {
+        if !self.ap_zeros[..n * STAGES].iter().all(|r| r.covers(self.ap_size)) {
             return Some("tank all-passes");
         }
         if !all_zero(&self.interp) || !self.hs.iter().chain(&self.ls).all(|f| f.is_zero()) {
@@ -1051,7 +1121,9 @@ mod tests {
         }
         let ap = allpass_lengths(48_000.0);
         for i in 0..MAX_LINES {
-            assert!(is_prime(ap[i] as u32));
+            for st in 0..STAGES {
+                assert!(is_prime(ap[i][st] as u32));
+            }
         }
     }
 
@@ -1059,7 +1131,7 @@ mod tests {
     /// and in the middle (far from both corners), for finite decays.
     #[test]
     fn every_line_decays_at_its_band_s_rate() {
-        let ap = allpass_lengths(48_000.0);
+        let ap = allpass_totals(&allpass_lengths(48_000.0));
         let decay = Decay {
             t60_s: 3.0,
             infinite: false,
@@ -1081,7 +1153,7 @@ mod tests {
 
     #[test]
     fn infinite_holds_the_middle_and_never_gains() {
-        let ap = allpass_lengths(48_000.0);
+        let ap = allpass_totals(&allpass_lengths(48_000.0));
         let decay = Decay {
             t60_s: 3.0,
             infinite: true,

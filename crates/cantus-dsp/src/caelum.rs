@@ -72,7 +72,7 @@ const CEILING_RMS: f32 = 0.5;
 /// The decay an infinite tank's level is set for, s: it grows by what it is fed.
 const LEVEL_INFINITE_S: f32 = 8.0;
 /// Calibration of the wet's level (see [`late_gain`]), measured on pink noise.
-const LATE_CAL: f32 = 1.0;
+const LATE_CAL: f32 = 0.89;
 /// Octave centres the meter reports the achieved decay at, Hz.
 pub const OCTAVES: [f32; 8] = [
     63.0, 125.0, 250.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 8_000.0,
@@ -287,9 +287,11 @@ pub struct Caelum {
     hc_c: SvfCoef,
     // Ducking.
     duck: Follower,
-    duck_times: Times,
+    duck_det: Times,
     duck_quiet: Quiet,
     duck_gr: f32,
+    duck_att: f32,
+    duck_rel: f32,
     /// Samples of silence in a row (both sides +0.0), for the drain.
     in_silent: usize,
     // Meters.
@@ -317,9 +319,11 @@ impl Caelum {
             lc_c: SvfCoef::new(20.0, fs),
             hc_c: SvfCoef::new(20_000.0, fs),
             duck: Follower::default(),
-            duck_times: Times::new(10.0, 400.0, fs),
+            duck_det: Times::new(0.0, 50.0, fs),
             duck_quiet: Quiet::default(),
             duck_gr: 0.0,
+            duck_att: 1.0,
+            duck_rel: 1.0,
             in_silent: usize::MAX / 2,
             meter: CaelumMeter::default(),
             fall: math::powf(10f32, -20.0 / 20.0 / fs),
@@ -378,7 +382,7 @@ impl Caelum {
         let first = !self.configured;
         let ms = fs * 0.001;
         if first || s.design_key() != self.settings.design_key() {
-            let ap = tank::allpass_lengths(fs);
+            let ap = tank::allpass_totals(&tank::allpass_lengths(fs));
             let d = TankDesign::new(fs, s.lines.count(), s.size, &s.decay(), &ap);
             self.tank.set_design(&d);
             for (a, hz) in self.meter.achieved.iter_mut().zip(OCTAVES) {
@@ -395,13 +399,13 @@ impl Caelum {
         self.tank.set_infinite(s.infinite);
         self.tank
             .set_modulation(s.mod_depth.clamp(0.0, 1.0) * tank::MAX_DEPTH_MS * ms, s.mod_rate_hz.clamp(0.02, 10.0));
-        self.tank.set_diffusion(0.6 * s.diffusion.clamp(0.0, 1.0));
+        self.tank.set_diffusion(0.7 * s.diffusion.clamp(0.0, 1.0));
         self.tank.set_shimmer(&s.shimmer());
         self.tank.set_freeze(s.freeze);
         self.input.set(
             s.predelay_ms,
             s.bloom_ms,
-            0.75 * s.diffusion.clamp(0.0, 1.0),
+            0.8 * s.diffusion.clamp(0.0, 1.0),
             s.mod_depth,
             s.freeze,
         );
@@ -411,7 +415,8 @@ impl Caelum {
         self.hc_on = s.high_cut_hz < 20_000.0;
         self.lc_c = SvfCoef::new(s.low_cut_hz.max(20.0), fs);
         self.hc_c = SvfCoef::new(s.high_cut_hz.min(20_000.0), fs);
-        self.duck_times = Times::new(s.duck_att_ms.max(0.1), s.duck_rel_ms.max(1.0), fs);
+        self.duck_att = crate::dynfx_follow::coef(s.duck_att_ms.max(0.1), fs);
+        self.duck_rel = crate::dynfx_follow::coef(s.duck_rel_ms.max(1.0), fs);
         self.settings = *s;
         self.configured = true;
         if first {
@@ -496,10 +501,13 @@ impl Caelum {
         self.finish_meter();
     }
 
-    /// The ducking's gain for this sample, from the detector's level.
+    /// The ducking's gain for this sample. The detector is a peak with a 50 ms fall; the
+    /// gain reduction it asks — the level over the threshold, up to the range — is reached
+    /// at the attack's speed and let go at the release's, so the release is how fast the
+    /// wet comes back.
     #[inline]
     fn duck_gain(&mut self, det: f32) -> f32 {
-        let env = self.duck.run(det, &self.duck_times);
+        let env = self.duck.run(det, &self.duck_det);
         if self.duck_quiet.note(det) {
             self.duck.settle(tank::SETTLE);
         }
@@ -510,7 +518,16 @@ impl Caelum {
             } else {
                 -180.0
             };
-            self.duck_gr = (level - self.settings.duck_thr_db).clamp(0.0, range);
+            let want = (level - self.settings.duck_thr_db).clamp(0.0, range);
+            let k = if want > self.duck_gr {
+                self.duck_att
+            } else {
+                self.duck_rel
+            };
+            self.duck_gr += (want - self.duck_gr) * k;
+            if self.duck_gr < 1e-5 {
+                self.duck_gr = 0.0;
+            }
             if self.duck_gr > 0.0 {
                 math::db_to_gain(-self.duck_gr)
             } else {

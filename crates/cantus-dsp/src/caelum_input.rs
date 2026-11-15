@@ -146,7 +146,7 @@ impl InputStage {
         } else {
             self.bloom_target = 0.0;
         }
-        self.diff_target = diff.clamp(0.0, 0.75);
+        self.diff_target = diff.clamp(0.0, 0.8);
         self.mod_depth_target = depth.clamp(0.0, 1.0) * DIFF_MOD_MS * ms;
         self.in_gain_target = if gate { 0.0 } else { 1.0 };
     }
