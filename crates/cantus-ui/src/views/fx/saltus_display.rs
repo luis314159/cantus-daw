@@ -245,7 +245,10 @@ impl View {
                     (a, false)
                 } else {
                     let rise = ((t - 1.1) / 0.12).min(1.0);
-                    (a - 0.6 * (1.0 - rise) + 0.08 * ((t - 1.1) * 34.5).sin() * rise, true)
+                    (
+                        a - 0.6 * (1.0 - rise) + 0.08 * ((t - 1.1) * 34.5).sin() * rise,
+                        true,
+                    )
                 };
                 let mut f = [f32::NAN; 4];
                 if on {
@@ -446,7 +449,17 @@ pub fn show(
         paint_leap(b, &ink, p.leap, &kb, v, ss, rd, &lanes, k);
         if let Some(pr) = p.pedal {
             let by_notes = ss.whammy_notes;
-            pedal::paint(b, &ink, pr, v.pedal, rd.target, ss, by_notes, v.held() != 0, k);
+            pedal::paint(
+                b,
+                &ink,
+                pr,
+                v.pedal,
+                rd.target,
+                ss,
+                by_notes,
+                v.held() != 0,
+                k,
+            );
             b.vline(
                 pr.left(),
                 pr.top() + 10.0 * k,
@@ -564,7 +577,10 @@ fn icon(b: &mut Brush, mode: usize, c: Pos2, u: f32, col: Color32, k: f32) {
         0 => {
             let pts: [Pos2; 9] = std::array::from_fn(|i| {
                 let t = i as f32 / 8.0;
-                pos2(c.x - h + 2.0 * h * t, c.y + h * 0.5 - 4.0 * h * 0.8 * t * (1.0 - t))
+                pos2(
+                    c.x - h + 2.0 * h * t,
+                    c.y + h * 0.5 - 4.0 * h * 0.8 * t * (1.0 - t),
+                )
             });
             b.polyline(&pts, w, col);
             b.dot(pts[8], 1.6 * k, col);
@@ -585,7 +601,10 @@ fn icon(b: &mut Brush, mode: usize, c: Pos2, u: f32, col: Color32, k: f32) {
         }
         // Octave: two notes an octave apart, joined.
         2 => {
-            let (a, z) = (pos2(c.x - h * 0.6, c.y + h * 0.6), pos2(c.x + h * 0.6, c.y - h * 0.6));
+            let (a, z) = (
+                pos2(c.x - h * 0.6, c.y + h * 0.6),
+                pos2(c.x + h * 0.6, c.y - h * 0.6),
+            );
             b.segment(a, z, w * 0.8, with_alpha(col, 0.6), false);
             b.dot(a, 2.4 * k, col);
             b.circle_stroke(z, 2.4 * k, w, col);
@@ -625,7 +644,14 @@ fn paint_band(
     for (i, r) in legend_rects(band, k).into_iter().enumerate() {
         let on = i == now;
         let col = if on { ink.hue } else { ink.dim };
-        icon(b, i, pos2(r.left() + 10.0 * k, r.center().y), 14.0 * k, col, k);
+        icon(
+            b,
+            i,
+            pos2(r.left() + 10.0 * k, r.center().y),
+            14.0 * k,
+            col,
+            k,
+        );
         let at = pos2(r.left() + 24.0 * k, r.center().y);
         let t = canvas::put(
             b,
@@ -648,7 +674,9 @@ fn paint_band(
     }
     let mut w = String::new();
     let engine = match ss.mode {
-        Mode::Shift | Mode::Whammy => ["fx.saltus.engine.0", "fx.saltus.engine.1"][ss.engine as usize],
+        Mode::Shift | Mode::Whammy => {
+            ["fx.saltus.engine.0", "fx.saltus.engine.1"][ss.engine as usize]
+        }
         Mode::Harmony => words::HSRC[ss.harmony_source as usize],
         Mode::Octave => ["fx.saltus.ostyle.0", "fx.saltus.ostyle.1"][ss.octave_style as usize],
     };
@@ -766,11 +794,12 @@ fn paint_leap(
     let landing = |m: i32| -> Option<(Color32, f32)> {
         lanes.iter().find_map(|l| {
             let hit = |a: i32| (a as f32 + l.interval).round() as i32 == m;
-            let on = if poly { chord.iter().any(|a| hit(*a)) } else { hit(anchor_key) };
-            (on && l.level > 0.0).then_some((
-                if l.second { second } else { ink.hue },
-                l.level,
-            ))
+            let on = if poly {
+                chord.iter().any(|a| hit(*a))
+            } else {
+                hit(anchor_key)
+            };
+            (on && l.level > 0.0).then_some((if l.second { second } else { ink.hue }, l.level))
         })
     };
     for pass in [false, true] {
@@ -786,7 +815,11 @@ fn paint_leap(
             };
             b.rrect(r, 2.0 * k, crate::kit::Fill::Solid(base));
             if held(m) {
-                b.rrect(r, 2.0 * k, crate::kit::Fill::Solid(with_alpha(second, 0.28)));
+                b.rrect(
+                    r,
+                    2.0 * k,
+                    crate::kit::Fill::Solid(with_alpha(second, 0.28)),
+                );
             }
             // A landing: lit lightly and ringed in its voice's colour (the note heard is
             // solid).
@@ -800,7 +833,12 @@ fn paint_leap(
                 let a = if poly { 0.55 } else { 0.22 + 0.6 * v.heard };
                 b.rrect(r, 2.0 * k, crate::kit::Fill::Solid(with_alpha(ink.hue, a)));
             }
-            b.rrect_stroke(r, 2.0 * k, 0.8 * k, if pass { ink.grid } else { ink.grid_strong });
+            b.rrect_stroke(
+                r,
+                2.0 * k,
+                0.8 * k,
+                if pass { ink.grid } else { ink.grid_strong },
+            );
             if let Some((c, _)) = land {
                 b.rrect_stroke(r.shrink(1.0 * k), 2.0 * k, 1.6 * k, c);
             }
@@ -819,7 +857,8 @@ fn paint_leap(
                     b,
                     pos2(r.center().x, r.bottom() - 5.0 * k),
                     Align2::CENTER_BOTTOM,
-                    &Text::new(&n, Role::Micro, if lit_key { ink.ground } else { ink.dim }).caps(false),
+                    &Text::new(&n, Role::Micro, if lit_key { ink.ground } else { ink.dim })
+                        .caps(false),
                     k,
                     None,
                 );
@@ -840,7 +879,13 @@ fn paint_leap(
             for a in &chord[1..] {
                 let pts = arc_points(kb, *a as f32, l.interval, room * 0.82, k);
                 let col = if l.second { second } else { ink.hue };
-                canvas::trace(b, &pts, (0.8 + 1.0 * l.level) * k, with_alpha(col, 0.55), ink);
+                canvas::trace(
+                    b,
+                    &pts,
+                    (0.8 + 1.0 * l.level) * k,
+                    with_alpha(col, 0.55),
+                    ink,
+                );
                 b.dot(pts[32], 2.6 * k, col);
             }
         }
@@ -886,13 +931,16 @@ fn paint_leap(
     }
     for (apex, l) in labels {
         let mut y = apex.y - 8.0 * k;
-        let size = |t: &str, role| crate::kit::text::measure(b.ctx(), &Text::new(t, role, l.col).caps(false), k);
+        let size = |t: &str, role| {
+            crate::kit::text::measure(b.ctx(), &Text::new(t, role, l.col).caps(false), k)
+        };
         let (sn, sv) = (size(&l.name, Role::Label), size(&l.value, Role::Value));
         let w = sn.x.max(sv.x) + 8.0 * k;
         let h = sn.y + sv.y + 4.0 * k;
         let mut r = Rect::from_center_size(pos2(apex.x, y - h * 0.5), vec2(w, h));
         r = r.translate(vec2(
-            (leap.left() + 6.0 * k - r.left()).max(0.0) - (r.right() - leap.right() + 6.0 * k).max(0.0),
+            (leap.left() + 6.0 * k - r.left()).max(0.0)
+                - (r.right() - leap.right() + 6.0 * k).max(0.0),
             0.0,
         ));
         while placed.iter().any(|p| p.intersects(r)) && r.top() > leap.top() {
@@ -978,9 +1026,21 @@ fn harmony_note(b: &mut Brush, ink: &Ink, leap: Rect, ss: &SaltusSettings, held:
 fn travel(b: &mut Brush, ink: &Ink, kb: &Keyboard, anchor: f32, ss: &SaltusSettings, k: f32) {
     let y = kb.r.bottom() + 9.0 * k;
     let (xh, xt) = (kb.x(anchor + ss.heel), kb.x(anchor + ss.toe));
-    b.segment(pos2(xh, y), pos2(xt, y), 1.0 * k, with_alpha(ink.hue, 0.7), false);
+    b.segment(
+        pos2(xh, y),
+        pos2(xt, y),
+        1.0 * k,
+        with_alpha(ink.hue, 0.7),
+        false,
+    );
     for (x, key) in [(xh, "saltus.d.heel"), (xt, "saltus.d.toe")] {
-        b.segment(pos2(x, y - 4.0 * k), pos2(x, y + 4.0 * k), 1.0 * k, ink.hue, true);
+        b.segment(
+            pos2(x, y - 4.0 * k),
+            pos2(x, y + 4.0 * k),
+            1.0 * k,
+            ink.hue,
+            true,
+        );
         canvas::put(
             b,
             pos2(x, y + 5.0 * k),
@@ -1002,7 +1062,7 @@ fn trail(b: &mut Brush, ink: &Ink, leap: Rect, kb: &Keyboard, v: &View, k: f32) 
     let (y0, y1) = (kb.r.top() - 6.0 * k, leap.top() + 84.0 * k);
     let at = |age: usize| y0 - (y0 - y1) * age as f32 / (TRAIL - 1) as f32;
     let cols = [ink.hue, ink.hue, ink.look.trace2, ink.look.trace2];
-    for lane in 0..4 {
+    for (lane, col) in cols.into_iter().enumerate() {
         for j in 1..n {
             let (a, c) = (v.trail[n - j][lane], v.trail[n - 1 - j][lane]);
             if a.is_nan() || c.is_nan() || (a - c).abs() > 1.5 {
@@ -1016,7 +1076,7 @@ fn trail(b: &mut Brush, ink: &Ink, leap: Rect, kb: &Keyboard, v: &View, k: f32) 
             };
             let (pa, pc) = (pos2(kb.x(a), at(j - 1)), pos2(kb.x(c), at(j)));
             if leap.contains(pa) && leap.contains(pc) {
-                b.segment(pa, pc, w * k, with_alpha(cols[lane], alpha), false);
+                b.segment(pa, pc, w * k, with_alpha(col, alpha), false);
             }
         }
     }

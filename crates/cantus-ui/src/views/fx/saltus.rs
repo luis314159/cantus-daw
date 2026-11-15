@@ -113,7 +113,8 @@ fn body_ui(
     let r1 = g.full(top);
     st.display = Some(r1);
     let reading = cantus_engine::fx::saltus::read(tel);
-    st.view.update(&reading, ss, ui.input(|i| i.stable_dt).min(0.1));
+    st.view
+        .update(&reading, ss, ui.input(|i| i.stable_dt).min(0.1));
     display::show(host, &mut st.view, ui, s, r1, ss, &reading);
     if st.view.moving() {
         ui.ctx().request_repaint();
@@ -195,7 +196,13 @@ fn labelled(
 }
 
 /// A cell wider than a knob's own, for a label of two words ("One down", "Una arriba").
-fn wide(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, key: &'static str, label: &'static str) {
+fn wide(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    key: &'static str,
+    label: &'static str,
+) {
     let spec = host.spec();
     let Some(info) = spec.kind.param(key) else {
         return;
@@ -226,9 +233,23 @@ fn voice_card(
     let [st, ct, deg, lvl, pan] = VOICE[v];
     controls::card(ui, s, rect, Src::Key(title), None, |ui, _| {
         if harmony {
-            labelled(host, ui, s, deg, "saltus.l.degrees", Some(&words::degree_pill));
+            labelled(
+                host,
+                ui,
+                s,
+                deg,
+                "saltus.l.degrees",
+                Some(&words::degree_pill),
+            );
         } else {
-            labelled(host, ui, s, st, "saltus.l.interval", Some(&words::semitone_pill));
+            labelled(
+                host,
+                ui,
+                s,
+                st,
+                "saltus.l.interval",
+                Some(&words::semitone_pill),
+            );
         }
         labelled(host, ui, s, ct, "saltus.l.fine", None);
         labelled(host, ui, s, lvl, "saltus.l.level", None);
@@ -333,25 +354,41 @@ fn harmony_card(
     rect: Rect,
     ss: &SaltusSettings,
 ) {
-    controls::card(ui, s, rect, Src::Key("saltus.card.harmony"), None, |ui, _| {
-        let w = 232.0;
-        controls::column(ui, s, w, |ui| {
-            controls::caption(ui, s, Src::Key("saltus.l.counts"), w);
-            let src = ss.harmony_source as usize;
-            field_of(host, ui, s, "hsrc", &words::HSRC, src, w, w);
-            if src == 0 {
-                ui.horizontal(|ui| {
-                    let kw = 72.0;
-                    let key = ss.key as usize;
-                    field_of(host, ui, s, "key", &words::KEYS, key, kw, 96.0);
-                    let sc = ss.scale as usize;
-                    field_of(host, ui, s, "scale", &words::SCALES, sc, w - kw - 4.0, 170.0);
-                });
-            } else {
-                midi_source(host, ui, s, w);
-            }
-        });
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("saltus.card.harmony"),
+        None,
+        |ui, _| {
+            let w = 232.0;
+            controls::column(ui, s, w, |ui| {
+                controls::caption(ui, s, Src::Key("saltus.l.counts"), w);
+                let src = ss.harmony_source as usize;
+                field_of(host, ui, s, "hsrc", &words::HSRC, src, w, w);
+                if src == 0 {
+                    ui.horizontal(|ui| {
+                        let kw = 72.0;
+                        let key = ss.key as usize;
+                        field_of(host, ui, s, "key", &words::KEYS, key, kw, 96.0);
+                        let sc = ss.scale as usize;
+                        field_of(
+                            host,
+                            ui,
+                            s,
+                            "scale",
+                            &words::SCALES,
+                            sc,
+                            w - kw - 4.0,
+                            170.0,
+                        );
+                    });
+                } else {
+                    midi_source(host, ui, s, w);
+                }
+            });
+        },
+    );
 }
 
 /// In Cantus, the track whose notes Saltus hears (the chord, the melody, the whammy's
@@ -402,15 +439,22 @@ fn midi_source(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, w: f32) {
 
 /// The octaves: two down, one down, one up (lowest first, as the keyboard reads).
 fn octaves_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
-    controls::card(ui, s, rect, Src::Key("saltus.card.octaves"), None, |ui, _| {
-        for (key, label) in [
-            ("sub2", "saltus.l.down2"),
-            ("sub1", "saltus.l.down1"),
-            ("up1", "saltus.l.up1"),
-        ] {
-            wide(host, ui, s, key, label);
-        }
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("saltus.card.octaves"),
+        None,
+        |ui, _| {
+            for (key, label) in [
+                ("sub2", "saltus.l.down2"),
+                ("sub1", "saltus.l.down1"),
+                ("up1", "saltus.l.up1"),
+            ] {
+                wide(host, ui, s, key, label);
+            }
+        },
+    );
 }
 
 /// The octave's style, analog or clean, with what each is in a line.
@@ -467,18 +511,25 @@ fn played_card(
     rect: Rect,
     ss: &SaltusSettings,
 ) {
-    controls::card(ui, s, rect, Src::Key("saltus.card.played"), None, |ui, _| {
-        let w = 300.0;
-        controls::column(ui, s, w, |ui| {
-            let labels = [Src::Key("fx.saltus.wsrc.0"), Src::Key("fx.saltus.wsrc.1")];
-            controls::segmented_param(ui, s, host, "wsrc", &labels, w);
-            if ss.whammy_notes {
-                midi_source(host, ui, s, w);
-            } else {
-                controls::line(ui, s, frame::tr("saltus.played.0.about"), s.t.text_dim, w);
-            }
-        });
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("saltus.card.played"),
+        None,
+        |ui, _| {
+            let w = 300.0;
+            controls::column(ui, s, w, |ui| {
+                let labels = [Src::Key("fx.saltus.wsrc.0"), Src::Key("fx.saltus.wsrc.1")];
+                controls::segmented_param(ui, s, host, "wsrc", &labels, w);
+                if ss.whammy_notes {
+                    midi_source(host, ui, s, w);
+                } else {
+                    controls::line(ui, s, frame::tr("saltus.played.0.about"), s.t.text_dim, w);
+                }
+            });
+        },
+    );
 }
 
 /// The inspector's picture: the mode and what it does, in a line ("Shift · +12 st, −12 st").

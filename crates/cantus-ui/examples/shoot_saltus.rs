@@ -50,12 +50,7 @@ fn settings(state: &str) -> &'static [(&'static str, f32)] {
             ("lvl1", 0.7),
             ("lvl2", 0.5),
         ],
-        "octave" => &[
-            ("mode", 2.0),
-            ("sub1", 0.8),
-            ("sub2", 0.5),
-            ("up1", 0.3),
-        ],
+        "octave" => &[("mode", 2.0), ("sub1", 0.8), ("sub2", 0.5), ("up1", 0.3)],
         "whammy" => &[
             ("mode", 3.0),
             ("engine", 0.0),
@@ -102,7 +97,8 @@ fn app_with(state: &str, playing: bool) -> CantusApp {
     let (strip, effect, _) = app.fx.open.expect("Saltus is open");
     let kv = settings(state);
     if !kv.is_empty() {
-        views::fx::host::DawHost::new(&mut app, strip, effect, "saltus").set_many(kv, "cmd.fx_preset");
+        views::fx::host::DawHost::new(&mut app, strip, effect, "saltus")
+            .set_many(kv, "cmd.fx_preset");
     }
     if playing {
         views::fx::demo_feed(&mut app, KIND);
@@ -133,7 +129,8 @@ fn main() {
         .unwrap_or_else(|| PathBuf::from("target/shots/saltus"));
     std::fs::create_dir_all(&dir).expect("output dir");
     let only = std::env::var("SALTUS_ONLY").ok();
-    let mut shots: Vec<(&str, bool, bool, Locale, f32)> = vec![("start", false, true, Locale::En, 1.0)];
+    let mut shots: Vec<(&str, bool, bool, Locale, f32)> =
+        vec![("start", false, true, Locale::En, 1.0)];
     for state in [
         "start", "shift", "harmony", "chord", "octave", "whammy", "notes", "board",
     ] {

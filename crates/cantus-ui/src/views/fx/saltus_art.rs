@@ -18,18 +18,12 @@ pub fn leap(b: &mut Brush, u: f32, r: Rect, print: Color32, accent: Color32) {
     let n = 9;
     let kw = keys.width() / n as f32;
     for i in 0..n {
-        let k = Rect::from_min_size(
-            pos2(keys.left() + i as f32 * kw, keys.top()),
-            vec2(kw, kh),
-        );
+        let k = Rect::from_min_size(pos2(keys.left() + i as f32 * kw, keys.top()), vec2(kw, kh));
         b.rrect_stroke(k.shrink(0.6 * u), 1.2 * u, fine, with_alpha(print, 0.55));
     }
     for i in [1, 2, 4, 5, 6, 8] {
         let x = keys.left() + i as f32 * kw;
-        let k = Rect::from_center_size(
-            pos2(x, keys.top() + kh * 0.3),
-            vec2(kw * 0.55, kh * 0.6),
-        );
+        let k = Rect::from_center_size(pos2(x, keys.top() + kh * 0.3), vec2(kw * 0.55, kh * 0.6));
         b.rrect(k, 1.0 * u, Fill::Solid(with_alpha(print, 0.45)));
     }
     let key_x = |i: usize| keys.left() + (i as f32 + 0.5) * kw;

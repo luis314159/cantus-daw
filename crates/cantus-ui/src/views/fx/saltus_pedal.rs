@@ -115,7 +115,13 @@ pub fn paint(
     let mut ring = base.to_vec();
     ring.push(base[0]);
     b.polyline(&ring, 0.8 * k, shade(0.42));
-    b.hline(left + 6.0 * k, left + len - 6.0 * k, floor - 9.0 * k, 0.7 * k, ink.grid);
+    b.hline(
+        left + 6.0 * k,
+        left + len - 6.0 * k,
+        floor - 9.0 * k,
+        0.7 * k,
+        ink.grid,
+    );
     for x in [left + 14.0 * k, left + len - 14.0 * k] {
         b.rrect(
             Rect::from_center_size(pos2(x, floor + 2.5 * k), vec2(22.0 * k, 5.0 * k)),
@@ -168,7 +174,10 @@ pub fn paint(
     }
     canvas::trace(
         b,
-        &[plate(tl + 8.0 * k, -28.6 * k), plate(tr - 10.0 * k, -28.6 * k)],
+        &[
+            plate(tl + 8.0 * k, -28.6 * k),
+            plate(tr - 10.0 * k, -28.6 * k),
+        ],
         1.4 * k,
         with_alpha(ink.hue, 0.45 + 0.55 * pedal),
         ink,
@@ -203,7 +212,10 @@ pub fn paint(
     words::semitone_pill(ss.heel, &mut hw);
     let mut tw = String::new();
     words::semitone_pill(ss.toe, &mut tw);
-    for (g, text, al) in [(0.0, &hw, Align2::LEFT_BOTTOM), (1.0, &tw, Align2::LEFT_TOP)] {
+    for (g, text, al) in [
+        (0.0, &hw, Align2::LEFT_BOTTOM),
+        (1.0, &tw, Align2::LEFT_TOP),
+    ] {
         canvas::put(
             b,
             toe(g) + vec2(12.0 * k, 0.0),
@@ -238,7 +250,11 @@ pub fn paint(
         b,
         lamp.center(),
         Align2::CENTER_CENTER,
-        &Text::key("saltus.d.midi", Role::Micro, if by_notes { ink.text } else { ink.dim }),
+        &Text::key(
+            "saltus.d.midi",
+            Role::Micro,
+            if by_notes { ink.text } else { ink.dim },
+        ),
         k,
         None,
     );
