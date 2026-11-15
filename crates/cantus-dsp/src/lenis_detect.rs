@@ -144,6 +144,8 @@ pub struct Design {
     pub u: Vec<f64>,
     pub pu: Vec<f64>,
     pub puu: Vec<f64>,
+    /// Each bin's envelope estimate, precomputed.
+    pub fits: Vec<Fit>,
     pub bins: usize,
     pub threshold: f32,
     pub depth: f32,
@@ -163,7 +165,6 @@ pub struct Design {
     pub clip_db: f32,
     /// How far under the higher side's mean the envelope may sit (a band's edge), dB.
     pub edge_db: f32,
-    pub guard_mul: usize,
     pub linked: bool,
 }
 
@@ -176,6 +177,7 @@ impl Design {
             u: vec![0.0; max_bins],
             pu: vec![0.0; max_bins + 1],
             puu: vec![0.0; max_bins + 1],
+            fits: vec![Fit::default(); max_bins],
             bins: 0,
             threshold: 0.0,
             depth: 0.0,
@@ -190,7 +192,6 @@ impl Design {
             passes: PASSES,
             clip_db: CLIP_DB,
             edge_db: EDGE_DB,
-            guard_mul: GUARD_MUL,
             linked: true,
         }
     }
@@ -203,8 +204,9 @@ impl Design {
         let half = 0.5 * envelope_octaves(s.sharpness);
         let (down, up) = (math::exp2(-half), math::exp2(half));
         let bin_hz = sr / n as f32;
-        let bridge_at =
-            |k: usize| (BRIDGE_HZ.min(k as f32 * bin_hz * BRIDGE_FRACTION) / bin_hz).round() as usize;
+        let bridge_at = |k: usize| {
+            (BRIDGE_HZ.min(k as f32 * bin_hz * BRIDGE_FRACTION) / bin_hz).round() as usize
+        };
         for k in 0..bins {
             self.weight[k] = focus_weight(s, k as f32 * bin_hz);
             let br = bridge_at(k);
@@ -218,6 +220,42 @@ impl Design {
             self.u[k] = u;
             self.pu[k + 1] = self.pu[k] + u;
             self.puu[k + 1] = self.puu[k] + u * u;
+        }
+        for k in 0..bins {
+            let (a, b) = (self.lo[k] as usize, self.hi[k] as usize + 1);
+            let m = (b - a) as f64;
+            let su = self.pu[b] - self.pu[a];
+            let suu = self.puu[b] - self.puu[a];
+            let den = m * suu - su * su;
+            let c = if den > 1e-12 {
+                (self.u[k] - su / m) / den
+            } else {
+                0.0
+            };
+            let g = GUARD_MUL * self.bridge[k] as usize + 1;
+            let (la, lb) = (a, (k + 1).saturating_sub(g).max(a));
+            let (ra, rb) = ((k + g).min(b), b);
+            let inv = |x: usize, y: usize| {
+                if y >= x + 3 {
+                    1.0 / (y - x) as f64
+                } else {
+                    0.0
+                }
+            };
+            self.fits[k] = Fit {
+                a: a as u32,
+                b: b as u32,
+                m,
+                inv_m: 1.0 / m,
+                su,
+                c,
+                la: la as u32,
+                lb: lb as u32,
+                inv_l: inv(la, lb),
+                ra: ra as u32,
+                rb: rb as u32,
+                inv_r: inv(ra, rb),
+            };
         }
         self.threshold = threshold_db(s.selectivity);
         self.depth = s.depth.clamp(0.0, 1.0);
@@ -242,7 +280,6 @@ impl Design {
 }
 
 pub use super::{MAX_ATTACK_MS, MAX_RELEASE_MS, MIN_ATTACK_MS, MIN_RELEASE_MS};
-
 
 /// Working arrays one detector pass uses, shared by the detectors.
 pub struct Scratch {
@@ -279,7 +316,37 @@ impl Scratch {
 /// dBFS of a raw power.
 #[inline]
 fn db(p: f32, d: &Design) -> f32 {
-    (10.0 * math::log10(p * d.norm2 + 1e-14)).max(FLOOR_DB)
+    (10.0 * fast_log10(p * d.norm2 + 1e-14)).max(FLOOR_DB)
+}
+
+/// `log10(x)` for a finite positive `f32`, to about 1e-6 (2e-5 dB on a power), in plain
+/// arithmetic (the same bits on every machine, as [`crate::math`] promises): the exponent
+/// from the bits, the mantissa moved into √½ … √2, and `ln m = 2·atanh t`, `t = (m − 1)/(m + 1)`
+/// (|t| ≤ 0.172), to the seventh power. A third of the cost of the library call, which the
+/// detector made twice a bin a frame.
+#[inline]
+fn fast_log10(x: f32) -> f32 {
+    fast_log10_impl(x)
+}
+
+#[cfg(test)]
+pub fn fast_log10_for_tests(x: f32) -> f32 {
+    fast_log10_impl(x)
+}
+
+#[inline]
+fn fast_log10_impl(x: f32) -> f32 {
+    let bits = x.to_bits();
+    let mut e = ((bits >> 23) & 0xff) as i32 - 127;
+    let mut m = f32::from_bits((bits & 0x007f_ffff) | 0x3f80_0000);
+    if m > std::f32::consts::SQRT_2 {
+        m *= 0.5;
+        e += 1;
+    }
+    let t = (m - 1.0) / (m + 1.0);
+    let t2 = t * t;
+    let ln_m = 2.0 * t * (1.0 + t2 * (1.0 / 3.0 + t2 * (0.2 + t2 * (1.0 / 7.0))));
+    (e as f32 * std::f32::consts::LN_2 + ln_m) * std::f32::consts::LOG10_E
 }
 
 /// One time scale's excess: the fine spectrum of the averaged power `ps` against the robust
@@ -462,27 +529,6 @@ fn three(x: &[f32], out: &mut [f32]) {
     }
 }
 
-/// The straight line fitted to `x[a..b]` against the bins' octave, read at bin `at`; `None`
-/// with fewer than three bins.
-#[inline]
-fn line(d: &Design, px: &[f64], pux: &[f64], a: usize, b: usize, at: usize) -> Option<f64> {
-    if b < a + 3 {
-        return None;
-    }
-    let m = (b - a) as f64;
-    let su = d.pu[b] - d.pu[a];
-    let suu = d.puu[b] - d.puu[a];
-    let sx = px[b] - px[a];
-    let sux = pux[b] - pux[a];
-    let den = m * suu - su * su;
-    let mean = sx / m;
-    Some(if den > 1e-12 {
-        mean + (m * sux - su * sx) / den * (d.u[at] - su / m)
-    } else {
-        mean
-    })
-}
-
 /// The envelope at each bin: the greatest of three estimates over the envelope's box — the
 /// straight line (least squares, against the bins' octave) through the whole box, read at
 /// `k`; the mean of the bins under `k`; the mean of the bins over it (both beyond a guard
@@ -501,18 +547,37 @@ fn sided(x: &[f32], d: &Design, px: &mut [f64], pux: &mut [f64], out: &mut [f32]
         px[i + 1] = px[i] + x[i] as f64;
         pux[i + 1] = pux[i] + d.u[i] * x[i] as f64;
     }
-
-    let mean = |a: usize, b: usize| (b >= a + 3).then(|| (px[b] - px[a]) / (b - a) as f64);
-    for k in 0..n {
-        let (lo, hi) = (d.lo[k] as usize, d.hi[k] as usize + 1);
-        let both = line(d, px, pux, lo, hi, k).unwrap_or(x[k] as f64);
-        let g = d.guard_mul * d.bridge[k] as usize + 1;
-        let left = if k + 1 >= g + lo { mean(lo, k + 1 - g) } else { None };
-        let right = mean((k + g).min(hi), hi);
+    let edge = d.edge_db as f64;
+    for (k, f) in d.fits[..n].iter().enumerate() {
+        let (a, b) = (f.a as usize, f.b as usize);
+        let sx = px[b] - px[a];
+        let sux = pux[b] - pux[a];
+        let line = sx * f.inv_m + f.c * (f.m * sux - f.su * sx);
+        let left = (f.inv_l > 0.0).then(|| (px[f.lb as usize] - px[f.la as usize]) * f.inv_l);
+        let right = (f.inv_r > 0.0).then(|| (px[f.rb as usize] - px[f.ra as usize]) * f.inv_r);
         out[k] = match (left, right) {
-            (Some(a), Some(b)) => both.max(0.5 * (a + b)).max(a.max(b) - d.edge_db as f64),
-            (Some(a), None) | (None, Some(a)) => both.max(a - d.edge_db as f64),
-            (None, None) => both,
+            (Some(l), Some(r)) => line.max(0.5 * (l + r)).max(l.max(r) - edge),
+            (Some(s), None) | (None, Some(s)) => line.max(s - edge),
+            (None, None) => line,
         } as f32;
     }
+}
+
+/// A bin's envelope estimate, precomputed from the design: the box `[a, b)` and its line's
+/// constants (the value at the bin is `Σx/m + c·(m·Σux − Σu·Σx)`), and the two side means'
+/// ranges (`inv_* = 0`: that side has fewer than three bins).
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Fit {
+    pub a: u32,
+    pub b: u32,
+    pub m: f64,
+    pub inv_m: f64,
+    pub su: f64,
+    pub c: f64,
+    pub la: u32,
+    pub lb: u32,
+    pub inv_l: f64,
+    pub ra: u32,
+    pub rb: u32,
+    pub inv_r: f64,
 }

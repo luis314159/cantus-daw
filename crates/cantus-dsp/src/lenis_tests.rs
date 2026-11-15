@@ -157,10 +157,7 @@ fn depth_zero_and_mix_zero_are_the_input_delayed_to_the_bit() {
                 };
                 cases.push((
                     format!("depth 0 {q:?} {ch:?} {m:?}"),
-                    LenisSettings {
-                        depth: 0.0,
-                        ..base
-                    },
+                    LenisSettings { depth: 0.0, ..base },
                 ));
                 cases.push((
                     format!("mix 0 {q:?} {ch:?} {m:?}"),
@@ -481,10 +478,37 @@ fn the_focus_curve_is_one_where_nothing_acts_and_follows_its_bands() {
     // The curve's shape.
     use detect::reduction_db as red;
     assert_eq!(red(3.0, 4.0, 0.5, Mode::Soft), 0.0, "under the threshold");
-    assert_eq!(red(10.0, 4.0, 0.25, Mode::Hard), 6.0, "hard at 25 %: to the line");
-    assert_eq!(red(10.0, 4.0, 1.0, Mode::Hard), 10.0, "never below the envelope");
-    assert!((red(10.0, 4.0, 0.25, Mode::Soft) - 3.6).abs() < 1e-5, "soft: e²/(e + 4)");
-    assert!(red(4.5, 4.0, 0.5, Mode::Soft) < 0.15, "the knee starts gently");
+    assert_eq!(
+        red(10.0, 4.0, 0.25, Mode::Hard),
+        6.0,
+        "hard at 25 %: to the line"
+    );
+    assert_eq!(
+        red(10.0, 4.0, 1.0, Mode::Hard),
+        10.0,
+        "never below the envelope"
+    );
+    assert!(
+        (red(10.0, 4.0, 0.25, Mode::Soft) - 3.6).abs() < 1e-5,
+        "soft: e²/(e + 4)"
+    );
+    assert!(
+        red(4.5, 4.0, 0.5, Mode::Soft) < 0.15,
+        "the knee starts gently"
+    );
     assert_eq!(red(10.0, 4.0, 0.0, Mode::Hard), 0.0);
     assert_eq!(red(60.0, 2.0, 1.0, Mode::Hard), detect::MAX_CUT_DB);
+}
+
+#[test]
+fn the_detector_s_log_is_close_to_the_library_s() {
+    let mut worst = 0.0f32;
+    let mut x = 1e-14f32;
+    while x < 1e6 {
+        let a = detect::fast_log10_for_tests(x);
+        let b = math::log10(x);
+        worst = worst.max((a - b).abs());
+        x *= 1.0137;
+    }
+    assert!(worst < 2e-6, "{worst}");
 }

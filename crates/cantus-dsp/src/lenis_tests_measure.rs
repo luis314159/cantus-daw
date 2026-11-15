@@ -14,9 +14,7 @@ const WN: usize = 4096;
 fn welch(x: &[f32]) -> Vec<f64> {
     let fft = Fft::new(WN);
     let w: Vec<f32> = (0..WN)
-        .map(|i| {
-            (0.5 - 0.5 * math::cos(2.0 * std::f64::consts::PI * i as f64 / WN as f64)) as f32
-        })
+        .map(|i| (0.5 - 0.5 * math::cos(2.0 * std::f64::consts::PI * i as f64 / WN as f64)) as f32)
         .collect();
     let mut sum = vec![0.0f64; WN / 2 + 1];
     let mut frames = 0;
@@ -114,14 +112,32 @@ fn a_resonance_on_pink_noise_is_cut_and_its_neighbours_kept() {
     for (mode, depth, c) in &table {
         // The broad regions are kept within half a decibel.
         for v in &c[1..] {
-            assert!(v.abs() < 0.5, "{mode:?} {depth}: a neighbour moved {v:+.2} dB");
+            assert!(
+                v.abs() < 0.5,
+                "{mode:?} {depth}: a neighbour moved {v:+.2} dB"
+            );
         }
     }
     let at = |m: Mode, d: f32| table.iter().find(|t| t.0 == m && t.1 == d).unwrap().2[0];
-    assert!(at(Mode::Soft, 0.5) < -3.0, "soft 50 %: {}", at(Mode::Soft, 0.5));
-    assert!(at(Mode::Hard, 0.5) < -6.0, "hard 50 %: {}", at(Mode::Hard, 0.5));
-    assert!(at(Mode::Hard, 1.0) <= at(Mode::Hard, 0.5) && at(Mode::Hard, 0.5) < at(Mode::Hard, 0.25) - 2.0, "more depth, more cut");
-    assert!(at(Mode::Soft, 1.0) < at(Mode::Soft, 0.25) - 3.0, "more depth, more cut");
+    assert!(
+        at(Mode::Soft, 0.5) < -3.0,
+        "soft 50 %: {}",
+        at(Mode::Soft, 0.5)
+    );
+    assert!(
+        at(Mode::Hard, 0.5) < -6.0,
+        "hard 50 %: {}",
+        at(Mode::Hard, 0.5)
+    );
+    assert!(
+        at(Mode::Hard, 1.0) <= at(Mode::Hard, 0.5)
+            && at(Mode::Hard, 0.5) < at(Mode::Hard, 0.25) - 2.0,
+        "more depth, more cut"
+    );
+    assert!(
+        at(Mode::Soft, 1.0) < at(Mode::Soft, 0.25) - 3.0,
+        "more depth, more cut"
+    );
 }
 
 #[test]
@@ -130,7 +146,10 @@ fn flat_noise_is_barely_touched() {
     let thirds: Vec<(f32, f32)> = (0..30)
         .map(|i| {
             let c = 25.0 * math::powf(2.0f32, i as f32 / 3.0);
-            (c * math::powf(2.0f32, -1.0 / 6.0), c * math::powf(2.0f32, 1.0 / 6.0))
+            (
+                c * math::powf(2.0f32, -1.0 / 6.0),
+                c * math::powf(2.0f32, 1.0 / 6.0),
+            )
         })
         .filter(|(_, hi)| *hi < 20_000.0)
         .collect();
@@ -176,7 +195,9 @@ fn the_reduction_follows_depth_and_sharpness() {
     peaking(&mut narrow, 4_000.0, 20.0, 10.0);
     let mut broad = base.clone();
     peaking(&mut broad, 1_500.0, 1.5, 10.0);
-    println!("sharpness | narrow 4 kHz Q 20 | broad 1.5 kHz Q 1.5 (dB at the peak, depth 50 % hard)");
+    println!(
+        "sharpness | narrow 4 kHz Q 20 | broad 1.5 kHz Q 1.5 (dB at the peak, depth 50 % hard)"
+    );
     let mut rows = vec![];
     for sh in [0.0, 0.25, 0.5, 0.75, 1.0] {
         let s = LenisSettings {
@@ -186,15 +207,27 @@ fn the_reduction_follows_depth_and_sharpness() {
             mode: Mode::Hard,
             ..LenisSettings::default()
         };
-        let a = changes(&mut unit(&s), &(narrow.clone(), narrow.clone()), &[(3_900.0, 4_100.0)])[0];
-        let b = changes(&mut unit(&s), &(broad.clone(), broad.clone()), &[(1_300.0, 1_700.0)])[0];
+        let a = changes(
+            &mut unit(&s),
+            &(narrow.clone(), narrow.clone()),
+            &[(3_900.0, 4_100.0)],
+        )[0];
+        let b = changes(
+            &mut unit(&s),
+            &(broad.clone(), broad.clone()),
+            &[(1_300.0, 1_700.0)],
+        )[0];
         println!("  {sh:.2} | {a:+6.2} | {b:+6.2}");
         rows.push((sh, a, b));
     }
     // The narrow peak is cut at every sharpness; the broad bump only at low sharpness.
     assert!(rows.iter().all(|r| r.1 < -2.0));
     assert!(rows[0].2 < rows[4].2 - 1.0, "the broad bump: {:?}", rows);
-    assert!(rows[4].2 > -1.5, "the sharpest leaves the broad bump: {:?}", rows[4]);
+    assert!(
+        rows[4].2 > -1.5,
+        "the sharpest leaves the broad bump: {:?}",
+        rows[4]
+    );
 }
 
 /// The excess the detector reads, on noise and on a resonance, for detector variants.
@@ -217,9 +250,13 @@ fn diagnose_the_excess() {
         }
     }
     for (edge, guard) in [(detect::EDGE_DB, detect::GUARD_MUL)] {
+        let _ = guard;
         let bridge = format!("edge {edge} guard {guard}");
         let mut stats = vec![];
-        for (si, sig) in [&noise, &res, &plain, &note, &cliff].into_iter().enumerate() {
+        for (si, sig) in [&noise, &res, &plain, &note, &cliff]
+            .into_iter()
+            .enumerate()
+        {
             let mut per = vec![0.0f32; 2_100];
             let mut frames = 0usize;
             let mut u = unit(&LenisSettings {
@@ -228,7 +265,6 @@ fn diagnose_the_excess() {
             });
             let hop = u.geometry().hop();
             u.design.edge_db = edge;
-            u.design.guard_mul = guard;
 
             let (mut l, mut r) = (sig.clone(), sig.clone());
             let mut all = vec![];
@@ -261,10 +297,21 @@ fn diagnose_the_excess() {
                     .filter(|k| per[*k] / frames as f32 > 3.0)
                     .map(|k| format!("{:.0}:{:+.1}", u.bin_hz(k), per[k] / frames as f32))
                     .collect();
-                println!("  signal {si}: bins over 3 dB on average: {}", hot.join(" "));
+                println!(
+                    "  signal {si}: bins over 3 dB on average: {}",
+                    hot.join(" ")
+                );
                 let sc = &u.scratch;
                 for k in (290..345).step_by(3) {
-                    println!("    {:.0} Hz: level {:.1} fine {:.1} clip {:.1} env {:.1} excess {:.1}", u.bin_hz(k), sc.fast_level[k], sc.fine[k], sc.clip[k], sc.env[k], sc.excess[k]);
+                    println!(
+                        "    {:.0} Hz: level {:.1} fine {:.1} clip {:.1} env {:.1} excess {:.1}",
+                        u.bin_hz(k),
+                        sc.fast_level[k],
+                        sc.fine[k],
+                        sc.clip[k],
+                        sc.env[k],
+                        sc.excess[k]
+                    );
                 }
             }
         }
@@ -278,7 +325,9 @@ fn diagnose_the_excess() {
 /// A steady note: harmonics of `f0` at 1/k with drawn phases and a slow vibrato.
 pub(super) fn harmonic(n: usize, f0: f32) -> Vec<f32> {
     let parts = (16_000.0 / f0) as usize;
-    let mut ph: Vec<f32> = (0..parts).map(|k| 0.5 + 0.5 * super::tests::hash(k as u64 + 99)).collect();
+    let mut ph: Vec<f32> = (0..parts)
+        .map(|k| 0.5 + 0.5 * super::tests::hash(k as u64 + 99))
+        .collect();
     (0..n)
         .map(|i| {
             let t = i as f32 / SR;
@@ -345,7 +394,10 @@ fn the_time_response_follows_attack_and_release() {
         assert!(full > 6.0, "the tone is turned down: {full}");
         assert!(half < 20.0 + 2.0 * att, "half at {half} ms, attack {att}");
         assert!(rise < 60.0 + 3.0 * att, "90 % at {rise} ms, attack {att}");
-        assert!(fall < 40.0 + 2.5 * rel, "let go at {fall} ms, release {rel}");
+        assert!(
+            fall < 40.0 + 2.5 * rel,
+            "let go at {fall} ms, release {rel}"
+        );
         // Before the tone, nothing.
         let before = track
             .iter()
@@ -389,7 +441,13 @@ fn the_window_pairs_compared() {
     let (hit, onsets) = strikes(6.0);
     println!("frame/half (latency): 3 kHz peak | its neighbours | 250 Hz peak | pre-echo of a strike (dB under it) | the strike's ring cut");
     let mut rows = vec![];
-    for (n, m) in [(512, 256), (1024, 256), (1024, 512), (2048, 512), (2048, 1024)] {
+    for (n, m) in [
+        (512, 256),
+        (1024, 256),
+        (1024, 512),
+        (2048, 512),
+        (2048, 1024),
+    ] {
         let s = LenisSettings {
             depth: 0.5,
             mode: Mode::Hard,
@@ -401,7 +459,11 @@ fn the_window_pairs_compared() {
             u
         };
         let c3 = changes(&mut mk(), &(res3k.clone(), res3k.clone()), &AROUND_3K);
-        let c250 = changes(&mut mk(), &(box250.clone(), box250.clone()), &[(220.0, 285.0)]);
+        let c250 = changes(
+            &mut mk(),
+            &(box250.clone(), box250.clone()),
+            &[(220.0, 285.0)],
+        );
         let mut u = mk();
         let y = run(&mut u, &(hit.clone(), hit.clone()), 256);
         let lat = u.latency();
@@ -441,7 +503,6 @@ fn the_window_pairs_compared() {
             // The shipped shapes (a synthesis half of a quarter frame).
             assert!(r.5 < -20.0, "pre-echo {r:?}");
         }
-
     }
 }
 
@@ -472,7 +533,10 @@ fn cpu_at_48k() {
                     best = best.min(t0.elapsed().as_secs_f64());
                     std::hint::black_box(&l);
                 }
-                println!("  {q:?} {ch:?} depth {depth}: {:.2} % of a core", 100.0 * best / secs as f64);
+                println!(
+                    "  {q:?} {ch:?} depth {depth}: {:.2} % of a core",
+                    100.0 * best / secs as f64
+                );
             }
         }
     }
@@ -497,7 +561,12 @@ fn a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is() {
             quality: q,
             ..LenisSettings::default()
         };
-        let bands = [(400.0, 2_000.0), (2_000.0, 8_000.0), (2_600.0, 3_400.0), (8_000.0, 15_000.0)];
+        let bands = [
+            (400.0, 2_000.0),
+            (2_000.0, 8_000.0),
+            (2_600.0, 3_400.0),
+            (8_000.0, 15_000.0),
+        ];
         let a = changes(&mut unit(&s), &(plain.clone(), plain.clone()), &bands);
         let b = changes(&mut unit(&s), &(peaked.clone(), peaked.clone()), &bands);
         println!(
@@ -507,7 +576,10 @@ fn a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is() {
         rows.push((f0, q, a, b));
     }
     for (f0, q, a, b) in &rows {
-        assert!(a.iter().all(|v| v.abs() < 0.5), "{f0} {q:?}: the plain note {a:?}");
+        assert!(
+            a.iter().all(|v| v.abs() < 0.5),
+            "{f0} {q:?}: the plain note {a:?}"
+        );
         assert!(b[0].abs() < 0.5, "{f0} {q:?}: {b:?}");
         assert!(b[2] < -0.4, "{f0} {q:?}: the peak over the harmonics {b:?}");
         // Strong (Hard, 80 %, selectivity 25 %) cuts it plainly and still leaves the note.
@@ -518,17 +590,29 @@ fn a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is() {
             quality: *q,
             ..LenisSettings::default()
         };
-        let bands = [(800.0, 2_000.0), (2_600.0, 3_400.0), (5_000.0, 15_000.0), (400.0, 800.0)];
-        let c = changes(&mut unit(&strong), &{
-            let mut p = harmonic(n, *f0);
-            peaking(&mut p, 3_000.0, 8.0, 10.0);
-            (p.clone(), p)
-        }, &bands);
+        let bands = [
+            (800.0, 2_000.0),
+            (2_600.0, 3_400.0),
+            (5_000.0, 15_000.0),
+            (400.0, 800.0),
+        ];
+        let c = changes(
+            &mut unit(&strong),
+            &{
+                let mut p = harmonic(n, *f0);
+                peaking(&mut p, 3_000.0, 8.0, 10.0);
+                (p.clone(), p)
+            },
+            &bands,
+        );
         println!(
             "  {f0} Hz {q:?} strong: the peak {:+.2}, 800-2k {:+.2}, 5-15k {:+.2}; 400-800 {:+.2} (low partials: the focus decides)",
             c[1], c[0], c[2], c[3]
         );
-        assert!(c[1] < -2.0 && c[0].abs() < 0.5 && c[2].abs() < 0.5, "{f0} {q:?} strong: {c:?}");
+        assert!(
+            c[1] < -2.0 && c[0].abs() < 0.5 && c[2].abs() < 0.5,
+            "{f0} {q:?} strong: {c:?}"
+        );
     }
 }
 

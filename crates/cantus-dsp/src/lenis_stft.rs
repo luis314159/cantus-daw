@@ -110,12 +110,7 @@ pub fn unpack(re: &[f32], im: &[f32], k: usize, n: usize) -> (f32, f32, f32, f32
     let j = (n - k) & (n - 1);
     let (a, b) = (re[k], im[k]);
     let (c, d) = (re[j], im[j]);
-    (
-        0.5 * (a + c),
-        0.5 * (b - d),
-        0.5 * (b + d),
-        0.5 * (c - a),
-    )
+    (0.5 * (a + c), 0.5 * (b - d), 0.5 * (b + d), 0.5 * (c - a))
 }
 
 /// Write bin `k` (and its mirror) of the packed spectrum back from the two channels'
@@ -153,7 +148,13 @@ mod tests {
     /// whole set of frames covers, for the shipped and the symmetric shapes.
     #[test]
     fn the_window_pair_reconstructs() {
-        for (n, m) in [(1024, 256), (1024, 512), (512, 128), (2048, 512), (4096, 1024)] {
+        for (n, m) in [
+            (1024, 256),
+            (1024, 512),
+            (512, 128),
+            (2048, 512),
+            (4096, 1024),
+        ] {
             let g = Geometry::new(n, m);
             let (mut wa, mut ws, mut wp) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
             windows(g, &mut wa, &mut ws, &mut wp);
@@ -176,8 +177,12 @@ mod tests {
     fn two_channels_share_one_transform() {
         let n = 256;
         let fft = Fft::new(n);
-        let l: Vec<f32> = (0..n).map(|i| ((i * 37 % 101) as f32 / 50.0) - 1.0).collect();
-        let r: Vec<f32> = (0..n).map(|i| ((i * 53 % 89) as f32 / 44.0) - 1.0).collect();
+        let l: Vec<f32> = (0..n)
+            .map(|i| ((i * 37 % 101) as f32 / 50.0) - 1.0)
+            .collect();
+        let r: Vec<f32> = (0..n)
+            .map(|i| ((i * 53 % 89) as f32 / 44.0) - 1.0)
+            .collect();
         let (mut re, mut im) = (l.clone(), r.clone());
         fft.run(&mut re, &mut im, false);
         let (mut lr, mut li) = (l.clone(), vec![0.0; n]);
@@ -186,8 +191,14 @@ mod tests {
         fft.run(&mut rr, &mut ri, false);
         for k in 0..=n / 2 {
             let (a, b, c, d) = unpack(&re, &im, k, n);
-            assert!((a - lr[k]).abs() < 1e-3 && (b - li[k]).abs() < 1e-3, "left {k}");
-            assert!((c - rr[k]).abs() < 1e-3 && (d - ri[k]).abs() < 1e-3, "right {k}");
+            assert!(
+                (a - lr[k]).abs() < 1e-3 && (b - li[k]).abs() < 1e-3,
+                "left {k}"
+            );
+            assert!(
+                (c - rr[k]).abs() < 1e-3 && (d - ri[k]).abs() < 1e-3,
+                "right {k}"
+            );
         }
         // Gains of 0.5 on the left and 2 on the right come back as 0.5·l and 2·r.
         let mut z = (vec![0.0f32; n], vec![0.0f32; n]);

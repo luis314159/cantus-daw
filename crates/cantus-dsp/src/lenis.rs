@@ -361,7 +361,8 @@ impl Lenis {
     #[cfg(test)]
     pub(crate) fn set_keeping_shape(&mut self, s: &LenisSettings) {
         self.s = *s;
-        self.design.build(s, self.sr, self.g.n, self.g.hop(), self.wsum);
+        self.design
+            .build(s, self.sr, self.g.n, self.g.hop(), self.wsum);
         self.mix = Glide::at(s.mix);
         self.out = Glide::at(math::db_to_gain(s.out_db));
         self.delta = Glide::at(if s.delta { 1.0 } else { 0.0 });

@@ -37,8 +37,6 @@ const CHORDS: [&str; 4] = [
     "Sample17 (G Major)",
 ];
 
-type Stereo = (Vec<f32>, Vec<f32>);
-
 fn read_mono(path: &Path) -> (Vec<f32>, u32) {
     let mut r = hound::WavReader::open(path).unwrap_or_else(|e| panic!("{path:?}: {e}"));
     let spec = r.spec();
@@ -199,7 +197,11 @@ fn distorted(di: &[f32]) -> Vec<f32> {
     f.set(&s);
     f.reset();
     let lat = f.latency();
-    let mut l: Vec<f32> = di.iter().copied().chain(std::iter::repeat_n(0.0, lat)).collect();
+    let mut l: Vec<f32> = di
+        .iter()
+        .copied()
+        .chain(std::iter::repeat_n(0.0, lat))
+        .collect();
     let mut r = l.clone();
     for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
         f.process(a, b);
@@ -218,10 +220,20 @@ fn distorted(di: &[f32]) -> Vec<f32> {
 /// between the phrases.
 fn voice() -> Vec<f32> {
     let harsh_a = Vowel {
-        formants: [(760.0, 70.0), (1_220.0, 80.0), (2_650.0, 60.0), (3_500.0, 70.0)],
+        formants: [
+            (760.0, 70.0),
+            (1_220.0, 80.0),
+            (2_650.0, 60.0),
+            (3_500.0, 70.0),
+        ],
     };
     let harsh_e = Vowel {
-        formants: [(530.0, 60.0), (1_840.0, 70.0), (2_480.0, 60.0), (3_300.0, 70.0)],
+        formants: [
+            (530.0, 60.0),
+            (1_840.0, 70.0),
+            (2_480.0, 60.0),
+            (3_300.0, 70.0),
+        ],
     };
     let phrases: [[f32; 3]; 4] = [
         [220.0, 261.63, 293.66],
@@ -345,7 +357,11 @@ fn through(x: &[f32], s: &LenisSettings) -> (Vec<f32>, f32, f32) {
     let mut u = Lenis::new(F);
     u.set(s);
     let lat = u.latency();
-    let mut l: Vec<f32> = x.iter().copied().chain(std::iter::repeat_n(0.0, lat)).collect();
+    let mut l: Vec<f32> = x
+        .iter()
+        .copied()
+        .chain(std::iter::repeat_n(0.0, lat))
+        .collect();
     let mut r = l.clone();
     let (mut sum, mut most, mut blocks) = (0.0f32, 0.0f32, 0usize);
     for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
@@ -378,7 +394,7 @@ fn write(path: &Path, x: &[f32]) {
 /// The gentle setting: Soft, a little depth, the default selectivity.
 fn gentle() -> LenisSettings {
     LenisSettings {
-        depth: 0.4,
+        depth: 0.35,
         sharpness: 0.5,
         selectivity: 0.5,
         attack_ms: 5.0,
@@ -391,9 +407,9 @@ fn gentle() -> LenisSettings {
 /// The strong setting: Hard, deep, more selective of nothing (a lower threshold), faster.
 fn strong() -> LenisSettings {
     LenisSettings {
-        depth: 0.8,
+        depth: 0.6,
         sharpness: 0.45,
-        selectivity: 0.25,
+        selectivity: 0.3,
         attack_ms: 3.0,
         release_ms: 60.0,
         mode: Mode::Hard,
@@ -402,14 +418,23 @@ fn strong() -> LenisSettings {
 }
 
 /// A set: the dry twin, gentle, strong and the strong delta.
-fn set(dir: &Path, prefix: &str, dry: &[f32], focus: Option<FocusBand>, log: &mut String) {
+fn set(
+    dir: &Path,
+    prefix: &str,
+    dry: &[f32],
+    low_hz: f32,
+    focus: Option<FocusBand>,
+    log: &mut String,
+) {
     write(&dir.join(format!("{prefix}-0-dry.wav")), dry);
     let dry_rms = rms(dry);
     for (name, mut s) in [("1-gentle", gentle()), ("2-strong", strong())] {
+        s.low_hz = low_hz;
         if let Some(b) = focus {
             s.bands[0] = b;
         }
         let (mut y, mean, most) = through(dry, &s);
+        let bands = octaves(dry, &y);
         let mut g = (dry_rms / rms(&y).max(1e-12)) as f32;
         let peak = y.iter().fold(0f32, |m, v| m.max(v.abs())) * g;
         if peak > math::db_to_gain(-1.0) {
@@ -419,7 +444,7 @@ fn set(dir: &Path, prefix: &str, dry: &[f32], focus: Option<FocusBand>, log: &mu
         write(&dir.join(format!("{prefix}-{name}.wav")), &y);
         let _ = writeln!(
             log,
-            "{prefix}-{name}.wav: depth {:.0} %, {:?}, selectivity {:.0} %, sharpness {:.0} %, attack {} ms, release {} ms{}; the largest reduction {mean:.1} dB on average, {most:.1} dB at most; level-matched {:+.2} dB",
+            "{prefix}-{name}.wav: depth {:.0} %, {:?}, selectivity {:.0} %, sharpness {:.0} %, attack {} ms, release {} ms, from {low_hz} Hz{}; the largest reduction {mean:.1} dB on average, {most:.1} dB at most; level-matched {:+.2} dB",
             s.depth * 100.0,
             s.mode,
             s.selectivity * 100.0,
@@ -429,14 +454,9 @@ fn set(dir: &Path, prefix: &str, dry: &[f32], focus: Option<FocusBand>, log: &mu
             focus.map_or(String::new(), |b| format!(", focus +{:.0} % at {:.0} Hz", b.amount * 100.0, b.hz)),
             20.0 * math::log10(g)
         );
+        let _ = writeln!(log, "  octave bands before matching (dB): {bands}");
         if name == "2-strong" {
-            let (mut d, _, _) = through(
-                dry,
-                &LenisSettings {
-                    delta: true,
-                    ..s
-                },
-            );
+            let (mut d, _, _) = through(dry, &LenisSettings { delta: true, ..s });
             let level = 20.0 * (rms(&d) / dry_rms).log10();
             let gain = scale_peak(&mut d, -6.0);
             write(&dir.join(format!("{prefix}-3-strong-delta.wav")), &d);
@@ -459,12 +479,13 @@ fn main() {
     write(&out.join("00-guitar-di.wav"), &di);
     let _ = writeln!(log, "00-guitar-di.wav: the DI progression, peak -6 dBFS\n");
     let guitar = distorted(&di);
-    set(&out, "01-guitar", &guitar, None, &mut log);
-    set(&out, "02-voice", &voice(), None, &mut log);
+    set(&out, "01-guitar", &guitar, 200.0, None, &mut log);
+    set(&out, "02-voice", &voice(), 1_000.0, None, &mut log);
     set(
         &out,
         "03-drums",
         &drums(),
+        300.0,
         Some(FocusBand {
             on: true,
             hz: 600.0,
@@ -475,4 +496,54 @@ fn main() {
     );
     std::fs::write(out.join("render-log.txt"), &log).unwrap();
     print!("{log}");
+}
+
+/// The change in each octave band (125 Hz … 16 kHz) from `dry` to `y`, long-term (Welch,
+/// 4096-point Hann, hop 1024), before any level matching.
+fn octaves(dry: &[f32], y: &[f32]) -> String {
+    let n = 4096;
+    let fft = cantus_dsp::aequalis::fft::Fft::new(n);
+    let w: Vec<f32> = (0..n)
+        .map(|i| (0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64)) as f32)
+        .collect();
+    let power = |x: &[f32]| {
+        let mut sum = vec![0.0f64; n / 2 + 1];
+        let (mut re, mut im) = (vec![0.0f32; n], vec![0.0f32; n]);
+        let mut k = 0;
+        while k + n <= x.len() {
+            for i in 0..n {
+                re[i] = x[k + i] * w[i];
+                im[i] = 0.0;
+            }
+            fft.run(&mut re, &mut im, false);
+            for (b, s) in sum.iter_mut().enumerate() {
+                *s += (re[b] as f64).powi(2) + (im[b] as f64).powi(2);
+            }
+            k += n / 4;
+        }
+        sum
+    };
+    let (pd, py) = (power(dry), power(y));
+    let hz = F as f64 / n as f64;
+    (0..8)
+        .map(|o| {
+            let c = 125.0 * 2f64.powi(o);
+            let (lo, hi) = (c / 2f64.sqrt(), c * 2f64.sqrt());
+            let band = |p: &[f64]| -> f64 {
+                p.iter()
+                    .enumerate()
+                    .filter(|(b, _)| (*b as f64 * hz) >= lo && (*b as f64 * hz) < hi)
+                    .map(|(_, v)| v)
+                    .sum()
+            };
+            let d = 10.0 * (band(&py).max(1e-30) / band(&pd).max(1e-30)).log10();
+            let name = if c >= 1000.0 {
+                format!("{}k", c / 1000.0)
+            } else {
+                format!("{c}")
+            };
+            format!("{name} {d:+.1}")
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
