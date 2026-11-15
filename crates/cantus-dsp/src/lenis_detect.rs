@@ -52,7 +52,7 @@ pub const CLIP_DB: f32 = 1.0;
 pub const PASSES: usize = 3;
 /// At the edge of a band (a roll-off's knee) the envelope stays within this of the higher
 /// side's mean, so the edge is never taken for a peak.
-pub const EDGE_DB: f32 = 1.5;
+pub const EDGE_DB: f32 = 3.0;
 /// The side means start `GUARD_MUL · bridge + 1` bins away from the bin.
 pub const GUARD_MUL: usize = 2;
 /// The soft curve's knee, dB: `e²/(e + K)` — no slope at the threshold, `e − K` far over it.
@@ -165,6 +165,8 @@ pub struct Design {
     pub clip_db: f32,
     /// How far under the higher side's mean the envelope may sit (a band's edge), dB.
     pub edge_db: f32,
+    /// The side means moved along the box's slope to the bin.
+    pub slope_sides: bool,
     pub linked: bool,
 }
 
@@ -192,6 +194,7 @@ impl Design {
             passes: PASSES,
             clip_db: CLIP_DB,
             edge_db: EDGE_DB,
+            slope_sides: true,
             linked: true,
         }
     }
@@ -255,6 +258,17 @@ impl Design {
                 ra: ra as u32,
                 rb: rb as u32,
                 inv_r: inv(ra, rb),
+                inv_den: if den > 1e-12 { 1.0 / den } else { 0.0 },
+                du_l: if lb > la {
+                    self.u[k] - (self.pu[lb] - self.pu[la]) / (lb - la) as f64
+                } else {
+                    0.0
+                },
+                du_r: if rb > ra {
+                    self.u[k] - (self.pu[rb] - self.pu[ra]) / (rb - ra) as f64
+                } else {
+                    0.0
+                },
             };
         }
         self.threshold = threshold_db(s.selectivity);
@@ -553,13 +567,26 @@ fn sided(x: &[f32], d: &Design, px: &mut [f64], pux: &mut [f64], out: &mut [f32]
         let sx = px[b] - px[a];
         let sux = pux[b] - pux[a];
         let line = sx * f.inv_m + f.c * (f.m * sux - f.su * sx);
-        let left = (f.inv_l > 0.0).then(|| (px[f.lb as usize] - px[f.la as usize]) * f.inv_l);
-        let right = (f.inv_r > 0.0).then(|| (px[f.rb as usize] - px[f.ra as usize]) * f.inv_r);
-        out[k] = match (left, right) {
-            (Some(l), Some(r)) => line.max(0.5 * (l + r)).max(l.max(r) - edge),
-            (Some(s), None) | (None, Some(s)) => line.max(s - edge),
+        let slope = if d.slope_sides {
+            (f.m * sux - f.su * sx) * f.inv_den
+        } else {
+            0.0
+        };
+        let left_raw = (f.inv_l > 0.0).then(|| (px[f.lb as usize] - px[f.la as usize]) * f.inv_l);
+        let right_raw = (f.inv_r > 0.0).then(|| (px[f.rb as usize] - px[f.ra as usize]) * f.inv_r);
+        // The sides moved along the box's slope to the bin, averaged; and the higher raw
+        // side less the edge allowance (the knee of a roll-off).
+        let moved = |s: Option<f64>, du: f64| s.map(|v| v + slope * du);
+        let (left, right) = (moved(left_raw, f.du_l), moved(right_raw, f.du_r));
+        let avg = match (left, right) {
+            (Some(l), Some(r)) => 0.5 * (l + r),
+            (Some(s), None) | (None, Some(s)) => s,
             (None, None) => line,
-        } as f32;
+        };
+        let high = left_raw
+            .unwrap_or(f64::MIN)
+            .max(right_raw.unwrap_or(f64::MIN));
+        out[k] = line.max(avg).max(high - edge) as f32;
     }
 }
 
@@ -580,4 +607,8 @@ pub struct Fit {
     pub ra: u32,
     pub rb: u32,
     pub inv_r: f64,
+    /// `1/den` of the box's line (0: none), and the bin's octave less each side's mean octave.
+    pub inv_den: f64,
+    pub du_l: f64,
+    pub du_r: f64,
 }

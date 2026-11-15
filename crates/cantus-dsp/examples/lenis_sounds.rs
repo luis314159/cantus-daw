@@ -408,7 +408,7 @@ fn gentle() -> LenisSettings {
 fn strong() -> LenisSettings {
     LenisSettings {
         depth: 0.6,
-        sharpness: 0.45,
+
         selectivity: 0.3,
         attack_ms: 3.0,
         release_ms: 60.0,
@@ -424,12 +424,14 @@ fn set(
     dry: &[f32],
     low_hz: f32,
     focus: Option<FocusBand>,
+    sharpness: f32,
     log: &mut String,
 ) {
     write(&dir.join(format!("{prefix}-0-dry.wav")), dry);
     let dry_rms = rms(dry);
     for (name, mut s) in [("1-gentle", gentle()), ("2-strong", strong())] {
         s.low_hz = low_hz;
+        s.sharpness = sharpness;
         if let Some(b) = focus {
             s.bands[0] = b;
         }
@@ -479,8 +481,21 @@ fn main() {
     write(&out.join("00-guitar-di.wav"), &di);
     let _ = writeln!(log, "00-guitar-di.wav: the DI progression, peak -6 dBFS\n");
     let guitar = distorted(&di);
-    set(&out, "01-guitar", &guitar, 200.0, None, &mut log);
-    set(&out, "02-voice", &voice(), 1_000.0, None, &mut log);
+    set(
+        &out,
+        "01-guitar",
+        &guitar,
+        700.0,
+        Some(FocusBand {
+            on: true,
+            hz: 3_500.0,
+            amount: 0.5,
+            width_oct: 1.5,
+        }),
+        0.2,
+        &mut log,
+    );
+    set(&out, "02-voice", &voice(), 1_000.0, None, 0.45, &mut log);
     set(
         &out,
         "03-drums",
@@ -492,6 +507,7 @@ fn main() {
             amount: 0.6,
             width_oct: 1.5,
         }),
+        0.4,
         &mut log,
     );
     std::fs::write(out.join("render-log.txt"), &log).unwrap();

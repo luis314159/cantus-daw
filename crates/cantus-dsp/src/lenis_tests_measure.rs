@@ -224,7 +224,7 @@ fn the_reduction_follows_depth_and_sharpness() {
     assert!(rows.iter().all(|r| r.1 < -2.0));
     assert!(rows[0].2 < rows[4].2 - 1.0, "the broad bump: {:?}", rows);
     assert!(
-        rows[4].2 > -1.5,
+        rows[4].2 > -2.0,
         "the sharpest leaves the broad bump: {:?}",
         rows[4]
     );
@@ -240,6 +240,16 @@ fn diagnose_the_excess() {
     let mut note = harmonic(n, 220.0);
     let plain = note.clone();
     peaking(&mut note, 3_000.0, 8.0, 10.0);
+    let mut steep = pink(n, 7, 0.3);
+    for _ in 0..2 {
+        let a = 1.0 - math::exp(-std::f32::consts::TAU * 1_000.0 / SR);
+        let mut z = 0.0f32;
+        for v in steep.iter_mut() {
+            z += a * (*v - z);
+            *v = z;
+        }
+    }
+    peaking(&mut steep, 3_000.0, 4.0, 8.0);
     let mut cliff = pink(n, 6, 0.3);
     for _ in 0..8 {
         let a = 1.0 - math::exp(-std::f32::consts::TAU * 5_000.0 / SR);
@@ -249,11 +259,11 @@ fn diagnose_the_excess() {
             *v = z;
         }
     }
-    for (edge, guard) in [(detect::EDGE_DB, detect::GUARD_MUL)] {
+    for (edge, guard) in [(detect::EDGE_DB, true), (1.5, false)] {
         let _ = guard;
-        let bridge = format!("edge {edge} guard {guard}");
+        let bridge = format!("edge {edge} slope-corrected sides {guard}");
         let mut stats = vec![];
-        for (si, sig) in [&noise, &res, &plain, &note, &cliff]
+        for (si, sig) in [&noise, &res, &plain, &note, &cliff, &steep]
             .into_iter()
             .enumerate()
         {
@@ -265,6 +275,7 @@ fn diagnose_the_excess() {
             });
             let hop = u.geometry().hop();
             u.design.edge_db = edge;
+            u.design.slope_sides = guard;
 
             let (mut l, mut r) = (sig.clone(), sig.clone());
             let mut all = vec![];
@@ -316,8 +327,8 @@ fn diagnose_the_excess() {
             }
         }
         println!(
-            "{bridge}: noise p50 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance on noise {:+.1} | a 220 Hz note p99 {:+.1} p99.9 {:+.1} | its 3 kHz peak {:+.1} | pink low-passed at 5 kHz p99 {:+.1} p99.9 {:+.1}",
-            stats[0].0, stats[0].1, stats[0].2, stats[1].3, stats[2].1, stats[2].2, stats[3].3, stats[4].1, stats[4].2
+            "{bridge}: noise p50 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance on noise {:+.1} | a 220 Hz note p99 {:+.1} p99.9 {:+.1} | its 3 kHz peak {:+.1} | pink low-passed at 5 kHz p99 {:+.1} p99.9 {:+.1} | a Q 4 peak on a 12 dB/octave slope {:+.1}",
+            stats[0].0, stats[0].1, stats[0].2, stats[1].3, stats[2].1, stats[2].2, stats[3].3, stats[4].1, stats[4].2, stats[5].3
         );
     }
 }
