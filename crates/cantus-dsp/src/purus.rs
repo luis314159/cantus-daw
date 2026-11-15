@@ -401,7 +401,7 @@ impl Purus {
         // The drain.
         if silent {
             self.zero_run += 1;
-            if self.zero_run % DRAIN_EVERY == 0 {
+            if self.zero_run.is_multiple_of(DRAIN_EVERY) {
                 self.try_drain();
             }
         } else {

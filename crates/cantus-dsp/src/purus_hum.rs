@@ -176,13 +176,14 @@ struct Lane {
     s1: [f64; MAX_HARMONICS],
     s2: [f64; MAX_HARMONICS],
     /// Gentle: the hum learned (each harmonic's complex amplitude), the same smoothed (two
-    /// poles), and two snapshots of that (20–40 ms old, to unlearn a note's first
-    /// milliseconds).
+    /// poles), and three snapshots of that (the oldest 40–60 ms old, to unlearn a note's
+    /// first milliseconds).
     est: [C; MAX_HARMONICS],
     s_a: [C; MAX_HARMONICS],
     s_b: [C; MAX_HARMONICS],
     back_a: [C; MAX_HARMONICS],
     back_b: [C; MAX_HARMONICS],
+    back_c: [C; MAX_HARMONICS],
     /// What the hum learned does not explain, in each harmonic's band (three poles).
     e1: [C; MAX_HARMONICS],
     e2: [C; MAX_HARMONICS],
@@ -190,15 +191,14 @@ struct Lane {
     /// Whether learning is held, for how many more samples, how long the band has been
     /// busy without a break.
     held: [bool; MAX_HARMONICS],
-    /// The band's usual remainder, and whether learning was held in this snapshot period.
+    /// The band's usual remainder.
     floor: [f64; MAX_HARMONICS],
-    dirty: [bool; MAX_HARMONICS],
     hold_left: [u32; MAX_HARMONICS],
     busy_run: [u32; MAX_HARMONICS],
-    /// Samples since this lane first heard something (it learns freely at first), and the
-    /// snapshots' count.
+    /// Samples since this lane first heard something (it learns freely at first); each
+    /// harmonic's learning time since its last snapshot.
     heard: u32,
-    snap: u32,
+    snap: [u32; MAX_HARMONICS],
 }
 
 /// The de-hum module.
@@ -239,6 +239,10 @@ pub struct Dehum {
     /// canceller's rate (from the width now), and the gentle mode's lengths in samples.
     cd: f64,
     cg: f64,
+    cr: f64,
+    /// Gentle: the harmonics (from the fundamental) whose learning a note may hold — those
+    /// up to [`GENTLE_TOP_HZ`]; above, the canceller learns always (a notch of the width).
+    gated: usize,
     c_up: f64,
     c_down: f64,
     mu: f64,
@@ -277,6 +281,8 @@ impl Dehum {
             lanes: [Lane::default(), Lane::default()],
             cd: 1.0 - math::exp(-2.0 * std::f64::consts::PI * DEMOD_HZ / fs),
             cg: 1.0 - math::exp(-2.0 * std::f64::consts::PI * GATE_HZ / fs),
+            cr: 1.0 - math::exp(-2.0 * std::f64::consts::PI * REF_HZ / fs),
+            gated: 0,
             c_up: 1.0 - math::exp(-1.0 / (FLOOR_UP_S * fs)),
             c_down: 1.0 - math::exp(-1.0 / (FLOOR_DOWN_S * fs)),
             mu: 0.0,
@@ -292,8 +298,15 @@ impl Dehum {
 
 /// The tracker's (and the meters') three-pole demodulators' corner, Hz.
 const DEMOD_HZ: f64 = 3.0;
-/// Gentle: the three-pole band of what the hum learned does not explain, Hz.
+/// Gentle: the three-pole band of what the hum learned does not explain, Hz (a note more
+/// than about 10 Hz from a harmonic does not hold it).
 const GATE_HZ: f64 = 6.0;
+/// Gentle: the top of the bass range it protects, Hz. A note is held for only up to here:
+/// higher, chords crowd the harmonics (their partials 20–40 Hz away leak into a band fast
+/// enough to catch a note's onset) and the canceller learns always, a notch of the width.
+const GENTLE_TOP_HZ: f64 = 260.0;
+/// Gentle: the smoothing of the hum learned (two poles), Hz.
+const REF_HZ: f64 = 6.0;
 /// The tracker's loop: its natural frequency, Hz, and damping.
 const LOOP_HZ: f64 = 0.5;
 const LOOP_DAMPING: f64 = 0.8;
@@ -395,6 +408,7 @@ impl Dehum {
     /// The reference steps and every section's coefficients from `f0`, `g` and `width`.
     fn retune(&mut self) {
         self.mu = std::f64::consts::PI * self.width / self.fs;
+        self.gated = ((GENTLE_TOP_HZ / self.f0).floor() as usize).min(MAX_HARMONICS);
         let w = 2.0 * std::f64::consts::PI * self.f0 / self.fs;
         let (s, c) = math::sin_cos(w);
         self.step = C { re: c, im: s };
@@ -622,6 +636,8 @@ impl Dehum {
 
     /// One stereo sample: the hum taken out of each channel (before the module's mix).
     #[inline]
+    // The harmonics' (bins') arrays run in step: an index reads clearest.
+    #[allow(clippy::needless_range_loop)]
     pub fn process(&mut self, l: f32, r: f32) -> (f32, f32) {
         if self.tick == 0 {
             self.on_grid();
@@ -687,9 +703,12 @@ impl Dehum {
     }
 
     #[inline]
+    // The harmonics' (bins') arrays run in step: an index reads clearest.
+    #[allow(clippy::needless_range_loop)]
     fn gentle(&mut self, ch: usize, x: f64, z: &[C; MAX_HARMONICS]) -> f64 {
         let mu = self.mu;
         let cg = self.cg;
+        let cr = self.cr;
         let learn = self.learn_len;
         let lane = &mut self.lanes[ch];
         let mut hum = 0.0;
@@ -707,11 +726,6 @@ impl Dehum {
         if learning && (lane.heard > 0 || x != 0.0) {
             lane.heard += 1;
         }
-        lane.snap += 1;
-        let snap = lane.snap >= self.snap_len;
-        if snap {
-            lane.snap = 0;
-        }
         for k in 0..MAX_HARMONICS {
             if self.g[k] >= 1.0 {
                 continue;
@@ -727,9 +741,9 @@ impl Dehum {
             // The hum learned, without the canceller's own ripple (a neighbour's beat
             // against the reference makes the raw estimate shake): two poles.
             let raw = lane.est[k];
-            lane.s_a[k].lerp(raw, cg);
+            lane.s_a[k].lerp(raw, cr);
             let v = lane.s_a[k];
-            lane.s_b[k].lerp(v, cg);
+            lane.s_b[k].lerp(v, cr);
             let est = lane.s_b[k];
             // What the band usually holds beyond the hum (a neighbour's leak, the hum's own
             // small error): risen to slowly, fallen from quickly — a steady remainder is
@@ -748,13 +762,13 @@ impl Dehum {
                 im: est.im + left.im,
             };
             let gone = sum.norm2() < 0.25 * est.norm2();
-            let busy = !learning && size > lim && !gone;
+            let busy = !learning && k < self.gated && size > lim && !gone;
             if busy {
                 if !lane.held[k] {
                     // The note's first milliseconds, learned before it was heard, unlearned.
-                    lane.est[k] = lane.back_a[k];
-                    lane.s_a[k] = lane.back_a[k];
-                    lane.s_b[k] = lane.back_a[k];
+                    lane.est[k] = lane.back_c[k];
+                    lane.s_a[k] = lane.back_c[k];
+                    lane.s_b[k] = lane.back_c[k];
                 }
                 lane.held[k] = true;
                 lane.hold_left[k] = self.hold_len;
@@ -781,14 +795,16 @@ impl Dehum {
                 lane.est[k].re += u.re;
                 lane.est[k].im += u.im;
             }
-            lane.dirty[k] |= lane.held[k];
-            if snap {
-                // Only a period the band was clear for the whole of is kept to go back to.
-                if !lane.dirty[k] {
-                    lane.back_a[k] = lane.back_b[k];
-                    lane.back_b[k] = lane.s_b[k];
+            // The snapshots count learning time only: going back undoes the last 40–60 ms
+            // of learning, never what was learned before a hold.
+            if !lane.held[k] {
+                lane.snap[k] += 1;
+                if lane.snap[k] >= self.snap_len {
+                    lane.snap[k] = 0;
+                    lane.back_c[k] = lane.back_b[k];
+                    lane.back_b[k] = lane.back_a[k];
+                    lane.back_a[k] = lane.s_b[k];
                 }
-                lane.dirty[k] = false;
             }
         }
         x - taken

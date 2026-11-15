@@ -458,6 +458,8 @@ impl Dereverb {
         (wet, dry)
     }
 
+    // The harmonics' (bins') arrays run in step: an index reads clearest.
+    #[allow(clippy::needless_range_loop)]
     fn frame(&mut self) {
         let n = self.n;
         let mask = n - 1;

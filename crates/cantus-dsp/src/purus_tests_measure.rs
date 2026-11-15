@@ -291,3 +291,76 @@ fn the_gentle_mode_learns_a_hum_that_changes() {
     println!("gentle: a hum that changed taken out again (30 dB) {back:?} s after the change");
     assert!(back.is_some_and(|t| t <= 5.0), "{back:?}");
 }
+
+/// CPU at 48 kHz: a minute of program in blocks of 256, best of three. Run alone, in
+/// release: `cargo test --release -p cantus-dsp --lib purus_cpu -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn purus_cpu() {
+    let secs = 60.0;
+    let hum = testkit::hum(SR, secs, &HUM, 0.004, 7, |t| {
+        50.0 + 0.2 * crate::math::sin(0.3 * t)
+    });
+    let m = music(secs);
+    let x: Vec<f32> = hum.iter().zip(&m).map(|(a, b)| a + b).collect();
+    let verb_on = VerbSettings {
+        on: true,
+        ..VerbSettings::default()
+    };
+    let cases = [
+        ("de-hum, notches, 8 harmonics, fixed", hum_settings(|_| {})),
+        (
+            "de-hum, notches, 16 harmonics, tracked",
+            hum_settings(|h| {
+                h.harmonics = 16;
+                h.mode = HumMode::Track;
+            }),
+        ),
+        (
+            "de-hum, gentle, 16 harmonics, Auto",
+            hum_settings(|h| {
+                h.harmonics = 16;
+                h.gentle = true;
+                h.mode = HumMode::Auto;
+            }),
+        ),
+        (
+            "de-reverb",
+            PurusSettings {
+                verb: verb_on,
+                ..PurusSettings::default()
+            },
+        ),
+        ("both (gentle 16 Auto + de-reverb estimating)", {
+            let mut s = hum_settings(|h| {
+                h.harmonics = 16;
+                h.gentle = true;
+                h.mode = HumMode::Auto;
+            });
+            s.verb = VerbSettings {
+                decay: DecayMode::Estimate,
+                ..verb_on
+            };
+            s
+        }),
+    ];
+    for (name, s) in cases {
+        let mut best = f64::MAX;
+        for _ in 0..3 {
+            let mut p = Purus::new(SR);
+            p.set(&s);
+            let mut l = x.clone();
+            let mut r = x.clone();
+            let t0 = std::time::Instant::now();
+            for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+                p.process(a, b);
+            }
+            best = best.min(t0.elapsed().as_secs_f64());
+            std::hint::black_box(&l);
+        }
+        println!(
+            "{name}: {:.2} % of a core (best of 3)",
+            100.0 * best / secs as f64
+        );
+    }
+}

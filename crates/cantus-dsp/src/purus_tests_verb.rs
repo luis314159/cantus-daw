@@ -35,9 +35,16 @@ fn through(s: &PurusSettings, x: &[f32]) -> Vec<f32> {
 /// fitted takes the processing's own level change out.
 fn ratio(y: &[f32], target: &[f32]) -> (f64, f64) {
     let g = testkit::projection(y, target);
-    let rest: Vec<f32> = y.iter().zip(target).map(|(a, t)| a - g as f32 * t).collect();
+    let rest: Vec<f32> = y
+        .iter()
+        .zip(target)
+        .map(|(a, t)| a - g as f32 * t)
+        .collect();
     let fit = g * g * testkit::energy(target);
-    (testkit::db(fit / testkit::energy(&rest)), 20.0 * crate::math::log10(g.abs().max(1e-12)))
+    (
+        testkit::db(fit / testkit::energy(&rest)),
+        20.0 * crate::math::log10(g.abs().max(1e-12)),
+    )
 }
 
 struct Scene {
