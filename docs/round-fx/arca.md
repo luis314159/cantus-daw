@@ -13,6 +13,13 @@ measurements are in ADR 0137 (Arca) and ADR 0136 (Rota and the Uni-Vibe), each u
 | Uni-Vibe | `phasis_vibe.rs`, `phasis_vibe_tests.rs` | `phasis.rs` (`PhasisStyle`, `intensity`, the vibe run), `phasis_tests.rs` (`..Default` in one literal), `cantus-engine/src/fx/phasis.rs` (`..PhasisSettings::default()` — not compiled here: DSP-only phase) |
 | Sounds | `examples/arca_sounds.rs` → `C:\projects\daw-fx\compartir\arca\sound\` (32 files and a README) | — |
 
+## Phase A-2 (2026-11-15): CPU and the split
+
+`arca_table.rs` (the valves tabulated), `arca_fast.rs` (the lean stepper for all-triode
+circuits), the stand-in plate load in `arca_net.rs`; in `fragor_dk.rs` (additive) the
+`Koren::table` field and `Circuit::fused`, a few constants made `pub(crate)`. Numbers in
+ADR 0137 *Phase A-2*; the sounds re-rendered with them.
+
 ## Verified only in emulation
 
 Everything: no guitar has been played through Arca live; the renders are the evidence. CPU
