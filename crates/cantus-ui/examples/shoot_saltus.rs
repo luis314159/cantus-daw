@@ -36,6 +36,13 @@ fn settings(state: &str) -> &'static [(&'static str, f32)] {
             ("pan2", 0.3),
             ("dry", 0.8),
         ],
+        "fifth" => &[
+            ("engine", 0.0),
+            ("st1", 7.0),
+            ("lvl1", 0.5),
+            ("dry", 1.0),
+            ("out", -1.0),
+        ],
         "harmony" => &[
             ("mode", 1.0),
             ("engine", 0.0),
@@ -132,7 +139,7 @@ fn main() {
     let mut shots: Vec<(&str, bool, bool, Locale, f32)> =
         vec![("start", false, true, Locale::En, 1.0)];
     for state in [
-        "start", "shift", "harmony", "chord", "octave", "whammy", "notes", "board",
+        "start", "fifth", "shift", "harmony", "chord", "octave", "whammy", "notes", "board",
     ] {
         shots.push((state, true, true, Locale::En, 1.0));
         shots.push((state, true, false, Locale::Es, 1.0));

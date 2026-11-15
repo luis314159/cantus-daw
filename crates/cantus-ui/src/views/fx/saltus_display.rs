@@ -12,6 +12,7 @@ use super::super::controls;
 use super::super::frame;
 use super::super::host::FxHost;
 use super::pedal;
+use super::staff;
 use super::words;
 use crate::kit::color::{mix, with_alpha};
 use crate::kit::hint::{self, Caps};
@@ -439,6 +440,7 @@ pub fn show(
     let (low, high) = span(v.anchor, &lanes);
     let kb = Keyboard::new(p.keys, low, high);
     legends(host, ui, s, p.band);
+    switch_edit(host, ui, s, p.band, ss);
     leap_edit(host, v, ui, &kb, &lanes, ss, p.leap, k);
     if let Some(pr) = p.pedal {
         pedal::edit(host, ui, pr, k);
@@ -509,6 +511,95 @@ fn legend_rects(band: Rect, k: f32) -> [Rect; 4] {
             vec2(w - 6.0 * k, band.height() - 6.0 * k),
         )
     })
+}
+
+/// The engine switch's two places at the band's right.
+fn switch_rects(band: Rect, k: f32) -> [Rect; 2] {
+    let (w, gap) = (176.0 * k, 6.0 * k);
+    std::array::from_fn(|i| {
+        let x = band.right() - 12.0 * k - (2 - i) as f32 * w - (1 - i) as f32 * gap;
+        Rect::from_min_size(
+            pos2(x, band.top() + 4.0 * k),
+            vec2(w, band.height() - 8.0 * k),
+        )
+    })
+}
+
+/// The switch's key: the engine (Shift, Whammy), the octave's style; Harmony has one.
+fn switch_key(ss: &SaltusSettings) -> Option<&'static str> {
+    match ss.mode {
+        Mode::Shift | Mode::Whammy => Some("engine"),
+        Mode::Octave => Some("ostyle"),
+        Mode::Harmony => None,
+    }
+}
+
+/// Which of the switch's places is lit.
+fn switch_now(ss: &SaltusSettings) -> usize {
+    match ss.mode {
+        Mode::Shift | Mode::Whammy => ss.engine as usize,
+        Mode::Octave => ss.octave_style as usize,
+        Mode::Harmony => 1,
+    }
+}
+
+/// Each place's name and the latency it would bring (`None`: no choice there).
+fn switch_choices(ss: &SaltusSettings, sr: f32) -> [(Option<&'static str>, usize); 2] {
+    use cantus_dsp::saltus::{latency_for, Engine};
+    let with = |f: &dyn Fn(&mut SaltusSettings)| {
+        let mut t = *ss;
+        f(&mut t);
+        latency_for(&t, sr)
+    };
+    match ss.mode {
+        Mode::Shift | Mode::Whammy => [
+            (
+                Some("fx.saltus.engine.0"),
+                with(&|t| t.engine = Engine::Mono),
+            ),
+            (
+                Some("fx.saltus.engine.1"),
+                with(&|t| t.engine = Engine::Poly),
+            ),
+        ],
+        Mode::Octave => [
+            (
+                Some("fx.saltus.ostyle.0"),
+                with(&|t| t.octave_style = OctaveStyle::Analog),
+            ),
+            (
+                Some("fx.saltus.ostyle.1"),
+                with(&|t| t.octave_style = OctaveStyle::Clean),
+            ),
+        ],
+        Mode::Harmony => [(None, 0), (Some("fx.saltus.engine.0"), latency_for(ss, sr))],
+    }
+}
+
+/// The engine switch's clicks (its menu offers automation and MIDI learn).
+fn switch_edit(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    band: Rect,
+    ss: &SaltusSettings,
+) {
+    let Some(key) = switch_key(ss) else { return };
+    let now = switch_now(ss);
+    let name = host
+        .spec()
+        .param(key)
+        .map_or("", |i| frame::tr(i.label_key));
+    for (i, r) in switch_rects(band, s.k).into_iter().enumerate() {
+        let resp = ui.interact(r, ui.id().with(("saltus-engine", i)), Sense::click());
+        let learnt = controls::stepped_offer(ui, s, host, key, name, &resp);
+        if resp.clicked() && !learnt && i != now {
+            host.set(key, i as f32, None);
+        }
+        if resp.hovered() {
+            hint::set_text(ui.ctx(), name, frame::tr("saltus.d.engine_tip"), Caps::NONE);
+        }
+    }
 }
 
 /// Drag a voice's landing to another key: its interval in Shift.
@@ -672,32 +763,53 @@ fn paint_band(
             );
         }
     }
-    let mut w = String::new();
-    let engine = match ss.mode {
-        Mode::Shift | Mode::Whammy => {
-            ["fx.saltus.engine.0", "fx.saltus.engine.1"][ss.engine as usize]
+    // The engine switch at the right: each choice with its latency.
+    let now = switch_now(ss);
+    for (i, (r, (key, lat))) in switch_rects(band, k)
+        .into_iter()
+        .zip(switch_choices(ss, sr))
+        .enumerate()
+    {
+        let Some(key) = key else { continue };
+        let on = i == now;
+        let col = if on { ink.hue } else { ink.dim };
+        if on {
+            b.rrect(
+                r,
+                3.0 * k,
+                crate::kit::Fill::Solid(with_alpha(ink.hue, 0.14)),
+            );
         }
-        Mode::Harmony => words::HSRC[ss.harmony_source as usize],
-        Mode::Octave => ["fx.saltus.ostyle.0", "fx.saltus.ostyle.1"][ss.octave_style as usize],
-    };
-    w.push_str(frame::tr(engine));
-    w.push_str("  \u{b7}  ");
-    let lat = cantus_dsp::saltus::latency_for(ss, sr);
-    if lat == 0 {
-        w.push_str(frame::tr("saltus.d.no_latency"));
-    } else {
-        w.push_str(frame::tr("saltus.d.latency"));
-        w.push(' ');
-        controls::write_readout(lat as f32 / sr.max(1.0) * 1000.0, "ms", &mut w);
+        b.rrect_stroke(
+            r,
+            3.0 * k,
+            0.8 * k,
+            if on { ink.hue } else { ink.grid_strong },
+        );
+        let mut w = String::new();
+        if lat == 0 {
+            w.push_str(frame::tr("saltus.d.no_latency"));
+        } else {
+            controls::write_readout(lat as f32 / sr.max(1.0) * 1000.0, "ms", &mut w);
+        }
+        let name = canvas::put(
+            b,
+            pos2(r.left() + 10.0 * k, r.center().y),
+            Align2::LEFT_CENTER,
+            &Text::key(key, Role::Control, col),
+            k,
+            None,
+        );
+        let _ = name;
+        canvas::put(
+            b,
+            pos2(r.right() - 10.0 * k, r.center().y),
+            Align2::RIGHT_CENTER,
+            &Text::new(&w, Role::Value, if on { ink.text } else { ink.dim }).caps(false),
+            k,
+            None,
+        );
     }
-    canvas::put(
-        b,
-        pos2(band.right() - 14.0 * k, band.center().y),
-        Align2::RIGHT_CENTER,
-        &Text::new(&w, Role::Value, ink.text).caps(false),
-        k,
-        None,
-    );
     let _ = s;
 }
 
@@ -866,10 +978,11 @@ fn paint_leap(
         }
     }
     // The arcs, then their words (on plates, never over each other).
-    let room = (kb.r.top() - leap.top() - 96.0 * k).max(40.0 * k);
+    let staff_r = staff_rect(leap, k);
+    let room = (kb.r.top() - staff_r.bottom() - 46.0 * k).max(40.0 * k);
     let mut placed: Vec<Rect> = vec![hr.expand(6.0 * k)];
     let mut labels = Vec::new();
-    trail(b, ink, leap, kb, v, k);
+    paint_staff(b, ink, staff_r, v, lanes, poly, &chord, k);
     for (i, l) in lanes.iter().enumerate() {
         // A voice at no level is not drawn (an octave is: its arc waits, dashed).
         if l.level <= 0.0 && l.name.is_none() {
@@ -1003,19 +1116,19 @@ fn harmony_note(b: &mut Brush, ink: &Ink, leap: Rect, ss: &SaltusSettings, held:
             (cap, ink.look.trace2)
         }
     };
-    let x = leap.right() - 20.0 * k;
+    let x = leap.left() + 20.0 * k;
     canvas::put(
         b,
-        pos2(x, leap.top() + 14.0 * k),
-        Align2::RIGHT_TOP,
+        pos2(x, leap.top() + 104.0 * k),
+        Align2::LEFT_TOP,
         &Text::key(cap, Role::Micro, ink.dim),
         k,
         None,
     );
     canvas::put(
         b,
-        pos2(x, leap.top() + 30.0 * k),
-        Align2::RIGHT_TOP,
+        pos2(x, leap.top() + 118.0 * k),
+        Align2::LEFT_TOP,
         &Text::new(&w, Role::Title, col).caps(false),
         k,
         None,
@@ -1052,32 +1165,54 @@ fn travel(b: &mut Brush, ink: &Ink, kb: &Keyboard, anchor: f32, ss: &SaltusSetti
     }
 }
 
-/// The last seconds of pitch rising from the keyboard: the note heard, and where each
-/// voice landed, fading with age.
-fn trail(b: &mut Brush, ink: &Ink, leap: Rect, kb: &Keyboard, v: &View, k: f32) {
-    let n = v.trail.len();
-    if n < 2 {
-        return;
-    }
-    let (y0, y1) = (kb.r.top() - 6.0 * k, leap.top() + 84.0 * k);
-    let at = |age: usize| y0 - (y0 - y1) * age as f32 / (TRAIL - 1) as f32;
-    let cols = [ink.hue, ink.hue, ink.look.trace2, ink.look.trace2];
-    for (lane, col) in cols.into_iter().enumerate() {
-        for j in 1..n {
-            let (a, c) = (v.trail[n - j][lane], v.trail[n - 1 - j][lane]);
-            if a.is_nan() || c.is_nan() || (a - c).abs() > 1.5 {
-                continue;
-            }
-            let fade = 1.0 - j as f32 / TRAIL as f32;
-            let (w, alpha) = if lane == 0 {
-                (1.5, 0.75 * fade)
-            } else {
-                (1.0, 0.4 * fade)
-            };
-            let (pa, pc) = (pos2(kb.x(a), at(j - 1)), pos2(kb.x(c), at(j)));
-            if leap.contains(pa) && leap.contains(pc) {
-                b.segment(pa, pc, w * k, with_alpha(col, alpha), false);
-            }
+/// The staff's band: right of the note heard, above the arcs.
+pub fn staff_rect(leap: Rect, k: f32) -> Rect {
+    Rect::from_min_max(
+        pos2(leap.left() + 214.0 * k, leap.top() + 10.0 * k),
+        pos2(
+            leap.right() - 18.0 * k,
+            leap.top() + (leap.height() * 0.4).max(150.0 * k),
+        ),
+    )
+}
+
+/// The staff: the trail of the last seconds, and now the note heard (or the chord, in
+/// poly) and every voice as heads.
+#[allow(clippy::too_many_arguments)]
+fn paint_staff(
+    b: &mut Brush,
+    ink: &Ink,
+    r: Rect,
+    v: &View,
+    lanes: &[Lane],
+    poly: bool,
+    chord: &[i32; 3],
+    k: f32,
+) {
+    let second = ink.look.trace2;
+    let alpha = if poly { 0.9 } else { 0.35 + 0.65 * v.heard };
+    let mut heads = Vec::new();
+    let roots: Vec<f32> = if poly {
+        chord.iter().map(|c| *c as f32).collect()
+    } else {
+        vec![v.anchor]
+    };
+    for a in &roots {
+        heads.push(staff::Head {
+            midi: *a,
+            color: ink.text,
+            alpha,
+        });
+        for l in lanes.iter().filter(|l| l.level > 0.0) {
+            heads.push(staff::Head {
+                midi: a + l.interval,
+                color: if l.second { second } else { ink.hue },
+                alpha,
+            });
         }
     }
+    heads.sort_by(|a, b| a.midi.total_cmp(&b.midi));
+    heads.dedup_by(|a, b| a.midi.round() == b.midi.round());
+    let colors = [ink.text, ink.hue, second, second];
+    staff::paint(b, ink, r, &v.trail, TRAIL, colors, &heads, k);
 }

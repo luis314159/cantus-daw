@@ -264,7 +264,7 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
     let id = p.id;
     let ptel = st.pedal_tel.unwrap_or([0.0; cantus_engine::TELEMETRY_LEN]);
     let mut open = false;
-    controls::card(ui, s, r, Src::Str(&title), Some(p.on), |ui, _| {
+    controls::card(ui, s, r, Src::Str(&title), Some(p.on), |ui, cr| {
         let Some(mut ph) = super::tabula_host::PedalHost::new(host, id, ptel) else {
             return;
         };
@@ -274,11 +274,30 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
                     .unwrap_or(0),
             )
         });
+        // fx3:saltus — a parameter of its own whose name is longer than a cell takes a
+        // wider cell, and one that no longer fits before the button is left to the full
+        // editor: nothing elided.
+        let room = cr.body.width() / s.k - 182.0;
+        let mut used = 0.0;
         for (j, key) in keys.iter().enumerate() {
             let Some(info) = kind.param(key) else {
                 continue;
             };
-            // The face's knobs in its words; the unit's other parameters in their own.
+            let mut width = 78.0;
+            if j >= faced {
+                let t = crate::kit::text::Text::key(
+                    info.label_key,
+                    crate::kit::text::Role::Label,
+                    s.t.text,
+                );
+                let w = crate::kit::text::measure(ui.ctx(), &t, s.k).x / s.k * 1.15 + 12.0;
+                width = w.max(78.0);
+                if used + width > room {
+                    break;
+                }
+            }
+            used += width + 4.0; // fx3:saltus
+                                 // The face's knobs in its words; the unit's other parameters in their own.
             let label = match fragor_words {
                 Some(w) if j < 3 => Src::Key(w[j]),
                 _ if j < faced => tb::knob_word(key).map_or(Src::Key(info.label_key), Src::Key),
@@ -286,7 +305,7 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
             };
             let out = Cell::param(info, ph.spec().get(key))
                 .size(Size::M)
-                .width(78.0)
+                .width(width) // fx3:saltus
                 .label(label)
                 .show_in(ui, s, &mut ph, key);
             if let Some(v) = out.changed {

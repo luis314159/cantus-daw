@@ -26,6 +26,8 @@ use egui::Rect;
 mod display;
 #[path = "saltus_pedal.rs"]
 mod pedal;
+#[path = "saltus_staff.rs"]
+mod staff;
 #[path = "saltus_words.rs"]
 pub mod words;
 
