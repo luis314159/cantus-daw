@@ -484,13 +484,20 @@ fn a_pitch_jump_lands_on_its_interval() {
             }
             hz += 0.5;
         }
-        eprintln!("pitch {semis:+}: the strongest at {:.0} Hz, want {want:.1}", best.1);
+        eprintln!(
+            "pitch {semis:+}: the strongest at {:.0} Hz, want {want:.1}",
+            best.1
+        );
         // A delay-line shifter's taps restart every `W / |1 − ratio|`; on a pure tone each
         // restart moves the phase, so the strongest line sits within half that rate of the
         // interval (±10 Hz at +12 with a 50 ms window) — the classic glitch pitch, not a
         // tuner's.
         let rate = (1.0 - math::exp2(f64::from(semis) / 12.0)).abs() / 0.05;
-        assert!((best.1 - want).abs() <= 0.5 * rate + 1.0, "{semis}: {:.1} Hz", best.1);
+        assert!(
+            (best.1 - want).abs() <= 0.5 * rate + 1.0,
+            "{semis}: {:.1} Hz",
+            best.1
+        );
     }
 }
 
@@ -537,7 +544,11 @@ fn a_ramped_repeat_halves_its_slice_in_each_part() {
         for k in 1..24_000 / r {
             let at = p0 + k * r;
             for j in (120..*r - 10).filter(|j| at + j < 96_000 - 100) {
-                assert_eq!(l[at + j].to_bits(), music(j as i64)[0].to_bits(), "part {part}");
+                assert_eq!(
+                    l[at + j].to_bits(),
+                    music(j as i64)[0].to_bits(),
+                    "part {part}"
+                );
             }
         }
     }
@@ -558,10 +569,35 @@ fn a_tape_start_comes_up_to_speed_from_silence() {
     let mut u = unit(&s, &p);
     let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &sine(400.0));
     let peak = |a: usize, b: usize| l[a..b].iter().fold(0.0f32, |m, x| m.max(x.abs()));
-    assert!(peak(200, 1_000) < 0.1, "it starts still: {}", peak(200, 1_000));
+    assert!(
+        peak(200, 1_000) < 0.1,
+        "it starts still: {}",
+        peak(200, 1_000)
+    );
     // Up to speed after a beat: the tone, a little behind.
     let hz = crossings_hz(&l[26_000..46_000]);
     assert!((hz - 400.0).abs() < 4.0, "{hz}");
     assert!(peak(26_000, 46_000) > 0.49);
 }
 
+#[test]
+fn stopped_the_steps_rest_and_notes_still_play() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::Gate, 0, 16, 1.0, 1.0);
+    let mut u = unit(&shut_gate(Trigger::Both, false), &p);
+    let mut l: Vec<f32> = (0..20_000).map(|i| music(i)[0]).collect();
+    let mut r: Vec<f32> = (0..20_000).map(|i| music(i)[1]).collect();
+    for (k, (a, b)) in l.chunks_mut(500).zip(r.chunks_mut(500)).enumerate() {
+        u.set_transport(&Transport {
+            playing: false,
+            tempo_bpm: 120.0,
+            samples: 0,
+        });
+        if k == 20 {
+            u.note(0, Note::On(GATE_KEY, 127));
+        }
+        u.process(a, b);
+    }
+    let dry: Vec<f32> = (0..20_000).map(|i| music(i)[0]).collect();
+    assert_eq!(first_diff(&l, &dry), Some(10_000), "only the note shuts it");
+}

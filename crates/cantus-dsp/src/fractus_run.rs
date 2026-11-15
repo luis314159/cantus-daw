@@ -4,7 +4,7 @@
 use super::fx::env;
 use super::read::{self, rc, Ctx, Id, Rd};
 use super::seq::Grid;
-use super::{t, Ev, Fractus, Module, Note, LANES};
+use super::{t, Ev, Fractus, Module, Note, Trigger, LANES};
 use crate::modfx_clock::{peak_db, peak_of, tel};
 
 /// A read and who it is.
@@ -114,7 +114,11 @@ impl Fractus {
     #[inline]
     fn events(&mut self, so: i64, g: &Grid) -> [Option<Ev>; LANES] {
         self.seq.update(so, &self.set, &self.pat, g);
-        let trig = self.set.trigger;
+        // Stopped, the steps rest; held notes still play.
+        let trig = match (self.clock.playing(), self.set.trigger) {
+            (true, t) => t,
+            (false, _) => Trigger::Notes,
+        };
         let mut evs = [None; LANES];
         for (lane, e) in evs.iter_mut().enumerate() {
             *e = self.seq.event(lane, so, trig);

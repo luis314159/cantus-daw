@@ -368,12 +368,35 @@ impl Buf {
         })
     }
 
-    /// Level `k` at position `p` (in its own samples), Hermite.
+    /// The first and last sample of level `k` a read may see.
     #[inline]
-    fn read(&self, k: usize, p: f64) -> [f32; 2] {
+    fn span(&self, k: usize) -> (i64, i64) {
+        let lo = (self.avail[k] - self.cap(k) + 1).max((self.from + (1 << k) - 1) >> k);
+        (lo, self.avail[k])
+    }
+
+    /// Level `k` at position `p` (in its own samples), Hermite; `span` is
+    /// [`Buf::span`]'s.
+    #[inline]
+    fn read(&self, k: usize, p: f64, span: (i64, i64)) -> [f32; 2] {
         let i = p.floor();
         let f = (p - i) as f32;
         let i = i as i64;
+        if i > span.0 && i + 2 <= span.1 {
+            // Inside: four neighbours, no test each.
+            let (l, m) = (&self.lv[k], self.mask[k]);
+            let b = l[i as usize & m];
+            if f == 0.0 {
+                return b;
+            }
+            let a = l[(i - 1) as usize & m];
+            let c = l[(i + 1) as usize & m];
+            let d = l[(i + 2) as usize & m];
+            return [
+                hermite(a[0], b[0], c[0], d[0], f),
+                hermite(a[1], b[1], c[1], d[1], f),
+            ];
+        }
         let b = self.tap(k, i);
         if f == 0.0 {
             return b;
@@ -405,11 +428,15 @@ pub fn level_of(st: f32) -> (u8, f32) {
     }
 }
 
+/// A position in the input's samples to one in each level's.
+const SCALE: [f64; LEVELS] = [1.0, 0.5, 0.25];
+
 #[derive(Copy, Clone, Debug, Default)]
 struct Grain {
     on: bool,
     age: u32,
     len: u32,
+    inv_len: f32,
     /// The position its first sample reads (level 0).
     base: i64,
     speed: f64,
@@ -586,6 +613,7 @@ impl Cloud {
             on: true,
             age: 0,
             len: len as u32,
+            inv_len: 1.0 / len as f32,
             base: self.buf.w - 1 - off.round() as i64,
             speed: if back { -v } else { v },
             k,
@@ -610,16 +638,17 @@ impl Cloud {
             self.spawn(id);
         }
         let mut y = [0.0f32; 2];
+        let spans = [self.buf.span(0), self.buf.span(1), self.buf.span(2)];
         for g in self.grains.iter_mut() {
             if !g.on {
                 continue;
             }
-            let w = window_at(usize::from(g.shape), g.age as f32 / g.len as f32) * g.gain;
+            let w = window_at(usize::from(g.shape), g.age as f32 * g.inv_len) * g.gain;
             let p = g.base as f64 + f64::from(g.age) * g.speed;
             let k = usize::from(g.k);
-            let mut s = self.buf.read(k, p / f64::from(1u32 << k));
+            let mut s = self.buf.read(k, p * SCALE[k], spans[k]);
             if g.wk > 0.0 {
-                let t = self.buf.read(k + 1, p / f64::from(2u32 << k));
+                let t = self.buf.read(k + 1, p * SCALE[k + 1], spans[k + 1]);
                 s[0] += (t[0] - s[0]) * g.wk;
                 s[1] += (t[1] - s[1]) * g.wk;
             }

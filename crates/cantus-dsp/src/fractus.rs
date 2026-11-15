@@ -17,6 +17,8 @@
 //!   always breaks a block.
 //! - **Performance**: held notes (`key + lane`) play a lane's module from the note's sample
 //!   (or the next line, quantised) until the note is released, its velocity the amount.
+//!   While the transport is stopped the steps rest and only notes play. Bars are 4/4
+//!   from the song's start (as Lapsus's).
 //! - **The read modules** (repeat, reverse, tape stop, shuffle) say, at every sample, where
 //!   in the past to read; the newest event wins. The history is read with Lapsus's reader
 //!   (a whole sample is that sample to the bit; a line, a Hermite, a 32-tap Kaiser sinc by
