@@ -19,6 +19,7 @@
 //! The same tables feed that independent analysis (the component values are shared; the
 //! topology there is the schematic's, unsplit).
 
+use super::fast::{Fast, FastState};
 use super::tube::triode_small_signal;
 use crate::fragor::circuits::{taper_a, POT_MIN};
 use crate::fragor::dk::{Circuit, Koren, Nl, State};
@@ -153,6 +154,7 @@ pub const MAX_POTS: usize = 4;
 
 /// The netlist being written: a circuit's elements before it is sized (fixed arrays: a
 /// model is built in place on the audio thread when it is chosen, allocation-free).
+#[derive(Clone, Debug)]
 struct Net {
     nodes: u8,
     r: [(u8, u8, f64); 28],
@@ -328,8 +330,9 @@ fn write_tone(net: &mut Net, i: u8, t: &Tone) -> u8 {
 
 /// What drives a circuit: a resistance (the guitar's lead), or the plate of the circuit
 /// before — its open-circuit voltage behind the plate's output impedance at the operating
-/// point, `R_p ‖ (r_p + (μ + 1)·Z_k)`, `Z_k` the cathode's resistor and bypass capacitor
-/// (`(μ + 1)·Z_k` is a resistor `(μ + 1)·R_k` beside a capacitor `C_k/(μ + 1)`).
+/// point, `Z_p ‖ (r_p + (μ + 1)·Z_k)`, `Z_p` the plate resistor (and any capacitor across
+/// it), `Z_k` the cathode's resistor and bypass capacitor (`(μ + 1)·Z_k` is a resistor
+/// `(μ + 1)·R_k` beside a capacitor `C_k/(μ + 1)`).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Source {
     R(f64),
@@ -338,6 +341,11 @@ pub enum Source {
         rp: f64,
         rk: f64,
         ck: Option<f64>,
+        /// A capacitor across the plate resistor (the cold clipper's 1 nF).
+        cp: Option<f64>,
+        /// The circuit before loads its plate with a stand-in for this one: the current
+        /// it draws there comes in as a second input, so the Thévenin source is exact.
+        inject: bool,
     },
 }
 
@@ -352,6 +360,8 @@ fn write(net: &mut Net, blocks: &[Block], src: Source) -> (u8, Option<Triode>) {
             rp,
             rk,
             ck,
+            cp,
+            inject,
         } => {
             net.input(cur, R_RAIL);
             let (m, n) = (net.node(), net.node());
@@ -360,6 +370,12 @@ fn write(net: &mut Net, blocks: &[Block], src: Source) -> (u8, Option<Triode>) {
             net.r(m, n, rk.max(POT_MIN));
             if let Some(c) = ck {
                 net.c(m, n, c);
+            }
+            if let Some(c) = cp {
+                net.c(cur, n, c);
+            }
+            if inject {
+                net.input(n, f64::INFINITY);
             }
             cur = n;
         }
@@ -418,7 +434,7 @@ fn write(net: &mut Net, blocks: &[Block], src: Source) -> (u8, Option<Triode>) {
                     p,
                     g: cur,
                     k,
-                    tube: t.tube,
+                    tube: super::table::tabled(t.tube),
                 });
                 last = Some((t, bp));
                 cur = p;
@@ -433,7 +449,7 @@ fn write(net: &mut Net, blocks: &[Block], src: Source) -> (u8, Option<Triode>) {
                     p: bp,
                     g: cur,
                     k,
-                    tube: t.tube,
+                    tube: super::table::tabled(t.tube),
                 });
                 cur = k;
             }
@@ -454,7 +470,10 @@ pub fn split(blocks: &[Block]) -> ([(usize, usize); MAX_STAGES], usize) {
     for i in 0..blocks.len() {
         let plate = matches!(blocks[i], Block::Triode(_));
         let follower_next = matches!(blocks.get(i + 1), Some(Block::Follower(_)));
-        if plate && !follower_next && i + 1 < blocks.len() {
+        let valve_after = blocks[i + 1..]
+            .iter()
+            .any(|b| matches!(b, Block::Triode(_)));
+        if plate && !follower_next && valve_after {
             out[n] = (start, i + 1);
             n += 1;
             start = i + 1;
@@ -472,8 +491,20 @@ pub struct Stage {
     /// The input vector: the signal, then the supplies.
     u: [f64; 3],
     rest: State,
+    /// The lean stepper ([`super::fast`]) and its state at rest.
+    fast: Option<Fast>,
+    fast_rest: Option<FastState>,
     /// What its output looks like to the next circuit.
     pub out_z: Source,
+    /// Its netlist and where its signal enters (for the input impedance the circuit before
+    /// loads its plate with), the elements of its source to leave out there.
+    net: Net,
+    entry: u8,
+    src_elems: (usize, usize),
+    /// Where the input vector's supplies start.
+    sup: usize,
+    /// The current its stand-in load drew at the last sample (to the next circuit).
+    pub i_out: f64,
 }
 
 impl Stage {
@@ -483,15 +514,54 @@ impl Stage {
             pots: [None; MAX_POTS],
             u: [0.0; 3],
             rest: State::default(),
+            fast: None,
+            fast_rest: None,
             out_z: Source::R(1.0),
+            net: Net::new(),
+            entry: 1,
+            src_elems: (0, 0),
+            sup: 1,
+            i_out: 0.0,
         }
     }
 
     /// Write, size and solve `blocks` at `rate`, driven through `src_r`, knobs at `k`.
     /// Allocation-free.
     pub fn new(blocks: &[Block], src: Source, rate: f64, k: &Knobs) -> Stage {
+        Stage::with_load(blocks, src, rate, k, None)
+    }
+
+    /// As [`Self::new`], its output plate loaded by `load` — a resistor in series with a
+    /// capacitor, `(Ω, F)` — standing for the next circuit; the current it draws is the
+    /// second output.
+    pub fn with_load(
+        blocks: &[Block],
+        src: Source,
+        rate: f64,
+        k: &Knobs,
+        load: Option<(f64, f64)>,
+    ) -> Stage {
         let mut net = Net::new();
+        let (src_r, src_c) = match src {
+            Source::Plate { ck, cp, .. } => {
+                (3, usize::from(ck.is_some()) + usize::from(cp.is_some()))
+            }
+            Source::R(_) => (0, 0),
+        };
+        let inject = matches!(src, Source::Plate { inject: true, .. });
         let (out, plate) = write(&mut net, blocks, src);
+        let entry = if matches!(src, Source::Plate { .. }) {
+            3
+        } else {
+            1
+        };
+        let mut stand_in = None;
+        if let (Some((rl, cl)), Some(_)) = (load, plate) {
+            let mid = net.node();
+            net.r(out, mid, rl);
+            net.c(mid, 0, cl);
+            stand_in = Some((mid, rl));
+        }
         let mut c = Circuit::new(net.nodes as usize, 1.0 / rate);
         for &(a, b, r) in &net.r[..net.nr] {
             c.r(a, b, r);
@@ -506,18 +576,32 @@ impl Stage {
             c.nl(*t);
         }
         c.out(&[(out, 1.0)]);
+        if let Some((mid, rl)) = stand_in {
+            c.out(&[(out, 1.0 / rl), (mid, -1.0 / rl)]);
+        }
+        let sup = 1 + usize::from(inject);
         let mut u = [0.0; 3];
-        u[1..1 + net.ns].copy_from_slice(&net.supplies[..net.ns]);
+        u[sup..sup + net.ns].copy_from_slice(&net.supplies[..net.ns]);
         let mut s = Stage {
             c,
             pots: net.pots,
             u,
             rest: State::default(),
+            fast: None,
+            fast_rest: None,
             out_z: Source::R(1.0),
+            net,
+            entry,
+            src_elems: (src_r, src_c),
+            sup,
+            i_out: 0.0,
         };
         s.set_knobs(k);
         s.c.solve_dc(&s.u);
         s.rest = s.c.state();
+        let fast = Fast::new(s.c.fused());
+        s.fast_rest = Some(fast.state());
+        s.fast = Some(fast);
         s.out_z = match plate {
             Some(t) => {
                 let ports = s.c.ports();
@@ -529,6 +613,8 @@ impl Stage {
                     rp,
                     rk: mu1 * t.rk,
                     ck: t.ck.map(|c| c / mu1),
+                    cp: t.cp,
+                    inject: false,
                 }
             }
             None => Source::R(1.0),
@@ -543,6 +629,14 @@ impl Stage {
             p.apply(&mut self.c, k.pos(p.knob));
         }
         self.c.rebuild();
+        if let Some(f) = &mut self.fast {
+            f.load(&self.c.fused());
+        }
+    }
+
+    /// Newton's iterations a sample so far (a diagnostic).
+    pub fn iterations_per_step(&self) -> f64 {
+        self.fast.as_ref().map_or(0.0, Fast::iterations_per_step)
     }
 
     /// Whether any of its pots answers to `knob`.
@@ -552,16 +646,92 @@ impl Stage {
 
     /// One sample: the input (volts, relative to rest) in, the output (likewise) out.
     #[inline]
-    pub fn step(&mut self, x: f64) -> f64 {
+    pub fn step(&mut self, x: f64, i_in: f64) -> f64 {
         self.u[0] = x;
-        let mut y = [0.0; crate::fragor::dk::MAX_OUT];
-        self.c.step(&self.u, &mut y);
-        y[0]
+        if self.sup == 2 {
+            self.u[1] = i_in;
+        }
+        let (v, i) = match &mut self.fast {
+            Some(f) => f.step(&self.u),
+            None => {
+                let mut y = [0.0; crate::fragor::dk::MAX_OUT];
+                self.c.step(&self.u, &mut y);
+                (y[0], y[1])
+            }
+        };
+        self.i_out = i;
+        v
+    }
+
+    /// The impedance looking into its input at `hz`, its source left out, at its operating
+    /// point (its valves linearised there): `(re, im)` Ω. Allocation-free.
+    pub fn input_impedance(&self, hz: f64) -> (f64, f64) {
+        let net = &self.net;
+        let n = net.nodes as usize;
+        let w = std::f64::consts::TAU * hz;
+        let mut yr = [[0.0f64; 17]; 17];
+        let mut yi = [[0.0f64; 17]; 17];
+        let stamp = |m: &mut [[f64; 17]; 17], a: u8, b: u8, g: f64| {
+            let (a, b) = (a as usize, b as usize);
+            if a > 0 {
+                m[a - 1][a - 1] += g;
+            }
+            if b > 0 {
+                m[b - 1][b - 1] += g;
+            }
+            if a > 0 && b > 0 {
+                m[a - 1][b - 1] -= g;
+                m[b - 1][a - 1] -= g;
+            }
+        };
+        for (i, row) in yr.iter_mut().enumerate().take(n) {
+            row[i] += 1e-12;
+        }
+        for &(a, b, r) in &net.r[self.src_elems.0..net.nr] {
+            stamp(&mut yr, a, b, 1.0 / r);
+        }
+        for &(a, b, c) in &net.c[self.src_elems.1..net.nc] {
+            stamp(&mut yi, a, b, w * c);
+        }
+        for &(node, r) in &net.inputs[1..net.ni] {
+            if r.is_finite() {
+                stamp(&mut yr, node, 0, 1.0 / r);
+            }
+        }
+        let ports = self.c.ports();
+        for (t, e) in net.tubes.iter().flatten().enumerate() {
+            if let Nl::Triode { p, g, k, tube } = *e {
+                let (_, dig, _, gm, gp) = tube.currents(ports[2 * t], ports[2 * t + 1]);
+                let (p, g, k) = (p as usize, g as usize, k as usize);
+                let mut put = |r: usize, c: usize, v: f64| {
+                    if r > 0 && c > 0 {
+                        yr[r - 1][c - 1] += v;
+                    }
+                };
+                for (row, s) in [(g, 1.0), (k, -1.0)] {
+                    put(row, g, s * dig);
+                    put(row, k, -s * dig);
+                }
+                for (row, s) in [(p, 1.0), (k, -1.0)] {
+                    put(row, g, s * gm);
+                    put(row, p, s * gp);
+                    put(row, k, -s * (gm + gp));
+                }
+            }
+        }
+        let mut br = [0.0f64; 17];
+        let mut bi = [0.0f64; 17];
+        br[self.entry as usize - 1] = 1.0;
+        complex_solve(&mut yr, &mut yi, &mut br, &mut bi, n);
+        (br[self.entry as usize - 1], bi[self.entry as usize - 1])
     }
 
     /// Back to the operating point.
     pub fn rest(&mut self) {
         self.c.set_state(&self.rest);
+        if let (Some(f), Some(s)) = (&mut self.fast, &self.fast_rest) {
+            f.restore(s);
+        }
     }
 
     /// The supplies' voltages.
@@ -569,6 +739,66 @@ impl Stage {
         &self.u[1..]
     }
 }
+
+/// The stand-in's capacitor when the next circuit's input is not capacitive at all (it
+/// still blocks the plate's direct voltage).
+const LOAD_BLOCK: f64 = 10e-6;
+
+/// `(Yr + jYi)·x = b` for the leading `n`, by elimination with partial pivoting, in place.
+fn complex_solve(
+    yr: &mut [[f64; 17]; 17],
+    yi: &mut [[f64; 17]; 17],
+    br: &mut [f64; 17],
+    bi: &mut [f64; 17],
+    n: usize,
+) {
+    for col in 0..n {
+        let mut piv = col;
+        let mag = |r: usize, yr: &[[f64; 17]; 17], yi: &[[f64; 17]; 17]| {
+            yr[r][col] * yr[r][col] + yi[r][col] * yi[r][col]
+        };
+        for r in col + 1..n {
+            if mag(r, yr, yi) > mag(piv, yr, yi) {
+                piv = r;
+            }
+        }
+        yr.swap(col, piv);
+        yi.swap(col, piv);
+        br.swap(col, piv);
+        bi.swap(col, piv);
+        let (pr, pi) = (yr[col][col], yi[col][col]);
+        let d = pr * pr + pi * pi;
+        let (ir, ii) = (pr / d, -pi / d);
+        for r in col + 1..n {
+            let (ar, ai) = (yr[r][col], yi[r][col]);
+            let (fr, fi) = (ar * ir - ai * ii, ar * ii + ai * ir);
+            for c in col..n {
+                let (xr, xi) = (yr[col][c], yi[col][c]);
+                yr[r][c] -= fr * xr - fi * xi;
+                yi[r][c] -= fr * xi + fi * xr;
+            }
+            let (xr, xi) = (br[col], bi[col]);
+            br[r] -= fr * xr - fi * xi;
+            bi[r] -= fr * xi + fi * xr;
+        }
+    }
+    for col in (0..n).rev() {
+        let (mut sr, mut si) = (br[col], bi[col]);
+        for c in col + 1..n {
+            let (ar, ai, xr, xi) = (yr[col][c], yi[col][c], br[c], bi[c]);
+            sr -= ar * xr - ai * xi;
+            si -= ar * xi + ai * xr;
+        }
+        let (pr, pi) = (yr[col][col], yi[col][col]);
+        let d = pr * pr + pi * pi;
+        br[col] = (sr * pr + si * pi) / d;
+        bi[col] = (si * pr - sr * pi) / d;
+    }
+}
+
+/// Where a circuit's plate is loaded for the next circuit: the next one's input
+/// impedance at this frequency (where the grid–plate capacitance's current matters).
+const STAND_IN_HZ: f64 = 6_000.0;
 
 /// A whole preamp: its circuits in order.
 #[derive(Clone, Debug)]
@@ -592,16 +822,58 @@ impl Preamp {
     /// Rebuild in place for other blocks or another rate.
     pub fn build(&mut self, blocks: &[Block], src_r: f64, rate: f64, k: &Knobs) {
         let (parts, n) = split(blocks);
+        // First pass: each circuit driven by the plate before through its impedance.
         let mut src = Source::R(src_r);
         for (i, &(a, b)) in parts[..n].iter().enumerate() {
             self.stages[i] = Stage::new(&blocks[a..b], src, rate, k);
             src = self.stages[i].out_z;
+        }
+        // Second: each plate loaded by a stand-in for the circuit after it — a resistor
+        // and a capacitor in series with the next circuit's input impedance at 6 kHz —
+        // whose current that circuit takes back in: the Miller current through the plate's
+        // grid capacitance about as the real load has it, the source still exact.
+        let mut loads = [None; MAX_STAGES];
+        let w = std::f64::consts::TAU * STAND_IN_HZ;
+        for (slot, next) in loads.iter_mut().zip(&self.stages[1..n]) {
+            let (zr, zi) = next.input_impedance(STAND_IN_HZ);
+            let c = if zi < -1.0 {
+                1.0 / (w * -zi)
+            } else {
+                LOAD_BLOCK
+            };
+            *slot = Some((zr.max(1e3), c));
+        }
+        let mut src = Source::R(src_r);
+        for (i, &(a, b)) in parts[..n].iter().enumerate() {
+            self.stages[i] = Stage::with_load(&blocks[a..b], src, rate, k, loads[i]);
+            src = match self.stages[i].out_z {
+                Source::Plate {
+                    rp_load,
+                    rp,
+                    rk,
+                    ck,
+                    cp,
+                    ..
+                } => Source::Plate {
+                    rp_load,
+                    rp,
+                    rk,
+                    ck,
+                    cp,
+                    inject: true,
+                },
+                s => s,
+            };
         }
         self.n = n;
     }
 
     pub fn stages(&self) -> &[Stage] {
         &self.stages[..self.n]
+    }
+
+    pub fn stages_mut(&mut self) -> &mut [Stage] {
+        &mut self.stages[..self.n]
     }
 
     pub fn set_knobs(&mut self, k: &Knobs) {
@@ -612,9 +884,10 @@ impl Preamp {
 
     #[inline]
     pub fn step(&mut self, x: f64) -> f64 {
-        let mut v = x;
+        let (mut v, mut i) = (x, 0.0);
         for s in &mut self.stages[..self.n] {
-            v = s.step(v);
+            v = s.step(v, i);
+            i = s.i_out;
         }
         v
     }

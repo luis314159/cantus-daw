@@ -27,12 +27,16 @@
 
 #[path = "arca_cab.rs"]
 pub mod cab;
+#[path = "arca_fast.rs"]
+pub mod fast;
 #[path = "arca_models.rs"]
 pub mod models;
 #[path = "arca_net.rs"]
 pub mod net;
 #[path = "arca_power.rs"]
 pub mod power;
+#[path = "arca_table.rs"]
+pub mod table;
 #[path = "arca_tube.rs"]
 pub mod tube;
 
@@ -214,6 +218,7 @@ impl Arca {
     /// Arca at `sample_rate`, no amp, no cabinet (the null). Allocates (off the audio
     /// thread): the circuits' room.
     pub fn new(sample_rate: f32) -> Arca {
+        table::warm();
         let s = ArcaSettings::default();
         let f = factor(s.oversampling);
         let rate = sample_rate as f64 * f as f64;

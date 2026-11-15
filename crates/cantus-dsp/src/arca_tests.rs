@@ -707,7 +707,7 @@ fn cpu_by_part() {
         let its: Vec<String> = p
             .stages()
             .iter()
-            .map(|s| format!("{:.2}", s.c.iterations_per_step()))
+            .map(|s| format!("{:.2}", s.iterations_per_step()))
             .collect();
         println!(
             "{m:?}: preamp {:.1} %, power {:.1} % ({acc:.1}); Newton per step {its:?}",
@@ -756,5 +756,188 @@ fn an_overdriven_power_amp_stays_periodic() {
         let db = inharmonic_db(&y[2 * n..], n, k0);
         println!("{m:?}: {db:.1} dB");
         assert!(db < -35.0, "{m:?}: {db:.1} dB");
+    }
+}
+
+/// Nanoseconds per call of the pieces: `--ignored --nocapture`, release.
+#[test]
+#[ignore]
+fn cpu_micro() {
+    let ns = |t: std::time::Instant, n: usize| t.elapsed().as_secs_f64() * 1e9 / n as f64;
+    let n = 2_000_000;
+    let mut acc = 0.0;
+    let t = std::time::Instant::now();
+    for i in 0..n {
+        let vg = -2.0 + (i % 1000) as f64 * 0.002;
+        let vp = 150.0 + (i % 777) as f64 * 0.1;
+        let r = AX7.currents(vg, vp);
+        acc += r.2 + r.3;
+    }
+    println!("Koren currents: {:.1} ns", ns(t, n));
+    let tt = super::table::tabled(AX7);
+    let t = std::time::Instant::now();
+    for i in 0..n {
+        let vg = -2.0 + (i % 1000) as f64 * 0.002;
+        let vp = 150.0 + (i % 777) as f64 * 0.1;
+        let r = tt.currents(vg, vp);
+        acc += r.2 + r.3;
+    }
+    println!("Koren currents from the table: {:.1} ns", ns(t, n));
+    {
+        let mut p = Preamp::new(
+            AmpModel::Clean.preamp(),
+            SOURCE_OHMS,
+            192_000.0,
+            &Knobs::default(),
+        );
+        let st = &mut p.stages_mut()[0];
+        let t = std::time::Instant::now();
+        for _ in 0..n {
+            acc += st.step(0.0, 0.0);
+        }
+        println!(
+            "clean V1's circuit alone, at rest: {:.1} ns a step",
+            ns(t, n)
+        );
+        let mut pw = Power::new(AmpModel::Clean.power(), 192_000.0);
+        let t = std::time::Instant::now();
+        for _ in 0..n {
+            acc += pw.step(0.0);
+        }
+        println!("clean power amp at idle: {:.1} ns a step", ns(t, n));
+    }
+    for m in [AmpModel::Clean, AmpModel::HighGain] {
+        let mut p = Preamp::new(m.preamp(), SOURCE_OHMS, 192_000.0, &Knobs::default());
+        let t = std::time::Instant::now();
+        for _ in 0..n / 10 {
+            acc += p.step(0.0);
+        }
+        println!("{m:?} preamp at rest: {:.0} ns a step", ns(t, n / 10));
+    }
+    let t = std::time::Instant::now();
+    for i in 0..n {
+        let vg = -40.0 + (i % 1000) as f64 * 0.04;
+        acc += EL34.current(vg, 400.0, 300.0 + (i % 100) as f64).0;
+    }
+    println!("pentode current: {:.1} ns", ns(t, n));
+    let rate = 192_000.0;
+    let x = pluck(110.0, 0.5, 0.4, 4);
+    for m in [AmpModel::Clean, AmpModel::HighGain] {
+        let mut p = Preamp::new(m.preamp(), SOURCE_OHMS, rate, &Knobs::default());
+        let t = std::time::Instant::now();
+        for v in &x {
+            for _ in 0..4 {
+                acc += p.step(*v as f64);
+            }
+        }
+        let per = ns(t, x.len() * 4);
+        println!(
+            "{m:?} preamp step: {per:.0} ns ({:.0} ns a circuit)",
+            per / p.stages().len() as f64
+        );
+        let mut pw = Power::new(m.power(), rate);
+        let t = std::time::Instant::now();
+        for v in &x {
+            for _ in 0..4 {
+                acc += pw.step(*v as f64 * 10.0);
+            }
+        }
+        println!("{m:?} power step: {:.0} ns", ns(t, x.len() * 4));
+    }
+    let mut o = crate::fervor::os::Oversampler::new(4, false);
+    let t = std::time::Instant::now();
+    for v in &x {
+        let mut b = [0.0f32; 8];
+        o.up(*v, &mut b);
+        acc += o.down(&mut b) as f64;
+    }
+    println!(
+        "oversampler 4x up+down: {:.0} ns a base sample",
+        ns(t, x.len())
+    );
+    let mut a = Arca::with_cab(SR, cab_kernel(Cabinet::OneTwelveOpen));
+    a.set(&ArcaSettings {
+        cab: true,
+        ..ArcaSettings::default()
+    });
+    a.reset();
+    let (mut l, mut r) = (x.clone(), x.clone());
+    let t = std::time::Instant::now();
+    for (bl, br) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+        a.process(bl, br);
+    }
+    println!(
+        "cabinet alone: {:.0} ns a sample ({acc:.1})",
+        ns(t, x.len())
+    );
+}
+
+/// The tables against the closed forms they were sampled from: across a valve's whole
+/// working range, currents and slopes within 0.1 % of the largest (where they matter).
+#[test]
+fn the_tables_are_the_valves() {
+    for t in [AX7, AY7] {
+        let tt = super::table::tabled(t);
+        assert!(tt.table.is_some());
+        let (mut worst_i, mut worst_g, mut worst_p) = (0.0f64, 0.0f64, 0.0f64);
+        let (_, _, imax, gmax, pmax) = t.currents(0.5, 300.0);
+        for a in 0..400 {
+            let vg = -12.0 + a as f64 * 0.035;
+            for b in 0..200 {
+                let vp = 1.0 + b as f64 * 2.9;
+                let x = t.currents(vg, vp);
+                let y = tt.currents(vg, vp);
+                worst_i = worst_i
+                    .max((x.2 - y.2).abs() / imax)
+                    .max((x.0 - y.0).abs() / imax);
+                worst_g = worst_g
+                    .max((x.3 - y.3).abs() / gmax)
+                    .max((x.1 - y.1).abs() / gmax);
+                worst_p = worst_p.max((x.4 - y.4).abs() / pmax);
+            }
+        }
+        println!("triode μ {}: current {worst_i:.1e}, g_m {worst_g:.1e}, g_p {worst_p:.1e} of the largest", t.mu);
+        assert!(worst_i < 1e-3 && worst_g < 1e-3 && worst_p < 1e-3);
+    }
+    for p in [EL34, L6GC, EL84, V6GT] {
+        let pt = super::table::pentode_tabled(p);
+        let (imax, gmax, _) = p.current(10.0, 400.0, 400.0);
+        let mut worst = 0.0f64;
+        for vg2 in [200.0, 300.0, 450.0] {
+            let g2 = pt.screen(vg2);
+            for a in 0..600 {
+                let vg = -150.0 + a as f64 * 0.27;
+                for vp in [20.0, 150.0, 400.0] {
+                    let x = p.current(vg, vg2, vp);
+                    let y = pt.current_at(vg, g2, vp);
+                    worst = worst
+                        .max((x.0 - y.0).abs() / imax)
+                        .max((x.1 - y.1).abs() / gmax);
+                }
+            }
+        }
+        println!("pentode μ {}: {worst:.1e} of the largest", p.mu);
+        assert!(worst < 1e-3);
+    }
+}
+
+/// Newton's iterations a sample per circuit inside the unit (the oversampler's smooth
+/// signal), on a plucked note and on the guitar-like burst at gain 80 %.
+#[test]
+#[ignore]
+fn newton_in_the_unit() {
+    let x = pluck(110.0, 1.0, 0.5, 4);
+    for m in AmpModel::ALL {
+        let mut s = amp_settings(m);
+        s.gain = 0.8;
+        let mut a = fresh(&s);
+        run(&mut a, &x, 256);
+        let its: Vec<String> = a
+            .pre
+            .stages()
+            .iter()
+            .map(|s| format!("{:.2}", s.iterations_per_step()))
+            .collect();
+        println!("{m:?}: {its:?}");
     }
 }

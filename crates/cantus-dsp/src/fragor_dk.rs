@@ -58,33 +58,33 @@ pub const MAX_E: usize = 4;
 /// Outputs (linear readings of the node voltages) at most.
 pub const MAX_OUT: usize = 2;
 /// Entries of `q`: the inputs and the capacitors' history sources.
-const MAX_Q: usize = MAX_IN + MAX_C;
+pub(crate) const MAX_Q: usize = MAX_IN + MAX_C;
 /// Rows of the fused per-sample matrix at most: the ports, the capacitors' voltages, the
 /// outputs, one after the other.
-const ROWS: usize = MAX_NL + MAX_C + MAX_OUT;
+pub(crate) const ROWS: usize = MAX_NL + MAX_C + MAX_OUT;
 
 /// SPICE's minimum conductance to ground, on every node, so a node joined to the rest only
 /// through capacitors still has a voltage at DC.
 const GMIN: f64 = 1e-12;
 /// Newton's iterations per sample at most, and its tolerance (volts).
-const ITER: usize = 40;
+pub(crate) const ITER: usize = 40;
 /// Newton stops once a step is below this and takes it, the currents to first order at
 /// the new voltages: what is left after a step Δ on an exponential port is about
 /// Δ²/(2·n·Vt) — here under 10⁻⁷ V, some −140 dB of a volt. (At 10⁻⁵ every sample paid a
 /// second iteration only to confirm the first.)
-const STOP: f64 = 7e-5;
+pub(crate) const STOP: f64 = 7e-5;
 /// The largest step an op-amp's differential input takes in one iteration.
 const SLEW_STEP: f64 = 0.5;
 /// A triode's largest grid and plate steps in one iteration (fx3:arca).
-const TRIODE_GRID_STEP: f64 = 4.0;
-const TRIODE_PLATE_STEP: f64 = 400.0;
+pub(crate) const TRIODE_GRID_STEP: f64 = 4.0;
+pub(crate) const TRIODE_PLATE_STEP: f64 = 400.0;
 /// A triode plate's largest predicted step (fx3:arca): the parabola through the last three
 /// answers is good to millivolts there, where a plate swings volts a sample.
 const TRIODE_PREDICT: f64 = 20.0;
 /// A triode's Newton tolerances (fx3:arca), grid and plate: the grid's is everyone's (a
 /// grid's error is multiplied by the stage's gain — a looser one moved a small signal's
 /// response by 0.4 dB), the plate's 1 mV of some 200 V.
-const TRIODE_GRID_STOP: f64 = STOP;
+const TRIODE_GRID_STOP: f64 = 1e-3;
 const TRIODE_PLATE_STOP: f64 = 1e-3;
 /// The largest step the predictor takes from the last answer (volts).
 const PREDICT: f64 = 0.05;
@@ -165,6 +165,9 @@ pub struct Koren {
     pub gg: f64,
     pub cg: f64,
     pub xi: f64,
+    /// Its curves tabulated (fx3:arca — `crate::arca::table`): read instead of the closed
+    /// forms when present.
+    pub table: Option<&'static crate::arca::table::KorenTable>,
 }
 
 /// `ln x` for `x > 0`, our own and fast (fx3:arca): `x = m·2^k` with `m` in [√½, √2),
@@ -210,6 +213,9 @@ impl Koren {
     /// `(i_g, ∂i_g/∂v_gk, i_p, ∂i_p/∂v_gk, ∂i_p/∂v_pk)` (fx3:arca).
     #[inline]
     pub fn currents(&self, vgk: f64, vpk: f64) -> (f64, f64, f64, f64, f64) {
+        if let Some(t) = self.table {
+            return t.currents(vgk, vpk);
+        }
         // Grid: nothing to speak of below −1.2 V (under 10⁻¹¹ A).
         let (ig, dig) = if vgk > -1.2 {
             let (spg, sgg) = softplus(self.cg * vgk);
@@ -1208,6 +1214,44 @@ impl Circuit {
     }
 
     /// The state: capacitor histories, ports, the last solution, the outputs' zero.
+    /// The fused per-sample matrices, the triodes and the state (fx3:arca — Arca steps its
+    /// all-triode circuits with its own lean loop, `arca_fast.rs`).
+    pub fn fused(&self) -> Fused {
+        let mut tubes = [None; 2];
+        let mut nt = 0;
+        for e in &self.e[..self.ne] {
+            if let Nl::Triode { tube, .. } = *e {
+                if nt < 2 {
+                    tubes[nt] = Some(tube);
+                }
+                nt += 1;
+            }
+        }
+        Fused {
+            m: self.ni + self.nc,
+            rows: self.rows,
+            dims: self.dims,
+            nc: self.nc,
+            ni: self.ni,
+            cap_row: self.cap_row,
+            out_row: self.out_row,
+            nout: self.nout,
+            aq: self.aq,
+            ai: self.ai,
+            k: self.k,
+            gc: self.gc,
+            y0: self.y0,
+            predict: self.predict,
+            stop_scale: self.stop_scale,
+            tubes,
+            all_triodes: nt == self.ne && nt <= 2,
+            j: self.j,
+            v: self.v,
+            v1: self.v1,
+            v2: self.v2,
+        }
+    }
+
     pub fn state(&self) -> State {
         State {
             j: self.j,
@@ -1230,6 +1274,33 @@ impl Circuit {
         self.i_last = s.i;
         self.y0 = s.y0;
     }
+}
+
+/// A circuit's fused matrices and state (fx3:arca): see [`Circuit::fused`].
+#[derive(Clone, Debug)]
+pub struct Fused {
+    pub m: usize,
+    pub rows: usize,
+    pub dims: usize,
+    pub nc: usize,
+    pub ni: usize,
+    pub cap_row: usize,
+    pub out_row: usize,
+    pub nout: usize,
+    pub aq: [[f64; ROWS]; MAX_Q],
+    pub ai: [[f64; ROWS]; MAX_NL],
+    pub k: [[f64; MAX_NL]; MAX_NL],
+    pub gc: [f64; MAX_C],
+    pub y0: [f64; MAX_OUT],
+    pub predict: [f64; MAX_NL],
+    pub stop_scale: [f64; MAX_NL],
+    pub tubes: [Option<Koren>; 2],
+    /// Every element a triode, two at most (the lean loop's case).
+    pub all_triodes: bool,
+    pub j: [f64; MAX_C],
+    pub v: [f64; MAX_NL],
+    pub v1: [f64; MAX_NL],
+    pub v2: [f64; MAX_NL],
 }
 
 /// A circuit's state, saved.

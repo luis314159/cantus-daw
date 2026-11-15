@@ -23,6 +23,7 @@ pub const AX7: Koren = Koren {
     gg: 6.177e-4,
     cg: 9.901,
     xi: 1.314,
+    table: None,
 };
 
 /// The 12AY7 (lower gain): μ from the datasheet, kp and kg1 fitted to its typical point.
@@ -35,6 +36,7 @@ pub const AY7: Koren = Koren {
     gg: 6.177e-4,
     cg: 9.901,
     xi: 1.314,
+    table: None,
 };
 
 /// A power pentode (or beam tetrode), Koren's form:
@@ -56,6 +58,8 @@ pub struct Pentode {
     pub kvb: f64,
     /// The screen's current as a share of the plate's (what the supply also carries).
     pub screen: f64,
+    /// `B(u)` tabulated ([`super::table`]).
+    pub table: Option<&'static super::table::PentodeTable>,
 }
 
 pub const EL34: Pentode = Pentode {
@@ -65,6 +69,7 @@ pub const EL34: Pentode = Pentode {
     kp: 52.005,
     kvb: 24.0,
     screen: 0.12,
+    table: None,
 };
 pub const L6GC: Pentode = Pentode {
     mu: 8.7,
@@ -73,6 +78,7 @@ pub const L6GC: Pentode = Pentode {
     kp: 44.783,
     kvb: 12.0,
     screen: 0.08,
+    table: None,
 };
 pub const EL84: Pentode = Pentode {
     mu: 26.5,
@@ -81,6 +87,7 @@ pub const EL84: Pentode = Pentode {
     kp: 70.0,
     kvb: 20.0,
     screen: 0.11,
+    table: None,
 };
 pub const V6GT: Pentode = Pentode {
     mu: 9.8,
@@ -89,9 +96,52 @@ pub const V6GT: Pentode = Pentode {
     kp: 45.029,
     kvb: 12.0,
     screen: 0.08,
+    table: None,
 };
 
+/// A screen voltage's terms, computed once a sample: `(v_g2, 1/v_g2, v_g2^ex)`.
+#[derive(Copy, Clone, Debug)]
+pub struct Screen(pub f64, pub f64, pub f64);
+
 impl Pentode {
+    pub fn screen(&self, vg2: f64) -> Screen {
+        let v = vg2.max(1.0);
+        Screen(v, 1.0 / v, fast_exp(self.ex * fast_ln(v)))
+    }
+
+    /// As [`Self::screen`], `v_g2^ex` from its value at `at` (`at_ex`) by the cubic Taylor
+    /// series in `δ = v_g2/at − 1` (under 10⁻⁴ relative for a sag of ±15 %; exact at idle):
+    /// the screen moves slowly, a power a sample is waste.
+    #[inline]
+    pub fn screen_near(&self, vg2: f64, at: f64, inv_at: f64, at_ex: f64) -> Screen {
+        let v = vg2.max(1.0);
+        let d = v * inv_at - 1.0;
+        if d.abs() > 0.3 {
+            return self.screen(v);
+        }
+        let e = self.ex;
+        let p = 1.0 + d * (e + d * (e * (e - 1.0) * 0.5 + d * (e * (e - 1.0) * (e - 2.0) / 6.0)));
+        let _ = at;
+        Screen(v, 1.0 / v, at_ex * p)
+    }
+
+    /// As [`Self::current`], the screen's terms given, `B(u)` read from its table.
+    #[inline]
+    pub fn current_at(&self, vg: f64, g2: Screen, vp: f64) -> (f64, f64, f64) {
+        let Some(t) = self.table else {
+            return self.current(vg, g2.0, vp);
+        };
+        let u = vg * g2.1;
+        let (base, dbase) = if u <= t.u_lo {
+            (0.0, 0.0)
+        } else {
+            let (b, db) = t.b.eval(u);
+            (g2.2 * b, g2.2 * db * g2.1)
+        };
+        let (f, df) = t.plate.eval(vp);
+        (base * f, dbase * f, base * df)
+    }
+
     /// Plate current and its derivatives `(i_p, ∂i_p/∂v_g1, ∂i_p/∂v_p)` at grid `vg`,
     /// screen `vg2` and plate `vp` (all against the cathode).
     #[inline]

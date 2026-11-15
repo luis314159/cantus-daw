@@ -101,12 +101,12 @@ fn ln_cosh(x: f64) -> f64 {
 /// input to this one, `(F(x) − F(x₁)) / (x − x₁)`, `F = ln cosh` — the limit's corners
 /// rounded by half a sample, its images above the band cut by tens of dB.
 #[inline]
-fn tanh_adaa(x: f64, x1: f64) -> f64 {
+fn tanh_adaa(x: f64, x1: f64, fx: f64, fx1: f64) -> f64 {
     let d = x - x1;
     if d.abs() < 1e-5 {
         tanh(0.5 * (x + x1))
     } else {
-        (ln_cosh(x) - ln_cosh(x1)) / d
+        (fx - fx1) / d
     }
 }
 
@@ -167,8 +167,10 @@ struct Live {
     vpp: f64,
     /// The feedback at the last sample (V at the inverter's input).
     fb: f64,
-    /// The inverter's last input over its swing (the antialiasing's other end).
+    /// The inverter's last input over its swing (the antialiasing's other end), and
+    /// `ln cosh` of it.
     pi_x: f64,
+    pi_f: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -178,7 +180,6 @@ pub struct Power {
     /// The fixed bias's grid return (V, negative); 0 for cathode bias.
     vbias: f64,
     turns: f64,
-    full: f64,
     live: Live,
     idle: Live,
     lo: First,
@@ -196,6 +197,29 @@ pub struct Power {
     rs: f64,
     v0: f64,
     idle_draw: f64,
+    /// The idle screen voltage, its inverse and its power (the Taylor series' centre).
+    g2_at: (f64, f64, f64),
+    /// The grids' conductances (inverter, leak, conduction) and the two sums' inverses.
+    g: (f64, f64, f64, f64, f64),
+    /// The spec's numbers as the sample needs them (the divisions done once).
+    c: Consts,
+    inv_rs: f64,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+struct Consts {
+    gain_over_swing: f64,
+    swing: f64,
+    cut: bool,
+    feedback: bool,
+    cathode: bool,
+    dt_couple: f64,
+    dt_filter: f64,
+    dt_ck: f64,
+    inv_rk: f64,
+    per_side: f64,
+    half_raa: f64,
+    inv_full: f64,
 }
 
 impl Power {
@@ -203,6 +227,10 @@ impl Power {
     /// to its idle draw, the bias set (fixed: for the idle current; cathode: where the
     /// cathode settles).
     pub fn new(spec: PowerSpec, rate: f64) -> Power {
+        let spec = PowerSpec {
+            tube: super::table::pentode_tabled(spec.tube),
+            ..spec
+        };
         let t = spec.tube;
         let n = spec.per_side;
         let mut b = spec.supply;
@@ -241,6 +269,7 @@ impl Power {
             vpp: 0.0,
             fb: 0.0,
             pi_x: 0.0,
+            pi_f: 0.0,
         };
         let w = |hz: f64| std::f64::consts::TAU * hz;
         let wl = w(spec.low_hz);
@@ -250,7 +279,6 @@ impl Power {
             rate,
             vbias,
             turns: (spec.r_speaker / spec.raa).sqrt(),
-            full: (2.0 * spec.watts * spec.r_speaker).sqrt(),
             live: idle,
             idle,
             lo: First::analog(0.0, 1.0, wl, 1.0, rate),
@@ -263,6 +291,36 @@ impl Power {
             rs: spec.r_supply,
             v0: spec.supply,
             idle_draw: draw,
+            c: {
+                let dt = 1.0 / rate;
+                let (dt_ck, inv_rk, cathode) = match spec.bias {
+                    Bias::Cathode { rk, ck } => (dt / ck, 1.0 / rk, true),
+                    Bias::Fixed { .. } => (0.0, 0.0, false),
+                };
+                Consts {
+                    gain_over_swing: spec.pi_gain / spec.pi_swing,
+                    swing: spec.pi_swing,
+                    cut: spec.cut.is_some(),
+                    feedback: spec.feedback.is_some(),
+                    cathode,
+                    dt_couple: dt / spec.c_couple,
+                    dt_filter: dt / spec.c_filter,
+                    dt_ck,
+                    inv_rk,
+                    per_side: spec.per_side,
+                    half_raa: 0.5 * spec.raa,
+                    inv_full: 1.0 / (2.0 * spec.watts * spec.r_speaker).sqrt(),
+                }
+            },
+            inv_rs: 1.0 / spec.r_supply,
+            g: {
+                let (g1, gg, gc) = (1.0 / spec.pi_r, 1.0 / spec.r_grid, 1.0 / R_GC);
+                (g1, gg, gc, 1.0 / (g1 + gg), 1.0 / (g1 + gg + gc))
+            },
+            g2_at: {
+                let s = t.screen(b - vk);
+                (s.0, s.1, s.2)
+            },
         };
         p.set_presence(0.5);
         p
@@ -330,6 +388,7 @@ impl Power {
     /// The supply's resistance times `f` (the sag setting), the idle point kept.
     pub fn set_sag(&mut self, f: f64) {
         self.rs = self.spec.r_supply * f;
+        self.inv_rs = 1.0 / self.rs;
         self.v0 = self.idle.b + self.rs * self.idle_draw;
     }
 
@@ -354,40 +413,43 @@ impl Power {
     /// full power out.
     #[inline]
     pub fn step(&mut self, x: f64) -> f64 {
-        let s = self.spec;
-        let t = s.tube;
-        let dt = 1.0 / self.rate;
+        let t = self.spec.tube;
+        let c = self.c;
         let u = self.pi_in.run(x) - self.live.fb;
-        let xs = s.pi_gain * u / s.pi_swing;
-        let mut e = s.pi_swing * tanh_adaa(xs, self.live.pi_x);
+        let xs = u * c.gain_over_swing;
+        let fx = ln_cosh(xs);
+        let mut e = c.swing * tanh_adaa(xs, self.live.pi_x, fx, self.live.pi_f);
         self.live.pi_x = xs;
-        if s.cut.is_some() {
+        self.live.pi_f = fx;
+        if c.cut {
             e = self.cut[0].run(e);
         }
         let vk = self.live.vk;
         let ret = self.vbias;
-        let (g1, gg, gc) = (1.0 / s.pi_r, 1.0 / s.r_grid, 1.0 / R_GC);
+        let (g1, gg, gc) = (self.g.0, self.g.1, self.g.2);
+        let (inv_off, inv_on) = (self.g.3, self.g.4);
         let mut vgk = [0.0; 2];
         for (side, sign) in [1.0f64, -1.0].into_iter().enumerate() {
             let a = sign * e - self.live.vc[side];
-            let mut vg = (a * g1 + ret * gg) / (g1 + gg);
+            let mut vg = (a * g1 + ret * gg) * inv_off;
             if vg > vk {
-                vg = (a * g1 + ret * gg + vk * gc) / (g1 + gg + gc);
+                vg = (a * g1 + ret * gg + vk * gc) * inv_on;
             }
             let i = (a - vg) * g1;
-            self.live.vc[side] += i * dt / s.c_couple;
+            self.live.vc[side] += i * c.dt_couple;
             vgk[side] = vg - vk;
         }
         let b = self.live.b;
         let vg2 = b - vk;
-        let n = s.per_side;
-        let half = 0.5 * s.raa;
+        let g2 = t.screen_near(vg2, self.g2_at.0, self.g2_at.1, self.g2_at.2);
+        let n = c.per_side;
+        let half = c.half_raa;
         // `f(V) = V − (I₊ − I₋)·Raa/2` rises with V (f′ ≥ 1): Newton from the last answer,
         // each step halved until |f| falls (a square's edge can ask for a kilovolt in one
         // sample, past where the plates' curve bends); two evaluations when it is smooth.
         let eval = |v: f64| {
-            let (a1, _, d1) = t.current(vgk[0], vg2, b - vk - 0.5 * v);
-            let (a2, _, d2) = t.current(vgk[1], vg2, b - vk + 0.5 * v);
+            let (a1, _, d1) = t.current_at(vgk[0], g2, b - vk - 0.5 * v);
+            let (a2, _, d2) = t.current_at(vgk[1], g2, b - vk + 0.5 * v);
             let (i1, i2) = (n * a1, n * a2);
             (
                 v - (i1 - i2) * half,
@@ -399,6 +461,10 @@ impl Power {
         let mut v = self.live.vpp;
         let (mut f, mut fp, mut i1, mut i2) = eval(v);
         for _ in 0..8 {
+            // Under a millivolt off: the step's own size bounds what is left.
+            if f.abs() < 1e-3 {
+                break;
+            }
             let dv = -f / fp;
             let mut step = dv;
             let mut next = eval(v + step);
@@ -411,24 +477,21 @@ impl Power {
             }
             v += step;
             (f, fp, i1, i2) = next;
-            if dv.abs() < 1e-4 {
-                break;
-            }
         }
         self.live.vpp = v;
         let tap = v * self.turns;
         let low = self.lo.run(tap);
         let mid = self.hi[0].run(low);
         let band = self.hi[1].run(mid);
-        if s.feedback.is_some() {
+        if c.feedback {
             self.live.fb = self.fb_net.run(band);
         }
         let draw = (1.0 + t.screen) * (i1 + i2);
-        let charge = (self.v0 - b).max(0.0) / self.rs;
-        self.live.b = b + dt / s.c_filter * (charge - draw - I_PRE);
-        if let Bias::Cathode { rk, ck } = s.bias {
-            self.live.vk = vk + dt / ck * (draw - vk / rk);
+        let charge = (self.v0 - b).max(0.0) * self.inv_rs;
+        self.live.b = b + c.dt_filter * (charge - draw - I_PRE);
+        if c.cathode {
+            self.live.vk = vk + c.dt_ck * (draw - vk * c.inv_rk);
         }
-        band / self.full
+        band * c.inv_full
     }
 }
