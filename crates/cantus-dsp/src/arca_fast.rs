@@ -186,7 +186,9 @@ impl Fast {
             // error falls as the fourth power of the step), bounded as the solver bounds it.
             for k in 0..dims {
                 let guess = 4.0 * (self.f.v[k] + self.f.v2[k]) - 6.0 * self.f.v1[k] - self.v3[k];
-                let b = self.f.predict[k];
+                // No further than twice the last sample's move: past a valve's knee the
+                // cubic overshoots, and Newton pays for it.
+                let b = self.f.predict[k].min(2.0 * (self.f.v[k] - self.f.v1[k]).abs() + 1e-3);
                 self.f.v[k] += (guess - self.f.v[k]).clamp(-b, b);
             }
             self.v3 = self.f.v2;

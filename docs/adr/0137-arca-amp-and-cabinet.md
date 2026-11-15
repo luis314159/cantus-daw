@@ -114,6 +114,37 @@ points and the oversampler clears; silence in is then silence out and nothing mo
 - **Sag**: the clean amp's tube rectifier sags 15 V on a loud chord (×3 softer: 37 V), the
   crunch's solid-state 6.5 V; back to idle within 0.5 V after half a second.
 
+### Phase A-2: CPU and the split (2026-11-15, DSP only)
+
+- **The valves tabulated** (`arca_table.rs`): Koren's plate current regrouped as
+  `A(v_pk)·B(v_gk·R(v_pk))` — three functions of one variable — and the grid current as a
+  function of `v_gk`, each sampled with its exact slope and read by cubic Hermite
+  interpolation (Newton follows the interpolant's own derivative); the pentode as
+  `v_g2^ex·B(v_g1/v_g2)·F(v_p)`, the screen's power by its Taylor series about idle. Built
+  once, off the audio thread (`table::warm`, from `Arca::new`), kept for the program's life.
+  Within 1.2·10⁻⁵ of the closed forms over the valves' working ranges
+  (`the_tables_are_the_valves`).
+- **A lean stepper** (`arca_fast.rs`) for all-triode circuits, from the solver's fused
+  matrices (`Circuit::fused`, additive): the same method, a cubic predictor bounded by twice
+  the last move, the Jacobian's known shape filled directly, a 2 × 2 in closed form.
+  Newton now takes 1.2 iterations a sample in a first stage, 1.4 – 3.2 in driven ones.
+- **The power amp**: its divisions done once, its plate solve stopping on a residual under
+  a millivolt (one evaluation at idle).
+- **The split, nearly exact now**: each plate is loaded by a stand-in for the next circuit —
+  a resistor and a capacitor in series equal to the next circuit's input impedance at
+  6 kHz (computed from its netlist, its valves linearised) — and the next circuit takes back
+  the current the stand-in drew, so the Thévenin source it sees is still exact; the source
+  includes a capacitor across the plate resistor (the cold clipper's 1 nF, missing before).
+  A tail with no valve stays in its plate's circuit. Every preamp against its whole
+  schematic: **within 0.22 dB from 80 Hz to 8 kHz** (was 0.92 dB at 6 – 8 kHz); operating
+  points unchanged to 0.05 V.
+- **CPU** (whole unit with its cabinet, 48 kHz, release, best of three; the machine at
+  33 – 42 % load from other builders' compiles, run to run ±20 %): at 4×, clean 9.6 – 11 %,
+  crunch 16 – 19 %, chime 14 – 16 %, high gain 25 – 31 %, bass 12 – 16 % of a core; at 2×,
+  clean 6.0 %, high gain 15.4 %. From phase A-1's 25 / 38 / 35 / 57 / 31 %: 2 – 2.6× less.
+  The high gain's four circuits (the last two hard-clipping, 2.4 and 3.2 iterations) are
+  what remains above its target.
+
 ## Left for the next phases
 
 - **CPU**: tabulate the triode (a bicubic table of Koren's currents and their slopes, built
