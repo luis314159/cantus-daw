@@ -62,7 +62,6 @@ use stft::Geometry;
 /// The unit's name while it is provisional.
 pub const NAME: &str = "Lenis";
 
-pub const MAX_DEPTH_DB: f32 = 24.0;
 pub const MIN_ATTACK_MS: f32 = 0.5;
 pub const MAX_ATTACK_MS: f32 = 200.0;
 pub const MIN_RELEASE_MS: f32 = 5.0;
@@ -92,11 +91,11 @@ pub enum Channels {
 /// The curve.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum Mode {
-    /// A 2:1 curve with a 6 dB knee, its ceiling a soft saturation at the depth: a peak
-    /// is brought half way to the line, gently.
+    /// A knee (`e²/(e + 4 dB)` of the excess over the threshold): a peak just over it is
+    /// barely touched, a big one almost as in Hard — gentle on what only nearly rings.
     #[default]
     Soft,
-    /// ∞:1 with no knee, capped hard at the depth: a peak is flattened to the line.
+    /// The excess over the threshold, straight: at 50 % depth a peak is brought to the line.
     Hard,
 }
 
@@ -160,11 +159,12 @@ impl Default for FocusBand {
 /// (depth 0).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LenisSettings {
-    /// The most a frequency is turned down, dB (0 … 24).
-    pub depth_db: f32,
+    /// How much: 0 (nothing) … 1. At 0.5 a resonance comes down to the line (the envelope
+    /// plus the threshold) in Hard mode; at 1 in Soft mode, or twice as far in Hard.
+    pub depth: f32,
     /// How narrow a peak must be to count: 0 (broad bumps too) … 1 (only narrow peaks).
     pub sharpness: f32,
-    /// How far a peak must stand out before it is touched: 0 (2 dB) … 1 (12 dB).
+    /// How far a peak must stand out before it is touched: 0 (2 dB) … 1 (8 dB).
     pub selectivity: f32,
     pub attack_ms: f32,
     pub release_ms: f32,
@@ -185,7 +185,7 @@ pub struct LenisSettings {
 impl Default for LenisSettings {
     fn default() -> Self {
         LenisSettings {
-            depth_db: 0.0,
+            depth: 0.0,
             sharpness: 0.5,
             selectivity: 0.5,
             attack_ms: 5.0,

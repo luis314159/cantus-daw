@@ -63,7 +63,7 @@ pub(super) fn peaking(x: &mut [f32], hz: f32, q: f32, db: f32) {
 /// A heavy setting: everything that can act, acting.
 pub(super) fn heavy() -> LenisSettings {
     let mut s = LenisSettings {
-        depth_db: 18.0,
+        depth: 0.9,
         sharpness: 0.6,
         selectivity: 0.2,
         attack_ms: 2.0,
@@ -158,7 +158,7 @@ fn depth_zero_and_mix_zero_are_the_input_delayed_to_the_bit() {
                 cases.push((
                     format!("depth 0 {q:?} {ch:?} {m:?}"),
                     LenisSettings {
-                        depth_db: 0.0,
+                        depth: 0.0,
                         ..base
                     },
                 ));
@@ -227,7 +227,7 @@ fn the_output_does_not_depend_on_the_block_size() {
         (
             heavy(),
             LenisSettings {
-                depth_db: 6.0,
+                depth: 0.3,
                 sharpness: 0.2,
                 mode: Mode::Soft,
                 ..heavy()
@@ -288,7 +288,7 @@ fn a_setting_given_anywhere_in_a_hop_is_taken_at_the_next_hop() {
         let (mut l, mut r) = (x.0.clone(), x.1.clone());
         u.process(&mut l[..at], &mut r[..at]);
         u.set(&LenisSettings {
-            depth_db: 3.0,
+            depth: 0.15,
             ..heavy()
         });
         u.process(&mut l[at..], &mut r[at..]);
@@ -420,7 +420,7 @@ fn it_comes_to_rest_exactly_and_its_twins_agree() {
 fn the_meter_shows_the_resonance_where_it_is() {
     let x = harsh(48_000, 23);
     let mut u = unit(&LenisSettings {
-        depth_db: 12.0,
+        depth: 0.6,
         ..LenisSettings::default()
     });
     run(&mut u, &x, 256);
@@ -479,9 +479,12 @@ fn the_focus_curve_is_one_where_nothing_acts_and_follows_its_bands() {
     assert_eq!(detect::focus_weight(&h, 21_000.0), 0.0);
     assert!(detect::focus_weight(&h, 20_000.0) < 0.01);
     // The curve's shape.
-    assert_eq!(detect::curve_db(-10.0, 12.0, Mode::Soft), 0.0);
-    assert_eq!(detect::curve_db(5.0, 3.0, Mode::Hard), 3.0);
-    assert_eq!(detect::curve_db(2.0, 12.0, Mode::Hard), 2.0);
-    assert!((detect::curve_db(8.0, 24.0, Mode::Soft) - 4.0).abs() < 0.2);
-    assert_eq!(detect::curve_db(8.0, 0.0, Mode::Soft), 0.0);
+    use detect::reduction_db as red;
+    assert_eq!(red(3.0, 4.0, 0.5, Mode::Soft), 0.0, "under the threshold");
+    assert_eq!(red(10.0, 4.0, 0.5, Mode::Hard), 6.0, "hard at 50 %: to the line");
+    assert_eq!(red(10.0, 4.0, 1.0, Mode::Hard), 10.0, "never below the envelope");
+    assert!((red(10.0, 4.0, 0.5, Mode::Soft) - 3.6).abs() < 1e-5, "soft: e²/(e + 4)");
+    assert!(red(4.5, 4.0, 1.0, Mode::Soft) < 0.15, "the knee starts gently");
+    assert_eq!(red(10.0, 4.0, 0.0, Mode::Hard), 0.0);
+    assert_eq!(red(60.0, 2.0, 1.0, Mode::Hard), detect::MAX_CUT_DB);
 }

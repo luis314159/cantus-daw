@@ -4,7 +4,7 @@
 //! |X|² ─ average (DET_MS) ─ dB ─┬─ fine:      [¼ ½ ¼] across three bins ───────────┐
 //!                               └─ envelope:  box over W octaves, clipped twice,   │
 //!                                             a second box (a triangle) ─────────── − ─► excess
-//! excess − threshold ─ curve (soft 2:1 knee, or hard ∞:1) ─ × focus weight ─ ≤ depth
+//! excess − threshold ─ curve (hard, or soft: a knee) × 2·depth·focus ─ ≤ the excess
 //!        ─ spread (max of three bins, then [¼ ½ ¼]) ─ attack / release ─► reduction, dB
 //! ```
 //!
@@ -27,15 +27,20 @@
 use super::{Channels, LenisSettings, Mode, FOCUS_BANDS};
 use crate::math;
 
-/// The detector's averaging of each bin's power, ms.
-pub const DET_MS: f32 = 15.0;
+/// The detector's averaging of each bin's power, ms (measured: `diagnose_the_excess`).
+pub const DET_MS: f32 = 30.0;
+/// The fine spectrum's triangle, bins on each side.
+pub const FINE_HALF: usize = 2;
 /// The envelope's box is never narrower than this many bins on each side.
 pub const MIN_HALF: usize = 4;
 /// The envelope's robust passes clip the spectrum this far above the previous estimate, dB.
-pub const CLIP_DB: f32 = 3.0;
-/// The soft curve's knee, dB (centred on the threshold) and its ratio.
-pub const SOFT_KNEE_DB: f32 = 6.0;
-pub const SOFT_RATIO: f32 = 2.0;
+pub const CLIP_DB: f32 = 1.0;
+/// How many times the envelope is clipped and smoothed again.
+pub const PASSES: usize = 3;
+/// The soft curve's knee, dB: `e²/(e + K)` — no slope at the threshold, `e − K` far over it.
+pub const SOFT_KNEE_DB: f32 = 4.0;
+/// No bin is ever turned down further than this, dB.
+pub const MAX_CUT_DB: f32 = 30.0;
 /// A bin's level floor, dBFS: nothing under it is ever a resonance.
 pub const FLOOR_DB: f32 = -140.0;
 /// The focus limits fade over this many octaves outside them.
@@ -50,30 +55,28 @@ pub fn envelope_octaves(sharpness: f32) -> f32 {
 /// How far over the envelope a peak must stand before it is reduced, dB, at a selectivity
 /// of 0 … 1.
 pub fn threshold_db(selectivity: f32) -> f32 {
-    2.0 + 10.0 * selectivity.clamp(0.0, 1.0)
+    2.0 + 6.0 * selectivity.clamp(0.0, 1.0)
 }
 
-/// The reduction for an `excess` over the threshold (dB, may be negative), before the
-/// focus weight, capped at `depth` dB.
-pub fn curve_db(excess: f32, depth: f32, mode: Mode) -> f32 {
-    if depth <= 0.0 {
+/// The reduction, dB, for a bin standing `excess` dB over the envelope, at a threshold,
+/// an amount `depth` (0 … 1, already weighted by the focus: up to 2) and a mode.
+///
+/// - **Hard**: the excess over the threshold, × 2·depth — at 50 % a resonance is brought
+///   down to the line (the envelope + the threshold), at 100 % twice as far.
+/// - **Soft**: the same through `e²/(e + K)`, a knee 4 dB wide: a peak just over the
+///   threshold is barely touched, a big one is treated almost as Hard treats it.
+/// - **Never below the envelope**: no bin is turned down further than it stands out, nor
+///   further than [`MAX_CUT_DB`].
+pub fn reduction_db(excess: f32, threshold: f32, depth: f32, mode: Mode) -> f32 {
+    let e = excess - threshold;
+    if depth <= 0.0 || e <= 0.0 {
         return 0.0;
     }
-    match mode {
-        Mode::Hard => excess.clamp(0.0, depth),
-        Mode::Soft => {
-            let slope = 1.0 - 1.0 / SOFT_RATIO;
-            let h = 0.5 * SOFT_KNEE_DB;
-            let r = if excess <= -h {
-                return 0.0;
-            } else if excess < h {
-                slope * (excess + h) * (excess + h) / (2.0 * SOFT_KNEE_DB)
-            } else {
-                slope * excess
-            };
-            depth * math::tanh(r / depth)
-        }
-    }
+    let c = match mode {
+        Mode::Hard => e,
+        Mode::Soft => e * e / (e + SOFT_KNEE_DB),
+    };
+    (2.0 * depth * c).min(excess).min(MAX_CUT_DB)
 }
 
 /// The focus curve at `hz`: 0 (left alone) … 2 (twice the reduction); 1 where no band
@@ -115,6 +118,11 @@ pub struct Design {
     pub weight: Vec<f32>,
     pub lo: Vec<u32>,
     pub hi: Vec<u32>,
+    /// Each bin's octave (`log2` of the bin number; bin 0 at half a bin), and the prefix
+    /// sums of `u` and `u²` the fit reads.
+    pub u: Vec<f64>,
+    pub pu: Vec<f64>,
+    pub puu: Vec<f64>,
     pub bins: usize,
     pub threshold: f32,
     pub depth: f32,
@@ -126,6 +134,11 @@ pub struct Design {
     pub norm2: f32,
     /// Raw power under this is flushed to zero (−160 dBFS).
     pub flush: f32,
+    /// The fine spectrum's half-width, bins (a triangle in power).
+    pub fine_half: usize,
+    /// The envelope's robust passes and their clipping, dB.
+    pub passes: usize,
+    pub clip_db: f32,
     pub linked: bool,
 }
 
@@ -135,6 +148,9 @@ impl Design {
             weight: vec![0.0; max_bins],
             lo: vec![0; max_bins],
             hi: vec![0; max_bins],
+            u: vec![0.0; max_bins],
+            pu: vec![0.0; max_bins + 1],
+            puu: vec![0.0; max_bins + 1],
             bins: 0,
             threshold: 0.0,
             depth: 0.0,
@@ -144,6 +160,9 @@ impl Design {
             a_rel: 1.0,
             norm2: 1.0,
             flush: 0.0,
+            fine_half: FINE_HALF,
+            passes: PASSES,
+            clip_db: CLIP_DB,
             linked: true,
         }
     }
@@ -162,9 +181,13 @@ impl Design {
             let hi = ((k as f32 * up).ceil() as usize).max(k + MIN_HALF);
             self.lo[k] = lo as u32;
             self.hi[k] = hi.min(bins - 1) as u32;
+            let u = math::log2((k as f64).max(0.5));
+            self.u[k] = u;
+            self.pu[k + 1] = self.pu[k] + u;
+            self.puu[k + 1] = self.puu[k] + u * u;
         }
         self.threshold = threshold_db(s.selectivity);
-        self.depth = s.depth_db.clamp(0.0, MAX_DEPTH_DB);
+        self.depth = s.depth.clamp(0.0, 1.0);
         self.mode = s.mode;
         let per = |ms: f32| {
             let frames = ms.max(0.0) * 1e-3 * sr / hop as f32;
@@ -184,17 +207,20 @@ impl Design {
     }
 }
 
-pub use super::{MAX_ATTACK_MS, MAX_DEPTH_DB, MAX_RELEASE_MS, MIN_ATTACK_MS, MIN_RELEASE_MS};
+pub use super::{MAX_ATTACK_MS, MAX_RELEASE_MS, MIN_ATTACK_MS, MIN_RELEASE_MS};
 
 /// Working arrays one detector pass uses, shared by the detectors.
 pub struct Scratch {
     /// The averaged spectrum, dBFS (the meter reads it after each pass).
     pub level: Vec<f32>,
     fine: Vec<f32>,
+    /// The fine spectrum over the envelope, dB (what the curve reads), after each pass.
+    pub excess: Vec<f32>,
     env: Vec<f32>,
     clip: Vec<f32>,
     raw: Vec<f32>,
     prefix: Vec<f64>,
+    prefix_u: Vec<f64>,
 }
 
 impl Scratch {
@@ -202,24 +228,44 @@ impl Scratch {
         Scratch {
             level: vec![FLOOR_DB; max_bins],
             fine: vec![0.0; max_bins],
+            excess: vec![0.0; max_bins],
             env: vec![0.0; max_bins],
             clip: vec![0.0; max_bins],
             raw: vec![0.0; max_bins],
             prefix: vec![0.0; max_bins + 1],
+            prefix_u: vec![0.0; max_bins + 1],
         }
     }
 }
 
-/// `out[k]` = the mean of `x[lo[k]..=hi[k]]`.
-fn boxed(x: &[f32], lo: &[u32], hi: &[u32], prefix: &mut [f64], out: &mut [f32]) {
+/// `out[k]` = the straight line fitted (least squares) to `x[lo[k]..=hi[k]]` against the
+/// bins' octave `u`, read at bin `k`. A local linear fit, not a mean: a spectrum's slope in
+/// octaves (pink noise, a roll-off) is followed without bias even where the box is
+/// lopsided in octaves (the low bins, the edges). Every sum is a difference of prefix
+/// sums, in `f64`.
+fn fitted(x: &[f32], d: &Design, px: &mut [f64], pux: &mut [f64], out: &mut [f32]) {
     let n = x.len();
-    prefix[0] = 0.0;
+    px[0] = 0.0;
+    pux[0] = 0.0;
     for i in 0..n {
-        prefix[i + 1] = prefix[i] + x[i] as f64;
+        px[i + 1] = px[i] + x[i] as f64;
+        pux[i + 1] = pux[i] + d.u[i] * x[i] as f64;
     }
     for k in 0..n {
-        let (a, b) = (lo[k] as usize, hi[k] as usize);
-        out[k] = ((prefix[b + 1] - prefix[a]) / (b - a + 1) as f64) as f32;
+        let (a, b) = (d.lo[k] as usize, d.hi[k] as usize + 1);
+        let m = (b - a) as f64;
+        let su = d.pu[b] - d.pu[a];
+        let suu = d.puu[b] - d.puu[a];
+        let sx = px[b] - px[a];
+        let sux = pux[b] - pux[a];
+        let den = m * suu - su * su;
+        let mean = sx / m;
+        out[k] = if den > 1e-12 {
+            let slope = (m * sux - su * sx) / den;
+            (mean + slope * (d.u[k] - su / m)) as f32
+        } else {
+            mean as f32
+        };
     }
 }
 
@@ -287,28 +333,41 @@ impl Detector {
             any_power |= v != 0.0;
             sc.level[k] = (10.0 * math::log10(v * d.norm2 + 1e-14)).max(FLOOR_DB);
         }
-        let (level, fine, env, clip, raw) = (
+        let (level, fine, env, clip, raw, excess) = (
             &sc.level[..k_n],
             &mut sc.fine[..k_n],
             &mut sc.env[..k_n],
             &mut sc.clip[..k_n],
             &mut sc.raw[..k_n],
+            &mut sc.excess[..k_n],
         );
-        let (lo, hi, prefix) = (&d.lo[..k_n], &d.hi[..k_n], &mut sc.prefix[..k_n + 1]);
+        let (prefix, prefix_u) = (&mut sc.prefix[..k_n + 1], &mut sc.prefix_u[..k_n + 1]);
         if d.depth > 0.0 && any_power {
-            three(level, fine);
-            boxed(level, lo, hi, prefix, env);
-            for _ in 0..2 {
-                for k in 0..k_n {
-                    clip[k] = level[k].min(env[k] + CLIP_DB);
+            // The fine spectrum: a triangle over `2·fine_half + 1` bins, in power.
+            let h = d.fine_half as isize;
+            for (k, f) in fine.iter_mut().enumerate() {
+                let (mut acc, mut wsum) = (0.0f32, 0.0f32);
+                for j in -h..=h {
+                    let i = (k as isize + j).clamp(0, k_n as isize - 1) as usize;
+                    let w = (h + 1 - j.abs()) as f32;
+                    acc += w * self.ps[i];
+                    wsum += w;
                 }
-                boxed(clip, lo, hi, prefix, env);
+                *f = (10.0 * math::log10(acc / wsum * d.norm2 + 1e-14)).max(FLOOR_DB);
             }
-            boxed(env, lo, hi, prefix, clip);
+            fitted(level, d, prefix, prefix_u, env);
+            for _ in 0..d.passes {
+                for k in 0..k_n {
+                    clip[k] = level[k].min(env[k] + d.clip_db);
+                }
+                fitted(clip, d, prefix, prefix_u, env);
+            }
+            fitted(env, d, prefix, prefix_u, clip);
             for k in 0..k_n {
                 let w = d.weight[k];
+                excess[k] = fine[k] - clip[k];
                 fine[k] = if w > 0.0 && level[k] > FLOOR_DB {
-                    w * curve_db(fine[k] - clip[k] - d.threshold, d.depth, d.mode)
+                    reduction_db(excess[k], d.threshold, w * d.depth, d.mode)
                 } else {
                     0.0
                 };
@@ -322,6 +381,7 @@ impl Detector {
             three(clip, raw);
         } else {
             raw.fill(0.0);
+            excess.fill(0.0);
         }
         let mut touched = false;
         for k in 0..k_n {

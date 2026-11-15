@@ -1,1 +1,248 @@
+//! Lenis measured: a resonance cut and its neighbours kept, flat noise left alone, the
+//! reduction against depth and sharpness, the time response, the window pairs compared,
+//! and the CPU (`#[ignore]`: run alone, in release).
+//!
+//! `cargo test -p cantus-dsp --lib lenis::tests_measure -- --nocapture`
+
+use super::tests::{peaking, pink, run, unit, white, Stereo, SR};
 use super::*;
+use crate::aequalis::fft::Fft;
+
+const WN: usize = 4096;
+
+/// Welch's mean power per bin (Hann, 4096 points, hop 1024) of `x`.
+fn welch(x: &[f32]) -> Vec<f64> {
+    let fft = Fft::new(WN);
+    let w: Vec<f32> = (0..WN)
+        .map(|i| {
+            (0.5 - 0.5 * math::cos(2.0 * std::f64::consts::PI * i as f64 / WN as f64)) as f32
+        })
+        .collect();
+    let mut sum = vec![0.0f64; WN / 2 + 1];
+    let mut frames = 0;
+    let (mut re, mut im) = (vec![0.0f32; WN], vec![0.0f32; WN]);
+    let mut k = 0;
+    while k + WN <= x.len() {
+        for i in 0..WN {
+            re[i] = x[k + i] * w[i];
+            im[i] = 0.0;
+        }
+        fft.run(&mut re, &mut im, false);
+        for (b, s) in sum.iter_mut().enumerate() {
+            *s += (re[b] as f64).powi(2) + (im[b] as f64).powi(2);
+        }
+        frames += 1;
+        k += WN / 4;
+    }
+    sum.iter_mut().for_each(|s| *s /= frames.max(1) as f64);
+    sum
+}
+
+/// The power between `lo` and `hi` Hz, dB.
+fn band(p: &[f64], lo: f32, hi: f32) -> f64 {
+    let hz = SR as f64 / WN as f64;
+    let e: f64 = p
+        .iter()
+        .enumerate()
+        .filter(|(k, _)| {
+            let f = *k as f64 * hz;
+            f >= lo as f64 && f < hi as f64
+        })
+        .map(|(_, v)| *v)
+        .sum();
+    10.0 * (e.max(1e-30)).log10()
+}
+
+/// The output aligned with the input: `y` from the latency on, `x` as long.
+fn aligned<'a>(x: &'a [f32], y: &'a [f32], lat: usize, skip: usize) -> (&'a [f32], &'a [f32]) {
+    let n = y.len() - lat - skip;
+    (&x[skip..skip + n], &y[lat + skip..lat + skip + n])
+}
+
+/// Pink noise with a peak of `db` at `hz` (quality `q`), both channels the same; and the
+/// same noise without the peak.
+fn resonant(secs: f32, hz: f32, q: f32, db: f32, seed: u64) -> (Stereo, Vec<f32>) {
+    let n = (secs * SR) as usize;
+    let clean = pink(n, seed, 0.25);
+    let mut x = clean.clone();
+    peaking(&mut x, hz, q, db);
+    ((x.clone(), x), clean)
+}
+
+/// The change (dB) Lenis makes in each band `bands`, after a second's settling.
+fn changes(u: &mut Lenis, x: &Stereo, bands: &[(f32, f32)]) -> Vec<f64> {
+    let y = run(u, x, 256);
+    let lat = u.latency();
+    let (xa, ya) = aligned(&x.0, &y.0, lat, SR as usize);
+    let (px, py) = (welch(xa), welch(ya));
+    bands
+        .iter()
+        .map(|(lo, hi)| band(&py, *lo, *hi) - band(&px, *lo, *hi))
+        .collect()
+}
+
+/// The neighbourhoods a 3 kHz resonance's measurement reads: the peak (a sixth of an
+/// octave), the broad regions under and over it.
+const AROUND_3K: [(f32, f32); 5] = [
+    (2_830.0, 3_180.0),
+    (200.0, 1_000.0),
+    (1_000.0, 2_000.0),
+    (5_000.0, 10_000.0),
+    (10_000.0, 16_000.0),
+];
+
+#[test]
+fn a_resonance_on_pink_noise_is_cut_and_its_neighbours_kept() {
+    let (x, _) = resonant(8.0, 3_000.0, 8.0, 12.0, 1);
+    println!("pink + 12 dB at 3 kHz, Q 8; change dB: peak | 200-1k | 1-2k | 5-10k | 10-16k");
+    let mut table = vec![];
+    for mode in [Mode::Soft, Mode::Hard] {
+        for depth in [0.25f32, 0.5, 0.75, 1.0] {
+            let s = LenisSettings {
+                depth,
+                mode,
+                ..LenisSettings::default()
+            };
+            let c = changes(&mut unit(&s), &x, &AROUND_3K);
+            println!(
+                "  {mode:?} depth {depth:>4}: {:+6.2} | {:+5.2} | {:+5.2} | {:+5.2} | {:+5.2}",
+                c[0], c[1], c[2], c[3], c[4]
+            );
+            table.push((mode, depth, c));
+        }
+    }
+    for (mode, depth, c) in &table {
+        // The broad regions are kept within half a decibel.
+        for v in &c[1..] {
+            assert!(v.abs() < 0.5, "{mode:?} {depth}: a neighbour moved {v:+.2} dB");
+        }
+    }
+    let at = |m: Mode, d: f32| table.iter().find(|t| t.0 == m && t.1 == d).unwrap().2[0];
+    assert!(at(Mode::Soft, 0.5) < -1.5, "soft 50 %: {}", at(Mode::Soft, 0.5));
+    assert!(at(Mode::Hard, 0.5) < -3.0, "hard 50 %: {}", at(Mode::Hard, 0.5));
+    assert!(at(Mode::Hard, 1.0) < at(Mode::Hard, 0.5) - 2.0, "more depth, more cut");
+}
+
+#[test]
+fn flat_noise_is_barely_touched() {
+    let n = (8.0 * SR) as usize;
+    let thirds: Vec<(f32, f32)> = (0..30)
+        .map(|i| {
+            let c = 25.0 * math::powf(2.0f32, i as f32 / 3.0);
+            (c * math::powf(2.0f32, -1.0 / 6.0), c * math::powf(2.0f32, 1.0 / 6.0))
+        })
+        .filter(|(_, hi)| *hi < 20_000.0)
+        .collect();
+    for (name, sig) in [("pink", pink(n, 5, 0.3)), ("white", white(n, 6, 0.3))] {
+        for (depth, sel) in [(0.5f32, 0.5f32), (1.0, 0.5), (1.0, 0.2), (1.0, 0.0)] {
+            let s = LenisSettings {
+                depth,
+                selectivity: sel,
+                ..LenisSettings::default()
+            };
+            let x = (sig.clone(), sig.clone());
+            let mut u = unit(&s);
+            let y = run(&mut u, &x, 256);
+            let lat = u.latency();
+            let (xa, ya) = aligned(&x.0, &y.0, lat, SR as usize);
+            let (ex, ed): (f64, f64) = xa.iter().zip(ya).fold((0.0, 0.0), |(e, d), (a, b)| {
+                (e + (*a as f64).powi(2), d + ((*a - *b) as f64).powi(2))
+            });
+            let (px, py) = (welch(xa), welch(ya));
+            let worst = thirds
+                .iter()
+                .map(|(lo, hi)| (band(&py, *lo, *hi) - band(&px, *lo, *hi)).abs())
+                .fold(0.0f64, f64::max);
+            let delta_db = 10.0 * (ed / ex).log10();
+            println!(
+                "{name} noise, depth {depth} selectivity {sel}: the removed part {delta_db:.1} dB under the input; worst third-octave {worst:.2} dB"
+            );
+            if sel >= 0.5 {
+                assert!(delta_db < -30.0, "{name} {depth}: {delta_db:.1} dB");
+                assert!(worst < 0.3, "{name} {depth}: {worst:.2} dB");
+            }
+        }
+    }
+}
+
+#[test]
+fn the_reduction_follows_depth_and_sharpness() {
+    // A narrow peak (Q 20, a 15th of an octave) and a broad one (Q 1.5, two thirds),
+    // both +10 dB.
+    let n = (8.0 * SR) as usize;
+    let base = pink(n, 8, 0.25);
+    let mut narrow = base.clone();
+    peaking(&mut narrow, 4_000.0, 20.0, 10.0);
+    let mut broad = base.clone();
+    peaking(&mut broad, 1_500.0, 1.5, 10.0);
+    println!("sharpness | narrow 4 kHz Q 20 | broad 1.5 kHz Q 1.5 (dB at the peak, depth 50 % hard)");
+    let mut rows = vec![];
+    for sh in [0.0, 0.25, 0.5, 0.75, 1.0] {
+        let s = LenisSettings {
+            depth: 0.5,
+            sharpness: sh,
+            selectivity: 0.3,
+            mode: Mode::Hard,
+            ..LenisSettings::default()
+        };
+        let a = changes(&mut unit(&s), &(narrow.clone(), narrow.clone()), &[(3_900.0, 4_100.0)])[0];
+        let b = changes(&mut unit(&s), &(broad.clone(), broad.clone()), &[(1_300.0, 1_700.0)])[0];
+        println!("  {sh:.2} | {a:+6.2} | {b:+6.2}");
+        rows.push((sh, a, b));
+    }
+    // The narrow peak is cut at every sharpness; the broad bump only at low sharpness.
+    assert!(rows.iter().all(|r| r.1 < -2.0));
+    assert!(rows[0].2 < rows[4].2 - 1.0, "the broad bump: {:?}", rows);
+    assert!(rows[4].2 > -1.0, "the sharpest leaves the broad bump: {:?}", rows[4]);
+}
+
+/// The excess the detector reads, on noise and on a resonance, for detector variants.
+#[test]
+#[ignore]
+fn diagnose_the_excess() {
+    let n = (6.0 * SR) as usize;
+    let noise = pink(n, 5, 0.3);
+    let ((res, _), _) = resonant(6.0, 3_000.0, 8.0, 12.0, 1);
+    for (det_ms, clip, passes) in [(30.0f32, 3.0f32, 2usize), (30.0, 2.0, 2), (30.0, 1.0, 2), (30.0, 2.0, 3), (30.0, 1.0, 4), (30.0, 0.0, 3), (45.0, 1.0, 3)] {
+        for fine in [2usize] {
+            let mut stats = vec![];
+            for sig in [&noise, &res] {
+                let mut u = unit(&LenisSettings {
+                    depth: 0.5,
+                    ..LenisSettings::default()
+                });
+                let hop = u.geometry().hop();
+                u.design.a_det = 1.0 - math::exp(-(hop as f32) / (det_ms * 1e-3 * SR));
+                u.design.fine_half = fine;
+                u.design.clip_db = clip;
+                u.design.passes = passes;
+                let (mut l, mut r) = (sig.clone(), sig.clone());
+                let mut all = vec![];
+                let mut at3k = vec![];
+                let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
+                for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
+                    u.process(a, b);
+                    if i * hop < SR as usize {
+                        continue;
+                    }
+                    let e = &u.scratch.excess;
+                    for k in 0..u.geometry().bins() {
+                        let f = u.bin_hz(k);
+                        if (200.0..16_000.0).contains(&f) {
+                            all.push(e[k]);
+                        }
+                    }
+                    at3k.push(e[k3]);
+                }
+                all.sort_by(|a, b| a.total_cmp(b));
+                let q = |p: f64| all[((all.len() - 1) as f64 * p) as usize];
+                let mean3k = at3k.iter().sum::<f32>() / at3k.len() as f32;
+                stats.push((q(0.5), q(0.9), q(0.99), q(0.999), mean3k));
+            }
+            println!(
+                "det {det_ms:>4} ms fine {fine} clip {clip} passes {passes}: noise p50 {:+.1} p90 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance at 3 kHz {:+.1}",
+                stats[0].0, stats[0].1, stats[0].2, stats[0].3, stats[1].4
+            );
+        }
+    }
+}
