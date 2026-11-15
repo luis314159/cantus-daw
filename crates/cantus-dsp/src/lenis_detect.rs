@@ -37,40 +37,53 @@ pub const FAST_MARGIN_DB: f32 = 4.0;
 /// And the slow one never stands more than this over the fast one: when a resonance stops,
 /// the fast average lets go at once and the reduction with it.
 pub const FAST_HOLD_DB: f32 = 3.0;
-/// The fine spectrum's triangle, bins on each side.
-pub const FINE_HALF: usize = 2;
+/// The fine spectrum bridges the gaps between partials this far on each side, Hz: a sung
+/// or played note's harmonics (up to about 240 Hz apart) are one smooth upper envelope, so
+/// a resonance is a bump in it, never a harmonic itself.
+pub const BRIDGE_HZ: f32 = 120.0;
+/// Under 720 Hz the bridge is this fraction of the frequency instead (a sixth: low
+/// resonances stay resolved; low partials are notes there, which the focus decides on).
+pub const BRIDGE_FRACTION: f32 = 1.0 / 6.0;
 /// The envelope's box is never narrower than this many bins on each side.
 pub const MIN_HALF: usize = 4;
 /// The envelope's robust passes clip the spectrum this far above the previous estimate, dB.
 pub const CLIP_DB: f32 = 1.0;
 /// How many times the envelope is clipped and smoothed again.
 pub const PASSES: usize = 3;
+/// At the edge of a band (a roll-off's knee) the envelope stays within this of the higher
+/// side's mean, so the edge is never taken for a peak.
+pub const EDGE_DB: f32 = 1.5;
+/// The side means start `GUARD_MUL · bridge + 1` bins away from the bin.
+pub const GUARD_MUL: usize = 2;
 /// The soft curve's knee, dB: `e²/(e + K)` — no slope at the threshold, `e − K` far over it.
 pub const SOFT_KNEE_DB: f32 = 4.0;
 /// No bin is ever turned down further than this, dB.
 pub const MAX_CUT_DB: f32 = 30.0;
+/// The reduction is `DEPTH_SCALE · depth` times the excess over the threshold (Hard): at a
+/// quarter of the depth a resonance comes down to the line.
+pub const DEPTH_SCALE: f32 = 4.0;
 /// A bin's level floor, dBFS: nothing under it is ever a resonance.
 pub const FLOOR_DB: f32 = -140.0;
 /// The focus limits fade over this many octaves outside them.
 pub const LIMIT_FADE_OCT: f32 = 1.0 / 3.0;
 
-/// The envelope's width, octaves, at a sharpness of 0 … 1: two octaves (broad bumps count
-/// too) to a quarter of one (only narrow peaks).
+/// The envelope's width, octaves, at a sharpness of 0 … 1: three octaves (broad bumps count
+/// too) to three eighths of one (only narrow peaks).
 pub fn envelope_octaves(sharpness: f32) -> f32 {
-    2.0 * math::powf(0.125, sharpness.clamp(0.0, 1.0))
+    3.0 * math::powf(0.125, sharpness.clamp(0.0, 1.0))
 }
 
 /// How far over the envelope a peak must stand before it is reduced, dB, at a selectivity
 /// of 0 … 1.
 pub fn threshold_db(selectivity: f32) -> f32 {
-    2.0 + 6.0 * selectivity.clamp(0.0, 1.0)
+    1.5 + 5.0 * selectivity.clamp(0.0, 1.0)
 }
 
 /// The reduction, dB, for a bin standing `excess` dB over the envelope, at a threshold,
 /// an amount `depth` (0 … 1, already weighted by the focus: up to 2) and a mode.
 ///
-/// - **Hard**: the excess over the threshold, × 2·depth — at 50 % a resonance is brought
-///   down to the line (the envelope + the threshold), at 100 % twice as far.
+/// - **Hard**: the excess over the threshold, × 4·depth — at 25 % a resonance is brought
+///   down to the line (the envelope + the threshold), beyond it toward the envelope.
 /// - **Soft**: the same through `e²/(e + K)`, a knee 4 dB wide: a peak just over the
 ///   threshold is barely touched, a big one is treated almost as Hard treats it.
 /// - **Never below the envelope**: no bin is turned down further than it stands out, nor
@@ -84,7 +97,7 @@ pub fn reduction_db(excess: f32, threshold: f32, depth: f32, mode: Mode) -> f32 
         Mode::Hard => e,
         Mode::Soft => e * e / (e + SOFT_KNEE_DB),
     };
-    (2.0 * depth * c).min(excess).min(MAX_CUT_DB)
+    (DEPTH_SCALE * depth * c).min(excess).min(MAX_CUT_DB)
 }
 
 /// The focus curve at `hz`: 0 (left alone) … 2 (twice the reduction); 1 where no band
@@ -143,11 +156,14 @@ pub struct Design {
     pub norm2: f32,
     /// Raw power under this is flushed to zero (−160 dBFS).
     pub flush: f32,
-    /// The fine spectrum's half-width, bins (a triangle in power).
-    pub fine_half: usize,
+    /// The bridge across partials, bins on each side (the upper envelope and its triangle).
+    pub bridge: Vec<u32>,
     /// The envelope's robust passes and their clipping, dB.
     pub passes: usize,
     pub clip_db: f32,
+    /// How far under the higher side's mean the envelope may sit (a band's edge), dB.
+    pub edge_db: f32,
+    pub guard_mul: usize,
     pub linked: bool,
 }
 
@@ -170,9 +186,11 @@ impl Design {
             a_rel: 1.0,
             norm2: 1.0,
             flush: 0.0,
-            fine_half: FINE_HALF,
+            bridge: vec![0; max_bins],
             passes: PASSES,
             clip_db: CLIP_DB,
+            edge_db: EDGE_DB,
+            guard_mul: GUARD_MUL,
             linked: true,
         }
     }
@@ -185,10 +203,15 @@ impl Design {
         let half = 0.5 * envelope_octaves(s.sharpness);
         let (down, up) = (math::exp2(-half), math::exp2(half));
         let bin_hz = sr / n as f32;
+        let bridge_at =
+            |k: usize| (BRIDGE_HZ.min(k as f32 * bin_hz * BRIDGE_FRACTION) / bin_hz).round() as usize;
         for k in 0..bins {
             self.weight[k] = focus_weight(s, k as f32 * bin_hz);
-            let lo = ((k as f32 * down).floor() as usize).min(k.saturating_sub(MIN_HALF));
-            let hi = ((k as f32 * up).ceil() as usize).max(k + MIN_HALF);
+            let br = bridge_at(k);
+            self.bridge[k] = br as u32;
+            let min_half = MIN_HALF + GUARD_MUL * br + 1;
+            let lo = ((k as f32 * down).floor() as usize).min(k.saturating_sub(min_half));
+            let hi = ((k as f32 * up).ceil() as usize).max(k + min_half);
             self.lo[k] = lo as u32;
             self.hi[k] = hi.min(bins - 1) as u32;
             let u = math::log2((k as f64).max(0.5));
@@ -228,10 +251,10 @@ pub struct Scratch {
     /// The excess the curve read (the slow one, raised to the fast one less
     /// [`FAST_MARGIN_DB`] and held under it plus [`FAST_HOLD_DB`]), dB, after each pass.
     pub excess: Vec<f32>,
-    fast_level: Vec<f32>,
-    fine: Vec<f32>,
-    env: Vec<f32>,
-    clip: Vec<f32>,
+    pub fast_level: Vec<f32>,
+    pub fine: Vec<f32>,
+    pub env: Vec<f32>,
+    pub clip: Vec<f32>,
     raw: Vec<f32>,
     prefix: Vec<f64>,
     prefix_u: Vec<f64>,
@@ -261,27 +284,36 @@ fn db(p: f32, d: &Design) -> f32 {
 
 /// One time scale's excess: the fine spectrum of the averaged power `ps` against the robust
 /// envelope of its level `level` (dB), written into `out`.
-fn excess_of(ps: &[f32], level: &[f32], d: &Design, sc: &mut ScratchView, out: &mut [f32]) {
+fn excess_of(level: &[f32], d: &Design, sc: &mut ScratchView, out: &mut [f32]) {
     let k_n = level.len();
-    let h = d.fine_half as isize;
-    for (k, f) in sc.fine.iter_mut().enumerate() {
+
+    // The upper envelope over the partials: the loudest within the bridge on each side…
+    for k in 0..k_n {
+        let b = d.bridge[k] as isize;
+        let a = (k as isize - b).max(0) as usize;
+        let z = ((k as isize + b) as usize).min(k_n - 1);
+        sc.clip[k] = level[a..=z].iter().fold(FLOOR_DB, |m, v| m.max(*v));
+    }
+    // …smoothed by a triangle as wide.
+    for k in 0..k_n {
         let (mut acc, mut wsum) = (0.0f32, 0.0f32);
-        for j in -h..=h {
+        let b = d.bridge[k] as isize;
+        for j in -b..=b {
             let i = (k as isize + j).clamp(0, k_n as isize - 1) as usize;
-            let w = (h + 1 - j.abs()) as f32;
-            acc += w * ps[i];
+            let w = (b + 1 - j.abs()) as f32;
+            acc += w * sc.clip[i];
             wsum += w;
         }
-        *f = db(acc / wsum, d);
+        sc.fine[k] = acc / wsum;
     }
-    fitted(level, d, sc.prefix, sc.prefix_u, sc.env);
+    sided(sc.fine, d, sc.prefix, sc.prefix_u, sc.env);
     for _ in 0..d.passes {
         for k in 0..k_n {
-            sc.clip[k] = level[k].min(sc.env[k] + d.clip_db);
+            sc.clip[k] = sc.fine[k].min(sc.env[k] + d.clip_db);
         }
-        fitted(sc.clip, d, sc.prefix, sc.prefix_u, sc.env);
+        sided(sc.clip, d, sc.prefix, sc.prefix_u, sc.env);
     }
-    fitted(sc.env, d, sc.prefix, sc.prefix_u, sc.clip);
+    sided(sc.env, d, sc.prefix, sc.prefix_u, sc.clip);
     for k in 0..k_n {
         out[k] = sc.fine[k] - sc.clip[k];
     }
@@ -372,8 +404,8 @@ impl Detector {
         if d.depth > 0.0 && any_power {
             // The slow excess into `excess`, the fast one into `raw`; the larger of the
             // slow and the fast less its margin is what the curve reads.
-            excess_of(&self.slow[..k_n], &sc.level[..k_n], d, &mut view, excess);
-            excess_of(&self.fast[..k_n], &sc.fast_level[..k_n], d, &mut view, raw);
+            excess_of(&sc.level[..k_n], d, &mut view, excess);
+            excess_of(&sc.fast_level[..k_n], d, &mut view, raw);
             let level = &sc.level[..k_n];
             for k in 0..k_n {
                 let e = excess[k]
@@ -420,37 +452,6 @@ impl Detector {
     }
 }
 
-/// `out[k]` = the straight line fitted (least squares) to `x[lo[k]..=hi[k]]` against the
-/// bins' octave `u`, read at bin `k`. A local linear fit, not a mean: a spectrum's slope in
-/// octaves (pink noise, a roll-off) is followed without bias even where the box is
-/// lopsided in octaves (the low bins, the edges). Every sum is a difference of prefix
-/// sums, in `f64`.
-fn fitted(x: &[f32], d: &Design, px: &mut [f64], pux: &mut [f64], out: &mut [f32]) {
-    let n = x.len();
-    px[0] = 0.0;
-    pux[0] = 0.0;
-    for i in 0..n {
-        px[i + 1] = px[i] + x[i] as f64;
-        pux[i + 1] = pux[i] + d.u[i] * x[i] as f64;
-    }
-    for k in 0..n {
-        let (a, b) = (d.lo[k] as usize, d.hi[k] as usize + 1);
-        let m = (b - a) as f64;
-        let su = d.pu[b] - d.pu[a];
-        let suu = d.puu[b] - d.puu[a];
-        let sx = px[b] - px[a];
-        let sux = pux[b] - pux[a];
-        let den = m * suu - su * su;
-        let mean = sx / m;
-        out[k] = if den > 1e-12 {
-            let slope = (m * sux - su * sx) / den;
-            (mean + slope * (d.u[k] - su / m)) as f32
-        } else {
-            mean as f32
-        };
-    }
-}
-
 /// `[¼ ½ ¼]` across bins, the edges repeated.
 fn three(x: &[f32], out: &mut [f32]) {
     let n = x.len();
@@ -458,5 +459,60 @@ fn three(x: &[f32], out: &mut [f32]) {
         let a = x[k.saturating_sub(1)];
         let c = x[(k + 1).min(n - 1)];
         out[k] = 0.25 * a + 0.5 * x[k] + 0.25 * c;
+    }
+}
+
+/// The straight line fitted to `x[a..b]` against the bins' octave, read at bin `at`; `None`
+/// with fewer than three bins.
+#[inline]
+fn line(d: &Design, px: &[f64], pux: &[f64], a: usize, b: usize, at: usize) -> Option<f64> {
+    if b < a + 3 {
+        return None;
+    }
+    let m = (b - a) as f64;
+    let su = d.pu[b] - d.pu[a];
+    let suu = d.puu[b] - d.puu[a];
+    let sx = px[b] - px[a];
+    let sux = pux[b] - pux[a];
+    let den = m * suu - su * su;
+    let mean = sx / m;
+    Some(if den > 1e-12 {
+        mean + (m * sux - su * sx) / den * (d.u[at] - su / m)
+    } else {
+        mean
+    })
+}
+
+/// The envelope at each bin: the greatest of three estimates over the envelope's box — the
+/// straight line (least squares, against the bins' octave) through the whole box, read at
+/// `k`; the mean of the bins under `k`; the mean of the bins over it (both beyond a guard
+/// of `3·bridge + 1` bins, clear of a peak's own bridged plateau). The two side means are
+/// the "greatest of" cell-averaging detector of radar (GO-CFAR: Hansen & Sawyers, 1980),
+/// here in dB across frequency: a peak stands over both sides, but the knee of a roll-off
+/// or the edge of a band stands over one side only, so it is not taken for a peak. The line
+/// follows a slope in octaves (pink noise, the low bins where the box is lopsided), where
+/// a mean would sit under the bins it should stand on. Every sum is a difference of
+/// prefix sums, in `f64`: O(1) a bin.
+fn sided(x: &[f32], d: &Design, px: &mut [f64], pux: &mut [f64], out: &mut [f32]) {
+    let n = x.len();
+    px[0] = 0.0;
+    pux[0] = 0.0;
+    for i in 0..n {
+        px[i + 1] = px[i] + x[i] as f64;
+        pux[i + 1] = pux[i] + d.u[i] * x[i] as f64;
+    }
+
+    let mean = |a: usize, b: usize| (b >= a + 3).then(|| (px[b] - px[a]) / (b - a) as f64);
+    for k in 0..n {
+        let (lo, hi) = (d.lo[k] as usize, d.hi[k] as usize + 1);
+        let both = line(d, px, pux, lo, hi, k).unwrap_or(x[k] as f64);
+        let g = d.guard_mul * d.bridge[k] as usize + 1;
+        let left = if k + 1 >= g + lo { mean(lo, k + 1 - g) } else { None };
+        let right = mean((k + g).min(hi), hi);
+        out[k] = match (left, right) {
+            (Some(a), Some(b)) => both.max(0.5 * (a + b)).max(a.max(b) - d.edge_db as f64),
+            (Some(a), None) | (None, Some(a)) => both.max(a - d.edge_db as f64),
+            (None, None) => both,
+        } as f32;
     }
 }

@@ -481,10 +481,10 @@ fn the_focus_curve_is_one_where_nothing_acts_and_follows_its_bands() {
     // The curve's shape.
     use detect::reduction_db as red;
     assert_eq!(red(3.0, 4.0, 0.5, Mode::Soft), 0.0, "under the threshold");
-    assert_eq!(red(10.0, 4.0, 0.5, Mode::Hard), 6.0, "hard at 50 %: to the line");
+    assert_eq!(red(10.0, 4.0, 0.25, Mode::Hard), 6.0, "hard at 25 %: to the line");
     assert_eq!(red(10.0, 4.0, 1.0, Mode::Hard), 10.0, "never below the envelope");
-    assert!((red(10.0, 4.0, 0.5, Mode::Soft) - 3.6).abs() < 1e-5, "soft: e²/(e + 4)");
-    assert!(red(4.5, 4.0, 1.0, Mode::Soft) < 0.15, "the knee starts gently");
+    assert!((red(10.0, 4.0, 0.25, Mode::Soft) - 3.6).abs() < 1e-5, "soft: e²/(e + 4)");
+    assert!(red(4.5, 4.0, 0.5, Mode::Soft) < 0.15, "the knee starts gently");
     assert_eq!(red(10.0, 4.0, 0.0, Mode::Hard), 0.0);
     assert_eq!(red(60.0, 2.0, 1.0, Mode::Hard), detect::MAX_CUT_DB);
 }

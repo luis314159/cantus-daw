@@ -95,7 +95,7 @@ pub enum Mode {
     /// barely touched, a big one almost as in Hard — gentle on what only nearly rings.
     #[default]
     Soft,
-    /// The excess over the threshold, straight: at 50 % depth a peak is brought to the line.
+    /// The excess over the threshold, straight: at 25 % depth a peak is brought to the line.
     Hard,
 }
 
@@ -159,12 +159,12 @@ impl Default for FocusBand {
 /// (depth 0).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct LenisSettings {
-    /// How much: 0 (nothing) … 1. At 0.5 a resonance comes down to the line (the envelope
-    /// plus the threshold) in Hard mode; at 1 in Soft mode, or twice as far in Hard.
+    /// How much: 0 (nothing) … 1. At 0.25 a resonance comes down to the line (the envelope
+    /// plus the threshold) in Hard mode; beyond, toward the envelope itself.
     pub depth: f32,
     /// How narrow a peak must be to count: 0 (broad bumps too) … 1 (only narrow peaks).
     pub sharpness: f32,
-    /// How far a peak must stand out before it is touched: 0 (2 dB) … 1 (8 dB).
+    /// How far a peak must stand out before it is touched: 0 (1.5 dB) … 1 (6.5 dB).
     pub selectivity: f32,
     pub attack_ms: f32,
     pub release_ms: f32,

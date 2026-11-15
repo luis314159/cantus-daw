@@ -118,9 +118,10 @@ fn a_resonance_on_pink_noise_is_cut_and_its_neighbours_kept() {
         }
     }
     let at = |m: Mode, d: f32| table.iter().find(|t| t.0 == m && t.1 == d).unwrap().2[0];
-    assert!(at(Mode::Soft, 0.5) < -1.5, "soft 50 %: {}", at(Mode::Soft, 0.5));
-    assert!(at(Mode::Hard, 0.5) < -3.0, "hard 50 %: {}", at(Mode::Hard, 0.5));
-    assert!(at(Mode::Hard, 1.0) < at(Mode::Hard, 0.5) - 2.0, "more depth, more cut");
+    assert!(at(Mode::Soft, 0.5) < -3.0, "soft 50 %: {}", at(Mode::Soft, 0.5));
+    assert!(at(Mode::Hard, 0.5) < -6.0, "hard 50 %: {}", at(Mode::Hard, 0.5));
+    assert!(at(Mode::Hard, 1.0) <= at(Mode::Hard, 0.5) && at(Mode::Hard, 0.5) < at(Mode::Hard, 0.25) - 2.0, "more depth, more cut");
+    assert!(at(Mode::Soft, 1.0) < at(Mode::Soft, 0.25) - 3.0, "more depth, more cut");
 }
 
 #[test]
@@ -193,7 +194,7 @@ fn the_reduction_follows_depth_and_sharpness() {
     // The narrow peak is cut at every sharpness; the broad bump only at low sharpness.
     assert!(rows.iter().all(|r| r.1 < -2.0));
     assert!(rows[0].2 < rows[4].2 - 1.0, "the broad bump: {:?}", rows);
-    assert!(rows[4].2 > -1.0, "the sharpest leaves the broad bump: {:?}", rows[4]);
+    assert!(rows[4].2 > -1.5, "the sharpest leaves the broad bump: {:?}", rows[4]);
 }
 
 /// The excess the detector reads, on noise and on a resonance, for detector variants.
@@ -203,48 +204,93 @@ fn diagnose_the_excess() {
     let n = (6.0 * SR) as usize;
     let noise = pink(n, 5, 0.3);
     let ((res, _), _) = resonant(6.0, 3_000.0, 8.0, 12.0, 1);
-    for (det_ms, clip, passes) in [(detect::DET_MS, detect::CLIP_DB, detect::PASSES)] {
-        for fine in [detect::FINE_HALF] {
-            let mut stats = vec![];
-            for sig in [&noise, &res] {
-                let mut u = unit(&LenisSettings {
-                    depth: 0.5,
-                    ..LenisSettings::default()
-                });
-                let hop = u.geometry().hop();
-                u.design.a_det = 1.0 - math::exp(-(hop as f32) / (det_ms * 1e-3 * SR));
-                u.design.fine_half = fine;
-                u.design.clip_db = clip;
-                u.design.passes = passes;
-                let (mut l, mut r) = (sig.clone(), sig.clone());
-                let mut all = vec![];
-                let mut at3k = vec![];
-                let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
-                for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
-                    u.process(a, b);
-                    if i * hop < SR as usize {
-                        continue;
-                    }
-                    let e = &u.scratch.excess;
-                    for k in 0..u.geometry().bins() {
-                        let f = u.bin_hz(k);
-                        if (200.0..16_000.0).contains(&f) {
-                            all.push(e[k]);
-                        }
-                    }
-                    at3k.push(e[k3]);
-                }
-                all.sort_by(|a, b| a.total_cmp(b));
-                let q = |p: f64| all[((all.len() - 1) as f64 * p) as usize];
-                let mean3k = at3k.iter().sum::<f32>() / at3k.len() as f32;
-                stats.push((q(0.5), q(0.9), q(0.99), q(0.999), mean3k));
-            }
-            println!(
-                "det {det_ms:>4} ms fine {fine} clip {clip} passes {passes}: noise p50 {:+.1} p90 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance at 3 kHz {:+.1}",
-                stats[0].0, stats[0].1, stats[0].2, stats[0].3, stats[1].4
-            );
+    let mut note = harmonic(n, 220.0);
+    let plain = note.clone();
+    peaking(&mut note, 3_000.0, 8.0, 10.0);
+    let mut cliff = pink(n, 6, 0.3);
+    for _ in 0..8 {
+        let a = 1.0 - math::exp(-std::f32::consts::TAU * 5_000.0 / SR);
+        let mut z = 0.0f32;
+        for v in cliff.iter_mut() {
+            z += a * (*v - z);
+            *v = z;
         }
     }
+    for (edge, guard) in [(detect::EDGE_DB, detect::GUARD_MUL)] {
+        let bridge = format!("edge {edge} guard {guard}");
+        let mut stats = vec![];
+        for (si, sig) in [&noise, &res, &plain, &note, &cliff].into_iter().enumerate() {
+            let mut per = vec![0.0f32; 2_100];
+            let mut frames = 0usize;
+            let mut u = unit(&LenisSettings {
+                depth: 0.5,
+                ..LenisSettings::default()
+            });
+            let hop = u.geometry().hop();
+            u.design.edge_db = edge;
+            u.design.guard_mul = guard;
+
+            let (mut l, mut r) = (sig.clone(), sig.clone());
+            let mut all = vec![];
+            let mut at3k = vec![];
+            let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
+            for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
+                u.process(a, b);
+                if i * hop < SR as usize {
+                    continue;
+                }
+                let e = &u.scratch.excess;
+                for k in 0..u.geometry().bins() {
+                    let f = u.bin_hz(k);
+                    if (200.0..16_000.0).contains(&f) {
+                        all.push(e[k]);
+                    }
+                }
+                at3k.push(e[k3]);
+                frames += 1;
+                for k in 0..u.geometry().bins() {
+                    per[k] += e[k];
+                }
+            }
+            all.sort_by(|a, b| a.total_cmp(b));
+            let q = |p: f64| all[((all.len() - 1) as f64 * p) as usize];
+            let mean3k = at3k.iter().sum::<f32>() / at3k.len() as f32;
+            stats.push((q(0.5), q(0.99), q(0.999), mean3k));
+            if false && (si == 2 || si == 4) {
+                let hot: Vec<String> = (0..u.geometry().bins())
+                    .filter(|k| per[*k] / frames as f32 > 3.0)
+                    .map(|k| format!("{:.0}:{:+.1}", u.bin_hz(k), per[k] / frames as f32))
+                    .collect();
+                println!("  signal {si}: bins over 3 dB on average: {}", hot.join(" "));
+                let sc = &u.scratch;
+                for k in (290..345).step_by(3) {
+                    println!("    {:.0} Hz: level {:.1} fine {:.1} clip {:.1} env {:.1} excess {:.1}", u.bin_hz(k), sc.fast_level[k], sc.fine[k], sc.clip[k], sc.env[k], sc.excess[k]);
+                }
+            }
+        }
+        println!(
+            "{bridge}: noise p50 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance on noise {:+.1} | a 220 Hz note p99 {:+.1} p99.9 {:+.1} | its 3 kHz peak {:+.1} | pink low-passed at 5 kHz p99 {:+.1} p99.9 {:+.1}",
+            stats[0].0, stats[0].1, stats[0].2, stats[1].3, stats[2].1, stats[2].2, stats[3].3, stats[4].1, stats[4].2
+        );
+    }
+}
+
+/// A steady note: harmonics of `f0` at 1/k with drawn phases and a slow vibrato.
+pub(super) fn harmonic(n: usize, f0: f32) -> Vec<f32> {
+    let parts = (16_000.0 / f0) as usize;
+    let mut ph: Vec<f32> = (0..parts).map(|k| 0.5 + 0.5 * super::tests::hash(k as u64 + 99)).collect();
+    (0..n)
+        .map(|i| {
+            let t = i as f32 / SR;
+            let f = f0 * (1.0 + 0.004 * math::sin(std::f32::consts::TAU * 5.0 * t));
+            let mut v = 0.0f32;
+            for (k, p) in ph.iter_mut().enumerate() {
+                *p = (*p + f * (k + 1) as f32 / SR).fract();
+                v += math::sin(std::f32::consts::TAU * *p) / (k + 1) as f32;
+            }
+            0.2 * v
+        })
+        .collect()
 }
 
 #[test]
@@ -429,5 +475,85 @@ fn cpu_at_48k() {
                 println!("  {q:?} {ch:?} depth {depth}: {:.2} % of a core", 100.0 * best / secs as f64);
             }
         }
+    }
+}
+
+#[test]
+fn a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is() {
+    let n = (6.0 * SR) as usize;
+    println!("a steady note (harmonics at 1/k), depth 50 % soft, selectivity 50 %:");
+    let mut rows = vec![];
+    for (f0, q) in [
+        (110.0f32, Quality::Standard),
+        (110.0, Quality::Precise),
+        (220.0, Quality::Standard),
+        (330.0, Quality::Standard),
+    ] {
+        let plain = harmonic(n, f0);
+        let mut peaked = plain.clone();
+        peaking(&mut peaked, 3_000.0, 8.0, 10.0);
+        let s = LenisSettings {
+            depth: 0.5,
+            quality: q,
+            ..LenisSettings::default()
+        };
+        let bands = [(400.0, 2_000.0), (2_000.0, 8_000.0), (2_600.0, 3_400.0), (8_000.0, 15_000.0)];
+        let a = changes(&mut unit(&s), &(plain.clone(), plain.clone()), &bands);
+        let b = changes(&mut unit(&s), &(peaked.clone(), peaked.clone()), &bands);
+        println!(
+            "  {f0} Hz {q:?}: plain {:+.2} (400-2k) {:+.2} (2-8k) {:+.2} (8-15k) | with +10 dB at 3 kHz, Q 8: the peak {:+.2}, 400-2k {:+.2}",
+            a[0], a[1], a[3], b[2], b[0]
+        );
+        rows.push((f0, q, a, b));
+    }
+    for (f0, q, a, b) in &rows {
+        assert!(a.iter().all(|v| v.abs() < 0.5), "{f0} {q:?}: the plain note {a:?}");
+        assert!(b[0].abs() < 0.5, "{f0} {q:?}: {b:?}");
+        assert!(b[2] < -0.4, "{f0} {q:?}: the peak over the harmonics {b:?}");
+        // Strong (Hard, 80 %, selectivity 25 %) cuts it plainly and still leaves the note.
+        let strong = LenisSettings {
+            depth: 0.8,
+            selectivity: 0.25,
+            mode: Mode::Hard,
+            quality: *q,
+            ..LenisSettings::default()
+        };
+        let bands = [(800.0, 2_000.0), (2_600.0, 3_400.0), (5_000.0, 15_000.0), (400.0, 800.0)];
+        let c = changes(&mut unit(&strong), &{
+            let mut p = harmonic(n, *f0);
+            peaking(&mut p, 3_000.0, 8.0, 10.0);
+            (p.clone(), p)
+        }, &bands);
+        println!(
+            "  {f0} Hz {q:?} strong: the peak {:+.2}, 800-2k {:+.2}, 5-15k {:+.2}; 400-800 {:+.2} (low partials: the focus decides)",
+            c[1], c[0], c[2], c[3]
+        );
+        assert!(c[1] < -2.0 && c[0].abs() < 0.5 && c[2].abs() < 0.5, "{f0} {q:?} strong: {c:?}");
+    }
+}
+
+#[test]
+#[ignore]
+fn debug_note_peak() {
+    let n = (3.0 * SR) as usize;
+    let mut x = harmonic(n, 110.0);
+    peaking(&mut x, 3_000.0, 8.0, 10.0);
+    let mut u = unit(&LenisSettings {
+        depth: 0.5,
+        ..LenisSettings::default()
+    });
+    run(&mut u, &(x.clone(), x), 256);
+    let sc = &u.scratch;
+    for k in (40..100).step_by(2) {
+        println!(
+            "{:.0} Hz: level {:.1} excess {:.1} red {:.2} lo {} hi {} br {}",
+            u.bin_hz(k),
+            sc.level[k],
+            sc.excess[k],
+            u.reduction_bins(0)[k],
+            u.design.lo[k],
+            u.design.hi[k],
+            u.design.bridge[k]
+        );
     }
 }
