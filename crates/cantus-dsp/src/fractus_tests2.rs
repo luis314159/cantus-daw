@@ -326,7 +326,11 @@ fn a_frozen_cloud_keeps_what_it_held() {
 /// The level at `hz`, averaged over Hann windows of 8 192 (Welch's method, half
 /// overlapping): grains of random phase add as powers.
 fn welch_db(x: &[f32], hz: f64) -> f64 {
-    let n = 8_192;
+    welch_n(x, hz, 8_192)
+}
+
+/// [`welch_db`] with windows of `n`.
+fn welch_n(x: &[f32], hz: f64, n: usize) -> f64 {
     let mut p = 0.0f64;
     let mut count = 0;
     let mut at = 0;
@@ -446,3 +450,118 @@ fn the_buffers_are_sized_once_and_say_what_they_take() {
     eprintln!("Fractus at 48 kHz holds {mb:.1} MB");
     assert!(mb < 12.0, "{mb}");
 }
+
+/// Upward zero crossings a second in `x`.
+fn crossings_hz(x: &[f32]) -> f64 {
+    let n = x.windows(2).filter(|w| w[0] <= 0.0 && w[1] > 0.0).count();
+    n as f64 * f64::from(SR) / x.len() as f64
+}
+
+#[test]
+fn a_pitch_jump_lands_on_its_interval() {
+    for semis in [12.0f32, 7.0, -12.0] {
+        let mut p = Pattern::EMPTY;
+        p.block(Module::Pitch, 0, 16, 1.0, 1.0);
+        let s = FractusSettings {
+            pitch: PitchSettings {
+                semis,
+                window_ms: 50.0,
+            },
+            ..FractusSettings::default()
+        };
+        let mut u = unit(&s, &p);
+        // 311 Hz: not a whole number of periods in the window, whose two taps would
+        // otherwise meet in opposite phase on a pure tone.
+        let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &sine(311.0));
+        let x = &l[20_000..90_000];
+        let want = 311.0 * math::exp2(f64::from(semis) / 12.0);
+        let mut best = (f64::MIN, 0.0);
+        let mut hz = 100.0;
+        while hz < 1_500.0 {
+            let d = welch_n(x, hz, 32_768);
+            if d > best.0 {
+                best = (d, hz);
+            }
+            hz += 0.5;
+        }
+        eprintln!("pitch {semis:+}: the strongest at {:.0} Hz, want {want:.1}", best.1);
+        // A delay-line shifter's taps restart every `W / |1 − ratio|`; on a pure tone each
+        // restart moves the phase, so the strongest line sits within half that rate of the
+        // interval (±10 Hz at +12 with a 50 ms window) — the classic glitch pitch, not a
+        // tuner's.
+        let rate = (1.0 - math::exp2(f64::from(semis) / 12.0)).abs() / 0.05;
+        assert!((best.1 - want).abs() <= 0.5 * rate + 1.0, "{semis}: {:.1} Hz", best.1);
+    }
+}
+
+#[test]
+fn a_filter_sweep_closes_over_its_event() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::Filter, 0, 16, 1.0, 1.0);
+    let s = FractusSettings {
+        filter: FilterSettings {
+            kind: FilterKind::LowPass,
+            from_hz: 18_000.0,
+            to_hz: 200.0,
+            res: 0.2,
+            curve: 0.0,
+        },
+        ..FractusSettings::default()
+    };
+    let mut u = unit(&s, &p);
+    let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &sine(3_000.0));
+    let peak = |a: usize, b: usize| l[a..b].iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    // 3 kHz passes while the cut-off is above it and is gone near the end.
+    assert!(peak(4_000, 12_000) > 0.45, "{}", peak(4_000, 12_000));
+    assert!(peak(84_000, 95_000) < 0.02, "{}", peak(84_000, 95_000));
+}
+
+#[test]
+fn a_ramped_repeat_halves_its_slice_in_each_part() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::Repeat, 0, 16, 1.0, 1.0);
+    let s = FractusSettings {
+        repeat: RepeatSettings {
+            size: 0.5,
+            ramp: 3,
+            ..RepeatSettings::default()
+        },
+        ..FractusSettings::default()
+    };
+    let mut u = unit(&s, &p);
+    let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &music);
+    // Four parts of a beat: slices of 1/8, 1/16, 1/32 and 1/64 — each part a run of
+    // copies of the event's first slice of its size.
+    for (part, r) in [12_000usize, 6_000, 3_000, 1_500].iter().enumerate() {
+        let p0 = part * 24_000;
+        for k in 1..24_000 / r {
+            let at = p0 + k * r;
+            for j in (120..*r - 10).filter(|j| at + j < 96_000 - 100) {
+                assert_eq!(l[at + j].to_bits(), music(j as i64)[0].to_bits(), "part {part}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_tape_start_comes_up_to_speed_from_silence() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::TapeStop, 0, 8, 1.0, 1.0);
+    let s = FractusSettings {
+        tape: TapeSettings {
+            kind: TapeKind::Start,
+            time: 1.0,
+            curve: 0.3,
+        },
+        ..FractusSettings::default()
+    };
+    let mut u = unit(&s, &p);
+    let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &sine(400.0));
+    let peak = |a: usize, b: usize| l[a..b].iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    assert!(peak(200, 1_000) < 0.1, "it starts still: {}", peak(200, 1_000));
+    // Up to speed after a beat: the tone, a little behind.
+    let hz = crossings_hz(&l[26_000..46_000]);
+    assert!((hz - 400.0).abs() < 4.0, "{hz}");
+    assert!(peak(26_000, 46_000) > 0.49);
+}
+

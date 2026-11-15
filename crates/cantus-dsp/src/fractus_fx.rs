@@ -369,22 +369,25 @@ impl Chain {
         self.filt_ev = e.map_or(i64::MIN, |e| e.start);
     }
 
-    /// The two-tap shifter, `t` samples into its event.
+    /// The shifter, `t` samples into its event: four taps a quarter of the window apart,
+    /// each sweeping its delay at `1 − ratio` and weighed by a Hann over it (four Hanns a
+    /// quarter apart sum to two), so each tap is silent where its delay wraps and no two
+    /// taps line up in phase for long.
     fn shift(&self, t: i64) -> [f32; 2] {
         let w = f64::from(self.pitch.window_ms) * 0.001 * f64::from(self.sr);
         let r = math::exp2(f64::from(self.pitch.semis) / 12.0);
         let ph = t as f64 * (1.0 - r) / w;
-        let pa = ph - ph.floor();
-        let pb = (pa + 0.5) - (pa + 0.5).floor();
-        let ha = {
-            let s = math::sin(std::f64::consts::PI * pa);
-            (s * s) as f32
-        };
-        let (da, db) = ((pa * w) as f32, (pb * w) as f32);
-        [
-            ha * self.pl.read(da) + (1.0 - ha) * self.pl.read(db),
-            ha * self.pr.read(da) + (1.0 - ha) * self.pr.read(db),
-        ]
+        let mut y = [0.0f32; 2];
+        for k in 0..4 {
+            let p = ph + 0.25 * k as f64;
+            let p = p - p.floor();
+            let s = math::sin(std::f64::consts::PI * p);
+            let h = (0.5 * s * s) as f32;
+            let d = (p * w) as f32;
+            y[0] += h * self.pl.read(d);
+            y[1] += h * self.pr.read(d);
+        }
+        y
     }
 
     fn hold_index(&self, t: i64) -> i64 {
