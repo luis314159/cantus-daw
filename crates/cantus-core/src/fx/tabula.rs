@@ -666,6 +666,40 @@ mod tests {
         assert_eq!(spec.get("p0.od.drive"), 0.0);
     }
 
+    /// A board's flat map put back is the board it was taken from (an exact undo of a mix
+    /// snapshot's recall), and the snapshot's slots carry their macros applied.
+    #[test]
+    fn the_flat_map_goes_back_into_the_pedals() {
+        let mut spec = guitar_rig();
+        spec.set("p2.feedback", 0.6).unwrap();
+        let flat = spec.flat_params().into_owned();
+        let mut other = guitar_rig();
+        other.set("p0.od.drive", 0.9).unwrap();
+        other.set("mix", 0.3).unwrap();
+        put_flat_params(&mut other, &flat);
+        assert_eq!(other, spec);
+        spec.board.as_mut().unwrap().macros = vec![Macro {
+            name: None,
+            maps: vec![MacroMap {
+                pedal: PedalId(3),
+                key: "mix".into(),
+                from: 0.1,
+                to: 0.5,
+            }],
+        }];
+        spec.set("m1", 1.0).unwrap();
+        let slot = crate::effect::EffectSlot {
+            id: crate::model::EffectId(1),
+            bypass: false,
+            mix: 1.0,
+            sidechain: None,
+            midi_from: None,
+            spec,
+        };
+        let out = prepared(vec![slot]);
+        assert!((out[0].spec.get("p3.mix") - 0.5).abs() < 1e-6);
+    }
+
     /// The starting rig is the owner's: four allowed pedals in order, a sane board.
     #[test]
     fn the_starting_rig_is_a_guitar_board() {

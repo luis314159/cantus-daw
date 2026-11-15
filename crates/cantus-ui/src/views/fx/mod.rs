@@ -98,8 +98,14 @@ pub mod rota;
 pub mod saltus;
 /// Tabula, the pedalboard (fx side round, wave 3). // fx3:contract
 pub mod tabula;
+/// Tabula's artwork: the motifs of the whole range on its pedals. // fx3:tabula
+pub mod tabula_art;
+/// Tabula's board: its layout and its drawing. // fx3:tabula
+pub mod tabula_board;
 /// Tabula's pedal faces: one row per unit (each unit's builder edits its own). // fx3:contract
 pub mod tabula_faces;
+/// A board's pedal as an effect of its own, for the unit's full editor. // fx3:tabula
+pub mod tabula_host;
 pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
