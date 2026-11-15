@@ -595,6 +595,9 @@ pub struct Comprimo {
     compare_db: f32,
     compare_target: f32,
     g_compare: f32,
+    /// r40:pads — *Hear the key* (ADR 0118): the host's audition of the detector's input,
+    /// over whatever `listen` the settings hold. Never saved; off is the settings' own.
+    hear_key: bool,
     lm_in: loudness::Meter,
     lm_wet: loudness::Meter,
     lm_out: loudness::Meter,
@@ -661,6 +664,7 @@ impl Comprimo {
             compare_db: 0.0,
             compare_target: 0.0,
             g_compare: 1.0,
+            hear_key: false, // r40:pads
             lm_in: loudness::Meter::new(sr),
             lm_wet: loudness::Meter::new(sr),
             lm_out: loudness::Meter::new(sr),
@@ -871,6 +875,18 @@ impl Comprimo {
     }
 
     /// What the last block did, for the display.
+    /// r40:pads — *Hear the key* (ADR 0118): while on, the output is the detector's input
+    /// (the key after its level, high-pass and EQ, delayed with the audio), as
+    /// [`Listen::Key`]; off, the settings' own `listen`. Touches nothing else.
+    pub fn set_hear_key(&mut self, on: bool) {
+        self.hear_key = on;
+    }
+
+    /// r40:pads — whether *Hear the key* is on.
+    pub fn hears_key(&self) -> bool {
+        self.hear_key
+    }
+
     pub fn meter(&self) -> CompMeter {
         self.meter
     }
@@ -1168,7 +1184,12 @@ impl Comprimo {
             meter.input = meter.input.max(in_peak);
             meter.output = meter.output.max(out_peak);
             meter.gr_db = meter.gr_db.max(gr_max);
-            let heard = match self.s.listen {
+            let listen = if self.hear_key {
+                Listen::Key // r40:pads
+            } else {
+                self.s.listen
+            };
+            let heard = match listen {
                 Listen::Normal => out,
                 Listen::Wet => {
                     if self.out_g != 1.0 {

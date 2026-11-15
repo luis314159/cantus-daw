@@ -185,7 +185,17 @@ fn look_card(
 ) {
     let sf = s.function(Function::Mod);
     let cr = paint_card(ui, rect, s, &Card::new("dance.card.look", Function::Mod));
-    let fields = [("mood", controls::mood_words())];
+    // The character's own words for its moods (r40:cast).
+    let id = spec
+        .text(dancer::CHARACTER_KEY)
+        .unwrap_or(dancer::DEFAULT_CHARACTER);
+    let fields = [("mood", controls::mood_words_of(id))];
+    // The controllers pane names the moods for every dancer of the kind — the dancer's own
+    // words (Shy, Cool…), as the choice table has them; this editor shows the character's
+    // (review 2 of round 40, R2-B8: Compás's *Cueing*).
+    app.controllers.inst_words.note(spec.kind, "mood", || {
+        crate::controllers_words::keys(&controls::mood_words())
+    });
     fields_and_knobs(app, ui, track, spec, cr.body, &sf, &fields, &["hue"]);
 }
 
@@ -215,9 +225,11 @@ fn stage_card(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, rect: Rect
         (d.width() * ppp).round().max(1.0) as u32,
         (d.height() * ppp).round().max(1.0) as u32,
     ];
-    let tex = live
-        .as_ref()
-        .and_then(|l| stage::character_texture(&mut app.inst.dancer.stage, ui.ctx(), track, l, px));
+    // The Slate cast cuts its pieces in the theatre's ground (r40:cast).
+    let ink = crate::dance_texture::stage_ink(&s.t, crate::kit::skin::display_ink(s).ground);
+    let tex = live.as_ref().and_then(|l| {
+        stage::character_texture(&mut app.inst.dancer.stage, ui.ctx(), track, l, px, ink)
+    });
     let sd = crate::views::inst::face::on_display(&sf);
     with_brush(&ui.painter_at(d), |b| {
         let (x, accent, playing) = live.as_ref().map_or((0.5, 0.0, false), |l| {

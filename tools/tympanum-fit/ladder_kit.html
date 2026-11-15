@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escalera de batería</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1f; --mute:#62626a; --line:#d9d6cf; --acc:#1e5fbf; --acc-ink:#ffffff; --soft:#e8eef8; --ok:#23793f; --warn:#a8470f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#17181a; --card:#222326; --ink:#ececec; --mute:#a3a3aa; --line:#3a3b40; --acc:#6aa5f2; --acc-ink:#0b1320; --soft:#26303d; --ok:#62c482; --warn:#f09a62; } }
+:root[data-theme="dark"] { --bg:#17181a; --card:#222326; --ink:#ececec; --mute:#a3a3aa; --line:#3a3b40; --acc:#6aa5f2; --acc-ink:#0b1320; --soft:#26303d; --ok:#62c482; --warn:#f09a62; }
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body { margin: 0; color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 780px; margin: 0 auto; padding: 20px 16px 64px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+header h1 { font-size: 22px; margin: 0; flex: 1 1 auto; }
+h2 { font-size: 19px; margin: 0 0 6px; }
+p { margin: 8px 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.mute { color: var(--mute); } .small { font-size: 14px; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 9px 16px; cursor: pointer; min-height: 44px; }
+button:hover:not(:disabled) { border-color: var(--acc); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+button.big { font-size: 20px; font-weight: 650; min-width: 76px; }
+button.on, button.primary { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+button.answer { border: 2px solid var(--acc); font-weight: 650; min-width: 120px; }
+button.answer.chosen { background: var(--acc); color: var(--acc-ink); }
+button:disabled { opacity: .45; cursor: default; }
+.lang button { min-height: 34px; padding: 4px 10px; font-size: 14px; }
+.lang button[aria-pressed="true"] { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; flex: 1 1 160px; min-width: 80px; }
+.bar > div { height: 100%; width: 0; background: var(--acc); }
+.stim { display: grid; grid-template-columns: 120px 1fr 48px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.stim input[type=range] { width: 100%; accent-color: var(--acc); }
+.stim button { padding: 6px 8px; white-space: nowrap; }
+.stim .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+.stim .val.unset { color: var(--mute); font-weight: 400; }
+.scale { display: grid; grid-template-columns: 120px 1fr 48px; gap: 10px; font-size: 13px; color: var(--mute); }
+.scale div:nth-child(2) { display: flex; justify-content: space-between; }
+input[type=text] { font: inherit; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-width: 100%; }
+fieldset { border: 0; margin: 0 0 14px; padding: 0; } legend { font-weight: 600; margin-bottom: 6px; padding: 0; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pills label { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; background: var(--card); }
+.pills input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pills label:has(input:checked) { background: var(--soft); border-color: var(--acc); font-weight: 650; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.scroll { overflow-x: auto; }
+.ok { color: var(--ok); } .warn { color: var(--warn); }
+.scale span { padding: 0 2px; }
+@media (max-width: 520px) { .stim, .scale { grid-template-columns: 104px 1fr 40px; } .scale span:nth-child(2), .scale span:nth-child(4) { display: none; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1 id="title"></h1>
+<div class="lang row" role="group" aria-label="Idioma / Language"><button id="lang-es" type="button">ES</button><button id="lang-en" type="button">EN</button></div>
+</header>
+<div class="row small mute" id="progress"></div>
+<section id="view"></section>
+</main>
+<script>
+"use strict";
+const CFG = __CONFIG__;
+const STORE = "cantus-escalera-" + CFG.kit;
+const T = {
+ es: {
+  title: "Escalera de batería · prueba de escucha",
+  lead: "Vas a escuchar golpes de batería: una grabación real y varias versiones sintetizadas a partir de ella con descripciones cada vez más ricas. Queremos saber cuál es la más sencilla que ya no se distingue de la grabación.",
+  howlong: "Dura unos 35–45 minutos: primero {m} golpes en los que puntúas varias muestras, luego {a} pruebas ABX de {n} ensayos. Puedes parar cuando quieras: las respuestas se guardan en este navegador.",
+  setup: "Usa auriculares o buenos monitores en un lugar silencioso. Ajusta el volumen con la primera referencia y no lo cambies. Todas las muestras de un golpe tienen la misma sonoridad.",
+  q_device: "¿Con qué vas a escuchar?", dev_hp: "Auriculares", dev_mon: "Monitores de estudio", dev_spk: "Altavoces del ordenador o del teléfono",
+  q_name: "Nombre o apodo (opcional)", need_device: "Elige con qué vas a escuchar para empezar.", start: "Empezar", resume: "Continuar",
+  part1: "Parte 1 · ¿Cuánto se parece a la grabación?", part2: "Parte 2 · ¿Las distingues? (ABX)",
+  mushra_help: "Arriba está la Referencia: la grabación. Debajo, varias muestras en orden al azar; una de ellas es la misma grabación, escondida. Escucha cada una y mueve su barra: 100 = idéntica a la Referencia, 0 = nada parecida. Si una te suena idéntica, ponle 100.",
+  scale: ["Malo", "Pobre", "Aceptable", "Bueno", "Excelente"], ref: "Referencia", sample: "Muestra {i}", stop: "Parar", unset: "—",
+  need_all: "Escucha y puntúa todas las muestras para seguir.", prev: "← Anterior", next: "Siguiente →",
+  abx_help: "A y B son dos versiones del mismo golpe: una es la grabación y la otra una síntesis. X es una de las dos, al azar. Escúchalas cuantas veces quieras y di si X es A o B. Si no lo distingues, elige al azar: también es un resultado.",
+  x_is_a: "X es A", x_is_b: "X es B", trial: "Ensayo {i} de {n}",
+  done: "¡Gracias! Terminaste.", results: "Tus resultados", res_abx: "{name}: {k} de {n} aciertos (p = {p})",
+  sig: "los distingues de forma fiable", nsig: "no hay una diferencia fiable: podría ser azar",
+  p_explain: "p es la probabilidad de acertar tantos o más adivinando; por debajo de 0,05 se considera que los distingues. Qué versión era cada muestra lo dice la clave, que tiene quien te pasó la prueba.",
+  res_mushra: "Tus puntuaciones de la parte 1 van en el archivo de resultados.",
+  download: "Descargar resultados (JSON)", send: "Envía ese archivo a quien te pasó la prueba.",
+  reset: "Empezar de nuevo (borra las respuestas)", reset_sure: "¿Seguro? Pulsa otra vez",
+  credits: "Créditos", credit: "Las grabaciones son de DRSKit 2.1 (el equipo de DrumGizmo —Deva y Lars Muldjord— y Jes Eiler de DRSDrums), con licencia CC BY 4.0, y de Virtuosity Drums (Versilian Studios y Karoryfer Samples, tocada por Austin McMahon), CC0. Las síntesis son de Tympanum, la batería de Cantus. Las muestras se igualaron en sonoridad (ITU-R BS.1770, ponderación K) y en duración; nada más.",
+  abx_names: { snare: "Caja", crash: "Crash", hat_open: "Hi-hat abierto", hat_closed: "Hi-hat cerrado" },
+  items: { kick: "Bombo", snare: "Caja", sidestick: "Aro (sidestick)", rimshot: "Caja con aro", tom_mid: "Tom medio", tom_floor: "Tom de piso", hat_closed: "Hi-hat cerrado", hat_half: "Hi-hat medio abierto", hat_open: "Hi-hat abierto", ride: "Ride", ride_bell: "Campana del ride", crash: "Crash" },
+  test: "Prueba {i} de {n}", soft: "suave", hard: "fuerte"
+ },
+ en: {
+  title: "Drum ladder · listening test",
+  lead: "You will hear drum hits: a real recording and several versions synthesised from it with richer and richer descriptions. We want to know the simplest one that can no longer be told from the recording.",
+  howlong: "It takes about 35–45 minutes: first {m} hits where you rate several samples, then {a} ABX tests of {n} trials. You can stop whenever you like: your answers are kept in this browser.",
+  setup: "Use headphones or good monitors in a quiet place. Set the volume on the first reference and leave it. Every sample of a hit has the same loudness.",
+  q_device: "What will you listen on?", dev_hp: "Headphones", dev_mon: "Studio monitors", dev_spk: "Computer or phone speakers",
+  q_name: "Name or nickname (optional)", need_device: "Choose what you will listen on to start.", start: "Start", resume: "Continue",
+  part1: "Part 1 · How close is it to the recording?", part2: "Part 2 · Can you tell them apart? (ABX)",
+  mushra_help: "At the top is the Reference: the recording. Below, several samples in random order; one of them is the recording itself, hidden. Listen to each and move its bar: 100 = identical to the Reference, 0 = nothing like it. If one sounds identical, give it 100.",
+  scale: ["Bad", "Poor", "Fair", "Good", "Excellent"], ref: "Reference", sample: "Sample {i}", stop: "Stop", unset: "—",
+  need_all: "Listen to and rate every sample to go on.", prev: "← Previous", next: "Next →",
+  abx_help: "A and B are two versions of the same hit: one is the recording, the other a synthesis. X is one of them, at random. Listen as often as you like and say whether X is A or B. If you cannot tell, pick at random: that is a result too.",
+  x_is_a: "X is A", x_is_b: "X is B", trial: "Trial {i} of {n}",
+  done: "Thank you! You have finished.", results: "Your results", res_abx: "{name}: {k} of {n} right (p = {p})",
+  sig: "you tell them apart reliably", nsig: "no reliable difference: it could be chance",
+  p_explain: "p is the chance of getting that many or more right by guessing; under 0.05 counts as telling them apart. Which version each sample was is in the key, which whoever gave you the test holds.",
+  res_mushra: "Your part 1 ratings are in the results file.",
+  download: "Download results (JSON)", send: "Send that file to whoever gave you the test.",
+  reset: "Start again (erases the answers)", reset_sure: "Sure? Press again",
+  credits: "Credits", credit: "The recordings are DRSKit 2.1 (the DrumGizmo team — Deva and Lars Muldjord — and Jes Eiler of DRSDrums), licensed CC BY 4.0, and Virtuosity Drums (Versilian Studios and Karoryfer Samples, played by Austin McMahon), CC0. The syntheses are Tympanum, the drums of Cantus. The samples were matched in loudness (ITU-R BS.1770, K-weighted) and length; nothing else.",
+  abx_names: { snare: "Snare", crash: "Crash", hat_open: "Open hi-hat", hat_closed: "Closed hi-hat" },
+  items: { kick: "Kick", snare: "Snare", sidestick: "Side stick", rimshot: "Rimshot", tom_mid: "Mid tom", tom_floor: "Floor tom", hat_closed: "Closed hi-hat", hat_half: "Half-open hi-hat", hat_open: "Open hi-hat", ride: "Ride", ride_bell: "Ride bell", crash: "Crash" },
+  test: "Test {i} of {n}", soft: "soft", hard: "hard"
+ }
+};
+</script>
+<script src="kit.js"></script>
+</body>
+</html>

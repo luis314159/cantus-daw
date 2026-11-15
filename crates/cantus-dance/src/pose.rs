@@ -81,6 +81,12 @@ pub struct Pose {
     /// 0…1: how strong the beat is now — the downbeat strongest, falling through the beat,
     /// bigger with energy. What beat-reactive extras read (a sparkle, a note, a puff).
     pub accent: f32,
+    /// The master's spectrum in four bands, 0…1 — the lows (the kick), the mids, the snare
+    /// and claps, the highs (the hats) — for a character that hears it
+    /// (`Character::hears_spectrum`, round 40: Espectro). Heard on the interface's side (the
+    /// companion's analyser) or analysed from an export's own render, never on the audio
+    /// thread; all zero when none is heard (a preview, a stopped song).
+    pub bands: [f32; 4],
 }
 
 impl Default for Pose {
@@ -113,6 +119,7 @@ impl Default for Pose {
             beat_in_bar: 0,
             beats_in_bar: 4,
             accent: 0.0,
+            bands: [0.0; 4],
         }
     }
 }
@@ -235,18 +242,23 @@ pub fn pose_at(frame: &DanceFrame, ch: &dyn Character, wall_seconds: f64) -> Pos
     );
     let knob_turn = motion::facing(value(frame, "turn"), walking);
     let turn_of = |m: Move, p: f32| motion::pirouette(m, p).unwrap_or(knob_turn);
+    // A character that lifts itself in its own jump (the Slate cast) takes no arc here.
+    let arc_of = |m: Move, p: f32| {
+        if m == Move::Jump && ch.jumps_itself() {
+            0.0
+        } else {
+            motion::arc(m, p, energy)
+        }
+    };
     let (turn, arc) = match from {
         Some((m, p)) => {
             let mix = |a: f32, b: f32| a + (b - a) * blend;
             (
                 mix(turn_of(m, p), turn_of(span.mv, phase)),
-                mix(
-                    motion::arc(m, p, energy),
-                    motion::arc(span.mv, phase, energy),
-                ),
+                mix(arc_of(m, p), arc_of(span.mv, phase)),
             )
         }
-        None => (turn_of(span.mv, phase), motion::arc(span.mv, phase, energy)),
+        None => (turn_of(span.mv, phase), arc_of(span.mv, phase)),
     };
 
     let (beat_in_bar, beats_in_bar) =
@@ -277,6 +289,7 @@ pub fn pose_at(frame: &DanceFrame, ch: &dyn Character, wall_seconds: f64) -> Pos
         beat_in_bar,
         beats_in_bar,
         accent: motion::accent(playing, beat_in_bar, beats_in_bar, beat_phase, energy),
+        bands: [0.0; 4],
     }
 }
 

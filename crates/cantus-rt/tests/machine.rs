@@ -364,3 +364,24 @@ fn the_priority_report_follows_the_threads() {
         "a worker gone is off the report"
     );
 }
+
+/// r40:scene-px — a background bake's thread goes below normal where the system allows it
+/// (Windows `THREAD_PRIORITY_BELOW_NORMAL` = -1; Linux a nice of +5), never above.
+#[test]
+fn a_background_thread_is_lowered_below_normal() {
+    std::thread::spawn(|| {
+        let before = current_priority();
+        let took = cantus_rt::thread::lower_background_thread();
+        let after = current_priority();
+        println!("background: took {took} [priority {before:?} -> {after:?}]");
+        #[cfg(windows)]
+        {
+            assert!(took);
+            assert_eq!(after, Some(-1));
+        }
+        #[cfg(target_os = "linux")]
+        assert!(took, "any thread may lower itself");
+    })
+    .join()
+    .unwrap();
+}

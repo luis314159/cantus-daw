@@ -64,6 +64,9 @@ pub(crate) struct StripSlot {
     pub listener: [Option<u16>; MAX_EFFECTS_PER_TRACK],
     /// Something's detector listens to this strip, so its post-fader output is kept.
     pub is_key: bool,
+    /// r40:pads — the recorder's tap this strip writes after its inserts while recording
+    /// (a track on it records *After FX*, ADR 0118).
+    pub rec_tap: Option<u8>,
     /// Something came in, the last pass.
     pub active: bool,
     /// The block's peak, and the block it belongs to.
@@ -131,6 +134,7 @@ impl StripSlot {
             midi_id: [None; MAX_EFFECTS_PER_TRACK],
             listener: [None; MAX_EFFECTS_PER_TRACK],
             is_key: false,
+            rec_tap: None, // r40:pads
             active: false,
             peak: 0.0,
             peak_block: 0,
@@ -388,6 +392,10 @@ fn may_rest(nodes: &Nodes, ctx: &super::ctx::PassCtx, slot: usize, st: &StripSlo
     }
     // Notes reach every insert, a bypassed one too (it knows what is held when it is back).
     if st.listener.iter().any(|l| l.is_some()) {
+        return false;
+    }
+    // r40:pads — a strip playing an insert's key runs, whatever its own signal (ADR 0118).
+    if ctx.hear_key.is_some() && st.effects.iter().any(|e| ctx.hear_key == Some(e.id)) {
         return false;
     }
     st.effects.iter().enumerate().all(|(i, e)| {

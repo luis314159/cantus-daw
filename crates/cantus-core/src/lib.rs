@@ -36,6 +36,7 @@ pub mod fx;
 pub mod groove;
 pub mod harmony; // r34:tools (ADR 0082): chords, charts, voicings, the music linter
 pub mod inst;
+pub mod inst_out; // r40:p3 (ADR 0123): an instrument's named outputs — mics, perspectives, pads
 pub mod instrument;
 pub mod links;
 pub mod mix_cmd; // r36:mix (ADR 0093)
@@ -50,7 +51,14 @@ pub mod padout; // r37:drums (ADR 0100): instruments with several outputs, split
 pub mod pads;
 pub mod pattern;
 pub mod pitch;
+pub mod rec_tap; // r40:pads (ADR 0118): Record before FX · after FX
 pub mod record_mode; // r36:record (ADR 0092): the recording mode's plan and edit lock
+pub mod ripple; // r40:ripple (ADR 0116): insert and delete time, the section drag
+pub mod ripple_bars; // r40:ripple
+pub mod ripple_cues; // r40:fix-d (R2-B2): the mixer's scenes kept through a time edit
+mod ripple_marks; // r40:ripple
+pub mod ripple_mode; // r40:ripple
+pub mod ripple_tempo; // r40:ripple
 pub mod routing;
 pub mod scale;
 pub mod sectio; // r37:piano (ADR 0099): Exemplar's slicer
@@ -93,6 +101,7 @@ pub use freeze::{FreezeTarget, Frozen};
 pub use fx::aula::IrFile; // r39:conv
 pub use groove::{ClipGroove, Groove, GrooveId, GrooveSource, SwingGrid};
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
+pub use inst_out::{OutputFamily, OutputId, OutputSlot}; // r40:p3
 pub use instrument::{
     FirmusParam, FirmusParams, InstrumentParam, InstrumentSpec, ParamInfo, Waveform,
 };
@@ -112,6 +121,7 @@ pub use pads::{
     DrumPad, KitField, KitSettings, Lanes, PadField, PadId, PadLayer, PadParamInfo, PadVoice,
     PulsusParams, RoundRobin, SampleData, StreamRef, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
 };
+pub use rec_tap::RecordTap; // r40:pads
 pub use scale::{Key, ScaleKind};
 pub use snapshot::{AudioClipSnapshot, NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
 pub use tempo::{Marker, MarkerId, MetreChange, TempoMap, TempoPoint};

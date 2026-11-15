@@ -542,6 +542,13 @@ pub fn raise_io() -> bool {
     false
 }
 
+/// The calling thread in the *utility* QoS class (round 40): a background bake the system
+/// may slow for the audio and the interface. Whether it took. // r40:scene-px
+pub fn lower_background() -> bool {
+    // SAFETY: changes only the calling thread's QoS class; a documented class.
+    unsafe { libc::pthread_set_qos_class_self_np(libc::qos_class_t::QOS_CLASS_UTILITY, 0) == 0 }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

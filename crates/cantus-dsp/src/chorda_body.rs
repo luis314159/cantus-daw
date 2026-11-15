@@ -65,10 +65,30 @@ pub struct BodyVoicing {
     /// The microphones' coherence corner (Hz): below it the two sides hear the same modes
     /// (a solid centre), above it they part as a spaced pair's do; 0: independent.
     pub coh_hz: f64,
+    /// Round 40: the board's radiation building up (ms): the response rises as
+    /// `1 − e^{−t/onset}` — a bending wave spreading from the bridge reaches the whole board
+    /// in milliseconds, so a strike's sound rises over a few of them, not one (the reference
+    /// takes 7–13 ms from −50 to −20 dB). 0: at once.
+    pub onset_ms: f64,
 }
 
+/// Since `DSP_VERSION` 7 (round 40): candidate 16's board (`chorda_voicing_c16.rs`'s `body.*`
+/// keys over [`BodyVoicing::beta14`]) — what a new Chorda's body is made of, and the one whose
+/// responses are made ahead ([`warm`]).
 impl Default for BodyVoicing {
     fn default() -> Self {
+        BodyVoicing {
+            direct: 0.5,
+            low_db: 6.5,
+            eq: [-9.0, 2.45, -2.6, 6.3, -0.8, 2.76, 7.6, -2.0],
+            ..BodyVoicing::beta14()
+        }
+    }
+}
+
+impl BodyVoicing {
+    /// The board from round 37 to beta.14 (model 2's second voicing).
+    pub fn beta14() -> Self {
         BodyVoicing {
             length: 0.30,
             t60_100: 0.12,
@@ -87,6 +107,7 @@ impl Default for BodyVoicing {
             eq: [-5.4, 3.45, -0.6, 4.3, -0.8, 2.76, 4.6, -3.56],
             even: 1.0,
             coh_hz: 200.0,
+            onset_ms: 0.0,
         }
     }
 }
@@ -245,6 +266,15 @@ pub fn responses(v: &BodyVoicing, fs: f64) -> [Vec<f64>; 2] {
             }
         }
     }
+    // The board's radiation building up (round 40), before the fade and the energy.
+    if v.onset_ms > 0.0 {
+        let k = 1000.0 / (v.onset_ms * fs);
+        for x in h.iter_mut() {
+            for (i, y) in x.iter_mut().enumerate() {
+                *y *= 1.0 - math::exp(-(i as f64) * k);
+            }
+        }
+    }
     // A fade over the last fifth (a cut would click), then the energy `(1 − direct)²`.
     let fade = len / 5;
     for x in h.iter_mut() {
@@ -261,8 +291,204 @@ pub fn responses(v: &BodyVoicing, fs: f64) -> [Vec<f64>; 2] {
     h
 }
 
-/// A body's two responses (left, right), ready to convolve and shared.
-type Pair = Arc<[Arc<Prepared>; 2]>;
+/// The highest frequency a [`Spectrum`] holds (Hz): above it a key's partials carry little
+/// of its loudness.
+pub const SPECTRUM_TOP: f64 = 6_000.0;
+
+/// A body's responses on a fine grid (round 40: the keyboard's evening) — per microphone,
+/// `|H|²` and `Re H` at every bin up to [`SPECTRUM_TOP`], and the same smoothed over a
+/// third of an octave: what a partial at `f` gets from the board, and what its
+/// neighbourhood gets on average. Made with the responses, off the audio thread; read
+/// without allocating.
+#[derive(Debug)]
+pub struct Spectrum {
+    bin_hz: f64,
+    p: [Vec<f32>; 2],
+    re: [Vec<f32>; 2],
+    im: [Vec<f32>; 2],
+    ps: [Vec<f32>; 2],
+    res: [Vec<f32>; 2],
+    ims: [Vec<f32>; 2],
+    /// The microphones' cross-spectrum `H_L H_R*`, smoothed (re, im).
+    xs: [Vec<f32>; 2],
+}
+
+/// One output's share of a key's sound (round 40, the evening): `c` the direct path (real),
+/// `a` and `b` (complex) on the left and right microphones' responses.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Term {
+    pub c: f64,
+    pub a: (f64, f64),
+    pub b: (f64, f64),
+}
+
+impl Spectrum {
+    /// The spectrum of responses `h` at `fs` (zero-padded to twice their length, a power of
+    /// two). Allocates.
+    pub fn of(h: &[Vec<f64>; 2], fs: f64) -> Spectrum {
+        let n = (2 * h[0].len().max(1)).next_power_of_two();
+        let bin_hz = fs / n as f64;
+        let bins = ((SPECTRUM_TOP.min(0.5 * fs) / bin_hz) as usize + 2).min(n / 2);
+        let mut out = Spectrum {
+            bin_hz,
+            p: [Vec::new(), Vec::new()],
+            re: [Vec::new(), Vec::new()],
+            im: [Vec::new(), Vec::new()],
+            ps: [Vec::new(), Vec::new()],
+            res: [Vec::new(), Vec::new()],
+            ims: [Vec::new(), Vec::new()],
+            xs: [Vec::new(), Vec::new()],
+        };
+        let mut both: Vec<(Vec<f64>, Vec<f64>)> = Vec::new();
+        for (mic, x) in h.iter().enumerate() {
+            let mut re = vec![0.0f64; n];
+            let mut im = vec![0.0f64; n];
+            re[..x.len()].copy_from_slice(x);
+            fft(&mut re, &mut im);
+            re.truncate(bins);
+            im.truncate(bins);
+            let p: Vec<f64> = (0..bins).map(|k| re[k] * re[k] + im[k] * im[k]).collect();
+            out.ps[mic] = third_octave(&p, bin_hz);
+            out.res[mic] = third_octave(&re, bin_hz);
+            out.ims[mic] = third_octave(&im, bin_hz);
+            out.p[mic] = p.iter().map(|v| *v as f32).collect();
+            out.re[mic] = re.iter().map(|v| *v as f32).collect();
+            out.im[mic] = im.iter().map(|v| *v as f32).collect();
+            both.push((re, im));
+        }
+        let (l, r) = (&both[0], &both[1]);
+        let xr: Vec<f64> = (0..bins)
+            .map(|k| l.0[k] * r.0[k] + l.1[k] * r.1[k])
+            .collect();
+        let xi: Vec<f64> = (0..bins)
+            .map(|k| l.1[k] * r.0[k] - l.0[k] * r.1[k])
+            .collect();
+        out.xs = [third_octave(&xr, bin_hz), third_octave(&xi, bin_hz)];
+        out
+    }
+
+    /// The power the outputs `terms` hear of a partial at `f` Hz — each
+    /// `|c + a·H_L + b·H_R|²`, summed — raw, and with every product of the responses
+    /// smoothed over the partial's third of an octave. `None` above [`SPECTRUM_TOP`].
+    /// Allocates nothing.
+    pub fn output(&self, f: f64, terms: &[Term]) -> Option<(f64, f64)> {
+        let x = f / self.bin_hz;
+        let k = x as usize;
+        if f <= 0.0 || k + 1 >= self.p[0].len() {
+            return None;
+        }
+        let t = x - k as f64;
+        let at = |v: &[f32]| v[k] as f64 + t * (v[k + 1] as f64 - v[k] as f64);
+        let mul = |a: (f64, f64), b: (f64, f64)| (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0);
+        let abs2 = |a: (f64, f64)| a.0 * a.0 + a.1 * a.1;
+        let hl = (at(&self.re[0]), at(&self.im[0]));
+        let hr = (at(&self.re[1]), at(&self.im[1]));
+        let (sl, sr) = (
+            (at(&self.res[0]), at(&self.ims[0])),
+            (at(&self.res[1]), at(&self.ims[1])),
+        );
+        let (pl, pr) = (at(&self.ps[0]), at(&self.ps[1]));
+        let xs = (at(&self.xs[0]), at(&self.xs[1]));
+        let (mut raw, mut smooth) = (0.0, 0.0);
+        for m in terms {
+            let o = mul(m.a, hl);
+            let q = mul(m.b, hr);
+            let s = (m.c + o.0 + q.0, o.1 + q.1);
+            raw += abs2(s);
+            // a b* (H_L H_R*): its real part, twice.
+            let ab = mul(m.a, (m.b.0, -m.b.1));
+            smooth += m.c * m.c
+                + abs2(m.a) * pl
+                + abs2(m.b) * pr
+                + 2.0 * m.c * (mul(m.a, sl).0 + mul(m.b, sr).0)
+                + 2.0 * mul(ab, xs).0;
+        }
+        Some((raw, smooth))
+    }
+
+    /// The power both microphones (their mean) hear of a partial at `f` Hz through the
+    /// direct path `direct` and the resonance at `level` — raw, and smoothed over its third
+    /// of an octave. `None` above [`SPECTRUM_TOP`].
+    pub fn power(&self, f: f64, direct: f64, level: f64) -> Option<(f64, f64)> {
+        let x = f / self.bin_hz;
+        let k = x as usize;
+        if f <= 0.0 || k + 1 >= self.p[0].len() {
+            return None;
+        }
+        let t = x - k as f64;
+        let at = |v: &[f32]| v[k] as f64 + t * (v[k + 1] as f64 - v[k] as f64);
+        let d2 = direct * direct;
+        let (mut raw, mut smooth) = (0.0, 0.0);
+        for mic in 0..2 {
+            raw += d2 + level * level * at(&self.p[mic]) + 2.0 * direct * level * at(&self.re[mic]);
+            smooth +=
+                d2 + level * level * at(&self.ps[mic]) + 2.0 * direct * level * at(&self.res[mic]);
+        }
+        Some((0.5 * raw, 0.5 * smooth))
+    }
+}
+
+/// `v` (one value per bin of `bin_hz`) averaged over each bin's third of an octave.
+fn third_octave(v: &[f64], bin_hz: f64) -> Vec<f32> {
+    let mut sum = vec![0.0f64; v.len() + 1];
+    for (i, x) in v.iter().enumerate() {
+        sum[i + 1] = sum[i] + x;
+    }
+    let half = math::powf(2.0f64, 1.0 / 6.0);
+    (0..v.len())
+        .map(|k| {
+            let f = k as f64 * bin_hz;
+            let lo = ((f / half / bin_hz) as usize).min(k);
+            let hi = (((f * half / bin_hz).ceil() as usize).max(k) + 1).min(v.len());
+            ((sum[hi] - sum[lo]) / (hi - lo) as f64) as f32
+        })
+        .collect()
+}
+
+/// An in-place radix-2 complex FFT (`re.len()` a power of two). Off the audio thread; its
+/// twiddles computed as it goes with `cantus_dsp::math` (the same bits on every machine).
+fn fft(re: &mut [f64], im: &mut [f64]) {
+    let n = re.len();
+    let mut j = 0;
+    for i in 1..n {
+        let mut bit = n >> 1;
+        while j & bit != 0 {
+            j ^= bit;
+            bit >>= 1;
+        }
+        j |= bit;
+        if i < j {
+            re.swap(i, j);
+            im.swap(i, j);
+        }
+    }
+    let mut len = 2;
+    while len <= n {
+        let a = -std::f64::consts::TAU / len as f64;
+        for k in 0..len / 2 {
+            let (wr, wi) = (math::cos(a * k as f64), math::sin(a * k as f64));
+            let mut s = 0;
+            while s < n {
+                let (u, v) = (s + k, s + k + len / 2);
+                let (xr, xi) = (re[v] * wr - im[v] * wi, re[v] * wi + im[v] * wr);
+                re[v] = re[u] - xr;
+                im[v] = im[u] - xi;
+                re[u] += xr;
+                im[u] += xi;
+                s += len;
+            }
+        }
+        len <<= 1;
+    }
+}
+
+/// A body's two responses (left, right), ready to convolve and shared, with their spectrum.
+#[derive(Debug)]
+struct Responses {
+    ir: [Arc<Prepared>; 2],
+    spectrum: Arc<Spectrum>,
+}
+type Pair = Arc<Responses>;
 
 /// The responses made this session, by sample rate and voicing, ready to convolve:
 /// synthesised once, shared by every unit (made off the audio thread; a unit at a rate
@@ -279,8 +505,15 @@ fn cached(v: &BodyVoicing, fs: f64) -> Pair {
         }
     }
     MADE_HERE.with(|n| n.set(n.get() + 1));
-    let [l, r] = responses(v, fs);
-    let h = Arc::new([Arc::new(Prepared::new(&l)), Arc::new(Prepared::new(&r))]);
+    let lr = responses(v, fs);
+    let spectrum = Arc::new(Spectrum::of(&lr, fs));
+    let h = Arc::new(Responses {
+        ir: [
+            Arc::new(Prepared::new(&lr[0])),
+            Arc::new(Prepared::new(&lr[1])),
+        ],
+        spectrum,
+    });
     if let Ok(mut m) = made.lock() {
         if m.len() < 64 {
             m.push((key, *v, h.clone()));
@@ -367,18 +600,22 @@ pub struct Body {
     tilt: [f64; 2],
     /// The rate it waits at for the shipped voicing's responses (made waiting), else 0.
     waiting_at: f64,
+    /// Its responses' spectrum (none while it waits for them).
+    spectrum: Option<Arc<Spectrum>>,
 }
 
 impl Body {
     /// Allocates and synthesises (off the audio thread).
     pub fn new(fs: f64, v: &BodyVoicing) -> Body {
         let h = cached(v, fs);
-        Body::of(
+        let mut b = Body::of(
             fs,
             v,
-            Convolver::with(h[0].clone()),
-            Convolver::with(h[1].clone()),
-        )
+            Convolver::with(h.ir[0].clone()),
+            Convolver::with(h.ir[1].clone()),
+        );
+        b.spectrum = Some(h.spectrum.clone());
+        b
     }
 
     fn of(fs: f64, v: &BodyVoicing, left: Convolver, right: Convolver) -> Body {
@@ -391,7 +628,29 @@ impl Body {
             tilt_a: math::exp(-std::f64::consts::TAU * 2_500.0 / fs),
             tilt: [0.0; 2],
             waiting_at: 0.0,
+            spectrum: None,
         }
+    }
+
+    /// The power a partial at `f` Hz gets through the board as it is set (its direct path
+    /// and its resonance at its `level`), raw and smoothed over its third of an octave:
+    /// `None` while it waits for its responses, or above [`SPECTRUM_TOP`]. Lock-free,
+    /// allocates nothing.
+    pub fn power_at(&self, f: f64) -> Option<(f64, f64)> {
+        self.spectrum.as_ref()?.power(f, self.direct, self.level)
+    }
+
+    /// [`Spectrum::output`] for this body as it is set: `terms` given for a direct path and
+    /// a resonance of one (its own share and level are applied here). `None` while it waits.
+    pub fn output_at(&self, f: f64, terms: &[Term; 2]) -> Option<(f64, f64)> {
+        let sp = self.spectrum.as_ref()?;
+        let scale = |z: (f64, f64)| (z.0 * self.level, z.1 * self.level);
+        let t = terms.map(|m| Term {
+            c: m.c * self.direct,
+            a: scale(m.a),
+            b: scale(m.b),
+        });
+        sp.output(f, &t)
     }
 
     /// The shipped voicing's body, its responses taken if they are made and else waited
@@ -402,12 +661,14 @@ impl Body {
     pub fn waiting(fs: f64) -> Body {
         let v = BodyVoicing::default();
         if let Some(h) = ready(fs) {
-            return Body::of(
+            let mut b = Body::of(
                 fs,
                 &v,
-                Convolver::with(h[0].clone()),
-                Convolver::with(h[1].clone()),
+                Convolver::with(h.ir[0].clone()),
+                Convolver::with(h.ir[1].clone()),
             );
+            b.spectrum = Some(h.spectrum.clone());
+            return b;
         }
         if !can_wait(fs) {
             return Body::new(fs, &v);
@@ -449,8 +710,9 @@ impl Body {
     }
 
     fn adopt(&mut self, h: &Pair) {
-        let l = self.left.adopt(h[0].clone());
-        let r = self.right.adopt(h[1].clone());
+        let l = self.left.adopt(h.ir[0].clone());
+        let r = self.right.adopt(h.ir[1].clone());
+        self.spectrum = Some(h.spectrum.clone());
         debug_assert!(l && r, "a response of the length waited for");
         self.waiting_at = 0.0;
     }

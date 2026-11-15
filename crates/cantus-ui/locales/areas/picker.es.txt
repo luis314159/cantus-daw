@@ -198,3 +198,6 @@ picker.dev.tonus.about = Corrección de afinación en tiempo real a una escala o
 picker.dev.chorda.name = Chorda
 picker.dev.chorda.what = Piano de cola modelado
 picker.dev.chorda.about = Un piano de cola tocado desde un modelo físico: cuerdas, martillos, tabla armónica y pedales.
+picker.dev.tympanum.name = Tympanum
+picker.dev.tympanum.what = Baterista acústico
+picker.dev.tympanum.about = Baterías acústicas escuchadas por micrófonos: kits modelados cuyos micrófonos puedes mover, kits grabados con varios micrófonos, el kit en su sala y cada micrófono en su propia tira del mezclador.

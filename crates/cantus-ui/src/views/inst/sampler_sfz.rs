@@ -11,7 +11,12 @@ use super::import::{parse_note, Import, Meta};
 use cantus_core::inst::sampler::{gf, zf, Group, Zone, MAX_GROUPS};
 use std::collections::BTreeMap;
 
-type Ops = BTreeMap<String, String>;
+/// One header's (or one merged region's) opcodes.
+pub type Ops = BTreeMap<String, String>;
+
+// r40:tymp-engine — a multi-mic library's microphones (ADR 0123 §5).
+#[path = "sampler_sfz_mics.rs"]
+pub mod mics;
 
 /// Strip comments and expand `#define`s and `#include`s (up to a depth of 8).
 fn preprocess(
@@ -258,14 +263,31 @@ const GENERATORS: [(&str, f32); 5] = [
     ("*noise", 5.0),
 ];
 
-/// Parse an SFZ file. `base` is its folder (sample paths are relative to it); `include`
-/// reads an `#include`d file by its relative name; `meta` reads a sample's metadata.
-pub fn parse(
-    text: &str,
-    base: &std::path::Path,
-    include: &dyn Fn(&str) -> Option<String>,
-    meta: &dyn Fn(&str) -> Option<Meta>,
-) -> Import {
+/// An SFZ file with its headers inherited (`<global>` → `<master>` → `<group>` →
+/// `<region>`, the most specific winning): what the importers read — Exemplar's zones
+/// ([`parse`]) and the microphones of a multi-mic library (`sampler_sfz_mics`, ADR 0123
+/// §5) alike.
+#[derive(Clone, Debug, Default)]
+pub struct Flat {
+    pub control: Ops,
+    pub regions: Vec<FlatRegion>,
+    /// Each `<master>`'s own opcodes, in order (index 0: the regions under none).
+    pub masters: Vec<Ops>,
+    /// Headers no importer reads, with their counts.
+    pub other_headers: BTreeMap<String, usize>,
+}
+
+/// One region, its opcodes merged with its headers'.
+#[derive(Clone, Debug, Default)]
+pub struct FlatRegion {
+    pub ops: Ops,
+    /// Its `<master>` (1 …, 0 none) and its `<group>` (counted through the file).
+    pub master: usize,
+    pub group: usize,
+}
+
+/// Read an SFZ file's headers and regions (`#include`s through `include`).
+pub fn flatten(text: &str, include: &dyn Fn(&str) -> Option<String>) -> Flat {
     let mut defines = Vec::new();
     let text = preprocess(text, include, 0, &mut defines);
     #[derive(PartialEq, Clone, Copy)]
@@ -281,23 +303,30 @@ pub fn parse(
     let (mut control, mut global, mut master, mut group) =
         (Ops::new(), Ops::new(), Ops::new(), Ops::new());
     let mut region: Option<Ops> = None;
-    let mut regions: Vec<(Ops, usize)> = Vec::new();
+    let mut out = Flat {
+        masters: vec![Ops::new()],
+        ..Flat::default()
+    };
     let mut sfz_group = 0usize;
+    let mut master_n = 0usize;
     let mut at = At::None;
-    let mut out = Import::default();
-    let mut other_headers = BTreeMap::<String, usize>::new();
     let flush = |region: &mut Option<Ops>,
-                 regions: &mut Vec<(Ops, usize)>,
+                 regions: &mut Vec<FlatRegion>,
                  g: &Ops,
                  m: &Ops,
                  gl: &Ops,
+                 mi: usize,
                  n: usize| {
         if let Some(r) = region.take() {
             let mut merged = gl.clone();
             merged.extend(m.clone());
             merged.extend(g.clone());
             merged.extend(r);
-            regions.push((merged, n));
+            regions.push(FlatRegion {
+                ops: merged,
+                master: mi,
+                group: n,
+            });
         }
     };
     for t in tokenize(&text) {
@@ -305,12 +334,16 @@ pub fn parse(
             Tok::Header(h) => {
                 flush(
                     &mut region,
-                    &mut regions,
+                    &mut out.regions,
                     &group,
                     &master,
                     &global,
+                    master_n,
                     sfz_group,
                 );
+                if at == At::Master {
+                    out.masters[master_n] = master.clone();
+                }
                 at = match h.as_str() {
                     "control" => At::Control,
                     "global" => {
@@ -322,6 +355,8 @@ pub fn parse(
                     "master" => {
                         master.clear();
                         group.clear();
+                        master_n = out.masters.len();
+                        out.masters.push(Ops::new());
                         At::Master
                     }
                     "group" => {
@@ -334,7 +369,7 @@ pub fn parse(
                         At::Region
                     }
                     other => {
-                        *other_headers.entry(other.to_string()).or_default() += 1;
+                        *out.other_headers.entry(other.to_string()).or_default() += 1;
                         At::Other
                     }
                 };
@@ -355,17 +390,46 @@ pub fn parse(
     }
     flush(
         &mut region,
-        &mut regions,
+        &mut out.regions,
         &group,
         &master,
         &global,
+        master_n,
         sfz_group,
     );
-    for (h, n) in other_headers {
+    if at == At::Master {
+        out.masters[master_n] = master;
+    }
+    out.control = control;
+    out
+}
+
+/// Parse an SFZ file. `base` is its folder (sample paths are relative to it); `include`
+/// reads an `#include`d file by its relative name; `meta` reads a sample's metadata.
+pub fn parse(
+    text: &str,
+    base: &std::path::Path,
+    include: &dyn Fn(&str) -> Option<String>,
+    meta: &dyn Fn(&str) -> Option<Meta>,
+) -> Import {
+    parse_flat(&flatten(text, include), base, meta).0
+}
+
+/// [`parse`] of a file already read, and for each zone made the region it came from (an
+/// index into `flat.regions`): what the mic rule maps zones to microphones with.
+pub fn parse_flat(
+    flat: &Flat,
+    base: &std::path::Path,
+    meta: &dyn Fn(&str) -> Option<Meta>,
+) -> (Import, Vec<usize>) {
+    let control = &flat.control;
+    let mut out = Import::default();
+    let mut zone_region: Vec<usize> = Vec::new();
+    for (h, n) in &flat.other_headers {
         out.log.push(format!("<{h}> ignored ({n})"));
     }
-    let offset = num(&control, "note_offset").unwrap_or(0.0) as i32
-        + 12 * num(&control, "octave_offset").unwrap_or(0.0) as i32;
+    let offset = num(control, "note_offset").unwrap_or(0.0) as i32
+        + 12 * num(control, "octave_offset").unwrap_or(0.0) as i32;
     let default_path = control
         .get("default_path")
         .map(|p| p.replace('\\', "/"))
@@ -373,7 +437,8 @@ pub fn parse(
     let mut unsupported = BTreeMap::<String, usize>::new();
     let mut group_of: Vec<(Vec<u32>, usize)> = Vec::new();
     let mut keyless_regions = 0usize;
-    for (ops, sg) in &regions {
+    for (ri, r) in flat.regions.iter().enumerate() {
+        let (ops, sg) = (&r.ops, &r.group);
         // A region a controller starts (`on_locc64`/`on_hicc64`: Salamander's pedal
         // noises) becomes a zone that controller starts; one that neither a key nor a
         // controller plays (`lokey=-1` alone) is left off the keys rather than sounding on
@@ -473,6 +538,7 @@ pub fn parse(
         };
         z.set(zf::GROUP, gi as f32);
         out.zones.push(z);
+        zone_region.push(ri);
     }
     if keyless_regions > 0 {
         let s = if keyless_regions == 1 { "" } else { "s" };
@@ -484,9 +550,9 @@ pub fn parse(
         out.log
             .push(format!("unsupported opcode {k} ({n} regions)"));
     }
-    instrument_values(regions.first().map(|r| &r.0), &control, &mut out);
+    instrument_values(flat.regions.first().map(|r| &r.ops), control, &mut out);
     out.clamp();
-    out
+    (out, zone_region)
 }
 
 /// A region a controller starts: `(controller, low, high)` from its first `on_loccN` /

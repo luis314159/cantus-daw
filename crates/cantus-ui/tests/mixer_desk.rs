@@ -1793,7 +1793,8 @@ fn the_overflow_pill_never_covers_a_strip() {
     }
 }
 
-/// r39:lo-mixer — FL's next inserts: the desk fills its width with the next empty strips,
+/// r39:lo-mixer — FL's next inserts: the desk fills its width with the next empty strips (up
+/// to the right dock where it is pinned at the edge: r40:look),
 /// numbered on from the last, at 1920 and at 1280 wide, in every density (Compact most of
 /// all); they are only painted (the project and the engine keep their strips), and a click
 /// on one makes the strips up to it in one undo step, the last selected.
@@ -1817,8 +1818,16 @@ fn the_desk_fills_its_width_with_the_next_empty_strips() {
             }
             if shown > 0 {
                 assert!(painted, "{w} {mode:?}: numbered on from {strips}");
-                // Filled to the edge: less than a strip's room is left after them.
+                // Filled to the edge — or, with the right dock pinned at the window's edge
+                // (round 40, the owner's answer: the default), up to the dock: less than a
+                // strip's room is left after them.
                 let rows = r.app.mixer.rows_seen();
+                let dock = r.app.mixer.right_dock_seen();
+                let edge = if dock.width() > 0.0 && dock.left() > rows.center().x {
+                    dock.left()
+                } else {
+                    rows.right()
+                };
                 let last = texts
                     .iter()
                     .filter(|(t, _)| *t == format!("{}", strips + shown))
@@ -1826,8 +1835,8 @@ fn the_desk_fills_its_width_with_the_next_empty_strips() {
                     .next()
                     .expect("the last one numbered");
                 assert!(
-                    rows.right() - last.center().x < 2.0 * mode.pitch(),
-                    "{w} {mode:?}: filled to the edge ({last:?} in {rows:?})"
+                    edge - last.center().x < 2.0 * mode.pitch(),
+                    "{w} {mode:?}: filled to the edge ({last:?} in {rows:?}, the dock {dock:?})"
                 );
             }
             assert_eq!(

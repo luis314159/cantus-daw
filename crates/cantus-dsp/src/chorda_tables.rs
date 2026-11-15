@@ -27,6 +27,7 @@
 //! (1/16 at C7) — interpolated the same way. Stulov's hysteresis (JASA 97, 1995) is added
 //! with an instantaneous stiffness `K/(1 − ε)`, so the slow-loading stiffness stays theirs.
 
+use super::design::Tuning;
 use crate::math;
 
 /// The lowest and highest keys (A0, C8).
@@ -60,6 +61,11 @@ const HAMMERS: [(f64, f64, f64, f64, f64); 3] = [
     (96.0, 2.2e-3, 1.0e12, 3.0, 0.0625),
 ];
 
+/// The highest key a [`Tuning::treble_octave`] reaches (C7): the top octave keeps the
+/// model's near-2:1 octave, as the recorded grand's A7 has it (+27 cents; 4:2 there would
+/// give +40).
+pub const TREBLE_OCTAVES_TO: f64 = 96.0;
+
 /// The string tension (N): a grand's strings are all near it (Bank 2000, §2.2).
 pub const TENSION: f64 = 700.0;
 
@@ -88,7 +94,13 @@ fn interp_log(xs: &[f64], ys: &[f64], x: f64) -> f64 {
 
 /// The inharmonicity coefficient of key `m` at `stiffness` (1: the model's).
 pub fn inharmonicity(m: f64, stiffness: f64) -> f64 {
-    stiffness * (math::exp(S_B * m + Y_B) + math::exp(S_T * m + Y_T))
+    inharmonicity_of(m, stiffness, 1.0, 1.0)
+}
+
+/// [`inharmonicity`] with the bass and treble asymptotes scaled (1, 1: the model's, to the
+/// bit — a product by one is exact).
+pub fn inharmonicity_of(m: f64, stiffness: f64, bass: f64, treble: f64) -> f64 {
+    stiffness * (bass * math::exp(S_B * m + Y_B) + treble * math::exp(S_T * m + Y_T))
 }
 
 /// The octave type `ρ` an octave ending on key `m` is tuned to (1: 2:1, 2: 4:2 …), its
@@ -100,7 +112,20 @@ pub fn octave_type(m: f64, stretch: f64) -> f64 {
 
 /// The tuning of the whole keyboard: each key's first partial (Hz), A4 at `a4`.
 pub fn tuning(a4: f64, stretch: f64, stiffness: f64) -> [f64; KEYS] {
-    let b = |m: f64| inharmonicity(m, stiffness);
+    tuning_for(&Tuning {
+        a4,
+        stretch,
+        stiffness,
+        ..Tuning::default()
+    })
+}
+
+/// [`tuning`] for a whole [`Tuning`]: its asymptotes' scales and its treble's octave type
+/// (each octave above A4 up to [`TREBLE_OCTAVES_TO`] tuned to at least `treble_octave`; 1
+/// leaves the model's).
+pub fn tuning_for(t: &Tuning) -> [f64; KEYS] {
+    let (a4, stretch) = (t.a4, t.stretch);
+    let b = |m: f64| inharmonicity_of(m, t.stiffness, t.bass_b, t.treble_b);
     // F₀ of the ideal string, from the first partial: f₁ = F₀ √(1 + B).
     let f0_of = |m: f64, f1: f64| f1 / (1.0 + b(m)).sqrt();
     // The A keys, octave by octave from A4 (69) — up to A8 (117) and down to A0 (21).
@@ -110,6 +135,16 @@ pub fn tuning(a4: f64, stretch: f64, stiffness: f64) -> [f64; KEYS] {
     while m < 117.0 {
         let up = m + 12.0;
         let rho = octave_type(up, stretch);
+        let floor = if up > 81.0 && t.treble_octave_hi > 0.0 {
+            t.treble_octave_hi
+        } else {
+            t.treble_octave
+        };
+        let rho = if floor > 1.0 && up <= TREBLE_OCTAVES_TO {
+            rho.max(floor)
+        } else {
+            rho
+        };
         f0 = 2.0 * f0 * ((1.0 + b(m) * 4.0 * rho * rho) / (1.0 + b(up) * rho * rho)).sqrt();
         anchors.push((up, f0));
         m = up;
@@ -198,7 +233,17 @@ pub fn strings(m: u8) -> u8 {
 
 /// The 88 keys for a tuning.
 pub fn keyboard(a4: f64, stretch: f64, stiffness: f64) -> [Key; KEYS] {
-    let f1 = tuning(a4, stretch, stiffness);
+    keyboard_for(&Tuning {
+        a4,
+        stretch,
+        stiffness,
+        ..Tuning::default()
+    })
+}
+
+/// [`keyboard`] for a whole [`Tuning`] (model 2's asymptotes and treble octaves).
+pub fn keyboard_for(t: &Tuning) -> [Key; KEYS] {
+    let f1 = tuning_for(t);
     let xs: Vec<f64> = STRINGS.iter().map(|s| s.0).collect();
     let col = |i: usize| -> Vec<f64> {
         STRINGS
@@ -218,7 +263,7 @@ pub fn keyboard(a4: f64, stretch: f64, stiffness: f64) -> [Key; KEYS] {
     std::array::from_fn(|i| {
         let key = LOWEST + i as u8;
         let m = key as f64;
-        let b = inharmonicity(m, stiffness);
+        let b = inharmonicity_of(m, t.stiffness, t.bass_b, t.treble_b);
         let length = interp_log(&xs, &lens, m);
         let f0 = f1[i] / (1.0 + b).sqrt();
         let speed = 2.0 * length * f0;

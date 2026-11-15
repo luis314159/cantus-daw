@@ -65,6 +65,9 @@ use egui::{pos2, vec2, PointerButton, Rect, Sense};
 
 #[path = "channel_rack_paint.rs"]
 mod paint;
+// r40:pads — a pad's own mixer track from its well (ADR 0117).
+#[path = "channel_rack_pad_track.rs"]
+pub mod pad_track;
 
 /// Width of the channel column: the lamp, two knobs, the route well, the channel button
 /// and the selector — none of them a four-pixel target.
@@ -128,6 +131,9 @@ pub struct ChannelRackView {
     pub foot: Option<(egui::Rect, egui::Rect)>,
     /// Each kit's chevron on the last frame (r39:lo-rest; the tests aim through them).
     pub kit_folds: Vec<(TrackId, egui::Rect)>,
+    /// r40:pads — each pad's mixer-track well on the last frame (the tests aim through
+    /// them).
+    pub pad_wells: Vec<(TrackId, cantus_core::PadId, egui::Rect)>,
     geometry: Option<RackGeometry>,
     /// Buffers the painters reuse, so a steady frame allocates nothing.
     scratch: Scratch,
@@ -172,6 +178,7 @@ impl Default for ChannelRackView {
             folded: Default::default(),
             foot: None,
             kit_folds: Vec::new(),
+            pad_wells: Vec::new(), // r40:pads
             geometry: None,
             scratch: Scratch::default(),
         }
@@ -837,9 +844,15 @@ fn channels(
                         let kit_pads = track.instrument.pulsus();
                         let index = kit_pads.and_then(|k| k.index_of_pitch(axis.pitch(lane)));
                         let pad = index.and_then(|i| kit_pads.and_then(|k| k.pad(i)));
+                        // r40:pads — the pad's mixer track: its own, or the kit's (ADR 0117).
+                        let on =
+                            pad.and_then(|x| cantus_core::padout::pad_track(a.project(), track, x));
                         paint::RowLook {
                             name: axis.name_ref(lane),
-                            route: None,
+                            route: Some(match on.and_then(|s| a.project().strip_number(s)) {
+                                Some(n) => digits.fmt(n as i64),
+                                None => "M",
+                            }),
                             on: !pad.is_some_and(|p| p.muted),
                             selected: a.selected_track == Some(track.id)
                                 && index == Some(a.rack.selected_pad),
@@ -875,6 +888,7 @@ fn channels(
     app.rack.scratch = scratch;
 
     app.rack.kit_folds.clear();
+    app.rack.pad_wells.clear(); // r40:pads
     for row in geo.rows.iter().filter(|r| visible(r)) {
         let Some(id) = app.project().tracks.get(row.track).map(|t| t.id) else {
             continue;
@@ -1250,6 +1264,11 @@ fn pad_controls(
     }
     if r.drag_stopped() {
         app.end_gesture();
+    }
+    // r40:pads — the pad's mixer track: a click on its well chooses it (ADR 0117).
+    if let Some(route) = rr.route {
+        app.rack.pad_wells.push((id, p.id, route));
+        pad_track::well(app, ui, route, id, p.id);
     }
 
     let renaming = app

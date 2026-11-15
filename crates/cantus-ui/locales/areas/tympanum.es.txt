@@ -1,0 +1,264 @@
+# Area: tympanum - round 40 phase 3 (tympanum). Every key has its twin in tympanum.en.txt
+# Tympanum, la batería acústica (ADR 0124): sus vistas (tymp-ui) y, en el bloque marcado
+# r40:tymp-engine al final, las palabras del motor (rechazos, el registro del importador).
+instrument.tympanum = Tympanum
+
+# Las vistas del editor (el control segmentado de la cabecera).
+tympanum.view.kit = Kit
+tympanum.view.mixer = Mezclador
+
+# Sus parámetros (ADR 0124 §1).
+tympanum.model = Modelo
+tympanum.seed = Semilla
+tympanum.gain = Nivel
+tympanum.humanize = Fuerza
+tympanum.hat_cc = Controlador de apertura
+tympanum.room = Sala
+tympanum.amb_level = Ambiente
+tympanum.amb_size = Tamaño
+tympanum.amb_decay = Caída
+tympanum.bleed = Fuga
+tympanum.tune = Afinación
+tympanum.damp = Apagado
+tympanum.level = Nivel
+tympanum.wires = Bordonera
+tympanum.mute = Silencio
+tympanum.mic_x = Lateral
+tympanum.mic_y = Adelante
+tympanum.mic_z = Altura
+tympanum.mic_az = Giro
+tympanum.mic_el = Inclinación
+tympanum.mic_pattern = Patrón
+tympanum.bleed_db = Fuga
+tympanum.bleed_inv = Polaridad
+tympanum.bleed_on = Cargada
+
+# La lista de kits.
+tympanum.kits = Kits
+tympanum.kits.all = Todos
+tympanum.kits.recorded = Grabados
+tympanum.kits.modelled = Modelados
+tympanum.kits.search = Buscar en los kits
+tympanum.kits.modelled_note = al instante · sin descarga
+tympanum.kits.recorded_note = baterías reales · paquetes libres
+tympanum.kits.own = Tus propios kits
+tympanum.kits.install_file = Instalar desde un archivo…
+tympanum.kits.install_formats = SFZ · DrumGizmo · carpeta de WAV
+tympanum.kits.on_disk = Kits en disco: {size}
+tympanum.kits.manage = Gestionar…
+tympanum.kits.get = Bajar · {size}
+tympanum.kits.open_page = Abrir la página
+tympanum.kits.downloaded = En disco
+tympanum.kits.update = Actualizar
+tympanum.kits.cancel = Cancelar la descarga
+tympanum.kits.progress = {pct} % · {done} de {total}
+tympanum.kits.from_author = del sitio de {author}
+tympanum.kits.manual = Manual: se abre la página del autor; suelta el archivo en Cantus
+tympanum.kits.none_own = Aún no tienes kits propios
+tympanum.kits.failed = {name}: la descarga falló. {why}
+tympanum.kits.tip_modelled = Un kit que Cantus modela: suena al instante y sus micrófonos se mueven. Clic para tocarlo.
+tympanum.kits.tip_recorded = Un kit grabado con baterías reales, un paquete libre. Se baja una vez; después suena sin conexión.
+tympanum.kits.tip_install = Instala un kit que tengas en disco: un SFZ, un kit de DrumGizmo (su .xml) o una carpeta de archivos WAV.
+tympanum.kits.tip_manage = Abre la ventana de Contenido: cada paquete, lo que pesa, actualizarlo o quitarlo.
+
+# Los kits modelados (ADR 0124: el dueño los nombra en un punto de control).
+tympanum.kit.studio = Studio Maple
+tympanum.kit.studio.about = Rock · pop
+tympanum.kits.modelled_about = {style} · {pieces} piezas · {mics} micros
+tympanum.kit.studio.tag = Cascos de arce, parches arenados
+tympanum.kit.jazz = Jazz Birch
+tympanum.kit.jazz.about = Jazz · fusión
+tympanum.kit.jazz.tag = Medido de Virtuosity Drums (dominio público)
+tympanum.kit.sixties = Sixties Club
+tympanum.kit.sixties.about = Toms de un parche, cálido · 8 piezas
+tympanum.kit.arena = Arena
+tympanum.kit.arena.about = Toms profundos, sala grande · 14 piezas
+tympanum.kit.funk = Funk Tight
+tympanum.kit.funk.about = Seco, afinado alto · 9 piezas
+
+# La imagen.
+tympanum.modelled = Modelado
+tympanum.recorded = Grabado
+tympanum.show_mics = Ver micros
+tympanum.hide_mics = Ocultar micros
+tympanum.tag_about = {pieces} piezas · {mics} micrófonos
+tympanum.picture_tip = Clic en una pieza para oírla — arrastra arriba o abajo sobre ella para la fuerza. Alt+clic toca sus articulaciones por turno.
+tympanum.mic_tip = {name}: clic para elegirlo en el mezclador; arrástralo para moverlo.
+tympanum.mics_count = {n} micrófonos
+
+# La tarjeta de la sala.
+tympanum.room.label = Sala
+tympanum.room.booth = Cabina
+tympanum.room.studio = Estudio
+tympanum.room.hall = Auditorio
+tympanum.room.booth_meta = 3 × 3,5 m · RT60 0,25 s
+tympanum.room.studio_meta = 6 × 8 m · RT60 0,45 s
+tympanum.room.hall_meta = 14 × 20 m · RT60 1,6 s
+tympanum.room.tip = La sala donde está el kit — lo que ves y lo que oyes, en un paso. Escenario toca la sala propia del kit (uno grabado, tal como se grabó); Cabina, Estudio y Auditorio ponen las salas de Aula en los micros de sala.
+
+# Las piezas (los nombres de un kit modelado; las de un paquete guardan los suyos).
+tympanum.piece.kick = Bombo
+tympanum.piece.snare = Caja
+tympanum.piece.hihat = Charles
+tympanum.piece.tom1 = Tom 1
+tympanum.piece.tom2 = Tom 2
+tympanum.piece.floor1 = Base 1
+tympanum.piece.floor2 = Base 2
+tympanum.piece.ride = Ride
+tympanum.piece.crash1 = Crash 1
+tympanum.piece.crash2 = Crash 2
+tympanum.piece.splash = Splash
+tympanum.piece.china = China
+
+# Las articulaciones (`Articulation::label`).
+tympanum.art.center = Centro
+tympanum.art.edge = Borde
+tympanum.art.rimshot = Golpe de aro
+tympanum.art.sidestick = Aro cruzado
+tympanum.art.rimclick = Clic de aro
+tympanum.art.ghost = Nota fantasma
+tympanum.art.flam = Flam
+tympanum.art.roll = Redoble (sostenido)
+tympanum.art.buzz = Presionado
+tympanum.art.rim = Aro
+tympanum.art.bell = Campana
+tympanum.art.bow = Cuerpo
+tympanum.art.choke = Ahogado
+tympanum.art.closed = Cerrado
+tympanum.art.tight = Apretado
+tympanum.art.half = Medio abierto
+tympanum.art.open = Abierto
+tympanum.art.pedal = Pedal
+tympanum.art.splash = Splash de pie
+tympanum.art.hit = Golpe
+tympanum.art.press = Redoble apretado
+
+# El panel de la pieza elegida.
+tympanum.hear = Oír
+tympanum.hear_tip = Toca la primera articulación de la pieza; mantén para un redoble.
+tympanum.size_in = {d} × {depth}″
+tympanum.size_cym = {d}″
+tympanum.articulations = Articulaciones
+tympanum.key = tecla
+tympanum.art_tip = {name} en {key}: clic para oírla.
+tympanum.modelled_note = Modelada: cualquier fuerza, cualquier punto — no hay dos golpes iguales.
+tympanum.recorded_note = Grabada: {n} tomas por fuerza, nunca la misma dos veces seguidas.
+tympanum.struck = Dónde se golpea
+tympanum.struck_hint = clic para oír
+tympanum.struck_tip = Clic en el parche para oírlo golpeado ahí: el centro, hacia el borde, el aro.
+tympanum.from_centre = Desde el centro
+tympanum.spread = Dispersión
+tympanum.last_hit = Último golpe
+tympanum.sound = Sonido
+tympanum.heard_by = La oyen
+tympanum.open_mixer = Abrir el mezclador ›
+tympanum.heard_by_none = Ningún micrófono la oye: todas sus celdas están apagadas.
+
+# La fila de piezas y las tarjetas bajo la imagen.
+tympanum.piece_tip = {name} en {key}: clic para elegirla y oírla; Alt+clic toca sus articulaciones por turno.
+tympanum.feel = Sensación
+tympanum.feel_note = todo el kit
+tympanum.timing = Tiempo
+tympanum.strength = Fuerza
+tympanum.never_twice = Nunca el mismo golpe dos veces
+tympanum.never_twice_tip = Una toma nunca suena dos veces seguidas (suavizado de redobles). Apagado: una semilla fija toca la misma toma cada vez — lo que quiere una prueba o un parecido.
+tympanum.pedal = Pedal del charles
+tympanum.pedal_note = controlador {cc}
+tympanum.openness = Apertura
+tympanum.open.tight = Apretado
+tympanum.open.closed = Cerrado
+tympanum.open.half = Medio
+tympanum.open.open = Abierto
+tympanum.foot_chick = Chasquido al cerrarse
+tympanum.foot_chick_tip = El chasquido del pedal cuando el controlador cierra el charles (una caída rápida); apagado para un controlador que solo fija la apertura.
+tympanum.kit_card = Kit
+tympanum.kit_card_note = cada pieza
+tympanum.kit_tune = Afinación
+tympanum.kit_ring = Resonancia
+tympanum.kit_level = Nivel
+
+# La pestaña Mezclador: la banda del micro elegido.
+tympanum.mic.pattern = Patrón
+tympanum.mic.cardioid = Cardioide
+tympanum.mic.super = Súper
+tympanum.mic.hyper = Híper
+tympanum.mic.omni = Omni
+tympanum.mic.figure8 = Figura 8
+tympanum.mic.distance = Distancia
+tympanum.mic.aim = Apunte
+tympanum.mic.aim_unit = ° al centro
+tympanum.mic.bleed = Fuga
+tympanum.mic.hears = Lo que oye
+tympanum.mic.hears_note = cada pieza, frente a la suya
+tympanum.mic.matrix = Todos los micros
+tympanum.mic.matrix_note = cada pieza en cada micro, dB · clic en una celda para apagarla
+tympanum.mic.fixed = El micro de un kit grabado se queda donde se grabó.
+tympanum.mic.kind.dynamic = dinámico
+tympanum.mic.kind.condenser = condensador
+tympanum.mic.kind.ribbon = de cinta
+tympanum.mic.kind.sub = sub
+tympanum.mic.kind.clip = de pinza
+tympanum.mic.kind.pair = par espaciado
+tympanum.mic.kind.room_pair = par · {m} m
+tympanum.mic.hears_all = lo oye todo
+tympanum.mic.cell_tip = {piece} en {mic}: {db} dB. Arrastra arriba o abajo; clic para apagarla; Alt+clic invierte su polaridad.
+tympanum.mic.cell_off = apagada
+# r40:fix-f — the modelled kits’ mics, by name (recorded kits keep their pack’s)
+tympanum.mic_name.kick_out = Bombo fuera
+tympanum.mic_name.kick_sub = Bombo sub
+tympanum.mic_name.snare_top = Caja arriba
+tympanum.mic_name.hi_hat = Charles
+tympanum.mic_name.tom_1 = Tom 1
+tympanum.mic_name.tom_2 = Tom 2
+tympanum.mic_name.floor_1 = Base 1
+tympanum.mic_name.floor_2 = Base 2
+tympanum.mic_name.ride = Ride
+tympanum.mic_name.overheads = Aéreos
+tympanum.mic_name.room_near = Sala cerca
+tympanum.mic_name.mono_room = Sala mono
+tympanum.mic_select_tip = Clic en un micrófono para elegir su canal.
+
+# Las palabras del mezclador para Tympanum.
+tympanum.strip.kit = Kit
+tympanum.strip.kit_sub = el kit entero
+tympanum.strip.amb = Ambiente
+tympanum.strip.amb_sub = los micros de sala
+tympanum.strip.amb_note = Un fader para los micros de sala
+tympanum.strip.amb_out = Cada micro de sala va a su Salida
+tympanum.strip.amb_out_several = Varias
+
+# Comandos.
+cmd.tympanum_kit = elegir un kit de batería
+cmd.tympanum_mic = mover un micrófono
+cmd.tympanum_bleed = fijar la fuga de un micrófono
+tympanum.kits.unknown_file = {name}: no es un kit que Cantus conozca. Un kit propio (un SFZ, un kit de DrumGizmo) se instala en Tus propios kits.
+tympanum.kits.failed = {name} no se pudo instalar: {why}
+
+# r40:tymp-engine — las palabras del motor: las acciones de un clic del mezclador (ADR 0123 §4).
+cmd.outputs_each = cada salida a su propio canal
+cmd.outputs_family = salidas a canales por familia
+cmd.outputs_main = todas las salidas de vuelta a Main
+
+# La sala: imagen y sonido juntos (el dueño, 2026-11-12).
+tympanum.room.stage = Escenario
+tympanum.room.church = Iglesia
+tympanum.room.stage_meta_recorded = la sala propia del kit, tal como se grabó
+tympanum.room.stage_meta_modelled = un círculo de luz · el kit oído seco, solo
+tympanum.room.look_tip = Solo la imagen: el suelo, las paredes y la alfombra cambian lo que ves, nunca lo que oyes.
+cmd.tympanum_room = elegir la sala del kit
+
+tympanum.art.drag = Drag
+tympanum.beater = Maza
+
+# r40:drums-hyb — la voz de un kit modelado (tercera enmienda de la ADR 0124)
+tympanum.voice = Voz
+tympanum.voice.generated = Generada
+tympanum.voice.hybrid = Híbrida
+tympanum.voice.tip = Generada: solo el modelo de Cantus. Híbrida: el modelo con los primeros instantes de los golpes de una batería real debajo (el ataque de cada pieza, tal como se grabó). Mientras su paquete no esté en disco, Híbrida suena como Generada.
+tympanum.voice.tip_get = Los ataques grabados de la híbrida, un paquete libre. Se baja una vez; después suena sin conexión.
+tympanum.voice.on_disk = Ataques grabados · {licence}
+tympanum.room.floor = Suelo
+tympanum.room.walls = Paredes
+tympanum.room.rug = Alfombra
+tympanum.kits.tip_get = Descarga {name} ({size}) de su fuente oficial, una vez; luego suena sin conexión.
+tympanum.kits.tip_on_disk = En tu disco: haz clic en el kit para tocarlo.

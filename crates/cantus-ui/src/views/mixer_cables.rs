@@ -1173,14 +1173,8 @@ fn jack_row(
                     }
                     out_jack(v, app, ui, b, pass, tok, (id, index), pos2(ox, jy), d);
                 }
-                super::desk::Item::Separator(g) => {
-                    let collapsed = app.project().strip_group(g).is_some_and(|g| g.collapsed);
-                    if collapsed && d {
-                        nut(b, tok, pos2(c, jy), None, Target::Idle);
-                    } else if collapsed {
-                        jack(b, tok, &p, pos2(c, jy), false, None, Target::Idle);
-                    }
-                }
+                // r40:tymp-ui — a folded group is a strip of its own now: nothing at its gap.
+                super::desk::Item::Gap | super::desk::Item::Separator(_) => {}
             }
         }
     }

@@ -217,6 +217,16 @@ impl Processor {
                 self.place_parts(&installed);
             }
         }
+        // r40:pads — and the compensation lines it can need (ADR 0120 §7), as the
+        // application's handle sends them: a processor started with none holds them here.
+        let need = crate::pdc::lines_needed(snapshot);
+        let held = self.pdc.held();
+        if need > held {
+            let mut fresh = crate::pdc::short_lines(need - held);
+            self.pdc.supply(&mut fresh);
+            self.edges_for_lines();
+            self.compensate();
+        }
     }
 
     /// Compensation lines the pool holds (ADR 0107: it starts with

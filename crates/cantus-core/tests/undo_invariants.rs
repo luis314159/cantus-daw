@@ -6421,3 +6421,870 @@ fn round39_arrange_command(rng: &mut Lcg, project: &mut Project) -> (usize, Comm
         },
     }
 }
+
+// r40:ripple — round 40 (ADR 0116): insert time, delete time and the four section drags,
+// built on the song as it stands, from a stream of their own among the others; and an edit
+// built on a stale song (a clip the bus never had), refused whole.
+#[test]
+fn time_edits_and_section_drags_undo_and_redo_among_the_others() {
+    let origins = [
+        Origin::User,
+        Origin::Script,
+        Origin::Ai,
+        Origin::Mcp,
+        Origin::System,
+    ];
+    let mut kinds = [[0usize; 2]; RIPPLE_KINDS];
+    let mut over_cues = 0usize; // r40:fix-d — time edits applied to a song with cues (R2-B2)
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x7A3B_9C1D).wrapping_add(17));
+        let mut prng = Lcg(seed.wrapping_mul(0x1F2E_3D4C).wrapping_add(331));
+        let mut xrng = Lcg(seed.wrapping_mul(0x5D1C_77E3).wrapping_add(907)); // r40:fix-d
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            // r40:fix-d — snapshots and cues among them (R2-B2: the time edits keep each
+            // piece of music's scene with cues of their own).
+            if xrng.below(3) == 0 {
+                let mut scratch = bus.project().clone();
+                let (_, cmd) = round36_mix_command(&mut xrng, &mut scratch);
+                bus.reserve_ids(scratch.next_id);
+                let _ = bus.execute(cmd, Origin::User);
+            }
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if prng.below(3) == 0 {
+                match round40_ripple_command(&mut prng, &mut scratch) {
+                    Some((k, c)) => (Some(k), c),
+                    None => continue,
+                }
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let cued = !bus.project().mix.cues.is_empty(); // r40:fix-d
+            let ok = bus.execute(cmd, origins[prng.below(5) as usize]).is_ok();
+            if let Some(k) = k {
+                kinds[k][usize::from(!ok)] += 1;
+                over_cues += usize::from(ok && cued); // r40:fix-d
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds[..RIPPLE_KINDS - 1].iter().all(|k| k[0] > 0) && kinds[RIPPLE_KINDS - 1][1] > 0,
+        "the time edits never applied or the stale one was never refused: {kinds:?}"
+    );
+    assert!(
+        over_cues > 20,
+        "r40:fix-d: time edits over cues {over_cues}"
+    );
+}
+
+/// Kinds of [`round40_ripple_command`]: 0 insert time, 1 delete time, 2 a section's bars
+/// moved, 3 copied, 4 moved in, 5 copied in, 6 a clip deleted in the ripple mode *This
+/// track*, 7 a clip moved in *Every track* (review mid-round 40, B-4), 8 refused (built on a
+/// stale song).
+const RIPPLE_KINDS: usize = 9;
+
+fn round40_ripple_command(rng: &mut Lcg, project: &mut Project) -> Option<(usize, Command)> {
+    use cantus_core::ripple::{delete_time, insert_time};
+    use cantus_core::ripple_bars::{move_bars, Landing};
+    use cantus_core::ripple_mode::{rippled, Follow, RippleMode};
+    let beat = Ticks::beats(1).0;
+    let a = Ticks(rng.below(32) as i64 * beat);
+    let b = a + Ticks((1 + rng.below(16) as i64) * beat);
+    let dest = Ticks(rng.below(40) as i64 * beat);
+    let k = rng.below(RIPPLE_KINDS as u64) as usize;
+    let cmd = with_ids(project, |p, ids| match k {
+        0 => insert_time(p, a, b - a, ids),
+        1 => delete_time(p, a, b, ids),
+        2..=5 => {
+            let how = Landing {
+                copy: k == 3 || k == 5,
+                insert: k >= 4,
+            };
+            move_bars(p, a, b, dest, how, ids)
+        }
+        6 | 7 => {
+            // A clip of a random track deleted (what follows closes its gap) or moved on by
+            // a few beats (what follows goes with it), as the arrangement's gestures do.
+            let with: Vec<&Track> = p.tracks.iter().filter(|t| !t.clips.is_empty()).collect();
+            let t = *with.get(rng.below(with.len().max(1) as u64) as usize)?;
+            let c = &t.clips[rng.below(t.clips.len() as u64) as usize];
+            let (gesture, follow) = if k == 6 {
+                let gesture = vec![Command::RemoveClip {
+                    track: t.id,
+                    clip: c.id,
+                }];
+                let follow = Follow {
+                    track: t.id,
+                    at: c.end(),
+                    delta: -c.length,
+                    exclude: Vec::new(),
+                };
+                (gesture, follow)
+            } else {
+                let by = Ticks((1 + rng.below(8) as i64) * beat);
+                let gesture = vec![Command::SetClipBounds {
+                    track: t.id,
+                    clip: c.id,
+                    start: c.start + by,
+                    length: c.length,
+                }];
+                let follow = Follow {
+                    track: t.id,
+                    at: c.start,
+                    delta: by,
+                    exclude: vec![c.id],
+                };
+                (gesture, follow)
+            };
+            let mode = if k == 6 {
+                RippleMode::Track
+            } else {
+                RippleMode::All
+            };
+            rippled(p, gesture, "cmd.ripple", mode, &[follow], ids)
+        }
+        _ => {
+            // A clip the bus never had, inside the range: the batch's removal of it fails
+            // and the whole edit is refused, nothing of it left behind.
+            let mut stale = p.clone();
+            let t = stale.tracks.first()?.id;
+            let mut c = stale.make_clip("stale", a, b - a);
+            c.id = ClipId(u64::MAX - 7);
+            stale.track_mut(t)?.clips.push(c);
+            delete_time(&stale, a, b, ids)
+        }
+    })?;
+    Some((k, cmd))
+}
+
+// r40:pads — round 40 (ADR 0117): a pad's own mixer track chosen from the rack's well — to
+// a strip of the desk, back on the kit, a chained pad moved with its chain — from a stream
+// of its own among the others; and a choice built on a strip the bus never had, refused.
+#[test]
+fn a_pads_own_track_undoes_and_redoes_among_the_others() {
+    let origins = [
+        Origin::User,
+        Origin::Script,
+        Origin::Ai,
+        Origin::Mcp,
+        Origin::System,
+    ];
+    let mut kinds = [[0usize; 2]; PAD_TRACK_KINDS];
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x2F6B_1D3C).wrapping_add(29));
+        let mut prng = Lcg(seed.wrapping_mul(0x51AB_C0DE).wrapping_add(401));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if prng.below(2) == 0 {
+                match round40_pad_track_command(&mut prng, &mut scratch) {
+                    Some((k, c)) => (Some(k), c),
+                    None => continue,
+                }
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ok = bus.execute(cmd, origins[prng.below(5) as usize]).is_ok();
+            if let Some(k) = k {
+                kinds[k][usize::from(!ok)] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds[..PAD_TRACK_KINDS - 1].iter().all(|k| k[0] > 0) && kinds[PAD_TRACK_KINDS - 1][1] > 0,
+        "a pad's track never applied or the stale one was never refused: {kinds:?}"
+    );
+}
+
+/// Kinds of [`round40_pad_track_command`]: 0 a kit put on a track, 1 a pad to a strip of
+/// the desk, 2 a pad back on the kit, 3 a pad's chain made (an EQ), 4 a track's record tap
+/// (ADR 0118), 5 refused (a strip the bus never had).
+const PAD_TRACK_KINDS: usize = 6;
+
+fn round40_pad_track_command(rng: &mut Lcg, project: &mut Project) -> Option<(usize, Command)> {
+    use cantus_core::padout::{can_carry_pad, chain_add, set_pad_track};
+    let kits: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.instrument.pulsus().is_some())
+        .map(|t| t.id)
+        .collect();
+    let k = if kits.is_empty() {
+        0
+    } else {
+        rng.below(PAD_TRACK_KINDS as u64) as usize
+    };
+    if k == 0 {
+        let cmd = match project.tracks.first().map(|t| t.id) {
+            Some(track) if rng.below(2) == 0 => Command::SetInstrument {
+                track,
+                spec: Box::new(InstrumentSpec::Pulsus(PulsusParams::default())),
+            },
+            _ => Command::InsertTrack {
+                index: 0,
+                track: Box::new({
+                    let mut t = project.make_track("Kit");
+                    t.instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+                    t
+                }),
+            },
+        };
+        return Some((0, cmd));
+    }
+    if k == 4 {
+        // Where a track's takes are tapped: before or after its inserts.
+        let t = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+        let tap = RecordTap::ALL[rng.below(2) as usize];
+        return Some((4, Command::SetTrackRecordTap { id: t, tap }));
+    }
+    let t = kits[rng.below(kits.len() as u64) as usize];
+    let pads: Vec<PadId> = project
+        .track(t)?
+        .instrument
+        .pulsus()?
+        .pads
+        .iter()
+        .map(|p| p.id)
+        .collect();
+    let pad = *pads.get(rng.below(pads.len().max(1) as u64) as usize)?;
+    let strips: Vec<StripId> = project
+        .strips
+        .iter()
+        .filter(|s| can_carry_pad(project, s.id))
+        .map(|s| s.id)
+        .collect();
+    let cmd = match k {
+        1 => {
+            let to = *strips.get(rng.below(strips.len().max(1) as u64) as usize)?;
+            set_pad_track(project, t, pad, Some(to)).ok()?
+        }
+        2 => set_pad_track(project, t, pad, None).ok()?,
+        3 => {
+            let view = project.clone();
+            let slot = project.make_effect(EffectKind::Eq);
+            chain_add(&view, t, pad, slot, |n| project.make_strip(n)).ok()?
+        }
+        _ => {
+            // A strip only this scratch copy has: the bus refuses the choice whole.
+            let ghost = project.make_strip("ghost");
+            let id = ghost.id;
+            project.strips.push(ghost);
+            set_pad_track(project, t, pad, Some(id)).ok()?
+        }
+    };
+    Some((k, cmd))
+}
+
+// r40:p3 — round 40 phase 3 (ADR 0123): a native instrument's named output sent to a strip
+// of the desk, back on Main, its mixer's level moved — from a stream of its own among the
+// others; and a slot built on a strip the bus never had, refused. (`tymp-engine` adds the
+// one-click plans, Tympanum's kit, bleed and mic commands, `chorda-src` the source switch,
+// each as kinds of this stream or a stream of its own, marked.)
+#[test]
+fn a_named_output_undoes_and_redoes_among_the_others() {
+    let origins = [
+        Origin::User,
+        Origin::Script,
+        Origin::Ai,
+        Origin::Mcp,
+        Origin::System,
+    ];
+    let mut kinds = [[0usize; 2]; OUTPUT_KINDS];
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x3C6E_F372).wrapping_add(31));
+        let mut orng = Lcg(seed.wrapping_mul(0x7A1F_00D5).wrapping_add(613));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if orng.below(2) == 0 {
+                match round40_output_command(&mut orng, &mut scratch) {
+                    Some((k, c)) => (Some(k), c),
+                    None => continue,
+                }
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ok = bus.execute(cmd, origins[orng.below(5) as usize]).is_ok();
+            if let Some(k) = k {
+                kinds[k][usize::from(!ok)] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds[..OUTPUT_KINDS - 1].iter().all(|k| k[0] > 0) && kinds[OUTPUT_KINDS - 1][1] > 0,
+        "a named output never applied or the stale one was never refused: {kinds:?}"
+    );
+}
+
+/// Kinds of [`round40_output_command`]: 0 a Chorda put on a track, 1 an output to a strip of
+/// the desk, 2 an output back on Main, 3 an output's level in its mixer, 4 refused (a strip
+/// the bus never had).
+const OUTPUT_KINDS: usize = 5;
+
+fn round40_output_command(rng: &mut Lcg, project: &mut Project) -> Option<(usize, Command)> {
+    use cantus_core::inst_out::{key, set_route, OutputField, OutputId};
+    let hosts: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.instrument.native().is_some_and(|n| n.kind.has_outputs()))
+        .map(|t| t.id)
+        .collect();
+    let k = if hosts.is_empty() {
+        0
+    } else {
+        rng.below(OUTPUT_KINDS as u64) as usize
+    };
+    let spec = || {
+        Box::new(InstrumentSpec::Native(NativeSpec::new(
+            InstrumentKind::Chorda,
+        )))
+    };
+    if k == 0 {
+        let cmd = match project.tracks.first().map(|t| t.id) {
+            Some(track) if rng.below(2) == 0 => Command::SetInstrument {
+                track,
+                spec: spec(),
+            },
+            _ => Command::InsertTrack {
+                index: 0,
+                track: Box::new({
+                    let mut t = project.make_track("Piano");
+                    t.instrument = *spec();
+                    t
+                }),
+            },
+        };
+        return Some((0, cmd));
+    }
+    let t = hosts[rng.below(hosts.len() as u64) as usize];
+    let id = OutputId(rng.below(5) as u16);
+    let strips: Vec<StripId> = project
+        .strips
+        .iter()
+        .filter(|s| !project.is_vca(s.id))
+        .map(|s| s.id)
+        .collect();
+    let cmd = match k {
+        1 => {
+            let to = *strips.get(rng.below(strips.len().max(1) as u64) as usize)?;
+            set_route(project, t, id, Some(to)).ok()?
+        }
+        2 => set_route(project, t, id, None).ok()?,
+        3 => Command::SetInstrumentValue {
+            track: t,
+            key: key(id, OutputField::Level),
+            value: -(rng.below(24) as f32),
+        },
+        _ => {
+            // A strip only this scratch copy has: the bus refuses the slot.
+            let ghost = project.make_strip("ghost");
+            let gid = ghost.id;
+            project.strips.push(ghost);
+            set_route(project, t, id, Some(gid)).ok()?
+        }
+    };
+    Some((k, cmd))
+}
+
+// r40:chorda-src — Chorda's source switched (ADR 0125): to a recorded piano (its zones
+// written under `rec.`, the outputs carried), back to the model or to Chorda 1, a recorded
+// perspective's mix moved — from a stream of its own among the others; and the same source
+// chosen again, refused. One undo step each, exactly undone and redone.
+#[test]
+fn chordas_source_switch_undoes_and_redoes_among_the_others() {
+    let origins = [Origin::User, Origin::Script, Origin::Ai, Origin::Mcp];
+    let mut kinds = [[0usize; 2]; SOURCE_KINDS];
+    for seed in 1..=50u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x51ED_270B).wrapping_add(47));
+        let mut orng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(907));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if orng.below(2) == 0 {
+                match round40_source_command(&mut orng, &mut scratch) {
+                    Some((k, c)) => (Some(k), c),
+                    None => continue,
+                }
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ok = bus.execute(cmd, origins[orng.below(4) as usize]).is_ok();
+            if let Some(k) = k {
+                kinds[k][usize::from(!ok)] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds[..SOURCE_KINDS - 1].iter().all(|k| k[0] > 0),
+        "a source command never applied: {kinds:?}"
+    );
+}
+
+/// Kinds of [`round40_source_command`]: 0 a Chorda put on a track, 1 a recorded piano, 2 the
+/// model (Chorda 2 or 1), 3 a perspective's level in its mixer, 4 the source it has.
+const SOURCE_KINDS: usize = 5;
+
+/// A small recorded piano: two perspectives and a noise, Exemplar's keys unprefixed.
+fn recorded_zones(rng: &mut Lcg) -> NativeSpec {
+    let mut z = NativeSpec::new(InstrumentKind::Sampler);
+    let names = ["Close", "Room", "Releases"];
+    for (m, name) in names.iter().enumerate() {
+        z.set(&format!("g{m}.out"), [0.0, 1.0, 16.0][m]);
+        z.set_text(&format!("g{m}.name"), Some(name.to_string()))
+            .unwrap();
+    }
+    for n in 0..(3 + rng.below(4) as usize) {
+        z.set_text(&format!("z{n}.sample"), Some(format!("C:/p/{n}.wav")))
+            .unwrap();
+        z.set(&format!("z{n}.group"), (n % 3) as f32);
+        z.set(&format!("z{n}.lo"), 21.0 + n as f32 * 3.0);
+    }
+    z
+}
+
+fn round40_source_command(rng: &mut Lcg, project: &mut Project) -> Option<(usize, Command)> {
+    use cantus_core::inst::chorda_source::{
+        switch, switch_choice, ChordaSource, RecordedPiano, SourceChoice,
+    };
+    use cantus_core::inst_out::{key, OutputField, OutputId};
+    let hosts: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| {
+            t.instrument
+                .native()
+                .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+        })
+        .map(|t| t.id)
+        .collect();
+    let k = if hosts.is_empty() {
+        0
+    } else {
+        rng.below(SOURCE_KINDS as u64) as usize
+    };
+    if k == 0 {
+        let spec = Box::new(InstrumentSpec::Native(NativeSpec::new(
+            InstrumentKind::Chorda,
+        )));
+        let cmd = match project.tracks.first().map(|t| t.id) {
+            Some(track) if rng.below(2) == 0 => Command::SetInstrument { track, spec },
+            _ => Command::InsertTrack {
+                index: 0,
+                track: Box::new({
+                    let mut t = project.make_track("Piano");
+                    t.instrument = *spec;
+                    t
+                }),
+            },
+        };
+        return Some((0, cmd));
+    }
+    let t = hosts[rng.below(hosts.len() as u64) as usize];
+    let piano = ChordaSource::Recorded(RecordedPiano {
+        pack: ["salamander-grand-piano", "bitklavier-grand"][rng.below(2) as usize].into(),
+        instrument: "grand".into(),
+    });
+    let cmd = match k {
+        1 => switch(project, t, &piano, Some(&recorded_zones(rng))).ok()?,
+        2 => switch_choice(
+            project,
+            t,
+            &SourceChoice::Model(1 + rng.below(2) as u8),
+            None,
+        )
+        .ok()?,
+        3 => Command::SetInstrumentValue {
+            track: t,
+            key: key(OutputId(rng.below(2) as u16), OutputField::Level),
+            value: -(rng.below(24) as f32),
+        },
+        _ => {
+            // The source it plays, chosen again: refused before it reaches the bus.
+            let n = project.track(t)?.instrument.native()?;
+            let now = cantus_core::inst::chorda_source::current_choice(n);
+            assert!(
+                switch_choice(project, t, &now, None).is_err()
+                    || matches!(now, SourceChoice::Recorded(_))
+            );
+            return None;
+        }
+    };
+    Some((k, cmd))
+}
+
+// r40:scene — round 40 phase 3 (ADR 0126 amended, schema 69): the scene's room look (room,
+// floor, walls, rug) set and cleared on Chorda tracks among the general generator's commands
+// (a stream of its own): undo all restores the start, redo all the end.
+#[test]
+fn a_scenes_room_look_undoes_and_redoes_among_the_others() {
+    use cantus_core::inst::room_look::{Floor, RoomKind, Rug, Walls, KEYS};
+    let mut applied = 0usize;
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(69));
+        let mut lrng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(169));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..60 {
+            let mut scratch = bus.project().clone();
+            let cmd = if lrng.below(2) == 0 {
+                let chorda = scratch.tracks.iter().find(|t| {
+                    t.instrument
+                        .native()
+                        .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+                });
+                match chorda.map(|t| t.id) {
+                    None => {
+                        let mut t = scratch.make_track("Piano");
+                        t.instrument =
+                            InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
+                        Command::InsertTrack {
+                            index: 0,
+                            track: Box::new(t),
+                        }
+                    }
+                    Some(track) => {
+                        let key = KEYS[lrng.below(KEYS.len() as u64) as usize];
+                        let words: Vec<&str> = match key {
+                            "look.room" => RoomKind::ALL.iter().map(|w| w.key()).collect(),
+                            "look.floor" => Floor::ALL.iter().map(|w| w.key()).collect(),
+                            "look.walls" => Walls::ALL.iter().map(|w| w.key()).collect(),
+                            _ => Rug::ALL.iter().map(|w| w.key()).collect(),
+                        };
+                        let text = (lrng.below(4) != 0)
+                            .then(|| words[lrng.below(words.len() as u64) as usize].to_string());
+                        Command::SetInstrumentText {
+                            track,
+                            key: key.into(),
+                            text,
+                        }
+                    }
+                }
+            } else {
+                random_command(&mut rng, &mut scratch)
+            };
+            bus.reserve_ids(scratch.next_id);
+            if bus.execute(cmd, Origin::User).is_ok() {
+                applied += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(applied > 0);
+}
+
+// ---- r40:tymp-engine — Tympanum's edits (ADR 0124) and the one-click output plans (ADR
+// 0123 §4), each one step, among the other commands.
+
+#[test]
+fn tympanum_edits_and_output_plans_undo_and_redo_among_the_others() {
+    use cantus_core::inst::tympanum::cmd::{change_kit, move_mic, set_bleed};
+    use cantus_core::inst::tympanum::{KitRef, KIT_KEY};
+    use cantus_core::inst::tympanum_kit as kitdef;
+    use cantus_core::inst_out::{plan, OutputPlan};
+    // A recorded kit the "loader" read: the studio kit's pieces, five of its mics.
+    let pack = KitRef::Pack {
+        pack: "undo-fuzz".into(),
+        kit: "kit".into(),
+    };
+    if kitdef::recorded(&pack.text()).is_none() {
+        let mut def = kitdef::modelled_kit("studio").unwrap();
+        def.kit = pack.clone();
+        def.mics.truncate(5);
+        def.mics[4].name = "OH".into();
+        kitdef::register(kitdef::RecordedKit {
+            def,
+            hits: Default::default(),
+            log: Vec::new(),
+        });
+    }
+    // r40:fix-f — and a kit nobody can read (its pack absent): only its name changes.
+    let absent = KitRef::Pack {
+        pack: "undo-fuzz-absent".into(),
+        kit: "kit".into(),
+    };
+    let kits = [KitRef::default_kit(), pack, absent];
+    let mut kinds = [0usize; 6];
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x51ED_270B).wrapping_add(97));
+        let mut orng = Lcg(seed.wrapping_mul(0x2F6B_1A33).wrapping_add(5));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..70 {
+            let mut scratch = bus.project().clone();
+            let drums: Vec<TrackId> = scratch
+                .tracks
+                .iter()
+                .filter(|t| {
+                    t.instrument
+                        .native()
+                        .is_some_and(|n| n.kind == InstrumentKind::AcousticDrums)
+                })
+                .map(|t| t.id)
+                .collect();
+            let k = if drums.is_empty() {
+                0
+            } else {
+                orng.below(6) as usize
+            };
+            let cmd = if k == 0 {
+                let mut t = scratch.make_track("Drums");
+                let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+                let _ = spec.set_text(KIT_KEY, Some(kits[orng.below(3) as usize].text()));
+                t.instrument = InstrumentSpec::Native(spec);
+                Some(Command::InsertTrack {
+                    index: 0,
+                    track: Box::new(t),
+                })
+            } else {
+                let t = drums[orng.below(drums.len() as u64) as usize];
+                match k {
+                    1 => change_kit(&scratch, t, &kits[orng.below(3) as usize]),
+                    2 => Some(move_mic(
+                        t,
+                        orng.below(5) as usize,
+                        [orng.below(40) as f32 - 20.0, 3.0, -4.0, 15.0, -10.0],
+                    )),
+                    3 => Some(set_bleed(
+                        t,
+                        orng.below(12) as usize,
+                        orng.below(5) as usize,
+                        -(orng.below(30) as f32),
+                        orng.below(2) == 0,
+                        orng.below(3) != 0,
+                    )),
+                    4 => {
+                        let mut s2 = scratch.clone();
+                        let p = if orng.below(2) == 0 {
+                            OutputPlan::EachOwn
+                        } else {
+                            OutputPlan::ByFamily
+                        };
+                        let c = plan(&scratch, t, p, &mut |n| s2.make_strip(n)).ok();
+                        scratch.next_id = scratch.next_id.max(s2.next_id);
+                        c
+                    }
+                    _ => {
+                        let mut s2 = scratch.clone();
+                        plan(&scratch, t, OutputPlan::AllToMain, &mut |n| {
+                            s2.make_strip(n)
+                        })
+                        .ok()
+                    }
+                }
+            };
+            let cmd = match cmd {
+                Some(c) => c,
+                None => random_command(&mut rng, &mut scratch),
+            };
+            bus.reserve_ids(scratch.next_id);
+            if bus.execute(cmd, Origin::User).is_ok() {
+                kinds[k] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds.iter().all(|k| *k > 0),
+        "an edit never applied: {kinds:?}"
+    );
+}
+
+// r40:tymp-ui — round 40 phase 3 (ADR 0123 amended, schema 70): a strip added to an
+// instrument's family on the desk and taken out again (`SetStripAttached`), among the
+// general generator's commands (a stream of its own): undo all restores the start, redo all
+// the end — a strip added to a track that is later removed included.
+#[test]
+fn a_strip_attached_to_a_family_undoes_and_redoes_among_the_others() {
+    let mut applied = 0usize;
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(70));
+        let mut arng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(170));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..60 {
+            let mut scratch = bus.project().clone();
+            let cmd = if arng.below(2) == 0 {
+                let track = scratch.tracks.first().map(|t| t.id);
+                let strip = scratch
+                    .strips
+                    .get(arng.below(scratch.strips.len().max(1) as u64) as usize)
+                    .map(|s| s.id);
+                match (track, strip) {
+                    (Some(track), Some(id)) => Command::SetStripAttached {
+                        id,
+                        track: match arng.below(4) {
+                            0 => None,
+                            1 => Some(TrackId(9_999)),
+                            _ => Some(track),
+                        },
+                    },
+                    _ => {
+                        let t = scratch.make_track("Drums");
+                        Command::InsertTrack {
+                            index: 0,
+                            track: Box::new(t),
+                        }
+                    }
+                }
+            } else {
+                random_command(&mut rng, &mut scratch)
+            };
+            bus.reserve_ids(scratch.next_id);
+            if bus.execute(cmd, Origin::User).is_ok() {
+                applied += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(applied > 0);
+}
+
+// ---- r40:drums-hyb — a Tympanum's voice (generated · hybrid, ADR 0124's third amendment),
+// one step, among the other commands and the kit changes.
+
+#[test]
+fn tympanum_voice_undoes_and_redoes_among_the_others() {
+    use cantus_core::inst::tympanum::cmd::change_kit;
+    use cantus_core::inst::tympanum::voice::{set_voice, Voice};
+    use cantus_core::inst::tympanum::{KitRef, KIT_KEY};
+    let kits = [KitRef::default_kit(), KitRef::Modelled("jazz".into())];
+    let mut kinds = [0usize; 3];
+    for seed in 1..=40u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x6A09_E667).wrapping_add(13));
+        let mut orng = Lcg(seed.wrapping_mul(0x3C6E_F372).wrapping_add(7));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..60 {
+            let mut scratch = bus.project().clone();
+            let drums: Vec<TrackId> = scratch
+                .tracks
+                .iter()
+                .filter(|t| {
+                    t.instrument
+                        .native()
+                        .is_some_and(|n| n.kind == InstrumentKind::AcousticDrums)
+                })
+                .map(|t| t.id)
+                .collect();
+            let k = if drums.is_empty() {
+                0
+            } else {
+                orng.below(3) as usize
+            };
+            let cmd = if k == 0 {
+                let mut t = scratch.make_track("Drums");
+                let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+                let _ = spec.set_text(KIT_KEY, Some(kits[orng.below(2) as usize].text()));
+                t.instrument = InstrumentSpec::Native(spec);
+                Some(Command::InsertTrack {
+                    index: 0,
+                    track: Box::new(t),
+                })
+            } else {
+                let t = drums[orng.below(drums.len() as u64) as usize];
+                if k == 1 {
+                    set_voice(&scratch, t, Voice::ALL[orng.below(2) as usize])
+                } else {
+                    change_kit(&scratch, t, &kits[orng.below(2) as usize])
+                }
+            };
+            let cmd = match cmd {
+                Some(c) => c,
+                None => random_command(&mut rng, &mut scratch),
+            };
+            bus.reserve_ids(scratch.next_id);
+            if bus.execute(cmd, Origin::User).is_ok() {
+                kinds[k] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        kinds.iter().all(|k| *k > 0),
+        "an edit never applied: {kinds:?}"
+    );
+}

@@ -57,6 +57,25 @@ fn the_bundled_manifest_is_valid_and_every_licence_accepted() {
     assert_eq!(m.packs.iter().filter(|p| p.recommended).count(), 1);
 }
 
+/// r40:fix-f (review of 40a27bb7, finding 8) — MuldjordKit's page asks for its own line in
+/// album credits, not DRSKit's words: the pack's attribution says it, and only it does.
+#[test]
+fn muldjordkit_asks_for_its_own_album_credit() {
+    let m = Manifest::bundled();
+    let p = m
+        .packs
+        .iter()
+        .find(|p| p.id == "muldjordkit-tympanum")
+        .expect("the pack");
+    let note = &p.attribution.as_ref().expect("an attribution").note;
+    assert!(
+        note.contains("Drum samples provided by DrumGizmo.org"),
+        "{note}"
+    );
+    let drs = m.packs.iter().find(|p| p.id == "drskit-tympanum").unwrap();
+    assert_ne!(&drs.attribution.as_ref().unwrap().note, note);
+}
+
 #[test]
 fn a_manifest_from_a_newer_cantus_is_refused_by_name() {
     let text = format!(

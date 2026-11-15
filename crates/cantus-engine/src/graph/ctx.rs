@@ -25,6 +25,8 @@ pub(crate) struct PassCtx {
     /// The track whose instrument reports telemetry, and the effect the analyser watches.
     pub probed: Option<TrackId>,
     pub analysed: Option<EffectId>,
+    /// r40:pads — the keyed insert whose key its strip plays (*Hear the key*, ADR 0118).
+    pub hear_key: Option<EffectId>,
     /// The Speculums being watched, by scope ring (ADR 0056).
     pub scoped: [Option<EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// How late each watched Speculum's signal is against the transport: the compensation
@@ -64,6 +66,7 @@ impl PassCtx {
             recording: false,
             probed: None,
             analysed: None,
+            hear_key: None, // r40:pads
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
             scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
             capture_slot: None,

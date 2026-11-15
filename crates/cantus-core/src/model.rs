@@ -608,6 +608,10 @@ pub struct Track {
     /// the instrument gives (`icon`). `None` — every older track — is none. // r39:arrange
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub glyph: Option<String>, // r39:arrange
+    /// r40:pads — where the track's recording taps its signal (schema 62, ADR 0118):
+    /// before its strip's inserts (the default, every older track) or after them.
+    #[serde(default, skip_serializing_if = "crate::rec_tap::RecordTap::is_before")]
+    pub record_tap: crate::rec_tap::RecordTap,
 }
 
 /// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
@@ -974,6 +978,13 @@ pub struct MixerStrip {
     /// the project's law as before — so a split kit sums to the kit (schema 56, ADR 0100).
     #[serde(default, skip_serializing_if = "Option::is_none")] // r37:drums
     pub pan_law: Option<PanLaw>, // r37:drums
+    /// The instrument whose family this strip was added to on the desk (schema 70, ADR 0123
+    /// amended): a strip fed only by that instrument's strips — its bus, a parallel
+    /// compression — drawn at the end of the instrument's band, marked as added. A view of
+    /// the desk, never heard; it leaves the band while its routing stops coming from the
+    /// family. // r40:tymp-ui
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attached: Option<TrackId>,
 }
 
 impl MixerStrip {
@@ -1006,6 +1017,7 @@ impl MixerStrip {
             recall_safe: false,       // r36:mix
             solo_safe: false,         // r36:mix
             pan_law: None,            // r37:drums
+            attached: None,           // r40:tymp-ui
         }
     }
 
@@ -1102,9 +1114,7 @@ impl Track {
 
     /// Whether one of the instrument's own outputs (not the track's) plays into `strip`.
     pub fn feeds_through_bus(&self, strip: StripId) -> bool {
-        self.instrument
-            .pulsus()
-            .is_some_and(|k| k.pads.iter().any(|p| p.output == Some(strip)))
+        self.instrument.feeds_strip(strip) // r40:p3 — a pad's or a named output's (ADR 0123)
     }
 
     /// The icon to draw: the one that was chosen, or the one the instrument implies.
@@ -1771,10 +1781,11 @@ impl Project {
             lateness: None,
             note_fx: Vec::new(),
             score: Default::default(),
-            slots: Vec::new(),      // r33:session
-            folder: None,           // r39:arrange
-            lane_modes: Vec::new(), // r39:arrange
-            glyph: None,            // r39:arrange
+            slots: Vec::new(),              // r33:session
+            folder: None,                   // r39:arrange
+            lane_modes: Vec::new(),         // r39:arrange
+            glyph: None,                    // r39:arrange
+            record_tap: Default::default(), // r40:pads
         }
     }
 

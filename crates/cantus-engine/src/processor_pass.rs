@@ -172,6 +172,8 @@ impl Processor {
         // dropped.
         self.ext_drain(); // r36:external
         self.prune_notes();
+        // fix-a (A-M3): what a Delay let go of after moving its line in, back to be freed.
+        self.sweep_spent();
 
         self.meters.master = master_peak;
         self.master_tap.push(&output[..done * channels], channels); // r35:stage
@@ -206,8 +208,6 @@ impl Processor {
     ) {
         // A latency the pass's automation moved is compensated before the pass runs.
         self.replan_if_latency_moved();
-        // Armed tracks' input into their recording rings (ADR 0025).
-        self.record_segment(p0, n);
         // Where the song is at the pass's first sample, for the strips' and the master's
         // units that follow it (hosted plug-ins): a pass never crosses a loop wrap.
         let position = self.song_position();
@@ -229,6 +229,7 @@ impl Processor {
                 c.recording = self.recording;
                 c.probed = self.probed;
                 c.analysed = self.analysed;
+                c.hear_key = self.hear_key; // r40:pads
                 c.scoped = self.scoped;
                 c.scoped_delay = self.scoped_delay;
                 c.capture_slot = self.capture_slot;
@@ -279,6 +280,9 @@ impl Processor {
         if matches!(self.capture_target, CaptureTarget::Strip(_)) && !captured {
             self.capture_silence(n);
         }
+        // Armed tracks' input into their recording rings (ADR 0025) — after the strips ran,
+        // so a track recording *After FX* finds its strip's tap filled (r40:pads, ADR 0118).
+        self.record_segment(p0, n);
         // ---- the master: gather → chain → strip → take → click ---------------------------
         self.run_master_node(snap, out, channels, p0, n, &position, master, peaks);
     }

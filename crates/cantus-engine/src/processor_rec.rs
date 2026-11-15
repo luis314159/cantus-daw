@@ -40,6 +40,9 @@ pub(crate) struct TrackInputSlot {
     pub monitor: MonitorMode,
     pub trim: f32,
     pub armed: bool,
+    /// r40:pads — the track records *After FX* (ADR 0118): the recorder's tap its strip
+    /// writes, and that strip's slot. `None` records the input (before FX).
+    pub after: Option<(u8, u16)>,
 }
 
 /// The block's input, deinterleaved — what monitoring tracks read, on whichever thread
@@ -111,6 +114,10 @@ pub(super) struct Live {
     pub record_start: Option<f64>,
     /// The click's mode, from the snapshot.
     pub click: ClickMode,
+    /// r40:pads — per ring, the frames of an *After FX* take still to drop at the pass's
+    /// start: the strip's lateness after its inserts, so the take lands where it was played
+    /// (ADR 0118).
+    after_skip: [u64; MAX_TRACKS],
 }
 
 impl Live {
@@ -131,6 +138,7 @@ impl Live {
             dropped: [(None, 0); MAX_TRACKS],
             record_start: None,
             click: ClickMode::Always,
+            after_skip: [0; MAX_TRACKS], // r40:pads
         }
     }
 
@@ -553,6 +561,7 @@ impl Processor {
                         cantus_dsp::math::powf(10f32, i.trim_db / 20.0)
                     },
                     armed: t.armed,
+                    after: None, // r40:pads — set below
                 };
                 // An external unit's return level (ADR 0094): unity (the default) is exactly
                 // 1.0, an empty product too. r36:external
@@ -564,8 +573,49 @@ impl Processor {
                 self.live.tracks[slot].armed = true;
             }
         }
-        // And each track slot's own copy, which its node reads on whichever thread runs it.
+        // r40:pads — the armed tracks that record *After FX* (ADR 0118): a tap each on their
+        // strip, the first `MAX_REC_TAPS` of them (the rest record their input).
         let nodes = self.nodes.clone();
+        for slot in 0..crate::messages::MAX_STRIPS {
+            if self.strip_ids[slot].is_some() {
+                if let Some(mut s) = nodes.strip(slot) {
+                    s.rec_tap = None;
+                }
+            }
+        }
+        let mut taps = 0usize;
+        for (ti, t) in snapshot
+            .tracks
+            .iter()
+            .enumerate()
+            .take(self.track_to_slot.len())
+        {
+            let after = t.armed
+                && t.input.is_some()
+                && t.record_tap == cantus_core::RecordTap::AfterFx
+                && taps < super::exec::MAX_REC_TAPS;
+            let strip = t
+                .strip
+                .and_then(|i| snapshot.strips.get(i))
+                .and_then(|s| self.strip_slot_for(s.id));
+            let (true, Some(ss)) = (after, strip) else {
+                continue;
+            };
+            // Two tracks on one strip share its tap.
+            let k = match nodes.strip(ss).and_then(|s| s.rec_tap) {
+                Some(k) => k,
+                None => {
+                    let k = taps as u8;
+                    taps += 1;
+                    if let Some(mut s) = nodes.strip(ss) {
+                        s.rec_tap = Some(k);
+                    }
+                    k
+                }
+            };
+            self.live.tracks[self.track_to_slot[ti]].after = Some((k, ss as u16));
+        }
+        // And each track slot's own copy, which its node reads on whichever thread runs it.
         for slot in 0..MAX_TRACKS {
             if self.track_ids[slot].is_none() && !self.live.tracks[slot].has {
                 continue;
@@ -763,6 +813,16 @@ impl Processor {
             self.live.due_n = 0;
             self.live.taken = 0;
             self.live.applied = 0;
+            // r40:pads — an *After FX* take drops what its strip's inserts still hold of
+            // the time before the pass: the strip's lateness after them (ADR 0118).
+            if let Some(rings) = self.record_rings.as_ref() {
+                for (k, ring) in rings.tracks.iter().enumerate().take(MAX_TRACKS) {
+                    let slot = self.track_ids.iter().position(|s| *s == Some(ring.track));
+                    self.live.after_skip[k] = slot
+                        .and_then(|s| self.live.tracks[s].after)
+                        .map_or(0, |(_, ss)| self.strip_post[usize::from(ss)] as u64);
+                }
+            }
             let tick = self.transport.position_f64();
             let plugin = self.pdc.total.min(u32::MAX as usize) as u32;
             let queue = self.stats.input_queue.round() as i64;
@@ -800,15 +860,16 @@ impl Processor {
             self.live.taken += skip as u64;
             let w = until - skip;
             if w > 0 {
-                self.record_input(done + a + skip, w);
+                self.record_input(done + a + skip, w, a + skip);
                 self.live.taken += w as u64;
             }
             a += until;
         }
     }
 
-    /// Write `[done, done + n)` of every armed track's input into its ring.
-    fn record_input(&mut self, done: usize, n: usize) {
+    /// Write `[done, done + n)` of every armed track's input into its ring — `at` frames
+    /// into the pass for a track recording *After FX* (its strip's tap, r40:pads).
+    fn record_input(&mut self, done: usize, n: usize, at: usize) {
         let Some(rings) = self.record_rings.as_mut() else {
             return;
         };
@@ -820,6 +881,43 @@ impl Processor {
             let ch = ring.channels.clamp(1, 2);
             let slot = self.track_ids.iter().position(|s| *s == Some(ring.track));
             let t = slot.map(|s| self.live.tracks[s]).unwrap_or_default();
+            // r40:pads — *After FX* (ADR 0118): the strip after its inserts, this pass.
+            if let Some((tap, _)) = t.after {
+                let drop = (self.live.after_skip[k] as usize).min(n);
+                self.live.after_skip[k] -= drop as u64;
+                let w = n - drop;
+                if w == 0 {
+                    continue;
+                }
+                if ring.producer.slots() < w * ch || !ring.flush_gap() {
+                    ring.pending += w as u64;
+                    self.live.dropped[k] = (Some(ring.track), self.live.dropped[k].1 + w as u64);
+                    self.stats.record_overflow += w as u64;
+                    continue;
+                }
+                let Ok(mut chunk) = ring.producer.write_chunk(w * ch) else {
+                    continue;
+                };
+                ring.at += w as u64;
+                let cell = nodes.rec_taps.get(usize::from(tap));
+                let buf = cell.and_then(|c| c.try_borrow_mut());
+                let src = buf.as_deref().filter(|b| b.pass == self.pass);
+                let from = at + drop;
+                let (a, b) = chunk.as_mut_slices();
+                for (i, frame) in a
+                    .chunks_exact_mut(ch)
+                    .chain(b.chunks_exact_mut(ch))
+                    .enumerate()
+                {
+                    let (l, r) = src.map_or((0.0, 0.0), |b| (b.l[from + i], b.r[from + i]));
+                    frame[0] = l;
+                    if ch == 2 {
+                        frame[1] = r;
+                    }
+                }
+                chunk.commit_all();
+                continue;
+            }
             // A ring without room, or a gap the writer cannot be told about yet: lose
             // this segment for this track, say so, never wait. The writer pads the gap
             // with silence, so the file keeps its length and its timing.
@@ -835,7 +933,12 @@ impl Processor {
             ring.at += n as u64;
             let (a, b) = chunk.as_mut_slices();
             let left = input.channel(t.first, done, n).filter(|_| t.has);
-            let right = input.channel(t.first + 1, done, n).filter(|_| t.has);
+            // A mono input into a pair (a take meant *After FX* past the taps): both sides.
+            let right = if t.stereo || ch == 1 {
+                input.channel(t.first + 1, done, n).filter(|_| t.has)
+            } else {
+                left
+            };
             let g = t.trim;
             for (i, frame) in a
                 .chunks_exact_mut(ch)

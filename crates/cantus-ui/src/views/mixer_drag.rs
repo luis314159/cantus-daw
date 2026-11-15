@@ -1009,6 +1009,7 @@ fn spot_at(v: &MixerView, app: &CantusApp, geo: &Geo, src: Source, p: Pos2) -> O
         let w = super::desk::item_width(item, geo.pitch);
         let first = match *item {
             Item::Strip(id, _) => Some(id),
+            Item::Gap => None, // r40:tymp-ui
             Item::Separator(g) => {
                 sep += 1;
                 if matches!(src, Source::Group(own) if own == g) {

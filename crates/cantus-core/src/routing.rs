@@ -201,7 +201,12 @@ pub fn feeders(project: &Project, id: StripId) -> Feeders {
 /// route-here plate.
 pub fn is_fed(project: &Project, id: StripId) -> bool {
     let target = (!id.is_master()).then_some(id);
-    project.tracks.iter().any(|t| t.strip == target)
+    // r40:pads — a kit's pad playing on the strip feeds it too (ADR 0100, 0117): a pad's
+    // own strip read as "nothing feeds this strip" in the inspector and the desk.
+    project
+        .tracks
+        .iter()
+        .any(|t| t.strip == target || target.is_some_and(|s| t.feeds_through_bus(s)))
         || project.strips.iter().any(|s| {
             s.id != id && (s.output == target || (target.is_some() && s.send_to(id).is_some()))
         })

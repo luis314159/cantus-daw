@@ -26,7 +26,10 @@ pub(crate) mod draw;
 #[path = "chorda_scene.rs"]
 pub mod scene;
 #[path = "chorda_scene_view.rs"]
-mod view;
+pub mod view;
+// r40:chorda-src — the Play view as the approved design draws it (design-p3, delivery 6).
+#[path = "chorda_play.rs"]
+mod layout;
 
 use super::organ::parts::{cells, paint_card, Card, Rows};
 use super::FactoryPreset;
@@ -52,15 +55,45 @@ pub struct State {
     pub view: Option<egui::Rect>,
     /// The keyboard drawn, and the tuning it was computed for (a4, stretch, stiffness).
     keys: Option<([f32; 3], Box<[Key; KEYS]>)>,
-    /// Each Chorda's scene (ADR 0104) and its card's words, by track: one Chorda's piano is
-    /// never shown on another's. r37:scene
-    scenes: std::collections::BTreeMap<u64, (scene::Scene, view::Words)>,
+    /// Each Chorda's scene (ADR 0126) and its card's words, by track: one Chorda's piano is
+    /// never shown on another's. r40:scene
+    scenes: std::collections::BTreeMap<u64, (crate::scene::Scene, view::Words)>,
 }
 
 impl State {
-    /// `track`'s scene, once its card has been drawn. r37:scene
-    pub fn scene_of(&self, track: TrackId) -> Option<&scene::Scene> {
+    /// r40:fix-f — keep only the scenes of tracks `keep` says (finding 6).
+    pub fn retain_scenes(&mut self, keep: impl Fn(u64) -> bool) {
+        self.scenes.retain(|id, _| keep(*id));
+    }
+
+    /// r40:fix-f — drop every scene (another song).
+    pub fn clear_scenes(&mut self) {
+        self.scenes.clear();
+    }
+
+    /// How many scenes are kept (the tests).
+    pub fn scenes_kept(&self) -> usize {
+        self.scenes.len()
+    }
+
+    /// `track`'s scene, once its card has been drawn. r40:scene
+    pub fn scene_of(&self, track: TrackId) -> Option<&crate::scene::Scene> {
         self.scenes.get(&track.0).map(|s| &s.0)
+    }
+
+    /// Whether `track`'s scene shows its microphones. r40:scene
+    pub fn mics_shown(&self, track: TrackId) -> bool {
+        self.scenes.get(&track.0).is_some_and(|s| s.1.mics)
+    }
+
+    /// What the pointer is over in `track`'s scene (the lid). r40:scene
+    pub fn scene_hovered(&self, track: TrackId) -> Option<crate::scene::Picked> {
+        self.scenes.get(&track.0).and_then(|s| s.1.hovered())
+    }
+
+    /// Show or hide `track`'s scene's microphones (its *Show mics* key). r40:scene
+    pub fn show_mics(&mut self, track: TrackId, on: bool) {
+        self.scenes.entry(track.0).or_default().1.mics = on;
     }
 }
 
@@ -199,132 +232,10 @@ fn display_for(h: f32, s: &Style, with_cells: bool) -> f32 {
     d.max(40.0)
 }
 
-/// The Play view: the piano in its room beside the pedals (round 37, ADR 0104), and the
-/// numbers a player turns.
+/// The Play view: the source list, the piano in its room, the keyboard, the player's cards
+/// and *The piano* (round 40 phase 3: the approved design — `chorda_play.rs`).
 pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
-    let tele = app.inst_telemetry();
-    let now = now_of(&tele);
-    let busy = designing(app, spec);
-    let (vs, _) = settings_from(&values_of(spec));
-    let grip = vs.voice.damper as f32;
-    let area = ui.max_rect();
-    app.inst.chorda.area = Some(area);
-    app.inst.chorda.view = Some(ui.clip_rect());
-    let gutter = s.d(4.0);
-    let h2 = s.s(card_h(0.0, 86.0));
-    let h1 = (area.height() - h2 - gutter).max(s.s(240.0));
-    let mut rows = Rows::new(area, s);
-    // The piano in its room (ADR 0104) is the hero; the strings from above stay in Edit.
-    // r37:scene
-    let r1 = rows.row(h1, &[0.7, 0.3]);
-    // Beside the scene, the pedals and, under them, what moves the picture most: model 2's
-    // microphones and lid (model 1: the hammer). The pedals' drawing takes the column's
-    // rest, so it is never a tall card with an empty middle.
-    let side_h = s.s(card_h(0.0, 86.0));
-    let stack = h1 >= s.s(card_h(110.0, 86.0)) + gutter + side_h;
-    let right = r1[1];
-    let (ped_r, side_r) = if stack {
-        let ped = Rect::from_min_max(
-            right.min,
-            Pos2::new(right.right(), right.bottom() - side_h - gutter),
-        );
-        let side = Rect::from_min_max(Pos2::new(right.left(), right.bottom() - side_h), right.max);
-        (ped, Some(side))
-    } else {
-        (right, None)
-    };
-    let m2 = model2(spec);
-    let hammer: (&str, Function, &[&str]) = (
-        "chorda.hammer",
-        Function::Dynamics,
-        &["hardness", "dynamics", "vel.curve"],
-    );
-    let mics: (&str, Function, &[&str]) =
-        ("chorda.mics", Function::Space, &["persp", "width", "lid"]);
-    // Model 2 (ADR 0098) has a room: it takes the decay's place here (the decay stays in
-    // Edit). r37:piano
-    let resonance: (&str, Function, &[&str]) = if m2 {
-        (
-            "chorda.resonance",
-            Function::Space,
-            &["sympathy", "body", "room"],
-        )
-    } else {
-        (
-            "chorda.resonance",
-            Function::Space,
-            &["sympathy", "decay", "body"],
-        )
-    };
-    let output: (&str, Function, &[&str]) = if m2 {
-        ("chorda.output", Function::Output, &["tilt", "gain"])
-    } else {
-        (
-            "chorda.output",
-            Function::Output,
-            &["tilt", "width", "gain"],
-        )
-    };
-    let side = if m2 { mics } else { hammer };
-    let mut below: Vec<(&str, Function, &[&str])> = Vec::with_capacity(4);
-    if side_r.is_none() || m2 {
-        below.push(hammer);
-    }
-    if m2 && side_r.is_none() {
-        below.push(mics);
-    }
-    below.push(resonance);
-    below.push(output);
-    let fr: &[f32] = match below.len() {
-        4 => &[0.27, 0.27, 0.27, 0.19],
-        3 => &[0.36, 0.36, 0.28],
-        _ => &[0.55, 0.45],
-    };
-    let r2 = rows.row(h2, fr);
-    view::scene_card(app, ui, track, spec, r1[0], s, busy.as_deref()); // r37:scene
-    card(
-        app,
-        ui,
-        track,
-        spec,
-        ped_r,
-        s,
-        "chorda.pedals",
-        Function::Dynamics,
-        display_for(ped_r.height(), s, true),
-        &["pedal", "damper", "una"],
-        |b, d, sf| draw::pedals(b, d, sf, &now, grip),
-    );
-    if let Some(r) = side_r {
-        card(
-            app,
-            ui,
-            track,
-            spec,
-            r,
-            s,
-            side.0,
-            side.1,
-            0.0,
-            side.2,
-            |_, _, _| {},
-        );
-    }
-    for (r, (title, f, keys)) in r2.iter().zip(below) {
-        card(
-            app,
-            ui,
-            track,
-            spec,
-            *r,
-            s,
-            title,
-            f,
-            0.0,
-            keys,
-            |_, _, _| {},
-        );
-    }
+    layout::play(app, ui, track, spec, s) // r40:chorda-src
 }
 
 /// The Edit view: every part of the instrument, each with its picture. Taller than the
@@ -668,31 +579,31 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
             "preset.style.film",
             "preset.style.worship"
         ], "concert" / "black",
-        ["gain" => -2.0]
+        ["gain" => 4.8]
     ),
-    preset!("chorda.preset.studio", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop"], "grand" / "black", ["hardness" => 0.25, "tilt" => 1.5, "room" => 0.25, "width" => 0.85, "persp" => 0.25, "roomsize" => 0.3, "gain" => -2.0]),
-    preset!("chorda.preset.ballad", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.worship", "preset.style.pop"], "grand" / "white", ["hardness" => -0.3, "tilt" => -2.0, "sympathy" => 1.25, "decay" => 1.15, "room" => 0.5, "persp" => 0.3, "roomsize" => 0.55, "gain" => -2.0]),
-    preset!("chorda.preset.jazz", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.jazz"], "grand" / "walnut", ["hardness" => 0.1, "body" => 0.9, "width" => 0.6, "decay" => 0.9, "dynamics" => 1.15, "unison" => 1.4, "room" => 0.3, "gain" => 1.0, "persp" => 0.2, "lid" => 0.6, "roomsize" => 0.35]),
-    preset!("chorda.preset.felt", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.lofi", "preset.style.ambient"], "upright" / "black", ["hardness" => -0.85, "tilt" => -8.0, "decay" => 0.6, "sympathy" => 0.8, "dynamics" => 0.7, "noise" => 1.6, "room" => 0.3, "persp" => 0.08, "lid" => 0.0, "roomsize" => 0.2, "gain" => -2.0]),
-    preset!("chorda.preset.honky", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.rock"], "upright" / "walnut", ["unison" => 7.0, "coupling" => 0.3, "hardness" => 0.4, "tilt" => 3.0, "body" => 0.85, "room" => 0.25, "gain" => 2.0, "persp" => 0.3, "lid" => 0.5, "roomsize" => 0.3]),
-    preset!("chorda.preset.baroque", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.film"], "parlour" / "rosewood", ["a4" => 415.0, "stretch" => 0.7, "hardness" => 0.15, "room" => 0.55, "persp" => 0.6, "roomsize" => 0.65, "gain" => -2.0]),
-    preset!("chorda.preset.wash", &["preset.tag.keys", "preset.role.pad", "chorda.tag.soft", "preset.style.ambient"], "concert" / "black", ["sympathy" => 2.0, "decay" => 1.6, "body" => 1.3, "width" => 0.9, "damper" => 0.55, "room" => 0.75, "persp" => 0.7, "roomsize" => 0.9, "gain" => -1.0]),
-    preset!("chorda.preset.pop", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop"], "grand" / "white", ["hardness" => 0.5, "dynamics" => 0.75, "tilt" => 3.0, "width" => 0.75, "room" => 0.3, "gain" => -3.5, "persp" => 0.12, "roomsize" => 0.3]),
-    preset!("chorda.preset.old", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.lofi"], "upright" / "rosewood", ["stiffness" => 1.3, "unison" => 3.5, "decay" => 0.75, "body" => 0.7, "tilt" => -2.0, "coupling" => 0.65, "noise" => 1.4, "gain" => 4.0, "persp" => 0.25, "lid" => 0.0, "roomsize" => 0.25]),
-    preset!("chorda.preset.hall", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.film"], "concert" / "black", ["room" => 0.8, "width" => 0.9, "sympathy" => 1.2, "tilt" => -0.5, "persp" => 0.85, "roomsize" => 0.85, "gain" => -5.0]),
-    preset!("chorda.preset.cinematic", &["preset.tag.keys", "preset.role.pad", "chorda.tag.soft", "preset.style.film", "preset.style.ambient"], "concert" / "black", ["hardness" => -0.5, "room" => 0.85, "decay" => 1.3, "sympathy" => 1.5, "tilt" => -3.0, "dynamics" => 1.2, "gain" => 4.5, "persp" => 0.6, "roomsize" => 1.0]),
-    preset!("chorda.preset.gospel", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.worship"], "grand" / "black", ["hardness" => 0.3, "dynamics" => 1.15, "room" => 0.4, "tilt" => 1.0, "width" => 0.8, "gain" => -0.5, "persp" => 0.3, "roomsize" => 0.6]),
-    preset!("chorda.preset.rock", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.rock"], "grand" / "black", ["hardness" => 0.6, "tilt" => 2.5, "room" => 0.15, "dynamics" => 0.7, "width" => 0.7, "gain" => -3.5, "persp" => 0.1, "roomsize" => 0.25]),
-    preset!("chorda.preset.montuno", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.latin"], "parlour" / "walnut", ["hardness" => 0.45, "tilt" => 2.0, "room" => 0.25, "decay" => 0.8, "body" => 1.1, "persp" => 0.2, "lid" => 0.7, "roomsize" => 0.35, "gain" => -2.0]),
-    preset!("chorda.preset.rnb", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.rnb"], "parlour" / "white", ["hardness" => -0.15, "tilt" => -1.0, "room" => 0.35, "width" => 0.75, "dynamics" => 0.85, "persp" => 0.2, "roomsize" => 0.4, "gain" => -2.0]),
-    preset!("chorda.preset.close", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.pop", "preset.style.rnb"], "parlour" / "black", ["hardness" => -0.2, "room" => 0.1, "noise" => 1.5, "width" => 0.65, "persp" => 0.0, "roomsize" => 0.2, "gain" => -2.0]),
-    preset!("chorda.preset.trap", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.trap"], "grand" / "black", ["hardness" => 0.2, "tilt" => 1.5, "room" => 0.3, "decay" => 0.7, "dynamics" => 0.8, "persp" => 0.15, "roomsize" => 0.3, "gain" => -2.0]),
-    preset!("chorda.preset.dry", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop", "preset.style.house"], "grand" / "black", ["room" => 0.0, "width" => 0.6, "noise" => 0.8, "persp" => 0.15, "gain" => -2.0]),
-    preset!("chorda.preset.lofi", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.lofi", "preset.style.trap"], "parlour" / "walnut", ["hardness" => -0.45, "tilt" => -5.0, "unison" => 3.0, "room" => 0.2, "noise" => 1.5, "width" => 0.5, "decay" => 0.8, "gain" => 0.5, "persp" => 0.1, "lid" => 0.3, "roomsize" => 0.2]),
-    preset!("chorda.preset.house", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.house"], "grand" / "white", ["hardness" => 0.6, "tilt" => 3.0, "room" => 0.2, "dynamics" => 0.7, "decay" => 0.7, "gain" => -3.0, "persp" => 0.12, "roomsize" => 0.3]),
-    preset!("chorda.preset.reggaeton", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.latin", "preset.style.trap"], "grand" / "white", ["hardness" => 0.4, "tilt" => 2.0, "room" => 0.25, "decay" => 0.75, "width" => 0.7, "gain" => -1.0, "persp" => 0.15, "roomsize" => 0.35]),
-    preset!("chorda.preset.ambient", &["preset.tag.keys", "preset.role.pad", "chorda.tag.soft", "preset.style.ambient", "preset.style.film"], "concert" / "white", ["hardness" => -0.6, "sympathy" => 2.0, "decay" => 2.0, "room" => 0.9, "damper" => 0.4, "tilt" => -4.0, "persp" => 0.75, "roomsize" => 1.0, "gain" => 0.5]),
-    preset!("chorda.preset.theme", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.film"], "concert" / "black", ["hardness" => 0.1, "room" => 0.65, "width" => 0.9, "sympathy" => 1.2, "persp" => 0.5, "roomsize" => 0.7, "gain" => -2.0]),
+    preset!("chorda.preset.studio", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop"], "grand" / "black", ["hardness" => 0.25, "tilt" => 1.5, "room" => 0.25, "width" => 0.85, "persp" => 0.25, "roomsize" => 0.3, "gain" => 3.5]),
+    preset!("chorda.preset.ballad", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.worship", "preset.style.pop"], "grand" / "white", ["hardness" => -0.3, "tilt" => -2.0, "sympathy" => 1.25, "decay" => 1.15, "room" => 0.5, "persp" => 0.3, "roomsize" => 0.55, "gain" => 4.0]),
+    preset!("chorda.preset.jazz", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.jazz"], "grand" / "walnut", ["hardness" => 0.1, "body" => 0.9, "width" => 0.6, "decay" => 0.9, "dynamics" => 1.15, "unison" => 1.4, "room" => 0.3, "gain" => 7.5, "persp" => 0.2, "lid" => 0.6, "roomsize" => 0.35]),
+    preset!("chorda.preset.felt", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.lofi", "preset.style.ambient"], "upright" / "black", ["hardness" => -0.85, "tilt" => -8.0, "decay" => 0.6, "sympathy" => 0.8, "dynamics" => 0.7, "noise" => 1.6, "room" => 0.3, "persp" => 0.08, "lid" => 0.0, "roomsize" => 0.2, "gain" => 4.8]),
+    preset!("chorda.preset.honky", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.rock"], "upright" / "walnut", ["unison" => 7.0, "coupling" => 0.3, "hardness" => 0.4, "tilt" => 3.0, "body" => 0.85, "room" => 0.25, "gain" => 6.9, "persp" => 0.3, "lid" => 0.5, "roomsize" => 0.3]),
+    preset!("chorda.preset.baroque", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.film"], "parlour" / "rosewood", ["a4" => 415.0, "stretch" => 0.7, "hardness" => 0.15, "room" => 0.55, "persp" => 0.6, "roomsize" => 0.65, "gain" => 4.2]),
+    preset!("chorda.preset.wash", &["preset.tag.keys", "preset.role.pad", "chorda.tag.soft", "preset.style.ambient"], "concert" / "black", ["sympathy" => 2.0, "decay" => 1.6, "body" => 1.3, "width" => 0.9, "damper" => 0.55, "room" => 0.75, "persp" => 0.7, "roomsize" => 0.9, "gain" => 4.2]),
+    preset!("chorda.preset.pop", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop"], "grand" / "white", ["hardness" => 0.5, "dynamics" => 0.75, "tilt" => 3.0, "width" => 0.75, "room" => 0.3, "gain" => 0.2, "persp" => 0.12, "roomsize" => 0.3]),
+    preset!("chorda.preset.old", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.lofi"], "upright" / "rosewood", ["stiffness" => 1.3, "unison" => 3.5, "decay" => 0.75, "body" => 0.7, "tilt" => -2.0, "coupling" => 0.65, "noise" => 1.4, "gain" => 10.4, "persp" => 0.25, "lid" => 0.0, "roomsize" => 0.25]),
+    preset!("chorda.preset.hall", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.film"], "concert" / "black", ["room" => 0.8, "width" => 0.9, "sympathy" => 1.2, "tilt" => -0.5, "persp" => 0.85, "roomsize" => 0.85, "gain" => 2.1]),
+    preset!("chorda.preset.cinematic", &["preset.tag.keys", "preset.role.pad", "chorda.tag.soft", "preset.style.film", "preset.style.ambient"], "concert" / "black", ["hardness" => -0.5, "room" => 0.85, "decay" => 1.3, "sympathy" => 1.5, "tilt" => -3.0, "dynamics" => 1.2, "gain" => 9.0, "persp" => 0.6, "roomsize" => 1.0]),
+    preset!("chorda.preset.gospel", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.worship"], "grand" / "black", ["hardness" => 0.3, "dynamics" => 1.15, "room" => 0.4, "tilt" => 1.0, "width" => 0.8, "gain" => 5.2, "persp" => 0.3, "roomsize" => 0.6]),
+    preset!("chorda.preset.rock", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.rock"], "grand" / "black", ["hardness" => 0.6, "tilt" => 2.5, "room" => 0.15, "dynamics" => 0.7, "width" => 0.7, "gain" => -0.3, "persp" => 0.1, "roomsize" => 0.25]),
+    preset!("chorda.preset.montuno", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.latin"], "parlour" / "walnut", ["hardness" => 0.45, "tilt" => 2.0, "room" => 0.25, "decay" => 0.8, "body" => 1.1, "persp" => 0.2, "lid" => 0.7, "roomsize" => 0.35, "gain" => 4.9]),
+    preset!("chorda.preset.rnb", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.rnb"], "parlour" / "white", ["hardness" => -0.15, "tilt" => -1.0, "room" => 0.35, "width" => 0.75, "dynamics" => 0.85, "persp" => 0.2, "roomsize" => 0.4, "gain" => 2.2]),
+    preset!("chorda.preset.close", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.pop", "preset.style.rnb"], "parlour" / "black", ["hardness" => -0.2, "room" => 0.1, "noise" => 1.5, "width" => 0.65, "persp" => 0.0, "roomsize" => 0.2, "gain" => -1.0]),
+    preset!("chorda.preset.trap", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.trap"], "grand" / "black", ["hardness" => 0.2, "tilt" => 1.5, "room" => 0.3, "decay" => 0.7, "dynamics" => 0.8, "persp" => 0.15, "roomsize" => 0.3, "gain" => 2.4]),
+    preset!("chorda.preset.dry", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop", "preset.style.house"], "grand" / "black", ["room" => 0.0, "width" => 0.6, "noise" => 0.8, "persp" => 0.15, "gain" => 2.9]),
+    preset!("chorda.preset.lofi", &["preset.tag.keys", "preset.role.keys", "chorda.tag.character", "preset.style.lofi", "preset.style.trap"], "parlour" / "walnut", ["hardness" => -0.45, "tilt" => -5.0, "unison" => 3.0, "room" => 0.2, "noise" => 1.5, "width" => 0.5, "decay" => 0.8, "gain" => 6.1, "persp" => 0.1, "lid" => 0.3, "roomsize" => 0.2]),
+    preset!("chorda.preset.house", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.house"], "grand" / "white", ["hardness" => 0.6, "tilt" => 3.0, "room" => 0.2, "dynamics" => 0.7, "decay" => 0.7, "gain" => 1.2, "persp" => 0.12, "roomsize" => 0.3]),
+    preset!("chorda.preset.reggaeton", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.latin", "preset.style.trap"], "grand" / "white", ["hardness" => 0.4, "tilt" => 2.0, "room" => 0.25, "decay" => 0.75, "width" => 0.7, "gain" => 3.6, "persp" => 0.15, "roomsize" => 0.35]),
+    preset!("chorda.preset.ambient", &["preset.tag.keys", "preset.role.pad", "chorda.tag.soft", "preset.style.ambient", "preset.style.film"], "concert" / "white", ["hardness" => -0.6, "sympathy" => 2.0, "decay" => 2.0, "room" => 0.9, "damper" => 0.4, "tilt" => -4.0, "persp" => 0.75, "roomsize" => 1.0, "gain" => 4.9]),
+    preset!("chorda.preset.theme", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.film"], "concert" / "black", ["hardness" => 0.1, "room" => 0.65, "width" => 0.9, "sympathy" => 1.2, "persp" => 0.5, "roomsize" => 0.7, "gain" => 4.2]),
 ];
 
 #[cfg(test)]

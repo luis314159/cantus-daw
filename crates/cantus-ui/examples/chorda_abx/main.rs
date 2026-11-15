@@ -1,27 +1,45 @@
-//! The owner's listening kit for Chorda (round 37, ADR 0098): an offline ABX test and a blind
-//! preference test, Chorda's model 2 against the Salamander Grand and against model 1.
+//! Chorda's listening kit (round 37, ADR 0098; kit 5, round 40 — made to be given to other
+//! listeners): a blind ABX test and a blind preference test of three pianos — Chorda at a
+//! candidate voicing ("Chorda 3"), the Salamander Grand (a recorded Yamaha C5, CC BY 3.0,
+//! Alexander Holm) and Chorda 2 (model 2 at beta.14's voicing, through the lab; since
+//! `DSP_VERSION` 7 a new track plays candidate 16).
 //!
 //! ```text
-//! cargo run --release -p cantus-ui --example chorda_abx -- <dir> [<downloads>] [--flac]
+//! cargo run --release -p cantus-ui --example chorda_abx -- <dir>
+//!     --candidate <spec file> [--partials <csv>] [--levels <csv>] [--name <label>]
+//!     [--downloads <dir>] [--key <dir>] [--wav]
 //! ```
 //!
-//! Renders every listening phrase (`chorda_kit/phrases.rs`, `listen`) through the real
-//! engine — the Salamander Grand (CC BY 3.0, Alexander Holm; installed through Cantus's own
-//! pack code into `<downloads>/content`, default `F:/projects/daw-r37/downloads/piano`),
-//! Chorda model 1 and model 2 at their defaults — matches their loudness (ITU-R BS.1770,
-//! integrated, the same target for the three, lowered together if a peak would pass
-//! −1 dBFS), trims them to one length, and writes into `<dir>`:
+//! `--candidate` is the voicing lab's `key=value,…` spec (its first line); `--partials` and
+//! `--levels` its per-key tables (`CHORDA_PARTIALS` / `CHORDA_LEVELS`, as the lab reads them;
+//! the environment's are used when the flags are absent). The Salamander is installed through
+//! Cantus's own pack code into `<downloads>/content` (default
+//! `F:/projects/daw-r37/downloads/piano`) and played by the engine, as is Chorda 2; Chorda 3
+//! through the lab (model 2's DSP at the candidate's voicing). Every phrase's three renders are
+//! trimmed to one length, given one 30 ms fade and brought to one loudness (ITU-R BS.1770
+//! integrated, −20 LUFS, lowered together if a peak would pass −1 dBFS).
 //!
-//! - `audio/<opaque>.wav` (24-bit, 48 kHz — or `.flac`, the same samples losslessly in about
-//!   half the bytes, with `--flac`: the kit as a web page's; names hashed with a salt drawn per kit, so a
-//!   file's name never says which piano it is),
-//! - `index.html` — one page, no network, no external script: the ABX (16 trials per
-//!   comparison, X drawn at random each trial, answers kept in the browser and offered as a
-//!   JSON file, the score and its binomial p-value at the end) and a preference question per
-//!   phrase and pair, blind,
-//! - `README.md` / `LEEME.md` — how to take it, in English and Spanish,
-//! - `levels.csv` — what each file measured before and after the match.
+//! Written into `<dir>` — what a listener receives, nothing in it says which piano is which:
+//!
+//! - `audio/<name>.flac` (24-bit, 48 kHz; with `--wav`, 24-bit WAV — the kit to publish as a
+//!   claude.ai page, which serves .wav but not .flac): every name 64 random bits
+//!   drawn for this kit (`names_look_random` holds that no two share structure), two of them
+//!   the same clip under two names (the preference test's catch questions),
+//! - `index.html` — one page, no external script, no network unless published: a short form
+//!   about the listener, the ABX (16 trials), the preferences (every phrase, both pairs, the
+//!   two catch questions), an optional second ABX, the reveal and the credits only at the
+//!   end; answers kept in the browser, offered as a JSON file, and saved for the owner when
+//!   the page is a published claude.ai Artifact (`db`, `user`, `downloads`),
+//! - `LEEME.md` / `README.md` — how to take it.
+//!
+//! And into `--key` (default `<dir>-key`, beside the kit, never sent): `key.json` (which piano
+//! each token and file is, the candidate's files) and `levels.csv` (each file's loudness before
+//! and after the match).
 
+#[path = "../chorda_kit/lab.rs"]
+#[allow(dead_code)] // shared by both examples: each uses part of it
+mod lab;
+mod names;
 #[path = "../chorda_kit/phrases.rs"]
 #[allow(dead_code)] // shared by both examples: each uses part of it
 mod phrases;
@@ -51,70 +69,173 @@ fn db(x: f32) -> f64 {
     20.0 * cantus_dsp::math::log10(x.max(1e-9) as f64)
 }
 
+struct Args {
+    dir: PathBuf,
+    downloads: PathBuf,
+    key: PathBuf,
+    spec_file: String,
+    spec: String,
+    partials: Option<String>,
+    levels: Option<String>,
+    name: String,
+    flac: bool,
+}
+
+fn usage() -> ! {
+    eprintln!(
+        "usage: chorda_abx <dir> --candidate <spec file> [--partials <csv>] [--levels <csv>] \
+         [--name <label>] [--downloads <dir>] [--key <dir>] [--wav]"
+    );
+    std::process::exit(2);
+}
+
+fn args() -> Args {
+    let mut it = std::env::args().skip(1);
+    let (mut dir, mut downloads, mut key, mut spec_file) = (None, None, None, None);
+    let (mut partials, mut levels, mut name, mut flac) = (None, None, None, true);
+    while let Some(a) = it.next() {
+        let mut val = || it.next().unwrap_or_else(|| usage());
+        match a.as_str() {
+            "--candidate" => spec_file = Some(val()),
+            "--partials" => partials = Some(val()),
+            "--levels" => levels = Some(val()),
+            "--name" => name = Some(val()),
+            "--downloads" => downloads = Some(PathBuf::from(val())),
+            "--key" => key = Some(PathBuf::from(val())),
+            "--wav" => flac = false,
+            "--flac" => flac = true,
+            _ if a.starts_with("--") => usage(),
+            _ if dir.is_none() => dir = Some(PathBuf::from(a)),
+            // Kit 4's form: the downloads folder as the second word.
+            _ if downloads.is_none() => downloads = Some(PathBuf::from(a)),
+            _ => usage(),
+        }
+    }
+    let dir = dir.unwrap_or_else(|| usage());
+    let spec_file = spec_file.unwrap_or_else(|| usage());
+    let text = std::fs::read_to_string(&spec_file)
+        .unwrap_or_else(|e| panic!("the candidate's spec {spec_file}: {e}"));
+    let spec = text.lines().next().unwrap_or("").trim().to_string();
+    let partials = partials.or_else(|| std::env::var("CHORDA_PARTIALS").ok());
+    let levels = levels.or_else(|| std::env::var("CHORDA_LEVELS").ok());
+    for f in partials.iter().chain(levels.iter()) {
+        assert!(std::path::Path::new(f).is_file(), "no table {f}");
+    }
+    let name = name.unwrap_or_else(|| {
+        std::path::Path::new(&spec_file)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    });
+    let key = key.unwrap_or_else(|| {
+        let mut k = dir.clone().into_os_string();
+        k.push("-key");
+        PathBuf::from(k)
+    });
+    Args {
+        dir,
+        downloads: downloads
+            .unwrap_or_else(|| PathBuf::from("F:/projects/daw-r37/downloads/piano")),
+        key,
+        spec_file,
+        spec,
+        partials,
+        levels,
+        name,
+        flac,
+    }
+}
+
+/// A JSON string literal.
+fn js(s: &str) -> String {
+    let mut o = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if (c as u32) < 0x20 => {
+                let _ = write!(o, "\\u{:04x}", c as u32);
+            }
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
+
+/// What the generator fills in the page.
+const PLACEHOLDERS: [&str; 6] = [
+    "__KIT__",
+    "__PHRASES__",
+    "__FILES__",
+    "__TESTS__",
+    "__SEED__",
+    "__REVEAL__",
+];
+
+/// The three pianos: an id (the key's, the owner's summary's), what plays it.
+const PIANOS: [&str; 3] = ["chorda3", "salamander", "chorda2"];
+
+fn sep(s: &mut String) {
+    if !s.is_empty() {
+        s.push(',');
+    }
+}
+
 fn main() {
-    let all: Vec<String> = std::env::args().skip(1).collect();
-    let flac = all.iter().any(|a| a == "--flac");
-    let args: Vec<String> = all.into_iter().filter(|a| a != "--flac").collect();
-    let ext = if flac { "flac" } else { "wav" };
-    let Some(dir) = args.first().map(PathBuf::from) else {
-        eprintln!("usage: chorda_abx <dir> [<downloads>]");
-        std::process::exit(2);
-    };
-    let downloads = args
-        .get(1)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("F:/projects/daw-r37/downloads/piano"));
-    let root = render::content_root(&downloads);
+    let a = args();
+    // The lab reads its tables from the environment; set before anything renders.
+    if let Some(p) = &a.partials {
+        std::env::set_var("CHORDA_PARTIALS", p);
+    }
+    if let Some(l) = &a.levels {
+        std::env::set_var("CHORDA_LEVELS", l);
+    }
+    let ext = if a.flac { "flac" } else { "wav" };
+    let root = render::content_root(&a.downloads);
     if let Err(e) = render::install(&root) {
         eprintln!("the Salamander Grand could not be installed: {e}");
         std::process::exit(1);
     }
-    render::set_cache(&downloads.join("stream-cache"));
-    std::fs::create_dir_all(dir.join("audio")).expect("the kit's folder");
-    let sources: [(&str, Source); 3] = [
-        ("salamander", Source::Salamander),
-        (
-            "chorda1",
-            Source::Chorda {
-                model: 1.0,
-                values: Vec::new(),
-            },
-        ),
-        (
-            "chorda2",
-            Source::Chorda {
-                model: 2.0,
-                values: Vec::new(),
-            },
-        ),
-    ];
-    let mut levels = String::from(
-        "phrase,source,lufs_before,peak_before_dbfs,gain_db,lufs_after,peak_after_dbfs\n",
-    );
-    let mut list = String::new();
-    let mut files = String::new();
-    // A salt per kit (the clock): the names are opaque, and two kits do not share them.
-    let salt = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0x5EED);
-    let opaque = |phrase: &str, src: &str| -> String {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ salt;
-        for b in phrase.bytes().chain(*b"|").chain(src.bytes()) {
-            h ^= b as u64;
-            h = h.wrapping_mul(0x0100_0000_01b3);
+    render::set_cache(&a.downloads.join("stream-cache"));
+    let _ = std::fs::remove_dir_all(a.dir.join("audio"));
+    std::fs::create_dir_all(a.dir.join("audio")).expect("the kit's folder");
+    std::fs::create_dir_all(&a.key).expect("the key's folder");
+    let mut rng = names::Rng::new();
+    let kit = format!("abx5-{}", &rng.name()[..10]);
+    // Each piano's token in the page, and two more for the catch questions' second names.
+    let tok: Vec<String> = (0..5).map(|_| rng.token()).collect();
+    let listen: Vec<phrases::Phrase> = phrases::all().into_iter().filter(|p| p.listen).collect();
+    // The catch questions: two phrases drawn, one the recorded piano against itself, one the
+    // candidate against itself (the same file under two names). (phrase, piano, token)
+    let c1 = rng.below(listen.len());
+    let c2 = (c1 + 1 + rng.below(listen.len() - 1)) % listen.len();
+    let catch = [(listen[c1].id, 1usize, 3usize), (listen[c2].id, 0, 4)];
+    // Every file's name drawn first, redrawn until none shares structure with another.
+    let count = listen.len() * PIANOS.len() + catch.len();
+    let drawn = loop {
+        let v: Vec<String> = (0..count).map(|_| rng.name()).collect();
+        if names::names_look_random(&v).is_ok() {
+            break v;
         }
-        h ^= h >> 29;
-        format!("{h:016x}.{ext}")
     };
-    for ph in phrases::all().into_iter().filter(|p| p.listen) {
-        let mut renders: Vec<Stereo> = sources
-            .iter()
-            .map(|(name, src)| {
-                render::render_source(src, &root, &ph)
-                    .unwrap_or_else(|e| panic!("{name} {}: {e}", ph.id))
-            })
-            .collect();
+    let mut drawn = drawn.into_iter();
+    let sources: [Source; 1] = [Source::Salamander];
+    let mut levels = String::from(
+        "phrase,piano,file,lufs_before,peak_before_dbfs,gain_db,lufs_after,peak_after_dbfs\n",
+    );
+    let (mut list, mut files, mut key_files) = (String::new(), String::new(), String::new());
+    let mut bytes = 0u64;
+    for ph in &listen {
+        let mut renders: Vec<Stereo> = vec![lab::render(&a.spec, ph)];
+        for src in &sources {
+            renders.push(
+                render::render_source(src, &root, ph)
+                    .unwrap_or_else(|e| panic!("{} {}: {e}", src.label(), ph.id)),
+            );
+        }
+        // Chorda 2: beta.14's voicing (the lab's empty spec).
+        renders.push(lab::render("", ph));
         let n = renders.iter().map(|s| s.len()).min().unwrap_or(0);
         for s in renders.iter_mut() {
             *s = s.slice(0, n);
@@ -132,49 +253,175 @@ fn main() {
             .iter()
             .map(|(l, p)| TARGET.min(l + (CEILING_DB - p)))
             .fold(TARGET, f64::min);
-        for ((name, _), (s, (l, p))) in sources.iter().zip(renders.iter_mut().zip(&before)) {
-            let mut g = target - l;
+        let mut gains = Vec::new();
+        for (s, (l, _)) in renders.iter_mut().zip(&before) {
+            let g = target - l;
             s.gain(cantus_dsp::math::powf(10.0f64, g / 20.0) as f32);
             // Once more: BS.1770's absolute gate lets a quiet tail in or out as the level
             // moves, so the first gain lands within about half a LU; the second on it.
             let again = target - lufs(s);
-            g += again;
             s.gain(cantus_dsp::math::powf(10.0f64, again / 20.0) as f32);
-            let file = opaque(ph.id, name);
-            let path = dir.join("audio").join(&file);
-            if !files.is_empty() {
-                files.push(',');
+            gains.push(g + again);
+        }
+        // The second gain may lift the peak that set the target past the ceiling (the
+        // first draw of kit 5 left middle C at −0.81 dBFS): all three come down together.
+        let over = renders
+            .iter()
+            .map(|s| db(s.peak()))
+            .fold(f64::MIN, f64::max)
+            - CEILING_DB;
+        if over > 0.0 {
+            for (s, g) in renders.iter_mut().zip(gains.iter_mut()) {
+                s.gain(cantus_dsp::math::powf(10.0f64, -(over + 0.005) / 20.0) as f32);
+                *g -= over + 0.005;
             }
-            let _ = write!(files, "\"{}|{name}\":\"{file}\"", ph.id);
-            if flac {
-                render::write_flac(&path, s).expect("the FLAC is written");
-            } else {
-                render::write_wav(&path, s, false).expect("the WAV is written");
-            }
-            let _ = writeln!(
-                levels,
-                "{},{name},{l:.2},{p:.2},{g:.2},{:.2},{:.2}",
-                ph.id,
-                lufs(s),
-                db(s.peak())
+        }
+        for (i, (s, ((l, p), g))) in renders
+            .iter_mut()
+            .zip(before.iter().zip(&gains))
+            .enumerate()
+        {
+            // This piano's file, and the catch question's second name for it.
+            let mut toks = vec![i];
+            toks.extend(
+                catch
+                    .iter()
+                    .filter(|(id, piano, _)| *id == ph.id && *piano == i)
+                    .map(|c| c.2),
             );
+            let mut first: Option<PathBuf> = None;
+            for t in toks {
+                let file = format!("{}.{ext}", drawn.next().expect("a name"));
+                let path = a.dir.join("audio").join(&file);
+                match &first {
+                    None => {
+                        if a.flac {
+                            render::write_flac(&path, s).expect("the FLAC is written");
+                        } else {
+                            render::write_wav(&path, s, false).expect("the WAV is written");
+                        }
+                        first = Some(path.clone());
+                    }
+                    Some(f) => {
+                        std::fs::copy(f, &path).expect("the catch question's copy");
+                    }
+                }
+                bytes += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                sep(&mut files);
+                let _ = write!(
+                    files,
+                    "{}:{}",
+                    js(&format!("{}|{}", ph.id, tok[t])),
+                    js(&file)
+                );
+                sep(&mut key_files);
+                let _ = write!(
+                    key_files,
+                    "{}:{{\"phrase\":{},\"piano\":{},\"catch\":{}}}",
+                    js(&file),
+                    js(ph.id),
+                    js(PIANOS[i]),
+                    t >= 3
+                );
+                let _ = writeln!(
+                    levels,
+                    "{},{},{file},{l:.2},{p:.2},{g:.2},{:.2},{:.2}",
+                    ph.id,
+                    PIANOS[i],
+                    lufs(s),
+                    db(s.peak())
+                );
+            }
         }
         eprintln!(
             "{:<12} matched at {target:.1} LUFS ({:.1} s)",
             ph.id,
             n as f64 / render::SR as f64
         );
-        if !list.is_empty() {
-            list.push(',');
-        }
-        let _ = write!(list, "\"{}\"", ph.id);
+        sep(&mut list);
+        list.push_str(&js(ph.id));
     }
-    std::fs::write(dir.join("levels.csv"), levels).expect("levels.csv");
+    assert!(drawn.next().is_none(), "every drawn name used");
+    // Which piano each token is: veiled in the page, plain in the key.
+    let mut table = String::new();
+    let of = [PIANOS[0], PIANOS[1], PIANOS[2], PIANOS[1], PIANOS[0]];
+    for (t, id) in tok.iter().zip(of) {
+        sep(&mut table);
+        let _ = write!(table, "{}:{}", js(t), js(id));
+    }
+    let table = format!("{{{table}}}");
+    let seed = (rng.next() >> 32) as u32 | 1;
+    let pair = |x: usize, y: usize| format!("[{},{}]", js(&tok[x]), js(&tok[y]));
+    let catch_js = |c: &(&str, usize, usize)| {
+        format!(
+            "{{phrase:{},one:{},two:{}}}",
+            js(c.0),
+            js(&tok[c.1]),
+            js(&tok[c.2])
+        )
+    };
+    let tests = format!(
+        "{{abx:{},pref:[{},{}],extra:{},catch:[{},{}]}}",
+        pair(0, 1),
+        pair(0, 1),
+        pair(0, 2),
+        pair(2, 0),
+        catch_js(&catch[0]),
+        catch_js(&catch[1]),
+    );
     let page = PAGE
+        .replace("__KIT__", &js(&kit))
         .replace("__PHRASES__", &format!("[{list}]"))
-        .replace("__FILES__", &format!("{{{files}}}"));
-    std::fs::write(dir.join("index.html"), page).expect("index.html");
-    std::fs::write(dir.join("README.md"), README_EN).expect("README.md");
-    std::fs::write(dir.join("LEEME.md"), README_ES).expect("LEEME.md");
-    eprintln!("the kit is in {} — open index.html", dir.display());
+        .replace("__FILES__", &format!("{{{files}}}"))
+        .replace("__TESTS__", &tests)
+        .replace("__SEED__", &seed.to_string())
+        .replace("__REVEAL__", &js(&names::veil(&table, seed)));
+    assert!(
+        !PLACEHOLDERS.iter().any(|p| page.contains(p)),
+        "every placeholder of the page filled"
+    );
+    std::fs::write(a.dir.join("index.html"), &page).expect("index.html");
+    std::fs::write(a.dir.join("README.md"), README_EN).expect("README.md");
+    std::fs::write(a.dir.join("LEEME.md"), README_ES).expect("LEEME.md");
+    bytes += (page.len() + README_EN.len() + README_ES.len()) as u64;
+    let created = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let opt = |o: &Option<String>| o.as_deref().map(js).unwrap_or_else(|| "null".into());
+    let key = format!(
+        "{{\n \"kit\": {},\n \"created\": {created},\n \"candidate\": {{\"name\": {}, \"spec_file\": {}, \"spec\": {}, \"partials\": {}, \"levels\": {}}},\n \"tokens\": {table},\n \"catch\": [{}, {}],\n \"files\": {{{key_files}}},\n \"bytes\": {bytes}\n}}\n",
+        js(&kit),
+        js(&a.name),
+        js(&a.spec_file),
+        js(&a.spec),
+        opt(&a.partials),
+        opt(&a.levels),
+        js(catch[0].0),
+        js(catch[1].0),
+    );
+    std::fs::write(a.key.join("key.json"), key).expect("key.json");
+    std::fs::write(a.key.join("levels.csv"), levels).expect("levels.csv");
+    eprintln!(
+        "kit {kit} ({}) in {} — {:.1} MB; the key in {}",
+        a.name,
+        a.dir.display(),
+        bytes as f64 / 1e6,
+        a.key.display()
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_page_has_every_placeholder() {
+        for p in super::PLACEHOLDERS {
+            assert!(super::PAGE.contains(p), "{p}");
+        }
+    }
+
+    #[test]
+    fn json_strings_escape() {
+        assert_eq!(super::js("a\"b\\c"), "\"a\\\"b\\\\c\"");
+    }
 }

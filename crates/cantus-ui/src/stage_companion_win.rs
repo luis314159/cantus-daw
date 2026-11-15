@@ -348,6 +348,7 @@ fn draw(
             vis: &sh.vis,
             hover: n.hover,
             scale,
+            ink: super::companion_view::companion_ink(&crate::kit::Style::current(), st.backdrop), // r40:cast
         };
         let drawn = draw_cached(pm, &scene, &mut n.chips);
         n.win.set_button(drawn.button);

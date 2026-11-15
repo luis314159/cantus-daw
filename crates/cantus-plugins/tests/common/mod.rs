@@ -687,6 +687,14 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("width", 1.2),
             ("mix", 0.6),
         ],
+        // r40:delay — synced (the host gives no tempo here: 120 BPM), an eighth triplet.
+        EffectKind::Delay => vec![
+            ("sync", 1.0),
+            ("note", 11.0),
+            ("feedback", 0.55),
+            ("tone_hz", 4_500.0),
+            ("mix", 0.6),
+        ],
         _ => vec![],
     }
 }
@@ -758,6 +766,8 @@ pub enum Direct {
     Wire,
     /// r39:conv — Aula, with the source and shape its kernel was built from.
     Aula(Box<cantus_dsp::aula::Aula>, (u64, [u32; 9])),
+    /// r40:delay — Delay, on the line its settings want.
+    Delay(Box<cantus_dsp::StereoDelay>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -819,6 +829,7 @@ impl Direct {
                 )),
                 cantus_engine::fx::aula::want(spec),
             ), // r39:conv
+            EffectKind::Delay => Direct::Delay(Box::new(cantus_dsp::StereoDelay::new(SR))),
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -864,6 +875,12 @@ impl Direct {
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
             Direct::Wire => {}
+            Direct::Delay(x) => {
+                x.set(&cantus_engine::delay_settings(spec));
+                if let Some(len) = x.need() {
+                    drop(x.supply(Box::new(cantus_dsp::delay::Lines::new(len))));
+                }
+            }
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
                 if *have != want {
@@ -904,6 +921,7 @@ impl Direct {
             Direct::Discrimen(x) => x.reset(),
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
+            Direct::Delay(x) => x.reset(),
         }
     }
 
@@ -933,6 +951,7 @@ impl Direct {
             Direct::Discrimen(x) => x.latency(),
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
+            Direct::Delay(_) => 0,
         }
     }
 
@@ -962,6 +981,7 @@ impl Direct {
             Direct::Discrimen(x) => x.process(l, r),
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
+            Direct::Delay(x) => x.process(l, r),
         }
     }
 }

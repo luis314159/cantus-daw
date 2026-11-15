@@ -287,8 +287,15 @@ pub fn render_with_progress(
         }
         done += n;
         progress.done.store(done as u64, Relaxed);
-        // Keep the event queue from filling (it is tiny on purpose).
-        while rx.pop().is_ok() {}
+        // Keep the event queue from filling (it is tiny on purpose). Memory an effect asks
+        // for while the song plays is built and sent, as the backend does (fix-a, A-M2):
+        // taken at the next block.
+        while let Ok(ev) = rx.pop() {
+            if let EngineEvent::EffectNeed { effect, need } = ev {
+                let memory = crate::effects::EffectMemory::build(need.need(), sr as f32);
+                tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+            }
+        }
     }
 
     // A streamed voice that could not be read offline (its file and its source unreadable,

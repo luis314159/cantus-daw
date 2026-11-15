@@ -54,4 +54,5 @@ pub fn page(app: &mut CantusApp, ui: &mut Ui) {
         }
     });
     note(ui, &t("clipfx.settings.insert_note"), false);
+    super::ripple_settings::rows(app, ui); // r40:ripple
 }

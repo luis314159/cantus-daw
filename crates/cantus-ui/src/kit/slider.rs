@@ -186,13 +186,49 @@ pub fn value_bar(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &BarLook
     };
     let ew = (s.k / px).round().max(1.0) * px;
     let ex = b.snap(at(look.pos) - ew * 0.5);
-    b.rect(
-        Rect::from_min_max(
-            Pos2::new(ex, inner.top()),
-            Pos2::new(ex + ew, inner.bottom()),
-        ),
-        Fill::Solid(edge_ink),
-    );
+    // r40:look — where the value's edge falls under the number and its unit (a value near
+    // the bar's end), no line is drawn there: the fill's own edge shows the value, and the
+    // figures read whole (review mid-round 40, C-2: stubs above and below "−3.5" read as a
+    // line through it). The same measure as the number painted below, with a hair either
+    // side.
+    let pad = s.s(8.0);
+    let num_w = {
+        let nt = Text::new(look.value, Role::Value, edge_ink).align(Align2::RIGHT_CENTER);
+        text::measure(b.ctx(), &nt, s.tk()).x + 1.0
+    };
+    let hair = s.s(3.0);
+    let under_number = ex + ew >= inner.right() - pad - num_w - hair && ex <= inner.right();
+    if !under_number {
+        b.rect(
+            Rect::from_min_max(
+                Pos2::new(ex, inner.top()),
+                Pos2::new(ex + ew, inner.bottom()),
+            ),
+            Fill::Solid(edge_ink),
+        );
+    } else {
+        // Under the figures the fill's edge alone was the value's mark, faint in a dark
+        // theme (review 2 of round 40, R2-B4): a notch at the bar's top and bottom edges
+        // points at it, a caret's height clear of the digits — a pointer, not a line.
+        let (half, deep) = (s.s(3.0), s.s(3.0));
+        let x = ex + ew * 0.5;
+        b.polygon(
+            &[
+                Pos2::new(x - half, inner.top()),
+                Pos2::new(x + half, inner.top()),
+                Pos2::new(x, inner.top() + deep),
+            ],
+            edge_ink,
+        );
+        b.polygon(
+            &[
+                Pos2::new(x - half, inner.bottom()),
+                Pos2::new(x, inner.bottom() - deep),
+                Pos2::new(x + half, inner.bottom()),
+            ],
+            edge_ink,
+        );
+    }
     if let Some((swing, live)) = look.swing.filter(|_| !st.disabled) {
         let band = s.s(3.0);
         let (bl, br) = (at(look.pos - swing), at(look.pos + swing));
@@ -212,7 +248,6 @@ pub fn value_bar(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &BarLook
             Fill::Solid(t.modulated),
         );
     }
-    let pad = s.s(8.0);
     let name_ink = if st.disabled { t.disabled } else { t.text };
     let name = Text {
         src: look.name,

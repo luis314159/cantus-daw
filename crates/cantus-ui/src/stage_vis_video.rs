@@ -82,6 +82,17 @@ pub struct VideoVis {
     start_seconds: f64,
 }
 
+thread_local! {
+    /// Analyses made on this thread ([`analyses_on_this_thread`]).
+    static ANALYSED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times [`analyse_from`] ran on this thread: an export analyses its render once
+/// (fix-c, R2-C4), whatever wants it.
+pub fn analyses_on_this_thread() -> u64 {
+    ANALYSED.with(|n| n.get())
+}
+
 /// Analyse interleaved `samples` (`channels`, `rate`; video time 0 at the first sample).
 pub fn analyse(samples: &[f32], channels: usize, rate: u32) -> Vec<[f32; BANDS]> {
     analyse_from(samples, channels, rate, 0)
@@ -93,6 +104,7 @@ pub fn analyse(samples: &[f32], channels: usize, rate: u32) -> Vec<[f32; BANDS]>
 /// sound is the same the bands are too. Instants whose window ends before the audio
 /// begins are silent (and not computed).
 pub fn analyse_from(samples: &[f32], channels: usize, rate: u32, offset: i64) -> Vec<[f32; BANDS]> {
+    ANALYSED.with(|n| n.set(n.get() + 1));
     let ch = channels.max(1);
     let frames = samples.len() / ch;
     let n = (((frames as i64 + offset.max(0)) as f64 / f64::from(rate)) * RATE).ceil() as usize + 1;
@@ -489,17 +501,16 @@ pub fn setup_for(
         .then(|| Setup::from_theme(&p.name, title_on, d.background.chroma().is_some()))
 }
 
-/// The visualiser of an export, its render analysed (`None`: off).
+/// The visualiser of an export from its render's analysis ([`analyse`], made once for it
+/// and for a dancer that hears the spectrum — `video_export::job::analysed`; `None`: off).
 pub fn for_render(
     setup: Option<Setup>,
-    audio: &cantus_export::Audio,
+    raw: Vec<[f32; BANDS]>,
     tempo: &TempoMap,
     from: Ticks,
 ) -> Option<VideoVis> {
-    let setup = setup?;
-    let raw = analyse(&audio.samples, audio.channels as usize, audio.rate);
     Some(VideoVis::new(
-        setup,
+        setup?,
         raw,
         tempo.clone(),
         tempo.seconds_at(from.0 as f64),

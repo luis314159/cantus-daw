@@ -17,8 +17,14 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
-/// Side of the atlas, in texels.
+/// Side of the atlas at its largest, in texels.
 pub const ATLAS: usize = 1024;
+/// r40:memory — the side it starts at (ADR 0120 §1). On the OpenGL driver of the
+/// scorecard's machine a texture costs about 2.7 times its size in private bytes (the
+/// driver keeps copies), and an idle window's layers fill a fraction of 1024²: the atlas
+/// starts at 512² and doubles, between passes, the first time a layer does not fit —
+/// never shrinking, so steady state never grows or resets again.
+pub const ATLAS_START: usize = 512;
 /// The white corner: 4 × 4 texels, sampled at its centre.
 const WHITE: usize = 4;
 /// Space kept around every layer so linear filtering never bleeds a neighbour in.
@@ -32,6 +38,8 @@ pub struct Stats {
     pub layers_rasterised: u64,
     pub layer_hits: u64,
     pub atlas_resets: u64,
+    /// Times the atlas doubled (r40:memory): at most log2(ATLAS / ATLAS_START) a session.
+    pub atlas_grown: u64,
     pub galley_hits: u64,
     pub galley_misses: u64,
     /// egui font atlases noticed rebuilt, so every laid-out text was dropped.
@@ -41,6 +49,11 @@ pub struct Stats {
 #[derive(Default)]
 pub struct KitCache {
     atlas: Option<TextureHandle>,
+    /// r40:memory — the atlas's side (0 before it is made) and the side a new one starts
+    /// at (0: [`ATLAS_START`]); `grow` asks the next pass for a doubled atlas.
+    side: usize,
+    start: usize,
+    grow: bool,
     shelf_y: usize,
     shelf_h: usize,
     cursor_x: usize,
@@ -160,6 +173,15 @@ impl KitCache {
             return;
         }
         self.pass = pass;
+        // r40:memory — a layer did not fit last pass: this pass draws on an atlas twice as
+        // wide and tall (a new texture; every brush takes it at `begin`), its layers drawn
+        // again as they are asked for.
+        if self.grow {
+            self.grow = false;
+            self.side = (self.side * 2).min(ATLAS);
+            self.atlas = None;
+            self.stats.atlas_grown += 1;
+        }
         // egui rebuilds its font atlas when it fills, when its text options change (a
         // dark↔light theme switch changes the colour transfer function) and when the font
         // definitions change; every galley laid out before then points at glyphs that
@@ -202,17 +224,24 @@ impl KitCache {
     /// The atlas texture and the uv of its white texel.
     pub fn atlas(&mut self, ctx: &Context) -> (egui::TextureId, Pos2) {
         if self.atlas.is_none() {
-            let mut img = ColorImage::filled([ATLAS, ATLAS], Color32::TRANSPARENT);
+            if self.side == 0 {
+                self.side = match self.start {
+                    0 => ATLAS_START,
+                    s => s.clamp(WHITE + 2 * PAD, ATLAS),
+                };
+            }
+            let side = self.side;
+            let mut img = ColorImage::filled([side, side], Color32::TRANSPARENT);
             for y in 0..WHITE {
                 for x in 0..WHITE {
-                    img.pixels[y * ATLAS + x] = Color32::WHITE;
+                    img.pixels[y * side + x] = Color32::WHITE;
                 }
             }
             self.atlas = Some(ctx.load_texture("cantus-kit-atlas", img, TextureOptions::LINEAR));
             self.reset_packer();
         }
         let id = self.atlas.as_ref().map(|t| t.id()).unwrap_or_default();
-        let w = WHITE as f32 * 0.5 / ATLAS as f32;
+        let w = WHITE as f32 * 0.5 / self.side as f32;
         (id, Pos2::new(w, w))
     }
 
@@ -223,17 +252,32 @@ impl KitCache {
         self.cursor_x = WHITE + PAD;
     }
 
+    /// The atlas's side now, in texels (r40:memory; [`ATLAS_START`] before it is made).
+    pub fn side(&self) -> usize {
+        if self.side == 0 {
+            ATLAS_START
+        } else {
+            self.side
+        }
+    }
+
+    /// Start a new atlas at `side` texels (tests and benches: 1024 draws as before ADR 0120).
+    pub fn start_at(&mut self, side: usize) {
+        self.start = side;
+    }
+
     fn pack(&mut self, w: usize, h: usize) -> Option<(usize, usize)> {
+        let side = self.side;
         let (w, h) = (w + 2 * PAD, h + 2 * PAD);
-        if w > ATLAS || h > ATLAS {
+        if w > side || h > side {
             return None;
         }
-        if self.cursor_x + w > ATLAS {
+        if self.cursor_x + w > side {
             self.shelf_y += self.shelf_h;
             self.shelf_h = 0;
             self.cursor_x = 0;
         }
-        if self.shelf_y + h > ATLAS {
+        if self.shelf_y + h > side {
             return None;
         }
         let at = (self.cursor_x + PAD, self.shelf_y + PAD);
@@ -260,6 +304,14 @@ impl KitCache {
         let (w, h) = (w.max(1), h.max(1));
         let spot = match self.pack(w, h) {
             Some(s) => s,
+            // r40:memory — room to grow: the next pass doubles the atlas, and this layer
+            // waits for it (one frame, once; the pass after draws it). At the largest side
+            // the atlas is cleared, as before.
+            None if self.side < ATLAS && w + 2 * PAD <= ATLAS && h + 2 * PAD <= ATLAS => {
+                self.grow = true;
+                ctx.request_repaint();
+                return None;
+            }
             None => {
                 self.stats.atlas_resets += 1;
                 self.reset_packer();
@@ -272,7 +324,7 @@ impl KitCache {
         if let Some(t) = self.atlas.as_mut() {
             t.set_partial([spot.0, spot.1], img, TextureOptions::LINEAR);
         }
-        let s = ATLAS as f32;
+        let s = self.side as f32;
         let uv = Rect::from_min_max(
             Pos2::new(spot.0 as f32 / s, spot.1 as f32 / s),
             Pos2::new((spot.0 + w) as f32 / s, (spot.1 + h) as f32 / s),

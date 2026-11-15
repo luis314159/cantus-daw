@@ -166,6 +166,9 @@ pub enum EngineMessage {
     /// Feed the analyser from this effect's input and output (the editor that is open), or
     /// stop feeding it.
     SetAnalyser(Option<EffectId>),
+    /// r40:pads — *Hear the key* (ADR 0118): the keyed insert whose key the strip plays in
+    /// place of its signal, or none. Monitor state: never saved, never in a render.
+    SetHearKey(Option<EffectId>),
     /// Copy these Speculums' signals into the scope rings (ADR 0056): entry `i` feeds ring
     /// `i`; `None` leaves a ring idle. Every frame of a watched slot reaches its ring.
     WatchScopes([Option<EffectId>; crate::fx::speculum::MAX_SCOPES]),

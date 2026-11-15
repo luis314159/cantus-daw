@@ -28,6 +28,12 @@ pub const PREVIEW_FPS: f64 = 30.0;
 #[derive(Default)]
 pub struct PickState {
     tiles: HashMap<String, (DanceTexture, i64, [u32; 2])>,
+    /// How far the tiles are scrolled when the cast is taller than the card (round 40:
+    /// twenty characters), in points; the wheel over the tiles and the scrollbar move it,
+    /// smoothly (review 2 of round 40, R2-B8).
+    pub scroll: f32,
+    /// The rows that do not fit the card, as last drawn (`scroll` goes up to their height).
+    pub hidden_rows: usize,
     /// Previews drawn (the budget's measure).
     pub draws: u64,
 }
@@ -134,6 +140,52 @@ pub fn fitting_side(rect: Rect, n: usize, gap: f32, min: f32, max: f32) -> f32 {
     min
 }
 
+/// The smallest tile the picker shows, at 100 %: below it the grid scrolls instead (round
+/// 40); scaled with the interface (`grid`'s `floor`).
+pub const MIN_SIDE: f32 = 48.0;
+
+/// How the tiles lie in a card: their side, columns, all the rows, and the rows seen.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Grid {
+    pub side: f32,
+    pub cols: usize,
+    pub rows: usize,
+    pub visible: usize,
+    pub row_h: f32,
+}
+
+/// The tiles' grid for `n` in `rect`: the largest side that fits them all, else `floor`
+/// ([`MIN_SIDE`] at the interface's scale) and as many rows as fit, the rest reached by
+/// scrolling.
+pub fn grid(rect: Rect, n: usize, gap: f32, min: f32, max: f32, floor: f32) -> Grid {
+    let side = fitting_side(rect, n, gap, min.max(floor), max).max(floor.min(max));
+    let cols = (((rect.width() + gap) / (side + gap)).floor() as usize).max(1);
+    let rows = n.div_ceil(cols);
+    let row_h = side + gap * 2.0 + side * 0.22;
+    let visible = (((rect.height() + gap) / row_h).floor() as usize).clamp(1, rows.max(1));
+    Grid {
+        side,
+        cols,
+        rows,
+        visible,
+        row_h,
+    }
+}
+
+/// Tile `i` of the grid in `rect` scrolled by `scroll` points: `None` when neither it nor
+/// its name shows in `rect` (one partly in view is placed, and clipped by the painter).
+pub fn placed(rect: Rect, g: &Grid, gap: f32, i: usize, scroll: f32) -> Option<Rect> {
+    let (c, r) = (i % g.cols, i / g.cols);
+    let top = rect.top() + r as f32 * g.row_h - scroll;
+    if top + g.row_h - gap <= rect.top() || top >= rect.bottom() {
+        return None;
+    }
+    Some(Rect::from_min_size(
+        Pos2::new(rect.left() + c as f32 * (g.side + gap), top),
+        Vec2::splat(g.side),
+    ))
+}
+
 /// The tiles in `rect`, each `side` points square, `gap` apart, in rows.
 pub fn tiles(rect: Rect, n: usize, side: f32, gap: f32) -> Vec<Rect> {
     let cols = (((rect.width() + gap) / (side + gap)).floor() as usize).max(1);
@@ -170,29 +222,71 @@ pub fn picker(
     let grid0 = Rect::from_min_max(rect.min, Pos2::new(rect.right(), rect.bottom() - words_h));
     let gap = s.s(6.0);
     let n = chars.len() + 1;
-    let side = fitting_side(grid0, n, gap, s.s(36.0), s.s(96.0));
-    // The tiles and the words under them as one block, centred in the card.
-    let cols = (((grid0.width() + gap) / (side + gap)).floor() as usize).max(1);
-    let rows = n.div_ceil(cols);
-    let tiles_h = rows as f32 * (side + gap * 2.0 + side * 0.22) - gap;
+    // The largest tiles that fit them all; past the smallest, the grid scrolls (r40:cast),
+    // its scrollbar the kit's, inside the card at its right, the tiles clear of it (R2-B8).
+    let (lo, hi, floor) = (s.s(36.0), s.s(96.0), s.s(MIN_SIDE));
+    let bar_w = s.s(8.0);
+    let mut g = grid(grid0, n, gap, lo, hi, floor);
+    let scrolls = g.rows > g.visible;
+    if scrolls {
+        let narrower = Rect::from_min_max(
+            grid0.min,
+            Pos2::new(grid0.right() - bar_w - gap, grid0.bottom()),
+        );
+        g = grid(narrower, n, gap, lo, hi, floor);
+    }
+    let side = g.side;
+    let tiles_h = g.visible as f32 * g.row_h - gap;
     let block = tiles_h + s.s(6.0) + words_h;
     let top = rect.top() + ((rect.height() - block) * 0.5).max(0.0);
+    let right = if scrolls {
+        rect.right() - bar_w - gap
+    } else {
+        rect.right()
+    };
     let grid = Rect::from_min_max(
         Pos2::new(rect.left(), top),
-        Pos2::new(rect.right(), (top + tiles_h).min(grid0.bottom())),
+        Pos2::new(right, (top + tiles_h).min(grid0.bottom())),
     );
-    let rects = tiles(grid, n, side, gap);
+    let content_h = g.rows as f32 * g.row_h - gap;
+    // Under half a point is a rounding of the card's height, not a row to scroll to.
+    let max_scroll = Some(content_h - grid.height())
+        .filter(|m| *m >= 0.5)
+        .unwrap_or(0.0);
+    {
+        let st = &mut app.inst.dancer.pick;
+        if max_scroll > 0.0 && ui.rect_contains_pointer(grid) {
+            st.scroll -= ui.input(|i| i.smooth_scroll_delta.y);
+        }
+        st.scroll = st.scroll.clamp(0.0, max_scroll);
+        // fix-c (R2-C3): how many rows the card cannot show, as last drawn.
+        st.hidden_rows = (max_scroll / g.row_h.max(1.0)).ceil() as usize;
+    }
+    if max_scroll > 0.0 {
+        let bar = Rect::from_min_max(
+            Pos2::new(rect.right() - bar_w, grid.top()),
+            Pos2::new(rect.right(), grid.bottom()),
+        );
+        let st = &mut app.inst.dancer.pick;
+        let mut start = st.scroll / content_h;
+        let len = grid.height() / content_h;
+        crate::kit::widgets::scrollbar(ui, bar, ui.id().with("dance-pick-scroll"), &mut start, len);
+        st.scroll = (start * content_h).clamp(0.0, max_scroll);
+        app.inst.dancer.placed.insert("pick.scroll", bar);
+    }
+    let scroll = app.inst.dancer.pick.scroll;
+    let rects: Vec<Option<Rect>> = (0..n).map(|i| placed(grid, &g, gap, i, scroll)).collect();
+    // What shows of a tile partly scrolled out: the grid's band, a hair wider for strokes.
+    let view = grid.expand2(Vec2::new(s.s(3.0), 0.0));
     let ppp = ui.ctx().pixels_per_point();
     let frame_no = (wall * PREVIEW_FPS).floor() as i64;
     let pose_frame = preview_frame(spec, frame_no as f64 / PREVIEW_FPS);
     for (ch, r) in chars.iter().zip(&rects) {
-        // Never outside the card (more characters than fit at the smallest side).
-        if r.bottom() > grid.bottom() + 1.0 {
-            continue;
-        }
+        // Scrolled out of view.
+        let Some(r) = r else { continue };
         let id = ch.info().id.clone();
         let resp = ui.interact(
-            *r,
+            r.intersect(grid),
             ui.id().with(("dance-pick", id.as_str())),
             Sense::click(),
         );
@@ -221,60 +315,77 @@ pub fn picker(
             st.draws += 1;
             let mut stage = Stage::new(px[0], px[1], Background::Transparent);
             stage.standard_height = 0.74;
+            // The Slate cast cuts its pieces in the tile's colour (r40:cast).
+            stage.ink = crate::dance_texture::stage_ink(&s.t, mix(s.t.deck, s.t.ink, 0.35));
             let pose = pose_at(&pose_frame, ch.as_ref(), wall);
             entry.0.draw(ui.ctx(), &stage, &[(ch.as_ref(), pose)])
         };
         let on = id == chosen;
         let state = KitState::of(&resp, on);
+        // The name under the tile, across its cell (the tile and the gap beside it: the
+        // neighbours' names never meet), in the label's size — a smaller one when the name
+        // is longer than that, as "Metrónomo" under the smallest tiles (review 2 of round
+        // 40); elided only if even that cannot hold it.
         let label = Rect::from_min_size(
-            Pos2::new(r.left(), r.bottom() + gap * 0.5),
-            Vec2::new(r.width(), side * 0.22),
+            Pos2::new(r.left() - gap * 0.5, r.bottom() + gap * 0.5),
+            Vec2::new(r.width() + gap, side * 0.22),
         );
-        with_brush(&ui.painter_at(r.union(label).expand(s.s(3.0))), |b| {
-            let base = mix(s.t.deck, s.t.ink, 0.35);
-            let fill = if state.hovered {
-                mix(base, s.hue, 0.10)
-            } else {
-                base
-            };
-            b.rrect(*r, s.r(6.0), Fill::V(mix(fill, s.hue, 0.06), fill));
-            // A pool of light under its feet.
-            b.radial(
-                *r,
-                Pos2::new(r.center().x, r.top() + r.height() * 0.9),
-                Vec2::new(r.width() * 0.36, r.height() * 0.07),
-                &[
-                    (0.0, with_alpha(s.hue, if on { 0.45 } else { 0.22 })),
-                    (1.0, with_alpha(s.hue, 0.0)),
-                ],
-                6,
-            );
-            if let Some(tex) = tex {
-                b.foreign(tex, *r);
-            }
-            if on {
-                b.rrect_stroke(r.expand(s.s(1.5)), s.r(7.0), s.s(2.0), s.hue);
-            } else if state.hovered {
-                b.rrect_stroke(*r, s.r(6.0), s.s(1.0), with_alpha(s.hue, 0.6));
-            }
-            let _ = ktext::paint(
-                b,
-                label,
-                &Text::new(&name, Role::Label, if on { s.t.text } else { s.t.label })
-                    .caps(false)
-                    .align(Align2::CENTER_CENTER)
-                    .policy(Policy::Elide(ktext::Elide::End)),
-                s.tk(),
-            );
-        });
+        let ink = if on { s.t.text } else { s.t.label };
+        let mut role = Role::Label;
+        let named = |role| {
+            Text::new(&name, role, ink)
+                .caps(false)
+                .align(Align2::CENTER_CENTER)
+                .policy(Policy::Elide(ktext::Elide::End))
+        };
+        if ktext::measure(ui.ctx(), &named(role), s.tk()).x > label.width() {
+            role = Role::Micro;
+        }
+        let name_text = named(role);
+        with_brush(
+            &ui.painter_at(r.union(label).expand(s.s(3.0)).intersect(view)),
+            |b| {
+                let base = mix(s.t.deck, s.t.ink, 0.35);
+                let fill = if state.hovered {
+                    mix(base, s.hue, 0.10)
+                } else {
+                    base
+                };
+                b.rrect(*r, s.r(6.0), Fill::V(mix(fill, s.hue, 0.06), fill));
+                // A pool of light under its feet.
+                b.radial(
+                    *r,
+                    Pos2::new(r.center().x, r.top() + r.height() * 0.9),
+                    Vec2::new(r.width() * 0.36, r.height() * 0.07),
+                    &[
+                        (0.0, with_alpha(s.hue, if on { 0.45 } else { 0.22 })),
+                        (1.0, with_alpha(s.hue, 0.0)),
+                    ],
+                    6,
+                );
+                if let Some(tex) = tex {
+                    b.foreign(tex, *r);
+                }
+                if on {
+                    b.rrect_stroke(r.expand(s.s(1.5)), s.r(7.0), s.s(2.0), s.hue);
+                } else if state.hovered {
+                    b.rrect_stroke(*r, s.r(6.0), s.s(1.0), with_alpha(s.hue, 0.6));
+                }
+                let _ = ktext::paint(b, label, &name_text, s.tk());
+            },
+        );
         app.inst.dancer.placed.insert("pick", *r);
-        if Some(r) == rects.first() {
+        if Some(&Some(*r)) == rects.first() {
             app.inst.dancer.placed.insert("pick.first", *r);
         }
     }
     {
-        if let Some(r) = rects.last() {
-            let resp = ui.interact(*r, ui.id().with("dance-import"), Sense::click());
+        if let Some(Some(r)) = rects.last() {
+            let resp = ui.interact(
+                r.intersect(grid),
+                ui.id().with("dance-import"),
+                Sense::click(),
+            );
             if resp.hovered() {
                 hint::set_text(
                     ui.ctx(),
@@ -289,35 +400,38 @@ pub fn picker(
                 Pos2::new(r.left() - gap * 0.5, r.bottom() + gap * 0.5),
                 Vec2::new(r.width() + gap, side * 0.22),
             );
-            with_brush(&ui.painter_at(r.union(label).expand(s.s(3.0))), |b| {
-                let line = if state.hovered { s.hue } else { s.t.label };
-                b.rrect_stroke(*r, s.r(6.0), s.s(1.0), with_alpha(line, 0.8));
-                let c = r.center();
-                let arm = r.width() * 0.16;
-                b.segment(
-                    c - Vec2::new(arm, 0.0),
-                    c + Vec2::new(arm, 0.0),
-                    s.s(2.0),
-                    line,
-                    true,
-                );
-                b.segment(
-                    c - Vec2::new(0.0, arm),
-                    c + Vec2::new(0.0, arm),
-                    s.s(2.0),
-                    line,
-                    true,
-                );
-                let _ = ktext::paint(
-                    b,
-                    label,
-                    &Text::new(&t("dance.import.tile"), Role::Label, line)
-                        .caps(false)
-                        .align(Align2::CENTER_CENTER)
-                        .policy(Policy::Elide(ktext::Elide::End)),
-                    s.tk(),
-                );
-            });
+            with_brush(
+                &ui.painter_at(r.union(label).expand(s.s(3.0)).intersect(view)),
+                |b| {
+                    let line = if state.hovered { s.hue } else { s.t.label };
+                    b.rrect_stroke(*r, s.r(6.0), s.s(1.0), with_alpha(line, 0.8));
+                    let c = r.center();
+                    let arm = r.width() * 0.16;
+                    b.segment(
+                        c - Vec2::new(arm, 0.0),
+                        c + Vec2::new(arm, 0.0),
+                        s.s(2.0),
+                        line,
+                        true,
+                    );
+                    b.segment(
+                        c - Vec2::new(0.0, arm),
+                        c + Vec2::new(0.0, arm),
+                        s.s(2.0),
+                        line,
+                        true,
+                    );
+                    let _ = ktext::paint(
+                        b,
+                        label,
+                        &Text::new(&t("dance.import.tile"), Role::Label, line)
+                            .caps(false)
+                            .align(Align2::CENTER_CENTER)
+                            .policy(Policy::Elide(ktext::Elide::End)),
+                        s.tk(),
+                    );
+                },
+            );
             app.inst.dancer.placed.insert("import", *r);
             if resp.clicked() {
                 super::import_character(app, track);

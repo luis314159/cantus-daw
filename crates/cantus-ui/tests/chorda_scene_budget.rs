@@ -388,8 +388,12 @@ fn a_bake_is_bounded_by_the_texture_side_and_the_samples_cap() {
     );
 }
 
-/// Review #5: the whole scene card (the pickers, the caption, the hint) at rest allocates
-/// next to nothing beyond an empty panel.
+/// Review #5: the whole scene card (the pickers, the room's plate, the caption, the hint)
+/// at rest allocates next to nothing beyond an empty panel that lays out the same two
+/// child areas. Measured (round 40 phase 3, a bisection of the card): its widgets
+/// allocate nothing at rest; each child `Ui` costs egui an allocation a frame (its
+/// `UiStack`) — the card keeps to two, one per corner, and its spacing is a style made
+/// once (setting a child's spacing copies the whole style each frame).
 #[test]
 fn the_scene_card_at_rest_allocates_next_to_nothing() {
     use cantus_core::{InstrumentSpec, NativeSpec, Project};
@@ -416,6 +420,11 @@ fn the_scene_card_at_rest_allocates_next_to_nothing() {
                 egui::CentralPanel::default().show(root, |ui| {
                     if card {
                         cantus_ui::views::inst::chorda::scene_card_for_tests(app, ui, track, rect);
+                    } else {
+                        // The same two child areas, empty.
+                        for _ in 0..2 {
+                            let _ = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+                        }
                     }
                 });
             })

@@ -10,10 +10,17 @@ use std::path::PathBuf;
 
 include!(concat!(env!("OUT_DIR"), "/baked.rs"));
 
+/// A measurement build's heap census (ADR 0120 §1): never in a release.
+#[cfg(all(feature = "census", windows))]
+#[global_allocator]
+static CENSUS: cantus_rt::census::Census = cantus_rt::census::Census;
+
 fn main() -> anyhow::Result<()> {
     // Before any window: the taskbar identity the installer's shortcuts carry too, so a
     // Cantus started by the launcher groups (and pins) under its shortcut.
     let app_id = cantus_launch::set_app_id();
+    #[cfg(all(feature = "census", windows))]
+    cantus_rt::census::report_to_env();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     log::info!("cantus {} ({})", cantus_ui::APP_VERSION, build_level());
     if let Err(hr) = app_id {

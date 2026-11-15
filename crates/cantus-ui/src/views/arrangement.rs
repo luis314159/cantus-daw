@@ -195,6 +195,8 @@ pub struct ArrangementView {
     pub grid_auto: bool,
     /// A tool's gesture in progress (a clip drawn, a sweep, a range to zoom to).
     gesture: Option<tools::Gesture>,
+    /// r40:ripple — the ripple mode (ADR 0116 §4): view state, off at start.
+    pub ripple: cantus_core::ripple_mode::RippleMode,
 }
 
 /// What the painters reuse from frame to frame.
@@ -334,6 +336,7 @@ impl Default for ArrangementView {
             empty: Default::default(),
             show_sections: true,
             tool: tools::Tool::Select,
+            ripple: Default::default(), // r40:ripple
             follow: true,
             follow_last: None,
             grid_auto: false,
@@ -1711,6 +1714,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         // pointer finds (des-arrange: nothing is drawn on a clip until then); the tools'.
         edge_light(b, &app.arrangement, hits.hover, hits.anchor, s);
         tools::paint(b, app, view, f.lanes, hits.hover, pointer, s);
+        ruler::sections::overlay(b, app, view, f.lanes, s); // r40:ripple
     });
     rec::paint_live_waves(&lanes_p, app, view, f.lanes, s);
     let hit = hits.hover;
@@ -1948,6 +1952,12 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         .menu_clip
         .filter(|(t, c)| app.project().track(*t).and_then(|t| t.clip(*c)).is_some());
     let handle_menu = app.arrangement.audio.menu;
+    // r40:ripple — a right-click inside the time selection is about the selection, even over
+    // a clip (Cubase's range): its menu leads with Insert time and Delete time.
+    let in_time = app.time_selection.is_some_and(|(a, b)| {
+        app.warp.menu_tick.is_some_and(|t| t >= a && t < b) && app.arrangement.menu_at.is_none()
+    });
+    let menu_target = menu_target.filter(|_| !in_time);
     let popup = egui::Popup::context_menu(&resp);
     let popup = if by_key.is_some() {
         popup.open_memory(Some(egui::containers::SetOpenCommand::Bool(true)))
@@ -2340,7 +2350,23 @@ fn menu(app: &mut CantusApp, ui: &mut egui::Ui, entries: &[Entry<'_>]) -> Option
 /// right-click (its *Paste* lands where the menu was opened); the ▸ menu pastes at the
 /// playhead, as the keys do.
 fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
-    let _ = timeline_menu_after(app, ui, at_pointer, &[]);
+    use crate::keymap::Action;
+    // r40:ripple — the time selection's own entries first (ADR 0116): insert and delete
+    // its time on every track.
+    let time = [
+        Entry::Band("ripple.menu.band"),
+        Entry::Run(Action::InsertTime, "ripple.menu.insert"),
+        Entry::Run(Action::DeleteTime, "ripple.menu.delete"),
+        Entry::Separator,
+    ];
+    let before: &[Entry<'_>] = if app.time_selection.is_some() {
+        &time
+    } else {
+        &[]
+    };
+    if timeline_menu_after(app, ui, at_pointer, before).is_some() {
+        ui.close();
+    }
 }
 
 /// r39:lo-arrange — the tool row's panel menu (dir-a's "…"): what the old row's keys did to
@@ -2348,7 +2374,9 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
 /// delete), the time selection's two, the snap, then the timeline's own entries — one menu.
 pub(super) fn panel_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
     use crate::keymap::Action;
+    use cantus_core::ripple_mode::RippleMode;
     let snap = app.arrangement.snap;
+    let ripple = app.arrangement.ripple; // r40:ripple
     let entries = [
         Entry::Band("arrange.panel.clips"),
         Entry::Run(Action::SplitClip, "clip.split"),
@@ -2363,11 +2391,25 @@ pub(super) fn panel_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
         Entry::Run(Action::LoopToSelection, "action.loop-to-selection"),
         Entry::Run(Action::ZoomToSelection, "action.zoom-to-selection"),
         Entry::Toggle("arrange.panel.snap", snap),
+        // r40:ripple (ADR 0116).
+        Entry::Run(Action::InsertTime, "ripple.menu.insert"),
+        Entry::Run(Action::DeleteTime, "ripple.menu.delete"),
+        // The ripple mode, as its key cycles it (the tool row's key is its sign).
+        Entry::Band("ripple.menu.mode"),
+        Entry::Toggle("ripple.menu.off", ripple == RippleMode::Off),
+        Entry::Toggle("ripple.menu.track", ripple == RippleMode::Track),
+        Entry::Toggle("ripple.menu.all", ripple == RippleMode::All),
         Entry::Separator,
     ];
     match timeline_menu_after(app, ui, false, &entries) {
         Some(12) => {
             app.arrangement.snap = !snap;
+            ui.close();
+        }
+        // r40:ripple
+        Some(i @ 16..=18) => {
+            let mode = [RippleMode::Off, RippleMode::Track, RippleMode::All][i - 16];
+            app.set_ripple(mode);
             ui.close();
         }
         Some(_) => ui.close(),

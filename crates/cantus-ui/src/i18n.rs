@@ -154,6 +154,12 @@ impl Locale {
                 include_str!("../locales/areas/ux_panels.en.txt"), // r39:ux-b
                 include_str!("../locales/areas/arrange.en.txt"), // r39:el-arrange
                 include_str!("../locales/areas/lo_arrange.en.txt"), // r39:lo-arrange
+                include_str!("../locales/areas/ripple.en.txt"), // r40:ripple
+                include_str!("../locales/areas/owner_look.en.txt"), // r40:look
+                include_str!("../locales/areas/pads.en.txt"),   // r40:pads
+                include_str!("../locales/areas/tympanum.en.txt"), // r40:p3
+                include_str!("../locales/areas/chorda_source.en.txt"), // r40:p3
+                include_str!("../locales/areas/inst_mixer.en.txt"), // r40:p3
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -274,12 +280,22 @@ impl Locale {
                 include_str!("../locales/areas/ux_panels.es.txt"), // r39:ux-b
                 include_str!("../locales/areas/arrange.es.txt"), // r39:el-arrange
                 include_str!("../locales/areas/lo_arrange.es.txt"), // r39:lo-arrange
+                include_str!("../locales/areas/ripple.es.txt"), // r40:ripple
+                include_str!("../locales/areas/owner_look.es.txt"), // r40:look
+                include_str!("../locales/areas/pads.es.txt"),   // r40:pads
+                include_str!("../locales/areas/tympanum.es.txt"), // r40:p3
+                include_str!("../locales/areas/chorda_source.es.txt"), // r40:p3
+                include_str!("../locales/areas/inst_mixer.es.txt"), // r40:p3
             ],
         }
     }
 }
 
-type Table = HashMap<&'static str, String>;
+// r40:memory — a locale's table is parsed the first time that locale is read (ADR 0120 §5):
+// an English session never parses Spanish, a Spanish one parses English only if a key is
+// missing (none is: the test below). A value borrows the bundled text unless it holds an
+// escape. Areas are still listed in `sources`; only the parsing changed.
+type Table = HashMap<&'static str, std::borrow::Cow<'static, str>>;
 
 fn parse(source: &'static str) -> Table {
     let mut table = HashMap::new();
@@ -289,26 +305,39 @@ fn parse(source: &'static str) -> Table {
             continue;
         }
         if let Some((k, v)) = line.split_once('=') {
-            table.insert(k.trim(), v.trim().replace("\\n", "\n"));
+            let v = v.trim();
+            let v = if v.contains("\\n") {
+                std::borrow::Cow::Owned(v.replace("\\n", "\n"))
+            } else {
+                std::borrow::Cow::Borrowed(v)
+            };
+            table.insert(k.trim(), v);
         }
     }
     table
 }
 
-fn tables() -> &'static HashMap<Locale, Table> {
-    static TABLES: OnceLock<HashMap<Locale, Table>> = OnceLock::new();
-    TABLES.get_or_init(|| {
-        Locale::ALL
-            .into_iter()
-            .map(|l| {
-                let mut table = Table::new();
-                for source in l.sources() {
-                    table.extend(parse(source));
-                }
-                (l, table)
-            })
-            .collect()
+/// `locale`'s table, parsed on first use.
+fn table(locale: Locale) -> &'static Table {
+    static TABLES: [OnceLock<Table>; Locale::ALL.len()] =
+        [const { OnceLock::new() }; Locale::ALL.len()];
+    TABLES[locale as usize].get_or_init(|| {
+        PARSED[locale as usize].store(true, std::sync::atomic::Ordering::Relaxed);
+        let mut table = Table::new();
+        for source in locale.sources() {
+            table.extend(parse(source));
+        }
+        table
     })
+}
+
+static PARSED: [std::sync::atomic::AtomicBool; Locale::ALL.len()] =
+    [const { std::sync::atomic::AtomicBool::new(false) }; Locale::ALL.len()];
+
+/// Whether `locale`'s table has been parsed in this process (`memory_e2e`: a session in one
+/// language parses that one).
+pub fn parsed(locale: Locale) -> bool {
+    PARSED[locale as usize].load(std::sync::atomic::Ordering::Relaxed)
 }
 
 fn current() -> &'static RwLock<Locale> {
@@ -395,29 +424,20 @@ pub fn default_thread_locale(locale: Locale) {
 /// Look up a key. Falls back to English, then to the key itself (never panics: a missing
 /// translation must never take the DAW down).
 pub fn t(key: &str) -> String {
-    let tables = tables();
-    if let Some(v) = tables.get(&locale()).and_then(|t| t.get(key)) {
-        return v.clone();
-    }
-    if let Some(v) = tables.get(&Locale::En).and_then(|t| t.get(key)) {
-        return v.clone();
-    }
-    key.to_string()
+    t_in(locale(), key)
 }
 
 /// Whether `locale`'s own table has `key` (no English stand-in).
 pub fn has(locale: Locale, key: &str) -> bool {
-    tables().get(&locale).is_some_and(|t| t.contains_key(key))
+    table(locale).contains_key(key)
 }
 
 /// A key's text in `locale` (English when that language lacks it, else the key).
 pub fn t_in(locale: Locale, key: &str) -> String {
-    let tables = tables();
-    tables
-        .get(&locale)
-        .and_then(|t| t.get(key))
-        .or_else(|| tables.get(&Locale::En).and_then(|t| t.get(key)))
-        .cloned()
+    table(locale)
+        .get(key)
+        .or_else(|| table(Locale::En).get(key))
+        .map(|v| v.to_string())
         .unwrap_or_else(|| key.to_string())
 }
 
@@ -459,15 +479,25 @@ mod tests {
 
     #[test]
     fn every_locale_has_every_english_key() {
-        let tables = tables();
-        let en = &tables[&Locale::En];
+        let en = table(Locale::En);
         for l in Locale::ALL {
-            let table = &tables[&l];
+            let table = table(l);
             let missing: Vec<_> = en.keys().filter(|k| !table.contains_key(*k)).collect();
             assert!(missing.is_empty(), "{l:?} is missing {missing:?}");
             let extra: Vec<_> = table.keys().filter(|k| !en.contains_key(*k)).collect();
             assert!(extra.is_empty(), "{l:?} has extra keys {extra:?}");
         }
+    }
+
+    /// r40:memory — a value is borrowed from the bundled text unless it holds an escaped
+    /// line break, which still becomes a real one.
+    #[test]
+    fn an_escaped_line_break_is_a_line_break() {
+        let v = t_in(Locale::En, "stage.obs.transparent");
+        assert!(v.contains("\n1. ") && !v.contains("\\n"), "{v:?}");
+        let parsed = parse("a = one\\ntwo\nb = plain");
+        assert_eq!(parsed["a"], "one\ntwo");
+        assert!(matches!(parsed["b"], std::borrow::Cow::Borrowed("plain")));
     }
 
     #[test]

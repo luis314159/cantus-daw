@@ -90,6 +90,15 @@ owner's machine (FL Studio 24.1.2 is).
     (≈ 2–3 weeks); CLAP `CLAP_EVENT_MIDI2` out (≈ 1 week); per-note controllers beyond
     bend, pressure and timbre (≈ 1 week, a schema bump).*
 - **Tuning**: microtonal scales (Scala files, MTS-ESP), per-note tuning in the piano roll.
+  - *Round 40 (the owner, 2026-11-13): microtuning for Chorda and Tympanum, for professionals, as an
+    advanced option (designed; proposed for round 41, `docs/next-session.md`). One project tuning
+    every pitched instrument follows, with a per-instrument override; Scala `.scl`/`.kbm` and
+    MTS-ESP (client and master), tested with outside files and dumps. Chorda: diapason, historical
+    temperaments rotated to any key and presets by key, stretch as a technician tunes it, unison
+    width per register, a per-key editor with a strobe tuner, recorded pianos resampled per zone.
+    Tympanum: each piece in semitones and cents shown as Hz and note, the two heads' tension apart,
+    the toms tuned to the song's key, cymbal size or pitch. Default equal temperament at 440 Hz,
+    null to the bit; about one builder-round and a half.*
 - **Hardware integration**: external instruments and external effect inserts with
   automatic latency ping, CV/gate out through DC-coupled interfaces, per-device I/O presets.
 - **Collaboration and safety of work**: project versions and snapshots (a history you can
@@ -727,6 +736,34 @@ vocals — then what blind comparisons demand, then build cost on what exists):
   6 kHz on loud and high phrases, −10 dB at 3–4 kHz on soft ones; and the top phrase's
   stereo almost uncorrelated (0.01 against 0.21). The owner chose to work on these before
   taking the ABX; a fourth kit follows when they close.
+  **Round 40: candidate 16 ships as the default** (`DSP_VERSION` 7, ADR 0098's third
+  amendment; the owner, 2026-11-14: *"Ship to master with Chorda's newest version (if it's
+  the best) — but keep in the backlog listening and doing the ABX evaluation"*). It meets
+  his bar in measures only (`docs/round40/chorda.md`, *Candidate 16*); nobody has heard it.
+- **The owner's listening and blind ABX of Chorda's shipped default (candidate 16) against
+  the Salamander** (round 40, owner 2026-11-14): the kit is published
+  (https://claude.ai/artifact/Jpwa91Tz4V8rbcRrgiXMKg; offline FLAC zip
+  `compartir\cantus-chorda-abx16.zip` for listeners outside the organisation; the preview
+  `compartir\chorda-preview-16\`): the seven phrases, ABX (16 trials, binomial p), the
+  preference per phrase and *"recording or synthesis?"*, by the owner and the listeners he
+  hands it to. **Done when** his verdict and theirs are in `docs/round41/` (or the next
+  round's) with the numbers: if the Salamander is still told apart and preferred, his words
+  aim the next voicing pass (the knobs are merged; a new default is one commit:
+  `DSP_VERSION` bump, the pins, ADR 0098); if not, Chorda's sound is called done.
+- **Tympanum's blind listening kit and the owner's verdict** (round 40, owner 2026-11-14:
+  *"the same for Tympanum"*): Tympanum is in the picker since round 40's close, its sound not
+  yet judged blind. Build a kit like `chorda_abx` (`examples/tympanum_abx`, offline HTML,
+  opaque salted file names, loudness-matched, a catch trial of a file against itself): each
+  **modelled kit against the recorded kit it was measured from** (the studio kit against
+  DRSKit, the jazz kit against Virtuosity) **piece by piece** (kick, snare centre and rim,
+  hats closed and open, toms, ride, crash, at three velocities) **and in a groove** (the same
+  MIDI through both, every mic and the room), the generated and the *Hybrid* voice each; ABX
+  (16 trials, binomial p), preference, and *"recording or synthesis?"* per item. Published
+  for the owner and his listeners as Chorda's is. **Done when** the owner's verdict is
+  recorded with the numbers; Tympanum's sound is not called done before it (b11 passes 71 of
+  162 measured checks; what still fails is in `docs/round40/tymp-engine.md`). After his
+  verdict: a demo song that plays it and its mix presets (ADR 0101's floor; both held open by
+  name in `demos.rs` and `preset_audit.rs`), and its picker thumbnail with its stage baked.
 - **Sectio's onsets: a learned model** (round 37, ADR 0099) <!-- r37:integration -->: the
   brief's *≥ 95 % of slice points within 10 ms of hand annotation* is **not met** — 91.9 % on
   50 loops rendered by Cantus, 75.8 % on MDB Drums' 5 956 hand-annotated hits (88 % within
@@ -1161,6 +1198,38 @@ measurement or been decided against with the reason written down.
   of the units (no migration needed, schema 57 not taken); a kind-level calibration was
   measured and not made.
 - Demo songs by real musicians, and template projects per genre.
+- **Chorda's added and movable microphones (the owner, 2026-11-12: after Chorda 3)**: on the
+  modelled piano, *Add a microphone* and each mic's pattern, distance, aim and height (as
+  Tympanum's modelled kits do in round 40), drawn in the scene where it stands; round 40's
+  mixer has only Hammers, Player, Audience, Room and Mechanics. First the model must sound
+  like the Salamander.
+- **Photographic pictures on the GPU, CPU as fallback (the owner, 2026-11-12)** — analysis in
+  round 40's `research-p3/gpu-scenes.md`: option B, **wgpu on its own headless device on the
+  scene worker**, as another `PixelBackend` wrapping the CPU one (safe API, `forbid(unsafe_code)`,
+  Metal/DX12/Vulkan/GL, ~4–8 MB binary); expected 7–20× end to end (full bake ~60–150 ms on the
+  owner's 680M), so a glide shows the full picture. Setting *Auto · GPU · CPU*; lazy start (first
+  bake on CPU while the GPU warms); Auto uses the low-power adapter (never wakes a dGPU — DPC
+  latency); a self-test against CPU per adapter+driver and a crash mark; dispatches far under
+  the 2-s TDR, a hard cap on the BVH loop; any error/time-out reruns on CPU; buffers freed after
+  each bake, device dropped after ~30 s idle. Goldens stay on CPU; GPU compared by tolerance,
+  bit-identical with itself. **Gate first (2–3 days)**: a headless-wgpu memory/timing probe per
+  backend (go if a dropped device leaves ≤ ~10 MB, full bake ≤ ~150 ms, no new xruns), else
+  faster CPU code instead (SIMD shading, fewer reflection rays). Port ~14–20 builder-days, round
+  41–42, after the owner approves the Photographic look. Drawn stays on CPU.
+- **Tympanum's Grooves (the owner, 2026-11-12: "después")**: a library of played MIDI grooves
+  for the acoustic drummer (round 40 phase 3) — browse by style, tempo and feel, tap a rhythm
+  to find one, drag to the arrangement, variations and fills per section; grooves written by
+  us (CC0) or CC0/CC BY sources only.
+- **Recorded pianos inside Chorda (the owner, 2026-11-12)**: "¿podríamos agregarlo como opción
+  también adentro de Chorda de manera descargable?" Chorda's model menu offers, beside its
+  modelled pianos, the downloadable recorded ones (the Salamander Grand · 8 or 16 layers, later
+  others): chosen and not installed, the menu says its size (*Obtener · 742 MB*) and installs it
+  from the pack; installed, the track plays it through Exemplar's engine with Chorda's face, its
+  controls that apply (dynamics curve, tone, release, room, stereo width) and the same preset
+  slots, so going between modelled and recorded keeps the notes, the automation that maps and
+  the mixer strip, undoable. Nothing is downloaded by default (ADR 0030). Needs an ADR (who
+  owns the sound: a Chorda "source" over Exemplar's sample engine, not a copy of it) and an
+  e2e test through assemble with a synthetic pack in the Salamander's layout.
 - **CC BY content (ADR 0042, the owner, 2026-10-10)**: CC0 *and* CC BY 3.0/4.0 packs are
   accepted, with the credit always shown (NC, ND, SA still refused). To do in
   `cantus-content`: the manifest test accepts `CC-BY-3.0`/`CC-BY-4.0` and requires a credit
@@ -1941,6 +2010,35 @@ What Cantus adds to the research's plan:
    the lyric editing and the cache; (d) more languages; (e) a model of our own only if
    (a)–(d) show it is needed.
 
+**Audimee-class voice tools (the owner, 2026-11-12: "algo como Audimee … generar voces con letras
+y afinaciones y tipos de voces").** Audimee (audimee.com) is a web service for AI vocals: voice
+**conversion** (a sung or hummed take re-sung by another voice model), a library of royalty-free
+**voice models** (male/female, styles; ~10–13 on its free tier, 100+ paid, new ones weekly),
+**harmonies** generated from one vocal (presets and manual intervals), **custom voice training**
+from the user's own recordings, and vocal isolation; Starter ~$12/month with commercial rights
+(third-party listings, 2026; confirm on its pricing page). Note-and-lyric *synthesis* is ACE
+Studio 2 / Synthesizer V 2 territory (above); Audimee is *conversion*. **The owner prefers the
+ACE Studio / Synthesizer V way (2026-11-12): notes + lyrics → a sung voice comes first** (the
+*Vox* instrument above, with its voice types and expression); conversion and harmonies follow,
+sharing its voice models. Cantus should do both, inside the DAW and free:
+1. **Voice conversion on any audio clip or track**: *Re-sing with…* a voice model, keeping
+   the take's timing, pitch (or the pitch editor's corrected pitch, ADR 0054) and phrasing;
+   offline in the background with a cache, as item 2 above; dry/wet and formant/gender controls.
+2. **Harmonies from one vocal**: choose intervals or follow the chord track (diatonic to the
+   key), each harmony on its own track/strip, a voice model per part, humanised timing and
+   pitch drift per part, a *Harmony stack* preset (3rds, 5ths, octave, choir-wide).
+3. **Voice types**: a browser of voice models by range (soprano … bass), gender, style
+   (pop, soul, choir, rap, lyrical) and language, each auditioned on the user's own phrase;
+   only voices with redistributable licences and the singers' written consent (provenance
+   cards, ADR 0042), downloaded on demand.
+4. **Your own voice**: train a model from the user's recordings on the user's machine
+   (consent screen; only their own voice or one they have rights to; never uploaded).
+5. **Lyrics and pitch**: the *Vox* instrument above (notes + lyrics → voice), sharing the
+   voice models with conversion, so a part can be written as notes or sung and converted.
+6. Research first (as item 4 (a)): open conversion models with permissive licences
+   (RVC-family and successors — check each model's and its training data's licence),
+   quality vs Audimee and ACE Studio on the owner's machine, CPU/GPU cost; then an ADR.
+
 **Done when** a melody typed in the piano roll with Spanish or English lyrics sings back in
 the chosen voice within 10 cents on sustained notes and 20 ms of each syllable's onset,
 ≥ 90 % of words understood by listeners, renders identical offline and live, and every
@@ -2008,3 +2106,46 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
   drawn larger, with more inner detail and a material of their own, judged alone at 100 and
   125 %) and **the piano-roll keys** ("FL's keys better proportioned, larger, with shaded C
   rows"; ours "narrow, cramped"). The mixer and the arrangement were split votes.
+
+<!-- r40:memory -->
+- **Memory, after round 40 (ADR 0120; §4b).**
+  - **Mapped on the scorecard's laptop:** a bare eframe window drawn with OpenGL on the AMD
+    iGPU holds 105–109 MB of private bytes. That is most of Cantus's ~122 (`docs/round40/memory.md`).
+  - **Measured and rejected:** wgpu instead (DX12 397 MB, Vulkan 482, GL 133) and the
+    segment heap (no change).
+  - **A CPU-presented window** (DIB section + tiny-skia + GDI blit) holds ~11 MB. A full
+    1080p redraw of a synthetic DAW scene takes 37 ms single-threaded, a 320 × 200 damaged
+    rect 3.7 ms. Worth it only with damage tracking, tiling across cores and a glyph cache:
+    an option for an *idle* window (present from the CPU while nothing animates) or a
+    low-memory mode, not a replacement. Owner's call.
+  - **Still to give back:** the compensation pool's 32 start-up lines (2.25 MB) need
+    `processor*.rs` (ADR 0120 §7). Other drivers' floors (NVIDIA, Intel, Mesa, macOS) are
+    not mapped yet.
+
+- **Delay synced to the tempo and Delay as a plug-in — built in round 40 (ADR 0119,
+  `delay`).** §3b's two steps the owner said yes to (answer 22): `sync` and `note` (1/64 … 4/1,
+  dotted, triplet) following the tempo and the tempo track (straight inside a ramp, a 50 ms
+  crossfade on a jump), the line grown off the audio thread up to 48 s; *At the tempo* is the
+  switch; *Cantus Delay* is the 25th CLAP/VST3 plug-in (CLAP `com.github.lalmazan.cantus.delay`,
+  VST3 `625C4F90AB5A380458F1F1D3D1DCA44C`). **Open, the owner's:** his ears on the ramp and the
+  jump, and Cantus Delay in another DAW (`docs/beta-checklist.md`, Ronda 40). Still open from §3b:
+  multi-tap, ducking, reverse, a dub feedback filter. <!-- r40:delay -->
+
+**Round 40, `pads` (ADR 0117, 0118; §6j's three items done).** A pad's own mixer track is chosen
+from the rack's well (the model was round 37's `DrumPad::output`: no schema bump); *Hear the key*
+audits a keyed insert's key live (never saved, never rendered); *Record: Before FX · After FX* is
+a track's choice in the song (schema 62). Left, small: *Hear the key* on the master's keyed
+inserts (the inspector's Sidechain section is a strip's); agents' tools for the three (a pad's
+track, the record tap) — the MCP tool list is a golden file, a change of its own; an after-FX
+take over a loop starts each pass after the first with the strip's lateness of the pass before
+(zero without latent inserts).
+
+**Round 40 phase 3 — `chorda-src` leaves (ADR 0125).** The model's five outputs play together on Main until the `chorda` builder's
+renderer plays them apart (`chorda_source::MODEL_RENDERS_OUTPUTS`). Several recorded images at once fill the stream cache fast: four of bitKlavier's are ≈ 15 GB
+of decoded cache files against the automatic 16 GB limit, and the measure's four-image pass
+had a 317 ms block from the sweep evicting files it then read again — a cache backed by the
+pack's own FLAC (decoded as it streams) or a limit that grows with what is on would keep
+several images playable (ADR 0050). Accurate-Salamander plays its
+*minimum* edition: its full editions gate sampled releases, hammer and pedal noise and the
+pseudo pedal resonance behind controllers 20–24 (`locc`/`hicc` on regions), which Exemplar's
+SFZ reader does not honour yet — reading region-level controller ranges would bring them.

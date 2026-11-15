@@ -29,8 +29,35 @@ pub const ICON: TrackIcon = TrackIcon::Keys;
 /// Offered in the instrument picker.
 pub const READY: bool = true;
 
-/// Zones an instrument can hold (`z0` … `z1023`).
-pub const MAX_ZONES: usize = 1024;
+/// Zones an instrument can hold (`z0` … `z8191`). r40:chorda-src — 1024 before round 40:
+/// a recorded piano of several microphone images, or one mapped key by key (Accurate-
+/// Salamander's 1739 regions), needs more (ADR 0125).
+pub const MAX_ZONES: usize = 8192;
+/// Zones every Exemplar's unit holds; an instrument with more is played by a unit sized
+/// for it ([`CAPACITY_KEY`]), so small instruments pay nothing. r40:chorda-src
+pub const BASE_ZONES: usize = 1024;
+/// A key only a snapshot writes (never stored in a song): the zone table a spec needs when
+/// it is more than [`BASE_ZONES`] — the next power of two above its highest zone. The
+/// engine builds the unit that size off the audio thread and matches units by it.
+/// r40:chorda-src
+pub const CAPACITY_KEY: &str = "zcap";
+
+/// The zone table `spec` needs: [`BASE_ZONES`], or the next power of two above its
+/// highest zone, up to [`MAX_ZONES`]. r40:chorda-src
+pub fn capacity_needed(spec: &super::NativeSpec) -> usize {
+    let top = spec
+        .params
+        .keys()
+        .chain(spec.text.keys())
+        .filter_map(|k| zone_key(k).map(|(n, _)| n))
+        .max()
+        .map_or(0, |n| n + 1);
+    if top <= BASE_ZONES {
+        BASE_ZONES
+    } else {
+        top.next_power_of_two().min(MAX_ZONES)
+    }
+}
 /// Groups an instrument can hold (`g0` … `g63`).
 pub const MAX_GROUPS: usize = 64;
 /// Round-robin positions a zone can name.
@@ -74,6 +101,19 @@ pub const PARAMS: &[InstParamInfo] = &[
     // A drum kit (round 28): the piano roll and the channel rack show a row per drum — every
     // key a zone plays, named by its group — instead of a keyboard ([`kit_lanes`]).
     p("kit", "smp.kit", 0.0, 1.0, 0.0, "", false, true),
+    // r40:chorda-src — a Cantus room added after the outputs (0 none, 1 a small room, 2 a
+    // studio, 3 a hall: Tympanum's rooms), and its level; a recorded piano's *Add our room*.
+    p("room.add", "smp.room_add", 0.0, 3.0, 0.0, "", false, true),
+    p(
+        "room.level",
+        "smp.room_level",
+        -48.0,
+        6.0,
+        -12.0,
+        "dB",
+        false,
+        false,
+    ),
     p(
         "amp.attack",
         "smp.attack",
@@ -361,6 +401,9 @@ pub const GROUP_PARAMS: &[InstParamInfo] = &[
     ),
     p("g.poly", "smp.group_poly", 0.0, 64.0, 0.0, "", false, true),
     p("g.mute", "smp.mute", 0.0, 1.0, 0.0, "", false, true),
+    // r40:chorda-src — the output the group's zones play on (ADR 0123, 0125): a recorded
+    // piano's perspectives and noises, a Decent Sampler bus. 0 for every older instrument.
+    p("g.out", "smp.group_out", 0.0, 31.0, 0.0, "", false, true),
 ];
 
 /// A zone's numbers, as `z{n}.<field>`. The key printed here is the template `z.<field>`.
@@ -618,7 +661,8 @@ pub mod gf {
     pub const VEL: usize = 8;
     pub const POLY: usize = 9;
     pub const MUTE: usize = 10;
-    pub const COUNT: usize = 11;
+    pub const OUT: usize = 11; // r40:chorda-src
+    pub const COUNT: usize = 12;
 }
 
 /// A zone field's index from its name (`"lo"` → [`zf::LO`]). A `match`, so the engine's
@@ -686,6 +730,7 @@ pub fn group_field(field: &str) -> Option<usize> {
         "vel" => gf::VEL,
         "poly" => gf::POLY,
         "mute" => gf::MUTE,
+        "out" => gf::OUT, // r40:chorda-src
         _ => return None,
     })
 }
@@ -1203,7 +1248,17 @@ mod tests {
     fn indexed_keys_parse_one_spelling_only() {
         assert_eq!(zone_key("z0.lo"), Some((0, "lo")));
         assert_eq!(zone_key("z1023.sample"), Some((1023, "sample")));
-        assert_eq!(zone_key("z1024.lo"), None, "past the last zone");
+        // r40:chorda-src — a unit's table is sized to its instrument (`capacity_needed`);
+        // keys name zones up to MAX_ZONES (8192: every bitKlavier image at once fits).
+        assert_eq!(
+            zone_key("z1024.lo"),
+            Some((1024, "lo")),
+            "past the base table"
+        );
+        let last = format!("z{}.lo", MAX_ZONES - 1);
+        assert_eq!(zone_key(&last), Some((MAX_ZONES - 1, "lo")));
+        let past = format!("z{MAX_ZONES}.lo");
+        assert_eq!(zone_key(&past), None, "past the last zone");
         assert_eq!(zone_key("z01.lo"), None, "no leading zeros");
         assert_eq!(zone_key("z.lo"), None);
         assert_eq!(zone_key("zz1.lo"), None);

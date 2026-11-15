@@ -65,7 +65,7 @@ fn each_band_moves_its_centre_by_its_gain_and_leaves_the_far_bands_alone() {
             "band {b}: {at:.3} dB at its centre"
         );
         // Three octaves away the band does next to nothing.
-        let far = if b < 2 {
+        let far = if b < 3 {
             CENTRES[b] * 8.0
         } else {
             CENTRES[b] / 8.0
@@ -125,9 +125,9 @@ fn a_flat_voicing_sums_the_keys_to_the_bit() {
 #[test]
 fn a_voiced_piano_gives_the_same_bits_at_every_block_size_and_on_threads() {
     let g = [
-        [2.0, -3.0, 4.0, 0.0],
-        [0.0, 0.0, -4.0, 2.0],
-        [5.0, 3.0, 0.0, -2.0],
+        [3.0, 2.0, -3.0, 0.0, 4.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, -4.0, 0.0, 2.0, 0.0],
+        [0.0, 5.0, 0.0, 3.0, 0.0, 0.0, -2.0],
     ];
     let (l0, r0) = perform(&mut voiced(g), &chords(), 30_000, 1, 1);
     for (block, threads) in [(7, 1), (64, 1), (100, 4), (512, 3)] {
@@ -140,9 +140,9 @@ fn a_voiced_piano_gives_the_same_bits_at_every_block_size_and_on_threads() {
 #[test]
 fn a_voiced_piano_comes_to_an_exact_rest() {
     let g = [
-        [2.0, -3.0, 4.0, 0.0],
-        [0.0, 0.0, -4.0, 2.0],
-        [5.0, 3.0, 0.0, -2.0],
+        [3.0, 2.0, -3.0, 0.0, 4.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, -4.0, 0.0, 2.0, 0.0],
+        [0.0, 5.0, 0.0, 3.0, 0.0, 0.0, -2.0],
     ];
     let mut c = voiced(g);
     c.note_on(60, 1.0, 1);

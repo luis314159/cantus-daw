@@ -50,3 +50,5 @@
 - [Themes must be legible](feedback-themes-legible.md) — every theme easy to work/read; measured non-text 3:1 + text 4.5:1 across all themes
 - [Decision: Chorda as good as Salamander](decision-chorda-like-salamander.md) — owner 2026-11-12: round 40 first; his ABX baseline 0–7 vs Salamander, bass worse than model 1
 - [Decision: round 39 answers](decision-round39-answers.md) — owner 2026-11-12 answered the 22: dock at edge, configurable maximise/top bar, mute in colour, pad mixer track like FL, softer Bordeaux/Pewter, Delay sync+plug-in; no legal review
+- [Round 40: Chorda, ripple, memory, owner answers](round-40.md) — started 2026-11-11; contract f00ed550 on r40/integration; phase 1 chorda/ripple/memory/look/dancer; pads+delay phase 2; owner checkpoints
+- [FX side round](fx-side-round.md) — 2nd session 2026-11-13: Cribrum, Fragor, Lapsus, Vetus+Libra in C:\projects\daw-fx; each with its own polished face; merge after r40

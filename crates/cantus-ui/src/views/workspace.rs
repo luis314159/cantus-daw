@@ -250,6 +250,9 @@ pub struct Workspace {
     pub(super) folds: Vec<super::workspace_fold::Fold>,
     /// The area maximised and the main surface it took (round 39, ADR 0110).
     pub(super) maximised: Option<super::workspace_fold::Maximised>,
+    /// What a maximised area leaves beside it (round 40, `look`): the app's setting,
+    /// handed in at start and on every change.
+    pub(super) maximise_keeps: super::owner_look::MaximiseKeeps,
 }
 
 impl Default for Workspace {
@@ -285,6 +288,7 @@ impl Workspace {
             titles: Default::default(),
             folds: Vec::new(),
             maximised: None,
+            maximise_keeps: Default::default(),
         }
     }
 
@@ -335,6 +339,10 @@ impl Workspace {
         // Showing or hiding an area while one is maximised gives the others back first
         // (round 39, ADR 0110): its own key un-maximises it, another's brings that one up.
         if let Some(m) = self.maximised() {
+            // r40:look — the inspector kept beside a maximised area hides alone.
+            if pane == Pane::Inspector && self.drop_kept_inspector() {
+                return;
+            }
             self.restore_maximised();
             if m != pane {
                 self.reveal(pane);

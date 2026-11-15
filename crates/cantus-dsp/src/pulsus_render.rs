@@ -153,6 +153,17 @@ impl Voice {
     fn render_model(&mut self) -> f32 {
         let sr = self.sample_rate;
         let e = self.env;
+        if self.model == 4 {
+            let Some(a) = self.ac.as_deref_mut() else {
+                return 0.0;
+            };
+            let x = a.tick();
+            if !a.alive() {
+                // Nothing left to hear: the voice frees itself.
+                self.amp = 0.0;
+            }
+            return x * e;
+        }
         match (self.kind, self.model) {
             (DrumVoice::Kick, 1) => {
                 let hz = self.base_hz

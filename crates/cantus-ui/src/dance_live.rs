@@ -146,6 +146,9 @@ pub struct DanceLive {
     tempo_map: Option<cantus_core::TempoMap>,
     feeds: Vec<Option<Arc<DanceFeed>>>,
     default: Option<Arc<dyn Character>>,
+    /// A dancer of the last update hears the master's spectrum (round 40: Espectro): the
+    /// companion's analyser runs for it, whether its window is open or not.
+    hears: bool,
 }
 
 impl std::fmt::Debug for DanceLive {
@@ -279,6 +282,8 @@ impl DanceLive {
     /// Read every dancer's feed once and pose it at the heard position; `wall` is the wall
     /// clock in seconds (the idle breath while stopped, the run-on between reports).
     pub fn update(app: &mut CantusApp, wall: f64) {
+        // The master's spectrum in four bands, as the companion's analyser last heard it.
+        let bands = spectrum_bands(&app.stage.companion.vis.bands); // r40:cast
         let epoch = app.epoch;
         let playing = app.engine.is_playing();
         let heard_ticks = app.engine.position();
@@ -302,6 +307,9 @@ impl DanceLive {
         }
         app.dance_live.stirred = false;
         if app.dance_live.specs.is_empty() {
+            // No dancer is left: none hears the spectrum (fix-c, R2-C1 — the analyser and
+            // the master tap stop with the last one).
+            app.dance_live.hears = false;
             app.dance_live.tracks.clear();
             app.dance_live.dancers.clear();
             app.dance_live.wall = wall;
@@ -347,6 +355,7 @@ impl DanceLive {
             .clock
             .heard(heard_ticks.as_beats_f64(), playing, tempo, wall);
         let mut out = std::mem::take(&mut live.dancers);
+        let mut hears = false;
         out.clear();
         for ((track, spec), feed) in specs.iter().zip(feeds.drain(..)) {
             let state = match live.tracks.iter().position(|t| t.track == *track) {
@@ -393,7 +402,11 @@ impl DanceLive {
             // The import re-check runs on the real wall clock, as `character` asks it (the
             // breath's clock stands still while it holds: two clocks would re-ask every frame).
             let r = live.resolve(id, &project_dir, wall_seconds());
-            let pose = pose_at(&frame, r.character.as_ref(), wall);
+            let mut pose = pose_at(&frame, r.character.as_ref(), wall);
+            if r.character.hears_spectrum() {
+                hears = true;
+                pose.bands = if playing { bands } else { [0.0; 4] };
+            }
             out.push(LiveDancer {
                 track: *track,
                 character: r.character,
@@ -411,6 +424,12 @@ impl DanceLive {
         live.feeds = feeds;
         live.dancers = out;
         live.wall = wall;
+        live.hears = hears;
+    }
+
+    /// Whether a dancer hears the master's spectrum (the analyser is wanted).
+    pub fn hears_spectrum(&self) -> bool {
+        self.hears
     }
 
     /// The character for an id now: the cast's, kept by id; an import, read by the worker
@@ -771,5 +790,37 @@ mod doze_tests {
             assert!(c >= last);
             last = c;
         }
+    }
+}
+
+/// The visualiser's third-octave bands in four (round 40, ADR 0122: what Espectro shows):
+/// the lows (to 150 Hz, the kick), the mids (to 1.2 kHz), the snare and claps (to 5 kHz)
+/// and the highs (the hats), each the loudest of its bands.
+pub fn spectrum_bands(bands: &[f32; crate::stage::vis::BANDS]) -> [f32; 4] {
+    let mut out = [0.0f32; 4];
+    for (i, b) in bands.iter().enumerate() {
+        let hz = crate::stage::vis::band_hz(i);
+        let k = if hz < 150.0 {
+            0
+        } else if hz < 1_200.0 {
+            1
+        } else if hz < 5_000.0 {
+            2
+        } else {
+            3
+        };
+        out[k] = out[k].max(*b);
+    }
+    out
+}
+
+/// The four bands of a video (round 40, ADR 0122): an export's render analysed on its own
+/// instants (`stage::vis_video::analyse`, the live analyser's bands offline) reduced as the
+/// live ones are, with the live ballistics — deterministic: two exports draw the same.
+pub fn video_spectrum(raw: &[[f32; crate::stage::vis::BANDS]]) -> cantus_video::dance::Spectrum {
+    cantus_video::dance::Spectrum {
+        raw: raw.iter().map(spectrum_bands).collect(),
+        rate: crate::stage::vis::RATE,
+        fall_per_s: crate::stage::vis::FALL_PER_S,
     }
 }

@@ -257,21 +257,40 @@ pub fn popup_list(
 ) -> Option<usize> {
     let mut clicked = None;
     let h = menu::height(items, s.d(1.0));
+    // Under its field when it fits there, above it when it fits there instead; a list the
+    // window can hold whole is raised until it does (over its field); a longer one scrolls,
+    // under its field while eight rows find room there, else above it (review 2 of round
+    // 40, R2-B6: Delay's 27 note values ran off the bottom of a short window).
+    let screen = ctx.content_rect();
+    let m = menu::FIT_MARGIN;
+    let below = screen.bottom() - m - anchor.y;
+    let above = opener.top() - (screen.top() + m);
+    let whole = screen.height() - 2.0 * m;
+    let (anchor, room) = if h <= below {
+        (anchor, h)
+    } else if h <= above {
+        (Pos2::new(anchor.x, opener.top() - h), h)
+    } else if h <= whole {
+        (Pos2::new(anchor.x, screen.bottom() - m - h), h)
+    } else if below >= above.min(s.d(24.0) * 8.0) {
+        (anchor, below.max(s.d(48.0)))
+    } else {
+        (Pos2::new(anchor.x, opener.top() - above), above)
+    };
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(anchor)
         .constrain(true)
         .show(ctx, |ui| {
-            let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, h), Sense::click());
-            let hovered = resp.hover_pos().and_then(|p| {
-                (0..items.len()).find(|&i| {
-                    items[i].is_action() && menu::row(rect, items, s.d(1.0), i).contains(p)
-                })
-            });
-            if resp.clicked() {
-                clicked = hovered;
+            if room >= h {
+                list_rows(ui, s, items, width, h, &mut clicked);
+            } else {
+                egui::ScrollArea::vertical()
+                    .id_salt("cantus-popup-list")
+                    .max_height(room)
+                    .min_scrolled_height(room)
+                    .show(ui, |ui| list_rows(ui, s, items, width, h, &mut clicked));
             }
-            with_brush(ui.painter(), |b| menu::paint(b, rect, s, items, hovered));
         });
     let inside = area.response.rect;
     let pressed_outside = ctx.input(|i| {
@@ -284,6 +303,37 @@ pub fn popup_list(
         *close = true;
     }
     clicked
+}
+
+/// The rows of [`popup_list`] (`h` tall), the one clicked into `clicked`.
+fn list_rows(
+    ui: &mut egui::Ui,
+    s: &Style,
+    items: &[Item<'_>],
+    width: f32,
+    h: f32,
+    clicked: &mut Option<usize>,
+) {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, h), Sense::click());
+    let hovered = resp.hover_pos().and_then(|p| {
+        (0..items.len())
+            .find(|&i| items[i].is_action() && menu::row(rect, items, s.d(1.0), i).contains(p))
+    });
+    if resp.clicked() {
+        *clicked = hovered;
+    }
+    // The help line says the row under the pointer — never every row of the list
+    // run together (the fallback reads all the words of the widget under the
+    // pointer, and the list is one widget: Delay's note values, review mid-round
+    // 40, C-9).
+    if let Some(Item::Action { label, .. }) = hovered.map(|i| &items[i]) {
+        let words = match label {
+            Src::Str(w) => std::borrow::Cow::Borrowed(*w),
+            Src::Key(k) => std::borrow::Cow::Owned(crate::i18n::t(k)),
+        };
+        crate::kit::hint::set_text(ui.ctx(), &words, "", crate::kit::hint::Caps::NONE);
+    }
+    with_brush(ui.painter(), |b| menu::paint(b, rect, s, items, hovered));
 }
 
 /// A plain action row of a menu.
@@ -549,6 +599,7 @@ pub fn show(
         ab,
         undo: host.history(),
         views: None,
+        views_w: 0.0,
         bypassed: host.bypassed(),
         help: false,
         name_w: chrome.name_w,

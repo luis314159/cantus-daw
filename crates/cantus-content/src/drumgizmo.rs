@@ -16,6 +16,17 @@ pub struct Kit {
     /// The microphones, as the kit declares them.
     pub channels: Vec<String>,
     pub instruments: Vec<Instrument>,
+    /// r40:tymp-engine — what `<metadata>` says (ADR 0124 §3): the licence as the kit
+    /// states it (cross-checked against the manifest's), its author, its title.
+    pub licence: Option<String>,
+    pub author: Option<String>,
+    pub title: Option<String>,
+    /// The kit's picture and its click map (a colour per instrument), relative to the
+    /// kit's folder.
+    pub image: Option<(String, Option<String>)>,
+    pub clickmap: Vec<(String, String)>,
+    /// `samplerate` (Hz), when it says.
+    pub rate: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,6 +35,11 @@ pub struct Instrument {
     /// Instruments of one group silence each other (DrumGizmo's hi-hat).
     pub group: Option<String>,
     pub samples: Vec<Sample>,
+    /// r40:tymp-engine — the kit's channels that are this instrument's own (`main="true"`
+    /// in its `<channelmap>`): DrumGizmo's bleed fader leaves them alone.
+    pub main: Vec<String>,
+    /// The instruments a hit of this one chokes, each with its `choketime` (ms).
+    pub chokes: Vec<(String, f32)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -105,6 +121,44 @@ pub fn read_kit(root: &Path, kit_file: &str) -> Result<Kit, String> {
         let mut inst = read_instrument(root, &rel)?;
         inst.name = name.to_string();
         inst.group = group;
+        // The instrument's channels onto the kit's (`in` → `out`), and which are its own.
+        let maps: Vec<(String, String, bool)> = node
+            .children()
+            .filter(|n| n.has_tag_name("channelmap"))
+            .filter_map(|n| {
+                let i = n.attribute("in")?;
+                let o = n.attribute("out").unwrap_or(i);
+                Some((
+                    i.to_string(),
+                    o.to_string(),
+                    n.attribute("main") == Some("true"),
+                ))
+            })
+            .collect();
+        if !maps.is_empty() {
+            for s in &mut inst.samples {
+                for a in &mut s.audio {
+                    if let Some((_, o, _)) = maps.iter().find(|(i, _, _)| *i == a.channel) {
+                        a.channel = o.clone();
+                    }
+                }
+            }
+        }
+        inst.main = maps.iter().filter(|m| m.2).map(|m| m.1.clone()).collect();
+        inst.chokes = node
+            .children()
+            .filter(|n| n.has_tag_name("chokes"))
+            .flat_map(|n| n.children())
+            .filter(|n| n.has_tag_name("choke"))
+            .filter_map(|n| {
+                let i = n.attribute("instrument")?;
+                let t = n
+                    .attribute("choketime")
+                    .and_then(|t| t.trim().parse::<f32>().ok())
+                    .unwrap_or(68.0);
+                Some((i.to_string(), t))
+            })
+            .collect();
         for s in &inst.samples {
             if let Some(a) = s.audio.iter().find(|a| !channels.contains(&a.channel)) {
                 return Err(format!(
@@ -118,10 +172,44 @@ pub fn read_kit(root: &Path, kit_file: &str) -> Result<Kit, String> {
     if instruments.is_empty() {
         return Err(format!("{kit_file}: no instruments"));
     }
+    let meta = top.children().find(|n| n.has_tag_name("metadata"));
+    let text_of = |tag: &str| {
+        meta.and_then(|m| m.children().find(|n| n.has_tag_name(tag)))
+            .and_then(|n| n.text())
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+    };
+    let image_node = meta.and_then(|m| m.children().find(|n| n.has_tag_name("image")));
+    let image = image_node.and_then(|n| {
+        let src = inside(kit_dir, n.attribute("src")?).ok()?;
+        let map = n.attribute("map").and_then(|m| inside(kit_dir, m).ok());
+        Some((src, map))
+    });
+    let clickmap = image_node
+        .map(|n| {
+            n.children()
+                .filter(|c| c.has_tag_name("clickmap"))
+                .filter_map(|c| {
+                    Some((
+                        c.attribute("colour")?.trim().to_lowercase(),
+                        c.attribute("instrument")?.to_string(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     Ok(Kit {
         name: top.attribute("name").unwrap_or("").to_string(),
         channels,
         instruments,
+        licence: text_of("license").or_else(|| text_of("licence")),
+        author: text_of("author"),
+        title: text_of("title"),
+        image,
+        clickmap,
+        rate: top
+            .attribute("samplerate")
+            .and_then(|r| r.trim().parse::<u32>().ok()),
     })
 }
 
@@ -178,7 +266,28 @@ pub fn read_instrument(root: &Path, rel: &str) -> Result<Instrument, String> {
         name: top.attribute("name").unwrap_or("").to_string(),
         group: None,
         samples,
+        main: Vec::new(),
+        chokes: Vec::new(),
     })
+}
+
+/// A DrumGizmo MIDI map (`<midimap><map note="36" instr="KDrumInside"/>…`): each note and
+/// the instrument it plays, in the file's order. r40:tymp-engine
+pub fn read_midimap(root: &Path, rel: &str) -> Result<Vec<(u8, String)>, String> {
+    let text = read_text(&root.join(rel))?;
+    let doc = roxmltree::Document::parse(&text).map_err(|e| format!("{rel}: {e}"))?;
+    let top = doc.root_element();
+    if top.tag_name().name() != "midimap" {
+        return Err(format!("{rel}: not a DrumGizmo MIDI map"));
+    }
+    Ok(top
+        .children()
+        .filter(|n| n.has_tag_name("map"))
+        .filter_map(|n| {
+            let note = n.attribute("note")?.trim().parse::<u8>().ok()?;
+            Some((note.min(127), n.attribute("instr")?.to_string()))
+        })
+        .collect())
 }
 
 /// Every audio file the kit plays, relative to its folder, each once.

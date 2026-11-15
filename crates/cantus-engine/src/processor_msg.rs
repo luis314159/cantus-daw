@@ -111,6 +111,7 @@ impl Processor {
                 EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::SetLowLatency(limit) => self.set_low_latency(limit),
                 EngineMessage::SetAnalyser(id) => self.analysed = id,
+                EngineMessage::SetHearKey(id) => self.hear_key = id, // r40:pads
                 EngineMessage::WatchScopes(ids) => {
                     // A ring whose watch changed (released, or given to another — or the
                     // same Speculum watched again) starts afresh: nothing of an earlier
@@ -221,14 +222,24 @@ impl Processor {
     ) {
         let nodes = self.nodes.clone();
         let mut memory = Some(memory);
-        let mut back = None;
+        let mut back = [None, None];
+        let mut busy = false;
+        // What the unit let go of first (fix-a, A-M3: a Delay takes a new line only with
+        // its old one given back), then the memory.
+        let mut give = |u: &mut EffectUnit, m: crate::effects::EffectMemory| {
+            back[0] = u.take_spent();
+            back[1] = u.supply(m);
+            busy = u.busy();
+        };
         for slot in 0..MAX_STRIPS {
             if self.strip_ids[slot].is_none() {
                 continue;
             }
             if let Some(mut st) = nodes.strip(slot) {
                 if let Some(u) = st.effects.iter_mut().find(|e| e.id == effect) {
-                    back = memory.take().and_then(|m| u.supply(m));
+                    if let Some(m) = memory.take() {
+                        give(u, m);
+                    }
                     break;
                 }
             }
@@ -240,12 +251,13 @@ impl Processor {
                 .iter_mut()
                 .chain(self.incoming_effects.iter_mut())
                 .find(|e| e.id == effect);
-            back = match unit {
-                Some(u) => u.supply(m),
-                None => Some(m),
-            };
+            match unit {
+                Some(u) => give(u, m),
+                None => back[1] = Some(m),
+            }
         }
-        if let Some(back) = back {
+        self.fx_busy |= busy;
+        for back in back.into_iter().flatten() {
             if self.tx.push(EngineEvent::GarbageMemory(back)).is_err() {
                 // Queue full: freed here. Extremely unlikely (queue holds 4096).
                 self.stats.dropped_events += 1;
@@ -255,18 +267,45 @@ impl Processor {
         self.request_memory();
     }
 
+    /// fix-a (A-M3): while an effect moves memory in (a Delay's history into its new line,
+    /// a stretch per pass), what it lets go of is sent back to be freed after each block —
+    /// only while one is busy (a loop over the strips then, nothing otherwise). What finds
+    /// the queue full waits in the unit for the next block.
+    pub(super) fn sweep_spent(&mut self) {
+        if !self.fx_busy {
+            return;
+        }
+        let nodes = self.nodes.clone();
+        let mut busy = false;
+        let mut sweep = |e: &mut EffectUnit, tx: &mut Producer<EngineEvent>| {
+            if tx.slots() > 0 {
+                if let Some(m) = e.take_spent() {
+                    let _ = tx.push(EngineEvent::GarbageMemory(m));
+                }
+            }
+            busy |= e.busy();
+        };
+        for slot in 0..MAX_STRIPS {
+            if self.strip_ids[slot].is_none() {
+                continue;
+            }
+            if let Some(mut st) = nodes.strip(slot) {
+                for e in st.effects.iter_mut() {
+                    sweep(e, &mut self.tx);
+                }
+            }
+        }
+        for e in self.master.effects.iter_mut() {
+            sweep(e, &mut self.tx);
+        }
+        self.fx_busy = busy;
+    }
+
     /// Ask the UI thread for memory any effect's settings need and it has not got (ADR
     /// 0022). Each need is asked for once; the effect runs its previous path meanwhile.
     pub(super) fn request_memory(&mut self) {
         let nodes = self.nodes.clone();
-        let ask = |e: &mut Box<EffectUnit>, tx: &mut Producer<EngineEvent>| {
-            if let Some(need) = e.take_request() {
-                let ev = EngineEvent::EffectNeed { effect: e.id, need };
-                if tx.push(ev).is_err() {
-                    e.forget_request();
-                }
-            }
-        };
+        let ask = |e: &mut Box<EffectUnit>, tx: &mut Producer<EngineEvent>| ask_memory(e, tx);
         for slot in 0..MAX_STRIPS {
             if self.strip_ids[slot].is_none() {
                 continue;
@@ -505,6 +544,18 @@ impl Processor {
                     s.set_floor(if *f == u64::MAX { w } else { *f });
                 }
             }
+        }
+    }
+}
+
+/// Ask for the memory `e`'s settings need, if it changed since it last asked (ADR 0022):
+/// after a snapshot, and after automation configured it (fix-a, A-M2). Forgotten when the
+/// queue is full, so it is asked again.
+pub(super) fn ask_memory(e: &mut EffectUnit, tx: &mut Producer<EngineEvent>) {
+    if let Some(need) = e.take_request() {
+        let ev = EngineEvent::EffectNeed { effect: e.id, need };
+        if tx.push(ev).is_err() {
+            e.forget_request();
         }
     }
 }

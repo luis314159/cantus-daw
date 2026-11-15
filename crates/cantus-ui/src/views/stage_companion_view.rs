@@ -79,7 +79,9 @@ pub fn show(ui: &mut Ui, class: ViewportClass, shared: &Mutex<Shared>) {
     // A tall, narrow window (a vertical video) keeps the characters within its width.
     let standard = super::companion_paint::standard_of(r.width(), r.height(), &sh.dancers);
     // Over a chroma key no contact shadow: the key stays exact wherever the character is not.
-    let area = Area::of(r, ppp, standard).with_shadows(st.backdrop.chroma().is_none());
+    let area = Area::of(r, ppp, standard)
+        .with_shadows(st.backdrop.chroma().is_none())
+        .with_ink(companion_ink(&s, backdrop)); // r40:cast
     let clip_px = Rect::from_min_max(
         (r.min.to_vec2() * ppp).to_pos2(),
         (r.max.to_vec2() * ppp).to_pos2(),
@@ -89,7 +91,11 @@ pub fn show(ui: &mut Ui, class: ViewportClass, shared: &Mutex<Shared>) {
         // Stopped, the one character breathes on this window's own clock.
         let frame = sh.frame;
         if let Some((ch, pose)) = sh.dancers.first_mut() {
+            // The bands the main window gave it (its own Espectro hears the song — fix-c,
+            // R2-C2) are kept; only the clock is this window's.
+            let bands = pose.bands;
             *pose = pose_at(&frame, ch.as_ref(), now);
+            pose.bands = bands;
             pose.y = ((feet_y - r.top()) / r.height().max(1.0)).clamp(0.0, 1.0);
         }
     }
@@ -368,6 +374,24 @@ pub(crate) fn menu(ui: &mut Ui, sh: &mut Shared) {
         ) {
             ui.close();
         }
+    }
+}
+
+/// The theme's light for the companion window's dancers (round 40, ADR 0122): the room is
+/// what is behind them — the theme's stage, a chroma key's colour, or the panels' colour
+/// over a see-through window.
+pub fn companion_ink(s: &Style, backdrop: Backdrop) -> cantus_dance::StageInk {
+    let room = match backdrop {
+        Backdrop::Theme => s.t.ink,
+        c => match c.chroma() {
+            Some([r, g, b, _]) => egui::Color32::from_rgb(r, g, b),
+            None => s.t.panel,
+        },
+    };
+    // Over a chroma key every colour keeps clear of it (the window paints the key itself).
+    cantus_dance::StageInk {
+        key: backdrop.chroma(),
+        ..crate::dance_texture::stage_ink(&s.t, room)
     }
 }
 

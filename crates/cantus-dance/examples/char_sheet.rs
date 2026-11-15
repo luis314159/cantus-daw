@@ -66,6 +66,7 @@ fn panel(
         px_per_unit: scale,
         hue: 0.0,
         shadow: true,
+        ink: Default::default(),
     };
     f(&mut c);
     sheet.draw_pixmap(

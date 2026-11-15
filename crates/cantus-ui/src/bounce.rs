@@ -199,7 +199,9 @@ pub fn strip_plan(app: &CantusApp, strip: StripId) -> Result<Plan, String> {
         return Err(tf("bounce.muted", &[("name", &name)]));
     }
     // r37:drums — a pad's strip is one output of a kit (ADR 0100): bounced alone it would
-    // replace the kit's clips with one pad. The kit's strip bounces the whole kit.
+    // replace the kit's clips with one pad. The kit's strip bounces the whole kit. Only a
+    // strip made for pads (*Split to strips*, a chain): one of the user's that a pad was sent
+    // to bounces as any strip does, the pad in it (review mid-round 40, B-3).
     if let Some(kit) = cantus_core::padout::kit_of_strip(p, strip).and_then(|t| p.track(t)) {
         if kit.strip != Some(strip) {
             return Err(tf(
@@ -240,9 +242,13 @@ pub fn strip_plan(app: &CantusApp, strip: StripId) -> Result<Plan, String> {
     {
         return Err(tf("bounce.live_input", &[("name", &t.name)]));
     }
-    // The tracks whose sound reaches the strip (not its keys' nor its note sources').
+    // The tracks whose sound reaches the strip (not its keys' nor its note sources'): a
+    // kit's too when one of its pads plays into it (ADR 0117).
     let upstream = audio_upstream(p, strip);
-    let reaching = |t: &&Track| t.strip.is_some_and(|s| upstream.contains(&s));
+    let reaching = |t: &&Track| {
+        t.strip.is_some_and(|s| upstream.contains(&s))
+            || upstream.iter().any(|s| t.feeds_through_bus(*s))
+    };
     // Placed after the first of them that sounds.
     let track = p
         .tracks

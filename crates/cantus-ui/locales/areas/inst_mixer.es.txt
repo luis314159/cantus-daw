@@ -1,0 +1,97 @@
+# Area: inst_mixer - round 40 phase 3 (tymp-ui). Every key has its twin in inst_mixer.en.txt
+# El mezclador interno de un instrumento y sus salidas con nombre (ADR 0123), de Tympanum y Chorda.
+cmd.set_instrument_output = enrutar una salida del instrumento
+cmd.inst_output_plan = enrutar las salidas de un instrumento
+
+# Los campos `o{n}.` (ADR 0123 §2).
+inst_mixer.level = Nivel
+inst_mixer.pan = Panorama
+inst_mixer.width = Anchura
+inst_mixer.invert = Polaridad
+inst_mixer.mute = Silencio
+inst_mixer.solo = Solo
+inst_mixer.delay = Retardo
+inst_mixer.delay_tip = Retardo {v}: alinea un micro en el tiempo; 0 = tal como se grabó. Arrastra de lado (Mayús: más fino) o haz doble clic para escribirlo.
+inst_mixer.on = Cargada
+
+# Las cabeceras de familia (`OutputFamily::label_key`).
+inst_mixer.family.other = Otros
+inst_mixer.family.kick = Bombo
+inst_mixer.family.snare = Caja
+inst_mixer.family.hihat = Charles
+inst_mixer.family.toms = Toms
+inst_mixer.family.cymbals = Platillos
+inst_mixer.family.overheads = Aéreos
+inst_mixer.family.rooms = Sala
+inst_mixer.family.perspective = Perspectivas
+inst_mixer.family.noise = Ruidos
+inst_mixer.family.pad = Pads
+inst_mixer.family_tip = {name}: clic para plegar o desplegar sus canales.
+
+# La fila de acciones (ADR 0123 §4).
+inst_mixer.outputs = Salidas
+inst_mixer.all_main = Todo a Principal
+inst_mixer.by_family = Piezas a canales
+inst_mixer.each_own = Cada micro a su canal
+inst_mixer.all_main_tip = Todas las salidas vuelven al canal del instrumento; los canales hechos para ellas se van cuando nada más los usa. Un paso de deshacer.
+inst_mixer.by_family_tip = Un canal del mezclador por familia (bombo, caja, toms…), con sus micros dentro. Un paso de deshacer.
+inst_mixer.each_own_tip = Un canal del mezclador para cada salida, en orden. Un paso de deshacer.
+inst_mixer.result = {strips} canales en el mezclador · {main} en Principal
+inst_mixer.result_one = 1 canal en el mezclador · {main} en Principal
+inst_mixer.result_none = Todo en Principal
+inst_mixer.refused = Las salidas no se movieron: {why}
+inst_mixer.mix = Mezcla
+inst_mixer.mix_custom = como la dejaste
+inst_mixer.mix_tip = Los preajustes de la mezcla: cada fader, panorama y fuga a la vez. Un paso de deshacer.
+inst_mixer.bleed = Fuga
+inst_mixer.bleed_tip = Apagada: cada micro oye solo sus piezas (las demás celdas en silencio); encendida: como se grabó o modeló.
+inst_mixer.more = {n} más
+inst_mixer.more_tip = {n} canales más por aquí: clic para ir a ellos.
+inst_mixer.fewer = {n} antes
+
+# Un canal.
+inst_mixer.bleed_short = Fuga
+inst_mixer.width_short = Anchura
+inst_mixer.level_short = Nivel
+inst_mixer.invert_tip = Polaridad: invierte la fase de esta salida (ø).
+inst_mixer.pan_tip = Panorama · {v}
+inst_mixer.mute_tip = Silenciar esta salida
+inst_mixer.solo_tip = Oír solo esta salida
+inst_mixer.fader_tip = {name} · {db} dB. Arrastra; doble clic para 0 dB.
+inst_mixer.out = Salida
+inst_mixer.out_main = Principal
+inst_mixer.out_own = Su canal
+inst_mixer.out_tip = {name} — Salida: {where}. Clic para elegir: Principal, un canal propio u otro canal.
+inst_mixer.out_says_main = en Principal: el canal del instrumento ({n})
+inst_mixer.out_says_own = su propio canal ({n}). Su canal vuelve a sumarse en {inst} ({m}).
+inst_mixer.out_says_chosen = el canal {name} ({n}).
+inst_mixer.out_menu_main = Principal ({name})
+inst_mixer.out_menu_own = Su propio canal
+inst_mixer.out_menu_new = Un canal nuevo propio
+inst_mixer.unloaded = descargada
+inst_mixer.selected_tip = {name}: elegido — su tarjeta está arriba.
+
+# El mezclador de Cantus: los canales de un instrumento bajo su banda de familia (diseño, punto 4).
+inst_mixer.band = {name}
+inst_mixer.band_about = {inst} · {n} micros
+inst_mixer.band_about_one = {inst} · 1 micro
+inst_mixer.band_tip = {name}: los canales de {inst}. Clic para plegarlos en uno; otra vez para desplegarlos.
+inst_mixer.folded = {n} plegados
+inst_mixer.unfold = Desplegar
+inst_mixer.unfold_tip = Volver a mostrar los canales de {name}.
+inst_mixer.mics_of = Micros de {name}
+inst_mixer.full_name = {inst} · {name}
+inst_mixer.summed = El micro {name} de {inst}, sumado de nuevo en {strip} ({n})
+inst_mixer.nothing = {name}: nada que mover — cada salida ya suena ahí.
+
+# Bandas en la mesa: la familia de un instrumento y el grupo de un usuario como un solo
+# sistema (ronda 40; ADR 0016 y ADR 0123 enmendados, esquema 70).
+cmd.set_strip_attached = añadir un canal a la banda de un instrumento
+inst_mixer.added = añadido
+inst_mixer.group_tip = {name} · {n} canales. Clic para plegar o desplegar; arrastra su borde derecho para tomar el canal siguiente o devolver el último; clic derecho para su menú; doble clic para renombrar.
+inst_mixer.edge_tip = Arrastra para tomar el canal siguiente (el canal de un instrumento trae su familia entera), o hacia atrás para devolver el último. Esc deja el grupo como estaba.
+inst_mixer.add_to_group = Añadir {strip} a {group}
+inst_mixer.take_from_group = Sacar {strip} de {group}
+inst_mixer.left_band = {strip} salió de la banda de {name}: su entrada ya no viene solo de {name}.
+inst_mixer.attach = Añadir a la banda de {name}
+inst_mixer.detach = Sacar de la banda de {name}

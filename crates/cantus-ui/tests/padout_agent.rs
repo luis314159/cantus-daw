@@ -324,3 +324,64 @@ fn a_kit_from_a_folder_reads_only_the_allowed_folders_and_names_no_path() {
     assert!(v["not_kept"].to_string().contains("outside"), "{v}");
     assert!(!v.to_string().contains(&root), "{v}");
 }
+
+/// r40:pads — `set_pad_track` (ADR 0117): the kick to the first free strip (named after
+/// it), to the keys' strip, back on the kit; refused for a VCA and when already there; each
+/// one undo step.
+#[test]
+fn a_pads_own_track_answers_through_the_dispatcher() {
+    let (mut app, mut c) = app_with(kit_project());
+    let t = app.project().tracks[0].id;
+    let kit_strip = app.project().tracks[0].strip.unwrap();
+    let keys_strip = app.project().tracks[1].strip.unwrap();
+    let free = app.project().first_free_strip().unwrap();
+    let kick = |app: &CantusApp| {
+        app.project().tracks[0]
+            .instrument
+            .pulsus()
+            .unwrap()
+            .pads
+            .iter()
+            .find(|p| p.pitch == 36)
+            .unwrap()
+            .output
+    };
+    let r = ok(
+        &mut app,
+        &mut c,
+        "set_pad_track",
+        json!({"track_id": t.0, "pad": 36, "free": true}),
+    );
+    assert_eq!(r["strip_id"], json!(free.0));
+    assert_eq!(kick(&app), Some(free));
+    assert_eq!(app.project().strip(free).unwrap().name, "Kick");
+    ok(
+        &mut app,
+        &mut c,
+        "set_pad_track",
+        json!({"track_id": t.0, "pad": 36, "strip_id": keys_strip.0}),
+    );
+    assert_eq!(kick(&app), Some(keys_strip));
+    let r = ok(
+        &mut app,
+        &mut c,
+        "set_pad_track",
+        json!({"track_id": t.0, "pad": 36}),
+    );
+    assert_eq!(r["strip_id"], json!(kit_strip.0));
+    assert_eq!(kick(&app), None);
+    let r = call(
+        &mut app,
+        &mut c,
+        "set_pad_track",
+        json!({"track_id": t.0, "pad": 36}),
+    );
+    assert!(r.is_error && r.text.contains("already"), "{}", r.text);
+    // Undone step by step: the keys' strip, the free one, the kit.
+    app.undo();
+    assert_eq!(kick(&app), Some(keys_strip));
+    app.undo();
+    assert_eq!(kick(&app), Some(free));
+    app.undo();
+    assert_eq!(kick(&app), None);
+}

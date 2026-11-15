@@ -1,6 +1,6 @@
 {
- "format": 4,
- "updated": "2026-11-05",
+ "format": 5,
+ "updated": "2026-11-13",
  "packs": [
   {
    "id": "cantus-starter-drums",
@@ -390,14 +390,14 @@
   },
   {
    "id": "gogodze-phu-vol-ii",
-   "version": 1,
+   "version": 2,
    "name": {
     "en": "Gogodze Phu Vol. II",
     "es": "Gogodze Phu Vol. II"
    },
    "description": {
-    "en": "A vintage kit with character: kick, snare, three deadened toms and a hi-hat in five openness steps, seven microphones.",
-    "es": "Una batería antigua con carácter: bombo, caja, tres toms apagados y un charles en cinco aperturas, siete micrófonos."
+    "en": "A vintage kit with character: kick, snare, three deadened toms and a hi-hat in five openness steps, every piece heard by all seven microphones. Plays in Tympanum, each microphone on a strip of its own if you like (a 140 MB download, about 480 MB installed).",
+    "es": "Una batería antigua con carácter: bombo, caja, tres toms apagados y un charles en cinco aperturas, cada pieza oída por los siete micrófonos. Suena en Tympanum, cada micrófono en un canal propio si quieres (una descarga de 140 MB, unos 480 MB instalada)."
    },
    "category": "drums",
    "licence": "CC0-1.0",
@@ -410,7 +410,7 @@
      "licence_url": "https://github.com/sfzinstruments/karoryfer.gogodze-phu-vol-ii/blob/master/LICENSE"
     }
    ],
-   "checked": "2026-10-05",
+   "checked": "2026-11-12",
    "installed_size": 484018097,
    "source": {
     "zip": {
@@ -425,7 +425,20 @@
       "readme.txt"
      ]
     }
-   }
+   },
+   "instruments": [
+    {
+     "id": "kit",
+     "name": {
+      "en": "Gogodze Phu Vol. II",
+      "es": "Gogodze Phu Vol. II"
+     },
+     "file": "Programs/Kit.sfz",
+     "shelf": "drums",
+     "gain_db": 0.0,
+     "plays": "tympanum"
+    }
+   ]
   },
   {
    "id": "gogodze-phu-vol-i",
@@ -505,7 +518,7 @@
   },
   {
    "id": "big-rusty-drums",
-   "version": 1,
+   "version": 2,
    "name": {
     "en": "Big Rusty Drums",
     "es": "Big Rusty Drums"
@@ -525,7 +538,7 @@
      "licence_url": "https://github.com/sfzinstruments/karoryfer.big-rusty-drums/blob/main/LICENSE"
     }
    ],
-   "checked": "2026-10-05",
+   "checked": "2026-11-12",
    "installed_size": 706874243,
    "source": {
     "zip": {
@@ -538,7 +551,70 @@
       "LICENSE"
      ]
     }
-   }
+   },
+   "instruments": [
+    {
+     "id": "kit",
+     "name": {
+      "en": "Big Rusty Drums",
+      "es": "Big Rusty Drums"
+     },
+     "file": "Programs/01-full.sfz",
+     "shelf": "drums",
+     "gain_db": 0.0,
+     "plays": "tympanum"
+    }
+   ]
+  },
+  {
+   "id": "virtuosity-drums",
+   "version": 1,
+   "name": {
+    "en": "Virtuosity Drums",
+    "es": "Virtuosity Drums"
+   },
+   "description": {
+    "en": "A jazz kit played by Austin McMahon, recorded by Versilian Studios and Karoryfer with six microphones (kick, snare, overheads, a ribbon over the kit, a room pair and a 1950s vintage mic), up to 36 dynamics on the drums and four round robins on the cymbals; hats closed to open, a foot splash, a dozen snare techniques. Plays in Tympanum, each microphone on a strip of its own if you like (a 1.2 GB download, about 1.5 GB installed).",
+    "es": "Una batería de jazz tocada por Austin McMahon, grabada por Versilian Studios y Karoryfer con seis micrófonos (bombo, caja, aéreos, una cinta sobre el kit, un par de sala y un micrófono antiguo de los cincuenta), hasta 36 dinámicas en los tambores y cuatro tomas en los platos; charles de cerrado a abierto, splash de pie, una docena de técnicas de caja. Suena en Tympanum, cada micrófono en un canal propio si quieres (una descarga de 1,2 GB, unos 1,5 GB instalada)."
+   },
+   "category": "drums",
+   "licence": "CC0-1.0",
+   "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+   "licence_file": "LICENSE",
+   "credits": [
+    {
+     "name": "Virtuosity Drums — Versilian Studios and Karoryfer Samples, played by Austin McMahon",
+     "url": "https://github.com/sfzinstruments/virtuosity_drums",
+     "licence_url": "https://github.com/sfzinstruments/virtuosity_drums/blob/master/LICENSE"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1469668563,
+   "source": {
+    "zip": {
+     "url": "https://github.com/sfzinstruments/virtuosity_drums/releases/download/v0.925/Virtuosity_Drums_v0.925.zip",
+     "size": 1227151376,
+     "sha256": "c6c5d0fe11a394e94be3146a950c3377ec102cb57d189d5a23cec26183d1963a",
+     "include": [
+      "Samples/**",
+      "Programs/**",
+      "LICENSE"
+     ]
+    }
+   },
+   "instruments": [
+    {
+     "id": "kit",
+     "name": {
+      "en": "Virtuosity Drums",
+      "es": "Virtuosity Drums"
+     },
+     "file": "Programs/02-full-kit.sfz",
+     "shelf": "drums",
+     "gain_db": 0.0,
+     "plays": "tympanum"
+    }
+   ]
   },
   {
    "id": "swirly-drums-dry",
@@ -1727,6 +1803,1040 @@
    }
   },
   {
+   "id": "drskit-tympanum",
+   "version": 1,
+   "name": {
+    "en": "DRSKit, every microphone",
+    "es": "DRSKit, cada micrófono"
+   },
+   "description": {
+    "en": "The DRSKit (DRSDrums, recorded by the DrumGizmo team) with all 13 microphones kept, for Tympanum: kick, snare, three toms, a hi-hat whose openness follows the pedal, two crashes and a ride, played with sticks, up to 30 strengths per drum. Each microphone can have a strip of its own. A 2.8 GB download, about 1.9 GB installed.",
+    "es": "La DRSKit (DRSDrums, grabada por el equipo de DrumGizmo) con sus 13 micrófonos, para Tympanum: bombo, caja, tres toms, un charles cuya apertura sigue al pedal, dos crash y un ride, tocados con baquetas, hasta 30 intensidades por tambor. Cada micrófono puede tener su propio canal. Una descarga de 2,8 GB, unos 1,9 GB instalada."
+   },
+   "category": "drums",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README.md",
+   "credits": [
+    {
+     "name": "DRSKit 2.1 — the DrumGizmo team (Deva and Lars Muldjord) and Jes Eiler of DRSDrums",
+     "url": "https://drumgizmo.org/wiki/doku.php?id=kits:drskit",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1886696064,
+   "source": {
+    "zip": {
+     "url": "https://drumgizmo.org/kits/DRSKit/DRSKit2_1.zip",
+     "size": 2803397710,
+     "sha256": "529f2dcad836593167d0cab218f125f591cd71199748fa681e05e3866667f090",
+     "strip": "DRSKit/"
+    }
+   },
+   "attribution": {
+    "title": "DRSKit",
+    "author": "the DrumGizmo team and Jes Eiler (DRSDrums)",
+    "url": "https://drumgizmo.org/wiki/doku.php?id=kits:drskit",
+    "note": "When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution."
+   },
+   "instruments": [
+    {
+     "id": "kit",
+     "name": {
+      "en": "DRSKit, every microphone",
+      "es": "DRSKit, cada micrófono"
+     },
+     "file": "DRSKit.sfz",
+     "shelf": "drums",
+     "gain_db": 0.0,
+     "plays": "tympanum"
+    }
+   ],
+   "build": {
+    "kit": "DRSKit_basic.xml",
+    "unpacked_size": 2659715215,
+    "sfz": "DRSKit.sfz",
+    "folder": "Mics",
+    "gain_db": -1.0,
+    "mics": [
+     {
+      "channel": "Kdrum_front",
+      "gain_db": -4.0,
+      "pan": 0.0,
+      "own": [
+       "Kdrum"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Kdrum_back",
+      "gain_db": -4.0,
+      "pan": 0.0,
+      "own": [
+       "Kdrum"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Snare_top",
+      "gain_db": -2.0,
+      "pan": -5.0,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Snare_bottom",
+      "gain_db": -10.0,
+      "pan": -5.0,
+      "invert": true,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Tom1",
+      "gain_db": -3.0,
+      "pan": -15.0,
+      "own": [
+       "Tom1"
+      ],
+      "bleed_db": -20.0
+     },
+     {
+      "channel": "Tom2",
+      "gain_db": -3.0,
+      "pan": 25.0,
+      "own": [
+       "Tom2"
+      ],
+      "bleed_db": -20.0
+     },
+     {
+      "channel": "Tom3",
+      "gain_db": -3.0,
+      "pan": 45.0,
+      "own": [
+       "Tom3"
+      ],
+      "bleed_db": -20.0
+     },
+     {
+      "channel": "Hihat",
+      "gain_db": -10.0,
+      "pan": -50.0,
+      "own": [
+       "Hihat"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "Ride",
+      "gain_db": -10.0,
+      "pan": 45.0,
+      "own": [
+       "Ride"
+      ],
+      "bleed_db": -12.0
+     },
+     {
+      "channel": "OHL",
+      "gain_db": 0.0,
+      "pan": -75.0
+     },
+     {
+      "channel": "OHR",
+      "gain_db": 0.0,
+      "pan": 75.0
+     },
+     {
+      "channel": "AmbL",
+      "gain_db": -8.0,
+      "pan": -100.0
+     },
+     {
+      "channel": "AmbR",
+      "gain_db": -8.0,
+      "pan": 100.0
+     }
+    ],
+    "keys": [
+     {
+      "instrument": "Kdrum_without_contact",
+      "keys": [
+       35
+      ],
+      "gain_db": 2.0,
+      "label": "Kick, open"
+     },
+     {
+      "instrument": "Kdrum_with_contact",
+      "keys": [
+       36
+      ],
+      "label": "Kick"
+     },
+     {
+      "instrument": "Snare_rim",
+      "keys": [
+       37
+      ],
+      "gain_db": 6.0,
+      "label": "Side stick"
+     },
+     {
+      "instrument": "Snare",
+      "keys": [
+       38
+      ],
+      "gain_db": 1.0,
+      "label": "Snare"
+     },
+     {
+      "instrument": "Snare_rest",
+      "keys": [
+       40
+      ],
+      "gain_db": 6.0,
+      "label": "Snare (rest)"
+     },
+     {
+      "instrument": "Tom3",
+      "keys": [
+       41
+      ],
+      "gain_db": -2.0,
+      "label": "Tom 3 (low floor)"
+     },
+     {
+      "instrument": "Tom2",
+      "keys": [
+       43,
+       45
+      ],
+      "gain_db": -3.0,
+      "label": "Tom 2 (floor)"
+     },
+     {
+      "instrument": "Tom1",
+      "keys": [
+       47,
+       48,
+       50
+      ],
+      "gain_db": -1.0,
+      "label": "Tom 1 (rack)"
+     },
+     {
+      "instrument": "Hihat_closed_shank",
+      "keys": [
+       42
+      ],
+      "label": "Hi-hat closed",
+      "openness": 0.0
+     },
+     {
+      "instrument": "Hihat_foot",
+      "keys": [
+       44
+      ],
+      "gain_db": 8.0,
+      "label": "Hi-hat pedal"
+     },
+     {
+      "instrument": "Hihat_open",
+      "keys": [
+       46
+      ],
+      "gain_db": 3.0,
+      "label": "Hi-hat open",
+      "openness": 1.0
+     },
+     {
+      "instrument": "Crash_left_shank",
+      "keys": [
+       49
+      ],
+      "gain_db": 3.0,
+      "label": "Crash left"
+     },
+     {
+      "instrument": "Ride_tip",
+      "keys": [
+       51
+      ],
+      "gain_db": 6.0,
+      "label": "Ride"
+     },
+     {
+      "instrument": "Ride_shank_bell",
+      "keys": [
+       53
+      ],
+      "gain_db": 2.0,
+      "label": "Ride bell"
+     },
+     {
+      "instrument": "Crash_right_shank",
+      "keys": [
+       57
+      ],
+      "gain_db": 3.0,
+      "label": "Crash right"
+     },
+     {
+      "instrument": "Ride_shank",
+      "keys": [
+       59
+      ],
+      "gain_db": 3.0,
+      "label": "Ride, shank"
+     },
+     {
+      "instrument": "Hihat_semi_open",
+      "keys": [
+       101
+      ],
+      "label": "Hi-hat half open",
+      "openness": 0.5
+     },
+     {
+      "instrument": "Hihat_closed",
+      "keys": [
+       102
+      ],
+      "gain_db": 5.0,
+      "label": "Hi-hat closed, tip"
+     },
+     {
+      "instrument": "Hihat_open_tip",
+      "keys": [
+       103
+      ],
+      "gain_db": 6.0,
+      "label": "Hi-hat open, tip"
+     },
+     {
+      "instrument": "Ride_rest",
+      "keys": [
+       88
+      ],
+      "label": "Ride (rest)"
+     }
+    ],
+    "chokes": [
+     {
+      "instruments": [
+       "Hihat_closed_shank",
+       "Hihat_foot",
+       "Hihat_semi_open",
+       "Hihat_closed",
+       "Hihat_open",
+       "Hihat_open_tip"
+      ],
+      "release_ms": 60.0
+     }
+    ],
+    "round_robin": 3,
+    "range_db": 24.0,
+    "keep": [
+     "README.md"
+    ],
+    "multichannel": true
+   }
+  },
+  {
+   "id": "crocellkit-tympanum",
+   "version": 1,
+   "name": {
+    "en": "CrocellKit, every microphone",
+    "es": "CrocellKit, cada micrófono"
+   },
+   "description": {
+    "en": "The kit of the Danish metal band Crocell, sampled by the DrumGizmo team in JBOSound's studio with all 15 microphones kept, for Tympanum: two kicks (double pedal), snare, two rack and two floor toms, a hi-hat, three crashes, a ride, two chinas and two splashes. Each microphone can have a strip of its own. A 5.6 GB download, about 5.9 GB installed.",
+    "es": "La batería de la banda danesa de metal Crocell, muestreada por el equipo de DrumGizmo en el estudio JBOSound con sus 15 micrófonos, para Tympanum: dos bombos (doble pedal), caja, dos toms y dos bases, charles, tres crash, un ride, dos chinas y dos splash. Cada micrófono puede tener su propio canal. Una descarga de 5,6 GB, unos 5,9 GB instalada."
+   },
+   "category": "drums",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README.md",
+   "credits": [
+    {
+     "name": "CrocellKit 1.1 — the DrumGizmo team (Lars Muldjord), the kit of Crocell, mic setup by Jacob Olsen of JBOSound",
+     "url": "https://drumgizmo.org/wiki/doku.php?id=kits:crocellkit",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 5911171355,
+   "source": {
+    "zip": {
+     "url": "https://drumgizmo.org/kits/CrocellKit/CrocellKit1_1.zip",
+     "size": 5646502341,
+     "sha256": "341d1f23e5867fd9d465bbcf3e4cd2f805bb7d7c4f519ba9ec73daae8161d5c6",
+     "strip": "CrocellKit/"
+    }
+   },
+   "attribution": {
+    "title": "CrocellKit",
+    "author": "the DrumGizmo team (Lars Muldjord) and Crocell",
+    "url": "https://drumgizmo.org/wiki/doku.php?id=kits:crocellkit",
+    "note": "When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution."
+   },
+   "instruments": [
+    {
+     "id": "kit",
+     "name": {
+      "en": "CrocellKit, every microphone",
+      "es": "CrocellKit, cada micrófono"
+     },
+     "file": "CrocellKit.sfz",
+     "shelf": "drums",
+     "gain_db": 0.0,
+     "plays": "tympanum"
+    }
+   ],
+   "build": {
+    "kit": "CrocellKit_default.xml",
+    "unpacked_size": 8441654123,
+    "sfz": "CrocellKit.sfz",
+    "folder": "Mics",
+    "gain_db": -1.0,
+    "mics": [
+     {
+      "channel": "KDrumInside",
+      "gain_db": -3,
+      "pan": 0,
+      "own": [
+       "KDrum"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "KDrumOutside",
+      "gain_db": -3,
+      "pan": 0,
+      "own": [
+       "KDrum"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "SnareTop",
+      "gain_db": -2,
+      "pan": -5,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "SnareBottom",
+      "gain_db": -10,
+      "pan": -5,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": 0.0,
+      "invert": true
+     },
+     {
+      "channel": "Tom1",
+      "gain_db": -3,
+      "pan": -20,
+      "own": [
+       "Tom1"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Tom2",
+      "gain_db": -3,
+      "pan": 5,
+      "own": [
+       "Tom2"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "FTom1",
+      "gain_db": -3,
+      "pan": 35,
+      "own": [
+       "FTom1"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "FTom2",
+      "gain_db": -3,
+      "pan": 50,
+      "own": [
+       "FTom2"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Hihat",
+      "gain_db": -8,
+      "pan": -50,
+      "own": [
+       "Hihat"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Ride",
+      "gain_db": -8,
+      "pan": 50,
+      "own": [
+       "Ride"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "OHLeft",
+      "gain_db": -4,
+      "pan": -80,
+      "own": [],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "OHRight",
+      "gain_db": -4,
+      "pan": 80,
+      "own": [],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "OHCenter",
+      "gain_db": -6,
+      "pan": 0,
+      "own": [],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "AmbLeft",
+      "gain_db": -6,
+      "pan": -100,
+      "own": [],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "AmbRight",
+      "gain_db": -6,
+      "pan": 100,
+      "own": [],
+      "bleed_db": 0.0
+     }
+    ],
+    "keys": [
+     {
+      "instrument": "ChinaL",
+      "keys": [
+       54
+      ],
+      "label": "China left"
+     },
+     {
+      "instrument": "ChinaR",
+      "keys": [
+       52
+      ],
+      "label": "China right"
+     },
+     {
+      "instrument": "CrashL",
+      "keys": [
+       49
+      ],
+      "label": "Crash left"
+     },
+     {
+      "instrument": "CrashLStopped",
+      "keys": [
+       56
+      ],
+      "label": "Crash left, choked"
+     },
+     {
+      "instrument": "CrashR",
+      "keys": [
+       57
+      ],
+      "label": "Crash right"
+     },
+     {
+      "instrument": "CrashRStopped",
+      "keys": [
+       75
+      ],
+      "label": "Crash right, choked"
+     },
+     {
+      "instrument": "CrashRXtra",
+      "keys": [
+       59
+      ],
+      "label": "Crash right, extra"
+     },
+     {
+      "instrument": "HihatClosed",
+      "keys": [
+       42
+      ],
+      "label": "Hi-hat closed",
+      "openness": 0.0
+     },
+     {
+      "instrument": "HihatOpen",
+      "keys": [
+       46
+      ],
+      "label": "Hi-hat open",
+      "openness": 1.0
+     },
+     {
+      "instrument": "HihatPedal",
+      "keys": [
+       44
+      ],
+      "label": "Hi-hat pedal"
+     },
+     {
+      "instrument": "KDrumL",
+      "keys": [
+       35
+      ],
+      "label": "Kick (left pedal)"
+     },
+     {
+      "instrument": "KDrumR",
+      "keys": [
+       36
+      ],
+      "label": "Kick"
+     },
+     {
+      "instrument": "SplashL",
+      "keys": [
+       55
+      ],
+      "label": "Splash left"
+     },
+     {
+      "instrument": "SplashR",
+      "keys": [
+       58
+      ],
+      "label": "Splash right"
+     },
+     {
+      "instrument": "RideR",
+      "keys": [
+       51
+      ],
+      "label": "Ride"
+     },
+     {
+      "instrument": "RideRBell",
+      "keys": [
+       53
+      ],
+      "label": "Ride bell"
+     },
+     {
+      "instrument": "Snare",
+      "keys": [
+       38
+      ],
+      "label": "Snare"
+     },
+     {
+      "instrument": "SnareRest",
+      "keys": [
+       39
+      ],
+      "label": "Snare (rest)"
+     },
+     {
+      "instrument": "Tom1",
+      "keys": [
+       48
+      ],
+      "label": "Tom 1"
+     },
+     {
+      "instrument": "Tom2",
+      "keys": [
+       47
+      ],
+      "label": "Tom 2"
+     },
+     {
+      "instrument": "FTom1",
+      "keys": [
+       43
+      ],
+      "label": "Floor tom 1"
+     },
+     {
+      "instrument": "FTom2",
+      "keys": [
+       41
+      ],
+      "label": "Floor tom 2"
+     }
+    ],
+    "chokes": [
+     {
+      "instruments": [
+       "HihatClosed",
+       "HihatOpen",
+       "HihatPedal"
+      ],
+      "release_ms": 60.0
+     }
+    ],
+    "round_robin": 3,
+    "range_db": 24.0,
+    "keep": [
+     "README.md"
+    ],
+    "multichannel": true
+   }
+  },
+  {
+   "id": "muldjordkit-tympanum",
+   "version": 1,
+   "name": {
+    "en": "MuldjordKit, every microphone",
+    "es": "MuldjordKit, cada micrófono"
+   },
+   "description": {
+    "en": "Lars Muldjord's own metal and rock kit, recorded for DrumGizmo with 15 microphones kept, for Tympanum: two kicks, snare, three rack toms and a floor tom, a hi-hat, two crashes, two rides and a china. Each microphone can have a strip of its own. A 2.5 GB download, about 2.7 GB installed.",
+    "es": "La batería de metal y rock de Lars Muldjord, grabada para DrumGizmo con sus 15 micrófonos, para Tympanum: dos bombos, caja, tres toms y una base, charles, dos crash, dos ride y una china. Cada micrófono puede tener su propio canal. Una descarga de 2,5 GB, unos 2,7 GB instalada."
+   },
+   "category": "drums",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README.TXT",
+   "credits": [
+    {
+     "name": "MuldjordKit 3 — Lars Muldjord (DrumGizmo)",
+     "url": "https://drumgizmo.org/wiki/doku.php?id=kits:muldjordkit",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 2721963340,
+   "source": {
+    "zip": {
+     "url": "https://drumgizmo.org/kits/MuldjordKit/MuldjordKit3.zip",
+     "size": 2536576789,
+     "sha256": "db94f910913185ee17c5abb77d285a27476dee979db0ccebdc7ed68404514c96",
+     "strip": "MuldjordKit3/"
+    }
+   },
+   "attribution": {
+    "title": "MuldjordKit",
+    "author": "Lars Muldjord",
+    "url": "https://drumgizmo.org/wiki/doku.php?id=kits:muldjordkit",
+    "note": "When the samples are used in compositions, attribution must be made in the album credits (or similar album liner notes): Drum samples provided by DrumGizmo.org. Without album credits or liner notes, it can be left out."
+   },
+   "instruments": [
+    {
+     "id": "kit",
+     "name": {
+      "en": "MuldjordKit, every microphone",
+      "es": "MuldjordKit, cada micrófono"
+     },
+     "file": "MuldjordKit.sfz",
+     "shelf": "drums",
+     "gain_db": 0.0,
+     "plays": "tympanum"
+    }
+   ],
+   "build": {
+    "kit": "MuldjordKit3.xml",
+    "unpacked_size": 3875711217,
+    "sfz": "MuldjordKit.sfz",
+    "folder": "Mics",
+    "gain_db": -1.0,
+    "mics": [
+     {
+      "channel": "KdrumR",
+      "gain_db": -3,
+      "pan": 0,
+      "own": [
+       "KdrumR"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "KdrumL",
+      "gain_db": -3,
+      "pan": 0,
+      "own": [
+       "KdrumL"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Snare_top",
+      "gain_db": -2,
+      "pan": -5,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Snare_bottom",
+      "gain_db": -10,
+      "pan": -5,
+      "own": [
+       "Snare"
+      ],
+      "bleed_db": 0.0,
+      "invert": true
+     },
+     {
+      "channel": "Tom1",
+      "gain_db": -3,
+      "pan": -25,
+      "own": [
+       "Tom1"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Tom2",
+      "gain_db": -3,
+      "pan": -5,
+      "own": [
+       "Tom2"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Tom3",
+      "gain_db": -3,
+      "pan": 15,
+      "own": [
+       "Tom3"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Tom4",
+      "gain_db": -3,
+      "pan": 40,
+      "own": [
+       "Tom4"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "Hihat",
+      "gain_db": -8,
+      "pan": -50,
+      "own": [
+       "Hihat"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "RideL",
+      "gain_db": -8,
+      "pan": -45,
+      "own": [
+       "RideL"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "RideR",
+      "gain_db": -8,
+      "pan": 45,
+      "own": [
+       "RideR"
+      ],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "OHL",
+      "gain_db": -4,
+      "pan": -80,
+      "own": [],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "OHR",
+      "gain_db": -4,
+      "pan": 80,
+      "own": [],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "AmbL",
+      "gain_db": -6,
+      "pan": -100,
+      "own": [],
+      "bleed_db": 0.0
+     },
+     {
+      "channel": "AmbR",
+      "gain_db": -6,
+      "pan": 100,
+      "own": [],
+      "bleed_db": 0.0
+     }
+    ],
+    "keys": [
+     {
+      "instrument": "China",
+      "keys": [
+       52
+      ],
+      "label": "China"
+     },
+     {
+      "instrument": "CrashL",
+      "keys": [
+       49
+      ],
+      "label": "Crash left"
+     },
+     {
+      "instrument": "CrashR",
+      "keys": [
+       57
+      ],
+      "label": "Crash right"
+     },
+     {
+      "instrument": "HihatClosed",
+      "keys": [
+       42
+      ],
+      "label": "Hi-hat closed",
+      "openness": 0.0
+     },
+     {
+      "instrument": "HihatOpen",
+      "keys": [
+       46
+      ],
+      "label": "Hi-hat open",
+      "openness": 1.0
+     },
+     {
+      "instrument": "KdrumL",
+      "keys": [
+       35
+      ],
+      "label": "Kick (left pedal)"
+     },
+     {
+      "instrument": "KdrumR",
+      "keys": [
+       36
+      ],
+      "label": "Kick"
+     },
+     {
+      "instrument": "RideL",
+      "keys": [
+       59
+      ],
+      "label": "Ride left"
+     },
+     {
+      "instrument": "RideLBell",
+      "keys": [
+       55
+      ],
+      "label": "Ride left, bell"
+     },
+     {
+      "instrument": "RideR",
+      "keys": [
+       51
+      ],
+      "label": "Ride right"
+     },
+     {
+      "instrument": "RideRBell",
+      "keys": [
+       53
+      ],
+      "label": "Ride right, bell"
+     },
+     {
+      "instrument": "Snare",
+      "keys": [
+       38
+      ],
+      "label": "Snare"
+     },
+     {
+      "instrument": "SnareRest",
+      "keys": [
+       37
+      ],
+      "label": "Snare (rest)"
+     },
+     {
+      "instrument": "Tom1",
+      "keys": [
+       48
+      ],
+      "label": "Tom 1"
+     },
+     {
+      "instrument": "Tom2",
+      "keys": [
+       47
+      ],
+      "label": "Tom 2"
+     },
+     {
+      "instrument": "Tom3",
+      "keys": [
+       45
+      ],
+      "label": "Tom 3"
+     },
+     {
+      "instrument": "Tom4",
+      "keys": [
+       41
+      ],
+      "label": "Floor tom"
+     }
+    ],
+    "chokes": [
+     {
+      "instruments": [
+       "HihatClosed",
+       "HihatOpen"
+      ],
+      "release_ms": 60.0
+     }
+    ],
+    "round_robin": 3,
+    "range_db": 24.0,
+    "keep": [
+     "README.TXT"
+    ],
+    "multichannel": true
+   }
+  },
+  {
    "id": "cantus-one-shots",
    "version": 1,
    "name": {
@@ -1855,6 +2965,908 @@
     "author": "Adam Townsell, Damian T. Murphy (Audiolab, University of York), James Cadwallader and Matt Rogalsky",
     "url": "https://www.openair.hosted.york.ac.uk/",
     "line": "Impulse responses from OpenAIR, www.openairlib.net — Adam Townsell, Damian T. Murphy (Audiolab, University of York), James Cadwallader, Matt Rogalsky — CC BY 4.0"
+   }
+  },
+  {
+   "id": "upright-piano-kw",
+   "version": 1,
+   "name": {
+    "en": "Upright Piano KW",
+    "es": "Piano vertical KW"
+   },
+   "description": {
+    "en": "A Kawai upright in a living room, recorded by Gonzalo and Roberto (FreePats) with a stereo recorder where the pianist's head would be: two velocity layers, small and honest (48 kHz FLAC). Plays in Chorda as a recorded piano, and in Exemplar.",
+    "es": "Un Kawai vertical en un salón, grabado por Gonzalo y Roberto (FreePats) con una grabadora estéreo donde estaría la cabeza del pianista: dos capas de velocidad, pequeño y honesto (FLAC a 48 kHz). Suena en Chorda como piano grabado, y en Exemplar."
+   },
+   "category": "instruments",
+   "licence": "CC0-1.0",
+   "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+   "licence_file": "LICENSE",
+   "credits": [
+    {
+     "name": "FreePats — Gonzalo and Roberto",
+     "url": "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html",
+     "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 32814091,
+   "source": {
+    "zip": {
+     "url": "https://github.com/freepats/upright-piano-KW/releases/download/v1.0.0/UprightPianoKW-20220221.zip",
+     "size": 32413525,
+     "sha256": "3d602dcff94bcf9fb9b2d78df8c689814c895fd2776ee104a95b73c44bdc7e18",
+     "include": [
+      "samples/**",
+      "LICENSE",
+      "README.md",
+      "UprightPianoKW-20220221.sfz"
+     ]
+    }
+   },
+   "instruments": [
+    {
+     "id": "upright",
+     "name": {
+      "en": "Upright Piano KW",
+      "es": "Piano vertical KW"
+     },
+     "file": "UprightPianoKW-20220221.sfz",
+     "shelf": "keys",
+     "gain_db": 0.0,
+     "plays": "chorda"
+    }
+   ]
+  },
+  {
+   "id": "old-piano-fb",
+   "version": 1,
+   "name": {
+    "en": "Old Piano FB",
+    "es": "Piano antiguo FB"
+   },
+   "description": {
+    "en": "A historic Francis Bacon player piano with an authentic honky-tonk tone, recorded by Piotr Barcz where the pianist's head would be (FreePats, 48 kHz FLAC). Plays in Chorda as a recorded piano, and in Exemplar.",
+    "es": "Una pianola histórica Francis Bacon con un auténtico sonido honky-tonk, grabada por Piotr Barcz donde estaría la cabeza del pianista (FreePats, FLAC a 48 kHz). Suena en Chorda como piano grabado, y en Exemplar."
+   },
+   "category": "instruments",
+   "licence": "CC0-1.0",
+   "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+   "licence_file": "LICENSE.txt",
+   "credits": [
+    {
+     "name": "FreePats — Piotr Barcz",
+     "url": "https://freepats.zenvoid.org/Piano/honky-tonk-piano.html",
+     "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 34553771,
+   "source": {
+    "tar_gz": {
+     "url": "https://github.com/freepats/old-piano-FB/archive/refs/tags/2020-04-01.tar.gz",
+     "size": 40259732,
+     "sha256": "91799c09180c738f1b11b948f9e1db22be301485158f8b648e9c2dfed8a4058f",
+     "strip": "old-piano-FB-2020-04-01/",
+     "include": [
+      "samples/*.flac",
+      "LICENSE.txt",
+      "README.txt",
+      "PianoFB 20200401.sfz"
+     ]
+    }
+   },
+   "instruments": [
+    {
+     "id": "old-piano",
+     "name": {
+      "en": "Old Piano FB",
+      "es": "Piano antiguo FB"
+     },
+     "file": "PianoFB 20200401.sfz",
+     "shelf": "keys",
+     "gain_db": 0.0,
+     "plays": "chorda"
+    }
+   ]
+  },
+  {
+   "id": "bitklavier-grand-house-ortf",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · House ORTF",
+    "es": "bitKlavier Grand · House ORTF"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the House ORTF image — Schoeps CMC64 cardioids, ORTF, at the edge of the stage, about 9 ft up: the hall as the audience hears it. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen House ORTF — Schoeps CMC64 cardioids, ORTF, al borde del escenario, a unos 2,7 m: la sala como la oye el público. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_HouseORTF.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1577764455,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_HouseORTF_48k24b/bitKlavierGrand_HouseORTF_48k24b.zip",
+     "size": 2713311775,
+     "sha256": "93da3ff328d564f7dd7368d9824b60c921d9e91ff368ecaaf16d871df2038303",
+     "strip": "bitKlavierGrand_HouseORTF_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · House ORTF",
+      "es": "bitKlavier Grand · House ORTF"
+     },
+     "file": "house-ortf.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "House ORTF",
+       "es": "House ORTF"
+      },
+      "output": 0
+     }
+    ],
+    "sfz": "house-ortf.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3807671239
+   }
+  },
+  {
+   "id": "bitklavier-grand-house-wide",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · House Wide Cardioid",
+    "es": "bitKlavier Grand · House Wide Cardioid"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the House Wide Cardioid image — Microtech Gefell M950 wide cardioids, low and widely spaced at the front row: lid and floor reflections. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen House Wide Cardioid — Microtech Gefell M950 wide cardioids, bajos y separados, en primera fila: reflejos de la tapa y del suelo. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_HouseWideCard.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1503680634,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_HouseWideCard_48k24b/bitKlavierGrand_HouseWideCard_48k24b.zip",
+     "size": 2865298362,
+     "sha256": "772106fc9768939bccfb52495f367aefa93cfec731220f1f25206f5f19589110",
+     "strip": "bitKlavierGrand_HouseWideCard_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · House Wide Cardioid",
+      "es": "bitKlavier Grand · House Wide Cardioid"
+     },
+     "file": "house-wide.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "House Wide Cardioid",
+       "es": "House Wide Cardioid"
+      },
+      "output": 1
+     }
+    ],
+    "sfz": "house-wide.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3792792088
+   }
+  },
+  {
+   "id": "bitklavier-grand-decca-tail",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · Decca Tail",
+    "es": "bitKlavier Grand · Decca Tail"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the Decca Tail image — Schoeps CMC62S omnis, about 8 ft behind the tail: darker, the room and the floor. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen Decca Tail — Schoeps CMC62S omnis, a unos 2,4 m detrás de la cola: más oscuro, la sala y el suelo. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_TailOmni.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1550384988,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_TailOmni_48k24b/bitKlavierGrand_TailOmni_48k24b.zip",
+     "size": 2770059405,
+     "sha256": "843eb49c34882783f2967e980676222e73d2774b3d28d9df40468c99ae774c4f",
+     "strip": "bitKlavierGrand_TailOmni_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · Decca Tail",
+      "es": "bitKlavier Grand · Decca Tail"
+     },
+     "file": "decca-tail.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "Decca Tail",
+       "es": "Decca Tail"
+      },
+      "output": 2
+     }
+    ],
+    "sfz": "decca-tail.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3803246563
+   }
+  },
+  {
+   "id": "bitklavier-grand-lip-cardioid",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · Lip Cardioid",
+    "es": "bitKlavier Grand · Lip Cardioid"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the Lip Cardioid image — DPA 4011 cardioids, at the lip of the case: close, warm, a jazz sound. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen Lip Cardioid — DPA 4011 cardioids, en el borde de la caja: cercano, cálido, un sonido de jazz. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_LipCardioid.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1411552478,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_LipCardioid_48k24b/bitKlavierGrand_LipCardioid_48k24b.zip",
+     "size": 2694792949,
+     "sha256": "10f142d2e9b67d2a75d3d4c73ab1369ed84a635fe57b3be599afe2898fa93d76",
+     "strip": "bitKlavierGrand_LipCardioid_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · Lip Cardioid",
+      "es": "bitKlavier Grand · Lip Cardioid"
+     },
+     "file": "lip-cardioid.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "Lip Cardioid",
+       "es": "Lip Cardioid"
+      },
+      "output": 3
+     }
+    ],
+    "sfz": "lip-cardioid.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3802835951
+   }
+  },
+  {
+   "id": "bitklavier-grand-harp-omni",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · Harp Omnis",
+    "es": "bitKlavier Grand · Harp Omnis"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the Harp Omnis image — DPA 4060 omnis, on the harp: the strings and the soundboard. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen Harp Omnis — DPA 4060 omnis, sobre el arpa: las cuerdas y la tabla armónica. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_HarpOmni.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1495207540,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_HarpOmni_48k24b/bitKlavierGrand_HarpOmni_48k24b.zip",
+     "size": 2800829485,
+     "sha256": "c59ca55c736c781e87b210789426da169d935879090bb1ee7948da17c1fd7a4d",
+     "strip": "bitKlavierGrand_HarpOmni_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · Harp Omnis",
+      "es": "bitKlavier Grand · Harp Omnis"
+     },
+     "file": "harp-omni.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "Harp Omnis",
+       "es": "Harp Omnis"
+      },
+      "output": 4
+     }
+    ],
+    "sfz": "harp-omni.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3802762504
+   }
+  },
+  {
+   "id": "bitklavier-grand-piano-bar",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · Piano Bar",
+    "es": "bitKlavier Grand · Piano Bar"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the Piano Bar image — Earthworks piano bar, omnis, across the harp near the hammers: the player's close sound, no room. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen Piano Bar — Earthworks piano bar, omnis, sobre el arpa junto a los martillos: el sonido cercano del pianista, sin sala. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_PianoBar.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1579438880,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_PianoBar_48k24b/bitKlavierGrand_PianoBar_48k24b.zip",
+     "size": 2778583990,
+     "sha256": "2efa04c28d09a07ee1bf7eacff767615ee632932ef37dd82b668d0fe718df152",
+     "strip": "bitKlavierGrand_PianoBar_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · Piano Bar",
+      "es": "bitKlavier Grand · Piano Bar"
+     },
+     "file": "piano-bar.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "Piano Bar",
+       "es": "Piano Bar"
+      },
+      "output": 5
+     }
+    ],
+    "sfz": "piano-bar.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3797248490
+   }
+  },
+  {
+   "id": "bitklavier-grand-stage-lid-ortf",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · Stage Lid ORTF",
+    "es": "bitKlavier Grand · Stage Lid ORTF"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the Stage Lid ORTF image — Sanken CU41 cardioids, ORTF, about 6.5 ft up, aimed along the open lid: balanced, the hammers clear. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen Stage Lid ORTF — Sanken CU41 cardioids, ORTF, a unos 2 m, a lo largo de la tapa abierta: equilibrado, los martillos claros. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_StageLidORTF.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1569712632,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_StageLidORTF_48k24b/bitKlavierGrand_StageLidORTF_48k24b.zip",
+     "size": 2794357810,
+     "sha256": "6636a52c643567bf2f56cd7a0b5c619a93a8176b852e94f997c4a0e2202f0026",
+     "strip": "bitKlavierGrand_StageLidORTF_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · Stage Lid ORTF",
+      "es": "bitKlavier Grand · Stage Lid ORTF"
+     },
+     "file": "stage-lid-ortf.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "Stage Lid ORTF",
+       "es": "Stage Lid ORTF"
+      },
+      "output": 6
+     }
+    ],
+    "sfz": "stage-lid-ortf.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3803492695
+   }
+  },
+  {
+   "id": "bitklavier-grand-stage-lid-omni",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · Stage Lid Omni",
+    "es": "bitKlavier Grand · Stage Lid Omni"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the Stage Lid Omni image — Schoeps CMC62 omnis, beside the ORTF pair, a metre apart: wider, more of the room. 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen Stage Lid Omni — Schoeps CMC62 omnis, junto al par ORTF, a un metro uno de otro: más abierto, más sala. 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_StageLidOmni.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1490210593,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_StageLidOmni_48k24b/bitKlavierGrand_StageLidOmni_48k24b.zip",
+     "size": 2812879544,
+     "sha256": "801f9fe6cc81a63a9accfeb21ef99a5507262d4f3e51c9b8a0aab6ac44ba672f",
+     "strip": "bitKlavierGrand_StageLidOmni_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · Stage Lid Omni",
+      "es": "bitKlavier Grand · Stage Lid Omni"
+     },
+     "file": "stage-lid-omni.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "Stage Lid Omni",
+       "es": "Stage Lid Omni"
+      },
+      "output": 7
+     }
+    ],
+    "sfz": "stage-lid-omni.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3802397101
+   }
+  },
+  {
+   "id": "bitklavier-grand-binaural",
+   "version": 1,
+   "name": {
+    "en": "bitKlavier Grand · Binaural",
+    "es": "bitKlavier Grand · Binaural"
+   },
+   "description": {
+    "en": "A Steinway D recorded in Princeton's Taplin Auditorium, lid fully open (January 2021): the Binaural image — Neumann KU100 dummy head, where the pianist sits: what the player hears (for headphones). 16 velocity layers every minor third, release resonances, hammer releases and the pedal (48 kHz, 24-bit). Plays in Chorda as a recorded piano; each of its nine images is its own download, so you keep only what you use.",
+    "es": "Un Steinway D grabado en el Taplin Auditorium de Princeton con la tapa abierta del todo (enero de 2021): la imagen Binaural — Neumann KU100 dummy head, donde se sienta el pianista: lo que oye quien toca (para auriculares). 16 capas de velocidad cada tercera menor, resonancias al soltar, el regreso de los martillos y el pedal (48 kHz, 24 bits). Suena en Chorda como piano grabado; cada una de sus nueve imágenes se descarga aparte, así guardas solo lo que usas."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "README_Binaural.txt",
+   "credits": [
+    {
+     "name": "The bitKlavier Grand — Princeton University: Dan Trueman (producer), Andrés Villalta (engineer), Matt Wang (piano)",
+     "url": "https://bitklavier.com/the-bitklavier-grand/",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 1641570560,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/bitKlavierGrand_Binaural_48k24b/bitKlavierGrand_Binaural_48k24b.zip",
+     "size": 2861599237,
+     "sha256": "85e7489134989329bb0fc3dd29e6d23a7d3aa5781d40e19e8fbea497a8b3c73b",
+     "strip": "bitKlavierGrand_Binaural_48k24b/",
+     "include": [
+      "*.wav",
+      "README_*.txt"
+     ],
+     "exclude": [
+      "._*"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "The bitKlavier Grand",
+    "author": "Princeton University — Dan Trueman, Andrés Villalta, Matt Wang",
+    "url": "https://bitklavier.com/the-bitklavier-grand/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "bitKlavier Grand · Binaural",
+      "es": "bitKlavier Grand · Binaural"
+     },
+     "file": "binaural.sfz",
+     "shelf": "keys",
+     "gain_db": -7.0,
+     "plays": "chorda"
+    }
+   ],
+   "piano": {
+    "naming": "bit_klavier",
+    "perspectives": [
+     {
+      "folder": "",
+      "name": {
+       "en": "Binaural",
+       "es": "Binaural"
+      },
+      "output": 8
+     }
+    ],
+    "sfz": "binaural.sfz",
+    "set": "bitklavier-grand",
+    "unpacked_size": 3799396406
+   }
+  },
+  {
+   "id": "accurate-salamander-grand-piano",
+   "version": 1,
+   "name": {
+    "en": "Accurate-Salamander Grand Piano",
+    "es": "Piano de cola Accurate-Salamander"
+   },
+   "description": {
+    "en": "The Salamander Grand (Yamaha C5) re-tuned and re-levelled key by key by Chisato Yamauchi: every key its own sample, 16 velocity layers, the levels measured and matched (48 kHz, 24-bit FLAC). Plays in Chorda as a recorded piano: the notes of its minimum edition (no release, hammer or pedal samples, which its other editions switch with controllers).",
+    "es": "El Salamander Grand (Yamaha C5) re-afinado y re-nivelado tecla a tecla por Chisato Yamauchi: cada tecla con su muestra, 16 capas de velocidad, los niveles medidos e igualados (48 kHz, FLAC de 24 bits). Suena en Chorda como piano grabado: las notas de su edición mínima (sin muestras de relajación, martillos ni pedal, que sus otras ediciones activan con controladores)."
+   },
+   "category": "instruments",
+   "licence": "CC-BY-3.0",
+   "licence_url": "https://creativecommons.org/licenses/by/3.0/legalcode",
+   "licence_file": "README.txt",
+   "credits": [
+    {
+     "name": "Accurate-Salamander Project — Chisato Yamauchi",
+     "url": "https://www.ir.isas.jaxa.jp/~cyamauch/AccurateSalamander/",
+     "licence_url": "https://creativecommons.org/licenses/by/3.0/"
+    },
+    {
+     "name": "Salamander Grand Piano — Alexander Holm",
+     "url": "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html",
+     "licence_url": "https://creativecommons.org/licenses/by/3.0/"
+    }
+   ],
+   "checked": "2026-11-12",
+   "installed_size": 790463190,
+   "source": {
+    "zip": {
+     "url": "https://archive.org/download/httpswww.ir.isas.jaxa.jpcyamauchaccuratesalamander/AccurateSalamanderGrandPianoV6.2e_48khz24bit_flac.zip",
+     "size": 785411815,
+     "sha256": "7c74a05dd43b21233a7e55d18a5c7c1d51001c84fb8d42e43aa011e9c9ff6694",
+     "include": [
+      "48khz24bit/**",
+      "sfz_minimum/Accurate-SalamanderGrandPiano_flat.Recommended.sfz",
+      "README.txt",
+      "README.orig.txt"
+     ]
+    }
+   },
+   "attribution": {
+    "title": "Accurate-Salamander Grand Piano 6.2e",
+    "author": "Chisato Yamauchi, from Alexander Holm's Salamander Grand Piano",
+    "url": "https://www.ir.isas.jaxa.jp/~cyamauch/AccurateSalamander/"
+   },
+   "instruments": [
+    {
+     "id": "grand",
+     "name": {
+      "en": "Accurate-Salamander Grand Piano",
+      "es": "Piano de cola Accurate-Salamander"
+     },
+     "file": "sfz_minimum/Accurate-SalamanderGrandPiano_flat.Recommended.sfz",
+     "shelf": "keys",
+     "gain_db": -5.5,
+     "plays": "chorda"
+    }
+   ]
+  },
+  {
+   "id": "tympanum-hybrid-jazz",
+   "version": 3,
+   "name": {
+    "en": "Tympanum hybrid: Jazz Birch attacks",
+    "es": "Tympanum híbrido: ataques de Jazz Birch"
+   },
+   "description": {
+    "en": "The recorded first moments of each piece of the Jazz Birch kit (kick, snare, toms, hi-hat, crash, ride), fitted from Virtuosity Drums: what Cantus's model does not already play, played under it when the kit's voice is Hybrid. About 5 MB.",
+    "es": "Los primeros instantes grabados de cada pieza del kit Jazz Birch (bombo, caja, toms, charles, crash, ride), ajustados a partir de Virtuosity Drums: lo que el modelo de Cantus aún no toca, sonando debajo de él cuando la voz del kit es Híbrida. Unos 5 MB."
+   },
+   "category": "drums",
+   "licence": "CC0-1.0",
+   "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+   "licence_file": "LICENSE.txt",
+   "credits": [
+    {
+     "name": "Virtuosity Drums — Versilian Studios and Karoryfer Samples, played by Austin McMahon",
+     "url": "https://github.com/sfzinstruments/virtuosity_drums",
+     "licence_url": "https://github.com/sfzinstruments/virtuosity_drums/blob/master/LICENSE"
+    }
+   ],
+   "checked": "2026-11-14",
+   "installed_size": 5770574,
+   "source": {
+    "zip": {
+     "url": "https://github.com/luis314159/cantus-daw/releases/download/content-r40/tympanum-hybrid-jazz-3.zip",
+     "size": 5176330,
+     "sha256": "dc4536d60a5716504332915bd9129a930f7b7ca009504409700469ae07e3dcfc",
+     "strip": "tympanum-hybrid-jazz/"
+    }
+   }
+  },
+  {
+   "id": "tympanum-hybrid-studio",
+   "version": 3,
+   "name": {
+    "en": "Tympanum hybrid: Studio Maple attacks",
+    "es": "Tympanum híbrido: ataques de Studio Maple"
+   },
+   "description": {
+    "en": "The recorded first moments of each piece of the Studio Maple kit (kick, snare, toms, hi-hat, crash, ride), fitted from DRSKit: what Cantus's model does not already play, played under it when the kit's voice is Hybrid. About 5 MB.",
+    "es": "Los primeros instantes grabados de cada pieza del kit Studio Maple (bombo, caja, toms, charles, crash, ride), ajustados a partir de DRSKit: lo que el modelo de Cantus aún no toca, sonando debajo de él cuando la voz del kit es Híbrida. Unos 5 MB."
+   },
+   "category": "drums",
+   "licence": "CC-BY-4.0",
+   "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "licence_file": "LICENSE.txt",
+   "credits": [
+    {
+     "name": "DRSKit 2.1 — the DrumGizmo team (Deva and Lars Muldjord) and Jes Eiler of DRSDrums",
+     "url": "https://drumgizmo.org/wiki/doku.php?id=kits:drskit",
+     "licence_url": "https://creativecommons.org/licenses/by/4.0/"
+    }
+   ],
+   "checked": "2026-11-14",
+   "installed_size": 5769331,
+   "source": {
+    "zip": {
+     "url": "https://github.com/luis314159/cantus-daw/releases/download/content-r40/tympanum-hybrid-studio-3.zip",
+     "size": 5241324,
+     "sha256": "1b7cd0dd13832b9e122d4ec5f6d210cd5fd5f98ba096ec97ed99ebca2ffa12e0",
+     "strip": "tympanum-hybrid-studio/"
+    }
+   },
+   "attribution": {
+    "title": "DRSKit",
+    "author": "the DrumGizmo team and Jes Eiler (DRSDrums)",
+    "url": "https://drumgizmo.org/wiki/doku.php?id=kits:drskit",
+    "note": "When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution."
    }
   }
  ]

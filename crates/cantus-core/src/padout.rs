@@ -93,6 +93,7 @@ pub(crate) fn append_taps(project: &Project, tracks: &mut Vec<TrackSnapshot>) {
                 direct: Vec::new(),
                 buses: Vec::new(),
                 tap: Some(Tap { source: i, bus }),
+                record_tap: Default::default(), // r40:pads — a tap records nothing
             };
             tracks.push(tap);
             tracks[i].buses.push(at);
@@ -141,6 +142,9 @@ pub enum Refusal {
     /// ([`ENGINE_TRACKS`]) and a strip ([`ENGINE_STRIPS`]); past them a pad would fall
     /// silently back onto the kit's strip (round 37's review, item 6).
     NoRoom,
+    /// r40:pads — the strip cannot carry a pad (ADR 0117): it is gone, a VCA or a pad's
+    /// chain, or the pad's chain would play into itself.
+    Unfit,
 }
 
 /// How many tracks the engine plays — the project's and every tap — and how many strips
@@ -162,7 +166,7 @@ pub fn engine_tracks(project: &Project) -> usize {
 /// `cmd` if the engine has room for what it makes ([`Refusal::NoRoom`] otherwise): no
 /// more tracks and taps than [`ENGINE_TRACKS`], no more strips than [`ENGINE_STRIPS`] —
 /// judged only when it adds to them.
-fn with_room(project: &Project, cmd: Command) -> Result<Command, Refusal> {
+pub(crate) fn with_room(project: &Project, cmd: Command) -> Result<Command, Refusal> {
     let mut after = project.clone();
     if cmd.clone().apply(&mut after).is_err() {
         return Ok(cmd); // the bus says why
@@ -291,19 +295,38 @@ pub fn split(bus: &mut crate::bus::CommandBus, track: TrackId) -> Result<Command
     split_with(&project, track, |name| bus.new_strip(name))
 }
 
-/// *Merge back*: one command that returns every pad of `track`'s kit to the kit's own
-/// strip (a pad's chain kept, its output back on the kit's strip) and removes each strip a
-/// pad was heard on that nothing else uses afterwards (no other track or pad, no other
-/// strip routed or sending into it, no insert keyed from it, no strip following it as a
-/// VCA) — what *Split to strips* made, and only that.
+/// Where a pad of `t`'s kit is heard when *Split to strips* put it there: [`heard_on`] a
+/// strip made for pads. A pad on a strip the user chose (its well, ADR 0117 §5) is the
+/// user's routing, which *Merge back* leaves alone (review 2 of round 40, R2-B3).
+pub fn split_onto(project: &Project, t: &Track, pad: &DrumPad) -> Option<StripId> {
+    heard_on(project, t, pad).filter(|s| project.strip(*s).is_some_and(pad_made))
+}
+
+/// *Merge back*: one command that undoes *Split to strips* — it returns every pad of
+/// `track`'s kit heard on a strip made for pads ([`split_onto`]) to the kit's own strip (a
+/// pad's chain kept, its output back on the kit's strip) and removes each such strip that
+/// nothing else uses afterwards (no other track or pad, no other strip routed or sending
+/// into it, no insert keyed from it, no strip following it as a VCA). A pad on a strip the
+/// user chose stays there, and the strip with its inserts (ADR 0117 §5, R2-B3).
 pub fn merge(project: &Project, track: TrackId) -> Result<Command, Refusal> {
+    merge_pads(project, track, false)
+}
+
+/// [`merge`], or with `every` each pad heard off the kit's strip, the user's strips
+/// included (a render's copy, [`merge_in_place`]).
+fn merge_pads(project: &Project, track: TrackId, every: bool) -> Result<Command, Refusal> {
     let t = project.track(track).ok_or(Refusal::NotAKit)?;
     let kit = t.instrument.pulsus().ok_or(Refusal::NotAKit)?;
     let mut outs: Vec<StripId> = Vec::new();
     let mut moved: Vec<StripId> = Vec::new();
     let mut commands = Vec::new();
     for p in &kit.pads {
-        let Some(own) = heard_on(project, t, p) else {
+        let own = if every {
+            heard_on(project, t, p)
+        } else {
+            split_onto(project, t, p)
+        };
+        let Some(own) = own else {
             continue;
         };
         if !outs.contains(&own) {
@@ -344,7 +367,9 @@ pub fn merge(project: &Project, track: TrackId) -> Result<Command, Refusal> {
                 .effects
                 .iter()
                 .any(|e| e.sidechain == Some(s));
-        if !others && !routed && project.strip(s).is_some() {
+        // Only a strip made for pads (review mid-round 40, B-2).
+        let made = project.strip(s).is_some_and(pad_made);
+        if !others && !routed && made {
             commands.push(Command::RemoveStrip { id: s });
         }
     }
@@ -379,13 +404,24 @@ pub fn can_split(project: &Project, track: TrackId) -> bool {
     })
 }
 
-/// Whether `track`'s kit has pads on strips of their own (it can be merged back).
+/// Whether *Merge back* has something to do: a pad of `track`'s kit on a strip *Split to
+/// strips* made ([`split_onto`]; a pad on a strip the user chose is the user's, R2-B3).
 pub fn can_merge(project: &Project, track: TrackId) -> bool {
-    is_split(project, track)
+    project.track(track).is_some_and(|t| {
+        t.instrument
+            .pulsus()
+            .is_some_and(|k| k.pads.iter().any(|p| split_onto(project, t, p).is_some()))
+    })
 }
 
-/// The kit track a strip belongs to as a pad's strip or chain (its first pad's track).
+/// The kit track a strip belongs to as a pad's strip or chain (its first pad's track): a
+/// strip made for pads (*Split to strips*, a chain). A strip of the user's that a pad was
+/// sent to (its well, ADR 0117) belongs to no kit — it is a strip like any other, which
+/// bounces and has no *Split / Merge* of its own (review mid-round 40, B-3).
 pub fn kit_of_strip(project: &Project, strip: StripId) -> Option<TrackId> {
+    if !project.strip(strip).is_some_and(pad_made) {
+        return None;
+    }
     project
         .tracks
         .iter()
@@ -539,10 +575,10 @@ pub fn chain_count(project: &Project, track: TrackId) -> usize {
 }
 
 /// *Merge back* applied to `p` in place (a render's copy: a bounce of a split kit's track,
-/// ADR 0100 §9): every pad heard on a strip of its own back on the kit, its chain kept.
-/// Whether the kit was split.
+/// ADR 0100 §9): every pad heard on a strip of its own back on the kit, its chain kept —
+/// the user's strips included, so the render holds the whole kit. Whether the kit was split.
 pub fn merge_in_place(p: &mut Project, track: TrackId) -> bool {
-    match merge(p, track) {
+    match merge_pads(p, track, true) {
         Ok(cmd) => cmd.apply(p).is_ok(),
         Err(_) => false,
     }
@@ -586,6 +622,11 @@ pub fn kit_sum_strip(p: &mut Project, track: TrackId) -> Option<StripId> {
 #[path = "padout_chain.rs"]
 mod chain;
 pub use chain::{chain_add, chain_effects, chain_remove, may_reroute, with_kit_strips_following};
+
+// r40:pads — a pad's own mixer track, chosen per pad from the rack (ADR 0117).
+#[path = "padout_track.rs"]
+mod track;
+pub use track::{can_carry_pad, has_own_track, pad_track, set_pad_track};
 
 #[cfg(test)]
 #[path = "padout_tests.rs"]

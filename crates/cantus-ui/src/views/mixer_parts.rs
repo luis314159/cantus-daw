@@ -7,15 +7,15 @@ use super::look::{self, W};
 use super::menu::Menu;
 use super::rows::Col;
 use super::strip::{knob_input, pid, sense, write_db, Part, Pass, Snap};
-use super::{MixerView, Renaming};
+use super::MixerView;
 use crate::app::CantusApp;
-use crate::kit::color::{mix, on_fill, safe_track, with_alpha, FillSize};
+use crate::kit::color::{mix, with_alpha};
 use crate::kit::glyph::{self, Glyph};
 use crate::kit::hint::{self, Caps};
 use crate::kit::knob::{self, KnobLook, KnobSize};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{Brush, Fill, State, Tok};
-use cantus_core::{Command, GroupId, Send, StripId};
+use cantus_core::{Command, Send, StripId};
 use egui::{pos2, vec2, Align2, Rect, Sense, Ui};
 use std::fmt::Write as _;
 
@@ -453,139 +453,6 @@ pub(super) fn master(
     super::rows::output(v, app, ui, b, pass, &c);
 }
 
-/// A group's separator: a column in the group's colour with its name running up it, a
-/// chevron at the top and the member count at the foot. A click folds the group (its
-/// strips leave the desk; the separator stays); a double-click renames it; right-click is
-/// the group's menu.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn separator(
-    v: &mut MixerView,
-    app: &mut CantusApp,
-    ui: &mut Ui,
-    b: &mut Brush,
-    pass: &mut Pass,
-    gid: GroupId,
-    x: f32,
-    w: f32,
-) {
-    let s = pass.s;
-    let t = &s.t;
-    let Some(group) = app.project().strip_group(gid) else {
-        return;
-    };
-    let (collapsed, color) = (group.collapsed, group.color);
-    let members = app.project().strips_in_group(gid).count();
-    let bw = w - 1.0;
-    let body = pass.body(x, bw);
-    let resp = sense(
-        ui,
-        pass,
-        body,
-        egui::Id::new(("mixer-group", gid.0)),
-        Sense::click(),
-    );
-    let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-    let c = safe_track(crate::theme::track_color(color), t.dark, FillSize::Large);
-    let fill = crate::kit::color::mix(t.strip, c, if hovered { 0.55 } else { 0.4 });
-    b.register(body, "mixer_group", SEPARATOR_TOKENS, &[]);
-    b.rect(b.snap_rect(body), Fill::Solid(fill));
-    b.rect(
-        b.snap_rect(Rect::from_min_max(
-            body.min,
-            pos2(body.left() + 3.0, body.bottom()),
-        )),
-        Fill::Solid(crate::kit::color::track_mark(
-            crate::theme::track_color(color),
-            t,
-        )),
-    );
-    let ink = on_fill(fill);
-    // des-mixer's head: the chevron stands where a strip's number does (Compact's number
-    // sits on the head's first 14 points; Wide and Large centre it in a shorter head).
-    let head = pass.row(Row::Number);
-    if let Some((a, z)) = head {
-        let cy = if z - a > 48.0 { a + 9.0 } else { (a + z) * 0.5 };
-        let g = Rect::from_center_size(pos2(body.center().x + 1.0, cy), vec2(10.0, 10.0));
-        glyph::paint(b, g, if collapsed { Glyph::Menu } else { Glyph::Down }, ink);
-    }
-    let renaming = matches!(v.rename, Some((Renaming::Group(g), _)) if g == gid);
-    if renaming {
-        if let Some((a, _)) = pass.row(Row::Number) {
-            v.rename_at = Some(Rect::from_min_size(pos2(x, a), vec2(bw, 16.0)));
-        }
-    }
-    // The name runs up the column from below the chevron to the fader's foot, the way a
-    // Compact strip's name runs up its head (des-mixer's desk has no name or meter row).
-    let top = head.map(|(a, z)| if z - a > 48.0 { a + 18.0 } else { z });
-    let bottom = pass.row(Row::Fader).map(|r| r.1);
-    if let (Some(a), Some(z), false) = (top, bottom, renaming) {
-        if let Some(group) = app.project().strip_group(gid) {
-            let nr = Rect::from_min_max(pos2(x + 3.0, a + 2.0), pos2(x + bw, z));
-            let tt = Text::new(&group.name, Role::Label, ink)
-                .align(Align2::CENTER_TOP)
-                .policy(Policy::Rotate90(Elide::Middle));
-            let _ = text::paint(b, nr, &tt, s.tk());
-        }
-    }
-    // The member count at the foot, in the strips' output row (or the last row there is).
-    let foot = [
-        Row::Output,
-        Row::SendList,
-        Row::Readout,
-        Row::Sends,
-        Row::FxRec,
-    ]
-    .into_iter()
-    .find_map(|r| pass.mid(r));
-    if let Some(y) = foot {
-        v.buf.clear();
-        let _ = write!(v.buf, "{members}");
-        let cr = Rect::from_center_size(pos2(body.center().x + 1.0, y), vec2(bw, 12.0));
-        let _ = text::paint(
-            b,
-            cr,
-            &Text::new(&v.buf, Role::Micro, with_alpha(ink, 0.8)).caps(false),
-            s.tk(),
-        );
-    }
-    let Some(resp) = resp else {
-        return;
-    };
-    if hovered {
-        if let Some(group) = app.project().strip_group(gid) {
-            v.hint_buf.clear();
-            let _ = write!(v.hint_buf, "{} · {members}", group.name);
-            hint::set_text(
-                ui.ctx(),
-                &v.hint_buf,
-                &v.words.group,
-                Caps {
-                    menu: true,
-                    ..Caps::NONE
-                },
-            );
-        }
-    }
-    let resp = resp.on_hover_text(&v.words.group);
-    // The separator drags the whole group, and is a drop target (round 25).
-    super::drag::source(v, app, ui, &resp, super::drag::Source::Group(gid));
-    let target = super::drag::target_group(v, app, ui, gid, body);
-    super::cables::column_hatch(b, s, body, target);
-    if resp.double_clicked() {
-        v.begin_group_rename(app, gid);
-    } else if resp.clicked() {
-        app.exec(Command::SetStripGroupCollapsed {
-            id: gid,
-            collapsed: !collapsed,
-        });
-    }
-    if resp.secondary_clicked() {
-        let at = resp.interact_pointer_pos().unwrap_or(body.center());
-        v.popups.open(Menu::Group(gid), at);
-    }
-}
-
-const SEPARATOR_TOKENS: &[Tok] = &[Tok::Strip];
 const ADD_TOKENS: &[Tok] = &[Tok::Text, Tok::TextDim];
 
 /// The `+` after the last strip of the middle (FL 2025's add-a-track slot).

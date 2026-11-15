@@ -26,6 +26,10 @@ use cantus_dsp::math;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+// r40:tymp-engine — every microphone kept, for Tympanum (ADR 0124 §3).
+#[path = "kitbuild_mics.rs"]
+pub mod mics;
+
 /// What a build made.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Built {
@@ -338,7 +342,11 @@ pub fn build(
     cancel: &AtomicBool,
     report: &mut dyn FnMut(u64, u64),
 ) -> Result<Built, String> {
-    let built = render(b, dir, dir, credit, cancel, report)?;
+    let built = if b.multichannel {
+        mics::render_mics(b, dir, dir, credit, cancel, report)? // r40:tymp-engine
+    } else {
+        render(b, dir, dir, credit, cancel, report)?
+    };
     prune(dir, b)?;
     Ok(built)
 }

@@ -68,6 +68,8 @@ fn it_opens_in_every_view_and_draws_the_piano_from_above() {
         if view == View::Play {
             assert!(text.contains("The piano and its room"), "{view:?}: {text}");
             assert!(text.contains("Pedals"), "{view:?}: {text}");
+            // r40:chorda-src — the design's panel at the right.
+            assert!(text.contains("Where you listen"), "{view:?}: {text}");
         }
         if view == View::Edit {
             assert!(text.contains("Strings and hammers"), "{view:?}: {text}");
@@ -88,7 +90,8 @@ fn it_opens_in_every_view_and_draws_the_piano_from_above() {
     assert!(text.contains("E5"), "the struck key is shown: {text}");
     a.inst.view = View::Play;
     let text = settle(&mut a, &ctx);
-    assert!(text.contains("Sustain 40 %"), "the pedal: {text}");
+    // r40:chorda-src — the panel's Sustain row says where the foot is (the design).
+    assert!(text.contains("Sustain | 40 %"), "the pedal: {text}");
 }
 
 #[test]

@@ -118,6 +118,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
             vec![TrackMix(*id), input(was), input(*strip)]
         }
         SetTrackInput { id, .. } | SetTrackArmed { id, .. } => vec![TrackSource(*id)],
+        SetTrackRecordTap { .. } => vec![], // r40:pads — where a take is tapped, not a sound
         // ---- strips ----------------------------------------------------------------------
         InsertStrip { .. } | RemoveStrip { .. } => vec![Global],
         // A VCA's fader, mute or solo is its members' (ADR 0093): what each sounds. // r36:mix
@@ -143,7 +144,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | RemoveStripGroup { .. }
         | SetStripGroupName { .. }
         | SetStripGroupColor { .. }
-        | SetStripGroupCollapsed { .. } => vec![],
+        | SetStripGroupCollapsed { .. }
+        | SetStripAttached { .. } => vec![], // r40:tymp-ui
         SetStripGain { id, .. } | SetStripPan { id, .. } => vec![StripLevel(*id)],
         // r37:drums — the law places the strip as its pan does (ADR 0100 §3).
         SetStripPanLaw { id, .. } => vec![StripLevel(*id)],
@@ -191,6 +193,18 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
                 .and_then(|p| p.output)
                 .or(home);
             vec![TrackSource(*track), input(was), input(output.or(home))]
+        }
+        // r40:p3 — a named output moves between strips (ADR 0123): as a pad does.
+        SetInstrumentOutput { track, id, slot } => {
+            let t = project.track(*track);
+            let home = t.and_then(|t| t.strip);
+            let was = t
+                .and_then(|t| t.instrument.native())
+                .and_then(|n| n.outputs.iter().find(|s| s.id == *id))
+                .map(|s| s.strip)
+                .or(home);
+            let to = slot.as_ref().map(|s| s.strip).or(home);
+            vec![TrackSource(*track), input(was), input(to)]
         }
         // Round 31 (ADR 0069): the notes a track plays are its source.
         SetTrackNoteFx { track, .. } | SetNoteFxParam { track, .. } => vec![TrackSource(*track)],

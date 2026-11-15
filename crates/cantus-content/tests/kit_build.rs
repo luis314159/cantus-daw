@@ -197,18 +197,21 @@ fn build_spec(unpacked: u64) -> Build {
                 keys: vec![38, 40],
                 gain_db: 0.0,
                 label: String::new(),
+                openness: None,
             },
             KeyMap {
                 instrument: "HatClosed".into(),
                 keys: vec![42],
                 gain_db: 0.0,
                 label: String::new(),
+                openness: None,
             },
             KeyMap {
                 instrument: "HatOpen".into(),
                 keys: vec![46],
                 gain_db: 0.0,
                 label: String::new(),
+                openness: None,
             },
         ],
         chokes: vec![Choke {
@@ -218,6 +221,7 @@ fn build_spec(unpacked: u64) -> Build {
         round_robin: 2,
         range_db: 24.0,
         keep: vec!["README.md".into()],
+        multichannel: false, // r40:p3
     }
 }
 
@@ -242,6 +246,7 @@ fn kit_pack(dir: &Path) -> Pack {
         layers: None,
         gain_db: 0.0,
         voices: Some(64),
+        plays: Default::default(), // r40:p3
     }];
     p.build = Some(build_spec(unpacked));
     p

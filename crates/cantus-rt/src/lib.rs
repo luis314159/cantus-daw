@@ -33,6 +33,8 @@
 #![warn(missing_debug_implementations)]
 
 pub mod cell;
+#[cfg(all(feature = "census", windows))]
+pub mod census; // r40:memory — the heap census of a measurement build (ADR 0120 §1)
 pub mod denormal;
 pub mod disk;
 pub mod endpoints; // round 38 — audio endpoints' changes waited for, not polled

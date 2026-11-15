@@ -86,8 +86,22 @@ pub struct RoomVoicing {
     pub lp_hz: f64,
 }
 
+/// Since `DSP_VERSION` 7 (round 40): candidate 16's room (`chorda_voicing_c16.rs`'s `room.*`
+/// keys over [`RoomVoicing::beta14`]).
 impl Default for RoomVoicing {
     fn default() -> Self {
+        RoomVoicing {
+            early: 0.412812,
+            late: 0.845,
+            lp_hz: 5384.62,
+            ..RoomVoicing::beta14()
+        }
+    }
+}
+
+impl RoomVoicing {
+    /// The room from round 37 to beta.14.
+    pub fn beta14() -> Self {
         RoomVoicing {
             t60_low: 1.3,
             t60_high: 0.55,

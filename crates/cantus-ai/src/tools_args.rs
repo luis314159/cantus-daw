@@ -424,6 +424,12 @@ pub const INSTRUMENTS: &[(&str, &str, InstrumentChoice, &str)] = &[
         "modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)",
     ),
     (
+        "tympanum",
+        "Tympanum",
+        InstrumentChoice::Native(InstrumentKind::AcousticDrums),
+        "acoustic drummer: modelled kits with movable virtual microphones and recorded multi-mic kits, each mic its own output; pieces on General MIDI drum notes (kick 36, snare 38, closed hat 42…)",
+    ),
+    (
         "dancer",
         "Saltator",
         InstrumentChoice::Native(InstrumentKind::Dancer),
@@ -462,6 +468,7 @@ pub fn native_id(kind: InstrumentKind) -> &'static str {
         InstrumentKind::Organ => "organum",
         InstrumentKind::Chorda => "chorda",
         InstrumentKind::Dancer => "dancer",
+        InstrumentKind::AcousticDrums => "tympanum",
     }
 }
 

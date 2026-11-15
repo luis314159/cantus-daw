@@ -247,6 +247,8 @@ pub struct Processor {
     capture_slot: Option<usize>,
     /// The effect the analyser looks at.
     analysed: Option<cantus_core::EffectId>,
+    /// r40:pads — the keyed insert whose key its strip plays (*Hear the key*, ADR 0118).
+    hear_key: Option<cantus_core::EffectId>,
     /// The Speculums whose signals go to the scope rings (ADR 0056).
     scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// How late each watched Speculum's signal is against the transport (`scope_delays`).
@@ -264,6 +266,9 @@ pub struct Processor {
     /// ramp (review 2, finding 10), the first `follow_n`.
     follow_lates: Box<[usize]>,
     follow_n: usize,
+    /// fix-a (A-M3): an effect may be moving memory in or holding some to give back:
+    /// `msg::sweep_spent` looks after each block while it is.
+    fx_busy: bool,
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: Box<crate::pdc::Compensation>,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
@@ -331,11 +336,27 @@ pub struct Processor {
 }
 
 impl Processor {
+    /// A processor with [`crate::pdc::START_LINES`] compensation lines: what drives one
+    /// without sending lines ahead of its snapshots (a test, the bench, a render's) needs.
     pub fn new(
         sample_rate: f64,
         rx: Consumer<EngineMessage>,
         tx: Producer<EngineEvent>,
         midi_rx: Consumer<MidiEvent>,
+    ) -> Self {
+        Self::with_lines(sample_rate, rx, tx, midi_rx, crate::pdc::START_LINES)
+    }
+
+    /// r40:pads — [`Self::new`] with `lines` compensation lines at start (ADR 0120 §7). The
+    /// application's engine starts with none: its handle sends the lines a snapshot can
+    /// need ahead of it (`pdc::lines_needed`, ADR 0107 §3), off the audio thread, and a
+    /// longer delay still grows the pool as it always did.
+    pub fn with_lines(
+        sample_rate: f64,
+        rx: Consumer<EngineMessage>,
+        tx: Producer<EngineEvent>,
+        midi_rx: Consumer<MidiEvent>,
+        lines: usize,
     ) -> Self {
         let ready = (crate::parts::START_TRACKS, crate::parts::START_STRIPS); // ADR 0107
         Self::with_cells(
@@ -345,6 +366,7 @@ impl Processor {
             midi_rx,
             (MAX_TRACKS, MAX_STRIPS),
             ready,
+            lines,
         )
     }
 
@@ -359,9 +381,10 @@ impl Processor {
         midi_rx: Consumer<MidiEvent>,
         cells: (usize, usize),
         ready: (usize, usize),
+        lines: usize,
     ) -> Self {
         let sr = sample_rate as f32;
-        let pdc = Box::new(crate::pdc::Compensation::new());
+        let pdc = Box::new(crate::pdc::Compensation::with_lines(lines)); // r40:pads
         let (reports, reports_in) = crate::report::mailbox();
         let workers = pool::Workers::from_env();
         let nodes = Arc::new(Nodes::with_cells(
@@ -430,6 +453,7 @@ impl Processor {
             capture_target: CaptureTarget::Off,
             capture_slot: None,
             analysed: None,
+            hear_key: None, // r40:pads
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
             scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
             master_tap: Default::default(), // r35:stage
@@ -439,6 +463,7 @@ impl Processor {
             follow_lates: vec![0; (MAX_STRIPS + 1) * crate::messages::MAX_EFFECTS_PER_TRACK]
                 .into_boxed_slice(),
             follow_n: 0,
+            fx_busy: false,
             pdc,
             master_loud: Box::new(master_run::MasterLoud::new(sr)),
             edge_l: vec![0.0; PASS_FRAMES],
@@ -753,9 +778,20 @@ impl Processor {
         rx: Consumer<EngineMessage>,
         tx: Producer<EngineEvent>,
     ) -> Self {
+        Self::without_midi_lines(sample_rate, rx, tx, crate::pdc::START_LINES)
+    }
+
+    /// r40:pads — [`Self::without_midi`] with `lines` compensation lines at start (ADR 0120
+    /// §7): `0` for a handle that sends them ahead of its snapshots.
+    pub fn without_midi_lines(
+        sample_rate: f64,
+        rx: Consumer<EngineMessage>,
+        tx: Producer<EngineEvent>,
+        lines: usize,
+    ) -> Self {
         let (_p, c) = RingBuffer::<MidiEvent>::new(1);
         // The producer is dropped: the consumer simply stays empty forever.
-        Self::new(sample_rate, rx, tx, c)
+        Self::with_lines(sample_rate, rx, tx, c, lines)
     }
 
     pub fn transport(&self) -> &Transport {

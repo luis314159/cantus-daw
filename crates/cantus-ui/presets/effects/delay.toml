@@ -1,6 +1,8 @@
 # Delay: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
+# Round 40 (ADR 0119): the presets named by a note value follow the tempo (`sync`, `note`);
+# their `time_ms` is that note at 120 BPM, what the time is when the sync is turned off.
 
 [[preset]]
 key = "delay.preset.slapback"
@@ -16,13 +18,15 @@ roles = ["vocal"]
 
 [[preset]]
 key = "delay.preset.eighth_echo"
-note = "Eighth notes at 120 BPM, a few repeats under a pop vocal."
+note = "Eighth notes at the song's tempo, a few repeats under a pop vocal."
 styles = ["pop", "rnb"]
 roles = ["vocal"]
 [preset.values]
 "feedback" = 0.32
 "mix" = 0.18
+"note" = 9
 "ping_pong" = 0
+"sync" = 1
 "time_ms" = 250
 "tone_hz" = 6000
 
@@ -34,7 +38,9 @@ roles = ["creative"]
 [preset.values]
 "feedback" = 0.42
 "mix" = 0.2
+"note" = 10
 "ping_pong" = 1
+"sync" = 1
 "time_ms" = 375
 "tone_hz" = 4500
 
@@ -46,7 +52,9 @@ roles = ["vocal"]
 [preset.values]
 "feedback" = 0.45
 "mix" = 0.16
+"note" = 12
 "ping_pong" = 1
+"sync" = 1
 "time_ms" = 500
 "tone_hz" = 3800
 
@@ -58,7 +66,9 @@ roles = ["vocal"]
 [preset.values]
 "feedback" = 0.3
 "mix" = 0.18
+"note" = 9
 "ping_pong" = 1
+"sync" = 1
 "time_ms" = 250
 "tone_hz" = 3200
 
@@ -106,7 +116,9 @@ roles = ["creative"]
 [preset.values]
 "feedback" = 0.42
 "mix" = 0.2
+"note" = 6
 "ping_pong" = 1
+"sync" = 1
 "time_ms" = 125
 "tone_hz" = 8000
 
@@ -142,7 +154,9 @@ roles = ["vocal"]
 [preset.values]
 "feedback" = 0.36
 "mix" = 0.18
+"note" = 11
 "ping_pong" = 1
+"sync" = 1
 "time_ms" = 167
 "tone_hz" = 5000
 

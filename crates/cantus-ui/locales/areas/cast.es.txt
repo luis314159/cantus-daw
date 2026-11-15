@@ -18,3 +18,47 @@ cast.mecha.blurb = Un mecha de metal oscuro con un visor en V de luz, un núcleo
 
 cast.ninja.name = Fuga
 cast.ninja.blurb = Un ninja enmascarado con una bufanda carmesí rasgada al viento: volteretas, patadas altas, un aterrizaje agachado y una reverencia marcial.
+
+# r40:cast — the Slate cast (ADR 0122)
+cast.compas.name = Compás
+cast.compas.blurb = Un pictograma que cobra vida en la tinta del propio tema, con auriculares dorados: pop and lock, encaja cada pose en el pulso — y una estrella en el drop.
+cast.tono.name = Tono
+cast.tono.blurb = Un robot con una perilla por cabeza, visor de LED y un cable de parcheo por bufanda: un cabeceo seco, un deslizamiento mecánico — y en el drop se sube el volumen.
+cast.bajo.name = Bajo
+cast.bajo.blurb = Un monitor de estudio de párpados pesados y woofer que bombea: un groove lento y pesado, pisotones — y en el drop suelta el bajo.
+cast.sincopa.name = Síncopa
+cast.sincopa.blurb = Una figura encapuchada en noir, una sola tinta oscura con un filo de luz dorada: fluida y detrás del pulso, con un abrigo cuyos faldones se mecen tarde — y en el drop una onda le recorre los brazos.
+cast.vinilo.name = Vinilo
+cast.vinilo.blurb = Un DJ con un disco girando por cabeza y el brazo del tocadiscos por brazo: scratch en semicorcheas — y en el drop un backspin que aterriza en el pulso.
+cast.cinta.name = Cinta
+cast.cinta.blurb = Un casete que hace breakdance, carretes por ojos y la cinta en remolino: toprock y shuffles — y en el drop rebobina el baile y se congela.
+cast.metronomo.name = Metrónomo
+cast.metronomo.blurb = Un metrónomo de madera con la compostura de un mayordomo, monóculo y bandeja de plata, el péndulo exacto en cada pulso — hasta que en el drop se le escapa a tiempo doble.
+
+# A character's own word for a mood (where it has one): cast.<id>.mood.<mood>.
+cast.metronomo.mood.neutral = Compuesto
+cast.metronomo.mood.happy = Complacido
+cast.metronomo.mood.excited = Alarmado
+cast.metronomo.mood.cool = Impasible
+cast.metronomo.mood.shy = Sin monóculo
+cast.bajo.mood.shy = Estallido
+cast.vinilo.mood.shy = Girando
+cast.cinta.mood.shy = Rebobinando
+cast.tono.mood.shy = Guiño
+cast.sincopa.mood.shy = Guiño
+cast.voz.name = Voz
+cast.voz.blurb = Un micrófono crooner de esmoquin y sombrero pork-pie: la mano al corazón, un deslizamiento chasqueando los dedos — y en el drop se quita el sombrero y ¡tachán!
+cast.glissando.name = Glissando
+cast.glissando.blurb = Una figura de luz, neón lapislázuli sobre un traje oscuro y ojos dorados: tutting y deslizamientos con estelas de luz — y en el drop se dibuja un halo alrededor.
+cast.eco.name = Eco
+cast.eco.blurb = El pequeño fantasma del delay, con ecos que repiten cada paso un cuarto de pulso tarde — y en el drop los ecos se multiplican hasta llenar el escenario.
+cast.voz.mood.shy = Saludo
+cast.glissando.mood.shy = Guiño
+cast.eco.mood.shy = ¡Bu!
+cast.onda.name = Onda
+cast.onda.blurb = Una figura dibujada por el trazo ámbar de un osciloscopio, con un lazo de Lissajous por cabeza: cada miembro ondula con el sonido — y en el drop la onda se vuelve cuadrada.
+cast.espectro.name = Espectro
+cast.espectro.blurb = Una figura hecha de barras de espectro que se encienden con la música que oye — el bombo en las piernas, los platillos en la cabeza — y en el drop todas llegan al tope y saltan chispas.
+cast.onda.mood.shy = Cuadrada
+cast.espectro.mood.shy = A tope
+cast.compas.mood.shy = Preescucha

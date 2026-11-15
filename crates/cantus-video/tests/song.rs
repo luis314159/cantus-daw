@@ -98,6 +98,7 @@ fn frames(timeline: Vec<cantus_dance::DanceFrame>, ch: Arc<dyn Character>) -> So
         start_seconds: 0.0,
         fps: 30,
         overlay: None,
+        spectrum: None,
     }
 }
 

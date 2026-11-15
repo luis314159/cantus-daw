@@ -7,7 +7,6 @@ use cantus_dance::render::{
     placement, render, Background, Stage, CHROMA_BLUE, CHROMA_GREEN, CHROMA_MAGENTA,
 };
 use cantus_dance::{cast, pose_at, Character, DanceFrame, Mood, Move, Pose};
-use std::sync::Arc;
 
 /// A playing pose with no blend under way (`pose_at` at the song's start blends from
 /// standing still, which would draw the old move whatever move a test sets).
@@ -80,16 +79,21 @@ fn stage(px: u32) -> Stage {
 }
 
 #[test]
-fn the_default_character_is_the_first_and_the_ninja() {
+fn the_default_character_is_the_first_and_compas() {
     let all = cast::builtin();
     assert_eq!(
         all[0].info().id,
         cantus_core::inst::dancer::DEFAULT_CHARACTER
     );
-    // Fuga the ninja since round 37 (ADR 0105), Volta the mecha second; the songbird stays.
-    assert_eq!(cast::default_character().info().id, "builtin:ninja");
-    assert_eq!(all[1].info().id, "builtin:mecha");
-    assert!(cast::by_id("builtin:songbird").is_some());
+    // Compás since round 40 (ADR 0122), the Slate cast first; Fuga and Volta, the default
+    // and its partner of rounds 37–39, and the songbird before them, stay.
+    assert_eq!(cast::default_character().info().id, "builtin:compas");
+    for id in ["builtin:ninja", "builtin:mecha", "builtin:songbird"] {
+        assert!(cast::by_id(id).is_some(), "{id} stays in the picker");
+    }
+    let fuga = all.iter().position(|c| c.info().id == "builtin:ninja");
+    let volta = all.iter().position(|c| c.info().id == "builtin:mecha");
+    assert_eq!(volta, fuga.map(|i| i + 1), "Volta beside Fuga");
     let mut ids: Vec<String> = all.iter().map(|c| c.info().id.clone()).collect();
     ids.sort();
     ids.dedup();
@@ -131,10 +135,13 @@ fn every_move_and_mood_draws() {
             let p = render(&stage(160), &[(ch, *pose)]).expect("a stage");
             let drawn = p.pixels().iter().filter(|c| c.alpha() > 0).count();
             // The action pair (round 37) are slim teens, not round mascots: about 1 500
-            // pixels standing at this size where the family covers 2 000 and more.
+            // pixels standing at this size where the family covers 2 000 and more; the
+            // Slate cast (round 40) has a pictogram of thin bars and figures of light whose
+            // body is lines (Glissando, Onda): a few hundred.
             assert!(
-                drawn > 1200,
-                "{:?} {:?}: only {drawn} pixels",
+                drawn > 400,
+                "{} {:?} {:?}: only {drawn} pixels",
+                ch.info().id,
                 pose.mv,
                 pose.mood
             );
@@ -263,26 +270,31 @@ fn chroma(r: u8, g: u8, b: u8) -> (f32, f32) {
 #[test]
 fn no_opaque_colour_is_near_a_chroma_key() {
     // Neutral greys sit about 75 from the keys; a cyan sits about 50 from blue and green,
-    // too near. Every fully opaque pixel at hue 0 keeps at least 60.
+    // too near. Drawn for each key (the stage told which, as the renderer tells it over a
+    // keyed background), every fully opaque pixel at hue 0 keeps at least 60 from it. The
+    // family's colours are its own over any key; the Slate cast's lapis is quietened over
+    // the blue one (round 40, `render::key_safe`).
     const MIN: f32 = 60.0;
-    let keys = [CHROMA_GREEN, CHROMA_BLUE, CHROMA_MAGENTA].map(|k| chroma(k[0], k[1], k[2]));
     for ch in cast::builtin() {
         let ch: &dyn Character = ch.as_ref();
         let mut worst = f32::MAX;
-        for pose in poses(ch).iter().step_by(2) {
-            let pose = Pose { hue: 0.0, ..*pose };
-            let p = render(&stage(200), &[(ch, pose)]).expect("a stage");
-            for c in p.pixels() {
-                if c.alpha() != 255 {
-                    continue;
-                }
-                let (cb, cr) = chroma(c.red(), c.green(), c.blue());
-                for (kb, kr) in keys {
+        for key in [CHROMA_GREEN, CHROMA_BLUE, CHROMA_MAGENTA] {
+            let (kb, kr) = chroma(key[0], key[1], key[2]);
+            let mut st = stage(200);
+            st.ink.key = Some(key);
+            for pose in poses(ch).iter().step_by(2) {
+                let pose = Pose { hue: 0.0, ..*pose };
+                let p = render(&st, &[(ch, pose)]).expect("a stage");
+                for c in p.pixels() {
+                    if c.alpha() != 255 {
+                        continue;
+                    }
+                    let (cb, cr) = chroma(c.red(), c.green(), c.blue());
                     let d = ((cb - kb) * (cb - kb) + (cr - kr) * (cr - kr)).sqrt();
                     worst = worst.min(d);
                     assert!(
                         d >= MIN,
-                        "{}: ({}, {}, {}) is {d:.0} from a chroma key in {:?}",
+                        "{}: ({}, {}, {}) is {d:.0} from the key {key:?} in {:?}",
                         ch.info().id,
                         c.red(),
                         c.green(),
@@ -296,6 +308,15 @@ fn no_opaque_colour_is_near_a_chroma_key() {
     }
 }
 
+/// A stage for the drawing's own edges: in Paper's light, where the Slate cast's neon is a
+/// sharp line (at night Glissando's and Onda's lines carry a translucent halo by design,
+/// their glow — not a blur; the family ignores the light).
+fn crisp_stage(side: u32) -> Stage {
+    let mut st = stage(side);
+    st.ink = cantus_dance::render::StageInk::PAPER;
+    st
+}
+
 /// How much of a character's own square it covers, from its alpha.
 fn coverage(ch: &dyn Character, pose: Pose, tall_px: f32) -> f32 {
     let side = (tall_px * 2.2).ceil() as u32;
@@ -303,7 +324,7 @@ fn coverage(ch: &dyn Character, pose: Pose, tall_px: f32) -> f32 {
         size: tall_px / (0.42 * side as f32),
         ..pose
     };
-    let p = render(&stage(side), &[(ch, pose)]).expect("a stage");
+    let p = render(&crisp_stage(side), &[(ch, pose)]).expect("a stage");
     let sum: f32 = p
         .pixels()
         .iter()
@@ -335,7 +356,14 @@ fn the_same_drawing_at_48_and_2160_pixels() {
         );
         // And the edges as sharp at 2160 px as at 48: an edge is one or two pixels of
         // anti-aliasing at any size (a blur, or a small drawing scaled up, would widen it).
-        let small = edge_width(ch, pose, 48.0);
+        // Onda's phosphor trace is 0.010 units wide: half a pixel at 48 px, every pixel of
+        // it partly covered — correct, not soft. Its edges are measured at 240 px.
+        let small_px = if ch.info().id == "builtin:onda" {
+            240.0
+        } else {
+            48.0
+        };
+        let small = edge_width(ch, pose, small_px);
         let large = edge_width(ch, pose, 2160.0);
         assert!(
             small <= 3 && large <= 3 && large <= small + 1,
@@ -353,7 +381,7 @@ fn alphas(ch: &dyn Character, pose: Pose, tall_px: f32) -> (Vec<u8>, usize, usiz
         size: tall_px / (0.42 * side as f32),
         ..pose
     };
-    let p = render(&stage(side), &[(ch, pose)]).expect("a stage");
+    let p = render(&crisp_stage(side), &[(ch, pose)]).expect("a stage");
     let w = side as usize;
     let rows = ((0.85 * side as f32 - 0.1 * tall_px) as usize).min(w);
     let a = p.pixels()[..rows * w].iter().map(|c| c.alpha()).collect();
@@ -459,18 +487,29 @@ fn a_blurred_drawing_fails_the_edge_measure() {
 
 #[test]
 fn a_blink_and_a_hue_change_the_drawing() {
-    let ch: Arc<dyn Character> = cast::default_character();
-    let pose = Pose {
-        mv: Move::Idle,
-        mood: Mood::Neutral,
-        ..base_pose(ch.as_ref())
-    };
-    let open = render(&stage(200), &[(ch.as_ref(), pose)]).expect("a stage");
-    let shut = render(&stage(200), &[(ch.as_ref(), Pose { blink: 1.0, ..pose })]).expect("a stage");
-    assert_ne!(open.data(), shut.data(), "a blink shows");
-    let turned =
-        render(&stage(200), &[(ch.as_ref(), Pose { hue: 120.0, ..pose })]).expect("a stage");
-    assert_ne!(open.data(), turned.data(), "the hue turns its colours");
+    // Every character with eyes blinks (Compás, the pictogram, has no face: round 40);
+    // every one's colours turn with the hue.
+    for ch in cast::builtin() {
+        let pose = Pose {
+            mv: Move::Idle,
+            mood: Mood::Neutral,
+            ..base_pose(ch.as_ref())
+        };
+        let id = ch.info().id.clone();
+        let open = render(&stage(200), &[(ch.as_ref(), pose)]).expect("a stage");
+        if id != "builtin:compas" {
+            let shut = render(&stage(200), &[(ch.as_ref(), Pose { blink: 1.0, ..pose })])
+                .expect("a stage");
+            assert_ne!(open.data(), shut.data(), "{id}: a blink shows");
+        }
+        let turned =
+            render(&stage(200), &[(ch.as_ref(), Pose { hue: 120.0, ..pose })]).expect("a stage");
+        assert_ne!(
+            open.data(),
+            turned.data(),
+            "{id}: the hue turns its colours"
+        );
+    }
 }
 
 #[test]

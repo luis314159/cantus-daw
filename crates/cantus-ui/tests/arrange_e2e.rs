@@ -236,11 +236,15 @@ fn sections_are_made_dragged_and_kept(w: &mut W) {
         .expect("drawn in its lane");
     let s0 = w.app.project().section(id).unwrap().clone();
     assert_eq!((s0.start, s0.length), (Ticks(bar.0 * 4), Ticks(bar.0 * 4)));
-    // Dragged two bars right by its body.
+    // Dragged two bars right by its body. r40:ripple — a drag moves the section's bars
+    // (ADR 0116); dropped inside its own bars, only *Replace* moves them (*Insert*, the
+    // default, would put them back where they are).
+    w.app.settings.section_drag = cantus_ui::ripple_ui::SectionDrag::Replace;
     let g = w.geo();
     let from = pos2(r.left() + 12.0, r.center().y);
     let to = from + egui::vec2(g.px_per_beat * 8.0, 0.0);
     w.drag(from, to);
+    w.app.settings.section_drag = cantus_ui::ripple_ui::SectionDrag::Insert;
     let s1 = w.app.project().section(id).unwrap().clone();
     assert_eq!(s1.start, Ticks(bar.0 * 6), "moved along the bars");
     assert_eq!(s1.length, s0.length, "its length kept");

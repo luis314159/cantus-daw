@@ -1,6 +1,6 @@
 //! Chorda's look (round 37, ADR 0104): the piano its scene draws — the body (a concert
 //! grand, a grand, a parlour grand, an upright) and its finish (black, white, walnut,
-//! rosewood) — kept with the instrument as two text keys, so a project reopens with the
+//! rosewood, maple) — kept with the instrument as two text keys, so a project reopens with the
 //! piano it was shown as.
 //!
 //! **Never audible.** The look is two *text* keys: no knob, no automation lane, no
@@ -22,8 +22,17 @@ use super::NativeSpec;
 pub const BODY_KEY: &str = "look.body";
 /// The text key of the finish.
 pub const FINISH_KEY: &str = "look.finish";
-/// Both, in order.
-pub const KEYS: [&str; 2] = [BODY_KEY, FINISH_KEY];
+/// Every look key a Chorda keeps, in order: the piano's (ADR 0104 §2), then its room's
+/// (schema 69, [`super::room_look`]) — pictures only, named as the look in the history,
+/// held by no frozen sound.
+pub const KEYS: [&str; 6] = [
+    BODY_KEY,
+    FINISH_KEY,
+    super::room_look::ROOM_KEY,
+    super::room_look::FLOOR_KEY,
+    super::room_look::WALLS_KEY,
+    super::room_look::RUG_KEY,
+];
 
 /// The piano drawn.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
@@ -83,14 +92,17 @@ pub enum Finish {
     Walnut,
     /// Polished rosewood.
     Rosewood,
+    /// Lacquered maple (round 40 phase 3, ADR 0126: Tympanum's shells' wood, a piano's too).
+    Maple,
 }
 
 impl Finish {
-    pub const ALL: [Finish; 4] = [
+    pub const ALL: [Finish; 5] = [
         Finish::Black,
         Finish::White,
         Finish::Walnut,
         Finish::Rosewood,
+        Finish::Maple,
     ];
 
     pub fn key(self) -> &'static str {
@@ -99,6 +111,7 @@ impl Finish {
             Finish::White => "white",
             Finish::Walnut => "walnut",
             Finish::Rosewood => "rosewood",
+            Finish::Maple => "maple",
         }
     }
 
@@ -112,12 +125,13 @@ impl Finish {
             Finish::White => "chorda.look.finish.white",
             Finish::Walnut => "chorda.look.finish.walnut",
             Finish::Rosewood => "chorda.look.finish.rosewood",
+            Finish::Maple => "chorda.look.finish.maple",
         }
     }
 
     /// Whether the finish is wood (its grain drawn).
     pub fn is_wood(self) -> bool {
-        matches!(self, Finish::Walnut | Finish::Rosewood)
+        matches!(self, Finish::Walnut | Finish::Rosewood | Finish::Maple)
     }
 }
 

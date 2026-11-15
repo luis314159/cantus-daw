@@ -17,7 +17,11 @@ use cantus_core::{Color, Dock, EffectSlot, GroupId, StripId};
 /// groups they sit in. A collapsed group is its separator alone.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Item {
+    /// The gap before a user group's band, carrying the group (r40:tymp-ui: its band is
+    /// the group's mark; this is the space before it).
     Separator(GroupId),
+    /// The gap after a band, or before an instrument's family (r40:tymp-ui).
+    Gap,
     /// A strip, and its index in the project's strips.
     Strip(StripId, usize),
 }
@@ -202,7 +206,7 @@ impl Place {
 pub const MASTER_END: u32 = u32::MAX;
 
 /// The width of a group separator, in points at 100 %.
-pub const SEPARATOR: f32 = 20.0;
+pub const SEPARATOR: f32 = 12.0; // r40:tymp-ui — a band's gap (the groups sheets)
 /// The `+` after the last strip of the middle.
 pub const ADD: f32 = 24.0;
 
@@ -271,6 +275,8 @@ pub struct Desk {
     /// master and the left dock: final review), and what the lists were built for.
     unpin_right: bool,
     built_unpinned: Option<bool>,
+    /// r40:tymp-ui — the instruments' families (their strips grouped under a band).
+    pub fam: super::group::Families,
 }
 
 impl Desk {
@@ -309,6 +315,7 @@ impl Desk {
 
     fn rebuild(&mut self, app: &CantusApp) {
         let p = app.project();
+        self.fam.build(p); // r40:tymp-ui
         self.place.clear();
         self.place.resize(
             p.strips.len(),
@@ -325,52 +332,16 @@ impl Desk {
             (Dock::Right, &mut self.right),
         ] {
             items.clear();
-            let mut run: Option<GroupId> = None;
-            let (mut strips, mut seps) = (0u16, 0u16);
-            // Where the current group's separator sits, for its folded members.
-            let mut sep_at = (0u16, 0u16);
-            // r37:drums — a pad's chain lives on its pad, not on the desk (ADR 0100 §6).
-            let on_desk = |s: &&cantus_core::MixerStrip| {
-                s.dock == dock && s.kind != cantus_core::vca::StripKind::Chain
-            };
-            for (i, s) in p.strips.iter().enumerate().filter(|(_, s)| on_desk(s)) {
-                let group = s.group.filter(|g| p.strip_group(*g).is_some());
-                if group != run {
-                    if let Some(g) = group {
-                        items.push(Item::Separator(g));
-                        sep_at = (strips, seps);
-                        seps += 1;
-                    }
-                    run = group;
-                }
-                let collapsed = group
-                    .and_then(|g| p.strip_group(g))
-                    .is_some_and(|g| g.collapsed);
-                if collapsed {
-                    self.place[i] = Place {
-                        dock,
-                        strips: sep_at.0,
-                        seps: sep_at.1,
-                        folded: true,
-                    };
-                } else {
-                    items.push(Item::Strip(s.id, i));
-                    self.place[i] = Place {
-                        dock,
-                        strips,
-                        seps,
-                        folded: false,
-                    };
-                    strips += 1;
-                }
-            }
+            // r40:tymp-ui — bands: gaps round each top-level band, a folded band as its one
+            // strip, what it folds placed at it (`mixer_group::lay`).
+            super::group::lay(&self.fam, p, dock, items, &mut self.place);
         }
         // The right dock as docked; where the desk has no room for it pinned, after the
         // middle's last item, scrolling with it.
         let count = |items: &[Item]| {
             items.iter().fold((0u16, 0u16), |(st, se), i| match i {
                 Item::Strip(..) => (st + 1, se),
-                Item::Separator(_) => (st, se + 1),
+                Item::Separator(_) | Item::Gap => (st, se + 1),
             })
         };
         self.right_docked = count(&self.right);
@@ -637,7 +608,7 @@ pub fn chain_text(effects: &[EffectSlot]) -> String {
 /// The width of an item at a strip pitch of `pitch` points.
 pub fn item_width(item: &Item, pitch: f32) -> f32 {
     match item {
-        Item::Separator(_) => SEPARATOR,
+        Item::Separator(_) | Item::Gap => SEPARATOR,
         Item::Strip(..) => pitch,
     }
 }

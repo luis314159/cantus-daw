@@ -14,6 +14,7 @@ use cantus_core::inst::sampler::{
     self as model, group_field, group_key, zf, zone_field, zone_key, LoopMode, Trigger, MAX_GROUPS,
     MAX_ZONES,
 };
+use cantus_core::inst_out::output_key;
 use cantus_core::{NativeSpec, SampleData};
 use cantus_dsp::exemplar::stream::StartPin;
 use cantus_dsp::exemplar::{
@@ -28,6 +29,10 @@ use std::sync::Arc;
 
 #[path = "sampler_decode.rs"]
 pub mod decode;
+// r40:chorda-src — Exemplar's outputs: mix, buses, delay lines, the added room.
+#[path = "sampler_outs.rs"]
+pub mod outs;
+use outs::Outs;
 
 /// Telemetry slots of Exemplar's own (after the frame's 0–2).
 pub mod tel {
@@ -49,6 +54,28 @@ pub mod tel {
     pub const MAX_PAIRS: usize = 16;
     /// The keyswitch in force (−1: none).
     pub const KEYSWITCH: usize = 48;
+    // r40:chorda-src
+    /// Each output's loudest sample of the last block (after its mix), for the instrument
+    /// mixer's meters: outputs 0 … 13 at `OUT_PEAK + n`, *Releases* (16) at the last slot.
+    pub const OUT_PEAK: usize = 49;
+
+    /// The telemetry slot of output `id`'s peak, if it has one ([`OUT_PEAK`]).
+    pub fn out_peak(id: u16) -> Option<usize> {
+        match id {
+            0..=13 => Some(OUT_PEAK + id as usize),
+            16 => Some(super::TELEMETRY_LEN - 1),
+            _ => None,
+        }
+    }
+}
+
+/// fix-e — whole configures Exemplar units have run in this process: what a lane on a
+/// global, a group or an output must not cost (`configure_keys`). Diagnostics.
+static CONFIGURES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many whole configures Exemplar units have run in this process (fix-e).
+pub fn configures() -> u64 {
+    CONFIGURES.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 #[derive(Clone, Debug)] // r34:listen: Clone for fork
@@ -68,17 +95,57 @@ pub struct Unit {
     peak: f32,
     streamed: usize,
     late_total: u32,
+    outs: Outs, // r40:chorda-src
+    /// The globals as the last whole configure made them (fix-e: `configure_keys`).
+    globals: Globals,
 }
 
 impl Unit {
+    /// The modulation matrix from the spec's slots (the whole configure's and a lane's on a
+    /// slot's amount, fix-e): allocation-free.
+    fn matrix(&mut self, spec: &NativeSpec) {
+        self.ex.clear_matrix();
+        for c in modulation::connections(spec) {
+            if !c.on || c.amount == 0.0 {
+                continue;
+            }
+            let (Some(src), Some(dst)) = (ex::source_index(c.src), ex::target_index(c.dst)) else {
+                continue;
+            };
+            let via = c.via.and_then(ex::source_index);
+            self.ex.add_route(ModRoute {
+                src,
+                dst,
+                depth: c.amount,
+                via,
+                curve: ModCurve::from_index(c.curve as usize as f32),
+            });
+        }
+    }
+
     pub fn new(sample_rate: f32) -> Self {
+        Self::with_zones(sample_rate, model::BASE_ZONES)
+    }
+
+    // r40:chorda-src
+    /// A unit with room for `zones` zones (an instrument with more than every unit holds:
+    /// a recorded piano of several images, ADR 0125). Off the audio thread.
+    pub fn with_zones(sample_rate: f32, zones: usize) -> Self {
+        Self::with(sample_rate, zones, 0, false)
+    }
+
+    /// A unit with room for `zones` zones, a delay line for each output in `delays` (a bit
+    /// per output) and, if `room`, the added room — exactly what its snapshot asks for
+    /// (`UnitKind::Exemplar`). Off the audio thread.
+    pub fn with(sample_rate: f32, zones: usize, delays: u32, room: bool) -> Self {
+        let cap = zones.clamp(1, MAX_ZONES);
         // The built-in sounds are computed on first use: here, off the audio thread.
         let _ = builtin::builtins();
         let mut defaults = [0.0f32; zf::COUNT];
         for (i, d) in defaults.iter_mut().enumerate() {
             *d = model::ZONE_PARAMS[i].default;
         }
-        let ex = Exemplar::new(sample_rate);
+        let ex = Exemplar::with_zones(sample_rate, cap);
         // Its layers say on these boards what they stream and where its zones may start
         // (ADR 0050).
         super::stream::hub().register_board(ex.board());
@@ -86,20 +153,38 @@ impl Unit {
         Unit {
             ex,
             fs: sample_rate,
-            vals: vec![defaults; MAX_ZONES].into_boxed_slice(),
-            touched: vec![false; MAX_ZONES].into_boxed_slice(),
-            has_file: vec![false; MAX_ZONES].into_boxed_slice(),
-            srcs: vec![Source::default(); MAX_ZONES].into_boxed_slice(),
-            used: Vec::with_capacity(MAX_ZONES),
-            prev_used: Vec::with_capacity(MAX_ZONES),
+            vals: vec![defaults; cap].into_boxed_slice(),
+            touched: vec![false; cap].into_boxed_slice(),
+            has_file: vec![false; cap].into_boxed_slice(),
+            srcs: vec![Source::default(); cap].into_boxed_slice(),
+            used: Vec::with_capacity(cap),
+            prev_used: Vec::with_capacity(cap),
             groups: vec![GroupParams::default(); MAX_GROUPS].into_boxed_slice(),
-            ptrs: Vec::with_capacity(MAX_ZONES * ex::MAX_LEVELS),
+            ptrs: Vec::with_capacity(cap * ex::MAX_LEVELS),
             memory_mib: 0.0,
             stolen: 0,
             peak: 0.0,
             streamed: 0,
             late_total: 0,
+            outs: Outs::new(sample_rate, delays, room), // r40:chorda-src
+            globals: Globals::default(),
         }
+    }
+
+    // r40:chorda-src
+    /// Every output rendered on its lane, mixed, and added into `left`/`right` or handed to
+    /// `bus` — output by output, in ascending order (ADR 0123: the split sums to the
+    /// unsplit when the strips add in that order).
+    fn process_outs(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        bus: Option<&mut cantus_dsp::pulsus::BusOut<'_>>,
+    ) -> bool {
+        let (wrote, main) = self.outs.run(&mut self.ex, left, right, bus);
+        self.stolen += self.ex.take_stolen();
+        self.peak = self.ex.take_peak();
+        wrote && main
     }
 
     /// The DSP, for tests.
@@ -176,6 +261,7 @@ fn group_value(g: &mut GroupParams, field: usize, v: f32) {
         gf::VEL => g.vel_amp = Some(v / 100.0),
         gf::POLY => g.poly = v as u8,
         gf::MUTE => g.mute = v >= 0.5,
+        gf::OUT => g.out = (v as u8).min(31), // r40:chorda-src
         _ => {}
     }
 }
@@ -283,6 +369,7 @@ impl InstrumentUnit for Unit {
         (self.streamed == 0).then(|| Box::new(self.clone()) as Box<dyn InstrumentUnit>)
     } // r34:listen
     fn configure(&mut self, spec: &NativeSpec, assets: &Assets) {
+        CONFIGURES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         // Forget last time's zones.
         let defaults = &model::ZONE_PARAMS;
         for &n in &self.prev_used {
@@ -301,6 +388,9 @@ impl InstrumentUnit for Unit {
         let mut globals = Globals::default();
         for (k, v) in &spec.params {
             if let Some((n, field)) = zone_key(k) {
+                if n >= self.vals.len() {
+                    continue; // beyond this unit's room (its spec is sized: never)
+                }
                 if let Some(i) = zone_field(field) {
                     self.mark(n);
                     self.vals[n][i] = *v;
@@ -314,7 +404,7 @@ impl InstrumentUnit for Unit {
             }
         }
         for k in spec.text.keys() {
-            if let Some((n, "sample")) = zone_key(k) {
+            if let Some((n, "sample")) = zone_key(k).filter(|(n, _)| *n < self.vals.len()) {
                 self.mark(n);
                 self.has_file[n] = true;
             }
@@ -323,6 +413,9 @@ impl InstrumentUnit for Unit {
             let (Some((n, level)), Some(data)) = (asset_level(key), data) else {
                 continue;
             };
+            if n >= self.vals.len() {
+                continue;
+            }
             if !self.has_file[n] {
                 continue;
             }
@@ -387,33 +480,84 @@ impl InstrumentUnit for Unit {
         self.ptrs.sort_unstable();
         self.ptrs.dedup_by_key(|p| p.0);
         self.memory_mib = self.ptrs.iter().map(|p| p.1).sum::<usize>() as f32 / 1_048_576.0;
-        self.ex.clear_matrix();
-        for c in modulation::connections(spec) {
-            if !c.on || c.amount == 0.0 {
-                continue;
-            }
-            let (Some(src), Some(dst)) = (ex::source_index(c.src), ex::target_index(c.dst)) else {
-                continue;
-            };
-            let via = c.via.and_then(ex::source_index);
-            self.ex.add_route(ModRoute {
-                src,
-                dst,
-                depth: c.amount,
-                via,
-                curve: ModCurve::from_index(c.curve as usize as f32),
-            });
-        }
+        self.matrix(spec);
         for (m, g) in self.groups.iter().enumerate() {
             self.ex.set_group(m, g);
         }
         self.ex.set_globals(&globals);
+        // What `configure_keys` updates a key at a time (fix-e).
+        self.globals = globals;
+        let differ = self.ex.has_outputs();
+        self.outs.configure(spec, differ); // r40:chorda-src
         self.ex.publish_starts();
         // The reader looks at once (the attach had them read already — second review #16).
         if self.streamed > 0 {
             super::stream::hub().boards_changed();
         }
         std::mem::swap(&mut self.used, &mut self.prev_used);
+    }
+
+    /// fix-e — a lane on what the instrument plays *with* sets that alone, to the very
+    /// state [`Self::configure`] reaches, never walking a zone (a recorded Chorda holds up
+    /// to 8 192): an output's mix, delay or the added room's level (`o{n}.*`,
+    /// `room.level`), a global (`gain`, `filter.cutoff`, the envelopes, the LFOs, a
+    /// macro…), a group's (`g{m}.gain`, …) and the matrix's amounts. A zone's key, the
+    /// trim, and — while a zone streams — `tune`, `transpose` and `bend` (they choose the
+    /// levels a stream keeps) go the whole way.
+    fn configure_keys(&mut self, spec: &NativeSpec, _assets: &Assets, keys: &[String]) -> bool {
+        let (mut glob, mut mix, mut matrix) = (false, false, false);
+        let mut groups = 0u64;
+        for k in keys {
+            let k = k.as_str();
+            if zone_key(k).is_some()
+                || k == cantus_core::inst::TRIM_KEY
+                || k == cantus_core::inst::sampler::CAPACITY_KEY
+                || k == outs::ROOM_KEY
+                || (self.streamed > 0 && matches!(k, "tune" | "transpose" | "bend"))
+            {
+                return false;
+            }
+            if output_key(k).is_some() || k == outs::ROOM_LEVEL_KEY {
+                mix = true;
+            } else if let Some((m, field)) = group_key(k) {
+                if group_field(field).is_some() && m < 64 {
+                    groups |= 1 << m;
+                }
+            } else {
+                // What the whole configure hands `global` (a matrix key too: a no-op there).
+                glob = true;
+                matrix |= modulation::SLOTS
+                    .iter()
+                    .any(|s| s.amt == k || s.curve == k || s.on == k);
+            }
+        }
+        if groups != 0 {
+            for k in keys {
+                if let Some((m, field)) = group_key(k) {
+                    if let Some(i) = group_field(field) {
+                        group_value(&mut self.groups[m], i, spec.get(k));
+                    }
+                }
+            }
+            for m in (0..self.groups.len()).filter(|m| groups & (1 << m) != 0) {
+                self.ex.set_group(m, &self.groups[m]);
+            }
+        }
+        if glob {
+            for k in keys.iter().filter(|k| {
+                output_key(k).is_none() && group_key(k).is_none() && *k != outs::ROOM_LEVEL_KEY
+            }) {
+                global(&mut self.globals, k, spec.get(k));
+            }
+            if matrix {
+                self.matrix(spec);
+            }
+            self.ex.set_globals(&self.globals);
+        }
+        if mix {
+            self.outs.configure_keys(spec, keys);
+        }
+        true
     }
 
     fn note_on(&mut self, note: NoteOn) {
@@ -460,10 +604,12 @@ impl InstrumentUnit for Unit {
 
     fn reset(&mut self) {
         self.ex.reset();
+        self.outs.clear(); // r40:chorda-src
     }
 
     fn at_rest(&self) -> bool {
-        self.ex.at_rest()
+        // r40:chorda-src — a delay line or the added room still ringing is not at rest.
+        self.ex.at_rest() && self.outs.at_rest()
     }
 
     fn skip(&mut self, frames: usize) {
@@ -480,10 +626,26 @@ impl InstrumentUnit for Unit {
         right: &mut [f32],
         par: &dyn cantus_dsp::par::Parallel,
     ) -> bool {
+        if self.outs.by_output {
+            return self.process_outs(left, right, None); // r40:chorda-src
+        }
         let wrote = self.ex.process_par(left, right, par);
         self.stolen += self.ex.take_stolen();
         self.peak = self.ex.take_peak();
         wrote
+    }
+
+    // r40:chorda-src — Exemplar's buses (ADR 0123, 0125).
+    fn process_buses(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        out: &mut cantus_dsp::pulsus::BusOut<'_>,
+    ) -> bool {
+        if !self.outs.by_output {
+            return self.process(left, right);
+        }
+        self.process_outs(left, right, Some(out))
     }
 
     fn set_offline(&mut self, offline: bool) {
@@ -531,6 +693,14 @@ impl InstrumentUnit for Unit {
         t[tel::KEYSWITCH] = self.ex.keyswitch() as f32;
         t[tel::STREAMED] = self.streamed as f32;
         t[tel::LATE] = self.late_total as f32;
+        // r40:chorda-src — each output's peak (only when rendering by output).
+        if self.outs.by_output {
+            for (n, v) in self.outs.peak.iter().enumerate() {
+                if let Some(i) = tel::out_peak(n as u16) {
+                    t[i] = *v;
+                }
+            }
+        }
         t
     }
 }

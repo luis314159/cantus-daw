@@ -380,6 +380,8 @@ pub fn instruments() -> Vec<(&'static str, InstrumentSpec)> {
             InstrumentKind::Chorda => "chorda",
             // The dancer makes no sound: what its unit costs the audio thread (ADR 0087).
             InstrumentKind::Dancer => "saltator",
+            // r40: the acoustic drummer (in ALL since round 40's close).
+            InstrumentKind::AcousticDrums => "tympanum",
         };
         v.push((
             name,

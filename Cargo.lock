@@ -964,6 +964,7 @@ version = "0.1.0-beta.14"
 dependencies = [
  "anyhow",
  "cantus-launch",
+ "cantus-rt",
  "cantus-ui",
  "env_logger",
  "log",
@@ -1018,6 +1019,8 @@ version = "0.1.0-beta.14"
 dependencies = [
  "cantus-dsp",
  "cantus-rt",
+ "claxon",
+ "flacenc",
  "flate2",
  "hound",
  "roxmltree 0.20.0",

@@ -577,6 +577,14 @@ pub fn raise_io_thread() -> bool {
     os::raise_io()
 }
 
+/// Lower the calling thread below normal for heavy work the interface waits for but the
+/// audio never does — the photographic instrument pictures' bake (round 40): Windows
+/// `THREAD_PRIORITY_BELOW_NORMAL`, Linux a nice of +5 for this thread, macOS the *utility*
+/// QoS class; never MMCSS. Whether the OS took it. // r40:scene-px
+pub fn lower_background_thread() -> bool {
+    os::lower_background()
+}
+
 /// The calling thread's OS priority as the OS reports it (Windows `GetThreadPriority`; Linux
 /// and macOS the `sched_param` priority), for the probe and the tests.
 pub fn current_priority() -> Option<i32> {

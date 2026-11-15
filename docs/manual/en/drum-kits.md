@@ -23,9 +23,12 @@ A pad's strip pans as a balance (its pan law is 0 dB), so it passes the pad unto
 kit's strip places the kit through the project's pan law as before. The strip's menu says
 which law it follows (**Pan law ▸**), and lets you change it.
 
-**Merge back** (the same menus) puts every pad back on the kit's strip and removes the
-strips the split made — unless something else uses one (a send into it, another track).
-One undo step.
+**Merge back** (the same menus) undoes *Split to strips*: it puts every pad the split moved
+back on the kit's strip and removes the strips the split made — unless something else uses one
+(a send into it, another track). A pad you sent to a mixer track of your choosing (its
+**Mixer track** in the channel rack) stays there: that routing is yours, and *Merge back*
+leaves it alone. To bring such a pad back, choose *The kit's strip* as its mixer track. One
+undo step.
 
 Good to know:
 
@@ -56,6 +59,27 @@ Good to know:
 **Older kits.** A kit made before this version is *Model 2* (or *Model 1*). It splits too, but
 sums to itself only within rounding (about −135 dB); **Upgrade to Pulsus III** in the kit's
 header makes it exact. Nothing else changes.
+
+## One pad on a mixer track of its own (as in FL Studio)
+
+*Round 40.* In the channel rack every pad of a kit has its **mixer track's well**, left of its
+name, as every channel has: it reads the strip the pad plays on — the kit's number until you
+choose another (a kit on strip 3 shows "3" on each of its pads). **Click a pad's well** to
+choose:
+
+- **The kit's strip** — where every pad starts, and how every older song plays.
+- **First free strip** — the next unused channel of the desk.
+- **Any strip of the desk** — a bus, or another channel's strip (two channels can share one,
+  as in FL).
+
+The pad then plays **there and only there**: the kit's strip, its inserts and fader no longer
+touch that pad; the strip chosen does (its fader, inserts, sends, mute and solo). A pad with a
+chain keeps it: the chain plays into the strip chosen. One undo step; saved with the song.
+Choosing the kit's strip again puts the pad back exactly as it was, to the bit.
+
+*Split to strips* (above) does the same for every pad at once, into new strips that play into
+the kit's strip; the well chooses one pad, and any strip. A strip a pad leaves stays in the
+desk with its inserts (delete it there if you no longer need it).
 
 ## A chain per pad
 

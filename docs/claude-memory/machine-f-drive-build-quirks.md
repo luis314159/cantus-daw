@@ -28,3 +28,6 @@ Seen in round 23 (2026-10-09) on the machine where the repository lives at
 **How to apply:** set these up before the first build of a round on this machine; count
 the four UAC-blocked binaries by running them renamed when reporting the test total.
 See [[cantus-workflow-habits]].
+
+- WSL's disk image (Ubuntu 24.04 ext4.vhdx on C:) grows with ~/ci-*/target and never shrinks: delete targets/old ci clones inside WSL, then `wsl --shutdown`, `wsl --manage Ubuntu-24.04 --set-sparse false`, and diskpart (admin, UAC — owner accepts) `select vdisk file=… / attach vdisk readonly / compact vdisk / detach vdisk`. A sparse image + fstrim freed only 1.5 GB; diskpart on the non-sparse one 146 → 19 GB (2026-11-13).
+- Never give two worktrees of the same workspace one target-dir: cargo's path-crate metadata hashes are relative to the workspace root, so they overwrite each other's crates and link the other branch's code (round 40: drums-gen/drums-hyb, fix-e/fix-f). One target per worktree.

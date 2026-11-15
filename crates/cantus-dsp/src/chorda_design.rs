@@ -492,6 +492,17 @@ pub struct Tuning {
     pub stretch: f64,
     /// The strings' stiffness against the model's (scales B).
     pub stiffness: f64,
+    /// The bass and treble bridges' inharmonicity against Rigaud et al.'s asymptotes
+    /// (1: theirs) — model 2's keyboard fitted to a recorded grand (round 40, finding 9:
+    /// the Salamander's bass strings are a quarter less stiff than the model's).
+    pub bass_b: f64,
+    pub treble_b: f64,
+    /// The octave type the treble's octaves are tuned to at least, above A4 (1: the model's
+    /// 2:1 towards the top; 2: 4:2 octaves, the treble stretched as a tuner by ear does).
+    pub treble_octave: f64,
+    /// The A5–A6 octave's own floor (0: `treble_octave`'s) — the reference stretches its
+    /// sixth octave more than its fifth (A5 +5, A6 +14 cents).
+    pub treble_octave_hi: f64,
 }
 
 impl Default for Tuning {
@@ -500,6 +511,10 @@ impl Default for Tuning {
             a4: 440.0,
             stretch: 1.0,
             stiffness: 1.0,
+            bass_b: 1.0,
+            treble_b: 1.0,
+            treble_octave: 1.0,
+            treble_octave_hi: 0.0,
         }
     }
 }
@@ -531,7 +546,7 @@ impl Keyboard {
         threads: usize,
         done: &std::sync::atomic::AtomicUsize,
     ) -> Keyboard {
-        let keys = super::tables::keyboard(tuning.a4, tuning.stretch, tuning.stiffness);
+        let keys = super::tables::keyboard_for(&tuning);
         let threads = threads.clamp(1, 16);
         let one = |k: &super::tables::Key| {
             let d = (design(k.f0(), k.b, fs), design_limited(k.f0(), k.b, fs, 2));

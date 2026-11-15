@@ -199,6 +199,9 @@ pub(crate) fn strip_chain(
             std::mem::swap(a, b);
         }
     }
+    // fix-a (A-M1): a strip whose take is being written *After FX* hears no key — *Hear the
+    // key* is a monitor state, never in a take (ADR 0118 §1); what it records is heard.
+    let taking = ctx.recording && st.rec_tap.is_some();
     let StripSlot {
         effects,
         bypass,
@@ -247,7 +250,13 @@ pub(crate) fn strip_chain(
         let off = bypass[i] || !*fx_enabled;
         let latent = e.latency() > 0;
         // Bypassed hard for low-latency monitoring (ADR 0064 §4): a wire, its latency gone.
+        // r40:pads — *Hear the key* (ADR 0118): this insert's key is what the strip plays.
+        let hear = ctx.hear_key == Some(e.id) && key[i].is_some() && !taking;
         if (off && !latent) || ll_off[i] {
+            if hear {
+                // A wire: no detector of its own to hear, so the key as it arrives.
+                hear_raw(nodes, ctx, key[i], key_before[i], l, r);
+            }
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }
@@ -283,6 +292,14 @@ pub(crate) fn strip_chain(
                     .earlier_in(e.late, ctx.sample_rate, ctx.transport.map()),
             );
         }
+        // The unit plays its own detector's input while heard (the compressor); `own` is
+        // false for one that has none — the key as it arrives replaces its output below.
+        // Asked only of an insert that is or was heard: off, nothing here runs.
+        let own = if hear || e.hearing_key() {
+            e.set_hear_key(hear)
+        } else {
+            false
+        };
         if wet >= 1.0 && !latent {
             e.process_keyed(l, r, keyed);
         } else {
@@ -300,12 +317,19 @@ pub(crate) fn strip_chain(
             if off {
                 l.copy_from_slice(dry_l);
                 r.copy_from_slice(dry_r);
-            } else if wet < 1.0 {
+            } else if wet < 1.0 && !hear {
                 let dry = 1.0 - wet;
                 for i in 0..n {
                     l[i] = l[i] * wet + dry_l[i] * dry;
                     r[i] = r[i] * wet + dry_r[i] * dry;
                 }
+            }
+        }
+        if hear && (off || !own) {
+            // r40:pads — no detector of its own (or soft-bypassed): the key as it arrives.
+            if let Some((kl, kr)) = keyed {
+                l.copy_from_slice(kl);
+                r.copy_from_slice(kr);
             }
         }
         drop(kbuf);
@@ -343,6 +367,22 @@ pub(crate) fn strip_chain(
         );
     }
     prof.enter(Node::Strip(slot));
+    // r40:pads — a track on this strip records *After FX* (ADR 0118): what leaves the
+    // inserts, before the strip's EQ, width, pan and fader. Read, never written back.
+    if let Some(k) = st.rec_tap.filter(|_| ctx.recording) {
+        match nodes
+            .rec_taps
+            .get(usize::from(k))
+            .and_then(|c| c.try_borrow_mut())
+        {
+            Some(mut t) => {
+                t.l[..n].copy_from_slice(&l[..n]);
+                t.r[..n].copy_from_slice(&r[..n]);
+                t.pass = ctx.pass;
+            }
+            None => nodes.conflict(),
+        }
+    }
     // The strip's own EQ, after the inserts and before the channel is placed — where a
     // console's channel EQ sits.
     if !st.eq_flat {
@@ -594,5 +634,32 @@ pub(crate) fn strip_outputs(
     if pre_apart && undelayed_pre {
         std::mem::swap(dry_l, &mut out.pre_l);
         std::mem::swap(dry_r, &mut out.pre_r);
+    }
+}
+
+/// r40:pads — *Hear the key* through a wired insert (ADR 0118): the key strip's post-fader
+/// output as the insert would have read it — silence where that strip made none this pass.
+fn hear_raw(
+    nodes: &Nodes,
+    ctx: &PassCtx,
+    key: Option<usize>,
+    before: bool,
+    l: &mut [f32],
+    r: &mut [f32],
+) {
+    let n = l.len();
+    let buf = match key {
+        Some(k) if before => nodes.read(&nodes.strips[k].key),
+        _ => None,
+    };
+    match buf.as_deref() {
+        Some(b) if b.pass == ctx.pass => {
+            l.copy_from_slice(&b.l[..n]);
+            r.copy_from_slice(&b.r[..n]);
+        }
+        _ => {
+            l.fill(0.0);
+            r.fill(0.0);
+        }
     }
 }

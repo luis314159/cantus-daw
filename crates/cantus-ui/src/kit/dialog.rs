@@ -16,7 +16,7 @@ use super::brush::{Brush, Fill};
 use super::color::{mix, opaque, with_alpha};
 use super::text::{self, Elide, Policy, Role, Src, Text};
 use super::{State, Style, Tok};
-use egui::{Align2, Pos2, Rect, Vec2};
+use egui::{Align2, Color32, Pos2, Rect, Vec2};
 
 /// What a button does.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -257,7 +257,7 @@ pub fn button(
 
 /// The veil a dialog lays over the window behind it.
 pub fn scrim(b: &mut Brush, window: Rect, s: &Style) {
-    b.rect(window, Fill::Solid(s.t.scrim));
+    b.rect(window, Fill::Solid(scrim_colour(&s.t)));
 }
 
 /// Where a frame's parts are.
@@ -308,17 +308,8 @@ pub fn frame(
     let r = s.s(8.0);
     let px = b.px();
     let parts = rects(rect, s, footer);
-    b.rrect_soft(
-        rect.translate(Vec2::new(0.0, s.s(14.0))),
-        r + s.s(8.0),
-        Fill::Solid(with_alpha(t.dark_shade, if t.dark { 0.55 } else { 0.20 })),
-        s.s(22.0),
-    );
-    let edge = if t.dark {
-        mix(t.menu, t.text, 0.10)
-    } else {
-        t.grid_bar
-    };
+    sheet_shadow(b, rect, r, s, 14.0, 22.0, (0.55, 0.20));
+    let edge = sheet_edge(t);
     b.rrect(rect, r, Fill::Solid(edge));
     b.rrect(rect.shrink(px), (r - px).max(0.0), Fill::Solid(t.menu));
     if footer {
@@ -407,11 +398,7 @@ pub fn keycap(b: &mut Brush, at: Pos2, s: &Style, key: &str) -> f32 {
 /// it to the edges).
 pub fn window_frame(s: &Style) -> egui::Frame {
     let t = &s.t;
-    let edge = if t.dark {
-        mix(t.menu, t.text, 0.10)
-    } else {
-        t.grid_bar
-    };
+    let edge = sheet_edge(t);
     egui::Frame::NONE
         .fill(t.menu)
         .stroke(egui::Stroke::new(1.0, edge))
@@ -426,7 +413,16 @@ pub fn window_frame(s: &Style) -> egui::Frame {
             offset: [0, 14],
             blur: 44,
             spread: 0,
-            color: with_alpha(t.dark_shade, if t.dark { 0.55 } else { 0.20 }),
+            color: with_alpha(
+                t.dark_shade,
+                if t.dark {
+                    0.55
+                } else if paper_polish(t) {
+                    0.26
+                } else {
+                    0.20
+                },
+            ),
         })
 }
 
@@ -452,7 +448,7 @@ pub fn scrim_layer(ctx: &egui::Context) {
         egui::Order::Middle,
         egui::Id::new("cantus-dialog-scrim"),
     ));
-    painter.rect_filled(screen, 0.0, s.t.scrim);
+    painter.rect_filled(screen, 0.0, scrim_colour(&s.t));
 }
 
 /// A dialog's title row, first in its window: the title Medium 15 at the frame's inset and a
@@ -657,17 +653,8 @@ pub fn face(ui: &egui::Ui, rect: Rect, s: &Style) {
         let t = &s.t;
         let rect = b.snap_rect(rect);
         let r = s.s(8.0);
-        b.rrect_soft(
-            rect.translate(Vec2::new(0.0, s.s(14.0))),
-            r + s.s(8.0),
-            Fill::Solid(with_alpha(t.dark_shade, if t.dark { 0.55 } else { 0.20 })),
-            s.s(22.0),
-        );
-        let edge = if t.dark {
-            mix(t.menu, t.text, 0.10)
-        } else {
-            t.grid_bar
-        };
+        sheet_shadow(b, rect, r, s, 14.0, 22.0, (0.55, 0.20));
+        let edge = sheet_edge(t);
         b.rrect(rect, r, Fill::Solid(edge));
         b.rrect(
             rect.shrink(b.px()),
@@ -714,4 +701,88 @@ pub fn head(ui: &mut egui::Ui, rect: Rect, s: &Style, g: super::glyph::Glyph, ke
         b.segment(c + Vec2::new(-a, a), c + Vec2::new(a, -a), w, ink, true);
     });
     resp.clicked()
+}
+
+// ---- Paper's sheets (round 40, `look`: the owner, "Paper's menus and dialogs to be
+// improved") ------------------------------------------------------------------------------
+//
+// On a light ground a white sheet is told from the window by its edge and its shadow
+// alone, and round 39's (the `line` token for the edge, one soft shadow at 18–20 %) left
+// Paper's menus and dialogs floating vaguely over a grey veil. In a light theme a sheet now
+// has a crisper hairline (the text at 24 % over the face), a contact shadow under its edge
+// plus the ambient one, and the dialog's scrim is lighter (so the window behind reads
+// dimmed, not muddy); the menu's hover and separators a step firmer. Night is unchanged.
+
+thread_local! {
+    /// Round 39's Paper sheets, for the before/after shots only (`shoot_look40 --old`).
+    static PAPER_R39: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Paint Paper's sheets as round 39 did (`true`) or as round 40 does: for the shots.
+pub fn set_paper_r39(on: bool) {
+    PAPER_R39.with(|c| c.set(on));
+}
+
+/// Whether a sheet in this theme takes round 40's Paper polish.
+pub fn paper_polish(t: &super::Tokens) -> bool {
+    !t.dark && !PAPER_R39.with(|c| c.get())
+}
+
+/// A raised sheet's 1-px edge (a menu, a dialog).
+pub fn sheet_edge(t: &super::Tokens) -> Color32 {
+    if t.dark {
+        mix(
+            t.menu,
+            t.text,
+            if t.system.recessed() { 0.10 } else { 0.09 },
+        )
+    } else if paper_polish(t) {
+        mix(t.menu, t.text, 0.24)
+    } else {
+        t.grid_bar
+    }
+}
+
+/// A raised sheet's shadow under `rect` (corner `r`): `drop` down, blurred `blur`, at
+/// `night` / `paper` alpha; in Paper a contact shadow hugs the edge as well.
+pub fn sheet_shadow(
+    b: &mut Brush,
+    rect: Rect,
+    r: f32,
+    s: &Style,
+    drop: f32,
+    blur: f32,
+    (night, paper): (f32, f32),
+) {
+    let t = &s.t;
+    if paper_polish(t) {
+        b.rrect_soft(
+            rect.translate(Vec2::new(0.0, s.s(1.0))),
+            r + s.s(1.0),
+            Fill::Solid(with_alpha(t.dark_shade, 0.16)),
+            s.s(2.5),
+        );
+    }
+    let a = if t.dark {
+        night
+    } else if paper_polish(t) {
+        paper + 0.04
+    } else {
+        paper
+    };
+    b.rrect_soft(
+        rect.translate(Vec2::new(0.0, s.s(drop))),
+        r + s.s(drop * 0.5).min(s.s(8.0)),
+        Fill::Solid(with_alpha(t.dark_shade, a)),
+        s.s(blur),
+    );
+}
+
+/// The veil under a dialog: the theme's scrim, lighter in Paper.
+pub fn scrim_colour(t: &super::Tokens) -> Color32 {
+    if paper_polish(t) {
+        with_alpha(t.scrim, t.scrim.a() as f32 / 255.0 * 0.7)
+    } else {
+        t.scrim
+    }
 }

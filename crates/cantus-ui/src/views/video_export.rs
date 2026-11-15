@@ -394,18 +394,24 @@ fn preview_frames(
             timeline: beat,
         });
     }
-    let c = Style::current().t.panel;
-    let stage = Stage::new(
-        px[0],
-        px[1],
-        job::background_for(d, [c.r(), c.g(), c.b(), 255]),
-    );
+    let t = Style::current().t;
+    let c = t.panel;
+    let stage = Stage {
+        ink: job::video_ink(&t, d), // r40:cast
+        ..Stage::new(
+            px[0],
+            px[1],
+            job::background_for(d, [c.r(), c.g(), c.b(), 255]),
+        )
+    };
     SongFrames {
         dancers,
         stage,
         start_seconds: map.seconds_at(from.0 as f64),
         fps: d.fps,
         overlay: crate::stage::vis_video::preview(app, d, job::title_overlay(app, d)), // r35:stage
+        // The preview's own render heard (r40:cast), as the file will.
+        spectrum: vx::preview_bands(app).map(crate::dance_live::video_spectrum),
     }
 }
 

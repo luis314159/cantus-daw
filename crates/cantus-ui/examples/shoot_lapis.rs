@@ -8,6 +8,13 @@
 //! `cargo run -p cantus-ui --example shoot_lapis -- <out-dir> [case…]` writes
 //! `<case>-<theme>.png` and `sbs-<case>.png`. `--slate` shoots Slate's only (for the
 //! pixel-for-pixel check that Slate did not move).
+//!
+//! `--room` (round 40, `look`): the owner's choice of the room's strength — the
+//! arrangement and the mixer at 1920 × 1080, 100 %, in Slate, today's Slate Lapis and
+//! [`ROOM_GAINS`]' three stronger rooms, Night and Paper: `room-<case>-<light>-<n>.png`
+//! (0 Slate, 1 today, 2–4 the candidates) and one sheet per case and light,
+//! `room-<case>-<light>.png`: today | A above, B | C below, each tile marked at its bottom
+//! left by as many magenta squares as its place (1 today … 4 C).
 
 use cantus_engine::EngineHandle;
 use cantus_ui::app::{CantusApp, CentralView};
@@ -28,6 +35,14 @@ const THEMES: [(&str, bool); 4] = [
 ];
 const SIZE: (f32, f32) = (1920.0, 1080.0);
 const ZOOM: f32 = 1.25;
+/// The candidate rooms' saturation gains (Night, Paper); today's is × 1.7 / × 1.8.
+const ROOM_GAINS: [(f32, f32); 3] = [(2.5, 2.8), (3.3, 4.0), (4.2, 5.5)];
+
+/// What a shot wears: a shipped preset family, or a theme built here for both lights.
+enum Wear {
+    Preset,
+    Own(Box<cantus_ui::theme::Theme>),
+}
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -36,6 +51,10 @@ fn main() {
     let slate_only = rest.iter().any(|a| a == "--slate");
     let only: Vec<&String> = rest.iter().filter(|a| !a.starts_with("--")).collect();
     std::fs::create_dir_all(&dir).expect("output dir");
+    if rest.iter().any(|a| a == "--room") {
+        room(&dir);
+        return;
+    }
     for case in CASES {
         if !only.is_empty() && !only.iter().any(|o| *o == case) {
             continue;
@@ -45,7 +64,7 @@ fn main() {
                 continue;
             }
             let path = dir.join(format!("{case}-{theme}.png"));
-            window(&path, case, theme, dark);
+            window(&path, case, theme, dark, Wear::Preset, ZOOM);
             println!("{}", path.display());
         }
         if !slate_only {
@@ -56,7 +75,49 @@ fn main() {
     }
 }
 
-fn window(path: &Path, case: &str, theme: &str, dark: bool) {
+/// The room's strengths, shot and put side by side.
+fn room(dir: &Path) {
+    use cantus_ui::theme_slate_lapis::{at_gain, NIGHT_GAIN, PAPER_GAIN};
+    for case in ["arrangement", "mixer"] {
+        for (light, dark) in [("night", true), ("paper", false)] {
+            let mut paths = Vec::new();
+            let today = if dark { NIGHT_GAIN } else { PAPER_GAIN };
+            let gains =
+                std::iter::once(today)
+                    .chain(ROOM_GAINS.iter().map(|(n, p)| if dark { *n } else { *p }));
+            let slate = dir.join(format!("room-{case}-{light}-0.png"));
+            window(
+                &slate,
+                case,
+                &format!("slate_{light}"),
+                dark,
+                Wear::Preset,
+                1.0,
+            );
+            println!("{}", slate.display());
+            for (i, g) in gains.enumerate() {
+                let path = dir.join(format!("room-{case}-{light}-{}.png", i + 1));
+                let name = format!("Lapis room x{g}");
+                let wear = Wear::Own(Box::new(at_gain(dark, g, &name)));
+                window(
+                    &path,
+                    case,
+                    &format!("slate_lapis_{light}"),
+                    dark,
+                    wear,
+                    1.0,
+                );
+                println!("{} (x{g})", path.display());
+                paths.push(path);
+            }
+            let out = dir.join(format!("room-{case}-{light}.png"));
+            sheet(&paths, &out, true);
+            println!("{}", out.display());
+        }
+    }
+}
+
+fn window(path: &Path, case: &str, theme: &str, dark: bool, wear: Wear, zoom: f32) {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
@@ -76,6 +137,11 @@ fn window(path: &Path, case: &str, theme: &str, dark: bool) {
         .assign(Mode::Dark, format!("preset:{family}_night"));
     app.appearance
         .assign(Mode::Light, format!("preset:{family}_paper"));
+    if let Wear::Own(own) = wear {
+        let mode = if dark { Mode::Dark } else { Mode::Light };
+        app.appearance.assign(mode, format!("user:{}", own.name));
+        app.appearance.themes.push(*own);
+    }
     app.attach(&ctx);
     // The Chords track chosen, its first clip selected, and in the piano roll a few of
     // its notes.
@@ -116,9 +182,9 @@ fn window(path: &Path, case: &str, theme: &str, dark: bool) {
     app.sync_engine();
     app.toggle_play();
     let mut audio = vec![0f32; 800 * 2];
-    let points = vec2(SIZE.0 / ZOOM, SIZE.1 / ZOOM);
+    let points = vec2(SIZE.0 / zoom, SIZE.1 / zoom);
     let mut frames = 0;
-    raster::shoot(&ctx, points, ZOOM, 30, Some(path), |root| {
+    raster::shoot(&ctx, points, zoom, 30, Some(path), |root| {
         frames += 1;
         // The mixer takes the window under the top bar, the inspector beside it.
         if frames == 2 && maximise {
@@ -133,13 +199,27 @@ fn window(path: &Path, case: &str, theme: &str, dark: bool) {
 
 /// Slate | Slate Lapis, Night above and Paper below, at full size.
 fn side_by_side(dir: &Path, case: &str, out: &Path) {
-    let load = |theme: &str| {
-        let bytes = std::fs::read(dir.join(format!("{case}-{theme}.png"))).expect("a shot");
+    let paths: Vec<PathBuf> = [
+        "slate_night",
+        "slate_lapis_night",
+        "slate_paper",
+        "slate_lapis_paper",
+    ]
+    .iter()
+    .map(|t| dir.join(format!("{case}-{t}.png")))
+    .collect();
+    sheet(&paths, out, false);
+}
+
+/// Four shots in a 2 × 2 sheet, in reading order; `marked` puts 1…4 squares on each.
+fn sheet(paths: &[PathBuf], out: &Path, marked: bool) {
+    let load = |p: &PathBuf| {
+        let bytes = std::fs::read(p).expect("a shot");
         tiny_skia::Pixmap::decode_png(&bytes).expect("decode")
     };
     let grid = [
-        [load("slate_night"), load("slate_lapis_night")],
-        [load("slate_paper"), load("slate_lapis_paper")],
+        [load(&paths[0]), load(&paths[1])],
+        [load(&paths[2]), load(&paths[3])],
     ];
     let (w, h) = (grid[0][0].width(), grid[0][0].height());
     let gap = 8;
@@ -155,6 +235,22 @@ fn side_by_side(dir: &Path, case: &str, out: &Path) {
                 tiny_skia::Transform::identity(),
                 None,
             );
+            if marked {
+                let (x0, y0) = (col as u32 * (w + gap), row as u32 * (h + gap));
+                let mut paint = tiny_skia::Paint::default();
+                paint.set_color_rgba8(255, 64, 160, 255);
+                for k in 0..(row * 2 + col + 1) as u32 {
+                    let r = tiny_skia::Rect::from_xywh(
+                        (x0 + 6 + k * 18) as f32,
+                        (y0 + h - 22) as f32,
+                        14.0,
+                        14.0,
+                    );
+                    if let Some(r) = r {
+                        sheet.fill_rect(r, &paint, tiny_skia::Transform::identity(), None);
+                    }
+                }
+            }
         }
     }
     sheet.save_png(out).expect("write the sheet");

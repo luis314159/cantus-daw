@@ -30,6 +30,10 @@ roxmltree = "0.20"
 cantus-dsp.workspace = true
 # The free space on the content folder's volume, checked before an install (round 28).
 cantus-rt.workspace = true
+# r40:chorda-src — a piano's WAVs kept as FLAC at install, decoded again to check every
+# sample (ADR 0125): the encoder and decoder the export and the engine already use.
+flacenc = { version = "0.5.1", default-features = false, features = ["par"] }
+claxon = "0.4"
 
 [dev-dependencies]
 tempfile = "3"

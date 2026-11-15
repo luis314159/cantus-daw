@@ -397,3 +397,31 @@ fn a_waiting_body_takes_its_responses_and_then_sounds_as_one_made_with_them() {
         assert_eq!(waiting.tick(l, r), made.tick(l, r), "sample {i}");
     }
 }
+
+/// Round 40: what the third pass's parts cost — the second polarisation loop on the one-
+/// and two-string keys, the uneven unison, the arrival-time lags, the bass formant.
+#[test]
+#[ignore]
+fn measure_model_2_with_round_40s_string_parts() {
+    let plain = load_of(piano2());
+    let mut c = piano2();
+    c.set_voicing(&super::voicing::Voicing {
+        uni_weight: 0.3,
+        uni_skew: 0.5,
+        polar: 0.35,
+        polar_ct: 0.5,
+        polar_yz: 0.1,
+        polar_damp: 0.5,
+        loose_last: 1.0,
+        itd_ms: 0.5,
+        itd_jitter: 0.4,
+        formant: [600.0, 8.0, 2.5],
+        ..super::voicing::Voicing::default()
+    });
+    let parts = load_of(c);
+    eprintln!(
+        "64 pedal-down voices: model 2 {:.1} %, with round 40's string parts {:.1} % of one core",
+        plain * 100.0,
+        parts * 100.0
+    );
+}

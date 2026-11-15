@@ -1519,6 +1519,125 @@ fn main() {
             t.glyph = Some("kick".into());
         }
     }
+    // Schema 62 (round 40, ADR 0118): the second track records after its strip's inserts.
+    // r40:pads
+    if upto >= 62 {
+        if let Some(t) = p.tracks.get_mut(1) {
+            t.record_tap = cantus_core::RecordTap::AfterFx;
+        }
+    }
+    // Schema 66 (round 40 phase 3, ADR 0123): the Chorda's *Room* perspective on the
+    // second strip, 3 dB down in its own mixer. // r40:p3
+    if upto >= 66 {
+        let to = p.strips.get(1).map(|s| s.id);
+        if let (Some(to), Some(n)) = (
+            to,
+            p.tracks
+                .iter_mut()
+                .find(|t| t.name == "Chorda")
+                .and_then(|t| t.instrument.native_mut()),
+        ) {
+            n.outputs.push(OutputSlot {
+                id: OutputId(3),
+                name: "Room".into(),
+                family: OutputFamily::Rooms,
+                strip: to,
+            });
+            n.set("o3.level", -3.0).unwrap();
+        }
+    }
+    // Schema 67 (round 40 phase 3, ADR 0124): a Tympanum playing a recorded kit, a piece
+    // tuned up, a bleed cell lowered, a mic turned, its snare-top mic on the first strip.
+    // r40:p3 (`tymp-engine` keeps this block in step with the model)
+    if upto >= 67 {
+        use cantus_core::inst::tympanum::KIT_KEY;
+        let to = p.strips.first().map(|s| s.id);
+        let mut drums = p.make_track("Tympanum");
+        let mut n = NativeSpec::new(InstrumentKind::AcousticDrums);
+        n.set_text(KIT_KEY, Some("pack:crocellkit/kit".into()))
+            .unwrap();
+        n.set("p1.tune", 2.0).unwrap();
+        n.set("b1.3.db", -6.0).unwrap();
+        n.set("m2.az", 10.0).unwrap();
+        if let Some(to) = to {
+            n.outputs.push(OutputSlot {
+                id: OutputId(1),
+                name: "Snare Top".into(),
+                family: OutputFamily::Snare,
+                strip: to,
+            });
+        }
+        drums.instrument = InstrumentSpec::Native(n);
+        // Before the last track, which the freeze block below freezes (indices kept).
+        let at = p.tracks.len().saturating_sub(1);
+        p.tracks.insert(at, drums);
+    }
+    // Schema 68 (round 40 phase 3, ADR 0125): the Chorda playing the Salamander, one of its
+    // zones kept under `rec.`. // r40:p3 (`chorda-src` keeps this block in step)
+    if upto >= 68 {
+        use cantus_core::inst::chorda_source::SOURCE_KEY;
+        if let Some(n) = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Chorda")
+            .and_then(|t| t.instrument.native_mut())
+        {
+            n.set_text(SOURCE_KEY, Some("pack:salamander-grand-piano/grand".into()))
+                .unwrap();
+            n.set("rec.z0.lo", 60.0).unwrap();
+        }
+    }
+    // Schema 69 (round 40 phase 3, ADR 0126 amended): the Chorda's scene in a hall with an
+    // ebony stage, brick walls and a blue rug. // r40:scene
+    if upto >= 69 {
+        use cantus_core::inst::room_look::{FLOOR_KEY, ROOM_KEY, RUG_KEY, WALLS_KEY};
+        if let Some(n) = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Chorda")
+            .and_then(|t| t.instrument.native_mut())
+        {
+            for (k, w) in [
+                (ROOM_KEY, "hall"),
+                (FLOOR_KEY, "ebony_stage"),
+                (WALLS_KEY, "brick"),
+                (RUG_KEY, "blue"),
+            ] {
+                n.set_text(k, Some(w.into())).unwrap();
+            }
+        }
+    } else if let Some(n) = p
+        .tracks
+        .iter_mut()
+        .find(|t| t.name == "Chorda")
+        .and_then(|t| t.instrument.native_mut())
+    {
+        // An older build's Chorda had no room key (a new one writes the stage).
+        n.set_text(cantus_core::inst::room_look::ROOM_KEY, None)
+            .unwrap();
+    }
+    // Schema 70 (round 40 phase 3, ADR 0123 amended): the Tympanum's bus — the last strip,
+    // named "Kit Bus" — added to the Tympanum's family on the desk. // r40:tymp-ui
+    if upto >= 70 {
+        let kit = p.tracks.iter().find(|t| t.name == "Tympanum").map(|t| t.id);
+        if let (Some(kit), Some(bus)) = (kit, p.strips.last_mut()) {
+            bus.name = "Kit Bus".into();
+            bus.attached = Some(kit);
+        }
+    }
+    // Schema 71 (round 40, ADR 0124's third amendment): the jazz kit, hybrid — a recorded
+    // residual under the model. // r40:drums-hyb
+    if upto >= 71 {
+        use cantus_core::inst::tympanum::voice::HYBRID;
+        use cantus_core::inst::tympanum::{KIT_KEY, VOICE_KEY};
+        let mut drums = p.make_track("Tympanum hybrid");
+        let mut n = NativeSpec::new(InstrumentKind::AcousticDrums);
+        n.set_text(KIT_KEY, Some("model:jazz".into())).unwrap();
+        n.set_text(VOICE_KEY, Some(HYBRID.into())).unwrap();
+        drums.instrument = InstrumentSpec::Native(n);
+        let at = p.tracks.len().saturating_sub(1);
+        p.tracks.insert(at, drums);
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

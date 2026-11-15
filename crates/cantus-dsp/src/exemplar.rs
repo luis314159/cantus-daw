@@ -65,8 +65,10 @@ use crate::modmatrix::ModMatrix;
 use crate::voices::{Allocator, PlayMode, MAX_VOICES};
 use voice::Layer;
 
-/// Zones an instrument holds.
-pub const MAX_ZONES: usize = 1024;
+/// Zones an instrument can hold at most. r40:chorda-src — 1024 before round 40.
+pub const MAX_ZONES: usize = 8192;
+/// Zones [`Exemplar::new`] makes room for; [`Exemplar::with_zones`] makes more (ADR 0125).
+pub const BASE_ZONES: usize = 1024;
 /// Groups an instrument holds.
 pub const MAX_GROUPS: usize = 64;
 /// Layers sounding at once, all notes together (a stolen one fades out in its place).
@@ -199,6 +201,10 @@ pub struct GroupParams {
     /// Layers of this group sounding at once (0: no limit).
     pub poly: u8,
     pub mute: bool,
+    /// r40:chorda-src — the output its zones play on (ADR 0123, 0125): 0 unless an
+    /// instrument names outputs (a recorded piano's perspectives and noises, Decent
+    /// Sampler's buses); [`Exemplar::process_outputs`] renders each on its own lane.
+    pub out: u8,
 }
 
 /// When a zone starts.

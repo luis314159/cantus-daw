@@ -25,6 +25,7 @@ fn piano() -> PackInstrument {
         layers: Some(8),
         gain_db: 3.0,
         voices: None,
+        plays: Default::default(), // r40:p3
     }
 }
 

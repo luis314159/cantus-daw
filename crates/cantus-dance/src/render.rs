@@ -34,6 +34,127 @@ impl Background {
     pub fn is_chroma(&self) -> bool {
         matches!(self, Background::Solid(c) if [CHROMA_GREEN, CHROMA_BLUE, CHROMA_MAGENTA].contains(c))
     }
+
+    /// The chroma key it is, if it is one.
+    pub fn chroma_key(&self) -> Option<[u8; 4]> {
+        match self {
+            Background::Solid(c) if self.is_chroma() => Some(*c),
+            _ => None,
+        }
+    }
+}
+
+/// How far a keyer sees a colour from a key: the distance of their chroma (Cb, Cr; BT.709,
+/// 0…255 units), what a keyer compares (ADR 0090 §3: a character keeps 60).
+pub fn key_distance(rgb: [f32; 3], key: [u8; 4]) -> f32 {
+    let chroma = |r: f32, g: f32, b: f32| {
+        let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        ((b - y) / 1.8556, (r - y) / 1.5748)
+    };
+    let (cb, cr) = chroma(rgb[0], rgb[1], rgb[2]);
+    let (kb, kr) = chroma(f32::from(key[0]), f32::from(key[1]), f32::from(key[2]));
+    ((cb - kb) * (cb - kb) + (cr - kr) * (cr - kr)).sqrt()
+}
+
+/// What a keyer must keep between a character's colour and the key it is drawn over.
+pub const KEY_SAFE: f32 = 62.0;
+
+/// `rgb` (0…255) moved toward the grey of its own lightness, the least that keeps it
+/// [`KEY_SAFE`] from `key` (round 40, ADR 0122: the Slate cast's lapis is near the blue key;
+/// over a key it is drawn a quieter blue so the keyer leaves it, and as designed elsewhere).
+pub fn key_safe(rgb: [f32; 3], key: [u8; 4]) -> [f32; 3] {
+    if key_distance(rgb, key) >= KEY_SAFE {
+        return rgb;
+    }
+    let y = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    let mut out = [y; 3];
+    for k in 1..=40 {
+        let t = k as f32 / 40.0;
+        let m = rgb.map(|c| c + (y - c) * t);
+        if key_distance(m, key) >= KEY_SAFE {
+            out = m;
+            break;
+        }
+    }
+    out
+}
+
+/// The theme's light handed to the stage (round 40, ADR 0122): the colours the Slate cast
+/// paints with — its ink, the accent gold, the logo's vermilion — and the **room**, the
+/// colour behind the dancer that its cuts are drawn in (a piece in front is separated from
+/// the one behind by a hairline of the room). Straight RGBA. The family of rounds 35–37 and
+/// imported characters ignore it; only the gold turns with the pose's hue.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct StageInk {
+    /// Ink 1: the strongest text colour (Compás's whole figure).
+    pub ink: [u8; 4],
+    pub ink2: [u8; 4],
+    /// Ink 3: quiet marks (Compás's motion marks).
+    pub ink3: [u8; 4],
+    pub ink4: [u8; 4],
+    /// The accent gold (logo #03) and its deeper tone.
+    pub gold: [u8; 4],
+    pub gold_deep: [u8; 4],
+    /// The logo's vermilion.
+    pub verm: [u8; 4],
+    /// What is behind the dancer: the theme's base for a floating dancer, the stage's colour
+    /// docked and in the companion window, the export's background in a video.
+    pub room: [u8; 4],
+    /// The contact shadow's colour (drawn translucent).
+    pub shadow: [u8; 4],
+    /// A dark room (Night-like): the cast picks its dark values.
+    pub dark: bool,
+    /// The chroma key it is drawn over, when it is: every colour keeps clear of it
+    /// ([`key_safe`]). Set by the renderer from a chroma background, or by a window that
+    /// paints its key itself (the companion window).
+    pub key: Option<[u8; 4]>,
+}
+
+/// `0xRRGGBB` as opaque straight RGBA.
+pub const fn rgb(hex: u32) -> [u8; 4] {
+    [(hex >> 16) as u8, (hex >> 8) as u8, hex as u8, 255]
+}
+
+impl StageInk {
+    /// Slate Night's tokens (ADR 0111) and the logo's gold.
+    pub const NIGHT: StageInk = StageInk {
+        ink: rgb(0xE3E8ED),
+        ink2: rgb(0xB4BDC6),
+        ink3: rgb(0x909CA8),
+        ink4: rgb(0x47515B),
+        gold: rgb(0xE2B85A),
+        gold_deep: rgb(0xC9A55A),
+        verm: rgb(0xF0784A),
+        room: rgb(0x1D2329),
+        shadow: rgb(0x0B0E11),
+        dark: true,
+        key: None,
+    };
+    /// Slate Paper's.
+    pub const PAPER: StageInk = StageInk {
+        ink: rgb(0x17202A),
+        ink2: rgb(0x38444F),
+        ink3: rgb(0x556170),
+        ink4: rgb(0xA9B3BD),
+        gold: rgb(0x9A6E1C),
+        gold_deep: rgb(0x7A5A04),
+        verm: rgb(0xD2541A),
+        room: rgb(0xF4F6F8),
+        shadow: rgb(0x8C98A4),
+        dark: false,
+        key: None,
+    };
+
+    /// The same light in another room (a stage's own colour, a video's background).
+    pub fn in_room(self, room: [u8; 4]) -> StageInk {
+        StageInk { room, ..self }
+    }
+}
+
+impl Default for StageInk {
+    fn default() -> Self {
+        StageInk::NIGHT
+    }
 }
 
 /// A stage: its size in pixels, its background, and how tall a character of size 1 stands
@@ -47,6 +168,8 @@ pub struct Stage {
     /// Whether the characters draw their contact shadow: not over a chroma key, where it
     /// would come out as a darker shade of the key that a keyer leaves as a smudge.
     pub shadows: bool,
+    /// The theme's light (round 40): what the Slate cast paints with.
+    pub ink: StageInk,
 }
 
 impl Stage {
@@ -57,6 +180,7 @@ impl Stage {
             background,
             standard_height: 0.42,
             shadows: !background.is_chroma(),
+            ink: StageInk::NIGHT,
         }
     }
 }
@@ -71,6 +195,8 @@ pub struct Canvas<'a> {
     pub hue: f32,
     /// Whether to draw the contact shadow ([`Stage::shadows`]).
     pub shadow: bool,
+    /// The theme's light ([`Stage::ink`]).
+    pub ink: StageInk,
 }
 
 impl Canvas<'_> {
@@ -83,13 +209,38 @@ impl Canvas<'_> {
             f32::from(b) / 255.0,
             self.hue,
         );
-        Color::from_rgba(r, g, b, f32::from(a) / 255.0).unwrap_or(Color::BLACK)
+        self.keyed([r, g, b], a)
     }
 
     /// A colour as it is, untouched by the hue (eyes, outlines).
     pub fn fixed(&self, rgba: [u8; 4]) -> Color {
         let [r, g, b, a] = rgba;
-        Color::from_rgba8(r, g, b, a)
+        match self.ink.key {
+            None => Color::from_rgba8(r, g, b, a),
+            Some(_) => self.keyed(
+                [
+                    f32::from(r) / 255.0,
+                    f32::from(g) / 255.0,
+                    f32::from(b) / 255.0,
+                ],
+                a,
+            ),
+        }
+    }
+
+    /// A colour (0…1) kept clear of the key it is drawn over, if any.
+    fn keyed(&self, rgb: [f32; 3], a: u8) -> Color {
+        let rgb = match self.ink.key {
+            Some(k) => key_safe(rgb.map(|c| c * 255.0), k).map(|c| c / 255.0),
+            None => rgb,
+        };
+        Color::from_rgba(
+            rgb[0].clamp(0.0, 1.0),
+            rgb[1].clamp(0.0, 1.0),
+            rgb[2].clamp(0.0, 1.0),
+            f32::from(a) / 255.0,
+        )
+        .unwrap_or(Color::BLACK)
     }
 
     pub fn fill(&mut self, path: &Path, color: Color) {
@@ -185,6 +336,10 @@ pub fn render_into(pixmap: &mut Pixmap, stage: &Stage, dancers: &[(&dyn Characte
             px_per_unit,
             hue: pose.hue,
             shadow: stage.shadows,
+            ink: StageInk {
+                key: stage.background.chroma_key().or(stage.ink.key),
+                ..stage.ink
+            },
         };
         ch.draw(pose, &mut canvas);
     }

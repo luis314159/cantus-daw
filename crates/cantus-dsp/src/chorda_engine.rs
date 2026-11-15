@@ -32,20 +32,82 @@ pub const CHUNK: usize = 64;
 const OUTPUT_SCALE: f64 = 0.0225;
 /// Model 2's output ceiling (ADR 0098): a piano's chords peak some 20 dB over their
 /// loudness, so at the level every instrument is staged to (ADR 0101) a fortissimo chord
-/// would pass full scale. Above `KNEE` the output bends smoothly toward `CEILING`
+/// would pass full scale. Above the knee the output bends smoothly toward the ceiling
 /// (memoryless, the same at any block size); only fortissimo chords' attacks reach it.
-const KNEE: f64 = 0.6;
-const CEILING: f64 = 0.92;
+/// Beta.14's: unity to 0.6 (−4.4 dBFS), toward 0.92 (`Voicing::knee`, `ceiling`).
+pub const KNEE: f64 = 0.6;
+pub const CEILING: f64 = 0.92;
 
-/// The ceiling's curve: unity below the knee, a tanh above it, never past the ceiling.
+/// A second-order low-pass on model 2's output (Butterworth, both channels): the
+/// microphones' and the air's roll-off over the top octave (the reference's top phrase holds
+/// 25 dB less above 14 kHz). Off when its corner is 0.
+#[derive(Clone, Copy, Debug)]
+struct TopRoll {
+    on: bool,
+    c: [f64; 5],
+    z: [[f64; 2]; 2],
+}
+
+impl TopRoll {
+    fn new(fs: f64, hz: f64) -> TopRoll {
+        if hz <= 0.0 || hz >= 0.45 * fs {
+            return TopRoll {
+                on: false,
+                c: [0.0; 5],
+                z: [[0.0; 2]; 2],
+            };
+        }
+        let w = std::f64::consts::TAU * hz / fs;
+        let (s, c) = (math::sin(w), math::cos(w));
+        let alpha = s / (2.0 * std::f64::consts::FRAC_1_SQRT_2);
+        let a0 = 1.0 + alpha;
+        TopRoll {
+            on: true,
+            c: [
+                (1.0 - c) / 2.0 / a0,
+                (1.0 - c) / a0,
+                (1.0 - c) / 2.0 / a0,
+                -2.0 * c / a0,
+                (1.0 - alpha) / a0,
+            ],
+            z: [[0.0; 2]; 2],
+        }
+    }
+
+    /// The same filter as a high-pass at `hz` (round 40: the sympathetic strings' share of
+    /// the bass register's high-pass). Off when its corner is 0.
+    fn high_pass(fs: f64, hz: f64) -> TopRoll {
+        let mut t = TopRoll::new(fs, hz);
+        if t.on {
+            let w = std::f64::consts::TAU * hz / fs;
+            let (s, c) = (math::sin(w), math::cos(w));
+            let a0 = 1.0 + s / (2.0 * std::f64::consts::FRAC_1_SQRT_2);
+            t.c[0] = (1.0 + c) / 2.0 / a0;
+            t.c[1] = -(1.0 + c) / a0;
+            t.c[2] = (1.0 + c) / 2.0 / a0;
+        }
+        t
+    }
+
+    #[inline]
+    fn tick(&mut self, ch: usize, x: f64) -> f64 {
+        let (c, z) = (&self.c, &mut self.z[ch]);
+        let y = c[0] * x + z[0];
+        z[0] = c[1] * x - c[3] * y + z[1];
+        z[1] = c[2] * x - c[4] * y;
+        y
+    }
+}
+
+/// The ceiling's curve: unity below `knee`, a tanh above it, never past `top`.
 #[inline]
-pub fn ceiling(x: f64) -> f64 {
+pub fn ceiling(x: f64, knee: f64, top: f64) -> f64 {
     let a = x.abs();
-    if a <= KNEE {
+    if a <= knee {
         x
     } else {
-        let room = CEILING - KNEE;
-        (KNEE + room * math::tanh((a - KNEE) / room)).copysign(x)
+        let room = top - knee;
+        (knee + room * math::tanh((a - knee) / room)).copysign(x)
     }
 }
 
@@ -55,7 +117,7 @@ pub const ROOM: f64 = 0.35;
 /// the output scale 0.0244), some 20 dB under a 16-bit
 /// file's floor — what lets its longer decays (up to four times model 1's in the treble)
 /// still end, and the instrument rest, as soon as the family's contract asks.
-const MODEL_2_QUIET: f64 = 1.0e-4;
+pub const MODEL_2_QUIET: f64 = 1.0e-4;
 
 /// The board's states are flushed below this (N: −230 dBFS out) once nothing drives it.
 const FLOOR: f64 = 1.0e-10;
@@ -112,6 +174,41 @@ impl Default for ChordaSettings {
                 b1_scale: 1.0,
                 b2_scale: 1.0,
                 quiet: 1.0e-10,
+                damped_floor: 0.0,
+                damper_t60: 1.0,
+                uni_weight: 0.0,
+                uni_skew: 0.0,
+                uni_rank: 0.0,
+                polar: 0.0,
+                polar_ct: 0.0,
+                polar_yz: 0.0,
+                polar_damp: 1.0,
+                loose_last: 0.0,
+                mass: 1.0,
+                partials: [0.0; super::voice::PARTIALS],
+                key_return: 0.0,
+                rise_ms: 0.0,
+                top_damper: 0.0,
+                damper_key: 0.0,
+                hf_steep: 1.0,
+                strike_true: 0.0,
+                draw: 0,
+                felt_soft: 1.0,
+                landing_rise: 0.0,
+                level: 1.0,
+                thud_level: 1.0,
+                bridge_n: 0.0,
+                bridge_q: 30.0,
+                bridge_g: 0.0,
+                bridge_span: 10.0,
+                uni_b: 0.0,
+                uni_b_hold: 0.0,
+                uni_loss: 0.0,
+                knock_vel: 0.0,
+                landing_tau: 0.0,
+                landing_hi: 0.0,
+                landing_modes: 1.0,
+                landing_follow: 0.0,
                 seed: 0,
             },
             sympathetic: 1.0,
@@ -178,6 +275,14 @@ pub struct Chorda {
     room: Room,
     stage: Stage,
     voicing: Voicing,
+    /// Model 2 (round 40): the output's top rolled off (`Voicing::top_hz`; off at 0).
+    top: TopRoll,
+    /// Round 40: the bass register's high-pass on the sympathetic strings' output (its
+    /// second section in `z[1]` when the high-pass is of the fourth order) — their bank
+    /// passes its drive, the strings' unvoiced sum, straight through as well, and carried
+    /// the lowest notes' fundamentals around the bass register's high-pass.
+    sym_hp: TopRoll,
+    sym_hp4: bool,
     pedal: f64,
     soft: f64,
     gain: f64,
@@ -204,6 +309,72 @@ impl Chorda {
     /// made on the interface's thread is. [`Self::take_body`] gives them when they are made.
     pub fn new_waiting(fs: f32) -> Chorda {
         Chorda::make(fs, true)
+    }
+
+    /// The board's power at `f` Hz as it is set, raw and smoothed (tests, tools).
+    pub fn body_power(&self, f: f64) -> Option<(f64, f64)> {
+        self.body.power_at(f)
+    }
+
+    /// Key `key`'s evening as a strike now takes it (tests, tools; 1: none).
+    pub fn evening(&self, key: u8) -> f64 {
+        let Some(kb) = self.keyboard.as_ref() else {
+            return 1.0;
+        };
+        let i = (key.clamp(LOWEST, tables::HIGHEST) - LOWEST) as usize;
+        let partials = self.voicing.partials_of(kb.keys[i].key);
+        self.evening_of(i, &kb.keys[i], &partials)
+    }
+
+    /// Key index `i`'s evening for `key` with its partial voicing `partials`: the board's
+    /// response as the key's pan, its arrival-time difference and the registers deliver it
+    /// to the two outputs, at the voiced perspective (the microphones, the width and the lid
+    /// at their defaults, where every gain of the stage is 1). A technician evens the
+    /// hammers, not the microphones: moving them never re-levels a key (`DSP_VERSION` 7 —
+    /// with candidate 16's evening on, the width had moved the outer keys' mono sum).
+    /// Allocates nothing.
+    fn evening_of(
+        &self,
+        i: usize,
+        key: &tables::Key,
+        partials: &[f64; super::voice::PARTIALS],
+    ) -> f64 {
+        use super::body::Term;
+        let (pl, pr) = self.pans[i];
+        let (gd, gb, s) = (1.0, 1.0, 1.0);
+        let (wa, wb) = (0.5 * (1.0 + s), 0.5 * (1.0 - s));
+        let lag = &self.voices[i].lag;
+        let dt = if lag.is_empty() {
+            0.0
+        } else if lag.right {
+            lag.len() as f64 / self.fs
+        } else {
+            -(lag.len() as f64) / self.fs
+        };
+        let (body, regs, w, fs) = (&self.body, &self.regs, self.reg_w[i], self.fs);
+        self.voicing.even_of(key, partials, |f| {
+            // Each output's phase taken from its own channel's input: the other's arrives
+            // `dt` later (the right) or earlier.
+            let ph = std::f64::consts::TAU * f * dt;
+            let (c, sn) = (math::cos(ph), math::sin(ph));
+            let later = |g: f64| (g * c, -g * sn);
+            let sooner = |g: f64| (g * c, g * sn);
+            let terms = [
+                Term {
+                    c: gd * pl,
+                    a: (gb * wa * pl, 0.0),
+                    b: later(gb * wb * pr),
+                },
+                Term {
+                    c: gd * pr,
+                    a: sooner(gb * wb * pl),
+                    b: (gb * wa * pr, 0.0),
+                },
+            ];
+            let (p, ps) = body.output_at(f, &terms)?;
+            let g = regs.power(&w, f, fs);
+            Some((p * g, ps * g))
+        })
     }
 
     /// Whether its body waits for its responses.
@@ -236,6 +407,7 @@ impl Chorda {
             .zip(&caps)
             .map(|(k, c)| Voice::new(*k, *c, fs))
             .collect();
+        let shipped = Voicing::default();
         let mut c = Chorda {
             fs,
             keyboard: None,
@@ -259,14 +431,22 @@ impl Chorda {
             body: if wait {
                 Body::waiting(fs)
             } else {
-                Body::new(fs, &Voicing::default().body)
+                Body::new(fs, &shipped.body)
             },
-            regs: Registers::new(fs, &Voicing::default().reg),
-            reg_w: std::array::from_fn(|i| Registers::weights(LOWEST + i as u8)),
+            // As `set_voicing` makes them from the shipped voicing (round 40: candidate 16's
+            // bass high-pass is fourth order, on the sympathetic strings too).
+            regs: Registers::voiced(fs, &shipped.reg, &shipped.reg_level, &shipped.formant)
+                .with_bass_hp_order(fs, shipped.bass_hp, shipped.bass_hp_order),
+            reg_w: std::array::from_fn(|i| {
+                Registers::weights_at(LOWEST + i as u8, &shipped.reg_keys)
+            }),
             bus: [[[0.0; CHUNK]; 2]; 3],
-            room: Room::new(fs, &Voicing::default().room),
+            room: Room::new(fs, &shipped.room),
             stage: Stage::new(fs),
-            voicing: Voicing::default(),
+            voicing: shipped,
+            top: TopRoll::new(fs, shipped.top_hz),
+            sym_hp: TopRoll::high_pass(fs, shipped.bass_hp),
+            sym_hp4: shipped.bass_hp_order >= 4.0,
             pedal: 0.0,
             soft: 0.0,
             gain: OUTPUT_SCALE,
@@ -323,6 +503,10 @@ impl Chorda {
                 self.regs.reset();
                 self.room.reset();
                 self.stage.reset();
+                // Model 2's output roll-off and the sympathetic strings' high-pass (both
+                // on since candidate 16) are never ticked by model 1.
+                self.top.z = [[0.0; 2]; 2];
+                self.sym_hp.z = [[0.0; 2]; 2];
             }
         }
         self.settings = *s;
@@ -335,13 +519,30 @@ impl Chorda {
             v.landing = s.noise * near * self.voicing.landing;
             v.vary = 1.0;
             v.b2_scale = self.voicing.hf_decay;
-            v.quiet = MODEL_2_QUIET;
-            self.sym.quiet_floor = MODEL_2_QUIET;
-            self.room.floor = MODEL_2_QUIET;
+            v.quiet = self.voicing.quiet;
+            v.damped_floor = self.voicing.damped_floor();
+            v.damper_t60 = self.voicing.damper_t60;
+            v.uni_weight = self.voicing.uni_weight;
+            v.uni_skew = self.voicing.uni_skew;
+            v.uni_rank = self.voicing.uni_rank;
+            v.polar = self.voicing.polar;
+            v.polar_ct = self.voicing.polar_ct;
+            v.polar_yz = self.voicing.polar_yz;
+            v.polar_damp = self.voicing.polar_damp;
+            v.loose_last = self.voicing.loose_last;
+            v.mass = self.voicing.mass;
+            self.sym.quiet_floor = self.voicing.quiet;
+            self.room.floor = self.voicing.quiet;
         } else {
             (v.blow, v.knock, v.landing, v.vary) = (0.0, 0.0, 0.0, 0.0);
             (v.b1_scale, v.b2_scale) = (1.0, 1.0);
             v.quiet = 1.0e-10;
+            v.damped_floor = 0.0;
+            v.damper_t60 = 1.0;
+            (v.uni_weight, v.uni_skew, v.uni_rank) = (0.0, 0.0, 0.0);
+            (v.polar, v.polar_ct, v.polar_yz, v.polar_damp) = (0.0, 0.0, 0.0, 1.0);
+            v.loose_last = 0.0;
+            v.mass = 1.0;
             self.sym.quiet_floor = 1.0e-10;
         }
         self.hardness = hardness.clamp(-1.0, 1.0);
@@ -393,9 +594,109 @@ impl Chorda {
             v.felt.k *= self.voicing.felt_of(k.key);
             v.felt.p = (v.felt.p + self.voicing.felt_p).clamp(1.8, 4.0);
             v.b1_scale = self.voicing.decay_of(k.key);
+            v.b2_scale = self.voicing.hf_of(k.key);
+            let hk = self.voicing.hf_keys[(k.key - LOWEST) as usize];
+            if hk != 1.0 {
+                v.b2_scale *= hk as f64;
+            }
+            v.damper_t60 = self.voicing.damper_of(k.key);
+            if self.voicing.damper_key != 0.0 {
+                // The key's own damper, shaped by register as the pedal's is.
+                v.damper_key = self.voicing.damper_key * v.damper_t60 / self.voicing.damper_t60
+                    * Voicing::bass_scale(k.key, self.voicing.damper_key_bass);
+            }
+            v.partials = self.voicing.partials_of(k.key);
+            v.key_return = self.voicing.key_return;
+            let cs = self.voicing.coupling_of(k.key);
+            if cs != 1.0 {
+                v.coupling = (v.coupling * cs).clamp(0.0, 0.95);
+            }
+            if self.voicing.vel_curve != 1.0 {
+                v.vel_curve *= self.voicing.vel_curve;
+            }
+            let kt = self.voicing.knock_of(k.key);
+            if kt != 1.0 {
+                v.knock *= kt;
+            }
             if self.voicing.vmin != 1.0 {
                 v.v_min *= self.voicing.vmin;
             }
+            if self.voicing.vmin_treble != 1.0 {
+                let t = ((k.key as f64 - 60.0) / (96.0 - 60.0)).clamp(0.0, 1.0);
+                v.v_min *= math::exp(t * math::ln(self.voicing.vmin_treble));
+            }
+            if self.voicing.vmin_bass != 1.0 {
+                v.v_min *= Voicing::bass_scale(k.key, self.voicing.vmin_bass);
+            }
+            let [from, range, curve] = self.voicing.vel_top;
+            if range != 1.0 {
+                // The speed range narrowed toward the top speed: the hardest strike the same.
+                let r = Voicing::top_scale(k.key, from, range);
+                v.v_min = v.v_max * math::exp(r * math::ln(v.v_min / v.v_max));
+            }
+            if curve != 1.0 {
+                v.vel_curve *= Voicing::top_scale(k.key, from, curve);
+            }
+            let b = &self.voicing.bridge;
+            if b[0] != 0.0 {
+                let fade = self.voicing.unison_fade(k.key);
+                (v.bridge_n, v.bridge_q, v.bridge_g, v.bridge_span) =
+                    (b[0], b[1], b[2] * fade, b[3]);
+            }
+            v.knock_vel = self.voicing.knock_vel;
+            let fade = self.voicing.unison_fade(k.key);
+            v.uni_b =
+                self.voicing.uni_b * Voicing::bass_scale(k.key, self.voicing.uni_b_bass) * fade;
+            v.uni_loss = self.voicing.uni_loss * fade;
+            v.uni_b_hold = self.voicing.uni_b_hold;
+            if self.voicing.uni_weight_low != 0.0 {
+                v.uni_weight = (v.uni_weight + self.voicing.uni_weight_low * fade).min(1.0);
+            }
+            if self.voicing.uni_weight_bass != 0.0 {
+                v.uni_weight = (v.uni_weight + self.voicing.weight_bass(k.key)).min(1.0);
+            }
+            if self.voicing.detune_bass != 1.0 {
+                v.detune_ct *= Voicing::bass_scale(k.key, self.voicing.detune_bass);
+            }
+            if self.voicing.detune_scale != 1.0 {
+                v.detune_ct *= self.voicing.detune_scale;
+            }
+            let [low, to] = self.voicing.detune_low;
+            if low != 1.0 {
+                let t = ((to - k.key as f64) / 12.0).clamp(0.0, 1.0);
+                if t > 0.0 {
+                    v.detune_ct *= math::exp(t * math::ln(low));
+                }
+            }
+            let [from, top] = self.voicing.detune_top;
+            if top != 1.0 {
+                v.detune_ct *= Voicing::top_scale(k.key, from, top);
+            }
+            v.rise_ms = self.voicing.rise_of(k.key);
+            v.top_damper = self.voicing.top_damper;
+            let [from, steep] = self.voicing.hf_top;
+            if steep != 1.0 {
+                v.hf_steep = Voicing::top_scale(k.key, from, steep);
+            }
+            v.strike_true = self.voicing.strike_true;
+            v.draw = self.voicing.draws[(k.key - LOWEST) as usize];
+            let [fs, from, to] = self.voicing.felt_soft;
+            if fs != 1.0 {
+                let m = k.key as f64;
+                let out = (from - m).max(m - to).max(0.0);
+                let t = (1.0 - out / 12.0).clamp(0.0, 1.0);
+                if t > 0.0 {
+                    v.felt_soft = math::exp(t * math::ln(fs));
+                }
+            }
+            v.landing_rise = self.voicing.landing_rise;
+            let l = &self.voicing.landing_shape;
+            (
+                v.landing_tau,
+                v.landing_hi,
+                v.landing_modes,
+                v.landing_follow,
+            ) = (l[0], l[1], l[2], l[3]);
         }
         v
     }
@@ -405,8 +706,13 @@ impl Chorda {
     pub fn set_voicing(&mut self, v: &Voicing) {
         self.voicing = *v;
         self.body = Body::new(self.fs, &v.body);
-        self.regs = Registers::new(self.fs, &v.reg);
+        self.regs = Registers::voiced(self.fs, &v.reg, &v.reg_level, &v.formant)
+            .with_bass_hp_order(self.fs, v.bass_hp, v.bass_hp_order);
+        self.reg_w = std::array::from_fn(|i| Registers::weights_at(LOWEST + i as u8, &v.reg_keys));
         self.room = Room::new(self.fs, &v.room);
+        self.top = TopRoll::new(self.fs, v.top_hz);
+        self.sym_hp = TopRoll::high_pass(self.fs, v.bass_hp);
+        self.sym_hp4 = v.bass_hp_order >= 4.0;
         let (s, h) = (self.settings, self.hardness);
         self.set(&s, h);
     }
@@ -425,6 +731,30 @@ impl Chorda {
         }
         let mut vs = self.strike_settings(i);
         vs.seed = id;
+        if !self.voices[i].active {
+            // A silent key's arrival-time difference, laid afresh (model 2's; none in 1).
+            let lag = if self.settings.model >= 2 {
+                self.voicing.lag_of(key, self.fs)
+            } else {
+                0
+            };
+            self.voices[i].lag.set(lag);
+        }
+        if self.settings.model >= 2 {
+            if self.voicing.even != 0.0 {
+                vs.level = self.evening_of(i, &kb.keys[i], &vs.partials);
+            }
+            if self.voicing.levels_amount != 0.0 {
+                vs.level *= self.voicing.level_of(key);
+            }
+            let pg = self.voicing.pp_gain(key, velocity as f64);
+            if pg != 1.0 {
+                vs.level *= pg;
+            }
+            if self.voicing.even_thud != 0.0 && vs.level != 1.0 {
+                vs.thud_level = math::powf(vs.level, self.voicing.even_thud);
+            }
+        }
         let gen = self.generation;
         let soft = self.soft;
         self.voices[i].strike(kb.keys[i], design, gen, vs, velocity as f64, soft, id);
@@ -478,6 +808,8 @@ impl Chorda {
         self.regs.reset();
         self.room.reset();
         self.stage.reset();
+        self.top.z = [[0.0; 2]; 2];
+        self.sym_hp.z = [[0.0; 2]; 2];
         self.sounding = [false; KEYS];
         self.pos = 0;
         self.pedal = 0.0;
@@ -536,6 +868,8 @@ impl Chorda {
             && self.regs.at_rest()
             && self.room.at_rest()
             && self.stage.at_rest()
+            && self.top.z == [[0.0; 2]; 2]
+            && self.sym_hp.z == [[0.0; 2]; 2]
     }
 
     /// Frames skipped while at rest: the grid, the board's quarter-rate phase and the
@@ -578,7 +912,13 @@ impl Chorda {
             let room = self.settings.room;
             for i in 0..n {
                 // The sympathetic strings radiate from the middle of the board.
-                let sym = self.sym_out[i];
+                let mut sym = self.sym_out[i];
+                if model2 && self.sym_hp.on {
+                    sym = self.sym_hp.tick(0, sym);
+                    if self.sym_hp4 {
+                        sym = self.sym_hp.tick(1, sym);
+                    }
+                }
                 let (l, r) = if model2 {
                     let (d, b) = self
                         .body
@@ -596,8 +936,17 @@ impl Chorda {
                         self.mono[i] + sym,
                     )
                 };
+                let (l, r) = if model2 && self.top.on {
+                    (self.top.tick(0, l), self.top.tick(1, r))
+                } else {
+                    (l, r)
+                };
                 let (l, r) = if model2 {
-                    (ceiling(l * self.gain) as f32, ceiling(r * self.gain) as f32)
+                    let (k, t) = (self.voicing.knee, self.voicing.ceiling);
+                    (
+                        ceiling(l * self.gain, k, t) as f32,
+                        ceiling(r * self.gain, k, t) as f32,
+                    )
                 } else {
                     ((l * self.gain) as f32, (r * self.gain) as f32)
                 };
@@ -621,6 +970,17 @@ impl Chorda {
                     self.body.flush(FLOOR);
                     self.regs.flush(FLOOR);
                     self.stage.flush(FLOOR);
+                    for z in self
+                        .top
+                        .z
+                        .iter_mut()
+                        .chain(self.sym_hp.z.iter_mut())
+                        .flatten()
+                    {
+                        if z.abs() < FLOOR {
+                            *z = 0.0;
+                        }
+                    }
                     self.room.flush();
                 }
             }
@@ -665,9 +1025,25 @@ impl Chorda {
             v.render(buf, nz);
             par::clear_lane(l, r);
             let (gl, gr) = pans[i];
-            for ((x, a), b) in buf.iter().zip(l.iter_mut()).zip(r.iter_mut()) {
-                *a += (x * gl) as f32;
-                *b += (x * gr) as f32;
+            if v.lag.is_empty() {
+                for ((x, a), b) in buf.iter().zip(l.iter_mut()).zip(r.iter_mut()) {
+                    *a += (x * gl) as f32;
+                    *b += (x * gr) as f32;
+                }
+            } else {
+                // Model 2's microphones hear the key at two times (round 40); past the
+                // voice's end its later side is dropped too, wherever the piece ends.
+                let right = v.lag.right;
+                let end = v.ended.unwrap_or(buf.len());
+                for (j, ((x, a), b)) in buf.iter().zip(l.iter_mut()).zip(r.iter_mut()).enumerate() {
+                    if j >= end {
+                        break;
+                    }
+                    let late = v.lag.tick(*x);
+                    let (xl, xr) = if right { (*x, late) } else { (late, *x) };
+                    *a += (xl * gl) as f32;
+                    *b += (xr * gr) as f32;
+                }
             }
         };
         if active > 1 && par.width() > 1 {

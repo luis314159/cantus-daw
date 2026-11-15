@@ -56,6 +56,8 @@ mod sections; // r39:el-mixer
 mod sends;
 #[path = "inspector_sheet.rs"]
 pub(crate) mod sheet; // r35:dancer — the dancer's rows (views/inst/dancer.rs)
+#[path = "inspector_taps.rs"]
+mod taps; // r40:pads — Hear the key, Record: Before FX · After FX (ADR 0118)
 #[path = "inspector_track.rs"]
 mod track;
 #[path = "inspector_warp.rs"]
@@ -153,6 +155,8 @@ pub enum Act {
     NoteFx(notefx::NfAct),
     /// *Show in the arrangement*: the track's automation lanes, in view (round 39).
     ShowLanes(TrackId),
+    /// r40:pads — *Hear the key* (ADR 0118): the keyed insert whose key is heard, or none.
+    HearKey(Option<EffectId>),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -832,14 +836,16 @@ fn subject_name<'f>(fmt: &'f mut Fmt, app: &CantusApp, s: Subject) -> &'f str {
     }
 }
 
-/// How a strip is named: its own name, else the first track feeding it, else "Strip n".
+/// How a strip is named: its own name (an instrument's output strip's with its instrument's
+/// first, *Drums · Snare Top*), else the first track feeding it, else "Strip n".
 pub(crate) fn strip_label(app: &CantusApp, id: StripId, b: &mut String) {
     let p = app.project();
     let Some(strip) = p.strip(id) else {
         return;
     };
     if !strip.name.is_empty() {
-        b.push_str(&strip.name);
+        // r40:integration — a member of an instrument's family says whose it is.
+        b.push_str(&crate::views::mixer::group::full_name(p, id));
     } else if let Some(t) = p.tracks_on_strip(id).next() {
         b.push_str(&t.name);
     } else {
@@ -883,6 +889,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::Link(t, c, a) => track::apply_link(app, t, c, a),
         Act::NoteFx(a) => notefx::apply(app, a),
         Act::ShowLanes(t) => app.show_automation_in_arrangement(t),
+        Act::HearKey(e) => app.engine.set_hear_key(e), // r40:pads
         Act::Flat(id) => {
             let commands = (0..3u8)
                 .map(|band| Command::SetStripEq {

@@ -67,6 +67,8 @@ mod cables;
 pub(crate) mod desk;
 #[path = "mixer_drag.rs"]
 mod drag;
+#[path = "mixer_group.rs"]
+pub mod group; // r40:tymp-ui — an instrument's strips under its family band
 #[path = "mixer_layout.rs"]
 pub mod layout;
 #[path = "mixer_look.rs"]
@@ -104,6 +106,10 @@ use std::path::{Path, PathBuf};
 pub use cables::Drawn as DrawnCable;
 pub use parts::phase_button;
 pub use vca_ui::open_snapshots; // r36:mix
+
+/// The room left between the next strips' run and the right dock at the window's edge
+/// (R2-B7), in points.
+const GHOST_GAP: f32 = 18.0;
 
 /// Where the cable legend under ROUTING was drawn last frame (tests hold it whole and
 /// apart): the row's cell in the legend column, the row's name, the three line samples
@@ -539,6 +545,10 @@ pub struct MixerView {
     pub(crate) bar_room: Option<egui::Rect>,
     /// How many of FL's next empty strips the desk painted last frame (round 39).
     pub(crate) ghosts_drawn: usize,
+    /// The right dock pinned at the window's edge with the next empty strips before it
+    /// (round 40, the owner's answer; Settings ▸ Appearance ▸ *Mixer's right dock*), else
+    /// just after the last strip. Set from the settings every frame. r40:look
+    pub(crate) dock_at_edge: bool,
     /// The last frame's counters (the frame-budget test reads them).
     laid_out: usize,
     desk_width: f32,
@@ -965,6 +975,7 @@ impl MixerView {
             drag::desk_was_hidden(self, ui.ctx());
         }
         self.shown_pass = now;
+        self.dock_at_edge = app.settings.look.mixer_dock == super::owner_look::DockPlace::Edge; // r40:look
         self.words.refresh();
         self.prefs.follow(&app.layouts.current.name);
         self.desk.refresh(app);
@@ -1097,18 +1108,30 @@ impl MixerView {
         self.ghosts_drawn = 0;
         if !geo.scrolls {
             let content = desk::items_width(&self.desk.middle, geo.pitch) + desk::ADD + 6.0;
-            let from = if geo.right.width() > 0.0 {
-                geo.right.right()
+            // r40:look — with the dock at the edge, the next strips run from the add
+            // column up to the dock; after the strips, from the dock to the edge.
+            let edge = self.dock_at_edge && geo.right.width() > 0.0;
+            let (from, to) = if edge {
+                // A clear gap before the dock's divider (review 2 of round 40, R2-B7): the
+                // next strips' run reads apart from the docked ones, whose numbers are lower.
+                (
+                    geo.middle.left() + content + size::DIVIDER,
+                    geo.right.left() - size::DIVIDER - GHOST_GAP,
+                )
+            } else if geo.right.width() > 0.0 {
+                (geo.right.right(), geo.inner_right)
             } else {
-                geo.middle.left() + content + size::DIVIDER
+                (geo.middle.left() + content + size::DIVIDER, geo.inner_right)
             };
-            let fits = content <= geo.middle.width() + 0.5;
+            let fits = content <= geo.middle.width() + 0.5 || edge;
             if fits {
                 pass.clip = geo.strips;
-                self.ghosts_drawn =
-                    paint::ghosts(self, app, ui, &mut b, &pass, from, geo.inner_right);
+                self.ghosts_drawn = paint::ghosts(self, app, ui, &mut b, &pass, from, to);
             }
         }
+        // r40:tymp-ui — the instruments' family bands over their strips.
+        pass.clip = geo.strips;
+        group::bands(self, app, ui, &mut b, &pass, &geo);
         paint::dividers(&mut b, &s, &geo);
         paint::overflow(self, ui, &mut b, &s, &geo); // r39:el-mixer
         if geo.pinned {
@@ -1163,11 +1186,17 @@ impl MixerView {
         }
     }
 
+    /// The room above the first row: the gap, and the family bands' row when the desk has
+    /// an instrument's strips grouped (r40:tymp-ui).
+    pub(crate) fn top(&self) -> f32 {
+        size::TOP + group::band_h(&self.desk)
+    }
+
     /// Where the rows go in `full`, for the set-up in use.
     fn fit(&self, full: egui::Rect) -> layout::Fit {
         let prefs = self.prefs.current;
         layout::fit(
-            full.height() - self.title_h() - size::HBAR - size::TOP,
+            full.height() - self.title_h() - size::HBAR - self.top(), // r40:tymp-ui
             prefs.width,
             prefs.shown(),
             prefs.ratio,
@@ -1276,7 +1305,11 @@ impl MixerView {
         } else {
             (mid_l, avail.min(content), 0.0)
         };
-        let dock_l = if right_w > 0.0 {
+        let dock_l = if right_w > 0.0 && self.dock_at_edge {
+            // r40:look — pinned at the window's edge (des-mixer's sheet); the room before
+            // it holds the next empty strips.
+            right_edge - right_w
+        } else if right_w > 0.0 {
             (mid_l + mid_w + slot_r + size::DIVIDER).min(right_edge - right_w)
         } else {
             right_edge
@@ -1309,7 +1342,7 @@ impl MixerView {
             middle,
             hbar,
             vbar,
-            y0: rows.top() + size::TOP - self.scroll_y,
+            y0: rows.top() + self.top() - self.scroll_y, // r40:tymp-ui
             pitch,
             master_w,
             content_w,
@@ -1416,7 +1449,7 @@ impl MixerView {
     pub(crate) fn scroll_max(&self, geo: &Geo, fit: &layout::Fit) -> (f32, f32) {
         (
             (geo.content_w - geo.middle.width()).max(0.0),
-            (fit.height + size::TOP - geo.rows.height()).max(0.0),
+            (fit.height + self.top() - geo.rows.height()).max(0.0), // r40:tymp-ui
         )
     }
 }

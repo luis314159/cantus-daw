@@ -406,7 +406,7 @@ simple synth every new track starts with, makes ten.
 
 ### Effects
 
-Twenty-five effects, each in a window with a face of its own; all but Delay are also CLAP and
+Twenty-five effects, each in a window with a face of its own; all of them are also CLAP and
 VST3 plug-ins for other DAWs.
 Seven of them can be heard with and without, on the same excerpt of a demo song, at
 [cantusdaw.com](https://cantusdaw.com/#effects).
@@ -859,16 +859,16 @@ Fluctus makes the level follow a drawn curve that repeats with the song: the sid
 
 <a href="docs/images/units/delay-dark.png"><img src="docs/images/units/delay-dark.png" alt="Delay — Stereo delay, its window in Cantus"></a>
 
-Delay is Cantus's plain stereo echo: a time of up to two seconds, feedback, a tone filter inside the feedback path so each repeat is darker than the one before, and ping-pong between the sides. Its window draws the echoes in time — each repeat at its time, on its side when ping-pong is on, falling by the feedback and cooling in colour as the tone takes its highs — and the drawing is the control: drag across for the time, up and down for the feedback. Beside it, what is heard: the repeats to −60 dB, the tail and what the tone takes from each repeat. A change of time glides through a fractional read head, so a sweep bends the pitch as tape does instead of clicking.
+Delay is Cantus's stereo echo: a time of up to two seconds or a note value that follows the tempo, feedback, a tone filter inside the feedback path so each repeat is darker than the one before, and ping-pong between the sides. Its window draws the echoes in time — each repeat at its time, on its side when ping-pong is on, falling by the feedback and cooling in colour as the tone takes its highs — and the drawing is the control: drag across for the time, up and down for the feedback. Beside it, what is heard: the repeats to −60 dB, the tail and what the tone takes from each repeat. A change of time glides through a fractional read head, so a sweep bends the pitch as tape does instead of clicking.
 
-- Time from 1 ms to 2 s, or set from a note value at the song's tempo; a sweep bends the pitch like tape
+- Time from 1 ms to 2 s, or synced: 1/64 to 4/1, dotted and triplet, following every tempo change and the tempo track with no click
 - Feedback up to 95 %, with a tone filter from 200 Hz to 20 kHz in the loop
 - Ping-pong between left and right, or straight stereo repeats
 - The echoes drawn in time and dragged: across for the time, up and down for the feedback
 - Slapback, dotted eighth, dub spiral, tape echo, doubler and more, by style and role
-- Its two-second line is allocated once: nothing allocated or locked while it plays
+- Also a CLAP and VST3 plug-in for other DAWs, following their tempo; its line grows with the note, never while it plays
 
-<sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-delay) · [light theme](docs/images/units/delay-light.png)</sub>
+<sub>13 factory presets — [hear them](https://cantusdaw.com/#unit-delay) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/delay-light.png)</sub>
 
 </details>
 

@@ -162,6 +162,8 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
         }
     }
 
+    super::taps::record_tap_row(sh, app, tid); // r40:pads — Before FX · After FX
+
     // Trim, before everything (and before the recorder: what is recorded is what is heard).
     let trim = input.as_ref().map(|i| i.trim_db).unwrap_or(0.0);
     let base = input.clone();

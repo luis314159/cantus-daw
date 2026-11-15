@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 61; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 71; // r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -304,6 +304,16 @@ static MIGRATIONS: &[Migration] = &[
     migrate_58_to_59, // r37:chars — the songbird written into dancers that named no character
     migrate_59_to_60, // r39:conv — Aula's response from a file
     migrate_60_to_61, // r39:arrange — sections, folders, lane modes (ADR 0113)
+    migrate_61_to_62, // r40:pads — a track's record tap (ADR 0118)
+    migrate_62_to_63, // r40 — reserved for ripple, which needed no model change
+    migrate_63_to_64, // r40 — reserved for delay, whose new parameters live in the unit's state
+    migrate_64_to_65, // r40:cast — Fuga written into dancers that named no character
+    migrate_65_to_66, // r40:p3 — an instrument's named outputs (ADR 0123)
+    migrate_66_to_67, // r40:p3 — Tympanum, the acoustic drummer (ADR 0124)
+    migrate_67_to_68, // r40:p3 — Chorda's recorded source (ADR 0125)
+    migrate_68_to_69, // r40:scene — the scene's room, floor, walls and rug (ADR 0126)
+    migrate_69_to_70, // r40:tymp-ui — a strip added to an instrument's family (ADR 0123)
+    migrate_70_to_71, // r40:drums-hyb — a modelled kit's voice, generated or hybrid (ADR 0124)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1066,7 +1076,82 @@ fn migrate_60_to_61(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
+/// Schema 62 (round 40, ADR 0118): a track's `record_tap`, where its recording takes its
+/// signal — before its strip's inserts (the default, what every older track did) or after
+/// them. Nothing older has it: nothing to write. // r40:pads
+fn migrate_61_to_62(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schemas 63 and 64 were reserved for round 40's `ripple` and `delay`; neither changed the
+/// model (ADRs 0116, 0119), so both steps write nothing.
+fn migrate_62_to_63(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+fn migrate_63_to_64(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 65 (round 40, ADR 0122): the cast's default character is now Compás, the Slate
+/// pictogram. A dancer that named no character showed the default — Fuga the ninja, since
+/// schema 59 — so every dancer saved without one gets `character` = `builtin:ninja` written
+/// into its text, and a song keeps the dancer it had; a character already named is kept.
+/// // r40:cast
+fn migrate_64_to_65(value: &mut Value) -> Result<(), String> {
+    write_default_character(value, "builtin:ninja")
+}
+
+/// Schema 66 (round 40 phase 3, ADR 0123): a native instrument's named outputs — its
+/// `outputs` (the ones that play somewhere other than Main) and its internal mixer's
+/// `o{n}.` keys — and the `SetInstrumentOutput` command. Nothing older has either: every
+/// output plays on Main, every key reads its null default. Nothing to write. // r40:p3
+/// (`tymp-engine` owns this step: if it must write, say so to the integrator.)
+fn migrate_65_to_66(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 67 (round 40 phase 3, ADR 0124): Tympanum, `InstrumentKind::AcousticDrums` —
+/// its kit (`kit`), its pieces', mics' and bleed cells' keys. A schema-66 build cannot
+/// read a song that hosts one, and the version says so. Nothing older has one: nothing to
+/// write. // r40:p3 (`tymp-engine`)
+fn migrate_66_to_67(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 68 (round 40 phase 3, ADR 0125): Chorda's source (`source`; absent, the model)
+/// and a recorded piano's zones under `rec.`. Every older Chorda plays its model: nothing
+/// to write. // r40:p3 (`chorda-src`)
+fn migrate_67_to_68(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 69 (round 40 phase 3, ADR 0126 amended): the room a scene stands in and its
+/// floor, walls and rug (`look.room`, `look.floor`, `look.walls`, `look.rug`), text keys
+/// kept with the instrument. An older song has none: its Chorda keeps the room its Room
+/// size drew and the room's own surfaces — nothing to write. // r40:scene
+fn migrate_68_to_69(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 70 (round 40 phase 3, ADR 0123 and ADR 0016 amended): a strip may be added to an
+/// instrument's family on the desk (`MixerStrip::attached`, the instrument's track): a
+/// strip fed only by its strips, drawn at the end of its band. An older song has none —
+/// nothing to write. // r40:tymp-ui
+fn migrate_69_to_70(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 71 (round 40, ADR 0124's third amendment): a Tympanum's `voice` text key —
+/// `hybrid` plays a recorded residual under a modelled kit; absent, generated. Every
+/// older Tympanum is generated: nothing to write. // r40:drums-hyb
+fn migrate_70_to_71(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
+/// the default character changed, an old song keeps the one it showed).
+fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
     let tracks = value
         .get_mut("project")
         .and_then(|p| p.get_mut("tracks"))
@@ -1086,10 +1171,13 @@ fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
         let Some(text) = text.as_object_mut() else {
             return Err("a dancer's text is not a map".into());
         };
-        text.entry("character")
-            .or_insert_with(|| Value::from("builtin:songbird"));
+        text.entry("character").or_insert_with(|| Value::from(id));
     }
     Ok(())
+}
+
+fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
+    write_default_character(value, "builtin:songbird")
 }
 
 /// Write `key` = `v` into the parameters of every native instrument of `kind` that lacks
@@ -1444,6 +1532,131 @@ mod tests {
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tempo_points.is_empty() && p.metre_changes.is_empty() && p.markers.is_empty());
         assert!(p.tempo_map().is_constant() && p.tempo_map().is_one_metre());
+    }
+
+    /// Schemas 66–68 (round 40 phase 3, ADRs 0123–0125): the newest fixture keeps a Chorda's
+    /// routed perspective and its mixer key, a Tympanum's kit, keys and routed mic, and the
+    /// Chorda's recorded source; a schema-65 file has none and plays as it did. // r40:p3
+    #[test]
+    fn schemas_66_to_68_keep_outputs_a_tympanum_and_a_chordas_source() {
+        use cantus_core::inst::chorda_source::{ChordaSource, RecordedPiano};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let newest = format!("v{SCHEMA_VERSION}.cantus");
+        let p = parse(&std::fs::read_to_string(dir.join(newest)).unwrap(), true)
+            .unwrap()
+            .file
+            .project;
+        let chorda = p.tracks.iter().find(|t| t.name == "Chorda").unwrap();
+        let n = chorda.instrument.native().unwrap();
+        assert_eq!(n.outputs.len(), 1);
+        assert_eq!(n.outputs[0].id, cantus_core::OutputId(3));
+        assert_eq!(n.get("o3.level"), -3.0);
+        assert_eq!(chorda.instrument.output_strips(), vec![n.outputs[0].strip]);
+        assert_eq!(
+            ChordaSource::of(n),
+            ChordaSource::Recorded(RecordedPiano {
+                pack: "salamander-grand-piano".into(),
+                instrument: "grand".into(),
+            })
+        );
+        assert_eq!(n.get("rec.z0.lo"), 60.0);
+        let drums = p.tracks.iter().find(|t| t.name == "Tympanum").unwrap();
+        let d = drums.instrument.native().unwrap();
+        assert_eq!(d.kind, cantus_core::InstrumentKind::AcousticDrums);
+        assert_eq!(d.get("p1.tune"), 2.0);
+        assert_eq!(d.get("b1.3.db"), -6.0);
+        assert_eq!(d.get("m2.az"), 10.0);
+        assert_eq!(d.outputs.len(), 1);
+        // Schema 65 had none of it.
+        let old = std::fs::read_to_string(dir.join("v65.cantus")).unwrap();
+        let old = parse(&old, true).unwrap().file.project;
+        for t in &old.tracks {
+            if let Some(n) = t.instrument.native() {
+                assert!(n.outputs.is_empty(), "{}", t.name);
+                assert_eq!(ChordaSource::of(n), ChordaSource::Model, "{}", t.name);
+                assert_ne!(n.kind, cantus_core::InstrumentKind::AcousticDrums);
+            }
+        }
+    }
+
+    /// Schema 70 (round 40 phase 3, ADR 0123 amended): the strip added to the Tympanum's
+    /// family comes back added; schema 69's strips have none. // r40:tymp-ui
+    #[test]
+    fn schema_70_keeps_a_strip_added_to_a_family() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let load = |name: &str| {
+            parse(&std::fs::read_to_string(dir.join(name)).unwrap(), true)
+                .unwrap()
+                .file
+                .project
+        };
+        let p = load("v70.cantus");
+        let kit = p.tracks.iter().find(|t| t.name == "Tympanum").unwrap().id;
+        let added: Vec<_> = p.strips.iter().filter(|s| s.attached.is_some()).collect();
+        assert_eq!(added.len(), 1, "one strip added to the kit's family");
+        assert_eq!(added[0].attached, Some(kit));
+        let old = load("v69.cantus");
+        assert!(old.strips.iter().all(|s| s.attached.is_none()));
+    }
+
+    /// Schema 69 (round 40 phase 3, ADR 0126 amended): the Chorda's room look comes back
+    /// whole; schema 68's Chorda has none (its room is its Room size's, as before).
+    /// // r40:scene
+    #[test]
+    fn schema_69_keeps_the_scenes_room_look() {
+        use cantus_core::inst::room_look::{self, Floor, RoomKind, RoomLook, Rug, Walls};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let load = |name: &str| {
+            parse(&std::fs::read_to_string(dir.join(name)).unwrap(), true)
+                .unwrap()
+                .file
+                .project
+        };
+        let p = load("v69.cantus");
+        let chorda = p.tracks.iter().find(|t| t.name == "Chorda").unwrap();
+        assert_eq!(
+            room_look::of(chorda.instrument.native().unwrap()),
+            RoomLook {
+                room: Some(RoomKind::Hall),
+                floor: Some(Floor::EbonyStage),
+                walls: Some(Walls::Brick),
+                rug: Some(Rug::Blue),
+            }
+        );
+        let old = load("v68.cantus");
+        let chorda = old.tracks.iter().find(|t| t.name == "Chorda").unwrap();
+        assert_eq!(
+            room_look::of(chorda.instrument.native().unwrap()),
+            RoomLook::default()
+        );
+    }
+
+    /// Schema 71 (round 40, ADR 0124's third amendment): the hybrid jazz kit comes back
+    /// hybrid; schema 70's Tympanum is generated. // r40:drums-hyb
+    #[test]
+    fn schema_71_keeps_a_tympanums_voice() {
+        use cantus_core::inst::tympanum::Voice;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let load = |name: &str| {
+            parse(&std::fs::read_to_string(dir.join(name)).unwrap(), true)
+                .unwrap()
+                .file
+                .project
+        };
+        let p = load("v71.cantus");
+        let t = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Tympanum hybrid")
+            .unwrap();
+        assert_eq!(Voice::of(t.instrument.native().unwrap()), Voice::Hybrid);
+        let old = load("v70.cantus");
+        assert!(old.tracks.iter().all(|t| t.name != "Tympanum hybrid"));
+        for t in &old.tracks {
+            if let Some(n) = t.instrument.native() {
+                assert_eq!(Voice::of(n), Voice::Generated, "{}", t.name);
+            }
+        }
     }
 
     /// Schema 35 (round 29, ADR 0062): the fixture's controller mappings come back whole —

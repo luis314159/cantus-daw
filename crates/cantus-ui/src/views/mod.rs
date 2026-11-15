@@ -48,6 +48,7 @@ pub mod interop;
 pub mod link_picker;
 pub mod mixer;
 pub mod modulator;
+pub mod owner_look; // r40:look
 pub mod palette;
 pub mod piano_roll;
 pub mod picker;
@@ -83,6 +84,7 @@ pub mod pulsus_editor;
 pub mod record_bar; // r36:record (ADR 0092): the banner, the questions, the popover rows
 pub mod record_options;
 pub mod recovery;
+pub mod ripple_settings; // r40:ripple
 pub mod room; // r39:el-views — the design's names for the tokens
 pub mod route_menu;
 pub mod routing;

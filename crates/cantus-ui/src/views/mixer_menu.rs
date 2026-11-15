@@ -88,6 +88,8 @@ enum ColorOf {
 /// What a row does.
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Act {
+    /// Add a strip to an instrument's band, or take it out (r40:tymp-ui, schema 70).
+    Attach(StripId, Option<cantus_core::TrackId>),
     /// One of the effects inserted last, by its place in the recent list. // r39:ux-b
     InsertRecent(StripId, u8),
     /// A snapshot or VCA action (round 36, ADR 0093). // r36:mix
@@ -534,6 +536,26 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(Entry::band("mixer.menu.desk"));
             e.push(Entry::sub(Label::Key("mixer.menu.dock"), Sub::Dock(id)));
             e.push(Entry::sub(Label::Key("mixer.menu.group"), Sub::Group(id)));
+            // r40:tymp-ui — a strip fed only by an instrument's family (its bus, a parallel
+            // compression) can join that family's band (schema 70), and leave it.
+            match s.attached.and_then(|t| p.track(t)) {
+                Some(t) => e.push(Entry::act(
+                    Label::Own(crate::i18n::tf("inst_mixer.detach", &[("name", &t.name)])),
+                    Act::Attach(id, None),
+                )),
+                None => {
+                    if let Some(t) = p
+                        .tracks
+                        .iter()
+                        .find(|t| crate::views::mixer::group::fed_only_by(p, id, t.id))
+                    {
+                        e.push(Entry::act(
+                            Label::Own(crate::i18n::tf("inst_mixer.attach", &[("name", &t.name)])),
+                            Act::Attach(id, Some(t.id)),
+                        ));
+                    }
+                }
+            }
             let last = p.strips.len().saturating_sub(1);
             e.push(
                 Entry::act(Label::Key("mixer.menu.move_left"), Act::Move(id, -1))
@@ -1457,6 +1479,9 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             app.remove_strips_from_group(&targets);
         }
         Act::Move(id, d) => app.move_strip(id, d),
+        Act::Attach(id, t) => {
+            app.attach_strip(id, t);
+        }
         Act::Remove(id) => app.remove_strip(id),
         Act::GroupSelect(g) => {
             let members: Vec<StripId> = app.project().strips_in_group(g).map(|s| s.id).collect();

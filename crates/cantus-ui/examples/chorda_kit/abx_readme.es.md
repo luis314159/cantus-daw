@@ -1,43 +1,26 @@
-# Prueba de escucha de Chorda
+# Prueba de escucha: tres pianos
 
-Esta carpeta la escribió Cantus (`cargo run --release -p cantus-ui --example chorda_abx -- <carpeta>`).
-Contiene siete frases cortas, cada una tocada por tres pianos con el propio motor de Cantus:
+Gracias por hacerla. Son frases cortas de piano tocadas por tres pianos distintos; vas a decir
+si distingues dos de ellos y cuál te suena mejor. No hay respuestas correctas en tus gustos, y
+si no distingues algo, eso también es un resultado.
 
-- **Chorda modelo 2** — el piano de cola modelado de Cantus tal como lo toca una pista nueva
-  (ronda 37),
-- **Chorda modelo 1** — el mismo instrumento tal como lo hizo la ronda 28 (lo que conservan
-  las canciones antiguas),
-- **el Salamander Grand Piano** — un Yamaha C5 muestreado por Alexander Holm (CC BY 3.0),
-  tocado por Exemplar exactamente como lo instala *Paquetes de sonido…*.
-
-Todos los archivos tienen la misma sonoridad (ITU-R BS.1770 integrada, el mismo objetivo para
-las tres versiones de una frase) y la misma duración. No se les hizo nada más.
+**Dura unos 15–20 minutos** (más unos 8 si haces la parte extra, que es opcional). Puedes
+pararla cuando quieras: las respuestas se quedan en el navegador y, al abrir otra vez la página
+en el mismo navegador, sigues donde lo dejaste.
 
 ## Cómo hacerla
 
-1. Abre `index.html` en un navegador (doble clic). No necesita red.
-2. Usa auriculares o buenos altavoces en un cuarto silencioso. Ajusta el volumen una vez, con
-   el primer clip, y no lo toques.
-3. **ABX 1** (Chorda 2 / Salamander) y **ABX 2** (Chorda 1 / Chorda 2): 16 ensayos cada una.
-   En cada ensayo A y B son los dos pianos (en orden sorteado) y X es uno de ellos, sorteado.
-   Reproduce A, B y X cuantas veces quieras — cambiar mientras suena conserva el punto
-   (teclas: `A`, `B`, `X`, espacio para parar) — y di cuál es X. Si no lo distingues, adivina.
-4. **Preferencia**: 14 preguntas ciegas, cada una con dos clips de la misma frase. Di cuál
-   suena más a un buen piano de cola bien grabado, o que no tienes preferencia; una palabra
-   del porqué ayuda más que nada.
-5. **Resultados** muestra la puntuación de cada ABX y su valor p (la probabilidad de acertar
-   tanto adivinando), las preferencias con una prueba de signos y — al terminar las dos ABX —
-   qué piano era cada uno en cada ensayo. *Descargar resultados (JSON)* lo guarda todo;
-   envía ese archivo.
+1. Descomprime la carpeta entera y abre `index.html` con doble clic (Chrome, Edge, Firefox o
+   Safari). No necesita internet.
+2. Usa auriculares o buenos altavoces en un lugar silencioso. Ajusta el volumen con el primer
+   clip y no lo cambies. Todos los clips tienen la misma sonoridad y la misma duración.
+3. Responde las preguntas cortas sobre ti (solo la primera es obligatoria) y pulsa *Empezar*.
+4. **Parte 1** — 16 ensayos. A y B son dos pianos; X es uno de ellos, al azar. Escucha cuanto
+   quieras (teclas `A`, `B`, `X`; espacio para parar; `L` para repetir en bucle) y di cuál es X.
+5. **Parte 2** — 16 preguntas. Dos clips de la misma frase: di cuál suena más a un buen piano de
+   cola bien grabado, o que no tienes preferencia. Una palabra sobre el porqué ayuda mucho.
+6. Al terminar verás tus resultados y qué piano era cada uno. Pulsa **Descargar resultados
+   (JSON)** y envía ese archivo a quien te pasó la prueba.
 
-## Cómo leer el resultado
-
-- La ABX dice si **distingues** dos pianos (p < 0,05: sí). Chorda y el Salamander son pianos
-  distintos: distinguirlos es lo esperado y no es un fracaso.
-- La **preferencia** es lo que cierra Chorda: el modelo 2 debe preferirse al modelo 1 y estar
-  al menos a la par del Salamander (sin preferencia significativa por el Salamander).
-- Tus notas — "metálico", "delgado", "apagado", "ataque sintético", "sin cuerpo", "demasiada
-  sala" — son a lo que apunta la siguiente pasada de voicing.
-
-Escribe tu nombre arriba: va en los resultados. Las respuestas se guardan en este navegador (almacenamiento local) hasta que empieces de
-nuevo; recargar la página continúa donde estabas.
+Con *← Anterior* puedes volver y cambiar una respuesta. *Empezar de nuevo* (en los resultados)
+borra todo.

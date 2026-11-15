@@ -241,6 +241,11 @@ impl Stage {
         [m + d, m - d]
     }
 
+    /// The perspective's levels now: the direct path's, the board's, and the pair's width.
+    pub fn levels(&self) -> (f64, f64, f64) {
+        (self.direct.to, self.board.to, self.side.to)
+    }
+
     /// The dry sound at the microphones: the direct path and the board's ring (each
     /// stereo) at the perspective's levels, the board's with the pair's width.
     #[inline]

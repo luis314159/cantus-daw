@@ -1,8 +1,9 @@
-//! The new lead character end to end (round 37, ADR 0105), on the boot path: a dancer
-//! added the way the instrument picker adds one, in the app `CantusApp::assemble` puts
-//! together, names Fuga the ninja and the screen's live dancer draws Fuga; an old song
-//! whose dancer named no character opens through the app with the songbird it always
-//! showed (schema 59), and one that named Volta keeps Volta.
+//! The lead character end to end (round 37, ADR 0105; round 40, ADR 0122), on the boot
+//! path: a dancer added the way the instrument picker adds one, in the app
+//! `CantusApp::assemble` puts together, names Compás and the screen's live dancer draws
+//! Compás; an old song whose dancer named no character opens through the app with the one it
+//! always showed — the songbird before schema 59, Fuga from 59 to 64 — and one that named
+//! Volta keeps Volta.
 //! Its own test binary: it points `CANTUS_DATA_DIR` at a temporary folder.
 
 use cantus_core::inst::dancer::{CHARACTER_KEY, DEFAULT_CHARACTER};
@@ -41,8 +42,8 @@ fn drawn(app: &mut CantusApp) -> String {
 }
 
 #[test]
-fn a_new_dancer_shows_fuga_the_ninja() {
-    assert_eq!(DEFAULT_CHARACTER, "builtin:ninja");
+fn a_new_dancer_shows_compas() {
+    assert_eq!(DEFAULT_CHARACTER, "builtin:compas");
     let mut app = assembled(None);
     let before = app.project().tracks.len();
     app.apply_pick(
@@ -61,20 +62,29 @@ fn a_new_dancer_shows_fuga_the_ninja() {
         })
         .expect("the dancer");
     let n = t.instrument.native().unwrap();
-    assert_eq!(n.text(CHARACTER_KEY), Some("builtin:ninja"));
-    assert_eq!(drawn(&mut app), "builtin:ninja");
-    // The picker's first tile is Fuga too, and Volta follows.
+    assert_eq!(n.text(CHARACTER_KEY), Some("builtin:compas"));
+    assert_eq!(drawn(&mut app), "builtin:compas");
+    // The picker's first tile is Compás too; Fuga and Volta stay, side by side.
     let cast = cantus_dance::cast::builtin();
-    assert_eq!(cast[0].info().id, "builtin:ninja");
-    assert_eq!(cast[1].info().id, "builtin:mecha");
-    assert_eq!(cast[0].info().name, "Fuga");
-    assert_eq!(cast[1].info().name, "Volta");
+    assert_eq!(cast[0].info().id, "builtin:compas");
+    assert_eq!(cast[0].info().name, "Compás");
+    let fuga = cast.iter().position(|c| c.info().id == "builtin:ninja");
+    let volta = cast.iter().position(|c| c.info().id == "builtin:mecha");
+    assert!(fuga.is_some() && volta == fuga.map(|i| i + 1));
 }
 
 /// The v57 fixture with its dancer's text changed by `edit`, written where the app opens it.
 fn old_song(edit: impl Fn(&mut serde_json::Map<String, serde_json::Value>)) -> PathBuf {
+    old_song_of("v57.cantus", edit)
+}
+
+/// A fixture with its dancer's text changed by `edit`.
+fn old_song_of(
+    fixture: &str,
+    edit: impl Fn(&mut serde_json::Map<String, serde_json::Value>),
+) -> PathBuf {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../cantus-project/fixtures");
-    let text = std::fs::read_to_string(fixtures.join("v57.cantus")).unwrap();
+    let text = std::fs::read_to_string(fixtures.join(fixture)).unwrap();
     let mut v: serde_json::Value = serde_json::from_str(&text).unwrap();
     let tracks = v["project"]["tracks"].as_array_mut().unwrap();
     let dancer = tracks
@@ -106,6 +116,13 @@ fn an_old_song_keeps_its_dancer() {
     });
     app.open(&path);
     assert_eq!(drawn(&mut app), "builtin:mecha");
+    // Saved between schemas 59 and 64 naming none: it showed Fuga, and still does
+    // (schema 65, round 40). // r40:cast
+    let path = old_song_of("v61.cantus", |inst| {
+        inst.remove("text");
+    });
+    app.open(&path);
+    assert_eq!(drawn(&mut app), "builtin:ninja");
 }
 
 /// The project as saved to disk and read back: what the dancer track names.
@@ -142,7 +159,7 @@ fn every_way_to_a_dancer_names_its_character() {
     app.set_instrument(t, InstrumentSpec::Native(bare));
     assert_eq!(
         saved_character(&mut app, t).as_deref(),
-        Some("builtin:ninja")
+        Some("builtin:compas")
     );
     // *Swap instrument*, keeping matching settings (the default): rebuilt from a bare spec.
     let t = a_track(&mut app, InstrumentKind::Chorda);
@@ -150,7 +167,7 @@ fn every_way_to_a_dancer_names_its_character() {
     assert!(app.replace_instrument(t, &PickChoice::Instrument(InstrumentKind::Dancer)));
     assert_eq!(
         saved_character(&mut app, t).as_deref(),
-        Some("builtin:ninja")
+        Some("builtin:compas")
     );
     // And without keeping them.
     let t = a_track(&mut app, InstrumentKind::Chorda);
@@ -158,7 +175,7 @@ fn every_way_to_a_dancer_names_its_character() {
     assert!(app.replace_instrument(t, &PickChoice::Instrument(InstrumentKind::Dancer)));
     assert_eq!(
         saved_character(&mut app, t).as_deref(),
-        Some("builtin:ninja")
+        Some("builtin:compas")
     );
     // A dancer swapped to a dancer with a character of its own keeps it.
     app.swap_keep.matching = true;

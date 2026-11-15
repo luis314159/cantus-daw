@@ -354,6 +354,12 @@ pub enum Command {
         id: GroupId,
         collapsed: bool,
     },
+    /// Add a strip to an instrument's family on the desk, or take it out (`None`): the
+    /// strip's `attached` (schema 70, ADR 0123 amended). // r40:tymp-ui
+    SetStripAttached {
+        id: StripId,
+        track: Option<TrackId>,
+    },
     /// How tall the track is drawn, as a multiple of the base row. A view thing, and a
     /// command all the same: it is stored in the project, so it is undoable like the rest.
     SetTrackHeight {
@@ -409,6 +415,16 @@ pub enum Command {
         track: TrackId,
         pad: PadId,
         output: Option<StripId>,
+    },
+    // r40:p3 — a native instrument's named output (ADR 0123).
+    /// Where one named output of a native instrument is heard (a Tympanum mic, a Chorda
+    /// perspective or noise): `slot` `None` puts it back on Main, `Some` sends it to the
+    /// slot's strip. The inverse is the slot as it was. The mixer's one-click actions are
+    /// batches of it (`crate::inst_out::plan`); a Pulsus pad keeps [`Command::SetPadOutput`].
+    SetInstrumentOutput {
+        track: TrackId,
+        id: crate::inst_out::OutputId,
+        slot: Option<crate::inst_out::OutputSlot>,
     },
     /// Rename a pad of a kit. The name lives **in the kit**, so this renames the lane in
     /// every clip on the track at once — which is the point of a pad having a name at all.
@@ -830,6 +846,12 @@ pub enum Command {
         id: TrackId,
         armed: bool,
     },
+    /// r40:pads — where a track's recording taps its signal (ADR 0118): before its strip's
+    /// inserts or after them.
+    SetTrackRecordTap {
+        id: TrackId,
+        tap: crate::rec_tap::RecordTap,
+    },
     SetTrackTakesOpen {
         id: TrackId,
         open: bool,
@@ -1029,6 +1051,7 @@ impl Command {
             SetStripGroupName { .. } => "cmd.set_strip_group_name",
             SetStripGroupColor { .. } => "cmd.set_strip_group_color",
             SetStripGroupCollapsed { .. } => "cmd.set_strip_group_collapsed",
+            SetStripAttached { .. } => "cmd.set_strip_attached", // r40:tymp-ui
             SetEffectMix { .. } => "cmd.set_effect_mix",
             SetPluginParam { .. } => "cmd.set_plugin_param",
             SetPluginState { .. } => "cmd.set_plugin_state",
@@ -1060,6 +1083,7 @@ impl Command {
             SetInstrumentParam { .. } => "cmd.set_instrument_param",
             SetPadName { .. } => "cmd.set_pad_name",
             SetPadOutput { .. } => "cmd.set_pad_output", // r37:drums
+            SetInstrumentOutput { .. } => "cmd.set_instrument_output", // r40:p3
             SetStripPanLaw { .. } => "cmd.set_strip_pan_law", // r37:drums
             SetPadSample { .. } => "cmd.set_pad_sample",
             SetPadLayers { .. } => "cmd.set_pad_layers",
@@ -1133,6 +1157,7 @@ impl Command {
             SetTrackComps { .. } => "cmd.set_track_comps",
             SetTrackInput { .. } => "cmd.set_track_input",
             SetTrackArmed { .. } => "cmd.set_track_armed",
+            SetTrackRecordTap { .. } => "cmd.set_track_record_tap", // r40:pads
             SetTrackTakesOpen { .. } => "cmd.set_track_takes_open",
             SetTrackPitchOpen { .. } => "cmd.pitch.lane",
             SetRecordSettings { .. } => "cmd.set_record_settings",
@@ -1307,7 +1332,8 @@ impl Command {
             | (SetStripSwapChannels { id: a, .. }, SetStripSwapChannels { id: b, .. })
             | (SetStripFxEnabled { id: a, .. }, SetStripFxEnabled { id: b, .. })
             | (SetStripDock { id: a, .. }, SetStripDock { id: b, .. })
-            | (SetStripGroup { id: a, .. }, SetStripGroup { id: b, .. }) => a == b,
+            | (SetStripGroup { id: a, .. }, SetStripGroup { id: b, .. })
+            | (SetStripAttached { id: a, .. }, SetStripAttached { id: b, .. }) => a == b, // r40:tymp-ui
             (SetStripGroupName { id: a, .. }, SetStripGroupName { id: b, .. })
             | (SetStripGroupColor { id: a, .. }, SetStripGroupColor { id: b, .. })
             | (SetStripGroupCollapsed { id: a, .. }, SetStripGroupCollapsed { id: b, .. }) => {
@@ -2073,6 +2099,17 @@ impl Command {
                 let old = std::mem::replace(&mut g.collapsed, collapsed);
                 Ok(SetStripGroupCollapsed { id, collapsed: old })
             }
+            // r40:tymp-ui — a strip added to an instrument's family (schema 70).
+            // No check on the track: an exact inverse must apply while the track is gone
+            // (attached, the track removed, taken out — undone in that order); a strip added
+            // to a track that is not there is drawn in no band (`mixer_group`).
+            SetStripAttached { id, track } => {
+                let s = project
+                    .strip_mut(id)
+                    .ok_or(CommandError::StripNotFound(id))?;
+                let old = std::mem::replace(&mut s.attached, track);
+                Ok(SetStripAttached { id, track: old })
+            }
             SetTrackHeight { id, height } => {
                 let t = project
                     .track_mut(id)
@@ -2293,6 +2330,43 @@ impl Command {
                     track,
                     pad,
                     output: old,
+                })
+            }
+
+            // r40:p3 — a native instrument's named output (ADR 0123).
+            SetInstrumentOutput { track, id, slot } => {
+                if let Some(sl) = &slot {
+                    if sl.id != id {
+                        return Err(CommandError::InvalidValue("an output's id".into()));
+                    }
+                    if project.strip(sl.strip).is_none() {
+                        return Err(CommandError::StripNotFound(sl.strip));
+                    }
+                    if project.is_vca(sl.strip) {
+                        return Err(CommandError::InvalidValue("a VCA has no audio".into()));
+                    }
+                }
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let n = t
+                    .instrument
+                    .native_mut()
+                    .filter(|n| n.kind.has_outputs())
+                    .ok_or(CommandError::ParamNotApplicable(track))?;
+                if usize::from(id.0) >= crate::inst_out::MAX_OUTPUTS {
+                    return Err(CommandError::InvalidValue("an output's id".into()));
+                }
+                let at = n.outputs.iter().position(|s| s.id == id);
+                let old = at.map(|i| n.outputs.remove(i));
+                if let Some(sl) = slot {
+                    let to = n.outputs.partition_point(|s| s.id < id);
+                    n.outputs.insert(to, sl);
+                }
+                Ok(SetInstrumentOutput {
+                    track,
+                    id,
+                    slot: old,
                 })
             }
 
@@ -3281,6 +3355,14 @@ impl Command {
                     .ok_or(CommandError::TrackNotFound(id))?;
                 let old = std::mem::replace(&mut t.input, input);
                 Ok(SetTrackInput { id, input: old })
+            }
+            // r40:pads (ADR 0118)
+            SetTrackRecordTap { id, tap } => {
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.record_tap, tap);
+                Ok(SetTrackRecordTap { id, tap: old })
             }
             SetTrackArmed { id, armed } => {
                 let t = project

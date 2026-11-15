@@ -57,9 +57,11 @@ pub mod notefx_menus;
 pub mod notefx_ui;
 pub mod padout_ui; // r37:drums — Split to strips, Merge back (ADR 0100)
 pub mod record_mode; // r36:record (ADR 0092)
+pub mod scene; // r40:p3 — the instruments' scenes as projected vectors (ADR 0126), builder `scene`
 pub mod shot_scene; // r37:finish — a capture scene for the real app (ADR 0103)
 pub mod stems_ui; // r34:stems — Separate stems… (ADR 0085)
-                  // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
+pub mod tympanum_load; // r40:tymp-engine — Tympanum's recorded kits read from their packs (ADR 0124)
+                       // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod editor; // r36:editor — the audio editor (ADR 0096)
 pub mod engines;
 pub mod esc; // r39:ux-b — Esc closes what opened last (ADR 0110)
@@ -93,6 +95,7 @@ pub mod recovery_restore;
 pub mod recovery_session;
 pub mod recovery_text;
 pub mod repaint_log; // round 38: what keeps the window drawing, written to a file when asked
+pub mod ripple_ui; // r40:ripple — insert and delete time, the section drag (ADR 0116)
 pub mod routing_actions;
 pub mod samples;
 pub mod save_job;

@@ -500,7 +500,9 @@ pub fn folder(
             ink.edge,
         );
     }
-    for (i, (letter, on, pill)) in [("M", look.muted, ink.ink2), ("S", look.soloed, ink.solo)]
+    // r40:look — a muted track's M lit as the strip's: the accent, or grey by the setting.
+    let mute = crate::views::owner_look::mute_fill(ink.ink2, s.t.highlight);
+    for (i, (letter, on, pill)) in [("M", look.muted, mute), ("S", look.soloed, ink.solo)]
         .into_iter()
         .enumerate()
     {

@@ -76,6 +76,10 @@ pub fn settings(pad: &DrumPad, bus: u8) -> PadSettings {
         spacing: pad.spacing_ms / 1000.0,
         q: pad.q,
         layer_count: pad.layers.len().min(MAX_LAYERS) as u8,
+        // Model 4 only (Tympanum): its strike-point scatter, set by the kit from `p{n}.spread`.
+        scatter: cantus_dsp::pulsus::PadSettings::kick().scatter,
+        // Model 5 only (Tympanum): set by its kit cache.
+        measured: 0,
     }
 }
 

@@ -265,6 +265,12 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
         ("chorda", PickChoice::Instrument(I::Chorda), vec![C::Keys]),
         ("gravis", PickChoice::Instrument(I::Bass), vec![C::Bass]),
         ("pulsus", PickChoice::Pulsus, vec![C::Drums]),
+        // r40: the acoustic drummer, beside the drum machine.
+        (
+            "tympanum",
+            PickChoice::Instrument(I::AcousticDrums),
+            vec![C::Drums],
+        ),
         // r35:dancer — the dancer: no sound, on a shelf of its own (ADR 0087).
         (
             "saltator",

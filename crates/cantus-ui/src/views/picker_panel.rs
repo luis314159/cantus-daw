@@ -226,6 +226,7 @@ fn rows(
             chosen = Some(key.clone());
         }
         if resp.drag_started() {
+            crate::app::CantusApp::warm_builtins(); // r40:memory (ADR 0120 §2)
             egui::DragAndDrop::set_payload(ui.ctx(), DevicePayload(v.catalog[*i].choice.clone()));
         }
         if resp.dragged() {

@@ -325,6 +325,7 @@ mod tests {
                 px_per_unit: px,
                 hue: 0.0,
                 shadow: true,
+                ink: Default::default(),
             };
             let g = ground(&canvas, &pose, ch.faces_itself());
             let flat = Pose {

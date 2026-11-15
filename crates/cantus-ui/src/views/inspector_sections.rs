@@ -393,6 +393,7 @@ pub fn sidechain(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
             super::MenuId::Sidechain(m.id, e.id),
             false,
         );
+        super::taps::hear_key_row(sh, app, m.id, e.id); // r40:pads
     }
 }
 

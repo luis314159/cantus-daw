@@ -84,6 +84,14 @@ pub fn parse(
             g.values[gf::VEL] = Some((v * 100.0).clamp(-100.0, 100.0));
         }
         g.name = group.attr("name").map(str::to_string);
+        // r40:chorda-src — where the group plays (Decent Sampler 1.12's aux outputs and
+        // buses, ADR 0125): its own output when it sounds on an aux output alone.
+        if let Some((n, db)) = group_output(group, groups, root.child("buses"), &mut out.log) {
+            g.values[gf::OUT] = Some(f32::from(n));
+            if db != 0.0 {
+                g.values[gf::GAIN] = Some(g.values[gf::GAIN].unwrap_or(0.0) + db);
+            }
+        }
         out.groups.push((m, g));
         let one_shot = truthy(gattr("ampEnvEnabled")) == Some(false);
         let seq_mode = gattr("seqMode").unwrap_or("always").to_ascii_lowercase();
@@ -224,18 +232,120 @@ pub fn parse(
         out.values
             .push(("glide".into(), (t * 1000.0).clamp(0.0, 5_000.0)));
     }
-    for skipped in [
-        "ui",
-        "effects",
-        "modulators",
-        "midi",
-        "noteSequences",
-        "buses",
-    ] {
+    // r40:chorda-src — the buses' routes are read (`group_output`); their effects are not.
+    if root
+        .child("buses")
+        .is_some_and(|b| b.children.iter().any(|bus| bus.child("effects").is_some()))
+    {
+        out.log.push("the buses' effects not carried over".into());
+    }
+    for skipped in ["ui", "effects", "modulators", "midi", "noteSequences"] {
         if root.child(skipped).is_some_and(|e| !e.children.is_empty()) {
             out.log.push(format!("<{skipped}> not carried over"));
         }
     }
     out.clamp();
     Ok(out)
+}
+
+// ---- r40:chorda-src — outputs (ADR 0123, 0125) ----------------------------------------------
+
+/// Where one `outputXTarget` sends: Decent Sampler's main output, an aux output (1…16) or
+/// a bus (1…16).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Target {
+    Main,
+    Aux(u8),
+    Bus(u8),
+}
+
+fn target(v: &str) -> Option<Target> {
+    let t = v.trim().to_ascii_uppercase();
+    if t == "MAIN_OUTPUT" {
+        return Some(Target::Main);
+    }
+    let n = |p: &str| -> Option<u8> {
+        t.strip_prefix(p)?
+            .parse::<u8>()
+            .ok()
+            .filter(|n| (1..=16).contains(n))
+    };
+    n("AUX_STEREO_OUTPUT_")
+        .map(Target::Aux)
+        .or_else(|| n("BUS_").map(Target::Bus))
+}
+
+/// An element's sends, `output1Target`…`output8Target` with their volumes (linear, 1 when
+/// absent); `inherit` is where a missing one is looked up. Output 1 goes to the main output
+/// unless it says otherwise.
+fn sends(e: &Element, inherit: Option<&Element>) -> Vec<(Target, f32)> {
+    let attr = |k: &str| e.attr(k).or_else(|| inherit.and_then(|i| i.attr(k)));
+    let mut out = Vec::new();
+    for x in 1..=8 {
+        let t = attr(&format!("output{x}Target"));
+        let v = f(attr(&format!("output{x}Volume"))).unwrap_or(1.0);
+        match (t.and_then(target), x) {
+            (Some(t), _) => out.push((t, v)),
+            (None, 1) => out.push((Target::Main, v)),
+            (None, _) => {}
+        }
+    }
+    out
+}
+
+/// The output a group plays on — `AUX_STEREO_OUTPUT_n` (directly or through a bus) as its
+/// only audible destination — and the level it is sent at, dB. A group heard on the main
+/// output stays there (a send to an aux beside it is logged, not kept: Exemplar's group
+/// has one output).
+fn group_output(
+    group: &Element,
+    groups: &Element,
+    buses: Option<&Element>,
+    log: &mut Vec<String>,
+) -> Option<(u8, f32)> {
+    let mut heard: Vec<(Target, f32)> = Vec::new();
+    for (t, v) in sends(group, Some(groups)) {
+        match t {
+            Target::Bus(b) => {
+                let Some(bus) =
+                    buses.and_then(|bs| bs.children_named("bus").nth(usize::from(b) - 1))
+                else {
+                    log.push(format!("BUS_{b} is not declared: its sound is not kept"));
+                    continue;
+                };
+                let bv = f(bus.attr("busVolume")).unwrap_or(1.0);
+                for (t2, v2) in sends(bus, None) {
+                    if !matches!(t2, Target::Bus(_)) {
+                        heard.push((t2, v * bv * v2));
+                    }
+                }
+            }
+            t => heard.push((t, v)),
+        }
+    }
+    heard.retain(|(_, v)| *v > 0.0);
+    let auxes: Vec<(u8, f32)> = heard
+        .iter()
+        .filter_map(|(t, v)| match t {
+            Target::Aux(n) => Some((*n, *v)),
+            _ => None,
+        })
+        .collect();
+    let name = group.attr("name").unwrap_or("a group");
+    if heard.iter().any(|(t, _)| *t == Target::Main) {
+        if !auxes.is_empty() {
+            log.push(format!(
+                "{name}: heard on the main output; its send to aux output {} is not kept",
+                auxes[0].0
+            ));
+        }
+        return None;
+    }
+    let (n, v) = *auxes.first()?;
+    if auxes.len() > 1 {
+        log.push(format!(
+            "{name}: sent to several aux outputs; it plays on aux output {n}"
+        ));
+    }
+    Some((n, 20.0 * v.max(1e-4).log10()))
 }

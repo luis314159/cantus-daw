@@ -388,6 +388,14 @@ pub struct Companion {
     pub(crate) native: Option<super::companion_win::Native>,
 }
 
+impl Companion {
+    /// The analyser's updates and analyses so far ([`Visualiser::counts`]): what the
+    /// at-rest tests watch (fix-c, R2-C1).
+    pub fn vis_counts(&self) -> (u64, u64) {
+        self.vis.counts()
+    }
+}
+
 /// The ids of the characters the menu steps through, in the picker's order.
 pub fn character_ids() -> Vec<String> {
     cantus_dance::cast::builtin()
@@ -596,7 +604,16 @@ fn run(app: &mut CantusApp, ctx: &egui::Context, in_pass: bool) {
         app.settings.stage.size = sane;
     }
     let st = app.settings.stage.clone();
-    let tap_wanted = st.companion_open && st.vis != VisMode::Off && !minimized;
+    // The master's spectrum is analysed for the companion's visualiser, and for a dancer
+    // that hears it (Espectro, round 40): on the interface's side, never on the audio thread.
+    // A project's dancer hears it only while the song plays (stopped, its bars dance to
+    // the beat): at rest nothing is analysed (round 38; fix-c, R2-C1). The companion's own
+    // character, when it hears it, while the window shows (fix-c, R2-C2).
+    let hears = app.dance_live.hears_spectrum() && app.engine.is_playing(); // r40:cast
+    let shown = st.companion_open && !minimized;
+    let own = (shown && !st.follow_project).then(|| app.stage.character(&st.character));
+    let own_hears = own.as_ref().is_some_and(|c| c.hears_spectrum());
+    let tap_wanted = (shown && (st.vis != VisMode::Off || own_hears)) || hears;
     // Checked every frame against the engine's own tap: an engine made again (the audio
     // device reopened) starts with its tap off, and is re-armed here.
     if let Some(t) = app.engine.master_tap() {
@@ -606,6 +623,17 @@ fn run(app: &mut CantusApp, ctx: &egui::Context, in_pass: bool) {
     }
     c.tapping = tap_wanted;
     if !st.companion_open {
+        if hears {
+            // r40:cast — the window is closed but a dancer hears the spectrum.
+            let vis = &mut c.vis;
+            if let Some(t) = app.engine.master_tap() {
+                t.drain(|pairs| vis.feed(pairs));
+            }
+            let m = app.engine.meters().master;
+            let sr = app.engine.sample_rate as f32;
+            c.vis
+                .update(crate::dance_live::wall_seconds(), sr, m[0].max(m[1]));
+        }
         c.opened_at = None;
         #[cfg(windows)]
         {
@@ -637,7 +665,10 @@ fn run(app: &mut CantusApp, ctx: &egui::Context, in_pass: bool) {
 
     // What to show: the project's dancers, or the chosen character.
     let follows = st.follow_project;
-    let ch = app.stage.character(&st.character);
+    let ch = match own {
+        Some(c) => c,
+        None => app.stage.character(&st.character),
+    };
     let project: Vec<StageDancer> = if follows {
         app.stage
             .dancers()
@@ -660,7 +691,15 @@ fn run(app: &mut CantusApp, ctx: &egui::Context, in_pass: bool) {
             sh.dancers
                 .extend(project.iter().map(|d| (d.character.clone(), d.pose)));
         } else {
-            let pose = pose_at(&frame, ch.as_ref(), now);
+            let mut pose = pose_at(&frame, ch.as_ref(), now);
+            if ch.hears_spectrum() {
+                // Its own Espectro hears what the companion's analyser hears (fix-c, R2-C2).
+                pose.bands = if frame.playing {
+                    crate::dance_live::spectrum_bands(&c.vis.bands)
+                } else {
+                    [0.0; 4]
+                };
+            }
             sh.dancers.push((ch.clone(), pose));
         }
         if follows {

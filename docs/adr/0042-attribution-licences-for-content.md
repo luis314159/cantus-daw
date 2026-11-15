@@ -244,3 +244,27 @@ layers, each with at least two hits in turn.
   a tom fill across 47/48/50 and an accent layer never repeat a hit; the kit's row names
   and Exemplar's group names translate (`locales/areas/drums.*`: General MIDI's 47 names,
   DRSKit's labels).
+
+## Amendment (round 40 phase 3, 2026-11-12): three pack modes
+
+The owner's decision: packs come in three modes, recorded in the manifest (format 5,
+`cantus_content::manifest::PackMode`; the whole text in ADR 0125 §4):
+
+1. **Pack** — CC0 or CC BY 3.0/4.0, as this ADR has it: one click, downloaded from the
+   official source URL, SHA-256 pinned, the credit shown. **Only under an accepted licence
+   id**: the manifest's validation refuses a *Pack* under anything else (`licences.rs`,
+   `a_one_click_pack_needs_an_accepted_licence_and_the_other_modes_the_authors_page`).
+2. **From the author's site** — free to download, no licence stated (Piano in 162, Headroom
+   Piano, Naked Drums): one click **directly from the author's official URL** — Cantus never
+   hosts, mirrors or bundles it — SHA-256 pinned; the pack's page says *downloaded from
+   <author>'s site* and shows the author's terms (`author_page`). A changed file (hash
+   mismatch, 404, HTML instead of an archive) opens the author's page and offers *Install
+   from a file…*. Licence id `LicenseRef-author-terms` (or an accepted one).
+3. **Manual** — the source needs a login, a registration or an e-mail (Pianobook): Cantus
+   opens the author's page; the user downloads the file and drops it on Cantus or uses
+   *Install from a file…*, which recognises it by its pinned size and SHA-256.
+
+Modes 2 and 3 need `author_page` (https). This ADR's rule otherwise stands: what Cantus
+hosts or ships is CC0 or CC BY, credited; a pack that states NC, ND, SA or any other licence
+this ADR refuses is refused in **every** mode (the manifest's validation) — modes 2 and 3
+are for material that states none, used on its author's terms from the author's own site.

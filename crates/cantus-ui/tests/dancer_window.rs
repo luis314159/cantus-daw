@@ -345,23 +345,206 @@ fn the_window_timing() {
     assert!(median < 8.0, "median {median:.2} ms");
 }
 
-/// Every character of the cast (and *Import…*) fits the picker's grid, in the Play view's
-/// card and the Edit view's, without a tile on the words under them.
+/// Every character of the cast (and *Import…*) is in the picker's grid, in the Play view's
+/// card and the Edit view's, without a tile on the words under them: at the largest side
+/// that fits, and since round 40 (twenty characters) in tiles of at least 48 pt — scaled
+/// with the interface (review 2, R2-B8) — the rows past the card reached by scrolling,
+/// every tile shown at some scroll, partly or whole.
 #[test]
 fn every_character_fits_the_picker() {
-    use cantus_ui::views::inst::dancer::pick::{fitting_side, tiles};
+    use cantus_ui::views::inst::dancer::pick::{grid, placed, MIN_SIDE};
     let n = cantus_dance::cast::builtin().len() + 1;
-    for grid in [
-        Rect::from_min_size(Pos2::ZERO, egui::vec2(380.0, 128.0)),
-        Rect::from_min_size(Pos2::ZERO, egui::vec2(620.0, 200.0)),
-    ] {
-        let side = fitting_side(grid, n, 6.0, 36.0, 96.0);
-        assert!(side >= 44.0, "{side}");
-        for t in tiles(grid, n, side, 6.0) {
+    for k in [1.0f32, 1.5] {
+        for area in [
+            Rect::from_min_size(Pos2::ZERO, egui::vec2(380.0, 128.0) * k),
+            Rect::from_min_size(Pos2::ZERO, egui::vec2(620.0, 200.0) * k),
+        ] {
+            let g = grid(area, n, 6.0 * k, 36.0 * k, 96.0 * k, MIN_SIDE * k);
+            assert!(g.side >= MIN_SIDE * k, "{k}: {g:?}");
+            let content = g.rows as f32 * g.row_h;
+            let mut seen = vec![false; n];
+            let mut scroll = 0.0;
+            while scroll <= content {
+                for (i, s) in seen.iter_mut().enumerate() {
+                    if placed(area, &g, 6.0 * k, i, scroll)
+                        .is_some_and(|t| area.contains(t.center()))
+                    {
+                        *s = true;
+                    }
+                }
+                scroll += g.row_h * 0.25;
+            }
             assert!(
-                t.bottom() + side * 0.22 <= grid.bottom() + 8.0,
-                "{t:?} in {grid:?}"
+                seen.iter().all(|s| *s),
+                "{k}: every tile is shown at some scroll"
             );
         }
     }
+}
+
+/// One frame of the editor, its body `size` points, with `events`.
+fn frame_at(a: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, events: Vec<egui::Event>) {
+    cantus_ui::dance_live::DanceLive::update(a, 1.0);
+    let input = egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SIZE)),
+        events,
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        cantus_ui::views::inst::window_in_sized(a, ui, size)
+    });
+    out.textures_delta.clear();
+}
+
+/// fix-c (R2-C3): in an editor smaller than its default the cast does not fit the picker's
+/// card, so its grid scrolls; the wheel over
+/// the tiles brings the lower rows up and a click on a tile there chooses that character —
+/// the one drawn under the pointer, not one scrolled away (one undo step).
+#[test]
+fn the_picker_scrolled_chooses_a_tile_from_its_lower_rows() {
+    let (mut a, track) = dancer_app();
+    a.inst.view = View::Edit;
+    let c = ctx();
+    // An editor smaller than its default (1 040 × 680, where the cast fits its card): the
+    // size at which the cast is taller than the card.
+    let mut tried = Vec::new();
+    let size = [1040.0f32, 800.0, 640.0, 520.0, 440.0, 380.0]
+        .into_iter()
+        .flat_map(|w| [680.0f32, 520.0, 400.0, 320.0].map(|h| egui::vec2(w, h)))
+        .find(|s| {
+            frame_at(&mut a, &c, *s, vec![]);
+            tried.push((*s, a.inst.dancer.placed.get("pick.first").copied()));
+            a.inst.dancer.pick.hidden_rows > 0
+        })
+        .unwrap_or_else(|| panic!("a window where the picker scrolls: {tried:?}"));
+    let frame = |a: &mut CantusApp, events| frame_at(a, &c, size, events);
+    let click = |a: &mut CantusApp, at: Pos2| {
+        frame(a, vec![egui::Event::PointerMoved(at)]);
+        frame(a, vec![press(at, true)]);
+        frame(a, vec![press(at, false)]);
+    };
+    frame(&mut a, vec![]);
+    let first = a.inst.dancer.placed["pick.first"];
+    let now = spec(&a, track);
+    let last = cantus_ui::views::inst::dancer::pick::choices(&mut a, &now)
+        .last()
+        .expect("the cast")
+        .info()
+        .id
+        .clone();
+    assert_eq!(a.inst.dancer.pick.scroll, 0.0);
+    // The wheel over the tiles, a few frames for egui's smooth scroll.
+    let over = first.center();
+    for _ in 0..40 {
+        frame(
+            &mut a,
+            vec![
+                egui::Event::PointerMoved(over),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: egui::vec2(0.0, -3.0),
+                    modifiers: egui::Modifiers::NONE,
+                    phase: egui::TouchPhase::Move,
+                },
+            ],
+        );
+    }
+    for _ in 0..20 {
+        frame(&mut a, vec![egui::Event::PointerMoved(over)]);
+    }
+    assert!(
+        a.inst.dancer.pick.scroll >= 1.0,
+        "the grid scrolled: {}",
+        a.inst.dancer.pick.scroll
+    );
+    // The last character's tile (the last drawn) is in view now, in a lower row than the
+    // first row's place before scrolling.
+    let tile = a.inst.dancer.placed["pick"];
+    assert!(tile.top() >= first.top(), "{tile:?} under {first:?}");
+    assert_ne!(spec(&a, track).text(CHARACTER_KEY), Some(last.as_str()));
+    click(&mut a, tile.center());
+    assert_eq!(
+        spec(&a, track).text(CHARACTER_KEY),
+        Some(last.as_str()),
+        "the tile under the pointer chosen"
+    );
+    assert!(a.bus.undo().is_some(), "one undo step");
+    assert_ne!(spec(&a, track).text(CHARACTER_KEY), Some(last.as_str()));
+    // Scrolled back to the top, the same place holds another character.
+    a.inst.dancer.pick.scroll = 0.0;
+    click(&mut a, tile.center());
+    assert_ne!(spec(&a, track).text(CHARACTER_KEY), Some(last.as_str()));
+}
+
+/// R2-B8: the picker's scrollbar is the kit's, inside the card, and a drag on it moves the
+/// tiles smoothly (by points, not whole rows); the wheel over the tiles too.
+#[test]
+fn the_picker_scrolls_with_the_kits_scrollbar_and_the_wheel() {
+    let (mut a, _track) = dancer_app();
+    // The Edit view, whose card is the smaller one.
+    a.inst.view = View::Edit;
+    // An editor small enough that the cast is taller than the card (as fix-c's test finds).
+    let ctx = ctx();
+    let size = [1040.0f32, 800.0, 640.0, 520.0, 440.0, 380.0]
+        .into_iter()
+        .flat_map(|w| [680.0f32, 520.0, 400.0, 320.0].map(|h| egui::vec2(w, h)))
+        .find(|s| {
+            frame_at(&mut a, &ctx, *s, vec![]);
+            a.inst.dancer.pick.hidden_rows > 0
+        })
+        .expect("a window where the picker scrolls");
+    let small = |a: &mut CantusApp, ctx: &egui::Context, events| frame_at(a, ctx, size, events);
+    for _ in 0..3 {
+        small(&mut a, &ctx, vec![]);
+    }
+    // Twenty characters and *Import…* in the Edit view's card: they scroll.
+    let bar = a
+        .inst
+        .dancer
+        .placed
+        .get("pick.scroll")
+        .copied()
+        .unwrap_or_else(|| panic!("the picker scrolls: {:?}", a.inst.dancer.placed));
+    let tile = a.inst.dancer.placed["pick.first"];
+    assert!(
+        bar.left() >= tile.right(),
+        "the bar beside the tiles, not over them"
+    );
+    assert_eq!(a.inst.dancer.pick.scroll, 0.0);
+    let from = bar.center_top() + egui::vec2(0.0, 4.0);
+    small(&mut a, &ctx, vec![egui::Event::PointerMoved(from)]);
+    small(&mut a, &ctx, vec![press(from, true)]);
+    for k in 1..=4 {
+        let at = from + egui::vec2(0.0, 5.0 * k as f32);
+        small(&mut a, &ctx, vec![egui::Event::PointerMoved(at)]);
+    }
+    small(
+        &mut a,
+        &ctx,
+        vec![press(from + egui::vec2(0.0, 20.0), false)],
+    );
+    let dragged = a.inst.dancer.pick.scroll;
+    assert!(dragged > 0.0, "the drag scrolled the tiles");
+    // The wheel over the tiles: back up, by points.
+    let over = tile.center();
+    small(&mut a, &ctx, vec![egui::Event::PointerMoved(over)]);
+    for _ in 0..6 {
+        small(
+            &mut a,
+            &ctx,
+            vec![egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, 7.0),
+                modifiers: Default::default(),
+                phase: egui::TouchPhase::Move,
+            }],
+        );
+    }
+    for _ in 0..20 {
+        small(&mut a, &ctx, vec![]);
+    }
+    assert!(
+        a.inst.dancer.pick.scroll < dragged,
+        "the wheel scrolled back"
+    );
 }

@@ -100,6 +100,8 @@ pub struct Work {
     tempo: TempoMap,
     from: Ticks,
     stage_colour: [u8; 4],
+    /// The theme's light the Slate cast paints with (r40:cast, ADR 0122).
+    ink: cantus_dance::StageInk,
     title: String,
     plan: Option<cantus_video::Plan>,
     vis: Option<crate::stage::vis_video::Setup>, // r35:stage — the visualiser (ADR 0091)
@@ -149,6 +151,7 @@ impl Work {
             tempo: p.tempo_map(),
             from,
             stage_colour: [c.r(), c.g(), c.b(), 255],
+            ink: video_ink(&s.t, d), // r40:cast
             title,
             plan,
             vis, // r35:stage
@@ -363,6 +366,17 @@ pub fn beat_timeline(map: &TempoMap, from: Ticks, seconds: f64) -> Vec<DanceFram
         .collect()
 }
 
+/// The theme's light for a video's dancers (round 40, ADR 0122): the room is the frames'
+/// background (the theme's stage colour where the file keeps transparency).
+pub fn video_ink(t: &crate::kit::tokens::Tokens, d: &VideoSettings) -> cantus_dance::StageInk {
+    let stage = [t.panel.r(), t.panel.g(), t.panel.b(), 255];
+    let room = match background_for(d, stage) {
+        Background::Solid(c) => c,
+        Background::Transparent => stage,
+    };
+    crate::dance_texture::stage_ink(t, egui::Color32::from_rgb(room[0], room[1], room[2]))
+}
+
 /// The frames' background: the theme's stage colour (`stage`), a key colour, black, or
 /// nothing where the file keeps transparency.
 pub fn background_for(d: &VideoSettings, stage: [u8; 4]) -> Background {
@@ -393,6 +407,7 @@ pub fn run(
         tempo,
         from,
         stage_colour,
+        ink,
         title,
         plan,
         vis, // r35:stage
@@ -436,17 +451,23 @@ pub fn run(
         });
     }
     let (w, h) = d.size();
-    let vis = crate::stage::vis_video::for_render(vis, &audio, &tempo, from); // r35:stage
+    // A dancer that hears the music (Espectro) hears the render's own (r40:cast); the
+    // visualiser draws the same analysis (r35:stage).
+    let (spectrum, vis) = analysed(&list, vis, &audio, &tempo, from);
     let overlay = crate::stage::vis_video::with_title(
         vis,
         title_overlay_for(title, background_for(d, stage_colour)),
     ); // r35:stage
     let frames_src = SongFrames {
         dancers: list,
-        stage: Stage::new(w, h, background_for(d, stage_colour)),
+        stage: Stage {
+            ink, // r40:cast
+            ..Stage::new(w, h, background_for(d, stage_colour))
+        },
         start_seconds: tempo.seconds_at(from.0 as f64),
         fps: d.fps,
         overlay,
+        spectrum, // r40:cast
     };
     let pcm = cantus_video::audio::Pcm {
         rate: audio.rate,
@@ -468,6 +489,31 @@ pub fn run(
     };
     p.phase.store(1, Ordering::Relaxed);
     cantus_video::export(&req, &frames_src, path, &p.video).map_err(|e| words(&e))
+}
+
+/// The render's spectrum for a dancer that hears it (Espectro, r40:cast) and the
+/// visualiser's (r35:stage), from **one** analysis of the render (fix-c, R2-C4: it was
+/// analysed twice when both wanted it); none when neither does.
+pub fn analysed(
+    list: &[Dancer],
+    vis: Option<crate::stage::vis_video::Setup>,
+    audio: &cantus_export::Audio,
+    tempo: &TempoMap,
+    from: Ticks,
+) -> (
+    Option<cantus_video::dance::Spectrum>,
+    Option<crate::stage::vis_video::VideoVis>,
+) {
+    let hears = list.iter().any(|d| d.character.hears_spectrum());
+    if !hears && vis.is_none() {
+        return (None, None);
+    }
+    let raw = crate::stage::vis_video::analyse(&audio.samples, audio.channels as usize, audio.rate);
+    let spectrum = hears.then(|| crate::dance_live::video_spectrum(&raw));
+    (
+        spectrum,
+        crate::stage::vis_video::for_render(vis, raw, tempo, from),
+    )
 }
 
 /// The title's ink and outline over the frames' background (review 1 #6): the ink of

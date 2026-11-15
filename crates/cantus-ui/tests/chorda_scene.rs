@@ -1,17 +1,20 @@
-//! Chorda's scene end to end (round 37, ADR 0104), on the boot path: a Chorda added the way
-//! the picker adds one, its editor open in the Play view, drawn frame by frame as the app
-//! draws it — turning Lid, Mics and Room moves the scene's geometry, a preset changes the
-//! piano; every factory preset shows a piano its sound can stand for; the look touches no
-//! sample, live or offline, even changed while the piano sounds.
+//! Chorda's scene end to end (round 37, ADR 0104; round 40 phase 3, ADR 0126: the scene
+//! module's projected vectors), on the boot path: a Chorda added the way the picker adds
+//! one stands on the stage; its editor open in the Play view, drawn frame by frame as the
+//! app draws it — a click on the lid opens it, turning Perspective and Room moves the
+//! microphones, the room picked is the room drawn, a preset changes the piano; every
+//! factory preset shows a piano its sound can stand for; the look touches no sample, live or
+//! offline, even changed while the piano sounds.
 //! Its own test binary: it points `CANTUS_DATA_DIR` at a temporary folder.
 
 use cantus_core::inst::chorda_look::{self as look, Body, Finish, BODY_KEY, FINISH_KEY};
+use cantus_core::inst::room_look::{self, RoomKind, ROOM_KEY};
 use cantus_core::*;
-use cantus_dsp::chorda::design::Tuning;
 use cantus_engine::{render, EngineHandle, Processor, RenderOptions};
 use cantus_ui::app::Files;
 use cantus_ui::picker::{PickChoice, PickPurpose};
-use cantus_ui::views::inst::chorda::{scene, FACTORY_PRESETS};
+use cantus_ui::scene::{self, display::Part, Picked, Room, Subject};
+use cantus_ui::views::inst::chorda::FACTORY_PRESETS;
 use cantus_ui::CantusApp;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -21,6 +24,12 @@ fn data() -> &'static std::path::Path {
     DIR.get_or_init(|| {
         let d = tempfile::tempdir().unwrap();
         std::env::set_var("CANTUS_DATA_DIR", d.path());
+        // A configured copy: no first-run audio setup, no start page over the editor.
+        std::fs::write(
+            d.path().join("settings.json"),
+            r#"{"audio_setup":{"setup_done":true},"start_page_at_start":false}"#,
+        )
+        .unwrap();
         d
     })
     .path()
@@ -62,21 +71,74 @@ fn spec_of(app: &CantusApp, track: TrackId) -> NativeSpec {
         .expect("a native instrument")
 }
 
-/// The first Chorda's scene (the one the test opened first).
-fn scene_a(app: &CantusApp) -> &scene::Scene {
-    app.project()
-        .tracks
-        .iter()
-        .find_map(|t| app.inst.chorda.scene_of(t.id))
+/// `track`'s scene.
+fn scene_of(app: &CantusApp, track: TrackId) -> &scene::Scene {
+    app.inst
+        .chorda
+        .scene_of(track)
         .expect("a Chorda's scene drawn")
 }
 
-/// Frames of the app as it runs, the editor maximised; the scene's probe after them.
-fn frames(ctx: &egui::Context, app: &mut CantusApp, n: usize) -> scene::Probe {
-    cantus_ui::raster::shoot(ctx, egui::vec2(1500.0, 940.0), 1.0, n, None, |root| {
-        app.frame(root)
-    });
-    scene_a(app).probe
+const WINDOW: egui::Vec2 = egui::vec2(1500.0, 940.0);
+
+/// Frames of the app as it runs, `events` sent on the first; time always moves forward (a
+/// quarter second a frame, so every glide and fade has finished by the last).
+fn frames_with(ctx: &egui::Context, app: &mut CantusApp, n: usize, events: Vec<egui::Event>) {
+    thread_local! {
+        static T: std::cell::Cell<f64> = const { std::cell::Cell::new(0.0) };
+    }
+    let mut events = Some(events);
+    for _ in 0..n.max(1) {
+        let t = T.with(|t| {
+            t.set(t.get() + 0.25);
+            t.get()
+        });
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, WINDOW)),
+            time: Some(t),
+            events: events.take().unwrap_or_default(),
+            ..Default::default()
+        };
+        ctx.run_ui(input, |root| app.frame(root))
+            .textures_delta
+            .clear();
+    }
+}
+
+fn frames(ctx: &egui::Context, app: &mut CantusApp, n: usize) {
+    frames_with(ctx, app, n, Vec::new());
+}
+
+/// The top of the lid's outline on screen (smaller: higher up).
+fn lid_top(app: &CantusApp, track: TrackId) -> f32 {
+    let b = scene_of(app, track).built().expect("a picture");
+    let o = b.outlines.iter().find(|o| o.0 == Part::Lid).expect("a lid");
+    o.2.iter().map(|p| p.y).fold(f32::MAX, f32::min)
+}
+
+/// Where a microphone part's head is on screen.
+fn mic_at(app: &CantusApp, track: TrackId, part: Part) -> Option<egui::Pos2> {
+    scene_of(app, track)
+        .built()
+        .and_then(|b| b.mics.iter().find(|m| m.0 == part).map(|m| m.1))
+}
+
+fn click(p: egui::Pos2) -> Vec<egui::Event> {
+    vec![
+        egui::Event::PointerMoved(p),
+        egui::Event::PointerButton {
+            pos: p,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: Default::default(),
+        },
+        egui::Event::PointerButton {
+            pos: p,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        },
+    ]
 }
 
 #[test]
@@ -110,9 +172,16 @@ fn every_factory_preset_shows_a_piano_its_sound_can_stand_for() {
         Body::ALL.len(),
         "every body shown: {bodies:?}"
     );
-    assert_eq!(
-        finishes.len(),
-        Finish::ALL.len(),
+    // The four round-37 finishes; maple (round 40) is the user's to pick.
+    assert!(
+        [
+            Finish::Black,
+            Finish::White,
+            Finish::Walnut,
+            Finish::Rosewood
+        ]
+        .iter()
+        .all(|f| finishes.contains(f.key())),
         "every finish: {finishes:?}"
     );
     // And the rule says no where it must: an open lid's grand strings are no upright.
@@ -121,120 +190,134 @@ fn every_factory_preset_shows_a_piano_its_sound_can_stand_for() {
 }
 
 #[test]
-fn turning_lid_mics_and_room_moves_the_scene_and_a_preset_changes_the_piano() {
-    // The scene bakes on the painting thread here, so each frame shows what it asks for
-    // (the worker's own path is `chorda_scene_budget.rs`'s).
+fn a_new_chorda_stands_on_the_stage_and_its_lid_opens_with_a_click() {
+    // The scene builds on the painting thread here, so each frame shows what it asks for
+    // (the worker's own path is `scene_vector.rs`'s).
     scene::set_blocking(true);
     let ctx = egui::Context::default();
     let (mut app, _proc) = assembled(&ctx);
     let track = add_chorda(&mut app);
+    assert_eq!(
+        room_look::of(&spec_of(&app, track)).room,
+        Some(RoomKind::Stage),
+        "a new Chorda stands on the stage"
+    );
     app.inst.view = cantus_ui::views::inst::View::Play;
     app.open_instrument_window(track);
-    let first = frames(&ctx, &mut app, 8);
+    app.set_inst_value(track, "lid", 0.0, false);
+    frames(&ctx, &mut app, 8);
+    // The editor maximised, as a player works in it (nothing else over the scene).
+    let key = app
+        .instrument_window_key(track)
+        .expect("the editor's window");
+    cantus_ui::views::workspace_device::toggle_maximise(&ctx, key);
+    frames(&ctx, &mut app, 30);
+    let (subject, room) = scene_of(&app, track).showing().expect("a picture");
+    assert_eq!(room, Room::Stage);
+    assert!(
+        matches!(subject, Subject::Piano { look, lid, .. } if look.body == Body::Concert && *lid == 0.0)
+    );
+    let shut = lid_top(&app, track);
+    // A click on the closed lid opens it to the full stick (one undo step).
+    let at = scene_of(&app, track)
+        .point_on(Picked::Lid)
+        .expect("the lid on screen");
+    let [moved, press, release] = <[egui::Event; 3]>::try_from(click(at)).unwrap();
+    frames_with(&ctx, &mut app, 1, vec![moved, press]);
+    frames_with(&ctx, &mut app, 1, vec![release]);
+    frames(&ctx, &mut app, 30);
     assert_eq!(
-        first.body,
-        Some(Body::Concert),
-        "a new Chorda: a concert grand"
+        spec_of(&app, track).get("lid"),
+        1.0,
+        "the click opened the lid"
     );
-    // Each control moves what it should, once the glide has settled.
-    let mut turn = |key: &str, v: f32| {
+    let open = lid_top(&app, track);
+    assert!(
+        open < shut - 20.0,
+        "the lid rises on screen: {shut} → {open}"
+    );
+    app.undo();
+    frames(&ctx, &mut app, 30);
+    assert_eq!(
+        spec_of(&app, track).get("lid"),
+        0.0,
+        "one undo step closes it again"
+    );
+
+    // The microphones, shown: Perspective moves the pair, Room adds the room pair.
+    app.inst.chorda.show_mics(track, true);
+    let turn = |app: &mut CantusApp, key: &str, v: f32| {
         app.set_inst_value(track, key, v, false);
-        frames(&ctx, &mut app, 30)
+        frames(&ctx, app, 30);
     };
-    let shut = turn("lid", 0.0);
+    turn(&mut app, "persp", 0.0);
+    let close = mic_at(&app, track, Part::Pair).expect("the pair");
+    turn(&mut app, "persp", 1.0);
+    let far = mic_at(&app, track, Part::Pair).expect("the pair");
     assert!(
-        shut.lid_tip.y > first.lid_tip.y + 5.0,
-        "the lid comes down: {:?} → {:?}",
-        first.lid_tip,
-        shut.lid_tip
+        (close - far).length() > 40.0,
+        "the pair moves: {close:?} → {far:?}"
     );
-    let close = turn("persp", 0.0);
-    let far = turn("persp", 1.0);
+    turn(&mut app, "room", 0.0);
     assert!(
-        (close.mics[0] - far.mics[0]).length() > 40.0,
-        "the microphones move: {:?} → {:?}",
-        close.mics,
-        far.mics
+        mic_at(&app, track, Part::RoomPair).is_none(),
+        "no room in the mix, no room pair"
     );
-    let narrow = turn("width", 0.0);
-    let wide = turn("width", 1.0);
-    assert!(
-        (wide.mics[0] - wide.mics[1]).length() > (narrow.mics[0] - narrow.mics[1]).length() + 2.0,
-        "the pair spreads with the width"
-    );
-    let small = turn("roomsize", 0.1);
-    let big = turn("roomsize", 1.0);
-    assert!(
-        (small.corner - big.corner).length() > 10.0 && small.digest != big.digest,
-        "the room grows: {:?} → {:?}",
-        small.corner,
-        big.corner
-    );
-    let dry = turn("room", 0.0);
-    assert!(!dry.room_mics, "no room in the mix, no room pair");
-    let live = turn("room", 0.8);
-    assert!(live.room_mics && live.digest != dry.digest);
-    // A preset: the felt piano is an upright.
+    turn(&mut app, "room", 0.8);
+    assert!(mic_at(&app, track, Part::RoomPair).is_some());
+
+    // The room picked is the room drawn; an older song's Chorda (no room kept) draws the
+    // room its Room size drew.
+    app.set_inst_text(track, ROOM_KEY, Some("church".into()));
+    frames(&ctx, &mut app, 4);
+    assert_eq!(scene_of(&app, track).showing().unwrap().1, Room::Church);
+    app.set_inst_text(track, ROOM_KEY, None);
+    app.set_inst_value(track, "roomsize", 0.1, false);
+    frames(&ctx, &mut app, 30);
+    assert_eq!(scene_of(&app, track).showing().unwrap().1, Room::Booth);
+
+    // A preset: the felt piano is an upright; the look picked by hand is one undo step.
     let felt = FACTORY_PRESETS
         .iter()
         .find(|p| p.label_key == "chorda.preset.felt")
         .unwrap();
     let spec = cantus_ui::views::inst::preset_spec(InstrumentKind::Chorda, felt);
     app.apply_inst_spec(track, &spec, "cmd.fx_preset");
-    let up = frames(&ctx, &mut app, 30);
-    assert_eq!(up.body, Some(Body::Upright));
-    assert_ne!(up.digest, live.digest);
-    // The look picked by hand is one undo step, named as the look; undone, the upright again.
+    frames(&ctx, &mut app, 30);
+    let body = |app: &CantusApp| match scene_of(app, track).showing().unwrap().0 {
+        Subject::Piano { look, .. } => look.body,
+        _ => unreachable!(),
+    };
+    assert_eq!(body(&app), Body::Upright);
     app.set_inst_text(track, BODY_KEY, Some("parlour".into()));
-    assert_eq!(frames(&ctx, &mut app, 4).body, Some(Body::Parlour));
+    frames(&ctx, &mut app, 4);
+    assert_eq!(body(&app), Body::Parlour);
     app.undo();
-    assert_eq!(frames(&ctx, &mut app, 4).body, Some(Body::Upright));
-    // In steady state (the window's own layout settled: the status line's note gone) the
-    // scene is not rebuilt.
-    // Once the picture shown is the one asked for (the worker's bake has landed: seconds in
-    // a debug build), nothing more is asked for while nothing moves.
-    // Settled: the glide over, the picture shown the one asked for, nothing new asked for
-    // over a run of frames.
-    let mut builds = scene_a(&app).builds;
-    for _ in 0..20 {
-        frames(&ctx, &mut app, 6);
-        let now = scene_a(&app).builds;
-        if now == builds && scene_a(&app).ready() {
-            break;
-        }
-        builds = now;
-    }
-    assert!(scene_a(&app).ready(), "the bake came: {:?}", scene_a(&app));
-    let builds = scene_a(&app).builds;
-    let before = format!("{:?}", scene_a(&app));
+    frames(&ctx, &mut app, 4);
+    assert_eq!(body(&app), Body::Upright);
+
+    // At rest nothing is rebuilt.
+    frames(&ctx, &mut app, 10);
+    let builds = scene_of(&app, track).builds;
     frames(&ctx, &mut app, 10);
     assert_eq!(
-        scene_a(&app).builds,
+        scene_of(&app, track).builds,
         builds,
-        "no rebuild while nothing moves: {before}
-{:?}",
-        scene_a(&app)
+        "no rebuild while nothing moves"
     );
-    // Review #3: another Chorda opened shows its own piano at once — never the last one's,
-    // nor a glide from it (its first painted frame already shows its own controls).
+
+    // Another Chorda opened shows its own piano at once, never the last one's.
     let b = add_chorda(&mut app);
     app.open_instrument_window(b);
-    // Its window's first frames (it opens, lays out once unseen, then paints).
     frames(&ctx, &mut app, 3);
     let spec_b = spec_of(&app, b);
-    let want_b = scene::Inputs::of(&spec_b, true);
-    let (shown, _) = app
-        .inst
-        .chorda
-        .scene_of(b)
-        .and_then(|s| s.showing())
-        .expect("B's own scene, with a picture");
-    assert_eq!(shown.look, want_b.look, "B's own look");
-    assert_eq!(
-        (shown.lid, shown.persp, shown.room, shown.size),
-        (want_b.lid, want_b.persp, want_b.room, want_b.size),
-        "B's own controls, no glide from A's"
-    );
+    match scene_of(&app, b).showing().expect("B's own picture").0 {
+        Subject::Piano { look, lid, .. } => {
+            assert_eq!(*look, look::of(&spec_b), "B's own look");
+            assert_eq!(*lid, spec_b.get("lid"), "B's own lid, no glide from A's");
+        }
+        _ => unreachable!(),
+    }
 }
 
 fn offline(p: &Project, frames: usize) -> Vec<f32> {
@@ -256,7 +339,8 @@ fn offline(p: &Project, frames: usize) -> Vec<f32> {
 fn the_look_touches_no_sample_live_or_offline() {
     let ctx = egui::Context::default();
     let (mut app, mut proc_) = assembled(&ctx);
-    cantus_engine::inst::chorda::ensure(Tuning::default(), 48_000.0);
+    // A new Chorda's keyboard (model 2's own since `DSP_VERSION` 7), designed first.
+    cantus_engine::inst::chorda::ensure(cantus_engine::inst::chorda::reference(), 48_000.0);
     let track = add_chorda(&mut app);
     let mut clip = app.bus.new_clip("Phrase", Ticks::ZERO, Ticks::beats(4));
     for (b, k, v) in [(0i64, 48u8, 90u8), (0, 55, 80), (1, 64, 100), (2, 72, 70)] {

@@ -37,6 +37,8 @@ pub struct Scene<'a> {
     pub hover: bool,
     /// Physical pixels per logical pixel (the monitor's scale).
     pub scale: f32,
+    /// The theme's light the Slate cast paints with (r40:cast, ADR 0122).
+    pub ink: cantus_dance::StageInk,
 }
 
 /// Where the parts went (pixels): the ⋯ button, if drawn.
@@ -90,6 +92,7 @@ pub fn draw_cached(pm: &mut Pixmap, scene: &Scene<'_>, cache: &mut ChipCache) ->
         standard_height: standard,
         // A contact shadow over a chroma key would be keyed as a smudge.
         shadows: st.backdrop.chroma().is_none(),
+        ink: scene.ink, // r40:cast
     };
     for (ch, pose) in scene.dancers {
         let mut p = *pose;
@@ -106,6 +109,7 @@ pub fn draw_cached(pm: &mut Pixmap, scene: &Scene<'_>, cache: &mut ChipCache) ->
             px_per_unit: ppu,
             hue: p.hue,
             shadow: stage.shadows,
+            ink: stage.ink,
         };
         ch.draw(&p, &mut canvas);
     }
@@ -355,6 +359,7 @@ mod tests {
             vis: &vis,
             hover,
             scale: 1.25,
+            ink: cantus_dance::StageInk::NIGHT,
         };
         let mut pm = Pixmap::new(500, 575).unwrap();
         let d = draw(&mut pm, &scene);

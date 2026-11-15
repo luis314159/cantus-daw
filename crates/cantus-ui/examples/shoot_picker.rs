@@ -5,6 +5,7 @@
 //! - `picker`: the picker over the whole window — instruments and effects, Slate and Paper,
 //!   a search, the Spanish interface — with a few hosted plug-ins in the database.
 //! - `panel`: the browsing panel docked in the workspace.
+//! - `drums`: the instruments picker searched for drums (Pulsus, Tympanum).
 
 use cantus_engine::EngineHandle;
 use cantus_host::{Format, PluginInfo, PluginKind};
@@ -343,6 +344,12 @@ fn picker(dir: &Path, dark: bool, what: &str, spanish: bool) {
             app.open_picker(PickPurpose::AddEffect { strip });
             events.push(egui::Event::Text("verb".into()));
         }
+        // The instruments a drummer looks for (round 40: Tympanum beside Pulsus).
+        "drums" => {
+            app.open_picker(PickPurpose::AddInstrument { index: None });
+            let word = if spanish { "bater" } else { "drum" };
+            events.push(egui::Event::Text(word.into()));
+        }
         _ => {}
     }
     eprintln!("opened: {:?}", app.picker);
@@ -382,7 +389,14 @@ fn main() {
     // One picture per run: run once per view and theme (`instruments dark`, `effects
     // light es`…); a second whole window in the same process is not reliable.
     let es = what.iter().any(|x| x == "es");
-    for w in ["instruments", "effects", "search", "replace", "panel"] {
+    for w in [
+        "instruments",
+        "effects",
+        "search",
+        "replace",
+        "panel",
+        "drums",
+    ] {
         if what.iter().any(|x| x == w) {
             if !what.iter().any(|x| x == "light") {
                 picker(&dir, true, w, es);

@@ -598,7 +598,15 @@ impl CantusApp {
                     let plans = plan_sources(project, board, same, base.as_deref(), ids);
                     cb::paste_clips(project, board, same, row, at, &plans, linked, ids)
                 });
-                self.exec_clip_batch("cmd.paste_clips", out.commands, out.made);
+                // r40:ripple — with the ripple mode on, the paste goes in: what followed moves on.
+                if let Some(cmd) = self.rippled_paste(at, &out.commands, &out.made) {
+                    if self.exec(cmd) && !out.made.is_empty() {
+                        self.set_clip_selection(out.made.clone());
+                    }
+                    self.validate_selection();
+                } else {
+                    self.exec_clip_batch("cmd.paste_clips", out.commands, out.made);
+                }
                 if out.skipped_automation > 0 {
                     let n = out.skipped_automation;
                     self.set_status(tf("clipboard.status.automation_skipped", &[("n", &n)]));

@@ -1,143 +1,144 @@
-# Prompt para la próxima sesión (ronda 40)
+# Prompt para la próxima sesión (ronda 41)
 
-*Escrito el 2026-11-10, al cerrar la ronda 39 (beta.14), y puesto al día el 2026-11-11 con las
-ramas tardías (lapis2, delay, themes, fix2). Es una **propuesta**: el dueño decide
-el orden y el alcance. La ronda 38 propuso para la 40 la tercera pasada del voicing de Chorda con
-la ABX 4, la edición en cascada (insertar y borrar tiempo) y el siguiente paso de la memoria; la
-reverb de convolución, que también estaba propuesta, ya salió en la ronda 39 (Aula). Antes de
-construir nada, el dueño mira la ronda 39 en su pantalla y decide lo que quedó abierto. Copia el
-bloque de abajo tal cual en una sesión nueva de Claude Code abierta en `F:\projects\cantus`.*
+*Escrito el 2026-11-14, al cerrar la ronda 40 en `r40/integration` (todavía sin pasar a master
+ni publicar la beta.15). Es una **propuesta**: el dueño decide el orden y el alcance. Antes de
+construir nada nuevo, el dueño escucha lo que la ronda 40 dejó esperando su oído y decide lo que
+quedó abierto. Copia el bloque de abajo tal cual en una sesión nueva de Claude Code abierta en
+`F:\projects\cantus` (o en `F:\projects\daw-r40\integration` mientras la ronda 40 no esté en
+master).*
 
 ---
 
 Lee primero:
 - `CLAUDE.md`;
-- `docs/STATUS.md` (la cabecera, «The next session: what round 39 left» y la sección de la ronda 39);
-- `docs/round39/integration.md` (sobre todo «The owner's decisions still open» y «What is left»);
-- `docs/round38/chorda.md` §2 (la tercera pasada del voicing, empezada y sin enviar);
-- `docs/round39/memory-measured.md`, `docs/adr/0107-the-engines-memory-grows-with-the-song.md` y `docs/scorecard/README.md`;
-- `docs/BACKLOG-excellence.md` §3 (la edición en cascada y el arrastre de secciones) y §6j (lo que la ronda 39 dejó para el dueño);
-- la memoria: round-39, decision-slate-default, feedback-more-agents-r39, ui-quality-bar, feedback-work-standards-r36, feedback-no-leftovers, feedback-review-cost, gotcha-boot-path, cantus-parallel-builders.
+- `docs/STATUS.md` (la cabecera, «The next session: what round 40 left» y la sección de la ronda 40);
+- `docs/round40/integration.md` (sobre todo «What is left», el rastro de Chorda y el de Tympanum);
+- `docs/round40/chorda.md` (los candidatos, hasta el 16) y la nota de traspaso más reciente en
+  `F:\projects\daw-r40\voicing\` (`NEXT-c16.md`);
+- `docs/round40/ladder.md` («Model 6, per element») y `docs/round40/tymp-engine.md` (las secciones de arriba);
+- `docs/adr/0124-tympanum-the-acoustic-drummer.md`, `0125`, `0126`;
+- `docs/BACKLOG-excellence.md` §0.2 (afinación) y §4b;
+- la memoria: round-40, decision-chorda-like-salamander, feedback-work-standards-r36,
+  feedback-no-leftovers, feedback-review-cost, gotcha-boot-path, cantus-parallel-builders,
+  machine-f-drive-build-quirks.
 
 Busca la excelencia (Colosenses 3:23). Escríbeme en español.
 
 ## 0. Antes de empezar
 
-1. Revisa los issues de `cantus-daw` y las corridas de CI del último commit: si algo falló, se
-   arregla primero. (Lo que mostraron las corridas de la beta.14 y la pantalla del dueño ya se
-   arregló después de la etiqueta: `docs/round39/after-beta14.md`.)
-2. **Mis ojos sobre la ronda 39** (`docs/beta-checklist.md`, *Ronda 39*): todo lo de esta ronda
-   se dibujó con el renderizador de CPU, nunca en una pantalla real. Mientras no lo vea en mi
-   pantalla, nada nuevo se apoya en el aspecto. Lo que encuentre se arregla antes que la ronda 40.
-3. **Mis decisiones de la ronda 39: ya las contesté** (2026-11-12, `docs/round39/integration.md`,
-   «The owner's answers»). Hazlas en la ronda 40 como un constructor más (`decided`): el panel del
-   mezclador al borde, Maximizar con el inspector y configurable, la barra superior configurable
-   (por defecto la de hoy), Papel en menús y diálogos, barras de valor en el inspector, Silencio en
-   color, un pista de mezclador elegible por pad como en FL, Pizarra lapislázuli más azul, Burdeos y
-   Peltre más suaves, el bailarín redibujado para Pizarra; y como funciones: Escuchar la llave,
-   Grabar antes/después de efectos, Delay sincronizado al tempo y como plug-in CLAP/VST3. Si mis
-   conocidos contestaron (el zip de decisiones), te paso sus JSON. La lista de cuando estaban
-   abiertas, por referencia:
-   - el lugar del panel derecho del mezclador (junto a la última tira, o fijo en el borde);
-   - el medidor en *Nivel* del inspector (se conservó el de la tira fijada; la hoja no lo dibuja);
-   - qué oculta *Maximizar* (todo, como hoy, o deja el inspector al lado, como la hoja);
-   - «1/2» o «½ compás» en el menú de la rejilla;
-   - *Seguir* activado al arrancar;
-   - el selector de tipos del explorador (*Todo · Sonidos · Plug-ins · Presets*), que pide un ADR;
-   - la pista de mezclador propia de cada pad en el rack (un cambio de modelo);
-   - el arrastre de una sección que mueve la canción (va con la edición en cascada, abajo);
-   - las cinco preguntas de des-controls: el violeta de la perilla automatizada, el peso del
-     tapón del fader, los menús y diálogos de Papel, barras de valor en el inspector, Silencio
-     activado en gris;
-   - la revisión de los juegos de iconos 3–5 y sus preguntas abiertas;
-   - las unidades con caras de madera (siguen marrones porque esa es su cara, no el tema);
-   - Pizarra lapislázuli: si la línea del cursor de reproducción del arreglo va también en oro
-     (hoy solo su tapa; la línea es el acento, lapislázuli), y si el tinte de la selección
-     (18 % en Noche, 10 % en Papel) y el azul de su espacio tienen la fuerza justa;
-   - la fuerza de cada tema redibujado o nuevo en mi pantalla (la crema de Pergamino, el vino de
-     Burdeos, el violeta de Ultravioleta, el gris medio de Peltre);
-   - Delay: un tiempo sincronizado con el tempo (un parámetro y DSP nuevos; hoy *Al tempo* lo
-     fija una vez) y exportarlo como plug-in CLAP/VST3 (nunca lo fue; sus ids serían para
-     siempre);
-   - la ronda del tema vintage y qué hacer con los bailarines.
-4. Espacio: C: tenía unos 16 GB libres; para Linux usa el clon `~/ci-r38-integ` (su `target/`
-   ya está caliente). Ninguna medición de rendimiento con agentes corriendo.
+1. **Lo que espera mi oído** (nada sale sin él):
+   - **Chorda, la ABX del candidato 16** (https://claude.ai/artifact/Jpwa91Tz4V8rbcRrgiXMKg; el
+     zip FLAC `compartir\cantus-chorda-abx16.zip` para quien esté fuera de la organización). Por
+     mi decisión del 2026-11-14 el 16 **ya es el sonido por defecto** (`DSP_VERSION` 7, la tercera
+     enmienda del ADR 0098; los 24 presets reajustados); mi escucha y mi ABX siguen pendientes
+     (`docs/BACKLOG-excellence.md`) y deciden la próxima pasada de voz. Abierto conmigo: el nivel
+     de un Chorda nuevo queda 10.4 LU bajo la referencia de la familia — subirlo aprieta su
+     fortissimo contra el techo de salida.
+   - **Tympanum b10 y b11** (`compartir\tympanum-b10\` y `compartir\tympanum-b11\`: 71 de 162
+     pistas medidas, el costo 7.3 % de un núcleo), el kit por defecto (hoy *Studio Maple*) y
+     **el híbrido** contra el generado (los paquetes v3 de drums-gen 3 ya están en la versión
+     `content-r40` del repositorio público, subidos con mi OK; sus escuchas en
+     `F:\projects\daw-r40\tmp\hyb\v3\listen-{jazz,studio}\`).
+   - **bitKlavier contra el Salamander** (`compartir\pianos-c\`): decide el piano grabado por
+     defecto.
+2. **Mis ojos y mis manos** (`docs/beta-checklist.md`, *Ronda 40*): todo se dibujó con el
+   renderizador de CPU y se tocó con eventos sintéticos. Lo que encuentre se arregla primero.
+3. **Mis decisiones** (`docs/round40/integration.md`, «What is left»): los ids de Cantus Delay
+   (para siempre), el número del pad con canal propio en color de acento, la tecla del teclado
+   del ordenador que se pliega en *Más*, el *Cueing* de Compás, los azules del reparto sobre
+   croma, las hojas de Papel, una sala por defecto para un piano grabado, el kit por defecto de
+   Tympanum (ya está en el selector desde el 2026-11-14), y los correos de las licencias CC BY
+   escritas.
+4. **Cerrar la ronda 40**: la suite completa, clippy y fmt en Windows y en Linux (WSL) sobre el
+   árbol final, el scorecard medido en una máquina tranquila (con todo parado), y solo con mi
+   OK: master, la beta.15 y el sitio. Revisa también los issues de `cantus-daw` y la CI del
+   último commit público.
+5. Espacio: F: se llenó una vez en la ronda 40 (los commits fallaron). `df -h /f /c` antes de
+   cada compilación; borra los `target/` de las ramas ya fusionadas.
 
-## Ronda 40 (propuesta): Chorda de oído, la edición en cascada, la memoria
+## Ronda 41 (propuesta): el modelo 6 de la batería, la microafinación, y Tympanum a ciegas
 
 **Por qué estas tres:**
-- **Chorda** es nuestro piano y la tercera pasada quedó a medias en la ronda 38: el código del
-  voicing por registro está, plano (no cambia ninguna muestra); falta enviarlo.
-- **La edición en cascada / insertar y borrar tiempo** la tienen 6 de los 8 líderes
-  (`docs/scorecard/features.md`), y la ronda 39 dibujó el arrastre de secciones que la necesita.
-- **La memoria** es la única fila que seguimos perdiendo: 140 MB contra 62 de REAPER en una
-  canción vacía (por 78), 143 contra 133 de FL Studio en *Beat* (por 10), la beta.14 medida en
-  una máquina tranquila el 2026-11-11 (`docs/scorecard/README.md`); 97 MB menos que la beta.13.
+- **La batería generada** es lo que más lejos está: *"nos falta un montón"* tras la b9. La
+  escalera mostró qué representación necesita cada pieza; el modelo 5 ya no da más.
+- **La microafinación** la pedí para profesionales (2026-11-13): ninguno de los líderes la
+  tiene en su piano y su batería a la vez con esta profundidad.
+- **Tympanum** ya está en el selector (2026-11-14), pero su sonido no se ha juzgado a ciegas.
 
 **Rondas pequeñas: dos o tres constructores**, con la revisión integrada a mitad de ronda.
 
-1. **`chorda`: la tercera pasada del voicing y la ABX 4** (`docs/round38/chorda.md` §2). **La meta,
-   en mis palabras: que suene tan bien como el Salamander.** Mi ABX del 2026-11-12 (la línea base,
-   `docs/round39/after-beta14.md` §6): distingo Chorda 2 del Salamander 16 de 16 y prefiero el
-   Salamander 7 de 7; prefiero el modelo 2 al 1 (6 a 1), salvo en *Notas graves solas*, donde gana
-   el modelo 1 — el bajo es lo primero que hay que mirar.
-   - El ataque *fortissimo*: un camino directo que dependa de la velocidad.
-   - La coherencia estéreo del agudo (la correlación empeoró, 0,43 → 0,56) y el registro nasal
-     cerca del do central.
-   - Una segunda búsqueda; enviar el voicing elegido como predeterminado: subir `DSP_VERSION` con
-     los goldens en un commit y el tamaño medido del cambio (`CANTUS_GOLDEN_DUMP`), los 24 presets
-     reajustados a ±2 LU, la tercera enmienda del ADR 0098.
-   - **El kit ABX 4 para mí y mis conocidos** (`chorda_abx --flac`, un zip de ~21 MB que cabe en
-     un correo; cada quien escribe su nombre y descarga su JSON). La línea base es mi ABX de la
-     beta.14. El oído decide.
-2. **`ripple`: insertar y borrar tiempo, y la edición en cascada.**
-   - Insertar tiempo y borrar tiempo en un rango: los clips partidos en los bordes, el resto de la
-     canción desplazado con su automatización, sus cambios de tempo y de compás, sus marcadores y
-     sus secciones.
-   - **El arrastre de una sección mueve sus compases en todas las pistas** (Ctrl copia, Shift
-     inserta), como dibujan las hojas de des-arrange (ADR 0113).
-   - Un modo de cascada en el arreglo (mover o borrar un clip desplaza lo que viene detrás en su
-     pista), si los líderes lo hacen así; investígalo primero en sus manuales.
-   - Cada operación un `Command` con su inversa exacta y su brazo en el fuzz de deshacer; una
-     prueba de extremo a extremo por `CantusApp::assemble`; un ADR.
-3. **`memory`: los bytes privados fuera del heap vivo** (ADR 0107).
-   - El heap vivo de Cantus en una canción vacía es de unos 25 MB; el resto de los 140 MB está en
-     los segmentos reservados del heap, los búferes del controlador gráfico, las pilas de los
-     hilos y los heaps de los controladores de audio y MIDI.
-   - Mapéalos con `tools/scorecard/memmap.ps1` sobre la release integrada; cada palanca que salga
-     con su ADR y su prueba (`memory_e2e` falla si un arranque crece una décima).
-   - **Nunca digas que ganamos sin medirlo**: el scorecard lo mide el integrador en una máquina
-     tranquila, con todo parado.
+1. **`drums-model6`: el modelo 6 de Tympanum** (`docs/round40/ladder.md`, «Model 6, per element»).
+   - El bombo sobre la tabla fina de ruido (R3: STFT 1024/256).
+   - Caja, aro, *sidestick* y toms: las 38 bandas del modelo 5 con colas monótonas, más los
+     **cinco granos de ataque de fase mínima** (R2) por pieza, zona y velocidad; después, un
+     ataque resuelto en el tiempo por encima de 1,5 kHz y una cadena de eventos de la
+     bordonera.
+   - Charles y platos: **la capa por bin de R3b** junto a sus modos (los modos se quedan); sin
+     comodulación (R4 fue la peor).
+   - Costo meta ≈ 6,5–7 % de un núcleo el modelo solo, y el kit con todos los micros bajo el
+     10 % (tras drums-gen 3, el modelo 5 solo va en 6,0 % y el kit con todo en 7,3 %). Medido
+     contra las grabaciones con `tools/tympanum-fit/` y las quince pistas (`accept_b10.py`);
+     una escucha mía por paso, a ciegas cuando valga la pena (MUSHRA como la escalera).
+   - Los paquetes híbridos se reajustan al modelo nuevo (`refit_hybrid.sh`, versión nueva;
+     subirlos me lo preguntas).
+2. **`tuning`: la microafinación de Chorda y Tympanum** (BACKLOG §0.2).
+   - Una afinación del proyecto que siguen todos los instrumentos con altura (Chorda, Exemplar,
+     Partes, los pads de Pulsus en *seguir*), con excepción por instrumento; Scala `.scl` +
+     `.kbm` y MTS-ESP (cliente y maestro; revisa antes la licencia de su biblioteca), probados
+     con archivos y volcados de fuera.
+   - Chorda: diapasón (380–480 Hz; 415, 430, 432, 440, 442, 443), temperamentos (igual,
+     pitagórico, mesotónicos, Werckmeister, Kirnberger, Vallotti, Young, Kellner, justa en una
+     tonalidad, cualquier Scala), **presets por tonalidad** (cada histórico girado a las 12
+     tonalidades; *seguir la tonalidad de la canción*), estiramiento (*como lo afina un
+     técnico*), anchura de unísono por registro, y un **editor por tecla** con un afinador
+     estroboscópico; un círculo de quintas que muestra qué tonalidades suenan más puras.
+   - Tympanum: cada pieza en semitonos y cents, mostrada en Hz y nota; las dos membranas por
+     separado (el intervalo entre ellas da el *glide* y la sustentación); **afinar los toms a la
+     tonalidad de la canción**; los platos en tamaño o altura.
+   - Todo plegado en *Editar ▸ Afinación ▸ Avanzado*: nada nuevo en *Tocar*; por defecto
+     temperamento igual a 440 Hz, nulo al bit. Esquema con migración y fixture, brazos en el
+     fuzz de deshacer, una prueba de extremo a extremo por `CantusApp::assemble` (un proyecto en
+     Werckmeister III a 415 donde Chorda, Exemplar y un plug-in MTS-ESP suenan afinados entre sí).
+3. **Tympanum, la prueba a ciegas** (ya está en el selector y en `InstrumentKind::ALL` desde el
+   2026-11-14): un kit como el de Chorda — cada kit modelado contra el grabado del que se midió,
+   pieza por pieza y en un groove, ABX, preferencia y «¿grabación o síntesis?» —, su tarjeta en el
+   sitio y en el README; y mi veredicto antes de dar su sonido por terminado (`docs/BACKLOG-excellence.md`).
 
 **Lo que no cambia:**
 - Las reglas de `CLAUDE.md`, palabra por palabra: pruebas primero, nulos al bit, tiempo real,
   esquema con migración y fixture, ambos idiomas, el kit dibujado a mano, una prueba de extremo a
-  extremo por función.
-- El aspecto de la ronda 39 no se toca salvo lo que yo pida después de verlo.
+  extremo por función, formatos probados con bytes de fuera.
+- El aspecto de las rondas 39 y 40 no se toca salvo lo que yo pida después de verlo; *Dibujado*
+  sigue siendo el modo de imágenes por defecto.
 - Muéstrame avances seguido; el que acepta soy yo.
 
 **Lista cuando:**
-- apruebo la ABX 4 y la edición en cascada en mi pantalla;
+- apruebo de oído el modelo 6 y la afinación (Chorda y Tympanum) en mi equipo;
+- Tympanum está en el selector y lo usé en una canción;
 - la suite completa, clippy y fmt pasan en Windows y Linux;
 - el scorecard se midió de nuevo en una máquina tranquila;
 - STATUS, ADRs y el manual están al día;
-- sale la **beta.15**, si me parece bien publicarla (pregúntame antes).
+- sale la **beta.16** (o la beta.15, si la 40 no salió aún), si me parece bien publicarla
+  (pregúntame antes).
 
 ---
 
 **Lo que solo puedes hacer tú** (está en `docs/beta-checklist.md`):
-- la ronda 39 en tu pantalla: Pizarra y Pizarra lapislázuli al 100, 125 y 150 %, los
-  veinticuatro temas, la barra superior, la cabecera del mezclador en la fila de pestañas, el
-  brillo de los cables a 60 Hz y los conectores, el selector de iconos de pista, la ventana de
-  Delay con una interfaz real sonando, el logo en la barra de tareas y en el `.exe`;
-- Aula de oído, y la licencia del paquete de OpenAIR;
-- la ventana de paquetes de sonidos con una descarga real;
-- la lectura legal de Pizarra junto a FL Studio;
-- y lo pendiente de rondas anteriores: la UMC en dúplex, la Mac y la firma de código, la revisión
-  legal, el permiso de la RVR1960 y el registro de la marca.
+- escuchar: la ABX del candidato 16 de Chorda (y repartirla), Tympanum b10/b11, el
+  híbrido, bitKlavier contra el Salamander;
+- ver la ronda 40 en tu pantalla: *Fotográfico* en una GPU real a 100 y 150 %, las bandas del
+  mezclador, las vistas de Chorda y Tympanum, los doce bailarines, tus respuestas de aspecto;
+- con tu interfaz: Tympanum y Chorda grabado a búfer bajo, *Escuchar la clave*, una toma con FX
+  en dúplex, Cantus Delay en otro DAW;
+- instalar desde un archivo una DrumGizmo real, cambiar de kit con la mezcla hecha, descargar el
+  híbrido y los pianos grabados desde la app;
+- confirmar los ids de Cantus Delay; mandar los correos de licencias CC BY;
+- y lo pendiente de rondas anteriores: la UMC en dúplex, la Mac y la firma de código, el permiso
+  de la RVR1960 y el registro de la marca.
 
 **Después (propuesta, tú decides).** Por cuántos líderes lo tienen: grupos de clips (6), AU y la
-sesión con la Mac (5), ARA fuera de proceso (5), la pista de vídeo (5). Y lo que la ronda 39 dejó
-como rondas propias: el tema vintage (un diseñador primero, luego constructores) y qué debe
-ser un bailarín en el aspecto Pizarra. (Los temas anteriores ya volvieron, redibujados, en la
-ronda 39.)
+sesión con la Mac (5), ARA fuera de proceso (5), la pista de vídeo (5). De la ronda 40: los
+cinco micrófonos del modelo de Chorda tocados por separado, una caché de flujo más grande (o en
+FLAC) para varios micrófonos de bitKlavier a la vez, prever las necesidades de memoria que la
+automatización no prevé hoy (el modo de un EQ, la respuesta de Aula), los *Grooves* de Tympanum
+(BACKLOG §5), *Fotográfico* por defecto cuando sea rápido y ligero, y el tema vintage.

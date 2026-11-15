@@ -1,0 +1,264 @@
+# Area: tympanum - round 40 phase 3 (tympanum). Every key has its twin in tympanum.es.txt
+# Tympanum, the acoustic drummer (ADR 0124): its views (tymp-ui) and, in the block marked
+# r40:tymp-engine at the end, the engine's own words (refusals, the importer's log).
+instrument.tympanum = Tympanum
+
+# The editor's views (the header's segmented control).
+tympanum.view.kit = Kit
+tympanum.view.mixer = Mixer
+
+# Its parameters (ADR 0124 §1).
+tympanum.model = Model
+tympanum.seed = Seed
+tympanum.gain = Level
+tympanum.humanize = Strength
+tympanum.hat_cc = Openness controller
+tympanum.room = Room
+tympanum.amb_level = Ambience
+tympanum.amb_size = Size
+tympanum.amb_decay = Decay
+tympanum.bleed = Bleed
+tympanum.tune = Tune
+tympanum.damp = Damping
+tympanum.level = Level
+tympanum.wires = Wires
+tympanum.mute = Mute
+tympanum.mic_x = Across
+tympanum.mic_y = Forward
+tympanum.mic_z = Height
+tympanum.mic_az = Turn
+tympanum.mic_el = Tilt
+tympanum.mic_pattern = Pattern
+tympanum.bleed_db = Bleed
+tympanum.bleed_inv = Polarity
+tympanum.bleed_on = Loaded
+
+# The kits list.
+tympanum.kits = Kits
+tympanum.kits.all = All
+tympanum.kits.recorded = Recorded
+tympanum.kits.modelled = Modelled
+tympanum.kits.search = Search the kits
+tympanum.kits.modelled_note = instant · no download
+tympanum.kits.recorded_note = real drums · free packs
+tympanum.kits.own = Your own kits
+tympanum.kits.install_file = Install from a file…
+tympanum.kits.install_formats = SFZ · DrumGizmo · a folder of WAVs
+tympanum.kits.on_disk = Kits on disk: {size}
+tympanum.kits.manage = Manage…
+tympanum.kits.get = Get · {size}
+tympanum.kits.open_page = Open the page
+tympanum.kits.downloaded = On disk
+tympanum.kits.update = Update
+tympanum.kits.cancel = Cancel the download
+tympanum.kits.progress = {pct} % · {done} of {total}
+tympanum.kits.from_author = from {author}'s site
+tympanum.kits.manual = Manual: the author's page opens; drop the file on Cantus
+tympanum.kits.none_own = No kits of your own yet
+tympanum.kits.failed = {name}: the download failed. {why}
+tympanum.kits.tip_modelled = A kit Cantus models: it plays at once, and its mics move. Click to play it.
+tympanum.kits.tip_recorded = A kit recorded with real drums, a free pack. Get it once; it then plays offline.
+tympanum.kits.tip_install = Install a kit you have on disk: an SFZ, a DrumGizmo kit (its .xml) or a folder of WAV files.
+tympanum.kits.tip_manage = Opens the Content window: every pack, what it weighs, update or remove it.
+
+# The modelled kits (ADR 0124: the owner names them at a checkpoint).
+tympanum.kit.studio = Studio Maple
+tympanum.kit.studio.about = Rock · pop
+tympanum.kits.modelled_about = {style} · {pieces} pieces · {mics} mics
+tympanum.kit.studio.tag = Maple shells, coated heads
+tympanum.kit.jazz = Jazz Birch
+tympanum.kit.jazz.about = Jazz · fusion
+tympanum.kit.jazz.tag = Measured off Virtuosity Drums (public domain)
+tympanum.kit.sixties = Sixties Club
+tympanum.kit.sixties.about = Single-headed toms, warm · 8 pieces
+tympanum.kit.arena = Arena
+tympanum.kit.arena.about = Deep toms, big room · 14 pieces
+tympanum.kit.funk = Funk Tight
+tympanum.kit.funk.about = Dry, tuned high · 9 pieces
+
+# The picture.
+tympanum.modelled = Modelled
+tympanum.recorded = Recorded
+tympanum.show_mics = Show mics
+tympanum.hide_mics = Hide mics
+tympanum.tag_about = {pieces} pieces · {mics} microphones
+tympanum.picture_tip = Click a piece to hear it — drag up or down on it for the strength. Alt-click plays its articulations in turn.
+tympanum.mic_tip = {name}: click to select it in the mixer; drag to move it.
+tympanum.mics_count = {n} microphones
+
+# The room card.
+tympanum.room.label = Room
+tympanum.room.booth = Booth
+tympanum.room.studio = Studio
+tympanum.room.hall = Hall
+tympanum.room.booth_meta = 3 × 3.5 m · RT60 0.25 s
+tympanum.room.studio_meta = 6 × 8 m · RT60 0.45 s
+tympanum.room.hall_meta = 14 × 20 m · RT60 1.6 s
+tympanum.room.tip = The room the kit stands in — what you see and what you hear, in one step. Stage plays the kit's own room (a recorded kit as recorded); Booth, Studio and Hall put Aula's rooms on the room mics.
+
+# The pieces (a modelled kit's names; a pack's keep their own).
+tympanum.piece.kick = Kick
+tympanum.piece.snare = Snare
+tympanum.piece.hihat = Hi-hat
+tympanum.piece.tom1 = Tom 1
+tympanum.piece.tom2 = Tom 2
+tympanum.piece.floor1 = Floor 1
+tympanum.piece.floor2 = Floor 2
+tympanum.piece.ride = Ride
+tympanum.piece.crash1 = Crash 1
+tympanum.piece.crash2 = Crash 2
+tympanum.piece.splash = Splash
+tympanum.piece.china = China
+
+# The articulations (`Articulation::label`).
+tympanum.art.center = Centre
+tympanum.art.edge = Edge
+tympanum.art.rimshot = Rim shot
+tympanum.art.sidestick = Side stick
+tympanum.art.rimclick = Rim click
+tympanum.art.ghost = Ghost
+tympanum.art.flam = Flam
+tympanum.art.roll = Roll (held)
+tympanum.art.buzz = Buzz
+tympanum.art.rim = Rim
+tympanum.art.bell = Bell
+tympanum.art.bow = Bow
+tympanum.art.choke = Choke
+tympanum.art.closed = Closed
+tympanum.art.tight = Tight
+tympanum.art.half = Half open
+tympanum.art.open = Open
+tympanum.art.pedal = Pedal
+tympanum.art.splash = Foot splash
+tympanum.art.hit = Hit
+tympanum.art.press = Press roll
+
+# The selected piece's panel.
+tympanum.hear = Hear
+tympanum.hear_tip = Plays the piece's first articulation; hold for a roll.
+tympanum.size_in = {d} × {depth}″
+tympanum.size_cym = {d}″
+tympanum.articulations = Articulations
+tympanum.key = key
+tympanum.art_tip = {name} on {key}: click to hear it.
+tympanum.modelled_note = Modelled: any strength, any spot — no two hits alike.
+tympanum.recorded_note = Recorded: {n} takes a strength, never the same twice running.
+tympanum.struck = Where it is struck
+tympanum.struck_hint = click to hear
+tympanum.struck_tip = Click on the head to hear it struck there: the centre, towards the edge, the rim.
+tympanum.from_centre = From centre
+tympanum.spread = Spread
+tympanum.last_hit = Last hit
+tympanum.sound = Sound
+tympanum.heard_by = Heard by
+tympanum.open_mixer = Open the mixer ›
+tympanum.heard_by_none = No microphone hears it: every one of its cells is off.
+
+# The pieces row and the cards under the picture.
+tympanum.piece_tip = {name} on {key}: click to select it and hear it; Alt-click plays its articulations in turn.
+tympanum.feel = Feel
+tympanum.feel_note = the whole kit
+tympanum.timing = Timing
+tympanum.strength = Strength
+tympanum.never_twice = Never the same hit twice
+tympanum.never_twice_tip = A take is never played twice running (roll smoothing). Off: a fixed seed plays the same take each time — what a test or a sound-alike wants.
+tympanum.pedal = Hi-hat pedal
+tympanum.pedal_note = controller {cc}
+tympanum.openness = Openness
+tympanum.open.tight = Tight
+tympanum.open.closed = Closed
+tympanum.open.half = Half
+tympanum.open.open = Open
+tympanum.foot_chick = Foot chick when it closes
+tympanum.foot_chick_tip = The pedal's chick when the controller closes the hat (a fast fall); off for a controller that only sets the openness.
+tympanum.kit_card = Kit
+tympanum.kit_card_note = every piece
+tympanum.kit_tune = Tune
+tympanum.kit_ring = Ring
+tympanum.kit_level = Level
+
+# The Mixer tab: the selected mic's band.
+tympanum.mic.pattern = Pattern
+tympanum.mic.cardioid = Cardioid
+tympanum.mic.super = Super
+tympanum.mic.hyper = Hyper
+tympanum.mic.omni = Omni
+tympanum.mic.figure8 = Figure 8
+tympanum.mic.distance = Distance
+tympanum.mic.aim = Aim
+tympanum.mic.aim_unit = ° to centre
+tympanum.mic.bleed = Bleed
+tympanum.mic.hears = What it hears
+tympanum.mic.hears_note = each piece, against its own
+tympanum.mic.matrix = Every mic
+tympanum.mic.matrix_note = each piece in each mic, dB · click a cell to turn it off
+tympanum.mic.fixed = A recorded kit's mic stays where it was recorded.
+tympanum.mic.kind.dynamic = dynamic
+tympanum.mic.kind.condenser = condenser
+tympanum.mic.kind.ribbon = ribbon
+tympanum.mic.kind.sub = sub
+tympanum.mic.kind.clip = clip-on
+tympanum.mic.kind.pair = spaced pair
+tympanum.mic.kind.room_pair = pair · {m} m
+tympanum.mic.hears_all = hears all
+tympanum.mic.cell_tip = {piece} in {mic}: {db} dB. Drag up or down; click to turn it off; Alt-click flips its polarity.
+tympanum.mic.cell_off = off
+# r40:fix-f — the modelled kits’ mics, by name (recorded kits keep their pack’s)
+tympanum.mic_name.kick_out = Kick Out
+tympanum.mic_name.kick_sub = Kick Sub
+tympanum.mic_name.snare_top = Snare Top
+tympanum.mic_name.hi_hat = Hi-hat
+tympanum.mic_name.tom_1 = Tom 1
+tympanum.mic_name.tom_2 = Tom 2
+tympanum.mic_name.floor_1 = Floor 1
+tympanum.mic_name.floor_2 = Floor 2
+tympanum.mic_name.ride = Ride
+tympanum.mic_name.overheads = Overheads
+tympanum.mic_name.room_near = Room Near
+tympanum.mic_name.mono_room = Mono Room
+tympanum.mic_select_tip = Click a microphone to select its strip.
+
+# The mixer's own words for Tympanum.
+tympanum.strip.kit = Kit
+tympanum.strip.kit_sub = all the mics
+tympanum.strip.amb = Ambience
+tympanum.strip.amb_sub = the room mics
+tympanum.strip.amb_note = One fader for the room mics
+tympanum.strip.amb_out = Rooms go to each its own Out
+tympanum.strip.amb_out_several = Several
+
+# Commands.
+cmd.tympanum_kit = choose a drum kit
+cmd.tympanum_mic = move a microphone
+cmd.tympanum_bleed = set a microphone's bleed
+tympanum.kits.unknown_file = {name}: not a kit Cantus knows. A kit of your own (an SFZ, a DrumGizmo kit) installs under Your own kits.
+tympanum.kits.failed = {name} could not be installed: {why}
+
+# r40:tymp-engine — the engine's own words: the mixer's one-click actions (ADR 0123 §4).
+cmd.outputs_each = each output to its own strip
+cmd.outputs_family = outputs to strips by family
+cmd.outputs_main = every output back to Main
+
+# The room: picture and sound together (the owner, 2026-11-12).
+tympanum.room.stage = Stage
+tympanum.room.church = Church
+tympanum.room.stage_meta_recorded = the kit's own room, as recorded
+tympanum.room.stage_meta_modelled = a pool of light · the kit heard dry, on its own
+tympanum.room.look_tip = The picture only: the floor, the walls and the rug change what you see, never what you hear.
+cmd.tympanum_room = choose the kit's room
+
+tympanum.art.drag = Drag
+tympanum.beater = Beater
+
+# r40:drums-hyb — a modelled kit's voice (ADR 0124's third amendment)
+tympanum.voice = Voice
+tympanum.voice.generated = Generated
+tympanum.voice.hybrid = Hybrid
+tympanum.voice.tip = Generated: Cantus's model alone. Hybrid: the model with the first moments of a real kit's hits under it (each piece's attack, as recorded). Until its pack is on disk, Hybrid plays Generated.
+tympanum.voice.tip_get = The hybrid's recorded attacks, a free pack. Downloaded once; then it plays offline.
+tympanum.voice.on_disk = Recorded attacks · {licence}
+tympanum.room.floor = Floor
+tympanum.room.walls = Walls
+tympanum.room.rug = Rug
+tympanum.kits.tip_get = Download {name} ({size}) from its official source, once; then it plays offline.
+tympanum.kits.tip_on_disk = On your disk: click the kit to play it.

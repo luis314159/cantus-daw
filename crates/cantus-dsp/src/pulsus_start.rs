@@ -356,6 +356,10 @@ impl Voice {
         bright: f32,
         sr: f32,
     ) {
+        if s.model == 4 {
+            self.start_acoustic(s, c, tune, decay, sr);
+            return;
+        }
         match (s.voice, s.model) {
             (DrumVoice::Kick, 1) => {
                 // 808: a resonator struck by a pulse; it rings down by itself. A small

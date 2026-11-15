@@ -699,3 +699,143 @@ fn the_last_frame_of_a_block_ending_at_the_loop_end_is_before_the_wrap() {
         "the last frame at {last}"
     );
 }
+
+// r40:delay — Delay's synced time in another host (ADR 0119).
+
+/// Delay, synced to a quarter, fully wet, one repeat: an impulse through CLAP with the
+/// host's song at `tempos` (sample, BPM: from each sample on, sent with each block).
+fn run_delay(n: usize, blocks: &[usize], tempos: &[(usize, f64)]) -> Vec<f32> {
+    let plug = Plug::new(EffectKind::Delay);
+    let values = [
+        ("sync", 1.0),
+        ("note", 12.0),
+        ("feedback", 0.3),
+        ("mix", 1.0),
+        ("ping_pong", 0.0),
+        ("tone_hz", 20_000.0),
+    ];
+    configure(&plug, &values);
+    plug.activate(4096);
+    let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+    l[0] = 1.0;
+    r[0] = 1.0;
+    let (mut at, mut b, mut beats) = (0usize, 0usize, 0.0f64);
+    while at < n {
+        let m = blocks[b % blocks.len()].min(n - at);
+        b += 1;
+        let t = tempos.iter().rev().find(|(s, _)| *s <= at).unwrap().1;
+        plug.transport.set(Some(transport(beats, t, true)));
+        plug.process(&mut l[at..at + m], &mut r[at..at + m], None, &[], false);
+        beats += m as f64 * t / 60.0 / SR as f64;
+        at += m;
+    }
+    l
+}
+
+#[test]
+fn a_synced_delay_follows_the_hosts_tempo_bit_for_bit_with_the_engines_unit() {
+    let n = 120_000;
+    // At 90 BPM a quarter is 32 000 samples, whatever blocks the host cuts.
+    let reference = run_delay(n, &[512], &[(0, 90.0)]);
+    let peak = reference
+        .iter()
+        .enumerate()
+        .skip(1)
+        .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
+        .unwrap()
+        .0;
+    assert_eq!(peak, 32_000, "a quarter at the host's 90 BPM");
+    for blocks in [&[1][..], &[7], &[4096], &[5, 333, 64]] {
+        let out = run_delay(n, blocks, &[(0, 90.0)]);
+        assert_identical(&format!("blocks {blocks:?}"), &out, &reference);
+    }
+    // The host's tempo moves at a block's start: the plug-in is the engine's own unit told
+    // the same tempos at the same samples.
+    let tempos = [(0usize, 120.0), (40_960, 100.0)];
+    let out = run_delay(n, &[512], &tempos);
+    let spec = spec_with(
+        EffectKind::Delay,
+        &[
+            ("sync", 1.0),
+            ("note", 12.0),
+            ("feedback", 0.3),
+            ("mix", 1.0),
+            ("ping_pong", 0.0),
+            ("tone_hz", 20_000.0),
+        ],
+    );
+    let mut unit = engine_unit(&spec);
+    let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+    l[0] = 1.0;
+    r[0] = 1.0;
+    let mut at = 0;
+    while at < n {
+        let m = 512.min(n - at);
+        let t = tempos.iter().rev().find(|(s, _)| *s <= at).unwrap().1;
+        unit.set_position(&cantus_engine::SongPosition {
+            playing: true,
+            tempo_bpm: t,
+            tempo_now: t,
+            ..Default::default()
+        });
+        unit.process(&mut l[at..at + m], &mut r[at..at + m]);
+        at += m;
+    }
+    assert_identical("a tempo change in the host", &out, &l);
+    assert_ne!(out, reference, "and the change is heard");
+}
+
+// fix-c (R2-A1): the host resets, then sets a value before the first sample — the
+// instance resets the unit a second time; the line it held never comes back.
+
+/// A Delay processor as a host makes one: free time, long feedback, fully wet.
+fn delay_processor() -> Processor {
+    let shared = shared_for(cantus_plugins::desc::of(EffectKind::Delay).unwrap().clap_id).unwrap();
+    for (k, v) in [
+        ("feedback", 0.9f32),
+        ("mix", 1.0),
+        ("time_ms", 250.0),
+        ("ping_pong", 0.0),
+    ] {
+        let i = shared.table.by_key(k).unwrap().index;
+        shared.set_value(i, f64::from(v));
+    }
+    Processor::new(shared, SR)
+}
+
+#[test]
+fn a_host_reset_then_a_value_set_at_the_start_leaves_the_delay_empty() {
+    let n = 48_000;
+    // A short click now and then: sound into the line, and later sound through it.
+    let clicks = |n: usize| -> (Vec<f32>, Vec<f32>) {
+        (
+            (0..n)
+                .map(|i| if i % 4_800 < 200 { 0.8 } else { 0.0 })
+                .collect(),
+            vec![0.0; n],
+        )
+    };
+    let run = |p: &mut Processor, l: &mut [f32], r: &mut [f32]| {
+        for at in (0..l.len()).step_by(512) {
+            let m = 512.min(l.len() - at);
+            p.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+        }
+    };
+    // Three seconds: past the 2 s line's end, so every cell of it holds sound.
+    let mut p = delay_processor();
+    let (mut l, mut r) = clicks(3 * n);
+    run(&mut p, &mut l, &mut r);
+    // The host's reset, then a value from the main thread before the first sample: the
+    // instance configures and resets the unit again (`pull_main` at position 0).
+    p.reset();
+    let mix = p.shared().table.by_key("mix").unwrap().index;
+    p.shared().set_value(mix, 1.0);
+    let (mut l, mut r) = clicks(n);
+    run(&mut p, &mut l, &mut r);
+    // A processor that never heard the first second, given the same.
+    let mut fresh = delay_processor();
+    let (mut l1, mut r1) = clicks(n);
+    run(&mut fresh, &mut l1, &mut r1);
+    assert_identical("after two resets, the left", &l, &l1);
+    assert_identical("after two resets, the right", &r, &r1);
+}

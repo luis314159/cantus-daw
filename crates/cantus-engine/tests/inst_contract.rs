@@ -75,12 +75,23 @@ fn every_kind_keeps_headroom_on_a_loud_chord() {
     }
 }
 
+/// How long after its last note a kind's sound may ring before it is exact silence: six
+/// seconds, and Tympanum's cymbals' own — a ride measured off DRSKit rings to its −100 dB
+/// floor some 37 s after a hit (round 40, ADR 0124: what a real ride does).
+fn tail_seconds(kind: InstrumentKind) -> f64 {
+    match kind {
+        InstrumentKind::AcousticDrums => 45.0,
+        _ => 6.0,
+    }
+}
+
 #[test]
 fn every_kind_is_exactly_silent_once_its_notes_are_over() {
     for kind in InstrumentKind::ALL {
         let p = alone(kind);
+        let tail = tail_seconds(kind);
         let opts = RenderOptions {
-            tail_seconds: 6.0,
+            tail_seconds: tail,
             block_frames: 256,
             ..Default::default()
         };
@@ -90,7 +101,7 @@ fn every_kind_is_exactly_silent_once_its_notes_are_over() {
         let last = &out[out.len() - 48_000 * 2..];
         assert!(
             last.iter().all(|x| *x == 0.0),
-            "{kind:?} still sounds six seconds after its last note: an idle track must reach \
+            "{kind:?} still sounds {tail} s after its last note: an idle track must reach \
              exact zero (flush denormals, gate the tail) so the engine can skip it"
         );
     }
@@ -496,8 +507,17 @@ fn inst_unit(spec: &NativeSpec) -> Box<dyn InstrumentUnit> {
     }
     // Chorda's reference keyboard designed first: a unit never waits for it (made before,
     // it is silent until the designer has made it — not what these checks are about).
+    if spec.kind == InstrumentKind::AcousticDrums {
+        // Its modelled kit made first (the snapshot's `prepare` does it in the app).
+        let text = einst::tympanum::cache::kit_text(spec).to_string();
+        if let Some(id) = text.strip_prefix("model:") {
+            einst::tympanum::cache::warm_modelled(id);
+        }
+    }
     if spec.kind == InstrumentKind::Chorda {
-        einst::chorda::ensure(Default::default(), SAMPLE_RATE);
+        // The keyboard this spec asks for (model 2's own since `DSP_VERSION` 7).
+        let tuning = einst::chorda::tuning_of(&einst::chorda::values_of(spec));
+        einst::chorda::ensure(tuning, SAMPLE_RATE);
     }
     let mut u = einst::make(spec.kind, SAMPLE_RATE);
     u.configure(spec, &[]);
@@ -732,12 +752,22 @@ fn inst_twins(
 }
 
 /// Whether a kind must come to rest at its defaults and with the heavy chord, within the
-/// test's silence (30 s). The reasons for a `false` are in `docs/round21/at-rest.md`.
+/// test's silence ([`rest_cap`]). The reasons for a `false` are in `docs/round21/at-rest.md`.
 fn inst_must_rest(kind: InstrumentKind) -> (bool, bool) {
     match kind {
         // The tone wheels, the scanner and the rotor turn for ever (see the notes).
         InstrumentKind::Organ => (false, false),
         _ => (true, true),
+    }
+}
+
+/// The silence a kind's defaults and heavy chord must come to rest within: 30 s, and 60 s
+/// for Tympanum, whose heavy chord strikes every cymbal of the kit at once (a ride rings to
+/// its floor some 37 s after a hit; round 40, ADR 0124).
+fn rest_cap(kind: InstrumentKind) -> usize {
+    match kind {
+        InstrumentKind::AcousticDrums => 60 * 48_000,
+        _ => 30 * 48_000,
     }
 }
 
@@ -758,7 +788,7 @@ fn inst_at_rest_is_exact(kind: InstrumentKind) {
     let (rest_default, rest_heavy) = inst_must_rest(kind);
     for (label, spec, chord) in inst_specs(kind, 4, &mut rng) {
         let fixed = label == "default" || label == "heavy";
-        let cap = if fixed { 30 * 48_000 } else { 4 * 48_000 };
+        let cap = if fixed { rest_cap(kind) } else { 4 * 48_000 };
         let must = (label == "default" && rest_default) || (label == "heavy" && rest_heavy);
         for trial in 0..3 {
             // The first trial as the tests run, the others as the engine's `process` will
@@ -989,11 +1019,12 @@ per_kind! {
     epiano => InstrumentKind::ElectricPiano,
     organ => InstrumentKind::Organ,
     chorda => InstrumentKind::Chorda,
+    tympanum => InstrumentKind::AcousticDrums, // r40: the acoustic drummer
     dancer => InstrumentKind::Dancer, // r35:dancer — silent: every twin is silence
 }
 
 #[test]
 fn every_native_instrument_is_checked() {
-    // `per_kind!` lists nine: a new kind must be added there.
-    assert_eq!(InstrumentKind::ALL.len(), 9); // r35:dancer
+    // `per_kind!` lists ten: a new kind must be added there.
+    assert_eq!(InstrumentKind::ALL.len(), 10); // r35:dancer, r40: Tympanum
 }

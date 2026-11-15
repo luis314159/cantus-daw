@@ -42,3 +42,9 @@ pub fn priority() -> Option<i32> {
 pub fn raise_io() -> bool {
     false
 }
+
+/// The calling thread's priority for a background bake (round 40): not lowered here.
+/// // r40:scene-px
+pub fn lower_background() -> bool {
+    false
+}

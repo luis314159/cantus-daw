@@ -88,7 +88,9 @@ pub fn list(manifest: &Manifest, installed: &[Receipt]) -> Vec<Entry> {
         })
         .collect();
     for r in installed {
-        if manifest.pack(&r.id).is_some() {
+        // r40:chorda-src — a user pack (Install from a file…) is the user's own: nothing
+        // Cantus offers or credits.
+        if manifest.pack(&r.id).is_some() || r.licence == crate::user_pack::USER_LICENCE {
             continue;
         }
         let courtesy = courtesy(&r.licence);

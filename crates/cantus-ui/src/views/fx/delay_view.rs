@@ -17,7 +17,7 @@ use crate::kit::hint::{self, Caps};
 use crate::kit::text::{Role, Text};
 use crate::kit::{with_brush, Style};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
-use cantus_dsp::delay::DelaySettings;
+use cantus_dsp::delay::{sync, DelaySettings};
 use cantus_dsp::math;
 use egui::{pos2, vec2, Align2, Pos2, Rect, Sense};
 use std::fmt::Write as _;
@@ -50,15 +50,83 @@ pub struct Echo {
 }
 
 /// The unit's settings from its parameters, as the engine reads them
-/// (`cantus_engine::effects`, `Dsp::Delay`).
+/// (`cantus_engine::delay_settings`, one reading for the sound and the picture).
 pub fn settings(spec: &EffectSpec) -> DelaySettings {
-    DelaySettings {
-        time_ms: spec.get("time_ms"),
-        feedback: spec.get("feedback"),
-        tone_hz: spec.get("tone_hz"),
-        ping_pong: spec.get("ping_pong") >= 0.5,
-        mix: spec.get("mix"),
+    cantus_engine::delay_settings(spec)
+}
+
+/// What is heard at `bpm` (round 40, ADR 0119): the settings with the time the unit plays —
+/// the note at the tempo while synced (held at the longest line, as the unit holds it),
+/// the milliseconds otherwise. What the display, the side card and the strip draw.
+pub fn heard_at(spec: &EffectSpec, bpm: f64) -> DelaySettings {
+    let mut ds = settings(spec);
+    if ds.sync {
+        ds.time_ms = synced_ms(ds.note, bpm);
     }
+    ds
+}
+
+/// A note's time at `bpm`, in milliseconds, held where the unit's line ends.
+pub fn synced_ms(note: usize, bpm: f64) -> f32 {
+    let line = sync::line_seconds(true, note) * 1000.0;
+    (sync::time_ms(note, bpm) as f32).min(line)
+}
+
+/// Whether the note at `bpm` is longer than the line holds (a dotted 4/1 under 30 BPM).
+pub fn held(note: usize, bpm: f64) -> bool {
+    sync::time_ms(note, bpm) as f32 > sync::line_seconds(true, note) * 1000.0
+}
+
+/// The note value nearest a time at `bpm` (by ratio: a half and a double are as far).
+pub fn nearest_note(ms: f32, bpm: f64) -> usize {
+    let ms = f64::from(ms.max(0.1));
+    (0..sync::NOTES)
+        .min_by(|a, b| {
+            let d = |i: &usize| math::ln(sync::time_ms(*i, bpm) / ms).abs();
+            d(a).total_cmp(&d(b))
+        })
+        .unwrap_or(sync::DEFAULT_NOTE)
+}
+
+/// The locale keys of the note values (`cantus_dsp::delay::sync::beats`' order).
+pub const NOTE_KEYS: [&str; sync::NOTES] = [
+    "delay.note.0",
+    "delay.note.1",
+    "delay.note.2",
+    "delay.note.3",
+    "delay.note.4",
+    "delay.note.5",
+    "delay.note.6",
+    "delay.note.7",
+    "delay.note.8",
+    "delay.note.9",
+    "delay.note.10",
+    "delay.note.11",
+    "delay.note.12",
+    "delay.note.13",
+    "delay.note.14",
+    "delay.note.15",
+    "delay.note.16",
+    "delay.note.17",
+    "delay.note.18",
+    "delay.note.19",
+    "delay.note.20",
+    "delay.note.21",
+    "delay.note.22",
+    "delay.note.23",
+    "delay.note.24",
+    "delay.note.25",
+    "delay.note.26",
+];
+
+/// A note value's name.
+pub fn note_name(i: usize) -> &'static str {
+    frame::tr(NOTE_KEYS[i.min(sync::NOTES - 1)])
+}
+
+/// The knob's pill for the note value.
+pub fn note_pill(v: f32, b: &mut String) {
+    b.push_str(note_name(sync::note_index(v)));
 }
 
 /// The one-pole low-pass's gain at `f` for a tone of `tone_hz` (the unit's own filter:
@@ -110,11 +178,13 @@ pub fn repeats_heard(feedback: f32) -> usize {
 
 /// The round span of seconds the display shows for a time: about six and a half repeats.
 pub fn span_for(time_ms: f32) -> f32 {
-    const SPANS: [f32; 15] = [
-        0.05, 0.1, 0.2, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0,
+    // Round 40: up to 320 s, for a synced 4/1 (its line holds 48 s).
+    const SPANS: [f32; 21] = [
+        0.05, 0.1, 0.2, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0, 24.0, 32.0,
+        48.0, 64.0, 128.0, 320.0,
     ];
     let want = time_ms.max(1.0) / 1000.0 * 6.5;
-    SPANS.into_iter().find(|s| *s >= want).unwrap_or(16.0)
+    SPANS.into_iter().find(|s| *s >= want).unwrap_or(320.0)
 }
 
 /// The note value at `bpm` that a time of `ms` is (within half a millisecond), as its
@@ -123,15 +193,6 @@ pub fn note_of(ms: f32, bpm: f64) -> Option<usize> {
     cantus_dsp::modfx_clock::DIVISIONS
         .iter()
         .position(|beats| ((beats * 60_000.0 / bpm) as f32 - ms).abs() < 0.5)
-}
-
-/// The divisions whose time at `bpm` the unit can play (1 ms … 2 s).
-pub fn notes_in_range(bpm: f64) -> impl Iterator<Item = (usize, f32)> {
-    cantus_dsp::modfx_clock::DIVISIONS
-        .iter()
-        .enumerate()
-        .map(move |(i, beats)| (i, (beats * 60_000.0 / bpm) as f32))
-        .filter(|(_, ms)| (1.0..=2_000.0).contains(ms))
 }
 
 /// The input's level heard lately: one peak per batch the tap delivered, stamped with the
@@ -275,7 +336,8 @@ pub fn display(
 ) -> bool {
     let k = s.k;
     let spec = host.spec().clone();
-    let ds = settings(&spec);
+    let bpm = bpm_of(host);
+    let ds = heard_at(&spec, bpm);
     let sr = host.sample_rate().max(1.0);
     let span = st.drag.map_or_else(|| span_for(ds.time_ms), |g| g.span);
     let plot = Plot::of(d, k, span);
@@ -300,7 +362,17 @@ pub fn display(
     if let (Some(g), Some(p), true) = (st.drag, resp.interact_pointer_pos(), resp.dragged()) {
         let fine = ui.input(|i| i.modifiers.shift);
         let (ms, fb) = dragged_to(&g, &plot, p, fine);
-        if ms != ds.time_ms || fb != ds.feedback {
+        if ds.sync {
+            // Synced, the first repeat goes to the note value nearest the pointer.
+            let note = nearest_note(ms, bpm);
+            if note != ds.note || fb != ds.feedback {
+                host.apply(
+                    &[("note", Some(note as f32)), ("feedback", Some(fb))],
+                    "cmd.delay_echoes",
+                    Some(g.gesture),
+                );
+            }
+        } else if ms != ds.time_ms || fb != ds.feedback {
             host.apply(
                 &[("time_ms", Some(ms)), ("feedback", Some(fb))],
                 "cmd.delay_echoes",
@@ -313,11 +385,9 @@ pub fn display(
     }
     if resp.double_clicked() {
         let def = |key: &str| spec.kind.param(key).map_or(0.0, |i| i.default);
+        let time = if ds.sync { "note" } else { "time_ms" };
         host.apply(
-            &[
-                ("time_ms", Some(def("time_ms"))),
-                ("feedback", Some(def("feedback"))),
-            ],
+            &[(time, Some(def(time))), ("feedback", Some(def("feedback")))],
             "cmd.delay_echoes",
             None,
         );
@@ -331,8 +401,7 @@ pub fn display(
         );
     }
     // What the drag set this frame is what is drawn.
-    let ds = settings(host.spec());
-    let bpm = bpm_of(host);
+    let ds = heard_at(host.spec(), bpm);
     paint(ui, st, s, d, &plot, &ds, sr, bpm)
 }
 
@@ -378,11 +447,14 @@ fn paint(
         bpm.to_bits(),
         ds.ping_pong,
         crate::i18n::locale(),
+        ds.sync.then_some(ds.note),
     );
     if st.words.as_ref().is_none_or(|w| w.0 != key) {
         let mut time = String::new();
         super::super::controls::write_readout(ds.time_ms, "ms", &mut time);
-        if let Some(i) = note_of(ds.time_ms, bpm) {
+        if ds.sync {
+            let _ = write!(time, " \u{b7} {}", note_name(ds.note));
+        } else if let Some(i) = note_of(ds.time_ms, bpm) {
             let _ = write!(time, " \u{b7} {}", frame::tr(DIV_KEYS[i]));
         }
         let side = frame::tr(if ds.ping_pong {
@@ -580,7 +652,9 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let ink = Ink::of(&st);
     let k = st.k;
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 56.0 * k), Sense::click());
-    let ds = settings(spec);
+    // Synced, the repeats stand in proportion to the span whatever the tempo: drawn at 120
+    // BPM, with the note's name in the words.
+    let ds = heard_at(spec, cantus_dsp::modfx_clock::DEFAULT_TEMPO);
     let span = span_for(ds.time_ms);
     let mut list = Vec::with_capacity(16);
     echoes(&ds, SR, span, &mut list);
@@ -625,11 +699,24 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
             ink.text,
             k,
             Some(ink.plate),
-            format_args!("{:.0} ms \u{b7} {:.0}%", ds.time_ms, ds.feedback * 100.0),
+            format_args!("{} \u{b7} {:.0}%", Time(&ds), ds.feedback * 100.0),
         );
         canvas::edge_b(b, rect, &ink);
     });
     resp
+}
+
+/// The strip's time: the note value while synced, the milliseconds otherwise.
+struct Time<'a>(&'a DelaySettings);
+
+impl std::fmt::Display for Time<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.sync {
+            f.write_str(note_name(self.0.note))
+        } else {
+            write!(f, "{:.0} ms", self.0.time_ms)
+        }
+    }
 }
 
 /// The settings `--editor delay` and the screenshot tool open it with: its *Dotted eighth*
@@ -801,11 +888,11 @@ mod tests {
         assert_eq!(span_for(375.0), 3.0);
         assert_eq!(span_for(95.0), 0.75);
         assert_eq!(span_for(2_000.0), 16.0);
-        // Dotted eighths at 120 BPM; nothing longer than 2 s offered.
+        // Dotted eighths at 120 BPM (the free time's words name the family's division).
         assert_eq!(note_of(375.0, 120.0), Some(9));
         assert_eq!(note_of(380.0, 120.0), None);
-        assert!(notes_in_range(120.0).all(|(_, ms)| ms <= 2_000.0));
-        assert_eq!(notes_in_range(120.0).count(), 14, "down from 1/1");
+        // Round 40: a synced 4/1 at 60 BPM is 16 s, its span 128 s.
+        assert_eq!(span_for(16_000.0), 128.0);
         // The tone leaves the highs at its own frequency's corner.
         assert!(pass_gain(20_000.0, SR, REF_HZ) > 0.9);
         assert!(pass_gain(1_000.0, SR, REF_HZ) < 0.2);

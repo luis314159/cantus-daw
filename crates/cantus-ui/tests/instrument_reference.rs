@@ -24,12 +24,35 @@ const REFERENCE: f64 = -18.7;
 const SPREAD: f64 = 4.5;
 
 /// Kinds whose new instance is not yet level, with the builder that owns the fix.
-const PENDING: &[(InstrumentKind, &str)] = &[]; // r37:piano: Chorda's model 2 is level (ADR 0098 §3)
+///
+/// Round 40 (`DSP_VERSION` 7): Chorda's model 2 ships candidate 16, voiced so the reference's
+/// fortissimo stays under its output ceiling's knee (−1 dBFS) — its triad sits 10.4 LU under
+/// the reference. Raising its output squeezes its fortissimo into the ceiling (a change of
+/// the sound the owner's blind ABX is of); his ear decides (ADR 0098's third amendment,
+/// `docs/BACKLOG-excellence.md`). Its 24 presets were re-trimmed to their windows by `gain`.
+const PENDING: &[(InstrumentKind, &str)] = &[(
+    InstrumentKind::Chorda,
+    "the owner: candidate 16's level against its crest (round 41)",
+)];
 
 fn triad_project(kind: InstrumentKind) -> Project {
     cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let evs: Vec<Ev> = if kind == InstrumentKind::Bass {
         vec![Ev::new(0.0, 4.0, 48, 100)]
+    } else if kind == InstrumentKind::AcousticDrums {
+        // A drummer plays a beat, not a triad: kick, snare and closed hat on General MIDI's
+        // notes, eighths at velocity 100 for a bar.
+        let mut v = Vec::new();
+        for i in 0..8 {
+            let at = i as f64 * 0.5;
+            v.push(Ev::new(at, 0.25, 42, 100));
+            match i % 4 {
+                0 => v.push(Ev::new(at, 0.25, 36, 100)),
+                2 => v.push(Ev::new(at, 0.25, 38, 100)),
+                _ => {}
+            }
+        }
+        v
     } else {
         [60u8, 64, 67]
             .iter()

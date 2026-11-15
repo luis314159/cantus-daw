@@ -30,7 +30,7 @@ shown to the agent as data — never as instructions.
 | Recording | `prepare_to_record`, `get_recording_mode`, `leave_recording_mode` | The recording mode: render every strip that feeds the master so the buffer can go lower; `dry_run` answers the plan and the disk it needs; while it is on, edits that change the sound are refused |
 | Export | `export_audio`, `export_project` | WAV, FLAC, MP3, Ogg, stems; MIDI and DAWproject — only into the project's folder or a folder you allowed |
 | Removing | `remove_items` | Tracks, clips, notes, effects, strips, sends, modulators, markers, tempo points, scenes, session clips — always asked |
-| Drums | `split_kit_outputs`, `set_pad_chain`, `make_kit_from_folder` | A kit split to strips (or merged back), effects on one pad, a kit from a folder or an SFZ file — one undo step each ([Pulsus III](drum-kits.md)) |
+| Drums | `split_kit_outputs`, `set_pad_chain`, `set_pad_track`, `make_kit_from_folder` | A kit split to strips (or merged back), effects on one pad, one pad on a mixer strip of its own (round 40), a kit from a folder or an SFZ file — one undo step each ([Pulsus III](drum-kits.md)) |
 
 An agent never takes your material silently: drawing automation over points you drew, a
 part where your notes are, a preset over your settings all ask first (or are refused).

@@ -1,0 +1,22 @@
+# Area: pads - round 40 (pads). Every key has its twin in pads.es.txt
+
+# A pad's own mixer track, chosen from the rack's well (ADR 0117).
+cmd.set_pad_track = choose a pad's mixer strip
+pads.track_tip = The mixer strip this pad plays on: the kit's, or one of its own (FL Studio's mixer track). Click to choose.
+pads.track_kit = The kit's strip ({n})
+pads.track_kit_master = The kit's (Master)
+pads.track_free = First free strip ({n})
+pads.unfit = {name}: a pad cannot play on that strip (a VCA, a pad's chain, or a loop).
+pads.already = {name}: the pad already plays there.
+
+# Hear the key and Record: Before FX · After FX (ADR 0118).
+pads.hear_key = Hear the key
+pads.hear_key_tip = Plays this insert's key in place of the strip, as its detector hears it (a compressor's: after the key's level and EQ), to tune the key by ear. Never saved, never in an export.
+cmd.set_track_record_tap = choose where a track records
+pads.rec_tap = Take from
+pads.rec_before = Before FX
+pads.rec_after = After FX
+pads.rec_tap_tip = Where this track's takes are tapped: Before FX records the input as it arrives (after its trim); After FX records the strip after its inserts, in stereo, as you hear it. After FX needs monitoring (Auto or On): the inserts hear the input only while it is monitored.
+
+# Agents (ADR 0117).
+ai.tools.pad_track = choose the mixer strip of the pad {name}

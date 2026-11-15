@@ -59,3 +59,13 @@ inst.preset.init = Init
 inst.more.keyboard = Keyboard
 inst.more.macros = Macros
 inst.more.mods = Modulation
+# r40:fix-f — Install from a file…, in the background (Chorda's pianos, Tympanum's kits)
+inst.install.installing = Installing {name}…
+inst.install.unpacking = Unpacking
+inst.install.building = Building its mics
+inst.install.progress = {what} · {pct} % · {done} of {total}
+inst.install.tip_cancel = Installing {name} in the background; what plays now keeps playing until it is in. Click to cancel: nothing is left behind.
+inst.install.done = {name} is installed and playing.
+inst.install.cancelled = The install of {name} was cancelled; nothing was left behind.
+inst.install.failed = {name} could not be installed: {why}
+inst.install.already = that file is already being installed

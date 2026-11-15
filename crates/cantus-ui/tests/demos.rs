@@ -389,9 +389,20 @@ fn every_native_instrument_plays_in_some_demo() {
         }
     }
     // A scaffold is not in the picker, nor in a demo (round 28's Chorda was, until it
-    // played).
+    // played). Tympanum is in the picker since round 40's close, but no demo plays it until
+    // the owner has judged its sound blind (BACKLOG); the list fails once a demo does.
+    const NOT_YET: &[(InstrumentKind, &str)] = &[(
+        InstrumentKind::AcousticDrums,
+        "Tympanum: its sound waits for the owner's blind listening (BACKLOG)",
+    )];
     for kind in InstrumentKind::ready_kinds() {
-        assert!(seen.contains(&kind), "no demo plays {kind:?}");
+        match NOT_YET.iter().find(|(k, _)| *k == kind) {
+            Some((_, why)) => assert!(
+                !seen.contains(&kind),
+                "a demo plays {kind:?} now: strike it from NOT_YET ({why})"
+            ),
+            None => assert!(seen.contains(&kind), "no demo plays {kind:?}"),
+        }
     }
     assert!(pulsus, "no demo plays Pulsus II");
 }
@@ -584,7 +595,9 @@ fn live(p: &Project, start: Ticks, frames: usize) -> Vec<f32> {
         pdc, AutomationRuntime, EffectUnit, EngineEvent, EngineMessage, Processor,
     };
     const SR: f32 = 48_000.0;
+    // Chorda's keyboards: model 1's and a new Chorda's (model 2's own since `DSP_VERSION` 7).
     cantus_engine::inst::chorda::ensure(Default::default(), SR);
+    cantus_engine::inst::chorda::ensure(cantus_engine::inst::chorda::reference(), SR);
     let mut snap = Snapshot::compile(p, 1);
     snap.loop_region = None;
     let snap = Arc::new(snap);

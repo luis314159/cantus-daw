@@ -24,10 +24,13 @@ fn context(dark: bool) -> egui::Context {
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
-    let theme = if dark {
-        cantus_ui::theme_family::cantus_night()
-    } else {
-        cantus_ui::theme::paper()
+    // `CANTUS_SHOT_SLATE=1`: Slate Night and Slate Paper, the default look (r40:cast).
+    let slate = std::env::var("CANTUS_SHOT_SLATE").is_ok_and(|v| v == "1");
+    let theme = match (slate, dark) {
+        (true, true) => cantus_ui::theme_slate::slate_night(),
+        (true, false) => cantus_ui::theme_slate::slate_paper(),
+        (false, true) => cantus_ui::theme_family::cantus_night(),
+        (false, false) => cantus_ui::theme::paper(),
     };
     cantus_ui::theme::apply(&theme, &ctx);
     cantus_ui::views::workspace_style::install(&ctx);
@@ -282,6 +285,7 @@ fn native_shots(out: &Path) {
             vis: &vis,
             hover,
             scale: 1.25,
+            ink: cantus_dance::StageInk::NIGHT, // r40:cast
         };
         let mut pm = tiny_skia::Pixmap::new(500, 575).unwrap();
         draw(&mut pm, &scene);
@@ -389,6 +393,7 @@ fn video_shots(out: &Path) {
             start_seconds: 0.0,
             fps: 30,
             overlay: with_title(Some(vis), title),
+            spectrum: None,
         };
         let mut pm = tiny_skia::Pixmap::new(w, h).expect("a frame");
         frames.draw(45, &mut pm);

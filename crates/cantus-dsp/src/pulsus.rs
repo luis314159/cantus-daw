@@ -50,6 +50,10 @@
 use crate::math;
 use std::sync::Arc;
 
+#[path = "pulsus_acoustic.rs"]
+mod acoustic;
+#[path = "pulsus_measured.rs"]
+pub(crate) mod measured;
 #[path = "pulsus_modal.rs"]
 mod modal;
 #[path = "pulsus_render.rs"]
@@ -335,7 +339,18 @@ pub struct PadSettings {
     pub q: f32,
     /// How many of the pad's layers are set.
     pub layer_count: u8,
+    /// Model 4 (Tympanum's acoustic voices): how far each hit's strike point strays, 0 … 1.
+    pub scatter: f32,
+    /// Model 5 (Tympanum's measured cymbals and hats): the table it plays (0 none; 1 the
+    /// crash, 2 the hi-hat, 3 the ride, 4 the kick, 5 the snare, 6–8 the toms), with
+    /// [`MEASURED_FOOT`] for the hat's foot. A ride's or a snare's `openness` is its zone
+    /// (the ride: 0 the bow, 1 the bell; the snare: 0 the head, 0.5 the rimshot, 1 the
+    /// sidestick); `click` scales the stick's burst (a kick's beater).
+    pub measured: u8,
 }
+
+/// A model 5 pad's foot (the pedal's chick), in [`PadSettings::measured`].
+pub const MEASURED_FOOT: u8 = 0x80;
 
 impl PadSettings {
     pub fn kick() -> Self {
@@ -396,6 +411,8 @@ impl PadSettings {
             spacing: 0.01,
             q: 2.0,
             layer_count: 0,
+            scatter: 0.06,
+            measured: 0,
         }
     }
 
@@ -448,6 +465,10 @@ impl Default for PadSettings {
 #[inline]
 fn voice_level(voice: DrumVoice, model: u8) -> f32 {
     match (voice, model) {
+        // A sample arrives at the level it was recorded at.
+        (DrumVoice::Sample, _) => 1.0,
+        // Model 4 (Tympanum's acoustic drums and cymbals) levels itself inside.
+        (_, 4) => 0.5,
         (DrumVoice::Kick, 0) => 0.50,
         (DrumVoice::Kick, 1) => 0.52,
         (DrumVoice::Kick, _) => 0.48,
@@ -457,8 +478,6 @@ fn voice_level(voice: DrumVoice, model: u8) -> f32 {
         (DrumVoice::HiHat, 1) => 0.135,
         (DrumVoice::HiHat, 2) => 0.32,
         (DrumVoice::HiHat, _) => 0.22,
-        // A sample arrives at the level it was recorded at.
-        (DrumVoice::Sample, _) => 1.0,
         (DrumVoice::Clap, _) => 0.48,
         (DrumVoice::Tom, _) => 0.225,
     }
@@ -474,6 +493,8 @@ pub struct Pulsus {
     seed: u32,
     hat_cc: u8,
     hat_invert: bool,
+    /// The foot's chick when the pedal closes a ringing hat (Tympanum's `hat.chick`).
+    pub chick: bool,
     pads: [PadSettings; MAX_PADS],
     pitches: [u8; MAX_PADS],
     /// One per pad; `None` for a pad that is not a sample or whose file is not loaded.
@@ -496,6 +517,8 @@ pub struct Pulsus {
     /// One pad's voices, summed before they join their output (Pulsus III).
     lane_l: Vec<f32>,
     lane_r: Vec<f32>,
+    /// Model 5's pieces (Tympanum's measured cymbals), once a kit enables them.
+    measured: Option<Box<measured::Bank>>,
 }
 
 impl Pulsus {
@@ -506,6 +529,7 @@ impl Pulsus {
             seed: 1,
             hat_cc: 4,
             hat_invert: false,
+            chick: true,
             pads: [PadSettings::kick(); MAX_PADS],
             pitches: [0; MAX_PADS],
             samples: vec![None; MAX_PADS],
@@ -523,6 +547,7 @@ impl Pulsus {
             gain: 1.0,
             lane_l: vec![0.0; LANE_FRAMES],
             lane_r: vec![0.0; LANE_FRAMES],
+            measured: None,
         }
     }
 
@@ -535,6 +560,25 @@ impl Pulsus {
     }
 
     /// The kit's model, seed and hi-hat pedal controller. Called once per snapshot.
+    /// Give every voice the state model 4 (Tympanum's acoustic drums and cymbals) plays
+    /// with. Allocates: call it with the kit, never on the audio thread. A kit that never
+    /// calls it plays a model 4 pad as silence.
+    pub fn enable_acoustic(&mut self) {
+        for v in &mut self.voices {
+            if v.ac.is_none() {
+                v.ac = Some(Box::new(acoustic::Acoustic::new(self.sample_rate)));
+            }
+        }
+    }
+
+    /// Give the kit model 5's pieces (Tympanum's measured cymbals and hats). Allocates:
+    /// with the kit, never on the audio thread. Without it a model 5 pad is silent.
+    pub fn enable_measured(&mut self) {
+        if self.measured.is_none() {
+            self.measured = Some(Box::new(measured::Bank::new(self.sample_rate)));
+        }
+    }
+
     pub fn set_kit(&mut self, version: u8, seed: u32, hat_cc: u8, hat_invert: bool) {
         self.version = version.max(1);
         self.seed = seed;
@@ -610,6 +654,17 @@ impl Pulsus {
         (0..self.pad_count).find(|i| self.pitches[*i] == pitch)
     }
 
+    /// The openness a hit on `pitch` would strike with now (the pedal's for a hi-hat pad,
+    /// else the pad's own): what Tympanum's hybrid voice chooses a hat's state by.
+    /// r40:drums-hyb
+    pub fn hat_openness(&self, pitch: u8) -> f32 {
+        match self.pad_of(pitch) {
+            Some(i) if self.pads[i].pedal => self.pedal.unwrap_or(self.pads[i].openness),
+            Some(i) => self.pads[i].openness,
+            None => 0.0,
+        }
+    }
+
     fn voice_limit(&self) -> usize {
         if self.version <= 1 {
             LEGACY_VOICES
@@ -679,6 +734,25 @@ impl Pulsus {
                 s.openness
             },
         };
+        if s.model == 5 {
+            // A measured piece: its object takes the hit (and chokes its own ring).
+            if let Some(m) = self.measured.as_deref_mut() {
+                m.strike(&measured::Strike {
+                    table: s.measured & !MEASURED_FOOT,
+                    bus: s.bus,
+                    vel: velocity.clamp(1, 127) as f32,
+                    openness: ctx.openness,
+                    foot: s.measured & MEASURED_FOOT != 0,
+                    seed: ctx.seed,
+                    ratio: math::exp2(s.tune / 12.0),
+                    decay: s.decay,
+                    gain: s.gain,
+                    click: s.click,
+                    tilt: s.position,
+                });
+            }
+            return;
+        }
         let has_layers = s.layer_count > 0;
         // A sample pad with layers plays the layers; every other pad plays its voice, and
         // its layers ride along.
@@ -778,6 +852,12 @@ impl Pulsus {
         if !s.choke_on_off {
             return;
         }
+        if s.model == 5 {
+            if let Some(m) = self.measured.as_deref_mut() {
+                m.choke_bus(s.bus, s.measured & !MEASURED_FOOT);
+            }
+            return;
+        }
         for v in &mut self.voices {
             if v.active && v.pad_id == s.id && v.note_id == tag && !v.choking {
                 v.choke_now();
@@ -810,7 +890,23 @@ impl Pulsus {
                 voice.set_openness(open);
             }
         }
-        if closing {
+        // Model 5's hats: the pedal closing chokes a ringing hat, and its foot claps.
+        if let Some(m) = self.measured.as_deref_mut() {
+            if closing {
+                // One chick per hat (its closed and open pads share the piece).
+                for i in 0..self.pad_count {
+                    let p = &self.pads[i];
+                    let first = !(0..i).any(|j| {
+                        chick[j] && self.pads[j].bus == p.bus && self.pads[j].measured == p.measured
+                    });
+                    if p.model == 5 && p.pedal && first && m.ringing(p.bus, p.measured) {
+                        chick[i] = true;
+                    }
+                }
+            }
+            m.pedal(open);
+        }
+        if closing && self.chick {
             let speed = before.unwrap_or(1.0) - open;
             let velocity = (40.0 + 70.0 * speed).clamp(1.0, 127.0) as u8;
             for (i, hit) in chick.iter().enumerate().take(self.pad_count) {
@@ -825,6 +921,25 @@ impl Pulsus {
     fn chick(&mut self, pad: usize, velocity: u8) {
         self.counter += 1;
         let mut s = self.pads[pad];
+        if s.model == 5 {
+            let seed = shape::hit_seed(self.seed, s.id, self.counter as i64, u64::MAX - 1);
+            if let Some(m) = self.measured.as_deref_mut() {
+                m.strike(&measured::Strike {
+                    table: s.measured & !MEASURED_FOOT,
+                    bus: s.bus,
+                    vel: velocity as f32,
+                    openness: 0.0,
+                    foot: true,
+                    seed,
+                    ratio: math::exp2(s.tune / 12.0),
+                    decay: s.decay,
+                    gain: s.gain,
+                    click: s.click,
+                    tilt: s.position,
+                });
+            }
+            return;
+        }
         s.openness = 0.0;
         s.pedal = false;
         s.decay = s.decay.min(0.035);
@@ -851,6 +966,13 @@ impl Pulsus {
     /// is let go exactly as its note-off would let it go — its note-off will not come now
     /// (round 37: it rang on past a stop, held).
     pub fn all_notes_off(&mut self) {
+        if let Some(m) = self.measured.as_deref_mut() {
+            for p in &self.pads[..self.pad_count] {
+                if p.model == 5 && p.choke_on_off {
+                    m.choke_bus(p.bus, p.measured & !MEASURED_FOOT);
+                }
+            }
+        }
         for v in &mut self.voices {
             if !v.active || v.choking {
                 continue;
@@ -867,6 +989,16 @@ impl Pulsus {
         for v in &mut self.voices {
             v.silence();
         }
+        if let Some(m) = self.measured.as_deref_mut() {
+            m.silence();
+        }
+        self.forget_hits();
+    }
+
+    /// Forget the live hits counted so far (the next unsequenced hit is drawn as a new
+    /// unit's first): what a unit that has come to rest does, so it is as good as new
+    /// (Tympanum, round 40's close). No allocation.
+    pub fn forget_hits(&mut self) {
         self.counter = 0;
         self.hits = [0; MAX_PADS];
         self.live = [0; MAX_PADS];
@@ -916,7 +1048,8 @@ impl Pulsus {
     /// receive the very same lanes, in the very same order. Each voice is rendered exactly
     /// once. Returns whether any lane was given. No allocation.
     pub fn process_buses(&mut self, n: usize, out: &mut BusOut<'_>) -> bool {
-        if n == 0 || !self.voices.iter().any(|v| v.active) {
+        let measured = self.measured.as_deref().is_some_and(|m| m.any());
+        if n == 0 || (!measured && !self.voices.iter().any(|v| v.active)) {
             return false;
         }
         let taps = &self.taps;
@@ -960,6 +1093,17 @@ impl Pulsus {
                     scale(&mut self.lane_l[..c], &mut self.lane_r[..c], self.gain);
                     out(b, at, &self.lane_l[..c], &self.lane_r[..c]);
                 }
+            }
+            // Model 5's pieces after the pads, in object order, each on its own lane: its
+            // main plus and less its side (a plate heard from two sides).
+            if let Some(m) = self.measured.as_deref_mut() {
+                let g = self.gain;
+                any |= m.render(
+                    &mut self.lane_l[..c],
+                    &mut self.lane_r[..c],
+                    &mut |bus, l, r| out(bus, at, l, r),
+                    g,
+                );
             }
             at += c;
         }

@@ -130,3 +130,159 @@ fn print_the_keyboard() {
         );
     }
 }
+
+// ---- round 40, finding 9: model 2's own keyboard ----------------------------------------
+
+/// The fitted numbers (the Salamander's measured B, `docs/round40/chorda.md` §finding 9).
+fn model_2() -> super::design::Tuning {
+    super::design::Tuning {
+        bass_b: 0.754,
+        treble_b: 0.874,
+        treble_octave: 2.0,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn model_2s_keyboard_at_ones_is_model_1s_to_the_bit() {
+    let t = super::design::Tuning::default();
+    assert_eq!(keyboard_for(&t), keyboard(440.0, 1.0, 1.0));
+    for m in 21..=108 {
+        let m = m as f64;
+        assert_eq!(
+            inharmonicity_of(m, 1.3, 1.0, 1.0).to_bits(),
+            inharmonicity(m, 1.3).to_bits()
+        );
+    }
+    // A product by one is exact; an octave type floored at one is the model's (it is never
+    // below one at a stretch of zero or more).
+    let s = super::design::Tuning {
+        a4: 442.0,
+        stretch: 0.7,
+        stiffness: 1.1,
+        ..Default::default()
+    };
+    assert_eq!(tuning_for(&s), tuning(442.0, 0.7, 1.1));
+}
+
+#[test]
+fn the_asymptotes_scale_their_own_end_of_the_keyboard() {
+    let (bass, treble) = (0.75, 0.875);
+    for m in [21.0, 30.0, 45.0, 69.0, 96.0, 108.0] {
+        let b = inharmonicity_of(m, 1.0, bass, treble);
+        let full = inharmonicity(m, 1.0);
+        // Between the two scales, near the bass's at A0 and near the treble's at C8.
+        assert!(
+            b < full && b > full * bass.min(treble),
+            "{m}: {b:e} of {full:e}"
+        );
+    }
+    assert!(inharmonicity_of(21.0, 1.0, bass, 1.0) / inharmonicity(21.0, 1.0) < 0.76);
+    assert!(inharmonicity_of(108.0, 1.0, bass, 1.0) / inharmonicity(108.0, 1.0) > 0.999);
+    assert!(inharmonicity_of(108.0, 1.0, 1.0, treble) / inharmonicity(108.0, 1.0) < 0.876);
+    assert!(inharmonicity_of(21.0, 1.0, 1.0, treble) / inharmonicity(21.0, 1.0) > 0.99);
+}
+
+#[test]
+fn model_2s_keyboard_follows_the_recorded_grands_strings() {
+    // The Salamander Grand's measured B (×10⁻⁴, the analyst's `notes_analysis.py`, mf and
+    // ff, A0 … A2): the model's bass strings are 20–45 % stiffer; model 2's within 22 %.
+    let measured = [
+        (21u8, 2.2),
+        (24, 1.6),
+        (27, 1.3),
+        (30, 0.9),
+        (33, 0.9),
+        (36, 0.9),
+        (39, 0.7),
+        (42, 0.7),
+        (45, 0.75),
+        (57, 2.2),
+        (69, 6.4),
+        (81, 17.8),
+    ];
+    let model = keyboard(440.0, 1.0, 1.0);
+    let ours = keyboard_for(&model_2());
+    let (mut before, mut after) = (0.0f64, 0.0f64);
+    for (m, b) in measured {
+        let i = (m - LOWEST) as usize;
+        let err = |k: &Key| (k.b / (b * 1e-4) - 1.0).abs();
+        before = before.max(err(&model[i]));
+        after = after.max(err(&ours[i]));
+        assert!(
+            err(&ours[i]) < 0.22,
+            "{m}: B {:e} against {b}e-4",
+            ours[i].b
+        );
+    }
+    assert!(before > 0.4 && after < before / 2.0, "{before} → {after}");
+}
+
+#[test]
+fn the_treble_tuned_in_4_2_octaves_leaves_the_rest_alone() {
+    let t = super::design::Tuning {
+        treble_octave: 2.0,
+        ..Default::default()
+    };
+    let (model, ours) = (keyboard(440.0, 1.0, 1.0), keyboard_for(&t));
+    let at = |k: &[Key; KEYS], m: u8| k[(m - LOWEST) as usize];
+    // A4 and below: the model's, to the bit.
+    for m in LOWEST..=69 {
+        assert_eq!(at(&ours, m), at(&model, m), "{m}");
+    }
+    // A5's second partial on A4's fourth (a 4:2 octave), where the model's octave type
+    // there is below two.
+    assert!(octave_type(81.0, 1.0) < 2.0);
+    let beat = cents(at(&ours, 81).partial(2), at(&ours, 69).partial(4));
+    assert!(beat.abs() < 0.01, "A5's 2nd on A4's 4th: {beat}");
+    // The treble sharper the higher (A5, A6 by the reference's ~2 and ~10 cents more than
+    // the model), every semitone still near 100 cents.
+    let more = |m: u8| cents(at(&ours, m).f1, at(&model, m).f1);
+    assert!((0.4..2.0).contains(&more(81)), "A5 {:.2}", more(81));
+    assert!((3.0..8.0).contains(&more(93)), "A6 {:.2}", more(93));
+    // The top octave keeps the model's near-2:1 octave above A6's offset.
+    let top =
+        cents(at(&ours, 105).f1, at(&ours, 93).f1) - cents(at(&model, 105).f1, at(&model, 93).f1);
+    assert!(top.abs() < 0.5, "A6 to A7 stretched {top:.2} cents more");
+    for m in 70..=93u8 {
+        assert!(more(m) >= more(m - 1) - 1e-9, "{m}");
+    }
+    for m in 70..=108u8 {
+        let step = cents(at(&ours, m).f1, at(&ours, m - 1).f1);
+        assert!((96.0..108.0).contains(&step), "{m}: {step:.2} cents");
+    }
+}
+
+#[test]
+fn the_sixth_octave_takes_its_own_octave_type() {
+    let base = super::design::Tuning {
+        treble_octave: 2.0,
+        ..Default::default()
+    };
+    let hi = super::design::Tuning {
+        treble_octave_hi: 3.0,
+        ..base
+    };
+    let (a, b) = (keyboard_for(&base), keyboard_for(&hi));
+    let at = |k: &[Key; KEYS], m: u8| k[(m - LOWEST) as usize];
+    // Up to A5, the same keyboard to the bit; from A5 on, sharper.
+    for m in LOWEST..=81 {
+        assert_eq!(at(&b, m), at(&a, m), "{m}");
+    }
+    let more = |m: u8| cents(at(&b, m).f1, at(&a, m).f1);
+    assert!(
+        more(87) > 0.5 && more(93) > more(87),
+        "{} {}",
+        more(87),
+        more(93)
+    );
+    // Its A5–A6 octave: A6's second partial on A5's sixth (a 6:3 octave).
+    let beat = cents(at(&b, 93).partial(3), at(&b, 81).partial(6));
+    assert!(beat.abs() < 0.01, "{beat}");
+    // At 0 it is `treble_octave`'s.
+    let zero = super::design::Tuning {
+        treble_octave_hi: 0.0,
+        ..base
+    };
+    assert_eq!(keyboard_for(&zero), a);
+}

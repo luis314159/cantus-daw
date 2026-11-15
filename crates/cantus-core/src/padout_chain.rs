@@ -143,10 +143,22 @@ pub fn with_kit_strips_following(project: &Project, cmd: Command) -> Command {
         if now.strip == t.strip {
             continue;
         }
+        let to = now.strip;
         let Some(kit) = now.instrument.pulsus() else {
+            // r40:tymp-engine — an instrument with named outputs (Tympanum, Chorda: ADR
+            // 0123): the strips its outputs play on that played into its old strip (what
+            // *Each to its own strip* and *Pieces to strips* make) follow it too.
+            for s in now.instrument.output_strips() {
+                if Some(s) == to || after.strip(s).is_none_or(|x| x.output != t.strip) {
+                    continue;
+                }
+                let c = Command::SetStripOutput { id: s, output: to };
+                if c.clone().apply(&mut after).is_ok() {
+                    extra.push(c);
+                }
+            }
             continue;
         };
-        let to = now.strip;
         // The kit's own strips, as `cmd` leaves them: its pads' chains and own strips, and
         // the strips its chains play into that were made for pads.
         let mut mine: Vec<StripId> = Vec::new();

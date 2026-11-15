@@ -82,6 +82,20 @@ pub fn comp_settings(spec: &EffectSpec) -> CompSettings {
     }
 }
 
+/// Delay's parameters as the DSP wants them; also what its window draws the echoes from
+/// (round 40: the synced time, ADR 0119). Allocation-free. // r40:delay
+pub fn delay_settings(spec: &EffectSpec) -> DelaySettings {
+    DelaySettings {
+        time_ms: spec.get("time_ms"),
+        feedback: spec.get("feedback"),
+        tone_hz: spec.get("tone_hz"),
+        ping_pong: spec.get("ping_pong") >= 0.5,
+        mix: spec.get("mix"),
+        sync: spec.get("sync") >= 0.5,
+        note: cantus_dsp::delay::sync::note_index(spec.get("note")),
+    }
+}
+
 /// An EQ's parameters as the DSP wants them. Also what the editor draws its curve from, so
 /// the picture and the sound come from one reading of the spec: the gain scale and the
 /// gain–Q interaction are applied here, once, for both.
@@ -141,6 +155,8 @@ pub enum MemoryNeed {
     EqLinear(cantus_dsp::aequalis::Resolution),
     /// Aula's response, by what it is built from (ADR 0112). // r39:conv
     Aula(crate::fx::aula::AulaNeed),
+    /// Delay's line for a synced time, in cells (ADR 0119). // r40:delay
+    DelayLine(usize),
 }
 
 /// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
@@ -152,6 +168,7 @@ pub enum MemoryNeed {
 pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
+    DelayLine(usize), // r40:delay
 }
 
 impl NeedTicket {
@@ -160,6 +177,7 @@ impl NeedTicket {
         match self {
             NeedTicket::EqLinear(r) => MemoryNeed::EqLinear(*r),
             NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
+            NeedTicket::DelayLine(n) => MemoryNeed::DelayLine(*n), // r40:delay
         }
     }
 }
@@ -171,6 +189,8 @@ pub enum EffectMemory {
     EqLinear(Box<cantus_dsp::aequalis::phase::LinearPhase>),
     /// Aula's kernel (and a state when it needs more room). // r39:conv
     Aula(Box<crate::fx::aula::Memory>),
+    /// Delay's longer (or the free) line (ADR 0119). // r40:delay
+    DelayLine(Box<cantus_dsp::delay::Lines>),
 }
 
 /// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
@@ -188,6 +208,9 @@ impl EffectMemory {
             MemoryNeed::Aula(n) => {
                 EffectMemory::Aula(Box::new(crate::fx::aula_store::build(n, sample_rate)))
             } // r39:conv
+            MemoryNeed::DelayLine(len) => {
+                EffectMemory::DelayLine(Box::new(cantus_dsp::delay::Lines::new(len)))
+            } // r40:delay
         }
     }
 }
@@ -272,6 +295,7 @@ impl EffectUnit {
             drop(unit.supply(EffectMemory::build(need, sample_rate)));
         }
         unit.reset();
+        drop(unit.take_spent());
         unit
     }
 
@@ -280,6 +304,7 @@ impl EffectUnit {
         match &self.dsp {
             Dsp::Eq(e) => e.linear_need().map(MemoryNeed::EqLinear),
             Dsp::Fx(u) => u.memory_need(), // r39:conv
+            Dsp::Delay(d) => d.need().map(MemoryNeed::DelayLine), // r40:delay
             _ => None,
         }
     }
@@ -298,6 +323,7 @@ impl EffectUnit {
         };
         let ticket = match want {
             MemoryNeed::EqLinear(r) => NeedTicket::EqLinear(r),
+            MemoryNeed::DelayLine(n) => NeedTicket::DelayLine(n), // r40:delay
             MemoryNeed::Aula(n) => {
                 // No mailbox (a unit not made by `new`): nothing to ask with.
                 let m = self.mailbox.as_ref()?;
@@ -314,6 +340,31 @@ impl EffectUnit {
         self.asked = None;
     }
 
+    /// fix-a (A-M2): the longest note a Delay's automation or modulation of its `note` and
+    /// `sync` can reach (`automation::FxCopy::line_note`): its line is built for that note
+    /// before the song gets there, so it never finds it short. `None`: what its settings
+    /// want.
+    pub fn set_line_floor(&mut self, note: Option<usize>) {
+        if let Dsp::Delay(d) = &mut self.dsp {
+            d.set_line_floor(note);
+        }
+    }
+
+    /// fix-a (A-M3): memory the unit let go of in a pass (a Delay's old line, once its
+    /// history has moved into the new one), to be freed off the audio thread.
+    pub fn take_spent(&mut self) -> Option<EffectMemory> {
+        match &mut self.dsp {
+            Dsp::Delay(d) => d.take_spent().map(EffectMemory::DelayLine),
+            _ => None,
+        }
+    }
+
+    /// fix-a (A-M3): the unit is moving memory in or clearing it, or holds some to give
+    /// back ([`Self::take_spent`]).
+    pub fn busy(&self) -> bool {
+        matches!(&self.dsp, Dsp::Delay(d) if d.busy())
+    }
+
     /// Hand the unit memory built for it. What comes back — memory it replaced, or what
     /// was offered if the unit had no use for it — is to be freed off the audio thread.
     /// No allocation.
@@ -324,6 +375,7 @@ impl EffectUnit {
                 e.supply_linear(lp).map(EffectMemory::EqLinear)
             }
             (memory, Dsp::Fx(u)) => u.supply(memory), // r39:conv
+            (EffectMemory::DelayLine(l), Dsp::Delay(d)) => d.supply(l).map(EffectMemory::DelayLine), // r40:delay
             (memory, _) => Some(memory),
         }
     }
@@ -335,13 +387,7 @@ impl EffectUnit {
             return;
         }
         match &mut self.dsp {
-            Dsp::Delay(d) => d.set(&DelaySettings {
-                time_ms: spec.get("time_ms"),
-                feedback: spec.get("feedback"),
-                tone_hz: spec.get("tone_hz"),
-                ping_pong: spec.get("ping_pong") >= 0.5,
-                mix: spec.get("mix"),
-            }),
+            Dsp::Delay(d) => d.set(&delay_settings(spec)),
             Dsp::Reverb(r) => r.set(&ReverbSettings {
                 size: spec.get("size"),
                 damping: spec.get("damping"),
@@ -392,19 +438,24 @@ impl EffectUnit {
         unit
     }
 
-    /// Where the song is, for a unit that follows it (a hosted plug-in).
+    /// Where the song is, for a unit that follows it (a hosted plug-in, a modulation
+    /// unit, Delay's synced time — ADR 0119).
     #[inline]
     pub fn set_position(&mut self, position: &crate::fx::SongPosition) {
-        if let Dsp::Fx(u) = &mut self.dsp {
-            u.set_position(position);
+        match &mut self.dsp {
+            Dsp::Fx(u) => u.set_position(position),
+            Dsp::Delay(d) => d.set_tempo(position.tempo_bpm, position.tempo_inc != 0.0), // r40:delay
+            _ => {}
         }
     }
 
-    /// Whether the unit reads the song position (`FxUnit::follows_song`).
+    /// Whether the unit reads the song position (`FxUnit::follows_song`): Delay only while
+    /// its time is synced, so with the sync off nothing about its passes changes.
     #[inline]
     pub fn follows_song(&self) -> bool {
         match &self.dsp {
             Dsp::Fx(u) => u.follows_song(),
+            Dsp::Delay(d) => d.settings().sync, // r40:delay
             _ => false,
         }
     }
@@ -537,6 +588,27 @@ impl EffectUnit {
         if let Dsp::Fx(u) = &mut self.dsp {
             u.note(offset, note);
         }
+    }
+
+    /// r40:pads — *Hear the key* (ADR 0118): tell the unit whether the strip is
+    /// auditioning its key. `true` when the unit plays its own detector's input then (the
+    /// compressor: its key after level, high-pass and EQ, latency-aligned); `false` when it
+    /// has none of its own, and the strip plays the key as it arrives instead.
+    #[inline]
+    pub fn set_hear_key(&mut self, on: bool) -> bool {
+        match &mut self.dsp {
+            Dsp::Comp(c) => {
+                c.set_hear_key(on);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// r40:pads — whether the unit is playing its detector's input for *Hear the key*.
+    #[inline]
+    pub fn hearing_key(&self) -> bool {
+        matches!(&self.dsp, Dsp::Comp(c) if c.hears_key())
     }
 
     /// Process with an external key for the effects that take one (a compressor's

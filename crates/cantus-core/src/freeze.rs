@@ -764,6 +764,8 @@ const TRACK_COSMETIC: &[&str] = &[
     "glyph",
     // How the part is written as a score (ADR 0075).
     "score",
+    // r40:pads — where a take is tapped, never what plays (ADR 0118).
+    "record_tap",
 ];
 /// A frozen track's own live controls (and where it goes).
 const TRACK_LIVE: &[&str] = &["gain_db", "pan", "muted", "strip"];

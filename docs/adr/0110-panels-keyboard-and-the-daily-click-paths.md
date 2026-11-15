@@ -106,6 +106,24 @@ File, Edit, Clip and Help were the same mix — a kit menu per row beside stock 
   all its room, so any menu taller than 400 scrolled even with room for all of it. It is
   now as tall as its content up to the window, and scrolls past that.
 
+### Amendment, round 40 (`look`): maximise keeps the inspector — a setting
+
+The owner's answer 2 (2026-11-12): maximise **keeps the inspector beside the area** (des-arrange's
+`max-*` sheet), and it is **configurable**. *Settings ▸ Appearance ▸ Layout and controls ▸ Maximise keeps*:
+**The inspector beside it** (the default) or **Nothing: the whole workspace** (round 39's). A setting
+of this machine (`settings.json` `look.maximise`), never the layout or the project.
+
+- With the inspector kept, the maximised surface is the area's leaf split with an inspector leaf on
+  the side it stood, at the share of the main surface it had (`Workspace::toggle_maximise`,
+  `workspace_fold.rs`); the inspector is not in the docks' row. When the inspector is a tab of the
+  area's own leaf, or floats, or is hidden, nothing is added.
+- The inspector's key (`I`) while it is kept hides it alone — out of the maximised surface and of the
+  shape under it — and the area stays maximised; any other area's key gives everything back, as before.
+- Changing the setting while an area is maximised re-maximises it the new way at once.
+- Held by `tests/owner_look_e2e.rs` (`maximise_keeps_the_inspector_unless_the_setting_gives_the_whole_workspace`):
+  through `assemble`, Ctrl+Alt+Enter's action keeps the inspector at its side and width; `I` hides it
+  alone; Settings' *Nothing* gives the whole workspace; kept across a restart.
+
 ## Consequences
 
 - A daily path that gets longer fails a named test; a menu row with no key and no palette
@@ -134,3 +152,44 @@ dock from the tab's menu, kept; every overflowing area scrolls),
 clip, track, tab and strip menus opened from the keyboard and walked row by row; Esc closes
 the newest surface and keeps the selection; Ctrl+F6 walks the areas in reading order),
 and unit tests in `esc`, `menu_keys`, `menu_commands`, `views/workspace_fold`.
+
+### Amendment, round 40 (`fix-b`, the mid-round review): *Layout and controls*
+
+Settings ▸ Appearance's band of the owner's look answers was titled *The window* — the only
+band named with an article, holding things that are not the window (the mixer's dock, the
+inspector's values, Mute's colour). It is **Layout and controls** (*Disposición y controles*),
+with a note under the title as its neighbours have ("How the workspace is laid out and how a
+few controls are drawn. Choices of this computer, not of the song."), and its five choices
+share one width so their right edges line up. *Mute on* reads **Lit mute button** (*Botón M
+encendido*).
+
+The inspector's **value bars** draw no edge line under the number and its unit (the fill's own
+edge shows the value there; stubs above and below "−3.5 dB" read as a line through it), and
+a send's level is a value bar too under the default (it stayed round 39's slim bar beside
+Level's value bars); *Inspector values: Slim* keeps round 39's for both.
+
+## Amendment — review 2 of round 40 (builder `fix-d`)
+
+- **The inspector's send bar starts where Level's do** (R2-B4). A send's value column was the
+  name's fixed 74 pt after the lamp, 4–5 pt right of Volume, Pan and Width; it is now Level's
+  column (the label column's width and the gap after it), the name filling up to it, in both
+  *Inspector values* styles (the slim one now Level's slim bar too).
+- **A value under its figures keeps a mark** (R2-B4). Where the value's edge falls under the
+  number and its unit, the line is left out so the digits read whole (mid-round C-2), which left
+  only the fill's edge — faint in Slate Night. Now a small notch at the bar's top and bottom
+  edges points at the value, a caret's height clear of the digits (`kit::slider::value_bar`).
+- **A field's list stays in the window** (R2-B6). `fx::frame::popup_list` opens under its field
+  when it fits there, above it when it fits there instead; a list the window can hold whole is
+  raised until it does (over its field); a longer one scrolls, under its field while eight rows
+  find room there, else above it. Delay's 27 note values reached y 898 of a 900-pt window.
+  Tested: `delay_window_e2e::the_note_list_stays_inside_a_short_window` (720 pt);
+  `fx_impetus::the_key_is_chosen_in_the_editor` now looks for the list above its field too.
+- **The next strips' run reads apart from the right dock** (R2-B7; the C-1 decision kept their
+  true numbers, a click on one making the strips up to it). With the dock at the window's edge
+  the run ends 18 pt before the dock's divider, and a ghost's number is fainter than an empty
+  strip's (ink 4 at 60 %). The "16" after the returns in the default desk is a real strip — the
+  default project's third return, empty — not a ghost.
+- **Settings ▸ Appearance's *Top bar extras*** (R2-B5): the Spanish segments' short words had
+  lost what they are (the arm, not automation; the computer's keyboard, not a MIDI one), and
+  the long ones elide in a four-way choice. The segments keep short words (*Armado*, *Teclado*)
+  and a note under the row says what each is, in both languages.

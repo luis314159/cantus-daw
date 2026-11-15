@@ -422,8 +422,9 @@ fn forked_voices_never_allocate() {
     }
     let mut rig = Rig::with(Some(Workers::parallel(3)));
     let snap = Snapshot::compile(&p, 1);
-    // Chorda's keyboard designed before its unit is made (a unit never waits for it).
-    cantus_engine::inst::chorda::ensure(Default::default(), 48_000.0);
+    // Chorda's keyboard designed before its unit is made (a unit never waits for it): a new
+    // Chorda's (model 2's own since `DSP_VERSION` 7).
+    cantus_engine::inst::chorda::ensure(cantus_engine::inst::chorda::reference(), 48_000.0);
     for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
         rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }
@@ -2731,5 +2732,333 @@ fn an_audition_s_level_moved_as_it_plays_never_allocates() {
         rig.allocations.iter().all(|(_, n)| *n == 0),
         "the audition's level allocated: {:?}",
         rig.allocations
+    );
+}
+
+/// fix-a (A-M2, A-M3): a Delay played loud, synced to a whole note by a snapshot (its 12 s
+/// line asked for, its history moved in a stretch per pass, the old line given back), its
+/// note automated to 4/1 (the 48 s line built for the lane before it plays), a panic (the
+/// loud long line cleared a stretch per pass), a seek and a stop. Not one allocation.
+#[test]
+fn a_synced_delay_never_allocates() {
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    let fx = add_effect(&mut p, EffectKind::Delay);
+    let set = |p: &mut Project, k: &str, v: f32| {
+        let e = p
+            .strips
+            .iter_mut()
+            .flat_map(|s| s.effects.iter_mut())
+            .find(|e| e.id == fx)
+            .unwrap();
+        e.spec.set(k, v).unwrap();
+    };
+    set(&mut p, "feedback", 0.8);
+    set(&mut p, "mix", 0.6);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("delay free", 40);
+    set(&mut p, "sync", 1.0);
+    set(&mut p, "note", 18.0);
+    rig.snapshot(&p);
+    rig.play("delay synced, its line moved in", 60);
+    let c = p.make_automation_clip(
+        "a",
+        AutoTarget::Effect {
+            effect: fx,
+            key: "note".into(),
+        },
+        Ticks::beats(2),
+        Ticks::beats(4),
+        vec![AutoPoint::new(Ticks::ZERO, 24.0 / 26.0)],
+    );
+    p.tracks[0].clips.push(c);
+    rig.snapshot(&p);
+    rig.play("delay automated to 4/1", 120);
+    rig.tx.push(EngineMessage::Panic).unwrap();
+    rig.play("delay cleared after a panic", 120);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(1))).unwrap();
+    rig.play("delay seek", 20);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("delay stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+// ---- r40:tymp-engine — Tympanum (ADR 0124): the modelled studio kit with every mic split
+// to its own strip, then the kit changed to a recorded one while it plays (its files
+// streamed in, the old kit playing until they are), the pedal moving, the Feel card's
+// timing holding hits. Serially and with the pool. Not one allocation, not one free.
+
+fn tympanum_recorded_kit(dir: &std::path::Path) -> String {
+    use cantus_core::inst::tympanum::KitRef;
+    use cantus_core::inst::tympanum_kit::{
+        self as kitdef, ArtHits, KitHits, MicTake, RecordedKit, Take, VelLayer,
+    };
+    let mut files = Vec::new();
+    for n in 0..3 {
+        let path = dir.join(format!("hit{n}.wav"));
+        let w = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut wr = hound::WavWriter::create(&path, w).unwrap();
+        for i in 0..96_000 {
+            let e = math::exp(-(i as f32) / 6_000.0);
+            wr.write_sample((math::sin(i as f32 * 0.02 * (n + 1) as f32) * 20_000.0 * e) as i16)
+                .unwrap();
+        }
+        wr.finalize().unwrap();
+        files.push(path.to_string_lossy().into_owned());
+    }
+    let mut def = kitdef::modelled_kit("studio").unwrap();
+    def.kit = KitRef::Pack {
+        pack: "rt-memory".into(),
+        kit: "kit".into(),
+    };
+    def.modelled = false;
+    def.mics.truncate(4);
+    let arts = [(0u16, 36u8), (1, 38), (6, 42)]
+        .iter()
+        .map(|&(piece, key)| ArtHits {
+            piece,
+            articulation: 0,
+            key,
+            openness: None,
+            layers: vec![VelLayer {
+                lo: 1,
+                hi: 127,
+                curve: Vec::new(),
+                power: None,
+                takes: (0..3u32)
+                    .map(|f| Take {
+                        mics: (0..4)
+                            .map(|m| MicTake {
+                                mic: m,
+                                file: f,
+                                channel: None,
+                                gain: 0.5,
+                                pan: 0.0,
+                                offset: 0,
+                                cents: 0.0,
+                                highpass: 0.0,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            }],
+            chokes: Vec::new(),
+            choke_ms: 70.0,
+            polyphony: 0,
+        })
+        .collect();
+    let text = def.kit.text();
+    let _ = kitdef::register(RecordedKit {
+        def,
+        hits: KitHits { files, arts },
+        log: Vec::new(),
+    });
+    text
+}
+
+#[test]
+fn tympanum_split_and_changing_kits_never_allocates() {
+    use cantus_core::clip_lanes::{ClipLane, LaneKind};
+    use cantus_core::inst::tympanum::{KitRef, KIT_KEY};
+    use cantus_core::inst_out::{plan, OutputPlan};
+    let dir = tempfile::tempdir().unwrap();
+    cantus_engine::inst::stream::hub().set_cache_dir(dir.path().join("cache"));
+    let recorded = tympanum_recorded_kit(dir.path());
+    let mut p = Project::new("tympanum");
+    p.tempo_bpm = 120.0;
+    let mut tr = p.make_track("Drums");
+    let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+    spec.set_text(KIT_KEY, Some("model:studio".into())).unwrap();
+    spec.set("timing", 6.0);
+    spec.set("humanize", 0.1);
+    tr.instrument = InstrumentSpec::Native(spec);
+    let mut clip = p.make_clip("groove", Ticks::ZERO, Ticks::beats(32));
+    let mut cc = Vec::new();
+    for b in 0..32i64 {
+        for (k, v) in [(36u8, 110u8), (42, 80), (38, 100), (49, 90), (45, 96)] {
+            if (b + k as i64) % 3 != 0 || k == 42 {
+                let note = p.make_note(Ticks::beats(b), Ticks(PPQ / 4), k, v);
+                clip.notes.push(note);
+            }
+        }
+        cc.push(cantus_core::automation::AutoPoint::new(
+            Ticks::beats(b),
+            if b % 2 == 0 { 0.9 } else { 0.05 },
+        ));
+    }
+    clip.lanes.push(ClipLane::new(LaneKind::Cc(4), cc));
+    tr.clips.push(clip);
+    p.tracks.push(tr);
+    let t = p.tracks[0].id;
+    // Every mic to its own strip (one undo step).
+    let mut bus = CommandBus::new(p);
+    let snapshot = bus.project().clone();
+    let mut fresh = snapshot.clone();
+    let cmd = plan(&snapshot, t, OutputPlan::EachOwn, &mut |n| {
+        fresh.make_strip(n)
+    })
+    .unwrap();
+    bus.reserve_ids(fresh.next_id);
+    bus.execute(cmd, Origin::User).unwrap();
+    let split = bus.project().clone();
+    assert!(split.tracks[0].instrument.output_strips().len() >= 10);
+    let mut changed = split.clone();
+    if let InstrumentSpec::Native(n) = &mut changed.tracks[0].instrument {
+        n.set_text(KIT_KEY, Some(recorded.clone())).unwrap();
+    }
+    assert!(KitRef::parse(&recorded).is_some());
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        let mut cache = SampleCache::new();
+        cache.set_streaming(true);
+        let mut snap = Snapshot::compile(&split, 1);
+        assert!(cache.attach(&mut snap).is_empty());
+        for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+            rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+        }
+        let snap = Arc::new(snap);
+        rig.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+            .unwrap();
+        rig.tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 8);
+        rig.allocations.clear();
+        rig.play("modelled, split", 300);
+        // The kit changed while it plays: the recorded kit's files stream in.
+        let mut next = Snapshot::compile(&changed, 2);
+        let _ = cache.attach(&mut next);
+        let next = Arc::new(next);
+        rig.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(&next)))
+            .unwrap();
+        rig.tx.push(EngineMessage::SetSnapshot(next)).unwrap();
+        rig.play("kit change", 300);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "Tympanum allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
+/// r40:drums-hyb — the hybrid voice (ADR 0124's third amendment): the jazz kit playing its
+/// residual, then turned generated and hybrid again while it plays, never allocates.
+#[test]
+fn tympanum_hybrid_never_allocates() {
+    use cantus_core::inst::tympanum::voice::{HYBRID, RESIDUAL_FILE};
+    use cantus_core::inst::tympanum::{KIT_KEY, VOICE_KEY};
+    use cantus_dsp::tympanum_residual::{model_hash, Art, Layer, Residual, Take};
+    // A residual for every key the groove plays: two layers of three takes, 100 ms each.
+    let mut data = Vec::new();
+    let mut arts = Vec::new();
+    for (i, (key, open)) in [(36u8, 255u8), (38, 255), (42, 0), (46, 50), (49, 255)]
+        .into_iter()
+        .enumerate()
+    {
+        let mut layers = Vec::new();
+        for vel in [40u8, 110] {
+            let mut takes = Vec::new();
+            for t in 0..3u32 {
+                let start = data.len() as u32;
+                data.extend(
+                    (0..4_800u32).map(|n| ((n * 7 + t * 13 + i as u32) % 200) as i16 - 100),
+                );
+                takes.push(Take {
+                    start,
+                    len: 4_800,
+                    scale: 1.0 / 32_768.0,
+                });
+            }
+            layers.push(Layer {
+                vel,
+                rho: 0.0,
+                takes,
+            });
+        }
+        arts.push(Art { key, open, layers });
+    }
+    let mut r = Residual {
+        rate: 48_000,
+        model: model_hash(),
+        arts,
+        data,
+        soft: Vec::new(),
+    };
+    r.finish();
+    let bytes = r.encode();
+    cantus_engine::inst::tympanum_hybrid::set_source(Arc::new(move |pack: &str, file: &str| {
+        if pack == "tympanum-hybrid-jazz" && file == RESIDUAL_FILE {
+            Ok(bytes.clone())
+        } else {
+            Err("not installed".into())
+        }
+    }));
+    let mut p = Project::new("tympanum hybrid");
+    p.tempo_bpm = 120.0;
+    let mut tr = p.make_track("Drums");
+    let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+    spec.set_text(KIT_KEY, Some("model:jazz".into())).unwrap();
+    spec.set_text(VOICE_KEY, Some(HYBRID.into())).unwrap();
+    tr.instrument = InstrumentSpec::Native(spec);
+    let mut clip = p.make_clip("groove", Ticks::ZERO, Ticks::beats(32));
+    for b in 0..64i64 {
+        for (k, v) in [(36u8, 110u8), (42, 80), (38, 100), (46, 70), (49, 90)] {
+            if (b + k as i64) % 3 != 0 || k == 42 {
+                let note = p.make_note(Ticks(b * PPQ / 2), Ticks(PPQ / 4), k, v);
+                clip.notes.push(note);
+            }
+        }
+    }
+    tr.clips.push(clip);
+    p.tracks.push(tr);
+    let mut generated = p.clone();
+    if let InstrumentSpec::Native(n) = &mut generated.tracks[0].instrument {
+        n.set_text(VOICE_KEY, None).unwrap();
+    }
+    let mut rig = Rig::with(None);
+    let snap = Snapshot::compile(&p, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    assert!(
+        cantus_engine::inst::tympanum_hybrid::residual("jazz").is_some(),
+        "the snapshot's preparation read the residual"
+    );
+    let snap = Arc::new(snap);
+    rig.tx
+        .push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+        .unwrap();
+    rig.tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("warm", 8);
+    rig.allocations.clear();
+    rig.play("hybrid", 300);
+    for (i, proj) in [&generated, &p].into_iter().enumerate() {
+        let next = Arc::new(Snapshot::compile(proj, 2 + i as u64));
+        rig.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(&next)))
+            .unwrap();
+        rig.tx.push(EngineMessage::SetSnapshot(next)).unwrap();
+        rig.play("voice changed", 200);
+    }
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the hybrid allocated or freed: {:?} (the first: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
     );
 }

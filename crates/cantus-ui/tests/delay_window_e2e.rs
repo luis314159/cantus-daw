@@ -152,23 +152,91 @@ fn every_control_writes_its_parameter_with_undo() {
     );
     r.app.undo();
     assert_eq!(spec(&r, strip, effect).get("ping_pong"), was);
-    // At the tempo: a quarter note sets the time once.
-    let was = spec(&r, strip, effect).get("time_ms");
-    let field = find_in(&r, "1/8·", below)
-        .or_else(|| find_in(&r, "Free", below))
-        .expect("the note field");
+    // The tempo (round 40): a quarter from the note value's list turns the sync on, one
+    // step; undo takes both back.
+    let was = spec(&r, strip, effect);
+    let field = find_in(&r, "1/8\u{b7}", below).expect("the note field");
     r.click(field.center());
-    let quarter = r.text("1/4").expect("the quarter note in the list");
+    let quarter = r
+        .text_starting("1/4  ")
+        .expect("the quarter note in the list");
     r.click(quarter.center());
-    let bpm = cantus_ui::views::bars::bpm_at(r.app.project(), r.app.engine.position());
-    let want = ((60_000.0 / bpm) * 10.0).round() as f32 / 10.0;
+    let now = spec(&r, strip, effect);
     assert_eq!(
-        spec(&r, strip, effect).get("time_ms"),
-        want,
-        "a quarter at {bpm} BPM"
+        (now.get("sync"), now.get("note")),
+        (1.0, 12.0),
+        "a quarter, synced"
     );
+    assert_eq!(r.app.bus.undo_label_key(), Some("cmd.delay_sync_on"));
     r.app.undo();
-    assert_eq!(spec(&r, strip, effect).get("time_ms"), was);
+    let back = spec(&r, strip, effect);
+    assert_eq!(
+        (back.get("sync"), back.get("note")),
+        (was.get("sync"), was.get("note"))
+    );
+}
+
+/// Round 40 (ADR 0119): the switch follows the tempo and keeps what is heard. *Sync* picks
+/// the note nearest the time it was playing; the knob turns the note then; a new tempo moves
+/// the echoes the window draws and the words under the switch; *Free* keeps the time it was
+/// playing, in milliseconds. Each one step that undo takes back.
+#[test]
+fn the_sync_switch_follows_the_tempo_and_keeps_the_time() {
+    let (mut r, strip, effect) = rig();
+    let d = open(&mut r, strip, effect);
+    let below = Rect::from_min_max(pos2(0.0, d.bottom() + 20.0), pos2(SIZE.x, SIZE.y));
+    let tempo = |r: &Rig| cantus_ui::views::bars::bpm_at(r.app.project(), r.app.engine.position());
+    // A time near a dotted eighth at the song's tempo.
+    let t0 = tempo(&r);
+    r.app.exec(Command::SetEffectParam {
+        strip,
+        effect,
+        key: "time_ms".into(),
+        value: (45_000.0 / t0) as f32 + 3.0,
+    });
+    r.settle();
+    let sync = find_in(&r, "Sync", below).expect("the sync switch");
+    r.click(sync.center());
+    let on = spec(&r, strip, effect);
+    assert_eq!(on.get("sync"), 1.0, "synced");
+    assert_eq!(on.get("note"), 10.0, "the note nearest: a dotted eighth");
+    assert_eq!(r.app.bus.undo_label_key(), Some("cmd.delay_sync_on"));
+    r.settle();
+    // The knob is the note value now: its readout names it.
+    assert!(
+        find_in(&r, "1/8\u{b7}", below).is_some(),
+        "the knob reads the note"
+    );
+    // A new tempo: what is drawn and said follows (the dotted eighth at 100 BPM is 450 ms).
+    r.app.exec(Command::SetTempo { bpm: 100.0 });
+    r.settle();
+    let words: Vec<&str> = r.texts.iter().map(|p| p.text.as_str()).collect();
+    assert!(
+        words.iter().any(|w| w.contains("450 ms")),
+        "the time at 100 BPM is said: {words:?}"
+    );
+    // Free: the time it was playing, in milliseconds, as one step.
+    let free = find_in(&r, "Free", below).expect("the free side of the switch");
+    r.click(free.center());
+    let off = spec(&r, strip, effect);
+    assert_eq!((off.get("sync"), off.get("time_ms")), (0.0, 450.0));
+    assert_eq!(r.app.bus.undo_label_key(), Some("cmd.delay_sync_off"));
+    r.app.undo();
+    let again = spec(&r, strip, effect);
+    assert_eq!(
+        (again.get("sync"), again.get("note")),
+        (1.0, 10.0),
+        "undone: synced"
+    );
+    // A drag across the echoes, synced, steps the note value.
+    let a = pos2(d.left() + d.width() * 0.2, d.top() + d.height() * 0.3);
+    r.drag(a, a + vec2(80.0, 0.0));
+    assert!(
+        spec(&r, strip, effect).get("note") > 10.0,
+        "a longer note under the pointer"
+    );
+    assert_eq!(r.app.bus.undo_label_key(), Some("cmd.delay_echoes"));
+    r.shot("delay-window-synced");
 }
 
 /// The window at rest asks for no frame; sound from the tap moves it, and when it stops
@@ -219,7 +287,15 @@ fn the_window_speaks_spanish() {
     assert_eq!(r.app.fx.open.map(|o| o.1), Some(effect));
     let _ = strip;
     let whole = Rect::from_min_size(Pos2::ZERO, SIZE);
-    for words in ["Ecos", "Lo que se oye", "Tiempo", "Repeticiones", "Salida"] {
+    for words in [
+        "Ecos",
+        "Lo que se oye",
+        "Tiempo",
+        "Repeticiones",
+        "Salida",
+        "Libre",
+        "Al tempo",
+    ] {
         assert!(
             find_in(&r, words, whole).is_some(),
             "“{words}” is in the window"
@@ -247,4 +323,102 @@ fn every_word_has_its_spanish_twin() {
     let es = keys(include_str!("../locales/fx/delay.es.txt"));
     assert!(!en.is_empty());
     assert_eq!(en, es, "the same keys in the same order");
+}
+
+/// Review mid-round 40, C-9: the note value's list open, in English and in Spanish — every
+/// value whole (nothing cut with "…"), one row each, none over another; the pictures when
+/// `CANTUS_PATHS_SHOTS` names a folder (`delay-notes-en.png`, `delay-notes-es.png`).
+#[test]
+fn the_note_list_reads_whole_in_both_languages() {
+    for (locale, tag) in [
+        (cantus_ui::i18n::Locale::En, "en"),
+        (cantus_ui::i18n::Locale::Es, "es"),
+    ] {
+        let (mut r, strip, effect) = rig();
+        cantus_ui::i18n::set_thread_locale(locale);
+        r.settle();
+        let d = open(&mut r, strip, effect);
+        let below = Rect::from_min_max(pos2(0.0, d.bottom() + 20.0), pos2(SIZE.x, SIZE.y));
+        let field = find_in(&r, "1/8\u{b7}", below).expect("the note field");
+        r.click(field.center());
+        r.settle();
+        r.shot(&format!("delay-notes-{tag}"));
+        let rows: Vec<Rect> = r
+            .texts
+            .iter()
+            .filter(|p| p.text.trim_start().starts_with("1/") && p.seen != field)
+            .map(|p| p.seen)
+            .collect();
+        let all: Vec<&str> = r.texts.iter().map(|p| p.text.as_str()).collect();
+        assert!(
+            rows.len() >= 12,
+            "{tag}: the list's values: {} in {all:?}",
+            rows.len()
+        );
+        for p in r
+            .texts
+            .iter()
+            .filter(|p| p.text.trim_start().starts_with("1/"))
+        {
+            assert!(
+                !p.text.contains('…'),
+                "{tag}: cut at {:?} (seen {:?}): {}",
+                p.rect,
+                p.seen,
+                p.text
+            );
+        }
+        for (i, a) in rows.iter().enumerate() {
+            for b in &rows[i + 1..] {
+                assert!(
+                    a.intersect(*b).area() < 1.0,
+                    "{tag}: rows over each other {a:?} {b:?}"
+                );
+            }
+        }
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+        let _ = spec(&r, strip, effect);
+    }
+}
+
+// Review 2 of round 40, R2-B6: in a short window (720 points) the note list stays inside
+// it — above its field when it fits there, else scrolling in the window's height — never
+// running off the bottom (at 900 points it reached y 898).
+#[test]
+fn the_note_list_stays_inside_a_short_window() {
+    let (mut r, strip, effect) = rig();
+    r.size = vec2(1600.0, 720.0);
+    r.settle();
+    let d = open(&mut r, strip, effect);
+    let below = Rect::from_min_max(pos2(0.0, d.bottom() + 20.0), pos2(r.size.x, r.size.y));
+    let field = find_in(&r, "1/8\u{b7}", below).expect("the note field");
+    r.click(field.center());
+    r.settle();
+    r.shot("delay-notes-720");
+    let rows: Vec<Rect> = r
+        .texts
+        .iter()
+        .filter(|p| p.text.trim_start().starts_with("1/") && p.seen != field)
+        .filter(|p| p.seen.area() > 0.0)
+        .map(|p| p.seen)
+        .collect();
+    assert!(
+        rows.len() >= 12,
+        "the list's values in view: {}",
+        rows.len()
+    );
+    for row in &rows {
+        assert!(
+            row.top() >= 0.0 && row.bottom() <= r.size.y,
+            "a value outside the window: {row:?}"
+        );
+    }
+    // A value still chosen with a click: the list works where it now lies.
+    let pick = rows[rows.len() / 2];
+    r.click(pick.center());
+    r.settle();
+    assert!(
+        spec(&r, strip, effect).get("sync") >= 0.5,
+        "a value chosen turns the sync on"
+    );
 }

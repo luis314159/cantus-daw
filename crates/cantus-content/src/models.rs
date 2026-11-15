@@ -378,6 +378,9 @@ impl ModelManifest {
                 attribution: None,
                 instruments: Vec::new(),
                 build: None,
+                mode: Default::default(), // r40:p3
+                author_page: None,        // r40:p3
+                piano: None,              // r40:p3
             });
         }
         for m in &self.models {
@@ -398,6 +401,9 @@ impl ModelManifest {
                 attribution: None,
                 instruments: Vec::new(),
                 build: None,
+                mode: Default::default(), // r40:p3
+                author_page: None,        // r40:p3
+                piano: None,              // r40:p3
             });
         }
         Manifest {

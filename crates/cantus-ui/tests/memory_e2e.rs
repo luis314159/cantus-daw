@@ -7,6 +7,7 @@
 
 use cantus_engine::EngineHandle;
 use cantus_ui::app::Files;
+use cantus_ui::boot::Shell;
 use cantus_ui::CantusApp;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicIsize, Ordering::Relaxed};
@@ -145,6 +146,9 @@ fn what_the_parts_hold() {
 fn what_a_start_holds() {
     let _one = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
     let dir = data();
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+    // Another test of this binary may have parsed Spanish already (it switches to it).
+    let spanish_before = cantus_ui::i18n::parsed(cantus_ui::i18n::Locale::Es);
     let mut steps: Vec<(&str, f64)> = vec![("at the test's start", mb())];
     let files = Files::read(&dir, Some(cantus_ui::i18n::Locale::En));
     steps.push(("the files read", mb()));
@@ -154,14 +158,6 @@ fn what_a_start_holds() {
     steps.push(("fonts and style", mb()));
     let (engine, proc_) = EngineHandle::manual(48_000.0);
     steps.push(("the processor", mb()));
-    // `assemble` computes Exemplar's built-in sounds on a thread beside the window
-    // (`cantus-warm-builtins`); what they hold landed in whichever step that thread finished
-    // in — "assembled", "three frames" or the demo's, by the machine's load (integration,
-    // round 39: the empty song measured 12.9 MB once, 10.9 every other time, the total the
-    // same). Computed here first, they are a step of their own (the thread then finds them
-    // made) and every later step is the main thread's alone.
-    let _ = cantus_dsp::exemplar::builtin::builtins();
-    steps.push(("Exemplar's built-in sounds (beside the window)", mb()));
     let mut app = CantusApp::assemble(
         &ctx,
         files,
@@ -175,6 +171,22 @@ fn what_a_start_holds() {
     steps.push(("assembled on an empty song", mb()));
     frames(&mut app, &ctx, 3);
     steps.push(("three frames", mb()));
+    // r40:memory (ADR 0120 §2, §5) — an empty song computes no Exemplar sound and parses
+    // one language: the built-ins wait for the picker (or a song with an Exemplar), the
+    // Spanish table for Spanish.
+    assert!(
+        !cantus_dsp::exemplar::builtin::built(),
+        "a start on an empty song computed Exemplar's built-in sounds"
+    );
+    assert_eq!(
+        cantus_ui::i18n::parsed(cantus_ui::i18n::Locale::Es),
+        spanish_before,
+        "an English start parsed the Spanish strings"
+    );
+    // The picker asks for them (on a thread); computed here, they are a step of their own.
+    CantusApp::warm_builtins();
+    let _ = cantus_dsp::exemplar::builtin::builtins();
+    steps.push(("Exemplar's built-in sounds (the picker asks)", mb()));
     app.replace_project(cantus_ui::demos::startup_project());
     frames(&mut app, &ctx, 3);
     steps.push(("the demo opened, three frames", mb()));
@@ -183,19 +195,17 @@ fn what_a_start_holds() {
         eprintln!("{m:8.1} MB  (+{:7.1})  {what}", m - last);
         last = *m;
     }
-    // Bounds from round 39's measure (ADR 0107: the processor 8.0 MB, 59.7 MB in all where
-    // round 38 held 145.5), about a tenth above it: more memory held by a start fails here,
-    // not first in the scorecard. Re-measured on the integrated tree (the kit's Barlow faces,
-    // Aula, the help line), with Exemplar's built-ins a step of their own: built-ins +6.0,
-    // an empty song and its first frames +7.8, the demo +37.7 — 59.7 MB in all, the same as
-    // the memory branch measured, so the merge added nothing held at start; the 11.4 and
-    // 40.2 measured before each held a share of the built-ins, by the thread's timing.
+    // Bounds about a tenth above what was measured: more memory held by a start fails
+    // here, not first in the scorecard. Round 39 (ADR 0107): the processor 8.0 MB, 59.7 MB
+    // in all where round 38 held 145.5. Round 40 (ADR 0120): an empty song and its frames
+    // 7.8 → 5.2 MB (one language parsed, its strings borrowed), Exemplar's built-ins a step
+    // the picker causes, not the start; 56.9 MB in all.
     let step = |what: &str| {
         let i = steps.iter().position(|(w, _)| *w == what).expect(what);
         steps[i].1 - steps[i - 1].1
     };
     let processor = step("the processor");
-    let builtins = step("Exemplar's built-in sounds (beside the window)");
+    let builtins = step("Exemplar's built-in sounds (the picker asks)");
     let empty = step("assembled on an empty song") + step("three frames");
     let demo = step("the demo opened, three frames");
     let total = steps.last().map_or(0.0, |s| s.1);
@@ -208,16 +218,120 @@ fn what_a_start_holds() {
         "Exemplar's built-in sounds hold {builtins:.1} MB (6.0 measured)"
     );
     assert!(
-        empty <= 8.6,
-        "an empty song and its frames hold {empty:.1} MB (7.8 measured)"
+        empty <= 5.8,
+        "an empty song and its frames hold {empty:.1} MB (5.2 measured; 7.8 before ADR 0120)"
     );
     assert!(
         demo <= 41.5,
         "the demo holds {demo:.1} MB more (37.7 measured)"
     );
     assert!(
-        total <= 66.0,
-        "a start on the demo holds {total:.1} MB (59.7 measured; 145.5 before ADR 0107)"
+        total <= 62.6,
+        "a start on the demo holds {total:.1} MB (56.9 measured; 145.5 before ADR 0107)"
     );
     drop(proc_);
+}
+
+/// Every string a pass painted (the shapes egui was handed), for what a window shows.
+fn texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+    fn walk(s: &egui::Shape, out: &mut Vec<String>) {
+        match s {
+            egui::Shape::Text(t) => out.push(t.galley.text().to_owned()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    for c in shapes {
+        walk(&c.shape, &mut out);
+    }
+    out
+}
+
+/// r40:memory (ADR 0120 §4, §5) — the window as the boot runs it (`boot::Shell`, around an
+/// app `assemble` made): egui is told of a texture side no wider than
+/// `boot::TEXTURE_SIDE` whatever the driver reports, so its font atlas is no wider; a
+/// session parses the language it speaks, and switching language shows the other one's
+/// strings in the very next frame.
+#[test]
+fn the_shell_caps_the_font_atlas_and_a_language_switch_shows_at_once() {
+    use cantus_ui::i18n::{parsed, t, Locale};
+    let _one = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    let dir = data();
+    cantus_ui::i18n::set_thread_locale(Locale::En);
+    let spanish_before = parsed(Locale::Es);
+    let files = Files::read(&dir, Some(Locale::En));
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    let (engine, _proc) = EngineHandle::manual(48_000.0);
+    let app = CantusApp::assemble(
+        &ctx,
+        files,
+        Some(cantus_ui::templates::Starter::Empty.build()),
+        engine,
+        None,
+        None,
+        None,
+        false,
+    );
+    let mut shell = cantus_ui::boot::Shell::Running(Box::new(app));
+    let pass = |shell: &mut cantus_ui::boot::Shell, side: Option<usize>| {
+        let mut input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::Vec2::new(1600.0, 900.0),
+            )),
+            // What the OpenGL driver of the scorecard's machine reports.
+            max_texture_side: side,
+            ..Default::default()
+        };
+        eframe::App::raw_input_hook(shell, &ctx, &mut input);
+        let mut out = ctx.run_ui(input, |root| {
+            let mut frame = eframe::Frame::_new_kittest();
+            eframe::App::ui(shell, root, &mut frame);
+        });
+        out.textures_delta.clear();
+        texts(&out.shapes)
+    };
+    let english = pass(&mut shell, Some(16_384));
+    for _ in 0..2 {
+        pass(&mut shell, None);
+    }
+    let [w, _] = ctx.fonts(|f| f.font_image_size());
+    assert!(
+        w <= cantus_ui::boot::TEXTURE_SIDE,
+        "egui's font atlas is {w} texels wide (the cap is {})",
+        cantus_ui::boot::TEXTURE_SIDE
+    );
+    assert!(parsed(Locale::En), "an English session parsed no English");
+    assert_eq!(
+        parsed(Locale::Es),
+        spanish_before,
+        "an English session parsed Spanish"
+    );
+    let (file_en, file_es) = (
+        t("menu.file"),
+        cantus_ui::i18n::t_in(Locale::Es, "menu.file"),
+    );
+    assert_ne!(file_en, file_es);
+    assert!(
+        english.contains(&file_en),
+        "the English window shows no {file_en:?}"
+    );
+    // The user's way: Settings' language list calls this.
+    let Shell::Running(app) = &mut shell else {
+        panic!("running")
+    };
+    app.set_locale(Locale::Es);
+    let spanish = pass(&mut shell, None);
+    // Back to English the same way, for the tests after this one.
+    if let Shell::Running(app) = &mut shell {
+        app.set_locale(Locale::En);
+    }
+    assert!(
+        spanish.contains(&file_es),
+        "the frame after switching to Spanish shows no {file_es:?}"
+    );
+    assert!(!spanish.contains(&file_en), "it still shows {file_en:?}");
 }

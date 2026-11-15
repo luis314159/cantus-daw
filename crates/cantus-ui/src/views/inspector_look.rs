@@ -5,9 +5,11 @@
 //! - a **field** (Output, Input, Key into, From, the VCA, the recording input): 24 high,
 //!   r 4, the well with a 1-px edge; a glyph, the value Regular 12 ink 1, its detail
 //!   Regular 10 ink 3, a chevron;
-//! - a **value** (Volume, Pan, Width, a parameter, a mix): no well — a 3-px bar with its
-//!   handle (from the middle for a bipolar value) and the value Regular 11 ink 1 at the
-//!   right;
+//! - a **value** (Volume, Pan, Width, a parameter, a mix): a value bar 20 high the value
+//!   column wide, filled to the value (from the middle when bipolar), the number inside at
+//!   its right (round 40, the owner's answer; des-controls' dense rows) — or, by Settings ▸
+//!   Appearance ▸ *Inspector values: Slim*, round 39's: no well, a 3-px bar with its handle
+//!   and the value Regular 11 ink 1 at the right;
 //! - a **switch** (Safe from snapshots, Hear the key, Low latency): 26 × 14, a pill;
 //! - a **text** (a figure, a name): no well — Regular 12 ink 1, numbers Regular 11 at the
 //!   right.
@@ -138,15 +140,40 @@ pub fn field(
     }
 }
 
-/// Where a value row's bar lies in its value column `rect`.
+/// The height of a value bar (des-controls' dense rows), at 100 %.
+pub const VALUE_BAR_H: f32 = 20.0;
+
+/// Where a value row's bar lies in its value column `rect`: the value bar the whole column
+/// wide (round 40, the owner's answer), or round 39's slim bar by the setting.
 pub fn bar_rect(rect: Rect) -> Rect {
+    if crate::views::owner_look::value_style() == crate::views::owner_look::ValueStyle::Bars {
+        let h = VALUE_BAR_H.min(rect.height() - 2.0).max(8.0);
+        return Rect::from_min_max(
+            pos2(rect.left(), rect.center().y - h * 0.5),
+            pos2(rect.right(), rect.center().y + h * 0.5),
+        );
+    }
     let w = BAR.min((rect.width() - 56.0).max(24.0));
     Rect::from_min_size(pos2(rect.left(), rect.center().y - 1.5), vec2(w, 3.0))
 }
 
-/// Paint a value: the bar at `pos` (0…1; from the middle when `bipolar`, a tick there),
-/// its handle, `text` at the right.
+/// Paint a value: a value bar (a well filled to `pos`, from the middle when `bipolar`, the
+/// value's edge, `text` inside at the right — the kit's [`crate::kit::slider::value_bar`]),
+/// or round 39's slim bar at `pos` with its handle and `text` at the right.
 pub fn value(b: &mut Brush, s: &Style, rect: Rect, st: State, pos: f32, bipolar: bool, text: &str) {
+    if crate::views::owner_look::value_style() == crate::views::owner_look::ValueStyle::Bars {
+        // r40:look — the value bar, its name in the row's label column.
+        let look = crate::kit::slider::BarLook {
+            name: crate::kit::text::Src::Str(""),
+            value: text,
+            pos: pos.clamp(0.0, 1.0),
+            bipolar,
+            swing: None,
+        };
+        let d = crate::kit::automate::Drivers::default();
+        crate::kit::slider::value_bar(b, bar_rect(rect), s, st, &look, d);
+        return;
+    }
     let p = Pal::of(s);
     let a = st.alpha();
     let bar = bar_rect(rect);

@@ -300,6 +300,16 @@ struct Rig {
     rx: Consumer<EngineEvent>,
     /// The slots its lineage was ever given (what a copy must take — see `Cells`).
     cells: crate::processor::Cells,
+    /// Memory asked for in the last block and sent, not yet taken (the processor takes it
+    /// at its next block, as the export's does): a copy made now is sent it too (fix-c,
+    /// R2-A2 — the copy's unit asked already and would not ask again).
+    asked: Vec<(cantus_core::EffectId, crate::effects::MemoryNeed)>,
+    /// The latency its lineage's render began with — what the export trims from the top
+    /// and keeps trimming when an effect's latency changes mid-song (an EQ made linear
+    /// phase by a lane): a section resumed from a checkpoint trims the same, not the
+    /// latency the copy has by then (fix-c, R2-A2). `None` until the render begins, and
+    /// again after an edit is installed on a copy (its song begins anew).
+    latency: Option<usize>,
 }
 
 /// Rings a fork talks through: room for an install's messages, and for a block's events.
@@ -309,16 +319,28 @@ const FORK_EVENTS: usize = 1_024;
 impl Rig {
     /// A copy that plays on as this one would, or `None` (see [`Processor::fork`]): from a
     /// checkpoint's image, a full processor.
-    fn resume(&self) -> Option<Rig> {
+    fn resume(&self, sr: f32) -> Option<Rig> {
         let (p, tx, rx) = self
             .p
             .fork_cells(FORK_MESSAGES, FORK_EVENTS, &self.cells, false)?;
-        Some(Rig {
+        let mut rig = Rig {
             p,
             tx,
             rx,
             cells: self.cells.clone(),
-        })
+            asked: self.asked.clone(),
+            latency: self.latency,
+        };
+        for (effect, need) in &rig.asked {
+            let memory = crate::effects::EffectMemory::build(*need, sr);
+            rig.tx
+                .push(EngineMessage::EffectMemory {
+                    effect: *effect,
+                    memory,
+                })
+                .ok();
+        }
+        Some(rig)
     }
 
     /// What a checkpoint keeps: a copy holding only the cells in use, never played — only
@@ -330,7 +352,26 @@ impl Rig {
             tx,
             rx,
             cells: self.cells.clone(),
+            asked: self.asked.clone(),
+            latency: self.latency,
         })
+    }
+
+    /// After a block: the memory an effect asked for while the song played is built and
+    /// sent, taken at the next block — as the export answers it (`render`, fix-a A-M2), so
+    /// a listen is the export to the bit (fix-c, R2-A2). Everything else is dropped.
+    fn answer(&mut self, sr: f32) {
+        self.asked.clear();
+        while let Ok(ev) = self.rx.pop() {
+            if let EngineEvent::EffectNeed { effect, need } = ev {
+                let need = need.need();
+                let memory = crate::effects::EffectMemory::build(need, sr);
+                self.tx
+                    .push(EngineMessage::EffectMemory { effect, memory })
+                    .ok();
+                self.asked.push((effect, need));
+            }
+        }
     }
 
     /// Install what was sent, answering what the engine asks for on the way (longer
@@ -379,6 +420,15 @@ impl Rig {
     }
 }
 
+/// The least common multiple of `a` and `b` (both above 0).
+fn lcm(a: u64, b: u64) -> u64 {
+    let (mut x, mut y) = (a, b);
+    while y != 0 {
+        (x, y) = (y, x % y);
+    }
+    a / x * b
+}
+
 /// The snapshot as a render plays it: no loop, no click, audio clips at the render's rate.
 fn prepare(snapshot: &Snapshot, sample_rate: u32) -> Arc<Snapshot> {
     let mut snap = snapshot.clone();
@@ -416,6 +466,8 @@ fn fresh(
         tx,
         rx,
         cells: Default::default(),
+        asked: Vec::new(),
+        latency: None,
     };
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {
@@ -526,8 +578,11 @@ pub fn listen(
     let total = from_top(to_end + opts.tail_seconds.max(0.0)).saturating_sub(s0) as usize;
     let stop_song = opts.end.map(at);
     // Checkpoint places: the transport's sample at each section start, down to the
-    // automation's control grid (a snapshot installed there waits for nothing).
-    let grid = crate::automation::GRID;
+    // automation's control grid (a snapshot installed there waits for nothing) — and to a
+    // whole number of blocks from the song's start, so a listen's blocks begin where the
+    // export's do: memory an effect asks for mid-song is taken at the next block, and the
+    // same block is the same sample in both (fix-c, R2-A2).
+    let grid = lcm(crate::automation::GRID, block as u64);
     let mut places: Vec<(Ticks, u64)> = opts
         .sections
         .iter()
@@ -547,9 +602,10 @@ pub fn listen(
     };
     let resumed_from = found.and_then(|i| {
         let c = &checkpoints.entries[i];
-        let mut rig = c.rig.resume()?;
+        let mut rig = c.rig.resume(srf)?;
         if *c.snapshot != *snap {
             rig.install(&snap, srf);
+            rig.latency = None;
         }
         Some((rig, c.frame, Resumed::Checkpoint(c.tick)))
     });
@@ -567,7 +623,8 @@ pub fn listen(
         ),
     };
     let start_pos = pos;
-    let latency = rig.p.stats().latency_samples as usize;
+    let now = rig.p.stats().latency_samples as usize;
+    let latency = *rig.latency.get_or_insert(now);
     let seconds_hint = total as f64 / sr as f64;
     let mut master = Ear::new(srf, seconds_hint);
     let mut taps: Vec<Hearing> = opts
@@ -679,7 +736,7 @@ pub fn listen(
             }
         }
         pos += n as u64;
-        while rig.rx.pop().is_ok() {}
+        rig.answer(srf);
         if !progress((pos - start_pos) as f32 / span) {
             return Err(RenderError::Cancelled);
         }

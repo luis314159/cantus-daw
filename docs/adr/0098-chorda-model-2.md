@@ -1,6 +1,6 @@
 # ADR 0098 — Chorda's second model: voiced against a reference piano
 
-**Status:** Accepted · **Date:** 2026-11-04 · **Extends:** ADR 0059 (Chorda), ADR 0023 (the
+**Status:** Accepted · **Date:** 2026-11-04 (amended 2026-11-14: candidate 16 ships, `DSP_VERSION` 7) · **Extends:** ADR 0059 (Chorda), ADR 0023 (the
 family's rules), ADR 0042 (CC BY content: the reference) · **Schema:** 54
 
 ## Context
@@ -99,6 +99,15 @@ writes them as 24-bit WAV and writes **one offline HTML page**: two ABX tests of
 the place), the score with its one-sided binomial p-value, 14 blind preference questions
 (a sign test), answers kept in the browser and offered as JSON, README in English and
 Spanish. Only the owner's result closes Chorda (`docs/beta-checklist.md`).
+
+**Kit 5 (round 40, `docs/round40/abx5.md`) is made to be given to other listeners:** file names
+and piano tokens drawn at random per kit (kit 4's salted hash left a phrase's files sharing 15
+of 16 digits), the answer table veiled, a short form about the listener, one ABX (the candidate
+against the Salamander) and every preference pair with two unannounced catch questions, the
+second ABX optional, the reveal and the credits only at the end, neutral wording in Spanish and
+English, Web Audio switching over http, and the published page's per-listener documents with an
+owner-only summary. `chorda_abx <dir> --candidate <spec> [--partials <csv>] [--levels <csv>]`;
+every control is checked in Edge, Chrome and Firefox (`chorda_kit/abx_browser_check.mjs`).
 
 ## Measured
 
@@ -221,3 +230,73 @@ size scales its decay times by 2^(3 (size − 0.4)). Width is a mid/side gain, s
 changes the mono sum of the board and the room — none can comb-filter it. At the defaults
 every gain is exactly 1 and every shelf off: the stage passes the voiced chain bit for bit
 (a stored 0.35 reads back as 0.349999994 and is still the default). Model 1 ignores them.
+
+## Amended by voicing pass three: candidate 16 ships (round 40, `DSP_VERSION` 7)
+
+Round 40 built voicing pass three behind knobs neutral at beta.14's values (sixteen
+candidates, `docs/round40/chorda.md`). Candidate 16 meets the owner's bar **in measures**
+(every key within 10 cents of the Salamander, the last soft chord's D3–A3 fifth 1.18 Hz
+against 0.68, round 38's phrase metric 4.49); its blind ABX is published for him. The owner,
+2026-11-14: *"Ship to master with Chorda's newest version (if it's the best) — but keep in
+the backlog listening and doing the ABX evaluation."* Candidate 16 is the best of the sixteen
+by every measure, so it ships.
+
+### 7. The shipped voicing is candidate 16, named and pinned
+
+- `Voicing::default()` is **candidate 16**: `chorda::voicing::c16::SPEC` (the voicing lab's
+  spec, verbatim, applied key by key over beta.14's voicing as the lab applies it) with its
+  two tables (`c16::PARTIALS`, `c16::LEVELS`), made once. `BodyVoicing::default()` and
+  `RoomVoicing::default()` are candidate 16's board and room, so the board responses made
+  ahead on the designer's worker (`body::warm`) are the shipped ones. **Beta.14's voicing is
+  `Voicing::beta14()`** (with `BodyVoicing::beta14()`, `RoomVoicing::beta14()`): the voicing
+  lab reads every spec over it, as every candidate was made, so a candidate's files keep
+  their meaning; the listening kit's *Chorda 2 (beta.14)* plays it.
+- A new unit builds every part from the shipped voicing as `set_voicing` would (candidate
+  16's bass high-pass is fourth order, on the sympathetic strings too), to the bit.
+- **The evening is weighed at the voiced perspective.** A key's evening (the voicer's
+  needling: `even`) was weighed with the stage's live gains; with candidate 16's evening on,
+  moving *Width* re-levelled the outer keys (their mono sum moved by 6.6 % of its peak — §6's
+  promise broken). The evening is now the stage's defaults' (every gain 1): the microphones
+  never re-level a key. At the defaults this is the same number, so candidate 16's default
+  sound did not move (its pin held across the change).
+- **A voice's end never depends on where a piece ends.** With the arrival-time difference
+  on (candidate 16's `itd_ms` 0.65), a voice that ended inside a long piece let its later
+  side's last samples (up to a millisecond, under −115 dBFS) drain, and in a short one
+  dropped them: blocks of 1 and 7 differed from 512 (the contract's split test and the
+  long phrase below). The voice says where it ended (`Voice::ended`) and its later side is
+  dropped from there in every piece.
+- A model switched to 1 clears model 2's output roll-off and the sympathetic strings'
+  high-pass too (both on since candidate 16; beta.14 had both off, so the review's test never
+  saw them frozen).
+- **Songs saved before** play candidate 16 if they use model 2, as every `DSP_VERSION` bump
+  before it moved the songs it touched (2 to 6; render and freeze caches key on the version,
+  so a frozen Chorda track is rendered again); songs on model 1 are untouched, to the bit
+  (§1: schema 54 wrote `model = 1` into every older Chorda). No schema bump: nothing in the
+  file changes. The 24 presets are unchanged: each still starts from a new instance, so each
+  plays candidate 16 with its own controls.
+
+The size of the change (`DSP_VERSION` 6 → 7), measured:
+
+| Render | max \|Δ\| | RMS of Δ | |
+|---|---|---|---|
+| Every golden hash (`null_tests` `v5`, Pulsus's three kits, the scene bakes, the null corpus) | 0 | 0 | none includes model 2 of Chorda: no golden moved |
+| Model 1 (`tests_hash`, an old song through the app) | 0 | 0 | pinned, held |
+| Model 2 at beta.14's voicing (`MODEL_2_BETA14`) | 0 | 0 | pinned, held (now by name) |
+| Model 2 at its default (the pinned 0.5 s phrase: bass, a loud chord, both pedals, a re-strike, the top) | 1.35 | 0.365 (−8.8 dBFS) | another voicing: the phrase's RMS 0.369 → 0.187 (−5.9 dB), its peak 0.920 → 0.959; new pin `0x717d_64b7_22b9_e71b` |
+
+### What the tests hold (third amendment)
+
+| What | Test |
+|---|---|
+| Beta.14's voicing renders the contract's bits, named | `chorda::tests_voicing3::model_2_at_beta14s_voicing_renders_to_the_bits_it_did` (`0x663b_f285_d17a_ebdd`) |
+| The shipped voicing is candidate 16's files, and a new unit plays it as `set_voicing` of it | `tests_voicing3::the_shipped_voicing_is_candidate_16_and_a_new_unit_plays_it` |
+| Model 2 as shipped, pinned | `tests_voicing3::model_2_at_its_shipped_voicing_renders_to_the_bits_it_does` (`0x717d_64b7_22b9_e71b`) |
+| Width never moves the outer keys' mono sum, at candidate 16 | `chorda::tests_stage::model_2s_width_never_moves_the_mono_sum_of_the_outer_keys` |
+| The perspective moves the room's share (its return against the dry sound) | `tests_stage::the_perspective_moves_from_the_hammers_to_the_audience` |
+| A model switched mid-tail leaves nothing frozen, at candidate 16 | `tests_model2::switching_the_model_mid_tail_leaves_no_frozen_state` |
+| Any block size over a long random phrase, at candidate 16 | `tests_voicing3::the_shipped_voicing_keeps_every_block_size_over_a_long_phrase`; the engine's `inst_contract` `split::chorda` |
+| Its fortissimo meets the ceiling's top, never full scale | `cantus-engine` `inst_chorda::its_levels_leave_headroom_and_a_middle_c_is_heard` |
+| A new Chorda through the app plays the lab's candidate 16 | `cantus-ui` `chorda_model2_e2e` (the round-40 phrases against the lab's renders) |
+
+The owner's ear has not judged candidate 16: his blind ABX against the Salamander is in
+`docs/BACKLOG-excellence.md` (§ Chorda), and Chorda's sound is not called done before it.

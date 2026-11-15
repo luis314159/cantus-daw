@@ -1266,6 +1266,90 @@ impl Toolbar {
         Some(tipped(ui, resp, tip))
     }
 
+    /// r40:ripple — the ripple mode's key at the right end (ADR 0116 §4): a 24-px key with a
+    /// clip and the chevrons of what follows it. Off, it rests in ink 3 like any key; on, its
+    /// well takes the accent and its word follows it in ink 1 ("Ripple · this track") — the
+    /// one clear sign the arrangement shows while edits move what follows them. The word
+    /// folds with Follow's ([`fold::WORDS`]); the key stays, the mode in its tooltip.
+    pub fn ripple_right(
+        &mut self,
+        ui: &mut Ui,
+        id: Id,
+        word: Option<&str>,
+        tip: impl FnOnce() -> String,
+    ) -> Option<Response> {
+        let s = self.s;
+        let on = word.is_some();
+        let word = word.unwrap_or("");
+        let word_w = if on {
+            text::measure(ui.ctx(), &Text::new(word, Role::Label, s.t.text), s.tk()).x / s.k + 8.0
+        } else {
+            0.0
+        };
+        let key = 24.0;
+        let full = key + word_w;
+        self.want([full, key, key, key]);
+        let worded = on && self.fold < fold::WORDS;
+        let w = if worded { full } else { key };
+        let ws = s.s(w);
+        if self.right - ws < self.left {
+            return None;
+        }
+        let r = Rect::from_min_size(
+            Pos2::new(self.right - ws, self.rect.center().y - s.s(10.0)),
+            Vec2::new(ws, s.s(20.0)),
+        );
+        self.right -= ws + s.s(GAP);
+        let resp = sensed(ui, r, id, true);
+        let st = State::of(&resp, on);
+        let room = super::room::Room::of(&s.t);
+        kit::with_brush(ui.painter(), |b| {
+            b.register(r, "toolbar_lamp", &[Tok::Well, Tok::Selection], &[]);
+            let kr = b.snap_rect(Rect::from_min_size(r.min, Vec2::new(s.s(key), r.height())));
+            let well = if on {
+                kit::color::mix(room.well, room.accent, 0.22)
+            } else if st.hovered {
+                room.well_hi
+            } else {
+                room.well
+            };
+            b.rrect(kr, s.r(3.0), Fill::Solid(room.edge));
+            b.rrect(kr.shrink(b.px()), s.r(3.0), Fill::Solid(well));
+            let ink = if on {
+                room.accent
+            } else if st.hovered {
+                room.ink1
+            } else {
+                room.ink3
+            };
+            // A clip, and two chevrons: what follows it moves on.
+            let c = kr.center();
+            let clip = Rect::from_center_size(
+                Pos2::new(c.x - s.s(4.5), c.y),
+                Vec2::new(s.s(4.0), s.s(9.0)),
+            );
+            b.rrect(b.snap_rect(clip), s.r(1.0), Fill::Solid(ink));
+            for dx in [0.5, 4.0] {
+                let x = c.x + s.s(dx);
+                let chevron = [
+                    Pos2::new(x, c.y - s.s(3.5)),
+                    Pos2::new(x + s.s(3.0), c.y),
+                    Pos2::new(x, c.y + s.s(3.5)),
+                ];
+                b.polyline(&chevron, b.px() * 1.3, ink);
+            }
+            if worded {
+                let tr = Rect::from_min_max(Pos2::new(kr.right() + s.s(6.0), r.top()), r.max);
+                let t = Text::new(word, Role::Label, room.ink1)
+                    .caps(false)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End));
+                let _ = text::paint(b, tr, &t, s.tk());
+            }
+        });
+        Some(tipped(ui, resp, tip))
+    }
+
     /// A readout on the right end: a value in a well, numbers right-aligned.
     pub fn readout_right(&mut self, ui: &Ui, value: &str, w: f32, numeric: bool) {
         let s = self.s;

@@ -78,7 +78,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     with_brush(ui.painter(), |b| paint_ground(b, r, &s));
     let playing = app.engine.is_playing();
     let ppp = ctx.pixels_per_point();
-    let a = Area::of(r, ppp, DOCK_STANDARD);
+    // The Slate cast cuts its pieces in the stage's own colour (r40:cast).
+    let a =
+        Area::of(r, ppp, DOCK_STANDARD).with_ink(crate::dance_texture::stage_ink(&s.t, s.t.ink));
     let seen = r.intersect(ctx.content_rect());
     let clip_px = Rect::from_min_max(
         (seen.min.to_vec2() * ppp).to_pos2(),

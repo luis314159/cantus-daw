@@ -108,6 +108,10 @@ pub struct Header<'a> {
     pub undo: Option<(bool, bool)>,
     /// Play | Edit | Matrix (instruments): the labels and the selected one.
     pub views: Option<(&'a [Src<'a>], usize)>,
+    /// Each view segment's width at 100 %: the widest label measured, padded (0: 58 pt).
+    /// [`Shell::show`] measures it, so no language's word is cut (round 40: Spanish
+    /// "Mezclador" in 58 pt).
+    pub views_w: f32,
     /// Bypass: `Some(true)` when the device is bypassed; the lamp is lit when it runs.
     pub bypassed: Option<bool>,
     pub help: bool,
@@ -259,7 +263,12 @@ fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, compact: bool) -> He
     }
     if let Some((labels, _)) = h.views {
         let _ = take(6.0 * k);
-        let w = 58.0 * k * labels.len() as f32;
+        let seg = if h.views_w > 0.0 {
+            h.views_w.max(58.0)
+        } else {
+            58.0
+        };
+        let w = seg * k * labels.len() as f32;
         let at = take(w);
         r.views = Some(Rect::from_center_size(at.center(), Vec2::new(w, 22.0 * k)));
     }
@@ -1101,6 +1110,13 @@ impl Shell {
         let k = self.scale(&ctx);
         let base = Style::plain();
         let s = base.scaled(k).function(header.hue).skinned(self.skin);
+        // The view segments as wide as their widest word (at 100 %, padded as the
+        // segmented control pads its labels).
+        let mut measured = *header;
+        if let Some((labels, _)) = header.views {
+            measured.views_w = super::segmented::label_need(&ctx, labels, &s) / k;
+        }
+        let header = &measured;
         // The unit's face is worn while its window paints (round 32, ADR 0074): every
         // `Style::current()` inside the body is in it.
         let _wearing = super::skin::wear(self.skin);
@@ -1383,6 +1399,7 @@ mod tests {
             ab: Some(Ab::A),
             undo: Some((false, false)),
             views: None,
+            views_w: 0.0,
             bypassed: Some(false),
             help: false,
             name_w: 250.0,
@@ -1419,6 +1436,7 @@ mod tests {
             ab: Some(Ab::A),
             undo: Some((true, false)),
             views: Some((&views, 0)),
+            views_w: 0.0,
             bypassed: Some(false),
             help: true,
             name_w: 0.0,

@@ -20,6 +20,7 @@
 //! is folded the workspace lowers it to the fold's size, or the fold would be undone every
 //! frame ([`Workspace::separator_floor`]).
 
+pub use super::owner_look::MaximiseKeeps;
 use super::workspace::{Pane, Workspace};
 use egui::Rect;
 use egui_dock::{DockState, Node, NodeIndex, NodePath, SurfaceIndex, Tree};
@@ -40,6 +41,8 @@ pub struct Fold {
 pub struct Maximised {
     pub pane: Pane,
     pub tree: Tree<Pane>,
+    /// The inspector stands beside it (round 40, `look`).
+    pub kept: bool,
 }
 
 /// The size of a folded area across its split, in points at 100 %: the tab bar's height.
@@ -202,8 +205,48 @@ impl Workspace {
         self.maximised.as_ref().map(|m| m.pane)
     }
 
-    /// `pane`'s leaf takes the whole main surface; the same again gives the rest back.
+    /// `pane`'s leaf takes the main surface — the inspector kept beside it when the setting
+    /// says so (round 40, `look`) — and the same again gives the rest back.
     pub fn toggle_maximise(&mut self, pane: Pane) {
+        let keeps = self.maximise_keeps;
+        self.toggle_maximise_keeping(pane, keeps);
+    }
+
+    /// What a maximised area leaves beside it (Settings ▸ Appearance ▸ *Maximise keeps*).
+    pub fn set_maximise_keeps(&mut self, keeps: MaximiseKeeps) {
+        self.maximise_keeps = keeps;
+    }
+
+    /// The setting the workspace maximises by.
+    pub fn maximise_keeps(&self) -> MaximiseKeeps {
+        self.maximise_keeps
+    }
+
+    /// Whether the inspector stands beside the maximised area.
+    pub fn inspector_kept(&self) -> bool {
+        self.maximised.as_ref().is_some_and(|m| m.kept)
+    }
+
+    /// The inspector kept beside a maximised area goes (its key while maximised): out of
+    /// the maximised surface and of the shape under it. False when none was kept.
+    pub fn drop_kept_inspector(&mut self) -> bool {
+        if !self.inspector_kept() {
+            return false;
+        }
+        if let Some(path) = self.find(Pane::Inspector) {
+            self.dock.remove_tab(path);
+        }
+        if let Some(m) = &mut self.maximised {
+            m.kept = false;
+            if let Some(at) = m.tree.find_tab(&Pane::Inspector) {
+                m.tree.remove_tab(at);
+            }
+        }
+        true
+    }
+
+    /// [`Self::toggle_maximise`] by `keeps` rather than the setting.
+    pub fn toggle_maximise_keeping(&mut self, pane: Pane, keeps: MaximiseKeeps) {
         if self.maximised.is_some() {
             self.restore_maximised();
             return;
@@ -217,17 +260,55 @@ impl Workspace {
         if self.dock.main_surface().len() <= 1 {
             return;
         }
-        let (tabs, active) = (leaf.tabs.clone(), leaf.active);
+        let (tabs, active, rect) = (leaf.tabs.clone(), leaf.active, leaf.rect);
+        // r40:look — the inspector stays beside the area (des-arrange's `max-*`): its own
+        // leaf on its side at the width it had, when it is docked elsewhere on the main
+        // surface (in the area's own leaf it is a tab of the area and goes with it).
+        let beside = (keeps == MaximiseKeeps::Inspector && !tabs.contains(&Pane::Inspector))
+            .then(|| self.inspector_beside(rect))
+            .flatten();
         let mut alone = Tree::new(tabs);
         if let Node::Leaf(l) = &mut alone[NodeIndex::root()] {
             l.active = active;
         }
+        let kept = beside.is_some();
+        if let Some((left, share)) = beside {
+            if left {
+                alone.split_left(NodeIndex::root(), share, vec![Pane::Inspector]);
+            } else {
+                alone.split_right(NodeIndex::root(), 1.0 - share, vec![Pane::Inspector]);
+            }
+        }
         let tree = std::mem::replace(self.dock.main_surface_mut(), alone);
-        self.maximised = Some(Maximised { pane, tree });
+        self.maximised = Some(Maximised { pane, tree, kept });
         self.dock.set_focused_node_and_surface(NodePath {
             surface: SurfaceIndex::main(),
             node: NodeIndex::root(),
         });
+    }
+
+    /// Where the docked inspector stands against the area at `area` (left of it?) and the
+    /// share of the main surface's width it takes; `None` when it is not docked on the main
+    /// surface or has no width yet.
+    fn inspector_beside(&self, area: Rect) -> Option<(bool, f32)> {
+        let path = self.find(Pane::Inspector)?;
+        if !path.surface.is_main() {
+            return None;
+        }
+        let r = self.dock.leaf(path.node_path()).ok()?.rect;
+        let total = if self.area.is_positive() {
+            self.area.width()
+        } else {
+            r.right().max(area.right()) - r.left().min(area.left())
+        };
+        if !(r.is_finite() && r.is_positive() && total > 1.0) {
+            // Not laid out yet (a layout loaded this frame): its width in points.
+            let total = self.area.width().max(1.0);
+            let share = (self.inspector_w / total).clamp(0.1, 0.5);
+            return Some((false, share));
+        }
+        let left = area.is_finite() && r.center().x < area.center().x;
+        Some((left, (r.width() / total).clamp(0.05, 0.6)))
     }
 
     /// Give back the main surface a maximised area took (its tab in front kept).
@@ -235,10 +316,19 @@ impl Workspace {
         let Some(m) = self.maximised.take() else {
             return;
         };
-        let front = self.dock.main_surface().root_node().and_then(|n| match n {
+        // The tab in front of the area's leaf (with the inspector kept beside it, the root
+        // is a split: the leaf is the one holding the area's tabs).
+        let surface = self.dock.main_surface();
+        let leaf = surface
+            .tabs()
+            .find(|p| **p != Pane::Inspector || !m.kept)
+            .and_then(|p| surface.find_tab(p))
+            .map(|(n, _)| n)
+            .unwrap_or(NodeIndex::root());
+        let front = match &surface[leaf] {
             Node::Leaf(l) => l.tabs.get(l.active.0).copied(),
             _ => None,
-        });
+        };
         *self.dock.main_surface_mut() = m.tree;
         if let Some(p) = front {
             if let Some(path) = self.find(p) {
@@ -330,6 +420,58 @@ impl Workspace {
         let l = self.dock.leaf(p).ok()?;
         l.tabs.get(l.active.0).copied()
     }
+
+    /// What is under `pos`: an area of the workspace — on the main surface (maximised or
+    /// not) or in a floating window, its tab in front — a layer above the workspace (an
+    /// editor's window, a menu, a dialog and its scrim), or bare chrome (the top bar, the
+    /// status line). Review 2 of round 40, R2-B1: a floating area is a window of its own.
+    pub fn pane_at(&self, ctx: &egui::Context, pos: egui::Pos2) -> PaneAt {
+        let surface = match ctx.layer_id_at(pos) {
+            None => Some(SurfaceIndex::main()),
+            Some(l) if l.order == egui::Order::Background => Some(SurfaceIndex::main()),
+            Some(l) if l.order == egui::Order::Middle => self
+                .dock
+                .iter_surfaces_indexed()
+                .find(|(i, s)| {
+                    // egui_dock's own id for a window surface (`window_surface.rs`).
+                    !i.is_main() && !s.is_empty() && l.id == egui::Id::new(format!("window {i:?}"))
+                })
+                .map(|(i, _)| i),
+            Some(_) => None,
+        };
+        let Some(surface) = surface else {
+            return PaneAt::Above;
+        };
+        let leaves: Vec<(Pane, Rect)> = self.dock[surface]
+            .iter()
+            .filter_map(|n| match n {
+                Node::Leaf(l) => {
+                    let p = l.tabs.get(l.active.0).copied()?;
+                    l.rect.is_finite().then_some((p, l.rect))
+                }
+                _ => None,
+            })
+            .collect();
+        if let Some((p, _)) = leaves.iter().find(|(_, r)| r.contains(pos)) {
+            return PaneAt::Area(*p);
+        }
+        // A window's frame and title belong to the area it holds.
+        match leaves.as_slice() {
+            [(p, _)] if !surface.is_main() => PaneAt::Area(*p),
+            _ => PaneAt::Bare,
+        }
+    }
+}
+
+/// What the pointer is over, as [`Workspace::pane_at`] tells it.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum PaneAt {
+    /// An area of the workspace, docked, maximised or floating.
+    Area(Pane),
+    /// A layer above the workspace, with keys of its own.
+    Above,
+    /// The window's chrome, outside every area.
+    Bare,
 }
 
 /// A folded area's body: its glyph on the panel, the whole of it a key that expands it.
@@ -394,6 +536,7 @@ impl Workspace {
             .tabs()
             .copied()
             .filter(|p| *p != m.pane && !matches!(p, Pane::Device(_)))
+            .filter(|p| !(m.kept && *p == Pane::Inspector))
             .collect()
     }
 }
@@ -573,6 +716,7 @@ mod tests {
     #[test]
     fn a_lone_area_does_not_fold_and_a_maximised_one_gives_everything_back() {
         let mut ws = Workspace::default();
+        ws.set_maximise_keeps(MaximiseKeeps::Nothing);
         let before = ws.dock.main_surface().len();
         ws.toggle_maximise(Pane::Mixer);
         assert_eq!(ws.maximised(), Some(Pane::Mixer));
@@ -585,6 +729,28 @@ mod tests {
         assert_eq!(ws.dock.main_surface().len(), before);
         for p in Pane::ZONES {
             assert!(ws.contains(p), "{p:?} is back");
+        }
+    }
+
+    #[test]
+    fn a_maximised_area_keeps_the_inspector_beside_it_by_default() {
+        // r40:look — the owner's answer: the area and the inspector, nothing else; the
+        // inspector's own key hides it alone, the area stays maximised.
+        let mut ws = Workspace::default();
+        assert_eq!(ws.maximise_keeps(), MaximiseKeeps::Inspector);
+        ws.toggle_maximise(Pane::Mixer);
+        assert_eq!(ws.maximised(), Some(Pane::Mixer));
+        assert!(ws.inspector_kept());
+        let tabs: Vec<Pane> = ws.dock.main_surface().tabs().copied().collect();
+        assert!(tabs.contains(&Pane::Mixer) && tabs.contains(&Pane::Inspector));
+        assert!(!ws.hidden_by_maximise().contains(&Pane::Inspector));
+        assert!(ws.drop_kept_inspector());
+        assert_eq!(ws.maximised(), Some(Pane::Mixer));
+        assert!(!ws.contains(Pane::Inspector));
+        ws.toggle_maximise(Pane::Mixer);
+        assert_eq!(ws.maximised(), None);
+        for p in Pane::ZONES {
+            assert_eq!(ws.contains(p), p != Pane::Inspector, "{p:?}");
         }
     }
 

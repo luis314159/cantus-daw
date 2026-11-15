@@ -55,8 +55,8 @@ const FX: &str = "audio-effect";
 const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
-/// round 28's.
-pub static ALL: [Descriptor; 24] = [ // r39:conv: 24 with Aula
+/// round 28's, Aula (round 39) and Delay (round 40).
+pub static ALL: [Descriptor; 25] = [ // r39:conv: 24 with Aula; r40:delay: 25 with Delay
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -351,6 +351,20 @@ pub static ALL: [Descriptor; 24] = [ // r39:conv: 24 with Aula
         vst3_categories: "Fx|Reverb",
         description: "Convolution reverb: rooms, halls, plates, springs and chambers made by Cantus, zero latency, shaped by stretch, length, decay, damping and cuts.",
         compiled: cfg!(feature = "aula"),
+    },
+    // r40:delay — Delay (ADR 0119): the DAW's stereo delay, its time free or synced to the
+    // host's tempo. Its ids are forever: the slug `delay` by the rule above.
+    Descriptor {
+        kind: EffectKind::Delay,
+        name: "Delay",
+        full_name: "Cantus Delay",
+        slug: "delay",
+        clap_id: "com.github.lalmazan.cantus.delay",
+        vst3_cid: [0x625C4F90, 0xAB5A3804, 0x58F1F1D3, 0xD1DCA44C],
+        clap_features: &[FX, "delay", STEREO],
+        vst3_categories: "Fx|Delay",
+        description: "Stereo delay: ping-pong, a tone in the feedback, the time free or a note value following the tempo, the echoes drawn in time.",
+        compiled: cfg!(feature = "delay"),
     },
 ];
 

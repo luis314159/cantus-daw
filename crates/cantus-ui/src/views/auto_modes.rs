@@ -179,6 +179,43 @@ pub fn arm_keys(app: &mut CantusApp, ui: &mut Ui, key: Rect, more: Rect, s: &Sty
     with_brush(ui.painter(), |b| {
         cap::toolbar_key(b, key, s, st, KeyFace::Glyph(Glyph::Automate));
     });
+    let m = ui.interact(more, popup_id().with("key"), Sense::click());
+    let open = egui::Popup::is_id_open(ui.ctx(), popup_id());
+    let mst = State::of(&m, open);
+    with_brush(ui.painter(), |b| {
+        // A flat ▾ (the arm key beside it is the cap): lit under the pointer or open.
+        if mst.hovered || open {
+            b.rrect(
+                more,
+                s.r(2.0),
+                kit::Fill::Solid(kit::color::with_alpha(s.t.highlight, 0.18)),
+            );
+        }
+        let g = Rect::from_center_size(more.center(), vec2(8.0 * s.k, 8.0 * s.k));
+        let c = if open {
+            s.t.highlight_glyph
+        } else {
+            s.t.text_dim
+        };
+        glyph::paint(b, g, Glyph::Down, c);
+    });
+    arm_wire(app, ui, &resp, &m);
+}
+
+/// The arm key's and its ▾'s responses, sensed where they are painted (the top bar's
+/// Slate well, round 40, or [`arm_keys`]): their hints, MIDI learn, the click that arms,
+/// and the options' popover from the ▾ or a right-click on the key.
+pub fn arm_sense(ui: &Ui, key: Rect, more: Rect) -> (egui::Response, egui::Response, bool) {
+    let resp = ui.interact(key, Id::new("toolbar-automation-arm"), Sense::click());
+    let m = ui.interact(more, popup_id().with("key"), Sense::click());
+    let open = egui::Popup::is_id_open(ui.ctx(), popup_id());
+    (resp, m, open)
+}
+
+/// What the arm key and its ▾ do (see [`arm_sense`]).
+pub fn arm_wire(app: &mut CantusApp, ui: &mut Ui, resp: &egui::Response, m: &egui::Response) {
+    let armed = app.auto_armed();
+    let key = resp.rect;
     if resp.hovered() {
         let body = if armed {
             crate::i18n::t("automodes.arm.on_tip")
@@ -208,26 +245,7 @@ pub fn arm_keys(app: &mut CantusApp, ui: &mut Ui, key: Rect, more: Rect, s: &Sty
     if resp.clicked() {
         app.run_action(crate::keymap::Action::ToggleAutomationArm);
     }
-    let m = ui.interact(more, popup_id().with("key"), Sense::click());
     let open = egui::Popup::is_id_open(ui.ctx(), popup_id());
-    let mst = State::of(&m, open);
-    with_brush(ui.painter(), |b| {
-        // A flat ▾ (the arm key beside it is the cap): lit under the pointer or open.
-        if mst.hovered || open {
-            b.rrect(
-                more,
-                s.r(2.0),
-                kit::Fill::Solid(kit::color::with_alpha(s.t.highlight, 0.18)),
-            );
-        }
-        let g = Rect::from_center_size(more.center(), vec2(8.0 * s.k, 8.0 * s.k));
-        let c = if open {
-            s.t.highlight_glyph
-        } else {
-            s.t.text_dim
-        };
-        glyph::paint(b, g, Glyph::Down, c);
-    });
     if m.hovered() {
         hint::set_text(
             ui.ctx(),
@@ -243,12 +261,12 @@ pub fn arm_keys(app: &mut CantusApp, ui: &mut Ui, key: Rect, more: Rect, s: &Sty
     if !open && !toggle {
         return;
     }
-    let anchor = m.union(resp);
+    let anchor = m.union(resp.clone());
     egui::Popup::from_response(&anchor)
         .id(popup_id())
         .open_memory(toggle.then_some(egui::SetOpenCommand::Toggle))
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-        .frame(crate::views::record_options::frame_for(s))
+        .frame(crate::views::record_options::frame_for(&Style::current()))
         .gap(4.0)
         .show(|ui| options(app, ui));
 }

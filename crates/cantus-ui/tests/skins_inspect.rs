@@ -35,6 +35,7 @@ fn the_header_registers_the_token_it_is_painted_in() {
                 ab: None,
                 undo: None,
                 views: None,
+                views_w: 0.0,
                 bypassed: None,
                 help: false,
                 name_w: 0.0,

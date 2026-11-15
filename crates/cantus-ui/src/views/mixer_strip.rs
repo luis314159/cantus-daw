@@ -281,9 +281,14 @@ pub(super) fn item(
     w: f32,
 ) {
     match item {
-        Item::Separator(g) => super::parts::separator(v, app, ui, b, pass, g, x, w),
+        // r40:tymp-ui — a group's mark is its band now: before it, as after every band, a gap.
+        Item::Separator(_) | Item::Gap => super::group::gap(b, pass, x, w),
         Item::Strip(id, index) => {
             v.laid_out += 1;
+            // r40:tymp-ui — a folded family's strip stands for its outputs.
+            if super::group::folded(v, app, ui, b, pass, index, x, w) {
+                return;
+            }
             strip(v, app, ui, b, pass, id, index, x, w);
         }
     }

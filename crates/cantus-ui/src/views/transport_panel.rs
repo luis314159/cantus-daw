@@ -69,7 +69,16 @@ fn height(g: Group) -> f32 {
         Group::Metronome => 36.0 + 4.0 * ROW,
         Group::Windows => 18.0 + 54.0 + 16.0,
         Group::Performance => 18.0 + 104.0,
-        Group::Inputs => 18.0 + ROW + 22.0,
+        // r40:look — and a row for the typing keyboard's key when the bar carries it.
+        Group::Inputs => {
+            18.0 + ROW
+                + 22.0
+                + if crate::views::owner_look::typing_key_shown() {
+                    ROW
+                } else {
+                    0.0
+                }
+        }
         _ => 18.0 + 30.0 + 24.0,
     }
 }
@@ -959,6 +968,38 @@ fn inputs(app: &mut CantusApp, ui: &mut Ui, area: Rect, s: &Style) {
     }
     if aresp.clicked() {
         app.run_action(Action::ArmTrack);
+    }
+    if app.settings.look.topbar_typing {
+        // r40:look — the typing keyboard's key, folded here with the inputs.
+        let ty = y + 2.0 * ROW * k;
+        let kr = Rect::from_min_size(pos2(x, ty), vec2(30.0, 22.0) * k);
+        keys::typing_key_in(app, ui, kr, s);
+        let keys_of = binding(app, Action::ToggleTypingPiano);
+        with_brush(ui.painter(), |b| {
+            let wr = Rect::from_min_max(pos2(x + 38.0 * k, ty), pos2(area.right(), ty + 22.0 * k));
+            p::words_key(
+                b,
+                wr,
+                "menu.keyboard_piano",
+                Role::Label,
+                11.0,
+                ink1(s),
+                Align2::LEFT_CENTER,
+                s,
+            );
+            if let Some(kk) = &keys_of {
+                p::words(
+                    b,
+                    wr,
+                    kk,
+                    Role::Label,
+                    11.0,
+                    ink3(s),
+                    Align2::RIGHT_CENTER,
+                    s,
+                );
+            }
+        });
     }
 }
 

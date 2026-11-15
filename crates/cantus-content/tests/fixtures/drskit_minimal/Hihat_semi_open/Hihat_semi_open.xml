@@ -1,0 +1,275 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<instrument version="2.0" name="Hihat_semi_open">
+ <samples>
+  <sample name="Hihat_semi_open-1" power="0.00822667">
+   <audiofile channel="AmbL" file="samples/1-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/1-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/1-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/1-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/1-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/1-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/1-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/1-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/1-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/1-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/1-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/1-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/1-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-2" power="0.0860717">
+   <audiofile channel="AmbL" file="samples/2-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/2-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/2-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/2-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/2-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/2-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/2-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/2-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/2-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/2-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/2-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/2-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/2-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-3" power="0.251311">
+   <audiofile channel="AmbL" file="samples/3-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/3-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/3-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/3-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/3-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/3-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/3-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/3-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/3-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/3-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/3-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/3-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/3-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-4" power="0.636066">
+   <audiofile channel="AmbL" file="samples/4-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/4-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/4-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/4-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/4-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/4-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/4-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/4-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/4-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/4-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/4-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/4-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/4-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-5" power="1.02822">
+   <audiofile channel="AmbL" file="samples/5-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/5-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/5-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/5-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/5-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/5-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/5-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/5-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/5-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/5-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/5-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/5-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/5-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-6" power="1.73169">
+   <audiofile channel="AmbL" file="samples/6-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/6-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/6-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/6-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/6-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/6-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/6-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/6-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/6-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/6-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/6-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/6-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/6-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-7" power="2.6452">
+   <audiofile channel="AmbL" file="samples/7-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/7-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/7-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/7-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/7-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/7-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/7-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/7-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/7-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/7-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/7-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/7-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/7-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-8" power="3.85145">
+   <audiofile channel="AmbL" file="samples/8-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/8-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/8-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/8-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/8-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/8-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/8-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/8-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/8-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/8-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/8-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/8-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/8-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-9" power="4.8981">
+   <audiofile channel="AmbL" file="samples/9-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/9-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/9-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/9-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/9-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/9-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/9-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/9-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/9-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/9-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/9-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/9-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/9-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-10" power="6.63014">
+   <audiofile channel="AmbL" file="samples/10-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/10-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/10-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/10-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/10-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/10-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/10-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/10-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/10-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/10-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/10-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/10-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/10-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-11" power="7.76003">
+   <audiofile channel="AmbL" file="samples/11-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/11-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/11-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/11-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/11-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/11-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/11-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/11-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/11-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/11-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/11-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/11-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/11-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-12" power="8.82581">
+   <audiofile channel="AmbL" file="samples/12-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/12-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/12-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/12-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/12-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/12-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/12-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/12-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/12-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/12-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/12-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/12-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/12-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-13" power="10.0864">
+   <audiofile channel="AmbL" file="samples/13-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/13-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/13-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/13-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/13-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/13-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/13-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/13-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/13-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/13-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/13-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/13-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/13-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-14" power="11.3734">
+   <audiofile channel="AmbL" file="samples/14-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/14-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/14-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/14-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/14-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/14-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/14-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/14-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/14-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/14-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/14-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/14-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/14-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-15" power="12.7376">
+   <audiofile channel="AmbL" file="samples/15-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/15-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/15-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/15-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/15-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/15-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/15-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/15-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/15-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/15-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/15-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/15-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/15-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-16" power="14.6332">
+   <audiofile channel="AmbL" file="samples/16-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/16-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/16-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/16-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/16-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/16-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/16-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/16-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/16-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/16-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/16-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/16-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/16-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-17" power="16.4978">
+   <audiofile channel="AmbL" file="samples/17-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/17-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/17-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/17-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/17-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/17-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/17-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/17-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/17-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/17-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/17-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/17-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/17-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_semi_open-18" power="19.0914">
+   <audiofile channel="AmbL" file="samples/18-Hihat_semi_open.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/18-Hihat_semi_open.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/18-Hihat_semi_open.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/18-Hihat_semi_open.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/18-Hihat_semi_open.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/18-Hihat_semi_open.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/18-Hihat_semi_open.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/18-Hihat_semi_open.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/18-Hihat_semi_open.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/18-Hihat_semi_open.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/18-Hihat_semi_open.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/18-Hihat_semi_open.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/18-Hihat_semi_open.wav" filechannel="13"/>
+  </sample>
+ </samples>
+</instrument>

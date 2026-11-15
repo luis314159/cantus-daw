@@ -1,315 +1,703 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chorda listening test</title>
+<title>Prueba de escucha</title>
 <style>
-:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1f; --mute:#6b6b70; --line:#dedcd6; --acc:#1e64c8; --acc-ink:#ffffff; --ok:#2a8a4a; --warn:#b5541b; }
-@media (prefers-color-scheme: dark) { :root { --bg:#17181a; --card:#222326; --ink:#ececec; --mute:#a0a0a6; --line:#36373b; --acc:#5b9bf0; --acc-ink:#0b1320; --ok:#5cc07c; --warn:#f0965b; } }
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1f; --mute:#62626a; --line:#d9d6cf; --acc:#1e5fbf; --acc-ink:#ffffff; --soft:#e8eef8; --ok:#23793f; --warn:#a8470f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#17181a; --card:#222326; --ink:#ececec; --mute:#a3a3aa; --line:#3a3b40; --acc:#6aa5f2; --acc-ink:#0b1320; --soft:#26303d; --ok:#62c482; --warn:#f09a62; } }
+:root[data-theme="dark"] { --bg:#17181a; --card:#222326; --ink:#ececec; --mute:#a3a3aa; --line:#3a3b40; --acc:#6aa5f2; --acc-ink:#0b1320; --soft:#26303d; --ok:#62c482; --warn:#f09a62; }
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
-h1 { font-size: 26px; margin: 0 0 4px; }
-h2 { font-size: 20px; margin: 0 0 8px; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; margin:16px 0; }
-.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:10px 18px; cursor:pointer; min-width:64px; }
-button.big { font-size:20px; font-weight:600; min-width:88px; }
-button.on { background:var(--acc); color:var(--acc-ink); border-color:var(--acc); }
-button.primary { background:var(--acc); color:var(--acc-ink); border-color:var(--acc); }
-button:disabled { opacity:.45; cursor:default; }
-.mute { color:var(--mute); }
-.bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; flex:1 1 200px; }
-.bar > div { height:100%; width:0; background:var(--acc); }
-.tabs button { border-radius:8px 8px 0 0; }
-table { border-collapse:collapse; width:100%; }
-td, th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
-input#who { font:inherit; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 10px; flex:1 1 220px; min-width:0; }
-textarea { width:100%; font:inherit; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px; }
-.ok { color:var(--ok); } .warn { color:var(--warn); }
-.lang { float:right; }
+html, body { background: var(--bg); }
+body { margin: 0; color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 780px; margin: 0 auto; padding: 20px 16px 64px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+header h1 { font-size: 22px; margin: 0; flex: 1 1 auto; }
+h2 { font-size: 19px; margin: 0 0 6px; }
+h3 { font-size: 16px; margin: 18px 0 6px; }
+p { margin: 8px 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 14px 0; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.mute { color: var(--mute); }
+.small { font-size: 14px; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 9px 16px; cursor: pointer; min-height: 44px; }
+button:hover:not(:disabled) { border-color: var(--acc); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+button.big { font-size: 20px; font-weight: 650; min-width: 76px; }
+button.on, button.primary { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+button.answer { border: 2px solid var(--acc); color: var(--ink); font-weight: 650; min-width: 120px; }
+button.answer.chosen { background: var(--acc); color: var(--acc-ink); }
+a { color: var(--acc); }
+button:disabled { opacity: .45; cursor: default; }
+.lang button { min-height: 34px; padding: 4px 10px; font-size: 14px; }
+.lang button[aria-pressed="true"] { background: var(--acc); color: var(--acc-ink); border-color: var(--acc); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; flex: 1 1 160px; min-width: 80px; }
+.bar > div { height: 100%; width: 0; background: var(--acc); }
+.bar.seek { height: 14px; border-radius: 7px; cursor: pointer; }
+.steps { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+fieldset { border: 0; margin: 0 0 14px; padding: 0; }
+legend { font-weight: 600; margin-bottom: 6px; padding: 0; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pills label { border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; background: var(--card); }
+.pills input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pills input:checked + span { font-weight: 650; }
+.pills label:has(input:checked) { background: var(--soft); border-color: var(--acc); }
+.pills label:has(input:focus-visible) { outline: 2px solid var(--acc); outline-offset: 2px; }
+input[type=text], input[type=number] { font: inherit; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-width: 100%; }
+textarea { width: 100%; font: inherit; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.scroll { overflow-x: auto; }
+.ok { color: var(--ok); } .warn { color: var(--warn); }
+.kbd { font-family: ui-monospace, Consolas, monospace; font-size: 13px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
 </style>
 </head>
 <body>
 <main>
-<div class="lang"><button id="lang-en">EN</button> <button id="lang-es">ES</button></div>
-<h1 data-t="title"></h1>
-<p class="mute" data-t="intro"></p>
-<div class="row" style="margin:12px 0 16px"><label for="who" data-t="who"></label><input id="who" autocomplete="name"></div>
-<p id="msg" class="warn" hidden></p>
-<div class="row tabs" id="tabs"></div>
+<header>
+<h1 id="title"></h1>
+<div class="lang row" role="group" aria-label="Idioma / Language"><button id="lang-es" type="button">ES</button><button id="lang-en" type="button">EN</button></div>
+</header>
+<div id="steps"></div>
+<p id="msg" class="warn" role="status" hidden></p>
 <section id="view"></section>
-<p class="mute" data-t="credit"></p>
 </main>
 <script>
 "use strict";
+const KIT = __KIT__;
 const PHRASES = __PHRASES__;
-// Each clip's file, by phrase and piano: opaque names, so a file's name never says which
-// piano X is.
+// Each clip's file, by phrase and piano token: names drawn at random for this kit.
 const FILES = __FILES__;
+const TESTS = __TESTS__;
+const SEED = __SEED__;
+// Which piano each token is — read only once the test is finished (the reveal).
+const REVEAL = __REVEAL__;
 const TRIALS = 16;
-const KEY = "chorda-abx-v1";
+const STORE = "cantus-listening-" + KIT;
 const T = {
- en: {
-  title: "Chorda listening test",
-  intro: "Headphones or good speakers, a quiet room. Set the volume once on the first clip and leave it. Every file is matched in loudness. Nothing here uses the network; your answers stay in this browser until you download them.",
-  tab_abx1: "ABX 1: Chorda 2 / Salamander", tab_abx2: "ABX 2: Chorda 1 / Chorda 2", tab_pref: "Preference", tab_res: "Results",
-  abx_help: "A and B are two pianos. X is one of them, drawn at random. Listen as often as you like, switch while it plays (it keeps its place), then say which one X is. Guess if you cannot tell: that is part of the test.",
-  trial: "Trial {i} of {n}", phrase: "Phrase", play: "Play", stop: "Stop", loop: "Loop",
-  x_is_a: "X is A", x_is_b: "X is B", done: "This test is finished. See Results.",
-  pref_help: "Two blind clips of the same phrase. Which sounds more like a fine grand piano, well recorded? Choose, or say you hear no preference. A note on why helps.",
-  question: "Question {i} of {n}", one: "Clip 1", two: "Clip 2", same: "No preference", note: "Why (optional)", next: "Next",
-  res_abx: "{name}: {k} of {n} correct — p = {p}", res_none: "not taken yet", res_partial: "{k} of {done} so far",
-  res_pref: "Preference, {pair}: {a} for {an}, {b} for {bn}, {s} no preference (sign test p = {p})",
-  sig: "Significant at 5 %: you can tell them apart.", nsig: "Not significant: no reliable difference heard.",
-  credit: "The reference piano is the Salamander Grand Piano by Alexander Holm (CC BY 3.0, creativecommons.org/licenses/by/3.0), played by Cantus's sampler.",
-  saved: "Saved: Luis sees your results.", cant_save: "This page cannot save from your account: download the results and send the file to Luis.",
-  copy_here: "Your browser would not save the file. Copy this text and send it to Luis:", reset_sure: "Sure? Press again to erase everything",
-  everyone: "Every listener", imported: "Imported: {n}", import_files: "Import the .json files listeners sent you", bad_file: "Not a results file: {f}",
-  who: "Your name", need_name: "Write your name at the top first: the results say whose they are.",
-  download: "Download results (JSON)", reset: "Start again (erases the answers)", reset_q: "Erase every answer and draw new trials?",
-  reveal: "Answers per trial", src_salamander: "Salamander Grand", src_chorda1: "Chorda model 1", src_chorda2: "Chorda model 2"
- },
  es: {
-  title: "Prueba de escucha de Chorda",
-  intro: "Auriculares o buenos altavoces, un cuarto silencioso. Ajusta el volumen una vez con el primer clip y no lo toques. Todos los archivos tienen la misma sonoridad. Nada aquí usa la red; tus respuestas se quedan en este navegador hasta que las descargues.",
-  tab_abx1: "ABX 1: Chorda 2 / Salamander", tab_abx2: "ABX 2: Chorda 1 / Chorda 2", tab_pref: "Preferencia", tab_res: "Resultados",
-  abx_help: "A y B son dos pianos. X es uno de ellos, sorteado. Escucha cuanto quieras, cambia mientras suena (conserva el punto), y di cuál es X. Si no lo distingues, adivina: es parte de la prueba.",
-  trial: "Ensayo {i} de {n}", phrase: "Frase", play: "Reproducir", stop: "Parar", loop: "Repetir",
-  x_is_a: "X es A", x_is_b: "X es B", done: "Esta prueba terminó. Mira Resultados.",
-  pref_help: "Dos clips ciegos de la misma frase. ¿Cuál suena más a un buen piano de cola bien grabado? Elige, o di que no tienes preferencia. Una nota del porqué ayuda.",
-  question: "Pregunta {i} de {n}", one: "Clip 1", two: "Clip 2", same: "Sin preferencia", note: "Por qué (opcional)", next: "Siguiente",
-  res_abx: "{name}: {k} de {n} aciertos — p = {p}", res_none: "aún sin hacer", res_partial: "{k} de {done} por ahora",
-  res_pref: "Preferencia, {pair}: {a} por {an}, {b} por {bn}, {s} sin preferencia (prueba de signos p = {p})",
-  sig: "Significativo al 5 %: los distingues.", nsig: "No significativo: no se oye una diferencia fiable.",
-  credit: "El piano de referencia es el Salamander Grand Piano de Alexander Holm (CC BY 3.0, creativecommons.org/licenses/by/3.0), tocado por el sampler de Cantus.",
-  saved: "Guardado: Luis ve tus resultados.", cant_save: "Desde tu cuenta esta página no puede guardar: descarga los resultados y mándale el archivo a Luis.",
-  copy_here: "Tu navegador no guardó el archivo. Copia este texto y mándaselo a Luis:", reset_sure: "¿Seguro? Pulsa otra vez para borrarlo todo",
-  everyone: "Todos los oyentes", imported: "Importados: {n}", import_files: "Importar los archivos .json que te mandaron", bad_file: "No es un archivo de resultados: {f}",
-  who: "Tu nombre", need_name: "Escribe tu nombre arriba primero: los resultados dicen de quién son.",
-  download: "Descargar resultados (JSON)", reset: "Empezar de nuevo (borra las respuestas)", reset_q: "¿Borrar todas las respuestas y sortear ensayos nuevos?",
-  reveal: "Respuestas por ensayo", src_salamander: "Salamander Grand", src_chorda1: "Chorda modelo 1", src_chorda2: "Chorda modelo 2"
+  title: "Prueba de escucha",
+  lead: "Vas a escuchar frases cortas tocadas por tres pianos distintos y a responder dos cosas: si distingues dos de ellos y cuál te suena mejor. No hay respuestas correctas ni incorrectas en tus gustos.",
+  howlong: "Dura unos 15–20 minutos (más unos 8 si haces la parte extra opcional). Puedes pararla cuando quieras: tus respuestas se guardan en este navegador y, al volver a abrir la página, sigues donde lo dejaste.",
+  setup: "Usa auriculares o buenos altavoces en un lugar silencioso. Ajusta el volumen con el primer clip y no lo cambies después. Todos los clips tienen la misma sonoridad.",
+  about: "Sobre ti", about_note: "Solo la primera pregunta es obligatoria. Sirve para leer los resultados (por ejemplo, separar auriculares de altavoces).",
+  q_device: "¿Con qué vas a escuchar?", device_headphones: "Auriculares", device_monitors: "Monitores de estudio", device_speakers: "Altavoces del ordenador o del teléfono",
+  q_piano: "¿Tocas el piano?", piano_no: "No", piano_some: "Un poco", piano_yes: "Sí", q_years: "¿Cuántos años? (opcional)",
+  q_audio: "¿Trabajas con audio o música?", audio_no: "No", audio_hobby: "Como afición", audio_pro: "Profesionalmente",
+  q_age: "Edad (opcional, el oído cambia con los años)", age_u25: "menos de 25", age_25: "25–39", age_40: "40–54", age_55: "55–69", age_70: "70 o más", age_none: "Prefiero no decirlo",
+  q_name: "Nombre o apodo (opcional)", name_hint: "Puede ser un apodo: solo sirve para saber de quién es cada resultado.",
+  need_device: "Elige con qué vas a escuchar para empezar.", start: "Empezar", resume: "Continuar",
+  part1: "Parte 1 de 2 · ¿Los distingues?", part2: "Parte 2 de 2 · ¿Cuál prefieres?", partx: "Parte extra · ¿Los distingues?",
+  count: "{i} de {n}", left: "Quedan unos {m} min",
+  abx_help: "A y B son dos pianos distintos. X es uno de los dos, elegido al azar. Escucha A, B y X cuantas veces quieras: si cambias mientras suena, sigue desde el mismo punto (pulsar otra vez el que suena vuelve al principio). Luego di cuál es X. Si no lo distingues, elige al azar: también es un resultado.",
+  keys_abx: "Teclado: {a} {b} {x} reproducir, {sp} parar, {l} repetir.", keys_pref: "Teclado: {one} {two} reproducir, {sp} parar, {l} repetir.",
+  seek: "Pulsa para saltar a ese punto", phrase: "Frase", stop: "Parar", loop: "Repetir", x_is_a: "X es A", x_is_b: "X es B", prev: "← Anterior", next: "Siguiente →",
+  pref_help: "Dos clips de la misma frase. ¿Cuál suena más a un buen piano de cola bien grabado? Elige uno o di que no tienes preferencia. Una palabra sobre el porqué ayuda mucho (opcional).",
+  one: "Clip 1", two: "Clip 2", same: "Sin preferencia", note: "¿Por qué? (opcional: metálico, apagado, artificial, sin cuerpo, natural…)",
+  saved_local: "Tus respuestas se guardan en este navegador.", saved_online: "Tus respuestas se guardan automáticamente.",
+  cant_save: "Esta página no puede guardar tus respuestas en línea: al terminar, descarga el archivo de resultados y envíalo a quien te pasó la prueba.",
+  welcome_back: "Bienvenido de nuevo: sigues donde lo dejaste.",
+  main_done: "¡Gracias! Terminaste la prueba.", main_done_2: "Si te quedan ganas, hay una parte extra opcional (16 ensayos más, unos 8 minutos) con otros dos pianos. Si no, mira tus resultados.",
+  extra: "Hacer la parte extra", extra_continue: "Continuar la parte extra", see_results: "Ver mis resultados",
+  results: "Tus resultados", res_abx: "Parte 1: {k} de {n} aciertos (p = {p}).", res_extra: "Parte extra: {k} de {n} aciertos (p = {p}).",
+  sig: "Los distingues de forma fiable.", nsig: "No hay una diferencia fiable: podría ser azar.",
+  p_explain: "p es la probabilidad de acertar tantos o más adivinando al azar; por debajo de 0,05 se considera que los distingues.",
+  res_pref: "{a} contra {b}: preferiste {a} {na} veces, {b} {nb} veces, sin preferencia {ns}.",
+  reveal: "Qué piano era cada uno", reveal_note: "Ahora que terminaste, esto es lo que sonaba.",
+  trial: "Ensayo", answer: "Tu respuesta", right: "acierto", wrong: "fallo",
+  credits: "Créditos", credit_sal: "El piano grabado es el Salamander Grand Piano V3 de Alexander Holm (un Yamaha C5 muestreado), con licencia CC BY 3.0, tocado por el sampler de Cantus.", credit_cantus: "Los pianos modelados son Chorda, el piano de Cantus, un estudio de música libre y gratuito. Los clips se igualaron en sonoridad (ITU-R BS.1770) y en duración; no se les hizo nada más.",
+  download: "Descargar resultados (JSON)", send: "Envía ese archivo a quien te pasó la prueba.", copy_here: "El navegador no guardó el archivo. Copia este texto y envíalo:",
+  reset: "Empezar de nuevo (borra las respuestas)", reset_sure: "¿Seguro? Pulsa otra vez para borrarlo todo",
+  piano_salamander: "Salamander Grand (grabado)", piano_chorda3: "Chorda, versión nueva (modelado)", piano_chorda2: "Chorda, versión anterior (modelado)",
+  owner: "Resumen de todos los oyentes", owner_open: "Ver el resumen de todos (solo tú)", back: "Volver",
+  listeners: "Oyentes", import_files: "Importar archivos .json de oyentes", imported: "Importados: {n}", bad_file: "No es un archivo de resultados de esta prueba: {f}",
+  everyone_dl: "Descargar todo (JSON)", group: "Grupo", all: "Todos", catch_ok: "Pasaron las 2 preguntas de control", other_kit: "otra prueba"
+ },
+ en: {
+  title: "Listening test",
+  lead: "You will hear short phrases played by three different pianos and answer two things: whether you can tell two of them apart, and which one sounds better to you. There are no right or wrong answers about taste.",
+  howlong: "It takes about 15–20 minutes (about 8 more for the optional extra part). You can stop whenever you like: your answers are kept in this browser, and when you open the page again you carry on where you left off.",
+  setup: "Use headphones or good speakers in a quiet place. Set the volume on the first clip and leave it. Every clip has the same loudness.",
+  about: "About you", about_note: "Only the first question is required. It helps read the results (for example, headphones apart from speakers).",
+  q_device: "What will you listen on?", device_headphones: "Headphones", device_monitors: "Studio monitors", device_speakers: "Computer or phone speakers",
+  q_piano: "Do you play the piano?", piano_no: "No", piano_some: "A little", piano_yes: "Yes", q_years: "How many years? (optional)",
+  q_audio: "Do you work with audio or music?", audio_no: "No", audio_hobby: "As a hobby", audio_pro: "Professionally",
+  q_age: "Age (optional — hearing changes with the years)", age_u25: "under 25", age_25: "25–39", age_40: "40–54", age_55: "55–69", age_70: "70 or over", age_none: "Prefer not to say",
+  q_name: "Name or nickname (optional)", name_hint: "A nickname is fine: it only tells whose results are whose.",
+  need_device: "Choose what you will listen on to start.", start: "Start", resume: "Continue",
+  part1: "Part 1 of 2 · Can you tell them apart?", part2: "Part 2 of 2 · Which do you prefer?", partx: "Extra part · Can you tell them apart?",
+  count: "{i} of {n}", left: "About {m} min left",
+  abx_help: "A and B are two different pianos. X is one of them, picked at random. Listen to A, B and X as often as you like: switching while it plays carries on from the same point (pressing the one playing goes back to the start). Then say which one X is. If you cannot tell, pick at random: that is a result too.",
+  keys_abx: "Keyboard: {a} {b} {x} play, {sp} stop, {l} loop.", keys_pref: "Keyboard: {one} {two} play, {sp} stop, {l} loop.",
+  seek: "Click to jump to that point", phrase: "Phrase", stop: "Stop", loop: "Loop", x_is_a: "X is A", x_is_b: "X is B", prev: "← Previous", next: "Next →",
+  pref_help: "Two clips of the same phrase. Which sounds more like a fine grand piano, well recorded? Choose one, or say you have no preference. A word on why helps a lot (optional).",
+  one: "Clip 1", two: "Clip 2", same: "No preference", note: "Why? (optional: metallic, dull, artificial, thin, natural…)",
+  saved_local: "Your answers are kept in this browser.", saved_online: "Your answers are saved automatically.",
+  cant_save: "This page cannot save your answers online: when you finish, download the results file and send it to whoever gave you the test.",
+  welcome_back: "Welcome back: you carry on where you left off.",
+  main_done: "Thank you! You have finished the test.", main_done_2: "If you feel like more, there is an optional extra part (16 more trials, about 8 minutes) with two other pianos. Otherwise, see your results.",
+  extra: "Take the extra part", extra_continue: "Continue the extra part", see_results: "See my results",
+  results: "Your results", res_abx: "Part 1: {k} of {n} right (p = {p}).", res_extra: "Extra part: {k} of {n} right (p = {p}).",
+  sig: "You tell them apart reliably.", nsig: "No reliable difference: it could be chance.",
+  p_explain: "p is the chance of getting that many or more right by guessing; under 0.05 counts as telling them apart.",
+  res_pref: "{a} against {b}: you preferred {a} {na} times, {b} {nb} times, no preference {ns}.",
+  reveal: "Which piano was which", reveal_note: "Now that you have finished, this is what was playing.",
+  trial: "Trial", answer: "Your answer", right: "right", wrong: "wrong",
+  credits: "Credits", credit_sal: "The recorded piano is the Salamander Grand Piano V3 by Alexander Holm (a sampled Yamaha C5), licensed under CC BY 3.0, played by Cantus's sampler.", credit_cantus: "The modelled pianos are Chorda, the piano of Cantus, a free and open music studio. The clips were matched in loudness (ITU-R BS.1770) and length; nothing else was done to them.",
+  download: "Download results (JSON)", send: "Send that file to whoever gave you the test.", copy_here: "The browser did not save the file. Copy this text and send it:",
+  reset: "Start again (erases the answers)", reset_sure: "Sure? Press again to erase everything",
+  piano_salamander: "Salamander Grand (recorded)", piano_chorda3: "Chorda, new version (modelled)", piano_chorda2: "Chorda, previous version (modelled)",
+  owner: "Summary of every listener", owner_open: "See everyone's summary (only you)", back: "Back",
+  listeners: "Listeners", import_files: "Import listeners' .json files", imported: "Imported: {n}", bad_file: "Not a results file of this test: {f}",
+  everyone_dl: "Download everything (JSON)", group: "Group", all: "Everyone", catch_ok: "Passed both check questions", other_kit: "another test"
  }
 };
 const PHRASE_NAMES = {
- en: { middle_c: "Middle C, mf", soft_chords: "Soft chords, pedalled", fast_run: "A fast run", ballad: "A pedalled ballad", ff_chord: "A fortissimo chord", bass: "Bass notes alone", top: "The top octave" },
- es: { middle_c: "Do central, mf", soft_chords: "Acordes suaves, con pedal", fast_run: "Una escala rápida", ballad: "Una balada con pedal", ff_chord: "Un acorde fortísimo", bass: "Notas graves solas", top: "La octava aguda" }
+ es: { middle_c: "Do central, mf", soft_chords: "Acordes suaves, con pedal", fast_run: "Una escala rápida", ballad: "Una balada con pedal", ff_chord: "Un acorde fortísimo", bass: "Notas graves solas", top: "La octava aguda" },
+ en: { middle_c: "Middle C, mf", soft_chords: "Soft chords, pedalled", fast_run: "A fast run", ballad: "A pedalled ballad", ff_chord: "A fortissimo chord", bass: "Bass notes alone", top: "The top octave" }
 };
-const TESTS = { abx1: ["chorda2", "salamander"], abx2: ["chorda1", "chorda2"] };
-let lang = "en";
-function tr(k, v) { let s = (T[lang][k] || k); for (const n in (v || {})) s = s.split("{" + n + "}").join(v[n]); return s; }
+function pickLang() { const l = (navigator.languages && navigator.languages[0]) || navigator.language || "es"; return /^es\b/i.test(l) ? "es" : (/^en\b/i.test(l) ? "en" : "es"); }
+let lang = pickLang();
+function tr(k, v) { let s = (T[lang][k] !== undefined ? T[lang][k] : k); for (const n in (v || {})) s = s.split("{" + n + "}").join(v[n]); return s; }
 function rnd(n) { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; }
-function file(phrase, src) { return "audio/" + FILES[phrase + "|" + src]; }
-function fresh() {
- const s = { created: new Date().toISOString(), lang: lang, abx1: [], abx2: [], pref: [] };
- for (const t of ["abx1", "abx2"]) {
-  const order = [];
-  while (order.length < TRIALS) order.push(...PHRASES);
-  for (let i = 0; i < TRIALS; i++) {
-   const j = i + rnd(order.length - i); [order[i], order[j]] = [order[j], order[i]];
-   const pair = TESTS[t].slice(); if (rnd(2)) pair.reverse();
-   s[t].push({ phrase: order[i], a: pair[0], b: pair[1], x: rnd(2) ? "a" : "b", answer: null, plays: 0, heard: {}, at: null });
-  }
- }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function now() { return new Date().toISOString(); }
+function file(phrase, tok) { return "audio/" + FILES[phrase + "|" + tok]; }
+// Which piano each token is: veiled (a xorshift stream over base64) only against a glance.
+let revealed = null;
+function unveil() {
+ if (revealed) return revealed;
+ const b = atob(REVEAL); const out = new Uint8Array(b.length); let x = SEED >>> 0;
+ for (let i = 0; i < b.length; i++) { x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; x = (x ^ (x << 5)) >>> 0; out[i] = b.charCodeAt(i) ^ (x >>> 24); }
+ revealed = JSON.parse(new TextDecoder().decode(out)); return revealed;
+}
+function pianoOf(tok) { return unveil()[tok] || "?"; }
+function drawAbx(pair) {
+ const order = []; while (order.length < TRIALS) order.push(...PHRASES);
+ shuffle(order);
+ const out = [];
+ for (let i = 0; i < TRIALS; i++) { const p = pair.slice(); if (rnd(2)) p.reverse(); out.push({ phrase: order[i], a: p[0], b: p[1], x: rnd(2) ? "a" : "b", answer: null, changes: 0, plays: 0, heard: {}, shown: null, at: null }); }
+ return out;
+}
+function drawPref() {
  const qs = [];
- for (const p of PHRASES) for (const pair of [TESTS.abx1, TESTS.abx2]) {
-  const o = pair.slice(); if (rnd(2)) o.reverse();
-  qs.push({ phrase: p, one: o[0], two: o[1], choice: null, note: "", plays: 0, heard: {}, at: null });
+ const add = (phrase, pair) => { const o = pair.slice(); if (rnd(2)) o.reverse(); qs.push({ phrase: phrase, one: o[0], two: o[1], choice: null, note: "", changes: 0, plays: 0, heard: {}, shown: null, at: null }); };
+ for (const p of PHRASES) for (const pair of TESTS.pref) add(p, pair);
+ for (const c of TESTS.catch) add(c.phrase, [c.one, c.two]);
+ // Shuffled; the first question is never a check (it is where the volume is set).
+ const isCheck = q => TESTS.catch.some(c => q.phrase === c.phrase && [q.one, q.two].sort().join() === [c.one, c.two].sort().join());
+ do shuffle(qs); while (isCheck(qs[0]));
+ return qs;
+}
+function fresh() {
+ return { kit: KIT, version: 5, created: now(), lang: lang, listener: "", about: { device: "", piano: "", years: "", audio: "", age: "" },
+  view: "intro", pos: { abx: 0, pref: 0, extra: 0 }, started: null, mainDone: null, extraStarted: null, extraDone: null, sessions: [now()],
+  abx: drawAbx(TESTS.abx), pref: drawPref(), extra: drawAbx(TESTS.extra), earlier: [], ua: navigator.userAgent, engine: null };
+}
+let st = null, resumed = false;
+try { st = JSON.parse(localStorage.getItem(STORE)); } catch (e) { st = null; }
+if (!st || st.kit !== KIT || !Array.isArray(st.abx)) st = fresh();
+else { resumed = st.view !== "intro"; lang = st.lang || lang; st.sessions = (st.sessions || []).concat([now()]); }
+function save() { st.lang = lang; try { localStorage.setItem(STORE, JSON.stringify(st)); } catch (e) {} push(); }
+
+// ---- Audio. Over http(s) every clip is decoded once and played through Web Audio, so a
+// switch is sample-exact (a 5 ms crossfade, no click); opened from a folder (file://, where a
+// page may not fetch its own files) or where a clip will not decode, one <audio> per slot.
+const audio = {
+ mode: (location.protocol === "file:" || !(window.AudioContext || window.webkitAudioContext)) ? "element" : "webaudio",
+ ctx: null, bufs: new Map(), els: new Map(), map: {}, cur: null, loop: false, last: null, gen: 0,
+ onchange: () => {},
+ context() { if (!this.ctx) { const C = window.AudioContext || window.webkitAudioContext; this.ctx = new C(); } return this.ctx; },
+ buffer(url) {
+  if (!this.bufs.has(url)) {
+   const ctx = this.context();
+   const p = fetch(url).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+    .then(b => new Promise((ok, no) => { const q = ctx.decodeAudioData(b, ok, no); if (q && q.then) q.then(ok, no); }));
+   p.catch(() => {});
+   this.bufs.set(url, p);
+   // Keep the clips of this item and the next few: a long session never holds every clip.
+   while (this.bufs.size > 14) { const k = this.bufs.keys().next().value; if (Object.values(this.map).includes(k)) break; this.bufs.delete(k); }
+  }
+  return this.bufs.get(url);
+ },
+ element(url) {
+  if (!this.els.has(url)) { const a = new Audio(); a.preload = "auto"; a.src = url; this.els.set(url, a); }
+  return this.els.get(url);
+ },
+ set(map) {
+  this.stop(); this.gen++; this.map = map; this.last = null;
+  for (const k in map) this.prefetch(map[k]);
+ },
+ prefetch(url) { if (this.mode === "webaudio") this.buffer(url); else this.element(url); },
+ playing() { return this.cur ? this.cur.key : null; },
+ position() {
+  const c = this.cur; if (!c) return 0;
+  if (c.el) return c.el.currentTime || 0;
+  const e = this.ctx.currentTime - c.t0 + c.off;
+  return this.loop ? e % c.dur : Math.min(e, c.dur);
+ },
+ duration() { const c = this.cur; if (!c) return 0; return c.el ? (c.el.duration || 0) : c.dur; },
+ halt(c) {
+  if (!c) return;
+  if (c.el) { c.el.pause(); return; }
+  const t = this.ctx.currentTime; c.ended = true;
+  try { c.gain.gain.cancelScheduledValues(t); c.gain.gain.setValueAtTime(c.gain.gain.value, t); c.gain.gain.linearRampToValueAtTime(0, t + 0.005); c.src.stop(t + 0.01); } catch (e) {}
+ },
+ stop() { const c = this.cur; this.cur = null; this.halt(c); this.onchange(); },
+ setLoop(on) {
+  const c = this.cur;
+  if (c && !c.el && !on && this.loop) { c.off = this.position(); c.t0 = this.ctx.currentTime; }
+  this.loop = on;
+  if (c) { if (c.el) c.el.loop = on; else c.src.loop = on; }
+  this.onchange();
+ },
+ // Play slot `k`: from where the playing slot is if one plays, from the start if `k` itself
+ // plays (or nothing does).
+ play(k) {
+  const url = this.map[k]; if (!url) return;
+  this.last = k;
+  const from = this.cur && this.cur.key !== k ? this.position() : 0;
+  if (this.mode === "element") return this.playElement(k, url, from);
+  const ctx = this.context();
+  if (ctx.state !== "running") ctx.resume().catch(() => {});
+  const gen = this.gen, wanted = ++this.want;
+  this.buffer(url).then(buf => {
+   if (gen !== this.gen || wanted !== this.want) return;
+   // The playing slot went on while this one loaded: start where it is now.
+   const at = this.cur && this.cur.key !== k ? this.position() : from;
+   this.start(k, buf, at);
+  }, () => {
+   // This browser will not decode the clip: the <audio> elements from here on.
+   if (gen !== this.gen) return;
+   this.mode = "element"; st.engine = "element (decode failed)"; save();
+   this.playElement(k, url, from);
+  });
+ },
+ want: 0,
+ // Firefox stalls an <audio> FLAC sought into its last half second while it loops (it never
+ // wraps); a WAV, or a FLAC played into its end, wraps. So a looping jump there starts the
+ // clip over, and a looping clip whose time stands still for 0.6 s is restarted.
+ place(a, t) {
+  const d = a.duration || 0;
+  if (this.loop && d && t > d - 0.75) t = 0;
+  try { a.currentTime = Math.max(0, d ? Math.min(t, d - 0.01) : t); } catch (e) {}
+ },
+ watch() {
+  const c = this.cur;
+  if (!c || !c.el || c.el.paused || !c.el.loop) { this.still = 0; return; }
+  const t = c.el.currentTime;
+  if (t === this.lastT && !c.el.seeking) { if (++this.still >= 3) { this.still = 0; this.place(c.el, 0); } } else this.still = 0;
+  this.lastT = t;
+ },
+ still: 0, lastT: -1,
+ // One source from `at` s, faded in over 5 ms while the one before fades out.
+ start(k, buf, at) {
+  const ctx = this.ctx;
+  this.halt(this.cur);
+  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = this.loop;
+  const gain = ctx.createGain(); src.connect(gain); gain.connect(ctx.destination);
+  const t = ctx.currentTime; gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(1, t + 0.005);
+  let off = Math.max(0, at); if (off >= buf.duration) off = this.loop ? off % buf.duration : 0;
+  src.start(t, off);
+  const c = { key: k, src: src, gain: gain, t0: t, off: off, dur: buf.duration, ended: false };
+  src.onended = () => { if (this.cur === c && !c.ended) { this.cur = null; this.onchange(); } };
+  this.cur = c; this.onchange();
+ },
+ // Jump the playing clip to `t` s (the position bar's click).
+ seek(t) {
+  if (!isFinite(t)) return;
+  const c = this.cur; if (!c) return;
+  if (c.el) { this.place(c.el, t); return; }
+  this.start(c.key, c.src.buffer, Math.min(t, c.dur - 0.01));
+ },
+ playElement(k, url, from) {
+  const a = this.element(url);
+  const old = this.cur;
+  if (old && old.el !== a) this.halt(old);
+  a.loop = this.loop;
+  const c = { key: k, el: a };
+  a.onended = () => { if (this.cur === c && !a.loop) { this.cur = null; this.onchange(); } };
+  const go = () => { this.place(a, from); const p = a.play(); if (p && p.catch) p.catch(() => {}); };
+  if (a.readyState >= 1) go(); else a.addEventListener("loadedmetadata", go, { once: true });
+  this.cur = c; this.onchange();
  }
- for (let i = qs.length - 1; i > 0; i--) { const j = rnd(i + 1); [qs[i], qs[j]] = [qs[j], qs[i]]; }
- s.pref = qs;
- return s;
-}
-let st;
-try { st = JSON.parse(localStorage.getItem(KEY)); } catch (e) { st = null; }
-if (!st || !st.abx1) st = fresh();
-lang = st.lang || "en";
-function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} push(); }
-// Opened from a folder the page keeps the answers in this browser and downloads a file. Opened
-// as a claude.ai page it also saves them for its owner (`db`, each listener's own document) and
-// shows the owner every listener's scores.
+};
+
+// ---- Saving online: published as a claude.ai page, each listener's answers go to their own
+// document `abx/<their id>` as they go (the page's rules let only the owner read the others).
 const online = { db: null, uid: null, owner: false, downloads: null, writable: null, everyone: [], timer: null };
-function say(text, ok) { const m = document.getElementById("msg"); m.textContent = text; m.className = ok ? "ok" : "warn"; m.hidden = !text; }
-function slugOf(s) { return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "listener"; }
-async function saveFile(name, text, where) {
- if (online.downloads) { try { await online.downloads.save({ filename: name, data: text }); } catch (e) { if (e && e.code !== "declined") showText(text, where); } return; }
- if (window.claude) { showText(text, where); return; }
- const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "application/json" })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 2000);
-}
-function showText(text, where) { const t = el("textarea"); t.value = text; t.rows = 8; t.readOnly = true; where.appendChild(el("p", tr("copy_here"))); where.appendChild(t); t.focus(); t.select(); }
+function $(id) { return document.getElementById(id); }
+function say(key, ok) { const m = $("msg"); m.textContent = key ? tr(key) : ""; m.className = ok ? "mute small" : "warn"; m.hidden = !key; m.dataset.key = key || ""; }
 function push() {
- if (!online.db || !online.uid || online.writable === false) return;
+ if (!online.db || !online.uid || online.writable === false || !st.started) return;
  clearTimeout(online.timer);
  online.timer = setTimeout(async () => {
-  if (!(st.listener || "").trim()) return;
-  try { await online.db.doc("abx/" + online.uid).set({ listener: st.listener.trim(), results: JSON.parse(JSON.stringify(st)), updatedAt: new Date().toISOString() }); online.writable = true; say(tr("saved"), true); }
-  catch (e) { if (e && (e.code === "invalid_argument" || e.code === "not_granted")) { online.writable = false; say(tr("cant_save")); } }
- }, 1200);
-}
-function scoreOf(s, t) { const list = (s && s[t]) || []; const done = list.filter(x => x.answer !== null); return { k: done.filter(x => x.answer === x.x).length, n: done.length, of: list.length }; }
-function prefOf(s, pair) { let a = 0, b = 0, same = 0; for (const q of (s && s.pref) || []) { if (q.choice === null || [q.one, q.two].sort().join() !== pair.slice().sort().join()) continue; if (q.choice === "same") same++; else if ((q.choice === "one" ? q.one : q.two) === pair[0]) a++; else b++; } return { a, b, same }; }
-function everyoneTable(c) {
- c.appendChild(el("h2", tr("everyone")));
- const tb = el("table");
- const head = el("tr"); for (const h of [tr("who"), tr("tab_abx1"), tr("tab_abx2"), tr("src_chorda2") + " / " + tr("src_salamander"), tr("src_chorda2") + " / " + tr("src_chorda1")]) head.appendChild(el("th")).textContent = h;
- tb.appendChild(head);
- for (const d of online.everyone) {
-  const s = d.results || {}; const row = el("tr");
-  const cells = [d.listener || "?"];
-  for (const t of ["abx1", "abx2"]) { const r = scoreOf(s, t); cells.push(r.n ? r.k + " / " + r.n + (r.n === r.of ? "  (p = " + binomTail(r.k, r.n).toFixed(3) + ")" : "") : "—"); }
-  for (const pair of [TESTS.abx1, ["chorda2", "chorda1"]]) { const r = prefOf(s, pair); cells.push(r.a + " · " + r.b + " · " + r.same); }
-  for (const v of cells) row.appendChild(el("td")).textContent = v;
-  tb.appendChild(row);
-  const notes = ((s.pref) || []).filter(q => q.note && q.note.trim()).map(q => PHRASE_NAMES[lang][q.phrase] + ": " + q.note.trim());
-  if (notes.length) { const nr = el("tr"); const td = el("td"); td.colSpan = 5; td.className = "mute"; td.textContent = notes.join(" · "); nr.appendChild(td); tb.appendChild(nr); }
- }
- c.appendChild(tb);
- const lab = el("label"); lab.textContent = tr("import_files"); lab.htmlFor = "import-files";
- const inp = el("input"); inp.type = "file"; inp.id = "import-files"; inp.accept = ".json,application/json"; inp.multiple = true;
- const out = el("p", undefined, "mute");
- inp.onchange = async () => {
-  let n = 0;
-  for (const f of inp.files) {
-   let d; try { d = JSON.parse(await f.text()); } catch (e) { out.textContent = tr("bad_file", { f: f.name }); return; }
-   if (!d || !d.abx1 || !d.pref) { out.textContent = tr("bad_file", { f: f.name }); return; }
-   const who = String(d.listener || f.name.replace(/\.json$/i, ""));
-   try { await online.db.doc("abx/import-" + slugOf(who)).set({ listener: who, results: d, updatedAt: new Date().toISOString(), source: "import" }); n++; } catch (e) { out.textContent = String(e && e.code || e); return; }
-  }
-  out.textContent = tr("imported", { n: n }); inp.value = "";
- };
- const box = el("div", undefined, "row"); box.style.marginTop = "12px"; box.appendChild(lab); box.appendChild(inp); c.appendChild(box); c.appendChild(out);
+  try {
+   await online.db.doc("abx/" + online.uid).set({ kit: KIT, listener: (st.listener || "").trim(), about: st.about, results: JSON.parse(JSON.stringify(st)), updatedAt: now() });
+   online.writable = true; if (!$("msg").hidden && $("msg").dataset.key === "cant_save") return; say("saved_online", true);
+  } catch (e) { if (e && (e.code === "invalid_argument" || e.code === "not_granted")) { online.writable = false; say("cant_save"); } }
+ }, 1000);
 }
 async function goOnline() {
+ // The viewer may attach `window.claude` after the script's first run: wait up to 3 s for it.
+ for (let i = 0; i < 30 && !(window.claude && window.claude.use); i++) await new Promise(r => setTimeout(r, 100));
  if (!(window.claude && window.claude.use)) return;
  const use = n => window.claude.use(n).catch(() => null);
  const [user, db, downloads] = await Promise.all([use("user"), use("db"), use("downloads")]);
  online.downloads = downloads;
- if (!user || !db) { say(tr("cant_save")); return; }
- online.uid = await user.id(); online.owner = await user.isOwner(); online.db = db;
- if (!online.uid) { say(tr("cant_save")); return; }
- push();
- if (online.owner) db.collection("abx").onSnapshot(q => { online.everyone = q.docs.map(x => x.data() || {}).sort((a, b) => String(a.listener).localeCompare(String(b.listener))); if (tab === "res") render(); }, () => {});
+ if (!user || !db) { say("cant_save"); return; }
+ online.uid = await user.id(); online.owner = !!(await user.isOwner());
+ if (!online.uid) { say("cant_save"); return; }
+ const w = user.can ? await user.can("data.write") : null;
+ online.db = db;
+ if (w === false && !online.owner) { online.writable = false; say("cant_save"); } else push();
+ if (online.owner) db.collection("abx").onSnapshot(q => { online.everyone = q.docs.map(x => x.data() || {}); if (st.view === "summary") render(); }, () => {});
+ render();
 }
-save();
-// The transport: one element per slot; switching keeps the place.
-// `cur`: the trial or question on screen — every press of a slot counts in its `plays`
-// (and `heard`, by slot), saved at once.
-let players = {}, playing = null, looping = false, timer = null, cur = null;
-function stopAll() { for (const k in players) players[k].pause(); playing = null; paint(); }
-function setPlayers(map) { stopAll(); players = {}; for (const k in map) { const a = new Audio(map[k]); a.preload = "auto"; a.loop = looping; players[k] = a; a.onended = () => { if (playing === k) { playing = null; paint(); } }; } }
-function play(k) {
- const now = playing ? players[playing].currentTime : 0;
- for (const n in players) if (n !== k) players[n].pause();
- const a = players[k];
- try { a.currentTime = playing ? now : 0; } catch (e) {}
- a.loop = looping; a.play(); playing = k;
- if (cur) { cur.plays = (cur.plays || 0) + 1; cur.heard = cur.heard || {}; cur.heard[k] = (cur.heard[k] || 0) + 1; save(); }
- paint();
+async function saveFile(name, text, where) {
+ if (online.downloads) { try { await online.downloads.save({ filename: name, data: text }); } catch (e) { if (e && e.code !== "declined") showText(text, where); } return; }
+ if (window.claude) { showText(text, where); return; }
+ const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "application/json" })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
-function progress() { const el = document.getElementById("pos"); if (!el) return; const a = playing && players[playing]; el.style.width = a && a.duration ? (100 * a.currentTime / a.duration) + "%" : "0"; }
-setInterval(progress, 50);
-let tab = "abx1";
-function btn(label, on, cls) { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = on; return b; }
-function el(tag, html, cls) { const e = document.createElement(tag); if (html !== undefined) e.innerHTML = html; if (cls) e.className = cls; return e; }
+function showText(text, where) { const t = el("textarea"); t.value = text; t.rows = 8; t.readOnly = true; where.appendChild(el("p", tr("copy_here"))); where.appendChild(t); t.focus(); t.select(); }
+function slugOf(s) { return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "listener"; }
+
+// ---- The views.
+function el(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined && text !== null) e.textContent = text; if (cls) e.className = cls; return e; }
+function btn(label, on, cls, id) { const b = el("button", label, cls); b.type = "button"; if (id) b.id = id; b.onclick = e => { on(e); }; return b; }
+function sectionOf(v) { return v === "abx" || v === "pref" || v === "extra" ? v : null; }
+function answered(sec, x) { return sec === "pref" ? x.choice !== null : x.answer !== null; }
+let shownKey = null;
+function show(sec, i) {
+ const x = st[sec][i];
+ const key = sec + ":" + i;
+ if (shownKey !== key) {
+  audio.set(sec === "pref" ? { one: file(x.phrase, x.one), two: file(x.phrase, x.two) } : { a: file(x.phrase, x.a), b: file(x.phrase, x.b), x: file(x.phrase, x.x === "a" ? x.a : x.b) });
+  const n = st[sec][i + 1];
+  if (n) for (const t of sec === "pref" ? [n.one, n.two] : [n.a, n.b]) audio.prefetch(file(n.phrase, t));
+  shownKey = key;
+ }
+ if (!x.shown) { x.shown = now(); save(); }
+ return x;
+}
+function count(x) { const k = audio.last; x.plays = (x.plays || 0) + 1; x.heard = x.heard || {}; x.heard[k] = (x.heard[k] || 0) + 1; save(); }
+function press(k) {
+ const sec = sectionOf(st.view); if (!sec || !audio.map[k]) return;
+ audio.play(k); count(st[sec][st.pos[sec]]);
+}
 function transport(keys, labels) {
  const r = el("div", undefined, "row");
- for (const k of keys) { const b = btn(labels[k], () => play(k), "big" + (playing === k ? " on" : "")); b.id = "play-" + k; r.appendChild(b); }
- r.appendChild(btn(tr("stop"), stopAll));
- const l = btn(tr("loop"), () => { looping = !looping; for (const k in players) players[k].loop = looping; paint(); }, looping ? "on" : "");
+ for (const k of keys) r.appendChild(btn(labels[k], () => press(k), "big", "play-" + k));
+ r.appendChild(btn(tr("stop"), () => audio.stop(), "", "stop"));
+ const l = btn(tr("loop"), () => audio.setLoop(!audio.loop), "", "loop");
  r.appendChild(l);
- const bar = el("div", '<div id="pos"></div>', "bar"); r.appendChild(bar);
+ const bar = el("div", undefined, "bar seek"); bar.id = "bar"; bar.title = tr("seek"); bar.appendChild(el("div")).id = "pos"; r.appendChild(bar);
+ bar.onclick = e => { const b = bar.getBoundingClientRect(); const d = audio.duration(); if (d) audio.seek(d * Math.max(0, Math.min(1, (e.clientX - b.left) / b.width))); };
  return r;
 }
-let shown = null;
-function paint() {
- document.documentElement.lang = lang;
- document.querySelectorAll("[data-t]").forEach(e => e.textContent = tr(e.dataset.t));
- for (const k in players) { const b = document.getElementById("play-" + k); if (b) b.className = "big" + (playing === k ? " on" : ""); }
- const tabs = document.getElementById("tabs"); tabs.innerHTML = "";
- for (const t of ["abx1", "abx2", "pref", "res"]) tabs.appendChild(btn(tr("tab_" + t), () => { tab = t; shown = null; stopAll(); render(); }, tab === t ? "on" : ""));
+function paintTransport() {
+ const p = audio.playing();
+ for (const k of ["a", "b", "x", "one", "two"]) { const b = $("play-" + k); if (b) { b.className = "big" + (p === k ? " on" : ""); b.setAttribute("aria-pressed", p === k ? "true" : "false"); } }
+ const l = $("loop"); if (l) { l.className = audio.loop ? "on" : ""; l.setAttribute("aria-pressed", audio.loop ? "true" : "false"); }
 }
-function render() {
- paint();
- const v = document.getElementById("view"); v.innerHTML = "";
- const c = el("div", undefined, "card"); v.appendChild(c);
- if (tab === "abx1" || tab === "abx2") {
-  const list = st[tab]; const i = list.findIndex(t => t.answer === null);
-  c.appendChild(el("p", tr("abx_help"), "mute"));
-  if (i < 0) { cur = null; c.appendChild(el("p", tr("done"))); return; }
-  const t = list[i]; cur = t;
-  if (shown !== tab + i) { setPlayers({ a: file(t.phrase, t.a), b: file(t.phrase, t.b), x: file(t.phrase, t.x === "a" ? t.a : t.b) }); shown = tab + i; }
-  c.appendChild(el("h2", tr("trial", { i: i + 1, n: list.length })));
-  c.appendChild(el("p", tr("phrase") + ": <b>" + PHRASE_NAMES[lang][t.phrase] + "</b>"));
-  c.appendChild(transport(["a", "b", "x"], { a: "A", b: "B", x: "X" }));
-  const r = el("div", undefined, "row"); r.style.marginTop = "16px";
-  for (const ans of ["a", "b"]) r.appendChild(btn(tr(ans === "a" ? "x_is_a" : "x_is_b"), () => { t.answer = ans; t.at = new Date().toISOString(); save(); render(); }, "primary"));
-  c.appendChild(r);
- } else if (tab === "pref") {
-  const i = st.pref.findIndex(q => q.choice === null);
-  c.appendChild(el("p", tr("pref_help"), "mute"));
-  if (i < 0) { cur = null; c.appendChild(el("p", tr("done"))); return; }
-  const q = st.pref[i]; cur = q;
-  if (shown !== "pref" + i) { setPlayers({ one: file(q.phrase, q.one), two: file(q.phrase, q.two) }); shown = "pref" + i; }
-  c.appendChild(el("h2", tr("question", { i: i + 1, n: st.pref.length })));
-  c.appendChild(el("p", tr("phrase") + ": <b>" + PHRASE_NAMES[lang][q.phrase] + "</b>"));
-  c.appendChild(transport(["one", "two"], { one: tr("one"), two: tr("two") }));
-  const note = el("textarea"); note.rows = 2; note.placeholder = tr("note"); note.style.marginTop = "14px"; c.appendChild(note);
-  const r = el("div", undefined, "row"); r.style.marginTop = "10px";
-  for (const [k, lab] of [["one", tr("one")], ["two", tr("two")], ["same", tr("same")]]) r.appendChild(btn(lab, () => { q.choice = k; q.note = note.value; q.at = new Date().toISOString(); save(); render(); }, "primary"));
-  c.appendChild(r);
- } else { cur = null; results(c); }
+audio.onchange = paintTransport;
+setInterval(() => audio.watch(), 200);
+setInterval(() => { const e = $("pos"); if (!e) return; const d = audio.duration(); e.style.width = d ? Math.min(100, 100 * audio.position() / d) + "%" : "0"; }, 50);
+function kbd(s) { return "<span class='kbd'>" + s + "</span>"; }
+function steps() {
+ const s = $("steps"); s.textContent = "";
+ const sec = sectionOf(st.view); if (!sec) return;
+ const list = st[sec]; const done = list.filter(x => answered(sec, x)).length;
+ const box = el("div", undefined, "steps");
+ box.appendChild(el("strong", tr(sec === "abx" ? "part1" : sec === "pref" ? "part2" : "partx")));
+ box.appendChild(el("span", tr("count", { i: st.pos[sec] + 1, n: list.length }), "mute"));
+ const bar = el("div", undefined, "bar"); const fill = el("div"); fill.style.width = (100 * done / list.length) + "%"; bar.appendChild(fill); box.appendChild(bar);
+ // About 35 s an ABX trial, 22 s a preference.
+ const left = sec === "extra" ? (list.length - done) * 35 : (st.abx.filter(x => x.answer === null).length * 35 + st.pref.filter(x => x.choice === null).length * 22);
+ box.appendChild(el("span", tr("left", { m: Math.max(1, Math.ceil(left / 60)) }), "mute small"));
+ s.appendChild(box);
 }
-function choose(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
-function binomTail(k, n) { let p = 0; for (let i = k; i <= n; i++) p += choose(n, i); return p / Math.pow(2, n); }
-function results(c) {
- for (const t of ["abx1", "abx2"]) {
-  const list = st[t]; const done = list.filter(x => x.answer !== null); const k = done.filter(x => x.answer === x.x).length;
-  const name = tr("tab_" + t);
-  if (done.length === 0) { c.appendChild(el("p", name + ": " + tr("res_none"))); continue; }
-  if (done.length < list.length) { c.appendChild(el("p", name + ": " + tr("res_partial", { k: k, done: done.length }))); continue; }
-  const p = binomTail(k, list.length);
-  c.appendChild(el("p", tr("res_abx", { name: name, k: k, n: list.length, p: p < 0.0001 ? p.toExponential(1) : p.toFixed(4) }) + " — <span class='" + (p < 0.05 ? "warn" : "ok") + "'>" + tr(p < 0.05 ? "sig" : "nsig") + "</span>"));
- }
- for (const pair of [TESTS.abx1, TESTS.abx2]) {
-  const qs = st.pref.filter(q => q.choice !== null && [q.one, q.two].sort().join() === pair.slice().sort().join());
-  if (!qs.length) continue;
-  let a = 0, b = 0, s = 0;
-  for (const q of qs) { if (q.choice === "same") s++; else if ((q.choice === "one" ? q.one : q.two) === pair[0]) a++; else b++; }
-  const n = a + b, m = Math.max(a, b);
-  const p = n ? Math.min(1, 2 * binomTail(m, n)) : 1;
-  c.appendChild(el("p", tr("res_pref", { pair: tr("src_" + pair[0]) + " / " + tr("src_" + pair[1]), a: a, an: tr("src_" + pair[0]), b: b, bn: tr("src_" + pair[1]), s: s, p: p.toFixed(3) })));
- }
- const r = el("div", undefined, "row");
- r.appendChild(btn(tr("download"), () => {
-  // Whose results: a listener's name in the file and in its name, so several can be told apart.
-  const who = (st.listener || "").trim();
-  if (!who) { say(tr("need_name")); document.getElementById("who").focus(); return; }
-  saveFile("chorda-abx-" + slugOf(who) + ".json", JSON.stringify(st, null, 1), c);
- }, "primary"));
- const reset = btn(tr("reset"), () => {
-  if (!reset.dataset.armed) { reset.dataset.armed = "1"; reset.textContent = tr("reset_sure"); setTimeout(() => { delete reset.dataset.armed; reset.textContent = tr("reset"); }, 5000); return; }
-  const who = st.listener; st = fresh(); st.listener = who; save(); shown = null; tab = "abx1"; render();
- });
- r.appendChild(reset);
+function finish(sec) {
+ audio.stop();
+ if (sec === "abx") st.view = "pref";
+ else if (sec === "pref") { st.mainDone = st.mainDone || now(); st.view = "between"; }
+ else { st.extraDone = st.extraDone || now(); st.view = "results"; }
+}
+function advance(sec, i) {
+ const list = st[sec];
+ if (list.every(x => answered(sec, x))) finish(sec);
+ else { let j = list.findIndex((x, n) => n > i && !answered(sec, x)); if (j < 0) j = list.findIndex(x => !answered(sec, x)); st.pos[sec] = j; }
+ save(); render();
+}
+function go(sec, d) { const j = st.pos[sec] + d; if (j < 0 || j >= st[sec].length) return; if (d > 0 && !answered(sec, st[sec][st.pos[sec]])) return; st.pos[sec] = j; save(); render(); }
+function nav(sec) {
+ const r = el("div", undefined, "row"); r.style.marginTop = "14px";
+ const i = st.pos[sec];
+ const p = btn(tr("prev"), () => go(sec, -1), "", "prev"); p.disabled = i === 0; r.appendChild(p);
+ const n = btn(tr("next"), () => go(sec, 1), "", "next"); n.disabled = !(i + 1 < st[sec].length && answered(sec, st[sec][i])); r.appendChild(n);
+ return r;
+}
+function viewAbx(c, sec) {
+ const i = st.pos[sec]; const t = show(sec, i);
+ c.appendChild(el("p", tr("abx_help"), "mute"));
+ c.appendChild(el("h2", tr("phrase") + ": " + PHRASE_NAMES[lang][t.phrase]));
+ c.appendChild(transport(["a", "b", "x"], { a: "A", b: "B", x: "X" }));
+ const r = el("div", undefined, "row"); r.style.marginTop = "16px";
+ for (const ans of ["a", "b"]) r.appendChild(btn(tr(ans === "a" ? "x_is_a" : "x_is_b"), () => {
+  if (t.answer !== null && t.answer !== ans) t.changes = (t.changes || 0) + 1;
+  t.answer = ans; t.at = now(); advance(sec, i);
+ }, t.answer === ans ? "answer chosen" : "answer", "answer-" + ans));
  c.appendChild(r);
- if (online.owner) everyoneTable(c);
- const done = ["abx1", "abx2"].every(t => st[t].every(x => x.answer !== null));
- if (done) {
-  c.appendChild(el("h2", tr("reveal")));
-  const tb = el("table"); tb.innerHTML = "<tr><th>#</th><th>" + tr("phrase") + "</th><th>A</th><th>B</th><th>X</th><th></th></tr>";
-  for (const t of ["abx1", "abx2"]) st[t].forEach((x, i) => { const row = el("tr"); row.innerHTML = "<td>" + t + "." + (i + 1) + "</td><td>" + PHRASE_NAMES[lang][x.phrase] + "</td><td>" + tr("src_" + x.a) + "</td><td>" + tr("src_" + x.b) + "</td><td>" + x.x.toUpperCase() + "</td><td>" + (x.answer === x.x ? "✓" : "✗") + "</td>"; tb.appendChild(row); });
-  c.appendChild(tb);
- }
+ c.appendChild(nav(sec));
+ const k = el("p", undefined, "mute small"); k.innerHTML = tr("keys_abx", { a: kbd("A"), b: kbd("B"), x: kbd("X"), sp: kbd(lang === "es" ? "espacio" : "space"), l: kbd("L") }); c.appendChild(k);
 }
-document.getElementById("lang-en").onclick = () => { lang = "en"; st.lang = lang; save(); render(); };
-document.getElementById("lang-es").onclick = () => { lang = "es"; st.lang = lang; save(); render(); };
-document.addEventListener("keydown", e => { if (e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT") return; const k = e.key.toLowerCase(); if (players[k]) play(k); else if (k === "1" && players.one) play("one"); else if (k === "2" && players.two) play("two"); else if (k === " ") { e.preventDefault(); stopAll(); } });
-const whoBox = document.getElementById("who");
-whoBox.value = st.listener || "";
-whoBox.oninput = () => { st.listener = whoBox.value; save(); };
+function viewPref(c) {
+ const i = st.pos.pref; const q = show("pref", i);
+ c.appendChild(el("p", tr("pref_help"), "mute"));
+ c.appendChild(el("h2", tr("phrase") + ": " + PHRASE_NAMES[lang][q.phrase]));
+ c.appendChild(transport(["one", "two"], { one: tr("one"), two: tr("two") }));
+ const note = el("textarea"); note.id = "note"; note.rows = 2; note.placeholder = tr("note"); note.style.marginTop = "14px"; note.value = q.note || "";
+ note.oninput = () => { q.note = note.value; save(); };
+ c.appendChild(note);
+ const r = el("div", undefined, "row"); r.style.marginTop = "10px";
+ for (const k of ["one", "two", "same"]) r.appendChild(btn(tr(k), () => {
+  if (q.choice !== null && q.choice !== k) q.changes = (q.changes || 0) + 1;
+  q.choice = k; q.note = note.value; q.at = now(); advance("pref", i);
+ }, q.choice === k ? "answer chosen" : "answer", "choose-" + k));
+ c.appendChild(r);
+ c.appendChild(nav("pref"));
+ const k = el("p", undefined, "mute small"); k.innerHTML = tr("keys_pref", { one: kbd("1"), two: kbd("2"), sp: kbd(lang === "es" ? "espacio" : "space"), l: kbd("L") }); c.appendChild(k);
+}
+function pills(name, values, cur, onpick) {
+ const box = el("div", undefined, "pills"); box.setAttribute("role", "radiogroup");
+ for (const v of values) {
+  const lab = el("label"); const inp = el("input"); inp.type = "radio"; inp.name = name; inp.value = v; inp.id = name + "-" + v; inp.checked = cur === v;
+  inp.onchange = () => onpick(v);
+  lab.appendChild(inp); lab.appendChild(el("span", tr(name + "_" + v))); box.appendChild(lab);
+ }
+ return box;
+}
+function viewIntro(c) {
+ c.appendChild(el("p", tr("lead")));
+ c.appendChild(el("p", tr("howlong")));
+ c.appendChild(el("p", tr("setup")));
+ const f = el("div", undefined, "card"); c.parentNode.appendChild(f);
+ f.appendChild(el("h2", tr("about"))); f.appendChild(el("p", tr("about_note"), "mute small"));
+ const a = st.about;
+ const set = (k, v) => { a[k] = v; save(); render(); };
+ const group = (q, name, values) => { const fs = el("fieldset"); fs.appendChild(el("legend", tr(q))); fs.appendChild(pills(name, values, a[name], v => set(name, v))); f.appendChild(fs); return fs; };
+ group("q_device", "device", ["headphones", "monitors", "speakers"]);
+ const pf = group("q_piano", "piano", ["no", "some", "yes"]);
+ if (a.piano === "some" || a.piano === "yes") {
+  const y = el("input"); y.type = "number"; y.min = "0"; y.max = "90"; y.id = "years"; y.value = a.years || ""; y.style.width = "7em"; y.style.marginTop = "8px";
+  y.oninput = () => { a.years = y.value; save(); };
+  const l = el("label", tr("q_years") + " "); l.htmlFor = "years"; const d = el("div"); d.appendChild(l); d.appendChild(y); pf.appendChild(d);
+ }
+ group("q_audio", "audio", ["no", "hobby", "pro"]);
+ group("q_age", "age", ["u25", "25", "40", "55", "70", "none"]);
+ const fs = el("fieldset"); const lg = el("label", tr("q_name")); lg.htmlFor = "who"; lg.style.fontWeight = "600"; fs.appendChild(lg);
+ const who = el("input"); who.type = "text"; who.id = "who"; who.autocomplete = "nickname"; who.maxLength = 60; who.value = st.listener || ""; who.style.display = "block"; who.style.width = "22em";
+ who.oninput = () => { st.listener = who.value; save(); };
+ fs.appendChild(who); fs.appendChild(el("p", tr("name_hint"), "mute small")); f.appendChild(fs);
+ const r = el("div", undefined, "row");
+ const s = btn(tr(st.started ? "resume" : "start"), () => {
+  if (!a.device) return;
+  st.started = st.started || now(); st.view = st.mainDone ? "between" : (st.abx.some(x => x.answer === null) ? "abx" : "pref"); save(); render(); window.scrollTo(0, 0);
+ }, "primary", "start");
+ s.disabled = !a.device; r.appendChild(s);
+ if (!a.device) r.appendChild(el("span", tr("need_device"), "mute small"));
+ f.appendChild(r);
+ if (online.owner) { const o = btn(tr("owner_open"), () => { st.view = "summary"; save(); render(); }, "", "owner-open"); o.style.marginTop = "12px"; f.appendChild(o); }
+}
+function viewBetween(c) {
+ c.appendChild(el("h2", tr("main_done")));
+ c.appendChild(el("p", tr("main_done_2")));
+ const r = el("div", undefined, "row");
+ if (!st.extraDone) r.appendChild(btn(tr(st.extraStarted ? "extra_continue" : "extra"), startExtra, "", "extra"));
+ r.appendChild(btn(tr("see_results"), () => { st.view = "results"; save(); render(); window.scrollTo(0, 0); }, "primary", "see-results"));
+ c.appendChild(r);
+}
+function startExtra() { st.extraStarted = st.extraStarted || now(); st.view = st.extra.every(x => x.answer !== null) ? "results" : "extra"; save(); render(); window.scrollTo(0, 0); }
+
+// ---- Scores. The binomial tail in logs, so pooled counts of many listeners stay finite.
+function binomTail(k, n) {
+ if (k <= 0) return 1; if (k > n) return 0;
+ const lf = [0]; for (let i = 1; i <= n; i++) lf[i] = lf[i - 1] + Math.log(i);
+ let m = -Infinity; const terms = [];
+ for (let i = k; i <= n; i++) { const t = lf[n] - lf[i] - lf[n - i] - n * Math.LN2; terms.push(t); if (t > m) m = t; }
+ let s = 0; for (const t of terms) s += Math.exp(t - m);
+ return Math.min(1, Math.exp(m) * s);
+}
+function signTest(a, b) { const n = a + b; return n ? Math.min(1, 2 * binomTail(Math.max(a, b), n)) : 1; }
+function fmtP(p) { return p === null || p === undefined ? "—" : p < 0.0001 ? p.toExponential(1) : p.toFixed(lang === "es" ? 3 : 3).replace(".", lang === "es" ? "," : "."); }
+function score(list) { list = list || []; const done = list.filter(x => x.answer !== null); const k = done.filter(x => x.answer === x.x).length; return { k: k, n: done.length, of: list.length, p: list.length && done.length === list.length ? binomTail(k, done.length) : null }; }
+const PAIRS = [["chorda3", "salamander"], ["chorda3", "chorda2"]];
+// One listener's preferences by pair (a = the pair's first piano chosen), and the checks.
+function prefs(s) {
+ const out = PAIRS.map(() => ({ a: 0, b: 0, s: 0 })); let checks = 0, checksSame = 0;
+ for (const q of (s && s.pref) || []) {
+  if (q.choice === null) continue;
+  const A = pianoOf(q.one), B = pianoOf(q.two);
+  if (A === B) { checks++; if (q.choice === "same") checksSame++; continue; }
+  const j = PAIRS.findIndex(p => [A, B].sort().join() === p.slice().sort().join()); if (j < 0) continue;
+  if (q.choice === "same") out[j].s++; else if ((q.choice === "one" ? A : B) === PAIRS[j][0]) out[j].a++; else out[j].b++;
+ }
+ return { pairs: out, checks: checks, checksSame: checksSame };
+}
+function pianoName(id) { return tr("piano_" + id); }
+function revealTable(list, label) {
+ const w = el("div", undefined, "scroll"); const tb = el("table");
+ const hd = el("tr"); for (const h of [tr("trial"), tr("phrase"), "A", "B", "X", tr("answer")]) hd.appendChild(el("th", h)); tb.appendChild(hd);
+ list.forEach((x, i) => {
+  const row = el("tr");
+  for (const v of [label + (i + 1), PHRASE_NAMES[lang][x.phrase], pianoName(pianoOf(x.a)), pianoName(pianoOf(x.b)), x.x.toUpperCase(), x.answer === null ? "—" : x.answer.toUpperCase() + " · " + tr(x.answer === x.x ? "right" : "wrong")]) row.appendChild(el("td", v));
+  tb.appendChild(row);
+ });
+ w.appendChild(tb); return w;
+}
+function viewResults(c) {
+ c.appendChild(el("h2", tr("results")));
+ for (const [sec, key] of [["abx", "res_abx"], ["extra", "res_extra"]]) {
+  const r = score(st[sec]); if (r.n < r.of) continue;
+  const p = el("p"); p.appendChild(el("span", tr(key, { k: r.k, n: r.n, p: fmtP(r.p) }) + " "));
+  p.appendChild(el("strong", tr(r.p < 0.05 ? "sig" : "nsig"), r.p < 0.05 ? "warn" : "ok")); c.appendChild(p);
+ }
+ c.appendChild(el("p", tr("p_explain"), "mute small"));
+ const pr = prefs(st);
+ pr.pairs.forEach((x, j) => { if (x.a + x.b + x.s) c.appendChild(el("p", tr("res_pref", { a: pianoName(PAIRS[j][0]), b: pianoName(PAIRS[j][1]), na: x.a, nb: x.b, ns: x.s }))); });
+ const r = el("div", undefined, "row"); r.style.marginTop = "12px";
+ r.appendChild(btn(tr("download"), () => saveFile("listening-" + slugOf(st.listener) + "-" + KIT.slice(-6) + ".json", JSON.stringify(Object.assign({}, st, { exported: now() }), null, 1), c), "primary", "download"));
+ if (!st.extraDone) r.appendChild(btn(tr(st.extraStarted ? "extra_continue" : "extra"), startExtra, "", "extra"));
+ c.appendChild(r);
+ if (!online.writable) c.appendChild(el("p", tr("send"), "mute small"));
+ c.appendChild(el("h3", tr("reveal"))); c.appendChild(el("p", tr("reveal_note"), "mute small"));
+ c.appendChild(el("h3", tr("part1"))); c.appendChild(revealTable(st.abx, "1."));
+ if (st.extra.some(x => x.answer !== null) && st.extraDone) { c.appendChild(el("h3", tr("partx"))); c.appendChild(revealTable(st.extra, "x.")); }
+ c.appendChild(el("h3", tr("part2")));
+ const w = el("div", undefined, "scroll"); const tb = el("table"); tb.id = "reveal-pref";
+ const hd = el("tr"); for (const h of ["#", tr("phrase"), tr("one"), tr("two"), tr("answer")]) hd.appendChild(el("th", h)); tb.appendChild(hd);
+ st.pref.forEach((q, i) => { const row = el("tr"); for (const v of [String(i + 1), PHRASE_NAMES[lang][q.phrase], pianoName(pianoOf(q.one)), pianoName(pianoOf(q.two)), q.choice === null ? "—" : tr(q.choice) + (q.note ? " — " + q.note : "")]) row.appendChild(el("td", v)); tb.appendChild(row); });
+ w.appendChild(tb); c.appendChild(w);
+ const cr = el("div", undefined, "card"); cr.id = "credits"; c.parentNode.appendChild(cr);
+ cr.appendChild(el("h2", tr("credits")));
+ cr.appendChild(el("p", tr("credit_sal")));
+ const links = el("p", undefined, "small");
+ for (const [t, u] of [["Salamander Grand Piano V3", "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html"], ["CC BY 3.0", "https://creativecommons.org/licenses/by/3.0/"], ["Cantus", "https://cantusdaw.com"]]) { const a = el("a", t); a.href = u; a.target = "_blank"; a.rel = "noopener"; links.appendChild(a); links.appendChild(document.createTextNode(" · ")); }
+ cr.appendChild(el("p", tr("credit_cantus"))); cr.appendChild(links);
+ const rs = btn(tr("reset"), () => {
+  if (!rs.dataset.armed) { rs.dataset.armed = "1"; rs.textContent = tr("reset_sure"); setTimeout(() => { delete rs.dataset.armed; rs.textContent = tr("reset"); }, 5000); return; }
+  const old = st; st = fresh(); st.listener = old.listener; st.about = old.about;
+  const prev = Object.assign({}, old); delete prev.earlier; st.earlier = (old.earlier || []).concat([prev]);
+  shownKey = null; audio.stop(); save(); render(); window.scrollTo(0, 0);
+ }, "", "reset");
+ rs.style.marginTop = "14px"; cr.appendChild(rs);
+ if (online.owner) { const o = btn(tr("owner_open"), () => { st.view = "summary"; save(); render(); }, "", "owner-open"); o.style.margin = "14px 0 0 10px"; cr.appendChild(o); }
+}
+// ---- The owner's summary (published: every listener's document; anywhere: imported files).
+const imported = [];
+function viewSummary(c) {
+ c.appendChild(el("h2", tr("owner")));
+ c.appendChild(el("p", "kit " + KIT, "mute small"));
+ const docs = online.everyone.concat(imported);
+ const rows = docs.map(d => { const s = d.results || {}; return { who: d.listener || s.listener || "?", ok: s.kit === KIT, s: s, about: s.about || d.about || {} }; });
+ const mine = rows.filter(r => r.ok);
+ const w = el("div", undefined, "scroll"); const tb = el("table"); tb.id = "summary";
+ const hd = el("tr"); for (const h of [tr("listeners"), tr("q_device"), tr("q_piano"), tr("q_audio"), tr("q_age"), "ABX 1", "ABX x", pianoName("chorda3") + " / " + pianoName("salamander"), pianoName("chorda3") + " / " + pianoName("chorda2"), "check", "min"]) hd.appendChild(el("th", h)); tb.appendChild(hd);
+ for (const r of rows) {
+  const row = el("tr");
+  if (!r.ok) { row.appendChild(el("td", r.who)); row.appendChild(el("td", tr("other_kit"), "mute")); tb.appendChild(row); continue; }
+  const a = r.about, s1 = score(r.s.abx), sx = score(r.s.extra), pr = prefs(r.s);
+  const mins = r.s.started && r.s.mainDone ? Math.round((Date.parse(r.s.mainDone) - Date.parse(r.s.started)) / 60000) : "—";
+  const cells = [r.who, a.device ? tr("device_" + a.device) : "—", a.piano ? tr("piano_" + a.piano) + (a.years ? " (" + a.years + ")" : "") : "—", a.audio ? tr("audio_" + a.audio) : "—", a.age ? tr("age_" + a.age) : "—",
+   s1.n ? s1.k + "/" + s1.n + (s1.p !== null ? " p " + fmtP(s1.p) : "") : "—", sx.n ? sx.k + "/" + sx.n + (sx.p !== null ? " p " + fmtP(sx.p) : "") : "—",
+   pr.pairs[0].a + " · " + pr.pairs[0].b + " · " + pr.pairs[0].s, pr.pairs[1].a + " · " + pr.pairs[1].b + " · " + pr.pairs[1].s, pr.checksSame + "/" + pr.checks, String(mins)];
+  for (const v of cells) row.appendChild(el("td", v)); tb.appendChild(row);
+  const notes = (r.s.pref || []).filter(q => q.note && q.note.trim()).map(q => PHRASE_NAMES[lang][q.phrase] + " (" + pianoName(pianoOf(q.one)) + " / " + pianoName(pianoOf(q.two)) + ", " + tr(q.choice || "same") + "): " + q.note.trim());
+  if (notes.length) { const nr = el("tr"); const td = el("td", notes.join(" · "), "mute small"); td.colSpan = 11; nr.appendChild(td); tb.appendChild(nr); }
+ }
+ w.appendChild(tb); c.appendChild(w);
+ c.appendChild(el("p", "ABX: k/n, p · " + tr("one") + "/" + tr("two") + ": a · b · " + tr("same") + " · check: " + tr("same") + " / 2", "mute small"));
+ // Pooled by group: every listener, by playback, by piano, those who passed both checks.
+ const groups = [[tr("all"), mine]];
+ for (const v of ["headphones", "monitors", "speakers"]) groups.push([tr("device_" + v), mine.filter(r => r.about.device === v)]);
+ for (const v of ["no", "some", "yes"]) groups.push([tr("q_piano") + " " + tr("piano_" + v), mine.filter(r => r.about.piano === v)]);
+ groups.push([tr("catch_ok"), mine.filter(r => { const p = prefs(r.s); return p.checks === 2 && p.checksSame === 2; })]);
+ const w2 = el("div", undefined, "scroll"); const t2 = el("table"); t2.id = "groups";
+ const h2 = el("tr"); for (const h of [tr("group"), "n", "ABX 1 (k/N, p)", "p < 0.05", pianoName("chorda3") + " / " + pianoName("salamander"), pianoName("chorda3") + " / " + pianoName("chorda2"), "ABX x"]) h2.appendChild(el("th", h)); t2.appendChild(h2);
+ for (const [name, g] of groups) {
+  const full = g.filter(r => score(r.s.abx).p !== null);
+  let k = 0, n = 0, sig = 0; for (const r of full) { const s = score(r.s.abx); k += s.k; n += s.n; if (s.p < 0.05) sig++; }
+  let kx = 0, nx = 0; for (const r of g) { const s = score(r.s.extra); if (s.p !== null) { kx += s.k; nx += s.n; } }
+  const P = PAIRS.map(() => ({ a: 0, b: 0, s: 0 })); for (const r of g) prefs(r.s).pairs.forEach((x, j) => { P[j].a += x.a; P[j].b += x.b; P[j].s += x.s; });
+  const row = el("tr");
+  for (const v of [name, String(g.length), n ? k + "/" + n + ", p " + fmtP(binomTail(k, n)) : "—", full.length ? sig + "/" + full.length : "—",
+   P[0].a + " · " + P[0].b + " · " + P[0].s + " (p " + fmtP(signTest(P[0].a, P[0].b)) + ")", P[1].a + " · " + P[1].b + " · " + P[1].s + " (p " + fmtP(signTest(P[1].a, P[1].b)) + ")",
+   nx ? kx + "/" + nx + ", p " + fmtP(binomTail(kx, nx)) : "—"]) row.appendChild(el("td", v));
+  t2.appendChild(row);
+ }
+ w2.appendChild(t2); c.appendChild(el("h3", tr("group"))); c.appendChild(w2);
+ const r = el("div", undefined, "row"); r.style.marginTop = "14px";
+ const lab = el("label", tr("import_files")); lab.htmlFor = "import-files";
+ const inp = el("input"); inp.type = "file"; inp.id = "import-files"; inp.accept = ".json,application/json"; inp.multiple = true;
+ const out = el("p", undefined, "mute small");
+ inp.onchange = async () => {
+  let n = 0;
+  for (const f of inp.files) {
+   let d; try { d = JSON.parse(await f.text()); } catch (e) { d = null; }
+   if (!d || d.kit !== KIT || !Array.isArray(d.abx)) { out.textContent = tr("bad_file", { f: f.name }); continue; }
+   const doc = { kit: KIT, listener: String(d.listener || f.name.replace(/\.json$/i, "")), about: d.about, results: d, updatedAt: now(), source: "import" };
+   if (online.owner && online.db) { try { await online.db.doc("abx/import-" + slugOf(doc.listener) + "-" + rnd(1e9)).set(doc); } catch (e) { imported.push(doc); } } else imported.push(doc);
+   n++;
+  }
+  if (n) out.textContent = tr("imported", { n: n }); inp.value = ""; render();
+ };
+ r.appendChild(lab); r.appendChild(inp);
+ r.appendChild(btn(tr("everyone_dl"), () => saveFile("listening-" + KIT + "-all.json", JSON.stringify({ kit: KIT, tokens: unveil(), listeners: docs }, null, 1), c), "", "download-all"));
+ r.appendChild(btn(tr("back"), () => { st.view = st.mainDone ? "results" : "intro"; save(); render(); }, "", "back"));
+ c.appendChild(r); c.appendChild(out);
+}
+
+function render() {
+ document.documentElement.lang = lang; document.title = tr("title"); $("title").textContent = tr("title");
+ for (const l of ["es", "en"]) $("lang-" + l).setAttribute("aria-pressed", lang === l ? "true" : "false");
+ if (st.view === "results" && !st.mainDone) st.view = "intro";
+ if (st.view === "summary" && !(online.owner || location.hash === "#summary" || location.hash === "#resumen")) st.view = st.mainDone ? "results" : "intro";
+ const sec = sectionOf(st.view);
+ if (!sec) { shownKey = null; audio.stop(); }
+ steps();
+ const v = $("view"); v.textContent = "";
+ const c = el("div", undefined, "card"); v.appendChild(c);
+ if (sec === "pref") viewPref(c); else if (sec) viewAbx(c, sec);
+ else if (st.view === "between") viewBetween(c);
+ else if (st.view === "results") viewResults(c);
+ else if (st.view === "summary") viewSummary(c);
+ else viewIntro(c);
+ paintTransport();
+}
+document.getElementById("lang-es").onclick = () => { lang = "es"; save(); render(); };
+document.getElementById("lang-en").onclick = () => { lang = "en"; save(); render(); };
+// Keys: A B X (or 1 2) play, space stops (or plays the last slot again), L loops. Never while
+// typing; space never also presses the focused button.
+document.addEventListener("keydown", e => {
+ const t = e.target, tag = t && t.tagName;
+ if (tag === "TEXTAREA" || (tag === "INPUT" && t.type !== "radio") || e.ctrlKey || e.metaKey || e.altKey) return;
+ const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+ const slot = { a: "a", b: "b", x: "x", "1": "one", "2": "two" }[k];
+ if (slot && audio.map[slot]) { e.preventDefault(); press(slot); }
+ else if (k === " " && sectionOf(st.view)) { e.preventDefault(); if (audio.playing()) audio.stop(); else if (audio.last) press(audio.last); }
+ else if (k === "l" && sectionOf(st.view)) { e.preventDefault(); audio.setLoop(!audio.loop); }
+});
+document.addEventListener("keyup", e => { if (e.key === " " && sectionOf(st.view) && e.target && e.target.tagName === "BUTTON") e.preventDefault(); });
+if (location.hash === "#summary" || location.hash === "#resumen") st.view = "summary";
+st.engine = st.engine && st.engine.startsWith("element (") ? st.engine : audio.mode;
+if (st.engine.startsWith("element (")) audio.mode = "element";
+save();
 render();
+if (resumed) say("welcome_back", true);
 goOnline();
+// For the page's own browser checks (chorda_kit/abx_browser_check.mjs).
+window.__abx = { st: () => st, audio: audio, render: render, unveil: unveil, binomTail: binomTail };
 </script>
 </body>
 </html>

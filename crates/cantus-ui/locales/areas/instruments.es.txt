@@ -59,3 +59,13 @@ inst.preset.init = Inicial
 inst.more.keyboard = Teclado
 inst.more.macros = Macros
 inst.more.mods = Modulación
+# r40:fix-f — Instalar desde un archivo…, en segundo plano (pianos de Chorda, kits de Tympanum)
+inst.install.installing = Instalando {name}…
+inst.install.unpacking = Descomprimiendo
+inst.install.building = Construyendo sus micros
+inst.install.progress = {what} · {pct} % · {done} de {total}
+inst.install.tip_cancel = Instalando {name} en segundo plano; lo que suena sigue sonando hasta que esté listo. Haz clic para cancelar: no queda nada a medias.
+inst.install.done = {name} está instalado y sonando.
+inst.install.cancelled = Se canceló la instalación de {name}; no quedó nada a medias.
+inst.install.failed = No se pudo instalar {name}: {why}
+inst.install.already = ese archivo ya se está instalando

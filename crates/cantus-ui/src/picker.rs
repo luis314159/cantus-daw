@@ -85,6 +85,7 @@ impl CantusApp {
     /// builder): instruments or effects as the purpose wants, the search empty, the device
     /// being replaced — or the last one chosen — selected.
     pub fn open_picker(&mut self, purpose: PickPurpose) {
+        Self::warm_builtins(); // r40:memory — an Exemplar may be chosen (ADR 0120 §2)
         crate::views::picker::open(self, purpose);
     }
 

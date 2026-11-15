@@ -51,6 +51,9 @@ pub fn pack(id: &str, licence_file: &str, source: Source) -> Pack {
         attribution: None,
         instruments: vec![],
         build: None,
+        mode: Default::default(), // r40:p3
+        author_page: None,
+        piano: None,
     }
 }
 

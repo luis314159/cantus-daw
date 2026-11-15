@@ -86,8 +86,10 @@ spec("lagoon", name="Lagoon", dark=N, hue=186, gain=1.7, text_hue=172, text_gain
 
 # ---- restored: the FL-derived pair, renamed (no product's name) --------------------------
 
-spec("slate", name="Pewter", dark=N, hue=202, gain=1.05, f=1.15, text_hue=150, text_gain=0.3,
-     metal_gain=0.6, accent=hx(0xffaa54), system="System::SLATE",
+# Round 40 (the owner: "too strong"): its lime, orange and meters softened, the room a
+# shade less blue; legibility held.
+spec("slate", name="Pewter", dark=N, hue=202, gain=0.85, f=1.15, text_hue=150, text_gain=0.3,
+     metal_gain=0.6, accent=hx(0xf0a463), system="System::SLATE",
      set=dict(
          ink=hx(0x1f282d), device_ground=hx(0x262f34), meter_well=hx(0x2b3439),
          # Cards sit darker than the desk, as round 24's Slate had them: the units' and the
@@ -95,11 +97,11 @@ spec("slate", name="Pewter", dark=N, hue=202, gain=1.05, f=1.15, text_hue=150, t
          deck=hx(0x313c42), deck_title=hx(0x2b353b),
          text=hx(0xf2f4f3), text_dim=hx(0xd3d9de), label=hx(0xd3d9de), menu_text=hx(0xf2f4f3),
          value_pill_text=hx(0xf2f4f3), knob_pointer=hx(0xf2f4f3),
-         selection=hx(0xc3ff5a), selection_tint=alpha(hx(0xc3ff5a), 30), playhead=hx(0xb5f060),
+         selection=hx(0xb8e07a), selection_tint=alpha(hx(0xb8e07a), 26), playhead=hx(0xacd977),
          text_select=hx(0x56703a),
-         brand=hx(0xf2c14e), brand_bright=hx(0xffd97a), focus=hx(0x7fd4ff),
-         led=hx(0x9be34f), fx_on=hx(0xffe34f), danger=hx(0xff8a6a), destructive=hx(0xc94d2a),
-         meter_low=hx(0xc4fc55), meter_mid=hx(0xe2ee58), meter_high=hx(0xffdf5a),
+         brand=hx(0xe8bd5c), brand_bright=hx(0xf6d68a), focus=hx(0x86cdf0),
+         led=hx(0x96cc62), fx_on=hx(0xf0d868), danger=hx(0xff8a6a), destructive=hx(0xc94d2a),
+         meter_low=hx(0xb6e26c), meter_mid=hx(0xd6df6a), meter_high=hx(0xf2d66a),
          meter_clip=hx(0xff8d3e), auto=hx(0xd3c4fd), modulated=hx(0xf8badb),
      ))
 spec("paper", name="Chalk", dark=P, hue=203, gain=1.0, f=0.86, text_hue=203, text_gain=1.0,
@@ -154,10 +156,11 @@ spec("evergreen_paper", name="Evergreen Paper", dark=P, hue=96, gain=1.25, f=0.9
          danger=hx(0xc23a2e), destructive=hx(0xc23a2e), meter_low=hx(0x1f8a4c),
          meter_mid=hx(0x7d8c22), meter_high=hx(0xa06c06), meter_clip=hx(0xd6322b),
      ))
-spec("bordeaux", name="Bordeaux", dark=N, hue=345, gain=1.6, f=0.92, text_hue=24, text_gain=0.9,
-     metal_gain=0.5, accent=hx(0xeba487), veil=130, system="System::GRAPHITE",
+# Round 40 (the owner: "too strong"): the wine room and the rose gold calmer; legibility held.
+spec("bordeaux", name="Bordeaux", dark=N, hue=345, gain=1.05, f=0.92, text_hue=24, text_gain=0.9,
+     metal_gain=0.5, accent=hx(0xe0a892), veil=130, system="System::GRAPHITE",
      set=dict(
-         selection_tint=alpha(hx(0xeba487), 36), readout=hx(0xedd3a4), readout_soft=hx(0xc9b08a),
+         selection_tint=alpha(hx(0xe0a892), 30), readout=hx(0xedd3a4), readout_soft=hx(0xc9b08a),
          playhead=hx(0xe9c98e), loop_edge=hx(0xe9c98e), led=hx(0x6fd39a), fx_on=hx(0x6fd39a),
          danger=hx(0xff6b6b), destructive=hx(0xc8443f), meter_low=hx(0x62d39a),
          meter_mid=hx(0xc9d36a), meter_high=hx(0xebb64d), meter_clip=hx(0xff5d50),

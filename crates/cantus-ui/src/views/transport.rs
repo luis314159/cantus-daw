@@ -155,6 +155,9 @@ struct WantsKey {
     grid: i64,
     /// The project's name, its unsaved mark and the facts its summary counts.
     name: u64,
+    /// The extras the owner's setting brings back: the automation arm, the typing key
+    /// (round 40, `look`). r40:look
+    extras: (bool, bool),
 }
 
 /// The groups the owner shows, in their order.
@@ -225,6 +228,10 @@ fn wants_with(app: &CantusApp, ctx: &egui::Context) -> ([Want; COUNT], usize) {
         name: name_key(app),
         bars: clock::bar_digits(app),
         grid: snap::grid_of(app, snap::focused(app)).0 .0,
+        extras: (
+            app.settings.look.topbar_automation,
+            app.settings.look.topbar_typing,
+        ),
     };
     WANTS.with(|c| {
         let mut c = c.borrow_mut();
@@ -259,7 +266,10 @@ fn widths_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> (f32,
     let fixed = |w: f32| (w, w);
     match g {
         Group::Mode => fixed(keys::mode_width(ctx, s)),
-        Group::Transport => fixed(keys::transport_width(s)),
+        Group::Transport => fixed(keys::transport_width_with(
+            s,
+            app.settings.look.topbar_automation,
+        )),
         Group::Tempo => tempo::widths(ctx, s),
         Group::Metronome => fixed(metro::width(s)),
         Group::Position => clock::widths(
@@ -273,7 +283,11 @@ fn widths_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> (f32,
         Group::Windows => fixed(keys::windows_width(s)),
         Group::Performance => fixed(perf::width(ctx, s)),
         Group::Meter => meter::widths(ctx, s),
-        Group::Inputs => fixed(keys::inputs_width(ctx, s)),
+        Group::Inputs => fixed(keys::inputs_width_with(
+            ctx,
+            s,
+            app.settings.look.topbar_typing,
+        )),
         Group::Device => super::audio_chip::bar_widths(app, ctx, s),
         Group::Tools => fixed(keys::tools_width(ctx, s)),
         Group::Sync => fixed(sync::width(ctx, s)), // r33:sync

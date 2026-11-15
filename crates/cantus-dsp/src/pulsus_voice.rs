@@ -131,6 +131,9 @@ pub(crate) struct Voice {
     pub(crate) tone_hz: f32,
     pub(crate) openness: f32,
     pub(crate) sample_rate: f32,
+    /// Model 4's drum and cymbal (Tympanum's modelled kits): allocated only by a kit that
+    /// asks for it ([`super::Pulsus::enable_acoustic`]), off the audio thread.
+    pub(crate) ac: Option<Box<super::acoustic::Acoustic>>,
 }
 
 impl Voice {
@@ -243,6 +246,7 @@ impl Voice {
             tone_hz: 9_500.0,
             openness: 0.0,
             sample_rate,
+            ac: None,
         }
     }
 
@@ -326,6 +330,11 @@ impl Voice {
         self.openness = o;
         let d = decay_at(self.closed_decay, self.open_decay, o);
         self.amp_coef = decay_coef(d, self.sample_rate);
+        if self.model == 4 {
+            if let Some(ac) = self.ac.as_deref_mut() {
+                ac.set_openness(o);
+            }
+        }
         if self.model == 0 {
             self.band
                 .set(open_tone(self.tone_hz, o).clamp(200.0, 18_000.0), 0.5);

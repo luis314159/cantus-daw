@@ -232,11 +232,13 @@ impl Processor {
                 s.follow_peak = 0.0;
                 for e in s.effects.iter_mut() {
                     e.automation_replanned();
+                    e.set_line_floor(None); // fix-a: set again below from the runtime
                 }
             }
         }
         for e in self.master.effects.iter_mut() {
             e.automation_replanned();
+            e.set_line_floor(None);
         }
         for slot in 0..MAX_TRACKS {
             if self.track_ids[slot].is_none() {
@@ -297,6 +299,29 @@ impl Processor {
                 m.ear = plan.listen.and_then(|l| Ear::of(l, &self.strip_to_slot));
             }
         }
+        // fix-a (A-M2): an automated Delay holds the line its lanes can reach, asked for
+        // now — before the song gets there (an offline render answers before its first
+        // block).
+        if let Some(rt) = self.auto.rt.as_ref() {
+            for c in rt.effects.iter().filter(|c| c.line_note.is_some()) {
+                match c.at {
+                    Some((usize::MAX, i)) => {
+                        if let Some(u) = self.master.effects.get_mut(i) {
+                            u.set_line_floor(c.line_note);
+                        }
+                    }
+                    Some((s, i)) => {
+                        if let Some(mut st) = nodes.strip(s) {
+                            if let Some(u) = st.effects.get_mut(i) {
+                                u.set_line_floor(c.line_note);
+                            }
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+        self.request_memory();
         self.scene_install(snapshot); // r36:mix
     }
 
@@ -803,24 +828,38 @@ impl Processor {
         if rt.any_hosted && playing {
             self.auto.hosted_next = (now / GRID + 1) * GRID;
         }
-        // Parameter sets that moved: their units configured from the copies.
+        // Parameter sets that moved: their units configured from the copies — each asking
+        // for memory its new settings need (fix-a, A-M2: a Delay's note made longer by a
+        // lane its runtime did not foresee), and a unit that starts or stops following the
+        // song (a Delay's sync) re-planning the passes its tempo steps cut.
+        let mut flipped = false;
+        let tx = &mut self.tx;
+        let mut configure = |u: &mut EffectUnit, spec: &cantus_core::EffectSpec| {
+            let was = u.follows_song();
+            u.configure(spec);
+            flipped |= u.follows_song() != was;
+            super::msg::ask_memory(u, tx);
+        };
         for c in rt.effects.iter_mut().filter(|c| c.dirty) {
             c.dirty = false;
             match c.at {
                 Some((usize::MAX, i)) => {
                     if let Some(u) = self.master.effects.get_mut(i).filter(|u| u.id == c.effect) {
-                        u.configure(&c.spec);
+                        configure(u, &c.spec);
                     }
                 }
                 Some((s, i)) => {
                     if let Some(mut st) = nodes.strip(s) {
                         if let Some(u) = st.effects.get_mut(i).filter(|u| u.id == c.effect) {
-                            u.configure(&c.spec);
+                            configure(u, &c.spec);
                         }
                     }
                 }
                 None => {}
             }
+        }
+        if flipped {
+            self.scope_delays();
         }
         for c in rt.natives.iter_mut().filter(|c| c.dirty) {
             c.dirty = false;
@@ -829,7 +868,10 @@ impl Processor {
             {
                 if let Some(mut s) = nodes.track(slot) {
                     if let Some(u) = s.native.as_mut() {
-                        u.unit.configure(&c.spec, &t.assets);
+                        // fix-e — only what moved, when the unit can set it alone.
+                        if !u.unit.configure_keys(&c.spec, &t.assets, &c.keys) {
+                            u.unit.configure(&c.spec, &t.assets);
+                        }
                     }
                 }
             }

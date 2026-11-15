@@ -43,6 +43,53 @@ pub fn mood_words() -> Vec<&'static str> {
     Mood::ALL.iter().map(|m| m.label_key()).collect()
 }
 
+/// The Slate cast's own words for some moods (round 40, ADR 0122): Metrónomo is composed,
+/// pleased, alarmed, unamused; an eighth mood is a character's own (Bajo's blast…). The
+/// locale area `cast` holds them.
+const CHARACTER_MOODS: &[(&str, Mood, &str)] = &[
+    (
+        "builtin:metronomo",
+        Mood::Neutral,
+        "cast.metronomo.mood.neutral",
+    ),
+    (
+        "builtin:metronomo",
+        Mood::Happy,
+        "cast.metronomo.mood.happy",
+    ),
+    (
+        "builtin:metronomo",
+        Mood::Excited,
+        "cast.metronomo.mood.excited",
+    ),
+    ("builtin:metronomo", Mood::Cool, "cast.metronomo.mood.cool"),
+    ("builtin:metronomo", Mood::Shy, "cast.metronomo.mood.shy"),
+    ("builtin:compas", Mood::Shy, "cast.compas.mood.shy"), // r40:fix-d (R2-B8)
+    ("builtin:bajo", Mood::Shy, "cast.bajo.mood.shy"),
+    ("builtin:vinilo", Mood::Shy, "cast.vinilo.mood.shy"),
+    ("builtin:cinta", Mood::Shy, "cast.cinta.mood.shy"),
+    ("builtin:tono", Mood::Shy, "cast.tono.mood.shy"),
+    ("builtin:sincopa", Mood::Shy, "cast.sincopa.mood.shy"),
+    ("builtin:voz", Mood::Shy, "cast.voz.mood.shy"),
+    ("builtin:glissando", Mood::Shy, "cast.glissando.mood.shy"),
+    ("builtin:eco", Mood::Shy, "cast.eco.mood.shy"),
+    ("builtin:onda", Mood::Shy, "cast.onda.mood.shy"),
+    ("builtin:espectro", Mood::Shy, "cast.espectro.mood.shy"),
+];
+
+/// `mood`'s words for the character `id`: its own where it has them, else the dancer's.
+pub fn mood_words_of(id: &str) -> Vec<&'static str> {
+    Mood::ALL
+        .iter()
+        .map(|m| {
+            CHARACTER_MOODS
+                .iter()
+                .find(|(c, mm, _)| *c == id && mm == m)
+                .map_or(m.label_key(), |(_, _, k)| *k)
+        })
+        .collect()
+}
+
 /// The words of `speed`'s values, from 0: ¼×, ½×, 1×, 2×, 4×.
 pub const SPEED_WORDS: [&str; 5] = [
     "dance.speed.quarter",

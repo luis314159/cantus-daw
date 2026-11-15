@@ -36,7 +36,7 @@ pub fn size(kind: EffectKind) -> (f64, f64) {
 }
 
 /// Whether a kind has its own editor in the exported plug-in yet: an exported kind whose
-/// editor runs on [`FxHost`] (Delay's does, but Delay is not exported: ADR 0115).
+/// editor runs on [`FxHost`] (Delay's, exported since round 40: ADR 0119).
 pub fn has_editor(kind: EffectKind) -> bool {
     crate::desc::of(kind).is_some() && FxEditor::of(kind).is_some()
 }

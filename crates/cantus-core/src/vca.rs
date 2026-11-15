@@ -37,6 +37,10 @@ pub enum StripKind {
     /// A pad's own strip, made by *Split to strips* (round 37, ADR 0100): a channel of the
     /// desk like any other, which goes with its kit (merge, another kit, the track deleted)
     /// and is never handed to a new track. // r37:drums
+    ///
+    /// r40:p3 — also the own strip of any **named output** (ADR 0123): a Tympanum mic, a
+    /// Chorda perspective or noise, made by the mixer's one-click actions. Same rules: it
+    /// goes with its instrument. The serialized name stays `Pad` (it is in files).
     Pad, // r37:drums
 }
 

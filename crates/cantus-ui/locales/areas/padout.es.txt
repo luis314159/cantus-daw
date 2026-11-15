@@ -48,3 +48,7 @@ padout.kit_too_big = {name} es demasiado grande para ser un kit (más de 512 son
 padout.kit_not_drums = Ningún archivo de {name} tiene nombre de tambor (bombo, caja, charles…): suéltala sobre los pads de un kit para hacer un kit con ella de todos modos.
 padout.chain_open_tip = Abrir el editor de {name}
 padout.chain_remove_tip = Quitar {name} de la cadena de este pad
+# r40:fix-d (R2-B3) — Merge back only undoes Split to strips; a strip the user chose is his routing.
+padout.merge_users = {name}: sus pads suenan en canales que elegiste tú, y «Unir de nuevo» solo deshace «Separar en canales». Para devolver un pad al kit, elige «El canal del kit» como su pista del mezclador.
+# r40:tymp-engine — named outputs through DAWproject.
+interop.report.x_split_outputs = {track}: {n} salidas del instrumento sonaban en canales propios; DAWproject no tiene salidas para un instrumento, así que se escribe entero en su propio canal. Esos canales (faders, inserciones y envíos) no van en el archivo, y el instrumento vuelve con todas sus salidas en Main.

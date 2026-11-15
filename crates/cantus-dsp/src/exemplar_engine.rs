@@ -48,8 +48,14 @@ fn balance(pan: f32) -> [f32; 2] {
 }
 
 impl Exemplar {
-    /// Allocates every table: call off the audio thread.
+    /// Allocates every table: call off the audio thread. Room for [`BASE_ZONES`] zones.
     pub fn new(fs: f32) -> Exemplar {
+        Self::with_zones(fs, BASE_ZONES)
+    }
+
+    /// [`Self::new`] with room for `zones` zones (at most [`MAX_ZONES`]). r40:chorda-src
+    pub fn with_zones(fs: f32, zones: usize) -> Exemplar {
+        let cap = zones.clamp(1, MAX_ZONES);
         let fs = if fs > 0.0 { fs } else { 48_000.0 };
         let board = std::sync::Arc::new(super::stream::Board::new(MAX_LAYERS));
         let mut layers = vec![Layer::default(); MAX_LAYERS].into_boxed_slice();
@@ -73,9 +79,9 @@ impl Exemplar {
             ],
             globals: Globals::default(),
             groups: vec![GroupParams::default(); MAX_GROUPS].into_boxed_slice(),
-            zones: vec![ZoneParams::default(); MAX_ZONES].into_boxed_slice(),
-            sources: vec![Source::default(); MAX_ZONES].into_boxed_slice(),
-            order: vec![0u16; MAX_ZONES].into_boxed_slice(),
+            zones: vec![ZoneParams::default(); cap].into_boxed_slice(),
+            sources: vec![Source::default(); cap].into_boxed_slice(),
+            order: vec![0u16; cap].into_boxed_slice(),
             order_len: 0,
             layers,
             slots: [Slot::default(); MAX_VOICES],
@@ -102,7 +108,7 @@ impl Exemplar {
             lane_end: [u16::MAX; LANES],
             ended: vec![false; MAX_LAYERS].into_boxed_slice(),
             board,
-            starts: std::sync::Arc::new(super::stream::Board::new_pins(MAX_ZONES)),
+            starts: std::sync::Arc::new(super::stream::Board::new_pins(cap)),
             late: 0,
             cut: 0,
             wakes: 0,
@@ -119,7 +125,7 @@ impl Exemplar {
     /// the pool. Call after the zones and globals are set (configure): allocation-free.
     pub fn publish_starts(&mut self) {
         use super::stream::{StartPin, BLOCK};
-        for zi in 0..MAX_ZONES {
+        for zi in 0..self.zones.len() {
             self.starts.set(zi, 0);
         }
         for oi in 0..self.order_len {
@@ -230,7 +236,7 @@ impl Exemplar {
     /// Add zone `n`. Call in ascending `n`; the audio thread may call it (no allocation:
     /// `Source` holds `Arc`s, whose drop here is never the last).
     pub fn put_zone(&mut self, n: usize, z: &ZoneParams, src: &Source) {
-        if n >= MAX_ZONES || self.order_len >= MAX_ZONES {
+        if n >= self.zones.len() || self.order_len >= self.zones.len() {
             return;
         }
         self.zones[n].clone_from(z);
@@ -244,6 +250,11 @@ impl Exemplar {
 
     pub fn zone_count(&self) -> usize {
         self.order_len
+    }
+
+    /// Zones it has room for. r40:chorda-src
+    pub fn zone_capacity(&self) -> usize {
+        self.zones.len()
     }
 
     pub fn clear_matrix(&mut self) {

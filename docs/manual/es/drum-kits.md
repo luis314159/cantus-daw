@@ -24,9 +24,12 @@ de 0 dB), así que deja pasar el pad intacto; el canal del kit coloca el kit con
 paneo del proyecto, como antes. El menú del canal dice qué ley sigue (**Ley de paneo ▸**) y
 deja cambiarla.
 
-**Unir de nuevo** (en los mismos menús) devuelve cada pad al canal del kit y quita los canales
-que hizo la separación — salvo que otra cosa use alguno (un envío hacia él, otra pista). Un
-solo paso de deshacer.
+**Unir de nuevo** (en los mismos menús) deshace *Separar en canales*: devuelve al canal del kit
+cada pad que movió la separación y quita los canales que esta hizo — salvo que otra cosa use
+alguno (un envío hacia él, otra pista). Un pad que enviaste a una pista del mezclador elegida
+por ti (su **pista del mezclador** en el rack de canales) se queda allí: ese enrutado es tuyo y
+*Unir de nuevo* no lo toca. Para devolverlo al kit, elige *El canal del kit* como su pista del
+mezclador. Un solo paso de deshacer.
 
 Bueno saber:
 
@@ -59,6 +62,27 @@ Bueno saber:
 **Kits anteriores.** Un kit hecho antes de esta versión es *Modelo 2* (o *Modelo 1*). También
 se separa, pero se suma a sí mismo solo con un redondeo (unos −135 dB); **Actualizar a Pulsus
 III** en la cabecera del kit lo hace exacto. Nada más cambia.
+
+## Un pad en un canal propio del mezclador (como en FL Studio)
+
+*Ronda 40.* En el rack de canales cada pad de un kit tiene su **pozo del canal del
+mezclador**, a la izquierda de su nombre, igual que cada canal: muestra el canal en que suena
+el pad — el número del kit hasta que elijas otro (un kit en el canal 3 muestra «3» en cada uno
+de sus pads). **Haz clic en el pozo de un pad** para elegir:
+
+- **El canal del kit** — donde empieza cada pad, y como suenan las canciones anteriores.
+- **Primer canal libre** — el siguiente canal sin usar de la mesa.
+- **Cualquier canal de la mesa** — un bus, o el canal de otra pista (dos canales pueden
+  compartir uno, como en FL).
+
+El pad suena entonces **ahí y solo ahí**: el canal del kit, sus inserciones y su fader ya no
+tocan ese pad; los del canal elegido sí (fader, inserciones, envíos, mute y solo). Un pad con
+cadena la conserva: la cadena suena en el canal elegido. Un paso de deshacer; se guarda con la
+canción. Elegir de nuevo el canal del kit devuelve el pad exactamente como estaba, al bit.
+
+*Separar en canales* (arriba) hace lo mismo con todos los pads a la vez, en canales nuevos que
+suenan en el del kit; el pozo elige un pad, y cualquier canal. Un canal que un pad deja sigue en
+la mesa con sus inserciones (bórralo allí si ya no lo necesitas).
 
 ## Una cadena por pad
 

@@ -368,6 +368,7 @@ fn a_new_keyboard_never_cuts_the_strings_ringing() {
             a4: 442.0,
             stretch: 1.0,
             stiffness: 1.0,
+            ..Default::default()
         },
         FS,
         8,
@@ -414,6 +415,7 @@ fn a_keyboard_landing_while_the_piano_plays_reaches_the_ringing_strings() {
             a4: 415.0,
             stretch: 1.0,
             stiffness: 1.0,
+            ..Default::default()
         },
         FS,
         8,

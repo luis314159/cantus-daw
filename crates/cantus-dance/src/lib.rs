@@ -25,9 +25,10 @@ pub mod import;
 pub mod pose;
 pub mod render;
 pub mod rig; // r35:cast
+pub mod slate; // r40:cast
 
 pub use cantus_core::inst::dancer::{Mood, Move};
 pub use cantus_engine::dance::{DanceFrame, DanceNote};
 pub use character::{Character, CharacterInfo, Licence, Origin};
 pub use pose::{pose_at, Pose};
-pub use render::{render, Background, Canvas, Stage};
+pub use render::{render, Background, Canvas, Stage, StageInk};

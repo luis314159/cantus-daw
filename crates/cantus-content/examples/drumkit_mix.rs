@@ -26,7 +26,13 @@ fn main() {
     let _ = std::fs::remove_dir_all(out);
     std::fs::create_dir_all(out).unwrap();
     let t = std::time::Instant::now();
-    let built = kitbuild::render(
+    // r40:tymp-engine — a Tympanum pack keeps every mic (`Build::multichannel`).
+    let render = if b.multichannel {
+        kitbuild::mics::render_mics
+    } else {
+        kitbuild::render
+    };
+    let built = render(
         b,
         src,
         out,
@@ -46,6 +52,10 @@ fn main() {
     );
     for l in &built.log {
         println!("  {l}");
+    }
+    if b.multichannel {
+        // Every mic in a folder of its own: the build's own log said what it made.
+        return;
     }
     let mut bytes = 0u64;
     for k in &b.keys {

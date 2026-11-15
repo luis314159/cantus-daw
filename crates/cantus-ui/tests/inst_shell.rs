@@ -78,6 +78,7 @@ fn kind_file(kind: InstrumentKind) -> &'static str {
         InstrumentKind::Organ => "organum",
         InstrumentKind::Chorda => "chorda",
         InstrumentKind::Dancer => "saltator", // r35:dancer
+        InstrumentKind::AcousticDrums => "tympanum", // r40:p3
     }
 }
 

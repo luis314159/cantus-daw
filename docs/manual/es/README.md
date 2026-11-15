@@ -39,6 +39,12 @@ Además: [Convertir audio a MIDI](audio-to-midi.md) — una melodía, acordes o 
 
 También: [Pulsus III: pads en canales propios, una cadena por pad, kits de donde sea](drum-kits.md) — separar un kit en canales, efectos en un pad, una carpeta o un SFZ como kit. <!-- r37:drums -->
 
+Además: [El arreglo: tiempo, secciones y ripple](arrangement.md) — insertar y borrar tiempo en todas las pistas, arrastrar una sección para mover sus compases, el modo ripple. <!-- r40:ripple -->
+
+Además: [Chorda: pianos grabados y el mezclador del piano](chorda-pianos.md) — el piano modelado o uno grabado (el Salamander, bitKlavier, tu propio SFZ), sus micrófonos en canales, Añadir nuestra sala, el retardo de un micro. <!-- r40:chorda-src -->
+
+Además: [Tympanum, el baterista acústico](tympanum.md) — baterías modeladas y grabadas en su sala, sus micrófonos en canales, la fuga entre micros, la voz híbrida. <!-- r40:docs -->
+
 Además: [El editor de audio](audio-editor.md) — cortar, silenciar, fundidos, normalizar, quitar ruido, quitar silencio y ver el espectro, sobre la toma de un clip.
 
 Además: [Saltator, un personaje que baila tu canción](dancer.md) — la ventana del bailarín, sus pasos, Reaccionar a; Fuga, el ninja, y Volta, el mecha, encabezan el reparto. <!-- r35:dancer, r37:chars -->
@@ -227,10 +233,12 @@ menú:
 - **Plegar zona** (`Ctrl+Alt+C`) pliega el área a su barra de pestañas — o, en una fila, a un
   riel delgado con su glifo — y conserva su lugar; *Desplegar zona*, un clic en el riel o
   arrastrar la línea plegada la devuelve tal como estaba.
-- **Maximizar zona** (doble clic en su pestaña, o `Ctrl+Alt+Enter`) le da todo el espacio de
-  trabajo; las áreas ocultas esperan en una fila de pestañas a su pie — un clic en una devuelve
-  las áreas con esa delante, o *Mostrar los paneles*. Otra vez, o mostrar cualquier área,
-  devuelve las demás. Las ventanas flotantes se quedan.
+- **Maximizar zona** (doble clic en su pestaña, o `Ctrl+Alt+Enter`) le da el espacio de trabajo
+  con **el inspector a su lado**, a su ancho, para que lo que eliges siga a mano; las áreas
+  ocultas esperan en una fila de pestañas a su pie — un clic en una devuelve las áreas con esa
+  delante, o *Mostrar los paneles*. Otra vez, o mostrar cualquier área, devuelve las demás; `I`
+  oculta solo el inspector y la zona sigue maximizada. Las ventanas flotantes se quedan. Para
+  darle todo el espacio: *Ajustes ▸ Apariencia ▸ Disposición y controles ▸ Al maximizar, queda: Nada*.
 - **Flotar** la pone en su propia ventana; **Acoplar** la devuelve.
 
 `Ctrl+F6` y `Ctrl+Shift+F6` pasan el foco del teclado de un área a otra (el glifo de la pestaña
@@ -265,6 +273,29 @@ anterior abre en el tema que nombra, con tus cambios de color conservados; los t
 tú no se tocan. En los temas de alto contraste y en tus temas antiguos los faders siguen
 ofreciendo dos capuchones (*Faders*: **Clásico** y **Metal**); los demás temas dibujan un solo
 capuchón, iluminado desde arriba.
+
+**Disposición y controles** (*Ajustes ▸ Apariencia*, bajo el aspecto): cinco elecciones de este ordenador, no
+de la canción, cada una empezando donde la quiere casi todo el mundo —
+- **Al maximizar, queda**: *El inspector al lado* (por defecto) o *Nada: todo el espacio*.
+- **Extras de la barra**: *Ninguno* (por defecto), *Automatización* (su armado y sus modos),
+  *Teclado* (el del ordenador) o *Ambos* — las teclas que la barra llevaba antes de la versión 0.1.0-beta.14 (ver
+  [la barra superior](#la-barra-superior)).
+- **Dock derecho del mezclador**: *En el borde de la ventana* (por defecto, como la mesa de FL
+  Studio: el espacio de antes lo ocupan los siguientes canales vacíos, numerados) o *Tras la
+  última tira*.
+- **Valores del inspector**: *Barras de valor* (por defecto: un pozo lleno hasta el valor, la
+  cifra dentro) o *Barras finas* (una barra delgada con su asa, la cifra al lado).
+- **Botón M encendido**: *En color* (por defecto: la **M** de un canal o una pista en silencio
+  encendida en el acento del tema) o *Gris*.
+
+**Imágenes de instrumentos** (*Ajustes ▸ Apariencia ▸ Imágenes de instrumentos*): cómo se
+dibujan el piano de Chorda y la batería de Tympanum en su sala. **Dibujadas** (por defecto) es
+ligero y rápido: una imagen que se hace cuando algo cambia, nada que dibujar en reposo.
+**Fotográficas** añade reflejos trazados (la tapa reflejando el arpa y las cuerdas, el suelo
+reflejando el instrumento) y sombras suaves; tarda un momento en dibujarse — cerca de un segundo
+una imagen completa, en un hilo aparte que nunca compite con el audio — y muestra una versión
+rápida mientras arrastras un control. El sonido nunca cambia; la elección es de este ordenador,
+no de la canción. <!-- r40:docs -->
 
 **El tamaño** sigue a tu pantalla hasta que eliges uno: cerca del 125 % en una pantalla de 1920
 píxeles (menos si Windows ya escala), nunca menos del 100 % ni más del 200 %. `Ctrl++`,
@@ -365,7 +396,12 @@ mayor se pliegan más grupos.
 - **Deshacer** y **rehacer**, y las siete **teclas de ventana**: explorador, arreglo, rack,
   piano roll, la ventana del plug-in (`F8`), mezclador, inspector. La vista de sesión está en
   `Tab` y en *Ver*; el teclado del ordenador en `Ctrl+T` y en la línea de estado; el armado de
-  la automatización y sus modos, en sus teclas y en la paleta.
+  la automatización y sus modos, en sus teclas y en la paleta. **¿Los quieres en la barra?**
+  *Ajustes ▸ Apariencia ▸ Disposición y controles ▸ Extras de la barra*: el **armado de la automatización**
+  vuelve tras la tecla de bucle (violeta mientras está armado; su ▾, o un clic derecho, pone el
+  modo de todas las pistas a la vez y el deslizamiento de Touch), y la **tecla del teclado del
+  ordenador** antes de las entradas (encendida mientras tus teclas tocan la pista elegida). Con
+  ambos, a 1920 × 1080 y 100 % la barra sigue plegando solo las herramientas y las entradas.
 - **CPU, memoria, cortes**: la carga de la llamada de audio como una pequeña gráfica con su
   número, la memoria que usa Cantus, y los cortes como una píldora roja cuando los hay (la
   causa del último, en la línea de estado).
@@ -420,6 +456,15 @@ Las tomas se escriben como archivos WAV de 32 bits flotantes: en la carpeta `Aud
 proyecto una vez guardado; antes, en `%LOCALAPPDATA%\Cantus\recordings\`; al guardar se
 mueven al proyecto. Cada toma se adelanta la latencia medida, para que cuadre con lo que
 oíste.
+
+**Sin FX o con FX** *(ronda 40)*. La sección *Grabación* del inspector tiene **Se graba:
+Sin FX · Con FX**. *Sin FX* (lo predeterminado) graba la entrada tal como
+llega, tras su ajuste: las inserciones del canal cambian lo que oyes, no la toma. *Con FX* graba
+el canal tras sus inserciones (antes de su EQ, panorama y fader), en estéreo, como lo
+oyes — el «grabar con efectos» de Logic y Studio One. La toma sigue cayendo donde tocaste: se
+descuenta el retardo de una inserción con latencia. Dos cosas que saber: las inserciones oyen
+la entrada solo mientras se escucha (*Auto* o *Sí*), y trabajan sobre todo lo que lleva el canal
+en ese momento. La elección se guarda con la canción, por pista; un paso de deshacer.
 
 ### Opciones de grabación
 
@@ -1626,8 +1671,37 @@ elegido*, y *Panel de inserciones*), la ficha de solo («1 en solo · Quitar»),
 pestañas. Clic selecciona un canal (su cuerpo teñido, su franja entera), `Ctrl+clic` añade,
 `Shift+clic` toma un tramo; mover un fader de una selección mueve todos. Con el foco en el
 mezclador, `M` silencia, `S` pone solo, `Alt+Izquierda`/`Alt+Derecha` mueven el canal. Un canal
-silenciado se apaga en tinta; uno que calla por el solo de otro muestra su M con un aro del color
-del solo.
+silenciado se apaga en tinta y su **M** se enciende en el acento del tema (*Ajustes ▸ Apariencia ▸
+Disposición y controles ▸ Botón M encendido: Gris* la enciende en gris); uno que calla por el solo de otro
+muestra su M con un aro del color del solo. Los **retornos** acoplados a la derecha van en el
+borde de la ventana, como en FL Studio, y el espacio entre el último canal y ellos lo ocupan los
+siguientes canales vacíos, numerados — un clic en uno crea los canales hasta él (*Dock derecho del
+mezclador: Tras la última tira* pone los retornos justo tras tus canales).
+
+**Grupos, para quien viene de FL Studio.** FL no tiene un botón de «grupo»: se agrupa
+enrutando. Cantus funciona igual, de dos maneras:
+- **Un bus** — enruta los canales a uno (selecciónalos y *Crear submezcla con los seleccionados*, o
+  arrastra sus cables hasta él): un fader, unas inserciones y un medidor para la batería, como
+  el *Drum bus* de la canción de ejemplo. Sus efectos procesan la suma.
+- **Un grupo VCA** — un fader que mueve el nivel de sus miembros sin sumarlos (cada uno conserva
+  sus inserciones y envíos); ver [Faders VCA e instantáneas de la mesa](mixing-studio.md).
+
+**Bandas en la mesa.** Un grupo de canales se dibuja como una **banda** sobre ellos: un hueco y
+una costura a cada lado, su nombre y cuántos son arriba. Selecciona canales y clic derecho ▸
+*Grupo ▸ Nuevo grupo con los seleccionados* (doble clic en su cabecera para renombrarlo). Un clic
+en su chevrón **pliega** la banda en un solo canal que nombra a sus miembros y muestra sus
+medidores lado a lado (*Desplegar* los devuelve — un grupo plegado nunca se oculta); arrastra su
+**borde derecho** para tomar el canal siguiente o devolver el último (`Esc` lo deja como estaba).
+Cada cambio es un paso de deshacer. Un instrumento con salidas propias (Chorda,
+[Tympanum](tympanum.md)) dibuja sus canales como una **familia** — una barra sólida con su glifo,
+*Batería · Tympanum · 12 micros* — que se pliega igual; *Cada micro a su canal* hace un subgrupo
+por familia de micrófonos (Bombo, Caja, Toms, Platillos, Aéreos, Sala) en el mismo paso, y *Todo a
+Principal* los quita. Un canal está en una banda como mucho: un grupo vive dentro de una familia o
+toma familias enteras. Un canal alimentado solo por las salidas de una familia — un bus de
+batería, un compresor en paralelo — puede unirse a su banda (clic derecho ▸ *Añadir a la banda de
+…*; se dibuja al final de la banda, marcado *añadido*) y la deja, con la razón en la línea de
+estado, cuando su entrada deja de venir solo de esa familia. Mientras la mesa se desplaza, el
+nombre de la banda sigue a la vista. <!-- r40:docs -->
 
 - **Inserciones** (hasta diez por canal): clic en la fila `+` (o clic derecho en el canal ▸
   *Añadir efecto ▸*, donde arriba están los cinco efectos que usaste último) para elegir un
@@ -1700,13 +1774,20 @@ el título la abre o la cierra:
 
 - **Ruteo** — la salida, la entrada, la polaridad, el intercambio y el mono del canal, la
   compensación de retardo y la latencia.
-- **Cadena lateral** — qué inserción lleva la llave y desde qué canal.
-- **Grabación** — la entrada, la *Escucha*, el *Ajuste*, *Armar*, *Baja latencia*.
+- **Cadena lateral** — qué inserción lleva la llave y desde qué canal, y bajo cada inserción
+  con llave **Escuchar la clave** *(ronda 40)*: el canal reproduce la llave de esa inserción en
+  lugar de su propia señal — la de un compresor tal como la oye su detector (tras el nivel y la
+  EQ de la llave) — para ajustarla de oído. Una inserción a la vez; otro clic vuelve al canal.
+  Es un interruptor de escucha: nunca se guarda ni va en una exportación.
+- **Grabación** — la entrada, la *Escucha*, **Se graba: Sin FX · Con FX** (ver
+  más arriba, en la pista de audio), el *Ajuste*, *Armar*, *Baja latencia*.
 - **Automatización** — el modo de la pista del canal (*Read · Touch · Latch · Write*), una línea
   por carril con una pequeña imagen y sus puntos, y **Mostrar en el arreglo**: abre los carriles
   de automatización de la pista, desplaza el arreglo hasta ellos y le da el foco (un paso de
   deshacer).
-- **Nivel** — volumen, paneo y anchura como barras con sus valores, los VCA que sigue el canal,
+- **Nivel** — volumen, paneo y anchura como barras de valor (el pozo lleno hasta el valor, la
+  cifra dentro; *Ajustes ▸ Apariencia ▸ Disposición y controles ▸ Valores del inspector: Barras finas* para
+  barras delgadas), los VCA que sigue el canal,
   *Silencio · solo*, *A salvo de instantáneas* y *A salvo del solo*; bajo el volumen, un medidor
   fino en la misma escala (verde, amarillo, ámbar, el color de saturación encima, un pico
   retenido). Con varios canales elegidos, el volumen los mueve juntos. Nivel ocupa el lugar de
@@ -2072,6 +2153,7 @@ mezcla y su puenteo.
 | Lamina | Piano eléctrico |
 | Organum | Órgano de ruedas fónicas con barras y altavoz rotatorio |
 | Chorda | Piano de cola tocado desde un modelo físico: cuerdas, martillos, tabla armónica, pedales |
+| Tympanum | Baterista acústico: kits modelados con micrófonos que se mueven y kits grabados con varios micrófonos, cada micro en su canal ([Tympanum](tympanum.md)) |
 
 Los efectos son Aequalis (EQ), Comprimo (compresor), Porta (puerta y expansor), Sibilus
 (de-esser), Multiplex (dinámica multibanda), Terminus (limitador), Culmen (maximizador),
@@ -2132,6 +2214,11 @@ sostenido sigue sonando, con el batido suave de sus cuerdas; con el **pedal dere
 medio bajar apaga a medias. El **pedal suave** (una corda, controlador 67) desplaza los
 martillos para las notas siguientes: más suave y más oscuro.
 
+Desde esta versión Chorda 2 toca una **nueva voz**, medida nota por nota contra un piano de cola
+grabado (el Salamander): cada tecla afinada a menos de 10 cents de él, sus parciales, su caída y
+sus unísonos ajustados tecla por tecla. Una canción guardada con una beta anterior que usa
+Chorda 2 también toca la nueva voz; una canción en *Chorda 1* suena como siempre.
+
 El pedal derecho también es una perilla — **Derecho**, en la tarjeta PEDALES de Tocar y
 Editar —, así que una canción puede pedalear sin pedal: dibújalo como **carril de
 automatización** (clic derecho en la perilla ▸ *Crear clip de automatización*; puntos sostenidos, arriba en
@@ -2140,27 +2227,15 @@ mueva un **modulador**; el medio pedal también funciona ahí. El pedal que oyen
 es el mayor entre la perilla y el controlador 64, así que un pedal real sigue funcionando
 encima de un carril. La demo *De todo corazón* está pedaleada así.
 
-- **Tocar** muestra **el piano y su sala** (ronda 37): el piano dibujado como lo mostraría
-  la foto de una sesión de grabación — el cuerpo y el acabado del preset, la tapa al ángulo
-  de la perilla **Tapa** (cerrada, en el puntal corto, en el puntal largo), los micrófonos
-  donde los ponen **Micros** y **Anchura** (en una jirafa sobre los martillos, en un pie
-  detrás del pianista, lejos, donde se sienta el público; el par por el que escucha la
-  mezcla lleva un aro rojo), un par de sala en pies altos cuando la perilla **Sala** trae
-  la sala, y la sala que hace su **Tamaño** — una cabina con paneles absorbentes y una
-  alfombra, la sala de un estudio con la ventana de la sala de control, un auditorio con
-  un escenario pulido, una iglesia con ventanales cuando la sala es grande y muy viva. Gira
-  una perilla y la imagen la sigue. Dos selectores en su esquina eligen el **Piano** (gran
-  cola de concierto, media cola, cuarto de cola, piano vertical) y el **Acabado** (negro o
-  blanco lacado, nogal, palisandro): el aspecto cambia solo la imagen, nunca el sonido, se
-  guarda con la canción y es un paso de deshacer. Cada preset trae su aspecto, siempre uno
-  que su sonido puede representar (Chorda modela las cuerdas de un piano de cola; un
-  vertical solo se muestra para un sonido afinado como tal — la tapa cerrada y una escala
-  corta, la desafinación de un honky-tonk o la mecánica suave del fieltro). Junto a ella,
-  los pedales: el recorrido del pedal derecho dibujado sobre la ley de cuánto
-  bajan los apagadores en cada posición, con las perillas **Derecho**, **Apagadores** y
-  **Suave** debajo. Debajo: el martillo (dureza, dinámica, curva de
-  velocidad), la resonancia (simpatía, extinción, tabla armónica) y la salida
-  (inclinación, anchura, ganancia).
+- **Tocar** muestra **el piano en su sala** — el cuerpo y el acabado sobre la imagen; la sala,
+  el suelo, las paredes y la alfombra en la tarjeta de su esquina (solo el aspecto, nunca el
+  sonido; un paso de deshacer, guardado con la canción), *Dibujadas* o *Fotográficas*
+  ([Imágenes de instrumentos](#3-el-espacio-de-trabajo)) —, la lista **Fuente** a su izquierda (el
+  piano modelado, los grabados, los tuyos), el teclado debajo, las tarjetas **Martillo**,
+  **Resonancia** y **Salida**, y **El piano**: la **Tapa**, **Perspectiva · Dónde escuchas** (con
+  *Abrir el mezclador ›*) y los **Pedales** (*Derecho*, *Suave*, *Apagadores*, la curva de los
+  apagadores contra el pedal). El nivel de la sala y la anchura viven ahora en la vista
+  **Mezclador**; ver [Chorda: pianos grabados y el mezclador del piano](chorda-pianos.md). <!-- r40:docs -->
 - **Editar** muestra el piano visto desde arriba — las cuerdas de cada tecla a su longitud
   sobre la tabla armónica de abeto, el puente, el borde del arpa de hierro, la fila de
   martillos de fieltro por donde golpean, los apagadores, la última tecla tocada
@@ -2370,7 +2445,8 @@ solo dentro de las carpetas que permitiste).
 
 ### Delay, el delay estéreo
 
-**Delay** es el eco estéreo de Cantus: un tiempo de hasta dos segundos, realimentación, un filtro
+**Delay** es el eco estéreo de Cantus: un tiempo de hasta dos segundos o una figura que sigue el
+tempo, realimentación, un filtro
 de tono en el lazo para que cada repetición sea más oscura que la anterior, y ping-pong entre los
 lados. Se inserta desde **Añadir inserción ▾ ▸ Espacio ▸ Delay**; un clic en su inserción abre su
 ventana (la vista reducida bajo la inserción deja a mano el tiempo, la realimentación, el tono y la
@@ -2389,12 +2465,28 @@ nada se mueve.
 | Tarjeta | Controles |
 |---|---|
 | Lo que se oye | las repeticiones hasta −60 dB, la cola que hacen, lo que el tono quita a cada repetición a 8 kHz, el lado de la primera |
-| Tiempo | **Tiempo** (1 ms … 2 s); **Al tempo**: una figura al tempo de la canción fija el tiempo una vez — no sigue un cambio de tempo |
+| Tiempo | **Tiempo** (1 ms … 2 s), o la **figura** con la sincronía; **Tempo**: *Libre · Al tempo*, la figura (1/64 … 4/1, normal, con puntillo ·, tresillo T, cada una con su tiempo al tempo de la canción) y lo que es el tiempo ahora |
 | Repeticiones | **Realimentación** (0–95 %), **Tono** (200 Hz … 20 kHz, en el lazo) |
 | Salida | **Ping-pong**, **Mezcla** (las repeticiones frente al sonido seco) |
 
-Un cambio de tiempo se desliza, así que un barrido dobla el tono como una cinta. Delay no se
-exporta como plug-in CLAP ni VST3.
+Un cambio de tiempo se desliza, así que un barrido dobla el tono como una cinta.
+
+**Al tempo** (ronda 40). Con **Al tempo** el tiempo es una figura al tempo de la canción, y
+sigue cada cambio de tempo y la pista de tempo: dentro de una rampa las repeticiones se
+deslizan con ella, como un eco de cinta cuya velocidad sigue la rampa; en un cambio brusco
+de tempo o una figura nueva pasan al tiempo nuevo con un fundido de 50 ms — sin clic ni
+barrido. *Al tempo* elige la figura más cercana al tiempo que tenías; elegir una figura en la
+lista activa la sincronía; **Libre** conserva en milisegundos el tiempo que sonaba (así, una
+figura fijada una vez es *Al tempo* y luego *Libre*). Con la sincronía, la perilla grande
+gira la figura, y arrastrar a lo ancho sobre los ecos va a la figura más cercana al puntero.
+Una canción guardada antes de la ronda 40 suena como sonaba. Las figuras largas ocupan más
+memoria (una redonda unos 5 MB, 4/1 unos 18 MB a 48 kHz); un 4/1 con puntillo por debajo de
+30 BPM es más largo que la línea y se queda en 48 s (la ventana lo dice). Los presets que
+llevan el nombre de una figura (*Eco de corcheas*, *Corchea con puntillo*, *Lanzamiento de
+negras*, *Eco vocal trap*, *Rebote de semicorcheas*, *Eco de tresillos*) siguen el tempo.
+
+**En otro DAW.** Delay también es un plug-in CLAP y VST3, *Cantus Delay*, con esta ventana;
+con la sincronía sigue el tempo de ese DAW.
 
 ### Plug-ins de otros fabricantes: instalarlos y usarlos
 

@@ -52,6 +52,9 @@ pub struct Visualiser {
     moved_at: f64,
     /// Samples since the last analysis.
     fresh: usize,
+    /// Updates and analyses made since it was made (the at-rest tests: nothing at rest).
+    updates: u64,
+    analyses: u64,
 }
 
 impl Default for Visualiser {
@@ -63,6 +66,8 @@ impl Default for Visualiser {
             analysed_at: f64::NEG_INFINITY,
             moved_at: 0.0,
             fresh: 0,
+            updates: 0,
+            analyses: 0,
         }
     }
 }
@@ -77,6 +82,7 @@ impl Visualiser {
     /// Bring the display up to `now`: analyse when due and something came, fall where
     /// nothing rises. `peak` is the master's peak (linear, both channels' larger).
     pub fn update(&mut self, now: f64, sample_rate: f32, peak: f32) {
+        self.updates += 1;
         let dt = (now - self.moved_at).clamp(0.0, 0.25) as f32;
         self.moved_at = now;
         let fall = FALL_PER_S * dt;
@@ -90,6 +96,7 @@ impl Visualiser {
         if due && self.fresh > 0 && self.analyser.has_data() {
             self.analysed_at = now;
             self.fresh = 0;
+            self.analyses += 1;
             self.analyser.compute();
             for (i, b) in self.bands.iter_mut().enumerate() {
                 let hz = band_hz(i);
@@ -109,6 +116,12 @@ impl Visualiser {
                 *b = (*b - fall).max(0.0);
             }
         }
+    }
+
+    /// How many times it was brought up to date, and how many of those analysed (fix-c,
+    /// R2-C1: at rest, neither moves).
+    pub fn counts(&self) -> (u64, u64) {
+        (self.updates, self.analyses)
     }
 
     /// Whether anything still shows (a band or the level above zero).

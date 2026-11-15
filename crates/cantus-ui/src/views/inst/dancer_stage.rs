@@ -25,7 +25,13 @@ pub const FLOOR: f32 = 0.85;
 #[derive(Default)]
 pub struct StageState {
     tex: Option<DanceTexture>,
-    shown: Option<(TrackId, String, cantus_dance::Pose, [u32; 2])>,
+    shown: Option<(
+        TrackId,
+        String,
+        cantus_dance::Pose,
+        [u32; 2],
+        cantus_dance::StageInk,
+    )>,
     /// Redraws of the character (the tests' and the budget's measure).
     pub draws: u64,
 }
@@ -44,24 +50,25 @@ pub fn character_texture(
     track: TrackId,
     dancer: &LiveDancer,
     px: [u32; 2],
+    ink: cantus_dance::StageInk,
 ) -> Option<egui::TextureId> {
     let id = dancer.character.info().id.clone();
-    let same = st
-        .shown
-        .as_ref()
-        .is_some_and(|(t, c, p, sz)| *t == track && *c == id && *p == dancer.pose && *sz == px);
+    let same = st.shown.as_ref().is_some_and(|(t, c, p, sz, k)| {
+        *t == track && *c == id && *p == dancer.pose && *sz == px && *k == ink
+    });
     let tex = st
         .tex
         .get_or_insert_with(|| DanceTexture::new("dancer-editor-stage"));
     if same {
         return tex.id();
     }
-    st.shown = Some((track, id, dancer.pose, px));
+    st.shown = Some((track, id, dancer.pose, px, ink));
     st.draws += 1;
     let mut stage = Stage::new(px[0], px[1], Background::Transparent);
     // The editor's stage is a close-up: the character stands taller than on the
     // workspace's stage, its feet on the floor line.
     stage.standard_height = 0.62;
+    stage.ink = ink;
     let mut pose = dancer.pose;
     pose.y = FLOOR + (pose.y - 0.85);
     tex.draw(ctx, &stage, &[(dancer.character.as_ref(), pose)])

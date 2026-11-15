@@ -370,3 +370,116 @@ fn a_waiting_export_is_dropped_when_the_project_changes() {
     );
     assert_eq!(a.status.text, i18n::t("video.status.dropped"));
 }
+
+// ---- fix-c (R2-C3, R2-C4): Espectro in an export ----------------------------------------
+
+/// Two seconds of a thump on every beat and a tick on every eighth, stereo.
+fn thumps() -> cantus_export::Audio {
+    let rate = 48_000u32;
+    let mut samples = Vec::new();
+    for i in 0..2 * rate as usize {
+        let t = i as f32 / rate as f32;
+        let tau = 2.0 * std::f32::consts::PI;
+        let thump =
+            cantus_dsp::math::exp(-(t * 2.0).fract() * 6.0) * cantus_dsp::math::sin(tau * 70.0 * t);
+        let tick = cantus_dsp::math::exp(-(t * 4.0).fract() * 12.0)
+            * cantus_dsp::math::sin(tau * 9_000.0 * t);
+        let s = 0.6 * thump + 0.3 * tick;
+        samples.extend([s, s]);
+    }
+    cantus_export::Audio {
+        rate,
+        channels: 2,
+        samples,
+    }
+}
+
+fn dancer_of(id: &str) -> cantus_video::dance::Dancer {
+    let timeline = (0..200)
+        .map(|i| cantus_dance::DanceFrame {
+            seconds: i as f64 * 0.01,
+            beats: i as f64 * 0.02,
+            tempo_bpm: 120.0,
+            playing: true,
+            bar_beats: 4.0,
+            ..cantus_dance::DanceFrame::default()
+        })
+        .collect();
+    cantus_video::dance::Dancer {
+        character: cantus_dance::cast::by_id(id).expect("in the cast"),
+        timeline,
+    }
+}
+
+#[test]
+fn an_export_analyses_its_render_once_for_espectro_and_the_visualiser() {
+    use cantus_ui::stage::vis_video::{analyse, analyses_on_this_thread, Setup};
+    let audio = thumps();
+    let tempo = Project::new("t").tempo_map();
+    let setup = || Some(Setup::from_theme("song", false, false));
+    // The job's analysis for `list` and a visualiser `setup`, and how many analyses it made.
+    let analysed = |list: &[cantus_video::dance::Dancer], setup| {
+        let before = analyses_on_this_thread();
+        let got = job::analysed(list, setup, &audio, &tempo, Ticks::ZERO);
+        (analyses_on_this_thread() - before, got)
+    };
+    let espectro = vec![dancer_of("builtin:espectro")];
+    let compas = vec![dancer_of("builtin:compas")];
+    // Espectro and the visualiser: one analysis feeds both.
+    let (n, (spectrum, vis)) = analysed(&espectro, setup());
+    assert_eq!(n, 1, "the render analysed once");
+    assert!(vis.is_some(), "the visualiser drawn");
+    let want = cantus_ui::dance_live::video_spectrum(&analyse(&audio.samples, 2, audio.rate));
+    assert_eq!(spectrum.as_ref(), Some(&want), "Espectro hears the render");
+    // The frames pose Espectro with the render's bands (the job's spectrum branch).
+    let frames = cantus_video::dance::SongFrames {
+        dancers: espectro.clone(),
+        stage: cantus_dance::render::Stage::new(
+            200,
+            200,
+            cantus_dance::render::Background::Transparent,
+        ),
+        start_seconds: 0.0,
+        fps: 30,
+        overlay: None,
+        spectrum,
+    };
+    let p = frames.poses(30)[0];
+    assert!(p.bands.iter().any(|b| *b > 0.1), "{:?}", p.bands);
+    // Espectro alone, the visualiser off: one analysis, no visualiser.
+    let (n, got) = analysed(&espectro, None);
+    assert_eq!(n, 1);
+    assert!(got.0.is_some() && got.1.is_none());
+    // The visualiser alone: one, no spectrum. Neither: none.
+    let (n, got) = analysed(&compas, setup());
+    assert_eq!(n, 1);
+    assert!(got.0.is_none() && got.1.is_some());
+    let (n, got) = analysed(&compas, None);
+    assert_eq!(n, 0, "nothing wants it: not analysed");
+    assert!(got.0.is_none() && got.1.is_none());
+}
+
+#[test]
+fn a_song_with_espectro_exports_with_the_visualiser_on() {
+    let _g = one();
+    let folder = tempfile::tempdir().unwrap();
+    let (p, _) = song(
+        |s| {
+            s.set_text(dancer::CHARACTER_KEY, Some("builtin:espectro".into()))
+                .unwrap();
+        },
+        1,
+        false,
+    );
+    let mut a = app_with(p, folder.path());
+    let mut d = small_mov(&a);
+    d.visualiser = true;
+    match job::resolve_dancers(&mut a) {
+        job::Cast::Ready(c) => assert!(c[0].character.hears_spectrum()),
+        _ => panic!("built-in characters are ready"),
+    }
+    vx::start(&mut a, &folder.path().join("espectro"), &d, false).unwrap();
+    vx::wait(&mut a);
+    assert!(matches!(a.video.last, Some(Ok(_))), "{:?}", a.video.last);
+    assert!(folder.path().join("espectro.mov").is_file());
+}

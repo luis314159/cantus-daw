@@ -29,6 +29,46 @@ pub fn single_keys() -> Vec<u8> {
     (21u8..=108).step_by(3).collect()
 }
 
+/// Every key, mezzo-forte, one every four seconds (round 40: the keyboard's evenness key by
+/// key; not a listening phrase).
+fn every_key() -> Phrase {
+    let notes = (21u8..=108)
+        .enumerate()
+        .map(|(i, k)| (i as f64 * 4.0, 3.5, k, 75))
+        .collect();
+    Phrase {
+        id: "keys_mf",
+        notes,
+        pedal: Vec::new(),
+        len: 88.0 * 4.0,
+        listen: false,
+    }
+}
+
+/// The keys and velocities of the treble's velocity sweep.
+pub const SWEEP_KEYS: [u8; 13] = [72, 75, 78, 81, 84, 87, 90, 93, 96, 99, 102, 105, 108];
+pub const SWEEP_VELS: [u8; 14] = [20, 30, 40, 50, 60, 70, 75, 80, 90, 100, 110, 115, 120, 127];
+
+/// The treble's velocity sweep (round 40, candidate 7): C5 … C8 every minor third, each at
+/// fourteen velocities, one strike every two seconds held 1.5 s (key by key, soft to hard;
+/// not a listening phrase) — the reference's velocity layers against Chorda's curve.
+fn velocity_sweep() -> Phrase {
+    let mut notes = Vec::new();
+    for k in SWEEP_KEYS {
+        for v in SWEEP_VELS {
+            notes.push((notes.len() as f64 * 2.0, 1.5, k, v));
+        }
+    }
+    let len = notes.len() as f64 * 2.0;
+    Phrase {
+        id: "vsweep",
+        notes,
+        pedal: Vec::new(),
+        len,
+        listen: false,
+    }
+}
+
 /// The single notes at one dynamic: one key every [`NOTE_EVERY`] seconds.
 fn singles(id: &'static str, vel: u8) -> Phrase {
     let keys = single_keys();
@@ -222,6 +262,22 @@ fn middle_c() -> Phrase {
     }
 }
 
+fn triad() -> Phrase {
+    // The family's staging triad (ADR 0101): C-major at velocity 100 for two seconds — what
+    // a piano's level is judged by against the reference's (round 40), not a listening one.
+    Phrase {
+        id: "triad",
+        notes: vec![
+            (0.0, 2.0, 60, 100),
+            (0.0, 2.0, 64, 100),
+            (0.0, 2.0, 67, 100),
+        ],
+        pedal: Vec::new(),
+        len: 4.0,
+        listen: false,
+    }
+}
+
 /// Every phrase, in the order the reports list them.
 pub fn all() -> Vec<Phrase> {
     let mut v: Vec<Phrase> = DYNAMICS
@@ -243,6 +299,9 @@ pub fn all() -> Vec<Phrase> {
         ff_chord(),
         bass(),
         top(),
+        triad(),
+        every_key(),
+        velocity_sweep(),
     ]);
     v
 }

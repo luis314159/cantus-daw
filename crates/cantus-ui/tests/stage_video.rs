@@ -104,6 +104,7 @@ fn the_song_frames_draw_it_through_their_overlay_hook() {
         start_seconds: 0.0,
         fps: 30,
         overlay,
+        spectrum: None,
     };
     let plain = frames(None);
     let with = frames(with_title(Some(v), None));
@@ -208,7 +209,10 @@ mod preview {
             samples: r.samples,
         };
         let setup = cantus_ui::stage::vis_video::setup_for(p, d, d.title).expect("on");
-        cantus_ui::stage::vis_video::for_render(Some(setup), &audio, &map, from).expect("on")
+        // As the export analyses it (one analysis for the visualiser and any Espectro).
+        cantus_ui::video_export::job::analysed(&[], Some(setup), &audio, &map, from)
+            .1
+            .expect("on")
     }
 
     /// At a moment the song sounds, the preview's bars are drawn — from the moment's own

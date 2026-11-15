@@ -16,6 +16,9 @@
 mod gear;
 #[path = "chorda_scene_geo.rs"]
 pub mod geo;
+// r40:scene — the hybrid test (the owner's, 2026-11-12): kept until he decides.
+#[path = "chorda_scene_hybrid.rs"]
+pub mod hybrid;
 #[path = "chorda_scene_mesh.rs"]
 pub mod mesh;
 #[path = "chorda_scene_piano.rs"]
@@ -95,6 +98,7 @@ pub fn paint_of(f: Finish) -> pal::Paint {
         Finish::White => pal::WHITE,
         Finish::Walnut => pal::WALNUT,
         Finish::Rosewood => pal::ROSEWOOD,
+        Finish::Maple => pal::WALNUT,
     }
 }
 
@@ -335,6 +339,8 @@ static BLOCKING: AtomicBool = AtomicBool::new(false);
 /// Make every scene bake on the thread that paints it (the CPU screenshots).
 pub fn set_blocking(on: bool) {
     BLOCKING.store(on, Ordering::Relaxed);
+    // r40:scene — Chorda's view draws through the scene module now (ADR 0126).
+    crate::scene::set_blocking(on);
 }
 
 /// The bake's threads: all but two of the machine's (the UI's and the audio's), at most 14.

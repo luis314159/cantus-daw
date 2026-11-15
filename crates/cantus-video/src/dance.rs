@@ -23,6 +23,39 @@ pub struct Dancer {
 /// What a frame draws besides the dancers (the visualiser, the title): called after them.
 pub type Overlay = dyn Fn(u32, f64, &mut Pixmap) + Send + Sync;
 
+/// The master's spectrum in four bands (`Pose::bands`) through a video (round 40, ADR 0122:
+/// what Espectro shows): analysed from the export's own render at `rate` instants a second
+/// of video time (the interface's analyser, offline), each band rising at once and falling
+/// at `fall_per_s` of its scale a second — the live analyser's ballistics. A pure function
+/// of the render: two exports draw the same bands.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Spectrum {
+    /// The bands at each instant `k / rate` seconds of video time.
+    pub raw: Vec<[f32; 4]>,
+    pub rate: f64,
+    pub fall_per_s: f32,
+}
+
+impl Spectrum {
+    /// The bands at video time `t`: the highest analysis within the fall's reach, less what
+    /// it has fallen since.
+    pub fn at(&self, t: f64) -> [f32; 4] {
+        let mut out = [0.0f32; 4];
+        if self.raw.is_empty() || t < 0.0 || self.rate <= 0.0 {
+            return out;
+        }
+        let last = ((t * self.rate).floor() as usize).min(self.raw.len() - 1);
+        let reach = (self.rate / f64::from(self.fall_per_s.max(1e-3))).ceil() as usize + 1;
+        for k in last.saturating_sub(reach)..=last {
+            let since = (t - k as f64 / self.rate).max(0.0) as f32;
+            for (o, r) in out.iter_mut().zip(&self.raw[k]) {
+                *o = o.max(r - self.fall_per_s * since);
+            }
+        }
+        out
+    }
+}
+
 /// Every frame of the song's video.
 pub struct SongFrames {
     pub dancers: Vec<Dancer>,
@@ -32,6 +65,8 @@ pub struct SongFrames {
     pub start_seconds: f64,
     pub fps: u32,
     pub overlay: Option<Box<Overlay>>,
+    /// The render's spectrum, for a character that hears it (`None`: none does).
+    pub spectrum: Option<Spectrum>,
 }
 
 /// The frame of `timeline` at song `seconds` (the engine's own rule: the frame of the
@@ -47,10 +82,19 @@ pub fn frame_at(timeline: &[DanceFrame], seconds: f64) -> DanceFrame {
 impl SongFrames {
     /// The poses of every dancer at video frame `n`.
     pub fn poses(&self, n: u32) -> Vec<Pose> {
-        let t = self.start_seconds + n as f64 / self.fps as f64;
+        let video_t = n as f64 / self.fps as f64;
+        let t = self.start_seconds + video_t;
         self.dancers
             .iter()
-            .map(|d| pose_at(&frame_at(&d.timeline, t), d.character.as_ref(), t))
+            .map(|d| {
+                let mut p = pose_at(&frame_at(&d.timeline, t), d.character.as_ref(), t);
+                if let (true, Some(s)) = (d.character.hears_spectrum(), &self.spectrum) {
+                    if p.playing {
+                        p.bands = s.at(video_t);
+                    }
+                }
+                p
+            })
             .collect()
     }
 }
@@ -118,6 +162,7 @@ mod tests {
                 start_seconds: 0.0,
                 fps,
                 overlay: None,
+                spectrum: None,
             }
             .poses(n)[0]
         };

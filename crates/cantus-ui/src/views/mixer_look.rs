@@ -53,7 +53,8 @@ pub(crate) struct Pal {
     pub clip_idle: Color32,
     /// `bar.track = mix(well, ink4, .35)`.
     pub bar_track: Color32,
-    /// `mute.on = ink2 (Night) / ink3 (Paper)`.
+    /// A lit M key: the accent (round 40, the owner's answer), or `ink2 (Night) / ink3
+    /// (Paper)` with Settings ▸ Appearance ▸ *Mute on: Grey*.
     pub mute_on: Color32,
     /// The strip's light from above: its top colour (surface + 3.5 % ink 1).
     pub strip_top: Color32,
@@ -108,7 +109,11 @@ impl Pal {
             meter_groove: mix(well, ink4, 0.22),
             clip_idle: mix(well, ink4, 0.30),
             bar_track: mix(well, ink4, 0.35),
-            mute_on: if dark { t.text_dim } else { ink3 },
+            // r40:look — lit in the accent unless the owner's setting says grey.
+            mute_on: crate::views::owner_look::mute_fill(
+                if dark { t.text_dim } else { ink3 },
+                t.highlight,
+            ),
             strip_top: if dark {
                 mix(surface, ink1, 0.035)
             } else {

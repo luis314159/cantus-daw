@@ -13,16 +13,41 @@ export](video.md); your own characters are [importing a character](import-charac
 ## Add one
 
 *Add track* (or the device picker, Ctrl+T) ▸ the **Visual** shelf ▸ **Saltator**. The new
-track is named *Saltator*, has a dancing figure for its icon, and Fuga, the cast's ninja,
-dances on it. Its window opens.
+track is named *Saltator*, has a dancing figure for its icon, and Compás, the cast's
+pictogram, dances on it. Its window opens. (The dancer is off until you add one.)
 
-**The cast.** Fuga the ninja (masked, a torn crimson scarf in the wind: flips, high kicks,
+**The Slate cast** leads the picker, drawn in your theme's own ink and gold:
+
+- **Compás**, the pictogram — a sign figure come alive, pop and lock, a star jump on the
+  drop;
+- **Tono**, the knob — an LED visor, a patch cable, and on the drop it turns itself up;
+- **Síncopa**, noir — a hooded silhouette with a gold rim of light, liquid, an arm wave;
+- **Bajo**, the speaker — tweeters for eyes, a pumping woofer, and it drops the bass;
+- **Onda**, the oscilloscope — an amber trace that ripples with the sound, a Lissajous
+  head, and the wave snaps square on the drop;
+- **Voz**, the microphone — a crooner in a dinner jacket that tips its hat;
+- **Glissando**, the figure of light — lapis neon, light trails, a halo on the drop;
+- **Eco**, the delay's ghost — its echoes repeat every move a quarter beat late, and
+  multiply on the drop;
+- **Vinilo**, the DJ — a spinning record for a head, scratches and a backspin;
+- **Cinta**, the cassette — breakdance, its tape swirling, and it rewinds the dance;
+- **Metrónomo**, the serious one — a wooden butler whose pendulum is exact on every beat,
+  until it runs away at double time;
+- **Espectro**, the analyser — a body of spectrum bars that light with the song it hears
+  (the kick in its legs, the hats in its head) and peak into sparks on the drop.
+
+Each dances a groove, a step-and-touch and its own signature on the drop (*Jump*); every
+other move too. Over a chroma key (a video's or the companion window's) its colours keep
+clear of the key, so the keyer leaves them. Some characters name a mood their own way
+(Metrónomo is *Composed*, *Pleased*, *Alarmed*, *Unamused*; Bajo's eighth mood is *Blast*).
+
+**The family stays.** Fuga the ninja (masked, a torn crimson scarf in the wind: flips, high kicks,
 a crouched landing, a martial bow) and Volta the mecha (gunmetal armour, a V visor of
 light whose slits show its mood, a speaker core that pulses on the beat, jets that fire
 when it jumps: pop and lock, the rocket jump, a hero stance) lead it; then the family —
 Trino the songbird, Miso the cat, Lana the lamb, Tic the metronome robot, Corchea the
-eighth note, Sol the child. A song made before Fuga keeps the character it had: a dancer
-saved without one keeps Trino.
+eighth note, Sol the child. A song keeps the character it had: a dancer saved without one
+keeps the default of its day — Trino before Fuga, Fuga before Compás.
 
 ## The window
 

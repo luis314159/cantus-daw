@@ -42,7 +42,8 @@ pub const KEYS: &[&str] = &[
     "interop.report.x_swap",
     "interop.report.x_fx_off",
     "interop.report.x_slot_mix",
-    "interop.report.x_split_kit", // r37:drums
+    "interop.report.x_split_kit",     // r37:drums
+    "interop.report.x_split_outputs", // r40:tymp-engine
     "interop.report.x_sidechain",
     "interop.report.x_master_width",
     "interop.report.x_master_polarity",

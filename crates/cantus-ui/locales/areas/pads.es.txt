@@ -1,0 +1,22 @@
+# Area: pads - round 40 (pads). Every key has its twin in pads.en.txt
+
+# El canal propio de un pad, elegido en el pozo del rack (ADR 0117).
+cmd.set_pad_track = elegir el canal de un pad
+pads.track_tip = El canal del mezclador en que suena este pad: el del kit o uno propio (la pista de mezclador de FL Studio). Clic para elegir.
+pads.track_kit = El canal del kit ({n})
+pads.track_kit_master = El del kit (Master)
+pads.track_free = Primer canal libre ({n})
+pads.unfit = {name}: un pad no puede sonar en ese canal (un VCA, la cadena de un pad o un bucle).
+pads.already = {name}: el pad ya suena ahí.
+
+# Escuchar la clave y Grabar: antes de FX · después de FX (ADR 0118).
+pads.hear_key = Escuchar la clave
+pads.hear_key_tip = Reproduce la clave de esta inserción en lugar del canal, tal como la oye su detector (la de un compresor: tras el nivel y la EQ de la clave), para ajustarla de oído. Nunca se guarda ni va en una exportación.
+cmd.set_track_record_tap = elegir dónde graba una pista
+pads.rec_tap = Toma
+pads.rec_before = Sin FX
+pads.rec_after = Con FX
+pads.rec_tap_tip = Qué graban las tomas de esta pista: Sin FX, la entrada tal como llega (tras su ajuste), antes de las inserciones; Con FX, el canal tras sus inserciones, en estéreo, como lo oyes. Con FX necesita la escucha (Auto o Sí): las inserciones oyen la entrada solo mientras se escucha.
+
+# Agentes (ADR 0117).
+ai.tools.pad_track = elegir el canal del pad {name}

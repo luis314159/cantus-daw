@@ -226,6 +226,9 @@ pub struct CantusApp {
     pub(crate) pane_focus_wanted: Option<crate::views::workspace::Pane>,
     /// The egui pass whose keys were dispatched (`dispatch_keys` runs once a pass).
     keys_pass: Option<u64>,
+    /// The keys' focus was moved by the keyboard (Ctrl+F6) and the mouse has not been
+    /// pressed since (R2-B1): the time edits' keys act wherever the pointer rests.
+    pub(crate) focus_by_keys: bool,
     pub(crate) theme_ctx: Option<egui::Context>,
     pub piano_roll_notes_drawn: usize,
     pub keyboard: KeyboardPiano,
@@ -399,8 +402,22 @@ impl CantusApp {
         // Exemplar's streamed samples are decoded once into this cache (ADR 0050); setting
         // it starts the sweep.
         cantus_engine::inst::stream::hub().set_cache_dir(data_dir().join("cache").join("samples"));
-        // Exemplar's built-in sounds take a few hundred ms to compute: here, beside the
-        // window, not in the frame that first makes an Exemplar.
+        // r40:memory — Exemplar's built-in sounds (5.7 MB) are no longer computed at every
+        // start: `warm_builtins` computes them when an instrument may be chosen (ADR 0120 §2).
+    }
+
+    /// Compute Exemplar's built-in sounds on a thread beside the window, once (r40:memory,
+    /// ADR 0120 §2): they take a few hundred ms, so the picker and a device dragged from the
+    /// browser ask for them before an Exemplar is made — not the frame that makes it, and
+    /// not every start (a song without Exemplar never holds them). A unit made before
+    /// they are done computes them where it is made, off the audio thread, as before.
+    pub fn warm_builtins() {
+        static ASKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if cantus_dsp::exemplar::builtin::built()
+            || ASKED.swap(true, std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
         let _ = std::thread::Builder::new()
             .name("cantus-warm-builtins".into())
             .spawn(|| {
@@ -487,6 +504,11 @@ impl CantusApp {
         } = files;
         views::workspace_style::install(ctx);
         ctx.set_zoom_factor(settings.ui_scale());
+        // r40:tymp-engine — Tympanum's recorded kits are read from their packs (ADR 0124),
+        // before the first snapshot asks for one.
+        crate::tympanum_load::install(data_dir().join("Content"));
+        // r40:fix-f — what a failed *Install from a file…* left (finding 5) goes at start.
+        cantus_content::user_pack::clean_orphans(&data_dir().join("Content"));
         crate::kit::logo::set_disk_cache(Some(data_dir().join("cache")));
         let peak_cache = data_dir().join("cache").join("peaks");
         let mut engine = engine;
@@ -532,6 +554,12 @@ impl CantusApp {
         app.settings_path = settings_path;
         // Units wear their own faces, or the plain look (round 32, ADR 0074).
         app.apply_unit_faces();
+        // How the instruments' pictures are drawn (round 40, ADR 0126). r40:scene
+        crate::scene::backend::set_default(app.settings.instrument_pictures);
+        // The photographic renderer the setting's *Photographic* draws with. r40:scene-px
+        views::inst::chorda::scene::hybrid::register();
+        // The owner's look answers the workspace keeps a copy of (round 40). r40:look
+        views::owner_look::apply(&mut app);
         // The user's automatic crossfades (round 31, ADR 0070) on the bus.
         app.apply_editing_settings();
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
@@ -749,6 +777,7 @@ impl CantusApp {
             panes_wanted: Vec::new(),
             pane_focus_wanted: None,
             keys_pass: None,
+            focus_by_keys: false,
             piano_roll_notes_drawn: 0,
             keyboard: KeyboardPiano::default(),
             keyboard_piano: false,
@@ -1562,6 +1591,9 @@ impl CantusApp {
         if strips.is_empty() {
             return None;
         }
+        // r40:tymp-ui — one band a strip (the owner's rule): strips of one instrument's
+        // family make a group inside it; any other group takes each family whole.
+        let strips = &crate::views::mixer::group::whole_families(self.project(), strips)[..];
         let n = self.project().strip_groups.len();
         let color = Color::PALETTE[(n + 3) % Color::PALETTE.len()];
         let name = tf("mixer.group.default_name", &[("n", &(n + 1))]);
@@ -1590,6 +1622,8 @@ impl CantusApp {
 
     /// Put strips into an existing group, gathered beside its other members.
     pub fn add_strips_to_group(&mut self, strips: &[StripId], group: GroupId) {
+        // r40:tymp-ui — a family comes whole into a group outside it (the one-band rule).
+        let strips = &crate::views::mixer::group::whole_families(self.project(), strips)[..];
         let mut members: Vec<StripId> = self
             .project()
             .strips_in_group(group)
@@ -1625,6 +1659,25 @@ impl CantusApp {
             label_key: "cmd.set_strip_group".into(),
             commands,
         });
+    }
+
+    /// Add strip `id` to `track`'s family on the desk (schema 70), or take it out (`None`):
+    /// one undo step. Refused (with the reason on the status line) when the strip is not fed
+    /// only by that family. // r40:tymp-ui
+    pub fn attach_strip(&mut self, id: StripId, track: Option<cantus_core::TrackId>) -> bool {
+        if let Some(t) = track {
+            if !crate::views::mixer::group::fed_only_by(self.project(), id, t) {
+                let p = self.project();
+                let strip = p.strip(id).map(|s| s.name.clone()).unwrap_or_default();
+                let name = p.track(t).map(|x| x.name.clone()).unwrap_or_default();
+                self.set_error(tf(
+                    "inst_mixer.left_band",
+                    &[("strip", &strip), ("name", &name)],
+                ));
+                return false;
+            }
+        }
+        self.exec(Command::SetStripAttached { id, track })
     }
 
     /// Take every member out and remove the group: the strips stay where they are.
@@ -2552,10 +2605,9 @@ impl CantusApp {
             return;
         }
         self.selected_clips.clear();
-        self.exec(Command::Batch {
-            label_key: "cmd.remove_clip".into(),
-            commands,
-        });
+        // r40:ripple — with the ripple mode on, what followed each clip closes its gap.
+        let cmd = self.rippled_delete(&sel, commands);
+        self.exec(cmd);
         self.validate_selection();
     }
 
@@ -2663,6 +2715,15 @@ impl CantusApp {
             ClipDragResult::Slip { .. } => "cmd.set_clip_offset",
             _ => "cmd.set_clip_bounds",
         };
+        // r40:ripple — with the ripple mode on, what follows a moved or lengthened clip goes
+        // with it (ADR 0116 §4).
+        if let Some(cmd) = self.rippled_drag(&sel, anchor, result, &commands, label) {
+            if self.exec(cmd) && !made.is_empty() {
+                self.set_clip_selection(made);
+            }
+            self.validate_selection();
+            return;
+        }
         self.exec_clip_batch(label, commands, made);
     }
 
@@ -3754,12 +3815,26 @@ impl CantusApp {
             return;
         }
         self.keys_pass = Some(pass);
+        // R2-B1: a press of the mouse ends a focus the keyboard gave.
+        if ctx.input(|i| i.pointer.any_pressed()) {
+            self.focus_by_keys = false;
+        }
         self.mixer.keys_on_pass(pass);
         // Ctrl+V's text comes with its event; a menu's paste waits for it (ADR 0036).
         self.take_paste_event(ctx);
         for action in self.keymap.pressed(ctx, self.keyboard_piano, arrows_taken) {
             if taken(&self.keymap, action) {
                 continue;
+            }
+            // r40:ripple — the time edits' keys are the arrangement's alone (ADR 0116 §5;
+            // review mid-round 40, C-3): over an editor's window or another area, Ctrl+Del
+            // and Insert are that view's, and one key does one thing.
+            let time_key = matches!(action, Action::InsertTime | Action::DeleteTime);
+            if time_key {
+                if let Err(why) = self.time_keys(ctx) {
+                    self.say_time_keys_away(why);
+                    continue;
+                }
             }
             // A bare M or S mutes or solos the selected strip only while the mixer is what
             // is being edited; elsewhere the letters stay out of the way.
@@ -3975,6 +4050,14 @@ impl CantusApp {
                 }
             }
             LoopToSelection => self.loop_to_selection(),
+            // r40:ripple (ADR 0116).
+            InsertTime => {
+                self.insert_time();
+            }
+            DeleteTime => {
+                self.delete_time();
+            }
+            CycleRipple => self.cycle_ripple(),
             ZoomToSelection => self.zoom_to_selection(),
             SelectPrevTrack => self.step_track(-1),
             SelectNextTrack => self.step_track(1),
@@ -4082,6 +4165,9 @@ impl CantusApp {
                 let step = if action == NextArea { 1 } else { -1 };
                 if let Some(p) = self.workspace.focus_step(step) {
                     self.follow_area_focus(p);
+                    // R2-B1: the keyboard moved the focus; the keys act there wherever
+                    // the mouse rests, until it is pressed.
+                    self.focus_by_keys = true;
                 }
             }
             ZoomIn | ZoomOut | ZoomReset => {
@@ -4397,6 +4483,7 @@ impl CantusApp {
         // macOS: a project double-clicked in Finder or dropped on the Dock icon.
         crate::macos::open::serve(self, ctx);
         self.engine.poll();
+        self.inst.prune_scenes(self.bus.project(), self.epoch); // r40:fix-f
         self.tick_play_count_in();
         // The playhead's wrap, before anything this frame is recorded (review 4, #17).
         self.note_playhead();

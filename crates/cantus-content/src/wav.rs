@@ -144,23 +144,31 @@ pub fn to_i24(x: f32) -> (i32, bool) {
 /// Write interleaved stereo `samples` as a 24-bit PCM WAV. Returns how many samples were
 /// clamped (past full scale, or not a number).
 pub fn write_stereo_24(path: &Path, rate: u32, samples: &[f32]) -> Result<u64, String> {
-    let frames = samples.len() / 2;
-    let data_len = frames * 6;
+    write_24(path, rate, 2, samples)
+}
+
+/// A 24-bit WAV of `channels` interleaved channels (r40:tymp-engine: one microphone of a
+/// DrumGizmo hit, mono, for Tympanum). Returns the samples clamped.
+pub fn write_24(path: &Path, rate: u32, channels: u16, samples: &[f32]) -> Result<u64, String> {
+    let ch = channels.max(1) as usize;
+    let frames = samples.len() / ch;
+    let block = 3 * ch as u32;
+    let data_len = frames * block as usize;
     let mut out = Vec::with_capacity(44 + data_len);
     out.extend_from_slice(b"RIFF");
     out.extend_from_slice(&((36 + data_len) as u32).to_le_bytes());
     out.extend_from_slice(b"WAVEfmt ");
     out.extend_from_slice(&16u32.to_le_bytes());
     out.extend_from_slice(&1u16.to_le_bytes());
-    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&(ch as u16).to_le_bytes());
     out.extend_from_slice(&rate.to_le_bytes());
-    out.extend_from_slice(&(rate * 6).to_le_bytes());
-    out.extend_from_slice(&6u16.to_le_bytes());
+    out.extend_from_slice(&(rate * block).to_le_bytes());
+    out.extend_from_slice(&(block as u16).to_le_bytes());
     out.extend_from_slice(&24u16.to_le_bytes());
     out.extend_from_slice(b"data");
     out.extend_from_slice(&(data_len as u32).to_le_bytes());
     let mut clamped = 0u64;
-    for &x in &samples[..frames * 2] {
+    for &x in &samples[..frames * ch] {
         let (v, c) = to_i24(x);
         clamped += c as u64;
         out.extend_from_slice(&v.to_le_bytes()[..3]);

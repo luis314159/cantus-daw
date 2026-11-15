@@ -10,9 +10,30 @@
 
 use cantus_dance::character::Character;
 use cantus_dance::pose::Pose;
-use cantus_dance::render::{render_into, Stage};
+use cantus_dance::render::{render_into, Stage, StageInk};
 use egui::{ColorImage, Context, TextureHandle, TextureId, TextureOptions, Vec2};
 use tiny_skia::Pixmap;
+
+/// The theme's light for a stage (round 40, ADR 0122): the Slate cast paints with the
+/// theme's ink, its quieter inks and the logo's gold and vermilion (in the theme's light or
+/// dark tone), and cuts its pieces apart in `room`, the colour behind the dancer.
+pub fn stage_ink(t: &crate::kit::tokens::Tokens, room: egui::Color32) -> StageInk {
+    let c = |c: egui::Color32| [c.r(), c.g(), c.b(), 255];
+    let tone = if t.dark {
+        StageInk::NIGHT
+    } else {
+        StageInk::PAPER
+    };
+    StageInk {
+        ink: c(t.text),
+        ink2: c(t.text_dim),
+        ink3: c(t.placeholder),
+        ink4: c(t.grid_bar),
+        room: c(room),
+        dark: t.dark,
+        ..tone
+    }
+}
 
 pub struct DanceTexture {
     name: String,

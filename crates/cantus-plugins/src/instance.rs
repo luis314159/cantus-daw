@@ -740,9 +740,12 @@ impl Processor {
         bypass.target = if base[table.bypass] >= 0.5 { 1.0 } else { 0.0 };
         bypass.gain = bypass.target;
         let pairs = shared.pairs.lock().ok().and_then(|mut p| p.0.take());
-        // r39:conv
-        let memory = (unit.kind == cantus_core::EffectKind::Aula)
-            .then(|| crate::memory::Memory::start(sample_rate));
+        // r39:conv; r40:delay — Delay's longer line for a synced time (ADR 0119).
+        let memory = matches!(
+            unit.kind,
+            cantus_core::EffectKind::Aula | cantus_core::EffectKind::Delay
+        )
+        .then(|| crate::memory::Memory::start(sample_rate));
         Processor {
             pairs,
             memory,

@@ -701,6 +701,8 @@ Cantus claims no endorsement by, or partnership with, Celemony Software GmbH.
 
 No samples are bundled with Cantus. *Sound packs…* (in the sample browser) downloads a pack only when you click *Install*, and installs it only with its licence file, which stays in the pack's folder (`%LOCALAPPDATA%\Cantus\Content\<pack>`) beside a receipt (`cantus-pack.json`) that keeps its credit. Content is accepted under **CC0 1.0** and **CC BY 3.0 / 4.0** only (ADR 0042); nothing non-commercial, no-derivatives or share-alike. Music you make with these sounds is yours. *Help ▸ About Cantus* shows the same credits.
 
+Tympanum's modelled crash and hi-hat are synthesised from parameters measured off the recordings of **DRSKit** (no sample of it is bundled or played); its credit below covers them.
+
 ### Under CC BY — the credit the licence asks for
 
 CC BY's one condition is credit to the author. Each pack's credit, as its licensor asks:
@@ -710,8 +712,40 @@ CC BY's one condition is credit to the author. Each pack's credit, as its licens
 - **DRSKit acoustic drums** (CC BY 4.0) — “DRSKit” by the DrumGizmo team and Jes Eiler (DRSDrums) (https://drumgizmo.org/wiki/doku.php?id=kits:drskit), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
   Licence file in the pack: `README.md`.
   About crediting, in the author's words: *“When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution.”*
+- **DRSKit, every microphone** (CC BY 4.0) — “DRSKit” by the DrumGizmo team and Jes Eiler (DRSDrums) (https://drumgizmo.org/wiki/doku.php?id=kits:drskit), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README.md`.
+  About crediting, in the author's words: *“When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution.”*
+- **CrocellKit, every microphone** (CC BY 4.0) — “CrocellKit” by the DrumGizmo team (Lars Muldjord) and Crocell (https://drumgizmo.org/wiki/doku.php?id=kits:crocellkit), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README.md`.
+  About crediting, in the author's words: *“When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution.”*
+- **MuldjordKit, every microphone** (CC BY 4.0) — “MuldjordKit” by Lars Muldjord (https://drumgizmo.org/wiki/doku.php?id=kits:muldjordkit), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README.TXT`.
+  About crediting, in the author's words: *“When the samples are used in compositions, attribution must be made in the album credits (or similar album liner notes): Drum samples provided by DrumGizmo.org. Without album credits or liner notes, it can be left out.”*
 - **OpenAIR Impulse Responses** (CC BY 4.0) — Impulse responses from OpenAIR, www.openairlib.net — Adam Townsell, Damian T. Murphy (Audiolab, University of York), James Cadwallader, Matt Rogalsky — CC BY 4.0 — CC BY 4.0: https://creativecommons.org/licenses/by/4.0/legalcode
   Licence file in the pack: `Licences/CC-BY-4.0.txt`.
+- **bitKlavier Grand · House ORTF** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_HouseORTF.txt`.
+- **bitKlavier Grand · House Wide Cardioid** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_HouseWideCard.txt`.
+- **bitKlavier Grand · Decca Tail** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_TailOmni.txt`.
+- **bitKlavier Grand · Lip Cardioid** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_LipCardioid.txt`.
+- **bitKlavier Grand · Harp Omnis** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_HarpOmni.txt`.
+- **bitKlavier Grand · Piano Bar** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_PianoBar.txt`.
+- **bitKlavier Grand · Stage Lid ORTF** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_StageLidORTF.txt`.
+- **bitKlavier Grand · Stage Lid Omni** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_StageLidOmni.txt`.
+- **bitKlavier Grand · Binaural** (CC BY 4.0) — “The bitKlavier Grand” by Princeton University — Dan Trueman, Andrés Villalta, Matt Wang (https://bitklavier.com/the-bitklavier-grand/), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README_Binaural.txt`.
+- **Accurate-Salamander Grand Piano** (CC BY 3.0) — “Accurate-Salamander Grand Piano 6.2e” by Chisato Yamauchi, from Alexander Holm's Salamander Grand Piano (https://www.ir.isas.jaxa.jp/~cyamauch/AccurateSalamander/), licensed under CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/legalcode)
+  Licence file in the pack: `README.txt`.
+- **Tympanum hybrid: Studio Maple attacks** (CC BY 4.0) — “DRSKit” by the DrumGizmo team and Jes Eiler (DRSDrums) (https://drumgizmo.org/wiki/doku.php?id=kits:drskit), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `LICENSE.txt`.
+  About crediting, in the author's words: *“When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution.”*
 
 ### Under CC0 — no credit asked, given gladly
 
@@ -724,12 +758,16 @@ CC BY's one condition is credit to the author. Each pack's credit, as its licens
 | Gogodze Phu Vol. I | Karoryfer Samples | <https://github.com/sfzinstruments/karoryfer.gogodze-phu-vol-i> |
 | Frankensnare | Karoryfer Samples | <https://github.com/sfzinstruments/karoryfer.frankensnare> |
 | Big Rusty Drums | Karoryfer Samples | <https://github.com/sfzinstruments/karoryfer.big-rusty-drums> |
+| Virtuosity Drums | Virtuosity Drums — Versilian Studios and Karoryfer Samples, played by Austin McMahon | <https://github.com/sfzinstruments/virtuosity_drums> |
 | Swirly Drums (dry) | Karoryfer Samples | <https://github.com/sfzinstruments/karoryfer.swirly-drums> |
 | Unruly Drums | Karoryfer Samples | <https://github.com/sfzinstruments/karoryfer.unruly-drums> |
 | VSCO 2 Percussion | VSCO 2 Community Edition — Versilian Studios | <https://github.com/sgossner/VSCO-2-CE> |
 | TX81Z Multisamples (VCSL) | Versilian Community Sample Library (VCSL) — Versilian Studios | <https://github.com/sgossner/VCSL> |
 | Cantus One-Shots | Cantus — rendered from its own instruments and factory presets | <https://cantusdaw.com> |
 | Cantus Loops | Cantus — rendered from its own instruments, factory presets and kits | <https://cantusdaw.com> |
+| Upright Piano KW | FreePats — Gonzalo and Roberto | <https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html> |
+| Old Piano FB | FreePats — Piotr Barcz | <https://freepats.zenvoid.org/Piano/honky-tonk-piano.html> |
+| Tympanum hybrid: Jazz Birch attacks | Virtuosity Drums — Versilian Studios and Karoryfer Samples, played by Austin McMahon | <https://github.com/sfzinstruments/virtuosity_drums> |
 
 The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/content.json`.
 

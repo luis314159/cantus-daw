@@ -610,6 +610,18 @@ pub fn bands_of(c: &mut Canvas, s: &mut Shape, look: &Look, bands: u8) {
     }
 }
 
+/// A shape filled with a colour already made (round 40: the Slate cast's theme colours).
+pub fn paint(c: &mut Canvas, shape: ShapeFn, color: Color) {
+    let s = build(shape, 0.0, c.transform);
+    fill_px(c, &s, color);
+}
+
+/// [`paint`] by the even-odd rule (a ring).
+pub fn paint_even_odd(c: &mut Canvas, shape: ShapeFn, color: Color) {
+    let s = build(shape, 0.0, c.transform);
+    fill_rule(c, &s, color, FillRule::EvenOdd);
+}
+
 /// A flat fill, turned by the hue.
 pub fn flat(c: &mut Canvas, shape: ShapeFn, rgba: [u8; 4]) {
     let s = build(shape, 0.0, c.transform);
@@ -707,6 +719,7 @@ mod tests {
             px_per_unit: 100.0,
             hue: 0.0,
             shadow: true,
+            ink: Default::default(),
         };
         flat(&mut c, &|s, _| build(s), [255, 0, 0, 255]);
         pm.pixel(x, y).is_some_and(|p| p.alpha() == 255)
@@ -775,6 +788,7 @@ mod tests {
                 px_per_unit: 75.0,
                 hue: 0.0,
                 shadow: true,
+                ink: Default::default(),
             };
             fixed(
                 &mut c,

@@ -310,6 +310,7 @@ fn the_shell_frames_the_body_between_header_and_footer() {
             ab: Some(shell::Ab::A),
             undo: Some((false, false)),
             views: None,
+            views_w: 0.0,
             bypassed: Some(false),
             help: true,
             name_w: 0.0,

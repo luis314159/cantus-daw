@@ -234,6 +234,23 @@ pub struct Samples {
     pub scroll: f32,
     /// Sound packs the open project needs and does not find (round 26).
     pub missing: crate::views::samples_content::missing::State,
+    /// r40:fix-f — *Install from a file…* jobs running on the content manager's worker:
+    /// what each will play once it is in (the track keeps playing what it plays now).
+    pub user_installs: Vec<UserInstall>,
+}
+
+/// A user's install from a file under way, and what it is for.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UserInstall {
+    /// The user pack's id (the manager's job).
+    pub id: String,
+    /// The track whose Chorda or Tympanum takes it once installed.
+    pub track: cantus_core::TrackId,
+    pub plays: cantus_content::manifest::Plays,
+    /// The file's name, as the list shows it while it installs.
+    pub name: String,
+    /// The file's size, bytes (what the progress line says it is of).
+    pub size: u64,
 }
 
 impl Samples {
@@ -385,6 +402,13 @@ impl crate::app::CantusApp {
             let finished = self.samples.content().poll();
             if self.samples.content().busy() {
                 ctx.request_repaint_after(Duration::from_millis(100));
+            }
+            let finished = self.user_installs_done(finished); // r40:fix-f
+                                                              // fix-e — the installed packs changed: a Tympanum kit refused before (its pack
+                                                              // missing) is read again, and the song sent again so it sounds.
+            let generation = self.samples.content().generation();
+            if cantus_engine::inst::tympanum::cache::content_generation(generation) {
+                self.resync_engine();
             }
             for f in finished {
                 let name = self

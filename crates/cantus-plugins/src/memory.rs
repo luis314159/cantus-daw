@@ -1,5 +1,6 @@
 //! Memory an exported effect asks for while it runs (round 39, ADR 0112 with ADR 0022's
-//! path): Aula's kernels, built when the host automates its response or a shape. Inside
+//! path): Aula's kernels, built when the host automates its response or a shape, and
+//! Delay's longer line when its time is synced to a long note value (round 40, ADR 0119). Inside
 //! Cantus the interface's thread answers the engine; a plug-in has no such thread to lend,
 //! so it keeps one of its own: the audio thread pushes a need into a ring, the builder
 //! makes the memory and pushes it back, and what the unit hands back goes to the builder
@@ -109,6 +110,13 @@ impl Memory {
             if let Err(rtrb::PushError::Full(h)) = garbage.push(h) {
                 self.held = Some(h);
                 return;
+            }
+        }
+        // fix-a (A-M3): a Delay moves its history into a new line a stretch per block and
+        // lets the old one go when done — freed by the builder too.
+        if garbage.slots() > 0 {
+            if let Some(spent) = unit.take_spent() {
+                let _ = garbage.push(spent);
             }
         }
         let mut asked = false;

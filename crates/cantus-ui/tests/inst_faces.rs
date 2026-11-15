@@ -29,7 +29,8 @@ fn opened(kind: InstrumentKind, view: View) -> CantusApp {
         InstrumentKind::ElectricPiano => "lamina",
         InstrumentKind::Organ => "organum",
         InstrumentKind::Chorda => "chorda",
-        InstrumentKind::Dancer => "dancer", // r35:dancer
+        InstrumentKind::Dancer => "dancer",          // r35:dancer
+        InstrumentKind::AcousticDrums => "tympanum", // r40:p3
     };
     a.demo_editor(name);
     a.inst.view = view;
@@ -40,11 +41,11 @@ fn opened(kind: InstrumentKind, view: View) -> CantusApp {
 fn titles(kind: InstrumentKind) -> &'static [&'static str] {
     match kind {
         InstrumentKind::Chorda => &[
-            // Play's hero is the scene (ADR 0104); the strings from above are in Edit.
-            // r37:scene
+            // Play's hero is the scene (ADR 0104, 0126); the strings from above are in Edit.
+            // r37:scene. r40:chorda-src — Play as design-p3 draws it: the pedals card and
+            // the microphones and lid card became the side panel *The piano* (lid,
+            // perspective, pedals), whose heads are the panel's, not cards' titles.
             "chorda.scene",
-            "chorda.pedals",
-            "chorda.mics",
             "chorda.hammer",
             "chorda.resonance",
             "chorda.output",
@@ -95,7 +96,11 @@ fn every_card_title_of_a_unit_is_set_one_way() {
                     "{kind:?} (faces {on}): {key} not painted as {want:?}"
                 );
             }
-            // The shell's own bands follow the same lettering.
+            // The shell's own bands follow the same lettering. r40:chorda-src — Chorda's
+            // Play view has no macro or modulation rows (design-p3; Edit keeps them).
+            if kind == InstrumentKind::Chorda {
+                continue;
+            }
             let macros = t("shell.macros");
             let band = if caps { macros.to_uppercase() } else { macros };
             assert!(

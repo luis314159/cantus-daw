@@ -12,7 +12,7 @@
 
 use cantus_dance::character::Character;
 use cantus_dance::pose::Pose;
-use cantus_dance::render::{placement, Background, Stage};
+use cantus_dance::render::{placement, Background, Stage, StageInk};
 use egui::{pos2, Pos2, Rect};
 
 /// How tall a dancer of size 1 stands over the workspace, as a share of its height.
@@ -37,6 +37,8 @@ pub struct Area {
     /// Whether the characters draw their contact shadows on it: not over a chroma key,
     /// where a shadow is a darker key the capture leaves as a smudge.
     pub shadows: bool,
+    /// The theme's light the Slate cast paints with, its room what is behind (round 40).
+    pub ink: StageInk,
 }
 
 impl Area {
@@ -48,7 +50,13 @@ impl Area {
             height: rect.height() * ppp,
             standard,
             shadows: true,
+            ink: StageInk::NIGHT,
         }
+    }
+
+    /// The same area painted in the theme's light `ink` (round 40, ADR 0122).
+    pub fn with_ink(self, ink: StageInk) -> Area {
+        Area { ink, ..self }
     }
 
     /// The same area with the contact shadows drawn or not (`false` over a chroma key).
@@ -87,6 +95,7 @@ impl Area {
             background: Background::Transparent,
             standard_height: self.standard * self.height / h as f32,
             shadows: self.shadows,
+            ink: self.ink,
         }
     }
 }
@@ -191,6 +200,7 @@ pub fn place(area: &Area, clip: Rect, ch: &dyn Character, pose: &Pose, ppp: f32)
         background: Background::Transparent,
         standard_height: ppu / (pose.size * h as f32),
         shadows: area.shadows,
+        ink: area.ink,
     };
     let mut boxed = *pose;
     boxed.x = fx / w as f32;
@@ -252,6 +262,7 @@ mod tests {
             height: 360.0,
             standard: FLOAT_STANDARD,
             shadows: true,
+            ink: StageInk::NIGHT,
         };
         let clip = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(2000.0, 2000.0));
         for (i, beats) in [0.0, 0.3, 1.75, 6.5].into_iter().enumerate() {
@@ -314,6 +325,7 @@ mod tests {
             height: 600.0,
             standard: FLOAT_STANDARD,
             shadows: true,
+            ink: StageInk::NIGHT,
         };
         let clip = Rect::from_min_size(pos2(-2000.0, -2000.0), egui::vec2(5000.0, 5000.0));
         let whole = area.whole();

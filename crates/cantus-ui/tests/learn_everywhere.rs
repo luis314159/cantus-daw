@@ -86,6 +86,13 @@ fn every_native_instrument_editor_offers_learn_on_every_control() {
         let track = a.project().tracks[0].id;
         a.set_instrument(track, InstrumentSpec::Native(NativeSpec::new(kind)));
         cantus_ui::views::inst::demo_setup(&mut a, track, kind);
+        if kind == InstrumentKind::AcousticDrums {
+            // Tympanum's views have no macro bands: its Matrix shows its modulation slots
+            // alone, so one is connected (the mod wheel to the kit's level) for its depth,
+            // curve and switch to be offered.
+            a.set_inst_text(track, "mod1.src", Some("mw".into()));
+            a.set_inst_text(track, "mod1.dst", Some("gain".into()));
+        }
         a.open_inst_editor(track);
         for view in [View::Play, View::Edit, View::Matrix] {
             a.inst.view = view;
@@ -726,6 +733,13 @@ fn the_choice_table_names_choices_as_the_editors_draw_them() {
         let track = a.project().tracks[0].id;
         a.set_instrument(track, InstrumentSpec::Native(NativeSpec::new(kind)));
         cantus_ui::views::inst::demo_setup(&mut a, track, kind);
+        if kind == InstrumentKind::AcousticDrums {
+            // Tympanum's views have no macro bands: its Matrix shows its modulation slots
+            // alone, so one is connected (the mod wheel to the kit's level) for its depth,
+            // curve and switch to be offered.
+            a.set_inst_text(track, "mod1.src", Some("mw".into()));
+            a.set_inst_text(track, "mod1.dst", Some("gain".into()));
+        }
         a.open_inst_editor(track);
         for view in [View::Play, View::Edit, View::Matrix] {
             a.inst.view = view;

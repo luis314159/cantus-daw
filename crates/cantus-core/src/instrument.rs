@@ -427,7 +427,52 @@ impl InstrumentSpec {
     pub fn output_strips(&self) -> Vec<crate::model::StripId> {
         match self {
             InstrumentSpec::Pulsus(k) => k.output_strips(),
+            // r40:p3 — a native instrument's named outputs (ADR 0123): its slots' strips.
+            InstrumentSpec::Native(n) => crate::inst_out::strips_of(&n.outputs),
             _ => Vec::new(),
+        }
+    }
+
+    // r40:p3 — named outputs (ADR 0123).
+    /// Every output that plays somewhere other than Main, for any instrument: a kit's pads
+    /// on strips of their own (ADR 0100), a native instrument's slots. What the mixer's
+    /// **Out** cells and *Pieces to strips* read; Main outputs are the instrument's own to
+    /// list (its kit, its pack).
+    pub fn outputs(&self) -> Vec<crate::inst_out::OutputView> {
+        use crate::inst_out::{OutputFamily, OutputId, OutputView};
+        match self {
+            InstrumentSpec::Pulsus(k) => k
+                .pads
+                .iter()
+                .filter_map(|p| {
+                    Some(OutputView {
+                        id: OutputId(p.id.0),
+                        name: p.name.clone(),
+                        family: OutputFamily::Pad,
+                        strip: Some(p.output?),
+                    })
+                })
+                .collect(),
+            InstrumentSpec::Native(n) => n
+                .outputs
+                .iter()
+                .map(|s| OutputView {
+                    id: s.id,
+                    name: s.name.clone(),
+                    family: s.family,
+                    strip: Some(s.strip),
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Whether one of the instrument's own outputs (not the track's) plays into `strip`.
+    pub fn feeds_strip(&self, strip: crate::model::StripId) -> bool {
+        match self {
+            InstrumentSpec::Pulsus(k) => k.pads.iter().any(|p| p.output == Some(strip)),
+            InstrumentSpec::Native(n) => n.outputs.iter().any(|s| s.strip == strip),
+            _ => false,
         }
     }
 

@@ -9,14 +9,50 @@ use cantus_dsp::chorda::voicing::Voicing;
 use cantus_dsp::chorda::{Chorda, ChordaSettings};
 
 /// `key=v,key=v`: a voicing's keys, and the settings `room`, `noise`, `width`, `body`,
-/// `hardness`, `tilt`, `decay`, `model`.
+/// `hardness`, `tilt`, `decay`, `model`. Every spec is read over beta.14's voicing, as every
+/// candidate was made (`DSP_VERSION` 7 shipped candidate 16: its own spec and tables give
+/// the shipped voicing; an empty spec, beta.14's).
 pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
-    let mut v = Voicing::default();
-    let mut s = ChordaSettings {
-        model: 2,
-        ..ChordaSettings::default()
-    };
-    let mut hardness = 0.0;
+    let mut v = Voicing::beta14();
+    // A new Chorda's own parameters, as the engine reads them (round 40: the lab began from
+    // the DSP's defaults, 3 dB louder than the engine's staged gain — its fortissimo chord
+    // met the output ceiling the engine's does not).
+    let mut ns = cantus_core::NativeSpec::new(cantus_core::InstrumentKind::Chorda);
+    ns.set("model", 2.0);
+    let (mut s, mut hardness): (ChordaSettings, f64) =
+        cantus_engine::inst::chorda::settings_from(&cantus_engine::inst::chorda::values_of(&ns));
+    // Round 40: each key's partial voicing from a file (`CHORDA_PARTIALS`: lines of
+    // `key,g2,…,g7` in dB), for trying a fitted table without a rebuild.
+    if let Ok(path) = std::env::var("CHORDA_PARTIALS") {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            for line in text.lines() {
+                let f: Vec<f32> = line
+                    .split(',')
+                    .filter_map(|x| x.trim().parse().ok())
+                    .collect();
+                if f.len() == 7 && (21.0..=108.0).contains(&f[0]) {
+                    let i = f[0] as usize - 21;
+                    for (j, g) in f[1..].iter().enumerate() {
+                        v.partials[i][j] = *g;
+                    }
+                }
+            }
+        }
+    }
+    // Round 40: each key's own level from a file (`CHORDA_LEVELS`: lines of `key,dB`).
+    if let Ok(path) = std::env::var("CHORDA_LEVELS") {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            for line in text.lines() {
+                let f: Vec<f32> = line
+                    .split(',')
+                    .filter_map(|x| x.trim().parse().ok())
+                    .collect();
+                if f.len() == 2 && (21.0..=108.0).contains(&f[0]) {
+                    v.levels[f[0] as usize - 21] = f[1];
+                }
+            }
+        }
+    }
     for kv in spec.split(',').filter(|x| !x.is_empty()) {
         let (k, val) = kv.split_once('=').expect("key=value");
         let x: f64 = val.parse().expect("a number");
@@ -32,6 +68,9 @@ pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
             "persp" => s.persp = x,
             "lid" => s.lid = x,
             "roomsize" => s.size = x,
+            "gain" => s.gain_db = x,
+            "sym" => s.sympathetic = x,
+            "detune" => s.voice.detune_ct = x,
             _ => assert!(v.set(k, x), "no voicing key {k}"),
         }
     }
@@ -41,11 +80,25 @@ pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
 /// Render `phrase` through the DSP with `spec`.
 pub fn render(spec: &str, phrase: &Phrase) -> Stereo {
     let (v, s, hardness) = parse(spec);
-    let kb = cantus_engine::inst::chorda::ensure(Default::default(), SR as f32);
+    // Model 2 plays its own keyboard (its voicing's asymptotes and treble octaves), as the
+    // engine's `tuning_of` asks for it.
+    let tuning = if s.model == 2 {
+        v.tuning(Default::default())
+    } else {
+        Default::default()
+    };
+    let kb = cantus_engine::inst::chorda::ensure(tuning, SR as f32);
     let mut c = Chorda::new(SR as f32);
     c.set_keyboard(kb);
     c.set_voicing(&v);
     c.set(&s, hardness);
+    if std::env::var_os("CHORDA_EVENING").is_some() {
+        let g: Vec<String> = (21u8..=108)
+            .step_by(3)
+            .map(|k| format!("{:+.1}", 20.0 * cantus_dsp::math::log10(c.evening(k))))
+            .collect();
+        eprintln!("evening {}", g.join(" "));
+    }
     let sec = |t: f64| (t * SR as f64).round() as usize;
     // Events: (frame, order, what) — offs before ons at one frame, the pedal first.
     #[derive(Clone, Copy)]

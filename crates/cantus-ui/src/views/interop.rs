@@ -909,7 +909,8 @@ pub fn stem_specs(project: &Project, tracks: bool, master: bool) -> Vec<StemSpec
                     .map(|t| t.name.clone())
                     .unwrap_or_default()
             } else {
-                s.name.clone()
+                // r40:integration — an instrument's output strip: *Drums · Snare Top*.
+                crate::views::mixer::group::full_name(project, s.id)
             };
             specs.push(StemSpec {
                 source: StemSource::Strip(i),

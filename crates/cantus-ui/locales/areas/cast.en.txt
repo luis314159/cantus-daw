@@ -19,3 +19,47 @@ cast.mecha.blurb = A gunmetal mecha with a V visor of light, a core that pulses 
 
 cast.ninja.name = Fuga
 cast.ninja.blurb = A masked ninja whose torn crimson scarf streams in the wind: flips, high kicks, a crouched landing and a martial bow.
+
+# r40:cast — the Slate cast (ADR 0122)
+cast.compas.name = Compás
+cast.compas.blurb = A pictogram come alive in the theme's own ink, with gold headphones: pop and lock, snapping into every pose on the beat — and a star jump on the drop.
+cast.tono.name = Tono
+cast.tono.blurb = A knob-headed robot with an LED visor and a patch cable for a scarf: a hard nod, a mechanical glide — and on the drop it turns itself up.
+cast.bajo.name = Bajo
+cast.bajo.blurb = A studio monitor with heavy-lidded tweeter eyes and a pumping woofer: a slow heavy groove, stomps — and on the drop it drops the bass.
+cast.sincopa.name = Síncopa
+cast.sincopa.blurb = A hooded figure in noir, one dark ink lit by a gold rim: liquid and behind the beat, a coat whose tails swing late — and on the drop a wave runs through its arms.
+cast.vinilo.name = Vinilo
+cast.vinilo.blurb = A DJ whose head is a spinning record and whose arm is the tonearm: scratches on the sixteenths — and on the drop a backspin that lands on the beat.
+cast.cinta.name = Cinta
+cast.cinta.blurb = A cassette that breakdances, reels for eyes and its tape swirling: toprock and shuffles — and on the drop it rewinds the dance and freezes.
+cast.metronomo.name = Metrónomo
+cast.metronomo.blurb = A wooden metronome with a butler's composure, monocle and silver tray, its pendulum exact on every beat — until on the drop it runs away at double time.
+
+# A character's own word for a mood (where it has one): cast.<id>.mood.<mood>.
+cast.metronomo.mood.neutral = Composed
+cast.metronomo.mood.happy = Pleased
+cast.metronomo.mood.excited = Alarmed
+cast.metronomo.mood.cool = Unamused
+cast.metronomo.mood.shy = Monocle off
+cast.bajo.mood.shy = Blast
+cast.vinilo.mood.shy = Spinning
+cast.cinta.mood.shy = Rewinding
+cast.tono.mood.shy = Wink
+cast.sincopa.mood.shy = Wink
+cast.voz.name = Voz
+cast.voz.blurb = A microphone crooner in a dinner jacket and pork-pie hat: a hand to the heart, a finger-snapping slide — and on the drop a hat tip and ta-da.
+cast.glissando.name = Glissando
+cast.glissando.blurb = A figure of light, lapis neon along a dark suit with gold eyes: tutting and gliding with light trails — and on the drop it draws a halo round itself.
+cast.eco.name = Eco
+cast.eco.blurb = The delay's little ghost, its echoes repeating every move a quarter beat late — and on the drop the echoes multiply until they fill the stage.
+cast.voz.mood.shy = Hat tip
+cast.glissando.mood.shy = Wink
+cast.eco.mood.shy = Boo
+cast.onda.name = Onda
+cast.onda.blurb = A figure drawn by an oscilloscope's amber trace, a Lissajous loop for a head: every limb ripples with the sound — and on the drop the wave snaps square.
+cast.espectro.name = Espectro
+cast.espectro.blurb = A figure made of spectrum bars that light with the music it hears — the kick in its legs, the hats in its head — and on the drop every bar peaks into sparks.
+cast.onda.mood.shy = Square
+cast.espectro.mood.shy = Loud
+cast.compas.mood.shy = Cueing

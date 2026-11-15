@@ -408,7 +408,13 @@ impl EngineHandle {
             .tracks
             .iter()
             .filter(|t| t.armed)
-            .filter_map(|t| t.input.as_ref().map(|i| (t.id, t.name.as_str(), i.stereo)))
+            // r40:pads — a take *After FX* is the strip's pair (ADR 0118).
+            .filter_map(|t| {
+                let after = t.record_tap == cantus_core::RecordTap::AfterFx && t.strip.is_some();
+                t.input
+                    .as_ref()
+                    .map(|i| (t.id, t.name.as_str(), i.stereo || after))
+            })
             .collect();
         if armed.is_empty() {
             return Ok(0);

@@ -107,6 +107,7 @@ fn fork_strip(s: &StripSlot) -> Option<StripSlot> {
         midi_id: s.midi_id,
         listener: s.listener,
         is_key: s.is_key,
+        rec_tap: s.rec_tap, // r40:pads
         active: s.active,
         peak: s.peak,
         peak_block: s.peak_block,
@@ -276,6 +277,8 @@ impl Processor {
             (n_tracks, n_strips),
             // Its slots provisioned as the original's (ADR 0107).
             self.ready,
+            // As before ADR 0120 §7: the fork keeps its own lines and copies the plan.
+            crate::pdc::START_LINES, // r40:pads
         );
         p.copy_state_from(self, master, incoming_effects, incoming_instruments)?;
         p.copy_nodes_from(self, tracks, strips, tap, image)?;
@@ -314,6 +317,7 @@ impl Processor {
             I::Fm => 500.0,
             I::Bass => 400.0,
             I::Dancer => 2.0, // r35:dancer — its numbers and a matrix, no voices
+            I::AcousticDrums => 2.0, // r40:p3 — the stub; tymp-engine measures the real unit
         };
         let n = &self.nodes;
         let lines: usize = (0..n.lines.len())
@@ -325,6 +329,8 @@ impl Processor {
             if let Some(s) = c.state.try_borrow_mut() {
                 units += match s.native.as_ref().map(|u| u.kind) {
                     Some(UnitKind::Native(k)) => instrument(k),
+                    Some(UnitKind::Exemplar { .. }) => instrument(I::Sampler), // r40:chorda-src
+                    Some(UnitKind::Drums { .. }) => instrument(I::AcousticDrums), // r40:tymp-engine
                     Some(UnitKind::Hosted(_)) => 1_024.0,
                     None => 0.0,
                 };
@@ -450,12 +456,15 @@ impl Processor {
         self.capture_target = o.capture_target;
         self.capture_slot = o.capture_slot;
         self.analysed = o.analysed;
+        self.hear_key = o.hear_key; // r40:pads
         self.scoped = o.scoped;
         self.scoped_delay = o.scoped_delay;
         self.lates = o.lates.clone();
         self.late_n = o.late_n;
         self.follow_lates = o.follow_lates.clone();
         self.follow_n = o.follow_n;
+        // fix-a (A-M3): an effect moving memory in or holding some to give back.
+        self.fx_busy = o.fx_busy;
         // The planner's state, on this processor's own lines (shared with its nodes).
         let lines = self.pdc.lines.clone();
         self.pdc.clone_from(&o.pdc);
@@ -630,6 +639,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         capture_target: _,
         capture_slot: _,
         analysed: _,
+        hear_key: _, // r40:pads
         scoped: _,
         scoped_delay: _,
         master_tap: _, // r35:stage
@@ -637,6 +647,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         late_n: _,
         follow_lates: _,
         follow_n: _,
+        fx_busy: _, // fix-a
         pdc: _,
         master_loud: _,
         edge_l: _,
@@ -681,6 +692,7 @@ fn every_field_is_accounted_for(p: &Processor) {
         scopes: _,
         probe: _,
         capture: _,
+        rec_taps: _, // r40:pads
         tap: _,
         track_peak: _,
         track_voices: _,

@@ -113,6 +113,8 @@ pub struct TrackSnapshot {
     /// This track is one of another's outputs (`crate::padout`): it plays nothing of its
     /// own, only what its source renders into its bus, through its own strip and line.
     pub tap: Option<crate::padout::Tap>,
+    /// r40:pads — where the track's recording taps its signal (ADR 0118).
+    pub record_tap: crate::rec_tap::RecordTap,
 }
 
 impl TrackSnapshot {
@@ -374,7 +376,9 @@ impl Snapshot {
                 pan: t.pan,
                 audible: project.track_audible(t),
                 strip: t.strip.and_then(|s| project.strip_index(s)),
-                instrument: t.instrument.clone(),
+                // r40:chorda-src — a recorded Chorda plays as the Exemplar spec of its zones
+                // (ADR 0125 §2); every other instrument as it is.
+                instrument: crate::inst::chorda_source::snapshot_spec(&t.instrument),
                 events,
                 controls: kept(t).map_or_else(
                     || crate::clip_lanes::compile_track(t),
@@ -410,8 +414,9 @@ impl Snapshot {
                     .collect(),
                 note_fx: t.note_fx.clone(),
                 direct,
-                buses: Vec::new(), // r37:drums
-                tap: None,         // r37:drums
+                buses: Vec::new(),        // r37:drums
+                tap: None,                // r37:drums
+                record_tap: t.record_tap, // r40:pads
             })
             .collect::<Vec<_>>();
         // The kinds each track's lanes drive (ADR 0068): what a seek chases.

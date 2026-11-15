@@ -434,10 +434,41 @@ pub const SALTATOR: Skin = Skin {
     ornaments: NO_ORNAMENTS,
 };
 
+/// Tympanum, the acoustic drummer (round 40 phase 3, ADR 0124): the studio's own look —
+/// Slate's plain surfaces with a breath of the maple shells' warmth, the selection blue the
+/// approved design lights pieces and strips in, plain knobs and keys, as-is lettering: the
+/// picture of the kit is the face.
+pub const TYMPANUM: Skin = Skin {
+    key: "inst.tympanum",
+    surface: Tint {
+        hue: 30.0,
+        sat: 0.03,
+        amount: 0.35,
+    },
+    accent: Some(pair(206.0, 0.72, 0.64, 0.32)),
+    accent2: Some(pair(32.0, 0.70, 0.66, 0.34)),
+    material: Material::Plain,
+    display: Display::Plain,
+    knob: KnobShape::Plain,
+    switch: SwitchShape::Plain,
+    // Its name as it is written (Tympanum, not TYMPANUM), as the design's header sets it.
+    lettering: Lettering {
+        case: Case::AsIs,
+        tracking: 0.01,
+        weight: Weight::SemiBold,
+        condensed: false,
+        mono_values: false,
+    },
+    plate: Plate::Plain,
+    ornaments: NO_ORNAMENTS,
+};
+
 /// Every instrument sheet, Pulsus last.
 #[cfg(test)]
-pub const ALL: [&Skin; 10] = [
-    &UNDA, &CALOR, &MODULUS, &EXEMPLAR, &GRAVIS, &LAMINA, &ORGANUM, &CHORDA, &SALTATOR, &PULSUS,
+pub const ALL: [&Skin; 11] = [
+    &UNDA, &CALOR, &MODULUS, &EXEMPLAR, &GRAVIS, &LAMINA, &ORGANUM, &CHORDA, &SALTATOR,
+    &TYMPANUM, // r40:tymp-ui
+    &PULSUS,
 ];
 
 /// The sheet of an instrument.
@@ -452,6 +483,7 @@ pub fn of(kind: InstrumentKind) -> &'static Skin {
         InstrumentKind::Organ => &ORGANUM,
         InstrumentKind::Chorda => &CHORDA,
         InstrumentKind::Dancer => &SALTATOR,
+        InstrumentKind::AcousticDrums => &TYMPANUM, // r40:tymp-ui
     }
 }
 

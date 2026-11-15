@@ -1,0 +1,455 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<instrument version="2.0" name="Tom3">
+ <samples>
+  <sample name="Tom3-1" power="0.11795">
+   <audiofile channel="AmbL" file="samples/1-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/1-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/1-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/1-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/1-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/1-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/1-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/1-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/1-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/1-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/1-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/1-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/1-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-2" power="0.615112">
+   <audiofile channel="AmbL" file="samples/2-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/2-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/2-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/2-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/2-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/2-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/2-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/2-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/2-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/2-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/2-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/2-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/2-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-3" power="1.4649">
+   <audiofile channel="AmbL" file="samples/3-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/3-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/3-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/3-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/3-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/3-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/3-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/3-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/3-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/3-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/3-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/3-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/3-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-4" power="2.53787">
+   <audiofile channel="AmbL" file="samples/4-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/4-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/4-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/4-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/4-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/4-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/4-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/4-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/4-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/4-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/4-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/4-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/4-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-5" power="3.74965">
+   <audiofile channel="AmbL" file="samples/5-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/5-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/5-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/5-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/5-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/5-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/5-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/5-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/5-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/5-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/5-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/5-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/5-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-6" power="5.94271">
+   <audiofile channel="AmbL" file="samples/6-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/6-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/6-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/6-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/6-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/6-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/6-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/6-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/6-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/6-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/6-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/6-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/6-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-7" power="8.5084">
+   <audiofile channel="AmbL" file="samples/7-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/7-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/7-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/7-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/7-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/7-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/7-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/7-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/7-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/7-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/7-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/7-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/7-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-8" power="11.8784">
+   <audiofile channel="AmbL" file="samples/8-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/8-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/8-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/8-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/8-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/8-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/8-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/8-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/8-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/8-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/8-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/8-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/8-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-9" power="15.6758">
+   <audiofile channel="AmbL" file="samples/9-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/9-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/9-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/9-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/9-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/9-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/9-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/9-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/9-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/9-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/9-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/9-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/9-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-10" power="18.7321">
+   <audiofile channel="AmbL" file="samples/10-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/10-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/10-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/10-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/10-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/10-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/10-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/10-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/10-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/10-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/10-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/10-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/10-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-11" power="22.7974">
+   <audiofile channel="AmbL" file="samples/11-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/11-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/11-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/11-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/11-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/11-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/11-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/11-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/11-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/11-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/11-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/11-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/11-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-12" power="26.9877">
+   <audiofile channel="AmbL" file="samples/12-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/12-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/12-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/12-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/12-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/12-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/12-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/12-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/12-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/12-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/12-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/12-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/12-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-13" power="31.4369">
+   <audiofile channel="AmbL" file="samples/13-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/13-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/13-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/13-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/13-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/13-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/13-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/13-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/13-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/13-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/13-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/13-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/13-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-14" power="36.3268">
+   <audiofile channel="AmbL" file="samples/14-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/14-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/14-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/14-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/14-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/14-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/14-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/14-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/14-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/14-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/14-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/14-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/14-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-15" power="42.5512">
+   <audiofile channel="AmbL" file="samples/15-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/15-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/15-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/15-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/15-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/15-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/15-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/15-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/15-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/15-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/15-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/15-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/15-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-16" power="50.2162">
+   <audiofile channel="AmbL" file="samples/16-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/16-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/16-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/16-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/16-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/16-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/16-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/16-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/16-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/16-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/16-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/16-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/16-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-17" power="57.2366">
+   <audiofile channel="AmbL" file="samples/17-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/17-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/17-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/17-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/17-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/17-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/17-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/17-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/17-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/17-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/17-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/17-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/17-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-18" power="63.3707">
+   <audiofile channel="AmbL" file="samples/18-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/18-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/18-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/18-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/18-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/18-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/18-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/18-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/18-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/18-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/18-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/18-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/18-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-19" power="69.2563">
+   <audiofile channel="AmbL" file="samples/19-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/19-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/19-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/19-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/19-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/19-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/19-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/19-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/19-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/19-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/19-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/19-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/19-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-20" power="76.2816">
+   <audiofile channel="AmbL" file="samples/20-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/20-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/20-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/20-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/20-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/20-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/20-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/20-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/20-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/20-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/20-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/20-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/20-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-21" power="84.2676">
+   <audiofile channel="AmbL" file="samples/21-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/21-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/21-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/21-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/21-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/21-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/21-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/21-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/21-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/21-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/21-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/21-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/21-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-22" power="89.418">
+   <audiofile channel="AmbL" file="samples/22-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/22-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/22-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/22-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/22-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/22-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/22-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/22-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/22-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/22-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/22-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/22-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/22-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-23" power="94.6284">
+   <audiofile channel="AmbL" file="samples/23-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/23-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/23-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/23-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/23-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/23-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/23-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/23-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/23-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/23-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/23-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/23-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/23-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-24" power="102.52">
+   <audiofile channel="AmbL" file="samples/24-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/24-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/24-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/24-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/24-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/24-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/24-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/24-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/24-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/24-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/24-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/24-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/24-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-25" power="112.041">
+   <audiofile channel="AmbL" file="samples/25-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/25-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/25-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/25-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/25-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/25-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/25-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/25-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/25-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/25-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/25-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/25-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/25-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-26" power="125.255">
+   <audiofile channel="AmbL" file="samples/26-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/26-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/26-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/26-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/26-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/26-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/26-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/26-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/26-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/26-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/26-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/26-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/26-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-27" power="134.17">
+   <audiofile channel="AmbL" file="samples/27-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/27-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/27-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/27-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/27-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/27-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/27-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/27-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/27-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/27-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/27-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/27-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/27-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-28" power="145.062">
+   <audiofile channel="AmbL" file="samples/28-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/28-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/28-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/28-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/28-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/28-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/28-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/28-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/28-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/28-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/28-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/28-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/28-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-29" power="158.862">
+   <audiofile channel="AmbL" file="samples/29-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/29-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/29-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/29-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/29-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/29-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/29-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/29-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/29-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/29-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/29-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/29-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/29-Tom3.wav" filechannel="13"/>
+  </sample>
+  <sample name="Tom3-30" power="166.28">
+   <audiofile channel="AmbL" file="samples/30-Tom3.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/30-Tom3.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/30-Tom3.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/30-Tom3.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/30-Tom3.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/30-Tom3.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/30-Tom3.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/30-Tom3.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/30-Tom3.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/30-Tom3.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/30-Tom3.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/30-Tom3.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/30-Tom3.wav" filechannel="13"/>
+  </sample>
+ </samples>
+</instrument>

@@ -1,0 +1,440 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<instrument version="2.0" name="Kdrum_without_contact">
+ <samples>
+  <sample name="Kdrum_without_contact-1" power="0.0770498">
+   <audiofile channel="AmbL" file="samples/1-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/1-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/1-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/1-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/1-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/1-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/1-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/1-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/1-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/1-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/1-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/1-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/1-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-2" power="0.171342">
+   <audiofile channel="AmbL" file="samples/2-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/2-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/2-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/2-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/2-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/2-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/2-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/2-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/2-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/2-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/2-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/2-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/2-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-3" power="0.322885">
+   <audiofile channel="AmbL" file="samples/3-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/3-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/3-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/3-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/3-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/3-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/3-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/3-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/3-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/3-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/3-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/3-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/3-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-4" power="0.536537">
+   <audiofile channel="AmbL" file="samples/4-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/4-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/4-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/4-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/4-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/4-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/4-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/4-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/4-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/4-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/4-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/4-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/4-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-5" power="0.784633">
+   <audiofile channel="AmbL" file="samples/5-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/5-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/5-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/5-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/5-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/5-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/5-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/5-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/5-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/5-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/5-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/5-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/5-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-6" power="1.10412">
+   <audiofile channel="AmbL" file="samples/6-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/6-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/6-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/6-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/6-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/6-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/6-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/6-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/6-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/6-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/6-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/6-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/6-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-7" power="1.36206">
+   <audiofile channel="AmbL" file="samples/7-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/7-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/7-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/7-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/7-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/7-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/7-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/7-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/7-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/7-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/7-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/7-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/7-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-8" power="1.79303">
+   <audiofile channel="AmbL" file="samples/8-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/8-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/8-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/8-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/8-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/8-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/8-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/8-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/8-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/8-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/8-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/8-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/8-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-9" power="2.19056">
+   <audiofile channel="AmbL" file="samples/9-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/9-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/9-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/9-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/9-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/9-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/9-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/9-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/9-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/9-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/9-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/9-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/9-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-10" power="2.64652">
+   <audiofile channel="AmbL" file="samples/10-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/10-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/10-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/10-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/10-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/10-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/10-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/10-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/10-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/10-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/10-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/10-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/10-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-11" power="3.34613">
+   <audiofile channel="AmbL" file="samples/11-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/11-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/11-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/11-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/11-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/11-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/11-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/11-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/11-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/11-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/11-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/11-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/11-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-12" power="3.89652">
+   <audiofile channel="AmbL" file="samples/12-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/12-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/12-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/12-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/12-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/12-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/12-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/12-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/12-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/12-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/12-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/12-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/12-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-13" power="4.67273">
+   <audiofile channel="AmbL" file="samples/13-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/13-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/13-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/13-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/13-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/13-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/13-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/13-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/13-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/13-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/13-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/13-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/13-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-14" power="5.61197">
+   <audiofile channel="AmbL" file="samples/14-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/14-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/14-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/14-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/14-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/14-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/14-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/14-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/14-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/14-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/14-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/14-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/14-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-15" power="6.42961">
+   <audiofile channel="AmbL" file="samples/15-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/15-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/15-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/15-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/15-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/15-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/15-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/15-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/15-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/15-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/15-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/15-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/15-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-16" power="7.56112">
+   <audiofile channel="AmbL" file="samples/16-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/16-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/16-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/16-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/16-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/16-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/16-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/16-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/16-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/16-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/16-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/16-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/16-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-17" power="8.71515">
+   <audiofile channel="AmbL" file="samples/17-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/17-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/17-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/17-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/17-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/17-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/17-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/17-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/17-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/17-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/17-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/17-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/17-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-18" power="9.93852">
+   <audiofile channel="AmbL" file="samples/18-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/18-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/18-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/18-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/18-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/18-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/18-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/18-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/18-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/18-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/18-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/18-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/18-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-19" power="11.3818">
+   <audiofile channel="AmbL" file="samples/19-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/19-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/19-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/19-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/19-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/19-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/19-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/19-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/19-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/19-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/19-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/19-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/19-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-20" power="12.7445">
+   <audiofile channel="AmbL" file="samples/20-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/20-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/20-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/20-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/20-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/20-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/20-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/20-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/20-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/20-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/20-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/20-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/20-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-21" power="14.3206">
+   <audiofile channel="AmbL" file="samples/21-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/21-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/21-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/21-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/21-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/21-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/21-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/21-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/21-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/21-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/21-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/21-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/21-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-22" power="15.6688">
+   <audiofile channel="AmbL" file="samples/22-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/22-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/22-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/22-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/22-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/22-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/22-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/22-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/22-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/22-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/22-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/22-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/22-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-23" power="17.3537">
+   <audiofile channel="AmbL" file="samples/23-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/23-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/23-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/23-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/23-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/23-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/23-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/23-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/23-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/23-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/23-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/23-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/23-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-24" power="19.0238">
+   <audiofile channel="AmbL" file="samples/24-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/24-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/24-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/24-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/24-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/24-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/24-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/24-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/24-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/24-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/24-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/24-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/24-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-25" power="21.1112">
+   <audiofile channel="AmbL" file="samples/25-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/25-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/25-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/25-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/25-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/25-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/25-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/25-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/25-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/25-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/25-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/25-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/25-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-26" power="23.3429">
+   <audiofile channel="AmbL" file="samples/26-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/26-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/26-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/26-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/26-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/26-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/26-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/26-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/26-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/26-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/26-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/26-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/26-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-27" power="26.3282">
+   <audiofile channel="AmbL" file="samples/27-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/27-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/27-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/27-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/27-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/27-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/27-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/27-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/27-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/27-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/27-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/27-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/27-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-28" power="28.814">
+   <audiofile channel="AmbL" file="samples/28-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/28-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/28-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/28-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/28-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/28-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/28-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/28-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/28-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/28-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/28-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/28-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/28-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+  <sample name="Kdrum_without_contact-29" power="32.2047">
+   <audiofile channel="AmbL" file="samples/29-Kdrum_without_contact.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/29-Kdrum_without_contact.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/29-Kdrum_without_contact.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/29-Kdrum_without_contact.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/29-Kdrum_without_contact.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/29-Kdrum_without_contact.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/29-Kdrum_without_contact.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/29-Kdrum_without_contact.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/29-Kdrum_without_contact.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/29-Kdrum_without_contact.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/29-Kdrum_without_contact.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/29-Kdrum_without_contact.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/29-Kdrum_without_contact.wav" filechannel="13"/>
+  </sample>
+ </samples>
+</instrument>

@@ -41,6 +41,7 @@ pub fn code_presets(kind: InstrumentKind) -> &'static [FactoryPreset] {
         InstrumentKind::Organ => organ::FACTORY_PRESETS,
         InstrumentKind::Chorda => chorda::FACTORY_PRESETS,
         InstrumentKind::Dancer => dancer::FACTORY_PRESETS,
+        InstrumentKind::AcousticDrums => tympanum::FACTORY_PRESETS, // r40:p3
     }
 }
 
@@ -55,6 +56,7 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Organ => organ::body(app, ui, track, spec, s),
         InstrumentKind::Chorda => chorda::body(app, ui, track, spec, s),
         InstrumentKind::Dancer => dancer::body(app, ui, track, spec, s),
+        InstrumentKind::AcousticDrums => tympanum::body(app, ui, track, spec, s), // r40:p3
     }
 }
 
@@ -85,6 +87,7 @@ fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
         InstrumentKind::Organ => organ::play(app, ui, track, spec, s),
         InstrumentKind::Chorda => chorda::play(app, ui, track, spec, s),
         InstrumentKind::Dancer => dancer::play(app, ui, track, spec, s),
+        InstrumentKind::AcousticDrums => tympanum::play(app, ui, track, spec, s), // r40:p3
     }
 }
 
@@ -100,6 +103,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
         InstrumentKind::Organ => organ::preview(ui, spec),
         InstrumentKind::Chorda => chorda::preview(ui, spec),
         InstrumentKind::Dancer => dancer::preview(ui, spec),
+        InstrumentKind::AcousticDrums => tympanum::preview(ui, spec), // r40:p3
     }
 }
 
@@ -115,6 +119,7 @@ pub fn demo_setup(app: &mut CantusApp, track: TrackId, kind: InstrumentKind) {
         InstrumentKind::Organ => organ::demo_setup(app, track),
         InstrumentKind::Chorda => chorda::demo_setup(app, track),
         InstrumentKind::Dancer => dancer::demo_setup(app, track),
+        InstrumentKind::AcousticDrums => tympanum::demo_setup(app, track), // r40:p3
     }
 }
 
@@ -130,6 +135,7 @@ pub fn demo_feed(app: &mut CantusApp, kind: InstrumentKind) {
         InstrumentKind::Organ => organ::demo_feed(app),
         InstrumentKind::Chorda => chorda::demo_feed(app),
         InstrumentKind::Dancer => dancer::demo_feed(app),
+        InstrumentKind::AcousticDrums => tympanum::demo_feed(app), // r40:p3
     }
 }
 
@@ -175,6 +181,61 @@ fn view_index(v: View) -> usize {
         View::Play => 0,
         View::Edit => 1,
         View::Matrix => 2,
+        View::Mixer => 0, // r40:chorda-src — only where the kind has a mixer (`MIXER_VIEWS`)
+    }
+}
+
+// r40:chorda-src — the instrument's mixer (ADR 0123, 0125).
+/// The four of an instrument with its own mixer: Play · Mixer · Edit · Matrix.
+const MIXER_VIEWS: [Src<'static>; 4] = [
+    Src::Key("inst.view.play"),
+    Src::Key("inst.view.mixer"),
+    Src::Key("inst.view.edit"),
+    Src::Key("inst.view.matrix"),
+];
+const MIXER_ORDER: [View; 4] = [View::Play, View::Mixer, View::Edit, View::Matrix];
+
+// r40:integration — Tympanum's three, as the approved design names them: Kit (the frame's
+// Play) · Mixer · Matrix. It has no Edit view of its own.
+const TYMPANUM_VIEWS: [Src<'static>; 3] = [
+    Src::Key("tympanum.view.kit"),
+    Src::Key("tympanum.view.mixer"),
+    Src::Key("inst.view.matrix"),
+];
+const TYMPANUM_ORDER: [View; 3] = [View::Play, View::Mixer, View::Matrix];
+
+/// Whether a kind's editor has a Mixer view: Chorda and Tympanum (its named outputs).
+pub fn has_mixer(kind: InstrumentKind) -> bool {
+    matches!(kind, InstrumentKind::Chorda | InstrumentKind::AcousticDrums)
+}
+
+/// The views the header offers for `kind` and the index of `v` among them.
+fn views_of(kind: InstrumentKind, v: View) -> (&'static [Src<'static>], usize) {
+    if kind == InstrumentKind::Dancer {
+        (&DANCER_VIEWS[..], view_index(v).min(1))
+    } else if kind == InstrumentKind::AcousticDrums {
+        let i = TYMPANUM_ORDER.iter().position(|x| *x == v).unwrap_or(0);
+        (&TYMPANUM_VIEWS[..], i)
+    } else if has_mixer(kind) {
+        let i = MIXER_ORDER.iter().position(|x| *x == v).unwrap_or(0);
+        (&MIXER_VIEWS[..], i)
+    } else {
+        (&VIEWS[..], view_index(v))
+    }
+}
+
+/// The view the header's `i`-th segment is, for `kind`.
+fn view_at(kind: InstrumentKind, i: usize) -> View {
+    if kind == InstrumentKind::AcousticDrums {
+        return TYMPANUM_ORDER.get(i).copied().unwrap_or(View::Play);
+    }
+    if has_mixer(kind) {
+        return MIXER_ORDER.get(i).copied().unwrap_or(View::Play);
+    }
+    match i {
+        1 => View::Edit,
+        2 => View::Matrix,
+        _ => View::Play,
     }
 }
 
@@ -248,6 +309,13 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         .get(&track)
         .cloned()
         .unwrap_or_else(|| t("inst.preset.init"));
+    // r40:tymp-ui — Tympanum's header as the approved design sets it: the track's name
+    // without brackets, and the preset well naming the kit before the mix's preset.
+    let (context, preset_name) = if spec.kind == InstrumentKind::AcousticDrums {
+        tympanum::header_words(&spec, &track_name, app.inst.preset.get(&track))
+    } else {
+        (context, preset_name)
+    };
     let on_b = app.inst.on_b(track);
     let undo = (app.bus.can_undo(), app.bus.can_redo());
     let key = editor_id(track).value();
@@ -262,11 +330,8 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         }),
         ab: Some(if on_b { Ab::B } else { Ab::A }),
         undo: Some(undo),
-        views: Some(if spec.kind == InstrumentKind::Dancer {
-            (&DANCER_VIEWS[..], view_index(app.inst.view).min(1))
-        } else {
-            (&VIEWS[..], view_index(app.inst.view))
-        }),
+        views: Some(views_of(spec.kind, app.inst.view)), // r40:chorda-src
+        views_w: 0.0,
         bypassed: None,
         help: false,
         name_w: 0.0,
@@ -327,13 +392,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         match ev {
             // The tab is the window: the dock moves it, not the header.
             Event::Move(_) => {}
-            Event::View(i) => {
-                app.inst.view = match i {
-                    1 => View::Edit,
-                    2 => View::Matrix,
-                    _ => View::Play,
-                }
-            }
+            Event::View(i) => app.inst.view = view_at(spec.kind, i), // r40:chorda-src
             Event::Ab(ab) => {
                 if (ab == Ab::B) != on_b {
                     app.toggle_inst_ab(track);
@@ -380,14 +439,25 @@ fn shell_body(
     let mut grid = shell::Grid::new(body_rect, s);
     // The dancer has no macros, controllers or keyboard to show (its pads are its keys):
     // no bands, the stage takes the room.
-    let br = (spec.kind != InstrumentKind::Dancer).then(|| {
-        let bands = Bands {
-            macros_open: !app.inst.macros_closed,
-            mods_open: !app.inst.mods_closed,
-            keyboard: keyboard_shown(app),
-        };
-        shell::layout_bands(&mut grid, s, &bands)
-    });
+    // r40:tymp-ui — Tympanum's views fill the body as the approved design lays them out:
+    // its pieces are its keys, its Matrix view its modulation.
+    // r40:chorda-src — an instrument's Mixer is its desk: no bands under it (the design);
+    // Chorda's Play view lays its own keyboard out under the piano (no macro or modulation
+    // rows there: the Edit view keeps them).
+    let mixer_shown = (app.inst.view == View::Mixer && has_mixer(spec.kind))
+        || (app.inst.view == View::Play && spec.kind == InstrumentKind::Chorda);
+    let br = (!matches!(
+        spec.kind,
+        InstrumentKind::Dancer | InstrumentKind::AcousticDrums
+    ) && !mixer_shown)
+        .then(|| {
+            let bands = Bands {
+                macros_open: !app.inst.macros_closed,
+                mods_open: !app.inst.mods_closed,
+                keyboard: keyboard_shown(app),
+            };
+            shell::layout_bands(&mut grid, s, &bands)
+        });
     let area = grid.rest();
     let mut view = ui.new_child(
         egui::UiBuilder::new()
@@ -398,6 +468,10 @@ fn shell_body(
     // The dancer has no Matrix: shown as Edit.
     let shown = match app.inst.view {
         View::Matrix if spec.kind == InstrumentKind::Dancer => View::Edit,
+        // r40:chorda-src — a kind without a mixer shows Play.
+        View::Mixer if !has_mixer(spec.kind) => View::Play,
+        // r40:integration — Tympanum has no Edit view: shown as its Kit.
+        View::Edit if spec.kind == InstrumentKind::AcousticDrums => View::Play,
         v => v,
     };
     match shown {
@@ -417,6 +491,14 @@ fn shell_body(
                 .id_salt(("inst-matrix", track.0))
                 .show(&mut view, |ui| matrix(app, ui, track, spec, s));
         }
+        // r40:chorda-src — the instrument's own mixer; Tympanum's arm wired by the integrator.
+        View::Mixer => match spec.kind {
+            InstrumentKind::Chorda => {
+                crate::views::inst::chorda_source::mixer(app, &mut view, track, spec, s)
+            }
+            InstrumentKind::AcousticDrums => tympanum::mixer(app, &mut view, track, spec, s),
+            _ => play(app, &mut view, track, spec, s),
+        },
     }
     let Some(br) = br else {
         return;
@@ -827,7 +909,13 @@ fn mod_band(
 
 /// The keyboard card: C2–C7, held notes lit in the device hue; click to play (lower on a
 /// key is louder), drag across to play a run.
-fn keyboard_band(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, s: &Style, rect: Rect) {
+pub(crate) fn keyboard_band(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    track: TrackId,
+    s: &Style,
+    rect: Rect,
+) {
     let (lo, hi) = KEYBOARD_RANGE;
     let held = app.inst.held.clone();
     kit::with_brush(&ui.painter_at(rect), |b| {
@@ -1472,6 +1560,7 @@ mod tests {
                         kind,
                         params: Default::default(),
                         text: Default::default(),
+                        outputs: Vec::new(), // r40:p3
                     };
                     spec.text.insert(SLOTS[0].src.into(), tag.into());
                     spec.text.insert(SLOTS[0].dst.into(), "probe".into());

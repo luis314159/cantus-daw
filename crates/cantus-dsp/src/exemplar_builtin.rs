@@ -398,6 +398,12 @@ pub fn builtins() -> &'static [Builtin] {
     BUILTINS.get_or_init(build)
 }
 
+/// Whether the built-in sounds have been computed (r40:memory: the interface computes them
+/// when an instrument may be chosen, not at every start — ADR 0120 §2).
+pub fn built() -> bool {
+    BUILTINS.get().is_some()
+}
+
 /// The built-in for a zone's `gen` value.
 pub fn get(gen: u8) -> Option<&'static Builtin> {
     if gen == 0 {

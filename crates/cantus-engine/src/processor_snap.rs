@@ -91,7 +91,7 @@ impl Processor {
                 }
             };
             self.track_to_slot.push(slot);
-            self.swap_native(slot, t.id, UnitKind::of(&t.instrument));
+            self.swap_native(slot, t.id, UnitKind::of_track(&snapshot, t));
             if let Some(mut s) = nodes.track(slot) {
                 s.gain = t.gain;
                 s.pan = t.pan;
@@ -379,7 +379,8 @@ impl Processor {
         // Before compensating: the click has a line of its own when it is on.
         self.metronome = snapshot.metronome;
         self.compensate();
-        self.request_memory();
+        // The memory the effects' settings need is asked for by `auto_install`, once an
+        // automated Delay's line is known too (fix-a, A-M2).
         // The swaps this snapshot carries (warp's renders) crossfade from the old data as
         // the playing snapshot lays it, under the map playing now (round 29's third review).
         self.arm_swaps(&snapshot);

@@ -53,7 +53,9 @@ pub mod warp;
 pub use automation::Runtime as AutomationRuntime;
 pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHandle};
 pub use devices::{DeviceLatency, DeviceState, DriverInfo, InputDeviceInfo};
-pub use effects::{comp_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed, NeedTicket};
+pub use effects::{
+    comp_settings, delay_settings, eq_bands, EffectMemory, EffectUnit, MemoryNeed, NeedTicket,
+}; // r40:delay: delay_settings
 pub use fx::{FxNote, FxParamEvent, FxUnit, SongPosition, Telemetry, Wire, TELEMETRY_LEN};
 pub use inst::{
     hosted_key, Controller, InstrumentUnit, NativeUnit, NoteExpression, NoteOn, UnitKind,

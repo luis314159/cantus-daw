@@ -1,0 +1,686 @@
+//! Model 5, **measured**: Tympanum's cymbals and hi-hats synthesised from tables measured
+//! off a recorded kit (round 40 phase 3; ADR 0124's second amendment). The owner's
+//! verdict on model 4's cymbals — *"vidriosos"* — is what a few dozen pure, frozen
+//! partials sound like; the recordings are dense partials over shaped noise that blooms.
+//! The tables (`pulsus_measured_tables.rs`, written by the off-line measuring tool from
+//! DRSKit 2.1's hits, CC BY 4.0) hold, per piece, state and velocity layer:
+//!
+//! - **modes** — up to [`MAX_MODES`] partials found standing over the spectrum's local
+//!   median, each with its frequency and T60 (one set per piece) and per layer its
+//!   amplitude, how long it takes to **grow in** (the bloom: energy climbing to the highs
+//!   over the first hundreds of ms) and how much of it the strike sets ringing at once;
+//! - **bands** — the rest as noise in [`NB`] quarter-octave bands, each band's envelope at
+//!   [`NBP`] breakpoints after the strike (the wash, its build-up and its decay);
+//! - **the stick** — a sub-millisecond broadband burst and a dull knock (the foot's chick
+//!   has the knock only).
+//!
+//! Each piece is **one persistent object**: a new hit adds to what is ringing (its modes'
+//! states, a new envelope slot for its bands), so a crash struck while it rings swells as a
+//! real one does, and a busy hat costs one object, not one voice per stroke. A hat closing
+//! on its own ring (a closed stroke, the pedal) chokes the ring in a second bank while the
+//! new stroke sounds in the first. Every hit draws its own phases and small level changes
+//! (seeded: the same song renders the same bits). Everything runs per sample, its control
+//! steps counted by the object itself, so any chunking renders the same bits; nothing
+//! allocates after [`Bank::new`].
+
+use super::shape::Noise;
+use crate::math;
+use std::f32::consts::TAU;
+
+// Generated (`tools/tympanum-fit/tables_blob.py`): the bands and breakpoints.
+#[rustfmt::skip]
+#[path = "pulsus_measured_tables.rs"]
+mod tables;
+pub(crate) use tables::{BP_MS, CENTRES, NB, NBP};
+
+#[path = "pulsus_measured_data.rs"]
+pub(crate) mod data;
+
+/// The tables, decoded from their blob once ([`Bank::new`] asks first, off the audio
+/// thread); a blob this build cannot read leaves none (every model 5 hit silent).
+pub(crate) fn tables() -> &'static [Table] {
+    static TABLES: std::sync::OnceLock<Vec<Table>> = std::sync::OnceLock::new();
+    TABLES.get_or_init(|| {
+        // A debug build reads `CANTUS_MEASURED_BLOB` instead, if set: the fitting tools'
+        // calibration cycles try a blob without rebuilding (never in a release build).
+        #[cfg(debug_assertions)]
+        if let Some(b) =
+            std::env::var_os("CANTUS_MEASURED_BLOB").and_then(|p| std::fs::read(p).ok())
+        {
+            return data::decode(&b).unwrap_or_default();
+        }
+        data::decode(include_bytes!("pulsus_measured.bin")).unwrap_or_default()
+    })
+}
+
+#[path = "pulsus_measured_tick.rs"]
+mod tick;
+
+#[cfg(test)]
+#[path = "pulsus_measured_tests.rs"]
+mod tests;
+
+/// One velocity layer of a state.
+pub(crate) struct Layer {
+    pub vel: f32,
+    /// The recording's 500-ms RMS at this layer, dB (the level law below the softest).
+    pub level: f32,
+    /// The stick's burst and knock.
+    pub stick: [f32; 2],
+    /// Band-major: `NB × NBP` power envelopes, dB re full scale.
+    pub env: Vec<f32>,
+    pub amp: Vec<f32>,
+    /// Each mode's T60 at this layer (a closed hat damps what the open one lets ring).
+    pub t60: Vec<f32>,
+    /// Seconds; 0 rings at once.
+    pub rise: Vec<f32>,
+    /// A drum's pitch glide: the ratio's excess at the strike and its time constant, s.
+    pub glide: [f32; 2],
+    pub direct: Vec<f32>,
+    /// A drum's onset (blob version 2; `ets` 0 and the rest empty for none): each mode's
+    /// phase at the strike, and its early part — an amplitude and phase dying with time
+    /// constant `ets` (s).
+    pub ets: f32,
+    pub ph: Vec<f32>,
+    pub ea: Vec<f32>,
+    pub ep: Vec<f32>,
+}
+
+/// A hat's openness (a cymbal has one state), or the foot.
+pub(crate) struct State {
+    pub openness: f32,
+    pub foot: bool,
+    pub layers: Vec<Layer>,
+}
+
+/// One measured piece.
+pub(crate) struct Table {
+    pub id: u8,
+    /// A hi-hat: its states are its openness, a less open stroke chokes its ring (a ride's
+    /// states are its zones — bow, bell — and choke nothing).
+    pub hat: bool,
+    /// A drum: its pitch glides as its head relaxes, each hit a few cents its own, and it
+    /// has no side (a head is not a plate as broad as the pair).
+    pub drum: bool,
+    /// The level correction the engine's own render measured against the recording.
+    pub gain_db: f32,
+    pub hz: Vec<f32>,
+    pub states: Vec<State>,
+    /// Its fundamental (computed from the modes when decoded, not in the blob).
+    pub low_hz: f32,
+}
+
+/// The table `id` names (1 the crash, 2 the hi-hat, 3 the ride, 4 the kick, 5 the snare,
+/// 6–8 the toms high to floor; 17–24 the same measured off Virtuosity Drums), if the build
+/// has it.
+pub(crate) fn table(id: u8) -> Option<&'static Table> {
+    tables().iter().find(|t| t.id == id)
+}
+
+/// The recording's level (500-ms RMS, dB) at velocity `vel`, the first state's layers
+/// interpolated.
+fn level_at(t: &Table, vel: f32) -> f32 {
+    let ls = &t.states[0].layers;
+    match ls.iter().position(|l| l.vel >= vel) {
+        Some(0) => ls[0].level,
+        Some(j) => {
+            let x = (vel - ls[j - 1].vel) / (ls[j].vel - ls[j - 1].vel).max(1e-3);
+            ls[j - 1].level + x * (ls[j].level - ls[j - 1].level)
+        }
+        None => ls[ls.len() - 1].level,
+    }
+}
+
+/// Modes a piece has at most.
+pub(crate) const MAX_MODES: usize = 512;
+/// Hits whose band envelopes an object follows at once (the oldest gives way).
+pub(crate) const MAX_SLOTS: usize = 4;
+/// Samples per control step (band gains, envelope segments, silence).
+pub(crate) const CTRL: u32 = 16;
+/// Measured pieces a kit plays at most.
+pub(crate) const MAX_OBJECTS: usize = 8;
+/// How long a choke takes to silence a ring (T60, s).
+const CHOKE_T60: f32 = 0.05;
+
+/// An eighth-order Butterworth's four sections' Q: `1 / (2 sin((2k − 1) π / 16))`.
+const BUTTER8_Q: [f32; 4] = [2.562_915_4, 0.899_976_2, 0.601_344_9, 0.509_795_6];
+
+/// Where a piece's noise bands are high-passed (Hz at its own tuning; 0 none): a tom under its
+/// fundamental (its low bands apart: `Object::split`), a cymbal under 90 Hz; a kick, a snare
+/// and the studio kit's floor tom not at all (a snare's, under 0.6 of its fundamental, took
+/// the push out of its first 6 ms: cue 10).
+fn band_hp_hz(t: &Table) -> f32 {
+    if !t.drum {
+        90.0
+    } else if split(t) {
+        t.low_hz
+    } else {
+        0.0
+    }
+}
+
+/// Whether a drum's low bands go apart (high- and low-passed): the toms, not the studio kit's
+/// floor tom (its soft strokes' 3-8 kHz lost the low bands' skirts and with them their
+/// flatness, cue 14: 0.45 → 0.39 against DRSKit's 0.45); not a kick (its skirts are part of
+/// the groove's 4-8 kHz, cue 15) nor a snare.
+fn split(t: &Table) -> bool {
+    t.drum && matches!(t.id, 6 | 7 | 22..=24)
+}
+
+/// What a hit asks of a piece.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Strike {
+    pub table: u8,
+    pub bus: u8,
+    /// 1 … 127.
+    pub vel: f32,
+    pub openness: f32,
+    pub foot: bool,
+    pub seed: u64,
+    /// The modes' frequency ratio (the piece retuned) and the decay's (its `ring`).
+    pub ratio: f32,
+    pub decay: f32,
+    pub gain: f32,
+    /// The stick's (a kick's beater's) burst, times this (1: as measured).
+    pub click: f32,
+    /// Where the stick lands, −1 the centre … 1 the edge (0: as measured): towards the
+    /// edge the higher partials and bands rise and the lower fall (3 dB an octave each way
+    /// at ±1, about 250 Hz and 1 kHz).
+    pub tilt: f32,
+}
+
+/// One hit's band envelopes.
+#[derive(Clone)]
+pub(crate) struct Slot {
+    pub on: bool,
+    /// Samples since the strike, in control steps.
+    pub t: u32,
+    pub seg: usize,
+    pub choking: bool,
+    /// dB per band and breakpoint (this hit's own, interpolated and varied).
+    pub db: [f32; NB * NBP],
+    /// Each band's amplitude now and its factor per control step.
+    pub g: [f32; NB],
+    pub m: [f32; NB],
+}
+
+impl Slot {
+    fn new() -> Slot {
+        Slot {
+            on: false,
+            t: 0,
+            seg: 0,
+            choking: false,
+            db: [-200.0; NB * NBP],
+            g: [0.0; NB],
+            m: [1.0; NB],
+        }
+    }
+}
+
+/// One bank of modes: two rotating phasors each (the ring, and the part that grows in).
+#[derive(Clone)]
+pub(crate) struct Modes {
+    pub re: [f32; MAX_MODES],
+    pub im: [f32; MAX_MODES],
+    pub fre: [f32; MAX_MODES],
+    pub fim: [f32; MAX_MODES],
+    /// The poles' radii, the ring's and the growing part's (set by the hits it holds).
+    pub r: [f32; MAX_MODES],
+    pub rf: [f32; MAX_MODES],
+    /// Per 8 modes: whether any still sounds (the ring, the growing part).
+    pub live: [bool; MAX_MODES / 8],
+    pub flive: [bool; MAX_MODES / 8],
+    /// The blocks `live` and `flive` mark, in order (drums-gen 3: the render walks these
+    /// lists, not every block's flag each sample) — rebuilt by [`Modes::index`] whenever
+    /// the flags change.
+    pub lj: [u8; MAX_MODES / 8],
+    pub nl: usize,
+    pub fj: [u8; MAX_MODES / 8],
+    pub nf: usize,
+}
+
+impl Modes {
+    fn new() -> Modes {
+        Modes {
+            re: [0.0; MAX_MODES],
+            im: [0.0; MAX_MODES],
+            fre: [0.0; MAX_MODES],
+            fim: [0.0; MAX_MODES],
+            r: [0.0; MAX_MODES],
+            rf: [0.0; MAX_MODES],
+            live: [false; MAX_MODES / 8],
+            flive: [false; MAX_MODES / 8],
+            lj: [0; MAX_MODES / 8],
+            nl: 0,
+            fj: [0; MAX_MODES / 8],
+            nf: 0,
+        }
+    }
+
+    /// The lists of the blocks that sound, from the flags (blocks of the piece's `n` modes).
+    pub(crate) fn index(&mut self, n: usize) {
+        self.nl = 0;
+        self.nf = 0;
+        for j in 0..(MAX_MODES / 8).min(n.div_ceil(8)) {
+            if self.live[j] {
+                self.lj[self.nl] = j as u8;
+                self.nl += 1;
+            }
+            if self.flive[j] {
+                self.fj[self.nf] = j as u8;
+                self.nf += 1;
+            }
+        }
+    }
+}
+
+/// A measured piece sounding.
+#[derive(Clone)]
+pub(crate) struct Object {
+    pub active: bool,
+    pub table: u8,
+    pub bus: u8,
+    pub gain: f32,
+    pub n: usize,
+    /// The poles' angles: cos θ and sin θ per mode, and θ itself (a drum's glide turns it).
+    pub c: [f32; MAX_MODES],
+    pub s: [f32; MAX_MODES],
+    pub th: [f32; MAX_MODES],
+    /// A drum: this hit's own angles' cosines and sines (its detune, before the glide).
+    pub cb: [f32; MAX_MODES],
+    pub sb: [f32; MAX_MODES],
+    /// A drum: its glide's excess now and its fall per control step; this hit's detune.
+    pub drum: bool,
+    pub glide: f32,
+    pub glide_k: f32,
+    pub detune: f32,
+    pub ratio: f32,
+    pub decay: f32,
+    /// The bank that rings now, and the one a choke is silencing.
+    pub banks: [Modes; 2],
+    pub cur: usize,
+    pub bank_choke: [bool; 2],
+    pub choke: f32,
+    /// The choke over one control step.
+    pub choke_ctrl: f32,
+    pub slots: [Slot; MAX_SLOTS],
+    /// The bands' gains and their step per sample.
+    pub bg: [f32; NB],
+    pub bd: [f32; NB],
+    /// The bands' states, two sections each: the main's (`z`) and the side's (`y`, its own
+    /// noise through the same bands).
+    /// (Structure of arrays: state `k` of every band side by side, so the bands run in
+    /// lockstep, several at a time.)
+    pub z: [[f32; NB]; 4],
+    pub y: [[f32; NB]; 4],
+    /// Each band's sample now, main and side (summed after, in band order).
+    pub vz: [f32; NB],
+    pub vy: [f32; NB],
+    /// The bands that sound: `blo..bhi` (`band_range`).
+    pub blo: usize,
+    pub bhi: usize,
+    pub phase: u32,
+    pub openness: f32,
+    pub stick_t: u32,
+    pub stick_len: u32,
+    pub stick: [f32; 2],
+    pub knock: [f32; 2],
+    pub noise: Noise,
+    pub noise_s: Noise,
+    pub vary: Noise,
+    /// A drum's other stick burst (its side: see `DRUM_SIDE_HZ`).
+    pub burst_s: Noise,
+    pub age: u64,
+    /// What is silent for this piece (drums-gen 2, the cost): a block of modes, a band, 100 dB
+    /// under the loudest its hits struck (`f32::MAX`: nothing struck yet).
+    pub mfloor: f32,
+    pub bfloor: f32,
+    /// The noise bands' high-pass (drums-gen 3, cue 4): an eighth-order Butterworth, four
+    /// sections (b0, b1, b2, a1, a2 each), its states for the main and the side; off at 0 Hz.
+    pub hp: [f32; 20],
+    pub hp_hz: f32,
+    pub hpm: [f32; 8],
+    pub hps: [f32; 8],
+    /// A kick's or a tom's low bands apart (`DRUM_LOW_HZ`), and their low-pass states
+    /// (`Bank::drum_lp`).
+    pub split: bool,
+    pub lpz: [f32; 4],
+}
+
+/// Every measured piece of a kit, and the band filters they share.
+#[derive(Clone)]
+pub(crate) struct Bank {
+    pub sr: f32,
+    pub objects: Vec<Object>,
+    /// Band-pass coefficients (b0, a1, a2; b2 = −b0) and each band's noise normalisation.
+    pub b0: [f32; NB],
+    pub a1: [f32; NB],
+    pub a2: [f32; NB],
+    pub norm: [f32; NB],
+    pub nbands: usize,
+    pub counter: u64,
+    /// A drum's low bands' low-pass: a fourth-order Butterworth at `DRUM_LP_HZ`, two sections.
+    pub drum_lp: [f32; 10],
+}
+
+impl Bank {
+    /// Allocates every object: with the kit, never on the audio thread.
+    pub(crate) fn new(sr: f32) -> Bank {
+        let sr = if sr > 0.0 { sr } else { 48_000.0 };
+        // The tables decoded now, with the kit — never on the audio thread.
+        let _ = tables();
+        let mut b = Bank {
+            sr,
+            objects: (0..MAX_OBJECTS).map(|_| Object::new()).collect(),
+            b0: [0.0; NB],
+            a1: [0.0; NB],
+            a2: [0.0; NB],
+            norm: [0.0; NB],
+            nbands: 0,
+            counter: 0,
+            drum_lp: [0.0; 10],
+        };
+        let w = TAU * tick::DRUM_LP_HZ / sr;
+        let (sn, cs) = (math::sin(w), math::cos(w));
+        for (k, q) in [0.541_196_1f32, 1.306_563].iter().enumerate() {
+            let al = sn / (2.0 * q);
+            let a0 = 1.0 + al;
+            let c = &mut b.drum_lp[5 * k..5 * k + 5];
+            c[0] = 0.5 * (1.0 - cs) / a0;
+            c[1] = (1.0 - cs) / a0;
+            c[2] = c[0];
+            c[3] = -2.0 * cs / a0;
+            c[4] = (1.0 - al) / a0;
+        }
+        // Quarter-octave bands (the tables' own), up to 0.47 of the rate: two identical
+        // band-passes in a row (skirts of 12 dB an octave — a soft cymbal's strong mids
+        // must not leak into its quiet highs), their Q narrowed to keep the bandwidth.
+        let q = 0.644 / (math::exp2(0.125f32) - math::exp2(-0.125f32));
+        for (k, &c) in CENTRES.iter().enumerate() {
+            if c * math::exp2(0.125f32) > 0.47 * sr {
+                break;
+            }
+            let w = TAU * c / sr;
+            let al = math::sin(w) / (2.0 * q);
+            b.b0[k] = al / (1.0 + al);
+            b.a1[k] = -2.0 * math::cos(w) / (1.0 + al);
+            b.a2[k] = (1.0 - al) / (1.0 + al);
+            // The pair's noise gain, from its impulse response: unit-variance noise in,
+            // unit variance out.
+            let (mut z, mut e) = ([0.0f64; 4], 0.0f64);
+            let (b0, a1, a2) = (b.b0[k] as f64, b.a1[k] as f64, b.a2[k] as f64);
+            for i in 0..1 << 15 {
+                let x = if i == 0 { 1.0 } else { 0.0 };
+                let v = b0 * x + z[0];
+                z[0] = -a1 * v + z[1];
+                z[1] = -b0 * x - a2 * v;
+                let y = b0 * v + z[2];
+                z[2] = -a1 * y + z[3];
+                z[3] = -b0 * v - a2 * y;
+                e += y * y;
+            }
+            b.norm[k] = (1.0 / e.sqrt()) as f32;
+            b.nbands = k + 1;
+        }
+        b
+    }
+
+    /// Silence every piece (a reset).
+    pub(crate) fn silence(&mut self) {
+        for o in &mut self.objects {
+            *o = Object::new();
+        }
+        self.counter = 0;
+    }
+
+    pub(crate) fn any(&self) -> bool {
+        self.objects.iter().any(|o| o.active)
+    }
+
+    /// The object that plays `bus`'s table `table`: its own, a free one, or the quietest.
+    fn object_for(&mut self, table: u8, bus: u8) -> usize {
+        if let Some(i) = self
+            .objects
+            .iter()
+            .position(|o| o.active && o.table == table && o.bus == bus)
+        {
+            return i;
+        }
+        if let Some(i) = self.objects.iter().position(|o| !o.active) {
+            return i;
+        }
+        (0..self.objects.len())
+            .min_by_key(|&i| self.objects[i].age)
+            .unwrap_or(0)
+    }
+
+    /// A hit. Allocation-free.
+    pub(crate) fn strike(&mut self, h: &Strike) {
+        let Some(t) = table(h.table) else {
+            return;
+        };
+        self.counter += 1;
+        let i = self.object_for(h.table, h.bus);
+        let sr = self.sr;
+        let age = self.counter;
+        let o = &mut self.objects[i];
+        if !o.active || o.table != h.table || o.bus != h.bus {
+            *o = Object::new();
+            o.table = h.table;
+            o.bus = h.bus;
+            o.active = true;
+        }
+        o.age = age;
+        o.gain = h.gain * math::exp(t.gain_db * (std::f32::consts::LN_10 / 20.0));
+        o.tune(t, h.ratio, h.decay, sr);
+        // A hat closing on its own ring (a closed stroke, the foot): the ring is choked
+        // in the other bank, the stroke sounds in a fresh one.
+        let closing = t.hat && (h.foot || h.openness < o.openness - 0.2);
+        // (a hat of either set: `t.hat`; a ride or snare zone: `openness`)
+        if closing {
+            o.choke_now(sr);
+        }
+        o.openness = if h.foot { 0.0 } else { h.openness };
+        // A cymbal struck while it rings: the energy already in the plate goes on cascading
+        // upwards, so the new hit blooms as a harder one would (up to 12 velocity units
+        // when the ring is as loud as the hit; none 10 dB under it). A hat's plates do not
+        // carry over (a closed stroke chokes them).
+        let mut h = *h;
+        if !t.hat {
+            let ring: f32 = o.bg.iter().map(|g| g * g).sum();
+            if ring > 0.0 {
+                let d = 10.0 * math::log10(ring) - level_at(t, h.vel);
+                h.vel = (h.vel + 12.0 * ((d + 10.0) / 10.0).clamp(0.0, 1.0)).min(127.0);
+            }
+        }
+        o.hit(t, &h, sr);
+        // Bands above this rate's reach are not played: nothing of them stays.
+        let nb = self.nbands;
+        for b in nb..NB {
+            o.bg[b] = 0.0;
+            o.bd[b] = 0.0;
+            for s in &mut o.slots {
+                s.g[b] = 0.0;
+                s.m[b] = 0.0;
+            }
+        }
+    }
+
+    /// The pedal moved: a hat it closes is choked (the chick is the caller's to strike).
+    pub(crate) fn pedal(&mut self, openness: f32) {
+        let sr = self.sr;
+        for o in &mut self.objects {
+            if o.active && table(o.table).is_some_and(|t| t.hat) && openness < o.openness - 0.2 {
+                o.choke_now(sr);
+                o.openness = openness;
+            }
+        }
+    }
+
+    /// Whether `bus`'s piece of table `table` is sounding.
+    pub(crate) fn ringing(&self, bus: u8, table: u8) -> bool {
+        self.objects
+            .iter()
+            .any(|o| o.active && o.bus == bus && o.table == table)
+    }
+
+    /// A grab (a cymbal's note-off that chokes, a stop).
+    pub(crate) fn choke_bus(&mut self, bus: u8, table: u8) {
+        let sr = self.sr;
+        for o in &mut self.objects {
+            if o.active && o.bus == bus && o.table == table {
+                o.choke_now(sr);
+            }
+        }
+    }
+}
+
+impl Object {
+    fn new() -> Object {
+        Object {
+            active: false,
+            table: 0,
+            bus: 0,
+            gain: 1.0,
+            n: 0,
+            c: [1.0; MAX_MODES],
+            s: [0.0; MAX_MODES],
+            th: [0.0; MAX_MODES],
+            cb: [1.0; MAX_MODES],
+            sb: [0.0; MAX_MODES],
+            drum: false,
+            glide: 0.0,
+            glide_k: 1.0,
+            detune: 0.0,
+            ratio: 0.0,
+            decay: 0.0,
+            banks: [Modes::new(), Modes::new()],
+            cur: 0,
+            bank_choke: [false; 2],
+            choke: 1.0,
+            choke_ctrl: 1.0,
+            slots: std::array::from_fn(|_| Slot::new()),
+            bg: [0.0; NB],
+            bd: [0.0; NB],
+            z: [[0.0; NB]; 4],
+            y: [[0.0; NB]; 4],
+            vz: [0.0; NB],
+            vy: [0.0; NB],
+            blo: 0,
+            bhi: 0,
+            phase: 0,
+            openness: 0.0,
+            stick_t: 0,
+            stick_len: 0,
+            stick: [0.0; 2],
+            knock: [0.0; 2],
+            noise: Noise(0x2545_F491),
+            noise_s: Noise(0x6C8E_9CF5),
+            vary: Noise(0x9E37_79B9),
+            burst_s: Noise(0x3C6E_F372),
+            age: 0,
+            mfloor: f32::MAX,
+            bfloor: f32::MAX,
+            hp: [0.0; 20],
+            hp_hz: 0.0,
+            hpm: [0.0; 8],
+            hps: [0.0; 8],
+            split: false,
+            lpz: [0.0; 4],
+        }
+    }
+
+    /// The modes' angles for this piece and its tuning (only when they change).
+    fn tune(&mut self, t: &Table, ratio: f32, decay: f32, sr: f32) {
+        let ratio = if ratio.is_finite() && ratio > 0.0 {
+            ratio
+        } else {
+            1.0
+        };
+        let decay = if decay.is_finite() && decay > 0.0 {
+            decay
+        } else {
+            1.0
+        };
+        if self.ratio == ratio && self.decay == decay && self.n > 0 {
+            return;
+        }
+        self.ratio = ratio;
+        self.decay = decay;
+        // (The table's modes are grouped by the layers that have them, not by frequency:
+        // one beyond this rate's reach is held silent — its angle 0 — not the end.)
+        let mut n = 0;
+        for (k, &hz) in t.hz.iter().enumerate().take(MAX_MODES) {
+            let f = hz * ratio;
+            let th = if f >= 0.45 * sr { 0.0 } else { TAU * f / sr };
+            self.th[k] = th;
+            self.c[k] = math::cos(th);
+            self.s[k] = math::sin(th);
+            n = k + 1;
+        }
+        self.n = n;
+        self.set_band_hp(t, ratio, sr);
+    }
+
+    /// The noise bands' high-pass for this piece at this tuning (drums-gen 3, cue 4: the
+    /// bands' skirts — 12 dB an octave — put a drum's and a cymbal's noise under its
+    /// fundamental, 20-55 Hz in the stroke's first 80 ms 10-30 dB over the recordings'): a
+    /// tom's under its fundamental, a cymbal's under 90 Hz; its modes untouched.
+    fn set_band_hp(&mut self, t: &Table, ratio: f32, sr: f32) {
+        self.split = split(t);
+        let hz = band_hp_hz(t) * ratio;
+        self.hp_hz = if hz > 0.0 && hz < 0.2 * sr { hz } else { 0.0 };
+        if self.hp_hz == 0.0 {
+            return;
+        }
+        let w = TAU * self.hp_hz / sr;
+        let (sn, cs) = (math::sin(w), math::cos(w));
+        for (k, q) in BUTTER8_Q.iter().enumerate() {
+            let al = sn / (2.0 * q);
+            let a0 = 1.0 + al;
+            let c = &mut self.hp[5 * k..5 * k + 5];
+            c[0] = 0.5 * (1.0 + cs) / a0;
+            c[1] = -(1.0 + cs) / a0;
+            c[2] = c[0];
+            c[3] = -2.0 * cs / a0;
+            c[4] = (1.0 - al) / a0;
+        }
+    }
+
+    /// Choke what rings: its bank and its slots fall by [`CHOKE_T60`].
+    fn choke_now(&mut self, sr: f32) {
+        self.choke = math::exp(-6.907_755 / (CHOKE_T60 * sr));
+        self.choke_ctrl = math::exp(-6.907_755 * CTRL as f32 / (CHOKE_T60 * sr));
+        self.bank_choke[self.cur] = true;
+        self.cur ^= 1;
+        let b = &mut self.banks[self.cur];
+        // The bank the next stroke rings in starts clean (what a choke left in it is gone).
+        b.re = [0.0; MAX_MODES];
+        b.im = [0.0; MAX_MODES];
+        b.fre = [0.0; MAX_MODES];
+        b.fim = [0.0; MAX_MODES];
+        b.live = [false; MAX_MODES / 8];
+        b.flive = [false; MAX_MODES / 8];
+        b.nl = 0;
+        b.nf = 0;
+        self.bank_choke[self.cur] = false;
+        for s in &mut self.slots {
+            if s.on {
+                s.choking = true;
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for Bank {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Bank")
+            .field("sr", &self.sr)
+            .field(
+                "sounding",
+                &self.objects.iter().filter(|o| o.active).count(),
+            )
+            .finish()
+    }
+}

@@ -22,13 +22,18 @@ pub mod analog;
 pub mod bass;
 pub mod chorda;
 pub mod chorda_look; // r37:scene
-                     // The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
+pub mod chorda_source; // r40:p3 (ADR 0125): Chorda's recorded source and its mixer — chorda-src
+pub mod room_look; // r40:scene (ADR 0126, schema 69): the room, floor, walls and rug a scene draws
+
+// The dancer (round 35, ADR 0087): a character that dances on screen, and makes no sound.
 pub mod dancer;
 pub mod epiano;
 pub mod fm;
 pub mod modulation;
 pub mod organ;
 pub mod sampler;
+pub mod tympanum; // r40:p3 (ADR 0124): the acoustic drummer — tymp-engine
+pub mod tympanum_kit; // r40:p3
 pub mod wavetable;
 
 /// Metadata for one instrument parameter: the same shape as an effect's.
@@ -57,6 +62,13 @@ pub enum InstrumentKind {
     /// The dancer: a character that dances on screen and makes no sound (round 35, ADR
     /// 0087). A track hosts it so its numbers are automation and modulation targets.
     Dancer,
+    /// Tympanum: the acoustic drummer — modelled and recorded multi-mic kits over Pulsus's
+    /// engine (round 40 phase 3, ADR 0124; schema 67). // r40:p3
+    ///
+    /// In [`InstrumentKind::ALL`] (and so the picker) since round 40's close: every
+    /// kind-wide test (the contract twins, the null corpus and its hashes, the bench)
+    /// iterates it.
+    AcousticDrums,
 }
 
 macro_rules! dispatch {
@@ -71,12 +83,13 @@ macro_rules! dispatch {
             InstrumentKind::Organ => organ::$item $( ( $($arg),* ) )?,
             InstrumentKind::Chorda => chorda::$item $( ( $($arg),* ) )?,
             InstrumentKind::Dancer => dancer::$item $( ( $($arg),* ) )?,
+            InstrumentKind::AcousticDrums => tympanum::$item $( ( $($arg),* ) )?, // r40:p3
         }
     };
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 9] = [
+    pub const ALL: [InstrumentKind; 10] = [
         InstrumentKind::Wavetable,
         InstrumentKind::Analog,
         InstrumentKind::Fm,
@@ -85,6 +98,7 @@ impl InstrumentKind {
         InstrumentKind::ElectricPiano,
         InstrumentKind::Organ,
         InstrumentKind::Chorda,
+        InstrumentKind::AcousticDrums,
         InstrumentKind::Dancer,
     ];
 
@@ -107,6 +121,7 @@ impl InstrumentKind {
     pub fn stored_versions(self) -> &'static [(&'static str, f32)] {
         match self {
             InstrumentKind::Chorda => &[("model", chorda::MODEL)],
+            InstrumentKind::AcousticDrums => &[("model", tympanum::MODEL)], // r40:p3
             _ => &[],
         }
     }
@@ -128,14 +143,50 @@ impl InstrumentKind {
     /// (ADR 0059) — and those that are set, never automated — where a dancer is shown
     /// (ADR 0087).
     pub fn automatable(self, key: &str) -> bool {
+        if self.has_outputs() && Self::is_unloading(key) {
+            return false; // r40:p3
+        }
         match self {
             InstrumentKind::Chorda => {
                 !chorda::DESIGN_KEYS.contains(&key) && !chorda::SET_KEYS.contains(&key)
                 // r37:piano
+                    // r40:chorda-src — a recorded source's zones are set, never automated.
+                    && chorda_source::rec_key(key).is_none()
+                    && key != chorda_source::SOURCE_KEY
+            }
+            // r40:chorda-src — where a group plays is set, never automated; so is the room
+            // added after the outputs (`room.add`): it chooses the unit, built off the audio
+            // thread with the snapshot (`UnitKind::Exemplar`), as Tympanum's room is set.
+            InstrumentKind::Sampler => {
+                !matches!(sampler::group_key(key), Some((_, "out"))) && key != "room.add"
             }
             InstrumentKind::Dancer => !dancer::VIEW_KEYS.contains(&key),
+            // r40:p3 — a kit's model, its room and its openness controller are set.
+            InstrumentKind::AcousticDrums => !tympanum::SET_KEYS.contains(&key),
             _ => true,
         }
+    }
+
+    // r40:p3 — named outputs (ADR 0123).
+    /// Whether the kind has named outputs (`o{n}.` keys and [`NativeSpec::outputs`]):
+    /// Chorda (a recorded piano's perspectives and noises; the model's virtual mics) and
+    /// Tympanum (its microphones). Exemplar's multi-mic instruments are the next.
+    pub fn has_outputs(self) -> bool {
+        // r40:chorda-src — and Exemplar (ADR 0125): a recorded Chorda plays as an Exemplar
+        // carrying its outputs, and a Decent Sampler instrument's buses are Exemplar's.
+        matches!(
+            self,
+            InstrumentKind::Chorda | InstrumentKind::AcousticDrums | InstrumentKind::Sampler
+        )
+    }
+
+    /// An output's or a bleed cell's *on* (ADR 0123 §4): it loads and unloads samples off
+    /// the audio thread, so it is set, never automated.
+    fn is_unloading(key: &str) -> bool {
+        matches!(
+            crate::inst_out::output_key(key),
+            Some((_, crate::inst_out::OutputField::On))
+        ) || matches!(tympanum::bleed_key(key), Some((_, _, "on")))
     }
 
     /// Whether it makes sound. A dancer does not (ADR 0087): what checks an instrument's
@@ -163,6 +214,17 @@ impl InstrumentKind {
         if key == TRIM_KEY {
             return self.trim_info();
         }
+        // r40:p3 — the internal mixer's keys (ADR 0123) and a recorded Chorda's (ADR 0125).
+        if self.has_outputs() {
+            if let Some(i) = crate::inst_out::param(key) {
+                return Some(i);
+            }
+        }
+        if self == InstrumentKind::Chorda {
+            if let Some(i) = chorda_source::param(key) {
+                return Some(i);
+            }
+        }
         dispatch!(self, m::param(key))
     }
 
@@ -188,13 +250,18 @@ impl InstrumentKind {
 
     /// Whether `key` holds text (a path, a name).
     pub fn is_text_key(self, key: &str) -> bool {
-        dispatch!(self, m::is_text_key(key))
+        // r40:p3 — a recorded Chorda's source and zones (ADR 0125).
+        (self == InstrumentKind::Chorda && chorda_source::is_text_key(key))
+            // r40:scene — Tympanum's scene keeps its room look as Chorda's does (schema 69).
+            || (self == InstrumentKind::AcousticDrums && room_look::KEYS.contains(&key))
+            || dispatch!(self, m::is_text_key(key))
     }
 
     /// Whether a text `key` holds the path of an audio file the engine decodes and hands
     /// the instrument (a sample, a wavetable). Implies [`is_text_key`](Self::is_text_key).
     pub fn is_asset_key(self, key: &str) -> bool {
-        dispatch!(self, m::is_asset_key(key))
+        (self == InstrumentKind::Chorda && chorda_source::is_asset_key(key)) // r40:p3
+            || dispatch!(self, m::is_asset_key(key))
     }
 
     /// The kinds offered in the picker, in menu order.
@@ -235,6 +302,10 @@ pub struct NativeSpec {
     pub params: BTreeMap<String, f32>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub text: BTreeMap<String, String>,
+    /// r40:p3 — the named outputs that play somewhere other than Main, sorted by id (ADR
+    /// 0123, schema 66): empty for every older spec and every kind without outputs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outputs: Vec<crate::inst_out::OutputSlot>,
 }
 
 impl NativeSpec {
@@ -245,10 +316,20 @@ impl NativeSpec {
         for (k, v) in kind.stored_versions() {
             params.insert(k.to_string(), *v);
         }
+        let mut text = BTreeMap::new();
+        // r40:scene (schema 69): a new Chorda stands on the stage; an older song's, which has
+        // no room key, keeps the room its Room size drew.
+        if kind == InstrumentKind::Chorda {
+            text.insert(
+                room_look::ROOM_KEY.to_string(),
+                room_look::RoomKind::Stage.key().to_string(),
+            );
+        }
         NativeSpec {
             kind,
             params,
-            text: BTreeMap::new(),
+            text,
+            outputs: Vec::new(), // r40:p3
         }
     }
 

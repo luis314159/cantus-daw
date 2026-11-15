@@ -251,6 +251,9 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
 
 ### El aspecto nuevo en tu pantalla (ronda 39, ADR 0108–0114) <!-- r39:docs -->
 
+**Aceptado el 2026-11-11**: lo miraste en tu pantalla y no encontraste nada malo nuevo
+(«no encontré nada malo nuevo»). Las casillas de abajo quedan para lo que vuelvas a ver.
+
 Todo lo de la ronda 39 se dibujó con el renderizador de CPU (`raster.rs`) y se probó con clics
 sintéticos; nada se vio en un monitor ni con un ratón de verdad. Usa la release de la beta.14 (o la
 release integrada que te pase) en tu monitor. Para cada punto, si
@@ -348,6 +351,86 @@ pásamela con la escala y el tema.
       las flechas lo recorren; `Esc` cierra lo último que se abrió; `Ctrl+F` sobre una pista abre
       sus presets.
 
+### Ronda 40 — insertar y borrar tiempo, arrastrar una sección, ripple (ADR 0116) <!-- r40:ripple -->
+
+Probado con eventos sintéticos (el arrastre y las teclas los dio la prueba de extremo a extremo);
+lo que solo tus manos confirman:
+
+- [ ] **Insertar y borrar tiempo**: en una canción tuya, arrastra en la regla dos compases en
+      medio de un clip, clic derecho dentro de la selección, *Insertar tiempo*: todo lo de después se
+      mueve dos compases (clips, automatización, marcadores, secciones, tempo). `Ctrl+Supr`
+      los quita: la canción debe quedar exactamente como estaba (escúchala: sin cortes).
+- [ ] **Arrastrar una sección**: arrastra una sección del carril de secciones sin nada, con
+      `Ctrl`, con `Mayús` y con `Ctrl+Mayús`: mira la vista previa (fantasma, franja o línea de
+      acento, hueco con trazos, la línea de ayuda) y que al soltar haga lo que dijo. El arrastre
+      simple *inserta* (como Logic y Studio One); *Ajustes ▸ Edición ▸ Arreglo ▸ Arrastrar una sección:
+      Reemplazar* lo cambia (y `Mayús` hace siempre lo otro). Dime cuál prefieres por defecto.
+- [ ] **Ripple**: `Alt+Mayús+P` (o la tecla junto a *Seguir*) a *esta pista*, borra un clip y
+      mueve otro: lo que sigue debe moverse con él; a *todas las pistas*, igual en todas.
+
+### Ronda 40 — `look`: tus respuestas sobre el aspecto, en tu pantalla <!-- r40:look -->
+
+Todo se vio solo en el renderizador de CPU; los clics de las pruebas son sintéticos. En la release
+integrada de la ronda 40, a 100 % y a 150 %, en Pizarra Noche y Papel:
+
+- [ ] **Pizarra lapislázuli, la C**: elige *Pizarra lapislázuli* en *Ajustes ▸ Apariencia*; el
+      espacio debe verse claramente azul (Noche: azul lapislázuli profundo; Papel: un papel azul
+      claro), con el texto tan nítido como en Pizarra. Dime si el azul es el que elegiste.
+- [ ] **Maximizar**: doble clic en la pestaña del arreglo — el inspector debe quedarse a su lado,
+      a su ancho; `I` lo oculta solo a él. En *Ajustes ▸ Apariencia ▸ La ventana ▸ Al maximizar,
+      queda: Nada*, maximizar da todo el espacio.
+- [ ] **El dock derecho del mezclador**: con Neon Tide, los retornos (Reverb, Delay) en el borde
+      derecho de la ventana y, antes, los canales vacíos numerados; plegar la mesa (más estrecha)
+      los deja en el borde. *Tras la última tira* los devuelve junto a los canales.
+- [ ] **La barra superior**: *Extras de la barra: Ambos* — el armado de la automatización tras el
+      bucle (violeta al armarlo; su ▾ con los modos) y la tecla del teclado del ordenador antes de
+      las entradas (a 1920 × 1080 y 100 % las entradas, y con ellas esa tecla, pasan a *Más*;
+      dime si prefieres que se queden en la barra a costa de otro grupo).
+- [ ] **Valores del inspector y Silencio**: elige una tira y abre *Nivel*: volumen, paneo y
+      anchura como barras de valor; silencia dos canales: su **M** en el color del acento (en la
+      mesa y en la cabecera de la pista). *Barras finas* y *Gris* devuelven lo de la ronda 39.
+- [ ] **Menús y diálogos en Papel**: abre *Edición* en la barra y un diálogo (*Archivo ▸ Nuevo*
+      con cambios sin guardar): el borde de la hoja más nítido, una sombra pegada al borde, el velo
+      detrás más claro. ¿Se ve tan terminado como en Noche?
+- [ ] **Burdeos y Peltre más suaves**: elígelos con Neon Tide sonando; ¿la fuerza es la justa y
+      se lee todo sin esfuerzo?
+
+### Ronda 40 — Delay al tempo y Delay como plug-in CLAP/VST3 (ADR 0119) <!-- r40:delay -->
+
+Probado con pruebas de bits y renders (el clic en la ventana lo dio la prueba de extremo a
+extremo); lo que solo tus oídos, tus manos y otro DAW confirman:
+
+- [ ] **Al tempo, de oído**: en una canción con una rampa en la pista de tempo (p. ej. 120 → 90 en
+      cuatro compases) y un cambio brusco después, pon Delay en *Corchea con puntillo* (ya sigue el
+      tempo) sobre una guitarra o una voz y escucha la rampa y el cambio: en la rampa las
+      repeticiones se deslizan (el tono baja un poco, como una cinta); en el cambio brusco pasan
+      con un fundido de 50 ms. Dime si prefieres que la rampa también funda en vez de deslizar.
+- [ ] **El interruptor**: *Libre · Al tempo* en la ventana; *Al tempo* elige la figura más cercana,
+      *Libre* conserva el tiempo en milisegundos. La perilla grande gira la figura con *Al tempo*.
+- [ ] **Cantus Delay en otro DAW**: `cargo run -p xtask -- bundle delay`, copia
+      `target/bundled/Cantus Delay.clap` y `.vst3` a las carpetas de plug-ins y ábrelo en REAPER
+      (o FL Studio / Bitwig): su ventana, *Al tempo* siguiendo el tempo del DAW (cámbialo con el
+      transporte parado y sonando), una figura larga (4/1) sin cortes, guardar y abrir el proyecto.
+- [ ] **Los ids** (para siempre): CLAP `com.github.lalmazan.cantus.delay`, VST3
+      `625C4F90AB5A380458F1F1D3D1DCA44C` — confírmalos antes de que la ronda se fusione.
+
+### Ronda 40 — el canal propio de un pad, escuchar la clave, grabar antes/después de FX (ADR 0117, 0118) <!-- r40:pads -->
+
+Probado con eventos sintéticos y un motor manejado a mano (entrada empujada por la prueba); lo
+que solo tus oídos y tu interfaz confirman:
+
+- [ ] **El canal de un pad**: en el rack, clic en el número de un pad de un kit, *Primer canal
+      libre*: el pad debe sonar solo en ese canal (sube y baja su fader, ponle un efecto), y el resto
+      del kit en el suyo. *El canal del kit* lo devuelve. Dime si quieres el número de un pad con
+      canal propio en color de acento (hoy es la tinta del boceto).
+- [ ] **Escuchar la clave**: un compresor con clave desde el bombo, *Cadena lateral ▸ Escuchar la
+      clave*: debes oír el bombo como lo oye el detector (sube el filtro de la clave y escúchalo
+      cambiar); otro clic vuelve a la pista. Exporta mientras está encendido: el archivo no lo lleva.
+- [ ] **Grabar después de FX**: con tu interfaz en dúplex (WASAPI y ASIO), una pista con un EQ o
+      una saturación, *Grabación ▸ Se graba: Con FX*, escucha en *Auto*: graba unos compases y
+      compara la toma con lo que oíste (en estéreo, con el efecto), y que caiga a tiempo sobre la
+      rejilla; con un compresor con anticipación también. *Sin FX* debe dar la toma limpia.
+
 ### En reposo (ronda 38, ADR 0106) <!-- r38:scorecard -->
 
 Probado en esta máquina con la interfaz del portátil; lo que solo un aparato confirma:
@@ -377,6 +460,93 @@ Necesita tu hardware; en la ronda se probó todo con una interfaz virtual y con 
 - [ ] **Interfaz desenchufada**: con el sintetizador/interfaz del proyecto apagados, la unidad dice *hay otra interfaz abierta* o *no está el puerto* y *Ping* no se ofrece. Nunca cargues un driver ASIO de una interfaz desconectada.
 - [ ] **Mackie Control** (o una compatible: X-Touch, Icon, FaderPort en modo MCU): añade la superficie, mueve un fader (el canal cambia y un solo deshacer lo devuelve), toca un fader mientras cambias el volumen con el ratón (el motor no pelea), banco y canal, mute/solo/rec/select con sus luces, V-pot, jog, transporte, las pantallas de nombre y los medidores. Con una extensión, dieciséis canales.
 - [ ] **HUI**: si tienes una, lo mismo con sus ocho canales y el transporte. Abre el registro bajo la lista: cualquier interruptor que diga *unmapped HUI zone … port …* mándalo y se añade a la tabla (la tabla de zonas y puertos se tomó de las notas públicas del protocolo y solo se probó con la emulación).
+
+### Memoria (ronda 40, `memory`, ADR 0120) <!-- r40:memory -->
+
+- [ ] **La fila de memoria, con la máquina quieta**: el integrador mide la versión final con
+      `tools/scorecard/startup.ps1` (vacío y *Beat*), sin nada más corriendo. En el mapa de la
+      ronda, con otras compilaciones activas, bajó de unos 138–140 MB a unos 122–124 MB; el
+      suelo del controlador OpenGL de AMD (una ventana vacía de egui) es de unos 105 MB en tu
+      portátil. No se dice que ganemos a REAPER ni a FL hasta esa medición.
+- [ ] **Exemplar sin espera**: abre el selector de instrumentos y elige Exemplar enseguida:
+      debe aparecer sin un tirón (sus sonidos internos se calculan al abrir el selector, ya no
+      en cada arranque). Si notas una pausa al elegirlo, dímelo.
+- [ ] **Cambiar de idioma**: *Ajustes ▸ Idioma* de inglés a español y al revés: toda la
+      ventana cambia en el acto (el otro idioma se lee cuando se elige).
+
+### Ronda 40 — lo que espera tu oído, y lo que solo tu equipo confirma <!-- r40:docs -->
+
+La ronda 40 está en `r40/integration`. Por tu decisión del 2026-11-14 (*"Add Tympanum at once.
+Ship … with Chorda's newest version"*), **el candidato 16 ya es el sonido por defecto de Chorda**
+(`DSP_VERSION` 7) y **Tympanum ya está en el selector de instrumentos** (junto a Pulsus, en
+*Batería*); tu escucha y tu ABX de los dos siguen pendientes (`docs/BACKLOG-excellence.md`), y
+la beta.15 espera tu OK. Todo lo de la ronda se dibujó con el renderizador de CPU, se tocó con
+eventos sintéticos y se midió sin oído; las pruebas de cada constructor están arriba
+(*Ronda 40 — …*) y estas son las que faltaban.
+
+- [ ] **Chorda, la ABX del candidato 16**: https://claude.ai/artifact/Jpwa91Tz4V8rbcRrgiXMKg
+      (para quien esté fuera de tu organización, el zip `compartir\cantus-chorda-abx16.zip`; cada
+      quien te manda su JSON y lo importas en el resumen de la página). Pásala a tus conocidos.
+      Reemplaza a la del 14 (su página sigue arriba, sin usarse): el 14 aún tenía el acorde
+      desafinado de tu queja (la quinta Re3–La3 del último acorde suave batía a 4.46 Hz; en el 16,
+      1.18 contra 0.68 del Salamander). El 16 ya es el sonido por defecto; lo que digas decide
+      la próxima pasada de voz (o que Chorda está terminado).
+- [ ] **Chorda, el candidato 16 de cerca** (`compartir\chorda-preview-16\`): cumple tu barra en
+      medidas — toda tecla a menos de 10 cents (la peor, Do1, +9.7), el Do central a 2.26 kHz
+      +0.3 dB, ninguna tecla La0–Do5 con flanger, la octava de arriba sin cambio, los batidos del
+      grave en dos etapas 0.50, el color de arriba 1.48 — pero nadie lo ha oído. Lo que costó: la
+      escala rápida con −4.6 dB de presencia, el acorde ff con +2.6 dB.
+- [ ] **Tympanum b10** (`compartir\tympanum-b10\`, lee `NOTA.md`): las quince pistas del
+      análisis medidas, el ataque de la caja ya no llega tarde, las colas de los platos sin el
+      «iuuu». Di qué pieza sigue sonando menos real y por qué.
+- [ ] **Tympanum b11** (`compartir\tympanum-b11\`, lee `NOTA.md`; b10 · b11 · grabación): el
+      costo bajó de 18.7 a 7.3 % de un núcleo con todos los micrófonos sin cambiar el sonido;
+      pasa 71 de 162 pistas medidas (b10 57, b9 21): los toms sin ruido grave bajo su
+      fundamental, el tono del bombo de estudio, la bordona de la caja de estudio. Siguen
+      fallando en medidas: la correlación L/R del groove, el subgrave de los toms fuertes, los
+      picos de los primeros 50 ms, los agudos y graves del groove de jazz, el bombo de jazz y el
+      ride.
+- [x] **Los paquetes híbridos versión 3** (`tympanum-hybrid-jazz-3.zip`, `…-studio-3.zip`)
+      subidos a `content-r40` con tu OK (2026-11-14); la descarga pública verificada y la
+      prueba de red pasa contra ellos. Son los que baja la app.
+- [ ] **El kit modelado por defecto**: *Studio Maple* o *Jazz Birch*.
+- [ ] **El híbrido de oído**: `compartir\tympanum-hibrido-1\` y las escuchas de las versiones 2
+      y 3 (`F:\projects\daw-r40\tmp\hyb\v2\listen-jazz\` y `listen-studio\`; `…\v3\listen-jazz\`
+      y `listen-studio\`): generada · híbrida · grabación a la misma sonoridad. ¿El híbrido vale
+      como opción?
+- [ ] **El híbrido descargado desde la app**: Tympanum con un kit modelado, *Voz: Híbrida*,
+      *Bajar* — la barra de progreso, la licencia (CC0 el de jazz, CC BY 4.0 el de estudio), y
+      al terminar se oyen los ataques grabados; sin internet sigue sonando. Antes de tenerlo,
+      *Híbrida* suena igual que *Generada*.
+- [ ] **Los pianos grabados descargados desde la app**: en Chorda › *Fuente*, *Obtener* el
+      Salamander y una imagen de bitKlavier: la barra, *Cancelar* a la mitad (no debe quedar
+      nada en disco), otra vez hasta el final; *Gestionar…* muestra lo que pesa cada uno (se
+      guardan como FLAC). Probado aquí solo con descargas hechas por los constructores, nunca
+      desde la ventana de la app.
+- [ ] **Imágenes de instrumentos *Fotográficas* en tu GPU y tu pantalla**, a 100 % y 150 %:
+      *Ajustes ▸ Apariencia ▸ Imágenes de instrumentos: Fotográficas*; abre Chorda y Tympanum,
+      cambia el acabado, la tapa y la sala: anota cuánto tarda cada imagen en aparecer completa
+      (mientras arrastras un control se ve una versión rápida), que el audio no corte a 64
+      muestras mientras se dibuja, y que el uso de CPU vuelva al de reposo unos segundos
+      después. *Dibujadas* (por defecto) debe verse casi igual de bien. Medido aquí solo en un
+      proceso de ejemplo con la máquina ocupada (Chorda 1–1,7 s, Tympanum 0,7–1,3 s a 1,5×).
+- [ ] **Las bandas del mezclador**: selecciona tres canales, *Nuevo grupo con los
+      seleccionados*: una banda sobre ellos; pliégala (un canal con sus medidores lado a lado) y
+      despliégala; arrastra su borde derecho para tomar el canal siguiente (`Esc` lo deja como
+      estaba). Con Tympanum, *Cada micro a su canal*: una banda de familia (*Batería ·
+      Tympanum*) con sus subgrupos (Bombo, Caja, Toms, Platos…); un bus alimentado solo por ella,
+      menú ▸ *Añadir a la banda*. Desplázate: el nombre de la banda sigue visible.
+- [ ] **Tympanum en tu interfaz a búfer bajo** (ASIO y WASAPI en dúplex, 64 y 128 muestras):
+      *Studio Maple* con *Cada micro a su canal*, y DRSKit (13 micrófonos, en streaming), un
+      groove desde tu controlador un minuto con el pedal del charles: sin chasquidos; anota el
+      medidor de CPU de Cantus (aquí, con otras compilaciones corriendo, el modelo solo marcó
+      10,8 % de un núcleo y el kit con todos los micros 18,6 %). Lo mismo con Chorda grabado
+      (el Salamander) a 64 muestras.
+- [ ] **La prueba del sandbox que se cuelga, en una máquina tranquila**
+      (`cargo test -p cantus-sandbox --test session a_hang_never_blocks_the_interfaces_frames_and_is_ended`):
+      en WSL falló una vez bajo carga y pasó 5 de 5 sola; en Windows pasa con la máquina
+      tranquila. Con tu OK para gastar minutos de Actions, la corro 20 veces en un runner de
+      GitHub (Linux y Windows) para confirmar que solo falla bajo carga.
 
 ## 2. Decisiones y trámites tuyos
 
@@ -439,6 +609,19 @@ Necesita tu hardware; en la ronda se probó todo con una interfaz virtual y con 
 - [ ] **`F:\projects\daw-r28\downloads`** (3,1 GB): el zip de DRSKit (2,7 GB, para la prueba
       con el archivo real, `CANTUS_DRSKIT_ARCHIVE`), la mezcla instalada `drsmix` (469 MB,
       `CANTUS_DRSKIT`) y los artículos leídos para Chorda (15 MB): conservar o borrar.
+- [ ] **Ronda 40 — tus decisiones** <!-- r40:docs --> (las demás están en su prueba, arriba: los
+      ids de Cantus Delay, el número del pad con canal propio, la tecla del teclado del
+      ordenador en *Más*, los azules del reparto sobre croma, las hojas de Papel, la sala por
+      defecto de un piano grabado, el piano grabado por defecto):
+  - el *Cueing* de Compás (una postura añadida a un personaje aprobado:
+    `docs/round40/fix-d/cast-compas-moods.png`, última columna): ¿se queda?;
+  - el kit por defecto de Tympanum (hoy *Studio Maple*; ya está en el selector desde el
+    2026-11-14) y su prueba a ciegas (un kit como el de Chorda, en el backlog);
+  - *Fotográficas* como modo por defecto algún día (hoy *Dibujadas*; es una sola constante);
+  - **los correos para pedir licencias CC BY por escrito** a Headroom (Nilsson), Ivy Audio y
+    Wilkinson Audio: están redactados para que los mandes tú (pídemelos). Con una respuesta
+    positiva, su piano o su batería entra por el modo *Paquete* (ADR 0042, enmienda de la
+    ronda 40).
 - [ ] **Hacer público el repositorio** (descargas, auto-actualización y SignPath lo
       necesitan): antes, sacar del historial las capturas de otros productos
       (`research/*/screenshots/`) y revisar que no haya secretos. Si para entonces no ha
@@ -556,6 +739,59 @@ ADR 0043 y 0044):
 - [x] muestras de color en los menús de tema base;
 - [x] en español, SALIDA ya no se lee dos veces (la fila del modo ancho dice *Destino*).
 
+### Ronda 40 — `cast`: el reparto de Slate, los doce, en tu pantalla <!-- r40:cast -->
+
+Los GIF lado a lado (diseño arriba, la app abajo) están en `docs/round40/cast/`; todo se vio con el
+renderizador de la app en CPU, no en tu pantalla. En la release integrada:
+
+- [ ] **Un Saltator nuevo es Compás**, en Pizarra Noche y Papel, flotando y acoplado; el selector
+      muestra primero los doce de Slate y luego Fuga, Volta y la familia.
+- [ ] **Cada uno de los doce** con *Mover: Al compás* sobre una canción: el groove, el paso y su
+      número en el drop (Tono se sube el volumen, Bajo suelta el bajo, Eco se multiplica…). Dime si
+      alguno no se ve como el GIF que aprobaste.
+- [ ] **Espectro oye la canción**: con la ventana compañera cerrada, las piernas laten con el bombo
+      y la cabeza con los platillos; exporta un vídeo con él y mira que baile igual.
+- [ ] **Sobre croma azul** (vídeo con fondo azul o la ventana compañera): el lapislázuli de Cinta,
+      Vinilo y Glissando se apaga un poco para que el recorte lo respete; dime si prefieres que se
+      rediseñen esos azules.
+- [ ] **Tiempo de cuadro**: con el estudio en silencio, `cast_bench` y `slate_worst` (Glissando con
+      su halo es el más cercano a 1,5 ms).
+
+### Ronda 40 · fase 3 — los pianos grabados de Chorda y su mezclador (ADR 0125) <!-- r40:chorda-src -->
+
+- [ ] **Escucha** `F:\projects\daw-r40\compartir\pianos-c\` (NOTA.md) y haz el ABX de
+      `abx\index.html`: bitKlavier (Stage Lid ORTF) contra el Salamander. Lo que elijas será el
+      piano grabado por defecto.
+- [ ] **Chorda · Tocar**: en *Fuente*, elige *Salamander* (si no está, *Obtener*), luego Chorda 2
+      y Chorda 1 en *Modelos anteriores*: cada cambio es un solo paso de deshacer; las notas y la
+      mezcla siguen igual.
+- [ ] **bitKlavier**: *Obtener* descarga Stage Lid ORTF (unos 2,8 GB; se instala como FLAC,
+      comprobado muestra a muestra). En *Mezclador*, *Obtener las otras* y carga dos o cuatro
+      imágenes a la vez (su celda de arriba las carga o quita); *Cada micro a su canal* y escucha
+      que la mezcla suena igual.
+- [ ] **Accurate-Salamander** y **Upright Piano KW**, **Old Piano FB**: obtén y toca cada uno.
+- [ ] **Piano in 162** y **Helsinki 1967 Pro** (*Manual*): *Abrir página*, descárgalo tú y usa
+      *Instalar desde un archivo…*; debe sonar en Chorda.
+- [ ] **Un piano comprado** (SFZ, Decent Sampler o SF2): *Instalar desde un archivo…*; si es
+      Decent Sampler con salidas auxiliares, cada salida aparece en el mezclador.
+- [ ] **bitKlavier a 64 muestras, en tu interfaz** (ASIO y WASAPI en dúplex): búfer de 64
+      muestras, dos imágenes cargadas (Stage Lid ORTF y Piano Bar), toca acordes con pedal un
+      minuto (el primero con la caché de muestras vacía: *Ajustes ▸ Caché de muestras*, su botón de vaciar).
+      No debe haber chasquidos ni notas cortadas; si los hay, dime cuántos y si solo pasa la
+      primera vez (la caché llenándose). Medido aquí solo sin tiempo real: 1 imagen 6 %, 2
+      imágenes 12,6 % de un núcleo, bloques de 512.
+- [ ] **Cuatro imágenes a la vez** (añade House ORTF y Decca Tail): el medidor de CPU de Cantus
+      y el del Administrador de tareas mientras tocas; aquí costaron un 25 % de un núcleo y, sin
+      tiempo real, un bloque de 317 ms cuando la caché llegó a su límite (16 GB). Sube el límite
+      de la caché a 24 GB y repite: dime si los cortes se van.
+- [ ] **Añadir nuestra sala** (canal *Sala* de un piano grabado): *Sala pequeña*, *Estudio*,
+      *Auditorio* con el Salamander: que suene a sala y no a eco metálico; *No* debe sonar igual
+      que antes. Dime cuál de las tres pondrías por defecto (hoy ninguna).
+- [ ] **El retardo de un micro**: con bitKlavier en dos imágenes, automatiza el *Retardo* de una
+      (5–20 ms): el sonido se abre o se colorea (filtro de peine); a 0 vuelve a ser el de antes.
+- [ ] **La nueva vista Tocar de Chorda**: la primera vez, la línea de estado dice dónde quedaron
+      *Sala*, *Anchura*, *Apagadores* y las macros; comprueba que encuentras cada uno.
+
 ## Fuentes (consultadas el 2026-10-11)
 
 - Firma: [SignPath Foundation — condiciones](https://signpath.org/terms) (licencia OSI sin
@@ -568,3 +804,25 @@ ADR 0043 y 0044):
 - Marca: USPTO, TMview e IMPI MARCia; tasas: IMPI (guías que citan su tarifa, confirmar en
   el sitio del IMPI), [USPTO](https://www.uspto.gov/trademarks/trademark-fee-information),
   EUIPO y [WIPO Madrid](https://www.wipo.int/madrid/en/fees/). No es asesoría legal.
+
+### Ronda 40 · fase 3 — Tympanum, el baterista acústico (ADR 0124) <!-- r40:tymp-engine -->
+
+- [ ] **Escuchar `compartir\tympanum-b2\`** (lee `NOTA.md`): el mismo groove por el kit
+  modelado «Studio» y por las baterías grabadas (Gogodze, DRSKit), a la misma sonoridad, y
+  los golpes sueltos pieza a pieza. Di qué pieza suena menos real y por qué (ataque, cuerpo,
+  cola, bordonero, platos).
+- [ ] **En tu equipo, con tu interfaz**: un Tympanum con la DRSKit (13 micrófonos), *Cada
+  micrófono a su canal*, tocar en vivo con tu controlador: que no haya cortes al cambiar de
+  kit mientras suena (el kit anterior sigue sonando hasta que el nuevo está cargado).
+- [ ] **El pedal del charles real (CC4)**: abrir y cerrar con el pie; el *chick* al cerrar.
+- [ ] Verificado solo en emulación: las reglas de descarga *Desde la web del autor* y
+  *Manual* (un servidor local de prueba, ningún sitio real).
+- [ ] **Una batería DrumGizmo tuya desde un archivo** <!-- r40:fix-f -->: Tympanum › *Tus
+  propios kits* › *Instalar desde un archivo…*, elige el `DRSKit_basic.xml` (o el zip) de
+  una descarga real de drumgizmo.org. Se construye en segundo plano (la ventana sigue
+  respondiendo, la barra avanza, un clic la cancela; anota cuánto tarda); al terminar debe
+  sonar en sus 11 micrófonos y la carpeta del kit no debe guardar la copia descomprimida.
+  Probado solo con los archivos XML publicados y golpes escritos por las pruebas.
+- [ ] **Cambiar de kit con la mezcla hecha** <!-- r40:fix-f -->: Studio › *Cada micrófono a
+  su canal*, ajusta niveles, cambia a Gogodze y vuelve: cada canal con el nombre de su
+  micrófono, ninguno vacío, los grupos por familia; Ctrl+Z deshace el cambio entero.

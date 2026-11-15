@@ -241,3 +241,13 @@ pub fn raise_io() -> bool {
         libc::setpriority(libc::PRIO_PROCESS, tid, -5) == 0
     }
 }
+
+/// The calling thread a little below normal (round 40): a nice of +5 for this thread, which
+/// any thread may take. Whether the OS took it. // r40:scene-px
+pub fn lower_background() -> bool {
+    // SAFETY: gettid has no preconditions; setpriority on this thread's id.
+    unsafe {
+        let tid = libc::syscall(libc::SYS_gettid) as libc::id_t;
+        libc::setpriority(libc::PRIO_PROCESS, tid, 5) == 0
+    }
+}

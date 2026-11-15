@@ -513,11 +513,29 @@ impl Shell {
     } // r35:stage
 } // r35:stage
 
+// r40:memory — egui makes its font atlas as wide as the driver's largest texture (16 384
+// texels on the scorecard's machine) and the OpenGL driver keeps copies of every texture
+// in the process: a narrower atlas holds the same glyphs in fewer private bytes (ADR 0120
+// §4: −2.2 MB mapped on an empty song). Only egui's own reading of the side is lowered —
+// the painter still takes any texture the driver can — so 4 096 keeps a panel-sized
+// texture on a 4K screen inside egui's debug-build check.
+/// The widest texture side egui is told of.
+pub const TEXTURE_SIDE: usize = 4096;
+
+/// Lower the texture side the window's input reports to [`TEXTURE_SIDE`] (the shell does
+/// it before every pass; egui keeps the last side it was told of).
+pub fn cap_texture_side(raw: &mut egui::RawInput) {
+    if let Some(side) = raw.max_texture_side.as_mut() {
+        *side = (*side).min(TEXTURE_SIDE);
+    }
+}
+
 impl eframe::App for Shell {
     /// macOS: a text edit chosen in the menu bar while a field had the focus, handed to egui
     /// as the events its key makes (ADR 0066). Nothing is queued elsewhere.
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         crate::macos::menu::inject(raw_input);
+        cap_texture_side(raw_input); // r40:memory
     }
 
     // r35:stage — the companion window's transparency and its dancing while this window is

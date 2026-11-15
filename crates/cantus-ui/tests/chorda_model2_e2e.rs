@@ -8,7 +8,6 @@
 mod old_song;
 
 use cantus_core::*;
-use cantus_dsp::chorda::design::Tuning;
 use cantus_engine::{render, EngineHandle, Processor, RenderOptions};
 use cantus_ui::app::Files;
 use cantus_ui::picker::{PickChoice, PickPurpose};
@@ -63,7 +62,8 @@ fn a_new_chorda_plays_model_2_live_and_an_old_song_plays_model_1_to_its_bits() {
     // Nothing is designed on the audio thread: the boot path asked for the reference
     // keyboard; wait for it as a user waits the second it takes.
     let (mut app, mut proc_) = assembled();
-    cantus_engine::inst::chorda::ensure(Tuning::default(), 48_000.0);
+    // A new Chorda's keyboard (model 2's own since `DSP_VERSION` 7).
+    cantus_engine::inst::chorda::ensure(cantus_engine::inst::chorda::reference(), 48_000.0);
 
     // A Chorda track, the way the picker adds one: model 2.
     let before = app.project().tracks.len();

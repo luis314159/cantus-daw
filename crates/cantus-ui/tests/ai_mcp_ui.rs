@@ -489,7 +489,12 @@ fn the_card_draws_who_whole_and_arms_for_eyes_and_screen_readers() {
             return;
         };
         if first.is_none() {
-            // Drawn again: the card is in front now, not yet armed.
+            // Drawn again: the card is in front now, not yet armed. Its time in front
+            // starts now: a first frame slower than ARMED (a debug build on a loaded
+            // machine) had armed it already (r40 integration).
+            if let Some((id, _)) = app.ai.card_front {
+                app.ai.card_front = Some((id, std::time::Instant::now()));
+            }
             first = Some(run(&mut app));
             return;
         }

@@ -48,3 +48,7 @@ padout.kit_too_big = {name} is too big to be a kit (more than 512 sounds or 4 GB
 padout.kit_not_drums = No file in {name} is named like a drum (kick, snare, hat…): drop it on a kit's pads to make a kit of it anyway.
 padout.chain_open_tip = Open {name}'s editor
 padout.chain_remove_tip = Take {name} out of this pad's chain
+# r40:fix-d (R2-B3) — Merge back only undoes Split to strips; a strip the user chose is his routing.
+padout.merge_users = {name}: its pads play on strips you chose, and Merge back only undoes Split to strips. To bring a pad back, choose “The kit's strip” as its mixer track.
+# r40:tymp-engine — named outputs through DAWproject.
+interop.report.x_split_outputs = {track}: {n} of the instrument's outputs played on strips of their own; DAWproject has no outputs for an instrument, so it is written whole on its own channel. Those strips (their faders, inserts and sends) are not in the file, and the instrument comes back with every output on Main.

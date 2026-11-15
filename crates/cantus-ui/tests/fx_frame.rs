@@ -114,6 +114,7 @@ fn header_parts(a: &cantus_ui::CantusApp, kind: EffectKind) -> cantus_ui::kit::s
         ab: Some(Ab::A),
         undo: Some((false, false)),
         views: None,
+        views_w: 0.0,
         bypassed: Some(false),
         help: false,
         name_w: 0.0,

@@ -25,6 +25,10 @@ struct Ctx<'a> {
     sus: f32,
 }
 
+/// What [`Exemplar::process_outputs`] hands each output's lane to: output, offset into the
+/// call, left, right — the lane the caller mixes in place. r40:chorda-src
+pub type LaneOut<'a> = dyn FnMut(u8, usize, &mut [f32], &mut [f32]) + 'a;
+
 impl Exemplar {
     /// Render into `left`/`right` (added). `false` only when nothing sounds, so the
     /// buffers are untouched zeros.
@@ -66,6 +70,20 @@ impl Exemplar {
                 }
             }
         }
+        self.block_tail(n);
+        if any {
+            let p = left
+                .iter()
+                .chain(right.iter())
+                .fold(0f32, |m, x| m.max(x.abs()));
+            self.peak = self.peak.max(p);
+        }
+        any
+    }
+
+    /// What every block ends with: the layers' late and cut reads counted, the reader's
+    /// wakes, the windows of ended layers let go, the clock.
+    fn block_tail(&mut self, n: usize) {
         for l in self.layers.iter_mut() {
             if std::mem::take(&mut l.late) {
                 self.late += 1;
@@ -79,12 +97,84 @@ impl Exemplar {
             }
         }
         self.clock += n as u64;
+    }
+
+    // r40:chorda-src — an instrument's outputs (ADR 0123, 0125).
+    /// Whether two or more groups name different outputs: an instrument whose zones all
+    /// play on one output renders as it always did ([`Self::process`]).
+    pub fn has_outputs(&self) -> bool {
+        let first = self.groups[0].out;
+        self.groups.iter().any(|g| g.out != first)
+    }
+
+    /// Render `n` frames **output by output**: span by span (at most [`SPAN`] frames), the
+    /// sounding layers of the groups on output `k` rendered in layer order into a lane of
+    /// their own, handed to `each(k, offset, left, right)` — `offset` frames into this
+    /// call — in ascending `k`, the lane for the caller to mix in place and add where it
+    /// plays. Outputs with nothing sounding in a span are not called. The same layers, the
+    /// same samples, as [`Self::process`]; only the sums are grouped by output. Returns
+    /// whether anything sounded.
+    pub fn process_outputs(&mut self, n: usize, each: &mut LaneOut<'_>) -> bool {
+        let any = self.layers.iter().any(|l| l.active);
+        let mut peak = 0f32;
+        let mut i = 0;
+        while i < n {
+            let m = (n - i).min(SPAN);
+            let mut mask = 0u32;
+            for l in self.layers.iter().filter(|l| l.active) {
+                mask |= 1u32 << self.groups[l.group as usize].out.min(31);
+            }
+            while mask != 0 {
+                let out = mask.trailing_zeros() as u8;
+                mask &= mask - 1;
+                let Exemplar {
+                    layers,
+                    readers,
+                    globals,
+                    matrix,
+                    groups,
+                    lanes,
+                    ended,
+                    ..
+                } = self;
+                let cx = Ctx {
+                    fs: self.fs,
+                    globals,
+                    matrix,
+                    readers,
+                    mw: self.mw,
+                    at: self.at,
+                    bend: self.bend,
+                    expr: self.expr,
+                    sus: self.sus,
+                };
+                let Some((ll, lr)) = lanes.split(m).next() else {
+                    return any;
+                };
+                clear_lane(ll, lr);
+                for (li, l) in layers.iter_mut().enumerate() {
+                    if !l.active || groups[l.group as usize].out.min(31) != out {
+                        continue;
+                    }
+                    if render_into(&cx, l, ll, lr) {
+                        l.active = false;
+                        ended[li] = true;
+                    }
+                }
+                peak = ll.iter().chain(lr.iter()).fold(peak, |p, x| p.max(x.abs()));
+                each(out, i, ll, lr);
+            }
+            i += m;
+        }
+        for li in 0..MAX_LAYERS {
+            if std::mem::take(&mut self.ended[li]) {
+                let slot = self.layers[li].slot;
+                self.layer_ended(slot);
+            }
+        }
+        self.block_tail(n);
         if any {
-            let p = left
-                .iter()
-                .chain(right.iter())
-                .fold(0f32, |m, x| m.max(x.abs()));
-            self.peak = self.peak.max(p);
+            self.peak = self.peak.max(peak);
         }
         any
     }

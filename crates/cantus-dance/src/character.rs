@@ -120,6 +120,18 @@ pub trait Character: Send + Sync {
         false
     }
 
+    /// Whether it shows the master's spectrum (`Pose::bands`, round 40: Espectro): the
+    /// interface runs its analyser, and a video export analyses its render, for it.
+    fn hears_spectrum(&self) -> bool {
+        false
+    }
+
+    /// Whether it lifts itself in its own `Jump` (round 40: the Slate cast's signature on the
+    /// drop is drawn whole in its figure); when true the pose adds no jump arc of its own.
+    fn jumps_itself(&self) -> bool {
+        false
+    }
+
     /// Draw `pose` onto `canvas`, whose transform already maps this character's units onto
     /// the pixels (position, size, lift, spin and facing applied).
     fn draw(&self, pose: &Pose, canvas: &mut Canvas);

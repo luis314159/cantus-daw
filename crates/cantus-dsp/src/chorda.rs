@@ -100,3 +100,7 @@ mod tests_stage;
 #[cfg(test)]
 #[path = "chorda_tests_hash.rs"]
 mod tests_hash;
+
+#[cfg(test)]
+#[path = "chorda_tests_voicing3.rs"]
+mod tests_voicing3;

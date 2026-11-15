@@ -11,8 +11,8 @@ use windows_sys::Win32::System::Threading::{
     AVRT_PRIORITY_HIGH, AVRT_PRIORITY_LOW, AVRT_PRIORITY_NORMAL,
     PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
     PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION, PROCESS_POWER_THROTTLING_STATE,
-    THREAD_PRIORITY, THREAD_PRIORITY_ABOVE_NORMAL, THREAD_PRIORITY_HIGHEST,
-    THREAD_PRIORITY_TIME_CRITICAL,
+    THREAD_PRIORITY, THREAD_PRIORITY_ABOVE_NORMAL, THREAD_PRIORITY_BELOW_NORMAL,
+    THREAD_PRIORITY_HIGHEST, THREAD_PRIORITY_TIME_CRITICAL,
 };
 
 /// What to revert: the MMCSS registration (the handle as an integer; 0 = none) or the
@@ -232,4 +232,11 @@ pub fn priority() -> Option<i32> {
 pub fn raise_io() -> bool {
     // SAFETY: the pseudo-handle of this thread; a documented priority level.
     unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL) != 0 }
+}
+
+/// The calling thread one step below normal (round 40): a background bake that must never
+/// take the processor from the audio, the interface or the disk readers. // r40:scene-px
+pub fn lower_background() -> bool {
+    // SAFETY: the pseudo-handle of this thread; a documented priority level.
+    unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL) != 0 }
 }

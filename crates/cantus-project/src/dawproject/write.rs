@@ -206,6 +206,17 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
                 vec![("track", t.name.clone()), ("n", own.to_string())],
             );
         }
+        // r40:tymp-engine — an instrument's named outputs on strips of their own (Tympanum's
+        // mics, ADR 0123): written whole on its channel, as a split kit is.
+        if t.instrument.pulsus().is_none() {
+            let outs = t.instrument.output_strips().len();
+            if outs > 0 {
+                report.dropped(
+                    "interop.report.x_split_outputs",
+                    vec![("track", t.name.clone()), ("n", outs.to_string())],
+                );
+            }
+        }
         let chains = cantus_core::padout::chain_count(project, t.id);
         if chains > 0 {
             report.dropped(
@@ -721,7 +732,13 @@ fn instrument_device(ids: &mut Ids, files: &mut Vec<(String, Vec<u8>)>, t: &Trac
     // A device state has no schema version of its own: a recalibrated instrument's trim
     // is written out, so a later calibration reads it at this level (ADR 0039).
     let spec = match &t.instrument {
-        InstrumentSpec::Native(n) => InstrumentSpec::Native(n.spell_out_trim()),
+        InstrumentSpec::Native(n) => {
+            // r40:tymp-engine — so are an instrument's named outputs (ADR 0123): every one
+            // back on Main, their strips' ids left behind. Said in the report.
+            let mut n = n.spell_out_trim();
+            n.outputs.clear();
+            InstrumentSpec::Native(n)
+        }
         // r37:drums — a split kit is written whole (ADR 0100): DAWproject has no instrument
         // outputs, and a strip id does not survive the trip (it could name another strip on
         // the way back). Said in the report.

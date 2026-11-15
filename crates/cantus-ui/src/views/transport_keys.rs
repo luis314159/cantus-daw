@@ -120,6 +120,50 @@ pub fn transport_width(s: &Style) -> f32 {
     (LOOP_X + LOOP_W) * s.k
 }
 
+/// The automation arm's well after the loop key (round 40, `look`: Settings ▸ Appearance
+/// ▸ *Top bar extras*): the gap, the arm key and its ▾.
+const ARM_GAP: f32 = 8.0;
+const ARM_W: f32 = 30.0;
+const ARM_MORE_W: f32 = 16.0;
+
+/// The transport's width with or without the automation arm.
+pub fn transport_width_with(s: &Style, arm: bool) -> f32 {
+    transport_width(s)
+        + if arm {
+            (ARM_GAP + ARM_W + ARM_MORE_W) * s.k
+        } else {
+            0.0
+        }
+}
+
+/// The automation arm and its ▾ in one well after the loop key (round 31's, drawn in the
+/// bar's grammar): armed, the key is tinted in the automation's violet; the ▾ (or a
+/// right-click on the key) opens the modes and the touch glide.
+fn auto_arm(app: &mut CantusApp, ui: &mut Ui, row: Rect, s: &Style) {
+    let x = (LOOP_X + LOOP_W + ARM_GAP) * s.k;
+    let c = [
+        p::cell(row, x, ARM_W * s.k),
+        p::cell(row, x + ARM_W * s.k, ARM_MORE_W * s.k),
+    ];
+    let (key, more, open) = crate::views::auto_modes::arm_sense(ui, c[0], c[1]);
+    let armed = app.auto_armed();
+    with_brush(ui.painter(), |b| {
+        p::joined(b, &c, s);
+        let st = State::of(&key, armed);
+        p::tint(b, c[0], s, st, s.t.auto, 0.24);
+        p::icon(b, c[0], s, Glyph::Automate, st, s.t.auto, 24.0);
+        let mst = State::of(&more, open);
+        p::tint(b, c[1], s, mst, s.t.highlight, 0.2);
+        let ink = if mst.hovered || open {
+            ink1(s)
+        } else {
+            ink2(s)
+        };
+        p::chevron(b, c[1].center(), 3.5 * s.k, ink, s);
+    });
+    crate::views::auto_modes::arm_wire(app, ui, &key, &more);
+}
+
 /// To start, play, stop and record in one well; loop beside it. Playing tints the play key
 /// green, recording the record key red; a right-click on record opens its options.
 pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
@@ -183,6 +227,9 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         app.run_action(Action::ToggleLoop);
     }
     crate::controllers::learn_action_spot(app, ui, lr, Action::ToggleLoop);
+    if app.settings.look.topbar_automation {
+        auto_arm(app, ui, row, s); // r40:look
+    }
 }
 
 // ---- undo ----------------------------------------------------------------------------
@@ -351,11 +398,61 @@ pub fn inputs_width(ctx: &egui::Context, s: &Style) -> f32 {
     inputs_parts(ctx, s).4
 }
 
+/// The typing keyboard's key before the inputs' well (round 40, `look`): its width and
+/// the gap after it.
+const TYPING_W: f32 = 30.0;
+const TYPING_GAP: f32 = 6.0;
+
+/// The inputs' width with or without the typing keyboard's key.
+pub fn inputs_width_with(ctx: &egui::Context, s: &Style, typing: bool) -> f32 {
+    inputs_width(ctx, s)
+        + if typing {
+            (TYPING_W + TYPING_GAP) * s.k
+        } else {
+            0.0
+        }
+}
+
+/// The typing keyboard's key (round 31's, drawn in the bar's grammar): lit in the accent
+/// while the computer's keys play the selected track (Ctrl+T).
+fn typing_key(app: &mut CantusApp, ui: &mut Ui, row: Rect, s: &Style) {
+    typing_key_in(app, ui, p::cell(row, 0.0, TYPING_W * s.k), s);
+}
+
+/// The typing keyboard's key in `c` (the bar's, or the More panel's inputs section).
+pub(super) fn typing_key_in(app: &mut CantusApp, ui: &mut Ui, c: Rect, s: &Style) {
+    let resp = ui.interact(c, Id::new(("toolbar-key", "typing")), Sense::click());
+    let on = app.keyboard_piano;
+    with_brush(ui.painter(), |b| {
+        b.register(c, "toolbar_key", crate::kit::cap::WELL_KEY_TOKENS, &[]);
+        p::well(b, c, s, None);
+        let st = State::of(&resp, on);
+        p::tint(b, c, s, st, s.t.highlight, 0.2);
+        p::icon(b, c, s, Glyph::Keyboard, st, s.t.highlight, 24.0);
+    });
+    crate::controllers::learn_action_spot(app, ui, c, Action::ToggleTypingPiano);
+    let resp = strip_tip(ui, resp, || {
+        format!(
+            "{} — {}",
+            tip(app, "transport.typing", Some(Action::ToggleTypingPiano)),
+            t("transport.typing_tip")
+        )
+    });
+    if resp.clicked() {
+        app.run_action(Action::ToggleTypingPiano);
+    }
+}
+
 /// The MIDI lamp and the armed tracks in one well: the lamp lights green as events come
 /// in; the arm ring fills red, its count red, while tracks are armed.
 pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
-    let row = p::row(r, s);
+    let mut row = p::row(r, s);
+    if app.settings.look.topbar_typing {
+        // r40:look — the typing keyboard's key first, the inputs' well after it.
+        typing_key(app, ui, row, s);
+        row.min.x += (TYPING_W + TYPING_GAP) * k;
+    }
     let (div, ring, word, count, w) = inputs_parts(ui.ctx(), s);
     let well = Rect::from_min_size(row.min, Vec2::new(w, row.height()));
     let mr = Rect::from_min_max(well.min, Pos2::new(well.left() + div, well.bottom()));

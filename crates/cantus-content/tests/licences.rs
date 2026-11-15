@@ -428,3 +428,45 @@ fn a_receipt_with_fields_a_newer_cantus_wrote_still_loads() {
     );
     assert!(all[0].credit_line().unwrap().contains("by A"));
 }
+
+// r40:p3 — the owner's three modes (2026-11-12, ADR 0042 amended): a one-click *Pack* only
+// under an accepted licence; *From the author's site* and *Manual* under the author's own
+// terms, each with the author's page; none of them in a manifest older than format 5.
+#[test]
+fn a_one_click_pack_needs_an_accepted_licence_and_the_other_modes_the_authors_page() {
+    use cantus_content::manifest::{PackMode, AUTHOR_TERMS, FORMAT_MODES};
+    let dir = tempfile::tempdir().unwrap();
+    let terms = |mode: PackMode, page: Option<&str>| {
+        let mut p = base(dir.path());
+        p.licence = AUTHOR_TERMS.into();
+        p.licence_url = "https://example.org/terms".into();
+        p.mode = mode;
+        p.author_page = page.map(str::to_string);
+        p
+    };
+    // Mode 1 refuses a pack whose licence is not an accepted id.
+    assert!(check(terms(PackMode::Pack, Some("https://example.org"))).is_err());
+    // Modes 2 and 3 take the author's terms, with the author's page.
+    for mode in [PackMode::AuthorSite, PackMode::Manual] {
+        assert!(
+            check(terms(mode, Some("https://example.org"))).is_ok(),
+            "{mode:?}"
+        );
+        assert!(check(terms(mode, None)).is_err(), "{mode:?} without a page");
+        assert!(
+            check(terms(mode, Some("http://example.org"))).is_err(),
+            "{mode:?} http"
+        );
+        let mut nc = terms(mode, Some("https://example.org"));
+        nc.licence = "CC-BY-NC-4.0".into();
+        assert!(
+            check(nc).is_err(),
+            "{mode:?} under a licence ADR 0042 refuses"
+        );
+        // A manifest older than format 5 cannot say it.
+        let mut m = manifest(vec![terms(mode, Some("https://example.org"))]);
+        m.format = FORMAT_MODES - 1;
+        assert!(m.validate().is_err(), "{mode:?} in format 4");
+    }
+    assert_eq!(FORMAT, FORMAT_MODES);
+}

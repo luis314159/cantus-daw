@@ -191,3 +191,14 @@ starts and stays up with a 1 MB main thread as with 8 MB.
 the engine (`EngineHandle::manual`, `dummy`) on a 256 KB thread; `cantus-ui/tests/
 stack_budget.rs` assembles the application with the start-up song as the boot does on a
 768 KB thread (Windows' main thread less the window's own frames).
+
+## Amendment — round 40: the start's other holders (ADR 0120)
+
+What `memory_e2e` counts at a start changes in two places, both outside the engine:
+Exemplar's built-in sounds are no longer computed at every start (ADR 0120 §5; the test
+now checks an empty song computes none and takes them as the step the picker causes), and
+a session parses only its own language's strings (§6). The engine's figures above are
+unchanged. The compensation pool's 32 start-up lines stay, made by `Processor::with_cells`;
+starting the application's pool empty (−2.25 MB) needs `processor*.rs` and waits for it
+(ADR 0120 §7). The map of everything outside the heap — the OpenGL driver's ~105 MB floor
+on the scorecard's machine among it — is ADR 0120 §2.

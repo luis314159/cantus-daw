@@ -316,6 +316,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         ab: None,
         undo: Some(undo),
         views: Some((&VIEWS, view)),
+        views_w: 0.0,
         bypassed: None,
         help: false,
         name_w: 0.0,

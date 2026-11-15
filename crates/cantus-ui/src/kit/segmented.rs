@@ -194,6 +194,20 @@ pub fn paint(
     }
 }
 
+/// The width one segment needs for the widest of `labels` (at this style's scale): the word
+/// in the role the segments set it in, the 4-pt inset each side and 6 pt of air each side.
+pub fn label_need(ctx: &egui::Context, labels: &[Src<'_>], s: &Style) -> f32 {
+    labels
+        .iter()
+        .map(|l| {
+            let t = Text::new("", Role::Control, s.t.text);
+            let t = Text { src: *l, ..t };
+            text::measure(ctx, &t, s.tk()).x
+        })
+        .fold(0.0f32, f32::max)
+        + s.s(20.0)
+}
+
 /// The tokens a Slate segmented control paints with (for inspect mode).
 pub const SLATE_TOKENS: &[Tok] = &[
     Tok::Well,

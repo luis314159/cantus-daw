@@ -80,14 +80,16 @@ fn an_old_dancer_keeps_the_character_it_named() {
 }
 
 #[test]
-fn a_new_dancer_without_a_character_shows_the_default_of_today() {
+fn a_dancer_saved_at_59_without_a_character_keeps_fuga() {
+    // It showed Fuga, the default of schemas 59–64; schema 65 (round 40, Compás the default)
+    // writes Fuga in (`tests/schema65.rs`).
     let path = v57_with(
         |inst| {
             inst.remove("text");
         },
         59,
     );
-    assert_eq!(character(&path), None);
+    assert_eq!(character(&path).as_deref(), Some("builtin:ninja"));
 }
 
 #[test]

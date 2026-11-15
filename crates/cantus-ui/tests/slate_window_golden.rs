@@ -28,6 +28,9 @@
 //!   maximised mixer in Wide shows strips 1–11 where the old image had them and folds 12–13
 //!   into "2 ›" in a slot of its own (682 + 30 pt of the 715 there are; the old image painted
 //!   its "2 ›" over strip 11's meter), the returns at the desk's edge;
+//! - r40:ripple (ADR 0116): the ripple mode's key in the arrangement's tool row, left of
+//!   Follow (24 × 20 pt at 872, 72; in the piano roll's window too, under the arrangement) —
+//!   re-blessed by `ripple`, diffed: nothing else moved;
 //! - shots' menus (`5b3cbb20`, the mixer's menus on their sheet): no pixel in these windows,
 //!   where no menu is open;
 //! - themes (`9c973bc5`): the arrangement's bar lines at 3:1 and beat lines at 1.35:1 on
@@ -39,6 +42,18 @@
 //! - `fix2`, Slate Paper only: the desk's strip-head stripes at 3:1 on the strip, at rest and
 //!   selected (`look::Pal::stripe`, held by `arrangement_legibility`'s `desk_marks`), in the
 //!   maximised mixer and the docked one.
+//!
+//! - round 40, re-blessed by `fix-b` (on `r40/integration` 91339a2b): `look`'s answers that
+//!   were merged but never blessed — the docked mixer's returns at the desk's edge, the next
+//!   strips 17–27 before them (the arrangement's and piano roll's windows, x 504–1262 under
+//!   the arrangement), the inspector's Velocity as a value bar — and `fix-b`'s send level as
+//!   a value bar (the Sends row, 20 pt at y 561; review mid-round 40, C-2). Diffed against
+//!   the images before: nothing else moved (mixer: only the Sends row; piano roll: only the
+//!   inspector's Velocity and Sends rows).
+//! - round 40, re-blessed by `fix-d` (review 2): the next strips' numbers fainter (R2-B7; the
+//!   docked mixer's 17–27 under the arrangement and the piano roll), and the inspector's send
+//!   bar in Level's column (R2-B4; the Sends row at y 561, its bar 4 pt further left). Diffed:
+//!   arrangement 654 / 620 pixels (Night / Paper), mixer and piano roll 159 each, nothing else.
 //!
 //! Slate Night's colours did not otherwise move: from fix2's render before `themes` to
 //! after it, Night's mixer is identical to the pixel and its arrangement differs in 438

@@ -181,7 +181,10 @@ pub fn content(m: &Manifest) -> String {
          (`cantus-pack.json`) that keeps its credit. Content is accepted under **CC0 1.0** \
          and **CC BY 3.0 / 4.0** only (ADR 0042); nothing non-commercial, no-derivatives \
          or share-alike. Music you make with these sounds is yours. *Help ▸ About Cantus* \
-         shows the same credits.\n\n",
+         shows the same credits.\n\n\
+         Tympanum's modelled crash and hi-hat are synthesised from parameters measured off \
+         the recordings of **DRSKit** (no sample of it is bundled or played); its credit \
+         below covers them.\n\n",
     );
     s.push_str("### Under CC BY — the credit the licence asks for\n\n");
     let by: Vec<_> = list

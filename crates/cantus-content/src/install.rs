@@ -3,7 +3,9 @@
 //! place — so a pack folder either is whole or does not exist (ADR 0030).
 
 use crate::fetch::{self, FetchError, Transport};
-use crate::manifest::{Attribution, Credit, Pack, PackInstrument, Source, Text, ZipSource};
+use crate::manifest::{
+    Attribution, Credit, Pack, PackInstrument, PackMode, Source, Text, ZipSource,
+};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -98,6 +100,10 @@ pub enum InstallError {
     Fetch(#[from] FetchError),
     #[error("the archive cannot be read: {0}")]
     Archive(String),
+    /// r40:fix-f — a user's *Install from a file…* that failed, in its own words
+    /// (`user_pack::UserPackError`).
+    #[error("{0}")]
+    User(String),
     #[error("the pack has no licence file at {0}; it was not installed")]
     NoLicence(String),
     #[error("disk: {0}")]
@@ -106,6 +112,16 @@ pub enum InstallError {
     Busy,
     #[error("not enough free space: the install needs {need} bytes and the disk has {free}")]
     NoSpace { need: u64, free: u64 },
+    /// r40:tymp-engine (ADR 0042 amended) — a *Manual* pack: Cantus never fetches its
+    /// source; the author's page opens and the user brings the file (*Install from a
+    /// file…*).
+    #[error("this pack is downloaded from its author's page: {page}")]
+    Manual { page: String },
+    /// A *From the author's site* pack whose file is not the one Cantus knows (a changed
+    /// hash, a missing file, a web page instead of the archive): the author's page opens
+    /// and *Install from a file…* is offered.
+    #[error("the file on the author's site changed ({reason}); its page is {page}")]
+    AuthorChanged { page: String, reason: String },
 }
 
 impl From<std::io::Error> for InstallError {
@@ -316,7 +332,10 @@ pub fn install(
     let budget = budget(
         pack.build
             .as_ref()
-            .map_or(pack.installed_size, |b| b.unpacked_size),
+            .map(|b| b.unpacked_size)
+            // r40:chorda-src — a piano kept as FLAC unpacks to its WAVs first.
+            .or_else(|| pack.piano.as_ref().and_then(|p| p.unpacked_size))
+            .unwrap_or(pack.installed_size),
     );
     // A pack built at install unpacks in the first half of the unpacking's share of the
     // progress and builds in the second ([`Phase::Building`]).
@@ -330,12 +349,38 @@ pub fn install(
             p => p,
         })
     };
-    let (files, bytes) = match &pack.source {
-        Source::Files(list) => install_files(job, list, &staging, &mut unpacking)?,
-        Source::Zip(z) => install_archive(job, z, Archive::Zip, budget, &staging, &mut unpacking)?,
+    // r40:tymp-engine — the pack's mode (ADR 0042 amended): a *Manual* pack is never
+    // fetched (only a file the user brought installs), a changed *From the author's
+    // site* file sends the user to the author's page.
+    let page = pack.author_page.clone().unwrap_or_default();
+    if pack.mode == PackMode::Manual && job.archive.is_none() && !have_archive {
+        return Err(InstallError::Manual { page });
+    }
+    let fetched = match &pack.source {
+        Source::Files(list) => install_files(job, list, &staging, &mut unpacking),
+        Source::Zip(z) => install_archive(job, z, Archive::Zip, budget, &staging, &mut unpacking),
         Source::TarGz(z) => {
-            install_archive(job, z, Archive::TarGz, budget, &staging, &mut unpacking)?
+            install_archive(job, z, Archive::TarGz, budget, &staging, &mut unpacking)
         }
+    };
+    let (files, bytes) = match fetched {
+        Err(InstallError::Fetch(e))
+            if pack.mode == PackMode::AuthorSite
+                && job.archive.is_none()
+                && matches!(
+                    e,
+                    FetchError::Corrupt { .. }
+                        | FetchError::Http(_)
+                        | FetchError::Intercepted
+                        | FetchError::Incomplete { .. }
+                ) =>
+        {
+            return Err(InstallError::AuthorChanged {
+                page,
+                reason: e.to_string(),
+            });
+        }
+        r => r?,
     };
     if !staging.join(&pack.licence_file).is_file() {
         return Err(InstallError::NoLicence(pack.licence_file.clone()));
@@ -363,6 +408,27 @@ pub fn install(
             if !staging.join(&pack.licence_file).is_file() {
                 return Err(InstallError::NoLicence(pack.licence_file.clone()));
             }
+            size_of(&staging)
+        }
+        None => (files, bytes),
+    };
+    // r40:chorda-src — a piano written as an SFZ from its samples' names (ADR 0125).
+    let (files, bytes) = match &pack.piano {
+        Some(p) => {
+            crate::pianobuild::build(
+                p,
+                &staging,
+                &pack.name.en,
+                job.cancel,
+                &mut |done, total| report(Phase::Building { done, total }),
+            )
+            .map_err(|e| {
+                if job.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    InstallError::Fetch(FetchError::Cancelled)
+                } else {
+                    InstallError::Archive(format!("the piano cannot be built: {e}"))
+                }
+            })?;
             size_of(&staging)
         }
         None => (files, bytes),

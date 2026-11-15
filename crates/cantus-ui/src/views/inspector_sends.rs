@@ -125,9 +125,10 @@ fn add_row(sh: &mut Sheet<'_>, r: Rect, resp: &egui::Response, key: &str) {
 }
 
 /// One send (des-mixer): its switch (a 14-pt well, the accent's dot while it plays), the
-/// return's name (Regular 12; a click lists what the send can do, its tap among them), a
-/// 64-pt level bar with its handle (drag: the level; double-click: 0 dB) and the level
-/// in dB at the right.
+/// return's name (Regular 12; a click lists what the send can do, its tap among them), and
+/// its level (drag: the level; double-click: 0 dB): a value bar to the row's end with the dB
+/// inside, as Level's rows (the default; review mid-round 40, C-2), or by *Inspector
+/// values: Slim* round 39's slim bar (Level's) with its handle and the dB at the right.
 fn send_row(sh: &mut Sheet<'_>, app: &CantusApp, id: cantus_core::StripId, send: &Send) {
     use crate::views::mixer::look::{self, law, W};
     let s = sh.s;
@@ -167,7 +168,9 @@ fn send_row(sh: &mut Sheet<'_>, app: &CantusApp, id: cantus_core::StripId, send:
     }
     // The name: a click lists the send's choices.
     let name_x = lamp.right() + 8.0;
-    let name_r = Rect::from_min_max(pos2(name_x, row.top()), pos2(name_x + 74.0, row.bottom()));
+    // The name up to Level's value column (R2-B4).
+    let name_w = (row.left() + m + sh.col - name_x).max(24.0);
+    let name_r = Rect::from_min_max(pos2(name_x, row.top()), pos2(name_x + name_w, row.bottom()));
     let nr = sh.ui.interact(
         name_r,
         Id::new(("insp-send-dest", id, send.to)),
@@ -186,7 +189,7 @@ fn send_row(sh: &mut Sheet<'_>, app: &CantusApp, id: cantus_core::StripId, send:
         name_x,
         base,
         egui::Align2::LEFT_BOTTOM,
-        74.0,
+        name_w,
         12.0,
         W::Medium,
         ink,
@@ -198,11 +201,20 @@ fn send_row(sh: &mut Sheet<'_>, app: &CantusApp, id: cantus_core::StripId, send:
         });
     }
     // The level bar and its value.
-    let bar = Rect::from_min_size(
-        pos2(name_x + 74.0 + 8.0, cy - 1.5),
-        egui::Vec2::new(64.0, 3.0),
+    let bars =
+        crate::views::owner_look::value_style() == crate::views::owner_look::ValueStyle::Bars;
+    // Level's value column (the label column's width and the gap after it), so a send's bar
+    // starts where the volume's does (review 2 of round 40, R2-B4).
+    let column = Rect::from_min_max(
+        pos2(row.left() + m + sh.col + s.s(sheet::GAP), row.top()),
+        pos2(row.right() - m, row.bottom()),
     );
-    let hit = bar.expand2(egui::Vec2::new(6.0, 9.0));
+    let bar = super::look::bar_rect(column);
+    let hit = if bars {
+        bar
+    } else {
+        bar.expand2(egui::Vec2::new(6.0, 9.0))
+    };
     let mut d = sheet::drag(
         sh.ui,
         Id::new(("insp-send-level", id, send.to)),
@@ -239,51 +251,32 @@ fn send_row(sh: &mut Sheet<'_>, app: &CantusApp, id: cantus_core::StripId, send:
         cantus_core::linear_to_db(level)
     };
     let fill = 1.0 - law::frac(db);
-    let on = if send.enabled { p.ink2 } else { p.ink4 };
-    sh.b.rrect(
-        sh.b.snap_rect(bar),
-        1.5,
-        crate::kit::Fill::Solid(p.bar_track),
-    );
-    sh.b.rrect(
-        sh.b.snap_rect(Rect::from_min_size(
-            bar.min,
-            egui::Vec2::new((64.0 * fill).round(), 3.0),
-        )),
-        1.5,
-        crate::kit::Fill::Solid(on),
-    );
-    let hx = bar.left() + 64.0 * fill;
-    sh.b.circle(pos2(hx, cy), 4.0, crate::kit::Fill::Solid(p.raised));
-    sh.b.circle_stroke(pos2(hx, cy), 4.0, sh.b.px(), p.edge);
-    // Where modulation has it now: a tick across the bar.
-    if let Some(live) = live {
-        let lv = live.clamp(0.0, 1.0);
-        let ldb = if lv <= 0.0 {
-            cantus_core::MIN_GAIN_DB
-        } else {
-            cantus_core::linear_to_db(lv)
-        };
-        let lx = bar.left() + 64.0 * (1.0 - law::frac(ldb));
-        sh.b.vline(lx, cy - 4.0, cy + 4.0, 2.0, s.t.hue_mod);
-    }
     let value = sh.fmt.get(
         cache::key(("insp-send-db", id, send.to)),
         sheet::bits(level),
         |b| sheet::level_db(level, b),
     );
-    look::say(
-        sh.b,
-        &s,
-        value,
-        row.right() - m,
-        base,
-        egui::Align2::RIGHT_BOTTOM,
-        48.0,
-        11.0,
-        W::Regular,
-        if send.enabled { p.ink1 } else { p.ink4 },
-    );
+    if bars {
+        let st = State {
+            disabled: !send.enabled,
+            active: d.resp.dragged(),
+            ..State::of(&d.resp, false)
+        };
+        super::look::value(sh.b, &s, column, st, fill, false, value);
+        if let Some(live) = live {
+            let lv = live.clamp(0.0, 1.0);
+            let ldb = if lv <= 0.0 {
+                cantus_core::MIN_GAIN_DB
+            } else {
+                cantus_core::linear_to_db(lv)
+            };
+            let lx = bar.left() + bar.width() * (1.0 - law::frac(ldb));
+            sh.b.vline(lx, bar.top() + 2.0, bar.bottom() - 2.0, 2.0, s.t.hue_mod);
+        }
+    } else {
+        let right = row.right() - m;
+        slim_level(sh.b, &s, bar, fill, live, send.enabled, value, base, right);
+    }
     if d.resp.hovered() || d.resp.dragged() {
         let lname = sheet::name(sh.fmt.tr("inspector.send_level"));
         let v = sh.fmt.get(
@@ -293,6 +286,61 @@ fn send_row(sh: &mut Sheet<'_>, app: &CantusApp, id: cantus_core::StripId, send:
         );
         hint::set_text(sh.ui.ctx(), &lname, v, Caps::PARAM);
     }
+}
+
+/// Round 39's slim send level: the slim bar of Level's rows, its fill to `fill`, the handle, where
+/// modulation has it now, and `value` at `right`.
+#[allow(clippy::too_many_arguments)]
+fn slim_level(
+    b: &mut crate::kit::Brush,
+    s: &crate::kit::Style,
+    bar: Rect,
+    fill: f32,
+    live: Option<f32>,
+    enabled: bool,
+    value: &str,
+    base: f32,
+    right: f32,
+) {
+    use crate::views::mixer::look::{self, law, W};
+    let p = look::Pal::of(s);
+    let cy = bar.center().y;
+    let on = if enabled { p.ink2 } else { p.ink4 };
+    b.rrect(b.snap_rect(bar), 1.5, crate::kit::Fill::Solid(p.bar_track));
+    b.rrect(
+        b.snap_rect(Rect::from_min_size(
+            bar.min,
+            egui::Vec2::new((bar.width() * fill).round(), 3.0),
+        )),
+        1.5,
+        crate::kit::Fill::Solid(on),
+    );
+    let hx = bar.left() + bar.width() * fill;
+    b.circle(pos2(hx, cy), 4.0, crate::kit::Fill::Solid(p.raised));
+    b.circle_stroke(pos2(hx, cy), 4.0, b.px(), p.edge);
+    // Where modulation has it now: a tick across the bar.
+    if let Some(live) = live {
+        let lv = live.clamp(0.0, 1.0);
+        let ldb = if lv <= 0.0 {
+            cantus_core::MIN_GAIN_DB
+        } else {
+            cantus_core::linear_to_db(lv)
+        };
+        let lx = bar.left() + bar.width() * (1.0 - law::frac(ldb));
+        b.vline(lx, cy - 4.0, cy + 4.0, 2.0, s.t.hue_mod);
+    }
+    look::say(
+        b,
+        s,
+        value,
+        right,
+        base,
+        egui::Align2::RIGHT_BOTTOM,
+        48.0,
+        11.0,
+        W::Regular,
+        if enabled { p.ink1 } else { p.ink4 },
+    );
 }
 
 /// *Add send*: the desk's own add-send list (`route_menu::open_add_send` — *New return ▸*

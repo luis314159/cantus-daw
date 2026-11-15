@@ -1,42 +1,25 @@
-# Chorda listening test
+# Listening test: three pianos
 
-This folder was written by Cantus (`cargo run --release -p cantus-ui --example chorda_abx -- <dir>`).
-It holds seven short phrases, each played by three pianos through Cantus's own engine:
+Thank you for taking it. It is short piano phrases played by three different pianos; you will
+say whether you can tell two of them apart and which one sounds better to you. There are no
+right answers about taste, and if you cannot tell something apart, that is a result too.
 
-- **Chorda model 2** — Cantus's modelled grand piano as a new track plays it (round 37),
-- **Chorda model 1** — the same instrument as round 28 made it (what old songs keep),
-- **the Salamander Grand Piano** — a Yamaha C5 sampled by Alexander Holm (CC BY 3.0), played
-  by Exemplar exactly as *Sound packs…* installs it.
-
-Every file is matched in loudness (ITU-R BS.1770 integrated, the same target for the three
-versions of a phrase) and trimmed to the same length. Nothing else was done to them.
+**It takes about 15–20 minutes** (about 8 more for the extra part, which is optional). You can
+stop whenever you like: the answers stay in the browser, and when you open the page again in the
+same browser you carry on where you left off.
 
 ## How to take it
 
-1. Open `index.html` in a browser (double-click it). It needs no network.
-2. Use headphones or good speakers in a quiet room. Set the volume once, on the first clip,
-   and leave it.
-3. **ABX 1** (Chorda 2 / Salamander) and **ABX 2** (Chorda 1 / Chorda 2): 16 trials each. In
-   every trial A and B are the two pianos (in a random order) and X is one of them, drawn
-   at random. Play A, B and X as often as you like — switching while one plays keeps its
-   place (keys: `A`, `B`, `X`, space to stop) — then say which one X is. If you cannot
-   tell, guess.
-4. **Preference**: 14 blind questions, two clips of the same phrase each. Say which sounds
-   more like a fine grand piano, well recorded, or that you have no preference; a word on
-   why helps more than anything else.
-5. **Results** shows each ABX's score and its p-value (the chance of scoring that well by
-   guessing), the preferences with a sign test, and — once both ABX are finished — which
-   piano was which in every trial. *Download results (JSON)* saves everything; send that
-   file back.
+1. Unzip the whole folder and open `index.html` with a double click (Chrome, Edge, Firefox or
+   Safari). It needs no internet.
+2. Use headphones or good speakers in a quiet place. Set the volume on the first clip and leave
+   it. Every clip has the same loudness and the same length.
+3. Answer the short questions about you (only the first is required) and press *Start*.
+4. **Part 1** — 16 trials. A and B are two pianos; X is one of them, at random. Listen as much as
+   you like (keys `A`, `B`, `X`; space to stop; `L` to loop) and say which one X is.
+5. **Part 2** — 16 questions. Two clips of the same phrase: say which sounds more like a fine
+   grand piano, well recorded, or that you have no preference. A word on why helps a lot.
+6. At the end you see your results and which piano was which. Press **Download results (JSON)**
+   and send that file to whoever gave you the test.
 
-## Reading the result
-
-- The ABX says whether you **can tell** two pianos apart (p < 0.05: you can). Chorda and the
-  Salamander are different pianos, so telling them apart is expected and is not a failure.
-- The **preference** is what closes Chorda: model 2 should be preferred to model 1, and be
-  at least on par with the Salamander (no significant preference for the Salamander).
-- Your notes — "metallic", "thin", "dull", "synthetic attack", "no body", "too much room" —
-  are what the next voicing pass aims at.
-
-Write your name at the top: it goes with the results. Answers are kept in this browser (local storage) until you start again; reloading the page
-continues where you were.
+*← Previous* goes back to change an answer. *Start again* (in the results) erases everything.

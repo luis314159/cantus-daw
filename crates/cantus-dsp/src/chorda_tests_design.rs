@@ -93,6 +93,7 @@ fn a_keyboard_is_the_same_on_one_thread_or_eight() {
         a4: 442.0,
         stretch: 0.8,
         stiffness: 1.1,
+        ..Default::default()
     };
     let a = Keyboard::compute(t, 48_000.0, 1);
     let b = Keyboard::compute(t, 48_000.0, 8);

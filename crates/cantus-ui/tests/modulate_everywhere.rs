@@ -97,6 +97,12 @@ fn every_native_instrument_editor_offers_modulate_on_every_control() {
         let track = a.project().tracks[0].id;
         a.set_instrument(track, InstrumentSpec::Native(NativeSpec::new(kind)));
         cantus_ui::views::inst::demo_setup(&mut a, track, kind);
+        if kind == InstrumentKind::AcousticDrums {
+            // Tympanum's views have no macro bands: its Matrix shows its modulation slots
+            // alone, so one is connected (the mod wheel to the kit's level).
+            a.set_inst_text(track, "mod1.src", Some("mw".into()));
+            a.set_inst_text(track, "mod1.dst", Some("gain".into()));
+        }
         a.open_inst_editor(track);
         for view in [View::Play, View::Edit, View::Matrix] {
             a.inst.view = view;

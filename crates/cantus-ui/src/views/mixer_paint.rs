@@ -412,7 +412,7 @@ pub(super) fn scrollbars(
         ),
         (
             geo.vbar,
-            fit.height + size::TOP,
+            fit.height + v.top(), // r40:tymp-ui
             geo.rows.height(),
             max_y,
             false,
@@ -548,7 +548,8 @@ pub(super) fn ghosts(
             bw,
             10.0,
             W::Regular,
-            p.ink4,
+            // Fainter than an empty strip's number (R2-B7): a place, not yet a strip.
+            with_alpha(p.ink4, 0.6),
         );
         if let Some((top, bot)) = travel {
             let gx = x + g.groove_x;
@@ -810,7 +811,7 @@ pub(super) fn strip_at(v: &MixerView, geo: &Geo, p: egui::Pos2) -> Option<cantus
             if p.x >= x && p.x < x + w {
                 return match item {
                     desk::Item::Strip(id, _) => Some(*id),
-                    desk::Item::Separator(_) => None,
+                    desk::Item::Separator(_) | desk::Item::Gap => None,
                 };
             }
             x += w;

@@ -1,0 +1,1011 @@
+<control>
+label_cc4=Hi-hat position
+label_cc100=Kick vol
+label_cc101=Snare vol
+label_cc102=Hi-hat vol
+label_cc103=Tom vol
+label_cc105=Mic mix
+label_cc108=Tuning
+label_cc110=Fi
+label_cc111=Kick dirt
+label_cc112=Snare fat
+label_cc113=Hi-hat trash
+label_cc114=Tom thud
+
+set_cc100=100
+set_cc101=100
+set_cc102=100
+set_cc103=100
+set_cc105=80
+set_cc108=63
+set_cc110=63
+set_cc111=127
+
+<global>
+loop_mode=one_shot
+seq_length=4
+pitch_keytrack=0
+tune=-1200
+tune_cc108=2400
+off_mode=normal
+ampeg_release=0.07
+delay_curvecc110=10
+offset_curvecc110=11
+
+//Kick section
+
+<master>
+amplitude_cc100=100
+offset_cc110=65
+#include "mappings/kick_kick_mic.sfz"
+
+<master>
+amplitude_cc100=60
+amplitude_cc111=100
+#include "mappings/kick_snare_mic.sfz"
+
+<master>
+amplitude_cc100=60
+amplitude_cc111=100
+offset_cc110=154
+delay_oncc110=0.0048
+pan=100
+#include "mappings/kick_oh_mic.sfz"
+
+<master>
+amplitude_cc100=60
+amplitude_cc111=100
+offset_cc110=109
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/kick_side_mic.sfz"
+
+<master>
+amplitude_cc100=60
+amplitude_cc111=100
+offset_cc110=180
+delay_oncc110=0.0093
+locc105=64
+#include "mappings/kick_front_mic.sfz"
+
+<master>
+amplitude_cc100=60
+amplitude_cc111=100
+offset_cc110=175
+delay_oncc110=0.02
+locc105=96
+#include "mappings/kick_wndw_mic.sfz"
+
+<master>
+amplitude_cc100=60
+amplitude_cc111=100
+offset=66
+offset_cc110=177
+offset_curvecc110=13
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/kick_retro_mic.sfz"
+
+//Snare section
+
+<master>
+amplitude_cc101=100
+offset_cc110=93
+tune_cc112=-200
+#include "mappings/snare_kick_mic.sfz"
+
+<master>
+amplitude_cc101=100
+#include "mappings/snare_snare_mic.sfz"
+
+<master>
+amplitude_cc101=100
+pan=100
+offset_cc110=87
+delay_oncc110=0.0048
+tune_cc112=111
+#include "mappings/snare_oh_mic.sfz"
+
+<master>
+amplitude_cc101=100
+pan=-100
+offset_cc110=87
+delay_oncc110=0.0048
+tune_cc112=-134
+#include "mappings/snare_side_mic.sfz"
+
+<master>
+amplitude_cc101=100
+offset_cc110=239
+delay_oncc110=0.0093
+tune_cc112=-83
+locc105=64
+#include "mappings/snare_front_mic.sfz"
+
+<master>
+amplitude_cc101=100
+offset_cc110=238
+delay_oncc110=0.02
+tune_cc112=-165
+locc105=96
+#include "mappings/snare_wndw_mic.sfz"
+
+<master>
+amplitude_cc101=100
+offset_cc110=240
+offset_curvecc110=13
+tune_cc112=-54
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/snare_retro_mic.sfz"
+
+//Low tom section
+
+<master>
+amplitude_cc103=100
+offset_cc110=91
+#include "mappings/toml_kick_mic.sfz"
+
+<master>
+amplitude_cc103=100
+offset_cc110=49
+#include "mappings/toml_snare_mic.sfz"
+
+<master>
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=100
+#include "mappings/toml_oh_mic.sfz"
+
+<master>
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/toml_side_mic.sfz"
+
+<master>
+amplitude_cc103=100
+offset_cc110=237
+delay_oncc110=0.0093
+locc105=64
+#include "mappings/toml_front_mic.sfz"
+
+<master>
+amplitude_cc103=60
+offset_cc110=237
+delay_oncc110=0.02
+locc105=96
+#include "mappings/toml_wndw_mic.sfz"
+
+<master>
+amplitude_cc103=60
+offset_cc110=239
+offset_curvecc110=13
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/toml_retro_mic.sfz"
+
+//Mid tom section
+
+<master>
+amplitude_cc103=100
+offset_cc110=91
+#include "mappings/tomm_kick_mic.sfz"
+
+<master>
+amplitude_cc103=100
+offset_cc110=49
+#include "mappings/tomm_snare_mic.sfz"
+
+<master>
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=100
+#include "mappings/tomm_oh_mic.sfz"
+
+<master>
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/tomm_side_mic.sfz"
+
+<master>
+amplitude_cc103=100
+offset_cc110=237
+delay_oncc110=0.0093
+locc105=64
+#include "mappings/tomm_front_mic.sfz"
+
+<master>
+amplitude_cc103=60
+offset_cc110=237
+delay_oncc110=0.02
+locc105=96
+#include "mappings/tomm_wndw_mic.sfz"
+
+<master>
+amplitude_cc103=60
+offset_cc110=239
+offset_curvecc110=13
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/tomm_retro_mic.sfz"
+
+
+//High tom section
+
+<master>
+amplitude_cc103=100
+offset_cc110=91
+#include "mappings/tomh_kick_mic.sfz"
+
+<master>
+amplitude_cc103=100
+offset_cc110=49
+#include "mappings/tomh_snare_mic.sfz"
+
+<master>
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=100
+#include "mappings/tomh_oh_mic.sfz"
+
+<master>
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/tomh_side_mic.sfz"
+
+<master>
+amplitude_cc103=100
+offset_cc110=237
+delay_oncc110=0.0093
+locc105=64
+#include "mappings/tomh_front_mic.sfz"
+
+<master>
+amplitude_cc103=60
+offset_cc110=237
+delay_oncc110=0.02
+locc105=96
+#include "mappings/tomh_wndw_mic.sfz"
+
+<master>
+amplitude_cc103=60
+offset_cc110=239
+offset_curvecc110=13
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/tomh_retro_mic.sfz"
+
+//Low tom section - transposed
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=91
+#include "mappings/toml_kick_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=49
+#include "mappings/toml_snare_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=100
+#include "mappings/toml_oh_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/toml_side_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=237
+delay_oncc110=0.0093
+locc105=64
+#include "mappings/toml_front_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=60
+offset_cc110=237
+delay_oncc110=0.02
+locc105=96
+#include "mappings/toml_wndw_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=60
+offset_cc110=239
+offset_curvecc110=13
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/toml_retro_mic.sfz"
+
+//Mid tom section - transposed
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=91
+#include "mappings/tomm_kick_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=49
+#include "mappings/tomm_snare_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=100
+#include "mappings/tomm_oh_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/tomm_side_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=237
+delay_oncc110=0.0093
+locc105=64
+#include "mappings/tomm_front_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=60
+offset_cc110=237
+delay_oncc110=0.02
+locc105=96
+#include "mappings/tomm_wndw_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=60
+offset_cc110=239
+offset_curvecc110=13
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/tomm_retro_mic.sfz"
+
+
+//High tom section - transposed
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=91
+#include "mappings/tomh_kick_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=49
+#include "mappings/tomh_snare_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=100
+#include "mappings/tomh_oh_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/tomh_side_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=100
+offset_cc110=237
+delay_oncc110=0.0093
+locc105=64
+#include "mappings/tomh_front_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=60
+offset_cc110=237
+delay_oncc110=0.02
+locc105=96
+#include "mappings/tomh_wndw_mic.sfz"
+
+<master>
+amplitude_cc114=44
+locc114=1
+transpose=-12
+amplitude_cc103=60
+offset_cc110=239
+offset_curvecc110=13
+locc105=96
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/tomh_retro_mic.sfz"
+
+//Hi-hat - foot chiks
+//Not in mute groups because nothing mutes them
+
+<master>
+amplitude_cc102=100
+offset_cc110=94
+tune_cc113=200
+#include "mappings/hf_kick_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-200
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/hf_snare_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-88
+offset_cc110=60
+delay_oncc110=0.0048
+pan=100
+#include "mappings/hf_oh_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=57
+delay_oncc110=0.0048
+pan=-100
+#include "mappings/hf_side_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=234
+delay_oncc110=0.0093
+tune_cc113=-109
+locc105=64
+fil_type=hpf_2p
+cutoff=200
+#include "mappings/hf_front_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+delay_oncc110=0.02
+tune_cc113=46
+locc105=96
+#include "mappings/hf_wndw_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+offset_curvecc110=13
+tune_cc113=-157
+fil_type=hpf_2p
+cutoff=200
+locc105=96
+#include "mappings/hf_retro_mic.sfz"
+
+//Hi-hat - tight
+
+<master>
+amplitude_cc102=100
+offset_cc110=94
+tune_cc113=200
+polyphony=4
+group=24
+off_by=25
+#include "mappings/ht_kick_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-200
+polyphony=4
+group=64
+off_by=65
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/ht_snare_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=60
+delay_oncc110=0.0048
+pan=100
+polyphony=4
+group=34
+off_by=35
+#include "mappings/ht_oh_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-88
+offset_cc110=57
+delay_oncc110=0.0048
+pan=-100
+polyphony=4
+group=54
+off_by=55
+#include "mappings/ht_side_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=234
+delay_oncc110=0.0093
+tune_cc113=-109
+locc105=64
+polyphony=4
+group=14
+off_by=15
+fil_type=hpf_2p
+cutoff=200
+#include "mappings/ht_front_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+delay_oncc110=0.02
+tune_cc113=46
+locc105=96
+polyphony=4
+group=74
+off_by=75
+#include "mappings/ht_wndw_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+offset_curvecc110=13
+tune_cc113=-157
+locc105=96
+polyphony=4
+group=44
+off_by=45
+fil_type=hpf_2p
+cutoff=200
+#include "mappings/ht_retro_mic.sfz"
+
+
+//Hi-hat - closed
+
+<master>
+amplitude_cc102=100
+offset_cc110=94
+tune_cc113=200
+hicc4=31
+polyphony=4
+group=23
+off_by=24
+#include "mappings/hc_kick_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-200
+hicc4=31
+polyphony=4
+group=63
+off_by=64
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/hc_snare_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=60
+delay_oncc110=0.0048
+pan=100
+hicc4=31
+polyphony=4
+group=33
+off_by=34
+#include "mappings/hc_oh_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-88
+offset_cc110=57
+delay_oncc110=0.0048
+pan=-100
+hicc4=31
+polyphony=4
+group=53
+off_by=54
+#include "mappings/hc_side_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=234
+delay_oncc110=0.0093
+tune_cc113=-109
+locc105=64
+hicc4=31
+polyphony=4
+group=13
+off_by=14
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/hc_front_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+delay_oncc110=0.02
+tune_cc113=46
+locc105=96
+hicc4=31
+polyphony=4
+group=73
+off_by=74
+#include "mappings/hc_wndw_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+offset_curvecc110=13
+tune_cc113=-157
+locc105=96
+hicc4=31
+polyphony=4
+group=43
+off_by=44
+fil_type=hpf_2p
+cutoff=200
+#include "mappings/hc_retro_mic.sfz"
+
+//Hi-hat - loosely closed
+
+<master>
+amplitude_cc102=100
+offset_cc110=94
+tune_cc113=200
+locc4=32 hicc4=63
+polyphony=4
+group=22
+off_by=23
+#include "mappings/hl_kick_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-200
+locc4=32 hicc4=63
+polyphony=4
+group=62
+off_by=63
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/hl_snare_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=60
+delay_oncc110=0.0048
+pan=100
+locc4=32 hicc4=63
+polyphony=4
+group=32
+off_by=33
+#include "mappings/hl_oh_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-88
+offset_cc110=57
+delay_oncc110=0.0048
+pan=-100
+locc4=32 hicc4=63
+polyphony=4
+group=52
+off_by=53
+#include "mappings/hl_side_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=234
+delay_oncc110=0.0093
+tune_cc113=-109
+locc105=64
+locc4=32 hicc4=63
+polyphony=4
+group=12
+off_by=13
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/hl_front_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+delay_oncc110=0.02
+tune_cc113=46
+locc105=96
+locc4=32 hicc4=63
+polyphony=4
+group=72
+off_by=73
+#include "mappings/hl_wndw_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+offset_curvecc110=13
+tune_cc113=-157
+locc105=96
+locc4=32 hicc4=63
+polyphony=4
+group=42
+off_by=43
+fil_type=hpf_2p
+cutoff=200
+#include "mappings/hl_retro_mic.sfz"
+
+//Hi-hat - half open
+
+<master>
+amplitude_cc102=100
+offset_cc110=94
+tune_cc113=200
+locc4=64 hicc4=95
+polyphony=4
+group=21
+off_by=22
+#include "mappings/hh_kick_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-200
+locc4=64 hicc4=95
+polyphony=4
+group=61
+off_by=62
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/hh_snare_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=60
+delay_oncc110=0.0048
+pan=100
+locc4=64 hicc4=95
+polyphony=4
+group=31
+off_by=32
+#include "mappings/hh_oh_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-88
+offset_cc110=57
+delay_oncc110=0.0048
+pan=-100
+locc4=64 hicc4=95
+polyphony=4
+group=51
+off_by=52
+#include "mappings/hh_side_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=234
+delay_oncc110=0.0093
+tune_cc113=-109
+locc105=64
+locc4=64 hicc4=95
+polyphony=4
+group=11
+off_by=12
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/hh_front_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+delay_oncc110=0.02
+tune_cc113=46
+locc105=96
+locc4=64 hicc4=95
+polyphony=4
+group=71
+off_by=72
+#include "mappings/hh_wndw_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+offset_curvecc110=13
+tune_cc113=-157
+locc105=96
+locc4=64 hicc4=95
+polyphony=4
+group=41
+off_by=42
+fil_type=hpf_2p
+cutoff=200
+#include "mappings/hh_retro_mic.sfz"
+
+//Hi-hat - open
+
+<master>
+amplitude_cc102=100
+offset_cc110=94
+tune_cc113=200
+locc4=96
+seq_length=3
+polyphony=5
+group=27
+off_by=21
+#include "mappings/ho_kick_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-200
+locc4=96
+seq_length=3
+polyphony=5
+group=67
+off_by=61
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/ho_snare_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=60
+delay_oncc110=0.0048
+pan=100
+locc4=96
+seq_length=3
+polyphony=5
+group=37
+off_by=31
+#include "mappings/ho_oh_mic.sfz"
+
+<master>
+amplitude_cc102=100
+tune_cc113=-88
+offset_cc110=57
+delay_oncc110=0.0048
+pan=-100
+locc4=96
+seq_length=3
+polyphony=5
+group=57
+off_by=51
+#include "mappings/ho_side_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=234
+delay_oncc110=0.0093
+tune_cc113=-109
+locc105=64
+locc4=96
+seq_length=3
+polyphony=5
+group=17
+off_by=11
+fil_type=hpf_2p
+cutoff=150
+#include "mappings/ho_front_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+delay_oncc110=0.02
+tune_cc113=46
+locc105=96
+locc4=96
+seq_length=3
+polyphony=5
+group=77
+off_by=71
+#include "mappings/ho_wndw_mic.sfz"
+
+<master>
+amplitude_cc102=100
+offset_cc110=233
+offset_curvecc110=13
+tune_cc113=-157
+locc105=96
+locc4=96
+seq_length=3
+polyphony=5
+group=47
+off_by=41
+fil_type=hpf_2p
+cutoff=200
+#include "mappings/ho_retro_mic.sfz"
+
+//Hat mute silence groups
+<master>
+seq_length=1
+#include "mappings/hmute_front_mic.sfz"
+#include "mappings/hmute_kick_mic.sfz"
+#include "mappings/hmute_oh_mic.sfz"
+#include "mappings/hmute_retro_mic.sfz"
+#include "mappings/hmute_side_mic.sfz"
+#include "mappings/hmute_snare_mic.sfz"
+#include "mappings/hmute_wndw_mic.sfz"
+
+<curve>
+//Mic delay curve
+curve_index=10
+v000=1
+v060=0
+v127=0
+
+//Offset align curve for most mics
+<curve>
+curve_index=11
+v000=0
+v067=0
+v127=1
+
+//Offset align curve for retro mic - across the whole range
+<curve>
+curve_index=13
+v000=0
+v063=0.3
+v127=1

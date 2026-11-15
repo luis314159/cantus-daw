@@ -15,6 +15,9 @@ use std::collections::HashSet;
 fn floor(unit: Unit) -> usize {
     match unit {
         Unit::Instrument(InstrumentKind::Dancer) => 0,
+        // Tympanum's kits are chosen in its own kit list (modelled and recorded, ADR 0124);
+        // its mix presets come with the owner's ear on the kits (BACKLOG, round 40's close).
+        Unit::Instrument(InstrumentKind::AcousticDrums) => 0,
         Unit::Instrument(_) => 24,
         Unit::Kit => 16,
         Unit::Effect(EffectKind::Analyzer) => 8,

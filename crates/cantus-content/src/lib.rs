@@ -25,7 +25,10 @@ pub mod manifest;
 pub mod models;
 pub mod models_pickle;
 pub mod models_th;
+pub mod pianobuild; // r40:chorda-src — a piano written as an SFZ from its naming (ADR 0125)
+pub mod pianobuild_flac; // r40:chorda-src — its WAVs kept as FLAC, checked bit for bit
 pub mod tar;
+pub mod user_pack; // r40:chorda-src — Install from a file… (ADR 0125 §3, §4)
 pub mod wav;
 
 pub use install::{Layout, Phase, Receipt};

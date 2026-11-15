@@ -191,9 +191,15 @@ fn the_key_is_chosen_in_the_editor() {
     let field = a.fx.impetus.key_field.expect("the key's field was drawn");
     click(&mut a, &ctx, field.center());
     // The list: its own signal first, then the other strips; the second row is a strip.
+    // Under the field, or above it when it fits there and not under it (review 2 of round
+    // 40, R2-B6: a list never runs off the window).
     let mut chosen = None;
-    for dy in [1.5f32, 2.5, 3.5] {
-        let at = egui::pos2(field.left() + 30.0, field.bottom() + 24.0 * dy - 12.0);
+    let spots = [1.5f32, 2.5, 3.5]
+        .into_iter()
+        .map(|dy| field.bottom() + 24.0 * dy - 12.0)
+        .chain([1.5f32, 2.5, 3.5].map(|dy| field.top() - 24.0 * dy + 12.0));
+    for y in spots {
+        let at = egui::pos2(field.left() + 30.0, y);
         click(&mut a, &ctx, at);
         chosen = a.project().effect(s0, fx).and_then(|e| e.sidechain);
         if chosen.is_some() {
@@ -201,7 +207,12 @@ fn the_key_is_chosen_in_the_editor() {
         }
         click(&mut a, &ctx, field.center());
     }
-    let key = chosen.expect("a strip chosen from the list");
+    let key = chosen.unwrap_or_else(|| {
+        panic!(
+            "a strip chosen from the list (field {field:?}, {} strips)",
+            a.project().strips.len()
+        )
+    });
     assert_ne!(key, s0);
     a.undo();
     assert_eq!(

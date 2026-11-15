@@ -9,11 +9,11 @@
 //! ([`super::automate::frame`]) and a list paints its rows only.
 
 use super::brush::{Brush, Fill};
-use super::color::{mix, with_alpha};
+use super::color::mix;
 use super::menu::{row_in, Check, Item};
 use super::text::{self, Elide, Policy, Role, Src, Text};
 use super::{Style, Tok};
-use egui::{Align2, Color32, Pos2, Rect, Vec2};
+use egui::{Align2, Color32, Pos2, Rect};
 
 /// The tokens a Slate menu paints with (for inspect mode).
 pub const TOKENS: &[Tok] = &[
@@ -39,7 +39,8 @@ pub fn edge(s: &Style) -> Color32 {
     if s.t.dark {
         mix(s.t.menu, s.t.text, 0.09)
     } else {
-        s.t.grid_bar
+        // r40:look — Paper's crisper hairline (round 39's `line` by the shots' switch).
+        super::dialog::sheet_edge(&s.t)
     }
 }
 
@@ -50,21 +51,18 @@ pub fn radius(s: &Style) -> f32 {
 
 /// The hover's pill.
 pub fn hover_fill(s: &Style) -> Color32 {
-    mix(s.t.menu, s.t.focus, if s.t.dark { 0.24 } else { 0.13 })
+    let paper = if super::dialog::paper_polish(&s.t) {
+        0.17
+    } else {
+        0.13
+    };
+    mix(s.t.menu, s.t.focus, if s.t.dark { 0.24 } else { paper })
 }
 
 /// The sheet alone: one soft shadow (0 6 18 at 50 %, Paper 18 %), the face, its edge.
 pub fn sheet(b: &mut Brush, rect: Rect, s: &Style) {
     let r = radius(s);
-    b.rrect_soft(
-        rect.translate(Vec2::new(0.0, s.s(6.0))),
-        r + s.s(3.0),
-        Fill::Solid(with_alpha(
-            s.t.dark_shade,
-            if s.t.dark { 0.50 } else { 0.18 },
-        )),
-        s.s(9.0),
-    );
+    super::dialog::sheet_shadow(b, rect, r, s, 6.0, 9.0, (0.50, 0.18));
     b.rrect(rect, r, Fill::Solid(edge(s)));
     b.rrect(
         rect.shrink(b.px()),
@@ -99,7 +97,11 @@ pub fn paint(
                     rr.right() - s.s(6.0),
                     b.snap_mid(rr.center().y),
                     px,
-                    mix(t.menu, t.disabled, if t.dark { 0.5 } else { 0.45 }),
+                    if super::dialog::paper_polish(t) {
+                        mix(t.menu, t.text, 0.16)
+                    } else {
+                        mix(t.menu, t.disabled, if t.dark { 0.5 } else { 0.45 })
+                    },
                 );
             }
             Item::Band(label) => {

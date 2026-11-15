@@ -5,11 +5,17 @@
 //! level falling by the feedback, on the left or the right when ping-pong is on, its colour
 //! cooling as the tone takes its highs — and the display is the control: a drag across sets
 //! the time, up and down the feedback. Beside it, what is heard (the repeats to −60 dB, the
-//! tail, the tone's loss per repeat, the first repeat's side); under it the time (with a
-//! note value at the song's tempo, set once: the unit's time has no sync), the repeats
+//! tail, the tone's loss per repeat, the first repeat's side); under it the time (in
+//! milliseconds, or a note value following the tempo — round 40, ADR 0119), the repeats
 //! (feedback and tone), and the output (ping-pong and the mix).
 //!
-//! Nothing here touches the sound: the unit is `cantus_dsp::delay::StereoDelay`, unchanged.
+//! **The tempo** (round 40): *At the tempo*, which set the time once from a note value,
+//! became the sync. Its column has the switch (*Free · Sync*), the note value and what the
+//! time is at the song's tempo now. Choosing a note turns the sync on; turning it on picks
+//! the note nearest the time it was playing, and turning it off keeps the time it was
+//! playing in milliseconds — so the old *set once* is *Sync, then Free* and nothing is lost.
+//!
+//! Nothing here touches the sound: the unit is `cantus_dsp::delay::StereoDelay`.
 
 use super::controls::{self, Size};
 use super::frame;
@@ -26,9 +32,11 @@ use std::fmt::Write as _;
 
 #[path = "delay_view.rs"]
 mod view;
+use cantus_dsp::delay::sync;
 pub use view::{
-    bpm_of, demo_feed, demo_setup, dragged_to, echoes, note_of, notes_in_range, pass_gain, preview,
-    repeats_heard, settings, span_for, Echo, Heard, Plot, Side, DIV_KEYS, REF_HZ,
+    bpm_of, demo_feed, demo_setup, dragged_to, echoes, heard_at, held, nearest_note, note_name,
+    note_of, note_pill, pass_gain, preview, repeats_heard, settings, span_for, synced_ms, Echo,
+    Heard, Plot, Side, DIV_KEYS, NOTE_KEYS, REF_HZ,
 };
 
 pub(crate) const KIND: EffectKind = EffectKind::Delay;
@@ -66,7 +74,7 @@ pub struct State {
     pub live: bool,
 }
 
-type WordsKey = (u32, u64, bool, crate::i18n::Locale);
+type WordsKey = (u32, u64, bool, crate::i18n::Locale, Option<usize>);
 type HeardKey = (u32, u32, u32, bool, crate::i18n::Locale);
 
 pub fn framed(
@@ -183,14 +191,19 @@ fn body_ui(
         Src::Key("delay.card.time"),
         None,
         |ui, _| {
-            controls::param_with(
-                ui,
-                &sp,
-                host,
-                "time_ms",
-                Size::XL,
-                Some(&super::modfx::ms_pill),
-            );
+            // One knob that changes with the switch: the note value while synced.
+            if host.spec().get("sync") >= 0.5 {
+                controls::param_with(ui, &sp, host, "note", Size::XL, Some(&note_pill));
+            } else {
+                controls::param_with(
+                    ui,
+                    &sp,
+                    host,
+                    "time_ms",
+                    Size::XL,
+                    Some(&super::modfx::ms_pill),
+                );
+            }
             ui.add_space(4.0 * k);
             tempo_column(host, ui, &sp);
         },
@@ -249,38 +262,87 @@ fn body_ui(
     glowing
 }
 
-/// *At the tempo*: the note values the unit can play at the song's tempo; a choice sets the
-/// time once (the unit has no sync, and the words say so).
+/// The tempo (round 40, ADR 0119): the sync switch, the note value and what the time is at
+/// the song's tempo now. *At the tempo*, which set the time once, is this switch now.
 fn tempo_column(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style) {
     let bpm = bpm_of(host);
-    let ms = host.spec().get("time_ms");
+    let spec = host.spec();
+    let on = spec.get("sync") >= 0.5;
+    let note = sync::note_index(spec.get("note"));
     controls::column(ui, s, TEMPO_W, |ui| {
         ui.add_space(10.0 * s.k);
         controls::caption(ui, s, Src::Key("delay.tempo"), TEMPO_W);
-        let id = ui.id().with("delay-tempo");
-        let value =
-            note_of(ms, bpm).map_or(frame::tr("delay.tempo.free"), |i| frame::tr(DIV_KEYS[i]));
-        if let Some(at) = controls::field(ui, s, id, value, frame::tr("delay.tempo.tip"), TEMPO_W) {
-            let now = note_of(ms, bpm);
-            let notes: Vec<(usize, f32)> = notes_in_range(bpm).collect();
-            let items: Vec<_> = notes
-                .iter()
-                .map(|(i, _)| frame::radio(Src::Key(DIV_KEYS[*i]), now == Some(*i)))
-                .collect();
-            if let Some(n) = controls::list(ui, s, id, at, TEMPO_W, &items) {
-                let v = (notes[n].1 * 10.0).round() / 10.0;
-                host.set("time_ms", v, None);
+        let labels = [Src::Key("modfx.sync.0"), Src::Key("modfx.sync.1")];
+        let name = frame::tr("delay.tempo.sync_tip");
+        if let Some(i) =
+            controls::segmented_key(ui, s, host, "sync", on as usize, &labels, name, TEMPO_W)
+        {
+            if (i == 1) != on {
+                set_sync(host, i == 1, bpm);
             }
         }
-        let once = crate::i18n::tf("delay.tempo.once", &[("bpm", &format!("{bpm:.0}"))]);
-        paragraph(ui, s, &once, TEMPO_W);
+        ui.add_space(4.0 * s.k);
+        let id = ui.id().with("delay-note");
+        let tip = frame::tr("delay.tempo.note_tip");
+        if let Some(at) =
+            controls::field_key(ui, s, host, "note", id, note_name(note), tip, TEMPO_W)
+        {
+            // The list, with each note's time at this tempo, built only while it is open.
+            let labels: Vec<String> = (0..sync::NOTES)
+                .map(|i| {
+                    let mut l = format!("{}  ", note_name(i));
+                    controls::write_readout(synced_ms(i, bpm), "ms", &mut l);
+                    l
+                })
+                .collect();
+            let items: Vec<_> = labels
+                .iter()
+                .enumerate()
+                .map(|(i, l)| frame::radio(Src::Str(l), on && i == note))
+                .collect();
+            if let Some(n) = controls::list(ui, s, id, at, TEMPO_W, &items) {
+                host.set_many(&[("sync", 1.0), ("note", n as f32)], "cmd.delay_sync_on");
+            }
+        }
+        let words = if on {
+            let mut ms = String::new();
+            controls::write_readout(synced_ms(note, bpm), "ms", &mut ms);
+            let tempo = format!("{bpm:.0}");
+            if held(note, bpm) {
+                let mut ask = String::new();
+                controls::write_readout(sync::time_ms(note, bpm) as f32, "ms", &mut ask);
+                crate::i18n::tf(
+                    "delay.tempo.held",
+                    &[("ms", &ask), ("bpm", &tempo), ("max", &ms)],
+                )
+            } else {
+                crate::i18n::tf("delay.tempo.follows", &[("ms", &ms), ("bpm", &tempo)])
+            }
+        } else {
+            frame::tr("delay.tempo.free_words").to_string()
+        };
+        paragraph(ui, s, &words, TEMPO_W);
     });
+}
+
+/// Turn the sync on or off as one step, keeping what is heard: on, the note value nearest
+/// the time it was playing; off, the time it was playing, in milliseconds.
+pub fn set_sync(host: &mut dyn FxHost, on: bool, bpm: f64) {
+    let spec = host.spec();
+    if on {
+        let note = nearest_note(spec.get("time_ms"), bpm);
+        host.set_many(&[("sync", 1.0), ("note", note as f32)], "cmd.delay_sync_on");
+    } else {
+        let note = sync::note_index(spec.get("note"));
+        let ms = (synced_ms(note, bpm).clamp(1.0, 2_000.0) * 10.0).round() / 10.0;
+        host.set_many(&[("sync", 0.0), ("time_ms", ms)], "cmd.delay_sync_off");
+    }
 }
 
 /// What is heard: how many repeats before −60 dB, the tail they make, what the tone takes
 /// from each, and where the first one is — the display's facts in words and numbers.
 fn heard_card(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, rect: Rect) {
-    let ds = settings(host.spec());
+    let ds = heard_at(host.spec(), bpm_of(host));
     let sr = host.sample_rate().max(1.0);
     let key = (
         ds.time_ms.to_bits(),

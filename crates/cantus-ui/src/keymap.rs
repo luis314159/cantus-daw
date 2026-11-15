@@ -134,6 +134,13 @@ pub enum Action {
     ToolZoom,
     /// r39:lo-arrange — the grid's triplets on or off, in the view being worked in.
     GridTriplets,
+    /// r40:ripple — empty time over the time selection (or a bar at the playhead), on every
+    /// track (ADR 0116).
+    InsertTime,
+    /// r40:ripple — the time selection taken out of the song, the gap closed (ADR 0116).
+    DeleteTime,
+    /// r40:ripple — the arrangement's ripple mode: off, this track, every track (ADR 0116).
+    CycleRipple,
     // View
     ToggleTypingPiano,
     ViewPianoRoll,
@@ -320,7 +327,7 @@ impl Action {
         )
     }
 
-    pub const ALL: [Action; 129] = [
+    pub const ALL: [Action; 132] = [
         // r35:video — 122 with ExportVideo
         Action::PlayPause,
         Action::Stop,
@@ -384,6 +391,9 @@ impl Action {
         Action::ToolPlayback,
         Action::ToolZoom,
         Action::GridTriplets,
+        Action::InsertTime,
+        Action::DeleteTime,
+        Action::CycleRipple,
         Action::ToggleTypingPiano,
         Action::ViewPianoRoll,
         Action::ViewChannelRack,
@@ -530,6 +540,9 @@ impl Action {
             Action::ToolPlayback => "tool-playback",
             Action::ToolZoom => "tool-zoom",
             Action::GridTriplets => "grid-triplets",
+            Action::InsertTime => "insert-time",
+            Action::DeleteTime => "delete-time",
+            Action::CycleRipple => "ripple-mode",
             Action::ToggleTypingPiano => "toggle-typing-piano",
             Action::ViewPianoRoll => "view-piano-roll",
             Action::ViewChannelRack => "view-channel-rack",
@@ -625,6 +638,7 @@ impl Action {
             LoopToSelection | ZoomToSelection | SelectPrevTrack | SelectNextTrack | ArmTrack
             | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch | AutomateLastTweaked
             | CycleTrackAutoMode => Category::Arrangement,
+            InsertTime | DeleteTime | CycleRipple => Category::Arrangement, // r40:ripple
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
             | RenameClip | MakeUnique | LinkClips | SelectLinked | LinkTo => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
@@ -1001,6 +1015,22 @@ fn common() -> Vec<(Action, Binding)> {
         (LoopToSelection, Binding::shift(Key::L)),
         // r39:lo-arrange — the grid menu's Triplets (dir-a's toolbar sheet: Shift 3).
         (GridTriplets, Binding::shift(Key::Num3)),
+        // r40:ripple (ADR 0116) — FL's playlist keys for space: Ctrl+Del deletes the time
+        // selection's time (Ctrl+Backspace too: ⌘⌫ on a Mac, which has no forward Delete).
+        // FL's Ctrl+Ins cannot be had on Windows — the platform reads it as Copy before any
+        // application sees the key (`clipboard_binding`) — so Insert alone inserts time:
+        // a named key, never a letter the typing piano wants. Alt+Shift+P cycles the ripple
+        // mode (REAPER's Alt+P, which is our punch).
+        (InsertTime, Binding::key(Key::Insert)),
+        (DeleteTime, Binding::cmd(Key::Delete)),
+        (DeleteTime, Binding::cmd(Key::Backspace)),
+        (
+            CycleRipple,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::P)
+            },
+        ),
         (ZoomToSelection, Binding::key(Key::Z)),
         // `Ctrl` + the arrows, so they do not collide with nudging notes or clips: the
         // modifier match is exact, so `Ctrl+ArrowUp` never fires `TransposeUp`.
@@ -1580,6 +1610,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 16 {
             map.fill_in(&NEW_IN_V16);
         }
+        if file.version.unwrap_or(1) < 17 {
+            map.fill_in(&NEW_IN_V17); // r40:ripple
+        }
         Ok(map)
     }
 
@@ -1658,8 +1691,13 @@ struct KeymapFile {
 /// 11 the command palette's and the undo history's (round 31, ADR 0072); version 12 the
 /// automation mode's key (round 31, ADR 0068); version 13 the score's (round 32, ADR 0075);
 /// version 14 the session view's (round 33, ADR 0077); version 15 the stage's (round 35,
-/// ADR 0091).
-pub const FILE_VERSION: u32 = 16;
+/// ADR 0091); version 16 the workspace's areas and the arrangement's tools (round 39);
+/// version 17 insert and delete time and the ripple mode (round 40, ADR 0116).
+pub const FILE_VERSION: u32 = 17;
+
+/// r40:ripple — actions added in version 17 (round 40, ADR 0116): Insert inserts time,
+/// Ctrl+Del (and Ctrl+Backspace) deletes it, Alt+Shift+P cycles the ripple mode.
+const NEW_IN_V17: [Action; 3] = [Action::InsertTime, Action::DeleteTime, Action::CycleRipple];
 
 /// Actions added in version 16 (round 39, ADR 0110): the workspace's areas — Ctrl+F6 and
 /// Ctrl+Shift+F6 move between them, Ctrl+Alt+Enter maximises one, Ctrl+Alt+C collapses it —
@@ -2028,7 +2066,7 @@ play-pause = [\"Enter\"]
             &[Binding::key(Key::Enter)]
         );
         assert!(map.bindings_for(Action::SessionLaunch).is_empty());
-        assert_eq!(FILE_VERSION, 16);
+        assert_eq!(FILE_VERSION, 17);
         // Every preset gives the session's keys and none of them twice.
         for p in Preset::ALL {
             let m = p.keymap();

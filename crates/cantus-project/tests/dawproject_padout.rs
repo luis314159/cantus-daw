@@ -115,3 +115,43 @@ fn a_pads_chain_is_said_lost_and_the_kit_is_not_called_split() {
     );
     assert!(!out.report.has("interop.report.x_split_kit"));
 }
+
+// r40:tymp-engine — a Tympanum with every mic on its own strip (ADR 0123) through
+// DAWproject: the export says the outputs' strips are not in the file, as for a split kit.
+#[test]
+fn a_tympanum_split_to_strips_is_said_lost_like_a_split_kit() {
+    use cantus_core::inst::tympanum::KIT_KEY;
+    use cantus_core::inst_out::{plan, OutputPlan};
+    let mut p = Project::new("Tympanum");
+    let mut t = p.make_track("Drums");
+    let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+    spec.set_text(KIT_KEY, Some("model:studio".into())).unwrap();
+    t.instrument = InstrumentSpec::Native(spec);
+    let id = t.id;
+    p.tracks.push(t);
+    let view = p.clone();
+    let cmd = plan(&view, id, OutputPlan::EachOwn, &mut |n| p.make_strip(n)).unwrap();
+    cmd.apply(&mut p).unwrap();
+    let n = p.tracks[0].instrument.output_strips().len();
+    assert!(n >= 10);
+    let out = dawproject::export(&p, "0.1.0");
+    let said = out
+        .report
+        .get("interop.report.x_split_outputs")
+        .expect("the export says the outputs' strips are lost");
+    assert_eq!(said.arg("track"), Some("Drums"));
+    assert_eq!(said.arg("n"), Some(n.to_string().as_str()));
+    assert!(!out.report.has("interop.report.x_split_kit"));
+    // Back: the kit whole, every output on Main, no stale strip id.
+    let back = dawproject::import(&out.bytes).unwrap().project;
+    assert!(back.tracks[0].instrument.output_strips().is_empty());
+    // Unsplit, nothing to say.
+    let mut whole = Project::new("Tympanum");
+    let mut t = whole.make_track("Drums");
+    let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+    spec.set_text(KIT_KEY, Some("model:studio".into())).unwrap();
+    t.instrument = InstrumentSpec::Native(spec);
+    whole.tracks.push(t);
+    let out = dawproject::export(&whole, "0.1.0");
+    assert!(!out.report.has("interop.report.x_split_outputs"));
+}

@@ -150,7 +150,17 @@ pub const DELAY_PARAMS: &[EffectParamInfo] = &[
         true,
     ),
     p("mix", "fx.mix", 0.0, 1.0, 0.3, "", false, false),
+    // r40:delay — the time synced to the tempo (ADR 0119): off by default (the null), and
+    // the note a dotted eighth, the free time's 375 ms at 120 BPM. `note` is
+    // `cantus_dsp::delay::sync::beats`' index, forever: 3 × base (1/64 … 4/1) + feel
+    // (straight, dotted, triplet).
+    p("sync", "fx.delay.sync", 0.0, 1.0, 0.0, "", false, true),
+    p("note", "fx.delay.note", 0.0, 26.0, 10.0, "", false, true),
 ];
+
+/// The locale prefix of Delay's stepped parameters' choices (`{prefix}.{i}`), as the
+/// round-28 kinds' `CHOICES`. // r40:delay
+pub const DELAY_CHOICES: &[(&str, &str)] = &[("sync", "modfx.sync"), ("note", "delay.note")];
 
 pub const REVERB_PARAMS: &[EffectParamInfo] = &[
     p("size", "fx.reverb.size", 0.0, 1.0, 0.7, "", false, false),
@@ -394,6 +404,7 @@ impl EffectKind {
             EffectKind::Analyzer => fx::speculum::CHOICES,
             EffectKind::AutoTune => fx::tonus::CHOICES,
             EffectKind::Aula => fx::aula::CHOICES, // r39:conv
+            EffectKind::Delay => DELAY_CHOICES,    // r40:delay
             _ => &[],
         }
     }

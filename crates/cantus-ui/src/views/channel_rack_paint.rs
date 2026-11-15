@@ -704,10 +704,14 @@ pub(super) fn row_rects(strip: Rect, kind: RowKind, kit: bool, s: &Style) -> Row
     let led = pos2(at(16.0), cy);
     let knob = |x: f32| Rect::from_center_size(pos2(at(x), cy), vec2(KNOB * k, KNOB * k));
     let (pan, vol) = (knob(36.0), knob(58.0));
-    let route = (kind == RowKind::Track).then(|| {
+    // r40:pads — every row has its mixer track's well: a pad's too (des-views, ADR 0117).
+    let route = {
         let h = (18.0 * k).min(strip.height() - 2.0 * k);
-        Rect::from_min_size(pos2(at(72.0), cy - h * 0.5), vec2(24.0 * k, h))
-    });
+        Some(Rect::from_min_size(
+            pos2(at(72.0), cy - h * 0.5),
+            vec2(24.0 * k, h),
+        ))
+    };
     // The target mark at 262, or 6 from the column's right where it is narrower.
     let tx = at(TARGET_X).min(strip.right() - 6.0 * k);
     let th = (14.0 * k).min(strip.height() - 6.0 * k);
@@ -853,7 +857,8 @@ pub(super) fn row(b: &mut Brush, r: &RowRects, look: &RowLook<'_>, s: &Style) {
             right -= w + 6.0 * k;
         }
     }
-    let ink = if look.route.is_none() && !look.on {
+    // A silent pad's name in ink 3 (a pad: its row has the kit's tree line).
+    let ink = if r.tree_x.is_some() && !look.on {
         room.ink3
     } else {
         crate::kit::color::ensure_contrast(room.ink1, plate, 4.5)

@@ -289,6 +289,18 @@ impl Default for ScopeTap {
 }
 
 /// The mix recorder's ring (a strip's take, or the master's), and what it lost.
+/// r40:pads — a strip's signal after its inserts, this pass, for a track that records
+/// *After FX* (ADR 0118): the strip writes it, the recorder reads it after the pass.
+pub(crate) struct RecTap {
+    pub l: Vec<f32>,
+    pub r: Vec<f32>,
+    /// The pass it holds (a strip that rested wrote none: silence).
+    pub pass: u64,
+}
+
+/// How many tracks may record *After FX* at once (the rest record before their inserts).
+pub(crate) const MAX_REC_TAPS: usize = 8;
+
 pub(crate) struct Capture {
     pub ring: Option<rtrb::Producer<f32>>,
     pub overruns: u64,
@@ -338,6 +350,8 @@ pub(crate) struct Nodes {
     pub scopes: Box<[NodeCell<ScopeTap>]>,
     pub probe: NodeCell<Option<crate::inst::Telemetry>>,
     pub capture: NodeCell<Capture>,
+    /// r40:pads — the strips recorded *After FX* (ADR 0118), by tap.
+    pub rec_taps: Box<[NodeCell<RecTap>]>,
     pub tap: NodeCell<Option<Box<crate::stems::StemTap>>>,
     /// Per slot, published by the node at the end of each pass: its peak this block (f32
     /// bits), and a track's voices or a strip's deepest reduction.
@@ -449,6 +463,15 @@ impl Nodes {
                 overruns: 0,
                 ran: false,
             }),
+            rec_taps: (0..MAX_REC_TAPS)
+                .map(|_| {
+                    NodeCell::new(RecTap {
+                        l: vec![0.0; PASS_FRAMES],
+                        r: vec![0.0; PASS_FRAMES],
+                        pass: 0,
+                    })
+                })
+                .collect(),
             tap: NodeCell::new(None),
             track_peak: atoms(MAX_TRACKS),
             track_voices: atoms(MAX_TRACKS),

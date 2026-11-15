@@ -80,6 +80,7 @@ fn main() {
                 px_per_unit: scale,
                 hue: 0.0,
                 shadow: true,
+                ink: Default::default(),
             };
             src.draw(r, t, found.default_filter, &mut canvas);
         }

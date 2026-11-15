@@ -103,13 +103,28 @@ fn moved_controls_keep_every_block_size_and_the_threads_to_the_bit() {
 #[test]
 fn the_perspective_moves_from_the_hammers_to_the_audience() {
     let ev = chord();
-    let near = perform(&mut with(|s| s.persp = 0.0), &ev, 48_000, 512, 1);
-    let far = perform(&mut with(|s| s.persp = 1.0), &ev, 48_000, 512, 1);
-    // Far: the room's share grows (what rings on after the keys are let go, against what
-    // sounded while they were held).
-    let after = |x: &[f32]| energy(&x[40_000..]) / energy(&x[..30_000]);
-    let (an, af) = (after(&near.0), after(&far.0));
-    assert!(af > 2.0 * an, "the room's tail: near {an}, far {af}");
+    // Far: the room's share grows — the room's return (the render with the room against
+    // the same render without it: the return is added at the output) against the dry
+    // sound. (Until `DSP_VERSION` 7 this was read off the tail after the keys were let go;
+    // candidate 16's keys ring on under their own dampers, so the tail is no longer the
+    // room's alone.)
+    let share = |p: f64| {
+        let wet = perform(&mut with(|s| s.persp = p), &ev, 48_000, 512, 1);
+        let dry = perform(
+            &mut with(|s| {
+                s.persp = p;
+                s.room = 0.0;
+            }),
+            &ev,
+            48_000,
+            512,
+            1,
+        );
+        let ret: Vec<f32> = wet.0.iter().zip(&dry.0).map(|(a, b)| a - b).collect();
+        energy(&ret) / energy(&dry.0)
+    };
+    let (an, af) = (share(0.0), share(1.0));
+    assert!(af > 2.0 * an, "the room's share: near {an}, far {af}");
 }
 
 /// The air: the same sound through the stage, its top (over 5 kHz) against its bottom (under

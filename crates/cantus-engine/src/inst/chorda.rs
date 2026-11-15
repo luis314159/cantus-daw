@@ -35,6 +35,7 @@ use cantus_core::inst::chorda::{DESIGN_KEYS, PARAMS, SET_KEYS};
 use cantus_core::inst::modulation::{MACRO_KEYS, SLOTS};
 use cantus_core::NativeSpec;
 use cantus_dsp::chorda::design::{Keyboard, Tuning};
+use cantus_dsp::chorda::voicing::Voicing;
 use cantus_dsp::chorda::{Chorda, ChordaSettings};
 use cantus_dsp::modmatrix::{ModCurve, ModMatrix, ModRoute};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -92,9 +93,9 @@ pub const SOFT_CC: u8 = 67;
 
 // ---- the keyboards' registry and their designer ------------------------------------------
 
-/// A keyboard's identity: the sample rate and the three tuning numbers (rounded as
-/// [`settled`] rounds them), as bits.
-pub type DesignKey = [u32; 4];
+/// A keyboard's identity: the sample rate, the three tuning numbers and model 2's own
+/// keyboard numbers (rounded as [`settled`] rounds them), as bits.
+pub type DesignKey = [u32; 8];
 
 /// Keyboards a session keeps. Never evicted (as Unda's tables): a keyboard the audio thread
 /// holds is never freed there. Designs are made only of tunings that have settled, so a
@@ -185,7 +186,8 @@ pub fn can_arrive(key: DesignKey) -> bool {
     !NO_DESIGNER.load(Ordering::Acquire) && can_arrive_but_for_the_designer(key)
 }
 
-/// The tuning parameter values ask for.
+/// The tuning parameter values ask for: model 2's own keyboard ([`Voicing::tuning`],
+/// round 40's finding 9) at the knobs' tuning when the model is 2.
 pub fn tuning_of(values: &[f32; N]) -> Tuning {
     let get = |k: &str| {
         PARAMS
@@ -193,21 +195,42 @@ pub fn tuning_of(values: &[f32; N]) -> Tuning {
             .position(|i| i.key == k)
             .map_or(0.0, |i| values[i])
     };
-    settled(Tuning {
+    let knobs = Tuning {
         a4: get("a4") as f64,
         stretch: get("stretch") as f64,
         stiffness: get("stiffness") as f64,
+        ..Default::default()
+    };
+    settled(if get("model") >= 1.5 {
+        Voicing::default().tuning(knobs)
+    } else {
+        knobs
     })
 }
 
-/// A tuning as it is designed: A4 to a hundredth of a hertz, the stretch and the stiffness
-/// to a thousandth (below anything heard; two knob positions that close share a design).
+/// The keyboard a new Chorda plays: the parameters' defaults' tuning (model 2's own). It is
+/// the one [`warm`] asks for first.
+pub fn reference() -> Tuning {
+    let mut v = [0.0; N];
+    for (i, info) in PARAMS.iter().enumerate() {
+        v[i] = info.default;
+    }
+    tuning_of(&v)
+}
+
+/// A tuning as it is designed: A4 to a hundredth of a hertz, the stretch, the stiffness and
+/// model 2's keyboard numbers to a thousandth (below anything heard; two knob positions
+/// that close share a design).
 pub fn settled(t: Tuning) -> Tuning {
     let round = |v: f64, step: f64| (v / step).round() * step;
     Tuning {
         a4: round(t.a4, 0.01),
         stretch: round(t.stretch, 0.001),
         stiffness: round(t.stiffness, 0.001),
+        bass_b: round(t.bass_b, 0.001),
+        treble_b: round(t.treble_b, 0.001),
+        treble_octave: round(t.treble_octave, 0.001),
+        treble_octave_hi: round(t.treble_octave_hi, 0.001),
     }
 }
 
@@ -218,6 +241,10 @@ pub fn key_of(tuning: Tuning, fs: f32) -> DesignKey {
         (t.a4 as f32).to_bits(),
         (t.stretch as f32).to_bits(),
         (t.stiffness as f32).to_bits(),
+        (t.bass_b as f32).to_bits(),
+        (t.treble_b as f32).to_bits(),
+        (t.treble_octave as f32).to_bits(),
+        (t.treble_octave_hi as f32).to_bits(),
     ]
 }
 
@@ -563,14 +590,18 @@ pub fn prepare(snapshot: &cantus_core::Snapshot, fs: f32) {
     }
 }
 
-/// Start designing the reference keyboard for `fs` (at start-up, after a device change).
+/// Start designing the reference keyboard for `fs` (at start-up, after a device change):
+/// a new Chorda's ([`reference`]) and model 1's when they differ.
 pub fn warm(fs: f32) {
-    ask(None, Tuning::default(), fs);
+    ask(None, reference(), fs);
+    if key_of(reference(), fs) != key_of(Tuning::default(), fs) {
+        ask(None, Tuning::default(), fs);
+    }
 }
 
 /// Whether the reference keyboard for `fs` is designed or asked for.
 pub fn is_warm(fs: f32) -> bool {
-    let key = key_of(Tuning::default(), fs);
+    let key = key_of(reference(), fs);
     lookup(key).is_some()
         || DESIGNER.lock().is_ok_and(|d| {
             d.wants.iter().any(|w| w.key == key) || d.busy.as_ref().is_some_and(|b| b.0 == key)
@@ -717,7 +748,7 @@ impl Unit {
         // yet made, on the interface's thread when Chorda is chosen): taken if the designer
         // has made them, else waited for as the keyboard is (`follow_design`).
         let mut dsp = Chorda::new_waiting(fs);
-        let key = key_of(Tuning::default(), fs);
+        let key = key_of(reference(), fs);
         let have = match lookup(key) {
             Some(k) => {
                 dsp.set_keyboard(k);
@@ -735,7 +766,7 @@ impl Unit {
             sources: [0.0; SOURCE_TAGS.len()],
             per_note: false,
             want: key,
-            want_tuning: Tuning::default(),
+            want_tuning: reference(),
             have,
             fs,
             offline: false,
@@ -805,10 +836,13 @@ impl Unit {
         // nothing keeps playing — the reference keyboard, as the editor says (review of
         // fix3: it stayed silent for the session).
         if self.have.is_none() && !can_arrive(self.want) {
-            let key = key_of(Tuning::default(), self.fs);
-            if let Some(k) = lookup(key) {
-                self.dsp.set_keyboard(k);
-                self.have = Some(key);
+            for t in [reference(), Tuning::default()] {
+                let key = key_of(t, self.fs);
+                if let Some(k) = lookup(key) {
+                    self.dsp.set_keyboard(k);
+                    self.have = Some(key);
+                    break;
+                }
             }
         }
     }
@@ -969,12 +1003,9 @@ mod tests {
             .expect("ensure returned")
     }
 
+    /// A new Chorda's tuning at another A4 (model 2's own keyboard numbers).
     fn tuning(a4: f64) -> Tuning {
-        Tuning {
-            a4,
-            stretch: 1.0,
-            stiffness: 1.0,
-        }
+        Tuning { a4, ..reference() }
     }
 
     /// The designer and its faults are the process's: the tests that use them run one at a
@@ -1039,7 +1070,7 @@ mod tests {
     fn a_fresh_unit_waits_silent_for_its_own_tuning() {
         let _alone = alone();
         let fs = 48_000.0;
-        ensure(Tuning::default(), fs);
+        ensure(reference(), fs);
         let mut u = Unit::new(fs);
         let mut spec = NativeSpec::new(cantus_core::InstrumentKind::Chorda);
         spec.set("a4", 437.77);
@@ -1072,7 +1103,7 @@ mod tests {
     fn a_fresh_unit_whose_tuning_is_refused_keeps_playing() {
         let _alone = alone();
         let fs = 48_000.0;
-        ensure(Tuning::default(), fs);
+        ensure(reference(), fs);
         let play = |u: &mut Unit, id| {
             u.note_on(NoteOn {
                 key: 60,
@@ -1137,7 +1168,80 @@ mod tests {
         ));
         refuse_for_tests(tuning(446.78), fs);
         assert_eq!(design(tuning(446.78), fs), Design::Refused);
-        ensure(Tuning::default(), fs);
-        assert_eq!(design(Tuning::default(), fs), Design::Ready);
+        ensure(reference(), fs);
+        assert_eq!(design(reference(), fs), Design::Ready);
+    }
+
+    /// Round 40, finding 9: model 2 asks for its own keyboard (its voicing's asymptotes and
+    /// treble octaves); model 1's is the model's whatever model 2's voicing says; and
+    /// beta.14's voicing shares model 1's design, so its pin holds.
+    #[test]
+    fn model_2_asks_for_its_own_keyboard_and_model_1_never_moves() {
+        let mut spec = NativeSpec::new(cantus_core::InstrumentKind::Chorda);
+        spec.set("model", 1.0);
+        assert_eq!(tuning_of(&values_of(&spec)), Tuning::default());
+        spec.set("model", 2.0);
+        let two = tuning_of(&values_of(&spec));
+        assert_eq!(two, settled(Voicing::default().tuning(Tuning::default())));
+        assert_eq!(two, reference(), "a new Chorda is model 2");
+        assert_eq!(
+            Voicing::beta14().tuning(Tuning::default()),
+            Tuning::default()
+        );
+        spec.set("a4", 442.0);
+        let t = tuning_of(&values_of(&spec));
+        assert_eq!(
+            (t.a4, t.bass_b),
+            (442.0, two.bass_b),
+            "the knobs move, not its strings"
+        );
+        // Its numbers are part of the design's identity, rounded as the knobs are.
+        let fitted = Tuning {
+            bass_b: 0.754,
+            ..Tuning::default()
+        };
+        assert_ne!(
+            key_of(fitted, 48_000.0),
+            key_of(Tuning::default(), 48_000.0)
+        );
+        let near = Tuning {
+            bass_b: 0.754_2,
+            ..Tuning::default()
+        };
+        assert_eq!(key_of(near, 48_000.0), key_of(fitted, 48_000.0));
+        let moves: [fn(&mut Tuning); 3] = [
+            |t| t.treble_b = 0.874,
+            |t| t.treble_octave = 2.0,
+            |t| t.treble_octave_hi = 2.5,
+        ];
+        for f in moves {
+            let mut t = Tuning::default();
+            f(&mut t);
+            assert_ne!(key_of(t, 48_000.0), key_of(Tuning::default(), 48_000.0));
+        }
+    }
+
+    /// An export of a new Chorda plays model 2's own keyboard: the one the unit holds is
+    /// the tuning its parameters ask for.
+    #[test]
+    fn a_model_2_export_plays_its_own_keyboard() {
+        let _alone = alone();
+        let fs = 48_000.0;
+        let mut u = Unit::new(fs);
+        u.set_offline(true);
+        let spec = NativeSpec::new(cantus_core::InstrumentKind::Chorda);
+        u.configure(&spec, &[]);
+        u.note_on(NoteOn {
+            key: 21,
+            velocity: 0.8,
+            id: 1,
+            channel: 0,
+        });
+        let k = u.dsp().keyboard().expect("a keyboard").clone();
+        assert_eq!(k.tuning, reference());
+        assert_eq!(
+            k.keys,
+            cantus_dsp::chorda::tables::keyboard_for(&reference())
+        );
     }
 }

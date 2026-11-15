@@ -19,13 +19,19 @@ impl CantusApp {
         }
     }
 
-    /// Every pad of `track`'s kit back on the kit's strip, and the strips the split made
-    /// removed when nothing else uses them (one undo step).
+    /// Every pad *Split to strips* put on a strip of its own back on the kit's strip, and
+    /// those strips removed when nothing else uses them (one undo step). A pad on a strip
+    /// the user chose stays there (R2-B3); refused, the status line says why.
     pub fn merge_kit(&mut self, track: TrackId) -> bool {
         match padout::merge(self.project(), track) {
             Ok(cmd) => self.exec(cmd),
             Err(r) => {
-                self.refused(track, r, "padout.merge_nothing");
+                let nothing = if padout::is_split(self.project(), track) {
+                    "padout.merge_users"
+                } else {
+                    "padout.merge_nothing"
+                };
+                self.refused(track, r, nothing);
                 false
             }
         }
@@ -70,6 +76,11 @@ impl CantusApp {
         }
     }
 
+    /// r40:pads — why a pad's mixer track was not changed (ADR 0117), on the status line.
+    pub(crate) fn pad_refused(&mut self, track: TrackId, r: Refusal) {
+        self.refused(track, r, "pads.already");
+    }
+
     fn refused(&mut self, track: TrackId, r: Refusal, nothing: &str) {
         let name = self
             .project()
@@ -81,6 +92,7 @@ impl CantusApp {
             Refusal::NoPad => "padout.no_pad",
             Refusal::Nothing => nothing,
             Refusal::NoRoom => "padout.no_room", // r37:fixes
+            Refusal::Unfit => "pads.unfit",      // r40:pads
         };
         self.set_error(tf(key, &[("name", &name)]));
     }

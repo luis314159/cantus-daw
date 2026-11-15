@@ -2,9 +2,15 @@
 //! named spans above the tracks, each with its length ("Drop · 8 bars"), the playing one in
 //! ink 1, every other one a step lighter; the markers over them. A section under the
 //! pointer lifts and shows its end grip; a click selects it, a double-click renames it,
-//! a drag moves it (along the bars), its end's drag resizes it; its menu renames, recolours,
-//! selects or loops its time and removes it. The lane's menu makes a section of the time
+//! its end's drag resizes it; its menu renames, recolours, selects or loops its time, fits it
+//! to the time selection and removes it. The lane's menu makes a section of the time
 //! selection, or of the four bars under the pointer.
+//!
+//! r40:ripple — **a drag moves its bars on every track** (ADR 0116 §3, des-arrange: "Ctrl
+//! copies, Shift inserts"; Alt leaves the bar lines): while it is dragged nothing changes —
+//! the section rides as a ghost, the bars it would replace or the line it would go in at are
+//! drawn through every lane ([`overlay`]) and the help line says what the drop will do; the
+//! drop is one undo step (`CantusApp::drop_section_bars`).
 
 use super::super::slate::{say, width, Ink, W};
 use super::super::{beats_to_ticks, chrome, ticks_to_beats, TimelineGeometry};
@@ -25,6 +31,8 @@ pub struct State {
     grab: Option<(SectionId, Section, bool)>,
     /// Each visible section's span on screen last frame (tests aim with it).
     pub drawn: Vec<(SectionId, Rect)>,
+    /// r40:ripple — where a dragged section's bars would land, and how.
+    pub landing: Option<crate::ripple_ui::BarsDrop>,
 }
 
 /// The sections' spans on screen, in the lane.
@@ -99,6 +107,15 @@ pub fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lane: Rect,
         if st.rename.as_ref().is_some_and(|(id, _)| *id == sec.id) {
             continue;
         }
+        // r40:ripple — under a dragged section's ghost, the ghost's name is the one read
+        // (text draws over every shape: the ghost cannot hide it).
+        let under_ghost = st.landing.as_ref().is_some_and(|d| {
+            let (a, b) = (d.dest, d.dest + (d.to - d.from));
+            !d.is_still() && sec.start < b && a < sec.end() && sec.id != d.section
+        });
+        if under_ghost {
+            continue;
+        }
         // The name keeps to the left edge when the section began before the view.
         let x = r.left().max(lane.left()) + 6.0 * k;
         let (w, c) = if playing {
@@ -139,6 +156,156 @@ pub fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lane: Rect,
             }
         }
     }
+    paint_landing(b, app, geo, lane, s);
+}
+
+/// r40:ripple — a dragged section in the lane: the slot its bars leave (dashed, when they
+/// move), the ghost where they would land (the selected look, riding), and the line they
+/// would go in at (when they insert).
+fn paint_landing(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lane: Rect, s: &Style) {
+    let Some(d) = app.arrangement.sections.landing.as_ref() else {
+        return;
+    };
+    let ink = Ink::of(s);
+    let k = s.k;
+    let x = |t: Ticks| geo.x(ticks_to_beats(t));
+    let len = d.to - d.from;
+    if !d.how.copy {
+        let slot = Rect::from_min_max(pos2(x(d.from), lane.top()), pos2(x(d.to), lane.bottom()));
+        super::super::paint::dashed_rect(
+            b,
+            slot.shrink(1.0 * k),
+            lane,
+            b.px(),
+            ink.ink3,
+            4.0 * k,
+            3.0 * k,
+        );
+    }
+    if d.is_still() {
+        return;
+    }
+    let ghost = Rect::from_min_max(
+        pos2(x(d.dest), lane.top()),
+        pos2(x(d.dest + len), lane.bottom()),
+    );
+    let body = ghost.shrink(1.0 * k);
+    // Opaque: what it rides over (another section's name) never shows through.
+    let ground = Ink::to(ink.surface, ink.base, 0.35);
+    b.rrect(
+        body,
+        s.r(3.0),
+        Fill::Solid(Ink::to(ground, ink.accent, 0.30)),
+    );
+    b.rrect_stroke(body, s.r(3.0), b.px(), ink.accent);
+    if let Some(sec) = app.project().section(d.section) {
+        let room = Rect::from_min_max(
+            pos2(body.left().max(lane.left()) + 6.0 * k, lane.top()),
+            pos2(body.right() - 4.0 * k, lane.bottom()),
+        );
+        if room.width() >= 8.0 * k {
+            let _ = say(
+                b,
+                room,
+                &sec.name,
+                W::Medium,
+                11.0,
+                ink.ink1,
+                Align2::LEFT_CENTER,
+                s,
+            );
+        }
+    }
+    if d.how.insert {
+        b.vline(x(d.dest), lane.top(), lane.bottom(), 2.0 * k, ink.accent);
+    }
+}
+
+/// r40:ripple — a dragged section through every lane (des-arrange's *Moving a clip*, for a
+/// whole song): the bars it would replace tinted in the accent with accent edges, or — when
+/// it inserts — the 2-px accent line it goes in at, with a cap at the top; the slot its bars
+/// leave edged in dashes of ink 3.
+pub fn overlay(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lanes: Rect, s: &Style) {
+    let Some(d) = app.arrangement.sections.landing.as_ref() else {
+        return;
+    };
+    let ink = Ink::of(s);
+    let k = s.k;
+    let x = |t: Ticks| geo.x(ticks_to_beats(t));
+    let len = d.to - d.from;
+    if !d.how.copy {
+        for t in [d.from, d.to] {
+            let xs = x(t);
+            if xs >= lanes.left() && xs <= lanes.right() {
+                b.dashed(
+                    &[pos2(xs, lanes.top()), pos2(xs, lanes.bottom())],
+                    b.px(),
+                    ink.ink3,
+                    4.0 * k,
+                    3.0 * k,
+                );
+            }
+        }
+    }
+    if d.is_still() {
+        return;
+    }
+    if d.how.insert {
+        let xi = x(d.dest);
+        b.vline(xi, lanes.top(), lanes.bottom(), 2.0 * k, ink.accent);
+        let cap = [
+            pos2(xi - 5.0 * k, lanes.top()),
+            pos2(xi + 5.0 * k, lanes.top()),
+            pos2(xi, lanes.top() + 6.0 * k),
+        ];
+        b.polygon(&cap, ink.accent);
+    } else {
+        let band = Rect::from_min_max(
+            pos2(x(d.dest), lanes.top()),
+            pos2(x(d.dest + len), lanes.bottom()),
+        )
+        .intersect(lanes);
+        if band.width() > 0.0 {
+            b.rect(
+                band,
+                Fill::Solid(Ink::a(ink.accent, if ink.dark { 0.10 } else { 0.08 })),
+            );
+            for xe in [x(d.dest), x(d.dest + len)] {
+                if xe >= lanes.left() && xe <= lanes.right() {
+                    b.vline(xe, lanes.top(), lanes.bottom(), b.px(), ink.accent);
+                }
+            }
+        }
+    }
+}
+
+/// r40:ripple — what the drop will do, in the help line: "Drop · 8 bars → 33.1 · replaces
+/// what is there", and the keys that change it.
+fn say_landing(app: &CantusApp, ui: &egui::Ui) {
+    let Some(d) = app.arrangement.sections.landing.as_ref() else {
+        return;
+    };
+    let p = app.project();
+    let name = p.section(d.section).map_or("", |s| s.name.as_str());
+    let len = crate::ripple_ui::length_words(p, d.from, d.to);
+    let at = crate::ripple_ui::place_words(p, d.dest);
+    let what = chrome::word(match (d.how.copy, d.how.insert) {
+        _ if d.is_still() => "ripple.drag.still",
+        (false, false) => "ripple.drag.move",
+        (true, false) => "ripple.drag.copy",
+        (false, true) => "ripple.drag.insert",
+        (true, true) => "ripple.drag.insert_copy",
+    });
+    let text = crate::i18n::tf(
+        "ripple.drag.tip",
+        &[("name", &name), ("len", &len), ("at", &at), ("what", &what)],
+    );
+    hint::set_text(
+        ui.ctx(),
+        &text,
+        chrome::word(crate::ripple_ui::drag_keys_key(app.settings.section_drag)),
+        Caps::NONE,
+    );
 }
 
 /// The tick under `x`, on the bar unless `free`.
@@ -190,7 +357,10 @@ pub fn input(
             hint::set_text(
                 ui.ctx(),
                 &name,
-                chrome::word("arrange.section.tip"),
+                chrome::word(match app.settings.section_drag {
+                    crate::ripple_ui::SectionDrag::Insert => "ripple.section.tip",
+                    crate::ripple_ui::SectionDrag::Replace => "ripple.section.tip_replace",
+                }),
                 Caps {
                     menu: true,
                     ..Caps::NONE
@@ -215,33 +385,44 @@ pub fn input(
             ) {
                 if id == sec.id {
                     let press = ui.input(|i| i.pointer.press_origin()).map_or(p.x, |o| o.x);
-                    let mut now = was.clone();
                     if resize {
-                        let end = bar_at(app, geo, p.x, mods.command);
+                        let mut now = was.clone();
+                        let end = bar_at(app, geo, p.x, mods.alt);
                         now.length = (end - was.start).max(Ticks(1));
+                        let current = app.project().section(id).cloned();
+                        if current.as_ref() != Some(&now) {
+                            // Refused where it would overlap: the section stays as it was.
+                            app.exec_merging(
+                                Command::Arrange(ArrangeCommand::SetSection { section: now }),
+                                MergeKey::of(&("section", id.0)),
+                            );
+                        }
                     } else {
+                        // r40:ripple — the bars ride with the pointer; nothing changes yet.
                         let d = beats_to_ticks((p.x - press) / geo.px_per_beat);
-                        let start = bar_at(
+                        let dest = bar_at(
                             app,
                             geo,
                             geo.x(ticks_to_beats((was.start + d).max(Ticks::ZERO))),
-                            mods.command,
-                        );
-                        now.start = start.max(Ticks::ZERO);
-                    }
-                    let current = app.project().section(id).cloned();
-                    if current.as_ref() != Some(&now) {
-                        // Refused where it would overlap: the section stays where it was.
-                        app.exec_merging(
-                            Command::Arrange(ArrangeCommand::SetSection { section: now }),
-                            MergeKey::of(&("section", id.0)),
-                        );
+                            mods.alt,
+                        )
+                        .max(Ticks::ZERO);
+                        app.arrangement.sections.landing = Some(crate::ripple_ui::BarsDrop {
+                            section: id,
+                            from: was.start,
+                            to: was.end(),
+                            dest,
+                            how: crate::ripple_ui::landing_for(mods, app.settings.section_drag),
+                        });
                     }
                 }
             }
         }
         if resp.drag_stopped() {
             app.arrangement.sections.grab = None;
+            if let Some(d) = app.arrangement.sections.landing.take() {
+                app.drop_section_bars(&d);
+            }
             app.end_gesture();
         }
         egui::Popup::context_menu(&resp)
@@ -249,6 +430,7 @@ pub fn input(
             .show(|ui| section_menu(app, ui, sec.id));
     }
     app.arrangement.sections.drawn = drawn;
+    say_landing(app, ui);
     rename(app, ui, geo, lane, s);
 }
 
@@ -263,6 +445,15 @@ fn section_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: SectionId) {
         Item::action(Src::Key("arrange.menu.rename")),
         Item::action(Src::Key("arrange.section.select_time")),
         Item::action(Src::Key("arrange.section.loop")),
+        // r40:ripple — a drag moves the bars now; the section alone goes where the time
+        // selection is (Studio One's Ctrl+Alt drag, as a menu entry).
+        Item::Action {
+            label: Src::Key("ripple.section.fit"),
+            check: crate::kit::menu::Check::None,
+            shortcut: None,
+            submenu: false,
+            enabled: app.time_selection.is_some(),
+        },
         Item::Separator,
         Item::action(Src::Key("arrange.section.remove")),
     ];
@@ -283,7 +474,18 @@ fn section_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: SectionId) {
                 ],
             });
         }
-        Some(4) => {
+        Some(3) => {
+            if let Some((a, b)) = app.time_selection {
+                app.exec(Command::Arrange(ArrangeCommand::SetSection {
+                    section: Section {
+                        start: a,
+                        length: b - a,
+                        ..sec
+                    },
+                }));
+            }
+        }
+        Some(5) => {
             app.exec(Command::Arrange(ArrangeCommand::RemoveSection { id }));
             app.arrangement.sections.selected = None;
         }

@@ -15,16 +15,46 @@ de la canción, en [la exportación de video](video.md); tus propios personajes,
 
 *Añadir pista* (o el selector de dispositivos, Ctrl+T) ▸ el estante **Visual** ▸
 **Saltator**. La pista nueva se llama *Saltator*, tiene de icono una figura que baila, y
-baila en ella Fuga, el ninja del reparto. Se abre su ventana.
+baila en ella Compás, el pictograma del reparto. Se abre su ventana. (El bailarín está
+apagado hasta que añades uno.)
 
-**El reparto.** Lo encabezan Fuga, el ninja (enmascarado, con una bufanda carmesí rasgada
+**El reparto de Slate** encabeza el selector, dibujado con la tinta y el oro de tu tema:
+
+- **Compás**, el pictograma: una figura de señalética que cobra vida, pop and lock, una
+  estrella en el drop;
+- **Tono**, la perilla: un visor de LED, un cable de parcheo, y en el drop se sube el
+  volumen;
+- **Síncopa**, noir: una silueta encapuchada con un filo de luz dorada, fluida, una onda
+  en los brazos;
+- **Bajo**, el monitor: tweeters por ojos, un woofer que bombea, y suelta el bajo;
+- **Onda**, el osciloscopio: un trazo ámbar que ondula con el sonido, una cabeza de
+  Lissajous, y en el drop la onda se vuelve cuadrada;
+- **Voz**, el micrófono: un crooner de esmoquin que se quita el sombrero;
+- **Glissando**, la figura de luz: neón lapislázuli, estelas de luz, un halo en el drop;
+- **Eco**, el fantasma del delay: sus ecos repiten cada paso un cuarto de pulso tarde, y
+  se multiplican en el drop;
+- **Vinilo**, el DJ: un disco girando por cabeza, scratch y un backspin;
+- **Cinta**, el casete: breakdance, la cinta en remolino, y rebobina el baile;
+- **Metrónomo**, el serio: un mayordomo de madera con el péndulo exacto en cada pulso,
+  hasta que se le escapa a tiempo doble;
+- **Espectro**, el analizador: un cuerpo de barras de espectro que se encienden con la
+  canción que oye (el bombo en las piernas, los platillos en la cabeza) y saltan en
+  chispas en el drop.
+
+Cada uno baila un groove, un paso y toque y su propio número en el drop (*Salto*); y
+también todos los demás pasos. Sobre un croma (el de un vídeo o el de la ventana
+compañera) sus colores se apartan de la llave, para que el recorte los respete. Algunos
+llaman a un ánimo a su manera (Metrónomo está *Compuesto*, *Complacido*, *Alarmado*,
+*Impasible*; el octavo ánimo de Bajo es *Estallido*).
+
+**La familia se queda.** Fuga, el ninja (enmascarado, con una bufanda carmesí rasgada
 al viento: volteretas, patadas altas, un aterrizaje agachado, una reverencia marcial), y
 Volta, el mecha (armadura de metal oscuro, un visor en V de luz cuyas rendijas muestran su
 ánimo, un núcleo altavoz que late con el compás, propulsores que se encienden al saltar:
 pop and lock, el salto cohete, una pose de héroe); luego la familia: Trino, el pájaro
 cantor; Miso, el gato; Lana, la oveja; Tic, el robot metrónomo; Corchea, la nota; Sol, el
-niño. Una canción hecha antes de Fuga conserva su personaje: un bailarín guardado sin
-ninguno sigue con Trino.
+niño. Una canción conserva su personaje: un bailarín guardado sin ninguno sigue con el de
+su época: Trino antes de Fuga, Fuga antes de Compás.
 
 ## La ventana
 

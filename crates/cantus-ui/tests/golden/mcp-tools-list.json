@@ -552,11 +552,12 @@
               "lamina",
               "organum",
               "chorda",
+              "tympanum",
               "dancer",
               "firmus",
               "pulsus"
             ],
-            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); dancer (Saltator: a character that dances on screen and makes no sound: it dances to the beat by itself; `move` (0 = to the beat, else a move by number) and its other numbers are automatable; notes C3–D#4 (48–63) play its sixteen moves); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
+            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); tympanum (Tympanum: acoustic drummer: modelled kits with movable virtual microphones and recorded multi-mic kits, each mic its own output; pieces on General MIDI drum notes (kick 36, snare 38, closed hat 42…)); dancer (Saltator: a character that dances on screen and makes no sound: it dances to the beat by itself; `move` (0 = to the beat, else a move by number) and its other numbers are automatable; notes C3–D#4 (48–63) play its sixteen moves); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
           },
           "name": {
             "type": "string",
@@ -700,11 +701,12 @@
               "lamina",
               "organum",
               "chorda",
+              "tympanum",
               "dancer",
               "firmus",
               "pulsus"
             ],
-            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); dancer (Saltator: a character that dances on screen and makes no sound: it dances to the beat by itself; `move` (0 = to the beat, else a move by number) and its other numbers are automatable; notes C3–D#4 (48–63) play its sixteen moves); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
+            "description": "The instrument: unda (Unda: wavetable / hybrid synth: pads, leads, plucks, basses, vocal-like formant tables); calor (Calor: analog-modelling polysynth: warm pads, brass, sync leads); modulus (Modulus: FM and additive synth: bells, electric pianos, metallic and glassy tones); exemplar (Exemplar: multisample sampler (SFZ, Decent Sampler, SF2); silent until an instrument is loaded); gravis (Gravis: bass: 808, modelled electric bass, synth bass); lamina (Lamina: modelled electric piano (tines, reeds)); organum (Organum: tonewheel organ with drawbars and a rotary speaker); chorda (Chorda: modelled grand piano with a sustain pedal parameter (`pedal`, 0 up … 1 down)); tympanum (Tympanum: acoustic drummer: modelled kits with movable virtual microphones and recorded multi-mic kits, each mic its own output; pieces on General MIDI drum notes (kick 36, snare 38, closed hat 42…)); dancer (Saltator: a character that dances on screen and makes no sound: it dances to the beat by itself; `move` (0 = to the beat, else a move by number) and its other numbers are automatable; notes C3–D#4 (48–63) play its sixteen moves); firmus (Firmus: the simple built-in two-oscillator subtractive synth); pulsus (Pulsus: synthesized drum kit: pads on General MIDI drum notes (kick 36, snare 38, closed hat 42…))."
           },
           "expected_revision": {
             "type": "integer",
@@ -6263,6 +6265,58 @@
       },
       "annotations": {
         "title": "Edit a pad's chain",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_pad_track",
+      "title": "Choose a pad's mixer strip",
+      "description": "Send one pad of a Pulsus kit to a mixer strip of its own, as FL Studio's per-channel mixer track: strip_id names any audio strip of the desk (a bus, another channel's strip), free=true takes the first free strip (named after the pad), and neither puts the pad back on the kit's strip. The pad then plays there and only there — the kit's strip, its inserts and fader no longer touch it; a pad with a chain keeps it. Refused for a VCA or a pad's chain. One undo step. Answers the strip the pad plays on.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The kit's track"
+          },
+          "pad": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 127,
+            "description": "The pad, by its note (36 the kick on the General MIDI map)."
+          },
+          "strip_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The mixer strip the pad plays on; left out (and free false), the kit's own"
+          },
+          "free": {
+            "type": "boolean",
+            "default": false,
+            "description": "The first free strip of the desk."
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The project's revision this call was planned against (every result says the revision). If the project changed since, nothing is done and the error gives the new revision: read again and retry."
+          },
+          "change": {
+            "type": "string",
+            "description": "A change's handle from begin_change: this call joins that change's one undo step."
+          }
+        },
+        "required": [
+          "track_id",
+          "pad"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "title": "Choose a pad's mixer strip",
         "readOnlyHint": false,
         "destructiveHint": false,
         "idempotentHint": false,

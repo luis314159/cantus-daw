@@ -661,6 +661,26 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
         // Its lines one under the other (in a row they ran side by side), as the faces'.
         ui.vertical(|ui| note(ui, &t("cables.style.hint"), false));
     });
+    // How the instruments' pictures are drawn: Drawn (the default) or Photographic
+    // (round 40, ADR 0126). r40:scene
+    ui.horizontal(|ui| {
+        w::row_label(ui, "scene.pictures", LABEL_W, 24.0);
+        use crate::scene::SceneBackend;
+        let mut sel = SceneBackend::ALL
+            .iter()
+            .position(|b| *b == app.settings.instrument_pictures)
+            .unwrap_or(0);
+        let labels = SceneBackend::ALL.map(|b| Src::Key(b.key()));
+        if segmented(ui, &mut sel, &labels, &t("scene.pictures"), 240.0).changed() {
+            app.settings.instrument_pictures = SceneBackend::ALL[sel];
+            crate::scene::backend::set_default(SceneBackend::ALL[sel]);
+            app.store_settings();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 18.0);
+        ui.vertical(|ui| note(ui, &t("scene.pictures.hint"), false));
+    });
     ui.horizontal(|ui| {
         w::row_label(ui, "settings.colours", LABEL_W, 24.0);
         if w::button(ui, Src::Key("settings.edit_colours"), 0.0, true).clicked() {
@@ -673,6 +693,9 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
             app.show_shortcuts = true;
         }
     });
+    // The owner's look answers: maximise, the top bar's extras, the mixer's dock, the
+    // inspector's values, Mute's colour (round 40). r40:look
+    super::owner_look::settings_section(app, ui);
     look_icon(app, ui);
 }
 
@@ -821,7 +844,7 @@ pub fn scrim(ctx: &Context, id: &str) {
 pub fn scrim_fill(s: &Style) -> egui::Color32 {
     // A recessed family's scrim is the kit's token, as `kit::dialog` lays it (one veil).
     if s.t.system.recessed() {
-        s.t.scrim
+        crate::kit::dialog::scrim_colour(&s.t) // r40:look — lighter in Paper
     } else if s.t.dark {
         crate::kit::color::with_alpha(s.t.ink, 0.58)
     } else {

@@ -104,7 +104,11 @@ fn dancer(
     actions: &mut Vec<Action>,
 ) {
     let ppp = ctx.pixels_per_point();
-    let a = Area::of(area, ppp, FLOAT_STANDARD);
+    // Floating over the workspace: the Slate cast cuts its pieces in the panels' colour
+    // (r40:cast).
+    let t = crate::kit::Style::current().t;
+    let a =
+        Area::of(area, ppp, FLOAT_STANDARD).with_ink(crate::dance_texture::stage_ink(&t, t.panel));
     // What can be seen: the workspace, within the screen (egui's provisional screen before
     // a first frame at a new scale is far larger).
     let seen = area.intersect(ctx.content_rect());

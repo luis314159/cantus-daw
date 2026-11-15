@@ -1,8 +1,54 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-11 (round 39: **the whole window redrawn by hand** — three directions drawn from blank sheets and **Slate** chosen by the owner as the default look, Graphite and gold, Studio ink and **Slate Lapis** beside it (a night-blue room, lapis on the selection, gold readouts), **the ten older themes back, redrawn in its system** (Pewter and Chalk the FL-derived pair, renamed) and four new ones — twenty-four, every one measured easy to read (ADR 0111); the kit draws the approved sheets (ADR 0108): Barlow Semi Condensed, recessed wells, an icon family drawn for each device size (sets 2–5) and **316 track icons**, logo **#03** the default and the application's icon; the top bar in one row with its More panel, every control family, the mixer and its inspector (Level, Show in the arrangement, Freeze figures), cables in four styles, the piano roll's keyboard as an instrument, the rack, the browser (grouped search, favourites, the preview card, the Sound packs window) and the arrangement (sections, folders, a mode per lane, a track's icon, the tools and Follow — ADRs 0113, 0114); **a driven control says so, the help line is never empty, nothing truncated** (ADR 0109); panels fold and maximise, the keyboard reaches every menu, the daily click paths counted and shortened (ADR 0110); **Aula**, the convolution reverb (ADR 0112); **Delay's own window**, its echoes drawn in time and dragged (ADR 0115); **the engine's memory grows with the song** (ADR 0107): the processor 95.8 → 8.0 MB, private memory 237 → 140 MB on an empty song (measured on a quiet machine; still behind REAPER and FL Studio); the website rebuilt from its review. Version **0.1.0-beta.14** (Windows, Linux, and macOS as an unsigned preview). Schema 61, `DSP_VERSION` 6, keymap 16. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 6 781 pass on Windows (106 ignored), the engine fuzz 1 145 at `CANTUS_WORKERS=3`, 6 742 on Linux (106 ignored) (WSL Ubuntu 24.04); clippy and fmt clean on both
+**Updated:** 2026-11-14 (round 40, on master as one squashed commit: **Chorda toward the Salamander** — sixteen voicing candidates behind neutral knobs, the owner's blind test of candidate 7 (16/16 told apart; his complaints traced and fixed: a clamped allpass left D3 −46 cents, the strike point was misplaced by the model), candidate 16 meeting his bar in measures and its ABX published for him and his listeners, **candidate 16 shipped as the default** on the owner's word (`DSP_VERSION` 7, ADR 0098's third amendment; his blind ABX stays in the backlog); **Chorda plays recorded pianos** — the Salamander, bitKlavier's nine microphone images, Accurate-Salamander, two uprights, your own SFZ, Decent Sampler or SF2 by *Install from a file…* — with its own mixer and outputs to strips (ADRs 0123, 0125); **Tympanum, the acoustic drummer** — modelled kits with movable virtual mics (model 5, measured off DRSKit and Virtuosity), six recorded multi-mic kits, the kit in its room, the bleed matrix, each mic to its own strip, a *Hybrid* voice with recorded attacks under the model, the generated voice at 7.3 % of a core with every mic (ADR 0124; **in the device picker** since the close, its blind listening in the backlog); **bands on the mixer's desk** for groups and an instrument's family (ADR 0016 amended); **the instruments' pictures** *Drawn* (default) or *Photographic* (ADR 0126); **insert and delete time, the section drag, the ripple mode** (ADR 0116); a pad's own mixer track, *Hear the key*, *Record before or after FX* (ADRs 0117, 0118); **Delay synced to the tempo and Cantus Delay as a CLAP/VST3 plug-in** (ADR 0119); the owner's look answers (ADRs 0110, 0111 amended); **the Slate cast**, twelve dancers, Compás the default (ADR 0122); the private bytes outside the heap mapped and four levers (ADR 0120). Version still **0.1.0-beta.14**. Schema 71, `DSP_VERSION` 7, keymap 17. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 7 183 pass on Windows (124 ignored, 0 failed) and 7 142 on Linux (124 ignored, 0 failed; WSL Ubuntu 24.04) on the ship's tree `601e244f` (candidate 16 the default, Tympanum in the picker); before it 7 175 and 7 134 on the final tree `2e3982a1` — the sandbox test that fails only under load (`a_hang_never_blocks_the_interfaces_frames_and_is_ended`) passed in both full runs; clippy `-D warnings` clean on both, fmt clean on both (per crate and file on Windows, `cargo fmt --all` in WSL)
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 40 left
+
+Round 40 is merged into **`r40/integration`** (`F:\projects\daw-r40\integration`) and
+**squashed onto master** (2026-11-14, on the owner's word); no beta.15 is cut — the owner hears the round first and says when (he could
+not listen for some days from 2026-11-14). The account: `docs/round40/integration.md`; one
+report per builder beside it. The last two builders were merged at the close-out:
+`r40/drums-gen` at `4e622739` (drums-gen 3: Tympanum's cost 18.7 → 7.3 % of a core with every
+mic, 71 of the 162 measured cues, the eleventh listen, hybrid version 3 packs — uploaded to
+`content-r40` with the owner's OK) and `r40/chorda` at `927fd92a` (candidates 13–16). The prompt for the next
+session is `docs/next-session.md`:
+
+1. **What waits for the owner's ear** (nothing ships before it):
+   - **Chorda candidate 16's ABX** — https://claude.ai/artifact/Jpwa91Tz4V8rbcRrgiXMKg for him
+     and the listeners he hands it to (the offline FLAC zip `compartir\cantus-chorda-abx16.zip`
+     for those outside the organisation). On his word (2026-11-14) **candidate 16 is shipped as
+     the default** (`DSP_VERSION` 7, ADR 0098's third amendment, the 24 presets re-trimmed); his
+     listening and blind ABX stay in the BACKLOG and aim the next voicing pass. His to decide:
+     a new Chorda sits 10.4 LU under the family's reference on the staging triad — raising it
+     squeezes the fortissimo into the output ceiling.
+   - **Tympanum b10 and b11** (`compartir\tympanum-b10\`, `compartir\tympanum-b11\`: b11 passes
+     71 of 162 checks, b10 57, b9 21), the default kit, and **the hybrid** against the generated
+     voice (version 3's packs, `tympanum-hybrid-{jazz,studio}-3.zip`, are on the public release
+     `content-r40` with his OK — the manifest's entries; the ignored networked
+     `the_published_hybrid_pack_downloads_matches_its_hash_and_fits_this_model` passes against
+     them; listens in `F:\projects\daw-r40\tmp\hyb\v3\listen-{jazz,studio}\`).
+   - bitKlavier against the Salamander (`compartir\pianos-c\`): the default recorded piano.
+2. **His eyes and hands** (`docs/beta-checklist.md`, *Ronda 40*): the look answers, the ripple's
+   gestures, Delay in another DAW, the pad's own track and an After FX take in duplex, the
+   twelve dancers, Chorda's and Tympanum's views, the bands on the desk, *Photographic* on a
+   real GPU at 100 and 150 %, a real DrumGizmo kit installed from a file, a kit change by ear,
+   the hybrid's download in the app, Tympanum and recorded Chorda at a low buffer.
+3. **His decisions** (`docs/round40/integration.md`, «What is left»): Cantus Delay's ids
+   (forever), the pad's own-track number in the accent, the typing key's fold, Compás's
+   *Cueing*, the blues over a chroma key, Paper's sheets, a default room for a recorded piano,
+   Tympanum's default kit (it is in the device picker since 2026-11-14), the CC BY grant emails.
+4. **Then round 41 (proposed)**: Tympanum's **model 6** (the ladder's per-element plan: the
+   kick on a fine noise table, minimum-phase attack grains for the drums, a per-bin layer for
+   the hats and cymbals, monotone tails; ≈ 6.5–7 % of a core); **microtuning** for Chorda and
+   Tympanum (a project tuning, Scala and MTS-ESP, temperaments and presets by key, stretch,
+   unison width, a per-key editor; each drum tuned in Hz and note, two heads, toms tuned to the
+   song); more on the pictures; **Tympanum's blind listening kit** (each modelled kit against the
+   recording it was measured from, piece by piece and in a groove — BACKLOG) and the owner's
+   verdict; Chorda's model's five outputs played apart.
+5. **beta.15** only after the owner's OK: the full suite, clippy and fmt on Windows and Linux on
+   the final tree, the scorecard measured on a quiet machine, then master and the tag.
 
 ## The next session: what round 39 left
 
@@ -571,6 +617,45 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 40: Chorda toward the Salamander, recorded pianos, Tympanum, the mixer's bands and the instruments' pictures; the ripple, pads, Delay, the cast (requested 2026-11-11)
+
+**The ask:** `docs/next-session.md` — Chorda *"tan bien como el Salamander"*, insert and delete
+time with the section drag, the memory row, and the owner's twenty-two answers to round 39
+built as features; on 2026-11-12 he widened it (phase 3): recorded pianos in Chorda following
+the standard, an instrument mixer with outputs to strips, and a Superior Drummer-class acoustic
+drummer — Tympanum; on 2026-11-13 a hybrid drum voice as an option and microtuning (designed,
+for round 41). Round 39's look was accepted on his screen first (*"no encontré nada malo
+nuevo"*). Three phases, three integrated reviews (fix-a … fix-f). Account:
+`docs/round40/integration.md`.
+
+| Part | What changed |
+|---|---|
+| Chorda's voicing (ADR 0098; `chorda.md`) | Sixteen candidates, each part neutral at beta.14's values (model 2 pinned to the contract's bits; `DSP_VERSION` 6): register bands, the damped floor, the ceiling moved to −1 dBFS, a second polarisation, uneven unisons, the microphones' arrival-time difference, a bass formant, model 2's own keyboard and its evening, each unison string's own life, the tuning gate (a clamped allpass had left D3 −46 cents), the key's own damper, **the strike point placed true** (the "nasal" middle), each key's draw and own loss. The owner's blind test of candidate 7: ABX 16/16 against the Salamander, the Salamander preferred in six of seven phrases, candidate 7 in the top octave. Candidate 16 meets his bar in measures (every key within 10 cents; the last soft chord's D3–A3 fifth 1.18 Hz against 0.68; round 38's metric 4.49, target 3.7) and its ABX is published (candidate 14's stays up, unused). **Shipped as the default on his word** (2026-11-14; `DSP_VERSION` 7, ADR 0098's third amendment; pins: beta.14's by name, the new default's `0x717d_64b7_22b9_e71b`; no golden moved; the 24 presets re-trimmed); his ABX is in the BACKLOG |
+| Recorded pianos and Chorda's mixer (ADRs 0123, 0125; schemas 66, 68) | *Source*: Chorda 2 · Chorda 1 · the Salamander (the default recorded piano) · bitKlavier's nine images · Accurate-Salamander · Upright KW · Old Piano FB · the *Manual* pianos · your own (*Install from a file…*: SFZ, Decent Sampler, SF2, DrumGizmo, archives; off the window's thread). One undo step a switch; FLAC at install, checked sample for sample; zone tables sized to the instrument. The **Mixer** view: outputs by family, *Each mic to its own strip* (to the bit), *Add our room*, a mic's delay |
+| Tympanum (ADR 0124; schemas 67, 71) | Modelled kits (Studio Maple, Jazz Birch; movable virtual mics; **model 5** measured off DRSKit and Virtuosity) and six recorded multi-mic kits (Gogodze, DRSKit, CrocellKit, MuldjordKit, Virtuosity, Big Rusty), a user's own kit; one draw per hit for every mic, CC4 hats, the Feel card, the player's figures, the kit in its room (picture and sound one step), the bleed matrix, each mic to Main / its strip / a chosen strip; **Generated · Hybrid** (recorded attacks deconvolved under the model; packs v3 on `content-r40`). Ten listens with the owner and the eleventh waiting; the fifteen-cue analysis (b11: 71 of 162 checks, b10 57, b9 21); the ladder's MUSHRA and the "iuuu" swell fixed; model 6 planned. Cost under budget since drums-gen 3: the full kit with every mic 7.3 % of a core (was 18.7), model 5 alone 6.0 %, the sound unchanged. **In the device picker** since 2026-11-14 (ADR 0124's fifth amendment: in `InstrumentKind::ALL`, the contract's twins, checkpoints, Learn on every control); its blind listening is in the BACKLOG |
+| Bands on the desk (ADRs 0016, 0123 amended; schema 70) | A group is a band that folds into one strip (members named, meters side by side), its edge dragged to take in a strip; an instrument's family reads apart; one band per strip; family sub-groups made with *Each mic*; a bus added to a family's band |
+| The pictures (ADR 0126; ADR 0104) | The designer's projected vectors (*Drawn*, the default) and the per-pixel renderer (*Photographic*: traced reflections, soft shadows, baked on a low-priority pool that lets go) — *Settings ▸ Appearance ▸ Instrument pictures*. Eight checkpoints to the reference: a two-leaf lid that never meets the desk, the upright, light finishes, chrome as tube strokes, cymbals, heads, strings, keys (*"¡Van increíbles los pianos, excelente!!!"*). Drawn 1.05× its time before the pass |
+| Insert and delete time, the ripple (ADR 0116; keymap 17) | *Insert time* / *Delete time* on the whole song (clips split, automation, tempo, metre, markers, sections, loop, punch, cues; delete heals an insert's cut; insert-then-delete the identity on 400 random songs); the section drag moves its bars on every track (*Insert* by default, *Replace* a setting; Shift the other, Ctrl copies); the ripple mode Off · This track · Every track |
+| Pads, the key, the take (ADRs 0117, 0118; schema 62) | A pad's own mixer track chosen per pad in the rack's well; *Hear the key* under a keyed insert (never in a render or an After FX take); *Take from: Before FX · After FX*; the engine starts with no compensation line |
+| Delay (ADR 0119) | *Free · Sync*: note values 1/64 … 4/1 straight, dotted, triplet; a ramp slides as tape, a jump crossfades; the line grows with the note off the audio thread, moved in bounded stretches; **Cantus Delay** the 25th CLAP/VST3 plug-in (its ids for the owner to confirm) |
+| The owner's look answers (ADRs 0110, 0111) | *Layout and controls*: the dock at the window's edge, maximise keeps the inspector, the top bar's extras, value bars, Mute in colour; Paper's sheets; Slate Lapis C; Bordeaux and Pewter softer; Slate Paper compared "less blue" and kept |
+| The Slate cast (ADR 0122; schema 65) | Twelve dancers on the designer's rig, Compás the default; Espectro hears the song live and in a video; the theme's light on every stage; the picker scrolls |
+| Memory (ADR 0120) | The private bytes mapped: Cantus's live heap 25 MB, a bare OpenGL window 105–109 MB on the scorecard laptop; four levers −15 to −17 MB mapped on a busy machine (136.5 → 121.2 MB empty, 140.4 → 123.6 *Beat*); the scorecard not measured (no quiet machine this round) |
+| Reviews | Mid-round (fix-a, fix-b), review 2 (fix-c, fix-d), the mid-phase review of `40a27bb7` (fix-e: output delays glide, cheap configures under automation, fades on steals, Feel's queue, refusals forgotten, pad ids; fix-f: kit changes carry the mixer, presets keep a recorded source, a user's DrumGizmo kit plays, installs staged and cancellable, scenes freed) |
+| Verified only in emulation | Every picture and gesture (the CPU renderer, synthetic events through `assemble`); the drums and pianos measured, not heard, by agents; Delay never in another DAW; the big packs never downloaded through the app by a user; streaming only offline. The owner's steps: `docs/beta-checklist.md`, *Ronda 40* |
+
+**The ship (2026-11-14, `5e490e00`, `5f09771b`, `601e244f`).** The owner: *"Add Tympanum at once. Ship …
+with Chorda's newest version (if it's the best) — but keep in the backlog listening and doing
+the ABX evaluation, the same for Tympanum."* Chorda's model 2 plays candidate 16 by default
+(`DSP_VERSION` 7): the voicing baked verbatim from the lab's files, beta.14's voicing kept by
+name; three faults only its parts showed fixed (the evening re-levelled keys with *Width*; a
+switch to model 1 froze two filters; a voice's later microphone side made the block size
+audible at −115 dBFS); no golden hash moved; the engine plays the lab's candidate 16. Tympanum
+is in the device picker (*Drums*, beside Pulsus) and in `InstrumentKind::ALL`: every kind-wide
+test now holds it (its cymbals' own silence bounds: 45 s, rest within 60 s). Open for the
+owner: both blind listening tests (BACKLOG) and a new Chorda's level (10.4 LU under the
+family's reference). Account: `docs/round40/integration.md`, *The ship*. **Tests:** Windows 7 183 pass (124 ignored, 0 failed: the full run and the six it found, fixed and run again), Linux 7 142 (124 ignored, 0 failed) on `601e244f`; clippy and fmt clean on both.
 
 ## Round 39: UX and graphics, the whole window drawn by hand — Slate, the kit, the icon family, every view; Aula; the engine's memory (requested 2026-11-08)
 

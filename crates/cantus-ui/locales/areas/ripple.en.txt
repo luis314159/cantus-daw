@@ -1,0 +1,64 @@
+# Area: ripple - round 40 (ripple). Every key has its twin in ripple.es.txt
+# Insert and delete time, the section drag, the ripple mode (ADR 0116)
+cmd.ripple.insert_time = Insert time
+cmd.ripple.delete_time = Delete time
+cmd.ripple.move_bars = Move a section's bars
+cmd.ripple.copy_bars = Copy a section's bars
+cmd.ripple.insert_bars = Move a section's bars in
+cmd.ripple.insert_copy_bars = Copy a section's bars in
+action.insert-time = Insert time
+action.delete-time = Delete time
+action.ripple-mode = Ripple mode: off, this track, every track
+# Lengths and places
+ripple.one_bar = 1 bar
+ripple.bars = {n} bars
+ripple.one_beat = 1 beat
+ripple.beats = {n} beats
+# The status line
+ripple.status.inserted = Inserted {len} at {at} on every track
+ripple.status.deleted = Deleted {len} at {at} on every track
+ripple.status.select_first = Select the time to delete first: drag in the ruler
+ripple.status.moved = {name}: {len} moved to {at}
+ripple.status.copied = {name}: {len} copied to {at}
+ripple.status.moved_in = {name}: {len} moved in at {at}; the song after it moved on
+ripple.status.copied_in = {name}: {len} copied in at {at}; the song after it moved on
+ripple.status.off = Ripple off: an edit moves only what it touches
+ripple.status.track = Ripple on this track: what follows a clip moves with it
+ripple.status.all = Ripple on every track: what follows moves on every track
+# The menus
+ripple.menu.band = Time
+ripple.menu.insert = Insert time
+ripple.menu.delete = Delete time
+# A section in the sections lane
+ripple.section.tip = Drag to put its bars in elsewhere on every track · Shift replaces · Ctrl copies · drag its end to resize · double-click to rename
+ripple.section.tip_replace = Drag to move its bars on every track · Shift inserts · Ctrl copies · drag its end to resize · double-click to rename
+ripple.section.fit = Move the section to the time selection
+# A section being dragged
+ripple.drag.tip = {name} · {len} → {at} · {what}
+ripple.drag.still = where it was
+ripple.drag.move = replaces what is there
+ripple.drag.copy = a copy replaces what is there
+ripple.drag.insert = goes in here, the song after it moves on
+ripple.drag.insert_copy = a copy goes in here, the song after it moves on
+ripple.drag.keys = Ctrl: copy · Shift: insert · Alt: off the bars
+cmd.ripple.delete_clips = Delete clips and close the gap
+ripple.mode.track = Ripple · this track
+ripple.mode.all = Ripple · every track
+ripple.key.tip = Ripple ({keys}): off, this track or every track · when it is on, deleting, moving or lengthening a clip moves what follows it
+ripple.drag.keys_replace = Ctrl: copy · Shift: replace · Alt: off the bars
+ripple.menu.mode = Ripple
+ripple.menu.off = Off
+ripple.menu.track = This track
+ripple.menu.all = Every track
+ripple.settings.band = Arrangement
+ripple.settings.drag = Section drag
+ripple.settings.insert = Insert
+ripple.settings.replace = Replace
+ripple.settings.drag_note = A section dragged in the sections lane takes its bars on every track. Insert puts them in where they land and the song moves on (nothing is overwritten, as in Logic and Studio One); Replace overwrites what is there. Shift gives the other one; Ctrl copies.
+cmd.ripple.paste = Paste and move what follows on
+# r40:fix-d (R2-B1) — a time key refused: why, and the way there
+ripple.keys.hidden = Insert and delete time work in the arrangement: show it first
+ripple.keys.focus = Insert and delete time work in the arrangement: click it, or move there with {key}
+ripple.keys.focus_click = Insert and delete time work in the arrangement: click it first
+ripple.keys.pointer = Insert and delete time work in the arrangement (the pointer is on {area}): point at it, or move there with {key}
+ripple.keys.pointer_click = Insert and delete time work in the arrangement (the pointer is on {area}): point at it

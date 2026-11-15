@@ -34,12 +34,20 @@ pub mod analog;
 pub mod bass;
 /// Chorda, the modelled grand piano (round 28).
 pub mod chorda;
+/// Chorda's source and mixer (round 40 phase 3, ADR 0125). // r40:chorda-src
+pub mod chorda_source;
 /// Saltator, the dancer (round 35, ADR 0087). // r35:dancer
 pub mod dancer; // r35:dancer
 pub mod epiano;
 pub mod fm;
+/// An instrument's own mixer (round 40 phase 3, ADR 0123): Tympanum's and Chorda's. // r40:tymp-ui
+pub mod inst_mixer;
 pub mod organ;
+/// The room card over Tympanum's and Chorda's pictures (round 40 phase 3, ADR 0126).
+pub mod room_card; // r40 integration
 pub mod sampler;
+/// Tympanum, the acoustic drummer (round 40 phase 3, ADR 0124). // r40:p3
+pub mod tympanum;
 pub mod wavetable;
 
 /// Telemetry slots the frame reads (the rest are the instrument's own).
@@ -76,6 +84,9 @@ pub enum View {
     Play,
     Edit,
     Matrix,
+    /// r40:chorda-src — the instrument's own mixer (ADR 0123, 0125): its named outputs, for
+    /// the kinds that have them (Chorda; Tympanum's mixer lands here too).
+    Mixer,
 }
 
 /// State of the instrument editors behind this module.
@@ -88,6 +99,8 @@ pub struct InstEditors {
     pub injected: Option<cantus_engine::Telemetry>,
     /// The other side of A/B per track, and whether B is showing.
     ab: HashMap<TrackId, (NativeSpec, bool)>,
+    /// r40:chorda-src — Chorda's source list shows its previous models.
+    pub chorda_source_open_previous: bool,
     /// Keys the on-screen keyboard is holding down.
     pub held: Vec<u8>,
     /// The source being dragged from the macro bar or the modulation strip.
@@ -113,9 +126,45 @@ pub struct InstEditors {
     pub organ: organ::State,
     pub chorda: chorda::State,
     pub dancer: dancer::State, // r35:dancer
+    /// r40:integration — Tympanum's scenes (ADR 0126) by track and place: 0 the Kit view's
+    /// picture, 1 the Mixer view's band. Each keeps its own build, so a frame at rest
+    /// rebuilds nothing.
+    pub tympanum_scenes: std::collections::BTreeMap<(u64, u8), crate::scene::Scene>,
+    /// r40:fix-f — the song the scenes were drawn for (`CantusApp`'s epoch): another song
+    /// loaded, every scene goes.
+    pub scenes_epoch: u64,
 }
 
 impl InstEditors {
+    /// r40:fix-f (review of 40a27bb7, finding 6) — the scenes of tracks that are gone, or
+    /// no longer host the instrument the scene draws, are dropped (their textures freed,
+    /// their place in the shared worker given up); another song loaded (`epoch` changed),
+    /// all of them. Every frame: a scan of a handful of entries, nothing allocated.
+    pub fn prune_scenes(&mut self, project: &cantus_core::Project, epoch: u64) {
+        if self.scenes_epoch != epoch {
+            self.scenes_epoch = epoch;
+            self.tympanum_scenes.clear();
+            self.chorda.clear_scenes();
+            return;
+        }
+        let kind = |id: u64| {
+            project
+                .tracks
+                .iter()
+                .find(|t| t.id.0 == id)
+                .and_then(|t| t.instrument.native())
+                .map(|n| n.kind)
+        };
+        self.tympanum_scenes.retain(|(id, _), _| {
+            matches!(
+                kind(*id),
+                Some(InstrumentKind::AcousticDrums | InstrumentKind::Chorda)
+            )
+        });
+        self.chorda
+            .retain_scenes(|id| kind(id) == Some(InstrumentKind::Chorda));
+    }
+
     pub fn on_b(&self, track: TrackId) -> bool {
         self.ab.get(&track).is_some_and(|(_, b)| *b)
     }
@@ -222,12 +271,24 @@ impl CantusApp {
         if now.kind != target.kind {
             return;
         }
+        // r40:fix-f — a preset naming another piano or kit switches to it first, in the same
+        // step (the switch carries the outputs and the strips); the rest is set on top.
+        let mut commands = Vec::new();
+        let mut now = now;
+        if let Some(sw) = self.preset_source_switch(track, &now, target) {
+            let mut after = self.project().clone();
+            if sw.clone().apply(&mut after).is_ok() {
+                if let Some(n) = after.track(track).and_then(|t| t.instrument.native()) {
+                    now = n.clone();
+                    commands.push(sw);
+                }
+            }
+        }
         let target = &preset_target(&now, target, self.project().tempo_bpm); // r35:dancer, r37:piano
                                                                              // r37:piano — a preset on an old song's Chorda moves it to model 2: say so.
         let to_model_2 = now.kind == cantus_core::InstrumentKind::Chorda
             && now.get("model") < 1.5
             && target.get("model") >= 1.5;
-        let mut commands = Vec::new();
         for (k, v) in &target.params {
             if now.params.get(k) != Some(v) {
                 commands.push(Command::SetInstrumentValue {
@@ -271,6 +332,40 @@ impl CantusApp {
             && to_model_2
         {
             self.set_status(crate::i18n::t("chorda.now_model2")); // r37:piano
+        }
+    }
+
+    /// r40:fix-f — the switch a preset (or A/B) asks for when it names another source than
+    /// the one playing: a Chorda's recorded piano (`chorda_source::switch`, read from its
+    /// pack), a Tympanum's kit (its routes, mixer and strips carried). `None`: it names
+    /// none, the one playing, or one that cannot be played (kept, then).
+    pub fn preset_source_switch(
+        &mut self,
+        track: TrackId,
+        now: &NativeSpec,
+        target: &NativeSpec,
+    ) -> Option<Command> {
+        use cantus_core::inst::{chorda_source as cs, tympanum as ty};
+        match now.kind {
+            InstrumentKind::Chorda => {
+                let to = target.text(cs::SOURCE_KEY)?;
+                if Some(to) == now.text(cs::SOURCE_KEY) {
+                    return None;
+                }
+                let cs::ChordaSource::Recorded(r) = cs::ChordaSource::parse(to)? else {
+                    return None;
+                };
+                self.recorded_switch(track, now, &r, None).ok()
+            }
+            InstrumentKind::AcousticDrums => {
+                let to = target.text(ty::KIT_KEY)?;
+                if Some(to) == now.text(ty::KIT_KEY) {
+                    return None;
+                }
+                let kit = ty::KitRef::parse(to)?;
+                tympanum::kit_change::plan(self, track, &kit)
+            }
+            _ => None,
         }
     }
 
@@ -449,7 +544,66 @@ pub fn save_user_preset(spec: &NativeSpec, name: &str) -> Result<(), String> {
 /// audition. r37:piano
 pub fn preset_target(now: &NativeSpec, target: &NativeSpec, song_bpm: f64) -> NativeSpec {
     let kept = crate::dance_live::keep_through_preset(now, target);
+    let kept = keep_source_through_preset(now, &kept); // r40:fix-f
     crate::sectio_ui::styles::through_style(now, &kept, song_bpm)
+}
+
+/// r40:fix-f — what a preset (or A/B) leaves of what a Chorda or a Tympanum plays and of
+/// its mixer (review of 40a27bb7, finding 3: a preset on a recorded piano switched it back
+/// to the model). A preset that names no source — no piano (`source`), no kit (`kit`), or
+/// the one playing — keeps it, with everything that goes with it:
+///
+/// - **Chorda**: `source` and every `rec.*` key (the recorded piano's zones); each output's
+///   `o{n}.*` mix; the room's look always and, while a recorded piano plays, the piano's
+///   look too (a model's preset says which piano it draws; a recorded piano looks as it is).
+/// - **Tympanum**: `kit`, each mic's `o{n}.*` mix, its moves (`m{n}.*`) and the bleed
+///   cells (`b{p}.{m}.*`).
+///
+/// A preset naming another piano or kit is switched to first (`CantusApp::apply_inst_spec`,
+/// [`CantusApp::preset_source_switch`]), then kept the same way.
+pub fn keep_source_through_preset(now: &NativeSpec, target: &NativeSpec) -> NativeSpec {
+    use cantus_core::inst::{chorda_look, chorda_source as cs, tympanum as ty};
+    use cantus_core::inst_out::output_key;
+    let mut t = target.clone();
+    let source_key = match now.kind {
+        InstrumentKind::Chorda => cs::SOURCE_KEY,
+        InstrumentKind::AcousticDrums => ty::KIT_KEY,
+        _ => return t,
+    };
+    if target
+        .text(source_key)
+        .is_some_and(|x| Some(x) != now.text(source_key))
+    {
+        return t;
+    }
+    let recorded = now.kind == InstrumentKind::Chorda && cs::ChordaSource::of(now).is_recorded();
+    let kept = |k: &str| -> bool {
+        if k == source_key || output_key(k).is_some() {
+            return true;
+        }
+        match now.kind {
+            InstrumentKind::Chorda => {
+                k.starts_with(cs::REC_PREFIX)
+                    || (chorda_look::KEYS.contains(&k)
+                        && (recorded
+                            || !(k == chorda_look::BODY_KEY || k == chorda_look::FINISH_KEY)
+                            || target.text(k).is_none()))
+            }
+            _ => {
+                ty::bleed_key(k).is_some()
+                    || cantus_core::inst::sampler::split_indexed(k, b'm', ty::MAX_MICS).is_some()
+            }
+        }
+    };
+    t.params.retain(|k, _| !kept(k));
+    t.text.retain(|k, _| !kept(k));
+    for (k, v) in now.params.iter().filter(|(k, _)| kept(k)) {
+        t.params.insert(k.clone(), *v);
+    }
+    for (k, v) in now.text.iter().filter(|(k, _)| kept(k)) {
+        t.text.insert(k.clone(), v.clone());
+    }
+    t
 }
 
 pub fn preset_spec(kind: InstrumentKind, preset: &FactoryPreset) -> NativeSpec {

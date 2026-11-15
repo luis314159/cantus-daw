@@ -1,0 +1,22 @@
+# Area: owner_look - round 40 (look). Every key has its twin in owner_look.es.txt
+# Settings ▸ Appearance ▸ Layout and controls (views/owner_look.rs): the owner's look answers, each a choice.
+owner_look.band = Layout and controls
+owner_look.note = How the workspace is laid out and how a few controls are drawn. Choices of this computer, not of the song.
+owner_look.maximise = Maximise keeps
+owner_look.maximise.inspector = The inspector beside it
+owner_look.maximise.nothing = Nothing: the whole workspace
+owner_look.topbar = Top bar extras
+owner_look.topbar.plain = None
+owner_look.topbar.automation = Automation arm
+owner_look.topbar.typing = Typing keyboard
+owner_look.topbar.both = Both
+owner_look.topbar.note = Automation arm: the key that arms automation writing. Typing keyboard: the computer keyboard, playing notes on the selected track.
+owner_look.dock = Mixer's right dock
+owner_look.dock.edge = At the window's edge
+owner_look.dock.after = After the last strip
+owner_look.values = Inspector values
+owner_look.values.bars = Value bars
+owner_look.values.slim = Slim bars
+owner_look.mute = Lit mute button
+owner_look.mute.colour = In colour
+owner_look.mute.grey = Grey

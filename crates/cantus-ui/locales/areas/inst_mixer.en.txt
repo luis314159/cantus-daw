@@ -1,0 +1,97 @@
+# Area: inst_mixer - round 40 phase 3 (tymp-ui). Every key has its twin in inst_mixer.es.txt
+# An instrument's internal mixer and its named outputs (ADR 0123), shared by Tympanum and Chorda.
+cmd.set_instrument_output = route an instrument's output
+cmd.inst_output_plan = route an instrument's outputs
+
+# The `o{n}.` fields (ADR 0123 §2).
+inst_mixer.level = Level
+inst_mixer.pan = Pan
+inst_mixer.width = Width
+inst_mixer.invert = Polarity
+inst_mixer.mute = Mute
+inst_mixer.solo = Solo
+inst_mixer.delay = Delay
+inst_mixer.delay_tip = Delay {v}: time-aligns a mic; 0 = as recorded. Drag sideways (Shift: finer) or double-click to type it.
+inst_mixer.on = Loaded
+
+# The family heads (`OutputFamily::label_key`).
+inst_mixer.family.other = Other
+inst_mixer.family.kick = Kick
+inst_mixer.family.snare = Snare
+inst_mixer.family.hihat = Hi-hat
+inst_mixer.family.toms = Toms
+inst_mixer.family.cymbals = Cymbals
+inst_mixer.family.overheads = Overheads
+inst_mixer.family.rooms = Rooms
+inst_mixer.family.perspective = Perspectives
+inst_mixer.family.noise = Noises
+inst_mixer.family.pad = Pads
+inst_mixer.family_tip = {name}: click to fold or unfold its strips.
+
+# The actions row (ADR 0123 §4).
+inst_mixer.outputs = Outputs
+inst_mixer.all_main = All to Main
+inst_mixer.by_family = Pieces to strips
+inst_mixer.each_own = Each mic to its own strip
+inst_mixer.all_main_tip = Every output back on the instrument's own strip; the strips made for them go when nothing else uses them. One undo step.
+inst_mixer.by_family_tip = One strip in the mixer for each family (kick, snare, toms…), its mics into it. One undo step.
+inst_mixer.each_own_tip = A strip in the mixer for every output, in order. One undo step.
+inst_mixer.result = {strips} strips in the mixer · {main} on Main
+inst_mixer.result_one = 1 strip in the mixer · {main} on Main
+inst_mixer.result_none = Everything on Main
+inst_mixer.refused = The outputs were not moved: {why}
+inst_mixer.mix = Mix
+inst_mixer.mix_custom = as you set it
+inst_mixer.mix_tip = The mix's presets: every fader, pan and bleed together. One undo step.
+inst_mixer.bleed = Bleed
+inst_mixer.bleed_tip = Off: each mic hears only its own pieces (every other cell silent); on: as recorded or modelled.
+inst_mixer.more = {n} more
+inst_mixer.more_tip = {n} more strips this way: click to scroll to them.
+inst_mixer.fewer = {n} before
+
+# A strip.
+inst_mixer.bleed_short = Bleed
+inst_mixer.width_short = Width
+inst_mixer.level_short = Level
+inst_mixer.invert_tip = Polarity: flips this output's phase (ø).
+inst_mixer.pan_tip = Pan · {v}
+inst_mixer.mute_tip = Mute this output
+inst_mixer.solo_tip = Hear this output alone
+inst_mixer.fader_tip = {name} · {db} dB. Drag; double-click for 0 dB.
+inst_mixer.out = Out
+inst_mixer.out_main = Main
+inst_mixer.out_own = Own strip
+inst_mixer.out_tip = {name} — Out: {where}. Click to choose: Main, a strip of its own, or another strip.
+inst_mixer.out_says_main = on Main: the instrument's own strip ({n})
+inst_mixer.out_says_own = its own strip ({n}). Its strip sums back into {inst} ({m}).
+inst_mixer.out_says_chosen = the strip {name} ({n}).
+inst_mixer.out_menu_main = Main ({name})
+inst_mixer.out_menu_own = Its own strip
+inst_mixer.out_menu_new = A new strip of its own
+inst_mixer.unloaded = unloaded
+inst_mixer.selected_tip = {name}: selected — its card is above.
+
+# Cantus's mixer: an instrument's strips under its family band (design item 4).
+inst_mixer.band = {name}
+inst_mixer.band_about = {inst} · {n} mics
+inst_mixer.band_about_one = {inst} · 1 mic
+inst_mixer.band_tip = {name}: {inst}'s strips. Click to fold them into one; again to unfold.
+inst_mixer.folded = {n} folded
+inst_mixer.unfold = Unfold
+inst_mixer.unfold_tip = Show {name}'s strips again.
+inst_mixer.mics_of = {name} mics
+inst_mixer.full_name = {inst} · {name}
+inst_mixer.summed = {inst}'s {name} mic, summed back into {strip} ({n})
+inst_mixer.nothing = {name}: nothing to move — every output already plays there.
+
+# Bands on the desk: an instrument's family and a user's group as one system (round 40,
+# the owner's groups sheets; ADR 0016 and ADR 0123 amended, schema 70).
+cmd.set_strip_attached = add a strip to an instrument's band
+inst_mixer.added = added
+inst_mixer.group_tip = {name} · {n} strips. Click to fold or unfold; drag its right edge to take in the next strip or give back its last; right-click for its menu; double-click to rename.
+inst_mixer.edge_tip = Drag to take in the next strip (a strip of an instrument brings its whole family), or back to give the last one back. Esc leaves the group as it was.
+inst_mixer.add_to_group = Add {strip} to {group}
+inst_mixer.take_from_group = Take {strip} out of {group}
+inst_mixer.left_band = {strip} left {name}'s band: its input no longer comes only from {name}.
+inst_mixer.attach = Add to {name}'s band
+inst_mixer.detach = Take out of {name}'s band

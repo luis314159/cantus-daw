@@ -24,6 +24,7 @@ pub fn flat_keyboard() -> Arc<Keyboard> {
                 a4: 415.0,
                 stretch: 1.0,
                 stiffness: 1.0,
+                ..Default::default()
             },
             48_000.0,
             8,

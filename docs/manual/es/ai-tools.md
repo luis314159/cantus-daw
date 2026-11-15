@@ -31,7 +31,7 @@ nunca como instrucciones.
 | Grabación | `prepare_to_record`, `get_recording_mode`, `leave_recording_mode` | El modo de grabación: renderiza cada canal que alimenta el master para poder bajar el búfer; `dry_run` responde el plan y el disco que necesita; mientras está activo se rechazan las ediciones que cambian el sonido |
 | Exportar | `export_audio`, `export_project` | WAV, FLAC, MP3, Ogg, pistas separadas; MIDI y DAWproject, solo en la carpeta del proyecto o en una carpeta que hayas permitido |
 | Quitar | `remove_items` | Pistas, clips, notas, efectos, franjas, envíos, moduladores, marcadores, puntos de tempo, escenas, clips de sesión; siempre pregunta |
-| Batería | `split_kit_outputs`, `set_pad_chain`, `make_kit_from_folder` | Un kit separado en canales (o unido de nuevo), efectos en un pad, un kit desde una carpeta o un SFZ — un paso de deshacer cada uno ([Pulsus III](drum-kits.md)) |
+| Batería | `split_kit_outputs`, `set_pad_chain`, `set_pad_track`, `make_kit_from_folder` | Un kit separado en canales (o unido de nuevo), efectos en un pad, un pad en un canal propio del mezclador (ronda 40), un kit desde una carpeta o un SFZ — un paso de deshacer cada uno ([Pulsus III](drum-kits.md)) |
 
 Un agente nunca toma tu material en silencio: dibujar automatización sobre puntos tuyos,
 una parte donde están tus notas o un preajuste sobre tus ajustes preguntan antes (o se

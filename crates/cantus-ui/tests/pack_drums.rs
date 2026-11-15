@@ -128,6 +128,7 @@ fn installed() -> Fixture {
         keys: keys.to_vec(),
         gain_db: 0.0,
         label: String::new(),
+        openness: None,
     };
     let b = Build {
         kit: "kit.xml".into(),
@@ -149,6 +150,7 @@ fn installed() -> Fixture {
         round_robin: 2,
         range_db: 24.0,
         keep: vec![],
+        multichannel: false, // r40:p3
     };
     let content = dir.path().join("Content");
     let pack = content.join("fixture-kit");
@@ -179,6 +181,7 @@ fn installed() -> Fixture {
             layers: None,
             gain_db: 0.0,
             voices: Some(48),
+            plays: Default::default(), // r40:p3
         }],
         installed_at: 0,
         files: 1,

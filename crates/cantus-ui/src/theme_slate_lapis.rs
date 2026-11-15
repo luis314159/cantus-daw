@@ -22,8 +22,10 @@
 //! - **A night-blue room.** Every surface, well and line of Slate's ladder — the window's
 //!   ground, the panels, the bars, the wells, the desk, the lanes, the menus, the grid —
 //!   is Slate's own colour at **the same luminance**, its hue turned to the lapis's
-//!   (222° at night, 226° on paper) and its saturation × 1.7 (night) / × 1.8 (paper):
-//!   deep night blue in Night, a cool blue-grey paper in Paper. The same luminance keeps
+//!   (222° at night, 226° on paper) and its saturation × 4.2 (night) / × 5.5 (paper):
+//!   a deep lapis blue in Night, a clear blue paper in Paper. (Round 39 shipped × 1.7 /
+//!   × 1.8; the owner found it too close to Slate and chose the bluest of three stronger
+//!   rooms, round 40 — `docs/round40/look/lapis/`.) The same luminance keeps
 //!   every contrast Slate holds; the text, the keys, the knob and fader caps (the metal),
 //!   the meters, the cables' and the status colours are Slate's.
 //!
@@ -59,11 +61,12 @@ const PAPER_GOLD: Color32 = hex(0x9a6e1c);
 /// The metal as text on paper, deepened to read on the bar and its wells: the readouts.
 const PAPER_GOLD_INK: Color32 = hex(0x6e5008);
 const PAPER_GOLD_INK_SOFT: Color32 = hex(0x7a5a04);
-/// The hue the room turns to (the lapis's own), and how much more colour it takes.
+/// The hue the room turns to (the lapis's own), and how much more colour it takes (the
+/// owner's choice, round 40: "C", the bluest).
 pub const NIGHT_HUE: f32 = 222.0;
 pub const PAPER_HUE: f32 = 226.0;
-pub const NIGHT_GAIN: f32 = 1.7;
-pub const PAPER_GAIN: f32 = 1.8;
+pub const NIGHT_GAIN: f32 = 4.2;
+pub const PAPER_GAIN: f32 = 5.5;
 
 /// A theme of the family: its tokens (and so its system), the palette taken from them.
 fn family(name: &str, t: Tokens, accent: Color32, accent_bright: Color32) -> Theme {
@@ -80,35 +83,35 @@ const PAPER_TINT: u8 = 26;
 pub const fn slate_lapis_night_tokens() -> Tokens {
     Tokens {
         // The room: Slate's ladder at its own luminance, turned to the lapis.
-        ink: hex(0x131826),
-        well: hex(0x181e2d),
-        panel: hex(0x1c2232),
-        toolbar: hex(0x242c3f),
-        panel_raised: hex(0x242c3f),
-        panel_light: hex(0x1c2232),
-        grid: hex(0x202738),
-        grid_strong: hex(0x242d40),
-        grid_bar: hex(0x303a51),
-        edge: hex(0x7985a0),
-        placeholder: hex(0x7985a0),
-        meter_well: hex(0x0f1520),
-        strip: hex(0x242c3f),
-        strip_selected: hex(0x2d364a),
-        header_cell: hex(0x2d364a),
-        device_ground: hex(0x131826),
-        deck: hex(0x242c3f),
-        deck_title: hex(0x293246),
-        value_pill: hex(0x181e2d),
-        step_odd: hex(0x2d364a),
-        step_even: hex(0x364057),
-        row_white: hex(0x1f2637),
-        row_black: hex(0x1c2232),
-        menu: hex(0x2d364a),
-        menu_band: hex(0x272f43),
-        disabled: hex(0x455069),
-        inner_shadow: hex(0x0f1520),
-        lip: hex(0x2c3549),
-        track_veil: alpha(0x1c2232, 150),
+        ink: hex(0x05163d),
+        well: hex(0x0b1c45),
+        panel: hex(0x0c204c),
+        toolbar: hex(0x13295d),
+        panel_raised: hex(0x13295d),
+        panel_light: hex(0x0c204c),
+        grid: hex(0x102455),
+        grid_strong: hex(0x122a61),
+        grid_bar: hex(0x1a3678),
+        edge: hex(0x6984c1),
+        placeholder: hex(0x6984c1),
+        meter_well: hex(0x031236),
+        strip: hex(0x13295d),
+        strip_selected: hex(0x1a336d),
+        header_cell: hex(0x1a336d),
+        device_ground: hex(0x05163d),
+        deck: hex(0x13295d),
+        deck_title: hex(0x162f69),
+        value_pill: hex(0x0b1c45),
+        step_odd: hex(0x1a336d),
+        step_even: hex(0x213d7d),
+        row_white: hex(0x0e2355),
+        row_black: hex(0x0c204c),
+        menu: hex(0x1a336d),
+        menu_band: hex(0x152c63),
+        disabled: hex(0x2e4d93),
+        inner_shadow: hex(0x031236),
+        lip: hex(0x19326c),
+        track_veil: alpha(0x0c204c, 150),
         // The accent, lapis, and its tones as Slate derives its own.
         text_select: hex(0x2c3956),
         brand: NIGHT_LAPIS,
@@ -148,34 +151,37 @@ pub fn slate_lapis_night() -> Theme {
 pub const fn slate_lapis_paper_tokens() -> Tokens {
     Tokens {
         // The room: Slate's ladder at its own luminance, turned to the lapis.
-        ink: hex(0xfbfcfe),
-        well: hex(0xd7dceb),
-        panel: hex(0xf4f6fa),
-        toolbar: hex(0xe5e8f4),
-        panel_raised: hex(0xe5e8f4),
-        panel_light: hex(0xf4f6fa),
-        grid: hex(0xe8ebf5),
-        grid_strong: hex(0xdadeed),
-        grid_bar: hex(0xc9cfe2),
-        edge: hex(0x68749a),
-        placeholder: hex(0x68749a),
-        meter_well: hex(0xfbfcfe),
-        strip: hex(0xe5e8f4),
-        strip_selected: hex(0xdadfef),
-        header_cell: hex(0xfbfcfe),
-        device_ground: hex(0xc6ccdf),
-        deck: hex(0xe5e8f4),
-        deck_title: hex(0xe0e4f1),
-        value_pill: hex(0xfbfcfe),
-        step_odd: hex(0xd7dceb),
-        step_even: hex(0xcdd3e5),
-        row_white: hex(0xeef1f8),
-        row_black: hex(0xf4f6fa),
-        menu: hex(0xfbfcfe),
-        menu_band: hex(0xeef1f8),
-        disabled: hex(0xaab1ca),
-        inner_shadow: hex(0xbac1d9),
-        lip: hex(0xeff1f9),
+        ink: hex(0xfafcff),
+        well: hex(0xd1dbff),
+        panel: hex(0xf3f6ff),
+        toolbar: hex(0xe1e8ff),
+        panel_raised: hex(0xe1e8ff),
+        panel_light: hex(0xf3f6ff),
+        grid: hex(0xe6ebff),
+        grid_strong: hex(0xd3deff),
+        grid_bar: hex(0xbfcefd),
+        edge: hex(0x506fd3),
+        placeholder: hex(0x506fd3),
+        meter_well: hex(0xfafcff),
+        strip: hex(0xe1e8ff),
+        strip_selected: hex(0xd5deff),
+        header_cell: hex(0xfafcff),
+        device_ground: hex(0xbccbfb),
+        deck: hex(0xe1e8ff),
+        deck_title: hex(0xdbe4ff),
+        value_pill: hex(0xfafcff),
+        step_odd: hex(0xd1dbff),
+        step_even: hex(0xc5d2fd),
+        row_white: hex(0xecf0ff),
+        row_black: hex(0xf3f6ff),
+        menu: hex(0xfafcff),
+        menu_band: hex(0xecf0ff),
+        disabled: hex(0x9cb0ef),
+        inner_shadow: hex(0xafc0f9),
+        lip: hex(0xedf1ff),
+        // r40:look — the veil stays round 39's paper (`#f4f6fa`), not the bluer room's: a
+        // veil as blue as the room laid the blue tracks' bodies at chroma 20.4, past the
+        // calm of 20 (`arrangement_legibility`).
         track_veil: alpha(0xf4f6fa, 150),
         // The accent, lapis, and its tones as Slate derives its own.
         text_select: hex(0x90a0d3),
@@ -218,6 +224,114 @@ pub const fn gold(dark: bool) -> Color32 {
         NIGHT_GOLD
     } else {
         PAPER_GOLD
+    }
+}
+
+/// The room's rule for one colour: Slate's `c` at **its own WCAG luminance**, its hue
+/// turned to `hue` and its HSL saturation × `gain` (at most full). The lightness that
+/// keeps the luminance is found by bisection, and of the 8-bit colours around it the one
+/// whose luminance is nearest wins — so every contrast Slate holds on that surface, the
+/// room holds (round 39 `lapis2`; round 40 `look`, the owner's stronger room).
+pub fn turned(c: Color32, hue: f32, gain: f32) -> Color32 {
+    use crate::kit::color::{luminance, opaque, Hsl};
+    let a = c.a();
+    let base = opaque(c);
+    let target = luminance(base);
+    let s = (Hsl::of(base).s * gain).min(1.0);
+    let at = |l: f32| Hsl { h: hue, s, l }.rgb();
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+    for _ in 0..32 {
+        let mid = 0.5 * (lo + hi);
+        if luminance(at(mid)) < target {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let near = [at(lo), at(hi), at(lo - 0.002), at(hi + 0.002)];
+    let best = near
+        .into_iter()
+        .min_by(|x, y| {
+            let dx = (luminance(*x) - target).abs();
+            let dy = (luminance(*y) - target).abs();
+            dx.total_cmp(&dy)
+        })
+        .unwrap_or(base);
+    if a == 255 {
+        best
+    } else {
+        let [r, g, b, _] = best.to_srgba_unmultiplied();
+        Color32::from_rgba_unmultiplied(r, g, b, a)
+    }
+}
+
+/// The room's tokens by field: the surfaces, wells and lines of Slate's ladder that turn
+/// to the lapis (the track veil follows the panel).
+pub const ROOM_FIELDS: [&str; 28] = [
+    "ink",
+    "well",
+    "panel",
+    "toolbar",
+    "panel_raised",
+    "panel_light",
+    "grid",
+    "grid_strong",
+    "grid_bar",
+    "edge",
+    "placeholder",
+    "meter_well",
+    "strip",
+    "strip_selected",
+    "header_cell",
+    "device_ground",
+    "deck",
+    "deck_title",
+    "value_pill",
+    "step_odd",
+    "step_even",
+    "row_white",
+    "row_black",
+    "menu",
+    "menu_band",
+    "disabled",
+    "inner_shadow",
+    "lip",
+];
+
+/// `lapis` with its room re-derived from `slate` at `hue` × `gain` — the written tokens'
+/// rule, for checking them and for shooting other strengths.
+pub fn with_room(lapis: Tokens, slate: &Tokens, hue: f32, gain: f32) -> Tokens {
+    use crate::kit::tokens::Tok;
+    let mut t = lapis;
+    for tok in Tok::ALL {
+        if ROOM_FIELDS.contains(&tok.field()) {
+            t.set(*tok, turned(slate.get(*tok), hue, gain));
+        }
+    }
+    let [r, g, b, _] = t.panel.to_srgba_unmultiplied();
+    t.track_veil = Color32::from_rgba_unmultiplied(r, g, b, slate.track_veil.a());
+    t
+}
+
+/// Slate Lapis with its room at `gain` instead of the written one, as a theme named
+/// `name` — for the shots the owner chooses a strength from (round 40, `look`).
+pub fn at_gain(dark: bool, gain: f32, name: &str) -> Theme {
+    if dark {
+        let t = with_room(
+            slate_lapis_night_tokens(),
+            &slate_night_tokens(),
+            NIGHT_HUE,
+            gain,
+        );
+        family(name, t, NIGHT_LAPIS, NIGHT_LAPIS_BRIGHT)
+    } else {
+        let t = with_room(
+            slate_lapis_paper_tokens(),
+            &slate_paper_tokens(),
+            PAPER_HUE,
+            gain,
+        );
+        family(name, t, PAPER_LAPIS, PAPER_LAPIS_BRIGHT)
     }
 }
 
@@ -365,10 +479,12 @@ mod tests {
                 );
                 let (hl, hs) = (Hsl::of(l), Hsl::of(s));
                 let off = ((hl.h - hue + 540.0) % 360.0 - 180.0).abs();
-                assert!(off <= 8.0, "{key}: hue {} is not the lapis's {hue}", hl.h);
+                // Near white (Paper's ink) 8-bit rounding moves the hue most.
+                let room = if hl.l > 0.97 { 14.0 } else { 8.0 };
+                assert!(off <= room, "{key}: hue {} is not the lapis's {hue}", hl.h);
                 // More colour, by about the gain (rounding moves a pale one most).
                 assert!(
-                    hl.s >= hs.s * (gain - 0.4),
+                    hl.s >= (hs.s * (gain - 0.4)).min(0.9),
                     "{key}: saturation {} for Slate's {} × {gain}",
                     hl.s,
                     hs.s
@@ -399,6 +515,52 @@ mod tests {
                 contrast(lapis.readout, lapis.toolbar)
                     > contrast(lapis.readout_soft, lapis.toolbar)
             );
+        }
+    }
+
+    #[test]
+    fn the_written_room_is_the_rule_at_its_gain() {
+        // The rule re-derives the written tokens to a count or two per channel.
+        for ((lapis, slate), (hue, gain)) in pairs()
+            .into_iter()
+            .zip([(NIGHT_HUE, NIGHT_GAIN), (PAPER_HUE, PAPER_GAIN)])
+        {
+            let derived = with_room(lapis, &slate, hue, gain);
+            for key in ROOM_FIELDS {
+                let (a, b) = (field(&lapis, key), field(&derived, key));
+                let d = a
+                    .to_array()
+                    .iter()
+                    .zip(b.to_array())
+                    .map(|(x, y)| (*x as i32 - y as i32).abs())
+                    .max()
+                    .unwrap_or(0);
+                assert!(d <= 3, "{key}: written {a:?}, the rule {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn every_stronger_room_keeps_every_promise() {
+        // The strengths the owner chooses from (round 40): more colour each, the same
+        // luminance, every kit promise (ADR 0111: text 4.5:1, non-text 3:1).
+        for gain in [1.7f32, 2.5, 2.8, 3.3, 4.0, 4.2, 5.5] {
+            for dark in [true, false] {
+                let theme = at_gain(dark, gain, "Lapis room");
+                let t = theme.kit_tokens();
+                let bad = t.legibility_failures();
+                assert!(bad.is_empty(), "x{gain} dark {dark}: {bad:#?}");
+                let slate = if dark {
+                    slate_night_tokens()
+                } else {
+                    slate_paper_tokens()
+                };
+                for key in ROOM_FIELDS {
+                    let (l, s) = (field(&t, key), field(&slate, key));
+                    let (ll, ls) = (luminance(l), luminance(s));
+                    assert!((ll - ls).abs() <= 0.006 + 0.01 * ls, "{key} x{gain}");
+                }
+            }
         }
     }
 

@@ -450,7 +450,11 @@ pub(crate) fn strip_label(app: &CantusApp, id: StripId) -> String {
         return t("mixer.master");
     }
     let n = p.strip_number(id).unwrap_or(0);
-    let name = strip_name(p, id);
+    // r40:integration — an instrument's output strip says whose it is (*Drums · Snare Top*).
+    let name = match p.strip(id) {
+        Some(s) if !s.name.is_empty() => crate::views::mixer::group::full_name(p, id),
+        _ => strip_name(p, id),
+    };
     if name.is_empty() || name == n.to_string() {
         n.to_string()
     } else {

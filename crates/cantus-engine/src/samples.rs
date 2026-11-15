@@ -270,8 +270,8 @@ impl SampleCache {
         let wanted: std::collections::HashSet<Want> = snapshot
             .tracks
             .iter()
-            .filter_map(|t| t.instrument.native())
-            .flat_map(|n| self.wants_of(n).into_iter().map(|(_, w)| w))
+            .filter_map(|t| t.instrument.native().map(|n| (t.id, n)))
+            .flat_map(|(id, n)| self.wants_all(id, n).into_iter().map(|(_, w)| w))
             .collect();
         self.bury(&wanted);
         let mut missing: Vec<Want> = wanted
@@ -293,7 +293,7 @@ impl SampleCache {
             track.assets = match track.instrument.native() {
                 Some(n) => {
                     let mut assets: Vec<_> = self
-                        .wants_of(n)
+                        .wants_now(id, n)
                         .into_iter()
                         .map(|(key, w)| {
                             let audio = match self.have(&w) {
@@ -646,7 +646,71 @@ impl SampleCache {
 
     /// What a native instrument asks for: each asset key with its file, and whether it may
     /// stream.
+    /// r40:tymp-engine — what a track's instrument needs held: a Tympanum changing kits
+    /// keeps its last loaded kit's files while the new one's load (ADR 0124 §2).
+    fn wants_all(
+        &self,
+        id: cantus_core::TrackId,
+        n: &cantus_core::NativeSpec,
+    ) -> Vec<(String, Want)> {
+        if n.kind != cantus_core::InstrumentKind::AcousticDrums {
+            return self.wants_of(n);
+        }
+        self.tympanum_wants(crate::inst::tympanum::cache::wants_all(id.0, n))
+    }
+
+    /// r40:tymp-engine — what a track's instrument plays this snapshot: a Tympanum whose
+    /// new kit is not all loaded yet plays the kit it had (never in an offline compile).
+    fn wants_now(
+        &self,
+        id: cantus_core::TrackId,
+        n: &cantus_core::NativeSpec,
+    ) -> Vec<(String, Want)> {
+        if n.kind != cantus_core::InstrumentKind::AcousticDrums {
+            return self.wants_of(n);
+        }
+        let ready = |p: &str| {
+            let p = Path::new(p);
+            self.loaded.contains_key(p)
+                || self.streamed.contains_key(p)
+                || self.failed.contains_key(p)
+        };
+        self.tympanum_wants(crate::inst::tympanum::cache::attach(
+            id.0,
+            n,
+            self.offline,
+            &ready,
+        ))
+    }
+
+    fn tympanum_wants(&self, files: Vec<(String, String)>) -> Vec<(String, Want)> {
+        files
+            .into_iter()
+            .map(|(key, path)| {
+                let w = Want {
+                    path: PathBuf::from(path),
+                    stream: self.streaming,
+                };
+                (key, w)
+            })
+            .collect()
+    }
+
     fn wants_of(&self, n: &cantus_core::NativeSpec) -> Vec<(String, Want)> {
+        // r40:tymp-engine — a Tympanum's kit plays the files of its mics that are on (ADR
+        // 0124): read from its pack, never from the song.
+        if n.kind == cantus_core::InstrumentKind::AcousticDrums {
+            return crate::inst::tympanum::cache::wants(n)
+                .into_iter()
+                .map(|(key, path)| {
+                    let w = Want {
+                        path: PathBuf::from(path),
+                        stream: self.streaming,
+                    };
+                    (key, w)
+                })
+                .collect();
+        }
         let files = if self.streaming && n.kind == cantus_core::InstrumentKind::Sampler {
             crate::inst::sampler::stream_files(n)
         } else {

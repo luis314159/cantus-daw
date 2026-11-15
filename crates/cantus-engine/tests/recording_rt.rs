@@ -106,7 +106,12 @@ fn recording_monitoring_and_clips_never_allocate() {
     let mut guitar = p.make_track("Guitar");
     guitar.input = Some(TrackInput::mono(1));
     guitar.armed = true;
+    // r40:pads — and it records *After FX* (ADR 0118): through its strip's insert.
+    guitar.record_tap = RecordTap::AfterFx;
+    let guitar_strip = guitar.strip.unwrap();
     p.tracks.push(guitar);
+    let eq = p.make_effect(EffectKind::Eq);
+    p.strip_mut(guitar_strip).unwrap().effects.push(eq);
     let ids = [p.tracks[0].id, p.tracks[1].id];
 
     let mut snap = Snapshot::compile(&p, 1);

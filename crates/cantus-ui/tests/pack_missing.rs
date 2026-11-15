@@ -144,6 +144,7 @@ fn pack_manifest() -> cantus_content::Manifest {
         layers: None,
         gain_db: 0.0,
         voices: None,
+        plays: Default::default(), // r40:p3
     }];
     m
 }

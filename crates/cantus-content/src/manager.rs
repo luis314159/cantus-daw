@@ -106,6 +106,8 @@ impl Manager {
         let layout = Layout::new(root);
         // Staging folders a crash left behind (no install runs before this manager exists).
         install::clear_all_staging(&layout);
+        // r40:fix-f — and what a user's install from a file left (staging, no receipt).
+        crate::user_pack::clean_orphans(&layout.root);
         let (tx, rx) = channel();
         let installed = install::installed(&layout);
         Manager {
@@ -131,6 +133,13 @@ impl Manager {
     /// Changes whenever an install finishes or a pack is removed.
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    // r40:chorda-src
+    /// Read the receipts again (a user pack was installed from a file beside the workers).
+    pub fn refresh(&mut self) {
+        self.installed = install::installed(&self.layout);
+        self.generation += 1;
     }
 
     pub fn manifest(&self) -> &Manifest {
@@ -246,6 +255,64 @@ impl Manager {
             return false;
         }
         true
+    }
+
+    /// r40:fix-f — install what the user brought (`user_pack`: an instrument, an archive, a
+    /// DrumGizmo kit built for Tympanum) on a worker thread, as a pack is: its progress in
+    /// [`Self::status`] under the user pack's id, [`Self::cancel`] stops it with nothing
+    /// left behind, [`Self::poll`] reports it finished. Returns the id; `None` when that
+    /// file is already being installed or no thread could start.
+    pub fn install_user(&mut self, path: &Path, plays: crate::manifest::Plays) -> Option<String> {
+        let id = crate::user_pack::user_id(path);
+        if self.running.contains_key(&id) {
+            return None;
+        }
+        self.errors.remove(&id);
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.running.insert(
+            id.clone(),
+            Running {
+                cancel: cancel.clone(),
+                phase: None,
+            },
+        );
+        let (root, tx, free, path) = (
+            self.layout.root.clone(),
+            self.tx.clone(),
+            self.free_space.clone(),
+            path.to_path_buf(),
+        );
+        let job_id = id.clone();
+        let spawned = std::thread::Builder::new()
+            .name("cantus-content-user".into())
+            .spawn(move || {
+                let mut report = |ph: install::Phase| {
+                    let _ = tx.send(Msg::Phase(job_id.clone(), ph));
+                };
+                let r = crate::user_pack::install_user_job(
+                    &root,
+                    &path,
+                    plays,
+                    &|p: &Path| free(p),
+                    &cancel,
+                    &mut report,
+                )
+                .map_err(|e| match e {
+                    crate::user_pack::UserPackError::NoSpace { need, free } => {
+                        InstallError::NoSpace { need, free }
+                    }
+                    crate::user_pack::UserPackError::Cancelled => {
+                        crate::fetch::FetchError::Cancelled.into()
+                    }
+                    e => InstallError::User(e.to_string()),
+                });
+                let _ = tx.send(Msg::Done(job_id, Box::new(r)));
+            });
+        if spawned.is_err() {
+            self.running.remove(&id);
+            return None;
+        }
+        Some(id)
     }
 
     /// Ask a running install to stop; it reports `Cancelled` and keeps what it has

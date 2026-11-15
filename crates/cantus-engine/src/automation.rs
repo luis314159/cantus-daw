@@ -93,6 +93,10 @@ pub(crate) struct FxCopy {
     /// Where its unit runs, found when the snapshot is installed: a strip slot and the
     /// index in its chain, or `usize::MAX` and the index in the master's.
     pub at: Option<(usize, usize)>,
+    /// fix-a (A-M2): a Delay whose `note` or `sync` a lane drives — automated or modulated
+    /// — the note with the longest line those lanes can reach while synced, its line built
+    /// before the song gets there (`EffectUnit::set_line_floor`); `None` otherwise.
+    pub line_note: Option<usize>,
 }
 
 /// A hosted insert some lane drives, and where its unit runs (as [`FxCopy::at`]).
@@ -108,6 +112,9 @@ pub(crate) struct NativeCopy {
     pub track: usize,
     pub spec: NativeSpec,
     pub dirty: bool,
+    /// fix-e — every key a lane drives in it: what `InstrumentUnit::configure_keys` sets
+    /// alone when only they moved.
+    pub keys: Vec<String>,
 }
 
 /// An automated Firmus's copy, by snapshot track index.
@@ -139,6 +146,67 @@ pub(crate) struct Lane {
     /// only when the unit's queue took it, and forgotten when a unit is swapped in place
     /// ([`Runtime::forget_sent`]).
     pub sent: Option<(u32, u32)>,
+}
+
+/// fix-a (A-M2): the lowest and highest value `lane` can give its parameter: its whole
+/// range when a modulator drives it (the offset reaches either end), else its base and the
+/// ends of its pieces — every shape stays between a piece's two values.
+fn lane_reach(lane: &cantus_core::AutoLane, modulation: Option<(f32, f32)>) -> (f32, f32) {
+    let ends = |p: f32| lane.range.value(p);
+    let mut vals: Vec<f32> = lane
+        .segs
+        .iter()
+        .flat_map(|s| [ends(s.v0), ends(s.v1)])
+        .collect();
+    if lane.base.is_finite() {
+        vals.push(lane.base);
+    }
+    if let Some((down, up)) = modulation {
+        // Modulated: the positions the lane plays, moved as far as its modulators can move
+        // them (fix-c, R2-A3 — not its whole range: a small depth on a Delay's note would
+        // reserve the 48 s line).
+        let mut pos: Vec<f32> = lane.segs.iter().flat_map(|s| [s.v0, s.v1]).collect();
+        if lane.base.is_finite() {
+            pos.push(lane.range.pos(lane.base));
+        }
+        let lo = pos.iter().copied().fold(f32::INFINITY, f32::min);
+        let hi = pos.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        if lo.is_finite() && hi.is_finite() {
+            vals.push(ends((lo + down).clamp(0.0, 1.0)));
+            vals.push(ends((hi + up).clamp(0.0, 1.0)));
+        } else {
+            vals.extend([ends(0.0), ends(1.0)]);
+        }
+    }
+    let lo = vals.iter().copied().fold(f32::INFINITY, f32::min);
+    let hi = vals.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    (lo, hi)
+}
+
+/// How far the modulators routed into lane `li` can move its position, down and up
+/// (`position = clamp(base + Σ depth × amount × output, 0, 1)`, ADR 0057): an output is
+/// −1 … 1 bipolar or 0 … 1 unipolar, an amount at most its own (or 1 when a lane or
+/// another modulator moves it). `None` when nothing modulates it.
+fn modulation_reach(snapshot: &Snapshot, li: usize) -> Option<(f32, f32)> {
+    let (mut down, mut up, mut any) = (0.0f32, 0.0f32, false);
+    for plan in &snapshot.modulators {
+        let amount = if plan.amount_lane.is_some() {
+            1.0
+        } else {
+            plan.amount.clamp(0.0, 1.0)
+        };
+        let low = if plan.source.bipolar() { -1.0 } else { 0.0 };
+        for &(l, depth) in &plan.routes {
+            if l != li {
+                continue;
+            }
+            any = true;
+            let (a, b) = (depth * amount * low, depth * amount);
+            down += a.min(b).min(0.0);
+            up += a.max(b).max(0.0);
+        }
+    }
+    any.then_some((down, up))
 }
 
 /// The bits a hosted value is compared by.
@@ -235,7 +303,50 @@ impl Runtime {
                 }
             }
         }
+        rt.delay_lines(snapshot);
         Some(Box::new(rt))
+    }
+
+    /// fix-a (A-M2): each automated Delay's [`FxCopy::line_note`] — from its spec and every
+    /// lane on its `note` or `sync`: the values a lane plays (its base and each piece's
+    /// ends; a curve stays between them), moved as far as the modulators driving it reach
+    /// (fix-c, R2-A3: was its whole range).
+    fn delay_lines(&mut self, snapshot: &Snapshot) {
+        use cantus_dsp::delay::sync::{line_seconds, note_index};
+        for (ci, c) in self.effects.iter_mut().enumerate() {
+            if c.spec.kind != cantus_core::EffectKind::Delay {
+                continue;
+            }
+            let mut on = c.spec.get("sync") >= 0.5;
+            let base = note_index(c.spec.get("note"));
+            let (mut lo, mut hi) = (base, base);
+            let mut driven = false;
+            for (li, (lane, l)) in snapshot.automation.iter().zip(&self.lanes).enumerate() {
+                let Dest::Effect(i, key) = &l.dest else {
+                    continue;
+                };
+                if *i != ci || !matches!(key.as_str(), "sync" | "note") {
+                    continue;
+                }
+                driven = true;
+                let (a, b) = lane_reach(lane, modulation_reach(snapshot, li));
+                if key == "sync" {
+                    on |= b >= 0.5;
+                } else {
+                    lo = lo.min(note_index(a));
+                    hi = hi.max(note_index(b));
+                }
+            }
+            c.line_note = (driven && on).then(|| {
+                (lo..=hi).fold(lo, |best, n| {
+                    if line_seconds(true, n) > line_seconds(true, best) {
+                        n
+                    } else {
+                        best
+                    }
+                })
+            });
+        }
     }
 
     /// Where a target's value goes in `snapshot`, its copies made as needed.
@@ -264,6 +375,7 @@ impl Runtime {
                             spec: slot.spec.clone(),
                             dirty: false,
                             at: None,
+                            line_note: None,
                         });
                         self.effects.len() - 1
                     }
@@ -289,13 +401,17 @@ impl Runtime {
                             track: ti,
                             spec: native.clone(),
                             dirty: false,
+                            keys: Vec::new(),
                         });
                         self.natives.len() - 1
                     }
                 };
-                let spec = &mut self.natives[i].spec;
-                let v = spec.get(key);
-                spec.params.insert(key.clone(), v);
+                let c = &mut self.natives[i];
+                let v = c.spec.get(key);
+                c.spec.params.insert(key.clone(), v);
+                if !c.keys.contains(key) {
+                    c.keys.push(key.clone());
+                }
                 Some(Dest::Native(i, key.clone()))
             }
             AutoTarget::Firmus { track: t, param } => {

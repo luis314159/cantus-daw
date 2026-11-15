@@ -470,6 +470,60 @@ icon (ADR 0046) is #03 in its own colours (*Automatic*, *Original*); a colour th
 chooses still paints the mark in it. A user's saved logo is kept. No accent changes with
 it: Slate's accent stays as it is (the Lapis direction ships as a theme of its own).
 
+### 10. Amendment, round 40 (`look`): the owner's answers 12, 17 and 18 (2026-11-12)
+
+- **Mute on, in colour** (answer 12). A muted strip's **M** on the desk, and a muted track's M in
+  its header, are lit in the theme's accent (`highlight`), its letter in the lit key's ink (the
+  desk's `ink`/`light`, the header's `row_black`) — as Logic and Studio One light theirs; round 39's
+  grey (`ink2` Night, `ink3` Paper) is a setting (*Settings ▸ Appearance ▸ The window ▸ Mute on:
+  Grey*). No new token: the accent already keeps its promises on every ground. Held in all 24
+  themes by `owner_look::tests::a_lit_m_reads_in_every_theme` (the letter 4.5:1 on the accent with
+  both inks; the lit key 3:1 on its well).
+- **Value bars in the inspector** (answer 12). Every value row of the inspector (Level's volume,
+  pan and width, an insert's values, a send, the trim, a mix) is des-controls' value bar
+  (`kit::slider::value_bar`): a 20-pt well the value column wide, filled to the value (from the
+  middle when bipolar), the value's edge, the number inside at its right; the row's label stays in
+  its column. Round 39's slim 3-pt bar with its handle is a setting (*Inspector values: Slim bars*).
+  `inspector_look::bar_rect` returns the bar for the meter under the volume and the modulation
+  tick, so both follow.
+- **Paper's menus and dialogs** (answer 12: "to be improved"). In a light theme a raised sheet
+  (a menu, a dialog, a floating window's frame) has a crisper hairline (`text` at 24 % over the
+  face, where round 39 took the grid's line), a contact shadow under its edge (1 pt down, 16 %)
+  beside the ambient one (its alpha + 4 %), and the dialog's scrim at 70 % of the token's alpha
+  (the window behind dimmed, not muddied); the menu's hover pill 17 % of the accent (13 %), its
+  separators `text` at 16 %. One place paints them (`kit::dialog::sheet_edge`, `sheet_shadow`,
+  `scrim_colour`); Night is unchanged to the pixel.
+- **Bordeaux and Pewter softer** (answer 18; Parchment, Ultraviolet and Print right as they are).
+  Through their specs (`tools/themes/themes.py`, the checker measuring every promise before it
+  writes): **Bordeaux**'s room gain 1.6 → 1.05 (panel `#27161b` → `#23181b`), its rose gold
+  `#eba487` → `#e0a892`, the selection tint 36 → 30; **Pewter**'s room gain 1.05 → 0.85, the orange
+  `#ffaa54` → `#f0a463`, the lime selection `#c3ff5a` → `#b8e07a` and playhead `#b5f060` →
+  `#acd977`, its meters, lamp and fx bulb a step less saturated. Legibility held:
+  `arrangement_legibility` across all 24 themes.
+- **Slate Lapis's room, bluer** (answer 17). The room is now a tested rule
+  (`theme_slate_lapis::turned`, `with_room`: Slate's colour at its own WCAG luminance, the lapis's
+  hue, the HSL saturation × a gain, at most full). Three stronger gains were shot for the owner
+  beside round 39's × 1.7 / × 1.8 (`docs/round40/look/lapis/room-*.png`, each holding every kit
+  promise); **he chose C, the bluest: × 4.2 Night, × 5.5 Paper** ("me gusta más la C, los más
+  azules"). Night's panel `#1c2232` → `#0c204c`, bar `#242c3f` → `#13295d`; Paper's panel
+  `#f4f6fa` → `#f3f6ff`, bar `#e5e8f4` → `#e1e8ff`. The written tokens are the rule's at that gain
+  (`the_written_room_is_the_rule_at_its_gain`); the same luminance keeps every contrast Slate
+  holds. The accents, the selection tint, the playhead line, the gold and plain Slate unchanged.
+  One exception, for the calm rule: Paper's **track veil** stays round 39's paper (`#f4f6fa`
+  at 150) rather than following the bluer panel — a veil as blue as the room laid the blue
+  tracks' bodies at rest at CIELAB chroma 20.4, past `arrangement_legibility`'s calm of 20.
+- **The value bar's edge** (`kit::slider::value_bar`): where the value falls under the number
+  (a value near the bar's end) the edge stops above and below the figures, never through them.
+- **The mixer's right dock** (answer 1, des-mixer's sheet): the returns docked right sit at the
+  window's edge; between the last strip and them the next empty strips, numbered (round 39's
+  `ghosts`), a click making the strips up to one. A desk that scrolls keeps the dock there as
+  before. Round 37–39's place, just after the last strip, is a setting (*Mixer's right dock: After
+  the last strip*).
+- **The top bar** (answer 4, ADR 0052's groups): the automation arm and its ▾ (after the loop
+  key) and the typing keyboard's key (before the inputs; in More's *Inputs* when they fold) come
+  back by a setting (*Top bar extras*), drawn as the bar's other keys (a well, the state as a tint
+  inside: the automation's violet, the accent). The default bar is round 39's.
+
 ## Consequences
 
 - Every view inherits the family's colours, face, keys and wells from the kit; views that

@@ -1222,6 +1222,9 @@ pub fn stepped_param(
     let (m, _) = app.mod_offer(&target, pos, &s, &mut rings);
     if a::probe::noting_learn() {
         a::probe::note_learn(&format!("stepped:{target:?}"), m.learn.is_some());
+        // Its menu offers *Modulate…* too (round 40: Tympanum's knobs and cells are drawn
+        // as stepped parameters' controls; the probes of every control's offers see them).
+        a::probe::note(&format!("stepped:{target:?}"), true);
     }
     if let Some(l) = m.learn {
         if l.mode {

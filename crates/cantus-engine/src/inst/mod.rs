@@ -34,6 +34,9 @@ pub mod organ;
 pub mod sampler;
 pub mod stream;
 pub mod stream_cache;
+pub mod tympanum; // r40:p3 (ADR 0124): the acoustic drummer's unit — tymp-engine
+#[path = "tympanum_hybrid.rs"]
+pub mod tympanum_hybrid; // r40:drums-hyb (ADR 0124 amended): the hybrid voice's residuals
 pub mod wavetable;
 
 /// Numbers an instrument reports to its editor each block: voices, envelope stages, the
@@ -124,6 +127,16 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     /// read the spec, set the DSP, never allocate. Changes should glide where a jump
     /// would click.
     fn configure(&mut self, spec: &NativeSpec, assets: &Assets);
+    /// fix-e — the automation moved only `keys` (each in `spec`, the rest as the last
+    /// configure saw it): a unit that can set those alone, cheaply, does so and returns
+    /// true — **the very state [`Self::configure`] would reach**, to the bit. On the audio
+    /// thread at every control point a lane moves, so a full configure (every file, zone
+    /// or path walked) is kept for keys that change what the unit is. Default: false (the
+    /// caller configures).
+    fn configure_keys(&mut self, spec: &NativeSpec, assets: &Assets, keys: &[String]) -> bool {
+        let _ = (spec, assets, keys);
+        false
+    }
     fn note_on(&mut self, note: NoteOn);
     /// A note from a clip, with its ordinal: how many note-ons of its pitch come before it
     /// on the track (`NoteEvent::ordinal`), so an instrument that cycles (a sampler's round
@@ -311,13 +324,89 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
 pub enum UnitKind {
     Native(InstrumentKind),
     Hosted(u64),
+    // r40:chorda-src (ADR 0125)
+    /// An Exemplar unit built for what its snapshot asks beyond the plain one: room for
+    /// more zones than every Exemplar holds (`sampler::BASE_ZONES`, the snapshot's
+    /// `sampler::CAPACITY_KEY`), a delay line for each output whose `o{n}.delay` is not 0
+    /// (`delays`, a bit per output) and the added room (`room.add`). Built off the audio
+    /// thread and swapped in with the snapshot; an instrument that needs other lines or a
+    /// room gets a new one the same way. A plain Exemplar owns none of them.
+    Exemplar {
+        zones: u32,
+        delays: u32,
+        room: bool,
+    },
+    // r40:tymp-engine (ADR 0124); fix-e (ADR 0123 §3)
+    /// A Tympanum built for what its snapshot asks beyond the plain one: its recorded kit
+    /// in Cantus's room `room` (1 Small, 2 Studio, 3 Hall — Aula's response of that room;
+    /// 0 none) and a delay line for each output in `delays` (a bit per output: its delay
+    /// set, or a lane drives it). Built off the audio thread and swapped in with the
+    /// snapshot (a room or a line changed builds the next one the same way); a plain
+    /// Tympanum owns no line and no room.
+    Drums {
+        room: u8,
+        delays: u32,
+    },
 }
 
 impl UnitKind {
     /// The unit a track's instrument needs; `None` for Firmus and Pulsus, which every slot
-    /// holds already.
+    /// holds already. Its automation is not counted ([`Self::of_track`] counts it).
     pub fn of(spec: &InstrumentSpec) -> Option<UnitKind> {
+        Self::of_with(spec, 0)
+    }
+
+    /// fix-e — the unit `track` of `snapshot` needs, its automation counted: an output
+    /// whose delay a lane drives has its line from the start, even at 0 (ADR 0123 §3).
+    /// Read without allocating (the audio thread asks too).
+    pub fn of_track(
+        snapshot: &cantus_core::Snapshot,
+        track: &cantus_core::TrackSnapshot,
+    ) -> Option<UnitKind> {
+        Self::of_with(
+            &track.instrument,
+            sampler::outs::automated_delays(&snapshot.automation, track.id),
+        )
+    }
+
+    /// The unit `spec` needs with lines also for the outputs in `automated`.
+    fn of_with(spec: &InstrumentSpec, automated: u32) -> Option<UnitKind> {
         match spec {
+            // r40:chorda-src — an Exemplar sized beyond the base, with delay lines or a
+            // room (read without allocating).
+            InstrumentSpec::Native(n) if n.kind == InstrumentKind::Sampler => {
+                let zones = match n.params.get(cantus_core::inst::sampler::CAPACITY_KEY) {
+                    Some(c) if *c as usize > cantus_core::inst::sampler::BASE_ZONES => *c as u32,
+                    _ => cantus_core::inst::sampler::BASE_ZONES as u32,
+                };
+                let delays = sampler::outs::delay_mask(n) | automated;
+                let room = sampler::outs::wants_room(n);
+                Some(
+                    if zones as usize == cantus_core::inst::sampler::BASE_ZONES
+                        && delays == 0
+                        && !room
+                    {
+                        UnitKind::Native(InstrumentKind::Sampler)
+                    } else {
+                        UnitKind::Exemplar {
+                            zones,
+                            delays,
+                            room,
+                        }
+                    },
+                )
+            }
+            // r40:tymp-engine — a recorded kit in one of Cantus's rooms; fix-e — an output
+            // delayed or automated (read without allocating: the audio thread asks too).
+            InstrumentSpec::Native(n) if n.kind == InstrumentKind::AcousticDrums => {
+                let room = tympanum::recorded_room(n).unwrap_or(0);
+                let delays = sampler::outs::delay_mask(n) | automated;
+                Some(if room == 0 && delays == 0 {
+                    UnitKind::Native(InstrumentKind::AcousticDrums)
+                } else {
+                    UnitKind::Drums { room, delays }
+                })
+            }
             InstrumentSpec::Native(n) => Some(UnitKind::Native(n.kind)),
             InstrumentSpec::External(p) => Some(UnitKind::Hosted(hosted_key(p))),
             InstrumentSpec::Firmus(_) | InstrumentSpec::Pulsus(_) => None,
@@ -327,6 +416,8 @@ impl UnitKind {
     pub fn native(self) -> Option<InstrumentKind> {
         match self {
             UnitKind::Native(k) => Some(k),
+            UnitKind::Exemplar { .. } => Some(InstrumentKind::Sampler), // r40:chorda-src
+            UnitKind::Drums { .. } => Some(InstrumentKind::AcousticDrums), // r40:tymp-engine
             UnitKind::Hosted(_) => None,
         }
     }
@@ -390,6 +481,36 @@ impl NativeUnit {
         }
     }
 
+    // r40:chorda-src
+    /// Build the unit a snapshot's track needs (`UnitKind::of`): a native kind's, or an
+    /// Exemplar with room for more zones. `None` for a hosted plug-in, built elsewhere.
+    pub fn of_kind(track: TrackId, kind: UnitKind, sample_rate: f32) -> Option<Self> {
+        let unit: Box<dyn InstrumentUnit> = match kind {
+            UnitKind::Native(k) => make(k, sample_rate),
+            UnitKind::Exemplar {
+                zones,
+                delays,
+                room,
+            } => Box::new(sampler::Unit::with(
+                sample_rate,
+                zones as usize,
+                delays,
+                room,
+            )),
+            UnitKind::Drums { room, delays } => {
+                Box::new(tympanum::Unit::with(sample_rate, room, delays))
+            }
+            UnitKind::Hosted(_) => return None,
+        };
+        Some(NativeUnit {
+            track,
+            kind,
+            serial: next_serial(),
+            unit,
+            automation: crate::modulator::AutoQueue::default(),
+        })
+    }
+
     /// A unit built elsewhere — a hosted plug-in's adapter (`cantus_host`, ADR 0028) — for
     /// the plug-in named by `key` ([`hosted_key`]).
     pub fn hosted(track: TrackId, key: u64, unit: Box<dyn InstrumentUnit>) -> Self {
@@ -420,6 +541,7 @@ pub fn make(kind: InstrumentKind, sample_rate: f32) -> Box<dyn InstrumentUnit> {
         InstrumentKind::Organ => Box::new(organ::Unit::new(sample_rate)),
         InstrumentKind::Chorda => Box::new(chorda::Unit::new(sample_rate)),
         InstrumentKind::Dancer => Box::new(dancer::Unit::new(sample_rate)),
+        InstrumentKind::AcousticDrums => Box::new(tympanum::Unit::new(sample_rate)), // r40:p3
     }
 }
 
@@ -431,16 +553,23 @@ pub fn make(kind: InstrumentKind, sample_rate: f32) -> Box<dyn InstrumentUnit> {
 pub fn units_for(
     snapshot: &cantus_core::Snapshot,
     sample_rate: f32,
-    have: impl Fn(TrackId, InstrumentKind) -> bool,
+    have: impl Fn(TrackId, UnitKind) -> bool,
 ) -> Vec<Box<NativeUnit>> {
     prepare_assets(snapshot);
     chorda::prepare(snapshot, sample_rate);
+    tympanum::cache::prepare(snapshot); // r40:tymp-engine — the kits ready before configure
+    tympanum_hybrid::prepare(snapshot); // r40:drums-hyb — the hybrid kits' residuals
     snapshot
         .tracks
         .iter()
         .filter_map(|t| {
-            let kind = t.instrument.native()?.kind;
-            (!have(t.id, kind)).then(|| Box::new(NativeUnit::new(t.id, kind, sample_rate)))
+            t.instrument.native()?;
+            // r40:chorda-src — matched by unit kind: an Exemplar's room for zones with it.
+            let kind = UnitKind::of_track(snapshot, t)?;
+            if have(t.id, kind) {
+                return None;
+            }
+            NativeUnit::of_kind(t.id, kind, sample_rate).map(Box::new)
         })
         .collect()
 }

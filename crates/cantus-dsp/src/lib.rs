@@ -71,6 +71,7 @@ pub mod nulltest;
 pub mod onset;
 pub mod organum;
 pub mod osc;
+pub mod outmix; // r40:p3 (ADR 0123): a named output's mix on its lane — tymp-engine
 pub mod par;
 pub mod phasis;
 pub mod pitch;
@@ -91,6 +92,8 @@ pub mod tonsor;
 pub mod tonus;
 pub mod translatio;
 pub mod tremor;
+pub mod tympanum; // r40:p3 (ADR 0124): the acoustic drummer's DSP — tymp-engine
+pub mod tympanum_residual; // r40:drums-hyb (ADR 0124 amended): the hybrid voice — a recorded residual under the model
 pub mod unda;
 pub mod va;
 pub mod vibrans;
@@ -110,7 +113,8 @@ pub mod voices;
 /// | 4 | round 25: the 0 dB pan law and the balance are exactly unity at centre and on the near side (`cos(π/4)·√2` was 0.99999994 in `f32`): a centred strip under that law is one rounding step louder (≤ 6e-8 of the signal); no golden hash moved |
 /// | 5 | round 28: an Aequalis band raised (by its knob, automation or a modulator) from exactly 0 dB while no other band was active glides to its gain instead of staying flat for good (`is_active` sees a gain still gliding); that case moves by the whole of the gain asked, every other render is unchanged — no golden hash moved |
 /// | 6 | round 37 (piano, voicing pass two): Chorda's model 2 — new this round, merged once — re-voiced (its body's response, its strings' voicing, its output, the perspective stage); model 1 and every other unit unchanged — no golden hash moved r37:piano |
-pub const DSP_VERSION: u32 = 6;
+/// | 7 | round 40 (Chorda toward the Salamander, voicing pass three): Chorda's model 2 ships candidate 16 (`chorda::voicing::c16`; beta.14's voicing is [`chorda::voicing::Voicing::beta14`]); model 1 and every other unit unchanged — no golden hash moved, model 2's own pin re-made |
+pub const DSP_VERSION: u32 = 7;
 
 pub use aequalis::{Aequalis, BandSettings, EqShape, Placement};
 pub use click::Click;

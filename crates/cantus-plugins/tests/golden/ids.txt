@@ -1331,3 +1331,14 @@ aula mix 1469012833
 aula level 463071197
 aula cantus.sidechain 1368826709
 aula cantus.bypass 710603219
+delay clap com.github.lalmazan.cantus.delay
+delay vst3 625C4F90AB5A380458F1F1D3D1DCA44C
+delay time_ms 2043953845
+delay feedback 914662914
+delay tone_hz 1405704260
+delay ping_pong 1044248952
+delay mix 1469012833
+delay sync 159043482
+delay note 295308349
+delay cantus.sidechain 1368826709
+delay cantus.bypass 710603219

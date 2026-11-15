@@ -245,7 +245,9 @@ fn a_section_from_its_checkpoint_is_the_whole_render_to_the_bit() {
         );
         let skipped = frame(&p, want);
         assert!(
-            h.rendered_frames + skipped <= full.frames() + h.latency + 16,
+            // The checkpoint sits at most a block before the section (on the export's
+            // block boundaries — fix-c, R2-A2).
+            h.rendered_frames + skipped <= full.frames() + h.latency + 512,
             "rendered {} frames of {}",
             h.rendered_frames,
             full.frames()
@@ -780,5 +782,77 @@ fn preroll_by_unit() {
             20.0 * cantus_dsp::math::log10(peak / worst)
         };
         println!("{name:<22} {db:>7.1} dB under the peak");
+    }
+}
+
+// ---- fix-c (R2-A2): memory an effect asks for while the song plays ------------------------
+
+/// The demo song with an EQ on the lead in natural phase and a lane making it linear phase
+/// from the second bar, its resolution raised by another from the third: the unit asks for
+/// its convolver while the song plays (`msg::ask_memory` after automation, fix-a).
+fn asks_mid_song(second: bool) -> Project {
+    let mut p = support::demo_project();
+    let fx = support::add_effect(&mut p, EffectKind::Eq);
+    let strip = p.tracks[0].strip.unwrap();
+    let spec = &mut p.strip_mut(strip).unwrap().effect_mut(fx).unwrap().spec;
+    for (k, v) in [
+        ("b0.used", 1.0),
+        ("b0.freq", 800.0),
+        ("b0.gain", 6.0),
+        ("mode", 0.0),
+        ("lp_res", 0.0),
+    ] {
+        spec.set(k, v).expect("an EQ parameter");
+    }
+    // The second lane starts a hair before the third bar's checkpoint: the unit asks in the
+    // block that ends there, and its answer is still on its way when the checkpoint is kept.
+    for (key, at, pos) in [
+        ("mode", Ticks::beats(4), 1.0f32),
+        ("lp_res", Ticks::beats(8) - Ticks(4), 1.0),
+    ]
+    .into_iter()
+    .take(if second { 2 } else { 1 })
+    {
+        let c = p.make_automation_clip(
+            "a",
+            AutoTarget::Effect {
+                effect: fx,
+                key: key.into(),
+            },
+            at,
+            Ticks::beats(16),
+            vec![AutoPoint::new(Ticks::ZERO, pos)],
+        );
+        p.tracks[0].clips.push(c);
+    }
+    p
+}
+
+/// What an effect asks for mid-song is answered as the export answers it: hearing the song
+/// is its export to the bit, and a section heard from its checkpoint is the whole render.
+#[test]
+fn memory_asked_for_mid_song_is_answered_as_the_export_does() {
+    for second in [false, true] {
+        let p = asks_mid_song(second);
+        let full = whole(&p);
+        let mut cps = Checkpoints::default();
+        let h = hear(&p, Ticks::ZERO, &mut cps, Vec::new());
+        assert_eq!(h.resumed, Resumed::Start);
+        assert_eq!(
+            first_difference(&h.audio, &full.samples),
+            None,
+            "second lane {second}: a listen is the export"
+        );
+        assert_eq!(h.checkpoints_taken, 2);
+        for start in [bar(), bar() * 2] {
+            let h = hear(&p, start, &mut cps, Vec::new());
+            assert_eq!(h.resumed, Resumed::Checkpoint(start));
+            let s0 = frame(&p, start);
+            assert_eq!(
+                first_difference(&h.audio, &full.samples[s0 * 2..]),
+                None,
+                "second lane {second}: from {start:?}"
+            );
+        }
     }
 }

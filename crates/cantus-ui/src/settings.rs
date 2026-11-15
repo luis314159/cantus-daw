@@ -246,6 +246,24 @@ pub struct Settings {
     /// picker's recent row). A preference, never project data.
     #[serde(default)]
     pub track_icons_recent: Vec<String>,
+    /// The owner's look answers (round 40, `look`): what maximise keeps, the top bar's
+    /// extras, the mixer's right dock, the inspector's values, Mute's colour. r40:look
+    #[serde(default)]
+    pub look: crate::views::owner_look::LookSettings,
+    /// r40:ripple — what a section dragged with no key held does (ADR 0116 §3): put its bars
+    /// in, the song rearranged (the default, as Logic and Studio One), or replace where they
+    /// land. Shift does the other one. A preference of this machine, not of the project.
+    pub section_drag: crate::ripple_ui::SectionDrag,
+    /// r40:scene — how the instruments' pictures are drawn (ADR 0126 amended, the owner's
+    /// decision of 2026-11-12): *Drawn* (projected vectors: the default, fast and light) or
+    /// *Photographic* (the per-pixel renderer). A preference of this machine, never the
+    /// project's.
+    #[serde(default)]
+    pub instrument_pictures: crate::scene::SceneBackend,
+    /// One-time notices this machine has shown (round 40, r40:chorda-src: where a view's
+    /// controls moved), by their key. A preference, never project data.
+    #[serde(default)]
+    pub notices_seen: Vec<String>,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -374,6 +392,10 @@ impl Default for Settings {
             grids: Vec::new(),
             cable_style: None,
             track_icons_recent: Vec::new(),
+            look: Default::default(),                // r40:look
+            section_drag: Default::default(),        // r40:ripple
+            instrument_pictures: Default::default(), // r40:scene
+            notices_seen: Vec::new(),                // r40:chorda-src
         }
     }
 }

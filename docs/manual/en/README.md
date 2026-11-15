@@ -38,6 +38,12 @@ Also: [Converting audio to MIDI](audio-to-midi.md) — a melody, chords or a dru
 
 Also: [Pulsus III: pads on their own strips, a chain per pad, kits from anywhere](drum-kits.md) — split a kit to strips, effects on one pad, a folder or an SFZ as a kit. <!-- r37:drums -->
 
+Also: [The arrangement: time, sections and ripple](arrangement.md) — insert and delete time on every track, drag a section to move its bars, the ripple mode. <!-- r40:ripple -->
+
+Also: [Chorda: recorded pianos and the piano's mixer](chorda-pianos.md) — the modelled piano or a recorded one (the Salamander, bitKlavier, your own SFZ), its microphones on strips, Add our room, a mic's delay. <!-- r40:chorda-src -->
+
+Also: [Tympanum, the acoustic drummer](tympanum.md) — modelled and recorded drum kits in their room, their microphones on strips, the bleed, the hybrid voice. <!-- r40:docs -->
+
 Also: [The audio editor](audio-editor.md) — cut, silence, fade, normalise, take the noise out, remove silence and see the spectrum, on a clip's take.
 
 Also: [Saltator, a character that dances to your song](dancer.md) — the dancer's window, its moves, React to; Fuga the ninja and Volta the mecha lead the cast. <!-- r35:dancer, r37:chars -->
@@ -216,10 +222,13 @@ double-click folds or unfolds it); right-click a tab for its menu:
 - **Collapse area** (`Ctrl+Alt+C`) folds the area to its tab bar — or, in a row, to a thin
   rail with its glyph — and keeps its place; *Expand area*, a click on the rail or a drag of
   the folded line brings it back exactly as it was.
-- **Maximise area** (a double-click on its tab, or `Ctrl+Alt+Enter`) gives it the whole
-  workspace; the hidden areas wait in a row of tabs at its foot — click one to bring the
-  areas back with it in front, or *Show the docks*. Again, or showing any area, gives the
-  others back. Floating windows stay.
+- **Maximise area** (a double-click on its tab, or `Ctrl+Alt+Enter`) gives it the workspace
+  with **the inspector kept beside it**, at its width, so what you select is still at hand;
+  the hidden areas wait in a row of tabs at its foot — click one to bring the areas back
+  with it in front, or *Show the docks*. Again, or showing any area, gives the others back;
+  `I` hides the inspector alone and the area stays maximised. Floating windows stay. To give
+  the area the whole workspace instead: *Settings ▸ Appearance ▸ Layout and controls ▸ Maximise keeps:
+  Nothing*.
 - **Float** puts it in a window of its own; **Dock** brings it back.
 
 `Ctrl+F6` and `Ctrl+Shift+F6` move the keyboard's focus from area to area (the focused tab's
@@ -251,6 +260,26 @@ setting saved by an earlier version opens in the theme it names, with your own c
 changes kept; themes you made yourself are untouched. In the high-contrast themes and your
 own older ones the faders still offer two caps (*Faders*: **Classic** and **Metal**); every
 other theme draws one cap, lit from above.
+
+**Layout and controls** (*Settings ▸ Appearance*, under the look): five choices of this computer, not
+of the song, each starting where most people want it —
+- **Maximise keeps**: *The inspector beside it* (the default) or *Nothing: the whole workspace*.
+- **Top bar extras**: *None* (the default), *Automation arm*, *Typing keyboard* or *Both* —
+  the keys the bar carried before version 0.1.0-beta.14 (see [the top bar](#the-top-bar)).
+- **Mixer's right dock**: *At the window's edge* (the default, as FL Studio's desk: the room
+  before it holds the next empty strips, numbered) or *After the last strip*.
+- **Inspector values**: *Value bars* (the default: a well filled to the value, the number
+  inside) or *Slim bars* (a thin bar with a handle, the number beside it).
+- **Lit mute button**: *In colour* (the default: a muted strip's or track's **M** lit in the theme's
+  accent) or *Grey*.
+
+**Instrument pictures** (*Settings ▸ Appearance ▸ Instrument pictures*): how Chorda's piano and
+Tympanum's kit are drawn in their rooms. **Drawn** (the default) is light and fast: one picture
+made when something changes, nothing drawn at rest. **Photographic** adds traced reflections
+(the lid mirroring the frame and the strings, the floor mirroring the instrument) and soft
+shadows; it takes a moment to draw — about a second for a full picture, on a background thread
+that never competes with the audio — and shows a quick version while you drag a control. The
+sound never changes; the choice is this computer's, not the song's. <!-- r40:docs -->
 
 **The size** follows your screen until you choose one: about 125 % on a 1920-pixel screen
 (less when Windows already scales), never under 100 % nor over 200 %. `Ctrl+Plus`,
@@ -347,7 +376,12 @@ right the system meters, the inputs, the master meter, the audio device, the too
 - **Undo** and **redo**, and the seven **window keys**: browser, arrangement, rack, piano
   roll, the plug-in window (`F8`), mixer, inspector. The session view is on `Tab` and in
   *View*; the typing keyboard on `Ctrl+T` and the status line; automation's arm and modes
-  on their keys and in the palette.
+  on their keys and in the palette. **Want them on the bar?** *Settings ▸ Appearance ▸ Layout
+  and controls ▸ Top bar extras*: the **automation arm** comes back after the loop key (lit violet
+  while armed; its ▾, or a right-click, sets every track's mode at once and the touch
+  glide), and the **typing keyboard's key** before the inputs (lit while your computer's keys
+  play the selected track). With both, at 1920 × 1080 and 100 % the bar still folds only the
+  tools (in Spanish the inputs too).
 - **CPU, memory, dropouts**: the audio callback's load as a small graph with its number,
   the memory Cantus uses, and dropouts as a red pill when there are any (the latest one's
   cause on the status line).
@@ -397,6 +431,15 @@ Takes are written as 32-bit float WAV files: into the project's `Audio` folder o
 saved, until then into `%LOCALAPPDATA%\Cantus\recordings\`; saving moves them into the
 project. Each take is placed earlier by the measured latency, so it lines up with what you
 heard.
+
+**Before FX or after FX** *(round 40)*. The inspector's *Recording* section has **Take from:
+Before FX · After FX**. *Before FX* (the default) records the input as it arrives, after its
+trim — the strip's inserts change what you hear, not the take. *After FX* records the strip
+after its inserts (before its EQ, pan and fader), in stereo, as you hear it — Logic's and
+Studio One's "record with effects". The take still lands where you played it: a latent
+insert's delay is taken out. Two things to know: the inserts hear the input only while it is
+monitored (*Auto* or *On*), and they work on everything the strip carries at that moment. The
+choice is saved with the song, per track; one undo step.
 
 ### Recording options
 
@@ -1490,8 +1533,36 @@ strips show, *From the selected strip* among them, and *Insert panel*), the solo
 tabs, right of the tabs. Click a strip to select it (its body tinted, its stripe whole),
 `Ctrl+click` to add, `Shift+click` for a run; dragging one fader of a selection moves them
 all. With the mixer focused, `M` mutes, `S` solos, `Alt+Left`/`Alt+Right` move the strip.
-A muted strip goes quiet in ink; a strip silenced by another's solo shows its M ringed in
-the solo colour.
+A muted strip goes quiet in ink and its **M** lights in the theme's accent (*Settings ▸
+Appearance ▸ Layout and controls ▸ Lit mute button: Grey* lights it grey instead); a strip silenced by another's
+solo shows its M ringed in the solo colour. The **returns** docked at the right sit at the
+window's edge, as in FL Studio, and the room between the last strip and them holds the next
+empty strips, numbered — a click on one makes the strips up to it (*Mixer's right dock: After
+the last strip* puts the returns right after your strips instead).
+
+**Groups, for FL Studio users.** FL has no "group" button: you group by routing. Cantus works
+the same way, with two kinds:
+- **A bus** — route the strips to one strip (select them and *Create submix from selected*,
+  or drag their cables to it): one fader, one set of inserts and one meter for the drums,
+  as the demo song's *Drum bus*. Its effects process the sum.
+- **A VCA group** — one fader that moves the levels of its members without summing them
+  (each keeps its own inserts and sends); see [VCA faders and mixer snapshots](mixing-studio.md).
+
+**Bands on the desk.** A group of strips is drawn as a **band** over them: a gap and a seam
+either side, its name and count at the top. Select strips and right-click ▸ *Group ▸ New group
+from selected* (double-click its head to rename it). A click on its chevron **folds** the band
+into one strip that names its members and shows their meters side by side (*Unfold* brings them
+back — a folded group is never hidden); drag its **right edge** to take in the next strip or to
+give its last one back (`Esc` leaves it as it was). Each change is one undo step. An instrument
+with its own outputs (Chorda, [Tympanum](tympanum.md)) draws its strips as a **family** — a
+solid bar with its glyph, *Drums · Tympanum · 12 mics* — that folds the same way; *Each mic to
+its own strip* makes a sub-group for each family of microphones (Kick, Snare, Toms, Cymbals,
+Overheads, Room) in the same step, and *All to Main* takes them away. A strip is in one band at
+most: a group sits inside one family or takes whole families. A strip fed only by a family's
+outputs — a drum bus, a parallel compressor — can join its band (right-click ▸ *Add to …'s
+band*; it is drawn at the band's end, marked *added*) and leaves it, the status line saying why,
+when its input stops coming only from that family. While the desk scrolls, a band's name stays
+in view. <!-- r40:docs -->
 
 - **Inserts** (up to ten per strip): click the `+` row (or right-click the strip ▸ *Add
   effect ▸*, where the five effects you used last are at the top) to choose an effect in the
@@ -1559,13 +1630,19 @@ title opens or closes it:
 
 - **Routing** — the output, the input, the channel's polarity, swap and mono, the delay
   compensation and the latency.
-- **Sidechain** — which insert it keys and from which strip.
-- **Recording** — the input, monitoring, the trim, *Armed*, *Low latency*.
+- **Sidechain** — which insert it keys and from which strip, and under each keyed insert
+  **Hear the key** *(round 40)*: the strip plays that insert's key in place of its own signal
+  — a compressor's as its detector hears it (after the key's level and EQ) — so you can tune
+  the key by ear. One insert at a time; click again to hear the strip. It is a listening
+  switch: never saved, never in an export.
+- **Recording** — the input, monitoring, **Take from: Before FX · After FX** (see
+  [An audio track](#an-audio-track)), the trim, *Armed*, *Low latency*.
 - **Automation** — the strip's track's mode (*Read · Touch · Latch · Write*), a line per lane
   with a small picture of it and its points, and **Show in the arrangement**: it opens the
   track's automation lanes, scrolls the arrangement to them and gives it the focus (one undo
   step).
-- **Level** — volume, pan and width as bars with their values, the VCAs the strip follows,
+- **Level** — volume, pan and width as value bars (the well filled to the value, the number
+  inside; *Settings ▸ Appearance ▸ Layout and controls ▸ Inspector values: Slim bars* for thin bars), the VCAs the strip follows,
   *Mute · solo*, *Safe from snapshots* and *Safe from solo*; under the volume a slim meter on
   the same scale (green, yellow, amber, the clip colour above, a peak hold). With several
   strips selected the volume moves them together. Level takes the place of the old pinned
@@ -1904,6 +1981,7 @@ clips, mixer strip and effects; swapping an effect keeps its slot, mix and bypas
 | Lamina | Electric piano |
 | Organum | Tonewheel organ with drawbars and a rotary speaker |
 | Chorda | Grand piano played from a physical model: strings, hammers, soundboard, pedals |
+| Tympanum | Acoustic drummer: modelled kits with movable microphones and recorded multi-mic kits, each mic on its own strip ([Tympanum](tympanum.md)) |
 
 The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander), Sibilus
 (de-esser), Multiplex (multiband dynamics), Terminus (limiter), Culmen (maximizer), Tonsor
@@ -1961,6 +2039,11 @@ harder you play, the brighter; a held chord rings on, the strings beating gently
 works — a pedal partly down damps partly. The **soft pedal** (una corda, controller 67)
 shifts the hammers for the next notes: softer and darker.
 
+Since this version Chorda 2 plays a **new voicing**, measured note by note against a recorded
+grand (the Salamander): every key tuned within 10 cents of it, its partials, decay and
+unisons voiced key by key. A song saved with an earlier beta that uses Chorda 2 plays the new
+voicing too; a song on *Chorda 1* sounds as it always did.
+
 The sustain pedal is also a knob — **Sustain**, on the PEDALS card in Play and Edit — so a
 song can pedal without a pedal: draw it as an **automation lane** (right-click the knob ▸ *Create
 automation clip*; points held, up on each chord change and down just after it, is how a pianist
@@ -1968,24 +2051,14 @@ pedals), or let a **modulator** move it; half pedalling works there too. The ped
 strings hear is the higher of the knob and controller 64, so a real pedal still works on
 top of a lane. The demo *With All Your Heart* is pedalled this way.
 
-- **Play** shows **the piano and its room** (round 37): the piano drawn as a photograph of a
-  recording session would show it — the body and finish of the preset, the lid at the
-  **Lid** knob's angle (closed, on the short stick, on the full stick), the microphones
-  where **Mics** and **Width** put them (on a boom over the hammers, on a stand behind the
-  player, out where the audience sits; the pair the mix listens through has a red ring),
-  a room pair on tall stands when the **Room** knob brings the room in, and the room the
-  room's **Size** makes — a booth with absorbers and a rug, a studio's live room with its
-  control-room window, a hall with a polished stage, a church with tall windows when the
-  room is large and very live. Turn a knob and the picture follows. Two pickers over its
-  corner choose the **Piano** (concert grand, grand, parlour grand, upright) and the
-  **Finish** (black or white lacquer, walnut, rosewood): the look changes the picture only,
-  never the sound, is kept with the song and is one undo step. Each preset brings its own
-  look, always one its sound can stand for (Chorda models a grand's strings; an upright is
-  shown only for a sound voiced as one — the lid shut and a short scale, a honky-tonk's
-  detuning or the felt's soft action). Beside it, the pedals:
-  the sustain pedal's travel drawn over the law of how far the dampers are down at each
-  position, with the **Sustain**, **Dampers** and **Soft** knobs under it. Below: the hammer (hardness, dynamics, velocity curve), the resonance
-  (sympathy, decay, soundboard) and the output (tilt, width, gain).
+- **Play** shows **the piano in its room** — the body and finish over the picture, the room,
+  floor, walls and rug on the card in its corner (the look only, never the sound; one undo step,
+  kept with the song), *Drawn* or *Photographic* ([Instrument pictures](#3-the-workspace)) — the
+  **Source** list at its left (the modelled piano, recorded pianos, your own), the keyboard under
+  it, the **Hammer**, **Resonance** and **Output** cards, and **The piano**: the **Lid**,
+  **Perspective · Where you listen** (with *Open the mixer ›*) and the **Pedals** (*Sustain*,
+  *Soft*, *Dampers*, the dampers' curve against the pedal). The room's level and the width live
+  in the **Mixer** view now; see [Chorda: recorded pianos and the piano's mixer](chorda-pianos.md). <!-- r40:docs -->
 - **Edit** shows the piano from above — every key's strings at their length over the
   spruce soundboard, the bridge, the cast frame's rim, the row of felt hammers along where
   they strike, the dampers, the key you last played lit — and adds the tuning (A4, the stretch an aural tuner gives a piano's octaves, the
@@ -2181,8 +2254,9 @@ only inside the folders you allowed).
 
 ### Delay, the stereo delay
 
-**Delay** is Cantus's stereo echo: a time up to two seconds, feedback, a tone filter in the
-feedback path so each repeat is darker than the one before, and ping-pong between the sides.
+**Delay** is Cantus's stereo echo: a time up to two seconds or a note value that follows the
+tempo, feedback, a tone filter in the feedback path so each repeat is darker than the one
+before, and ping-pong between the sides.
 Insert it from **Add insert ▾ ▸ Space ▸ Delay**; a click on its insert opens its window (the
 mini view under the insert keeps the time, the feedback, the tone and the dry/wet at hand).
 
@@ -2198,12 +2272,27 @@ lights as the sound reaches it; at rest nothing moves.
 | Card | Controls |
 |---|---|
 | What is heard | the repeats to −60 dB, the tail they make, what the tone takes from each repeat at 8 kHz, the side of the first |
-| Time | **Time** (1 ms … 2 s); **At the tempo**: a note value at the song's tempo sets the time once — it does not follow a tempo change |
+| Time | **Time** (1 ms … 2 s), or the **note value** while synced; **Tempo**: *Free · Sync*, the note value (1/64 … 4/1, straight, dotted ·, triplet T, each listed with its time at the song's tempo now) and what the time is now |
 | Repeats | **Feedback** (0–95 %), **Tone** (200 Hz … 20 kHz, in the feedback path) |
 | Output | **Ping-pong**, **Mix** (the repeats against the dry sound) |
 
-A change of time glides, so a sweep bends the pitch as tape does. Delay is not exported as a
-CLAP or VST3 plug-in.
+A change of time glides, so a sweep bends the pitch as tape does.
+
+**Synced to the tempo** (round 40). Turn **Sync** on and the time is a note value at the
+song's tempo, following every tempo change and the tempo track: inside a tempo ramp the
+repeats slide with it, as a tape echo whose speed follows the ramp; at a sudden tempo change
+or a new note value they cross-fade to the new time in 50 ms — no click, no sweep. *Sync*
+picks the note nearest the time you had; choosing a note in the list turns the sync on;
+**Free** keeps the time it was playing in milliseconds (so a note value set once is *Sync*,
+then *Free*). While synced the big knob turns the note value, and a drag across the echoes
+moves to the note nearest the pointer. A song saved before round 40 plays as it did. Long
+values take more memory (a whole note about 5 MB, 4/1 about 18 MB at 48 kHz); a dotted 4/1
+below 30 BPM is longer than the line and is held at 48 s (the window says so). The presets
+named by a note value (*Eighth echo*, *Dotted eighth*, *Quarter throw*, *Trap vocal*,
+*Sixteenth bounce*, *Triplet*) follow the tempo.
+
+**In another DAW.** Delay is also a CLAP and VST3 plug-in, *Cantus Delay*, with this window;
+synced, it follows that DAW's tempo.
 
 ### Plug-ins from other makers: installing and using them
 

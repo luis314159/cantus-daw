@@ -1,0 +1,95 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<instrument version="2.0" name="Hihat_foot">
+ <samples>
+  <sample name="Hihat_foot-1" power="0.0111759">
+   <audiofile channel="AmbL" file="samples/1-Hihat_foot.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/1-Hihat_foot.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/1-Hihat_foot.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/1-Hihat_foot.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/1-Hihat_foot.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/1-Hihat_foot.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/1-Hihat_foot.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/1-Hihat_foot.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/1-Hihat_foot.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/1-Hihat_foot.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/1-Hihat_foot.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/1-Hihat_foot.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/1-Hihat_foot.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_foot-2" power="0.0289551">
+   <audiofile channel="AmbL" file="samples/2-Hihat_foot.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/2-Hihat_foot.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/2-Hihat_foot.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/2-Hihat_foot.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/2-Hihat_foot.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/2-Hihat_foot.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/2-Hihat_foot.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/2-Hihat_foot.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/2-Hihat_foot.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/2-Hihat_foot.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/2-Hihat_foot.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/2-Hihat_foot.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/2-Hihat_foot.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_foot-3" power="0.0541558">
+   <audiofile channel="AmbL" file="samples/3-Hihat_foot.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/3-Hihat_foot.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/3-Hihat_foot.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/3-Hihat_foot.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/3-Hihat_foot.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/3-Hihat_foot.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/3-Hihat_foot.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/3-Hihat_foot.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/3-Hihat_foot.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/3-Hihat_foot.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/3-Hihat_foot.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/3-Hihat_foot.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/3-Hihat_foot.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_foot-4" power="0.0948288">
+   <audiofile channel="AmbL" file="samples/4-Hihat_foot.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/4-Hihat_foot.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/4-Hihat_foot.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/4-Hihat_foot.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/4-Hihat_foot.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/4-Hihat_foot.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/4-Hihat_foot.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/4-Hihat_foot.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/4-Hihat_foot.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/4-Hihat_foot.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/4-Hihat_foot.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/4-Hihat_foot.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/4-Hihat_foot.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_foot-5" power="0.146047">
+   <audiofile channel="AmbL" file="samples/5-Hihat_foot.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/5-Hihat_foot.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/5-Hihat_foot.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/5-Hihat_foot.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/5-Hihat_foot.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/5-Hihat_foot.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/5-Hihat_foot.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/5-Hihat_foot.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/5-Hihat_foot.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/5-Hihat_foot.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/5-Hihat_foot.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/5-Hihat_foot.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/5-Hihat_foot.wav" filechannel="13"/>
+  </sample>
+  <sample name="Hihat_foot-6" power="0.210747">
+   <audiofile channel="AmbL" file="samples/6-Hihat_foot.wav" filechannel="1"/>
+   <audiofile channel="AmbR" file="samples/6-Hihat_foot.wav" filechannel="2"/>
+   <audiofile channel="Hihat" file="samples/6-Hihat_foot.wav" filechannel="3"/>
+   <audiofile channel="Kdrum_back" file="samples/6-Hihat_foot.wav" filechannel="4"/>
+   <audiofile channel="Kdrum_front" file="samples/6-Hihat_foot.wav" filechannel="5"/>
+   <audiofile channel="OHL" file="samples/6-Hihat_foot.wav" filechannel="6"/>
+   <audiofile channel="OHR" file="samples/6-Hihat_foot.wav" filechannel="7"/>
+   <audiofile channel="Ride" file="samples/6-Hihat_foot.wav" filechannel="8"/>
+   <audiofile channel="Snare_bottom" file="samples/6-Hihat_foot.wav" filechannel="9"/>
+   <audiofile channel="Snare_top" file="samples/6-Hihat_foot.wav" filechannel="10"/>
+   <audiofile channel="Tom1" file="samples/6-Hihat_foot.wav" filechannel="11"/>
+   <audiofile channel="Tom2" file="samples/6-Hihat_foot.wav" filechannel="12"/>
+   <audiofile channel="Tom3" file="samples/6-Hihat_foot.wav" filechannel="13"/>
+  </sample>
+ </samples>
+</instrument>

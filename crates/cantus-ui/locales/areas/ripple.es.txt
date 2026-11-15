@@ -1,0 +1,64 @@
+# Area: ripple - round 40 (ripple). Every key has its twin in ripple.en.txt
+# Insertar y borrar tiempo, arrastrar una sección, el modo ripple (ADR 0116)
+cmd.ripple.insert_time = Insertar tiempo
+cmd.ripple.delete_time = Borrar tiempo
+cmd.ripple.move_bars = Mover los compases de una sección
+cmd.ripple.copy_bars = Copiar los compases de una sección
+cmd.ripple.insert_bars = Mover e insertar los compases de una sección
+cmd.ripple.insert_copy_bars = Copiar e insertar los compases de una sección
+action.insert-time = Insertar tiempo
+action.delete-time = Borrar tiempo
+action.ripple-mode = Modo ripple: apagado, esta pista, todas las pistas
+# Longitudes y lugares
+ripple.one_bar = 1 compás
+ripple.bars = {n} compases
+ripple.one_beat = 1 tiempo
+ripple.beats = {n} tiempos
+# La línea de estado
+ripple.status.inserted = Tiempo insertado: {len} en {at}, en todas las pistas
+ripple.status.deleted = Tiempo borrado: {len} en {at}, en todas las pistas
+ripple.status.select_first = Primero selecciona el tiempo que quieres borrar: arrastra en la regla
+ripple.status.moved = {name}: se movió a {at} ({len})
+ripple.status.copied = {name}: se copió en {at} ({len})
+ripple.status.moved_in = {name}: se movió e insertó en {at} ({len}); lo que seguía se desplazó
+ripple.status.copied_in = {name}: se copió e insertó en {at} ({len}); lo que seguía se desplazó
+ripple.status.off = Ripple apagado: una edición mueve solo lo que toca
+ripple.status.track = Ripple en esta pista: lo que sigue a un clip se mueve con él
+ripple.status.all = Ripple en todas las pistas: lo que sigue se mueve en todas las pistas
+# Los menús
+ripple.menu.band = Tiempo
+ripple.menu.insert = Insertar tiempo
+ripple.menu.delete = Borrar tiempo
+# Una sección en el carril de secciones
+ripple.section.tip = Arrastra para insertar sus compases en otro lugar en todas las pistas · Mayús reemplaza · Ctrl copia · arrastra su final para cambiar su largo · doble clic para renombrar
+ripple.section.tip_replace = Arrastra para mover sus compases en todas las pistas · Mayús inserta · Ctrl copia · arrastra su final para cambiar su largo · doble clic para renombrar
+ripple.section.fit = Llevar la sección a la selección de tiempo
+# Una sección arrastrada
+ripple.drag.tip = {name} · {len} → {at} · {what}
+ripple.drag.still = donde estaba
+ripple.drag.move = reemplaza lo que hay ahí
+ripple.drag.copy = una copia reemplaza lo que hay ahí
+ripple.drag.insert = entra aquí y lo que sigue se desplaza
+ripple.drag.insert_copy = una copia entra aquí y lo que sigue se desplaza
+ripple.drag.keys = Ctrl: copiar · Mayús: insertar · Alt: fuera de los compases
+cmd.ripple.delete_clips = Borrar clips y cerrar el hueco
+ripple.mode.track = Ripple · esta pista
+ripple.mode.all = Ripple · todas las pistas
+ripple.key.tip = Ripple ({keys}): apagado, esta pista o todas las pistas · cuando está activo, al borrar, mover o alargar un clip, lo que viene después se mueve con él
+ripple.drag.keys_replace = Ctrl: copiar · Mayús: reemplazar · Alt: fuera de los compases
+ripple.menu.mode = Ripple
+ripple.menu.off = Apagado
+ripple.menu.track = Esta pista
+ripple.menu.all = Todas las pistas
+ripple.settings.band = Arreglo
+ripple.settings.drag = Arrastrar una sección
+ripple.settings.insert = Insertar
+ripple.settings.replace = Reemplazar
+ripple.settings.drag_note = Una sección arrastrada en el carril de secciones lleva sus compases en todas las pistas. Insertar los mete donde caen y lo que sigue se desplaza (no se sobrescribe nada, como en Logic y Studio One); Reemplazar sobrescribe lo que hay. Mayús da el otro; Ctrl copia.
+cmd.ripple.paste = Pegar y desplazar lo que sigue
+# r40:fix-d (R2-B1) — una tecla de tiempo rechazada: por qué, y cómo llegar
+ripple.keys.hidden = Insertar y borrar tiempo actúan en el arreglo: muéstralo primero
+ripple.keys.focus = Insertar y borrar tiempo actúan en el arreglo: haz clic en él o ve a él con {key}
+ripple.keys.focus_click = Insertar y borrar tiempo actúan en el arreglo: haz clic en él primero
+ripple.keys.pointer = Insertar y borrar tiempo actúan en el arreglo (el puntero está en {area}): apunta a él o ve a él con {key}
+ripple.keys.pointer_click = Insertar y borrar tiempo actúan en el arreglo (el puntero está en {area}): apunta a él

@@ -127,7 +127,8 @@ fn on(key: u8, velocity: f32, id: u64) -> NoteOn {
 /// A unit made once the reference keyboard is designed (a unit never waits for it: made
 /// before, it is silent until it arrives).
 fn unit() -> Unit {
-    chorda::ensure(Tuning::default(), SR);
+    // The keyboard a new Chorda plays (model 2's own since `DSP_VERSION` 7), designed first.
+    chorda::ensure(chorda::reference(), SR);
     Unit::new(SR)
 }
 
@@ -197,8 +198,12 @@ fn its_levels_leave_headroom_and_a_middle_c_is_heard() {
     let mf = peak_db(&play(&mut u, 24_000));
     eprintln!("ff both hands with pedal {loud:.1} dBFS, mf middle C {mf:.1} dBFS");
     // Model 2 (ADR 0098) stands 4 dB hotter than model 1 did, its output ceiling bending
-    // the fortissimo chords' attacks under full scale.
-    assert!(loud < -0.5, "{loud}");
+    // the fortissimo chords' attacks under full scale. Since `DSP_VERSION` 7 (candidate 16)
+    // the ceiling acts only from −1 dBFS and never passes 0.98 of full scale (−0.18 dBFS):
+    // this chord, far louder than any of the reference's, meets it.
+    let top = 20.0 * math::log10(0.98);
+    assert!(loud <= top + 1e-6 && loud < 0.0, "{loud}");
+    assert!(loud > -6.0, "the ceiling bends, it does not duck: {loud}");
     assert!((-30.0..-8.0).contains(&mf), "{mf}");
 }
 
@@ -267,6 +272,7 @@ fn offline_render_equals_real_time() {
             a4: 442.0,
             stretch: 1.0,
             stiffness: 1.0,
+            ..Default::default()
         },
         SR,
     );
@@ -360,9 +366,12 @@ fn a_dragged_tuning_designs_only_where_it_settles() {
         chorda::prepare(&snap_at(*v), fs);
         std::thread::sleep(std::time::Duration::from_millis(4));
     }
-    let tuning = |a4: f32| Tuning {
-        a4: a4 as f64,
-        ..Tuning::default()
+    // The keyboard a new Chorda at that A4 asks for (model 2's own since `DSP_VERSION` 7:
+    // its voicing's asymptotes and treble octaves).
+    let tuning = |a4: f32| {
+        let mut spec = NativeSpec::new(InstrumentKind::Chorda);
+        spec.set("a4", a4);
+        chorda::tuning_of(&chorda::values_of(&spec))
     };
     let last = *values.last().unwrap();
     let t = std::time::Instant::now();

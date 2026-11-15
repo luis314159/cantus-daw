@@ -15,7 +15,20 @@ use serde::{Deserialize, Serialize};
 ///   into the stereo instrument Exemplar plays — round 28), and a pack instrument's
 ///   `voices`.
 /// - 4: the `loops` category (round 37: Cantus's own loops, ADR 0101).
-pub const FORMAT: u32 = 4;
+/// - 5 (round 40 phase 3, ADRs 0042 amended, 0124, 0125): a pack's [`PackMode`] (*Pack*,
+///   *From the author's site*, *Manual*) and its `author_page`; which instrument plays a
+///   pack instrument ([`Plays`]: Tympanum's kits, Chorda's pianos) and a DrumGizmo kit as
+///   its file; a build that keeps every microphone (`Build::multichannel`); a piano built
+///   from the Salamander/bitKlavier naming ([`PianoBuild`]).
+pub const FORMAT: u32 = 5;
+
+/// The first format that may carry a pack's mode, `plays`, a multichannel build or a
+/// piano build. // r40:p3
+pub const FORMAT_MODES: u32 = 5;
+
+/// The licence id of a pack that states none and is used under its author's own terms
+/// (modes *From the author's site* and *Manual*, ADR 0042 amended): never mode *Pack*.
+pub const AUTHOR_TERMS: &str = "LicenseRef-author-terms";
 
 /// The first format that may carry a credit line.
 pub const FORMAT_ATTRIBUTION: u32 = 2;
@@ -315,6 +328,107 @@ pub struct Pack {
     /// Format 3.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build: Option<Build>,
+    // r40:p3 — format 5 (ADR 0042 amended, the owner's three modes of 2026-11-12).
+    /// How Cantus gets the pack: one click from the official source (*Pack*, the default),
+    /// one click from the author's own URL (*From the author's site*), or the author's page
+    /// opened for the user to fetch it (*Manual*).
+    #[serde(default, skip_serializing_if = "PackMode::is_pack")]
+    pub mode: PackMode,
+    /// The author's page (their terms, their download): what *From the author's site*
+    /// shows and opens when the file changed, and what *Manual* opens. Required for both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_page: Option<String>,
+    /// A piano built at install from the Salamander/bitKlavier naming (`chorda-src`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub piano: Option<PianoBuild>,
+}
+
+/// How Cantus gets a pack (the owner, 2026-11-12; ADR 0042 amended). r40:p3
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PackMode {
+    /// CC0 or CC BY 3.0/4.0: one click, as the Salamander — downloaded from the official
+    /// source URL, SHA-256 pinned, the credit shown. Only for an accepted licence id.
+    #[default]
+    Pack,
+    /// Free to download, no licence stated (Piano in 162, Headroom Piano, Naked Drums):
+    /// one click **from the author's official URL** — Cantus never hosts, mirrors or
+    /// bundles it — SHA-256 pinned; the pack's page says *downloaded from <author>'s site*
+    /// and links the author's terms. A changed file (hash mismatch, 404, HTML instead of an
+    /// archive) opens `author_page` and offers *Install from a file…*.
+    AuthorSite,
+    /// The source needs a login, a registration or an e-mail (Pianobook): Cantus opens
+    /// `author_page`; the user downloads it and drops the file on Cantus or uses *Install
+    /// from a file…*, which recognises it by the source's size and SHA-256. Cantus never
+    /// fetches the source's URL itself.
+    Manual,
+}
+
+impl PackMode {
+    pub fn is_pack(&self) -> bool {
+        *self == PackMode::Pack
+    }
+}
+
+/// Which instrument plays a pack instrument. r40:p3
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Plays {
+    /// Exemplar (an `.sfz`), every instrument before format 5.
+    #[default]
+    Exemplar,
+    /// Tympanum (ADR 0124): a multi-mic kit, an `.sfz` or a DrumGizmo kit (`.xml`).
+    Tympanum,
+    /// Chorda's recorded source (ADR 0125): an `.sfz` piano.
+    Chorda,
+}
+
+impl Plays {
+    pub fn is_exemplar(&self) -> bool {
+        *self == Plays::Exemplar
+    }
+}
+
+/// The piano naming conventions a [`PianoBuild`] reads (research-p3 `formats.md` §6).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PianoNaming {
+    /// `C4v13.wav`, `harm…`, `rel1–88`, `pedalD/U` (the Salamander's).
+    Salamander,
+    /// The Salamander's naming, one folder per stereo image (bitKlavier's nine).
+    BitKlavier,
+}
+
+/// A piano written as an SFZ at install from a folder of named samples: one `<master>` per
+/// perspective, its noises in groups of their own (`chorda-src`, ADR 0125). r40:p3
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PianoBuild {
+    pub naming: PianoNaming,
+    /// The perspectives: each a folder (relative to the pack's folder) and its name.
+    pub perspectives: Vec<PianoPerspective>,
+    /// The instrument written (`.sfz`), relative to the pack's folder.
+    pub sfz: String,
+    /// r40:chorda-src — the piano this pack is one part of, when a piano comes as one pack
+    /// per microphone image (bitKlavier's nine, ADR 0125): Chorda's source list shows the
+    /// set once, and its mixer every image of it, installed or not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub set: Option<String>,
+    /// r40:chorda-src — what the archive's kept files weigh unpacked, before the build keeps
+    /// them as FLAC: the unpack's budget (the pack weighs `installed_size` once built).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unpacked_size: Option<u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PianoPerspective {
+    pub folder: String,
+    pub name: Text,
+    /// r40:chorda-src — its output (ADR 0123), forever for the piano: a set's images each
+    /// keep their own across packs. Absent: its place in the list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<u16>,
 }
 
 /// A build step: the archive holds a DrumGizmo kit (one file per hit, every microphone a
@@ -352,6 +466,11 @@ pub struct Build {
     /// Files of the archive kept beside the instrument (the licence among them); every
     /// other unpacked file goes once the mix is written.
     pub keep: Vec<String>,
+    /// r40:p3 (format 5, ADR 0124) — keep every hit multichannel (every mic a channel, 24-bit
+    /// at the kit's rate) for Tympanum instead of mixing it to stereo; `mics` then gives
+    /// each mic's starting level, pan and polarity in Tympanum's mixer.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub multichannel: bool,
 }
 
 /// One microphone (a channel of the kit) in the stereo mix.
@@ -392,6 +511,11 @@ pub struct KeyMap {
     /// empty, the kit's own name for it.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub label: String,
+    /// r40:tymp-engine (format 5) — a hi-hat state's openness, 0 closed … 1 open: a
+    /// multichannel build also lays it on key 46 at that place on CC4, so Tympanum
+    /// crossfades the kit's recorded states continuously.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub openness: Option<f32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -440,6 +564,9 @@ pub struct PackInstrument {
     /// Exemplar's default. Format 3.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub voices: Option<u8>,
+    /// Which instrument plays it (format 5): Exemplar unless it says. r40:p3
+    #[serde(default, skip_serializing_if = "Plays::is_exemplar")]
+    pub plays: Plays,
 }
 
 /// Whether `id` is a pack's or an instrument's id: lowercase letters, digits and `-`.
@@ -460,6 +587,16 @@ pub enum Source {
     Zip(ZipSource),
     /// One `.tar.gz` archive, with the same rules as a zip (manifest format 2).
     TarGz(ZipSource),
+}
+
+impl Source {
+    /// Every URL the source fetches from.
+    pub fn urls(&self) -> Vec<&str> {
+        match self {
+            Source::Files(f) => f.iter().map(|e| e.url.as_str()).collect(),
+            Source::Zip(z) | Source::TarGz(z) => vec![z.url.as_str()],
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -614,6 +751,20 @@ impl Pack {
         match (&self.source, &self.build) {
             (Source::Files(_), _) => self.installed_size,
             (_, Some(b)) => self.download_size() + b.unpacked_size + self.installed_size,
+            // r40:chorda-src — a piano unpacked whole, then kept as FLAC file by file.
+            (_, None)
+                if self
+                    .piano
+                    .as_ref()
+                    .is_some_and(|p| p.unpacked_size.is_some()) =>
+            {
+                self.download_size()
+                    + self
+                        .piano
+                        .as_ref()
+                        .and_then(|p| p.unpacked_size)
+                        .unwrap_or(0)
+            }
             (_, None) => self.download_size() + self.installed_size,
         }
     }
@@ -710,14 +861,72 @@ impl Manifest {
             if p.licence.trim().is_empty() || !p.licence_url.starts_with("https://") {
                 return Err(bad("a licence needs an SPDX id and an https URL".into()));
             }
-            let Some(licence) = p.licence_kind() else {
+            // r40:p3 — the pack's mode (ADR 0042 amended): only *Pack* needs an accepted
+            // licence; the other two need the author's page and may state none.
+            if (!p.mode.is_pack() || p.author_page.is_some() || p.piano.is_some())
+                && self.format < FORMAT_MODES
+            {
                 return Err(bad(format!(
-                    "licence `{}` is not accepted (ADR 0042: {})",
-                    p.licence,
-                    Licence::ACCEPTED.join(", ")
+                    "a pack's mode, author page or piano build needs manifest format {FORMAT_MODES}"
                 )));
+            }
+            if !p.mode.is_pack() {
+                if !p
+                    .author_page
+                    .as_deref()
+                    .is_some_and(|u| u.starts_with("https://"))
+                {
+                    return Err(bad(
+                        "this mode needs the author's page (an https link)".into()
+                    ));
+                }
+                // r40:tymp-engine — *From the author's site* fetches only from the author:
+                // its file's host is the author's page's (or a subdomain of it).
+                if p.mode == PackMode::AuthorSite {
+                    let host = |u: &str| {
+                        u.split("://")
+                            .nth(1)
+                            .and_then(|r| r.split('/').next())
+                            .map(|h| h.trim_start_matches("www.").to_lowercase())
+                    };
+                    let page = p.author_page.as_deref().and_then(host);
+                    // (A `file://` source is a local copy — a test's, one's own offline
+                    // mirror — fetched from no one.)
+                    let from_author = p.source.urls().iter().all(|u| {
+                        u.starts_with("file://")
+                            || match (host(u), page.as_deref()) {
+                                (Some(h), Some(a)) => h == a || h.ends_with(&format!(".{a}")),
+                                _ => false,
+                            }
+                    });
+                    if !from_author {
+                        return Err(bad(
+                            "from the author's site: the file must come from the author's own host"
+                                .into(),
+                        ));
+                    }
+                }
+                if p.licence != AUTHOR_TERMS && p.licence_kind().is_none() {
+                    return Err(bad(format!(
+                        "licence `{}`: say {AUTHOR_TERMS} or an accepted id",
+                        p.licence
+                    )));
+                }
+            }
+            let stated = p.licence_kind();
+            let licence = match stated {
+                Some(l) => l,
+                // The author's own terms: no credit rule of ours, the author's page shown.
+                None if !p.mode.is_pack() => Licence::Cc0,
+                None => {
+                    return Err(bad(format!(
+                        "licence `{}` is not accepted for a one-click pack (ADR 0042: {})",
+                        p.licence,
+                        Licence::ACCEPTED.join(", ")
+                    )))
+                }
             };
-            if !licence.is_text_url(&p.licence_url) {
+            if stated.is_some() && !licence.is_text_url(&p.licence_url) {
                 return Err(bad(format!(
                     "the licence URL is not {}'s text ({}…)",
                     licence.name(),
@@ -766,8 +975,15 @@ impl Manifest {
                     return Err(bad_inst("no name"));
                 }
                 check_path(&i.file).map_err(|e| bad_inst(&format!("file: {e}")))?;
-                if !i.file.to_ascii_lowercase().ends_with(".sfz") {
+                let lower = i.file.to_ascii_lowercase();
+                let drumgizmo = i.plays == Plays::Tympanum && lower.ends_with(".xml"); // r40:p3
+                if !lower.ends_with(".sfz") && !drumgizmo {
                     return Err(bad_inst("the file must be an .sfz instrument"));
+                }
+                if !i.plays.is_exemplar() && self.format < FORMAT_MODES {
+                    return Err(bad_inst(&format!(
+                        "plays needs manifest format {FORMAT_MODES}"
+                    )));
                 }
                 if i.layers == Some(0) {
                     return Err(bad_inst("layers must be at least 1"));
@@ -804,6 +1020,11 @@ impl Manifest {
                 }
                 if matches!(p.source, Source::Files(_)) {
                     return Err(bad("a build step needs an archive source".into()));
+                }
+                if b.multichannel && self.format < FORMAT_MODES {
+                    return Err(bad(format!(
+                        "a multichannel build needs manifest format {FORMAT_MODES}"
+                    )));
                 }
                 b.validate(p).map_err(|e| bad(format!("build: {e}")))?;
             }

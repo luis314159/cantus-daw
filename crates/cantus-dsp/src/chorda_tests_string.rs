@@ -160,6 +160,7 @@ fn every_key_rings_within_a_cent_at_every_rate_and_tuning() {
         a4: 415.0,
         stretch: 0.7,
         stiffness: 1.0,
+        ..Default::default()
     };
     let stiff = Tuning {
         stiffness: 1.5,
@@ -169,14 +170,25 @@ fn every_key_rings_within_a_cent_at_every_rate_and_tuning() {
         a4: 466.0,
         stretch: 2.0,
         stiffness: 1.5,
+        ..Default::default()
     };
     let low = Tuning {
         a4: 415.0,
         stretch: 0.0,
         stiffness: 0.5,
+        ..Default::default()
+    };
+    // Round 40's model-2 keyboard (finding 9: the bass's asymptote fitted to the recorded
+    // grand, the treble tuned in 4:2 octaves).
+    let model_2 = Tuning {
+        bass_b: 0.754,
+        treble_b: 0.874,
+        treble_octave: 2.0,
+        ..Tuning::default()
     };
     let runs = [
         (44_100.0, Tuning::default(), 1usize << 15),
+        (48_000.0, model_2, 1 << 15),
         (48_000.0, Tuning::default(), 1 << 15),
         (96_000.0, Tuning::default(), 1 << 16),
         (48_000.0, baroque, 1 << 15),
@@ -206,4 +218,148 @@ fn every_key_rings_within_a_cent_at_every_rate_and_tuning() {
         });
         eprintln!("{fs} Hz, {tuning:?}: worst {worst:.3} cents on 88 keys");
     }
+}
+
+/// Round 40 (candidate 7): the steeper loss is the law itself at 1, to the bit; steeper, the
+/// second partial loses more, and the first keeps the law's loss wherever the filter's gain
+/// may stay at or under 1 (C4, C7) — on the very top (A7) the passive filter takes a little
+/// of the first partial too, never less than the law has it.
+#[test]
+fn the_steeper_loss_keeps_the_first_partial_and_takes_the_second() {
+    let fs = 48_000.0;
+    let keys = keyboard_for(&Tuning::default());
+    for m in [60u8, 96, 105] {
+        let k = keys[(m - LOWEST) as usize];
+        assert_eq!(
+            loss_steep(&k, fs, 0.5, 1.0, 0.0, 0.0, 1.0),
+            loss(&k, fs, 0.5, 1.0, 0.0, 0.0)
+        );
+        // The filter's gain at a partial: g (1 − 2α(1 − cos ω)).
+        let at = |(g, a, _): (f64, f64, f64), n: u32| {
+            g * (1.0
+                - 2.0 * a * (1.0 - crate::math::cos(std::f64::consts::TAU * k.partial(n) / fs)))
+        };
+        let (law, steep) = (
+            loss(&k, fs, 0.5, 1.0, 0.0, 0.0),
+            loss_steep(&k, fs, 0.5, 1.0, 0.0, 0.0, 2.0),
+        );
+        if m < 100 {
+            assert!(
+                (at(law, 1) - at(steep, 1)).abs() < 1e-12,
+                "key {m}: the first partial moved"
+            );
+        } else {
+            assert!(
+                at(steep, 1) <= at(law, 1) + 1e-12,
+                "key {m}: the first partial lost less"
+            );
+        }
+        assert!(
+            at(steep, 2) < at(law, 2),
+            "key {m}: the second partial kept its loss"
+        );
+    }
+}
+
+/// Round 40 (candidate 8): a unison string's stiffness scatter, held at its first partial,
+/// holds it on every key — the fraction found gives the loop back its phase there — and a
+/// fraction is found for the scatter (or its mirror, or half of either) on almost every key.
+/// Candidate 7's clamp left D3 and A#1 50 cents flat.
+#[test]
+fn a_held_stiffness_scatter_keeps_every_keys_first_partial() {
+    let fs = 48_000.0;
+    let keys = keyboard_for(&Tuning::default());
+    let mut held = 0;
+    let mut tried = 0;
+    for k in keys.iter() {
+        let d = design(k.f0(), k.b, fs);
+        let w = std::f64::consts::TAU * k.partial(1) / fs;
+        let phase = |frac: f64, e: f64| {
+            let mut p = first_phase(w, frac);
+            for (r, t) in d.poles[..d.sections].iter() {
+                let t2 = (*t * (1.0 + e)).clamp(1e-6, std::f64::consts::PI - 1e-6);
+                p += second_phase(w, *r, t2);
+            }
+            p
+        };
+        for e in [0.05, -0.05, 0.3, -0.3] {
+            tried += 1;
+            if let Some((k2, a)) = [e, -e, 0.5 * e, -0.5 * e]
+                .iter()
+                .find_map(|k2| held_frac(&d, d.frac, w, *k2).map(|a| (*k2, a)))
+            {
+                held += 1;
+                let err = phase(a, k2) - phase(d.frac, 0.0);
+                assert!(
+                    err.abs() < 1e-9,
+                    "key {}: the first partial's phase moved {err:e}",
+                    k.key
+                );
+                assert!(a.abs() <= 0.99);
+            }
+        }
+    }
+    assert!(
+        held * 10 >= tried * 9,
+        "only {held} of {tried} scatters held"
+    );
+}
+
+/// Round 40 (candidate 11): the strike point. Placed in the delay lines alone (beta.14's,
+/// `strike_true` 0) it sits short of where the key's strike fraction puts it wherever the
+/// dispersion sections carry part of the period — middle C's comb notched partials 12–13,
+/// not 8. Placed true (1), the strike is the key's fraction of the loop's phase delay at
+/// the partial its comb notches, to half a sample; the top keys keep their one sample.
+#[test]
+fn the_strike_point_lands_where_the_key_puts_it() {
+    let fs = 48_000.0;
+    let keys = keyboard_for(&Tuning::default());
+    for m in (21..=108u8).step_by(3) {
+        let k = keys[(m - LOWEST) as usize];
+        let d = design(k.f0(), k.b, fs);
+        let old = ((k.strike * d.delay.max(3) as f64 / 2.0).round() as usize).max(1);
+        assert_eq!(KeyStrings::nut_samples(&k, &d, 0.0), old, "key {m}");
+        let n = 1.0 / k.strike;
+        let p = fs / (k.f0() * (1.0 + k.b * n * n).sqrt());
+        let nut = KeyStrings::nut_samples(&k, &d, 1.0);
+        if m >= 96 {
+            assert_eq!(nut, old, "key {m}: the top keys keep their sample");
+        } else {
+            assert!(
+                (2.0 * nut as f64 - k.strike * p).abs() <= 1.0,
+                "key {m}: the strike at {:.3} of the string, not {:.3}",
+                2.0 * nut as f64 / p,
+                k.strike
+            );
+        }
+        if m == 60 {
+            assert!(2.0 * old as f64 / p < 0.095, "middle C's old strike");
+        }
+    }
+}
+
+/// Round 40 (candidate 11): placed true, middle C's strike notches partial 8 (the reference's
+/// strike leaves partials 8–9 low) and frees partials 12–13, which the old placement notched.
+#[test]
+fn the_true_strike_point_notches_middle_cs_eighth_partial() {
+    let fs = 48_000.0;
+    let keys = keyboard_for(&Tuning::default());
+    let k = keys[(60 - LOWEST) as usize];
+    let d = design(k.f0(), k.b, fs);
+    let render = |strike_true: f64| {
+        let mut s = KeyStrings::new(d.delay + 16, fs);
+        s.lay(&k, &d, [0.0; MAX_STRINGS], 1, 0, 0.0, strike_true);
+        let (g, a, yz) = loss(&k, fs, 0.5, 1.0, 0.0, 0.0);
+        s.set_loss(g, a, yz);
+        s.strike(felt_of(&k), k.hammer_mass, 2.0, [1.0; MAX_STRINGS]);
+        (0..(fs as usize)).map(|_| s.tick()).collect::<Vec<f64>>()
+    };
+    let (a, b) = (render(0.0), render(1.0));
+    let lv = |x: &[f64], n: u32| partial_level(x, fs, k.partial(n), 0.05);
+    let rel = |x: &[f64], n: u32| lv(x, n) - lv(x, 1);
+    let (p8a, p8b) = (rel(&a, 8), rel(&b, 8));
+    let (p12a, p12b) = (rel(&a, 12) + rel(&a, 13), rel(&b, 12) + rel(&b, 13));
+    eprintln!("middle C, re partial 1: p8 {p8a:.1} -> {p8b:.1} dB; p12+p13 {p12a:.1} -> {p12b:.1}");
+    assert!(p8b < p8a - 6.0);
+    assert!(p12b > p12a + 6.0);
 }

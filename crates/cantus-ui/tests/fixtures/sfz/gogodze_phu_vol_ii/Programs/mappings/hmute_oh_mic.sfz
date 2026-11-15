@@ -1,0 +1,53 @@
+<group>group=31
+//The range which mutes open hi-hats - that is, everything except open
+sample=*silence
+polyphony=4
+loop_mode=loop_continuous off_mode=fast
+ampeg_attack=0 ampeg_decay=0 ampeg_sustain=0 ampeg_release=0
+off_by=32
+<region> key=42
+<region> key=44
+<region> key=46 hicc4=95
+
+<group>group=32
+//The range which mutes half-open hi-hats
+//Everything except open and half-open
+sample=*silence
+polyphony=4
+loop_mode=loop_continuous off_mode=fast
+ampeg_attack=0 ampeg_decay=0 ampeg_sustain=0 ampeg_release=0
+off_by=33
+<region> key=42
+<region> key=44
+<region> key=46 hicc4=63
+
+<group>group=33
+//The range which mutes loosely closed hi-hats
+//Everything except open, half-open and loose
+sample=*silence
+polyphony=4
+loop_mode=loop_continuous off_mode=fast
+ampeg_attack=0 ampeg_decay=0 ampeg_sustain=0 ampeg_release=0
+off_by=34
+<region> key=42
+<region> key=44
+<region> key=46 hicc4=31
+
+<group>group=34
+//The range which mutes "regular" closed hi-hats
+//Just tightly closed and foot
+sample=*silence
+polyphony=4
+loop_mode=loop_continuous off_mode=fast
+ampeg_attack=0 ampeg_decay=0 ampeg_sustain=0 ampeg_release=0
+off_by=35
+<region> key=42
+<region> key=44
+
+<group>group=35
+//The range which mutes tightly closed hi-hats - just foot
+sample=*silence
+polyphony=4
+loop_mode=loop_continuous off_mode=fast
+ampeg_attack=0 ampeg_decay=0 ampeg_sustain=0 ampeg_release=0
+<region> key=44

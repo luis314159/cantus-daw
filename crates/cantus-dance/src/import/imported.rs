@@ -314,6 +314,7 @@ impl Imported {
                         px_per_unit: scale,
                         hue: 0.0,
                         shadow: true,
+                        ink: canvas.ink,
                     };
                     self.source
                         .draw(ci, frame as f32 / fr, self.settings.filter, &mut c);

@@ -78,6 +78,8 @@ pub struct EngineHandle {
     /// Where the engine is, ahead of what is heard by the output's latency.
     engine_position: Ticks,
     playing: bool,
+    /// r40:pads — the keyed insert whose key the live engine plays (*Hear the key*).
+    hear_key: Option<cantus_core::EffectId>,
     meters: Meters,
     /// The modulators' live values (ADR 0057).
     modulation: crate::modulator::ModTelemetry,
@@ -224,11 +226,14 @@ impl EngineHandle {
                 cantus_rt::thread::opt_out_of_power_throttling()
             )
         });
-        let mut processor = Box::new(Processor::new(
+        // r40:pads — no compensation line at start (ADR 0120 §7): this handle sends the
+        // lines each snapshot can need ahead of it (`pdc_lines` below starts at 0).
+        let mut processor = Box::new(Processor::with_lines(
             sample_rate as f64,
             rx_engine,
             tx_engine,
             midi_rx,
+            0,
         ));
         let reports = processor.take_reports();
         // The pool (ADR 0031 §2): its workers start now and wait for the stream's first
@@ -344,6 +349,7 @@ impl EngineHandle {
             position: Ticks::ZERO,
             engine_position: Ticks::ZERO,
             playing: false,
+            hear_key: None, // r40:pads
             meters: Meters::default(),
             modulation: Default::default(),
             stats: EngineStats::default(),
@@ -352,7 +358,7 @@ impl EngineHandle {
             known_instruments: HashMap::new(),
             parts_sent: Default::default(),
             cells_sent: (crate::parts::START_TRACKS, crate::parts::START_STRIPS),
-            pdc_lines: crate::pdc::START_LINES,
+            pdc_lines: 0, // r40:pads — its processor starts with none (ADR 0120 §7)
             dance_feeds: Default::default(), // r35:dancer
             samples: SampleCache::new(),
             frozen: crate::freeze::FrozenStore::default(),
@@ -408,10 +414,18 @@ impl EngineHandle {
     /// processor (`Processor::process`) wherever it likes — a test standing in for the
     /// audio callback, so everything from the UI's side through the engine runs for real.
     pub fn manual(sample_rate: f64) -> (Self, Processor) {
+        Self::manual_with_lines(sample_rate, crate::pdc::START_LINES)
+    }
+
+    /// r40:pads — [`Self::manual`] whose processor starts with `lines` compensation lines,
+    /// the handle knowing it: `0` is the application's engine (ADR 0120 §7), which is sent
+    /// every line a snapshot can need ahead of it.
+    pub fn manual_with_lines(sample_rate: f64, lines: usize) -> (Self, Processor) {
         let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
-        let mut processor = Processor::without_midi(sample_rate, rx_engine, tx_engine);
+        let mut processor = Processor::without_midi_lines(sample_rate, rx_engine, tx_engine, lines);
         let mut handle = Self::dummy();
+        handle.pdc_lines = lines.min(crate::pdc::POOL);
         handle.tx = tx;
         handle.rx = rx;
         handle.reports = processor.take_reports();
@@ -444,6 +458,7 @@ impl EngineHandle {
             position: Ticks::ZERO,
             engine_position: Ticks::ZERO,
             playing: false,
+            hear_key: None, // r40:pads
             meters: Meters::default(),
             modulation: Default::default(),
             stats: EngineStats::default(),
@@ -592,6 +607,19 @@ impl EngineHandle {
     /// many blocks went by, and a transient in any of them is kept.
     pub fn take_comp_meter(&mut self) -> [f32; 3] {
         std::mem::take(&mut self.comp_peak)
+    }
+
+    /// r40:pads — *Hear the key* (ADR 0118): the keyed insert `effect`'s strip plays its key
+    /// in place of its own signal, until set to another or to none. Only the live engine
+    /// hears it: a render is another processor.
+    pub fn set_hear_key(&mut self, effect: Option<cantus_core::EffectId>) {
+        self.hear_key = effect;
+        self.send(EngineMessage::SetHearKey(effect));
+    }
+
+    /// r40:pads — the keyed insert whose key the live engine is playing, if any.
+    pub fn hear_key(&self) -> Option<cantus_core::EffectId> {
+        self.hear_key
     }
 
     /// Point the analyser at an effect (the editor that is open), or at nothing.
@@ -1081,13 +1109,13 @@ impl EngineHandle {
             snapshot
                 .tracks
                 .iter()
-                .any(|t| t.id == *track && UnitKind::of(&t.instrument) == Some(*kind))
+                .any(|t| t.id == *track && UnitKind::of_track(&snapshot, t) == Some(*kind))
         });
         let known = &self.known_instruments; // r35:dancer
         self.dance_feeds
             .retain(|t, s| known.get(&t).map(|k| k.1) == Some(s)); // r35:dancer
         let units = crate::inst::units_for(&snapshot, self.sample_rate as f32, |track, kind| {
-            self.known_instruments.get(&track).map(|k| k.0) == Some(UnitKind::Native(kind))
+            self.known_instruments.get(&track).map(|k| k.0) == Some(kind) // r40:chorda-src
         });
         for unit in units {
             let (track, kind, serial) = (unit.track, unit.kind, unit.serial);

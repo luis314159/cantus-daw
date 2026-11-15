@@ -11,6 +11,8 @@ use serde_json::{json, Value};
 pub static TOOLS: &[ToolDef] = &[
     ToolDef { name: "split_kit_outputs", title: "Split a kit to strips", description: "Give every pad of a Pulsus kit that sounds a mixer strip of its own (named after the pad, right after the kit's strip, routed into it, its pan law a balance), so each pad has its own fader, inserts and sends; the kit sums to itself to the bit while the new strips are at unity. merge=true does the reverse: every pad back on the kit's strip, the strips it made removed (a pad's chain kept). One undo step either way.", class: ToolClass::Edit, input_schema: split_schema, output_schema: None, run: ToolRun::Edit(split_kit_outputs) },
     ToolDef { name: "set_pad_chain", title: "Edit a pad's chain", description: "Insert effects on one pad of a Pulsus kit, before the kit's sum: add puts an effect (eq, compressor, gate, saturator, delay, spatium — the reverb, also named reverb — … by kind, with its starting preset) at the end of the pad's chain (made with the first); remove takes an effect out by its id (the last takes the chain). A chain at rest costs nothing. Answers the pad's chain after the change. One undo step.", class: ToolClass::Edit, input_schema: chain_schema, output_schema: None, run: ToolRun::Edit(set_pad_chain) },
+    // r40:pads — a pad's own mixer track (ADR 0117)
+    ToolDef { name: "set_pad_track", title: "Choose a pad's mixer strip", description: "Send one pad of a Pulsus kit to a mixer strip of its own, as FL Studio's per-channel mixer track: strip_id names any audio strip of the desk (a bus, another channel's strip), free=true takes the first free strip (named after the pad), and neither puts the pad back on the kit's strip. The pad then plays there and only there — the kit's strip, its inserts and fader no longer touch it; a pad with a chain keeps it. Refused for a VCA or a pad's chain. One undo step. Answers the strip the pad plays on.", class: ToolClass::Edit, input_schema: pad_track_schema, output_schema: None, run: ToolRun::Edit(set_pad_track) },
     ToolDef { name: "make_kit_from_folder", title: "Make a kit from a folder", description: "Make a Pulsus kit from a folder of audio files (or an SFZ drum kit file) inside the project's folder or a folder the user allowed: names in English or Spanish map to the General MIDI drum map (kick 36, snare 38, clap 39, hats 42/44/46 choking each other, toms, crash, ride, cowbell, percussion), numbered takes become a round robin, dynamics (soft/hard, pp/ff, vl1…) velocity layers, the rest by order; at most 512 sounds. On track_id's kit (its pads' strips kept; a track that is not a kit is refused), else on a new kit track. One undo step. Answers the pads (notes, names, layer counts) and what did not fit, by file name.", class: ToolClass::Files, input_schema: folder_schema, output_schema: None, run: ToolRun::Edit(make_kit_from_folder) },
 ];
 
@@ -34,6 +36,58 @@ fn chain_schema() -> Value {
         }),
         &["track_id", "pad"],
     )
+}
+
+fn pad_track_schema() -> Value {
+    args::object(
+        json!({
+            "track_id": args::s_id("The kit's track"),
+            "pad": {"type": "integer", "minimum": 0, "maximum": 127, "description": "The pad, by its note (36 the kick on the General MIDI map)."},
+            "strip_id": args::s_id("The mixer strip the pad plays on; left out (and free false), the kit's own"),
+            "free": {"type": "boolean", "default": false, "description": "The first free strip of the desk."}
+        }),
+        &["track_id", "pad"],
+    )
+}
+
+/// r40:pads — one pad of a kit to a mixer strip of its own, or back on the kit's.
+fn set_pad_track(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
+    let a = A(a);
+    let t = kit_track(cx.project(), a)?;
+    let pitch = a.u64("pad")?.min(127) as u8;
+    let (pad, pad_name) = cx
+        .project()
+        .track(t)
+        .and_then(|x| x.instrument.pulsus())
+        .and_then(|k| k.pads.iter().find(|p| p.pitch == pitch))
+        .map(|p| (p.id, p.name.clone()))
+        .ok_or_else(|| ToolError::NotFound(format!("a pad on note {pitch}")))?;
+    let to = if a.opt_bool("free")?.unwrap_or(false) {
+        Some(
+            cx.project()
+                .first_free_strip()
+                .ok_or_else(|| ToolError::Refused("no free strip on the desk".into()))?,
+        )
+    } else {
+        a.opt_u64("strip_id")?.map(cantus_core::StripId)
+    };
+    let cmd = padout::set_pad_track(cx.project(), t, pad, to).map_err(|r| match r {
+        padout::Refusal::Nothing => ToolError::Refused("the pad already plays there".into()),
+        r => refusal(r),
+    })?;
+    let mut after = cx.project().clone();
+    let _ = cmd.clone().apply(&mut after);
+    let on = after.track(t).and_then(|x| {
+        x.instrument
+            .pulsus()
+            .and_then(|k| k.by_id(pad))
+            .and_then(|p| padout::pad_track(&after, x, p))
+    });
+    Ok(plan(
+        cmd,
+        Said::new("ai.tools.pad_track").name("name", args::clean(&pad_name)),
+        json!({"track_id": t.0, "pad": pitch, "strip_id": on.map(|s| s.0)}),
+    ))
 }
 
 fn folder_schema() -> Value {
@@ -70,6 +124,10 @@ fn refusal(r: padout::Refusal) -> ToolError {
             padout::Refusal::NoRoom => {
                 "no room: the engine plays at most 256 tracks (the project's and one per pad \
                  output) and 256 strips; remove tracks or strips, or split fewer pads"
+            }
+            // r40:pads — ADR 0117
+            padout::Refusal::Unfit => {
+                "that strip cannot carry a pad: it is gone, a VCA or a pad's chain, or a loop"
             }
         }
         .into(),

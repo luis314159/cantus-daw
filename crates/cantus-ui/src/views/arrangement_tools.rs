@@ -310,6 +310,15 @@ pub(super) fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
         app.arrangement.follow = !app.arrangement.follow;
         app.arrangement.follow_last = None;
     }
+    // r40:ripple — the ripple mode's key, beside Follow: its word while it is on.
+    let word = crate::ripple_ui::mode_word(app.arrangement.ripple);
+    let keys = app.keymap.display_for(Action::CycleRipple);
+    let ripple = bar.ripple_right(ui, id.with("ripple"), word.as_deref(), || {
+        crate::i18n::tf("ripple.key.tip", &[("keys", &keys)])
+    });
+    if ripple.is_some_and(|r| r.clicked()) {
+        app.cycle_ripple();
+    }
     bar.title(ui, Src::Key("arrangement.title"), None);
     let set = Tool::ALL.map(|t| (t.icon(), t.label_key()));
     let chosen = Tool::ALL

@@ -63,6 +63,11 @@ pub struct Thud {
     rng: Rng,
     noise_gain: f64,
     busy: bool,
+    /// Round 40: the noise's rise — a faster envelope taken off the fall (`env − env_a`),
+    /// its fall per sample (0: none, the noise at once) and the peak's normalisation.
+    env_a: f64,
+    att: f64,
+    norm: f64,
 }
 
 /// Below this (N) a thud has ended.
@@ -91,7 +96,29 @@ impl Thud {
             rng: Rng(1),
             noise_gain: 0.0,
             busy: false,
+            env_a: 0.0,
+            att: 0.0,
+            norm: 1.0,
         }
+    }
+
+    /// The noise rises over `share` of its fall `tau` (s) and then falls as before, its
+    /// peak where the fall alone starts (0: no rise). Allocates nothing.
+    pub fn set_rise(&mut self, fs: f64, tau: f64, share: f64) {
+        if share <= 0.0 || share >= 1.0 || tau <= 0.0 {
+            (self.att, self.norm) = (0.0, 1.0);
+            return;
+        }
+        let tr = share * tau;
+        self.att = math::exp(-1.0 / (tr * fs));
+        // The difference of the two exponentials peaks at t* = ln(τ/τr)·τ·τr/(τ − τr).
+        let t = math::ln(tau / tr) * tau * tr / (tau - tr);
+        self.norm = 1.0 / (math::exp(-t / tau) - math::exp(-t / tr));
+    }
+
+    /// Whether a rise is set.
+    pub fn rises(&self) -> bool {
+        self.att != 0.0
     }
 
     /// Strike: the modes kicked by `amp` (N·s-ish: an impulse), the noise at `noise`,
@@ -101,6 +128,7 @@ impl Thud {
             y[0] += a;
         }
         self.env = 1.0;
+        self.env_a = if self.att != 0.0 { 1.0 } else { 0.0 };
         self.noise_gain = noise;
         self.rng = Rng(seed);
         self.busy = amp[0] != 0.0 || amp[1] != 0.0 || noise != 0.0;
@@ -116,6 +144,7 @@ impl Thud {
         self.lp = 0.0;
         self.hp_x = 0.0;
         self.hp_y = 0.0;
+        self.env_a = 0.0;
         self.busy = false;
     }
 
@@ -134,7 +163,13 @@ impl Thud {
         }
         // The noise, then its filters (which ring down after it, so they run on).
         let n = if self.env > 1e-9 {
-            let n = self.rng.next() * self.env * self.noise_gain;
+            let n = if self.att != 0.0 {
+                let e = (self.env - self.env_a) * self.norm;
+                self.env_a *= self.att;
+                self.rng.next() * e * self.noise_gain
+            } else {
+                self.rng.next() * self.env * self.noise_gain
+            };
             self.env *= self.fall;
             n
         } else {

@@ -1,0 +1,22 @@
+# Area: owner_look - round 40 (look). Every key has its twin in owner_look.en.txt
+# Ajustes ▸ Apariencia ▸ Disposición y controles (views/owner_look.rs): las respuestas del dueño sobre el aspecto.
+owner_look.band = Disposición y controles
+owner_look.note = Cómo se reparte el espacio de trabajo y cómo se dibujan algunos controles. Son opciones de este ordenador, no de la canción.
+owner_look.maximise = Al maximizar, queda
+owner_look.maximise.inspector = El inspector al lado
+owner_look.maximise.nothing = Nada: todo el espacio
+owner_look.topbar = Extras de la barra
+owner_look.topbar.plain = Ninguno
+owner_look.topbar.automation = Armado
+owner_look.topbar.typing = Teclado
+owner_look.topbar.both = Ambos
+owner_look.topbar.note = Armado: la tecla que arma la escritura de automatización. Teclado: el teclado del ordenador, que toca notas con la pista seleccionada.
+owner_look.dock = Dock derecho del mezclador
+owner_look.dock.edge = En el borde de la ventana
+owner_look.dock.after = Tras la última tira
+owner_look.values = Valores del inspector
+owner_look.values.bars = Barras de valor
+owner_look.values.slim = Barras finas
+owner_look.mute = Botón M encendido
+owner_look.mute.colour = En color
+owner_look.mute.grey = Gris

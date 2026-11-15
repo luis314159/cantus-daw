@@ -23,6 +23,9 @@ asio = ["cantus-ui/asio"]
 # rav1e's assembly for WebM video: 2.8x faster, the same bytes; needs nasm to build
 # (releases: `xtask package` and the workflows turn it on - ADR 0088). # r35:video
 video-asm = ["cantus-ui/video-asm"] # r35:video
+# A measurement build's heap census (ADR 0120 §1, Windows): the live heap by call stack,
+# written every ten seconds to the file `CANTUS_HEAP_CENSUS` names. Never in a release.
+census = ["dep:cantus-rt", "cantus-rt/census"]
 
 [dependencies]
 cantus-ui.workspace = true
@@ -31,6 +34,7 @@ log.workspace = true
 anyhow.workspace = true
 # The x86-64 level this program was built for, which `--version` names (round 22).
 cantus-launch.workspace = true
+cantus-rt = { workspace = true, optional = true }
 
 # ADR 0024 §12: the splash logo and the window's icon are rendered from the logo's SVG
 # masters at build time; `winresource` (MIT) puts the icon into the Windows executable.

@@ -198,3 +198,6 @@ picker.dev.tonus.about = Real-time pitch correction to a scale or to the notes y
 picker.dev.chorda.name = Chorda
 picker.dev.chorda.what = Modelled grand piano
 picker.dev.chorda.about = A grand piano played from a physical model: strings, hammers, soundboard and pedals.
+picker.dev.tympanum.name = Tympanum
+picker.dev.tympanum.what = Acoustic drummer
+picker.dev.tympanum.about = Acoustic drum kits heard through microphones: modelled kits whose mics you can move, recorded multi-mic kits, the kit in its room and each mic on its own mixer strip.
