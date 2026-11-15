@@ -648,5 +648,8 @@ fn cpu_at_eight_and_sixteen_lines() {
         best = best.min(t0.elapsed().as_secs_f64());
         std::hint::black_box((ol, or));
     }
-    eprintln!("Spatium (Room), for scale: {:.2} % of a core", best / 60.0 * 100.0);
+    eprintln!(
+        "Spatium (Room), for scale: {:.2} % of a core",
+        best / 60.0 * 100.0
+    );
 }
