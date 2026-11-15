@@ -55,6 +55,19 @@ See ADR 0134 *What the tests hold*. Files: `crates/cantus-core/src/command_board
 `split::tabula`, `at_rest::tabula`), `rt_memory.rs` (`tabula_never_allocates`),
 `crates/cantus-ui/tests/tabula_e2e.rs`, `crates/cantus-plugins/tests/tabula_board.rs`.
 
+## The finishing suite (2026-11-15, Windows)
+
+`cargo test` crate by crate (the seven-crate run was stopped when C: neared 8 GB; the target
+was cleaned and each crate run alone): cantus-engine 119 test binaries, cantus-core 30,
+cantus-project 31, cantus-ai 7, cantus-plugins 14, cantus-ui 301 — every one passing after
+four fixes the run found (the agents' catalogue now lists a board preset's own values and
+its pedals; the MCP tools golden regenerated on purpose for Tabula's words; the fine vinyl's
+gallery goldens added with `CANTUS_BLESS=1`, the six new images only; the picker's shadow
+from the palette, not a literal colour). `cargo clippy -D warnings --all-targets` on every
+crate touched (core, engine, ui, plugins, ai, bench) and on the plug-ins without default
+features: clean. `cargo fmt --check` on each: clean. Not run here: the Linux check (WSL) and
+the whole workspace in one call (the integrator's at the merge).
+
 ## Shared files touched (each line marked `fx3:tabula`)
 
 - Core: `command.rs` (none), `mix_snap.rs` (exact undo through `put_flat_params`),
