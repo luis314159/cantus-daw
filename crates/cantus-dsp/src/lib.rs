@@ -108,6 +108,7 @@ pub mod arca; // fx3:contract
 pub mod rota; // fx3:contract
 pub mod saltus; // fx3:contract
 pub mod tabula; // fx3:contract
+pub mod vinculum; // fx:vinculum — the bus compressor (side round, wave B; no contract yet)
 
 /// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`
 /// render the same project to the same bits, on any machine; a change that moves any
