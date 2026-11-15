@@ -933,7 +933,8 @@ impl Comprimo {
                 if n == 0 {
                     continue;
                 }
-                y = key_band(&self.key_coefs[b][..n], &mut self.key_z[ch][b], y); // fx-b:cedo
+                // fx-b:cedo — the band's sections, shared with Cedo.
+                y = key_band(&self.key_coefs[b][..n], &mut self.key_z[ch][b], y);
             }
             *x = y as f32;
         }

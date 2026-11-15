@@ -169,7 +169,11 @@ impl Default for CedoSettings {
 
 /// Lookahead in samples.
 fn look_samples(ms: f32, sr: f32) -> usize {
-    let ms = if ms.is_finite() { ms.clamp(0.0, MAX_LOOKAHEAD_MS) } else { 0.0 };
+    let ms = if ms.is_finite() {
+        ms.clamp(0.0, MAX_LOOKAHEAD_MS)
+    } else {
+        0.0
+    };
     (ms as f64 * 0.001 * sr as f64).round() as usize
 }
 
@@ -184,18 +188,18 @@ pub fn latency_for(s: &CedoSettings, sample_rate: f32) -> usize {
         }
 }
 
-/// The classic pump: the full depth on the beat, letting go quickly then easing back to
-/// nothing by half the cycle, then nothing until the next beat. (Segment shapes are the
-/// automation editor's: 0 a curve, 2 a hold.)
+/// The classic pump: the full depth on the beat, letting go a little faster at first and
+/// easing back to nothing by 65 % of the cycle (`1 − (1 − u)^2.4`), then nothing until the
+/// next beat. (Segment shapes are the automation editor's: 0 a curve, 2 a hold.)
 pub const CLASSIC_PUMP: [CurvePoint; 2] = [
     CurvePoint {
         x: 0.0,
         y: 1.0,
-        tension: -0.45,
+        tension: -0.2,
         shape: 0,
     },
     CurvePoint {
-        x: 0.5,
+        x: 0.65,
         y: 0.0,
         tension: 0.0,
         shape: 2,
@@ -330,14 +334,26 @@ impl Cedo {
         self.s = *s;
         self.timing = Timing::new(s.attack_ms, s.hold_ms, s.release_ms, s.release_shape, sr);
         self.thr = crate::math::db_to_gain(s.threshold_db.clamp(-90.0, 6.0));
-        let depth = if s.depth_db.is_finite() { s.depth_db.max(0.0) } else { 0.0 };
+        let depth = if s.depth_db.is_finite() {
+            s.depth_db.max(0.0)
+        } else {
+            0.0
+        };
         let floor = if depth >= DEPTH_INF {
             0.0
         } else {
             crate::math::db_to_gain(-depth)
         };
-        let mix = if s.mix.is_finite() { s.mix.clamp(0.0, 1.0) } else { 0.0 };
-        self.wgt.target = if depth == 0.0 { 0.0 } else { mix * (1.0 - floor) };
+        let mix = if s.mix.is_finite() {
+            s.mix.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        self.wgt.target = if depth == 0.0 {
+            0.0
+        } else {
+            mix * (1.0 - floor)
+        };
         self.out.target = if s.out_db == 0.0 {
             1.0
         } else {

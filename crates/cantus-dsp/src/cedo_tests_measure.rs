@@ -22,13 +22,28 @@ fn unit(s: &CedoSettings, shape: &[CurvePoint]) -> Cedo {
 }
 
 fn pt(x: f32, y: f32, shape: u8) -> CurvePoint {
-    CurvePoint { x, y, tension: 0.0, shape }
+    CurvePoint {
+        x,
+        y,
+        tension: 0.0,
+        shape,
+    }
 }
 
 /// Full depth for the first quarter of each cycle, nothing after: hard edges.
 const SQUARE: [CurvePoint; 2] = [
-    CurvePoint { x: 0.0, y: 1.0, tension: 0.0, shape: 2 },
-    CurvePoint { x: 0.25, y: 0.0, tension: 0.0, shape: 2 },
+    CurvePoint {
+        x: 0.0,
+        y: 1.0,
+        tension: 0.0,
+        shape: 2,
+    },
+    CurvePoint {
+        x: 0.25,
+        y: 0.0,
+        tension: 0.0,
+        shape: 2,
+    },
 ];
 
 #[test]
@@ -58,7 +73,13 @@ fn the_pump_lands_on_the_song_grid_to_the_sample() {
                             left: &one,
                             right: &one,
                             key: None,
-                            events: &[(0, Event::Play { song: 0, bpm: bpm as f64 })],
+                            events: &[(
+                                0,
+                                Event::Play {
+                                    song: 0,
+                                    bpm: bpm as f64,
+                                },
+                            )],
                             block: 37,
                         },
                     );
@@ -107,7 +128,19 @@ fn a_smoothed_edge_is_centred_on_the_grid() {
         let one = vec![1.0f32; n];
         let (o, _) = run(
             &mut c,
-            &Run { left: &one, right: &one, key: None, events: &[(0, Event::Play { song: 0, bpm: 120.0 })], block: 64 },
+            &Run {
+                left: &one,
+                right: &one,
+                key: None,
+                events: &[(
+                    0,
+                    Event::Play {
+                        song: 0,
+                        bpm: 120.0,
+                    },
+                )],
+                block: 64,
+            },
         );
         let h = 48usize;
         let mut worst = 0.0f32;
@@ -120,7 +153,10 @@ fn a_smoothed_edge_is_centred_on_the_grid() {
                 }
                 let (before, after) = if into { (1.0, 0.0) } else { (0.0, 1.0) };
                 assert!(o[g - h - 1] == before && o[g + h] == after, "k{k} {into}");
-                assert!(o[g - h] != before && o[g + h - 1] != after, "k{k} {into}: the ramp is 2 ms");
+                assert!(
+                    o[g - h] != before && o[g + h - 1] != after,
+                    "k{k} {into}: the ramp is 2 ms"
+                );
             }
         }
         assert!(worst < 2e-6, "{worst}");
@@ -138,8 +174,16 @@ fn the_sidechain_attack_hold_and_release_match_their_settings() {
         *v = 0.5;
     }
     let one = vec![1.0f32; n];
-    for shape in [ReleaseShape::Linear, ReleaseShape::Exponential, ReleaseShape::SCurve] {
-        for (att, hold, rel) in [(5.0f32, 20.0f32, 50.0f32), (0.0, 0.0, 10.0), (12.5, 7.0, 120.0)] {
+    for shape in [
+        ReleaseShape::Linear,
+        ReleaseShape::Exponential,
+        ReleaseShape::SCurve,
+    ] {
+        for (att, hold, rel) in [
+            (5.0f32, 20.0f32, 50.0f32),
+            (0.0, 0.0, 10.0),
+            (12.5, 7.0, 120.0),
+        ] {
             let s = CedoSettings {
                 trigger: Trigger::Sidechain,
                 depth_db: DEPTH_INF,
@@ -153,7 +197,13 @@ fn the_sidechain_attack_hold_and_release_match_their_settings() {
             let mut c = unit(&s, &[]);
             let (g, _) = run(
                 &mut c,
-                &Run { left: &one, right: &one, key: Some((&key, &key)), events: &[], block: 1 },
+                &Run {
+                    left: &one,
+                    right: &one,
+                    key: Some((&key, &key)),
+                    events: &[],
+                    block: 1,
+                },
             );
             let ms = |x: f32| (x as f64 * 48.0).round() as usize;
             let (a, h, r) = (ms(att), ms(hold), ms(rel).max(1));
@@ -225,7 +275,16 @@ fn the_lookahead_catches_a_kicks_transient_fully() {
         };
         let mut c = unit(&s, &[]);
         let lat = c.latency();
-        let (g, _) = run(&mut c, &Run { left: &one, right: &one, key: Some((&k, &k)), events: &[], block: 64 });
+        let (g, _) = run(
+            &mut c,
+            &Run {
+                left: &one,
+                right: &one,
+                key: Some((&k, &k)),
+                events: &[],
+                block: 64,
+            },
+        );
         // The audio's gain at the kick's first sample over the threshold, and the kick's
         // energy that the duck had not yet reached (over the first 10 ms of the hit).
         for &t0 in &onsets {
@@ -258,13 +317,28 @@ fn sine_gain(c: &mut Cedo, hz: f32, events: &[(usize, Event)]) -> f64 {
     let n = 96_000;
     let x = sine(hz, 0.25, n, SR);
     let lat = c.latency();
-    let (o, _) = run(c, &Run { left: &x, right: &x, key: None, events, block: 256 });
+    let (o, _) = run(
+        c,
+        &Run {
+            left: &x,
+            right: &x,
+            key: None,
+            events,
+            block: 256,
+        },
+    );
     db(rms(&o[n / 2..]) / rms(&x[n / 2 - lat..n - lat]))
 }
 
 #[test]
 fn the_band_split_is_flat_when_not_ducking_and_never_rises_when_ducking() {
-    let play = [(0usize, Event::Play { song: 0, bpm: 120.0 })];
+    let play = [(
+        0usize,
+        Event::Play {
+            song: 0,
+            bpm: 120.0,
+        },
+    )];
     let full = [pt(0.0, 1.0, 0)];
     println!("ducked response (depth 24 dB, crossover 120 Hz), measured | drawn:");
     for cross in [Crossover::MinimumPhase, Crossover::LinearPhase] {
@@ -285,7 +359,10 @@ fn the_band_split_is_flat_when_not_ducking_and_never_rises_when_ducking() {
                 let drawn = c.response_db(hz, 1.0) as f64;
                 row += &format!(" {hz} Hz {got:+.2}|{drawn:+.2}");
                 assert!(got < 0.005, "{cross:?} {band:?} {hz}: rises {got}");
-                assert!((got - drawn).abs() < 0.15, "{cross:?} {band:?} {hz}: {got} vs {drawn}");
+                assert!(
+                    (got - drawn).abs() < 0.15,
+                    "{cross:?} {band:?} {hz}: {got} vs {drawn}"
+                );
             }
             println!("  {cross:?} {band:?}:{row}");
         }
@@ -305,7 +382,16 @@ fn the_band_split_is_flat_when_not_ducking_and_never_rises_when_ducking() {
         let n = 96_000;
         let x = super::testkit::pad(n, SR);
         let lat = c.latency();
-        let (o, _) = run(&mut c, &Run { left: &x, right: &x, key: None, events: &play, block: 64 });
+        let (o, _) = run(
+            &mut c,
+            &Run {
+                left: &x,
+                right: &x,
+                key: None,
+                events: &play,
+                block: 64,
+            },
+        );
         // 120 BPM quarter notes: 24 000 samples, ducked over the first 6 000.
         let mut exact = 0;
         for beat in 0..3 {
@@ -328,7 +414,13 @@ fn splatter_db(o: &[f32]) -> f64 {
 fn the_shapes_edges_splatter_little() {
     let n = 96_000;
     let x = sine(1_000.0, 0.5, n, SR);
-    let play = [(0usize, Event::Play { song: 0, bpm: 120.0 })];
+    let play = [(
+        0usize,
+        Event::Play {
+            song: 0,
+            bpm: 120.0,
+        },
+    )];
     let dry = splatter_db(&x);
     println!("a 1 kHz sine, energy above 4.5 kHz (the sine alone: {dry:.1} dB):");
     let mut by_edge = Vec::new();
@@ -343,7 +435,16 @@ fn the_shapes_edges_splatter_little() {
                 ..CedoSettings::default()
             };
             let mut c = unit(&s, shape);
-            let (o, _) = run(&mut c, &Run { left: &x, right: &x, key: None, events: &play, block: 128 });
+            let (o, _) = run(
+                &mut c,
+                &Run {
+                    left: &x,
+                    right: &x,
+                    key: None,
+                    events: &play,
+                    block: 128,
+                },
+            );
             let sp = splatter_db(&o);
             row += &format!(" {name} {sp:.1} dB;");
             if name == "square" {
@@ -353,8 +454,14 @@ fn the_shapes_edges_splatter_little() {
         println!("  edge {edge} ms:{row}");
     }
     // The sidechain's envelope with a 1 ms attack, for comparison.
-    for shape in [ReleaseShape::Linear, ReleaseShape::Exponential, ReleaseShape::SCurve] {
-        let key: Vec<f32> = (0..n).map(|i| if i % 12_000 < 3_000 { 0.5 } else { 0.0 }).collect();
+    for shape in [
+        ReleaseShape::Linear,
+        ReleaseShape::Exponential,
+        ReleaseShape::SCurve,
+    ] {
+        let key: Vec<f32> = (0..n)
+            .map(|i| if i % 12_000 < 3_000 { 0.5 } else { 0.0 })
+            .collect();
         let s = CedoSettings {
             trigger: Trigger::Sidechain,
             depth_db: 24.0,
@@ -366,7 +473,16 @@ fn the_shapes_edges_splatter_little() {
             ..CedoSettings::default()
         };
         let mut c = unit(&s, &[]);
-        let (o, _) = run(&mut c, &Run { left: &x, right: &x, key: Some((&key, &key)), events: &[], block: 128 });
+        let (o, _) = run(
+            &mut c,
+            &Run {
+                left: &x,
+                right: &x,
+                key: Some((&key, &key)),
+                events: &[],
+                block: 128,
+            },
+        );
         let sp = splatter_db(&o);
         println!("  sidechain, 1 ms attack, 40 ms {shape:?} release: {sp:.1} dB");
         // Measured −89.3 dB (the S attack; a straight one gave −78).
@@ -396,8 +512,20 @@ fn notes_fire_the_shape_on_their_sample() {
         let lat = c.latency();
         let notes = [3_333usize, 20_000, 20_500, 41_111];
         let ev: Vec<(usize, Event)> = notes.iter().map(|&i| (i, Event::Note)).collect();
-        let (o, _) = run(&mut c, &Run { left: &one, right: &one, key: None, events: &ev, block: 64 });
-        let on: Vec<usize> = (1..n).filter(|&i| o[i] == 0.0 && o[i - 1] == 1.0).map(|i| i - lat).collect();
+        let (o, _) = run(
+            &mut c,
+            &Run {
+                left: &one,
+                right: &one,
+                key: None,
+                events: &ev,
+                block: 64,
+            },
+        );
+        let on: Vec<usize> = (1..n)
+            .filter(|&i| o[i] == 0.0 && o[i - 1] == 1.0)
+            .map(|i| i - lat)
+            .collect();
         // 20 500 retriggers inside 20 000's ducked quarter (3 000 samples at 120 BPM, 1/8).
         assert_eq!(on, vec![3_333, 20_000, 41_111], "lookahead {look}");
         let len = 12_000 / 4;
@@ -424,7 +552,16 @@ fn a_trace_reads_the_reduction_on_each_sample() {
         ..CedoSettings::default()
     };
     let mut c = unit(&s, &[]);
-    let t = gain_trace(&mut c, &Run { left: &one, right: &one, key: Some((&key, &key)), events: &[], block: 1 });
+    let t = gain_trace(
+        &mut c,
+        &Run {
+            left: &one,
+            right: &one,
+            key: Some((&key, &key)),
+            events: &[],
+            block: 1,
+        },
+    );
     assert_eq!(t[99], 0.0);
     assert!((t[100] - 12.0).abs() < 1e-3, "{}", t[100]);
 }
@@ -437,22 +574,94 @@ fn cedo_cpu() {
     let n = 48_000 * 60;
     let x = super::testkit::pad(n, SR);
     let k = kick(n, &(0..120).map(|i| i * 24_000).collect::<Vec<_>>());
-    let play = [(0usize, Event::Play { song: 0, bpm: 120.0 })];
+    let play = [(
+        0usize,
+        Event::Play {
+            song: 0,
+            bpm: 120.0,
+        },
+    )];
     let cases = [
-        ("sidechain, whole", CedoSettings { trigger: Trigger::Sidechain, depth_db: 18.0, threshold_db: -30.0, ..CedoSettings::default() }, true),
-        ("sidechain, band-pass key, lows minimum phase, lookahead", CedoSettings { trigger: Trigger::Sidechain, depth_db: 18.0, threshold_db: -30.0, key_filter: KeyFilterMode::BandPass, key_hz: 60.0, band: Band::Lows, lookahead_ms: 5.0, link: 0.0, ..CedoSettings::default() }, true),
-        ("sidechain, lows linear phase", CedoSettings { trigger: Trigger::Sidechain, depth_db: 18.0, threshold_db: -30.0, band: Band::Lows, crossover: Crossover::LinearPhase, ..CedoSettings::default() }, true),
-        ("tempo, classic pump, edge 2 ms", CedoSettings { trigger: Trigger::Tempo, depth_db: 18.0, edge_ms: 2.0, ..CedoSettings::default() }, false),
-        ("tempo, edge 10 ms, lows linear phase", CedoSettings { trigger: Trigger::Tempo, depth_db: 18.0, edge_ms: 10.0, band: Band::Lows, crossover: Crossover::LinearPhase, ..CedoSettings::default() }, false),
+        (
+            "sidechain, whole",
+            CedoSettings {
+                trigger: Trigger::Sidechain,
+                depth_db: 18.0,
+                threshold_db: -30.0,
+                ..CedoSettings::default()
+            },
+            true,
+        ),
+        (
+            "sidechain, band-pass key, lows minimum phase, lookahead",
+            CedoSettings {
+                trigger: Trigger::Sidechain,
+                depth_db: 18.0,
+                threshold_db: -30.0,
+                key_filter: KeyFilterMode::BandPass,
+                key_hz: 60.0,
+                band: Band::Lows,
+                lookahead_ms: 5.0,
+                link: 0.0,
+                ..CedoSettings::default()
+            },
+            true,
+        ),
+        (
+            "sidechain, lows linear phase",
+            CedoSettings {
+                trigger: Trigger::Sidechain,
+                depth_db: 18.0,
+                threshold_db: -30.0,
+                band: Band::Lows,
+                crossover: Crossover::LinearPhase,
+                ..CedoSettings::default()
+            },
+            true,
+        ),
+        (
+            "tempo, classic pump, edge 2 ms",
+            CedoSettings {
+                trigger: Trigger::Tempo,
+                depth_db: 18.0,
+                edge_ms: 2.0,
+                ..CedoSettings::default()
+            },
+            false,
+        ),
+        (
+            "tempo, edge 10 ms, lows linear phase",
+            CedoSettings {
+                trigger: Trigger::Tempo,
+                depth_db: 18.0,
+                edge_ms: 10.0,
+                band: Band::Lows,
+                crossover: Crossover::LinearPhase,
+                ..CedoSettings::default()
+            },
+            false,
+        ),
     ];
     for (name, s, keyed) in cases {
         let mut best = f64::MAX;
         for _ in 0..3 {
             let mut c = unit(&s, &CLASSIC_PUMP);
             let t = std::time::Instant::now();
-            let _ = run(&mut c, &Run { left: &x, right: &x, key: keyed.then_some((&k[..], &k[..])), events: &play, block: 256 });
+            let _ = run(
+                &mut c,
+                &Run {
+                    left: &x,
+                    right: &x,
+                    key: keyed.then_some((&k[..], &k[..])),
+                    events: &play,
+                    block: 256,
+                },
+            );
             best = best.min(t.elapsed().as_secs_f64());
         }
-        println!("{name}: {:.2} % of a core (best of 3, the driver's copies included)", 100.0 * best / 60.0);
+        println!(
+            "{name}: {:.2} % of a core (best of 3, the driver's copies included)",
+            100.0 * best / 60.0
+        );
     }
 }

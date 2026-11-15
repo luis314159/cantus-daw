@@ -2,8 +2,8 @@
 //! meter; rest, skip and reset. See `cedo.rs` for the rules.
 
 use super::{Cedo, CedoMeter, Listen, Trigger};
-use crate::modfx_clock::peak_db;
 use crate::cedo::env::Envelope;
+use crate::modfx_clock::peak_db;
 
 impl Cedo {
     /// Process in place. `key` is the sidechain from another strip, if one is routed
@@ -47,7 +47,11 @@ impl Cedo {
                     if link > 0.0 && now[0] != now[1] {
                         let loud = now[0].max(now[1]);
                         for v in &mut now {
-                            *v = if link == 1.0 { loud } else { *v + (loud - *v) * link };
+                            *v = if link == 1.0 {
+                                loud
+                            } else {
+                                *v + (loud - *v) * link
+                            };
                         }
                     }
                     self.amt_line.push(now);

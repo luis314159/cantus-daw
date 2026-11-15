@@ -51,7 +51,7 @@ fn run(s: &CompSettings, keyed: bool) -> u64 {
     c.set(s);
     let (mut l, mut r) = (l0.clone(), r0.clone());
     let mut gr = Vec::new();
-    for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)).enumerate().map(|(i, x)| (i, x)) {
+    for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)).enumerate() {
         let (bl, br) = b;
         let off = a * 256;
         let key = &k[off..off + bl.len()];
@@ -62,10 +62,7 @@ fn run(s: &CompSettings, keyed: bool) -> u64 {
         }
         gr.push(c.meter().gr_db.to_bits());
     }
-    fnv(l.iter()
-        .chain(r.iter())
-        .map(|v| v.to_bits())
-        .chain(gr.into_iter()))
+    fnv(l.iter().chain(r.iter()).map(|v| v.to_bits()).chain(gr))
 }
 
 fn settings() -> Vec<(CompSettings, bool)> {

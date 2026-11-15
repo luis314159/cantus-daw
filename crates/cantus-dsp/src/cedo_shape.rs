@@ -278,7 +278,11 @@ impl Pump {
     fn recount(&mut self) {
         let win = self.window();
         let newest = win[win.len() - 1];
-        let run = win.iter().rev().take_while(|v| v.to_bits() == newest.to_bits()).count();
+        let run = win
+            .iter()
+            .rev()
+            .take_while(|v| v.to_bits() == newest.to_bits())
+            .count();
         self.last = newest;
         self.run = run;
     }
@@ -333,7 +337,11 @@ impl Pump {
     #[inline]
     pub fn next(&mut self, clock: &Clock, tc: i64) -> f32 {
         let started = clock.playing() && !self.seen_playing;
-        if !self.valid || clock.jumps() != self.seen_jumps || started || self.head != tc - 1 + self.h as i64 {
+        if !self.valid
+            || clock.jumps() != self.seen_jumps
+            || started
+            || self.head != tc - 1 + self.h as i64
+        {
             self.prefill(clock, tc);
         } else {
             let v = self.value(clock, tc + self.h as i64);
@@ -342,7 +350,7 @@ impl Pump {
             self.seen_playing = clock.playing();
         }
         self.prune(clock);
-        if self.run >= 2 * self.h + 1 {
+        if self.run > 2 * self.h {
             return self.last;
         }
         let win = self.window();
@@ -379,7 +387,7 @@ impl Pump {
 
     /// Nothing to come from the notes, and the window all zeros: what a new pump gives.
     pub fn quiet(&self) -> bool {
-        self.on == 0 && (!self.valid || (self.run >= 2 * self.h + 1 && self.last.to_bits() == 0))
+        self.on == 0 && (!self.valid || (self.run > 2 * self.h && self.last.to_bits() == 0))
     }
 
     /// Notes waiting or playing.
@@ -389,6 +397,10 @@ impl Pump {
 }
 
 fn half_width(ms: f32, sr: f64) -> usize {
-    let ms = if ms.is_finite() { ms.clamp(0.0, MAX_EDGE_MS) } else { 0.0 };
+    let ms = if ms.is_finite() {
+        ms.clamp(0.0, MAX_EDGE_MS)
+    } else {
+        0.0
+    };
     (ms as f64 * 0.0005 * sr).round() as usize
 }

@@ -58,16 +58,49 @@ fn cedo_allocates_nothing_after_new() {
     };
     let list = [
         sc,
-        CedoSettings { cross_hz: 300.0, ..sc },
-        CedoSettings { crossover: Crossover::MinimumPhase, band: Band::Highs, listen: Listen::Delta, ..sc },
-        CedoSettings { trigger: Trigger::Tempo, swing: 0.7, edge_ms: 10.0, ..sc },
-        CedoSettings { trigger: Trigger::Midi, lookahead_ms: 0.0, listen: Listen::Key, ..sc },
+        CedoSettings {
+            cross_hz: 300.0,
+            ..sc
+        },
+        CedoSettings {
+            crossover: Crossover::MinimumPhase,
+            band: Band::Highs,
+            listen: Listen::Delta,
+            ..sc
+        },
+        CedoSettings {
+            trigger: Trigger::Tempo,
+            swing: 0.7,
+            edge_ms: 10.0,
+            ..sc
+        },
+        CedoSettings {
+            trigger: Trigger::Midi,
+            lookahead_ms: 0.0,
+            listen: Listen::Key,
+            ..sc
+        },
         CedoSettings::default(),
     ];
     let other = [
-        CurvePoint { x: 0.0, y: 1.0, tension: 0.3, shape: 1 },
-        CurvePoint { x: 0.3, y: 0.2, tension: 0.0, shape: 0 },
-        CurvePoint { x: 0.6, y: 0.0, tension: 0.0, shape: 2 },
+        CurvePoint {
+            x: 0.0,
+            y: 1.0,
+            tension: 0.3,
+            shape: 1,
+        },
+        CurvePoint {
+            x: 0.3,
+            y: 0.2,
+            tension: 0.0,
+            shape: 0,
+        },
+        CurvePoint {
+            x: 0.6,
+            y: 0.0,
+            tension: 0.0,
+            shape: 2,
+        },
     ];
     let mut c = Cedo::new(48_000.0, shape_fn);
     c.set_shape(&CLASSIC_PUMP);
@@ -98,7 +131,11 @@ fn cedo_allocates_nothing_after_new() {
                 });
                 song += block as i64 + if block == 37 { 10_000 } else { 0 };
                 c.note(block / 2);
-                c.process(&mut l[..block], &mut r[..block], Some((&k[..block], &k[..block])));
+                c.process(
+                    &mut l[..block],
+                    &mut r[..block],
+                    Some((&k[..block], &k[..block])),
+                );
                 c.process(&mut l[..block], &mut r[..block], None);
                 let _ = c.meter();
                 let _ = c.at_rest();

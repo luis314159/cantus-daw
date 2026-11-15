@@ -30,7 +30,8 @@ fn material(n: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
             let ph = i % 24_000;
             if ph < 6_000 {
                 let t = ph as f32 / SR;
-                0.9 * crate::math::exp(-t * 30.0) * crate::math::sin(std::f32::consts::TAU * 55.0 * t)
+                0.9 * crate::math::exp(-t * 30.0)
+                    * crate::math::sin(std::f32::consts::TAU * 55.0 * t)
             } else {
                 0.0
             }
@@ -65,7 +66,13 @@ fn no_depth_no_mix_or_no_trigger_is_a_null_to_the_bit_delayed_by_the_latency() {
         depth_db: 18.0,
         ..CedoSettings::default()
     };
-    let play = [(0usize, Event::Play { song: 0, bpm: 120.0 })];
+    let play = [(
+        0usize,
+        Event::Play {
+            song: 0,
+            bpm: 120.0,
+        },
+    )];
     let notes = [(1_000usize, Event::Note), (30_000, Event::Note)];
     // (settings, key, events)
     type Case<'a> = (CedoSettings, Option<&'a [f32]>, &'a [(usize, Event)]);
@@ -73,13 +80,34 @@ fn no_depth_no_mix_or_no_trigger_is_a_null_to_the_bit_delayed_by_the_latency() {
         (CedoSettings::default(), Some(&k), &play),
         (sc, None, &play),
         (sc, Some(&silent), &play),
-        (CedoSettings { depth_db: 0.0, ..sc }, Some(&k), &play),
+        (
+            CedoSettings {
+                depth_db: 0.0,
+                ..sc
+            },
+            Some(&k),
+            &play,
+        ),
         (CedoSettings { mix: 0.0, ..sc }, Some(&k), &play),
         (tempo, None, &[]),
-        (CedoSettings { depth_db: 0.0, ..tempo }, None, &play),
+        (
+            CedoSettings {
+                depth_db: 0.0,
+                ..tempo
+            },
+            None,
+            &play,
+        ),
         (CedoSettings { mix: 0.0, ..tempo }, None, &play),
         (midi, None, &[]),
-        (CedoSettings { depth_db: 0.0, ..midi }, None, &notes),
+        (
+            CedoSettings {
+                depth_db: 0.0,
+                ..midi
+            },
+            None,
+            &notes,
+        ),
     ];
     // Every case again with the lookahead and each band split.
     let base = cases.clone();
@@ -115,15 +143,21 @@ fn no_depth_no_mix_or_no_trigger_is_a_null_to_the_bit_delayed_by_the_latency() {
                     block,
                 },
             );
-            assert!(ol[..lat].iter().chain(&or[..lat]).all(|v| v.to_bits() == 0), "{s:?}");
+            assert!(
+                ol[..lat].iter().chain(&or[..lat]).all(|v| v.to_bits() == 0),
+                "{s:?}"
+            );
             assert_eq!(bits(&ol[lat..]), bits(&l[..n - lat]), "{s:?}");
             assert_eq!(bits(&or[lat..]), bits(&r[..n - lat]), "{s:?}");
         }
     }
 }
 
+/// Settings, their events, and whether a key is routed.
+type Moving = (CedoSettings, Vec<(usize, Event)>, bool);
+
 /// The settings the block-size test runs, each with its events.
-fn moving_cases(n: usize) -> Vec<(CedoSettings, Vec<(usize, Event)>, bool)> {
+fn moving_cases(n: usize) -> Vec<Moving> {
     let sc = CedoSettings {
         trigger: Trigger::Sidechain,
         depth_db: 24.0,
@@ -168,9 +202,30 @@ fn moving_cases(n: usize) -> Vec<(CedoSettings, Vec<(usize, Event)>, bool)> {
             sc,
             vec![
                 play(120.0),
-                (n / 3, Event::Set(CedoSettings { cross_hz: 90.0, link: 1.0, ..sc })),
-                (n / 2, Event::Set(CedoSettings { crossover: Crossover::MinimumPhase, band: Band::Highs, ..sc })),
-                (2 * n / 3, Event::Set(CedoSettings { listen: Listen::Delta, release_shape: ReleaseShape::Linear, ..sc })),
+                (
+                    n / 3,
+                    Event::Set(CedoSettings {
+                        cross_hz: 90.0,
+                        link: 1.0,
+                        ..sc
+                    }),
+                ),
+                (
+                    n / 2,
+                    Event::Set(CedoSettings {
+                        crossover: Crossover::MinimumPhase,
+                        band: Band::Highs,
+                        ..sc
+                    }),
+                ),
+                (
+                    2 * n / 3,
+                    Event::Set(CedoSettings {
+                        listen: Listen::Delta,
+                        release_shape: ReleaseShape::Linear,
+                        ..sc
+                    }),
+                ),
             ],
             true,
         ),
@@ -178,8 +233,21 @@ fn moving_cases(n: usize) -> Vec<(CedoSettings, Vec<(usize, Event)>, bool)> {
             tempo,
             vec![
                 play(174.0),
-                (n / 4, Event::Set(CedoSettings { division: 8, edge_ms: 0.0, ..tempo })),
-                (n / 2, Event::Play { song: 96_000, bpm: 174.0 }),
+                (
+                    n / 4,
+                    Event::Set(CedoSettings {
+                        division: 8,
+                        edge_ms: 0.0,
+                        ..tempo
+                    }),
+                ),
+                (
+                    n / 2,
+                    Event::Play {
+                        song: 96_000,
+                        bpm: 174.0,
+                    },
+                ),
                 (3 * n / 5, Event::Stop),
                 (2 * n / 3, Event::Play { song: 0, bpm: 60.0 }),
             ],
@@ -191,7 +259,13 @@ fn moving_cases(n: usize) -> Vec<(CedoSettings, Vec<(usize, Event)>, bool)> {
                 (777, Event::Note),
                 (12_345, Event::Note),
                 (12_400, Event::Note),
-                (n / 2, Event::Set(CedoSettings { lookahead_ms: 8.0, ..midi })),
+                (
+                    n / 2,
+                    Event::Set(CedoSettings {
+                        lookahead_ms: 8.0,
+                        ..midi
+                    }),
+                ),
                 (n / 2 + 999, Event::Note),
                 (n - 9_000, Event::Note),
             ],
@@ -219,7 +293,12 @@ fn the_output_does_not_depend_on_the_block_size() {
                 },
             ));
         }
-        let moved = outs[0].0.iter().zip(&l).filter(|(a, b)| a.to_bits() != b.to_bits()).count();
+        let moved = outs[0]
+            .0
+            .iter()
+            .zip(&l)
+            .filter(|(a, b)| a.to_bits() != b.to_bits())
+            .count();
         assert!(moved > n / 10, "{s:?}: it ducked ({moved})");
         for o in &outs[1..] {
             assert_eq!(bits(&o.0), bits(&outs[0].0), "{s:?}");
@@ -253,7 +332,10 @@ fn a_render_from_bar_n_equals_the_whole_render() {
         let (mut l, mut r, _) = material(n);
         if band != Band::Whole {
             // A filter remembers what it heard: silence before bar 5 lets it forget.
-            for v in l[from - SR as usize..from].iter_mut().chain(&mut r[from - SR as usize..from]) {
+            for v in l[from - SR as usize..from]
+                .iter_mut()
+                .chain(&mut r[from - SR as usize..from])
+            {
                 *v = 0.0;
             }
         }
@@ -275,14 +357,28 @@ fn a_render_from_bar_n_equals_the_whole_render() {
                 left: &l[from..],
                 right: &r[from..],
                 key: None,
-                events: &[(0, Event::Play { song: from as i64, bpm })],
+                events: &[(
+                    0,
+                    Event::Play {
+                        song: from as i64,
+                        bpm,
+                    },
+                )],
                 block: 100,
             },
         );
         let lat = part.latency();
         assert!(pl.iter().zip(&l[from..]).any(|(a, b)| a != b));
-        assert_eq!(bits(&pl[lat..]), bits(&wl[from + lat..]), "{bpm} {swing} {band:?}");
-        assert_eq!(bits(&pr[lat..]), bits(&wr[from + lat..]), "{bpm} {swing} {band:?}");
+        assert_eq!(
+            bits(&pl[lat..]),
+            bits(&wl[from + lat..]),
+            "{bpm} {swing} {band:?}"
+        );
+        assert_eq!(
+            bits(&pr[lat..]),
+            bits(&wr[from + lat..]),
+            "{bpm} {swing} {band:?}"
+        );
     }
 }
 
@@ -338,9 +434,18 @@ fn it_comes_to_rest_exactly_and_its_twins_agree() {
     ));
     for (s, keyed) in cases {
         let notes = [(500usize, Event::Note), (20_000, Event::Note)];
-        let ev: &[(usize, Event)] = if s.trigger == Trigger::Midi { &notes } else { &[] };
+        let ev: &[(usize, Event)] = if s.trigger == Trigger::Midi {
+            &notes
+        } else {
+            &[]
+        };
         let (rested, waited) = to_rest(&s, ev, keyed);
-        println!("{:?}/{:?}: at rest after {:.3} s of silence", s.trigger, s.band, waited as f32 / SR);
+        println!(
+            "{:?}/{:?}: at rest after {:.3} s of silence",
+            s.trigger,
+            s.band,
+            waited as f32 / SR
+        );
         // Twins: zeros processed, the same length skipped, reset, and new.
         let (mut proc_, mut skip, mut reset) = (rested.clone(), rested.clone(), rested.clone());
         let gap = 10_007;
@@ -361,7 +466,11 @@ fn it_comes_to_rest_exactly_and_its_twins_agree() {
                     left: &l,
                     right: &r,
                     key: keyed.then_some((&k[..], &k[..])),
-                    events: if s.trigger == Trigger::Midi { &notes } else { &[] },
+                    events: if s.trigger == Trigger::Midi {
+                        &notes
+                    } else {
+                        &[]
+                    },
                     block: 128,
                 },
             ));
@@ -393,7 +502,16 @@ fn the_tempo_pump_rests_while_playing_and_a_skip_keeps_its_place() {
     }
     let ev = [(0usize, Event::Play { song: 0, bpm })];
     let mut whole = unit(&s);
-    let (wl, _) = run(&mut whole, &Run { left: &l, right: &r, key: None, events: &ev, block: 64 });
+    let (wl, _) = run(
+        &mut whole,
+        &Run {
+            left: &l,
+            right: &r,
+            key: None,
+            events: &ev,
+            block: 64,
+        },
+    );
     // The same, the silence skipped from the first block at rest.
     let mut c = unit(&s);
     let mut out = vec![0.0f32; n];
@@ -402,7 +520,11 @@ fn the_tempo_pump_rests_while_playing_and_a_skip_keeps_its_place() {
     while i < n {
         let end = (i + 64).min(n);
         let silent = l[i..end].iter().chain(&r[i..end]).all(|v| v.to_bits() == 0);
-        c.set_transport(&crate::modfx_clock::Transport { playing: true, tempo_bpm: bpm, samples: i as i64 });
+        c.set_transport(&crate::modfx_clock::Transport {
+            playing: true,
+            tempo_bpm: bpm,
+            samples: i as i64,
+        });
         if silent && c.at_rest() {
             c.skip(end - i);
             skipped += end - i;
@@ -445,13 +567,42 @@ fn a_shape_with_a_flat_zero_ducks_nothing_and_a_full_one_ducks_to_the_floor() {
         depth_db: DEPTH_INF,
         ..CedoSettings::default()
     });
-    let ev = [(0usize, Event::Play { song: 0, bpm: 120.0 })];
+    let ev = [(
+        0usize,
+        Event::Play {
+            song: 0,
+            bpm: 120.0,
+        },
+    )];
     c.set_shape(&[]);
-    let (o, _) = run(&mut c, &Run { left: &one, right: &one, key: None, events: &ev, block: 64 });
+    let (o, _) = run(
+        &mut c,
+        &Run {
+            left: &one,
+            right: &one,
+            key: None,
+            events: &ev,
+            block: 64,
+        },
+    );
     assert!(o.iter().all(|v| *v == 1.0));
-    c.set_shape(&[CurvePoint { x: 0.0, y: 1.0, tension: 0.0, shape: 0 }]);
+    c.set_shape(&[CurvePoint {
+        x: 0.0,
+        y: 1.0,
+        tension: 0.0,
+        shape: 0,
+    }]);
     c.reset();
-    let (o, _) = run(&mut c, &Run { left: &one, right: &one, key: None, events: &ev, block: 64 });
+    let (o, _) = run(
+        &mut c,
+        &Run {
+            left: &one,
+            right: &one,
+            key: None,
+            events: &ev,
+            block: 64,
+        },
+    );
     assert!(o.iter().all(|v| v.to_bits() == 0), "{:?}", &o[..4]);
     let _ = sine(1.0, 1.0, 1, SR);
 }

@@ -13,7 +13,11 @@ use crate::modfx_clock::Transport;
 /// the rest as straight lines (the tests use none of them).
 pub fn shape_fn(shape: u8, tension: f32, u: f32) -> f32 {
     let u = u.clamp(0.0, 1.0);
-    let t = if tension.is_finite() { tension.clamp(-1.0, 1.0) } else { 0.0 };
+    let t = if tension.is_finite() {
+        tension.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    };
     let bend = |u: f32, t: f32| {
         if t == 0.0 {
             u
@@ -72,10 +76,18 @@ pub fn run(u: &mut Cedo, r: &Run) -> (Vec<f32>, Vec<f32>) {
 fn drive(u: &mut Cedo, r: &Run, mut trace: Option<&mut Vec<f32>>) -> (Vec<f32>, Vec<f32>) {
     let n = r.left.len();
     let (mut l, mut rr) = (r.left.to_vec(), r.right.to_vec());
-    let splits: Vec<(usize, Event)> =
-        r.events.iter().copied().filter(|x| !matches!(x.1, Event::Note)).collect();
-    let notes: Vec<usize> =
-        r.events.iter().filter(|x| matches!(x.1, Event::Note)).map(|x| x.0).collect();
+    let splits: Vec<(usize, Event)> = r
+        .events
+        .iter()
+        .copied()
+        .filter(|x| !matches!(x.1, Event::Note))
+        .collect();
+    let notes: Vec<usize> = r
+        .events
+        .iter()
+        .filter(|x| matches!(x.1, Event::Note))
+        .map(|x| x.0)
+        .collect();
     let mut playing: Option<(i64, usize, f64)> = None;
     let (mut i, mut e, mut k) = (0, 0, 0);
     while i < n {
@@ -193,7 +205,15 @@ pub struct HighPass {
 impl HighPass {
     pub fn new(hz: f32, rate: f32) -> HighPass {
         let mut c = [Coefs::IDENTITY; MAX_SECTIONS];
-        let n = design(EqShape::LowCut, rate, hz, 0.0, std::f32::consts::FRAC_1_SQRT_2, 96.0, &mut c);
+        let n = design(
+            EqShape::LowCut,
+            rate,
+            hz,
+            0.0,
+            std::f32::consts::FRAC_1_SQRT_2,
+            96.0,
+            &mut c,
+        );
         HighPass {
             n,
             c,

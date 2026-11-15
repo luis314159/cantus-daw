@@ -161,7 +161,13 @@ pub struct Timing {
 }
 
 impl Timing {
-    pub fn new(attack_ms: f32, hold_ms: f32, release_ms: f32, shape: ReleaseShape, sr: f32) -> Timing {
+    pub fn new(
+        attack_ms: f32,
+        hold_ms: f32,
+        release_ms: f32,
+        shape: ReleaseShape,
+        sr: f32,
+    ) -> Timing {
         let n = |ms: f32, hi: f32| (ms.clamp(0.0, hi) as f64 * 0.001 * sr as f64).round() as u32;
         Timing {
             attack: n(attack_ms, MAX_ATTACK_MS),
