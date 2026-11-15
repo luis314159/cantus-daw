@@ -539,6 +539,10 @@ pub fn lettering(
                     .min_by_key(|i| (*i as isize - mid as isize).abs());
                 if let Some(c) = cut {
                     two = Some([words[..c].to_string(), words[c + 1..].to_string()]);
+                } else {
+                    // fx3:tabula — one long word on a small case (a unit's name on a mini
+                    // pedal of the board): the smallest cut, never elided.
+                    one.role = Role::Micro;
                 }
             }
         }

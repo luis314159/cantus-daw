@@ -102,6 +102,8 @@ pub mod tabula;
 pub mod tabula_art;
 /// Tabula's board: its layout and its drawing. // fx3:tabula
 pub mod tabula_board;
+/// Tabula's edits from its window: each gesture one step of undo. // fx3:tabula
+pub mod tabula_edit;
 /// Tabula's pedal faces: one row per unit (each unit's builder edits its own). // fx3:contract
 pub mod tabula_faces;
 /// A board's pedal as an effect of its own, for the unit's full editor. // fx3:tabula

@@ -28,7 +28,9 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
 
 /// The macro rail's height and the side column's width, at 100 %.
 const RAIL_H: f32 = 118.0;
-const SIDE_W: f32 = 232.0;
+/// The bottom row's pedal card and levels card, at 100 %.
+const OPTIONS_W: f32 = 318.0;
+const LEVELS_W: f32 = 236.0;
 
 /// The full editor of one pedal, opened from the board.
 pub struct Open {
@@ -70,6 +72,21 @@ pub struct State {
     pub pedal_tel: Option<Telemetry>,
     /// The picker's shelves: (category, its pedal kinds), built once.
     shelves: Vec<(crate::picker_catalog::Category, Vec<EffectKind>)>,
+    /// The macro the learn mode maps the next touched knob to.
+    pub armed: Option<u8>,
+    /// A pedal lifted off the board, and where the hand holds it.
+    drag: Option<(PedalId, egui::Vec2)>,
+    /// A pedal's knob being turned: the pedal, its key, its position and the pointer's
+    /// height when the turn began.
+    turning: Option<(PedalId, &'static str, f32, f32)>,
+    /// The knob or footswitch under the pointer: (pedal, knob — 9 the footswitch).
+    hot: Option<(PedalId, usize)>,
+    /// The board has the keyboard (a click on it), and the chosen pedal's knob the arrows
+    /// turn.
+    focused: bool,
+    knob: usize,
+    /// Randomise's next seed.
+    seed: u64,
 }
 
 /// Tabula's editor in Cantus's own window: the host is the project.
@@ -131,25 +148,25 @@ fn body_ui(
     }
     let rest = g.rest();
     let gap = s.d(4.0);
-    let side = SIDE_W * k;
-    let total = rest.width() - gap;
-    let cols: Vec<Rect> = g
-        .row(rest.height(), &[(total - side) / total, side / total])
-        .collect();
     if st.open.is_some() {
-        pedal_editor_ui(host, st, ui, s, cols[0]);
-    } else {
-        // The board over the chosen pedal's controls.
-        let strip_h = controls::card_height(Size::M) * k;
-        let board = Rect::from_min_max(
-            cols[0].min,
-            pos2(cols[0].right(), cols[0].bottom() - strip_h - gap),
-        );
-        let strip = Rect::from_min_max(pos2(cols[0].left(), board.bottom() + gap), cols[0].max);
-        board_ui(host, st, ui, s, board, tel);
-        edit_strip_ui(host, st, ui, s, strip);
+        pedal_editor_ui(host, st, ui, s, rest);
+        return;
     }
-    side_ui(host, st, ui, s, cols[1]);
+    // The board across the window, over a row: the chosen pedal's controls, its options,
+    // the board's own levels.
+    let strip_h = (controls::card_height(Size::M) * k).max(150.0 * k);
+    let board = Rect::from_min_max(rest.min, pos2(rest.right(), rest.bottom() - strip_h - gap));
+    let row = Rect::from_min_max(pos2(rest.left(), board.bottom() + gap), rest.max);
+    board_ui(host, st, ui, s, board, tel);
+    let levels = Rect::from_min_max(pos2(row.right() - LEVELS_W * k, row.top()), row.max);
+    let options = Rect::from_min_max(
+        pos2(levels.left() - gap - OPTIONS_W * k, row.top()),
+        pos2(levels.left() - gap, row.bottom()),
+    );
+    let strip = Rect::from_min_max(row.min, pos2(options.left() - gap, row.bottom()));
+    edit_strip_ui(host, st, ui, s, strip);
+    options_ui(host, st, ui, s, options);
+    levels_ui(host, ui, s, levels);
 }
 
 /// The chosen pedal's controls under the board: its face's knobs and its other main
@@ -176,8 +193,9 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
     } else if let Some(f) = super::tabula_faces::of(kind) {
         keys.extend(f.knobs.iter().copied());
     }
+    let faced = keys.len();
     for i in kind.params() {
-        if keys.len() >= 8 {
+        if keys.len() >= 7 {
             break;
         }
         if !i.stepped && !keys.contains(&i.key) && !i.key.contains('.') {
@@ -203,12 +221,15 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
             let Some(info) = kind.param(key) else {
                 continue;
             };
+            // The face's knobs in its words; the unit's other parameters in their own.
             let label = match fragor_words {
                 Some(w) if j < 3 => Src::Key(w[j]),
-                _ => tb::knob_word(key).map_or(Src::Key(info.label_key), Src::Key),
+                _ if j < faced => tb::knob_word(key).map_or(Src::Key(info.label_key), Src::Key),
+                _ => Src::Key(info.label_key),
             };
             let out = Cell::param(info, ph.spec().get(key))
                 .size(Size::M)
+                .width(78.0)
                 .label(label)
                 .show_in(ui, s, &mut ph, key);
             if let Some(v) = out.changed {
@@ -241,16 +262,30 @@ fn rail_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         })
         .collect();
     let learn = st.learn;
+    let armed = st.armed;
+    let pick = crate::i18n::t("tabula.learn.pick");
+    let mut arm = None;
+    let mut randomise = false;
+    let mut toggle = false;
     controls::card(ui, s, r, Src::Key("tabula.card.macros"), None, |ui, _| {
         for (i, key) in MACRO_KEYS.iter().enumerate() {
             let Some(info) = KIND.param(key) else {
                 continue;
             };
+            // Armed, the macro asks for the knob it is to move.
+            let label = if armed == Some(i as u8) {
+                Src::Str(&pick)
+            } else {
+                Src::Str(&names[i])
+            };
             let c = Cell::param(info, spec.get(key))
                 .size(Size::S)
                 .width(86.0)
-                .label(Src::Str(&names[i]));
+                .label(label);
             let out = c.show_in(ui, s, host, key);
+            if learn && (out.resp.clicked() || out.resp.drag_started()) {
+                arm = Some(i as u8);
+            }
             if let Some(v) = out.changed {
                 host.set(key, v, Some(key));
             }
@@ -260,12 +295,23 @@ fn rail_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         }
         ui.add_space(s.d(10.0));
         controls::column(ui, s, 120.0, |ui| {
-            if controls::key(ui, s, Src::Key("tabula.learn"), "", 116.0, learn).clicked() {
-                st.learn = !st.learn;
-            }
-            let _ = controls::key(ui, s, Src::Key("tabula.randomise"), "", 116.0, false);
+            toggle = controls::key(ui, s, Src::Key("tabula.learn"), "", 116.0, learn).clicked();
+            randomise =
+                controls::key(ui, s, Src::Key("tabula.randomise"), "", 116.0, false).clicked();
         });
     });
+    if toggle {
+        st.learn = !st.learn;
+        st.armed = None;
+    }
+    if let Some(m) = arm {
+        st.armed = Some(m);
+        host.status(crate::i18n::t("tabula.learn.status"));
+    }
+    if randomise {
+        st.seed = st.seed.wrapping_add(1).wrapping_mul(0x9E37_79B9) ^ host.revision();
+        super::tabula_edit::randomise(host, st.seed);
+    }
 }
 
 /// The board drawn in the dark theme's tokens: it is the window's display, dark in every
@@ -364,10 +410,35 @@ fn board_ui(
         let ink = pd::board_ink(&sd);
         pd::board_jack(b, &sd, geo.jack_in, Src::Key("tabula.jack.in"), ink);
         pd::board_jack(b, &sd, geo.jack_out, Src::Key("tabula.jack.out"), ink);
+        let hot = st.hot;
+        let lifted = st.drag.map(|d| d.0);
+        let b_ = cantus_core::fx::tabula::board(&spec);
         for (id, rect) in &geo.pedals {
             let Some(p) = pedals.iter().find(|p| p.id == *id) else {
                 continue;
             };
+            if lifted == Some(*id) {
+                // Lifted off the board: its place stays empty until it lands.
+                pd::empty_slot(
+                    b,
+                    &sd,
+                    rect.shrink2(vec2(6.0 * k, 0.0)),
+                    Src::Str(""),
+                    false,
+                );
+                pedal_hits.push((
+                    *id,
+                    pd::Hits {
+                        body: *rect,
+                        knobs: [Rect::NOTHING; pd::MAX_KNOBS],
+                        n: 0,
+                        switch: Rect::NOTHING,
+                        jack_in: rect.left_top() + vec2(rect.width() * 0.25, 0.0),
+                        jack_out: rect.right_top() - vec2(rect.width() * 0.25, 0.0),
+                    },
+                ));
+                continue;
+            }
             let h = tb::pedal(
                 b,
                 &sd,
@@ -378,11 +449,20 @@ fn board_ui(
                     on: p.on,
                     glow: glow(*id),
                     lifted: false,
-                    hot: None,
+                    hot: hot.filter(|h| h.0 == *id).map(|h| h.1),
                     selected: selected == Some(*id),
                     bare: false,
                 },
             );
+            // A knob a macro moves wears its ring (ADR 0109's driven mark).
+            let u = rect.width() / pd::size_of(tb::shape_of(p)).x;
+            for (j, key) in tb::knob_keys(&p.spec).iter().enumerate().take(h.n) {
+                if b_.macro_of(*id, key).is_some() {
+                    let c = h.knobs[j].center() - vec2(0.0, 7.0 * u);
+                    let kr = h.knobs[j].width() / 2.7;
+                    b.circle_stroke(c, kr + 4.0 * u, 1.6 * k, sd.t.hue_mod);
+                }
+            }
             pedal_hits.push((*id, h));
         }
         let split = geo
@@ -414,9 +494,19 @@ fn board_ui(
         // flowing in them as loud as it is at that point.
         let lift = 30.0 * geo.scale;
         let hit = |id: PedalId| pedal_hits.iter().find(|(i, _)| *i == id).map(|h| h.1);
+        let geo_ = &geo;
         let mut cab = |b: &mut crate::kit::Brush, a: tb::End, z: tb::End, l: f32| {
             flowing |= l > 0.01;
-            tb::cable(b, &sd, a, z, lift, Some(pd::Energy { level: l, time }));
+            let energy = Some(pd::Energy { level: l, time });
+            match (a, z) {
+                // A wrapped chain: the cable runs between the rows.
+                (tb::End::Top(p), tb::End::Top(q))
+                    if tb::row_of(geo_, p) != tb::row_of(geo_, q) =>
+                {
+                    tb::cable_wrapped(b, &sd, geo_, p, q, lift, energy)
+                }
+                _ => tb::cable(b, &sd, a, z, lift, energy),
+            }
         };
         // Runs one lane's pedals from `from` at `level`: where it ends and how loud.
         let run = |b: &mut crate::kit::Brush,
@@ -462,6 +552,7 @@ fn board_ui(
     });
     // The picker, over the board, by the place to add: drawn after the board (its words
     // too), so nothing of the board shows through.
+    let mut picker_hits = None;
     if let Some(shelf) = st.picker {
         let size = vec2(720.0, 452.0) * k;
         let w = size.x.min(r.width() - 24.0 * k);
@@ -483,7 +574,7 @@ fn board_ui(
             .shelves
             .get(shelf)
             .map_or(&[][..], |(_, ks)| ks.as_slice());
-        with_brush(&ui.painter_at(r), |b| {
+        picker_hits = Some(with_brush(&ui.painter_at(r), |b| {
             tb::picker(
                 b,
                 s,
@@ -493,23 +584,334 @@ fn board_ui(
                 shelf,
                 kinds,
                 st.picker_hover,
-            );
-        });
+            )
+        }));
     }
-    if flowing && st.anim_time.is_none() {
+    if (flowing || st.drag.is_some()) && st.anim_time.is_none() {
         ui.ctx().request_repaint();
     }
-    // Choose a pedal by a click; its full editor by a double click; the picker from the
-    // place to add (the rest of the board's gestures: phase B).
-    let resp = ui.interact(r, ui.id().with("tabula-board"), egui::Sense::click());
-    if let Some(p) = resp.interact_pointer_pos() {
-        if let Some((id, _)) = pedal_hits.iter().find(|(_, h)| h.body.contains(p)) {
-            st.selected = Some(*id);
-            if resp.double_clicked() {
-                open_pedal(st, &spec, *id);
+    // The pedal in the hand, over everything, and where it would land.
+    if let (Some((id, grab)), Some(p)) = (st.drag, ui.ctx().pointer_latest_pos()) {
+        if let Some(pedal) = pedals.iter().find(|x| x.id == id) {
+            let size = pd::size_of(tb::shape_of(pedal)) * geo.scale;
+            let band = geo.rows.get(tb::row_of(&geo, p)).copied().unwrap_or(r);
+            with_brush(&ui.painter_at(r), |b| {
+                pd::drop_marker(b, &sd, p.x, band.top(), band.bottom());
+                tb::pedal(
+                    b,
+                    &sd,
+                    Rect::from_min_size(p - grab, size),
+                    &tb::Look {
+                        spec: &pedal.spec,
+                        shape: tb::shape_of(pedal),
+                        on: pedal.on,
+                        glow: glow(id),
+                        lifted: true,
+                        hot: None,
+                        selected: true,
+                        bare: false,
+                    },
+                );
+            });
+        }
+    }
+    interact(
+        host,
+        st,
+        ui,
+        r,
+        &spec,
+        &geo,
+        &pedal_hits,
+        picker_hits.as_ref(),
+    );
+}
+
+/// What the board does with the pointer and the keyboard: choose a pedal, turn its knobs,
+/// its footswitch, lift it and drop it elsewhere (or onto a lane), open its full editor, map
+/// a knob to the armed macro, add a pedal from the picker — each one step of undo.
+#[allow(clippy::too_many_arguments)]
+fn interact(
+    host: &mut dyn FxHost,
+    st: &mut State,
+    ui: &mut egui::Ui,
+    r: Rect,
+    spec: &EffectSpec,
+    geo: &tb::Geo,
+    hits: &[(PedalId, pd::Hits)],
+    picker: Option<&tb::PickerHits>,
+) {
+    let resp = ui.interact(
+        r,
+        ui.id().with("tabula-board"),
+        egui::Sense::click_and_drag(),
+    );
+    let pedals = spec.pedals();
+    let knob_at = |p: egui::Pos2| -> Option<(PedalId, usize)> {
+        hits.iter().find_map(|(id, h)| {
+            if h.switch.contains(p) {
+                return Some((*id, 9));
             }
-        } else if resp.clicked() && geo.add.contains(p) {
-            st.picker = if st.picker.is_some() { None } else { Some(0) };
+            (0..h.n).find(|j| h.knobs[*j].contains(p)).map(|j| (*id, j))
+        })
+    };
+    let body_at = |p: egui::Pos2| hits.iter().find(|(_, h)| h.body.contains(p)).map(|x| x.0);
+    let over_picker = |p: egui::Pos2| picker.is_some_and(|h| h.panel.contains(p));
+    st.hot = resp
+        .hover_pos()
+        .filter(|p| !over_picker(*p))
+        .and_then(knob_at);
+    if resp.drag_started() {
+        if let Some(p) = resp.interact_pointer_pos().filter(|p| !over_picker(*p)) {
+            match knob_at(p) {
+                Some((id, j)) if j < 9 => {
+                    let ped = pedals.iter().find(|x| x.id == id);
+                    let key = ped.and_then(|x| tb::knob_keys(&x.spec).get(j).copied());
+                    if let (Some(ped), Some(key)) = (ped, key) {
+                        st.turning = Some((id, key, tb::norm(&ped.spec, key), p.y));
+                        st.selected = Some(id);
+                    }
+                }
+                Some(_) => {}
+                None => {
+                    if let Some(id) = body_at(p) {
+                        let rect = hits.iter().find(|x| x.0 == id).map(|x| x.1.body);
+                        if let Some(rect) = rect {
+                            st.drag = Some((id, p - rect.min));
+                            st.selected = Some(id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if resp.dragged() {
+        if let (Some((id, key, from, y0)), Some(p)) = (st.turning, resp.interact_pointer_pos()) {
+            let fine = if ui.input(|i| i.modifiers.shift) {
+                0.2
+            } else {
+                1.0
+            };
+            let x = from + (y0 - p.y) / 220.0 * fine;
+            let pk = cantus_core::fx::tabula::pedal_key(id, key);
+            if let Some(info) = spec.param(&pk) {
+                host.set(&pk, tb::denorm(info, x), Some(&pk));
+            }
+        }
+    }
+    if resp.drag_stopped() {
+        if st.turning.take().is_some() {
+            host.end_gesture();
+        }
+        if let (Some((id, _)), Some(p)) = (st.drag.take(), resp.interact_pointer_pos()) {
+            if r.contains(p) {
+                let (index, path) = drop_target(geo, spec, id, p);
+                let now = pedals.iter().position(|x| x.id == id);
+                let same = now == Some(index)
+                    && pedals.iter().find(|x| x.id == id).map(|x| x.path) == Some(path);
+                if !same {
+                    super::tabula_edit::move_to(host, id, index, path);
+                }
+            }
+        }
+    }
+    if resp.clicked() {
+        st.focused = true;
+        if let Some(p) = resp.interact_pointer_pos() {
+            if let Some(h) = picker.filter(|h| h.panel.contains(p)) {
+                if let Some(i) = h.shelves.iter().position(|x| x.contains(p)) {
+                    st.picker = Some(i);
+                } else if let Some((kind, _)) = h.pedals.iter().find(|x| x.1.contains(p)) {
+                    if let Some(id) = super::tabula_edit::add(host, *kind) {
+                        st.selected = Some(id);
+                    }
+                    st.picker = None;
+                }
+                return;
+            }
+            st.picker = None;
+            match knob_at(p) {
+                Some((id, 9)) => {
+                    if let Some(ped) = pedals.iter().find(|x| x.id == id) {
+                        super::tabula_edit::footswitch(host, id, !ped.on);
+                    }
+                }
+                Some((id, j)) => {
+                    st.selected = Some(id);
+                    let key = pedals
+                        .iter()
+                        .find(|x| x.id == id)
+                        .and_then(|x| tb::knob_keys(&x.spec).get(j).copied());
+                    if let (Some(m), Some(key)) = (st.armed, key) {
+                        super::tabula_edit::learn(host, m, id, key);
+                        st.armed = None;
+                    }
+                    st.knob = j;
+                }
+                None => {
+                    if let Some(id) = body_at(p) {
+                        st.selected = Some(id);
+                    } else if geo.add.contains(p) {
+                        if st.shelves.is_empty() {
+                            st.shelves = shelves();
+                        }
+                        st.picker = Some(0);
+                    }
+                }
+            }
+        }
+    }
+    if resp.double_clicked() {
+        if let Some(id) = resp.interact_pointer_pos().and_then(body_at) {
+            open_pedal(st, spec, id);
+        }
+    }
+    if resp.clicked_elsewhere() {
+        st.focused = false;
+    }
+    if st.focused {
+        keys(host, st, ui, spec);
+    }
+    // The screen reader's board: a list of pedals, each a toggle and its knobs sliders.
+    for (id, h) in hits {
+        let Some(ped) = pedals.iter().find(|x| x.id == *id) else {
+            continue;
+        };
+        let name = src_text(tb::names_of(&ped.spec).0);
+        let a = ui.interact(
+            h.body,
+            ui.id().with(("tabula-pedal", id.0)),
+            egui::Sense::hover(),
+        );
+        a.widget_info(|| {
+            egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, ped.on, &name)
+        });
+        for (j, key) in tb::knob_keys(&ped.spec).iter().enumerate().take(h.n) {
+            let kr = ui.interact(
+                h.knobs[j],
+                ui.id().with(("tabula-knob", id.0, j)),
+                egui::Sense::hover(),
+            );
+            let v = f64::from(ped.spec.get(key));
+            let label = format!("{name}: {}", src_text(knob_label(&ped.spec, j, key)));
+            kr.widget_info(|| egui::WidgetInfo::slider(true, v, &label));
+        }
+    }
+}
+
+/// The word under a pedal's knob `j` (`key`).
+fn knob_label(spec: &EffectSpec, j: usize, key: &str) -> Src<'static> {
+    if spec.kind == EffectKind::Pedal {
+        let m = super::fragor::model_of(spec.get(cantus_core::fx::fragor::SLOTS[0])).unwrap_or(0);
+        return Src::Key(super::fragor::knob_labels(m)[j.min(2)]);
+    }
+    match tb::knob_word(key) {
+        Some(w) => Src::Key(w),
+        None => Src::Key(spec.kind.param(key).map_or("", |i| i.label_key)),
+    }
+}
+
+/// Where a pedal dropped at `p` lands: its index in the signal order (the others' order
+/// kept) and its lane.
+fn drop_target(geo: &tb::Geo, spec: &EffectSpec, id: PedalId, p: egui::Pos2) -> (usize, Path) {
+    let pedals = spec.pedals();
+    let me = pedals
+        .iter()
+        .find(|x| x.id == id)
+        .map_or(Path::Pre, |x| x.path);
+    let near = |r: Option<Rect>| r.is_some_and(|r| r.expand(16.0).contains(p));
+    let key = |q: egui::Pos2| (tb::row_of(geo, q), q.x);
+    let path = if near(geo.lane_a) {
+        Path::A
+    } else if near(geo.lane_b) {
+        Path::B
+    } else if let Some(sp) = geo.splitter {
+        if key(p) < key(sp.center()) {
+            Path::Pre
+        } else {
+            Path::Post
+        }
+    } else if me == Path::Post {
+        Path::Post
+    } else {
+        Path::Pre
+    };
+    let rect_of = |pid: PedalId| geo.pedals.iter().find(|x| x.0 == pid).map(|x| x.1);
+    // The others in order, as the board will hold them once the pedal is lifted out.
+    let others: Vec<(usize, PedalId, Path)> = pedals
+        .iter()
+        .filter(|x| x.id != id)
+        .enumerate()
+        .map(|(i, x)| (i, x.id, x.path))
+        .collect();
+    let on: Vec<&(usize, PedalId, Path)> = others.iter().filter(|x| x.2 == path).collect();
+    let before = on
+        .iter()
+        .filter(|x| rect_of(x.1).is_some_and(|r| key(r.center()) < key(p)))
+        .count();
+    let index = match (on.get(before), on.last()) {
+        (Some(x), _) => x.0,
+        (None, Some(last)) => last.0 + 1,
+        (None, None) if path == Path::Pre => 0,
+        (None, None) => others.len(),
+    };
+    (index, path)
+}
+
+/// The keyboard on a board that has it: Tab and Shift+Tab choose the next pedal, Space its
+/// footswitch, Enter its full editor, Delete takes it off, Ctrl+Left and Right move it,
+/// Left and Right choose its knob and Up and Down turn it (Shift: finely).
+fn keys(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, spec: &EffectSpec) {
+    use egui::{Key, Modifiers};
+    let pedals = spec.pedals();
+    if pedals.is_empty() {
+        return;
+    }
+    let at = st
+        .selected
+        .and_then(|id| pedals.iter().position(|x| x.id == id))
+        .unwrap_or(0);
+    let p = &pedals[at];
+    let consume = |ui: &mut egui::Ui, m: Modifiers, k: Key| ui.input_mut(|i| i.consume_key(m, k));
+    if consume(ui, Modifiers::SHIFT, Key::Tab) {
+        st.selected = Some(pedals[(at + pedals.len() - 1) % pedals.len()].id);
+        st.knob = 0;
+    } else if consume(ui, Modifiers::NONE, Key::Tab) {
+        st.selected = Some(pedals[(at + 1) % pedals.len()].id);
+        st.knob = 0;
+    } else if consume(ui, Modifiers::NONE, Key::Space) {
+        super::tabula_edit::footswitch(host, p.id, !p.on);
+    } else if consume(ui, Modifiers::NONE, Key::Enter) {
+        open_pedal(st, spec, p.id);
+    } else if consume(ui, Modifiers::NONE, Key::Delete) {
+        super::tabula_edit::remove(host, p.id);
+        st.selected = None;
+    } else if at > 0 && consume(ui, Modifiers::COMMAND, Key::ArrowLeft) {
+        super::tabula_edit::move_to(host, p.id, at - 1, p.path);
+    } else if at + 1 < pedals.len() && consume(ui, Modifiers::COMMAND, Key::ArrowRight) {
+        super::tabula_edit::move_to(host, p.id, at + 1, p.path);
+    } else if consume(ui, Modifiers::NONE, Key::ArrowLeft) {
+        st.knob = st.knob.saturating_sub(1);
+    } else if consume(ui, Modifiers::NONE, Key::ArrowRight) {
+        st.knob = (st.knob + 1).min(tb::knob_keys(&p.spec).len().saturating_sub(1));
+    } else {
+        let fine = ui.input(|i| i.modifiers.shift);
+        let m = if fine {
+            Modifiers::SHIFT
+        } else {
+            Modifiers::NONE
+        };
+        let up = consume(ui, m, Key::ArrowUp);
+        let down = !up && consume(ui, m, Key::ArrowDown);
+        if up || down {
+            let step = if fine { 0.005 } else { 0.02 } * if up { 1.0 } else { -1.0 };
+            if let Some(key) = tb::knob_keys(&p.spec).get(st.knob) {
+                let pk = cantus_core::fx::tabula::pedal_key(p.id, key);
+                if let Some(info) = spec.param(&pk) {
+                    host.set(&pk, tb::denorm(info, tb::norm(&p.spec, key) + step), None);
+                    host.end_gesture();
+                }
+            }
         }
     }
 }
@@ -574,53 +976,39 @@ fn pedal_editor_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: 
     }
 }
 
-/// The side column: the board's own levels, and the chosen pedal.
-fn side_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, r: Rect) {
-    let k = s.k;
-    let mut g = Grid::new(r, s);
-    let split = host
-        .spec()
-        .pedals()
-        .iter()
-        .any(|p| matches!(p.path, Path::A | Path::B));
-    let h = controls::card_height(Size::S) * k;
-    if let Some(top) = g.row(h, &[1.0]).next() {
-        controls::card(ui, s, top, Src::Key("tabula.card.board"), None, |ui, _| {
-            for key in ["in", "mix", "out"] {
-                let Some(info) = KIND.param(key) else {
-                    continue;
-                };
-                let out = Cell::param(info, host.spec().get(key))
-                    .size(Size::S)
-                    .width(66.0)
-                    .show_in(ui, s, host, key);
-                if let Some(v) = out.changed {
-                    host.set(key, v, Some(key));
-                }
-                if out.done {
-                    host.end_gesture();
-                }
+/// The board's own levels: what goes in, the dry/wet, what comes out.
+fn levels_ui(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, r: Rect) {
+    controls::card(ui, s, r, Src::Key("tabula.card.board"), None, |ui, _| {
+        for key in ["in", "mix", "out"] {
+            let Some(info) = KIND.param(key) else {
+                continue;
+            };
+            let out = Cell::param(info, host.spec().get(key))
+                .size(Size::M)
+                .width(70.0)
+                .show_in(ui, s, host, key);
+            if let Some(v) = out.changed {
+                host.set(key, v, Some(key));
             }
-        });
-    }
-    let rest = g.rest();
+            if out.done {
+                host.end_gesture();
+            }
+        }
+    });
+}
+
+/// The chosen pedal's place on the board: its size, its lane, its footswitch, and taking
+/// it off.
+fn options_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, r: Rect) {
     let spec = host.spec().clone();
-    let chosen = st
-        .selected
-        .or_else(|| spec.pedals().first().map(|p| p.id))
-        .and_then(|id| spec.pedals().iter().find(|p| p.id == id).cloned());
-    let mut open = None;
-    controls::card(ui, s, rest, Src::Key("tabula.card.pedal"), None, |ui, _| {
-        let w = SIDE_W - 26.0;
+    let chosen = chosen(st, &spec).cloned();
+    controls::card(ui, s, r, Src::Key("tabula.card.place"), None, |ui, _| {
+        let w = OPTIONS_W - 24.0;
         controls::column(ui, s, w, |ui| {
             let Some(p) = &chosen else {
                 controls::caption(ui, s, Src::Key("tabula.pedal.none"), w);
                 return;
             };
-            let (name, what) = tb::names_of(&p.spec);
-            let (name, what) = (src_text(name), src_text(what));
-            controls::readout(ui, s, &name, false, &what, w);
-            controls::caption(ui, s, Src::Str(&what), w);
             controls::caption(ui, s, Src::Key("tabula.pedal.size"), w);
             let shapes = [
                 Src::Key("tabula.shape.mini"),
@@ -630,39 +1018,47 @@ fn side_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
                 Src::Key("tabula.shape.round"),
             ];
             let now = tb::shape_of(p) as usize;
-            // Two rows of the five shapes; the row without the pedal's shows none lit.
-            let first = if now < 3 { now } else { 9 };
-            let second = now.checked_sub(3).unwrap_or(9);
-            let _ = controls::segmented(ui, s, first, &shapes[..3], "", w);
-            let _ = controls::segmented(ui, s, second, &shapes[3..], "", w);
-            controls::caption(ui, s, Src::Key("tabula.pedal.switch"), w);
-            let _ = controls::led(ui, s, p.on, Src::Key("tabula.pedal.on"), "", w);
-            if split || p.path != Path::Pre {
-                controls::caption(ui, s, Src::Key("tabula.pedal.lane"), w);
-                let lanes = [
-                    Src::Key("tabula.path.pre"),
-                    Src::Key("tabula.lane.a"),
-                    Src::Key("tabula.lane.b"),
-                    Src::Key("tabula.path.post"),
-                ];
-                let at = match p.path {
-                    Path::Pre => 0,
-                    Path::A => 1,
-                    Path::B => 2,
-                    Path::Post => 3,
-                };
-                let _ = controls::segmented(ui, s, at, &lanes, "", w);
+            if let Some(i) = controls::segmented(ui, s, now, &shapes, "", w) {
+                use cantus_core::fx::tabula::PedalShape as S;
+                let shape = [S::Mini, S::Standard, S::Wide, S::Double, S::Round][i];
+                // The unit's own shape is no choice: it goes back to `None`.
+                let natural = super::tabula_faces::of(p.spec.kind).map(|f| f.shape);
+                let shape = (Some(shape) != natural).then_some(shape);
+                super::tabula_edit::shape(host, p.id, shape);
             }
-            ui.add_space(s.d(6.0));
-            if controls::key(ui, s, Src::Key("tabula.pedal.open"), "", w, false).clicked() {
-                open = Some(p.id);
+            controls::caption(ui, s, Src::Key("tabula.pedal.lane"), w);
+            let lanes = [
+                Src::Key("tabula.path.pre"),
+                Src::Key("tabula.lane.a"),
+                Src::Key("tabula.lane.b"),
+                Src::Key("tabula.path.post"),
+            ];
+            let paths = [Path::Pre, Path::A, Path::B, Path::Post];
+            let at = paths.iter().position(|x| *x == p.path).unwrap_or(0);
+            if let Some(i) = controls::segmented(ui, s, at, &lanes, "", w) {
+                let index = spec.pedals().iter().position(|x| x.id == p.id).unwrap_or(0);
+                super::tabula_edit::move_to(host, p.id, index, paths[i]);
             }
-            let _ = controls::key(ui, s, Src::Key("tabula.pedal.remove"), "", w, false);
+            ui.horizontal(|ui| {
+                let half = (w - 4.0) * 0.5;
+                if controls::led(ui, s, p.on, Src::Key("tabula.pedal.on"), "", half).clicked() {
+                    super::tabula_edit::footswitch(host, p.id, !p.on);
+                }
+                if controls::key(ui, s, Src::Key("tabula.pedal.remove"), "", half, false).clicked()
+                {
+                    super::tabula_edit::remove(host, p.id);
+                    st.selected = None;
+                }
+            });
         });
     });
-    if let Some(id) = open {
-        open_pedal(st, &spec, id);
-    }
+}
+
+/// The pedal the window describes: the chosen one, else the first.
+fn chosen<'a>(st: &State, spec: &'a EffectSpec) -> Option<&'a cantus_core::fx::tabula::Pedal> {
+    st.selected
+        .and_then(|id| spec.pedals().iter().find(|p| p.id == id))
+        .or_else(|| spec.pedals().first())
 }
 
 /// The words of a source, translated.

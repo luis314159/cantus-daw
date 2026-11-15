@@ -41,6 +41,7 @@ pub mod arca; // fx3:contract
 pub mod rota; // fx3:contract
 pub mod saltus; // fx3:contract
 pub mod tabula; // fx3:contract
+pub mod tabula_random; // fx3:tabula — Randomise within musical ranges
 
 /// How any parameter's value is printed and read back (shared by the DAW's knobs and the
 /// exported plug-ins, ADR 0020).

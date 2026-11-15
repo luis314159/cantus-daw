@@ -217,6 +217,29 @@ pub fn knobs_of<'a>(spec: &EffectSpec, hot: Option<usize>, out: &mut Vec<Knob<'a
     }
 }
 
+/// The keys of the knobs a pedal shows, in their order on its face.
+pub fn knob_keys(spec: &EffectSpec) -> Vec<&'static str> {
+    if spec.kind == EffectKind::Pedal {
+        return cantus_core::fx::fragor::KNOBS[fragor_model(spec)].to_vec();
+    }
+    faces::of(spec.kind).map_or(Vec::new(), |f| f.knobs.to_vec())
+}
+
+/// A knob's position (0 … 1, along the taper) as the parameter's value.
+pub fn denorm(i: &cantus_core::EffectParamInfo, x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    let v = if i.logarithmic && i.min > 0.0 && i.max > i.min {
+        i.min * (i.max / i.min).powf(x)
+    } else {
+        i.min + (i.max - i.min) * x
+    };
+    if i.stepped {
+        v.round()
+    } else {
+        v
+    }
+}
+
 /// The name a pedal letters and the line under it.
 pub fn names_of(spec: &EffectSpec) -> (Src<'static>, Src<'static>) {
     if spec.kind == EffectKind::Pedal {
@@ -349,6 +372,8 @@ pub struct Geo {
     pub scale: f32,
     /// The content's width when it is wider than the board (then it scrolls).
     pub overflow: Option<f32>,
+    /// The rows' bands, top to bottom (one unless the chain wraps).
+    pub rows: Vec<Rect>,
 }
 
 impl Default for Geo {
@@ -364,6 +389,7 @@ impl Default for Geo {
             jack_out: Pos2::ZERO,
             scale: 1.0,
             overflow: None,
+            rows: Vec::new(),
         }
     }
 }
@@ -378,121 +404,224 @@ pub const EMPTY_LANE: Vec2 = Vec2::new(150.0, 150.0);
 pub const ADD: Vec2 = Vec2::new(136.0, 220.0);
 /// The legible floor: pedals never drawn under this share of the window's scale.
 pub const FLOOR: f32 = 0.6;
+/// How large pedals may stand when the board has room: they fill its height.
+pub const MAX_SCALE: f32 = 1.45;
+/// Room between two rows of a wrapped chain, at 100 % (the cable runs through it).
+pub const ROW_GAP: f32 = 70.0;
 
 /// Lay the board out in `r`: Pre, then the split (a splitter, lane A over lane B, a
-/// mixer), then Post and the place to add one; as large as the board allows (never above
-/// the window's scale), scaled down as far as the floor, then scrolled sideways.
+/// mixer), then Post and the place to add one — in one row, or wrapped into two or three
+/// when that lets the pedals stand larger (up to [`MAX_SCALE`] of the window's scale, so
+/// they fill the board's height); scaled down as far as the floor, then scrolled sideways.
+/// Never clipped.
 pub fn layout(r: Rect, k: f32, items: &[Item], scroll: f32) -> Geo {
-    let on = |p: Path| items.iter().filter(move |i| i.path == p);
-    let width = |p: Path| {
-        let n = on(p).count();
-        on(p).map(|i| i.size.x).sum::<f32>() + GAP * n.saturating_sub(1) as f32
-    };
-    let tallest = |p: Path| on(p).map(|i| i.size.y).fold(0.0, f32::max);
-    let split = on(Path::A).next().is_some() || on(Path::B).next().is_some();
+    #[derive(Copy, Clone)]
+    enum Unit {
+        Pedal(usize),
+        Split,
+        Add,
+    }
+    let on = |p: Path| items.iter().enumerate().filter(move |(_, i)| i.path == p);
     let lane = |p: Path| {
-        if on(p).next().is_some() {
-            (width(p), tallest(p))
-        } else {
+        let n = on(p).count();
+        if n == 0 {
             (EMPTY_LANE.x, EMPTY_LANE.y)
+        } else {
+            (
+                on(p).map(|(_, i)| i.size.x).sum::<f32>() + GAP * (n - 1) as f32,
+                on(p).map(|(_, i)| i.size.y).fold(0.0, f32::max),
+            )
         }
     };
+    let split = on(Path::A).next().is_some() || on(Path::B).next().is_some();
     let (wa, ha) = lane(Path::A);
     let (wb, hb) = lane(Path::B);
-    let row_h = tallest(Path::Pre).max(tallest(Path::Post)).max(ADD.y);
+    let lanes_w = wa.max(wb);
     let lanes_h = ha + LANE_GAP + hb;
-    let h = if split { row_h.max(lanes_h) } else { row_h };
-    // The sequence's widths, with a gap between each two.
-    let mut parts: Vec<f32> = on(Path::Pre).map(|i| i.size.x).collect();
+    let mut units: Vec<Unit> = on(Path::Pre).map(|(j, _)| Unit::Pedal(j)).collect();
     if split {
-        parts.extend([BOX_W, wa.max(wb), BOX_W]);
+        units.push(Unit::Split);
     }
-    parts.extend(on(Path::Post).map(|i| i.size.x));
-    parts.push(ADD.x);
-    let w = parts.iter().sum::<f32>() + GAP * (parts.len() - 1) as f32;
+    units.extend(on(Path::Post).map(|(j, _)| Unit::Pedal(j)));
+    units.push(Unit::Add);
+    let size = |u: Unit| match u {
+        Unit::Pedal(j) => items[j].size,
+        Unit::Split => vec2(BOX_W + GAP + lanes_w + GAP + BOX_W, lanes_h),
+        Unit::Add => ADD,
+    };
     let inner = Rect::from_min_max(
-        pos2(r.left() + 58.0 * k, r.top() + 50.0 * k),
-        pos2(r.right() - 58.0 * k, r.bottom() - 22.0 * k),
+        pos2(r.left() + 58.0 * k, r.top() + 46.0 * k),
+        pos2(r.right() - 58.0 * k, r.bottom() - 40.0 * k),
     );
-    let fit = (inner.width() / w).min(inner.height() / h).min(k);
+    // The rows for `n`: units in order, each row about the total width over `n`.
+    let rows_for = |n: usize| -> Vec<Vec<Unit>> {
+        let total: f32 = units.iter().map(|u| size(*u).x + GAP).sum::<f32>() - GAP;
+        let target = total / n as f32;
+        let mut rows: Vec<Vec<Unit>> = vec![Vec::new()];
+        let mut w = 0.0;
+        for u in &units {
+            let uw = size(*u).x;
+            let count = rows.len();
+            let last = rows.last_mut().expect("a row");
+            if !last.is_empty() && w + GAP + uw * 0.5 > target && count < n {
+                rows.push(vec![*u]);
+                w = uw;
+            } else {
+                if !last.is_empty() {
+                    w += GAP;
+                }
+                w += uw;
+                rows.last_mut().expect("a row").push(*u);
+            }
+        }
+        rows
+    };
+    let metrics = |rows: &[Vec<Unit>]| {
+        let widths: Vec<f32> = rows
+            .iter()
+            .map(|r| r.iter().map(|u| size(*u).x).sum::<f32>() + GAP * (r.len() - 1) as f32)
+            .collect();
+        let heights: Vec<f32> = rows
+            .iter()
+            .map(|r| r.iter().map(|u| size(*u).y).fold(0.0, f32::max))
+            .collect();
+        let w = widths.iter().copied().fold(0.0, f32::max);
+        let h = heights.iter().sum::<f32>() + ROW_GAP * (rows.len() - 1) as f32;
+        (widths, heights, w, h)
+    };
+    let fit_of = |w: f32, h: f32| {
+        (inner.width() / w)
+            .min(inner.height() / h)
+            .min(MAX_SCALE * k)
+    };
+    let mut best: Option<(f32, Vec<Vec<Unit>>)> = None;
+    for n in 1..=3usize.min(units.len()) {
+        let rows = rows_for(n);
+        let (_, _, w, h) = metrics(&rows);
+        let f = fit_of(w, h);
+        // A wrap is taken only for a clear gain: one row reads the chain best.
+        if best.as_ref().is_none_or(|(bf, _)| f > *bf * 1.12) {
+            best = Some((f, rows));
+        }
+    }
+    let (fit, rows) = best.expect("one row at least");
     let sc = fit.max(FLOOR * k);
+    let (widths, heights, w, h) = metrics(&rows);
     let content = w * sc;
     let overflow = (content > inner.width() + 0.5).then_some(content);
-    let mut x = match overflow {
-        Some(c) => inner.left() - (c - inner.width()) * scroll.clamp(0.0, 1.0),
-        None => inner.center().x - content * 0.5,
-    };
-    let yc = inner.center().y;
-    let bottom = yc + row_h * sc * 0.5;
+    let shift = overflow.map_or(0.0, |c| (c - inner.width()) * scroll.clamp(0.0, 1.0));
     let mut g = Geo {
         scale: sc,
         overflow,
         ..Default::default()
     };
-    // A pedal on the main row: bottom-aligned without a split, centred beside one.
-    let main_rect = |x: f32, size: Vec2| {
-        let sz = size * sc;
-        if split {
-            Rect::from_min_size(pos2(x, yc - sz.y * 0.5), sz)
+    let mut y = inner.center().y - h * sc * 0.5;
+    for (ri, row) in rows.iter().enumerate() {
+        let rh = heights[ri] * sc;
+        let band = Rect::from_min_max(pos2(r.left(), y), pos2(r.right(), y + rh));
+        g.rows.push(band);
+        let mut x = match overflow {
+            Some(_) => inner.left() - shift,
+            None => inner.center().x - widths[ri] * sc * 0.5,
+        };
+        let has_split = row.iter().any(|u| matches!(u, Unit::Split));
+        let yc = band.center().y;
+        let place = |x: f32, size: Vec2| {
+            let sz = size * sc;
+            if has_split {
+                Rect::from_min_size(pos2(x, yc - sz.y * 0.5), sz)
+            } else {
+                Rect::from_min_size(pos2(x, band.bottom() - sz.y), sz)
+            }
+        };
+        for u in row {
+            match *u {
+                Unit::Pedal(j) => {
+                    g.pedals.push((items[j].id, place(x, items[j].size)));
+                }
+                Unit::Add => g.add = place(x, ADD),
+                Unit::Split => {
+                    let top = yc - lanes_h * sc * 0.5;
+                    let a_row = Rect::from_min_size(pos2(x, top), vec2(0.0, ha * sc));
+                    let b_row = Rect::from_min_size(
+                        pos2(x, top + (ha + LANE_GAP) * sc),
+                        vec2(0.0, hb * sc),
+                    );
+                    let box_r = Rect::from_min_max(
+                        pos2(x, a_row.center().y - 26.0 * sc),
+                        pos2(x + BOX_W * sc, b_row.center().y + 26.0 * sc),
+                    );
+                    g.splitter = Some(box_r);
+                    let lx0 = x + (BOX_W + GAP) * sc;
+                    for (p, lr, lw) in [(Path::A, a_row, wa), (Path::B, b_row, wb)] {
+                        let mut lx = lx0 + (lanes_w - lw) * sc * 0.5;
+                        let mut any = false;
+                        for (_, i) in on(p) {
+                            let sz = i.size * sc;
+                            g.pedals.push((
+                                i.id,
+                                Rect::from_min_size(pos2(lx, lr.bottom() - sz.y), sz),
+                            ));
+                            lx += (i.size.x + GAP) * sc;
+                            any = true;
+                        }
+                        let area = Rect::from_min_max(
+                            pos2(lx0, lr.top()),
+                            pos2(lx0 + lanes_w * sc, lr.bottom()),
+                        );
+                        let lane_r = if any {
+                            area
+                        } else {
+                            Rect::from_center_size(area.center(), EMPTY_LANE * sc)
+                        };
+                        if p == Path::A {
+                            g.lane_a = Some(lane_r);
+                        } else {
+                            g.lane_b = Some(lane_r);
+                        }
+                    }
+                    let mx = lx0 + (lanes_w + GAP) * sc;
+                    g.mixer = Some(Rect::from_min_size(pos2(mx, box_r.top()), box_r.size()));
+                }
+            }
+            x += (size(*u).x + GAP) * sc;
+        }
+        y += rh + ROW_GAP * sc;
+    }
+    let first = g.rows.first().copied().unwrap_or(inner);
+    let last = g.rows.last().copied().unwrap_or(inner);
+    let jack_y = |band: Rect, tallest: f32| {
+        if rows.len() == 1 && split {
+            band.center().y - tallest * sc * 0.5
         } else {
-            Rect::from_min_size(pos2(x, bottom - sz.y), sz)
+            band.top()
         }
     };
-    for i in on(Path::Pre) {
-        g.pedals.push((i.id, main_rect(x, i.size)));
-        x += (i.size.x + GAP) * sc;
+    g.jack_in = pos2(r.left() + 24.0 * k, jack_y(first, heights[0]));
+    g.jack_out = pos2(
+        r.right() - 24.0 * k,
+        jack_y(last, heights[heights.len() - 1]),
+    );
+    if rows.len() == 1 && split {
+        // Level with the main row's pedals' tops.
+        let main_h = items
+            .iter()
+            .filter(|i| matches!(i.path, Path::Pre | Path::Post))
+            .map(|i| i.size.y)
+            .fold(ADD.y, f32::max);
+        let y = first.center().y - main_h * sc * 0.5;
+        g.jack_in.y = y;
+        g.jack_out.y = y;
     }
-    if split {
-        let top = yc - lanes_h * sc * 0.5;
-        let a_row = Rect::from_min_size(pos2(0.0, top), vec2(0.0, ha * sc));
-        let b_row = Rect::from_min_size(pos2(0.0, top + (ha + LANE_GAP) * sc), vec2(0.0, hb * sc));
-        let box_r = Rect::from_min_max(
-            pos2(x, a_row.center().y - 26.0 * sc),
-            pos2(x + BOX_W * sc, b_row.center().y + 26.0 * sc),
-        );
-        g.splitter = Some(box_r);
-        x += (BOX_W + GAP) * sc;
-        let lanes_w = wa.max(wb);
-        for (p, row, lw) in [(Path::A, a_row, wa), (Path::B, b_row, wb)] {
-            // Each lane centred in the lanes' width.
-            let mut lx = x + (lanes_w - lw) * sc * 0.5;
-            let mut any = false;
-            for i in on(p) {
-                let sz = i.size * sc;
-                g.pedals
-                    .push((i.id, Rect::from_min_size(pos2(lx, row.bottom() - sz.y), sz)));
-                lx += (i.size.x + GAP) * sc;
-                any = true;
-            }
-            let area = Rect::from_min_max(pos2(x, row.top()), pos2(x + lanes_w * sc, row.bottom()));
-            let lane_r = if any {
-                area
-            } else {
-                Rect::from_center_size(area.center(), EMPTY_LANE * sc)
-            };
-            if p == Path::A {
-                g.lane_a = Some(lane_r);
-            } else {
-                g.lane_b = Some(lane_r);
-            }
-        }
-        x += (lanes_w + GAP) * sc;
-        g.mixer = Some(Rect::from_min_size(pos2(x, box_r.top()), box_r.size()));
-        x += (BOX_W + GAP) * sc;
-    }
-    for i in on(Path::Post) {
-        g.pedals.push((i.id, main_rect(x, i.size)));
-        x += (i.size.x + GAP) * sc;
-    }
-    g.add = main_rect(x, ADD);
-    let jy = if split {
-        yc - row_h * sc * 0.5
-    } else {
-        bottom - row_h * sc
-    };
-    g.jack_in = pos2(r.left() + 24.0 * k, jy);
-    g.jack_out = pos2(r.right() - 24.0 * k, jy);
     g
+}
+
+/// The row a point on the board stands in (a jack on a pedal's top edge is its row's).
+pub fn row_of(g: &Geo, p: Pos2) -> usize {
+    g.rows
+        .iter()
+        .position(|b| p.y >= b.top() - 2.0 && p.y <= b.bottom() + 2.0)
+        .unwrap_or(0)
 }
 
 // ---- cables ----------------------------------------------------------------------------
@@ -549,26 +678,77 @@ pub fn cable(b: &mut Brush, s: &Style, a: End, z: End, lift: f32, energy: Option
             u * u * u * pa.y + 3.0 * u * u * t * c1.y + 3.0 * u * t * t * c2.y + t * t * t * pz.y,
         );
     }
+    stroke(b, s, &pts, [a, z], energy);
+}
+
+/// A cable from a jack on one row to a jack on the next (a wrapped chain): up out of the
+/// first, to the board's right side, down into the gap between the rows, along it and down
+/// into the second — corners rounded, the signal flowing along it.
+pub fn cable_wrapped(
+    b: &mut Brush,
+    s: &Style,
+    g: &Geo,
+    a: Pos2,
+    z: Pos2,
+    lift: f32,
+    energy: Option<pd::Energy>,
+) {
+    let k = s.k;
+    let ra = row_of(g, a);
+    let gap_y = match (g.rows.get(ra), g.rows.get(ra + 1)) {
+        (Some(x), Some(y)) => (x.bottom() + y.top()) * 0.5,
+        _ => (a.y.max(z.y) + a.y.min(z.y)) * 0.5,
+    };
+    let a0 = a - vec2(0.0, 12.0 * k);
+    let z0 = z - vec2(0.0, 12.0 * k);
+    let xr = a.x + 46.0 * k;
+    let mut pts: Vec<Pos2> = vec![
+        a0,
+        pos2(a0.x, a0.y - lift * 0.6),
+        pos2(xr, a0.y - lift * 0.6),
+        pos2(xr, gap_y),
+        pos2(z0.x, gap_y),
+        z0,
+    ];
+    // Corners cut three times (Chaikin): a cable's easy bends.
+    for _ in 0..3 {
+        let mut next = Vec::with_capacity(pts.len() * 2);
+        next.push(pts[0]);
+        for w in pts.windows(2) {
+            let (p, q) = (w[0], w[1]);
+            next.push(p + (q - p) * 0.25);
+            next.push(p + (q - p) * 0.75);
+        }
+        next.push(*pts.last().expect("points"));
+        pts = next;
+    }
+    stroke(b, s, &pts, [End::Top(a), End::Top(z)], energy);
+}
+
+/// A cable's body along `pts` (from plug to plug), with energy, and its two plugs.
+fn stroke(b: &mut Brush, s: &Style, pts: &[Pos2], ends: [End; 2], energy: Option<pd::Energy>) {
+    let k = s.k;
+    let plug = 12.0 * k;
     let c = |h: Hsl| h.rgb();
-    let shade: [Pos2; 33] = pts.map(|q| q + vec2(0.0, 5.0 * k));
+    let shade: Vec<Pos2> = pts.iter().map(|q| *q + vec2(0.0, 5.0 * k)).collect();
     b.polyline(&shade, 6.0 * k, with_alpha(c(pal::SHADOW), 0.30));
-    b.polyline(&pts, 6.0 * k, c(pal::CABLE));
-    let sheen: [Pos2; 33] = pts.map(|q| q + vec2(-1.0, -1.2) * k);
+    b.polyline(pts, 6.0 * k, c(pal::CABLE));
+    let sheen: Vec<Pos2> = pts.iter().map(|q| *q + vec2(-1.0, -1.2) * k).collect();
     b.polyline(&sheen, 1.4 * k, with_alpha(c(pal::CABLE_SHEEN), 0.8));
     if let Some(e) = energy.filter(|e| e.level > 0.01) {
         use crate::views::mixer::wires;
         let l = e.level.clamp(0.0, 1.0);
         let amber = c(pal::JEWEL);
         let light = mix(amber, c(pal::CHROME_LIGHT), 0.55);
-        b.polyline(&pts, 2.4 * k, with_alpha(amber, 0.30 + 0.30 * l));
+        b.polyline(pts, 2.4 * k, with_alpha(amber, 0.30 + 0.30 * l));
         let a_g = wires::gleam_alpha(l) * (0.6 + 0.4 * l);
         let o = wires::gleam_offset(e.time, l) * k;
-        wires::gleams_of(&pts, o, wires::GLEAM * 2.4 * k, |p, q| {
+        wires::gleams_of(pts, o, wires::GLEAM * 2.4 * k, |p, q| {
             b.segment(p, q, 5.0 * k, with_alpha(amber, 0.35 * a_g), true);
             b.segment(p, q, 2.4 * k, with_alpha(light, a_g), true);
         });
     }
-    for e in [a, z] {
+    for e in ends {
         let j = e.jack();
         let d = e.out();
         let tip = j + d * plug;

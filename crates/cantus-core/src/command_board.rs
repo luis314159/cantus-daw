@@ -368,6 +368,51 @@ pub(crate) fn set_pedal_lapsus(
     })
 }
 
+/// A board's spec after `cmds` — the board commands, built for the strip and the effect
+/// given — exactly as they would leave it in a project, checks and refusals included: for a
+/// board that lives outside a project (the exported plug-in's, ADR 0020). The whole list or
+/// nothing.
+pub fn apply_to_spec(
+    spec: &crate::EffectSpec,
+    cmds: impl FnOnce(StripId, EffectId) -> Vec<Command>,
+) -> Result<crate::EffectSpec, CommandError> {
+    let mut p = Project::new("board");
+    let id = EffectId(1);
+    p.master.effects.push(EffectSlot {
+        id,
+        bypass: false,
+        mix: 1.0,
+        sidechain: None,
+        midi_from: None,
+        spec: spec.clone(),
+    });
+    for c in cmds(StripId::MASTER, id) {
+        c.apply(&mut p)?;
+    }
+    Ok(p.master.effects.remove(0).spec)
+}
+
+/// The pedal ids a project still names on board `effect` outside the board itself — its
+/// automation lanes' `p{id}.…` keys — so a fresh id never takes one of them over
+/// (`fx::tabula::next_id`).
+pub fn referenced_ids(project: &Project, effect: EffectId) -> Vec<PedalId> {
+    let mut out = Vec::new();
+    for t in &project.tracks {
+        for c in &t.clips {
+            if let Some(a) = &c.automation {
+                if let crate::AutoTarget::Effect { effect: e, key } = &a.target {
+                    if *e == effect {
+                        if let Some((id, _)) = crate::fx::tabula::split_key(key) {
+                            out.push(id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 #[path = "command_board_tests.rs"]
 mod tests;

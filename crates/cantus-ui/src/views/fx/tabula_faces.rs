@@ -155,7 +155,7 @@ pub const FACES: &[Face] = &[
     ),
     face(
         K::Chorus,
-        &["rate", "depth", "mix"],
+        &["rate", "mix", "depth"],
         S::Standard,
         M::Wave,
         "C",
@@ -187,7 +187,7 @@ pub const FACES: &[Face] = &[
     ),
     face(
         K::Vibrato,
-        &["rate", "depth", "mix"],
+        &["rate", "mix", "depth"],
         S::Standard,
         M::Wave,
         "V",

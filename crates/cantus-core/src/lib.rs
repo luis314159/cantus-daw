@@ -20,7 +20,7 @@ pub mod clip_gain;
 pub mod clip_lanes;
 pub mod clipboard;
 pub mod command;
-mod command_board; // fx3:contract (ADR 0134): Tabula's board commands
+pub mod command_board; // fx3:contract (ADR 0134): Tabula's board commands // fx3:tabula — pub: apply_to_spec, referenced_ids
 pub mod comp;
 pub mod controller;
 pub mod crossfade;

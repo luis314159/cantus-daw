@@ -30,7 +30,7 @@ pub enum Surface {
 
 impl Material {
     /// Every material, the kit's first.
-    pub const ALL: [Material; 10] = [
+    pub const ALL: [Material; 11] = [
         Material::Plain,
         Material::Matte,
         Material::Brushed,
@@ -38,6 +38,7 @@ impl Material {
         Material::Lacquer,
         Material::Wood,
         Material::Tolex,
+        Material::FineTolex, // fx3:tabula
         Material::Glass,
         Material::Paper,
         Material::Carbon,
@@ -53,6 +54,7 @@ impl Material {
             Material::Lacquer => "lacquer",
             Material::Wood => "wood",
             Material::Tolex => "vinyl",
+            Material::FineTolex => "fine vinyl", // fx3:tabula
             Material::Glass => "glass",
             Material::Paper => "paper",
             Material::Carbon => "carbon",
@@ -169,6 +171,11 @@ pub fn finish(
             textures::lay_rounded(b, rect, r, Tile::Tolex, t.light, 0.16 * tex);
             b.rrect(rect, r, Fill::V(light(0.03), shade(0.08)));
         }
+        // fx3:tabula — the finer grain, quieter, a soft light above.
+        Material::FineTolex => {
+            textures::lay_rounded(b, rect, r, Tile::TolexFine, t.light, 0.10 * tex);
+            b.rrect(rect, r, Fill::V(light(0.02), shade(0.06)));
+        }
         Material::Glass => {
             // Smoked glass over the colour: darker, a diagonal reflection, a lit lip.
             b.rrect(rect, r, Fill::V(shade(0.18), shade(0.36)));
@@ -222,6 +229,7 @@ fn peaks(m: Material, surface: Surface, dark: bool) -> (f32, f32, &'static [(Til
         Material::Wood if surface == Surface::Card => (0.05, 0.0, &[]),
         Material::Wood => (0.08, 0.10, &[(Tile::Varnished, 0.30)]),
         Material::Tolex => (0.03, 0.08, &[(Tile::Tolex, 0.16)]),
+        Material::FineTolex => (0.02, 0.06, &[(Tile::TolexFine, 0.10)]), // fx3:tabula
         // The reflection lies over the smoke: counting it alone is the lighter bound.
         Material::Glass => (0.05, 0.36, &[]),
         Material::Paper => (0.04, 0.04, &[(Tile::Paper, 0.16)]),

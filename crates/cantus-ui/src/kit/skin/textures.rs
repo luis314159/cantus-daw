@@ -18,6 +18,8 @@ use std::f32::consts::TAU;
 pub enum Tile {
     Brushed,
     Tolex,
+    /// fx3:tabula — the vinyl's pebbles at half the size, more gently lit.
+    TolexFine,
     Carbon,
     Paper,
     Wood,
@@ -94,6 +96,17 @@ fn texel(t: Tile, x: usize, y: usize, w: usize, h: usize) -> f32 {
             let b = hgt(wrap(xf + 1.0, w), wrap(yf + 1.0, h));
             ((a - b) * 6.0).clamp(-1.0, 1.0)
         }
+        // fx3:tabula
+        Tile::TolexFine => {
+            let hgt = |x: f32, y: f32| {
+                0.40 * noise(x / 2.0, y / 2.0, (w / 2) as i32, (h / 2) as i32, 23)
+                    + 0.60 * noise(x, y, w as i32, h as i32, 24)
+            };
+            let wrap = |v: f32, n: usize| v.rem_euclid(n as f32);
+            let a = hgt(xf, yf);
+            let b = hgt(wrap(xf + 1.0, w), wrap(yf + 1.0, h));
+            ((a - b) * 3.5).clamp(-1.0, 1.0)
+        }
         Tile::Carbon => {
             // A 2/2 twill: tows 8 texels wide, over two and under two, each lit across.
             let (cx, cy) = (x / 8, y / 8);
@@ -144,7 +157,7 @@ fn texel(t: Tile, x: usize, y: usize, w: usize, h: usize) -> f32 {
 /// do to the colour under it at full strength (`materials::extremes`). Computed once.
 pub fn reach(t: Tile) -> (f32, f32) {
     use std::sync::OnceLock;
-    static REACH: OnceLock<[(f32, f32); 8]> = OnceLock::new();
+    static REACH: OnceLock<[(f32, f32); 9]> = OnceLock::new();
     let all = REACH.get_or_init(|| {
         ALL.map(|t| {
             let (w, h) = size(t);
@@ -163,9 +176,10 @@ pub fn reach(t: Tile) -> (f32, f32) {
 }
 
 /// Every tile.
-pub const ALL: [Tile; 8] = [
+pub const ALL: [Tile; 9] = [
     Tile::Brushed,
     Tile::Tolex,
+    Tile::TolexFine, // fx3:tabula
     Tile::Carbon,
     Tile::Paper,
     Tile::Wood,

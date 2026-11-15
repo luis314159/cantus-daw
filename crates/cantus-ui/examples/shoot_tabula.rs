@@ -35,6 +35,30 @@ fn app_with(state: &str, playing: bool) -> CantusApp {
         }
         app.fx.tabula.selected = Some(PedalId(2));
     }
+    if state == "many" {
+        // A full board: the rig and five more, wrapped into rows.
+        use cantus_core::fx::tabula::Pedal;
+        use cantus_core::{Command as C, EffectKind as K, EffectSpec};
+        for (i, kind) in [
+            K::Compressor,
+            K::AutoFilter,
+            K::Phaser,
+            K::Tremolo,
+            K::Utility,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let pedal = Pedal::new(PedalId(4 + i as u16), EffectSpec::new(kind));
+            app.exec(C::InsertPedal {
+                strip,
+                effect,
+                index: [0, 1, 3, 5, 8][i],
+                pedal: Box::new(pedal),
+                maps: Vec::new(),
+            });
+        }
+    }
     if state == "picker" {
         // The modulation shelf, its second pedal under the pointer.
         let shelf = tabula::picker_shelf(cantus_ui::picker_catalog::Category::Modulation);
@@ -82,6 +106,8 @@ fn main() {
         ("rig", true, true, Locale::En, 0.75),
         ("rig", true, true, Locale::En, 1.5),
         ("rig", true, true, Locale::En, 2.0),
+        ("many", true, true, Locale::En, 1.0),
+        ("many", true, false, Locale::Es, 1.0),
         ("split", true, true, Locale::En, 1.0),
         ("split", true, false, Locale::Es, 1.0),
         ("picker", true, true, Locale::En, 1.0),
