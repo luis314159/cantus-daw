@@ -439,6 +439,16 @@ impl Voices {
                 engage,
             };
             let (a, b) = self.shifters[k].tick(l, r, &c);
+            // Grains read slower than they are spaced (a shift down, formants kept) leave
+            // a gap each period: the level falls with the duty `ratio / formant`. Made
+            // up by its square root, in step with the shifter's cross-fade (a voice an
+            // octave down was 3.7 dB quieter; now within a dB).
+            let m = self.shifters[k].mix();
+            let gain = if m > 0.0 && self.voiced && formant > ratio {
+                gain * (1.0 + ((formant / ratio).sqrt() - 1.0) * m)
+            } else {
+                gain
+            };
             sum.add(a, b, gain, pan);
         }
         sum

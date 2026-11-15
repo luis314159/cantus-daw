@@ -472,3 +472,29 @@ fn the_whammy_glides_without_zipper() {
     assert!(glided < 30.0, "{glided}");
     assert!(stepped > 3.0 * glided, "{stepped} vs {glided}");
 }
+
+/// The shifted voice keeps its level: RMS against the dry, formants kept, mono engine
+/// (the grains' gap a shift down leaves is made up).
+#[test]
+fn a_shifted_voice_keeps_its_level() {
+    let f0 = 196.0;
+    let x = testkit::voice(SR, 1.2, Vowel::A, 0.5, |_| f0);
+    let from = (0.3 * SR) as usize;
+    let level = |v: &[f32]| {
+        let e: f64 = v.iter().map(|s| (*s as f64).powi(2)).sum();
+        (10.0 * (e / v.len() as f64).log10()) as f32
+    };
+    let dry = level(&x[from..]);
+    let mut line = String::new();
+    let mut worst = 0.0f32;
+    for st in [-12.0f32, -7.0, -5.0, -3.0, 3.0, 5.0, 7.0, 12.0] {
+        let y = through(&shift_settings(st, Engine::Mono, true), &x);
+        let d = level(&y[from..]) - dry;
+        worst = worst.max(d.abs());
+        line += &format!(" {st:+}: {d:+.2}");
+    }
+    eprintln!("the voice's level, shifted (dB against the dry):{line}");
+    // Up to a couple of dB is the voice's own: its harmonics fall elsewhere under the
+    // same formants (a +7 lands them off the first formant's peak).
+    assert!(worst < 2.0, "{worst} dB");
+}
