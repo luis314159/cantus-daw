@@ -61,7 +61,9 @@ fn the_cells_sweep_as_measured() {
             fs[k] = p.vibe.stage_hz(0, k);
         }
         count += 1;
-        let (a, b) = fs.iter().fold((f32::MAX, 0.0f32), |(a, b), f| (a.min(*f), b.max(*f)));
+        let (a, b) = fs
+            .iter()
+            .fold((f32::MAX, 0.0f32), |(a, b), f| (a.min(*f), b.max(*f)));
         spread_min = spread_min.min(b / a);
     }
     for k in 0..STAGES {
@@ -73,8 +75,14 @@ fn the_cells_sweep_as_measured() {
             mean / 1e3,
             R_MEAN[k] / 1e3
         );
-        assert!(lo[k] >= R_MIN[k] * 0.999 && hi[k] <= R_MAX[k] * 1.001, "stage {k}");
-        assert!(mean > 0.5 * R_MEAN[k] && mean < 2.0 * R_MEAN[k], "stage {k}: {mean}");
+        assert!(
+            lo[k] >= R_MIN[k] * 0.999 && hi[k] <= R_MAX[k] * 1.001,
+            "stage {k}"
+        );
+        assert!(
+            mean > 0.5 * R_MEAN[k] && mean < 2.0 * R_MEAN[k],
+            "stage {k}: {mean}"
+        );
     }
     println!("the stages' frequencies always at least {spread_min:.0}× apart");
     assert!(spread_min > 10.0);
@@ -95,7 +103,9 @@ fn the_lamp_rises_fast_and_fades_slow() {
             p.vibe.lamps[0].light
         })
         .collect();
-    let (mn, mx) = light.iter().fold((f32::MAX, 0.0f32), |(a, b), v| (a.min(*v), b.max(*v)));
+    let (mn, mx) = light
+        .iter()
+        .fold((f32::MAX, 0.0f32), |(a, b), v| (a.min(*v), b.max(*v)));
     let at = |frac: f32| mn + (mx - mn) * frac;
     let imax = light.iter().position(|v| *v == mx).unwrap();
     let imin = light.iter().position(|v| *v == mn).unwrap();
@@ -126,7 +136,10 @@ fn the_block_size_changes_nothing_and_rest_is_exact() {
         outs.push(l);
     }
     for o in &outs[1..] {
-        assert!(o.iter().zip(&outs[0]).all(|(a, b)| a.to_bits() == b.to_bits()));
+        assert!(o
+            .iter()
+            .zip(&outs[0])
+            .all(|(a, b)| a.to_bits() == b.to_bits()));
     }
     // Twins through silence: one plays it, one skips it.
     let mk = || fresh(&vibe(3.0, 1.0));

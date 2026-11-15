@@ -50,18 +50,32 @@ fn the_block_size_changes_nothing() {
         r.reset();
         let half = x.len() / 2;
         let (mut l, mut rr) = (x.clone(), x.clone());
-        for (a, b) in l[..half].chunks_mut(block).zip(rr[..half].chunks_mut(block)) {
+        for (a, b) in l[..half]
+            .chunks_mut(block)
+            .zip(rr[..half].chunks_mut(block))
+        {
             r.process(a, b);
         }
         r.toggle();
-        for (a, b) in l[half..].chunks_mut(block).zip(rr[half..].chunks_mut(block)) {
+        for (a, b) in l[half..]
+            .chunks_mut(block)
+            .zip(rr[half..].chunks_mut(block))
+        {
             r.process(a, b);
         }
         outs.push((l, rr));
     }
     for o in &outs[1..] {
-        assert!(o.0.iter().zip(&outs[0].0).all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(o.1.iter().zip(&outs[0].1).all(|(a, b)| a.to_bits() == b.to_bits()));
+        assert!(o
+            .0
+            .iter()
+            .zip(&outs[0].0)
+            .all(|(a, b)| a.to_bits() == b.to_bits()));
+        assert!(o
+            .1
+            .iter()
+            .zip(&outs[0].1)
+            .all(|(a, b)| a.to_bits() == b.to_bits()));
     }
 }
 
@@ -72,7 +86,7 @@ fn tau_of(r: &mut Rota, horn: bool, to: RotorSpeed) -> (f64, f64) {
     s.speed = to;
     r.set(&s);
     let target = if horn { r.horn.target } else { r.drum.target };
-    let mark = from + (target - from) * (1.0 - (-1.0f64).exp());
+    let mark = from + (target - from) * (1.0 - crate::math::exp(-1.0f64));
     let silence = [0.0f32; 1];
     let mut n = 0usize;
     loop {
@@ -163,8 +177,14 @@ fn rest_is_exact_and_the_angle_skips_in_closed_form() {
         assert_eq!(a.drum, b.drum, "{speed:?}");
         let (la, ra) = run(&mut a, &x, 100);
         let (lb, rb) = run(&mut b, &x, 100);
-        assert!(la.iter().zip(&lb).all(|(p, q)| p.to_bits() == q.to_bits()), "{speed:?}");
-        assert!(ra.iter().zip(&rb).all(|(p, q)| p.to_bits() == q.to_bits()), "{speed:?}");
+        assert!(
+            la.iter().zip(&lb).all(|(p, q)| p.to_bits() == q.to_bits()),
+            "{speed:?}"
+        );
+        assert!(
+            ra.iter().zip(&rb).all(|(p, q)| p.to_bits() == q.to_bits()),
+            "{speed:?}"
+        );
     }
 }
 
@@ -211,14 +231,18 @@ fn the_drive_adds_harmonics() {
         let bin = |hz: f32| {
             let (mut re, mut im) = (0.0f64, 0.0f64);
             for (i, v) in tail.iter().enumerate() {
-                let (s, c) = crate::math::sin_cos(std::f64::consts::TAU * hz as f64 * i as f64 / SR as f64);
+                let (s, c) =
+                    crate::math::sin_cos(std::f64::consts::TAU * hz as f64 * i as f64 / SR as f64);
                 re += *v as f64 * c;
                 im += *v as f64 * s;
             }
             (re * re + im * im).sqrt() / n as f64
         };
         let f = bin(200.0);
-        let h = (bin(400.0).powi(2) + bin(600.0).powi(2) + bin(800.0).powi(2)).sqrt();
+        let h = {
+            let (a, b, c) = (bin(400.0), bin(600.0), bin(800.0));
+            (a * a + b * b + c * c).sqrt()
+        };
         20.0 * crate::math::log10(h / f + 1e-12)
     };
     let (a, b, c) = (thd(0.0), thd(0.4), thd(0.9));

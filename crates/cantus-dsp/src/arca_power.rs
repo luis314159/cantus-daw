@@ -320,13 +320,8 @@ impl Power {
         if let Some((pot, cap)) = self.spec.cut {
             let rc = 1.0 + p * pot;
             let (x1, y1) = (self.cut[0].x1, self.cut[0].y1);
-            self.cut[0] = First::analog(
-                1.0,
-                rc * cap,
-                1.0,
-                (rc + 2.0 * self.spec.pi_r) * cap,
-                rate,
-            );
+            self.cut[0] =
+                First::analog(1.0, rc * cap, 1.0, (rc + 2.0 * self.spec.pi_r) * cap, rate);
             self.cut[0].x1 = x1;
             self.cut[0].y1 = y1;
         }
@@ -387,19 +382,38 @@ impl Power {
         let vg2 = b - vk;
         let n = s.per_side;
         let half = 0.5 * s.raa;
-        let mut v = self.live.vpp;
-        let (mut i1, mut i2) = (0.0, 0.0);
-        for k in 0..2 {
+        // `f(V) = V − (I₊ − I₋)·Raa/2` rises with V (f′ ≥ 1): Newton from the last answer,
+        // each step halved until |f| falls (a square's edge can ask for a kilovolt in one
+        // sample, past where the plates' curve bends); two evaluations when it is smooth.
+        let eval = |v: f64| {
             let (a1, _, d1) = t.current(vgk[0], vg2, b - vk - 0.5 * v);
             let (a2, _, d2) = t.current(vgk[1], vg2, b - vk + 0.5 * v);
-            i1 = n * a1;
-            i2 = n * a2;
-            if k == 1 {
+            let (i1, i2) = (n * a1, n * a2);
+            (
+                v - (i1 - i2) * half,
+                1.0 + 0.5 * n * (d1 + d2) * half,
+                i1,
+                i2,
+            )
+        };
+        let mut v = self.live.vpp;
+        let (mut f, mut fp, mut i1, mut i2) = eval(v);
+        for _ in 0..8 {
+            let dv = -f / fp;
+            let mut step = dv;
+            let mut next = eval(v + step);
+            for _ in 0..12 {
+                if next.0.abs() <= f.abs() {
+                    break;
+                }
+                step *= 0.5;
+                next = eval(v + step);
+            }
+            v += step;
+            (f, fp, i1, i2) = next;
+            if dv.abs() < 1e-4 {
                 break;
             }
-            let f = v - (i1 - i2) * half;
-            let fp = 1.0 + 0.5 * n * (d1 + d2) * half;
-            v -= f / fp;
         }
         self.live.vpp = v;
         let tap = v * self.turns;

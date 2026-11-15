@@ -81,11 +81,11 @@ const TRIODE_PLATE_STEP: f64 = 400.0;
 /// A triode plate's largest predicted step (fx3:arca): the parabola through the last three
 /// answers is good to millivolts there, where a plate swings volts a sample.
 const TRIODE_PREDICT: f64 = 20.0;
-/// A triode's Newton tolerances (fx3:arca), grid and plate: the step is taken and the
-/// currents corrected to first order, so what is left is about Δ²/(2·V), V the volts over
-/// which a valve's curve bends (a grid's ~1, a plate's ~100): under 10⁻⁶ V for both.
-const TRIODE_GRID_STOP: f64 = 1e-3;
-const TRIODE_PLATE_STOP: f64 = 1e-2;
+/// A triode's Newton tolerances (fx3:arca), grid and plate: the grid's is everyone's (a
+/// grid's error is multiplied by the stage's gain — a looser one moved a small signal's
+/// response by 0.4 dB), the plate's 1 mV of some 200 V.
+const TRIODE_GRID_STOP: f64 = STOP;
+const TRIODE_PLATE_STOP: f64 = 1e-3;
 /// The largest step the predictor takes from the last answer (volts).
 const PREDICT: f64 = 0.05;
 
@@ -197,7 +197,11 @@ pub fn fast_ln(x: f64) -> f64 {
 pub fn softplus(x: f64) -> (f64, f64) {
     let e = fast_exp(-x.abs());
     let sp = x.max(0.0) + if e < 1e-9 { e } else { fast_ln(1.0 + e) };
-    let sig = if x >= 0.0 { 1.0 / (1.0 + e) } else { e / (1.0 + e) };
+    let sig = if x >= 0.0 {
+        1.0 / (1.0 + e)
+    } else {
+        e / (1.0 + e)
+    };
     (sp, sig)
 }
 

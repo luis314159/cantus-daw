@@ -21,10 +21,108 @@ a placeholder face (a tone-family sibling's look under its own key), its row of 
 faces (`views/fx/tabula_faces.rs`), its locale pair, an empty preset file, its exported
 CLAP/VST3 descriptor and ids, and schema 63's fixture.
 
+## Phase A-1: the DSP (2026-11-14, `cantus_dsp::arca`)
+
+**The circuit solver gains a triode, additively.** `fragor_dk::Nl::Triode { p, g, k, tube:
+Koren }`: plate current by Koren ("Improved VT models for SPICE simulations", 1996), grid
+current by Dempwolf & Zölzer (DAFx-11), two ports `(v_gk, i_g)`, `(v_pk, i_p)`. New arms
+only, plus per-port predictor bounds and Newton tolerances that equal Fragor's constants for
+every element Fragor uses (its tests, hashes and SPICE comparisons unchanged, run after each
+change); a triode's plate predicts up to 20 V and stops at 10 mV, its grid at 1 mV (what is
+left after the step is taken and the currents corrected to first order is under 10⁻⁶ V).
+Our own `fast_ln` beside `fast_exp`. The 12AX7 is Koren's published fit; the 12AY7 and the
+four power pentodes (EL34, 6L6GC, EL84, 6V6GT) are fitted (kp, kg1) to their datasheets'
+typical points (current and transconductance, to 1 %).
+
+**Each model is its schematic as a table of blocks** (`arca_models.rs`: the jack, coupling
+and series parts, pots with bright caps, the tone stack from its component values, gain
+stages with their cathode networks, DC-coupled followers), read left to right. Generic names
+in the interface; the families (published schematics; values a text source did not confirm
+are the family's usual and marked *typical* in the table):
+
+| Model | Family | Power |
+|---|---|---|
+| Clean | Fender AB763 vibrato channel (TMB 100k/250p/0.1µ/0.047µ, mid 10k) | 2 × 6V6GT, 6.6k, NFB 820/47 Ω, tube rectifier |
+| Crunch | Marshall JTM45/1959 bright channel (2.2 nF, 5 nF bright, 470k‖470 pF, follower, TMB 33k/470p/22n/22n) | 2 × EL34, 3.4k, NFB + presence (typical), solid-state |
+| Chime | Vox AC30 Top Boost (220k plates, shared 1.5k/25 µF, 500k/100 pF, the top-boost network 47p/22n/22n/100k/10k) | 4 × EL84 cathode-biased 47 Ω, 4k, no NFB, cut 250k + 4.7 nF, tube rectifier |
+| High gain | Soldano SLO-100 overdrive channel (V1 220k/1.8k/1 µF, 470k‖2 nF, 500k/1 nF, cold clipper 39k with 1 nF, follower, TMB with the 47k slope) | 4 × 6L6GC, 2.2k, NFB 39k |
+| Bass | Fender 5F6-A Bassman normal channel (12AY7, follower, Yeh & Smith's TMB) | 2 × 5881, 2k, NFB + presence |
+
+Sources: robrobinette.com (AB763, JCM800/Plexi, SLO-100), ampbooks.com (AC30, JMP50,
+5F6-A, SLO), Duncan's Tone Stack Calculator's defaults (jatalahd's open port), Yeh & Smith
+(DAFx-06). The SLO's V1 bypass conflicts between sources (1 µF and 2 nF): 1 µF used.
+
+**The preamp is split at plates**: each circuit is one gain stage and the follower on its
+plate (≤ 4 ports); a circuit ends at an unloaded plate and the next starts with that voltage
+behind the plate's own output impedance at the operating point, `R_p ‖ (r_p + (μ+1)·Z_k)`
+(a resistor and a capacitor), carrying everything the plate drives — so the next valve's
+grid current charges its own coupling capacitor (blocking is in the model). Circuits are
+written into fixed arrays: a model is built in place when chosen, allocation-free; a model
+change fades out and in over 2 ms.
+
+**The power amp** (`arca_power.rs`): a long-tailed-pair inverter (gain 25 a side, a 70 V
+swing, its limit antialiased by the first-order antiderivative method and band-limited by
+its input's Miller pole at 16 kHz), coupling capacitors into grid leaks with grid conduction
+(blocking), push-pull pentodes (Koren's pentode form, the plate factor smooth through zero)
+with the plate-to-plate voltage solved against the plates' own dependence, the output
+transformer's band, the feedback through its presence network (the top-boost amp's cut
+instead), the supply's sag (rectifier resistance, filter capacitor), a cathode-biased amp's
+moving bias. **Sag** setting: the rectifier's resistance ×⅓ … ×3, the idle point kept.
+
+**The cabinets are generated** (`arca_cab.rs`, CC0, nothing recorded): a speaker in its box
+(resonance, open-back cancellation, four break-up peaks, a fourth-order fall and the dip past
+it), a microphone (dynamic, ribbon, condenser), its position (cap to edge) and distance
+(proximity, the floor's reflection), designed in dB, made minimum phase through the real
+cepstrum, 43 ms. Five cabinets: 1×12 open, 2×12 open, 4×12 vintage, 4×12 modern, 4×10.
+`Arca::supply_cab` takes any kernel (factory or the user's IR, via `EffectSpec::ir` in the
+engine phase); the microphone's choices make a new kernel off the audio thread.
+
+**The null**: an amp colours by design — no knob setting of it is transparent — so the null
+is **no amp and no cabinet**, the defaults (`model: None`, `cab: false`): the signal
+untouched to the bit, latency 0. The cabinet alone (an IR loader) has no latency; an amp's
+latency is its oversampler's (4×: 55 samples, 1.1 ms at 48 kHz), the dry delayed to match. The
+starting preset (ADR 0071) will choose an amp and its cabinet.
+
+**Rest**: after ¼ s of digital silence with the amp's output under −100 dB for 1 024
+samples (or 4 s of silence, whatever the tail), the circuits return to their operating
+points and the oversampler clears; silence in is then silence out and nothing moves.
+
+### Measured (phase A-1)
+
+- **Against the schematics** (`arca_spice_tests`: the whole preamp unsplit, MNA, DC by
+  Newton with the sources stepped, AC linearised): operating points equal to 0.05 V on every
+  plate; small-signal response within 0.22 dB from 80 Hz to 4 kHz for every model at two
+  knob settings, within 0.92 dB at 6 and 8 kHz (the split computes a plate's Miller current
+  with the plate unloaded; worst in the high-gain amp's four cascaded stages).
+- **Published operating points**: the AB763's first plate 188.5 V (published ≈ 180 V); the
+  5F6-A's V2A plate within 20 V of the published 181 V; the SLO's cold clipper biased at
+  ≈ −4 V and 0.1 mA (published).
+- **The tone stack against Yeh & Smith's closed form**: 0.005 dB worst, 40 Hz – 8 kHz,
+  five knob settings.
+- **Aliasing** (2.5 kHz sine, gain 60 %, no cabinet, non-harmonic over harmonic): crunch
+  −35.9 / −41.4 / −46.3 dB at 2× / 4× / 8×; high gain −31.7 / −41.4 / −46.3 dB.
+- **CPU** (a plucked note, 48 kHz, release, its cabinet; measured while other builders
+  loaded this machine — upper bounds): preamp alone at 4× 15 % (clean) … 56 % (high gain)
+  of a core, the power amp 7 %. **Too heavy**: the engine phase must bring it down (below).
+- **The power amp's closed loop** against the gain worked by hand from the pentodes'
+  conductances, the inverter's divider and the feedback: within 0.5 dB, every model.
+- **Sag**: the clean amp's tube rectifier sags 15 V on a loud chord (×3 softer: 37 V), the
+  crunch's solid-state 6.5 V; back to idle within 0.5 V after half a second.
+
+## Left for the next phases
+
+- **CPU**: tabulate the triode (a bicubic table of Koren's currents and their slopes, built
+  off the audio thread) or a reduced Newton; measure on a quiet machine; a per-model
+  oversampling default.
+- **The Miller split** above 4 kHz (a load on the plate standing for the next circuit).
+- The engine unit, the parameter table (`model` with 0 = none, `cab`, `cab_type`, `mic`,
+  `mic_pos`, `mic_dist` set-only), `takes_ir` for `Amp`, the editor, presets, export, docs,
+  the e2e test.
+
 ## Consequences
 
-To be written by the builder.
+To be completed with the engine phase (above: what phase A-1 settled).
 
 ## What the tests hold
 
-To be written by the builder.
+Phase A-1 (cantus-dsp): see *Measured* above and the test names in `arca_tests.rs`, `arca_spice_tests.rs`, `rota_tests.rs`, `phasis_vibe_tests.rs`; the engine's, the plug-ins' and the e2e tests come with the next phases.

@@ -375,7 +375,11 @@ impl Arca {
         }
         let mut p = self.presence;
         let mut unused = false;
-        glide(&mut p, self.set.presence.clamp(0.0, 1.0) as f64, &mut unused);
+        glide(
+            &mut p,
+            self.set.presence.clamp(0.0, 1.0) as f64,
+            &mut unused,
+        );
         if p != self.presence {
             self.presence = p;
             self.pow.set_presence(p);

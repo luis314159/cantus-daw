@@ -32,7 +32,10 @@ impl Cx {
     }
     fn div(self, o: Cx) -> Cx {
         let d = o.0 * o.0 + o.1 * o.1;
-        Cx((self.0 * o.0 + self.1 * o.1) / d, (self.1 * o.0 - self.0 * o.1) / d)
+        Cx(
+            (self.0 * o.0 + self.1 * o.1) / d,
+            (self.1 * o.0 - self.0 * o.1) / d,
+        )
     }
     fn abs(self) -> f64 {
         (self.0 * self.0 + self.1 * self.1).sqrt()
@@ -157,7 +160,8 @@ fn tone(n: &mut Net, i: usize, t: &Tone, k: &Knobs) -> usize {
             bass,
             mid,
         } => {
-            let (tn, out, l, s, p, q) = (n.node(), n.node(), n.node(), n.node(), n.node(), n.node());
+            let (tn, out, l, s, p, q) =
+                (n.node(), n.node(), n.node(), n.node(), n.node(), n.node());
             let (tu, tl) = pot_r(treble.0, treble.1, k.pos(Knob::Treble));
             let (_, bl) = pot_r(bass.0, bass.1, k.pos(Knob::Bass));
             let (mu, ml) = pot_r(mid.0, mid.1, k.pos(Knob::Mid));
@@ -228,7 +232,11 @@ fn stamp(net: &Net, w: Option<f64>, m: &mut [Vec<Cx>], rhs: &mut [Cx], ac: bool,
             E::V(p, dc, acv) => {
                 put(m, p, br + 1, Cx(1.0, 0.0));
                 put(m, br + 1, p, Cx(1.0, 0.0));
-                rhs[br] = if ac { Cx(acv, 0.0) } else { Cx(dc * scale, 0.0) };
+                rhs[br] = if ac {
+                    Cx(acv, 0.0)
+                } else {
+                    Cx(dc * scale, 0.0)
+                };
                 br += 1;
             }
             E::T(..) => {}
@@ -254,7 +262,12 @@ fn triodes(net: &Net, x: &[f64], f: &mut [f64], jac: &mut [Vec<f64>]) {
             // ∂/∂(v_g, v_p, v_k) of each current.
             let dg = [(g, dig), (k, -dig)];
             let dp = [(g, gm), (p, gp), (k, -gm - gp)];
-            for (row, sign, d) in [(g, 1.0, &dg[..]), (k, -1.0, &dg[..]), (p, 1.0, &dp[..]), (k, -1.0, &dp[..])] {
+            for (row, sign, d) in [
+                (g, 1.0, &dg[..]),
+                (k, -1.0, &dg[..]),
+                (p, 1.0, &dp[..]),
+                (k, -1.0, &dp[..]),
+            ] {
                 for &(col, val) in d {
                     if row > 0 && col > 0 {
                         jac[row - 1][col - 1] += sign * val;
@@ -313,7 +326,9 @@ fn dc(net: &Net) -> Vec<f64> {
                 }
                 f[r] = s;
             }
-            let mut jac: Vec<Vec<f64>> = (0..size).map(|r| m[r].iter().map(|c| c.0).collect()).collect();
+            let mut jac: Vec<Vec<f64>> = (0..size)
+                .map(|r| m[r].iter().map(|c| c.0).collect())
+                .collect();
             triodes(net, &x, &mut f, &mut jac);
             let mut jm: Vec<Vec<Cx>> = jac
                 .iter()
@@ -321,7 +336,11 @@ fn dc(net: &Net) -> Vec<f64> {
                 .collect();
             let mut d: Vec<Cx> = f.iter().map(|v| Cx(-v, 0.0)).collect();
             solve(&mut jm, &mut d);
-            let big = d.iter().take(net.nodes).map(|c| c.0.abs()).fold(0.0, f64::max);
+            let big = d
+                .iter()
+                .take(net.nodes)
+                .map(|c| c.0.abs())
+                .fold(0.0, f64::max);
             let k = if big > 5.0 { 5.0 / big } else { 1.0 };
             for (xi, di) in x.iter_mut().zip(&d) {
                 *xi += di.0 * k;
@@ -339,7 +358,14 @@ fn ac_db(net: &Net, op: &[f64], hz: f64) -> f64 {
     let size = net.nodes + net.sources();
     let mut m = vec![vec![Cx(0.0, 0.0); size]; size];
     let mut rhs = vec![Cx(0.0, 0.0); size];
-    stamp(net, Some(std::f64::consts::TAU * hz), &mut m, &mut rhs, true, 1.0);
+    stamp(
+        net,
+        Some(std::f64::consts::TAU * hz),
+        &mut m,
+        &mut rhs,
+        true,
+        1.0,
+    );
     let mut f = vec![0.0; size];
     let mut jac = vec![vec![0.0; size]; size];
     triodes(net, op, &mut f, &mut jac);
@@ -352,7 +378,9 @@ fn ac_db(net: &Net, op: &[f64], hz: f64) -> f64 {
     20.0 * crate::math::log10(rhs[net.out - 1].abs())
 }
 
-const FREQS: [f64; 8] = [80.0, 200.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 6_000.0, 8_000.0];
+const FREQS: [f64; 8] = [
+    80.0, 200.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 6_000.0, 8_000.0,
+];
 
 /// One model at some knobs: the DSP's small-signal response against the schematic's —
 /// the worst difference to 4 kHz, and at 6 and 8 kHz (where the split's one

@@ -75,7 +75,13 @@ impl AmpModel {
     }
 }
 
-const fn tri(tube: crate::fragor::dk::Koren, rp: f64, rk: f64, ck: Option<f64>, bplus: f64) -> Triode {
+const fn tri(
+    tube: crate::fragor::dk::Koren,
+    rp: f64,
+    rk: f64,
+    ck: Option<f64>,
+    bplus: f64,
+) -> Triode {
     Triode {
         tube,
         rp,

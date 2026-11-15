@@ -215,7 +215,14 @@ impl Net {
         self.tubes[self.nt] = Some(t);
         self.nt += 1;
     }
-    fn pot(&mut self, upper: Option<usize>, lower: Option<usize>, r: f64, taper: Taper, knob: Knob) {
+    fn pot(
+        &mut self,
+        upper: Option<usize>,
+        lower: Option<usize>,
+        r: f64,
+        taper: Taper,
+        knob: Knob,
+    ) {
         self.pots[self.np] = Some(PotRef {
             upper,
             lower,
@@ -340,7 +347,12 @@ fn write(net: &mut Net, blocks: &[Block], src: Source) -> (u8, Option<Triode>) {
     let mut cur = net.node();
     match src {
         Source::R(r) => net.input(cur, r),
-        Source::Plate { rp_load, rp, rk, ck } => {
+        Source::Plate {
+            rp_load,
+            rp,
+            rk,
+            ck,
+        } => {
             net.input(cur, R_RAIL);
             let (m, n) = (net.node(), net.node());
             net.r(cur, n, rp_load);
