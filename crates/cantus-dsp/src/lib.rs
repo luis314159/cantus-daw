@@ -33,6 +33,7 @@ pub mod aula_gen;
 pub mod aula_kernel;
 pub mod aula_shape;
 pub mod beat;
+pub mod caelum; // fx-a:caelum
 pub mod calor;
 pub mod chorda;
 pub mod click;
