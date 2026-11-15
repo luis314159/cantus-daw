@@ -101,11 +101,16 @@ points and the oversampler clears; silence in is then silence out and nothing mo
   five knob settings.
 - **Aliasing** (2.5 kHz sine, gain 60 %, no cabinet, non-harmonic over harmonic): crunch
   −35.9 / −41.4 / −46.3 dB at 2× / 4× / 8×; high gain −31.7 / −41.4 / −46.3 dB.
-- **CPU** (a plucked note, 48 kHz, release, its cabinet; measured while other builders
-  loaded this machine — upper bounds): preamp alone at 4× 15 % (clean) … 56 % (high gain)
-  of a core, the power amp 7 %. **Too heavy**: the engine phase must bring it down (below).
+- **CPU** (a plucked note, 48 kHz, release, with its cabinet; measured while other
+  builders loaded this machine — upper bounds): the whole unit at 4× 25 % (clean),
+  38 % (crunch), 35 % (chime), 57 % (high gain), 31 % (bass) of a core; at 2× 15 – 33 %;
+  of that the power amp is 10 – 12 %. Newton takes about 2 iterations a sample in a
+  single-triode circuit, 3 – 3.7 with a follower or a hard-clipping stage. **Too heavy**:
+  the engine phase must bring it down (below).
 - **The power amp's closed loop** against the gain worked by hand from the pentodes'
-  conductances, the inverter's divider and the feedback: within 0.5 dB, every model.
+  conductances, the inverter's divider and the feedback through its presence network (or
+  the cut): within 0.05 dB at 1 kHz, every model. Overdriven far past clipping (a 34 V
+  square into the inverter) every power amp stays periodic: the inharmonic 37 – 46 dB down.
 - **Sag**: the clean amp's tube rectifier sags 15 V on a loud chord (×3 softer: 37 V), the
   crunch's solid-state 6.5 V; back to idle within 0.5 V after half a second.
 
