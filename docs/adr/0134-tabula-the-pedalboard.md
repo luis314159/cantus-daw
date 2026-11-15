@@ -1,6 +1,6 @@
 # ADR 0134 — Tabula, the pedalboard
 
-**Status:** proposed (fx side round wave 3, provisional number — renumbered at merge) ·
+**Status:** accepted (fx side round wave 3, provisional number — renumbered at merge; the design approved by the owner 2026-11-15) ·
 **Date:** 2026-11-14 · **Schema:** 63 (provisional — renumbered when merged after round 40) ·
 **Relates to:** ADR 0004 (commands), ADR 0005 (the audio thread), ADR 0018 (null defaults),
 ADR 0020 (our plug-ins outside Cantus), ADR 0022 (memory built off the audio thread, notes
@@ -194,21 +194,102 @@ schema 63 and `fixtures/v63.cantus` (a board of Fragor on A and Delay on B, macr
 Drive moving Fragor's drive); a plain kit editor, the placeholder face, the picker on the new
 *Guitar and amp* shelf, the exported descriptor and ids.
 
+### 6. What the builder settled (phases A and B)
+
+- **The engine's structure** (§3) holds a running order of `(kid, lane)` and a pending one:
+  pedals added or taken out without reordering the others apply at once (fading in where
+  they stand, fading out where they stood); a reorder or a lane change waits for the dip's
+  bottom. A kid adopted before any spec names it waits (`fresh`) and is never retired by a
+  configure that does not know it yet. Pedals fading out sit after the board's own
+  (`pedals_mut` hands the processor only the board's), so a new pedal with an id still
+  fading out gets its memory, not the old one.
+- **The grid.** While anything structural moves, the board runs in pieces that end on a
+  16-sample grid counted from the stream's start, and every structural event (a fade ending,
+  a retire, the dip's bottom) lands on a grid point: the output is the same at any block
+  size (`fx_tabula::structural_changes_do_not_depend_on_the_block_size`).
+- **The lines.** One buffer (`MemoryNeed::Tabula(frames)`) carved into owned regions: the
+  board's dry line (its latency), the shorter lane's alignment, each latent pedal's dry line
+  (owned by the pedal's serial, so a pedal fading out and its successor with the same id
+  never share one). A new buffer keeps every region still wanted, with its sound and place;
+  regions no longer wanted are cleared, so one wanted again starts silent.
+- **`set_position_late`'s argument** is the latency inside the board before the pedal, in
+  samples; every insert hears the position through `EffectUnit::hear_position`, which
+  picks `set_position_late` for a board.
+- **The window** (approved 2026-11-15, its v2 after the owner's verdict): the macro rail over
+  a board across the window, over a row of the chosen pedal's controls, its place on the
+  board (size, lane, footswitch, remove) and the board's levels. Pedals stand up to 145 % of
+  the window's scale to fill the board's height, wrap into two or three rows when that lets
+  them stand clearly larger (the cable runs between the rows), shrink to a 60 % floor and
+  then scroll. Its own face: **fine black vinyl** (a new material, `FineTolex`: smaller,
+  quieter pebbles than the amp vinyl) with brass, no vents. A pedal's knob word takes the
+  room its row leaves (centred on its knob, shifted a little where one side has room) and is
+  set smaller, to 66 %, before anything is elided.
+- **Board presets are flat maps** (`fx::tabula_presets`): the board's own keys, each pedal's
+  `p{id}.{key}`, and its structure under `@` keys no parameter can have (`p{id}.@kind` its
+  kind's place in `ALL`, `@at`, `@path`, `@on`, `@shape`; a macro's maps `m{n}.@fromJJ.…`
+  and `m{n}.@toJJ.…`, its name an index into words the interface translates). So a board
+  preset travels every path a preset does — the frame's menu, the browser, A/B, the agents,
+  the user's own presets — and `apply_fx_params` loads one on a board as one
+  `Command::ReplaceEffect`. The fourteen factory boards are written in code, their styles and
+  roles in `board.toml`.
+- **Edits outside a project**: `command_board::apply_to_spec` runs the board commands on a
+  board that lives in no project (the exported plug-in), with the same checks and refusals;
+  `FxHost::board_commands` carries them there.
+- **The exported plug-in** (`board_post.rs`): the main thread keeps the board, builds a unit
+  for each pedal the processor does not hold, and posts both through a ring; the processor
+  adopts them, swaps the board into its spec and hands back the old board and anything
+  refused through a second ring, and every faded pedal through a third. Its memory builder
+  routes each need to its pedal. A fresh instance starts on the guitar rig.
+
 ## Consequences
 
-To be written by the tabula builder.
+- A board is an ordinary insert to everything outside it: the strip's compensation sees one
+  latency, the rest scheduler one unit, the mix snapshot and the automation its keys (a mix
+  snapshot's exact undo puts `p` keys back into their pedals: `put_flat_params`).
+- Pedals cannot nest, cannot be hosted plug-ins, Speculum or the old Reverb (§1).
+- Removing a latent pedal changes the board's latency (the compensation follows); a
+  footswitch never does.
+- The engine's processor keeps where its boards run (`Boards`, refreshed when memory is
+  asked for) and hands back faded pedals each block. A slot bypassed as a wire is not run,
+  so a pedal taken off a bypassed board is handed back when the slot plays again.
+- The new units (Saltus, Rota, Arca) appear as pedals as soon as they land (every native
+  kind is allowed): their faces are their builders' rows in `tabula_faces.rs`.
+- The showcase song does not use Tabula yet (its guitar keeps Fragor, Phasis and Aula's
+  spring): putting it there changes the showcase's sound, the owner's call.
 
 ## What the tests hold
 
-To be written by the tabula builder. The design's risks and their tests: a board of one is
-the unit (`fx_contract::a_board_of_one_is_the_unit`, every allowed kind, heavy, blocks
-1/64/1024, bit-exact, and end to end through `CantusApp::assemble`); an empty board and an
-empty split are nulls (`ab` 0.5); no allocation on the audio thread (`rt_memory.rs`: adopt,
-retire, reorder, footswitch, `p`-key and macro automation, the plug-in state post); exact
-undo (fuzz arms for each command and `p` keys; unknown id, a nested board, a hosted pedal,
-the seventeenth); latency (sum and max; an impulse through A = Saltus ∥ B = wire arrives
-once; a footswitch changes no latency); rest twins on boards; the key round trip (held
-since the contract); macro over automation; needs routed (an Aula pedal with a user IR
-sounds, a Lapsus pedal gets its ring); the export state round trip, `ids.txt` append-only,
-no allocation on load; every old fixture and v63 load (held since the contract); the
-board's CPU overhead below 1 %.
+- **A board of one is the unit**, to the bit, for every kind that may be a pedal, at its
+  defaults, heavy and two random settings, keyed and with notes, at blocks of 1, 64 and
+  1024, with the same latency (`fx_contract::a_board_of_one_is_the_unit`); and in the app
+  through `CantusApp::assemble` (`tabula_e2e::a_board_of_one_in_the_app_is_the_unit`).
+- **Nulls:** an empty board, an empty split at 50 % (`fx_tabula`).
+- **Latency:** Σ Pre + max(A, B) + Σ Post; an impulse through a latent lane A beside a wire
+  on B arrives once; a footswitch on a latent pedal keeps the latency and plays the input
+  exactly that late (`fx_tabula`).
+- **Structure:** a reorder, a lane, a footswitch, a pedal removed, levels moved, a pedal
+  adopted and added, the order taken back — the same bits at blocks of 1, 7, 512, 4096 and
+  two random splittings; a pedal removed is handed back, an adopted one waits until named.
+- **Song position:** a board of a linear-phase EQ and a synced tremolo renders as the two
+  inserts (each pedal hears the song as late as it is).
+- **Macros win over lanes**, and the snapshot carries them applied (`fx_tabula`,
+  `tabula::tests`).
+- **Rest:** the family's twin tests on a default and a heavy board (seven pedals, a split
+  of unequal latencies, two linear-phase units) (`fx_contract::at_rest::tabula`), and split
+  invariance (`fx_contract::split::tabula`).
+- **No allocation on the audio thread:** footswitches on latent and latency-free pedals, a
+  reorder, a lane, a pedal added and one taken out, lanes on a pedal's knob and on a macro,
+  a seek and a stop (`rt_memory::tabula_never_allocates`); a board loaded into the exported
+  plug-in while it plays (`cantus-plugins/tests/tabula_board.rs`).
+- **Undo:** every board command and its inverse (`command_board_tests`), the undo fuzz's
+  board arm (thirteen kinds, each applied, the refusals refused: an unknown id, a nested
+  board, a hosted pedal, the seventeenth, a map to a key that is not there).
+- **Presets:** every factory board is sane and survives its flat map; a plain map is no
+  board (`tabula_presets::tests`); the audit's floor and tags (`preset_audit`).
+- **End to end** (`tabula_e2e`): inserted from the picker's path on a playing track, the
+  guitar rig heard in the master; a pedal moved in one step and undone to the bit; a
+  footswitch; a pedal added (a fresh id, sounding); a factory board loaded and undone.
+- **Export:** a fresh instance's rig, the state's round trip, and the family's CLAP/VST3
+  tests over the board's twelve parameters (`clap.rs`, `vst3.rs`, `ids.rs`, `alloc.rs`).
+- **CPU:** the board's own cost beside eight pedals as inserts
+  (`cantus-engine/examples/tabula_overhead.rs`; measured in `docs/round-fx/tabula.md`).

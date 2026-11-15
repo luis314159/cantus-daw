@@ -2526,6 +2526,57 @@ entre sesiones; nunca cambia el sonido.
 Boss DS-1, el Dallas Arbiter Fuzz Face y el Electro-Harmonix Big Muff π, modelados a partir
 de sus esquemas publicados; los nombres y los dibujos en Cantus son propios.
 
+### Tabula, la pedalera
+
+**Tabula** (latín, *la tabla*) es una pedalera de los efectos de Cantus: hasta dieciséis de
+ellos como pedales, en cualquier orden, con una división A/B opcional y ocho macros. Cada
+pedal es el propio efecto, así que una pedalera de un solo pedal suena exactamente como ese
+efecto solo. Insértala desde **Añadir inserto ▾ ▸ Guitarra y amplificador ▸ Tabula**; empieza
+con un equipo de guitarra — el overdrive verde bajo, un chorus, un delay y una reverb de
+muelle — para que se oiga enseguida.
+
+**La pedalera.** Los pedales están sobre una tabla oscura; los cables llevan la señal entre
+ellos y brillan tan fuerte como suena en cada punto. Gira las perillas de un pedal donde
+están; pulsa su interruptor para encenderlo o apagarlo (un fundido de 10 ms que nunca cambia
+la latencia). Arrastra un pedal para moverlo (suéltalo entre otros dos, o sobre el carril A o
+B para dividir la cadena). Haz doble clic en él, o elige *Abrir su editor completo*, para
+abrir la ventana del propio efecto en lugar de la pedalera; *Volver a la pedalera* regresa.
+Con muchos pedales la pedalera se reparte en filas, con el cable corriendo entre ellas.
+
+**Añadir y quitar.** *Añadir pedal*, al final de la cadena, abre el selector: los estantes a
+su izquierda, los efectos del estante como pedales pequeños; haz clic en uno y se suma a la
+pedalera, sonando enseguida. Bajo la pedalera, *Su lugar en la pedalera* fija el
+**Tamaño** del pedal elegido (mini, estándar, ancho, doble, redondo), su **Lugar en la
+cadena** (Antes, A, B, Después) y su interruptor, y *Quitar* lo saca.
+
+**La división.** Un pedal en el carril A o B abre la división: la caja divisora alimenta los
+dos carriles y la caja de mezcla los une, con su perilla **A/B** (a la izquierda solo A, a
+la derecha solo B). El carril más corto espera al más largo, así que nunca se emborronan (no
+hay filtro de peine).
+
+**Macros.** Ocho perillas arriba. Pulsa **Aprender**, toca una macro y luego la perilla de un
+pedal: queda asignada, desde donde está hasta el extremo más lejano de su rango, y lleva un
+anillo. Una macro mueve todo lo asignado a ella y manda sobre la automatización de esa misma
+perilla. **Al azar** da a las perillas de cada pedal valores nuevos dentro de rangos
+musicales (un solo paso de deshacer).
+
+**Bajo la pedalera,** los controles principales del pedal elegido (cada uno con su menú:
+automatizar, modular, aprender un controlador) y la **Entrada**, la **Mezcla** y la
+**Salida** de la pedalera.
+
+**El teclado.** Haz clic en la pedalera y luego: Tab y Mayús+Tab eligen un pedal; Espacio su
+interruptor; Intro su editor completo; Supr lo quita; Ctrl+← y Ctrl+→ lo mueven; ← y →
+eligen una de sus perillas y ↑ y ↓ la giran (con Mayús, finamente).
+
+**Presets.** Cada preset de Tabula es una pedalera entera: *Equipo de guitarra*, *Crujido de
+blues*, *Oleadas ambientales*, *Solo con fuzz*, *Funk con phaser*, *Húmedo, seco, húmedo*,
+dos para bajo, dos para sintetizadores, dos para batería y dos para voz. Tus propios presets
+guardan también la pedalera entera.
+
+**En otro DAW,** la Tabula exportada muestra la misma ventana; el anfitrión automatiza las
+macros, la entrada, la mezcla, la salida y el balance A/B, y la pedalera se guarda en su
+estado.
+
 ### Lapsus, el moldeador de tiempo
 
 **Lapsus** (en latín, *un desliz*) dobla el tiempo y el nivel al compás, como el Gross Beat de

@@ -276,6 +276,8 @@ struct Rig {
     /// Heap events while processing, per phase of the test: (phase, count).
     allocations: Vec<(&'static str, usize)>,
     known: std::collections::HashSet<EffectId>,
+    /// fx3:tabula — the boards' pedals sent, as the backend keeps them.
+    pedals: cantus_engine::fx::tabula::KnownPedals,
 }
 
 impl Rig {
@@ -302,16 +304,33 @@ impl Rig {
             buf: vec![0.0; 512 * 2],
             allocations: Vec::new(),
             known: Default::default(),
+            pedals: Default::default(), // fx3:tabula
         }
     }
 
     fn snapshot(&mut self, project: &Project) {
         let snap = Snapshot::compile(project, 1);
+        let mut whole = Vec::new(); // fx3:tabula
         for slot in snap.effect_slots() {
             if self.known.insert(slot.id) {
+                whole.push(slot.id);
                 let unit = Box::new(EffectUnit::new(slot, 48_000.0));
                 self.tx.push(EngineMessage::AddEffect(unit)).unwrap();
             }
+        }
+        // fx3:tabula — a running board's new pedals, as the backend sends them.
+        let slots: Vec<&EffectSlot> = snap.effect_slots().collect();
+        for (effect, pedal, unit) in self
+            .pedals
+            .update(&slots, |id| whole.contains(&id), 48_000.0)
+        {
+            self.tx
+                .push(EngineMessage::AddPedal {
+                    effect,
+                    pedal,
+                    unit,
+                })
+                .unwrap();
         }
         let snap = Arc::new(snap);
         // Its automation's runtime first (ADR 0027): built here, off the audio thread.
@@ -2943,6 +2962,125 @@ fn libra_never_allocates() {
     set(&mut p, "mute", 1.0);
     rig.snapshot(&p);
     rig.play("moved", 60);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+// fx3:tabula — Tabula (ADR 0134, provisional) on the audio thread: the guitar rig with a
+// linear-phase EQ among its pedals (its lines asked for and swapped in), a footswitch on a
+// latent pedal and on a latency-free one, a reorder (the dip), a pedal onto lane B (the
+// split's alignment), a pedal added (built off the thread, adopted) and one taken out (faded,
+// handed back), a lane on a pedal's knob, a macro over it and a lane on the macro, the board's
+// levels moved, a seek and a stop. Not one allocation.
+#[test]
+fn tabula_never_allocates() {
+    use cantus_core::fx::tabula::{guitar_rig, Macro, MacroMap, Path, Pedal, PedalId};
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::Board);
+    fx.spec = guitar_rig();
+    let mut eq = Pedal::new(PedalId(4), EffectSpec::new(EffectKind::Eq));
+    for (k, v) in [("mode", 2.0), ("b0.used", 1.0), ("b0.gain", 3.0)] {
+        eq.spec.set(k, v).unwrap();
+    }
+    fx.spec.board.as_mut().unwrap().pedals.push(eq);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let lane = p.make_automation_clip(
+        "a",
+        AutoTarget::Effect {
+            effect: id,
+            key: "p2.feedback".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.1),
+            AutoPoint::new(Ticks::beats(4), 0.6),
+        ],
+    );
+    p.tracks[0].clips.push(lane);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("start", 40);
+    let board = |p: &mut Project| {
+        p.strip_mut(s0)
+            .unwrap()
+            .effect_mut(id)
+            .unwrap()
+            .spec
+            .board
+            .as_mut()
+            .unwrap()
+            .clone()
+    };
+    let put = |p: &mut Project, b: Box<cantus_core::fx::tabula::Board>| {
+        p.strip_mut(s0).unwrap().effect_mut(id).unwrap().spec.board = Some(b);
+    };
+    let mut b = board(&mut p);
+    b.pedals[4].on = false;
+    b.pedals[1].on = false;
+    put(&mut p, b);
+    rig.snapshot(&p);
+    rig.play("footswitches off", 40);
+    let mut b = board(&mut p);
+    let d = b.pedals.remove(2);
+    b.pedals.insert(0, d);
+    put(&mut p, b);
+    rig.snapshot(&p);
+    rig.play("reorder", 40);
+    let mut b = board(&mut p);
+    b.pedals[3].path = Path::B;
+    b.pedals[4].on = true;
+    put(&mut p, b);
+    rig.snapshot(&p);
+    rig.play("onto lane B", 40);
+    let mut b = board(&mut p);
+    b.pedals
+        .push(Pedal::new(PedalId(5), EffectSpec::new(EffectKind::Phaser)));
+    b.pedals.remove(1);
+    b.macros = vec![Macro {
+        name: Some("Wah".into()),
+        maps: vec![MacroMap {
+            pedal: PedalId(2),
+            key: "feedback".into(),
+            from: 0.2,
+            to: 0.7,
+        }],
+    }];
+    put(&mut p, b);
+    let m1 = p.make_automation_clip(
+        "m",
+        AutoTarget::Effect {
+            effect: id,
+            key: "m1".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.0),
+            AutoPoint::new(Ticks::beats(8), 1.0),
+        ],
+    );
+    p.tracks[0].clips.push(m1);
+    {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        e.spec.set("mix", 0.6).unwrap();
+        e.spec.set("ab", 0.3).unwrap();
+        e.spec.set("in", -3.0).unwrap();
+    }
+    rig.snapshot(&p);
+    rig.play("added, taken out, a macro", 60);
     rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
     rig.play("seek", 10);
     rig.tx.push(EngineMessage::Stop).unwrap();

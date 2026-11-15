@@ -461,7 +461,7 @@ impl Snapshot {
                         swap_channels: s.swap_channels,
                         muted: !audible,
                         fx_enabled: s.fx_enabled,
-                        effects: s.effects.clone(),
+                        effects: crate::fx::tabula::prepared(s.effects.clone()), // fx3:tabula
                         eq: s.eq,
                         output: s.output.and_then(|o| project.strip_index(o)),
                         sends: s
@@ -495,7 +495,7 @@ impl Snapshot {
             },
             strip_order: project.strip_order(),
             content_end: project.content_end(),
-            master_effects: project.master.effects.clone(),
+            master_effects: crate::fx::tabula::prepared(project.master.effects.clone()), // fx3:tabula
             master_fx_enabled: project.master.fx_enabled,
             recording: project.recording.clone(),
             automation,

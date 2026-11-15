@@ -334,17 +334,52 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
             policy: Policy::Elide(Elide::End),
             color: with_alpha(print, if kn.hot { 1.0 } else { 0.92 }),
         };
-        let lw = (kr * 2.0 + 30.0 * u).max(46.0 * u);
-        let lr = Rect::from_center_size(p + vec2(0.0, kr + 14.0 * u), vec2(lw, 13.0 * k));
+        // fx3:tabula — the word takes the room its row leaves it: up to its neighbours'
+        // words (as wide as they are at full size) or the case's edge, centred on its knob;
+        // a word too long even so is set smaller (down to 66 %) before anything is elided.
+        // A word that fitted is drawn as it was.
+        let word_w = |q: usize| {
+            let tq = Text {
+                src: e.knobs[q].label,
+                ..t
+            };
+            ktext::measure(b.ctx(), &tq, k).x
+        };
+        let mut left = p.x - r.left() - 12.0 * u;
+        let mut right = r.right() - p.x - 12.0 * u;
+        for (j, q) in lay.knobs[..n].iter().enumerate() {
+            if j == i || (q.y - p.y).abs() >= 1.0 {
+                continue;
+            }
+            let room = (q.x - p.x).abs() - word_w(j) * 0.5 - 4.0 * u;
+            if q.x < p.x {
+                left = left.min(room);
+            } else {
+                right = right.min(room);
+            }
+        }
+        // Off its knob's centre a little where one side has the room (never past the cap).
+        let shift = ((right - left) * 0.5).clamp(-kr * 0.8, kr * 0.8);
+        let lw = (2.0 * (left + shift).min(right - shift)).max(kr * 2.0);
+        let full = ktext::measure(b.ctx(), &t, k).x;
+        let tk = if full > lw {
+            (k * lw / full).max(0.66 * k)
+        } else {
+            k
+        };
+        let lr = Rect::from_center_size(p + vec2(shift, kr + 14.0 * u), vec2(lw, 13.0 * k));
         b.rrect(
             Rect::from_center_size(
                 lr.center(),
-                vec2(ktext::measure(b.ctx(), &t, k).x.min(lw) + 6.0 * u, 12.0 * k),
+                vec2(
+                    ktext::measure(b.ctx(), &t, tk).x.min(lw) + 6.0 * u,
+                    12.0 * k,
+                ),
             ),
             2.0 * u,
             Fill::Solid(with_alpha(c(f.body), 0.75)),
         );
-        ktext::paint(b, lr, &t, k);
+        ktext::paint(b, lr, &t, tk);
     }
     let _ = ink;
     let name_w = if round {

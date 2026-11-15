@@ -59,7 +59,7 @@ pub fn effect_use(kind: EffectKind) -> &'static str {
         K::LoFi => "Lo-fi: six modules, each switched on with its key (bits.on, rate.on, wob.on, age.on, noise.on, tone.on) — bits (1..24, rounding/truncation/mu-law, dither), sample rate (1..48 kHz, raw with its aliasing, filtered, or smoothed), wow and flutter in cents (wow synced or free, part of it drifting), age (tape dropouts and wear), noise (vinyl crackle and pops, tape or vinyl hiss, 50/60 Hz hum, optionally following the music) and tone (the band of tape, radio, telephone or gramophone) — and Character (char), which takes every module that is on towards its oldest. Cassettes, 8-bit, dusty drums, AM radio, telephone, gramophone, VHS. Starts as a worn cassette; every module off is a wire.", // fx:vetus
         K::Utility => "Utility: gain (out, ±36 dB), balance (pan, −1..1, the master's balance law), width (0..2, 0 is mono), the channel operation (chan: 0 stereo, 1 swap, 2 mono, 3 left to both, 4 right to both, 5 mid, 6 side), polarity per channel (pol.l, pol.r), DC removal (dc), a delay per channel in ms applied in whole samples (delay.l, delay.r — to align two microphones), mute; its window shows a tuner (tuner.ref is its A, 415..466 Hz), a goniometer and the correlation. Mono checks, phase flips, alignment, a pad, listening to mid or side. Inserts as a wire.", // fx:libra
         // fx3:contract — wave 3 (each builder words its own once its unit is built).
-        K::Board => "Pedalboard (being built: for now it passes the sound through, with its in and out gains): Cantus's own effects as pedals in any order, an A/B split and eight macros (m1..m8).", // fx3:tabula
+        K::Board => "A pedalboard: Cantus's own effects as pedals (any of them but a hosted plug-in, Speculum and the old reverb), up to sixteen, in any order along Pre, then an optional A/B split (lane A beside lane B, mixed by ab: 0 A only, 1 B only), then Post. Each pedal is that unit exactly, its parameters addressed p{id}.{key} (p2.time_ms); a footswitch never changes the latency. Eight macros m1..m8 each move pedals' parameters between two values; in/out (dB), mix (dry/wet, the dry aligned to the latency). It starts on a guitar rig: green overdrive, chorus, delay, spring reverb. Its factory presets are whole boards (guitar, bass, synth, drums, vocals).", // fx3:tabula
         K::PitchShift => "Pitch (being built: for now it passes the sound through, with an output gain): octaver, pitch shifter and harmoniser, whammy.", // fx3:saltus
         K::Rotary => "Rotary speaker (being built: for now it passes the sound through, with an output gain): horn and drum, slow and fast.", // fx3:rota
         K::Amp => "Amp and cabinet (being built: for now it passes the sound through, with an output gain): preamp, tone stack, power amp and the cabinet by impulse response, for guitar, bass, keys and voice.", // fx3:arca
@@ -162,7 +162,32 @@ pub fn effect_entry(kind: EffectKind) -> Value {
         .collect();
     let presets: Vec<Value> = crate::views::fx::factory_presets(kind)
         .iter()
-        .map(|(label, values)| json!({"name": en(label), "sets": sets(values)}))
+        .map(|(label, values)| {
+            if kind != EffectKind::Board {
+                return json!({"name": en(label), "sets": sets(values)});
+            }
+            // fx3:tabula — a board preset is a whole board: its own values, and its pedals
+            // in order (loaded whole: what `sets` cannot say).
+            let own: Vec<(&str, f32)> = values
+                .iter()
+                .filter(|(k, _)| kind.param(k).is_some())
+                .copied()
+                .collect();
+            let map: std::collections::BTreeMap<String, f32> =
+                values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+            let pedals: Vec<Value> = cantus_core::fx::tabula_presets::from_flat(&map)
+                .map(|s| {
+                    s.pedals()
+                        .iter()
+                        .map(|p| {
+                            json!({"id": p.id.0, "unit": effect_names(p.spec.kind).0,
+                                "lane": format!("{:?}", p.path).to_lowercase()})
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            json!({"name": en(label), "sets": sets(&own), "pedals": pedals})
+        })
         .collect();
     let user: Vec<String> = crate::views::fx::user_presets(kind)
         .into_iter()

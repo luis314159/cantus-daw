@@ -171,6 +171,9 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::LoFi => Vec2::new(1120.0, 800.0), // fx:vetus
         // Libra: the measure (tuner, goniometer, levels) over four small cards.
         EffectKind::Utility => Vec2::new(1180.0, 600.0), // fx:libra
+        // Tabula: the macro rail over the board (two lanes of pedals at the split) and the
+        // board's column beside it.
+        EffectKind::Board => Vec2::new(1360.0, 860.0), // fx3:tabula
         _ => Vec2::new(1000.0, 640.0),
     }
 }

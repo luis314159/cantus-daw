@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 30] = [
+pub const EFFECTS: [Unit; 31] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -447,6 +447,28 @@ pub const EFFECTS: [Unit; 30] = [
         ab: None,
         big: (1800, 1263),
         thumb: (640, 449),
+    },
+
+    // fx3:tabula — Tabula, the pedalboard (ADR 0134, provisional).
+    Unit {
+        file: "tabula",
+        name: "Tabula",
+        kind: ("Pedalboard", "Pedalera"),
+        pitch: ("Cantus's own effects as real pedals on a board — any of them, any size, in any order, split into two lanes and joined again — with cables that glow with the signal and eight macros over it all.", "Los efectos de Cantus como pedales de verdad sobre una tabla — cualquiera, de cualquier tamaño, en cualquier orden, divididos en dos carriles y unidos otra vez — con cables que brillan con la señal y ocho macros sobre todo."),
+        what: long!(("Tabula is a pedalboard of Cantus's own effects: drives, filters, modulation, delays, reverbs, each the very effect, so one pedal on the board sounds exactly as that effect alone. Drag pedals to reorder them, drop one on lane A or B to split the chain into two that meet again in time, switch each by its footswitch without a click or a latency jump, and open any pedal's full editor in place. Eight macros move as many knobs as you map to them; Randomise rolls new settings within musical ranges. It starts on a guitar rig, and every preset is a whole board.", "Tabula es una pedalera de los efectos de Cantus: saturaciones, filtros, modulación, delays, reverbs, cada uno el propio efecto, así que un pedal en la tabla suena exactamente como ese efecto solo. Arrastra los pedales para reordenarlos, suelta uno en el carril A o B para dividir la cadena en dos que vuelven a encontrarse a tiempo, enciende cada uno con su interruptor sin clic ni salto de latencia y abre en su sitio el editor completo de cualquier pedal. Ocho macros mueven tantas perillas como les asignes; Al azar tira nuevos ajustes dentro de rangos musicales. Empieza con un equipo de guitarra, y cada preset es una pedalera entera.")),
+        features: long!(&[
+            ("A board of one pedal is that effect, to the bit", "Una pedalera de un pedal es ese efecto, bit a bit"),
+            ("Up to sixteen pedals, five sizes, in rows when the board fills", "Hasta dieciséis pedales, cinco tamaños, en filas cuando la tabla se llena"),
+            ("An A/B split whose lanes meet in time, to the sample", "Una división A/B cuyos carriles se encuentran a tiempo, a la muestra"),
+            ("Footswitches that never move the latency; no click on any change", "Interruptores que nunca mueven la latencia; ningún clic en ningún cambio"),
+            ("Eight macros with learn, and Randomise within musical ranges", "Ocho macros con aprendizaje, y Al azar dentro de rangos musicales"),
+            ("Fourteen boards for guitar, bass, synths, drums and voice", "Catorce pedaleras para guitarra, bajo, sintetizadores, batería y voz"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1138),
+        thumb: (640, 405),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

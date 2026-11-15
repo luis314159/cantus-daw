@@ -2327,6 +2327,51 @@ changes the sound.
 the Boss DS-1, the Dallas Arbiter Fuzz Face and the Electro-Harmonix Big Muff π, modelled
 from their published schematics; the names and the pictures in Cantus are its own.
 
+### Tabula, the pedalboard
+
+**Tabula** (Latin for *the board*) is a pedalboard of Cantus's own effects: up to sixteen of
+them as pedals, in any order, with an optional A/B split and eight macros. Every pedal is the
+effect itself, so a board of one pedal sounds exactly as that effect on its own. Insert it
+from **Add insert ▾ ▸ Guitar and amp ▸ Tabula**; it starts on a guitar rig — the green
+overdrive low, a chorus, a delay and a spring reverb — so it is heard at once.
+
+**The board.** The pedals stand on a dark board, cables carrying the signal between them and
+glowing as loud as it is at each point. Turn a pedal's knobs where they are; click its
+footswitch to switch it on or off (a 10 ms crossfade that never changes the latency). Drag a
+pedal to move it (drop it between two others, or onto lane A or B to split the chain).
+Double-click it, or choose *Open its full editor*, to open the effect's own window in place
+of the board; *Back to the board* returns. With many pedals the board wraps into rows, the
+cable running between them.
+
+**Adding and taking off.** *Add pedal* at the end of the chain opens the picker: the shelves
+down its left, the shelf's effects as small pedals; click one and it joins the board,
+sounding at once. Under the board, *Its place on the board* sets the chosen pedal's
+**Size** (mini, standard, wide, double, round), its **Place in the chain** (Before, A, B,
+After) and its footswitch, and *Remove* takes it off.
+
+**The split.** A pedal on lane A or B opens the split: the splitter box feeds both lanes, the
+mixer box joins them, its knob the **A/B** balance (left: A only, right: B only). The shorter
+lane waits for the longer one, so the two never smear (no comb filtering).
+
+**Macros.** Eight knobs along the top. Press **Learn**, touch a macro, then touch a pedal's
+knob: the knob is mapped, from where it stands to the far end of its range, and wears a
+ring. A macro moves everything mapped to it; it wins over automation of the same knob.
+**Randomise** gives every pedal's knobs new values within musical ranges (one undo step).
+
+**Under the board** the chosen pedal's main controls (each with its menu: automate,
+modulate, learn a controller), and the board's **Input**, **Mix** and **Output**.
+
+**The keyboard.** Click the board, then: Tab and Shift+Tab choose a pedal; Space its
+footswitch; Enter its full editor; Delete takes it off; Ctrl+← and Ctrl+→ move it; ← and →
+choose one of its knobs and ↑ and ↓ turn it (with Shift, finely).
+
+**Presets.** Each of Tabula's presets is a whole board: *Guitar rig*, *Blues crunch*,
+*Ambient swells*, *Fuzz lead*, *Phaser funk*, *Wet, dry, wet*, two for bass, two for synths,
+two for drums and two for voice. Your own presets keep the whole board too.
+
+**In another DAW,** the exported Tabula shows the same window; the host automates the
+macros, the input, mix, output and the A/B balance, and the board is saved in its state.
+
 ### Lapsus, the time shaper
 
 **Lapsus** (Latin for *a slip*) bends time and level to the beat, as FL Studio's Gross Beat

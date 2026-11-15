@@ -418,10 +418,49 @@ pub const LIBRA: Skin = Skin {
 // out) until its builder draws the real face — one that differs from every other unit's in
 // hue or material, display included.
 
-/// Tabula, the pedalboard: for now Fervor's look (drive and colour). // fx3:tabula
+/// Tabula, the pedalboard (ADR 0134): a pedalboard's case — black vinyl of a fine grain
+/// (the owner's "más fino": darker, cleaner, never competing with the pedals), brass piping
+/// for its accent (the board's nameplate), chicken-head knobs, bat toggles, a badge and
+/// screws; no vents. Its own face: the only fine vinyl, and no other vinyl unit wears a
+/// gold near 52°. // fx3:tabula
 pub const TABULA: Skin = Skin {
     key: "fx.tabula",
-    ..super::tone::FERVOR
+    surface: Tint {
+        hue: 30.0,
+        sat: 0.05,
+        amount: 0.55,
+    },
+    accent: Some(Pair {
+        dark: super::super::color::Hsl {
+            h: 46.0,
+            s: 0.62,
+            l: 0.62,
+        },
+        light: super::super::color::Hsl {
+            h: 40.0,
+            s: 0.70,
+            l: 0.32,
+        },
+    }),
+    accent2: None,
+    material: Material::FineTolex,
+    display: Display::Plain,
+    knob: KnobShape::ChickenHead,
+    switch: SwitchShape::Bat,
+    lettering: Lettering {
+        case: Case::Upper,
+        tracking: 0.10,
+        weight: Weight::SemiBold,
+        condensed: false,
+        mono_values: false,
+    },
+    plate: Plate::Badge,
+    ornaments: Ornaments {
+        screws: true,
+        vents: false,
+        rules: false,
+        rack_ears: false,
+    },
 };
 
 /// Saltus, pitch: for now Tonus's look (the pitch unit's cousin). // fx3:saltus

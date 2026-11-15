@@ -378,7 +378,7 @@ impl EffectUnit {
         self.pedals_mut()
             .iter_mut()
             .find(|k| k.pedal == pedal)
-            .map(|k| &mut k.unit)
+            .map(|k| &mut *k.unit) // fx3:tabula — a pedal's unit is boxed
     }
 
     /// What one pedal's editor draws (`EngineMessage::SetAnalysedPedal`).
@@ -475,6 +475,29 @@ impl EffectUnit {
     pub fn set_position(&mut self, position: &crate::fx::SongPosition) {
         if let Dsp::Fx(u) = &mut self.dsp {
             u.set_position(position);
+        }
+    }
+
+    /// fx3:tabula — tell a unit that follows the song where it is, `self.late` samples
+    /// before `position` (exact across tempo maps): a board tells each of its pedals as late
+    /// as it hears it (`FxUnit::set_position_late`), every other unit hears its own.
+    #[inline]
+    pub fn hear_position(
+        &mut self,
+        position: &crate::fx::SongPosition,
+        sample_rate: f64,
+        map: &cantus_core::TempoMap,
+    ) {
+        if !self.follows_song() {
+            return;
+        }
+        let late = self.late;
+        match &mut self.dsp {
+            Dsp::Fx(u) if self.kind == EffectKind::Board => {
+                u.set_position_late(&|before| position.earlier_in(late + before, sample_rate, map))
+            }
+            Dsp::Fx(u) => u.set_position(&position.earlier_in(late, sample_rate, map)),
+            _ => {}
         }
     }
 

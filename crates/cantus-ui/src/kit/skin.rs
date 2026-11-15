@@ -161,6 +161,9 @@ pub enum Material {
     /// Vinyl amp covering: an amplifier's pebbled vinyl, a fine texture. (The variant's
     /// name is the code's; users read "vinyl amp covering" — `name()` says "vinyl".)
     Tolex,
+    /// fx3:tabula — vinyl covering of a finer, quieter grain (Tabula's board case, the
+    /// owner's "más fino"): small pebbles, softly lit. Users read "fine vinyl".
+    FineTolex,
     /// Smoked glass over a dark ground.
     Glass,
     /// Printed paper or card (a vintage panel's legend plate).
