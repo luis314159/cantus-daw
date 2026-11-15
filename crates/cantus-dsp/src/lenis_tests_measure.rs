@@ -265,15 +265,9 @@ fn diagnose_the_excess() {
         }
     }
     for (edge, guard) in [(detect::EDGE_DB, true), (1.5, false)] {
-        let _ = guard;
         let bridge = format!("edge {edge} slope-corrected sides {guard}");
         let mut stats = vec![];
-        for (si, sig) in [&noise, &res, &plain, &note, &cliff, &steep]
-            .into_iter()
-            .enumerate()
-        {
-            let mut per = vec![0.0f32; 2_100];
-            let mut frames = 0usize;
+        for sig in [&noise, &res, &plain, &note, &cliff, &steep] {
             let mut u = unit(&LenisSettings {
                 depth: 0.5,
                 ..LenisSettings::default()
@@ -299,37 +293,11 @@ fn diagnose_the_excess() {
                     }
                 }
                 at3k.push(e[k3]);
-                frames += 1;
-                for k in 0..u.geometry().bins() {
-                    per[k] += e[k];
-                }
             }
             all.sort_by(|a, b| a.total_cmp(b));
             let q = |p: f64| all[((all.len() - 1) as f64 * p) as usize];
             let mean3k = at3k.iter().sum::<f32>() / at3k.len() as f32;
             stats.push((q(0.5), q(0.99), q(0.999), mean3k));
-            if false && (si == 2 || si == 4) {
-                let hot: Vec<String> = (0..u.geometry().bins())
-                    .filter(|k| per[*k] / frames as f32 > 3.0)
-                    .map(|k| format!("{:.0}:{:+.1}", u.bin_hz(k), per[k] / frames as f32))
-                    .collect();
-                println!(
-                    "  signal {si}: bins over 3 dB on average: {}",
-                    hot.join(" ")
-                );
-                let sc = &u.scratch;
-                for k in (290..345).step_by(3) {
-                    println!(
-                        "    {:.0} Hz: level {:.1} fine {:.1} clip {:.1} env {:.1} excess {:.1}",
-                        u.bin_hz(k),
-                        sc.fast_level[k],
-                        sc.fine[k],
-                        sc.clip[k],
-                        sc.env[k],
-                        sc.excess[k]
-                    );
-                }
-            }
         }
         println!(
             "{bridge}: noise p50 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance on noise {:+.1} | a 220 Hz note p99 {:+.1} p99.9 {:+.1} | its 3 kHz peak {:+.1} | pink low-passed at 5 kHz p99 {:+.1} p99.9 {:+.1} | a Q 4 peak on a 12 dB/octave slope {:+.1}",
@@ -629,32 +597,6 @@ fn a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is() {
         assert!(
             c[1] < -2.0 && c[0].abs() < 0.5 && c[2].abs() < 0.5,
             "{f0} {q:?} strong: {c:?}"
-        );
-    }
-}
-
-#[test]
-#[ignore]
-fn debug_note_peak() {
-    let n = (3.0 * SR) as usize;
-    let mut x = harmonic(n, 110.0);
-    peaking(&mut x, 3_000.0, 8.0, 10.0);
-    let mut u = unit(&LenisSettings {
-        depth: 0.5,
-        ..LenisSettings::default()
-    });
-    run(&mut u, &(x.clone(), x), 256);
-    let sc = &u.scratch;
-    for k in (40..100).step_by(2) {
-        println!(
-            "{:.0} Hz: level {:.1} excess {:.1} red {:.2} lo {} hi {} br {}",
-            u.bin_hz(k),
-            sc.level[k],
-            sc.excess[k],
-            u.reduction_bins(0)[k],
-            u.design.lo[k],
-            u.design.hi[k],
-            u.design.bridge[k]
         );
     }
 }

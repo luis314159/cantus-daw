@@ -318,10 +318,10 @@ pub struct Scratch {
     /// The excess the curve read (the slow one, raised to the fast one less
     /// [`FAST_MARGIN_DB`] and held under it plus [`FAST_HOLD_DB`]), dB, after each pass.
     pub excess: Vec<f32>,
-    pub fast_level: Vec<f32>,
-    pub fine: Vec<f32>,
-    pub env: Vec<f32>,
-    pub clip: Vec<f32>,
+    fast_level: Vec<f32>,
+    fine: Vec<f32>,
+    env: Vec<f32>,
+    clip: Vec<f32>,
     raw: Vec<f32>,
     prefix: Vec<f64>,
     prefix_u: Vec<f64>,
