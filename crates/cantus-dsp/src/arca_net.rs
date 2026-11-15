@@ -308,8 +308,9 @@ fn write_tone(net: &mut Net, i: u8, t: &Tone) -> u8 {
             net.r(i, b, r1);
             net.c(b, x, c2);
             net.c(b, y, c3);
-            let bu = net.r(x, y, bass);
-            let bl = net.r(y, 0, bass);
+            // Turned up, the wiper leaves ground for X: the bass's path grows.
+            let bu = net.r(y, 0, bass);
+            let bl = net.r(x, y, bass);
             net.r(y, 0, r2);
             net.pot(Some(tu), Some(tl), treble, Taper::Log, Knob::Treble);
             net.pot(Some(bu), Some(bl), bass, Taper::Log, Knob::Bass);
@@ -318,12 +319,39 @@ fn write_tone(net: &mut Net, i: u8, t: &Tone) -> u8 {
     }
 }
 
-/// Write `blocks` after an input behind `src_r`; returns the output node and the stage
-/// whose plate it is, if the circuit ends at a plate.
-fn write(net: &mut Net, blocks: &[Block], src_r: f64) -> (u8, Option<Triode>) {
-    let src = net.node();
-    net.input(src, src_r);
-    let mut cur = src;
+/// What drives a circuit: a resistance (the guitar's lead), or the plate of the circuit
+/// before — its open-circuit voltage behind the plate's output impedance at the operating
+/// point, `R_p ‖ (r_p + (μ + 1)·Z_k)`, `Z_k` the cathode's resistor and bypass capacitor
+/// (`(μ + 1)·Z_k` is a resistor `(μ + 1)·R_k` beside a capacitor `C_k/(μ + 1)`).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Source {
+    R(f64),
+    Plate {
+        rp_load: f64,
+        rp: f64,
+        rk: f64,
+        ck: Option<f64>,
+    },
+}
+
+/// Write `blocks` after their source; returns the output node and the stage whose plate
+/// it is, if the circuit ends at a plate.
+fn write(net: &mut Net, blocks: &[Block], src: Source) -> (u8, Option<Triode>) {
+    let mut cur = net.node();
+    match src {
+        Source::R(r) => net.input(cur, r),
+        Source::Plate { rp_load, rp, rk, ck } => {
+            net.input(cur, R_RAIL);
+            let (m, n) = (net.node(), net.node());
+            net.r(cur, n, rp_load);
+            net.r(cur, m, rp);
+            net.r(m, n, rk.max(POT_MIN));
+            if let Some(c) = ck {
+                net.c(m, n, c);
+            }
+            cur = n;
+        }
+    }
     let mut last: Option<(Triode, u8)> = None;
     let mut ends_at_plate = None;
     for b in blocks {
@@ -432,8 +460,8 @@ pub struct Stage {
     /// The input vector: the signal, then the supplies.
     u: [f64; 3],
     rest: State,
-    /// The output's Thévenin resistance (what drives the next circuit).
-    pub out_r: f64,
+    /// What its output looks like to the next circuit.
+    pub out_z: Source,
 }
 
 impl Stage {
@@ -443,15 +471,15 @@ impl Stage {
             pots: [None; MAX_POTS],
             u: [0.0; 3],
             rest: State::default(),
-            out_r: 0.0,
+            out_z: Source::R(1.0),
         }
     }
 
     /// Write, size and solve `blocks` at `rate`, driven through `src_r`, knobs at `k`.
     /// Allocation-free.
-    pub fn new(blocks: &[Block], src_r: f64, rate: f64, k: &Knobs) -> Stage {
+    pub fn new(blocks: &[Block], src: Source, rate: f64, k: &Knobs) -> Stage {
         let mut net = Net::new();
-        let (out, plate) = write(&mut net, blocks, src_r);
+        let (out, plate) = write(&mut net, blocks, src);
         let mut c = Circuit::new(net.nodes as usize, 1.0 / rate);
         for &(a, b, r) in &net.r[..net.nr] {
             c.r(a, b, r);
@@ -473,21 +501,25 @@ impl Stage {
             pots: net.pots,
             u,
             rest: State::default(),
-            out_r: 0.0,
+            out_z: Source::R(1.0),
         };
         s.set_knobs(k);
         s.c.solve_dc(&s.u);
         s.rest = s.c.state();
-        s.out_r = match plate {
+        s.out_z = match plate {
             Some(t) => {
                 let ports = s.c.ports();
                 let (vgk, vpk) = (ports[0], ports[1]);
                 let (rp, gm) = triode_small_signal(&t.tube, vgk, vpk);
-                let rk = if t.ck.is_some() { 0.0 } else { t.rk };
-                let inner = rp + (gm * rp + 1.0) * rk;
-                t.rp * inner / (t.rp + inner)
+                let mu1 = gm * rp + 1.0;
+                Source::Plate {
+                    rp_load: t.rp,
+                    rp,
+                    rk: mu1 * t.rk,
+                    ck: t.ck.map(|c| c / mu1),
+                }
             }
-            None => 0.0,
+            None => Source::R(1.0),
         };
         s
     }
@@ -548,10 +580,10 @@ impl Preamp {
     /// Rebuild in place for other blocks or another rate.
     pub fn build(&mut self, blocks: &[Block], src_r: f64, rate: f64, k: &Knobs) {
         let (parts, n) = split(blocks);
-        let mut r = src_r;
+        let mut src = Source::R(src_r);
         for (i, &(a, b)) in parts[..n].iter().enumerate() {
-            self.stages[i] = Stage::new(&blocks[a..b], r, rate, k);
-            r = self.stages[i].out_r;
+            self.stages[i] = Stage::new(&blocks[a..b], src, rate, k);
+            src = self.stages[i].out_z;
         }
         self.n = n;
     }

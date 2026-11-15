@@ -61,6 +61,9 @@ const SETTLE_S: f32 = 0.25;
 const SETTLE_MAX_S: f32 = 4.0;
 const QUIET_TAIL: u32 = 1_024;
 const TAIL_FLOOR: f32 = 1e-5;
+/// The amp's output scale: full rated power is −12 dBFS at the speaker (the cabinet
+/// responses are normalised to 0 dB over 100 Hz – 5 kHz).
+pub const AMP_TRIM: f32 = 0.25;
 
 /// Everything Arca is set to, in real units.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -407,7 +410,7 @@ impl Arca {
             let p = self.pre.step(*s as f64);
             *s = self.pow.step(p * master) as f32;
         }
-        self.os.down(&mut v)
+        self.os.down(&mut v) * AMP_TRIM
     }
 
     fn snap(&mut self) {
