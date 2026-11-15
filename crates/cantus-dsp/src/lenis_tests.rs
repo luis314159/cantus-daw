@@ -479,21 +479,30 @@ fn the_focus_curve_is_one_where_nothing_acts_and_follows_its_bands() {
     use detect::reduction_db as red;
     assert_eq!(red(3.0, 4.0, 0.5, Mode::Soft), 0.0, "under the threshold");
     assert_eq!(
-        red(10.0, 4.0, 0.25, Mode::Hard),
-        6.0,
-        "hard at 25 %: to the line"
+        red(10.0, 4.0, 0.5, Mode::Hard),
+        5.0,
+        "hard at 50 %: half the bump"
     );
     assert_eq!(
         red(10.0, 4.0, 1.0, Mode::Hard),
         10.0,
+        "at 100 %: down to the envelope"
+    );
+    assert_eq!(
+        red(10.0, 4.0, 2.0, Mode::Hard),
+        10.0,
         "never below the envelope"
     );
     assert!(
-        (red(10.0, 4.0, 0.25, Mode::Soft) - 3.6).abs() < 1e-5,
-        "soft: e²/(e + 4)"
+        (red(4.5, 4.0, 1.0, Mode::Hard) - 1.125).abs() < 1e-5,
+        "the hard gate opens over 2 dB"
     );
     assert!(
-        red(4.5, 4.0, 0.5, Mode::Soft) < 0.15,
+        (red(10.0, 4.0, 0.5, Mode::Soft) - 3.0).abs() < 1e-5,
+        "soft: e/(e + 4)"
+    );
+    assert!(
+        red(4.5, 4.0, 0.5, Mode::Soft) < 0.3,
         "the knee starts gently"
     );
     assert_eq!(red(10.0, 4.0, 0.0, Mode::Hard), 0.0);

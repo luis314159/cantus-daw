@@ -129,18 +129,19 @@ fn a_resonance_on_pink_noise_is_cut_and_its_neighbours_kept() {
         at(Mode::Soft, 0.5)
     );
     assert!(
-        at(Mode::Hard, 0.5) < -6.0,
+        at(Mode::Hard, 0.5) < -4.5,
         "hard 50 %: {}",
         at(Mode::Hard, 0.5)
     );
     assert!(
-        at(Mode::Hard, 1.0) <= at(Mode::Hard, 0.5)
-            && at(Mode::Hard, 0.5) < at(Mode::Hard, 0.25) - 2.0,
-        "more depth, more cut"
+        at(Mode::Hard, 1.0) < at(Mode::Hard, 0.75) - 2.0
+            && at(Mode::Hard, 0.75) < at(Mode::Hard, 0.5) - 2.0
+            && at(Mode::Hard, 1.0) < -9.0,
+        "more depth, more cut, all the way to 100 %"
     );
     assert!(
         at(Mode::Soft, 1.0) < at(Mode::Soft, 0.25) - 3.0,
-        "more depth, more cut"
+        "more depth, more cut, all the way to 100 %"
     );
 }
 
@@ -240,45 +241,47 @@ fn the_reduction_follows_depth_and_sharpness() {
 #[allow(clippy::needless_range_loop)]
 fn diagnose_the_excess() {
     let n = (6.0 * SR) as usize;
+    let lowpass = |x: &mut Vec<f32>, hz: f32, poles: usize| {
+        for _ in 0..poles {
+            let a = 1.0 - math::exp(-std::f32::consts::TAU * hz / SR);
+            let mut z = 0.0f32;
+            for v in x.iter_mut() {
+                z += a * (*v - z);
+                *v = z;
+            }
+        }
+    };
     let noise = pink(n, 5, 0.3);
     let ((res, _), _) = resonant(6.0, 3_000.0, 8.0, 12.0, 1);
-    let mut note = harmonic(n, 220.0);
-    let plain = note.clone();
+    let plain = harmonic(n, 220.0);
+    let mut note = plain.clone();
     peaking(&mut note, 3_000.0, 8.0, 10.0);
-    let mut steep = pink(n, 7, 0.3);
-    for _ in 0..2 {
-        let a = 1.0 - math::exp(-std::f32::consts::TAU * 1_000.0 / SR);
-        let mut z = 0.0f32;
-        for v in steep.iter_mut() {
-            z += a * (*v - z);
-            *v = z;
-        }
-    }
-    peaking(&mut steep, 3_000.0, 4.0, 8.0);
     let mut cliff = pink(n, 6, 0.3);
-    for _ in 0..8 {
-        let a = 1.0 - math::exp(-std::f32::consts::TAU * 5_000.0 / SR);
-        let mut z = 0.0f32;
-        for v in cliff.iter_mut() {
-            z += a * (*v - z);
-            *v = z;
-        }
-    }
-    for (edge, guard) in [(detect::EDGE_DB, true), (1.5, false)] {
-        let bridge = format!("edge {edge} slope-corrected sides {guard}");
+    lowpass(&mut cliff, 5_000.0, 8);
+    // A Q 4, +6 dB peak at 3 kHz on a 12 dB/octave slope (two poles at 1 kHz).
+    let mut steep = pink(n, 7, 0.3);
+    lowpass(&mut steep, 1_000.0, 2);
+    peaking(&mut steep, 3_000.0, 4.0, 6.0);
+    let sigs = [&noise, &res, &plain, &note, &cliff, &steep];
+    for (hull, edge, moved) in [
+        (true, detect::EDGE_DB, detect::EDGE_SLOPE_DB),
+        (true, 3.0, 3.0),
+        (false, 3.0, 3.0),
+    ] {
         let mut stats = vec![];
-        for sig in [&noise, &res, &plain, &note, &cliff, &steep] {
+        for sig in sigs {
             let mut u = unit(&LenisSettings {
                 depth: 0.5,
                 ..LenisSettings::default()
             });
-            let hop = u.geometry().hop();
+            u.design.hull = hull;
             u.design.edge_db = edge;
-            u.design.slope_sides = guard;
-
+            u.design.edge_slope_db = moved;
+            let s = u.s;
+            u.design.build(&s, u.sr, u.g.n, u.g.hop(), u.wsum);
+            let hop = u.geometry().hop();
             let (mut l, mut r) = (sig.clone(), sig.clone());
-            let mut all = vec![];
-            let mut at3k = vec![];
+            let (mut all, mut low, mut at3k) = (vec![], vec![], vec![]);
             let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
             for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
                 u.process(a, b);
@@ -288,20 +291,30 @@ fn diagnose_the_excess() {
                 let e = &u.scratch.excess;
                 for k in 0..u.geometry().bins() {
                     let f = u.bin_hz(k);
-                    if (200.0..16_000.0).contains(&f) {
+                    if (800.0..16_000.0).contains(&f) {
                         all.push(e[k]);
+                    } else if (150.0..800.0).contains(&f) {
+                        low.push(e[k]);
                     }
                 }
                 at3k.push(e[k3]);
             }
-            all.sort_by(|a, b| a.total_cmp(b));
-            let q = |p: f64| all[((all.len() - 1) as f64 * p) as usize];
+            let q = |v: &mut Vec<f32>, p: f64| {
+                v.sort_by(|a, b| a.total_cmp(b));
+                v[((v.len() - 1) as f64 * p) as usize]
+            };
             let mean3k = at3k.iter().sum::<f32>() / at3k.len() as f32;
-            stats.push((q(0.5), q(0.99), q(0.999), mean3k));
+            stats.push((
+                q(&mut all, 0.5),
+                q(&mut all, 0.99),
+                q(&mut all, 0.999),
+                mean3k,
+                q(&mut low, 0.99),
+            ));
         }
         println!(
-            "{bridge}: noise p50 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance on noise {:+.1} | a 220 Hz note p99 {:+.1} p99.9 {:+.1} | its 3 kHz peak {:+.1} | pink low-passed at 5 kHz p99 {:+.1} p99.9 {:+.1} | a Q 4 peak on a 12 dB/octave slope {:+.1}",
-            stats[0].0, stats[0].1, stats[0].2, stats[1].3, stats[2].1, stats[2].2, stats[3].3, stats[4].1, stats[4].2, stats[5].3
+            "hull {hull} edge {edge} on a slope {moved}: noise p50 {:+.1} p99 {:+.1} p99.9 {:+.1} (low p99 {:+.1}) | resonance on noise {:+.1} | a 220 Hz note p99 {:+.1} p99.9 {:+.1}, under 800 Hz p99 {:+.1} | its 3 kHz peak {:+.1} | pink low-passed at 5 kHz p99 {:+.1} p99.9 {:+.1} | a Q 4 +6 dB peak on a 12 dB/octave slope {:+.1}",
+            stats[0].0, stats[0].1, stats[0].2, stats[0].4, stats[1].3, stats[2].1, stats[2].2, stats[2].4, stats[3].3, stats[4].1, stats[4].2, stats[5].3
         );
     }
 }
@@ -336,12 +349,20 @@ fn the_time_response_follows_attack_and_release() {
         *v += 0.1 * ramp * math::sin(std::f32::consts::TAU * 3_000.0 * i as f32 / SR);
     }
     println!("a 3 kHz tone over pink noise from 1 s to 2 s, depth 60 % hard:");
-    for (att, rel) in [(1.0, 50.0), (5.0, 80.0), (20.0, 200.0), (50.0, 500.0)] {
+    for (att, rel, q) in [
+        (1.0, 50.0, Quality::Standard),
+        (5.0, 80.0, Quality::Standard),
+        (20.0, 200.0, Quality::Standard),
+        (50.0, 500.0, Quality::Standard),
+        (1.0, 50.0, Quality::Fast),
+        (1.0, 50.0, Quality::Precise),
+    ] {
         let mut u = unit(&LenisSettings {
             depth: 0.6,
             mode: Mode::Hard,
             attack_ms: att,
             release_ms: rel,
+            quality: q,
             ..LenisSettings::default()
         });
         let hop = u.geometry().hop();
@@ -373,13 +394,16 @@ fn the_time_response_follows_attack_and_release() {
         let let_go = when(2.0, &|v| v <= 0.5 * full);
         let fall = when(2.0, &|v| v <= 0.1 * full);
         println!(
-            "  attack {att:>4} ms release {rel:>4} ms: held {full:.1} dB; half of it {half:.0} ms after the onset, 90 % {rise:.0} ms; half let go {let_go:.0} ms after the end, 90 % {fall:.0} ms"
+            "  {q:?}, attack {att:>4} ms release {rel:>4} ms: held {full:.1} dB; half of it {half:.0} ms after the onset, 90 % {rise:.0} ms; half let go {let_go:.0} ms after the end, 90 % {fall:.0} ms"
         );
         assert!(full > 6.0, "the tone is turned down: {full}");
         assert!(half < 20.0 + 2.0 * att, "half at {half} ms, attack {att}");
-        assert!(rise < 60.0 + 3.0 * att, "90 % at {rise} ms, attack {att}");
+        assert!(rise < 40.0 + 3.0 * att, "90 % at {rise} ms, attack {att}");
+        if att == 1.0 && q == Quality::Standard {
+            assert!(rise < 25.0, "90 % within the frame: {rise} ms");
+        }
         assert!(
-            fall < 40.0 + 2.5 * rel,
+            fall < 80.0 + 2.5 * rel,
             "let go at {fall} ms, release {rel}"
         );
         // Before the tone, nothing.
@@ -579,7 +603,7 @@ fn a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is() {
             (800.0, 2_000.0),
             (2_600.0, 3_400.0),
             (5_000.0, 15_000.0),
-            (400.0, 800.0),
+            (150.0, 800.0),
         ];
         let c = changes(
             &mut unit(&strong),
@@ -591,12 +615,98 @@ fn a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is() {
             &bands,
         );
         println!(
-            "  {f0} Hz {q:?} strong: the peak {:+.2}, 800-2k {:+.2}, 5-15k {:+.2}; 400-800 {:+.2} (low partials: the focus decides)",
+            "  {f0} Hz {q:?} strong: the peak {:+.2}, 800-2k {:+.2}, 5-15k {:+.2}; under 800 Hz (the low partials) {:+.2}",
             c[1], c[0], c[2], c[3]
         );
         assert!(
-            c[1] < -2.0 && c[0].abs() < 0.5 && c[2].abs() < 0.5,
+            c[1] < -2.0 && c[0].abs() < 0.5 && c[2].abs() < 0.5 && c[3].abs() <= 0.5,
             "{f0} {q:?} strong: {c:?}"
         );
+    }
+}
+
+#[test]
+fn a_broad_peak_on_a_steep_slope_is_found() {
+    // A Q 4, +6 dB peak at 3 kHz on pink noise rolled off at 12 dB an octave from 1 kHz.
+    let n = (8.0 * SR) as usize;
+    let mut x = pink(n, 7, 0.3);
+    for _ in 0..2 {
+        let a = 1.0 - math::exp(-std::f32::consts::TAU * 1_000.0 / SR);
+        let mut z = 0.0f32;
+        for v in x.iter_mut() {
+            z += a * (*v - z);
+            *v = z;
+        }
+    }
+    let plain = x.clone();
+    peaking(&mut x, 3_000.0, 4.0, 6.0);
+    let s = LenisSettings {
+        depth: 1.0,
+        mode: Mode::Hard,
+        ..LenisSettings::default()
+    };
+    // The excess the detector reads at the peak.
+    let mut u = unit(&s);
+    let hop = u.geometry().hop();
+    let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
+    let (mut l, mut r) = (x.clone(), x.clone());
+    let mut seen = vec![];
+    for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
+        u.process(a, b);
+        if i * hop > SR as usize {
+            seen.push(u.scratch.excess[k3]);
+        }
+    }
+    let excess = seen.iter().sum::<f32>() / seen.len() as f32;
+    let bands = [(2_600.0, 3_400.0), (1_000.0, 1_800.0), (5_500.0, 9_000.0)];
+    let c = changes(&mut unit(&s), &(x.clone(), x), &bands);
+    let p = changes(&mut unit(&s), &(plain.clone(), plain), &bands);
+    println!(
+        "a Q 4, +6 dB peak on a 12 dB/octave slope: excess {excess:+.1} dB; Hard 100 % cuts it {:+.2} dB (1-1.8 kHz {:+.2}, 5.5-9 kHz {:+.2}); the slope alone {:+.2} / {:+.2} / {:+.2}",
+        c[0], c[1], c[2], p[0], p[1], p[2]
+    );
+    assert!(excess >= 4.0, "{excess}");
+    assert!(c[0] < -2.5 && c[1].abs() < 0.5 && c[2].abs() < 0.5, "{c:?}");
+    assert!(p.iter().all(|v| v.abs() < 0.3), "the slope alone {p:?}");
+}
+
+#[test]
+fn an_inharmonic_ring_among_low_partials_is_still_cut() {
+    // A 220 Hz note and a ring at 550 Hz (no partial of it), 10 dB over the partials there.
+    let n = (6.0 * SR) as usize;
+    let mut x = harmonic(n, 220.0);
+    for (i, v) in x.iter_mut().enumerate() {
+        *v += 0.3 * math::sin(std::f32::consts::TAU * 550.0 * i as f32 / SR);
+    }
+    let strong = LenisSettings {
+        depth: 0.8,
+        selectivity: 0.25,
+        mode: Mode::Hard,
+        ..LenisSettings::default()
+    };
+    for q in [Quality::Standard, Quality::Precise] {
+        let s = LenisSettings {
+            quality: q,
+            ..strong
+        };
+        let c = changes(
+            &mut unit(&s),
+            &(x.clone(), x.clone()),
+            &[
+                (530.0, 570.0),
+                (200.0, 240.0),
+                (420.0, 460.0),
+                (640.0, 680.0),
+            ],
+        );
+        println!(
+            "  {q:?}: the ring {:+.2} dB; the partials at 220, 440, 660 Hz {:+.2} / {:+.2} / {:+.2}",
+            c[0], c[1], c[2], c[3]
+        );
+        assert!(c[0] < -2.0, "{q:?}: {c:?}");
+        if q == Quality::Precise {
+            // Resolved, the partials beside it are kept.
+            assert!(c[1..].iter().all(|v| v.abs() < 1.0), "{c:?}");
+        }
     }
 }
