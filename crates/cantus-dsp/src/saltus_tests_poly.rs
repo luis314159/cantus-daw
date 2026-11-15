@@ -1,6 +1,9 @@
 //! Saltus measured, continued: the poly engine on chords (a synthetic triad, and the
 //! reference guitar's real strums when the files are there), and the CPU of every mode.
 
+// Settings read clearer as the defaults and what a test changes.
+#![allow(clippy::field_reassign_with_default)]
+
 use super::tests::{every_setting, material, run, SR};
 use super::tests_measure::{cents, peak_hz, shift_settings, through};
 use super::*;
@@ -43,7 +46,7 @@ fn power(y: &[f32]) -> (Vec<f64>, f64) {
     let mut im = vec![0.0f32; n];
     fft.run(&mut re, &mut im, false);
     let p = (0..n / 2)
-        .map(|k| (re[k] as f64).powi(2) + (im[k] as f64).powi(2))
+        .map(|k| (re[k] as f64) * (re[k] as f64) + (im[k] as f64) * (im[k] as f64))
         .collect();
     (p, SR as f64 / n as f64)
 }
@@ -203,7 +206,7 @@ fn the_poly_engine_moves_a_real_guitar_chord() {
         let mean = pairs.iter().map(|(a, b)| b - a).sum::<f32>() / n;
         let rms = (pairs
             .iter()
-            .map(|(a, b)| (b - a - mean).powi(2))
+            .map(|(a, b)| (b - a - mean) * (b - a - mean))
             .sum::<f32>()
             / n)
             .sqrt();

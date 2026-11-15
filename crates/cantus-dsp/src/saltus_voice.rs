@@ -31,19 +31,10 @@ const SILENCE_DB: f32 = -90.0;
 const SNAP: f32 = 1e-6;
 
 /// The notes held on the slot's MIDI source, oldest first.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Keys {
     notes: [u8; 32],
     len: usize,
-}
-
-impl Default for Keys {
-    fn default() -> Self {
-        Keys {
-            notes: [0; 32],
-            len: 0,
-        }
-    }
 }
 
 impl Keys {

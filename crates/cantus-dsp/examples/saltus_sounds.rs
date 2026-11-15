@@ -125,7 +125,11 @@ fn scale_peak(x: &mut [f32], db: f32) {
 }
 
 fn rms(s: &Stereo) -> f32 {
-    let e: f64 = s.0.iter().chain(&s.1).map(|v| (*v as f64).powi(2)).sum();
+    let e: f64 =
+        s.0.iter()
+            .chain(&s.1)
+            .map(|v| (*v as f64) * (*v as f64))
+            .sum();
     (e / (s.0.len() + s.1.len()) as f64).sqrt() as f32
 }
 
@@ -393,7 +397,8 @@ fn bass(out: &Path, save: &mut Save) {
     let mut oct = d;
     oct.mode = Mode::Octave;
     oct.dry = 1.0;
-    let list: [(&str, (f32, f32, f32), OctaveStyle, &str); 4] = [
+    type Row = (&'static str, (f32, f32, f32), OctaveStyle, &'static str);
+    let list: [Row; 4] = [
         (
             "01-octave-down-analog",
             (0.8, 0.0, 0.0),

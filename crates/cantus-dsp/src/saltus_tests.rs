@@ -2,6 +2,9 @@
 //! block-size independence at tolerance 0, exact rest (four twins), finite at extremes,
 //! and the MIDI notes at their sample.
 
+// Settings read clearer as the defaults and what a test changes.
+#![allow(clippy::field_reassign_with_default)]
+
 use super::*;
 use crate::pitch::testkit::{self, Noise, Vowel};
 

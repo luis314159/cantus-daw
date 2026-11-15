@@ -4,6 +4,9 @@
 //! melody, the whammy's glide without zipper, the poly engine on chords, and the CPU per
 //! mode. Each prints what it measured (`--nocapture`); the bounds are what it holds.
 
+// Settings read clearer as the defaults and what a test changes.
+#![allow(clippy::field_reassign_with_default)]
+
 use super::tests::{pluck_at, run, SR};
 use super::*;
 use crate::pitch::testkit::{self, measured_f0, Vowel};
@@ -481,8 +484,8 @@ fn a_shifted_voice_keeps_its_level() {
     let x = testkit::voice(SR, 1.2, Vowel::A, 0.5, |_| f0);
     let from = (0.3 * SR) as usize;
     let level = |v: &[f32]| {
-        let e: f64 = v.iter().map(|s| (*s as f64).powi(2)).sum();
-        (10.0 * (e / v.len() as f64).log10()) as f32
+        let e: f64 = v.iter().map(|s| (*s as f64) * (*s as f64)).sum();
+        (10.0 * math::log10(e / v.len() as f64)) as f32
     };
     let dry = level(&x[from..]);
     let mut line = String::new();
