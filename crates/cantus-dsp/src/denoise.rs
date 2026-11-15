@@ -161,7 +161,12 @@ pub fn denoise_channel(x: &[f32], noise: &[f32], p: &Params) -> Vec<f32> {
 /// `prev` (the last frame's, updated) — up at once, so an onset is never dulled, down
 /// slowly. What keeps the musical noise of a per-bin gain down; shared with Purus's
 /// de-reverb (fx-e:purus).
-pub fn smooth_gains(raw: &[f32], prev: &mut [f32], smoothing: f32, mut apply: impl FnMut(usize, f32)) {
+pub fn smooth_gains(
+    raw: &[f32],
+    prev: &mut [f32],
+    smoothing: f32,
+    mut apply: impl FnMut(usize, f32),
+) {
     let n = raw.len();
     let fall = 0.6 * smoothing;
     // Over frequency: three bins, as far as smoothing asks.
