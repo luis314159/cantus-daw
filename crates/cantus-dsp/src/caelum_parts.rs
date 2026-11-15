@@ -245,7 +245,11 @@ mod tests {
         let mut e_in = 0.0f64;
         let mut e_out = 0.0f64;
         for i in 0..20_000 {
-            let x = if i < 500 { ((i * 7919) % 97) as f32 / 97.0 - 0.5 } else { 0.0 };
+            let x = if i < 500 {
+                ((i * 7919) % 97) as f32 / 97.0 - 0.5
+            } else {
+                0.0
+            };
             let y = a.tick(x, 0.7, 0.0, false);
             e_in += (x as f64) * (x as f64);
             e_out += (y as f64) * (y as f64);

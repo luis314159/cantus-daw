@@ -69,8 +69,10 @@ pub const DECAY_MAX_S: f32 = 60.0;
 const LEVEL_MAX_S: f32 = 30.0;
 /// The governor's ceiling: the wet's RMS, linear (−6 dBFS).
 const CEILING_RMS: f32 = 0.5;
-/// The decay an infinite tank's level is set for, s: it grows by what it is fed.
+/// An infinite tank's level: an 8 s tank's, 8 dB down — it keeps everything it is fed,
+/// so a bar or two of playing piles up to where an 8 s tail would stand.
 const LEVEL_INFINITE_S: f32 = 8.0;
+const LEVEL_INFINITE_TRIM: f32 = 0.4;
 /// Calibration of the wet's level (see [`late_gain`]), measured on pink noise.
 const LATE_CAL: f32 = 0.89;
 /// Octave centres the meter reports the achieved decay at, Hz.
@@ -388,17 +390,27 @@ impl Caelum {
             for (a, hz) in self.meter.achieved.iter_mut().zip(OCTAVES) {
                 *a = d.achieved_t60(hz);
             }
-            let t = if s.infinite { LEVEL_INFINITE_S } else { s.decay_s };
-            let lg = late_gain(fs, d.lines, d.mean_loop(), t);
+            let t = if s.infinite {
+                LEVEL_INFINITE_S
+            } else {
+                s.decay_s
+            };
+            let lg = late_gain(fs, d.lines, d.mean_loop(), t)
+                * if s.infinite { LEVEL_INFINITE_TRIM } else { 1.0 };
             self.late_gain.target = lg;
             // The ceiling, in the lines' summed energy: a wet RMS of `CEILING_RMS` on a side
             // is `N · rms² / gain²` of it (each output row sees 1/N of the lines).
-            self.tank
-                .set_ceiling(d.lines as f32 * CEILING_RMS * CEILING_RMS / (lg * lg).max(1e-12));
+            // The early taps add their share to every output row.
+            let rows = 1.0 + tank::EARLY_GAIN * tank::EARLY_GAIN;
+            self.tank.set_ceiling(
+                d.lines as f32 * CEILING_RMS * CEILING_RMS / (lg * lg * rows).max(1e-12),
+            );
         }
         self.tank.set_infinite(s.infinite);
-        self.tank
-            .set_modulation(s.mod_depth.clamp(0.0, 1.0) * tank::MAX_DEPTH_MS * ms, s.mod_rate_hz.clamp(0.02, 10.0));
+        self.tank.set_modulation(
+            s.mod_depth.clamp(0.0, 1.0) * tank::MAX_DEPTH_MS * ms,
+            s.mod_rate_hz.clamp(0.02, 10.0),
+        );
         self.tank.set_diffusion(0.7 * s.diffusion.clamp(0.0, 1.0));
         self.tank.set_shimmer(&s.shimmer());
         self.tank.set_freeze(s.freeze);
@@ -451,9 +463,10 @@ impl Caelum {
             } else {
                 0
             };
-            let drain = self.in_silent > self.input.span() + diffusers && self.tank.quiet_long();
+            let arrived = self.in_silent > self.input.span() + diffusers;
+            let drain = arrived && self.tank.quiet_long();
             let (il, ir) = self.input.tick(dl, dr, drain);
-            let (tl, tr) = self.tank.tick(il, ir, drain);
+            let (tl, tr) = self.tank.tick(il, ir, !arrived, drain);
             let lg = self.late_gain.next(kg, 1e-7);
             let (mut l, mut r) = (tl * lg, tr * lg);
             if self.lc_on {

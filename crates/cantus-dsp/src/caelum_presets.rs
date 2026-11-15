@@ -258,16 +258,56 @@ pub fn factory() -> Vec<Preset> {
         settings,
     };
     vec![
-        p("Octave Shimmer", "A wide space whose tail climbs an octave.", octave_shimmer()),
-        p("Fifth Cathedral", "A stone nave, an octave and a fifth above.", fifth_cathedral()),
-        p("Bloom Pad", "The sound swells into the space over two seconds.", bloom_pad()),
-        p("Freeze Swell", "Endless and swelling; Freeze holds a chord.", freeze_swell()),
-        p("Ducked Vocal Space", "Steps aside while the voice sings.", ducked_vocal()),
+        p(
+            "Octave Shimmer",
+            "A wide space whose tail climbs an octave.",
+            octave_shimmer(),
+        ),
+        p(
+            "Fifth Cathedral",
+            "A stone nave, an octave and a fifth above.",
+            fifth_cathedral(),
+        ),
+        p(
+            "Bloom Pad",
+            "The sound swells into the space over two seconds.",
+            bloom_pad(),
+        ),
+        p(
+            "Freeze Swell",
+            "Endless and swelling; Freeze holds a chord.",
+            freeze_swell(),
+        ),
+        p(
+            "Ducked Vocal Space",
+            "Steps aside while the voice sings.",
+            ducked_vocal(),
+        ),
         p("Sub Cloud", "A dark cloud an octave below.", sub_cloud()),
-        p("Endless Ascent", "Infinite; the octaves climb and fade into the top.", endless_ascent()),
-        p("Glass Plate", "A bright small plate with a hint of shimmer.", glass_plate()),
-        p("Fourth Rise", "A fourth and an octave above anything.", fourth_rise()),
-        p("Black Sky", "A minute of dark space, no shimmer.", black_sky()),
-        p("Light Shimmer", "Eight lines, half the cost.", light_shimmer()),
+        p(
+            "Endless Ascent",
+            "Infinite; the octaves climb and fade into the top.",
+            endless_ascent(),
+        ),
+        p(
+            "Glass Plate",
+            "A bright small plate with a hint of shimmer.",
+            glass_plate(),
+        ),
+        p(
+            "Fourth Rise",
+            "A fourth and an octave above anything.",
+            fourth_rise(),
+        ),
+        p(
+            "Black Sky",
+            "A minute of dark space, no shimmer.",
+            black_sky(),
+        ),
+        p(
+            "Light Shimmer",
+            "Eight lines, half the cost.",
+            light_shimmer(),
+        ),
     ]
 }

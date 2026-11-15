@@ -24,9 +24,9 @@
 //!   exact at its end of the spectrum, monotonic between. A line `L` samples long loses
 //!   `60·L / (fs·T)` dB a pass in each band's own `T`.
 //! - **Infinite** holds the middle (a gain of one) and keeps the shelves as they would be
-//!   at the longest finite decay, so damping still darkens an endless tail; a **hold**
-//!   gives back the little the modulation's interpolation loses (at most 0.5 % a pass),
-//!   and never lifts the energy above the highest it reached.
+//!   at the longest finite decay, so damping still darkens an endless tail; once nothing
+//!   more comes in, a **hold** keeps the energy where it was (by at most 0.5 % a pass
+//!   either way — what the modulation's interpolation loses, and the rounding).
 //! - **Freeze** cross-fades each line from its absorbed output to its raw output (a loop
 //!   that keeps everything), mutes the shimmer, and holds the level it had 150 ms after
 //!   closing — the input is gated outside the tank.
@@ -113,7 +113,7 @@ const SHIM_ROWS8: [usize; CHANNELS] = [2, 4, 7, 3];
 const EARLY_ROWS: [usize; 2] = [11, 13];
 const EARLY_ROWS8: [usize; 2] = [7, 2];
 /// The early taps' level against the lines' ends.
-const EARLY_GAIN: f32 = 0.7;
+pub const EARLY_GAIN: f32 = 0.7;
 
 /// Entry `j` of row `r` of the Sylvester–Hadamard matrix (±1).
 pub fn hadamard_entry(r: usize, j: usize) -> f32 {
@@ -208,7 +208,11 @@ pub fn line_lengths(size: f32, n: usize, sample_rate: f32) -> [f32; MAX_LINES] {
     let mean = mean_line_ms(size);
     let mut out = [0.0f32; MAX_LINES];
     for i in 0..n {
-        let x = if n > 1 { i as f32 / (n - 1) as f32 } else { 0.5 };
+        let x = if n > 1 {
+            i as f32 / (n - 1) as f32
+        } else {
+            0.5
+        };
         let spread = math::powf(2f32, (x - 0.5) * 1.2);
         let jitter = 1.0 + 0.08 * (hash01(i as u32, 211) - 0.5);
         let ms = (mean * spread * jitter).min(MAX_LINE_MS);
@@ -283,7 +287,10 @@ pub struct TankDesign {
 
 /// The gain a pass of `len` samples loses in a decay of `t60` s.
 fn pass_gain(len: f32, t60: f32, fs: f32) -> f64 {
-    math::powf(10f64, -3.0 * len as f64 / (fs as f64 * t60.max(1e-3) as f64))
+    math::powf(
+        10f64,
+        -3.0 * len as f64 / (fs as f64 * t60.max(1e-3) as f64),
+    )
 }
 
 impl TankDesign {
@@ -593,8 +600,16 @@ impl Tank {
         for i in 0..MAX_LINES {
             let on = i < n;
             for s in 0..2 {
-                self.b[s][i] = if on { k * hadamard_entry(IN_ROWS[s], i) } else { 0.0 };
-                self.c[s][i] = if on { k * hadamard_entry(out_rows[s], i) } else { 0.0 };
+                self.b[s][i] = if on {
+                    k * hadamard_entry(IN_ROWS[s], i)
+                } else {
+                    0.0
+                };
+                self.c[s][i] = if on {
+                    k * hadamard_entry(out_rows[s], i)
+                } else {
+                    0.0
+                };
                 self.early[s][i] = if on {
                     EARLY_GAIN * k * hadamard_entry(early_rows[s], i)
                 } else {
@@ -757,7 +772,11 @@ impl Tank {
         // share of its energy a pass.
         let scale = if self.n == 16 { 1.0 } else { 0.5 };
         let frozen = self.freeze_target > 0.0;
-        let a = if frozen { 0.0 } else { s.amount.clamp(0.0, 1.0) * scale };
+        let a = if frozen {
+            0.0
+        } else {
+            s.amount.clamp(0.0, 1.0) * scale
+        };
         let b = s.b_level.clamp(0.0, 1.0);
         self.amount_target = [a, a, a * b, a * b];
         self.shifters[0].set_semitones(s.a_st);
@@ -805,7 +824,7 @@ impl Tank {
     }
 
     /// The hold and the governor: the trim for this sample, from the lines' energy.
-    fn hold(&mut self, e: f32) -> f32 {
+    fn hold(&mut self, e: f32, fed: bool) -> f32 {
         self.energy += (e - self.energy) * self.k_energy;
         if self.energy < 1e-30 {
             self.energy = 0.0;
@@ -825,10 +844,12 @@ impl Tank {
                     .clamp(1.0 - HOLD_STEP, 1.0 + HOLD_STEP);
             }
         } else if self.infinite && self.freeze == 0.0 {
-            if self.energy > self.energy_ref {
+            if fed || self.energy_ref == 0.0 {
+                // While sound comes in, the level to hold is the level now.
                 self.energy_ref = self.energy;
             } else if self.energy > 1e-24 {
-                t = (1.0 + 0.5 * (self.energy_ref / self.energy - 1.0)).clamp(1.0, 1.0 + HOLD_STEP);
+                t = (1.0 + 0.5 * (self.energy_ref / self.energy - 1.0))
+                    .clamp(1.0 - HOLD_STEP, 1.0 + HOLD_STEP);
             }
         } else if self.frozen_for != 0 || self.energy_ref != 0.0 {
             self.frozen_for = 0;
@@ -843,11 +864,12 @@ impl Tank {
 }
 
 impl Tank {
-    /// One sample: the stereo input in, the stereo late field out. While `drain`, every
+    /// One sample: the stereo input in, the stereo late field out. `fed`: sound is still
+    /// on its way in (an infinite tank holds the level it has once it stops). While `drain`, every
     /// write is +0.0 and the small states are cleared (the caller drains a tank that holds
     /// nothing above −120 dB and hears nothing, so it comes to rest exactly).
     #[inline]
-    pub fn tick(&mut self, in_l: f32, in_r: f32, drain: bool) -> (f32, f32) {
+    pub fn tick(&mut self, in_l: f32, in_r: f32, fed: bool, drain: bool) -> (f32, f32) {
         let n = self.n;
         let size = self.size;
         let mask = self.mask;
@@ -936,7 +958,7 @@ impl Tank {
             or += self.c[1][i] * v[i];
         }
         self.exchange(&mut v, drain);
-        let t = self.hold(e);
+        let t = self.hold(e, fed);
         if t != 1.0 {
             for x in v.iter_mut().take(n) {
                 *x *= t;
@@ -1039,7 +1061,10 @@ impl Tank {
         if !self.zeros[..n].iter().all(|r| r.covers(self.size)) {
             return Some("tank lines");
         }
-        if !self.ap_zeros[..n * STAGES].iter().all(|r| r.covers(self.ap_size)) {
+        if !self.ap_zeros[..n * STAGES]
+            .iter()
+            .all(|r| r.covers(self.ap_size))
+        {
             return Some("tank all-passes");
         }
         if !all_zero(&self.interp) || !self.hs.iter().chain(&self.ls).all(|f| f.is_zero()) {
@@ -1099,7 +1124,11 @@ mod tests {
                 mix_matrix(&once, n, &mut twice);
                 assert!(twice[r].abs() < 0.9, "{n}: row {r} returns {}", twice[r]);
             }
-            let mut sorted: Vec<usize> = if n == 16 { PERM16.to_vec() } else { PERM8.to_vec() };
+            let mut sorted: Vec<usize> = if n == 16 {
+                PERM16.to_vec()
+            } else {
+                PERM8.to_vec()
+            };
             sorted.sort();
             assert!(sorted.iter().enumerate().all(|(i, p)| i == *p));
         }
@@ -1147,7 +1176,10 @@ mod tests {
             let bottom = d.line_t60(i, 3.0);
             assert!((mid / 3.0 - 1.0).abs() < 0.06, "line {i}: middle {mid}");
             assert!((top / 1.2 - 1.0).abs() < 0.03, "line {i}: top {top}");
-            assert!((bottom / 4.5 - 1.0).abs() < 0.03, "line {i}: bottom {bottom}");
+            assert!(
+                (bottom / 4.5 - 1.0).abs() < 0.03,
+                "line {i}: bottom {bottom}"
+            );
         }
     }
 

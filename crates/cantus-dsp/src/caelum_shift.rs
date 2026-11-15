@@ -87,7 +87,8 @@ impl Shifter {
     /// A shifter whose heads start at `origin` (2³² a turn).
     pub fn with_origin(sample_rate: f32, origin: u32) -> Self {
         let grain = (GRAIN_MS * 0.001 * sample_rate).round();
-        let size = (grain as usize + (JITTER_MS * 0.001 * sample_rate) as usize + 8).next_power_of_two();
+        let size =
+            (grain as usize + (JITTER_MS * 0.001 * sample_rate) as usize + 8).next_power_of_two();
         Shifter {
             buf: vec![0.0; size],
             mask: size - 1,
@@ -156,7 +157,8 @@ impl Shifter {
                 self.epoch[k] = epoch;
                 // Whole samples: the interpolation loses what it loses at the same fraction
                 // in every grain.
-                self.base[k] = (self.jitter * draw(epoch, (k as u32).wrapping_add(self.origin))).floor();
+                self.base[k] =
+                    (self.jitter * draw(epoch, (k as u32).wrapping_add(self.origin))).floor();
             }
             let win = (1.0 - t.cos(ph)) * (1.0 / 3.0);
             let d = 1.0 + self.base[k] + self.grain * (ph as f32 * (1.0 / 4_294_967_296.0));
@@ -188,9 +190,7 @@ impl Shifter {
 
     /// At rest: the line all +0.0 and the normaliser empty.
     pub fn is_zero(&self) -> bool {
-        self.zeros.covers(self.buf.len())
-            && self.p_in.to_bits() == 0
-            && self.p_out.to_bits() == 0
+        self.zeros.covers(self.buf.len()) && self.p_in.to_bits() == 0 && self.p_out.to_bits() == 0
     }
 
     /// `n` samples of silence not run: the write position and the heads' phase move as
@@ -267,7 +267,12 @@ mod tests {
         let t = SineTable::new();
         let mut worst_cents = 0.0f32;
         let mut worst_share = 1.0f32;
-        for (st, ratio) in [(12.0f32, 2.0f32), (7.0, 1.498_307), (-12.0, 0.5), (5.0, 1.334_84)] {
+        for (st, ratio) in [
+            (12.0f32, 2.0f32),
+            (7.0, 1.498_307),
+            (-12.0, 0.5),
+            (5.0, 1.334_84),
+        ] {
             for f in [220.0f32, 440.0, 523.25, 1_000.0] {
                 let mut s = Shifter::new(FS);
                 s.set_semitones(st);
@@ -284,7 +289,10 @@ mod tests {
                 worst_share = worst_share.min(share);
             }
         }
-        eprintln!("worst: {worst_cents:.1} cents off, {:.0} % within 25 cents", worst_share * 100.0);
+        eprintln!(
+            "worst: {worst_cents:.1} cents off, {:.0} % within 25 cents",
+            worst_share * 100.0
+        );
         assert!(worst_cents < 50.0);
         assert!(worst_share > 0.5);
     }
@@ -306,7 +314,8 @@ mod tests {
             })
             .collect();
         let y: Vec<f32> = x.iter().map(|v| s.tick(*v, &t)).collect();
-        let p = |v: &[f32]| v.iter().map(|a| (*a as f64) * (*a as f64)).sum::<f64>() / v.len() as f64;
+        let p =
+            |v: &[f32]| v.iter().map(|a| (*a as f64) * (*a as f64)).sum::<f64>() / v.len() as f64;
         let ratio_db = 10.0 * math::log10(p(&y[24_000..]) / p(&x[24_000..]));
         let mut lo = f64::MAX;
         let mut hi = f64::MIN;
@@ -315,7 +324,10 @@ mod tests {
             lo = lo.min(d);
             hi = hi.max(d);
         }
-        eprintln!("power {ratio_db:+.2} dB; 20 ms windows within {:.2} dB", hi - lo);
+        eprintln!(
+            "power {ratio_db:+.2} dB; 20 ms windows within {:.2} dB",
+            hi - lo
+        );
         assert!(ratio_db.abs() < 0.3);
         assert!(hi - lo < 1.5);
     }

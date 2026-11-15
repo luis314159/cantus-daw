@@ -108,7 +108,11 @@ fn mix_zero_is_a_null_to_the_bit() {
         let (ol, or) = render(&mut c, &l, &r, 256, None, None);
         assert!(same(&ol, &l) && same(&or, &r), "{name}: not a null");
     }
-    assert_eq!(CaelumSettings::default().mix, 0.0, "the defaults are a null");
+    assert_eq!(
+        CaelumSettings::default().mix,
+        0.0,
+        "the defaults are a null"
+    );
 }
 
 #[test]
@@ -206,7 +210,12 @@ fn twins(name: &str, s: &CaelumSettings, cap_s: f32) -> usize {
         assert_eq!(a.at_rest(), b.at_rest());
     }
     // The last block that carried anything, before the drain left only zeros.
-    let last = tail.iter().rev().find(|p| **p > 0.0).copied().unwrap_or(0.0);
+    let last = tail
+        .iter()
+        .rev()
+        .find(|p| **p > 0.0)
+        .copied()
+        .unwrap_or(0.0);
     eprintln!(
         "{name}: at rest after {:.2} s of silence; the last sound before it {:.1} dBFS",
         silent as f32 / FS,
@@ -216,7 +225,10 @@ fn twins(name: &str, s: &CaelumSettings, cap_s: f32) -> usize {
     let k = 12_345;
     let z = vec![0.0f32; k];
     let (zl, zr) = render(&mut a, &z, &z, 100, None, None);
-    assert!(zl.iter().chain(&zr).all(|v| *v == 0.0), "{name}: silence gave sound");
+    assert!(
+        zl.iter().chain(&zr).all(|v| *v == 0.0),
+        "{name}: silence gave sound"
+    );
     assert!(a.at_rest(), "{name}: silence left it not at rest");
     let total = l.len() + silent + k;
     d.skip(k);
