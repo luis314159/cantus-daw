@@ -188,16 +188,35 @@ pub fn design(lo: f32, hi: f32, m: usize, sr: f32) -> BandDesign {
     d
 }
 
-/// The bank's band edges: `n` centres from `lo` to `hi` Hz, each `width` spacings wide.
-/// Returns (centre, low edge, high edge) for band `i`.
-pub fn layout(i: usize, n: usize, lo: f32, hi: f32, width: f32) -> (f32, f32, f32) {
+/// The narrowest a band may be, Hz. A band-pass's group delay grows as its bandwidth
+/// shrinks (about `M / (π · B)` at its centre): a 7 Hz band at 100 Hz (64 bands) smears a
+/// syllable over a tenth of a second. Measured on the speech-like phrase (the NCM's
+/// 125 Hz octave, [`super::measure`]): 0 Hz → 0.63 (32 bands) and 0.32 (64), 30 → 0.58 and
+/// 0.62, 45 → 0.82 and 0.82, 60 → 0.88 and 0.90; 50 keeps the bass's resolution with most
+/// of the gain. A band widened by the floor is turned down by the square root of how much
+/// wider it is, so overlapping bass bands do not add up louder.
+pub const MIN_BAND_HZ: f32 = 50.0;
+
+/// The bank's band edges: `n` centres from `lo` to `hi` Hz, each `width` spacings wide and
+/// at least `min_hz` wide. Returns (centre, low edge, high edge) for band `i`.
+pub fn layout_min(i: usize, n: usize, lo: f32, hi: f32, width: f32, min_hz: f32) -> (f32, f32, f32) {
     let n = n.clamp(MIN_BANDS, MAX_BANDS);
     let (lo, hi) = (lo.max(10.0), hi.max(lo * 1.5));
     let span = math::log2(hi / lo);
     let step = span / (n - 1) as f32;
     let c = math::log2(lo) + step * i as f32;
-    let half = 0.5 * step * width.clamp(0.25, 3.0);
+    let mut half = 0.5 * step * width.clamp(0.25, 3.0);
+    if min_hz > 0.0 {
+        // The half-width in octaves of a band `min_hz` wide at this centre: c·(2^h − 2^−h).
+        let x = 0.5 * min_hz / math::exp2(c);
+        half = half.max(math::log2(x + (x * x + 1.0).sqrt()));
+    }
     (math::exp2(c), math::exp2(c - half), math::exp2(c + half))
+}
+
+/// [`layout_min`] with no floor on the width.
+pub fn layout(i: usize, n: usize, lo: f32, hi: f32, width: f32) -> (f32, f32, f32) {
+    layout_min(i, n, lo, hi, width, 0.0)
 }
 
 /// A bank of `n` bands × `M` sections, one channel.

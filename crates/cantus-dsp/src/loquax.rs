@@ -346,6 +346,9 @@ pub struct Loquax {
     noise_n: i64,
     /// Samples since the last retune while a tuning glide moves.
     retune_n: u32,
+    /// What the analysis and synthesis banks were last designed for.
+    key_a: [u32; 7],
+    key_s: [u32; 6],
     tuning_moving: bool,
     engaged: bool,
     /// The levels the display reads (the last sample of the last block).
@@ -381,6 +384,8 @@ impl Loquax {
             robot_open: false,
             noise_n: 0,
             retune_n: 0,
+            key_a: [u32::MAX; 7],
+            key_s: [u32::MAX; 6],
             tuning_moving: false,
             engaged: false,
             amp: [0.0; MAX_BANDS],

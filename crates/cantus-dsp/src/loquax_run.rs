@@ -1,6 +1,6 @@
 //! Loquax's sample loop and the banks' tuning (a child of [`super`]).
 
-use super::bank::{design, layout, BandDesign, CENTRE_MAX, MAX_BANDS};
+use super::bank::{design, layout_min, BandDesign, CENTRE_MAX, MAX_BANDS, MIN_BAND_HZ};
 use super::carrier::NoteEvent;
 use super::{t, Loquax, Source, FLAT_CAP, FLAT_FLOOR, MAKEUP, NOISE_SEED, RETUNE};
 use crate::dynfx_follow::{sane, to_db, Times};
@@ -13,7 +13,9 @@ const NOISE_LEVEL: f32 = 0.3;
 const ENV_SETTLE: f32 = 1e-14;
 
 impl Loquax {
-    /// The banks, the followers' times and the bands' gains for the glides as they are.
+    /// The banks, the followers' times and the bands' gains for the glides as they are. A
+    /// bank whose layout has not moved is not redesigned (a formant glide retunes only the
+    /// synthesis bank).
     pub(super) fn retune(&mut self) {
         let n = self.n;
         let m = self.m.max(1);
@@ -24,20 +26,44 @@ impl Loquax {
         let shift = math::exp2(g.formant.value / 12.0);
         let (tilt, spread) = (g.tilt.value, g.spread.value);
         let s = &self.set;
+        let key_a = [
+            n as u32,
+            m as u32,
+            g.lo.value.to_bits(),
+            g.hi.value.to_bits(),
+            width.to_bits(),
+            s.attack_ms.to_bits(),
+            s.release_ms.to_bits(),
+        ];
+        let key_s = [key_a[0], key_a[1], key_a[2], key_a[3], key_a[4], g.formant.value.to_bits()];
+        let (redo_a, redo_s) = (key_a != self.key_a, key_s != self.key_s);
         let mut da = [BandDesign::default(); MAX_BANDS];
         let mut ds = [BandDesign::default(); MAX_BANDS];
         for b in 0..n {
-            let (c, el, eh) = layout(b, n, lo, hi, width);
-            da[b] = design(el, eh, m, sr);
+            let (c, el, eh) = layout_min(b, n, lo, hi, width, MIN_BAND_HZ);
+            // A band the floor widened, turned down by the root of the widening.
+            let (_, nl, nh) = layout_min(b, n, lo, hi, width, 0.0);
+            let wide = if eh / el > nh / nl {
+                (math::log2(nh / nl) / math::log2(eh / el)).sqrt()
+            } else {
+                1.0
+            };
             let cs = c * shift;
-            ds[b] = design(el * shift, eh * shift, m, sr);
-            ds[b].live = cs <= CENTRE_MAX * sr && cs >= 20.0;
-            self.centres_a[b] = da[b].centre;
-            self.centres_s[b] = if ds[b].live { ds[b].centre } else { cs };
-            // No band follows faster than half its period up or two periods down.
-            let att = s.attack_ms.clamp(0.1, 500.0).max(500.0 / c);
-            let rel = s.release_ms.clamp(1.0, 5_000.0).max(2_000.0 / c);
-            self.t_m[b] = Times::new(att, rel, sr);
+            if redo_a {
+                da[b] = design(el, eh, m, sr);
+                self.centres_a[b] = da[b].centre;
+                // No band follows faster than half its period up or two periods down.
+                let att = s.attack_ms.clamp(0.1, 500.0).max(500.0 / c);
+                let rel = s.release_ms.clamp(1.0, 5_000.0).max(2_000.0 / c);
+                // The follower runs on the square: half the time constant there is the
+                // time constant of the level heard.
+                self.t_m[b] = Times::new(0.5 * att, 0.5 * rel, sr);
+            }
+            if redo_s {
+                ds[b] = design(el * shift, eh * shift, m, sr);
+                ds[b].live = cs <= CENTRE_MAX * sr && cs >= 20.0;
+                self.centres_s[b] = if ds[b].live { ds[b].centre } else { cs };
+            }
             let db = s.band_db[b].clamp(-24.0, 12.0) + tilt * math::log2(cs / 1_000.0);
             let lvl = if db == 0.0 { 1.0 } else { math::db_to_gain(db) };
             let pan = if spread == 0.0 {
@@ -52,12 +78,18 @@ impl Loquax {
             } else {
                 ((1.0 - pan).sqrt(), (1.0 + pan).sqrt())
             };
-            self.gain_to[0][b] = lvl * pl;
-            self.gain_to[1][b] = lvl * pr;
+            self.gain_to[0][b] = lvl * pl * wide;
+            self.gain_to[1][b] = lvl * pr * wide;
         }
-        self.ana.tune(&da[..n], m);
-        for bank in &mut self.syn {
-            bank.tune(&ds[..n], m);
+        if redo_a {
+            self.ana.tune(&da[..n], m);
+            self.key_a = key_a;
+        }
+        if redo_s {
+            for bank in &mut self.syn {
+                bank.tune(&ds[..n], m);
+            }
+            self.key_s = key_s;
         }
     }
 
