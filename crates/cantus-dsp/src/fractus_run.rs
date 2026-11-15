@@ -7,6 +7,11 @@ use super::seq::Grid;
 use super::{t, Ev, Fractus, Module, Note, LANES};
 use crate::modfx_clock::{peak_db, peak_of, tel};
 
+/// A read and who it is.
+type Pick = (Id, Rd);
+/// The read an ending one fades into, and its weight.
+type Fade = (Id, Rd, f32);
+
 impl Fractus {
     fn grid(&self) -> Grid {
         Grid::of(&self.set, self.clock.tempo(), f64::from(self.sr))
@@ -178,7 +183,7 @@ impl Fractus {
     /// The read playing at `so` — the newest read event's (ties: the lower lane), the live
     /// signal without one — and, in its last `xfade` before its end, the read after it.
     #[inline]
-    fn choose(&self, evs: &[Option<Ev>; LANES], so: i64, c: &Ctx) -> ((Id, Rd), Option<(Id, Rd, f32)>) {
+    fn choose(&self, evs: &[Option<Ev>; LANES], so: i64, c: &Ctx) -> (Pick, Option<Fade>) {
         let mut win: Option<(usize, Ev)> = None;
         let mut run: Option<(usize, Ev)> = None;
         for m in Module::READS {
@@ -218,7 +223,14 @@ impl Fractus {
         (main, fade)
     }
 
-    fn read_stage(&mut self, evs: &[Option<Ev>; LANES], so: i64, n: i64, x: [f32; 2], c: &Ctx) -> [f32; 2] {
+    fn read_stage(
+        &mut self,
+        evs: &[Option<Ev>; LANES],
+        so: i64,
+        n: i64,
+        x: [f32; 2],
+        c: &Ctx,
+    ) -> [f32; 2] {
         let ((id, rd), fade) = self.choose(evs, so, c);
         self.read_lane = if id == Id::DRY { 0 } else { id.lane + 1 };
         self.reader.join(id, &rd, fade, c.xf);

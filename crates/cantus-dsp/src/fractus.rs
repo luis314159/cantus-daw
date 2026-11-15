@@ -58,8 +58,8 @@ use crate::lapsus::read::{History, Ring};
 use crate::modfx_clock::{Clock, Transport};
 use crate::modfx_line::Glide;
 pub use cloud::{Cloud, CloudSettings, GrainWindow, Scale};
-pub use fx::{CrushSettings, FilterKind, FilterSettings, GateSettings, PitchSettings};
 pub use fx::ThrowSettings;
+pub use fx::{CrushSettings, FilterKind, FilterSettings, GateSettings, PitchSettings};
 pub use read::{RepeatSettings, ReverseSettings, ShuffleSettings, TapeKind, TapeSettings};
 
 /// The unit's name: one constant, provisional.
@@ -234,8 +234,8 @@ impl Pattern {
     /// Paint a block on `lane`: a start at `from` and holds through `len` steps.
     pub fn block(&mut self, m: Module, from: usize, len: usize, amount: f32, prob: f32) {
         let l = &mut self.lanes[m.lane()];
-        for k in from..(from + len.max(1)).min(MAX_STEPS) {
-            l[k] = if k == from {
+        for (k, s) in l.iter_mut().enumerate().skip(from).take(len.max(1)) {
+            *s = if k == from {
                 Step::start(amount, prob)
             } else {
                 Step::HOLD
@@ -656,10 +656,10 @@ impl Fractus {
             r = r.max(f64::from(self.set.pitch.window_ms) * 0.001 * f64::from(self.sr) + 8.0);
         }
         if used(Module::Throw) {
-            // The echoes ring until they are flushed to zero, 400 dB down.
+            // The echoes ring until they are flushed to zero, 160 dB down.
             let t = &self.set.throw;
             let fb = f64::from(t.feedback.clamp(0.0, 0.95)).max(1e-6);
-            let echoes = (-20.0 / crate::math::log10(fb)).ceil().min(1_000.0);
+            let echoes = (-8.0 / crate::math::log10(fb)).ceil().min(1_000.0);
             r = r.max(t.time * spb * (echoes + 1.0));
         }
         if self.cloud.enabled() {

@@ -1,40 +1,448 @@
-//! Fractus measured (2).
+//! Fractus measured (2): notes at their samples, the rolls of the song, rest and skip, the
+//! cloud (seeded, frozen, pitched, its aliasing), the throw's echoes, the telemetry.
 
+#![allow(clippy::needless_range_loop, clippy::type_complexity)]
+
+use super::tests::{first_diff, line16, music, render, sine, unit, SR};
 use super::*;
+use crate::math;
+
+/// `render`, with notes (song sample, note) handed to each block at their offsets.
+fn render_notes(
+    u: &mut Fractus,
+    len: usize,
+    tempo: f64,
+    block: usize,
+    input: &dyn Fn(i64) -> [f32; 2],
+    notes: &[(i64, Note)],
+) -> Vec<f32> {
+    let mut l: Vec<f32> = (0..len).map(|i| input(i as i64)[0]).collect();
+    let mut r: Vec<f32> = (0..len).map(|i| input(i as i64)[1]).collect();
+    let mut at = 0;
+    while at < len {
+        let n = block.min(len - at);
+        u.set_transport(&Transport {
+            playing: true,
+            tempo_bpm: tempo,
+            samples: at as i64,
+        });
+        for &(s, note) in notes {
+            if s >= at as i64 && s < (at + n) as i64 {
+                u.note(s as usize - at, note);
+            }
+        }
+        u.process(&mut l[at..at + n], &mut r[at..at + n]);
+        at += n;
+    }
+    l
+}
+
+fn shut_gate(trigger: Trigger, quantise: bool) -> FractusSettings {
+    FractusSettings {
+        trigger,
+        quantise,
+        gate: GateSettings {
+            rate: 0.0,
+            ..GateSettings::default()
+        },
+        ..FractusSettings::default()
+    }
+}
+
+const GATE_KEY: u8 = 48 + Module::Gate as u8;
 
 #[test]
-fn debug_splatter() {
-    let tone = super::tests::sine(220.0);
-    let dry: Vec<f32> = (0..96_000).map(|i| tone(i as i64)[0]).collect();
-    eprintln!("dry splatter {:.1}", super::tests::splatter_db(&dry, 4_000.0, 0.5));
+fn a_note_plays_its_module_from_its_sample_at_every_block_size() {
+    let s = shut_gate(Trigger::Notes, false);
+    let notes = [
+        (1_234, Note::On(GATE_KEY, 100)),
+        (20_000, Note::Off(GATE_KEY)),
+    ];
+    let dry: Vec<f32> = (0..40_000).map(|i| music(i)[0]).collect();
+    let mut want = None;
+    for block in [1usize, 37, 64, 512] {
+        let mut u = unit(&s, &Pattern::EMPTY);
+        let l = render_notes(&mut u, 40_000, 120.0, block, &music, &notes);
+        assert_eq!(first_diff(&l, &dry), Some(1_234), "block {block}");
+        let last = l
+            .iter()
+            .zip(&dry)
+            .rposition(|(a, b)| a.to_bits() != b.to_bits());
+        assert_eq!(last, Some(20_000 + 96 - 1), "released over the join");
+        // The velocity is the amount: 100/127 of the way to silence.
+        let g = l[10_000] / dry[10_000];
+        assert!((g - (1.0 - 100.0 / 127.0)).abs() < 1e-4, "{g}");
+        match &want {
+            None => want = Some(l),
+            Some(w) => assert_eq!(first_diff(w, &l), None, "block {block}"),
+        }
+    }
 }
 
 #[test]
-fn debug_repeat_join() {
-    use super::tests::*;
-    let tone = sine(233.0);
-    let mut p = Pattern::EMPTY;
-    p.block(Module::Reverse, 0, 16, 1.0, 1.0);
+fn a_quantised_note_waits_for_the_next_line() {
+    let s = shut_gate(Trigger::Both, true);
+    let notes = [
+        (1_234, Note::On(GATE_KEY, 127)),
+        (20_000, Note::Off(GATE_KEY)),
+    ];
+    let mut u = unit(&s, &Pattern::EMPTY);
+    let l = render_notes(&mut u, 40_000, 120.0, 256, &music, &notes);
+    let dry: Vec<f32> = (0..40_000).map(|i| music(i)[0]).collect();
+    assert_eq!(first_diff(&l, &dry), Some(line16(1, 120.0) as usize));
+    let last = l
+        .iter()
+        .zip(&dry)
+        .rposition(|(a, b)| a.to_bits() != b.to_bits());
+    assert_eq!(last, Some(line16(4, 120.0) as usize - 1));
+}
+
+#[test]
+fn a_held_repeat_repeats_its_first_slice_for_as_long_as_it_is_held() {
     let s = FractusSettings {
+        trigger: Trigger::Notes,
+        quantise: false,
         repeat: RepeatSettings {
-            size: 0.125,
+            size: 0.25,
             ..RepeatSettings::default()
         },
         ..FractusSettings::default()
     };
-    let mut u = unit(&s, &p);
-    let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &tone);
-    let mut worst = (0usize, 0.0f32);
-    for i in 2..96_000 {
-        let d2 = (l[i] - 2.0 * l[i - 1] + l[i - 2]).abs();
-        if d2 > worst.1 {
-            worst = (i, d2);
+    let len = 12 * 48_000;
+    let notes = [(10_000, Note::On(48, 127))];
+    let mut u = unit(&s, &Pattern::EMPTY);
+    let l = render_notes(&mut u, len, 120.0, 512, &music, &notes);
+    // Eleven seconds on (longer than the history), repeat 87 still plays the first slice.
+    let at = 10_000 + 87 * 6_000;
+    for j in 200..5_800 {
+        assert_eq!(
+            l[at + j].to_bits(),
+            music(10_000 + j as i64)[0].to_bits(),
+            "{j}"
+        );
+    }
+}
+
+#[test]
+fn the_rolls_are_the_songs_whatever_renders_it() {
+    let mut p = Pattern::EMPTY;
+    for k in 0..16 {
+        p.block(Module::Gate, k, 1, 1.0, 0.5);
+    }
+    let s = shut_gate(Trigger::Sequence, true);
+    let one = |_: i64| [0.5f32, 0.5];
+    let len = 8 * 96_000;
+    let played = |l: &[f32]| -> Vec<bool> {
+        (0..l.len() / 6_000)
+            .map(|k| l[k * 6_000 + 3_000] < 0.25)
+            .collect()
+    };
+    let mut a = unit(&s, &p);
+    let (la, _) = render(&mut a, 0, len, 120.0, 512, &one);
+    let pa = played(&la);
+    let n = pa.iter().filter(|x| **x).count();
+    assert!(n > 128 * 3 / 10 && n < 128 * 7 / 10, "{n} of 128");
+    let mut b = unit(&s, &p);
+    let (lb, _) = render(&mut b, 0, len, 120.0, 37, &one);
+    assert_eq!(first_diff(&la, &lb), None);
+    // From bar 5 the same steps play.
+    let mut c = unit(&s, &p);
+    let (lc, _) = render(&mut c, 4 * 96_000, len - 4 * 96_000, 120.0, 256, &one);
+    assert_eq!(first_diff(&la[4 * 96_000..], &lc), None);
+    // Another seed rolls another song.
+    let mut d = unit(&FractusSettings { seed: 2, ..s }, &p);
+    let (ld, _) = render(&mut d, 0, len, 120.0, 512, &one);
+    assert_ne!(pa, played(&ld));
+}
+
+fn heavy() -> FractusSettings {
+    FractusSettings {
+        cloud: CloudSettings {
+            level: 0.4,
+            density_hz: 80.0,
+            pitch_rand_st: 7.0,
+            reverse: 0.3,
+            ..CloudSettings::default()
+        },
+        repeat: RepeatSettings {
+            pitch_st: 3.0,
+            decay_db: -1.0,
+            ..RepeatSettings::default()
+        },
+        ..FractusSettings::default()
+    }
+}
+
+/// One block of 512 at song sample `at`: the music, or silence; processed or skipped.
+fn block(u: &mut Fractus, at: usize, quiet: bool, skip: bool) -> Vec<f32> {
+    u.set_transport(&Transport {
+        playing: true,
+        tempo_bpm: 120.0,
+        samples: at as i64,
+    });
+    let x = |i: usize, c: usize| {
+        if quiet {
+            0.0
+        } else {
+            music((at + i) as i64)[c]
+        }
+    };
+    let mut l: Vec<f32> = (0..512).map(|i| x(i, 0)).collect();
+    let mut r: Vec<f32> = (0..512).map(|i| x(i, 1)).collect();
+    if skip {
+        u.skip(512);
+    } else {
+        u.process(&mut l, &mut r);
+    }
+    l.extend(r);
+    l
+}
+
+#[test]
+fn it_comes_to_rest_and_a_skip_is_what_silence_would_have_done() {
+    let s = heavy();
+    let p = super::tests::busy();
+    let bar = 96_000usize;
+    let mut a = unit(&s, &p);
+    let mut b = unit(&s, &p);
+    let mut at = 0usize;
+    while at < 2 * bar {
+        assert_eq!(
+            block(&mut a, at, false, false),
+            block(&mut b, at, false, false)
+        );
+        at += 512;
+    }
+    let mut rest_at = None;
+    while at < 2 * bar + 14 * 48_000 {
+        let rested = a.at_rest();
+        assert_eq!(rested, b.at_rest());
+        if rested && rest_at.is_none() {
+            rest_at = Some(at);
+        }
+        let out = block(&mut a, at, true, false);
+        if rested {
+            assert!(out.iter().all(|x| x.to_bits() == 0), "silence at rest");
+            block(&mut b, at, true, true);
+        } else {
+            assert_eq!(out, block(&mut b, at, true, false));
+        }
+        at += 512;
+    }
+    let rest_at = rest_at.unwrap_or_else(|| panic!("never rests: {:?}", a.rest_blocker()));
+    eprintln!(
+        "heavy settings at rest {:.2} s into the silence",
+        (rest_at - 2 * bar) as f64 / f64::from(SR)
+    );
+    // Sound again: the twin that skipped plays the same bits.
+    for _ in 0..(2 * bar / 512) {
+        let x = block(&mut a, at, false, false);
+        assert_eq!(x, block(&mut b, at, false, false), "at {at}");
+        at += 512;
+    }
+}
+
+#[test]
+fn the_cloud_is_its_seed_and_its_song() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::Cloud, 0, 16, 1.0, 1.0);
+    let s = heavy();
+    let len = 150_000;
+    let mut a = unit(&s, &p);
+    let (la, _) = render(&mut a, 0, len, 120.0, 512, &music);
+    let mut b = unit(&s, &p);
+    let (lb, _) = render(&mut b, 0, len, 120.0, 61, &music);
+    assert_eq!(first_diff(&la, &lb), None);
+    let mut c = unit(&FractusSettings { seed: 9, ..s }, &p);
+    let (lc, _) = render(&mut c, 0, len, 120.0, 512, &music);
+    assert!(first_diff(&la, &lc).is_some());
+    let mut t = [0.0f32; 64];
+    a.telemetry(&mut t);
+    assert!(t[super::t::GRAINS] > 3.0);
+    assert_eq!(t[super::t::ACTIVE] as u32, 1 << Module::Cloud.lane());
+}
+
+/// The level of the tone at `hz` in `x` (a Hann-windowed DFT bin), dB against a
+/// full-scale sine's.
+fn tone_db(x: &[f32], hz: f64) -> f64 {
+    let n = x.len();
+    let (mut re, mut im, mut wsum) = (0.0f64, 0.0f64, 0.0f64);
+    for (i, v) in x.iter().enumerate() {
+        let w = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
+        let (s, c) = math::sin_cos(std::f64::consts::TAU * hz * i as f64 / f64::from(SR));
+        re += f64::from(*v) * w * c;
+        im += f64::from(*v) * w * s;
+        wsum += w;
+    }
+    20.0 * math::log10((2.0 * (re * re + im * im).sqrt() / wsum).max(1e-12))
+}
+
+#[test]
+fn a_frozen_cloud_keeps_what_it_held() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::Cloud, 0, 16, 1.0, 1.0);
+    let base = FractusSettings {
+        cloud: CloudSettings {
+            size_ms: 120.0,
+            density_hz: 30.0,
+            spray_ms: 200.0,
+            ..CloudSettings::default()
+        },
+        ..FractusSettings::default()
+    };
+    let switch = |i: i64| {
+        if i < 96_000 {
+            sine(440.0)(i)
+        } else {
+            sine(1_500.0)(i)
+        }
+    };
+    for freeze in [false, true] {
+        let mut u = unit(&base, &p);
+        let (mut l, _) = render(&mut u, 0, 96_000, 120.0, 512, &switch);
+        u.set(&FractusSettings {
+            cloud: CloudSettings {
+                freeze,
+                ..base.cloud
+            },
+            ..base
+        });
+        let (rest, _) = render(&mut u, 96_000, 96_000, 120.0, 512, &switch);
+        l.extend(rest);
+        let tail = &l[150_000..190_000];
+        let (a, b) = (tone_db(tail, 440.0), tone_db(tail, 1_500.0));
+        eprintln!("freeze {freeze}: 440 Hz {a:.1} dB, 1 500 Hz {b:.1} dB");
+        if freeze {
+            assert!(a > -30.0 && a - b > 40.0, "frozen: {a:.1} / {b:.1}");
+            let mut t = [0.0f32; 64];
+            u.telemetry(&mut t);
+            assert_eq!(t[super::t::FROZEN], 1.0);
+        } else {
+            assert!(b > -30.0 && b - a > 40.0, "live: {a:.1} / {b:.1}");
         }
     }
-    eprintln!("worst second difference {worst:?}");
-    let mut d2: Vec<(usize, f32)> = (2..96_000).map(|i| (i, (l[i] - 2.0 * l[i - 1] + l[i - 2]).abs())).collect();
-    d2.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-    eprintln!("top {:?}", &d2[..12]);
-    let i = worst.0;
-    eprintln!("{:?}", &l[i - 5..i + 5]);
+}
+
+/// The level at `hz`, averaged over Hann windows of 8 192 (Welch's method, half
+/// overlapping): grains of random phase add as powers.
+fn welch_db(x: &[f32], hz: f64) -> f64 {
+    let n = 8_192;
+    let mut p = 0.0f64;
+    let mut count = 0;
+    let mut at = 0;
+    while at + n <= x.len() {
+        let d = tone_db(&x[at..at + n], hz);
+        p += math::exp2(d / 10.0 * math::log2(10.0));
+        count += 1;
+        at += n / 2;
+    }
+    10.0 * math::log10(p / f64::from(count))
+}
+
+#[test]
+fn pitched_grains_land_on_their_interval_and_alias_little() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::Cloud, 0, 16, 1.0, 1.0);
+    for (f, st) in [
+        (1_000.0, 12.0f32),
+        (9_000.0, 7.0),
+        (5_000.0, 19.0),
+        (3_000.0, 24.0),
+        (9_000.0, 12.0),
+        (2_000.0, -12.0),
+    ] {
+        let s = FractusSettings {
+            cloud: CloudSettings {
+                size_ms: 300.0,
+                density_hz: 20.0,
+                // Grains from random places, so their phases do not cancel on the grid.
+                spray_ms: 40.0,
+                spread: 0.0,
+                pitch_st: st,
+                ..CloudSettings::default()
+            },
+            ..FractusSettings::default()
+        };
+        let mut u = unit(&s, &p);
+        let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &sine(f));
+        let x = &l[40_000..90_000];
+        let want = f * math::exp2(f64::from(st) / 12.0);
+        let w = welch_db(x, want);
+        // The worst stray tone, every 50 Hz from 500 Hz up, away from the wanted one.
+        let mut worst: (f64, f64) = (-300.0, 0.0);
+        let mut hz = 500.0;
+        while hz < 23_500.0 {
+            if (hz - want).abs() > 600.0 {
+                let d = welch_db(x, hz);
+                if d > worst.0 {
+                    worst = (d, hz);
+                }
+            }
+            hz += 50.0;
+        }
+        eprintln!(
+            "{f} Hz at {st:+} st: {want:.0} Hz at {w:.1} dB, worst stray {:.1} dB at {:.0} Hz",
+            worst.0 - w,
+            worst.1
+        );
+        assert!(w > -24.0, "{f} Hz {st}: the wanted tone at {w:.1}");
+        assert!(worst.0 - w < -40.0, "{f} Hz {st}: {:.1}", worst.0 - w);
+    }
+}
+
+#[test]
+fn scales_quantise_to_their_intervals() {
+    assert_eq!(Scale::Major.quantise(1.0), 2.0);
+    assert_eq!(Scale::Major.quantise(-1.0), -1.0);
+    assert_eq!(Scale::Minor.quantise(3.4), 3.0);
+    assert_eq!(Scale::Minor.quantise(4.2), 5.0);
+    assert_eq!(Scale::Pentatonic.quantise(4.0), 5.0);
+    assert_eq!(Scale::Octaves.quantise(7.0), 12.0);
+    assert_eq!(Scale::Fifths.quantise(-4.0), -5.0);
+    assert_eq!(Scale::Chromatic.quantise(3.4), 3.0);
+    assert_eq!(Scale::Free.quantise(3.4), 3.4);
+    for st in [-30.0f32, -12.5, 0.4, 13.9] {
+        let q = Scale::Major.quantise(st);
+        let r = q.rem_euclid(12.0) as i32;
+        assert!([0, 2, 4, 5, 7, 9, 11].contains(&r), "{st} → {q}");
+    }
+}
+
+#[test]
+fn a_throw_echoes_on_its_time_and_dies_away_into_silence() {
+    let mut p = Pattern::EMPTY;
+    p.block(Module::Throw, 4, 1, 1.0, 1.0);
+    let s = FractusSettings {
+        throw: ThrowSettings {
+            time: 0.75,
+            feedback: 0.5,
+            tone_hz: 20_000.0,
+            pingpong: false,
+            level: 1.0,
+        },
+        ..FractusSettings::default()
+    };
+    let click = |i: i64| {
+        let v = if i == 24_500 { 1.0 } else { 0.0 };
+        [v, v]
+    };
+    let mut u = unit(&s, &p);
+    let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &click);
+    let t = 18_000usize; // a dotted eighth at 120 BPM
+    let peak = |a: usize| (a - 3..a + 4).max_by(|x, y| l[*x].abs().total_cmp(&l[*y].abs()));
+    assert_eq!(peak(24_500 + t), Some(24_500 + t));
+    assert_eq!(peak(24_500 + 2 * t), Some(24_500 + 2 * t));
+    let (e1, e2) = (l[24_500 + t], l[24_500 + 2 * t]);
+    assert!(e1 > 0.7 && (e2 / e1 - 0.5).abs() < 0.15, "{e1} {e2}");
+    // Long after, the echoes are flushed to silence and the unit can rest.
+    let (q, _) = render(&mut u, 96_000, 12 * 48_000, 120.0, 512, &|_| [0.0, 0.0]);
+    assert!(q[q.len() - 1_000..].iter().all(|x| x.to_bits() == 0));
+}
+
+#[test]
+fn the_buffers_are_sized_once_and_say_what_they_take() {
+    let u = Fractus::new(48_000.0);
+    let mb = u.memory_bytes() as f64 / 1e6;
+    eprintln!("Fractus at 48 kHz holds {mb:.1} MB");
+    assert!(mb < 12.0, "{mb}");
 }

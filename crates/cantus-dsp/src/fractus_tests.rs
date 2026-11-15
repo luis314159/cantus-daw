@@ -2,6 +2,8 @@
 //! render from bar 5 equal to the whole one's, block-size independence, the read modules'
 //! arithmetic to the bit, joins without clicks.
 
+#![allow(clippy::needless_range_loop, clippy::type_complexity)]
+
 use super::*;
 use crate::math;
 use crate::modfx_clock::random_bipolar;
@@ -101,11 +103,15 @@ fn reachless() -> Pattern {
 }
 
 pub(super) fn first_diff(a: &[f32], b: &[f32]) -> Option<usize> {
-    a.iter().zip(b).position(|(x, y)| x.to_bits() != y.to_bits())
+    a.iter()
+        .zip(b)
+        .position(|(x, y)| x.to_bits() != y.to_bits())
 }
 
 fn last_diff(a: &[f32], b: &[f32]) -> Option<usize> {
-    a.iter().zip(b).rposition(|(x, y)| x.to_bits() != y.to_bits())
+    a.iter()
+        .zip(b)
+        .rposition(|(x, y)| x.to_bits() != y.to_bits())
 }
 
 #[test]
@@ -210,8 +216,16 @@ fn a_render_from_bar_5_is_the_whole_render_from_there() {
         let mut late = unit(&s, &reachless());
         let (ll, lr) = render(&mut late, from, len - from as usize, tempo, 333, &music);
         assert_eq!(late.reach(tempo), 0);
-        assert_eq!(first_diff(&wl[from as usize..], &ll), None, "left at {tempo}");
-        assert_eq!(first_diff(&wr[from as usize..], &lr), None, "right at {tempo}");
+        assert_eq!(
+            first_diff(&wl[from as usize..], &ll),
+            None,
+            "left at {tempo}"
+        );
+        assert_eq!(
+            first_diff(&wr[from as usize..], &lr),
+            None,
+            "right at {tempo}"
+        );
         // The modules that read before their event, and the cloud: equal once the reads
         // reach only the late render's own audio.
         let s = FractusSettings {
@@ -356,7 +370,10 @@ fn a_shuffle_plays_whole_slices_from_up_to_its_range_back() {
             .unwrap_or_else(|| panic!("slice {j} is no slice of the last four"));
         seen[k] += 1;
     }
-    assert!(seen.iter().all(|&c| c > 10), "every distance is rolled: {seen:?}");
+    assert!(
+        seen.iter().all(|&c| c > 10),
+        "every distance is rolled: {seen:?}"
+    );
 }
 
 #[test]
@@ -377,7 +394,11 @@ fn a_tape_stop_falls_silent_by_its_line_and_the_next_bar_is_dry() {
         let head = l[a..a + 200].iter().fold(0.0f32, |m, x| m.max(x.abs()));
         assert!(head > 0.3);
         for i in b..bar + a {
-            assert_eq!(l[i].to_bits(), sine(220.0)(i as i64)[0].to_bits(), "{tempo}: {i}");
+            assert_eq!(
+                l[i].to_bits(),
+                sine(220.0)(i as i64)[0].to_bits(),
+                "{tempo}: {i}"
+            );
         }
     }
 }
@@ -402,7 +423,10 @@ fn a_gate_opens_and_shuts_on_its_pulses() {
         assert_eq!(l[p0 + 200], 0.5, "pulse {i} open");
         assert_eq!(l[p0 + 2_999], 0.5, "open to the half");
         assert_eq!(l[p0 + 3_000 + 200], 0.0, "shut after it");
-        assert!(l[p0 + 3_000] < 0.5 && l[p0 + 3_000] > 0.49, "shutting from its sample");
+        assert!(
+            l[p0 + 3_000] < 0.5 && l[p0 + 3_000] > 0.49,
+            "shutting from its sample"
+        );
     }
 }
 

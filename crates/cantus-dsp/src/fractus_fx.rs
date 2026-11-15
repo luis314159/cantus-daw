@@ -43,6 +43,7 @@ impl Default for CrushSettings {
     }
 }
 
+#[allow(clippy::enum_variant_names)] // the filters' own names
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum FilterKind {
     #[default]
@@ -514,10 +515,13 @@ impl Chain {
     }
 }
 
-/// A sample below −400 dB is silence (so the echoes end in zeros, and the unit rests).
+/// An echo below −160 dB (under any converter's floor) is silence, so the echoes end in
+/// zeros and the unit rests.
+pub const ECHO_FLOOR: f32 = 1e-8;
+
 #[inline]
 fn flush(x: f32) -> f32 {
-    if x.abs() < 1e-20 {
+    if x.abs() < ECHO_FLOOR {
         0.0
     } else {
         x
@@ -529,6 +533,9 @@ fn mix(dry: [f32; 2], wet: [f32; 2], w: f32) -> [f32; 2] {
     if w >= 1.0 {
         wet
     } else {
-        [dry[0] + (wet[0] - dry[0]) * w, dry[1] + (wet[1] - dry[1]) * w]
+        [
+            dry[0] + (wet[0] - dry[0]) * w,
+            dry[1] + (wet[1] - dry[1]) * w,
+        ]
     }
 }

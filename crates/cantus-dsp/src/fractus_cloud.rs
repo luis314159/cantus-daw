@@ -7,11 +7,10 @@
 //!   frozen, and when it thaws the new input follows the frozen one.
 //! - **Octaves for pitched-up grains**: beside the buffer, two copies at half and a quarter
 //!   of the rate, each low-passed by a 63-tap Kaiser half-band (−80 dB) as it is written,
-//!   zero-phase (a copy's sample *m* is the input's time `m·2^k`). A grain transposed up by
-//!   `v` reads the copy `k = ⌊log₂ v⌋` at its local speed `u = v/2^k` ∈ [1, 2), crossfaded
-//!   into copy `k + 1` (read at `u/2`) by `u − 1`: what would fold is mostly read from the
-//!   copy that holds nothing above its new Nyquist. A grain at or below the input's pitch
-//!   reads the buffer itself. Four-point Hermite at every level.
+//!   zero-phase (a copy's sample *m* is the input's time `m·2^k`). A grain at or below the
+//!   input's pitch reads the buffer; transposed up it reads the copy whose band, sped up,
+//!   stays under Nyquist ([`level_of`]: the half-rate copy up to an octave, the quarter-rate
+//!   one up to two), crossfaded in over two semitones. Four-point Hermite at every level.
 //! - **Grains** start on the song's grid: grain number `⌊so · density / fs⌋`, a new one
 //!   each time it counts on. Its position, pitch, pan and direction are drawn from hashes
 //!   of (seed, number, purpose); its pitch is quantised to the scale; a grain never reads
@@ -170,6 +169,7 @@ impl Default for CloudSettings {
 }
 
 /// The windows as tables (one extra point, so a read at 1 needs no wrap), made once.
+#[allow(clippy::needless_range_loop)] // five tables filled from one index
 fn windows() -> &'static [[f32; WIN + 1]; 5] {
     static W: OnceLock<[[f32; WIN + 1]; 5]> = OnceLock::new();
     W.get_or_init(|| {
@@ -306,7 +306,11 @@ impl Buf {
         self.lv[k][i as usize & self.mask[k]] = x;
         self.avail[k] = self.avail[k].max(i);
         let z = x[0].to_bits() == 0 && x[1].to_bits() == 0;
-        self.zeros[k] = if z { self.zeros[k].saturating_add(1) } else { 0 };
+        self.zeros[k] = if z {
+            self.zeros[k].saturating_add(1)
+        } else {
+            0
+        };
     }
 
     /// A copy's sample `m` from the level below, centred on its sample `2m`.
@@ -379,6 +383,25 @@ impl Buf {
             hermite(a[0], b[0], c[0], d[0], f),
             hermite(a[1], b[1], c[1], d[1], f),
         ]
+    }
+}
+
+/// The copy a grain transposed by `st` semitones reads, and its weight towards the next:
+/// the input itself at or below its pitch; from 2 st up the half-rate copy (its band, to
+/// 12 kHz at 48 kHz, read at up to twice its speed never passes Nyquist); from 14 st the
+/// quarter-rate one — each crossfaded in over the two semitones before, where only the
+/// top of the band could fold.
+pub fn level_of(st: f32) -> (u8, f32) {
+    if st <= 0.0 {
+        (0, 0.0)
+    } else if st < 2.0 {
+        (0, st / 2.0)
+    } else if st <= 12.0 {
+        (1, 0.0)
+    } else if st < 14.0 {
+        (1, (st - 12.0) / 2.0)
+    } else {
+        (2, 0.0)
     }
 }
 
@@ -544,13 +567,7 @@ impl Cloud {
             .clamp(-24.0, 24.0);
         let v = math::exp2(f64::from(st) / 12.0);
         let back = s.reverse > 0.0 && unit(h(4)) < s.reverse;
-        let (k, wk) = if v <= 1.0 {
-            (0u8, 0.0f32)
-        } else {
-            let k = (math::log2(v).floor() as i64).clamp(0, 2) as u8;
-            let u = v / f64::from(1u32 << k);
-            (k, if k == 2 { 0.0 } else { (u - 1.0) as f32 })
-        };
+        let (k, wk) = level_of(st);
         let ahead = if back {
             0.0
         } else if self.buf.frozen {

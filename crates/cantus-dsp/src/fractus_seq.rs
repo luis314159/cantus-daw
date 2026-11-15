@@ -83,9 +83,7 @@ pub(crate) fn unit(h: u64) -> f32 {
 /// The hash of a seed, a lane, a count and a purpose: every roll in Fractus is one.
 #[inline]
 pub(crate) fn roll(seed: u32, lane: usize, n: u64, purpose: u64) -> u64 {
-    hash64(
-        u64::from(seed) ^ ((lane as u64) << 52) ^ (purpose << 60) ^ hash64(n ^ (purpose << 32)),
-    )
+    hash64(u64::from(seed) ^ ((lane as u64) << 52) ^ (purpose << 60) ^ hash64(n ^ (purpose << 32)))
 }
 
 #[derive(Copy, Clone, Debug)]
