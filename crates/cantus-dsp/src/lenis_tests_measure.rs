@@ -10,6 +10,10 @@ use crate::aequalis::fft::Fft;
 
 const WN: usize = 4096;
 
+fn sq(x: f64) -> f64 {
+    x * x
+}
+
 /// Welch's mean power per bin (Hann, 4096 points, hop 1024) of `x`.
 fn welch(x: &[f32]) -> Vec<f64> {
     let fft = Fft::new(WN);
@@ -27,7 +31,7 @@ fn welch(x: &[f32]) -> Vec<f64> {
         }
         fft.run(&mut re, &mut im, false);
         for (b, s) in sum.iter_mut().enumerate() {
-            *s += (re[b] as f64).powi(2) + (im[b] as f64).powi(2);
+            *s += sq(re[b] as f64) + sq(im[b] as f64);
         }
         frames += 1;
         k += WN / 4;
@@ -48,7 +52,7 @@ fn band(p: &[f64], lo: f32, hi: f32) -> f64 {
         })
         .map(|(_, v)| *v)
         .sum();
-    10.0 * (e.max(1e-30)).log10()
+    10.0 * math::log10(e.max(1e-30))
 }
 
 /// The output aligned with the input: `y` from the latency on, `x` as long.
@@ -166,14 +170,14 @@ fn flat_noise_is_barely_touched() {
             let lat = u.latency();
             let (xa, ya) = aligned(&x.0, &y.0, lat, SR as usize);
             let (ex, ed): (f64, f64) = xa.iter().zip(ya).fold((0.0, 0.0), |(e, d), (a, b)| {
-                (e + (*a as f64).powi(2), d + ((*a - *b) as f64).powi(2))
+                (e + sq(*a as f64), d + sq((*a - *b) as f64))
             });
             let (px, py) = (welch(xa), welch(ya));
             let worst = thirds
                 .iter()
                 .map(|(lo, hi)| (band(&py, *lo, *hi) - band(&px, *lo, *hi)).abs())
                 .fold(0.0f64, f64::max);
-            let delta_db = 10.0 * (ed / ex).log10();
+            let delta_db = 10.0 * math::log10(ed / ex);
             println!(
                 "{name} noise, depth {depth} selectivity {sel}: the removed part {delta_db:.1} dB under the input; worst third-octave {worst:.2} dB"
             );
@@ -233,6 +237,7 @@ fn the_reduction_follows_depth_and_sharpness() {
 /// The excess the detector reads, on noise and on a resonance, for detector variants.
 #[test]
 #[ignore]
+#[allow(clippy::needless_range_loop)]
 fn diagnose_the_excess() {
     let n = (6.0 * SR) as usize;
     let noise = pink(n, 5, 0.3);
@@ -446,6 +451,7 @@ fn strikes(secs: f32) -> (Vec<f32>, Vec<usize>) {
 }
 
 #[test]
+#[allow(clippy::needless_range_loop)]
 fn the_window_pairs_compared() {
     let ((res3k, _), _) = resonant(6.0, 3_000.0, 8.0, 12.0, 1);
     let ((box250, _), _) = resonant(6.0, 250.0, 6.0, 12.0, 2);
@@ -487,18 +493,18 @@ fn the_window_pairs_compared() {
                 break;
             }
             for i in o - w20..o {
-                pre += ((y.0[i + lat] - hit[i]) as f64).powi(2);
+                pre += sq((y.0[i + lat] - hit[i]) as f64);
             }
             for i in o..o + w20 {
-                strike += (hit[i] as f64).powi(2);
+                strike += sq(hit[i] as f64);
             }
             for i in o + w20..o + SR as usize / 5 {
-                ring_in += (hit[i] as f64).powi(2);
-                ring_out += (y.0[i + lat] as f64).powi(2);
+                ring_in += sq(hit[i] as f64);
+                ring_out += sq(y.0[i + lat] as f64);
             }
         }
-        let pre_db = 10.0 * (pre / strike).log10();
-        let ring_db = 10.0 * (ring_out / ring_in).log10();
+        let pre_db = 10.0 * math::log10(pre / strike);
+        let ring_db = 10.0 * math::log10(ring_out / ring_in);
         let worst = c3[1..].iter().fold(0.0f64, |a, v| a.max(v.abs()));
         println!(
             "  {n}/{m} ({:.1} ms): {:+.2} | {worst:.2} | {:+.2} | {pre_db:.1} | {ring_db:+.2}",

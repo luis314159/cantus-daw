@@ -527,7 +527,7 @@ impl Lenis {
         let len = left.len().min(right.len());
         let hop = self.g.hop() as u64;
         for i in 0..len {
-            if self.pos % hop == 0 {
+            if self.pos.is_multiple_of(hop) {
                 if let Some(s) = self.pending.take() {
                     self.apply(s, false);
                 }
@@ -542,7 +542,7 @@ impl Lenis {
             } else {
                 0
             };
-            if (self.pos + 1) % self.g.hop() as u64 == 0 {
+            if (self.pos + 1).is_multiple_of(self.g.hop() as u64) {
                 self.frame();
             }
             // The sample whose last frame is done: `2M − 1` back.
@@ -585,6 +585,7 @@ impl Lenis {
     }
 
     /// The frame that ends at `self.pos`.
+    #[allow(clippy::needless_range_loop)] // several arrays a bin, side by side
     fn frame(&mut self) {
         let g = self.g;
         let (n, span) = (g.n, g.span());

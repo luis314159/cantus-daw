@@ -1,24 +1,40 @@
 //! Lenis's detector: what in a frame's spectrum is a resonance, and how much to take off.
 //!
 //! ```text
-//! |X|² ─ average (DET_MS) ─ dB ─┬─ fine:      [¼ ½ ¼] across three bins ───────────┐
-//!                               └─ envelope:  box over W octaves, clipped twice,   │
-//!                                             a second box (a triangle) ─────────── − ─► excess
-//! excess − threshold ─ curve (hard, or soft: a knee) × 2·depth·focus ─ ≤ the excess
-//!        ─ spread (max of three bins, then [¼ ½ ¼]) ─ attack / release ─► reduction, dB
+//! |X|² ─┬─ slow average (30 ms) ─ dB ─ excess ─┐
+//!       └─ fast average (5 ms)  ─ dB ─ excess ─┴─ slow, raised to fast − 4 dB, held under fast + 3 dB
+//!   excess = upper envelope − envelope:
+//!     upper envelope: the loudest within ±bridge (120 Hz; f/6 under 720 Hz), a triangle as wide
+//!     envelope:       the greatest of {line through the box, the sides' mean, the higher side − 3 dB},
+//!                     the spectrum clipped at it + 1 dB and estimated again, three times
+//! excess − threshold ─ curve (Hard, or Soft: a knee) × 4·depth·focus ─ ≤ the excess
+//!        ─ spread (the most of three bins, then [¼ ½ ¼]) ─ attack / release ─► reduction, dB
 //! ```
 //!
-//! - **The envelope** is the spectrum's own smooth outline, in dB, over a window of `W`
-//!   octaves around each bin (log-symmetric, so it is as wide in pitch everywhere; never
-//!   narrower than [`MIN_HALF`] bins a side, wider than the window's main lobe). A plain
-//!   mean is pulled up by the very peaks it should stand under; so the spectrum is
-//!   clipped at the first estimate plus [`CLIP_DB`] and smoothed again, twice — a robust
-//!   mean in the spirit of a median (as harmonic–percussive separation smooths across
-//!   frequency, Fitzgerald 2010), at a fraction of a median's cost: every box is a
-//!   difference of two prefix sums, O(1) a bin. Sharpness sets `W`: a peak much narrower
-//!   than `W` stands out of the envelope, a broad bump is followed by it.
-//! - **The excess** is the fine spectrum over the envelope. Only what exceeds the
-//!   threshold (Selectivity) is a resonance; the curve turns the excess into a reduction.
+//! - **The upper envelope over the partials.** A note's harmonics are narrow peaks too; a
+//!   detector that compared each bin with its neighbours would flatten every voice. So the
+//!   spectrum is first bridged across the gaps between partials (a dilation of ±120 Hz,
+//!   then a triangle as wide — a morphological closing in dB): a note becomes the smooth
+//!   outline over its partials, and a resonance is a bump in that outline. Under 720 Hz the
+//!   bridge shrinks with the frequency (f/6), so low resonances stay resolved; there, low
+//!   partials are themselves peaks and the focus's low limit decides on them.
+//! - **The envelope** is that outline's own smooth shape over a box of `W` octaves around
+//!   each bin (Sharpness sets `W`: 3 octaves to 3/8 of one; never narrower than
+//!   [`MIN_HALF`]` + 2·bridge + 1` bins a side). It is the greatest of three estimates:
+//!   the least-squares line through the box against octaves (follows any slope, where a
+//!   mean would sit under the bins at a lopsided box); the mean of the two sides beyond a
+//!   guard (clear of a peak's own bridged plateau), each moved along the box's slope to the
+//!   bin; and the higher side less [`EDGE_DB`] — the "greatest of" cell-averaging detector
+//!   of radar (GO-CFAR: Hansen & Sawyers, 1980), which keeps the knee of a roll-off or the
+//!   edge of a band from being taken for a peak. The peaks are clipped out (at the estimate
+//!   plus [`CLIP_DB`]) and the estimate made again, three times: a robust estimate in the
+//!   spirit of a median (as harmonic–percussive separation smooths across frequency,
+//!   Fitzgerald 2010), at the cost of prefix sums — O(1) a bin, the constants precomputed.
+//! - **Two time scales.** The slow average (30 ms) is what tells a resonance from noise's
+//!   flicker (measured: noise's 99.9th percentile excess +3.4 dB, a 12 dB resonance +8.9);
+//!   the fast one (5 ms) catches a resonance that starts suddenly (it must stand 4 dB more
+//!   to count) and, since the slow one may never stand more than 3 dB over it, lets go as
+//!   soon as the ringing stops.
 //! - **Spread and time**: a single bin is never cut alone (a needle in frequency is a long
 //!   ring in time, and an isolated bin switching on and off is the "musical noise" of
 //!   spectral subtraction — Berouti et al. 1979, Cappé 1994); the reduction is widened by
@@ -395,8 +411,8 @@ fn excess_of(level: &[f32], d: &Design, sc: &mut ScratchView, out: &mut [f32]) {
         sided(sc.clip, d, sc.prefix, sc.prefix_u, sc.env);
     }
     sided(sc.env, d, sc.prefix, sc.prefix_u, sc.clip);
-    for k in 0..k_n {
-        out[k] = sc.fine[k] - sc.clip[k];
+    for ((o, f), c) in out.iter_mut().zip(sc.fine.iter()).zip(sc.clip.iter()) {
+        *o = f - c;
     }
 }
 
@@ -448,6 +464,7 @@ impl Detector {
 
     /// One frame. `p` is the frame's raw power per bin (`None`: an all-zero frame). Returns
     /// whether any bin's gain is not exactly 1.
+    #[allow(clippy::needless_range_loop)] // several arrays a bin, side by side
     pub fn frame(&mut self, p: Option<&[f32]>, d: &Design, sc: &mut Scratch) -> bool {
         let k_n = d.bins;
         if p.is_none() && self.quiet {

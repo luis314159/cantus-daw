@@ -459,7 +459,7 @@ fn set(
         let _ = writeln!(log, "  octave bands before matching (dB): {bands}");
         if name == "2-strong" {
             let (mut d, _, _) = through(dry, &LenisSettings { delta: true, ..s });
-            let level = 20.0 * (rms(&d) / dry_rms).log10();
+            let level = 20.0 * math::log10(rms(&d) / dry_rms);
             let gain = scale_peak(&mut d, -6.0);
             write(&dir.join(format!("{prefix}-3-strong-delta.wav")), &d);
             let _ = writeln!(
@@ -533,7 +533,7 @@ fn octaves(dry: &[f32], y: &[f32]) -> String {
             }
             fft.run(&mut re, &mut im, false);
             for (b, s) in sum.iter_mut().enumerate() {
-                *s += (re[b] as f64).powi(2) + (im[b] as f64).powi(2);
+                *s += (re[b] as f64) * (re[b] as f64) + (im[b] as f64) * (im[b] as f64);
             }
             k += n / 4;
         }
@@ -543,7 +543,7 @@ fn octaves(dry: &[f32], y: &[f32]) -> String {
     let hz = F as f64 / n as f64;
     (0..8)
         .map(|o| {
-            let c = 125.0 * 2f64.powi(o);
+            let c = 125.0 * (1u32 << o) as f64;
             let (lo, hi) = (c / 2f64.sqrt(), c * 2f64.sqrt());
             let band = |p: &[f64]| -> f64 {
                 p.iter()
@@ -552,7 +552,7 @@ fn octaves(dry: &[f32], y: &[f32]) -> String {
                     .map(|(_, v)| v)
                     .sum()
             };
-            let d = 10.0 * (band(&py).max(1e-30) / band(&pd).max(1e-30)).log10();
+            let d = 10.0 * math::log10(band(&py).max(1e-30) / band(&pd).max(1e-30));
             let name = if c >= 1000.0 {
                 format!("{}k", c / 1000.0)
             } else {
