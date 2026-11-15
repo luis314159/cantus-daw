@@ -76,8 +76,16 @@ const STOP: f64 = 7e-5;
 /// The largest step an op-amp's differential input takes in one iteration.
 const SLEW_STEP: f64 = 0.5;
 /// A triode's largest grid and plate steps in one iteration (fx3:arca).
-const TRIODE_GRID_STEP: f64 = 1.0;
-const TRIODE_PLATE_STEP: f64 = 50.0;
+const TRIODE_GRID_STEP: f64 = 4.0;
+const TRIODE_PLATE_STEP: f64 = 400.0;
+/// A triode plate's largest predicted step (fx3:arca): the parabola through the last three
+/// answers is good to millivolts there, where a plate swings volts a sample.
+const TRIODE_PREDICT: f64 = 20.0;
+/// A triode's Newton tolerances (fx3:arca), grid and plate: the step is taken and the
+/// currents corrected to first order, so what is left is about Δ²/(2·V), V the volts over
+/// which a valve's curve bends (a grid's ~1, a plate's ~100): under 10⁻⁶ V for both.
+const TRIODE_GRID_STOP: f64 = 1e-3;
+const TRIODE_PLATE_STOP: f64 = 1e-2;
 /// The largest step the predictor takes from the last answer (volts).
 const PREDICT: f64 = 0.05;
 
@@ -159,11 +167,36 @@ pub struct Koren {
     pub xi: f64,
 }
 
+/// `ln x` for `x > 0`, our own and fast (fx3:arca): `x = m·2^k` with `m` in [√½, √2),
+/// `ln m = 2·atanh(s)`, `s = (m − 1)/(m + 1)`, by its series to s¹³ (relative error below
+/// 10⁻¹²); ordinary arithmetic in a fixed order — the same bits everywhere.
+#[inline]
+pub fn fast_ln(x: f64) -> f64 {
+    const LN2: f64 = std::f64::consts::LN_2;
+    let bits = x.to_bits();
+    let mut k = ((bits >> 52) & 0x7ff) as i64 - 1023;
+    let mut m = f64::from_bits((bits & 0x000f_ffff_ffff_ffff) | 0x3ff0_0000_0000_0000);
+    if m > std::f64::consts::SQRT_2 {
+        m *= 0.5;
+        k += 1;
+    }
+    let s = (m - 1.0) / (m + 1.0);
+    let z = s * s;
+    let mut p = 1.0 / 13.0;
+    p = p * z + 1.0 / 11.0;
+    p = p * z + 1.0 / 9.0;
+    p = p * z + 1.0 / 7.0;
+    p = p * z + 1.0 / 5.0;
+    p = p * z + 1.0 / 3.0;
+    p = p * z + 1.0;
+    k as f64 * LN2 + 2.0 * s * p
+}
+
 /// `ln(1 + e^x)` and its derivative `1/(1 + e^-x)`, without overflow (fx3:arca).
 #[inline]
 pub fn softplus(x: f64) -> (f64, f64) {
     let e = fast_exp(-x.abs());
-    let sp = x.max(0.0) + math::ln_1p(e);
+    let sp = x.max(0.0) + if e < 1e-9 { e } else { fast_ln(1.0 + e) };
     let sig = if x >= 0.0 { 1.0 / (1.0 + e) } else { e / (1.0 + e) };
     (sp, sig)
 }
@@ -173,11 +206,11 @@ impl Koren {
     /// `(i_g, ∂i_g/∂v_gk, i_p, ∂i_p/∂v_gk, ∂i_p/∂v_pk)` (fx3:arca).
     #[inline]
     pub fn currents(&self, vgk: f64, vpk: f64) -> (f64, f64, f64, f64, f64) {
-        // Grid.
-        let (spg, sgg) = softplus(self.cg * vgk);
-        let (ig, dig) = if spg > 0.0 {
+        // Grid: nothing to speak of below −1.2 V (under 10⁻¹¹ A).
+        let (ig, dig) = if vgk > -1.2 {
+            let (spg, sgg) = softplus(self.cg * vgk);
             let base = spg / self.cg;
-            let lb = math::ln(base);
+            let lb = fast_ln(base);
             let pw = fast_exp((self.xi - 1.0) * lb);
             (self.gg * pw * base, self.gg * self.xi * pw * sgg)
         } else {
@@ -191,7 +224,7 @@ impl Koren {
         if e1 <= 0.0 {
             return (ig, dig, 0.0, 0.0, 0.0);
         }
-        let le = math::ln(e1);
+        let le = fast_ln(e1);
         let pw = fast_exp((self.ex - 1.0) * le); // E1^(ex−1)
         let ip = 2.0 / self.kg1 * pw * e1;
         let dip_de = 2.0 * self.ex / self.kg1 * pw;
@@ -287,6 +320,12 @@ pub struct Circuit {
     i_last: [f64; MAX_NL],
     /// The outputs at the operating point (subtracted from what [`Self::step`] returns).
     y0: [f64; MAX_OUT],
+    /// Each port's largest predicted step (fx3:arca — [`PREDICT`] for every element but a
+    /// triode's plate, which moves volts a sample and takes [`TRIODE_PREDICT`]).
+    predict: [f64; MAX_NL],
+    /// Each port's share of the stopping test (fx3:arca — 1 for every element but a
+    /// triode, whose ports stop at [`TRIODE_GRID_STOP`] and [`TRIODE_PLATE_STOP`] volts).
+    stop_scale: [f64; MAX_NL],
 }
 
 impl Circuit {
@@ -340,6 +379,8 @@ impl Circuit {
             q_last: [0.0; MAX_Q],
             i_last: [0.0; MAX_NL],
             y0: [0.0; MAX_OUT],
+            predict: [PREDICT; MAX_NL],
+            stop_scale: [1.0; MAX_NL],
         }
     }
 
@@ -421,6 +462,12 @@ impl Circuit {
         }
         self.dims += e.dims();
         assert!(self.dims <= MAX_NL);
+        if let Nl::Triode { .. } = e {
+            // fx3:arca
+            self.predict[hi as usize - 1] = TRIODE_PREDICT;
+            self.stop_scale[lo as usize] = STOP / TRIODE_GRID_STOP;
+            self.stop_scale[hi as usize - 1] = STOP / TRIODE_PLATE_STOP;
+        }
         self.e[self.ne] = e;
         self.dev[self.ne] = Dev::of(&e);
         self.ne += 1;
@@ -974,8 +1021,8 @@ impl Circuit {
                 solve_small(&mut j, &mut f, d);
             }
             let mut big = 0.0f64;
-            for x in f.iter().take(d) {
-                big = big.max(x.abs());
+            for (x, w) in f.iter().zip(&self.stop_scale).take(d) {
+                big = big.max(x.abs() * w);
             }
             if big < STOP {
                 for (v, x) in self.v.iter_mut().zip(&f).take(d) {
@@ -1069,7 +1116,7 @@ impl Circuit {
         let v1 = self.v;
         for k in 0..self.dims {
             let guess = 3.0 * (self.v[k] - self.v1[k]) + self.v2[k];
-            self.v[k] += (guess - self.v[k]).clamp(-PREDICT, PREDICT);
+            self.v[k] += (guess - self.v[k]).clamp(-self.predict[k], self.predict[k]);
         }
         self.v2 = self.v1;
         self.v1 = v1;

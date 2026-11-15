@@ -387,3 +387,456 @@ fn rest_is_exact() {
         assert!(la.iter().any(|v| *v != 0.0));
     }
 }
+
+/// A 2.5 kHz sine (on a bin) through the high-gain amp, no cabinet: what is not a
+/// harmonic of it (aliasing, folded back) against what is.
+#[test]
+fn aliasing_is_measured() {
+    let n = 16_384;
+    let k0 = 853; // 853 · 48 000 / 16 384 ≈ 2 499 Hz
+    let mut res = vec![];
+    for (m, os) in [
+        (AmpModel::Crunch, 2),
+        (AmpModel::Crunch, 4),
+        (AmpModel::Crunch, 8),
+        (AmpModel::HighGain, 2),
+        (AmpModel::HighGain, 4),
+        (AmpModel::HighGain, 8),
+    ] {
+        let mut s = amp_settings(m);
+        s.gain = 0.6;
+        s.oversampling = os;
+        let mut a = fresh(&s);
+        let w = std::f64::consts::TAU * k0 as f64 / n as f64;
+        let x: Vec<f32> = (0..3 * n)
+            .map(|i| (0.1 * crate::math::sin(w * i as f64)) as f32)
+            .collect();
+        let (y, _) = run(&mut a, &x, 512);
+        let y = &y[2 * n..];
+        let (mut harm, mut other) = (0.0f64, 0.0f64);
+        for bin in 1..n / 2 {
+            let wb = std::f64::consts::TAU * bin as f64 / n as f64;
+            let (mut re, mut im) = (0.0f64, 0.0f64);
+            for (i, v) in y.iter().enumerate() {
+                let (si, co) = crate::math::sin_cos(wb * i as f64);
+                re += *v as f64 * co;
+                im += *v as f64 * si;
+            }
+            let p = re * re + im * im;
+            if bin % k0 == 0 {
+                harm += p;
+            } else {
+                other += p;
+            }
+        }
+        let db = 10.0 * crate::math::log10(other / harm);
+        println!("{m:?} {os}x: aliasing {db:.1} dB below the harmonics");
+        res.push(db);
+    }
+    assert!(res[0] > res[1] && res[1] > res[2], "{res:?}");
+    assert!(res[3] > res[4] && res[4] > res[5], "{res:?}");
+    assert!(res[1] < -40.0 && res[4] < -28.0, "4x: {res:?}");
+}
+
+/// CPU per model, a plucked note, release build: `--ignored --nocapture`.
+#[test]
+#[ignore]
+fn cpu_per_model() {
+    let x = pluck(110.0, 1.0, 0.4, 4);
+    for os in [2, 4, 8] {
+        for m in AmpModel::ALL {
+            let mut s = amp_settings(m);
+            s.oversampling = os;
+            s.cab = true;
+            let mut a = Arca::with_cab(SR, cab_kernel(Cabinet::FourTwelveVintage));
+            a.set(&s);
+            a.reset();
+            let mut best = f64::MAX;
+            for _ in 0..3 {
+                let (mut l, mut r) = (x.clone(), x.clone());
+                let t = std::time::Instant::now();
+                for (bl, br) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+                    a.process(bl, br);
+                }
+                best = best.min(t.elapsed().as_secs_f64());
+            }
+            println!("{os}x {m:?}: {:.2} % of a core (48 kHz, with its cabinet)", best * 100.0);
+        }
+    }
+}
+
+/// The power amp's small-signal gain, inverter input to speaker, against the closed loop
+/// worked by hand: the open loop `A = A_pi·n·g_m·Raa/(1 + n·g_p·Raa/2)·√(R_spk/Raa)` from
+/// the pentodes' conductances at idle, closed by the feedback `A / (1 + A·β)`.
+#[test]
+fn the_power_amp_closes_its_loop() {
+    let rate = 192_000.0;
+    for m in AmpModel::ALL {
+        let spec = m.power();
+        let mut p = Power::new(spec, rate);
+        let (vb, b) = p.bias_and_supply();
+        let vk = p.idle_cathode();
+        let (_, gm, gp) = spec.tube.current(vb - vk, b - vk, b - vk);
+        let turns = (spec.r_speaker / spec.raa).sqrt();
+        // Each side's plate conductance shares the load: V = n·g_m·Raa·v_g / (1 + n·g_p·Raa/2).
+        let n = spec.per_side;
+        // The inverter's output resistance against the grid leak: a divider.
+        let div = spec.r_grid / (spec.pi_r + spec.r_grid);
+        let a = spec.pi_gain * div * n * gm * spec.raa / (1.0 + n * gp * spec.raa / 2.0) * turns;
+        // A cathode-biased pair's shared cathode is bypassed: no degeneration at 1 kHz.
+        let closed = a / (1.0 + a * p.beta());
+        // A 1 kHz sine of 1 mV at the inverter, read at the tap after it settles.
+        let amp = 1e-3;
+        let w = std::f64::consts::TAU * 1_000.0 / rate;
+        let n = 192_000;
+        let y: Vec<f64> = (0..n)
+            .map(|i| p.step(amp * crate::math::sin(w * i as f64)))
+            .collect();
+        let (mut re, mut im) = (0.0, 0.0);
+        for (i, v) in y[n / 2..].iter().enumerate() {
+            let (s, c) = crate::math::sin_cos(w * (i + n / 2) as f64);
+            re += v * s;
+            im += v * c;
+        }
+        let got = 2.0 * (re * re + im * im).sqrt() / (n / 2) as f64;
+        let full = (2.0 * spec.watts * spec.r_speaker).sqrt();
+        let got_v = got * full / amp;
+        let d = 20.0 * crate::math::log10(got_v / closed);
+        println!(
+            "{m:?}: bias {vb:.1} V, cathode {vk:.1} V, supply {b:.0} V, gm {:.1} mA/V; gain {got_v:.2} against {closed:.2} ({d:+.2} dB), feedback {:.1} dB",
+            gm * 1e3,
+            20.0 * crate::math::log10(1.0 + a * p.beta())
+        );
+        assert!(d.abs() < 0.5, "{m:?}: {d:.2} dB");
+    }
+}
+
+/// A loud chord pulls the supply down; it recovers once the chord stops. A tube
+/// rectifier (the clean amp's) sags more than the stiff solid-state one (the crunch's),
+/// and the sag setting scales it.
+#[test]
+fn the_supply_sags_and_recovers() {
+    let rate = 192_000.0;
+    let sag_of = |m: AmpModel, f: f64| {
+        let mut p = Power::new(m.power(), rate);
+        p.set_sag(f);
+        let idle = p.supply();
+        let w = std::f64::consts::TAU * 220.0 / rate;
+        let mut low = idle;
+        for i in 0..(0.3 * rate) as usize {
+            p.step(3.0 * crate::math::sin(w * i as f64));
+            low = low.min(p.supply());
+        }
+        for _ in 0..(0.5 * rate) as usize {
+            p.step(0.0);
+        }
+        (idle - low, (p.supply() - idle).abs())
+    };
+    let (tube, back) = sag_of(AmpModel::Clean, 1.0);
+    let (stiff, _) = sag_of(AmpModel::Crunch, 1.0);
+    let (soft, _) = sag_of(AmpModel::Clean, 3.0);
+    println!("clean (tube rectifier) sags {tube:.1} V (soft {soft:.1} V), crunch {stiff:.1} V; back within {back:.3} V");
+    assert!(tube > 2.0 * stiff && soft > tube && back < 0.5, "{tube} {stiff} {soft} {back}");
+}
+
+/// The factory cabinets: start at once (no latency), are minimum phase (their energy
+/// up front), follow their design within 1.5 dB from 80 Hz to 6 kHz, and fall as a guitar
+/// speaker does past its break-up.
+#[test]
+fn the_cabinets_are_what_they_were_designed_to_be() {
+    let rate = 48_000.0f64;
+    for c in Cabinet::ALL {
+        for mic in Mic::ALL {
+            let s = CabSettings {
+                cabinet: c,
+                mic,
+                position: 0.3,
+                distance_cm: 2.0,
+            };
+            let h = impulse(&s, SR);
+            assert_eq!(h.len(), 2_048);
+            let e: Vec<f64> = h.iter().map(|v| (*v as f64) * (*v as f64)).collect();
+            let total: f64 = e.iter().sum();
+            let first: f64 = e[..240].iter().sum();
+            let peak = h
+                .iter()
+                .enumerate()
+                .fold((0, 0.0f32), |b, (i, v)| if v.abs() > b.1 { (i, v.abs()) } else { b });
+            assert!(peak.0 < 48, "{c:?} {mic:?}: its peak at {}", peak.0);
+            assert!(first / total > 0.9, "{c:?} {mic:?}: {:.2} in 5 ms", first / total);
+            let hd: Vec<f64> = h.iter().map(|v| *v as f64).collect();
+            let mut mean = 0.0;
+            let pts = 64;
+            for k in 0..pts {
+                let f = 100.0 * crate::math::powf(50.0f64, k as f64 / (pts - 1) as f64);
+                mean += design_db(&s, f as f32) as f64;
+            }
+            mean /= pts as f64;
+            for hz in [80.0, 150.0, 400.0, 1_000.0, 2_500.0, 4_000.0, 6_000.0] {
+                let got = gain_db(&hd, 1.0, rate, hz);
+                let want = design_db(&s, hz as f32) as f64 - mean;
+                assert!((got - want).abs() < 1.5, "{c:?} {mic:?} at {hz} Hz: {got:.1} against {want:.1}");
+            }
+            let bite = gain_db(&hd, 1.0, rate, 2_500.0);
+            let top = gain_db(&hd, 1.0, rate, 9_000.0);
+            assert!(bite - top > 15.0, "{c:?} {mic:?}: {bite:.1} → {top:.1}");
+        }
+    }
+}
+
+/// The cabinet alone (no amp): an impulse comes out at its first sample (no latency).
+#[test]
+fn the_cabinet_alone_has_no_latency() {
+    let mut s = ArcaSettings::default();
+    s.cab = true;
+    let mut a = Arca::with_cab(SR, cab_kernel(Cabinet::FourTwelveModern));
+    a.set(&s);
+    a.reset();
+    assert_eq!(a.latency(), 0);
+    let mut x = vec![0.0f32; 1_024];
+    x[0] = 1.0;
+    let (l, _) = run(&mut a, &x, 64);
+    let h = impulse(
+        &CabSettings {
+            cabinet: Cabinet::FourTwelveModern,
+            ..CabSettings::default()
+        },
+        SR,
+    );
+    for i in 0..1_024 {
+        assert!((l[i] - h[i]).abs() < 1e-5, "{i}: {} against {}", l[i], h[i]);
+    }
+    // And with an amp the latency is the oversampler's, the dry lined up with it.
+    let mut s = amp_settings(AmpModel::Clean);
+    s.mix = 0.0;
+    let mut a = fresh(&s);
+    assert_eq!(a.latency(), crate::fervor::os::latency(4, false));
+    let (l, _) = run(&mut a, &x, 64);
+    let lat = a.latency();
+    assert_eq!(l[lat], 1.0);
+    assert!(l.iter().enumerate().all(|(i, v)| i == lat || *v == 0.0));
+}
+
+#[test]
+#[ignore]
+fn probe() {
+    let rate = 192_000.0;
+    // Parts' cost.
+    for m in AmpModel::ALL {
+        let mut p = Preamp::new(m.preamp(), SOURCE_OHMS, rate, &Knobs::default());
+        let mut pw = Power::new(m.power(), rate);
+        let x = pluck(110.0, 0.25, 0.4, 4);
+        let t = std::time::Instant::now();
+        let mut acc = 0.0;
+        for v in &x {
+            for _ in 0..4 {
+                acc += p.step(*v as f64);
+            }
+        }
+        let tp = t.elapsed().as_secs_f64() * 4.0;
+        let t = std::time::Instant::now();
+        for v in &x {
+            for _ in 0..4 {
+                acc += pw.step(*v as f64);
+            }
+        }
+        let tw = t.elapsed().as_secs_f64() * 4.0;
+        let its: Vec<String> = p
+            .stages()
+            .iter()
+            .map(|s| format!("{:.2}", s.c.iterations_per_step()))
+            .collect();
+        println!("{m:?}: preamp {:.1} %, power {:.1} % ({acc:.1}); Newton per step {its:?}", tp * 100.0, tw * 100.0);
+    }
+    // The crunch's spectrum on a 2.5 kHz sine.
+    let n = 16_384;
+    let k0 = 853;
+    let mut s = amp_settings(AmpModel::Crunch);
+    s.gain = 0.6;
+    let mut a = fresh(&s);
+    let w = std::f64::consts::TAU * k0 as f64 / n as f64;
+    let x: Vec<f32> = (0..3 * n).map(|i| (0.1 * crate::math::sin(w * i as f64)) as f32).collect();
+    let (y, _) = run(&mut a, &x, 512);
+    let y = &y[2 * n..];
+    let mut bins = vec![];
+    for bin in 1..n / 2 {
+        let wb = std::f64::consts::TAU * bin as f64 / n as f64;
+        let (mut re, mut im) = (0.0f64, 0.0f64);
+        for (i, v) in y.iter().enumerate() {
+            let (si, co) = crate::math::sin_cos(wb * i as f64);
+            re += *v as f64 * co;
+            im += *v as f64 * si;
+        }
+        bins.push((bin, re * re + im * im));
+    }
+    bins.sort_by(|a, b| b.1.total_cmp(&a.1));
+    for (b, p) in &bins[..12] {
+        println!("bin {b} ({:.0} Hz): {:.1} dB", *b as f64 * 48_000.0 / n as f64, 10.0 * crate::math::log10(*p));
+    }
+}
+
+#[test]
+#[ignore]
+fn probe2() {
+    let rate = 192_000.0;
+    let n = 16_384;
+    let k0 = 853;
+    let w = std::f64::consts::TAU * k0 as f64 / n as f64 / 4.0;
+    let spectrum = |y: &[f64], label: &str| {
+        let mut bins = vec![];
+        for bin in [145usize, 290, 708, 853, 998] {
+            let wb = std::f64::consts::TAU * bin as f64 / n as f64;
+            let (mut re, mut im) = (0.0f64, 0.0f64);
+            for (i, v) in y.iter().enumerate() {
+                let (si, co) = crate::math::sin_cos(wb * i as f64);
+                re += v * co;
+                im += v * si;
+            }
+            bins.push(format!("{bin}: {:.1}", 10.0 * crate::math::log10(re * re + im * im + 1e-30)));
+        }
+        println!("{label}: {bins:?}");
+    };
+    let k = Knobs { gain: 0.6, ..Knobs::default() };
+    let mut p = Preamp::new(AmpModel::Crunch.preamp(), SOURCE_OHMS, rate, &k);
+    let pre: Vec<f64> = (0..12 * n).map(|i| p.step(0.1 * crate::math::sin(w * i as f64))).collect();
+    let dec: Vec<f64> = pre.iter().step_by(4).skip(2 * n).copied().collect();
+    spectrum(&dec, "crunch preamp");
+    let peak = pre.iter().fold(0.0f64, |m, v| m.max(v.abs()));
+    println!("preamp out peak {peak:.1} V");
+    for (label, amp) in [("power, 1 V", 1.0), ("power, 5 V", 5.0), ("power, 20 V", 20.0)] {
+        let mut pw = Power::new(AmpModel::Crunch.power(), rate);
+        let y: Vec<f64> = (0..12 * n).map(|i| pw.step(amp * crate::math::sin(w * i as f64))).collect();
+        let dec: Vec<f64> = y.iter().step_by(4).skip(2 * n).copied().collect();
+        spectrum(&dec, label);
+    }
+    let mut pw = Power::new(AmpModel::Crunch.power(), rate);
+    let y: Vec<f64> = pre.iter().map(|v| pw.step(*v)).collect();
+    let dec: Vec<f64> = y.iter().step_by(4).skip(2 * n).copied().collect();
+    spectrum(&dec, "preamp into power");
+}
+
+/// What is not a harmonic of a sine on bin `k0` of `n`, against what is (dB).
+pub(super) fn inharmonic_db(y: &[f32], n: usize, k0: usize) -> f64 {
+    let (mut harm, mut other) = (0.0f64, 0.0f64);
+    for bin in 1..n / 2 {
+        let wb = std::f64::consts::TAU * bin as f64 / n as f64;
+        let (mut re, mut im) = (0.0f64, 0.0f64);
+        for (i, v) in y.iter().enumerate() {
+            let (si, co) = crate::math::sin_cos(wb * i as f64);
+            re += *v as f64 * co;
+            im += *v as f64 * si;
+        }
+        let p = re * re + im * im;
+        if bin % k0 == 0 {
+            harm += p;
+        } else {
+            other += p;
+        }
+    }
+    10.0 * crate::math::log10(other / harm)
+}
+
+#[test]
+#[ignore]
+fn probe3() {
+    let n = 8_192;
+    let k0 = 427; // ≈ 2 502 Hz
+    let w = std::f64::consts::TAU * k0 as f64 / n as f64;
+    let x: Vec<f32> = (0..4 * n).map(|i| (0.1 * crate::math::sin(w * i as f64)) as f32).collect();
+    for master in [1.0, 0.5, 0.2] {
+        for os in [4, 8] {
+            let mut s = amp_settings(AmpModel::Crunch);
+            s.gain = 0.6;
+            s.master = master;
+            s.oversampling = os;
+            let mut a = fresh(&s);
+            let (y, _) = run(&mut a, &x, 512);
+            println!("crunch master {master} {os}x: {:.1} dB", inharmonic_db(&y[3 * n..], n, k0));
+        }
+    }
+    // The preamp alone, through the oversampler and back.
+    for os in [4, 8] {
+        let rate = 48_000.0 * os as f64;
+        let k = Knobs { gain: 0.6, ..Knobs::default() };
+        let mut p = Preamp::new(AmpModel::Crunch.preamp(), SOURCE_OHMS, rate, &k);
+        let mut o = crate::fervor::os::Oversampler::new(os, false);
+        let y: Vec<f32> = x
+            .iter()
+            .map(|v| {
+                let mut b = [0.0f32; 8];
+                o.up(*v, &mut b);
+                for s in b.iter_mut().take(os) {
+                    *s = (p.step(*s as f64) * 0.02) as f32;
+                }
+                o.down(&mut b)
+            })
+            .collect();
+        println!("crunch preamp alone {os}x: {:.1} dB", inharmonic_db(&y[3 * n..], n, k0));
+    }
+}
+
+#[test]
+#[ignore]
+fn probe4() {
+    let n = 8_192;
+    let k0 = 427;
+    let w = std::f64::consts::TAU * k0 as f64 / n as f64;
+    let x: Vec<f32> = (0..4 * n).map(|i| (0.1 * crate::math::sin(w * i as f64)) as f32).collect();
+    let rate = 192_000.0;
+    let k = Knobs { gain: 0.6, ..Knobs::default() };
+    let base = AmpModel::Crunch.power();
+    let variants: [(&str, power::PowerSpec); 5] = [
+        ("as built", base),
+        ("no feedback", power::PowerSpec { feedback: None, ..base }),
+        ("no blocking (huge leak, no conduction)", power::PowerSpec { r_grid: 220e3, c_couple: 10.0, ..base }),
+        ("inverter swing 200 V", power::PowerSpec { pi_swing: 200.0, ..base }),
+        ("stiff supply", power::PowerSpec { r_supply: 0.1, ..base }),
+    ];
+    for (label, spec) in variants {
+        let mut p = Preamp::new(AmpModel::Crunch.preamp(), SOURCE_OHMS, rate, &k);
+        let mut pw = Power::new(spec, rate);
+        let mut o = crate::fervor::os::Oversampler::new(4, false);
+        let y: Vec<f32> = x
+            .iter()
+            .map(|v| {
+                let mut b = [0.0f32; 8];
+                o.up(*v, &mut b);
+                for s in b.iter_mut().take(4) {
+                    *s = pw.step(p.step(*s as f64)) as f32;
+                }
+                o.down(&mut b)
+            })
+            .collect();
+        println!("crunch power {label}: {:.1} dB", inharmonic_db(&y[3 * n..], n, k0));
+    }
+}
+
+#[test]
+#[ignore]
+fn probe5() {
+    // The power amp alone at 192 kHz, a 2.5 kHz near-square of 34 V, measured there.
+    let n = 32_768;
+    let k0 = 427; // 427 · 192 000 / 32 768 ≈ 2 502 Hz
+    let w = std::f64::consts::TAU * k0 as f64 / n as f64;
+    for (label, spec) in [
+        ("crunch", AmpModel::Crunch.power()),
+        ("high gain", AmpModel::HighGain.power()),
+        ("clean", AmpModel::Clean.power()),
+        ("crunch 6L6", power::PowerSpec { tube: L6GC, ..AmpModel::Crunch.power() }),
+        ("crunch 8 ohm", power::PowerSpec { r_speaker: 8.0, ..AmpModel::Crunch.power() }),
+        ("crunch raa 2k", power::PowerSpec { raa: 2.2e3, ..AmpModel::Crunch.power() }),
+        ("crunch no fb", power::PowerSpec { feedback: None, ..AmpModel::Crunch.power() }),
+        ("crunch c 500u", power::PowerSpec { c_filter: 500e-6, feedback: None, ..AmpModel::Crunch.power() }),
+    ] {
+        for amp in [3.0, 34.0] {
+            let mut pw = Power::new(spec, 192_000.0);
+            let y: Vec<f32> = (0..3 * n)
+                .map(|i| pw.step(amp * crate::math::tanh(10.0 * crate::math::sin(w * i as f64))) as f32)
+                .collect();
+            let tail = &y[2 * n..];
+            let d2: f64 = tail.windows(3).map(|v| (v[0] - 2.0 * v[1] + v[2]).abs() as f64).sum::<f64>()
+                / tail.iter().map(|v| v.abs() as f64).sum::<f64>();
+            println!("{label} {amp} V: inharmonic {:.1} dB, roughness {d2:.4}", inharmonic_db(tail, n, k0));
+        }
+    }
+}

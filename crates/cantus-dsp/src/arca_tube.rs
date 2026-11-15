@@ -11,8 +11,7 @@
 //! 100 mA, 11 mA/V; 6L6GC −14 V → 72 mA, 6 mA/V; EL84 −7.3 V → 48 mA, 11.3 mA/V; 6V6GT
 //! −12.5 V → 45 mA, 4.1 mA/V (`arca_tests::the_valves_hold_their_datasheet_points`).
 
-use crate::fragor::dk::{fast_exp, softplus, Koren};
-use crate::math;
+use crate::fragor::dk::{fast_exp, fast_ln, softplus, Koren};
 
 /// The 12AX7, Koren's constants; Dempwolf & Zölzer's grid current (Gg, Cg, ξ).
 pub const AX7: Koren = Koren {
@@ -103,17 +102,15 @@ impl Pentode {
         if e1 <= 0.0 {
             return (0.0, 0.0, 0.0);
         }
-        let pw = fast_exp((self.ex - 1.0) * math::ln(e1));
+        let pw = fast_exp((self.ex - 1.0) * fast_ln(e1));
         let base = 2.0 / self.kg1 * pw * e1;
         let dbase = 2.0 * self.ex / self.kg1 * pw * sig;
-        let norm = 1.0 / math::atan(250.0 / self.kvb);
-        let x = vp.max(0.0) / self.kvb;
-        let f = math::atan(x) * norm;
-        let df = if vp > 0.0 {
-            norm / (self.kvb * (1.0 + x * x))
-        } else {
-            0.0
-        };
+        let norm = 1.0 / atan(250.0 / self.kvb);
+        // Smooth through zero (odd): a plate driven past its cathode by a solve's step
+        // finds its way back, where a hard floor there would trap Newton in a two-cycle.
+        let x = vp / self.kvb;
+        let f = if x < 0.0 { -atan(-x) } else { atan(x) } * norm;
+        let df = norm / (self.kvb * (1.0 + x * x));
         (base * f, dbase * f, base * df)
     }
 
@@ -130,6 +127,26 @@ impl Pentode {
             }
         }
         0.5 * (lo + hi)
+    }
+}
+
+/// `atan x` for `x ≥ 0` (odd: the caller folds the sign), our own (a degree-11 odd polynomial on [0, 1], folded through
+/// `π/2 − atan(1/x)` above; error under 2·10⁻⁸ rad): the plate's factor needs no more.
+#[inline]
+pub fn atan(x: f64) -> f64 {
+    let (t, flip) = if x > 1.0 { (1.0 / x, true) } else { (x, false) };
+    let z = t * t;
+    let mut p = -0.011_721_2;
+    p = p * z + 0.052_653_32;
+    p = p * z - 0.116_432_87;
+    p = p * z + 0.193_543_46;
+    p = p * z - 0.332_623_47;
+    p = p * z + 0.999_977_26;
+    let a = t * p;
+    if flip {
+        std::f64::consts::FRAC_PI_2 - a
+    } else {
+        a
     }
 }
 

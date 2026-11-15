@@ -21,7 +21,7 @@
 //! The output is the tap voltage over its peak at the rated power: 1.0 is full power.
 
 use super::tube::Pentode;
-use crate::math;
+use crate::fragor::dk::{fast_exp, fast_ln};
 
 /// How the power valves are biased.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -77,6 +77,42 @@ pub struct PowerSpec {
     pub high_hz: f64,
 }
 
+/// `tanh`, from [`fast_exp`] (the inverter's soft limit).
+#[inline]
+fn tanh(x: f64) -> f64 {
+    let e = fast_exp(-2.0 * x.abs());
+    let t = (1.0 - e) / (1.0 + e);
+    if x < 0.0 {
+        -t
+    } else {
+        t
+    }
+}
+
+/// `ln cosh x`, the antiderivative of `tanh`.
+#[inline]
+fn ln_cosh(x: f64) -> f64 {
+    let a = x.abs();
+    a + fast_ln(1.0 + fast_exp(-2.0 * a)) - std::f64::consts::LN_2
+}
+
+/// The inverter's soft limit with first-order antiderivative antialiasing (Parker,
+/// Zavalishin & Le Bivic, DAFx-16): the mean of `tanh` over the segment from the last
+/// input to this one, `(F(x) − F(x₁)) / (x − x₁)`, `F = ln cosh` — the limit's corners
+/// rounded by half a sample, its images above the band cut by tens of dB.
+#[inline]
+fn tanh_adaa(x: f64, x1: f64) -> f64 {
+    let d = x - x1;
+    if d.abs() < 1e-5 {
+        tanh(0.5 * (x + x1))
+    } else {
+        (ln_cosh(x) - ln_cosh(x1)) / d
+    }
+}
+
+/// The inverter's input pole (Hz).
+const PI_IN_HZ: f64 = 16_000.0;
+
 /// A grid's conduction resistance once it passes the cathode.
 const R_GC: f64 = 1_500.0;
 /// The preamp's own draw from the supply (A).
@@ -131,6 +167,8 @@ struct Live {
     vpp: f64,
     /// The feedback at the last sample (V at the inverter's input).
     fb: f64,
+    /// The inverter's last input over its swing (the antialiasing's other end).
+    pi_x: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -145,6 +183,9 @@ pub struct Power {
     idle: Live,
     lo: First,
     hi: [First; 2],
+    /// The inverter's input bandwidth: the tone stack's output impedance against the
+    /// inverter grid's Miller capacitance (≈ 100 kΩ · 100 pF: a pole near 16 kHz).
+    pi_in: First,
     fb_net: First,
     cut: [First; 1],
     /// The feedback's share at mid band (the presence network's flat part).
@@ -199,6 +240,7 @@ impl Power {
             vk,
             vpp: 0.0,
             fb: 0.0,
+            pi_x: 0.0,
         };
         let w = |hz: f64| std::f64::consts::TAU * hz;
         let wl = w(spec.low_hz);
@@ -212,6 +254,7 @@ impl Power {
             live: idle,
             idle,
             lo: First::analog(0.0, 1.0, wl, 1.0, rate),
+            pi_in: First::analog(w(PI_IN_HZ), 0.0, w(PI_IN_HZ), 1.0, rate),
             hi: [First::analog(wh, 0.0, wh, 1.0, rate); 2],
             fb_net: First::default(),
             cut: [First::default()],
@@ -299,6 +342,7 @@ impl Power {
     pub fn rest(&mut self) {
         self.live = self.idle;
         self.lo.clear();
+        self.pi_in.clear();
         for f in &mut self.hi {
             f.clear();
         }
@@ -318,8 +362,10 @@ impl Power {
         let s = self.spec;
         let t = s.tube;
         let dt = 1.0 / self.rate;
-        let u = x - self.live.fb;
-        let mut e = s.pi_swing * math::tanh(s.pi_gain * u / s.pi_swing);
+        let u = self.pi_in.run(x) - self.live.fb;
+        let xs = s.pi_gain * u / s.pi_swing;
+        let mut e = s.pi_swing * tanh_adaa(xs, self.live.pi_x);
+        self.live.pi_x = xs;
         if s.cut.is_some() {
             e = self.cut[0].run(e);
         }
@@ -343,12 +389,12 @@ impl Power {
         let half = 0.5 * s.raa;
         let mut v = self.live.vpp;
         let (mut i1, mut i2) = (0.0, 0.0);
-        for k in 0..3 {
+        for k in 0..2 {
             let (a1, _, d1) = t.current(vgk[0], vg2, b - vk - 0.5 * v);
             let (a2, _, d2) = t.current(vgk[1], vg2, b - vk + 0.5 * v);
             i1 = n * a1;
             i2 = n * a2;
-            if k == 2 {
+            if k == 1 {
                 break;
             }
             let f = v - (i1 - i2) * half;
