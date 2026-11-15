@@ -103,6 +103,7 @@ fn motif_of(f: &Face) -> pd::Motif {
         faces::Motif::Curve => pd::Motif::Curve,
         faces::Motif::Steps => pd::Motif::Steps,
         faces::Motif::Spiral => pd::Motif::Spiral,
+        faces::Motif::Leap => pd::Motif::Leap, // fx3:saltus
     }
 }
 
@@ -165,6 +166,11 @@ pub fn knob_word(key: &str) -> Option<&'static str> {
         "b0.gain" => "tabula.k.low",
         "b1.gain" => "tabula.k.middle",
         "b2.gain" => "tabula.k.high",
+        // fx3:saltus — Saltus's knobs.
+        "st1" => "saltus.l.interval",
+        "lvl1" => "saltus.l.level",
+        "dry" => "saltus.l.dry",
+        "pedal" => "saltus.l.pedal",
         _ => return None,
     })
 }

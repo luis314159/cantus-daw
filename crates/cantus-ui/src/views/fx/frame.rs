@@ -174,6 +174,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         // Tabula: the macro rail over the board (two lanes of pedals at the split) and the
         // board's column beside it.
         EffectKind::Board => Vec2::new(1360.0, 860.0), // fx3:tabula
+        // Saltus: the leap (and the pedal in Whammy) over a row of the mode's cards.
+        EffectKind::PitchShift => Vec2::new(1260.0, 740.0), // fx3:saltus
         _ => Vec2::new(1000.0, 640.0),
     }
 }

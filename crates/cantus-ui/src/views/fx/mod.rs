@@ -96,6 +96,7 @@ pub mod pedal_draw;
 pub mod rota;
 /// Saltus, pitch (fx side round, wave 3). // fx3:contract
 pub mod saltus;
+pub mod saltus_art; // fx3:saltus
 /// Tabula, the pedalboard (fx side round, wave 3). // fx3:contract
 pub mod tabula;
 /// Tabula's artwork: the motifs of the whole range on its pedals. // fx3:tabula

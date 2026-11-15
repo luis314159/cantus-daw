@@ -83,25 +83,17 @@ const fn balance(key: &'static str, label: &'static str) -> EffectParamInfo {
 }
 
 pub const PARAMS: &[EffectParamInfo] = &[
+    // The order is a host's list and the pedal's row on Tabula's board (its face's
+    // knobs, then the first others): what a pedal needs first. Keys, not places, are kept.
     step("mode", "fx.saltus.mode", 3.0, 0.0),
     step("engine", "fx.saltus.engine", 1.0, 0.0),
     step("ostyle", "fx.saltus.ostyle", 1.0, 0.0),
     step("hsrc", "fx.saltus.hsrc", 2.0, 0.0),
     semis("st1", "fx.saltus.st1", 0.0),
-    cents("ct1", "fx.saltus.ct1"),
-    degree("deg1", "fx.saltus.deg1", 2.0),
     amount("lvl1", "fx.saltus.lvl1", 1.0),
-    balance("pan1", "fx.saltus.pan1"),
-    semis("st2", "fx.saltus.st2", 0.0),
-    cents("ct2", "fx.saltus.ct2"),
-    degree("deg2", "fx.saltus.deg2", 4.0),
-    amount("lvl2", "fx.saltus.lvl2", 0.0),
-    balance("pan2", "fx.saltus.pan2"),
     amount("dry", "fx.saltus.dry", 0.0),
-    step("key", "fx.saltus.key", 11.0, 0.0),
-    // Major: Tonus's scales, in `cantus_dsp::tonus::Scale`'s order (0 is chromatic).
-    step("scale", "fx.saltus.scale", 12.0, 1.0),
-    step("formant", "fx.saltus.formant", 1.0, 1.0),
+    amount("pedal", "fx.saltus.pedal", 0.0),
+    p("out", "fx.saltus.out", -24.0, 24.0, 0.0, "dB", false, false),
     p(
         "throat",
         "fx.saltus.throat",
@@ -112,9 +104,6 @@ pub const PARAMS: &[EffectParamInfo] = &[
         false,
         false,
     ),
-    amount("pedal", "fx.saltus.pedal", 0.0),
-    semis("heel", "fx.saltus.heel", 0.0),
-    semis("toe", "fx.saltus.toe", 12.0),
     p(
         "glide",
         "fx.saltus.glide",
@@ -125,6 +114,20 @@ pub const PARAMS: &[EffectParamInfo] = &[
         false,
         false,
     ),
+    cents("ct1", "fx.saltus.ct1"),
+    degree("deg1", "fx.saltus.deg1", 2.0),
+    balance("pan1", "fx.saltus.pan1"),
+    semis("st2", "fx.saltus.st2", 0.0),
+    cents("ct2", "fx.saltus.ct2"),
+    degree("deg2", "fx.saltus.deg2", 4.0),
+    amount("lvl2", "fx.saltus.lvl2", 0.0),
+    balance("pan2", "fx.saltus.pan2"),
+    step("key", "fx.saltus.key", 11.0, 0.0),
+    // Major: Tonus's scales, in `cantus_dsp::tonus::Scale`'s order (0 is chromatic).
+    step("scale", "fx.saltus.scale", 12.0, 1.0),
+    step("formant", "fx.saltus.formant", 1.0, 1.0),
+    semis("heel", "fx.saltus.heel", 0.0),
+    semis("toe", "fx.saltus.toe", 12.0),
     step("wsrc", "fx.saltus.wsrc", 1.0, 0.0),
     amount("sub1", "fx.saltus.sub1", 1.0),
     amount("sub2", "fx.saltus.sub2", 0.0),
@@ -139,7 +142,6 @@ pub const PARAMS: &[EffectParamInfo] = &[
         false,
         false,
     ),
-    p("out", "fx.saltus.out", -24.0, 24.0, 0.0, "dB", false, false),
 ];
 
 pub fn params() -> &'static [EffectParamInfo] {
