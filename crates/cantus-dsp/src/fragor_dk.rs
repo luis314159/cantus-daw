@@ -75,6 +75,9 @@ const ITER: usize = 40;
 const STOP: f64 = 7e-5;
 /// The largest step an op-amp's differential input takes in one iteration.
 const SLEW_STEP: f64 = 0.5;
+/// A triode's largest grid and plate steps in one iteration (fx3:arca).
+const TRIODE_GRID_STEP: f64 = 1.0;
+const TRIODE_PLATE_STEP: f64 = 50.0;
 /// The largest step the predictor takes from the last answer (volts).
 const PREDICT: f64 = 0.05;
 
@@ -127,11 +130,81 @@ pub enum Nl {
         gm: f64,
         imax: f64,
     },
+    /// A triode (fx3:arca — Arca's preamp valves): plate current by Koren's model, grid
+    /// current by Dempwolf & Zölzer's ([`Koren`]). Two ports: `(v_gk, i_g)` and
+    /// `(v_pk, i_p)`, each current flowing into its electrode and out of the cathode.
+    Triode { p: u8, g: u8, k: u8, tube: Koren },
+}
+
+/// A triode's constants (fx3:arca). Plate current, after N. Koren, "Improved VT models
+/// for SPICE simulations", Glass Audio 5 (1996):
+///
+/// ```text
+/// E1 = (v_pk / kp) · ln(1 + exp(kp · (1/μ + v_gk / √(kvb + v_pk²))))
+/// i_p = 2 · E1^ex / kg1        (E1 > 0; 0 otherwise)
+/// ```
+///
+/// and grid current after K. Dempwolf & U. Zölzer, "A physically-motivated triode model
+/// for circuit simulations", DAFx-11: `i_g = gg · (ln(1 + exp(cg · v_gk)) / cg)^ξ`, a
+/// smooth diode that conducts once the grid passes the cathode.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Koren {
+    pub mu: f64,
+    pub ex: f64,
+    pub kg1: f64,
+    pub kp: f64,
+    pub kvb: f64,
+    pub gg: f64,
+    pub cg: f64,
+    pub xi: f64,
+}
+
+/// `ln(1 + e^x)` and its derivative `1/(1 + e^-x)`, without overflow (fx3:arca).
+#[inline]
+pub fn softplus(x: f64) -> (f64, f64) {
+    let e = fast_exp(-x.abs());
+    let sp = x.max(0.0) + math::ln_1p(e);
+    let sig = if x >= 0.0 { 1.0 / (1.0 + e) } else { e / (1.0 + e) };
+    (sp, sig)
+}
+
+impl Koren {
+    /// Plate and grid currents and their derivatives at `(v_gk, v_pk)`:
+    /// `(i_g, ∂i_g/∂v_gk, i_p, ∂i_p/∂v_gk, ∂i_p/∂v_pk)` (fx3:arca).
+    #[inline]
+    pub fn currents(&self, vgk: f64, vpk: f64) -> (f64, f64, f64, f64, f64) {
+        // Grid.
+        let (spg, sgg) = softplus(self.cg * vgk);
+        let (ig, dig) = if spg > 0.0 {
+            let base = spg / self.cg;
+            let lb = math::ln(base);
+            let pw = fast_exp((self.xi - 1.0) * lb);
+            (self.gg * pw * base, self.gg * self.xi * pw * sgg)
+        } else {
+            (0.0, 0.0)
+        };
+        // Plate.
+        let s = (self.kvb + vpk * vpk).sqrt();
+        let a = self.kp * (1.0 / self.mu + vgk / s);
+        let (sp, sig) = softplus(a);
+        let e1 = vpk / self.kp * sp;
+        if e1 <= 0.0 {
+            return (ig, dig, 0.0, 0.0, 0.0);
+        }
+        let le = math::ln(e1);
+        let pw = fast_exp((self.ex - 1.0) * le); // E1^(ex−1)
+        let ip = 2.0 / self.kg1 * pw * e1;
+        let dip_de = 2.0 * self.ex / self.kg1 * pw;
+        let de_dg = vpk * sig / s;
+        let de_dp = sp / self.kp - vpk * vpk * vgk * sig / (s * s * s);
+        (ig, dig, ip, dip_de * de_dg, dip_de * de_dp)
+    }
 }
 
 impl Nl {
     fn dims(&self) -> usize {
         match self {
+            Nl::Triode { .. } => 2, // fx3:arca
             Nl::Npn { .. } => 2,
             _ => 1,
         }
@@ -472,6 +545,18 @@ impl Circuit {
                     put_i(&mut ni, d, to, 1.0);
                     d += 1;
                 }
+                // fx3:arca — grid then plate, each into its electrode, out of the cathode.
+                Nl::Triode { p, g, k, .. } => {
+                    put_v(&mut nv, d, g, 1.0);
+                    put_v(&mut nv, d, k, -1.0);
+                    put_v(&mut nv, d + 1, p, 1.0);
+                    put_v(&mut nv, d + 1, k, -1.0);
+                    put_i(&mut ni, d, g, -1.0);
+                    put_i(&mut ni, d, k, 1.0);
+                    put_i(&mut ni, d + 1, p, -1.0);
+                    put_i(&mut ni, d + 1, k, 1.0);
+                    d += 2;
+                }
             }
         }
         let (dims, m) = (self.dims, self.ni + self.nc);
@@ -721,6 +806,8 @@ enum Dev {
     },
     /// `2·gm/Imax`, `Imax`, `gm`.
     Slew { k2: f64, imax: f64, gm: f64 },
+    /// A triode's constants (fx3:arca).
+    Triode(Koren),
 }
 
 impl Dev {
@@ -752,6 +839,7 @@ impl Dev {
                 imax,
                 gm,
             },
+            Nl::Triode { tube, .. } => Dev::Triode(tube), // fx3:arca
         }
     }
 }
@@ -798,6 +886,17 @@ fn currents(e: &[Dev], v: &[f64; MAX_NL], i: &mut [f64; MAX_NL], di: &mut [[f64;
                 di[d][d] = gm * (1.0 - t * t);
                 d += 1;
             }
+            // fx3:arca
+            Dev::Triode(tube) => {
+                let (ig, dig, ip, dpg, dpp) = tube.currents(v[d], v[d + 1]);
+                i[d] = ig;
+                i[d + 1] = ip;
+                di[d][d] = dig;
+                di[d][d + 1] = 0.0;
+                di[d + 1][d] = dpg;
+                di[d + 1][d + 1] = dpp;
+                d += 2;
+            }
         }
     }
 }
@@ -828,6 +927,12 @@ impl Circuit {
                 Nl::Slew { .. } => {
                     self.v[d] += dv[d].clamp(-SLEW_STEP, SLEW_STEP);
                     d += 1;
+                }
+                // fx3:arca — the grid moves at most a volt an iteration, the plate fifty.
+                Nl::Triode { .. } => {
+                    self.v[d] += dv[d].clamp(-TRIODE_GRID_STEP, TRIODE_GRID_STEP);
+                    self.v[d + 1] += dv[d + 1].clamp(-TRIODE_PLATE_STEP, TRIODE_PLATE_STEP);
+                    d += 2;
                 }
             }
         }
