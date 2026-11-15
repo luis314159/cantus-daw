@@ -132,6 +132,13 @@ pub struct Voices {
     k_centre: f32,
     k_harmony: f32,
     k_gate: f32,
+    /// Input samples since reset (skips included), the shifters' latency, and the
+    /// period's peak: the newest committed and the one being looked for.
+    clock: u64,
+    latency: u64,
+    peak: Option<u64>,
+    window: u64,
+    cand: (u64, f32),
 }
 
 impl Voices {
@@ -151,6 +158,11 @@ impl Voices {
             k_centre: 1.0 - math::exp(-2.0 * core::f32::consts::PI * CENTRE_HZ * hop / sr),
             k_harmony: 1.0 - math::exp(-1.0 / (HARMONY_GLIDE_S * sr)),
             k_gate: 1.0 / (GATE_S * sr),
+            clock: 0,
+            latency: super::psola_latency(sr) as u64,
+            peak: None,
+            window: 0,
+            cand: (0, 0.0),
         }
     }
 
@@ -158,6 +170,7 @@ impl Voices {
         for s in &mut self.shifters {
             s.reset();
         }
+        self.clock = 0;
         self.unvoice();
         self.level_db = -120.0;
         for l in &mut self.lanes {
@@ -176,6 +189,32 @@ impl Voices {
         for s in &mut self.shifters {
             s.skip(frames);
         }
+        self.clock += frames as u64;
+    }
+
+    /// The input's peak in each period while voiced; whether the shifters' output time
+    /// (`latency` behind the newest sample) falls on the lattice of those peaks.
+    #[inline]
+    fn mark(&mut self, m: f32) -> bool {
+        let now = self.clock;
+        self.clock += 1;
+        if !self.voiced || self.period <= 1.0 {
+            return false;
+        }
+        let a = m.abs();
+        if a > self.cand.1 {
+            self.cand = (now, a);
+        }
+        if (now - self.window) as f32 >= self.period {
+            self.peak = Some(self.cand.0);
+            self.window = now;
+            self.cand = (now, 0.0);
+        }
+        let Some(p) = self.peak else {
+            return false;
+        };
+        let t = now as f64 - self.latency as f64;
+        (t - p as f64).rem_euclid(self.period as f64) < 1.0
     }
 
     pub fn rest_blocker(&self) -> Option<&'static str> {
@@ -200,6 +239,9 @@ impl Voices {
         self.p_c = 0.0;
         self.period = 0.0;
         self.note = None;
+        self.peak = None;
+        self.window = self.clock;
+        self.cand = (self.clock, 0.0);
         // Harmony's intervals belong to the note: none without one.
         for l in &mut self.lanes {
             l.target = 0.0;
@@ -326,6 +368,7 @@ impl Voices {
             math::exp2(s.throat / 12.0)
         };
         let gated = matches!(s.mode, Mode::Harmony | Mode::Octave);
+        let on_mark = self.mark(0.5 * (l + r));
         let mut sum = Sum::default();
         for k in 0..LANES {
             let (level, pan) = Self::mix(s, k);
@@ -377,12 +420,18 @@ impl Voices {
             };
             let formant = if s.formants { throat } else { throat * ratio };
             let sounds = gain > 0.0;
-            let engage = sounds
+            let mut engage = sounds
                 && if self.voiced {
                     shift != 0.0 || formant != 1.0
                 } else {
                     formant != 1.0 && self.level_db > SILENCE_DB
                 };
+            // A voiced shift starts on the period's peak: the grains' lattice is anchored
+            // where the first one falls, and the formants are kept best with the grains
+            // centred on the pulses (1 dB of envelope error there, 6 dB half a period off).
+            if engage && self.voiced && self.shifters[k].mix() == 0.0 {
+                engage = on_mark;
+            }
             let c = Control {
                 period: if self.voiced { self.period } else { 0.0 },
                 ratio,

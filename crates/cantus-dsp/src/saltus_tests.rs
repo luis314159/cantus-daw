@@ -9,17 +9,36 @@ pub(super) const SR: f32 = 48_000.0;
 
 /// A plucked string (Karplus–Strong, a little low-passed): `hz`, `secs`, peak `amp`.
 pub(super) fn pluck(hz: f32, secs: f32, amp: f32, seed: u64) -> Vec<f32> {
+    pluck_at(hz, secs, amp, seed, 0.2, 0.05)
+}
+
+/// A plucked string, plucked at `pos` of its length (small: near the bridge, bright),
+/// with `noise` of the pick.
+pub(super) fn pluck_at(hz: f32, secs: f32, amp: f32, seed: u64, pos: f32, noise: f32) -> Vec<f32> {
     let n = (secs * SR) as usize;
     let len = (SR / hz).round() as usize;
     let mut ns = Noise::new(seed);
-    let mut line: Vec<f32> = (0..len).map(|_| ns.next()).collect();
+    // The string's shape where it is plucked (a triangle: harmonics falling as 1/n², the
+    // fundamental strongest unless plucked near the bridge), with the pick's noise.
+    let peak_at = (len as f32 * pos).max(1.0);
+    let mut line: Vec<f32> = (0..len)
+        .map(|i| {
+            let x = i as f32;
+            let tri = if x < peak_at {
+                x / peak_at
+            } else {
+                (len as f32 - x) / (len as f32 - peak_at)
+            };
+            tri - 0.5 + noise * ns.next()
+        })
+        .collect();
     let mut out = Vec::with_capacity(n);
     let mut p = 0;
-    let mut z = 0.0f32;
+    let mut z;
     for _ in 0..n {
         let a = line[p];
         let b = line[(p + 1) % len];
-        z = 0.5 * (a + b) * 0.996 + 0.0 * z;
+        z = 0.5 * (a + b) * 0.996;
         line[p] = z;
         out.push(a);
         p = (p + 1) % len;

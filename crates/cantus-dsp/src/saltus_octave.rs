@@ -50,6 +50,16 @@ const ATTACK_S: f32 = 0.003;
 const RELEASE_S: f32 = 0.02;
 /// The note has ended when no edge came for this many periods.
 const LOST_PERIODS: f32 = 3.0;
+/// A tracker frame guides when it is at least this periodic (the CMNDF at its lag) and
+/// this loud (dBFS), voiced or not.
+const GUIDE_APERIODICITY: f32 = 0.2;
+const GUIDE_DB: f32 = -50.0;
+/// The low-pass moves to a new note's when it is this far off (a share).
+const RETUNE: f32 = 0.2;
+/// The first edges of a note set the subs' phase outright; the later ones steer it.
+const HARD_EDGES: u32 = 4;
+/// An edge's period this far from the guide's (as a share) makes the guide stale.
+const STALE: f32 = 0.12;
 /// A guide from the tracker is kept this many frames after it stops hearing a note.
 const GUIDE_FRAMES: u32 = 100;
 /// The octave up's DC blocker, Hz, and its gain (the rectified sine's second harmonic is
@@ -109,6 +119,15 @@ impl Lp2 {
     }
 }
 
+/// The two low-pass sections' gain and delay (samples) at `f`, cut at `fc`: each a
+/// Butterworth pole pair, `1/√(1 + x⁴)` and `−atan2(√2·x, 1 − x²)` at `x = f/fc`.
+fn response(f: f32, fc: f32, sr: f32) -> (f32, f32) {
+    let x = f / fc;
+    let g = 1.0 / (1.0 + x * x * x * x);
+    let phase = 2.0 * math::atan2(core::f32::consts::SQRT_2 * x, 1.0 - x * x);
+    (g, phase / (2.0 * core::f32::consts::PI * f) * sr)
+}
+
 /// A one-pole DC blocker (`y = x − x₋₁ + R·y₋₁`).
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 struct Dc {
@@ -158,6 +177,11 @@ pub struct Divider {
     guide: f32,
     guide_age: u32,
     edges: u32,
+    /// Edges since the note started, up to [`HARD_EDGES`].
+    run: u32,
+    /// The next edge steers the subs (the filter just moved), and the delay it added.
+    soft_next: bool,
+    moved: f32,
     phase: [f32; 2],
     rate: [f32; 2],
     /// The filtered signal's peak since the last rising edge.
@@ -190,6 +214,9 @@ impl Divider {
             guide: 0.0,
             guide_age: 0,
             edges: 0,
+            run: 0,
+            soft_next: false,
+            moved: 0.0,
             phase: [0.0; 2],
             rate: [0.0; 2],
             peak: 0.0,
@@ -221,6 +248,9 @@ impl Divider {
     /// No note being followed: the counters a new divider's.
     fn fresh(&self) -> bool {
         self.edges == 0
+            && self.run == 0
+            && !self.soft_next
+            && self.moved == 0.0
             && self.period == 0.0
             && self.amp == 0.0
             && self.target == 0.0
@@ -229,7 +259,11 @@ impl Divider {
 
     /// A frame from the tracker: the note's period guides the filter.
     pub fn guide(&mut self, f: &PitchFrame) {
-        if f.voiced && f.period > 0.0 {
+        // A voice's voicing rules (sibilance, hysteresis) are not an instrument's: a
+        // window clearly periodic and loud enough guides the filter.
+        let periodic = f.period > 0.0
+            && (f.voiced || (f.aperiodicity < GUIDE_APERIODICITY && f.level_db > GUIDE_DB));
+        if periodic {
             self.guide = f.period;
             self.guide_age = 0;
         } else if self.guide > 0.0 {
@@ -239,29 +273,50 @@ impl Divider {
                 self.guide_age = 0;
             }
         }
-        self.retune();
+        self.retune(false);
     }
 
     /// The filter's cutoff for what is known of the note.
-    fn retune(&mut self) {
+    fn retune(&mut self, own: bool) {
+        // The tracker's period, else the divider's own once a note has settled (its first
+        // edges wander with the attack) or when asked, else the default.
         let period = if self.guide > 0.0 {
             self.guide
-        } else {
+        } else if own || self.run >= HARD_EDGES {
             self.period
+        } else {
+            0.0
         };
         let want = if period > 0.0 {
             (CUT_OVER_F0 * self.sr / period).clamp(CUT_MIN, CUT_MAX)
-        } else {
+        } else if self.fresh() {
             CUT_DEFAULT
+        } else {
+            // A note under way, nothing better known: where it was set.
+            self.cut
         };
-        if want != self.cut {
-            // Halfway each frame: smooth enough for a filter that is never heard alone.
-            let next = self.cut + 0.5 * (want - self.cut);
-            self.cut = if (next - want).abs() < 0.5 {
-                want
-            } else {
-                next
-            };
+        // Moved only when it is well off (each move shifts the edges by the filter's change
+        // of delay): once at a note's start, rarely after.
+        let off = (want / self.cut - 1.0).abs() > RETUNE;
+        let home = period == 0.0 && self.fresh();
+        if want != self.cut && (off || home) {
+            // At the note's frequency the new filter delays it by a different time and
+            // passes it at a different level: the edge clock and the follower are moved by
+            // as much, so the next edge is neither late nor missed.
+            if period > 0.0 && !self.fresh() {
+                let f = self.sr / period;
+                let (g0, d0) = response(f, self.cut, self.sr);
+                let (g1, d1) = response(f, want, self.sr);
+                self.since -= d1 - d0;
+                self.moved = d1 - d0;
+                // Only ever down: what the follower holds may be the last note's, which the
+                // new filter does not raise.
+                self.follow *= (g1 / g0.max(1e-9)).min(1.0);
+                // The edge after this one comes late by as much: a sub already sounding is
+                // steered onto it, never set back.
+                self.soft_next = self.amp > 0.0;
+            }
+            self.cut = want;
             self.coef = LpCoef::new(self.cut, self.sr);
         }
     }
@@ -368,28 +423,57 @@ impl Divider {
                 measured
             };
         }
+        // A guide the edges disagree with is the last note's (the tracker hears a new one
+        // some 20 ms late): dropped, the edges lead until it catches up. Half the guide is
+        // left alone (a harmonic's edge, which the refractory time already refuses), and
+        // twice it (an edge missed).
+        let mut stale = false;
+        if plausible && self.guide > 0.0 {
+            let r = measured / self.guide;
+            let near = |x: f32| (r / x - 1.0).abs() < STALE;
+            if !(near(1.0) || near(0.5) || near(2.0)) {
+                self.guide = 0.0;
+                self.guide_age = 0;
+                stale = true;
+            }
+        }
         self.since = frac;
         self.edges = self.edges.wrapping_add(1) & 3;
+        // The filter set from the edges as soon as they give a period (before the tracker
+        // can, and before a sub sounds), or again when the guide went stale.
+        if stale || (plausible && !had && self.guide == 0.0) {
+            self.retune(true);
+        }
         let p = self.known_period();
         if p > 0.0 {
+            self.run = self.run.saturating_add(1).min(HARD_EDGES);
             self.target = self.peak;
             for k in 0..2 {
                 let div = (2 << k) as f32;
                 let here = (self.edges % (2 << k)) as f32 / div;
-                if !had || self.amp == 0.0 {
-                    // A note starting: on the beat, at the nominal rate.
-                    self.phase[k] = here;
+                let hard = !had || self.amp == 0.0 || self.run < HARD_EDGES;
+                if hard && !(self.soft_next && self.amp > 0.0) {
+                    // A note starting: on the beat, at the nominal rate (hard, as a
+                    // flip-flop, while the level is still rising) — behind the beat by
+                    // what the filter just added to the next edge's delay.
                     self.rate[k] = 1.0 / (div * p);
+                    let v = here - self.moved * self.rate[k];
+                    self.phase[k] = v - v.floor();
                 } else {
                     let next = here + 1.0 / div;
                     let mut d = next - self.phase[k];
-                    // Wrapped into −½ … ½ of a cycle.
-                    d -= (d + 0.5).floor();
+                    // Wrapped into half a cycle either side of the nominal advance (an
+                    // octave down advances half a cycle a period: wrapping around zero
+                    // would make that a step back).
+                    let adv = 1.0 / div;
+                    d -= (d - adv + 0.5).floor();
                     let nominal = 1.0 / (div * p);
                     self.rate[k] = (d / p).clamp(0.25 * nominal, 2.0 * nominal);
                 }
             }
         }
+        self.soft_next = false;
+        self.moved = 0.0;
         self.peak = 0.0;
     }
 
@@ -421,6 +505,9 @@ impl Divider {
         if self.amp == 0.0 && self.target == 0.0 && (lost || self.follow <= GATE) {
             // The note is over: back to a new divider's counters.
             self.edges = 0;
+            self.run = 0;
+            self.soft_next = false;
+            self.moved = 0.0;
             self.period = 0.0;
             self.since = 0.0;
             self.high = false;
