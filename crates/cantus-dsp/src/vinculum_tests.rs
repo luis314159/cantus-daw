@@ -259,7 +259,7 @@ fn giannoulis(x: f64, t: f64, r: f64, w: f64) -> f64 {
     if 2.0 * (x - t) < -w {
         x
     } else if 2.0 * (x - t).abs() <= w {
-        x + (1.0 / r - 1.0) * (x - t + w / 2.0).powi(2) / (2.0 * w)
+        x + (1.0 / r - 1.0) * math::powi(x - t + w / 2.0, 2) / (2.0 * w)
     } else {
         t + (x - t) / r
     }
@@ -306,7 +306,7 @@ fn opto_out(law: &OptoLaw, t: f64, x: f64) -> f64 {
     solve(x, |y| {
         let d = y / t - law.u0 as f64;
         let g = if d > 0.0 {
-            law.c as f64 * d.powi(law.p)
+            law.c as f64 * math::powi(d, law.p)
         } else {
             0.0
         };
@@ -317,15 +317,20 @@ fn opto_out(law: &OptoLaw, t: f64, x: f64) -> f64 {
 /// The vari-mu's static output, solved from the valve's law (in dB: the input is the
 /// output plus the reduction the output asks for).
 fn mu_out(law: &MuLaw, t: f64, x: f64) -> f64 {
-    let t_db = 20.0 * t.log10();
-    let x_db = 20.0 * x.log10();
+    let t_db = 20.0 * math::log10(t);
+    let x_db = 20.0 * math::log10(x);
     let y_db = solve_db(|y| y + law.gr_db(law.knee((y - t_db) as f32)) as f64, x_db);
-    10f64.powf(y_db / 20.0)
+    amp(y_db)
+}
+
+/// A level in dB as an amplitude.
+fn amp(db: f64) -> f64 {
+    math::powf(10.0, db / 20.0)
 }
 
 fn local_ratio(out: impl Fn(f64) -> f64, x_db: f64) -> f64 {
     let h = 0.05;
-    let y = |d: f64| 20.0 * out(10f64.powf(d / 20.0)).log10();
+    let y = |d: f64| 20.0 * math::log10(out(amp(d)));
     2.0 * h / (y(x_db + h) - y(x_db - h))
 }
 
@@ -341,11 +346,11 @@ fn the_opto_settles_on_its_cell_law() {
             character,
             ..VinculumSettings::default()
         };
-        let t = 10f64.powf(-1.0);
+        let t = 0.1;
         for x_db in [-30.0f32, -26.0, -20.0, -14.0, -6.0, 0.0] {
             let got = settled_gain_db(&s, math::db_to_gain(x_db), 3.0);
-            let x = 10f64.powf(x_db as f64 / 20.0);
-            let want = 20.0 * (opto_out(&law, t, x) / x).log10();
+            let x = amp(x_db as f64);
+            let want = 20.0 * math::log10(opto_out(&law, t, x) / x);
             assert!(
                 (got as f64 - want).abs() < 0.02,
                 "{character:?} at {x_db}: {got} dB, the law {want} dB"
@@ -391,8 +396,8 @@ fn the_vari_mu_settles_on_its_valve_law() {
         };
         for x_db in [-30.0f32, -21.0, -20.0, -16.0, -10.0, 0.0, 6.0] {
             let got = settled_gain_db(&s, math::db_to_gain(x_db), 2.0);
-            let x = 10f64.powf(x_db as f64 / 20.0);
-            let want = 20.0 * (mu_out(&law, 0.1, x) / x).log10();
+            let x = amp(x_db as f64);
+            let want = 20.0 * math::log10(mu_out(&law, 0.1, x) / x);
             assert!(
                 (got as f64 - want).abs() < 0.02,
                 "{character:?} at {x_db}: {got} dB, the law {want} dB"
@@ -412,7 +417,7 @@ fn the_vari_mu_ratio_rises_with_level() {
     ] {
         let t = 0.1;
         let out = |x: f64| mu_out(&law, t, x);
-        let gr_at = |x_db: f64| x_db - 20.0 * out(10f64.powf(x_db / 20.0)).log10();
+        let gr_at = |x_db: f64| x_db - 20.0 * math::log10(out(amp(x_db)));
         // The input level where the reduction is `gr` dB.
         let input_for = |gr: f64| {
             let (mut lo, mut hi) = (-40.0, 80.0);
@@ -430,7 +435,7 @@ fn the_vari_mu_ratio_rises_with_level() {
         // ratio is the law's at its reduction.
         assert_eq!(law.r0, start);
         let past = solve_db(
-            |x| 20.0 * out(10f64.powf(x / 20.0)).log10(),
+            |x| 20.0 * math::log10(out(amp(x))),
             -20.0 + law.w as f64,
         );
         for x in [past, past + 3.0, past + 10.0] {
@@ -513,9 +518,9 @@ fn the_valve_is_odd_and_as_strong_as_stated() {
     let (a, _) = run(&mut v, &x, &x, 256);
     let tail = &a[n / 2..];
     let h = |k: f64| goertzel(tail, 1000.0 * k) / goertzel(tail, 1000.0);
-    let h2 = 20.0 * h(2.0).log10();
-    let h3 = 20.0 * h(3.0).log10();
-    let want = 20.0 * (COLOUR_REST_DEPTH as f64 * 0.01).log10();
+    let h2 = 20.0 * math::log10(h(2.0));
+    let h3 = 20.0 * math::log10(h(3.0));
+    let want = 20.0 * math::log10(COLOUR_REST_DEPTH as f64 * 0.01);
     assert!((h3 - want).abs() < 0.5, "third {h3} dB, stated {want} dB");
     assert!(h2 < -110.0, "second {h2} dB: a push-pull stage is odd");
 }
@@ -526,10 +531,10 @@ pub(super) fn goertzel(x: &[f32], hz: f64) -> f64 {
     let w = 2.0 * std::f64::consts::PI * hz / SR as f64;
     let (mut re, mut im) = (0.0, 0.0);
     for (i, v) in x.iter().enumerate() {
-        let win = 0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / n as f64).cos();
+        let win = 0.5 - 0.5 * math::cos(2.0 * std::f64::consts::PI * i as f64 / n as f64);
         let p = w * i as f64;
-        re += *v as f64 * win * p.cos();
-        im += *v as f64 * win * p.sin();
+        re += *v as f64 * win * math::cos(p);
+        im += *v as f64 * win * math::sin(p);
     }
     (re * re + im * im).sqrt() * 4.0 / n as f64
 }
@@ -566,6 +571,8 @@ fn the_meter_reads_each_model() {
     }
 }
 
-#[cfg(test)]
 #[path = "vinculum_tests_time.rs"]
 mod time;
+
+#[path = "vinculum_measure.rs"]
+mod measure;
