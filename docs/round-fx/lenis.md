@@ -69,29 +69,47 @@ in ──┤                                                                    
 - **The detector** (`lenis_detect.rs`), per bin, per frame, for each detector (Linked: one
   on both channels' power; Independent: one each; Mid/Side: one on the mid, one on the
   side):
-  1. **Two averages of the power**, 30 ms and 5 ms, flushed to +0.0 under −160 dBFS.
-  2. **The upper envelope over the partials**: the loudest bin within ±120 Hz (f/6 under
-     720 Hz), then a triangle as wide — a morphological closing in dB. A note's harmonics
-     become the smooth outline over them, so a resonance is a bump in that outline and
-     never a harmonic itself.
+  1. **Two averages of the power**, 30 ms and 5 ms, flushed to +0.0 under −160 dBFS. The
+     slow one catches up at the fast rate while the fast one stands more than 1 dB over it
+     *and* the last frame's fast excess stood 3 dB over the threshold (an onset); otherwise
+     it keeps its pace — noise's quick flickers never pass the second condition.
+  2. **The upper envelope through the prominent peaks** (second pass; the first used a fixed
+     ±120 Hz bridge): every local maximum is a candidate; one more than 6 dB under the line
+     between its neighbouring candidates is a valley's ripple and is dropped (three passes);
+     between two kept peaks no further apart than the lower one's frequency (+4 bins) the
+     envelope is the straight line between them, or the spectrum where higher; then
+     `[¼ ½ ¼]`. A bridge that adapts to any partial spacing; a resonance is a peak over its
+     neighbouring peaks.
   3. **The envelope**: over a box of `W` octaves around the bin (Sharpness: 3 octaves at 0,
-     3/8 of one at 1; never narrower than `4 + 2·bridge + 1` bins a side), the greatest of
-     the least-squares line through the box (against octaves: it follows any slope), the
-     mean of the two sides beyond a guard (each moved along the box's slope to the bin),
-     and the higher side less 3 dB — the "greatest of" cell-averaging detector of radar
-     (GO-CFAR, Hansen & Sawyers 1980), which keeps a roll-off's knee or a band's edge from
-     being taken for a peak. The peaks are clipped out (estimate + 1 dB) and the estimate
-     made again, three times: a robust smoothing in the spirit of a median (as
-     harmonic–percussive separation smooths across frequency, Fitzgerald 2010), every sum a
-     difference of prefix sums with the constants precomputed — O(1) a bin.
-  4. **The excess** = upper envelope − envelope, on each time scale; the slow one is what
-     counts, raised to the fast one less 4 dB (a sudden resonance is caught at once) and held
+     3/8 of one at 1; never narrower than 7 bins a side), the greatest of the least-squares
+     line through the box (against octaves: it follows any slope), the mean of the two sides
+     beyond a 3-bin guard (each moved along the box's slope to the bin), and the higher raw
+     side less an allowance — the "greatest of" cell-averaging detector of radar (GO-CFAR,
+     Hansen & Sawyers 1980). The allowance (second pass) is **6 dB where the two sides
+     differ as a slope makes them (≤ 12 dB) and 3 dB where they differ as a cliff does
+     (≥ 24 dB)**: a broad peak on a steep spectrum is found, a band's edge is not taken for a
+     peak. The peaks are clipped out (estimate + 1 dB) and the estimate made again, three
+     times; every sum a difference of prefix sums with the constants precomputed — O(1) a bin.
+  4. **Harmonic awareness under 800 Hz** (second pass): a candidate peak whose octave and
+     twelfth are peaks too (or, for an odd series, its twelfth and seventeenth; within 2.5 %
+     and 30 dB) is a partial of a note; it may stand over those partners by what a bright
+     tone's partials do (`20·log10 m`: 6 dB over its octave, 9.5 over its twelfth, 14 over
+     its seventeenth) before it counts, and its excess (its main lobe, and the line to the
+     next partial) is capped at how far it exceeds that. A note's low partials are never
+     resonances; a partial a resonance lifts over the series still is; an inharmonic ring (a
+     drum shell, a room mode) has no partners and is judged by the envelope alone.
+  5. **The excess** = upper envelope − envelope, on each time scale. The slow one says
+     whether a resonance is there; once it says so (from the threshold, fully 2 dB over it)
+     the fast one says how much (second pass: the onset measured at the fast pace, the noise
+     judged at the slow one); the slow one is also raised to the fast one less 4 dB and held
      under the fast one plus 3 dB (it lets go as soon as the ringing stops).
-  5. **The curve**: `e` = excess − threshold (Selectivity: 1.5 dB at 0 … 6.5 dB at 1). Hard:
-     `4·depth·e`; Soft: `4·depth·e²/(e + 4 dB)` (no slope at the threshold). × the focus
-     weight (0…2), never more than the excess itself (no bin is dug below the envelope),
-     never more than 30 dB.
-  6. **Spread and time**: the most of three neighbouring bins, then `[¼ ½ ¼]` (no bin is cut
+  6. **The curve** (second pass): `depth · gate · excess`, never more than the excess and 30
+     dB — **Depth is the share of each resonance's bump taken away**: 100 % brings it down to
+     the envelope, 50 % half way, acting over the knob's whole travel (the first pass's
+     `4·depth·(excess − threshold)` saturated past ~50 %). The gate opens as the excess
+     crosses the threshold (Selectivity: 1.5 dB at 0 … 6.5 dB at 1): Hard over 2 dB, Soft as
+     `e/(e + 4 dB)`. × the focus weight (0…2).
+  7. **Spread and time**: the most of three neighbouring bins, then `[¼ ½ ¼]` (no bin is cut
      alone: a needle in frequency is a long ring in time, and an isolated bin switching on
      and off is the "musical noise" of spectral subtraction — Berouti et al. 1979, Cappé
      1994); then attack and release, one-pole in dB at the frame rate; released to +0.0
@@ -133,6 +151,12 @@ in ──┤                                                                    
   was considered and not taken: a lifter short enough to bridge harmonics blurs narrow
   resonances, it is pulled up by the peaks it should stand under, and it can't be made
   edge-safe.
+  The second pass added two more, also from measurement: the upper envelope drawn through
+  the *prominent peaks* instead of a fixed bridge (it adapts to any partial spacing), and
+  *harmonic awareness* under 800 Hz (a note's low partials, which no bridge can join to
+  a low fundamental, are recognised as a series — van Waterschoot & Moonen's survey of
+  howling detection, 2011, lists the same harmonicity test among its features — and judged
+  against their partners instead of their envelope).
 - **Smoothing in time and frequency, against musical noise and zipper**: the 30 ms power
   average (measured: noise's excess 99.9th percentile +3.4 dB against +8.9 for a 12 dB
   resonance; in the first detector 15 ms gave +5.7 against +9.2 and 30 ms +4.4 against
@@ -140,6 +164,40 @@ in ──┤                                                                    
   release in dB, the gains applied per bin in the frequency domain with a window pair that
   sums exactly (no zipper by construction: a gain changes once a hop, cross-faded by the
   overlap).
+
+## The second pass: before → after
+
+The integrator's review asked for five things before Phase B. Every null and bit-exact test
+is unchanged and still passes.
+
+| Asked | Before (first pass) | After (second pass) | Target |
+|---|---|---|---|
+| 1. A Q 4, +6 dB peak on a 12 dB/octave slope | +3.0 dB of excess (the 2.7 kHz cabinet peak barely touched: guitar Strong −0.9 dB at 2 kHz, −0.5 at 4 kHz) | **+5.1 dB of excess**, cut −3.6 dB at Hard 100 %, the slope around it ≤ 0.01 dB; guitar Strong now **−2.8 dB at 2 kHz, −3.8 at 4 kHz**, −1.7 at 500 Hz, with the focus open from 150 Hz | ≥ 4 dB ✔ |
+| 2. A steady note's partials under 800 Hz at a strong setting (Hard 80 %, selectivity 25 %) | −1.2 / 0 / −3.4 / −4.6 dB (110 Std / 110 Precise / 220 / 330 Hz, 400–800 Hz) | **0.00 dB** in 150–800 Hz at all four; the detector's excess there p99 +1.0 dB (was +12.5); an inharmonic ring at 550 Hz among a 220 Hz note's partials still cut −12.7 dB (Precise; the partials ≤ 0.7 dB) and −2.7 dB (Standard: 2.3 bins from the 440 Hz partial, which takes −3.1 — the resolution's limit) | ≤ 0.5 dB ✔ |
+| 3. 90 % of the reduction after an onset (attack 1 ms) | 45 ms (half at 13 ms) | **21 ms** Standard, 20 ms Fast, 35 ms Precise (half at 7–8 ms); noise before the tone < 0.5 dB | ~15 ms ✘ (partial) |
+| 4. Hard saturating past 50 % | −9.6 / −9.7 / −9.7 dB at 50 / 75 / 100 % | **−5.7 / −8.6 / −11.4 dB**, Soft −3.8 / −5.6 / −7.4 (25 %: −2.9 / −1.9): linear to 100 % | ✔ |
+| 5. A Quality change | resets the unit (a gap of a latency) | unchanged — **left for the engine**, see below | — |
+
+- **Why 21 ms and not 15.** The tone has to fill the 1024-point analysis frame (21 ms; its
+  window weighs the newest samples most) and the 5 ms fast average. Tried and measured: a
+  3 ms fast average gives 19 ms but raises noise's 99.9th-percentile excess from +4.0 to
+  +5.2 dB and the removed part of pink noise at depth 100 % from −44 to −40 dB; the slow
+  average catching up ungated (6 dB) gave 21 ms with flickers of 2–3 dB on noise before the
+  tone. The gated catch-up keeps 21 ms with the noise calm. Fast quality's frame is half
+  as long but its bins twice as wide, so the excess settles no sooner (20 ms). Below 15 ms
+  needs a shorter frame than the resolution allows; I'd not trade the noise for 6 ms.
+- **Why a Quality change can't crossfade.** The three qualities have different latencies
+  (255 / 511 / 1023 samples); a crossfade between two outputs delayed differently is a
+  comb filter and an audible slip, and the host must re-align the track anyway. The engine
+  should treat Quality like Sibilus's look-ahead: report the new latency, let delay
+  compensation re-align, and accept the one-latency gap (5–21 ms) the reset leaves — or
+  ramp the output down and up over it. Noted in Phase B.
+- **The costs of the second pass, measured**: noise's excess 99.9th percentile +3.4 → +4.0 dB
+  (pink noise at the defaults with depth 50 %: removed part −53 → −50 dB, worst
+  third-octave 0.01 dB either way); a pink noise low-passed with eight poles at 5 kHz:
+  99.9th +2.3 → +5.3 dB at its knee (the slope allowance; a synthetic brick-wall is the
+  worst case — the 220 Hz note's partials stopping dead at 16 kHz read +6.9 at its p99
+  there, which the threshold mostly covers); CPU ≈ +0.2 % of a core.
 
 ## Measured (48 kHz; `cargo test -p cantus-dsp --release --lib lenis -- --nocapture --include-ignored`)
 
@@ -149,40 +207,45 @@ in ──┤                                                                    
   the ring itself, so the latency compensation is exact; a host aligns Lenis by
   `latency()` like any other unit.
 - **Flat noise barely touched** (8 s; the removed part's level under the input, and the
-  worst third-octave band's change): at the defaults with depth 50 % — pink **−53 dB**,
-  0.01 dB; white −67 dB, 0.01 dB. Depth 100 %: pink −47 dB / 0.02 dB. Only at selectivity
-  0 (a threshold of 1.5 dB) does noise get worked: pink −24 dB / 0.58 dB.
+  worst third-octave band's change): at the defaults with depth 50 % — pink **−49.7 dB**,
+  0.01 dB; white −47.5 dB, 0.01 dB. Depth 100 %: pink −44.1 dB / 0.02 dB. Only at
+  selectivity 0 (a threshold of 1.5 dB) does noise get worked: pink −26.0 dB / 0.66 dB.
 - **A resonance cut, its neighbours kept** (pink noise with +12 dB at 3 kHz, Q 8; the peak's
   sixth of an octave, and 200 Hz–1 kHz, 1–2 kHz, 5–10 kHz, 10–16 kHz): Soft at depth
-  25/50/75/100 % **−3.4 / −6.7 / −8.9 / −9.4 dB**; Hard −5.7 / −9.6 / −9.7 / −9.7 dB; every
-  neighbouring region within **0.01 dB**. Hard saturates past ~50 %: the cut never goes
-  under the envelope the detector sees (≈ 9.7 of the 12 dB), by design.
+  25/50/75/100 % **−1.9 / −3.8 / −5.6 / −7.4 dB**; Hard −2.9 / −5.7 / −8.6 / −11.4 dB;
+  every neighbouring region within **0.02 dB**.
 - **Against sharpness** (Hard 50 %; a narrow Q 20 peak at 4 kHz and a broad Q 1.5 bump at
-  1.5 kHz, both +10 dB): sharpness 0 / 0.25 / 0.5 / 0.75 / 1 — narrow −8.5 / −8.2 / −7.8 /
-  −7.0 / −5.8 dB; broad −7.1 / −5.2 / −2.4 / −1.6 / −1.6 dB. The broad bump is let go as
-  sharpness rises; above 0.75 the box's floor (`4 + 2·bridge + 1` bins) holds it.
-- **Notes are not resonances** (a steady note, harmonics at 1/k with a slow vibrato,
-  Soft 50 %): the note alone changes **≤ 0.16 dB** in 400 Hz–2 kHz and ≤ 0.01 dB above, at
-  110 (Standard and Precise), 220 and 330 Hz. The same note with a +10 dB Q 8 peak at 3 kHz:
-  the peak −2.2 / −2.5 / −1.2 / −2.6 dB; with a strong setting (Hard 80 %, selectivity
-  25 %) −5.9 / −5.5 / −4.6 / −4.4 dB, 800 Hz–2 kHz and 5–15 kHz untouched (≤ 0.04 dB).
-  **A miss**: under ~720 Hz the bridge is small and a note's low partials are peaks of
-  their own — that setting takes 1.2 / 0 / 3.4 / 4.6 dB in 400–800 Hz; the focus's low limit is
-  the tool (the listening set uses 300 Hz for drums, 700 Hz for guitar, 1 kHz for voice).
-- **The detector's statistics** (`diagnose_the_excess`, the excess over 200 Hz–16 kHz):
-  pink noise median −0.1 dB, 99th percentile +2.4, 99.9th +3.4; a +12 dB Q 8 resonance on
-  it +8.9; pink noise low-passed at 5 kHz (eight poles) 99.9th +2.3 (the knee is not a
-  peak; +38 dB before the greatest-of envelope); a Q 4 +8 dB peak on a 12 dB/octave slope
-  **+3.4 only** (+0.8 before the sides were moved along the slope) — **a partial miss**:
-  broad peaks on steep slopes are found weakly.
+  1.5 kHz, both +10 dB): sharpness 0 / 0.25 / 0.5 / 0.75 / 1 — narrow −5.2 / −5.1 / −4.9 /
+  −4.6 / −4.1 dB; broad −4.8 / −4.1 / −2.8 / −1.0 / −0.7 dB.
+- **A broad peak on a steep slope** (Q 4, +6 dB at 3 kHz on 12 dB/octave from 1 kHz):
+  excess +5.1 dB; Hard 100 % −3.6 dB at the peak, 1–1.8 kHz and 5.5–9 kHz ≤ 0.01 dB; the
+  slope alone ≤ 0.03 dB everywhere.
+- **Notes are not resonances** (a steady note, harmonics at 1/k with a slow vibrato): Soft
+  50 % — the note alone ≤ 0.10 dB everywhere at 110 (Standard and Precise), 220 and 330 Hz;
+  with a +10 dB Q 8 peak at 3 kHz the peak −1.3 / −1.3 / −0.9 / −1.3 dB. Strong (Hard 80 %,
+  selectivity 25 %): the peak −4.1 / −3.8 / −3.4 / −3.7 dB, 150–800 Hz **0.00**, 800 Hz–2 kHz
+  0.00, 5–15 kHz ≤ 0.21 dB.
+- **An inharmonic ring among low partials** (a 220 Hz note and a ring at 550 Hz ~11 dB over
+  its neighbouring partials; Strong): Precise −12.7 dB, the partials at 220 / 440 / 660 Hz
+  0.0 / −0.1 / −0.7; Standard −2.7 dB, the partials −0.1 / −3.1 / −0.1 (the ring is 2.3 bins
+  from 440 Hz).
+- **The detector's statistics** (`diagnose_the_excess`, the excess over 800 Hz–16 kHz, and
+  150–800 Hz): pink noise median 0.0 dB, 99th percentile +2.8, 99.9th +4.0 (150–800 Hz p99
+  +0.7); a +12 dB Q 8 resonance on it +10.6; a 220 Hz note p99 +6.9 (its band-limited top),
+  under 800 Hz p99 +1.0; its +10 dB 3 kHz peak +6.4; pink low-passed at 5 kHz p99 +3.2,
+  99.9th +5.3; the Q 4 peak on the slope +5.1. With the first pass's fixed bridge: the note
+  under 800 Hz +12.6, the slope peak +2.0.
 - **Time response** (a 3 kHz tone, −20 dBFS, over pink noise from 1 s to 2 s, Hard 60 %; it
-  is held at −20.9 dB): attack 1 / 5 / 20 / 50 ms — half the reduction **13 / 19 / 32 /
-  56 ms** after the onset, 90 % 45 / 51 / 80 / 149 ms; release 50 / 80 / 200 / 500 ms — half
-  let go **56 / 75 / 163 / 371 ms** after the end, 90 % 144 / 208 / 483 / 1 176 ms. Nothing
-  before the tone (< 0.5 dB). The fast detector catches the onset (half within 13 ms at a
-  1 ms attack); the last 10 % follows the slow 30 ms average — **a miss against "a few ms"**
-  for the full depth; the release is a one-pole time constant (90 % ≈ 2.3 × release plus
-  the detector's ~60 ms).
+  is held at −12.3 dB): Standard, attack 1 / 5 / 20 / 50 ms — half the reduction **8 / 13 /
+  24 / 45 ms** after the onset, 90 % **21** / 32 / 67 / 136 ms; release 50 / 80 / 200 / 500
+  ms — half let go 59 / 80 / 173 / 381 ms after the end, 90 % 179 / 227 / 496 / 1 187 ms.
+  Fast (attack 1 ms) 90 % in 20 ms, Precise 35 ms. Nothing before the tone (< 0.5 dB). The
+  release is now gradual (the cut is a share of the excess, which fades as the ring does):
+  90 % ≈ 2.3 × release + 60 ms.
+- **The window pairs** (Hard 50 %): at 10.6 ms the asymmetric 1024/256 pair cuts the 3 kHz
+  peak −5.7 dB and a 250 Hz peak −0.9 dB, against −5.2 / −0.4 for a symmetric 512; pre-echo
+  −29.9 dB (512: −31.5; symmetric 1024 at twice the latency −27.8). Precise (2048/512)
+  −1.3 dB at 250 Hz.
 - **The latency, checked on the signal**: processed hard, the output's cross-correlation
   with the input peaks exactly at `latency()`; 255 / 511 / 1023 at 48 kHz, 511 at 44.1,
   1023 at 96, 2047 at 192 kHz (Standard).
@@ -190,31 +253,25 @@ in ──┤                                                                    
   Linked, Independent and Mid/Side.
 - **Block size**: 1 / 37 / 64 / 512, a setting changed mid-stream (depth and curve; the
   channel mode with mix, output and delta; Fast to Precise; the defaults to heavy):
-  identical to the bit. A setting given anywhere in a hop is taken at the next hop: the
-  same bits.
-- **Rest**: at rest 1.3 s after the music stops (Standard and Precise, release 60 ms);
-  19.8 s with a 2 s release (the reduction lets go at its own pace). Processing zeros,
-  skipped, reset-and-skipped, and a new unit that heard only silence for as long: the same
-  bits on music afterwards. A new unit is at rest; silence in is +0.0 out.
-- **No allocation after `new`** (`tests/lenis_alloc.rs`, a counting allocator): at 44.1,
-  48, 96 and 192 kHz, every quality × channel mode × curve with the delta and a focus band,
-  the defaults, settings changed mid-stream (the frame size among them), blocks of 1, 37,
-  64, 512, 1024, the meter, the per-bin reductions, `reset`, `at_rest`, `skip`: **0**.
+  identical to the bit. A setting given anywhere in a hop is taken at the next hop.
+- **Rest**: at rest 1.2 s after the music stops (Standard and Precise, release 60 ms);
+  19.8 s with a 2 s release. Processing zeros, skipped, reset-and-skipped, and a new unit
+  that heard only silence for as long: the same bits on music afterwards.
+- **No allocation after `new`** (`tests/lenis_alloc.rs`): at 44.1, 48, 96 and 192 kHz,
+  every quality × channel mode × curve with the delta and a focus band, settings changed
+  mid-stream, blocks of 1 to 1024, the meter, `reset`, `at_rest`, `skip`: **0**.
 - **Deterministic maths**: `cantus_dsp::math::*` only (clippy's `disallowed-methods` clean
   in the library, the tests and the example); the detector's `log10` is our own plain
-  arithmetic (exponent + `atanh` series, within 2·10⁻⁶ of `math::log10` over 10⁻¹⁴…10⁶,
-  tested), a third of the library call's cost.
-- **CPU** (one core, 48 kHz, a minute of a harsh stereo signal in blocks of 256, release
-  build, best of three; no `rustc` running at the start or the end of the run, other
-  builders' idle `cargo` processes present): Standard **Linked 2.97 %**, Independent 5.04 %,
-  Mid/Side 4.97 %; Fast 2.62 / 4.43 / 4.43 %; Precise 3.26 / 5.59 / 5.56 %. At depth 0 (the
-  transform and the averages only) 0.95–1.37 %. (Caelum, the shimmer reverb, 3.1 % with
-  16 lines.) The detector was 3.9 % before its constants were precomputed and its `log10`
-  made our own.
-- **The suite**: `cargo test -p cantus-dsp --no-fail-fast` — 938 passed in the library
-  (Lenis's 18, two more ignored: the CPU and the detector's statistics), every
-  integration test and `lenis_alloc` green; `cargo clippy -p cantus-dsp --all-targets --
-  -D warnings` clean; `cargo fmt -p cantus-dsp` applied.
+  arithmetic (within 2·10⁻⁶ of `math::log10`, tested).
+- **CPU** (one core, 48 kHz, a minute of a harsh stereo signal in blocks of 256, release,
+  best of three; **two other builders' `rustc` running at the start, none at the end**):
+  Standard **Linked 3.2 %**, Independent 5.7 %, Mid/Side 5.6 %; Fast 3.2 / 5.5 / 5.5 %;
+  Precise 3.3 / 5.9 / 5.8 %; at depth 0 1.0–1.6 %. (First pass, quieter machine: 3.0 / 5.0 /
+  5.0 % Standard.)
+- **The suite**: `cargo test -p cantus-dsp --no-fail-fast` — 940 passed in the library
+  (Lenis's 20, two more ignored: the CPU and the detector's statistics), every integration
+  test and `lenis_alloc` green; `cargo clippy -p cantus-dsp --all-targets -- -D warnings`
+  clean; `cargo fmt -p cantus-dsp` applied.
 
 ### Tests and what each holds
 
@@ -231,25 +288,29 @@ in ──┤                                                                    
 above (`a_resonance_on_pink_noise_is_cut_and_its_neighbours_kept`,
 `flat_noise_is_barely_touched`, `the_reduction_follows_depth_and_sharpness`,
 `a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is`,
+`a_broad_peak_on_a_steep_slope_is_found`, `an_inharmonic_ring_among_low_partials_is_still_cut`,
 `the_time_response_follows_attack_and_release`, `the_window_pairs_compared`;
 `cpu_at_48k` and `diagnose_the_excess` ignored). `tests/lenis_alloc.rs`.
 
 ## Shown to the owner
 
-`C:\projects\daw-fx\compartir\lenis\sound\` — the guitar (Carbonthief, CC0) through two of
-Fragor's pedals and a honky cabinet, a synthetic harsh sung line with whistling "s" sounds,
-a synthetic boxy kit; each dry, *gentle* (Soft 35 %), *strong* (Hard 60 %, selectivity
-30 %) and the strong *delta*; level-matched, aligned; `README.md` (what to listen for) and
-`render-log.txt` (settings, the meter, the change per octave band).
+`C:\projects\daw-fx\compartir\lenis\sound\` (replaced by the second pass) — the guitar
+(Carbonthief, CC0) through two of Fragor's pedals and a honky cabinet, a synthetic harsh
+sung line with whistling "s" sounds, a synthetic boxy kit; each dry, *gentle* (Soft 50 %),
+*strong* (Hard 90 %, selectivity 30 %) and the strong *delta*; level-matched, aligned;
+`README.md` (what to listen for, what changed) and `render-log.txt` (settings, the meter,
+the change per octave band). The guitar's focus now opens from 150 Hz (700 Hz in the first
+set); the voice's from 1 kHz (its synthetic formants are narrow enough to ring by design),
+the drums' from 300 Hz (their fundamentals are their body).
 
 ## Verified only in emulation / needs the owner
 
 - Everything is DSP-only and measured on synthetic signals and one recorded guitar; **the
   sound is for the owner's ears**: whether the deltas sound like rings and whistles (right)
   or like a thin copy of the instrument (too much); any watery or chirping artefact; any
-  smear of the attacks; whether the guitar sounds less harsh or only thinner in the mids
-  (Lenis acted mostly at 500 Hz–1.4 kHz on it and left the cabinet's broad 2.7 kHz peak
-  nearly alone — see the misses).
+  smear of the attacks; whether the guitar sounds less harsh (the second pass now acts
+  where its cabinet rings, 2–4 kHz) and not thinner; whether the drums, their ping and
+  shell ring cut −20 dB in the 1 kHz octave by Strong, sound too dry of their ring.
 - No real music beyond the guitar DI: a mix, a real vocal and real drums would say more.
 
 ## What the later phases need (Phase B)
@@ -264,7 +325,7 @@ a synthetic boxy kit; each dry, *gentle* (Soft 35 %), *strong* (Hard 60 %, selec
 2. **Engine unit** (`cantus-engine/src/fx/lenis.rs`): `FxUnit` over `Lenis` — `latency`
    from `latency_for` (**it changes with Quality**: the engine must re-report the delay
    compensation, as for Sibilus's look-ahead; a quality change resets the unit — a
-   10–20 ms gap, documented); `at_rest`/`skip` straight through; `reset` keeps the stream
+   5–21 ms gap, documented — a crossfade cannot bridge two latencies, see the second pass); `at_rest`/`skip` straight through; `reset` keeps the stream
    clock (say so to the engine's reset semantics); the meter (`LenisMeter`, 2 × 128 floats a
    frame) to the editor's telemetry; `tests/fx_lenis.rs` (the null — delayed by the
    latency), its rows in `fx_contract.rs` and `must_rest`, `rt_memory.rs`, the bench kernel.
@@ -289,7 +350,7 @@ a synthetic boxy kit; each dry, *gentle* (Soft 35 %), *strong* (Hard 60 %, selec
    window as the quality bar; FabFilter-class and oeksound-class windows as references for
    function, never copied. At 75–200 %, EN and ES, Slate and Paper, at rest and playing;
    the mini view under the insert (the veil alone); the exported CLAP/VST3 window the same.
-4. **Presets**: ten or more, named and made by ear — the starting preset (Soft, ~35 %,
+4. **Presets**: ten or more, named and made by ear — the starting preset (Soft, ~50 %,
    from ~200 Hz), *Gentle polish*, *Harsh vocal* (from 1 kHz, focus on 2–5 kHz), *De-ess
    wide* (focus 5–10 kHz), *Boxy drums* (from 250 Hz, focus 400–900 Hz), *Fizz tamer*
    (guitar, 2–8 kHz), *Room ring* (Precise, low mids), *Mix bus air* (Linked, light, high
@@ -307,9 +368,14 @@ a synthetic boxy kit; each dry, *gentle* (Soft 35 %), *strong* (Hard 60 %, selec
 
 ## Left (this phase)
 
-- **The misses above, to weigh by ear before more work**: broad peaks (Q ≲ 4) on steep
-  slopes are found weakly; a note's low partials (under ~720 Hz) read as peaks (the focus's
-  low limit decides); the last 10 % of the attack follows the 30 ms average. Each has a
-  known next step (a slope-aware edge test, a pitch-aware bridge, an onset-gated fast
-  path) — worth taking only if the owner hears the need.
+- **The attack's last step**: 90 % of the reduction in 21 ms (Standard), not the ~15 ms
+  asked — bounded by the analysis frame; going lower costs noise robustness (measured
+  above). The owner's ears decide whether it matters.
+- **The resolution's limit under 800 Hz at Standard**: a ring within ~2 bins (100 Hz) of a
+  note's partial takes the partial with it (−3.1 dB beside a −2.7 dB cut); Precise resolves
+  it. Phase B could suggest Precise when the focus reaches below ~300 Hz.
+- **A brick-wall band edge** (a synthetic tone stopping dead, an 8-pole low-pass) reads up
+  to +5–7 dB at its knee since the slope allowance widened; real program rarely has one,
+  and the threshold covers most of it.
+- A Quality change stays a reset (for the engine, above).
 - The owner's listening; then the phases above.

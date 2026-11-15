@@ -2,39 +2,39 @@
 //!
 //! ```text
 //! |X|² ─┬─ slow average (30 ms) ─ dB ─ excess ─┐
-//!       └─ fast average (5 ms)  ─ dB ─ excess ─┴─ slow, raised to fast − 4 dB, held under fast + 3 dB
+//!       └─ fast average (5 ms)  ─ dB ─ excess ─┴─ the slow says whether, the fast how much (an onset)
 //!   excess = upper envelope − envelope:
-//!     upper envelope: the loudest within ±bridge (120 Hz; f/6 under 720 Hz), a triangle as wide
-//!     envelope:       the greatest of {line through the box, the sides' mean, the higher side − 3 dB},
+//!     upper envelope: the line through the prominent peaks (any partial spacing); under 800 Hz
+//!                     a note's partials judged against their harmonic partners
+//!     envelope:       the greatest of {line through the box, the sides' mean, the higher side − 3…6 dB},
 //!                     the spectrum clipped at it + 1 dB and estimated again, three times
-//! excess − threshold ─ curve (Hard, or Soft: a knee) × 4·depth·focus ─ ≤ the excess
+//! depth · gate(excess − threshold) · focus · excess ─ ≤ the excess
 //!        ─ spread (the most of three bins, then [¼ ½ ¼]) ─ attack / release ─► reduction, dB
 //! ```
 //!
 //! - **The upper envelope over the partials.** A note's harmonics are narrow peaks too; a
 //!   detector that compared each bin with its neighbours would flatten every voice. So the
-//!   spectrum is first bridged across the gaps between partials (a dilation of ±120 Hz,
-//!   then a triangle as wide — a morphological closing in dB): a note becomes the smooth
-//!   outline over its partials, and a resonance is a bump in that outline. Under 720 Hz the
-//!   bridge shrinks with the frequency (f/6), so low resonances stay resolved; there, low
-//!   partials are themselves peaks and the focus's low limit decides on them.
+//!   envelope is first drawn through the spectrum's prominent peaks (`hull`): a note
+//!   becomes the outline over its partials, however far apart, and a resonance is a peak
+//!   over its neighbouring peaks. Under 800 Hz, where a note's first partials stand alone,
+//!   a peak with harmonic partners is judged against them (`series_caps`).
 //! - **The envelope** is that outline's own smooth shape over a box of `W` octaves around
 //!   each bin (Sharpness sets `W`: 3 octaves to 3/8 of one; never narrower than
-//!   [`MIN_HALF`]` + 2·bridge + 1` bins a side). It is the greatest of three estimates:
+//!   seven bins a side). It is the greatest of three estimates:
 //!   the least-squares line through the box against octaves (follows any slope, where a
 //!   mean would sit under the bins at a lopsided box); the mean of the two sides beyond a
 //!   guard (clear of a peak's own bridged plateau), each moved along the box's slope to the
-//!   bin; and the higher side less [`EDGE_DB`] — the "greatest of" cell-averaging detector
+//!   bin; and the higher side less 3 dB at a cliff, 6 on a slope — the "greatest of" detector
 //!   of radar (GO-CFAR: Hansen & Sawyers, 1980), which keeps the knee of a roll-off or the
 //!   edge of a band from being taken for a peak. The peaks are clipped out (at the estimate
 //!   plus [`CLIP_DB`]) and the estimate made again, three times: a robust estimate in the
 //!   spirit of a median (as harmonic–percussive separation smooths across frequency,
 //!   Fitzgerald 2010), at the cost of prefix sums — O(1) a bin, the constants precomputed.
 //! - **Two time scales.** The slow average (30 ms) is what tells a resonance from noise's
-//!   flicker (measured: noise's 99.9th percentile excess +3.4 dB, a 12 dB resonance +8.9);
-//!   the fast one (5 ms) catches a resonance that starts suddenly (it must stand 4 dB more
-//!   to count) and, since the slow one may never stand more than 3 dB over it, lets go as
-//!   soon as the ringing stops.
+//!   flicker (measured: noise's 99.9th percentile excess +4.0 dB, a 12 dB resonance +10.6);
+//!   once it says a resonance is there, the fast one (5 ms) says how much — an onset is
+//!   measured at the fast pace (90 % of the cut in 21 ms) — and, since the slow one may
+//!   never stand more than 3 dB over it, it lets go as soon as the ringing stops.
 //! - **Spread and time**: a single bin is never cut alone (a needle in frequency is a long
 //!   ring in time, and an isolated bin switching on and off is the "musical noise" of
 //!   spectral subtraction — Berouti et al. 1979, Cappé 1994); the reduction is widened by
