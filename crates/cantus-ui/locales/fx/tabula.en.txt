@@ -108,3 +108,29 @@ tabula.context = pedal {n} on the board · {where}
 tabula.card.place = Its place on the board
 tabula.learn.pick = Touch a knob
 tabula.learn.status = Learn: touch the knob on a pedal this macro is to move
+
+# The factory's boards.
+preset.tabula.blues_crunch = Blues crunch
+preset.tabula.ambient_swells = Ambient swells
+preset.tabula.fuzz_lead = Fuzz lead
+preset.tabula.phaser_funk = Phaser funk
+preset.tabula.wet_dry_wet = Wet, dry, wet
+preset.tabula.bass_parallel_drive = Bass: parallel drive
+preset.tabula.bass_chorus = Bass: chorus
+preset.tabula.synth_space = Synth in space
+preset.tabula.synth_tape = Synth on tape
+preset.tabula.drum_crush = Drums: crushed in parallel
+preset.tabula.drum_room = Drums: a room
+preset.tabula.vocal_chain = Vocal chain
+preset.tabula.vocal_doubler = Vocal doubler
+# The names the factory's boards give their macros.
+tabula.macro.drive = Drive
+tabula.macro.tone = Tone
+tabula.macro.echo = Echo
+tabula.macro.space = Space
+tabula.macro.motion = Motion
+tabula.macro.depth = Depth
+tabula.macro.width = Width
+tabula.macro.punch = Punch
+tabula.macro.grit = Grit
+tabula.macro.blend = Blend

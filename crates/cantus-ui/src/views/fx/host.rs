@@ -292,6 +292,10 @@ pub trait FxHost {
     /// Save the values as the user's preset `name`.
     fn save_preset(&mut self, name: &str) -> Result<(), String> {
         let spec = self.spec();
+        // fx3:tabula — a board's preset holds its pedals too.
+        if spec.kind == cantus_core::EffectKind::Board {
+            return super::save_user_preset(spec.kind, name, &super::tabula::preset_params(spec));
+        }
         super::save_user_preset(spec.kind, name, &spec.params)
     }
     /// Cantus itself, for what only the DAW has (a track's notes playing the gate, the
@@ -875,6 +879,12 @@ impl FxHost for DawHost<'_> {
     fn save_preset(&mut self, name: &str) -> Result<(), String> {
         match self.spec.external.as_deref().map(|p| p.id.clone()) {
             Some(id) => crate::views::plugins::save_preset(self.app, self.effect, &id, name),
+            // fx3:tabula — a board's preset holds its pedals too.
+            None if self.spec.kind == cantus_core::EffectKind::Board => super::save_user_preset(
+                self.spec.kind,
+                name,
+                &super::tabula::preset_params(&self.spec),
+            ),
             None => super::save_user_preset(self.spec.kind, name, &self.spec.params),
         }
     }

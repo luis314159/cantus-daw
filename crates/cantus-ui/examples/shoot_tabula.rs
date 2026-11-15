@@ -118,13 +118,24 @@ fn main() {
     if anim {
         shots.clear();
     }
+    // The website's pictures (`TABULA_WEB=1`): the rig playing at 1800 points wide, in both
+    // looks and both languages.
+    if std::env::var_os("TABULA_WEB").is_some() {
+        let k = 1800.0 / views::fx::frame::designed_size(kind).x;
+        shots = vec![
+            ("rig", true, true, Locale::En, k),
+            ("rig", true, true, Locale::Es, k),
+            ("rig", true, false, Locale::En, k),
+            ("rig", true, false, Locale::Es, k),
+        ];
+    }
     for (state, playing, dark, lang, k) in shots {
         let name = format!(
             "tabula-{state}-{}-{}-{}-k{}.png",
             if playing { "playing" } else { "rest" },
             if dark { "slate" } else { "paper" },
             lang.code(),
-            (k * 100.0) as u32
+            (k * 100.0).round() as u32
         );
         if only
             .as_ref()

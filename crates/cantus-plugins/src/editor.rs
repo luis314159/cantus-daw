@@ -66,6 +66,8 @@ pub struct PluginHost {
     revision: u64,
     /// fx:lapsus — the bank generation `spec` holds.
     lapsus_gen: u64,
+    /// fx3:tabula — the board generation `spec` holds.
+    board_gen: u64,
     /// The other side of A/B (the plug-in's values), and whether B is the side showing.
     other: Option<Vec<f32>>,
     on_b: bool,
@@ -91,6 +93,7 @@ impl PluginHost {
             active: Vec::new(),
             revision: 0,
             lapsus_gen: u64::MAX, // fx:lapsus
+            board_gen: u64::MAX,  // fx3:tabula
             other: None,
             on_b: false,
         }
@@ -120,6 +123,13 @@ impl PluginHost {
         if g != self.lapsus_gen {
             self.lapsus_gen = g;
             self.spec.lapsus = self.shared.lapsus.get();
+            changed = true;
+        }
+        // fx3:tabula — Tabula's board, when the main thread has a new one.
+        let g = self.shared.board.generation();
+        if g != self.board_gen {
+            self.board_gen = g;
+            self.spec.board = self.shared.board.get();
             changed = true;
         }
         if changed {
@@ -178,7 +188,35 @@ impl FxHost for PluginHost {
     fn set(&mut self, key: &str, value: f32, gesture: Option<&str>) {
         if let Some(i) = self.index(key) {
             self.edit(i, value, gesture.is_some());
+        } else if cantus_core::fx::tabula::split_key(key).is_some() {
+            // fx3:tabula — a pedal's knob: the board's content, posted to the processor and
+            // saved in the state (a host automates the macros, not the pedals).
+            if self.spec.set(key, value).is_some() {
+                let sr = self.shared.sample_rate().max(1.0);
+                self.shared.board.set(self.spec.board.clone(), sr);
+                self.board_gen = self.shared.board.generation();
+                self.revision += 1;
+            }
         }
+    }
+
+    // fx3:tabula — the board's commands, applied to the board this instance holds.
+    fn board_commands(
+        &mut self,
+        _label_key: &str,
+        build: &dyn Fn(cantus_core::StripId, cantus_core::EffectId) -> Vec<cantus_core::Command>,
+    ) -> bool {
+        let Ok(spec) = cantus_core::command_board::apply_to_spec(&self.spec, |s, e| build(s, e))
+        else {
+            return false;
+        };
+        // The board's own values the commands set (a randomise sets pedals' only).
+        let sr = self.shared.sample_rate().max(1.0);
+        self.shared.board.set(spec.board.clone(), sr);
+        self.board_gen = self.shared.board.generation();
+        self.spec.board = spec.board;
+        self.revision += 1;
+        true
     }
 
     fn set_many(&mut self, values: &[(&str, f32)], _label_key: &str) {

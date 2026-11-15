@@ -748,12 +748,26 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("out", -6.0),
         ], // fx:libra
         // fx3:contract — wave 3's four: each builder writes its own settings line.
-        EffectKind::Board => vec![("out", -6.0)], // fx3:tabula
+        EffectKind::Board => vec![("in", 2.0), ("mix", 0.8), ("m1", 0.6), ("out", -6.0)], // fx3:tabula
         EffectKind::PitchShift => vec![("out", -6.0)], // fx3:saltus
-        EffectKind::Rotary => vec![("out", -6.0)], // fx3:rota
-        EffectKind::Amp => vec![("out", -6.0)],   // fx3:arca
+        EffectKind::Rotary => vec![("out", -6.0)],     // fx3:rota
+        EffectKind::Amp => vec![("out", -6.0)],        // fx3:arca
         _ => vec![],
     }
+}
+
+/// fx3:tabula — a board's spec as the exported plug-in holds it: the guitar rig when the
+/// state names no board (a fresh instance's), its macros applied; any other spec as it is.
+pub fn board_spec(spec: &EffectSpec) -> EffectSpec {
+    let mut s = spec.clone();
+    if s.kind == EffectKind::Board {
+        if s.board.is_none() {
+            s.board = cantus_core::fx::tabula::guitar_rig().board;
+        }
+        cantus_core::fx::tabula::ensure_macro_keys(&mut s);
+        cantus_core::fx::tabula::apply_macros(&mut s);
+    }
+    s
 }
 
 /// The plug-ins of the family.
@@ -921,7 +935,13 @@ impl Direct {
             // fx3:contract — wave 3's stubs: the engine's units (each builder names its DSP
             // here and drops its Stub arm; the board stays the engine's own unit).
             EffectKind::Board => {
-                Direct::Stub(Box::new(cantus_engine::fx::tabula::Unit::build(spec, SR)))
+                let s = board_spec(spec);
+                let mut u = cantus_engine::fx::tabula::Unit::build(&s, SR);
+                use cantus_engine::FxUnit;
+                if let Some(need) = u.memory_need() {
+                    drop(u.supply(cantus_engine::EffectMemory::build(need, SR)));
+                }
+                Direct::Stub(Box::new(u))
             } // fx3:tabula
             EffectKind::PitchShift => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::PitchShift, SR).unwrap())
@@ -974,7 +994,7 @@ impl Direct {
             Direct::Tonsor(x) => x.set(&fx::tonsor::settings(spec)),
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
-            Direct::Stub(x) => x.configure(spec), // fx:contract
+            Direct::Stub(x) => x.configure(&board_spec(spec)), // fx:contract; fx3:tabula
             Direct::Cribrum(x) => x.set(&fx::cribrum::settings(spec)), // fx:cribrum
             Direct::Vetus(x) => x.set(&fx::vetus::settings(spec)), // fx:vetus
             Direct::Libra(x) => x.set(&fx::libra::settings(spec)), // fx:libra

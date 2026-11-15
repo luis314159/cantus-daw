@@ -1,4 +1,74 @@
 # Tabula pedalboard: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's wave-3 contract: none yet — tabula's builder writes them here.
-# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
-# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+# The boards are written in code (`cantus_core::fx::tabula_presets::factory`): a board
+# preset holds its pedals, which a data file cannot; their styles and roles are here.
+# The tests check every key, style and role (`preset_data`, `preset_audit`).
+
+[[tag]]
+key = "preset.tabula.guitar_rig"
+styles = ["rock", "pop"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.blues_crunch"
+styles = ["rock", "jazz"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.ambient_swells"
+styles = ["ambient", "film"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.fuzz_lead"
+styles = ["rock"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.phaser_funk"
+styles = ["jazz", "rnb"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.wet_dry_wet"
+styles = ["rock", "ambient"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.bass_parallel_drive"
+styles = ["rock", "pop"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.bass_chorus"
+styles = ["pop", "jazz"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.synth_space"
+styles = ["house", "ambient"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.synth_tape"
+styles = ["lofi", "pop"]
+roles = ["creative"]
+
+[[tag]]
+key = "preset.tabula.drum_crush"
+styles = ["trap", "rock"]
+roles = ["drums"]
+
+[[tag]]
+key = "preset.tabula.drum_room"
+styles = ["rock", "pop"]
+roles = ["drums"]
+
+[[tag]]
+key = "preset.tabula.vocal_chain"
+styles = ["pop", "worship"]
+roles = ["vocal"]
+
+[[tag]]
+key = "preset.tabula.vocal_doubler"
+styles = ["pop", "rnb"]
+roles = ["vocal"]

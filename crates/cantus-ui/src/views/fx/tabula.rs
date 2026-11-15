@@ -23,8 +23,65 @@ use egui::{pos2, vec2, Rect};
 
 const KIND: EffectKind = EffectKind::Board;
 
-/// Factory presets: data (`presets/effects/board.toml`, ADR 0101).
-pub const FACTORY_PRESETS: &[FactoryPreset] = &[];
+/// Factory presets: the factory's boards (`cantus_core::fx::tabula_presets`), each as the
+/// flat map a board preset is (its pedals, their places and values, its macros); their
+/// styles and roles are data (`presets/effects/board.toml`, ADR 0101).
+pub fn factory_presets() -> &'static [FactoryPreset] {
+    static ALL: std::sync::OnceLock<&'static [FactoryPreset]> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+        let v: Vec<FactoryPreset> = cantus_core::fx::tabula_presets::factory()
+            .into_iter()
+            .map(|(key, spec)| {
+                let values: Vec<(&'static str, f32)> =
+                    cantus_core::fx::tabula_presets::to_flat(&spec)
+                        .into_iter()
+                        .map(|(k, v)| (leak(k), v))
+                        .collect();
+                (key, &*Box::leak(values.into_boxed_slice()))
+            })
+            .collect();
+        Box::leak(v.into_boxed_slice())
+    })
+}
+
+/// What a board preset of `spec` holds: the flat map (its pedals and their places too).
+pub fn preset_params(spec: &EffectSpec) -> std::collections::BTreeMap<String, f32> {
+    cantus_core::fx::tabula_presets::to_flat(spec)
+}
+
+/// A board preset's flat map loaded on a board: the whole board replaced in one step
+/// (`Command::ReplaceEffect`), its macros' names in the interface's words. `false` when the
+/// map holds no board (it then only sets values).
+pub fn load_board(
+    app: &mut CantusApp,
+    strip: StripId,
+    effect: EffectId,
+    params: &std::collections::BTreeMap<String, f32>,
+) -> bool {
+    let Some(mut spec) = cantus_core::fx::tabula_presets::from_flat(params) else {
+        return false;
+    };
+    if let Some(b) = spec.board.as_deref_mut() {
+        for m in &mut b.macros {
+            if let Some(n) = m.name.as_mut() {
+                if n.starts_with("tabula.macro.") {
+                    *n = crate::i18n::t(n);
+                }
+            }
+        }
+    }
+    let Some(mut slot) = app.project().effect(strip, effect).cloned() else {
+        return false;
+    };
+    slot.spec = spec;
+    app.exec(cantus_core::Command::ReplaceEffect {
+        strip,
+        effect,
+        slot: Box::new(slot),
+    });
+    true
+}
 
 /// The macro rail's height and the side column's width, at 100 %.
 const RAIL_H: f32 = 118.0;

@@ -276,6 +276,10 @@ impl CantusApp {
         let Some(slot) = self.project().effect(strip, effect).cloned() else {
             return;
         };
+        // fx3:tabula — a board preset brings its pedals: the whole board in one step.
+        if slot.spec.kind == EffectKind::Board && tabula::load_board(self, strip, effect, params) {
+            return;
+        }
         let mut commands = Vec::new();
         for info in slot.spec.kind.params() {
             match params.get(info.key) {
@@ -433,7 +437,7 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::TimeShaper => lapsus::FACTORY_PRESETS, // fx:contract
         EffectKind::LoFi => vetus::FACTORY_PRESETS, // fx:contract
         EffectKind::Utility => libra::FACTORY_PRESETS, // fx:contract
-        EffectKind::Board => tabula::FACTORY_PRESETS, // fx3:contract
+        EffectKind::Board => tabula::factory_presets(), // fx3:tabula
         EffectKind::PitchShift => saltus::FACTORY_PRESETS, // fx3:contract
         EffectKind::Rotary => rota::FACTORY_PRESETS, // fx3:contract
         EffectKind::Amp => arca::FACTORY_PRESETS,  // fx3:contract

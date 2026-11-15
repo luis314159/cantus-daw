@@ -310,6 +310,8 @@ pub struct Shared {
     pub scope_lost: AtomicU64,
     /// fx:lapsus — Lapsus's banks, posted to the processor (`crate::lapsus_bank`).
     pub lapsus: crate::lapsus_bank::BankPost,
+    /// fx3:tabula — Tabula's board, posted to the processor (`crate::board_post`).
+    pub board: crate::board_post::BoardPost,
     /// Frames the analyser tap has taken since the instance was made: an editor's count
     /// of what it drained is measured against it ([`Self::clock_of_drained`]).
     pub tapped: AtomicU64,
@@ -338,7 +340,7 @@ impl Shared {
                 })
                 .map_or(p.default, |(_, v)| p.clamp(f64::from(*v)))
         };
-        Arc::new(Shared {
+        let shared = Arc::new(Shared {
             desc,
             table,
             values: table
@@ -360,8 +362,16 @@ impl Shared {
             },
             scope_lost: AtomicU64::new(0),
             lapsus: Default::default(), // fx:lapsus
+            board: Default::default(),  // fx3:tabula
             tapped: AtomicU64::new(0),
-        })
+        });
+        // fx3:tabula — a fresh board starts on the guitar rig (ADR 0071, the owner's).
+        if desc.kind == cantus_core::EffectKind::Board {
+            shared
+                .board
+                .set(cantus_core::fx::tabula::guitar_rig().board, 48_000.0);
+        }
+        shared
     }
 
     /// The consumer end of the analyser tap, for an editor (main thread).
@@ -535,13 +545,24 @@ impl Shared {
     /// The state to save: `EffectSpec` JSON (`crate::state`).
     pub fn save_state(&self) -> Vec<u8> {
         // fx:lapsus — the bank beside the values.
-        crate::state::save_with_bank(self.table, &self.values(), self.lapsus.get().as_deref())
+        // fx3:tabula — and the board.
+        crate::state::save_spec_extras(
+            self.table,
+            &self.values(),
+            self.lapsus.get().as_deref(),
+            self.board.get().as_deref(),
+        )
     }
 
     pub fn load_state(&self, bytes: &[u8]) -> Result<(), String> {
         let values = crate::state::load(self.table, bytes)?;
         if self.table.kind == cantus_core::EffectKind::TimeShaper {
             self.lapsus.set(crate::state::load_bank(bytes)); // fx:lapsus
+        }
+        if self.table.kind == cantus_core::EffectKind::Board {
+            // fx3:tabula — the whole board: its new pedals built here, for the processor.
+            self.board
+                .set(crate::state::load_board(bytes), self.sample_rate().max(1.0));
         }
         self.set_all(&values);
         Ok(())
@@ -570,6 +591,7 @@ impl Shared {
     pub fn spec(&self) -> EffectSpec {
         let mut s = spec_of(self.table, &self.values());
         s.lapsus = self.lapsus.get(); // fx:lapsus
+        s.board = self.board.get(); // fx3:tabula
         s
     }
 }
@@ -700,6 +722,10 @@ pub struct Processor {
         Producer<crate::lapsus_bank::Post>,
     )>,
     lapsus_held: Option<crate::lapsus_bank::Post>,
+    /// fx3:tabula — the board's rings while this processor lives, and a post that could not
+    /// go back yet.
+    board: Option<crate::board_post::Lent>,
+    board_held: Option<crate::board_post::Post>,
     /// The host's transport at the start of the current block, when it gives one.
     transport: Option<HostTransport>,
     /// Transports the host sent inside the block (CLAP events): offset, transport.
@@ -725,6 +751,11 @@ impl Drop for Processor {
             self.shared.lapsus.give_back(Some(rx), Some(gtx));
         }
         drop(self.lapsus_held.take());
+        // fx3:tabula
+        if let Some(l) = self.board.take() {
+            self.shared.board.give_back(l);
+        }
+        drop(self.board_held.take());
     }
 }
 
@@ -736,6 +767,8 @@ impl Processor {
         let base: Box<[f32]> = shared.values().into_boxed_slice();
         let mut spec = spec_of(table, &base);
         spec.lapsus = shared.lapsus.get(); // fx:lapsus
+        spec.board = shared.board.get(); // fx3:tabula
+        cantus_core::fx::tabula::apply_macros(&mut spec); // fx3:tabula
         let slot = EffectSlot {
             id: EffectId(0),
             bypass: false,
@@ -766,12 +799,18 @@ impl Processor {
         let pairs = shared.pairs.lock().ok().and_then(|mut p| p.0.take());
         // r39:conv
         let memory = (unit.kind == cantus_core::EffectKind::Aula
+            || unit.kind == cantus_core::EffectKind::Board // fx3:tabula
             || unit.kind == cantus_core::EffectKind::TimeShaper) // fx:lapsus
             .then(|| crate::memory::Memory::start(sample_rate));
         let lapsus = (unit.kind == cantus_core::EffectKind::TimeShaper)
             .then(|| shared.lapsus.lend())
             .flatten(); // fx:lapsus
+        let board = (unit.kind == cantus_core::EffectKind::Board)
+            .then(|| shared.board.lend(spec.board.as_deref()))
+            .flatten(); // fx3:tabula
         Processor {
+            board,
+            board_held: None,
             pairs,
             memory,
             lapsus,
@@ -923,6 +962,17 @@ impl Processor {
                 self.dirty = true;
             }
         }
+        // fx3:tabula — a board the main thread posted: its new pedals adopted, swapped in.
+        if let Some(l) = self.board.as_mut() {
+            if crate::board_post::take_newest(
+                l,
+                &mut self.board_held,
+                &mut self.unit,
+                &mut self.spec,
+            ) {
+                self.dirty = true;
+            }
+        }
         let g = self.shared.generation.load(Ordering::Acquire);
         if g != self.seen_generation {
             self.seen_generation = g;
@@ -958,6 +1008,7 @@ impl Processor {
                 p.from_clap(p.to_clap(self.base[i]) + m as f64)
             };
         }
+        cantus_core::fx::tabula::apply_macros(&mut self.spec); // fx3:tabula — macros win
         self.unit.configure(&self.spec);
         if let Some(m) = self.memory.as_mut() {
             m.ask(&mut self.unit); // r39:conv

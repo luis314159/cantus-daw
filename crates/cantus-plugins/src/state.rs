@@ -39,11 +39,31 @@ pub fn load_bank(bytes: &[u8]) -> Option<Box<cantus_core::fx::lapsus::Bank>> {
         .map(Box::new)
 }
 
+/// fx3:tabula — Tabula's board, if the plug-in holds one (`EffectSpec::board`), sanitized.
+pub fn load_board(bytes: &[u8]) -> Option<Box<cantus_core::fx::tabula::Board>> {
+    let value: Value = serde_json::from_slice(bytes).ok()?;
+    let board = value.get("board")?.clone();
+    let mut b = serde_json::from_value::<cantus_core::fx::tabula::Board>(board).ok()?;
+    b.sanitize();
+    (!b.pedals.is_empty() || !b.macros.is_empty()).then(|| Box::new(b))
+}
+
 /// [`save`], with Lapsus's bank beside the values (fx:lapsus).
 pub fn save_with_bank(
     table: &Table,
     values: &[f32],
     lapsus: Option<&cantus_core::fx::lapsus::Bank>,
+) -> Vec<u8> {
+    save_spec_extras(table, values, lapsus, None)
+}
+
+/// [`save`], with the content a spec holds beside its values: Lapsus's bank (fx:lapsus) and
+/// Tabula's board (fx3:tabula), as the project saves them.
+pub fn save_spec_extras(
+    table: &Table,
+    values: &[f32],
+    lapsus: Option<&cantus_core::fx::lapsus::Bank>,
+    board: Option<&cantus_core::fx::tabula::Board>,
 ) -> Vec<u8> {
     let sparse = table.kind.sparse();
     let mut params = BTreeMap::new();
@@ -60,7 +80,7 @@ pub fn save_with_bank(
         external: None,
         ir: None,                                    // r39:conv
         lapsus: lapsus.map(|b| Box::new(b.clone())), // fx:lapsus
-        board: None, // fx3:contract (the board travels here: the tabula builder's `save_spec_extras`)
+        board: board.map(|b| Box::new(b.clone())),   // fx3:tabula
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,
