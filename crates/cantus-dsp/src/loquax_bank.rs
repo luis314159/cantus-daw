@@ -5,9 +5,10 @@
 //! give `M` pairs of poles, and each pair is one second-order section — a linear
 //! zero-delay-feedback state-variable filter (the trapezoidal, "TPT" form of Zavalishin's
 //! *The Art of VA Filter Design*, §4) read at its normalised band-pass tap. The edges are
-//! pre-warped (`tan(π f / fs)`) and the centre is their geometric mean in the warped
-//! domain, so the digital band is −3.01 dB exactly at its edges and 0 dB at its centre
-//! (the sections' product is normalised there), whatever the sample rate.
+//! pre-warped (`tan(π f / fs)`). The centre asked for is exact (0 dB there, the sections'
+//! product normalised) and so is the width in octaves; the edges, −3.01 dB exactly, are
+//! moved together (their ratio kept) until their warped mean is the centre — a few cents
+//! below the edges asked for near the top of the range, where the warp bends.
 //!
 //! **The layout.** `n` centres from `lo` to `hi`, equally spaced in octaves; each band is
 //! `width` spacings wide (1: neighbours cross at −3 dB, so the bank's summed power is flat
@@ -97,8 +98,12 @@ pub struct BandDesign {
     pub count: usize,
     /// The product of the sections' normalised band-passes at the centre, inverted.
     pub norm: f32,
-    /// The band's centre, Hz (the geometric mean of its edges, in the warped domain).
+    /// The band's centre, Hz: where it is 0 dB.
     pub centre: f32,
+    /// Its edges, Hz: where it is −3.01 dB (their ratio is the one asked for; below a
+    /// quarter of the sample rate they are the edges asked for, within a few cents).
+    pub lo: f32,
+    pub hi: f32,
     /// False for a band past [`CENTRE_MAX`] (muted).
     pub live: bool,
 }
@@ -110,13 +115,29 @@ pub fn design(lo: f32, hi: f32, m: usize, sr: f32) -> BandDesign {
     let edge_max = f64::from(EDGE_MAX) * sr64;
     let hi = f64::from(hi).min(edge_max);
     let lo = f64::from(lo).clamp(1.0, hi * 0.999);
-    let wl = math::tan(core::f64::consts::PI * lo / sr64);
-    let wh = math::tan(core::f64::consts::PI * hi / sr64);
-    let w0 = (wl * wh).sqrt();
-    let b = ((wh - wl) / w0).min(B_MAX);
+    // The centre (the edges' geometric mean) is kept exactly, and so is the width in
+    // octaves: the digital edges are moved together, their ratio unchanged, until their
+    // warped geometric mean is the warped centre (Newton on ln tan; four steps reach f64's
+    // precision from the edges as given).
+    let warp = |f: f64| math::tan(core::f64::consts::PI * f / sr64);
+    let c = (lo * hi).sqrt();
+    let ratio = hi / lo;
+    let target = 2.0 * math::ln(warp(c));
+    let k = core::f64::consts::PI / sr64;
+    let mut x = lo;
+    for _ in 0..4 {
+        let f = math::ln(warp(x)) + math::ln(warp(ratio * x)) - target;
+        let d = 2.0 * k / math::sin(2.0 * k * x) + 2.0 * k * ratio / math::sin(2.0 * k * ratio * x);
+        x = (x - f / d).clamp(lo * 0.5, edge_max / ratio);
+    }
+    let w0 = warp(c);
+    let rho = (warp(ratio * x) / warp(x)).sqrt();
+    let b = (rho - 1.0 / rho).min(B_MAX);
     let mut d = BandDesign {
         count: m,
-        centre: (math::atan(w0) * sr64 / core::f64::consts::PI) as f32,
+        lo: x as f32,
+        hi: (ratio * x) as f32,
+        centre: c as f32,
         live: true,
         ..BandDesign::default()
     };
