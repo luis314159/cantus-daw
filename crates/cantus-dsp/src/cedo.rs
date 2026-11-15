@@ -50,6 +50,8 @@ pub mod band;
 pub mod env;
 #[path = "cedo_shape.rs"]
 pub mod shape;
+#[path = "cedo_testkit.rs"]
+pub mod testkit;
 
 use crate::comprimo::Delay;
 use crate::fluctus::{CurvePoint, ShapeFn};
@@ -413,6 +415,9 @@ impl Cedo {
 #[path = "cedo_run.rs"]
 mod run;
 
+#[cfg(test)]
+#[path = "cedo_tests.rs"]
+mod tests;
 #[cfg(test)]
 #[path = "cedo_tests_shared.rs"]
 mod tests_shared;
