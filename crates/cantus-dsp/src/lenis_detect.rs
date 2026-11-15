@@ -29,6 +29,14 @@ use crate::math;
 
 /// The detector's averaging of each bin's power, ms (measured: `diagnose_the_excess`).
 pub const DET_MS: f32 = 30.0;
+/// The fast detector's averaging, ms, and how much further a peak must stand out on it:
+/// a resonance that starts suddenly is caught at once, while noise's quick flickers (wider
+/// on a short average) stay under the line (measured: `diagnose_the_excess`).
+pub const FAST_MS: f32 = 5.0;
+pub const FAST_MARGIN_DB: f32 = 4.0;
+/// And the slow one never stands more than this over the fast one: when a resonance stops,
+/// the fast average lets go at once and the reduction with it.
+pub const FAST_HOLD_DB: f32 = 3.0;
 /// The fine spectrum's triangle, bins on each side.
 pub const FINE_HALF: usize = 2;
 /// The envelope's box is never narrower than this many bins on each side.
@@ -128,6 +136,7 @@ pub struct Design {
     pub depth: f32,
     pub mode: Mode,
     pub a_det: f32,
+    pub a_fast: f32,
     pub a_att: f32,
     pub a_rel: f32,
     /// Raw power × `norm2` is power in dBFS terms (a full-scale sine at 0 dB).
@@ -156,6 +165,7 @@ impl Design {
             depth: 0.0,
             mode: Mode::Soft,
             a_det: 1.0,
+            a_fast: 1.0,
             a_att: 1.0,
             a_rel: 1.0,
             norm2: 1.0,
@@ -198,6 +208,7 @@ impl Design {
             }
         };
         self.a_det = per(DET_MS);
+        self.a_fast = per(FAST_MS);
         self.a_att = per(s.attack_ms.clamp(MIN_ATTACK_MS, MAX_ATTACK_MS));
         self.a_rel = per(s.release_ms.clamp(MIN_RELEASE_MS, MAX_RELEASE_MS));
         let norm = 2.0 / wsum;
@@ -209,13 +220,16 @@ impl Design {
 
 pub use super::{MAX_ATTACK_MS, MAX_RELEASE_MS, MIN_ATTACK_MS, MIN_RELEASE_MS};
 
+
 /// Working arrays one detector pass uses, shared by the detectors.
 pub struct Scratch {
-    /// The averaged spectrum, dBFS (the meter reads it after each pass).
+    /// The slow average's spectrum, dBFS (the meter reads it after each pass).
     pub level: Vec<f32>,
-    fine: Vec<f32>,
-    /// The fine spectrum over the envelope, dB (what the curve reads), after each pass.
+    /// The excess the curve read (the slow one, raised to the fast one less
+    /// [`FAST_MARGIN_DB`] and held under it plus [`FAST_HOLD_DB`]), dB, after each pass.
     pub excess: Vec<f32>,
+    fast_level: Vec<f32>,
+    fine: Vec<f32>,
     env: Vec<f32>,
     clip: Vec<f32>,
     raw: Vec<f32>,
@@ -227,14 +241,182 @@ impl Scratch {
     pub fn new(max_bins: usize) -> Scratch {
         Scratch {
             level: vec![FLOOR_DB; max_bins],
-            fine: vec![0.0; max_bins],
             excess: vec![0.0; max_bins],
+            fast_level: vec![FLOOR_DB; max_bins],
+            fine: vec![0.0; max_bins],
             env: vec![0.0; max_bins],
             clip: vec![0.0; max_bins],
             raw: vec![0.0; max_bins],
             prefix: vec![0.0; max_bins + 1],
             prefix_u: vec![0.0; max_bins + 1],
         }
+    }
+}
+
+/// dBFS of a raw power.
+#[inline]
+fn db(p: f32, d: &Design) -> f32 {
+    (10.0 * math::log10(p * d.norm2 + 1e-14)).max(FLOOR_DB)
+}
+
+/// One time scale's excess: the fine spectrum of the averaged power `ps` against the robust
+/// envelope of its level `level` (dB), written into `out`.
+fn excess_of(ps: &[f32], level: &[f32], d: &Design, sc: &mut ScratchView, out: &mut [f32]) {
+    let k_n = level.len();
+    let h = d.fine_half as isize;
+    for (k, f) in sc.fine.iter_mut().enumerate() {
+        let (mut acc, mut wsum) = (0.0f32, 0.0f32);
+        for j in -h..=h {
+            let i = (k as isize + j).clamp(0, k_n as isize - 1) as usize;
+            let w = (h + 1 - j.abs()) as f32;
+            acc += w * ps[i];
+            wsum += w;
+        }
+        *f = db(acc / wsum, d);
+    }
+    fitted(level, d, sc.prefix, sc.prefix_u, sc.env);
+    for _ in 0..d.passes {
+        for k in 0..k_n {
+            sc.clip[k] = level[k].min(sc.env[k] + d.clip_db);
+        }
+        fitted(sc.clip, d, sc.prefix, sc.prefix_u, sc.env);
+    }
+    fitted(sc.env, d, sc.prefix, sc.prefix_u, sc.clip);
+    for k in 0..k_n {
+        out[k] = sc.fine[k] - sc.clip[k];
+    }
+}
+
+/// The scratch arrays one pass works in, cut to the bins in use.
+struct ScratchView<'a> {
+    fine: &'a mut [f32],
+    env: &'a mut [f32],
+    clip: &'a mut [f32],
+    prefix: &'a mut [f64],
+    prefix_u: &'a mut [f64],
+}
+
+/// One detector: a channel's (or the linked pair's, or mid's, or side's) averaged power on
+/// two time scales, and its reduction per bin.
+pub struct Detector {
+    slow: Vec<f32>,
+    fast: Vec<f32>,
+    /// The reduction now, dB ≥ 0, per bin.
+    pub reduction: Vec<f32>,
+    /// The gain now, per bin (exactly 1 where the reduction is 0).
+    pub gain: Vec<f32>,
+    /// Every averaged power and every reduction is +0.0.
+    quiet: bool,
+}
+
+impl Detector {
+    pub fn new(max_bins: usize) -> Detector {
+        Detector {
+            slow: vec![0.0; max_bins],
+            fast: vec![0.0; max_bins],
+            reduction: vec![0.0; max_bins],
+            gain: vec![1.0; max_bins],
+            quiet: true,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.slow.fill(0.0);
+        self.fast.fill(0.0);
+        self.reduction.fill(0.0);
+        self.gain.fill(1.0);
+        self.quiet = true;
+    }
+
+    /// Every average and reduction is zero: silence leaves it so.
+    pub fn quiet(&self) -> bool {
+        self.quiet
+    }
+
+    /// One frame. `p` is the frame's raw power per bin (`None`: an all-zero frame). Returns
+    /// whether any bin's gain is not exactly 1.
+    pub fn frame(&mut self, p: Option<&[f32]>, d: &Design, sc: &mut Scratch) -> bool {
+        let k_n = d.bins;
+        if p.is_none() && self.quiet {
+            sc.level[..k_n].fill(FLOOR_DB);
+            sc.excess[..k_n].fill(0.0);
+            return false;
+        }
+        // The averages, flushed to +0.0 under −160 dBFS.
+        let mut any_power = false;
+        for k in 0..k_n {
+            let x = p.map_or(0.0, |p| p[k]);
+            let mut s = self.slow[k] + d.a_det * (x - self.slow[k]);
+            let mut f = self.fast[k] + d.a_fast * (x - self.fast[k]);
+            if s < d.flush {
+                s = 0.0;
+            }
+            if f < d.flush {
+                f = 0.0;
+            }
+            self.slow[k] = s;
+            self.fast[k] = f;
+            any_power |= s != 0.0 || f != 0.0;
+            sc.level[k] = db(s, d);
+            sc.fast_level[k] = db(f, d);
+        }
+        let mut view = ScratchView {
+            fine: &mut sc.fine[..k_n],
+            env: &mut sc.env[..k_n],
+            clip: &mut sc.clip[..k_n],
+            prefix: &mut sc.prefix[..k_n + 1],
+            prefix_u: &mut sc.prefix_u[..k_n + 1],
+        };
+        let raw = &mut sc.raw[..k_n];
+        let excess = &mut sc.excess[..k_n];
+        if d.depth > 0.0 && any_power {
+            // The slow excess into `excess`, the fast one into `raw`; the larger of the
+            // slow and the fast less its margin is what the curve reads.
+            excess_of(&self.slow[..k_n], &sc.level[..k_n], d, &mut view, excess);
+            excess_of(&self.fast[..k_n], &sc.fast_level[..k_n], d, &mut view, raw);
+            let level = &sc.level[..k_n];
+            for k in 0..k_n {
+                let e = excess[k]
+                    .max(raw[k] - FAST_MARGIN_DB)
+                    .min(raw[k] + FAST_HOLD_DB);
+                excess[k] = e;
+                let w = d.weight[k];
+                view.fine[k] = if w > 0.0 && level[k] > FLOOR_DB {
+                    reduction_db(e, d.threshold, w * d.depth, d.mode)
+                } else {
+                    0.0
+                };
+            }
+            // Spread: the most of three neighbours, then [¼ ½ ¼].
+            for k in 0..k_n {
+                let a = view.fine[k.saturating_sub(1)];
+                let c = view.fine[(k + 1).min(k_n - 1)];
+                view.clip[k] = a.max(view.fine[k]).max(c);
+            }
+            three(view.clip, raw);
+        } else {
+            raw.fill(0.0);
+            excess.fill(0.0);
+        }
+        let mut touched = false;
+        for k in 0..k_n {
+            let t = raw[k];
+            let r = self.reduction[k];
+            let a = if t > r { d.a_att } else { d.a_rel };
+            let mut v = r + (t - r) * a;
+            if t == 0.0 && v < 1e-3 {
+                v = 0.0;
+            }
+            self.reduction[k] = v;
+            self.gain[k] = if v == 0.0 {
+                1.0
+            } else {
+                touched = true;
+                math::db_to_gain(-v)
+            };
+        }
+        self.quiet = !any_power && !touched;
+        touched
     }
 }
 
@@ -276,131 +458,5 @@ fn three(x: &[f32], out: &mut [f32]) {
         let a = x[k.saturating_sub(1)];
         let c = x[(k + 1).min(n - 1)];
         out[k] = 0.25 * a + 0.5 * x[k] + 0.25 * c;
-    }
-}
-
-/// One detector: a channel's (or the linked pair's, or mid's, or side's) averaged power and
-/// reduction per bin.
-pub struct Detector {
-    ps: Vec<f32>,
-    /// The reduction now, dB ≥ 0, per bin.
-    pub reduction: Vec<f32>,
-    /// The gain now, per bin (exactly 1 where the reduction is 0).
-    pub gain: Vec<f32>,
-    /// Every averaged power and every reduction is +0.0.
-    quiet: bool,
-}
-
-impl Detector {
-    pub fn new(max_bins: usize) -> Detector {
-        Detector {
-            ps: vec![0.0; max_bins],
-            reduction: vec![0.0; max_bins],
-            gain: vec![1.0; max_bins],
-            quiet: true,
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.ps.fill(0.0);
-        self.reduction.fill(0.0);
-        self.gain.fill(1.0);
-        self.quiet = true;
-    }
-
-    /// Every average and reduction is zero: silence leaves it so.
-    pub fn quiet(&self) -> bool {
-        self.quiet
-    }
-
-    /// One frame. `p` is the frame's raw power per bin (`None`: an all-zero frame). Returns
-    /// whether any bin's gain is not exactly 1.
-    pub fn frame(&mut self, p: Option<&[f32]>, d: &Design, sc: &mut Scratch) -> bool {
-        let k_n = d.bins;
-        if p.is_none() && self.quiet {
-            sc.level[..k_n].fill(FLOOR_DB);
-            return false;
-        }
-        // The average, flushed to +0.0 under −160 dBFS.
-        let mut any_power = false;
-        for k in 0..k_n {
-            let x = p.map_or(0.0, |p| p[k]);
-            let mut v = self.ps[k] + d.a_det * (x - self.ps[k]);
-            if v < d.flush {
-                v = 0.0;
-            }
-            self.ps[k] = v;
-            any_power |= v != 0.0;
-            sc.level[k] = (10.0 * math::log10(v * d.norm2 + 1e-14)).max(FLOOR_DB);
-        }
-        let (level, fine, env, clip, raw, excess) = (
-            &sc.level[..k_n],
-            &mut sc.fine[..k_n],
-            &mut sc.env[..k_n],
-            &mut sc.clip[..k_n],
-            &mut sc.raw[..k_n],
-            &mut sc.excess[..k_n],
-        );
-        let (prefix, prefix_u) = (&mut sc.prefix[..k_n + 1], &mut sc.prefix_u[..k_n + 1]);
-        if d.depth > 0.0 && any_power {
-            // The fine spectrum: a triangle over `2·fine_half + 1` bins, in power.
-            let h = d.fine_half as isize;
-            for (k, f) in fine.iter_mut().enumerate() {
-                let (mut acc, mut wsum) = (0.0f32, 0.0f32);
-                for j in -h..=h {
-                    let i = (k as isize + j).clamp(0, k_n as isize - 1) as usize;
-                    let w = (h + 1 - j.abs()) as f32;
-                    acc += w * self.ps[i];
-                    wsum += w;
-                }
-                *f = (10.0 * math::log10(acc / wsum * d.norm2 + 1e-14)).max(FLOOR_DB);
-            }
-            fitted(level, d, prefix, prefix_u, env);
-            for _ in 0..d.passes {
-                for k in 0..k_n {
-                    clip[k] = level[k].min(env[k] + d.clip_db);
-                }
-                fitted(clip, d, prefix, prefix_u, env);
-            }
-            fitted(env, d, prefix, prefix_u, clip);
-            for k in 0..k_n {
-                let w = d.weight[k];
-                excess[k] = fine[k] - clip[k];
-                fine[k] = if w > 0.0 && level[k] > FLOOR_DB {
-                    reduction_db(excess[k], d.threshold, w * d.depth, d.mode)
-                } else {
-                    0.0
-                };
-            }
-            // Spread: the most of three neighbours, then [¼ ½ ¼].
-            for k in 0..k_n {
-                let a = fine[k.saturating_sub(1)];
-                let c = fine[(k + 1).min(k_n - 1)];
-                clip[k] = a.max(fine[k]).max(c);
-            }
-            three(clip, raw);
-        } else {
-            raw.fill(0.0);
-            excess.fill(0.0);
-        }
-        let mut touched = false;
-        for k in 0..k_n {
-            let t = raw[k];
-            let r = self.reduction[k];
-            let a = if t > r { d.a_att } else { d.a_rel };
-            let mut v = r + (t - r) * a;
-            if t == 0.0 && v < 1e-3 {
-                v = 0.0;
-            }
-            self.reduction[k] = v;
-            self.gain[k] = if v == 0.0 {
-                1.0
-            } else {
-                touched = true;
-                math::db_to_gain(-v)
-            };
-        }
-        self.quiet = !any_power && !touched;
-        touched
     }
 }

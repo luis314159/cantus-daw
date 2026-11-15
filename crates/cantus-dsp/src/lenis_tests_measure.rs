@@ -203,8 +203,8 @@ fn diagnose_the_excess() {
     let n = (6.0 * SR) as usize;
     let noise = pink(n, 5, 0.3);
     let ((res, _), _) = resonant(6.0, 3_000.0, 8.0, 12.0, 1);
-    for (det_ms, clip, passes) in [(30.0f32, 3.0f32, 2usize), (30.0, 2.0, 2), (30.0, 1.0, 2), (30.0, 2.0, 3), (30.0, 1.0, 4), (30.0, 0.0, 3), (45.0, 1.0, 3)] {
-        for fine in [2usize] {
+    for (det_ms, clip, passes) in [(detect::DET_MS, detect::CLIP_DB, detect::PASSES)] {
+        for fine in [detect::FINE_HALF] {
             let mut stats = vec![];
             for sig in [&noise, &res] {
                 let mut u = unit(&LenisSettings {
@@ -243,6 +243,191 @@ fn diagnose_the_excess() {
                 "det {det_ms:>4} ms fine {fine} clip {clip} passes {passes}: noise p50 {:+.1} p90 {:+.1} p99 {:+.1} p99.9 {:+.1} | resonance at 3 kHz {:+.1}",
                 stats[0].0, stats[0].1, stats[0].2, stats[0].3, stats[1].4
             );
+        }
+    }
+}
+
+#[test]
+fn the_time_response_follows_attack_and_release() {
+    let n = (4.0 * SR) as usize;
+    let mut x = pink(n, 31, 0.25);
+    let (on, off) = (SR as usize, 2 * SR as usize);
+    for (i, v) in x.iter_mut().enumerate().take(off).skip(on) {
+        let ramp = ((i - on) as f32 / 48.0).min(1.0);
+        *v += 0.1 * ramp * math::sin(std::f32::consts::TAU * 3_000.0 * i as f32 / SR);
+    }
+    println!("a 3 kHz tone over pink noise from 1 s to 2 s, depth 60 % hard:");
+    for (att, rel) in [(1.0, 50.0), (5.0, 80.0), (20.0, 200.0), (50.0, 500.0)] {
+        let mut u = unit(&LenisSettings {
+            depth: 0.6,
+            mode: Mode::Hard,
+            attack_ms: att,
+            release_ms: rel,
+            ..LenisSettings::default()
+        });
+        let hop = u.geometry().hop();
+        let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
+        let (mut l, mut r) = (x.clone(), x.clone());
+        let mut track = vec![];
+        for (a, b) in l.chunks_mut(hop).zip(r.chunks_mut(hop)) {
+            u.process(a, b);
+            track.push(u.reduction_bins(0)[k3]);
+        }
+        let t = |i: usize| (i * hop) as f32 / SR;
+        let held: Vec<f32> = track
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| t(*i) > 1.5 && t(*i) < 2.0)
+            .map(|(_, v)| *v)
+            .collect();
+        let full = held.iter().sum::<f32>() / held.len() as f32;
+        let when = |from: f32, f: &dyn Fn(f32) -> bool| {
+            track
+                .iter()
+                .enumerate()
+                .find(|(i, v)| t(*i) >= from && f(**v))
+                .map(|(i, _)| (t(i) - from) * 1e3)
+                .unwrap_or(f32::NAN)
+        };
+        let half = when(1.0, &|v| v >= 0.5 * full);
+        let rise = when(1.0, &|v| v >= 0.9 * full);
+        let let_go = when(2.0, &|v| v <= 0.5 * full);
+        let fall = when(2.0, &|v| v <= 0.1 * full);
+        println!(
+            "  attack {att:>4} ms release {rel:>4} ms: held {full:.1} dB; half of it {half:.0} ms after the onset, 90 % {rise:.0} ms; half let go {let_go:.0} ms after the end, 90 % {fall:.0} ms"
+        );
+        assert!(full > 6.0, "the tone is turned down: {full}");
+        assert!(half < 20.0 + 2.0 * att, "half at {half} ms, attack {att}");
+        assert!(rise < 60.0 + 3.0 * att, "90 % at {rise} ms, attack {att}");
+        assert!(fall < 40.0 + 2.5 * rel, "let go at {fall} ms, release {rel}");
+        // Before the tone, nothing.
+        let before = track
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| t(*i) > 0.5 && t(*i) < 0.99)
+            .fold(0.0f32, |m, (_, v)| m.max(*v));
+        assert!(before < 0.5, "before the tone: {before}");
+    }
+}
+
+/// A struck resonance (an impulse into a 2.5 kHz two-pole with a time constant of 60 ms)
+/// every half second over quiet pink noise.
+fn strikes(secs: f32) -> (Vec<f32>, Vec<usize>) {
+    let n = (secs * SR) as usize;
+    let mut x = pink(n, 41, 0.01);
+    let period = SR as usize / 2;
+    let w = std::f64::consts::TAU * 2_500.0 / SR as f64;
+    let rad = math::exp(-1.0 / (0.06 * SR as f64));
+    let (a1, a2) = (2.0 * rad * math::cos(w), -rad * rad);
+    let (mut y1, mut y2) = (0.0f64, 0.0f64);
+    let mut onsets = vec![];
+    for (i, v) in x.iter_mut().enumerate() {
+        let imp = if i % period == period / 2 {
+            onsets.push(i);
+            0.08
+        } else {
+            0.0
+        };
+        let y = imp + a1 * y1 + a2 * y2;
+        y2 = y1;
+        y1 = y;
+        *v += y as f32;
+    }
+    (x, onsets)
+}
+
+#[test]
+fn the_window_pairs_compared() {
+    let ((res3k, _), _) = resonant(6.0, 3_000.0, 8.0, 12.0, 1);
+    let ((box250, _), _) = resonant(6.0, 250.0, 6.0, 12.0, 2);
+    let (hit, onsets) = strikes(6.0);
+    println!("frame/half (latency): 3 kHz peak | its neighbours | 250 Hz peak | pre-echo of a strike (dB under it) | the strike's ring cut");
+    let mut rows = vec![];
+    for (n, m) in [(512, 256), (1024, 256), (1024, 512), (2048, 512), (2048, 1024)] {
+        let s = LenisSettings {
+            depth: 0.5,
+            mode: Mode::Hard,
+            ..LenisSettings::default()
+        };
+        let mk = || {
+            let mut u = Lenis::with_geometry(SR, n, m);
+            u.set_keeping_shape(&s);
+            u
+        };
+        let c3 = changes(&mut mk(), &(res3k.clone(), res3k.clone()), &AROUND_3K);
+        let c250 = changes(&mut mk(), &(box250.clone(), box250.clone()), &[(220.0, 285.0)]);
+        let mut u = mk();
+        let y = run(&mut u, &(hit.clone(), hit.clone()), 256);
+        let lat = u.latency();
+        // The error (output − dry) in the 20 ms before each strike, against the strike's
+        // own first 20 ms; and how much of the strike's ring (20–200 ms) was taken.
+        let (mut pre, mut strike, mut ring_in, mut ring_out) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
+        let w20 = (0.02 * SR) as usize;
+        for &o in onsets.iter().skip(1) {
+            if o + lat + SR as usize / 5 >= y.0.len() {
+                break;
+            }
+            for i in o - w20..o {
+                pre += ((y.0[i + lat] - hit[i]) as f64).powi(2);
+            }
+            for i in o..o + w20 {
+                strike += (hit[i] as f64).powi(2);
+            }
+            for i in o + w20..o + SR as usize / 5 {
+                ring_in += (hit[i] as f64).powi(2);
+                ring_out += (y.0[i + lat] as f64).powi(2);
+            }
+        }
+        let pre_db = 10.0 * (pre / strike).log10();
+        let ring_db = 10.0 * (ring_out / ring_in).log10();
+        let worst = c3[1..].iter().fold(0.0f64, |a, v| a.max(v.abs()));
+        println!(
+            "  {n}/{m} ({:.1} ms): {:+.2} | {worst:.2} | {:+.2} | {pre_db:.1} | {ring_db:+.2}",
+            (2 * m - 1) as f32 / SR * 1e3,
+            c3[0],
+            c250[0]
+        );
+        rows.push((n, m, c3[0], worst, c250[0], pre_db));
+    }
+    for r in &rows {
+        assert!(r.2 < -2.5 && r.3 < 0.3, "{r:?}");
+        if r.1 * 4 == r.0 {
+            // The shipped shapes (a synthesis half of a quarter frame).
+            assert!(r.5 < -20.0, "pre-echo {r:?}");
+        }
+
+    }
+}
+
+#[test]
+#[ignore]
+fn cpu_at_48k() {
+    let secs = 60.0;
+    let n = (secs * SR) as usize;
+    let x = super::tests::harsh(n, 3);
+    println!("CPU, one core, 48 kHz, blocks of 256, a minute of a harsh stereo signal, best of 3:");
+    for q in Quality::ALL {
+        for ch in [Channels::Linked, Channels::Independent, Channels::MidSide] {
+            for depth in [0.6f32, 0.0] {
+                let s = LenisSettings {
+                    depth,
+                    quality: q,
+                    channels: ch,
+                    ..LenisSettings::default()
+                };
+                let mut best = f64::MAX;
+                for _ in 0..3 {
+                    let mut u = unit(&s);
+                    let (mut l, mut r) = (x.0.clone(), x.1.clone());
+                    let t0 = std::time::Instant::now();
+                    for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
+                        u.process(a, b);
+                    }
+                    best = best.min(t0.elapsed().as_secs_f64());
+                    std::hint::black_box(&l);
+                }
+                println!("  {q:?} {ch:?} depth {depth}: {:.2} % of a core", 100.0 * best / secs as f64);
+            }
         }
     }
 }
