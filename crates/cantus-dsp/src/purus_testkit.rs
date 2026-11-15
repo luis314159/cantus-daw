@@ -126,8 +126,8 @@ pub fn spoken(sr: f32, f0: f32, syllables: usize, tail: f32, seed: u32) -> Vec<f
 }
 
 /// A synthetic room's impulse response: a direct impulse, `early` discrete reflections
-/// between 3 and `keep_ms`, then a Gaussian-noise tail decaying at `t60` (s) with its high
-/// frequencies a little faster (a first-order low-pass that closes over the tail), scaled
+/// between 3 and `keep_ms`, then a Gaussian-noise tail (lightly low-passed, the same in
+/// every band, so its decay is `t60` (s) at every frequency), scaled
 /// so the direct-to-reverberant ratio is `drr_db` (the direct impulse's energy over
 /// everything after it). Returns the response and where the late part starts (samples).
 pub fn room(sr: f32, t60: f32, drr_db: f32, keep_ms: f32, seed: u32) -> (Vec<f32>, usize) {
@@ -150,8 +150,7 @@ pub fn room(sr: f32, t60: f32, drr_db: f32, keep_ms: f32, seed: u32) -> (Vec<f32
     for (i, v) in h.iter_mut().enumerate().skip(onset) {
         let t = i as f64 / sr as f64;
         let grow = ((i - onset) as f64 / (0.01 * sr as f64)).min(1.0);
-        let k = (0.9 - 0.6 * (t / t60 as f64).min(1.0)) as f32;
-        lp += k * (rng.gauss() - lp);
+        lp += 0.9 * (rng.gauss() - lp);
         *v += (0.25 * grow * math::exp(-delta * t)) as f32 * lp;
     }
     // Scale the reverberation to the ratio asked.

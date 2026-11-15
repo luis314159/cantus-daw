@@ -134,14 +134,27 @@ struct DecayEstimate {
     frame_s: f32,
     lo: usize,
     hi: usize,
-    /// The current run's levels (dB), up to half a second.
-    run: [f32; 128],
+    /// The current run's levels (dB), up to [`RUN_FRAMES`], and the lowest so far.
+    run: [f32; RUN_FRAMES],
     len: usize,
+    low: f32,
+    smooth: f32,
+    k: f32,
     found: [f32; ESTIMATES],
     count: usize,
     next: usize,
     median: f32,
 }
+
+/// The longest run kept, frames (about 1.4 s at 48 kHz).
+const RUN_FRAMES: usize = 256;
+/// A run goes on while no frame is this far above the lowest of the run, dB.
+const RUN_RISE_DB: f32 = 2.0;
+/// The start of each run not fitted (the direct sound's end and the early reflections), s.
+const FIT_SKIP_S: f32 = 0.06;
+/// What a run must give after that: a length, s, and a fall, dB.
+const FIT_MIN_S: f32 = 0.08;
+const FIT_MIN_DB: f32 = 6.0;
 
 impl DecayEstimate {
     fn new(fs: f32, n: usize, hop: usize) -> Self {
@@ -150,8 +163,11 @@ impl DecayEstimate {
             frame_s: hop as f32 / fs,
             lo: (300.0 / bin_hz).round() as usize,
             hi: ((5_000.0 / bin_hz).round() as usize).min(n / 2),
-            run: [0.0; 128],
+            run: [0.0; RUN_FRAMES],
             len: 0,
+            low: 0.0,
+            smooth: 0.0,
+            k: 1.0 - math::exp(-(hop as f32 / fs) / 0.015),
             found: [0.0; ESTIMATES],
             count: 0,
             next: 0,
@@ -161,6 +177,7 @@ impl DecayEstimate {
 
     fn clear_run(&mut self) {
         self.len = 0;
+        self.smooth = 0.0;
     }
 
     /// The estimate, s (0 until the first).
@@ -178,31 +195,42 @@ impl DecayEstimate {
             // Into silence: what fell so far is a run, if it is one.
             self.close();
             self.len = 0;
+            self.smooth = 0.0;
             return;
         }
-        let db = 10.0 * math::log10(e);
-        let falling = self.len > 0 && db < self.run[self.len - 1] + 0.5;
-        let full = self.len == self.run.len();
-        if self.len == 0 || (falling && !full) {
+        // A light smoothing of the frame energy (about 15 ms): a decaying tail's own
+        // fluctuations must not break its run.
+        self.smooth = if self.len == 0 && self.smooth <= 0.0 {
+            e
+        } else {
+            self.smooth + (e - self.smooth) * self.k
+        };
+        let db = 10.0 * math::log10(self.smooth);
+        if self.len > 0 && db < self.low + RUN_RISE_DB && self.len < RUN_FRAMES {
             self.run[self.len] = db;
             self.len += 1;
+            self.low = self.low.min(db);
             return;
         }
-        self.close();
+        if self.len > 0 {
+            self.close();
+        }
         self.run[0] = db;
         self.len = 1;
+        self.low = db;
     }
 
     /// A run has ended: fit it, if it is long and deep enough.
     fn close(&mut self) {
-        let min_frames = (0.08 / self.frame_s).ceil() as usize + 2;
-        if self.len < min_frames {
+        let skip = (FIT_SKIP_S / self.frame_s).round() as usize;
+        let min = (FIT_MIN_S / self.frame_s).ceil() as usize;
+        // The last frames, near the floor the run ended on, are left out too.
+        let end = self.len.saturating_sub(3);
+        if end < skip + min {
             return;
         }
-        let pts = &self.run[2..self.len];
-        let first = pts[0];
-        let last = pts[pts.len() - 1];
-        if first - last < 10.0 || last < -100.0 {
+        let pts = &self.run[skip..end];
+        if pts[0] - pts[pts.len() - 1] < FIT_MIN_DB {
             return;
         }
         let m = pts.len() as f32;
@@ -280,6 +308,9 @@ pub struct Dereverb {
     est: DecayEstimate,
     /// Frames in a row under [`QUIET`] (the drain asks).
     quiet_frames: usize,
+    /// Measurement only: the gains from the left channel alone, so the right carries any
+    /// signal through the left's gains (a component of a mixture, for its own share).
+    shadow: bool,
 }
 
 impl Dereverb {
@@ -314,11 +345,20 @@ impl Dereverb {
             power: vec![0.0; bins],
             est: DecayEstimate::new(sample_rate, n, hop),
             quiet_frames: usize::MAX,
+            shadow: false,
         }
     }
 
     pub fn set(&mut self, s: &VerbSettings) {
         self.s = s.sane();
+    }
+
+    /// Measurement only: compute the gains from the left channel alone and apply them to
+    /// both, so a component of the left's mixture can be sent on the right and measured
+    /// as the mixture's processing treats it.
+    #[doc(hidden)]
+    pub fn set_shadow(&mut self, on: bool) {
+        self.shadow = on;
     }
 
     pub fn settings(&self) -> &VerbSettings {
@@ -453,7 +493,11 @@ impl Dereverb {
         for b in 0..self.bins {
             let (lr, li) = (self.re[0][b], self.im[0][b]);
             let (rr, ri) = (self.re[1][b], self.im[1][b]);
-            self.power[b] = 0.5 * (lr * lr + li * li + rr * rr + ri * ri);
+            self.power[b] = if self.shadow {
+                lr * lr + li * li
+            } else {
+                0.5 * (lr * lr + li * li + rr * rr + ri * ri)
+            };
         }
         self.model();
         let half = n / 2;
@@ -501,10 +545,12 @@ impl Dereverb {
         self.rev_at = next;
         let from = (next + self.rev_frames - (ne - 1)) % self.rev_frames;
         let floor = math::db_to_gain(-s.amount_db);
+        // The amount also leans on the prediction: up to twice the tail at 24 dB.
+        let over = 1.0 + s.amount_db / 24.0;
         let dd = 0.85 + 0.13 * s.smoothing;
         for b in 0..bins {
             let p = self.power[b];
-            let late = decay_e * self.lam_rev[from * bins + b];
+            let late = over * decay_e * self.lam_rev[from * bins + b];
             let g = if late > 1e-24 && p > 0.0 {
                 let gamma = p / late;
                 let xi = dd * self.clean_prev[b] / late + (1.0 - dd) * (gamma - 1.0).max(0.0);

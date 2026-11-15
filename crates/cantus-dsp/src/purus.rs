@@ -223,6 +223,12 @@ impl Purus {
         &self.verb
     }
 
+    /// Measurement only (see [`Dereverb::set_shadow`]).
+    #[doc(hidden)]
+    pub fn dereverb_mut(&mut self) -> &mut Dereverb {
+        &mut self.verb
+    }
+
     /// New settings, between blocks. Levels and mixes glide (10 ms); the de-reverb switched
     /// on starts empty (and the latency becomes its own).
     pub fn set(&mut self, s: &PurusSettings) {
@@ -485,3 +491,6 @@ mod tests_measure;
 #[cfg(test)]
 #[path = "purus_tests_shared.rs"]
 mod tests_shared;
+#[cfg(test)]
+#[path = "purus_tests_verb.rs"]
+mod tests_verb;

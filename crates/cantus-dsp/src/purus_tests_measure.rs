@@ -263,3 +263,31 @@ fn auto_finds_sixty_hertz_and_stays_on_fifty() {
         assert!(down > 25.0, "{hz}: {down}");
     }
 }
+
+#[test]
+fn the_gentle_mode_learns_a_hum_that_changes() {
+    // The hum doubles and turns at 3 s (another device switched on): learning, held at
+    // first as if a note had come, must take the new hum within a few seconds.
+    let secs = 12.0;
+    let a = testkit::hum(SR, secs, &HUM, 0.0, 5, |_| 50.0);
+    let b = testkit::hum(SR, secs, &HUM, 0.0, 6, |_| 50.0);
+    let cut = (3.0 * SR) as usize;
+    let x: Vec<f32> = a
+        .iter()
+        .zip(&b)
+        .enumerate()
+        .map(|(i, (a, b))| if i < cut { *a } else { a + b })
+        .collect();
+    let y = mono(&hum_settings(|h| h.gentle = true), &x);
+    let mut back = None;
+    for w in 0..18 {
+        let s0 = cut + w * (SR as usize / 2);
+        let e = s0 + SR as usize / 2;
+        let d = testkit::db(testkit::energy(&x[s0..e]) / testkit::energy(&y[s0..e]));
+        if back.is_none() && d > 30.0 {
+            back = Some(w as f32 * 0.5);
+        }
+    }
+    println!("gentle: a hum that changed taken out again (30 dB) {back:?} s after the change");
+    assert!(back.is_some_and(|t| t <= 5.0), "{back:?}");
+}
