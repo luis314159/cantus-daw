@@ -125,8 +125,18 @@ fn the_auto_release_on_a_drum_loop() {
     }
     let (fast, slow, auto) = (rows[0], rows[2], rows[3]);
     // Auto pumps less than the fastest fixed release and lets go more than the slowest.
-    assert!(auto.1 < fast.1, "auto swings {} dB, 0.1 s {} dB", auto.1, fast.1);
-    assert!(auto.2 < slow.2, "auto holds {} dB, 1.2 s {} dB", auto.2, slow.2);
+    assert!(
+        auto.1 < fast.1,
+        "auto swings {} dB, 0.1 s {} dB",
+        auto.1,
+        fast.1
+    );
+    assert!(
+        auto.2 < slow.2,
+        "auto holds {} dB, 1.2 s {} dB",
+        auto.2,
+        slow.2
+    );
 }
 
 #[test]
@@ -162,9 +172,21 @@ fn cpu_per_model() {
         ("VCA", hard_of(Model::Vca, false)),
         ("VCA Auto", hard_of(Model::Vca, true)),
         ("Opto", hard_of(Model::Opto, false)),
-        ("Vari-mu, no colour", VinculumSettings { colour: 0.0, ..hard_of(Model::VariMu, false) }),
+        (
+            "Vari-mu, no colour",
+            VinculumSettings {
+                colour: 0.0,
+                ..hard_of(Model::VariMu, false)
+            },
+        ),
         ("Vari-mu, colour", hard_of(Model::VariMu, false)),
-        ("Vari-mu limit, colour", VinculumSettings { character: Character::Limit, ..hard_of(Model::VariMu, false) }),
+        (
+            "Vari-mu limit, colour",
+            VinculumSettings {
+                character: Character::Limit,
+                ..hard_of(Model::VariMu, false)
+            },
+        ),
     ];
     for (name, s) in configs {
         let mut best = f64::MAX;
@@ -175,7 +197,10 @@ fn cpu_per_model() {
             best = best.min(t.elapsed().as_secs_f64());
             std::hint::black_box(out);
         }
-        println!("{name:>22}: {:.3} % of a core (stereo, 48 kHz)", best / 10.0 * 100.0);
+        println!(
+            "{name:>22}: {:.3} % of a core (stereo, 48 kHz)",
+            best / 10.0 * 100.0
+        );
     }
 }
 

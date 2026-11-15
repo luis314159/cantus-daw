@@ -77,11 +77,11 @@ struct Chain {
 impl Chain {
     #[inline]
     fn run(&mut self, a: &[f32; COEFS / 2], mut x: f32) -> f32 {
-        for i in 0..COEFS / 2 {
-            let y = a[i] * (x - self.y1[i]) + self.x1[i];
-            self.x1[i] = x;
-            self.y1[i] = if y.abs() < 1e-20 { 0.0 } else { y };
-            x = self.y1[i];
+        for ((c, x1), y1) in a.iter().zip(&mut self.x1).zip(&mut self.y1) {
+            let y = c * (x - *y1) + *x1;
+            *x1 = x;
+            *y1 = if y.abs() < 1e-20 { 0.0 } else { y };
+            x = *y1;
         }
         x
     }

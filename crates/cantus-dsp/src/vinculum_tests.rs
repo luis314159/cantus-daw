@@ -434,10 +434,7 @@ fn the_vari_mu_ratio_rises_with_level() {
         // The law starts at the published ratio; past the knee the solved curve's local
         // ratio is the law's at its reduction.
         assert_eq!(law.r0, start);
-        let past = solve_db(
-            |x| 20.0 * math::log10(out(amp(x))),
-            -20.0 + law.w as f64,
-        );
+        let past = solve_db(|x| 20.0 * math::log10(out(amp(x))), -20.0 + law.w as f64);
         for x in [past, past + 3.0, past + 10.0] {
             let r = local_ratio(out, x);
             let want = law.ratio_at(gr_at(x) as f32) as f64;
