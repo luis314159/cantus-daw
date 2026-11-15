@@ -264,7 +264,7 @@ impl Processor {
             for (i, e) in m.effects.iter_mut().enumerate() {
                 if !strip::wire(&m.bypass, m.fx_enabled, &m.ll_off, i, e) {
                     // As in a resting strip: a unit that follows the song hears where it is.
-                    e.hear_position(&position, rate, map); // fx3:tabula
+                    e.hear_position(position, rate, map); // fx3:tabula
                     e.skip(n);
                 }
             }
@@ -345,7 +345,7 @@ impl Processor {
                 Some(b) if b.pass == pass => (&b.l[..n], &b.r[..n]),
                 _ => (&SILENCE[..n], &SILENCE[..n]),
             });
-            e.hear_position(&position, self.sample_rate, self.transport.map()); // fx3:tabula
+            e.hear_position(position, self.sample_rate, self.transport.map()); // fx3:tabula
             if mix >= 1.0 && !latent {
                 e.process_keyed(l, r, key);
             } else {

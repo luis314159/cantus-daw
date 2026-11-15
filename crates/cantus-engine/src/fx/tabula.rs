@@ -519,6 +519,9 @@ pub struct Unit {
     ab: Glide,
     lines: Option<Box<Lines>>,
     layout: Layout,
+    // Boxed: a pedal is handed back whole (`take_retired`); unboxing it would free on the
+    // audio thread.
+    #[allow(clippy::vec_box)]
     retired: Vec<Box<EffectUnit>>,
     notes: [(usize, FxNote); NOTES],
     n_notes: usize,

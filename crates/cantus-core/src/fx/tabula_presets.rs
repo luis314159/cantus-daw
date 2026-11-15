@@ -180,11 +180,10 @@ pub fn from_flat(map: &BTreeMap<String, f32>) -> Option<EffectSpec> {
 /// has — `factory_boards_are_sound` holds it).
 struct P(EffectKind, Path, &'static [(&'static str, f32)]);
 
-fn build(
-    pedals: &[P],
-    own: &[(&str, f32)],
-    macros: &[(usize, &[(u16, &str, f32, f32)])],
-) -> EffectSpec {
+/// A factory macro: its name's place in [`MACRO_NAMES`] and its maps (pedal, key, from, to).
+type FactoryMacro<'a> = (usize, &'a [(u16, &'a str, f32, f32)]);
+
+fn build(pedals: &[P], own: &[(&str, f32)], macros: &[FactoryMacro<'_>]) -> EffectSpec {
     let mut spec = EffectSpec::new(EffectKind::Board);
     let mut board = Board::default();
     for (i, P(kind, path, values)) in pedals.iter().enumerate() {

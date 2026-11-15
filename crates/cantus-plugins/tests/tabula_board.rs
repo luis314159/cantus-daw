@@ -94,7 +94,7 @@ fn a_board_loaded_while_playing_never_allocates_on_the_audio_thread() {
     let sh = shared();
     let mut p = Processor::new(sh.clone(), 48_000.0);
     let n = 512;
-    let tone = |i: usize| (i as f32 * 0.031).sin() * 0.3;
+    let tone = |i: usize| cantus_dsp::math::sin(i as f32 * 0.031) * 0.3;
     let mut l: Vec<f32> = (0..n).map(tone).collect();
     let mut r = l.clone();
     for _ in 0..20 {

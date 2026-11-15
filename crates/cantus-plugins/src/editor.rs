@@ -206,8 +206,7 @@ impl FxHost for PluginHost {
         _label_key: &str,
         build: &dyn Fn(cantus_core::StripId, cantus_core::EffectId) -> Vec<cantus_core::Command>,
     ) -> bool {
-        let Ok(spec) = cantus_core::command_board::apply_to_spec(&self.spec, |s, e| build(s, e))
-        else {
+        let Ok(spec) = cantus_core::command_board::apply_to_spec(&self.spec, build) else {
             return false;
         };
         // The board's own values the commands set (a randomise sets pedals' only).

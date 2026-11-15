@@ -51,7 +51,7 @@ fn signal(n: usize) -> (Vec<f32>, Vec<f32>) {
     (0..n)
         .map(|i| {
             let t = i as f32 / SR;
-            let v = (std::f32::consts::TAU * 196.0 * t).sin() * 0.3 + noise() * 0.05;
+            let v = cantus_dsp::math::sin(std::f32::consts::TAU * 196.0 * t) * 0.3 + noise() * 0.05;
             (v, v * 0.9)
         })
         .unzip()
