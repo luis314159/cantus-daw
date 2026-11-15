@@ -69,6 +69,7 @@ impl Fractus {
             && !self.seq.notes_held()
             && !self.reader.fading()
             && self.reader.prev.0 == Id::DRY
+            && self.reader.heard.0 == Id::DRY
             && !self.cloud.enabled()
             && self.fx.silent_tail()
             && self.mix.still()
@@ -245,10 +246,12 @@ impl Fractus {
             [0.0; 2]
         } else {
             let sp = rd.speed as f32;
-            let (a, b) = if rd.cap {
+            let (a, b) = if rd.cap && n as f64 - rd.d <= self.cap_head as f64 {
                 let d = (self.cap_head - n) as f64 + rd.d;
                 self.cap.read(self.cap_head, d, i64::MIN, sp)
             } else {
+                // Past what the capture holds (a join carrying the live slice on): the
+                // history has the same samples.
                 self.hist.read(n, rd.d, i64::MIN, sp)
             };
             if rd.gain == 1.0 {

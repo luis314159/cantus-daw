@@ -656,10 +656,10 @@ impl Fractus {
             r = r.max(f64::from(self.set.pitch.window_ms) * 0.001 * f64::from(self.sr) + 8.0);
         }
         if used(Module::Throw) {
-            // The echoes ring until they are 120 dB down.
+            // The echoes ring until they are flushed to zero, 400 dB down.
             let t = &self.set.throw;
             let fb = f64::from(t.feedback.clamp(0.0, 0.95)).max(1e-6);
-            let echoes = (-6.0 / crate::math::log10(fb)).ceil().min(400.0);
+            let echoes = (-20.0 / crate::math::log10(fb)).ceil().min(1_000.0);
             r = r.max(t.time * spb * (echoes + 1.0));
         }
         if self.cloud.enabled() {

@@ -16,8 +16,9 @@
 //!   each time it counts on. Its position, pitch, pan and direction are drawn from hashes
 //!   of (seed, number, purpose); its pitch is quantised to the scale; a grain never reads
 //!   ahead of what the buffer holds (it starts further back the faster it reads forward).
-//!   A fixed pool of [`MAX_GRAINS`]; a grain that finds it full is skipped (the same skip
-//!   at every block size). Each grain's level is `1/√overlap`, so density and size move
+//!   A fixed pool of [`MAX_GRAINS`], a grain's place its number modulo the pool (so the
+//!   grains sum in one order whatever came before); a grain whose place is still taken is
+//!   skipped (the same skip at every block size). Each grain's level is `1/√overlap`, so density and size move
 //!   the texture, not the loudness.
 
 use super::seq::{roll, unit};
@@ -525,9 +526,12 @@ impl Cloud {
     /// Grain `id` starts (if the pool has room), its first read `MARGIN` or more behind
     /// the newest sample.
     fn spawn(&mut self, id: i64) {
-        let Some(slot) = self.grains.iter().position(|g| !g.on) else {
+        // A grain's place in the pool is its number's: the grains sum in the same order
+        // whatever played before (a render from bar 5 adds them as the whole one does).
+        let slot = id.rem_euclid(MAX_GRAINS as i64) as usize;
+        if self.grains[slot].on {
             return;
-        };
+        }
         let s = self.set;
         let seed = self.seed;
         let h = |p: u64| roll(seed, 9, id as u64, p);

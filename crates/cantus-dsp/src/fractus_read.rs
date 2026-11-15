@@ -201,9 +201,13 @@ fn fall(tau: i64, end: i64, x: u32) -> f32 {
 /// The repeat's shortest slice, samples.
 const MIN_SLICE: f64 = 16.0;
 
-/// The repeat's slice, samples (what its capture must hold).
+/// Samples the capture keeps writing past the slice, so the interpolator's taps at its
+/// end are the signal's.
+pub const CAPTURE_PAD: i64 = 64;
+
+/// How long the capture is written from a repeat's start, samples: its slice and a pad.
 pub fn repeat_slice(s: &RepeatSettings, spb: f64) -> i64 {
-    (s.size * spb).max(MIN_SLICE).round() as i64
+    (s.size * spb).max(MIN_SLICE).round() as i64 + CAPTURE_PAD
 }
 
 /// A repeat: the event's first slice plays live and is captured; every repeat after it
@@ -386,10 +390,12 @@ pub struct Ghost {
     pub len: u32,
 }
 
-/// The joins' state: the read that was heard last and the one fading out.
+/// The joins' state: the main read of the last sample, what was heard then (the main
+/// read, or the one its end was fading into), and the read fading out.
 #[derive(Copy, Clone, Debug)]
 pub struct Reader {
     pub prev: (Id, Rd),
+    pub heard: (Id, Rd),
     pub ghost: Ghost,
 }
 
@@ -397,6 +403,7 @@ impl Reader {
     pub fn new() -> Reader {
         Reader {
             prev: (Id::DRY, Rd::DRY),
+            heard: (Id::DRY, Rd::DRY),
             ghost: Ghost {
                 on: false,
                 rd: Rd::DRY,
@@ -415,26 +422,44 @@ impl Reader {
         self.ghost.on
     }
 
-    /// This sample's read is `rd` (of `id`), fading towards `fade` (its id, read and
-    /// weight) before its end: where it does not carry on from the read heard last, that
-    /// one carries on at its speed and fades out over `xf`.
-    pub fn join(&mut self, id: Id, rd: &Rd, fade: Option<(Id, Rd, f32)>, xf: u32) {
-        let (pid, p) = self.prev;
+    /// Whether `rd` carries on from `p` without a step: the same place its speed
+    /// predicts, the same level and mix, the same direction.
+    fn carries(rd: &Rd, p: &Rd) -> bool {
         let pred = p.d + 1.0 - p.speed;
-        let carries = (rd.d - pred).abs() <= JUMP
+        (rd.d - pred).abs() <= JUMP
             && (rd.gain - p.gain).abs() <= 1e-3
             && (rd.amt - p.amt).abs() <= 1e-3
-            && (rd.cap == p.cap || (rd.d == 0.0 && p.d == 0.0));
-        let new_seg = pid != id || p.seg != rd.seg;
-        if new_seg && !carries && xf > 0 {
-            self.ghost = Ghost {
-                on: true,
-                rd: Rd { d: pred, ..p },
-                left: xf,
-                len: xf,
-            };
+            && (rd.speed - p.speed).abs() < 0.5
+            && (rd.cap == p.cap || (rd.d == 0.0 && p.d == 0.0))
+    }
+
+    /// This sample's read is `rd` (of `id`), fading towards `fade` (its id, read and
+    /// weight) before its end. Where it does not carry on from what was heard last, that
+    /// carries on at its speed and fades out over `xf`.
+    pub fn join(&mut self, id: Id, rd: &Rd, fade: Option<(Id, Rd, f32)>, xf: u32) {
+        let (pid, p) = self.prev;
+        // The same event: a new segment may jump. Another: from what was heard.
+        let from = if pid == id {
+            (p.seg != rd.seg).then_some(p)
+        } else {
+            let (hid, h) = self.heard;
+            (hid != id || h.seg != rd.seg).then_some(h)
+        };
+        if let Some(p) = from {
+            if !Reader::carries(rd, &p) && xf > 0 {
+                self.ghost = Ghost {
+                    on: true,
+                    rd: Rd {
+                        d: p.d + 1.0 - p.speed,
+                        ..p
+                    },
+                    left: xf,
+                    len: xf,
+                };
+            }
         }
-        self.prev = match fade {
+        self.prev = (id, *rd);
+        self.heard = match fade {
             Some((fid, frd, w)) if w >= 0.5 => (fid, frd),
             _ => (id, *rd),
         };
