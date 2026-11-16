@@ -266,7 +266,7 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
 }
 
 /// The starting preset (`cantus_core::starting`).
-pub const DEMO: &[(&str, f32)] = &[("mix", 1.0)];
+pub const DEMO: &[(&str, f32)] = &[("mix", 1.0), ("out", 3.6)];
 
 /// What a playing engine would feed the editor, for screenshots with no engine: the real
 /// unit at the editor's settings, its switch thrown from slow to the setting's speed 0.9 s

@@ -27,7 +27,6 @@ fx.rota.notes = Notes switch speed
 fx.rota.notes.0 = Off
 fx.rota.notes.1 = On
 fx.rota.mix = Mix
-preset.rota.chorale = Chorale
 # The editor (design sheet v1).
 rota.colourway.walnut = Walnut
 rota.colourway.cherry = Cherry
@@ -64,3 +63,17 @@ rota.d.ramps = Ramps: speed since the switch
 rota.d.up = Up
 rota.d.down = Down
 rota.d.speed = Speed
+# Factory presets.
+preset.rota.chorale = Chorale
+preset.rota.tremolo = Tremolo
+preset.rota.gospel = Gospel
+preset.rota.slow_ramp = Slow ramp
+preset.rota.quick_switch = Quick switch
+preset.rota.wide_room = Wide in the room
+preset.rota.close_mics = Close microphones
+preset.rota.overdriven = Overdriven cabinet
+preset.rota.guitar = Guitar through the rotary
+preset.rota.brake = Brake
+preset.rota.subtle_swirl = Subtle swirl
+preset.rota.drum_heavy = Heavy drum
+preset.rota.open_back = Open back, far away

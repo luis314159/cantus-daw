@@ -1,4 +1,211 @@
-# Arca amp and cabinet: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's wave-3 contract: none yet — arca's builder writes them here.
+# Arca amp: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.arca.clean_combo"
+note = "The clean amp at a sweet low gain into its open-backed 1×12: the starting preset."
+styles = ["rock", "worship"]
+roles = ["pluck", "keys"]
+[preset.values]
+"cab" = 1
+"gain" = 0.3
+"model" = 1
+"out" = 5.4
+
+[[preset]]
+key = "preset.arca.sparkle"
+note = "The clean amp bright and low, two open 12s heard by a condenser a little back."
+styles = ["pop", "worship"]
+roles = ["pluck"]
+[preset.values]
+"bass" = 0.45
+"cab" = 2
+"gain" = 0.2
+"mic" = 2
+"micdist" = 8
+"micpos" = 0.2
+"model" = 1
+"out" = 12.5
+"treble" = 0.7
+
+[[preset]]
+key = "preset.arca.edge_of_breakup"
+note = "The clean amp pushed until it just starts to break up as you dig in."
+styles = ["rock", "jazz"]
+roles = ["lead", "pluck"]
+[preset.values]
+"cab" = 1
+"gain" = 0.6
+"micpos" = 0.35
+"model" = 1
+"out" = -3.8
+
+[[preset]]
+key = "preset.arca.british_crunch"
+note = "The crunch amp at rhythm gain into a vintage 4×12, a dynamic close on the cone."
+styles = ["rock"]
+roles = ["pluck"]
+[preset.values]
+"cab" = 3
+"gain" = 0.65
+"micdist" = 2.5
+"model" = 2
+"out" = -12
+"treble" = 0.62
+
+[[preset]]
+key = "preset.arca.full_stack"
+note = "The crunch amp flat out, the middle up, a ribbon on the vintage 4×12."
+styles = ["rock"]
+roles = ["lead"]
+[preset.values]
+"cab" = 3
+"gain" = 0.95
+"mic" = 1
+"micpos" = 0.4
+"mid" = 0.7
+"model" = 2
+"out" = -14.8
+
+[[preset]]
+key = "preset.arca.chime_jangle"
+note = "The chiming amp clean and bright into two open 12s, a ribbon in front."
+styles = ["pop", "rock"]
+roles = ["pluck"]
+[preset.values]
+"cab" = 2
+"gain" = 0.45
+"mic" = 1
+"model" = 3
+"out" = -6
+"treble" = 0.7
+
+[[preset]]
+key = "preset.arca.chime_drive"
+note = "The chiming amp driven until its class A compresses and sings."
+styles = ["rock"]
+roles = ["lead"]
+[preset.values]
+"cab" = 2
+"gain" = 0.85
+"model" = 3
+"out" = -5.7
+
+[[preset]]
+key = "preset.arca.modern_lead"
+note = "The high-gain amp for solos, the middle a little scooped, a dynamic toward the edge of a modern 4×12."
+styles = ["rock", "film"]
+roles = ["lead"]
+[preset.values]
+"cab" = 4
+"gain" = 0.75
+"micdist" = 4
+"micpos" = 0.55
+"mid" = 0.4
+"model" = 4
+"out" = -12.4
+
+[[preset]]
+key = "preset.arca.tight_rhythm"
+note = "The high-gain amp tight for riffs: less bass, a scooped middle, the presence up."
+styles = ["rock"]
+roles = ["pluck"]
+[preset.values]
+"bass" = 0.4
+"cab" = 4
+"gain" = 0.6
+"mid" = 0.3
+"model" = 4
+"out" = -12.4
+"presence" = 0.6
+"treble" = 0.6
+
+[[preset]]
+key = "preset.arca.dark_lead"
+note = "The high-gain amp heard by a ribbon a hand back from the cone: thick and smooth."
+styles = ["rock", "film"]
+roles = ["lead"]
+[preset.values]
+"cab" = 4
+"gain" = 0.85
+"mic" = 1
+"micdist" = 10
+"micpos" = 0.3
+"model" = 4
+"out" = -11.9
+
+[[preset]]
+key = "preset.arca.bass_round"
+note = "The bass amp clean into its open 4×10, a condenser back from it: round and deep."
+styles = ["rock", "jazz", "worship"]
+roles = ["bass"]
+[preset.values]
+"cab" = 5
+"gain" = 0.4
+"mic" = 2
+"micdist" = 15
+"model" = 5
+"out" = 1.8
+
+[[preset]]
+key = "preset.arca.bass_growl"
+note = "The bass amp pushed until it growls, a dynamic close."
+styles = ["rock"]
+roles = ["bass"]
+[preset.values]
+"cab" = 5
+"gain" = 0.85
+"model" = 5
+"out" = -3.4
+
+[[preset]]
+key = "preset.arca.keys_amp"
+note = "Electric piano or organ through the clean amp and two open 12s, a condenser at a distance."
+styles = ["jazz", "rnb", "worship"]
+roles = ["keys"]
+[preset.values]
+"bass" = 0.55
+"cab" = 2
+"gain" = 0.35
+"mic" = 2
+"micdist" = 20
+"model" = 1
+"out" = 3.4
+
+[[preset]]
+key = "preset.arca.vocal_grit"
+note = "A voice through the crunch amp and a small speaker, half the dry kept: grit without losing the words."
+styles = ["rock", "lofi"]
+roles = ["vocal", "creative"]
+[preset.values]
+"cab" = 1
+"gain" = 0.5
+"mix" = 0.45
+"model" = 2
+"out" = -15.9
+
+[[preset]]
+key = "preset.arca.cabinet_only"
+note = "No amp: a direct guitar or an amp simulator heard through the vintage 4×12 and a ribbon."
+styles = ["rock"]
+roles = ["pluck", "lead"]
+[preset.values]
+"cab" = 3
+"mic" = 1
+"model" = 0
+"out" = -2.1
+
+[[preset]]
+key = "preset.arca.tiny_radio"
+note = "The chiming amp into a lone open 12, a condenser on its edge: an old radio's voice."
+styles = ["lofi", "film"]
+roles = ["creative", "fx"]
+[preset.values]
+"cab" = 1
+"gain" = 0.7
+"mic" = 2
+"micdist" = 1
+"micpos" = 1
+"model" = 3
+"out" = -7.4

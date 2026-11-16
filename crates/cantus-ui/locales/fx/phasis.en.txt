@@ -32,3 +32,6 @@ fx.phasis.intensity = Intensity
 phasis.card.lamp = Lamp and photocells
 phasis.style.0.about = Stages swept together
 phasis.style.1.about = A lamp sweeps four cells
+preset.phasis.lamp_chorus = Lamp chorus
+preset.phasis.lamp_vibrato = Lamp vibrato
+preset.phasis.slow_lamp = Slow lamp

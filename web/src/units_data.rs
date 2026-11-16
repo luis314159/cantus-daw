@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 32] = [
+pub const EFFECTS: [Unit; 34] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -491,6 +491,50 @@ pub const EFFECTS: [Unit; 32] = [
         ab: None,
         big: (1800, 1143),
         thumb: (640, 406),
+    },
+
+    // fx3:arca — Arca, the amp and its cabinet (ADR 0137, provisional).
+    Unit {
+        file: "arca",
+        name: "Arca",
+        kind: ("Amp", "Amplificador"),
+        pitch: ("Five valve amps modelled from their circuits and their cabinets — the valves glowing as hard as each one works, the microphone dragged across the speaker's cone.", "Cinco amplificadores de válvulas modelados desde sus circuitos y sus cajas — las válvulas brillando tanto como trabaja cada una, el micrófono arrastrado sobre el cono del altavoz."),
+        what: long!(("Arca solves each amp's schematic as a circuit, valve by valve: a clean amp, a crunch, a chiming class A, a four-stage high gain and a bass amp, with their tone stacks from their component values, their power amps pushing and pulling, the supply sagging under a loud chord. Its window is the amp: the chassis with its valves in the order the signal meets them, each glowing as hard as it works; the faceplate; and the cabinet, where the microphone is dragged across the cone and back from the grille, or your own impulse response plays. At its defaults — no amp, no cabinet — it passes the sound untouched.", "Arca resuelve el esquema de cada amplificador como un circuito, válvula a válvula: un limpio, un crujiente, una clase A que repica, un alta ganancia de cuatro etapas y un amplificador de bajo, con sus redes de tono desde los valores de sus componentes, sus etapas de potencia empujando y tirando, la alimentación cediendo ante un acorde fuerte. Su ventana es el amplificador: el chasis con sus válvulas en el orden en que las encuentra la señal, cada una brillando tanto como trabaja; el panel; y la caja, donde el micrófono se arrastra sobre el cono y se aleja de la rejilla, o suena tu propia respuesta al impulso. En sus valores por defecto — sin amplificador ni caja — deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("Five amps solved from their schematics, valve by valve, oversampled", "Cinco amplificadores resueltos desde sus esquemas, válvula a válvula, sobremuestreados"),
+            ("The supply sags under a loud chord; a sag knob from stiff to soft", "La alimentación cede ante un acorde fuerte; un control de sag de firme a blando"),
+            ("Five cabinets with the microphone's kind, place and distance, or your own impulse response", "Cinco cajas con el tipo, el lugar y la distancia del micrófono, o tu propia respuesta al impulso"),
+            ("The valves glow as hard as each one works", "Las válvulas brillan tanto como trabaja cada una"),
+            ("For guitar, bass, keys and voice; a pedal on the pedalboard too", "Para guitarra, bajo, teclados y voz; también un pedal en la pedalera"),
+            ("Sixteen factory presets; nothing touched at its defaults", "Dieciséis presets de fábrica; nada tocado en sus valores por defecto"),
+        ]),
+        presets: Some(16),
+        plugin: true,
+        ab: None,
+        big: (1800, 1009),
+        thumb: (640, 359),
+    },
+
+    // fx3:rota — Rota, the rotary speaker (ADR 0136, provisional).
+    Unit {
+        file: "rota",
+        name: "Rota",
+        kind: ("Rotary speaker", "Altavoz rotatorio"),
+        pitch: ("A rotary cabinet for any track — its horn and drum turning in a cut-away walnut cabinet, ramping between slow and fast at their own pace.", "Un mueble rotatorio para cualquier pista — su bocina y su tambor girando en un mueble de nogal en corte, pasando de lento a rápido cada uno a su ritmo."),
+        what: long!(("Rota is the rotary speaker of Cantus's organ as an effect for any track: a horn and a drum turning with the speeds and the spin-up and spin-down times measured on the real cabinets, the sound of each read at its Doppler delay, heard through two microphones you move round the cabinet and away from it, through the cabinet's valve amp. Stop, slow and fast — thrown by a click, by automation or by the notes a track plays. Its window draws the cabinet cut away, the rotors turning as the engine turns them, and each rotor's ramp.", "Rota es el altavoz rotatorio del órgano de Cantus como efecto para cualquier pista: una bocina y un tambor girando con las velocidades y los tiempos de aceleración y frenado medidos en los muebles reales, el sonido de cada uno leído en su retardo Doppler, oído por dos micrófonos que mueves alrededor del mueble y lejos de él, a través del amplificador de válvulas del mueble. Parado, lento y rápido — por un clic, por automatización o por las notas que toca una pista. Su ventana dibuja el mueble en corte, los rotores girando como los gira el motor, y la rampa de cada uno.")),
+        features: long!(&[
+            ("Horn and drum with the published speeds and ramps; a brake that parks them", "Bocina y tambor con las velocidades y rampas publicadas; un freno que los detiene"),
+            ("Two microphones moved round the cabinet and away from it", "Dos micrófonos movidos alrededor del mueble y lejos de él"),
+            ("The switch thrown by notes, to the sample", "El cambio por notas, a la muestra"),
+            ("The cabinet's valve amp, an open or closed back", "El amplificador de válvulas del mueble, trasera abierta o cerrada"),
+            ("No latency; untouched at its defaults", "Sin latencia; intacto en sus valores por defecto"),
+            ("Thirteen factory presets; a pedal on the pedalboard too", "Trece presets de fábrica; también un pedal en la pedalera"),
+        ]),
+        presets: Some(13),
+        plugin: true,
+        ab: None,
+        big: (1800, 1000),
+        thumb: (640, 356),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

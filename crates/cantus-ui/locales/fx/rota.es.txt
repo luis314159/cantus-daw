@@ -27,7 +27,6 @@ fx.rota.notes = Las notas cambian la velocidad
 fx.rota.notes.0 = No
 fx.rota.notes.1 = Sí
 fx.rota.mix = Mezcla
-preset.rota.chorale = Coral
 # El editor (hoja de diseño v1).
 rota.colourway.walnut = Nogal
 rota.colourway.cherry = Cerezo
@@ -64,3 +63,17 @@ rota.d.ramps = Rampas: velocidad desde el cambio
 rota.d.up = Sube
 rota.d.down = Baja
 rota.d.speed = Velocidad
+# Presets de fábrica.
+preset.rota.chorale = Coral
+preset.rota.tremolo = Trémolo
+preset.rota.gospel = Gospel
+preset.rota.slow_ramp = Rampa lenta
+preset.rota.quick_switch = Cambio rápido
+preset.rota.wide_room = Abierto en la sala
+preset.rota.close_mics = Micrófonos cerca
+preset.rota.overdriven = Mueble saturado
+preset.rota.guitar = Guitarra por el rotatorio
+preset.rota.brake = Freno
+preset.rota.subtle_swirl = Giro sutil
+preset.rota.drum_heavy = Tambor pesado
+preset.rota.open_back = Trasera abierta, lejos

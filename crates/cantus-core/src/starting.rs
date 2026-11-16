@@ -151,11 +151,11 @@ pub fn start_of(kind: EffectKind) -> Start {
             ],
         ), // fx3:saltus
         // fx3:rota — the cabinet turning slow, all wet: an organ's or a guitar's chorale.
-        K::Rotary => preset("preset.rota.chorale", &[("mix", 1.0)]), // fx3:rota
+        K::Rotary => preset("preset.rota.chorale", &[("mix", 1.0), ("out", 3.6)]), // fx3:rota
         // fx3:arca — the clean amp at a sweet low gain into its open 1×12.
         K::Amp => preset(
             "preset.arca.clean_combo",
-            &[("model", 1.0), ("gain", 0.3), ("cab", 1.0), ("out", 0.0)],
+            &[("model", 1.0), ("gain", 0.3), ("cab", 1.0), ("out", 5.4)],
         ), // fx3:arca
         K::Multiband => preset(
             "mb.preset.glue",

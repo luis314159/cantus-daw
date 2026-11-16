@@ -393,7 +393,10 @@ fn paint_cut(
     let lower = Rect::from_min_max(pos2(inner.left(), shelf.bottom()), inner.max);
     // The amp's valves at the back of the upper chamber, on their chassis.
     let amp = Rect::from_min_max(
-        pos2(cab.right() - cab.width() * 0.16 - upper.width() * 0.30, shelf.top() - 6.0 * k),
+        pos2(
+            cab.right() - cab.width() * 0.16 - upper.width() * 0.30,
+            shelf.top() - 6.0 * k,
+        ),
         pos2(cab.right() - cab.width() * 0.16 - 6.0 * k, shelf.top()),
     );
     b.rect(amp, Fill::V(pal::CASTING.rgb(), pal::CHASSIS.rgb()));
@@ -408,11 +411,9 @@ fn paint_cut(
     }
     // The horn: its orbit, the blur of where its bells were, the far bell, the shaft, the
     // near bell.
-    let hub = pos2(
-        upper.center().x - upper.width() * 0.06,
-        upper.top() + upper.height() * 0.42,
-    );
-    let reach = upper.width() * 0.32;
+    let hub = pos2(upper.center().x, upper.top() + upper.height() * 0.42);
+    // The bells turn inside the chamber, clear of the louvres standing at its sides.
+    let reach = (cab.width() * 0.5 - cab.width() * 0.16 - 9.0 * k) * 0.70;
     let fast = (v.horn.1 / 300.0).clamp(0.0, 1.0);
     ellipse_stroke(
         b,
@@ -428,9 +429,24 @@ fn paint_cut(
     // A bell sweeps this far in a sixtieth of a second: its trail behind it.
     let sweep = (v.horn.1 / 60.0 * TAU / 60.0).min(1.2);
     if sweep > 0.05 {
+        // Streaks along the mouth's path, from where it was to where it is.
+        for (base, col) in [(theta, horn_c), (theta + PI, pal::HORN_LIGHT.rgb())] {
+            for f in [-0.3f32, 0.0, 0.3] {
+                let mut pts = [Pos2::ZERO; 13];
+                for (j, p) in pts.iter_mut().enumerate() {
+                    let a = base - sweep * (1.0 - j as f32 / 12.0);
+                    *p = hub
+                        + vec2(
+                            reach * a.sin(),
+                            -a.cos() * 3.0 * k + f * upper.height() * 0.40,
+                        );
+                }
+                b.polyline(&pts, 0.8 * k, with_alpha(col, 0.45));
+            }
+        }
         for j in (1..=6).rev() {
             let a = theta - sweep * j as f32 / 6.0;
-            let alpha = 0.34 * (1.0 - j as f32 / 7.0);
+            let alpha = 0.55 * (1.0 - j as f32 / 7.0);
             for (aa, real) in [(a, true), (a + PI, false)] {
                 horn(
                     b,

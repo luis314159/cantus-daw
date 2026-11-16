@@ -1,4 +1,136 @@
 # Rota rotary speaker: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's wave-3 contract: none yet — rota's builder writes them here.
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.rota.chorale"
+note = "Slow, the whole signal through the cabinet: the starting preset."
+styles = ["worship", "jazz"]
+roles = ["keys"]
+[preset.values]
+"mix" = 1
+"out" = 3.6
+
+[[preset]]
+key = "preset.rota.tremolo"
+note = "Fast, the whole signal: the horn's shimmer and the drum's throb."
+styles = ["rock", "jazz"]
+roles = ["keys"]
+[preset.values]
+"mix" = 1
+"out" = 3.5
+"speed" = 2
+
+[[preset]]
+key = "preset.rota.gospel"
+note = "Slow, the cabinet's amp pushed: an organ that growls when the switch goes fast."
+styles = ["worship", "rnb"]
+roles = ["keys"]
+[preset.values]
+"drive" = 0.35
+"mix" = 1
+"out" = 0
+
+[[preset]]
+key = "preset.rota.slow_ramp"
+note = "The rotors take twice as long to change speed: a long, dramatic rise."
+styles = ["film", "ambient"]
+roles = ["keys", "pad"]
+[preset.values]
+"mix" = 1
+"out" = 3.6
+"ramp" = 2.5
+
+[[preset]]
+key = "preset.rota.quick_switch"
+note = "The rotors change speed in half the time: a switch that bites."
+styles = ["rock", "pop"]
+roles = ["keys"]
+[preset.values]
+"mix" = 1
+"out" = 3.6
+"ramp" = 0.5
+
+[[preset]]
+key = "preset.rota.wide_room"
+note = "The microphones wide apart and a metre back: the cabinet in its room."
+styles = ["ambient", "film"]
+roles = ["pad", "keys"]
+[preset.values]
+"dist" = 120
+"mix" = 1
+"out" = 3.5
+"spread" = 180
+
+[[preset]]
+key = "preset.rota.close_mics"
+note = "The microphones close and narrower: the horn's swirl right in front of you."
+styles = ["rock", "pop"]
+roles = ["keys", "lead"]
+[preset.values]
+"dist" = 25
+"mix" = 1
+"out" = 3.8
+"spread" = 90
+
+[[preset]]
+key = "preset.rota.overdriven"
+note = "Fast, the cabinet's amp driven hard: the rock organ's roar."
+styles = ["rock"]
+roles = ["keys", "lead"]
+[preset.values]
+"drive" = 0.7
+"mix" = 1
+"out" = -5.3
+"speed" = 2
+
+[[preset]]
+key = "preset.rota.guitar"
+note = "A guitar through the rotary, the open back, more horn, some of the dry kept."
+styles = ["rock", "pop"]
+roles = ["pluck", "lead"]
+[preset.values]
+"balance" = 3
+"mix" = 0.7
+"open" = 1
+"out" = 6.7
+
+[[preset]]
+key = "preset.rota.brake"
+note = "The brake on: both rotors parked, the cabinet's colour without the motion."
+styles = ["jazz", "lofi"]
+roles = ["keys", "creative"]
+[preset.values]
+"mix" = 1
+"out" = 3.3
+"speed" = 0
+
+[[preset]]
+key = "preset.rota.subtle_swirl"
+note = "Slow and under half the mix: a gentle movement on pads and voices."
+styles = ["pop", "ambient", "worship"]
+roles = ["pad", "vocal"]
+[preset.values]
+"mix" = 0.4
+"out" = 3.9
+
+[[preset]]
+key = "preset.rota.drum_heavy"
+note = "The drum louder than the horn: a deep, round throb under a bass line."
+styles = ["rnb", "jazz"]
+roles = ["bass", "keys"]
+[preset.values]
+"balance" = -6
+"mix" = 1
+"out" = 0.7
+
+[[preset]]
+key = "preset.rota.open_back"
+note = "The open back and the microphones two metres away: airy and far."
+styles = ["ambient", "worship"]
+roles = ["pad"]
+[preset.values]
+"dist" = 200
+"mix" = 1
+"open" = 1
+"out" = 4.3

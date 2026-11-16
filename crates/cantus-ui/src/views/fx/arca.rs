@@ -156,7 +156,7 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
 
 /// The starting preset (`cantus_core::starting`): the clean amp at a sweet low gain into its
 /// open-backed 1×12.
-pub const DEMO: &[(&str, f32)] = &[("model", 1.0), ("gain", 0.3), ("cab", 1.0), ("out", 0.0)];
+pub const DEMO: &[(&str, f32)] = &[("model", 1.0), ("gain", 0.3), ("cab", 1.0), ("out", 5.4)];
 
 /// What a playing engine would feed the editor, for screenshots with no engine: a strummed
 /// chord through the real unit at the editor's settings, its telemetry as the engine sends
