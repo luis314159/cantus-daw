@@ -269,7 +269,20 @@ fn the_crossfade_does_not_click() {
     };
     let hard = click(1.0 / 48.0);
     let soft = click(30.0);
-    eprintln!("click above 2 kHz: hard switch {hard:.1} dBFS, 30 ms crossfade {soft:.1} dBFS");
+    // The floor: the 150 Hz sine alone through the same high-pass.
+    let mut hp = HighPass::new(2_000.0);
+    let floor = rf.left.iter().enumerate().fold(0f64, |m, (i, v)| {
+        let y = hp.tick(*v);
+        if i > 24_000 {
+            m.max(y.abs())
+        } else {
+            m
+        }
+    });
+    let floor = 20.0 * math::log10(floor.max(1e-12));
+    eprintln!(
+        "click above 2 kHz: hard switch {hard:.1} dBFS, 30 ms crossfade {soft:.1} dBFS (the sine alone: {floor:.1})"
+    );
     assert!(hard > -50.0, "a hard switch clicks: {hard}");
     assert!(soft < -85.0, "the crossfade does not: {soft}");
 }
