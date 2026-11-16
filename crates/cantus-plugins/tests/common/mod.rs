@@ -748,12 +748,38 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("out", -6.0),
         ], // fx:libra
         // fx3:contract — wave 3's four: each builder writes its own settings line.
-        EffectKind::Board => vec![("out", -6.0)], // fx3:tabula
-        EffectKind::PitchShift => vec![("out", -6.0)], // fx3:saltus
+        EffectKind::Board => vec![("in", 2.0), ("mix", 0.8), ("m1", 0.6), ("out", -6.0)], // fx3:tabula
+        // fx3:saltus — the mono shift's two voices spread over the dry, formants moved.
+        EffectKind::PitchShift => vec![
+            ("st1", 7.0),
+            ("ct1", 12.0),
+            ("pan1", -0.5),
+            ("st2", -12.0),
+            ("lvl2", 0.7),
+            ("pan2", 0.4),
+            ("dry", 0.6),
+            ("formant", 0.0),
+            ("throat", -2.0),
+            ("out", -6.0),
+        ],
         EffectKind::Rotary => vec![("out", -6.0)], // fx3:rota
-        EffectKind::Amp => vec![("out", -6.0)],   // fx3:arca
+        EffectKind::Amp => vec![("out", -6.0)],    // fx3:arca
         _ => vec![],
     }
+}
+
+/// fx3:tabula — a board's spec as the exported plug-in holds it: the guitar rig when the
+/// state names no board (a fresh instance's), its macros applied; any other spec as it is.
+pub fn board_spec(spec: &EffectSpec) -> EffectSpec {
+    let mut s = spec.clone();
+    if s.kind == EffectKind::Board {
+        if s.board.is_none() {
+            s.board = cantus_core::fx::tabula::guitar_rig().board;
+        }
+        cantus_core::fx::tabula::ensure_macro_keys(&mut s);
+        cantus_core::fx::tabula::apply_macros(&mut s);
+    }
+    s
 }
 
 /// The plug-ins of the family.
@@ -832,6 +858,8 @@ pub enum Direct {
     Vetus(Box<cantus_dsp::vetus::Vetus>),
     /// fx:libra — Libra, the utility.
     Libra(Box<cantus_dsp::libra::Libra>),
+    /// fx3:saltus — Saltus, the pitch unit.
+    Saltus(Box<cantus_dsp::saltus::Saltus>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -921,11 +949,15 @@ impl Direct {
             // fx3:contract — wave 3's stubs: the engine's units (each builder names its DSP
             // here and drops its Stub arm; the board stays the engine's own unit).
             EffectKind::Board => {
-                Direct::Stub(Box::new(cantus_engine::fx::tabula::Unit::build(spec, SR)))
+                let s = board_spec(spec);
+                let mut u = cantus_engine::fx::tabula::Unit::build(&s, SR);
+                use cantus_engine::FxUnit;
+                if let Some(need) = u.memory_need() {
+                    drop(u.supply(cantus_engine::EffectMemory::build(need, SR)));
+                }
+                Direct::Stub(Box::new(u))
             } // fx3:tabula
-            EffectKind::PitchShift => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::PitchShift, SR).unwrap())
-            } // fx3:saltus
+            EffectKind::PitchShift => Direct::Saltus(Box::new(cantus_dsp::saltus::Saltus::new(SR))), // fx3:saltus
             EffectKind::Rotary => {
                 Direct::Stub(cantus_engine::fx::make(EffectKind::Rotary, SR).unwrap())
             } // fx3:rota
@@ -974,10 +1006,11 @@ impl Direct {
             Direct::Tonsor(x) => x.set(&fx::tonsor::settings(spec)),
             Direct::Impetus(x) => x.set(&fx::impetus::settings(spec)),
             Direct::Discrimen(x) => x.set(&fx::discrimen::settings(spec)),
-            Direct::Stub(x) => x.configure(spec), // fx:contract
+            Direct::Stub(x) => x.configure(&board_spec(spec)), // fx:contract; fx3:tabula
             Direct::Cribrum(x) => x.set(&fx::cribrum::settings(spec)), // fx:cribrum
             Direct::Vetus(x) => x.set(&fx::vetus::settings(spec)), // fx:vetus
             Direct::Libra(x) => x.set(&fx::libra::settings(spec)), // fx:libra
+            Direct::Saltus(x) => x.set(&fx::saltus::settings(spec)), // fx3:saltus
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -1021,6 +1054,7 @@ impl Direct {
             Direct::Cribrum(x) => x.reset(), // fx:cribrum
             Direct::Vetus(x) => x.reset(),   // fx:vetus
             Direct::Libra(x) => x.reset(),   // fx:libra
+            Direct::Saltus(x) => x.reset(),  // fx3:saltus
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1054,6 +1088,7 @@ impl Direct {
             Direct::Cribrum(x) => x.latency(), // fx:cribrum
             Direct::Vetus(x) => x.latency(),   // fx:vetus
             Direct::Libra(x) => x.latency(),   // fx:libra
+            Direct::Saltus(x) => x.latency(),  // fx3:saltus
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1087,6 +1122,7 @@ impl Direct {
             Direct::Cribrum(x) => x.process(l, r, key), // fx:cribrum
             Direct::Vetus(x) => x.process(l, r),     // fx:vetus
             Direct::Libra(x) => x.process(l, r),     // fx:libra
+            Direct::Saltus(x) => x.process(l, r),    // fx3:saltus
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

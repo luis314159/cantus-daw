@@ -39,7 +39,7 @@ clipfx.settings.inserts = Effects
 clipfx.settings.insert = On insert
 clipfx.settings.starting = Starting preset
 clipfx.settings.neutral = Neutral settings
-clipfx.settings.insert_note = A new effect loads a musical starting preset so it is heard at once (a chorus as Juno I, a flanger as Jet plane). Neutral settings insert it doing nothing until you turn it up. EQs, limiters and analysers always start neutral.
+clipfx.settings.insert_note = A new effect loads a musical starting preset so it is heard at once (a chorus as Juno I, a flanger as Jet plane). Neutral settings insert it doing nothing until you turn it up. EQs, limiters and analysers start neutral. Any unit can start on settings of your own: Use as starting preset in its preset list.
 
 # DAWproject (what its format has no word for, said).
 clipfx.report.xfade_curve = The crossfade curves of {clip} (they come back linear)

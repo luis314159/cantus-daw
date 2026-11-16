@@ -108,6 +108,17 @@ pub enum Motif {
     Burst,
     /// Nested triangles over a halftone, crossed by the scooped middle's curve.
     Nested,
+    // fx3:tabula — the families of the whole range, for the units on Tabula's board
+    // (`tabula_art`): modulation, echoes, spaces, dynamics, tone, rhythm, rotation.
+    Sine,
+    Echoes,
+    Rings,
+    Needle,
+    Curve,
+    Steps,
+    Spiral,
+    /// fx3:saltus — the leap: arcs over a keyboard (`saltus_art`).
+    Leap,
 }
 
 fn sine_path(r: Rect, cycles: f32, f: impl Fn(f32) -> f32, out: &mut [Pos2]) {
@@ -147,6 +158,15 @@ pub fn motif(b: &mut Brush, u: f32, r: Rect, m: Motif, print: Color32, accent: C
     let mut pts = [Pos2::ZERO; 97];
     match m {
         Motif::Plain => {}
+        // fx3:tabula
+        Motif::Sine
+        | Motif::Echoes
+        | Motif::Rings
+        | Motif::Needle
+        | Motif::Curve
+        | Motif::Steps
+        | Motif::Spiral => super::tabula_art::motif(b, u, r, m, print, accent),
+        Motif::Leap => super::saltus_art::leap(b, u, r, print, accent), // fx3:saltus
         Motif::Waves => {
             // The sun: rays fanning up from the horizon, arcs over it.
             let o = pos2(c0.x, r.top() + r.height() * 0.62);
@@ -522,6 +542,10 @@ pub fn lettering(
                     .min_by_key(|i| (*i as isize - mid as isize).abs());
                 if let Some(c) = cut {
                     two = Some([words[..c].to_string(), words[c + 1..].to_string()]);
+                } else {
+                    // fx3:tabula — one long word on a small case (a unit's name on a mini
+                    // pedal of the board): the smallest cut, never elided.
+                    one.role = Role::Micro;
                 }
             }
         }
@@ -659,6 +683,15 @@ pub fn border(b: &mut Brush, u: f32, r: Rect, m: Motif, print: Color32, accent: 
     let inset = r.shrink(8.0 * u);
     match m {
         Motif::Plain => {}
+        // fx3:tabula
+        Motif::Sine
+        | Motif::Echoes
+        | Motif::Rings
+        | Motif::Needle
+        | Motif::Curve
+        | Motif::Steps
+        | Motif::Spiral
+        | Motif::Leap => super::tabula_art::border(b, u, r, print, accent), // fx3:saltus
         Motif::Waves => {
             b.rrect_stroke(inset, 8.0 * u, fine, with_alpha(print, 0.4));
             b.rrect_stroke(

@@ -324,10 +324,56 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         ), // fx:libra
         // fx3:contract — wave 3's stubs: the placeholder's gain; each builder replaces its
         // own line with its unit's heaviest settings (tabula: a full board).
-        EffectKind::Board => set(&mut s, &[("out", 6.0)]), // fx3:tabula
-        EffectKind::PitchShift => set(&mut s, &[("out", 6.0)]), // fx3:saltus
+        // fx3:tabula — a full board: drive and a linear-phase EQ before a split (a chorus on
+        // A; a phaser and an oversampled saturator on B, so the lanes' latencies differ),
+        // then a linear-phase multiband and a room; the board's own levels moved too.
+        EffectKind::Board => {
+            use cantus_core::fx::tabula::{Board, Path, Pedal, PedalId};
+            let pedal = |id: u16, kind: EffectKind, path: Path| {
+                let mut p = Pedal::new(PedalId(id), heavy(kind));
+                p.path = path;
+                p
+            };
+            let mut room = Pedal::new(PedalId(9), EffectSpec::new(EffectKind::Space));
+            room.path = Path::Post;
+            room.spec.set("mix", 0.3);
+            s.board = Some(Box::new(Board {
+                pedals: vec![
+                    pedal(0, EffectKind::Pedal, Path::Pre),
+                    pedal(1, EffectKind::Eq, Path::Pre),
+                    pedal(2, EffectKind::Chorus, Path::A),
+                    pedal(3, EffectKind::Phaser, Path::B),
+                    pedal(5, EffectKind::Saturator, Path::B),
+                    pedal(7, EffectKind::Multiband, Path::Post),
+                    room,
+                ],
+                macros: Vec::new(),
+            }));
+            set(
+                &mut s,
+                &[("in", -3.0), ("out", 2.0), ("mix", 0.85), ("ab", 0.4)],
+            );
+        }
+        // fx3:saltus — the poly engine (its dearest) with both voices, spread, the dry
+        // under them, formants moved and the throat shifted.
+        EffectKind::PitchShift => set(
+            &mut s,
+            &[
+                ("engine", 1.0),
+                ("st1", 7.0),
+                ("pan1", -0.5),
+                ("st2", -12.0),
+                ("ct2", 15.0),
+                ("lvl2", 0.8),
+                ("pan2", 0.6),
+                ("dry", 0.5),
+                ("formant", 0.0),
+                ("throat", -3.0),
+                ("out", 6.0),
+            ],
+        ), // fx3:saltus
         EffectKind::Rotary => set(&mut s, &[("out", 6.0)]), // fx3:rota
-        EffectKind::Amp => set(&mut s, &[("out", 6.0)]),   // fx3:arca
+        EffectKind::Amp => set(&mut s, &[("out", 6.0)]),    // fx3:arca
     }
     s
 }

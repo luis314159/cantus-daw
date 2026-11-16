@@ -1,5 +1,5 @@
 //! Notes into the exported plug-ins that hear them (round 28): a CLAP note port and a VST3
-//! event bus on Tonus, Porta and Lapsus (fx side round), none on the others, and the notes a host sends — in CLAP's
+//! event bus on Tonus, Porta, Lapsus and Saltus (fx side round), none on the others, and the notes a host sends — in CLAP's
 //! dialect, in MIDI bytes, as VST3 events — arrive at their sample: the plug-in renders
 //! exactly what the DSP renders fed the same notes, at any block size. A flood of notes
 //! loses no note-off, and CLAP's wildcards release only what they address.
@@ -31,6 +31,9 @@ const PORTA: &[(&str, f32)] = &[("trig", 1.0), ("range", 100.0)];
 /// fx:lapsus — Lapsus switching its time patterns by notes (67, 71 and 64 play time 8, 12
 /// and 5 from C4) while held, its volume ones by a note of their range.
 const LAPSUS: &[(&str, f32)] = &[("mix", 1.0), ("xfade", 3.0), ("vkey", 52.0)];
+
+/// fx3:saltus — Saltus's harmony singing the notes held (the MIDI melody), over the dry.
+const SALTUS: &[(&str, f32)] = &[("mode", 1.0), ("hsrc", 2.0), ("lvl2", 0.5), ("dry", 0.5)];
 
 /// A note a host sends. In CLAP's dialect a note on or off carries the note id
 /// `1000 + pitch` and the channel `pitch % 16` (in MIDI bytes, that channel too).
@@ -93,6 +96,16 @@ impl Case {
         }
     }
 
+    /// fx3:saltus — a sung voice; the notes are the melody its voices sing.
+    fn saltus() -> Case {
+        Case {
+            kind: EffectKind::PitchShift,
+            values: SALTUS,
+            input: voice(),
+            notes: NOTES.to_vec(),
+        }
+    }
+
     fn porta(notes: &[(u32, N)]) -> Case {
         Case {
             kind: EffectKind::Gate,
@@ -108,6 +121,7 @@ enum Dsp {
     Tonus(Box<Tonus>),
     Porta(Box<Porta>),
     Lapsus(Box<dyn cantus_engine::fx::FxUnit>), // fx:lapsus
+    Saltus(Box<dyn cantus_engine::fx::FxUnit>), // fx3:saltus
 }
 
 impl Dsp {
@@ -134,8 +148,8 @@ impl Dsp {
                     _ => unreachable!("the DSP hears plain notes"),
                 },
             ),
-            // fx:lapsus
-            Dsp::Lapsus(d) => d.note(
+            // fx:lapsus, fx3:saltus
+            Dsp::Lapsus(d) | Dsp::Saltus(d) => d.note(
                 0,
                 match n {
                     N::On(p) => cantus_engine::fx::FxNote::On {
@@ -155,6 +169,7 @@ impl Dsp {
             Dsp::Tonus(d) => d.process(l, r),
             Dsp::Porta(d) => d.process(l, r, None),
             Dsp::Lapsus(d) => d.process(l, r, None), // fx:lapsus
+            Dsp::Saltus(d) => d.process(l, r, None), // fx3:saltus
         }
     }
 }
@@ -184,6 +199,13 @@ fn through_dsp(case: &Case, expected: &[(u32, N)]) -> Vec<f32> {
             }
             u.reset();
             Dsp::Lapsus(u)
+        }
+        // fx3:saltus — the engine's unit, as the exported plug-in runs it.
+        EffectKind::PitchShift => {
+            let mut u = cantus_engine::fx::make(EffectKind::PitchShift, SR).unwrap();
+            u.configure(&spec);
+            u.reset();
+            Dsp::Saltus(u)
         }
         k => panic!("{k:?} hears no notes"),
     };
@@ -410,7 +432,12 @@ const BLOCKS: [&[usize]; 3] = [&[512], &[1, 64, 37, 4096, 333], &[48_000]];
 
 #[test]
 fn clap_notes_arrive_at_their_sample_in_either_dialect() {
-    for case in [Case::tonus(), Case::porta(NOTES), Case::lapsus()] {
+    for case in [
+        Case::tonus(),
+        Case::porta(NOTES),
+        Case::lapsus(),
+        Case::saltus(), // fx3:saltus
+    ] {
         let reference = through_dsp(&case, &case.notes);
         let dry = {
             let (mut l, r) = case.input.clone();
@@ -743,7 +770,12 @@ impl IBStreamTrait for Mem {
 
 #[test]
 fn vst3_notes_arrive_at_their_sample_on_the_event_bus() {
-    for case in [Case::tonus(), Case::porta(NOTES), Case::lapsus()] {
+    for case in [
+        Case::tonus(),
+        Case::porta(NOTES),
+        Case::lapsus(),
+        Case::saltus(), // fx3:saltus
+    ] {
         let reference = through_dsp(&case, &case.notes);
         for blocks in &BLOCKS[..2] {
             assert_identical(

@@ -30,6 +30,8 @@ pub enum Motif {
     Steps,
     /// A spiral: rotation.
     Spiral,
+    /// Arcs leaping over a keyboard: pitch. // fx3:saltus
+    Leap,
 }
 
 /// The enclosure's surface.
@@ -155,7 +157,7 @@ pub const FACES: &[Face] = &[
     ),
     face(
         K::Chorus,
-        &["rate", "depth", "mix"],
+        &["rate", "mix", "depth"],
         S::Standard,
         M::Wave,
         "C",
@@ -187,7 +189,7 @@ pub const FACES: &[Face] = &[
     ),
     face(
         K::Vibrato,
-        &["rate", "depth", "mix"],
+        &["rate", "mix", "depth"],
         S::Standard,
         M::Wave,
         "V",
@@ -299,11 +301,11 @@ pub const FACES: &[Face] = &[
     ),
     face(
         K::PitchShift,
-        &["out"],
+        &["st1", "lvl1", "dry", "pedal"],
         S::Standard,
-        M::Steps,
+        M::Leap,
         "S",
-        T::Smooth,
+        T::Brushed,
     ), // fx3:saltus
     face(K::Rotary, &["out"], S::Double, M::Spiral, "R", T::Wrinkle), // fx3:rota
     face(K::Amp, &["out"], S::Wide, M::Clip, "A", T::Wrinkle),        // fx3:arca

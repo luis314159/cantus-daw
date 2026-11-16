@@ -58,6 +58,7 @@ pub mod notefx_ui;
 pub mod padout_ui; // r37:drums — Split to strips, Merge back (ADR 0100)
 pub mod record_mode; // r36:record (ADR 0092)
 pub mod shot_scene; // r37:finish — a capture scene for the real app (ADR 0103)
+pub mod starting_choice; // fx3:start
 pub mod stems_ui; // r34:stems — Separate stems… (ADR 0085)
                   // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod editor; // r36:editor — the audio editor (ADR 0096)

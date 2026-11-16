@@ -285,12 +285,8 @@ pub(crate) fn strip_chain(
         });
         // A unit that follows the song (a hosted plug-in) hears where it is before each
         // call; the others are not told (review 2: nothing to work out for them).
-        if e.follows_song() {
-            e.set_position(
-                &ctx.position
-                    .earlier_in(e.late, ctx.sample_rate, ctx.transport.map()),
-            );
-        }
+        // fx3:tabula — a board tells each pedal as late as it hears it.
+        e.hear_position(&ctx.position, ctx.sample_rate, ctx.transport.map());
         if wet >= 1.0 && !latent {
             e.process_keyed(l, r, keyed);
         } else {

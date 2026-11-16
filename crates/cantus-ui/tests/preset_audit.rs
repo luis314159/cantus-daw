@@ -23,10 +23,8 @@ fn floor(unit: Unit) -> usize {
         Unit::Effect(EffectKind::Reverb) => 0,
         // fx3:contract — wave 3's stubs have no presets yet: each builder deletes its own
         // line when its presets land.
-        Unit::Effect(EffectKind::Board) => 0, // fx3:contract (tabula)
-        Unit::Effect(EffectKind::PitchShift) => 0, // fx3:contract (saltus)
         Unit::Effect(EffectKind::Rotary) => 0, // fx3:contract (rota)
-        Unit::Effect(EffectKind::Amp) => 0,   // fx3:contract (arca)
+        Unit::Effect(EffectKind::Amp) => 0,    // fx3:contract (arca)
         Unit::Effect(_) => 12,
     }
 }

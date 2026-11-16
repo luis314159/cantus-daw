@@ -2426,6 +2426,50 @@ para la anchura; doble clic para centrarla. A su lado el **afinador** — la not
 su frecuencia, su La de referencia (de 415 a 466 Hz) arrastrado arriba y abajo — y el
 **goniómetro**.
 
+### Saltus, el tono
+
+**Saltus** (en latín, *el salto*) mueve el tono de lo que oye. Insértalo desde **Añadir
+inserción ▾ ▸ Tono ▸ Saltus**; empieza como *Octava arriba, doce cuerdas* (el motor poli)
+— o con el preset de inicio que hayas elegido (abajo).
+
+**Cuatro modos**, las leyendas de lo alto de su pantalla:
+
+- **Desplazar**: dos voces a intervalos fijos, ±24 semitonos y ±100 cents cada una, con su
+  nivel y su balance, sobre el seco.
+- **Armonía**: dos voces a un número de **grados de la escala** desde la nota oída — *dos*
+  es una tercera, *cuatro* una quinta, mayor o menor según la tonalidad. Cuentan en la
+  **tonalidad y escala**, en el **acorde sostenido** por MIDI (elige la pista cuyos acordes
+  sigue) o cantan la **melodía MIDI** (las notas sostenidas, con el vibrato del cantante).
+- **Octava**: una y dos octavas abajo y una arriba. **Analógica** es un divisor que sigue la
+  nota, sin latencia; **Limpia** mueve la nota misma, con sus formantes.
+- **Whammy**: una voz llevada por el **pedal** del intervalo del talón al de la punta,
+  seguida con el **deslizamiento** — mece el pedal en la pantalla, automatízalo, asígnalo a
+  un controlador o deja que lo toquen **notas MIDI**: una nota sostenida pisa la punta.
+
+**Mono o poli.** El selector de arriba a la derecha de la pantalla muestra la latencia de
+cada motor: **Mono** sigue una nota a la vez con los formantes de la voz (2,7 ms — para
+tocar y cantar a través de él), **Poli** mueve cada nota de un acorde o una mezcla entera
+(85 ms — la compensación de latencia lo cubre en una mezcla). Los presets de fábrica vienen
+en ambos.
+
+**Los formantes** se quedan donde están (una voz conserva la suya) o se mueven con el tono
+(la cinta acelerada o frenada); la **garganta** los mueve por sí sola.
+
+**La ventana.** El **salto**: un teclado, la nota oída encendida en él y nombrada en grande,
+y un arco desde ella hasta cada voz, tan grueso como suena la voz, con el nombre del
+intervalo y la nota donde cae — arrastra un aterrizaje a otra tecla para cambiar su
+intervalo. Encima, un **pentagrama doble** escribe los últimos segundos tal como se tocan, y
+las notas de ahora en su borde derecho, cada una cayendo a su tecla. En Whammy el pedal se
+dibuja junto al teclado.
+
+**Elige su preset de inicio.** La lista de presets de cada unidad ofrece **Usar como preset
+de inicio**: sus ajustes de ahora pasan a ser con lo que empieza al insertarla, en todos los
+proyectos. **Volver al preset de inicio de fábrica** trae de vuelta el de fábrica. *Ajustes ▸ Edición
+▸ Efectos ▸ Al insertar ▸ Ajustes neutros* sigue insertando cada unidad en sus valores por
+defecto.
+
+**En Tabula** Saltus es un pedal con las perillas Intervalo, Nivel, Seco y Pedal.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de
@@ -2525,6 +2569,57 @@ entre sesiones; nunca cambia el sonido.
 *Historia:* los cinco circuitos son los del Ibanez TS808 Tube Screamer, el ProCo RAT, el
 Boss DS-1, el Dallas Arbiter Fuzz Face y el Electro-Harmonix Big Muff π, modelados a partir
 de sus esquemas publicados; los nombres y los dibujos en Cantus son propios.
+
+### Tabula, la pedalera
+
+**Tabula** (latín, *la tabla*) es una pedalera de los efectos de Cantus: hasta dieciséis de
+ellos como pedales, en cualquier orden, con una división A/B opcional y ocho macros. Cada
+pedal es el propio efecto, así que una pedalera de un solo pedal suena exactamente como ese
+efecto solo. Insértala desde **Añadir inserto ▾ ▸ Guitarra y amplificador ▸ Tabula**; empieza
+con un equipo de guitarra — el overdrive verde bajo, un chorus, un delay y una reverb de
+muelle — para que se oiga enseguida.
+
+**La pedalera.** Los pedales están sobre una tabla oscura; los cables llevan la señal entre
+ellos y brillan tan fuerte como suena en cada punto. Gira las perillas de un pedal donde
+están; pulsa su interruptor para encenderlo o apagarlo (un fundido de 10 ms que nunca cambia
+la latencia). Arrastra un pedal para moverlo (suéltalo entre otros dos, o sobre el carril A o
+B para dividir la cadena). Haz doble clic en él, o elige *Abrir su editor completo*, para
+abrir la ventana del propio efecto en lugar de la pedalera; *Volver a la pedalera* regresa.
+Con muchos pedales la pedalera se reparte en filas, con el cable corriendo entre ellas.
+
+**Añadir y quitar.** *Añadir pedal*, al final de la cadena, abre el selector: los estantes a
+su izquierda, los efectos del estante como pedales pequeños; haz clic en uno y se suma a la
+pedalera, sonando enseguida. Bajo la pedalera, *Su lugar en la pedalera* fija el
+**Tamaño** del pedal elegido (mini, estándar, ancho, doble, redondo), su **Lugar en la
+cadena** (Antes, A, B, Después) y su interruptor, y *Quitar* lo saca.
+
+**La división.** Un pedal en el carril A o B abre la división: la caja divisora alimenta los
+dos carriles y la caja de mezcla los une, con su perilla **A/B** (a la izquierda solo A, a
+la derecha solo B). El carril más corto espera al más largo, así que nunca se emborronan (no
+hay filtro de peine).
+
+**Macros.** Ocho perillas arriba. Pulsa **Aprender**, toca una macro y luego la perilla de un
+pedal: queda asignada, desde donde está hasta el extremo más lejano de su rango, y lleva un
+anillo. Una macro mueve todo lo asignado a ella y manda sobre la automatización de esa misma
+perilla. **Al azar** da a las perillas de cada pedal valores nuevos dentro de rangos
+musicales (un solo paso de deshacer).
+
+**Bajo la pedalera,** los controles principales del pedal elegido (cada uno con su menú:
+automatizar, modular, aprender un controlador) y la **Entrada**, la **Mezcla** y la
+**Salida** de la pedalera.
+
+**El teclado.** Haz clic en la pedalera y luego: Tab y Mayús+Tab eligen un pedal; Espacio su
+interruptor; Intro su editor completo; Supr lo quita; Ctrl+← y Ctrl+→ lo mueven; ← y →
+eligen una de sus perillas y ↑ y ↓ la giran (con Mayús, finamente).
+
+**Presets.** Cada preset de Tabula es una pedalera entera: *Equipo de guitarra*, *Crujido de
+blues*, *Oleadas ambientales*, *Solo con fuzz*, *Funk con phaser*, *Húmedo, seco, húmedo*,
+dos para bajo, dos para sintetizadores, dos para batería y dos para voz. Tus propios presets
+guardan también la pedalera entera.
+
+**En otro DAW,** la Tabula exportada muestra la misma ventana; el anfitrión automatiza las
+macros, la entrada, la mezcla, la salida y el balance A/B, y la pedalera se guarda en su
+estado.
 
 ### Lapsus, el moldeador de tiempo
 

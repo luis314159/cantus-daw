@@ -5,6 +5,7 @@
 //! makes the memory and pushes it back, and what the unit hands back goes to the builder
 //! to be freed. Nothing is allocated, freed, locked or waited for on the audio thread.
 
+use cantus_core::fx::tabula::PedalId;
 use cantus_engine::{EffectMemory, EffectUnit, NeedTicket};
 use rtrb::{Consumer, Producer, RingBuffer};
 
@@ -14,8 +15,9 @@ const ROOM: usize = 16;
 /// The audio thread's ends.
 pub struct Memory {
     // In this order, so they are dropped before the builder is joined in `Drop`.
-    needs: Option<Producer<NeedTicket>>,
-    built: Option<Consumer<EffectMemory>>,
+    // fx3:tabula — each with the pedal it is for (`None`: the unit itself).
+    needs: Option<Producer<(Option<PedalId>, NeedTicket)>>,
+    built: Option<Consumer<(Option<PedalId>, EffectMemory)>>,
     garbage: Option<Producer<EffectMemory>>,
     /// The builder, joined when the processor goes (main thread): a host may unload the
     /// library right after, and a thread still running its code would crash it.
@@ -33,16 +35,16 @@ impl std::fmt::Debug for Memory {
 impl Memory {
     /// The rings and the builder thread, for a unit at `sample_rate`. Main thread.
     pub fn start(sample_rate: f32) -> Memory {
-        let (needs, mut need_rx) = RingBuffer::<NeedTicket>::new(ROOM);
-        let (mut built_tx, built) = RingBuffer::<EffectMemory>::new(ROOM);
+        let (needs, mut need_rx) = RingBuffer::<(Option<PedalId>, NeedTicket)>::new(ROOM);
+        let (mut built_tx, built) = RingBuffer::<(Option<PedalId>, EffectMemory)>::new(ROOM);
         let (garbage, mut garbage_rx) = RingBuffer::<EffectMemory>::new(ROOM);
         let spawned = std::thread::Builder::new()
             .name("cantus-plugin-memory".into())
             .spawn(move || loop {
                 let mut idle = true;
-                while let Ok(need) = need_rx.pop() {
+                while let Ok((pedal, need)) = need_rx.pop() {
                     idle = false;
-                    let m = EffectMemory::build(need.need(), sample_rate);
+                    let m = (pedal, EffectMemory::build(need.need(), sample_rate));
                     // The audio thread takes one each block; a full ring waits here.
                     let mut m = Some(m);
                     while let Some(x) = m.take() {
@@ -94,8 +96,16 @@ impl Memory {
             return;
         };
         if let Some(need) = unit.take_request() {
-            if needs.push(need).is_err() {
+            if needs.push((None, need)).is_err() {
                 unit.forget_request();
+            }
+        }
+        // fx3:tabula — and each of a board's pedals, by its id.
+        for k in unit.pedals_mut() {
+            if let Some(need) = k.unit.take_request() {
+                if needs.push((Some(k.pedal), need)).is_err() {
+                    k.unit.forget_request();
+                }
             }
         }
     }
@@ -112,8 +122,15 @@ impl Memory {
             }
         }
         let mut asked = false;
-        while let Ok(m) = built.pop() {
-            if let Some(back) = unit.supply(m) {
+        while let Ok((pedal, m)) = built.pop() {
+            let back = match pedal {
+                None => unit.supply(m),
+                Some(p) => match unit.pedal_mut(p) {
+                    Some(k) => k.supply(m),
+                    None => Some(m),
+                },
+            };
+            if let Some(back) = back {
                 if let Err(rtrb::PushError::Full(b)) = garbage.push(back) {
                     self.held = Some(b);
                     return;

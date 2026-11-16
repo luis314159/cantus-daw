@@ -249,6 +249,8 @@ pub struct Processor {
     analysed: Option<cantus_core::EffectId>,
     /// fx3:contract — the analysed board's pedal whose editor is open.
     analysed_pedal: Option<cantus_core::fx::tabula::PedalId>,
+    /// fx3:tabula — where the boards run, for handing back their faded pedals.
+    boards: crate::fx::tabula::Boards,
     /// The Speculums whose signals go to the scope rings (ADR 0056).
     scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// How late each watched Speculum's signal is against the transport (`scope_delays`).
@@ -432,7 +434,8 @@ impl Processor {
             capture_target: CaptureTarget::Off,
             capture_slot: None,
             analysed: None,
-            analysed_pedal: None, // fx3:contract
+            analysed_pedal: None,       // fx3:contract
+            boards: Default::default(), // fx3:tabula
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
             scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
             master_tap: Default::default(), // r35:stage

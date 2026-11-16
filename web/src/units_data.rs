@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 30] = [
+pub const EFFECTS: [Unit; 32] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -447,6 +447,50 @@ pub const EFFECTS: [Unit; 30] = [
         ab: None,
         big: (1800, 1263),
         thumb: (640, 449),
+    },
+
+    // fx3:tabula — Tabula, the pedalboard (ADR 0134, provisional).
+    Unit {
+        file: "tabula",
+        name: "Tabula",
+        kind: ("Pedalboard", "Pedalera"),
+        pitch: ("Cantus's own effects as real pedals on a board — any of them, any size, in any order, split into two lanes and joined again — with cables that glow with the signal and eight macros over it all.", "Los efectos de Cantus como pedales de verdad sobre una tabla — cualquiera, de cualquier tamaño, en cualquier orden, divididos en dos carriles y unidos otra vez — con cables que brillan con la señal y ocho macros sobre todo."),
+        what: long!(("Tabula is a pedalboard of Cantus's own effects: drives, filters, modulation, delays, reverbs, each the very effect, so one pedal on the board sounds exactly as that effect alone. Drag pedals to reorder them, drop one on lane A or B to split the chain into two that meet again in time, switch each by its footswitch without a click or a latency jump, and open any pedal's full editor in place. Eight macros move as many knobs as you map to them; Randomise rolls new settings within musical ranges. It starts on a guitar rig, and every preset is a whole board.", "Tabula es una pedalera de los efectos de Cantus: saturaciones, filtros, modulación, delays, reverbs, cada uno el propio efecto, así que un pedal en la tabla suena exactamente como ese efecto solo. Arrastra los pedales para reordenarlos, suelta uno en el carril A o B para dividir la cadena en dos que vuelven a encontrarse a tiempo, enciende cada uno con su interruptor sin clic ni salto de latencia y abre en su sitio el editor completo de cualquier pedal. Ocho macros mueven tantas perillas como les asignes; Al azar tira nuevos ajustes dentro de rangos musicales. Empieza con un equipo de guitarra, y cada preset es una pedalera entera.")),
+        features: long!(&[
+            ("A board of one pedal is that effect, to the bit", "Una pedalera de un pedal es ese efecto, bit a bit"),
+            ("Up to sixteen pedals, five sizes, in rows when the board fills", "Hasta dieciséis pedales, cinco tamaños, en filas cuando la tabla se llena"),
+            ("An A/B split whose lanes meet in time, to the sample", "Una división A/B cuyos carriles se encuentran a tiempo, a la muestra"),
+            ("Footswitches that never move the latency; no click on any change", "Interruptores que nunca mueven la latencia; ningún clic en ningún cambio"),
+            ("Eight macros with learn, and Randomise within musical ranges", "Ocho macros con aprendizaje, y Al azar dentro de rangos musicales"),
+            ("Fourteen boards for guitar, bass, synths, drums and voice", "Catorce pedaleras para guitarra, bajo, sintetizadores, batería y voz"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1138),
+        thumb: (640, 405),
+    },
+
+    // fx3:saltus — Saltus, pitch (ADR 0135, provisional).
+    Unit {
+        file: "saltus",
+        name: "Saltus",
+        kind: ("Pitch", "Tono"),
+        pitch: ("Shift, harmonise, octave and whammy in one unit — the note you play leaping to each voice across a keyboard, the music written on a staff above it as you play.", "Desplazar, armonizar, octavar y whammy en una sola unidad — la nota que tocas saltando a cada voz sobre un teclado, la música escrita en un pentagrama encima mientras tocas."),
+        what: long!(("Saltus moves the pitch of what it hears four ways. Shift adds two voices at fixed intervals, by a mono engine that keeps a voice's formants at 2.7 ms or a poly engine that moves whole chords and mixes. Harmony sings two voices a number of scale degrees from the note heard — in a key, in the chords another track holds, or the melody it plays — keeping the singer's own bends. Octave adds one and two octaves down and one up, from an analog-style divider with no latency or clean. Whammy sweeps a voice from heel to toe with a pedal you rock — or that a held note presses. The engine switch shows each engine's latency, and the factory presets come in both.", "Saltus mueve el tono de lo que oye de cuatro maneras. Desplazar suma dos voces a intervalos fijos, con un motor mono que conserva los formantes de una voz a 2,7 ms o un motor poli que mueve acordes y mezclas enteros. Armonía canta dos voces a un número de grados de la escala desde la nota oída — en una tonalidad, en los acordes que sostiene otra pista o la melodía que toca — conservando las inflexiones del cantante. Octava suma una y dos octavas abajo y una arriba, de un divisor de estilo analógico sin latencia o limpia. Whammy lleva una voz del talón a la punta con un pedal que meces — o que pisa una nota sostenida. El selector de motor muestra la latencia de cada uno, y los presets de fábrica vienen en ambos.")),
+        features: long!(&[
+            ("Mono at 2.7 ms with the formants kept, or poly for chords at 85 ms", "Mono a 2,7 ms con los formantes intactos, o poli para acordes a 85 ms"),
+            ("Harmony in a key, on another track's chords, or singing its melody", "Armonía en una tonalidad, en los acordes de otra pista o cantando su melodía"),
+            ("An analog octave down with no latency, or a clean one", "Una octava abajo analógica sin latencia, o una limpia"),
+            ("A whammy rocked by hand, by automation or by held notes", "Un whammy mecido a mano, por automatización o por notas sostenidas"),
+            ("The input delayed, to the bit, at its defaults; latency reported exactly", "La entrada retrasada, bit a bit, en sus valores por defecto; latencia informada exacta"),
+            ("Eighteen factory presets in both engines; choose its starting preset", "Dieciocho presets de fábrica en ambos motores; elige su preset de inicio"),
+        ]),
+        presets: Some(18),
+        plugin: true,
+        ab: None,
+        big: (1800, 1143),
+        thumb: (640, 406),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

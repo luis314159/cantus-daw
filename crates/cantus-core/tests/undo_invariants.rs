@@ -1891,6 +1891,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut externaled = [[0usize; 2]; EXTERNAL_KINDS];
     // r37:drums - per kind of `round37_padout_command`, applied and refused.
     let mut padded = [[0usize; 2]; PADOUT_KINDS]; // r37:drums
+                                                  // fx3:tabula - per kind of `fx3_board_command`, applied and refused.
+    let mut boarded = [[0usize; 2]; BOARD_KINDS]; // fx3:tabula
                                                   // 120 sequences (round 31: one arm more spreads the draws thinner).
     for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
@@ -1920,6 +1922,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         let mut arng = Lcg(seed.wrapping_mul(0x9E37_79B1).wrapping_add(53)); // r36:ara
         let mut urng = Lcg(seed.wrapping_mul(0x2545_F491).wrapping_add(54)); // r36:external
         let mut krng = Lcg(seed.wrapping_mul(0x5851_F42D).wrapping_add(56)); // r37:drums
+        let mut trng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(63)); // fx3:tabula
         for _ in 0..120 {
             // r36:ara — a clip bound to an ARA plug-in or let go (ADR 0097), from `arng`.
             if arng.below(5) == 0 {
@@ -2037,6 +2040,19 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 bus.reserve_ids(scratch.next_id);
                 let ok = bus.execute(cmd, origins[krng.below(5) as usize]).is_ok();
                 padded[k][usize::from(!ok)] += 1;
+                if ok {
+                    let mut snap = bus.project().clone();
+                    snap.next_id = 0;
+                    checkpoints.push(snap);
+                }
+            }
+            // fx3:tabula - Tabula's boards (ADR 0134), from a stream of their own (`trng`).
+            if trng.below(4) == 0 {
+                let mut scratch = bus.project().clone();
+                let (k, cmd) = fx3_board_command(&mut trng, &mut scratch);
+                bus.reserve_ids(scratch.next_id);
+                let ok = bus.execute(cmd, origins[trng.below(5) as usize]).is_ok();
+                boarded[k][usize::from(!ok)] += 1;
                 if ok {
                     let mut snap = bus.project().clone();
                     snap.next_id = 0;
@@ -2452,6 +2468,15 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         padded.iter().all(|k| k[0] > 0) && padded[3][1] > 0,
         "round 37's pad outputs never applied or never refused: {padded:?}"
+    );
+    // fx3:tabula - every kind applied at least once but the two that must be refused, and
+    // those always refused; an unknown pedal refused for every command that names one.
+    assert!(
+        boarded[..11].iter().all(|k| k[0] > 0)
+            && boarded[11..].iter().all(|k| k[0] == 0 && k[1] > 0)
+            && boarded[2..7].iter().all(|k| k[1] > 0)
+            && boarded[9..11].iter().all(|k| k[1] > 0),
+        "the board commands never applied or never refused: {boarded:?}"
     );
     // r36:mix - every kind applied at least once, and the checked ones refused.
     assert!(
@@ -6451,4 +6476,267 @@ fn round39_arrange_command(rng: &mut Lcg, project: &mut Project) -> (usize, Comm
             },
         },
     }
+}
+
+// fx3:tabula — Tabula's board (ADR 0134): its commands, `p` keys, a pedal's response and
+// bank, and what a board refuses (an unknown id, a nested board, a hosted pedal, the
+// seventeenth, a map to a key that is not there).
+const BOARD_KINDS: usize = 13;
+
+/// The kind and the command: 0 a board put on a strip (the guitar rig, or empty), 1 a pedal
+/// in, 2 one out, 3 one moved (and onto a lane), 4 a footswitch, 5 a shape, 6 a macro's maps,
+/// 7 a macro's name, 8 a pedal's parameter by its `p` key (set or cleared), 9 a pedal's
+/// response, 10 a pedal's pattern, 11 a pedal that may not be one (nested, hosted, an id the
+/// board holds) or the seventeenth — refused, 12 a map or key that is not there — refused.
+fn fx3_board_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::fx::tabula::{
+        guitar_rig, MacroMap, Path, Pedal, PedalId, PedalShape, MACROS, MAX_PEDALS,
+    };
+    let mut boards: Vec<(StripId, EffectId)> = Vec::new();
+    for s in std::iter::once(StripId::MASTER).chain(project.strips.iter().map(|s| s.id)) {
+        for e in project.effects_of(s).into_iter().flatten() {
+            if e.spec.kind == EffectKind::Board {
+                boards.push((s, e.id));
+            }
+        }
+    }
+    let kind = if boards.is_empty() || rng.below(12) == 0 {
+        0
+    } else {
+        rng.below(BOARD_KINDS as u64) as usize
+    };
+    if kind == 0 {
+        let strip = if rng.below(3) == 0 || project.strips.is_empty() {
+            StripId::MASTER
+        } else {
+            project.strips[rng.below(project.strips.len() as u64) as usize].id
+        };
+        let mut slot = project.make_effect(EffectKind::Board);
+        if rng.below(4) != 0 {
+            slot.spec = guitar_rig();
+        }
+        let len = project.effects_of(strip).map_or(0, |c| c.len());
+        return (
+            0,
+            Command::InsertEffect {
+                strip,
+                index: rng.below(len as u64 + 1) as usize,
+                slot: Box::new(slot),
+            },
+        );
+    }
+    let (strip, effect) = boards[rng.below(boards.len() as u64) as usize];
+    let spec = project
+        .effects_of(strip)
+        .unwrap()
+        .iter()
+        .find(|e| e.id == effect)
+        .unwrap()
+        .spec
+        .clone();
+    let pedals = spec.pedals().to_vec();
+    let any_pedal = |rng: &mut Lcg| -> Option<Pedal> {
+        (!pedals.is_empty()).then(|| pedals[rng.below(pedals.len() as u64) as usize].clone())
+    };
+    // A pedal id: mostly one the board holds, now and then one it does not.
+    let some_id = |rng: &mut Lcg| match any_pedal(rng) {
+        Some(p) if rng.below(6) != 0 => p.id,
+        _ => PedalId(rng.below(40) as u16),
+    };
+    let fresh =
+        cantus_core::fx::tabula::next_id(cantus_core::fx::tabula::board(&spec), std::iter::empty())
+            .unwrap_or(PedalId(0));
+    let allowed: Vec<EffectKind> = EffectKind::ALL
+        .into_iter()
+        .filter(|k| cantus_core::fx::tabula::pedal_allowed(*k))
+        .collect();
+    let paths = [Path::Pre, Path::A, Path::B, Path::Post];
+    let a_map = |rng: &mut Lcg, p: &Pedal| {
+        let infos = p.spec.kind.params();
+        let info = infos[rng.below(infos.len() as u64) as usize];
+        MacroMap {
+            pedal: p.id,
+            key: info.key.to_string(),
+            from: rng.f32(info.min, info.max),
+            to: rng.f32(info.min, info.max),
+        }
+    };
+    let cmd = match kind {
+        1 => {
+            let k = allowed[rng.below(allowed.len() as u64) as usize];
+            let mut p = Pedal::new(fresh, EffectSpec::new(k));
+            p.on = rng.below(4) != 0;
+            p.path = paths[rng.below(4) as usize];
+            if rng.below(3) == 0 {
+                p.shape = Some(PedalShape::Round);
+            }
+            // Now and then with a map of its own (an undone removal's).
+            let maps = if rng.below(3) == 0 {
+                vec![(rng.below(MACROS as u64) as u8, 0, a_map(rng, &p))]
+            } else {
+                Vec::new()
+            };
+            Command::InsertPedal {
+                strip,
+                effect,
+                index: rng.below(pedals.len() as u64 + 2) as usize,
+                pedal: Box::new(p),
+                maps,
+            }
+        }
+        2 => Command::RemovePedal {
+            strip,
+            effect,
+            pedal: some_id(rng),
+        },
+        3 => Command::MovePedal {
+            strip,
+            effect,
+            pedal: some_id(rng),
+            index: rng.below(pedals.len() as u64 + 1) as usize,
+            path: paths[rng.below(4) as usize],
+        },
+        4 => Command::SetPedalOn {
+            strip,
+            effect,
+            pedal: some_id(rng),
+            on: rng.below(2) == 0,
+        },
+        5 => Command::SetPedalShape {
+            strip,
+            effect,
+            pedal: some_id(rng),
+            shape: [
+                None,
+                Some(PedalShape::Mini),
+                Some(PedalShape::Wide),
+                Some(PedalShape::Double),
+            ][rng.below(4) as usize],
+        },
+        6 => {
+            let m = rng.below(MACROS as u64) as u8;
+            let maps = match any_pedal(rng) {
+                Some(p) if rng.below(4) != 0 => {
+                    let mut v = vec![a_map(rng, &p)];
+                    // A second target of the same pedal: refused when it is the same key.
+                    if rng.below(3) == 0 {
+                        v.push(a_map(rng, &p));
+                    }
+                    v
+                }
+                _ => Vec::new(),
+            };
+            Command::SetMacroMaps {
+                strip,
+                effect,
+                macro_: m,
+                maps,
+            }
+        }
+        7 => Command::SetMacroName {
+            strip,
+            effect,
+            macro_: rng.below(MACROS as u64) as u8,
+            name: match rng.below(4) {
+                0 => None,
+                1 => Some("  ".into()),
+                n => Some(format!("Macro {n}")),
+            },
+        },
+        8 => match any_pedal(rng) {
+            Some(p) => {
+                let infos = p.spec.kind.params();
+                let info = infos[rng.below(infos.len() as u64) as usize];
+                let key = cantus_core::fx::tabula::pedal_key(p.id, info.key);
+                if rng.below(4) == 0 {
+                    Command::ClearEffectParam { strip, effect, key }
+                } else {
+                    Command::SetEffectParam {
+                        strip,
+                        effect,
+                        key,
+                        value: rng.f32(info.min - 1.0, info.max + 1.0),
+                    }
+                }
+            }
+            None => Command::SetEffectParam {
+                strip,
+                effect,
+                key: "ab".into(),
+                value: rng.f32(-0.5, 1.5),
+            },
+        },
+        9 => Command::SetEffectIr {
+            strip,
+            effect,
+            ir: (rng.below(3) != 0).then(|| {
+                Box::new(cantus_core::IrFile::new(format!(
+                    "irs/{}.wav",
+                    rng.below(9)
+                )))
+            }),
+            pedal: Some(some_id(rng)),
+        },
+        10 => {
+            use cantus_core::fx::lapsus::{Lane, Pattern, Point};
+            Command::SetLapsusPattern {
+                strip,
+                effect,
+                lane: Lane::Time,
+                slot: rng.below(40) as u8,
+                pattern: (rng.below(3) != 0).then(|| {
+                    Box::new(Pattern {
+                        len: rng.below(7) as u8,
+                        points: vec![Point::new(rng.f32(-0.2, 1.2), rng.f32(-1.5, 1.5))],
+                        name: None,
+                    })
+                }),
+                pedal: Some(some_id(rng)),
+            }
+        }
+        11 => {
+            let (id, k) = match rng.below(4) {
+                0 => (fresh, EffectKind::Board),
+                1 => (fresh, EffectKind::External),
+                2 => match any_pedal(rng) {
+                    Some(p) => (p.id, EffectKind::Delay),
+                    None => (fresh, EffectKind::Analyzer),
+                },
+                _ => (fresh, EffectKind::Reverb),
+            };
+            // The seventeenth on a full board: refused whatever its kind.
+            let k = if pedals.len() >= MAX_PEDALS {
+                EffectKind::Tremolo
+            } else {
+                k
+            };
+            Command::InsertPedal {
+                strip,
+                effect,
+                index: 0,
+                pedal: Box::new(Pedal::new(id, EffectSpec::new(k))),
+                maps: Vec::new(),
+            }
+        }
+        _ => match any_pedal(rng) {
+            Some(p) if rng.below(2) == 0 => Command::SetMacroMaps {
+                strip,
+                effect,
+                macro_: 0,
+                maps: vec![MacroMap {
+                    pedal: p.id,
+                    key: "no_such_key".into(),
+                    from: 0.0,
+                    to: 1.0,
+                }],
+            },
+            _ => Command::SetEffectParam {
+                strip,
+                effect,
+                key: format!("p{}.out", 900 + rng.below(9)),
+                value: 0.0,
+            },
+        },
+    };
+    (kind, cmd)
 }

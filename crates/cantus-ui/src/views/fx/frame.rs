@@ -171,6 +171,11 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::LoFi => Vec2::new(1120.0, 800.0), // fx:vetus
         // Libra: the measure (tuner, goniometer, levels) over four small cards.
         EffectKind::Utility => Vec2::new(1180.0, 600.0), // fx:libra
+        // Tabula: the macro rail over the board (two lanes of pedals at the split) and the
+        // board's column beside it.
+        EffectKind::Board => Vec2::new(1360.0, 860.0), // fx3:tabula
+        // Saltus: the staff over the leap (and the pedal in Whammy), over the mode's cards.
+        EffectKind::PitchShift => Vec2::new(1260.0, 800.0), // fx3:saltus
         _ => Vec2::new(1000.0, 640.0),
     }
 }
@@ -255,6 +260,14 @@ pub fn place(
             child.set_clip_rect(rect);
             add(&mut child);
         });
+}
+
+impl Chrome {
+    /// fx3:start — open the preset list as a click on the header would, at `at` under
+    /// `opener` (pictures and tests).
+    pub fn open_presets_at(&mut self, at: Pos2, opener: Rect) {
+        self.popup = Some((Popup::Presets, at, opener));
+    }
 }
 
 // ---- popups ---------------------------------------------------------------------------
@@ -769,6 +782,11 @@ fn popups(
         }
         Popup::Presets => {
             let user = host.user_presets();
+            // fx3:start — the unit's own starting preset (ADR 0138), where the host is Cantus.
+            let start = start_state(host);
+            // The chosen start on a row of its own under its heading: a long name never
+            // shares a band's one line (nothing elided, ES included).
+            let start_on = start.as_ref().and_then(|c| c.clone());
             let loaded = chrome.loaded.as_ref().map(|l| l.index);
             let list = chrome.list.get_or_insert_with(|| host.presets());
             let mut items: Vec<Item<'_>> = Vec::with_capacity(list.len() + 5);
@@ -798,6 +816,24 @@ fn popups(
                 items.push(action(Src::Key("fx.frame.save")));
                 rows.push(Some(usize::MAX));
             }
+            // fx3:start
+            if let Some(chosen) = &start {
+                items.push(Item::Separator);
+                rows.push(None);
+                items.push(Item::Band(Src::Key("start.on_title")));
+                rows.push(None);
+                match &start_on {
+                    Some(name) => items.push(radio(Src::Str(name), true)),
+                    None => items.push(radio(Src::Key("start.factory"), true)),
+                }
+                rows.push(None);
+                items.push(action(Src::Key("start.use")));
+                rows.push(Some(START_USE));
+                if chosen.is_some() {
+                    items.push(action(Src::Key("start.reset")));
+                    rows.push(Some(START_RESET));
+                }
+            }
             let w = (shell::PRESET_W * s.k).max(200.0);
             let chosen = popup_list(ctx, id, at, opener, s, &items, w, &mut close);
             drop(items);
@@ -806,6 +842,8 @@ fn popups(
                 match rows.get(i).copied().flatten() {
                     Some(usize::MAX) => chrome.saving = Some(String::new()),
                     Some(n) if n == usize::MAX - 1 => host.browse_presets(), // r37:library
+                    Some(START_USE) => use_as_starting(host, chrome),        // fx3:start
+                    Some(START_RESET) => reset_starting(host),               // fx3:start
                     Some(n) => chrome.load(host, n),
                     None => {}
                 }
@@ -827,6 +865,42 @@ fn popups(
         chrome.popup = None;
     }
     more
+}
+
+// fx3:start — the unit's own starting preset (ADR 0138).
+const START_USE: usize = usize::MAX - 2;
+const START_RESET: usize = usize::MAX - 3;
+
+/// Whether the host offers a starting preset of the person's (`None`: a plug-in in another
+/// DAW, a hosted plug-in), and the name of the one chosen.
+fn start_state(host: &mut dyn FxHost) -> Option<Option<String>> {
+    let kind = host.spec().kind;
+    if !cantus_core::starting_user::choosable(kind) {
+        return None;
+    }
+    let (app, _, _) = host.daw()?;
+    Some(app.starting_choice(kind).map(|c| c.label.clone()))
+}
+
+/// The unit's settings now become its starting preset: named for the preset loaded when
+/// nothing has moved since, else "Your settings".
+fn use_as_starting(host: &mut dyn FxHost, chrome: &Chrome) {
+    let spec = host.spec().clone();
+    let label = match &chrome.loaded {
+        Some(l) if l.params == spec.params => l.name.clone(),
+        _ => t("start.yours"),
+    };
+    if let Some((app, _, _)) = host.daw() {
+        app.use_as_starting(spec, label);
+    }
+}
+
+/// The unit's inserts start on its factory starting preset again.
+fn reset_starting(host: &mut dyn FxHost) {
+    let kind = host.spec().kind;
+    if let Some((app, _, _)) = host.daw() {
+        app.reset_starting(kind);
+    }
 }
 
 /// The name box for saving the current values as a preset: Enter saves, Esc leaves.

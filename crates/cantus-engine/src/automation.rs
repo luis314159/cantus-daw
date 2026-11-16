@@ -259,9 +259,13 @@ impl Runtime {
                 let i = match self.effects.iter().position(|c| c.effect == *effect) {
                     Some(i) => i,
                     None => {
+                        let mut spec = slot.spec.clone();
+                        // fx3:tabula — a board's macro targets stored, so writing them is a
+                        // write (the macros win over lanes, in `processor_auto`).
+                        cantus_core::fx::tabula::ensure_macro_keys(&mut spec);
                         self.effects.push(FxCopy {
                             effect: *effect,
-                            spec: slot.spec.clone(),
+                            spec,
                             dirty: false,
                             at: None,
                         });

@@ -12,7 +12,8 @@ pub(super) mod mpe_live; // r33:mpe
 
 impl Processor {
     pub(super) fn drain_messages(&mut self) {
-        // A snapshot waits for the control grid: what came after it waits with it.
+        self.drain_retired(); // fx3:tabula
+                              // A snapshot waits for the control grid: what came after it waits with it.
         if self.deferred.is_some() {
             return;
         }
@@ -346,6 +347,7 @@ impl Processor {
                 }
             }
         };
+        self.boards.clear(); // fx3:tabula — where the boards are, for `drain_retired`
         for slot in 0..MAX_STRIPS {
             if self.strip_ids[slot].is_none() {
                 continue;
@@ -353,11 +355,47 @@ impl Processor {
             if let Some(mut st) = nodes.strip(slot) {
                 for e in st.effects.iter_mut() {
                     ask(e, &mut self.tx);
+                    if e.kind == cantus_core::EffectKind::Board {
+                        self.boards.push(slot, e.id); // fx3:tabula
+                    }
                 }
             }
         }
         for e in self.master.effects.iter_mut() {
             ask(e, &mut self.tx);
+            if e.kind == cantus_core::EffectKind::Board {
+                self.boards.push(usize::MAX, e.id); // fx3:tabula
+            }
+        }
+    }
+
+    /// fx3:tabula — the pedals the boards have let go (faded out, `FxUnit::take_retired`),
+    /// handed back to be dropped off the audio thread. Each block; nothing to do without a
+    /// board.
+    pub(super) fn drain_retired(&mut self) {
+        let nodes = self.nodes.clone();
+        for i in 0..self.boards.len() {
+            let (slot, id) = self.boards.at(i);
+            // Only as many as the queue has room for: the rest wait in the board.
+            let give = |e: &mut EffectUnit, tx: &mut Producer<EngineEvent>, lost: &mut u64| {
+                while tx.slots() > 0 {
+                    let Some(u) = e.take_retired() else { break };
+                    if tx.push(EngineEvent::GarbageEffect(u)).is_err() {
+                        *lost += 1;
+                    }
+                }
+            };
+            let mut lost = 0;
+            if slot == usize::MAX {
+                if let Some(e) = self.master.effects.iter_mut().find(|e| e.id == id) {
+                    give(e, &mut self.tx, &mut lost);
+                }
+            } else if let Some(mut st) = nodes.strip(slot) {
+                if let Some(e) = st.effects.iter_mut().find(|e| e.id == id) {
+                    give(e, &mut self.tx, &mut lost);
+                }
+            }
+            self.stats.dropped_events += lost;
         }
     }
 

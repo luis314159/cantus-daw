@@ -138,9 +138,20 @@ pub fn start_of(kind: EffectKind) -> Start {
         }),
         // fx3:contract — wave 3's stubs start at their defaults until each builder gives
         // its unit a starting preset or its real reason for none (ADR 0071).
-        K::PitchShift => Start::Neutral(Flat), // fx3:saltus
-        K::Rotary => Start::Neutral(Flat),     // fx3:rota
-        K::Amp => Start::Neutral(Flat),        // fx3:arca
+        // fx3:saltus — the twelve-string: an octave up at 60 % over the dry, by the poly
+        // engine (chords stay chords) — heard at once on a guitar, a synth or a whole mix.
+        K::PitchShift => preset(
+            "preset.saltus.twelve_string",
+            &[
+                ("engine", 1.0),
+                ("st1", 12.0),
+                ("lvl1", 0.6),
+                ("dry", 1.0),
+                ("out", -0.9),
+            ],
+        ), // fx3:saltus
+        K::Rotary => Start::Neutral(Flat), // fx3:rota
+        K::Amp => Start::Neutral(Flat),    // fx3:arca
         K::Multiband => preset(
             "mb.preset.glue",
             &[
@@ -270,6 +281,10 @@ pub fn start_of(kind: EffectKind) -> Start {
     }
 }
 
+/// fx3:start — the label key an insert reports when it started on the person's own choice
+/// (ADR 0138); the choice's own name is [`crate::starting_user::UserStart::label`].
+pub const USER_START: &str = "start.user";
+
 /// A kind's starting preset, if it has one.
 pub fn starting_preset(kind: EffectKind) -> Option<StartingPreset> {
     match start_of(kind) {
@@ -282,6 +297,11 @@ pub fn starting_preset(kind: EffectKind) -> Option<StartingPreset> {
 /// key the kind does not have is left out (none does: a test holds every key to its
 /// kind). Returns the preset's label key, or `None` for a unit that starts neutral.
 pub fn apply(spec: &mut EffectSpec) -> Option<&'static str> {
+    // fx3:start — the person's own start for this unit, when they chose one (ADR 0138).
+    if let Some(u) = crate::starting_user::get(spec.kind) {
+        *spec = u.spec;
+        return Some(USER_START);
+    }
     // fx3:contract — a whole spec replaces the values and the board it holds.
     if let Start::Spec(s) = start_of(spec.kind) {
         let new = (s.spec)();

@@ -389,6 +389,45 @@ pub fn apply_macros(spec: &mut EffectSpec) {
     }
 }
 
+/// The slots as the engine is sent them (the snapshot): each board's macro targets stored
+/// ([`ensure_macro_keys`]) and set from their macros ([`apply_macros`]), so a mapped knob
+/// plays where its macro puts it.
+pub fn prepared(mut slots: Vec<crate::effect::EffectSlot>) -> Vec<crate::effect::EffectSlot> {
+    for e in &mut slots {
+        if e.spec.kind == EffectKind::Board && e.spec.board.is_some() {
+            ensure_macro_keys(&mut e.spec);
+            apply_macros(&mut e.spec);
+        }
+    }
+    slots
+}
+
+/// The inverse of [`EffectSpec::flat_params`]: `flat` becomes the spec's whole parameter
+/// map — for a board, its own keys its own and each pedal's `p{id}.{key}` that pedal's
+/// (a pedal `flat` names nothing of holds nothing). What an exact undo writes back.
+pub fn put_flat_params(spec: &mut EffectSpec, flat: &std::collections::BTreeMap<String, f32>) {
+    if spec.kind != EffectKind::Board || spec.board.is_none() {
+        spec.params = flat.clone();
+        return;
+    }
+    spec.params = flat
+        .iter()
+        .filter(|(k, _)| split_key(k).is_none())
+        .map(|(k, v)| (k.clone(), *v))
+        .collect();
+    if let Some(b) = spec.board.as_deref_mut() {
+        for p in &mut b.pedals {
+            p.spec.params = flat
+                .iter()
+                .filter_map(|(k, v)| match split_key(k) {
+                    Some((id, key)) if id == p.id => Some((key.to_string(), *v)),
+                    _ => None,
+                })
+                .collect();
+        }
+    }
+}
+
 /// Repair every board of a project after a load ([`Board::sanitize`]), and take a board off
 /// any slot that is not one. Returns how many things it dropped.
 pub fn repair_project(project: &mut crate::model::Project) -> usize {
@@ -625,6 +664,40 @@ mod tests {
         apply_macros(&mut spec);
         assert_eq!(spec.get("p2.time_ms"), 100.0);
         assert_eq!(spec.get("p0.od.drive"), 0.0);
+    }
+
+    /// A board's flat map put back is the board it was taken from (an exact undo of a mix
+    /// snapshot's recall), and the snapshot's slots carry their macros applied.
+    #[test]
+    fn the_flat_map_goes_back_into_the_pedals() {
+        let mut spec = guitar_rig();
+        spec.set("p2.feedback", 0.6).unwrap();
+        let flat = spec.flat_params().into_owned();
+        let mut other = guitar_rig();
+        other.set("p0.od.drive", 0.9).unwrap();
+        other.set("mix", 0.3).unwrap();
+        put_flat_params(&mut other, &flat);
+        assert_eq!(other, spec);
+        spec.board.as_mut().unwrap().macros = vec![Macro {
+            name: None,
+            maps: vec![MacroMap {
+                pedal: PedalId(3),
+                key: "mix".into(),
+                from: 0.1,
+                to: 0.5,
+            }],
+        }];
+        spec.set("m1", 1.0).unwrap();
+        let slot = crate::effect::EffectSlot {
+            id: crate::model::EffectId(1),
+            bypass: false,
+            mix: 1.0,
+            sidechain: None,
+            midi_from: None,
+            spec,
+        };
+        let out = prepared(vec![slot]);
+        assert!((out[0].spec.get("p3.mix") - 0.5).abs() < 1e-6);
     }
 
     /// The starting rig is the owner's: four allowed pedals in order, a sane board.

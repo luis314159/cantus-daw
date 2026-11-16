@@ -96,10 +96,19 @@ pub mod pedal_draw;
 pub mod rota;
 /// Saltus, pitch (fx side round, wave 3). // fx3:contract
 pub mod saltus;
+pub mod saltus_art; // fx3:saltus
 /// Tabula, the pedalboard (fx side round, wave 3). // fx3:contract
 pub mod tabula;
+/// Tabula's artwork: the motifs of the whole range on its pedals. // fx3:tabula
+pub mod tabula_art;
+/// Tabula's board: its layout and its drawing. // fx3:tabula
+pub mod tabula_board;
+/// Tabula's edits from its window: each gesture one step of undo. // fx3:tabula
+pub mod tabula_edit;
 /// Tabula's pedal faces: one row per unit (each unit's builder edits its own). // fx3:contract
 pub mod tabula_faces;
+/// A board's pedal as an effect of its own, for the unit's full editor. // fx3:tabula
+pub mod tabula_host;
 pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
@@ -268,6 +277,10 @@ impl CantusApp {
         let Some(slot) = self.project().effect(strip, effect).cloned() else {
             return;
         };
+        // fx3:tabula — a board preset brings its pedals: the whole board in one step.
+        if slot.spec.kind == EffectKind::Board && tabula::load_board(self, strip, effect, params) {
+            return;
+        }
         let mut commands = Vec::new();
         for info in slot.spec.kind.params() {
             match params.get(info.key) {
@@ -425,7 +438,7 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::TimeShaper => lapsus::FACTORY_PRESETS, // fx:contract
         EffectKind::LoFi => vetus::FACTORY_PRESETS, // fx:contract
         EffectKind::Utility => libra::FACTORY_PRESETS, // fx:contract
-        EffectKind::Board => tabula::FACTORY_PRESETS, // fx3:contract
+        EffectKind::Board => tabula::factory_presets(), // fx3:tabula
         EffectKind::PitchShift => saltus::FACTORY_PRESETS, // fx3:contract
         EffectKind::Rotary => rota::FACTORY_PRESETS, // fx3:contract
         EffectKind::Amp => arca::FACTORY_PRESETS,  // fx3:contract

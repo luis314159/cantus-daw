@@ -418,17 +418,92 @@ pub const LIBRA: Skin = Skin {
 // out) until its builder draws the real face — one that differs from every other unit's in
 // hue or material, display included.
 
-/// Tabula, the pedalboard: for now Fervor's look (drive and colour). // fx3:tabula
+/// Tabula, the pedalboard (ADR 0134): a pedalboard's case — black vinyl of a fine grain
+/// (the owner's "más fino": darker, cleaner, never competing with the pedals), brass piping
+/// for its accent (the board's nameplate), chicken-head knobs, bat toggles, a badge and
+/// screws; no vents. Its own face: the only fine vinyl, and no other vinyl unit wears a
+/// gold near 52°. // fx3:tabula
 pub const TABULA: Skin = Skin {
     key: "fx.tabula",
-    ..super::tone::FERVOR
+    surface: Tint {
+        hue: 30.0,
+        sat: 0.05,
+        amount: 0.55,
+    },
+    accent: Some(Pair {
+        dark: super::super::color::Hsl {
+            h: 46.0,
+            s: 0.62,
+            l: 0.62,
+        },
+        light: super::super::color::Hsl {
+            h: 40.0,
+            s: 0.70,
+            l: 0.32,
+        },
+    }),
+    accent2: None,
+    material: Material::FineTolex,
+    display: Display::Plain,
+    knob: KnobShape::ChickenHead,
+    switch: SwitchShape::Bat,
+    lettering: Lettering {
+        case: Case::Upper,
+        tracking: 0.10,
+        weight: Weight::SemiBold,
+        condensed: false,
+        mono_values: false,
+    },
+    plate: Plate::Badge,
+    ornaments: Ornaments {
+        screws: true,
+        vents: false,
+        rules: false,
+        rack_ears: false,
+    },
 };
 
-/// Saltus, pitch: for now Tonus's look (the pitch unit's cousin). // fx3:saltus
+// fx3:saltus — Saltus's own face (ADR 0135, provisional).
+/// Saltus, pitch (*the leap*): a stage harmoniser at night — graphite anodised aluminium,
+/// cool and nearly grey, the note heard and the first voice a chartreuse light on a
+/// vacuum-fluorescent screen (dark in every theme), the second voice lilac; value rings
+/// without bodies (fine strokes), sliding pills, a printed legend and rules, spaced capitals
+/// and mono readouts. No unit wears chartreuse on anodised aluminium (the analyser's is a
+/// matte green 6° away), and the lilac sits apart from every voice of the round.
 pub const SALTUS: Skin = Skin {
     key: "fx.saltus",
-    ..super::tone::TONUS
-};
+    surface: Tint {
+        hue: 226.0,
+        sat: 0.10,
+        amount: 0.50,
+    },
+    accent: Some(Pair {
+        dark: chsl(72.0, 0.82, 0.58),
+        light: chsl(78.0, 0.85, 0.27),
+    }),
+    accent2: Some(Pair {
+        dark: chsl(278.0, 0.62, 0.74),
+        light: chsl(276.0, 0.52, 0.42),
+    }),
+    material: Material::Anodised,
+    display: Display::Vfd,
+    knob: KnobShape::Arc,
+    switch: SwitchShape::Pill,
+    lettering: Lettering {
+        case: Case::Upper,
+        tracking: 0.14,
+        weight: Weight::SemiBold,
+        condensed: false,
+        mono_values: true,
+    },
+    plate: Plate::Legend,
+    ornaments: Ornaments {
+        screws: false,
+        vents: false,
+        rules: true,
+        rack_ears: false,
+    },
+}; // fx3:saltus
 
 /// Rota, the rotary speaker: for now Spatium's look. // fx3:rota
 pub const ROTA: Skin = Skin {
@@ -536,7 +611,7 @@ pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
 #[cfg(test)]
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
-    use super::{CRIBRUM, FRAGOR, LAPSUS, LIBRA, VETUS};
+    use super::{CRIBRUM, FRAGOR, LAPSUS, LIBRA, SALTUS, VETUS}; // fx3:saltus
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -548,7 +623,7 @@ mod tests {
 
     /// The side round's faces as drawn (a sheet still wearing a sibling's look is left out).
     fn faces() -> Vec<&'static Skin> {
-        [&CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA]
+        [&CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS] // fx3:saltus
             .into_iter()
             .filter(|s| !is_placeholder(s))
             .collect()
