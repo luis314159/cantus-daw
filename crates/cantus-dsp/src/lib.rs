@@ -109,6 +109,9 @@ pub mod rota; // fx3:contract
 pub mod saltus; // fx3:contract
 pub mod tabula; // fx3:contract
 
+// fx-a:loquax — the side round's wave A: Loquax, the vocoder (DSP first).
+pub mod loquax; // fx-a:loquax
+
 /// The version of the numbers this crate renders. Two builds with the same `DSP_VERSION`
 /// render the same project to the same bits, on any machine; a change that moves any
 /// unit's output bits (an algorithm, a coefficient, a [`math`] function) bumps it — once,
