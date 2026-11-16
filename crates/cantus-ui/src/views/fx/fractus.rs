@@ -564,7 +564,7 @@ pub fn demo_series(spec: &EffectSpec, secs: f32) -> Vec<[f32; 64]> {
             *b = *a;
         }
         u.process(&mut l, &mut r, None);
-        if blk >= keep_from && (blocks - 1 - blk) % 2 == 0 {
+        if blk >= keep_from && (blocks - 1 - blk).is_multiple_of(2) {
             out.push(u.telemetry());
         }
     }

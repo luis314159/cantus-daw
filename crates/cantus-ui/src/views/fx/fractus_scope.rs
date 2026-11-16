@@ -274,6 +274,7 @@ fn grain(
 /// pitch and the way a grain at that pitch moves (toward now when it reads faster than the
 /// tape or the cloud is frozen, away when slower) and no farther than its life lets it
 /// read, fading.
+#[allow(clippy::too_many_arguments)]
 fn trails(
     b: &mut Brush,
     k: f32,

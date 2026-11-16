@@ -375,8 +375,7 @@ pub fn layout(r: Rect, lo: i32, hi: i32, out: &mut [Option<Key>; 16]) {
     let bw = ww * 0.62;
     let bh = r.height() * 0.6;
     let mut slot = 0usize;
-    let mut i = 0usize;
-    for n in (lo..=hi).filter(|n| !black(*n)) {
+    for (i, n) in (lo..=hi).filter(|n| !black(*n)).enumerate() {
         if slot < out.len() {
             let x = r.left() + i as f32 * ww;
             out[slot] = Some(Key {
@@ -386,7 +385,6 @@ pub fn layout(r: Rect, lo: i32, hi: i32, out: &mut [Option<Key>; 16]) {
             });
             slot += 1;
         }
-        i += 1;
     }
     let mut i = 0usize;
     for n in lo..=hi {
