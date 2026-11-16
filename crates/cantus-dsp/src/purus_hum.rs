@@ -11,12 +11,17 @@
 //! **Gentle**: the hum is *subtracted* instead — each harmonic's complex amplitude learned by
 //! a least-mean-squares canceller against a reference at `k·f0` (Widrow's adaptive noise
 //! canceller: `â += 2μ·e·z̄`, `μ = π·width/fs`, which alone is a notch of that width), and
-//! the learning **held** whenever the band around the harmonic holds more than the hum it
-//! has learned (a short-term estimate of the band, 25 ms, more than half the hum's level
-//! away from the long-term one, and louder): a bass note on 50, 100 or 150 Hz then passes
-//! untouched while the hum it sits on is still taken out, because hum does not change and
-//! a note does. The long-term estimate is held with it, and starts from the short one 60 ms
-//! after the hum is first heard, so learning a hum takes a fraction of a second.
+//! the learning **held** while a note sits on the harmonic, so a bass note on 50, 100 or
+//! 150 Hz passes untouched while the hum it sits on is still taken out (hum does not change;
+//! a note does). The canceller works **[`AHEAD_S`] (50 ms) late** — on the input and the
+//! reference as they were — while the gate listens to the input as it is, so a note holds
+//! the learning before it reaches the canceller (the mode's latency). The gate: a three-pole
+//! 3 Hz band of what the hum learned does not explain, above half the hum's level (or twice
+//! the band's usual remainder, which rises over 4 s, so a hum that changed is learned
+//! again); the hum's level is kept smoothed at 0.5 Hz (what a hold goes back to, 40–60 ms
+//! of learning earlier); held harmonics turn with the free ones (the reference follows the
+//! hum's frequency, not its phase); the tracker's loop is slower in this mode. Only the
+//! bass range (to 160 Hz) is held; above, the canceller always learns (a notch).
 //!
 //! **Tracking**: a frequency-locked loop on the mono sum. Each of the first eight harmonics
 //! is demodulated against the reference and low-passed (8 Hz, two poles); every 64 samples

@@ -3,17 +3,21 @@
 //! a track as it plays.
 //!
 //! ```text
-//!  in ─┬─ de-hum (IIR, 0 latency) ─ mix · out ─┬─ de-reverb (STFT, N − 1) ─ mix · out ─ out level ─ out
-//!      │                                       └──── its input, delayed ───┘            │
-//!      └──────────────── the input, delayed as the chain is ───────────── delta ────────┘
+//!  in ─ de-hum ─ mix · out ─ de-click ─ mix · out ─ de-reverb ─ mix · out ─ out level ─ out
+//!       (notches: 0;        (767 samples)          (STFT, N − 1)
+//!        gentle: 50 ms)
+//!  rings: the input, the de-hum's output, the de-click's — each read delayed to meet the
+//!  output, for the deltas
 //! ```
 //!
 //! - **De-hum** ([`hum`]): mains hum at 50/60 Hz, or followed, or found, with its harmonics
 //!   up to the count set; a notch per harmonic (depth, width), or the gentle mode, which
-//!   subtracts the hum it has learned and holds the learning under a bass note.
+//!   subtracts the hum it has learned and holds the learning under a bass note, heard 50 ms
+//!   ahead.
+//! - **De-click / de-crackle** ([`click`]): the audio editor's click detector and rebuilding
+//!   (shared), as a stream; a second pass for crackle.
 //! - **De-reverb** ([`verb`]): the late tail predicted from a statistical room model with
 //!   a decay set or estimated, the early part kept, taken out by a smoothed spectral gain.
-//! - **De-click / de-crackle**: not in this phase (see `docs/round-fx/purus.md`).
 //!
 //! Each module has its **mix** (0 returns its input bit for bit), its **output** level and
 //! its **delta** (listen to what it takes out). With every module that is on listening to
@@ -21,11 +25,11 @@
 //! chain would have sent* — the bits of `x(t − L) − y(t)`. With some, the sum of what those
 //! modules take out, each aligned to the output.
 //!
-//! **Latency**: [`latency_for`] — 0 while the de-reverb is off (the de-hum is IIR), `N − 1`
-//! (1 023 samples at 48 kHz, 21.3 ms) while it is on, everything else delayed to match.
-//! **Null**: with every module off (the defaults), the output is the input, bit for bit
-//! and undelayed; a module at mix 0 hands its input on bit for bit (the de-reverb's
-//! delayed by its latency).
+//! **Latency**: [`latency_for`] — the sum of the modules on: the gentle de-hum's look-ahead
+//! (2 400 samples at 48 kHz; the notches have none), the de-click's 767, the de-reverb's
+//! `N − 1` (1 023 at 48 kHz). **Null**: with every module off (the defaults), the output is
+//! the input, bit for bit and undelayed; a module at mix 0 hands its input on bit for bit,
+//! delayed by its own latency.
 //!
 //! **Rest** (ADR 0031): once the input has been +0.0 for long enough that the de-reverb's
 //! frames hold only silence and every de-hum state is under 10⁻¹⁵, the unit **drains** —
