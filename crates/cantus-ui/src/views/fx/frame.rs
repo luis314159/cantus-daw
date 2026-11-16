@@ -784,10 +784,9 @@ fn popups(
             let user = host.user_presets();
             // fx3:start — the unit's own starting preset (ADR 0138), where the host is Cantus.
             let start = start_state(host);
-            let start_on = start
-                .as_ref()
-                .and_then(|c| c.as_ref())
-                .map(|name| tf("start.on", &[("name", name)]));
+            // The chosen start on a row of its own under its heading: a long name never
+            // shares a band's one line (nothing elided, ES included).
+            let start_on = start.as_ref().and_then(|c| c.clone());
             let loaded = chrome.loaded.as_ref().map(|l| l.index);
             let list = chrome.list.get_or_insert_with(|| host.presets());
             let mut items: Vec<Item<'_>> = Vec::with_capacity(list.len() + 5);
@@ -821,10 +820,13 @@ fn popups(
             if let Some(chosen) = &start {
                 items.push(Item::Separator);
                 rows.push(None);
-                if let Some(on) = &start_on {
-                    items.push(Item::Band(Src::Str(on)));
-                    rows.push(None);
+                items.push(Item::Band(Src::Key("start.on_title")));
+                rows.push(None);
+                match &start_on {
+                    Some(name) => items.push(radio(Src::Str(name), true)),
+                    None => items.push(radio(Src::Key("start.factory"), true)),
                 }
+                rows.push(None);
                 items.push(action(Src::Key("start.use")));
                 rows.push(Some(START_USE));
                 if chosen.is_some() {

@@ -2,8 +2,9 @@
 start.use = Use as starting preset
 start.use_tip = New inserts of this unit start on these settings, in every project, instead of the factory's starting preset.
 start.reset = Reset to factory starting preset
-start.on = Inserts start on: {name}
 start.yours = Your settings
 start.user = Your starting preset
 start.used = {unit} now starts on {name}
 start.reset_done = {unit} starts on its factory preset again
+start.on_title = Inserts start on
+start.factory = The factory starting preset

@@ -51,6 +51,22 @@ mod tests {
         assert_eq!(place(43), (18, false));
         assert_eq!(place(77), (38, false));
     }
+
+    /// Two five-line staves with the gap between them, as engraved: middle C on its ledger
+    /// under the treble staff, and the bass staff's top line further than a line apart.
+    #[test]
+    fn the_staves_stand_apart_with_middle_c_on_a_ledger() {
+        let r = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(100.0, 200.0));
+        let hs = 5.0;
+        let y = |p: f32| super::place_y(p, r, hs);
+        assert_eq!(y(28.0) - y(30.0), 2.0 * hs, "middle C one ledger under E4");
+        assert_eq!(y(26.0) - y(30.0), (4.0 + super::GAP) * hs, "the gap");
+        assert_eq!(y(24.0) - y(26.0), 2.0 * hs, "the bass staff's own lines");
+        assert!(
+            y(27.5) > y(28.0) && y(27.5) < y(27.0),
+            "a slide crosses the gap"
+        );
+    }
 }
 
 /// A note's place on the staff (half spaces from C0) and whether it carries a sharp.
@@ -65,6 +81,28 @@ fn place_f(x: f32) -> f32 {
     let f = x - m as f32;
     let (a, b) = (place(m).0 as f32, place(m + 1).0 as f32);
     a + (b - a) * f
+}
+
+/// The room between the staves beyond their pitch distance, in half spaces: two five-line
+/// staves apart, as engraved, middle C on a short ledger between them where a note needs it.
+const GAP: f32 = 4.0;
+
+/// Where place `p` (half spaces from C0) sits in `r`, half spaces `hs` tall: middle C and
+/// above on the treble staff (middle C on its ledger under it), B3 and below on the bass
+/// staff, `GAP` lower — a line sliding between B3 and C4 crosses the gap.
+fn place_y(p: f32, r: Rect, hs: f32) -> f32 {
+    let top = r.top() + hs;
+    let treble = |q: f32| top + (HIGH as f32 - q) * hs;
+    let bass = |q: f32| top + (HIGH as f32 - q + GAP) * hs;
+    let c = MIDDLE_C as f32;
+    if p >= c {
+        treble(p)
+    } else if p <= c - 1.0 {
+        bass(p)
+    } else {
+        let t = c - p;
+        treble(c) + (bass(c - 1.0) - treble(c)) * t
+    }
 }
 
 /// A note to draw now: its pitch, its colour, how lit.
@@ -88,9 +126,8 @@ pub fn paint(
     heads: &[Head],
     k: f32,
 ) -> Vec<Pos2> {
-    let hs = r.height() / (HIGH - LOW + 2) as f32;
-    let mid = r.center().y + (MIDDLE_C - (LOW + HIGH) / 2) as f32 * hs;
-    let y = |p: f32| mid - (p - MIDDLE_C as f32) * hs;
+    let hs = r.height() / ((HIGH - LOW + 2) as f32 + GAP);
+    let y = |p: f32| place_y(p, r, hs);
     let (x0, x1) = (r.left(), r.right());
     for l in LINES {
         b.hline(x0, x1, y(l as f32), 0.7 * k, ink.grid_strong);
