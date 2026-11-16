@@ -33,9 +33,10 @@
 //!   - *integrated* — `I_mix − I_ref` (the reference's integrated loudness over what has
 //!     played beside the mix, or over its whole file as the engine measured it at load),
 //!     held until both exist;
-//!   - *short-term* — `S_mix − S_ref` every 100 ms, held while either is under the gate
-//!     (the absolute gate, and 20 LU under its own integrated loudness, as the loudness
-//!     range's gate), so a quiet intro is not raised;
+//!   - *short-term* — `S_mix − S_ref` every 100 ms, held unless both short-term windows
+//!     are whole ([`measure::Analyser::whole_window`]: every momentary value of the last
+//!     three seconds above the absolute gate and within 20 LU of the integrated loudness),
+//!     so neither a quiet intro nor the edge of a quiet passage is raised;
 //!   - *manual* — no match, only the offset;
 //!
 //!   plus the **offset** in every mode, limited to −48 … +24 dB, and gliding (a one-pole
@@ -75,8 +76,6 @@ pub const CHUNK: usize = 512;
 /// The match gain's limits, dB.
 pub const MAX_CUT_DB: f32 = -48.0;
 pub const MAX_BOOST_DB: f32 = 24.0;
-/// The short-term match's relative gate, LU under the source's integrated loudness.
-pub const SHORT_GATE_LU: f64 = -20.0;
 
 const ZEROS: [f32; CHUNK] = [0.0; CHUNK];
 
@@ -410,7 +409,6 @@ impl Comparatio {
 
     /// A 100 ms step ended: the match follows the readings.
     fn end_step(&mut self) {
-        let gate = crate::terminus::loudness::ABSOLUTE_GATE;
         match self.s.matching {
             MatchMode::Manual => self.match_db = 0.0,
             MatchMode::Integrated => {
@@ -424,11 +422,7 @@ impl Comparatio {
                 }
             }
             MatchMode::ShortTerm => {
-                let passes = |a: &Analyser| {
-                    let s = a.short_term();
-                    s > gate && a.integrated().is_none_or(|i| s > i + SHORT_GATE_LU)
-                };
-                if passes(&self.mix) && passes(&self.reference) {
+                if self.mix.whole_window() && self.reference.whole_window() {
                     self.match_db = (self.mix.short_term() - self.reference.short_term()) as f32;
                 }
             }
@@ -592,6 +586,9 @@ mod testkit;
 #[cfg(test)]
 #[path = "comparatio_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "comparatio_tests_match.rs"]
+mod tests_match;
 #[cfg(test)]
 #[path = "comparatio_tests_shared.rs"]
 mod tests_shared;

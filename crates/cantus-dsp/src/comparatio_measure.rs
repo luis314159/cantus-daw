@@ -44,6 +44,9 @@ const SHORT_COLUMNS: u64 = 300;
 pub const HIST_LO: f64 = -60.0;
 /// Bins of the short-term histogram (−60 … 0 LUFS); values outside land in the end bins.
 pub const HIST_BINS: usize = 60;
+/// The relative gate of the "whole window" test ([`Analyser::whole_window`]), LU under the
+/// integrated loudness (the loudness range's gate).
+pub const QUIET_LU: f64 = -20.0;
 /// −70 dBFS as a mean square: the steps under it do not count for the crest factor.
 const CREST_GATE: f64 = 1e-7;
 
@@ -104,6 +107,8 @@ pub struct Analyser {
     psr_sum: f64,
     psr_n: u64,
     hist: [u32; HIST_BINS],
+    /// Steps in a row whose momentary loudness passed the gates.
+    loud_steps: u64,
 }
 
 impl Analyser {
@@ -126,6 +131,7 @@ impl Analyser {
             psr_sum: 0.0,
             psr_n: 0,
             hist: [0; HIST_BINS],
+            loud_steps: 0,
         }
     }
 
@@ -184,6 +190,11 @@ impl Analyser {
         self.step_sq = 0.0;
         self.step_n = 0;
         self.stereo.end_step();
+        let mom = self.meter.momentary();
+        let passes = mom > ABSOLUTE_GATE
+            && self.meter.integrated().is_none_or(|i| mom > i + QUIET_LU)
+            && self.columns >= 40;
+        self.loud_steps = if passes { self.loud_steps + 1 } else { 0 };
         self.psr = None;
         if self.columns >= SHORT_COLUMNS {
             let s = self.meter.short_term();
@@ -232,6 +243,13 @@ impl Analyser {
         &self.hist
     }
 
+    /// The short-term window is whole: three seconds measured, and every momentary value
+    /// in them above the absolute gate and within 20 LU of the integrated loudness — a
+    /// window that holds no quiet passage, not even the edge of one.
+    pub fn whole_window(&self) -> bool {
+        self.columns >= SHORT_COLUMNS && self.loud_steps >= SHORT_STEPS as u64
+    }
+
     /// The short-term loudness, LUFS (−∞ until 3 s are in).
     pub fn short_term(&self) -> f64 {
         self.meter.short_term()
@@ -261,6 +279,7 @@ impl Analyser {
         self.psr_sum = 0.0;
         self.psr_n = 0;
         self.hist = [0; HIST_BINS];
+        self.loud_steps = 0;
     }
 
     /// As new, allocating nothing.

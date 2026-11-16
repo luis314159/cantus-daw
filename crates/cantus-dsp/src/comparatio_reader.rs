@@ -24,8 +24,9 @@
 //! where it would have gone and fades out while the new one fades in, equal power and
 //! eased ([`super::eased`]), over [`DECLICK_MS`]. Both read the recording itself, which is in memory: at a loop's end the
 //! fading voice plays what the recording has after the region, as a tape loop's splice
-//! would. A new jump during a fade drops the older fading voice (a loop shorter than two
-//! fades is lengthened to two).
+//! would. A new jump during a fade fades out the voice that was fading in, from the level it
+//! had reached, and drops the older fading voice (at the level it had faded to: the one
+//! remaining step, and a loop shorter than two fades is lengthened to two).
 
 use crate::modfx_clock::Clock;
 
@@ -97,6 +98,9 @@ pub struct Reader {
     /// What sounds, and what fades out.
     main: Voice,
     ghost: Voice,
+    /// The fading voice's level when its fade began: 1, or — a jump during a fade — the
+    /// level the voice it was had reached.
+    ghost_scale: f32,
     /// Samples into the fade; `fade_len` when there is none.
     fade_k: usize,
     fade_len: usize,
@@ -112,6 +116,7 @@ impl Reader {
             head: 0,
             main: Voice::Silent,
             ghost: Voice::Silent,
+            ghost_scale: 1.0,
             fade_k: fade_len,
             fade_len,
             id: None,
@@ -205,14 +210,14 @@ impl Reader {
             let want = self.wanted(clock, at + i);
             // `main` holds, between samples, where the voice goes next.
             if want != self.main {
-                self.ghost = self.main;
-                self.fade_k = 0;
+                self.jump();
             }
             let (ml, mr) = Self::sample(audio, want);
             if self.fade_k < self.fade_len {
                 let x = (self.fade_k as f32 + 0.5) / self.fade_len as f32;
                 let (gi, go) = super::eased(x);
                 let (gl, gr) = Self::sample(audio, self.ghost);
+                let go = go * self.ghost_scale;
                 *l = ml * gi + gl * go;
                 *r = mr * gi + gr * go;
                 self.ghost = self.ghost.next();
@@ -226,6 +231,19 @@ impl Reader {
             }
             self.main = want.next();
         }
+    }
+
+    /// The voice jumps: what it was fades out from the level it had reached (a jump in
+    /// the middle of a fade drops the older fading voice, at the level it had faded to).
+    fn jump(&mut self) {
+        self.ghost_scale = if self.fade_k < self.fade_len {
+            let x = (self.fade_k as f32 + 0.5) / self.fade_len as f32;
+            super::eased(x).0
+        } else {
+            1.0
+        };
+        self.ghost = self.main;
+        self.fade_k = 0;
     }
 
     #[inline]
@@ -276,8 +294,7 @@ impl Reader {
         for i in 0..n {
             let want = self.wanted(clock, i);
             if want != self.main {
-                self.ghost = self.main;
-                self.fade_k = 0;
+                self.jump();
             }
             if self.fade_k < self.fade_len {
                 self.ghost = self.ghost.next();
@@ -297,6 +314,7 @@ impl Reader {
         };
         self.main = Voice::Silent;
         self.ghost = Voice::Silent;
+        self.ghost_scale = 1.0;
         self.fade_k = self.fade_len;
         self.id = None;
     }
