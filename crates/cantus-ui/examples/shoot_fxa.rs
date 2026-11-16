@@ -125,7 +125,7 @@ fn take(dir: &Path, sh: &Shot, extra: &str) {
     views::fx::frame::shell_of(kind).set_scale(&ctx, sh.k);
     let size = views::fx::frame::designed_size(kind) * sh.k;
     let path = dir.join(name(sh, extra));
-    probe::start();
+    probe::start_clipped();
     shoot(&ctx, size, 1.0, 6, Some(&path), |root| {
         let ctx = root.ctx().clone();
         views::fx::window(&mut app, &ctx);

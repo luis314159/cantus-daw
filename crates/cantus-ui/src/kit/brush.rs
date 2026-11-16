@@ -76,6 +76,9 @@ struct Deferred {
 /// See the module docs. Get one with [`with_brush`](super::with_brush) or own one per
 /// view; paint; [`flush`](Brush::flush) into a painter.
 pub struct Brush {
+    /// The painter's clip while the brush paints for it (set by [`with_brush`](super::with_brush)):
+    /// a text painted past it is noted as cut while the text probe runs.
+    pub clip: Rect,
     /// The geometry being painted: a plain mesh, so a vertex push is a `Vec` push.
     mesh: Mesh,
     /// Meshes handed to epaint; once epaint has dropped its clone, a later flush of a
@@ -102,6 +105,7 @@ pub struct Brush {
 impl Default for Brush {
     fn default() -> Self {
         Brush {
+            clip: Rect::EVERYTHING,
             mesh: Mesh::default(),
             pool: VecDeque::new(),
             cache: None,

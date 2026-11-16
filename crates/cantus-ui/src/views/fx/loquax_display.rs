@@ -538,6 +538,10 @@ fn who(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, now: &Reading, spec: &Effec
         ),
     ];
     for (key, value) in lines {
+        // A line that would run past the pane waits for a taller window.
+        if y + 16.0 * k > area.max.y + 8.0 * k {
+            break;
+        }
         canvas::put(
             b,
             pos2(area.min.x, y),

@@ -165,7 +165,28 @@ fn body_ui(
     let area = g.rest();
     let row = super::controls::card_height(super::controls::Size::M) * k;
     let gap = s.d(4.0);
-    let top = (area.height() - 3.0 * (row + gap)).max(250.0 * k);
+    let rows: &[&[cells::Card<'_>]] = &[
+        &[
+            ("loquax.card.carrier", CARRIER),
+            ("loquax.card.bands", BANDS),
+            ("loquax.card.follow", FOLLOW),
+        ],
+        &[
+            ("loquax.card.character", CHARACTER),
+            ("loquax.card.consonants", CONSONANTS),
+            ("loquax.card.output", OUTPUT),
+        ],
+        &[
+            ("loquax.card.oscillators", OSCILLATORS),
+            ("loquax.card.unison", UNISON),
+            ("loquax.card.envelope", ENVELOPE),
+            ("loquax.card.robot", ROBOT),
+        ],
+    ];
+    // The cards wrap to the window's width (never squeezed under their words), and the
+    // display takes what they leave.
+    let phys = cells::wrap(ui, area.width(), k, rows);
+    let top = (area.height() - phys.len() as f32 * (row + gap)).max(250.0 * k);
     with_brush(&ui.painter_at(body), |b| {
         crate::kit::light::ambient(b, body, &s.t);
     });
@@ -178,43 +199,9 @@ fn body_ui(
     if reading.seen {
         ui.ctx().request_repaint();
     }
-    cells::row(
-        host,
-        ui,
-        s,
-        &mut g,
-        row,
-        &[
-            ("loquax.card.carrier", CARRIER),
-            ("loquax.card.bands", BANDS),
-            ("loquax.card.follow", FOLLOW),
-        ],
-    );
-    cells::row(
-        host,
-        ui,
-        s,
-        &mut g,
-        row,
-        &[
-            ("loquax.card.character", CHARACTER),
-            ("loquax.card.consonants", CONSONANTS),
-            ("loquax.card.output", OUTPUT),
-        ],
-    );
-    cells::row(
-        host,
-        ui,
-        s,
-        &mut g,
-        row,
-        &[
-            ("loquax.card.oscillators", OSCILLATORS),
-            ("loquax.card.unison", UNISON),
-            ("loquax.card.envelope", ENVELOPE),
-            ("loquax.card.robot", ROBOT),
-        ],
-    );
+    for cards in &phys {
+        cells::row(host, ui, s, &mut g, row, cards);
+    }
 }
 
 /// The inspector's picture: the carrier and the bands in a line ("Synthesiser · 32 bands").

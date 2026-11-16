@@ -151,7 +151,24 @@ fn body_ui(
     let area = g.rest();
     let row = super::controls::card_height(super::controls::Size::M) * k;
     let gap = s.d(4.0);
-    let top = (area.height() - 3.0 * (row + gap)).max(260.0 * k);
+    let rows: &[&[cells::Card<'_>]] = &[
+        &[
+            ("caelum.card.space", SPACE),
+            ("caelum.card.damping", DAMPING),
+            ("caelum.card.shimmer", SHIMMER),
+            ("caelum.card.tone", TONE),
+        ],
+        &[
+            ("caelum.card.motion", MOTION),
+            ("caelum.card.ducking", DUCKING),
+            ("caelum.card.output", OUTPUT),
+        ],
+        &[("caelum.card.endless", ENDLESS)],
+    ];
+    // The cards wrap to the window's width (never squeezed under their words), and the
+    // display takes what they leave.
+    let phys = cells::wrap(ui, area.width(), k, rows);
+    let top = (area.height() - phys.len() as f32 * (row + gap)).max(260.0 * k);
     with_brush(&ui.painter_at(body), |b| {
         crate::kit::light::ambient(b, body, &s.t);
     });
@@ -164,41 +181,9 @@ fn body_ui(
     if reading.seen {
         ui.ctx().request_repaint();
     }
-    cells::row(
-        host,
-        ui,
-        s,
-        &mut g,
-        row,
-        &[
-            ("caelum.card.space", SPACE),
-            ("caelum.card.damping", DAMPING),
-            ("caelum.card.shimmer", SHIMMER),
-            ("caelum.card.tone", TONE),
-        ],
-    );
-    cells::row(
-        host,
-        ui,
-        s,
-        &mut g,
-        row,
-        &[
-            ("caelum.card.motion", MOTION),
-            ("caelum.card.endless", ENDLESS),
-        ],
-    );
-    cells::row(
-        host,
-        ui,
-        s,
-        &mut g,
-        row,
-        &[
-            ("caelum.card.ducking", DUCKING),
-            ("caelum.card.output", OUTPUT),
-        ],
-    );
+    for cards in &phys {
+        cells::row(host, ui, s, &mut g, row, cards);
+    }
 }
 
 /// The inspector's picture: the space in a line ("6.5 s · Amount 55 % · +12 st").

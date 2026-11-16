@@ -399,7 +399,8 @@ pub mod probe {
         pub shown: String,
         /// The box it had.
         pub rect: egui::Rect,
-        /// "elided" or "dropped" (or "short", a designed short form: [`take_shorts`]).
+        /// "elided", "dropped" or "clipped" (whole, but partly past its painter's clip), or
+        /// "short", a designed short form ([`take_shorts`]).
         pub how: &'static str,
     }
 
@@ -409,10 +410,29 @@ pub mod probe {
         static SHORTS: RefCell<Vec<Cut>> = const { RefCell::new(Vec::new()) };
     }
 
+    thread_local! {
+        /// fxa — also note texts painted partly past their painter's clip ([`start_clipped`]).
+        static CLIPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    /// [`start`], and note as cut every text painted whole but partly past its painter's
+    /// clip — a label run out of its card or out of the window (fxa: the integrator found
+    /// one the plain probe could not see). For a window drawn at its designed size, where
+    /// nothing is scrolled: in a scrolled view a row half out of sight is clipped by design.
+    pub fn start_clipped() {
+        start();
+        CLIPPED.with(|c| c.set(true));
+    }
+
+    /// Whether texts clipped by their painter are noted.
+    pub fn clipped_on() -> bool {
+        on() && CLIPPED.with(|c| c.get())
+    }
     /// Start noting (what was noted before is dropped).
     pub fn start() {
         CUTS.with(|c| *c.borrow_mut() = Some(Vec::new()));
         SHORTS.with(|c| c.borrow_mut().clear());
+        CLIPPED.with(|c| c.set(false));
     }
 
     /// Whether cuts are being noted.
@@ -535,6 +555,21 @@ pub fn paint_face(
     }
     let r = text.align.align_size_within_rect(size, rect);
     let pos = Pos2::new(snap(r.min.x), snap(r.min.y));
+    let painted = Rect::from_min_size(pos, size);
+    // A text whole but painted past its painter's clip (a card's, the window's) is read
+    // cut all the same: noted while the probe runs (fxa — the integrator's find).
+    // Wholly outside (scrolled away) is not seen at all, so not a cut.
+    if probe::clipped_on()
+        && brush.clip.intersects(painted)
+        && !brush.clip.expand(1.0).contains_rect(painted)
+    {
+        probe::note(probe::Cut {
+            full: resolve(text.src, text.caps),
+            shown: g.text().to_string(),
+            rect: painted,
+            how: "clipped",
+        });
+    }
     brush.text(pos, g, text.color, 0.0);
     Some(Painted {
         rect: Rect::from_min_size(pos, size),

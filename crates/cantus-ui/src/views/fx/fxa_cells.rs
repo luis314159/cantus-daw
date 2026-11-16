@@ -176,3 +176,31 @@ pub fn semis_pill(v: f32, b: &mut String) {
     use std::fmt::Write as _;
     let _ = write!(b, "{v:+.0} st");
 }
+
+/// A card: its title and its items.
+pub type Card<'a> = (&'static str, &'a [Item]);
+
+/// The editor's rows of cards as they fit `avail` points across at scale `k`: each row's
+/// cards in order, a card that does not fit beside the ones before starting a new row — so
+/// no card is ever squeezed narrower than its words (the Spanish ones are longer).
+pub fn wrap<'a>(ui: &egui::Ui, avail: f32, k: f32, rows: &[&[Card<'a>]]) -> Vec<Vec<Card<'a>>> {
+    let gap = 6.0 * k;
+    let mut out: Vec<Vec<Card<'a>>> = Vec::new();
+    for row in rows {
+        let mut cur: Vec<Card<'a>> = Vec::new();
+        let mut used = 0.0;
+        for card in row.iter() {
+            let w = card_width(ui, card.1) * k;
+            if !cur.is_empty() && used + gap + w > avail {
+                out.push(std::mem::take(&mut cur));
+                used = 0.0;
+            }
+            used += if cur.is_empty() { w } else { gap + w };
+            cur.push(*card);
+        }
+        if !cur.is_empty() {
+            out.push(cur);
+        }
+    }
+    out
+}

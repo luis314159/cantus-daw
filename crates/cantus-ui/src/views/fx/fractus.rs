@@ -215,18 +215,7 @@ fn body_ui(
     let area = g.rest();
     let row = super::controls::card_height(super::controls::Size::M) * k;
     let gap = s.d(4.0);
-    let top = (area.height() - 4.0 * (row + gap)).max(280.0 * k);
-    with_brush(&ui.painter_at(body), |b| {
-        crate::kit::light::ambient(b, body, &s.t);
-    });
-    let r1 = g.full(top);
-    st.display = Some(r1);
-    let reading = display::Reading::of(tel);
-    display::show(host, ui, s, r1, &reading);
-    if reading.seen {
-        ui.ctx().request_repaint();
-    }
-    let rows: [&[(&'static str, &[Item])]; 4] = [
+    let rows: &[&[cells::Card<'_>]] = &[
         &[
             ("fractus.card.grid", GRID),
             ("fractus.card.play", PLAY),
@@ -249,7 +238,22 @@ fn body_ui(
             ("fractus.card.grains", GRAINS),
         ],
     ];
-    for cards in rows {
+    // The cards wrap to the window's width (never squeezed under their words), and the
+    // display takes what they leave.
+    let phys = cells::wrap(ui, area.width(), k, rows);
+    let top = (area.height() - phys.len() as f32 * (row + gap)).max(280.0 * k);
+    with_brush(&ui.painter_at(body), |b| {
+        crate::kit::light::ambient(b, body, &s.t);
+    });
+    let r1 = g.full(top);
+    st.display = Some(r1);
+    let reading = display::Reading::of(tel);
+
+    display::show(host, ui, s, r1, &reading);
+    if reading.seen {
+        ui.ctx().request_repaint();
+    }
+    for cards in &phys {
         cells::row(host, ui, s, &mut g, row, cards);
     }
 }
