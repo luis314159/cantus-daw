@@ -13,7 +13,8 @@
 //!    standard deviation), so the curve follows the balance, not each band's wobble; the
 //!    weights are the confidences, so a trusted band speaks for its untrusted neighbours.
 //! 3. **Scaled** by `amount` (0 … 1) and **limited** softly to ±`max_db`
-//!    (`max · tanh(x / max)`: small moves pass as they are, large ones bend to the limit).
+//!    ([`limit`]: a move up to half the limit passes exactly, a larger one bends smoothly
+//!    toward the limit and never reaches it).
 //! 4. **Level-free**: the loudness the curve would add is computed from the mix's own
 //!    K-weighted power in each band (`Curve::share`) — `10·log₁₀ Σ share·10^(g/10)` — and
 //!    returned as [`MatchCurve::makeup_db`], its negative, for the EQ's output gain: the
@@ -70,6 +71,17 @@ fn inside(hz: f32, lo: f32, hi: f32) -> f32 {
     (1.0 - below.max(above).max(0.0)).clamp(0.0, 1.0)
 }
 
+/// The soft limit: `x` itself up to `max/2`; beyond, `max/2 + (max/2)·tanh((|x| − max/2) /
+/// (max/2))` with its sign — the same slope at the knee, and under `max` always.
+pub fn limit(x: f32, max: f32) -> f32 {
+    let k = 0.5 * max;
+    if x.abs() <= k {
+        x
+    } else {
+        x.signum() * (k + k * math::tanh((x.abs() - k) / k))
+    }
+}
+
 /// The curve that moves the mix toward the reference (see the module notes).
 pub fn suggest(diff: &Difference, opts: &MatchOptions) -> MatchCurve {
     let bands = &diff.bands;
@@ -111,7 +123,7 @@ pub fn suggest(diff: &Difference, opts: &MatchOptions) -> MatchCurve {
     let mut loud = 0f64;
     let mut shares = 0f64;
     for b in 0..n {
-        let g = max * math::tanh(smooth[b] * amount / max);
+        let g = limit(smooth[b] * amount, max);
         out.points[b] = (bands.centre[b], g);
         let share = diff.mix_share[b] as f64;
         loud += share * math::powf(10f64, g as f64 / 10.0);

@@ -587,6 +587,12 @@ mod testkit;
 #[path = "comparatio_tests.rs"]
 mod tests;
 #[cfg(test)]
+#[path = "comparatio_tests_analysis.rs"]
+mod tests_analysis;
+#[cfg(test)]
+#[path = "comparatio_tests_ebu.rs"]
+mod tests_ebu;
+#[cfg(test)]
 #[path = "comparatio_tests_match.rs"]
 mod tests_match;
 #[cfg(test)]
