@@ -150,11 +150,11 @@ fn the_vari_mu_positions_release_as_published() {
             (r - release_ms).abs() <= 0.02 * release_ms,
             "release {r} ms"
         );
-        // In the loop the attack is quicker than the rectifier's own (the output falls as
-        // it charges), never slower.
+        // The attack, measured on the reduction, is the table's.
+        let set = MU_TIMES[pos].0;
         assert!(
-            attack <= MU_TIMES[pos].0 * 1.05 + 0.05,
-            "attack {attack} ms"
+            (attack - set).abs() <= 0.02 * set + 1000.0 / SR,
+            "attack {attack} ms, set {set}"
         );
     }
 }
@@ -184,5 +184,105 @@ fn the_vari_mu_programme_positions_hold_what_lasted() {
         let fast = MU_TIMES[pos].1 / 1000.0;
         assert!(times[0] <= 1.3 * fast, "a peak: {} s", times[0]);
         assert!(times[1] >= 3.0 * times[0], "sustained: {} s", times[1]);
+    }
+}
+
+#[test]
+fn the_vari_mu_attacks_are_their_time_constants() {
+    // The table's attacks measured on the reduction, to 63 % of where it settles, at
+    // either character and at a gentle and a heavy level.
+    for character in [Character::Compress, Character::Limit] {
+        for level_db in [-12.0f32, 0.0] {
+            for (pos, &(set, ..)) in MU_TIMES.iter().enumerate() {
+                let s = VinculumSettings {
+                    model: Model::VariMu,
+                    character,
+                    threshold_db: -20.0,
+                    mu_time: pos,
+                    ..VinculumSettings::default()
+                };
+                let t = trace(&s, crate::math::db_to_gain(level_db), 0.05, 0.0);
+                let gr = t[t.len() - 1];
+                let attack = time_until(&t, 0, |g| g >= 0.632 * gr) * 1000.0;
+                println!(
+                    "vari-mu {character:?} at {level_db} dB, position {}: {gr:.1} dB, attack to 63 % {attack:.3} ms (set {set})",
+                    pos + 1
+                );
+                let tol = 1000.0 / SR;
+                assert!(
+                    (attack - set).abs() <= 0.02 * set + tol,
+                    "{character:?} at {level_db} dB, position {}: attack {attack} ms, set {set}",
+                    pos + 1
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn the_opto_limit_keeps_the_cells_times() {
+    let s = VinculumSettings {
+        model: Model::Opto,
+        character: Character::Limit,
+        threshold_db: -20.0,
+        ..VinculumSettings::default()
+    };
+    let level = crate::math::db_to_gain(-4.0);
+    let t = trace(&s, level, 1.0, 15.0);
+    let at = SR as usize;
+    let gr = t[at - 1];
+    let attack = time_until(&t, 0, |g| g >= 0.632 * gr) * 1000.0;
+    let half = time_until(&t, at, |g| g <= 0.5 * gr) * 1000.0;
+    let full = time_until(&t, at, |g| g <= 0.1 * gr);
+    println!(
+        "opto limit: {gr:.1} dB, attack to 63 % {attack:.1} ms, half in {half:.0} ms, 90 % in {full:.2} s"
+    );
+    // The release is the cell's, as in Compress. The attack is quicker: the panel's
+    // eighth power lights the cell far past where it settles, so at 16 dB over the
+    // threshold it gets there in about a millisecond (the published ~10 ms is an
+    // average; this is the steep law's, left for the owner's ear).
+    assert!((0.5..=20.0).contains(&attack), "attack {attack} ms");
+    assert!((35.0..=90.0).contains(&half), "half release {half} ms");
+}
+
+#[test]
+fn the_vari_mu_lets_go_of_a_quieter_level_at_its_release() {
+    // From 20 dB over the threshold down to 8: the reduction falls to its new level at
+    // the table's release, measured on the reduction (to 37 % of the way).
+    for character in [Character::Compress, Character::Limit] {
+        for (pos, &(_, release_ms, ..)) in MU_TIMES.iter().take(4).enumerate() {
+            let s = VinculumSettings {
+                model: Model::VariMu,
+                character,
+                threshold_db: -20.0,
+                mu_time: pos,
+                ..VinculumSettings::default()
+            };
+            let mut v = unit(&s);
+            let (n_hi, n_lo) = (
+                (0.2 * SR) as usize,
+                (release_ms / 1000.0 * 6.0 * SR) as usize,
+            );
+            let mut t = Vec::with_capacity(n_hi + n_lo);
+            let (hi, lo) = (1.0f32, crate::math::db_to_gain(-12.0));
+            for i in 0..n_hi + n_lo {
+                let x = if i < n_hi { hi } else { lo };
+                let (mut l, mut r) = ([x], [x]);
+                v.process(&mut l, &mut r);
+                t.push(v.gain_reduction_db());
+            }
+            let (from, to) = (t[n_hi - 1], t[t.len() - 1]);
+            let goal = to + 0.368 * (from - to);
+            let r = time_until(&t, n_hi, |g| g <= goal) * 1000.0;
+            println!(
+                "vari-mu {character:?} position {}: {from:.1} → {to:.1} dB in {r:.0} ms (set {release_ms})",
+                pos + 1
+            );
+            assert!(
+                (r - release_ms).abs() <= 0.02 * release_ms,
+                "{character:?} position {}: release {r} ms, set {release_ms}",
+                pos + 1
+            );
+        }
     }
 }

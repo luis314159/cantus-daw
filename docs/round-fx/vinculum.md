@@ -42,7 +42,9 @@ settles at is `c·(u − u₀)^p` (`u` the output over the threshold, the panel 
 `u₀`). Because the drive is the output, the static curve is explicit backwards — the
 input is `y·(1 + G(y))` — and the local ratio is `1 + p·u/(u − u₀)·G/(1 + G)`: very soft
 at first, tending to `1 + p`. **Compress**: `p = 2`, `u₀ = 0.5` (lighting 6 dB under the
-threshold) — about 3 : 1 at depth. **Limit**: `p = 7`, `u₀ = 0.25` — about 9 : 1. The
+threshold) — about 3 : 1 at depth. **Limit**: `p = 8`, `u₀ = 0.25` — about 10 : 1 at
+depth (9.2 : 1 at 20 dB over the threshold, 9.9 : 1 at 30; the first pass's `p = 7` gave
+8.7). The
 threshold is where the cell gives 1 dB. The cell's time: the conductance rises over
 50 ms (which, inside the feedback loop, is the published ~10 ms attack measured on the
 reduction), falls first over 55 ms and then over a slow second stage (charging over
@@ -65,10 +67,21 @@ limiting over 12 dB"), a 2 dB knee. The six time positions are the published tab
 classic six-position valve limiter — 0.2 ms / 0.3 s, 0.2 / 0.8, 0.4 / 2, 0.8 / 5, and two
 programme-dependent ones (0.2 ms with 2 s for a peak and 10 s for many; 0.4 ms with 0.3 s
 for a peak and 10 s for sustained programme; we hold 15 s for the published 10 – 25 s
-pair). A feedback loop at 0.2 ms with a ratio of 20 would ring if its gain were one
-sample late, so the rectifier's new charge is **solved with the output it makes**: Newton's
-method on `c = c₀ + k·(GR(knee(x − c)) − c₀)`, bracketed (the function is monotone), at
-most twelve steps.
+pair). The loop is **solved at zero delay through its equilibrium**: the charge `c` (the
+reduction, dB) at which the output it leaves asks for exactly `c`, `c = GR(knee(x − c))`
+— the static curve — is tabulated once when the unit is made (257 points over the knee
+and the rising ratio, solved by bisection to the float; past the ceiling the law is a
+line and the curve is closed), interpolated per sample (within 5·10⁻⁴ dB of the solve),
+and the charge moves toward it at the table's attack and release (smooth branching, as
+the VCA). So the measured reduction rises and falls at the stated constants at every level
+and either character, and with no sample of delay in the loop the limit's 20 : 1 at
+0.2 ms cannot ring. *(The first pass moved the charge toward the output's own demand at
+the rectifier's rate, Newton-solved each sample: that is the physical loop, and it reaches
+its equilibrium about `R` times faster than the rectifier's constant, `R` the local ratio —
+0.06 ms for the table's 0.2, and a partial release in 184 ms for 300. No published
+measurement of the classic unit's closed-loop attack was found to say whether the table's
+figures are the rectifier's or the unit's, so the second pass holds the measured
+reduction to the table.)*
 
 **The valve colour** (vari-mu only, a control, default 0): a balanced push-pull stage
 cancels its even orders, so the colour is odd — the cubic soft clipper `u − u³/3`, its
@@ -106,15 +119,18 @@ Every figure below is from the tests (`cargo test -p cantus-dsp --lib vinculum -
 | VCA Auto: a lone hit at the fast speed, sustained work slower | to 37 %: after 20 ms 0.100 s, after 1 s 0.76 s, after 3 s 0.89 s | met |
 | Auto on a drum loop (Pulsus, 100 BPM, ratio 4, attack 10 ms) | swing (σ of the reduction) 1.21 dB vs 1.64 at 0.1 s and 1.05 at 1.2 s; held just before each downbeat 1.26 dB vs 0.40 at 0.1 s and 4.32 at 1.2 s; mean 1.93 dB | met: less pumping than 0.1 s, far more recovery than 1.2 s |
 | Opto static curve = the cell's law solved independently (f64, bisection) | within 0.02 dB | met |
-| Opto ratio: Compress → 3 : 1, Limit → about 10 : 1 | Compress 1.35 at the threshold, 2.23, 2.75, 2.97 (30 dB over); Limit 1.59, 6.05, 8.07, **8.70** | Limit short of 10 : 1 (8.7 at 30 dB over) |
+| Opto ratio: Compress → 3 : 1, Limit → about 10 : 1 | Compress 1.35 at the threshold, 2.23, 2.75, 2.97 (30 dB over; unchanged); Limit 1.65, 6.94, 9.23, **9.93** (first pass 1.59, 6.05, 8.07, 8.70) | met (second pass: `p` 7 → 8) |
 | Opto attack: published ~10 ms | 8.6 ms to 63 % of the reduction | met |
 | Opto release: published ~60 ms for the first half | 57 ms (after 0.1, 1 and 10 s) | met |
 | Opto full release: published 0.5 – 5 s, longer after more reduction | to 10 % of the reduction: 0.96 s after 0.1 s, 4.13 s after 1 s, 4.24 s after 10 s | met; the memory is nearly full after 1 s (the T4 is said to keep building over longer) |
+| Opto Limit's times (16 dB over, 1 s) | half release 64 ms (first pass 63), to 10 % 5.01 s (4.93); attack to 63 % **0.9 ms** (first pass 1.1) | release met; the attack is far under the published ~10 ms average — see Left |
 | Vari-mu static curve = the valve's law solved independently | within 0.02 dB (Compress, Limit) | met |
 | Vari-mu ratio: Compress from 1.5 : 1, rising | 1.48 at 1 dB, 1.85 at 3, 2.19 at 6, 2.88 at 12, 3.80 at 20, 4.00 at 30 | met |
 | Vari-mu ratio: Limit 4 : 1 → 20 : 1 at 12 dB | 3.28 at 1 dB (in the knee), 6.58 at 3, 11.9 at 6, **19.98 at 12**, 20.0 beyond | met |
 | Vari-mu releases 0.3 / 0.8 / 2 / 5 s | 300 / 800 / 1997 / 4992 ms | met |
-| Vari-mu attacks 0.2 / 0.2 / 0.4 / 0.8 ms | 0.06 / 0.06 / 0.12 / 0.25 ms to 63 % of 10 dB | **faster than stated**: the time constants are the rectifier's; in the feedback loop the output falls as it charges, so the reduction gets there sooner |
+| Vari-mu attacks 0.2 / 0.2 / 0.4 / 0.8 / 0.2 / 0.4 ms | 0.188 / 0.188 / 0.396 / 0.792 / 0.188 / 0.396 ms to 63 % of the reduction (on the sample grid: 9 / 19 / 38 samples), the same at 3.2 and 9.8 dB (Compress) and 6.9 and 18.3 dB (Limit); first pass 0.06 / 0.06 / 0.12 / 0.25 at 9.8 dB | met (second pass) |
+| Vari-mu release to a quieter level (20 → 8 dB over) | Compress 299 / 796 / 1988 / 4955 ms, Limit 299 / 796 / 1989 / 4949, for 300 / 800 / 2000 / 5000 (first pass: 184 ms for 300, Compress) | met (second pass) |
+| Vari-mu equilibrium table = the law's solve | worst 2.5·10⁻⁴ dB (Compress), 5.2·10⁻⁴ dB (Limit), exactly 0 under the knee | met |
 | Vari-mu positions 5 and 6: a peak fast, sustained programme slow | 5: 2.00 s / 8.56 s; 6: 0.30 s / 9.98 s (to 37 %) | met |
 | The colour: 1 % third at full depth, odd only | third −50.5 dB at the rest depth 0.3 (stated −50.5), second < −110 dB | met |
 | Aliasing of the colour (0 dBFS sine, full depth, the third's alias) | naive −40 dB everywhere; at 2×: 9 kHz → 21 kHz −95 dB, 10 kHz −127, 11 kHz −139, 13 kHz −125, 15 kHz −140 | met (9 kHz's third falls in the half-band's transition) |
@@ -128,7 +144,12 @@ Every figure below is from the tests (`cargo test -p cantus-dsp --lib vinculum -
 (`cargo test --release -p cantus-dsp --lib cpu_per_model -- --ignored --nocapture`), **with
 the machine loaded by other builders (six cargo/rustc processes running)**: VCA 0.18 % of
 a core, VCA Auto 0.20 %, Opto 0.14 %, Vari-mu 0.22 % without colour, 0.36 % with it,
-Vari-mu Limit with colour 0.31 %. To be measured again on a quiet machine.
+Vari-mu Limit with colour 0.31 %. **Second pass** (the same test, five to seven other
+cargo/rustc processes running, two runs): VCA 0.17 %, VCA Auto 0.20 – 0.23 %, Opto
+0.14 – 0.16 %, Vari-mu 0.20 – 0.23 % without colour, 0.34 – 0.35 % with it, Limit with
+colour 0.32 – 0.37 % — the table costs less than the first pass's Newton step (a Newton
+solve of the equilibrium itself each sample measured 0.34 – 0.50 % / 0.51 – 0.69 % /
+0.61 – 0.74 %, which is why it is tabulated). To be measured again on a quiet machine.
 
 ## Tests and what each holds
 
@@ -138,12 +159,16 @@ Vari-mu Limit with colour 0.31 %. To be measured again on a quiet machine.
 `silence_comes_to_an_exact_rest_and_rest_is_as_new` (the rest twin), `the_slowest_positions_rest_too`,
 `the_vca_follows_the_published_gain_computer`, `the_opto_settles_on_its_cell_law`,
 `the_opto_ratios_are_the_cells`, `the_vari_mu_settles_on_its_valve_law`,
-`the_vari_mu_ratio_rises_with_level`, `the_limit_does_not_ring_at_its_fastest`,
+`the_vari_mu_ratio_rises_with_level`, `the_vari_mu_table_is_its_equilibrium`,
+`the_limit_does_not_ring_at_its_fastest`,
 `the_valve_is_odd_and_as_strong_as_stated`, `the_half_band_is_the_published_design`,
 `the_meter_reads_each_model`. `vinculum_tests_time.rs`: the VCA's time constants, Auto,
-the opto's published times, the vari-mu's positions and its programme-dependent two.
+the opto's published times (and the Limit's, `the_opto_limit_keeps_the_cells_times`), the
+vari-mu's positions, its attacks at two levels and both characters
+(`the_vari_mu_attacks_are_their_time_constants`), its release to a quieter level
+(`the_vari_mu_lets_go_of_a_quieter_level_at_its_release`) and its programme-dependent two.
 `vinculum_measure.rs`: Auto on a drum loop, the colour's aliasing, CPU (ignored).
-`tests/vinculum_alloc.rs`: no allocation. 23 + 1 pass; clippy `-p cantus-dsp --all-targets`
+`tests/vinculum_alloc.rs`: no allocation. 27 + 1 pass (the whole `cantus-dsp` suite: 947); clippy `-p cantus-dsp --all-targets`
 clean; `cargo fmt -p cantus-dsp`.
 
 ## Sounds
@@ -152,7 +177,15 @@ clean; `cargo fmt -p cantus-dsp`.
 (Pulsus) and a mix bus (the CC0 DI guitar — "Guitar: Carbonthief, CC0" — with Pulsus drums
 and a Gravis bass, the owner's Am – F – C – G at 90 BPM), each model gentle, slammed and
 slammed in parallel, and the VCA's 0.1 s, 1.2 s and Auto releases side by side; dry twins;
-level-matched by RMS.
+level-matched by RMS. **Second pass**: rendered again into a temporary folder and compared
+byte for byte; the ten whose output changed were replaced one by one (with `table.md`):
+`05-drums-opto-slammed`, `06-drums-opto-parallel`, `07-drums-varimu-gentle`,
+`08-drums-varimu-slammed`, `09-drums-varimu-parallel`, `25-mix-opto-slammed`,
+`26-mix-opto-parallel`, `27-mix-varimu-gentle`, `28-mix-varimu-slammed`,
+`29-mix-varimu-parallel`. The dry twins and every VCA and Opto Compress file are
+bit-identical to the first pass. The drum bus's slammed vari-mu now lets more of each
+hit's first fraction of a millisecond through (its attack is the table's 0.2 ms, not
+0.06), so its level match was lowered 2.2 dB to keep the peak under 0 dBFS.
 
 ## Verified only in emulation
 
@@ -167,8 +200,14 @@ reproductions' (manuals, spec sheets); no measurement of a real unit was availab
 - The contract: an `EffectKind` (proposed `BusCompressor`), its parameters (model,
   threshold, ratio, attack, release, Auto, Compress/Limit, time position, side-chain
   high-pass, mix, make-up, colour; keep `out`), the schema number, the ADR number.
-- The Opto Limit is 8.7 : 1 at depth, short of "about 10 : 1"; a steeper law
-  (`p = 8`) would reach it at the cost of a harder knee — for the owner's ear.
+- The Opto Limit's attack: 0.9 ms to 63 % at 16 dB over the threshold (4 ms at 8 dB
+  over, 0.2 ms at 26), against the published "~10 ms" (an average; Compress measures
+  18.7 / 8.6 / 3.6 ms at the same three levels; the 8 and 26 dB figures are from an f64
+  re-run of the same loop, which gives the test's 16 dB figures to 0.05 ms). The panel's eighth power lights the cell
+  far past where it settles, so the cell's 50 ms rate closes an enormous gap quickly. It
+  was 1.1 ms in the first pass (`p = 7`) and was not one of the two misses; closing it (a
+  bounded conductance — the photoresistor's minimum resistance — or a drive-dependent
+  rate) changes how the Limit sounds on hits, so it waits for the owner's ear.
 - An external key (another strip's signal, as Comprimo has) — the classic bus compressor
   has one; the DSP takes it in one line (the key level), the engine wiring is Phase B.
 - CPU measured again on a quiet machine.

@@ -252,7 +252,6 @@ pub struct Vinculum {
     opto_law: OptoLaw,
     opto_b: Ballistics,
     panel_k: f32,
-    mu_law: MuLaw,
     mu_b: Ballistics,
     // State.
     hp: [HighPass; 2],
@@ -261,6 +260,8 @@ pub struct Vinculum {
     /// The opto panel's mean square, and the gain the cell held after the last sample.
     panel: f32,
     g_prev: f32,
+    /// The vari-mu loop's equilibrium, Compress and Limit (solved once, here).
+    mu_eq: [law::MuEquilibrium; 2],
     mu: Dual,
     valve: valve::Valve,
     // Meter.
@@ -279,13 +280,16 @@ impl Vinculum {
             opto_law: OptoLaw::compress(),
             opto_b: Ballistics::single(10.0, 300.0, FLOOR_G, 48_000.0),
             panel_k: 0.0,
-            mu_law: MuLaw::compress(),
             mu_b: Ballistics::single(0.2, 300.0, FLOOR_DB, 48_000.0),
             hp: [HighPass::default(); 2],
             vca: Dual::default(),
             opto: Dual::default(),
             panel: 0.0,
             g_prev: 1.0,
+            mu_eq: [
+                law::MuEquilibrium::new(&MuLaw::compress()),
+                law::MuEquilibrium::new(&MuLaw::limit()),
+            ],
             mu: Dual::default(),
             valve: valve::Valve::new(),
             gr_db: 0.0,
@@ -352,10 +356,6 @@ impl Vinculum {
             sr,
         );
         self.panel_k = law::coef(OPTO_PANEL_MS, sr);
-        self.mu_law = match s.character {
-            Character::Compress => MuLaw::compress(),
-            Character::Limit => MuLaw::limit(),
-        };
         let (a, r, c, sl, sh) = MU_TIMES[s.mu_time];
         self.mu_b = if sh > 0.0 {
             Ballistics::dual(a, r, c, sl, sh, FLOOR_DB, sr)
@@ -473,77 +473,25 @@ impl Vinculum {
         (g, cond)
     }
 
-    /// The vari-mu's gain: the rectifier's new charge (the reduction, dB) solved together
-    /// with the output it makes — zero-delay feedback, Newton's method inside a bracket (a
-    /// loop delayed by one sample would ring at the limit's 20 : 1 and 0.2 ms).
+    /// The vari-mu's gain. The loop's equilibrium — the charge `c` (the reduction, dB)
+    /// at which the output it leaves asks for exactly `c`, `c = GR(knee(x − c))`, the
+    /// static curve — is solved at zero delay (tabulated once, [`law::MuEquilibrium`]),
+    /// and the charge moves toward it at the table's time constants. So the reduction
+    /// rises and falls at the stated attack and release, measured on the reduction, at
+    /// every level and either character (a charge moving toward the output's own
+    /// demand at the rectifier's rate gets there `R` times sooner, `R` the local ratio:
+    /// the first pass measured 0.06 ms for 0.2); and with no sample of delay in the
+    /// loop, the limit's 20 : 1 at 0.2 ms cannot ring.
     #[inline]
     fn mu_gain(&mut self, level: f32) -> (f32, f32) {
-        let law = self.mu_law;
-        let b = self.mu_b;
-        let held_slow = if b.share > 0.0 {
-            self.mu.slow * b.share
+        let xs = level * self.thr_inv;
+        let target = if xs > 1e-10 {
+            let eq = &self.mu_eq[(self.s.character == Character::Limit) as usize];
+            eq.at(20.0 * math::log10(xs))
         } else {
             0.0
         };
-        let f0 = self.mu.fast;
-        let xs = level * self.thr_inv;
-        let x_db = if xs > 1e-10 {
-            20.0 * math::log10(xs)
-        } else {
-            -200.0
-        };
-        let fast = if x_db <= -0.5 * law.w {
-            // The output cannot reach the knee at any charge: nothing to solve.
-            Dual::fast_step(f0, 0.0, &b)
-        } else {
-            // The reduction the output asks for at a fast-stage charge `c`, and its slope.
-            let target = |c: f32| -> (f32, f32) {
-                let v = c.max(held_slow);
-                let o = x_db - v;
-                let ok = law.knee(o);
-                let d = law.gr_db(ok);
-                let slope = if c > held_slow {
-                    -law.gr_slope(ok) * law.knee_slope(o)
-                } else {
-                    0.0
-                };
-                (d, slope)
-            };
-            let (d0, _) = target(f0);
-            let k = if d0 > f0 { b.attack } else { b.release };
-            let other = f0 + (d0 - f0) * k;
-            let (mut lo, mut hi) = if other >= f0 {
-                (f0, other)
-            } else {
-                (other, f0)
-            };
-            let mut c = other;
-            for _ in 0..12 {
-                let (d, slope) = target(c);
-                let f = c - f0 - k * (d - f0);
-                if f.abs() <= 1e-6 * (1.0 + c) {
-                    break;
-                }
-                if f > 0.0 {
-                    hi = c;
-                } else {
-                    lo = c;
-                }
-                let next = c - f / (1.0 - k * slope);
-                c = if next > lo && next < hi {
-                    next
-                } else {
-                    0.5 * (lo + hi)
-                };
-            }
-            if c < b.floor {
-                0.0
-            } else {
-                c
-            }
-        };
-        self.mu.fast = fast;
-        let gr = self.mu.slow_step(&b);
+        let gr = self.mu.step(target, &self.mu_b);
         let g = if gr == 0.0 {
             1.0
         } else {

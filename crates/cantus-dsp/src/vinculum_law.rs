@@ -84,11 +84,12 @@ impl OptoLaw {
         OptoLaw::with(2, 0.5)
     }
 
-    /// Limit: about 10 : 1 where it works (the output held near the threshold, where the
-    /// local ratio is `1 + p·u/(u − u₀)` once the cell conducts), the panel lighting from
-    /// 12 dB under the threshold.
+    /// Limit: about 10 : 1 where it works (the local ratio is
+    /// `1 + p·u/(u − u₀)·G/(1 + G)`, which with `p = 8` measures 9.2 : 1 at 20 dB over
+    /// the threshold and 9.9 : 1 at 30), the panel lighting from 12 dB under the
+    /// threshold.
     pub fn limit() -> OptoLaw {
-        OptoLaw::with(7, 0.25)
+        OptoLaw::with(8, 0.25)
     }
 
     /// The conductance the light at drive `u` (output over threshold, linear) settles at.
@@ -228,6 +229,84 @@ impl MuLaw {
     /// The ratio the law gives at a reduction (what the tests hold it to).
     pub fn ratio_at(&self, gr_db: f32) -> f32 {
         (self.r0 + self.s * gr_db).min(self.rmax)
+    }
+
+    /// The feedback loop's equilibrium for an input `x` dB over the threshold: the
+    /// reduction `c` the output it leaves asks for, `c = GR(knee(x − c))` — the static
+    /// curve. `c − GR(knee(x − c))` rises with `c`, negative at 0 and positive where the
+    /// output falls under the knee, so a bisection finds it to the float.
+    pub fn equilibrium(&self, x: f32) -> f32 {
+        if x <= -0.5 * self.w {
+            return 0.0;
+        }
+        let (mut lo, mut hi) = (0.0f32, (x + 0.5 * self.w).min(MAX_GR_DB));
+        for _ in 0..64 {
+            let m = 0.5 * (lo + hi);
+            if m - self.gr_db(self.knee(x - m)) < 0.0 {
+                lo = m;
+            } else {
+                hi = m;
+            }
+        }
+        0.5 * (lo + hi)
+    }
+}
+
+/// Intervals in the vari-mu's equilibrium table.
+pub const MU_TABLE_N: usize = 256;
+
+/// The vari-mu loop's equilibrium ([`MuLaw::equilibrium`]) as a table over the input
+/// level, solved once when the unit is made and interpolated per sample. It covers the
+/// knee and the rising ratio — from `−w/2` to the input where the ratio reaches its
+/// ceiling — and past that the law is a line, so the curve there is closed: the
+/// reduction grows by `(R_max − 1)/R_max` dB per dB, to [`MAX_GR_DB`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct MuEquilibrium {
+    x0: f32,
+    x_c: f32,
+    inv_h: f32,
+    gr_c: f32,
+    tail: f32,
+    c: [f32; MU_TABLE_N + 1],
+}
+
+impl MuEquilibrium {
+    pub fn new(law: &MuLaw) -> MuEquilibrium {
+        // The ceiling is reached past the knee for both characters, so the line beyond
+        // it is the whole law there.
+        debug_assert!(law.o_c >= 0.5 * law.w);
+        let x0 = -0.5 * law.w;
+        let x_c = law.o_c + law.gr_c;
+        let h = (x_c - x0) / MU_TABLE_N as f32;
+        let mut c = [0f32; MU_TABLE_N + 1];
+        for (i, v) in c.iter_mut().enumerate().take(MU_TABLE_N).skip(1) {
+            *v = law.equilibrium(x0 + h * i as f32);
+        }
+        c[MU_TABLE_N] = law.gr_c;
+        MuEquilibrium {
+            x0,
+            x_c,
+            inv_h: 1.0 / h,
+            gr_c: law.gr_c,
+            tail: (law.rmax - 1.0) / law.rmax,
+            c,
+        }
+    }
+
+    /// The equilibrium reduction, dB, for an input `x` dB over the threshold: exactly 0
+    /// under the knee.
+    #[inline]
+    pub fn at(&self, x: f32) -> f32 {
+        if x <= self.x0 {
+            0.0
+        } else if x >= self.x_c {
+            (self.gr_c + self.tail * (x - self.x_c)).min(MAX_GR_DB)
+        } else {
+            let p = (x - self.x0) * self.inv_h;
+            let i = (p as usize).min(MU_TABLE_N - 1);
+            let f = p - i as f32;
+            self.c[i] + (self.c[i + 1] - self.c[i]) * f
+        }
     }
 }
 

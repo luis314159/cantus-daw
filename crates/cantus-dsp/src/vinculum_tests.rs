@@ -378,7 +378,9 @@ fn the_opto_ratios_are_the_cells() {
         );
     }
     assert!((6.0..14.0).contains(&rl(-5.0)), "{}", rl(-5.0));
-    assert!((7.0..14.0).contains(&rl(10.0)), "{}", rl(10.0));
+    // About 10 : 1 at depth: 20 and 30 dB over the threshold.
+    assert!((9.0..10.5).contains(&rl(0.0)), "{}", rl(0.0));
+    assert!((9.5..10.5).contains(&rl(10.0)), "{}", rl(10.0));
 }
 
 #[test]
@@ -573,3 +575,23 @@ mod time;
 
 #[path = "vinculum_measure.rs"]
 mod measure;
+
+#[test]
+fn the_vari_mu_table_is_its_equilibrium() {
+    // The tabulated equilibrium against the law's own solve, over the knee, the rising
+    // ratio, the ceiling's line and the deepest reduction.
+    for mu in [MuLaw::compress(), MuLaw::limit()] {
+        let eq = law::MuEquilibrium::new(&mu);
+        let mut worst = 0f32;
+        for i in 0..=8000 {
+            let x = -5.0 + i as f32 * 0.01;
+            let (got, want) = (eq.at(x), mu.equilibrium(x));
+            worst = worst.max((got - want).abs());
+            if x <= -0.5 * mu.w {
+                assert_eq!(got.to_bits(), 0, "under the knee at {x} dB");
+            }
+        }
+        println!("vari-mu table (r0 {}): worst {worst:.2e} dB", mu.r0);
+        assert!(worst < 2e-3, "{worst} dB");
+    }
+}
