@@ -116,3 +116,39 @@ fn clicks_and_crackle_come_out_and_the_music_stays() {
     );
     assert!(results[0].2 > 60.0, "the music is left alone: {results:?}");
 }
+
+/// The de-crackle on the owner's CC0 guitar (at its own 44.1 kHz): crackle added (300 a
+/// second, 0.005–0.03 peak), what is left of it, and what the clean guitar loses. Needs the
+/// strums: `cargo test -p cantus-dsp --lib purus_crackle_guitar -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn purus_crackle_guitar() {
+    let Some(clean) = super::tests_measure::cc0_guitar() else {
+        println!("no strums: skipped");
+        return;
+    };
+    let sr = 44_100.0f32;
+    let mut crackled = clean.clone();
+    testkit::add_crackle(&mut crackled, sr, 300.0, 53);
+    let run = |s: &PurusSettings, x: &[f32]| {
+        let lat = latency_for(s, sr);
+        let mut padded = x.to_vec();
+        padded.resize(x.len() + lat, 0.0);
+        let mut p = Purus::new(sr);
+        p.set(s);
+        let y = testkit::render(&padded, 256, |l, r| p.process(l, r)).0;
+        (y[lat..].to_vec(), p.meter().clicks_total / 2)
+    };
+    for crackle in [0.0f32, 0.5, 1.0] {
+        let s = click(0.5, crackle);
+        let (y, n) = run(&s, &crackled);
+        let down = removed(&clean, &crackled, &y);
+        let (yc, nc) = run(&s, &clean);
+        let change: Vec<f32> = yc.iter().zip(&clean).map(|(y, c)| y - c).collect();
+        let damage = testkit::db(testkit::energy(&clean) / testkit::energy(&change).max(1e-30));
+        println!(
+            "guitar, crackle {crackle}: {n} taken, the crackle down {down:.1} dB; the clean \
+             guitar: {nc} taken, the change {damage:.1} dB under it"
+        );
+    }
+}

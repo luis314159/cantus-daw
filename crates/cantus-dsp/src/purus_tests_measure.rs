@@ -408,52 +408,11 @@ fn purus_cpu() {
 #[test]
 #[ignore]
 fn purus_gentle_guitar() {
-    let dir = std::path::Path::new("C:/projects/daw-fx/tmp/guitar-wav");
-    let chords = [
-        "Sample07 (A Minor)",
-        "Sample15 (F Major)",
-        "Sample22 (C Major)",
-        "Sample17 (G Major)",
-    ];
-    let mut strums = Vec::new();
-    for c in chords {
-        let Ok(mut r) = hound::WavReader::open(dir.join(format!("{c}.wav"))) else {
-            println!("no strums at {dir:?}: skipped");
-            return;
-        };
-        let spec = r.spec();
-        let k = 1.0 / (1u64 << (spec.bits_per_sample - 1)) as f32;
-        let x: Vec<f32> = match spec.sample_format {
-            hound::SampleFormat::Float => r.samples::<f32>().map(Result::unwrap).collect(),
-            _ => r.samples::<i32>().map(|v| v.unwrap() as f32 * k).collect(),
-        };
-        strums.push(
-            x.chunks(spec.channels as usize)
-                .map(|c| c[0])
-                .collect::<Vec<f32>>(),
-        );
-    }
     let sr = 44_100.0f32;
-    let beat = (60.0 / 90.0 * sr as f64) as usize;
-    let mut g = vec![0.0f32; 32 * beat];
-    let fade = (0.02 * sr) as usize;
-    for bar in 0..8 {
-        for half in 0..2 {
-            let at = (bar * 4 + half * 2) * beat;
-            let len = 2 * beat;
-            let st = &strums[bar % 4];
-            for i in 0..len.min(st.len()) {
-                let w = if i + fade >= len {
-                    (len - i) as f32 / fade as f32
-                } else {
-                    1.0
-                };
-                g[at + i] += st[i] * w;
-            }
-        }
-    }
-    let peak = g.iter().fold(0f32, |m, v| m.max(v.abs()));
-    g.iter_mut().for_each(|v| *v *= 0.5 / peak);
+    let Some(g) = cc0_guitar() else {
+        println!("no strums at C:/projects/daw-fx/tmp/guitar-wav: skipped");
+        return;
+    };
     let amps = [0.0316f32, 0.02, 0.0251, 0.01, 0.0126, 0.005, 0.0063, 0.004];
     let dd = if std::env::var("PURUS_NODRIFT").is_ok() {
         0.0
@@ -528,4 +487,56 @@ fn purus_gentle_guitar() {
         .map(|k| rows[1][k] - rows[0][k])
         .fold(f64::MIN, f64::max);
     println!("guitar: the gentle mode leaves at most {worst:.1} dB more than the notches");
+}
+
+/// The owner's reference progression from Carbonthief's CC0 DI strums (Am, F, C, G at 90 BPM,
+/// two strums a bar, eight bars) at their own 44.1 kHz, peak 0.5; `None` without the strums
+/// (`C:\\projects\\daw-fx\\tmp\\guitar-wav`, not in the repository).
+pub(super) fn cc0_guitar() -> Option<Vec<f32>> {
+    let dir = std::path::Path::new("C:/projects/daw-fx/tmp/guitar-wav");
+    let chords = [
+        "Sample07 (A Minor)",
+        "Sample15 (F Major)",
+        "Sample22 (C Major)",
+        "Sample17 (G Major)",
+    ];
+    let mut strums = Vec::new();
+    for c in chords {
+        let Ok(mut r) = hound::WavReader::open(dir.join(format!("{c}.wav"))) else {
+            return None;
+        };
+        let spec = r.spec();
+        let k = 1.0 / (1u64 << (spec.bits_per_sample - 1)) as f32;
+        let x: Vec<f32> = match spec.sample_format {
+            hound::SampleFormat::Float => r.samples::<f32>().map(Result::unwrap).collect(),
+            _ => r.samples::<i32>().map(|v| v.unwrap() as f32 * k).collect(),
+        };
+        strums.push(
+            x.chunks(spec.channels as usize)
+                .map(|c| c[0])
+                .collect::<Vec<f32>>(),
+        );
+    }
+    let sr = 44_100.0f32;
+    let beat = (60.0 / 90.0 * sr as f64) as usize;
+    let mut g = vec![0.0f32; 32 * beat];
+    let fade = (0.02 * sr) as usize;
+    for bar in 0..8 {
+        for half in 0..2 {
+            let at = (bar * 4 + half * 2) * beat;
+            let len = 2 * beat;
+            let st = &strums[bar % 4];
+            for i in 0..len.min(st.len()) {
+                let w = if i + fade >= len {
+                    (len - i) as f32 / fade as f32
+                } else {
+                    1.0
+                };
+                g[at + i] += st[i] * w;
+            }
+        }
+    }
+    let peak = g.iter().fold(0f32, |m, v| m.max(v.abs()));
+    g.iter_mut().for_each(|v| *v *= 0.5 / peak);
+    Some(g)
 }

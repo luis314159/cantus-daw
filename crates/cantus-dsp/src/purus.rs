@@ -44,6 +44,8 @@
 
 #[path = "purus_click.rs"]
 pub mod click;
+#[path = "purus_crackle.rs"]
+pub mod crackle;
 #[path = "purus_hum.rs"]
 pub mod hum;
 #[path = "purus_testkit.rs"]
@@ -221,7 +223,7 @@ impl Purus {
             fs: sample_rate,
             s: PurusSettings::default(),
             hum: Dehum::new(sample_rate),
-            click: Declick::new(),
+            click: Declick::new(sample_rate),
             verb,
             hum_live: false,
             hum_mix: Glide::new(0.0),
