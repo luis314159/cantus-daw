@@ -283,18 +283,19 @@ fn edit_strip_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &S
             let Some(info) = kind.param(key) else {
                 continue;
             };
-            let mut width = 78.0;
-            if j >= faced {
-                let t = crate::kit::text::Text::key(
-                    info.label_key,
-                    crate::kit::text::Role::Label,
-                    s.t.text,
-                );
-                let w = crate::kit::text::measure(ui.ctx(), &t, s.k).x / s.k * 1.15 + 12.0;
-                width = w.max(78.0);
-                if used + width > room {
-                    break;
-                }
+            // fx3:arca — every cell as wide as the word it prints (its face's word or the
+            // parameter's own, in capitals), never its short form.
+            let word = match fragor_words {
+                Some(w) if j < 3 => w[j],
+                _ if j < faced => tb::knob_word(key).unwrap_or(info.label_key),
+                _ => info.label_key,
+            };
+            let t = crate::kit::text::Text::key(word, crate::kit::text::Role::Label, s.t.text)
+                .caps(true);
+            let w = crate::kit::text::measure(ui.ctx(), &t, s.k).x / s.k * 1.15 + 12.0;
+            let width = w.max(78.0);
+            if j >= faced && used + width > room {
+                break;
             }
             used += width + 4.0; // fx3:saltus
                                  // The face's knobs in its words; the unit's other parameters in their own.

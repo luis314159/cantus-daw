@@ -414,6 +414,20 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         {
             Some("set on the envelope's display")
         }
+        // fx3:saltus — each mode draws its own cards (the demo is Shift);
+        // `every_saltus_mode_offers_its_stepped_parameters` draws the others.
+        ("PitchShift", "ostyle") if get("mode").round() != 2.0 => Some("the octave mode's"),
+        ("PitchShift", "hsrc" | "key" | "scale" | "deg1" | "deg2")
+            if get("mode").round() != 1.0 =>
+        {
+            Some("the harmony mode's")
+        }
+        ("PitchShift", "key" | "scale") if get("hsrc").round() != 0.0 => {
+            Some("the key's, while the harmony counts from it")
+        }
+        ("PitchShift", "heel" | "toe" | "wsrc") if get("mode").round() != 3.0 => {
+            Some("the whammy mode's")
+        }
         ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
         // fx:cribrum — Cribrum shows one filter (A or B) and one movement source at a time;
         // its curve's points are drawn on the curve's lane.
@@ -823,4 +837,54 @@ fn short_of(word: &str, drawn: &str) -> bool {
     pairs
         .iter()
         .any(|(long, short)| t(long) == word && t(short) == drawn)
+}
+
+/// fx3:saltus — Saltus draws each mode's cards only in that mode: in each of Harmony,
+/// Octave and Whammy, every stepped key `not_drawn` excuses in the demo's Shift is drawn
+/// with its parameter's offer.
+#[test]
+fn every_saltus_mode_offers_its_stepped_parameters() {
+    let kind = EffectKind::PitchShift;
+    let modes: [(f32, &[&str]); 3] = [
+        (1.0, &["hsrc", "key", "scale", "deg1", "deg2"]),
+        (2.0, &["ostyle"]),
+        (3.0, &["heel", "toe", "wsrc"]),
+    ];
+    let mut bad = Vec::new();
+    for (mode, keys) in modes {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "mode".into(),
+            value: mode,
+        });
+        a.open_effect_editor(s0, fx);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: (*key).into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("mode {mode}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
 }

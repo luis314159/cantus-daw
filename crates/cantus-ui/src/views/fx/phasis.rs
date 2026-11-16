@@ -115,9 +115,9 @@ fn body_ui(
     response_card(ui, &modfx::own(s, Function::Tone), r1[1], tel, ps);
 
     let w = [
-        controls::cells_width(&[Size::XL, Size::M, Size::M]) + 16.0,
-        controls::cells_width(&[Size::M; 3]) + CIRCUIT_W + 20.0, // fx3:arca
-        modfx::lfo_card_width(&LFO),
+        controls::cells_width(&[Size::XL, Size::M, Size::M]) + 16.0 + 48.0, // fx3:arca: the feedback's whole word
+        controls::cells_width(&[Size::M; 3]) + CIRCUIT_W + 20.0,            // fx3:arca
+        modfx::lfo_card_width(&LFO) + modfx::WHOLE_EXTRA,                   // fx3:arca
     ];
     let sum: f32 = w.iter().sum();
     let r2: Vec<Rect> = g.row(row2, &w.map(|x| x / sum)).collect();
@@ -129,7 +129,7 @@ fn body_ui(
         None,
         |ui, _| {
             controls::param_with(ui, &sm, host, "mix", Size::XL, Some(&modfx::pct_pill));
-            controls::param_with(ui, &sm, host, "fb", Size::M, Some(&fb_pill));
+            whole(ui, &sm, host, "fb", Some(&fb_pill)); // fx3:arca
             controls::param_with(ui, &sm, host, "out", Size::M, Some(&modfx::db_pill));
         },
     );
@@ -175,7 +175,7 @@ fn body_ui(
             controls::param(ui, &st_, host, "hi", Size::M);
         }
     });
-    modfx::lfo_card(host, ui, &sm, r2[2], &LFO);
+    modfx::lfo_card_as(host, ui, &sm, r2[2], &LFO, true); // fx3:arca
 }
 
 /// The circuit's column (its switch and its line), at 100 %. fx3:arca
@@ -395,4 +395,32 @@ pub fn demo_feed(app: &mut CantusApp) {
     let mut t = [0.0f32; 64];
     d.telemetry(&mut t);
     app.fx.injected = Some(t);
+}
+
+/// fx3:arca — a medium knob whose cell is as wide as its parameter's whole name (never its
+/// short form: "Realimentación", not "Realim.").
+pub(super) fn whole(
+    ui: &mut egui::Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &'static str,
+    pill: Option<controls::Pill<'_>>,
+) {
+    let spec = host.spec();
+    let Some(info) = spec.param(key) else {
+        return;
+    };
+    let mut c = controls::Cell::param(info, spec.get(key))
+        .size(Size::M)
+        .width(super::arca::words::cell_width(ui, info.label_key));
+    if let Some(f) = pill {
+        c = c.format(f);
+    }
+    let out = c.show_in(ui, s, host, key);
+    if let Some(v) = out.changed {
+        host.set(key, v, Some(key));
+    }
+    if out.done {
+        host.end_gesture();
+    }
 }

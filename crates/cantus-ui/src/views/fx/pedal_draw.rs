@@ -224,7 +224,9 @@ fn layout(r: Rect, shape: Shape, n: usize, u: f32) -> Layout {
 /// An enclosure in `r`, laid out in its own proportions (`r` is [`size_of`] its shape at
 /// some scale). Shapes and words.
 pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
-    let k = s.k;
+    // fx3:arca — the print (the knobs' words, the name) scales with the enclosure when it is
+    // drawn smaller than its size at this scale: a word printed on a pedal is never cut.
+    let k = s.k.min(r.width() / size_of(e.shape).x);
     // The enclosure's own scale: everything on its face is measured in it.
     let u = r.width() / size_of(e.shape).x;
     let f = e.finish;
@@ -320,6 +322,35 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
     // The artwork first, under the knobs.
     let accent = c(f.band);
     pedal_art::motif(b, u, lay.art, e.motif, print, accent);
+    // fx3:arca — whether every other word of the knobs' rows goes a line lower (a word that
+    // would not fit even at two thirds of its size between its neighbours').
+    let staggered = {
+        let probe_t = |i: usize| Text {
+            src: e.knobs[i].label,
+            role: Role::Micro,
+            caps: true,
+            align: Align2::CENTER_CENTER,
+            policy: Policy::Elide(Elide::End),
+            color: print,
+        };
+        let flat = [false; MAX_KNOBS];
+        (0..n).any(|i| {
+            let t = probe_t(i);
+            let (_, lw, _) = word_room(b, &t, e, &lay, n, i, r, u, k, &flat);
+            ktext::measure(b.ctx(), &t, k).x * 0.66 > lw
+        })
+    };
+    let staggered: [bool; MAX_KNOBS] = std::array::from_fn(|i| {
+        // The second, fourth… knob of its row, left to right.
+        staggered
+            && i < n
+            && lay.knobs[..n]
+                .iter()
+                .filter(|q| (q.y - lay.knobs[i].y).abs() < 1.0 && q.x < lay.knobs[i].x)
+                .count()
+                % 2
+                == 1
+    });
     // The knobs: a printed scale, a skirted cap and its pointer, the name under it.
     for (i, kn) in e.knobs.iter().take(MAX_KNOBS).enumerate() {
         let (p, kr) = (lay.knobs[i], lay.radii[i]);
@@ -336,38 +367,18 @@ pub fn enclosure(b: &mut Brush, s: &Style, r: Rect, e: &Enclosure<'_>) -> Hits {
         };
         // fx3:tabula — the word takes the room its row leaves it: up to its neighbours'
         // words (as wide as they are at full size) or the case's edge, centred on its knob;
-        // a word too long even so is set smaller (down to 66 %) before anything is elided.
-        // A word that fitted is drawn as it was.
-        let word_w = |q: usize| {
-            let tq = Text {
-                src: e.knobs[q].label,
-                ..t
-            };
-            ktext::measure(b.ctx(), &tq, k).x
-        };
-        let mut left = p.x - r.left() - 12.0 * u;
-        let mut right = r.right() - p.x - 12.0 * u;
-        for (j, q) in lay.knobs[..n].iter().enumerate() {
-            if j == i || (q.y - p.y).abs() >= 1.0 {
-                continue;
-            }
-            let room = (q.x - p.x).abs() - word_w(j) * 0.5 - 4.0 * u;
-            if q.x < p.x {
-                left = left.min(room);
-            } else {
-                right = right.min(room);
-            }
-        }
-        // Off its knob's centre a little where one side has the room (never past the cap).
-        let shift = ((right - left) * 0.5).clamp(-kr * 0.8, kr * 0.8);
-        let lw = (2.0 * (left + shift).min(right - shift)).max(kr * 2.0);
+        // a word too long even so is set smaller (down to 66 %). fx3:arca — when a word of a
+        // row does not fit even so (a Spanish "Ganancia" between close knobs), every other
+        // word of that row is set a line lower, so each has the room up to the next word on
+        // its own line: nothing is elided.
+        let (shift, lw, drop) = word_room(b, &t, e, &lay, n, i, r, u, k, &staggered);
         let full = ktext::measure(b.ctx(), &t, k).x;
         let tk = if full > lw {
             (k * lw / full).max(0.66 * k)
         } else {
             k
         };
-        let lr = Rect::from_center_size(p + vec2(shift, kr + 14.0 * u), vec2(lw, 13.0 * k));
+        let lr = Rect::from_center_size(p + vec2(shift, kr + 14.0 * u + drop), vec2(lw, 13.0 * k));
         b.rrect(
             Rect::from_center_size(
                 lr.center(),
@@ -669,15 +680,27 @@ pub fn empty_slot(b: &mut Brush, s: &Style, r: Rect, label: Src<'_>, hot: bool) 
         policy: Policy::Elide(Elide::End),
         color: ink,
     };
-    ktext::paint(
-        b,
-        Rect::from_center_size(
-            r.center() + vec2(0.0, 22.0 * k),
-            vec2(r.width() - 12.0 * k, 16.0 * k),
-        ),
-        &t,
-        k,
+    // fx3:arca — the words whole: on two lines where one does not fit the slot.
+    let room = Rect::from_center_size(
+        r.center() + vec2(0.0, 22.0 * k),
+        vec2(r.width() - 12.0 * k, 16.0 * k),
     );
+    if ktext::measure(b.ctx(), &t, k).x <= room.width() {
+        ktext::paint(b, room, &t, k);
+        return;
+    }
+    let whole = match label {
+        Src::Key(key) => crate::i18n::t(key),
+        Src::Str(s) => s.to_string(),
+    };
+    let (one, two) = whole.split_once(' ').unwrap_or((whole.as_str(), ""));
+    for (line, dy) in [(one, -7.0), (two, 7.0)] {
+        let tl = Text {
+            src: Src::Str(line),
+            ..t
+        };
+        ktext::paint(b, room.translate(vec2(0.0, dy * k)), &tl, k);
+    }
 }
 
 /// Where a dragged pedal will land: a lit bar at `x` from `y0` to `y1`.
@@ -743,4 +766,51 @@ pub fn board_jack(b: &mut Brush, s: &Style, p: Pos2, label: Src<'_>, ink: Color3
         k,
         None,
     );
+}
+
+/// fx3:tabula, fx3:arca — the room knob `i`'s word `t` has: how far it sits off its knob's
+/// centre, how wide it may be, and how far below its line it is set (`drop`: every other
+/// word of a staggered row). A word reaches up to the words beside it on its own line (as
+/// wide as they are at full size) or the case's edge.
+#[allow(clippy::too_many_arguments)]
+fn word_room(
+    b: &Brush,
+    t: &Text<'_>,
+    e: &Enclosure<'_>,
+    lay: &Layout,
+    n: usize,
+    i: usize,
+    r: Rect,
+    u: f32,
+    k: f32,
+    drop: &[bool; MAX_KNOBS],
+) -> (f32, f32, f32) {
+    let (p, kr) = (lay.knobs[i], lay.radii[i]);
+    let word_w = |q: usize| {
+        let tq = Text {
+            src: e.knobs[q].label,
+            ..*t
+        };
+        ktext::measure(b.ctx(), &tq, k).x
+    };
+    let mut left = p.x - r.left() - 12.0 * u;
+    let mut right = r.right() - p.x - 12.0 * u;
+    for (j, q) in lay.knobs[..n].iter().enumerate() {
+        if j == i || (q.y - p.y).abs() >= 1.0 || drop[j] != drop[i] {
+            continue;
+        }
+        let room = (q.x - p.x).abs() - word_w(j) * 0.5 - 4.0 * u;
+        if q.x < p.x {
+            left = left.min(room);
+        } else {
+            right = right.min(room);
+        }
+    }
+    // Off its knob's centre a little where one side has the room (never past the cap).
+    // Staggered, a word may sit further off its knob (its own line keeps it its knob's).
+    let lim = if drop.iter().any(|d| *d) { 1.8 } else { 0.8 } * kr;
+    let shift = ((right - left) * 0.5).clamp(-lim, lim);
+    let lw = (2.0 * (left + shift).min(right - shift)).max(kr * 2.0);
+    let below = if drop[i] { 11.0 * k } else { 0.0 };
+    (shift, lw, below)
 }

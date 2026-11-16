@@ -399,17 +399,20 @@ pub mod probe {
         pub shown: String,
         /// The box it had.
         pub rect: egui::Rect,
-        /// "elided" or "dropped".
+        /// "elided" or "dropped" (or "short", a designed short form: [`take_shorts`]).
         pub how: &'static str,
     }
 
     thread_local! {
         static CUTS: RefCell<Option<Vec<Cut>>> = const { RefCell::new(None) };
+        /// fx3:arca — the designed short forms (`<key>.short`) painted meanwhile.
+        static SHORTS: RefCell<Vec<Cut>> = const { RefCell::new(Vec::new()) };
     }
 
     /// Start noting (what was noted before is dropped).
     pub fn start() {
         CUTS.with(|c| *c.borrow_mut() = Some(Vec::new()));
+        SHORTS.with(|c| c.borrow_mut().clear());
     }
 
     /// Whether cuts are being noted.
@@ -429,6 +432,18 @@ pub mod probe {
     pub fn take() -> Vec<Cut> {
         CUTS.with(|c| c.borrow_mut().take()).unwrap_or_default()
     }
+
+    /// fx3:arca — note a designed short form painted in place of the whole word.
+    pub(super) fn note_short(cut: Cut) {
+        SHORTS.with(|c| c.borrow_mut().push(cut));
+    }
+
+    /// fx3:arca — the designed short forms (`<key>.short`, "Realim." for "Realimentación")
+    /// painted since [`start`]: not cuts, but a word not read whole — a window that promises
+    /// every word whole asks for none.
+    pub fn take_shorts() -> Vec<Cut> {
+        SHORTS.with(|c| std::mem::take(&mut *c.borrow_mut()))
+    }
 }
 
 /// Note a cut text while the probe runs: `shown` is what was painted (`None`: nothing).
@@ -441,8 +456,18 @@ fn note_cut(text: &Text<'_>, shown: Option<&Galley>, rect: Rect) {
         Some(g) => (g.text().to_string(), "elided"),
         None => (String::new(), "dropped"),
     };
-    // An abbreviation that fits (`<key>.short`) is a designed form, not a cut.
-    if (how == "elided" && !shown.contains('\u{2026}')) || full.trim().is_empty() {
+    // An abbreviation that fits (`<key>.short`) is a designed form, not a cut (noted apart:
+    // fx3:arca).
+    if how == "elided" && !shown.contains('\u{2026}') && !full.trim().is_empty() {
+        probe::note_short(probe::Cut {
+            full,
+            shown,
+            rect,
+            how: "short",
+        });
+        return;
+    }
+    if full.trim().is_empty() {
         return;
     }
     probe::note(probe::Cut {
