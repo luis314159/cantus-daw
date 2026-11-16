@@ -12,7 +12,7 @@ use super::super::canvas::{self, Ink};
 use super::super::controls;
 use super::super::frame;
 use super::super::host::FxHost;
-use super::super::valve_draw as valve;
+use super::valve2 as tube;
 use super::words;
 use crate::kit::color::{mix, with_alpha};
 use crate::kit::hint::{self, Caps};
@@ -442,14 +442,19 @@ fn paint_info(
     let _ = s;
 }
 
-/// A valve on the chassis: where it stands, how lit, whether a power valve.
+/// A valve on the chassis: where it stands, its heater and its plate, whether a power valve.
 struct Bottle {
     r: Rect,
-    glow: f32,
+    plate: f32,
     power: bool,
 }
 
-/// The valves on their chassis, glowing, with their types and the groups they make.
+/// The chassis seen from the front and a little above (v2, the owner's "a real chassis"):
+/// the back plate with its vents, fuse and jacks; the steel deck; along the back the
+/// preamp's valves and the inverter in their shielded sockets; along the front the filter
+/// capacitors, the power valves, the output and the power transformers. Each valve's heater
+/// glows once the amp is on, its plate reddens with the work it does; under each, its bar
+/// and its type; under each row, its groups.
 #[allow(clippy::too_many_arguments)]
 fn paint_valves(
     b: &mut Brush,
@@ -461,28 +466,38 @@ fn paint_valves(
     screen: Rect,
     k: f32,
 ) {
-    let floor = r.bottom() - 54.0 * k;
-    // The chassis: a steel plate the valves stand in, lit at its front edge.
-    let plate = Rect::from_min_max(
-        pos2(r.left() + 6.0 * k, floor - 2.0 * k),
-        pos2(r.right() - 6.0 * k, floor + 8.0 * k),
+    let _ = (s, screen);
+    let back = Rect::from_min_max(
+        pos2(r.left() + 6.0 * k, r.top() + 6.0 * k),
+        pos2(r.right() - 6.0 * k, r.top() + 30.0 * k),
     );
-    b.rrect(
-        plate,
-        2.0 * k,
-        Fill::V(pal::CHASSIS_TOP.rgb(), pal::CHASSIS.rgb()),
+    let front_y = r.bottom() - 56.0 * k;
+    // The deck: steel, lighter toward its front edge, a lit lip.
+    let inset = 12.0 * k;
+    let deck = [
+        pos2(back.left() + inset, back.bottom()),
+        pos2(back.right() - inset, back.bottom()),
+        pos2(r.right() - 4.0 * k, front_y),
+        pos2(r.left() + 4.0 * k, front_y),
+    ];
+    b.polygon(&deck, pal::CHASSIS.rgb());
+    let lip = Rect::from_min_max(
+        pos2(r.left() + 4.0 * k, front_y),
+        pos2(r.right() - 4.0 * k, front_y + 9.0 * k),
     );
+    b.rect(lip, Fill::V(pal::CHASSIS_TOP.rgb(), pal::CHASSIS.rgb()));
     b.hline(
-        plate.left() + 2.0 * k,
-        plate.right() - 2.0 * k,
-        plate.top() + 0.5 * k,
+        lip.left(),
+        lip.right(),
+        lip.top() + 0.5 * k,
         0.7 * k,
-        with_alpha(pal::CHASSIS_EDGE.rgb(), 0.8),
+        with_alpha(pal::CHASSIS_EDGE.rgb(), 0.9),
     );
+    tube::back_plate(b, k, back);
     let Some(m) = model else {
         canvas::put(
             b,
-            pos2(r.center().x, (r.top() + floor) * 0.5),
+            pos2(r.center().x, (back.bottom() + front_y) * 0.5),
             Align2::CENTER_CENTER,
             &Text::key("arca.d.cold", Role::Body, ink.dim),
             k,
@@ -490,176 +505,150 @@ fn paint_valves(
         );
         return;
     };
-    let c = words::character(m);
+    let ch = words::character(m);
     let n = cantus_dsp::arca::net::split(m.preamp()).1.clamp(1, MAX_PRE);
-    let pc = c.power_count.clamp(2, 4);
-    // Sizes: the power valves as tall as the room allows, the small ones in proportion.
-    let room = floor - r.top() - 18.0 * k;
-    let (g_in, g_out, ot_w) = (10.0 * k, 26.0 * k, 44.0 * k);
-    let total = |ph: f32| {
-        let (pw, sh) = (ph * 0.40, ph * 0.70);
-        let sw = sh * 0.36;
-        (n + 1) as f32 * sw
-            + (n - 1) as f32 * g_in
-            + pc as f32 * pw
-            + (pc - 1) as f32 * g_in
-            + 3.0 * g_out
-            + ot_w
-    };
-    let mut ph = room.min(215.0 * k);
-    while total(ph) > r.width() - 24.0 * k && ph > 40.0 * k {
-        ph -= 4.0 * k;
-    }
-    let (pw, sh) = (ph * 0.40, ph * 0.70);
-    let sw = sh * 0.36;
-    let mut x = r.center().x - total(ph) * 0.5;
-    let heater = |g: f32| 0.16 + 0.84 * g.clamp(0.0, 1.0);
+    let pc = ch.power_count.clamp(2, 4);
+    let heater = 0.55;
+    // The back row: the preamp's valves and the inverter, a little smaller (further away).
+    let back_y = back.bottom() + (front_y - back.bottom()) * 0.44;
+    let hb = (back_y - r.top() - 10.0 * k).min(118.0 * k);
+    let wb = hb * 0.36;
+    let gap_b = (wb * 0.55).max(8.0 * k);
+    let row_w = (n + 1) as f32 * wb + n as f32 * gap_b + 14.0 * k;
+    let mut x = r.center().x - row_w * 0.5 - r.width() * 0.08;
     let mut bottles: Vec<Bottle> = Vec::with_capacity(n + 1 + pc);
-    let mut groups: [(f32, f32); 3] = [(0.0, 0.0); 3];
-    groups[0].0 = x;
+    let mut groups: [(f32, f32, f32); 3] = [(0.0, 0.0, 0.0); 3];
+    groups[0] = (x, 0.0, back_y);
     for i in 0..n {
         bottles.push(Bottle {
-            r: Rect::from_min_max(pos2(x, floor - sh), pos2(x + sw, floor)),
-            glow: heater(v.pre[i]),
+            r: Rect::from_min_max(pos2(x, back_y - hb), pos2(x + wb, back_y)),
+            plate: v.pre[i],
             power: false,
         });
-        x += sw + if i + 1 < n { g_in } else { 0.0 };
+        x += wb + if i + 1 < n { gap_b } else { 0.0 };
     }
     groups[0].1 = x;
-    x += g_out;
-    groups[1] = (x, x + sw);
+    x += gap_b + 14.0 * k;
+    groups[1] = (x, x + wb, back_y);
     bottles.push(Bottle {
-        r: Rect::from_min_max(pos2(x, floor - sh), pos2(x + sw, floor)),
-        glow: heater(v.inverter),
+        r: Rect::from_min_max(pos2(x, back_y - hb), pos2(x + wb, back_y)),
+        plate: v.inverter,
         power: false,
     });
-    x += sw + g_out;
-    groups[2].0 = x;
+    // The front row: the capacitors, the power valves, the transformers.
+    let hp = (front_y - back_y - 34.0 * k).min(172.0 * k);
+    let wp = hp * 0.40;
+    let gap_p = (wp * 0.22).max(6.0 * k);
+    let (cap_w, ot_w, pt_w) = (22.0 * k, hp * 0.42, hp * 0.52);
+    let front_w = 2.0 * cap_w
+        + 6.0 * k
+        + pc as f32 * wp
+        + (pc - 1) as f32 * gap_p
+        + ot_w
+        + pt_w
+        + 3.0 * 18.0 * k;
+    let mut x = r.center().x - front_w * 0.5;
+    let caps = [
+        Rect::from_min_max(pos2(x, front_y - hp * 0.42), pos2(x + cap_w, front_y)),
+        Rect::from_min_max(
+            pos2(x + cap_w + 6.0 * k, front_y - hp * 0.34),
+            pos2(x + 2.0 * cap_w + 6.0 * k, front_y),
+        ),
+    ];
+    x += 2.0 * cap_w + 6.0 * k + 18.0 * k;
+    groups[2] = (x, 0.0, front_y);
     for i in 0..pc {
         bottles.push(Bottle {
-            r: Rect::from_min_max(pos2(x, floor - ph), pos2(x + pw, floor)),
-            glow: heater(v.power),
+            r: Rect::from_min_max(pos2(x, front_y - hp), pos2(x + wp, front_y)),
+            plate: v.power,
             power: true,
         });
-        x += pw + if i + 1 < pc { g_in } else { 0.0 };
+        x += wp + if i + 1 < pc { gap_p } else { 0.0 };
     }
     groups[2].1 = x;
-    x += g_out;
-    let ot = Rect::from_min_max(pos2(x, floor - ph * 0.42), pos2(x + ot_w, floor));
-    // The light first, the glass over it.
+    x += 18.0 * k;
+    let ot = Rect::from_min_max(pos2(x, front_y - hp * 0.44), pos2(x + ot_w, front_y));
+    x += ot_w + 18.0 * k;
+    let pt = Rect::from_min_max(pos2(x, front_y - hp * 0.56), pos2(x + pt_w, front_y));
+    // Sockets, then the valves (the back row first), the capacitors and the iron.
     for t in &bottles {
-        let rad = t.r.width() * 4.0;
-        let clip =
-            Rect::from_center_size(t.r.center(), vec2(rad * 2.0, rad * 1.6)).intersect(screen);
-        warm_light(b, clip, t.r.center(), rad, t.glow * 0.85);
-    }
-    for t in &bottles {
-        let sock = Rect::from_center_size(
-            pos2(t.r.center().x, floor + 0.5 * k),
-            vec2(t.r.width() * 1.25, 5.0 * k),
+        let y = t.r.bottom();
+        tube::ellipse(
+            b,
+            pos2(t.r.center().x, y + 1.0 * k),
+            t.r.width() * 0.75,
+            2.6 * k,
+            pal::SOCKET.rgb(),
         );
-        b.rrect(sock, 2.5 * k, Fill::Solid(pal::SOCKET.rgb()));
-        valve::tube(b, s, t.r, t.glow, t.power);
     }
-    transformer(b, ot, k);
-    // Under the chassis: each valve's work, its type, the groups.
-    let y_bar = floor + 13.0 * k;
-    for (i, t) in bottles.iter().enumerate() {
+    for t in &bottles {
+        tube::valve(b, k, t.r, heater, t.plate, t.power);
+    }
+    for cr in caps {
+        tube::capacitor(b, k, cr);
+    }
+    tube::transformer(b, k, ot, true);
+    tube::transformer(b, k, pt, true);
+    // Under each valve: its bar of work; under each group: its types and its name.
+    for t in &bottles {
         let w = t.r.width();
-        let bar = Rect::from_min_size(pos2(t.r.left(), y_bar), vec2(w, 2.0 * k));
-        b.rrect(bar, 1.0 * k, Fill::Solid(ink.grid));
-        let lit = ((t.glow - 0.16) / 0.84).clamp(0.0, 1.0);
+        let y = t.r.bottom() + if t.power { 15.0 } else { 7.0 } * k;
+        let bar = Rect::from_min_size(pos2(t.r.left(), y), vec2(w, 1.6 * k));
+        b.rrect(bar, 0.8 * k, Fill::Solid(ink.grid));
+        let lit = t.plate.clamp(0.0, 1.0);
         if lit > 0.0 {
-            let f = Rect::from_min_size(bar.min, vec2(w * lit, bar.height()));
-            b.rrect(f, 1.0 * k, Fill::Solid(mix(ink.hue, ink.text, 0.25 * lit)));
-        }
-        if !t.power {
-            let ty = if i < n {
-                words::pre_valve(m, i)
-            } else {
-                "12AX7"
-            };
-            canvas::put(
-                b,
-                pos2(t.r.center().x, floor + 25.0 * k),
-                Align2::CENTER_CENTER,
-                &Text::new(ty, Role::Micro, ink.dim).caps(false),
-                k,
-                None,
+            b.rrect(
+                Rect::from_min_size(bar.min, vec2(w * lit, bar.height())),
+                0.8 * k,
+                Fill::Solid(mix(ink.hue, ink.text, 0.25 * lit)),
             );
         }
     }
+    for (i, t) in bottles.iter().take(n + 1).enumerate() {
+        let ty = if i < n {
+            words::pre_valve(m, i)
+        } else {
+            "12AX7"
+        };
+        canvas::put(
+            b,
+            pos2(t.r.center().x, back_y + 17.0 * k),
+            Align2::CENTER_CENTER,
+            &Text::new(ty, Role::Micro, ink.dim).caps(false),
+            k,
+            None,
+        );
+    }
+    let types = format!("{} \u{d7} {}", pc, ch.power_valve);
     canvas::put(
         b,
-        pos2((groups[2].0 + groups[2].1) * 0.5, floor + 25.0 * k),
+        pos2((groups[2].0 + groups[2].1) * 0.5, front_y + 26.0 * k),
         Align2::CENTER_CENTER,
-        &Text::new(c.power_valve, Role::Micro, ink.dim).caps(false),
+        &Text::new(&types, Role::Micro, ink.dim).caps(false),
         k,
         None,
     );
     let names = ["arca.d.preamp", "arca.d.inverter", "arca.d.power"];
-    for ((a, z), key) in groups.into_iter().zip(names) {
-        let y = floor + 41.0 * k;
+    for (g, key) in groups.into_iter().zip(names) {
+        let (a, z, floor) = g;
+        let y = floor + if floor == front_y { 41.0 } else { 30.0 } * k;
         let t = canvas::put(
             b,
             pos2((a + z) * 0.5, y),
             Align2::CENTER_CENTER,
             &Text::key(key, Role::Micro, ink.text),
             k,
-            None,
+            Some(with_alpha(pal::CHASSIS.rgb(), 0.85)),
         );
-        // A bracket over the group's name, broken where the name sits.
         let col = ink.grid_strong;
-        let yb = y - 6.0 * k;
-        for (x0, x1) in [(a, t.left() - 4.0 * k), (t.right() + 4.0 * k, z)] {
+        for (x0, x1) in [(a, t.left() - 5.0 * k), (t.right() + 5.0 * k, z)] {
             if x1 > x0 {
-                b.hline(x0, x1, y, 0.7 * k, col);
+                b.hline(x0, x1, y, 0.6 * k, col);
             }
         }
-        b.vline(a, yb, y, 0.7 * k, col);
-        b.vline(z, yb, y, 0.7 * k, col);
+        b.vline(a, y - 5.0 * k, y, 0.6 * k, col);
+        b.vline(z, y - 5.0 * k, y, 0.6 * k, col);
     }
-}
-
-/// The output transformer: a black bell over its copper winding, on its frame.
-fn transformer(b: &mut Brush, r: Rect, k: f32) {
-    let core = r.shrink2(vec2(2.0 * k, r.height() * 0.12));
-    b.rrect(
-        Rect::from_min_max(pos2(r.left(), r.bottom() - 6.0 * k), r.max),
-        1.5 * k,
-        Fill::V(pal::CHASSIS_EDGE.rgb(), pal::CHASSIS.rgb()),
-    );
-    b.rrect(
-        core,
-        3.0 * k,
-        Fill::V(pal::COVERING_TOP.rgb(), pal::COVERING.rgb()),
-    );
-    let wind = Rect::from_center_size(
-        core.center(),
-        vec2(core.width() * 0.62, core.height() * 0.5),
-    );
-    b.rrect(
-        wind,
-        2.0 * k,
-        Fill::V(pal::COPPER_LIGHT.rgb(), pal::COPPER.rgb()),
-    );
-    let mut y = wind.top() + 2.0 * k;
-    while y < wind.bottom() - 1.0 * k {
-        b.hline(
-            wind.left() + 1.0 * k,
-            wind.right() - 1.0 * k,
-            y,
-            0.5 * k,
-            with_alpha(pal::COPPER.rgb(), 0.9),
-        );
-        y += 2.2 * k;
-    }
-    b.rrect_stroke(
-        core,
-        3.0 * k,
-        0.7 * k,
-        with_alpha(pal::CHASSIS_EDGE.rgb(), 0.9),
-    );
 }
 
 /// The supply's meter: a needle over a scale of volts below idle, the supply and the sag
@@ -762,27 +751,4 @@ fn paint_meter(b: &mut Brush, ink: &Ink, r: Rect, model: Option<AmpModel>, v: &V
         None,
         format_args!("{:.1} {unit}", if v.sag < 0.05 { 0.0 } else { -v.sag }),
     );
-}
-
-/// Warm light thrown round a valve, `glow` 0 … 1: nested ellipses of the filament's colour,
-/// each faint and solid (a gradient fading to nothing darkened the screen round it in the
-/// renderer that makes the pictures).
-pub fn warm_light(b: &mut Brush, clip: Rect, c: Pos2, rad: f32, glow: f32) {
-    let g = glow.clamp(0.0, 1.0);
-    if g <= 0.0 {
-        return;
-    }
-    let warm = crate::kit::skin::pedals::FILAMENT.rgb();
-    let n = 32;
-    for i in 0..n {
-        let t = 1.0 - i as f32 / n as f32;
-        let col = with_alpha(warm, 0.0125 * g);
-        b.radial(
-            clip,
-            c,
-            vec2(rad * t, rad * 0.8 * t),
-            &[(0.0, col), (1.0, col)],
-            16,
-        );
-    }
 }

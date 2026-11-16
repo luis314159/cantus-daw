@@ -105,3 +105,5 @@ arca.cab.side = Vista lateral
 arca.cab.distance = Distancia
 arca.cab.response = Respuesta
 arca.d.glow = El brillo: cuánto trabaja cada válvula
+arca.plate.input_high = Alta
+arca.plate.input_low = Baja

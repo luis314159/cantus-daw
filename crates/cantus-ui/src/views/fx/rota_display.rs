@@ -8,11 +8,11 @@
 //! engine's telemetry (`cantus_engine::fx::rota`): the angle each rotor has, its speed, the
 //! switch as notes have left it.
 
+use super::super::arca::valve2;
 use super::super::canvas::{self, Ink};
 use super::super::controls;
 use super::super::frame;
 use super::super::host::FxHost;
-use super::super::valve_draw as valve;
 use crate::kit::color::{mix, with_alpha};
 use crate::kit::hint::{self, Caps};
 use crate::kit::skin::cabinets as pal;
@@ -150,14 +150,9 @@ pub fn show(
         paint_cut(b, s, &ink, p.cut, v, &rs, k, horn_c, drum_c);
         paint_above(b, &ink, p.above, v, &rs, &mics, k, horn_c, drum_c);
         paint_ramps(b, &ink, p.ramps, now, rd, &rs, k, horn_c, drum_c);
-        for x in [p.cut.right(), p.above.right()] {
-            b.vline(
-                x,
-                p.band.bottom() + 10.0 * k,
-                r.bottom() - 10.0 * k,
-                0.7 * k,
-                ink.grid,
-            );
+        // v2 — the two instruments set in walnut, as windows in the same cabinet.
+        for pr in [p.above, p.ramps] {
+            bezel(b, pr.shrink2(vec2(6.0 * k, 4.0 * k)), k);
         }
         b.hline(
             r.left() + 10.0 * k,
@@ -298,9 +293,12 @@ fn ellipse_stroke(
     b.polyline(&pts, w, col);
 }
 
-/// The cabinet cut away from the front: walnut sides and lid, the louvred upper chamber with
-/// the horn turning, the shelf with the motors and the amp's valve, the drum's scoop turning
-/// over the bass speaker.
+/// The cabinet cut away from the front (v2, the owner's "richer"): its walnut case with a
+/// finer grain and a moulded top; the front panel left standing at both sides — louvres
+/// above, grille cloth below — the middle cut away to show the louvred upper chamber with
+/// the horn turning (blurred as it spins up), the shelf with the motors and the amp's
+/// valves at the back, the drum with its staves, its scoop and the baffle inside it (the
+/// scoop smearing at speed), the bass speaker under it firing up into it.
 #[allow(clippy::too_many_arguments)]
 fn paint_cut(
     b: &mut Brush,
@@ -313,40 +311,68 @@ fn paint_cut(
     horn_c: Color32,
     drum_c: Color32,
 ) {
+    let _ = s;
     let h = r.height() - 52.0 * k;
     let w = (r.width() - 40.0 * k).min(h * 0.64);
-    let cab = Rect::from_min_size(pos2(r.center().x - w * 0.5, r.top() + 22.0 * k), vec2(w, h));
-    // The walnut case: its body, a grain of fine lines, the lid and the plinth.
+    let cab = Rect::from_min_size(pos2(r.center().x - w * 0.5, r.top() + 24.0 * k), vec2(w, h));
+    // The walnut case: its body and a fine grain (many thin lines, wavering).
     b.rrect(
         cab,
         5.0 * k,
         Fill::V(pal::WALNUT_LIGHT.rgb(), pal::WALNUT.rgb()),
     );
-    for i in 0..7 {
-        let x = cab.left() + cab.width() * (0.07 + 0.14 * i as f32);
-        let mut pts = [Pos2::ZERO; 13];
+    for i in 0..22 {
+        let x = cab.left() + cab.width() * (0.02 + 0.045 * i as f32);
+        let mut pts = [Pos2::ZERO; 25];
         for (j, p) in pts.iter_mut().enumerate() {
-            let t = j as f32 / 12.0;
-            let wob = (t * 9.0 + i as f32 * 1.7).sin() * 1.6 * k;
+            let t = j as f32 / 24.0;
+            let wob =
+                (t * 7.0 + i as f32 * 2.3).sin() * 1.2 * k + (t * 23.0 + i as f32).sin() * 0.4 * k;
             *p = pos2(x + wob, cab.top() + cab.height() * t);
         }
-        b.polyline(&pts, 0.5 * k, with_alpha(pal::WALNUT_DARK.rgb(), 0.35));
+        let a = if i % 3 == 0 { 0.30 } else { 0.16 };
+        b.polyline(&pts, 0.4 * k, with_alpha(pal::WALNUT_DARK.rgb(), a));
     }
+    // The moulded top: an overhanging lid, a bead under it, its own grain along it.
     let lid = Rect::from_min_max(
-        pos2(cab.left() - 5.0 * k, cab.top() - 8.0 * k),
-        pos2(cab.right() + 5.0 * k, cab.top() + 3.0 * k),
+        pos2(cab.left() - 6.0 * k, cab.top() - 10.0 * k),
+        pos2(cab.right() + 6.0 * k, cab.top() + 2.0 * k),
     );
     b.rrect(
         lid,
-        2.5 * k,
+        3.0 * k,
         Fill::V(pal::WALNUT_LIGHT.rgb(), pal::WALNUT_DARK.rgb()),
+    );
+    for j in 0..4 {
+        let y = lid.top() + 2.5 * k + j as f32 * 2.4 * k;
+        b.hline(
+            lid.left() + 4.0 * k,
+            lid.right() - 4.0 * k,
+            y,
+            0.4 * k,
+            with_alpha(pal::WALNUT_DARK.rgb(), 0.3),
+        );
+    }
+    b.hline(
+        lid.left() + 3.0 * k,
+        lid.right() - 3.0 * k,
+        lid.top() + 0.6 * k,
+        0.6 * k,
+        with_alpha(pal::WALNUT_LIGHT.rgb(), 0.9),
+    );
+    b.hline(
+        cab.left(),
+        cab.right(),
+        lid.bottom() + 1.5 * k,
+        1.2 * k,
+        pal::WALNUT_DARK.rgb(),
     );
     let plinth = Rect::from_min_max(
         pos2(cab.left() + 2.0 * k, cab.bottom() - 12.0 * k),
         pos2(cab.right() - 2.0 * k, cab.bottom()),
     );
     b.rrect(plinth, 2.0 * k, Fill::Solid(pal::WALNUT_DARK.rgb()));
-    // The front cut away: the plywood inside in shadow.
+    // Inside, in shadow; the shelf parts it.
     let inner = Rect::from_min_max(
         pos2(cab.left() + 9.0 * k, cab.top() + 10.0 * k),
         pos2(cab.right() - 9.0 * k, cab.bottom() - 18.0 * k),
@@ -355,12 +381,6 @@ fn paint_cut(
         inner,
         2.0 * k,
         Fill::V(pal::PLYWOOD.rgb(), pal::WALNUT_DARK.rgb()),
-    );
-    b.rrect_stroke(
-        inner,
-        2.0 * k,
-        0.8 * k,
-        with_alpha(pal::WALNUT_DARK.rgb(), 0.9),
     );
     let upper = Rect::from_min_max(
         inner.min,
@@ -371,24 +391,28 @@ fn paint_cut(
         pos2(inner.right(), upper.bottom() + inner.height() * 0.09),
     );
     let lower = Rect::from_min_max(pos2(inner.left(), shelf.bottom()), inner.max);
-    // The louvres at the upper chamber's sides.
-    let lw = 12.0 * k;
-    let mut y = upper.top() + 6.0 * k;
-    while y < upper.bottom() - 6.0 * k {
-        for (x0, dx) in [(upper.left() + 2.0 * k, lw), (upper.right() - 2.0 * k, -lw)] {
-            b.segment(
-                pos2(x0, y),
-                pos2(x0 + dx, y + 4.0 * k),
-                1.6 * k,
-                pal::SLAT.rgb(),
-                false,
-            );
-        }
-        y += 7.0 * k;
+    // The amp's valves at the back of the upper chamber, on their chassis.
+    let amp = Rect::from_min_max(
+        pos2(cab.right() - cab.width() * 0.16 - upper.width() * 0.30, shelf.top() - 6.0 * k),
+        pos2(cab.right() - cab.width() * 0.16 - 6.0 * k, shelf.top()),
+    );
+    b.rect(amp, Fill::V(pal::CASTING.rgb(), pal::CHASSIS.rgb()));
+    let glow = rs.drive.clamp(0.0, 1.0);
+    let vh = upper.height() * 0.30;
+    for (i, power) in [(0usize, false), (1, false), (2, true)] {
+        let vw = vh * if power { 0.40 } else { 0.32 };
+        let vhh = vh * if power { 1.0 } else { 0.78 };
+        let x = amp.left() + 4.0 * k + i as f32 * (amp.width() - 8.0 * k) / 3.0;
+        let vr = Rect::from_min_max(pos2(x, amp.top() - vhh), pos2(x + vw, amp.top()));
+        valve2::valve(b, k, vr, 0.55, glow, power);
     }
-    // The horn: its orbit, then the far bell, the shaft, the near bell.
-    let hub = pos2(upper.center().x, upper.top() + upper.height() * 0.46);
-    let reach = upper.width() * 0.34;
+    // The horn: its orbit, the blur of where its bells were, the far bell, the shaft, the
+    // near bell.
+    let hub = pos2(
+        upper.center().x - upper.width() * 0.06,
+        upper.top() + upper.height() * 0.42,
+    );
+    let reach = upper.width() * 0.32;
     let fast = (v.horn.1 / 300.0).clamp(0.0, 1.0);
     ellipse_stroke(
         b,
@@ -398,9 +422,30 @@ fn paint_cut(
         0.0,
         TAU,
         0.6 * k,
-        with_alpha(horn_c, 0.18 + 0.4 * fast),
+        with_alpha(horn_c, 0.14 + 0.3 * fast),
     );
     let theta = TAU * v.horn.0;
+    // A bell sweeps this far in a sixtieth of a second: its trail behind it.
+    let sweep = (v.horn.1 / 60.0 * TAU / 60.0).min(1.2);
+    if sweep > 0.05 {
+        for j in (1..=6).rev() {
+            let a = theta - sweep * j as f32 / 6.0;
+            let alpha = 0.34 * (1.0 - j as f32 / 7.0);
+            for (aa, real) in [(a, true), (a + PI, false)] {
+                horn(
+                    b,
+                    hub,
+                    reach,
+                    aa,
+                    upper.height() * 0.40,
+                    real,
+                    horn_c,
+                    k,
+                    alpha,
+                );
+            }
+        }
+    }
     let mut bells = [(theta, true), (theta + PI, false)];
     bells.sort_by(|a, b| a.0.cos().total_cmp(&b.0.cos()));
     let shaft_top = hub - vec2(0.0, 4.0 * k);
@@ -419,9 +464,19 @@ fn paint_cut(
                 Fill::V(pal::CHROME.rgb(), pal::CHROME_SHADE.rgb()),
             );
         }
-        horn(b, hub, reach, *a, upper.height() * 0.40, *real, horn_c, k);
+        horn(
+            b,
+            hub,
+            reach,
+            *a,
+            upper.height() * 0.40,
+            *real,
+            horn_c,
+            k,
+            1.0,
+        );
     }
-    // The shelf: the board, the horn's driver, the motors, the valve of the amp.
+    // The shelf: the board, the horn's driver, the motors with their belts.
     b.rrect(
         shelf,
         1.5 * k,
@@ -434,11 +489,8 @@ fn paint_cut(
         2.0 * k,
         Fill::V(pal::CASTING.rgb(), pal::CHROME_SHADE.rgb()),
     );
-    for (i, x) in [shelf.left() + 18.0 * k, shelf.left() + 40.0 * k]
-        .into_iter()
-        .enumerate()
-    {
-        let m = Rect::from_center_size(pos2(x, shelf.top() - 7.0 * k), vec2(16.0 * k, 14.0 * k));
+    for x in [shelf.left() + 18.0 * k, shelf.left() + 38.0 * k] {
+        let m = Rect::from_center_size(pos2(x, shelf.top() - 7.0 * k), vec2(15.0 * k, 14.0 * k));
         b.rrect(
             m,
             2.0 * k,
@@ -446,23 +498,68 @@ fn paint_cut(
         );
         let band = Rect::from_center_size(m.center(), vec2(m.width(), 4.0 * k));
         b.rect(band, Fill::V(pal::COPPER_LIGHT.rgb(), pal::COPPER.rgb()));
-        let _ = i;
+        b.segment(
+            pos2(x + 7.0 * k, m.center().y),
+            pos2(hub.x - 9.0 * k, driver.center().y),
+            0.6 * k,
+            with_alpha(pal::GASKET.rgb(), 0.9),
+            false,
+        );
     }
-    let tube = Rect::from_min_max(
-        pos2(shelf.right() - 26.0 * k, shelf.top() - 30.0 * k),
-        pos2(shelf.right() - 15.0 * k, shelf.top()),
-    );
-    let glow = 0.15 + 0.85 * rs.drive.clamp(0.0, 1.0);
-    warm_light(b, upper.union(shelf), tube.center(), 26.0 * k, glow * 0.7);
-    valve::tube(b, s, tube, glow, false);
-    // The drum: a cylinder, its scoop turning; the bass speaker under it, facing down.
-    let dw = lower.width() * 0.62;
-    let dh = lower.height() * 0.44;
+    // The bass speaker on its board, firing up into the drum; the drum above it.
+    let dw = lower.width() * 0.60;
+    let dh = lower.height() * 0.42;
     let drum = Rect::from_center_size(
-        pos2(lower.center().x, lower.top() + lower.height() * 0.40),
+        pos2(lower.center().x, lower.top() + lower.height() * 0.36),
         vec2(dw, dh),
     );
     let ry = dw * 0.09;
+    let board_y = drum.bottom() + lower.height() * 0.16;
+    b.rect(
+        Rect::from_min_max(
+            pos2(lower.left() + 2.0 * k, board_y),
+            pos2(lower.right() - 2.0 * k, board_y + 5.0 * k),
+        ),
+        Fill::V(pal::WALNUT.rgb(), pal::WALNUT_DARK.rgb()),
+    );
+    let wc = pos2(lower.center().x, board_y);
+    ellipse(b, wc, dw * 0.46, 6.0 * k, pal::GASKET.rgb());
+    ellipse(b, wc, dw * 0.40, 5.0 * k, pal::SURROUND.rgb());
+    ellipse(b, wc, dw * 0.34, 4.0 * k, pal::CONE_LIGHT.rgb());
+    for f in [0.30f32, 0.22, 0.14] {
+        ellipse_stroke(
+            b,
+            wc,
+            dw * f,
+            4.0 * k * f / 0.34,
+            0.0,
+            TAU,
+            0.5 * k,
+            with_alpha(pal::CONE_SHADE.rgb(), 0.8),
+        );
+    }
+    ellipse(
+        b,
+        wc - vec2(0.0, 0.6 * k),
+        dw * 0.08,
+        1.2 * k,
+        pal::DUST_CAP_LIGHT.rgb(),
+    );
+    // The sound rising from it into the drum: faint arcs.
+    for j in 1..4 {
+        let y = board_y - j as f32 * (board_y - drum.bottom()) / 4.0;
+        ellipse_stroke(
+            b,
+            pos2(wc.x, y),
+            dw * (0.28 - 0.04 * j as f32),
+            2.0 * k,
+            PI,
+            TAU,
+            0.5 * k,
+            with_alpha(drum_c, 0.25),
+        );
+    }
+    // The drum: a cylinder, its staves, its scoop (and its smear at speed).
     b.hrect(
         drum,
         &[
@@ -488,7 +585,21 @@ fn paint_cut(
         pal::DRUM.rgb(),
     );
     let phi = TAU * v.drum.0;
-    scoop(b, drum, phi, drum_c, k);
+    let dsweep = (v.drum.1 / 60.0 * TAU / 60.0).min(1.0);
+    if dsweep > 0.05 {
+        for j in (1..=5).rev() {
+            scoop(
+                b,
+                drum,
+                phi - dsweep * j as f32 / 5.0,
+                drum_c,
+                k,
+                0.25 * (1.0 - j as f32 / 6.0),
+                false,
+            );
+        }
+    }
+    scoop(b, drum, phi, drum_c, k, 1.0, true);
     ellipse(
         b,
         pos2(drum.center().x, drum.top()),
@@ -506,44 +617,101 @@ fn paint_cut(
         0.7 * k,
         with_alpha(pal::CHROME_SHADE.rgb(), 0.9),
     );
-    let fastd = (v.drum.1 / 300.0).clamp(0.0, 1.0);
-    ellipse_stroke(
-        b,
-        pos2(drum.center().x, drum.bottom()),
-        dw * 0.58,
-        ry * 1.4,
-        0.0,
-        PI,
-        0.6 * k,
-        with_alpha(drum_c, 0.18 + 0.4 * fastd),
+    b.segment(
+        pos2(drum.center().x, drum.top() - ry),
+        pos2(drum.center().x, shelf.bottom()),
+        1.6 * k,
+        pal::CHROME_SHADE.rgb(),
+        false,
     );
-    let baffle_y = drum.bottom() + lower.height() * 0.14;
-    b.hline(
-        lower.left() + 4.0 * k,
-        lower.right() - 4.0 * k,
-        baffle_y,
-        2.0 * k,
-        pal::WALNUT_DARK.rgb(),
-    );
-    let wc = pos2(lower.center().x, baffle_y + 7.0 * k);
-    ellipse(b, wc, dw * 0.42, 5.0 * k, pal::GASKET.rgb());
-    ellipse(b, wc, dw * 0.34, 3.6 * k, pal::CONE.rgb());
-    for f in [0.26f32, 0.18, 0.10] {
-        ellipse_stroke(
-            b,
-            wc,
-            dw * f,
-            3.6 * k * f / 0.34,
-            0.0,
-            TAU,
-            0.5 * k,
-            with_alpha(pal::CONE_LIGHT.rgb(), 0.6),
+    // The front panel left standing at both sides: louvres above, grille cloth below, the
+    // cut's raw edge lit.
+    let side_w = cab.width() * 0.16;
+    for left in [true, false] {
+        let x0 = if left {
+            cab.left()
+        } else {
+            cab.right() - side_w
+        };
+        let panel = Rect::from_min_max(
+            pos2(x0, cab.top() + 3.0 * k),
+            pos2(x0 + side_w, plinth.top()),
+        );
+        b.rect(panel, Fill::V(pal::WALNUT_LIGHT.rgb(), pal::WALNUT.rgb()));
+        let lv = Rect::from_min_max(
+            pos2(panel.left() + 5.0 * k, upper.top() + 4.0 * k),
+            pos2(panel.right() - 5.0 * k, upper.bottom() - 4.0 * k),
+        );
+        b.rect(lv, Fill::Solid(pal::WALNUT_DARK.rgb()));
+        let mut y = lv.top() + 3.0 * k;
+        while y < lv.bottom() - 2.0 * k {
+            b.rect(
+                Rect::from_min_max(pos2(lv.left(), y), pos2(lv.right(), y + 2.4 * k)),
+                Fill::V(pal::WALNUT_LIGHT.rgb(), pal::SLAT.rgb()),
+            );
+            b.hline(
+                lv.left(),
+                lv.right(),
+                y + 2.6 * k,
+                0.5 * k,
+                with_alpha(pal::GASKET.rgb(), 0.9),
+            );
+            y += 5.0 * k;
+        }
+        let gr = Rect::from_min_max(
+            pos2(panel.left() + 5.0 * k, lower.top() + 6.0 * k),
+            pos2(panel.right() - 5.0 * k, lower.bottom() - 6.0 * k),
+        );
+        b.rect(gr, Fill::Solid(pal::CLOTH.rgb()));
+        let mut yy = gr.top() + 1.0 * k;
+        while yy < gr.bottom() {
+            b.hline(
+                gr.left(),
+                gr.right(),
+                yy,
+                0.45 * k,
+                with_alpha(pal::CLOTH_THREAD.rgb(), 0.3),
+            );
+            yy += 1.7 * k;
+        }
+        let mut xx = gr.left() + 1.0 * k;
+        while xx < gr.right() {
+            b.vline(
+                xx,
+                gr.top(),
+                gr.bottom(),
+                0.4 * k,
+                with_alpha(pal::CONE_SHADE.rgb(), 0.25),
+            );
+            xx += 1.7 * k;
+        }
+        b.rect(
+            Rect::from_min_max(
+                pos2(panel.left() + 5.0 * k, shelf.top()),
+                pos2(panel.right() - 5.0 * k, shelf.bottom()),
+            ),
+            Fill::Solid(pal::WALNUT.rgb()),
+        );
+        let edge = if left { panel.right() } else { panel.left() };
+        b.vline(
+            edge,
+            panel.top(),
+            panel.bottom(),
+            1.4 * k,
+            pal::PLYWOOD_LIGHT.rgb(),
+        );
+        b.vline(
+            edge + if left { 1.2 } else { -1.2 } * k,
+            panel.top(),
+            panel.bottom(),
+            0.6 * k,
+            with_alpha(pal::GASKET.rgb(), 0.8),
         );
     }
     // The names, in the rotors' colours.
     canvas::put(
         b,
-        pos2(upper.left() + 18.0 * k, upper.top() + 10.0 * k),
+        pos2(upper.left() + side_w + 8.0 * k, upper.top() + 10.0 * k),
         Align2::LEFT_CENTER,
         &Text::key("rota.d.horn", Role::Micro, horn_c),
         k,
@@ -551,7 +719,7 @@ fn paint_cut(
     );
     canvas::put(
         b,
-        pos2(lower.left() + 8.0 * k, lower.top() + 10.0 * k),
+        pos2(lower.left() + side_w + 4.0 * k, lower.top() + 10.0 * k),
         Align2::LEFT_CENTER,
         &Text::key("rota.d.drum", Role::Micro, drum_c),
         k,
@@ -567,11 +735,22 @@ fn paint_cut(
     );
 }
 
-/// One of the horn's bells at angle `a` (0: toward the listener), seen from the front: a
-/// flared body from the hub to its mouth, the mouth an ellipse as wide as it faces us. The
-/// sounding bell's rim in the horn's colour; the other is the dummy that balances it.
+/// One of the horn's bells at angle `a` (0: toward the listener), seen from the front, at
+/// `alpha` (a ghost of its blur below 1): a flared body from the hub to its mouth, the
+/// mouth an ellipse as wide as it faces us. The sounding bell's rim in the horn's colour;
+/// the other is the dummy that balances it.
 #[allow(clippy::too_many_arguments)]
-fn horn(b: &mut Brush, hub: Pos2, reach: f32, a: f32, size: f32, real: bool, col: Color32, k: f32) {
+fn horn(
+    b: &mut Brush,
+    hub: Pos2,
+    reach: f32,
+    a: f32,
+    size: f32,
+    real: bool,
+    col: Color32,
+    k: f32,
+    alpha: f32,
+) {
     let (sx, depth) = (a.sin(), a.cos());
     let near = depth > 0.0;
     let hm = size * (0.86 + 0.14 * depth);
@@ -587,7 +766,10 @@ fn horn(b: &mut Brush, hub: Pos2, reach: f32, a: f32, size: f32, real: bool, col
         mouth + vec2(0.0, hm * 0.5),
         hub + vec2(0.0, 2.5 * k),
     ];
-    b.polygon(&pts, body);
+    b.polygon(&pts, with_alpha(body, alpha));
+    if alpha < 1.0 {
+        return;
+    }
     b.segment(
         pts[0],
         pts[1],
@@ -614,36 +796,41 @@ fn horn(b: &mut Brush, hub: Pos2, reach: f32, a: f32, size: f32, real: bool, col
         hm * 0.5,
         0.0,
         TAU,
-        if real { 1.2 } else { 0.7 } * k,
+        if real { 1.1 } else { 0.6 } * k,
         rim,
     );
 }
 
-/// The drum's staves and its scoop: the staves as fine upright lines, lit as they face us;
-/// the scoop's opening dark between two edges in the drum's colour where it faces us, its
+/// The drum's staves (when `whole`) and its scoop at `alpha`: the opening dark between two
+/// edges in the drum's colour where it faces us, the baffle's curve lit inside it; its
 /// outline faint while it is round the back.
-fn scoop(b: &mut Brush, drum: Rect, phi: f32, col: Color32, k: f32) {
+fn scoop(b: &mut Brush, drum: Rect, phi: f32, col: Color32, k: f32, alpha: f32, whole: bool) {
     let c = drum.center().x;
     let rad = drum.width() * 0.5;
     let (top, bot) = (
         drum.top() + drum.height() * 0.10,
         drum.bottom() - drum.height() * 0.04,
     );
-    for i in 0..24 {
-        let a = phi + TAU * i as f32 / 24.0;
-        if a.cos() > 0.05 {
-            let x = c + rad * a.sin();
-            let lit = a.cos() * 0.35;
-            b.vline(x, top, bot, 0.6 * k, with_alpha(pal::DRUM_LIGHT.rgb(), lit));
+    if whole {
+        for i in 0..32 {
+            let a = phi + TAU * i as f32 / 32.0;
+            if a.cos() > 0.05 {
+                let x = c + rad * a.sin();
+                b.vline(
+                    x,
+                    top,
+                    bot,
+                    0.5 * k,
+                    with_alpha(pal::DRUM_LIGHT.rgb(), a.cos() * 0.35),
+                );
+            }
         }
     }
     let span = 0.62;
-    let (a0, a1) = (phi - span, phi + span);
     let front = phi.cos() > 0.0;
-    let mut x0 = f32::MAX;
-    let mut x1 = f32::MIN;
+    let (mut x0, mut x1) = (f32::MAX, f32::MIN);
     for j in 0..=24 {
-        let a = a0 + (a1 - a0) * j as f32 / 24.0;
+        let a = phi - span + 2.0 * span * j as f32 / 24.0;
         if (a.cos() > 0.0) == front {
             let x = c + rad * a.sin();
             x0 = x0.min(x);
@@ -655,13 +842,28 @@ fn scoop(b: &mut Brush, drum: Rect, phi: f32, col: Color32, k: f32) {
     }
     let open = Rect::from_min_max(pos2(x0, top), pos2(x1, bot));
     if front {
-        b.rect(open, Fill::V(pal::GASKET.rgb(), pal::CONE_SHADE.rgb()));
-        for x in [x0, x1] {
-            b.vline(x, top, bot, 1.1 * k, col);
+        b.rect(
+            open,
+            Fill::Solid(with_alpha(pal::GASKET.rgb(), 0.9 * alpha)),
+        );
+        if alpha >= 1.0 {
+            // The baffle inside: a curved deflector catching the light.
+            let mut pts = [Pos2::ZERO; 13];
+            for (j, p) in pts.iter_mut().enumerate() {
+                let t = j as f32 / 12.0;
+                *p = pos2(
+                    x0 + (x1 - x0) * t,
+                    bot - (bot - top) * (0.15 + 0.6 * (t * PI).sin()),
+                );
+            }
+            b.polyline(&pts, 1.2 * k, with_alpha(pal::DRUM_LIGHT.rgb(), 0.9));
+            for x in [x0, x1] {
+                b.vline(x, top, bot, 1.1 * k, col);
+            }
+            b.hline(x0, x1, top, 0.7 * k, with_alpha(col, 0.7));
+            b.hline(x0, x1, bot, 0.7 * k, with_alpha(col, 0.7));
         }
-        b.hline(x0, x1, top, 0.7 * k, with_alpha(col, 0.7));
-        b.hline(x0, x1, bot, 0.7 * k, with_alpha(col, 0.7));
-    } else {
+    } else if alpha >= 1.0 {
         canvas::dashed(
             b,
             pos2(x0, top),
@@ -901,8 +1103,8 @@ fn paint_above(
     }
     canvas::tag(
         b,
-        a.mics[1] + vec2(14.0 * k, 0.0),
-        Align2::LEFT_CENTER,
+        a.mics[1] + vec2(0.0, 18.0 * k),
+        Align2::CENTER_CENTER,
         frame::tr("rota.d.distance"),
         ink.text,
         k,
@@ -1072,19 +1274,71 @@ fn paint_ramps(
     }
 }
 
-/// Warm light round the amp's valve, `glow` 0 … 1: nested faint ellipses (as Arca's).
-fn warm_light(b: &mut Brush, clip: Rect, c: Pos2, rad: f32, glow: f32) {
-    let g = glow.clamp(0.0, 1.0);
-    let warm = crate::kit::skin::pedals::FILAMENT.rgb();
-    for i in 0..10 {
-        let t = 1.0 - i as f32 / 10.0;
-        let col = with_alpha(warm, 0.03 * g);
-        b.radial(
-            clip,
-            c,
-            vec2(rad * t, rad * 0.8 * t),
-            &[(0.0, col), (1.0, col)],
-            12,
+/// v2 — a walnut bezel round one of the display's instruments: a fine frame of the
+/// cabinet's wood with its grain, a dark inner lip, a brass screw in each corner — so the
+/// view from above and the ramps read as windows in the same cabinet.
+fn bezel(b: &mut Brush, r: Rect, k: f32) {
+    let w = 5.0 * k;
+    for (edge, horizontal) in [
+        (
+            Rect::from_min_max(r.min, pos2(r.right(), r.top() + w)),
+            true,
+        ),
+        (
+            Rect::from_min_max(pos2(r.left(), r.bottom() - w), r.max),
+            true,
+        ),
+        (
+            Rect::from_min_max(r.min, pos2(r.left() + w, r.bottom())),
+            false,
+        ),
+        (
+            Rect::from_min_max(pos2(r.right() - w, r.top()), r.max),
+            false,
+        ),
+    ] {
+        b.rect(edge, Fill::V(pal::WALNUT_LIGHT.rgb(), pal::WALNUT.rgb()));
+        if horizontal {
+            for j in 0..2 {
+                let y = edge.top() + (1.5 + 2.0 * j as f32) * k;
+                b.hline(
+                    edge.left(),
+                    edge.right(),
+                    y,
+                    0.4 * k,
+                    with_alpha(pal::WALNUT_DARK.rgb(), 0.35),
+                );
+            }
+        } else {
+            for j in 0..2 {
+                let x = edge.left() + (1.5 + 2.0 * j as f32) * k;
+                b.vline(
+                    x,
+                    edge.top(),
+                    edge.bottom(),
+                    0.4 * k,
+                    with_alpha(pal::WALNUT_DARK.rgb(), 0.35),
+                );
+            }
+        }
+    }
+    b.rrect_stroke(
+        r.shrink(w),
+        1.0 * k,
+        0.8 * k,
+        with_alpha(pal::GASKET.rgb(), 0.9),
+    );
+    b.rrect_stroke(r, 1.5 * k, 0.6 * k, with_alpha(pal::WALNUT_DARK.rgb(), 0.9));
+    for (x, y) in [
+        (r.left() + w * 0.5, r.top() + w * 0.5),
+        (r.right() - w * 0.5, r.top() + w * 0.5),
+        (r.left() + w * 0.5, r.bottom() - w * 0.5),
+        (r.right() - w * 0.5, r.bottom() - w * 0.5),
+    ] {
+        b.circle(
+            pos2(x, y),
+            1.8 * k,
+            Fill::V(pal::COPPER_LIGHT.rgb(), pal::COPPER.rgb()),
         );
     }
 }

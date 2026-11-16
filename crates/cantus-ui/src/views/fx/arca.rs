@@ -27,6 +27,8 @@ mod cab;
 mod display;
 #[path = "arca_plate.rs"]
 mod plate;
+#[path = "arca_valve.rs"]
+pub mod valve2;
 #[path = "arca_words.rs"]
 pub mod words;
 

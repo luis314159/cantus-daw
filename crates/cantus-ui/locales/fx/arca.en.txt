@@ -105,3 +105,5 @@ arca.cab.side = Side view
 arca.cab.distance = Distance
 arca.cab.response = Response
 arca.d.glow = The glow: how hard each valve works
+arca.plate.input_high = High
+arca.plate.input_low = Low

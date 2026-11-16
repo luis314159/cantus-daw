@@ -407,13 +407,60 @@ fn paint_front(b: &mut Brush, ink: &Ink, r: Rect, c: usize, k: f32) {
     );
     let cloth = box_.shrink(6.0 * k);
     b.rrect(cloth, 2.0 * k, Fill::Solid(with_alpha(pal::CLOTH.rgb(), a)));
-    canvas::hatch(
-        b,
-        cloth.shrink(1.0 * k),
-        3.0 * k,
-        0.5 * k,
-        with_alpha(pal::CLOTH_THREAD.rgb(), 0.22 * a),
+    // v2 — the cloth woven: fine threads both ways, a slub here and there; the piping a
+    // double cord; the corners' metal caps.
+    let cl = cloth.shrink(1.0 * k);
+    let mut y = cl.top() + 1.0 * k;
+    let mut row = 0;
+    while y < cl.bottom() {
+        let a2 = if row % 7 == 3 { 0.34 } else { 0.18 };
+        b.hline(
+            cl.left(),
+            cl.right(),
+            y,
+            0.5 * k,
+            with_alpha(pal::CLOTH_THREAD.rgb(), a2 * a),
+        );
+        y += 1.8 * k;
+        row += 1;
+    }
+    let mut x = cl.left() + 1.0 * k;
+    while x < cl.right() {
+        b.vline(
+            x,
+            cl.top(),
+            cl.bottom(),
+            0.4 * k,
+            with_alpha(pal::CONE_SHADE.rgb(), 0.22 * a),
+        );
+        x += 1.8 * k;
+    }
+    b.rrect_stroke(
+        cloth.expand(1.4 * k),
+        2.6 * k,
+        0.6 * k,
+        with_alpha(pal::PIPING.rgb(), 0.55 * a),
     );
+    for (cx, cy) in [
+        (box_.left(), box_.top()),
+        (box_.right(), box_.top()),
+        (box_.left(), box_.bottom()),
+        (box_.right(), box_.bottom()),
+    ] {
+        let p = pos2(cx, cy);
+        let q = p + vec2(
+            if cx < box_.center().x { 4.0 } else { -4.0 },
+            if cy < box_.center().y { 4.0 } else { -4.0 },
+        ) * k;
+        b.circle(
+            q,
+            3.2 * k,
+            Fill::V(
+                with_alpha(pal::CHROME.rgb(), a),
+                with_alpha(pal::CHROME_SHADE.rgb(), a),
+            ),
+        );
+    }
     b.rrect_stroke(
         cloth,
         2.0 * k,
@@ -497,6 +544,30 @@ fn paint_cone(b: &mut Brush, c: Pos2, rad: f32, k: f32) {
         let rr = cone_r(rad) * (0.30 + 0.115 * i as f32);
         b.circle_stroke(c, rr, 0.5 * k, with_alpha(pal::CONE_SHADE.rgb(), 0.55));
     }
+    // v2 — the paper's fibre (fine radial strokes), the frame's eight slots outside the
+    // surround.
+    for i in 0..48 {
+        let a = std::f32::consts::TAU * i as f32 / 48.0;
+        let d = vec2(a.cos(), a.sin());
+        b.segment(
+            c + d * rad * 0.27,
+            c + d * cone_r(rad) * 0.97,
+            0.4 * k,
+            with_alpha(pal::CONE_SHADE.rgb(), 0.22),
+            false,
+        );
+    }
+    for i in 0..8 {
+        let a = std::f32::consts::TAU * (i as f32 + 0.5) / 8.0;
+        let d = vec2(a.cos(), a.sin());
+        b.segment(
+            c + d * rad * 0.955 - vec2(-d.y, d.x) * 2.5 * k,
+            c + d * rad * 0.955 + vec2(-d.y, d.x) * 2.5 * k,
+            1.4 * k,
+            pal::BASKET.rgb(),
+            true,
+        );
+    }
     b.arc(
         c,
         cone_r(rad) * 0.7,
@@ -554,6 +625,39 @@ fn paint_mic_front(b: &mut Brush, ink: &Ink, cone: (Pos2, f32), set: &CabSetting
             }
         }
     }
+    // v2 — the microphone as an object: its stand's boom reaching in from the lower right,
+    // the clip round it, its cable hanging from it and away.
+    let end = c + vec2(rad * 1.18, rad * 0.98);
+    b.segment(
+        end,
+        at + vec2(6.0 * k, 6.0 * k),
+        2.6 * k,
+        pal::CHROME_SHADE.rgb(),
+        true,
+    );
+    b.segment(
+        end,
+        at + vec2(6.0 * k, 6.0 * k),
+        0.8 * k,
+        with_alpha(pal::CHROME.rgb(), 0.8),
+        false,
+    );
+    let mut cable = [Pos2::ZERO; 25];
+    let (p0, p2) = (
+        at + vec2(-4.0 * k, 10.0 * k),
+        pos2(c.x - rad * 0.55, c.y + rad * 1.2),
+    );
+    let p1 = pos2((p0.x + p2.x) * 0.5, p2.y + rad * 0.15);
+    for (j, p) in cable.iter_mut().enumerate() {
+        let t = j as f32 / 24.0;
+        let u = 1.0 - t;
+        *p = pos2(
+            u * u * p0.x + 2.0 * u * t * p1.x + t * t * p2.x,
+            u * u * p0.y + 2.0 * u * t * p1.y + t * t * p2.y,
+        );
+    }
+    b.polyline(&cable, 2.0 * k, pal::GASKET.rgb());
+    b.polyline(&cable, 0.6 * k, with_alpha(pal::MIC_BODY_LIGHT.rgb(), 0.35));
     // Its shadow on the cone, then its head.
     b.circle(
         at + vec2(5.0 * k, 7.0 * k),
@@ -737,10 +841,35 @@ fn paint_side(b: &mut Brush, ink: &Ink, r: Rect, set: &CabSettings, on: bool, k:
         0.8 * k,
         ink.hue,
     );
+    // v2 — its connector and its cable, falling away to the floor.
+    let plug = Rect::from_min_max(
+        pos2(body.right(), my - 2.6 * k),
+        pos2(body.right() + 7.0 * k, my + 2.6 * k),
+    );
+    b.rect(
+        plug,
+        Fill::V(pal::MIC_BODY_LIGHT.rgb(), pal::MIC_MESH.rgb()),
+    );
+    let mut cable = [Pos2::ZERO; 17];
+    let (p0, p2) = (
+        pos2(plug.right(), my),
+        pos2(plug.right() + 40.0 * k, r.bottom() - 2.0 * k),
+    );
+    let p1 = pos2(p2.x, my);
+    for (j, p) in cable.iter_mut().enumerate() {
+        let t = j as f32 / 16.0;
+        let u = 1.0 - t;
+        *p = pos2(
+            u * u * p0.x + 2.0 * u * t * p1.x + t * t * p2.x,
+            u * u * p0.y + 2.0 * u * t * p1.y + t * t * p2.y,
+        );
+    }
+    b.polyline(&cable, 1.6 * k, pal::GASKET.rgb());
+    b.polyline(&cable, 0.5 * k, with_alpha(pal::MIC_BODY_LIGHT.rgb(), 0.3));
     canvas::tag(
         b,
-        pos2(body.right() + 6.0 * k, my),
-        Align2::LEFT_CENTER,
+        pos2(body.center().x, my - 13.0 * k),
+        Align2::CENTER_CENTER,
         frame::tr("arca.cab.distance"),
         ink.text,
         k,

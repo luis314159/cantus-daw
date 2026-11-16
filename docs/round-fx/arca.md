@@ -62,3 +62,19 @@ the next phases*).
 - Found, not ours: Fragor's green overdrive prints "GANANC…" on Tabula in Spanish;
   `learn_everywhere` fails on Saltus's stepped parameters (`ostyle`, `hsrc`, `deg1`, …)
   drawn without their offer; Phasis's "REALIM." is abbreviated in Spanish.
+
+## Phase B (2), v2 (2026-11-16): the owner's verdicts ("more elaborate", "richer")
+
+- Arca: `arca_valve.rs` (valves with heater and plate apart, the getter's flash, shielded
+  sockets; transformers, filter capacitors, the back plate), the chassis in two rows,
+  the faceplate (`arca_plate.rs`: chrome trim, jewel, two jacks, engraved legends, tick
+  rings), the cabinet's woven cloth, piping and corners, the cone's fibre and frame, the
+  microphone on its boom with its cable; the window 740 tall.
+- Rota: the front's louvres and cloth left at the sides, the horn's and scoop's blur at
+  speed, the drum's baffle and the speaker firing up into it, the moulded top, a finer
+  grain, the amp's valves (Arca's painter), the instruments in walnut bezels.
+- The integrator's findings fixed: Tabula's pedal print scales with its enclosure and a
+  tight row staggers; the empty slot on two lines; the chosen pedal's cells as wide as their
+  words; Phasis's feedback and LFO cells whole (`modfx::lfo_card_as`); the probe notes short
+  forms apart (`probe::take_shorts`); `learn_everywhere` excuses Saltus's mode-only keys and
+  a new test draws its other modes.
