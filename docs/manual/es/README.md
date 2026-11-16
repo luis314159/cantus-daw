@@ -2470,6 +2470,59 @@ defecto.
 
 **En Tabula** Saltus es un pedal con las perillas Intervalo, Nivel, Seco y Pedal.
 
+### Arca, amplificador y caja
+
+**Arca** (en latín, *el cofre*) es un amplificador de válvulas y su caja, para guitarra,
+bajo, teclados o voz. Insértalo desde **Añadir inserto ▾ ▸ Distorsión ▸ Arca**; empieza como
+*Combo limpio*.
+
+**Cinco amplificadores**, las leyendas en lo alto de su pantalla: **Limpio**, **Crujiente**,
+**Campanilla**, **Alta ganancia** y **Bajo** — cada uno su circuito resuelto válvula a
+válvula, de la entrada al altavoz. **Ninguno** deja solo la caja (un cargador de respuestas
+al impulso). El **sobremuestreo** (2×, 4×, 8×) muestra la latencia de cada opción; la
+compensación de retardo la cubre.
+
+**El chasis** muestra el amplificador trabajando: las válvulas en el orden en que las
+encuentra la señal, sus filamentos encendidos, cada placa enrojeciendo según trabaja, una
+barra bajo cada una; la aguja de la derecha muestra **la alimentación cediendo** ante un
+acorde fuerte. Junto a ellas, sus válvulas de potencia, su bias y su rectificador.
+
+**El panel**: Ganancia; los Graves, Medios y Agudos de la red de tono; la Presencia de la
+etapa de potencia (en la campanilla, **Corte**, al revés), el Maestro y el **Sag** (la
+alimentación de firme a blanda); Mezcla y Salida.
+
+**La caja**: elige una de cinco, o **Archivo cargado** para tu propia respuesta al impulso
+(WAV, AIFF, FLAC u OGG). Elige el **micrófono** (dinámico, cinta, condensador),
+**arrástralo por el cono** — brillante en el centro, más oscuro hacia el borde — y
+**aléjalo de la rejilla** en la vista lateral (de 1 a 30 cm: más cerca, más graves). Debajo
+se dibuja la respuesta que resulta.
+
+Dieciséis presets de fábrica cubren cada amplificador, la caja sola, teclados y voz. En sus
+valores por defecto (sin amplificador ni caja) Arca no toca ninguna muestra. Como pedal en
+**Tabula** muestra Ganancia, Graves, Agudos y Maestro.
+
+### Rota, el altavoz rotatorio
+
+**Rota** (en latín, *la rueda*) es el mueble rotatorio del órgano de Cantus, para cualquier
+pista. Insértalo desde **Añadir inserto ▾ ▸ Modulación ▸ Rota**; empieza como *Coral*
+(lento).
+
+**El cambio**, arriba: **Parado** (el freno detiene ambos rotores), **Lento** y **Rápido**.
+Cada rotor llega a su nueva velocidad a su ritmo — la bocina en una fracción de segundo, el
+tambor en segundos; la **Rampa** escala esos tiempos. Con **Cambio por notas** activado,
+cada nota de la pista que oye Rota cambia la velocidad, a la muestra.
+
+**La pantalla** dibuja el mueble **en corte**, la bocina y el tambor girando como los gira
+el motor (difuminados a velocidad); el mueble **desde arriba**, donde **arrastras los
+micrófonos** a su alrededor (su ángulo) y lejos de él (su distancia); y **las rampas**: la
+velocidad de cada rotor desde el cambio, con un punto donde está ahora.
+
+Las tarjetas fijan las velocidades lenta y rápida de la bocina y del tambor, el ángulo y la
+distancia de los micrófonos y el **Balance** entre bocina y tambor, la **trasera** del
+mueble (abierta o cerrada) y la **Saturación** de su amplificador, y la Mezcla y la Salida.
+Trece presets de fábrica. En sus valores por defecto (mezcla 0) Rota no toca ninguna
+muestra; no tiene latencia.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

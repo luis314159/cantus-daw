@@ -2272,6 +2272,55 @@ preset**: its settings now become what it starts on when you insert it, in every
 
 **On Tabula** Saltus is a pedal with the knobs Interval, Level, Dry and Pedal.
 
+### Arca, amp and cabinet
+
+**Arca** (Latin for *the chest*) is a valve amp and its cabinet, for guitar, bass, keys or a
+voice. Insert it from **Add insert ▾ ▸ Distortion ▸ Arca**; it starts as *Clean combo*.
+
+**Five amps**, the legends along the top of its display: **Clean**, **Crunch**, **Chime**,
+**High gain** and **Bass** — each its circuit solved valve by valve, from the input to the
+speaker. **None** leaves only the cabinet (an impulse-response loader). The
+**oversampling** (2×, 4×, 8×) shows the latency each gives; delay compensation covers it.
+
+**The chassis** shows the amp working: the valves stand in the order the signal meets them,
+their heaters lit, each plate reddening as hard as it works, a bar under each; the needle
+at the right shows the **supply sagging** under a loud chord. The amp's power valves, its
+bias and its rectifier are written beside them.
+
+**The faceplate**: Gain; the tone stack's Bass, Middle and Treble; the power amp's Presence
+(on the chime amp, **Cut**, turned the other way), Master and **Sag** (the supply from stiff
+to soft); Mix and Output.
+
+**The cabinet**: choose one of five, or **Loaded file** for your own impulse response (a
+WAV, AIFF, FLAC or OGG). Choose the **microphone** (dynamic, ribbon, condenser), **drag it
+across the cone** — bright at the cap, darker toward the edge — and **back from the grille**
+in the side view (1 to 30 cm: closer, more bass). The response the choice makes is drawn
+under them.
+
+Sixteen factory presets cover every amp, the cabinet alone, keys and a voice. At its
+defaults (no amp, no cabinet) Arca touches no sample. As a pedal on **Tabula** it shows
+Gain, Bass, Treble and Master.
+
+### Rota, the rotary speaker
+
+**Rota** (Latin for *the wheel*) is the rotary cabinet of Cantus's organ, for any track.
+Insert it from **Add insert ▾ ▸ Modulation ▸ Rota**; it starts as *Chorale* (slow).
+
+**The switch** along the top: **Stop** (the brake parks both rotors), **Slow** and
+**Fast**. Each rotor ramps to its new speed at its own pace — the horn in a fraction of a
+second, the drum over seconds; **Ramp** scales those times. With **Switched by notes** on,
+each note played on the track whose notes Rota hears throws the switch, to the sample.
+
+**The display** draws the cabinet **cut away**, the horn and the drum turning as the engine
+turns them (blurred at speed); the cabinet **from above**, where you **drag the
+microphones** round it (their angle) and away from it (their distance); and **the ramps**:
+each rotor's speed since the switch, with a dot where it is now.
+
+The cards set the horn's and the drum's slow and fast speeds, the microphones' angle,
+distance and the **Balance** of horn against drum, the cabinet's **back** (open or closed)
+and its valve amp's **Drive**, and the Mix and Output. Thirteen factory presets. At its
+defaults (mix 0) Rota touches no sample; it has no latency.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

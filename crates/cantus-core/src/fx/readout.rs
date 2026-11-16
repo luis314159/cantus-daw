@@ -35,6 +35,8 @@ pub fn parse_readout(text: &str, unit: &str) -> Option<f32> {
     // The most specific suffixes first: `khz` before `hz`, `db/oct` before `ct`, `ms` and
     // `lufs` before `s`.
     for suffix in [
+        // fx3:arca, fx3:rota — a rotor's speed, a microphone's distance, a scale of times.
+        "rpm", "cm", "\u{d7}",
         // fx:cribrum — `oct` (Cribrum's depths and spread) before `ct`.
         "khz", "hz", "db/oct", "ms", "db", "lufs", "st", "oct", "ct", ":1", "%", "\u{b0}", "x", "s",
         "k",
@@ -77,7 +79,10 @@ mod tests {
             (4.0, ":1"),
             (-14.0, "LUFS"),
             (-22.5, "\u{b0}"),
-            (1.6, "oct"), // fx:cribrum
+            (1.6, "oct"),    // fx:cribrum
+            (423.0, "rpm"),  // fx3:rota
+            (60.0, "cm"),    // fx3:rota
+            (2.5, "\u{d7}"), // fx3:rota
         ] {
             let text = readout(v, unit);
             let back = parse_readout(&text, unit).unwrap();

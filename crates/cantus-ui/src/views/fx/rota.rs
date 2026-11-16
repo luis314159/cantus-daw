@@ -336,3 +336,15 @@ fn cm_pill(v: f32, b: &mut String) {
     use std::fmt::Write as _;
     let _ = write!(b, "{v:.0} cm");
 }
+
+impl State {
+    /// Where the switch's three places (stop, slow, fast) were drawn last frame.
+    pub fn speed_rects(&self) -> [Rect; 3] {
+        self.view.speeds
+    }
+
+    /// Where the two microphones were drawn last frame in the view from above.
+    pub fn mics(&self) -> [egui::Pos2; 2] {
+        self.view.mics
+    }
+}

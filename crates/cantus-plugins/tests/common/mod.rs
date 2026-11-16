@@ -762,8 +762,27 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("throat", -2.0),
             ("out", -6.0),
         ],
-        EffectKind::Rotary => vec![("out", -6.0)], // fx3:rota
-        EffectKind::Amp => vec![("out", -6.0)],    // fx3:arca
+        // fx3:rota — fast, the amp driven, the microphones wide and back, more horn.
+        EffectKind::Rotary => vec![
+            ("speed", 2.0),
+            ("drive", 0.4),
+            ("spread", 150.0),
+            ("dist", 90.0),
+            ("balance", 2.0),
+            ("mix", 1.0),
+            ("out", -6.0),
+        ], // fx3:rota
+        // fx3:arca — the crunch amp driven into the vintage 4×12, a ribbon off-centre, 2×.
+        EffectKind::Amp => vec![
+            ("model", 2.0),
+            ("gain", 0.7),
+            ("treble", 0.6),
+            ("cab", 3.0),
+            ("mic", 1.0),
+            ("micpos", 0.4),
+            ("os", 0.0),
+            ("out", -6.0),
+        ], // fx3:arca
         _ => vec![],
     }
 }
@@ -860,6 +879,10 @@ pub enum Direct {
     Libra(Box<cantus_dsp::libra::Libra>),
     /// fx3:saltus — Saltus, the pitch unit.
     Saltus(Box<cantus_dsp::saltus::Saltus>),
+    /// fx3:rota — Rota, the rotary speaker.
+    Rota(Box<cantus_dsp::rota::Rota>),
+    /// fx3:arca — Arca, the amp and its cabinet.
+    Arca(Box<cantus_dsp::arca::Arca>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -958,10 +981,8 @@ impl Direct {
                 Direct::Stub(Box::new(u))
             } // fx3:tabula
             EffectKind::PitchShift => Direct::Saltus(Box::new(cantus_dsp::saltus::Saltus::new(SR))), // fx3:saltus
-            EffectKind::Rotary => {
-                Direct::Stub(cantus_engine::fx::make(EffectKind::Rotary, SR).unwrap())
-            } // fx3:rota
-            EffectKind::Amp => Direct::Stub(cantus_engine::fx::make(EffectKind::Amp, SR).unwrap()), // fx3:arca
+            EffectKind::Rotary => Direct::Rota(Box::new(cantus_dsp::rota::Rota::new(SR))), // fx3:rota
+            EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -1011,6 +1032,18 @@ impl Direct {
             Direct::Vetus(x) => x.set(&fx::vetus::settings(spec)), // fx:vetus
             Direct::Libra(x) => x.set(&fx::libra::settings(spec)), // fx:libra
             Direct::Saltus(x) => x.set(&fx::saltus::settings(spec)), // fx3:saltus
+            Direct::Rota(x) => x.set(&fx::rota::settings(spec).0), // fx3:rota
+            // fx3:arca — the cabinet built as the engine builds it, supplied once.
+            Direct::Arca(x) => {
+                let (s, need) = fx::arca::settings(spec);
+                if let (Some(n), false) = (need, x.has_cab()) {
+                    if let Some(k) = fx::arca::build(n, SR).kernel {
+                        let st = Box::new(cantus_dsp::aula_conv::State::new(k.cap()));
+                        let _ = x.supply_cab(k, Some(st));
+                    }
+                }
+                x.set(&s);
+            }
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -1055,6 +1088,8 @@ impl Direct {
             Direct::Vetus(x) => x.reset(),   // fx:vetus
             Direct::Libra(x) => x.reset(),   // fx:libra
             Direct::Saltus(x) => x.reset(),  // fx3:saltus
+            Direct::Rota(x) => x.reset(),    // fx3:rota
+            Direct::Arca(x) => x.reset(),    // fx3:arca
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1089,6 +1124,8 @@ impl Direct {
             Direct::Vetus(x) => x.latency(),   // fx:vetus
             Direct::Libra(x) => x.latency(),   // fx:libra
             Direct::Saltus(x) => x.latency(),  // fx3:saltus
+            Direct::Rota(_) => 0,              // fx3:rota
+            Direct::Arca(x) => x.latency(),    // fx3:arca
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1123,6 +1160,8 @@ impl Direct {
             Direct::Vetus(x) => x.process(l, r),     // fx:vetus
             Direct::Libra(x) => x.process(l, r),     // fx:libra
             Direct::Saltus(x) => x.process(l, r),    // fx3:saltus
+            Direct::Rota(x) => x.process(l, r),      // fx3:rota
+            Direct::Arca(x) => x.process(l, r),      // fx3:arca
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

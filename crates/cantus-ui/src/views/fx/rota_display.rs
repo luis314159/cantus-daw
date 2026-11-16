@@ -55,6 +55,10 @@ pub struct View {
     pub horn: (f32, f32),
     pub drum: (f32, f32),
     drag: Option<usize>,
+    /// Where the switch's places and the microphones were drawn last frame (tests click
+    /// and drag there).
+    pub speeds: [Rect; 3],
+    pub mics: [Pos2; 2],
 }
 
 impl Default for View {
@@ -65,6 +69,8 @@ impl Default for View {
             horn: (0.07, 0.0),
             drum: (0.62, 0.0),
             drag: None,
+            speeds: [Rect::NOTHING; 3],
+            mics: [Pos2::ZERO; 2],
         }
     }
 }
@@ -136,6 +142,8 @@ pub fn show(
     let speeds = speed_rects(ui.ctx(), p.band, k);
     speed_edit(host, ui, s, &speeds);
     let mics = mic_spots(p.above, &rs, k);
+    v.speeds = speeds;
+    v.mics = mics.mics;
     mic_drag(host, v, ui, p.above, &mics, k);
     let now = if rd.seen {
         rd.speed
@@ -955,10 +963,10 @@ fn mic_drag(host: &mut dyn FxHost, v: &mut View, ui: &mut egui::Ui, r: Rect, a: 
         let t = ((d.length() - a.near) / (a.far - a.near)).clamp(0.0, 1.0);
         let cm = (10.0 * (t * 30f32.ln()).exp()).round().clamp(10.0, 300.0);
         if (spread - host.spec().get("spread")).abs() > 0.5 {
-            host.set("spread", spread, Some("spread"));
+            host.set("spread", spread, Some("rota-mics"));
         }
         if (cm - host.spec().get("dist")).abs() > 0.5 {
-            host.set("dist", cm, Some("dist"));
+            host.set("dist", cm, Some("rota-mics"));
         }
     }
     if g.drag_stopped() && v.drag.take().is_some() {

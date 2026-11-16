@@ -498,7 +498,9 @@ fn the_parameters_are_the_tables() {
             };
             assert_eq!(plug.value(p.id), start, "{kind:?} {}", info.key);
             let text = plug.text(p.id, default);
-            let back = plug.parse(p.id, &text).expect("its own text parses");
+            let back = plug
+                .parse(p.id, &text)
+                .unwrap_or_else(|| panic!("{kind:?} {}: its own text {text:?} parses", info.key));
             let tol = if info.stepped {
                 0.0
             } else {

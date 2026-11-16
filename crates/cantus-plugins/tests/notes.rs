@@ -35,6 +35,9 @@ const LAPSUS: &[(&str, f32)] = &[("mix", 1.0), ("xfade", 3.0), ("vkey", 52.0)];
 /// fx3:saltus — Saltus's harmony singing the notes held (the MIDI melody), over the dry.
 const SALTUS: &[(&str, f32)] = &[("mode", 1.0), ("hsrc", 2.0), ("lvl2", 0.5), ("dry", 0.5)];
 
+/// fx3:rota — Rota with notes throwing its switch: each note played toggles slow and fast.
+const ROTA: &[(&str, f32)] = &[("mix", 1.0), ("drive", 0.3)];
+
 /// A note a host sends. In CLAP's dialect a note on or off carries the note id
 /// `1000 + pitch` and the channel `pitch % 16` (in MIDI bytes, that channel too).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -106,6 +109,16 @@ impl Case {
         }
     }
 
+    /// fx3:rota — a rich signal; the notes throw the switch.
+    fn rota() -> Case {
+        Case {
+            kind: EffectKind::Rotary,
+            values: ROTA,
+            input: signal(SR as usize, 11),
+            notes: NOTES.to_vec(),
+        }
+    }
+
     fn porta(notes: &[(u32, N)]) -> Case {
         Case {
             kind: EffectKind::Gate,
@@ -122,6 +135,7 @@ enum Dsp {
     Porta(Box<Porta>),
     Lapsus(Box<dyn cantus_engine::fx::FxUnit>), // fx:lapsus
     Saltus(Box<dyn cantus_engine::fx::FxUnit>), // fx3:saltus
+    Rota(Box<dyn cantus_engine::fx::FxUnit>),   // fx3:rota
 }
 
 impl Dsp {
@@ -149,7 +163,7 @@ impl Dsp {
                 },
             ),
             // fx:lapsus, fx3:saltus
-            Dsp::Lapsus(d) | Dsp::Saltus(d) => d.note(
+            Dsp::Lapsus(d) | Dsp::Saltus(d) | Dsp::Rota(d) => d.note(
                 0,
                 match n {
                     N::On(p) => cantus_engine::fx::FxNote::On {
@@ -170,6 +184,7 @@ impl Dsp {
             Dsp::Porta(d) => d.process(l, r, None),
             Dsp::Lapsus(d) => d.process(l, r, None), // fx:lapsus
             Dsp::Saltus(d) => d.process(l, r, None), // fx3:saltus
+            Dsp::Rota(d) => d.process(l, r, None),   // fx3:rota
         }
     }
 }
@@ -206,6 +221,13 @@ fn through_dsp(case: &Case, expected: &[(u32, N)]) -> Vec<f32> {
             u.configure(&spec);
             u.reset();
             Dsp::Saltus(u)
+        }
+        // fx3:rota — the engine's unit, as the exported plug-in runs it.
+        EffectKind::Rotary => {
+            let mut u = cantus_engine::fx::make(EffectKind::Rotary, SR).unwrap();
+            u.configure(&spec);
+            u.reset();
+            Dsp::Rota(u)
         }
         k => panic!("{k:?} hears no notes"),
     };
@@ -437,6 +459,7 @@ fn clap_notes_arrive_at_their_sample_in_either_dialect() {
         Case::porta(NOTES),
         Case::lapsus(),
         Case::saltus(), // fx3:saltus
+        Case::rota(),   // fx3:rota
     ] {
         let reference = through_dsp(&case, &case.notes);
         let dry = {
@@ -775,6 +798,7 @@ fn vst3_notes_arrive_at_their_sample_on_the_event_bus() {
         Case::porta(NOTES),
         Case::lapsus(),
         Case::saltus(), // fx3:saltus
+        Case::rota(),   // fx3:rota
     ] {
         let reference = through_dsp(&case, &case.notes);
         for blocks in &BLOCKS[..2] {

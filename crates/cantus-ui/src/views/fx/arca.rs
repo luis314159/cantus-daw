@@ -208,3 +208,16 @@ pub fn demo_telemetry(spec: &EffectSpec) -> [f32; 64] {
     }
     u.telemetry()
 }
+
+impl State {
+    /// Where the cabinet's cone was drawn last frame: its centre and radius (tests drag the
+    /// microphone across it).
+    pub fn cone(&self) -> Option<(egui::Pos2, f32)> {
+        self.cab.cone
+    }
+
+    /// Where the cabinet's side view was drawn last frame.
+    pub fn side_view(&self) -> Option<Rect> {
+        self.cab.side
+    }
+}

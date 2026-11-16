@@ -23,6 +23,10 @@ use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense};
 #[derive(Debug, Default)]
 pub struct View {
     drag: Option<Handle>,
+    /// Where the cone (its centre and radius) and the side view were drawn last frame (tests
+    /// drag the microphone there).
+    pub cone: Option<(Pos2, f32)>,
+    pub side: Option<Rect>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -116,6 +120,8 @@ fn cab_settings(spec: &cantus_core::EffectSpec) -> (usize, CabSettings) {
 pub fn show(host: &mut dyn FxHost, v: &mut View, ui: &mut egui::Ui, s: &Style, r: Rect) {
     let k = s.k;
     let p = parts(r, k);
+    v.cone = Some(p.cone);
+    v.side = Some(p.side);
     let ink = Ink::of(s);
     let mics = mic_names_rects(ui.ctx(), p.band, k);
     // The field and the microphone's kind answer first, the drawing goes under them.
@@ -286,7 +292,7 @@ fn mic_drag(host: &mut dyn FxHost, v: &mut View, ui: &mut egui::Ui, p: &Parts, k
         };
         let quant = |x: f32| (x * 100.0).round() / 100.0;
         if (quant(new_pos) - pos).abs() > 1e-4 {
-            host.set("micpos", quant(new_pos), Some("micpos"));
+            host.set("micpos", quant(new_pos), Some("arca-mic"));
         }
         if h == Handle::Side {
             let (a, z) = side_span(p.side, k);
@@ -294,7 +300,7 @@ fn mic_drag(host: &mut dyn FxHost, v: &mut View, ui: &mut egui::Ui, p: &Parts, k
             let cm = (t * 30f32.ln()).exp();
             let cm = (cm * 10.0).round() / 10.0;
             if (cm - dist).abs() > 1e-4 {
-                host.set("micdist", cm.clamp(1.0, 30.0), Some("micdist"));
+                host.set("micdist", cm.clamp(1.0, 30.0), Some("arca-mic"));
             }
         }
     }
