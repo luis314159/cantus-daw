@@ -353,7 +353,33 @@ fn purus_cpu() {
             s
         }),
     ];
-    for (name, s) in cases {
+    let mut clicked = x.clone();
+    testkit::add_clicks(&mut clicked, 120, 3);
+    testkit::add_crackle(&mut clicked, SR, 300.0, 4);
+    let click_on = ClickSettings {
+        on: true,
+        crackle: 1.0,
+        ..ClickSettings::default()
+    };
+    let more = [
+        (
+            "de-click and de-crackle (120 clicks, 300 crackles a second)",
+            PurusSettings {
+                click: click_on,
+                ..PurusSettings::default()
+            },
+        ),
+        (
+            "all three (gentle 16 Auto, de-click and de-crackle, de-reverb estimating)",
+            {
+                let mut s = cases[4].1;
+                s.click = click_on;
+                s
+            },
+        ),
+    ];
+    for (name, s) in cases.into_iter().chain(more) {
+        let x = if s.click.on { &clicked } else { &x };
         let mut best = f64::MAX;
         for _ in 0..3 {
             let mut p = Purus::new(SR);

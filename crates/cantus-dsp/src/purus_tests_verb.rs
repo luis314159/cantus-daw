@@ -172,6 +172,14 @@ fn the_late_tail_comes_out_of_a_known_room() {
         }),
     );
     show("the same, 12 dB, direct +6 dB (6 dB too high)", &m);
+    let m = measure(
+        &sc,
+        &verb(|v| {
+            v.decay_s = 0.8;
+            v.direct_db = 12.0;
+        }),
+    );
+    show("the same, 12 dB, direct +12 dB (12 dB too high)", &m);
     let m = measure(&sc, &matched(24.0, 1.0));
     show("the same, 24 dB, full smoothing", &m);
     // Lebart's model (no direct sound assumed): more taken, the early part too.

@@ -132,7 +132,7 @@ impl Declick {
             e: vec![0.0; BLOCK],
             mag: vec![0.0; BLOCK],
             a: vec![0.0; ORDER + 1],
-            ar: ArScratch::new(2 * BLOCK, ORDER),
+            ar: ArScratch::new(BEFORE + BLOCK, ORDER),
             gap: GapScratch::new(MAX_GAP, BEFORE, AFTER),
             quiet: usize::MAX,
             last: 0,
@@ -244,7 +244,7 @@ impl Declick {
     /// stretches of at most [`CRACKLE_LEN`] marks. How many were rebuilt.
     fn pass(&mut self, k: f64, crackle: bool) -> usize {
         let (b0, b1) = (BEFORE, BEFORE + BLOCK);
-        declick::ar_fit_into(&self.win[b0 - BLOCK..b1], ORDER, &mut self.a, &mut self.ar);
+        declick::ar_fit_into(&self.win[..b1], ORDER, &mut self.a, &mut self.ar);
         let sigma = declick::block_errors(&self.win, b0, b1, &self.a, &mut self.e, &mut self.mag);
         if sigma <= 1e-9 {
             return 0;

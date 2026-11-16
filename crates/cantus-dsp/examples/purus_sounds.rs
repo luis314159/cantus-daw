@@ -6,6 +6,9 @@
 //!   notches (tracked, 16 harmonics) and by the gentle mode, each with its delta.
 //! - **A bass on the hum**: a synthetic bass line on 50, 100 and 150 Hz (and beside them)
 //!   with the same hum, through the notches and the gentle mode: what each does to the bass.
+//! - **Clicks and crackle**: the guitar with 60 synthetic clicks and crackle (300 small
+//!   impulses a second) added, through the de-click alone and with the de-crackle, with
+//!   deltas; and the clean guitar through it (what it takes that is not a click).
 //! - **Room**: a synthetic spoken line (the pitch tests' formant voice, no recording) in a
 //!   synthetic room (T60 0.9 s, the direct sound as strong as all the reverberation),
 //!   de-reverberated at 12 and 24 dB with the decay estimated, and the delta.
@@ -22,7 +25,7 @@
 use cantus_dsp::math;
 use cantus_dsp::purus::testkit;
 use cantus_dsp::purus::{
-    latency_for, DecayMode, HumMode, HumSettings, Purus, PurusSettings, VerbSettings,
+    latency_for, ClickSettings, DecayMode, HumMode, HumSettings, Purus, PurusSettings, VerbSettings,
 };
 use std::path::{Path, PathBuf};
 
@@ -211,6 +214,7 @@ fn main() {
     let out = PathBuf::from(args.get(2).expect("the output folder"));
     std::fs::create_dir_all(&out).unwrap();
     let mut log = String::new();
+    let mut extra = String::new();
     let mut save = |name: &str, s: &Stereo, note: &str| {
         write(&out.join(name), s);
         log += &format!("{name}: {note}\n");
@@ -284,25 +288,82 @@ fn main() {
         "what the gentle mode took out",
     );
 
-    // The same with 2 s of the hum alone before the first strum (a take's lead-in): the
-    // gentle mode hears the hum by itself first.
-    let lead = 2 * SR as usize;
-    let mut gtr2 = vec![0.0f32; lead];
-    gtr2.extend_from_slice(&gtr);
-    let hum2 = testkit::hum(sr, gtr2.len() as f32 / sr, &amps, 0.012, 31, drift);
-    let theta2 = testkit::hum_phase(sr, hum2.len(), drift);
-    let humming2: Vec<f32> = gtr2.iter().zip(&hum2).map(|(a, b)| a + b).collect();
-    let y = through(&humming2, &gentle);
-    let left: Vec<f32> = y.0.iter().zip(&gtr2).map(|(a, b)| a - b).collect();
-    let from2 = from + lead;
+    // Clicks and crackle on the guitar.
+    let mut clicked = gtr.clone();
+    let n_clicks = testkit::add_clicks(&mut clicked, 60, 51).len();
+    let mut both = clicked.clone();
+    testkit::add_crackle(&mut both, sr, 300.0, 53);
+    let energy = |a: &[f32], b: &[f32]| -> f64 {
+        a.iter()
+            .zip(b)
+            .map(|(x, y)| ((x - y) as f64) * ((x - y) as f64))
+            .sum()
+    };
+    let down =
+        |x: &[f32], y: &[f32]| 10.0 * math::log10(energy(x, &gtr) / energy(y, &gtr).max(1e-30));
     save(
-        "03c-guitar-dehum-gentle-lead-in.wav",
-        &y,
-        &format!(
-            "the gentle mode with 2 s of hum alone before the guitar; what is left {}",
-            harmonics(&left[from2..], &theta2[from2..], 8)
-        ),
+        "30-guitar-clicks-and-crackle.wav",
+        &mono(&both),
+        &format!("the DI with {n_clicks} clicks (0.1-0.5 peak, 1-8 samples) and crackle (300 a second, 0.005-0.03 peak)"),
     );
+    // The editor's offline declicker (the same detector and rebuilding, whole-take) on the
+    // same, for comparison.
+    for (what, x) in [("the clicks", &clicked), ("the clicks and crackle", &both)] {
+        let mut y = x.clone();
+        let len = y.len();
+        let n = cantus_dsp::denoise::declick::declick(&mut y, 0, len, 0.5);
+        extra += &format!(
+            "the audio editor's offline declick at 0.5 on {what}: {n} rebuilt, down {:.1} dB
+",
+            down(x, &y)
+        );
+    }
+    let click_on = |crackle: f32, delta: bool| PurusSettings {
+        click: ClickSettings {
+            on: true,
+            crackle,
+            delta,
+            ..ClickSettings::default()
+        },
+        ..PurusSettings::default()
+    };
+    for (name, crackle) in [
+        ("31-guitar-declick", 0.0f32),
+        ("32-guitar-declick-decrackle", 1.0),
+    ] {
+        let s = click_on(crackle, false);
+        let y = through(&both, &s);
+        let mut probe = Purus::new(sr);
+        probe.set(&s);
+        let (mut l, mut r) = (both.clone(), both.clone());
+        probe.process(&mut l, &mut r);
+        let found = probe.meter().clicks_total / 2;
+        let yc = through(&clicked, &s);
+        let clean = through(&gtr, &s);
+        let mut cprobe = Purus::new(sr);
+        cprobe.set(&s);
+        let (mut l, mut r) = (gtr.clone(), gtr.clone());
+        cprobe.process(&mut l, &mut r);
+        let false_found = cprobe.meter().clicks_total / 2;
+        let change = 10.0
+            * math::log10(
+                gtr.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>()
+                    / energy(&clean.0, &gtr).max(1e-30),
+            );
+        save(
+            &format!("{name}.wav"),
+            &y,
+            &format!(
+                "sensitivity 0.5, crackle {crackle}: {found} rebuilt; the clicks and crackle \
+                 down {:.1} dB (the clicks alone {:.1} dB); on the clean DI {false_found} \
+                 rebuilt, the change {change:.1} dB under it",
+                down(&both, &y.0),
+                down(&clicked, &yc.0)
+            ),
+        );
+        let d = through(&both, &click_on(crackle, true));
+        save(&format!("{name}-delta.wav"), &d, "what it took out");
+    }
 
     // A bass on the hum's own frequencies.
     let notes = [
@@ -408,5 +469,6 @@ fn main() {
         );
         save(&format!("{name}-delta.wav"), &d, "what it took out");
     }
+    log += &extra;
     std::fs::write(out.join("render-log.txt"), log).unwrap();
 }
