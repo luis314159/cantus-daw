@@ -304,3 +304,48 @@ pub fn level_following(x: &[f32], theta: &[f64], k: usize) -> f64 {
     }
     2.0 * (re * re + im * im).sqrt() / wsum
 }
+
+/// Clicks added to `x`: `count` of them at drawn places (at least 50 ms apart), each 1–8
+/// samples of a falling, alternating impulse of 0.1–0.5 peak — a scratch's or an edit's.
+/// Returns where they are.
+pub fn add_clicks(x: &mut [f32], count: usize, seed: u32) -> Vec<usize> {
+    let mut rng = Noise::new(seed);
+    let n = x.len();
+    let mut at = Vec::new();
+    let span = n / (count + 1);
+    for c in 0..count {
+        let p = span * (c + 1) + ((rng.next() * 0.3) * span as f32) as usize;
+        let len = 1 + ((rng.next() * 0.5 + 0.5) * 7.0) as usize;
+        let amp = 0.1 + 0.4 * (rng.next() * 0.5 + 0.5);
+        let sign = if rng.next() > 0.0 { 1.0 } else { -1.0 };
+        for j in 0..len {
+            if p + j < n {
+                let alt = if j % 2 == 0 { 1.0 } else { -0.6 };
+                x[p + j] += sign * amp * alt * (1.0 - j as f32 / (len as f32 + 1.0));
+            }
+        }
+        at.push(p);
+    }
+    at
+}
+
+/// Crackle added to `x`: impulses of one or two samples, `rate` a second on average, of
+/// 0.005–0.03 peak — a worn record's.
+pub fn add_crackle(x: &mut [f32], sr: f32, rate: f32, seed: u32) {
+    let mut rng = Noise::new(seed);
+    let p = rate / sr;
+    let mut i = 0;
+    while i + 1 < x.len() {
+        if rng.next() * 0.5 + 0.5 < p {
+            let amp = 0.005 + 0.025 * (rng.next() * 0.5 + 0.5);
+            let sign = if rng.next() > 0.0 { 1.0 } else { -1.0 };
+            x[i] += sign * amp;
+            if rng.next() > 0.0 {
+                x[i + 1] -= sign * amp * 0.5;
+            }
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+}

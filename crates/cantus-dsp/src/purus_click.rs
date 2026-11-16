@@ -20,7 +20,8 @@
 //! 48 kHz; a longer one is a drum hit or a consonant, left alone), whose largest error
 //! passes the sensitivity's threshold. **Crackle** — the dense, small impulses of a worn
 //! record — lowers the threshold for stretches of at most [`CRACKLE_LEN`] samples, to half
-//! of it at crackle 1. At crackle 0 the judgement is the editor's.
+//! of it at crackle 1 (never under [`CRACKLE_FLOOR`] robust scales). At crackle 0 the
+//! judgement is the editor's.
 //!
 //! At most [`MAX_REPAIRS`] clicks a block a channel are rebuilt (the CPU is bounded);
 //! a block with none is handed on bit for bit.
@@ -39,6 +40,8 @@ pub const AFTER: usize = 192;
 pub const MAX_GAP: usize = 96;
 /// Crackle: stretches of at most this many samples.
 pub const CRACKLE_LEN: usize = 4;
+/// Crackle's threshold is never under this many robust scales.
+pub const CRACKLE_FLOOR: f64 = 5.0;
 /// The most clicks rebuilt a block a channel.
 pub const MAX_REPAIRS: usize = 32;
 /// The window judged each block.
@@ -221,50 +224,64 @@ impl Declick {
     }
 
     fn repair(&mut self) {
-        let (b0, b1) = (BEFORE, BEFORE + BLOCK);
-        declick::ar_fit_into(&self.win[b0 - BLOCK..b1], ORDER, &mut self.a, &mut self.ar);
-        let sigma = declick::block_errors(&self.win, b0, b1, &self.a, &mut self.e, &mut self.mag);
-        if sigma <= 1e-9 {
-            return;
-        }
         let k = declick::threshold(self.s.sensitivity);
-        let kc = k * (1.0 - 0.5 * self.s.crackle as f64);
-        let mark = kc.min(k) * sigma;
-        let mut done = 0;
-        // Runs of suspects, merged as the editor merges them: (first, last + 1, peak).
-        let mut run: Option<(usize, usize, f64)> = None;
-        let mut i = 0;
-        while i <= BLOCK {
-            let v = if i < BLOCK { self.e[i].abs() } else { 0.0 };
-            let at = b0 + i;
-            if i < BLOCK && v > mark {
-                run = match run {
-                    Some((a, b, p)) if at <= b + MERGE => Some((a, at + 1, p.max(v))),
-                    Some(prev) => {
-                        done += self.rebuild_run(prev, k * sigma);
-                        Some((at, at + 1, v))
-                    }
-                    None => Some((at, at + 1, v)),
-                };
-            }
-            if i == BLOCK {
-                if let Some(prev) = run.take() {
-                    done += self.rebuild_run(prev, k * sigma);
-                }
-            }
-            if done >= MAX_REPAIRS {
-                break;
-            }
-            i += 1;
+        // The editor's pass: clicks at the sensitivity's threshold.
+        let mut done = self.pass(k, false);
+        // Crackle: a second pass over the block made clean of its clicks (a model and a
+        // scale no longer pulled by them), taking the shortest impulses at a threshold
+        // down to half (never under five robust scales).
+        if self.s.crackle > 0.0 && done < MAX_REPAIRS {
+            let kc = (k * (1.0 - 0.5 * self.s.crackle as f64))
+                .max(CRACKLE_FLOOR)
+                .min(k);
+            done += self.pass(kc, true);
         }
         self.last += done;
         self.total += done as u64;
     }
 
-    /// Rebuild one run of suspects if it is a click; 1 if it was rebuilt.
-    fn rebuild_run(&mut self, (a, b, peak): (usize, usize, f64), click: f64) -> usize {
-        let short = b - a <= CRACKLE_LEN;
-        if !(peak > click || (short && self.s.crackle > 0.0)) {
+    /// One pass of finding and rebuilding at `k` robust scales; with `crackle`, only the
+    /// stretches of at most [`CRACKLE_LEN`] marks. How many were rebuilt.
+    fn pass(&mut self, k: f64, crackle: bool) -> usize {
+        let (b0, b1) = (BEFORE, BEFORE + BLOCK);
+        declick::ar_fit_into(&self.win[b0 - BLOCK..b1], ORDER, &mut self.a, &mut self.ar);
+        let sigma = declick::block_errors(&self.win, b0, b1, &self.a, &mut self.e, &mut self.mag);
+        if sigma <= 1e-9 {
+            return 0;
+        }
+        let mark = k * sigma;
+        let mut done = 0;
+        // Runs of suspects, merged as the editor merges them: (first, last + 1).
+        let mut run: Option<(usize, usize)> = None;
+        for i in 0..=BLOCK {
+            let at = b0 + i;
+            let hit = i < BLOCK && self.e[i].abs() > mark;
+            if hit {
+                run = match run {
+                    Some((a, b)) if at <= b + MERGE => Some((a, at + 1)),
+                    Some(prev) => {
+                        done += self.rebuild_run(prev, crackle);
+                        Some((at, at + 1))
+                    }
+                    None => Some((at, at + 1)),
+                };
+            }
+            if i == BLOCK {
+                if let Some(prev) = run.take() {
+                    done += self.rebuild_run(prev, crackle);
+                }
+            }
+            if done >= MAX_REPAIRS {
+                break;
+            }
+        }
+        done
+    }
+
+    /// Rebuild one run of suspects as the editor does (widened, the least-squares
+    /// autoregressive rebuilding); 1 if it was rebuilt.
+    fn rebuild_run(&mut self, (a, b): (usize, usize), crackle: bool) -> usize {
+        if crackle && b - a > CRACKLE_LEN {
             return 0;
         }
         let (from, to) = declick::widen(a, b, BEFORE, WINDOW);

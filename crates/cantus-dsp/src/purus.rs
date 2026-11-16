@@ -584,6 +584,9 @@ fn gain(db: f32) -> f32 {
 #[path = "purus_tests.rs"]
 mod tests;
 #[cfg(test)]
+#[path = "purus_tests_click.rs"]
+mod tests_click;
+#[cfg(test)]
 #[path = "purus_tests_measure.rs"]
 mod tests_measure;
 #[cfg(test)]
