@@ -57,11 +57,14 @@ fn settings(unit: &str, state: &str) -> &'static [(&'static str, f32)] {
         ],
         ("fractus", "cloud") => &[
             ("clevel", 0.8),
-            ("cdens", 80.0),
+            ("cdens", 160.0),
+            ("csize", 160.0),
+            ("cwin", 3.0),
             ("crand", 24.0),
             ("cfreeze", 1.0),
         ],
         ("fractus", "bars") => &[("bars", 2.0), ("step", 4.0), ("swing", 0.4)],
+        ("fractus", "notes") => &[("trig", 2.0)],
         ("caelum", "infinite") => &[
             ("inf", 1.0),
             ("ishim", 1.0),
@@ -86,6 +89,16 @@ fn app_with(sh: &Shot) -> CantusApp {
     }
     if sh.playing {
         views::fx::demo_feed(&mut app, kind_of(sh.unit));
+    }
+    if sh.unit == "fractus" {
+        // Each state opens the page of cards it is about.
+        let page = match sh.state {
+            "cloud" => 3,
+            "bars" => 1,
+            "notes" => 2,
+            _ => 0,
+        };
+        views::fx::fractus::show_page(&mut app, page);
     }
     app.fx.pos = Some(egui::pos2(0.0, 0.0));
     app
@@ -156,7 +169,7 @@ fn main() {
     };
     let states: [(&str, &[&str]); 3] = [
         ("loquax", &["start", "synth", "wide"]),
-        ("fractus", &["start", "cloud", "bars"]),
+        ("fractus", &["start", "cloud", "bars", "notes"]),
         ("caelum", &["start", "infinite", "frozen", "ducked"]),
     ];
     let mut shots = Vec::new();

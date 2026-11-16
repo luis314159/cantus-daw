@@ -95,6 +95,9 @@ pub mod cabinets;
 // The vocoder's microphone, bezels and meters Loquax draws (ADR 0139). fxa:loquax
 #[path = "skin/consoles.rs"]
 pub mod consoles;
+// The sequencer's chassis, pads, tube and keys Fractus draws (ADR 0140). fxa:fractus
+#[path = "skin/sequencers.rs"]
+pub mod sequencers;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;

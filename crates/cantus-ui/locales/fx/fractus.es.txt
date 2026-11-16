@@ -248,3 +248,11 @@ fractus.d.now = Ahora
 fractus.d.grains = Granos sonando
 fractus.d.frozen = Congelada
 fractus.d.lanesword = carriles pintados
+# Hoja de diseño v2: las páginas de tarjetas, las palabras nuevas de la pantalla.
+fractus.page.seq = Secuenciador
+fractus.page.slice = Cortes
+fractus.page.colour = Color
+fractus.page.cloud = Nube de granos
+fractus.d.chance = azar
+fractus.h.lane = Haz clic para abrir las tarjetas de su módulo
+fractus.h.page = Las tarjetas de los módulos cuyos carriles muestran los puntos

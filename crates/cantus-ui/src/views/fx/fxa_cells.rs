@@ -30,6 +30,20 @@ fn word(ui: &egui::Ui, key: &str) -> f32 {
     super::arca::words::cell_width(ui, key)
 }
 
+/// The width a choice's words take in a value box, 100 %.
+fn value_word(ui: &egui::Ui, key: &str) -> f32 {
+    use crate::kit::text::{self as ktext, Role, Text};
+    let t = Text::key(key, Role::Value, egui::Color32::TRANSPARENT).caps(false);
+    let mono = ktext::Face {
+        mono: true,
+        ..ktext::Face::ROLE
+    };
+    ktext::measure(ui.ctx(), &t, 1.0)
+        .x
+        .max(ktext::measure_face(ui.ctx(), &t, 1.0, mono).x)
+        + 16.0
+}
+
 /// An item's width at 100 %.
 pub fn width(ui: &egui::Ui, item: &Item) -> f32 {
     match *item {
@@ -37,8 +51,12 @@ pub fn width(ui: &egui::Ui, item: &Item) -> f32 {
             word(ui, label).max(controls::cells_width(&[Size::M]))
         }
         Item::Choice(_, label, names) => {
-            // The value box shows a choice's words: as wide as the widest.
-            let widest = names.iter().map(|c| word(ui, c)).fold(0.0, f32::max);
+            // The value box shows a choice's words: as wide as the widest, measured as the
+            // box writes them (a face's values may be monospaced: "Fast attack").
+            let widest = names
+                .iter()
+                .map(|c| word(ui, c).max(value_word(ui, c)))
+                .fold(0.0, f32::max);
             word(ui, label)
                 .max(widest + 8.0)
                 .max(controls::cells_width(&[Size::M]))

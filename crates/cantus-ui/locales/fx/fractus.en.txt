@@ -248,3 +248,11 @@ fractus.d.now = Now
 fractus.d.grains = Grains sounding
 fractus.d.frozen = Frozen
 fractus.d.lanesword = lanes painted
+# Design sheet v2: the pages of cards, the display's new words.
+fractus.page.seq = Sequencer
+fractus.page.slice = Slicing
+fractus.page.colour = Colour
+fractus.page.cloud = Grain cloud
+fractus.d.chance = chance
+fractus.h.lane = Click to open its module's cards
+fractus.h.page = The cards of the modules whose lanes the dots show

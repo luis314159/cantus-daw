@@ -126,7 +126,25 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CellLook<'_
         s.t.value_pill
     };
     let pill_text = ensure_contrast(s.t.value_pill_text, pill_fill, 4.5);
-    let pill = b.snap_rect(r.pill);
+    let role = match look.control {
+        Control::Knob(k) if k.size == KnobSize::XL => Role::Hero,
+        _ => Role::Value,
+    };
+    let value = Text::new(look.value, role, f(pill_text)).policy(Policy::Elide(text::Elide::End));
+    // A value in words wider than the pill ("Fast attack", a scale's name): the pill grows
+    // into its cell — never past it — rather than cut them. Values that fit keep the pill.
+    let need = text::measure_face(b.ctx(), &value, s.tk(), s.skin.lettering.value()).x
+        + s.s(8.0);
+    let room = rect.width() - s.s(4.0);
+    let pill = if need > r.pill.width() && room > r.pill.width() {
+        Rect::from_center_size(
+            r.pill.center(),
+            Vec2::new(need.min(room), r.pill.height()),
+        )
+    } else {
+        r.pill
+    };
+    let pill = b.snap_rect(pill);
     b.rrect(
         pill,
         s.r(3.0),
@@ -135,14 +153,10 @@ pub fn paint(b: &mut Brush, rect: Rect, s: &Style, st: State, look: &CellLook<'_
             f(shade(pill_fill, -0.02 * s.t.depth)),
         ),
     );
-    let role = match look.control {
-        Control::Knob(k) if k.size == KnobSize::XL => Role::Hero,
-        _ => Role::Value,
-    };
     let _ = text::paint_face(
         b,
         pill.shrink2(Vec2::new(s.s(2.0), 0.0)),
-        &Text::new(look.value, role, f(pill_text)).policy(Policy::Elide(text::Elide::End)),
+        &value,
         s.tk(),
         s.skin.lettering.value(),
     );

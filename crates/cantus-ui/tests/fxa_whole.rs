@@ -115,3 +115,39 @@ fn wave_a_s_windows_never_cut_or_clip_a_word() {
     bad.dedup();
     assert!(bad.is_empty(), "words not read whole:\n{}", bad.join("\n"));
 }
+
+/// Fractus's pages of cards (design sheet v2): each page's cards and the display over them
+/// read whole in English and Spanish at 75 … 200 %, in Slate and Paper — the page with the
+/// keys held and the frozen cloud's among them.
+#[test]
+fn fractus_s_pages_never_cut_or_clip_a_word() {
+    let pages = views::fx::fractus::PAGES.len();
+    assert_eq!(pages, 4);
+    let mut bad = Vec::new();
+    for lang in [Locale::En, Locale::Es] {
+        cantus_ui::i18n::set_thread_locale(lang);
+        for dark in [true, false] {
+            for k in [0.75f32, 1.0, 2.0] {
+                for page in 1..pages {
+                    let mut app =
+                        CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+                    app.demo_editor("fractus");
+                    let (strip, effect, _) = app.fx.open.expect("the unit is open");
+                    views::fx::host::DawHost::new(&mut app, strip, effect, "fractus").set_many(
+                        &[("trig", 2.0), ("cfreeze", 1.0), ("cwin", 3.0)],
+                        "cmd.fx_preset",
+                    );
+                    views::fx::demo_feed(&mut app, EffectKind::Glitch);
+                    views::fx::fractus::show_page(&mut app, page);
+                    app.fx.pos = Some(egui::pos2(0.0, 0.0));
+                    for c in probe_window(&mut app, EffectKind::Glitch, k, dark) {
+                        bad.push(format!("fractus page {page} {lang:?} dark {dark} at {k}: {c}"));
+                    }
+                }
+            }
+        }
+    }
+    bad.sort();
+    bad.dedup();
+    assert!(bad.is_empty(), "words not read whole:\n{}", bad.join("\n"));
+}
