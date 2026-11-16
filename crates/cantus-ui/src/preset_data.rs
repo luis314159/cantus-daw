@@ -301,6 +301,21 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/amp.toml",
         include_str!("../presets/effects/amp.toml"),
     ),
+    (
+        FileUnit::Effect(EffectKind::Vocoder), // fxa:contract
+        "presets/effects/vocoder.toml",
+        include_str!("../presets/effects/vocoder.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Glitch), // fxa:contract
+        "presets/effects/glitch.toml",
+        include_str!("../presets/effects/glitch.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Shimmer), // fxa:contract
+        "presets/effects/shimmer.toml",
+        include_str!("../presets/effects/shimmer.toml"),
+    ),
 ];
 
 /// Read one file's text.

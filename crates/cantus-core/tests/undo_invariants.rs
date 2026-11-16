@@ -329,6 +329,28 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 pedal: None, // fx3:contract
                             };
                         }
+                        // fxa:contract — a lane of Fractus's: blocks out of order, overlapping,
+                        // past the cycle and with wild amounts (so sanitizing is undone too),
+                        // an empty list clearing it, a lane past the ten, other kinds.
+                        if (e.spec.kind == EffectKind::Glitch && rng.below(3) == 0)
+                            || rng.below(60) == 0
+                        {
+                            use cantus_core::fx::fractus::Block;
+                            let blocks = (0..rng.below(5))
+                                .map(|_| Block {
+                                    at: rng.below(300) as u16,
+                                    len: rng.below(40) as u16,
+                                    amount: rng.f32(-0.5, 1.5),
+                                    prob: rng.f32(-0.5, 1.5),
+                                })
+                                .collect();
+                            return Command::SetFractusLane {
+                                strip: host,
+                                effect: e.id,
+                                lane: rng.below(12) as u8,
+                                blocks,
+                            };
+                        }
                         if rng.below(3) == 0 {
                             return Command::SetEffectMix {
                                 strip: host,

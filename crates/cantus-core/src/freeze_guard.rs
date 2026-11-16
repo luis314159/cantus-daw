@@ -228,6 +228,7 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetEffectMidiSource { strip: s, .. }
         | SetEffectIr { strip: s, .. } // r39:conv
         | SetLapsusPattern { strip: s, .. } // fx:lapsus
+        | SetFractusLane { strip: s, .. } // fxa:contract
         | InsertPedal { strip: s, .. } // fx3:contract
         | RemovePedal { strip: s, .. }
         | MovePedal { strip: s, .. }

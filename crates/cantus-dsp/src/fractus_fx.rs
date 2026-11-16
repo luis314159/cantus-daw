@@ -15,6 +15,9 @@ pub struct PitchSettings {
     pub semis: f32,
     /// The shifter's window, ms (20 … 100): longer is smoother, shorter tighter.
     pub window_ms: f32,
+    /// Clean (two heads, one sounding at a time, a short splice) instead of the classic
+    /// four-head warble (the default: the glitch pitch, every tap always sounding).
+    pub clean: bool,
 }
 
 impl Default for PitchSettings {
@@ -22,9 +25,13 @@ impl Default for PitchSettings {
         PitchSettings {
             semis: 12.0,
             window_ms: 50.0,
+            clean: false,
         }
     }
 }
+
+/// The clean style's splice, a share of its window: each head sounds alone for the rest.
+const CLEAN_SPLICE: f64 = 0.2;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CrushSettings {
@@ -216,6 +223,7 @@ impl Chain {
         self.pitch = PitchSettings {
             semis: s.pitch.semis.clamp(-24.0, 24.0),
             window_ms: s.pitch.window_ms.clamp(20.0, PITCH_MAX_MS),
+            clean: s.pitch.clean,
         };
         self.crush = CrushSettings {
             bits: s.crush.bits.clamp(1.0, 24.0),
@@ -378,6 +386,33 @@ impl Chain {
         let r = math::exp2(f64::from(self.pitch.semis) / 12.0);
         let ph = t as f64 * (1.0 - r) / w;
         let mut y = [0.0f32; 2];
+        if self.pitch.clean {
+            // Two heads half a window apart. Each rises over the splice from where its
+            // delay wraps, sounds alone, and falls over the splice as the other rises
+            // (sin² + cos²: the two weights sum to one), so for most of the window one
+            // head plays — no comb between taps, no warble but at the splices.
+            for k in 0..2 {
+                let p = ph + 0.5 * k as f64;
+                let p = p - p.floor();
+                let h = if p < CLEAN_SPLICE {
+                    let s = math::sin(std::f64::consts::FRAC_PI_2 * p / CLEAN_SPLICE);
+                    s * s
+                } else if p < 0.5 {
+                    1.0
+                } else if p < 0.5 + CLEAN_SPLICE {
+                    let c = math::cos(std::f64::consts::FRAC_PI_2 * (p - 0.5) / CLEAN_SPLICE);
+                    c * c
+                } else {
+                    0.0
+                } as f32;
+                if h > 0.0 {
+                    let d = (p * w) as f32;
+                    y[0] += h * self.pl.read(d);
+                    y[1] += h * self.pr.read(d);
+                }
+            }
+            return y;
+        }
         for k in 0..4 {
             let p = ph + 0.25 * k as f64;
             let p = p - p.floor();

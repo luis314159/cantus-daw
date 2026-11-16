@@ -1,0 +1,4 @@
+# Fractus glitch sequencer: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's wave A: none yet (its starting spec paints a lane: `fx::fractus::last_beat_stutter`); phase B writes them here.
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).

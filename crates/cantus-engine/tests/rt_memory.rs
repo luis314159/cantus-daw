@@ -3237,3 +3237,166 @@ fn rota_never_allocates() {
         rig.allocations,
     );
 }
+
+// fxa:loquax — Loquax (ADR 0139, provisional) on the audio thread: the synthesiser played
+// by another track's notes, then the carrier on the sidechain and swapped, 64 bands of
+// order 8, the formant and the hold moving, a seek and a stop.
+#[test]
+fn loquax_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let notes_from = p.tracks[1].id;
+    let key = p.tracks[1].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::Vocoder);
+    fx.midi_from = Some(notes_from);
+    fx.spec.set("mix", 1.0).unwrap();
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("played by notes", 40);
+    p.strip_mut(s0).unwrap().effect_mut(id).unwrap().sidechain = Some(key);
+    for (phase, kv) in [
+        (
+            "keyed, both",
+            &[("src", 2.0), ("bands", 64.0), ("order", 2.0)][..],
+        ),
+        (
+            "swapped, held",
+            &[("swap", 1.0), ("hold", 1.0), ("formant", 5.0)][..],
+        ),
+        (
+            "robot",
+            &[("swap", 0.0), ("hold", 0.0), ("robot", 1.0), ("uni", 7.0)][..],
+        ),
+    ] {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.play(phase, 20);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
+    );
+}
+
+// fxa:fractus — Fractus (ADR 0140, provisional) on the audio thread: inserted empty (no
+// memory), then painted while playing — its DSP asked for and taken (a pointer moved) —
+// every lane and the cloud, notes playing the lanes, the pattern cleared and painted
+// again, a seek and a stop.
+#[test]
+fn fractus_never_allocates() {
+    use cantus_core::fx::fractus::{Block, Pattern};
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let notes_from = p.tracks[1].id;
+    let mut fx = p.make_effect(EffectKind::Glitch);
+    fx.midi_from = Some(notes_from);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("empty", 20);
+    let mut all = Pattern::default();
+    for lane in 0..10u8 {
+        all.replace(lane, &[Block::new(u16::from(lane) % 14, 2)]);
+    }
+    let empty: Option<Box<Pattern>> = None;
+    for (phase, pattern, kv) in [
+        ("painted", Some(all.clone()), &[("clevel", 0.0)][..]),
+        (
+            "the cloud",
+            Some(all.clone()),
+            &[("clevel", 0.6), ("cdens", 150.0)][..],
+        ),
+        (
+            "notes too",
+            Some(all.clone()),
+            &[("trig", 2.0), ("key", 24.0)][..],
+        ),
+        ("cleared", empty.as_deref().cloned(), &[("trig", 0.0)][..]),
+        (
+            "again",
+            Some(all.clone()),
+            &[("rramp", 3.0), ("swing", 0.5)][..],
+        ),
+    ] {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        e.spec.fractus = pattern.map(Box::new);
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.play(phase, 30);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
+    );
+}
+
+// fxa:caelum — Caelum (ADR 0141, provisional) on the audio thread: the starting space,
+// the shimmer, infinite and sustained, frozen, a new size and line count (a redesign),
+// the ducking keyed by another strip, the pre-delay synced, a seek and a stop.
+#[test]
+fn caelum_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let key = p.tracks[1].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::Shimmer);
+    fx.spec = cantus_core::starting::starting_spec(EffectKind::Shimmer);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("the starting space", 30);
+    p.strip_mut(s0).unwrap().effect_mut(id).unwrap().sidechain = Some(key);
+    for (phase, kv) in [
+        ("shimmer", &[("shim", 1.0), ("pblvl", 1.0)][..]),
+        (
+            "infinite, sustained",
+            &[("inf", 1.0), ("ishim", 1.0), ("ilevel", 1.0)][..],
+        ),
+        ("frozen", &[("freeze", 1.0)][..]),
+        (
+            "redesigned",
+            &[("freeze", 0.0), ("inf", 0.0), ("size", 0.2), ("lines", 0.0)][..],
+        ),
+        (
+            "keyed, synced",
+            &[("duck", 18.0), ("psync", 4.0), ("bloom", 900.0)][..],
+        ),
+    ] {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.play(phase, 20);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
+    );
+}

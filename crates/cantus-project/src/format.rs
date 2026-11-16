@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 63; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes); fx: 62 the side round's five kinds, 63 wave 3: Tabula's board and three kinds (both provisional — renumbered when merged after round 40, r40 uses 62–70)
+pub const SCHEMA_VERSION: u32 = 64; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes); fx: 62 the side round's five kinds, 63 wave 3: Tabula's board and three kinds, 64 wave A: Fractus's lanes and three kinds (all provisional — renumbered when merged after round 40, r40 uses 62–70)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -202,6 +202,12 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     if boards_repaired > 0 {
         log::warn!("{boards_repaired} malformed board entr(ies) repaired");
     }
+    // fxa:contract — Fractus's lanes a command would refuse (a hand edit): overlapping or
+    // past the cycle, or on a slot that is not a Fractus (ADR 0140).
+    let lanes_repaired = cantus_core::fx::fractus::repair_project(&mut file.project);
+    if lanes_repaired > 0 {
+        log::warn!("{lanes_repaired} malformed glitch pattern(s) repaired");
+    }
     // Provenance of a file not in the pool (a hand edit) names nothing: dropped. // r34:stems
     let pool: std::collections::BTreeSet<_> =
         file.project.audio_pool.iter().map(|s| s.id).collect(); // r34:stems
@@ -312,6 +318,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_60_to_61, // r39:arrange — sections, folders, lane modes (ADR 0113)
     migrate_61_to_62, // fx: provisional — renumbered when merged after round 40 (r40 uses 62–70)
     migrate_62_to_63, // fx3: provisional — renumbered when merged after round 40 (r40 uses 62–70)
+    migrate_63_to_64, // fxa: provisional — renumbered when merged after round 40 (r40 uses 62–70)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1089,6 +1096,14 @@ fn migrate_62_to_63(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 64 (the fx side round's wave A, ADRs 0139–0141): Fractus's painted lanes
+/// (`EffectSpec::fractus`) and three new effect kinds — Loquax, Fractus and Caelum. Nothing
+/// older has any of them, so nothing is written.
+// fxa: provisional — renumbered when merged after round 40 (r40 uses 62–70)
+fn migrate_63_to_64(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
     let tracks = value
         .get_mut("project")
@@ -1485,7 +1500,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v63.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // fxa:contract — no longer the newest: migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(63));
         let p = report.file.project;
         let slots: Vec<_> = p.strips[1]
             .effects
@@ -1512,6 +1528,72 @@ mod tests {
         assert!(p
             .all_effects()
             .all(|(_, e)| !new_kinds.contains(&e.spec.kind) && e.spec.board.is_none()));
+    }
+
+    /// fxa:contract — Schema 64 (the fx side round's wave A, provisional): the fixture holds
+    /// one insert of each of the three new kinds, the Fractus with two painted lanes; every
+    /// older file (63) opens with none of them and no pattern. A hand-edited pattern is
+    /// repaired: overlapping blocks cut, a pattern on another kind taken off.
+    #[test]
+    fn schema_64_keeps_wave_a_s_kinds_and_fractus_s_lanes() {
+        use cantus_core::fx::fractus::Block;
+        use cantus_core::EffectKind as K;
+        let new_kinds = &K::ALL[35..38];
+        assert_eq!(new_kinds, [K::Vocoder, K::Glitch, K::Shimmer]);
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        let pat = slots[1].spec.fractus.as_deref().expect("lanes");
+        assert_eq!(pat.lane(0), [Block::new(12, 4)]);
+        let mut half = Block::new(8, 2);
+        half.amount = 0.5;
+        half.prob = 0.75;
+        assert_eq!(pat.lane(7), [half]);
+        assert_eq!(slots[0].spec.get("mix"), 1.0);
+        assert_eq!(slots[2].spec.get("shim"), 0.55);
+        let old = std::fs::read_to_string(dir.join("v63.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .all_effects()
+            .all(|(_, e)| !new_kinds.contains(&e.spec.kind) && e.spec.fractus.is_none()));
+        // A hand edit: an overlapping block, and a pattern on Caelum.
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        v.as_object_mut().unwrap().remove("integrity");
+        let fx = v["project"]["strips"][1]["effects"].as_array_mut().unwrap();
+        let at = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "Glitch")
+            .unwrap();
+        let lane = fx[at]["spec"]["fractus"]["lanes"]["0"]
+            .as_array_mut()
+            .unwrap();
+        lane.push(serde_json::json!({"at": 14, "len": 4}));
+        let pattern = fx[at]["spec"]["fractus"].clone();
+        let other = fx
+            .iter()
+            .position(|e| e["spec"]["kind"] == "Shimmer")
+            .unwrap();
+        fx[other]["spec"]["fractus"] = pattern;
+        let p = parse(&v.to_string(), true).unwrap().file.project;
+        let all: Vec<_> = p.all_effects().map(|(_, e)| e).collect();
+        let g = all.iter().find(|e| e.spec.kind == K::Glitch).unwrap();
+        assert_eq!(
+            g.spec.fractus.as_ref().unwrap().lane(0),
+            [Block::new(12, 4), Block::new(16, 2)]
+        );
+        assert!(all
+            .iter()
+            .filter(|e| e.spec.kind != K::Glitch)
+            .all(|e| e.spec.fractus.is_none()));
     }
 
     /// fx3:contract — a hand-edited board is repaired on load: a nested board and a second

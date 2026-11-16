@@ -87,6 +87,13 @@ pub enum EffectKind {
     Rotary, // fx3:contract
     /// Arca, amp and cabinet (`fx::arca`). // fx3:contract
     Amp, // fx3:contract
+    // fxa:contract — the side round's wave A (provisional ADRs 0139–0141).
+    /// Loquax, the vocoder (`fx::loquax`). // fxa:contract
+    Vocoder, // fxa:contract
+    /// Fractus, the glitch sequencer and grain cloud (`fx::fractus`, [`EffectSpec::fractus`]). // fxa:contract
+    Glitch, // fxa:contract
+    /// Caelum, the shimmer reverb (`fx::caelum`). // fxa:contract
+    Shimmer, // fxa:contract
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -199,7 +206,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 35] = [
+    pub const ALL: [EffectKind; 38] = [
+        // fxa:contract: 38 with wave A's three
         // fx3:contract: 35 with wave 3's four
         // fx:contract: 31 with the side round's five
         // r39:conv: 26 with Aula
@@ -238,6 +246,9 @@ impl EffectKind {
         EffectKind::PitchShift, // fx3:contract
         EffectKind::Rotary,     // fx3:contract
         EffectKind::Amp,        // fx3:contract
+        EffectKind::Vocoder,    // fxa:contract
+        EffectKind::Glitch,     // fxa:contract
+        EffectKind::Shimmer,    // fxa:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
@@ -284,6 +295,9 @@ impl EffectKind {
             EffectKind::PitchShift => fx::saltus::NAME_KEY, // fx3:contract
             EffectKind::Rotary => fx::rota::NAME_KEY, // fx3:contract
             EffectKind::Amp => fx::arca::NAME_KEY,  // fx3:contract
+            EffectKind::Vocoder => fx::loquax::NAME_KEY, // fxa:contract
+            EffectKind::Glitch => fx::fractus::NAME_KEY, // fxa:contract
+            EffectKind::Shimmer => fx::caelum::NAME_KEY, // fxa:contract
         }
     }
 
@@ -326,6 +340,9 @@ impl EffectKind {
             EffectKind::PitchShift => fx::saltus::params(), // fx3:contract
             EffectKind::Rotary => fx::rota::params(), // fx3:contract
             EffectKind::Amp => fx::arca::params(),  // fx3:contract
+            EffectKind::Vocoder => fx::loquax::params(), // fxa:contract
+            EffectKind::Glitch => fx::fractus::params(), // fxa:contract
+            EffectKind::Shimmer => fx::caelum::params(), // fxa:contract
         }
     }
 
@@ -368,6 +385,9 @@ impl EffectKind {
             EffectKind::PitchShift => fx::saltus::SPARSE, // fx3:contract
             EffectKind::Rotary => fx::rota::SPARSE, // fx3:contract
             EffectKind::Amp => fx::arca::SPARSE,  // fx3:contract
+            EffectKind::Vocoder => fx::loquax::SPARSE, // fxa:contract
+            EffectKind::Glitch => fx::fractus::SPARSE, // fxa:contract
+            EffectKind::Shimmer => fx::caelum::SPARSE, // fxa:contract
         }
     }
 
@@ -427,6 +447,9 @@ impl EffectKind {
             EffectKind::PitchShift => fx::saltus::TAKES_SIDECHAIN, // fx3:contract
             EffectKind::Rotary => fx::rota::TAKES_SIDECHAIN, // fx3:contract
             EffectKind::Amp => fx::arca::TAKES_SIDECHAIN,  // fx3:contract
+            EffectKind::Vocoder => fx::loquax::TAKES_SIDECHAIN, // fxa:contract
+            EffectKind::Glitch => fx::fractus::TAKES_SIDECHAIN, // fxa:contract
+            EffectKind::Shimmer => fx::caelum::TAKES_SIDECHAIN, // fxa:contract
         }
     }
 
@@ -457,6 +480,9 @@ impl EffectKind {
             EffectKind::PitchShift => fx::saltus::TAKES_NOTES, // fx3:contract
             EffectKind::Rotary => fx::rota::TAKES_NOTES, // fx3:contract
             EffectKind::Amp => fx::arca::TAKES_NOTES,  // fx3:contract
+            EffectKind::Vocoder => fx::loquax::TAKES_NOTES, // fxa:contract
+            EffectKind::Glitch => fx::fractus::TAKES_NOTES, // fxa:contract
+            EffectKind::Shimmer => fx::caelum::TAKES_NOTES, // fxa:contract
             _ => false,
         }
     }
@@ -490,6 +516,9 @@ impl EffectKind {
             EffectKind::PitchShift => fx::saltus::CHOICES, // fx3:contract
             EffectKind::Rotary => fx::rota::CHOICES, // fx3:contract
             EffectKind::Amp => fx::arca::CHOICES,  // fx3:contract
+            EffectKind::Vocoder => fx::loquax::CHOICES, // fxa:contract
+            EffectKind::Glitch => fx::fractus::CHOICES, // fxa:contract
+            EffectKind::Shimmer => fx::caelum::CHOICES, // fxa:contract
             _ => &[],
         }
     }
@@ -523,6 +552,10 @@ pub struct EffectSpec {
     /// addressed `p{id}.{key}` through the routed API ([`EffectSpec::param`]). // fx3:contract
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub board: Option<Box<fx::tabula::Board>>,
+    /// Fractus's painted lanes (ADR 0140, provisional; schema 64); `None` for every other
+    /// kind and for a pattern with nothing painted, and then not written. // fxa:contract
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fractus: Option<Box<fx::fractus::Pattern>>,
 }
 
 impl EffectSpec {
@@ -539,9 +572,10 @@ impl EffectSpec {
             kind,
             params,
             external: None,
-            ir: None,     // r39:conv
-            lapsus: None, // fx:lapsus
-            board: None,  // fx3:contract
+            ir: None,      // r39:conv
+            lapsus: None,  // fx:lapsus
+            board: None,   // fx3:contract
+            fractus: None, // fxa:contract
         }
     }
 
@@ -551,9 +585,10 @@ impl EffectSpec {
             kind: EffectKind::External,
             params: BTreeMap::new(),
             external: Some(Box::new(plugin)),
-            ir: None,     // r39:conv
-            lapsus: None, // fx:lapsus
-            board: None,  // fx3:contract
+            ir: None,      // r39:conv
+            lapsus: None,  // fx:lapsus
+            board: None,   // fx3:contract
+            fractus: None, // fxa:contract
         }
     }
 

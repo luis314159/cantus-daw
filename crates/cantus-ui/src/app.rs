@@ -1739,6 +1739,9 @@ impl CantusApp {
             "saltus" | "pitch" => EffectKind::PitchShift, // fx3:contract
             "rota" | "rotary" => EffectKind::Rotary,    // fx3:contract
             "arca" | "amp" => EffectKind::Amp,          // fx3:contract
+            "loquax" | "vocoder" => EffectKind::Vocoder, // fxa:contract
+            "fractus" | "glitch" => EffectKind::Glitch, // fxa:contract
+            "caelum" | "shimmer" => EffectKind::Shimmer, // fxa:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

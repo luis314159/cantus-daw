@@ -88,6 +88,12 @@ pub mod libra;
 // fx3:contract — the side round's wave 3 (provisional ADRs 0134–0137).
 /// Arca, amp and cabinet (fx side round, wave 3). // fx3:contract
 pub mod arca;
+/// Caelum, the shimmer reverb (fx side round, wave A). // fxa:contract
+pub mod caelum;
+/// Fractus, the glitch sequencer and grain cloud (fx side round, wave A). // fxa:contract
+pub mod fractus;
+/// Loquax, the vocoder (fx side round, wave A). // fxa:contract
+pub mod loquax;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor
 /// The pedals' artwork: textures, illustrations, lettering. // fx:fragor
 pub mod pedal_art;
@@ -165,6 +171,9 @@ pub struct FxEditors {
     pub saltus: saltus::State,   // fx3:contract
     pub rota: rota::State,       // fx3:contract
     pub arca: arca::State,       // fx3:contract
+    pub loquax: loquax::State,   // fxa:contract
+    pub fractus: fractus::State, // fxa:contract
+    pub caelum: caelum::State,   // fxa:contract
     pub delay: delay::State,     // r39:delay
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
@@ -442,6 +451,9 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::PitchShift => saltus::FACTORY_PRESETS, // fx3:contract
         EffectKind::Rotary => rota::FACTORY_PRESETS, // fx3:contract
         EffectKind::Amp => arca::FACTORY_PRESETS,  // fx3:contract
+        EffectKind::Vocoder => loquax::FACTORY_PRESETS, // fxa:contract
+        EffectKind::Glitch => fractus::FACTORY_PRESETS, // fxa:contract
+        EffectKind::Shimmer => caelum::FACTORY_PRESETS, // fxa:contract
         EffectKind::Delay => delay::FACTORY_PRESETS, // r39:delay
         _ => &[],
     }
@@ -556,6 +568,9 @@ pub enum Editor {
     Saltus(Box<saltus::State>),   // fx3:contract
     Rota(Box<rota::State>),       // fx3:contract
     Arca(Box<arca::State>),       // fx3:contract
+    Loquax(Box<loquax::State>),   // fxa:contract
+    Fractus(Box<fractus::State>), // fxa:contract
+    Caelum(Box<caelum::State>),   // fxa:contract
     Delay(Box<delay::State>),     // r39:delay
 }
 
@@ -596,6 +611,9 @@ impl Editor {
             EffectKind::PitchShift => Some(Editor::Saltus(Box::default())), // fx3:contract
             EffectKind::Rotary => Some(Editor::Rota(Box::default())), // fx3:contract
             EffectKind::Amp => Some(Editor::Arca(Box::default())),  // fx3:contract
+            EffectKind::Vocoder => Some(Editor::Loquax(Box::default())), // fxa:contract
+            EffectKind::Glitch => Some(Editor::Fractus(Box::default())), // fxa:contract
+            EffectKind::Shimmer => Some(Editor::Caelum(Box::default())), // fxa:contract
             EffectKind::Delay => Some(Editor::Delay(Box::default())), // r39:delay
             _ => None,
         }
@@ -637,6 +655,9 @@ impl Editor {
             Editor::Saltus(st) => saltus::editor(host, st, ui), // fx3:contract
             Editor::Rota(st) => rota::editor(host, st, ui), // fx3:contract
             Editor::Arca(st) => arca::editor(host, st, ui), // fx3:contract
+            Editor::Loquax(st) => loquax::editor(host, st, ui), // fxa:contract
+            Editor::Fractus(st) => fractus::editor(host, st, ui), // fxa:contract
+            Editor::Caelum(st) => caelum::editor(host, st, ui), // fxa:contract
             Editor::Delay(st) => delay::editor(host, st, ui), // r39:delay
         }
     }
@@ -686,6 +707,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::PitchShift // fx3:contract
         | EffectKind::Rotary // fx3:contract
         | EffectKind::Amp // fx3:contract
+        | EffectKind::Vocoder // fxa:contract
+        | EffectKind::Glitch // fxa:contract
+        | EffectKind::Shimmer // fxa:contract
         | EffectKind::Delay // r39:delay
         | EffectKind::External => {
             let mut pos = app.fx.pos;
@@ -737,6 +761,9 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::PitchShift => saltus::framed(app, ui, strip, effect), // fx3:contract
                     EffectKind::Rotary => rota::framed(app, ui, strip, effect), // fx3:contract
                     EffectKind::Amp => arca::framed(app, ui, strip, effect), // fx3:contract
+                    EffectKind::Vocoder => loquax::framed(app, ui, strip, effect), // fxa:contract
+                    EffectKind::Glitch => fractus::framed(app, ui, strip, effect), // fxa:contract
+                    EffectKind::Shimmer => caelum::framed(app, ui, strip, effect), // fxa:contract
                     EffectKind::Delay => delay::framed(app, ui, strip, effect), // r39:delay
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
@@ -787,6 +814,9 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::PitchShift => saltus::preview(ui, spec), // fx3:contract
         EffectKind::Rotary => rota::preview(ui, spec), // fx3:contract
         EffectKind::Amp => arca::preview(ui, spec),  // fx3:contract
+        EffectKind::Vocoder => loquax::preview(ui, spec), // fxa:contract
+        EffectKind::Glitch => fractus::preview(ui, spec), // fxa:contract
+        EffectKind::Shimmer => caelum::preview(ui, spec), // fxa:contract
         EffectKind::Delay => delay::preview(ui, spec), // r39:delay
         _ => {
             let s = crate::kit::Style::current();
@@ -831,6 +861,9 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::PitchShift => saltus::demo_setup(app, strip, effect), // fx3:contract
         EffectKind::Rotary => rota::demo_setup(app, strip, effect), // fx3:contract
         EffectKind::Amp => arca::demo_setup(app, strip, effect),  // fx3:contract
+        EffectKind::Vocoder => loquax::demo_setup(app, strip, effect), // fxa:contract
+        EffectKind::Glitch => fractus::demo_setup(app, strip, effect), // fxa:contract
+        EffectKind::Shimmer => caelum::demo_setup(app, strip, effect), // fxa:contract
         EffectKind::Delay => delay::demo_setup(app, strip, effect), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
@@ -873,6 +906,9 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::PitchShift => saltus::demo_feed(app), // fx3:contract
         EffectKind::Rotary => rota::demo_feed(app), // fx3:contract
         EffectKind::Amp => arca::demo_feed(app),  // fx3:contract
+        EffectKind::Vocoder => loquax::demo_feed(app), // fxa:contract
+        EffectKind::Glitch => fractus::demo_feed(app), // fxa:contract
+        EffectKind::Shimmer => caelum::demo_feed(app), // fxa:contract
         EffectKind::Delay => delay::demo_feed(app), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}

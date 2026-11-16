@@ -15,6 +15,11 @@ const fn hsl(h: f32, s: f32, l: f32) -> Hsl {
 } // fx:fragor
 use cantus_core::EffectKind;
 
+// fxa — wave A's three faces and their colourways (ADRs 0139–0141, provisional).
+#[path = "side_fxa.rs"]
+mod fxa;
+pub use fxa::*;
+
 // fx:cribrum — Cribrum's own face (ADR 0130, provisional), in three colourways the user
 // chooses among (ADR 0130 §Colourways); the first, Nocturne, is its face. Every display is
 // a lit screen, dark in both themes (the owner's choice for the round's displays).
@@ -710,6 +715,9 @@ pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
         EffectKind::LoFi => &VETUS_COLOURWAYS,         // fx:vetus
         EffectKind::Rotary => &ROTA_COLOURWAYS,        // fx3:rota
         EffectKind::Amp => &ARCA_COLOURWAYS,           // fx3:arca
+        EffectKind::Vocoder => &LOQUAX_COLOURWAYS,     // fxa:loquax
+        EffectKind::Glitch => &FRACTUS_COLOURWAYS,     // fxa:fractus
+        EffectKind::Shimmer => &CAELUM_COLOURWAYS,     // fxa:caelum
         _ => &[],
     }
 }
@@ -726,6 +734,9 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::PitchShift => Some(&SALTUS), // fx3:saltus
         EffectKind::Rotary => Some(&ROTA),       // fx3:rota
         EffectKind::Amp => Some(&ARCA),          // fx3:arca
+        EffectKind::Vocoder => Some(&LOQUAX),    // fxa:loquax
+        EffectKind::Glitch => Some(&FRACTUS),    // fxa:fractus
+        EffectKind::Shimmer => Some(&CAELUM),    // fxa:caelum
         _ => None,
     }
 }
@@ -798,7 +809,9 @@ pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
 #[cfg(test)]
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
-    use super::{ARCA, CRIBRUM, FRAGOR, LAPSUS, LIBRA, ROTA, SALTUS, VETUS}; // fx3:saltus, fx3:arca, fx3:rota
+    use super::{
+        ARCA, CAELUM, CRIBRUM, FRACTUS, FRAGOR, LAPSUS, LIBRA, LOQUAX, ROTA, SALTUS, VETUS,
+    }; // fx3:saltus, fx3:arca, fx3:rota, fxa
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -811,7 +824,8 @@ mod tests {
     /// The side round's faces as drawn (a sheet still wearing a sibling's look is left out).
     fn faces() -> Vec<&'static Skin> {
         [
-            &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA,
+            &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA, &LOQUAX, &FRACTUS,
+            &CAELUM,
         ] // fx3:saltus, fx3:rota, fx3:arca
         .into_iter()
         .filter(|s| !is_placeholder(s))

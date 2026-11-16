@@ -459,13 +459,17 @@ fn crossings_hz(x: &[f32]) -> f64 {
 
 #[test]
 fn a_pitch_jump_lands_on_its_interval() {
-    for semis in [12.0f32, 7.0, -12.0] {
+    for (semis, clean) in [12.0f32, 7.0, -12.0]
+        .into_iter()
+        .flat_map(|s| [(s, false), (s, true)])
+    {
         let mut p = Pattern::EMPTY;
         p.block(Module::Pitch, 0, 16, 1.0, 1.0);
         let s = FractusSettings {
             pitch: PitchSettings {
                 semis,
                 window_ms: 50.0,
+                clean,
             },
             ..FractusSettings::default()
         };
@@ -485,7 +489,7 @@ fn a_pitch_jump_lands_on_its_interval() {
             hz += 0.5;
         }
         eprintln!(
-            "pitch {semis:+}: the strongest at {:.0} Hz, want {want:.1}",
+            "pitch {semis:+} (clean {clean}): the strongest at {:.0} Hz, want {want:.1}",
             best.1
         );
         // A delay-line shifter's taps restart every `W / |1 − ratio|`; on a pure tone each
@@ -495,7 +499,7 @@ fn a_pitch_jump_lands_on_its_interval() {
         let rate = (1.0 - math::exp2(f64::from(semis) / 12.0)).abs() / 0.05;
         assert!(
             (best.1 - want).abs() <= 0.5 * rate + 1.0,
-            "{semis}: {:.1} Hz",
+            "{semis} (clean {clean}): {:.1} Hz",
             best.1
         );
     }
@@ -600,4 +604,65 @@ fn stopped_the_steps_rest_and_notes_still_play() {
     }
     let dry: Vec<f32> = (0..20_000).map(|i| music(i)[0]).collect();
     assert_eq!(first_diff(&l, &dry), Some(10_000), "only the note shuts it");
+}
+
+/// The owner's choice (warble or clean, ADR 0140), measured on a pure tone a fifth up: the
+/// classic four heads always sound together, their phases weighed by moving windows, so
+/// the pitch wavers period by period — the warble; the clean style plays one head at a
+/// time between its splices, so most periods are the interval's exactly. Measured as the
+/// share of periods (upward zero crossings, interpolated) within 0.5 % of the wanted
+/// period, and the level's spread over 5 ms windows (both hold their level).
+#[test]
+fn the_clean_pitch_jump_holds_its_pitch_and_the_classic_warbles() {
+    let measure = |clean: bool| {
+        let mut p = Pattern::EMPTY;
+        p.block(Module::Pitch, 0, 16, 1.0, 1.0);
+        let s = FractusSettings {
+            pitch: PitchSettings {
+                semis: 7.0,
+                window_ms: 50.0,
+                clean,
+            },
+            ..FractusSettings::default()
+        };
+        let mut u = unit(&s, &p);
+        let (l, _) = render(&mut u, 0, 96_000, 120.0, 512, &sine(311.0));
+        let x = &l[20_000..90_000];
+        let mut ups = Vec::new();
+        for i in 1..x.len() {
+            if x[i - 1] <= 0.0 && x[i] > 0.0 {
+                let f = f64::from(x[i - 1]) / f64::from(x[i - 1] - x[i]);
+                ups.push(i as f64 - 1.0 + f);
+            }
+        }
+        let want = f64::from(SR) / (311.0 * math::exp2(7.0 / 12.0));
+        let exact = ups
+            .windows(2)
+            .filter(|w| ((w[1] - w[0]) / want - 1.0).abs() <= 0.005)
+            .count() as f64
+            / (ups.len() - 1) as f64;
+        let w = 240;
+        let db: Vec<f64> = x
+            .chunks(w)
+            .map(|c| {
+                let e: f64 = c.iter().map(|v| f64::from(*v) * f64::from(*v)).sum();
+                10.0 * math::log10(e / w as f64 + 1e-20)
+            })
+            .collect();
+        let spread = db.iter().cloned().fold(f64::MIN, f64::max)
+            - db.iter().cloned().fold(f64::MAX, f64::min);
+        (exact, spread)
+    };
+    let (classic, classic_db) = measure(false);
+    let (clean, clean_db) = measure(true);
+    eprintln!(
+        "periods within 0.5 %: classic {:.0} %, clean {:.0} %; level spread {classic_db:.1} / {clean_db:.1} dB",
+        100.0 * classic,
+        100.0 * clean
+    );
+    assert!(
+        clean > classic + 0.1,
+        "clean {clean:.2} vs classic {classic:.2}"
+    );
+    assert!(clean_db < 4.0 && classic_db < 4.0);
 }

@@ -44,6 +44,11 @@ pub mod tabula; // fx3:contract
 pub mod tabula_presets; // fx3:tabula — boards as flat maps, the factory boards
 pub mod tabula_random; // fx3:tabula — Randomise within musical ranges
 
+// fxa:contract — the side round's wave A (provisional ADRs 0139–0141).
+pub mod caelum; // fxa:contract
+pub mod fractus; // fxa:contract
+pub mod loquax; // fxa:contract
+
 /// How any parameter's value is printed and read back (shared by the DAW's knobs and the
 /// exported plug-ins, ADR 0020).
 pub mod readout;

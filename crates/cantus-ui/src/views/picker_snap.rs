@@ -71,6 +71,9 @@ impl Subject {
             EffectKind::PitchShift => "saltus",  // fx3:contract
             EffectKind::Rotary => "rota",        // fx3:contract
             EffectKind::Amp => "arca",           // fx3:contract
+            EffectKind::Vocoder => "loquax",     // fxa:contract
+            EffectKind::Glitch => "fractus",     // fxa:contract
+            EffectKind::Shimmer => "caelum",     // fxa:contract
             EffectKind::Delay => "delay",        // r39:delay
             _ => "eq",
         }

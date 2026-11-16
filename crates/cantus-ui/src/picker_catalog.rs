@@ -403,6 +403,15 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
             PickChoice::Effect(E::Amp),
             vec![C::Guitar, C::Distortion],
         ), // fx3:contract
+        // fxa:contract — wave A: the vocoder beside the voice's pitch tools, the glitch with the
+        // time and modulation units, the shimmer with the spaces.
+        ("loquax", PickChoice::Effect(E::Vocoder), vec![C::Pitch]), // fxa:contract
+        (
+            "fractus",
+            PickChoice::Effect(E::Glitch),
+            vec![C::Modulation],
+        ), // fxa:contract
+        ("caelum", PickChoice::Effect(E::Shimmer), vec![C::Space]), // fxa:contract
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {

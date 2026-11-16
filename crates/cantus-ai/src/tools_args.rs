@@ -532,6 +532,9 @@ pub fn effect_names(kind: EffectKind) -> (&'static str, &'static str) {
         K::PitchShift => ("saltus", "Saltus"),   // fx3:contract
         K::Rotary => ("rota", "Rota"),           // fx3:contract
         K::Amp => ("arca", "Arca"),              // fx3:contract
+        K::Vocoder => ("loquax", "Loquax"),      // fxa:contract
+        K::Glitch => ("fractus", "Fractus"),     // fxa:contract
+        K::Shimmer => ("caelum", "Caelum"),      // fxa:contract
     }
 }
 
@@ -583,6 +586,12 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("amp", EffectKind::Amp),                  // fx3:contract
     ("amplifier", EffectKind::Amp),            // fx3:contract
     ("cabinet", EffectKind::Amp),              // fx3:contract
+    ("vocoder", EffectKind::Vocoder),          // fxa:contract
+    ("glitch", EffectKind::Glitch),            // fxa:contract
+    ("stutter", EffectKind::Glitch),           // fxa:contract
+    ("granular", EffectKind::Glitch),          // fxa:contract
+    ("shimmer", EffectKind::Shimmer),          // fxa:contract
+    ("shimmer_reverb", EffectKind::Shimmer),   // fxa:contract
 ];
 
 /// A native effect kind offered for a new insert, by its id or one of its

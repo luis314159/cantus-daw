@@ -63,6 +63,9 @@ pub fn function_of(kind: EffectKind) -> Function {
         EffectKind::PitchShift => Function::Source, // fx3:contract (saltus)
         EffectKind::Rotary => Function::Mod,        // fx3:contract (rota)
         EffectKind::Amp => Function::Tone,          // fx3:contract (arca)
+        EffectKind::Vocoder => Function::Source,    // fxa:contract (loquax: a voice)
+        EffectKind::Glitch => Function::Mod,        // fxa:contract (fractus)
+        EffectKind::Shimmer => Function::Space,     // fxa:contract (caelum)
     }
 }
 

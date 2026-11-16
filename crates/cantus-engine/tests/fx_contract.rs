@@ -458,6 +458,9 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         // it is (the twins of the DSP's own tests).
         EffectKind::Rotary => (false, false), // fx3:rota
         EffectKind::Amp => (true, true),      // fx3:arca
+        EffectKind::Vocoder => (true, true),  // fxa:loquax — its voices released, its banks drained
+        EffectKind::Glitch => (true, true), // fxa:fractus — the history, the capture and the echoes silent
+        EffectKind::Shimmer => (true, true), // fxa:caelum — finite: the tank drained (infinite or frozen never rests)
         _ => (false, false),
     }
 }
@@ -560,6 +563,9 @@ per_kind! {
     saltus => EffectKind::PitchShift, // fx3:contract
     rota => EffectKind::Rotary, // fx3:contract
     arca => EffectKind::Amp, // fx3:contract
+    loquax => EffectKind::Vocoder, // fxa:contract
+    fractus => EffectKind::Glitch, // fxa:contract
+    caelum => EffectKind::Shimmer, // fxa:contract
 }
 
 // fx3:tabula — Tabula (ADR 0134): a board of one pedal is that unit inserted alone, to
@@ -625,6 +631,6 @@ fn a_board_of_one_is_the_unit() {
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists thirty-five: a new kind must be added there. // fx3:contract
-    assert_eq!(EffectKind::ALL.len(), 35); // fx3:contract: wave 3's four
+    // `per_kind!` lists thirty-eight: a new kind must be added there. // fxa:contract
+    assert_eq!(EffectKind::ALL.len(), 38); // fxa:contract: wave A's three
 }

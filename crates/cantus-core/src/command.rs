@@ -611,6 +611,16 @@ pub enum Command {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pedal: Option<crate::fx::tabula::PedalId>,
     },
+    /// fxa:contract — one of Fractus's lanes ([`crate::EffectSpec::fractus`], ADR 0140):
+    /// its blocks replaced (sanitized: sorted, apart, inside the cycle), an empty list
+    /// clearing it; the inverse is the lane it replaced. Refused for any other kind and a
+    /// lane past the ten.
+    SetFractusLane {
+        strip: StripId,
+        effect: EffectId,
+        lane: u8,
+        blocks: Vec<crate::fx::fractus::Block>,
+    },
     // fx3:contract — Tabula's board (ADR 0134; `crate::command_board`). Each is refused on
     // a slot that is not a board; each returns its exact inverse.
     /// A pedal into a board at `index` of its signal order, with the macro maps it brings
@@ -1125,6 +1135,7 @@ impl Command {
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
             SetEffectIr { .. } => "cmd.set_effect_ir", // r39:conv
             SetLapsusPattern { .. } => "cmd.lapsus_pattern", // fx:lapsus
+            SetFractusLane { .. } => "cmd.fractus_lane", // fxa:contract
             InsertPedal { .. } => "cmd.insert_pedal",  // fx3:contract
             RemovePedal { .. } => "cmd.remove_pedal",  // fx3:contract
             MovePedal { .. } => "cmd.move_pedal",      // fx3:contract
@@ -2651,6 +2662,32 @@ impl Command {
                     slot,
                     pattern: old.map(Box::new),
                     pedal: None,
+                })
+            }
+            // fxa:contract
+            SetFractusLane {
+                strip,
+                effect,
+                lane,
+                blocks,
+            } => {
+                let e = slot_mut(project, strip, effect)?;
+                if e.spec.kind != crate::EffectKind::Glitch {
+                    return Err(CommandError::InvalidValue("glitch lane".into()));
+                }
+                if usize::from(lane) >= crate::fx::fractus::LANES {
+                    return Err(CommandError::InvalidValue(format!("glitch lane {lane}")));
+                }
+                let pattern = e.spec.fractus.get_or_insert_with(Default::default);
+                let old = pattern.replace(lane, &blocks);
+                if pattern.is_empty() {
+                    e.spec.fractus = None;
+                }
+                Ok(SetFractusLane {
+                    strip,
+                    effect,
+                    lane,
+                    blocks: old,
                 })
             }
             // fx3:contract — Tabula's board (`crate::command_board`, the tabula builder's).

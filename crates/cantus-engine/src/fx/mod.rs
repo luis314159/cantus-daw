@@ -39,6 +39,11 @@ pub mod rota; // fx3:contract
 pub mod saltus; // fx3:contract
 pub mod tabula; // fx3:contract
 
+// fxa:contract — the side round's wave A (provisional ADRs 0139–0141).
+pub mod caelum; // fxa:contract
+pub mod fractus; // fxa:contract
+pub mod loquax; // fxa:contract
+
 use crate::effects::EffectUnit;
 use cantus_core::fx::tabula::PedalId;
 
@@ -658,6 +663,9 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::PitchShift => Box::new(saltus::Unit::new(sample_rate)), // fx3:contract
         EffectKind::Rotary => Box::new(rota::Unit::new(sample_rate)),  // fx3:contract
         EffectKind::Amp => Box::new(arca::Unit::new(sample_rate)),     // fx3:contract
+        EffectKind::Vocoder => Box::new(loquax::Unit::new(sample_rate)), // fxa:contract
+        EffectKind::Glitch => Box::new(fractus::Unit::new(sample_rate)), // fxa:contract
+        EffectKind::Shimmer => Box::new(caelum::Unit::new(sample_rate)), // fxa:contract
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })

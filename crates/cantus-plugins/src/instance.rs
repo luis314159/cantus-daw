@@ -608,9 +608,10 @@ fn spec_of(table: &Table, values: &[f32]) -> EffectSpec {
         params,
         // Our own effects are native kinds, never a hosted plug-in.
         external: None,
-        ir: None,     // r39:conv
-        lapsus: None, // fx:lapsus (the bank: phase B)
-        board: None,  // fx3:contract (a board's content: the tabula builder's)
+        ir: None,      // r39:conv
+        lapsus: None,  // fx:lapsus (the bank: phase B)
+        board: None,   // fx3:contract (a board's content: the tabula builder's)
+        fractus: None, // fxa:contract (Fractus's lanes: phase B)
     }
 }
 

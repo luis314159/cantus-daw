@@ -68,6 +68,8 @@ pub const INFINITE_SHELF_S: f32 = 60.0;
 pub const FREEZE_GAIN: f32 = 0.999_99;
 /// The hold's largest trim per pass.
 const HOLD_STEP: f32 = 0.005;
+/// How fast a sustained infinite tank's climb settles once nothing more comes in, s.
+const SETTLE_S: f32 = 1.5;
 
 /// How many lines the tank runs.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -452,6 +454,15 @@ pub struct Tank {
     freeze_target: f32,
     k_gain: f32,
     infinite: bool,
+    /// Infinite with the shimmer sustains: once nothing more comes in, the shimmer's climb
+    /// settles (its amount glides to nothing over [`SETTLE_S`]) and the hold keeps the wash
+    /// it climbed to (the owner's choice; off, the climb leaves through the loop's tone).
+    sustain: bool,
+    /// The climb's share now (1: as set; toward 0 while a sustained tank holds), its glide,
+    /// and each channel's amount as set.
+    settle: f32,
+    k_settle: f32,
+    amount_base: [f32; CHANNELS],
     /// The hold and the governor: the lines' energy (smoothed), the level held, samples
     /// frozen, the ceiling, the trim last applied.
     energy: f32,
@@ -552,6 +563,10 @@ impl Tank {
             freeze_target: 0.0,
             k_gain: 1.0 - math::exp(-1.0 / (0.03 * fs)),
             infinite: false,
+            sustain: false,
+            settle: 1.0,
+            k_settle: 1.0 - math::exp(-1.0 / (SETTLE_S * fs)),
+            amount_base: [0.0; CHANNELS],
             energy: 0.0,
             energy_ref: 0.0,
             k_energy: 1.0 - math::exp(-1.0 / (0.1 * fs)),
@@ -688,6 +703,8 @@ impl Tank {
         self.depth = self.depth_target;
         self.diff = self.diff_target;
         self.freeze = self.freeze_target;
+        self.settle = 1.0;
+        self.settled_targets();
         self.amount = self.amount_target;
         self.update_amounts();
     }
@@ -751,6 +768,33 @@ impl Tank {
         self.apply_shimmer();
     }
 
+    /// The channels' targets: the amounts as set, times the climb's share now.
+    fn settled_targets(&mut self) {
+        for ch in 0..CHANNELS {
+            self.amount_target[ch] = self.amount_base[ch] * self.settle;
+        }
+    }
+
+    /// A sustained infinite tank's climb settles once nothing more comes in and it holds
+    /// sound; otherwise (and as soon as sound comes in again) it returns to its amount.
+    #[inline]
+    fn settling(&mut self, fed: bool) {
+        let want = if self.sustain && self.infinite && !fed && self.energy > 0.0 {
+            0.0
+        } else {
+            1.0
+        };
+        if self.settle != want {
+            glide(&mut self.settle, want, self.k_settle, 1e-5);
+            self.settled_targets();
+        }
+    }
+
+    /// Infinite with the shimmer: the climb sustained (true) or let fade (false).
+    pub fn set_sustain(&mut self, on: bool) {
+        self.sustain = on;
+    }
+
     pub fn set_infinite(&mut self, on: bool) {
         self.infinite = on;
     }
@@ -778,7 +822,8 @@ impl Tank {
             s.amount.clamp(0.0, 1.0) * scale
         };
         let b = s.b_level.clamp(0.0, 1.0);
-        self.amount_target = [a, a, a * b, a * b];
+        self.amount_base = [a, a, a * b, a * b];
+        self.settled_targets();
         self.shifters[0].set_semitones(s.a_st);
         self.shifters[1].set_semitones(s.a_st);
         self.shifters[2].set_semitones(s.b_st);
@@ -957,6 +1002,7 @@ impl Tank {
             ol += self.c[0][i] * v[i];
             or += self.c[1][i] * v[i];
         }
+        self.settling(fed);
         self.exchange(&mut v, drain);
         let t = self.hold(e, fed);
         if t != 1.0 {
@@ -1080,6 +1126,7 @@ impl Tank {
             || self.depth != self.depth_target
             || self.diff != self.diff_target
             || self.amount != self.amount_target
+            || self.settle != 1.0
         {
             return Some("tank glides");
         }

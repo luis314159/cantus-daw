@@ -1,0 +1,22 @@
+# Caelum shimmer reverb: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's wave A: the starting preset only until phase B adds the rest (`cantus_dsp::caelum::presets::factory`).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.caelum.octave_shimmer"
+note = "A wide space whose tail climbs an octave, softly: the starting preset."
+styles = ["worship", "ambient"]
+roles = ["creative"]
+[preset.values]
+"decay" = 6.5
+"diff" = 0.8
+"hdec" = 0.45
+"hhz" = 7000
+"mdepth" = 0.35
+"mix" = 0.35
+"mrate" = 0.35
+"pre" = 30
+"shim" = 0.55
+"size" = 0.72
+"slo" = 350

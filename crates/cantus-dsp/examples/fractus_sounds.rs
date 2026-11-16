@@ -559,6 +559,7 @@ fn examples() -> Vec<Example> {
             pitch: PitchSettings {
                 semis: 7.0,
                 window_ms: 45.0,
+                clean: false,
             },
             filter: FilterSettings {
                 kind: FilterKind::LowPass,
@@ -600,6 +601,7 @@ fn examples() -> Vec<Example> {
             pitch: PitchSettings {
                 semis: 12.0,
                 window_ms: 60.0,
+                clean: false,
             },
             filter: FilterSettings {
                 kind: FilterKind::LowPass,

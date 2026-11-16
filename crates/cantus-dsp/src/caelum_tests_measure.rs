@@ -653,3 +653,63 @@ fn cpu_at_eight_and_sixteen_lines() {
         best / 60.0 * 100.0
     );
 }
+
+/// The owner's two open choices (ADR 0141), each a setting with the measured default kept:
+/// infinite with the full shimmer fades (the default) or **sustains** — fed four seconds,
+/// the sustained wash (its climb settling over 1.5 s once nothing more comes in) stays
+/// within 3 dB of its first ten seconds for a minute (measured: +0.2 dB) and never
+/// rises above them by more than 1.5 dB, where the default has faded by more than 10 dB;
+/// and an infinite tank 8 dB under an 8 s tank (the default) or **as loud** as it.
+#[test]
+fn infinite_with_the_shimmer_fades_or_sustains_and_its_level_is_a_choice() {
+    let base = CaelumSettings {
+        mix: 1.0,
+        shimmer: 1.0,
+        pitch_b_level: 1.0,
+        ..presets::endless_ascent()
+    };
+    let run = |s: &CaelumSettings| {
+        let mut c = unit(s);
+        energy_windows(&mut c, |i| burst(i, 4 * FS as usize), 60)
+    };
+    let fades = run(&base);
+    let sustains = run(&CaelumSettings {
+        infinite_sustain: true,
+        ..base
+    });
+    let line = |w: &[f64]| {
+        w.iter()
+            .map(|d| format!("{:+.1}", d - w[1]))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    eprintln!("infinite + full shimmer, fades: {}", line(&fades));
+    eprintln!("infinite + full shimmer, sustains: {}", line(&sustains));
+    let last = |w: &[f64]| w[w.len() - 1] - w[1];
+    assert!(
+        last(&fades) < -10.0,
+        "the default fades: {:.1}",
+        last(&fades)
+    );
+    assert!(last(&sustains) > -3.0, "sustained: {:.1}", last(&sustains));
+    let top = sustains[1..].iter().cloned().fold(f64::MIN, f64::max) - sustains[1];
+    assert!(top < 1.5, "sustained, it grew by {top:.2} dB");
+    // The level: the same infinite tank (no shimmer), trimmed or full, on the burst's
+    // first ten seconds (fed four of them, so the governor never acts).
+    let plain = CaelumSettings {
+        shimmer: 0.0,
+        ..base
+    };
+    let under = run(&plain)[0];
+    let full = run(&CaelumSettings {
+        infinite_full: true,
+        ..plain
+    })[0];
+    eprintln!(
+        "infinite level: full is {:+.2} dB over the default",
+        full - under
+    );
+    // The wet's gain is 1/0.4 (+7.96 dB); over the first ten seconds, the input's four among
+    // them and the tank filling, the measured difference is +6.7 dB.
+    assert!((6.0..8.5).contains(&(full - under)), "{:.2}", full - under);
+}

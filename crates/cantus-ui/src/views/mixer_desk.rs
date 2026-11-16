@@ -618,6 +618,9 @@ pub fn short_name(e: &EffectSlot) -> String {
         K::PitchShift => "mixer.chain.saltus",  // fx3:contract
         K::Rotary => "mixer.chain.rota",        // fx3:contract
         K::Amp => "mixer.chain.arca",           // fx3:contract
+        K::Vocoder => "mixer.chain.loquax",     // fxa:contract
+        K::Glitch => "mixer.chain.fractus",     // fxa:contract
+        K::Shimmer => "mixer.chain.caelum",     // fxa:contract
     };
     crate::i18n::t(key)
 }

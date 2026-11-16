@@ -401,6 +401,68 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", 6.0),
             ],
         ), // fx3:arca
+        // fxa:loquax — 64 bands of order 8, the synthesiser in seven copies and the
+        // sidechain both carrying, formant and band shifted, spread, the consonants' help.
+        EffectKind::Vocoder => set(
+            &mut s,
+            &[
+                ("mix", 1.0),
+                ("src", 2.0),
+                ("bands", 64.0),
+                ("order", 2.0),
+                ("formant", 3.0),
+                ("bshift", 0.5),
+                ("spread", 0.7),
+                ("uni", 7.0),
+                ("robot", 1.0),
+                ("cpass", 0.2),
+                ("tilt", 2.0),
+                ("out", 6.0),
+            ],
+        ), // fxa:loquax
+        // fxa:fractus — every lane painted, the stutter build, swing, the cloud beside the
+        // chain at a high density with pitched grains, a throw ringing.
+        EffectKind::Glitch => {
+            use cantus_core::fx::fractus::{Block, Pattern};
+            let mut p = Pattern::default();
+            for lane in 0..10u8 {
+                let at = (u16::from(lane) * 3) % 14;
+                p.replace(lane, &[Block::new(at, 2 + u16::from(lane % 3))]);
+            }
+            s.fractus = Some(Box::new(p));
+            set(
+                &mut s,
+                &[
+                    ("swing", 0.4),
+                    ("rramp", 2.0),
+                    ("rpitch", 1.0),
+                    ("clevel", 0.6),
+                    ("cdens", 120.0),
+                    ("cpitch", 7.0),
+                    ("crand", 12.0),
+                    ("crev", 0.3),
+                    ("wfb", 0.6),
+                    ("out", 3.0),
+                ],
+            );
+        } // fxa:fractus
+        // fxa:caelum — sixteen lines, the vast size, both shimmer voices, bloom, ducking
+        // keyed, modulated deep (finite: an infinite or frozen tank never rests).
+        EffectKind::Shimmer => set(
+            &mut s,
+            &[
+                ("mix", 0.6),
+                ("size", 0.95),
+                ("decay", 12.0),
+                ("shim", 0.8),
+                ("pblvl", 0.6),
+                ("bloom", 1_500.0),
+                ("duck", 12.0),
+                ("mdepth", 0.8),
+                ("width", 1.3),
+                ("out", 6.0),
+            ],
+        ), // fxa:caelum
     }
     s
 }
@@ -538,6 +600,9 @@ pub fn kind_id(kind: EffectKind) -> &'static str {
         EffectKind::PitchShift => "saltus",  // fx3:contract
         EffectKind::Rotary => "rota",        // fx3:contract
         EffectKind::Amp => "arca",           // fx3:contract
+        EffectKind::Vocoder => "loquax",     // fxa:contract
+        EffectKind::Glitch => "fractus",     // fxa:contract
+        EffectKind::Shimmer => "caelum",     // fxa:contract
     }
 }
 

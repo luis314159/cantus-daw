@@ -380,9 +380,10 @@ impl Drop for DawHost<'_> {
                 kind: self.spec.kind,
                 params: Default::default(),
                 external: None,
-                ir: None,     // r39:conv
-                lapsus: None, // fx:lapsus (the bank: phase B)
-                board: None,  // fx3:contract (a board's content: the tabula builder's)
+                ir: None,      // r39:conv
+                lapsus: None,  // fx:lapsus (the bank: phase B)
+                board: None,   // fx3:contract (a board's content: the tabula builder's)
+                fractus: None, // fxa:contract (Fractus's lanes: phase B)
             };
             let spec = std::mem::replace(&mut self.spec, empty);
             self.app.fx.spec_cache = Some((rev, self.effect, spec));

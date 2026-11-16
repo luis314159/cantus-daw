@@ -157,6 +157,36 @@ pub fn start_of(kind: EffectKind) -> Start {
             "preset.arca.clean_combo",
             &[("model", 1.0), ("gain", 0.3), ("cab", 1.0), ("out", 5.4)],
         ), // fx3:arca
+        // fxa:loquax — the robot: the synthesiser drones C3 while the voice speaks, so a
+        // voice through it is heard vocoded at once, with no notes and no sidechain.
+        K::Vocoder => preset(
+            "preset.loquax.robot",
+            &[("mix", 1.0), ("robot", 1.0), ("bands", 16.0)],
+        ), // fxa:loquax
+        // fxa:fractus — the last beat of each bar stutters in thirty-seconds: heard at once
+        // on drums, a loop or a strum, and the rest of the bar untouched.
+        K::Glitch => Start::Spec(StartingSpec {
+            label_key: "preset.fractus.last_beat_stutter",
+            spec: crate::fx::fractus::last_beat_stutter,
+        }), // fxa:fractus
+        // fxa:caelum — a wide space whose tail climbs an octave, softly (the DSP's own
+        // `presets::starting`).
+        K::Shimmer => preset(
+            "preset.caelum.octave_shimmer",
+            &[
+                ("size", 0.72),
+                ("decay", 6.5),
+                ("pre", 30.0),
+                ("diff", 0.8),
+                ("hhz", 7_000.0),
+                ("hdec", 0.45),
+                ("mdepth", 0.35),
+                ("mrate", 0.35),
+                ("shim", 0.55),
+                ("slo", 350.0),
+                ("mix", 0.35),
+            ],
+        ), // fxa:caelum
         K::Multiband => preset(
             "mb.preset.glue",
             &[
@@ -312,6 +342,7 @@ pub fn apply(spec: &mut EffectSpec) -> Option<&'static str> {
         let new = (s.spec)();
         spec.params = new.params;
         spec.board = new.board;
+        spec.fractus = new.fractus; // fxa:fractus
         return Some(s.label_key);
     }
     let p = starting_preset(spec.kind)?;

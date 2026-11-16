@@ -94,6 +94,13 @@ pub struct CaelumSettings {
     pub decay_s: f32,
     /// The middle held for good (the damping still darkens).
     pub infinite: bool,
+    /// Infinite with the shimmer: the tank keeps its level while the shimmer climbs
+    /// (true), or the climb leaves through the loop's tone and the wash fades (false, the
+    /// default — the owner's choice, ADR 0141).
+    pub infinite_sustain: bool,
+    /// An infinite tank as loud as an 8 s one (true), or 8 dB under it (false, the
+    /// default: it keeps all it is fed, so a bar or two piles up to an 8 s tail's level).
+    pub infinite_full: bool,
     pub predelay_ms: f32,
     /// 0…1: the diffusers' and the lines' all-passes' gain.
     pub diffusion: f32,
@@ -140,6 +147,8 @@ impl Default for CaelumSettings {
             size: 0.6,
             decay_s: 4.0,
             infinite: false,
+            infinite_sustain: false,
+            infinite_full: false,
             predelay_ms: 20.0,
             diffusion: 0.75,
             high_hz: 6_000.0,
@@ -383,7 +392,10 @@ impl Caelum {
         let fs = self.sample_rate;
         let first = !self.configured;
         let ms = fs * 0.001;
-        if first || s.design_key() != self.settings.design_key() {
+        if first
+            || s.design_key() != self.settings.design_key()
+            || s.infinite_full != self.settings.infinite_full
+        {
             let ap = tank::allpass_totals(&tank::allpass_lengths(fs));
             let d = TankDesign::new(fs, s.lines.count(), s.size, &s.decay(), &ap);
             self.tank.set_design(&d);
@@ -396,7 +408,11 @@ impl Caelum {
                 s.decay_s
             };
             let lg = late_gain(fs, d.lines, d.mean_loop(), t)
-                * if s.infinite { LEVEL_INFINITE_TRIM } else { 1.0 };
+                * if s.infinite && !s.infinite_full {
+                    LEVEL_INFINITE_TRIM
+                } else {
+                    1.0
+                };
             self.late_gain.target = lg;
             // The ceiling, in the lines' summed energy: a wet RMS of `CEILING_RMS` on a side
             // is `N · rms² / gain²` of it (each output row sees 1/N of the lines).
@@ -407,6 +423,7 @@ impl Caelum {
             );
         }
         self.tank.set_infinite(s.infinite);
+        self.tank.set_sustain(s.infinite_sustain);
         self.tank.set_modulation(
             s.mod_depth.clamp(0.0, 1.0) * tank::MAX_DEPTH_MS * ms,
             s.mod_rate_hz.clamp(0.02, 10.0),

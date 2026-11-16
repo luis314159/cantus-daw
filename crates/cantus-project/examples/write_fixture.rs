@@ -1593,6 +1593,33 @@ fn main() {
             p.strip_mut(s).unwrap().effects.push(e);
         }
     }
+    // fxa:contract — Schema 64 (the fx side round's wave A, ADRs 0139–0141; provisional —
+    // renumbered when merged after round 40): on the second strip one insert each of
+    // Loquax (its mix up), Fractus (a repeat on the last beat, a half-strength gate on
+    // beat three that plays three times in four) and Caelum (its shimmer up).
+    if upto >= 64 {
+        use cantus_core::fx::fractus::{Block, Pattern};
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut loquax = p.make_effect(EffectKind::Vocoder);
+        loquax.spec.set("mix", 1.0).unwrap();
+        let mut fractus = p.make_effect(EffectKind::Glitch);
+        let mut pat = Pattern::default();
+        pat.replace(0, &[Block::new(12, 4)]);
+        pat.replace(
+            7,
+            &[Block {
+                amount: 0.5,
+                prob: 0.75,
+                ..Block::new(8, 2)
+            }],
+        );
+        fractus.spec.fractus = Some(Box::new(pat));
+        let mut caelum = p.make_effect(EffectKind::Shimmer);
+        caelum.spec.set("shim", 0.55).unwrap();
+        for e in [loquax, fractus, caelum] {
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

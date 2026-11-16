@@ -240,6 +240,7 @@ fn is_master(cmd: &Command) -> bool {
         | SetEffectMidiSource { strip, .. }
         | SetEffectIr { strip, .. } // r39:conv
         | SetLapsusPattern { strip, .. } // fx:lapsus
+        | SetFractusLane { strip, .. } // fxa:contract
         | InsertPedal { strip, .. } // fx3:contract
         | RemovePedal { strip, .. }
         | MovePedal { strip, .. }

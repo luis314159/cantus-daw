@@ -187,7 +187,14 @@ pub fn board(spec: &EffectSpec) -> &Board {
 pub fn pedal_allowed(kind: EffectKind) -> bool {
     !matches!(
         kind,
-        EffectKind::Board | EffectKind::External | EffectKind::Reverb | EffectKind::Analyzer
+        EffectKind::Board
+            | EffectKind::External
+            | EffectKind::Reverb
+            | EffectKind::Analyzer
+            // fxa:contract — wave A's three join the board with their faces (phase B).
+            | EffectKind::Vocoder
+            | EffectKind::Glitch
+            | EffectKind::Shimmer
     )
 }
 
@@ -556,7 +563,13 @@ mod tests {
         for k in EffectKind::ALL {
             if !matches!(
                 k,
-                EffectKind::Board | EffectKind::Reverb | EffectKind::Analyzer
+                EffectKind::Board
+                    | EffectKind::Reverb
+                    | EffectKind::Analyzer
+                    // fxa:contract — wave A joins the board in phase B.
+                    | EffectKind::Vocoder
+                    | EffectKind::Glitch
+                    | EffectKind::Shimmer
             ) {
                 assert!(pedal_allowed(k), "{k:?}");
             }

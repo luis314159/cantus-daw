@@ -147,6 +147,8 @@ pub enum MemoryNeed {
     Tabula(usize),
     /// Arca's cabinet, by what it is made from (ADR 0137, provisional). // fx3:arca
     Arca(crate::fx::arca::ArcaNeed),
+    /// Fractus's whole DSP, its buffers with it (ADR 0140, provisional). // fxa:fractus
+    Fractus,
 }
 
 /// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
@@ -161,6 +163,7 @@ pub enum NeedTicket {
     Lapsus(usize),                   // fx:lapsus
     Tabula(usize),                   // fx3:contract
     Arca(crate::fx::arca::ArcaNeed), // fx3:arca
+    Fractus,                         // fxa:fractus
 }
 
 impl NeedTicket {
@@ -172,6 +175,7 @@ impl NeedTicket {
             NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n), // fx:lapsus
             NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n), // fx3:contract
             NeedTicket::Arca(n) => MemoryNeed::Arca(*n),     // fx3:arca
+            NeedTicket::Fractus => MemoryNeed::Fractus,      // fxa:fractus
         }
     }
 }
@@ -189,6 +193,8 @@ pub enum EffectMemory {
     Tabula(Box<crate::fx::tabula::Lines>),
     /// Arca's cabinet. // fx3:arca
     Arca(Box<crate::fx::arca::Memory>),
+    /// Fractus's DSP. // fxa:fractus
+    Fractus(Box<cantus_dsp::fractus::Fractus>),
 }
 
 /// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
@@ -215,6 +221,7 @@ impl EffectMemory {
             MemoryNeed::Arca(n) => {
                 EffectMemory::Arca(Box::new(crate::fx::arca::build(n, sample_rate)))
             } // fx3:arca
+            MemoryNeed::Fractus => EffectMemory::Fractus(crate::fx::fractus::build(sample_rate)), // fxa:fractus
         }
     }
 }
@@ -339,6 +346,7 @@ impl EffectUnit {
             MemoryNeed::Lapsus(n) => NeedTicket::Lapsus(n), // fx:lapsus
             MemoryNeed::Tabula(n) => NeedTicket::Tabula(n), // fx3:contract
             MemoryNeed::Arca(n) => NeedTicket::Arca(n),     // fx3:arca
+            MemoryNeed::Fractus => NeedTicket::Fractus,     // fxa:fractus
         };
         self.asked = need;
         Some(ticket)

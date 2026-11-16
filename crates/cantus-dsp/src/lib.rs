@@ -112,6 +112,7 @@ pub mod tabula; // fx3:contract
 
 // fx-a:loquax — the side round's wave A: Loquax, the vocoder (DSP first).
 pub mod loquax; // fx-a:loquax
+
 // fx-a:fractus — wave A: the glitch sequencer and grain cloud (its DSP).
 pub mod fractus; // fx-a:fractus
 
