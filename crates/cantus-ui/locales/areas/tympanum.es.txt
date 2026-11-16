@@ -262,3 +262,4 @@ tympanum.room.walls = Paredes
 tympanum.room.rug = Alfombra
 tympanum.kits.tip_get = Descarga {name} ({size}) de su fuente oficial, una vez; luego suena sin conexión.
 tympanum.kits.tip_on_disk = En tu disco: haz clic en el kit para tocarlo.
+tympanum.room.chip_tip = La sala donde está el kit: haz clic para elegir la sala (lo que ves y oyes) y su suelo, paredes y alfombra (solo la imagen). Esc o un clic fuera la cierra.

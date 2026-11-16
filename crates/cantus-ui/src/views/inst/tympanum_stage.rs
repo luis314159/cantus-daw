@@ -191,21 +191,7 @@ pub fn picture_rect(ctx: &egui::Context, track: TrackId) -> Option<Rect> {
 /// plan's while it stands in). For tests.
 pub fn piece_point(r: Rect, v: &SceneView, def: &KitDef, piece: u16) -> Option<Pos2> {
     if !PLAN_VIEW {
-        let w = scene::Want::of(v, r.size(), 1.0);
-        let b = scene::build(&w);
-        let all: Vec<(Pos2, Option<u8>)> = (0..96)
-            .flat_map(|j| (0..160).map(move |i| (i, j)))
-            .map(|(i, j)| {
-                pos2(
-                    r.left() + (i as f32 + 0.5) / 160.0 * r.width(),
-                    r.top() + (j as f32 + 0.5) / 96.0 * r.height(),
-                )
-            })
-            .filter_map(|q| match scene::pick_in(&w, &b, (q - r.min).to_pos2()) {
-                Some(Picked::Piece { piece: p, zone }) if p == piece => Some((q, zone)),
-                _ => None,
-            })
-            .collect();
+        let all = piece_points(r, v, piece);
         let centre: Vec<Pos2> = all
             .iter()
             .filter(|(_, z)| *z == Some(0))
@@ -237,6 +223,38 @@ pub fn piece_point(r: Rect, v: &SceneView, def: &KitDef, piece: u16) -> Option<P
             c + vec2(cantus_dsp::math::cos(t), cantus_dsp::math::sin(t) * 0.82) * d
         })
         .find(|q| plan_pick(r, def, *q) == Some(piece))
+}
+
+/// Every point of a 160 × 96 grid over the picture `r` showing `v` where the scene's pick
+/// finds piece `piece` (its stand's tubes included), with the zone struck there. For tests:
+/// what an overlay covers of a piece.
+pub fn piece_points(r: Rect, v: &SceneView, piece: u16) -> Vec<(Pos2, Option<u8>)> {
+    let w = scene::Want::of(v, r.size(), 1.0);
+    let b = scene::build(&w);
+    (0..96)
+        .flat_map(|j| (0..160).map(move |i| (i, j)))
+        .map(|(i, j)| {
+            pos2(
+                r.left() + (i as f32 + 0.5) / 160.0 * r.width(),
+                r.top() + (j as f32 + 0.5) / 96.0 * r.height(),
+            )
+        })
+        .filter_map(|q| match scene::pick_in(&w, &b, (q - r.min).to_pos2()) {
+            Some(Picked::Piece { piece: p, zone }) if p == piece => Some((q, zone)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn overlays_id(track: TrackId) -> egui::Id {
+    egui::Id::new(("tymp-overlays", track.0))
+}
+
+/// What lies over `track`'s picture at rest, as drawn last frame (tests): *Show mics*, the
+/// room's chip, the kit's tag — and the room card while it is open.
+pub fn overlay_rects(ctx: &egui::Context, track: TrackId) -> Vec<Rect> {
+    ctx.data(|d| d.get_temp::<Vec<Rect>>(overlays_id(track)))
+        .unwrap_or_default()
 }
 
 /// What is under `q`: the scene's pick, else (while the plan stands in) the plan's.
@@ -312,13 +330,21 @@ pub fn picture(
             h.1 = lk.strength;
         }
     }
+    let corner = s.s(6.0);
     let moving = with_brush(ui.painter(), |b| {
         let p = Pal::of(s);
-        b.rrect(b.snap_rect(r), s.s(6.0), Fill::Solid(p.well));
+        if !p.dark {
+            // A light theme: the picture lifted off the page on a soft shadow.
+            crate::kit::dialog::sheet_shadow(b, r, corner, s, 3.0, 12.0, (0.0, 0.22));
+        }
+        b.rrect(b.snap_rect(r), corner, Fill::Solid(p.well));
         false
     });
     let painter = ui.painter_at(r);
-    let moving = scene_mut(app, track, 0).paint(&painter, r, &v) || moving;
+    let sc = scene_mut(app, track, 0);
+    sc.set_corner(corner);
+    let moving = sc.paint(&painter, r, &v) || moving;
+    frame(ui, s, r, corner);
     if PLAN_VIEW {
         with_brush(&painter, |b| plan(b, s, r, def, lk, under));
     }
@@ -329,6 +355,26 @@ pub fn picture(
         );
     }
     overlays(app, ui, track, spec, def, s, r, lk, under);
+}
+
+/// The picture's frame (round 40 polish): a hairline edge round its rounded corners, and
+/// in a light theme a lighter line just inside it — a window set in the page, not a dark
+/// hole cut in it.
+fn frame(ui: &egui::Ui, s: &Style, r: Rect, corner: f32) {
+    with_brush(ui.painter(), |b| {
+        let p = Pal::of(s);
+        let r = b.snap_rect(r);
+        let px = b.px();
+        b.rrect_stroke(r.shrink(px * 0.5), corner, px, with_alpha(p.edge, 0.95));
+        if !p.dark {
+            b.rrect_stroke(
+                r.shrink(px * 1.5),
+                corner - px,
+                px,
+                with_alpha(p.surface, 0.35),
+            );
+        }
+    });
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -433,7 +479,8 @@ fn overlays(
             }
         }
     });
-    // Show mics, top right.
+    // Show mics, top right; the room's chip at its left (round 40 polish: the room card
+    // no longer covers the kit — it opens from the chip, over the picture, on a click).
     let label = t(if lk.show_mics {
         "tympanum.hide_mics"
     } else {
@@ -457,6 +504,8 @@ fn overlays(
     if resp.clicked() {
         lk.show_mics = !lk.show_mics;
     }
+    let cw = CardWords::of(spec, def);
+    let chip_r = room_chip(ui, track, s, r, br, &cw, lk);
     // The kit's tag, bottom left.
     let name = def::kit_name(def);
     let about = {
@@ -476,63 +525,330 @@ fn overlays(
     } else {
         "tympanum.recorded"
     });
-    let tw = (iu::width(ui, s, &name, 15.0, W::SemiBold)
+    let tag_r = kit_tag_rect(ui, s, r, &name, &badge, &about);
+    let tw = tag_r.width() - s.s(28.0);
+    with_brush(ui.painter(), |b| {
+        iu::veil(b, s, tag_r);
+        let nr = Rect::from_min_size(
+            pos2(tag_r.left() + s.s(14.0), tag_r.top() + s.s(7.0)),
+            vec2(tw, s.s(20.0)),
+        );
+        let w = words(
+            b,
+            s,
+            &name,
+            nr,
+            Align2::LEFT_CENTER,
+            15.0,
+            W::SemiBold,
+            p.ink1,
+        );
+        iu::badge(b, ui, s, nr.left() + w + s.s(10.0), nr.center().y, &badge);
+        let ar = Rect::from_min_size(
+            pos2(nr.left(), nr.bottom() + s.s(1.0)),
+            vec2(tw + 1.0, s.s(16.0)),
+        );
+        words(
+            b,
+            s,
+            &about,
+            ar,
+            Align2::LEFT_CENTER,
+            11.0,
+            W::Regular,
+            p.ink2,
+        );
+    });
+    if lk.room_open {
+        room_popover(app, ui, track, s, r, chip_r, &cw, lk);
+    }
+    let mut over = vec![br, chip_r, tag_r];
+    over.extend(room_rects(ui.ctx(), track).1.filter(|_| lk.room_open));
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(overlays_id(track), over));
+}
+
+/// Where the kit's tag (its name, badge and what it is) stands in the picture `r`: the
+/// bottom-left corner, as small as its words (round 40 polish: 50 pt tall, so the floor
+/// in front of the kick is all it covers).
+pub fn kit_tag_rect(
+    ui: &egui::Ui,
+    s: &Style,
+    r: Rect,
+    name: &str,
+    badge: &str,
+    about: &str,
+) -> Rect {
+    let pad = s.s(12.0);
+    let tw = (iu::width(ui, s, name, 15.0, W::SemiBold)
         + s.s(8.0)
-        + iu::width(ui, s, &badge, 10.0, W::Medium)
+        + iu::width(ui, s, badge, 10.0, W::Medium)
         + s.s(12.0))
-    .max(iu::width(ui, s, &about, 11.0, W::Regular));
-    let card_w = s.s(32.0) + tw;
-    let tag_r = Rect::from_min_size(
-        pos2(r.left() + pad, r.bottom() - pad - s.s(54.0)),
-        vec2(card_w, s.s(54.0)),
+    .max(iu::width(ui, s, about, 11.0, W::Regular));
+    let h = s.s(50.0);
+    Rect::from_min_size(
+        pos2(r.left() + pad, r.bottom() - pad - h),
+        vec2(s.s(28.0) + tw, h),
+    )
+}
+
+fn chip_rect_id(track: TrackId) -> egui::Id {
+    egui::Id::new(("tymp-room-chip-rect", track.0))
+}
+
+fn popover_rect_id(track: TrackId) -> egui::Id {
+    egui::Id::new(("tymp-room-popover", track.0))
+}
+
+/// Where the room's chip and (when open) its card were drawn last frame (tests aim at
+/// them): the chip, the card.
+pub fn room_rects(ctx: &egui::Context, track: TrackId) -> (Option<Rect>, Option<Rect>) {
+    ctx.data(|d| {
+        (
+            d.get_temp::<Rect>(chip_rect_id(track)),
+            d.get_temp::<Rect>(popover_rect_id(track)),
+        )
+    })
+}
+
+/// The room's chip left of *Show mics* (`beside`): the room's own glyph, *Room* and the
+/// room's name, a chevron; a click opens or closes the room card. Returns its rect.
+fn room_chip(
+    ui: &mut egui::Ui,
+    track: TrackId,
+    s: &Style,
+    r: Rect,
+    beside: Rect,
+    cw: &CardWords,
+    lk: &mut Look,
+) -> Rect {
+    let p = Pal::of(s);
+    let label = &cw.label;
+    let value = cw
+        .names
+        .get(ROOMS.iter().position(|k| *k == cw.now).unwrap_or(0))
+        .map_or("", String::as_str);
+    let lw = iu::width(ui, s, label, 12.0, W::Regular);
+    let vw = iu::width(ui, s, value, 12.0, W::Medium);
+    let w = s.s(12.0 + 14.0 + 7.0) + lw + s.s(6.0) + vw + s.s(8.0 + 9.0 + 11.0);
+    let chip = Rect::from_min_size(
+        pos2(beside.left() - s.s(8.0) - w, beside.top()),
+        vec2(w, beside.height()),
     );
-    // The room card in the room the tag leaves (its looks on two rows if need be); when
-    // even that is too narrow, the room card wins and the tag steps aside.
-    let beside = r.right() - pad - (tag_r.right() + s.s(12.0));
-    let cw = CardWords::of(spec, def);
+    let chip = if chip.left() < r.left() + s.s(12.0) {
+        // A picture too narrow for both side by side: the chip under *Show mics*.
+        Rect::from_min_size(
+            pos2(beside.right() - w, beside.bottom() + s.s(6.0)),
+            vec2(w, beside.height()),
+        )
+    } else {
+        chip
+    };
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(chip_rect_id(track), chip));
+    if !lk.room_open {
+        ui.ctx()
+            .data_mut(|d| d.remove::<Rect>(popover_rect_id(track)));
+    }
+    let resp = ui.interact(
+        chip,
+        ui.id().with(("tymp-room-chip", track.0)),
+        Sense::click(),
+    );
+    let resp = iu::hint(resp, || t("tympanum.room.chip_tip"));
+    if resp.clicked() {
+        lk.room_open = !lk.room_open;
+        lk.room_opened = ui.ctx().cumulative_pass_nr();
+        if !lk.room_open {
+            close_lists(lk);
+        }
+    }
+    let st = crate::kit::State::of(&resp, lk.room_open);
+    with_brush(ui.painter(), |b| {
+        iu::paint_button(b, s, chip, st, "", iu::Lead::None, true);
+        let ink = if lk.room_open { iu::lit_ink(s) } else { p.ink1 };
+        let g = Rect::from_center_size(
+            pos2(chip.left() + s.s(12.0 + 7.0), chip.center().y),
+            vec2(s.s(14.0), s.s(14.0)),
+        );
+        room_glyph(b, g, cw.now, ink);
+        let lr = Rect::from_min_size(
+            pos2(g.right() + s.s(7.0), chip.top()),
+            vec2(lw + 1.0, chip.height()),
+        );
+        // Open, the label in ink 1 too: ink 2 on the accent's tint falls under 4.5:1 in
+        // Slate Night (measured by the test below).
+        words(
+            b,
+            s,
+            label,
+            lr,
+            Align2::LEFT_CENTER,
+            12.0,
+            W::Regular,
+            if lk.room_open { p.ink1 } else { p.ink2 },
+        );
+        let vr = Rect::from_min_size(
+            pos2(lr.right() + s.s(6.0), chip.top()),
+            vec2(vw + 1.0, chip.height()),
+        );
+        words(b, s, value, vr, Align2::LEFT_CENTER, 12.0, W::Medium, ink);
+        let cx = chip.right() - s.s(11.0 + 4.5);
+        chevron(b, s, pos2(cx, chip.center().y), lk.room_open, p.ink2);
+    });
+    chip
+}
+
+/// Close the room card's lists (the floor's, the walls', the rug's).
+fn close_lists(lk: &mut Look) {
+    if matches!(
+        lk.open,
+        Some(super::Open::Floor | super::Open::Walls | super::Open::Rug)
+    ) {
+        lk.open = None;
+    }
+}
+
+/// A chevron 8 pt wide centred at `c`: down (closed), up (open).
+fn chevron(b: &mut Brush, s: &Style, c: Pos2, up: bool, ink: egui::Color32) {
+    let (dx, dy) = (s.s(4.0), s.s(2.2) * if up { -1.0 } else { 1.0 });
+    b.polyline(
+        &[
+            pos2(c.x - dx, c.y - dy),
+            pos2(c.x, c.y + dy),
+            pos2(c.x + dx, c.y - dy),
+        ],
+        s.s(1.4),
+        ink,
+    );
+}
+
+/// A room's glyph, drawn by hand in `g` (14 pt square): the stage a spotlight's cone on
+/// its pool, the booth a box with its window, the studio a room seen into, the hall (and
+/// the church) an arch.
+pub fn room_glyph(b: &mut Brush, g: Rect, k: RoomKind, ink: egui::Color32) {
+    let u = g.width() / 14.0;
+    let lw = (1.2 * u).max(b.px());
+    let at = |x: f32, y: f32| pos2(g.left() + x * u, g.top() + y * u);
+    let oval = |cx: f32, cy: f32, rx: f32, ry: f32, from: f32, span: f32, n: usize| {
+        (0..=n)
+            .map(|i| {
+                let a = from + span * i as f32 / n as f32;
+                at(
+                    cx + rx * cantus_dsp::math::cos(a),
+                    cy + ry * cantus_dsp::math::sin(a),
+                )
+            })
+            .collect::<Vec<Pos2>>()
+    };
+    use std::f32::consts::{PI, TAU};
+    match k {
+        RoomKind::Stage => {
+            b.rrect_stroke(
+                Rect::from_min_max(at(5.0, 1.0), at(9.0, 3.6)),
+                0.8 * u,
+                lw,
+                ink,
+            );
+            b.segment(at(5.6, 3.6), at(2.2, 10.8), lw, ink, false);
+            b.segment(at(8.4, 3.6), at(11.8, 10.8), lw, ink, false);
+            b.polyline(&oval(7.0, 11.2, 5.0, 1.8, 0.0, TAU, 20), lw, ink);
+        }
+        RoomKind::Booth => {
+            b.rrect_stroke(
+                Rect::from_min_max(at(1.5, 2.0), at(12.5, 12.5)),
+                1.0 * u,
+                lw,
+                ink,
+            );
+            b.rrect_stroke(
+                Rect::from_min_max(at(4.5, 4.5), at(9.5, 8.0)),
+                0.6 * u,
+                lw,
+                ink,
+            );
+        }
+        RoomKind::Studio => {
+            b.rrect_stroke(
+                Rect::from_min_max(at(4.5, 4.0), at(9.5, 9.0)),
+                0.4 * u,
+                lw,
+                ink,
+            );
+            for (x0, y0, x1, y1) in [
+                (1.0, 1.0, 4.5, 4.0),
+                (13.0, 1.0, 9.5, 4.0),
+                (1.0, 13.0, 4.5, 9.0),
+                (13.0, 13.0, 9.5, 9.0),
+            ] {
+                b.segment(at(x0, y0), at(x1, y1), lw, ink, false);
+            }
+        }
+        RoomKind::Hall | RoomKind::Church => {
+            let mut arch = vec![at(2.5, 13.0)];
+            arch.extend(oval(7.0, 6.5, 4.5, 4.5, PI, PI, 14));
+            arch.push(at(11.5, 13.0));
+            b.polyline(&arch, lw, ink);
+            b.segment(at(1.0, 13.0), at(13.0, 13.0), lw, ink, false);
+        }
+    }
+}
+
+/// The room card as a popover under the chip: a soft shadow, the card (the shared one,
+/// [`room_card`]), the rooms and looks chosen through it; it closes on a click outside it,
+/// on Esc, or on the chip again (a look's list open closes first).
+#[allow(clippy::too_many_arguments)]
+fn room_popover(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    track: TrackId,
+    s: &Style,
+    pic: Rect,
+    chip: Rect,
+    cw: &CardWords,
+    lk: &mut Look,
+) {
+    let pad = s.s(12.0);
     let card = cw.card();
     let sz = room_card::sizes(ui, s, &card);
-    let mut layout = room_card::layout(&sz, s, beside);
-    let both = layout.0 <= beside;
-    if !both {
-        layout = room_card::layout(&sz, s, r.width() - 2.0 * pad);
+    let (w, fits) = room_card::layout(&sz, s, pic.width() - 2.0 * pad);
+    let w = w.min(pic.width() - 2.0 * pad);
+    let h = room_card::height(s, fits);
+    let left = (chip.right() - w).max(pic.left() + pad);
+    let rect = Rect::from_min_size(pos2(left, chip.bottom() + s.s(6.0)), vec2(w, h));
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(popover_rect_id(track), rect));
+    // The card takes the clicks it is under (they never fall through to a drum).
+    let _ = ui.interact(
+        rect,
+        ui.id().with(("tymp-room-pop", track.0)),
+        Sense::click(),
+    );
+    with_brush(ui.painter(), |b| {
+        crate::kit::dialog::sheet_shadow(b, rect, s.s(6.0), s, 6.0, 14.0, (0.45, 0.16));
+    });
+    let list_was_open = matches!(
+        lk.open,
+        Some(super::Open::Floor | super::Open::Walls | super::Open::Rug)
+    );
+    room_card(app, ui, track, s, pic, rect, &card, &sz, fits, lk);
+    let now = ui.ctx().cumulative_pass_nr();
+    // Esc is the card's while it is the newest surface open (ADR 0110: the keymap's
+    // *Clear selection* leaves it alone meanwhile).
+    let layer = crate::esc::Layer::Other(popover_rect_id(track));
+    crate::esc::open(ui.ctx(), layer);
+    let esc = !list_was_open && crate::esc::take(ui.ctx(), layer);
+    let outside = ui.input(|i| {
+        i.pointer.any_pressed()
+            && i.pointer
+                .interact_pos()
+                .is_some_and(|q| !rect.contains(q) && !chip.contains(q))
+    });
+    // Esc or a click outside closes an open list first (the list's own rule).
+    if !list_was_open && (esc || outside) && now > lk.room_opened {
+        lk.room_open = false;
+        close_lists(lk);
     }
-    if both {
-        with_brush(ui.painter(), |b| {
-            iu::veil(b, s, tag_r);
-            let nr = Rect::from_min_size(
-                pos2(tag_r.left() + s.s(14.0), tag_r.top() + s.s(8.0)),
-                vec2(tw, s.s(20.0)),
-            );
-            let w = words(
-                b,
-                s,
-                &name,
-                nr,
-                Align2::LEFT_CENTER,
-                15.0,
-                W::SemiBold,
-                p.ink1,
-            );
-            iu::badge(b, ui, s, nr.left() + w + s.s(10.0), nr.center().y, &badge);
-            let ar = Rect::from_min_size(
-                pos2(nr.left(), nr.bottom() + s.s(2.0)),
-                vec2(tw + 1.0, s.s(16.0)),
-            );
-            words(
-                b,
-                s,
-                &about,
-                ar,
-                Align2::LEFT_CENTER,
-                11.0,
-                W::Regular,
-                p.ink2,
-            );
-        });
-    }
-    room_card(app, ui, track, s, r, &card, &sz, layout, lk);
-    let _ = with_alpha(p.base, 0.0);
 }
 
 /// The room card's words for `spec`'s kit (the shared card, [`room_card`]): *Room*, the
@@ -583,7 +899,8 @@ impl CardWords {
     }
 }
 
-/// The room card, bottom right (the shared card): *Room* and its four rooms (picture and
+/// The room card in `rect` (the shared card; round 40 polish: the popover under the room's
+/// chip): *Room* and its four rooms (picture and
 /// sound together); what the room is heard as; the floor, the walls and the rug (the
 /// picture only). Its open list is the view's ([`Look::open`]).
 #[allow(clippy::too_many_arguments)]
@@ -593,9 +910,10 @@ fn room_card(
     track: TrackId,
     s: &Style,
     pic: Rect,
+    rect: Rect,
     card: &room_card::Card,
     sz: &room_card::Sizes,
-    layout: (f32, bool),
+    fits: bool,
     lk: &mut Look,
 ) {
     let was = match lk.open {
@@ -605,14 +923,15 @@ fn room_card(
         _ => None,
     };
     let mut open = was;
-    let shown = room_card::show(
+    let shown = room_card::show_in(
         ui,
         s,
         ui.id().with(("tymp-room", track.0)),
         pic,
+        rect,
         card,
         sz,
-        layout,
+        fits,
         &mut open,
         &mut lk.opened,
     );
@@ -763,5 +1082,49 @@ fn plan(b: &mut Brush, s: &Style, r: Rect, def: &KitDef, lk: &Look, under: Optio
                 },
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::kit::color::{contrast, over};
+
+    /// Round 40 polish: what lies over the picture reads in every theme — the room's chip
+    /// and *Show mics* (their words at rest, hovered and lit; the glyph and chevron) at
+    /// 4.5:1 for words and 3:1 for marks, and the kit's tag (its plate over the darkest
+    /// and the lightest picture) at 4.5:1.
+    #[test]
+    fn the_overlays_on_the_picture_read_in_every_theme() {
+        let mut bad = Vec::new();
+        for (id, make) in crate::kit::appearance::PRESETS {
+            let s = Style::new(make().kit_tokens());
+            let p = Pal::of(&s);
+            let rest = p.raised;
+            let hover = mix(p.raised, p.ink1, 0.07);
+            let lit = iu::lit_face(&s);
+            let lit_ink = iu::lit_ink(&s);
+            let mut need = |what: &str, a: egui::Color32, b: egui::Color32, min: f32| {
+                let c = contrast(a, b);
+                if c < min {
+                    bad.push(format!("{id}: {what} {c:.2}:1 < {min}"));
+                }
+            };
+            for (face, name) in [(rest, "rest"), (hover, "hover")] {
+                need(&format!("chip label ({name})"), p.ink2, face, 4.5);
+                need(&format!("chip room ({name})"), p.ink1, face, 4.5);
+                need(&format!("chip chevron ({name})"), p.ink2, face, 3.0);
+            }
+            need("chip room / Show mics (lit)", lit_ink, lit, 4.5);
+            need("chip label (open)", p.ink1, lit, 4.5);
+            need("chip chevron (open)", p.ink2, lit, 3.0);
+            need("chip glyph (open)", lit_ink, lit, 3.0);
+            for bg in [egui::Color32::BLACK, egui::Color32::WHITE] {
+                let plate = over(with_alpha(p.surface, 0.92), bg);
+                need("kit tag name", p.ink1, plate, 4.5);
+                need("kit tag about", p.ink2, plate, 4.5);
+            }
+        }
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
     }
 }

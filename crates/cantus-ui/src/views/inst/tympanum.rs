@@ -94,6 +94,11 @@ pub struct Look {
     pub open: Option<Open>,
     /// The pass a list opened on (its opening click is not a click outside it).
     pub opened: u64,
+    /// The room card is open over the picture (its chip clicked; round 40 polish). The
+    /// view's state only, never the song's: the picture shows the kit whole by default.
+    pub room_open: bool,
+    /// The pass the room card opened on (its opening click is not a click outside it).
+    pub room_opened: u64,
     /// The families folded in the mixer.
     pub folded: Vec<cantus_core::OutputFamily>,
     /// What the last one-click route did, in words.
@@ -119,6 +124,8 @@ impl Default for Look {
             last_key: 0,
             open: None,
             opened: 0,
+            room_open: false,
+            room_opened: 0,
             folded: Vec::new(),
             said: None,
         }

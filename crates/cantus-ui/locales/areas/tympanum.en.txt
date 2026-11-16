@@ -262,3 +262,4 @@ tympanum.room.walls = Walls
 tympanum.room.rug = Rug
 tympanum.kits.tip_get = Download {name} ({size}) from its official source, once; then it plays offline.
 tympanum.kits.tip_on_disk = On your disk: click the kit to play it.
+tympanum.room.chip_tip = The room the kit stands in: click to choose the room (what you see and hear) and its floor, walls and rug (the picture only). Esc or a click outside closes it.

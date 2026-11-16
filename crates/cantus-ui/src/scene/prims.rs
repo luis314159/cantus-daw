@@ -275,6 +275,10 @@ pub struct TubeOpts {
     pub minw: f32,
     /// A part on its own (a stand's tube): sorted by its own middle.
     pub own: bool,
+    /// Polished chrome's bands across it (a drum stand's tubes, round 40 polish): the
+    /// dark room mirrored either side of the bright core, the edges dark where it turns
+    /// away — what makes a tube read round, not a flat grey bar.
+    pub bands: bool,
 }
 
 /// Round caps, a shadow, sorted with its group.
@@ -283,6 +287,7 @@ pub const T: TubeOpts = TubeOpts {
     shadow: true,
     minw: 1.0,
     own: false,
+    bands: false,
 };
 /// Round caps, a shadow, its own group.
 pub const OWN: TubeOpts = TubeOpts { own: true, ..T };
@@ -365,7 +370,20 @@ pub fn tube(c: &mut Ctx, a: V3, b: V3, r: f32, mat: &Mat, o: TubeOpts) {
     for (k, st) in stops.iter_mut().enumerate() {
         let th = (-80.0 + 160.0 * k as f32 / 8.0).to_radians();
         let n = (s * th.sin() + f * th.cos()).norm();
-        *st = (k as f32 / 8.0, c.light.shade(mat, n, vv, mid, None, 1.0));
+        let col = c.light.shade(mat, n, vv, mid, None, 1.0);
+        let col = if o.bands {
+            // The core bright, a dark band of the room either side, a lighter rim, the
+            // silhouette dark.
+            let a = th.abs();
+            let band = 1.0 - 0.7 * (-((a - 0.8) / 0.3).powi(2)).exp();
+            let rim = 0.15 + 0.85 * th.cos().max(0.0).powf(0.6);
+            let core = 1.0 + 0.3 * (-(th / 0.25).powi(2)).exp();
+            let k = band * rim * core;
+            [col[0] * k, col[1] * k, col[2] * k]
+        } else {
+            col
+        };
+        *st = (k as f32 / 8.0, col);
     }
     let g = lin(
         Pos2::new(m.x - px * w / 2.0, m.y - py * w / 2.0),

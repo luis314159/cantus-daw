@@ -9,6 +9,7 @@ use super::light::{grain, mul, scale};
 use super::prims::{
     facet, facet_v_bent, tube, Ctx, NS, NS_BUTT, OWN, OWN_BUTT, OWN_NS, OWN_NS_BUTT,
 };
+use super::stand;
 use crate::kit::skin::scene::{ink, mat, Mat, C3};
 use cantus_core::inst::tympanum_kit::{KitDef, PieceKind};
 use egui::Pos2;
@@ -363,51 +364,50 @@ fn wing_nut(c: &mut Ctx, at: V3, ax: V3, bell: f32) {
     tube(c, m - side * 2.2, m + side * 2.2, 0.45, &mat::BLACK, OWN_NS);
 }
 
-fn cymbal_stand(c: &mut Ctx, p: &Piece) {
+fn cymbal_stand(c: &mut Ctx, p: &Piece, legs: stand::Legs) {
     let (cc, ax) = (p.c, p.axis);
-    let b = p.base.unwrap_or(v(cc.x, 0.0, cc.z - 30.0));
-    let under = cc - ax * 3.0;
+    // Where the planner stood it (its own foot, or a little aside: `plan_legs`).
+    let b = legs.base;
+    let up = v(0.0, 1.0, 0.0);
     let top_h = (cc.y - 24.0).max(60.0);
     let top = v(b.x, top_h, b.z);
-    let h1 = 28.0 + (top_h - 28.0) * 0.55;
-    tripod(c, b, 28.0, 31.0, b.x * 1.3, true);
-    tube(
+    // Round 40 polish: a heavy-duty boom stand — double-braced, three sections (25.4, 22
+    // and 19 mm) with their clamps, a ratchet at the boom's root and at the cymbal.
+    stand::tripod(c, b, 30.0, legs.spread, legs.angle - 90.0);
+    let out = stand::toward_eye(c, top, 25.0 + b.x * 0.15);
+    let h1 = 33.0 + (top_h - 33.0) * 0.42;
+    let h2 = h1 + (top_h - h1) * 0.55;
+    stand::chrome(c, v(b.x, 32.6, b.z), v(b.x, h1, b.z), 1.27, OWN);
+    stand::clamp(c, v(b.x, h1, b.z), up, 1.27, out);
+    stand::chrome(c, v(b.x, h1 + 1.7, b.z), v(b.x, h2, b.z), 1.1, OWN);
+    stand::clamp(c, v(b.x, h2, b.z), up, 1.1, out);
+    stand::chrome(c, v(b.x, h2 + 1.7, b.z), top, 0.95, OWN);
+    let tilt = cc - ax * 5.4;
+    let dv = (tilt - top).norm();
+    let side = {
+        let s = dv.cross(up);
+        if s.len() > 0.1 {
+            s.norm()
+        } else {
+            v(1.0, 0.0, 0.0)
+        }
+    };
+    stand::ratchet(c, top + up * 1.0, side, 2.15);
+    // The boom through its clamp, the counterweight at its tail.
+    let tail = top - dv * 15.0;
+    stand::chrome(c, tail, tilt - dv * 1.3, 0.95, OWN);
+    stand::black(
         c,
-        v(b.x, 30.0, b.z),
-        v(b.x, h1, b.z),
-        1.25,
-        &mat::CHROME,
-        OWN,
-    );
-    tube(
-        c,
-        v(b.x, h1 - 1.0, b.z),
-        v(b.x, h1 + 2.5, b.z),
-        1.7,
-        &mat::BLACK,
+        top + up * 1.0 - dv * 2.4,
+        top + up * 1.0 + dv * 2.4,
+        1.6,
         OWN_BUTT,
     );
-    tube(c, v(b.x, h1, b.z), top, 0.95, &mat::CHROME, OWN);
-    tube(
-        c,
-        top - v(0.0, 1.5, 0.0),
-        top + v(0.0, 2.0, 0.0),
-        1.55,
-        &mat::BLACK,
-        OWN,
-    );
-    let dv = (under - top).norm();
-    let tail = top - dv * 13.0;
-    tube(c, tail, under, 0.8, &mat::CHROME, OWN);
-    tube(c, tail - dv * 1.5, tail + dv * 2.5, 1.9, &mat::BLACK, OWN);
-    tube(
-        c,
-        under - ax * 1.6,
-        under + ax * 1.4,
-        1.25,
-        &mat::BLACK,
-        OWN,
-    );
+    stand::chrome(c, tail - dv * 0.6, tail + dv * 6.5, 1.95, OWN_BUTT);
+    stand::black(c, tail - dv * 1.0, tail - dv * 0.5, 1.7, OWN_NS_BUTT);
+    // The cymbal's tilter, its felts and wing nut.
+    stand::ratchet(c, tilt, side, 1.55);
+    stand::under_felt(c, cc, ax);
     wing_nut(c, cc, ax, prof(0.0, p.china));
 }
 
@@ -436,72 +436,123 @@ fn pedal(c: &mut Ctx, heel: V3, board_len: f32, width: f32, toward: (f32, f32)) 
     c.shadow_polys.push((pts.to_vec(), 0.5));
 }
 
-fn hats_stand(c: &mut Ctx, p: &Piece) {
+fn hats_stand(c: &mut Ctx, p: &Piece, legs: stand::Legs) {
     let cc = p.c;
     let (x, z) = (cc.x, cc.z);
-    tripod(c, v(x, 0.0, z), 32.0, 29.0, 40.0, true);
+    let up = v(0.0, 1.0, 0.0);
+    // Round 40 polish: the outer tube (29 mm) and the inner one with its clamp, the bottom
+    // cymbal's seat, the clutch over the top one, the spring housings at the foot.
+    stand::tripod(c, v(x, 0.0, z), 34.0, legs.spread, legs.angle - 90.0);
+    let out = stand::toward_eye(c, v(x, cc.y, z), -30.0);
+    let h1 = 36.0 + (cc.y - 14.0 - 36.0) * 0.62;
+    stand::chrome(c, v(x, 36.6, z), v(x, h1, z), 1.45, OWN);
+    stand::clamp(c, v(x, h1, z), up, 1.45, out);
+    stand::chrome(c, v(x, h1 + 1.7, z), v(x, cc.y - 3.3, z), 1.05, OWN);
+    // The seat: a chrome cup, its felt, the tilt screw.
+    stand::chrome(c, v(x, cc.y - 3.5, z), v(x, cc.y - 2.3, z), 2.2, OWN_BUTT);
     tube(
         c,
-        v(x, 33.0, z),
-        v(x, cc.y - 12.0, z),
-        1.35,
-        &mat::CHROME,
-        OWN,
+        v(x, cc.y - 2.3, z),
+        v(x, cc.y - 1.2, z),
+        2.1,
+        &mat::FELT,
+        OWN_NS_BUTT,
     );
-    tube(
-        c,
-        v(x, cc.y - 13.0, z),
-        v(x, cc.y - 9.5, z),
-        1.8,
-        &mat::BLACK,
-        OWN_BUTT,
-    );
+    stand::wing_bolt(c, v(x, cc.y - 2.9, z) + out * 2.6, out, up, 0.7);
     // The pull rod up through both bells, the clutch over the top one's bell.
     let bell = 2.4 + prof(0.0, false);
-    tube(
+    stand::chrome(
         c,
-        v(x, cc.y - 10.0, z),
-        v(x, cc.y + bell + 4.0, z),
+        v(x, cc.y - 3.0, z),
+        v(x, cc.y + bell + 5.2, z),
         0.45,
-        &mat::CHROME,
         OWN,
     );
     tube(
         c,
-        v(x, cc.y + bell + 0.2, z),
-        v(x, cc.y + bell + 3.1, z),
-        1.3,
-        &mat::BLACK,
-        OWN,
+        v(x, cc.y + bell + 0.05, z),
+        v(x, cc.y + bell + 0.75, z),
+        1.6,
+        &mat::FELT,
+        OWN_NS_BUTT,
     );
+    stand::black(
+        c,
+        v(x, cc.y + bell + 0.75, z),
+        v(x, cc.y + bell + 3.7, z),
+        1.15,
+        OWN_BUTT,
+    );
+    stand::black(
+        c,
+        v(x, cc.y + bell + 3.7, z),
+        v(x, cc.y + bell + 4.4, z),
+        1.4,
+        OWN_NS_BUTT,
+    );
+    stand::wing_bolt(c, v(x, cc.y + bell + 2.2, z) + out * 1.15, out, up, 0.75);
     pedal(c, v(x, 0.0, z - 6.0), 30.0, 9.0, (0.0, -1.0));
-    tube(
+    stand::chrome(c, v(x, 4.0, z - 7.0), v(x, 33.0, z), 0.35, OWN_NS);
+    // The pedal's frame and its two spring housings either side of the tube's foot.
+    let side = v(1.0, 0.0, 0.0);
+    stand::chrome(
         c,
-        v(x, 4.0, z - 7.0),
-        v(x, 33.0, z),
-        0.35,
-        &mat::CHROME,
-        OWN_NS,
+        v(x - 6.0, 2.2, z - 3.0),
+        v(x + 6.0, 2.2, z - 3.0),
+        0.7,
+        OWN,
     );
+    for sg in [-1.0f32, 1.0] {
+        let at = v(x, 0.0, z - 3.0) + side * (5.6 * sg);
+        stand::chrome(c, at + up * 2.0, at + up * 19.0, 1.05, OWN);
+        stand::black(
+            c,
+            at + up * 18.6,
+            at + up * 20.2,
+            1.3 * stand::THICK,
+            OWN_NS_BUTT,
+        );
+        stand::black(
+            c,
+            at + up * 0.4,
+            at + up * 2.4,
+            1.4 * stand::THICK,
+            OWN_BUTT,
+        );
+        c.contacts.push((at, 1.8));
+    }
 }
 
-fn snare_stand(c: &mut Ctx, p: &Piece) {
+fn snare_stand(c: &mut Ctx, p: &Piece, legs: stand::Legs) {
     let (cc, ax, r, d) = (p.c, p.axis, p.r, p.d);
-    let under = cc - ax * (d / 2.0 + 7.0);
-    let b = v(under.x, 0.0, under.z);
-    tripod(c, b, 22.0, 27.0, 15.0, true);
-    tube(c, v(b.x, 24.0, b.z), under, 1.15, &mat::CHROME, OWN);
-    tube(
-        c,
-        under - v(0.0, 2.0, 0.0),
-        under + v(0.0, 1.5, 0.0),
-        1.7,
-        &mat::BLACK,
-        OWN,
-    );
+    let up = v(0.0, 1.0, 0.0);
+    let hub = cc - ax * (d / 2.0 + 7.0);
+    let b = v(hub.x, 0.0, hub.z);
+    // Round 40 polish: two sections with their clamp, the basket's ratchet tilter, its
+    // hub and three arms in rubber sleeves.
+    stand::tripod(c, b, 24.0, legs.spread, legs.angle - 90.0);
+    let out = stand::toward_eye(c, hub, 20.0);
+    let t = v(b.x, hub.y - 2.4, b.z);
+    let h1 = 27.0 + (t.y - 3.0 - 27.0) * 0.45;
+    stand::chrome(c, v(b.x, 26.6, b.z), v(b.x, h1, b.z), 1.27, OWN);
+    stand::clamp(c, v(b.x, h1, b.z), up, 1.27, out);
+    stand::chrome(c, v(b.x, h1 + 1.7, b.z), t - up * 1.6, 1.0, OWN);
+    let side = {
+        let s = ax.cross(up);
+        if s.len() > 0.05 {
+            s.norm()
+        } else {
+            v(1.0, 0.0, 0.0)
+        }
+    };
+    stand::ratchet(c, t, side, 2.2);
+    stand::black(c, t, hub, 0.9, OWN);
+    stand::black(c, hub - ax * 1.3, hub + ax * 0.9, 1.7, OWN);
+    stand::black(c, hub - ax * 3.4, hub - ax * 1.3, 0.55, OWN_NS);
+    stand::black(c, hub - ax * 3.9, hub - ax * 3.3, 1.2, OWN_NS_BUTT);
     for q in ring(cc - ax * (d / 2.0 + 1.5), ax, r * 0.86, 3, 0.6) {
-        tube(c, under, q, 0.5, &mat::CHROME, OWN);
-        tube(c, q, q + ax * 2.2, 0.8, &mat::BLACK, OWN);
+        stand::chrome(c, hub, q, 0.58, OWN);
+        stand::black(c, q - ax * 0.4, q + ax * 2.4, 0.9 * stand::THICK, OWN);
     }
 }
 
@@ -575,6 +626,8 @@ fn tom_holder(c: &mut Ctx, kick: &Piece, toms: &[Piece]) {
         &mat::BLACK,
         OWN_BUTT,
     );
+    let out = stand::toward_eye(c, post_top, -20.0);
+    stand::wing_bolt(c, post_top + out * 2.0, out, v(0.0, 1.0, 0.0), 0.9);
     for t in toms {
         // The bracket on the shell's quarter toward the post and the front, where its arm
         // shows between the toms (round 40 cp3: on the back, the toms seemed to float).
@@ -582,8 +635,8 @@ fn tom_holder(c: &mut Ctx, kick: &Piece, toms: &[Piece]) {
             (v(post_top.x - t.c.x, 0.0, post_top.z - t.c.z).norm() + v(0.0, 0.0, 0.9)).norm();
         let brk = t.c - t.axis * (t.d / 2.0 - 7.0) + toward * (t.r + 1.4);
         let elbow = v(brk.x, post_top.y + 2.0, brk.z);
-        tube(c, post_top, elbow, 0.85, &mat::CHROME, OWN);
-        tube(c, elbow, brk, 0.85, &mat::CHROME, OWN);
+        stand::chrome(c, post_top, elbow, 0.95, OWN);
+        stand::chrome(c, elbow, brk, 0.95, OWN);
         tube(
             c,
             brk - t.axis * 2.5,
@@ -592,21 +645,32 @@ fn tom_holder(c: &mut Ctx, kick: &Piece, toms: &[Piece]) {
             &mat::BLACK,
             OWN,
         );
+        stand::wing_bolt(c, brk + toward * 1.5, toward, t.axis, 0.8);
     }
 }
 
-fn floor_legs(c: &mut Ctx, p: &Piece, turn: f32) {
+fn floor_legs(c: &mut Ctx, p: &Piece, legs: stand::Legs) {
     let (cc, ax, r, d) = (p.c, p.axis, p.r, p.d);
+    let reach = legs.spread;
     for k in 0..3 {
-        let a = (turn + 60.0 + 120.0 * k as f32).to_radians();
+        let a = (legs.angle + 120.0 * k as f32).to_radians();
         let rd = v(a.cos(), 0.0, a.sin());
-        let brk = cc + ax * (d * 0.18) + rd * (r + 1.6);
-        let foot = v(cc.x + (r + 9.0) * a.cos(), 1.0, cc.z + (r + 9.0) * a.sin());
-        let knee = foot - (foot - brk).norm() * 3.2;
-        tube(c, brk - ax * 3.0, brk + ax * 3.0, 1.3, &mat::CHROME, OWN);
-        tube(c, brk + ax * 3.5, knee, 0.65, &mat::CHROME, OWN);
-        tube(c, knee, foot, 1.0, &mat::BLACK, OWN);
-        c.contacts.push((foot, 2.2));
+        let brk = cc + ax * (d * 0.18) + rd * (r + 1.8);
+        let foot = v(cc.x + reach * a.cos(), 1.2, cc.z + reach * a.sin());
+        let dir = (foot - brk).norm();
+        let knee = foot - dir * 4.2;
+        // Round 40 polish: the bracket's block and wing bolt, a 16 mm leg, a rubber foot.
+        stand::black(
+            c,
+            brk - ax * 2.8,
+            brk + ax * 2.8,
+            1.5 * stand::THICK,
+            OWN_BUTT,
+        );
+        stand::chrome(c, brk + ax * 3.6, knee, 0.78, OWN);
+        stand::black(c, knee - dir * 0.6, foot, 1.3 * stand::THICK, OWN);
+        stand::wing_bolt(c, brk + rd * 1.5, rd, ax, 0.85);
+        c.contacts.push((foot, 2.9));
     }
 }
 
@@ -697,7 +761,7 @@ fn hoop_outer(c: &mut Ctx, h: &Hoop) {
 /// The key's highlight along a chrome tube from `a` to `b` (radius `r`): a fine bright
 /// line where the tube's normal halves the key and the eye — a lug or a rod catching the
 /// light (round 40 cp3: the drawn hardware read as grey bars).
-fn glint(c: &mut Ctx, a: V3, b: V3, r: f32) {
+pub(super) fn glint(c: &mut Ctx, a: V3, b: V3, r: f32) {
     let m = (a + b) * 0.5;
     let axis = (b - a).norm();
     let hv = (c.light.ldir(m) + c.view(m)).norm();
@@ -1168,6 +1232,89 @@ fn cymbal(c: &mut Ctx, p: &Piece, centre: V3, china: bool) -> Vec<Pos2> {
 /// What the kit's build tells the scene: each piece's outline on screen at its depth.
 pub type Outlines = Vec<(u16, f32, Vec<Pos2>)>;
 
+/// Each piece's legs as it stands before untangling (`None`: no legs of its own): a
+/// tripod's centre, collar, reach and turn, a floor tom's legs.
+fn home_legs(p: &Piece) -> Option<stand::Legs> {
+    let t = stand::THICK;
+    let tripod = |base: V3, collar: f32, spread: f32, rot: f32, upright: f32| stand::Legs {
+        base,
+        collar: collar - 0.6,
+        inner: 1.7 * t,
+        spread,
+        angle: rot + 90.0,
+        upright,
+        movable: false,
+    };
+    match p.kind {
+        Kind::Cymbal => {
+            let b = p.base.unwrap_or(v(p.c.x, 0.0, p.c.z - 30.0));
+            Some(stand::Legs {
+                movable: true,
+                ..tripod(b, 30.0, 33.0, b.x * 1.3, (p.c.y - 24.0).max(60.0))
+            })
+        }
+        Kind::Hats => Some(tripod(v(p.c.x, 0.0, p.c.z), 34.0, 30.0, 40.0, p.c.y)),
+        Kind::Snare => {
+            let hub = p.c - p.axis * (p.d / 2.0 + 7.0);
+            Some(tripod(v(hub.x, 0.0, hub.z), 24.0, 28.0, 15.0, hub.y))
+        }
+        Kind::Drum => p.legs.map(|turn| stand::Legs {
+            base: v(p.c.x, 0.0, p.c.z),
+            collar: p.c.y + p.d * 0.18,
+            inner: p.r + 1.8,
+            spread: p.r + 9.0,
+            angle: turn + 60.0,
+            upright: 0.0,
+            movable: false,
+        }),
+        Kind::Kick => None,
+    }
+}
+
+/// Round 40 polish (the coordinator: the right side's legs piled into a tangle): every
+/// stand's legs turned and, where they must, drawn in so that none runs through another's
+/// on the floor and as few as can be cross in the picture — the hi-hat first (its pedal
+/// clear), then the snare, the floor toms and the cymbals. Planned with the picture's own
+/// camera (never the mirror's), so the reflection matches.
+pub fn plan_legs(cam: &super::geo::Camera, kit: &[Piece]) -> Vec<(u16, stand::Legs)> {
+    let cam = super::geo::Camera {
+        mirror: false,
+        ..*cam
+    };
+    let mut fixed = Vec::new();
+    for p in kit.iter().filter(|p| p.kind == Kind::Kick) {
+        let (cc, r, d) = (p.c, p.r, p.d);
+        let (front, back) = (cc.z + d / 2.0, cc.z - d / 2.0);
+        for sx in [-1.0f32, 1.0] {
+            fixed.push((
+                v(cc.x + sx * (r + 1.2), cc.y - 6.0, front - 9.0),
+                v(cc.x + sx * (r + 13.0), 1.0, front + 3.0),
+            ));
+        }
+        // The shell's footprint and the pedal.
+        let (x0, x1) = (cc.x - r, cc.x + r);
+        fixed.push((v(x0, 1.0, back), v(x1, 1.0, back)));
+        fixed.push((v(x0, 1.0, front), v(x1, 1.0, front)));
+        fixed.push((v(x0, 1.0, back), v(x0, 1.0, front)));
+        fixed.push((v(x1, 1.0, back), v(x1, 1.0, front)));
+        fixed.push((v(cc.x, 1.0, back - 44.0), v(cc.x, 1.0, back - 18.0)));
+    }
+    for p in kit.iter().filter(|p| p.kind == Kind::Hats) {
+        fixed.push((v(p.c.x, 1.0, p.c.z - 3.0), v(p.c.x, 1.0, p.c.z - 36.0)));
+    }
+    let rank = |p: &Piece| match p.kind {
+        Kind::Hats => 0,
+        Kind::Snare => 1,
+        Kind::Drum => 2,
+        _ => 3,
+    };
+    let mut order: Vec<&Piece> = kit.iter().filter(|p| home_legs(p).is_some()).collect();
+    order.sort_by_key(|p| rank(p));
+    let mut legs: Vec<stand::Legs> = order.iter().filter_map(|p| home_legs(p)).collect();
+    stand::untangle(&cam, &mut legs, &fixed);
+    order.iter().map(|p| p.index).zip(legs).collect()
+}
+
 /// The whole kit: hardware first (each tube at its own depth), then each piece as one
 /// group at its centre's depth. Returns each piece's outline on screen.
 pub fn build(c: &mut Ctx, kit: &[Piece], fin: &Mat) -> Outlines {
@@ -1178,21 +1325,26 @@ pub fn build(c: &mut Ctx, kit: &[Piece], fin: &Mat) -> Outlines {
         .filter(|p| p.kind == Kind::Drum && p.legs.is_none())
         .copied()
         .collect();
+    let plan = plan_legs(&cam, kit);
+    let legs_of = |p: &Piece| {
+        plan.iter()
+            .find(|(i, _)| *i == p.index)
+            .map(|(_, l)| *l)
+            .or_else(|| home_legs(p))
+    };
     for p in kit {
         c.piece = Part::Piece(p.index);
-        match p.kind {
-            Kind::Cymbal => cymbal_stand(c, p),
-            Kind::Hats => hats_stand(c, p),
-            Kind::Snare => snare_stand(c, p),
-            Kind::Kick => {
+        let legs = legs_of(p);
+        match (p.kind, legs) {
+            (Kind::Cymbal, Some(l)) => cymbal_stand(c, p, l),
+            (Kind::Hats, Some(l)) => hats_stand(c, p, l),
+            (Kind::Snare, Some(l)) => snare_stand(c, p, l),
+            (Kind::Kick, _) => {
                 kick_hardware(c, p);
                 tom_holder(c, p, &toms);
             }
-            Kind::Drum => {
-                if let Some(turn) = p.legs {
-                    floor_legs(c, p, turn);
-                }
-            }
+            (Kind::Drum, Some(l)) => floor_legs(c, p, l),
+            _ => {}
         }
         let dep = cam.depth(p.c) + p.depth_bias;
         c.p.at(dep, Part::Piece(p.index));
@@ -1227,4 +1379,65 @@ pub fn zone_at(cam: &super::geo::Camera, p: &Piece, sp: Pos2) -> Option<f32> {
     let off = hit - plane;
     let off = off - p.axis * off.dot(p.axis);
     Some(off.len() / p.r.max(1.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scene::geo::Camera;
+
+    /// The picture's camera on the stage (as `compose::kit_scene` aims it, before fitting).
+    fn cam() -> Camera {
+        Camera::new(v(-4.0, 80.0, 0.0), 16.0, 15.0, 600.0)
+    }
+
+    /// Crossings between different stands' legs: on the floor (x–z), and on screen.
+    fn crossings(cam: &Camera, legs: &[stand::Legs]) -> (usize, usize) {
+        let segs: Vec<(usize, V3, V3)> = legs
+            .iter()
+            .enumerate()
+            .flat_map(|(i, l)| l.legs().into_iter().map(move |(a, b)| (i, a, b)))
+            .collect();
+        let x = |a: (f32, f32), b: (f32, f32), c: (f32, f32), d: (f32, f32)| {
+            let o = |p: (f32, f32), q: (f32, f32), r: (f32, f32)| {
+                (q.0 - p.0) * (r.1 - p.1) - (q.1 - p.1) * (r.0 - p.0)
+            };
+            o(c, d, a) * o(c, d, b) < 0.0 && o(a, b, c) * o(a, b, d) < 0.0
+        };
+        let (mut floor, mut screen) = (0, 0);
+        for (i, s) in segs.iter().enumerate() {
+            for t in &segs[i + 1..] {
+                if s.0 == t.0 {
+                    continue;
+                }
+                let f = |p: V3| (p.x, p.z);
+                let q = |p: V3| {
+                    let r = cam.p(p);
+                    (r.x, r.y)
+                };
+                floor += x(f(s.1), f(s.2), f(t.1), f(t.2)) as usize;
+                screen += x(q(s.1), q(s.2), q(t.1), q(t.2)) as usize;
+            }
+        }
+        (floor, screen)
+    }
+
+    /// Round 40 polish: the stands' legs untangled — for both modelled kits no leg runs
+    /// through another stand's on the floor, and fewer cross in the picture than before.
+    #[test]
+    fn no_stand_s_legs_run_through_another_s() {
+        for id in ["studio", "jazz"] {
+            let def = cantus_core::inst::tympanum_kit::modelled_kit(id).expect("a kit");
+            let kit = of_def(&def);
+            let cam = cam();
+            let home: Vec<stand::Legs> = kit.iter().filter_map(home_legs).collect();
+            let planned: Vec<stand::Legs> =
+                plan_legs(&cam, &kit).into_iter().map(|(_, l)| l).collect();
+            let (f0, s0) = crossings(&cam, &home);
+            let (f1, s1) = crossings(&cam, &planned);
+            println!("{id}: on the floor {f0} → {f1}, in the picture {s0} → {s1}");
+            assert_eq!(f1, 0, "{id}: legs through each other on the floor");
+            assert!(s1 <= s0, "{id}: {s1} crossings in the picture, {s0} before");
+        }
+    }
 }

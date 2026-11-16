@@ -23,6 +23,7 @@ pub mod piano;
 pub mod piano_geo;
 pub mod prims;
 pub mod rooms;
+pub mod stand;
 
 pub use backend::{Model, PixelBackend, Prim, SceneBackend};
 pub use live::{halo_for, set_blocking, workers, Scene};

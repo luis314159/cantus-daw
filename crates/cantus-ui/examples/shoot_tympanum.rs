@@ -174,7 +174,20 @@ fn main() {
         if !only.is_empty() && !only.iter().any(|o| o.as_str() == case) {
             continue;
         }
-        for (preset, dark) in [("slate_night", true), ("slate_paper", false)] {
+        // Round 40 polish — `TYMP_SHOT_THEMES=preset:dark,…` (e.g. `ivory:0,carbon:1`):
+        // other themes than Slate Night and Paper.
+        let themes: Vec<(String, bool)> = match std::env::var("TYMP_SHOT_THEMES") {
+            Ok(list) => list
+                .split(',')
+                .filter_map(|t| t.split_once(':'))
+                .map(|(p, d)| (p.to_string(), d == "1"))
+                .collect(),
+            Err(_) => vec![
+                ("slate_night".to_string(), true),
+                ("slate_paper".to_string(), false),
+            ],
+        };
+        for (preset, dark) in themes.iter().map(|(p, d)| (p.as_str(), *d)) {
             for &zoom in &zooms {
                 let theme = preset.trim_start_matches("slate_");
                 let mut name = format!("tympanum-{case}-{theme}-{:.0}", zoom * 100.0);
@@ -222,6 +235,8 @@ fn main() {
                         for (var, key) in [
                             ("TYMP_SHOT_KIT", cantus_core::inst::tympanum::KIT_KEY),
                             ("TYMP_SHOT_VOICE", cantus_core::inst::tympanum::VOICE_KEY),
+                            // Round 40 polish — `TYMP_SHOT_ROOM=studio`: the kit in a room.
+                            ("TYMP_SHOT_ROOM", cantus_core::inst::room_look::ROOM_KEY),
                         ] {
                             if let Ok(v) = std::env::var(var) {
                                 app.set_inst_text(drums, key, Some(v));
@@ -246,6 +261,14 @@ fn main() {
                         } else {
                             cantus_ui::views::inst::View::Mixer
                         };
+                        // Round 40 polish — `TYMP_SHOT_ROOM_OPEN=1`: the room card open
+                        // from its chip.
+                        if std::env::var("TYMP_SHOT_ROOM_OPEN").as_deref() == Ok("1") {
+                            use cantus_ui::views::inst::tympanum;
+                            let mut lk = tympanum::look(&ctx, drums);
+                            lk.room_open = true;
+                            tympanum::keep(&ctx, drums, lk);
+                        }
                         raster::shoot(&ctx, size, zoom, 6, Some(&path), |ui| {
                             cantus_ui::views::inst::window_in_sized(&mut app, ui, size)
                         });

@@ -320,6 +320,38 @@ fn a_lid_drag_rebuilds_within_its_budget() {
     }
 }
 
+/// Tympanum's kit on the stage builds and rasterises quickly (round 40 polish: the stands'
+/// hardware — double-braced legs, memory locks, wing bolts, tilters, the hi-hat's clutch —
+/// added primitives): the best of five builds (display list only) and of five pictures at
+/// 1× and 1.5×, by night and by day, printed for the report.
+#[test]
+fn the_kit_builds_within_its_budget() {
+    for dark in [true, false] {
+        let v = view(kit(false), Room::Stage, dark);
+        let mut best_build = f64::MAX;
+        let mut ops = 0;
+        for _ in 0..5 {
+            let t0 = std::time::Instant::now();
+            ops = scene::stats(&v, SIZE).ops;
+            best_build = best_build.min(t0.elapsed().as_secs_f64() * 1e3);
+        }
+        for ppp in [1.0f32, 1.5] {
+            let mut best = f64::MAX;
+            for _ in 0..5 {
+                let t0 = std::time::Instant::now();
+                let img = scene::image(&v, SIZE, ppp);
+                best = best.min(t0.elapsed().as_secs_f64() * 1e3);
+                assert_eq!(img.size[0], (SIZE.x * ppp).round() as usize);
+            }
+            println!(
+                "kit on the stage (dark {dark}) at {ppp}x: build {best_build:.1} ms \
+                 ({ops} ops), picture {best:.1} ms"
+            );
+            assert!(best < 2000.0, "{best} ms at {ppp}x");
+        }
+    }
+}
+
 /// Legibility (ADR 0111): the selection's outline — what says what is clicked — reads at
 /// least 3:1 in every theme: drawn over a halo of its own (dark or light, whichever stands
 /// further from the theme's focus colour), it holds that contrast on any part of any

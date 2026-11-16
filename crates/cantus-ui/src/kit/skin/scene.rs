@@ -378,8 +378,10 @@ pub const MOOD_STAGE_EVENING: Mood = Mood {
 /// The stage by daylight.
 pub const MOOD_STAGE_DAYLIGHT: Mood = Mood {
     // The house lights up: warm and lower than a room's daylight, so the stage keeps its
-    // depth (round 40: a blue-grey ambient washed the Paper stage out).
-    amb: 0.22,
+    // depth (round 40: a blue-grey ambient washed the Paper stage out). Round 40 polish:
+    // a step higher, the corners' falloff halved — the stage sits in a light window.
+    amb: 0.38,
+    falloff: 0.05,
     amb_col: [1.0, 0.93, 0.84],
     key: 1.25,
     spot_r: 230.0,

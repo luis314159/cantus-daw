@@ -1067,6 +1067,13 @@ fn stage(c: &mut Ctx, w: &W, cx: f32, xs: f32, xr: f32, zb: f32, h: f32) {
         let fw = 22.0 + 10.0 * (0.5 + 0.5 * (kf * 2.3).sin());
         let t = 0.5 + 0.5 * (kf * 1.7).sin() * (kf * 0.6).cos();
         let base = lerp(w.fabric, w.fabric2, t);
+        // By day (a light theme) the house lights are up: the velvet a warm umber, not a
+        // black hole in a light window (round 40 polish).
+        let base = if c.light.evening {
+            base
+        } else {
+            scale(base, 2.6)
+        };
         let lo = c.light.lit(base, n, v(x + fw / 2.0, 40.0, zb));
         let q = [v(x, 0.0, z), v(x + fw, 0.0, z), v(x + fw, h, z), v(x, h, z)];
         let (a0, a1) = (c.sp(v(x, h * 0.4, z)), c.sp(v(x + fw, h * 0.4, z)));

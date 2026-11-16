@@ -143,7 +143,7 @@ pub fn paint_button(
     let r = b.snap_rect(rect);
     let rad = s.s(4.0);
     let face = if st.lit {
-        mix(p.raised, p.accent, if p.dark { 0.22 } else { 0.16 })
+        lit_face(s)
     } else if st.hovered && enabled {
         mix(p.raised, p.ink1, 0.07)
     } else {
@@ -154,11 +154,7 @@ pub fn paint_button(
     let ink = if !enabled {
         p.ink3
     } else if st.lit {
-        if p.dark {
-            mix(p.accent, p.ink1, 0.35)
-        } else {
-            mix(p.accent, p.ink1, 0.45)
-        }
+        lit_ink(s)
     } else {
         p.ink1
     };
@@ -182,6 +178,24 @@ pub fn paint_button(
     let tx = x0 + total - tw;
     let room = Rect::from_min_max(pos2(tx, r.top()), pos2(r.right() - s.s(4.0), r.bottom()));
     words(b, s, label, room, Align2::LEFT_CENTER, 12.0, W::Medium, ink);
+}
+
+/// A lit button's face: the raised key tinted with the accent.
+pub fn lit_face(s: &Style) -> Color32 {
+    let p = Pal::of(s);
+    mix(p.raised, p.accent, if p.dark { 0.22 } else { 0.16 })
+}
+
+/// A lit button's words: the accent toward ink 1 — or ink 1 itself where that mix would
+/// read under 4.5:1 on the lit face (round 40 polish: 4.37:1 in Ultraviolet).
+pub fn lit_ink(s: &Style) -> Color32 {
+    let p = Pal::of(s);
+    let ink = mix(p.accent, p.ink1, if p.dark { 0.35 } else { 0.45 });
+    if crate::kit::color::contrast(ink, lit_face(s)) < 4.5 {
+        p.ink1
+    } else {
+        ink
+    }
 }
 
 /// A microphone drawn by hand, `size` across, centred at `c`: a capsule with its grille

@@ -169,6 +169,157 @@ fn a_click_on_the_snare_selects_it_and_plays_its_key() {
     );
 }
 
+/// Round 40 polish (the owner: "púlelo de una"): the Kit view's picture shows the kit
+/// whole — the room card no longer lies over the floor tom and the kick; it opens from a
+/// chip by *Show mics*. With the card closed (the default), what lies over the picture
+/// (*Show mics*, the room's chip, the kit's tag) covers no point of any piece — its drum or
+/// cymbal, nor its stand — for the modelled kits and a recorded one, on screens of three
+/// sizes.
+#[test]
+fn the_kit_shows_whole_with_the_room_card_closed() {
+    let s = cantus_ui::kit::Style::new(cantus_ui::kit::Tokens::slate());
+    let mut bad = Vec::new();
+    let mut seen = 0;
+    for kit in ["model:studio", "model:jazz", "pack:gogodze-phu-vol-ii/kit"] {
+        for size in [
+            egui::vec2(1280.0, 720.0),
+            egui::vec2(1600.0, 900.0),
+            egui::vec2(1920.0, 1080.0),
+        ] {
+            let (p, drums) = kit_song();
+            let mut r = Rig::new(p);
+            r.size = size;
+            r.app.set_inst_text(
+                drums,
+                cantus_core::inst::tympanum::KIT_KEY,
+                Some(kit.to_string()),
+            );
+            r.app.open_inst_editor(drums);
+            r.app.inst.view = cantus_ui::views::inst::View::Play;
+            r.idle(4);
+            let at = format!("{kit} at {size}");
+            let pic = tympanum::stage::picture_rect(&r.ctx, drums).expect("the picture");
+            let over = tympanum::stage::overlay_rects(&r.ctx, drums);
+            assert_eq!(
+                over.len(),
+                3,
+                "{at}: Show mics, the chip, the tag: {over:?}"
+            );
+            assert!(
+                tympanum::stage::room_rects(&r.ctx, drums).1.is_none(),
+                "{at}: the room card is closed by default"
+            );
+            let spec = r.app.native_of(drums).unwrap();
+            let def = tympanum::def::def_of(&spec);
+            let lk = tympanum::look(&r.ctx, drums);
+            let v = tympanum::stage::view(&def, &spec, &lk, false, None, &s);
+            for pd in &def.pieces {
+                let pts = tympanum::stage::piece_points(pic, &v, pd.index);
+                if pts.is_empty() {
+                    bad.push(format!("{at}: piece {} not drawn", pd.index));
+                }
+                let covered: Vec<_> = pts
+                    .iter()
+                    .filter(|(q, _)| over.iter().any(|o| o.expand(1.0).contains(*q)))
+                    .collect();
+                seen += pts.len();
+                if !covered.is_empty() {
+                    bad.push(format!(
+                        "{at}: piece {} has {} of {} points under an overlay ({:?}…)",
+                        pd.index,
+                        covered.len(),
+                        pts.len(),
+                        covered[0].0
+                    ));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+    assert!(seen > 1000, "{seen} points of pieces seen");
+}
+
+/// Round 40 polish: the room's chip opens the room card over the picture; a room chosen in
+/// it is seen and heard (the look's room and the acoustic `room`, one undo step); Esc
+/// closes it, a click outside it closes it (and plays nothing), the chip closes it.
+#[test]
+fn the_room_chip_opens_the_card_and_the_room_changes_through_it() {
+    use cantus_core::inst::room_look;
+    use cantus_ui::views::inst::room_card::probe;
+    let (p, drums) = kit_song();
+    let mut r = Rig::new(p);
+    r.app.open_inst_editor(drums);
+    r.app.inst.view = cantus_ui::views::inst::View::Play;
+    r.idle(4);
+    let (chip, card) = tympanum::stage::room_rects(&r.ctx, drums);
+    let chip = chip.expect("the chip is drawn");
+    assert!(card.is_none(), "closed at first");
+    // Open: the card under the chip, inside the picture.
+    r.click(chip.center());
+    assert!(tympanum::look(&r.ctx, drums).room_open, "the chip opens it");
+    probe::start();
+    r.idle(1);
+    let seen = probe::take();
+    let pic = tympanum::stage::picture_rect(&r.ctx, drums).unwrap();
+    let card = tympanum::stage::room_rects(&r.ctx, drums)
+        .1
+        .expect("the card");
+    assert!(pic.expand(0.5).contains_rect(card), "{card:?} in {pic:?}");
+    assert!(card.top() >= chip.bottom(), "under the chip");
+    let shown = seen.last().expect("the card was drawn");
+    // Studio, the third of four rooms.
+    let rooms = shown.rooms;
+    let studio = egui::pos2(rooms.left() + rooms.width() * 2.5 / 4.0, rooms.center().y);
+    r.click(studio);
+    let spec = r.app.native_of(drums).unwrap();
+    assert_eq!(
+        spec.text(room_look::ROOM_KEY),
+        Some("studio"),
+        "seen in the studio"
+    );
+    assert_eq!(spec.get("room"), 2.0, "heard in Aula's studio");
+    assert!(
+        tympanum::look(&r.ctx, drums).room_open,
+        "a choice in the card leaves it open"
+    );
+    // The chip now names the studio and is as wide as its words.
+    let chip2 = tympanum::stage::room_rects(&r.ctx, drums).0.unwrap();
+    assert!(chip2.right() <= pic.right(), "{chip2:?}");
+    // Esc closes it.
+    r.frame(vec![egui::Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    }]);
+    r.idle(1);
+    assert!(!tympanum::look(&r.ctx, drums).room_open, "Esc closes it");
+    assert!(tympanum::stage::room_rects(&r.ctx, drums).1.is_none());
+    // Open again; a click outside it (the picture's empty top-left corner) closes it.
+    r.click(chip2.center());
+    assert!(tympanum::look(&r.ctx, drums).room_open);
+    let corner = pic.left_top() + egui::vec2(6.0, 6.0);
+    r.click(corner);
+    let lk = tympanum::look(&r.ctx, drums);
+    assert!(!lk.room_open, "a click outside closes it");
+    assert_eq!(lk.held, None, "and plays nothing");
+    // Open and close by the chip.
+    r.click(chip2.center());
+    assert!(tympanum::look(&r.ctx, drums).room_open);
+    r.click(chip2.center());
+    assert!(
+        !tympanum::look(&r.ctx, drums).room_open,
+        "the chip closes it"
+    );
+    // The room is the song's, seen and heard: one undo step takes both back (opening and
+    // closing the card made none).
+    r.app.undo();
+    let spec = r.app.native_of(drums).unwrap();
+    assert_ne!(spec.text(room_look::ROOM_KEY), Some("studio"));
+    assert_eq!(spec.get("room"), 0.0);
+}
+
 #[test]
 fn each_mic_to_its_own_strip_makes_the_strips_in_one_undo_step() {
     let (p, drums) = kit_song();

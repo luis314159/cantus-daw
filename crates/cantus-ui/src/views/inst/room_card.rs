@@ -170,6 +170,8 @@ pub fn height(s: &Style, fits: bool) -> f32 {
 #[derive(Copy, Clone, Debug)]
 pub struct Shown {
     pub card: Rect,
+    /// The rooms' row (its rooms side by side, of equal widths).
+    pub rooms: Rect,
     pub fields: [Rect; 3],
     pub room: Option<RoomKind>,
     pub look: Option<(LookPart, &'static str)>,
@@ -189,16 +191,37 @@ pub fn show(
     open: &mut Option<LookPart>,
     opened: &mut u64,
 ) -> Shown {
-    let p = Pal::of(s);
-    let (pad, gap) = (s.s(PAD), s.s(GAP));
+    let pad = s.s(PAD);
     let w = w.min(pic.width() - 2.0 * pad);
     let h = height(s, fits);
     let rect = Rect::from_min_size(
         pos2(pic.right() - pad - w, pic.bottom() - pad - h),
         vec2(w, h),
     );
+    show_in(ui, s, id, pic, rect, card, sz, fits, open, opened)
+}
+
+/// [`show`] in `rect` (its width and [`height`] the caller's): Tympanum's Kit view opens
+/// the card as a popover under its room chip (round 40 polish).
+#[allow(clippy::too_many_arguments)]
+pub fn show_in(
+    ui: &egui::Ui,
+    s: &Style,
+    id: egui::Id,
+    pic: Rect,
+    rect: Rect,
+    card: &Card,
+    sz: &Sizes,
+    fits: bool,
+    open: &mut Option<LookPart>,
+    opened: &mut u64,
+) -> Shown {
+    let p = Pal::of(s);
+    let (pad, gap) = (s.s(PAD), s.s(GAP));
+    let w = rect.width();
     let mut shown = Shown {
         card: rect,
+        rooms: Rect::NOTHING,
         fields: [Rect::NOTHING; 3],
         room: None,
         look: None,
@@ -226,6 +249,7 @@ pub fn show(
         std::array::from_fn(|i| Src::Str(card.names.get(i).map_or("", String::as_str)));
     let sel = card.rooms.iter().position(|k| *k == card.now).unwrap_or(0);
     let seg = Rect::from_min_max(pos2(r1.left() + sz.label + s.s(12.0), r1.top()), r1.max);
+    shown.rooms = seg;
     let (resp, chosen) = crate::kit::widgets::Segmented::new(sel, &labels[..n])
         .id(id.with("rooms"))
         .name(card.label)
@@ -373,6 +397,7 @@ pub mod probe {
     pub struct Seen {
         pub picture: Rect,
         pub card: Rect,
+        pub rooms: Rect,
         pub fields: [Rect; 3],
     }
 
@@ -396,6 +421,7 @@ pub mod probe {
                 v.push(Seen {
                     picture,
                     card: shown.card,
+                    rooms: shown.rooms,
                     fields: shown.fields,
                 });
             }

@@ -210,6 +210,10 @@ pub struct Scene {
     gen: u64,
     tex: Option<egui::TextureHandle>,
     quad: Option<(Arc<Mesh>, Rect, egui::TextureId)>,
+    /// The picture's corners' radius (points; 0 square) and its rounded shape, kept
+    /// (round 40 polish: Tympanum's picture sits in its view as a framed window).
+    corner: f32,
+    rounded: Option<(Shape, Rect, egui::TextureId, u32)>,
     overlay: Option<(OverlayKey, Arc<Mesh>)>,
     glide: Option<[f32; 4]>,
     last: Option<f64>,
@@ -259,6 +263,11 @@ fn with_controls(s: &mut Subject, c: [f32; 4]) {
 }
 
 impl Scene {
+    /// Round the picture's corners by `r` points from the next paint on (0: square).
+    pub fn set_corner(&mut self, r: f32) {
+        self.corner = r.max(0.0);
+    }
+
     /// Paint `view` into `rect`. Returns whether a control still glides (the caller asks
     /// for another frame); a build on its way wakes the UI itself when it lands.
     pub fn paint(&mut self, painter: &egui::Painter, rect: Rect, view: &SceneView) -> bool {
@@ -398,6 +407,18 @@ impl Scene {
             return;
         };
         let id = tex.id();
+        if self.corner > 0.0 {
+            let key = self.corner.to_bits();
+            if self.rounded.as_ref().map(|q| (q.1, q.2, q.3)) != Some((rect, id, key)) {
+                let shape = egui::epaint::RectShape::filled(rect, self.corner, Color32::WHITE)
+                    .with_texture(id, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)));
+                self.rounded = Some((Shape::Rect(shape), rect, id, key));
+            }
+            if let Some((sh, _, _, _)) = &self.rounded {
+                painter.add(sh.clone());
+            }
+            return;
+        }
         if self.quad.as_ref().map(|q| (q.1, q.2)) != Some((rect, id)) {
             let corner = |p: Pos2, u: f32, v: f32| Vertex {
                 pos: p,
