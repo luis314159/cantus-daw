@@ -140,94 +140,172 @@ pub fn canvas() -> Vec2 {
     largest + SHADOW_ROOM
 }
 
-/// Draw `subject`'s editor off screen at `ppp` pixels per point and tessellate it (UI
-/// thread). `None` when the editor did not open.
+/// Draw `subject`'s editor off screen at `ppp` pixels per point and tessellate it, waiting
+/// for its scenes' pictures (the shoots; the picker uses [`Capture`] a frame at a time).
+/// `None` when the editor did not open.
 pub fn capture(outer: &Context, subject: Subject, ppp: f32) -> Option<Frame> {
-    let ctx = twin(outer);
-    ctx.set_pixels_per_point(ppp);
-    let mut app = stage(subject);
-    let size = canvas();
-    let mut textures = Textures::default();
-    let mut last = None;
-    let mut body: Option<Rect> = None;
-    for frame in 0..4 {
+    let mut c = Capture::start(outer, subject, ppp);
+    loop {
+        if let Some(done) = c.step() {
+            return done;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// The frames an editor is drawn before its picture is taken (its layout settles).
+const FRAMES: u32 = 4;
+/// How long a capture waits for its scenes' pictures before taking what is there.
+const SCENE_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// An editor being drawn off screen (UI thread): [`FRAMES`] frames at once, then one a
+/// call while a scene's picture — Chorda's piano, Tympanum's kit, built on the scenes'
+/// worker — is on its way, so the UI never waits for it. Round 40: their thumbnails were
+/// taken after four frames, before the pictures came, and showed an empty stage.
+pub struct Capture {
+    subject: Subject,
+    ctx: Context,
+    app: Box<CantusApp>,
+    textures: Textures,
+    frames: u32,
+    /// Frames in a row that ended with no picture on its way.
+    still: u32,
+    body: Option<Rect>,
+    since: std::time::Instant,
+    background: egui::Color32,
+}
+
+impl Capture {
+    /// Stage `subject`'s editor in a scratch application drawn as `outer` draws.
+    pub fn start(outer: &Context, subject: Subject, ppp: f32) -> Capture {
+        let ctx = twin(outer);
+        ctx.set_pixels_per_point(ppp);
+        Capture {
+            subject,
+            ctx,
+            app: Box::new(stage(subject)),
+            textures: Textures::default(),
+            frames: 0,
+            still: 0,
+            body: None,
+            since: std::time::Instant::now(),
+            background: outer.style_of(outer.theme()).visuals.panel_fill,
+        }
+    }
+
+    /// The device being pictured.
+    pub fn subject(&self) -> Subject {
+        self.subject
+    }
+
+    /// Whether a scene of the staged editor has a picture on its way.
+    fn building(&self) -> bool {
+        self.app.inst.chorda.scenes_building()
+            || self.app.inst.tympanum_scenes.values().any(|s| s.building())
+    }
+
+    /// Draw the next frames: `None` while a picture is on its way, `Some` once the capture
+    /// is done (`Some(None)`: the editor did not open). It is taken after a whole frame
+    /// with nothing on its way — the frame a picture lands in already draws it.
+    pub fn step(&mut self) -> Option<Option<Frame>> {
+        loop {
+            let out = self.run();
+            self.frames += 1;
+            self.still = if self.building() { 0 } else { self.still + 1 };
+            let waited = self.since.elapsed() >= SCENE_WAIT;
+            if self.frames >= FRAMES && (self.still >= 2 || waited) {
+                return Some(self.take(out));
+            }
+            if self.frames >= FRAMES {
+                return None;
+            }
+        }
+    }
+
+    /// One frame of the editor, its textures kept.
+    fn run(&mut self) -> egui::FullOutput {
         let input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
-            time: Some(frame as f64 * 0.25),
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, canvas())),
+            time: Some(f64::from(self.frames) * 0.25),
             predicted_dt: 0.25,
             ..Default::default()
         };
-        let mut out = ctx.run_ui(input, |root| {
+        let (subject, app, body) = (self.subject, &mut self.app, &mut self.body);
+        let mut out = self.ctx.run_ui(input, |root| {
             let c = root.ctx().clone();
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE)
                 .show(root, |ui| match subject {
                     Subject::Instrument(_) => {
-                        body = Some(Rect::from_min_size(
+                        *body = Some(Rect::from_min_size(
                             ui.max_rect().min,
                             crate::kit::shell::INSTRUMENT,
                         ));
-                        crate::views::inst::window_in(&mut app, ui);
+                        crate::views::inst::window_in(app, ui);
                     }
                     Subject::Pulsus => {
-                        body = Some(Rect::from_min_size(
+                        *body = Some(Rect::from_min_size(
                             ui.max_rect().min,
                             crate::kit::shell::INSTRUMENT,
                         ));
-                        crate::views::pulsus_editor::window_in(&mut app, ui);
+                        crate::views::pulsus_editor::window_in(app, ui);
                     }
                     Subject::Effect(_) => {}
                 });
             if let Subject::Effect(_) = subject {
-                crate::views::eq_editor::window(&mut app, &c);
-                crate::views::comp_editor::window(&mut app, &c);
-                crate::views::fx::window(&mut app, &c);
+                crate::views::eq_editor::window(app, &c);
+                crate::views::comp_editor::window(app, &c);
+                crate::views::fx::window(app, &c);
             }
         });
-        textures.update(&out.textures_delta);
+        self.textures.update(&out.textures_delta);
         out.textures_delta.clear();
-        last = Some(out);
+        out
     }
-    let out = last?;
-    let rect = match subject {
-        Subject::Effect(kind) => {
-            let k = crate::views::fx::frame::shell_of(kind).scale(&ctx);
-            Rect::from_min_size(
-                egui::Pos2::ZERO,
-                crate::views::fx::frame::designed_size(kind) * k,
-            )
+
+    /// The last frame, cropped to the editor and tessellated.
+    fn take(&mut self, out: egui::FullOutput) -> Option<Frame> {
+        let (ctx, size) = (&self.ctx, canvas());
+        let rect = match self.subject {
+            Subject::Effect(kind) => {
+                let k = crate::views::fx::frame::shell_of(kind).scale(ctx);
+                Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    crate::views::fx::frame::designed_size(kind) * k,
+                )
+            }
+            _ => self.body?,
+        };
+        // The picture is 16:10 and keeps the top-left corner — the header with the device's
+        // name — cutting the right side or the bottom (the help line) to fit.
+        let rect = if rect.width() / rect.height() > ASPECT {
+            Rect::from_min_size(rect.min, Vec2::new(rect.height() * ASPECT, rect.height()))
+        } else {
+            Rect::from_min_size(rect.min, Vec2::new(rect.width(), rect.width() / ASPECT))
+        };
+        let ppp = out.pixels_per_point;
+        let prims = ctx.tessellate(out.shapes, ppp);
+        let w = (size.x * ppp).round() as usize;
+        let h = (size.y * ppp).round() as usize;
+        let px = |v: f32, max: usize| ((v * ppp).round().max(0.0) as usize).min(max);
+        let crop = [
+            px(rect.left(), w),
+            px(rect.top(), h),
+            px(rect.right(), w),
+            px(rect.bottom(), h),
+        ];
+        if crop[2] <= crop[0] + 8 || crop[3] <= crop[1] + 8 {
+            return None;
         }
-        _ => body?,
-    };
-    // The picture is 16:10 and keeps the top-left corner — the header with the device's
-    // name — cutting the right side or the bottom (the help line) to fit.
-    let rect = if rect.width() / rect.height() > ASPECT {
-        Rect::from_min_size(rect.min, Vec2::new(rect.height() * ASPECT, rect.height()))
-    } else {
-        Rect::from_min_size(rect.min, Vec2::new(rect.width(), rect.width() / ASPECT))
-    };
-    let ppp = out.pixels_per_point;
-    let prims = ctx.tessellate(out.shapes, ppp);
-    let w = (size.x * ppp).round() as usize;
-    let h = (size.y * ppp).round() as usize;
-    let px = |v: f32, max: usize| ((v * ppp).round().max(0.0) as usize).min(max);
-    let crop = [
-        px(rect.left(), w),
-        px(rect.top(), h),
-        px(rect.right(), w),
-        px(rect.bottom(), h),
-    ];
-    if crop[2] <= crop[0] + 8 || crop[3] <= crop[1] + 8 {
-        return None;
+        Some(Frame {
+            prims,
+            textures: std::mem::take(&mut self.textures),
+            ppp,
+            size: [w, h],
+            crop,
+            background: self.background,
+        })
     }
-    Some(Frame {
-        prims,
-        textures,
-        ppp,
-        size: [w, h],
-        crop,
-        background: outer.style_of(outer.theme()).visuals.panel_fill,
-    })
 }
 
 /// Fill a captured frame, crop it to the editor and shrink it to `width` pixels (keeping

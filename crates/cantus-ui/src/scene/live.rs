@@ -579,6 +579,11 @@ impl Scene {
         self.shown.is_some() && self.asked.is_none()
     }
 
+    /// Whether a build is on its way (the picker's thumbnail waits for it to land).
+    pub fn building(&self) -> bool {
+        self.asked.is_some()
+    }
+
     /// The build shown (its outlines and the mics' places, for a caller's labels).
     pub fn built(&self) -> Option<&Built> {
         self.shown.as_ref().map(|s| &*s.2)

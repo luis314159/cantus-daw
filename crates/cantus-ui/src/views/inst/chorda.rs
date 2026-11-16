@@ -76,6 +76,11 @@ impl State {
         self.scenes.len()
     }
 
+    /// Whether a scene kept has a picture on its way (the picker's thumbnail waits for it).
+    pub fn scenes_building(&self) -> bool {
+        self.scenes.values().any(|s| s.0.building())
+    }
+
     /// `track`'s scene, once its card has been drawn. r40:scene
     pub fn scene_of(&self, track: TrackId) -> Option<&crate::scene::Scene> {
         self.scenes.get(&track.0).map(|s| &s.0)

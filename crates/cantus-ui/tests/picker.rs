@@ -689,6 +689,54 @@ fn thumbnails_are_made_once_then_read_back_from_disk() {
     assert_eq!((again.stats.captures, again.stats.disk_loads), (0, 1));
 }
 
+/// Round 40: Chorda's and Tympanum's thumbnails were taken after four frames, before their
+/// scene's picture came from the worker, and showed an empty stage. Driven as the picker
+/// drives it — one step a frame, the UI never waiting — the capture waits for the picture,
+/// and the stage in the thumbnail is a picture, not the flat well.
+#[test]
+fn a_scene_s_thumbnail_waits_for_its_picture() {
+    use cantus_ui::views::picker_snap::{self, Capture, Subject};
+    let ctx = ctx();
+    for kind in [InstrumentKind::AcousticDrums, InstrumentKind::Chorda] {
+        let s = Subject::Instrument(kind);
+        let mut c = Capture::start(&ctx, s, 0.8);
+        let (mut waits, mut slowest) = (0, 0.0f64);
+        let frame = loop {
+            let t0 = std::time::Instant::now();
+            let got = c.step();
+            slowest = slowest.max(t0.elapsed().as_secs_f64() * 1e3);
+            match got {
+                Some(f) => break f.expect("the editor opens"),
+                None => {
+                    waits += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+            }
+        };
+        let img = picker_snap::finish(frame, 416, 0.0);
+        let [w, h] = img.size;
+        // The stage's middle: the kit, the piano.
+        let mut lum = Vec::new();
+        for y in h * 20 / 100..h * 50 / 100 {
+            for x in w * 35 / 100..w * 65 / 100 {
+                let p = img.pixels[y * w + x];
+                lum.push(
+                    0.2126 * f64::from(p.r())
+                        + 0.7152 * f64::from(p.g())
+                        + 0.0722 * f64::from(p.b()),
+                );
+            }
+        }
+        let mean = lum.iter().sum::<f64>() / lum.len() as f64;
+        let sd = (lum.iter().map(|l| (l - mean).powi(2)).sum::<f64>() / lum.len() as f64).sqrt();
+        eprintln!("{kind:?}: {waits} steps waited, slowest {slowest:.1} ms, stage sd {sd:.1}");
+        assert!(
+            sd > 12.0,
+            "{kind:?}: the stage is a picture, not a flat well (sd {sd:.1})"
+        );
+    }
+}
+
 #[test]
 fn the_devices_panel_drags_a_payload_and_double_click_adds() {
     use cantus_ui::picker::DevicePayload;

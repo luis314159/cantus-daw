@@ -5,7 +5,7 @@
 //!
 //! A picture is asked for with [`Thumbs::get`]; until it is ready the tile shows its drawn
 //! card. [`Thumbs::pump`] runs once a frame while the picker shows: it uploads what the
-//! workers finished, and starts **one** capture a frame (the part that must run on the UI
+//! workers finished, and draws **one** capture at a time (the part that must run on the UI
 //! thread, `picker_snap::capture`); the filling and shrinking run on a worker, which also
 //! writes the PNG. A file on disk is decoded on a worker too.
 //!
@@ -20,8 +20,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 /// The recipe's version: bump it when what a picture shows changes (2: the units' faces,
-/// round 32 — pictures made plain before them are never read back).
-pub const REV: u32 = 2;
+/// round 32 — pictures made plain before them are never read back; 3: Chorda's and
+/// Tympanum's scenes waited for, round 40 — their pictures on disk showed an empty stage).
+pub const REV: u32 = 3;
 /// A picture's size in pixels: 16:10, sharp on a large tile at 150 %.
 pub const W: usize = 416;
 pub const H: usize = 260;
@@ -61,6 +62,8 @@ pub struct Thumbs {
     wanted: VecDeque<Subject>,
     busy: HashSet<Subject>,
     failed: HashSet<Subject>,
+    /// The editor being drawn while its scene's picture comes (one at a time).
+    capturing: Option<picker_snap::Capture>,
     tx: Sender<Done>,
     rx: Receiver<Done>,
     /// The look whose old neighbours on disk were last pruned.
@@ -80,6 +83,7 @@ impl Default for Thumbs {
             wanted: VecDeque::new(),
             busy: HashSet::new(),
             failed: HashSet::new(),
+            capturing: None,
             tx,
             rx,
             pruned: 0,
@@ -141,7 +145,7 @@ impl Thumbs {
 
     /// Whether every picture asked for is in.
     pub fn idle(&self) -> bool {
-        self.wanted.is_empty() && self.busy.is_empty()
+        self.wanted.is_empty() && self.busy.is_empty() && self.capturing.is_none()
     }
 
     /// Once a frame: take in what the workers finished, start what is wanted.
@@ -156,6 +160,10 @@ impl Thumbs {
             self.slots.clear();
             self.failed.clear();
             self.wanted.clear();
+            // A capture in the old look is dropped (its editor has the old words).
+            if let Some(c) = self.capturing.take() {
+                self.busy.remove(&c.subject());
+            }
         }
         while let Ok(done) = self.rx.try_recv() {
             match done {
@@ -173,8 +181,16 @@ impl Thumbs {
                 }
             }
         }
-        // One capture a frame at most: each costs a few frames of one editor.
-        let mut captured = false;
+        // The capture going on: a frame of it a frame while its scene's picture comes.
+        if let Some(c) = self.capturing.as_mut() {
+            if let Some(got) = c.step() {
+                let s = c.subject();
+                self.capturing = None;
+                self.captured(ctx, s, look, got);
+            }
+        }
+        // One capture at a time: each costs a few frames of one editor.
+        let mut captured = self.capturing.is_some();
         while let Some(s) = self.wanted.pop_front() {
             if let Some(path) = self.file(s, look).filter(|p| p.exists()) {
                 self.busy.insert(s);
@@ -208,23 +224,11 @@ impl Thumbs {
                     std::thread::spawn(move || prune(&dir, look, KEEP_LOOKS));
                 }
             }
-            match picker_snap::capture(ctx, s, PPP) {
-                Some(frame) => {
-                    self.busy.insert(s);
-                    let (tx, ctx2) = (self.tx.clone(), ctx.clone());
-                    let path = self.file(s, look);
-                    std::thread::spawn(move || {
-                        let img = picker_snap::finish(frame, W, RADIUS);
-                        if let Some(p) = path {
-                            save_png(&img, &p);
-                        }
-                        let _ = tx.send(Done::Image(s, look, img));
-                        ctx2.request_repaint();
-                    });
-                }
-                None => {
-                    self.failed.insert(s);
-                }
+            self.busy.insert(s);
+            let mut c = picker_snap::Capture::start(ctx, s, PPP);
+            match c.step() {
+                Some(got) => self.captured(ctx, s, look, got),
+                None => self.capturing = Some(c),
             }
         }
         if !self.idle() {
@@ -233,6 +237,25 @@ impl Thumbs {
                 crate::views::workspace_ticker::Reason::Background,
             );
         }
+    }
+
+    /// A capture done: its picture filled, shrunk and written on a worker.
+    fn captured(&mut self, ctx: &Context, s: Subject, look: u64, got: Option<picker_snap::Frame>) {
+        let Some(frame) = got else {
+            self.busy.remove(&s);
+            self.failed.insert(s);
+            return;
+        };
+        let (tx, ctx2) = (self.tx.clone(), ctx.clone());
+        let path = self.file(s, look);
+        std::thread::spawn(move || {
+            let img = picker_snap::finish(frame, W, RADIUS);
+            if let Some(p) = path {
+                save_png(&img, &p);
+            }
+            let _ = tx.send(Done::Image(s, look, img));
+            ctx2.request_repaint();
+        });
     }
 
     fn upload(&mut self, ctx: &Context, s: Subject, img: &ColorImage) {
