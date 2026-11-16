@@ -27,5 +27,8 @@ preset.phasis.slow_wash = Ola lenta
 # fx3:arca — el estilo de lámpara.
 fx.phasis.style = Circuito
 fx.phasis.style.0 = Clásico
-fx.phasis.style.1 = Vibe de lámpara
+fx.phasis.style.1 = Lámpara
 fx.phasis.intensity = Intensidad
+phasis.card.lamp = Lámpara y fotocélulas
+phasis.style.0.about = Etapas barridas a la vez
+phasis.style.1.about = Una lámpara barre cuatro celdas

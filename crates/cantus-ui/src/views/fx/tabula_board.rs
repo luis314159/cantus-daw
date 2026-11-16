@@ -104,15 +104,17 @@ fn motif_of(f: &Face) -> pd::Motif {
         faces::Motif::Steps => pd::Motif::Steps,
         faces::Motif::Spiral => pd::Motif::Spiral,
         faces::Motif::Leap => pd::Motif::Leap, // fx3:saltus
+        faces::Motif::Wheel => pd::Motif::Wheel, // fx3:rota
+        faces::Motif::Chest => pd::Motif::Chest, // fx3:arca
     }
 }
 
 fn letter_of(f: &Face) -> pd::Letter {
     match f.motif {
-        faces::Motif::Wave | faces::Motif::Spiral => pd::Letter::Script,
+        faces::Motif::Wave | faces::Motif::Spiral | faces::Motif::Wheel => pd::Letter::Script, // fx3:rota
         faces::Motif::Echoes => pd::Letter::Wide,
         faces::Motif::Rings | faces::Motif::Curve => pd::Letter::Deco,
-        faces::Motif::Clip => pd::Letter::Bold,
+        faces::Motif::Clip | faces::Motif::Chest => pd::Letter::Bold, // fx3:arca
         _ => pd::Letter::Technical,
     }
 }
@@ -171,6 +173,13 @@ pub fn knob_word(key: &str) -> Option<&'static str> {
         "lvl1" => "saltus.l.level",
         "dry" => "saltus.l.dry",
         "pedal" => "saltus.l.pedal",
+        // fx3:arca — Arca's knobs.
+        "bass" => "arca.l.bass",
+        "treble" => "arca.l.treble",
+        "master" => "arca.l.master",
+        // fx3:rota — Rota's knobs.
+        "speed" => "rota.d.speed",
+        "balance" => "rota.l.balance",
         _ => return None,
     })
 }

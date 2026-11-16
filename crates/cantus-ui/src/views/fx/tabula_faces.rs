@@ -32,6 +32,10 @@ pub enum Motif {
     Spiral,
     /// Arcs leaping over a keyboard: pitch. // fx3:saltus
     Leap,
+    /// A horn rotor turning, its sound thrown in arcs: the rotary speaker. // fx3:rota
+    Wheel,
+    /// A valve before a speaker's cone: the amp. // fx3:arca
+    Chest,
 }
 
 /// The enclosure's surface.
@@ -307,8 +311,22 @@ pub const FACES: &[Face] = &[
         "S",
         T::Brushed,
     ), // fx3:saltus
-    face(K::Rotary, &["out"], S::Double, M::Spiral, "R", T::Wrinkle), // fx3:rota
-    face(K::Amp, &["out"], S::Wide, M::Clip, "A", T::Wrinkle),        // fx3:arca
+    face(
+        K::Rotary,
+        &["speed", "drive", "balance", "mix"],
+        S::Wide,
+        M::Wheel,
+        "R",
+        T::Wrinkle,
+    ), // fx3:rota
+    face(
+        K::Amp,
+        &["gain", "bass", "treble", "master"],
+        S::Wide,
+        M::Chest,
+        "A",
+        T::Hammered,
+    ), // fx3:arca
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

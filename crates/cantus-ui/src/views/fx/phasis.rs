@@ -116,7 +116,7 @@ fn body_ui(
 
     let w = [
         controls::cells_width(&[Size::XL, Size::M, Size::M]) + 16.0,
-        controls::cells_width(&[Size::M; 3]) + 16.0,
+        controls::cells_width(&[Size::M; 3]) + CIRCUIT_W + 20.0, // fx3:arca
         modfx::lfo_card_width(&LFO),
     ];
     let sum: f32 = w.iter().sum();
@@ -134,20 +134,55 @@ fn body_ui(
         },
     );
     let st_ = modfx::own(s, Function::Tone);
-    controls::card(
-        ui,
-        &st_,
-        r2[1],
-        Src::Key("phasis.card.stages"),
-        None,
-        |ui, _| {
+    // fx3:arca — the circuit: the classic stages, or the lamp vibe's four photocells (its
+    // intensity in their place: its stages and range are the circuit's own).
+    let vibe = ps.style == cantus_dsp::phasis::PhasisStyle::Vibe;
+    let title = if vibe {
+        "phasis.card.lamp"
+    } else {
+        "phasis.card.stages"
+    };
+    controls::card(ui, &st_, r2[1], Src::Key(title), None, |ui, _| {
+        controls::column(ui, &st_, CIRCUIT_W, |ui| {
+            controls::caption(ui, &st_, Src::Key("fx.phasis.style"), CIRCUIT_W);
+            let labels = [
+                Src::Key("fx.phasis.style.0"),
+                Src::Key("fx.phasis.style.1"),
+            ];
+            controls::segmented_param(ui, &st_, host, "style", &labels, CIRCUIT_W);
+            let about = if vibe {
+                "phasis.style.1.about"
+            } else {
+                "phasis.style.0.about"
+            };
+            controls::line(ui, &st_, frame::tr(about), st_.t.text_dim, CIRCUIT_W);
+        });
+        if vibe {
+            // Its own cell, wide enough for the word in every language.
+            let spec = host.spec();
+            if let Some(info) = spec.kind.param("intensity") {
+                let out = controls::Cell::param(info, spec.get("intensity"))
+                    .size(Size::M)
+                    .width(88.0)
+                    .show_in(ui, &st_, host, "intensity");
+                if let Some(v) = out.changed {
+                    host.set("intensity", v, Some("intensity"));
+                }
+                if out.done {
+                    host.end_gesture();
+                }
+            }
+        } else {
             controls::param_with(ui, &st_, host, "stages", Size::M, Some(&stages_pill));
             controls::param(ui, &st_, host, "lo", Size::M);
             controls::param(ui, &st_, host, "hi", Size::M);
-        },
-    );
+        }
+    });
     modfx::lfo_card(host, ui, &sm, r2[2], &LFO);
 }
+
+/// The circuit's column (its switch and its line), at 100 %. fx3:arca
+const CIRCUIT_W: f32 = 200.0;
 
 fn fb_pill(v: f32, b: &mut String) {
     let _ = write!(b, "{:+.0}%", v * 100.0);

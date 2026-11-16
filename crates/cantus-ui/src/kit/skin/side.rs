@@ -505,17 +505,202 @@ pub const SALTUS: Skin = Skin {
     },
 }; // fx3:saltus
 
-/// Rota, the rotary speaker: for now Spatium's look. // fx3:rota
-pub const ROTA: Skin = Skin {
-    key: "fx.rota",
-    ..super::tone::SPATIUM
-};
+// fx3:rota — Rota's own face (ADR 0136, provisional).
+/// Rota, the rotary speaker: a cabinet of oiled walnut, its display a night-dark cut-away
+/// where the horn turns in steel blue and the drum in vermilion; graduated dials, rocker
+/// switches, spaced capitals on a badge, screws. No wood-faced unit speaks in a steel blue
+/// (the noise gate's green, the organ's olive, the ring modulator's gold, Vetus's walnut
+/// amber), and no unit of the round pairs blue with vermilion.
+const fn rota(key: &'static str, material: Material, surface: Tint, accent: Pair) -> Skin {
+    Skin {
+        key,
+        surface,
+        accent: Some(accent),
+        accent2: Some(Pair {
+            dark: chsl(6.0, 0.78, 0.62),
+            light: chsl(4.0, 0.72, 0.42),
+        }),
+        material,
+        display: Display::Phosphor,
+        knob: KnobShape::Dial,
+        switch: SwitchShape::Rocker,
+        lettering: Lettering {
+            case: Case::Upper,
+            tracking: 0.16,
+            weight: Weight::Medium,
+            condensed: false,
+            mono_values: false,
+        },
+        plate: Plate::Badge,
+        ornaments: Ornaments {
+            screws: true,
+            vents: false,
+            rules: true,
+            rack_ears: false,
+        },
+    }
+}
 
-/// Arca, amp and cabinet: for now Aequalis's look. // fx3:arca
-pub const ARCA: Skin = Skin {
-    key: "fx.arca",
-    ..super::tone::AEQUALIS
-};
+pub const ROTA: Skin = rota(
+    "fx.rota",
+    Material::Wood,
+    Tint {
+        hue: 26.0,
+        sat: 0.30,
+        amount: 0.55,
+    },
+    Pair {
+        dark: chsl(205.0, 0.62, 0.68),
+        light: chsl(208.0, 0.62, 0.34),
+    },
+);
+/// **Cherry**: a redder wood, the horn in aqua.
+pub const ROTA_CHERRY: Skin = rota(
+    "fx.rota.cherry",
+    Material::Wood,
+    Tint {
+        hue: 8.0,
+        sat: 0.36,
+        amount: 0.55,
+    },
+    Pair {
+        dark: chsl(186.0, 0.55, 0.64),
+        light: chsl(190.0, 0.62, 0.30),
+    },
+);
+/// **Black**: a black vinyl-covered cabinet (a touring one's), the horn in steel blue.
+pub const ROTA_BLACK: Skin = rota(
+    "fx.rota.black",
+    Material::Tolex,
+    Tint {
+        hue: 220.0,
+        sat: 0.04,
+        amount: 0.30,
+    },
+    Pair {
+        dark: chsl(212.0, 0.66, 0.70),
+        light: chsl(214.0, 0.62, 0.36),
+    },
+);
+/// Rota's colourways, its face first: Walnut, Cherry and Black.
+pub const ROTA_COLOURWAYS: [Colourway; 3] = [
+    Colourway {
+        id: "walnut",
+        name_key: "rota.colourway.walnut",
+        sheet: &ROTA,
+    },
+    Colourway {
+        id: "cherry",
+        name_key: "rota.colourway.cherry",
+        sheet: &ROTA_CHERRY,
+    },
+    Colourway {
+        id: "black",
+        name_key: "rota.colourway.black",
+        sheet: &ROTA_BLACK,
+    },
+]; // fx3:rota
+
+// fx3:arca — Arca's own face (ADR 0137, provisional).
+/// Arca, amp and cabinet (*the chest*): a control plate of green hammered enamel (the only
+/// unit in that material), copper pointers and readouts, a mint second voice for the
+/// cabinet; its display a dark window into the chassis where the valves glow; skirted
+/// knobs, bat toggles, engraved capitals, screws and rules.
+const fn arca(key: &'static str, surface: Tint, accent: Pair, accent2: Pair) -> Skin {
+    Skin {
+        key,
+        surface,
+        accent: Some(accent),
+        accent2: Some(accent2),
+        material: Material::Hammered,
+        display: Display::Phosphor,
+        knob: KnobShape::Skirted,
+        switch: SwitchShape::Bat,
+        lettering: Lettering {
+            case: Case::Upper,
+            tracking: 0.12,
+            weight: Weight::SemiBold,
+            condensed: false,
+            mono_values: false,
+        },
+        plate: Plate::Engraved,
+        ornaments: Ornaments {
+            screws: true,
+            vents: false,
+            rules: true,
+            rack_ears: false,
+        },
+    }
+}
+
+pub const ARCA: Skin = arca(
+    "fx.arca",
+    Tint {
+        hue: 158.0,
+        sat: 0.16,
+        amount: 0.55,
+    },
+    Pair {
+        dark: chsl(20.0, 0.80, 0.60),
+        light: chsl(18.0, 0.75, 0.36),
+    },
+    Pair {
+        dark: chsl(165.0, 0.45, 0.66),
+        light: chsl(168.0, 0.55, 0.28),
+    },
+);
+/// **Graphite**: grey enamel, a signal yellow.
+pub const ARCA_GRAPHITE: Skin = arca(
+    "fx.arca.graphite",
+    Tint {
+        hue: 215.0,
+        sat: 0.05,
+        amount: 0.45,
+    },
+    Pair {
+        dark: chsl(48.0, 0.85, 0.58),
+        light: chsl(42.0, 0.85, 0.32),
+    },
+    Pair {
+        dark: chsl(40.0, 0.20, 0.82),
+        light: chsl(30.0, 0.25, 0.30),
+    },
+);
+/// **Oxblood**: a deep red enamel, gold and cream.
+pub const ARCA_OXBLOOD: Skin = arca(
+    "fx.arca.oxblood",
+    Tint {
+        hue: 352.0,
+        sat: 0.32,
+        amount: 0.60,
+    },
+    Pair {
+        dark: chsl(44.0, 0.62, 0.64),
+        light: chsl(38.0, 0.70, 0.32),
+    },
+    Pair {
+        dark: chsl(40.0, 0.22, 0.84),
+        light: chsl(28.0, 0.30, 0.30),
+    },
+);
+/// Arca's colourways, its face first: Green enamel, Graphite and Oxblood.
+pub const ARCA_COLOURWAYS: [Colourway; 3] = [
+    Colourway {
+        id: "green",
+        name_key: "arca.colourway.green",
+        sheet: &ARCA,
+    },
+    Colourway {
+        id: "graphite",
+        name_key: "arca.colourway.graphite",
+        sheet: &ARCA_GRAPHITE,
+    },
+    Colourway {
+        id: "oxblood",
+        name_key: "arca.colourway.oxblood",
+        sheet: &ARCA_OXBLOOD,
+    },
+]; // fx3:arca
 
 /// fx:colourways — the colourways a unit of the side round offers (empty: one face).
 pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
@@ -523,6 +708,8 @@ pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
         EffectKind::AutoFilter => &CRIBRUM_COLOURWAYS, // fx:cribrum
         EffectKind::Pedal => &FRAGOR_COLOURWAYS,       // fx:fragor
         EffectKind::LoFi => &VETUS_COLOURWAYS,         // fx:vetus
+        EffectKind::Rotary => &ROTA_COLOURWAYS,       // fx3:rota
+        EffectKind::Amp => &ARCA_COLOURWAYS,          // fx3:arca
         _ => &[],
     }
 }
@@ -611,7 +798,7 @@ pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
 #[cfg(test)]
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
-    use super::{CRIBRUM, FRAGOR, LAPSUS, LIBRA, SALTUS, VETUS}; // fx3:saltus
+    use super::{ARCA, CRIBRUM, FRAGOR, LAPSUS, LIBRA, ROTA, SALTUS, VETUS}; // fx3:saltus, fx3:arca, fx3:rota
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -623,7 +810,7 @@ mod tests {
 
     /// The side round's faces as drawn (a sheet still wearing a sibling's look is left out).
     fn faces() -> Vec<&'static Skin> {
-        [&CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS] // fx3:saltus
+        [&CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA] // fx3:saltus, fx3:rota, fx3:arca
             .into_iter()
             .filter(|s| !is_placeholder(s))
             .collect()

@@ -30,7 +30,7 @@ pub enum Surface {
 
 impl Material {
     /// Every material, the kit's first.
-    pub const ALL: [Material; 11] = [
+    pub const ALL: [Material; 12] = [
         Material::Plain,
         Material::Matte,
         Material::Brushed,
@@ -39,6 +39,7 @@ impl Material {
         Material::Wood,
         Material::Tolex,
         Material::FineTolex, // fx3:tabula
+        Material::Hammered,  // fx3:arca
         Material::Glass,
         Material::Paper,
         Material::Carbon,
@@ -55,6 +56,7 @@ impl Material {
             Material::Wood => "wood",
             Material::Tolex => "vinyl",
             Material::FineTolex => "fine vinyl", // fx3:tabula
+            Material::Hammered => "hammered enamel", // fx3:arca
             Material::Glass => "glass",
             Material::Paper => "paper",
             Material::Carbon => "carbon",
@@ -176,6 +178,24 @@ pub fn finish(
             textures::lay_rounded(b, rect, r, Tile::TolexFine, t.light, 0.10 * tex);
             b.rrect(rect, r, Fill::V(light(0.02), shade(0.06)));
         }
+        // fx3:arca — the dimples, a soft metallic sheen above, a little depth below.
+        Material::Hammered => {
+            textures::lay_rounded(b, rect, r, Tile::Hammered, t.light, 0.22 * tex);
+            let stops = [
+                (0.0, light(0.10)),
+                (0.30, light(0.02)),
+                (0.70, light(0.0)),
+                (1.0, shade(0.14)),
+            ];
+            b.rrect(rect, r, Fill::Stops(&stops));
+            b.hline(
+                rect.left() + r,
+                rect.right() - r,
+                rect.top() + px * 0.5,
+                px,
+                light(0.30),
+            );
+        }
         Material::Glass => {
             // Smoked glass over the colour: darker, a diagonal reflection, a lit lip.
             b.rrect(rect, r, Fill::V(shade(0.18), shade(0.36)));
@@ -230,6 +250,7 @@ fn peaks(m: Material, surface: Surface, dark: bool) -> (f32, f32, &'static [(Til
         Material::Wood => (0.08, 0.10, &[(Tile::Varnished, 0.30)]),
         Material::Tolex => (0.03, 0.08, &[(Tile::Tolex, 0.16)]),
         Material::FineTolex => (0.02, 0.06, &[(Tile::TolexFine, 0.10)]), // fx3:tabula
+        Material::Hammered => (0.10, 0.14, &[(Tile::Hammered, 0.22)]),   // fx3:arca
         // The reflection lies over the smoke: counting it alone is the lighter bound.
         Material::Glass => (0.05, 0.36, &[]),
         Material::Paper => (0.04, 0.04, &[(Tile::Paper, 0.16)]),

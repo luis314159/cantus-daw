@@ -89,6 +89,9 @@ pub mod pedals;
 // The record Vetus draws (ADR 0133). fx:vetus
 #[path = "skin/records.rs"]
 pub mod records;
+// The amp, its cabinet and the rotary speaker Arca and Rota draw (ADRs 0136, 0137). fx3:arca
+#[path = "skin/cabinets.rs"]
+pub mod cabinets;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;
@@ -164,6 +167,10 @@ pub enum Material {
     /// fx3:tabula — vinyl covering of a finer, quieter grain (Tabula's board case, the
     /// owner's "más fino"): small pebbles, softly lit. Users read "fine vinyl".
     FineTolex,
+    /// fx3:arca — hammered enamel: a deep paint over metal, dimpled as if beaten, a soft
+    /// sheen (an old instrument's chassis; Arca's control plate). Users read "hammered
+    /// enamel".
+    Hammered,
     /// Smoked glass over a dark ground.
     Glass,
     /// Printed paper or card (a vintage panel's legend plate).

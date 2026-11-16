@@ -29,3 +29,6 @@ fx.phasis.style = Circuit
 fx.phasis.style.0 = Classic
 fx.phasis.style.1 = Lamp vibe
 fx.phasis.intensity = Intensity
+phasis.card.lamp = Lamp and photocells
+phasis.style.0.about = Stages swept together
+phasis.style.1.about = A lamp sweeps four cells

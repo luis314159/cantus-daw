@@ -20,6 +20,9 @@ pub enum Tile {
     Tolex,
     /// fx3:tabula — the vinyl's pebbles at half the size, more gently lit.
     TolexFine,
+    /// fx3:arca — hammered enamel's dimples: a shallow crater round each point of a
+    /// jittered lattice, lit from the top left.
+    Hammered,
     Carbon,
     Paper,
     Wood,
@@ -107,6 +110,35 @@ fn texel(t: Tile, x: usize, y: usize, w: usize, h: usize) -> f32 {
             let b = hgt(wrap(xf + 1.0, w), wrap(yf + 1.0, h));
             ((a - b) * 3.5).clamp(-1.0, 1.0)
         }
+        // fx3:arca — the distance to the nearest point of a 14 × 14 jittered lattice (it
+        // divides the tile, so the tile repeats exactly): a crater each, the light's slope
+        // across it, a whisper of speckle in the paint.
+        Tile::Hammered => {
+            let n = 14i32;
+            let cell = w as f32 / n as f32;
+            let cell_y = h as f32 / n as f32;
+            let hgt = |x: f32, y: f32| {
+                let (cx, cy) = ((x / cell).floor() as i32, (y / cell_y).floor() as i32);
+                let mut best = f32::MAX;
+                for j in -1..=1 {
+                    for i in -1..=1 {
+                        let (gx, gy) = (cx + i, cy + j);
+                        let (hx, hy) = (gx.rem_euclid(n), gy.rem_euclid(n));
+                        let px = (gx as f32 + 0.2 + 0.6 * hash(hx, hy, 41)) * cell;
+                        let py = (gy as f32 + 0.2 + 0.6 * hash(hx, hy, 42)) * cell_y;
+                        best = best.min((x - px) * (x - px) + (y - py) * (y - py));
+                    }
+                }
+                let d = best.sqrt() / cell;
+                // A rounded dimple: deepest at the point, flat where two meet.
+                -(1.0 - d.min(1.0)).powi(2)
+            };
+            let wrap = |v: f32, n: usize| v.rem_euclid(n as f32);
+            let a = hgt(xf, yf);
+            let b = hgt(wrap(xf + 1.0, w), wrap(yf + 1.0, h));
+            let speck = hash(x as i32, y as i32, 43) * 2.0 - 1.0;
+            ((b - a) * 3.0 + 0.08 * speck).clamp(-1.0, 1.0)
+        }
         Tile::Carbon => {
             // A 2/2 twill: tows 8 texels wide, over two and under two, each lit across.
             let (cx, cy) = (x / 8, y / 8);
@@ -157,7 +189,7 @@ fn texel(t: Tile, x: usize, y: usize, w: usize, h: usize) -> f32 {
 /// do to the colour under it at full strength (`materials::extremes`). Computed once.
 pub fn reach(t: Tile) -> (f32, f32) {
     use std::sync::OnceLock;
-    static REACH: OnceLock<[(f32, f32); 9]> = OnceLock::new();
+    static REACH: OnceLock<[(f32, f32); 10]> = OnceLock::new();
     let all = REACH.get_or_init(|| {
         ALL.map(|t| {
             let (w, h) = size(t);
@@ -176,10 +208,11 @@ pub fn reach(t: Tile) -> (f32, f32) {
 }
 
 /// Every tile.
-pub const ALL: [Tile; 9] = [
+pub const ALL: [Tile; 10] = [
     Tile::Brushed,
     Tile::Tolex,
     Tile::TolexFine, // fx3:tabula
+    Tile::Hammered,  // fx3:arca
     Tile::Carbon,
     Tile::Paper,
     Tile::Wood,

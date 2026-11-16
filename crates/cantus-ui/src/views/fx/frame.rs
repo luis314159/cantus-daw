@@ -176,6 +176,10 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Board => Vec2::new(1360.0, 860.0), // fx3:tabula
         // Saltus: the staff over the leap (and the pedal in Whammy), over the mode's cards.
         EffectKind::PitchShift => Vec2::new(1260.0, 800.0), // fx3:saltus
+        // Arca: the chassis over the control plate, the cabinet beside them.
+        EffectKind::Amp => Vec2::new(1320.0, 640.0), // fx3:arca
+        // Rota: the cabinet cut away, from above and its ramps, over a row of six cards.
+        EffectKind::Rotary => Vec2::new(1260.0, 700.0), // fx3:rota
         _ => Vec2::new(1000.0, 640.0),
     }
 }
