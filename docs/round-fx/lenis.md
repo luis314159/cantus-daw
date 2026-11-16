@@ -103,6 +103,11 @@ in ──┤                                                                    
      the fast one says how much (second pass: the onset measured at the fast pace, the noise
      judged at the slow one); the slow one is also raised to the fast one less 4 dB and held
      under the fast one plus 3 dB (it lets go as soon as the ringing stops).
+     **The onset's lift** (third pass, below): over 800 Hz, a bin that crosses the
+     threshold after 30 ms under it with its fast excess ≥ 8 dB is *starting*; until the
+     long frame has filled, its level is also read on the newest half frame (same window
+     shape, same bins, transformed only then) and the excess raised by how far that stands
+     over the slow upper envelope, less 1 dB.
   6. **The curve** (second pass): `depth · gate · excess`, never more than the excess and 30
      dB — **Depth is the share of each resonance's bump taken away**: 100 % brings it down to
      the envelope, 50 % half way, acting over the knob's whole travel (the first pass's
@@ -174,11 +179,12 @@ is unchanged and still passes.
 |---|---|---|---|
 | 1. A Q 4, +6 dB peak on a 12 dB/octave slope | +3.0 dB of excess (the 2.7 kHz cabinet peak barely touched: guitar Strong −0.9 dB at 2 kHz, −0.5 at 4 kHz) | **+5.1 dB of excess**, cut −3.6 dB at Hard 100 %, the slope around it ≤ 0.01 dB; guitar Strong now **−2.8 dB at 2 kHz, −3.8 at 4 kHz**, −1.7 at 500 Hz, with the focus open from 150 Hz | ≥ 4 dB ✔ |
 | 2. A steady note's partials under 800 Hz at a strong setting (Hard 80 %, selectivity 25 %) | −1.2 / 0 / −3.4 / −4.6 dB (110 Std / 110 Precise / 220 / 330 Hz, 400–800 Hz) | **0.00 dB** in 150–800 Hz at all four; the detector's excess there p99 +1.0 dB (was +12.5); an inharmonic ring at 550 Hz among a 220 Hz note's partials still cut −12.7 dB (Precise; the partials ≤ 0.7 dB) and −2.7 dB (Standard: 2.3 bins from the 440 Hz partial, which takes −3.1 — the resolution's limit) | ≤ 0.5 dB ✔ |
-| 3. 90 % of the reduction after an onset (attack 1 ms) | 45 ms (half at 13 ms) | **21 ms** Standard, 20 ms Fast, 35 ms Precise (half at 7–8 ms); noise before the tone < 0.5 dB | ~15 ms ✘ (partial) |
+| 3. 90 % of the reduction after an onset (attack 1 ms) | 45 ms (half at 13 ms) | **21 ms** Standard, 20 ms Fast, 35 ms Precise (half at 7–8 ms); noise before the tone < 0.5 dB | ~15 ms ✘ (partial) — **closed by the third pass: 8 ms** |
 | 4. Hard saturating past 50 % | −9.6 / −9.7 / −9.7 dB at 50 / 75 / 100 % | **−5.7 / −8.6 / −11.4 dB**, Soft −3.8 / −5.6 / −7.4 (25 %: −2.9 / −1.9): linear to 100 % | ✔ |
 | 5. A Quality change | resets the unit (a gap of a latency) | unchanged — **left for the engine**, see below | — |
 
-- **Why 21 ms and not 15.** The tone has to fill the 1024-point analysis frame (21 ms; its
+- **Why 21 ms and not 15** (the second pass's reasoning; the third pass found the way
+  round it, below). The tone has to fill the 1024-point analysis frame (21 ms; its
   window weighs the newest samples most) and the 5 ms fast average. Tried and measured: a
   3 ms fast average gives 19 ms but raises noise's 99.9th-percentile excess from +4.0 to
   +5.2 dB and the removed part of pink noise at depth 100 % from −44 to −40 dB; the slow
@@ -198,6 +204,102 @@ is unchanged and still passes.
   99.9th +2.3 → +5.3 dB at its knee (the slope allowance; a synthetic brick-wall is the
   worst case — the 220 Hz note's partials stopping dead at 16 kHz read +6.9 at its p99
   there, which the threshold mostly covers); CPU ≈ +0.2 % of a core.
+
+## The third pass: the attack, before → after
+
+The one miss left: 90 % of the reduction 21 ms after an onset, ~15 ms asked. **Closed at
+8 ms with no change to the latency, the windows, the output path or any default.** Measured
+the same way as before (`the_time_response_follows_attack_and_release`: a 3 kHz tone at
+−20 dBFS over pink noise from 1 s to 2 s, Hard 60 %, the detector's reduction at the tone's
+bin read every hop, "full" = its mean over 1.5–2 s); the test now runs every row with the
+new mechanism off and on, so each before/after below comes from one build.
+
+### What limited it (measured, `diagnose_the_attack`)
+
+Not the averages: the slow average already catches up at the fast rate. Frame by frame, the
+tone's bin in the 1024-point frame reads −34 / −25.5 / −22.3 / −20.1 / −18.5 / −17.6 dBFS
+at 8 / 10.7 / 13.3 / 16 / 18.7 / 21.3 ms against −17.1 once filled: the **analysis window
+itself** takes ~20 ms to fill, and a partly filled window's peak reads low twice over — less
+of the tone in it, and that part spread over a wider main lobe. Its band *energy* is only
+−1.5 dB short at 10.7 ms while the peak bin is −8 dB short, which is why the first attempt
+(below) fell short.
+
+### What was tried, measured
+
+| Candidate | Standard, 90 % | Cost | Taken? |
+|---|---|---|---|
+| (before) | 21 ms | — | — |
+| The raw frame's power over the fast average, added once confirmed (a "lift" with no latch) | 19 ms (Fast 11, Precise 29) | the steady cut biased: Hard 100 % −11.4 → −11.9 dB, Soft −7.4 → −8.0, noise's removed part −49.7 → −49.0 dB | no |
+| A **shorter detection frame** (the newest 512 samples, zero-padded to the same bins), latched to onsets, read as *band energies* ±4 / ±2 bins against the slow average | 16 / 16 ms (Fast and Precise unchanged) | none measurable | no — energy fills faster than the peak, so it lifts too little |
+| The same short frame read **per bin, sine-normalised**, against the slow upper envelope | 8 ms | +2.85 dB overshoot (a bridged neighbour's lift added to the hull's line) → read against the upper envelope instead: +0.43 dB centred, +1.36 dB between two bins | with an allowance ↓ |
+| …less a **1 dB allowance** (the short window's scalloping between bins is 1.6 dB smaller) | **8 ms** | overshoot +0.76 dB between bins (attack 1 ms), +0.27 dB at 5 ms | **yes** |
+| …less 1.5 dB | 8 ms (Fast back to 20, attack 5 ms 27) | — | no |
+| The onset gate at threshold + 3 dB (as the slow catch-up's) | 8 ms | pink noise, depth 100 % selectivity 20 %: the 99.9th-percentile cut 6.49 → 6.81 dB; the before-the-tone check failed on Fast (0.53 dB) | no |
+| Gate at threshold + 6 / + 4.5 | 8 ms, but Fast 20 and attack 5 ms 27 / Fast 11 | + 4.5: noise at selectivity 0, p99.9 6.68 → 7.32 dB | no |
+| Gate at the larger of threshold + 3 and **8 dB** of fast excess | **8 ms**, Fast 8, Precise 13 | noise unchanged (below) | **yes** |
+| A ramp on the lift's first frame | 8 ms, attack 5 ms 19 → 27 ms | pre-echo −27.3 → −27.9 dB only | no |
+| No lift under 800 Hz (the harmonic region) | — | without it a note starting from silence had a bin under 800 Hz cut **21.7 dB** (7.8 without the lift) | **yes** |
+| A look-ahead | — | would add latency: the analysis frame already ends at the newest sample; any look-ahead delays the output by as much | not needed |
+
+### The design taken: the onset's lift (`lenis_detect.rs`, its module doc)
+
+A bin whose slow excess crosses the threshold after **30 ms** under it, while its fast
+excess stands over both threshold + 3 dB and **8 dB**, is *starting*. For as long as the
+frame and two fast time constants take to fill (12 frames at Standard), its level is also
+read on a **frame half as long** — the newest `n/2` samples through the same asymmetric
+window shape, zero-padded onto the same bins, sine-normalised (`(Σwa/Σwd)²`) — and its
+excess is raised to the slow excess plus how far that reading stands over the slow upper
+envelope, **less 1 dB**, times the slow excess's own confirmation (0 at the threshold, 1 two
+dB over it), at most 24 dB. A sine reads the same on both frames once filled (measured
+−0.00 dB at a bin's centre, +1.6 dB between two), so the lift ends by itself as the long
+frame fills. **Not under 800 Hz**: there only the long frame can tell a note's start from a
+resonance (the harmonic test). **Detection only**: the output's frames, windows, latency,
+null and delta are untouched, and the short frame is transformed only in frames where some
+bin is starting (one complex FFT for both detectors). New state: two counters a bin per
+detector, cleared by reset, silence, depth 0, a channel or quality change, so rest, `skip`
+and the twins are exact as before.
+
+### Before → after (one build; lift off → on)
+
+| What must hold | Before | After |
+|---|---|---|
+| **90 % of the reduction, attack 1 ms** — Standard / Fast / Precise | 21 / 20 / 35 ms | **8 / 8 / 13 ms** |
+| half of it (Standard) | 8 ms | 5 ms |
+| a tone between two bins (3 023 Hz), Standard, attack 1 ms | 27 ms | 8 ms |
+| attack 5 ms (the default), centred / between bins | 32 / 32 ms | 19 / 21 ms |
+| attack 20 / 50 ms | 64 / 136 ms | 61 / 133 ms |
+| the most cut in the first 100 ms over the held (attack 1 ms), centred / between bins | +0.23 / −0.06 dB | +0.23 / **+0.76 dB** |
+| release (half / 90 %), every row | 59 / 179 ms … | unchanged |
+| noise before the tone (Standard / Fast / Precise) | 0.00 / 0.00 / 0.43 dB | 0.00 / 0.00 / 0.43 dB |
+| a Q 4 +6 dB peak on a 12 dB/octave slope: excess; Hard 100 % | +5.1 dB; −3.64 dB | +5.1 dB; −3.66 dB |
+| a steady note's low partials (Strong, all four notes) | 0.00 dB | **0.00 dB** |
+| **a note starting** (eight notes of 0.25 s from silence, Strong, attack 1 ms; the most any bin is cut in the first 100 ms) under 800 Hz / 800 Hz–8 kHz | 7.76 / 8.12 (110 Hz), 4.33 / 5.30 (220), 2.42 / 2.67 (330), 2.46 / 5.72 (220 Precise) dB | identical |
+| Hard 25 / 50 / 75 / 100 % on the 3 kHz resonance | −2.89 / −5.74 / −8.56 / −11.35 dB | −2.89 / −5.74 / −8.57 / **−11.36 dB** (linear) |
+| Soft 25 / 50 / 75 / 100 % | −1.89 / −3.75 / −5.58 / −7.39 | −1.89 / −3.75 / −5.59 / −7.39 |
+| the neighbours of the resonance | ≤ 0.02 dB | ≤ 0.02 dB |
+| **musical noise** (`the_onset_lift_leaves_noise_alone`: pink noise, Hard, attack 1 ms; the 99.9th-percentile cut / bin-frames over 0.5 dB / mean frame-to-frame change) depth 50 % sel. 50 % | 1.88 dB / 0.4475 % / 0.0007 dB | 1.89 / 0.4477 % / 0.0008 |
+| … depth 100 % selectivity 20 % | 6.49 / 14.6143 % / 0.0271 | 6.50 / 14.6146 % / 0.0272 |
+| … depth 100 % selectivity 0 | 6.68 / 44.6351 % / 0.0741 | 6.68 / 44.6353 % / 0.0741 |
+| flat noise's removed part (pink 50 % / 100 % / sel. 20 % / sel. 0; white the same) | −49.7 / −44.1 / −31.6 / −26.0; −47.5 / −41.8 / −28.0 / −22.2 dB | identical |
+| the detector's excess statistics (`diagnose_the_excess`) | noise p99.9 +4.0, … | identical |
+| an inharmonic ring among low partials (Standard / Precise) | −2.74 / −12.72 dB | identical |
+| sharpness 0 … 1, narrow / broad | −5.23 … −4.10 / −4.82 … −0.74 | −5.23 … −4.10 / −4.82 … −0.75 |
+| **pre-echo of a struck 2.5 kHz ring** (1024/256, Standard; 512/256; 2048/512) | −29.9 / −31.5 / −26.0 dB | **−27.3 / −28.2 / −25.2 dB** (the cost: cutting sooner cuts the frames that also span the 5 ms before the strike; still 7 dB inside the −20 dB bound) |
+| the strike's ring cut | −17.09 dB | −17.19 dB |
+| the null at the defaults and at mix 0 (38 cases), bit for bit | ✔ | ✔ (the lift needs depth > 0; the output path is untouched) |
+| block size 1 / 37 / 64 / 512 and settings mid-stream, tolerance 0 | ✔ | ✔ |
+| latency (511 / 255 / 1023; 44.1 – 192 kHz) and a Quality change resetting | ✔ | ✔ unchanged |
+| exact rest, `skip`, reset twins | ✔ (1.21 s / 20.15 s) | ✔ (1.21 s / 20.15 s) |
+| no allocation (`tests/lenis_alloc.rs`) | 0 | 0 |
+| CPU, one core, Linked / Independent / Mid-Side (Standard) | 3.31 / 5.72 / 5.69 % | **3.29 / 5.72 / 5.69 %** (Fast 3.42 / 5.94 / 5.58 → 3.17 / 5.54 / 5.43; Precise 3.33 / 5.73 / 5.73 → 3.40 / 6.03 / 5.96; at depth 0 1.0–1.7 % both) |
+
+The first try that computed the short frame every frame cost +0.85 % of a core (Standard
+Linked 3.31 → 4.16 %); transforming it only when a bin is starting (the detector split in
+`analyse` and `finish`) brought it back to the numbers above.
+
+**Left to the owner's ears**: the +0.76 dB transient overshoot on a tone between two bins
+at the fastest attack (none audible expected at 5 ms: +0.27 dB), and the pre-echo before a
+hard strike 2.6 dB higher than the second pass (−27.3 dB under the strike).
 
 ## Measured (48 kHz; `cargo test -p cantus-dsp --release --lib lenis -- --nocapture --include-ignored`)
 
@@ -236,16 +338,29 @@ is unchanged and still passes.
   99.9th +5.3; the Q 4 peak on the slope +5.1. With the first pass's fixed bridge: the note
   under 800 Hz +12.6, the slope peak +2.0.
 - **Time response** (a 3 kHz tone, −20 dBFS, over pink noise from 1 s to 2 s, Hard 60 %; it
-  is held at −12.3 dB): Standard, attack 1 / 5 / 20 / 50 ms — half the reduction **8 / 13 /
-  24 / 45 ms** after the onset, 90 % **21** / 32 / 67 / 136 ms; release 50 / 80 / 200 / 500
-  ms — half let go 59 / 80 / 173 / 381 ms after the end, 90 % 179 / 227 / 496 / 1 187 ms.
-  Fast (attack 1 ms) 90 % in 20 ms, Precise 35 ms. Nothing before the tone (< 0.5 dB). The
-  release is now gradual (the cut is a share of the excess, which fades as the ring does):
-  90 % ≈ 2.3 × release + 60 ms.
+  is held at −12.3 dB; third pass): Standard, attack 1 / 5 / 20 / 50 ms — half the
+  reduction **5 / 8 / 19 / 43 ms** after the onset, 90 % **8** / 19 / 61 / 133 ms (second
+  pass: 21 / 32 / 64 / 136); a tone between two bins (3 023 Hz) 8 ms at 1 ms, 21 ms at 5 ms;
+  the most in the first 100 ms +0.23 dB over the held (+0.76 between two bins at 1 ms,
+  +0.27 at 5 ms); release 50 / 80 / 200 / 500 ms — half let go 59 / 80 / 173 / 381 ms after
+  the end, 90 % 179 / 227 / 496 / 1 187 ms. Fast (attack 1 ms) 90 % in 8 ms, Precise 13 ms.
+  Nothing before the tone (≤ 0.43 dB). The release is gradual (the cut is a share of the
+  excess, which fades as the ring does): 90 % ≈ 2.3 × release + 60 ms.
+- **Notes starting** (`a_note_s_start_is_not_a_resonance`; eight 0.25 s notes from silence,
+  Strong, attack 1 ms; the most any bin is cut in the first 100 ms): under 800 Hz 7.8 / 4.3
+  / 2.4 dB at 110 / 220 / 330 Hz Standard, 2.5 dB at 220 Hz Precise; 800 Hz–8 kHz 8.1 / 5.3
+  / 2.7 / 5.7 dB — the same with the onset's lift and without (a note's first frames, from
+  digital silence, read as a lump before its partials are resolved: a transient in a bin
+  or two that the steady measure, 0.00 dB, does not see; for Phase B's listening).
+- **Musical noise** (`the_onset_lift_leaves_noise_alone`; pink noise, Hard, attack 1 ms):
+  the 99.9th-percentile cut, the share of bin-frames over 0.5 dB and the mean change frame to
+  frame — 1.89 dB / 0.45 % / 0.0008 dB at depth 50 %; 6.50 / 14.6 % / 0.027 at depth 100 %
+  selectivity 20 %; 6.68 / 44.6 % / 0.074 at selectivity 0: within 0.01 dB and 0.001 % of the
+  detector without the lift.
 - **The window pairs** (Hard 50 %): at 10.6 ms the asymmetric 1024/256 pair cuts the 3 kHz
   peak −5.7 dB and a 250 Hz peak −0.9 dB, against −5.2 / −0.4 for a symmetric 512; pre-echo
-  −29.9 dB (512: −31.5; symmetric 1024 at twice the latency −27.8). Precise (2048/512)
-  −1.3 dB at 250 Hz.
+  −27.3 dB (512: −28.2; symmetric 1024 at twice the latency −26.2; second pass −29.9 /
+  −31.5 / −27.8 — the faster attack's cost). Precise (2048/512) −1.3 dB at 250 Hz.
 - **The latency, checked on the signal**: processed hard, the output's cross-correlation
   with the input peaks exactly at `latency()`; 255 / 511 / 1023 at 48 kHz, 511 at 44.1,
   1023 at 96, 2047 at 192 kHz (Standard).
@@ -264,14 +379,15 @@ is unchanged and still passes.
   in the library, the tests and the example); the detector's `log10` is our own plain
   arithmetic (within 2·10⁻⁶ of `math::log10`, tested).
 - **CPU** (one core, 48 kHz, a minute of a harsh stereo signal in blocks of 256, release,
-  best of three; **two other builders' `rustc` running at the start, none at the end**):
-  Standard **Linked 3.2 %**, Independent 5.7 %, Mid/Side 5.6 %; Fast 3.2 / 5.5 / 5.5 %;
-  Precise 3.3 / 5.9 / 5.8 %; at depth 0 1.0–1.6 %. (First pass, quieter machine: 3.0 / 5.0 /
-  5.0 % Standard.)
-- **The suite**: `cargo test -p cantus-dsp --no-fail-fast` — 940 passed in the library
-  (Lenis's 20, two more ignored: the CPU and the detector's statistics), every integration
-  test and `lenis_alloc` green; `cargo clippy -p cantus-dsp --all-targets -- -D warnings`
-  clean; `cargo fmt -p cantus-dsp` applied.
+  best of three; third pass, other builders' `cargo` running): Standard **Linked 3.3 %**,
+  Independent 5.7 %, Mid/Side 5.7 %; Fast 3.2 / 5.5 / 5.4 %; Precise 3.4 / 6.0 / 6.0 %; at
+  depth 0 1.0–1.7 %. The same build without the onset's lift: 3.3 / 5.7 / 5.7; 3.4 / 5.9 /
+  5.6; 3.3 / 5.7 / 5.7 %. (Second pass 3.2 / 5.7 / 5.6 % Standard; first pass, quieter
+  machine, 3.0 / 5.0 / 5.0 %.)
+- **The suite**: `cargo test -p cantus-dsp --no-fail-fast` — 942 passed in the library
+  (Lenis's 22, four more ignored: the CPU, the detector's statistics, the attack's and the
+  lift's diagnostics), every integration test and `lenis_alloc` green; `cargo clippy -p
+  cantus-dsp --all-targets -- -D warnings` clean; `cargo fmt -p cantus-dsp` applied.
 
 ### Tests and what each holds
 
@@ -289,12 +405,18 @@ above (`a_resonance_on_pink_noise_is_cut_and_its_neighbours_kept`,
 `flat_noise_is_barely_touched`, `the_reduction_follows_depth_and_sharpness`,
 `a_note_s_harmonics_are_not_resonances_but_a_peak_over_them_is`,
 `a_broad_peak_on_a_steep_slope_is_found`, `an_inharmonic_ring_among_low_partials_is_still_cut`,
+`a_note_s_start_is_not_a_resonance`, `the_onset_lift_leaves_noise_alone`,
 `the_time_response_follows_attack_and_release`, `the_window_pairs_compared`;
-`cpu_at_48k` and `diagnose_the_excess` ignored). `tests/lenis_alloc.rs`.
+`cpu_at_48k`, `diagnose_the_excess`, `diagnose_the_attack` and
+`diagnose_the_lift_calibration` ignored). `tests/lenis_alloc.rs`.
 
 ## Shown to the owner
 
-`C:\projects\daw-fx\compartir\lenis\sound\` (replaced by the second pass) — the guitar
+`C:\projects\daw-fx\compartir\lenis\sound\` (replaced by the second pass; its nine
+processed files and `render-log.txt` re-rendered by the third, 2026-11-16 — the dry files
+unchanged to the byte; the drums' 1 kHz octave −19.7 → −20.8 dB with Strong, the voice
+±0.1 dB, the guitar's octave bands unchanged and its largest cut 14.8 → 17.1 dB at the
+strums' starts) — the guitar
 (Carbonthief, CC0) through two of Fragor's pedals and a honky cabinet, a synthetic harsh
 sung line with whistling "s" sounds, a synthetic boxy kit; each dry, *gentle* (Soft 50 %),
 *strong* (Hard 90 %, selectivity 30 %) and the strong *delta*; level-matched, aligned;
@@ -368,9 +490,14 @@ the drums' from 300 Hz (their fundamentals are their body).
 
 ## Left (this phase)
 
-- **The attack's last step**: 90 % of the reduction in 21 ms (Standard), not the ~15 ms
-  asked — bounded by the analysis frame; going lower costs noise robustness (measured
-  above). The owner's ears decide whether it matters.
+- ~~The attack's last step~~ — **closed by the third pass** (8 ms, no latency added). Its
+  two costs are for the owner's ears: a tone exactly between two bins overshoots its cut by
+  +0.76 dB for a few frames at the fastest attack (+0.27 dB at the default 5 ms), and the
+  pre-echo before a hard strike is −27.3 dB instead of −29.9.
+- **A note's first frames from digital silence** (found by the third pass's new
+  measurement, there before it): up to 7.8 dB in a bin or two for a few frames, under and
+  over 800 Hz, before the long frame resolves the partials; the steady measure (0.00 dB) does
+  not see it. The onset's lift is kept off under 800 Hz so it does not add to it.
 - **The resolution's limit under 800 Hz at Standard**: a ring within ~2 bins (100 Hz) of a
   note's partial takes the partial with it (−3.1 dB beside a −2.7 dB cut); Precise resolves
   it. Phase B could suggest Precise when the focus reaches below ~300 Hz.

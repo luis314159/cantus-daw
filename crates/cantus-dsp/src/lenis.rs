@@ -21,7 +21,10 @@
 //!   rate, reported by [`Lenis::latency`].
 //! - **The detector** ([`detect`]): each bin's averaged power in dB against the spectrum's
 //!   own robust envelope; the excess over the threshold, through the curve, weighted by
-//!   the focus, capped at the depth, spread and smoothed in time.
+//!   the focus, capped at the depth, spread and smoothed in time. Where a sound starts,
+//!   the newest half frame is read too (the onset's lift, transformed only in such frames),
+//!   so the cut is there before the long frame has filled — detection only: the output's
+//!   frames, their latency and their null are unchanged.
 //! - **Channels**: Linked (one detector on both channels' power, the same gains on both),
 //!   Independent (one each), Mid/Side (one on the mid, one on the side).
 //!
@@ -289,6 +292,13 @@ pub struct Lenis {
     im: Vec<f32>,
     pa: Vec<f32>,
     pb: Vec<f32>,
+    /// The onset's detection frame: its window (the newest `n / LIFT_DIV` samples), its
+    /// transform and its power per bin.
+    wd: Vec<f32>,
+    dre: Vec<f32>,
+    dim: Vec<f32>,
+    qa: Vec<f32>,
+    qb: Vec<f32>,
     /// The meter's bins for each point.
     disp: Vec<(u32, u32)>,
     meter: LenisMeter,
@@ -332,6 +342,11 @@ impl Lenis {
             im: vec![0.0; nmax],
             pa: vec![0.0; bmax],
             pb: vec![0.0; bmax],
+            wd: vec![0.0; nmax],
+            dre: vec![0.0; nmax],
+            dim: vec![0.0; nmax],
+            qa: vec![0.0; bmax],
+            qb: vec![0.0; bmax],
             disp: vec![(0, 0); DISPLAY],
             meter: LenisMeter::default(),
             pos: 0,
@@ -457,6 +472,20 @@ impl Lenis {
     fn shape(&mut self, g: Geometry) {
         self.g = g;
         self.wsum = stft::windows(g, &mut self.wa, &mut self.ws, &mut self.wp);
+        // The onset's detection window: the same shape over the newest `n / LIFT_DIV`
+        // samples, and the gain that makes a sine read on it as on the long frame.
+        let ns = g.n / detect::LIFT_DIV;
+        stft::windows(
+            Geometry::new(ns, ns / 4),
+            &mut self.dre,
+            &mut self.dim,
+            &mut self.qa,
+        );
+        self.wd.fill(0.0);
+        self.wd[g.n - ns..g.n].copy_from_slice(&self.dre[..ns]);
+        let sum = |w: &[f32]| w.iter().map(|v| *v as f64).sum::<f64>();
+        let ratio = sum(&self.wa[..g.n]) / sum(&self.wd[..g.n]);
+        self.design.lift_gain = (ratio * ratio) as f32;
         let bin_hz = self.sr / g.n as f32;
         let last = g.bins() - 1;
         let step = math::powf(DISPLAY_HI_HZ / DISPLAY_LO_HZ, 1.0 / (DISPLAY - 1) as f32);
@@ -619,9 +648,11 @@ impl Lenis {
                 }
             }
         }
-        // The detectors, and the meter from each.
+        // The detectors, and the meter from each; the onset's short frame only when a bin
+        // is starting (computed once for both detectors).
         let detectors = if self.design.linked { 1 } else { 2 };
         let mut touched = false;
+        let mut short = false;
         self.meter.level_db.fill(detect::FLOOR_DB);
         self.meter.reduction_db.fill(0.0);
         self.meter.max_reduction_db = 0.0;
@@ -633,7 +664,17 @@ impl Lenis {
             } else {
                 Some(&self.pb[..bins])
             };
-            touched |= self.det[d].frame(p, &self.design, &mut self.scratch);
+            let starting = self.det[d].analyse(p, &self.design, &mut self.scratch) && !silent;
+            if starting && !short {
+                self.short_frame(base);
+                short = true;
+            }
+            let q = match (starting, d) {
+                (false, _) => None,
+                (true, 0) => Some(&self.qa[..bins]),
+                (true, _) => Some(&self.qb[..bins]),
+            };
+            touched |= self.det[d].finish(q, &self.design, &mut self.scratch);
             let red = &self.det[d].reduction;
             for (q, &(lo, hi)) in self.disp.iter().enumerate() {
                 let (lo, hi) = (lo as usize, hi as usize);
@@ -703,5 +744,39 @@ impl Lenis {
             self.acc[1][a] += r;
         }
         self.wet_left = span;
+    }
+
+    /// The onset's detection frame ending at `self.pos`: the newest `n / LIFT_DIV` samples
+    /// through the short window, on the long frame's bins, into `qa` / `qb`.
+    #[allow(clippy::needless_range_loop)] // several arrays a bin, side by side
+    fn short_frame(&mut self, base: usize) {
+        let n = self.g.n;
+        let (bins, mask) = (self.g.bins(), n - 1);
+        let ms = self.s.channels == Channels::MidSide;
+        let from = n - n / detect::LIFT_DIV;
+        self.dre[..from].fill(0.0);
+        self.dim[..from].fill(0.0);
+        for i in from..n {
+            let j = base.wrapping_add(i) & mask;
+            let (l, r) = (self.ring[0][j], self.ring[1][j]);
+            let (a, b) = if ms {
+                (0.5 * (l + r), 0.5 * (l - r))
+            } else {
+                (l, r)
+            };
+            self.dre[i] = a * self.wd[i];
+            self.dim[i] = b * self.wd[i];
+        }
+        self.fft.run(&mut self.dre[..n], &mut self.dim[..n], false);
+        for k in 0..bins {
+            let (a, b, c, d) = stft::unpack(&self.dre, &self.dim, k, n);
+            self.qa[k] = a * a + b * b;
+            self.qb[k] = c * c + d * d;
+        }
+        if self.design.linked {
+            for k in 0..bins {
+                self.qa[k] += self.qb[k];
+            }
+        }
     }
 }

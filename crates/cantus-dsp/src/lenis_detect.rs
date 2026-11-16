@@ -3,6 +3,7 @@
 //! ```text
 //! |X|² ─┬─ slow average (30 ms) ─ dB ─ excess ─┐
 //!       └─ fast average (5 ms)  ─ dB ─ excess ─┴─ the slow says whether, the fast how much (an onset)
+//! a bin starting: the newest half frame's level over the slow upper envelope lifts the excess
 //!   excess = upper envelope − envelope:
 //!     upper envelope: the line through the prominent peaks (any partial spacing); under 800 Hz
 //!                     a note's partials judged against their harmonic partners
@@ -33,8 +34,23 @@
 //! - **Two time scales.** The slow average (30 ms) is what tells a resonance from noise's
 //!   flicker (measured: noise's 99.9th percentile excess +4.0 dB, a 12 dB resonance +10.6);
 //!   once it says a resonance is there, the fast one (5 ms) says how much — an onset is
-//!   measured at the fast pace (90 % of the cut in 21 ms) — and, since the slow one may
-//!   never stand more than 3 dB over it, it lets go as soon as the ringing stops.
+//!   measured at the fast pace — and, since the slow one may never stand more than 3 dB
+//!   over it, it lets go as soon as the ringing stops.
+//! - **The onset's lift** (third pass). The long frame is what resolves a resonance, but a
+//!   sound that starts takes the whole frame (21 ms at Standard) to fill it: its peak
+//!   reads low until then, by the window's shape, not by anything the averages could
+//!   hurry. So a bin that crosses the threshold after [`CALM_MS`] under it, while its fast
+//!   excess stands well over the threshold too (at least [`LIFT_ONSET_DB`]: noise crossing
+//!   it does not), is *starting*: for as long as the frame and two fast time constants take
+//!   to fill, its level is also read on a frame half as long — the newest samples only,
+//!   through the same window shape, on the same bins (zero-padded) — and the slow excess is
+//!   raised by how far that reading stands over the slow upper envelope (less
+//!   [`LIFT_ALLOW_DB`], the shorter window's smaller scalloping between bins). A sine reads
+//!   the same on both frames once filled, so the lift ends by itself as the long frame
+//!   fills. 90 % of the cut comes 8 ms after a tone starts instead of 21; on noise nothing
+//!   changes. Under [`SERIES_HZ`], where only the long frame can tell a note's start from a
+//!   resonance, there is no lift. The short frame is transformed only in frames where a bin
+//!   is starting.
 //! - **Spread and time**: a single bin is never cut alone (a needle in frequency is a long
 //!   ring in time, and an isolated bin switching on and off is the "musical noise" of
 //!   spectral subtraction — Berouti et al. 1979, Cappé 1994); the reduction is widened by
@@ -58,6 +74,23 @@ pub const FAST_HOLD_DB: f32 = 3.0;
 pub const CATCH_UP_DB: f32 = 1.0;
 /// …and only where the fast excess already stands this far over the threshold.
 pub const ONSET_DB: f32 = 3.0;
+/// The onset's lift (measured: `the_time_response_follows_attack_and_release`,
+/// `the_onset_lift_leaves_noise_alone`, `a_note_s_start_is_not_a_resonance`): a bin that
+/// crosses the threshold after standing under it this long, ms, may be starting…
+pub const CALM_MS: f32 = 30.0;
+/// …if its fast excess stands this far over the envelope too (and [`ONSET_DB`] over the
+/// threshold): noise crossing the threshold does not (6 dB let pink noise's 99.9th
+/// percentile cut grow 0.6 dB at selectivity 0).
+pub const LIFT_ONSET_DB: f32 = 8.0;
+/// Then, for as long as the analysis frame and two fast time constants take to fill, its
+/// level is also read on a frame this many times shorter (the newest samples only; a
+/// sine reads the same on both once filled, noise on average 1 dB more on the short one)…
+pub const LIFT_DIV: usize = 2;
+/// …less this (between two bins the short window's scalloping is 1.6 dB smaller: 1 dB keeps
+/// a tone between bins from overshooting by more than 0.8 dB, 1.5 dB lost Fast's gain)…
+pub const LIFT_ALLOW_DB: f32 = 1.0;
+/// …and the excess raised by at most this.
+pub const MAX_LIFT_DB: f32 = 24.0;
 /// The fine spectrum bridges the gaps between partials this far on each side, Hz: a sung
 /// or played note's harmonics (up to about 240 Hz apart) are one smooth upper envelope, so
 /// a resonance is a bump in it, never a harmonic itself.
@@ -215,6 +248,14 @@ pub struct Design {
     pub hull: bool,
     /// [`SERIES_HZ`] in bins (0: no harmonic awareness).
     pub series_bins: usize,
+    /// The onset's lift is on (the measurements turn it off to compare).
+    pub lift: bool,
+    /// `(Σwa / Σwd)²`: a short frame's power × this reads a sine as the long frame does
+    /// (both in the same dBFS terms).
+    pub lift_gain: f32,
+    /// [`CALM_MS`], and the onset's window (the frame and two fast time constants), frames.
+    pub calm_frames: u16,
+    pub rise_frames: u16,
     pub linked: bool,
 }
 
@@ -248,6 +289,10 @@ impl Design {
             slope_sides: true,
             hull: true,
             series_bins: 0,
+            lift: true,
+            lift_gain: 1.0,
+            calm_frames: 1,
+            rise_frames: 0,
             linked: true,
         }
     }
@@ -351,6 +396,9 @@ impl Design {
         self.catch_up = g * g;
         self.a_att = per(s.attack_ms.clamp(MIN_ATTACK_MS, MAX_ATTACK_MS));
         self.a_rel = per(s.release_ms.clamp(MIN_RELEASE_MS, MAX_RELEASE_MS));
+        let frames = |samples: f32| (samples / hop as f32).ceil().clamp(1.0, 4_000.0) as u16;
+        self.calm_frames = frames(CALM_MS * 1e-3 * sr);
+        self.rise_frames = frames(n as f32 + 2.0 * FAST_MS * 1e-3 * sr);
         let norm = 2.0 / wsum;
         self.norm2 = (norm * norm) as f32;
         self.flush = (1e-16 / (norm * norm)) as f32;
@@ -372,10 +420,19 @@ pub struct Scratch {
     env: Vec<f32>,
     clip: Vec<f32>,
     raw: Vec<f32>,
+    /// The slow excess's upper envelope (the onset's lift reads it).
+    upper: Vec<f32>,
+    /// The bins starting this frame (the onset's lift), with their slow excess.
+    start_bins: Vec<u32>,
+    start_slow: Vec<f32>,
+    starting: usize,
     prefix: Vec<f64>,
     prefix_u: Vec<f64>,
     peaks: Vec<u32>,
     cands: Vec<u32>,
+    /// The slow and the fast excess before they are combined (the measurements read them).
+    #[cfg(test)]
+    pub parts: Vec<(f32, f32, f32)>,
 }
 
 impl Scratch {
@@ -388,8 +445,14 @@ impl Scratch {
             env: vec![0.0; max_bins],
             clip: vec![0.0; max_bins],
             raw: vec![0.0; max_bins],
+            upper: vec![0.0; max_bins],
+            start_bins: vec![0; max_bins],
+            start_slow: vec![0.0; max_bins],
+            starting: 0,
             prefix: vec![0.0; max_bins + 1],
             prefix_u: vec![0.0; max_bins + 1],
+            #[cfg(test)]
+            parts: vec![(0.0, 0.0, 0.0); max_bins],
             peaks: vec![0; max_bins],
             cands: vec![0; max_bins],
         }
@@ -499,8 +562,16 @@ pub struct Detector {
     pub reduction: Vec<f32>,
     /// The gain now, per bin (exactly 1 where the reduction is 0).
     pub gain: Vec<f32>,
+    /// Frames since the slow excess last stood over the threshold (`u16::MAX`: calm for
+    /// [`CALM_MS`] or more — the state silence leaves).
+    since: Vec<u16>,
+    /// Frames of the onset's lift left.
+    rise: Vec<u16>,
     /// Every averaged power and every reduction is +0.0.
     quiet: bool,
+    /// This frame: all-zero on a quiet detector (nothing to do), and any power averaged.
+    idle: bool,
+    power: bool,
 }
 
 impl Detector {
@@ -511,7 +582,11 @@ impl Detector {
             onset: vec![0.0; max_bins],
             reduction: vec![0.0; max_bins],
             gain: vec![1.0; max_bins],
+            since: vec![u16::MAX; max_bins],
+            rise: vec![0; max_bins],
             quiet: true,
+            idle: true,
+            power: false,
         }
     }
 
@@ -519,9 +594,19 @@ impl Detector {
         self.slow.fill(0.0);
         self.fast.fill(0.0);
         self.onset.fill(0.0);
+        self.since.fill(u16::MAX);
+        self.rise.fill(0);
         self.reduction.fill(0.0);
         self.gain.fill(1.0);
         self.quiet = true;
+        self.idle = true;
+        self.power = false;
+    }
+
+    /// Bin `k`'s slow and fast averaged power, raw (the measurements read them).
+    #[cfg(test)]
+    pub fn averages(&self, k: usize) -> (f32, f32) {
+        (self.slow[k], self.fast[k])
     }
 
     /// Every average and reduction is zero: silence leaves it so.
@@ -529,16 +614,20 @@ impl Detector {
         self.quiet
     }
 
-    /// One frame. `p` is the frame's raw power per bin (`None`: an all-zero frame). Returns
-    /// whether any bin's gain is not exactly 1.
+    /// One frame, first half: the averages, the two excesses and the onsets. `p` is the
+    /// frame's raw power per bin (`None`: an all-zero frame). Returns whether a bin is
+    /// starting (the onset's lift): then [`Detector::finish`] wants the short frame's power.
     #[allow(clippy::needless_range_loop)] // several arrays a bin, side by side
-    pub fn frame(&mut self, p: Option<&[f32]>, d: &Design, sc: &mut Scratch) -> bool {
+    pub fn analyse(&mut self, p: Option<&[f32]>, d: &Design, sc: &mut Scratch) -> bool {
         let k_n = d.bins;
+        sc.starting = 0;
         if p.is_none() && self.quiet {
             sc.level[..k_n].fill(FLOOR_DB);
             sc.excess[..k_n].fill(0.0);
+            self.idle = true;
             return false;
         }
+        self.idle = false;
         // The averages, flushed to +0.0 under −160 dBFS.
         let mut any_power = false;
         for k in 0..k_n {
@@ -564,6 +653,7 @@ impl Detector {
             sc.level[k] = db(s, d);
             sc.fast_level[k] = db(f, d);
         }
+        self.power = any_power;
         let mut view = ScratchView {
             fine: &mut sc.fine[..k_n],
             env: &mut sc.env[..k_n],
@@ -575,43 +665,105 @@ impl Detector {
         };
         let raw = &mut sc.raw[..k_n];
         let excess = &mut sc.excess[..k_n];
-        if d.depth > 0.0 && any_power {
-            // The slow excess into `excess`, the fast one into `raw`; the larger of the
-            // slow and the fast less its margin is what the curve reads.
-            excess_of(&sc.level[..k_n], d, &mut view, excess);
-            excess_of(&sc.fast_level[..k_n], d, &mut view, raw);
-            self.onset[..k_n].copy_from_slice(raw);
-            let level = &sc.level[..k_n];
+        if !(d.depth > 0.0 && any_power) {
+            raw.fill(0.0);
+            self.onset[..k_n].fill(0.0);
+            self.since[..k_n].fill(u16::MAX);
+            self.rise[..k_n].fill(0);
+            excess.fill(0.0);
+            return false;
+        }
+        // The slow excess into `excess`, the fast one into `raw`.
+        excess_of(&sc.level[..k_n], d, &mut view, excess);
+        sc.upper[..k_n].copy_from_slice(view.fine);
+        excess_of(&sc.fast_level[..k_n], d, &mut view, raw);
+        self.onset[..k_n].copy_from_slice(raw);
+        let mut starting = 0usize;
+        for k in 0..k_n {
+            // The slow excess is what says a resonance is there; once it says so (from
+            // the threshold, fully 2 dB over it), the fast one says how much — the onset
+            // measured at the fast pace, the noise judged at the slow one.
+            let (slow, fast) = (excess[k], raw[k]);
+            #[cfg(test)]
+            {
+                sc.parts[k] = (slow, fast, 0.0);
+            }
+            let confirmed = ((slow - d.threshold) / 2.0).clamp(0.0, 1.0);
+            excess[k] = slow
+                .max(fast - d.fast_margin_db)
+                .max(slow + (fast - slow).max(0.0) * confirmed)
+                .min(fast + FAST_HOLD_DB);
+            // The onset's lift: a bin crossing the threshold after a calm is starting…
+            if slow > d.threshold {
+                if self.since[k] == u16::MAX {
+                    self.rise[k] = d.rise_frames;
+                }
+                self.since[k] = 0;
+            } else if self.since[k] != u16::MAX {
+                let v = self.since[k] + 1;
+                self.since[k] = if v >= d.calm_frames { u16::MAX } else { v };
+            }
+            if self.rise[k] > 0 {
+                self.rise[k] -= 1;
+                // …while the fast excess stands well over the threshold too, as a sound
+                // starting does and noise crossing it does not; over the harmonic region,
+                // where a note's start is told from a resonance only on the long frame.
+                let onset = fast > (d.threshold + ONSET_DB).max(LIFT_ONSET_DB);
+                if d.lift && onset && slow > d.threshold && k > d.series_bins {
+                    sc.start_bins[starting] = k as u32;
+                    sc.start_slow[starting] = slow;
+                    starting += 1;
+                }
+            }
+        }
+        sc.starting = starting;
+        starting > 0
+    }
+
+    /// One frame, second half: the starting bins read on the short frame `q` (its raw power
+    /// per bin, when [`Detector::analyse`] asked for it), the curve, the spread and the
+    /// time. Returns whether any bin's gain is not exactly 1.
+    #[allow(clippy::needless_range_loop)] // several arrays a bin, side by side
+    pub fn finish(&mut self, q: Option<&[f32]>, d: &Design, sc: &mut Scratch) -> bool {
+        if self.idle {
+            return false;
+        }
+        let k_n = d.bins;
+        if d.depth > 0.0 && self.power {
+            if let Some(q) = q {
+                for i in 0..sc.starting {
+                    let (k, slow) = (sc.start_bins[i] as usize, sc.start_slow[i]);
+                    // Against the slow upper envelope (a bin the hull bridged reads it).
+                    let ls = db(q[k] * d.lift_gain, d);
+                    if ls > sc.upper[k] + LIFT_ALLOW_DB {
+                        let lift = (ls - sc.upper[k] - LIFT_ALLOW_DB).min(MAX_LIFT_DB);
+                        let confirmed = ((slow - d.threshold) / 2.0).clamp(0.0, 1.0);
+                        sc.excess[k] = sc.excess[k].max(slow + lift * confirmed);
+                        #[cfg(test)]
+                        {
+                            sc.parts[k].2 = lift;
+                        }
+                    }
+                }
+            }
+            let (fine, clip) = (&mut sc.fine[..k_n], &mut sc.clip[..k_n]);
             for k in 0..k_n {
-                // The slow excess is what says a resonance is there; once it says so (from
-                // the threshold, fully 2 dB over it), the fast one says how much —
-                // the onset measured at the fast pace, the noise judged at the slow one.
-                let (slow, fast) = (excess[k], raw[k]);
-                let confirmed = ((slow - d.threshold) / 2.0).clamp(0.0, 1.0);
-                let e = slow
-                    .max(fast - d.fast_margin_db)
-                    .max(slow + (fast - slow).max(0.0) * confirmed)
-                    .min(fast + FAST_HOLD_DB);
-                excess[k] = e;
                 let w = d.weight[k];
-                view.fine[k] = if w > 0.0 && level[k] > FLOOR_DB {
-                    reduction_db(e, d.threshold, w * d.depth, d.mode)
+                fine[k] = if w > 0.0 && sc.level[k] > FLOOR_DB {
+                    reduction_db(sc.excess[k], d.threshold, w * d.depth, d.mode)
                 } else {
                     0.0
                 };
             }
             // Spread: the most of three neighbours, then [¼ ½ ¼].
             for k in 0..k_n {
-                let a = view.fine[k.saturating_sub(1)];
-                let c = view.fine[(k + 1).min(k_n - 1)];
-                view.clip[k] = a.max(view.fine[k]).max(c);
+                let a = fine[k.saturating_sub(1)];
+                let c = fine[(k + 1).min(k_n - 1)];
+                clip[k] = a.max(fine[k]).max(c);
             }
-            three(view.clip, raw);
-        } else {
-            raw.fill(0.0);
-            self.onset[..k_n].fill(0.0);
-            excess.fill(0.0);
+            three(clip, &mut sc.raw[..k_n]);
         }
+        let raw = &sc.raw[..k_n];
         let mut touched = false;
         for k in 0..k_n {
             let t = raw[k];
@@ -629,7 +781,7 @@ impl Detector {
                 math::db_to_gain(-v)
             };
         }
-        self.quiet = !any_power && !touched;
+        self.quiet = !self.power && !touched;
         touched
     }
 }

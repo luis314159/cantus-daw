@@ -342,20 +342,35 @@ pub(super) fn harmonic(n: usize, f0: f32) -> Vec<f32> {
 #[test]
 fn the_time_response_follows_attack_and_release() {
     let n = (4.0 * SR) as usize;
-    let mut x = pink(n, 31, 0.25);
+    let noise = pink(n, 31, 0.25);
     let (on, off) = (SR as usize, 2 * SR as usize);
-    for (i, v) in x.iter_mut().enumerate().take(off).skip(on) {
-        let ramp = ((i - on) as f32 / 48.0).min(1.0);
-        *v += 0.1 * ramp * math::sin(std::f32::consts::TAU * 3_000.0 * i as f32 / SR);
-    }
-    println!("a 3 kHz tone over pink noise from 1 s to 2 s, depth 60 % hard:");
-    for (att, rel, q) in [
-        (1.0, 50.0, Quality::Standard),
-        (5.0, 80.0, Quality::Standard),
-        (20.0, 200.0, Quality::Standard),
-        (50.0, 500.0, Quality::Standard),
-        (1.0, 50.0, Quality::Fast),
-        (1.0, 50.0, Quality::Precise),
+    let with_tone = |hz: f32| {
+        let mut x = noise.clone();
+        for (i, v) in x.iter_mut().enumerate().take(off).skip(on) {
+            let ramp = ((i - on) as f32 / 48.0).min(1.0);
+            *v += 0.1 * ramp * math::sin(std::f32::consts::TAU * hz * i as f32 / SR);
+        }
+        x
+    };
+    let (centred, between) = (with_tone(3_000.0), with_tone(3_023.0));
+    println!(
+        "a tone over pink noise from 1 s to 2 s, depth 60 % hard (the onset's lift off → on):"
+    );
+    for (att, rel, q, hz, lift) in [
+        (1.0, 50.0, Quality::Standard, 3_000.0, false),
+        (1.0, 50.0, Quality::Standard, 3_000.0, true),
+        (1.0, 50.0, Quality::Standard, 3_023.0, false),
+        (1.0, 50.0, Quality::Standard, 3_023.0, true),
+        (5.0, 80.0, Quality::Standard, 3_000.0, false),
+        (5.0, 80.0, Quality::Standard, 3_000.0, true),
+        (5.0, 80.0, Quality::Standard, 3_023.0, false),
+        (5.0, 80.0, Quality::Standard, 3_023.0, true),
+        (20.0, 200.0, Quality::Standard, 3_000.0, true),
+        (50.0, 500.0, Quality::Standard, 3_000.0, true),
+        (1.0, 50.0, Quality::Fast, 3_000.0, false),
+        (1.0, 50.0, Quality::Fast, 3_000.0, true),
+        (1.0, 50.0, Quality::Precise, 3_000.0, false),
+        (1.0, 50.0, Quality::Precise, 3_000.0, true),
     ] {
         let mut u = unit(&LenisSettings {
             depth: 0.6,
@@ -365,13 +380,21 @@ fn the_time_response_follows_attack_and_release() {
             quality: q,
             ..LenisSettings::default()
         });
+        u.design.lift = lift;
         let hop = u.geometry().hop();
-        let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
+        let x = if hz == 3_000.0 { &centred } else { &between };
+        // The tone's bin (the louder of the two either side of an off-centre tone).
+        let k3 = (hz / (SR / u.geometry().n as f32)).floor() as usize;
         let (mut l, mut r) = (x.clone(), x.clone());
         let mut track = vec![];
         for (a, b) in l.chunks_mut(hop).zip(r.chunks_mut(hop)) {
             u.process(a, b);
-            track.push(u.reduction_bins(0)[k3]);
+            let red = u.reduction_bins(0);
+            track.push(if hz == 3_000.0 {
+                red[k3]
+            } else {
+                red[k3].max(red[k3 + 1])
+            });
         }
         let t = |i: usize| (i * hop) as f32 / SR;
         let held: Vec<f32> = track
@@ -389,30 +412,35 @@ fn the_time_response_follows_attack_and_release() {
                 .map(|(i, _)| (t(i) - from) * 1e3)
                 .unwrap_or(f32::NAN)
         };
+        let most = |from: f32, to: f32| {
+            track
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| t(*i) > from && t(*i) < to)
+                .fold(0.0f32, |m, (_, v)| m.max(*v))
+        };
         let half = when(1.0, &|v| v >= 0.5 * full);
         let rise = when(1.0, &|v| v >= 0.9 * full);
         let let_go = when(2.0, &|v| v <= 0.5 * full);
         let fall = when(2.0, &|v| v <= 0.1 * full);
+        // Before the tone, nothing; after its onset, no more than it is held at.
+        let before = most(0.5, 0.99);
+        let over = most(1.0, 1.1) - full;
         println!(
-            "  {q:?}, attack {att:>4} ms release {rel:>4} ms: held {full:.1} dB; half of it {half:.0} ms after the onset, 90 % {rise:.0} ms; half let go {let_go:.0} ms after the end, 90 % {fall:.0} ms"
+            "  {q:?} {hz} Hz, lift {lift}, attack {att:>4} ms release {rel:>4} ms: held {full:.1} dB; half of it {half:.0} ms after the onset, 90 % {rise:.0} ms; most in the first 100 ms {over:+.2} dB over the held; half let go {let_go:.0} ms after the end, 90 % {fall:.0} ms; before the tone {before:.2} dB"
         );
         assert!(full > 6.0, "the tone is turned down: {full}");
         assert!(half < 20.0 + 2.0 * att, "half at {half} ms, attack {att}");
         assert!(rise < 40.0 + 3.0 * att, "90 % at {rise} ms, attack {att}");
-        if att == 1.0 && q == Quality::Standard {
-            assert!(rise < 25.0, "90 % within the frame: {rise} ms");
+        if att == 1.0 && q == Quality::Standard && lift {
+            assert!(rise <= 11.0, "90 % well within 15 ms: {rise} ms");
         }
         assert!(
             fall < 80.0 + 2.5 * rel,
             "let go at {fall} ms, release {rel}"
         );
-        // Before the tone, nothing.
-        let before = track
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| t(*i) > 0.5 && t(*i) < 0.99)
-            .fold(0.0f32, |m, (_, v)| m.max(*v));
         assert!(before < 0.5, "before the tone: {before}");
+        assert!(over < 1.5, "an overshoot of {over} dB");
     }
 }
 
@@ -708,5 +736,233 @@ fn an_inharmonic_ring_among_low_partials_is_still_cut() {
             // Resolved, the partials beside it are kept.
             assert!(c[1..].iter().all(|v| v.abs() < 1.0), "{c:?}");
         }
+    }
+}
+
+#[test]
+#[ignore]
+fn diagnose_the_attack() {
+    let n = (2.0 * SR) as usize;
+    let mut x = pink(n, 31, 0.25);
+    let on = SR as usize;
+    for (i, v) in x.iter_mut().enumerate().skip(on) {
+        let ramp = ((i - on) as f32 / 48.0).min(1.0);
+        *v += 0.1 * ramp * math::sin(std::f32::consts::TAU * 3_000.0 * i as f32 / SR);
+    }
+    for (q, lift) in [
+        (Quality::Standard, true),
+        (Quality::Fast, false),
+        (Quality::Fast, true),
+        (Quality::Precise, false),
+        (Quality::Precise, true),
+    ] {
+        let mut u = unit(&LenisSettings {
+            depth: 0.6,
+            mode: Mode::Hard,
+            attack_ms: 1.0,
+            release_ms: 50.0,
+            quality: q,
+            ..LenisSettings::default()
+        });
+        let hop = u.geometry().hop();
+        let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
+        let (mut l, mut r) = (x.clone(), x.clone());
+        u.design.lift = lift;
+        println!("{q:?} lift {lift}");
+        for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
+            u.process(a, b);
+            let t = ((i + 1) * hop) as f32 / SR - 1.0;
+            if (-0.004..0.045).contains(&t) {
+                let (sl, fa) = u.det[0].averages(k3);
+                let db = |p: f32| 10.0 * math::log10((p * u.design.norm2) as f64 + 1e-14);
+                let (se, fe, lf) = u.scratch.parts[k3];
+                let nb: Vec<String> = [-6i32, -4, -3, -2, 2, 3, 4, 6]
+                    .iter()
+                    .map(|o| format!("{:5.1}", db(u.det[0].averages((k3 as i32 + o) as usize).0)))
+                    .collect();
+                println!(
+                    "  {:5.1} ms slow {:6.1} fast {:6.1} e_slow {:5.1} e_fast {:5.1} lift {:4.1} excess {:5.1} red {:5.2} | {}",
+                    t * 1e3,
+                    db(sl),
+                    db(fa),
+                    se,
+                    fe,
+                    lf,
+                    u.scratch.excess[k3],
+                    u.reduction_bins(0)[k3],
+                    nb.join(" ")
+                );
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore]
+fn diagnose_the_lift_calibration() {
+    let n = SR as usize;
+    for (name, hz) in [
+        ("sine 3000", 3_000.0f32),
+        ("sine 3023", 3_023.0),
+        ("white", 0.0),
+    ] {
+        let x: Vec<f32> = if hz > 0.0 {
+            (0..n)
+                .map(|i| 0.1 * math::sin(std::f32::consts::TAU * hz * i as f32 / SR))
+                .collect()
+        } else {
+            white(n, 3, 0.3)
+        };
+        let mut u = unit(&LenisSettings {
+            depth: 0.6,
+            ..LenisSettings::default()
+        });
+        let hop = u.geometry().hop();
+        let k3 = (3_000.0 / (SR / u.geometry().n as f32)).round() as usize;
+        let (mut l, mut r) = (x.clone(), x.clone());
+        let mut acc = [0.0f64; 5];
+        let mut cnt = 0;
+        for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
+            u.process(a, b);
+            if i * hop < SR as usize / 2 {
+                continue;
+            }
+            for (j, band) in [0usize, 1, 2, 4, 8].into_iter().enumerate() {
+                let (mut eq, mut es) = (0.0f64, 0.0f64);
+                for k in k3 - band..=k3 + band {
+                    eq += u.qa[k] as f64;
+                    es += u.det[0].averages(k).0 as f64;
+                }
+                acc[j] += 10.0 * math::log10(eq * u.design.lift_gain as f64 / es);
+            }
+            cnt += 1;
+        }
+        let v: Vec<String> = acc
+            .iter()
+            .map(|a| format!("{:+.2}", a / cnt as f64))
+            .collect();
+        println!(
+            "{name}: short over slow, dB, band 0/1/2/4/8: {}",
+            v.join(" ")
+        );
+    }
+}
+
+/// The onset's lift on noise: how often the reduction moves, frame to frame (the "musical
+/// noise" of a gain that flickers), and how much of it there is, with the lift off and on.
+#[test]
+fn the_onset_lift_leaves_noise_alone() {
+    let n = (6.0 * SR) as usize;
+    let noise = pink(n, 17, 0.3);
+    println!("pink noise, Hard, attack 1 ms: reduction p99.9 | bin-frames over 0.5 dB | mean frame-to-frame change (lift off → on)");
+    for (depth, selectivity) in [(0.5f32, 0.5f32), (1.0, 0.2), (1.0, 0.0)] {
+        let mut row = vec![];
+        for lift in [false, true] {
+            let mut u = unit(&LenisSettings {
+                depth,
+                selectivity,
+                mode: Mode::Hard,
+                attack_ms: 1.0,
+                release_ms: 50.0,
+                ..LenisSettings::default()
+            });
+            u.design.lift = lift;
+            let hop = u.geometry().hop();
+            let bins = u.geometry().bins();
+            let (mut l, mut r) = (noise.clone(), noise.clone());
+            let mut last = vec![0.0f32; bins];
+            let (mut all, mut over, mut moved, mut count) = (vec![], 0usize, 0.0f64, 0usize);
+            for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
+                u.process(a, b);
+                if i * hop < SR as usize {
+                    continue;
+                }
+                for (k, &v) in u.reduction_bins(0).iter().enumerate() {
+                    all.push(v);
+                    over += (v > 0.5) as usize;
+                    moved += (v - last[k]).abs() as f64;
+                    last[k] = v;
+                    count += 1;
+                }
+            }
+            all.sort_by(|a, b| a.total_cmp(b));
+            let p999 = all[(all.len() - 1) * 999 / 1000];
+            row.push((p999, over as f64 / count as f64, moved / count as f64));
+        }
+        println!(
+            "  depth {depth} selectivity {selectivity}: {:.2} → {:.2} dB | {:.4} % → {:.4} % | {:.4} → {:.4} dB",
+            row[0].0,
+            row[1].0,
+            100.0 * row[0].1,
+            100.0 * row[1].1,
+            row[0].2,
+            row[1].2
+        );
+        assert!(row[1].0 <= row[0].0 + 0.2, "{row:?}");
+        assert!(row[1].1 <= row[0].1 * 1.25 + 1e-4, "{row:?}");
+        assert!(row[1].2 <= row[0].2 * 1.25 + 1e-4, "{row:?}");
+    }
+}
+
+/// Notes starting: the onset's lift reads a note's start, so its partials must still not be
+/// taken for resonances there — the most any bin under 800 Hz, and 800 Hz–8 kHz, is turned
+/// down in the first 100 ms of each of eight notes, with the lift off and on.
+#[test]
+fn a_note_s_start_is_not_a_resonance() {
+    let seg = SR as usize / 2;
+    println!("notes of 0.25 s every 0.5 s, strong (Hard 80 %, selectivity 25 %), attack 1 ms: the most cut in the first 100 ms (lift off → on)");
+    for (f0, q) in [
+        (110.0f32, Quality::Standard),
+        (220.0, Quality::Standard),
+        (330.0, Quality::Standard),
+        (220.0, Quality::Precise),
+    ] {
+        let note = harmonic(seg / 2, f0);
+        let mut x = vec![0.0f32; 9 * seg];
+        for s in 1..9 {
+            for (i, v) in note.iter().enumerate() {
+                let fade = (i as f32 / 48.0).min(1.0) * ((note.len() - i) as f32 / 480.0).min(1.0);
+                x[s * seg + i] = v * fade;
+            }
+        }
+        let mut row = vec![];
+        for lift in [false, true] {
+            let mut u = unit(&LenisSettings {
+                depth: 0.8,
+                selectivity: 0.25,
+                mode: Mode::Hard,
+                attack_ms: 1.0,
+                release_ms: 50.0,
+                low_hz: 20.0,
+                quality: q,
+                ..LenisSettings::default()
+            });
+            u.design.lift = lift;
+            let hop = u.geometry().hop();
+            let (mut l, mut r) = (x.clone(), x.clone());
+            let (mut low, mut mid) = (0.0f32, 0.0f32);
+            for (i, (a, b)) in l.chunks_mut(hop).zip(r.chunks_mut(hop)).enumerate() {
+                u.process(a, b);
+                let at = (i + 1) * hop;
+                if at < seg || (at % seg) > seg / 5 {
+                    continue;
+                }
+                for (k, &v) in u.reduction_bins(0).iter().enumerate() {
+                    let hz = u.bin_hz(k);
+                    if (60.0..800.0).contains(&hz) {
+                        low = low.max(v);
+                    } else if (800.0..8_000.0).contains(&hz) {
+                        mid = mid.max(v);
+                    }
+                }
+            }
+            row.push((low, mid));
+        }
+        println!(
+            "  {f0} Hz {q:?}: under 800 Hz {:.2} → {:.2} dB, 800 Hz-8 kHz {:.2} → {:.2} dB",
+            row[0].0, row[1].0, row[0].1, row[1].1
+        );
+        assert!(row[1].0 <= row[0].0 + 0.25, "{f0} {q:?}: {row:?}");
+        assert!(row[1].1 <= row[0].1 + 0.5, "{f0} {q:?}: {row:?}");
     }
 }
