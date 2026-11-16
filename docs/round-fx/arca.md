@@ -78,3 +78,45 @@ the next phases*).
   words; Phasis's feedback and LFO cells whole (`modfx::lfo_card_as`); the probe notes short
   forms apart (`probe::take_shorts`); `learn_everywhere` excuses Saltus's mode-only keys and
   a new test draws its other modes.
+
+## Phase B (3), to the finish (2026-11-16): v2 approved ("Aprobado, sigue")
+
+- **Editors**: the full windows as approved; the microphone's drag on the cone and in the
+  side view one undo step each; Rota's microphones' angle and distance one step; Rota's horn
+  turning clear of the louvres, its blur with streaks.
+- **Presets**: Arca sixteen, Rota thirteen, Phasis three lamp-vibe ones, levels fitted by
+  `preset_tool fit` (Arca −15.9 … +12.5 dB, Rota −5.3 … +6.7, Phasis −3.3 … −0.9); the
+  starting presets with them (Clean combo +5.4 dB, Chorale +3.6); roles an effect's.
+- **Export**: the plug-ins' direct DSP for both (`Direct::Arca` with its cabinet,
+  `Direct::Rota`), Rota's notes in `notes.rs`, `rpm`/`cm`/`×` read back (`readout`).
+- **AI**: the unit words (`agent_units.rs`) and the effect words (`tools_mixer.rs`); the
+  MCP tools golden regenerated on purpose.
+- **Site**: the two cards (`web/src/units_data.rs`, `EFFECTS` 34); Phasis's count 15.
+- **Docs**: ADRs 0136 and 0137 (phase B, consequences, tests), `docs/plugins/arca.md`,
+  `docs/plugins/rota.md`, the manual EN/ES, `docs/round-fx/rota.md`.
+- **Tests**: `arca_e2e.rs`, `rota_e2e.rs` (through `CantusApp::assemble`),
+  `arca_rota_drag.rs` (pointer events), `arca_rota_whole.rs`, the engine's and plug-ins'.
+
+## Shared files touched (marked `fx3:arca` / `fx3:rota`)
+
+Core: `starting.rs`, `fx/readout.rs`. DSP: nothing shared beyond phase A. Engine: none new.
+UI: `kit/skin.rs`, `kit/skin/materials.rs`, `textures.rs`, `side.rs`, `gallery_skin.rs`,
+`kit/text.rs` (`probe::take_shorts`), `views/fx/frame.rs`, `phasis.rs`, `modfx.rs`
+(`lfo_card_as`), `pedal_art.rs`, `pedal_draw.rs` (print scales with the enclosure, staggered
+words, the empty slot on two lines), `tabula.rs`, `tabula_board.rs`, `tabula_faces.rs`,
+`agent_units.rs`; tests `learn_everywhere.rs` (Saltus's modes), gallery goldens. AI:
+`tools_mixer.rs`. Plug-ins: `tests/common/mod.rs`, `tests/notes.rs`, `tests/clap.rs`. Web:
+`units_data.rs`. README (Phasis's count).
+
+## Verified only in emulation
+
+- No guitar or organ played live through Arca or Rota; the renders are the evidence.
+- The exported plug-ins in our CLAP/VST3 harness only; the file dialog not driven (the IR
+  load path is tested from `aula::set_file` on).
+- CPU measured while other builders loaded the machine (Arca's high gain ≈ 25 % at 4×).
+
+## Left
+
+- Owner-only: listening to the presets and to files 23 and 33 (re-rendered).
+- At the integration: the site's pictures (`web/assets/units/{arca,rota}-*.webp`) and the
+  preset excerpts; renumbering ADRs 0136/0137; Arca's high-gain CPU on a quiet machine.
