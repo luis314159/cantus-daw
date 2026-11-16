@@ -343,9 +343,6 @@ pub enum Source {
         ck: Option<f64>,
         /// A capacitor across the plate resistor (the cold clipper's 1 nF).
         cp: Option<f64>,
-        /// The plate's direct voltage, carried when the next circuit is DC-coupled to it
-        /// (a cathode follower's grid); 0 otherwise.
-        dc: f64,
         /// The circuit before loads its plate with a stand-in for this one: the current
         /// it draws there comes in as a second input, so the Thévenin source is exact.
         inject: bool,
@@ -354,12 +351,7 @@ pub enum Source {
 
 /// Write `blocks` after their source; returns the output node and the stage whose plate
 /// it is, if the circuit ends at a plate.
-fn write(
-    net: &mut Net,
-    blocks: &[Block],
-    src: Source,
-    prev: Option<Triode>,
-) -> (u8, Option<Triode>) {
+fn write(net: &mut Net, blocks: &[Block], src: Source) -> (u8, Option<Triode>) {
     let mut cur = net.node();
     match src {
         Source::R(r) => net.input(cur, r),
@@ -370,7 +362,6 @@ fn write(
             ck,
             cp,
             inject,
-            ..
         } => {
             net.input(cur, R_RAIL);
             let (m, n) = (net.node(), net.node());
@@ -389,9 +380,7 @@ fn write(
             cur = n;
         }
     }
-    // The gain stage a follower takes its valve and supply from (the circuit before's,
-    // when this one starts with the follower: its supply node made when first needed).
-    let mut last: Option<(Triode, Option<u8>)> = prev.map(|t| (t, None));
+    let mut last: Option<(Triode, u8)> = None;
     let mut ends_at_plate = None;
     for b in blocks {
         ends_at_plate = None;
@@ -447,16 +436,12 @@ fn write(
                     k,
                     tube: super::table::tabled(t.tube),
                 });
-                last = Some((t, Some(bp)));
+                last = Some((t, bp));
                 cur = p;
                 ends_at_plate = Some(t);
             }
             Block::Follower(rk) => {
                 let (t, bp) = last.expect("a follower follows a gain stage");
-                let bp = match bp {
-                    Some(n) => n,
-                    None => net.supply(t.bplus),
-                };
                 let k = net.node();
                 net.r(k, 0, rk);
                 net.c(cur, k, C_GK);
@@ -484,10 +469,11 @@ pub fn split(blocks: &[Block]) -> ([(usize, usize); MAX_STAGES], usize) {
     let mut start = 0;
     for i in 0..blocks.len() {
         let plate = matches!(blocks[i], Block::Triode(_));
+        let follower_next = matches!(blocks.get(i + 1), Some(Block::Follower(_)));
         let valve_after = blocks[i + 1..]
             .iter()
-            .any(|b| matches!(b, Block::Triode(_) | Block::Follower(_)));
-        if plate && valve_after {
+            .any(|b| matches!(b, Block::Triode(_)));
+        if plate && !follower_next && valve_after {
             out[n] = (start, i + 1);
             n += 1;
             start = i + 1;
@@ -519,8 +505,6 @@ pub struct Stage {
     sup: usize,
     /// The current its stand-in load drew at the last sample (to the next circuit).
     pub i_out: f64,
-    /// The direct voltage its input rides on (a follower's grid at the plate before).
-    dc: f64,
 }
 
 impl Stage {
@@ -538,14 +522,13 @@ impl Stage {
             src_elems: (0, 0),
             sup: 1,
             i_out: 0.0,
-            dc: 0.0,
         }
     }
 
     /// Write, size and solve `blocks` at `rate`, driven through `src_r`, knobs at `k`.
     /// Allocation-free.
     pub fn new(blocks: &[Block], src: Source, rate: f64, k: &Knobs) -> Stage {
-        Stage::with_load(blocks, src, rate, k, None, None)
+        Stage::with_load(blocks, src, rate, k, None)
     }
 
     /// As [`Self::new`], its output plate loaded by `load` — a resistor in series with a
@@ -556,8 +539,7 @@ impl Stage {
         src: Source,
         rate: f64,
         k: &Knobs,
-        load: Option<(f64, f64, Option<f64>)>,
-        prev: Option<Triode>,
+        load: Option<(f64, f64)>,
     ) -> Stage {
         let mut net = Net::new();
         let (src_r, src_c) = match src {
@@ -567,27 +549,18 @@ impl Stage {
             Source::R(_) => (0, 0),
         };
         let inject = matches!(src, Source::Plate { inject: true, .. });
-        let (out, plate) = write(&mut net, blocks, src, prev);
-        let dc = match src {
-            Source::Plate { dc, .. } => dc,
-            Source::R(_) => 0.0,
-        };
+        let (out, plate) = write(&mut net, blocks, src);
         let entry = if matches!(src, Source::Plate { .. }) {
             3
         } else {
             1
         };
         let mut stand_in = None;
-        if let (Some((rl, cl, sink)), Some(_)) = (load, plate) {
+        if let (Some((rl, cl)), Some(_)) = (load, plate) {
             let mid = net.node();
             net.r(out, mid, rl);
             net.c(mid, 0, cl);
             stand_in = Some((mid, rl));
-            // A follower's grid draws a little direct current from the plate: a resistor
-            // that draws the same at the plate's voltage (megohms: nothing to the signal).
-            if let Some(r) = sink {
-                net.r(out, 0, r);
-            }
         }
         let mut c = Circuit::new(net.nodes as usize, 1.0 / rate);
         for &(a, b, r) in &net.r[..net.nr] {
@@ -622,12 +595,9 @@ impl Stage {
             src_elems: (src_r, src_c),
             sup,
             i_out: 0.0,
-            dc,
         };
         s.set_knobs(k);
-        s.u[0] = dc;
         s.c.solve_dc(&s.u);
-        s.u[0] = 0.0;
         s.rest = s.c.state();
         let fast = Fast::new(s.c.fused());
         s.fast_rest = Some(fast.state());
@@ -644,7 +614,6 @@ impl Stage {
                     rk: mu1 * t.rk,
                     ck: t.ck.map(|c| c / mu1),
                     cp: t.cp,
-                    dc: 0.0,
                     inject: false,
                 }
             }
@@ -665,22 +634,6 @@ impl Stage {
         }
     }
 
-    /// The direct current its first valve's grid draws at the operating point (A).
-    pub fn grid_current(&self) -> f64 {
-        let ports = self.c.ports();
-        match self.net.tubes[0] {
-            Some(Nl::Triode { tube, .. }) if ports.len() >= 2 => {
-                tube.currents(ports[0], ports[1]).0
-            }
-            _ => 0.0,
-        }
-    }
-
-    /// Its output's absolute voltage at the operating point (a plate's direct voltage).
-    pub fn plate_dc(&self) -> f64 {
-        self.c.output_abs(0)
-    }
-
     /// Newton's iterations a sample so far (a diagnostic).
     pub fn iterations_per_step(&self) -> f64 {
         self.fast.as_ref().map_or(0.0, Fast::iterations_per_step)
@@ -694,7 +647,7 @@ impl Stage {
     /// One sample: the input (volts, relative to rest) in, the output (likewise) out.
     #[inline]
     pub fn step(&mut self, x: f64, i_in: f64) -> f64 {
-        self.u[0] = x + self.dc;
+        self.u[0] = x;
         if self.sup == 2 {
             self.u[1] = i_in;
         }
@@ -870,48 +823,10 @@ impl Preamp {
     pub fn build(&mut self, blocks: &[Block], src_r: f64, rate: f64, k: &Knobs) {
         let (parts, n) = split(blocks);
         // First pass: each circuit driven by the plate before through its impedance.
-        let prev_of = |a: usize| -> Option<Triode> {
-            match blocks.get(a) {
-                Some(Block::Follower(_)) => blocks[..a].iter().rev().find_map(|b| match b {
-                    Block::Triode(t) => Some(*t),
-                    _ => None,
-                }),
-                _ => None,
-            }
-        };
-        // A circuit that starts with a follower rides on the plate's direct voltage.
-        let couple = |src: Source, next: usize, plate_dc: f64| match (src, prev_of(next)) {
-            (
-                Source::Plate {
-                    rp_load,
-                    rp,
-                    rk,
-                    ck,
-                    cp,
-                    inject,
-                    ..
-                },
-                Some(_),
-            ) => Source::Plate {
-                rp_load,
-                rp,
-                rk,
-                ck,
-                cp,
-                dc: plate_dc,
-                inject,
-            },
-            (s, _) => s,
-        };
-        // The plates' open-circuit direct voltages (what a follower's grid circuit rides on:
-        // its own grid current drops the rest through the plate's impedance there).
-        let mut open_dc = [0.0f64; MAX_STAGES];
         let mut src = Source::R(src_r);
         for (i, &(a, b)) in parts[..n].iter().enumerate() {
-            self.stages[i] = Stage::with_load(&blocks[a..b], src, rate, k, None, prev_of(a));
-            open_dc[i] = self.stages[i].plate_dc();
-            let next = parts.get(i + 1).map_or(blocks.len(), |p| p.0);
-            src = couple(self.stages[i].out_z, next, open_dc[i]);
+            self.stages[i] = Stage::new(&blocks[a..b], src, rate, k);
+            src = self.stages[i].out_z;
         }
         // Second: each plate loaded by a stand-in for the circuit after it — a resistor
         // and a capacitor in series with the next circuit's input impedance at 6 kHz —
@@ -926,21 +841,11 @@ impl Preamp {
             } else {
                 LOAD_BLOCK
             };
-            *slot = Some((zr.max(1e3), c, None));
-        }
-        for i in 1..n {
-            let ig = self.stages[i].grid_current();
-            if prev_of(parts[i].0).is_some() && ig > 1e-12 {
-                if let Some(l) = &mut loads[i - 1] {
-                    l.2 = Some(self.stages[i - 1].plate_dc() / ig);
-                }
-            }
+            *slot = Some((zr.max(1e3), c));
         }
         let mut src = Source::R(src_r);
         for (i, &(a, b)) in parts[..n].iter().enumerate() {
-            self.stages[i] = Stage::with_load(&blocks[a..b], src, rate, k, loads[i], prev_of(a));
-            let next = parts.get(i + 1).map_or(blocks.len(), |p| p.0);
-            let plate_dc = open_dc[i];
+            self.stages[i] = Stage::with_load(&blocks[a..b], src, rate, k, loads[i]);
             src = match self.stages[i].out_z {
                 Source::Plate {
                     rp_load,
@@ -948,7 +853,6 @@ impl Preamp {
                     rk,
                     ck,
                     cp,
-                    dc,
                     ..
                 } => Source::Plate {
                     rp_load,
@@ -956,12 +860,10 @@ impl Preamp {
                     rk,
                     ck,
                     cp,
-                    dc,
                     inject: true,
                 },
                 s => s,
             };
-            src = couple(src, next, plate_dc);
         }
         self.n = n;
     }

@@ -20,10 +20,12 @@ circuits), the stand-in plate load in `arca_net.rs`; in `fragor_dk.rs` (additive
 `Koren::table` field and `Circuit::fused`, a few constants made `pub(crate)`. Numbers in
 ADR 0137 *Phase A-2*; the sounds re-rendered with them.
 
-## Phase A-3 (2026-11-15): followers as their own circuits
+## Phase A-3 (2026-11-15): the follower split tried and reverted
 
-`arca_net.rs`: a follower split from its plate (DC carried, grid-current sink),
-`cpu_by_stage`. Numbers in ADR 0137 *Phase A-3*; files 05–20 re-rendered.
+`cpu_by_stage` (each circuit's cost in the unit) and `examples/arca_compare.rs` (spectra,
+harmonics, transfer for an A/B between builds) added; the follower split measured against
+`a7afeffa`, found to change the clipping where a follower's grid conducts, and reverted.
+ADR 0137 *Phase A-3* has the table; files 05–20 are `a7afeffa`'s renders again.
 
 ## Verified only in emulation
 

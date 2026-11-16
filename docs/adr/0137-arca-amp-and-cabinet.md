@@ -145,29 +145,45 @@ points and the oversampler clears; silence in is then silence out and nothing mo
   The high gain's four circuits (the last two hard-clipping, 2.4 and 3.2 iterations) are
   what remains above its target.
 
-### Phase A-3: the high gain's cost (2026-11-15, DSP only)
+### Phase A-3: the high gain's cost (2026-11-15, DSP only) — tried, measured, reverted
 
 - **Measured first** (`cpu_by_stage`: each circuit replaying what it hears in the unit): the
   high gain's first circuit cost 134 ns of 1 170 a 4× sample — a 2× first stage would save
-  about 1.3 % of a core, so it was not built (it would also need the stand-in's current
-  carried across the rate change); its last circuit — gain stage, follower and tone stack,
-  4 ports at 3.4 iterations — cost 616 ns.
-- **A cathode follower is its own circuit** now, split from its gain stage's plate by the
-  same exact split (the stand-in and its current); its grid rides on the plate's
-  open-circuit direct voltage, and the plate is loaded by a resistor that draws the
-  follower's grid current at rest, so both operating points stay the schematic's. Two
-  2-port circuits replace one 4-port: 178 + 243 ns where it was 616 (the crunch, chime and
-  bass amps gain the same way). Schematic comparison, operating points (0.05 V) and the
-  split's error unchanged and within their tolerances; the clean amp renders to the bit.
-- **CPU** (4×, with its cabinet, best of three) with the machine at 63 – 76 % load: clean
-  11.9 – 12.4 %, crunch 15.8 – 17.4 %, chime 15.4 – 15.5 %, high gain 24.9 – 26.8 %, bass
-  13.3 – 14.5 %. The same code measured the clean amp at 9.6 % at 33 % load; scaled by the
-  clean amp (unchanged), the high gain is about 20 % on that machine state — at its target,
-  not clearly under it.
-- **The renders changed** for the crunch, chime, high-gain and bass amps (the clean amp,
-  Rota and the Uni-Vibe bit-identical): −47 to −87 dB of difference on the clean settings,
-  −11 to −37 dB on the driven ones — hard clipping turns a small change of the solve into a
-  different waveform sample by sample; the ear decides.
+  about 1.3 % of a core, so it was not built; its last circuit — gain stage, follower and
+  tone stack, 4 ports at 3.4 iterations — cost 616 ns.
+- **Tried: a cathode follower as its own circuit** (commit `6786bcc1`), split from its
+  plate with the exact split, its grid on the plate's open-circuit direct voltage: 616 →
+  178 + 243 ns, every small-signal and operating-point tolerance met — and then **measured
+  against the build before it** (`examples/arca_compare.rs`, both builds from the same
+  example; a throwaway worktree at `a7afeffa`):
+
+| Setting | ⅓-octave spectrum (max Δ, bands within 60 dB) | H2–H9 at 1 kHz (max Δ) | H1 at 1 kHz | H2–H9 at 110 Hz | H1 at 110 Hz | 40 Hz transfer (max error re peak) |
+|---|---|---|---|---|---|---|
+| Crunch clean | 0.20 dB | 1.65 dB | 0.17 dB | 0.03 dB | 0.00 dB | −47.7 dB |
+| Crunch driven | 0.13 | 6.81 | 0.03 | 0.03 | 0.00 | −67.8 |
+| Chime clean | 0.04 | 0.89 | 0.01 | 0.09 | 0.00 | −53.0 |
+| Chime driven | 0.64 | 3.22 | 0.03 | 3.31 | 0.01 | −26.3 |
+| High gain clean | 1.47 | 12.30 | 1.17 | 3.47 | 0.87 | −19.9 |
+| High gain driven | 0.66 | 3.34 | 0.44 | 2.12 | 0.03 | −30.0 |
+| Bass clean | 0.00 | 0.34 | 0.00 | 0.08 | 0.00 | −74.0 |
+| Bass driven | 0.12 | 2.41 | 0.00 | 12.19 | 0.00 | **−4.3** |
+
+  Past the targets (spectra 0.5 dB, harmonics 1 dB) wherever a follower's grid conducts —
+  a **real modelling difference, not a solver tolerance**: the split hands the follower its
+  plate as a Thévenin source linearised at rest, but a follower clips by drawing grid
+  current exactly when the plate before it swings up toward cutoff, where that plate's
+  impedance is its 100k plate resistor, not the 38k at rest; the clipping's shape changes
+  (the bass amp driven, the high gain, the chime driven). Coupling the follower's real grid
+  current back instead would close a loop of gain ≫ 1 across a sample: unstable. **The
+  follower stays in its gain stage's circuit** (reverted: `arca_net.rs` is `a7afeffa`'s;
+  `arca_compare` then gives the same bits as that build, and files 05–20 are its renders
+  again).
+- **Result**: phase A-2's cost stands — at 4× the high gain 25 % of a core, the clean amp
+  9.6 – 12 % (load 33 – 76 %). The target for the high gain is not met without loss.
+- **Proposed, not applied**: (a) keep 4× for every model (2× would cost the high gain
+  10 dB of aliasing, −41.4 → −31.7 dB); (b) the next sound lever, the 4-port circuit's own
+  cost — its follower's grid port skipped while it does not conduct (a 2-port Newton then,
+  the grid current a correction only past the cathode), and a quiet-machine measurement.
 
 ## Left for the next phases
 
