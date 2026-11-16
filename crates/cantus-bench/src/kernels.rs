@@ -385,8 +385,22 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", 6.0),
             ],
         ), // fx3:saltus
-        EffectKind::Rotary => set(&mut s, &[("out", 6.0)]), // fx3:rota
-        EffectKind::Amp => set(&mut s, &[("out", 6.0)]),    // fx3:arca
+        // fx3:rota — fast, driven, all wet, the drum ramping (a note's work).
+        EffectKind::Rotary => set(
+            &mut s,
+            &[("mix", 1.0), ("speed", 2.0), ("drive", 0.6), ("out", 6.0)],
+        ), // fx3:rota
+        // fx3:arca — the dearest: the high gain at 8× into a cabinet.
+        EffectKind::Amp => set(
+            &mut s,
+            &[
+                ("model", 4.0),
+                ("gain", 0.8),
+                ("cab", 4.0),
+                ("os", 2.0),
+                ("out", 6.0),
+            ],
+        ), // fx3:arca
     }
     s
 }

@@ -24,3 +24,8 @@ preset.phasis.synced_eighths = Eighths
 preset.phasis.stereo_swirl = Stereo swirl
 preset.phasis.random_steps = Random steps
 preset.phasis.slow_wash = Slow wash
+# fx3:arca — the Uni-Vibe style.
+fx.phasis.style = Circuit
+fx.phasis.style.0 = Classic
+fx.phasis.style.1 = Lamp vibe
+fx.phasis.intensity = Intensity

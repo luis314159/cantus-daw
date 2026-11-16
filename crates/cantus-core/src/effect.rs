@@ -383,7 +383,7 @@ impl EffectKind {
     pub fn takes_ir(self) -> bool {
         match self {
             EffectKind::Aula => true,
-            EffectKind::Amp => false, // fx3:arca — the cabinet's user IR
+            EffectKind::Amp => true, // fx3:arca — the cabinet's user IR
             _ => false,
         }
     }

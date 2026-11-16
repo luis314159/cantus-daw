@@ -44,6 +44,9 @@ const QUIET_TAIL: u32 = 2_048;
 const TABLE: usize = 1_025;
 const DRIVE_SPAN: f64 = 12.0;
 const TWO64: f64 = 18_446_744_073_709_551_616.0;
+/// A ramp's last stretch: the speed moves at least this much a sample (turns a second;
+/// at 48 kHz 0.24 turns a second each second).
+const MIN_STEP: f64 = 5e-6;
 
 /// Everything Rota is set to.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -175,10 +178,17 @@ impl Spin {
             } else {
                 self.down
             };
-            self.speed += (self.target - self.speed) * c;
-            // Landed: a millionth of a turn a second from the target is the target.
-            if (self.target - self.speed).abs() < 1e-6 {
+            // The lag, until its step falls under MIN_STEP: then straight on at that rate,
+            // landing exactly — a ramp ends in finite time (seconds), as a rotor's does,
+            // where an exponential would creep for minutes.
+            let d = self.target - self.speed;
+            let step = d * c;
+            if d.abs() <= MIN_STEP {
                 self.speed = self.target;
+            } else if step.abs() < MIN_STEP {
+                self.speed += MIN_STEP.copysign(d);
+            } else {
+                self.speed += step;
             }
         }
         self.phase = self.phase.wrapping_add(self.inc(sr));
@@ -233,6 +243,7 @@ fn drive_table() -> Box<[f32; TABLE]> {
     out
 }
 
+#[derive(Clone)]
 pub struct Rota {
     sr: f32,
     set: RotaSettings,
@@ -278,6 +289,10 @@ impl Rota {
 
     pub fn settings(&self) -> &RotaSettings {
         &self.set
+    }
+
+    pub fn sample_rate(&self) -> f32 {
+        self.sr
     }
 
     fn targets(&self) -> (f64, f64) {
@@ -360,6 +375,12 @@ impl Rota {
         self.drum.speed = dt;
         for r in [&mut self.horn, &mut self.drum] {
             r.parked = false;
+            // Braked: parked already, as a cabinet switched on at Stop is.
+            if r.braking {
+                r.phase = r.park_at;
+                r.speed = 0.0;
+                r.parked = true;
+            }
         }
         self.mix = self.mix_to;
         self.out = self.out_to;
@@ -466,8 +487,10 @@ impl Rota {
     }
 
     pub fn rest_blocker(&self) -> Option<&'static str> {
-        if !self.horn.steady() || !self.drum.steady() {
-            return Some("a rotor is changing speed");
+        // A turning rotor is a state of its own — its angle is its history — so, as a
+        // free-running LFO, it is never at rest: only parked (the brake) is.
+        if !(self.horn.parked && self.drum.parked) {
+            return Some("the rotors turn");
         }
         if self.mix != self.mix_to || self.out != self.out_to {
             return Some("a level is gliding");

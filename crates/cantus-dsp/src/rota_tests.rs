@@ -35,7 +35,8 @@ fn the_defaults_are_a_null() {
     let (l, rr) = run(&mut r, &x, 64);
     assert!(l.iter().zip(&x).all(|(a, b)| a.to_bits() == b.to_bits()));
     assert!(rr.iter().zip(&x).all(|(a, b)| a.to_bits() == b.to_bits()));
-    assert!(r.at_rest(), "{:?}", r.rest_blocker());
+    // Turning, it is never at rest (its angle is its history).
+    assert_eq!(r.rest_blocker(), Some("the rotors turn"));
 }
 
 #[test]
@@ -144,10 +145,12 @@ fn the_rotors_turn_as_a_leslie_does() {
     assert!(((turns + frac) / 10.0 * 60.0 - r.horn.rpm()).abs() < 1e-6);
 }
 
-/// Twins: one plays the silence, the other skips it in closed form; then the same note.
+/// Parked (the only rest: a turning rotor's angle is its history), twins: one plays the
+/// silence, the other skips it; then the same note. The angle's closed-form skip itself
+/// is held by `the_rotors_turn_as_a_leslie_does`.
 #[test]
 fn rest_is_exact_and_the_angle_skips_in_closed_form() {
-    for speed in [RotorSpeed::Slow, RotorSpeed::Fast, RotorSpeed::Stop] {
+    for speed in [RotorSpeed::Stop] {
         let mk = || {
             let mut r = Rota::new(SR);
             r.set(&wet(speed));
@@ -197,7 +200,7 @@ fn a_ramp_never_rests_and_the_brake_parks() {
     r.toggle();
     let silence = vec![0.0f32; 4_800];
     run(&mut r, &silence, 480);
-    assert_eq!(r.rest_blocker(), Some("a rotor is changing speed"));
+    assert_eq!(r.rest_blocker(), Some("the rotors turn"));
     let mut s = *r.settings();
     s.speed = RotorSpeed::Stop;
     r.set(&s);

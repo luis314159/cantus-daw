@@ -23,8 +23,13 @@ pub fn settings(spec: &EffectSpec) -> PhasisSettings {
         lfo: lfo_settings(spec, SEED),
         spread: spread_cycles(spec.get("spread")),
         out_db: spec.get("out"),
-        // fx3:arca — the Uni-Vibe style's keys arrive with the engine's phase.
-        ..PhasisSettings::default()
+        // fx3:arca — the lamp style (appended; the classic the default) and its intensity.
+        style: if spec.get("style") >= 0.5 {
+            cantus_dsp::phasis::PhasisStyle::Vibe
+        } else {
+            cantus_dsp::phasis::PhasisStyle::Classic
+        },
+        intensity: spec.get("intensity"),
     }
 }
 

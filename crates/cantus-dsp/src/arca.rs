@@ -264,6 +264,20 @@ impl Arca {
         self.sr
     }
 
+    /// With room for a cabinet's response of `cap` (silence until one is supplied).
+    /// Allocates: off the audio thread.
+    pub fn with_room(sample_rate: f32, cap: crate::aula_kernel::Layout) -> Arca {
+        let mut a = Arca::new(sample_rate);
+        let state = Box::new(ConvState::new(cap));
+        a.conv = Some(Convolver::new(state, Arc::new(Kernel::silent(cap))));
+        a
+    }
+
+    /// The cabinet's response playing (shared).
+    pub fn cab_kernel(&self) -> Option<Arc<Kernel>> {
+        self.conv.as_ref().map(|c| c.kernel().clone())
+    }
+
     pub fn settings(&self) -> &ArcaSettings {
         &self.set
     }

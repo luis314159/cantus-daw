@@ -3151,3 +3151,89 @@ fn saltus_never_allocates() {
         FIRST.with(|f| f.get())
     );
 }
+
+// fx3:arca — Arca (ADR 0137, provisional) on the audio thread: an amp into its cabinet, then
+// every amp in turn (each built in place), the oversampling moved (the latency with it), the
+// microphone moved (a new response asked for and swapped in), the cabinet off, a seek and a
+// stop. Not one allocation.
+#[test]
+fn arca_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::Amp);
+    for (k, v) in [("model", 1.0), ("cab", 1.0), ("gain", 0.4)] {
+        fx.spec.set(k, v).unwrap();
+    }
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("clean into its combo", 30);
+    let set = |p: &mut Project, kv: &[(&str, f32)]| {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+    };
+    for (phase, kv) in [
+        ("crunch", &[("model", 2.0), ("gain", 0.7)][..]),
+        ("chime", &[("model", 3.0)][..]),
+        ("high gain at 8x", &[("model", 4.0), ("os", 2.0)][..]),
+        ("bass at 2x", &[("model", 5.0), ("os", 0.0)][..]),
+        ("the microphone moved", &[("mic", 1.0), ("micpos", 0.8)][..]),
+        ("the cabinet off", &[("cab", 0.0)][..]),
+        ("no amp", &[("model", 0.0)][..]),
+    ] {
+        set(&mut p, kv);
+        rig.snapshot(&p);
+        rig.play(phase, 20);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
+    );
+}
+
+// fx3:rota — Rota (ADR 0136, provisional) on the audio thread: notes of another track
+// throwing the switch at their samples, the brake, the drive, a seek and a stop.
+#[test]
+fn rota_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let notes_from = p.tracks[1].id;
+    let mut fx = p.make_effect(EffectKind::Rotary);
+    fx.midi_from = Some(notes_from);
+    fx.spec.set("mix", 1.0).unwrap();
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("switched by notes", 40);
+    for (phase, kv) in [
+        ("braked", &[("speed", 0.0)][..]),
+        ("fast, driven", &[("speed", 2.0), ("drive", 0.7)][..]),
+    ] {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        for (k, v) in kv {
+            e.spec.set(k, *v).unwrap();
+        }
+        rig.snapshot(&p);
+        rig.play(phase, 20);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
+    );
+}

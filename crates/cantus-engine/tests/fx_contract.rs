@@ -454,8 +454,10 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::Utility => (true, true),    // fx:contract
         EffectKind::Board => (true, true),      // fx3:tabula
         EffectKind::PitchShift => (true, true), // fx3:saltus
-        EffectKind::Rotary => (true, true),     // fx3:rota
-        EffectKind::Amp => (true, true),        // fx3:arca
+        // fx3:rota — a turning rotor is never at rest (its angle is its history); parked,
+        // it is (the twins of the DSP's own tests).
+        EffectKind::Rotary => (false, false), // fx3:rota
+        EffectKind::Amp => (true, true),      // fx3:arca
         _ => (false, false),
     }
 }

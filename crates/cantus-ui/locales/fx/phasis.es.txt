@@ -24,3 +24,8 @@ preset.phasis.synced_eighths = Corcheas
 preset.phasis.stereo_swirl = Remolino estéreo
 preset.phasis.random_steps = Pasos al azar
 preset.phasis.slow_wash = Ola lenta
+# fx3:arca — el estilo de lámpara.
+fx.phasis.style = Circuito
+fx.phasis.style.0 = Clásico
+fx.phasis.style.1 = Vibe de lámpara
+fx.phasis.intensity = Intensidad

@@ -145,6 +145,8 @@ pub enum MemoryNeed {
     Lapsus(usize),
     /// Tabula's alignment and dry lines, in frames (ADR 0134, provisional). // fx3:contract
     Tabula(usize),
+    /// Arca's cabinet, by what it is made from (ADR 0137, provisional). // fx3:arca
+    Arca(crate::fx::arca::ArcaNeed),
 }
 
 /// What travels in [`crate::messages::EngineEvent::EffectNeed`]: a [`MemoryNeed`] small
@@ -156,8 +158,9 @@ pub enum MemoryNeed {
 pub enum NeedTicket {
     EqLinear(cantus_dsp::aequalis::Resolution),
     Aula(std::sync::Arc<crate::need_mailbox::NeedMailbox>),
-    Lapsus(usize), // fx:lapsus
-    Tabula(usize), // fx3:contract
+    Lapsus(usize),                   // fx:lapsus
+    Tabula(usize),                   // fx3:contract
+    Arca(crate::fx::arca::ArcaNeed), // fx3:arca
 }
 
 impl NeedTicket {
@@ -168,6 +171,7 @@ impl NeedTicket {
             NeedTicket::Aula(m) => MemoryNeed::Aula(m.read()),
             NeedTicket::Lapsus(n) => MemoryNeed::Lapsus(*n), // fx:lapsus
             NeedTicket::Tabula(n) => MemoryNeed::Tabula(*n), // fx3:contract
+            NeedTicket::Arca(n) => MemoryNeed::Arca(*n),     // fx3:arca
         }
     }
 }
@@ -183,6 +187,8 @@ pub enum EffectMemory {
     Lapsus(Box<cantus_dsp::lapsus::Ring>),
     /// Tabula's lines. // fx3:contract
     Tabula(Box<crate::fx::tabula::Lines>),
+    /// Arca's cabinet. // fx3:arca
+    Arca(Box<crate::fx::arca::Memory>),
 }
 
 /// The mailbox a unit of `kind` asks with, when its requests are too large for the event.
@@ -206,6 +212,9 @@ impl EffectMemory {
             MemoryNeed::Tabula(n) => {
                 EffectMemory::Tabula(Box::new(crate::fx::tabula::Lines::new(n)))
             } // fx3:contract
+            MemoryNeed::Arca(n) => {
+                EffectMemory::Arca(Box::new(crate::fx::arca::build(n, sample_rate)))
+            } // fx3:arca
         }
     }
 }
@@ -329,6 +338,7 @@ impl EffectUnit {
             }
             MemoryNeed::Lapsus(n) => NeedTicket::Lapsus(n), // fx:lapsus
             MemoryNeed::Tabula(n) => NeedTicket::Tabula(n), // fx3:contract
+            MemoryNeed::Arca(n) => NeedTicket::Arca(n),     // fx3:arca
         };
         self.asked = need;
         Some(ticket)
