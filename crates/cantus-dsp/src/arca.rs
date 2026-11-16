@@ -178,6 +178,7 @@ fn sag_factor(s: f64) -> f64 {
     crate::math::powf(3.0f64, (s.clamp(0.0, 1.0) - 0.5) * 2.0)
 }
 
+#[derive(Clone)]
 pub struct Arca {
     sr: f32,
     set: ArcaSettings,
@@ -338,6 +339,20 @@ impl Arca {
             crate::math::db_to_gain(s.out_db)
         };
         self.latency = s.latency();
+        // Nothing has sounded since the start (or a reset): the settings are the unit's
+        // from its first sample — the levels land, the amp is built — whatever order its
+        // host sets and resets it in (an export and a section played from a checkpoint
+        // then agree to the bit).
+        if self.t == 0 {
+            self.mix.v = self.mix.to;
+            self.out.v = self.out.to;
+            match s.model {
+                Some(m) if self.built != Some(m) => self.build(m),
+                None => self.built = None,
+                _ => {}
+            }
+            self.fade = FADE;
+        }
     }
 
     pub fn latency(&self) -> usize {

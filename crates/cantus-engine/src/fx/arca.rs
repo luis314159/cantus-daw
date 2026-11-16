@@ -181,16 +181,15 @@ pub struct Unit {
 
 impl Clone for Unit {
     fn clone(&self) -> Self {
-        // A fork plays the same response (the kernel shared, the state its own).
-        let mut u = Unit::new(self.dsp.sample_rate());
-        u.want = self.want;
-        u.have = self.have;
-        if let Some(k) = self.dsp.cab_kernel() {
-            let _ = u.dsp.supply_cab(k, None);
+        // A fork carries on from where this one is: its circuits, its oversampler, its
+        // cabinet's convolution (the kernel shared, the state copied) — a section played
+        // from a checkpoint is the whole render to the bit.
+        Unit {
+            dsp: self.dsp.clone(),
+            want: self.want,
+            have: self.have,
+            set: self.set,
         }
-        u.set = self.set;
-        u.apply();
-        u
     }
 }
 
