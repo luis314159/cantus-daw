@@ -160,7 +160,7 @@ plain 4× meter does (both within the tolerance).
   reference) and 2.0 s of 6 (free, song stopped).
 - **The switch's click**: the output's peak above 2 kHz (4th-order high-pass) around a switch
   between 100 Hz and 150 Hz sines at −6 dBFS: hard switch **−43.2 dBFS**, the 30 ms crossfade
-  **−94.0 dBFS** (the 150 Hz sine's own residue through that high-pass is about −96: the fade
+  **−94.0 dBFS** (the 150 Hz sine alone through that high-pass reads −96.2, measured: the fade
   adds next to nothing; unshaped `sin`/`cos` read −66.2).
 - **Level through the crossfade**, switching every 100 ms between unrelated noises: −0.007 dB.
 - **Match accuracy** on the unit's output, by a separate meter: integrated, a reference 12 LU
@@ -197,16 +197,18 @@ integrated match levels the *whole played spans* exactly; over a part of them it
 much the two versions' loudness ratio moves within the song (the reference is clipped, the mix
 is not).
 
-**CPU** (release, 48 kHz, blocks of 512, best of three, share of one core; measured while two or
-three other builders were compiling on the machine, so these are upper bounds):
+**CPU** (release, 48 kHz, blocks of 512, best of three, share of one core). Measured twice:
+first with two or three other builders compiling (the numbers in brackets), then with no
+compiler running at the start (other sessions' `cargo` processes were alive, possibly running
+tests, so these are still upper bounds):
 
 | Case | One core |
 |---|---|
-| The reference heard (read, analysed, matched) | 1.61 % |
-| The mix heard, the reference analysed beside it | 1.59 % |
-| The mix alone (no reference loaded) | 0.91 % |
-| At rest (silence skipped, the song stopped) | 0.08 % |
-| The tonal worker, both sources, sixth octaves (off the audio thread) | 0.53 %; its longest call 1.45 ms |
+| The reference heard (read, analysed, matched) | 1.45 % (1.61 %) |
+| The mix heard, the reference analysed beside it | 1.34 % (1.59 %) |
+| The mix alone (no reference loaded) | 0.69 % (0.91 %) |
+| At rest (silence skipped, the song stopped) | 0.056 % (0.08 %) |
+| The tonal worker, both sources, sixth octaves (off the audio thread) | 0.41 % (0.53 %); its longest call 1.03 ms (1.45 ms) |
 
 The cost is mostly the two 4× true-peak detectors per source (Terminus's, ~100 multiply-adds a
 sample a channel) and the band filters; a phase B profile may move the stereo bands to the
@@ -230,3 +232,147 @@ worker if it matters.
 
 `cargo test -p cantus-dsp --no-fail-fast`: 946 passed (17 ignored), and every integration test;
 `cargo clippy -p cantus-dsp --all-targets -- -D warnings` clean; `cargo fmt -p cantus-dsp`.
+
+## Verified only in emulation, and the misses — honestly
+
+- **No real reference track and no ear has heard it.** Everything above is tests and an offline
+  report; the switch's click is measured, not listened to. The owner's ears belong in Phase B
+  (`docs/beta-checklist.md` steps: A/B a commercial master against a mix, blind ABX ten trials).
+- **The outside sources are definitions, not the EBU's files.** Tech 3341 cases 6 (5.0), 7, 8,
+  10, 11, 13, 14 and 20–23 and Tech 3342 cases 5 and 6 are recordings the EBU distributes; they
+  were not downloaded (behind the proxy) and are not run. Terminus's own suite holds the same
+  meter's 3341/3342 synthetic cases too. Comparatio meters **stereo only** (no 5.1).
+- **The true-peak cases are faded in and out** over 100 ms (an abrupt start overshoots between
+  its first samples; the EBU files' own start was not checked).
+- **The BS.1770-4 Annex 2 coefficients** were typed from the standard's table (Annex 2,
+  Table 1); the phases' symmetry (phase 3 is phase 0 reversed, phase 2 is phase 1 reversed)
+  and their readings within the tolerance on all five cases agree with that, but they were not
+  diffed against a copy of the PDF on this machine.
+- **Tests were written beside the code, not each before it.** Several of them caught real
+  defects on their first run: the crest factor's sum depending on the pieces, the `f32` glide
+  that never landed, the reader's skip leaving another state than reading, the loop's wrap
+  inside a fade, the short-term gate raising the edge of a quiet passage, the unshaped fade's
+  −66 dB click, and a confidence that called a whole song's balance doubtful because its
+  loudness moved.
+- **The confidence is a model, not a proof**: a standard error that counts half-overlapped
+  frames as `n/2` independent ones. It is right for stationary noise (tested) and indicative on
+  music. Its 1 dB "half confidence" point is a choice, said in the code.
+- **The integrated match is exact over the whole played spans, not over every part of them**
+  (+0.09 LU over the second half of the guitar report): that is what "integrated" means; the
+  short-term mode is the one that follows section by section.
+- **A jump during a fade** (a seek within 5 ms of another) drops the older fading voice at the
+  level it had faded to: the one step left. **A reference swapped while it is heard** starts
+  the new one from silence but cuts the old one (the reader cannot read a file it no longer
+  has): Phase B's engine fades to the mix before swapping (below).
+- **The free playhead runs only while the song plays.** A reference that plays on its own with
+  the song stopped (a "reference transport") is Phase B's, if the owner wants it.
+- **CPU was measured on a shared machine** (other sessions' builds and tests): upper bounds,
+  said where they are given.
+- **The match EQ is a suggestion only**: Comparatio never filters the mix. Minimum or linear
+  phase is Aequalis's mode when the engine hands it the fitted bands.
+
+## Phase B — the plan
+
+### The engine (`cantus-engine`, `cantus-core`, `cantus-project`)
+
+1. **The kind and the model.** `EffectKind::Comparatio` (the integrator's number), its
+   parameters (listen, match, offset, fade, sync with its offset and loop in seconds, the blind
+   seed and trial, the reference loudness source, the selected reference) and a schema bump with
+   **the reference list in the project**: each reference a path (relative to the project, as an
+   audio clip's), a name, its cue point, its loop region and its offset, and which one is
+   selected. Every edit a `Command` with its inverse and its undo-fuzz arm. References are never
+   copied into the project file.
+2. **Decoding off the audio thread.** References load through the existing loader
+   (`SampleCache::load_audio(path, rate)`: WAV, AIFF, FLAC, Ogg; resampled to the session's rate
+   with its windowed sinc; in the background, silence until it arrives), held as
+   `Arc<SampleData>` and handed to the master's unit by the message path the sampler uses (no
+   allocation or lock on the audio thread; the old `Arc` dropped on the main thread). **In
+   memory or streamed**: five minutes of stereo at 48 kHz is 115 MB in `f32`; with several
+   references that argues for streaming the long ones through the engine's `stream_cache`
+   (Exemplar's disk streaming). Phase B decides by measurement (load time, and memory against
+   the quiet budget of rounds 38–39).
+3. **The whole-file analysis at load** (`analyse_whole`, on the loader's thread): the integrated
+   loudness for the whole-file match, and the reference's curve, histogram and readings for the
+   panel before a note has played.
+4. **The master's slot.** The unit sits **after the master's chain, before the master meter**
+   (the user compares what the master sends out), as a fixed post-chain slot rather than an
+   ordinary insert, so the reference is never processed by the master's own effects. The export
+   **never** renders it (an export with the reference selected renders the mix; a test holds
+   it). Its transport is the engine's `SongPosition` reduced to `modfx_clock::Transport`, as for
+   the modulation family.
+5. **A reference swap** while the reference is heard: the engine first sets the mix, waits for
+   the meter's `Heard::Mix`, then swaps (no click; the swap test).
+6. **Telemetry.** `process_tapped` writes the four streams into a lock-free ring that the UI
+   thread drains into two `Tonal` analysers (the worker); `meter()` is published every 100 ms
+   step through the telemetry path the other units use. Blind mode publishes `Hidden`.
+7. **Tests:** the engine's null at the defaults (`fx_comparatio.rs`); the table-driven
+   `fx_contract.rs` (block sizes, split invariance, exact rest twin); offline equals real time
+   with the reference heard; `rt_memory.rs` with a reference playing and one loading while the
+   song plays; and **the end-to-end test** through `CantusApp::assemble`: load a reference (a
+   WAV the test writes), play a track, press the reference button, hear the reference on the
+   master at the mix's integrated loudness within 0.1 LU, press the mix button, hear the mix to
+   the bit.
+
+### The panel — a design sheet first, for the owner's approval
+
+- **A personality of its own**, distinct from every unit: a measuring instrument — two matched
+  channels side by side, **fine strokes** (hairlines, a measuring scale), no pedal-like knobs.
+  Its centre is a **dark display in both themes** (Slate and Paper), like an instrument's
+  screen, showing:
+  - the **two tonal-balance curves** (the mix and the reference, in two kit accents with a
+    legend naming them) and **their difference** below on its own zero line, the uncertainty
+    drawn as a soft band and the curve fading where the confidence is low; a third- and
+    sixth-octave switch; the match-EQ proposal drawn over the difference, with its amount and
+    limit as two plain sliders and "Send to Aequalis" as a button;
+  - the **loudness**: integrated, short-term and momentary for both, side by side; the match
+    gain in dB; the mode (Integrated, Short-term, Manual) and the offset;
+  - the **dynamics**: crest factor, peak to loudness, peak to short-term loudness, loudness
+    range, and the two short-term histograms mirrored on one axis;
+  - the **stereo**: correlation and width for the whole, the lows, the mids and the highs;
+  - the **true peak** of each.
+- **Big A/B buttons** ("Your mix" and "Reference", the reference's name under it) and a
+  **Blind** button that opens the test (A, B, X; "X is your mix" / "X is the reference"; the
+  trials; the score and the chance of guessing it at the end; the preference test beside it).
+  Every label whole, **nothing abbreviated in English or Spanish** ("Loudness range", not
+  "LRA"; "Rango de sonoridad").
+- **The reference list**: a strip of the loaded references (drop a file, or the browser's "Use
+  as reference"), each with its name, length, integrated loudness and an overview where the cue
+  and the loop region are dragged; the sync (Free, Locked to the song, Loop) with the offset in
+  bars and beats and in seconds.
+- Shot by its own `shoot` example at 75, 100, 150 and 200 %, Slate and Paper, English and
+  Spanish, at rest and playing; beside the reference products' windows (kept under
+  `C:\projects\daw-fx\refs\`, never committed); the frame budget measured with it open; then
+  **stop for the owner's approval**.
+
+### Presets
+
+The defaults are the null (the mix heard); a starting preset; and factory presets that are ways
+of comparing: "Mastering: integrated match", "Mixing: live short-term match", "Loop the chorus",
+"Blind check, ten trials", "Low end check" (sixth octaves, the lows' stereo), "Loud master: offset
+−1 dB" — named in both languages, ten or more.
+
+### CLAP/VST3 export, and loading a reference in another host
+
+- The exported plug-in is the same `FxHost` editor, bit-identical to the engine at the null.
+- **Loading a reference inside another host**: the editor's own "Load reference…" (a native
+  file dialog on the plug-in's UI thread) and drag-and-drop onto the editor; decoding and
+  resampling on a plug-in background thread (at the host's rate from `activate`); the paths
+  saved in the plug-in's state (CLAP `state`, VST3 `getState`) with each file's size and hash,
+  and **a missing file reported, never silently skipped**; the audio itself is *not* saved in
+  the state (sessions would grow by hundreds of megabytes). Locked sync reads the host's
+  transport (CLAP `transport`, VST3 `ProcessContext`).
+- The CLAP/VST3 tests over every descriptor, plus one that loads a WAV through the state.
+
+### Docs
+
+`docs/plugins/comparatio.md`, the manual's section in English and Spanish, the AI tools' unit
+description, the site's unit card, its ADR (the master's post-chain slot, references in the
+project by path, never exported), and `docs/beta-checklist.md`'s listening steps.
+
+## Left
+
+- Nothing in the DSP phase that does not need the owner: his **approval of the panel's design
+  sheet** (Phase B's first step) and his **ears** on a real A/B and ABX.
+- For the integrator: one `lib.rs` line; `comprimo_loudness.rs` now uses Terminus's
+  K-weighting (guarded by `comparatio_tests_shared.rs`); `terminus_loudness.rs` gains an
+  additive `LoudnessMeter::reset`. No kind, no schema and no ADR number taken.
