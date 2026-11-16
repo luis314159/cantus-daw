@@ -70,6 +70,8 @@ pub struct VerbSettings {
     /// The room's T60, s, 0.1–10 (Set; Estimate's starting point).
     pub decay_s: f32,
     /// The direct-to-reverberant ratio assumed, dB, −10…+20: higher for a close microphone.
+    /// Default +6 dB (dialogue first: a dry voice keeps its level within 1 dB); a far
+    /// microphone's presets set 0 dB.
     pub direct_db: f32,
     /// 0–1: the gains' smoothing (and the decision-directed weight).
     pub smoothing: f32,
@@ -87,7 +89,7 @@ impl Default for VerbSettings {
             amount_db: 12.0,
             decay: DecayMode::Set,
             decay_s: 0.8,
-            direct_db: 0.0,
+            direct_db: 6.0,
             smoothing: 0.5,
             keep_ms: 50.0,
             mix: 1.0,
@@ -104,7 +106,7 @@ impl VerbSettings {
         VerbSettings {
             amount_db: f(self.amount_db, 0.0, 30.0, 12.0),
             decay_s: f(self.decay_s, 0.1, 10.0, 0.8),
-            direct_db: f(self.direct_db, -10.0, 20.0, 0.0),
+            direct_db: f(self.direct_db, -10.0, 20.0, 6.0),
             smoothing: f(self.smoothing, 0.0, 1.0, 0.5),
             keep_ms: f(self.keep_ms, 5.0, MAX_KEEP_MS, 50.0),
             mix: f(self.mix, 0.0, 1.0, 1.0),

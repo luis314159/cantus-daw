@@ -225,8 +225,11 @@ pub struct Dehum {
     /// The nominal the tracker centres on, and the fundamental now.
     nominal: f64,
     f0: f64,
-    /// The loop's rate of change of the fundamental, Hz per grid step.
+    /// The loop's state: the frequency loop's rate of change of the fundamental (Hz per grid
+    /// step), or the phase-locked loop's integrator (Hz from the nominal); and the phase the
+    /// hum has turned from the reference (the phase-locked loop's error, radians).
     rate: f64,
+    phase: f64,
     /// The reference: `e^{jθ}` at the fundamental, and its step.
     z1: C,
     step: C,
@@ -286,6 +289,7 @@ impl Dehum {
             nominal: 50.0,
             f0: 50.0,
             rate: 0.0,
+            phase: 0.0,
             z1: C::ONE,
             step: C::ONE,
             za: C::ONE,
@@ -340,8 +344,11 @@ const REF_HZ: f64 = 0.5;
 /// The tracker's loop: its natural frequency, Hz, and damping.
 const LOOP_HZ: f64 = 0.5;
 const LOOP_DAMPING: f64 = 0.8;
-/// The tracker's loop in the gentle mode, Hz.
-const GENTLE_LOOP_HZ: f64 = 0.08;
+/// Gentle: a tracker reading counts half when what the hum does not explain in its band is
+/// this share of the hum (and less as it grows).
+const TRUST_REL: f64 = 0.2;
+/// The gentle mode's phase-locked loop: its natural frequency, Hz.
+const PLL_HZ: f64 = 0.1;
 /// The readings the loop averages: those within this of their weighted median, Hz.
 const TRIM_HZ: f64 = 0.3;
 /// Gentle: how long it learns freely (twice as fast, no gate) after the first sound, s.
@@ -395,11 +402,19 @@ impl Dehum {
             self.nominal = Self::nominal_of(&s);
             self.f0 = self.nominal;
             self.rate = 0.0;
+            self.phase = 0.0;
             self.retune();
         }
         if old.gentle != s.gentle {
             self.lanes = [Lane::default(), Lane::default()];
             self.clear_ahead();
+            // The loops' states mean other things: carried over continuously.
+            self.phase = 0.0;
+            self.rate = if s.gentle {
+                self.f0 - self.nominal
+            } else {
+                0.0
+            };
         }
     }
 
@@ -409,6 +424,7 @@ impl Dehum {
         self.nominal = Self::nominal_of(&self.s);
         self.f0 = self.nominal;
         self.rate = 0.0;
+        self.phase = 0.0;
         self.z1 = C::ONE;
         self.za = C::ONE;
         self.q1 = [C::ZERO; MAX_HARMONICS];
@@ -612,6 +628,11 @@ impl Dehum {
     }
 
     /// The frequency-locked loop's step; whether the fundamental moved.
+    /// The frequency the phase-locked loop's integrator is reckoned from.
+    fn nominal_f(&self) -> f64 {
+        self.nominal
+    }
+
     fn follow(&mut self) -> bool {
         // Each harmonic's own reading of the hum's offset from the reference, Hz, and its
         // weight (its band's strength); the reading is their weighted median, so a
@@ -626,6 +647,10 @@ impl Dehum {
             if (k + 1) as f64 * self.f0 >= 0.45 * self.fs {
                 continue;
             }
+            // Gentle: a harmonic a note holds tells of the note, not of the hum.
+            if self.s.gentle && (self.lanes[0].held[k] || self.lanes[1].held[k]) {
+                continue;
+            }
             let r = q.mul(C {
                 re: p.re,
                 im: -p.im,
@@ -636,7 +661,18 @@ impl Dehum {
             }
             let phi = math::atan2(r.im, r.re);
             df[n] = phi * self.fs / (2.0 * std::f64::consts::PI * (k + 1) as f64 * GRID as f64);
-            w[n] = m;
+            // Gentle: a band the hum learned explains well is trusted; one where something
+            // else sounds (what the hum does not explain is large) much less.
+            w[n] = if self.s.gentle {
+                let mut c = 0.0;
+                for l in &self.lanes {
+                    let rel = l.e3[k].norm2() / (TRUST_REL * TRUST_REL * l.s_b[k].norm2() + 1e-24);
+                    c += 0.5 / (1.0 + rel);
+                }
+                m * c
+            } else {
+                m
+            };
             n += 1;
         }
         let total: f64 = w[..n].iter().sum();
@@ -670,24 +706,38 @@ impl Dehum {
             }
         }
         let e = sum / ws;
-        // A second-order loop (a ramp followed without a lag), critically damped-ish.
-        // The gentle mode holds estimates against the reference for seconds: it wants the
-        // reference's phase steady more than quick, so its loop is slower.
-        let loop_hz = if self.s.gentle {
-            GENTLE_LOOP_HZ
-        } else {
-            LOOP_HZ
-        };
-        let wt = 2.0 * std::f64::consts::PI * loop_hz * GRID as f64 / self.fs;
-        let g1 = 2.0 * LOOP_DAMPING * wt;
-        let g2 = wt * wt;
         let lo = self.nominal - TRACK_RANGE_HZ;
         let hi = self.nominal + TRACK_RANGE_HZ;
-        let mut f = self.f0 + g1 * e + self.rate;
-        self.rate += g2 * e;
+        let t = GRID as f64 / self.fs;
+        let mut f = if self.s.gentle {
+            // The gentle mode holds estimates against the reference for seconds: the
+            // reference is **phase-locked** to the hum. The phase the hum has turned from it
+            // (the readings summed) is driven back to zero by a second-order loop, so the
+            // phase between them stays put instead of wandering as the frequency's errors
+            // add up.
+            self.phase += 2.0 * std::f64::consts::PI * e * t;
+            let wn = 2.0 * std::f64::consts::PI * PLL_HZ;
+            let kp = 2.0 * LOOP_DAMPING * wn / (2.0 * std::f64::consts::PI);
+            let ki = wn * wn * t / (2.0 * std::f64::consts::PI);
+            self.rate += ki * self.phase;
+            self.nominal_f() + self.rate + kp * self.phase
+        } else {
+            // A second-order frequency loop (a ramp followed without a lag).
+            let wt = 2.0 * std::f64::consts::PI * LOOP_HZ * t;
+            let g1 = 2.0 * LOOP_DAMPING * wt;
+            let g2 = wt * wt;
+            let f = self.f0 + g1 * e + self.rate;
+            self.rate += g2 * e;
+            f
+        };
         if f <= lo || f >= hi {
             f = f.clamp(lo, hi);
-            self.rate = 0.0;
+            self.rate = if self.s.gentle {
+                f - self.nominal_f()
+            } else {
+                0.0
+            };
+            self.phase = 0.0;
         }
         let moved = f != self.f0;
         self.f0 = f;
@@ -716,6 +766,7 @@ impl Dehum {
         self.nominal = if self.nominal == 60.0 { 50.0 } else { 60.0 };
         self.f0 = self.nominal;
         self.rate = 0.0;
+        self.phase = 0.0;
         self.za = C::ONE;
         self.q1 = [C::ZERO; MAX_HARMONICS];
         self.q2 = [C::ZERO; MAX_HARMONICS];

@@ -478,6 +478,33 @@ fn purus_gentle_guitar() {
             h.gentle = gentle;
         });
         let y = mono_at(&s, &x, sr);
+        // How far the reference strayed from the hum's true frequency, and how much of the
+        // time each harmonic was held.
+        let mut p = Purus::new(sr);
+        p.set(&s);
+        let (mut worst, mut at) = (0.0f64, 0usize);
+        let mut held = [0usize; 8];
+        let mut blocks = 0usize;
+        let _ = testkit::render(&x, 256, |l, r| {
+            p.process(l, r);
+            at += l.len();
+            if at > from {
+                let m = p.meter();
+                worst = worst.max((m.hum_hz as f64 - drift(at as f64 / sr as f64)).abs());
+                for (k, h) in held.iter_mut().enumerate() {
+                    *h += m.hum_held[k] as usize;
+                }
+                blocks += 1;
+            }
+        });
+        let held: Vec<String> = held
+            .iter()
+            .map(|h| format!("{:.0}", 100.0 * *h as f64 / blocks as f64))
+            .collect();
+        println!(
+            "guitar, {name}: the reference within {worst:.4} Hz; held (% of the time) {}",
+            held.join(" ")
+        );
         let left: Vec<f32> = y[from..]
             .iter()
             .zip(&g[from..])

@@ -229,9 +229,18 @@ fn the_decay_is_estimated_from_the_signal() {
 fn a_dry_voice_is_nearly_left_alone() {
     let dry = testkit::spoken(SR, 150.0, 16, 0.5, 21);
     for (name, s) in [
-        ("defaults (0.8 s, 0 dB, 12 dB)", verb(|_| {})),
-        ("24 dB", verb(|v| v.amount_db = 24.0)),
-        ("direct +6 dB", verb(|v| v.direct_db = 6.0)),
+        ("defaults (0.8 s, direct +6 dB, 12 dB)", verb(|_| {})),
+        (
+            "direct 0 dB (a far microphone)",
+            verb(|v| v.direct_db = 0.0),
+        ),
+        (
+            "direct 0 dB, 24 dB",
+            verb(|v| {
+                v.direct_db = 0.0;
+                v.amount_db = 24.0;
+            }),
+        ),
         ("direct +12 dB", verb(|v| v.direct_db = 12.0)),
     ] {
         let y = through(&s, &dry);
