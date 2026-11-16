@@ -155,15 +155,18 @@ impl Analyser {
             self.meter.process(l, r);
             self.stereo.process(l, r);
             // Summed sample by sample into the step's own sum: the same additions in the
-            // same order whatever the pieces.
-            let mut sq = self.step_sq;
-            let mut pk = self.peak;
-            for (&a, &b) in l.iter().zip(r) {
-                sq += a as f64 * a as f64 + b as f64 * b as f64;
-                pk = pk.max(a.abs()).max(b.abs());
+            // same order whatever the pieces. Silence adds +0 and raises no peak, so a
+            // silent piece is skipped (the sum is never −0: it starts at +0).
+            if !(crate::rest::all_zero(l) && crate::rest::all_zero(r)) {
+                let mut sq = self.step_sq;
+                let mut pk = self.peak;
+                for (&a, &b) in l.iter().zip(r) {
+                    sq += a as f64 * a as f64 + b as f64 * b as f64;
+                    pk = pk.max(a.abs()).max(b.abs());
+                }
+                self.peak = pk;
+                self.step_sq = sq;
             }
-            self.peak = pk;
-            self.step_sq = sq;
             self.step_n += 2 * take as u64;
             self.col_pos += take;
             i += take;
@@ -228,7 +231,9 @@ impl Analyser {
             true_peak_db: tp_db,
             sample_peak_db: db(self.peak as f64),
             crest_db: crest,
-            plr: integrated.filter(|_| self.true_peak > 0.0).map(|i| tp_db - i),
+            plr: integrated
+                .filter(|_| self.true_peak > 0.0)
+                .map(|i| tp_db - i),
             psr: self.psr,
             psr_mean: (self.psr_n > 0).then(|| self.psr_sum / self.psr_n as f64),
             stereo: self.stereo.total(),

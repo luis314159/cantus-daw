@@ -83,6 +83,7 @@ pub fn limit(x: f32, max: f32) -> f32 {
 }
 
 /// The curve that moves the mix toward the reference (see the module notes).
+#[allow(clippy::needless_range_loop)] // bands indexed across several parallel arrays
 pub fn suggest(diff: &Difference, opts: &MatchOptions) -> MatchCurve {
     let bands = &diff.bands;
     let n = bands.count;

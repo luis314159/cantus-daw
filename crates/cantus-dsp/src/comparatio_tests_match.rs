@@ -35,7 +35,14 @@ fn the_integrated_match_levels_within_a_tenth_of_a_lu() {
         };
         let sw = 12 * FS as usize;
         let mut u = Comparatio::new(FS);
-        let (ol, or) = drive(&mut u, (&ml, &mr), Some(&rf), 512, 0, &[(0, base), (sw, on)]);
+        let (ol, or) = drive(
+            &mut u,
+            (&ml, &mr),
+            Some(&rf),
+            512,
+            0,
+            &[(0, base), (sw, on)],
+        );
         let from = sw + 4 * FS as usize;
         let to = from + 8 * FS as usize;
         let heard = integrated(&ol[from..to], &or[from..to]);
@@ -84,7 +91,11 @@ fn the_short_term_match_follows_and_holds_through_quiet_passages() {
     for start in (0..n).step_by(480) {
         u.set(&s);
         u.set_transport(&playing(start as i64));
-        u.process(&mut ol[start..start + 480], &mut or[start..start + 480], Some(rf.audio()));
+        u.process(
+            &mut ol[start..start + 480],
+            &mut or[start..start + 480],
+            Some(rf.audio()),
+        );
         if (start + 480) % step == 0 {
             gains.push(u.meter().gain_db);
         }
@@ -99,8 +110,14 @@ fn the_short_term_match_follows_and_holds_through_quiet_passages() {
         );
         assert!((heard - mix).abs() < 0.1, "step {k}: {heard} against {mix}");
     }
-    eprintln!("through the quiet passage the gain held at {:.2} dB (before {:.2})", gains[2], gains[1]);
-    assert!((gains[2] - gains[1]).abs() < 0.5, "a quiet passage is not raised");
+    eprintln!(
+        "through the quiet passage the gain held at {:.2} dB (before {:.2})",
+        gains[2], gains[1]
+    );
+    assert!(
+        (gains[2] - gains[1]).abs() < 0.5,
+        "a quiet passage is not raised"
+    );
 }
 
 /// Locked to the song: the reference heard is the song's position plus the offset, to the
@@ -216,7 +233,9 @@ fn the_blind_test_is_reproducible_hidden_and_scored_exactly() {
     let c: Vec<bool> = (0..64).map(|t| blind::x_is_reference(43, t)).collect();
     assert_eq!(a, b);
     assert_ne!(a, c);
-    let heads = (0..10_000u32).filter(|t| blind::x_is_reference(7, *t)).count();
+    let heads = (0..10_000u32)
+        .filter(|t| blind::x_is_reference(7, *t))
+        .count();
     assert!((4_850..5_150).contains(&heads), "fair: {heads}");
     let same = (0..10_000u32)
         .filter(|t| blind::x_is_reference(7, *t) == blind::x_is_reference(7, t + 1))

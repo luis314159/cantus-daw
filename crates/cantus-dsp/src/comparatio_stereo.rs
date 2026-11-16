@@ -115,11 +115,20 @@ impl Split {
     }
 
     fn is_clear(&self) -> bool {
-        self.low.iter().chain(&self.mid).chain(&self.high).all(Section::is_clear)
+        self.low
+            .iter()
+            .chain(&self.mid)
+            .chain(&self.high)
+            .all(Section::is_clear)
     }
 
     fn reset(&mut self) {
-        for s in self.low.iter_mut().chain(&mut self.mid).chain(&mut self.high) {
+        for s in self
+            .low
+            .iter_mut()
+            .chain(&mut self.mid)
+            .chain(&mut self.high)
+        {
             s.z = [0.0; 2];
         }
     }

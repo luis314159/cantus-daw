@@ -33,7 +33,7 @@ fn slope(c: &Curve, lo: f32, hi: f32) -> (f64, f64) {
         pts.iter().map(|p| p.1).sum::<f64>() / n,
     );
     let k = pts.iter().map(|p| (p.0 - mx) * (p.1 - my)).sum::<f64>()
-        / pts.iter().map(|p| (p.0 - mx).powi(2)).sum::<f64>();
+        / pts.iter().map(|p| (p.0 - mx) * (p.0 - mx)).sum::<f64>();
     let dev = pts
         .iter()
         .map(|p| (p.1 - (my + k * (p.0 - mx))).abs())
@@ -51,7 +51,10 @@ fn pink_noise_is_flat_and_white_rises_three_db_an_octave() {
         let w = curve(&white(N, 3, 0.1), &white(N, 4, 0.1), res);
         let (k, dev) = slope(&w, 25.0, 16_000.0);
         eprintln!("{res:?} white: {k:+.4} dB/oct (3.0103), off the line by {dev:.3} dB");
-        assert!((k - 3.0103).abs() < 0.05 && dev < 0.6, "white {res:?}: {k} {dev}");
+        assert!(
+            (k - 3.0103).abs() < 0.05 && dev < 0.6,
+            "white {res:?}: {k} {dev}"
+        );
     }
 }
 
@@ -69,7 +72,10 @@ fn a_sine_reads_its_mean_square_and_the_curve_is_level_free() {
     assert!((c.abs_db[b] as f64 + 3.0103).abs() < 0.05);
     let (l, r) = (pink(N, 5, 0.05), pink(N, 6, 0.05));
     let a = curve(&l, &r, Resolution::Third);
-    let loud: (Vec<f32>, Vec<f32>) = (l.iter().map(|v| v * 2.0).collect(), r.iter().map(|v| v * 2.0).collect());
+    let loud: (Vec<f32>, Vec<f32>) = (
+        l.iter().map(|v| v * 2.0).collect(),
+        r.iter().map(|v| v * 2.0).collect(),
+    );
     let b = curve(&loud.0, &loud.1, Resolution::Third);
     for k in 0..a.bands.count {
         assert!((a.db[k] - b.db[k]).abs() < 1e-3, "band {k}");
@@ -79,7 +85,7 @@ fn a_sine_reads_its_mean_square_and_the_curve_is_level_free() {
 
 /// A tilt made in the frequency domain (−4 dB under 300 Hz to +5 dB over 5 kHz, smooth)
 /// is read back as the difference, every band from 31.5 Hz to 16 kHz within 0.25 dB once
-/// the constant the normalisation leaves is taken off; the confidence is high.
+/// the constant the normalisation leaves is taken off; the confidence over 0.9 above 100 Hz.
 #[test]
 fn a_known_tilt_is_the_difference() {
     let tilt = |f: f64| 0.5 + 4.5 * math::tanh(1.2 * math::log2(f / 1_200.0));
@@ -104,9 +110,13 @@ fn a_known_tilt_is_the_difference() {
         let err = d.db[b] as f64 + tilt(bands.centre[b] as f64) - c;
         worst = worst.max(err.abs());
         // A band holds fewer bins the lower it is, so its frames wander more and it earns
-        // less confidence in the same time (≈ 0.25 dB of uncertainty at 125 Hz in 22 s).
-        let floor = if bands.centre[b] > 400.0 { 0.9 } else { 0.4 };
-        assert!(d.confidence[b] > floor, "band {b}: confidence {}", d.confidence[b]);
+        // less confidence in the same time.
+        let floor = if bands.centre[b] > 100.0 { 0.9 } else { 0.5 };
+        assert!(
+            d.confidence[b] > floor,
+            "band {b}: confidence {}",
+            d.confidence[b]
+        );
     }
     eprintln!("a known tilt read back: worst band off by {worst:.3} dB (constant {c:+.2})");
     assert!(worst < 0.25, "{worst}");
@@ -128,7 +138,10 @@ fn a_known_tilt_is_the_difference() {
         let got = at(hz) - at(1_000.0);
         worst = worst.max((got - want).abs());
     }
-    eprintln!("the match curve's shape against the tilt: worst {worst:.3} dB; makeup {:+.2} dB", m.makeup_db);
+    eprintln!(
+        "the match curve's shape against the tilt: worst {worst:.3} dB; makeup {:+.2} dB",
+        m.makeup_db
+    );
     assert!(worst < 0.5, "{worst}");
     let fit = crate::aequalis::fit::fit(pts, &crate::aequalis::fit::FitOptions::default(), FS);
     eprintln!(
@@ -139,11 +152,26 @@ fn a_known_tilt_is_the_difference() {
     );
     assert!(fit.rms_db < 0.75, "the fit: {}", fit.rms_db);
     // Half the amount is half the curve; the limit holds.
-    let half = suggest(&d, &MatchOptions { amount: 0.5, ..opts });
-    let limited = suggest(&d, &MatchOptions { max_db: 2.0, ..opts });
+    let half = suggest(
+        &d,
+        &MatchOptions {
+            amount: 0.5,
+            ..opts
+        },
+    );
+    let limited = suggest(
+        &d,
+        &MatchOptions {
+            max_db: 2.0,
+            ..opts
+        },
+    );
     for b in 0..m.count {
         let (full, h) = (m.points[b].1, half.points[b].1);
-        assert!((h - full / 2.0).abs() < 0.05 + full.abs() * 0.02, "band {b}: {h} {full}");
+        assert!(
+            (h - full / 2.0).abs() < 0.05 + full.abs() * 0.02,
+            "band {b}: {h} {full}"
+        );
         assert!(limited.points[b].1.abs() <= 2.0);
     }
 }
@@ -183,7 +211,8 @@ fn correlation_and_width_read_what_they_are_made_of() {
     let t = noise(n, 22);
     let u = noise(n, 23);
     let neg: Vec<f32> = s.iter().map(|v| -v).collect();
-    let mut cases: Vec<(&str, Vec<f32>, Vec<f32>, f64, f64)> = vec![
+    type Case = (&'static str, Vec<f32>, Vec<f32>, f64, f64);
+    let mut cases: Vec<Case> = vec![
         ("mono", s.clone(), s.clone(), 1.0, 0.0),
         ("out of phase", s.clone(), neg, -1.0, 2.0),
         ("unrelated", s.clone(), t.clone(), 0.0, 1.0),
@@ -212,7 +241,11 @@ fn correlation_and_width_read_what_they_are_made_of() {
     assert!(lows.correlation.unwrap() > 0.99 && lows.width.unwrap() < 0.02);
     assert!(highs.correlation.unwrap() < -0.99 && highs.width.unwrap() > 1.98);
     let quiet = analyse(&vec![0.0; 9_600], &vec![0.0; 9_600]).stereo[super::stereo::WHOLE];
-    assert_eq!((quiet.correlation, quiet.width), (None, None), "silence reads nothing");
+    assert_eq!(
+        (quiet.correlation, quiet.width),
+        (None, None),
+        "silence reads nothing"
+    );
 }
 
 /// Crest factor: a sine 3.01 dB, a square 0 dB, one sample in sixteen 12.04 dB — with
@@ -226,8 +259,12 @@ fn crest_plr_and_psr_of_known_signals() {
         v
     };
     let n = 4 * FS as usize;
-    let sq: Vec<f32> = (0..n).map(|i| if (i / 50) % 2 == 0 { 0.5 } else { -0.5 }).collect();
-    let pulses: Vec<f32> = (0..n).map(|i| if i % 16 == 0 { 0.8 } else { 0.0 }).collect();
+    let sq: Vec<f32> = (0..n)
+        .map(|i| if (i / 50) % 2 == 0 { 0.5 } else { -0.5 })
+        .collect();
+    let pulses: Vec<f32> = (0..n)
+        .map(|i| if i % 16 == 0 { 0.8 } else { 0.0 })
+        .collect();
     for (what, x, want) in [
         ("sine", sine(440.0, -6.0, 4.0, 0.0), 3.0103),
         ("square", sq, 0.0),

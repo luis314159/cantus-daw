@@ -109,7 +109,12 @@ fn comparatio_allocates_nothing_after_new() {
     let mut pos = 0usize;
     let mut song = 0i64;
     let mut sink = 0f32;
-    for (k, block) in [64usize, 37, 512, 4_096, 1, 300].iter().cycle().take(900).enumerate() {
+    for (k, block) in [64usize, 37, 512, 4_096, 1, 300]
+        .iter()
+        .cycle()
+        .take(900)
+        .enumerate()
+    {
         let n = *block;
         if pos + n > mix_l.len() {
             pos = 0;

@@ -110,7 +110,10 @@ impl HighPass {
     pub fn new(hz: f64) -> Self {
         let k = math::tan(std::f64::consts::PI * hz / FS as f64);
         let mut s = [([0.0; 3], [0.0; 2], [0.0; 2]); 2];
-        for (i, q) in [0.541_196_100_146_197, 1.306_562_964_876_376_7].into_iter().enumerate() {
+        for (i, q) in [0.541_196_100_146_197, 1.306_562_964_876_376_7]
+            .into_iter()
+            .enumerate()
+        {
             let norm = 1.0 / (1.0 + k / q + k * k);
             s[i] = (
                 [norm, -2.0 * norm, norm],

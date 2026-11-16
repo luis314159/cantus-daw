@@ -26,13 +26,19 @@
 //!
 //! ## Confidence
 //!
-//! Each band also keeps the mean and variance of its frame levels in dB. The difference's
-//! uncertainty is `u = √(s²_mix/n_mix + s²_ref/n_ref)` with `n` the frames counted over 2
-//! (half-overlapped frames are not independent), and its confidence `1/(1 + (u/0.5 dB)²)`
-//! — 0.5 at an uncertainty of half a decibel — and 0 until both have
-//! [`MIN_FRAMES`] frames, or in a band where either has no energy. It is a statistician's
-//! honest guess for a stationary signal; on music it says where the comparison is still
-//! moving.
+//! Each band also keeps the mean and variance of its frame levels in dB, each frame's
+//! levels taken relative to that frame's own K-weighted total (so the music's loudness
+//! moving — a strum decaying, a chorus arriving — is not counted as doubt about its
+//! balance). The difference's uncertainty is `u = √(s²_mix/n_mix + s²_ref/n_ref)` with `n`
+//! the frames counted over 2 (half-overlapped frames are not independent): the standard
+//! error of the difference, which the display draws as a band around the curve. Its
+//! confidence is `1/(1 + (u/1 dB)²)` — 0.5 at an uncertainty of one decibel, the smallest
+//! step of a third-octave balance a listener reliably hears — and 0 until both have
+//! [`MIN_FRAMES`] frames, or in a band where either has no energy.
+//!
+//! For a whole file analysed at once the curve is that file's exactly; the uncertainty
+//! then says how much the file's balance moves within itself (how far a part of it may
+//! stand from the whole). While playing, it says where the comparison is still settling.
 //!
 //! The analyser allocates in [`Tonal::new`] only. A frame's transform is ~1 ms of work every
 //! ~170 ms, so the engine runs it on a worker from a copy of the audio (Phase B), never in
@@ -51,7 +57,7 @@ const GATE: f64 = 1e-7;
 /// Under this a band holds nothing (−200 dB).
 const FLOOR: f64 = 1e-20;
 /// The uncertainty at which confidence is one half, dB.
-const HALF_CONFIDENCE_DB: f64 = 0.5;
+const HALF_CONFIDENCE_DB: f64 = 1.0;
 
 /// Bands per octave.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
@@ -188,7 +194,8 @@ pub fn compare(mix: &Curve, reference: &Curve) -> Difference {
         let n_r = (reference.frames as f64 / 2.0).max(1.0);
         let u = (mix.var[b] as f64 / n_m + reference.var[b] as f64 / n_r).sqrt();
         d.uncertainty[b] = u as f32;
-        d.confidence[b] = (1.0 / (1.0 + (u / HALF_CONFIDENCE_DB).powi(2))) as f32;
+        d.confidence[b] =
+            (1.0 / (1.0 + (u / HALF_CONFIDENCE_DB) * (u / HALF_CONFIDENCE_DB))) as f32;
     }
     d
 }
@@ -286,6 +293,7 @@ impl Tonal {
         }
     }
 
+    #[allow(clippy::needless_range_loop)] // bands indexed across several parallel arrays
     fn frame(&mut self) {
         let n = self.len;
         let mut ms = 0.0f64;
@@ -310,6 +318,8 @@ impl Tonal {
             let (rr, ri) = ((ai - bi) / 2.0, -(ar - br) / 2.0);
             (lr * lr + li * li + rr * rr + ri * ri) * scale
         };
+        let mut frame = [0f64; MAX_BANDS];
+        let mut total = 0f64;
         for b in 0..self.bands.count {
             let (lo_hz, hi_hz) = (self.bands.lo[b] as f64, self.bands.hi[b] as f64);
             let (k0, k1) = self.span[b];
@@ -322,7 +332,14 @@ impl Tonal {
                 }
             }
             self.sum_p[b] += p;
-            let l = 10.0 * math::log10(p.max(FLOOR));
+            frame[b] = p;
+            total += p * self.kw[b];
+        }
+        // The spread is the balance's, not the level's: each frame's levels relative to
+        // its own K-weighted total, so a strum that decays moves none of them.
+        let reference = 10.0 * math::log10(total.max(FLOOR));
+        for (b, p) in frame.iter().enumerate().take(self.bands.count) {
+            let l = 10.0 * math::log10(p.max(FLOOR)) - reference;
             self.sum_db[b] += l;
             self.sum_db2[b] += l * l;
         }

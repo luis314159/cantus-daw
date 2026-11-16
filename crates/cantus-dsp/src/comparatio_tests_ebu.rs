@@ -53,7 +53,10 @@ fn tech_3341_cases_1_and_2() {
 #[test]
 fn tech_3341_cases_3_4_5() {
     let cases: [(&[(f64, f64)], &str); 3] = [
-        (&[(-36.0, 10.0), (-23.0, 60.0), (-36.0, 10.0)], "3341 case 3"),
+        (
+            &[(-36.0, 10.0), (-23.0, 60.0), (-36.0, 10.0)],
+            "3341 case 3",
+        ),
         (
             &[
                 (-72.0, 10.0),
@@ -64,7 +67,10 @@ fn tech_3341_cases_3_4_5() {
             ],
             "3341 case 4",
         ),
-        (&[(-26.0, 20.0), (-20.0, 20.1), (-26.0, 20.0)], "3341 case 5"),
+        (
+            &[(-26.0, 20.0), (-20.0, 20.1), (-26.0, 20.0)],
+            "3341 case 5",
+        ),
     ];
     for (seg, what) in cases {
         let (a, _) = steps(&segments(seg));
@@ -86,7 +92,12 @@ fn tech_3341_cases_9_and_12_constant_short_term_and_momentary() {
     for r in rs.iter().skip(30) {
         worst = worst.max((r.short_term + 23.0).abs());
     }
-    close(-23.0 + worst, -23.0, 0.1, "3341 case 9, the worst short-term step");
+    close(
+        -23.0 + worst,
+        -23.0,
+        0.1,
+        "3341 case 9, the worst short-term step",
+    );
     let mut seg = Vec::new();
     for _ in 0..25 {
         seg.extend([(-20.0, 0.18), (-30.0, 0.22)]);
@@ -96,7 +107,12 @@ fn tech_3341_cases_9_and_12_constant_short_term_and_momentary() {
     for r in rs.iter().skip(10) {
         worst = worst.max((r.momentary + 23.0).abs());
     }
-    close(-23.0 + worst, -23.0, 0.1, "3341 case 12, the worst momentary step");
+    close(
+        -23.0 + worst,
+        -23.0,
+        0.1,
+        "3341 case 12, the worst momentary step",
+    );
 }
 
 /// 3342 cases 1–4: loudness range ±1 LU.
@@ -222,12 +238,21 @@ fn tech_3341_cases_15_to_19_true_peak() {
         eprintln!(
             "3341 case {name}: ours {ours:.3} dBTP, Annex 2 {annex:.3}, sample peak {sample:.3} dBFS"
         );
-        assert!((db - 0.4..=db + 0.2).contains(&ours), "case {name}: ours {ours}");
-        assert!((db - 0.4..=db + 0.2).contains(&annex), "case {name}: Annex 2 {annex}");
+        assert!(
+            (db - 0.4..=db + 0.2).contains(&ours),
+            "case {name}: ours {ours}"
+        );
+        assert!(
+            (db - 0.4..=db + 0.2).contains(&annex),
+            "case {name}: Annex 2 {annex}"
+        );
         // The peak is known exactly (the sine's amplitude): ours, with its refinement
         // between the 4× points, is within 0.02 dB of it; Annex 2's plain 4× reads up to
         // 0.3 dB under it here, as a plain 4× meter does.
-        assert!((ours - db).abs() < 0.02, "case {name}: ours {ours} for {db}");
+        assert!(
+            (ours - db).abs() < 0.02,
+            "case {name}: ours {ours} for {db}"
+        );
     }
 }
 

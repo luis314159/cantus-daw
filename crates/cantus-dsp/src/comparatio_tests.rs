@@ -13,7 +13,10 @@ fn reference(secs: f64, seed: u32, rms: f32) -> OwnedRef {
     let n = (secs * FS as f64) as usize;
     OwnedRef {
         left: noise(n, seed).iter().map(|v| v * rms * 1.7).collect(),
-        right: noise(n, seed ^ 0x77).iter().map(|v| v * rms * 1.7).collect(),
+        right: noise(n, seed ^ 0x77)
+            .iter()
+            .map(|v| v * rms * 1.7)
+            .collect(),
         id: 1,
     }
 }
@@ -86,7 +89,14 @@ fn back_on_the_mix_it_passes_to_the_bit_again() {
     };
     let off = ComparatioSettings::default();
     let mut u = Comparatio::new(FS);
-    let (ol, _) = drive(&mut u, (&l, &r), Some(&rf), 128, 0, &[(0, on), (96_000, off)]);
+    let (ol, _) = drive(
+        &mut u,
+        (&l, &r),
+        Some(&rf),
+        128,
+        0,
+        &[(0, on), (96_000, off)],
+    );
     let fade = (0.030 * FS) as usize;
     let from = 96_000 + fade + 1;
     assert_eq!(bits(&ol[from..]), bits(&l[from..]));
@@ -133,7 +143,10 @@ fn every_block_size_gives_the_same_bits() {
         match &want {
             None => want = Some(got),
             Some(w) => {
-                assert!(w.0 == got.0 && w.1 == got.1, "block {block}: the output moved");
+                assert!(
+                    w.0 == got.0 && w.1 == got.1,
+                    "block {block}: the output moved"
+                );
                 assert_eq!(w.2, got.2, "block {block}: the readings moved");
             }
         }
@@ -181,20 +194,35 @@ fn rest_is_exact_and_reached() {
             a.set_transport(&t);
             b.set_transport(&t);
             let silent_in = la[start..start + m].iter().all(|v| *v == 0.0);
-            a.process(&mut la[start..start + m], &mut ra[start..start + m], Some(rf.audio()));
+            a.process(
+                &mut la[start..start + m],
+                &mut ra[start..start + m],
+                Some(rf.audio()),
+            );
             if silent_in && b.at_rest() {
                 b.skip(m);
                 rested += m;
                 lb[start..start + m].iter_mut().for_each(|v| *v = 0.0);
                 rb[start..start + m].iter_mut().for_each(|v| *v = 0.0);
             } else {
-                b.process(&mut lb[start..start + m], &mut rb[start..start + m], Some(rf.audio()));
+                b.process(
+                    &mut lb[start..start + m],
+                    &mut rb[start..start + m],
+                    Some(rf.audio()),
+                );
             }
-            assert_eq!(format!("{:?}", a.meter()), format!("{:?}", b.meter()), "{listen:?} at {start}");
+            assert_eq!(
+                format!("{:?}", a.meter()),
+                format!("{:?}", b.meter()),
+                "{listen:?} at {start}"
+            );
         }
         assert_eq!(bits(&la), bits(&lb), "{listen:?} {sync:?}: the output");
         assert_eq!(bits(&ra), bits(&rb));
-        eprintln!("{listen:?} {sync:?}: rested {:.2} s of 6", rested as f32 / FS);
+        eprintln!(
+            "{listen:?} {sync:?}: rested {:.2} s of 6",
+            rested as f32 / FS
+        );
         assert!(
             rested as f32 > 1.5 * FS,
             "{listen:?} {sync:?}: it rests ({rested}; {:?})",
@@ -277,7 +305,7 @@ fn the_crossfade_keeps_the_level_of_unrelated_signals() {
     let fade = (0.03 * FS) as usize;
     let (mut inside, mut ni, mut outside, mut no) = (0f64, 0usize, 0f64, 0usize);
     for i in period..n {
-        let p = (ol[i] as f64).powi(2) + (or[i] as f64).powi(2);
+        let p = ol[i] as f64 * ol[i] as f64 + or[i] as f64 * or[i] as f64;
         if i % period < fade {
             inside += p;
             ni += 1;
