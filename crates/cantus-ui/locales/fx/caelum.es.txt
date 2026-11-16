@@ -113,3 +113,11 @@ caelum.d.ducking = Atenuación
 caelum.d.ago = Hace ocho segundos
 caelum.d.now = Ahora
 caelum.d.lines = Longitud de línea
+# El editor (hoja de diseño v2).
+caelum.l.sync = Sincronía
+caelum.l.lines = Tanque
+caelum.s.eight = 8 líneas
+caelum.s.sixteen = 16 líneas
+caelum.tip.inf = La cola nunca cae: lo que entra se le suma y se sostiene
+caelum.tip.freeze = El tanque guarda lo que tiene: no toma más sonido y el shimmer deja de subir
+caelum.d.input = Entrada

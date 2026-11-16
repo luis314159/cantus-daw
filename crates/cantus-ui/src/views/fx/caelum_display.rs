@@ -1,27 +1,36 @@
-//! Caelum's display: the sky. Dark in every theme (the unit's glass look).
+//! Caelum's display (design sheet v2): an observatory at night, dark in every theme.
 //!
-//! - **The tank** (the left, most of the width): the last eight seconds right to left, the
-//!   now at the right edge. The tail is a band of light over the input's register, as
-//!   thick and as bright as the tank's energy; the **shimmer** climbs above it in layers a
-//!   voice's interval apart — each fainter by the shimmer's share, and each further up the
-//!   older the tail, so the octaves are seen rising as the sound ages. Infinite holds a
-//!   line of light at the top; freeze a held horizon. The input's peak is a tick at the
-//!   bottom of the now; the ducking's reduction a bar beside it.
-//! - **The voices** (top right): a ladder of semitones, −36 … +36, the unison at its middle,
-//!   each voice a rung with its interval written whole.
-//! - **The decay by octave** (bottom right): the decay the tank achieves at the eight
-//!   octaves, 63 Hz … 8 kHz, on a time scale of 0.3 … 60 s (∞ at the top while infinite).
+//! - **The window** (the left, most of the width): the sky over the last eight seconds in
+//!   a metal frame — the tail on the horizon over the tank's still water, the shimmer's
+//!   octaves rising band by band above it (`caelum_sky.rs`).
+//! - **The sill** under it: the endless controls as lit pushbuttons in their bezels —
+//!   Infinite (its ∞ lamp), Freeze (its crystal lamp), and the two infinite choices
+//!   (`caelum_desk.rs`).
+//! - **The astrolabe** (top right): the two voices read on a pitch spiral
+//!   (`caelum_astro.rs`).
+//! - **The decay by octave** (bottom right): eight glass tubes in a rack, each lit to the
+//!   decay the tank achieves at its octave, 63 Hz … 8 kHz, on 0.3 … 60 s
+//!   (`caelum_desk.rs`).
+//!
+//! The metal follows the colourway (`caelum_art::metal`). Every number from the engine's
+//! telemetry (`cantus_engine::fx::caelum::t`); how far the light has climbed is a model of
+//! the tank's exchange fed by its measured energy (`View::climb`).
 
 use super::super::canvas::{self, Ink};
 use super::super::host::FxHost;
-use crate::kit::color::{mix, with_alpha};
-use crate::kit::text::{Role, Text};
-use crate::kit::{with_brush, Brush, Fill, Style};
+use super::{art, astro, desk, sky};
+use crate::kit::color::with_alpha;
+use crate::kit::{with_brush, Style};
+use cantus_core::EffectSpec;
 use cantus_engine::fx::caelum::t;
-use egui::{pos2, vec2, Align2, Rect};
+use egui::{pos2, vec2, Rect};
 
 /// Readings kept: eight seconds at thirty a second.
 pub const KEPT: usize = 240;
+
+/// The bands of light: the tail (0), the first voice's four steps (1 … 4), the second's
+/// (5 … 8).
+pub const LAYERS: usize = 9;
 
 /// One block's numbers as the display reads them.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -58,15 +67,51 @@ impl Reading {
     }
 }
 
-/// The display's memory: the readings of the last eight seconds, newest last.
+/// The display's memory: the readings of the last eight seconds, newest last, and how
+/// bright each band of light is in each of them.
 #[derive(Debug, Default)]
 pub struct View {
     history: Vec<Reading>,
     /// Seconds since the last reading was kept.
     since: f32,
-    /// The rise's phase (the shimmer's layers drift upward), 0 … 1.
+    /// The wisps' and the stars' phase, 0 … 1.
     pub phase: f32,
+    /// Each reading's bands, 0 … 1 (`climb`).
+    bright: Vec<[f32; LAYERS]>,
+    /// Each band's brightest over the history.
+    peak: [f32; LAYERS],
 }
+
+/// Energy in dB as a share of the sky's light, 0 … 1 (−90 dB nothing, −12 dB all).
+pub fn light(db: f32) -> f32 {
+    ((db + 90.0) / 78.0).clamp(0.0, 1.0)
+}
+
+/// Band `l`'s interval above the input (semitones) and whether it is the second voice's;
+/// `None` when the band is not there (a voice at the unison, a silent second voice, no
+/// shimmer).
+pub fn layer_of(spec: &EffectSpec, l: usize) -> Option<(f32, bool)> {
+    if l == 0 {
+        return Some((0.0, false));
+    }
+    if spec.get("shim") <= 0.0 {
+        return None;
+    }
+    let (iv, second) = if l <= 4 {
+        (spec.get("pa"), false)
+    } else {
+        if spec.get("pblvl") <= 0.01 {
+            return None;
+        }
+        (spec.get("pb"), true)
+    };
+    let step = ((l - 1) % 4 + 1) as f32;
+    (iv.abs() >= 0.5).then_some((iv * step, second))
+}
+
+/// How fast a band's light climbs to the next at full shimmer, a second (drawn slower than
+/// the tank's own pass, so each step reads).
+const CLIMB: f32 = 1.4;
 
 impl View {
     /// Keep a reading every thirtieth of a second.
@@ -75,7 +120,7 @@ impl View {
             return;
         }
         self.since += dt;
-        self.phase = (self.phase + dt * 0.08).fract();
+        self.phase = (self.phase + dt * 0.35).fract();
         if self.since >= 1.0 / 30.0 || self.history.is_empty() {
             self.since = 0.0;
             if self.history.len() == KEPT {
@@ -95,31 +140,131 @@ impl View {
     pub fn len(&self) -> usize {
         self.history.len()
     }
-}
 
-/// The parts of the display.
-struct Parts {
-    sky: Rect,
-    ladder: Rect,
-    decay: Rect,
-}
+    /// Band `l`'s brightness in reading `j`, 0 … 1.
+    pub fn bright(&self, j: usize, l: usize) -> f32 {
+        self.bright.get(j).map_or(0.0, |b| b[l])
+    }
 
-fn parts(r: Rect, k: f32) -> Parts {
-    let inner = r.shrink(10.0 * k);
-    let side = (inner.width() * 0.27).clamp(220.0 * k, 340.0 * k);
-    let sky = Rect::from_min_max(inner.min, pos2(inner.max.x - side - 12.0 * k, inner.max.y));
-    let right = Rect::from_min_max(pos2(sky.max.x + 12.0 * k, inner.min.y), inner.max);
-    let split = right.min.y + right.height() * 0.46;
-    Parts {
-        sky,
-        ladder: Rect::from_min_max(right.min, pos2(right.max.x, split - 6.0 * k)),
-        decay: Rect::from_min_max(pos2(right.min.x, split + 6.0 * k), right.max),
+    /// Band `l`'s brightest over the history.
+    pub fn peak(&self, l: usize) -> f32 {
+        self.peak[l]
+    }
+
+    /// Light the bands over the history: what is new (the energy's rise beyond the decay
+    /// the tank owes, while there is input) enters at the horizon; each step a share of every band climbs to the
+    /// next (the shimmer's amount; the voices sharing it by the second's level; nothing
+    /// climbs while frozen; the top band climbs out of sight); an infinite tank that lets
+    /// the shimmer fade loses what has climbed. The shares light the bands by the tank's
+    /// measured energy. (The telemetry's shimmer share is what the exchange moves in a
+    /// block — a few per cent, and noisy — not how much has climbed, so it does not set
+    /// them.)
+    pub fn climb(&mut self, spec: &EffectSpec) {
+        let n = self.history.len();
+        self.bright.clear();
+        self.bright.reserve(KEPT);
+        self.peak = [0.0; LAYERS];
+        let dt = 1.0 / 30.0;
+        let inf = spec.get("inf") >= 0.5;
+        let t60 = if inf {
+            1.0e6
+        } else {
+            spec.get("decay").max(0.3)
+        };
+        let owed = cantus_dsp::math::db_to_gain(-60.0 * dt / t60).powi(2);
+        let on = |l: usize| layer_of(spec, l).is_some();
+        let lvl = spec.get("pblvl").clamp(0.0, 1.0);
+        let wa = if on(1) { 1.0 - 0.5 * lvl } else { 0.0 };
+        let wb = if on(5) { lvl } else { 0.0 };
+        let wsum = wa + wb;
+        let rate = spec.get("shim").clamp(0.0, 1.0) * CLIMB;
+        let fades = inf && spec.get("ishim") < 0.5;
+        let mut s = [0.0f32; LAYERS];
+        s[0] = 1.0;
+        let mut prev: Option<f32> = None;
+        for j in 0..n {
+            let rd = self.history[j];
+            let e = cantus_dsp::math::db_to_gain(rd.energy_db.max(-150.0)).powi(2);
+            let tau = if rd.freeze > 0.5 || wsum <= 0.0 {
+                0.0
+            } else {
+                (rate * dt).min(0.5)
+            };
+            let mut nx = s;
+            let out0 = s[0] * tau;
+            nx[0] -= out0;
+            if wsum > 0.0 {
+                nx[1] += out0 * wa / wsum;
+                nx[5] += out0 * wb / wsum;
+            }
+            for l in [1, 2, 3, 5, 6, 7] {
+                let m = s[l] * tau;
+                nx[l] -= m;
+                nx[l + 1] += m;
+            }
+            for l in [4, 8] {
+                nx[l] -= s[l] * tau * 0.6;
+            }
+            if fades {
+                for v in nx.iter_mut().skip(1) {
+                    *v *= 1.0 - 0.6 * dt;
+                }
+            }
+            let sum: f32 = nx.iter().sum();
+            if sum > 1e-9 {
+                for v in nx.iter_mut() {
+                    *v /= sum;
+                }
+            }
+            // What is new enters at the horizon.
+            // (Only while something comes in: a tail's own wobble is not new sound.)
+            let fresh = match prev {
+                _ if rd.input < 1e-3 && prev.is_some() => 0.0,
+                Some(p) if e > 1e-15 => ((e - p * owed) / e).clamp(0.0, 1.0),
+                _ => 1.0,
+            };
+            for v in nx.iter_mut() {
+                *v *= 1.0 - fresh;
+            }
+            nx[0] += fresh;
+            s = nx;
+            prev = Some(e);
+            let lit = light(rd.energy_db);
+            let mut row = [0.0f32; LAYERS];
+            for l in 0..LAYERS {
+                if on(l) {
+                    row[l] = (lit * cantus_dsp::math::powf(s[l].max(0.0), 0.65)).min(1.0);
+                    self.peak[l] = self.peak[l].max(row[l]);
+                }
+            }
+            self.bright.push(row);
+        }
     }
 }
 
-/// Energy in dB as a share of the sky's light, 0 … 1 (−90 dB nothing, −12 dB all).
-fn light(db: f32) -> f32 {
-    ((db + 90.0) / 78.0).clamp(0.0, 1.0)
+/// Where the display's objects stand.
+pub struct Parts {
+    pub window: Rect,
+    pub sill: Rect,
+    pub astro: Rect,
+    pub tubes: Rect,
+}
+
+pub fn parts(r: Rect, k: f32) -> Parts {
+    let inner = r.shrink(12.0 * k);
+    let side_w = (inner.width() * 0.27).clamp(290.0 * k, 360.0 * k);
+    let side = Rect::from_min_max(pos2(inner.max.x - side_w, inner.min.y), inner.max);
+    let left = Rect::from_min_max(inner.min, pos2(side.min.x - 18.0 * k, inner.max.y));
+    let sill_h = 62.0 * k;
+    let window = Rect::from_min_max(left.min, pos2(left.max.x, left.max.y - sill_h - 10.0 * k));
+    let sill = Rect::from_min_max(pos2(left.min.x, left.max.y - sill_h), left.max);
+    let split = side.min.y + side.height() * 0.57;
+    Parts {
+        window,
+        sill,
+        astro: Rect::from_min_max(side.min, pos2(side.max.x, split - 4.0 * k)),
+        tubes: Rect::from_min_max(pos2(side.min.x, split + 4.0 * k), side.max),
+    }
 }
 
 pub fn show(
@@ -130,404 +275,106 @@ pub fn show(
     r: Rect,
     now: &Reading,
 ) {
-    let spec = host.spec().clone();
     let k = s.k;
     let ink = Ink::of(s);
     let p = parts(r, k);
+    let sill = desk::Sill::lay(ui.ctx(), s, p.sill);
+    let press = desk::edit(host, ui, s, &sill);
+    let spec = host.spec().clone();
+    view.climb(&spec);
     with_brush(&ui.painter_at(r), |b| {
         canvas::ground_b(b, r, &ink, None);
-        sky(b, s, &ink, p.sky, view, now, &spec);
-        ladder(b, s, &ink, p.ladder, &spec);
-        decay(b, s, &ink, p.decay, now, &spec);
+        // The room's dark, a little light over the instruments.
+        b.radial(
+            r,
+            p.window.center(),
+            vec2(p.window.width() * 0.75, p.window.height() * 0.8),
+            &[
+                (0.0, with_alpha(ink.text, 0.035)),
+                (1.0, with_alpha(ink.text, 0.0)),
+            ],
+            10,
+        );
+        let glass = art::frame(b, s, p.window, 15.0 * k);
+        sky::show(b, s, &ink, p.window, glass, view, now, &spec);
+        desk::sill(b, s, &ink, &sill, &press, &spec, now);
+        astro::show(b, s, &ink, p.astro, &spec);
+        desk::tubes(b, s, &ink, p.tubes, now, &spec);
         canvas::edge_b(b, r, &ink);
     });
 }
 
-/// A frame and its title, the plain way every pane of this display is drawn.
-fn pane(b: &mut Brush, ink: &Ink, r: Rect, title: &str, k: f32) -> Rect {
-    b.rrect_stroke(r, 4.0 * k, 1.0 * k, with_alpha(ink.grid_strong, 0.8));
-    let t = Text::key(title, Role::Micro, ink.dim);
-    canvas::put(
-        b,
-        pos2(r.min.x + 8.0 * k, r.min.y + 6.0 * k),
-        Align2::LEFT_TOP,
-        &t,
-        k,
-        None,
-    );
-    Rect::from_min_max(
-        pos2(r.min.x + 8.0 * k, r.min.y + 22.0 * k),
-        r.max - vec2(8.0, 8.0) * k,
-    )
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[allow(clippy::too_many_arguments)]
-fn sky(
-    b: &mut Brush,
-    s: &Style,
-    ink: &Ink,
-    r: Rect,
-    view: &View,
-    now: &Reading,
-    spec: &cantus_core::EffectSpec,
-) {
-    let k = s.k;
-    let area = pane(b, ink, r, "caelum.d.sky", k);
-    // The horizon: the ground of the sky a little lighter toward the bottom.
-    let glow = ink.voice(ink.hue, false);
-    let spark = ink.voice(ink.hue, true);
-    let rows = 28;
-    for i in 0..rows {
-        let y0 = area.min.y + area.height() * i as f32 / rows as f32;
-        let y1 = area.min.y + area.height() * (i + 1) as f32 / rows as f32;
-        let u = i as f32 / rows as f32;
-        b.rect(
-            Rect::from_min_max(pos2(area.min.x, y0), pos2(area.max.x, y1)),
-            Fill::Solid(with_alpha(glow, 0.05 * u * u)),
-        );
-    }
-    // A faint star field: fixed points, brighter where the tank holds energy.
-    let lit = light(now.energy_db);
-    for i in 0..90u32 {
-        let h = i.wrapping_mul(2_654_435_761);
-        let x = area.min.x + area.width() * ((h & 0xffff) as f32 / 65_535.0);
-        let y = area.min.y + area.height() * 0.85 * (((h >> 16) & 0xffff) as f32 / 65_535.0);
-        let a = 0.10 + 0.25 * lit * (((h >> 7) & 7) as f32 / 7.0);
-        b.dot(pos2(x, y), 0.8 * k, with_alpha(ink.text, a));
-    }
-    // Pitch rows: an octave apart from the input's register (the bottom third) upward.
-    let base = area.max.y - area.height() * 0.22;
-    let octave = area.height() * 0.17;
-    for o in 0..5 {
-        let y = base - o as f32 * octave;
-        canvas::dashed(
-            b,
-            pos2(area.min.x, y),
-            pos2(area.max.x, y),
-            1.0 * k,
-            with_alpha(ink.grid, 0.7),
-            3.0 * k,
-            5.0 * k,
-        );
-    }
-    let pa = spec.get("pa");
-    let pb = spec.get("pb");
-    let blvl = spec.get("pblvl");
-    let n = view.history.len();
-    let col_w = area.width() / (KEPT - 1) as f32;
-    // A sound climbs one interval about every pass of the tank's mean loop times the
-    // shimmer's share — drawn slower, so the steps read: one layer a second at full share.
-    let shim = spec.get("shim").clamp(0.0, 1.0);
-    let climb_s = 1.0 / shim.max(0.05);
-    // Each band: its centre line over the history, its half-thickness, its colour; drawn
-    // as a soft halo and a brighter core between two lines (no seams between columns).
-    let band = |b: &mut Brush, y: &dyn Fn(usize, &Reading) -> (f32, f32), col| {
-        let mut top = Vec::with_capacity(n);
-        let mut bottom = Vec::with_capacity(n);
-        let mut core_t = Vec::with_capacity(n);
-        let mut core_b = Vec::with_capacity(n);
-        for (j, rd) in view.history.iter().enumerate() {
-            let x = area.max.x - (n - 1 - j) as f32 * col_w;
-            let (yc, h) = y(n - 1 - j, rd);
-            top.push(pos2(x, yc - h));
-            bottom.push(pos2(x, yc + h));
-            core_t.push(pos2(x, yc - h * 0.45));
-            core_b.push(pos2(x, yc + h * 0.45));
+    fn spec(kv: &[(&str, f32)]) -> EffectSpec {
+        let mut s = cantus_core::starting::starting_spec(cantus_core::EffectKind::Shimmer);
+        for (k, v) in kv {
+            let _ = s.set(k, *v);
         }
-        if n > 1 {
-            b.between(&top, &bottom, with_alpha(col, 0.22));
-            b.between(&core_t, &core_b, with_alpha(col, 0.55));
-        }
-    };
-    // The tail itself, a band over the input's register as thick as its energy.
-    band(
-        b,
-        &|_, rd| {
-            let e = light(rd.energy_db);
-            (base, if e > 0.0 { (3.0 + 24.0 * e) * k } else { 0.0 })
-        },
-        glow,
-    );
-    // The shimmer's layers: a voice's interval apart, each lit once the sound has aged
-    // long enough to climb to it, fainter by the share at every step.
-    for (iv, lvl, col) in [(pa, 1.0 - 0.5 * blvl, glow), (pb, blvl, spark)] {
-        if lvl <= 0.01 || iv.abs() < 0.5 || shim <= 0.0 {
-            continue;
-        }
-        let step = octave * iv / 12.0;
-        for layer in 1..=4 {
-            let yl = base - step * layer as f32;
-            if yl < area.min.y + 8.0 * k || yl > area.max.y {
-                continue;
-            }
-            band(
-                b,
-                &|age, rd| {
-                    let secs = age as f32 / 30.0;
-                    let lit = ((secs - (layer as f32 - 1.0) * climb_s) / climb_s).clamp(0.0, 1.0);
-                    let e = light(rd.energy_db) * lvl * shim.powi(layer - 1) * lit;
-                    (yl, if e > 0.01 { (2.0 + 20.0 * e) * k } else { 0.0 })
-                },
-                col,
-            );
-        }
+        s
     }
-    let _ = view.phase;
-    // Infinite: a line of light across the top; freeze: a held horizon.
-    let inf = spec.get("inf") >= 0.5;
-    if inf {
-        b.hline(
-            area.min.x,
-            area.max.x,
-            area.min.y + 2.0 * k,
-            1.4 * k,
-            with_alpha(spark, 0.85),
-        );
-        canvas::put_key(
-            b,
-            pos2(area.max.x - 4.0 * k, area.min.y + 6.0 * k),
-            Align2::RIGHT_TOP,
-            "caelum.d.infinite",
-            Role::Micro,
-            spark,
-            k,
-        );
-    }
-    if now.freeze > 0.01 || spec.get("freeze") >= 0.5 {
-        let y = base;
-        b.hline(
-            area.min.x,
-            area.max.x,
-            y,
-            2.0 * k,
-            with_alpha(ink.text, 0.7 * now.freeze.max(0.5)),
-        );
-        canvas::put_key(
-            b,
-            pos2(area.min.x + 4.0 * k, y - 6.0 * k),
-            Align2::LEFT_BOTTOM,
-            "caelum.d.frozen",
-            Role::Micro,
-            ink.text,
-            k,
-        );
-    }
-    // The now: the input's peak a tick, the ducking a bar, the time scale below.
-    let x = area.max.x;
-    let peak = (1.0 + cantus_dsp::math::log10(now.input.max(1e-6)) / 4.0).clamp(0.0, 1.0);
-    b.vline(
-        x,
-        area.max.y - 18.0 * k * peak - 2.0 * k,
-        area.max.y,
-        2.0 * k,
-        ink.text,
-    );
-    if spec.get("duck") > 0.0 {
-        let d = (now.duck_db / spec.get("duck").max(1.0)).clamp(0.0, 1.0);
-        let bar = Rect::from_min_max(
-            pos2(x - 10.0 * k, area.min.y + 24.0 * k),
-            pos2(x - 6.0 * k, area.min.y + 24.0 * k + 60.0 * k * d),
-        );
-        b.rect(bar, Fill::Solid(with_alpha(ink.danger, 0.85)));
-        canvas::putf(
-            b,
-            pos2(x - 14.0 * k, area.min.y + 24.0 * k),
-            Align2::RIGHT_TOP,
-            Role::Micro,
-            ink.danger,
-            k,
-            Some(ink.plate),
-            format_args!(
-                "{} \u{2212}{:.1} dB",
-                super::super::frame::tr("caelum.d.ducking"),
-                now.duck_db
-            ),
-        );
-    }
-    let dim = ink.dim;
-    canvas::put_key(
-        b,
-        pos2(area.min.x, area.max.y + 2.0 * k),
-        Align2::LEFT_TOP,
-        "caelum.d.ago",
-        Role::Micro,
-        dim,
-        k,
-    );
-    canvas::put_key(
-        b,
-        pos2(area.max.x, area.max.y + 2.0 * k),
-        Align2::RIGHT_TOP,
-        "caelum.d.now",
-        Role::Micro,
-        dim,
-        k,
-    );
-    // The space in words, top left under the title.
-    let decay = if inf {
-        super::super::frame::tr("caelum.d.infinite").to_string()
-    } else {
-        format!("{:.1} s", spec.get("decay"))
-    };
-    canvas::putf(
-        b,
-        pos2(area.min.x + 4.0 * k, area.min.y + 4.0 * k),
-        Align2::LEFT_TOP,
-        Role::Micro,
-        ink.text,
-        k,
-        Some(ink.plate),
-        format_args!(
-            "{} {decay} \u{b7} {} {:.0} ms \u{b7} {} {:.0} ms",
-            super::super::frame::tr("caelum.l.decay"),
-            super::super::frame::tr("caelum.l.pre"),
-            now.predelay_ms,
-            super::super::frame::tr("caelum.d.lines"),
-            now.line_ms,
-        ),
-    );
-    let _ = mix;
-}
 
-fn ladder(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, spec: &cantus_core::EffectSpec) {
-    let k = s.k;
-    let area = pane(b, ink, r, "caelum.d.voices", k);
-    let x = area.min.x + 26.0 * k;
-    let y_of = |st: f32| area.center().y - (st / 36.0) * area.height() * 0.46;
-    b.vline(x, y_of(36.0), y_of(-36.0), 1.0 * k, ink.grid_strong);
-    for st in (-36..=36).step_by(12) {
-        let y = y_of(st as f32);
-        b.hline(x - 6.0 * k, x + 6.0 * k, y, 1.0 * k, ink.grid_strong);
-        canvas::putf(
-            b,
-            pos2(x - 9.0 * k, y),
-            Align2::RIGHT_CENTER,
-            Role::Micro,
-            ink.dim,
-            k,
-            None,
-            format_args!("{st:+}"),
-        );
+    fn reading(db: f32, shimmer: f32) -> Reading {
+        Reading {
+            seen: true,
+            energy_db: db,
+            shimmer,
+            ..Reading::default()
+        }
     }
-    let glow = ink.voice(ink.hue, false);
-    let spark = ink.voice(ink.hue, true);
-    let shim = spec.get("shim");
-    for (key, st, lvl, col) in [
-        ("caelum.l.first", spec.get("pa"), 1.0, glow),
-        ("caelum.l.second", spec.get("pb"), spec.get("pblvl"), spark),
-    ] {
-        let first = key == "caelum.l.first";
-        let y = y_of(st);
-        let a = if shim > 0.0 { 0.35 + 0.65 * lvl } else { 0.3 };
-        b.segment(
-            pos2(x, y),
-            pos2(area.max.x - 4.0 * k, y),
-            2.0 * k,
-            with_alpha(col, a),
-            true,
-        );
-        b.circle(pos2(x, y), 4.0 * k, Fill::Solid(with_alpha(col, a)));
-        canvas::putf(
-            b,
-            if first {
-                pos2(x + 12.0 * k, y - 3.0 * k)
-            } else {
-                pos2(x + 12.0 * k, y + 3.0 * k)
-            },
-            if first {
-                Align2::LEFT_BOTTOM
-            } else {
-                Align2::LEFT_TOP
-            },
-            Role::Micro,
-            with_alpha(ink.text, a.max(0.6)),
-            k,
-            None,
-            format_args!("{} {st:+.0} st", super::super::frame::tr(key)),
-        );
-    }
-}
 
-fn decay(
-    b: &mut Brush,
-    s: &Style,
-    ink: &Ink,
-    r: Rect,
-    now: &Reading,
-    spec: &cantus_core::EffectSpec,
-) {
-    let k = s.k;
-    let area = pane(b, ink, r, "caelum.d.decay", k);
-    let plot = Rect::from_min_max(
-        area.min + vec2(28.0 * k, 0.0),
-        area.max - vec2(0.0, 14.0 * k),
-    );
-    let lo = cantus_dsp::math::log10(0.3f32);
-    let hi = cantus_dsp::math::log10(60.0f32);
-    let y_of = |s: f32| {
-        let u = (cantus_dsp::math::log10(s.clamp(0.3, 60.0)) - lo) / (hi - lo);
-        plot.max.y - u * plot.height()
-    };
-    for (sec, label) in [(1.0f32, "1 s"), (10.0, "10 s"), (60.0, "60 s")] {
-        let y = y_of(sec);
-        b.hline(
-            plot.min.x,
-            plot.max.x,
-            y,
-            1.0 * k,
-            with_alpha(ink.grid, 0.8),
+    #[test]
+    fn the_light_climbs_band_by_band_as_the_tail_ages() {
+        let sp = spec(&[("shim", 0.6), ("pa", 12.0), ("pblvl", 0.0), ("decay", 8.0)]);
+        let mut v = View::default();
+        // A second of a held chord, then the tail left to ring for six.
+        let mut rs = vec![reading(-30.0, 0.0); 30];
+        rs.extend((0..180).map(|i| reading(-30.0 - i as f32 * 60.0 / 240.0, 0.0)));
+        v.seed(&rs);
+        v.climb(&sp);
+        let n = v.len();
+        // Early, the light is on the horizon; late, it has climbed past the first band.
+        assert!(
+            v.bright(20, 0) > v.bright(20, 2),
+            "{} {}",
+            v.bright(20, 0),
+            v.bright(20, 2)
         );
-        canvas::put(
-            b,
-            pos2(plot.min.x - 4.0 * k, y),
-            Align2::RIGHT_CENTER,
-            &Text::new(label, Role::Micro, ink.dim).caps(false),
-            k,
-            None,
+        let a = v.bright(40, 2) / v.bright(40, 0);
+        let z = v.bright(n - 1, 2) / v.bright(n - 1, 0);
+        assert!(
+            z > a,
+            "the second band's share grows as the tail ages: {a} → {z}"
         );
+        // The second voice is silent: its bands are not there.
+        assert!(layer_of(&sp, 5).is_none() && v.peak(5) == 0.0);
     }
-    let names = [
-        "63 Hz", "125 Hz", "250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz", "8 kHz",
-    ];
-    let w = plot.width() / 8.0;
-    let glow = ink.voice(ink.hue, false);
-    let inf = spec.get("inf") >= 0.5;
-    let mut pts = Vec::with_capacity(8);
-    for (i, a) in now.achieved.iter().enumerate() {
-        let x = plot.min.x + w * (i as f32 + 0.5);
-        let v = if a.is_finite() { *a } else { 60.0 };
-        let y = if now.seen {
-            y_of(v)
-        } else {
-            y_of(spec.get("decay"))
-        };
-        pts.push(pos2(x, y));
-        b.rect(
-            Rect::from_min_max(pos2(x - w * 0.3, y), pos2(x + w * 0.3, plot.max.y)),
-            Fill::Solid(with_alpha(glow, 0.18)),
-        );
-        canvas::put(
-            b,
-            pos2(x, plot.max.y + 2.0 * k),
-            Align2::CENTER_TOP,
-            &Text::new(names[i], Role::Micro, ink.dim).caps(false),
-            k,
-            None,
-        );
+
+    #[test]
+    fn nothing_climbs_without_shimmer_or_while_frozen() {
+        let sp = spec(&[("shim", 0.0)]);
+        assert!((1..LAYERS).all(|l| layer_of(&sp, l).is_none()));
+        let sp = spec(&[("shim", 0.8), ("pa", 12.0)]);
+        let mut v = View::default();
+        let mut frozen = reading(-30.0, 0.0);
+        frozen.freeze = 1.0;
+        v.seed(&vec![frozen; 120]);
+        v.climb(&sp);
+        assert!((1..LAYERS).all(|l| v.peak(l) == 0.0));
     }
-    canvas::trace(b, &pts, 1.6 * k, glow, ink);
-    for p in &pts {
-        b.circle(*p, 2.5 * k, Fill::Solid(glow));
-    }
-    if inf {
-        canvas::put_key(
-            b,
-            pos2(plot.max.x, plot.min.y),
-            Align2::RIGHT_TOP,
-            "caelum.d.infinite",
-            Role::Micro,
-            ink.voice(ink.hue, true),
-            k,
-        );
+
+    #[test]
+    fn the_bands_are_lit_by_the_measured_energy_and_dark_without_it() {
+        let sp = spec(&[("shim", 0.5), ("pa", 12.0), ("pblvl", 0.0)]);
+        let mut v = View::default();
+        let mut rs = vec![reading(-24.0, 0.0); 60];
+        rs.extend(vec![reading(-200.0, 0.0); 30]);
+        v.seed(&rs);
+        v.climb(&sp);
+        let total = |j: usize| (0..LAYERS).map(|l| v.bright(j, l)).fold(0.0f32, f32::max);
+        assert!(total(59) > 0.3 && total(59) <= 1.0);
+        assert_eq!(total(v.len() - 1), 0.0);
     }
 }

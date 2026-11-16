@@ -1,9 +1,9 @@
-//! Caelum's editor (ADR 0141, provisional): the shimmer reverb — the sky over two rows of
-//! cards. The display is the unit's own picture: the tank's tail over the last eight
-//! seconds as a band of light over the input's register, the shimmer's octaves climbing
-//! above it in fainter layers as the tail ages, the decay the tank achieves at each octave,
-//! the two voices on their ladder, and the endless states (infinite, frozen) and the
-//! ducking. Every number from the engine's telemetry (`cantus_engine::fx::caelum::t`).
+//! Caelum's editor (ADR 0141, provisional; design sheet v2): the shimmer reverb — an
+//! observatory over two rows of cards. The display is the unit's own picture: the sky in a
+//! metal window, the tail glowing on the horizon over the tank's water and the shimmer's
+//! octaves rising band by band above it as the tail ages; the endless controls as lit
+//! pushbuttons on the sill; the voices on an astrolabe; the decay at each octave in eight
+//! glass tubes. Every number from the engine's telemetry (`cantus_engine::fx::caelum::t`).
 
 use super::frame;
 use super::fxa_cells::{self as cells, Item};
@@ -15,8 +15,16 @@ use crate::kit::{with_brush, Style};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use egui::Rect;
 
+#[path = "caelum_art.rs"]
+mod art;
+#[path = "caelum_astro.rs"]
+mod astro;
+#[path = "caelum_desk.rs"]
+mod desk;
 #[path = "caelum_display.rs"]
 pub(crate) mod display;
+#[path = "caelum_sky.rs"]
+mod sky;
 
 const KIND: EffectKind = EffectKind::Shimmer;
 
@@ -78,11 +86,29 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     out
 }
 
+/// The pre-delay's sync, as its menu names each choice.
+const PSYNC: &[&str] = &[
+    "fx.caelum.psync.0",
+    "fx.caelum.psync.1",
+    "fx.caelum.psync.2",
+    "fx.caelum.psync.3",
+    "fx.caelum.psync.4",
+    "fx.caelum.psync.5",
+    "fx.caelum.psync.6",
+    "fx.caelum.psync.7",
+    "fx.caelum.psync.8",
+];
 const SPACE: &[Item] = &[
     Item::Knob("size", "caelum.l.size"),
     Item::Knob("decay", "caelum.l.decay"),
     Item::Knob("pre", "caelum.l.pre"),
+    Item::Choice("psync", "caelum.l.sync", PSYNC),
     Item::Knob("diff", "caelum.l.diffusion"),
+    Item::Switch(
+        "lines",
+        "caelum.l.lines",
+        &["caelum.s.eight", "caelum.s.sixteen"],
+    ),
 ];
 const DAMPING: &[Item] = &[
     Item::Knob("hhz", "caelum.l.high"),
@@ -105,24 +131,6 @@ const MOTION: &[Item] = &[
     Item::Knob("mrate", "caelum.l.rate"),
     Item::Knob("bloom", "caelum.l.bloom"),
 ];
-const ENDLESS: &[Item] = &[
-    Item::Switch("inf", "caelum.l.infinite", &["caelum.s.off", "caelum.s.on"]),
-    Item::Switch(
-        "freeze",
-        "caelum.l.freeze",
-        &["caelum.s.off", "caelum.s.on"],
-    ),
-    Item::Switch(
-        "ishim",
-        "caelum.l.climb",
-        &["caelum.s.fades", "caelum.s.sustains"],
-    ),
-    Item::Switch(
-        "ilevel",
-        "caelum.l.level",
-        &["caelum.s.under", "caelum.s.full"],
-    ),
-];
 const DUCKING: &[Item] = &[
     Item::Knob("duck", "caelum.l.range"),
     Item::Knob("dthr", "caelum.l.threshold"),
@@ -137,7 +145,7 @@ const OUTPUT: &[Item] = &[
     Item::Knob("out", "caelum.l.output"),
 ];
 
-/// The sky over two rows of cards.
+/// The observatory over its cards.
 fn body_ui(
     host: &mut dyn FxHost,
     st: &mut State,
@@ -151,24 +159,19 @@ fn body_ui(
     let area = g.rest();
     let row = super::controls::card_height(super::controls::Size::M) * k;
     let gap = s.d(4.0);
-    let rows: &[&[cells::Card<'_>]] = &[
-        &[
-            ("caelum.card.space", SPACE),
-            ("caelum.card.damping", DAMPING),
-            ("caelum.card.shimmer", SHIMMER),
-            ("caelum.card.tone", TONE),
-        ],
-        &[
-            ("caelum.card.motion", MOTION),
-            ("caelum.card.ducking", DUCKING),
-            ("caelum.card.output", OUTPUT),
-        ],
-        &[("caelum.card.endless", ENDLESS)],
+    // The endless controls are the sill's pushbuttons (in the display); the cards laid in
+    // as few rows as fit, evenly filled (`fxa_cells::pack`).
+    let cards: &[cells::Card<'_>] = &[
+        ("caelum.card.space", SPACE),
+        ("caelum.card.damping", DAMPING),
+        ("caelum.card.shimmer", SHIMMER),
+        ("caelum.card.tone", TONE),
+        ("caelum.card.motion", MOTION),
+        ("caelum.card.ducking", DUCKING),
+        ("caelum.card.output", OUTPUT),
     ];
-    // The cards wrap to the window's width (never squeezed under their words), and the
-    // display takes what they leave.
-    let phys = cells::wrap(ui, area.width(), k, rows);
-    let top = (area.height() - phys.len() as f32 * (row + gap)).max(260.0 * k);
+    let phys = cells::pack(ui, area.width(), k, cards);
+    let top = (area.height() - phys.len() as f32 * (row + gap)).max(380.0 * k);
     with_brush(&ui.painter_at(body), |b| {
         crate::kit::light::ambient(b, body, &s.t);
     });
@@ -238,7 +241,9 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some(spec) = super::modfx::open_spec(app) else {
         return;
     };
-    let (tel, history) = demo_telemetry(&spec, 7.5);
+    // Ducking shows while the chord still sounds: that state's demo stops there.
+    let secs = if spec.get("duck") > 0.0 { 3.6 } else { 7.5 };
+    let (tel, history) = demo_telemetry(&spec, secs);
     app.fx.injected = Some(tel);
     if let Some((_, effect, _)) = app.fx.open {
         if app.fx.caelum.effect != Some(effect) {

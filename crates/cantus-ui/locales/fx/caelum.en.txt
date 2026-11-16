@@ -113,3 +113,11 @@ caelum.d.ducking = Ducking
 caelum.d.ago = Eight seconds ago
 caelum.d.now = Now
 caelum.d.lines = Line length
+# The editor (design sheet v2).
+caelum.l.sync = Sync
+caelum.l.lines = Tank
+caelum.s.eight = 8 lines
+caelum.s.sixteen = 16 lines
+caelum.tip.inf = The tail never decays: what comes in is added to it and held
+caelum.tip.freeze = The tank holds what it has: it takes no more sound and the shimmer stops climbing
+caelum.d.input = Input

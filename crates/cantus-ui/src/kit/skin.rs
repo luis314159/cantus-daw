@@ -98,6 +98,9 @@ pub mod consoles;
 // The sequencer's chassis, pads, tube and keys Fractus draws (ADR 0140). fxa:fractus
 #[path = "skin/sequencers.rs"]
 pub mod sequencers;
+// The observatory's window, astrolabe and tubes Caelum draws (ADR 0141). fxa:caelum
+#[path = "skin/observatory.rs"]
+pub mod observatory;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;
