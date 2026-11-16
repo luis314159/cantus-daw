@@ -268,3 +268,21 @@ fn the_histogram_holds_the_two_levels() {
     assert!(at20 >= 170 && at30 >= 160, "{at20} {at30}");
     assert!(total - at20 - at30 <= 32);
 }
+
+/// The tonal analyser is the same at every piece size, to the bit.
+#[test]
+fn the_tonal_curve_is_the_same_at_every_piece_size() {
+    let (l, r) = (pink(1 << 18, 31, 0.1), pink(1 << 18, 32, 0.1));
+    let mut want = None;
+    for piece in [1usize, 37, 512, 70_000] {
+        let mut t = Tonal::new(FS, Resolution::Sixth);
+        for (a, b) in l.chunks(piece).zip(r.chunks(piece)) {
+            t.push(a, b);
+        }
+        let c = format!("{:?}", t.curve());
+        match &want {
+            None => want = Some(c),
+            Some(w) => assert_eq!(w, &c, "piece {piece}"),
+        }
+    }
+}

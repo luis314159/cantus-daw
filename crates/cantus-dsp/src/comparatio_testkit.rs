@@ -85,10 +85,6 @@ pub fn faded(mut x: Vec<f32>, len: usize) -> Vec<f32> {
     x
 }
 
-pub fn fnv(bits: impl Iterator<Item = u64>) -> u64 {
-    super::tests_shared::fnv(bits)
-}
-
 pub fn playing(samples: i64) -> Transport {
     Transport {
         playing: true,
