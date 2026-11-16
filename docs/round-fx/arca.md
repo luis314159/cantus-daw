@@ -20,6 +20,11 @@ circuits), the stand-in plate load in `arca_net.rs`; in `fragor_dk.rs` (additive
 `Koren::table` field and `Circuit::fused`, a few constants made `pub(crate)`. Numbers in
 ADR 0137 *Phase A-2*; the sounds re-rendered with them.
 
+## Phase A-3 (2026-11-15): followers as their own circuits
+
+`arca_net.rs`: a follower split from its plate (DC carried, grid-current sink),
+`cpu_by_stage`. Numbers in ADR 0137 *Phase A-3*; files 05–20 re-rendered.
+
 ## Verified only in emulation
 
 Everything: no guitar has been played through Arca live; the renders are the evidence. CPU

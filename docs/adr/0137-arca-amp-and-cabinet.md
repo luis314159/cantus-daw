@@ -145,6 +145,30 @@ points and the oversampler clears; silence in is then silence out and nothing mo
   The high gain's four circuits (the last two hard-clipping, 2.4 and 3.2 iterations) are
   what remains above its target.
 
+### Phase A-3: the high gain's cost (2026-11-15, DSP only)
+
+- **Measured first** (`cpu_by_stage`: each circuit replaying what it hears in the unit): the
+  high gain's first circuit cost 134 ns of 1 170 a 4× sample — a 2× first stage would save
+  about 1.3 % of a core, so it was not built (it would also need the stand-in's current
+  carried across the rate change); its last circuit — gain stage, follower and tone stack,
+  4 ports at 3.4 iterations — cost 616 ns.
+- **A cathode follower is its own circuit** now, split from its gain stage's plate by the
+  same exact split (the stand-in and its current); its grid rides on the plate's
+  open-circuit direct voltage, and the plate is loaded by a resistor that draws the
+  follower's grid current at rest, so both operating points stay the schematic's. Two
+  2-port circuits replace one 4-port: 178 + 243 ns where it was 616 (the crunch, chime and
+  bass amps gain the same way). Schematic comparison, operating points (0.05 V) and the
+  split's error unchanged and within their tolerances; the clean amp renders to the bit.
+- **CPU** (4×, with its cabinet, best of three) with the machine at 63 – 76 % load: clean
+  11.9 – 12.4 %, crunch 15.8 – 17.4 %, chime 15.4 – 15.5 %, high gain 24.9 – 26.8 %, bass
+  13.3 – 14.5 %. The same code measured the clean amp at 9.6 % at 33 % load; scaled by the
+  clean amp (unchanged), the high gain is about 20 % on that machine state — at its target,
+  not clearly under it.
+- **The renders changed** for the crunch, chime, high-gain and bass amps (the clean amp,
+  Rota and the Uni-Vibe bit-identical): −47 to −87 dB of difference on the clean settings,
+  −11 to −37 dB on the driven ones — hard clipping turns a small change of the solve into a
+  different waveform sample by sample; the ear decides.
+
 ## Left for the next phases
 
 - **CPU**: tabulate the triode (a bicubic table of Koren's currents and their slopes, built
