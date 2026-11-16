@@ -76,7 +76,7 @@ fn arca_rota_and_the_lamp_vibe_are_never_cut() {
     ];
     let mut bad = Vec::new();
     for lang in [Locale::En, Locale::Es] {
-        cantus_ui::i18n::set_locale(lang);
+        cantus_ui::i18n::set_thread_locale(lang);
         for k in [0.75f32, 1.0, 1.5, 2.0] {
             for (unit, kind, kv) in cases {
                 for c in cuts(unit, *kind, kv, k) {
@@ -106,7 +106,7 @@ fn every_pedal_face_on_the_board_reads_whole() {
     }
     let mut bad = Vec::new();
     for lang in [Locale::En, Locale::Es] {
-        cantus_ui::i18n::set_locale(lang);
+        cantus_ui::i18n::set_thread_locale(lang);
         for k in [0.75f32, 1.0] {
             for chunk in specs.chunks(4) {
                 let mut app =

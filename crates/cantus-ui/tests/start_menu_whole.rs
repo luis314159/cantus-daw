@@ -23,7 +23,7 @@ fn context() -> egui::Context {
 fn the_start_rows_are_never_cut() {
     for lang in [Locale::En, Locale::Es] {
         for k in [0.75f32, 1.0, 2.0] {
-            cantus_ui::i18n::set_locale(lang);
+            cantus_ui::i18n::set_thread_locale(lang);
             let ctx = context();
             let mut app =
                 CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
