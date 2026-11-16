@@ -110,6 +110,25 @@ fn app_with(state: &str, playing: bool) -> CantusApp {
     if playing {
         views::fx::demo_feed(&mut app, KIND);
     }
+    if state == "menu" {
+        // The preset list open, the twelve-string loaded, the person's start the mono fifth
+        // (set for this picture only: the settings file is not written).
+        let mut fifth = cantus_core::EffectSpec::new(KIND);
+        for (k, v) in settings("fifth") {
+            fifth.set(k, *v);
+        }
+        app.settings
+            .starting
+            .push(cantus_ui::starting_choice::StartingChoice {
+                label: cantus_ui::i18n::t("preset.saltus.fifth_live"),
+                spec: fifth,
+            });
+        app.fx.saltus.chrome.reset_for(effect.0);
+        app.fx.saltus.chrome.open_presets_at(
+            egui::pos2(510.0, 27.0),
+            egui::Rect::from_min_max(egui::pos2(510.0, 4.0), egui::pos2(750.0, 26.0)),
+        );
+    }
     app.fx.pos = Some(egui::pos2(0.0, 0.0));
     app
 }
@@ -139,7 +158,7 @@ fn main() {
     let mut shots: Vec<(&str, bool, bool, Locale, f32)> =
         vec![("start", false, true, Locale::En, 1.0)];
     for state in [
-        "start", "fifth", "shift", "harmony", "chord", "octave", "whammy", "notes", "board",
+        "start", "fifth", "shift", "harmony", "chord", "octave", "whammy", "notes", "board", "menu",
     ] {
         shots.push((state, true, true, Locale::En, 1.0));
         shots.push((state, true, false, Locale::Es, 1.0));

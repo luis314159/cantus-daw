@@ -262,6 +262,14 @@ pub fn place(
         });
 }
 
+impl Chrome {
+    /// fx3:start — open the preset list as a click on the header would, at `at` under
+    /// `opener` (pictures and tests).
+    pub fn open_presets_at(&mut self, at: Pos2, opener: Rect) {
+        self.popup = Some((Popup::Presets, at, opener));
+    }
+}
+
 // ---- popups ---------------------------------------------------------------------------
 
 /// A list under `anchor`, drawn with the kit's menu at the device's scale. Returns the

@@ -405,7 +405,7 @@ fn arc_points(kb: &Keyboard, anchor: f32, interval: f32, room: f32, k: f32) -> [
     let x0 = kb.x(anchor);
     let x1 = kb.x(anchor + interval);
     let w = interval.abs();
-    let h = 16.0 * k + (w / 24.0).min(1.0).powf(0.55) * (room - 16.0 * k);
+    let h = 16.0 * k + (w / 24.0).min(1.0).powf(0.42) * (room - 16.0 * k);
     // A unison still leaps: a small loop above its key.
     let (x0, x1) = if (x1 - x0).abs() < 6.0 * k {
         let d = 6.0 * k * if interval < 0.0 { -1.0 } else { 1.0 };
@@ -979,10 +979,40 @@ fn paint_leap(
     }
     // The arcs, then their words (on plates, never over each other).
     let staff_r = staff_rect(leap, k);
-    let room = (kb.r.top() - staff_r.bottom() - 46.0 * k).max(40.0 * k);
+    let room = (kb.r.top() - staff_r.bottom() - 34.0 * k).max(40.0 * k);
     let mut placed: Vec<Rect> = vec![hr.expand(6.0 * k)];
     let mut labels = Vec::new();
-    paint_staff(b, ink, staff_r, v, lanes, poly, &chord, k);
+    // The staff and the leap one picture: each octave's C rises from its key to the staff,
+    // a faint guide through the arcs.
+    for m in (kb.low..=kb.high).filter(|m| m.rem_euclid(12) == 0) {
+        let x = kb.key(m).center().x;
+        b.dashed(
+            &[
+                pos2(x, kb.r.top() - 4.0 * k),
+                pos2(x, staff_r.bottom() + 6.0 * k),
+            ],
+            0.6 * k,
+            with_alpha(ink.grid_strong, 0.8),
+            2.0 * k,
+            5.0 * k,
+        );
+    }
+    let heads = paint_staff(b, ink, staff_r, v, lanes, poly, &chord, k);
+    // Each note now on the staff falls to its key: the staff and the leap one picture.
+    for (p, midi, col) in heads {
+        let key = pos2(kb.x(midi.round()), kb.r.top() - 4.0 * k);
+        let from = p - vec2(9.0 * k, 0.0);
+        let pts: [Pos2; 25] = std::array::from_fn(|i| {
+            let t = i as f32 / 24.0;
+            let u = 1.0 - t;
+            let ctrl = pos2(key.x, from.y);
+            pos2(
+                u * u * from.x + 2.0 * u * t * ctrl.x + t * t * key.x,
+                u * u * from.y + 2.0 * u * t * ctrl.y + t * t * key.y,
+            )
+        });
+        b.dashed(&pts, 0.8 * k, with_alpha(col, 0.32), 3.0 * k, 4.0 * k);
+    }
     for (i, l) in lanes.iter().enumerate() {
         // A voice at no level is not drawn (an octave is: its arc waits, dashed).
         if l.level <= 0.0 && l.name.is_none() {
@@ -1171,7 +1201,7 @@ pub fn staff_rect(leap: Rect, k: f32) -> Rect {
         pos2(leap.left() + 214.0 * k, leap.top() + 10.0 * k),
         pos2(
             leap.right() - 18.0 * k,
-            leap.top() + (leap.height() * 0.4).max(150.0 * k),
+            leap.top() + (leap.height() * 0.45).max(150.0 * k),
         ),
     )
 }
@@ -1188,7 +1218,7 @@ fn paint_staff(
     poly: bool,
     chord: &[i32; 3],
     k: f32,
-) {
+) -> Vec<(Pos2, f32, Color32)> {
     let second = ink.look.trace2;
     let alpha = if poly { 0.9 } else { 0.35 + 0.65 * v.heard };
     let mut heads = Vec::new();
@@ -1214,5 +1244,9 @@ fn paint_staff(
     heads.sort_by(|a, b| a.midi.total_cmp(&b.midi));
     heads.dedup_by(|a, b| a.midi.round() == b.midi.round());
     let colors = [ink.text, ink.hue, second, second];
-    staff::paint(b, ink, r, &v.trail, TRAIL, colors, &heads, k);
+    staff::paint(b, ink, r, &v.trail, TRAIL, colors, &heads, k)
+        .into_iter()
+        .zip(heads)
+        .map(|(p, h)| (p, h.midi, h.color))
+        .collect()
 }

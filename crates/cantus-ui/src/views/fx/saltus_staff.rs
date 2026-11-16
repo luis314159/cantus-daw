@@ -75,7 +75,8 @@ pub struct Head {
     pub alpha: f32,
 }
 
-/// The staff in `r`: its lines, clefs, the trail (oldest at the left), and the heads now.
+/// The staff in `r`: its lines, clefs, the trail (oldest at the left), and the heads now;
+/// returns where each head was drawn, in `heads`' order.
 #[allow(clippy::too_many_arguments)]
 pub fn paint(
     b: &mut Brush,
@@ -86,7 +87,7 @@ pub fn paint(
     colors: [Color32; 4],
     heads: &[Head],
     k: f32,
-) {
+) -> Vec<Pos2> {
     let hs = r.height() / (HIGH - LOW + 2) as f32;
     let mid = r.center().y + (MIDDLE_C - (LOW + HIGH) / 2) as f32 * hs;
     let y = |p: f32| mid - (p - MIDDLE_C as f32) * hs;
@@ -97,8 +98,8 @@ pub fn paint(
     // The brace's line joining the two staves, and the clefs.
     b.vline(x0, y(38.0), y(18.0), 1.0 * k, ink.grid_strong);
     let s = 2.0 * hs;
-    treble(b, pos2(x0 + 2.2 * s, y(32.0)), s, ink.text, k);
-    bass(b, pos2(x0 + 2.0 * s, y(24.0)), s, ink.text, k);
+    treble(b, pos2(x0 + 1.9 * s, y(32.0)), s * 0.92, ink.text, k);
+    bass(b, pos2(x0 + 1.5 * s, y(24.0)), s * 0.92, ink.text, k);
     // The trail: from just after the clefs to the heads, newest at the right.
     let (t0, t1) = (x0 + 5.0 * s, x1 - 4.0 * s);
     let n = trail.len();
@@ -124,6 +125,7 @@ pub fn paint(
     // Now: a hairline, and the heads with their ledger lines and sharps.
     b.vline(t1 + 1.5 * s, r.top(), r.bottom(), 0.6 * k, ink.grid);
     let mut placed: Vec<(i32, f32)> = Vec::new();
+    let mut at_heads = Vec::with_capacity(heads.len());
     for h in heads {
         let m = h.midi.round() as i32;
         let (p, sharp) = place(m);
@@ -158,6 +160,7 @@ pub fn paint(
             );
         }
         head(b, pos2(x, cy), s, c);
+        at_heads.push(pos2(x, cy));
         if sharp {
             canvas::put(
                 b,
@@ -169,6 +172,7 @@ pub fn paint(
             );
         }
     }
+    at_heads
 }
 
 /// A filled note head: an ellipse tilted up to the right, a space tall.
@@ -185,62 +189,112 @@ fn head(b: &mut Brush, c: Pos2, s: f32, col: Color32) {
     b.polygon(&pts, col);
 }
 
-/// A treble clef curled round the G line at `g` (`s` a space), in fine strokes.
+/// The treble clef's path, in staff spaces from the G line (y up): from the hook's dot, up
+/// the stem to the loop above the staff, down across it into the bowl round the G line.
+const TREBLE: [(f32, f32); 29] = [
+    (-0.55, -2.35),
+    (-0.4, -2.75),
+    (0.0, -2.8),
+    (0.22, -2.4),
+    (0.27, -1.5),
+    (0.31, 0.5),
+    (0.33, 2.0),
+    (0.36, 3.0),
+    (0.6, 3.65),
+    (0.72, 4.25),
+    (0.55, 4.62),
+    (0.18, 4.55),
+    (-0.15, 4.1),
+    (-0.38, 3.4),
+    (-0.52, 2.65),
+    (-0.75, 1.9),
+    (-1.05, 1.0),
+    (-1.15, 0.1),
+    (-0.8, -0.75),
+    (0.0, -1.05),
+    (0.85, -0.75),
+    (1.2, 0.05),
+    (0.95, 0.85),
+    (0.3, 1.15),
+    (-0.3, 0.9),
+    (-0.5, 0.3),
+    (-0.25, -0.25),
+    (0.2, -0.2),
+    (0.2, -0.2),
+];
+
+/// The bass clef's curve, in spaces from the F line (y up): from its dot, over and down.
+const BASS: [(f32, f32); 10] = [
+    (-0.45, 0.0),
+    (-0.4, 0.6),
+    (0.0, 1.0),
+    (0.6, 1.05),
+    (1.1, 0.7),
+    (1.25, 0.1),
+    (1.05, -0.7),
+    (0.55, -1.5),
+    (-0.1, -2.15),
+    (-0.7, -2.6),
+];
+
+/// A pen's stroke through `pts` (Catmull–Rom), as engraved: a broad nib held at 35°, thin
+/// on the hairlines and full on the swells, between `thin` and `full` spaces wide.
+#[allow(clippy::too_many_arguments)]
+fn pen(
+    b: &mut Brush,
+    o: Pos2,
+    s: f32,
+    pts: &[(f32, f32)],
+    thin: f32,
+    full: f32,
+    col: Color32,
+    k: f32,
+) {
+    let at = |p: (f32, f32)| o + vec2(p.0 * s, -p.1 * s);
+    let nib = 35f32.to_radians();
+    let n = pts.len();
+    let mut last: Option<Pos2> = None;
+    for i in 0..n.saturating_sub(1) {
+        let p0 = pts[i.saturating_sub(1)];
+        let (p1, p2) = (pts[i], pts[i + 1]);
+        let p3 = pts[(i + 2).min(n - 1)];
+        for j in 0..=10 {
+            let t = j as f32 / 10.0;
+            let (t2, t3) = (t * t, t * t * t);
+            let c = |a: f32, b: f32, c: f32, d: f32| {
+                0.5 * (2.0 * b
+                    + (c - a) * t
+                    + (2.0 * a - 5.0 * b + 4.0 * c - d) * t2
+                    + (3.0 * b - a - 3.0 * c + d) * t3)
+            };
+            let q = at((c(p0.0, p1.0, p2.0, p3.0), c(p0.1, p1.1, p2.1, p3.1)));
+            if let Some(a) = last {
+                let d = q - a;
+                if d.length() > 0.05 {
+                    // Screen y runs down: the nib's angle is taken in the page's sense.
+                    let ang = (-d.y).atan2(d.x);
+                    let w = (thin + (full - thin) * (ang - nib).sin().abs()) * s;
+                    b.segment(a, q, w.max(0.8 * k), col, true);
+                    last = Some(q);
+                }
+            } else {
+                last = Some(q);
+            }
+        }
+    }
+}
+
+/// A treble clef round the G line at `g` (`s` a space).
 fn treble(b: &mut Brush, g: Pos2, s: f32, col: Color32, k: f32) {
-    let mut pts = Vec::with_capacity(96);
-    // The spiral round the G line, opening outward.
-    for i in 0..=40 {
-        let t = i as f32 / 40.0;
-        let a = PI * 0.5 + t * 2.1 * PI;
-        let rad = s * (0.25 + 0.75 * t);
-        pts.push(g + vec2(a.cos() * rad * 0.85, -a.sin() * rad));
-    }
-    // Up through the staff to a loop above it, then down the stem below it.
-    let top = g + vec2(0.15 * s, -3.4 * s);
-    let start = *pts.last().unwrap_or(&g);
-    for i in 1..=14 {
-        let t = i as f32 / 14.0;
-        let p = start + (top - start) * t + vec2((t * PI).sin() * 0.5 * s, 0.0);
-        pts.push(p);
-    }
-    for i in 1..=10 {
-        let t = i as f32 / 10.0;
-        let a = t * PI;
-        pts.push(top + vec2(-a.sin() * 0.55 * s, (1.0 - a.cos()) * 0.45 * s));
-    }
-    let from = *pts.last().unwrap_or(&g);
-    let foot = g + vec2(0.05 * s, 1.7 * s);
-    for i in 1..=16 {
-        let t = i as f32 / 16.0;
-        pts.push(from + (foot - from) * t);
-    }
-    for i in 1..=8 {
-        let a = i as f32 / 8.0 * PI;
-        pts.push(foot + vec2(-(1.0 - a.cos()) * 0.3 * s, a.sin() * 0.35 * s));
-    }
-    b.polyline(&pts, 1.1 * k, col);
-    if let Some(end) = pts.last() {
-        b.dot(*end, 0.32 * s, col);
-    }
+    pen(b, g, s, &TREBLE, 0.06, 0.32, col, k);
+    b.dot(g + vec2(-0.52 * s, 2.3 * s), 0.27 * s, col);
 }
 
 /// A bass clef on the F line at `f`: its dot, its curve, the two dots round the line.
 fn bass(b: &mut Brush, f: Pos2, s: f32, col: Color32, k: f32) {
-    let c = f + vec2(0.25 * s, 0.0);
-    let mut pts = Vec::with_capacity(40);
-    for i in 0..=24 {
-        let a = PI + i as f32 / 24.0 * PI * 1.35;
-        pts.push(c + vec2(a.cos() * 0.75 * s, a.sin() * 0.85 * s));
-    }
-    let from = *pts.last().unwrap_or(&c);
-    let tail = c + vec2(-0.85 * s, 2.4 * s);
-    for i in 1..=12 {
-        let t = i as f32 / 12.0;
-        pts.push(from + (tail - from) * t + vec2(0.0, -(t * PI).sin() * 0.2 * s));
-    }
-    b.polyline(&pts, 1.2 * k, col);
-    b.dot(c + vec2(-0.75 * s, 0.0), 0.3 * s, col);
+    pen(b, f, s, &BASS, 0.06, 0.40, col, k);
+    b.dot(f + vec2(-0.45 * s, 0.0), 0.34 * s, col);
     for dy in [-0.5f32, 0.5] {
-        b.dot(c + vec2(1.25 * s, dy * s), 0.16 * s, col);
+        b.dot(f + vec2(1.65 * s, dy * s), 0.13 * s, col);
     }
 }
