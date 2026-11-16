@@ -440,11 +440,15 @@ fn main() {
             tail(&wet)
         ),
     );
-    for (name, amount) in [
-        ("22-voice-dereverb-12dB", 12.0f32),
-        ("23-voice-dereverb-24dB", 24.0),
+    for (name, amount, direct) in [
+        ("22-voice-dereverb-12dB-direct6", 12.0f32, 6.0f32),
+        ("23-voice-dereverb-12dB-direct0", 12.0, 0.0),
+        ("24-voice-dereverb-24dB-direct0", 24.0, 0.0),
     ] {
-        let s = verb_on(|v| v.amount_db = amount);
+        let s = verb_on(|v| {
+            v.amount_db = amount;
+            v.direct_db = direct;
+        });
         let y = through(&wet, &s);
         let mut probe = Purus::new(sr);
         probe.set(&s);
@@ -455,8 +459,7 @@ fn main() {
             &format!("{name}.wav"),
             &y,
             &format!(
-                "de-reverb {amount} dB, the decay estimated ({est:.2} s), direct 0 dB, early \
-                 50 ms; the tail after the line {:.1} dBFS",
+                "de-reverb {amount} dB, direct {direct:+} dB, the decay estimated ({est:.2} s), early 50 ms; the tail after the line {:.1} dBFS",
                 tail(&y.0)
             ),
         );
@@ -464,6 +467,7 @@ fn main() {
             &wet,
             &verb_on(|v| {
                 v.amount_db = amount;
+                v.direct_db = direct;
                 v.delta = true;
             }),
         );

@@ -20,7 +20,9 @@
 //! the band's usual remainder, which rises over 4 s, so a hum that changed is learned
 //! again); the hum's level is kept smoothed at 0.5 Hz (what a hold goes back to, 40–60 ms
 //! of learning earlier); held harmonics turn with the free ones (the reference follows the
-//! hum's frequency, not its phase); the tracker's loop is slower in this mode. Only the
+//! hum's frequency, not its phase); and in this mode the reference is **phase-locked** to
+//! the hum (a 0.1 Hz second-order loop on the phase it has turned, its readings trusted by
+//! how well the hum learned explains each band, the held ones left out). Only the
 //! bass range (to 160 Hz) is held; above, the canceller always learns (a notch).
 //!
 //! **Tracking**: a frequency-locked loop on the mono sum. Each of the first eight harmonics

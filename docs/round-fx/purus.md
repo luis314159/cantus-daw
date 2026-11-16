@@ -11,6 +11,32 @@ name is provisional (`cantus_dsp::purus::NAME`).
 
 Each is in the sections below.
 
+**Phase A-3** (the third delivery). Before and after, on the CC0 guitar:
+
+| | Before (A-2) | After (A-3) |
+|---|---|---|
+| Gentle de-hum, steady hum: the 3rd harmonic left (notches −58 dBFS) | −40 dBFS | **−75 dBFS** |
+| Gentle de-hum, steady hum: the reference's worst error from the hum's frequency | 0.15 Hz | **0.006 Hz** |
+| Gentle de-hum, drifting hum: worst harmonic against the notches | within 5.1 dB | **as good as the notches or better** (−70 −71 −64 −69 −60 −68 −63 −67 against −63 −61 −57 −61 −56 −76 −61 −65) |
+| Gentle, the bass test on a steady hum | −0.43 dB worst note | −0.43 dB (unchanged) |
+| Gentle, the bass on the drifting hum (listening set) | −1.1 dB worst note | **−0.7 dB** |
+| Crackle alone (300 a second) | −9.1 dB (de-click only: it hurts) | **11.8 dB taken out** |
+| Clicks and crackle | −1.4 dB | **16.2 dB** (the editor's offline declick: 5.3 dB) |
+| The clean guitar through the de-click and de-crackle | change 42.8 dB under it | **83 dB under it** (16 places in 21 s) |
+
+- **The gentle mode's reference is phase-locked.** A second-order phase-locked loop at 0.1 Hz drives the phase the hum has turned from the reference back to zero.
+  - Its readings are weighted by how well the hum learned explains each band, so a band where a note sounds counts for little.
+  - Harmonics a note holds are left out of the readings.
+- **The steady-hum miss was the reference, not the hold.** Against a steady 50 Hz hum, the loop strayed up to 0.15 Hz, pulled by the chords. A held harmonic then turned away from the hum, and the residual hum looked like a note, so it stayed held. With the reference within 0.006 Hz, the guitar holds nothing and the canceller is exact.
+- **The de-crackle** (`purus_crackle.rs`) **subtracts** each impulse instead of rebuilding the samples under it.
+  - It is found in the 5 kHz high band, where an impulse stands far above the music.
+  - Its amplitudes at four samples are fitted by least squares to the high band. The fit's matrix is the high-pass's own autocorrelation, factored once.
+  - It is accepted only if that shape explains 60 % of the high band's energy over its support.
+  - The whole impulse is taken out of the samples.
+  - With it on, the de-click's pass leaves impulses of four marks or fewer to it. The de-click rebuilds only what stands out of the music: 6 more robust scales, and a peak error at least 1.5 × the block's level. The rebuilding of small things under loud music was what made things worse.
+- **The de-crackle adds no latency** (it works in the de-click's window).
+- **Direct sound's default is +6 dB**, by the owner's choice. Far-microphone presets set 0 dB.
+
 Purus is an **insert**, not the audio editor's offline repair (ADR 0096). It cleans a track as it
 plays. Its references for *function* (inspired by, never copied) are iZotope RX's De-hum and
 Dialogue De-reverb, Waves X-Hum and NS1, Accusonus ERA De-Reverb, and Acon DeVerberate.
@@ -19,7 +45,7 @@ Dialogue De-reverb, Waves X-Hum and NS1, Accusonus ERA De-Reverb, and Acon DeVer
 
 | Layer | Files (owned) | Shared files |
 |---|---|---|
-| DSP | `cantus-dsp/src/purus.rs`: the unit, its settings, meter, delta, latency and rest. `purus_hum.rs`: the de-hum. `purus_click.rs`: the de-click and de-crackle. `purus_verb.rs`: the de-reverb and the decay estimator. `purus_testkit.rs`: synthetic hum, bass, clicks, crackle, voice and room, and the measures. Tests: `purus_tests.rs`, `purus_tests_measure.rs`, `purus_tests_verb.rs`, `purus_tests_click.rs`, `purus_tests_shared.rs`, `cantus-dsp/tests/purus_alloc.rs`. Example: `cantus-dsp/examples/purus_sounds.rs`. | `cantus-dsp/src/lib.rs`: one line, `pub mod purus; // fx-e:purus`. `denoise_stft.rs`: `sqrt_hann` taken out of `Stft::new`. `denoise.rs`: `smooth_gains` taken out of `denoise_channel`. `denoise_declick.rs`: the detector and the rebuilding made allocation-free cores (`ArScratch`, `ar_fit_into`, `block_errors`, `threshold`, `widen`, `GapScratch`, `rebuild`), with the editor's functions now wrappers over them. All are marked `fx-e:purus`, and the editor's outputs are bit-identical (below). |
+| DSP | `cantus-dsp/src/purus.rs`: the unit, its settings, meter, delta, latency and rest. `purus_hum.rs`: the de-hum. `purus_click.rs`: the de-click. `purus_crackle.rs`: the de-crackle. `purus_verb.rs`: the de-reverb and the decay estimator. `purus_testkit.rs`: synthetic hum, bass, clicks, crackle, voice and room, and the measures. Tests: `purus_tests.rs`, `purus_tests_measure.rs`, `purus_tests_verb.rs`, `purus_tests_click.rs`, `purus_tests_shared.rs`, `cantus-dsp/tests/purus_alloc.rs`. Example: `cantus-dsp/examples/purus_sounds.rs`. | `cantus-dsp/src/lib.rs`: one line, `pub mod purus; // fx-e:purus`. `denoise_stft.rs`: `sqrt_hann` taken out of `Stft::new`. `denoise.rs`: `smooth_gains` taken out of `denoise_channel`. `denoise_declick.rs`: the detector and the rebuilding made allocation-free cores (`ArScratch`, `ar_fit_into`, `block_errors`, `threshold`, `widen`, `GapScratch`, `rebuild`), with the editor's functions now wrappers over them. All are marked `fx-e:purus`, and the editor's outputs are bit-identical (below). |
 | Docs | this file | — |
 
 ### What is shared with the audio editor's denoiser, and what is not
@@ -81,7 +107,7 @@ p.at_rest(); p.rest_blocker(); p.skip(n); p.reset(); p.forget();
 | `amount_db` | 0–30 | Default 12. The floor of the gain, which also scales the tail predicted (1 + amount/24). |
 | `decay` | `Set`, `Estimate` | Where the decay time comes from. |
 | `decay_s` | 0.1–10 s | The T60. |
-| `direct_db` | −10 to +20 | Default 0: the direct-to-reverberant ratio the model assumes. Set it higher for a close microphone. |
+| `direct_db` | −10 to +20 | Default **+6 dB** (phase A-3; far-microphone presets set 0): the direct-to-reverberant ratio the model assumes. Higher for a close microphone. |
 | `smoothing` | 0–1 | The gains' smoothing. |
 | `keep_ms` | 5–200 | Default 50: the early reflections kept. |
 | `mix`, `out_db`, `delta` | | The module's mix, output level and delta. |
@@ -92,7 +118,7 @@ p.at_rest(); p.rest_blocker(); p.skip(n); p.reset(); p.forget();
 |---|---|---|
 | `on` | | The module switch. |
 | `sensitivity` | 0–1 | Default 0.5: the editor's sensitivity, from 12 robust scales at 0 to 4 at 1. |
-| `crackle` | 0–1 | A second pass for the shortest impulses, at down to half the threshold (never under 5 robust scales). |
+| `crackle` | 0–1 | The de-crackle (phase A-3). 0 is off. An impulse in the high band is taken at 9 robust scales (at 0+) to 5 (at 1). |
 | `mix`, `out_db`, `delta` | | The module's mix, output level and delta. |
 
 **`PurusSettings`** holds `{ hum, click, verb, out_db }`. **`Default` is the null**: every module is off
@@ -135,7 +161,7 @@ and the output is at 0 dB.
 - Its learning is **held** while a three-pole, **3 Hz** band of *what the learned hum does not explain* (measured on the input as it is now) stands above half the hum's level, or above twice the band's usual remainder. That remainder rises over 4 s and falls over 50 ms. The look-ahead pays for the narrower, slower band, which neighbours 10–20 Hz away no longer trip.
 - The hum's level and phase are kept as an estimate smoothed at **0.5 Hz**. That is the reference the gate compares with, and what a hold goes back to. It is seeded from the canceller when learning ends. A 0.5 Hz smoothing rejects the jitter a neighbouring note 10–20 Hz away puts into the raw estimate.
 - **Held harmonics turn with the free ones.** The reference follows the hum's frequency, not its phase, so against a drifting hum the phase between them wanders. Every 64 samples, the angle the free harmonics turned (each over its harmonic number, weighted by strength) turns the held ones, each by its own number.
-- In the gentle mode the tracker's loop is slower (0.08 Hz, against 0.5 Hz for the notches), because a held estimate needs a steady phase more than a quick one.
+- **In the gentle mode the reference is phase-locked** (phase A-3). The tracker's readings are summed into the phase the hum has turned from the reference, and a second-order loop (0.1 Hz, damping 0.8) drives that phase back to zero. Each reading is weighted by how well the hum learned explains its band, and the harmonics a note holds are left out. The notches keep the frequency loop at 0.5 Hz.
 - The hold does not apply when the hum has simply gone.
 - When a hold starts, the estimate goes back to a snapshot taken 40–60 ms of *learning time* earlier. This unlearns the first milliseconds of a note, before the hold could catch it.
 - A hum that changes is learned again by the slow remainder (3.5 s, measured).
@@ -157,7 +183,12 @@ and the output is at 0 dB.
   - Each click is widened and rebuilt from up to 1 024 samples before it and 192 after (the look-ahead).
 - Stretches longer than 96 samples (2 ms) are left alone: they are a drum or a consonant. At most 32 clicks are rebuilt per block per channel. A block with no click is handed on bit for bit.
 - **The latency** is `512 + 256 − 1 = 767` samples (16 ms), fixed.
-- **De-crackle** is a second pass over the block once it is clean of its clicks. With a model and a scale no longer pulled by the clicks, it takes stretches of at most 4 marks at a threshold down to half (never under 5 robust scales). At crackle 0 the judgement is the editor's.
+- **De-crackle** (phase A-3, `purus_crackle.rs`) runs first, in the same window.
+  - Impulses are found in a 5 kHz linear-phase high band (33 taps at 48 kHz), as local peaks over 9 to 5 robust scales.
+  - Each is fitted as four samples of unknown amplitude against the high-pass's shape (least squares, the matrix factored once).
+  - It is accepted only if it explains 60 % of the high band's energy over its support, then subtracted from the samples it sits on.
+  - The de-click's pass then leaves impulses of four marks or fewer to it, and rebuilds only clicks 6 robust scales higher whose peak error is at least 1.5 × the block's level.
+  - At crackle 0 the judgement is the editor's.
 
 **De-reverb, the transform** is the editor's, made streaming:
 - The same window, at 75 % overlap.
@@ -348,6 +379,18 @@ The editor's offline declick on the same crackle: −4.5 dB at 0.5 and −6.8 dB
 
   The machine was at 71 % load from other programs at the start, with three other `cargo` or `rustc` processes running by the end, so these numbers are probably high. The notches read 0.44 % against 0.42 % on the quiet run.
 
+  **Phase A-3**, on a quiet machine (no other `rustc` or `cargo`, 17–18 % load):
+
+  | Setting | Share of a core |
+  |---|---|
+  | Notches, 8 harmonics | 0.43 % |
+  | Notches, 16, tracked | 0.54 % |
+  | Gentle (look-ahead, phase-locked), 16, Auto | 2.28 % |
+  | De-reverb | 1.02 % |
+  | Gentle plus de-reverb | 3.24 % |
+  | **De-click with the new de-crackle** | **1.27 %** |
+  | **All three** | **4.49 %** |
+
 ### Tests and what each holds
 
 - **`purus_tests.rs`:**
@@ -365,9 +408,9 @@ The editor's offline declick on the same crackle: −4.5 dB at 0.5 and −6.8 dB
   - `tracking_follows_a_mains_drifting_one_hertz_either_way`
   - `auto_finds_sixty_hertz_and_stays_on_fifty`
   - `the_gentle_mode_learns_a_hum_that_changes`
-  - `purus_gentle_guitar` (`#[ignore]`; needs the CC0 strums on disk)
+  - `purus_gentle_guitar` (`#[ignore]`; needs the CC0 strums on disk). It also reports how far the reference strayed and how much of the time each harmonic was held. Use `PURUS_NODRIFT=1` for a steady hum.
   - `purus_cpu` (`#[ignore]`; run it alone, in release)
-- **`purus_tests_click.rs`:** `clicks_and_crackle_come_out_and_the_music_stays`.
+- **`purus_tests_click.rs`:** `clicks_and_crackle_come_out_and_the_music_stays`, and `purus_crackle_guitar` (`#[ignore]`; the CC0 strums).
 - **`purus_tests_verb.rs`:**
   - `the_late_tail_comes_out_of_a_known_room`
   - `the_decay_is_estimated_from_the_signal`
@@ -375,7 +418,7 @@ The editor's offline declick on the same crackle: −4.5 dB at 0.5 and −6.8 dB
 - **`purus_tests_shared.rs`:** `the_denoisers_outputs_are_bit_identical_to_before_the_sharing`, `the_declickers_outputs_are_bit_identical_to_before_the_sharing`.
 - **`tests/purus_alloc.rs`:** `purus_allocates_nothing_after_new`.
 
-**The suite:** `cargo test -p cantus-dsp --no-fail-fast` passes 939 in the library (19 ignored)
+**The suite:** `cargo test -p cantus-dsp --no-fail-fast` passes 939 in the library (20 ignored)
 plus the integration tests. `cargo clippy -p cantus-dsp --all-targets -- -D warnings` is clean,
 and `cargo fmt -p cantus-dsp` is applied.
 
@@ -390,11 +433,12 @@ and `cargo fmt -p cantus-dsp` is applied.
 
 ## Misses against the targets, honestly
 
-- **The gentle mode against a steady (not drifting) hum on the guitar** leaves the 3rd harmonic at −40 dBFS, against −58 with the notches (`purus_gentle_guitar` with `PURUS_NODRIFT=1`). The G chord's D3 (146.8 Hz) sits 3 Hz from 150 Hz, and its decaying tail is learned when the hold lets go. Ways I tried to fix it, which made the bass or the drifting case worse: a release hysteresis, and turning the held harmonics by the raw estimates. So the "within 5 dB" target holds on the listening set's drifting hum, but not on every take.
-- **The bass on the drifting hum** (listening set, file 13) loses up to 1.1 dB on a 100 Hz note. The ≤ 0.5 dB holds on the test's steady 50 Hz hum (0.43 dB). On a drifting hum the hold's estimate wanders.
-- **Crackle is not taken out on the guitar** (−1.4 dB with clicks; the editor's own offline declick gets 5.3 dB). It is reduced 6.4–6.8 dB on the synthetic music. Under a loud, bright guitar, rebuilding an impulse 30 dB under the music costs as much as the impulse. The crackle control adds only 0.4 dB on the synthetic test. A real de-crackle needs another method (Phase B).
-- **The clicks on the guitar come down 14.4 dB against the editor's 18.0 dB.** The stream sees a 512-sample block with 1 024 of context, where the editor sees 2 048 with 1 024 before and after. A longer look-ahead would close part of the gap, at the cost of latency.
-- **Sensitivity 1 harms**: on the synthetic test, crackle +3.1 dB worse and clicks 18.8 dB instead of 26.5. The editor's own declick does the same. The panel should keep the sensitivity's range honest, or cap it near 0.7.
+- *(A-3: the steady-hum miss on the guitar is closed, with the 3rd harmonic at −75 dBFS against the notches' −58. The crackle miss is closed: 11.8 dB on the guitar, at 83 dB under clean music.)*
+- **The bass on the drifting hum** (listening set, file 13) loses up to 0.7 dB on a 100 Hz note. The ≤ 0.5 dB holds on the test's steady 50 Hz hum (0.43 dB).
+- **On the guitar, the de-crackle's threshold did not matter.** Crackle at 0.5 and at 1 found the same impulses, every one there was. On sparser, quieter crackle the control will matter. That case is not measured.
+- **With the de-crackle on, the clicks on the synthetic test come down 16.3 dB instead of 26.5.** The clicks of 5–8 samples sit under the de-click's raised threshold. On the guitar the clicks still come down 18.8 dB.
+- **Sensitivity 1 harms** the de-click alone (the editor's own declick does the same). The panel should cap it near 0.7.
+- **The de-click alone (no de-crackle): the clicks on the guitar come down 14.4 dB against the editor's 18.0 dB.** The stream sees a 512-sample block with 1 024 of context, where the editor sees 2 048 with 1 024 before and after. A longer look-ahead would close part of the gap, at the cost of latency.
 - **Latency:** the gentle de-hum's look-ahead is 50 ms, and all three modules together reach 87 ms. The de-reverb is 21.3 ms at 48 and 96 kHz and 23.2 ms at 44.1 kHz.
 - **On a dry voice, the de-reverb's defaults cost 2.9 dB.** The Direct sound table above is for the owner to choose from.
 - **Late reverberation during speech** comes down 6.8 dB at the defaults and 9.5 dB at 24 dB, while the tail between and after words comes down 12–24 dB. The early part pays 2–3 dB.
@@ -417,7 +461,7 @@ and `cargo fmt -p cantus-dsp` is applied.
    - Add an `EffectKind` (the integrator's contract) and `PARAMS` mapping every field.
    - The nominal frequency and mode become a choice of 50, 60, Track or Auto.
    - Harmonics, depth and width are knobs. Gentle is a switch whose help line says it adds 50 ms.
-   - The de-click gets sensitivity (perhaps capped near 0.7) and crackle.
+   - The de-click gets sensitivity (perhaps capped near 0.7) and crackle. The starting preset could have de-crackle on at 0.5 when the de-click is on.
    - The de-reverb gets amount, decay, a Set/Estimate switch, Direct sound, smoothing and Early reflections kept.
    - Each module gets mix, output and delta; the unit gets the `out` key.
    - Also: a schema bump and fixture, commands with undo and the parameter menu, the undo fuzz arm, and the starting preset (ADR 0071): the de-hum on at 50 Hz, tracked, 8 harmonics, notches; the defaults stay the null.
@@ -446,9 +490,7 @@ and `cargo fmt -p cantus-dsp` is applied.
    - `docs/plugins/purus.md`, the manual in EN and ES, the AI tools' description, and the site's card.
 7. **End to end:** insert it from the picker on a playing track with hum through `CantusApp::assemble`, switch the de-hum on, and hear the hum leave the master. The de-reverb's latency must be compensated on the track.
 8. **Later:**
-   - **A real de-crackle**: an impulse detector of its own (wavelet or median based) with a short rebuild, working where the music is quiet, so it does not try to rebuild under loud passages.
    - A longer optional look-ahead for the de-click (the editor's context).
-   - The gentle mode's steady-hum miss: a phase-locked reference (a PLL on the fundamental rather than an FLL).
    - A per-band decay (T60 by octave) and an estimated Direct sound.
 
 ## Left (this phase)
