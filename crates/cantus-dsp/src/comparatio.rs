@@ -39,9 +39,12 @@
 //!   - *manual* — no match, only the offset;
 //!
 //!   plus the **offset** in every mode, limited to −48 … +24 dB, and gliding (a one-pole
-//!   in dB: 0.5 s integrated, 1.5 s short-term, 50 ms manual).
-//! - **The switch is a crossfade** of equal power (`cos`/`sin`, which keeps the loudness of
-//!   two unrelated signals level through it) over `fade_ms`, counted in samples.
+//!   in dB, in `f64`: 0.5 s integrated, 0.3 s short-term, 50 ms manual) whether the
+//!   reference is heard or not, so it is where it should be when it is.
+//! - **The switch is a crossfade** of equal power (`cos θ`/`sin θ`, which keeps the
+//!   loudness of two unrelated signals level through it) over `fade_ms`, counted in
+//!   samples, with `θ` itself eased (`π/4 · (1 − cos πx)`) so neither gain starts or
+//!   ends with a corner: a corner is a click's spectrum, falling only 12 dB an octave.
 //! - **Everything steps on one grid**: the analysers' 100 ms steps counted in samples from
 //!   the measurement's start; each pass is cut at the step's end, so the match gain moves
 //!   at the same sample whatever the block size.
@@ -199,26 +202,34 @@ pub struct Comparatio {
     fade_len: usize,
     /// The match: the automatic part, the target with the offset, the applied gain.
     match_db: f32,
-    target_db: f32,
-    gain_db: f32,
+    target_db: f64,
+    gain_db: f64,
     gain: f32,
-    glide: f32,
+    glide: f64,
     whole_file: Option<f64>,
     /// The last pass had a reference, of this length.
     ref_len: Option<i64>,
+}
+
+/// The equal-power gains at `x` (0 … 1) of a fade, eased at both ends: `(sin θ, cos θ)`
+/// with `θ = π/4 · (1 − cos πx)`.
+#[inline]
+pub fn eased(x: f32) -> (f32, f32) {
+    let theta = std::f32::consts::FRAC_PI_4 * (1.0 - math::cos(std::f32::consts::PI * x));
+    (math::sin(theta), math::cos(theta))
 }
 
 fn fade_len_of(ms: f32, sr: f32) -> usize {
     ((ms.clamp(1.0, 500.0) / 1_000.0 * sr).round() as usize).max(1)
 }
 
-fn glide_of(mode: MatchMode, sr: f32) -> f32 {
+fn glide_of(mode: MatchMode, sr: f32) -> f64 {
     let tau = match mode {
         MatchMode::Integrated => 0.5,
-        MatchMode::ShortTerm => 1.5,
+        MatchMode::ShortTerm => 0.3,
         MatchMode::Manual => 0.05,
     };
-    1.0 - math::exp(-1.0 / (tau * sr.max(1.0)))
+    1.0 - math::exp(-1.0 / (tau * sr.max(1.0) as f64))
 }
 
 impl Comparatio {
@@ -289,7 +300,7 @@ impl Comparatio {
 
     fn retarget(&mut self) {
         let t = (self.match_db + self.s.offset_db).clamp(MAX_CUT_DB, MAX_BOOST_DB);
-        self.target_db = t;
+        self.target_db = t as f64;
     }
 
     /// Is the reference what should be heard?
@@ -361,7 +372,6 @@ impl Comparatio {
             self.glide_n(m);
             return;
         }
-        let half_pi = std::f32::consts::FRAC_PI_2;
         for k in 0..m {
             self.glide_n(1);
             if to_ref && self.fade < self.fade_len {
@@ -377,8 +387,7 @@ impl Comparatio {
                 l[k] = rl;
                 r[k] = rr;
             } else {
-                let a = self.fade as f32 / self.fade_len as f32 * half_pi;
-                let (s, c) = (math::sin(a), math::cos(a));
+                let (s, c) = eased(self.fade as f32 / self.fade_len as f32);
                 l[k] = l[k] * c + rl * s;
                 r[k] = r[k] * c + rr * s;
             }
@@ -395,7 +404,7 @@ impl Comparatio {
             if (self.target_db - self.gain_db).abs() < 1e-3 {
                 self.gain_db = self.target_db;
             }
-            self.gain = math::db_to_gain(self.gain_db);
+            self.gain = math::db_to_gain(self.gain_db as f32);
         }
     }
 
@@ -451,8 +460,8 @@ impl Comparatio {
             } else {
                 self.fade as f32 / self.fade_len as f32
             },
-            gain_db: self.gain_db,
-            target_db: self.target_db,
+            gain_db: self.gain_db as f32,
+            target_db: self.target_db as f32,
             reference_at: self.reader.position(),
             mix: self.mix.readings(),
             reference: self.reference.readings(),
@@ -470,8 +479,9 @@ impl Comparatio {
     }
 
     /// At rest (ADR 0031 §5.1): silence in gives silence out and nothing that holds
-    /// sound moves — the mix heard (or the reference, silent), no fade, the match landed,
-    /// the reference silent ahead, every filter empty.
+    /// sound moves — the mix heard (or the reference, silent), no fade, the reference
+    /// silent ahead, every filter empty. (The match gain may still glide: what it
+    /// multiplies is silence, and [`Self::skip`] glides it as processing would.)
     pub fn at_rest(&self) -> bool {
         self.rest_blocker().is_none()
     }
@@ -480,9 +490,6 @@ impl Comparatio {
     pub fn rest_blocker(&self) -> Option<&'static str> {
         if self.fade != 0 && self.fade != self.fade_len {
             return Some("crossfade");
-        }
-        if self.gain_db != self.target_db {
-            return Some("match glide");
         }
         if !self.s.bypass && (self.fade == 0) == self.wants_reference() {
             return Some("switch pending");
@@ -518,6 +525,9 @@ impl Comparatio {
             let steps = self.mix.steps();
             self.mix.process(&ZEROS[..m], &ZEROS[..m]);
             self.reference.process(&ZEROS[..m], &ZEROS[..m]);
+            // At rest the output is silence whatever the gain; the glide goes on as in
+            // `output`, sample by sample.
+            self.glide_n(m);
             if self.mix.steps() != steps {
                 self.end_step();
             }
@@ -537,7 +547,7 @@ impl Comparatio {
         self.match_db = 0.0;
         self.retarget();
         self.gain_db = self.target_db;
-        self.gain = math::db_to_gain(self.gain_db);
+        self.gain = math::db_to_gain(self.gain_db as f32);
         self.ref_len = None;
     }
 }
@@ -576,6 +586,12 @@ pub fn analyse_whole(
     }
 }
 
+#[cfg(test)]
+#[path = "comparatio_testkit.rs"]
+mod testkit;
+#[cfg(test)]
+#[path = "comparatio_tests.rs"]
+mod tests;
 #[cfg(test)]
 #[path = "comparatio_tests_shared.rs"]
 mod tests_shared;

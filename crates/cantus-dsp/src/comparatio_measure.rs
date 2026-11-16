@@ -148,14 +148,16 @@ impl Analyser {
             let (l, r) = (&left[i..i + take], &right[i..i + take]);
             self.meter.process(l, r);
             self.stereo.process(l, r);
-            let mut sq = 0.0f64;
+            // Summed sample by sample into the step's own sum: the same additions in the
+            // same order whatever the pieces.
+            let mut sq = self.step_sq;
             let mut pk = self.peak;
             for (&a, &b) in l.iter().zip(r) {
                 sq += a as f64 * a as f64 + b as f64 * b as f64;
                 pk = pk.max(a.abs()).max(b.abs());
             }
             self.peak = pk;
-            self.step_sq += sq;
+            self.step_sq = sq;
             self.step_n += 2 * take as u64;
             self.col_pos += take;
             i += take;

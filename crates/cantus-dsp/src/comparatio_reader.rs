@@ -21,13 +21,12 @@
 //! The reader holds a **voice** — silence, or a position that moves on one sample per
 //! sample. Whenever the position wanted is not where the voice would go next (a seek, a
 //! loop's wrap, a cue, a new offset, the song starting or stopping), the old voice goes on
-//! where it would have gone and fades out while the new one fades in, equal power, over
-//! [`DECLICK_MS`]. Both read the recording itself, which is in memory: at a loop's end the
+//! where it would have gone and fades out while the new one fades in, equal power and
+//! eased ([`super::eased`]), over [`DECLICK_MS`]. Both read the recording itself, which is in memory: at a loop's end the
 //! fading voice plays what the recording has after the region, as a tape loop's splice
 //! would. A new jump during a fade drops the older fading voice (a loop shorter than two
 //! fades is lengthened to two).
 
-use crate::math;
 use crate::modfx_clock::Clock;
 
 /// The fade at every jump, ms.
@@ -212,8 +211,7 @@ impl Reader {
             let (ml, mr) = Self::sample(audio, want);
             if self.fade_k < self.fade_len {
                 let x = (self.fade_k as f32 + 0.5) / self.fade_len as f32;
-                let a = x * std::f32::consts::FRAC_PI_2;
-                let (gi, go) = (math::sin(a), math::cos(a));
+                let (gi, go) = super::eased(x);
                 let (gl, gr) = Self::sample(audio, self.ghost);
                 *l = ml * gi + gl * go;
                 *r = mr * gi + gr * go;
@@ -271,20 +269,24 @@ impl Reader {
         }
     }
 
-    /// `n` samples skipped while [`Self::silent_ahead`] (or the song stopped): exactly
-    /// what reading them would leave.
+    /// `n` samples skipped while the reference is silent: every voice and fade moves as
+    /// [`Self::read`] would move it (a silent fade still runs its course), only nothing
+    /// is read.
     pub fn skip(&mut self, clock: &Clock, n: usize) {
-        if !clock.playing() {
-            return;
-        }
-        match self.sync {
-            Sync::Locked { offset } => self.main = Voice::At(clock.song(n) + offset),
-            Sync::Free | Sync::Loop { .. } => {
-                for i in 0..n {
-                    let w = self.wanted(clock, i);
-                    self.main = w.next();
+        for i in 0..n {
+            let want = self.wanted(clock, i);
+            if want != self.main {
+                self.ghost = self.main;
+                self.fade_k = 0;
+            }
+            if self.fade_k < self.fade_len {
+                self.ghost = self.ghost.next();
+                self.fade_k += 1;
+                if self.fade_k == self.fade_len {
+                    self.ghost = Voice::Silent;
                 }
             }
+            self.main = want.next();
         }
     }
 
