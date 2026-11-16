@@ -4,6 +4,11 @@ This is branch `fx/cedo`, made from `fx/integration` d3b51a09. It is **DSP only*
 `EffectKind`, no core parameters, no engine unit, no panel, no schema bump and no ADR number. The
 name is provisional (`cantus_dsp::cedo::NAME`). Latin *cedo*: "I make way".
 
+**Phase A-2** (after the integrator's review) closed four of the first phase's misses: a sharper
+linear-phase kernel, a fade when the song starts or seeks inside a duck, an RMS detector, and MIDI
+velocity on the depth. Its before/after is in the section *Phase A-2* below; the rest of this file
+describes the unit as it is now.
+
 Cedo makes room for something else. It ducks a track by:
 - the **audio of another strip** (a kick, a voice), through a filtered key, a threshold, and an attack, hold and release;
 - or, with **no audio at all**, a **drawn shape** fired on every beat division of the song or on the notes of another track.
@@ -51,7 +56,7 @@ let mut c = Cedo::new(sample_rate, shape_at);  // allocates here only; shape_at 
 c.set_shape(&CLASSIC_PUMP);                    // the drawn shape, y = the amount (0 … 1), ≤ 64 points
 c.set(&settings);                              // between blocks; depth, mix and output glide 10 ms
 c.set_transport(&transport);                   // each pass (Tempo; MIDI reads the tempo)
-c.note(offset);                                // a note-on from the trigger track (MIDI)
+c.note(offset, velocity);                      // a note-on from the trigger track (MIDI)
 c.process(&mut left, &mut right, key);         // key: the sidechain from another strip
 c.latency();                                   // lookahead + the linear-phase kernel's delay
 latency_for(&settings, sample_rate);           // the same without a unit
@@ -72,6 +77,8 @@ c.at_rest(); c.rest_blocker(); c.skip(n); c.reset();
 | `release_ms` | 0 … 5 000 | 150 | Back to nothing, exactly this long. |
 | `release_shape` | `Linear`, `Exponential`, `SCurve` | Exponential | `p`; `(1 − e^{−5p})/(1 − e^{−5})`; `3p² − 2p³`. |
 | `key_filter` | `Off`, `HighPass`, `BandPass` | Off | 24 dB/oct high-pass, or a band-pass (12 dB/oct sides). |
+| `detector` | `Peak`, `Rms` | Peak | The key's sample peak, or its RMS over `rms_ms` (the family's follower on the square). |
+| `rms_ms` | 1 … 300 | 10 | The RMS window. |
 | `key_hz`, `key_q` | 20 … 15 000; 0.3 … 12 | 100; 1 | The key filter's frequency, and the band-pass's Q. |
 | `lookahead_ms` | 0 … 10 | 0 | The audio waits for the detector; the latency. |
 | `division` | index into `DIVISIONS` (8/1 … 1/32, dotted, triplets) | 1/4 | The shape's cycle. |
@@ -79,11 +86,12 @@ c.at_rest(); c.rest_blocker(); c.skip(n); c.reset();
 | `edge_ms` | 0 … 10 | 1 | The shape's edges smoothed by a centred Hann kernel this wide. |
 | `band` | `Whole`, `Lows`, `Highs` | Whole | Where the duck acts. |
 | `crossover` | `MinimumPhase`, `LinearPhase` | Minimum phase | How the band is split. |
-| `cross_hz` | 40 … 2 000 (linear phase from 50) | 120 | The crossover. |
+| `cross_hz` | 40 … 2 000 (linear phase from 60) | 120 | The crossover. |
 | `link` | 0 … 1 | 1 | 0: each channel ducks by its own key channel; 1: both by the louder. |
 | `mix` | 0 … 1 | 1 | How much of the duck is applied. |
 | `out_db` | −60 … +24 | 0 | The output level. |
 | `listen` | `Output`, `Delta`, `Key` | Output | Delta: what the duck takes away. Key: the filtered key, aligned to the output. |
+| `velocity` | on / off | off | MIDI: a note's velocity scales the depth in decibels (127 is the whole depth, 64 about half of it). |
 
 **The gain law.** Both triggers give an amount `a` (0 … 1) per channel, and the band gain is
 `G = 1 − a·mix·(1 − 10^(−depth/20))`. It is linear in the amount, so the shape drawn is the level
@@ -99,7 +107,7 @@ heard. Exactly 0 is skipped, never multiplied.
 ## How it works (each file's header says it in full)
 
 **The sidechain** (`cedo_env.rs`):
-- The key goes through its filter. Each channel's sample peak is compared with the threshold.
+- The key goes through its filter. Each channel's sample peak, or its RMS (a one-pole of `rms_ms` on the square, through the follower in `dynfx_follow`), is compared with the threshold.
 - A sample at or above it **triggers**, and the **hold** counts from the *last* such sample. A kick's low half-cycles that dip under the threshold therefore do not let go while the hold covers them.
 - The envelope attacks along an S from where it is, holds, then releases along its shape over exactly the release. All of these are counted per sample, never accumulated.
 - A trigger during the release attacks again from where the release has got to.
@@ -124,11 +132,21 @@ heard. Exactly 0 is skipped, never multiplied.
   - They are read as a **shelf whose depth moves**: `(s² + kAs + A²)/(s² + ks + 1)` per section, with `A² = √G`. The highs use the mirrored high shelf.
   - Per section, `|H|² = (A⁴ + ω⁴)/(1 + ω⁴)`. This is monotone from `G` to 1, **with no bump**, and −6 dB at the crossover for a deep duck.
   - Only the outputs' weights move with the gain, never the filters' coefficients. A duck that moves every sample cannot destabilise them.
-- **Linear phase:** the lows are four boxcars of `M = 0.3189·fs/fc` in cascade (a B-spline kernel, `|sinc|⁴`, −6 dB at the crossover, first side lobe −53 dB). The highs are the delayed input minus the lows.
-  - The bands sum to the delayed input exactly, and the ducked response `1 − (1 − G)·sinc⁴` never rises above 1.
-  - The boxcars run in **integers** (steps of 2⁻³⁶; each stage's sum exact, its output a pure function of the sum), so nothing drifts and rest is exact.
-  - **The latency is fixed** at the 50 Hz kernel's: 610 samples, 12.7 ms at 48 kHz. Moving the crossover never moves the latency, because a shorter kernel reads its input later.
-  - A new crossover **rebuilds** the boxcars from the dry line's history, without allocating, as if the kernel had always been that length.
+- **Linear phase:** the lows are a **sharpened B-spline**, `L = S(B)`:
+  - The base `B` is two boxcars of `M = 0.44295·fs/fc` (`sinc²`, `B(fc) = ½`).
+  - `S(b) = 10b³ − 15b⁴ + 6b⁵` (smootherstep; Kaiser and Hamming's filter sharpening, 1977). It is the base applied three, four and five times (ten boxcars), the cube and the fourth power delayed to the fifth's centre and summed.
+  - `S` is non-decreasing from 0 to 1 on `[0, 1]`, and `B` stays in `[0, 1]`, so **`0 ≤ L ≤ 1` at every frequency**: neither the lows' duck nor the highs' can rise above the input. `L(fc) = ½` (−6 dB); the passband is 0.9994 at `fc/4` and 0.973 at `fc/2`; above `2fc` the stopband is under −60 dB.
+  - The highs are the delayed input minus the lows, so the bands sum to the delayed input exactly.
+  - Everything runs in **integers** (steps of 2⁻³⁶; each boxcar's sum exact and its output a pure function of the sum; the polynomial a sum of integers), so nothing drifts and rest is exact. Per sample it costs ten integer boxcars and two short rings per channel, whatever the crossover or the rate.
+  - **The latency is fixed** at the 60 Hz kernel's, `5·(M − 1)`: **1 765 samples, 36.8 ms at 48 kHz**. Moving the crossover never moves the latency, because a shorter kernel reads its input later. A crossover under 60 Hz is minimum phase only.
+  - A new crossover **rebuilds** the kernel from the dry line's history, without allocating, as if it had always been that length.
+
+**A start or a seek inside a cycle** (`cedo_shape.rs`) fades the shape in over 10 ms (a raised cosine from nothing), from the sample where the transport landed. The audio before the landing is not ducked by the place the song has jumped to.
+- A landing **on a cycle's start or on a bar line** (4/4 from the song's start) is not faded. Any render from bar N starts on a bar line, so it still equals the whole render to the bit.
+- The fade is a function of where the song landed, so a skip or a refill of the kernel's window gives the same values.
+- A tempo change re-anchors the clock but is not a seek: it does not fade.
+
+**Velocity** (MIDI, when switched on): a note's amount is scaled by `k = (1 − 10^(−depth·v/20)) / (1 − 10^(−depth/20))`, with `v = velocity/127`. The full shape then ducks by `depth·v` dB: velocity scales the depth in decibels, not the level. The scale is part of the shape's values, so the edge kernel smooths a change of velocity from one note to the next.
 
 ## Measured
 
@@ -179,8 +197,8 @@ The key is Pulsus's kick (model 2), with a threshold of −30 dB, attack 5 ms, h
   |---|---|---|---|---|---|---|---|
   | Minimum phase, lows | −23.51 | −18.55 | −5.49 | −0.49 | −0.03 | −0.00 | −0.00 |
   | Minimum phase, highs | −0.03 | −0.49 | −5.49 | −18.55 | −23.51 | −23.97 | −24.00 |
-  | Linear phase, lows | −19.84 | −13.58 | −5.45 | −0.34 | −0.01 | −0.00 | −0.00 |
-  | Linear phase, highs | −0.34 | −1.37 | −5.53 | −19.87 | −23.83 | −23.99 | −24.00 |
+  | Linear phase, lows | **−23.92** | −21.06 | −5.51 | −0.00 | −0.00 | −0.00 | −0.00 |
+  | Linear phase, highs | −0.00 | **−0.22** | −5.47 | −23.99 | −24.00 | −24.00 | −24.00 |
 
   Measured and drawn agree within 0.01 dB everywhere. **Nothing rises above 0 dB at any frequency** (asserted < +0.005 dB).
 
@@ -213,7 +231,7 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
   - MIDI with notes at odd offsets inside blocks, two of them 55 samples apart, and the lookahead moved mid-way.
 - **Render from bar 5 = the whole render**, to the bit, from the latency on. This holds at 120 BPM straight, 174 BPM swung, 60 BPM with full swing (lows, minimum phase), and 128 BPM highs linear phase. The band cases have a second of silence before bar 5: a filter remembers what it heard.
 - **Rest:**
-  - At rest after **0.06–0.09 s** of silence (tempo lows; MIDI once the shape has played out), **0.37 s** (sidechain, linear-phase lows) and **0.86 s** (a Q 4 band-pass key at 60 Hz, ringing down).
+  - At rest after **0.08–0.09 s** of silence (tempo lows; MIDI once the shape has played out), **0.39 s** (sidechain, linear-phase lows), **0.89 s** (a Q 4 band-pass key at 60 Hz, ringing down) and **0.97 s** (the RMS detector with a 50 ms window).
   - The twins agree to the bit on music afterwards: processing zeros, skipped, reset, and new.
   - **The tempo pump rests while the transport plays**: 60 000+ samples of silence are skipped mid-song and the output equals the unskipped render.
   - A new unit is at rest, and silence keeps it there.
@@ -233,6 +251,8 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
   | Tempo, edge 10 ms, linear-phase lows (the heaviest) | 1.02 % |
 
   The machine was a Ryzen 7 7735HS. No other `cargo` or `rustc` ran before or after the measure, and the CPU load was 24 % (desktop applications). The figures include the test driver's copies.
+
+  After A-2 the machine was not quiet again (other builders compiled for over half an hour). Measured beside six `rustc` at 100 % load: sidechain whole 0.33 %, minimum-phase lows 0.49 %, **linear-phase lows 0.78 %**, tempo 0.48 %, the heaviest case 1.93 %. These are about twice the quiet figures throughout (0.33 against 0.17 on the path A-2 did not touch). The quiet measure is for the integrator to repeat: `cargo test -p cantus-dsp --release --lib cedo_cpu -- --ignored --nocapture`.
 
 ### Tests and what each holds
 
@@ -254,6 +274,7 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
   - `notes_fire_the_shape_on_their_sample`
   - `a_trace_reads_the_reduction_on_each_sample`
   - `cedo_cpu` (`#[ignore]`; run it alone, in release)
+- **`cedo_tests_a2.rs`:** the five tests of phase A-2 (in its section).
 - **`cedo_tests_shared.rs`:** `comprimos_outputs_are_bit_identical_to_before_the_sharing`.
 - **`tests/cedo_alloc.rs`:** `cedo_allocates_nothing_after_new`.
 - **Each test was seen failing** where that means something:
@@ -262,13 +283,13 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
   - The splatter test failed until its own sine generator was fixed: its `f32` phase was the −78 dB floor.
 
 **The suite:**
-- `cargo test -p cantus-dsp --no-fail-fast` passes 936 in the library (18 ignored) plus the integration tests.
+- `cargo test -p cantus-dsp --no-fail-fast` passes 941 in the library (18 ignored) plus the integration tests (after A-2).
 - `cargo clippy -p cantus-dsp --all-targets -- -D warnings` is clean.
 - `cargo fmt -p cantus-dsp` is applied.
 
 ## Shown to the owner
 
-`C:\projects\daw-fx\compartir\cedo\sound\` holds 16 WAV files, the `README.md` (what to listen for) and the `render-log.txt` (every setting and number):
+`C:\projects\daw-fx\compartir\cedo\sound\` holds 17 WAV files, the `README.md` (what to listen for) and the `render-log.txt` (every setting and number):
 - **Kick and pad** (124 BPM, Pulsus's kick):
   - the pad ducked through the sidechain;
   - the pad ducked by the tempo pump with no audio key, with and without the kick;
@@ -277,21 +298,19 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
   - the whole bass ducked;
   - only its lows under 110 Hz, with minimum and linear phase.
 - **The guitar under a voice** (Carbonthief, CC0; the owner's progression):
-  - the guitar ducked by a synthetic voice-over, whole and only above 400 Hz;
+  - the guitar ducked by a synthetic voice-over, whole, only above 400 Hz, and with the RMS detector (c6, new in A-2);
   - the ducked guitar alone.
 - Dry twins for every mix. Each set is scaled by one factor, so levels are real, and the latency is taken off.
 
 ## Misses against the targets, honestly
 
-- **The linear-phase split is less selective than the minimum-phase one at the same crossover.**
-  - The B-spline kernel's passband droops, so at 30 Hz the lows duck −19.8 dB where −24 is set; the minimum phase gives −23.5.
-  - Its highs-only duck leaks 1.4 dB an octave below the crossover; the minimum phase leaks 0.5.
-  - It is flat to the bit when not ducking and never rises, but it is not yet "linear phase and as sharp".
-  - The fix is a sharper symmetric kernel (Kaiser–Hamming sharpening of the same boxcars, or a windowed sinc through partitioned FFT convolution), at more latency or more CPU. That is for Phase B, with the owner's ear on whether the phase matters at all to him (listen: b3 against b4).
-- **The linear-phase latency is 12.7 ms** (610 samples at 48 kHz) at every crossover, plus the lookahead. A crossover under 50 Hz is minimum phase only.
-- **A seek or a start of playback is heard as the shape is at that point.** If it lands inside a duck, the gain is there at once (a render from there equals the whole render, which is the rule). Only the stop has a fade, through the edge.
-- **The sidechain's detector is a sample peak with no RMS option.** That is right for a trigger: the threshold fires and the hold bridges. But a dense key (a full mix) fires on every peak, and only the hold smooths it.
-- **MIDI ignores velocity**, and a note-off does nothing. A note plays its cycle.
+- **The linear-phase latency is 36.8 ms** (1 765 samples at 48 kHz) at every crossover, plus the lookahead, and a crossover under 60 Hz is minimum phase only. This is the price of the A-2 kernel; the first phase's was 12.7 ms, but it could not reach the depth set.
+  - The latency cannot be much lower for the same flatness. To be within 3.6 % at `fc/2` and at −6 dB at `fc`, a kernel needs a transition only `fc/2` wide, which takes about `2/fc` of time either side.
+  - A Kaiser-windowed sinc needs more than 1 800 taps at 60 Hz for these bounds, with negative side lobes (a rise of up to 0.1 dB). The searches are in the section *Phase A-2*.
+  - Keeping a 50 Hz floor would have cost 44.2 ms. The owner may prefer that, or 80 Hz (27.6 ms): one constant (`band::LIN_MIN_HZ`).
+- **A landing on a bar line inside a long cycle** (an 8/1 shape, a dotted division whose cycles do not meet the bar) is not faded, so that a render from that bar equals the whole render. Bar lines are 4/4 from the song's start, as Lapsus counts them.
+- **The RMS detector's hold and release count from the RMS crossing**, which comes later than the peak's by the window's rise: for a step to 0.5 against −10 dBFS, 245 samples at 10 ms.
+- **A note-off does nothing.** A note plays its cycle, and with `velocity` its depth follows the note's velocity.
 - **The shape's cycle counts from the song's start in quarter notes.** A one-bar pattern in 3/4 does not follow the bars, the same open decision as Lapsus's (ADR 0132's Consequences).
 - **The classic pump** (`CLASSIC_PUMP`: full depth on the beat, `1 − (1 − u)^2.4` back to nothing by 65 % of the cycle) was tuned by numbers, not by ear: the first version let go by a quarter of the beat and took only 0.6 dB on average. The owner's ear should settle it.
 
@@ -305,6 +324,64 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
   - minimum against linear phase (b3/b4);
   - the voice-over files (c3/c4).
 - A `docs/beta-checklist.md` entry belongs to Phase B: "duck a bass by a real kick on another strip, then by the tempo pump; duck a guitar by a real voice-over".
+
+## Phase A-2 — the first phase's misses closed
+
+The integrator asked for four things, DSP only. Every null and bit-exact test of the first phase still passes.
+
+| | Before (phase A) | After (A-2) |
+|---|---|---|
+| Linear-phase lows at 30 Hz (depth −24 dB, crossover 120 Hz) | −19.84 dB | **−23.92 dB** (asked: within 0.5 dB) |
+| Linear-phase highs an octave below (60 Hz) | −1.37 dB of leak | **−0.22 dB** (asked: under 0.3) |
+| Linear-phase rise anywhere | none | **none**: `0 ≤ L ≤ 1` by construction (asserted < +0.005 dB) |
+| Linear-phase latency, 48 kHz | 610 samples, 12.7 ms (50 Hz floor) | **1 765 samples, 36.8 ms** (60 Hz floor), fixed and reported |
+| Linear-phase CPU, lows, sidechain | 0.32 % of a core (quiet machine) | **0.78 %** measured beside six other builds at 100 % load. The unchanged plain sidechain read 0.33 % there against 0.17 % quiet, so the quiet figure is about **0.40 %**. Ten integer boxcars per channel, O(1) at every rate. |
+| A seek or start inside a duck | the gain there at once | a **10 ms raised-cosine fade** from the landing; bar lines and cycle starts exempt, so render from bar 5 = the whole render |
+| Detector | sample peak | **peak or RMS** (1–300 ms, the family's follower) |
+| MIDI velocity | ignored | **a switch**: the depth scaled in dB by velocity |
+
+**(1) The kernel: what was tried, and why this one.** Everything was searched numerically before any code (scripts not committed):
+
+| Kernel | Latency at the floor | `fc/4` | `fc/2` | Rises? |
+|---|---|---|---|---|
+| Four boxcars (phase A) | 12.7 ms (50 Hz) | 0.959 | 0.846 | no |
+| Four boxcars and a 3-tap compensator | 24.5 ms (50 Hz) | 0.995 | 0.938 | no |
+| Four boxcars and a sparse FIR fitted by least squares | 48–60 ms (50 Hz) | 1.000 | 1.000 | **yes**: side lobes to −0.04…−0.1 |
+| Kaiser-windowed sinc, 1 801 taps | 18.8 ms (50 Hz) | 0.993 (β 4); 1.011 (β 3) | 0.934 (β 4); 0.980 (β 3) | **yes**: side lobes to −0.004 (β 4), +0.1 dB overshoot (β 3) |
+| **Smootherstep of two boxcars (chosen)** | **36.8 ms (60 Hz)**, 44.2 ms at 50 Hz | **0.9994** | **0.973** | **no** |
+
+The chosen kernel is the only one found that meets both bounds and **cannot rise**. It also stays O(1) per sample in integers at any rate; a windowed sinc would cost O(taps), a quarter of a core at 192 kHz.
+
+Measured through the DSP: lows −23.92 dB at 30 Hz; highs −0.22 dB at 60 Hz; the drawn response (`response_db`) within 0.01 dB of the measured everywhere. Not ducking, it passes the input to the bit (54 000 samples between the hits).
+
+**(2) The seek fade.** A start or a jump of the transport (not a tempo change) that lands **inside a cycle** fades the shape in over `START_FADE_MS` = 10 ms from the landing sample. A landing **on a cycle's start or on a bar line** is not faded.
+- That is what keeps a render from bar N equal to the whole render: the part render starts on a bar line, and the whole render has no start there.
+- The fade is a function of the landing alone, so skips and refills agree.
+- Measured: a seek 1 000 samples into a full duck starts at > 0.99 of the input, is between 0.2 and 0.8 half-way through the fade, and at the depth exactly 480 samples later. The next cycle ducks at once, as drawn.
+- A start at song sample 1 234 is faded. Bar 5 inside an 8/1 cycle is not.
+
+**(3) RMS.** `Detector::Rms` reads the key through `dynfx_follow::EnvelopeFollower` (RMS, attack = release = the window), the family's follower, per channel.
+- A 1 kHz key at 0.5 (peak −6, RMS −9 dBFS): the peak fires at −7.5 dB, the RMS does not, and the RMS fires at −10 dB.
+- A step to 0.5 fires the RMS at −10 dBFS **245 samples** after it, where the one-pole's own crossing is 245.2.
+- It rests exactly (0.97 s after a 50 ms window), and its twins agree.
+
+**(4) Velocity.** With `velocity` on, notes at 127, 64 and 1 duck by **−24.00, −12.09 and −0.19 dB** for a depth of 24, where `24·v/127` asks for −24, −12.09 and −0.19. With it off, all three duck by −24.00.
+
+**Tests added** (`cedo_tests_a2.rs`):
+- `the_linear_phase_split_reaches_the_depth_and_leaks_little`
+- `a_seek_into_a_duck_fades_in_and_a_bar_line_does_not`
+- `the_rms_detector_hears_the_level_and_the_peak_hears_the_peaks`
+- `velocity_scales_the_depth_when_asked`
+- `the_new_options_keep_the_null`: RMS at depth 0 and at mix 0, velocity at depth 0, linear-phase highs at depth 0, with seeks and notes.
+
+The block-size test now switches to the RMS detector mid-way, and its MIDI run has velocity on with notes at 127, 100 and 40. The rest test has an RMS case.
+
+**Seen failing:**
+- The kernel's bounds fail on the phase-A kernel by its own measured numbers (−19.8 against −23.5).
+- The seek test fails with the fade forced off (checked by mutation).
+- A first version of the fade checked the boundary at the audio's position, which is the lookahead before the landing. It failed render-from-bar-5 with lookahead, and the check moved to the landing sample.
+
+**Sounds:** `b4-bass-ducked-lows-only-linear-phase.wav` is re-rendered with the sharper kernel, and `c6-guitar-ducked-by-the-voice-rms-detector.wav` is new. Every other file is byte-identical to the first render and was left in place. The README and the render log are updated.
 
 ## Phase B — the plan
 
@@ -355,9 +432,9 @@ The splatter is the energy above 4.5 kHz relative to the whole output. The input
    - route a kick track's audio to its key, set the depth, and hear the pad dip on each kick in the master;
    - switch to Tempo and hear the pump with the kick muted;
    - with the linear phase, see the track's latency compensated.
-8. **Later** (BACKLOG): a sharper linear-phase kernel (the miss above); velocity to depth for MIDI; an RMS option for dense keys; a stop and seek fade; a "shape from attack, hold and release" button that draws the envelope as a shape.
+8. **Later** (BACKLOG): a "shape from attack, hold and release" button that draws the envelope as a shape; a note-off that ends a note's shape early (a held-note mode).
 
 ## Left (this phase)
 
-- In the DSP: the misses above, which are the owner's to judge, and the sharper linear-phase kernel (Phase B or later).
+- In the DSP: the misses above, which are the owner's to judge. The linear-phase floor and its latency (60 Hz, 36.8 ms) are a choice for him.
 - The owner's listening (`compartir\cedo\sound\README.md`).
