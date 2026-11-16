@@ -211,8 +211,17 @@ pub fn wrap<'a>(ui: &egui::Ui, avail: f32, k: f32, rows: &[&[Card<'a>]]) -> Vec<
 /// orphaned in Spanish). Never squeezes a card under its words: a card wider than the
 /// window has a row of its own.
 pub fn pack<'a>(ui: &egui::Ui, avail: f32, k: f32, cards: &[Card<'a>]) -> Vec<Vec<Card<'a>>> {
-    let gap = 6.0 * k;
     let w: Vec<f32> = cards.iter().map(|c| card_width(ui, c.1) * k).collect();
+    breaks(&w, 6.0 * k, avail)
+        .into_iter()
+        .map(|(i, j)| cards[i..j].to_vec())
+        .collect()
+}
+
+/// The rows (`i..j` of `w`) as [`pack`] lays them: the fewest that fit `avail` with `gap`
+/// between cards, the breaks where each row's unfilled share, squared and summed, is least
+/// (an even spread costs least, a lone card on a row most).
+pub fn breaks(w: &[f32], gap: f32, avail: f32) -> Vec<(usize, usize)> {
     let n = w.len();
     if n == 0 {
         return Vec::new();
@@ -220,20 +229,17 @@ pub fn pack<'a>(ui: &egui::Ui, avail: f32, k: f32, cards: &[Card<'a>]) -> Vec<Ve
     // The width of cards i..j on one row.
     let span = |i: usize, j: usize| w[i..j].iter().sum::<f32>() + gap * (j - i - 1) as f32;
     let fits = |i: usize, j: usize| j == i + 1 || span(i, j) <= avail;
-    // best[i][r]: the least cost for cards i.. in r rows (each row's unfilled share,
-    // squared and summed: an even spread costs least, a lone card on a row most), and where
-    // its first row ends.
-    let rows_max = n;
-    let mut best: Vec<Vec<Option<(f32, usize)>>> = vec![vec![None; rows_max + 1]; n + 1];
+    // best[i][r]: the least cost for cards i.. in r rows, and where its first row ends.
+    let mut best: Vec<Vec<Option<(f32, usize)>>> = vec![vec![None; n + 1]; n + 1];
     best[n][0] = Some((0.0, n));
     for i in (0..n).rev() {
-        for r in 1..=rows_max {
+        for r in 1..=n {
             let mut pick: Option<(f32, usize)> = None;
-            for j in i + 1..=n {
+            for (j, after) in best.iter().enumerate().skip(i + 1) {
                 if !fits(i, j) {
                     break;
                 }
-                if let Some((rest, _)) = best[j][r - 1] {
+                if let Some((rest, _)) = after[r - 1] {
                     let slack = (1.0 - span(i, j) / avail).max(0.0);
                     let cost = slack * slack + rest;
                     if pick.is_none_or(|(c, _)| cost < c) {
@@ -244,14 +250,32 @@ pub fn pack<'a>(ui: &egui::Ui, avail: f32, k: f32, cards: &[Card<'a>]) -> Vec<Ve
             best[i][r] = pick;
         }
     }
-    let rows = (1..=rows_max).find(|&r| best[0][r].is_some()).unwrap_or(n);
+    let rows = (1..=n).find(|&r| best[0][r].is_some()).unwrap_or(n);
     let mut out = Vec::with_capacity(rows);
     let (mut i, mut r) = (0, rows);
     while i < n && r > 0 {
         let Some((_, j)) = best[i][r] else { break };
-        out.push(cards[i..j].to_vec());
+        out.push((i, j));
         i = j;
         r -= 1;
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::breaks;
+
+    #[test]
+    fn the_fewest_rows_evenly_filled_and_no_card_left_alone() {
+        // Greedy wrapping would give [300, 300, 300] [100]: a card alone on its row.
+        let rows = breaks(&[300.0, 300.0, 300.0, 100.0], 0.0, 1000.0);
+        assert_eq!(rows, vec![(0, 4)]);
+        let rows = breaks(&[400.0, 400.0, 400.0, 100.0], 0.0, 1000.0);
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|&(i, j)| j - i >= 2), "{rows:?}");
+        // A card wider than the window has a row of its own, never squeezed.
+        assert_eq!(breaks(&[1200.0, 100.0], 0.0, 1000.0), vec![(0, 1), (1, 2)]);
+        assert!(breaks(&[], 0.0, 1000.0).is_empty());
+    }
 }

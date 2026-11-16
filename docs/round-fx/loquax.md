@@ -90,3 +90,22 @@ dedication by its author (not in the repository). Sung voice: our synthetic sing
 Core params (`EffectKind`, PARAMS keys incl. the 64 band levels), the engine unit
 (`TAKES_SIDECHAIN` and `TAKES_NOTES`, note delivery to a resting unit), the null and contract
 tests in `cantus-engine`, `rt_memory`, the panel, presets, export, docs, e2e — see the report.
+
+## Design sheet v2 (the owner's verdict on v1: "more elaborate")
+
+`C:\projects\daw-fx\compartir\loquax\design\v2\`. The display became a vocoder's deck of
+objects, drawn in vectors from `kit::skin::consoles` (a new palette; no texture tile, no
+layer-atlas work, so `kit_alloc` is untouched):
+
+- `views/fx/loquax_art.rs` — the gooseneck microphone (chrome socket and knurled nut, the
+  ribbed neck along a cubic, the satin head with its on-air lamp, the woven grille over the
+  foam, its glow and the voice's arcs following the voice's level), the machined bezel (a
+  finish per colourway: brushed aluminium, black lacquer with chrome lips, the road case's
+  steel corners and rivets; screws), glass, pilot lamps, the needle meter.
+- `views/fx/loquax_display.rs` — the microphone, the bank's phosphor screen in its bezel
+  (scanlines, the lit cells' glow, level lines; the frequency marks kept inside the glass),
+  the meter bridge (the voice's needle and the carrier's, dBFS −40 … 0, a needle's
+  ballistics), the carrier's source, lamps for a consonant, the hold and the robot.
+- `fxa_cells::pack`/`breaks` (additive) — the cards in the fewest rows that fit, the breaks
+  evenly filled (Spanish no longer leaves Followers alone on a row); `breaks` unit-tested.
+- The *wide* demo presses Hold mid-vowel (held from the first sample its bands kept silence).
