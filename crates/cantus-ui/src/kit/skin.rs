@@ -92,6 +92,9 @@ pub mod records;
 // The amp, its cabinet and the rotary speaker Arca and Rota draw (ADRs 0136, 0137). fx3:arca
 #[path = "skin/cabinets.rs"]
 pub mod cabinets;
+// The vocoder's microphone, bezels and meters Loquax draws (ADR 0139). fxa:loquax
+#[path = "skin/consoles.rs"]
+pub mod consoles;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;

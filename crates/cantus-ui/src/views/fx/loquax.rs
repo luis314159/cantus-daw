@@ -15,6 +15,8 @@ use crate::kit::{with_brush, Style};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use egui::Rect;
 
+#[path = "loquax_art.rs"]
+mod art;
 #[path = "loquax_display.rs"]
 pub(crate) mod display;
 
@@ -165,27 +167,22 @@ fn body_ui(
     let area = g.rest();
     let row = super::controls::card_height(super::controls::Size::M) * k;
     let gap = s.d(4.0);
-    let rows: &[&[cells::Card<'_>]] = &[
-        &[
-            ("loquax.card.carrier", CARRIER),
-            ("loquax.card.bands", BANDS),
-            ("loquax.card.follow", FOLLOW),
-        ],
-        &[
-            ("loquax.card.character", CHARACTER),
-            ("loquax.card.consonants", CONSONANTS),
-            ("loquax.card.output", OUTPUT),
-        ],
-        &[
-            ("loquax.card.oscillators", OSCILLATORS),
-            ("loquax.card.unison", UNISON),
-            ("loquax.card.envelope", ENVELOPE),
-            ("loquax.card.robot", ROBOT),
-        ],
+    let cards: &[cells::Card<'_>] = &[
+        ("loquax.card.carrier", CARRIER),
+        ("loquax.card.bands", BANDS),
+        ("loquax.card.follow", FOLLOW),
+        ("loquax.card.character", CHARACTER),
+        ("loquax.card.consonants", CONSONANTS),
+        ("loquax.card.output", OUTPUT),
+        ("loquax.card.oscillators", OSCILLATORS),
+        ("loquax.card.unison", UNISON),
+        ("loquax.card.envelope", ENVELOPE),
+        ("loquax.card.robot", ROBOT),
     ];
-    // The cards wrap to the window's width (never squeezed under their words), and the
-    // display takes what they leave.
-    let phys = cells::wrap(ui, area.width(), k, rows);
+    // The cards in as few rows as fit the window's width (never squeezed under their
+    // words), the rows evenly filled (no card alone on a row), and the display takes what
+    // they leave.
+    let phys = cells::pack(ui, area.width(), k, cards);
     let top = (area.height() - phys.len() as f32 * (row + gap)).max(250.0 * k);
     with_brush(&ui.painter_at(body), |b| {
         crate::kit::light::ambient(b, body, &s.t);
@@ -267,7 +264,16 @@ pub fn demo_telemetry(spec: &EffectSpec, secs: f32) -> [f32; 64] {
     use cantus_engine::{FxNote, FxUnit as _};
     let sr = 48_000.0f32;
     let mut u = cantus_engine::fx::loquax::Unit::new(sr);
-    u.configure(spec);
+    // A hold is pressed while the voice sings (held from the first sample, the bands would
+    // keep the silence before it): the vowel's first half sung free, then held.
+    let held = spec.get("hold") >= 0.5;
+    if held {
+        let mut free = spec.clone();
+        free.set("hold", 0.0);
+        u.configure(&free);
+    } else {
+        u.configure(spec);
+    }
     for pitch in [48u8, 52, 55] {
         u.note(
             0,
@@ -285,6 +291,9 @@ pub fn demo_telemetry(spec: &EffectSpec, secs: f32) -> [f32; 64] {
         bump(700.0, 130.0) + 0.6 * bump(1_220.0, 140.0) + 0.3 * bump(2_600.0, 220.0)
     };
     for blk in 0..blocks {
+        if held && blk == blocks / 2 {
+            u.configure(spec);
+        }
         let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
         for (i, (a, b)) in l.iter_mut().zip(r.iter_mut()).enumerate() {
             let t = (blk * n + i) as f32 / sr;

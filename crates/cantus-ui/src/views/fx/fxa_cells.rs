@@ -204,3 +204,54 @@ pub fn wrap<'a>(ui: &egui::Ui, avail: f32, k: f32, rows: &[&[Card<'a>]]) -> Vec<
     }
     out
 }
+
+/// The cards in their order laid in as few rows as fit `avail` points across at scale `k`,
+/// the breaks chosen so the rows are as evenly filled as they can be — no card left alone
+/// on a row of its own while another row is crowded (the owner's v1 verdict: Followers
+/// orphaned in Spanish). Never squeezes a card under its words: a card wider than the
+/// window has a row of its own.
+pub fn pack<'a>(ui: &egui::Ui, avail: f32, k: f32, cards: &[Card<'a>]) -> Vec<Vec<Card<'a>>> {
+    let gap = 6.0 * k;
+    let w: Vec<f32> = cards.iter().map(|c| card_width(ui, c.1) * k).collect();
+    let n = w.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    // The width of cards i..j on one row.
+    let span = |i: usize, j: usize| w[i..j].iter().sum::<f32>() + gap * (j - i - 1) as f32;
+    let fits = |i: usize, j: usize| j == i + 1 || span(i, j) <= avail;
+    // best[i][r]: the least cost for cards i.. in r rows (each row's unfilled share,
+    // squared and summed: an even spread costs least, a lone card on a row most), and where
+    // its first row ends.
+    let rows_max = n;
+    let mut best: Vec<Vec<Option<(f32, usize)>>> = vec![vec![None; rows_max + 1]; n + 1];
+    best[n][0] = Some((0.0, n));
+    for i in (0..n).rev() {
+        for r in 1..=rows_max {
+            let mut pick: Option<(f32, usize)> = None;
+            for j in i + 1..=n {
+                if !fits(i, j) {
+                    break;
+                }
+                if let Some((rest, _)) = best[j][r - 1] {
+                    let slack = (1.0 - span(i, j) / avail).max(0.0);
+                    let cost = slack * slack + rest;
+                    if pick.is_none_or(|(c, _)| cost < c) {
+                        pick = Some((cost, j));
+                    }
+                }
+            }
+            best[i][r] = pick;
+        }
+    }
+    let rows = (1..=rows_max).find(|&r| best[0][r].is_some()).unwrap_or(n);
+    let mut out = Vec::with_capacity(rows);
+    let (mut i, mut r) = (0, rows);
+    while i < n && r > 0 {
+        let Some((_, j)) = best[i][r] else { break };
+        out.push(cards[i..j].to_vec());
+        i = j;
+        r -= 1;
+    }
+    out
+}

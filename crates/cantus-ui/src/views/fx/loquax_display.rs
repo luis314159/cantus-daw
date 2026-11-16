@@ -1,27 +1,32 @@
-//! Loquax's display: the bands lit by a voice. Dark in every theme (the unit's phosphor).
+//! Loquax's display (design sheet v2): a vocoder's deck, dark in every theme.
 //!
-//! - **The bank** (most of the width): one column per band on a log frequency axis from the
-//!   lowest band to the highest, each a ladder of fine cells lit from the bottom by what
-//!   the band says now (the vocoded output, `cantus_engine::fx::loquax::T_BANDS`), the
-//!   highest cell lit a little longer (the peak); the band's own level (`b0` … `b63`) a
-//!   short bar across its column; the formant shift drawn as the synthesis bands' ticks
-//!   moved against the analysis bands' along the top.
-//! - **Who speaks, who sings** (the right): the voice (this track, or the sidechain when
-//!   swapped) and the carrier (the synthesiser, the sidechain or both), each with its level
-//!   now; the synthesiser's voices sounding or the robot's note; the consonant light (the
-//!   detector hearing a sibilant) and the hold.
+//! - **The microphone** (the left): a gooseneck rising from its chrome socket, the voice
+//!   reaching its grille (the on-air lamp, the glow behind the wire and the sound's arcs
+//!   follow the voice's level), its source written under it.
+//! - **The bank** (most of the width), a phosphor screen behind glass in a machined bezel:
+//!   one column per band on a log frequency axis, each a ladder of fine cells lit from the
+//!   bottom by what the band says now (the vocoded output,
+//!   `cantus_engine::fx::loquax::T_BANDS`), the highest cell held a moment (the peak); the
+//!   band's own level (`b0` … `b63`) a short bar across its column; the formant shift as
+//!   the synthesis bands' ticks moved against the analysis bands' along the top.
+//! - **The meter bridge** (the right): the voice's needle and the carrier's in one bezel,
+//!   dBFS; the carrier's source; pilot lamps for a consonant heard, the hold and the robot;
+//!   the robot's note or the synthesiser's voices; the bank in words.
+//!
+//! The bezels take the colourway's finish (`loquax_art::finish`).
 
 use super::super::canvas::{self, Ink};
 use super::super::frame::tr;
 use super::super::host::FxHost;
-use crate::kit::color::with_alpha;
+use super::art;
+use crate::kit::color::{shade, with_alpha};
 use crate::kit::text::{Role, Text};
 use crate::kit::{with_brush, Brush, Fill, Style};
 use cantus_core::EffectSpec;
 use cantus_dsp::loquax::bank::layout;
 use cantus_dsp::loquax::t;
 use cantus_engine::fx::loquax::{SHOWN, T_BANDS};
-use egui::{pos2, vec2, Align2, Pos2, Rect};
+use egui::{pos2, vec2, Align2, Rect};
 
 /// One block's numbers as the display reads them.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -73,12 +78,19 @@ impl Reading {
 }
 
 /// The display's memory: each group's lit height, falling slowly (the phosphor), and its
-/// peak, held a moment.
+/// peak, held a moment; the meter bridge's two needles (the voice, the carrier), swinging
+/// with a needle's weight.
 #[derive(Debug, Default)]
 pub struct View {
     lit: [f32; SHOWN],
     peak: [f32; SHOWN],
     hold: [f32; SHOWN],
+    needle: [f32; 2],
+}
+
+/// A level in dBFS as the needle's place on the meters' scale, 0 … 1 (−40 … 0 dBFS).
+fn swing(db: f32) -> f32 {
+    ((db + 40.0) / 40.0).clamp(0.0, 1.0)
 }
 
 /// A level in dBFS as a share of a column, 0 … 1 (−72 dB nothing, 0 dB all).
@@ -105,6 +117,12 @@ impl View {
                 }
             }
         }
+        // A needle's ballistics: about 300 ms to reach where the level is.
+        let a = (dt / 0.065).min(1.0);
+        for (n, db) in self.needle.iter_mut().zip([r.modulator_db, r.carrier_db]) {
+            let to = if r.seen { swing(db) } else { 0.0 };
+            *n += (to - *n) * a;
+        }
     }
 
     /// The readings as they stand (the screenshots' demo).
@@ -114,9 +132,32 @@ impl View {
             self.peak[g] = (self.lit[g] + 0.06).min(1.0);
             self.hold[g] = 0.6;
         }
+        self.needle = [swing(r.modulator_db), swing(r.carrier_db)];
     }
 }
 
+/// Where the display's three objects stand.
+struct Parts {
+    mic: Rect,
+    bank: Rect,
+    side: Rect,
+}
+
+fn parts(r: Rect, k: f32) -> Parts {
+    let inner = r.shrink(12.0 * k);
+    let mic_w = (inner.height() * 0.36).clamp(124.0 * k, 168.0 * k);
+    let side_w = (inner.width() * 0.26).clamp(260.0 * k, 344.0 * k);
+    let mic = Rect::from_min_size(inner.min, vec2(mic_w, inner.height()));
+    let side = Rect::from_min_max(pos2(inner.max.x - side_w, inner.min.y), inner.max);
+    let bank = Rect::from_min_max(
+        pos2(mic.max.x + 10.0 * k, inner.min.y),
+        pos2(side.min.x - 16.0 * k, inner.max.y),
+    );
+    Parts { mic, bank, side }
+}
+
+/// The display: the gooseneck microphone the voice speaks into, the bank's screen in its
+/// bezel, the meter bridge and the lamps beside it.
 pub fn show(
     host: &mut dyn FxHost,
     view: &View,
@@ -128,33 +169,70 @@ pub fn show(
     let spec = host.spec().clone();
     let k = s.k;
     let ink = Ink::of(s);
-    let inner = r.shrink(10.0 * k);
-    let side = (inner.width() * 0.26).clamp(230.0 * k, 330.0 * k);
-    let bank_r = Rect::from_min_max(inner.min, pos2(inner.max.x - side - 12.0 * k, inner.max.y));
-    let who_r = Rect::from_min_max(pos2(bank_r.max.x + 12.0 * k, inner.min.y), inner.max);
+    let p = parts(r, k);
     with_brush(&ui.painter_at(r), |b| {
         canvas::ground_b(b, r, &ink, None);
-        bank(b, s, &ink, bank_r, view, now, &spec);
-        who(b, s, &ink, who_r, now, &spec);
+        mic(b, s, &ink, p.mic, view, now, &spec);
+        bank(b, s, &ink, p.bank, view, now, &spec);
+        side(b, s, &ink, p.side, view, now, &spec);
         canvas::edge_b(b, r, &ink);
     });
 }
 
-fn pane(b: &mut Brush, ink: &Ink, r: Rect, title: &str, k: f32) -> Rect {
-    b.rrect_stroke(r, 4.0 * k, 1.0 * k, with_alpha(ink.grid_strong, 0.8));
-    let t = Text::key(title, Role::Micro, ink.dim);
+/// Who speaks: the voice's source.
+fn voice_key(spec: &EffectSpec) -> &'static str {
+    if spec.get("swap") >= 0.5 {
+        "loquax.d.voice.key"
+    } else {
+        "loquax.d.voice.track"
+    }
+}
+
+/// The microphone, its word and its source under it.
+fn mic(
+    b: &mut Brush,
+    s: &Style,
+    ink: &Ink,
+    r: Rect,
+    view: &View,
+    now: &Reading,
+    spec: &EffectSpec,
+) {
+    let k = s.k;
+    let glow = ink.voice(ink.hue, false);
+    let words = 36.0 * k;
+    let stand = Rect::from_min_max(r.min, pos2(r.max.x, r.max.y - words));
+    let level = if now.seen { view.needle[0] } else { 0.0 };
+    // A pool of the room's light behind the microphone, so it stands in front of the deck.
+    b.radial(
+        r,
+        pos2(stand.center().x, stand.top() + stand.height() * 0.3),
+        vec2(stand.width() * 0.75, stand.height() * 0.6),
+        &[
+            (0.0, with_alpha(ink.text, 0.07)),
+            (1.0, with_alpha(ink.text, 0.0)),
+        ],
+        10,
+    );
+    art::microphone(b, s, stand, level, glow);
+    let x = stand.left() + stand.width() * 0.36;
+    let y = stand.bottom() + 6.0 * k;
     canvas::put(
         b,
-        pos2(r.min.x + 8.0 * k, r.min.y + 6.0 * k),
-        Align2::LEFT_TOP,
-        &t,
+        pos2(x, y),
+        Align2::CENTER_TOP,
+        &Text::key("loquax.d.voice", Role::Micro, glow),
         k,
         None,
     );
-    Rect::from_min_max(
-        pos2(r.min.x + 8.0 * k, r.min.y + 22.0 * k),
-        r.max - vec2(8.0, 8.0) * k,
-    )
+    canvas::put(
+        b,
+        pos2(x, y + 15.0 * k),
+        Align2::CENTER_TOP,
+        &Text::key(voice_key(spec), Role::Micro, ink.text).caps(false),
+        k,
+        None,
+    );
 }
 
 fn bank(
@@ -167,18 +245,72 @@ fn bank(
     spec: &EffectSpec,
 ) {
     let k = s.k;
-    let area = pane(b, ink, r, "loquax.d.bank", k);
+    let screen = art::bezel(b, s, r, 11.0 * k);
+    // The phosphor behind the glass: its ground, its scanlines.
+    b.rect(
+        screen,
+        Fill::V(shade(ink.ground, 0.035), shade(ink.ground, -0.01)),
+    );
+    let mut y = screen.top() + 1.5 * k;
+    while y < screen.bottom() {
+        b.hline(
+            screen.left(),
+            screen.right(),
+            y,
+            0.5 * k,
+            with_alpha(ink.grid, 0.18),
+        );
+        y += 3.0 * k;
+    }
+    let area = Rect::from_min_max(
+        pos2(screen.min.x + 10.0 * k, screen.min.y + 8.0 * k),
+        screen.max - vec2(10.0, 6.0) * k,
+    );
     let n = spec.get("bands").round().clamp(8.0, 64.0) as usize;
     let (lo, hi, width) = (spec.get("lo"), spec.get("hi"), spec.get("width"));
+    let formant = spec.get("formant");
+    let second = ink.voice(ink.hue, true);
+    // The title row: what the screen shows on the left; the bands and the formant's shift
+    // on the right.
+    canvas::put(
+        b,
+        area.min,
+        Align2::LEFT_TOP,
+        &Text::key("loquax.d.bank", Role::Micro, ink.dim),
+        k,
+        None,
+    );
+    let at = canvas::putf(
+        b,
+        pos2(area.max.x, area.min.y),
+        Align2::RIGHT_TOP,
+        Role::Micro,
+        ink.text,
+        k,
+        None,
+        format_args!("{} {n}", tr("loquax.l.bands")),
+    );
+    if formant != 0.0 {
+        canvas::putf(
+            b,
+            pos2(at.min.x - 14.0 * k, area.min.y),
+            Align2::RIGHT_TOP,
+            Role::Micro,
+            second,
+            k,
+            None,
+            format_args!("{} {formant:+.1} st", tr("loquax.l.formant")),
+        );
+    }
     // The frequency axis: the bank's range with a margin, log.
     let (f0, f1) = (lo / 1.25, hi * 1.25);
     let span = cantus_dsp::math::log2(f1 / f0);
+    let ticks_y = area.min.y + 24.0 * k;
     let plot = Rect::from_min_max(
-        area.min + vec2(0.0, 18.0 * k),
+        pos2(area.min.x, ticks_y + 12.0 * k),
         area.max - vec2(0.0, 16.0 * k),
     );
     let x_of = |hz: f32| plot.min.x + plot.width() * cantus_dsp::math::log2(hz / f0) / span;
-    // Hz marks below.
     for (hz, label) in [
         (100.0f32, "100 Hz"),
         (300.0, "300 Hz"),
@@ -197,18 +329,29 @@ fn bank(
             1.0 * k,
             with_alpha(ink.grid, 0.6),
         );
+        // A mark near the screen's edge is written inward of it, never past the glass.
+        let (lx, align) = if x > plot.max.x - 26.0 * k {
+            (plot.max.x, Align2::RIGHT_TOP)
+        } else if x < plot.min.x + 26.0 * k {
+            (plot.min.x, Align2::LEFT_TOP)
+        } else {
+            (x, Align2::CENTER_TOP)
+        };
         let t = Text::new(label, Role::Micro, ink.dim).caps(false);
-        canvas::put(
-            b,
-            pos2(x, plot.max.y + 2.0 * k),
-            Align2::CENTER_TOP,
-            &t,
-            k,
-            None,
+        canvas::put(b, pos2(lx, plot.max.y + 2.0 * k), align, &t, k, None);
+    }
+    // The level lines across the plot: −24 and −48 dB, fine.
+    for db in [-24.0f32, -48.0] {
+        let y = plot.max.y - share(db) * plot.height();
+        b.hline(
+            plot.min.x,
+            plot.max.x,
+            y,
+            0.6 * k,
+            with_alpha(ink.grid, 0.45),
         );
     }
     let glow = ink.voice(ink.hue, false);
-    let second = ink.voice(ink.hue, true);
     let per = n.div_ceil(SHOWN).max(1);
     let cells = 24;
     let cell_h = plot.height() / cells as f32;
@@ -229,6 +372,17 @@ fn bank(
         let g = (i / per).min(SHOWN - 1);
         let lit = if now.seen { view.lit[g] } else { 0.0 };
         let peak = if now.seen { view.peak[g] } else { 0.0 };
+        // The light the lit cells throw on the glass round them.
+        if lit > 0.02 {
+            let top = plot.max.y - lit * plot.height();
+            b.rrect_soft(
+                Rect::from_min_max(pos2(x - w * 0.5, top), pos2(x + w * 0.5, plot.max.y))
+                    .expand(2.0 * k),
+                2.0 * k,
+                Fill::Solid(with_alpha(glow, 0.16)),
+                7.0 * k,
+            );
+        }
         for j in 0..cells {
             let y1 = plot.max.y - j as f32 * cell_h;
             let cell = Rect::from_min_max(
@@ -243,6 +397,16 @@ fn bank(
                 with_alpha(ink.grid, 0.35)
             };
             b.rect(cell, Fill::Solid(col));
+            // The lit cell's hot core along its top.
+            if on && w > 4.0 * k {
+                b.hline(
+                    cell.left() + 0.5 * k,
+                    cell.right() - 0.5 * k,
+                    cell.top() + 0.5 * k,
+                    0.5 * k,
+                    with_alpha(ink.text, 0.10 + 0.25 * u),
+                );
+            }
         }
         if peak > 0.02 {
             let y = plot.max.y - peak * plot.height();
@@ -263,185 +427,160 @@ fn bank(
         }
     }
     // The formant: the synthesis bands' ticks moved against the analysis bands'.
-    let formant = spec.get("formant");
     let ratio = cantus_dsp::math::exp2(formant / 12.0);
-    let top = area.min.y + 10.0 * k;
     for i in 0..n {
         let (c, _, _) = layout(i, n, lo, hi, width);
         let xa = x_of(c);
         b.vline(
             xa,
-            top - 3.0 * k,
-            top + 3.0 * k,
+            ticks_y - 3.0 * k,
+            ticks_y + 3.0 * k,
             1.0 * k,
             with_alpha(ink.dim, 0.8),
         );
         if formant != 0.0 {
             let xs = x_of((c * ratio).clamp(f0, f1));
-            b.vline(xs, top + 3.0 * k, top + 9.0 * k, 1.0 * k, second);
+            b.vline(xs, ticks_y + 3.0 * k, ticks_y + 9.0 * k, 1.0 * k, second);
         }
     }
-    if formant != 0.0 {
-        canvas::putf(
-            b,
-            pos2(area.max.x, area.min.y - 2.0 * k),
-            Align2::RIGHT_BOTTOM,
-            Role::Micro,
-            second,
-            k,
-            Some(ink.plate),
-            format_args!("{} {formant:+.1} st", tr("loquax.l.formant")),
-        );
-    }
-    canvas::putf(
-        b,
-        pos2(area.min.x + 4.0 * k, area.min.y + 20.0 * k),
-        Align2::LEFT_TOP,
-        Role::Micro,
-        ink.text,
-        k,
-        Some(ink.plate),
-        format_args!("{} {n}", tr("loquax.l.bands")),
-    );
+    art::glass(b, screen, k);
 }
 
-/// A level meter: a fine horizontal bar with its word and value.
-#[allow(clippy::too_many_arguments)]
-fn meter(
+/// The meters' scale, dBFS: the major marks (numbered), the minor ones.
+const MAJOR: [f32; 5] = [-40.0, -30.0, -20.0, -10.0, 0.0];
+const MINOR: [f32; 4] = [-35.0, -25.0, -15.0, -5.0];
+/// Where the red begins.
+const RED_DB: f32 = -6.0;
+
+/// The meter bridge (the voice's needle and the carrier's), the carrier's source, the
+/// lamps (a consonant heard, the hold, the robot), the robot's note or the voices, the
+/// bank in words.
+fn side(
     b: &mut Brush,
+    s: &Style,
     ink: &Ink,
-    at: Pos2,
-    w: f32,
-    key: &'static str,
-    db: f32,
-    col: egui::Color32,
-    k: f32,
+    r: Rect,
+    view: &View,
+    now: &Reading,
+    spec: &EffectSpec,
 ) {
-    let t = Text::key(key, Role::Micro, ink.dim);
-    canvas::put(b, at, Align2::LEFT_TOP, &t, k, None);
-    let bar = Rect::from_min_size(at + vec2(0.0, 16.0 * k), vec2(w, 5.0 * k));
-    b.rect(bar, Fill::Solid(with_alpha(ink.grid, 0.6)));
-    let u = share(db);
-    b.rect(
-        Rect::from_min_size(bar.min, vec2(w * u, bar.height())),
-        Fill::Solid(col),
-    );
-    if db > -199.0 {
-        canvas::putf(
-            b,
-            pos2(at.x + w, at.y),
-            Align2::RIGHT_TOP,
-            Role::Micro,
-            ink.text,
-            k,
-            None,
-            format_args!("{db:.0} dB"),
-        );
-    }
-}
-
-fn who(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, now: &Reading, spec: &EffectSpec) {
     let k = s.k;
-    let area = pane(b, ink, r, "loquax.d.who", k);
     let glow = ink.voice(ink.hue, false);
     let second = ink.voice(ink.hue, true);
-    let swap = spec.get("swap") >= 0.5;
+    let bridge_h = (r.width() * 0.5).min(r.height() * 0.5);
+    let bridge = Rect::from_min_size(r.min, vec2(r.width(), bridge_h));
+    let inner = art::bezel(b, s, bridge, 9.0 * k);
+    // The two faces, a strip of the bezel's finish between them.
+    let gap = 7.0 * k;
+    let fw = (inner.width() - gap) * 0.5;
+    let faces = [
+        Rect::from_min_size(inner.min, vec2(fw, inner.height())),
+        Rect::from_min_max(pos2(inner.max.x - fw, inner.min.y), inner.max),
+    ];
+    let f = art::finish(s);
+    b.rect(
+        Rect::from_min_max(
+            pos2(faces[0].max.x, inner.min.y - 1.0 * k),
+            pos2(faces[1].min.x, inner.max.y + 1.0 * k),
+        ),
+        Fill::V(f.face.rgb(), f.foot.rgb()),
+    );
+    let major = MAJOR.map(swing);
+    let minor = MINOR.map(swing);
+    let levels = [now.modulator_db, now.carrier_db];
+    for (i, (face, (word, col))) in faces
+        .into_iter()
+        .zip([("loquax.d.voice", glow), ("loquax.d.carrier", second)])
+        .enumerate()
+    {
+        let needle = if now.seen { view.needle[i] } else { 0.0 };
+        let d = art::meter(b, k, face, col, &major, &minor, swing(RED_DB), needle);
+        for (db, p) in MAJOR.iter().zip(major) {
+            canvas::putf(
+                b,
+                d.at(p, 13.0 * k),
+                Align2::CENTER_CENTER,
+                Role::Micro,
+                if *db > RED_DB { ink.danger } else { ink.dim },
+                k,
+                None,
+                format_args!("{db:.0}"),
+            );
+        }
+        // The meter's word and its level in the face's lower corners, clear of the
+        // needle's swing and the pivot's cover.
+        let wy = face.bottom() - 5.0 * k;
+        canvas::put(
+            b,
+            pos2(face.left() + 7.0 * k, wy),
+            Align2::LEFT_BOTTOM,
+            &Text::key(word, Role::Micro, col),
+            k,
+            None,
+        );
+        if now.seen && levels[i] > -199.0 {
+            canvas::putf(
+                b,
+                pos2(face.right() - 7.0 * k, wy),
+                Align2::RIGHT_BOTTOM,
+                Role::Micro,
+                ink.text,
+                k,
+                None,
+                format_args!("{:.0} dB", levels[i]),
+            );
+        }
+    }
+    let x0 = r.min.x + 2.0 * k;
+    let mut y = bridge.bottom() + 10.0 * k;
+    // The carrier's source, in words.
     let src = spec.get("src").round() as i32;
-    let voice_key = if swap {
-        "loquax.d.voice.key"
-    } else {
-        "loquax.d.voice.track"
-    };
-    let carrier_key = match (src, swap) {
+    let carrier_key = match (src, spec.get("swap") >= 0.5) {
         (_, true) => "loquax.d.carrier.track",
         (0, _) => "loquax.d.carrier.key",
         (2, _) => "loquax.d.carrier.both",
         _ => "loquax.d.carrier.synth",
     };
-    let w = area.width();
-    let mut y = area.min.y;
-    // The voice.
-    canvas::put(
+    let t = canvas::put(
         b,
-        pos2(area.min.x, y),
+        pos2(x0, y),
         Align2::LEFT_TOP,
-        &Text::key("loquax.d.voice", Role::Label, glow),
+        &Text::key("loquax.d.carrier", Role::Micro, second),
         k,
         None,
     );
-    y += 18.0 * k;
     canvas::put(
         b,
-        pos2(area.min.x, y),
-        Align2::LEFT_TOP,
-        &Text::key(voice_key, Role::Micro, ink.text).caps(false),
-        k,
-        None,
-    );
-    y += 18.0 * k;
-    meter(
-        b,
-        ink,
-        pos2(area.min.x, y),
-        w,
-        "loquax.d.level",
-        now.modulator_db,
-        glow,
-        k,
-    );
-    y += 34.0 * k;
-    // The arrow from the voice into the carrier.
-    let cx = area.min.x + 18.0 * k;
-    b.segment(pos2(cx, y), pos2(cx, y + 18.0 * k), 1.4 * k, ink.dim, true);
-    b.polygon(
-        &[
-            pos2(cx - 4.0 * k, y + 13.0 * k),
-            pos2(cx + 4.0 * k, y + 13.0 * k),
-            pos2(cx, y + 19.0 * k),
-        ],
-        ink.dim,
-    );
-    canvas::put(
-        b,
-        pos2(cx + 10.0 * k, y + 9.0 * k),
-        Align2::LEFT_CENTER,
-        &Text::key("loquax.d.shapes", Role::Micro, ink.dim).caps(false),
-        k,
-        None,
-    );
-    y += 26.0 * k;
-    // The carrier.
-    canvas::put(
-        b,
-        pos2(area.min.x, y),
-        Align2::LEFT_TOP,
-        &Text::key("loquax.d.carrier", Role::Label, second),
-        k,
-        None,
-    );
-    y += 18.0 * k;
-    canvas::put(
-        b,
-        pos2(area.min.x, y),
+        pos2(t.max.x + 8.0 * k, y),
         Align2::LEFT_TOP,
         &Text::key(carrier_key, Role::Micro, ink.text).caps(false),
         k,
         None,
     );
-    y += 18.0 * k;
-    meter(
-        b,
-        ink,
-        pos2(area.min.x, y),
-        w,
-        "loquax.d.level",
-        now.carrier_db,
-        second,
-        k,
-    );
-    y += 34.0 * k;
-    // The synthesiser's voices (or the robot's note), the consonant light and the hold.
-    if spec.get("robot") >= 0.5 {
+    y += 22.0 * k;
+    // The lamps: a consonant heard, the hold, the robot.
+    let robot = spec.get("robot") >= 0.5;
+    let lamps = [
+        ("loquax.d.consonant", glow, now.gate > 0.5),
+        ("loquax.d.hold", glow, now.hold || spec.get("hold") >= 0.5),
+        ("loquax.l.robot", second, now.robot || robot),
+    ];
+    let cw = r.width() / 3.0;
+    for (j, (key, col, on)) in lamps.into_iter().enumerate() {
+        let p = pos2(x0 + 6.0 * k + j as f32 * cw, y + 7.0 * k);
+        art::lamp(b, p, 4.2 * k, col, if on { 1.0 } else { 0.0 });
+        canvas::put(
+            b,
+            pos2(p.x + 10.0 * k, p.y),
+            Align2::LEFT_CENTER,
+            &Text::key(key, Role::Micro, if on { ink.text } else { ink.dim }).caps(false),
+            k,
+            None,
+        );
+    }
+    y += 24.0 * k;
+    // The robot's note, or the synthesiser's voices sounding.
+    if robot {
         let note = spec.get("rnote").round() as i32;
         let names = [
             "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -449,18 +588,18 @@ fn who(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, now: &Reading, spec: &Effec
         let name = names[note.rem_euclid(12) as usize];
         canvas::putf(
             b,
-            pos2(area.min.x, y),
+            pos2(x0, y),
             Align2::LEFT_TOP,
             Role::Micro,
             if now.robot { second } else { ink.text },
             k,
             None,
-            format_args!("{} {name}{}", tr("loquax.d.robot"), note / 12 - 1),
+            format_args!("{} {name}{}", tr("loquax.d.robot"), note.div_euclid(12) - 1),
         );
     } else {
         canvas::putf(
             b,
-            pos2(area.min.x, y),
+            pos2(x0, y),
             Align2::LEFT_TOP,
             Role::Micro,
             ink.text,
@@ -469,38 +608,11 @@ fn who(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, now: &Reading, spec: &Effec
             format_args!("{} {:.0}", tr("loquax.d.voices"), now.voices),
         );
     }
-    y += 22.0 * k;
-    let lamp = |b: &mut Brush, x: f32, on: bool, key: &'static str| {
-        b.circle(
-            pos2(x + 5.0 * k, y + 6.0 * k),
-            4.0 * k,
-            Fill::Solid(if on {
-                glow
-            } else {
-                with_alpha(ink.grid_strong, 0.8)
-            }),
-        );
-        canvas::put(
-            b,
-            pos2(x + 14.0 * k, y + 6.0 * k),
-            Align2::LEFT_CENTER,
-            &Text::key(key, Role::Micro, if on { ink.text } else { ink.dim }).caps(false),
-            k,
-            None,
-        );
-    };
-    lamp(b, area.min.x, now.gate > 0.5, "loquax.d.consonant");
-    lamp(
-        b,
-        area.min.x + w * 0.55,
-        now.hold || spec.get("hold") >= 0.5,
-        "loquax.d.hold",
-    );
-    // The bank in words: its bands and slope, its range, its followers.
-    y += 30.0 * k;
+    y += 26.0 * k;
+    // The bank in words: its bands and slope, its range, its followers, the formant.
     b.hline(
-        area.min.x,
-        area.max.x,
+        x0,
+        r.max.x,
         y - 8.0 * k,
         1.0 * k,
         with_alpha(ink.grid_strong, 0.7),
@@ -538,13 +650,13 @@ fn who(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, now: &Reading, spec: &Effec
         ),
     ];
     for (key, value) in lines {
-        // A line that would run past the pane waits for a taller window.
-        if y + 16.0 * k > area.max.y + 8.0 * k {
+        // A line that would run past the side waits for a taller window.
+        if y + 14.0 * k > r.max.y {
             break;
         }
         canvas::put(
             b,
-            pos2(area.min.x, y),
+            pos2(x0, y),
             Align2::LEFT_TOP,
             &Text::key(key, Role::Micro, ink.dim),
             k,
@@ -552,7 +664,7 @@ fn who(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, now: &Reading, spec: &Effec
         );
         canvas::put(
             b,
-            pos2(area.max.x, y),
+            pos2(r.max.x, y),
             Align2::RIGHT_TOP,
             &Text::new(&value, Role::Micro, ink.text).caps(false),
             k,
