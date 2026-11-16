@@ -3,8 +3,8 @@
 //! of the editor's output: these hashes were taken from `denoise`, `attenuate_region` and
 //! the spectrogram **before** the sharing, and must never change.
 
-use crate::denoise::stft::Spectrogram;
 use crate::denoise::declick;
+use crate::denoise::stft::Spectrogram;
 use crate::denoise::{attenuate_region, denoise_channel, Params, Region};
 use crate::math;
 

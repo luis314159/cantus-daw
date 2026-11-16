@@ -38,6 +38,15 @@ pub const MAX_HARMONICS: usize = 16;
 pub const TRACK_RANGE_HZ: f64 = 2.0;
 /// Samples between the tracker's looks and the coefficients' updates.
 pub const GRID: usize = 64;
+/// The gentle mode's look-ahead, s: a note is heard this long before it reaches the
+/// canceller, so learning is held before the note can be learned.
+pub const AHEAD_S: f32 = 0.05;
+
+/// The gentle mode's look-ahead at a sample rate, samples (its latency).
+pub fn ahead_for(sample_rate: f32) -> usize {
+    (AHEAD_S * sample_rate).round() as usize
+}
+
 /// The harmonics the tracker listens to.
 const TRACK_HARMONICS: usize = 8;
 /// The harmonics Auto compares.
@@ -235,6 +244,13 @@ pub struct Dehum {
     width: f64,
     coef: [Coef; MAX_HARMONICS],
     lanes: [Lane; 2],
+    /// Gentle: the look-ahead (samples) and its rings — the input and the reference, as
+    /// they were.
+    ahead: usize,
+    ring_l: Vec<f32>,
+    ring_r: Vec<f32>,
+    ring_z: Vec<C>,
+    rpos: usize,
     /// Per-sample constants: the demodulators' and the gate's one-pole steps, the
     /// canceller's rate (from the width now), and the gentle mode's lengths in samples.
     cd: f64,
@@ -255,6 +271,8 @@ pub struct Dehum {
 impl Dehum {
     pub fn new(sample_rate: f32) -> Self {
         let fs = sample_rate as f64;
+        let ahead = ahead_for(sample_rate);
+        let ring = (ahead + 1).next_power_of_two();
         let mut d = Dehum {
             fs,
             s: HumSettings::default(),
@@ -279,6 +297,11 @@ impl Dehum {
             width: 2.0,
             coef: [Coef::default(); MAX_HARMONICS],
             lanes: [Lane::default(), Lane::default()],
+            ahead,
+            ring_l: vec![0.0; ring],
+            ring_r: vec![0.0; ring],
+            ring_z: vec![C::ZERO; ring],
+            rpos: 0,
             cd: 1.0 - math::exp(-2.0 * std::f64::consts::PI * DEMOD_HZ / fs),
             cg: 1.0 - math::exp(-2.0 * std::f64::consts::PI * GATE_HZ / fs),
             cr: 1.0 - math::exp(-2.0 * std::f64::consts::PI * REF_HZ / fs),
@@ -367,6 +390,7 @@ impl Dehum {
         }
         if old.gentle != s.gentle {
             self.lanes = [Lane::default(), Lane::default()];
+            self.clear_ahead();
         }
     }
 
@@ -389,11 +413,19 @@ impl Dehum {
         self.auto_looks = 0;
         self.tick = 0;
         self.lanes = [Lane::default(), Lane::default()];
+        self.clear_ahead();
         for k in 0..MAX_HARMONICS {
             self.g[k] = self.g_target(k);
         }
         self.width = self.s.width_hz as f64;
         self.retune();
+    }
+
+    fn clear_ahead(&mut self) {
+        self.ring_l.fill(0.0);
+        self.ring_r.fill(0.0);
+        self.ring_z.fill(C::ZERO);
+        self.rpos = 0;
     }
 
     /// The depth and width straight to their targets (a unit at rest: nothing sounds).
@@ -638,7 +670,7 @@ impl Dehum {
     #[inline]
     // The harmonics' (bins') arrays run in step: an index reads clearest.
     #[allow(clippy::needless_range_loop)]
-    pub fn process(&mut self, l: f32, r: f32) -> (f32, f32) {
+    pub fn process(&mut self, l: f32, r: f32) -> ((f32, f32), (f32, f32)) {
         if self.tick == 0 {
             self.on_grid();
         }
@@ -676,13 +708,47 @@ impl Dehum {
             }
             self.za = renorm(self.za.mul(self.step_a));
         }
-        let out = if self.s.gentle {
-            (self.gentle(0, l as f64, &z), self.gentle(1, r as f64, &z))
+        let (dry, out) = if self.s.gentle {
+            // The look-ahead: the canceller works `ahead` samples late, on the input and the
+            // reference as they were then.
+            let mask = self.ring_l.len() - 1;
+            let p = self.rpos;
+            let back = p.wrapping_sub(self.ahead) & mask;
+            let xd = (self.ring_l[back], self.ring_r[back]);
+            let z1d = self.ring_z[back];
+            self.ring_l[p] = l;
+            self.ring_r[p] = r;
+            self.ring_z[p] = self.z1;
+            self.rpos = (p + 1) & mask;
+            let mut zd = [C::ZERO; MAX_HARMONICS];
+            zd[0] = z1d;
+            for k in 1..MAX_HARMONICS {
+                zd[k] = zd[k - 1].mul(z1d);
+            }
+            let out = (
+                self.gentle(0, l as f64, xd.0 as f64, &z, &zd),
+                self.gentle(1, r as f64, xd.1 as f64, &z, &zd),
+            );
+            (xd, out)
         } else {
-            (self.notches(0, l as f64), self.notches(1, r as f64))
+            ((l, r), (self.notches(0, l as f64), self.notches(1, r as f64)))
         };
         self.z1 = renorm(self.z1.mul(self.step));
-        (out.0 as f32, out.1 as f32)
+        (dry, (out.0 as f32, out.1 as f32))
+    }
+
+    /// The gentle mode's look-ahead, samples (its latency; the notches have none).
+    pub fn ahead(&self) -> usize {
+        self.ahead
+    }
+
+    /// The module's latency with its settings, samples.
+    pub fn latency(&self) -> usize {
+        if self.s.gentle {
+            self.ahead
+        } else {
+            0
+        }
     }
 
     #[inline]
@@ -705,33 +771,48 @@ impl Dehum {
     #[inline]
     // The harmonics' (bins') arrays run in step: an index reads clearest.
     #[allow(clippy::needless_range_loop)]
-    fn gentle(&mut self, ch: usize, x: f64, z: &[C; MAX_HARMONICS]) -> f64 {
+    fn gentle(
+        &mut self,
+        ch: usize,
+        x: f64,
+        xd: f64,
+        z: &[C; MAX_HARMONICS],
+        zd: &[C; MAX_HARMONICS],
+    ) -> f64 {
         let mu = self.mu;
         let cg = self.cg;
         let cr = self.cr;
         let learn = self.learn_len;
+        let hold_len = self.hold_len + self.ahead as u32;
         let lane = &mut self.lanes[ch];
+        // The hum learned, predicted now (the look-ahead's analysis) and `ahead` samples
+        // ago (where the canceller works).
+        let mut hum_now = 0.0;
         let mut hum = 0.0;
         let mut taken = 0.0;
         for k in 0..MAX_HARMONICS {
             if self.g[k] >= 1.0 {
                 continue;
             }
-            let h = lane.est[k].re * z[k].re - lane.est[k].im * z[k].im;
+            let est = lane.est[k];
+            hum_now += est.re * z[k].re - est.im * z[k].im;
+            let h = est.re * zd[k].re - est.im * zd[k].im;
             hum += h;
             taken += (1.0 - self.g[k]) * h;
         }
-        let e = x - hum;
+        let e_now = x - hum_now;
+        let e = xd - hum;
         let learning = lane.heard < learn;
-        if learning && (lane.heard > 0 || x != 0.0) {
+        if learning && (lane.heard > 0 || xd != 0.0) {
             lane.heard += 1;
         }
         for k in 0..MAX_HARMONICS {
             if self.g[k] >= 1.0 {
                 continue;
             }
-            // What the hum learned does not explain, in the harmonic's band (three poles).
-            let d = z[k].conj_scale(2.0 * e);
+            // What the hum learned does not explain, in the harmonic's band (three poles),
+            // `ahead` samples before the canceller hears it.
+            let d = z[k].conj_scale(2.0 * e_now);
             lane.e1[k].lerp(d, cg);
             let v = lane.e1[k];
             lane.e2[k].lerp(v, cg);
@@ -771,7 +852,8 @@ impl Dehum {
                     lane.s_b[k] = lane.back_c[k];
                 }
                 lane.held[k] = true;
-                lane.hold_left[k] = self.hold_len;
+                // Until the note has passed the canceller too.
+                lane.hold_left[k] = hold_len;
                 lane.busy_run[k] = lane.busy_run[k].saturating_add(1);
             } else {
                 lane.busy_run[k] = 0;
@@ -791,7 +873,7 @@ impl Dehum {
                 0.0
             };
             if step > 0.0 {
-                let u = z[k].conj_scale(2.0 * step * e);
+                let u = zd[k].conj_scale(2.0 * step * e);
                 lane.est[k].re += u.re;
                 lane.est[k].im += u.im;
             }
@@ -807,7 +889,7 @@ impl Dehum {
                 }
             }
         }
-        x - taken
+        xd - taken
     }
 }
 

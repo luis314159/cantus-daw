@@ -3,7 +3,9 @@
 //! switching mains, the gentle mode), the meter, rest, `skip` and `reset` — under a counting
 //! allocator after `new`.
 
-use cantus_dsp::purus::{DecayMode, HumMode, HumSettings, Purus, PurusSettings, VerbSettings};
+use cantus_dsp::purus::{
+    ClickSettings, DecayMode, HumMode, HumSettings, Purus, PurusSettings, VerbSettings,
+};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -60,6 +62,13 @@ fn purus_allocates_nothing_after_new() {
                 delta: true,
                 ..hum
             },
+            click: ClickSettings {
+                on: true,
+                crackle: 1.0,
+                sensitivity: 1.0,
+                delta: true,
+                ..ClickSettings::default()
+            },
             verb,
             out_db: -3.0,
         },
@@ -75,7 +84,7 @@ fn purus_allocates_nothing_after_new() {
                 keep_ms: 200.0,
                 ..verb
             },
-            out_db: 0.0,
+            ..PurusSettings::default()
         },
         PurusSettings {
             verb: VerbSettings {

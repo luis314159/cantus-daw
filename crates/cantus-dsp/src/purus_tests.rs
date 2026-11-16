@@ -32,6 +32,13 @@ fn hum_on() -> HumSettings {
     }
 }
 
+fn click_on() -> ClickSettings {
+    ClickSettings {
+        on: true,
+        ..ClickSettings::default()
+    }
+}
+
 fn verb_on() -> VerbSettings {
     VerbSettings {
         on: true,
@@ -62,12 +69,25 @@ fn heavy() -> Vec<PurusSettings> {
                 out_db: -3.0,
                 ..hum_on()
             },
+            click: ClickSettings {
+                crackle: 0.6,
+                ..click_on()
+            },
             verb: VerbSettings {
                 decay: DecayMode::Estimate,
                 amount_db: 24.0,
                 ..verb_on()
             },
             out_db: 2.0,
+        },
+        PurusSettings {
+            click: ClickSettings {
+                sensitivity: 1.0,
+                crackle: 1.0,
+                mix: 0.7,
+                ..click_on()
+            },
+            ..PurusSettings::default()
         },
         PurusSettings {
             verb: VerbSettings {
@@ -102,6 +122,11 @@ fn every_module_off_is_a_null_to_the_bit_and_undelayed() {
             gentle: true,
             ..HumSettings::default()
         },
+        click: ClickSettings {
+            sensitivity: 1.0,
+            crackle: 1.0,
+            ..ClickSettings::default()
+        },
         verb: VerbSettings {
             amount_db: 30.0,
             ..VerbSettings::default()
@@ -115,7 +140,18 @@ fn every_module_off_is_a_null_to_the_bit_and_undelayed() {
 #[test]
 fn a_module_at_mix_zero_hands_its_input_on_to_the_bit() {
     let x = program(2.0, 5);
-    // The de-hum at mix 0: the input, undelayed.
+    // The de-hum's notches at mix 0: the input, undelayed.
+    let s = PurusSettings {
+        hum: HumSettings {
+            mix: 0.0,
+            ..hum_on()
+        },
+        ..PurusSettings::default()
+    };
+    assert_eq!(latency_for(&s, SR), 0);
+    let (l, _) = run(&s, &x, 512);
+    assert_eq!(bits(&l), bits(&x));
+    // Its gentle mode at mix 0: the input, delayed by exactly its look-ahead (50 ms).
     let s = PurusSettings {
         hum: HumSettings {
             mix: 0.0,
@@ -124,8 +160,32 @@ fn a_module_at_mix_zero_hands_its_input_on_to_the_bit() {
         },
         ..PurusSettings::default()
     };
+    let lat = latency_for(&s, SR);
+    assert_eq!(lat, 2400, "50 ms at 48 kHz");
     let (l, _) = run(&s, &x, 512);
-    assert_eq!(bits(&l), bits(&x));
+    assert!(l[..lat].iter().all(|v| v.to_bits() == 0));
+    assert_eq!(bits(&l[lat..]), bits(&x[..x.len() - lat]));
+    // The de-click at mix 0, and on with nothing to find (a block without a click is handed
+    // on as it came): the input, delayed by exactly its latency.
+    for mix in [0.0, 1.0] {
+        let s = PurusSettings {
+            click: ClickSettings { mix, ..click_on() },
+            ..PurusSettings::default()
+        };
+        let lat = latency_for(&s, SR);
+        assert_eq!(lat, 767, "16 ms at 48 kHz");
+        let quiet: Vec<f32> = if mix == 0.0 {
+            x.clone()
+        } else {
+            (0..x.len())
+                .map(|i| 0.3 * crate::math::sin(std::f32::consts::TAU * 220.0 * i as f32 / SR))
+                .collect()
+        };
+        let (l, _) = run(&s, &quiet, 64);
+        // (A tone starting out of silence is a click to the detector: past its start.)
+        let from = lat + if mix == 0.0 { 0 } else { 2048 };
+        assert_eq!(bits(&l[from..]), bits(&quiet[from - lat..quiet.len() - lat]), "mix {mix}");
+    }
     // The de-reverb at mix 0: the input, delayed by exactly the latency stated.
     let s = PurusSettings {
         verb: VerbSettings {
@@ -145,6 +205,10 @@ fn a_module_at_mix_zero_hands_its_input_on_to_the_bit() {
             mix: 0.0,
             ..hum_on()
         },
+        click: ClickSettings {
+            mix: 0.0,
+            ..click_on()
+        },
         verb: VerbSettings {
             mix: 0.0,
             amount_db: 0.0,
@@ -152,6 +216,7 @@ fn a_module_at_mix_zero_hands_its_input_on_to_the_bit() {
         },
         out_db: 0.0,
     };
+    let lat = latency_for(&s, SR);
     let (l, _) = run(&s, &x, 1);
     assert_eq!(bits(&l[lat..]), bits(&x[..x.len() - lat]));
 }
@@ -202,6 +267,7 @@ fn the_delta_is_the_input_delayed_minus_the_output_to_the_bit() {
         let (yl, yr) = run(&s, &x, 64);
         let mut d = s;
         d.hum.delta = true;
+        d.click.delta = true;
         d.verb.delta = true;
         let (dl, dr) = run(&d, &x, 64);
         let g = if s.out_db == 0.0 {
@@ -223,7 +289,7 @@ fn the_delta_is_the_input_delayed_minus_the_output_to_the_bit() {
                 assert_eq!(dl[i].to_bits(), want_l.to_bits(), "{s:?} at {i}");
                 assert_eq!(dr[i].to_bits(), want_r.to_bits(), "{s:?} at {i}");
             } else {
-                assert!((dl[i] - want_l).abs() <= 1e-6, "{s:?} at {i}");
+                assert!((dl[i] - want_l).abs() <= 1e-6, "{s:?} at {i}: {} {want_l}", dl[i]);
             }
         }
     }
@@ -235,7 +301,7 @@ fn one_modules_delta_is_what_that_module_takes_out() {
     let both = PurusSettings {
         hum: hum_on(),
         verb: verb_on(),
-        out_db: 0.0,
+        ..PurusSettings::default()
     };
     let lat = latency_for(&both, SR);
     // The hum's delta: the input minus the hum's output, aligned to the output.

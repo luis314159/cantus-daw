@@ -38,6 +38,8 @@
 //! not depend on the block size. Deterministic maths (`crate::math`). Nothing allocates
 //! after [`Purus::new`].
 
+#[path = "purus_click.rs"]
+pub mod click;
 #[path = "purus_hum.rs"]
 pub mod hum;
 #[path = "purus_testkit.rs"]
@@ -46,6 +48,7 @@ pub mod testkit;
 pub mod verb;
 
 use crate::math;
+pub use click::{ClickSettings, Declick};
 pub use hum::{Dehum, HumMode, HumSettings};
 pub use verb::{DecayMode, Dereverb, VerbSettings};
 
@@ -59,6 +62,7 @@ pub const BANDS: usize = 48;
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct PurusSettings {
     pub hum: HumSettings,
+    pub click: ClickSettings,
     pub verb: VerbSettings,
     /// The unit's output level, dB (−24…+24).
     pub out_db: f32,
@@ -66,11 +70,25 @@ pub struct PurusSettings {
 
 /// The unit's latency for a set of settings at a sample rate, samples.
 pub fn latency_for(s: &PurusSettings, sample_rate: f32) -> usize {
-    if s.verb.on {
+    let (h, c, v) = latencies(s, sample_rate);
+    h + c + v
+}
+
+/// Each module's latency: the de-hum's (its gentle mode's look-ahead), the de-click's, the
+/// de-reverb's.
+fn latencies(s: &PurusSettings, sample_rate: f32) -> (usize, usize, usize) {
+    let h = if s.hum.on && s.hum.gentle {
+        hum::ahead_for(sample_rate)
+    } else {
+        0
+    };
+    let c = if s.click.on { click::LATENCY } else { 0 };
+    let v = if s.verb.on {
         verb::latency_for(sample_rate)
     } else {
         0
-    }
+    };
+    (h, c, v)
 }
 
 /// What the display draws, read once a block.
@@ -91,6 +109,9 @@ pub struct PurusMeter {
     pub verb_reduction_db: [f32; BANDS],
     /// The last block's input and output peaks and the level of what was taken out (RMS),
     /// dBFS (−160 for silence).
+    /// Clicks rebuilt in the last block judged (both channels) and since the reset.
+    pub clicks_last: u32,
+    pub clicks_total: u64,
     pub in_peak_db: f32,
     pub out_peak_db: f32,
     pub removed_db: f32,
@@ -157,18 +178,26 @@ pub struct Purus {
     fs: f32,
     s: PurusSettings,
     hum: Dehum,
+    click: Declick,
     verb: Dereverb,
     /// Whether the de-hum runs (on, or gliding out).
     hum_live: bool,
     hum_mix: Glide,
     hum_out: Glide,
+    click_mix: Glide,
+    click_out: Glide,
     verb_mix: Glide,
     verb_out: Glide,
     out: Glide,
     k: f32,
-    /// The input delayed as the chain is (for the delta), indexed by the sample count.
-    xring: [Vec<f32>; 2],
-    xpos: usize,
+    /// The modules' latencies in force (de-hum, de-click, de-reverb).
+    lat: (usize, usize, usize),
+    /// The input, the de-hum's output and the de-click's, kept to be read delayed as the
+    /// chain is (the deltas), indexed by the sample count.
+    xr: [Vec<f32>; 2],
+    hr: [Vec<f32>; 2],
+    cr: [Vec<f32>; 2],
+    pos: usize,
     rest: bool,
     zero_run: usize,
     /// The last block's peaks and what was taken out.
@@ -182,21 +211,28 @@ impl Purus {
     /// A new unit at `sample_rate`, with the null settings. Allocates here only.
     pub fn new(sample_rate: f32) -> Self {
         let verb = Dereverb::new(sample_rate);
-        let n = verb.size();
+        let most = hum::ahead_for(sample_rate) + click::LATENCY + verb.latency();
+        let n = (most + 1).next_power_of_two();
         Purus {
             fs: sample_rate,
             s: PurusSettings::default(),
             hum: Dehum::new(sample_rate),
+            click: Declick::new(),
             verb,
             hum_live: false,
             hum_mix: Glide::new(0.0),
             hum_out: Glide::new(1.0),
+            click_mix: Glide::new(1.0),
+            click_out: Glide::new(1.0),
             verb_mix: Glide::new(1.0),
             verb_out: Glide::new(1.0),
             out: Glide::new(1.0),
             k: 1.0 - math::exp(-1.0 / (0.01 * sample_rate)),
-            xring: [vec![0.0; n], vec![0.0; n]],
-            xpos: 0,
+            lat: (0, 0, 0),
+            xr: [vec![0.0; n], vec![0.0; n]],
+            hr: [vec![0.0; n], vec![0.0; n]],
+            cr: [vec![0.0; n], vec![0.0; n]],
+            pos: 0,
             rest: true,
             zero_run: 0,
             in_peak: 0.0,
@@ -223,6 +259,10 @@ impl Purus {
         &self.verb
     }
 
+    pub fn declick(&self) -> &Declick {
+        &self.click
+    }
+
     /// Measurement only (see [`Dereverb::set_shadow`]).
     #[doc(hidden)]
     pub fn dereverb_mut(&mut self) -> &mut Dereverb {
@@ -233,6 +273,7 @@ impl Purus {
     /// on starts empty (and the latency becomes its own).
     pub fn set(&mut self, s: &PurusSettings) {
         let hum = s.hum.sane();
+        let click = s.click.sane();
         let verb = s.verb.sane();
         let out_db = if s.out_db.is_finite() {
             s.out_db.clamp(-24.0, 24.0)
@@ -240,20 +281,34 @@ impl Purus {
             0.0
         };
         let was = self.s;
-        self.s = PurusSettings { hum, verb, out_db };
+        self.s = PurusSettings {
+            hum,
+            click,
+            verb,
+            out_db,
+        };
         self.hum.set(&hum);
+        // The gentle mode's look-ahead goes with it at once (no glide out of a delay).
+        if !hum.on && (hum.gentle || was.hum.gentle) {
+            self.hum_live = false;
+        }
         if hum.on && !self.hum_live {
             self.hum.reset();
             self.hum_live = true;
         } else if self.rest {
             self.hum.land();
         }
+        if click.on && !was.click.on {
+            self.click.reset();
+        }
+        self.click.set(&click);
         if verb.on && !was.verb.on {
             self.verb.reset();
-            self.xring[0].fill(0.0);
-            self.xring[1].fill(0.0);
         }
         self.verb.set(&verb);
+        self.lat = latencies(&self.s, self.fs);
+        self.click_mix.t = click.mix;
+        self.click_out.t = gain(click.out_db);
         self.hum_mix.t = if hum.on { hum.mix } else { 0.0 };
         self.hum_out.t = gain(hum.out_db);
         self.verb_mix.t = verb.mix;
@@ -268,6 +323,8 @@ impl Purus {
         for g in [
             &mut self.hum_mix,
             &mut self.hum_out,
+            &mut self.click_mix,
+            &mut self.click_out,
             &mut self.verb_mix,
             &mut self.verb_out,
             &mut self.out,
@@ -309,10 +366,13 @@ impl Purus {
     /// de-reverb estimated.
     pub fn reset(&mut self) {
         self.hum.reset();
+        self.click.reset();
         self.verb.reset();
-        self.xring[0].fill(0.0);
-        self.xring[1].fill(0.0);
-        self.xpos = 0;
+        for ring in [&mut self.xr, &mut self.hr, &mut self.cr] {
+            ring[0].fill(0.0);
+            ring[1].fill(0.0);
+        }
+        self.pos = 0;
         self.land();
         self.rest = true;
         self.zero_run = 0;
@@ -354,47 +414,81 @@ impl Purus {
         }
         let k = self.k;
         // De-hum.
-        let (mut hl, mut hr) = (l, r);
+        let mut h = (l, r);
         if self.hum_live {
-            let (cl, cr) = self.hum.process(l, r);
+            let ((dl, dr), (cl, cr)) = self.hum.process(l, r);
             let m = self.hum_mix.next(k);
             let g = self.hum_out.next(k);
-            hl = scaled(blend(l, cl, m), g);
-            hr = scaled(blend(r, cr, m), g);
+            h = (scaled(blend(dl, cl, m), g), scaled(blend(dr, cr, m), g));
             if !self.s.hum.on && self.hum_mix.landed() {
                 self.hum_live = false;
             }
         }
-        // De-reverb, and the input delayed to match.
-        let (xd, hd, (vl, vr)) = if self.s.verb.on {
-            let ((wl, wr), (dl, dr)) = self.verb.process(hl, hr);
+        // De-click.
+        let mut c = h;
+        if self.s.click.on {
+            let ((wl, wr), (dl, dr)) = self.click.process(h.0, h.1);
+            let m = self.click_mix.next(k);
+            let g = self.click_out.next(k);
+            c = (scaled(blend(dl, wl, m), g), scaled(blend(dr, wr, m), g));
+        }
+        // De-reverb.
+        let mut v = c;
+        if self.s.verb.on {
+            let ((wl, wr), (dl, dr)) = self.verb.process(c.0, c.1);
             let m = self.verb_mix.next(k);
             let g = self.verb_out.next(k);
-            let mask = self.xring[0].len() - 1;
-            self.xring[0][self.xpos] = l;
-            self.xring[1][self.xpos] = r;
-            let rp = (self.xpos + 1) & mask;
-            let xd = (self.xring[0][rp], self.xring[1][rp]);
-            self.xpos = rp;
-            let v = (scaled(blend(dl, wl, m), g), scaled(blend(dr, wr, m), g));
-            (xd, (dl, dr), v)
-        } else {
-            ((l, r), (hl, hr), (hl, hr))
+            v = (scaled(blend(dl, wl, m), g), scaled(blend(dr, wr, m), g));
+        }
+        // The input and each module's output, delayed to meet the output.
+        let (lh, lc, lv) = self.lat;
+        let mask = self.xr[0].len() - 1;
+        let p = self.pos;
+        self.xr[0][p] = l;
+        self.xr[1][p] = r;
+        self.hr[0][p] = h.0;
+        self.hr[1][p] = h.1;
+        self.cr[0][p] = c.0;
+        self.cr[1][p] = c.1;
+        let read = |ring: &[Vec<f32>; 2], d: usize| {
+            let i = p.wrapping_sub(d) & mask;
+            (ring[0][i], ring[1][i])
         };
+        let xd = read(&self.xr, lh + lc + lv);
+        let hd = read(&self.hr, lc + lv);
+        let cd = read(&self.cr, lv);
+        self.pos = (p + 1) & mask;
         let g = self.out.next(k);
-        let hum_d = self.s.hum.on && self.s.hum.delta;
-        let verb_d = self.s.verb.on && self.s.verb.delta;
-        let all = (hum_d || !self.s.hum.on) && (verb_d || !self.s.verb.on);
-        let (yl, yr) = if !hum_d && !verb_d {
-            (vl, vr)
+        let s = &self.s;
+        let hum_d = s.hum.on && s.hum.delta;
+        let click_d = s.click.on && s.click.delta;
+        let verb_d = s.verb.on && s.verb.delta;
+        let all = (hum_d || !s.hum.on) && (click_d || !s.click.on) && (verb_d || !s.verb.on);
+        let (yl, yr) = if !hum_d && !click_d && !verb_d {
+            v
         } else if all {
-            (xd.0 - vl, xd.1 - vr)
-        } else if hum_d {
-            (xd.0 - hd.0, xd.1 - hd.1)
+            (xd.0 - v.0, xd.1 - v.1)
         } else {
-            (hd.0 - vl, hd.1 - vr)
+            // The sum of what the modules listened to take out (the first as it is).
+            let mut acc: Option<(f32, f32)> = None;
+            let mut add = |d: (f32, f32)| {
+                acc = Some(match acc {
+                    None => d,
+                    Some(a) => (a.0 + d.0, a.1 + d.1),
+                });
+            };
+            if hum_d {
+                add((xd.0 - hd.0, xd.1 - hd.1));
+            }
+            if click_d {
+                add((hd.0 - cd.0, hd.1 - cd.1));
+            }
+            if verb_d {
+                add((cd.0 - v.0, cd.1 - v.1));
+            }
+            acc.unwrap_or(v)
         };
-        let (dl, dr) = (xd.0 - vl, xd.1 - vr);
+        let (dl, dr) = (xd.0 - v.0, xd.1 - v.1);
         self.removed_sq += (dl as f64) * (dl as f64) + (dr as f64) * (dr as f64);
         self.removed_n += 2;
         let out = (scaled(yl, g), scaled(yr, g));
@@ -412,8 +506,10 @@ impl Purus {
 
     fn try_drain(&mut self) {
         let verb_clear = !self.s.verb.on || self.verb.drained();
+        let click_clear = !self.s.click.on || self.click.drained();
         let hum_clear = !self.hum_live || self.hum.quiet_below(DRAIN_BELOW);
-        if verb_clear && hum_clear {
+        let delays_clear = self.zero_run > self.latency();
+        if verb_clear && click_clear && hum_clear && delays_clear {
             self.reset();
         }
     }
@@ -436,6 +532,8 @@ impl Purus {
             decay_s: self.verb.decay_s(),
             decay_estimated_s: self.verb.estimated_decay_s(),
             verb_reduction_db: [0.0; BANDS],
+            clicks_last: self.click.repaired().0 as u32,
+            clicks_total: self.click.repaired().1,
             in_peak_db: db(self.in_peak as f64),
             out_peak_db: db(self.out_peak as f64),
             removed_db: if self.removed_n > 0 {
