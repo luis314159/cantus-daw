@@ -941,3 +941,51 @@ fn newton_in_the_unit() {
         println!("{m:?}: {its:?}");
     }
 }
+
+/// Each circuit's cost alone, replaying what it hears in the unit (the high-gain amp at
+/// gain 75 %, a plucked note through the oversampler): `--ignored --nocapture`, release.
+#[test]
+#[ignore]
+fn cpu_by_stage() {
+    let x = pluck(110.0, 0.5, 0.5, 4);
+    let mut o = crate::fervor::os::Oversampler::new(4, false);
+    let mut up = vec![];
+    for v in &x {
+        let mut b = [0.0f32; 8];
+        o.up(*v, &mut b);
+        up.extend_from_slice(&b[..4]);
+    }
+    for m in [AmpModel::HighGain, AmpModel::Clean] {
+        let k = Knobs {
+            gain: 0.75,
+            ..Knobs::default()
+        };
+        let mut p = Preamp::new(m.preamp(), SOURCE_OHMS, 192_000.0, &k);
+        let n = p.stages().len();
+        let mut ins: Vec<Vec<(f64, f64)>> = vec![vec![]; n];
+        for s in &up {
+            let (mut v, mut i) = (*s as f64, 0.0);
+            for (k, st) in p.stages_mut().iter_mut().enumerate() {
+                ins[k].push((v, i));
+                v = st.step(v, i);
+                i = st.i_out;
+            }
+        }
+        let mut q = Preamp::new(m.preamp(), SOURCE_OHMS, 192_000.0, &k);
+        let mut acc = 0.0;
+        let mut line = String::new();
+        for (k, st) in q.stages_mut().iter_mut().enumerate() {
+            let mut best = f64::MAX;
+            for _ in 0..3 {
+                st.rest();
+                let t = std::time::Instant::now();
+                for &(v, i) in &ins[k] {
+                    acc += st.step(v, i);
+                }
+                best = best.min(t.elapsed().as_secs_f64() * 1e9 / ins[k].len() as f64);
+            }
+            line += &format!(" {k}: {best:.0} ns ({:.2} it)", st.iterations_per_step());
+        }
+        println!("{m:?}:{line} ({acc:.1})");
+    }
+}
