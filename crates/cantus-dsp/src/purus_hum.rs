@@ -202,6 +202,8 @@ struct Lane {
     held: [bool; MAX_HARMONICS],
     /// The band's usual remainder.
     floor: [f64; MAX_HARMONICS],
+    /// The smoothed estimates at the last grid look (the held ones turn with the free).
+    turn_prev: [C; MAX_HARMONICS],
     hold_left: [u32; MAX_HARMONICS],
     busy_run: [u32; MAX_HARMONICS],
     /// Samples since this lane first heard something (it learns freely at first); each
@@ -323,16 +325,18 @@ impl Dehum {
 const DEMOD_HZ: f64 = 3.0;
 /// Gentle: the three-pole band of what the hum learned does not explain, Hz (a note more
 /// than about 10 Hz from a harmonic does not hold it).
-const GATE_HZ: f64 = 6.0;
+const GATE_HZ: f64 = 3.0;
 /// Gentle: the top of the bass range it protects, Hz. A note is held for only up to here:
 /// higher, chords crowd the harmonics (their partials 20–40 Hz away leak into a band fast
 /// enough to catch a note's onset) and the canceller learns always, a notch of the width.
-const GENTLE_TOP_HZ: f64 = 260.0;
+const GENTLE_TOP_HZ: f64 = 160.0;
 /// Gentle: the smoothing of the hum learned (two poles), Hz.
-const REF_HZ: f64 = 6.0;
+const REF_HZ: f64 = 0.5;
 /// The tracker's loop: its natural frequency, Hz, and damping.
 const LOOP_HZ: f64 = 0.5;
 const LOOP_DAMPING: f64 = 0.8;
+/// The tracker's loop in the gentle mode, Hz.
+const GENTLE_LOOP_HZ: f64 = 0.08;
 /// The readings the loop averages: those within this of their weighted median, Hz.
 const TRIM_HZ: f64 = 0.3;
 /// Gentle: how long it learns freely (twice as fast, no gate) after the first sound, s.
@@ -516,6 +520,11 @@ impl Dehum {
 
     /// The grid step: glide the parameters, follow the hum, redesign what moved.
     fn on_grid(&mut self) {
+        if self.s.gentle {
+            for ch in 0..2 {
+                self.turn_held(ch);
+            }
+        }
         let mut moved = false;
         for k in 0..MAX_HARMONICS {
             let t = self.g_target(k);
@@ -547,6 +556,54 @@ impl Dehum {
         if moved {
             self.retune();
         }
+    }
+
+    /// Gentle: turn the held harmonics with the free ones. The reference follows the hum's
+    /// frequency, not its phase, so against a drifting hum the phase between them wanders;
+    /// a free harmonic's canceller turns with it on its own, a held one cannot. How far the
+    /// free ones turned since the last look (each angle over its harmonic number, weighted
+    /// by its strength) turns the held ones, each by its harmonic number.
+    fn turn_held(&mut self, ch: usize) {
+        let lane = &mut self.lanes[ch];
+        let (mut acc, mut w) = (0.0f64, 0.0f64);
+        let mut any_held = false;
+        for k in 0..MAX_HARMONICS {
+            if self.g[k] >= 1.0 {
+                continue;
+            }
+            let now = lane.s_b[k];
+            if lane.held[k] {
+                any_held = true;
+                continue;
+            }
+            let was = lane.turn_prev[k];
+            let r = now.mul(C {
+                re: was.re,
+                im: -was.im,
+            });
+            let m = r.norm2().sqrt();
+            if m > 0.0 {
+                acc += m * math::atan2(r.im, r.re) / (k + 1) as f64;
+                w += m;
+            }
+        }
+        if any_held && w > 0.0 && lane.heard >= self.learn_len {
+            let phi = acc / w;
+            for k in 0..MAX_HARMONICS {
+                if !lane.held[k] || self.g[k] >= 1.0 {
+                    continue;
+                }
+                let (s, c) = math::sin_cos(phi * (k + 1) as f64);
+                let t = C { re: c, im: s };
+                lane.est[k] = lane.est[k].mul(t);
+                lane.s_a[k] = lane.s_a[k].mul(t);
+                lane.s_b[k] = lane.s_b[k].mul(t);
+                lane.back_a[k] = lane.back_a[k].mul(t);
+                lane.back_b[k] = lane.back_b[k].mul(t);
+                lane.back_c[k] = lane.back_c[k].mul(t);
+            }
+        }
+        lane.turn_prev = lane.s_b;
     }
 
     /// The frequency-locked loop's step; whether the fundamental moved.
@@ -609,7 +666,14 @@ impl Dehum {
         }
         let e = sum / ws;
         // A second-order loop (a ramp followed without a lag), critically damped-ish.
-        let wt = 2.0 * std::f64::consts::PI * LOOP_HZ * GRID as f64 / self.fs;
+        // The gentle mode holds estimates against the reference for seconds: it wants the
+        // reference's phase steady more than quick, so its loop is slower.
+        let loop_hz = if self.s.gentle {
+            GENTLE_LOOP_HZ
+        } else {
+            LOOP_HZ
+        };
+        let wt = 2.0 * std::f64::consts::PI * loop_hz * GRID as f64 / self.fs;
         let g1 = 2.0 * LOOP_DAMPING * wt;
         let g2 = wt * wt;
         let lo = self.nominal - TRACK_RANGE_HZ;
@@ -731,7 +795,10 @@ impl Dehum {
             );
             (xd, out)
         } else {
-            ((l, r), (self.notches(0, l as f64), self.notches(1, r as f64)))
+            (
+                (l, r),
+                (self.notches(0, l as f64), self.notches(1, r as f64)),
+            )
         };
         self.z1 = renorm(self.z1.mul(self.step));
         (dry, (out.0 as f32, out.1 as f32))
@@ -805,6 +872,18 @@ impl Dehum {
         let learning = lane.heard < learn;
         if learning && (lane.heard > 0 || xd != 0.0) {
             lane.heard += 1;
+            if lane.heard == learn {
+                // Learned: the smoothed estimates and the snapshots start from it.
+                for k in 0..MAX_HARMONICS {
+                    let v = lane.est[k];
+                    lane.s_a[k] = v;
+                    lane.s_b[k] = v;
+                    lane.back_a[k] = v;
+                    lane.back_b[k] = v;
+                    lane.back_c[k] = v;
+                    lane.turn_prev[k] = v;
+                }
+            }
         }
         for k in 0..MAX_HARMONICS {
             if self.g[k] >= 1.0 {

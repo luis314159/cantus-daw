@@ -184,7 +184,11 @@ fn a_module_at_mix_zero_hands_its_input_on_to_the_bit() {
         let (l, _) = run(&s, &quiet, 64);
         // (A tone starting out of silence is a click to the detector: past its start.)
         let from = lat + if mix == 0.0 { 0 } else { 2048 };
-        assert_eq!(bits(&l[from..]), bits(&quiet[from - lat..quiet.len() - lat]), "mix {mix}");
+        assert_eq!(
+            bits(&l[from..]),
+            bits(&quiet[from - lat..quiet.len() - lat]),
+            "mix {mix}"
+        );
     }
     // The de-reverb at mix 0: the input, delayed by exactly the latency stated.
     let s = PurusSettings {
@@ -289,7 +293,11 @@ fn the_delta_is_the_input_delayed_minus_the_output_to_the_bit() {
                 assert_eq!(dl[i].to_bits(), want_l.to_bits(), "{s:?} at {i}");
                 assert_eq!(dr[i].to_bits(), want_r.to_bits(), "{s:?} at {i}");
             } else {
-                assert!((dl[i] - want_l).abs() <= 1e-6, "{s:?} at {i}: {} {want_l}", dl[i]);
+                assert!(
+                    (dl[i] - want_l).abs() <= 1e-6,
+                    "{s:?} at {i}: {} {want_l}",
+                    dl[i]
+                );
             }
         }
     }

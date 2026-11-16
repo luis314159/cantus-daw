@@ -7,10 +7,19 @@ use super::*;
 
 const SR: f32 = 48_000.0;
 
+/// Through Purus, aligned to the input (its latency taken off), as long as the input.
 fn mono(s: &PurusSettings, x: &[f32]) -> Vec<f32> {
-    let mut p = Purus::new(SR);
+    mono_at(s, x, SR)
+}
+
+fn mono_at(s: &PurusSettings, x: &[f32], sr: f32) -> Vec<f32> {
+    let lat = latency_for(s, sr);
+    let mut padded = x.to_vec();
+    padded.resize(x.len() + lat, 0.0);
+    let mut p = Purus::new(sr);
     p.set(s);
-    testkit::render(x, 256, |l, r| p.process(l, r)).0
+    let y = testkit::render(&padded, 256, |l, r| p.process(l, r)).0;
+    y[lat..].to_vec()
 }
 
 fn hum_settings(f: impl FnOnce(&mut HumSettings)) -> PurusSettings {
@@ -363,4 +372,107 @@ fn purus_cpu() {
             100.0 * best / secs as f64
         );
     }
+}
+
+/// The owner's reference guitar (Carbonthief's CC0 DI strums: Am, F, C, G at 90 BPM, two
+/// strums a bar, eight bars) at its own 44.1 kHz, with the drifting hum and buzz of the
+/// listening set: the hum left at each harmonic by the notches and by the gentle mode.
+/// Needs the strums (`C:\projects\daw-fx\tmp\guitar-wav`, not in the repository):
+/// `cargo test -p cantus-dsp --lib purus_gentle_guitar -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn purus_gentle_guitar() {
+    let dir = std::path::Path::new("C:/projects/daw-fx/tmp/guitar-wav");
+    let chords = [
+        "Sample07 (A Minor)",
+        "Sample15 (F Major)",
+        "Sample22 (C Major)",
+        "Sample17 (G Major)",
+    ];
+    let mut strums = Vec::new();
+    for c in chords {
+        let Ok(mut r) = hound::WavReader::open(dir.join(format!("{c}.wav"))) else {
+            println!("no strums at {dir:?}: skipped");
+            return;
+        };
+        let spec = r.spec();
+        let k = 1.0 / (1u64 << (spec.bits_per_sample - 1)) as f32;
+        let x: Vec<f32> = match spec.sample_format {
+            hound::SampleFormat::Float => r.samples::<f32>().map(Result::unwrap).collect(),
+            _ => r.samples::<i32>().map(|v| v.unwrap() as f32 * k).collect(),
+        };
+        strums.push(
+            x.chunks(spec.channels as usize)
+                .map(|c| c[0])
+                .collect::<Vec<f32>>(),
+        );
+    }
+    let sr = 44_100.0f32;
+    let beat = (60.0 / 90.0 * sr as f64) as usize;
+    let mut g = vec![0.0f32; 32 * beat];
+    let fade = (0.02 * sr) as usize;
+    for bar in 0..8 {
+        for half in 0..2 {
+            let at = (bar * 4 + half * 2) * beat;
+            let len = 2 * beat;
+            let st = &strums[bar % 4];
+            for i in 0..len.min(st.len()) {
+                let w = if i + fade >= len {
+                    (len - i) as f32 / fade as f32
+                } else {
+                    1.0
+                };
+                g[at + i] += st[i] * w;
+            }
+        }
+    }
+    let peak = g.iter().fold(0f32, |m, v| m.max(v.abs()));
+    g.iter_mut().for_each(|v| *v *= 0.5 / peak);
+    let amps = [0.0316f32, 0.02, 0.0251, 0.01, 0.0126, 0.005, 0.0063, 0.004];
+    let dd = if std::env::var("PURUS_NODRIFT").is_ok() {
+        0.0
+    } else {
+        0.3
+    };
+    let drift = move |t: f64| 50.0 + dd * crate::math::sin(std::f64::consts::TAU * t / 20.0);
+    let hum = testkit::hum(sr, g.len() as f32 / sr, &amps, 0.012, 31, drift);
+    let theta = testkit::hum_phase(sr, hum.len(), drift);
+    let x: Vec<f32> = g.iter().zip(&hum).map(|(a, b)| a + b).collect();
+    let from = (4.0 * sr) as usize;
+    let mut rows = Vec::new();
+    let mode_env = std::env::var("PURUS_MODE").unwrap_or_default();
+    for (name, gentle) in [("notches", false), ("gentle", true)] {
+        let s = hum_settings(|h| {
+            h.mode = if mode_env == "fixed" {
+                HumMode::Fixed
+            } else {
+                HumMode::Track
+            };
+            h.harmonics = 16;
+            h.gentle = gentle;
+        });
+        let y = mono_at(&s, &x, sr);
+        let left: Vec<f32> = y[from..]
+            .iter()
+            .zip(&g[from..])
+            .map(|(a, b)| a - b)
+            .collect();
+        let lv: Vec<f64> = (1..=8)
+            .map(|k| {
+                20.0 * crate::math::log10(
+                    testkit::level_following(&left, &theta[from..], k).max(1e-12),
+                )
+            })
+            .collect();
+        let shown: Vec<String> = lv.iter().map(|v| format!("{v:.0}")).collect();
+        println!(
+            "guitar, {name}: the hum left at harmonics 1-8, dBFS: {}",
+            shown.join(" ")
+        );
+        rows.push(lv);
+    }
+    let worst = (0..8)
+        .map(|k| rows[1][k] - rows[0][k])
+        .fold(f64::MIN, f64::max);
+    println!("guitar: the gentle mode leaves at most {worst:.1} dB more than the notches");
 }
