@@ -381,4 +381,3 @@ mod tests {
         assert_eq!(total(v.len() - 1), 0.0);
     }
 }
-

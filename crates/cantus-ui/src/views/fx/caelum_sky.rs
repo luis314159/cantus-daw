@@ -33,7 +33,7 @@ fn range(spec: &EffectSpec) -> (f32, f32) {
         .flat_map(|n| [pa * n as f32, pb * n as f32])
         .fold(0.0f32, f32::max)
         .clamp(24.0, 48.0);
-    let down = (pa.min(pb)).min(0.0).max(-24.0);
+    let down = pa.min(pb).clamp(-24.0, 0.0);
     (down, up)
 }
 
