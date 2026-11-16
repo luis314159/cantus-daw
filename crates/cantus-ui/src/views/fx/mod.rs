@@ -92,6 +92,8 @@ pub mod arca;
 pub mod caelum;
 /// Fractus, the glitch sequencer and grain cloud (fx side round, wave A). // fxa:contract
 pub mod fractus;
+/// What wave A's editors share: cells sized to their words. // fxa
+pub mod fxa_cells;
 /// Loquax, the vocoder (fx side round, wave A). // fxa:contract
 pub mod loquax;
 /// Pedals drawn: enclosures, knobs, footswitches, cables — reusable by any board. // fx:fragor

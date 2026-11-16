@@ -221,7 +221,7 @@ pub const FRACTUS_COLOURWAYS: [Colourway; 3] = [
     },
 ];
 
-/// Caelum, the shimmer reverb: a satin night blue, its sky seen
+/// Caelum, the shimmer reverb: a satin night blue, its sky a dark
 /// through glass — the tail a periwinkle light, the shimmer's second voice an orchid; soft
 /// knobs, pill switches, a badge plate, light spaced capitals.
 const fn caelum(
@@ -237,7 +237,7 @@ const fn caelum(
         accent: Some(accent),
         accent2: Some(second),
         material,
-        display: Display::Glass,
+        display: Display::Phosphor,
         knob: KnobShape::Soft,
         switch: SwitchShape::Pill,
         lettering: Lettering {

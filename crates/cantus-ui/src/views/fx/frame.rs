@@ -186,9 +186,9 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         // Rota: the cabinet cut away, from above and its ramps, over a row of six cards.
         EffectKind::Rotary => Vec2::new(1260.0, 700.0), // fx3:rota
         // fxa — the design sheets' windows (v1).
-        EffectKind::Vocoder => Vec2::new(1260.0, 760.0), // fxa:loquax
-        EffectKind::Glitch => Vec2::new(1320.0, 800.0),  // fxa:fractus
-        EffectKind::Shimmer => Vec2::new(1260.0, 760.0), // fxa:caelum
+        EffectKind::Vocoder => Vec2::new(1340.0, 900.0), // fxa:loquax
+        EffectKind::Glitch => Vec2::new(1400.0, 1000.0), // fxa:fractus
+        EffectKind::Shimmer => Vec2::new(1340.0, 900.0), // fxa:caelum
         _ => Vec2::new(1000.0, 640.0),
     }
 }
