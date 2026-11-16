@@ -20,6 +20,12 @@
 //! | 3 | the supply's sag below idle, V |
 //! | 4 | the output's peak, linear |
 //! | 5 | 1 when the cabinet playing is the one the parameters ask for |
+//! | 6 | the oversampling factor while an amp is chosen (2, 4, 8), else 0 |
+//! | 7 | the preamp's circuits (a valve each), 0 … 5 |
+//! | 8 … 12 | each circuit's swing over a third of its supply (≈ 1: it clips hard) |
+//! | 13 | the phase inverter's input over its swing (1: where its limit bends) |
+//! | 14 | the power valves' drive (0 idle, 1 where their grids conduct) |
+//! | 15, 16 | the supply now and at idle, V |
 
 use super::{FxUnit, Telemetry, TELEMETRY_LEN};
 use crate::effects::{EffectMemory, MemoryNeed};
@@ -35,6 +41,13 @@ pub const T_MODEL: usize = 2;
 pub const T_SAG: usize = 3;
 pub const T_PEAK: usize = 4;
 pub const T_READY: usize = 5;
+pub const T_OS: usize = 6;
+pub const T_STAGES: usize = 7;
+pub const T_PRE: usize = 8;
+pub const T_INVERTER: usize = 13;
+pub const T_POWER: usize = 14;
+pub const T_SUPPLY: usize = 15;
+pub const T_IDLE: usize = 16;
 
 /// The cabinet choice that plays the loaded file.
 pub const CAB_FILE: u8 = 6;
@@ -259,6 +272,16 @@ impl FxUnit for Unit {
         } else {
             0.0
         };
+        let w = self.dsp.work();
+        if self.set.model.is_some() {
+            t[T_OS] = cantus_dsp::arca::factor(self.set.oversampling) as f32;
+        }
+        t[T_STAGES] = w.stages as f32;
+        t[T_PRE..T_PRE + w.pre.len()].copy_from_slice(&w.pre);
+        t[T_INVERTER] = w.inverter;
+        t[T_POWER] = w.power;
+        t[T_SUPPLY] = w.supply;
+        t[T_IDLE] = w.idle;
         t
     }
 
@@ -328,5 +351,42 @@ mod tests {
         let mut r = l.clone();
         u.process(&mut l, &mut r, None);
         assert!(l[0] != 0.0 && l[1..].iter().any(|v| *v != 0.0));
+    }
+
+    /// The display's meters: at the defaults all zero; a driven crunch amp shows its valves
+    /// working, harder as the gain goes up, its supply sagging below idle.
+    #[test]
+    fn the_valves_work_harder_as_the_gain_goes_up() {
+        let run = |gain: f32| {
+            let mut u = Unit::new(48_000.0);
+            let mut spec = EffectSpec::new(EffectKind::Amp);
+            spec.set("model", 2.0);
+            spec.set("gain", gain);
+            u.configure(&spec);
+            let mut t = [0.0; TELEMETRY_LEN];
+            for b in 0..40 {
+                let mut l: Vec<f32> = (0..480)
+                    .map(|i| 0.3 * cantus_dsp::math::sin((b * 480 + i) as f32 * 0.0367))
+                    .collect();
+                let mut r = l.clone();
+                u.process(&mut l, &mut r, None);
+                t = u.telemetry();
+            }
+            t
+        };
+        let (lo, hi) = (run(0.2), run(0.9));
+        assert_eq!(hi[T_OS], 4.0);
+        assert_eq!(hi[T_STAGES], lo[T_STAGES]);
+        let n = hi[T_STAGES] as usize;
+        assert!((2..=5).contains(&n), "{n}");
+        let last = |t: &Telemetry| t[T_PRE + n - 1];
+        assert!(last(&hi) > last(&lo) && last(&lo) > 0.0, "{} {}", last(&lo), last(&hi));
+        assert!(hi[T_POWER] > 0.0 && hi[T_INVERTER] > 0.0);
+        assert!(hi[T_IDLE] > 300.0 && hi[T_SUPPLY] < hi[T_IDLE]);
+        let mut u = Unit::new(48_000.0);
+        u.configure(&EffectSpec::new(EffectKind::Amp));
+        let (mut l, mut r) = (vec![0.5f32; 256], vec![0.5f32; 256]);
+        u.process(&mut l, &mut r, None);
+        assert!(u.telemetry()[T_OS..].iter().all(|v| *v == 0.0));
     }
 }

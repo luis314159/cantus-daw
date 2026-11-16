@@ -805,6 +805,9 @@ const STAND_IN_HZ: f64 = 6_000.0;
 pub struct Preamp {
     stages: [Stage; MAX_STAGES],
     n: usize,
+    /// Each circuit's largest output swing (V from rest) since [`Preamp::take_peaks`]:
+    /// the display's measure of how hard each valve works.
+    peaks: [f64; MAX_STAGES],
 }
 
 impl Preamp {
@@ -814,6 +817,7 @@ impl Preamp {
         let mut p = Preamp {
             stages: std::array::from_fn(|_| Stage::empty(rate)),
             n: 0,
+            peaks: [0.0; MAX_STAGES],
         };
         p.build(blocks, src_r, rate, k);
         p
@@ -885,11 +889,27 @@ impl Preamp {
     #[inline]
     pub fn step(&mut self, x: f64) -> f64 {
         let (mut v, mut i) = (x, 0.0);
-        for s in &mut self.stages[..self.n] {
+        for (s, p) in self.stages[..self.n].iter_mut().zip(&mut self.peaks) {
             v = s.step(v, i);
             i = s.i_out;
+            *p = p.max(v.abs());
         }
         v
+    }
+
+    /// Each circuit's largest output swing (V) since the last call beside its supply (V),
+    /// the rest zero; how many circuits there are. The peaks start again from zero.
+    pub fn take_peaks(&mut self, out: &mut [(f32, f32); MAX_STAGES]) -> usize {
+        for (j, o) in out.iter_mut().enumerate() {
+            *o = if j < self.n {
+                let s = &self.stages[j];
+                (self.peaks[j] as f32, s.u[s.sup] as f32)
+            } else {
+                (0.0, 0.0)
+            };
+        }
+        self.peaks = [0.0; MAX_STAGES];
+        self.n
     }
 
     pub fn rest(&mut self) {

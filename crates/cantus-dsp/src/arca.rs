@@ -212,6 +212,23 @@ pub struct Arca {
     /// Telemetry: the supply's sag (V below idle) and the output's peak in the last block.
     sag_volts: f32,
     peak: f32,
+    work: Work,
+}
+
+/// How hard each part of the amp worked over the last block: what the display's valves glow
+/// with.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct Work {
+    /// The preamp's circuits (a valve each), and each one's largest swing over a third of
+    /// its supply (about where a small-signal triode stage clips hard).
+    pub stages: usize,
+    pub pre: [f32; net::MAX_STAGES],
+    /// The inverter's input over its swing, the power valves' drive (1: the grids conduct).
+    pub inverter: f32,
+    pub power: f32,
+    /// The supply now and at idle (V).
+    pub supply: f32,
+    pub idle: f32,
 }
 
 impl Arca {
@@ -249,6 +266,7 @@ impl Arca {
             wet: [0.0; CHUNK],
             sag_volts: 0.0,
             peak: 0.0,
+            work: Work::default(),
         }
     }
 
@@ -577,6 +595,22 @@ impl Arca {
             Some(_) => (self.pow.bias_and_supply().1 - self.pow.supply()) as f32,
             None => 0.0,
         };
+        self.work = match self.built {
+            Some(_) => {
+                let mut sw = [(0.0f32, 0.0f32); net::MAX_STAGES];
+                let n = self.pre.take_peaks(&mut sw);
+                let (inverter, power) = self.pow.take_drive();
+                Work {
+                    stages: n,
+                    pre: sw.map(|(v, b)| if b > 0.0 { 3.0 * v / b } else { 0.0 }),
+                    inverter,
+                    power,
+                    supply: self.pow.supply() as f32,
+                    idle: self.pow.idle_supply() as f32,
+                }
+            }
+            None => Work::default(),
+        };
     }
 
     pub fn at_rest(&self) -> bool {
@@ -624,6 +658,11 @@ impl Arca {
     /// The supply's sag below idle (V) and the output's peak, at the last block.
     pub fn meters(&self) -> (f32, f32) {
         (self.sag_volts, self.peak)
+    }
+
+    /// How hard the amp's valves worked over the last block (all zero without an amp).
+    pub fn work(&self) -> &Work {
+        &self.work
     }
 }
 

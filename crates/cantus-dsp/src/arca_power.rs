@@ -204,6 +204,10 @@ pub struct Power {
     /// The spec's numbers as the sample needs them (the divisions done once).
     c: Consts,
     inv_rs: f64,
+    /// Since [`Power::take_drive`]: the inverter's largest input over its swing, and the
+    /// power valves' grid-to-cathode voltage at its highest (the display's meters).
+    peak_pi: f64,
+    peak_vgk: f64,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -313,6 +317,8 @@ impl Power {
                 }
             },
             inv_rs: 1.0 / spec.r_supply,
+            peak_pi: 0.0,
+            peak_vgk: f64::MIN,
             g: {
                 let (g1, gg, gc) = (1.0 / spec.pi_r, 1.0 / spec.r_grid, 1.0 / R_GC);
                 (g1, gg, gc, 1.0 / (g1 + gg), 1.0 / (g1 + gg + gc))
@@ -409,6 +415,28 @@ impl Power {
         self.live.b
     }
 
+    /// How hard the inverter and the power valves have worked since the last call, and the
+    /// meters start again: the inverter's largest input over its swing (1: where its limit
+    /// bends), and the power valves' grids' highest approach to their cathodes from idle
+    /// (0 at idle, 1 where a grid starts to conduct — full power; past 1, driven into it).
+    pub fn take_drive(&mut self) -> (f32, f32) {
+        let idle = self.vbias - self.idle.vk;
+        let power = if self.peak_vgk == f64::MIN || idle >= 0.0 {
+            0.0
+        } else {
+            ((self.peak_vgk - idle) / -idle).max(0.0)
+        };
+        let pi = self.peak_pi;
+        self.peak_pi = 0.0;
+        self.peak_vgk = f64::MIN;
+        (pi as f32, power as f32)
+    }
+
+    /// The supply's voltage at idle (V): where the sag meter's needle rests.
+    pub fn idle_supply(&self) -> f64 {
+        self.idle.b
+    }
+
     /// One oversampled sample: the inverter's input (V) in, the speaker over its peak at
     /// full power out.
     #[inline]
@@ -417,6 +445,7 @@ impl Power {
         let c = self.c;
         let u = self.pi_in.run(x) - self.live.fb;
         let xs = u * c.gain_over_swing;
+        self.peak_pi = self.peak_pi.max(xs.abs());
         let fx = ln_cosh(xs);
         let mut e = c.swing * tanh_adaa(xs, self.live.pi_x, fx, self.live.pi_f);
         self.live.pi_x = xs;
@@ -439,6 +468,7 @@ impl Power {
             self.live.vc[side] += i * c.dt_couple;
             vgk[side] = vg - vk;
         }
+        self.peak_vgk = self.peak_vgk.max(vgk[0].max(vgk[1]));
         let b = self.live.b;
         let vg2 = b - vk;
         let g2 = t.screen_near(vg2, self.g2_at.0, self.g2_at.1, self.g2_at.2);
