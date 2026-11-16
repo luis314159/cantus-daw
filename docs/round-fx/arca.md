@@ -37,3 +37,28 @@ was measured while other builders loaded the machine.
 The engine units and parameter tables, Phasis's two new keys, the editor's design sheets
 for the owner, presets, export, docs, the e2e test — and Arca's CPU (ADR 0137, *Left for
 the next phases*).
+
+## Phase B (2): the design sheets (2026-11-15) — waiting for the owner
+
+- **Telemetry for the display** (`cantus-dsp/src/arca.rs` `Work`, `arca_net.rs`
+  `Preamp::take_peaks`, `arca_power.rs` `Power::take_drive`/`idle_supply`; engine indices
+  6–16): each preamp circuit's swing over a third of its supply, the inverter's drive, the
+  power valves' approach to grid current, the supply now and at idle, the oversampling.
+  Meters only — the output's bits unchanged. `the_valves_work_harder_as_the_gain_goes_up`.
+- **Arca's window** (`views/fx/arca*.rs`): the chassis (valves glowing with the telemetry,
+  the supply's needle, the amp's character from its models, the oversampling with latencies),
+  the control plate, the cabinet (the microphone dragged on the cone and in a side view, the
+  microphone's kind, the designed response, the loaded file as a cabinet choice).
+- **Rota's window** (`views/fx/rota*.rs`): the cabinet cut away, from above (microphones
+  dragged), the ramps with each rotor's dot; Rota's telemetry was already enough.
+- **Faces** (`kit/skin/side.rs`): `ARCA` (a new material, `Material::Hammered`, hammered
+  enamel — `materials.rs`, `textures.rs` `Tile::Hammered`, the gallery and its goldens) with
+  Graphite and Oxblood; `ROTA` (walnut) with Cherry and Black. The objects' palette in
+  `kit/skin/cabinets.rs`. Pedals on Tabula: the Chest and Wheel motifs (`arca_art.rs`,
+  `rota_art.rs`), their knobs' words.
+- **Phasis**: the circuit card (Classic · Lamp vibe, the intensity), the window 1180 wide.
+- **Shots**: `examples/shoot_arca.rs` → `compartir\arca\design\v1\`, `compartir\rota\design\v1\`.
+  `tests/arca_rota_whole.rs`: no word cut, EN/ES, 75–200 %.
+- Found, not ours: Fragor's green overdrive prints "GANANC…" on Tabula in Spanish;
+  `learn_everywhere` fails on Saltus's stepped parameters (`ostyle`, `hsrc`, `deg1`, …)
+  drawn without their offer; Phasis's "REALIM." is abbreviated in Spanish.

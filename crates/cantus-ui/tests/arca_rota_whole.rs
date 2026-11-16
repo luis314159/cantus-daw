@@ -21,7 +21,13 @@ fn context() -> egui::Context {
 }
 
 /// The words cut when `unit` is drawn with `kv` over its demo, playing.
-fn cuts(unit: &str, kind: EffectKind, kv: &[(&str, f32)], lang: Locale, k: f32) -> Vec<String> {
+fn cuts(
+    unit: &'static str,
+    kind: EffectKind,
+    kv: &[(&str, f32)],
+    lang: Locale,
+    k: f32,
+) -> Vec<String> {
     cantus_ui::i18n::set_locale(lang);
     let ctx = context();
     let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
@@ -48,9 +54,12 @@ fn cuts(unit: &str, kind: EffectKind, kv: &[(&str, f32)], lang: Locale, k: f32) 
     out
 }
 
+/// A unit, its kind, its settings over its demo.
+type Case = (&'static str, EffectKind, &'static [(&'static str, f32)]);
+
 #[test]
 fn arca_rota_and_the_lamp_vibe_are_never_cut() {
-    let cases: &[(&str, EffectKind, &[(&str, f32)])] = &[
+    let cases: &[Case] = &[
         ("arca", EffectKind::Amp, &[("model", 4.0), ("cab", 4.0)]),
         (
             "arca",

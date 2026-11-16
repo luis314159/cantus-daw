@@ -103,7 +103,7 @@ fn motif_of(f: &Face) -> pd::Motif {
         faces::Motif::Curve => pd::Motif::Curve,
         faces::Motif::Steps => pd::Motif::Steps,
         faces::Motif::Spiral => pd::Motif::Spiral,
-        faces::Motif::Leap => pd::Motif::Leap, // fx3:saltus
+        faces::Motif::Leap => pd::Motif::Leap,   // fx3:saltus
         faces::Motif::Wheel => pd::Motif::Wheel, // fx3:rota
         faces::Motif::Chest => pd::Motif::Chest, // fx3:arca
     }

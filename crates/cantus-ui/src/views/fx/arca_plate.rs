@@ -73,28 +73,56 @@ pub fn show(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, r: Rect, v: &Vi
             ui.multiply_opacity(0.55);
         }
     };
-    controls::card(ui, s, rects[0], Src::Key("arca.card.preamp"), None, |ui, _| {
-        dim(ui);
-        labelled(host, ui, s, "gain", "arca.l.gain");
-    });
-    controls::card(ui, s, rects[1], Src::Key("arca.card.tone"), None, |ui, _| {
-        dim(ui);
-        labelled(host, ui, s, "bass", "arca.l.bass");
-        labelled(host, ui, s, "mid", "arca.l.middle");
-        labelled(host, ui, s, "treble", "arca.l.treble");
-    });
+    controls::card(
+        ui,
+        s,
+        rects[0],
+        Src::Key("arca.card.preamp"),
+        None,
+        |ui, _| {
+            dim(ui);
+            labelled(host, ui, s, "gain", "arca.l.gain");
+        },
+    );
+    controls::card(
+        ui,
+        s,
+        rects[1],
+        Src::Key("arca.card.tone"),
+        None,
+        |ui, _| {
+            dim(ui);
+            labelled(host, ui, s, "bass", "arca.l.bass");
+            labelled(host, ui, s, "mid", "arca.l.middle");
+            labelled(host, ui, s, "treble", "arca.l.treble");
+        },
+    );
     let cut = model.is_some_and(|m| words::character(m).cut);
-    controls::card(ui, s, rects[2], Src::Key("arca.card.power"), None, |ui, _| {
-        dim(ui);
-        let presence = if cut { "arca.l.cut" } else { "arca.l.presence" };
-        labelled(host, ui, s, "presence", presence);
-        labelled(host, ui, s, "master", "arca.l.master");
-        labelled(host, ui, s, "sag", "arca.l.sag");
-    });
-    controls::card(ui, s, rects[3], Src::Key("arca.card.output"), None, |ui, _| {
-        labelled(host, ui, s, "mix", "arca.l.mix");
-        labelled(host, ui, s, "out", "arca.l.output");
-    });
+    controls::card(
+        ui,
+        s,
+        rects[2],
+        Src::Key("arca.card.power"),
+        None,
+        |ui, _| {
+            dim(ui);
+            let presence = if cut { "arca.l.cut" } else { "arca.l.presence" };
+            labelled(host, ui, s, "presence", presence);
+            labelled(host, ui, s, "master", "arca.l.master");
+            labelled(host, ui, s, "sag", "arca.l.sag");
+        },
+    );
+    controls::card(
+        ui,
+        s,
+        rects[3],
+        Src::Key("arca.card.output"),
+        None,
+        |ui, _| {
+            labelled(host, ui, s, "mix", "arca.l.mix");
+            labelled(host, ui, s, "out", "arca.l.output");
+        },
+    );
 }
 
 /// The nameplate: the pilot light, the name engraved, the input jack.
@@ -112,7 +140,11 @@ fn nameplate(ui: &mut egui::Ui, s: &Style, r: Rect, on: bool, effort: f32) {
             (plate.left() + 7.0 * k, plate.bottom() - 7.0 * k),
             (plate.right() - 7.0 * k, plate.bottom() - 7.0 * k),
         ] {
-            b.circle(pos2(x, y), 2.2 * k, Fill::Solid(with_alpha(t.dark_shade, 0.5)));
+            b.circle(
+                pos2(x, y),
+                2.2 * k,
+                Fill::Solid(with_alpha(t.dark_shade, 0.5)),
+            );
             b.segment(
                 pos2(x - 1.4 * k, y - 1.4 * k),
                 pos2(x + 1.4 * k, y + 1.4 * k),
@@ -136,7 +168,11 @@ fn nameplate(ui: &mut egui::Ui, s: &Style, r: Rect, on: bool, effort: f32) {
         );
         // The input jack: a nut round a dark hole.
         let jc = pos2(cx, plate.bottom() - 30.0 * k);
-        b.circle(jc, 8.0 * k, Fill::V(with_alpha(t.light, 0.5), with_alpha(t.dark_shade, 0.6)));
+        b.circle(
+            jc,
+            8.0 * k,
+            Fill::V(with_alpha(t.light, 0.5), with_alpha(t.dark_shade, 0.6)),
+        );
         b.circle(jc, 5.5 * k, Fill::Solid(with_alpha(t.dark_shade, 0.9)));
         b.circle_stroke(jc, 8.0 * k, 0.6 * k, with_alpha(t.light, 0.35));
         let jack = Rect::from_center_size(

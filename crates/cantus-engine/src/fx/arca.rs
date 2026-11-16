@@ -380,7 +380,12 @@ mod tests {
         let n = hi[T_STAGES] as usize;
         assert!((2..=5).contains(&n), "{n}");
         let last = |t: &Telemetry| t[T_PRE + n - 1];
-        assert!(last(&hi) > last(&lo) && last(&lo) > 0.0, "{} {}", last(&lo), last(&hi));
+        assert!(
+            last(&hi) > last(&lo) && last(&lo) > 0.0,
+            "{} {}",
+            last(&lo),
+            last(&hi)
+        );
         assert!(hi[T_POWER] > 0.0 && hi[T_INVERTER] > 0.0);
         assert!(hi[T_IDLE] > 300.0 && hi[T_SUPPLY] < hi[T_IDLE]);
         let mut u = Unit::new(48_000.0);

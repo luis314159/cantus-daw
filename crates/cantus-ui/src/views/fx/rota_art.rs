@@ -42,7 +42,13 @@ pub fn wheel(b: &mut Brush, u: f32, r: Rect, print: Color32, accent: Color32) {
     let a = -PI * 0.12;
     let dir = vec2(a.cos(), a.sin());
     let nrm = vec2(-dir.y, dir.x);
-    b.segment(c - dir * rad * 0.8, c + dir * rad * 0.5, fine * 1.6, print, true);
+    b.segment(
+        c - dir * rad * 0.8,
+        c + dir * rad * 0.5,
+        fine * 1.6,
+        print,
+        true,
+    );
     let tip = c + dir * rad * 0.95;
     let bell: [Pos2; 4] = [
         c + dir * rad * 0.45 + nrm * 1.2 * u,
@@ -51,7 +57,11 @@ pub fn wheel(b: &mut Brush, u: f32, r: Rect, print: Color32, accent: Color32) {
         c + dir * rad * 0.45 - nrm * 1.2 * u,
     ];
     b.polygon(&bell, with_alpha(accent, 0.9));
-    b.circle(c - dir * rad * 0.8, 2.6 * u, Fill::Solid(with_alpha(print, 0.7)));
+    b.circle(
+        c - dir * rad * 0.8,
+        2.6 * u,
+        Fill::Solid(with_alpha(print, 0.7)),
+    );
     b.circle(c, 3.0 * u, Fill::Solid(print));
     b.circle_stroke(c, 5.0 * u, fine, with_alpha(print, 0.6));
 }

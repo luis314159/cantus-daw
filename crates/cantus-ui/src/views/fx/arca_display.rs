@@ -197,14 +197,7 @@ fn os_rects(band: Rect, k: f32) -> [Rect; 3] {
 }
 
 /// The chassis in `r`: its legends answer clicks, the rest is drawn.
-pub fn show(
-    host: &mut dyn FxHost,
-    v: &View,
-    ui: &mut egui::Ui,
-    s: &Style,
-    r: Rect,
-    rd: &Reading,
-) {
+pub fn show(host: &mut dyn FxHost, v: &View, ui: &mut egui::Ui, s: &Style, r: Rect, rd: &Reading) {
     let k = s.k;
     // The reading has been eased into the view; nothing reads it raw yet.
     let _ = rd;
@@ -381,8 +374,12 @@ fn paint_info(
     let _ = ktext::paint(
         b,
         big,
-        &Text::key(name, Role::Display, if model.is_some() { ink.hue } else { ink.dim })
-            .align(Align2::LEFT_CENTER),
+        &Text::key(
+            name,
+            Role::Display,
+            if model.is_some() { ink.hue } else { ink.dim },
+        )
+        .align(Align2::LEFT_CENTER),
         k,
     );
     y += 34.0 * k;
@@ -552,7 +549,8 @@ fn paint_valves(
     // The light first, the glass over it.
     for t in &bottles {
         let rad = t.r.width() * 4.0;
-        let clip = Rect::from_center_size(t.r.center(), vec2(rad * 2.0, rad * 1.6)).intersect(screen);
+        let clip =
+            Rect::from_center_size(t.r.center(), vec2(rad * 2.0, rad * 1.6)).intersect(screen);
         warm_light(b, clip, t.r.center(), rad, t.glow * 0.85);
     }
     for t in &bottles {
@@ -576,7 +574,11 @@ fn paint_valves(
             b.rrect(f, 1.0 * k, Fill::Solid(mix(ink.hue, ink.text, 0.25 * lit)));
         }
         if !t.power {
-            let ty = if i < n { words::pre_valve(m, i) } else { "12AX7" };
+            let ty = if i < n {
+                words::pre_valve(m, i)
+            } else {
+                "12AX7"
+            };
             canvas::put(
                 b,
                 pos2(t.r.center().x, floor + 25.0 * k),
@@ -758,7 +760,7 @@ fn paint_meter(b: &mut Brush, ink: &Ink, r: Rect, model: Option<AmpModel>, v: &V
         ink.text,
         k,
         None,
-        format_args!("{:.1} {unit}", -v.sag),
+        format_args!("{:.1} {unit}", if v.sag < 0.05 { 0.0 } else { -v.sag }),
     );
 }
 
@@ -775,6 +777,12 @@ pub fn warm_light(b: &mut Brush, clip: Rect, c: Pos2, rad: f32, glow: f32) {
     for i in 0..n {
         let t = 1.0 - i as f32 / n as f32;
         let col = with_alpha(warm, 0.028 * g);
-        b.radial(clip, c, vec2(rad * t, rad * 0.8 * t), &[(0.0, col), (1.0, col)], 16);
+        b.radial(
+            clip,
+            c,
+            vec2(rad * t, rad * 0.8 * t),
+            &[(0.0, col), (1.0, col)],
+            16,
+        );
     }
 }

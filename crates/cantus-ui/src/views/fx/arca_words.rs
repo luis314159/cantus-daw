@@ -99,7 +99,11 @@ pub fn summary(spec: &EffectSpec) -> String {
     match (m, c) {
         (0, 0) => frame::tr("arca.off").to_string(),
         (0, c) => format!("{} \u{b7} {}", frame::tr("arca.no_amp"), cab_name(spec, c)),
-        (m, 0) => format!("{} \u{b7} {}", frame::tr(MODELS[m]), frame::tr("arca.no_cab")),
+        (m, 0) => format!(
+            "{} \u{b7} {}",
+            frame::tr(MODELS[m]),
+            frame::tr("arca.no_cab")
+        ),
         (m, c) => format!("{} \u{b7} {}", frame::tr(MODELS[m]), cab_name(spec, c)),
     }
 }

@@ -507,10 +507,10 @@ pub const SALTUS: Skin = Skin {
 
 // fx3:rota — Rota's own face (ADR 0136, provisional).
 /// Rota, the rotary speaker: a cabinet of oiled walnut, its display a night-dark cut-away
-/// where the horn turns in steel blue and the drum in vermilion; graduated dials, rocker
+/// where the horn turns in pale steel and the drum in vermilion; graduated dials, rocker
 /// switches, spaced capitals on a badge, screws. No wood-faced unit speaks in a steel blue
 /// (the noise gate's green, the organ's olive, the ring modulator's gold, Vetus's walnut
-/// amber), and no unit of the round pairs blue with vermilion.
+/// amber); its one strong voice is the vermilion.
 const fn rota(key: &'static str, material: Material, surface: Tint, accent: Pair) -> Skin {
     Skin {
         key,
@@ -550,8 +550,8 @@ pub const ROTA: Skin = rota(
         amount: 0.55,
     },
     Pair {
-        dark: chsl(205.0, 0.62, 0.68),
-        light: chsl(208.0, 0.62, 0.34),
+        dark: chsl(205.0, 0.26, 0.74),
+        light: chsl(208.0, 0.40, 0.34),
     },
 );
 /// **Cherry**: a redder wood, the horn in aqua.
@@ -564,22 +564,22 @@ pub const ROTA_CHERRY: Skin = rota(
         amount: 0.55,
     },
     Pair {
-        dark: chsl(186.0, 0.55, 0.64),
+        dark: chsl(186.0, 0.26, 0.72),
         light: chsl(190.0, 0.62, 0.30),
     },
 );
 /// **Black**: a black vinyl-covered cabinet (a touring one's), the horn in steel blue.
 pub const ROTA_BLACK: Skin = rota(
     "fx.rota.black",
-    Material::Tolex,
+    Material::FineTolex,
     Tint {
         hue: 220.0,
         sat: 0.04,
         amount: 0.30,
     },
     Pair {
-        dark: chsl(212.0, 0.66, 0.70),
-        light: chsl(214.0, 0.62, 0.36),
+        dark: chsl(240.0, 0.26, 0.76),
+        light: chsl(236.0, 0.36, 0.36),
     },
 );
 /// Rota's colourways, its face first: Walnut, Cherry and Black.
@@ -603,7 +603,7 @@ pub const ROTA_COLOURWAYS: [Colourway; 3] = [
 
 // fx3:arca — Arca's own face (ADR 0137, provisional).
 /// Arca, amp and cabinet (*the chest*): a control plate of green hammered enamel (the only
-/// unit in that material), copper pointers and readouts, a mint second voice for the
+/// unit in that material), copper pointers and readouts, a cream second voice for the
 /// cabinet; its display a dark window into the chassis where the valves glow; skirted
 /// knobs, bat toggles, engraved capitals, screws and rules.
 const fn arca(key: &'static str, surface: Tint, accent: Pair, accent2: Pair) -> Skin {
@@ -645,8 +645,8 @@ pub const ARCA: Skin = arca(
         light: chsl(18.0, 0.75, 0.36),
     },
     Pair {
-        dark: chsl(165.0, 0.45, 0.66),
-        light: chsl(168.0, 0.55, 0.28),
+        dark: chsl(42.0, 0.28, 0.78),
+        light: chsl(30.0, 0.28, 0.30),
     },
 );
 /// **Graphite**: grey enamel, a signal yellow.
@@ -708,8 +708,8 @@ pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
         EffectKind::AutoFilter => &CRIBRUM_COLOURWAYS, // fx:cribrum
         EffectKind::Pedal => &FRAGOR_COLOURWAYS,       // fx:fragor
         EffectKind::LoFi => &VETUS_COLOURWAYS,         // fx:vetus
-        EffectKind::Rotary => &ROTA_COLOURWAYS,       // fx3:rota
-        EffectKind::Amp => &ARCA_COLOURWAYS,          // fx3:arca
+        EffectKind::Rotary => &ROTA_COLOURWAYS,        // fx3:rota
+        EffectKind::Amp => &ARCA_COLOURWAYS,           // fx3:arca
         _ => &[],
     }
 }
@@ -810,10 +810,12 @@ mod tests {
 
     /// The side round's faces as drawn (a sheet still wearing a sibling's look is left out).
     fn faces() -> Vec<&'static Skin> {
-        [&CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA] // fx3:saltus, fx3:rota, fx3:arca
-            .into_iter()
-            .filter(|s| !is_placeholder(s))
-            .collect()
+        [
+            &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA,
+        ] // fx3:saltus, fx3:rota, fx3:arca
+        .into_iter()
+        .filter(|s| !is_placeholder(s))
+        .collect()
     }
 
     /// The faces and the colourways a user can choose for them.

@@ -31,10 +31,7 @@ pub fn chest(b: &mut Brush, u: f32, r: Rect, print: Color32, accent: Color32) {
     // The valve: its glass, the plate inside, the filament glowing, its pins.
     let h = r.height() * 0.86;
     let w = h * 0.36;
-    let v = Rect::from_min_size(
-        pos2(r.left() + 4.0 * u, r.center().y - h * 0.5),
-        vec2(w, h),
-    );
+    let v = Rect::from_min_size(pos2(r.left() + 4.0 * u, r.center().y - h * 0.5), vec2(w, h));
     let glow_c = pos2(v.center().x, v.top() + h * 0.48);
     b.circle(glow_c, w * 0.9, Fill::Solid(with_alpha(accent, 0.12)));
     b.circle(glow_c, w * 0.5, Fill::Solid(with_alpha(accent, 0.18)));

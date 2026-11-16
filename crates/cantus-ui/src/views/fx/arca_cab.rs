@@ -122,7 +122,7 @@ pub fn show(host: &mut dyn FxHost, v: &mut View, ui: &mut egui::Ui, s: &Style, r
     with_brush(&ui.painter_at(r), |b| {
         canvas::ground_b(b, r, &ink, s.hue_tok);
     });
-    cab_field(host, ui, s, p.band);
+    cab_field(host, ui, s, p.band, mics[0].left());
     mic_edit(host, ui, s, &mics);
     let (c, set) = cab_settings(host.spec());
     let factory = (1..=5).contains(&c);
@@ -191,9 +191,10 @@ fn note(b: &mut Brush, ink: &Ink, at: Pos2, key: &str, k: f32) {
 }
 
 /// The cabinet's list: none, Arca's five, the loaded file (then a file is loaded).
-fn cab_field(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, band: Rect) {
+fn cab_field(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, band: Rect, until: f32) {
     let k = s.k;
-    let w = 186.0;
+    // As wide as the room the microphones leave it (their names are longer in Spanish).
+    let w = ((until - band.left() - 22.0 * k) / k).clamp(120.0, 200.0);
     let at = Rect::from_min_size(
         pos2(band.left() + 10.0 * k, band.top() + 6.0 * k),
         vec2(w * k, band.height() - 12.0 * k),
@@ -335,7 +336,13 @@ fn paint_mics(b: &mut Brush, ink: &Ink, rects: &[Rect; 3], now: Mic, on: bool, k
             0.7 * k,
             if lit { ink.hue } else { ink.grid_strong },
         );
-        mic_sign(b, Mic::from_index(i), pos2(r.left() + 11.0 * k, r.center().y), col, k);
+        mic_sign(
+            b,
+            Mic::from_index(i),
+            pos2(r.left() + 11.0 * k, r.center().y),
+            col,
+            k,
+        );
         canvas::put(
             b,
             pos2(r.left() + 21.0 * k, r.center().y),
@@ -354,7 +361,13 @@ fn mic_sign(b: &mut Brush, m: Mic, c: Pos2, col: Color32, k: f32) {
     match m {
         Mic::Dynamic => {
             b.circle_stroke(c - vec2(0.0, 2.0 * k), 3.6 * k, w, col);
-            b.segment(c + vec2(0.0, 1.6 * k), c + vec2(0.0, 6.0 * k), w, col, false);
+            b.segment(
+                c + vec2(0.0, 1.6 * k),
+                c + vec2(0.0, 6.0 * k),
+                w,
+                col,
+                false,
+            );
         }
         Mic::Ribbon => {
             let r = Rect::from_center_size(c, vec2(6.0 * k, 11.0 * k));
@@ -401,7 +414,12 @@ fn paint_front(b: &mut Brush, ink: &Ink, r: Rect, c: usize, k: f32) {
         0.5 * k,
         with_alpha(pal::CLOTH_THREAD.rgb(), 0.22 * a),
     );
-    b.rrect_stroke(cloth, 2.0 * k, 0.8 * k, with_alpha(pal::PIPING.rgb(), 0.8 * a));
+    b.rrect_stroke(
+        cloth,
+        2.0 * k,
+        0.8 * k,
+        with_alpha(pal::PIPING.rgb(), 0.8 * a),
+    );
     let cw = cloth.width() / cols as f32;
     let ch = cloth.height() / rows as f32;
     let sr = cw.min(ch) * if c == 5 { 0.36 } else { 0.42 };
@@ -411,7 +429,11 @@ fn paint_front(b: &mut Brush, ink: &Ink, r: Rect, c: usize, k: f32) {
                 cloth.left() + cw * (i as f32 + 0.5),
                 cloth.top() + ch * (j as f32 + 0.5),
             );
-            b.circle(sc, sr, Fill::Solid(with_alpha(pal::CONE_SHADE.rgb(), 0.55 * a)));
+            b.circle(
+                sc,
+                sr,
+                Fill::Solid(with_alpha(pal::CONE_SHADE.rgb(), 0.55 * a)),
+            );
             let faced = i == 0 && j == 0 && !dim;
             b.circle_stroke(
                 sc,
@@ -489,10 +511,7 @@ fn paint_cone(b: &mut Brush, c: Pos2, rad: f32, k: f32) {
         clip,
         c,
         vec2(cap, cap),
-        &[
-            (0.0, pal::DUST_CAP_LIGHT.rgb()),
-            (1.0, pal::DUST_CAP.rgb()),
-        ],
+        &[(0.0, pal::DUST_CAP_LIGHT.rgb()), (1.0, pal::DUST_CAP.rgb())],
         16,
     );
     b.circle_stroke(c, cap, 0.7 * k, with_alpha(pal::CONE_SHADE.rgb(), 0.9));
@@ -508,11 +527,7 @@ fn paint_mic_front(b: &mut Brush, ink: &Ink, cone: (Pos2, f32), set: &CabSetting
     // The scale: the cap, the middle and the edge, marked along the radius below.
     let y = c.y + rad + 10.0 * k;
     b.hline(c.x, c.x + reach, y, 0.7 * k, ink.grid_strong);
-    for (t, key) in [
-        (0.0, "arca.cab.cap"),
-        (0.5, ""),
-        (1.0, "arca.cab.edge"),
-    ] {
+    for (t, key) in [(0.0, "arca.cab.cap"), (0.5, ""), (1.0, "arca.cab.edge")] {
         let x = c.x + t * reach;
         b.vline(x, y - 3.0 * k, y + 3.0 * k, 0.7 * k, ink.grid_strong);
         if !key.is_empty() {
@@ -631,8 +646,20 @@ fn paint_side(b: &mut Brush, ink: &Ink, r: Rect, set: &CabSettings, on: bool, k:
     } else {
         ink.dim
     };
-    b.segment(pos2(gx - 4.0 * k, cy - half), pos2(back, cy - 6.0 * k), 0.9 * k, col, false);
-    b.segment(pos2(gx - 4.0 * k, cy + half), pos2(back, cy + 6.0 * k), 0.9 * k, col, false);
+    b.segment(
+        pos2(gx - 4.0 * k, cy - half),
+        pos2(back, cy - 6.0 * k),
+        0.9 * k,
+        col,
+        false,
+    );
+    b.segment(
+        pos2(gx - 4.0 * k, cy + half),
+        pos2(back, cy + 6.0 * k),
+        0.9 * k,
+        col,
+        false,
+    );
     b.arc(
         pos2(back + 4.0 * k, cy),
         6.0 * k,
@@ -704,7 +731,12 @@ fn paint_side(b: &mut Brush, ink: &Ink, r: Rect, set: &CabSettings, on: bool, k:
         head * 0.62,
         Fill::V(pal::MIC_BODY_LIGHT.rgb(), pal::MIC_MESH.rgb()),
     );
-    b.circle_stroke(pos2(mx + head * 0.5, my), head * 0.62 + 2.0 * k, 0.8 * k, ink.hue);
+    b.circle_stroke(
+        pos2(mx + head * 0.5, my),
+        head * 0.62 + 2.0 * k,
+        0.8 * k,
+        ink.hue,
+    );
     canvas::tag(
         b,
         pos2(body.right() + 6.0 * k, my),

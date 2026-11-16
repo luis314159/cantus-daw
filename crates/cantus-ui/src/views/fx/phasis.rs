@@ -145,10 +145,7 @@ fn body_ui(
     controls::card(ui, &st_, r2[1], Src::Key(title), None, |ui, _| {
         controls::column(ui, &st_, CIRCUIT_W, |ui| {
             controls::caption(ui, &st_, Src::Key("fx.phasis.style"), CIRCUIT_W);
-            let labels = [
-                Src::Key("fx.phasis.style.0"),
-                Src::Key("fx.phasis.style.1"),
-            ];
+            let labels = [Src::Key("fx.phasis.style.0"), Src::Key("fx.phasis.style.1")];
             controls::segmented_param(ui, &st_, host, "style", &labels, CIRCUIT_W);
             let about = if vibe {
                 "phasis.style.1.about"
@@ -182,7 +179,7 @@ fn body_ui(
 }
 
 /// The circuit's column (its switch and its line), at 100 %. fx3:arca
-const CIRCUIT_W: f32 = 200.0;
+const CIRCUIT_W: f32 = 176.0;
 
 fn fb_pill(v: f32, b: &mut String) {
     let _ = write!(b, "{:+.0}%", v * 100.0);

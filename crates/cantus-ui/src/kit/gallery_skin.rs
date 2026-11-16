@@ -202,7 +202,7 @@ static MATERIALS: [Skin; 12] = [
     with_material("gallery.material.wood", Material::Wood),
     with_material("gallery.material.vinyl", Material::Tolex),
     with_material("gallery.material.fine_vinyl", Material::FineTolex), // fx3:tabula
-    with_material("gallery.material.hammered", Material::Hammered), // fx3:arca
+    with_material("gallery.material.hammered", Material::Hammered),    // fx3:arca
     with_material("gallery.material.glass", Material::Glass),
     with_material("gallery.material.paper", Material::Paper),
     with_material("gallery.material.carbon", Material::Carbon),

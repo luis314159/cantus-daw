@@ -125,27 +125,48 @@ fn body_ui(
     let cards: Vec<Rect> = g.row(row, &w.map(|x| x / sum)).collect();
     card2(host, ui, s, cards[0], "rota.card.horn", ["hslow", "hfast"]);
     card2(host, ui, s, cards[1], "rota.card.drum", ["dslow", "dfast"]);
-    controls::card(ui, s, cards[2], Src::Key("rota.card.switch"), None, |ui, _| {
-        labelled(host, ui, s, "ramp", "rota.l.ramp");
-        controls::column(ui, s, COLUMN, |ui| {
-            controls::caption(ui, s, Src::Key("rota.l.notes"), COLUMN);
-            let labels = [Src::Key("fx.rota.notes.0"), Src::Key("fx.rota.notes.1")];
-            controls::segmented_param(ui, s, host, "notes", &labels, COLUMN);
-        });
-    });
-    controls::card(ui, s, cards[3], Src::Key("rota.card.mics"), None, |ui, _| {
-        labelled_as(host, ui, s, "spread", "rota.l.angle", Some(&deg_pill));
-        labelled_as(host, ui, s, "dist", "rota.l.distance", Some(&cm_pill));
-        labelled(host, ui, s, "balance", "rota.l.balance");
-    });
-    controls::card(ui, s, cards[4], Src::Key("rota.card.cabinet"), None, |ui, _| {
-        controls::column(ui, s, COLUMN, |ui| {
-            controls::caption(ui, s, Src::Key("rota.l.back"), COLUMN);
-            let labels = [Src::Key("fx.rota.open.0"), Src::Key("fx.rota.open.1")];
-            controls::segmented_param(ui, s, host, "open", &labels, COLUMN);
-        });
-        labelled(host, ui, s, "drive", "rota.l.drive");
-    });
+    controls::card(
+        ui,
+        s,
+        cards[2],
+        Src::Key("rota.card.switch"),
+        None,
+        |ui, _| {
+            labelled(host, ui, s, "ramp", "rota.l.ramp");
+            controls::column(ui, s, COLUMN, |ui| {
+                controls::caption(ui, s, Src::Key("rota.l.notes"), COLUMN);
+                let labels = [Src::Key("fx.rota.notes.0"), Src::Key("fx.rota.notes.1")];
+                controls::segmented_param(ui, s, host, "notes", &labels, COLUMN);
+            });
+        },
+    );
+    controls::card(
+        ui,
+        s,
+        cards[3],
+        Src::Key("rota.card.mics"),
+        None,
+        |ui, _| {
+            labelled_as(host, ui, s, "spread", "rota.l.angle", Some(&deg_pill));
+            labelled_as(host, ui, s, "dist", "rota.l.distance", Some(&cm_pill));
+            labelled(host, ui, s, "balance", "rota.l.balance");
+        },
+    );
+    controls::card(
+        ui,
+        s,
+        cards[4],
+        Src::Key("rota.card.cabinet"),
+        None,
+        |ui, _| {
+            controls::column(ui, s, COLUMN, |ui| {
+                controls::caption(ui, s, Src::Key("rota.l.back"), COLUMN);
+                let labels = [Src::Key("fx.rota.open.0"), Src::Key("fx.rota.open.1")];
+                controls::segmented_param(ui, s, host, "open", &labels, COLUMN);
+            });
+            labelled(host, ui, s, "drive", "rota.l.drive");
+        },
+    );
     card2(host, ui, s, cards[5], "rota.card.mix", ["mix", "out"]);
 }
 
