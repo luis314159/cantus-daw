@@ -130,7 +130,7 @@ fn cedo_allocates_nothing_after_new() {
                     samples: song,
                 });
                 song += block as i64 + if block == 37 { 10_000 } else { 0 };
-                c.note(block / 2);
+                c.note(block / 2, 90);
                 c.process(
                     &mut l[..block],
                     &mut r[..block],

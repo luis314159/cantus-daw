@@ -53,8 +53,8 @@ pub enum Event {
     Play { song: i64, bpm: f64 },
     /// The transport stops here.
     Stop,
-    /// A note-on from the trigger track.
-    Note,
+    /// A note-on from the trigger track, at a velocity.
+    Note(u8),
 }
 
 /// A run: the input, the key (if any), events at samples, the block size.
@@ -80,13 +80,15 @@ fn drive(u: &mut Cedo, r: &Run, mut trace: Option<&mut Vec<f32>>) -> (Vec<f32>, 
         .events
         .iter()
         .copied()
-        .filter(|x| !matches!(x.1, Event::Note))
+        .filter(|x| !matches!(x.1, Event::Note(_)))
         .collect();
-    let notes: Vec<usize> = r
+    let notes: Vec<(usize, u8)> = r
         .events
         .iter()
-        .filter(|x| matches!(x.1, Event::Note))
-        .map(|x| x.0)
+        .filter_map(|x| match x.1 {
+            Event::Note(v) => Some((x.0, v)),
+            _ => None,
+        })
         .collect();
     let mut playing: Option<(i64, usize, f64)> = None;
     let (mut i, mut e, mut k) = (0, 0, 0);
@@ -105,7 +107,7 @@ fn drive(u: &mut Cedo, r: &Run, mut trace: Option<&mut Vec<f32>>) -> (Vec<f32>, 
                     }
                     playing = None;
                 }
-                Event::Note => {}
+                Event::Note(_) => {}
             }
             e += 1;
         }
@@ -119,8 +121,8 @@ fn drive(u: &mut Cedo, r: &Run, mut trace: Option<&mut Vec<f32>>) -> (Vec<f32>, 
             });
         }
         // Notes inside the block, at their offsets (they do not split it).
-        while k < notes.len() && notes[k] < end {
-            u.note(notes[k].saturating_sub(i));
+        while k < notes.len() && notes[k].0 < end {
+            u.note(notes[k].0.saturating_sub(i), notes[k].1);
             k += 1;
         }
         let key = r.key.map(|(a, b)| (&a[i..end], &b[i..end]));

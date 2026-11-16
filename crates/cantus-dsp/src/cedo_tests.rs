@@ -4,7 +4,7 @@
 //! and exact rest with its twins.
 
 use super::band::{Band, Crossover};
-use super::env::{KeyFilterMode, ReleaseShape};
+use super::env::{Detector, KeyFilterMode, ReleaseShape};
 use super::testkit::{noise, pad, run, shape_fn, sine, Event, Run};
 use super::{latency_for, Cedo, CedoSettings, Listen, Trigger, CLASSIC_PUMP, DEPTH_INF};
 use crate::fluctus::CurvePoint;
@@ -73,7 +73,7 @@ fn no_depth_no_mix_or_no_trigger_is_a_null_to_the_bit_delayed_by_the_latency() {
             bpm: 120.0,
         },
     )];
-    let notes = [(1_000usize, Event::Note), (30_000, Event::Note)];
+    let notes = [(1_000usize, Event::Note(100)), (30_000, Event::Note(100))];
     // (settings, key, events)
     type Case<'a> = (CedoSettings, Option<&'a [f32]>, &'a [(usize, Event)]);
     let mut cases: Vec<Case> = vec![
@@ -194,6 +194,7 @@ fn moving_cases(n: usize) -> Vec<Moving> {
         division: 8,
         edge_ms: 6.0,
         lookahead_ms: 1.0,
+        velocity: true,
         ..CedoSettings::default()
     };
     let play = |bpm| (0usize, Event::Play { song: 3_000, bpm });
@@ -222,6 +223,8 @@ fn moving_cases(n: usize) -> Vec<Moving> {
                     2 * n / 3,
                     Event::Set(CedoSettings {
                         listen: Listen::Delta,
+                        detector: Detector::Rms,
+                        rms_ms: 7.0,
                         release_shape: ReleaseShape::Linear,
                         ..sc
                     }),
@@ -256,9 +259,9 @@ fn moving_cases(n: usize) -> Vec<Moving> {
         (
             midi,
             vec![
-                (777, Event::Note),
-                (12_345, Event::Note),
-                (12_400, Event::Note),
+                (777, Event::Note(127)),
+                (12_345, Event::Note(100)),
+                (12_400, Event::Note(40)),
                 (
                     n / 2,
                     Event::Set(CedoSettings {
@@ -266,8 +269,8 @@ fn moving_cases(n: usize) -> Vec<Moving> {
                         ..midi
                     }),
                 ),
-                (n / 2 + 999, Event::Note),
-                (n - 9_000, Event::Note),
+                (n / 2 + 999, Event::Note(100)),
+                (n - 9_000, Event::Note(100)),
             ],
             false,
         ),
@@ -432,8 +435,19 @@ fn it_comes_to_rest_exactly_and_its_twins_agree() {
         },
         true,
     ));
+    cases.push((
+        CedoSettings {
+            trigger: Trigger::Sidechain,
+            depth_db: 20.0,
+            threshold_db: -30.0,
+            detector: Detector::Rms,
+            rms_ms: 50.0,
+            ..CedoSettings::default()
+        },
+        true,
+    ));
     for (s, keyed) in cases {
-        let notes = [(500usize, Event::Note), (20_000, Event::Note)];
+        let notes = [(500usize, Event::Note(100)), (20_000, Event::Note(100))];
         let ev: &[(usize, Event)] = if s.trigger == Trigger::Midi {
             &notes
         } else {

@@ -12,16 +12,20 @@
 //!   the mirrored high shelf `(A²s² + kAs + 1)/(s² + ks + 1)`. Only the outputs' weights
 //!   move with the gain, never the filters' own coefficients, so a duck moving every sample
 //!   cannot destabilise them.
-//! - **Linear phase**: the low band is four boxcars of `M` samples in cascade — a
-//!   B-spline kernel, symmetric, `|sinc|⁴` in magnitude (first side lobe −53 dB, −6 dB at
-//!   the crossover: `M = 0.3189·fs/fc`) — and the highs are the delayed input minus it, so
-//!   the two bands sum to the delayed input exactly and the ducked response
-//!   `1 − (1 − G)·sinc⁴` never rises above 1. The boxcars run in **integers** (the input in
-//!   steps of 2⁻³⁶, each stage's running sum exact and its output a pure function of the
-//!   sum), so the sums never drift and come back to exactly zero. Its latency is fixed at
-//!   the lowest crossover's, [`LIN_MIN_HZ`] (12.7 ms at 48 kHz), whatever the frequency, so
-//!   moving the crossover never moves the latency; a higher crossover's kernel reads the
-//!   input that much later.
+//! - **Linear phase**: the low band is a **sharpened B-spline**. The base is two boxcars
+//!   of `M` samples (`B = sinc²`, symmetric, `M = 0.44295·fs/fc` so `B(fc) = ½`), and the
+//!   kernel is `L = S(B)` with `S(b) = 10b³ − 15b⁴ + 6b⁵` (smootherstep; Kaiser and
+//!   Hamming's sharpening, 1977) — the base applied three, four and five times (ten
+//!   boxcars), the first two delayed to the last's centre and summed. `S` is non-decreasing
+//!   from 0 to 1 on `[0, 1]` and `B` stays in `[0, 1]`, so **`0 ≤ L ≤ 1` at every
+//!   frequency**: neither the lows' duck nor the highs' can rise above the input. `L(fc) = ½`
+//!   (−6 dB), the passband flat to 0.999 at `fc/4` and 0.973 at `fc/2`, the stopband under
+//!   −60 dB above `2fc`. The highs are the delayed input minus the lows, so the two bands
+//!   sum to the delayed input exactly. Everything runs in **integers** (the input in steps
+//!   of 2⁻³⁶, each boxcar's running sum exact and its output a pure function of the sum,
+//!   the polynomial a sum of integers), so nothing drifts and rest is exact. The latency is
+//!   fixed at the lowest crossover's, [`LIN_MIN_HZ`]: `5·(M − 1)`, **36.8 ms at 48 kHz**,
+//!   whatever the frequency; a higher crossover's kernel reads the input that much later.
 
 use crate::math;
 
@@ -30,11 +34,11 @@ pub const MIN_HZ: f32 = 40.0;
 /// The highest crossover.
 pub const MAX_HZ: f32 = 2_000.0;
 /// The lowest crossover the linear-phase kernel reaches (its latency is this one's).
-pub const LIN_MIN_HZ: f32 = 50.0;
-/// Where `|sinc(x)|⁴ = ½` (−6 dB): the boxcar length is this many crossover periods.
-pub const SINC4_HALF: f64 = 0.3189;
-/// Boxcars in the linear-phase cascade.
-const STAGES: usize = 4;
+pub const LIN_MIN_HZ: f32 = 60.0;
+/// Where `sinc(x)² = ½` (−6 dB): the boxcar length is this many crossover periods.
+pub const SINC2_HALF: f64 = 0.442_946_470_689;
+/// Boxcars in the linear-phase cascade: the two-boxcar base applied five times.
+const STAGES: usize = 10;
 /// The input's integer step: 2⁻³⁶ (−217 dBFS).
 const SCALE: f64 = 68_719_476_736.0;
 /// The input is clamped to this before it is made an integer (+84 dBFS): far above any
@@ -73,12 +77,17 @@ pub enum Crossover {
 /// The boxcar length for a crossover at `hz`.
 pub fn boxcar_len(hz: f32, sample_rate: f32) -> usize {
     let hz = hz.clamp(LIN_MIN_HZ, MAX_HZ) as f64;
-    ((SINC4_HALF * sample_rate as f64 / hz).round() as usize).max(2)
+    ((SINC2_HALF * sample_rate as f64 / hz).round() as usize).max(2)
 }
 
 /// The linear-phase kernel's delay at a rate: the centre of the longest kernel.
 pub fn linear_latency(sample_rate: f32) -> usize {
-    2 * (boxcar_len(LIN_MIN_HZ, sample_rate) - 1)
+    kernel_delay(boxcar_len(LIN_MIN_HZ, sample_rate))
+}
+
+/// The sharpened kernel's centre for a boxcar length: the base's `M − 1`, five times.
+pub fn kernel_delay(m: usize) -> usize {
+    5 * (m - 1)
 }
 
 /// One Simper SVF section's coefficients (fixed by the crossover alone).
@@ -167,6 +176,88 @@ fn to_int(x: f32) -> i64 {
     ((x as f64).clamp(-CLAMP, CLAMP) * SCALE).round() as i64
 }
 
+/// A fixed-length integer delay.
+#[derive(Clone, Debug)]
+struct Ring {
+    buf: Vec<i64>,
+    pos: usize,
+}
+
+impl Ring {
+    fn new(cap: usize) -> Ring {
+        Ring {
+            buf: vec![0; cap.max(1)],
+            pos: 0,
+        }
+    }
+
+    /// Push `x`; the value pushed `d` pushes before it (0: `x` itself).
+    #[inline]
+    fn push_tap(&mut self, x: i64, d: usize) -> i64 {
+        let cap = self.buf.len();
+        self.buf[self.pos] = x;
+        let i = (self.pos + cap - d.min(cap - 1)) % cap;
+        self.pos = (self.pos + 1) % cap;
+        self.buf[i]
+    }
+
+    fn clear(&mut self) {
+        self.buf.iter_mut().for_each(|v| *v = 0);
+        self.pos = 0;
+    }
+
+    fn is_clear(&self) -> bool {
+        self.buf.iter().all(|v| *v == 0)
+    }
+}
+
+/// One channel's sharpened kernel: ten boxcars, the base's third and fourth powers delayed
+/// to the fifth's centre.
+#[derive(Clone, Debug)]
+struct Kernel {
+    boxes: [Boxcar; STAGES],
+    r3: Ring,
+    r4: Ring,
+}
+
+impl Kernel {
+    fn new(m_max: usize) -> Kernel {
+        Kernel {
+            boxes: std::array::from_fn(|_| Boxcar::new(m_max)),
+            r3: Ring::new(2 * m_max),
+            r4: Ring::new(m_max),
+        }
+    }
+
+    /// One input step; the low band, in steps.
+    #[inline]
+    fn tick(&mut self, x: i64, m: usize) -> i64 {
+        let mut v = x;
+        let (mut b3, mut b4) = (0, 0);
+        for (k, b) in self.boxes.iter_mut().enumerate() {
+            v = b.tick(v, m);
+            if k == 5 {
+                b3 = v;
+            } else if k == 7 {
+                b4 = v;
+            }
+        }
+        let b3 = self.r3.push_tap(b3, 2 * (m - 1));
+        let b4 = self.r4.push_tap(b4, m - 1);
+        10 * b3 - 15 * b4 + 6 * v
+    }
+
+    fn clear(&mut self) {
+        self.boxes.iter_mut().for_each(Boxcar::clear);
+        self.r3.clear();
+        self.r4.clear();
+    }
+
+    fn is_clear(&self) -> bool {
+        self.boxes.iter().all(Boxcar::is_clear) && self.r3.is_clear() && self.r4.is_clear()
+    }
+}
+
 /// The split for both channels.
 #[derive(Clone, Debug)]
 pub struct Split {
@@ -178,14 +269,13 @@ pub struct Split {
     /// Per channel, per section: the SVF's two states.
     sv: [[[f64; 2]; 2]; 2],
     m: usize,
-    boxes: [[Boxcar; STAGES]; 2],
+    kern: [Kernel; 2],
 }
 
 impl Split {
     /// Allocates the boxcars for the longest kernel.
     pub fn new(sample_rate: f32) -> Split {
         let cap = boxcar_len(LIN_MIN_HZ, sample_rate);
-        let mk = || std::array::from_fn(|_| Boxcar::new(cap));
         let mut s = Split {
             sr: sample_rate,
             band: Band::Whole,
@@ -194,7 +284,7 @@ impl Split {
             svf: Svf::default(),
             sv: [[[0.0; 2]; 2]; 2],
             m: cap,
-            boxes: [mk(), mk()],
+            kern: [Kernel::new(cap), Kernel::new(cap)],
         };
         s.svf = Svf::new(s.hz, sample_rate);
         s
@@ -216,7 +306,7 @@ impl Split {
     /// How much later than the dry path's newest sample the kernel's input is read, so its
     /// centre lands on the latency whatever its length.
     pub fn kernel_offset(&self) -> usize {
-        2 * (boxcar_len(LIN_MIN_HZ, self.sr) - self.m)
+        linear_latency(self.sr) - kernel_delay(self.m)
     }
 
     /// The boxcar length in force.
@@ -255,24 +345,25 @@ impl Split {
         }
     }
 
-    /// The boxcars as they would be after hearing `history` through the kernel's input tap.
+    /// The kernel as it would be after hearing `history` through its input tap.
     fn rebuild(&mut self, history: &dyn Fn(usize) -> [f32; 2]) {
         let m = self.m;
         let off = self.kernel_offset();
-        // Stage s needs its last m inputs, which need (s + 1)·(m − 1) + 1 inputs back.
+        // Boxcar s needs its last m inputs, which need (s + 1)·(m − 1) + 1 inputs back; the
+        // delayed powers need no more than the last boxcar does.
         let span = STAGES * (m - 1) + 1;
         for ch in 0..2 {
-            for b in self.boxes[ch].iter_mut() {
-                b.clear();
-            }
+            self.kern[ch].clear();
             for back in (0..span).rev() {
-                let x = to_int(history(off + back)[ch]);
-                let mut v = x;
-                for b in self.boxes[ch].iter_mut() {
-                    v = b.tick(v, m);
-                }
+                self.kern[ch].tick(to_int(history(off + back)[ch]), m);
             }
         }
+    }
+
+    /// Dry-line frames the kernel's rebuild may read back, at a rate.
+    pub fn history_needed(sample_rate: f32) -> usize {
+        let m = boxcar_len(LIN_MIN_HZ, sample_rate);
+        STAGES * m + 2
     }
 
     /// One sample: `dry` the delayed input (what passes at a band gain of 1), `kernel_in`
@@ -295,10 +386,7 @@ impl Split {
             }
             (band, Crossover::LinearPhase) => {
                 for ch in 0..2 {
-                    let mut v = to_int(kernel_in[ch]);
-                    for b in self.boxes[ch].iter_mut() {
-                        v = b.tick(v, self.m);
-                    }
+                    let v = self.kern[ch].tick(to_int(kernel_in[ch]), self.m);
                     if g[ch] == 1.0 {
                         continue;
                     }
@@ -345,14 +433,12 @@ impl Split {
     /// Every filter state empty.
     pub fn is_clear(&self) -> bool {
         self.sv.iter().flatten().flatten().all(|v| v.to_bits() == 0)
-            && self.boxes.iter().flatten().all(Boxcar::is_clear)
+            && self.kern.iter().all(Kernel::is_clear)
     }
 
     pub fn reset(&mut self) {
         self.sv = [[[0.0; 2]; 2]; 2];
-        for b in self.boxes.iter_mut().flatten() {
-            b.clear();
-        }
+        self.kern.iter_mut().for_each(Kernel::clear);
     }
 
     /// The magnitude, dB, at `hz` for a band gain `g`: what the display draws.
@@ -375,11 +461,12 @@ impl Split {
             }
             (band, Crossover::LinearPhase) => {
                 let d = dirichlet(hz as f64 / self.sr as f64, self.m);
-                let s4 = (d * d) * (d * d);
+                let b = d * d;
+                let l = b * b * b * (10.0 - 15.0 * b + 6.0 * b * b);
                 let h = if band == Band::Lows {
-                    1.0 + (g - 1.0) * s4
+                    1.0 + (g - 1.0) * l
                 } else {
-                    g + (1.0 - g) * s4
+                    g + (1.0 - g) * l
                 };
                 h * h
             }

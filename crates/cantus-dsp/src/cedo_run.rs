@@ -1,8 +1,10 @@
 //! Cedo running: each sample's amount, the delayed audio through the band split, the
 //! meter; rest, skip and reset. See `cedo.rs` for the rules.
 
+use super::env::Detector;
 use super::{Cedo, CedoMeter, Listen, Trigger};
 use crate::cedo::env::Envelope;
+use crate::dynfx_follow::EnvelopeFollower;
 use crate::modfx_clock::peak_db;
 
 impl Cedo {
@@ -20,8 +22,10 @@ impl Cedo {
         let mut last_a = 0.0f32;
         for i in 0..n {
             let t = self.clock.stream(i);
-            while notes_done < self.note_n && self.notes[notes_done] <= t {
-                self.pump.fire(&self.clock, self.notes[notes_done]);
+            while notes_done < self.note_n && self.notes[notes_done].0 <= t {
+                let (at, v) = self.notes[notes_done];
+                let k = self.velocity_scale(v);
+                self.pump.fire(&self.clock, at, k);
                 notes_done += 1;
             }
             let a = match self.s.trigger {
@@ -37,7 +41,11 @@ impl Cedo {
                     self.key_line.push(kf);
                     let pk = kf[0].abs().max(kf[1].abs());
                     key_pk = key_pk.max(pk);
-                    let above = [kf[0].abs() >= self.thr, kf[1].abs() >= self.thr];
+                    let level = match self.s.detector {
+                        Detector::Peak => [kf[0].abs(), kf[1].abs()],
+                        Detector::Rms => [self.rms[0].run(kf[0]), self.rms[1].run(kf[1])],
+                    };
+                    let above = [level[0] >= self.thr, level[1] >= self.thr];
                     m.triggered |= above[0] || above[1];
                     let mut now = [
                         self.env[0].tick(above[0], &self.timing),
@@ -131,10 +139,13 @@ impl Cedo {
     pub fn skip(&mut self, frames: usize) {
         let end = self.clock.stream(frames);
         let mut done = 0;
-        while done < self.note_n && self.notes[done] < end {
-            self.pump.fire(&self.clock, self.notes[done]);
+        while done < self.note_n && self.notes[done].0 < end {
+            let (at, v) = self.notes[done];
+            let k = self.velocity_scale(v);
+            self.pump.fire(&self.clock, at, k);
             done += 1;
         }
+        self.rms.iter_mut().for_each(|f| f.skip(frames));
         if done > 0 {
             self.notes.copy_within(done..self.note_n, 0);
             self.note_n -= done;
@@ -155,6 +166,8 @@ impl Cedo {
             Some("the envelope is ducking")
         } else if self.note_n > 0 || !self.pump.quiet() {
             Some("a note's shape is playing")
+        } else if !self.rms.iter().all(EnvelopeFollower::at_rest) {
+            Some("the RMS detector holds a level")
         } else if !self.key_f.is_clear() {
             Some("the key filter rings")
         } else if !self.split.is_clear() {
@@ -173,6 +186,7 @@ impl Cedo {
         self.clock.reset();
         self.pump.reset();
         self.key_f.reset();
+        self.rms.iter_mut().for_each(EnvelopeFollower::reset);
         self.env = [Envelope::default(); 2];
         self.amt_line.clear();
         self.dry.clear();

@@ -32,6 +32,9 @@ use crate::modfx_clock::{Clock, DIVISIONS};
 
 /// The longest edge, ms.
 pub const MAX_EDGE_MS: f32 = 10.0;
+/// A start of playback or a seek that lands inside a cycle (not on a cycle's start nor on
+/// a bar line) fades the shape in over this long, ms: a raised cosine from nothing.
+pub const START_FADE_MS: f32 = 10.0;
 /// Notes remembered (only the newest that has begun matters; the rest wait for their
 /// sample).
 const MAX_ORIGINS: usize = 32;
@@ -66,7 +69,15 @@ pub struct Pump {
     seen_playing: bool,
     src: Source,
     origins: [i64; MAX_ORIGINS],
+    /// Each note's amount (its velocity's, 1 without).
+    scales: [f32; MAX_ORIGINS],
     on: usize,
+    seen_tempo: f64,
+    /// Where the last start or seek inside a cycle landed (stream sample of its audio):
+    /// the shape fades in from there. A function of where it landed, so a skip or a refill
+    /// gives the same values.
+    fade_from: Option<i64>,
+    fade_len: f64,
     /// The cycle holding the last song sample asked: (start, next start, number).
     cyc: Option<(i64, i64, i64)>,
 }
@@ -96,7 +107,11 @@ impl Pump {
             seen_playing: false,
             src: Source::Tempo,
             origins: [0; MAX_ORIGINS],
+            scales: [1.0; MAX_ORIGINS],
             on: 0,
+            seen_tempo: 0.0,
+            fade_from: None,
+            fade_len: (START_FADE_MS as f64 * 0.001 * sr).round().max(1.0),
             cyc: None,
         };
         p.set_edge(1.0);
@@ -170,6 +185,8 @@ impl Pump {
         self.invalidate();
         self.seen_jumps = 0;
         self.seen_playing = false;
+        self.seen_tempo = 0.0;
+        self.fade_from = None;
     }
 
     /// Samples in one cycle at the clock's tempo.
@@ -218,16 +235,24 @@ impl Pump {
                 let s = clock.song(0) + (tau - clock.stream(0));
                 let len = self.len(clock);
                 let (u, _) = self.phase(s, len);
-                self.curve.at(u, self.shape) as f32
+                let v = self.curve.at(u, self.shape) as f32;
+                match self.fade_from {
+                    Some(f) if tau < f => 0.0,
+                    Some(f) if ((tau - f) as f64) < self.fade_len => {
+                        let r = (tau - f) as f64 / self.fade_len;
+                        v * (0.5 - 0.5 * crate::math::cos(std::f64::consts::PI * r)) as f32
+                    }
+                    _ => v,
+                }
             }
             Source::Midi => {
-                let Some(o) = self.origins[..self.on].iter().rev().find(|o| **o <= tau) else {
+                let Some(i) = self.origins[..self.on].iter().rposition(|o| *o <= tau) else {
                     return 0.0;
                 };
-                let d = (tau - o) as f64;
+                let d = (tau - self.origins[i]) as f64;
                 let len = self.len(clock);
                 if d < len {
-                    self.curve.at(d / len, self.shape) as f32
+                    self.curve.at(d / len, self.shape) as f32 * self.scales[i]
                 } else {
                     0.0
                 }
@@ -300,21 +325,46 @@ impl Pump {
         self.valid = true;
         self.seen_jumps = clock.jumps();
         self.seen_playing = clock.playing();
+        self.seen_tempo = clock.tempo();
     }
 
-    /// A note at stream sample `at`: the shape plays once from there.
-    pub fn fire(&mut self, clock: &Clock, at: i64) {
+    /// Whether the transport landed (this call's first sample) on a cycle's start or a bar
+    /// line (4/4 from the song's start): a start there is heard as a whole render hears it.
+    fn on_boundary(&mut self, clock: &Clock) -> bool {
+        let s = clock.song(0);
+        let len = self.len(clock);
+        if self.phase(s, len).0 == 0.0 {
+            return true;
+        }
+        let bar = 4.0 * 60.0 / clock.tempo() * self.sr;
+        let k = (s as f64 / bar).round();
+        (k * bar).round() as i64 == s
+    }
+
+    /// A note at stream sample `at`: the shape plays once from there, its amount scaled
+    /// by `scale` (0 … 1). Two notes on one sample: the louder.
+    pub fn fire(&mut self, clock: &Clock, at: i64, scale: f32) {
         if self.src != Source::Midi {
             return;
         }
+        let scale = if scale.is_finite() {
+            scale.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
         if self.on > 0 && self.origins[self.on - 1] == at {
-            return;
+            if scale <= self.scales[self.on - 1] {
+                return;
+            }
+            self.on -= 1;
         }
         if self.on == MAX_ORIGINS {
             self.origins.copy_within(1.., 0);
+            self.scales.copy_within(1.., 0);
             self.on -= 1;
         }
         self.origins[self.on] = at;
+        self.scales[self.on] = scale;
         self.on += 1;
         if self.valid && at <= self.head {
             // The window already holds values from `at` on, made before the note was
@@ -337,6 +387,19 @@ impl Pump {
     #[inline]
     pub fn next(&mut self, clock: &Clock, tc: i64) -> f32 {
         let started = clock.playing() && !self.seen_playing;
+        let jumped = clock.jumps() != self.seen_jumps;
+        if self.src == Source::Tempo
+            && clock.playing()
+            && (started || (jumped && clock.tempo() == self.seen_tempo))
+        {
+            // The audio from the landing on fades in; the audio before it is not ducked by
+            // the place the song has jumped to.
+            self.fade_from = if self.on_boundary(clock) {
+                None
+            } else {
+                Some(clock.stream(0))
+            };
+        }
         if !self.valid
             || clock.jumps() != self.seen_jumps
             || started
@@ -381,6 +444,7 @@ impl Pump {
         }
         if keep_from > 0 {
             self.origins.copy_within(keep_from..self.on, 0);
+            self.scales.copy_within(keep_from..self.on, 0);
             self.on -= keep_from;
         }
     }

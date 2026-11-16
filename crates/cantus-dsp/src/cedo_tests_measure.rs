@@ -511,7 +511,7 @@ fn notes_fire_the_shape_on_their_sample() {
         let mut c = unit(&s, &SQUARE);
         let lat = c.latency();
         let notes = [3_333usize, 20_000, 20_500, 41_111];
-        let ev: Vec<(usize, Event)> = notes.iter().map(|&i| (i, Event::Note)).collect();
+        let ev: Vec<(usize, Event)> = notes.iter().map(|&i| (i, Event::Note(100))).collect();
         let (o, _) = run(
             &mut c,
             &Run {

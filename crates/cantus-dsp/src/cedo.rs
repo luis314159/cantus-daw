@@ -54,11 +54,12 @@ pub mod shape;
 pub mod testkit;
 
 use crate::comprimo::Delay;
+use crate::dynfx_follow::{Detect, EnvelopeFollower};
 use crate::fluctus::{CurvePoint, ShapeFn};
 use crate::modfx_clock::{Clock, Transport, DIV_QUARTER};
 use crate::modfx_line::Glide;
 use band::{Band, Crossover, Split};
-use env::{Envelope, KeyFilter, KeyFilterMode, ReleaseShape, Timing};
+use env::{Detector, Envelope, KeyFilter, KeyFilterMode, ReleaseShape, Timing};
 use shape::{Pump, Source};
 
 /// The unit's name (provisional until the contract).
@@ -118,6 +119,10 @@ pub struct CedoSettings {
     pub release_ms: f32,
     pub release_shape: ReleaseShape,
     pub key_filter: KeyFilterMode,
+    /// The key's level as a sample peak, or as its RMS over `rms_ms`.
+    pub detector: Detector,
+    /// The RMS window, ms (`env::MIN_RMS_MS` … `env::MAX_RMS_MS`).
+    pub rms_ms: f32,
     pub key_hz: f32,
     /// The band-pass's Q.
     pub key_q: f32,
@@ -137,6 +142,8 @@ pub struct CedoSettings {
     pub mix: f32,
     pub out_db: f32,
     pub listen: Listen,
+    /// MIDI: a note's velocity scales the depth in decibels (127 the whole depth).
+    pub velocity: bool,
 }
 
 impl Default for CedoSettings {
@@ -150,6 +157,8 @@ impl Default for CedoSettings {
             release_ms: 150.0,
             release_shape: ReleaseShape::Exponential,
             key_filter: KeyFilterMode::Off,
+            detector: Detector::Peak,
+            rms_ms: 10.0,
             key_hz: 100.0,
             key_q: 1.0,
             lookahead_ms: 0.0,
@@ -163,6 +172,7 @@ impl Default for CedoSettings {
             mix: 1.0,
             out_db: 0.0,
             listen: Listen::Output,
+            velocity: false,
         }
     }
 }
@@ -249,6 +259,8 @@ pub struct Cedo {
     key_f: KeyFilter,
     timing: Timing,
     env: [Envelope; 2],
+    /// The RMS detector's followers, per channel.
+    rms: [EnvelopeFollower; 2],
     thr: f32,
     /// The sidechain's amounts, delayed by the split's latency.
     amt_line: Delay,
@@ -260,7 +272,8 @@ pub struct Cedo {
     /// `mix·(1 − floor)`: the amount's weight on the gain.
     wgt: Glide,
     out: Glide,
-    notes: [i64; MAX_NOTES],
+    /// Notes waiting for their sample: (stream sample, velocity).
+    notes: [(i64, u8); MAX_NOTES],
     note_n: usize,
     meter: CedoMeter,
 }
@@ -283,7 +296,6 @@ impl Cedo {
         let sr = sample_rate.max(1.0);
         let look_max = look_samples(MAX_LOOKAHEAD_MS, sr);
         let lin = band::linear_latency(sr);
-        let m_max = band::boxcar_len(band::LIN_MIN_HZ, sr);
         let s = CedoSettings::default();
         let mut c = Cedo {
             sr,
@@ -293,16 +305,17 @@ impl Cedo {
             key_f: KeyFilter::default(),
             timing: Timing::default(),
             env: [Envelope::default(); 2],
+            rms: [EnvelopeFollower::new(sr), EnvelopeFollower::new(sr)],
             thr: 1.0,
             amt_line: Delay::new(lin + 2),
-            dry: Delay::new(look_max + 4 * m_max + 8),
+            dry: Delay::new(look_max + Split::history_needed(sr) + 8),
             key_line: Delay::new(look_max + lin + 2),
             split: Split::new(sr),
             look: 0,
             lat: 0,
             wgt: Glide::new(0.0, GLIDE_MS, sr, 1e-7),
             out: Glide::new(1.0, GLIDE_MS, sr, 1e-7),
-            notes: [0; MAX_NOTES],
+            notes: [(0, 0); MAX_NOTES],
             note_n: 0,
             meter: CedoMeter::default(),
         };
@@ -360,6 +373,17 @@ impl Cedo {
             crate::math::db_to_gain(s.out_db.clamp(-60.0, 24.0))
         };
         self.key_f.set(s.key_filter, s.key_hz, s.key_q, sr);
+        let win = if s.rms_ms.is_finite() {
+            s.rms_ms.clamp(env::MIN_RMS_MS, env::MAX_RMS_MS)
+        } else {
+            10.0
+        };
+        for f in &mut self.rms {
+            f.set(Detect::Rms, win, win);
+        }
+        if s.detector != Detector::Rms || s.trigger != Trigger::Sidechain {
+            self.rms.iter_mut().for_each(EnvelopeFollower::reset);
+        }
         self.look = look_samples(s.lookahead_ms, sr);
         let (dry, look) = (&self.dry, self.look);
         self.split
@@ -388,27 +412,49 @@ impl Cedo {
         self.clock.set(t);
     }
 
-    /// A note-on from the trigger track `offset` samples into the next
+    /// A note-on (velocity 1 … 127) from the trigger track `offset` samples into the next
     /// [`Cedo::process`] call (MIDI trigger only); acted on at its sample.
-    pub fn note(&mut self, offset: usize) {
+    pub fn note(&mut self, offset: usize, velocity: u8) {
         if self.s.trigger != Trigger::Midi {
             return;
         }
         if self.note_n == MAX_NOTES {
-            let oldest = self.notes[0];
+            let (at, v) = self.notes[0];
             self.notes.copy_within(1.., 0);
             self.note_n -= 1;
-            self.pump.fire(&self.clock, oldest);
+            let k = self.velocity_scale(v);
+            self.pump.fire(&self.clock, at, k);
         }
         let at = self.clock.stream(offset);
         // Kept in time order.
         let mut i = self.note_n;
-        while i > 0 && self.notes[i - 1] > at {
+        while i > 0 && self.notes[i - 1].0 > at {
             i -= 1;
         }
         self.notes.copy_within(i..self.note_n, i + 1);
-        self.notes[i] = at;
+        self.notes[i] = (at, velocity);
         self.note_n += 1;
+    }
+
+    /// What a note's velocity makes of the shape's amount: with `velocity` on, the amount
+    /// `k` for which the full shape ducks by `depth·v/127` dB — `(1 − 10^(−depth·v/2540)) /
+    /// (1 − 10^(−depth/20))` — so velocity scales the depth in decibels; 1 otherwise.
+    pub(crate) fn velocity_scale(&self, velocity: u8) -> f32 {
+        let depth = self.s.depth_db;
+        if !self.s.velocity || !depth.is_finite() || depth <= 0.0 {
+            return 1.0;
+        }
+        let v = velocity.clamp(1, 127) as f32 / 127.0;
+        if v >= 1.0 {
+            return 1.0;
+        }
+        let full = if depth >= DEPTH_INF {
+            1.0
+        } else {
+            1.0 - crate::math::db_to_gain(-depth)
+        };
+        let part = 1.0 - crate::math::db_to_gain(-depth.min(DEPTH_INF) * v);
+        (part / full).clamp(0.0, 1.0)
     }
 
     /// Samples of delay: the lookahead and the linear-phase kernel's.
@@ -434,6 +480,9 @@ mod run;
 #[cfg(test)]
 #[path = "cedo_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "cedo_tests_a2.rs"]
+mod tests_a2;
 #[cfg(test)]
 #[path = "cedo_tests_measure.rs"]
 mod tests_measure;

@@ -20,7 +20,7 @@
 
 use cantus_dsp::aequalis::{design, Coefs, EqShape, MAX_SECTIONS};
 use cantus_dsp::cedo::band::{Band, Crossover};
-use cantus_dsp::cedo::env::{KeyFilterMode, ReleaseShape};
+use cantus_dsp::cedo::env::{Detector, KeyFilterMode, ReleaseShape};
 use cantus_dsp::cedo::testkit::shape_fn;
 use cantus_dsp::cedo::{Cedo, CedoSettings, Trigger, CLASSIC_PUMP};
 use cantus_dsp::math;
@@ -610,6 +610,23 @@ fn main() {
         "c4-guitar-ducked-above-400-hz-by-the-voice.wav",
         add(&ml, &vo),
         add(&ml, &vo),
+    );
+    let rms = CedoSettings {
+        detector: Detector::Rms,
+        rms_ms: 30.0,
+        threshold_db: -36.0,
+        hold_ms: 200.0,
+        ..vsc
+    };
+    let (rl, _, gr, _) = duck(&rms, &[], &gtr, &gtr, Some(&vo), 90.0);
+    let _ = writeln!(
+        log,
+        "c6 voice-over with the RMS detector (30 ms, threshold −36 dB, hold 200 ms), otherwise as c3; most reduction {gr:.1} dB"
+    );
+    c.put(
+        "c6-guitar-ducked-by-the-voice-rms-detector.wav",
+        add(&rl, &vo),
+        add(&rl, &vo),
     );
     log += &c.write();
     std::fs::write(out.join("render-log.txt"), log).unwrap();

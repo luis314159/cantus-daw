@@ -4,7 +4,8 @@
 //! - **The key filter** is Comprimo's key path shared: Aequalis's [`design`] (a 24 dB/oct
 //!   high-pass, or a band-pass with its Q) run through [`comprimo::key_band`] — the same
 //!   `f64` sections, the same flush of a band that has died away.
-//! - **The threshold** is on the filtered key's sample peak, per channel. A sample at or
+//! - **The threshold** is on the filtered key's sample peak or its RMS ([`Detector`]; the
+//!   RMS is the family's follower, `dynfx_follow`, on the square), per channel. A sample at or
 //!   above it **triggers**; the **hold** counts from the *last* such sample, so a kick's
 //!   low half-cycles that dip under the threshold do not let go as long as the hold covers
 //!   them.
@@ -57,6 +58,32 @@ impl ReleaseShape {
         }
     }
 }
+
+/// How the key's level is read.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Detector {
+    /// Each sample's magnitude: fires on the first sample over the threshold.
+    #[default]
+    Peak,
+    /// The root mean square over a window (a one-pole on the square, the family's
+    /// follower): fires on the level, not on single peaks — for a dense key (a full mix, a
+    /// sustained voice).
+    Rms,
+}
+
+impl Detector {
+    pub fn from_index(i: usize) -> Detector {
+        if i == 1 {
+            Detector::Rms
+        } else {
+            Detector::Peak
+        }
+    }
+}
+
+/// The RMS window's range, ms.
+pub const MIN_RMS_MS: f32 = 1.0;
+pub const MAX_RMS_MS: f32 = 300.0;
 
 /// The exponential release's steepness: e⁻⁵, the last 0.7 % of the way taken at the end.
 const EXP_K: f64 = 5.0;
