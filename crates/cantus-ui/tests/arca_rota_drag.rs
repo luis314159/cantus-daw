@@ -43,28 +43,33 @@ fn open(unit: &str, kind: EffectKind) -> (CantusApp, egui::Context, egui::Vec2) 
     (app, ctx, size)
 }
 
-/// Press at `from`, move to `to` in `steps`, let go; then a few quiet frames.
-fn drag(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, from: Pos2, to: Pos2) {
+/// Press at `from`, move to `to` in `steps`, let go; then a few quiet frames. Each gesture in
+/// a context of its own, settled first (a context's clock restarts with each run of frames,
+/// and egui's pointer history must never see time go back).
+fn drag(app: &mut CantusApp, _ctx: &egui::Context, size: egui::Vec2, from: Pos2, to: Pos2) {
+    let ctx = ctx();
     let steps = 12;
+    let q = 4;
     shoot_events(
-        ctx,
+        &ctx,
         size,
         1.0,
-        steps + 6,
+        q + steps + 6,
         None,
         |f, _| match f {
-            0 => vec![Event::PointerMoved(from)],
-            1 => vec![Event::PointerButton {
+            f if f < q => Vec::new(),
+            f if f == q => vec![Event::PointerMoved(from)],
+            f if f == q + 1 => vec![Event::PointerButton {
                 pos: from,
                 button: PointerButton::Primary,
                 pressed: true,
                 modifiers: Default::default(),
             }],
-            f if f < steps + 2 => {
-                let t = (f - 1) as f32 / steps as f32;
+            f if f < q + steps + 2 => {
+                let t = (f - q - 1) as f32 / steps as f32;
                 vec![Event::PointerMoved(from + (to - from) * t)]
             }
-            f if f == steps + 2 => vec![Event::PointerButton {
+            f if f == q + steps + 2 => vec![Event::PointerButton {
                 pos: to,
                 button: PointerButton::Primary,
                 pressed: false,

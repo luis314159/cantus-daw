@@ -72,16 +72,36 @@ sample by sample, exact.
   at least 365× apart in frequency; over a 1 Hz cycle the light spends 10 234 samples rising
   through 10–90 % and 12 272 falling.
 
-## Left for the next phases
+## Phase B (2026-11-15/16): the engine, the window, presets, export
 
-The engine units (`fx::rota`, Phasis's `style` and `intensity` keys appended to its table
-and choices), the parameter table, the editor (the cabinet drawn with its horn and drum
-turning from `Rota::rotors`), presets, export, docs, the e2e test.
+- **The engine unit** (`cantus-engine/src/fx/rota.rs`): the table read into `RotaSettings`
+  (the ramps the published times × `ramp`); notes throw the switch to the sample when
+  `notes` is on (`TAKES_NOTES`); no latency; at rest only parked (a turning rotor's angle is
+  its history); telemetry: each rotor's angle and speed, the switch as notes left it.
+- **The window** (design sheets v1 and v2, approved by the owner 2026-11-16): the cabinet cut
+  away, from above with the microphones dragged, the ramps with each rotor's dot; walnut with
+  a pale steel horn and a vermilion drum, Cherry and Black colourways; its pedal on Tabula.
+- **Presets**: thirteen, levels fitted (`preset_tool fit`: −5.3 … +6.7 dB); *Chorale* the
+  starting preset at +3.6 dB. **Phasis's lamp vibe**: its circuit card, three presets.
+- **Export**: the direct DSP in the plug-ins' tests, notes through CLAP and VST3; `rpm`, `cm`
+  and `×` read back from their text (`readout`).
 
 ## Consequences
 
-To be completed with the engine phase (above: what phase A-1 settled).
+- Any track can have the organ's cabinet; the organ keeps its own (one DSP, two uses).
+- A note stream can drive an effect's switch; Rota is the second effect after Saltus to
+  hear notes in the exported plug-ins.
+- The window's rotors are the engine's: what is drawn turning is what is heard turning.
 
 ## What the tests hold
 
-Phase A-1 (cantus-dsp): see *Measured* above and the test names in `arca_tests.rs`, `arca_spice_tests.rs`, `rota_tests.rs`, `phasis_vibe_tests.rs`; the engine's, the plug-ins' and the e2e tests come with the next phases.
+- DSP (`rota_tests.rs`): the ramps' time constants and landing, the brake, the closed-form
+  skip, drive's harmonics, the null, rest.
+- Engine (`fx_rota.rs`, `fx_contract`, `rt_memory`): the null to the bit, no latency, block
+  size and split independence, a board of one, no allocation; notes toggle the switch.
+- UI: `rota_e2e.rs` (through `CantusApp::assemble`: Chorale heard, fast undone to the bit,
+  the track's notes throwing the switch, the null); `arca_rota_drag.rs` (the switch clicked,
+  the microphones dragged, one undo step); `arca_rota_whole.rs` (no word cut or shortened,
+  EN/ES, 75–200 %).
+- Plug-ins: the CLAP/VST3 suites with Rota's direct DSP; `notes.rs` (its notes at their
+  sample in both formats); the ids blessed.

@@ -197,20 +197,42 @@ of a core at 4×, and a 4 × 4 with constant loop bounds (the same bits) measure
 Not enough to bring the high gain (≈ 25 %) under 20 %: **4× stays the default**, the code
 unchanged (`arca_compare` gives the same bits as `a7afeffa`).
 
-## Left for the next phases
+## Phase B (2026-11-15/16): the engine, the window, presets, export
 
-- **CPU**: tabulate the triode (a bicubic table of Koren's currents and their slopes, built
-  off the audio thread) or a reduced Newton; measure on a quiet machine; a per-model
-  oversampling default.
-- **The Miller split** above 4 kHz (a load on the plate standing for the next circuit).
-- The engine unit, the parameter table (`model` with 0 = none, `cab`, `cab_type`, `mic`,
-  `mic_pos`, `mic_dist` set-only), `takes_ir` for `Amp`, the editor, presets, export, docs,
-  the e2e test.
+- **The engine unit** (`cantus-engine/src/fx/arca.rs`): the cabinet asked for by value
+  (`MemoryNeed::Arca`), built off the audio thread from Arca's responses or the user's file
+  (Aula's store, cut to half a second), swapped in whole; the latency the oversampler's;
+  telemetry: each preamp circuit's swing, the inverter's drive, the power valves' approach
+  to grid current, the supply now and at idle, the oversampling (meters only: the bits
+  unchanged).
+- **The window** (design sheets v1 and v2, approved 2026-11-16): the chassis (valves with
+  heater and plate, transformers, capacitors, the back plate, the supply's needle), the
+  faceplate (a new material, hammered enamel), the cabinet with the microphone dragged on
+  the cone and in a side view and the user's file as a cabinet; Graphite and Oxblood
+  colourways; its pedal on Tabula.
+- **Presets**: sixteen, levels fitted (−15.9 … +12.5 dB); *Clean combo* the starting preset
+  at +5.4 dB.
+- **Export**: the direct DSP in the plug-ins' tests, its cabinet built as the engine builds it.
+- **Left**: the high gain's CPU (≈ 25 % of a core at 4×; Phase A-3/A-4) — measured on a quiet
+  machine at the merge.
 
 ## Consequences
 
-To be completed with the engine phase (above: what phase A-1 settled).
+- An amp is a circuit here, not a curve: its knobs interact as the amp's do, and the window
+  can show what each valve does.
+- `EffectSpec::ir` now serves two kinds (Aula, Arca); Aula's store reads both.
+- A new material (hammered enamel) is in the kit for every unit.
 
 ## What the tests hold
 
-Phase A-1 (cantus-dsp): see *Measured* above and the test names in `arca_tests.rs`, `arca_spice_tests.rs`, `rota_tests.rs`, `phasis_vibe_tests.rs`; the engine's, the plug-ins' and the e2e tests come with the next phases.
+- DSP (`arca_tests.rs`, `arca_spice_tests.rs`): the schematics' operating points and
+  small-signal responses against an MNA solution, the tone stack against its closed form,
+  aliasing, the power amp's closed loop, sag, rest, the null.
+- Engine (`fx_arca.rs`, `fx_contract`, `rt_memory`, the unit's tests): the null to the bit,
+  latency, a board of one, no allocation, the cabinet asked for and supplied, the valves
+  working harder as the gain goes up.
+- UI: `arca_e2e.rs` (through `CantusApp::assemble`: the clean combo heard and late by its
+  latency, the gain undone to the bit, the user's impulse response loaded and its delay
+  heard, the null); `arca_rota_drag.rs` (the microphone dragged on the cone and in the side
+  view, one undo step); `arca_rota_whole.rs`; the skins' distinctness tests.
+- Plug-ins: the CLAP/VST3 suites with Arca's direct DSP and cabinet; the ids blessed.

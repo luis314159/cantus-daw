@@ -740,7 +740,7 @@ pub const EFFECTS: [Unit; 34] = [
             ("Sweep bounds from 20 Hz to 16 kHz, moved on a log scale", "Límites del barrido de 20 Hz a 16 kHz, en escala logarítmica"),
             ("Response drawn with the unit's own arithmetic, within 0.3 dB of what plays", "Respuesta dibujada con la aritmética de la unidad, a 0.3 dB de lo que suena"),
         ]),
-        presets: Some(12),
+        presets: Some(15),
         plugin: true,
         ab: None,
         big: (1800, 1152),

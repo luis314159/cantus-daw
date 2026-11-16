@@ -778,7 +778,7 @@ Phasis runs the signal through a cascade of allpass stages and mixes it with the
 - Sweep bounds from 20 Hz to 16 kHz, moved on a log scale
 - Response drawn with the unit's own arithmetic, within 0.3 dB of what plays
 
-<sub>12 factory presets — [hear them](https://cantusdaw.com/#unit-phasis) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/phasis-light.png)</sub>
+<sub>15 factory presets — [hear them](https://cantusdaw.com/#unit-phasis) · also a CLAP and VST3 plug-in for other DAWs, with the same face · [light theme](docs/images/units/phasis-light.png)</sub>
 
 </details>
 <details>

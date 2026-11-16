@@ -170,7 +170,7 @@ roles = ["drums"]
 key = "preset.phasis.lamp_chorus"
 note = "The lamp vibe at half the mix: four photocells swept by a lamp, the classic swirling chorus of the lamp-lit pedals."
 styles = ["rock", "rnb"]
-roles = ["pluck", "lead"]
+roles = ["creative"]
 [preset.values]
 "intensity" = 0.9
 "mix" = 0.5
@@ -182,7 +182,7 @@ roles = ["pluck", "lead"]
 key = "preset.phasis.lamp_vibrato"
 note = "The lamp vibe with no dry: the pitch wavers, uneven, as the lamp heats and cools."
 styles = ["rock", "lofi"]
-roles = ["lead", "creative"]
+roles = ["creative"]
 [preset.values]
 "intensity" = 0.8
 "mix" = 1
@@ -194,7 +194,7 @@ roles = ["lead", "creative"]
 key = "preset.phasis.slow_lamp"
 note = "The lamp vibe slow and deep under a voice or a pad: a warm, breathing sweep."
 styles = ["ambient", "rnb", "worship"]
-roles = ["pad", "vocal"]
+roles = ["vocal", "creative"]
 [preset.values]
 "intensity" = 1
 "mix" = 0.45

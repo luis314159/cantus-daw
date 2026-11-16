@@ -6,7 +6,7 @@
 key = "preset.arca.clean_combo"
 note = "The clean amp at a sweet low gain into its open-backed 1×12: the starting preset."
 styles = ["rock", "worship"]
-roles = ["pluck", "keys"]
+roles = ["creative"]
 [preset.values]
 "cab" = 1
 "gain" = 0.3
@@ -17,7 +17,7 @@ roles = ["pluck", "keys"]
 key = "preset.arca.sparkle"
 note = "The clean amp bright and low, two open 12s heard by a condenser a little back."
 styles = ["pop", "worship"]
-roles = ["pluck"]
+roles = ["creative"]
 [preset.values]
 "bass" = 0.45
 "cab" = 2
@@ -33,7 +33,7 @@ roles = ["pluck"]
 key = "preset.arca.edge_of_breakup"
 note = "The clean amp pushed until it just starts to break up as you dig in."
 styles = ["rock", "jazz"]
-roles = ["lead", "pluck"]
+roles = ["creative"]
 [preset.values]
 "cab" = 1
 "gain" = 0.6
@@ -45,7 +45,7 @@ roles = ["lead", "pluck"]
 key = "preset.arca.british_crunch"
 note = "The crunch amp at rhythm gain into a vintage 4×12, a dynamic close on the cone."
 styles = ["rock"]
-roles = ["pluck"]
+roles = ["creative"]
 [preset.values]
 "cab" = 3
 "gain" = 0.65
@@ -58,7 +58,7 @@ roles = ["pluck"]
 key = "preset.arca.full_stack"
 note = "The crunch amp flat out, the middle up, a ribbon on the vintage 4×12."
 styles = ["rock"]
-roles = ["lead"]
+roles = ["creative"]
 [preset.values]
 "cab" = 3
 "gain" = 0.95
@@ -72,7 +72,7 @@ roles = ["lead"]
 key = "preset.arca.chime_jangle"
 note = "The chiming amp clean and bright into two open 12s, a ribbon in front."
 styles = ["pop", "rock"]
-roles = ["pluck"]
+roles = ["creative"]
 [preset.values]
 "cab" = 2
 "gain" = 0.45
@@ -85,7 +85,7 @@ roles = ["pluck"]
 key = "preset.arca.chime_drive"
 note = "The chiming amp driven until its class A compresses and sings."
 styles = ["rock"]
-roles = ["lead"]
+roles = ["creative"]
 [preset.values]
 "cab" = 2
 "gain" = 0.85
@@ -96,7 +96,7 @@ roles = ["lead"]
 key = "preset.arca.modern_lead"
 note = "The high-gain amp for solos, the middle a little scooped, a dynamic toward the edge of a modern 4×12."
 styles = ["rock", "film"]
-roles = ["lead"]
+roles = ["creative"]
 [preset.values]
 "cab" = 4
 "gain" = 0.75
@@ -110,7 +110,7 @@ roles = ["lead"]
 key = "preset.arca.tight_rhythm"
 note = "The high-gain amp tight for riffs: less bass, a scooped middle, the presence up."
 styles = ["rock"]
-roles = ["pluck"]
+roles = ["creative"]
 [preset.values]
 "bass" = 0.4
 "cab" = 4
@@ -125,7 +125,7 @@ roles = ["pluck"]
 key = "preset.arca.dark_lead"
 note = "The high-gain amp heard by a ribbon a hand back from the cone: thick and smooth."
 styles = ["rock", "film"]
-roles = ["lead"]
+roles = ["creative"]
 [preset.values]
 "cab" = 4
 "gain" = 0.85
@@ -139,7 +139,7 @@ roles = ["lead"]
 key = "preset.arca.bass_round"
 note = "The bass amp clean into its open 4×10, a condenser back from it: round and deep."
 styles = ["rock", "jazz", "worship"]
-roles = ["bass"]
+roles = ["creative"]
 [preset.values]
 "cab" = 5
 "gain" = 0.4
@@ -152,7 +152,7 @@ roles = ["bass"]
 key = "preset.arca.bass_growl"
 note = "The bass amp pushed until it growls, a dynamic close."
 styles = ["rock"]
-roles = ["bass"]
+roles = ["creative"]
 [preset.values]
 "cab" = 5
 "gain" = 0.85
@@ -163,7 +163,7 @@ roles = ["bass"]
 key = "preset.arca.keys_amp"
 note = "Electric piano or organ through the clean amp and two open 12s, a condenser at a distance."
 styles = ["jazz", "rnb", "worship"]
-roles = ["keys"]
+roles = ["creative"]
 [preset.values]
 "bass" = 0.55
 "cab" = 2
@@ -189,7 +189,7 @@ roles = ["vocal", "creative"]
 key = "preset.arca.cabinet_only"
 note = "No amp: a direct guitar or an amp simulator heard through the vintage 4×12 and a ribbon."
 styles = ["rock"]
-roles = ["pluck", "lead"]
+roles = ["creative"]
 [preset.values]
 "cab" = 3
 "mic" = 1
@@ -200,7 +200,7 @@ roles = ["pluck", "lead"]
 key = "preset.arca.tiny_radio"
 note = "The chiming amp into a lone open 12, a condenser on its edge: an old radio's voice."
 styles = ["lofi", "film"]
-roles = ["creative", "fx"]
+roles = ["creative"]
 [preset.values]
 "cab" = 1
 "gain" = 0.7
