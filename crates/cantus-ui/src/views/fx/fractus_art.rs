@@ -207,15 +207,7 @@ pub fn glass(b: &mut Brush, r: Rect, k: f32) {
 ///
 /// `odd`: the pad is in an odd beat (beats 2 and 4), its well a shade lighter, so the beats
 /// read as groups of pads.
-pub fn pad(
-    b: &mut Brush,
-    r: Rect,
-    k: f32,
-    level: Option<f32>,
-    col: Color32,
-    hot: bool,
-    odd: bool,
-) {
+pub fn pad(b: &mut Brush, r: Rect, k: f32, level: Option<f32>, col: Color32, hot: bool, odd: bool) {
     let rad = (1.6 * k).min(r.width() * 0.3);
     let floor = if odd {
         mix(c(pal::PAD), c(pal::PAD_RIM), 0.22)
@@ -309,8 +301,8 @@ pub fn led(b: &mut Brush, p: Pos2, side: f32, col: Color32, lit: f32) {
 
 /// The segments a digit lights (a … g: the top, clockwise, the middle last).
 const SEGS: [u8; 10] = [
-    0b011_1111, 0b000_0110, 0b101_1011, 0b100_1111, 0b110_0110, 0b110_1101, 0b111_1101,
-    0b000_0111, 0b111_1111, 0b110_1111,
+    0b011_1111, 0b000_0110, 0b101_1011, 0b100_1111, 0b110_0110, 0b110_1101, 0b111_1101, 0b000_0111,
+    0b111_1111, 0b110_1111,
 ];
 
 /// A seven-segment digit in `r`, slanted a little: `d` lit in `col`, the others faint.

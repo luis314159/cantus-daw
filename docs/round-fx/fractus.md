@@ -188,3 +188,37 @@ other builders compiled on the machine. The sounds are not yet heard by the owne
 - **Open DSP choices for the owner's ears**: whether the pitch jump keeps its classic
   delay-line warble or gets a phase-aligned (WSOLA-style) splice; whether the grains need a
   finer interpolator than Hermite at the octave copies' top band (measured above).
+
+## Design sheet v2 (the owner's verdict on v1: "more elaborate")
+
+`C:\projects\daw-fx\compartir\fractus\design\v2\`. The display became the sequencer itself,
+drawn in vectors from `kit::skin::sequencers` (a new palette; no texture tile, no layer-atlas
+work, so `kit_alloc` is untouched):
+
+- `views/fx/fractus_art.rs` — the machined chassis (a finish per colourway: black anodised
+  and brushed, white powder coat with its speckle, violet lacquer with chrome lips; hex
+  socket screws), the windows cut in it (chamfer, gasket, glass), the step pads lit from the
+  floor up to the block's amount (the pad's whole height tinted and ruled: 100 %), square
+  LEDs, the seven-segment digits, the keys (ivory and ebony, pressed and lit).
+- `views/fx/fractus_display.rs` — the chassis's three windows: the lanes (pads per step, the
+  beats grouped, the playhead's column, the amount and chance in words, a held note's key
+  tagged on its lane, a LED per step, the counter), the keys that play the lanes; a lane's
+  name opens the page of cards its module is set on. `View` keeps the last sixteen readings
+  for the grains' trails.
+- `views/fx/fractus_scope.rs` — the grain cloud on a scope's graticule (10 × 8 divisions,
+  the centre lines ticked): each grain drawn as its window (`cwin`'s shape) as long as its
+  size, its pitch written where there is room, its trail (matched by pitch and the way a
+  grain at that pitch moves, never farther than it reads in its life); the spread's band and
+  the scale's degrees; the position and its spray; the size's bracket; frozen frosted with
+  "now" stopped and the chassis's Frozen lamp lit.
+- `fractus.rs` — the cards in four pages (`PAGES`: Sequencer, Slicing, Colour, Grain cloud),
+  each one row at 1340 wide in both languages (`fxa_cells::pack`); a strip of page keys
+  (lamp, name, a dot per lane: filled when painted, lit while sounding); the window
+  1340 × 720 (v1: 1400 × 1000). The demo: the blocks at different amounts, a dozen grains
+  over the last second, two keys held (E3, F3) when notes play the lanes (`DEMO_KEYS`),
+  sixteen readings 20 ms apart for the trails (`demo_series`).
+- Shared, additive: `kit::cell::paint` grows a value pill into its cell when its words would
+  be cut ("Fast attack", a scale's name — values that fit keep the pill); `fxa_cells` sizes a
+  choice's cell by its words as the pill sets them (monospaced). `fxa_whole` probes the
+  three other pages (keys held, frozen, the longest window name).
+- Pitch jump's default stays **Classic warble** (the owner's verdict).

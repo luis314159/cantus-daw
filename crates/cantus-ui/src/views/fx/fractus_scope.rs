@@ -84,7 +84,7 @@ pub fn show(
         12,
     );
     let plot = Rect::from_min_max(
-        pos2(tube.left() + 40.0 * k, tube.top() + 20.0 * k),
+        pos2(tube.left() + 40.0 * k, tube.top() + 30.0 * k),
         pos2(tube.right() - 10.0 * k, tube.bottom() - 20.0 * k),
     );
     graticule(b, k, ink, plot);
@@ -267,11 +267,7 @@ fn grain(
     b.between(&top, &bot, with_alpha(col, a * 0.55));
     b.polyline(&top, 0.9 * k, with_alpha(col, a));
     b.polyline(&bot, 0.9 * k, with_alpha(col, a));
-    b.circle(
-        at,
-        1.9 * k,
-        Fill::Solid(mix(col, art::c(pal::IVORY), 0.55)),
-    );
+    b.circle(at, 1.9 * k, Fill::Solid(mix(col, art::c(pal::IVORY), 0.55)));
 }
 
 /// Behind each grain, where it has read: its place in the readings before, matched by its
@@ -376,7 +372,7 @@ fn labels(
     );
     let count = canvas::putf(
         b,
-        pos2(plot.left() + 4.0 * k, plot.top() - 4.0 * k),
+        pos2(plot.left() + 4.0 * k, plot.top() - 12.0 * k),
         Align2::LEFT_BOTTOM,
         Role::Micro,
         ink.text,
@@ -389,7 +385,7 @@ fn labels(
     let t = Text::new(&pos_w, Role::Micro, ink.dim).caps(false);
     let sz = crate::kit::text::measure(b.ctx(), &t, k);
     let x = px.clamp(plot.left() + sz.x * 0.5, plot.right() - sz.x * 0.5);
-    let at = Align2::CENTER_BOTTOM.anchor_size(pos2(x, plot.top() - 4.0 * k), sz);
+    let at = Align2::CENTER_BOTTOM.anchor_size(pos2(x, plot.top() - 12.0 * k), sz);
     if !at.expand(4.0 * k).intersects(count) {
         canvas::put(b, at.center(), Align2::CENTER_CENTER, &t, k, None);
     }

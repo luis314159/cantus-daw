@@ -129,8 +129,11 @@ fn fractus_s_pages_never_cut_or_clip_a_word() {
         for dark in [true, false] {
             for k in [0.75f32, 1.0, 2.0] {
                 for page in 1..pages {
-                    let mut app =
-                        CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+                    let mut app = CantusApp::from_parts(
+                        Some(welcome_project()),
+                        EngineHandle::dummy(),
+                        false,
+                    );
                     app.demo_editor("fractus");
                     let (strip, effect, _) = app.fx.open.expect("the unit is open");
                     views::fx::host::DawHost::new(&mut app, strip, effect, "fractus").set_many(
@@ -141,7 +144,9 @@ fn fractus_s_pages_never_cut_or_clip_a_word() {
                     views::fx::fractus::show_page(&mut app, page);
                     app.fx.pos = Some(egui::pos2(0.0, 0.0));
                     for c in probe_window(&mut app, EffectKind::Glitch, k, dark) {
-                        bad.push(format!("fractus page {page} {lang:?} dark {dark} at {k}: {c}"));
+                        bad.push(format!(
+                            "fractus page {page} {lang:?} dark {dark} at {k}: {c}"
+                        ));
                     }
                 }
             }

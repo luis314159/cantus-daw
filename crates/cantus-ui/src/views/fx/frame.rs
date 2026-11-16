@@ -187,7 +187,7 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Rotary => Vec2::new(1260.0, 700.0), // fx3:rota
         // fxa — the design sheets' windows (v1).
         EffectKind::Vocoder => Vec2::new(1340.0, 900.0), // fxa:loquax
-        EffectKind::Glitch => Vec2::new(1340.0, 720.0), // fxa:fractus
+        EffectKind::Glitch => Vec2::new(1340.0, 720.0),  // fxa:fractus
         EffectKind::Shimmer => Vec2::new(1340.0, 900.0), // fxa:caelum
         _ => Vec2::new(1000.0, 640.0),
     }

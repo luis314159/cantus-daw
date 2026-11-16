@@ -178,10 +178,7 @@ pub fn parts(r: Rect, k: f32) -> Parts {
     let body = Rect::from_min_max(pos2(inner.left(), header.bottom()), inner.max);
     let right_w = (inner.width() * 0.27).clamp(300.0 * k, 360.0 * k);
     let gap = 16.0 * k;
-    let lanes = Rect::from_min_max(
-        body.min,
-        pos2(body.right() - right_w - gap, body.bottom()),
-    );
+    let lanes = Rect::from_min_max(body.min, pos2(body.right() - right_w - gap, body.bottom()));
     let right = Rect::from_min_max(pos2(lanes.right() + gap, body.top()), body.max);
     let keys_h = (body.height() * 0.2).clamp(58.0 * k, 78.0 * k);
     let keys = Rect::from_min_max(pos2(right.left(), right.bottom() - keys_h), right.max);
@@ -542,7 +539,13 @@ fn lanes(
     // The playhead's line through the lanes, its caret on the ruler.
     if now.seen {
         let x = grid.left() + now.phase.clamp(0.0, 1.0) * grid.width();
-        b.vline(x, grid.top(), grid.bottom(), 1.2 * k, with_alpha(ink.text, 0.8));
+        b.vline(
+            x,
+            grid.top(),
+            grid.bottom(),
+            1.2 * k,
+            with_alpha(ink.text, 0.8),
+        );
         b.polygon(
             &[
                 pos2(x - 4.0 * k, grid.top() - 6.0 * k),
@@ -646,7 +649,10 @@ fn foot(
             art::led(b, pos2(cx, y), side, hot, on);
         }
     } else {
-        let bar = Rect::from_min_max(pos2(grid.left(), y - 2.0 * k), pos2(grid.right(), y + 2.0 * k));
+        let bar = Rect::from_min_max(
+            pos2(grid.left(), y - 2.0 * k),
+            pos2(grid.right(), y + 2.0 * k),
+        );
         b.rrect(bar, 2.0 * k, Fill::Solid(with_alpha(ink.grid_strong, 0.5)));
         if now.seen {
             let to = grid.left() + now.phase.clamp(0.0, 1.0) * grid.width();
@@ -676,7 +682,10 @@ fn keys(b: &mut Brush, s: &Style, ink: &Ink, p: &Parts, now: &Reading, spec: &Ef
     let felt = Rect::from_min_max(well.min, pos2(well.right(), well.top() + 3.0 * k));
     b.rect(
         felt,
-        Fill::V(art::c(pal::FELT), mix(art::c(pal::FELT), art::c(pal::SHADOW), 0.5)),
+        Fill::V(
+            art::c(pal::FELT),
+            mix(art::c(pal::FELT), art::c(pal::SHADOW), 0.5),
+        ),
     );
     let first = spec.get("key").round() as i32;
     let bed = Rect::from_min_max(
@@ -708,6 +717,9 @@ fn keys(b: &mut Brush, s: &Style, ink: &Ink, p: &Parts, now: &Reading, spec: &Ef
     // The felt's shadow over the keys' backs.
     b.rect(
         Rect::from_min_max(bed.min, pos2(bed.right(), bed.top() + 3.0 * k)),
-        Fill::V(with_alpha(art::c(pal::SHADOW), 0.5), with_alpha(art::c(pal::SHADOW), 0.0)),
+        Fill::V(
+            with_alpha(art::c(pal::SHADOW), 0.5),
+            with_alpha(art::c(pal::SHADOW), 0.0),
+        ),
     );
 }

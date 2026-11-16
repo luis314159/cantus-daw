@@ -287,15 +287,11 @@ fn body_ui(
         ui.ctx().request_repaint();
     }
     let strip = g.full(strip_h);
-    let painted = host
-        .spec()
-        .fractus
-        .as_deref()
-        .map_or(0u32, |p| {
-            (0..cantus_core::fx::fractus::LANES)
-                .filter(|l| !p.lane(*l).is_empty())
-                .fold(0, |m, l| m | 1 << l)
-        });
+    let painted = host.spec().fractus.as_deref().map_or(0u32, |p| {
+        (0..cantus_core::fx::fractus::LANES)
+            .filter(|l| !p.lane(*l).is_empty())
+            .fold(0, |m, l| m | 1 << l)
+    });
     if let Some(p) = pages(ui, s, strip, st.page, painted, reading.active) {
         st.page = p;
     }
@@ -359,12 +355,22 @@ fn pages(
                 );
             }
             let cy = r.center().y;
-            art::led(b, egui::pos2(r.left() + 12.0 * k, cy), 7.0 * k, s.hue, if on { 1.0 } else { 0.0 });
+            art::led(
+                b,
+                egui::pos2(r.left() + 12.0 * k, cy),
+                7.0 * k,
+                s.hue,
+                if on { 1.0 } else { 0.0 },
+            );
             super::canvas::put(
                 b,
                 egui::pos2(r.left() + 24.0 * k, cy),
                 egui::Align2::LEFT_CENTER,
-                &Text::key(name, Role::Control, if on { s.t.text } else { s.t.text_dim }),
+                &Text::key(
+                    name,
+                    Role::Control,
+                    if on { s.t.text } else { s.t.text_dim },
+                ),
                 k,
                 None,
             );
@@ -563,4 +569,65 @@ pub fn demo_series(spec: &EffectSpec, secs: f32) -> Vec<[f32; 64]> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::display::{Reading, View, PAGE_OF};
+    use super::PAGES;
+
+    /// A lane's name opens the page holding its module's card.
+    #[test]
+    fn each_lane_opens_the_page_of_its_module_s_card() {
+        let card = [
+            "fractus.card.repeat",
+            "fractus.card.tape",
+            "fractus.card.tape",
+            "fractus.card.shuffle",
+            "fractus.card.pitch",
+            "fractus.card.crush",
+            "fractus.card.filter",
+            "fractus.card.gate",
+            "fractus.card.throw",
+            "fractus.card.cloud",
+        ];
+        for (lane, want) in card.iter().enumerate() {
+            let page = PAGES[PAGE_OF[lane]].1;
+            assert!(
+                page.iter().any(|(title, _)| title == want),
+                "lane {lane}: {want} not on page {}",
+                PAGE_OF[lane]
+            );
+        }
+        // Every card on exactly one page.
+        let mut all: Vec<&str> = PAGES.iter().flat_map(|p| p.1.iter().map(|c| c.0)).collect();
+        let n = all.len();
+        all.sort_unstable();
+        all.dedup();
+        assert_eq!(all.len(), n);
+        assert_eq!(n, 13);
+    }
+
+    /// The trails keep a reading only when its grains moved, and forget them in silence.
+    #[test]
+    fn the_trails_keep_moving_grains_and_forget_silence() {
+        let mut tel = [0.0f32; 64];
+        tel[0] = 1.0;
+        tel[cantus_dsp::fractus::t::GRAINS] = 1.0;
+        tel[cantus_dsp::fractus::t::GRAIN0] = 0.5;
+        tel[cantus_dsp::fractus::t::GRAIN0 + 1] = 0.25;
+        let mut v = View::default();
+        v.update(&Reading::of(&tel));
+        v.update(&Reading::of(&tel));
+        assert_eq!(v.len(), 1, "a reading seen twice is no motion");
+        tel[cantus_dsp::fractus::t::GRAIN0] = 0.45;
+        v.update(&Reading::of(&tel));
+        assert_eq!(v.len(), 2);
+        assert_eq!(v.back(0), &[(0.45, 0.25)]);
+        assert_eq!(v.back(1), &[(0.5, 0.25)]);
+        assert!(v.back(2).is_empty());
+        tel[0] = 0.0;
+        v.update(&Reading::of(&tel));
+        assert_eq!(v.len(), 0);
+    }
 }

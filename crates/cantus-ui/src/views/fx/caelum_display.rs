@@ -265,7 +265,7 @@ fn sky(
                 &|age, rd| {
                     let secs = age as f32 / 30.0;
                     let lit = ((secs - (layer as f32 - 1.0) * climb_s) / climb_s).clamp(0.0, 1.0);
-                    let e = light(rd.energy_db) * lvl * shim.powi(layer as i32 - 1) * lit;
+                    let e = light(rd.energy_db) * lvl * shim.powi(layer - 1) * lit;
                     (yl, if e > 0.01 { (2.0 + 20.0 * e) * k } else { 0.0 })
                 },
                 col,
