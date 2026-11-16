@@ -774,6 +774,12 @@ fn popups(
         }
         Popup::Presets => {
             let user = host.user_presets();
+            // fx3:start — the unit's own starting preset (ADR 0138), where the host is Cantus.
+            let start = start_state(host);
+            let start_on = start
+                .as_ref()
+                .and_then(|c| c.as_ref())
+                .map(|name| tf("start.on", &[("name", name)]));
             let loaded = chrome.loaded.as_ref().map(|l| l.index);
             let list = chrome.list.get_or_insert_with(|| host.presets());
             let mut items: Vec<Item<'_>> = Vec::with_capacity(list.len() + 5);
@@ -803,6 +809,21 @@ fn popups(
                 items.push(action(Src::Key("fx.frame.save")));
                 rows.push(Some(usize::MAX));
             }
+            // fx3:start
+            if let Some(chosen) = &start {
+                items.push(Item::Separator);
+                rows.push(None);
+                if let Some(on) = &start_on {
+                    items.push(Item::Band(Src::Str(on)));
+                    rows.push(None);
+                }
+                items.push(action(Src::Key("start.use")));
+                rows.push(Some(START_USE));
+                if chosen.is_some() {
+                    items.push(action(Src::Key("start.reset")));
+                    rows.push(Some(START_RESET));
+                }
+            }
             let w = (shell::PRESET_W * s.k).max(200.0);
             let chosen = popup_list(ctx, id, at, opener, s, &items, w, &mut close);
             drop(items);
@@ -811,6 +832,8 @@ fn popups(
                 match rows.get(i).copied().flatten() {
                     Some(usize::MAX) => chrome.saving = Some(String::new()),
                     Some(n) if n == usize::MAX - 1 => host.browse_presets(), // r37:library
+                    Some(START_USE) => use_as_starting(host, chrome),        // fx3:start
+                    Some(START_RESET) => reset_starting(host),               // fx3:start
                     Some(n) => chrome.load(host, n),
                     None => {}
                 }
@@ -832,6 +855,42 @@ fn popups(
         chrome.popup = None;
     }
     more
+}
+
+// fx3:start — the unit's own starting preset (ADR 0138).
+const START_USE: usize = usize::MAX - 2;
+const START_RESET: usize = usize::MAX - 3;
+
+/// Whether the host offers a starting preset of the person's (`None`: a plug-in in another
+/// DAW, a hosted plug-in), and the name of the one chosen.
+fn start_state(host: &mut dyn FxHost) -> Option<Option<String>> {
+    let kind = host.spec().kind;
+    if !cantus_core::starting_user::choosable(kind) {
+        return None;
+    }
+    let (app, _, _) = host.daw()?;
+    Some(app.starting_choice(kind).map(|c| c.label.clone()))
+}
+
+/// The unit's settings now become its starting preset: named for the preset loaded when
+/// nothing has moved since, else "Your settings".
+fn use_as_starting(host: &mut dyn FxHost, chrome: &Chrome) {
+    let spec = host.spec().clone();
+    let label = match &chrome.loaded {
+        Some(l) if l.params == spec.params => l.name.clone(),
+        _ => t("start.yours"),
+    };
+    if let Some((app, _, _)) = host.daw() {
+        app.use_as_starting(spec, label);
+    }
+}
+
+/// The unit's inserts start on its factory starting preset again.
+fn reset_starting(host: &mut dyn FxHost) {
+    let kind = host.spec().kind;
+    if let Some((app, _, _)) = host.daw() {
+        app.reset_starting(kind);
+    }
 }
 
 /// The name box for saving the current values as a preset: Enter saves, Esc leaves.

@@ -59,6 +59,7 @@ pub mod sectio_ops; // r37:piano
 pub mod session; // r33:session (ADR 0076)
 pub mod snapshot;
 pub mod starting;
+pub mod starting_user; // fx3:start
 pub mod tempo;
 pub mod time;
 pub mod vca; // r36:mix

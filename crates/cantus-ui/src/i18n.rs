@@ -131,6 +131,7 @@ impl Locale {
                 include_str!("../locales/areas/automodes.en.txt"),
                 include_str!("../locales/areas/notefx.en.txt"),
                 include_str!("../locales/areas/clipfx.en.txt"),
+                include_str!("../locales/areas/start.en.txt"), // fx3:start
                 include_str!("../locales/areas/workflow.en.txt"),
                 include_str!("../locales/areas/hostedview.en.txt"),
                 include_str!("../locales/areas/skin.en.txt"),
@@ -260,6 +261,7 @@ impl Locale {
                 include_str!("../locales/areas/automodes.es.txt"),
                 include_str!("../locales/areas/notefx.es.txt"),
                 include_str!("../locales/areas/clipfx.es.txt"),
+                include_str!("../locales/areas/start.es.txt"), // fx3:start
                 include_str!("../locales/areas/workflow.es.txt"),
                 include_str!("../locales/areas/hostedview.es.txt"),
                 include_str!("../locales/areas/skin.es.txt"),
