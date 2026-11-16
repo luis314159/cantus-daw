@@ -147,7 +147,7 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("st1", 12.0),
                 ("lvl1", 0.6),
                 ("dry", 1.0),
-                ("out", -1.3),
+                ("out", -0.9),
             ],
         ), // fx3:saltus
         K::Rotary => Start::Neutral(Flat), // fx3:rota

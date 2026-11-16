@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 31] = [
+pub const EFFECTS: [Unit; 32] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -469,6 +469,28 @@ pub const EFFECTS: [Unit; 31] = [
         ab: None,
         big: (1800, 1138),
         thumb: (640, 405),
+    },
+
+    // fx3:saltus — Saltus, pitch (ADR 0135, provisional).
+    Unit {
+        file: "saltus",
+        name: "Saltus",
+        kind: ("Pitch", "Tono"),
+        pitch: ("Shift, harmonise, octave and whammy in one unit — the note you play leaping to each voice across a keyboard, the music written on a staff above it as you play.", "Desplazar, armonizar, octavar y whammy en una sola unidad — la nota que tocas saltando a cada voz sobre un teclado, la música escrita en un pentagrama encima mientras tocas."),
+        what: long!(("Saltus moves the pitch of what it hears four ways. Shift adds two voices at fixed intervals, by a mono engine that keeps a voice's formants at 2.7 ms or a poly engine that moves whole chords and mixes. Harmony sings two voices a number of scale degrees from the note heard — in a key, in the chords another track holds, or the melody it plays — keeping the singer's own bends. Octave adds one and two octaves down and one up, from an analog-style divider with no latency or clean. Whammy sweeps a voice from heel to toe with a pedal you rock — or that a held note presses. The engine switch shows each engine's latency, and the factory presets come in both.", "Saltus mueve el tono de lo que oye de cuatro maneras. Desplazar suma dos voces a intervalos fijos, con un motor mono que conserva los formantes de una voz a 2,7 ms o un motor poli que mueve acordes y mezclas enteros. Armonía canta dos voces a un número de grados de la escala desde la nota oída — en una tonalidad, en los acordes que sostiene otra pista o la melodía que toca — conservando las inflexiones del cantante. Octava suma una y dos octavas abajo y una arriba, de un divisor de estilo analógico sin latencia o limpia. Whammy lleva una voz del talón a la punta con un pedal que meces — o que pisa una nota sostenida. El selector de motor muestra la latencia de cada uno, y los presets de fábrica vienen en ambos.")),
+        features: long!(&[
+            ("Mono at 2.7 ms with the formants kept, or poly for chords at 85 ms", "Mono a 2,7 ms con los formantes intactos, o poli para acordes a 85 ms"),
+            ("Harmony in a key, on another track's chords, or singing its melody", "Armonía en una tonalidad, en los acordes de otra pista o cantando su melodía"),
+            ("An analog octave down with no latency, or a clean one", "Una octava abajo analógica sin latencia, o una limpia"),
+            ("A whammy rocked by hand, by automation or by held notes", "Un whammy mecido a mano, por automatización o por notas sostenidas"),
+            ("The input delayed, to the bit, at its defaults; latency reported exactly", "La entrada retrasada, bit a bit, en sus valores por defecto; latencia informada exacta"),
+            ("Eighteen factory presets in both engines; choose its starting preset", "Dieciocho presets de fábrica en ambos motores; elige su preset de inicio"),
+        ]),
+        presets: Some(18),
+        plugin: true,
+        ab: None,
+        big: (1800, 1143),
+        thumb: (640, 406),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

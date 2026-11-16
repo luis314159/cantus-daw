@@ -2231,6 +2231,47 @@ cancel in mono). Drag it across for the balance and up and down for the width;
 double-click to centre it. Beside it the **tuner** — the note, its cents and its frequency,
 its reference A (415 to 466 Hz) dragged up and down — and the **goniometer**.
 
+### Saltus, pitch
+
+**Saltus** (Latin for *the leap*) moves the pitch of what it hears. Insert it from **Add
+insert ▾ ▸ Pitch ▸ Saltus**; it starts as *Octave up, twelve-string* (the poly engine) — or
+on the starting preset you chose (below).
+
+**Four modes**, the legends along the top of its display:
+
+- **Shift**: two voices at fixed intervals, ±24 semitones and ±100 cents each, with their
+  level and balance, over the dry.
+- **Harmony**: two voices a number of **scale degrees** from the note heard — *two* is a
+  third, *four* a fifth, major or minor as the key says. They count in the **key and
+  scale**, in the **chord held** on MIDI (choose the track whose chords it follows), or sing
+  the **MIDI melody** (the notes held, the singer's own vibrato carried).
+- **Octave**: one and two octaves down and one up. **Analog** is a divider following the
+  note, with no latency; **Clean** moves the note itself, its formants kept.
+- **Whammy**: one voice swept by the **pedal** from the heel's interval to the toe's,
+  followed over the **glide** — rock the pedal on the display, automate it, map it to a
+  controller, or let **MIDI notes** play it: a held note presses the toe.
+
+**Mono or poly.** The switch at the top right of the display shows each engine's latency:
+**Mono** follows one note at a time with a voice's formants kept (2.7 ms — for playing and
+singing through it), **Poly** moves every note of a chord or a whole mix (85 ms — delay
+compensation covers it in a mix). The factory presets come in both.
+
+**Formants** stay where they are (a voice keeps its own) or move with the pitch (the tape
+sped up or slowed); the **throat** moves them on their own.
+
+**The window.** The **leap**: a keyboard, the note heard lit on it and named large, and an
+arc from it to each voice, as thick as the voice is loud, with the interval's name and the
+note it lands on — drag a landing to another key to change its interval. Above it a **grand
+staff** writes the last seconds as they are played, and the notes now at its right edge,
+each falling to its key. In Whammy the pedal is drawn beside the keyboard.
+
+**Choose its starting preset.** Every unit's preset list offers **Use as starting
+preset**: its settings now become what it starts on when you insert it, in every project.
+**Reset to factory starting preset** brings back the factory's. *Settings ▸ Editing ▸ Effects
+▸ On insert ▸ Neutral settings* still inserts every unit at its defaults.
+
+**On Tabula** Saltus is a pedal with the knobs Interval, Level, Dry and Pedal.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

@@ -1,5 +1,4 @@
 # Saltus pitch: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's wave-3 contract: none yet — saltus's builder writes them here.
 # `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
 # the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
@@ -9,10 +8,10 @@ note = "An octave up at 60 % over the dry, by the poly engine: a guitar's chords
 styles = ["rock", "worship"]
 roles = ["creative", "bus"]
 [preset.values]
-"dry" = 1.0
+"dry" = 1
 "engine" = 1
 "lvl1" = 0.6
-"out" = -1.3
+"out" = -0.9
 "st1" = 12
 
 [[preset]]
@@ -21,9 +20,9 @@ note = "A fifth up at half level over the dry, by the mono engine: 2.7 ms, for a
 styles = ["rock", "pop"]
 roles = ["vocal", "creative"]
 [preset.values]
-"dry" = 1.0
+"dry" = 1
 "lvl1" = 0.5
-"out" = -1.0
+"out" = -0.5
 "st1" = 7
 
 [[preset]]
@@ -32,7 +31,206 @@ note = "An octave down under the dry, by the mono engine with the formants kept:
 styles = ["rock", "latin"]
 roles = ["creative", "bus"]
 [preset.values]
-"dry" = 1.0
+"dry" = 1
 "lvl1" = 0.7
-"out" = -1.5
+"out" = -3.3
 "st1" = -12
+
+[[preset]]
+key = "preset.saltus.wide_doubler"
+note = "Two voices nine cents up and down, spread left and right over the dry, by the poly engine: a part played twice, chords included."
+styles = ["pop", "rock"]
+roles = ["vocal", "bus"]
+[preset.values]
+"ct1" = 9
+"ct2" = -9
+"dry" = 1
+"engine" = 1
+"lvl1" = 0.6
+"lvl2" = 0.6
+"out" = -1.3
+"pan1" = -0.7
+"pan2" = 0.7
+
+[[preset]]
+key = "preset.saltus.octaves_both"
+note = "An octave up on the left and an octave down on the right under the dry, by the poly engine: an organ's breadth from one part."
+styles = ["ambient", "worship"]
+roles = ["creative", "bus"]
+[preset.values]
+"dry" = 1
+"engine" = 1
+"lvl1" = 0.45
+"lvl2" = 0.5
+"out" = -1.3
+"pan1" = -0.4
+"pan2" = 0.4
+"st1" = 12
+"st2" = -12
+
+[[preset]]
+key = "preset.saltus.lower_voice"
+note = "A voice five semitones lower with its formants kept, by the mono engine: the same singer, deeper, not slowed."
+styles = ["film", "trap"]
+roles = ["vocal", "creative"]
+[preset.values]
+"lvl1" = 1
+"out" = 1.4
+"st1" = -5
+
+[[preset]]
+key = "preset.saltus.small_voice"
+note = "A voice a fifth up with its formants moving along, by the mono engine: the tape sped up, small and bright."
+styles = ["pop", "lofi"]
+roles = ["vocal", "creative"]
+[preset.values]
+"formant" = 0
+"lvl1" = 1
+"out" = -0.5
+"st1" = 7
+
+[[preset]]
+key = "preset.saltus.third_above"
+note = "A third above in the key (C major until you set yours), the singer's own bends carried: a harmony line under any melody."
+styles = ["pop", "worship"]
+roles = ["vocal"]
+[preset.values]
+"deg1" = 2
+"dry" = 1
+"lvl1" = 0.65
+"mode" = 1
+"out" = -1
+
+[[preset]]
+key = "preset.saltus.third_and_fifth"
+note = "A third and a fifth above in the key, spread left and right: a close three-part harmony from one voice."
+styles = ["worship", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"deg1" = 2
+"deg2" = 4
+"dry" = 1
+"lvl1" = 0.55
+"lvl2" = 0.45
+"mode" = 1
+"out" = -0.9
+"pan1" = -0.35
+"pan2" = 0.35
+
+[[preset]]
+key = "preset.saltus.harmony_below"
+note = "A fourth below in the key, as a low harmony sings it: under a lead, a hymn's tenor line."
+styles = ["worship", "jazz"]
+roles = ["vocal"]
+[preset.values]
+"deg1" = -3
+"dry" = 1
+"lvl1" = 0.6
+"mode" = 1
+"out" = -1
+
+[[preset]]
+key = "preset.saltus.chord_choir"
+note = "Two voices singing the next notes of the chord held on MIDI, one each side: choose the track whose chords it follows."
+styles = ["worship", "film"]
+roles = ["vocal", "creative"]
+[preset.values]
+"deg1" = 1
+"deg2" = 2
+"dry" = 1
+"hsrc" = 1
+"lvl1" = 0.55
+"lvl2" = 0.45
+"mode" = 1
+"out" = 0
+"pan1" = -0.5
+"pan2" = 0.5
+
+[[preset]]
+key = "preset.saltus.analog_octave"
+note = "The analog octaver: one octave down from the divider, with no latency, under the dry: a bass or a guitar's low growl."
+styles = ["rock", "latin"]
+roles = ["creative", "bus"]
+[preset.values]
+"dry" = 1
+"mode" = 2
+"out" = -0.3
+"sub1" = 0.8
+
+[[preset]]
+key = "preset.saltus.sub_octaves"
+note = "One and two octaves down from the divider under the dry: the floor shakes under a bass line."
+styles = ["house", "trap"]
+roles = ["creative"]
+[preset.values]
+"dry" = 1
+"mode" = 2
+"out" = -0.4
+"sub1" = 0.7
+"sub2" = 0.5
+
+[[preset]]
+key = "preset.saltus.octave_up_analog"
+note = "The fundamental rectified an octave up over the dry, with no latency: the ringing upper octave of a vintage octave fuzz."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"dry" = 1
+"mode" = 2
+"out" = -0.6
+"sub1" = 0
+"up1" = 0.6
+
+[[preset]]
+key = "preset.saltus.clean_octave_down"
+note = "One octave down, the note itself moved with its formants kept (2.7 ms): an octave down that stays in tune on high notes."
+styles = ["rock", "jazz"]
+roles = ["creative", "bus"]
+[preset.values]
+"dry" = 1
+"mode" = 2
+"ostyle" = 1
+"out" = -1.9
+"sub1" = 0.75
+
+[[preset]]
+key = "preset.saltus.whammy_octave"
+note = "The whammy at the toe, an octave up and no dry: rock the pedal (or automate it) from unison to the octave."
+styles = ["rock"]
+roles = ["creative"]
+[preset.values]
+"dry" = 0
+"lvl1" = 1
+"mode" = 3
+"out" = 3.9
+"pedal" = 1
+"toe" = 12
+
+[[preset]]
+key = "preset.saltus.dive_bomb"
+note = "The whammy halfway to two octaves down on a slow glide, by the poly engine: the dive bomb on a whole chord."
+styles = ["rock", "film"]
+roles = ["creative"]
+[preset.values]
+"dry" = 0
+"engine" = 1
+"glide" = 300
+"lvl1" = 1
+"mode" = 3
+"out" = -1
+"pedal" = 0.5
+"toe" = -24
+
+[[preset]]
+key = "preset.saltus.whammy_keys"
+note = "The whammy played by notes: a key held on the chosen track presses the toe a fifth up, released it comes back over 80 ms."
+styles = ["house", "rock"]
+roles = ["creative"]
+[preset.values]
+"dry" = 0.3
+"glide" = 80
+"lvl1" = 1
+"mode" = 3
+"out" = -2.3
+"toe" = 7
+"wsrc" = 1

@@ -2426,6 +2426,50 @@ para la anchura; doble clic para centrarla. A su lado el **afinador** — la not
 su frecuencia, su La de referencia (de 415 a 466 Hz) arrastrado arriba y abajo — y el
 **goniómetro**.
 
+### Saltus, el tono
+
+**Saltus** (en latín, *el salto*) mueve el tono de lo que oye. Insértalo desde **Añadir
+inserción ▾ ▸ Tono ▸ Saltus**; empieza como *Octava arriba, doce cuerdas* (el motor poli)
+— o con el preset de inicio que hayas elegido (abajo).
+
+**Cuatro modos**, las leyendas de lo alto de su pantalla:
+
+- **Desplazar**: dos voces a intervalos fijos, ±24 semitonos y ±100 cents cada una, con su
+  nivel y su balance, sobre el seco.
+- **Armonía**: dos voces a un número de **grados de la escala** desde la nota oída — *dos*
+  es una tercera, *cuatro* una quinta, mayor o menor según la tonalidad. Cuentan en la
+  **tonalidad y escala**, en el **acorde sostenido** por MIDI (elige la pista cuyos acordes
+  sigue) o cantan la **melodía MIDI** (las notas sostenidas, con el vibrato del cantante).
+- **Octava**: una y dos octavas abajo y una arriba. **Analógica** es un divisor que sigue la
+  nota, sin latencia; **Limpia** mueve la nota misma, con sus formantes.
+- **Whammy**: una voz llevada por el **pedal** del intervalo del talón al de la punta,
+  seguida con el **deslizamiento** — mece el pedal en la pantalla, automatízalo, asígnalo a
+  un controlador o deja que lo toquen **notas MIDI**: una nota sostenida pisa la punta.
+
+**Mono o poli.** El selector de arriba a la derecha de la pantalla muestra la latencia de
+cada motor: **Mono** sigue una nota a la vez con los formantes de la voz (2,7 ms — para
+tocar y cantar a través de él), **Poli** mueve cada nota de un acorde o una mezcla entera
+(85 ms — la compensación de latencia lo cubre en una mezcla). Los presets de fábrica vienen
+en ambos.
+
+**Los formantes** se quedan donde están (una voz conserva la suya) o se mueven con el tono
+(la cinta acelerada o frenada); la **garganta** los mueve por sí sola.
+
+**La ventana.** El **salto**: un teclado, la nota oída encendida en él y nombrada en grande,
+y un arco desde ella hasta cada voz, tan grueso como suena la voz, con el nombre del
+intervalo y la nota donde cae — arrastra un aterrizaje a otra tecla para cambiar su
+intervalo. Encima, un **pentagrama doble** escribe los últimos segundos tal como se tocan, y
+las notas de ahora en su borde derecho, cada una cayendo a su tecla. En Whammy el pedal se
+dibuja junto al teclado.
+
+**Elige su preset de inicio.** La lista de presets de cada unidad ofrece **Usar como preset
+de inicio**: sus ajustes de ahora pasan a ser con lo que empieza al insertarla, en todos los
+proyectos. **Volver al preset de inicio de fábrica** trae de vuelta el de fábrica. *Ajustes ▸ Edición
+▸ Efectos ▸ Al insertar ▸ Ajustes neutros* sigue insertando cada unidad en sus valores por
+defecto.
+
+**En Tabula** Saltus es un pedal con las perillas Intervalo, Nivel, Seco y Pedal.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

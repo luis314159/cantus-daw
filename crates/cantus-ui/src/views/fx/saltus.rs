@@ -561,7 +561,7 @@ pub const DEMO: &[(&str, f32)] = &[
     ("st1", 12.0),
     ("lvl1", 0.6),
     ("dry", 1.0),
-    ("out", -1.3),
+    ("out", -0.9),
 ];
 
 /// What a playing engine would feed the editor, for screenshots with no engine: a sung A3
