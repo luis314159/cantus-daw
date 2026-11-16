@@ -547,7 +547,13 @@ fn centre(b: &mut Brush, k: f32, sky: &Sky, view: &View, spec: &EffectSpec, ink:
         let p = pos2(sky.x(j, n), sky.y(sum / w));
         if let Some(q) = last {
             if (j / 3) % 2 == 0 {
-                b.segment(q, p, 1.0 * k, with_alpha(col, 0.55 * (w / cnt).min(1.0)), false);
+                b.segment(
+                    q,
+                    p,
+                    1.0 * k,
+                    with_alpha(col, 0.55 * (w / cnt).min(1.0)),
+                    false,
+                );
             }
         }
         last = Some(p);
@@ -592,13 +598,16 @@ fn words(
 ) {
     let k = s.k;
     let left = g.left() + 10.0 * k;
+    // On frosted glass the words sit on a plate.
+    let frosted = spec.get("freeze") >= 0.5 || now.freeze > 0.01;
+    let plate = frosted.then(|| with_alpha(ink.ground, 0.85));
     canvas::put(
         b,
         pos2(left, g.top() + 8.0 * k),
         Align2::LEFT_TOP,
         &Text::key("caelum.d.sky", Role::Micro, ink.dim),
         k,
-        None,
+        plate,
     );
     let inf = spec.get("inf") >= 0.5;
     let decay = if inf {
@@ -606,23 +615,43 @@ fn words(
     } else {
         format!("{:.1} s", spec.get("decay"))
     };
-    canvas::putf(
-        b,
-        pos2(left, g.top() + 24.0 * k),
-        Align2::LEFT_TOP,
-        Role::Micro,
-        ink.text,
-        k,
-        None,
-        format_args!(
-            "{} {decay} \u{b7} {} {:.0} ms \u{b7} {} {:.0} ms",
-            tr("caelum.l.decay"),
-            tr("caelum.l.pre"),
-            now.predelay_ms,
-            tr("caelum.d.lines"),
-            now.line_ms,
-        ),
-    );
+    let at = pos2(left, g.top() + 24.0 * k);
+    if now.seen {
+        canvas::putf(
+            b,
+            at,
+            Align2::LEFT_TOP,
+            Role::Micro,
+            ink.text,
+            k,
+            plate,
+            format_args!(
+                "{} {decay} \u{b7} {} {:.0} ms \u{b7} {} {:.0} ms",
+                tr("caelum.l.decay"),
+                tr("caelum.l.pre"),
+                now.predelay_ms,
+                tr("caelum.d.lines"),
+                now.line_ms,
+            ),
+        );
+    } else {
+        // At rest the engine says nothing: the settings as they stand.
+        canvas::putf(
+            b,
+            at,
+            Align2::LEFT_TOP,
+            Role::Micro,
+            ink.text,
+            k,
+            plate,
+            format_args!(
+                "{} {decay} \u{b7} {} {:.0} ms",
+                tr("caelum.l.decay"),
+                tr("caelum.l.pre"),
+                spec.get("pre"),
+            ),
+        );
+    }
     let mut x = g.right() - 10.0 * k;
     let spark = ink.voice(ink.hue, true);
     if spec.get("freeze") >= 0.5 || now.freeze > 0.01 {
@@ -662,24 +691,19 @@ fn words(
         );
     }
     let foot = g.bottom() - 4.0 * k;
-    canvas::put_key(
-        b,
-        pos2(sky.plot.left(), foot),
-        Align2::LEFT_BOTTOM,
-        "caelum.d.ago",
-        Role::Micro,
-        ink.dim,
-        k,
-    );
-    canvas::put_key(
-        b,
-        pos2(sky.plot.right(), foot),
-        Align2::RIGHT_BOTTOM,
-        "caelum.d.now",
-        Role::Micro,
-        ink.dim,
-        k,
-    );
+    for (x, align, key) in [
+        (sky.plot.left(), Align2::LEFT_BOTTOM, "caelum.d.ago"),
+        (sky.plot.right(), Align2::RIGHT_BOTTOM, "caelum.d.now"),
+    ] {
+        canvas::put(
+            b,
+            pos2(x, foot),
+            align,
+            &Text::key(key, Role::Micro, ink.dim),
+            k,
+            plate,
+        );
+    }
 }
 
 /// The scales engraved on the frame: a tick each second along the foot (longer at the

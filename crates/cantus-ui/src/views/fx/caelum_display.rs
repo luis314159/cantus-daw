@@ -217,9 +217,11 @@ impl View {
                 }
             }
             // What is new enters at the horizon.
-            // (Only while something comes in: a tail's own wobble is not new sound.)
+            // (Only while something comes in — a tail's own wobble is not new sound — and
+            // never into a frozen tank, whose door is shut.)
+            let shut = rd.freeze > 0.5 || rd.input < 0.01;
             let fresh = match prev {
-                _ if rd.input < 1e-3 && prev.is_some() => 0.0,
+                _ if shut && prev.is_some() => 0.0,
                 Some(p) if e > 1e-15 => ((e - p * owed) / e).clamp(0.0, 1.0),
                 _ => 1.0,
             };
@@ -274,7 +276,7 @@ pub fn show(
     s: &Style,
     r: Rect,
     now: &Reading,
-) {
+) -> [Rect; 6] {
     let k = s.k;
     let ink = Ink::of(s);
     let p = parts(r, k);
@@ -302,6 +304,7 @@ pub fn show(
         desk::tubes(b, s, &ink, p.tubes, now, &spec);
         canvas::edge_b(b, r, &ink);
     });
+    sill.keys.map(|key| key.rect)
 }
 
 #[cfg(test)]
@@ -378,3 +381,4 @@ mod tests {
         assert_eq!(total(v.len() - 1), 0.0);
     }
 }
+

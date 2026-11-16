@@ -42,6 +42,9 @@ pub struct State {
     view: display::View,
     /// Where the display was drawn last frame (tests point at it).
     pub display: Option<Rect>,
+    /// Where the sill's six buttons were drawn last frame: Infinite, Freeze, Fades,
+    /// Sustains, 8 dB lower, As loud (tests point at them).
+    endless: Option<[Rect; 6]>,
 }
 
 /// Caelum's editor in Cantus's own window: the host is the project.
@@ -180,7 +183,7 @@ fn body_ui(
     let reading = display::Reading::of(tel);
     let dt = ui.input(|i| i.stable_dt).min(0.1);
     st.view.update(&reading, dt);
-    display::show(host, &mut st.view, ui, s, r1, &reading);
+    st.endless = Some(display::show(host, &mut st.view, ui, s, r1, &reading));
     if reading.seen {
         ui.ctx().request_repaint();
     }
@@ -256,17 +259,26 @@ pub fn demo_feed(app: &mut CantusApp) {
     }
 }
 
-/// Caelum at `spec` fed a chord for four seconds, `secs` in all: the last telemetry and
-/// the display's readings every thirtieth of a second.
+/// Caelum at `spec` fed a chord for four seconds, `secs` in all (frozen, if `spec` says so,
+/// at five): the last telemetry and the display's readings every thirtieth of a second.
 pub(crate) fn demo_telemetry(spec: &EffectSpec, secs: f32) -> ([f32; 64], Vec<display::Reading>) {
     use cantus_engine::FxUnit as _;
     let sr = 48_000.0f32;
     let mut u = cantus_engine::fx::caelum::Unit::new(sr);
-    u.configure(spec);
+    // A frozen state's demo freezes the tail a second after the chord, as a player would.
+    let freeze_at = (spec.get("freeze") >= 0.5).then_some(5.0f32);
+    let mut open = spec.clone();
+    if freeze_at.is_some() {
+        let _ = open.set("freeze", 0.0);
+    }
+    u.configure(&open);
     let n = 1_600;
     let blocks = (secs * sr) as usize / n;
     let mut history = Vec::with_capacity(blocks);
     for blk in 0..blocks {
+        if freeze_at.is_some_and(|at| blk == (at * sr) as usize / n) {
+            u.configure(spec);
+        }
         let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
         for (i, (a, b)) in l.iter_mut().zip(r.iter_mut()).enumerate() {
             let t = (blk * n + i) as f32 / sr;
@@ -290,5 +302,11 @@ impl State {
     /// How many readings the display's history holds.
     pub fn history_len(&self) -> usize {
         self.view.len()
+    }
+
+    /// Where the sill's buttons were drawn last frame: Infinite, Freeze, Fades, Sustains,
+    /// 8 dB lower, As loud.
+    pub fn endless_rects(&self) -> [Rect; 6] {
+        self.endless.unwrap_or([Rect::NOTHING; 6])
     }
 }

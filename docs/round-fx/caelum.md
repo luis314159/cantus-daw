@@ -227,6 +227,52 @@ rates, infinite never gaining, the shifter's interval on tones, its power on noi
 7. **End to end**: insert it from the picker on a playing track through
    `CantusApp::assemble`, move a control, hear it in the master.
 
+## Design sheet v2 (the owner's verdict on v1: "more elaborate")
+
+`C:\projects\daw-fx\compartir\caelum\design\v2\`. The display became an observatory at night,
+drawn in vectors from `kit::skin::observatory` (a new palette; no texture tile, no layer-atlas
+work, so `kit_alloc` is untouched):
+
+- `views/fx/caelum_art.rs` — the window's frame (four mitred rails brushed along their
+  length, a raised bead, slotted screws, the chamfer to the glass), a metal per colourway
+  (lacquered brass for Night, rose gold for Dawn, a bronze whose engraving holds verdigris
+  for Aurora), engraved lines, the glass, the sill's plate, the lit pushbuttons in their
+  bezels, the pilot lamps, the ∞ and crystal glyphs, the frost.
+- `views/fx/caelum_sky.rs` — the sky: depth (darker toward the zenith, the horizon glowing in
+  the tail's light), the Milky Way, three magnitudes of stars brightening with the tank and
+  twinkling while it plays; the tail on the horizon over the tank's still water (mirrored,
+  rippled, glints under the bright moments); the shimmer's octaves as bands a voice's
+  interval apart (both voices), each its interval named in the gutter; wisps climbing from
+  band to band where the energy passes; a dotted line where the light is on average, rising
+  as the tail ages; the frame's rails engraved (a tick a second along the foot, a tick at
+  each band); infinite writes ∞; frozen frosts the glass; the ducking lights a slot in the
+  right rail and writes its figure.
+- `views/fx/caelum_display.rs` — `View::climb`: how far the light has climbed, a model of the
+  tank's exchange fed by its measured energy (what is new — the energy's rise beyond the
+  decay the tank owes, while there is input and the tank is open — enters at the horizon;
+  each step a share of every band climbs to the next at the shimmer's amount, the voices
+  sharing it by the second's level; nothing climbs while frozen; an infinite tank that lets
+  the shimmer fade loses what has climbed). The telemetry's shimmer share is what the
+  exchange moves in a block (a few per cent, noisy), not how far the light has climbed, so it
+  does not set the bands. Unit-tested (the light climbs as the tail ages; nothing climbs
+  without shimmer or frozen; the bands are dark without energy).
+- `views/fx/caelum_astro.rs` — the voices on an astrolabe: the limb's twelve semitones, the
+  plate's pitch spiral (−36 … +36, every octave on the meridian), the rete's filigree, the
+  alidade on the first voice, a hand on the second, each voice a jewel.
+- `views/fx/caelum_desk.rs` — the sill: Endless's four settings as lit pushbuttons (Infinite
+  with its ∞ lamp, Freeze with its crystal lamp, the two infinite choices as pairs), each a
+  click (its menu offers automation and MIDI learn, the help line its meaning), and the input
+  and ducking pilot lamps; the decay by octave as eight glass tubes in a rack, each lit to its
+  achieved decay, its figure over its light, the set decay dotted across.
+- `caelum.rs` — the cards in two rows (`fxa_cells::pack`): Endless left the cards for the
+  sill; **Pre-delay sync** and the **tank's lines** (8 or 16), which had no control, joined
+  Space. The demo of the frozen state freezes the tail a second after the chord; the ducked
+  state's demo stops while the chord still sounds.
+- Shared, additive: `Brush::ribbon` (a soft band of light, its colour and width free at every
+  point). `fxa_whole` probes the frozen and ducked state with both voices, and clicks the
+  sill's buttons through the app's editor (each click one undo step).
+- Endless's defaults stay as they were (fades; 8 dB lower) until the owner listens.
+
 ## Left (this phase)
 
 - Nothing in the DSP phase; the owner's listening, and the phases above.

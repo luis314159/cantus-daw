@@ -89,6 +89,11 @@ fn wave_a_s_windows_never_cut_or_clip_a_word() {
             EffectKind::Shimmer,
             &[("inf", 1.0), ("ishim", 1.0)],
         ),
+        (
+            "caelum",
+            EffectKind::Shimmer,
+            &[("freeze", 1.0), ("duck", 12.0), ("pblvl", 0.6)],
+        ),
     ];
     let mut bad = Vec::new();
     for lang in [Locale::En, Locale::Es] {
@@ -155,4 +160,102 @@ fn fractus_s_pages_never_cut_or_clip_a_word() {
     bad.sort();
     bad.dedup();
     assert!(bad.is_empty(), "words not read whole:\n{}", bad.join("\n"));
+}
+
+// Caelum's sill answers the pointer as its picture promises (design sheet v2, ADR 0141
+// provisional), driven frame by frame with real pointer events through the editor the app
+// draws: a click on Infinite's lit pushbutton turns the tank infinite and a second click
+// lets it go; Freeze freezes it; "Sustains" and "As loud" choose the infinite tank's two
+// ways; each click is one undo step. // fxa:caelum
+
+use cantus_ui::raster::shoot_events;
+use egui::{Event, PointerButton, Pos2};
+
+fn sill_ctx() -> egui::Context {
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    ctx
+}
+
+fn sill_frames(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, at: Option<Pos2>) {
+    shoot_events(
+        ctx,
+        size,
+        1.0,
+        6,
+        None,
+        |f, _| match (f, at) {
+            (0, Some(p)) => vec![Event::PointerMoved(p)],
+            (1, Some(p)) => vec![Event::PointerButton {
+                pos: p,
+                button: PointerButton::Primary,
+                pressed: true,
+                modifiers: Default::default(),
+            }],
+            (2, Some(p)) => vec![Event::PointerButton {
+                pos: p,
+                button: PointerButton::Primary,
+                pressed: false,
+                modifiers: Default::default(),
+            }],
+            _ => Vec::new(),
+        },
+        |ui| {
+            let c = ui.ctx().clone();
+            views::fx::window(app, &c)
+        },
+    );
+}
+
+fn sill_value(app: &CantusApp, key: &str) -> f32 {
+    let (strip, effect, _) = app.fx.open.expect("open");
+    app.project().effect(strip, effect).unwrap().spec.get(key)
+}
+
+#[test]
+fn caelum_s_sill_buttons_throw_the_endless_settings() {
+    let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+    app.demo_editor("caelum");
+    views::fx::demo_feed(&mut app, EffectKind::Shimmer);
+    app.fx.pos = Some(egui::pos2(0.0, 0.0));
+    let kind = EffectKind::Shimmer;
+    let size = views::fx::frame::designed_size(kind);
+    let click = |app: &mut CantusApp, i: usize| {
+        let c = sill_ctx();
+        views::fx::frame::shell_of(kind).set_scale(&c, 1.0);
+        sill_frames(app, &c, size, None);
+        let at = app.fx.caelum.endless_rects()[i].center();
+        assert!(at.x > 0.0 && at.y > 0.0, "button {i} is drawn");
+        sill_frames(app, &c, size, Some(at));
+    };
+    // Today's sound is the default: fades, 8 dB lower (the owner listens before either flips).
+    assert_eq!(sill_value(&app, "inf"), 0.0);
+    assert_eq!(sill_value(&app, "ishim"), 0.0);
+    assert_eq!(sill_value(&app, "ilevel"), 0.0);
+
+    click(&mut app, 0);
+    assert_eq!(sill_value(&app, "inf"), 1.0, "Infinite lit");
+    click(&mut app, 0);
+    assert_eq!(sill_value(&app, "inf"), 0.0, "and let go");
+    app.undo();
+    assert_eq!(sill_value(&app, "inf"), 1.0, "one click, one undo step");
+
+    click(&mut app, 1);
+    assert_eq!(sill_value(&app, "freeze"), 1.0, "Freeze lit");
+    click(&mut app, 3);
+    assert_eq!(sill_value(&app, "ishim"), 1.0, "Sustains chosen");
+    click(&mut app, 3);
+    assert_eq!(
+        sill_value(&app, "ishim"),
+        1.0,
+        "a chosen button stays chosen"
+    );
+    click(&mut app, 2);
+    assert_eq!(sill_value(&app, "ishim"), 0.0, "Fades chosen");
+    click(&mut app, 5);
+    assert_eq!(sill_value(&app, "ilevel"), 1.0, "As loud chosen");
+    app.undo();
+    assert_eq!(sill_value(&app, "ilevel"), 0.0, "one click, one undo step");
 }
