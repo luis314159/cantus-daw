@@ -267,3 +267,33 @@ fn solve(jm: &mut [[f64; 4]; 4], mut rhs: [f64; 4], d: usize) -> [f64; 4] {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What the solve costs a Newton iteration, 4 × 4 against 2 × 2 (the bound on what
+    /// dropping a follower's grid port could save): `--ignored --nocapture`, release.
+    #[test]
+    #[ignore]
+    fn solve_cost() {
+        let n = 5_000_000;
+        let mut acc = 0.0;
+        for d in [4usize, 2] {
+            let t = std::time::Instant::now();
+            for i in 0..n {
+                let e = (i % 7) as f64 * 1e-3;
+                let mut jm = [
+                    [-1.0 - e, 0.2, 0.01, 0.3],
+                    [0.5, -40.0, 0.2, 0.1],
+                    [0.01, 0.3, -1.0, 0.2],
+                    [0.2, 0.1, 0.4, -30.0 + e],
+                ];
+                let x = solve(&mut jm, [1.0, e, 0.5, 0.25], d);
+                acc += x[0];
+            }
+            let ns = t.elapsed().as_secs_f64() * 1e9 / n as f64;
+            println!("{d} x {d} solve: {ns:.1} ns ({acc:.1})");
+        }
+    }
+}

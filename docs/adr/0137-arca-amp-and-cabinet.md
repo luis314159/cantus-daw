@@ -185,6 +185,18 @@ points and the oversampler clears; silence in is then silence out and nothing mo
   cost — its follower's grid port skipped while it does not conduct (a 2-port Newton then,
   the grid current a correction only past the cathode), and a quiet-machine measurement.
 
+### Phase A-4: the follower's grid port (2026-11-15) — measured, not built
+
+The proposed lever — solve a 2-port system while the follower's grid does not conduct —
+does not reduce the system: with no grid current the follower's grid row is linear, but its
+plate current still depends on its grid voltage, so the Jacobian stays a full 4 × 4 (no
+column vanishes). What dropping the port could at best save is the solve itself:
+`fast::tests::solve_cost` measures a 4 × 4 at 86 – 89 ns and a 2 × 2 at 14 – 15 ns (machine
+at 57 % load); at the last circuit's 3.4 iterations a sample that is at most about 1.5 – 2.5 %
+of a core at 4×, and a 4 × 4 with constant loop bounds (the same bits) measured no faster.
+Not enough to bring the high gain (≈ 25 %) under 20 %: **4× stays the default**, the code
+unchanged (`arca_compare` gives the same bits as `a7afeffa`).
+
 ## Left for the next phases
 
 - **CPU**: tabulate the triode (a bicubic table of Koren's currents and their slopes, built
