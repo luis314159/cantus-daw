@@ -773,10 +773,10 @@ pub fn warm_light(b: &mut Brush, clip: Rect, c: Pos2, rad: f32, glow: f32) {
         return;
     }
     let warm = crate::kit::skin::pedals::FILAMENT.rgb();
-    let n = 14;
+    let n = 32;
     for i in 0..n {
         let t = 1.0 - i as f32 / n as f32;
-        let col = with_alpha(warm, 0.028 * g);
+        let col = with_alpha(warm, 0.0125 * g);
         b.radial(
             clip,
             c,
