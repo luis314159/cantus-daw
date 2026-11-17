@@ -525,6 +525,9 @@ impl OptoEquilibrium {
     }
 }
 
+/// Intervals in [`OptoTimes::slow`].
+pub const OPTO_SLOW_N: usize = 32;
+
 /// The photocell's time, as coefficients for one sample rate (PE, NMHR: the sources named in
 /// `vinculum_tests_opto.rs`).
 ///
@@ -546,12 +549,14 @@ pub struct OptoTimes {
     pub attack_lit: f32,
     /// The first stage's release.
     pub release: f32,
-    /// The slow stage's charge, and its release when the memory is empty: a coefficient
-    /// `1/(τ·sr)` (τ ≥ 0.5 s, so the exact `1 − e^{−1/(τ·sr)}` differs from it by under
-    /// 3·10⁻⁵ of itself) that the memory divides by up to `e^{ln_span}`.
+    /// The slow stage's charge.
     pub charge: f32,
-    pub slow_fresh: f32,
-    pub ln_span: f32,
+    /// The slow stage's release by memory, at memories `0, 1/32, … 1`, interpolated: the
+    /// coefficient `1/(τ·sr)` with `τ` geometric from fresh to full (τ ≥ 0.5 s, so the
+    /// exact `1 − e^{−1/(τ·sr)}` differs from it by under 3·10⁻⁵ of itself). A table, so
+    /// the sample loop runs no exponential (the first pass's `e^{−m·ln(τ₁/τ₀)}` per sample
+    /// cost 0.1 % of a core).
+    pub slow: [f32; OPTO_SLOW_N + 1],
     /// The share of the slow stage the cell holds.
     pub share: f32,
     /// The memory's fill and rest.
@@ -587,11 +592,9 @@ impl OptoCell {
         if self.fast > self.slow {
             self.slow += (self.fast - self.slow) * t.charge;
         } else if self.slow > 0.0 {
-            let k = if self.memory > 0.0 {
-                t.slow_fresh * math::exp(-t.ln_span * self.memory)
-            } else {
-                t.slow_fresh
-            };
+            let p = self.memory * OPTO_SLOW_N as f32;
+            let i = (p as usize).min(OPTO_SLOW_N - 1);
+            let k = t.slow[i] + (t.slow[i + 1] - t.slow[i]) * (p - i as f32);
             let slow = self.slow + (self.fast - self.slow) * k;
             self.slow = if slow < t.floor { 0.0 } else { slow };
         }

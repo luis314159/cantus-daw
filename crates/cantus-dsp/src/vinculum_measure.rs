@@ -173,6 +173,13 @@ fn cpu_per_model() {
         ("VCA Auto", hard_of(Model::Vca, true)),
         ("Opto", hard_of(Model::Opto, false)),
         (
+            "Opto limit",
+            VinculumSettings {
+                character: Character::Limit,
+                ..hard_of(Model::Opto, false)
+            },
+        ),
+        (
             "Vari-mu, no colour",
             VinculumSettings {
                 colour: 0.0,

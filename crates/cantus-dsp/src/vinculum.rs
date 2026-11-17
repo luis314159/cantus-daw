@@ -612,8 +612,15 @@ fn opto_times(sr: f32) -> OptoTimes {
         attack_lit: law::coef(OPTO_ATTACK_LIT_MS, sr),
         release: law::coef(OPTO_FAST_MS, sr),
         charge: law::coef(OPTO_CHARGE_MS, sr),
-        slow_fresh: 1000.0 / (OPTO_SLOW_FRESH_MS * sr),
-        ln_span: math::ln(OPTO_SLOW_FULL_MS / OPTO_SLOW_FRESH_MS),
+        slow: {
+            let span = math::ln(OPTO_SLOW_FULL_MS / OPTO_SLOW_FRESH_MS);
+            let mut k = [0f32; law::OPTO_SLOW_N + 1];
+            for (i, v) in k.iter_mut().enumerate() {
+                let m = i as f32 / law::OPTO_SLOW_N as f32;
+                *v = 1000.0 / (OPTO_SLOW_FRESH_MS * sr) * math::exp(-span * m);
+            }
+            k
+        },
         share: OPTO_SHARE,
         fill: law::coef(OPTO_FILL_MS, sr),
         rest: law::coef(OPTO_REST_MS, sr),

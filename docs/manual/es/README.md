@@ -2535,8 +2535,11 @@ o el máster. Insértalo desde **Añadir inserto ▾ ▸ Dinámica ▸ Vinculum*
   de 0,1 a 30 ms y **Liberación** de 0,1 a 1,2 s o **Auto** (un golpe aislado se suelta
   pronto y el trabajo sostenido despacio, de modo que la mezcla respira sin bombear).
 - **Óptico** — un nivelador de fotocélula encendida por la salida: suave al principio, unos
-  3:1 a fondo en **Comprimir**, cerca de 10:1 en **Limitar**, soltando despacio después de
-  trabajar mucho.
+  3:1 a fondo en **Comprimir**, cerca de 10:1 en **Limitar**. Sus tiempos son los del
+  nivelador clásico: unos 10 ms para atrapar, la mitad soltada en unos 60 ms y el resto en
+  menos de un segundo tras una ráfaga corta y en unos diez segundos tras un pasaje largo y
+  fuerte — la célula recuerda cuánto tiempo y cuánto ha trabajado, y una célula que ha
+  descansado vuelve a soltar pronto.
 - **Mu variable** — una válvula cuya proporción sube a medida que trabaja (hasta 4:1 en
   Comprimir, hasta 20:1 en Limitar), con seis posiciones de **Constante de tiempo** (la 5 y la 6 siguen
   al programa) y un **Color de válvula** en su propia tarjeta.

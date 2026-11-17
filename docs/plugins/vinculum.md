@@ -14,8 +14,11 @@ characters engineers reach for by name, each with the controls its panel has:
   release, so a lone hit lets go at 0.1 s and sustained work slowly — the mix breathes
   without pumping.
 - **Opto** — a T4-style photocell lit by the output (feedback): very soft at first, about
-  3 : 1 at depth in **Compress**, near 10 : 1 in **Limit**; the cell's two-stage memory, so
-  the longer and harder it was lit, the longer it lets go (0.5 … 5 s).
+  3 : 1 at depth in **Compress**, near 10 : 1 in **Limit**; the times are the classic
+  leveller's published ones, measured on the reduction: about 10 ms attack (quicker the
+  harder the cell is lit), half released in about 60 ms, the rest over 0.8 s after a burst
+  to 10 – 13 s after a long, hard passage — the cell's **memory**: the longer and harder it
+  worked, the slower its second stage; a cell that has rested lets go as a new one.
 - **Vari-mu** — a remote-cutoff valve whose ratio rises as it works (1.5 : 1 to 4 : 1 in
   Compress, 4 : 1 to 20 : 1 at 12 dB in Limit), its loop solved at zero delay; the classic
   limiter's six time positions (two programme dependent); and an odd-harmonic **valve
@@ -98,7 +101,9 @@ pedals does, so a keyed board's key reaches Vinculum's detector exactly as an in
 ## Ours, better
 
 - Three bus compressors in one, each checked against its own law solved independently
-  (within 0.01 – 0.02 dB) and against the published time constants and ratios.
+  (within 0.01 – 0.02 dB) and against the published time constants and ratios — the opto
+  against the LA-2A's published measurements and its CdS cell's (ADR 0142, *The opto
+  matched*).
 - A vari-mu limiter that cannot ring at 20 : 1 and 0.2 ms: its loop is solved at zero delay
   through its tabulated equilibrium; its colour runs at 2× on the residual only, so the dry
   path is never filtered or delayed.
@@ -107,6 +112,7 @@ pedals does, so a keyed board's key reaches Vinculum's detector exactly as an in
 
 ## Left for the owner's ear
 
-- **The opto Limit's attack**: 0.9 ms to 63 % at 16 dB over the threshold against the
-  published ~10 ms average (Compress measures 8.6 ms). Kept as measured until the owner has
-  listened (`compartir\vinculum\sound`).
+- **The opto, matched** (2026-11-17, the owner's decision): its Limit's attack was 0.9 ms
+  against the published ~10 ms; now 9.0 ms (Compress 10.2), and the cell remembers. To hear
+  in `compartir\vinculum\sound` (04 – 06 and 24 – 26 beside their `-before` twins, and
+  the memory excerpt, 30 – 31).

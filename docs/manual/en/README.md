@@ -2333,7 +2333,10 @@ VCA at 4:1, 30 ms attack, Auto release, −18 dB).
   and **Release** 0.1 to 1.2 s or **Auto** (a lone hit lets go fast, sustained work slowly,
   so the mix breathes without pumping).
 - **Opto** — a photocell leveller lit by the output: soft at first, about 3:1 at depth in
-  **Compress**, near 10:1 in **Limit**, letting go slowly after it has worked long.
+  **Compress**, near 10:1 in **Limit**. Its times are the classic leveller's: about 10 ms to
+  catch, half let go in about 60 ms, the rest within a second after a short burst and in
+  about ten seconds after a long, hard passage — the cell remembers how long and how hard
+  it worked, and a cell that has rested lets go quickly again.
 - **Vari-mu** — a valve whose ratio rises as it works (to 4:1 in Compress, to 20:1 in
   Limit), with six **Time constant** positions (5 and 6 follow the programme) and a **Valve colour**
   on its own card.
