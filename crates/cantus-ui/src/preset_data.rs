@@ -316,6 +316,16 @@ pub const FILES: &[(FileUnit, &str, &str)] = &[
         "presets/effects/shimmer.toml",
         include_str!("../presets/effects/shimmer.toml"),
     ),
+    (
+        FileUnit::Effect(EffectKind::Repair), // fxc:contract
+        "presets/effects/repair.toml",
+        include_str!("../presets/effects/repair.toml"),
+    ),
+    (
+        FileUnit::Effect(EffectKind::Reference), // fxc:contract
+        "presets/effects/reference.toml",
+        include_str!("../presets/effects/reference.toml"),
+    ),
 ];
 
 /// Read one file's text.

@@ -90,6 +90,8 @@ pub mod libra;
 pub mod arca;
 /// Caelum, the shimmer reverb (fx side round, wave A). // fxa:contract
 pub mod caelum;
+/// Comparatio, the reference comparator (fx side round, wave C). // fxc:contract
+pub mod comparatio;
 /// Fractus, the glitch sequencer and grain cloud (fx side round, wave A). // fxa:contract
 pub mod fractus;
 /// What wave A's editors share: cells sized to their words. // fxa
@@ -100,6 +102,8 @@ pub mod loquax;
 /// The pedals' artwork: textures, illustrations, lettering. // fx:fragor
 pub mod pedal_art;
 pub mod pedal_draw;
+/// Purus, the real-time repair unit (fx side round, wave C). // fxc:contract
+pub mod purus;
 /// Rota, the rotary speaker (fx side round, wave 3). // fx3:contract
 pub mod rota;
 /// Saltus, pitch (fx side round, wave 3). // fx3:contract
@@ -163,20 +167,22 @@ pub struct FxEditors {
     pub discrimen: discrimen::State,
     pub speculum: speculum::State,
     pub tonus: tonus::State,
-    pub aula: aula::State,       // r39:conv
-    pub cribrum: cribrum::State, // fx:contract
-    pub fragor: fragor::State,   // fx:contract
-    pub lapsus: lapsus::State,   // fx:contract
-    pub vetus: vetus::State,     // fx:contract
-    pub libra: libra::State,     // fx:contract
-    pub tabula: tabula::State,   // fx3:contract
-    pub saltus: saltus::State,   // fx3:contract
-    pub rota: rota::State,       // fx3:contract
-    pub arca: arca::State,       // fx3:contract
-    pub loquax: loquax::State,   // fxa:contract
-    pub fractus: fractus::State, // fxa:contract
-    pub caelum: caelum::State,   // fxa:contract
-    pub delay: delay::State,     // r39:delay
+    pub aula: aula::State,             // r39:conv
+    pub cribrum: cribrum::State,       // fx:contract
+    pub fragor: fragor::State,         // fx:contract
+    pub lapsus: lapsus::State,         // fx:contract
+    pub vetus: vetus::State,           // fx:contract
+    pub libra: libra::State,           // fx:contract
+    pub tabula: tabula::State,         // fx3:contract
+    pub saltus: saltus::State,         // fx3:contract
+    pub rota: rota::State,             // fx3:contract
+    pub arca: arca::State,             // fx3:contract
+    pub loquax: loquax::State,         // fxa:contract
+    pub fractus: fractus::State,       // fxa:contract
+    pub caelum: caelum::State,         // fxa:contract
+    pub purus: purus::State,           // fxc:contract
+    pub comparatio: comparatio::State, // fxc:contract
+    pub delay: delay::State,           // r39:delay
     /// Hosted plug-ins' editors and menus (`views::plugins`).
     pub hosted: crate::views::plugins::State,
     /// The open editor's frame: its preset, its lists.
@@ -515,6 +521,8 @@ pub fn code_presets(kind: EffectKind) -> &'static [FactoryPreset] {
         EffectKind::Vocoder => loquax::FACTORY_PRESETS, // fxa:contract
         EffectKind::Glitch => fractus::FACTORY_PRESETS, // fxa:contract
         EffectKind::Shimmer => caelum::FACTORY_PRESETS, // fxa:contract
+        EffectKind::Repair => purus::FACTORY_PRESETS, // fxc:contract
+        EffectKind::Reference => comparatio::FACTORY_PRESETS, // fxc:contract
         EffectKind::Delay => delay::FACTORY_PRESETS, // r39:delay
         _ => &[],
     }
@@ -619,20 +627,22 @@ pub enum Editor {
     Discrimen(Box<discrimen::State>),
     Speculum(Box<speculum::State>),
     Tonus(Box<tonus::State>),
-    Aula(Box<aula::State>),       // r39:conv
-    Cribrum(Box<cribrum::State>), // fx:contract
-    Fragor(Box<fragor::State>),   // fx:contract
-    Lapsus(Box<lapsus::State>),   // fx:contract
-    Vetus(Box<vetus::State>),     // fx:contract
-    Libra(Box<libra::State>),     // fx:contract
-    Tabula(Box<tabula::State>),   // fx3:contract
-    Saltus(Box<saltus::State>),   // fx3:contract
-    Rota(Box<rota::State>),       // fx3:contract
-    Arca(Box<arca::State>),       // fx3:contract
-    Loquax(Box<loquax::State>),   // fxa:contract
-    Fractus(Box<fractus::State>), // fxa:contract
-    Caelum(Box<caelum::State>),   // fxa:contract
-    Delay(Box<delay::State>),     // r39:delay
+    Aula(Box<aula::State>),             // r39:conv
+    Cribrum(Box<cribrum::State>),       // fx:contract
+    Fragor(Box<fragor::State>),         // fx:contract
+    Lapsus(Box<lapsus::State>),         // fx:contract
+    Vetus(Box<vetus::State>),           // fx:contract
+    Libra(Box<libra::State>),           // fx:contract
+    Tabula(Box<tabula::State>),         // fx3:contract
+    Saltus(Box<saltus::State>),         // fx3:contract
+    Rota(Box<rota::State>),             // fx3:contract
+    Arca(Box<arca::State>),             // fx3:contract
+    Loquax(Box<loquax::State>),         // fxa:contract
+    Fractus(Box<fractus::State>),       // fxa:contract
+    Caelum(Box<caelum::State>),         // fxa:contract
+    Purus(Box<purus::State>),           // fxc:contract
+    Comparatio(Box<comparatio::State>), // fxc:contract
+    Delay(Box<delay::State>),           // r39:delay
 }
 
 impl Editor {
@@ -675,6 +685,8 @@ impl Editor {
             EffectKind::Vocoder => Some(Editor::Loquax(Box::default())), // fxa:contract
             EffectKind::Glitch => Some(Editor::Fractus(Box::default())), // fxa:contract
             EffectKind::Shimmer => Some(Editor::Caelum(Box::default())), // fxa:contract
+            EffectKind::Repair => Some(Editor::Purus(Box::default())), // fxc:contract
+            EffectKind::Reference => Some(Editor::Comparatio(Box::default())), // fxc:contract
             EffectKind::Delay => Some(Editor::Delay(Box::default())), // r39:delay
             _ => None,
         }
@@ -719,6 +731,8 @@ impl Editor {
             Editor::Loquax(st) => loquax::editor(host, st, ui), // fxa:contract
             Editor::Fractus(st) => fractus::editor(host, st, ui), // fxa:contract
             Editor::Caelum(st) => caelum::editor(host, st, ui), // fxa:contract
+            Editor::Purus(st) => purus::editor(host, st, ui), // fxc:contract
+            Editor::Comparatio(st) => comparatio::editor(host, st, ui), // fxc:contract
             Editor::Delay(st) => delay::editor(host, st, ui), // r39:delay
         }
     }
@@ -771,6 +785,8 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         | EffectKind::Vocoder // fxa:contract
         | EffectKind::Glitch // fxa:contract
         | EffectKind::Shimmer // fxa:contract
+        | EffectKind::Repair // fxc:contract
+        | EffectKind::Reference // fxc:contract
         | EffectKind::Delay // r39:delay
         | EffectKind::External => {
             let mut pos = app.fx.pos;
@@ -825,6 +841,8 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
                     EffectKind::Vocoder => loquax::framed(app, ui, strip, effect), // fxa:contract
                     EffectKind::Glitch => fractus::framed(app, ui, strip, effect), // fxa:contract
                     EffectKind::Shimmer => caelum::framed(app, ui, strip, effect), // fxa:contract
+                    EffectKind::Repair => purus::framed(app, ui, strip, effect), // fxc:contract
+                    EffectKind::Reference => comparatio::framed(app, ui, strip, effect), // fxc:contract
                     EffectKind::Delay => delay::framed(app, ui, strip, effect), // r39:delay
                     _ => crate::views::plugins::framed(app, ui, strip, effect),
                 },
@@ -878,6 +896,8 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
         EffectKind::Vocoder => loquax::preview(ui, spec), // fxa:contract
         EffectKind::Glitch => fractus::preview(ui, spec), // fxa:contract
         EffectKind::Shimmer => caelum::preview(ui, spec), // fxa:contract
+        EffectKind::Repair => purus::preview(ui, spec), // fxc:contract
+        EffectKind::Reference => comparatio::preview(ui, spec), // fxc:contract
         EffectKind::Delay => delay::preview(ui, spec), // r39:delay
         _ => {
             let s = crate::kit::Style::current();
@@ -925,6 +945,8 @@ pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId, kind: E
         EffectKind::Vocoder => loquax::demo_setup(app, strip, effect), // fxa:contract
         EffectKind::Glitch => fractus::demo_setup(app, strip, effect), // fxa:contract
         EffectKind::Shimmer => caelum::demo_setup(app, strip, effect), // fxa:contract
+        EffectKind::Repair => purus::demo_setup(app, strip, effect), // fxc:contract
+        EffectKind::Reference => comparatio::demo_setup(app, strip, effect), // fxc:contract
         EffectKind::Delay => delay::demo_setup(app, strip, effect), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_setup(app, strip, effect),
         _ => {}
@@ -970,6 +992,8 @@ pub fn demo_feed(app: &mut CantusApp, kind: EffectKind) {
         EffectKind::Vocoder => loquax::demo_feed(app), // fxa:contract
         EffectKind::Glitch => fractus::demo_feed(app), // fxa:contract
         EffectKind::Shimmer => caelum::demo_feed(app), // fxa:contract
+        EffectKind::Repair => purus::demo_feed(app), // fxc:contract
+        EffectKind::Reference => comparatio::demo_feed(app), // fxc:contract
         EffectKind::Delay => delay::demo_feed(app), // r39:delay
         EffectKind::Eq => crate::views::eq_editor::demo_feed(app),
         _ => {}

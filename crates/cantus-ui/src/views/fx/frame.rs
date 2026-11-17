@@ -152,6 +152,8 @@ pub fn hue_of(kind: EffectKind) -> Function {
         EffectKind::Vocoder => Function::Source,    // fxa:contract (loquax: a voice)
         EffectKind::Glitch => Function::Mod,        // fxa:contract (fractus)
         EffectKind::Shimmer => Function::Space,     // fxa:contract (caelum)
+        EffectKind::Repair => Function::Tone,       // fxc:contract (purus)
+        EffectKind::Reference => Function::Output,  // fxc:contract (comparatio)
     }
 }
 
@@ -195,6 +197,8 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
         EffectKind::Vocoder => super::loquax::designed_size(),
         EffectKind::Glitch => Vec2::new(1340.0, 720.0), // fxa:fractus
         EffectKind::Shimmer => Vec2::new(1340.0, 900.0), // fxa:caelum
+        EffectKind::Repair => super::purus::designed_size(), // fxc:purus
+        EffectKind::Reference => super::comparatio::designed_size(), // fxc:comparatio
         _ => Vec2::new(1000.0, 640.0),
     }
 }

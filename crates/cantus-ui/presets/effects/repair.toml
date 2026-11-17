@@ -1,0 +1,12 @@
+# Purus repair: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's wave C: the starting preset only until phase B adds the rest.
+# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+
+[[preset]]
+key = "preset.purus.mains_50"
+note = "Mains hum at 50 Hz, followed within 2 Hz, eight harmonics notched: the starting preset."
+styles = ["rock", "film"]
+roles = ["vocal"]
+[preset.values]
+"hmode" = 1
+"hon" = 1

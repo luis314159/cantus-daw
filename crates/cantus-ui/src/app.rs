@@ -1742,6 +1742,8 @@ impl CantusApp {
             "loquax" | "vocoder" => EffectKind::Vocoder, // fxa:contract
             "fractus" | "glitch" => EffectKind::Glitch, // fxa:contract
             "caelum" | "shimmer" => EffectKind::Shimmer, // fxa:contract
+            "purus" | "repair" => EffectKind::Repair,   // fxc:contract
+            "comparatio" | "reference" => EffectKind::Reference, // fxc:contract
             "delay" | "echo" => EffectKind::Delay,      // r39:delay
             _ => EffectKind::Eq,
         };

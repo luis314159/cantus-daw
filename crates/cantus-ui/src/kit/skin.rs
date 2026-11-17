@@ -101,6 +101,12 @@ pub mod sequencers;
 // The observatory's window, astrolabe and tubes Caelum draws (ADR 0141). fxa:caelum
 #[path = "skin/observatory.rs"]
 pub mod observatory;
+// The restoration bench Purus draws (ADR 0145). fxc:purus
+#[path = "skin/restoration.rs"]
+pub mod restoration;
+// The two-deck console Comparatio draws (ADR 0146). fxc:comparatio
+#[path = "skin/comparator.rs"]
+pub mod comparator;
 // The balance Libra draws (ADR 0133). fx:libra
 #[path = "skin/scales.rs"]
 pub mod scales;

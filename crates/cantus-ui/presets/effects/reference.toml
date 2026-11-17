@@ -1,0 +1,3 @@
+# Comparatio reference: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
+# The fx side round's wave C: it starts at its defaults (it measures); phase B adds the
+# ways of comparing. The tests check every key, value, style and role.

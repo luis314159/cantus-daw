@@ -20,6 +20,11 @@ use cantus_core::EffectKind;
 mod fxa;
 pub use fxa::*;
 
+// fxc — wave C's two faces and their colourways (ADRs 0145–0146, provisional).
+#[path = "side_fxc.rs"]
+mod fxc;
+pub use fxc::*;
+
 // fx:cribrum — Cribrum's own face (ADR 0130, provisional), in three colourways the user
 // chooses among (ADR 0130 §Colourways); the first, Nocturne, is its face. Every display is
 // a lit screen, dark in both themes (the owner's choice for the round's displays).
@@ -718,6 +723,8 @@ pub fn colourways(kind: EffectKind) -> &'static [Colourway] {
         EffectKind::Vocoder => &LOQUAX_COLOURWAYS,     // fxa:loquax
         EffectKind::Glitch => &FRACTUS_COLOURWAYS,     // fxa:fractus
         EffectKind::Shimmer => &CAELUM_COLOURWAYS,     // fxa:caelum
+        EffectKind::Repair => &PURUS_COLOURWAYS,       // fxc:purus
+        EffectKind::Reference => &COMPARATIO_COLOURWAYS, // fxc:comparatio
         _ => &[],
     }
 }
@@ -730,13 +737,15 @@ pub fn of(kind: EffectKind) -> Option<&'static Skin> {
         EffectKind::TimeShaper => Some(&LAPSUS),
         EffectKind::LoFi => Some(&VETUS),
         EffectKind::Utility => Some(&LIBRA),
-        EffectKind::Board => Some(&TABULA),      // fx3:tabula
-        EffectKind::PitchShift => Some(&SALTUS), // fx3:saltus
-        EffectKind::Rotary => Some(&ROTA),       // fx3:rota
-        EffectKind::Amp => Some(&ARCA),          // fx3:arca
-        EffectKind::Vocoder => Some(&LOQUAX),    // fxa:loquax
-        EffectKind::Glitch => Some(&FRACTUS),    // fxa:fractus
-        EffectKind::Shimmer => Some(&CAELUM),    // fxa:caelum
+        EffectKind::Board => Some(&TABULA),         // fx3:tabula
+        EffectKind::PitchShift => Some(&SALTUS),    // fx3:saltus
+        EffectKind::Rotary => Some(&ROTA),          // fx3:rota
+        EffectKind::Amp => Some(&ARCA),             // fx3:arca
+        EffectKind::Vocoder => Some(&LOQUAX),       // fxa:loquax
+        EffectKind::Glitch => Some(&FRACTUS),       // fxa:fractus
+        EffectKind::Shimmer => Some(&CAELUM),       // fxa:caelum
+        EffectKind::Repair => Some(&PURUS),         // fxc:purus
+        EffectKind::Reference => Some(&COMPARATIO), // fxc:comparatio
         _ => None,
     }
 }
@@ -810,8 +819,9 @@ pub const FRAGOR_COLOURWAYS: [Colourway; 3] = [
 mod tests {
     use super::super::{colourways, of, Skin, Unit};
     use super::{
-        ARCA, CAELUM, CRIBRUM, FRACTUS, FRAGOR, LAPSUS, LIBRA, LOQUAX, ROTA, SALTUS, VETUS,
-    }; // fx3:saltus, fx3:arca, fx3:rota, fxa
+        ARCA, CAELUM, COMPARATIO, CRIBRUM, FRACTUS, FRAGOR, LAPSUS, LIBRA, LOQUAX, PURUS, ROTA,
+        SALTUS, VETUS,
+    }; // fx3:saltus, fx3:arca, fx3:rota, fxa, fxc
 
     fn hue_gap(a: f32, b: f32) -> f32 {
         let d = (a - b).rem_euclid(360.0);
@@ -824,9 +834,20 @@ mod tests {
     /// The side round's faces as drawn (a sheet still wearing a sibling's look is left out).
     fn faces() -> Vec<&'static Skin> {
         [
-            &CRIBRUM, &FRAGOR, &LAPSUS, &VETUS, &LIBRA, &SALTUS, &ROTA, &ARCA, &LOQUAX, &FRACTUS,
+            &CRIBRUM,
+            &FRAGOR,
+            &LAPSUS,
+            &VETUS,
+            &LIBRA,
+            &SALTUS,
+            &ROTA,
+            &ARCA,
+            &LOQUAX,
+            &FRACTUS,
             &CAELUM,
-        ] // fx3:saltus, fx3:rota, fx3:arca
+            &PURUS,
+            &COMPARATIO,
+        ] // fx3:saltus, fx3:rota, fx3:arca, fxc
         .into_iter()
         .filter(|s| !is_placeholder(s))
         .collect()

@@ -412,6 +412,12 @@ fn natives() -> Vec<(&'static str, PickChoice, Vec<Category>)> {
             vec![C::Modulation],
         ), // fxa:contract
         ("caelum", PickChoice::Effect(E::Shimmer), vec![C::Space]), // fxa:contract
+        ("purus", PickChoice::Effect(E::Repair), vec![C::Utility]), // fxc:contract
+        (
+            "comparatio",
+            PickChoice::Effect(E::Reference),
+            vec![C::Mastering, C::Utility],
+        ), // fxc:contract
     ];
     // A scaffold instrument stays out of the picker until it is ready (`ready_kinds`).
     v.retain(|(_, c, _)| match c {
