@@ -233,12 +233,23 @@ pub(super) fn input(
                 Caps::NONE,
             );
         }
-        if resp.clicked() {
-            app.select_track(id);
-        }
-        if name.as_ref().is_some_and(|n| n.clicked()) {
-            app.select_track(id);
-            open_name = Some(id);
+        // ADR 0150: Ctrl+click adds a track to the selection or takes it out, Shift+click
+        // takes the run from the selected one — on the header or on its name; a plain click
+        // selects one again (and on the name, opens it for renaming as before).
+        let on_name = name.as_ref().is_some_and(|n| n.clicked());
+        if resp.clicked() || on_name {
+            let mods = ui.input(|i| i.modifiers);
+            if mods.command {
+                app.toggle_track_selected(id);
+            } else if mods.shift {
+                app.select_track_run(id);
+            } else {
+                app.selected_tracks.clear();
+                app.select_track(id);
+                if on_name {
+                    open_name = Some(id);
+                }
+            }
         }
         if resp.double_clicked() {
             app.open_track_instrument(id);

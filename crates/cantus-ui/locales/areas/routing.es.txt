@@ -124,3 +124,9 @@ routing.menu.level_type = Escribir un nivel…
 routing.menu.level_title = Nivel · {from} → {to}
 routing.menu.level_keys = dB, de −∞ a 0 · Intro: aplicar · Esc: cancelar
 routing.menu.level_bad = No es un nivel: escribe dB, como −6 o −4,5
+# ADR 0150: la selección a un bus nuevo, en un paso
+routing.menu.new_bus = Enrutar la selección a un bus nuevo
+routing.new_bus_name = Bus {n}
+routing.new_bus_group_name = Bus {group}
+cmd.new_bus = enrutar a un bus nuevo
+action.route-to-new-bus = Enrutar la selección a un bus nuevo

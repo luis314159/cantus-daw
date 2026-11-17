@@ -106,6 +106,9 @@ pub struct CantusApp {
     /// move, a *route selected here* or a submix act on. Meaningful only while it holds
     /// `selected_strip`; see [`Self::strip_selection`].
     pub selected_strips: Vec<StripId>,
+    /// The arrangement's track selection beyond `selected_track` (ADR 0150): Ctrl+click and
+    /// Shift+click on the headers. UI state, as `selected_strips` is.
+    pub selected_tracks: Vec<TrackId>,
     pub selected_notes: Vec<cantus_core::NoteId>,
     /// Which half of the window the last edit gesture happened in. Cut, copy, paste,
     /// duplicate, delete and the arrow keys all mean different things depending on it, and
@@ -721,6 +724,7 @@ impl CantusApp {
             time_selection: None,
             selected_strip: None,
             selected_strips: Vec::new(),
+            selected_tracks: Vec::new(),
             selected_notes: Vec::new(),
             focus: EditFocus::PianoRoll,
             arrangement: ArrangementView::default(),
@@ -1457,39 +1461,106 @@ impl CantusApp {
     /// them and going to the master — a group, in the one tree the mixer has (ADR 0014).
     /// Selected afterwards, so the next thing typed is its name.
     pub fn create_submix(&mut self, strips: &[StripId]) -> Option<StripId> {
-        let members: Vec<StripId> = strips
-            .iter()
-            .copied()
-            .filter(|s| self.project().strip(*s).is_some())
-            .collect();
-        if members.is_empty() {
+        self.route_to_new_bus(strips, &[])
+    }
+
+    /// *Route the selected to a new bus* (ADR 0150): `strips` and `tracks` (the tracks'
+    /// strips, or the tracks themselves where they feed the master with no strip) to a new
+    /// strip right after them — *‹group› Bus* when they share a group, else *Bus n* — as
+    /// one step of undo (`routing::plan::new_bus`). The bus is selected.
+    pub fn route_to_new_bus(&mut self, strips: &[StripId], tracks: &[TrackId]) -> Option<StripId> {
+        use cantus_core::routing::plan;
+        let p = self.project();
+        let (sources, direct) = plan::bus_sources(p, strips, tracks);
+        if sources.is_empty() && direct.is_empty() {
             return None;
         }
-        let index = members
+        let groups: Vec<_> = sources
             .iter()
-            .filter_map(|s| self.project().strip_index(*s))
-            .max()
-            .unwrap_or(0)
-            + 1;
-        let strip = self.bus.new_strip(t("mixer.submix_name"));
+            .map(|s| p.strip(*s).and_then(|st| st.group))
+            .collect();
+        let group = groups
+            .first()
+            .copied()
+            .flatten()
+            .filter(|g| groups.iter().all(|x| *x == Some(*g)))
+            .and_then(|g| p.strip_group(g))
+            .map(|g| g.name.clone());
+        let name = match group {
+            Some(g) => tf("routing.new_bus_group_name", &[("group", &g)]),
+            None => {
+                let n = plan::free_number(p, |n| tf("routing.new_bus_name", &[("n", &n)]));
+                tf("routing.new_bus_name", &[("n", &n)])
+            }
+        };
+        let strip = self.bus.new_strip(name);
         let id = strip.id;
-        let mut commands = vec![Command::InsertStrip {
-            index,
-            strip: Box::new(strip),
-        }];
-        commands.extend(members.iter().map(|m| Command::SetStripOutput {
-            id: *m,
-            output: Some(id),
-        }));
-        if self.exec(Command::Batch {
-            label_key: "cmd.create_submix".into(),
-            commands,
-        }) {
+        let cmd = plan::new_bus(self.project(), strips, tracks, strip)?;
+        if self.exec(cmd) {
             self.select_strip(id);
             Some(id)
         } else {
             None
         }
+    }
+
+    /// The arrangement's track selection (ADR 0150): the Ctrl/Shift-clicked tracks when the
+    /// selected track is among them, else the selected track alone.
+    pub fn track_selection(&self) -> Vec<TrackId> {
+        match self.selected_track {
+            Some(t) if self.selected_tracks.contains(&t) => self.selected_tracks.clone(),
+            Some(t) => vec![t],
+            None => Vec::new(),
+        }
+    }
+
+    /// Ctrl+click on a track's header: add it to the selection, or take it out again.
+    pub fn toggle_track_selected(&mut self, id: TrackId) {
+        let mut multi = self.track_selection();
+        match multi.iter().position(|t| *t == id) {
+            Some(i) => {
+                multi.remove(i);
+                if self.selected_track == Some(id) {
+                    if let Some(first) = multi.first().copied() {
+                        self.select_track(first);
+                    }
+                }
+            }
+            None => {
+                multi.push(id);
+                self.select_track(id);
+            }
+        }
+        self.selected_tracks = multi;
+    }
+
+    /// Shift+click on a track's header: the run of tracks from the selected one to `id`,
+    /// in the song's order.
+    pub fn select_track_run(&mut self, id: TrackId) {
+        let p = self.project();
+        let (Some(from), Some(to)) = (
+            self.selected_track.and_then(|t| p.track_index(t)),
+            p.track_index(id),
+        ) else {
+            self.select_track(id);
+            return;
+        };
+        let run: Vec<TrackId> = p.tracks[from.min(to)..=from.max(to)]
+            .iter()
+            .map(|t| t.id)
+            .collect();
+        self.select_track(id);
+        self.selected_tracks = run;
+    }
+
+    /// Whether `id` is in the arrangement's track selection.
+    pub fn track_selected(&self, id: TrackId) -> bool {
+        self.selected_track == Some(id)
+            || (self.selected_tracks.len() > 1
+                && self
+                    .selected_track
+                    .is_some_and(|t| self.selected_tracks.contains(&t))
+                && self.selected_tracks.contains(&id))
     }
 
     /// Move one strip `delta` places along its dock (the strip menu, Shift+wheel): the
@@ -4220,6 +4291,16 @@ impl CantusApp {
             }
             // While the mixer is what is being edited: the selected strip's route menu,
             // opened by the desk where its ▼ chip is on its next frame.
+            // ADR 0150: the selection of what is being edited to a new bus.
+            RouteToNewBus => {
+                if self.focus == EditFocus::Mixer {
+                    let strips = self.strip_selection();
+                    self.route_to_new_bus(&strips, &[]);
+                } else {
+                    let tracks = self.track_selection();
+                    self.route_to_new_bus(&[], &tracks);
+                }
+            }
             RouteMenu => {
                 if self.focus == EditFocus::Mixer
                     && self.selected_strip.is_some_and(|s| !s.is_master())

@@ -1213,3 +1213,121 @@ fn a_pads_chain_is_no_cable_of_the_desks() {
     );
     assert_eq!(e.len(), p.strips.len() - 1, "an output per desk strip");
 }
+
+// ---- ADR 0150: route the selected to a new bus ------------------------------------------
+
+fn bus_named(p: &mut Project, name: &str) -> MixerStrip {
+    p.make_strip(name)
+}
+
+#[test]
+fn a_new_bus_goes_after_the_last_source_and_takes_their_output() {
+    let (mut p, s) = desk(6);
+    let bus = bus_named(&mut p, "Bus 1");
+    let id = bus.id;
+    // Three sources, given out of order: the bus goes right after the last on the desk.
+    let cmd = plan::new_bus(&p, &[s[3], s[1], s[2]], &[], bus).expect("a batch");
+    assert_eq!(label(&cmd), "cmd.new_bus");
+    let after = applies_and_undoes(&p, cmd);
+    assert_eq!(
+        after.strip_index(id),
+        Some(4),
+        "right after the fourth strip"
+    );
+    for x in [s[1], s[2], s[3]] {
+        assert_eq!(after.strip(x).unwrap().output, Some(id));
+    }
+    assert_eq!(after.strip(id).unwrap().output, None, "to the master");
+    assert_eq!(
+        after.strip(s[0]).unwrap().output,
+        None,
+        "the rest untouched"
+    );
+}
+
+#[test]
+fn a_new_bus_keeps_a_nested_route_and_its_sources_dock_and_group() {
+    let (mut p, s) = desk(6);
+    // s[1] and s[2] go to s[5] already, in the right dock, in one group.
+    let g = p.make_strip_group("Drums", Color::PALETTE[2]);
+    let gid = g.id;
+    apply(
+        &mut p,
+        Command::InsertStripGroup {
+            index: 0,
+            group: Box::new(g),
+        },
+    );
+    for x in [s[1], s[2]] {
+        apply(
+            &mut p,
+            Command::SetStripOutput {
+                id: x,
+                output: Some(s[5]),
+            },
+        );
+        let st = p.strip_mut(x).unwrap();
+        st.dock = Dock::Right;
+        st.group = Some(gid);
+    }
+    let bus = bus_named(&mut p, "Drums Bus");
+    let id = bus.id;
+    let after = applies_and_undoes(&p, plan::new_bus(&p, &[s[1], s[2]], &[], bus).unwrap());
+    let b = after.strip(id).unwrap();
+    assert_eq!(b.output, Some(s[5]), "the output they shared");
+    assert_eq!(b.dock, Dock::Right);
+    assert_eq!(b.group, Some(gid));
+    // Mixed outputs, docks and groups: the master, the middle, no group.
+    let mut q = p.clone();
+    q.strip_mut(s[2]).unwrap().output = None;
+    q.strip_mut(s[2]).unwrap().dock = Dock::Left;
+    q.strip_mut(s[2]).unwrap().group = None;
+    let bus = bus_named(&mut q, "Bus 1");
+    let id = bus.id;
+    let after = applies_and_undoes(&q, plan::new_bus(&q, &[s[1], s[2]], &[], bus).unwrap());
+    let b = after.strip(id).unwrap();
+    assert_eq!((b.output, b.dock, b.group), (None, Dock::Middle, None));
+}
+
+#[test]
+fn a_new_bus_from_tracks_routes_their_strips_once_and_takes_the_strip_less() {
+    let (mut p, s) = desk(4);
+    let mut tracks = Vec::new();
+    for (name, strip) in [
+        ("A", Some(s[1])),
+        ("B", Some(s[1])),
+        ("C", None),
+        ("D", Some(s[2])),
+    ] {
+        let mut t = p.make_track(name);
+        t.strip = strip;
+        tracks.push(t.id);
+        p.tracks.push(t);
+    }
+    let bus = bus_named(&mut p, "Bus 1");
+    let id = bus.id;
+    let (sources, direct) = plan::bus_sources(&p, &[], &tracks);
+    assert_eq!(sources, vec![s[1], s[2]], "a shared strip once");
+    assert_eq!(direct, vec![tracks[2]]);
+    let after = applies_and_undoes(&p, plan::new_bus(&p, &[], &tracks, bus).unwrap());
+    assert_eq!(after.strip(s[1]).unwrap().output, Some(id));
+    assert_eq!(after.strip(s[2]).unwrap().output, Some(id));
+    assert_eq!(after.track(tracks[2]).unwrap().strip, Some(id));
+    assert_eq!(after.strip_index(id), Some(3));
+}
+
+#[test]
+fn a_new_bus_leaves_out_vcas_and_has_nothing_to_do_without_sources() {
+    let (mut p, s) = desk(3);
+    p.strip_mut(s[1]).unwrap().kind = cantus_core::vca::StripKind::Vca;
+    let bus = bus_named(&mut p, "Bus 1");
+    assert!(plan::new_bus(&p, &[s[1]], &[], bus.clone()).is_none());
+    assert!(plan::new_bus(&p, &[], &[], bus.clone()).is_none());
+    // A taken id is refused.
+    let mut taken = bus.clone();
+    taken.id = s[0];
+    assert!(plan::new_bus(&p, &[s[2]], &[], taken).is_none());
+    assert_eq!(plan::free_number(&p, |n| format!("Bus {n}")), 1);
+    p.strip_mut(s[0]).unwrap().name = "Bus 1".into();
+    assert_eq!(plan::free_number(&p, |n| format!("Bus {n}")), 2);
+}

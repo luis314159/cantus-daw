@@ -506,9 +506,10 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             e.push(
                 Entry::act(Label::Key("mixer.menu.send_here"), Act::SendHere(id)).enabled(others),
             );
+            // ADR 0150: the selection (or this strip alone) to a new bus, in one step.
             e.push(
-                Entry::act(Label::Key("mixer.menu.submix"), Act::Submix(id))
-                    .enabled(selection.contains(&id)),
+                Entry::act(Label::Key("routing.menu.new_bus"), Act::Submix(id))
+                    .shortcut(app.keymap.display_for(Action::RouteToNewBus)),
             );
             if let Some(track) = app.selected_track.and_then(|t| p.track(t)) {
                 e.push(
@@ -1463,9 +1464,9 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
                 .collect();
             app.send_strips_to(&others, id);
         }
-        Act::Submix(_) => {
-            let members = app.strip_selection();
-            app.create_submix(&members);
+        Act::Submix(id) => {
+            let members = targets(app, id);
+            app.route_to_new_bus(&members, &[]);
         }
         Act::RouteTrack(track, id) => app.route_track(track, Some(id)),
         Act::Duck(strip, key) => {

@@ -615,6 +615,26 @@ Pantalla ▸ Escala* → *Escala personalizada* 200 (cierra sesión), o un monit
 - [ ] **Si el usuario del issue contesta**: con la versión corregida y su pantalla, ¿se abren
       en su sitio? Si no, una captura de pantalla con el menú abierto y su escala.
 
+### La selección a un bus nuevo, en un paso (ADR 0150, provisional) <!-- fix/flicker -->
+
+Probado en emulación (`tests/bus_from_selection_e2e.rs`, con el motor real); esto es lo que
+confirma tu oído y tu mano:
+
+- [ ] **Desde el mezclador**: clic en el número de una pista, Ctrl+clic en otras dos (o
+      Mayús+clic para un tramo), **Ctrl+G**: aparece *Bus 1* justo después de la última, las
+      tres salen por él (los cables lo muestran), suena igual que antes; silencia el bus y
+      callan las tres. Ctrl+Z lo deshace en un paso.
+- [ ] **Desde el menú de una pista del mezclador**: *Enrutar la selección a un bus nuevo*
+      (muestra Ctrl+G). Con pistas de un mismo grupo, el bus se llama *Bus ‹grupo›* y queda en
+      el grupo; si ya iban a otro bus, el nuevo va a ese bus (anidado), no al máster.
+- [ ] **Desde el arreglo**: clic en la cabecera de una pista, Ctrl+clic en otra (las dos se
+      iluminan), clic derecho → *Enrutar la selección a un bus nuevo*, o Ctrl+G. Un clic
+      normal vuelve a seleccionar una sola.
+- [ ] **La paleta de comandos** (Ctrl+Mayús+P) encuentra *Route the selected to a
+      new bus* / *Enrutar la selección a un bus nuevo*.
+- [ ] ¿Quieres además que agrupe las pistas en una carpeta del arreglo, como el *Group* de
+      Live? (ADR 0150 §5: no se hizo; es una línea más en el mismo paso.)
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):
