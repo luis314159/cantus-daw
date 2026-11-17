@@ -318,3 +318,50 @@ reached 48 KB inline; `CantusApp::fx` is boxed now (82 KB, the boot fits).
 Not run: the Linux check (WSL), the plug-ins without default features, the release build,
 the site's pictures and sound excerpts, CPU on a quiet machine. Disk at the end: 3.1 GB
 free on C: (both lanes' targets 35 GB each).
+
+## The opto matched to the published measurements (2026-11-17, the owner's decision)
+
+The owner closed the open choice: "the opto cell matched to published LA-2A/T4
+measurements: attack ~10 ms; release in two stages — ~60 ms for about the first half, then
+1–15 s for the rest — with memory". The decision, the sources, the model and the table of
+figures (published / before / after) are in ADR 0142, *The opto matched*; this is the
+work's record.
+
+- **Sources first**: UA's LA-2A user's guide rev. 1.3 (spec page and the T4's two-stage
+  decay and "memory", p. 10), UA's LA-2A tips page (10 ms average attack, 60 ms for 50 %,
+  1 – 15 s for the rest), PerkinElmer's CdS photocell handbook (speed rises with light; the
+  light history effect, reversible), Najnudel, Müller, Hélie and Roze, DAFx-23 (vactrol:
+  attack shortens with light, release lengthens with level). No measured step response of a
+  T4 itself was found.
+- **Tests first** (`crates/cantus-dsp/src/vinculum_tests_opto.rs`, five, each citing its
+  figure): the attack (each of 6/16/26 dB over within 5 – 20 ms, their mean 7 – 14, never
+  slower when lit harder), the first half in 40 – 80 ms at every depth and time, the memory
+  of how long (complete release rising with 0.1/1/10/30 s, a burst 0.5 – 2 s, the longest
+  4 – 15 s and ≥ 3× the burst), of how hard (≥ 1.5× after 10 s hard than gentle), and a
+  rested cell as new (within 25 %; 1 s after a long passage ≥ 1.5× slower). Run first on the
+  old model (asserts turned to prints) for the *before* column: it failed the Limit's attack
+  (0.9 ms), its half at 22 dB (393 ms after 1 s), and the memory (the same 4.1 – 4.2 s after
+  1, 10 and 30 s). Plus `the_opto_table_is_its_equilibrium` (within 5·10⁻⁴ dB).
+- **The model**: the loop solved at its equilibrium (`OptoEquilibrium`, 513 points, as the
+  vari-mu's) and a photocell of three states in dB (`OptoCell`: fast, slow, memory). The
+  two old opto time tests in `vinculum_tests_time.rs` moved into the new file.
+- **Kept bit-identical**: the VCA and the vari-mu — their 17 renders in
+  `compartir\vinculum\sound` came out byte for byte the same; the static curves; every null,
+  block-size, rest and allocation test.
+- **CPU**: the opto 0.21 → 0.27 – 0.28 % of a core (a per-sample exponential for the memory
+  cost 0.1 % more and became a 33-point table).
+- **Goldens**: none covers Vinculum (new, unreleased); none moved; `DSP_VERSION` stays 6.
+- **Presets**: `preset_tool fit BusCompressor` (all fourteen) moved none: the three opto presets (Opto vocal bus, Smooth leveller, Opto vocal limit) still land in their level windows with the matched cell, and `preset_audit`, `vinculum_e2e` (each model compressing and limiting) and `vinculum_drag` are green.
+- **Sounds** (`compartir\vinculum\sound`, rendered into `C:\projects\daw-fx\tmp\vinculum-opto\sound`
+  first, then replaced one by one): 04 – 06 and 24 – 26 again, the old ones kept as
+  `*-before.wav` (and `table-before.md`); new **30/31, the memory** (the same quiet phrase
+  after silence holds 3.0 → 2.7 dB, straight after twelve loud seconds 5.5 → 4.1 dB, level
+  matched on the first). README's new section says what changed and what to listen for.
+- **Shots**: not re-shot — the faceplate's display draws the static curve and the needle
+  reads the live reduction; no shot shows the ballistics.
+
+### Verified only in emulation
+
+The published figures are the manufacturer's (a reproduction's manual and its plug-in
+maker's page) and a CdS cell handbook's — no capture of a real LA-2A or T4 was measured.
+Nobody has listened to the new excerpts yet.
