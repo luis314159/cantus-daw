@@ -822,20 +822,16 @@ impl FxHost for DawHost<'_> {
         refs: Option<cantus_core::fx::comparatio::References>,
         selected: Option<cantus_core::IrFile>,
     ) -> bool {
-        self.app
-            .exec(cantus_core::Command::SetReferences {
-                strip: self.strip,
-                effect: self.effect,
-                refs: refs.map(Box::new),
-                selected: selected.map(Box::new),
-            })
+        self.app.exec(cantus_core::Command::SetReferences {
+            strip: self.strip,
+            effect: self.effect,
+            refs: refs.map(Box::new),
+            selected: selected.map(Box::new),
+        })
     }
 
     fn store_reference(&self, file: &std::path::Path) -> String {
-        crate::audio_files::stored_path(
-            crate::audio_files::base_of(self.app.path.as_deref()),
-            file,
-        )
+        crate::audio_files::stored_path(crate::audio_files::base_of(self.app.path.as_deref()), file)
     }
 
     fn resolve_reference(&self, path: &str) -> std::path::PathBuf {

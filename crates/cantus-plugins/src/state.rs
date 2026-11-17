@@ -156,7 +156,7 @@ pub fn save_spec_extras(
         fractus: fractus
             .filter(|p| !p.is_empty())
             .map(|p| Box::new(p.clone())), // fxa:fractus
-        refs: None,                            // fxc:comparatio
+        refs: None,                                  // fxc:comparatio
     };
     let mut obj = match serde_json::to_value(&spec) {
         Ok(Value::Object(o)) => o,

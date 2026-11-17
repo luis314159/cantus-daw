@@ -1216,6 +1216,7 @@ dependencies = [
  "clap-sys",
  "egui",
  "egui-baseview",
+ "hound",
  "libloading 0.8.9",
  "raw-window-handle",
  "rtrb",

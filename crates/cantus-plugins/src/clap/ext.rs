@@ -56,10 +56,11 @@ unsafe fn renders_offline_apart(plugin: *const clap_plugin) -> bool {
     Instance::from(plugin).is_some_and(|i| i.shared.desc.kind == cantus_core::EffectKind::Reference)
 }
 
-static RENDER: clap_sys::ext::render::clap_plugin_render = clap_sys::ext::render::clap_plugin_render {
-    has_hard_realtime_requirement: Some(render_hard_realtime),
-    set: Some(render_set),
-};
+static RENDER: clap_sys::ext::render::clap_plugin_render =
+    clap_sys::ext::render::clap_plugin_render {
+        has_hard_realtime_requirement: Some(render_hard_realtime),
+        set: Some(render_set),
+    };
 
 unsafe extern "C" fn render_hard_realtime(_plugin: *const clap_plugin) -> bool {
     false

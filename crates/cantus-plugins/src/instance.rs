@@ -376,9 +376,9 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
-            lapsus: Default::default(),  // fx:lapsus
-            board: Default::default(),   // fx3:tabula
-            fractus: Default::default(), // fxa:fractus
+            lapsus: Default::default(),     // fx:lapsus
+            board: Default::default(),      // fx3:tabula
+            fractus: Default::default(),    // fxa:fractus
             comparatio: Default::default(), // fxc:comparatio
             tapped: AtomicU64::new(0),
         });
@@ -921,8 +921,8 @@ impl Processor {
         let comparatio = (unit.kind == cantus_core::EffectKind::Reference)
             .then(|| shared.comparatio.file.lend())
             .flatten(); // fxc:comparatio
-        // fxc:comparatio — the reference a state named is asked for at once (the builder
-        // waits on its own thread for the store to have read it).
+                        // fxc:comparatio — the reference a state named is asked for at once (the builder
+                        // waits on its own thread for the store to have read it).
         if unit.kind == cantus_core::EffectKind::Reference {
             if let Some(m) = memory.as_mut() {
                 m.ask(&mut unit);
@@ -944,8 +944,8 @@ impl Processor {
             memory,
             lapsus,
             lapsus_held: None,
-            fractus,            // fxa:fractus
-            comparatio,         // fxc:comparatio
+            fractus,    // fxa:fractus
+            comparatio, // fxc:comparatio
             comparatio_held: None,
             offline: table.kind == cantus_core::EffectKind::Reference
                 && shared.comparatio.offline(),
@@ -1174,10 +1174,12 @@ impl Processor {
             };
         }
         cantus_core::fx::tabula::apply_macros(&mut self.spec); // fx3:tabula — macros win
-        // fxc:comparatio — a host's offline render hears the mix, never the reference (as
-        // every render in Cantus; the key exists, so this writes in place).
+                                                               // fxc:comparatio — a host's offline render hears the mix, never the reference (as
+                                                               // every render in Cantus; the key exists, so this writes in place).
         if table.kind == cantus_core::EffectKind::Reference && self.shared.comparatio.offline() {
-            let _ = self.spec.set("listen", cantus_core::fx::comparatio::LISTEN_MIX);
+            let _ = self
+                .spec
+                .set("listen", cantus_core::fx::comparatio::LISTEN_MIX);
         }
         self.unit.configure(&self.spec);
         if let Some(m) = self.memory.as_mut() {

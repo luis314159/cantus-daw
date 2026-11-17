@@ -347,7 +347,9 @@ mod tests {
     /// may never hold one (a hand-edited board is repaired the same way).
     #[test]
     fn it_is_never_a_pedal() {
-        assert!(!crate::fx::tabula::pedal_allowed(crate::EffectKind::Reference));
+        assert!(!crate::fx::tabula::pedal_allowed(
+            crate::EffectKind::Reference
+        ));
     }
 
     #[test]

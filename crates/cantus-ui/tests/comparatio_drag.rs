@@ -57,7 +57,15 @@ fn window(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 /// A few quiet frames in a context of their own: the window's rects are known after.
 fn settle(app: &mut CantusApp, size: egui::Vec2) {
-    shoot_events(&ctx(), size, 1.0, 6, None, |_, _| Vec::new(), |ui| window(app, ui));
+    shoot_events(
+        &ctx(),
+        size,
+        1.0,
+        6,
+        None,
+        |_, _| Vec::new(),
+        |ui| window(app, ui),
+    );
 }
 
 fn press(p: Pos2, pressed: bool) -> Event {
@@ -136,7 +144,9 @@ fn drop_file(app: &mut CantusApp, size: egui::Vec2, at: Pos2, file: &Path) {
             input.events.push(Event::PointerMoved(at));
         }
         if f == 3 {
-            input.dropped_files.push(Arc::new(Dropped(file.to_path_buf())));
+            input
+                .dropped_files
+                .push(Arc::new(Dropped(file.to_path_buf())));
         }
         let mut out = c.run_ui(input, |ui| window(app, ui));
         out.textures_delta.clear();
@@ -231,7 +241,11 @@ fn the_selector_lamps_and_blind_keys_each_one_undo_step() {
         click(&mut app, size, at);
         assert_eq!(spec(&app).get("listen"), *want, "{act:?}");
         app.undo();
-        assert_eq!(spec(&app).get("listen"), before, "{act:?}: one press, one undo");
+        assert_eq!(
+            spec(&app).get("listen"),
+            before,
+            "{act:?}: one press, one undo"
+        );
     }
 }
 
@@ -246,8 +260,13 @@ fn the_reference_list_answers_its_keys_each_one_undo_step() {
         settle(&mut app, size);
         let before = compared(&app);
         let at = spot(&app, Act::Select(i));
-    click(&mut app, size, at);
-        assert_eq!(compared(&app).as_deref(), Some(three[i].as_str()), "key {}", i + 1);
+        click(&mut app, size, at);
+        assert_eq!(
+            compared(&app).as_deref(),
+            Some(three[i].as_str()),
+            "key {}",
+            i + 1
+        );
         assert_eq!(listed(&app), three, "the list kept");
         app.undo();
         assert_eq!(compared(&app), before, "one press, one undo");
@@ -333,7 +352,10 @@ fn send_to_aequalis_puts_the_match_eq_before_the_unit_and_updates_it() {
             .collect()
     };
     let before = chain(&app);
-    assert!(app.fx.comparatio.pic.match_eq.is_some(), "the suggestion is drawn");
+    assert!(
+        app.fx.comparatio.pic.match_eq.is_some(),
+        "the suggestion is drawn"
+    );
     let at = spot(&app, Act::SendEq);
     click(&mut app, size, at);
     let after = chain(&app);
@@ -360,7 +382,11 @@ fn send_to_aequalis_puts_the_match_eq_before_the_unit_and_updates_it() {
     let s2 = app.project().effect(strip, eq).unwrap().spec.clone();
     assert_ne!(s2.params, s.params, "the full amount draws another curve");
     app.undo();
-    assert_eq!(app.project().effect(strip, eq).unwrap().spec, s, "one undo step");
+    assert_eq!(
+        app.project().effect(strip, eq).unwrap().spec,
+        s,
+        "one undo step"
+    );
     app.undo(); // the amount
     app.undo(); // the first send
     assert_eq!(chain(&app), before, "the first send undone at once");

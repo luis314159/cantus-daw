@@ -32,20 +32,20 @@ const PLUGINS: [(&str, &str); 38] = [
     ("DISCRIMEN", "Cantus Discrimen"),
     ("SPECULUM", "Cantus Speculum"),
     ("TONUS", "Cantus Tonus"),
-    ("AULA", "Cantus Aula"),       // r39:conv
-    ("CRIBRUM", "Cantus Cribrum"), // fx:contract
-    ("FRAGOR", "Cantus Fragor"),   // fx:contract
-    ("LAPSUS", "Cantus Lapsus"),   // fx:contract
-    ("VETUS", "Cantus Vetus"),     // fx:contract
-    ("LIBRA", "Cantus Libra"),     // fx:contract
-    ("TABULA", "Cantus Tabula"),   // fx3:contract
-    ("SALTUS", "Cantus Saltus"),   // fx3:contract
-    ("ROTA", "Cantus Rota"),       // fx3:contract
-    ("ARCA", "Cantus Arca"),       // fx3:contract
-    ("LOQUAX", "Cantus Loquax"),   // fxa:loquax
-    ("FRACTUS", "Cantus Fractus"), // fxa:fractus
-    ("CAELUM", "Cantus Caelum"),   // fxa:caelum
-    ("PURUS", "Cantus Purus"),     // fxc:purus
+    ("AULA", "Cantus Aula"),             // r39:conv
+    ("CRIBRUM", "Cantus Cribrum"),       // fx:contract
+    ("FRAGOR", "Cantus Fragor"),         // fx:contract
+    ("LAPSUS", "Cantus Lapsus"),         // fx:contract
+    ("VETUS", "Cantus Vetus"),           // fx:contract
+    ("LIBRA", "Cantus Libra"),           // fx:contract
+    ("TABULA", "Cantus Tabula"),         // fx3:contract
+    ("SALTUS", "Cantus Saltus"),         // fx3:contract
+    ("ROTA", "Cantus Rota"),             // fx3:contract
+    ("ARCA", "Cantus Arca"),             // fx3:contract
+    ("LOQUAX", "Cantus Loquax"),         // fxa:loquax
+    ("FRACTUS", "Cantus Fractus"),       // fxa:fractus
+    ("CAELUM", "Cantus Caelum"),         // fxa:caelum
+    ("PURUS", "Cantus Purus"),           // fxc:purus
     ("COMPARATIO", "Cantus Comparatio"), // fxc:comparatio
 ];
 

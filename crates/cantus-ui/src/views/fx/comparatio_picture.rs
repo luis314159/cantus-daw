@@ -10,8 +10,8 @@
 use cantus_dsp::comparatio::match_eq::{MatchCurve, MatchOptions};
 use cantus_dsp::comparatio::measure::HIST_BINS;
 use cantus_dsp::comparatio::tonal::{Curve, Difference, Resolution, Tonal};
-use cantus_engine::fx::comparatio_store::Summary;
 use cantus_engine::fx::comparatio::{t, R_COUNT};
+use cantus_engine::fx::comparatio_store::Summary;
 use cantus_engine::fx::TELEMETRY_LEN;
 
 /// One source's readings, as the telemetry carries them (`R_*` order; NaN: not yet).
@@ -239,14 +239,14 @@ impl Live {
 }
 
 /// The reference's side of the picture from the store's summary of the one compared: its
-/// curve at `res` and its overview. Whether one was there.
+/// overview set, its curve at `res` returned.
 pub fn reference_of(pic: &mut Picture, summary: &Summary, res: usize) -> Curve {
     if pic.overview.len() != summary.overview.len() {
         pic.overview.clone_from(&summary.overview);
     } else {
         pic.overview.copy_from_slice(&summary.overview);
     }
-    summary.mid[res.min(1)].clone()
+    summary.mid[res.min(1)]
 }
 
 impl Picture {

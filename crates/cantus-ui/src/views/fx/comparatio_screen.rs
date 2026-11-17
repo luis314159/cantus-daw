@@ -370,7 +370,11 @@ fn tonal(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, mv: Color32, rv: Col
 
 /// *Send to Aequalis*: a small key lit in the match EQ's colour, on the dark glass.
 fn send_key(b: &mut Brush, k: f32, r: Rect, hot: bool) {
-    b.rrect(r, 3.0 * k, Fill::Solid(with_alpha(c(pal::MATCH), if hot { 0.30 } else { 0.16 })));
+    b.rrect(
+        r,
+        3.0 * k,
+        Fill::Solid(with_alpha(c(pal::MATCH), if hot { 0.30 } else { 0.16 })),
+    );
     b.rrect_stroke(r, 3.0 * k, 0.8 * k, with_alpha(c(pal::MATCH), 0.85));
     put(
         b,

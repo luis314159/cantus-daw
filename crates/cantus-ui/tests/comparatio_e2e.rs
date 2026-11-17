@@ -171,12 +171,20 @@ fn comparatio_compares_a_reference_on_the_boot_path() {
         let mut host = views::fx::host::DawHost::new(&mut app, StripId::MASTER, fx, "comparatio");
         assert!(views::fx::comparatio::add_references(
             &mut host,
-            &[reference.clone()]
+            std::slice::from_ref(&reference)
         ));
     }
     // Read off the audio thread (on a thread of its own when files load in the background):
     // the app's frames attach it.
-    let stored = app.project().effect(StripId::MASTER, fx).unwrap().spec.ir.clone().unwrap().path;
+    let stored = app
+        .project()
+        .effect(StripId::MASTER, fx)
+        .unwrap()
+        .spec
+        .ir
+        .clone()
+        .unwrap()
+        .path;
     let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
     while !matches!(
         cantus_engine::fx::comparatio_store::status(&stored),
@@ -187,12 +195,20 @@ fn comparatio_compares_a_reference_on_the_boot_path() {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     app.sync_engine();
-    let spec = app.project().effect(StripId::MASTER, fx).unwrap().spec.clone();
+    let spec = app
+        .project()
+        .effect(StripId::MASTER, fx)
+        .unwrap()
+        .spec
+        .clone();
     let refs = spec.refs.as_deref().expect("its list");
     assert_eq!(refs.list.len(), 1);
     assert_eq!(spec.ir.as_deref().unwrap().path, refs.list[0].path);
     let (bytes, hash) = cantus_engine::fx::comparatio_store::fingerprint(&reference).unwrap();
-    assert_eq!((refs.list[0].bytes, refs.list[0].hash.clone()), (bytes, hash));
+    assert_eq!(
+        (refs.list[0].bytes, refs.list[0].hash.clone()),
+        (bytes, hash)
+    );
 
     // No render ever holds the reference: heard, hidden, either blind choice.
     for listen in [1.0, 2.0, 3.0, 4.0] {
@@ -212,7 +228,9 @@ fn comparatio_compares_a_reference_on_the_boot_path() {
     let mut live = Vec::new();
     play(&mut app, &mut proc_, 3 * SR, &mut live);
     assert!(
-        live.iter().zip(&dry).all(|(a, b)| a.to_bits() == b.to_bits()),
+        live.iter()
+            .zip(&dry)
+            .all(|(a, b)| a.to_bits() == b.to_bits()),
         "live, your mix is the render to the bit"
     );
     // The reference heard: matched to the mix's loudness.
@@ -245,7 +263,10 @@ fn comparatio_compares_a_reference_on_the_boot_path() {
     app.toggle_play();
     let from = (7 * SR + SR / 10) * 2;
     assert!(
-        live[from..].iter().zip(&dry[from..]).all(|(a, b)| a.to_bits() == b.to_bits()),
+        live[from..]
+            .iter()
+            .zip(&dry[from..])
+            .all(|(a, b)| a.to_bits() == b.to_bits()),
         "back on your mix, to the bit"
     );
 
@@ -256,11 +277,26 @@ fn comparatio_compares_a_reference_on_the_boot_path() {
         let mut host = views::fx::host::DawHost::new(&mut app, StripId::MASTER, fx, "comparatio");
         assert!(views::fx::comparatio::add_references(&mut host, &[second]));
     }
-    let s = app.project().effect(StripId::MASTER, fx).unwrap().spec.clone();
+    let s = app
+        .project()
+        .effect(StripId::MASTER, fx)
+        .unwrap()
+        .spec
+        .clone();
     assert_eq!(s.refs.as_deref().unwrap().list.len(), 2);
     assert!(s.ir.as_deref().unwrap().path.ends_with("Album master.wav"));
     app.undo();
-    let s = app.project().effect(StripId::MASTER, fx).unwrap().spec.clone();
+    let s = app
+        .project()
+        .effect(StripId::MASTER, fx)
+        .unwrap()
+        .spec
+        .clone();
     assert_eq!(s.refs.as_deref().unwrap().list.len(), 1, "one step");
-    assert!(s.ir.as_deref().unwrap().path.ends_with("Finished master.wav"));
+    assert!(s
+        .ir
+        .as_deref()
+        .unwrap()
+        .path
+        .ends_with("Finished master.wav"));
 }

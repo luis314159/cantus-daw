@@ -40,9 +40,9 @@ use cantus_engine::fx::comparatio::{
     R_INTEGRATED, R_MOMENTARY, R_RANGE, R_SECONDS, R_SHORT, R_TRUE_PEAK,
 };
 use cantus_engine::fx::comparatio_store::{self as store, RefStatus, Summary};
+use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense, Vec2};
 use std::path::PathBuf;
 use std::sync::Arc;
-use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Sense, Vec2};
 
 #[path = "comparatio_art.rs"]
 mod art;
@@ -91,6 +91,8 @@ pub const DESIGN_STATES: &[(&str, &[(&str, f32)])] = &[
     ),
     ("loop", &[("sync", 2.0), ("lstart", 3.0), ("lend", 9.0)]),
     ("blind", &[("listen", 2.0), ("seed", 7.0), ("trial", 6.0)]),
+    // Phase B: the match EQ all the way, up to 9 dB, in sixths.
+    ("match", &[("eqamt", 1.0), ("eqmax", 9.0), ("res", 1.0)]),
 ];
 
 /// The blind test's answers so far (the editor's; the unit knows only the seed and trial).
@@ -427,7 +429,11 @@ fn listed(spec: &EffectSpec) -> (Vec<Reference>, Option<usize>) {
 }
 
 /// What became of a reference's file, in words, and whether it is a warning.
-fn status_words(path: &str, entry: Option<&Reference>, summary: Option<&Summary>) -> (String, bool) {
+fn status_words(
+    path: &str,
+    entry: Option<&Reference>,
+    summary: Option<&Summary>,
+) -> (String, bool) {
     match store::status(path) {
         RefStatus::Failed(e) => {
             let key = if e.contains("not there") {
@@ -510,7 +516,9 @@ fn remove(host: &mut dyn FxHost) {
     };
     let eq = spec.refs.as_deref().and_then(|r| r.eq);
     list.remove(i);
-    let selected = list.get(i.min(list.len().saturating_sub(1))).map(Reference::file);
+    let selected = list
+        .get(i.min(list.len().saturating_sub(1)))
+        .map(Reference::file);
     let refs = References { list, eq };
     host.set_references((!refs.is_empty()).then_some(refs), selected);
 }
@@ -566,7 +574,12 @@ pub fn match_eq_spec(pic: &Picture, sample_rate: f32) -> Option<EffectSpec> {
 /// Put `eq` before Comparatio `effect` on `strip` (one step): in place of the Aequalis it
 /// was sent to last, while that one is still on the strip; else a new Aequalis just before
 /// the unit, its id kept in the unit's references.
-pub fn send_match_eq(app: &mut CantusApp, strip: StripId, effect: EffectId, eq: EffectSpec) -> bool {
+pub fn send_match_eq(
+    app: &mut CantusApp,
+    strip: StripId,
+    effect: EffectId,
+    eq: EffectSpec,
+) -> bool {
     use cantus_core::Command;
     let Some(chain) = app.project().effects_of(strip) else {
         return false;
@@ -879,14 +892,12 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
             (a, if b > a { b } else { len })
         })
     });
-    let region = region
-        .filter(|_| len > 0.0)
-        .map(|(a, b)| {
-            (
-                overview_x(strip.window, k, a.min(b), len),
-                overview_x(strip.window, k, a.max(b), len),
-            )
-        });
+    let region = region.filter(|_| len > 0.0).map(|(a, b)| {
+        (
+            overview_x(strip.window, k, a.min(b), len),
+            overview_x(strip.window, k, a.max(b), len),
+        )
+    });
     st.spots.clone_from(&spots);
     let res = spec.get("res").round() as usize;
     let (mv, rv) = art::voices(s);
@@ -903,7 +914,15 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         art::cheek(b, s, l.cheeks[1], false);
         art::window(b, s, l.screen.glass.expand(3.0 * k), 6.0 * k);
         let hot_act = hot.map(|i| spots[i].act);
-        screen::paint(b, s, &l.screen, &st.pic, res, send, hot_act == Some(Act::SendEq));
+        screen::paint(
+            b,
+            s,
+            &l.screen,
+            &st.pic,
+            res,
+            send,
+            hot_act == Some(Act::SendEq),
+        );
         deck(b, s, l.decks[0], &st.pic, false, mv, &st.words);
         deck(b, s, l.decks[1], &st.pic, true, rv, &st.words);
         reference_strip(b, s, &strip, &st.pic, &st.words, rv, at, hot_act, region);
@@ -967,7 +986,9 @@ fn press(host: &mut dyn FxHost, blind: &mut Blind, pic: &Picture, act: Act) {
 fn fresh_seed(old: u32) -> u32 {
     let t = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.subsec_nanos() ^ (d.as_secs() as u32).rotate_left(16));
+        .map_or(0, |d| {
+            d.subsec_nanos() ^ (d.as_secs() as u32).rotate_left(16)
+        });
     let s = (t ^ old.wrapping_mul(0x9E37_79B9)) % 65_536;
     if s == old {
         (s + 1) % 65_536
@@ -1197,11 +1218,7 @@ fn ref_seconds(pic: &Picture, summary: Option<&Summary>) -> f32 {
 /// and end — one step of undo when it is let go (shown as it is dragged).
 fn drag_loop(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, k: f32, window: Rect) {
     let len = ref_seconds(&st.pic, st.summary.as_deref());
-    let resp = ui.interact(
-        window,
-        ui.id().with("comparatio-overview"),
-        Sense::drag(),
-    );
+    let resp = ui.interact(window, ui.id().with("comparatio-overview"), Sense::drag());
     if len <= 0.0 {
         st.dragging = None;
         return;
@@ -1259,7 +1276,10 @@ fn strip_lay(ctx: &egui::Context, k: f32, r: Rect, n: usize, compared: bool) -> 
     let load = Rect::from_min_size(pos2(r.right() - lw, r.top()), vec2(lw, 20.0 * k));
     let remove = compared.then(|| {
         let rw = w("comparatio.ref.remove");
-        Rect::from_min_size(pos2(load.left() - 8.0 * k - rw, r.top()), vec2(rw, 20.0 * k))
+        Rect::from_min_size(
+            pos2(load.left() - 8.0 * k - rw, r.top()),
+            vec2(rw, 20.0 * k),
+        )
     });
     let key = 22.0 * k;
     let keys = (0..n.min(MAX_REFERENCES))
@@ -1318,7 +1338,15 @@ fn reference_strip(
         use std::fmt::Write as _;
         digits.clear();
         let _ = write!(digits, "{}", i + 1);
-        memory_key(b, s, *key, &digits, at == Some(i), hot == Some(Act::Select(i)), rv);
+        memory_key(
+            b,
+            s,
+            *key,
+            &digits,
+            at == Some(i),
+            hot == Some(Act::Select(i)),
+            rv,
+        );
     }
     if !words.status.is_empty() {
         let x = l.keys.last().map_or(r.left(), |k2| k2.right() + 12.0 * k);
@@ -1344,7 +1372,13 @@ fn reference_strip(
         let band = Rect::from_min_max(pos2(x0, g.top() + 1.0 * k), pos2(x1, g.bottom() - 1.0 * k));
         b.rect(band, Fill::Solid(with_alpha(art::c(pal::LAMP_HOT), 0.14)));
         for x in [x0, x1] {
-            b.vline(x, g.top() + 1.0 * k, g.bottom() - 1.0 * k, 1.0 * k, art::c(pal::SCREEN_INK));
+            b.vline(
+                x,
+                g.top() + 1.0 * k,
+                g.bottom() - 1.0 * k,
+                1.0 * k,
+                art::c(pal::SCREEN_INK),
+            );
         }
     }
     let n = pic.overview.len();
@@ -1391,7 +1425,15 @@ fn reference_strip(
 
 /// A numbered memory key: a small keycap, its number lit in the reference's voice when it
 /// is the one compared.
-fn memory_key(b: &mut Brush, s: &Style, r: Rect, digits: &str, lit: bool, hot: bool, voice: Color32) {
+fn memory_key(
+    b: &mut Brush,
+    s: &Style,
+    r: Rect,
+    digits: &str,
+    lit: bool,
+    hot: bool,
+    voice: Color32,
+) {
     let k = s.k;
     let f = art::console(s);
     b.rrect(
@@ -1399,8 +1441,16 @@ fn memory_key(b: &mut Brush, s: &Style, r: Rect, digits: &str, lit: bool, hot: b
         4.0 * k,
         Fill::Solid(with_alpha(art::shadow(), 0.5)),
     );
-    let cap = if lit { r.translate(vec2(0.0, 1.0 * k)) } else { r };
-    b.rrect(cap, 4.0 * k, Fill::V(art::c(pal::KEY_TOP), art::c(pal::KEY_BODY)));
+    let cap = if lit {
+        r.translate(vec2(0.0, 1.0 * k))
+    } else {
+        r
+    };
+    b.rrect(
+        cap,
+        4.0 * k,
+        Fill::V(art::c(pal::KEY_TOP), art::c(pal::KEY_BODY)),
+    );
     let ink = if lit { voice } else { art::c(pal::KEY_INK) };
     let t = Text::new(digits, Role::Label, ink).caps(false);
     put(b, k, cap.center(), Align2::CENTER_CENTER, &t);

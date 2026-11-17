@@ -382,7 +382,9 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         // fxc:comparatio — the blind test's order and the trial under way: set by its own
         // keys (New test, the answers), never a control — a lane or a controller moving
         // them would give the answer away.
-        ("Reference", "seed" | "trial") => Some("the blind test's order and trial, kept by its keys"),
+        ("Reference", "seed" | "trial") => {
+            Some("the blind test's order and trial, kept by its keys")
+        }
         // fxa:fractus — the cards stand on four pages; the demo opens the first.
         // `every_fractus_page_offers_its_stepped_parameters` opens the others.
         ("Glitch", k) if fractus_page(k).is_some_and(|p| p != 0) => {

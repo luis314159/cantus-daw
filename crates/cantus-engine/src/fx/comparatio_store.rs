@@ -323,7 +323,11 @@ pub fn prepare(
         // Phase B: every other reference in the list read once for its summary.
         if let Some(refs) = slot.spec.refs.as_deref() {
             let compared = slot.spec.ir.as_deref().map(|f| f.path.as_str());
-            for r in refs.list.iter().filter(|r| Some(r.path.as_str()) != compared) {
+            for r in refs
+                .list
+                .iter()
+                .filter(|r| Some(r.path.as_str()) != compared)
+            {
                 let key = (super::aula_store::file_key(&r.path), rate);
                 if has_summary(key.0) {
                     continue;

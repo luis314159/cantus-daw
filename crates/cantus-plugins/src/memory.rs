@@ -48,8 +48,7 @@ fn build<T>(need: MemoryNeed, sample_rate: f32, rx: &rtrb::Consumer<T>) -> Effec
         if let Some(t) = store::wait_for(n.key, rate, std::time::Duration::from_millis(50)) {
             return EffectMemory::Comparatio(Some(t));
         }
-        if !store::loading(n.key, rate) || rx.is_abandoned() || std::time::Instant::now() > until
-        {
+        if !store::loading(n.key, rate) || rx.is_abandoned() || std::time::Instant::now() > until {
             return EffectMemory::Comparatio(None);
         }
     }

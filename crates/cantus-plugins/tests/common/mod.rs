@@ -1071,9 +1071,9 @@ impl Direct {
             EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
             EffectKind::Vocoder => Direct::Loquax(Box::new(cantus_dsp::loquax::Loquax::new(SR))), // fxa:loquax
             EffectKind::Repair => Direct::Purus(Box::new(cantus_dsp::purus::Purus::new(SR))), // fxc:purus
-            EffectKind::Reference => Direct::Comparatio(Box::new(
-                cantus_dsp::comparatio::Comparatio::new(SR),
-            )), // fxc:comparatio
+            EffectKind::Reference => {
+                Direct::Comparatio(Box::new(cantus_dsp::comparatio::Comparatio::new(SR)))
+            } // fxc:comparatio
             EffectKind::Shimmer => Direct::Caelum(
                 Box::new(cantus_dsp::caelum::Caelum::new(SR)),
                 cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),

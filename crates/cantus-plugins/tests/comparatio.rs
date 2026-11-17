@@ -57,7 +57,10 @@ fn wav(dir: &Path, name: &str, l: &[f32], r: &[f32], rate: u32) -> PathBuf {
 }
 
 fn temp(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("cantus-plugin-comparatio-{name}-{}", std::process::id()));
+    let d = std::env::temp_dir().join(format!(
+        "cantus-plugin-comparatio-{name}-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&d).unwrap();
     d
 }
@@ -106,11 +109,16 @@ fn references_live_in_the_state_by_path_size_and_hash_never_their_audio() {
         ],
         eq: None,
     };
-    one.comparatio.set(Some(refs.clone()), Some(IrFile::new(path.clone())));
+    one.comparatio
+        .set(Some(refs.clone()), Some(IrFile::new(path.clone())));
     let state = one.save_state();
     let text = String::from_utf8(state.clone()).unwrap();
     assert!(text.contains("\"refs\"") && text.contains(&hash), "{text}");
-    assert!(state.len() < 2_000, "no audio in the state: {} bytes", state.len());
+    assert!(
+        state.len() < 2_000,
+        "no audio in the state: {} bytes",
+        state.len()
+    );
     // Another instance (another session) loads it: the list, the one compared, their prints.
     let two = shared();
     two.load_state(&state).unwrap();
@@ -118,7 +126,11 @@ fn references_live_in_the_state_by_path_size_and_hash_never_their_audio() {
     assert_eq!(got.as_ref(), Some(&refs));
     assert_eq!(ir.map(|f| f.path), Some(path.clone()));
     let spec = two.spec();
-    assert_eq!(spec.refs.as_deref(), Some(&refs), "the editor's spec carries them");
+    assert_eq!(
+        spec.refs.as_deref(),
+        Some(&refs),
+        "the editor's spec carries them"
+    );
     // A hand-edited state is repaired as a project is: a path twice dropped, the one
     // compared listed.
     let edited = text.replace("Album master.wav", "Finished master.wav");
@@ -177,7 +189,11 @@ fn a_reference_loaded_with_the_state_is_heard_matched_and_the_mix_is_untouched()
         (heard_db - mix_db).abs() < 0.2,
         "heard at the mix's loudness: {heard_db:.2} against {mix_db:.2}"
     );
-    assert_ne!(tail, &ml[SR as usize / 2..], "it is the reference that is heard");
+    assert_ne!(
+        tail,
+        &ml[SR as usize / 2..],
+        "it is the reference that is heard"
+    );
     // A host's offline render hears the mix, to the bit, whatever the panel says.
     host.comparatio.set_offline(true);
     let mut p2 = Processor::new(host.clone(), SR);

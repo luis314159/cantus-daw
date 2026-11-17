@@ -407,8 +407,16 @@ fn every_reference_in_the_list_keeps_its_own_analysis() {
             .unwrap();
         c.bands.centre[i]
     };
-    assert!((peak(&a.mid[0]) / 300.0 - 1.0).abs() < 0.15, "{}", peak(&a.mid[0]));
-    assert!((peak(&b.mid[1]) / 1_000.0 - 1.0).abs() < 0.1, "{}", peak(&b.mid[1]));
+    assert!(
+        (peak(&a.mid[0]) / 300.0 - 1.0).abs() < 0.15,
+        "{}",
+        peak(&a.mid[0])
+    );
+    assert!(
+        (peak(&b.mid[1]) / 1_000.0 - 1.0).abs() < 0.1,
+        "{}",
+        peak(&b.mid[1])
+    );
     // The fingerprint: the file as it is, and a file changed in its middle is another.
     let (bytes, hash) = comparatio_store::fingerprint(&loud).unwrap();
     assert_eq!((a.bytes, a.hash.as_str()), (bytes, hash.as_str()));
