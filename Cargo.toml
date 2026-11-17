@@ -181,3 +181,8 @@ asio-sys = { path = "third_party/asio-sys" }
 # jack-sys 0.5.1 (MIT OR Apache-2.0) building without JACK's pkg-config file when JACK is
 # opened at run time (round 30, ADR 0065; third_party/README.md).
 jack-sys = { path = "third_party/jack-sys" }
+# eframe 0.36.1 (MIT OR Apache-2.0) with two changes for several windows (ADR 0151 §10,
+# third_party/README.md): each due window painted in turn on Windows, so a window that
+# animates no longer starves the others; and each window's winit handle. Drop these lines
+# once upstream has them.
+eframe = { path = "third_party/eframe" }
