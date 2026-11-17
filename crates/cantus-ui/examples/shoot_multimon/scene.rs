@@ -634,6 +634,11 @@ fn run(dir: &Path) {
 
     // The mixer's own window on the 1 920-px screen at 100 %, at that screen's scale.
     r.ctx.set_zoom_factor(EXTERNAL_ZOOM);
+    // A screen of its own for the desk: its strips Large.
+    {
+        use cantus_ui::views::mixer::layout::WidthMode;
+        cantus_ui::views::mixer::set_width_mode(&mut r.app, WidthMode::from_index(2));
+    }
     let dock = egui_dock::DockState::new(vec![Pane::Mixer, Pane::Routing]);
     let mut ws = Workspace::with_dock(dock);
     let mut win = |app: &mut CantusApp, ui: &mut egui::Ui| {

@@ -2,8 +2,7 @@
 
 > **Provisional number** (branch `fx/multimon`): renumber at the merge if 0151 is taken.
 
-**Status:** Proposed (phase 1: research and design, for the owner's approval; nothing of it
-is built) · **Date:** 2026-11-17 · **Builds on:** ADR 0024 §5 and §13 (the dock, the repaint
+**Status:** Accepted (the owner's answers of 2026-11-17, at the end; phase 2 builds it) · **Date:** 2026-11-17 · **Builds on:** ADR 0024 §5 and §13 (the dock, the repaint
 ticker), ADR 0110 and 0111 (the top bar, maximise, the scale that follows the screen),
 ADR 0149 (the window holds still), ADR 0091 §2 (the companion's window), ADRs 0019, 0065
 and 0073 (plug-in editors in windows of their own), ADR 0050 (the boot path) · **Report:**
@@ -126,7 +125,7 @@ repository):
 5. **Each window at its own screen's scale.** The system's scale is honoured per window by
    egui-winit (§ Context). **Our** scale (ADR 0111 §7) follows each window's own screen:
    a window on the laptop at 200 % gets the rule's 90 %, one on a 1 920-px screen at
-   100 % gets 125 % — otherwise the external screen would show everything at 60 % of the
+   100 % gets 125 % — otherwise the external screen would show everything at 72 % of the
    size it should have. egui has one zoom, so a window's own scale is given by its input,
    before its pass, in `raw_input_hook` (which eframe calls for every window): its
    `native_pixels_per_point` multiplied by *its scale ÷ the zoom*, and every point it
@@ -151,15 +150,32 @@ repository):
    Named layouts stay global; a named layout made on two screens and applied on one docks
    what had no screen into the main window (§8).
 
-7. **Layouts for several screens, one key each.** Beside *Default*, three built-in
-   layouts: *Two screens: arrange \| mix* (main: arrangement, inspector, piano roll and
-   rack below; the other screen: the mixer with Routing), *Two screens: arrange \| edit*
-   (the other screen: piano roll over the channel rack, score beside), *Three screens:
-   edit \| arrange \| mix*. A built-in layout needing more screens than connected is shown
-   dimmed with *Needs N screens*. **Alt+1 … Alt+9** recall the View menu's layouts in
-   order (on macOS ⌥⌘1 … 9); Ctrl+Alt is not used — it is AltGr on Spanish and many other
-   keyboards (AltGr+2 is @). **F11** puts the window in front into full screen on its own
-   screen and back.
+7. **Layouts for every desk, one key each.** The built-in layouts are chosen for the desks
+   people have, not for a count of screens (the owner left the set to us, 2026-11-17):
+   - *Default* — one screen, as today.
+   - *Wide screen: arrange beside mix* — **one** window, the mixer to the right of the
+     arrangement instead of under it; offered when the main window's screen is at least
+     21 : 9 (3 440 × 1 440, 5 120 × 1 440). An ultrawide screen is two screens' room
+     without a bezel, and a second window on it only overlaps.
+   - *Two screens: arrange \| mix* — the main window keeps the arrangement, inspector,
+     piano roll and rack; the other screen gets the mixer with Routing. The most common
+     desk (a laptop with one screen; two screens with the lid closed) and the most asked
+     for (FL's detached mixer, Bitwig's Arranger/Mixer, Studio One's console).
+   - *Two screens: arrange \| edit* — the other screen gets the piano roll over the
+     channel rack, the score beside the piano roll: for writing. On a **portrait** screen
+     its split is top-to-bottom (the piano roll tall, the rack under it), which is what a
+     portrait screen is good for.
+   - *Three screens: edit \| arrange \| mix* — the arrangement in the middle, the
+     editors left, the mixer right (the studio's three screens, Bitwig's Triple).
+   The "other" screen is the largest screen the main window is not on (a laptop's own panel
+   is the smallest, so the mixer goes to the external screen whichever is primary); with
+   three, left and right follow the screens' positions. A built-in layout that needs more
+   screens than are connected is dimmed with *Needs N screens*; picking a layout made for
+   more screens than are connected opens what fits and docks the rest (§8). **Alt+1 …
+   Alt+9** recall the View menu's layouts in order (⌥⌘1 … 9 on macOS); Ctrl+Alt is not
+   used — it is AltGr on Spanish and many other keyboards (AltGr+2 is @). **F11** puts the
+   window in front into full screen on its own screen and back. The new bindings are
+   checked against every keymap preset for collisions (a test).
 
 8. **A window on a screen that is not there is brought back, always.** At start and
    whenever a window's place or screen changes (an event, never a timer), the screens are
@@ -229,7 +245,10 @@ repository):
   `std::mem::take`); app-wide questions (*is the mixer showing?*) ask every window.
 - `layouts.json` grows (new fields, `serde(default)`): an older Cantus reads the main
   window's dock and ignores the rest; no project schema change, no `SCHEMA_VERSION` bump.
-  The keymap gains the layout keys, F11 and *Move to a new window* (unbound): keymap 18.
+  The keymap gains the layout keys, F11 and *Move to a new window* (unbound): **keymap 19**
+  (provisional — the bus feature built in parallel on `fix/flicker` from the same base takes
+  18 for Ctrl+G *route the selected to a new bus*; merge that branch first, then this one,
+  and renumber if the order changes).
 - A patched eframe is carried until upstream takes the two changes (`third_party/README.md`
   says what changed and why); each eframe upgrade re-applies them.
 - Each extra window costs its surface's buffers in the driver (estimated, measured in
@@ -254,3 +273,23 @@ placement rules as a table (missing, moved, shrunk, negative coordinates, a wind
 than its screen, the scale changed); `rt_memory` unchanged with two windows drawing; the
 strings in both locales; the keymap migration. What only real screens confirm goes to
 `docs/beta-checklist.md`.
+
+## The owner's answers (2026-11-17)
+
+1. A screen missing: its areas dock back into the main window and return with the screen —
+   **yes** (§8).
+2. A window's bar on by default on another screen — **yes** (§4).
+3. The built-in layouts — "evaluate yourself, to make an excellent product": the set and
+   its reasons are §7 (ultrawide, portrait, laptop + one screen, two screens with the lid
+   closed, three screens).
+4. Carry the patched eframe in `third_party/` — **yes** (§10).
+5. Alt+1…9 for layouts, F11 for full screen — **yes**, checked against every keymap preset;
+   keymap 19 provisionally (Ctrl+G is the bus feature's).
+6. Each window follows its own screen's scale, Ctrl +/− per window — **yes** (§5).
+
+And his emphasis: *"make sure it looks excellent on different screens and that it stays
+stable and works well"* — phase 2 adds a screen matrix (1 366 × 768 to 3 840 × 2 160,
+ultrawide, portrait, mixed pairs and three screens) through `CantusApp::assemble`, and a
+stability suite (500 scripted open/close/move cycles with memory and textures flat, screens
+unplugged and replugged at start and while playing, a soak with two windows animating, every
+window at zero frames at rest, corrupt and old layout files).

@@ -204,7 +204,13 @@ custom title bars, no touch layout yet.
    keyboard.
 6. **A window's own interface scale** follows its screen, with Ctrl +/− per window.
    *Recommended: yes.* Without it the reporter's 1 080p screen beside his 200 % laptop
-   shows Cantus at 60 % of its size.
+   shows Cantus at 72 % of its size (90 % where the rule wants 125 %).
+
+**Answered by the owner (2026-11-17):** 1, 2, 4, 5 and 6 yes. 3 was left to us: the set is
+in ADR 0151 §7 — Default, *Wide screen: arrange beside mix* (21 : 9), *Two screens: arrange |
+mix*, *Two screens: arrange | edit* (top-to-bottom on a portrait screen), *Three screens:
+edit | arrange | mix*. Keymap 19, provisionally: `fix/flicker`'s bus feature takes 18
+(Ctrl+G). **Merge order: the bus branch first, then `fx/multimon`.**
 
 ## 6. The build plan (phase 2, after approval)
 
