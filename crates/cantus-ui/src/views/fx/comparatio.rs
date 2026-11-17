@@ -1370,7 +1370,7 @@ fn reference_strip(
     let g = art::window(b, s, l.window, 4.0 * k);
     if let Some((x0, x1)) = region {
         let band = Rect::from_min_max(pos2(x0, g.top() + 1.0 * k), pos2(x1, g.bottom() - 1.0 * k));
-        b.rect(band, Fill::Solid(with_alpha(art::c(pal::LAMP_HOT), 0.14)));
+        b.rect(band, Fill::Solid(with_alpha(art::c(pal::LAMP_HOT), 0.22)));
         for x in [x0, x1] {
             b.vline(
                 x,

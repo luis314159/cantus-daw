@@ -350,21 +350,22 @@ fn tonal(b: &mut Brush, s: &Style, p: &Plot, pic: &Picture, mv: Color32, rv: Col
                 3.0 * k,
             );
         }
-        // Which way: the words at the ends of the zero line.
-        put(
-            b,
-            k,
-            pos2(d.right() - 4.0 * k, d.top() + 7.0 * k),
-            Align2::RIGHT_CENTER,
-            &Text::key("comparatio.d.more_mix", Role::Micro, mv).caps(false),
-        );
-        put(
-            b,
-            k,
-            pos2(d.right() - 4.0 * k, d.bottom() - 7.0 * k),
-            Align2::RIGHT_CENTER,
-            &Text::key("comparatio.d.more_ref", Role::Micro, rv).caps(false),
-        );
+        // Which way: the words at the ends of the zero line, each on a dark plate so no curve
+        // crosses them (measured by a first pass, then laid over the plate).
+        for (key, y, col) in [
+            ("comparatio.d.more_mix", d.top() + 7.0 * k, mv),
+            ("comparatio.d.more_ref", d.bottom() - 7.0 * k, rv),
+        ] {
+            let t = Text::key(key, Role::Micro, col).caps(false);
+            let at = pos2(d.right() - 4.0 * k, y);
+            let r = put(b, k, at, Align2::RIGHT_CENTER, &t);
+            b.rrect(
+                r.expand2(vec2(4.0 * k, 1.0 * k)),
+                2.0 * k,
+                Fill::Solid(with_alpha(c(pal::GLASS_FOOT), 0.92)),
+            );
+            put(b, k, at, Align2::RIGHT_CENTER, &t);
+        }
     }
 }
 
