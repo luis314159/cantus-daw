@@ -202,12 +202,32 @@ Spanish too), the window is shorter, and the list is sized to its rows. Shots:
 - The face's colourways (Titanium, Copper, Frost; the formula's Bakelite, Ivory, Ebony)
   are chosen in the window's ⋯ menu, as the other units' (the source's `look`, one
   `SetModulator`, one undo step).
-- Not here: a third axis (FL has two; Kaoss-style corner morphs are the backlog's); a
-  right-click on the window's own controls for automation and MIDI learn (an axis is
-  automated by a recording pass, or by `Alt+A` after its card knob moved, and learnt by
-  `Alt+Shift+A` the same way — read in the code, not yet tested).
+- **The window's parameters are every Cantus parameter's** (follow-up, 2026-11-17): X and
+  Y — each axis's rail on the pad and its knob on the *Pad* card — and *Amount* wear the
+  kit's parameter menu (`kit::automate::menu`: *Create automation clip* / *Edit
+  automation*, *Modulate…*, *Learn* / *Change* / *Forget MIDI controller*, *Reset to
+  default*), its signs and rings, the learn mode's outline and Alt-drag depth; each
+  mutation one undo step. `Alt+A` and `Alt+Shift+A` automate and learn what the window
+  moved last. The pad's own settings (inertia, the path's switch, loop and line, the
+  polarity) are no parameter — nothing automates a modulator's settings, as the
+  inspector's rows of every modulator's — and are drawn plain (`Cell::plain`, the probes
+  pass them by).
+- **The chip, the list and the rails count the same routes**: the footer's chip and the
+  rails come from the routes the list lists (`fxd_xy::drives_chip`, `fxd_xy::rail_words`); a
+  rail names as many as it holds (at most two) and counts the rest, never cutting the
+  count; an axis that drives nothing says only `X` / `Y`.
+- Not here: a third axis (FL has two; Kaoss-style corner morphs are the backlog's).
 
 ## What the tests hold
+
+- `cantus-ui` `tests/fxd_drag.rs` (follow-up): `the_chip_the_list_and_the_rails_count_the_same_links`
+  (0, 1, 4 and 7 routes on both axes, pad and formula, through `assemble`);
+  `the_pads_axes_and_amount_offer_the_parameter_menu` (right-click on each rail and knob:
+  automate, edit, learn with a turned controller, forget, reset — one step each where it
+  mutates); `a_controllers_own_settings_offer_no_automation`;
+  `the_learn_mode_reaches_every_parameter_of_the_windows`;
+  `alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window`.
+  `tests/learn_everywhere.rs`: `the_controllers_windows_offer_learn_on_every_parameter`.
 
 - `cantus-core` `modulator::fxd_tests`: the input command and its exact inverse, merging,
   refusals; inputs as targets (`range_of`, `base_value`, `command`, `value_of_command`);

@@ -168,6 +168,14 @@ its frame and *What it drives* are the pad's (ADR 0147 Phase B); what is the for
   play or seek; Firmus's smoothers at their defaults on a render that begins on a note) are
   ADR 0147's Consequences; the formula's e2e proves render-from-bar-N on the strip's fader.
 - The three colourways (Bakelite, Ivory, Ebony) are chosen in the window's ⋯ menu (ADR 0147).
+- **The window's parameters are every Cantus parameter's** (follow-up, 2026-11-17): the
+  knobs a, b, c — on the *Knobs* card and as the keypad's dials — and *Amount* wear the
+  kit's parameter menu (automate / edit automation, *Modulate…*, learn / change / forget a
+  MIDI controller, reset to default), its signs, the learn mode's outline and Alt-drag
+  depth, each mutation one undo step; `Alt+A` / `Alt+Shift+A` automate and learn what moved
+  last. The polarity is a setting, not a parameter, and is passed by. The footer's chip
+  counts the routes the list lists (`fxd_xy::drives_chip`; the design sheets' was a fixed
+  string).
 - Not here: a formula of other parameters' values or of audio (FL's controller has none;
   a follower covers audio), user-defined variables, multi-line programs.
 

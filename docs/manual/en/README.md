@@ -1249,8 +1249,13 @@ record options' *Automation* on, or the automation arm with the track in Write, 
 Latch (see [Automation](#automation)) — drag the puck: Cantus writes **two lanes, X and Y**,
 over exactly the stretch you moved it in, and the pass is one undo step. Played back, the
 lanes move the puck as your hand did; edit them like any automation. To automate one axis
-by hand, move its knob on the *Pad* card and press `Alt+A` (*automate the last thing you
-touched*); `Alt+Shift+A` links it to a MIDI controller the same way.
+by hand, right-click its rail (the words along the pad's foot for X, along its left side
+for Y) or its knob on the *Pad* card: the menu every parameter has — *Create automation
+clip* (*Edit automation* once there is one), *Modulate…*, *Learn MIDI controller* (*Forget*
+once linked), *Reset to default*. Or move its knob and press `Alt+A` (*automate the last
+thing you touched*); `Alt+Shift+A` links it to a MIDI controller the same way. *Amount*
+offers the same; the inertia, the path's settings and the polarity are the pad's own
+settings, not parameters, and offer none of it.
 
 **Paths: gestures that loop with the song.** A path is a loop the puck follows while the
 song plays (stopped, your hand has the pad again), read from the song position — so a play
@@ -1319,9 +1324,10 @@ X/Y tag).
   `Round(`, `Int(`, `Rand`, `a`, `b`, `c`, `Pi` (π), `SongTime` (*beat*), `t`, the
   parentheses, `+ − × ÷ ^` (typed `+ - * / ^`), `If(`, `Max(`, `Min(`.
 - **The dials a, b, c** above the keys: drag one up or down (one undo step a drag),
-  double-click it for 0.5. The *Knobs* card moves the same three. Automate a knob (move
-  it, then `Alt+A`), link it to a MIDI controller (move it, then `Alt+Shift+A`) or let
-  another modulator move it, and the formula follows.
+  double-click it for 0.5. The *Knobs* card moves the same three. Automate a knob
+  (right-click a dial or its card knob: *Create automation clip*, or move it and press
+  `Alt+A`), link it to a MIDI controller (*Learn MIDI controller* in the same menu, or move
+  it and press `Alt+Shift+A`) or let another modulator move it, and the formula follows.
 - **The Output card**: **Polarity** — **One way** (FL's: the value 0…1 adds to the
   parameter, 0 its own value) or **Both ways** (0.5 is the parameter's own value, below it
   takes away); **Amount**, the modulator's amount.

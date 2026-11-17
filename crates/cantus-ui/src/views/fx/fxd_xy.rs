@@ -250,8 +250,18 @@ pub fn body(
     // The rails are the axes, X and Y: each the kit's parameter menu on a right-click
     // (automate, MIDI learn, forget, reset; Modulate…), outlined in the learn mode.
     for (slot, r, id, (name, tip)) in [
-        (0, axes[0], "fxd-xy-rail-x", ("fxd.xy.card.x", "fxd.xy.rail.x.tip")),
-        (1, axes[1], "fxd-xy-rail-y", ("fxd.xy.card.y", "fxd.xy.rail.y.tip")),
+        (
+            0,
+            axes[0],
+            "fxd-xy-rail-x",
+            ("fxd.xy.card.x", "fxd.xy.rail.x.tip"),
+        ),
+        (
+            1,
+            axes[1],
+            "fxd-xy-rail-y",
+            ("fxd.xy.card.y", "fxd.xy.rail.y.tip"),
+        ),
     ] {
         let resp = ui.interact(r, ui.id().with(id), egui::Sense::click());
         if resp.hovered() {
@@ -410,9 +420,17 @@ pub fn body(
         }
     };
     out.extend(
-        art::lay_cards(ui, s, cards, &CARDS, &values, &live.params, &mut rects.items)
-            .into_iter()
-            .map(Action::Card),
+        art::lay_cards(
+            ui,
+            s,
+            cards,
+            &CARDS,
+            &values,
+            &live.params,
+            &mut rects.items,
+        )
+        .into_iter()
+        .map(Action::Card),
     );
     (out, rects)
 }

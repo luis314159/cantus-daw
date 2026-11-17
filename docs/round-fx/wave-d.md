@@ -175,10 +175,8 @@ on all six; `xtask`'s `the_manual_builds_in_both_languages_and_its_links_hold` g
 **Verified only in emulation** (material for `docs/beta-checklist.md`): the windows were
 driven by egui's events through `assemble`, never by a person's hand on a screen; the sound
 was measured offline and through `EngineHandle::manual`'s processor, not through a real
-driver; no real touch surface or XY controller moved a pad. Read in the code but not
-tested: `Alt+A` on an axis or a knob (an automation clip for it after its card knob moved)
-and `Alt+Shift+A` (a MIDI controller linked to it the same way) — the window's own
-controls have no right-click menu for automation or MIDI learn.
+driver; no real touch surface or XY controller moved a pad. (`Alt+A`, `Alt+Shift+A` and
+the window's own parameter menus were untested here; the follow-up below tests them.)
 
 Shots: `C:\projects\daw-fx\compartir\xy\design\v2-step3\` (25 PNG + `index.md`) and
 `C:\projects\daw-fx\compartir\formula\design\v2-step3\` (23 PNG + `index.md`): both
@@ -215,3 +213,190 @@ if the site should sell them: a third tab (*Controllers*: the LFO, envelope, fol
 steps, random, Tactus and Calculus) in `units.rs`/`units_data.rs`, or a feature block on
 the studio page. The manual's pages on the site (`web/assets/manual/`) are built from
 `docs/manual/` and take the new sections when they are rebuilt.
+
+## Step 3's follow-up (2026-11-17, evening): the count, the menus, the site, the glide's test
+
+Four gaps the integrator found in step 3, closed on `fx/wave-d` (or, for the glide, handed
+over as a failing test).
+
+**1. A count that disagreed with its list.** In `xy-links-slate-en-k100.png` the footer said
+*Drives 4 parameters* while *What it drives* showed 7 rows and the rails said *+3 more*.
+What was wrong: **the count's source in the design sheets** — `shoot_fxd` put a fixed string
+in the footer (`fxd.sheet.chip.xy` = "Drives 4 parameters", `fxd.sheet.chip.formula` =
+"Drives 2 parameters", the v1 sheets' four and two links) while the `links` state drove ten
+(the formula's eight) and the rest state none. No row was listed twice: the list showed rows
+4–10 of ten (scrolled three rows, its scroll bar at the side) and the rails counted five a
+side. The app's own window counted right (`links.len()`, one per route, routes unique per
+target), but two smaller faults were found on the way: an axis that drives nothing engraved
+a dangling `X —`, and a rail too short for its two names would have cut the count off the
+end. Fixed:
+
+- `fxd_xy::drives_chip(n)` is the one source of the chip — the window's and the sheets'; the
+  fixed sheet strings are gone from both locales.
+- `fxd_xy::rail_words(links, axis, fits)`: the names in the list's order, as many as the
+  rail holds (at most two), the rest counted (`+3 more`; `5 parameters` / `1 parameter` when
+  no name fits), so the count is never the part cut; `X` / `Y` alone when the axis drives
+  nothing.
+- The sheets' `links` state shows its list from the first row, so the rails' names are its
+  first rows and the scroll bar says there are more.
+- Test: `fxd_drag.rs` `the_chip_the_list_and_the_rails_count_the_same_links` — a pad and a
+  formula with **0, 1, 4 and 7** routes (the pad's on both axes: 1 on Y alone, 2+2, 4 Y + 3
+  X), through `CantusApp::assemble`: the chip painted is the count; the list, scrolled
+  through by the wheel, lists every route once in order; each rail's painted words, never
+  cut, are its axis's routes named or counted and add up to them.
+- Re-shot in place, one file at a time (no folder emptied):
+  `compartir/xy/design/v2-step3/` (25 + 4 new) and `compartir/formula/design/v2-step3/` (23
+  + 4 new) — every sheet, since the footer's chip is in each; looked at: the links sheets
+  say *Drives 10 / Mueve 8 parámetros* over a list from its first row and rails `X — Cutoff
+  · Cribrum · Pan · Lead · +3 more`; the rest sheet *Aún no mueve nada* with bare `X`/`Y`.
+  The four new ones per unit are the site's pairs (below). Each `index.md` says so. The
+  kit's text probe found no cut word in any.
+
+**2. Automation and MIDI learn on the windows' own controls.** The window's controls had no
+parameter menu (a right-click on a card's knob opened only its typing field, which read a
+typed `64` as 64, not 64 %); `Alt+A` worked but was untested. Now every control that stands
+for a parameter wears **the kit's parameter menu** (`kit::automate::menu`, reused, not a new
+one): *Create automation clip* / *Edit automation*, *Modulate…*, *Type a value…* (the cards'
+knobs), *Learn MIDI controller* / *Change* / *Forget MIDI controller*, *Reset to default* —
+and with it the signs of what drives it, the modulators' rings, the learn mode's outline
+(a click learns, nothing moves) and the Alt-drag depth. The choices are answered as
+`ModAct::Param` answers the inspector's (`app.automate`, `app.modulation_choice`); a reset of
+a rail or a dial is one `SetModulatorInput` (none when already there).
+
+- **Tactus**: X and Y on **the rails** (the axis's words along the pad's foot and left side,
+  with a hint) and on the *Pad* card's *Horizontal* / *Vertical* knobs; *Amount*.
+- **Calculus**: a, b, c on the *Knobs* card **and** the keypad's **dials**; *Amount*.
+- **Not parameters, exempt**: the pad's *Inertia*, *Path*, *Loop in beats*, *Line* and
+  *Polarity*, the formula's *Polarity*. The reason: they are the controller's own settings,
+  and nothing automates a modulator's settings — `AutoTarget` has `ModInput` and
+  `ModAmount` only, as the inspector's rows of every modulator (an LFO's rate, an
+  envelope's times) show; making them targets is a model change (schema, engine) for
+  another round. They are drawn **plain** — `controls::Cell::plain()`, the fx cells' twin of
+  the kit's `Param::plain` that Chorda's tuning keys use — so the modulation and learn
+  probes pass them by, and a right-click on one offers no automation. Their typed values now
+  read in their units (`%`, `ms`).
+- Code: `fxd_art::{Param, Params, AMOUNT, param_spot}` (the cards take each parameter's offer;
+  `Moved::Param`), `fxd_xy` (`Live::params`, the rails' rects, `Action::Param`),
+  `fxd_formula` (the dials), `fxd_window::feed_params` (asked of the app each frame as the
+  inspector asks: `mod_offer`, `is_automated`), `fxd_edit::{param_target, param_choice}`.
+- Tests (`fxd_drag.rs`, through `assemble`, real pointer and key events; each mutation one
+  undo step): `the_pads_axes_and_amount_offer_the_parameter_menu` and
+  `the_formulas_knobs_dials_and_amount_offer_the_parameter_menu` — on each of the 5 + 7
+  controls a right-click, *Create automation clip* (a clip, one step, the window stays),
+  *Edit automation* (no step), *Learn MIDI controller* with a controller turned (mapped, one
+  step), *Forget MIDI controller* (one step), *Reset to default* (one step);
+  `a_controllers_own_settings_offer_no_automation`;
+  `the_learn_mode_reaches_every_parameter_of_the_windows` (the probe, and a click on the Y
+  rail / dial c arms it without moving it);
+  `alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window` (X, Y, the
+  amount; knob b, dial c, the amount). `learn_everywhere.rs`:
+  `the_controllers_windows_offer_learn_on_every_parameter` (green: no control without
+  *Learn*, the settings passed by). The menus' pictures, taken by the tests
+  (`CANTUS_PATHS_SHOTS`), were looked at.
+- The manual (EN/ES, *Tactus* and *Calculus*) and ADRs 0147/0148 say so.
+- Noted, not changed: a pad drag sets X and Y in one batch, so `Alt+A` right after one
+  automates **Y** (the batch's last) — the manual documents the knob's way; and the
+  *Inertia* knob's travel is 0–2 000 ms while the model (and the AI's tool) take up to
+  10 000 ms (`MAX_INERTIA_MS`): a pad set past 2 s shows 2 000 on its knob. Both are the
+  owner's call.
+
+**3. The site** — for the integrator; `fx/web` was not touched (read-only: `web/src/units.rs`,
+`units_data.rs`, `web/tools/units_pictures.py`, `tools/shots/check_units.py`).
+
+*Where they go.* `units_data.rs` holds `INSTRUMENTS` (9) and `EFFECTS` (42) and `units.rs`
+two tabs. Add a third:
+
+- `units_data.rs`: `pub const CONTROLLERS: [Unit; 2] = [ … ];` after `EFFECTS` (the two
+  entries below).
+- `units.rs`: `use crate::units_data::{CONTROLLERS, EFFECTS, INSTRUMENTS};`; `group()` →
+  `match tab { 0 => &INSTRUMENTS[..], 1 => &EFFECTS[..], _ => &CONTROLLERS[..] }`; the
+  `tabs` array gains `(l.t("Controllers", "Controladores"), CONTROLLERS.len())`.
+- `web/tools/units_pictures.py`: add `tactus calculus` to `NAMES`, then run it on a folder
+  holding the shots copied under its names (below); then `python tools/shots/check_units.py
+  --fix` (the sizes below are computed from the shots, the check makes them exact).
+
+*The pictures* (`units_pictures.py` reads `<name>-{slate,paper}-{100,200}.png`; English from
+one folder, Spanish from another with `--es`). Copy:
+
+| `units_pictures.py` wants | English folder, from | Spanish folder (`--es`), from |
+|---|---|---|
+| `tactus-slate-100.png` | `compartir/xy/design/v2-step3/xy-start-slate-en-k100.png` | `…/xy-start-slate-es-k100.png` |
+| `tactus-slate-200.png` | `…/xy-start-slate-en-k200.png` | `…/xy-start-slate-es-k200.png` |
+| `tactus-paper-100.png` | `…/xy-start-paper-en-k100.png` | `…/xy-start-paper-es-k100.png` |
+| `tactus-paper-200.png` | `…/xy-start-paper-en-k200.png` | `…/xy-start-paper-es-k200.png` |
+| `calculus-slate-100.png` | `compartir/formula/design/v2-step3/formula-start-slate-en-k100.png` | `…/formula-start-slate-es-k100.png` |
+| `calculus-slate-200.png` | `…/formula-start-slate-en-k200.png` | `…/formula-start-slate-es-k200.png` |
+| `calculus-paper-100.png` | `…/formula-start-paper-en-k100.png` | `…/formula-start-paper-es-k100.png` |
+| `calculus-paper-200.png` | `…/formula-start-paper-en-k200.png` | `…/formula-start-paper-es-k200.png` |
+
+(`*-start-*` is the window as it opens on a playing path / a sine, its links listed; the
+shots are the design sheets' frame, without the preset well — the app's window has it. A
+shot of the window in the app would need `shoot_skins` to learn modulators; not needed for a
+card.) Sizes: Tactus `big: (1800, 1255), thumb: (640, 446)` (shots 1064×742 and 2128×1484);
+Calculus `big: (1800, 1290), thumb: (640, 459)` (968×694 and 1936×1388).
+
+*The cards* (only what is built and measured; no sound of their own, so `ab: None`; the
+modulators live in the host, so `plugin: false`):
+
+```rust
+pub const CONTROLLERS: [Unit; 2] = [
+    Unit {
+        file: "tactus",
+        name: "Tactus",
+        kind: ("X-Y pad controller", "Controlador de pad X-Y"),
+        pitch: ("Play two parameters at once with one hand, and keep the gesture as a path that loops with the song.", "Toca dos parámetros a la vez con una mano y guarda el gesto como un trayecto que se repite con la canción."),
+        what: long!(("Tactus is a modulator with a window of its own: a glass pad whose puck drives every parameter you link to its two axes, X and Y, each link with its own range and bend. The puck can glide after your hand, follow a path you draw or record while the song plays, and a gesture recorded as automation writes two lanes in one undo step.", "Tactus es un modulador con ventana propia: un pad de cristal cuyo disco mueve cada parámetro que enlazas a sus dos ejes, X e Y, cada enlace con su propio rango y curva. El disco puede deslizarse tras tu mano, seguir un trayecto que dibujas o grabas mientras suena la canción, y un gesto grabado como automatización escribe dos carriles en un solo paso de deshacer.")),
+        features: long!(&[
+            ("Two axes driving up to 32 parameters; a range and a bend per link", "Dos ejes que mueven hasta 32 parámetros; un rango y una curva por enlace"),
+            ("Inertia: the puck glides after the hand, up to two seconds behind", "Inercia: el disco se desliza tras la mano, hasta dos segundos detrás"),
+            ("Draw a path, or record one while the song plays; it loops in time with the song", "Dibuja un trayecto o grábalo mientras suena la canción; se repite a tiempo con ella"),
+            ("A recorded gesture writes two automation lanes, X and Y, in one undo step", "Un gesto grabado escribe dos carriles de automatización, X e Y, en un paso de deshacer"),
+            ("Each axis automatable and learnable by a MIDI controller, like any parameter", "Cada eje se automatiza y se enlaza a un controlador MIDI como cualquier parámetro"),
+            ("Bake its moves into automation lanes, inertia and path included", "Hornea sus movimientos en carriles de automatización, con inercia y trayecto"),
+        ]),
+        presets: Some(4),
+        plugin: false,
+        ab: None,
+        big: (1800, 1255),
+        thumb: (640, 446),
+    },
+    Unit {
+        file: "calculus",
+        name: "Calculus",
+        kind: ("Formula controller", "Controlador por fórmula"),
+        pitch: ("Type a formula of the song's time and three knobs, and it moves any parameter, the same on every render.", "Escribe una fórmula del tiempo de la canción y tres perillas, y mueve cualquier parámetro, igual en cada render."),
+        what: long!(("Calculus is a modulator driven by a formula in FL Studio's syntax, typed on a calculator's display with a keypad of the language's words. Its plot shows the last four beats and the next four as the knobs a, b and c are now; a formula that does not compile shows its error at its character and never reaches the audio, and its random words are seeded so a render repeats.", "Calculus es un modulador movido por una fórmula con la sintaxis de FL Studio, escrita en la pantalla de una calculadora con un teclado de las palabras del lenguaje. Su gráfica muestra los últimos cuatro tiempos y los cuatro siguientes con las perillas a, b y c como están; una fórmula que no compila muestra su error en su carácter y nunca llega al audio, y sus palabras aleatorias tienen semilla para que un render se repita.")),
+        features: long!(&[
+            ("FL Studio's formula syntax: Sin, Cos, tri, saw, Round, If, Max, Min and more", "La sintaxis de fórmulas de FL Studio: Sin, Cos, tri, saw, Round, If, Max, Min y más"),
+            ("Three knobs a, b, c, each automatable, learnable or moved by another modulator", "Tres perillas a, b, c, cada una automatizable, enlazable a MIDI o movida por otro modulador"),
+            ("A broken formula shows its error at the character and keeps the last good one playing", "Una fórmula rota muestra su error en el carácter y sigue sonando la última buena"),
+            ("A plot of four beats past and four ahead, now a lit bead", "Una gráfica de cuatro tiempos atrás y cuatro adelante, el ahora una cuenta encendida"),
+            ("Repeatable: time from the song, random words seeded; live equals offline to the bit", "Repetible: el tiempo de la canción, el azar con semilla; en vivo igual que offline al bit"),
+            ("Nine presets on one knob plan: a the rate, b the shape, c the depth", "Nueve presets con un mismo plan de perillas: a la velocidad, b la forma, c la profundidad"),
+        ]),
+        presets: Some(9),
+        plugin: false,
+        ab: None,
+        big: (1800, 1290),
+        thumb: (640, 459),
+    },
+];
+```
+
+Each claim's source: ADRs 0147/0148 Phase B and the follow-up; `fxd_e2e.rs` (a path from bar
+3 and from bar 5 on the strip's pan and fader to the bit; `formula.square` live = offline to
+the bit; recording writes exactly two lanes); `modulator_presets.rs` (4 and 9 presets);
+the inertia's "two seconds" is the card knob's travel (the model takes 10 s, see 2). Check
+the `long!` macro and the six-feature rule on the branch when merging.
+
+**4. The glide on a render from bar N — not fixed, a failing test for the integration.**
+`crates/cantus-engine/tests/render_from_bar.rs`,
+`a_render_from_bar_3_is_the_whole_render_from_bar_3_with_an_effect_automated`, `#[ignore]`d
+with the reason: a Firmus line on every beat, an Aequalis bell at 220 Hz stored at 0 dB, a
+lane holding it at +9 dB for 16 beats; renders 0–16 and 8–16 compared. It asserts the lane
+is heard (vs. the dry render), that from beat 9 on the late render is the whole one's to the
+bit (passes), and that bar 3's first beat is too — which fails today, as measured:
+**5.23e-2 at frame 140 (2.9 ms after the start)**, the e2e's 5.2e-2. Un-ignore it with the
+fix (`cargo test -p cantus-engine --test render_from_bar -- --include-ignored`).
+
+**Suites** (one crate per call): see below.

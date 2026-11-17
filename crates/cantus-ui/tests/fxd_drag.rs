@@ -871,10 +871,7 @@ fn the_chip_the_list_and_the_rails_count_the_same_links() {
                 .collect();
             assert!(chips.iter().all(|c| *c == chip), "{what}: {chips:?}");
             // The list: every route once, in the routes' order, scrolled through.
-            let names: Vec<String> = targets
-                .iter()
-                .map(|(t, _)| r.app.target_name(t))
-                .collect();
+            let names: Vec<String> = targets.iter().map(|(t, _)| r.app.target_name(t)).collect();
             let mut unique = names.clone();
             unique.sort();
             unique.dedup();
@@ -949,8 +946,7 @@ fn the_chip_the_list_and_the_rails_count_the_same_links() {
                     .find(|p| {
                         let t = p.text.trim();
                         // A word turned upright reports its unturned box: it begins on the rail.
-                        rail.expand(2.0).contains(p.rect.min)
-                            && (t == tag || t.starts_with(&lead))
+                        rail.expand(2.0).contains(p.rect.min) && (t == tag || t.starts_with(&lead))
                     })
                     .unwrap_or_else(|| {
                         let near: Vec<(&str, Rect, Rect)> = r
@@ -995,7 +991,15 @@ fn value_of(r: &Rig, id: ModulatorId, slot: usize) -> f32 {
 
 /// Right-click `at`, then click `entry` in the menu that opens there.
 fn menu_entry(r: &mut Rig, at: Pos2, entry: &str) {
+    shot_menu(r, at, entry, None);
+}
+
+/// [`menu_entry`], the open menu shot as `shot` (under `CANTUS_PATHS_SHOTS`).
+fn shot_menu(r: &mut Rig, at: Pos2, entry: &str, shot: Option<&str>) {
     r.right_click(at);
+    if let Some(name) = shot {
+        r.shot(name);
+    }
     let e = r.text(entry).unwrap_or_else(|| {
         let all: Vec<&str> = r.texts.iter().map(|p| p.text.as_str()).collect();
         panic!("“{entry}” is not in the menu at {at:?}; painted: {all:?}")
@@ -1023,13 +1027,24 @@ fn knob_turned() -> Vec<cantus_engine::midi::Heard> {
 /// control stands for parameter `slot`): *Create automation clip* (one undo step) and then
 /// *Edit automation* (none), *Learn MIDI controller* and the controller turned (one step),
 /// *Forget MIDI controller* (one step), *Reset to default* (one step).
-fn the_menu_answers(r: &mut Rig, id: ModulatorId, slot: usize, at: &dyn Fn(&Rig) -> Pos2) {
+fn the_menu_answers(
+    r: &mut Rig,
+    id: ModulatorId,
+    slot: usize,
+    at: &dyn Fn(&Rig) -> Pos2,
+    shot: &str,
+) {
     use cantus_core::controller::MappingTarget;
     let target = param(id, slot);
     let what = format!("{target:?}");
     // Automate.
     let steps = undo_steps(r);
-    menu_entry(r, at(r), "Create automation clip");
+    shot_menu(
+        r,
+        at(r),
+        "Create automation clip",
+        Some(&format!("{shot}-menu")),
+    );
     assert!(r.app.is_automated(&target), "{what}: a clip drives it");
     assert_eq!(undo_steps(r), steps + 1, "{what}: one step");
     assert_eq!(r.app.fx.fxd.open, Some(id), "{what}: the window stays");
@@ -1055,7 +1070,12 @@ fn the_menu_answers(r: &mut Rig, id: ModulatorId, slot: usize, at: &dyn Fn(&Rig)
     assert!(mapped(r), "{what}: mapped");
     assert_eq!(undo_steps(r), steps + 1, "{what}: learning is one step");
     r.settle();
-    menu_entry(r, at(r), "Forget MIDI controller");
+    shot_menu(
+        r,
+        at(r),
+        "Forget MIDI controller",
+        Some(&format!("{shot}-mapped-menu")),
+    );
     assert!(!mapped(r), "{what}: forgotten");
     assert_eq!(undo_steps(r), steps + 2, "{what}: forgetting is one step");
     // Reset to default.
@@ -1084,12 +1104,13 @@ fn the_pads_axes_and_amount_offer_the_parameter_menu() {
     open(&mut r, id);
     // The rails (the axes) and the Pad card's knobs.
     let rail = |i: usize| move |r: &Rig| r.app.fx.fxd.rects_xy.rails[i].center();
-    the_menu_answers(&mut r, id, 0, &rail(0));
-    the_menu_answers(&mut r, id, 1, &rail(1));
+    the_menu_answers(&mut r, id, 0, &rail(0), "fxd-pad-rail-x");
+    the_menu_answers(&mut r, id, 1, &rail(1), "fxd-pad-rail-y");
     let knob = |i: usize| move |r: &Rig| item(r, 0, i, false).center();
-    the_menu_answers(&mut r, id, 0, &knob(0));
-    the_menu_answers(&mut r, id, 1, &knob(1));
-    the_menu_answers(&mut r, id, cantus_ui::views::fx::fxd_art::AMOUNT, &knob(3));
+    the_menu_answers(&mut r, id, 0, &knob(0), "fxd-pad-knob-x");
+    the_menu_answers(&mut r, id, 1, &knob(1), "fxd-pad-knob-y");
+    let amount = cantus_ui::views::fx::fxd_art::AMOUNT;
+    the_menu_answers(&mut r, id, amount, &knob(3), "fxd-pad-amount");
 }
 
 #[test]
@@ -1098,17 +1119,14 @@ fn the_formulas_knobs_dials_and_amount_offer_the_parameter_menu() {
     r.app.midi_port_names = vec!["Keys".into()];
     open(&mut r, id);
     for i in 0..3 {
-        the_menu_answers(&mut r, id, i, &move |r: &Rig| item(r, 0, i, true).center());
-        the_menu_answers(&mut r, id, i, &move |r: &Rig| {
-            r.app.fx.fxd.rects_f.dials[i].center()
-        });
+        let knob = move |r: &Rig| item(r, 0, i, true).center();
+        the_menu_answers(&mut r, id, i, &knob, &format!("fxd-formula-knob-{i}"));
+        let dial = move |r: &Rig| r.app.fx.fxd.rects_f.dials[i].center();
+        the_menu_answers(&mut r, id, i, &dial, &format!("fxd-formula-dial-{i}"));
     }
-    the_menu_answers(
-        &mut r,
-        id,
-        cantus_ui::views::fx::fxd_art::AMOUNT,
-        &|r: &Rig| item(r, 1, 1, true).center(),
-    );
+    let amount = cantus_ui::views::fx::fxd_art::AMOUNT;
+    let knob = |r: &Rig| item(r, 1, 1, true).center();
+    the_menu_answers(&mut r, id, amount, &knob, "fxd-formula-amount");
 }
 
 /// The settings that are no parameter (the pad's inertia, its path's loop, the switches;
@@ -1117,7 +1135,10 @@ fn the_formulas_knobs_dials_and_amount_offer_the_parameter_menu() {
 #[test]
 fn a_controllers_own_settings_offer_no_automation() {
     for (kind, items) in [
-        (ModKind::XyPad, &[(0usize, 2usize), (1, 0), (1, 1), (1, 2), (1, 3)][..]),
+        (
+            ModKind::XyPad,
+            &[(0usize, 2usize), (1, 0), (1, 1), (1, 2), (1, 3)][..],
+        ),
         (ModKind::Formula, &[(1, 0)][..]),
     ] {
         let (mut r, id) = rig(kind);
@@ -1172,10 +1193,17 @@ fn the_learn_mode_reaches_every_parameter_of_the_windows() {
         };
         let before = value_of(&r, id, slot);
         r.click(at);
-        let armed = r.app.controllers.learning.as_ref().map(|l| l.target.clone());
+        let armed = r
+            .app
+            .controllers
+            .learning
+            .as_ref()
+            .map(|l| l.target.clone());
         assert_eq!(
             armed,
-            Some(cantus_core::controller::MappingTarget::Param(param(id, slot))),
+            Some(cantus_core::controller::MappingTarget::Param(param(
+                id, slot
+            ))),
             "{kind:?}: the click arms it"
         );
         assert_eq!(value_of(&r, id, slot), before, "{kind:?}: nothing moved");
@@ -1207,15 +1235,15 @@ fn alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window() {
     for (kind, moves) in [
         (
             ModKind::XyPad,
-            vec![("knob", 0usize, 0usize, 0usize), ("knob", 0, 1, 1), ("knob", 0, 3, amount)],
+            vec![
+                ("knob", 0usize, 0usize, 0usize),
+                ("knob", 0, 1, 1),
+                ("knob", 0, 3, amount),
+            ],
         ),
         (
             ModKind::Formula,
-            vec![
-                ("knob", 0, 1, 1),
-                ("dial", 0, 2, 2),
-                ("knob", 1, 1, amount),
-            ],
+            vec![("knob", 0, 1, 1), ("dial", 0, 2, 2), ("knob", 1, 1, amount)],
         ),
     ] {
         let (mut r, id) = rig(kind);
@@ -1238,13 +1266,20 @@ fn alt_a_automates_and_alt_shift_a_learns_what_was_moved_last_on_the_window() {
             );
             let steps = undo_steps(&r);
             r.key(Key::A, ALT);
-            assert!(r.app.is_automated(&target), "{kind:?}: Alt+A automated {target:?}");
+            assert!(
+                r.app.is_automated(&target),
+                "{kind:?}: Alt+A automated {target:?}"
+            );
             assert_eq!(undo_steps(&r), steps + 1, "one step");
             r.app.undo();
             r.settle();
             r.key(Key::A, ALT_SHIFT);
             assert_eq!(
-                r.app.controllers.learning.as_ref().map(|l| l.target.clone()),
+                r.app
+                    .controllers
+                    .learning
+                    .as_ref()
+                    .map(|l| l.target.clone()),
                 Some(MappingTarget::Param(target.clone())),
                 "{kind:?}: Alt+Shift+A arms {target:?}"
             );

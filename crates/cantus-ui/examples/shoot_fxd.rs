@@ -407,6 +407,12 @@ fn main() {
             shots.push(sh(unit, "start", true, Locale::En, 1.0, look));
             shots.push(sh(unit, "start", false, Locale::Es, 1.0, look));
         }
+        // The site's pictures (`web/tools/units_pictures.py`): each theme in each language
+        // at 100 and 200 % — the pairs the sheets above do not already hold.
+        for k in [1.0, 2.0] {
+            shots.push(sh(unit, "start", false, Locale::En, k, 0));
+            shots.push(sh(unit, "start", true, Locale::Es, k, 0));
+        }
     }
     for s in &shots {
         let n = name(s);

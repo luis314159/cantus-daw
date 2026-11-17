@@ -123,12 +123,18 @@ fn a_render_from_bar_3_is_the_whole_render_from_bar_3_with_an_effect_automated()
     // From the second beat of bar 3 on it is already the whole render's, to the bit.
     let one = FRAMES_PER_BEAT * 2;
     let (at, d) = worst(&late[one..], &tail[one..]);
-    assert_eq!(d, 0.0, "from beat 9 on: {d:e} at frame {}", at + FRAMES_PER_BEAT);
+    assert_eq!(
+        d,
+        0.0,
+        "from beat 9 on: {d:e} at frame {}",
+        at + FRAMES_PER_BEAT
+    );
     // The first note of bar 3: the unit should start at the automated +9 dB, not glide
     // there from its stored 0 dB (measured before the fix: up to ~5e-2 in its first 20 ms).
     let (at, d) = worst(&late[..one], &tail[..one]);
     assert_eq!(
-        d, 0.0,
+        d,
+        0.0,
         "bar 3's first beat differs by {d:e} at frame {at} ({:.1} ms after the start)",
         at as f64 * 1_000.0 / f64::from(SR)
     );

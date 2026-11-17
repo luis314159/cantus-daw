@@ -315,9 +315,17 @@ pub fn body(
         }
     };
     out.extend(
-        art::lay_cards(ui, s, cards, &CARDS, &values, &live.params, &mut rects.items)
-            .into_iter()
-            .map(Action::Card),
+        art::lay_cards(
+            ui,
+            s,
+            cards,
+            &CARDS,
+            &values,
+            &live.params,
+            &mut rects.items,
+        )
+        .into_iter()
+        .map(Action::Card),
     );
     (out, rects)
 }

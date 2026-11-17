@@ -1367,9 +1367,14 @@ automatización y la pista en Escribir, Tocar o Retener (ver
 [Automatización](#automatización)) — arrastra el disco: Cantus escribe **dos carriles, X e
 Y**, justo sobre el tramo en que lo moviste, y la pasada es un paso de deshacer. Al
 reproducir, los carriles mueven el disco como lo movió tu mano; edítalos como cualquier
-automatización. Para automatizar un eje a mano, mueve su perilla en la tarjeta *Pad* y
-pulsa `Alt+A` (*automatiza lo último que tocaste*); `Alt+Shift+A` lo enlaza del mismo modo
-a un controlador MIDI.
+automatización. Para automatizar un eje a mano, haz clic derecho en su riel (las palabras
+a lo largo del pie del pad para X, de su lado izquierdo para Y) o en su perilla de la
+tarjeta *Pad*: el menú que tiene todo parámetro — *Crear clip de automatización* (*Editar
+automatización* cuando ya lo tiene), *Modular…*, *Aprender controlador MIDI* (*Olvidar el controlador MIDI*
+cuando está enlazado), *Volver al valor por defecto*. O mueve su perilla y pulsa `Alt+A`
+(*automatiza lo último que tocaste*); `Alt+Shift+A` lo enlaza del mismo modo a un
+controlador MIDI. *Cantidad* ofrece lo mismo; la inercia, los ajustes del trayecto y la
+polaridad son ajustes propios del pad, no parámetros, y no ofrecen nada de esto.
 
 **Trayectos: gestos que se repiten con la canción.** Un trayecto es un bucle que el disco
 sigue mientras suena la canción (parada, el pad vuelve a ser de tu mano), leído de la
@@ -1447,8 +1452,10 @@ una sola salida, así que no hay etiqueta X/Y).
   paréntesis, `+ − × ÷ ^` (que escriben `+ - * / ^`), `If(`, `Max(`, `Min(`.
 - **Los diales a, b, c**, sobre las teclas: arrastra uno arriba o abajo (un paso de
   deshacer por arrastre); doble clic lo deja en 0,5. La tarjeta *Perillas* mueve las mismas
-  tres. Automatiza una perilla (muévela y pulsa `Alt+A`), enlázala a un controlador MIDI
-  (muévela y pulsa `Alt+Shift+A`) o deja que otro modulador la mueva, y la fórmula la sigue.
+  tres. Automatiza una perilla (clic derecho en un dial o en su perilla de la tarjeta:
+  *Crear clip de automatización*, o muévela y pulsa `Alt+A`), enlázala a un controlador MIDI
+  (*Aprender controlador MIDI* en el mismo menú, o muévela y pulsa `Alt+Shift+A`) o deja que
+  otro modulador la mueva, y la fórmula la sigue.
 - **La tarjeta Salida**: **Polaridad** — **En un sentido** (la de FL: el valor, de 0 a 1,
   se suma al parámetro; 0 es su propio valor) o **En ambos sentidos** (0,5 es el valor
   propio del parámetro; por debajo, resta); **Cantidad**, la cantidad del modulador.
