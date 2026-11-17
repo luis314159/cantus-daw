@@ -191,8 +191,9 @@ tank finite (only the governor stopped it).
 
 **Consequences.** Infinite is now the same sound as the finite tail at the moment of the switch
 and while you keep playing, and a held pad for as long as you leave it; the decay knob under
-Infinite sets how full the wash may grow. Infinite costs a little more than the finite tank
-(the second absorption and the ceiling's measures; below). The tonal case is honest about one
+Infinite sets how full the wash may grow. Infinite costs about a quarter more than the finite tank
+(the second absorption and the ceiling's measures; `docs/round-fx/caelum.md` has the numbers,
+measured on a shared machine). The tonal case is honest about one
 limit: two held tones beat against their own modes in a tank that loses nothing, so an octave
 holding them wavers by about a decibel from one four-second stretch to the next.
 

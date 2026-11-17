@@ -228,7 +228,11 @@ mod tests {
         let mut s = crate::EffectSpec::new(crate::EffectKind::Shimmer);
         s.params.insert("ishim".into(), 1.0);
         assert!(repair_spec(&mut s));
-        assert_eq!(s.params.get("isus"), Some(&1.0), "Sustains is Sustain 100 %");
+        assert_eq!(
+            s.params.get("isus"),
+            Some(&1.0),
+            "Sustains is Sustain 100 %"
+        );
         assert!(!repair_spec(&mut s), "once");
         let mut other = crate::EffectSpec::new(crate::EffectKind::Glitch);
         other.params.insert("ishim".into(), 1.0);

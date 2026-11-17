@@ -1570,7 +1570,9 @@ mod tests {
         // wave A's first build (`ishim` 0, Fades; `ilevel` 0): it opens as Sustain 0 %,
         // the switches gone (ADR 0141's amendment).
         assert_eq!(slots[2].spec.stored("isus"), Some(0.0));
-        assert!(slots[2].spec.stored("ishim").is_none() && slots[2].spec.stored("ilevel").is_none());
+        assert!(
+            slots[2].spec.stored("ishim").is_none() && slots[2].spec.stored("ilevel").is_none()
+        );
         let old = std::fs::read_to_string(dir.join("v63.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert!(p
