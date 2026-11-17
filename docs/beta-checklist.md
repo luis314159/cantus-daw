@@ -378,6 +378,16 @@ Necesita tu hardware; en la ronda se probó todo con una interfaz virtual y con 
 - [ ] **Mackie Control** (o una compatible: X-Touch, Icon, FaderPort en modo MCU): añade la superficie, mueve un fader (el canal cambia y un solo deshacer lo devuelve), toca un fader mientras cambias el volumen con el ratón (el motor no pelea), banco y canal, mute/solo/rec/select con sus luces, V-pot, jog, transporte, las pantallas de nombre y los medidores. Con una extensión, dieciséis canales.
 - [ ] **HUI**: si tienes una, lo mismo con sus ocho canales y el transporte. Abre el registro bajo la lista: cualquier interruptor que diga *unmapped HUI zone … port …* mándalo y se añade a la tabla (la tabla de zonas y puertos se tomó de las notas públicas del protocolo y solo se probó con la emulación).
 
+### Cedo, el atenuador (ronda lateral de efectos, ADR 0144 provisional) <!-- fxb:cedo -->
+
+En la ronda se probó todo con el motor de Cantus y con nuestro propio anfitrión CLAP/VST3; falta tu oído y un DAW de verdad.
+
+- [ ] **Un bajo atenuado por un bombo real**: pon Cedo en la tira del bajo, *Disparo ▸ Cadena lateral*, elige la tira del bombo en *Clave* y el preset *El bombo atenúa el bajo*. El bajo debe ceder en cada golpe sin chasquidos, y nada antes del primer golpe.
+- [ ] **El bombeo por tempo**: con el bombo silenciado, *Bombeo clásico*: el bombeo debe caer en cada negra; exporta el WAV y compáralo con la reproducción (deben sonar igual).
+- [ ] **Una guitarra bajo una locución real**: graba o carga una voz en otra pista y usa *Locución* y *Fondo musical de pódcast* en la guitarra: la voz debe quedar clara y la guitarra volver despacio, sin bombeo.
+- [ ] **Solo los graves en fase lineal**: *Bombeo de graves en fase lineal* y arrastra el cruce: la latencia (la bandera *Latencia*) no debe cambiar hasta soltar; al soltar, la pista sigue alineada con las demás. Prueba los suelos fijos 40/60/80/120 Hz y di cuál prefieres por defecto (hoy *Automático*).
+- [ ] **En otro DAW** (Reaper, Bitwig o FL): carga *Cantus Cedo*, enruta un bombo a su entrada de cadena lateral y elige *La entrada de cadena lateral del complemento* en *Clave*; luego el disparo MIDI con una pista de notas; y el tempo del DAW. Al cambiar el suelo de la fase lineal, el DAW debe recompensar la latencia.
+
 ## 2. Decisiones y trámites tuyos
 
 - [ ] **Firma de código** (sin ella Windows muestra "Windows protegió tu PC"):

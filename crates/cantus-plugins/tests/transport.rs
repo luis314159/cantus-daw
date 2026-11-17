@@ -699,3 +699,64 @@ fn the_last_frame_of_a_block_ending_at_the_loop_end_is_before_the_wrap() {
         "the last frame at {last}"
     );
 }
+
+/// fxb:cedo — Cedo's tempo pump in another DAW: on the host's tempo and beats through CLAP
+/// (a state carrying a drawn shape, a square duck over the first third of each eighth) it is
+/// the engine's unit given the same song position, to the bit, in blocks that divide
+/// nothing — and the duck lands on the host's beat grid.
+#[test]
+fn cedo_s_pump_follows_the_hosts_tempo_with_its_drawn_shape() {
+    use cantus_core::fx::cedo::Shape;
+    use cantus_core::fx::lapsus::Point;
+    let kind = EffectKind::Ducker;
+    let values = [("trig", 1.0), ("depth", 80.0), ("div", 11.0), ("edge", 0.0)];
+    let mut spec = spec_with(kind, &values);
+    spec.cedo = Some(Box::new(Shape {
+        points: vec![
+            Point::new(0.0, 1.0).shape(2),
+            Point::new(1.0 / 3.0, 0.0).shape(2),
+        ],
+    }));
+    let plug = Plug::new(kind);
+    assert!(plug.load(&serde_json::to_vec(&spec).unwrap()));
+    plug.activate(4096);
+    let (tempo, start, n) = (100.0, 2.0, 96_000);
+    let out = run_clap(&plug, n, &[512], Some(tempo), start, None);
+    // The engine's unit at the same song position, block by block.
+    let mut u = cantus_engine::fx::make(kind, SR).unwrap();
+    u.configure(&spec);
+    u.reset();
+    let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+    let spb = 60.0 / tempo * SR as f64;
+    let mut at = 0;
+    while at < n {
+        let m = 512.min(n - at);
+        let beats = start + at as f64 / spb;
+        u.set_position(&cantus_engine::SongPosition {
+            playing: true,
+            tempo_bpm: tempo,
+            tempo_now: tempo,
+            samples: (beats * spb).round() as i64,
+            beats,
+            time_sig_num: 4,
+            time_sig_den: 4,
+            ..Default::default()
+        });
+        u.process(&mut l[at..at + m], &mut r[at..at + m], None);
+        at += m;
+    }
+    assert_identical("Cedo on the host's beats", &out, &l);
+    // Shut (silence: 80 dB is ∞) through the first third of every eighth, open after.
+    let mut checked = 0;
+    for (i, v) in out.iter().enumerate() {
+        let f = ((start + i as f64 / spb) * 2.0).fract();
+        if (0.02..0.30).contains(&f) {
+            assert_eq!(*v, 0.0, "sample {i}: ducked ({f:.3} of the eighth)");
+            checked += 1;
+        } else if (0.36..0.98).contains(&f) {
+            assert_eq!(*v, 1.0, "sample {i}: open ({f:.3})");
+            checked += 1;
+        }
+    }
+    assert!(checked > n / 2);
+}

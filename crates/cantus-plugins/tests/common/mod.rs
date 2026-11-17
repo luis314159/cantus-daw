@@ -815,6 +815,21 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
             ("mix", 0.8),
             ("out", -2.0),
         ], // fxb:lenis
+        // fxb:cedo — the sidechain trigger (no key here: the duck waits, the lookahead and
+        // the linear-phase lows' split still delay it, the output moved). The key, the
+        // tempo, the notes, the shape and the latency's change are in `clap.rs`, `vst3.rs`,
+        // `notes.rs` and `transport.rs`.
+        EffectKind::Ducker => vec![
+            ("trig", 0.0),
+            ("depth", 18.0),
+            ("kfilt", 2.0),
+            ("khz", 70.0),
+            ("look", 2.0),
+            ("band", 1.0),
+            ("xover", 1.0),
+            ("xhz", 150.0),
+            ("out", -3.0),
+        ], // fxb:cedo
         _ => vec![],
     }
 }
@@ -923,6 +938,9 @@ pub enum Direct {
     ),
     /// fxb:lenis — Lenis, the resonance suppressor: its DSP, its output level its own.
     Lenis(Box<cantus_dsp::lenis::Lenis>),
+    /// fxb:cedo — Cedo, the ducker: its DSP, its shape as the engine passes it (the
+    /// classic pump when the spec draws none).
+    Cedo(Box<cantus_dsp::cedo::Cedo>),
 }
 
 /// r39:conv — Aula's kernel for `spec`, built as the engine builds it, in `cap`.
@@ -1030,6 +1048,10 @@ impl Direct {
             EffectKind::ResonanceSuppressor => {
                 Direct::Lenis(Box::new(cantus_dsp::lenis::Lenis::new(SR)))
             } // fxb:lenis
+            EffectKind::Ducker => Direct::Cedo(Box::new(cantus_dsp::cedo::Cedo::new(
+                SR,
+                cantus_engine::fx::fluctus::shape_at,
+            ))), // fxb:cedo
             k => panic!("{k:?} is not exported"),
         };
         d.set(spec);
@@ -1103,6 +1125,14 @@ impl Direct {
                 };
             }
             Direct::Lenis(x) => x.set(&fx::lenis::settings(spec)), // fxb:lenis
+            // fxb:cedo — the settings, then the shape's points.
+            Direct::Cedo(x) => {
+                x.set(&fx::cedo::settings(spec));
+                let mut pts =
+                    [cantus_dsp::fluctus::CurvePoint::default(); cantus_core::fx::cedo::MAX_POINTS];
+                let n = fx::cedo::shape_points(spec, &mut pts);
+                x.set_shape(&pts[..n]);
+            }
             Direct::Wire => {}
             Direct::Aula(x, have) => {
                 let want = fx::aula::want(spec);
@@ -1154,6 +1184,7 @@ impl Direct {
                 x.reset();
             } // fxb:vinculum
             Direct::Lenis(x) => x.restart(), // fxb:lenis: as the engine's reset
+            Direct::Cedo(x) => x.reset(),    // fxb:cedo
             Direct::Wire => {}
             Direct::Aula(x, _) => x.reset(),
         }
@@ -1192,6 +1223,7 @@ impl Direct {
             Direct::Arca(x) => x.latency(),        // fx3:arca
             Direct::Vinculum(x, _) => x.latency(), // fxb:vinculum
             Direct::Lenis(x) => x.latency(),       // fxb:lenis
+            Direct::Cedo(x) => x.latency(),        // fxb:cedo
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1239,6 +1271,7 @@ impl Direct {
                 }
             } // fxb:vinculum
             Direct::Lenis(x) => x.process(l, r),     // fxb:lenis
+            Direct::Cedo(x) => x.process(l, r, key), // fxb:cedo
             Direct::Wire => {}
             Direct::Aula(x, _) => x.process(l, r),
         }

@@ -1,5 +1,6 @@
 //! Notes into the exported plug-ins that hear them (round 28): a CLAP note port and a VST3
-//! event bus on Tonus, Porta, Lapsus and Saltus (fx side round), none on the others, and the notes a host sends — in CLAP's
+//! event bus on Tonus, Porta, Lapsus and Saltus (fx side round), Rota and Cedo (fxb:cedo),
+//! none on the others, and the notes a host sends — in CLAP's
 //! dialect, in MIDI bytes, as VST3 events — arrive at their sample: the plug-in renders
 //! exactly what the DSP renders fed the same notes, at any block size. A flood of notes
 //! loses no note-off, and CLAP's wildcards release only what they address.
@@ -37,6 +38,10 @@ const SALTUS: &[(&str, f32)] = &[("mode", 1.0), ("hsrc", 2.0), ("lvl2", 0.5), ("
 
 /// fx3:rota — Rota with notes throwing its switch: each note played toggles slow and fast.
 const ROTA: &[(&str, f32)] = &[("mix", 1.0), ("drive", 0.3)];
+
+/// fxb:cedo — Cedo's MIDI trigger: each note-on plays the classic pump once, an eighth long,
+/// 24 dB deep, its velocity scaling the depth.
+const CEDO: &[(&str, f32)] = &[("trig", 2.0), ("depth", 24.0), ("div", 11.0), ("vel", 1.0)];
 
 /// A note a host sends. In CLAP's dialect a note on or off carries the note id
 /// `1000 + pitch` and the channel `pitch % 16` (in MIDI bytes, that channel too).
@@ -119,6 +124,16 @@ impl Case {
         }
     }
 
+    /// fxb:cedo — a rich signal; each note fires the pump.
+    fn cedo() -> Case {
+        Case {
+            kind: EffectKind::Ducker,
+            values: CEDO,
+            input: signal(SR as usize, 11),
+            notes: NOTES.to_vec(),
+        }
+    }
+
     fn porta(notes: &[(u32, N)]) -> Case {
         Case {
             kind: EffectKind::Gate,
@@ -136,6 +151,7 @@ enum Dsp {
     Lapsus(Box<dyn cantus_engine::fx::FxUnit>), // fx:lapsus
     Saltus(Box<dyn cantus_engine::fx::FxUnit>), // fx3:saltus
     Rota(Box<dyn cantus_engine::fx::FxUnit>),   // fx3:rota
+    Cedo(Box<dyn cantus_engine::fx::FxUnit>),   // fxb:cedo
 }
 
 impl Dsp {
@@ -163,7 +179,7 @@ impl Dsp {
                 },
             ),
             // fx:lapsus, fx3:saltus
-            Dsp::Lapsus(d) | Dsp::Saltus(d) | Dsp::Rota(d) => d.note(
+            Dsp::Lapsus(d) | Dsp::Saltus(d) | Dsp::Rota(d) | Dsp::Cedo(d) => d.note(
                 0,
                 match n {
                     N::On(p) => cantus_engine::fx::FxNote::On {
@@ -185,6 +201,7 @@ impl Dsp {
             Dsp::Lapsus(d) => d.process(l, r, None), // fx:lapsus
             Dsp::Saltus(d) => d.process(l, r, None), // fx3:saltus
             Dsp::Rota(d) => d.process(l, r, None),   // fx3:rota
+            Dsp::Cedo(d) => d.process(l, r, None),   // fxb:cedo
         }
     }
 }
@@ -228,6 +245,13 @@ fn through_dsp(case: &Case, expected: &[(u32, N)]) -> Vec<f32> {
             u.configure(&spec);
             u.reset();
             Dsp::Rota(u)
+        }
+        // fxb:cedo — the engine's unit, as the exported plug-in runs it.
+        EffectKind::Ducker => {
+            let mut u = cantus_engine::fx::make(EffectKind::Ducker, SR).unwrap();
+            u.configure(&spec);
+            u.reset();
+            Dsp::Cedo(u)
         }
         k => panic!("{k:?} hears no notes"),
     };
@@ -460,6 +484,7 @@ fn clap_notes_arrive_at_their_sample_in_either_dialect() {
         Case::lapsus(),
         Case::saltus(), // fx3:saltus
         Case::rota(),   // fx3:rota
+        Case::cedo(),   // fxb:cedo
     ] {
         let reference = through_dsp(&case, &case.notes);
         let dry = {
@@ -799,6 +824,7 @@ fn vst3_notes_arrive_at_their_sample_on_the_event_bus() {
         Case::lapsus(),
         Case::saltus(), // fx3:saltus
         Case::rota(),   // fx3:rota
+        Case::cedo(),   // fxb:cedo
     ] {
         let reference = through_dsp(&case, &case.notes);
         for blocks in &BLOCKS[..2] {

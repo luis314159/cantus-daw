@@ -236,6 +236,7 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             EffectKind::Rotary => "out",                // fx3:contract
             EffectKind::Amp => "out",                   // fx3:contract
             EffectKind::ResonanceSuppressor => "depth", // fxb:lenis
+            EffectKind::Ducker => "out",                // fxb:cedo
             _ => "thr",
         };
         let table = params::table(kind);
@@ -804,4 +805,155 @@ fn lenis_s_delta_is_what_it_takes_away() {
     }
     let taken = delta.iter().map(|v| v * v).sum::<f32>();
     assert!(taken > 1e-3, "something is taken away: {taken}");
+}
+
+/// fxb:cedo — Cedo's sidechain trigger keyed by the plug-in's sidechain input: with the
+/// switch on the external key the input is ducked while the key plays, exactly as the DSP
+/// keyed by it; on its own input nothing keys it and the input passes untouched.
+#[test]
+fn cedo_s_external_key_ducks_the_input_only_when_asked() {
+    let kind = EffectKind::Ducker;
+    let values = [
+        ("trig", 0.0),
+        ("depth", 24.0),
+        ("thr", -30.0),
+        ("att", 0.5),
+        ("hold", 20.0),
+        ("rel", 80.0),
+        ("look", 1.0),
+    ];
+    let spec = spec_with(kind, &values);
+    let n = 48_000;
+    let (key_l, key_r) = signal(n, 99);
+    let (quiet_l, quiet_r): (Vec<f32>, Vec<f32>) = {
+        let (l, r) = signal(n, 3);
+        (
+            l.iter().map(|x| x * 0.01).collect(),
+            r.iter().map(|x| x * 0.01).collect(),
+        )
+    };
+    let mut outs = Vec::new();
+    for keyed in [false, true] {
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        if keyed {
+            configure(&plug, &[(SIDECHAIN_KEY, 1.0)]);
+        }
+        plug.activate(4096);
+        let (mut l, mut r) = (quiet_l.clone(), quiet_r.clone());
+        plug.run(&mut l, &mut r, Some((&key_l, &key_r)), &[], &[480]);
+
+        let _guard = DenormalGuard::new();
+        let mut d = Direct::new(&spec);
+        let (mut el, mut er) = (quiet_l.clone(), quiet_r.clone());
+        d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
+        assert_identical(&format!("Cedo keyed {keyed}, left"), &l, &el);
+        assert_identical(&format!("Cedo keyed {keyed}, right"), &r, &er);
+        outs.push(l);
+    }
+    let lat = 48;
+    let delayed: Vec<f32> = (0..n)
+        .map(|i| if i >= lat { quiet_l[i - lat] } else { 0.0 })
+        .collect();
+    assert_identical(
+        "unkeyed: the input untouched (1 ms late)",
+        &outs[0],
+        &delayed,
+    );
+    let energy = |x: &[f32]| x[4_800..].iter().map(|v| v * v).sum::<f32>();
+    assert!(
+        energy(&outs[1]) < 0.1 * energy(&outs[0]),
+        "the key ducks the input: {} keyed against {}",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
+}
+
+/// fxb:cedo — Cedo's latency (the lookahead and the linear-phase split at its floor) is
+/// reported before it activates; the crossover moved by a host (automation, a drag's
+/// values) never moves it — the floor in force moves it once, when it is committed (the
+/// editor commits it at a crossover's release; a host restoring a session sets it), and
+/// then the host is asked for one restart and told the new latency.
+#[test]
+fn cedo_reports_its_latency_and_a_committed_floor_re_reports_it() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let kind = EffectKind::Ducker;
+    let lows = [("band", 1.0), ("xover", 1.0), ("depth", 12.0)];
+    for (extra, want) in [
+        (&[][..], 1_765u32),
+        (&[("look", 2.0)][..], 1_765 + 96),
+        (&[("lfloor", 1.0)][..], 2_655),
+        (&[("lfloor", 4.0)][..], 880),
+        (&[("lfhz", 100.0)][..], 1_060),
+    ] {
+        let values = [&lows[..], extra].concat();
+        let plug = Plug::new(kind);
+        configure(&plug, &values);
+        plug.activate(512);
+        assert_eq!(plug.latency(), want, "{extra:?}");
+        assert_eq!(
+            engine_unit(&spec_with(kind, &values)).latency(),
+            want as usize,
+            "the engine's unit agrees: {extra:?}"
+        );
+    }
+    let plug = Plug::new(kind);
+    configure(&plug, &lows);
+    plug.activate(512);
+    assert_eq!(plug.latency(), 1_765);
+    let (mut l, mut r) = signal(512, 1);
+    // The crossover swept as a drag sends it: no latency change, no restart.
+    for hz in [140.0, 200.0, 260.0, 300.0] {
+        let (id, v) = clap_value(kind, "xhz", hz);
+        plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    }
+    assert_eq!(
+        plug.host.restarts.load(SeqCst),
+        0,
+        "no restart while it moves"
+    );
+    // The floor committed (an octave under 300 Hz): one restart, the new latency told.
+    let (id, v) = clap_value(kind, "lfhz", 150.0);
+    plug.process(&mut l, &mut r, None, &[(0, id, v)], false);
+    plug.process(&mut l, &mut r, None, &[], false);
+    assert_eq!(
+        plug.host.restarts.load(SeqCst),
+        1,
+        "one restart at the commit"
+    );
+    let told = plug.host.latency_changed.load(SeqCst);
+    plug.deactivate();
+    plug.activate(512);
+    let want = cantus_dsp::cedo::band::linear_latency(150.0, 48_000.0) as u32;
+    assert_eq!(plug.latency(), want, "the 150 Hz floor's kernel");
+    assert_eq!(plug.host.latency_changed.load(SeqCst), told + 1);
+}
+
+/// fxb:cedo — the drawn shape is content in the state, as the project saves it: a state
+/// with a shape loads it (heard on the host's beat in `transport.rs`), saves it back
+/// unchanged, and a state with none plays the classic pump again.
+#[test]
+fn cedo_s_shape_travels_in_the_state() {
+    use cantus_core::fx::cedo::Shape;
+    use cantus_core::fx::lapsus::Point;
+    let kind = EffectKind::Ducker;
+    let values = [("trig", 0.0), ("depth", 30.0), ("thr", -30.0)];
+    let mut spec = spec_with(kind, &values);
+    spec.cedo = Some(Box::new(Shape {
+        points: vec![Point::new(0.0, 1.0).shape(2), Point::new(0.3, 0.2)],
+    }));
+    let bytes = serde_json::to_vec(&spec).unwrap();
+    let plug = Plug::new(kind);
+    assert!(plug.load(&bytes));
+    let saved: EffectSpec = serde_json::from_slice(&plug.save()).unwrap();
+    assert_eq!(saved.cedo, spec.cedo, "saved back as loaded");
+    let reloaded = Plug::new(kind);
+    assert!(reloaded.load(&plug.save()));
+    let again: EffectSpec = serde_json::from_slice(&reloaded.save()).unwrap();
+    assert_eq!(again.cedo, spec.cedo, "and again");
+    // A state with no shape: the classic pump (none saved).
+    let plain = Plug::new(kind);
+    assert!(plain.load(&serde_json::to_vec(&spec_with(kind, &values)).unwrap()));
+    let s: EffectSpec = serde_json::from_slice(&plain.save()).unwrap();
+    assert_eq!(s.cedo, None);
 }

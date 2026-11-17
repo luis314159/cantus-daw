@@ -211,6 +211,16 @@ pub trait FxHost {
     fn load(&mut self, params: &std::collections::BTreeMap<String, f32>, label_key: &str) {
         let spec = self.spec();
         let kind = spec.kind;
+        // fxb:cedo — a preset naming no Auto floor commits its crossover's.
+        let completed;
+        let params = if kind == cantus_core::EffectKind::Ducker {
+            let mut m = params.clone();
+            cantus_core::fx::cedo::complete_floor(&mut m);
+            completed = m;
+            &completed
+        } else {
+            params
+        };
         let shape_now = spec.cedo.clone(); // fxb:cedo
         let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
         for info in kind.params() {
@@ -371,6 +381,35 @@ pub fn touches(cmd: &cantus_core::Command, effect: cantus_core::EffectId) -> boo
         | C::SetPluginState { effect: e, .. } => *e == effect,
         C::Batch { commands, .. } => commands.iter().any(|c| touches(c, effect)),
         _ => false,
+    }
+}
+
+/// fxb:cedo — the crossover keys of `effect` whose release commits an Auto floor, with that
+/// floor's key: `xhz` and `lfhz` on a Cedo; `p{id}.xhz` and `p{id}.lfhz` for each Cedo pedal
+/// of a board. Empty for anything else.
+pub fn cedo_crossovers(
+    project: &cantus_core::Project,
+    strip: StripId,
+    effect: cantus_core::EffectId,
+) -> Vec<(String, String)> {
+    let Some(e) = project.effect(strip, effect) else {
+        return Vec::new();
+    };
+    match e.spec.kind {
+        cantus_core::EffectKind::Ducker => vec![("xhz".into(), "lfhz".into())],
+        cantus_core::EffectKind::Board => e
+            .spec
+            .pedals()
+            .iter()
+            .filter(|p| p.spec.kind == cantus_core::EffectKind::Ducker)
+            .map(|p| {
+                (
+                    cantus_core::fx::tabula::pedal_key(p.id, "xhz"),
+                    cantus_core::fx::tabula::pedal_key(p.id, "lfhz"),
+                )
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -578,12 +617,34 @@ impl FxHost for DawHost<'_> {
     }
 
     fn set(&mut self, key: &str, value: f32, gesture: Option<&str>) {
-        let cmd = cantus_core::Command::SetEffectParam {
+        let mut cmd = cantus_core::Command::SetEffectParam {
             strip: self.strip,
             effect: self.effect,
             key: key.to_string(),
             value,
         };
+        // fxb:cedo — a crossover set at once (not dragged) commits its Auto floor in the
+        // same step.
+        if gesture.is_none() {
+            if let Some((_, floor)) = cedo_crossovers(self.app.project(), self.strip, self.effect)
+                .into_iter()
+                .find(|(x, _)| x == key)
+            {
+                let want = cantus_core::fx::cedo::auto_floor(value);
+                cmd = cantus_core::Command::Batch {
+                    label_key: "cmd.set_effect_param".into(),
+                    commands: vec![
+                        cmd,
+                        cantus_core::Command::SetEffectParam {
+                            strip: self.strip,
+                            effect: self.effect,
+                            key: floor,
+                            value: want,
+                        },
+                    ],
+                };
+            }
+        }
         match gesture {
             Some(g) => {
                 self.app.exec_merging(
@@ -614,6 +675,32 @@ impl FxHost for DawHost<'_> {
     }
 
     fn end_gesture(&mut self) {
+        // fxb:cedo — a crossover let go commits its Auto floor into the drag's own step: the
+        // latency moves once, at the release, never during the drag.
+        for (x, floor) in cedo_crossovers(self.app.project(), self.strip, self.effect) {
+            let key = cantus_core::MergeKey::of(&(self.tag, self.effect.0, x.as_str()));
+            if !self.app.bus.merging(key) {
+                continue;
+            }
+            let get = |k: &str| {
+                self.app
+                    .project()
+                    .effect(self.strip, self.effect)
+                    .map_or(0.0, |e| e.spec.get(k))
+            };
+            let want = cantus_core::fx::cedo::auto_floor(get(&x));
+            if get(&floor) != want {
+                self.app.exec_merging(
+                    cantus_core::Command::SetEffectParam {
+                        strip: self.strip,
+                        effect: self.effect,
+                        key: floor,
+                        value: want,
+                    },
+                    key,
+                );
+            }
+        }
         self.app.end_gesture();
     }
 
@@ -765,7 +852,11 @@ impl FxHost for DawHost<'_> {
     }
 
     // fxb:cedo
-    fn set_cedo_shape(&mut self, shape: Option<cantus_core::fx::cedo::Shape>, gesture: Option<u64>) {
+    fn set_cedo_shape(
+        &mut self,
+        shape: Option<cantus_core::fx::cedo::Shape>,
+        gesture: Option<u64>,
+    ) {
         let cmd = cantus_core::Command::SetCedoShape {
             strip: self.strip,
             effect: self.effect,

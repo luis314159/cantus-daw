@@ -604,6 +604,8 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("resonance_tamer", EffectKind::ResonanceSuppressor), // fxb:lenis
     ("deharsh", EffectKind::ResonanceSuppressor),  // fxb:lenis
     ("ducker", EffectKind::Ducker),                // fxb:contract
+    ("pump", EffectKind::Ducker),                  // fxb:cedo
+    ("sidechain_pump", EffectKind::Ducker),        // fxb:cedo
     ("ducking", EffectKind::Ducker),               // fxb:contract
     ("pump", EffectKind::Ducker),                  // fxb:contract
 ];

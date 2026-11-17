@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 36] = [
+pub const EFFECTS: [Unit; 37] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -575,6 +575,28 @@ pub const EFFECTS: [Unit; 36] = [
             ("Fourteen factory presets; untouched at its defaults; a pedal on the pedalboard too", "Catorce presets de fábrica; intacto en sus valores por defecto; también un pedal en la pedalera"),
         ]),
         presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1209),
+        thumb: (640, 430),
+    },
+
+    // fxb:cedo — Cedo, the ducker (ADR 0144, provisional).
+    Unit {
+        file: "cedo",
+        name: "Cedo",
+        kind: ("Ducker", "Atenuador"),
+        pitch: ("Makes room: the bass gives way to the kick, the music to the voice, or the whole track pumps on the beat in a shape you draw — sample-exact, on a Victorian beam engine whose cam is your shape.", "Hace sitio: el bajo cede ante el bombo, la música ante la voz, o toda la pista bombea al pulso con una forma que dibujas — exacto a la muestra, en una máquina de balancín victoriana cuya leva es tu forma."),
+        what: long!(("Cedo ducks a track three ways. By another track's sound: route a kick or a voice as its key, filter the key (a high-pass or a band-pass), set a threshold, and the duck attacks along an S, holds from the key's last sample over the line and lets go over exactly the release you set, with up to 10 ms of lookahead so it is down before the transient lands. By the song: a shape you draw over one cycle — a quarter, an eighth, a triplet, a bar — plays on the song's own sample grid, so the pump is the same in every render and from any bar, with swing and smoothed edges that never click. By notes: another track's MIDI fires the shape, its velocity scaling the depth if you like. It can duck the whole sound or only the lows or the highs, split at minimum phase with no latency or at linear phase with no phase turn — its latency an octave under the crossover by default, or a fixed floor if you need a constant one, compensated by the mixer. Its window is a Victorian beam engine: the cam on its flywheel is your shape turning, the beam squeezes a bellows as the track is ducked, and a dark screen shows the shape, what is ducked now and the last four seconds; drag the points, bend the curves, drag the envelope's handles and the threshold.", "Cedo atenúa una pista de tres maneras. Por el sonido de otra pista: envía un bombo o una voz como su clave, filtra la clave (un paso alto o un paso banda), fija un umbral, y la atenuación ataca en S, se mantiene desde la última muestra de la clave sobre la línea y se suelta en exactamente la liberación que fijas, con hasta 10 ms de anticipación para estar abajo antes de que llegue el transitorio. Por la canción: una forma que dibujas sobre un ciclo — una negra, una corchea, un tresillo, un compás — suena en la propia rejilla de muestras de la canción, así que el bombeo es igual en cada render y desde cualquier compás, con swing y bordes suavizados que nunca chasquean. Por notas: el MIDI de otra pista dispara la forma, y su velocidad escala la profundidad si quieres. Puede atenuar todo el sonido o solo los graves o los agudos, con una división de fase mínima sin latencia o de fase lineal sin giro de fase — su latencia una octava bajo el cruce por defecto, o un suelo fijo si necesitas una constante, compensada por el mezclador. Su ventana es una máquina de balancín victoriana: la leva en su volante es tu forma girando, el balancín aprieta un fuelle mientras se atenúa la pista, y una pantalla oscura muestra la forma, lo que se atenúa ahora y los últimos cuatro segundos; arrastra los puntos, curva los tramos, arrastra las asas de la envolvente y el umbral.")),
+        features: long!(&[
+            ("Three triggers: another track's sound, the song's beat, another track's notes", "Tres disparos: el sonido de otra pista, el pulso de la canción, las notas de otra pista"),
+            ("A shape you draw, on the song's sample grid: the same from any bar, swing and click-free edges", "Una forma que dibujas, en la rejilla de muestras de la canción: igual desde cualquier compás, con swing y bordes sin chasquidos"),
+            ("Hold counted from the key's last sample over the threshold; up to 10 ms of lookahead", "Mantenimiento contado desde la última muestra de la clave sobre el umbral; hasta 10 ms de anticipación"),
+            ("Whole, lows or highs, minimum or linear phase; the latency follows the crossover or a fixed floor", "Todo, graves o agudos, fase mínima o lineal; la latencia sigue al cruce o a un suelo fijo"),
+            ("Drag the shape's points and bends, the envelope's handles, the threshold and the crossover", "Arrastra los puntos y curvas de la forma, las asas de la envolvente, el umbral y el cruce"),
+            ("Seventeen factory presets; untouched at its defaults; a pedal on the pedalboard too", "Diecisiete presets de fábrica; intacto en sus valores por defecto; también un pedal en la pedalera"),
+        ]),
+        presets: Some(17),
         plugin: true,
         ab: None,
         big: (1800, 1209),

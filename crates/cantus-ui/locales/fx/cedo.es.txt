@@ -152,3 +152,14 @@ preset.cedo.voice_over = Locución
 preset.cedo.podcast_bed = Fondo musical de pódcast
 preset.cedo.gentle_radio = Radio suave
 preset.cedo.snare_room = Sala de la caja
+# The linear phase's floor (the owner's choice, 2026-11-17).
+fx.cedo.lfloor = Suelo de la fase lineal
+fx.cedo.lfloor.0 = Automático, una octava bajo el cruce
+fx.cedo.lfloor.1 = 40 Hz
+fx.cedo.lfloor.2 = 60 Hz
+fx.cedo.lfloor.3 = 80 Hz
+fx.cedo.lfloor.4 = 120 Hz
+fx.cedo.lfhz = Suelo automático en vigor
+cedo.l.floor = Suelo de la fase lineal
+cedo.floor.auto = Automático
+cedo.floor.widest = Automático · 1000 Hz · 55.3 ms

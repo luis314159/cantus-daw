@@ -313,7 +313,7 @@ fn host_of(p: &Project, a: A<'_>) -> Res<StripId> {
 fn kind_schema() -> Value {
     // fx:contract — the description names the side round's units (each builder words its own;
     // fx3:contract — wave 3's four).
-    json!({"enum": args::effect_words(), "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and more painted on lanes in time with the song), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking), vinculum (bus compressor that glues a mix: a console VCA with Auto release, an opto photocell leveller or a valve vari-mu, each with Compress or Limit; keyed by another track via sidechain through a high-pass, parallel by its mix; mix-bus glue, drum smash, parallel drums, vocal bus levelling, mastering glue), lenis (resonance suppressor: finds the rings, whistles and harsh peaks that stand out of a sound's own spectrum moment by moment and takes a share of each away, leaving notes and tone; depth, sharpness, selectivity, a focus between two limits with six weighted bands, Soft or Hard curve, Fast/Standard/Precise quality (5/11/21 ms latency), linked, independent or mid/side, delta to hear what is removed; harsh vocals, sibilance, guitar fizz, ringing drums and rooms, boomy acoustics, a gentle mix or master polish). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"})
+    json!({"enum": args::effect_words(), "description": "The effect: aequalis (parametric EQ), comprimo (compressor), terminus (limiter), spatium (reverb), multiplex (multiband dynamics), sibilus (de-esser), porta (gate), fervor (saturation), latitudo (stereo), culmen (mastering maximizer), delay, concentus (chorus), flexus (flanger), phasis (phaser), tremor (tremolo/auto-pan), vibrans (vibrato), anulus (ring mod), translatio (frequency shifter), fluctus (volume shaper), tonsor (clipper), impetus (transients), discrimen (transient splitter), speculum (analyser, passes sound through), tonus (auto-tune), aula (convolution reverb: an impulse response, Cantus's own or a file via set_impulse_response), cribrum (auto filter: sweeps, wobbles, auto-wah, talking vowels), fragor (distortion and fuzz pedals, up to three in a chain), lapsus (time shaper: tape stops, half time, stutters, gates, synced to the song), vetus (lo-fi: bits, sample rate, wow and flutter, crackle and hiss, tape or radio tone), libra (utility: gain, balance, width, polarity, channel delay, mono check), tabula (pedalboard: Cantus's own effects as pedals in any order, an A/B split and eight macros; a pedal's parameter is p{id}.{key}, get_unit lists them), saltus (pitch: shifter, harmoniser in key or on MIDI chords, octaver analog or clean, whammy by pedal or notes; mono 2.7 ms or poly 85 ms), rota (rotary speaker), arca (amp and cabinet), loquax (vocoder: the track speaks through a synthesiser played by MIDI notes or through a sidechain), fractus (glitch sequencer and grain cloud: repeats, reverses, tape stops, gates and more painted on lanes in time with the song), caelum (shimmer reverb: tails that climb in pitch, infinite, freeze, bloom, ducking), vinculum (bus compressor that glues a mix: a console VCA with Auto release, an opto photocell leveller or a valve vari-mu, each with Compress or Limit; keyed by another track via sidechain through a high-pass, parallel by its mix; mix-bus glue, drum smash, parallel drums, vocal bus levelling, mastering glue), lenis (resonance suppressor: finds the rings, whistles and harsh peaks that stand out of a sound's own spectrum moment by moment and takes a share of each away, leaving notes and tone; depth, sharpness, selectivity, a focus between two limits with six weighted bands, Soft or Hard curve, Fast/Standard/Precise quality (5/11/21 ms latency), linked, independent or mid/side, delta to hear what is removed; harsh vocals, sibilance, guitar fizz, ringing drums and rooms, boomy acoustics, a gentle mix or master polish), cedo (ducker: makes room for a kick or a voice keyed by another track via sidechain_strip_id, or pumps on the song's beat or on another track's notes via notes_track_id, with a drawn shape set by shape; the whole band or only its lows or highs, minimum or linear phase; classic pump, half-time, trance gate, reverse swell, voice-over, podcast bed). Plain names also work: eq, compressor, limiter, reverb (Spatium), chorus…"})
 }
 
 fn params_schema() -> Value {
@@ -444,10 +444,71 @@ pub fn set_effect_schema() -> Value {
             "mix": {"type": "number", "minimum": 0, "maximum": 1, "description": "The slot's dry/wet."},
             "index": {"type": "integer", "minimum": 0, "maximum": MAX_INSERTS - 1, "description": "Move it to this place in its chain."},
             "sidechain_strip_id": {"type": ["integer", "null"], "minimum": 1, "description": "Key its detector from this strip (compressors, gates…); null: its own input."},
-            "plugin_params": {"type": "object", "additionalProperties": {"type": "number"}, "description": "A hosted plug-in's parameters by its numeric ids, in its own range."}
+            "plugin_params": {"type": "object", "additionalProperties": {"type": "number"}, "description": "A hosted plug-in's parameters by its numeric ids, in its own range."},
+            "notes_track_id": {"type": ["integer", "null"], "minimum": 1, "description": "The track whose notes this effect hears (an effect that hears notes: Cedo's MIDI trigger, Porta's, Tonus's targets, Lapsus, Saltus, Rota); null: none."},
+            "shape": shape_schema()
         }),
         &["effect_id"],
     )
+}
+
+/// fxb:cedo — Cedo's ducking shape, drawn by points over one cycle.
+fn shape_schema() -> Value {
+    json!({"type": ["array", "null"], "maxItems": cantus_core::fx::cedo::MAX_POINTS, "items": {"type": "object",
+        "properties": {
+            "x": {"type": "number", "minimum": 0, "maximum": 1, "description": "Where in the cycle (0 its start, 1 its end)."},
+            "y": {"type": "number", "minimum": 0, "maximum": 1, "description": "How much is ducked there: 0 nothing, 1 the whole depth."},
+            "bend": {"type": "number", "minimum": -1, "maximum": 1, "description": "The segment to the next point bent (0 straight)."},
+            "seg": {"type": "string", "enum": ["curve", "s", "hold"], "description": "The segment to the next point: a curve (default), an S, or held flat."}
+        },
+        "required": ["x", "y"], "additionalProperties": false},
+        "description": "Cedo only: its ducking shape (Tempo and MIDI triggers) replaced by these points, the curve wrapping from the last to the first; [] ducks nothing; null: the classic pump again."})
+}
+
+/// fxb:cedo — the command that draws `shape` on a Cedo.
+fn shape_command(slot: &cantus_core::EffectSlot, strip: StripId, v: &Value) -> Res<Command> {
+    use cantus_core::fx::cedo::{Shape, MAX_POINTS};
+    use cantus_core::fx::lapsus::{Point, SHAPE_CURVE, SHAPE_HOLD, SHAPE_S};
+    if slot.spec.kind != cantus_core::EffectKind::Ducker {
+        return Err(ToolError::bad("shape", "only Cedo has a shape"));
+    }
+    let shape = match v {
+        Value::Null => None,
+        Value::Array(list) => {
+            if list.len() > MAX_POINTS {
+                return Err(ToolError::bad("shape", "64 points at most"));
+            }
+            let mut points = Vec::with_capacity(list.len());
+            for q in list {
+                let n = |k: &str| q.get(k).and_then(Value::as_f64);
+                let (Some(x), Some(y)) = (n("x"), n("y")) else {
+                    return Err(ToolError::bad("shape", "a point needs x and y"));
+                };
+                if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
+                    return Err(ToolError::bad("shape", "x and y are 0 to 1"));
+                }
+                let bend = n("bend").unwrap_or(0.0);
+                if !(-1.0..=1.0).contains(&bend) {
+                    return Err(ToolError::bad("shape", "bend is -1 to 1"));
+                }
+                let seg = match q.get("seg").and_then(Value::as_str) {
+                    None | Some("curve") => SHAPE_CURVE,
+                    Some("s") => SHAPE_S,
+                    Some("hold") => SHAPE_HOLD,
+                    Some(o) => return Err(ToolError::bad("shape", format!("no segment {o:?}"))),
+                };
+                points.push(Point::new(x as f32, y as f32).bend(bend as f32).shape(seg));
+            }
+            Some(Box::new(Shape { points }.sanitized()))
+        }
+        _ => return Err(ToolError::bad("shape", "a list of points, or null")),
+    };
+    Ok(Command::SetCedoShape {
+        strip,
+        effect: slot.id,
+        shape,
+        pedal: None,
+    })
 }
 
 pub fn set_effect(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
@@ -468,6 +529,47 @@ pub fn set_effect(cx: &mut ToolCx<'_>, a: &Value) -> Res<EditPlan> {
                 value: v,
             });
         }
+        // fxb:cedo — a crossover an agent sets commits its Auto floor (a discrete set, as
+        // the editor's), unless the agent sets the floor too.
+        if spec.kind == cantus_core::EffectKind::Ducker
+            && m.contains_key("xhz")
+            && !m.contains_key("lfhz")
+        {
+            cmds.push(Command::SetEffectParam {
+                strip,
+                effect,
+                key: "lfhz".into(),
+                value: cantus_core::fx::cedo::auto_floor(spec.get("xhz")),
+            });
+        }
+    }
+    // fxb:cedo
+    if let Some(v) = a.0.get("shape") {
+        cmds.push(shape_command(&slot, strip, v)?);
+        done.insert("shape".into(), v.clone());
+    }
+    if a.0.get("notes_track_id").is_some() {
+        let source = match a.opt_u64("notes_track_id")? {
+            None => None,
+            Some(t) => {
+                let id = cantus_core::TrackId(t);
+                p.track(id)
+                    .ok_or_else(|| ToolError::NotFound(format!("track {t}")))?;
+                if !slot.spec.kind.takes_notes() {
+                    return Err(ToolError::bad(
+                        "notes_track_id",
+                        "this effect hears no notes",
+                    ));
+                }
+                Some(id)
+            }
+        };
+        cmds.push(Command::SetEffectMidiSource {
+            strip,
+            effect,
+            source,
+        });
+        done.insert("notes_track_id".into(), json!(source.map(|s| s.0)));
     }
     if let Some(keys) = a.opt_array("reset")? {
         for k in keys {

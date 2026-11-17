@@ -152,3 +152,14 @@ preset.cedo.voice_over = Voice-over
 preset.cedo.podcast_bed = Podcast music bed
 preset.cedo.gentle_radio = Gentle radio
 preset.cedo.snare_room = Snare room
+# The linear phase's floor (the owner's choice, 2026-11-17).
+fx.cedo.lfloor = Linear-phase floor
+fx.cedo.lfloor.0 = Auto, an octave under the crossover
+fx.cedo.lfloor.1 = 40 Hz
+fx.cedo.lfloor.2 = 60 Hz
+fx.cedo.lfloor.3 = 80 Hz
+fx.cedo.lfloor.4 = 120 Hz
+fx.cedo.lfhz = Auto floor in force
+cedo.l.floor = Linear-phase floor
+cedo.floor.auto = Auto
+cedo.floor.widest = Auto · 1000 Hz · 55.3 ms

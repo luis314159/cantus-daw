@@ -349,6 +349,17 @@ pub const FACES: &[Face] = &[
         "L",
         T::Brushed,
     ), // fxb:lenis
+    // fxb:cedo — a ducker on the board: its trigger, how deep, the cycle, the threshold (a
+    // keyed board's key, the board's beat or its notes fire it). The shape, the envelope and
+    // the band stay on its editor's screen, reached from the pedal.
+    face(
+        K::Ducker,
+        &["trig", "depth", "div", "thr"],
+        S::Standard,
+        M::Steps,
+        "C",
+        T::Hammered,
+    ), // fxb:cedo
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

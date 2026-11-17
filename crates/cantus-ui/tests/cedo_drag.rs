@@ -173,7 +173,10 @@ fn the_shape_s_points_drag_bend_come_and_go_each_one_undo_step() {
     drag(&mut app, size, from, from - egui::vec2(0.0, 50.0));
     let after = shape_amount(&spec(&app), 0.3);
     eprintln!("bent: the amount at 0.3 {before:.3} -> {after:.3}");
-    assert!(after < before - 0.05, "bulged up: {before:.3} -> {after:.3}");
+    assert!(
+        after < before - 0.05,
+        "bulged up: {before:.3} -> {after:.3}"
+    );
     assert_eq!(
         edit::shape_of(&spec(&app)).points[0].x,
         0.0,
@@ -198,7 +201,11 @@ fn the_shape_s_points_drag_bend_come_and_go_each_one_undo_step() {
         "the added point taken away"
     );
     app.undo();
-    assert_eq!(edit::shape_of(&spec(&app)).points, three, "its removal undone");
+    assert_eq!(
+        edit::shape_of(&spec(&app)).points,
+        three,
+        "its removal undone"
+    );
     app.undo();
     assert_eq!(spec(&app).cedo, None, "its adding undone");
 
@@ -244,7 +251,11 @@ fn the_envelope_s_handles_and_the_threshold_drag_in_sidechain() {
     // The threshold's line dragged up a sixth of the history: 10 dB higher.
     let s = spec(&app);
     let thr = s.get("thr");
-    let from = app.fx.cedo.threshold_at(&s).expect("the threshold is drawn");
+    let from = app
+        .fx
+        .cedo
+        .threshold_at(&s)
+        .expect("the threshold is drawn");
     let hist_h = {
         // The history's height from the line's two places a decibel apart.
         let mut t = s.clone();
@@ -271,7 +282,11 @@ fn the_trigger_is_chosen_on_its_card_and_on_its_flag_each_one_undo_step() {
     // The flag on the bed: the next trigger each click.
     let mut seen = Vec::new();
     for _ in 0..3 {
-        let f = app.fx.cedo.trigger_flag().expect("the trigger's flag is drawn");
+        let f = app
+            .fx
+            .cedo
+            .trigger_flag()
+            .expect("the trigger's flag is drawn");
         click(&mut app, size, f.center());
         seen.push(value(&app, "trig"));
     }
@@ -309,7 +324,11 @@ fn the_band_strip_s_crossover_drags_and_its_split_switches() {
     app.undo();
     assert_eq!(value(&app, "xover"), 0.0);
     app.undo();
-    assert_eq!(value(&app, "xhz"), 120.0, "the crossover's drag one undo step");
+    assert_eq!(
+        value(&app, "xhz"),
+        120.0,
+        "the crossover's drag one undo step"
+    );
 }
 
 #[test]
@@ -323,9 +342,92 @@ fn the_gauge_dragged_down_ducks_deeper() {
     assert!((deeper - 19.0).abs() < 0.3, "9 dB + 40 points: {deeper}");
     drag(&mut app, size, from, from - egui::vec2(0.0, 20.0));
     let less = value(&app, "depth");
-    assert!((less - (deeper - 5.0)).abs() < 0.3, "{deeper} - 20 points: {less}");
+    assert!(
+        (less - (deeper - 5.0)).abs() < 0.3,
+        "{deeper} - 20 points: {less}"
+    );
     app.undo();
     assert_eq!(value(&app, "depth"), deeper);
     app.undo();
     assert_eq!(value(&app, "depth"), 9.0, "each drag one undo step");
+}
+
+/// The latency a spec costs at 48 kHz (what the host is told).
+fn latency(s: &EffectSpec) -> usize {
+    cantus_dsp::cedo::latency_for(&cantus_engine::fx::cedo::settings(s), 48_000.0)
+}
+
+/// fxb:cedo — the owner's floor rule (2026-11-17): in Auto the linear phase's floor follows
+/// the crossover an octave under it, but the latency moves only when the crossover is let
+/// go — never during the drag — and the drag and its new floor are one undo step.
+#[test]
+fn dragging_the_crossover_moves_the_latency_only_at_the_release() {
+    let (mut app, size) = open();
+    set(&mut app, size, "band", 1.0);
+    set(&mut app, size, "xover", 1.0);
+    let s = spec(&app);
+    assert_eq!((s.get("lfloor"), s.get("lfhz")), (0.0, 60.0), "Auto, 60 Hz");
+    let before = latency(&s);
+    assert_eq!(before, 1_765, "the 60 Hz floor's kernel");
+    let from = app.fx.cedo.crossover_at(&s).unwrap();
+    let to = from + egui::vec2(90.0, 0.0);
+    // The drag held at its end, the pointer still down: read there.
+    let (steps, q) = (12, 4);
+    let held = std::cell::RefCell::new(None);
+    let calls = std::cell::Cell::new(0usize);
+    shoot_events(
+        &ctx(),
+        size,
+        1.0,
+        q + steps + 6,
+        None,
+        |f, _| match f {
+            f if f < q => Vec::new(),
+            f if f == q => vec![Event::PointerMoved(from)],
+            f if f == q + 1 => vec![button(from, PointerButton::Primary, true)],
+            f if f < q + steps + 2 => {
+                let t = (f - q - 1) as f32 / steps as f32;
+                vec![Event::PointerMoved(from + (to - from) * t)]
+            }
+            f if f == q + steps + 2 => vec![button(to, PointerButton::Primary, false)],
+            _ => Vec::new(),
+        },
+        |ui| {
+            window(&mut app, ui);
+            calls.set(calls.get() + 1);
+            if calls.get() == q + steps + 2 {
+                *held.borrow_mut() = Some(spec(&app));
+            }
+        },
+    );
+    settle(&mut app, size);
+    let held = held.into_inner().expect("read while held");
+    assert!(held.get("xhz") > 200.0, "dragged: {} Hz", held.get("xhz"));
+    assert_eq!(held.get("lfhz"), 60.0, "the floor waits for the release");
+    assert_eq!(latency(&held), before, "no latency change during the drag");
+    let after = spec(&app);
+    let x = after.get("xhz");
+    assert_eq!(
+        after.get("lfhz"),
+        (x * 0.5).clamp(40.0, 1_000.0),
+        "an octave under"
+    );
+    let now = latency(&after);
+    eprintln!("crossover {x} Hz: the latency {before} -> {now} samples at the release");
+    assert!(now < before, "a higher crossover costs less");
+    // The same latency as the fixed floor at that frequency would cost.
+    assert_eq!(
+        now,
+        cantus_dsp::cedo::band::linear_latency(x * 0.5, 48_000.0)
+    );
+    app.undo();
+    let back = spec(&app);
+    assert_eq!(
+        (back.get("xhz"), back.get("lfhz")),
+        (120.0, 60.0),
+        "one undo step"
+    );
+    // A floor chosen on the card keeps its latency whatever the crossover.
+    set(&mut app, size, "lfloor", 3.0);
+    assert_eq!(latency(&spec(&app)), 1_325, "80 Hz: 27.6 ms");
 }

@@ -56,9 +56,9 @@ const STEREO: &str = "stereo";
 
 /// The family, in its order (ADR 0017), then the round-19 effects (ADR 0026), then
 /// round 28's.
-pub static ALL: [Descriptor; 35] = [
+pub static ALL: [Descriptor; 36] = [
     // fx3:contract: 33 with wave 3's four; fxb:vinculum: 34 with the bus compressor;
-    // fxb:lenis: 35 with the resonance suppressor
+    // fxb:lenis: 35 with the resonance suppressor; fxb:cedo: 36 with the ducker
     Descriptor {
         kind: EffectKind::Eq,
         name: "Aequalis",
@@ -495,6 +495,24 @@ pub static ALL: [Descriptor; 35] = [
         vst3_categories: "Fx|EQ|Restoration",
         description: "Resonance suppressor: finds the rings and whistles that stand out of a sound's own spectrum, moment by moment, and takes a share of each away, its notes left alone.",
         compiled: cfg!(feature = "lenis"),
+    },
+    // fxb:cedo — the fx side round's wave B (provisional ADR 0144). Its three triggers: the
+    // sidechain input as the key, the host's tempo and position for the pump, the host's
+    // notes (a note port, both CLAP dialects; VST3's event bus); its drawn shape is content
+    // in the state. Latent with lookahead or a linear-phase split: the latency is reported,
+    // and a change (a lookahead, the split, the floor committed at a crossover's release)
+    // re-reported (CLAP asks for a restart, VST3 `restartComponent(kLatencyChanged)`).
+    Descriptor {
+        kind: EffectKind::Ducker,
+        name: "Cedo",
+        full_name: "Cantus Cedo",
+        slug: "cedo",
+        clap_id: "com.github.lalmazan.cantus.cedo",
+        vst3_cid: [0xAB736A41, 0x56712C0D, 0xF76B7006, 0x7D0BD4E2],
+        clap_features: &[FX, "compressor", "tremolo", STEREO],
+        vst3_categories: "Fx|Dynamics",
+        description: "Ducker: makes room for a kick or a voice through the sidechain, or pumps on the host's beat or on MIDI notes with a shape you draw, the whole band or only its lows or highs.",
+        compiled: cfg!(feature = "cedo"),
     },
 ];
 

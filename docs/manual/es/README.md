@@ -2600,6 +2600,57 @@ aire amplio (medio y lados), cuerdas y metales, quirúrgico. En sus valores por 
 (profundidad 0) Lenis es su entrada retrasada por su latencia, al bit. Como pedal en
 **Tabula** muestra Profundidad, Nitidez, Selectividad y Enfoque desde.
 
+### Cedo, el atenuador
+
+**Cedo** (en latín, *cedo el paso*) hace sitio: el bajo cede ante el bombo, la música ante la
+voz, o toda la pista bombea al pulso con una forma que dibujas. Insértalo desde **Añadir
+inserto ▾ ▸ Dinámica ▸ Cedo**; empieza como *Bombeo clásico* (el tempo lo dispara en cada
+negra, 9 dB abajo) y suena enseguida, sin enrutar nada.
+
+**Qué lo dispara** — el conmutador **Disparo** de su tarjeta (o un clic en la bandera del
+disparo sobre la bancada):
+
+- **Cadena lateral**: elige en **Clave** la tira cuyo sonido atenúa esta (un bombo, una
+  voz). La clave puede pasar por un **Filtro** (un paso alto o un paso banda, con su
+  **Frecuencia** y su **Q**); su **Detector** lee su pico o su RMS frente al **Umbral**; la
+  atenuación ataca en S, se **mantiene** desde la última muestra de la clave sobre el umbral
+  y se suelta en la **Liberación** con su forma. La **Anticipación** (hasta 10 ms) deja la
+  atenuación abajo antes de que llegue un transitorio.
+- **Tempo**: la forma dibujada suena en cada **Ciclo** de la canción (de 8/1 a 1/32, con
+  puntillos y tresillos), con **Swing** y **Suavizado de bordes** para que nunca chasquee.
+- **MIDI**: elige en **Notas de** la pista cuyas notas lo disparan; cada nota toca la forma
+  una vez, un ciclo de largo, y la **Velocidad** puede escalar la profundidad.
+
+**La pantalla** muestra la forma sobre un ciclo con lo que se atenúa ahora barrido por el
+cursor. Arrastra un punto para moverlo (se ajusta a las semicorcheas; con Mayús, libre),
+arrastra entre puntos para curvar el tramo, haz doble clic para añadir o quitar un punto y
+clic derecho en un punto para cambiar su tramo (curva, S o mantenido). En Cadena lateral la
+pantalla muestra la envolvente en cada golpe: arrastra en el tiempo las asas del ataque, el
+mantenimiento y la liberación. Debajo, los últimos cuatro segundos de reducción con los
+golpes; en Cadena lateral arrastra arriba o abajo la línea discontinua del umbral. Arrastra
+hacia abajo el **indicador de nivel** junto al fuelle para atenuar más.
+
+**Banda**: atenúa la banda **Completa**, solo los **Graves** o solo los **Agudos**, divididos en
+el **Cruce** (arrástralo por la franja de la banda) en **Fase mínima** (sin latencia) o **Fase
+lineal** (sin giro de fase; haz clic en la palabra de la división en la franja para
+cambiarla). El **Suelo de la fase lineal** fija para qué se dimensiona su latencia:
+**Automático** (por defecto) una octava bajo el cruce — la menor latencia que necesita,
+cambiada solo cuando sueltas el cruce — o un fijo de 40, 60, 80 o 120 Hz (55,3, 36,8, 27,6 o
+18,3 ms a 48 kHz), para una latencia que nunca cambia; cada opción muestra su latencia. El
+mezclador la compensa.
+
+**Salida**: **Profundidad** (∞ en su tope es silencio), **Enlace estéreo**, **Mezcla**,
+**Salida** y **Escuchar** (la salida, la **Diferencia** que quita, o la **Clave** filtrada).
+
+Diecisiete presets de fábrica: bombeos clásico, a medio tiempo, en corcheas y con swing,
+respiración en tresillos, puerta trance, crescendo invertido, bombeos solo en los graves en
+fase mínima y lineal, un bombeo por MIDI, el bombo atenúa el bajo, el bombo en los graves
+del bajo, cadena lateral dura, locución, fondo musical de pódcast, radio suave y sala de la
+caja (los de Cadena lateral y MIDI necesitan elegir su clave o sus notas). En sus valores por
+defecto (profundidad 0) Cedo deja el sonido intacto, al bit. Como pedal en **Tabula** muestra
+el disparo, la profundidad, el ciclo y el umbral; lo disparan la clave de una pedalera con
+clave, su pulso y sus notas.
+
 ### Aula, la reverb de convolución
 
 **Aula** (en latín, *la sala*) es la reverb de un espacio real: hace sonar el sonido a través de

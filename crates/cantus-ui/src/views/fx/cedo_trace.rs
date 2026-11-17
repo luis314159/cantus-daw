@@ -291,7 +291,9 @@ pub fn band(b: &mut Brush, s: &Style, ink: &Ink, r: Rect, feed: &Feed<'_>) -> Re
         } else {
             48_000.0
         };
-        cantus_dsp::cedo::band::linear_latency(sr) as f32 * 1_000.0 / sr
+        cantus_dsp::cedo::latency_for(&cantus_engine::fx::cedo::settings(spec), sr) as f32 * 1_000.0
+            / sr
+            - spec.get("look").clamp(0.0, 10.0)
     } else {
         0.0
     };

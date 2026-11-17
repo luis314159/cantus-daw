@@ -371,7 +371,29 @@ const BAND: &[Item] = &[
         "cedo.l.split",
         &["fx.cedo.xover.0", "fx.cedo.xover.1"],
     ),
+    // fxb:cedo — the linear phase's floor, each choice with its latency (`band_card`).
+    FLOOR,
 ];
+
+/// The floor's cell: measured for its widest words, written by [`floor_pill`].
+const FLOOR: Item = Item::Choice("lfloor", "cedo.l.floor", &["cedo.floor.widest"]);
+
+/// The floor's words: "Auto · 60 Hz · 36.8 ms", "80 Hz · 27.6 ms" — the floor in force
+/// and the latency it costs in linear phase, at `sr` (measured, `latency_for`).
+fn floor_pill(spec: &EffectSpec, v: f32, sr: f32, b: &mut String) {
+    use std::fmt::Write as _;
+    let mut s = cantus_engine::fx::cedo::settings(spec);
+    s.floor = cantus_dsp::cedo::band::Floor::from_index(v.round().max(0.0) as usize);
+    s.band = cantus_dsp::cedo::band::Band::Lows;
+    s.crossover = cantus_dsp::cedo::band::Crossover::LinearPhase;
+    s.lookahead_ms = 0.0;
+    let ms = cantus_dsp::cedo::latency_for(&s, sr) as f32 * 1_000.0 / sr.max(1.0);
+    let hz = s.floor.hz(s.auto_floor_hz);
+    if s.floor == cantus_dsp::cedo::band::Floor::Auto {
+        let _ = write!(b, "{} \u{b7} ", frame::tr("cedo.floor.auto"));
+    }
+    let _ = write!(b, "{hz:.0} Hz \u{b7} {ms:.1} ms");
+}
 const OUTPUT: &[Item] = &[
     Item::Pill("depth", "cedo.l.depth", depth_pill),
     Item::Knob("link", "cedo.l.link"),
@@ -492,6 +514,8 @@ fn body_ui(
         for ((title, items), rect) in cards[i..j].iter().zip(rects) {
             if *title == "cedo.card.trigger" {
                 trigger_card(host, st, ui, s, rect, trig, items);
+            } else if *title == "cedo.card.band" {
+                band_card(host, ui, s, rect, items);
             } else {
                 cells::card(host, ui, s, rect, title, items);
             }
@@ -564,6 +588,35 @@ fn trigger_card(
                         Some(&pill),
                         Some(cells::width(ui, it)),
                     );
+                }
+                Item::Pill(key, label, f) => cells::knob(host, ui, s, key, label, Some(&f), None),
+                Item::Switch(..) => cells::switch(host, ui, s, it),
+            }
+        }
+    });
+}
+
+/// The band's card: Whole, Lows or Highs, the crossover, the split, and the linear phase's
+/// floor with the latency each choice costs.
+fn band_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, items: &[Item]) {
+    let sr = host.sample_rate().max(8_000.0);
+    let spec = host.spec().clone();
+    controls::card(ui, s, rect, Src::Key("cedo.card.band"), None, |ui, _| {
+        for it in items {
+            match *it {
+                Item::Choice("lfloor", label, _) => {
+                    let pill = |v: f32, b: &mut String| floor_pill(&spec, v, sr, b);
+                    let w = cells::width(ui, it);
+                    cells::knob(host, ui, s, "lfloor", label, Some(&pill), Some(w));
+                }
+                Item::Knob(key, label) => cells::knob(host, ui, s, key, label, None, None),
+                Item::Choice(key, label, names) => {
+                    let pill = move |v: f32, b: &mut String| {
+                        let i = (v.round().max(0.0) as usize).min(names.len() - 1);
+                        b.push_str(frame::tr(names[i]));
+                    };
+                    let w = cells::width(ui, it);
+                    cells::knob(host, ui, s, key, label, Some(&pill), Some(w));
                 }
                 Item::Pill(key, label, f) => cells::knob(host, ui, s, key, label, Some(&f), None),
                 Item::Switch(..) => cells::switch(host, ui, s, it),

@@ -2392,6 +2392,54 @@ side), strings and brass, surgical. At its defaults (depth 0) Lenis is its input
 its latency, to the bit. As a pedal on **Tabula** it shows Depth, Sharpness, Selectivity
 and Focus from.
 
+### Cedo, the ducker
+
+**Cedo** (Latin for *I make way*) makes room: the bass gives way to the kick, the music to
+the voice, or the whole track pumps on the beat in a shape you draw. Insert it from **Add
+insert ▾ ▸ Dynamics ▸ Cedo**; it starts as *Classic pump* (the tempo fires it on every
+quarter, 9 dB down) and sounds at once, with nothing routed.
+
+**What fires it** — the **Trigger** switch on its card (or a click on the trigger's flag
+on the bed):
+
+- **Sidechain**: choose the strip whose sound ducks this one under **Key** (a kick, a
+  voice). The key can pass a **Filter** (a high-pass or a band-pass, its **Frequency** and
+  **Q**); its **Detector** reads its peak or its RMS against the **Threshold**; the duck
+  attacks along an S, **holds** from the key's last sample over the threshold and lets go
+  over the **Release** in its shape. **Lookahead** (up to 10 ms) lets the duck be down
+  before a transient lands.
+- **Tempo**: the drawn shape plays on every **Cycle** of the song (8/1 to 1/32, dotted and
+  triplets), with **Swing** and **Edge smoothing** so its edges never click.
+- **MIDI**: choose the track whose notes fire it under **Notes from**; each note plays the
+  shape once, a cycle long, and **Velocity** can scale the depth.
+
+**The screen** shows the shape over one cycle with what is ducked now swept in by the
+playhead. Drag a point to move it (it snaps to the sixteenths; Shift moves it freely), drag
+between points to bend the curve, double-click to add or remove a point, and right-click a
+point to change its segment (curve, S or held). In Sidechain the screen shows the envelope
+on each hit: drag the attack's, hold's and release's handles in time. Under it, the last
+four seconds of reduction with the hits; in Sidechain drag the threshold's dashed line up
+or down. Drag the **level gauge** beside the bellows down for a deeper duck.
+
+**Band**: duck the **Whole** sound, only the **Lows** or only the **Highs**, split at the
+**Crossover** (drag it along the band strip) at **Minimum phase** (no latency) or **Linear
+phase** (no phase turn; click the split's word on the strip to switch). The **Linear-phase
+floor** sets what the linear phase's latency is sized for: **Auto** (the default) an octave
+under the crossover — the least latency it needs, changed only when you let go of the
+crossover — or a fixed 40, 60, 80 or 120 Hz (55.3, 36.8, 27.6 or 18.3 ms at 48 kHz), for a
+latency that never changes; each choice shows its latency. The mixer compensates it.
+
+**Output**: **Depth** (∞ at its top is silence), **Stereo link**, **Mix**, **Output** and
+**Listen** (the output, the **Delta** it takes away, or the filtered **Key**).
+
+Seventeen factory presets: classic, half-time, eighths and swing pumps, triplet breathe,
+trance gate, reverse swell, lows-only pumps at minimum and linear phase, a MIDI pump, kick
+ducks the bass, kick on the bass lows, hard sidechain, voice-over, podcast music bed,
+gentle radio and snare room (the Sidechain and MIDI ones need their key or notes chosen).
+At its defaults (depth 0) Cedo leaves the sound untouched, to the bit. As a pedal on
+**Tabula** it shows the trigger, depth, cycle and threshold; a keyed board's key, its beat
+and its notes fire it.
+
 ### Aula, the convolution reverb
 
 **Aula** (Latin for *the hall*) is the reverb of a real space: it plays the sound through an

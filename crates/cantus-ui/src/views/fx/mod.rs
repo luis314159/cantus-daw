@@ -301,6 +301,16 @@ impl CantusApp {
         if slot.spec.kind == EffectKind::Board && tabula::load_board(self, strip, effect, params) {
             return;
         }
+        // fxb:cedo — a preset naming no Auto floor commits its crossover's.
+        let completed;
+        let params = if slot.spec.kind == EffectKind::Ducker {
+            let mut m = params.clone();
+            cantus_core::fx::cedo::complete_floor(&mut m);
+            completed = m;
+            &completed
+        } else {
+            params
+        };
         let mut commands = Vec::new();
         for info in slot.spec.kind.params() {
             match params.get(info.key) {
@@ -361,7 +371,8 @@ impl CantusApp {
         let Some(current) = self
             .project()
             .effect(strip, effect)
-            .map(|e| preset_map(&e.spec)) // fxb:cedo (its shape too)
+            .map(|e| preset_map(&e.spec))
+        // fxb:cedo (its shape too)
         else {
             return;
         };

@@ -232,12 +232,22 @@ fn the_lookahead_and_the_linear_phase_are_reported_and_compensated() {
         // fxb:cedo — Auto committed for a 200 Hz crossover; the fixed 40 Hz floor.
         (
             "lows, linear phase, Auto at 100 Hz",
-            &[("band", 1.0), ("xover", 1.0), ("xhz", 200.0), ("lfhz", 100.0)][..],
+            &[
+                ("band", 1.0),
+                ("xover", 1.0),
+                ("xhz", 200.0),
+                ("lfhz", 100.0),
+            ][..],
             lin100,
         ),
         (
             "lows, linear phase, the 40 Hz floor",
-            &[("band", 1.0), ("xover", 1.0), ("xhz", 200.0), ("lfloor", 1.0)][..],
+            &[
+                ("band", 1.0),
+                ("xover", 1.0),
+                ("xhz", 200.0),
+                ("lfloor", 1.0),
+            ][..],
             lin40,
         ),
     ] {
@@ -284,5 +294,82 @@ fn a_fork_carries_on_from_where_the_unit_is() {
         let y = block(&mut b, at);
         assert_eq!(x, y, "at {at}");
         at += 480;
+    }
+}
+
+/// fxb:cedo (phase B) — Cedo as a pedal on Tabula's board: a board of one Cedo is Cedo
+/// inserted alone, to the bit — pumping on the song's beat with a drawn shape of its own,
+/// and keyed by the bass when the board's slot is keyed (a board takes a key when a pedal
+/// does); its latency (lookahead, the linear phase) the board's; live equals offline.
+#[test]
+fn as_a_pedal_it_is_the_insert_alone_on_the_beat_and_keyed() {
+    use cantus_core::fx::cedo::Shape;
+    use cantus_core::fx::lapsus::Point;
+    use cantus_core::fx::tabula::{pedal_allowed, Board, Pedal, PedalId};
+    assert!(pedal_allowed(EffectKind::Ducker), "Cedo may be a pedal");
+    let bass = demo_project().strips[1].id;
+    let cases: [(&[(&str, f32)], bool); 2] = [
+        (
+            &[
+                ("trig", 1.0),
+                ("depth", 18.0),
+                ("swing", 0.3),
+                ("band", 1.0),
+                ("xover", 1.0),
+            ],
+            false,
+        ),
+        (
+            &[
+                ("trig", 0.0),
+                ("depth", 18.0),
+                ("thr", -30.0),
+                ("look", 2.0),
+            ],
+            true,
+        ),
+    ];
+    for (kv, keyed) in cases {
+        let mut alone = demo_project();
+        let fx = add_effect(&mut alone, EffectKind::Ducker);
+        set_all(&mut alone, fx, kv);
+        let slot = &mut strip_of(&mut alone, 0).effects[0];
+        slot.spec.cedo = Some(Box::new(Shape {
+            points: vec![Point::new(0.0, 1.0).shape(1), Point::new(0.4, 0.0)],
+        }));
+        if keyed {
+            slot.sidechain = Some(bass);
+        }
+        let latency = unit_of(&mut alone, fx).latency();
+        let own = render_of(&alone);
+        assert!(
+            differs(&own[2 * latency..], &render_of(&demo_project())) > 1e-3,
+            "it ducks the mix (keyed {keyed})"
+        );
+        let spec = strip_of(&mut alone, 0).effects[0].spec.clone();
+        let mut p = demo_project();
+        let board = add_effect(&mut p, EffectKind::Board);
+        let slot = strip_of(&mut p, 0)
+            .effects
+            .iter_mut()
+            .find(|e| e.id == board)
+            .unwrap();
+        slot.spec.board = Some(Box::new(Board {
+            pedals: vec![Pedal::new(PedalId(1), spec)],
+            macros: Vec::new(),
+        }));
+        if keyed {
+            slot.sidechain = Some(bass);
+        }
+        assert_eq!(unit_of(&mut p, board).latency(), latency, "keyed {keyed}");
+        let on_board = render_of(&p);
+        assert_null(&own, &on_board, 0.0, "the board = the insert alone");
+        let live = realtime(&p, on_board.len() / 2);
+        assert_null(
+            &on_board[..live.len()],
+            &live,
+            0.0,
+            "the board: live = offline",
+        );
     }
 }

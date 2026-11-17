@@ -91,6 +91,7 @@ fn feature(d: &Descriptor) -> &'static str {
         "arca" => "arca,editor",         // fx3:contract
         "vinculum" => "vinculum,editor", // fxb:vinculum
         "lenis" => "lenis,editor",       // fxb:lenis
+        "cedo" => "cedo,editor",         // fxb:cedo
         other => panic!("no feature for {other}"),
     }
 }

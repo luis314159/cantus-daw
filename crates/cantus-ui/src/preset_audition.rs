@@ -268,6 +268,7 @@ pub fn effect_params_after(
 pub fn shape_after(spec: &mut EffectSpec, preset: &BTreeMap<String, f32>) {
     if spec.kind == EffectKind::Ducker {
         spec.cedo = cantus_core::fx::cedo::shape_of_flat(preset).map(Box::new);
+        cantus_core::fx::cedo::complete_floor(&mut spec.params);
     }
 }
 

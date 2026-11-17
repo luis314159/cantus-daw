@@ -441,6 +441,12 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         {
             Some("another focus band than the one the card shows")
         }
+        // fxb:cedo — each trigger draws its own cards (the demo is Tempo):
+        // `every_cedo_trigger_offers_its_stepped_parameters` draws the others.
+        ("Ducker", "rshape" | "kfilt" | "det") if get("trig").round() != 0.0 => {
+            Some("the sidechain's cards (envelope, key filter, trigger)")
+        }
+        ("Ducker", "vel") if get("trig").round() != 2.0 => Some("the MIDI trigger's card"),
         ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
         // fx:cribrum — Cribrum shows one filter (A or B) and one movement source at a time;
         // its curve's points are drawn on the curve's lane.
@@ -994,6 +1000,65 @@ fn every_lenis_band_offers_its_switch() {
             };
             if !offered.contains(&target) {
                 bad.push(format!("band {n}: {key}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "drawn without their offer: {bad:#?}");
+}
+
+/// fxb:cedo — Cedo's cards follow its trigger: in each of Sidechain, Tempo and MIDI every
+/// stepped key its cards draw is offered (automation, MIDI learn) — the release's shape, the
+/// key's filter and detector in Sidechain, the velocity in MIDI, the trigger, the band, the
+/// split, the floor and Listen in all three; the cycle where a shape plays.
+#[test]
+fn every_cedo_trigger_offers_its_stepped_parameters() {
+    let kind = EffectKind::Ducker;
+    let triggers: [(f32, &[&str]); 3] = [
+        (
+            0.0,
+            &[
+                "trig", "rshape", "kfilt", "det", "band", "xover", "lfloor", "listen",
+            ],
+        ),
+        (1.0, &["trig", "div", "band", "xover", "lfloor", "listen"]),
+        (
+            2.0,
+            &["trig", "div", "vel", "band", "xover", "lfloor", "listen"],
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (trig, keys) in triggers {
+        let mut a = app(cantus_ui::starter_project());
+        let s0 = a.project().tracks[0].strip.unwrap();
+        a.settings.insert_neutral = true;
+        a.add_effect(s0, kind);
+        let fx = a
+            .project()
+            .strip(s0)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.kind == kind)
+            .unwrap()
+            .id;
+        cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
+        a.exec(Command::SetEffectParam {
+            strip: s0,
+            effect: fx,
+            key: "trig".into(),
+            value: trig,
+        });
+        a.open_effect_editor(s0, fx);
+        probe::start();
+        paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
+        let offered = probe::take_offers();
+        for key in keys {
+            let target = AutoTarget::Effect {
+                effect: fx,
+                key: (*key).into(),
+            };
+            if !offered.contains(&target) {
+                bad.push(format!("trigger {trig}: {key}"));
             }
         }
     }
