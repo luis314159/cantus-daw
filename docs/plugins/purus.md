@@ -18,8 +18,10 @@ is needed, each with its mix, its output and a key to **hear only what it takes 
   band, where an impulse stands far above the music. The sensitivity stops at 0.7: past it
   the repair harms the music more than the clicks do.
 - **Room removal**: a room's late tail predicted from the signal (Habets's model, with the
-  Direct sound it assumes: +6 dB by default, a close voice; 0 dB for a far microphone) and
-  taken down to the reduction set; the decay set by hand or **estimated** from the music's
+  Direct sound it assumes, 0 dB by default) and taken down to the reduction set — **only as
+  far as the signal's own free decays show a tail is there**: a dry voice passes untouched
+  (every octave within 0.01 dB of a real dry voice, the residual at the transform's round
+  trip), a room's tail comes down as the model predicts; the decay set by hand or **estimated** from the music's
   own pauses; the early reflections kept for as long as you say.
 
 **The null**: every module starts off — the signal untouched, to the bit, undelayed.
@@ -101,6 +103,8 @@ Purus as its one pedal is Purus inserted alone, to the bit, offline and live).
 - A gentle de-hum that keeps the bass: a note on 50, 100 or 150 Hz loses under half a
   decibel, where notches take 6.5–8.8 dB of it; its phase-locked reference holds a steady
   hum's third harmonic at −75 dBFS.
+- A de-reverb held to the null: it measures whether a room is there before it takes any,
+  so a dry voice passes untouched at its defaults (the owner's standard).
 - What it takes out shown as what fell out of the picture, live, for every module at once.
 - Latency only for what is on, re-reported to a host the moment it changes.
 - The de-click shares the audio editor's cores to the bit; exact rest after silence.

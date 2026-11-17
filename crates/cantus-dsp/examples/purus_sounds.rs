@@ -11,7 +11,8 @@
 //!   deltas; and the clean guitar through it (what it takes that is not a click).
 //! - **Room**: a synthetic spoken line (the pitch tests' formant voice, no recording) in a
 //!   synthetic room (T60 0.9 s, the direct sound as strong as all the reverberation),
-//!   de-reverberated at 12 and 24 dB with the decay estimated, and the delta.
+//!   de-reverberated at 12 and 24 dB with the decay estimated, and the delta; and the dry
+//!   line through the de-reverb at its defaults (the null: nothing taken from a dry voice).
 //!
 //! Every file has its dry twin; processed files are *not* level-matched (what is taken out
 //! is the point). The de-reverb's files are aligned to their input (its 21.3 ms taken off).
@@ -473,6 +474,20 @@ fn main() {
         );
         save(&format!("{name}-delta.wav"), &d, "what it took out");
     }
+    // The owner's null standard: the dry line through the room module at its defaults
+    // (Direct sound 0 dB, 12 dB): no room in it, so nothing taken.
+    let y = through(&dry, &verb_on(|_| {}));
+    let worst =
+        y.0.iter()
+            .zip(&dry)
+            .fold(0f32, |m, (a, b)| m.max((a - b).abs()));
+    save(
+        "25-voice-dry-through-dereverb.wav",
+        &y,
+        &format!(
+            "the dry line through the de-reverb at its defaults (direct 0 dB, 12 dB): no room evidenced, nothing taken — the largest difference from the dry {worst:.1e}"
+        ),
+    );
     log += &extra;
     std::fs::write(out.join("render-log.txt"), log).unwrap();
 }

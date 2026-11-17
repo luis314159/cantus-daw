@@ -30,9 +30,9 @@ A new effect kind, `EffectKind::Repair`, model `cantus_core::fx::purus`, engine 
 - **The de-click's sensitivity stops at 0.7** (`SENSITIVITY_MAX`): past it the repair harms
   the music more than the clicks do (the DSP report's finding, the editor's declick alike).
   The engine clamps a hand-edited file to it too.
-- **The Direct sound's default is one constant**, `DIRECT_DB_DEFAULT` = +6 dB (dialogue
-  first: a dry voice keeps its level within 1 dB); far-microphone presets set 0 dB. The
-  owner may move it; the DSP's default and the table's are held equal by a test.
+- **The Direct sound's default is one constant**, `DIRECT_DB_DEFAULT` — +6 dB at first
+  (a dry voice kept its level within 1 dB), **0 dB since phase B's calibration** (below).
+  The DSP's default and the table's are held equal by a test.
 - **Latency** is the sum of the modules that are on — the gentle de-hum's 50 ms, the
   de-click's 767 samples, the de-reverb's `N − 1` (1 023 samples: 21.3 ms at 48 kHz,
   **23.2 ms at 44.1 kHz**) — read live each pass, so the engine's compensation follows a
@@ -72,7 +72,7 @@ A new effect kind, `EffectKind::Repair`, model `cantus_core::fx::purus`, engine 
   screen's bright cream, as heavy as the line after, so the gap between them reads.
 - **Sixteen factory presets** (`repair.toml`), fitted with `preset_tool fit`; the far-
   microphone ones (*Far-microphone interview*, *Lecture hall*) set Direct sound 0 dB, as the
-  DSP report advised; the rest keep the +6 dB default (the owner's ears still to judge).
+  DSP report advised (since the calibration 0 dB is the default too; they keep it written).
 - **Exported** as `Cantus Purus` (CLAP and VST3, the class id by its rule). Its latency
   changes with its modules; the processor's configure stores it and flags the change: CLAP
   asks for a restart and reports the new latency on reactivation, VST3's UI-thread tick calls
@@ -80,6 +80,43 @@ A new effect kind, `EffectKind::Repair`, model `cantus_core::fx::purus`, engine 
 - **A Tabula pedal**: a de-hum pedal is natural on a guitar's board. Its face: the
   fundamental, the harmonics, the depth, the mix. Its latency is the board's lane latency as
   any pedal's, and follows a module switched on the pedal.
+
+## Decision, phase B: the de-reverb calibrated to the null (the owner, 2026-11-17)
+
+"The null test is the standard": what is not reverberation must pass essentially untouched.
+At Direct sound 0 dB a dry voice came out 2.9 dB down (the model, Habets's, takes half of
+anything held for its own reverberation at a direct-to-reverberant ratio of 0 dB, and the
+Wiener gain never reaches 1); +6 dB was a patch. **The fix: the room's share is measured
+before any is taken** (`purus_verb::Share`). In each octave band's free decays — a band that
+has fallen for the early part kept without rising 3 dB and lies 6 dB under where it began —
+a frame where at least half the predicted late tail is heard counts for a room, one where
+less is heard against it. The presence (125 Hz … 8 kHz pooled, about two seconds of decays,
+counted from a prior of 20 frames showing none) maps onto the share of the prediction taken:
+none under 0.6, all of it at 0.75, up to 1.2 where a tail is plainest. A dry voice's decays
+fall to nothing long before the prediction (presence 0.36–0.48 on a real dry voice), so the
+gains are exactly 1 and the transform's round trip is all that touches it; a room's tails
+are where predicted (0.76–0.92 on the measured scenes). Then **`DIRECT_DB_DEFAULT` = 0 dB**.
+Under the prior, the first decays of a take are not de-reverberated until they show a room
+(about 0.1 s of decay frames).
+
+| Measured (48 kHz, from 1.5 s on) | Before (direct 0 dB) | Before (direct +6, the old default) | After (direct 0, the default) |
+|---|---|---|---|
+| A real dry voice (Britton Rea's *Gettysburg Address*, public domain): octaves 63 Hz … 8 kHz | −0.7 … −3.8 dB | −0.4 … −1.8 dB | **−0.00 dB each** |
+| The same: the residual (level-matched, aligned) under it | 11.5 dB | 15.8 dB | **140 dB** (the round trip) |
+| The same, decay estimated / 24 dB / direct +6 | 13.4 / 8.4 / 15.8 dB | — | **58.2 / 140 / 37.7 dB**, octaves within 0.05 dB |
+| A dry synthetic voice (any setting) | −0.9 … −4.3 dB, 10.2 dB | −2.9 dB level | **0.00 dB, 140 dB** |
+| A 0.8 s room, DRR 0 dB, 12 dB: early-to-late gained | +4.6 dB | +2.7 dB | **+4.8 dB** |
+| The same at 24 dB / no smoothing / full smoothing | +6.5 / +6.7 / +6.0 | — | **+6.9 / +7.2 / +6.4** |
+| A 1.6 s room, DRR +6 dB, 24 dB | +5.1 dB | — | +5.1 dB |
+| The real voice in a 0.8 s room (DRR 0 dB), 12 dB | +5.0 dB | +2.5 dB | +4.7 dB |
+| Musical noise (log kurtosis ratio, the tail) | −0.001 | −0.034 | −0.000 |
+
+What it costs: Lebart's setting (direct −10 dB) on the 0.8 s room now reads a presence of
+0.67 and takes less (+5.0 dB against +6.3); the real voice in the synthetic room +4.7 against
++5.0 (the prior's first tenth of a second and a presence a little under full). Nothing else
+moved: no golden holds Purus, so `DSP_VERSION` stays (the renders of every song are the
+same bits). The sounds in `compartir/purus/sound/` were rendered again (the de-reverb's, and
+a new `25-voice-dry-through-dereverb.wav`: the dry line through the defaults, untouched).
 
 ## Consequences
 
@@ -96,7 +133,8 @@ A new effect kind, `EffectKind::Repair`, model `cantus_core::fx::purus`, engine 
 - A host sees a latency that moves. Hosts that do not honour a restart request keep the old
   compensation until they next activate the plug-in; Cantus itself reads the latency every
   pass.
-- Open for the owner: the Direct sound's default (+6 dB) after listening; the presets'
+- Open for the owner: the de-reverb's calibration on real rooms by ear (the presence's
+  thresholds were set on synthetic rooms and one real dry voice); the presets'
   voicing on real recordings (every signal measured is synthetic but the CC0 guitar's DI).
 
 ## What the tests hold
@@ -123,3 +161,9 @@ mark dragged; neither while its module is off. `learn_everywhere` green for Puru
 `cantus-plugins` `clap::purus_s_latency_follows_its_modules_and_is_re_reported`,
 `vst3::purus_s_latency_follows_its_modules_through_vst3`, the bit-identical suites with every
 module on, the ids golden.
+The calibration: `cantus-dsp` `purus::tests_verb::a_dry_voice_passes_untouched_at_direct_sound_0_db`
+(every octave within ±0.3 dB, the residual more than 30 dB under, three settings),
+`a_dry_voice_is_nearly_left_alone` (four settings, the level within 0.3 dB and 30 dB under),
+`the_late_tail_comes_out_of_a_known_room` (its bounds kept), and
+`purus_dry_voice_recorded` (`#[ignore]`: the real voice from `PURUS_VOICE`; its source cited
+in the test).

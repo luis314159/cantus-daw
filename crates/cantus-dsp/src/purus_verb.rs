@@ -36,6 +36,11 @@
 //! first two frames skipped — the direct sound's own end) gives a T60; the estimate is the
 //! median of the last sixteen. Until the first, the decay set is used.
 //!
+//! **The room's share is measured** (`Share`): the late tail predicted is taken out only as
+//! far as the signal's own free decays show a tail is there — none in a dry voice, which
+//! then passes untouched whatever the Direct sound (the owner's null standard), the whole
+//! prediction in a room.
+//!
 //! What the editor's denoiser does *not* share: its noise model (a learned, stationary
 //! profile — a reverb's is predicted frame by frame from the signal itself) and its
 //! offline transform (it allocates per run; this one allocates only in `new`).
@@ -70,8 +75,8 @@ pub struct VerbSettings {
     /// The room's T60, s, 0.1–10 (Set; Estimate's starting point).
     pub decay_s: f32,
     /// The direct-to-reverberant ratio assumed, dB, −10…+20: higher for a close microphone.
-    /// Default +6 dB (dialogue first: a dry voice keeps its level within 1 dB); a far
-    /// microphone's presets set 0 dB.
+    /// Default 0 dB: since the room's share is measured (`Share`), a dry voice passes
+    /// untouched at 0 dB too (the owner's null standard, 2026-11-17).
     pub direct_db: f32,
     /// 0–1: the gains' smoothing (and the decision-directed weight).
     pub smoothing: f32,
@@ -89,7 +94,7 @@ impl Default for VerbSettings {
             amount_db: 12.0,
             decay: DecayMode::Set,
             decay_s: 0.8,
-            direct_db: 6.0,
+            direct_db: 0.0,
             smoothing: 0.5,
             keep_ms: 50.0,
             mix: 1.0,
@@ -106,7 +111,7 @@ impl VerbSettings {
         VerbSettings {
             amount_db: f(self.amount_db, 0.0, 30.0, 12.0),
             decay_s: f(self.decay_s, 0.1, 10.0, 0.8),
-            direct_db: f(self.direct_db, -10.0, 20.0, 6.0),
+            direct_db: f(self.direct_db, -10.0, 20.0, 0.0),
             smoothing: f(self.smoothing, 0.0, 1.0, 0.5),
             keep_ms: f(self.keep_ms, 5.0, MAX_KEEP_MS, 50.0),
             mix: f(self.mix, 0.0, 1.0, 1.0),
@@ -128,6 +133,121 @@ pub fn size_for(sample_rate: f32) -> usize {
 /// The module's latency at a sample rate, samples.
 pub fn latency_for(sample_rate: f32) -> usize {
     size_for(sample_rate) - 1
+}
+
+/// Octave bands the room's share is measured in (63 Hz … 16 kHz and above).
+const SHARE_BANDS: usize = 10;
+/// A band's frames count once it has fallen this long without rising 3 dB (the direct
+/// sound's own end and the early part are not the room's tail), at least.
+const SHARE_MIN_FRAMES: usize = 4;
+/// The presence (the share of decay frames where the predicted tail is heard) under which
+/// no room is taken out, and over which the whole predicted tail is.
+const SHARE_FROM: f32 = 0.6;
+const SHARE_TO: f32 = 0.75;
+/// The most of the predicted tail taken where the evidence is strongest (a room whose tail
+/// is plainly there: the prediction leans a little further, as the amount's does).
+const SHARE_MOST: f32 = 1.2;
+/// The decay frames of no tail the evidence starts with (about 0.1 s of decays at 48 kHz).
+const SHARE_PRIOR: f64 = 20.0;
+/// How far under its start a decay must have fallen to count (−6 dB, power).
+const SHARE_FALL: f32 = 0.25;
+/// The measure's memory, s of counted frames.
+const SHARE_MEMORY_S: f32 = 2.0;
+
+/// **The room's share, measured** (phase B, the owner's null standard, 2026-11-17): how
+/// much of the late tail the model predicts is taken out, from the evidence that a tail is
+/// there at all. In each octave band's free decays — once a band has fallen for the early
+/// part kept without rising 3 dB, and lies 6 dB under where it began (a held sound is no
+/// decay) — a frame where at least half the predicted tail is heard counts for a room, one
+/// where less is heard counts against it. The **presence** is the share of such frames
+/// over about two seconds of decays (the octaves 125 Hz … 8 kHz pooled: a room is
+/// broadband), counted from a prior of [`SHARE_PRIOR`] frames that showed none. A room's
+/// tails are heard where predicted (presence 0.75–0.92 on the measured scenes); a dry
+/// voice's decays fall to nothing long before the prediction does (0.36–0.48 on a real dry
+/// voice). Under [`SHARE_FROM`] nothing is taken — the gains are 1 and the input passes
+/// untouched (the transform's round trip, within 2·10⁻⁶) — and from there to [`SHARE_TO`]
+/// the share rises to the whole prediction, to [`SHARE_MOST`] where a tail is plainest.
+#[derive(Clone, Debug)]
+struct Share {
+    run_min: [f32; SHARE_BANDS],
+    run_top: [f32; SHARE_BANDS],
+    run_len: [usize; SHARE_BANDS],
+    heard: [f64; SHARE_BANDS],
+    predicted: [f64; SHARE_BANDS],
+    share: [f32; SHARE_BANDS],
+    presence: f32,
+    keep: f64,
+}
+
+impl Share {
+    fn new(fs: f32, hop: usize) -> Self {
+        let frames = (SHARE_MEMORY_S * fs / hop as f32).max(1.0);
+        Share {
+            run_min: [0.0; SHARE_BANDS],
+            run_top: [0.0; SHARE_BANDS],
+            run_len: [0; SHARE_BANDS],
+            heard: [0.0; SHARE_BANDS],
+            predicted: [0.0; SHARE_BANDS],
+            share: [0.0; SHARE_BANDS],
+            presence: 0.0,
+            keep: 1.0 - 1.0 / f64::from(frames),
+        }
+    }
+
+    fn clear(&mut self) {
+        let keep = self.keep;
+        *self = Share {
+            keep,
+            ..Share {
+                run_min: [0.0; SHARE_BANDS],
+                run_top: [0.0; SHARE_BANDS],
+                run_len: [0; SHARE_BANDS],
+                heard: [0.0; SHARE_BANDS],
+                predicted: [0.0; SHARE_BANDS],
+                share: [0.0; SHARE_BANDS],
+                presence: 0.0,
+                keep,
+            }
+        };
+    }
+
+    /// One frame: each band's power heard and late power predicted; `early` the frames a
+    /// decay must have run before it counts.
+    fn push(&mut self, heard: &[f32; SHARE_BANDS], late: &[f32; SHARE_BANDS], early: usize) {
+        let need = early.max(SHARE_MIN_FRAMES);
+        for j in 0..SHARE_BANDS {
+            let p = heard[j];
+            if p > 2.0 * self.run_min[j] || self.run_len[j] == 0 {
+                // A rise (or the first frame): a new decay may start here.
+                self.run_min[j] = p;
+                self.run_top[j] = p;
+                self.run_len[j] = 1;
+            } else {
+                self.run_min[j] = self.run_min[j].min(p);
+                self.run_len[j] += 1;
+            }
+            // A decay, not a held sound: 6 dB under where the run began.
+            if self.run_len[j] > need && p <= SHARE_FALL * self.run_top[j] && late[j] > 1e-20 {
+                // Is the tail there? A frame where at least half the predicted tail is heard
+                // says yes; the share of such frames is the evidence (`presence`).
+                let hit = if p >= 0.5 * late[j] { 1.0 } else { 0.0 };
+                self.heard[j] = self.keep * self.heard[j] + hit;
+                self.predicted[j] = self.keep * self.predicted[j] + 1.0;
+            }
+        }
+        // The room is broadband: the evidence of the octaves 125 Hz … 8 kHz pooled (each
+        // octave by the frames it counted), so one band's few bins do not decide alone.
+        let (mut hits, mut frames) = (0.0f64, 0.0f64);
+        for j in 1..=7 {
+            hits += self.heard[j];
+            frames += self.predicted[j];
+        }
+        // Until there is evidence, no room: the count starts as if [`SHARE_PRIOR`] decay
+        // frames had shown no tail, so a few early frames cannot decide alone.
+        self.presence = (hits / (frames + SHARE_PRIOR)) as f32;
+        let sh = ((self.presence - SHARE_FROM) / (SHARE_TO - SHARE_FROM)).clamp(0.0, SHARE_MOST);
+        self.share = [sh; SHARE_BANDS];
+    }
 }
 
 /// The free-decay estimator (see the module's header).
@@ -308,6 +428,9 @@ pub struct Dereverb {
     gain: Vec<f32>,
     power: Vec<f32>,
     est: DecayEstimate,
+    /// The room's share measured, and each bin's octave band.
+    share: Share,
+    band_of: Vec<u8>,
     /// Frames in a row under [`QUIET`] (the drain asks).
     quiet_frames: usize,
     /// Measurement only: the gains from the left channel alone, so the right carries any
@@ -346,6 +469,17 @@ impl Dereverb {
             gain: vec![1.0; bins],
             power: vec![0.0; bins],
             est: DecayEstimate::new(sample_rate, n, hop),
+            share: Share::new(sample_rate, hop),
+            band_of: (0..bins)
+                .map(|b| {
+                    let hz = b as f32 * sample_rate / n as f32;
+                    if hz < 88.4 {
+                        0
+                    } else {
+                        ((math::log2(hz / 88.4)).floor() as usize + 1).min(SHARE_BANDS - 1) as u8
+                    }
+                })
+                .collect(),
             quiet_frames: usize::MAX,
             shadow: false,
         }
@@ -402,6 +536,12 @@ impl Dereverb {
         }
     }
 
+    /// The share of the predicted tail taken now (0: no room evidenced, the input passes
+    /// untouched; 1: the model's whole tail; up to 1.2), and the evidence behind it.
+    pub fn room_share(&self) -> (f32, f32) {
+        (self.share.share[1], self.share.presence)
+    }
+
     /// The decay estimated from the signal so far, s (0 before the first free decay).
     pub fn estimated_decay_s(&self) -> f32 {
         self.est.value()
@@ -425,6 +565,7 @@ impl Dereverb {
         self.gain.fill(1.0);
         self.power.fill(0.0);
         self.est.clear_run();
+        self.share.clear();
         self.quiet_frames = usize::MAX;
     }
 
@@ -549,12 +690,22 @@ impl Dereverb {
         self.rev_at = next;
         let from = (next + self.rev_frames - (ne - 1)) % self.rev_frames;
         let floor = math::db_to_gain(-s.amount_db);
+        // The room's share, measured in each octave's free decays (`Share`).
+        let mut heard = [0.0f32; SHARE_BANDS];
+        let mut predicted = [0.0f32; SHARE_BANDS];
+        for b in 0..bins {
+            let j = usize::from(self.band_of[b]);
+            heard[j] += self.power[b];
+            predicted[j] += decay_e * self.lam_rev[from * bins + b];
+        }
+        self.share.push(&heard, &predicted, ne);
         // The amount also leans on the prediction: up to twice the tail at 24 dB.
         let over = 1.0 + s.amount_db / 24.0;
         let dd = 0.85 + 0.13 * s.smoothing;
         for b in 0..bins {
             let p = self.power[b];
-            let late = over * decay_e * self.lam_rev[from * bins + b];
+            let share = self.share.share[usize::from(self.band_of[b])];
+            let late = share * over * decay_e * self.lam_rev[from * bins + b];
             let g = if late > 1e-24 && p > 0.0 {
                 let gamma = p / late;
                 let xi = dd * self.clean_prev[b] / late + (1.0 - dd) * (gamma - 1.0).max(0.0);

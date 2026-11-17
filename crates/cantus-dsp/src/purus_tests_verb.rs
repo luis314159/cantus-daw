@@ -229,11 +229,8 @@ fn the_decay_is_estimated_from_the_signal() {
 fn a_dry_voice_is_nearly_left_alone() {
     let dry = testkit::spoken(SR, 150.0, 16, 0.5, 21);
     for (name, s) in [
-        ("defaults (0.8 s, direct +6 dB, 12 dB)", verb(|_| {})),
-        (
-            "direct 0 dB (a far microphone)",
-            verb(|v| v.direct_db = 0.0),
-        ),
+        ("defaults (0.8 s, direct 0 dB, 12 dB)", verb(|_| {})),
+        ("direct +6 dB", verb(|v| v.direct_db = 6.0)),
         (
             "direct 0 dB, 24 dB",
             verb(|v| {
@@ -245,9 +242,171 @@ fn a_dry_voice_is_nearly_left_alone() {
     ] {
         let y = through(&s, &dry);
         let (snr, gain) = ratio(&y, &dry);
-        if name.starts_with("direct +12") {
-            assert!(gain.abs() < 0.5 && snr > 25.0, "{gain} {snr}");
-        }
+        // No room is evidenced in a dry voice: every setting passes it (the share measured).
+        assert!(gain.abs() < 0.3 && snr > 30.0, "{name}: {gain} {snr}");
         println!("a dry voice through the {name}: its level {gain:+.2} dB, what changed {snr:.1} dB under it");
     }
+}
+
+/// The power of `x` in each octave band, 63 Hz … 8 kHz (Welch: 8 192-point Hann frames,
+/// half overlapping), dB.
+fn octaves(x: &[f32]) -> [f64; 8] {
+    use crate::aequalis::fft::Fft;
+    let n = 8_192;
+    let fft = Fft::new(n);
+    let w: Vec<f32> = (0..n)
+        .map(|i| 0.5 - 0.5 * crate::math::cos(std::f32::consts::TAU * i as f32 / n as f32))
+        .collect();
+    let mut psd = vec![0.0f64; n / 2 + 1];
+    let (mut re, mut im) = (vec![0.0f32; n], vec![0.0f32; n]);
+    let mut at = 0;
+    while at + n <= x.len() {
+        for i in 0..n {
+            re[i] = x[at + i] * w[i];
+            im[i] = 0.0;
+        }
+        fft.run(&mut re, &mut im, false);
+        for (b, p) in psd.iter_mut().enumerate() {
+            *p += f64::from(re[b]) * f64::from(re[b]) + f64::from(im[b]) * f64::from(im[b]);
+        }
+        at += n / 2;
+    }
+    let mut out = [0.0f64; 8];
+    for (j, o) in out.iter_mut().enumerate() {
+        let centre = 62.5 * 2f64.powi(j as i32);
+        let (lo, hi) = (centre / 2f64.sqrt(), centre * 2f64.sqrt());
+        let mut s = 0.0;
+        for (b, p) in psd.iter().enumerate() {
+            let hz = b as f64 * f64::from(SR) / n as f64;
+            if hz >= lo && hz < hi {
+                s += p;
+            }
+        }
+        *o = testkit::db(s);
+    }
+    out
+}
+
+/// What the de-reverb does to a dry source: each octave's change (dB, 63 Hz … 8 kHz) and
+/// the residual — the output less the input, level-matched and aligned — under the input,
+/// dB. Measured from `skip` seconds on.
+fn dry_pass(s: &PurusSettings, x: &[f32], skip: f32) -> ([f64; 8], f64) {
+    let y = through(s, x);
+    let from = (skip * SR) as usize;
+    let (xi, yi) = (&x[from..], &y[from..]);
+    let (bi, bo) = (octaves(xi), octaves(yi));
+    let mut d = [0.0f64; 8];
+    for j in 0..8 {
+        d[j] = bo[j] - bi[j];
+    }
+    let (under, _) = ratio(yi, xi);
+    (d, under)
+}
+
+fn show_dry(name: &str, d: &[f64; 8], under: f64) {
+    let bands: Vec<String> = d.iter().map(|v| format!("{v:+.2}")).collect();
+    println!(
+        "{name}: octaves 63 Hz … 8 kHz {} dB; the residual {under:.1} dB under it",
+        bands.join(" ")
+    );
+}
+
+/// The owner's standard (2026-11-17): what is not reverberation passes untouched. A dry
+/// voice through the room module at Direct sound 0 dB (its default) and 12 dB: every octave
+/// within ±0.3 dB, the residual (level-matched, aligned) more than 30 dB under it — from
+/// 1.5 s on (the share of the room it measures has settled).
+#[test]
+fn a_dry_voice_passes_untouched_at_direct_sound_0_db() {
+    let dry = testkit::spoken(SR, 150.0, 40, 0.5, 21);
+    for (name, s) in [
+        (
+            "the defaults (0.8 s set, direct 0 dB, 12 dB)",
+            verb(|v| v.direct_db = 0.0),
+        ),
+        (
+            "decay estimated",
+            verb(|v| {
+                v.direct_db = 0.0;
+                v.decay = DecayMode::Estimate;
+            }),
+        ),
+        (
+            "24 dB",
+            verb(|v| {
+                v.direct_db = 0.0;
+                v.amount_db = 24.0;
+            }),
+        ),
+    ] {
+        let (d, under) = dry_pass(&s, &dry, 1.5);
+        show_dry(&format!("a dry synthetic voice, {name}"), &d, under);
+        assert!(d.iter().all(|v| v.abs() <= 0.3), "{name}: {d:?}");
+        assert!(under > 30.0, "{name}: {under:.1} dB");
+    }
+}
+
+/// The same on a real dry voice (an outside source): *Gettysburg Address*, read by Britton
+/// Rea (Enfaze Studios), Wikimedia Commons `File:Gettysburg_by_Britton.ogg`, released into
+/// the public domain by its author — the first 21 seconds, mono, 48 kHz, as Loquax's sound
+/// examples use it. `#[ignore]`: it needs the file (`PURUS_VOICE`, a mono or stereo WAV).
+#[test]
+#[ignore]
+fn purus_dry_voice_recorded() {
+    let path = std::env::var("PURUS_VOICE")
+        .unwrap_or_else(|_| r"C:\projects\daw-fx\tmp\purus\voice-gettysburg.wav".into());
+    let mut r = hound::WavReader::open(&path).expect("PURUS_VOICE: a WAV");
+    let spec = r.spec();
+    assert_eq!(spec.sample_rate, 48_000);
+    let raw: Vec<f32> = match spec.sample_format {
+        hound::SampleFormat::Float => r.samples::<f32>().map(Result::unwrap).collect(),
+        hound::SampleFormat::Int => {
+            let k = 1.0 / (1u64 << (spec.bits_per_sample - 1)) as f32;
+            r.samples::<i32>().map(|v| v.unwrap() as f32 * k).collect()
+        }
+    };
+    let ch = spec.channels as usize;
+    let voice: Vec<f32> = raw
+        .chunks(ch)
+        .map(|f| f.iter().sum::<f32>() / ch as f32)
+        .collect();
+    for (name, s) in [
+        (
+            "the defaults (0.8 s set, direct 0 dB, 12 dB)",
+            verb(|v| v.direct_db = 0.0),
+        ),
+        (
+            "decay estimated",
+            verb(|v| {
+                v.direct_db = 0.0;
+                v.decay = DecayMode::Estimate;
+            }),
+        ),
+        (
+            "24 dB",
+            verb(|v| {
+                v.direct_db = 0.0;
+                v.amount_db = 24.0;
+            }),
+        ),
+        ("direct +6 dB", verb(|v| v.direct_db = 6.0)),
+    ] {
+        let (d, under) = dry_pass(&s, &voice, 1.5);
+        show_dry(&format!("the recorded voice, {name}"), &d, under);
+    }
+    // And the same voice in a known room: what the module takes of the tail.
+    let (h, late) = testkit::room(SR, 0.8, 0.0, 50.0, 31);
+    let mut wet = testkit::convolve(&voice, &h);
+    wet.truncate(voice.len());
+    let mut early = testkit::convolve(&voice, &h[..late]);
+    early.truncate(voice.len());
+    let late_part: Vec<f32> = wet.iter().zip(&early).map(|(w, e)| w - e).collect();
+    let s = verb(|v| v.direct_db = 0.0);
+    let early_out = shadow(&s, &wet, &early);
+    let late_out = shadow(&s, &wet, &late_part);
+    let e = testkit::energy;
+    let gained = testkit::db(e(&early_out) / e(&late_out)) - testkit::db(e(&early) / e(&late_part));
+    println!("the recorded voice in a 0.8 s room (DRR 0 dB), the defaults: early-to-late gained {gained:+.1} dB");
+    let (d, under) = dry_pass(&s, &voice, 1.5);
+    assert!(d.iter().all(|v| v.abs() <= 0.3), "{d:?}");
+    assert!(under > 30.0, "{under:.1} dB");
 }

@@ -195,7 +195,7 @@ fn the_sensitivity_is_capped_and_the_direct_sound_is_one_constant() {
         DIRECT_DB_DEFAULT,
         "the DSP's default and the table's are the same"
     );
-    assert_eq!(DIRECT_DB_DEFAULT, 6.0);
+    assert_eq!(DIRECT_DB_DEFAULT, 0.0);
 }
 
 /// fxc:purus (phase B) — Purus as a pedal on Tabula's board (a de-hum pedal on a guitar's

@@ -2730,8 +2730,9 @@ enciendes:
   empezaría a remendar la propia música. 16 ms de latencia.
 - **Quitar sala** baja la cola de una sala en una voz. La *Reducción* dice cuánto (hasta
   30 dB); el *Decaimiento* es el de la sala, puesto a mano o **Estimado** en las
-  pausas; el *Sonido directo* dice lo cerca que estaba el micrófono (+6 dB, una voz cercana,
-  por defecto; 0 dB para un micrófono lejano); las *Primeras reflexiones* conservan los
+  pausas; el *Sonido directo* dice lo cerca que estaba el micrófono (0 dB por defecto, va bien casi
+  siempre; más para uno muy cercano). Solo quita tanta sala como muestran las pausas: una voz
+  seca pasa intacta; las *Primeras reflexiones* conservan los
   primeros milisegundos, que llevan la voz. 21 ms de latencia (23 a 44,1 kHz).
 
 La latencia es solo la de los módulos encendidos, y Cantus la compensa en el canal, así la

@@ -47,10 +47,11 @@ pub const TAKES_NOTES: bool = false;
 /// editor's own declick alike). The knob stops here.
 pub const SENSITIVITY_MAX: f32 = 0.7;
 
-/// The de-reverb's Direct sound at its default: +6 dB, dialogue first (a dry voice keeps
-/// its level within 1 dB). The owner may move it; it is this one constant (far-microphone
-/// presets set 0 dB).
-pub const DIRECT_DB_DEFAULT: f32 = 6.0;
+/// The de-reverb's Direct sound at its default: 0 dB (the owner, 2026-11-17: the null is
+/// the standard). The de-reverb measures how much of a room is there before it takes any
+/// out, so a dry voice passes untouched at 0 dB too; it was +6 dB while a dry voice lost
+/// 2.9 dB at 0 dB. One constant; a preset may still choose its own.
+pub const DIRECT_DB_DEFAULT: f32 = 0.0;
 
 /// The locale prefix of each stepped parameter's choices, by key (ADR 0020).
 pub const CHOICES: &[(&str, &str)] = &[

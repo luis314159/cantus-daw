@@ -2512,8 +2512,9 @@ harmonics notched — so a ground loop's hum leaves at once. (The audio editor's
   16 ms of latency.
 - **Room removal** takes a room's tail down from a voice. *Reduction* is how far (up to
   30 dB); the *Decay time* is the room's, set by hand or **Estimated** from the pauses;
-  *Direct sound* says how close the microphone was (+6 dB, a close voice, is the default;
-  0 dB for a far microphone); *Early reflections* keeps the first milliseconds, which carry
+  *Direct sound* says how close the microphone was (0 dB, the default, suits most; higher
+  for a very close one). It takes out only as much room as the pauses show is there: a dry
+  voice passes untouched; *Early reflections* keeps the first milliseconds, which carry
   the voice. 21 ms of latency (23 at 44.1 kHz).
 
 The latency is only that of the modules switched on, and Cantus compensates it on the
