@@ -24,8 +24,15 @@
 //!   sum to the delayed input exactly. Everything runs in **integers** (the input in steps
 //!   of 2⁻³⁶, each boxcar's running sum exact and its output a pure function of the sum,
 //!   the polynomial a sum of integers), so nothing drifts and rest is exact. The latency is
-//!   fixed at the lowest crossover's, [`LIN_MIN_HZ`]: `5·(M − 1)`, **36.8 ms at 48 kHz**,
-//!   whatever the frequency; a higher crossover's kernel reads the input that much later.
+//!   the kernel's centre at the **floor** in force (the owner's choice, 2026-11-17,
+//!   [`Floor`]): `5·(M − 1)` of the floor's boxcar, whatever the crossover above it — a
+//!   higher crossover's kernel reads the input that much later. **Auto** (the default) puts
+//!   the floor an octave under the crossover ([`auto_floor`]), so the latency is always the
+//!   least the crossover needs; the floor it uses is the one *committed* (the editor commits
+//!   it when the crossover is let go, so the latency never moves during a drag). The fixed
+//!   floors, 40, 60, 80 and 120 Hz, keep one latency whatever the crossover: at 48 kHz
+//!   55.3, 36.8, 27.6 and 18.3 ms. A crossover under the floor in force is heard at the
+//!   floor.
 
 use crate::math;
 
@@ -33,8 +40,65 @@ use crate::math;
 pub const MIN_HZ: f32 = 40.0;
 /// The highest crossover.
 pub const MAX_HZ: f32 = 2_000.0;
-/// The lowest crossover the linear-phase kernel reaches (its latency is this one's).
-pub const LIN_MIN_HZ: f32 = 60.0;
+/// The linear-phase kernel's lowest floor: what its boxcars and the dry line are sized for.
+pub const FLOOR_MIN_HZ: f32 = 40.0;
+/// The highest floor Auto puts (an octave under the highest crossover).
+pub const FLOOR_MAX_HZ: f32 = 1_000.0;
+/// The fixed floors, in [`Floor`]'s order after Auto.
+pub const FLOORS: [f32; 4] = [40.0, 60.0, 80.0, 120.0];
+/// Auto's committed floor before anything commits one: the default crossover's (120 Hz).
+pub const AUTO_DEFAULT_HZ: f32 = 60.0;
+
+/// The linear-phase split's floor: what its latency is sized for.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Floor {
+    /// An octave under the crossover, as last committed ([`auto_floor`]).
+    #[default]
+    Auto,
+    Hz40,
+    Hz60,
+    Hz80,
+    Hz120,
+}
+
+impl Floor {
+    pub fn from_index(i: usize) -> Floor {
+        match i {
+            1 => Floor::Hz40,
+            2 => Floor::Hz60,
+            3 => Floor::Hz80,
+            4 => Floor::Hz120,
+            _ => Floor::Auto,
+        }
+    }
+
+    /// The floor in hertz: a fixed one's, or Auto's committed `auto_hz`.
+    pub fn hz(self, auto_hz: f32) -> f32 {
+        match self {
+            Floor::Auto => {
+                if auto_hz.is_finite() {
+                    auto_hz.clamp(FLOOR_MIN_HZ, FLOOR_MAX_HZ)
+                } else {
+                    AUTO_DEFAULT_HZ
+                }
+            }
+            Floor::Hz40 => FLOORS[0],
+            Floor::Hz60 => FLOORS[1],
+            Floor::Hz80 => FLOORS[2],
+            Floor::Hz120 => FLOORS[3],
+        }
+    }
+}
+
+/// Auto's floor for a crossover: an octave under it, within the floors' range.
+pub fn auto_floor(cross_hz: f32) -> f32 {
+    let hz = if cross_hz.is_finite() {
+        cross_hz
+    } else {
+        120.0
+    };
+    (hz * 0.5).clamp(FLOOR_MIN_HZ, FLOOR_MAX_HZ)
+}
 /// Where `sinc(x)² = ½` (−6 dB): the boxcar length is this many crossover periods.
 pub const SINC2_HALF: f64 = 0.442_946_470_689;
 /// Boxcars in the linear-phase cascade: the two-boxcar base applied five times.
@@ -76,13 +140,13 @@ pub enum Crossover {
 
 /// The boxcar length for a crossover at `hz`.
 pub fn boxcar_len(hz: f32, sample_rate: f32) -> usize {
-    let hz = hz.clamp(LIN_MIN_HZ, MAX_HZ) as f64;
+    let hz = hz.clamp(FLOOR_MIN_HZ, MAX_HZ) as f64;
     ((SINC2_HALF * sample_rate as f64 / hz).round() as usize).max(2)
 }
 
-/// The linear-phase kernel's delay at a rate: the centre of the longest kernel.
-pub fn linear_latency(sample_rate: f32) -> usize {
-    kernel_delay(boxcar_len(LIN_MIN_HZ, sample_rate))
+/// The linear-phase kernel's delay at a floor and a rate: the centre of the floor's kernel.
+pub fn linear_latency(floor_hz: f32, sample_rate: f32) -> usize {
+    kernel_delay(boxcar_len(floor_hz, sample_rate))
 }
 
 /// The sharpened kernel's centre for a boxcar length: the base's `M − 1`, five times.
@@ -265,6 +329,8 @@ pub struct Split {
     band: Band,
     cross: Crossover,
     hz: f32,
+    /// The floor in force (linear phase), Hz.
+    floor: f32,
     svf: Svf,
     /// Per channel, per section: the SVF's two states.
     sv: [[[f64; 2]; 2]; 2],
@@ -275,12 +341,13 @@ pub struct Split {
 impl Split {
     /// Allocates the boxcars for the longest kernel.
     pub fn new(sample_rate: f32) -> Split {
-        let cap = boxcar_len(LIN_MIN_HZ, sample_rate);
+        let cap = boxcar_len(FLOOR_MIN_HZ, sample_rate);
         let mut s = Split {
             sr: sample_rate,
             band: Band::Whole,
             cross: Crossover::MinimumPhase,
             hz: 120.0,
+            floor: AUTO_DEFAULT_HZ,
             svf: Svf::default(),
             sv: [[[0.0; 2]; 2]; 2],
             m: cap,
@@ -293,7 +360,7 @@ impl Split {
     /// The latency the split adds: the linear-phase kernel's centre, when it is in.
     pub fn latency(&self) -> usize {
         if self.uses_kernel() {
-            linear_latency(self.sr)
+            linear_latency(self.floor, self.sr)
         } else {
             0
         }
@@ -306,7 +373,7 @@ impl Split {
     /// How much later than the dry path's newest sample the kernel's input is read, so its
     /// centre lands on the latency whatever its length.
     pub fn kernel_offset(&self) -> usize {
-        linear_latency(self.sr) - kernel_delay(self.m)
+        linear_latency(self.floor, self.sr) - kernel_delay(self.m)
     }
 
     /// The boxcar length in force.
@@ -314,14 +381,16 @@ impl Split {
         self.m
     }
 
-    /// New settings. A new kernel length rebuilds the boxcars from `history` (the dry
-    /// path's input, newest first: `history(d)` is the input `d` samples ago), so the
-    /// kernel is the one it would be had it always been that long. No allocation.
+    /// New settings (`floor_hz` the linear phase's floor in force, [`Floor::hz`]). A new
+    /// kernel length or floor rebuilds the boxcars from `history` (the dry path's input,
+    /// newest first: `history(d)` is the input `d` samples ago), so the kernel is the one it
+    /// would be had it always been that long. No allocation.
     pub fn set(
         &mut self,
         band: Band,
         cross: Crossover,
         hz: f32,
+        floor_hz: f32,
         history: &dyn Fn(usize) -> [f32; 2],
     ) {
         let hz = if hz.is_finite() {
@@ -333,11 +402,19 @@ impl Split {
             self.hz = hz;
             self.svf = Svf::new(hz, self.sr);
         }
+        let floor = if floor_hz.is_finite() {
+            floor_hz.clamp(FLOOR_MIN_HZ, FLOOR_MAX_HZ)
+        } else {
+            AUTO_DEFAULT_HZ
+        };
         let was = self.uses_kernel();
+        let floor_moved = floor != self.floor;
         self.band = band;
         self.cross = cross;
-        let m = boxcar_len(hz, self.sr);
-        if self.uses_kernel() && (m != self.m || !was) {
+        self.floor = floor;
+        // A crossover under the floor is heard at the floor.
+        let m = boxcar_len(hz.max(floor), self.sr);
+        if self.uses_kernel() && (m != self.m || !was || floor_moved) {
             self.m = m;
             self.rebuild(history);
         } else {
@@ -362,7 +439,7 @@ impl Split {
 
     /// Dry-line frames the kernel's rebuild may read back, at a rate.
     pub fn history_needed(sample_rate: f32) -> usize {
-        let m = boxcar_len(LIN_MIN_HZ, sample_rate);
+        let m = boxcar_len(FLOOR_MIN_HZ, sample_rate);
         STAGES * m + 2
     }
 

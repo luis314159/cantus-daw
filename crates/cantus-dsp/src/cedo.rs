@@ -29,7 +29,8 @@
 //!
 //! **Lookahead** (0 … [`MAX_LOOKAHEAD_MS`]) delays the audio and not the detector, so the
 //! duck is in place when the transient it answers arrives; the linear-phase crossover adds
-//! its fixed kernel delay ([`band::linear_latency`]). [`Cedo::latency`] is their sum, and
+//! its kernel's delay at the floor in force ([`band::linear_latency`], [`band::Floor`]: Auto
+//! an octave under the crossover as last committed, or a fixed 40, 60, 80 or 120 Hz). [`Cedo::latency`] is their sum, and
 //! everything — the sidechain's amount, the shape's song position, a note's place — is
 //! aligned to the audio as it leaves.
 //!
@@ -137,6 +138,11 @@ pub struct CedoSettings {
     pub band: Band,
     pub crossover: Crossover,
     pub cross_hz: f32,
+    /// The linear phase's floor (its latency): Auto, or 40, 60, 80, 120 Hz.
+    pub floor: band::Floor,
+    /// Auto's floor as last committed, Hz (an octave under the crossover when it was let
+    /// go: `band::auto_floor`).
+    pub auto_floor_hz: f32,
     /// 0: each channel ducks by its own key channel; 1: both by the louder.
     pub link: f32,
     pub mix: f32,
@@ -168,6 +174,8 @@ impl Default for CedoSettings {
             band: Band::Whole,
             crossover: Crossover::MinimumPhase,
             cross_hz: 120.0,
+            floor: band::Floor::Auto,
+            auto_floor_hz: band::AUTO_DEFAULT_HZ,
             link: 1.0,
             mix: 1.0,
             out_db: 0.0,
@@ -192,7 +200,7 @@ pub fn latency_for(s: &CedoSettings, sample_rate: f32) -> usize {
     let lin = s.band != Band::Whole && s.crossover == Crossover::LinearPhase;
     look_samples(s.lookahead_ms, sample_rate)
         + if lin {
-            band::linear_latency(sample_rate)
+            band::linear_latency(s.floor.hz(s.auto_floor_hz), sample_rate)
         } else {
             0
         }
@@ -295,7 +303,8 @@ impl Cedo {
     pub fn new(sample_rate: f32, shape: ShapeFn) -> Cedo {
         let sr = sample_rate.max(1.0);
         let look_max = look_samples(MAX_LOOKAHEAD_MS, sr);
-        let lin = band::linear_latency(sr);
+        // The lines are sized for the lowest floor's kernel.
+        let lin = band::linear_latency(band::FLOOR_MIN_HZ, sr);
         let s = CedoSettings::default();
         let mut c = Cedo {
             sr,
@@ -386,8 +395,13 @@ impl Cedo {
         }
         self.look = look_samples(s.lookahead_ms, sr);
         let (dry, look) = (&self.dry, self.look);
-        self.split
-            .set(s.band, s.crossover, s.cross_hz, &|d| dry.tap(look + d));
+        self.split.set(
+            s.band,
+            s.crossover,
+            s.cross_hz,
+            s.floor.hz(s.auto_floor_hz),
+            &|d| dry.tap(look + d),
+        );
         self.lat = self.look + self.split.latency();
         let src = if s.trigger == Trigger::Midi {
             Source::Midi
@@ -484,8 +498,11 @@ mod tests;
 #[path = "cedo_tests_a2.rs"]
 mod tests_a2;
 #[cfg(test)]
+#[path = "cedo_tests_floor.rs"]
+mod tests_floor;
+#[cfg(test)]
 #[path = "cedo_tests_measure.rs"]
 mod tests_measure;
 #[cfg(test)]
 #[path = "cedo_tests_shared.rs"]
-mod tests_shared;
+mod tests_shared; // fxb:cedo

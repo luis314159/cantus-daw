@@ -17,7 +17,8 @@
 //! | `det`, `rms` | the key's level: sample Peak or RMS over a window | 0 … 1, 1 … 300 ms |
 //! | `look` | the lookahead (the latency) | 0 … 10 ms |
 //! | `div`, `swing`, `edge` | the shape's cycle (`modfx.div`), the swing, the edges' smoothing | 0 … 16, 0 … 100 %, 0 … 10 ms |
-//! | `band`, `xover`, `xhz` | where it acts (Whole, Lows, Highs), the split (Minimum phase, Linear phase from 60 Hz), the crossover | 0 … 2, 0 … 1, 40 … 2 000 Hz |
+//! | `band`, `xover`, `xhz` | where it acts (Whole, Lows, Highs), the split (Minimum phase, Linear phase), the crossover | 0 … 2, 0 … 1, 40 … 2 000 Hz |
+//! | `lfloor`, `lfhz` | the linear phase's floor (its latency): Auto (an octave under the crossover), 40, 60, 80 or 120 Hz; Auto's floor as last committed — the editor writes it when the crossover is let go, so the latency never moves during a drag | 0 … 4, 40 … 1 000 Hz |
 //! | `link` | each channel by its own key (0) … both by the louder (100 %) | 0 … 100 % |
 //! | `mix` | how much of the duck is applied | 0 … 100 % |
 //! | `out` | the output level | −60 … +24 dB |
@@ -56,7 +57,24 @@ pub const CHOICES: &[(&str, &str)] = &[
     ("xover", "fx.cedo.xover"),
     ("listen", "fx.cedo.listen"),
     ("vel", "fx.cedo.vel"),
+    ("lfloor", "fx.cedo.lfloor"), // fxb:cedo
 ];
+
+/// fxb:cedo — Auto's floor for a crossover: an octave under it, 40 … 1 000 Hz
+/// (`cantus_dsp::cedo::band::auto_floor`, the same rule).
+pub fn auto_floor(cross_hz: f32) -> f32 {
+    let hz = if cross_hz.is_finite() { cross_hz } else { 120.0 };
+    (hz * 0.5).clamp(40.0, 1_000.0)
+}
+
+/// fxb:cedo — a preset's (or any map's) Auto floor, when it names none: the one its
+/// crossover commits, so a preset is heard with the latency its crossover needs.
+pub fn complete_floor(map: &mut std::collections::BTreeMap<String, f32>) {
+    if !map.contains_key("lfhz") {
+        let x = map.get("xhz").copied().unwrap_or(120.0);
+        map.insert("lfhz".into(), auto_floor(x));
+    }
+}
 
 const fn step(key: &'static str, label: &'static str, max: f32, default: f32) -> EffectParamInfo {
     p(key, label, 0.0, max, default, "", false, true)
@@ -120,6 +138,18 @@ pub const PARAMS: &[EffectParamInfo] = &[
     p("out", "fx.cedo.out", -60.0, 24.0, 0.0, "dB", false, false),
     step("listen", "fx.cedo.listen", 2.0, 0.0),
     step("vel", "fx.cedo.vel", 1.0, 0.0),
+    // fxb:cedo — the linear phase's floor (the owner's choice, 2026-11-17).
+    step("lfloor", "fx.cedo.lfloor", 4.0, 0.0),
+    p(
+        "lfhz",
+        "fx.cedo.lfhz",
+        40.0,
+        1_000.0,
+        60.0,
+        "Hz",
+        true,
+        false,
+    ),
 ];
 
 pub fn params() -> &'static [EffectParamInfo] {

@@ -65,8 +65,9 @@ fn sine_gain(c: &mut Cedo, hz: f32) -> f64 {
 
 #[test]
 fn the_linear_phase_split_reaches_the_depth_and_leaks_little() {
-    // Its latency is fixed and stated: the 60 Hz kernel's centre at every crossover.
-    assert_eq!(band::linear_latency(48_000.0), 1_765);
+    // Its latency is fixed and stated: the 60 Hz kernel's centre at every crossover (the
+    // default Auto floor, 60 Hz as committed for the default 120 Hz crossover).
+    assert_eq!(band::linear_latency(60.0, 48_000.0), 1_765);
     for hz in [60.0f32, 120.0, 500.0, 2_000.0] {
         let s = CedoSettings {
             trigger: Trigger::Tempo,

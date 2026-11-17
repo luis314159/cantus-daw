@@ -204,11 +204,14 @@ fn the_notes_of_another_track_fire_the_shape() {
 
 /// The lookahead and the linear-phase kernel are latency, reported and compensated: at
 /// depth 0 the mix comes out later by exactly what the unit says (the bass held back with
-/// the lead); the linear-phase split's delay is its 60 Hz floor's, whatever the crossover.
+/// the lead); the linear-phase split's delay is its floor's, whatever the crossover: Auto's
+/// as committed (60 Hz by default), or a fixed floor's (fxb:cedo).
 #[test]
 fn the_lookahead_and_the_linear_phase_are_reported_and_compensated() {
     let reference = render_of(&demo_project());
-    let lin = cantus_dsp::cedo::band::linear_latency(SR);
+    let lin = cantus_dsp::cedo::band::linear_latency(60.0, SR);
+    let lin40 = cantus_dsp::cedo::band::linear_latency(40.0, SR);
+    let lin100 = cantus_dsp::cedo::band::linear_latency(100.0, SR);
     for (what, kv, want) in [
         ("lookahead 5 ms", &[("look", 5.0)][..], 240),
         (
@@ -225,6 +228,17 @@ fn the_lookahead_and_the_linear_phase_are_reported_and_compensated() {
             "highs, linear phase at the floor, lookahead",
             &[("band", 2.0), ("xover", 1.0), ("xhz", 40.0), ("look", 2.0)][..],
             lin + 96,
+        ),
+        // fxb:cedo — Auto committed for a 200 Hz crossover; the fixed 40 Hz floor.
+        (
+            "lows, linear phase, Auto at 100 Hz",
+            &[("band", 1.0), ("xover", 1.0), ("xhz", 200.0), ("lfhz", 100.0)][..],
+            lin100,
+        ),
+        (
+            "lows, linear phase, the 40 Hz floor",
+            &[("band", 1.0), ("xover", 1.0), ("xhz", 200.0), ("lfloor", 1.0)][..],
+            lin40,
         ),
     ] {
         let mut p = demo_project();

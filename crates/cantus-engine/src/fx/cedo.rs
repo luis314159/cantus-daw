@@ -16,9 +16,11 @@
 //!   0022 — another track's), each at its sample ([`FxUnit::note`]); a strip with a note
 //!   listener never rests.
 //!
-//! The latency is the lookahead plus, in a band mode split at linear phase, the kernel's
-//! (36.8 ms at 48 kHz from its 60 Hz floor, `cantus_dsp::cedo::band::LIN_MIN_HZ`); the
-//! engine reads it each pass, so its delay compensation follows either.
+//! The latency is the lookahead plus, in a band mode split at linear phase, the kernel's at
+//! its floor (`lfloor`: Auto an octave under the crossover as last committed, `lfhz`, or a
+//! fixed 40, 60, 80, 120 Hz — 55.3, 36.8, 27.6, 18.3 ms at 48 kHz,
+//! `cantus_dsp::cedo::band::Floor`); the engine reads it each pass, so its delay
+//! compensation follows either.
 
 use super::fluctus::shape_at;
 use super::modfx::transport_of;
@@ -89,6 +91,8 @@ pub fn settings(spec: &EffectSpec) -> CedoSettings {
             Crossover::MinimumPhase
         },
         cross_hz: spec.get("xhz"),
+        floor: cantus_dsp::cedo::band::Floor::from_index(idx("lfloor")),
+        auto_floor_hz: spec.get("lfhz"),
         link: spec.get("link"),
         mix: spec.get("mix"),
         out_db: spec.get("out"),
