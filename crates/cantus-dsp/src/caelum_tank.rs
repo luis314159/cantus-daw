@@ -559,6 +559,8 @@ pub struct Tank {
     early_k: [f32; MAX_LINES],
     early_wait: [u32; MAX_LINES],
     early_inf: [bool; MAX_LINES],
+    /// Some tap is waiting, is held, or the loop is infinite: `early_step` has work.
+    early_live: bool,
     shifters: [Shifter; CHANNELS],
     amount: [f32; CHANNELS],
     amount_target: [f32; CHANNELS],
@@ -683,6 +685,7 @@ impl Tank {
             early_k: [1.0; MAX_LINES],
             early_wait: [0; MAX_LINES],
             early_inf: [false; MAX_LINES],
+            early_live: false,
             shifters: [
                 Shifter::with_origin(fs, 0),
                 Shifter::with_origin(fs, 0x5555_0000),
@@ -829,7 +832,11 @@ impl Tank {
         let inf = self.design.t60.is_infinite();
         self.early_inf = [inf; MAX_LINES];
         self.early_wait = [0; MAX_LINES];
-        self.early_scale();
+        self.early_k = [1.0; MAX_LINES];
+        self.early_live = inf;
+        if inf {
+            self.early_scale();
+        }
         self.amount = self.amount_target;
         self.update_amounts();
     }
@@ -872,6 +879,7 @@ impl Tank {
             for i in 0..MAX_LINES {
                 self.early_wait[i] = (self.len_target[i] * self.tap_frac[i]) as u32 + 1;
             }
+            self.early_live = true;
         }
         if inf && !was {
             self.ls2 = self.ls;
@@ -1098,7 +1106,9 @@ impl Tank {
         };
         glide(&mut self.depth, depth, self.k_gain, 1e-4);
         glide(&mut self.diff, self.diff_target, self.k_gain, 1e-6);
-        self.early_step(1);
+        if self.early_live {
+            self.early_step(1);
+        }
         let g = self.diff;
         let mut y = [0.0f32; MAX_LINES];
         let mut peak = 0.0f32;
@@ -1183,7 +1193,6 @@ impl Tank {
                 let lp2 = self.ls[i].lp(a, self.g_lo);
                 let b = self.design.lo[i] * lp2 + (a - lp2);
                 v[i] = b * self.design.g_mid[i];
-                lost += (x - v[i]) * (x + v[i]);
             }
         } else {
             self.ceiling_step(fed);
@@ -1229,13 +1238,17 @@ impl Tank {
             or += self.c[1][i] * read[i];
         }
         self.settling(fed);
-        lost -= self.exchange(&mut v, drain);
+        let gained = self.exchange(&mut v, drain, inf);
+        // What the loop keeps of the lines' energy this sample: what the finite tank loses
+        // is the ceiling's measure (infinite: its absorption, `lost`, and its exchange as the
+        // finite tank's, `gained`), what the settling wash loses its make-up's.
+        let mut kept = 0.0f32;
+        for i in 0..n {
+            kept += v[i] * v[i];
+        }
+        let lost = if inf { lost - gained } else { e - kept };
         self.loss_step(e, lost);
         if inf && self.held > 0.0 && self.sustain >= 1.0 {
-            let mut kept = 0.0f32;
-            for i in 0..n {
-                kept += v[i] * v[i];
-            }
             self.drop += (e - kept - self.drop) * self.k_drop;
         } else if self.drop != 0.0 {
             self.drop = 0.0;
@@ -1247,7 +1260,6 @@ impl Tank {
             }
         }
         let mut m = [0.0f32; MAX_LINES];
-        let mut wsum = 0.0f32;
         mix_matrix(&v, n, &mut m);
         for i in 0..n {
             // `+ 0.0` turns a −0.0 into +0.0 (zero is +0.0, bit for bit — ADR 0031 §5.1).
@@ -1257,10 +1269,13 @@ impl Tank {
                 m[i] + self.b[0][i] * in_l + self.b[1][i] * in_r + 0.0
             };
             peak = peak.max(x.abs());
-            wsum += x * x;
             self.buf[i * size + w] = x;
         }
-        self.wacc += wsum;
+        // What was written: the kept energy (the matrix is orthogonal) and the input's
+        // (its rows are orthonormal).
+        if !drain {
+            self.wacc += kept * t * t + p;
+        }
         if (w + 1) & ((1 << WBIN_SHIFT) - 1) == 0 {
             let nb = self.wbins.len();
             self.wbins[(w >> WBIN_SHIFT) & (nb - 1)] = self.wacc / (1 << WBIN_SHIFT) as f32;
@@ -1349,18 +1364,23 @@ impl Tank {
     fn early_step(&mut self, k: u32) {
         let inf = self.design.t60.is_infinite();
         let mut any = inf;
+        let mut waiting = false;
         for i in 0..self.n {
             if self.early_wait[i] > 0 {
                 self.early_wait[i] = self.early_wait[i].saturating_sub(k);
                 if self.early_wait[i] == 0 {
                     self.early_inf[i] = inf;
                 }
+                waiting |= self.early_wait[i] > 0;
             }
             any |= self.early_inf[i];
         }
         if any {
             self.early_scale();
+        } else {
+            self.early_k = [1.0; MAX_LINES];
         }
+        self.early_live = any || waiting;
     }
 
     fn stop_ramp(&mut self) {
@@ -1453,7 +1473,7 @@ impl Tank {
 
     /// The shimmer's exchange: each channel's component `s` replaced by `√(1−a)·s + √a·z`.
     #[inline]
-    fn exchange(&mut self, v: &mut [f32; MAX_LINES], drain: bool) -> f32 {
+    fn exchange(&mut self, v: &mut [f32; MAX_LINES], drain: bool, inf: bool) -> f32 {
         let n = self.n;
         let mut pw = 0.0f32;
         let mut gained = 0.0f32;
@@ -1503,8 +1523,10 @@ impl Tank {
             // The channel's component goes from `s` to `s + delta` (its row is a unit
             // vector orthogonal to the others'): the energy changes by `delta·(2s + delta)`
             // — counted as the set decay's tank would change it (the ceiling's measure).
-            let df = self.keep[ch] * s + give * zf;
-            gained += df * (2.0 * s + df);
+            if inf {
+                let df = self.keep[ch] * s + give * zf;
+                gained += df * (2.0 * s + df);
+            }
             for i in 0..n {
                 v[i] += row[i] * delta;
             }
@@ -1599,7 +1621,9 @@ impl Tank {
         for s in &mut self.shifters {
             s.skip(n);
         }
-        self.early_step(n.min(u32::MAX as usize) as u32);
+        if self.early_live {
+            self.early_step(n.min(u32::MAX as usize) as u32);
+        }
     }
 }
 
