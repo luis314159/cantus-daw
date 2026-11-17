@@ -454,8 +454,10 @@ impl EffectKind {
     }
 
     /// fxa:loquax — a key that is the editor's look, not the sound (Loquax's microphone,
-    /// ADR 0139): kept per insert like any key, but a preset neither carries nor resets it
-    /// and a value off its default does not make a preset "modified".
+    /// ADR 0139): kept per insert like any key and never heard. A preset that names it sets
+    /// it (each factory preset suggests its object; a user's preset keeps the one it was
+    /// saved with), one that does not leaves it; A/B leaves it; and a value off a preset's
+    /// does not make the preset "modified".
     pub fn is_look(self, key: &str) -> bool {
         match self {
             EffectKind::Vocoder => fx::loquax::LOOK.contains(&key),

@@ -2549,7 +2549,9 @@ voz supera su puerta, sin ninguna nota.
 cuello de cisne, **el tubo del talk-box** que sube desde su motor, o **el micrófono de mesa**
 sobre su base pesada — con su piloto de «en el aire» y su brillo siguiendo a la voz. Elígelo
 en el menú **⋯**, bajo *Micrófono*, junto a los acabados: es de la inserción (se guarda en la
-canción, un paso de deshacer) y nunca se oye; los presets lo dejan como lo elegiste. En el
+canción, un paso de deshacer) y nunca se oye. Cada preset de fábrica sugiere su objeto (*Talk-box* el tubo, *Radio* el
+micrófono de mesa, *Robot* el cuello de cisne) y al cargarlo lo pone; un preset tuyo guarda el
+que tenías al guardarlo. A/B no lo toca, y cambiarlo nunca marca el preset como modificado. En el
 centro, **el banco**: cada banda una columna de celdas encendidas por lo que dice ahora;
 **arrastra sobre las bandas para dibujar sus niveles** (de −24 a +12 dB, cada trazo un paso de
 deshacer). El desplazamiento de formantes se dibuja arriba. A la derecha, **el puente de
@@ -2632,6 +2634,75 @@ nada pintado, la nube a 0 — Fractus no toca ninguna muestra; no tiene latencia
 **En otro DAW** Fractus es el plug-in *Cantus Fractus* (CLAP y VST3): sus carriles se guardan
 en el estado del plug-in y se pintan en su propia ventana, sus pasos siguen el tempo y la
 posición del anfitrión, y las notas que envía el anfitrión tocan los carriles.
+
+### Caelum, la reverb shimmer
+
+**Caelum** (en latín, *el cielo*) es una reverb para espacios que ningún edificio contiene: su
+cola sube de tono mientras suena. Se inserta desde **Añadir inserción ▾ ▸ Espacio ▸ Caelum**;
+empieza como *Shimmer de octava* — un espacio amplio, un tercio húmedo, cuya cola sube de
+octava en octava — de modo que un acorde sube al cielo en cuanto lo tocas.
+
+**Cómo sube.** En cada vuelta del tanque, una parte de la cola (la *Cantidad* de la tarjeta
+*Shimmer*) se cambia por el mismo sonido transportado por la **primera voz** (+12 semitonos,
+una octava, al principio) y, a su propio nivel, por la **segunda voz** (+7, una quinta, muda
+hasta que subes *Nivel segunda*). Cada voz puede ir de tres octavas abajo a tres arriba. El
+cambio mueve la energía del sonido sin crearla, así que la caída que fijas es la que oyes, con
+shimmer o sin él. *Tono del shimmer* corta los graves y los agudos dentro del bucle: las
+octavas que suben se apagan arriba en vez de amontonarse.
+
+**La ventana** es un observatorio de noche:
+
+- **El cielo** muestra los últimos ocho segundos: la cola brillando en el horizonte sobre el
+  agua del tanque y las octavas del shimmer como bandas de luz sobre ella, cada una encendida
+  cuando la energía la alcanza — las más altas más tarde, mientras la cola envejece. Infinita
+  escribe ∞ en el cristal; Congelar lo escarcha; la atenuación enciende una ranura en el riel
+  derecho del marco.
+- **El alféizar** de abajo tiene los controles sin fin como pulsadores iluminados:
+  **Infinita** (la cola nunca cae; lo que entra se suma y se sostiene, y la amortiguación aún
+  la oscurece), **Congelar** (el tanque guarda lo que tiene y no deja entrar nada; el shimmer
+  deja de subir) y las dos maneras de un tanque infinito: su shimmer **Se apaga** o **Se
+  sostiene** al subir, y su nivel **8 dB menos** que una cola de ocho segundos o **Igual de
+  fuerte**. Un clic acciona un pulsador (un paso de deshacer); el clic derecho, automatización
+  y aprendizaje MIDI.
+- **El astrolabio** fija las voces: **arrastra la alidada** (la regla ancha) para elegir la
+  primera voz y **la aguja fina** para la segunda. El ángulo es la nota dentro de la octava
+  (los doce semitonos alrededor del borde); la distancia al centro, la octava en la espiral
+  (−36 junto al eje, +36 en el borde). Un clic en la lámina lleva allí la aguja más cercana.
+  Cada arrastre es un paso de deshacer.
+- **Caída por octava**: ocho tubos de vidrio, cada uno encendido hasta la caída que el tanque
+  alcanza de verdad en su octava (de 63 Hz a 8 kHz), según la tarjeta *Amortiguación*. La línea
+  de puntos que los cruza es la caída que fijas: **arrastra arriba o abajo sobre los tubos**
+  para fijarla (un paso de deshacer). Con Infinita encendida, los tubos marcan ∞ y no se
+  arrastran.
+
+**Las tarjetas**: *Espacio* (tamaño, caída, pre-retardo — libre o una figura al tempo de la
+canción, *Sincronía* —, difusión y las 8 o 16 líneas del tanque: ocho cuestan la mitad),
+*Amortiguación* (las esquinas aguda y grave y sus caídas frente a la del medio), *Shimmer*,
+*Tono del shimmer*, *Movimiento* (la modulación de las líneas y **Florecer**, el sonido que
+crece hacia el espacio durante hasta cuatro segundos), *Atenuación* (rango, umbral, ataque,
+liberación) y *Salida* (corte de graves y agudos, anchura, mezcla, salida).
+
+**La atenuación** (ducking) aparta la reverb mientras suena la señal seca y la deja florecer
+en los huecos. Escucha a la propia pista o a **otra pista** enviada a la inserción como su
+llave (el campo de cadena lateral, como en un compresor): el shimmer de una voz que se aparta
+bajo la batería.
+
+Diecinueve presets de fábrica: shimmers de octava y de quinta, catedrales, un pad que
+florece, *Crecida para congelar* (infinita; acciona Congelar sobre un acorde para retenerlo
+como un pad — ningún preset empieza congelado, porque un tanque congelado desde su primera
+muestra retendría silencio), un ascenso sin fin y un drone infinito que crecen mientras tocas,
+un shimmer vocal que se aparta, ambiente de guitarra, pre-retardos sincronizados con la
+canción (*Ecos de corchea*, *Subida con puntillo*), una nube una octava abajo, placas, una caja
+con shimmer y una bruma de bus. En sus valores por defecto (mezcla 0) Caelum no toca ninguna
+muestra; no tiene latencia.
+
+**En la pedalera de Tabula** Caelum también es un pedal (la caída, el shimmer, la primera voz
+y la mezcla en su cara); una pedalera con Caelum acepta una llave, y la llave llega a su
+atenuación.
+
+**En otro DAW** Caelum es el plug-in *Cantus Caelum* (CLAP y VST3): su atenuación escucha la
+entrada de sidechain cuando su propio interruptor *Sidechain* está en *Entrada de
+sidechain*, y un pre-retardo sincronizado sigue el tempo del anfitrión.
 
 ### Aula, la reverb de convolución
 

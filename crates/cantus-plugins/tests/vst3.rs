@@ -439,7 +439,12 @@ fn caelum_s_ducking_is_keyed_by_the_vst3_sidechain_bus() {
         d.process(&mut el, &mut er, keyed.then_some((&key_l[..], &key_r[..])));
         assert_identical(&format!("Caelum keyed {keyed}, left"), &l, &el);
         assert_identical(&format!("Caelum keyed {keyed}, right"), &r, &er);
-        wets.push(l.iter().zip(&quiet_l).map(|(o, i)| o - i).collect::<Vec<f32>>());
+        wets.push(
+            l.iter()
+                .zip(&quiet_l)
+                .map(|(o, i)| o - i)
+                .collect::<Vec<f32>>(),
+        );
     }
     let energy = |x: &[f32]| x[24_000..].iter().map(|v| v * v).sum::<f32>();
     assert!(

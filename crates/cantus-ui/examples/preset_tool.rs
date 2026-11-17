@@ -55,6 +55,10 @@ fn header(u: FileUnit) -> String {
         "A preset's lanes ride in its values (`cantus_core::fx::fractus::to_flat`): `\"repeat.12\" = 4`\n\
          is a block on the repeat lane from step 12, four steps long; `.amount` and `.chance`\n\
          when they are not whole.\n"
+    } else if u == FileUnit::Effect(EffectKind::Vocoder) {
+        // fxa:loquax — the object each preset suggests.
+        "`obj` is the object a preset suggests (0 the gooseneck, 1 the talk-box, 2 the desk\n\
+         microphone): loading the preset sets it; a look, never heard, never \"modified\".\n"
     } else if u == FileUnit::Effect(EffectKind::Shimmer) {
         // fxa:caelum — where the first presets come from, and why none starts frozen.
         "The first eleven are `cantus_dsp::caelum::presets::factory()` as written (a test compares\n\

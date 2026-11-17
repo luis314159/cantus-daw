@@ -327,6 +327,17 @@ pub const FACES: &[Face] = &[
         "A",
         T::Hammered,
     ), // fx3:arca
+    // fxa:caelum — a shimmer pedal, as a big-box reverb is: the space's decay, the
+    // shimmer's amount and first voice, the mix (Infinite and Freeze stay on its editor's
+    // sill, reached from the pedal).
+    face(
+        K::Shimmer,
+        &["decay", "shim", "pa", "mix"],
+        S::Wide,
+        M::Rings,
+        "C",
+        T::Smooth,
+    ), // fxa:caelum
 ];
 
 /// A kind's pedal face; `None` for a kind that may not be a pedal.

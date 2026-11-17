@@ -2347,7 +2347,9 @@ its gate, with no notes at all.
 microphone, the **talk-box's tube** rising from its driver, or the **desk microphone** on
 its weighted base — its on-air lamp and glow following the voice. Choose it in the **⋯** menu,
 under *Microphone*, beside the colourways: it is the insert's own (kept in the song, one
-step of undo) and never heard; presets leave it as you chose it. In the middle, **the bank**:
+step of undo) and never heard. Each factory preset suggests its object (*Talk-box* the tube, *Radio* the desk
+microphone, *Robot* the gooseneck) and loading it sets it; a preset of yours keeps the one you
+saved it with. A/B leaves it, and changing it never marks the preset as modified. In the middle, **the bank**:
 every band a column of cells lit by what it says now; **drag across the bands to draw their
 levels** (−24 to +12 dB, one stroke one step of undo). The formant shift is drawn along the
 top. On the right, **the meter bridge**: the voice's needle and the carrier's, the lamps for
@@ -2424,6 +2426,68 @@ latency.
 **In another DAW** Fractus is the plug-in *Cantus Fractus* (CLAP and VST3): its lanes are
 saved in the plug-in's state and painted in its own window, its steps follow the host's tempo
 and position, and the notes the host sends play the lanes.
+
+### Caelum, the shimmer reverb
+
+**Caelum** (Latin for *the sky*) is a reverb for spaces no building holds: its tail climbs in
+pitch as it rings. Insert it from **Add insert ▾ ▸ Space ▸ Caelum**; it starts as *Octave
+shimmer* — a wide space, a third wet, whose tail climbs an octave at a time — so a chord rises
+into the sky as soon as you play it.
+
+**How it climbs.** Each time round the tank, a share of the tail (the *Amount* on the
+*Shimmer* card) is traded for the same sound shifted by the **first voice** (+12 semitones, an
+octave, at first) and, at its own level, the **second voice** (+7, a fifth, silent until you
+raise *Second level*). Each voice can be anything from three octaves down to three up. The
+trade moves the sound's energy and makes none, so the decay you set is the decay you hear,
+shimmer or not. *Shimmer tone* cuts the lows and highs inside the loop: the climbing octaves
+fade out at the top instead of piling up.
+
+**The window** is an observatory at night:
+
+- **The sky** shows the last eight seconds: the tail glowing on the horizon over the tank's
+  water, and the shimmer's octaves as bands of light above it, each lit as the energy reaches
+  it — the higher ones later, as the tail ages. Infinite writes ∞ in the glass; Freeze frosts
+  it; the ducking lights a slot in the frame's right rail.
+- **The sill** under it holds the endless controls as lit pushbuttons: **Infinite** (the tail
+  never decays; what comes in is added and held, the damping still darkening it), **Freeze**
+  (the tank keeps what it has and lets nothing in; the shimmer stops climbing), and the two
+  ways an infinite tank behaves: its shimmer **Fades** or **Sustains** as it climbs, and its
+  level **8 dB lower** than an eight-second tail or **As loud**. A click throws a button (one
+  step of undo); right-click for automation and MIDI learn.
+- **The astrolabe** sets the voices: **drag the alidade** (the wide rule) to choose the first
+  voice and **the slimmer hand** to choose the second. The angle is the note within the octave
+  (the twelve semitones round the rim), the distance from the centre the octave on the spiral
+  (−36 near the pin, +36 at the edge). A click on the plate puts the nearer hand there. Each
+  drag is one step of undo.
+- **Decay by octave**: eight glass tubes, each lit to the decay the tank really reaches at its
+  octave (63 Hz to 8 kHz), shaped by the *Damping* card. The dotted line across them is the
+  decay you set: **drag up or down on the tubes** to set it (one step of undo). While
+  Infinite is on, the tubes read ∞ and take no drag.
+
+**The cards**: *Space* (size, decay, pre-delay — free or a note value at the song's tempo,
+*Sync* — diffusion, and the tank's 8 or 16 lines: eight cost half as much), *Damping* (the
+high and low corners and their decays against the middle's), *Shimmer*, *Shimmer tone*,
+*Motion* (the lines' modulation and **Bloom**, the sound swelling into the space over up to
+four seconds), *Ducking* (range, threshold, attack, release) and *Output* (low and high cut,
+width, mix, output).
+
+**Ducking** steps the reverb aside while the dry plays and lets it bloom in the gaps. It
+listens to the track itself, or to **another track** routed to the slot as its key (the
+sidechain field, as for a compressor): a vocal's shimmer that ducks under the drums.
+
+Nineteen factory presets: octave and fifth shimmers, cathedrals, a bloom pad, *Freeze swell*
+(infinite; throw Freeze on a chord to hold it as a pad — no preset starts frozen, since a tank
+frozen from its first sample would hold silence), an endless ascent and an infinite drone that
+build as you play, a ducked vocal shimmer, guitar ambience, pre-delays synced to the song
+(*Eighth-note echoes*, *Dotted rise*), a sub-octave cloud, plates, a shimmer snare and a bus
+haze. At its defaults (mix 0) Caelum touches no sample; it has no latency.
+
+**On Tabula's board** Caelum is a pedal too (the decay, the shimmer, the first voice and the
+mix on its face); a board with Caelum takes a key, and the key reaches its ducking.
+
+**In another DAW** Caelum is the plug-in *Cantus Caelum* (CLAP and VST3): its ducking hears the
+sidechain input once its own *Sidechain* switch is set to *Sidechain input*, and a synced
+pre-delay follows the host's tempo.
 
 ### Aula, the convolution reverb
 

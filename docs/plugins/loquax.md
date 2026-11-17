@@ -41,7 +41,9 @@ talk). **The null**: the mix starts at 0 — the signal untouched, to the bit. N
   on-air lamp and its glow following the voice, and wears the colourway's finish (brushed
   aluminium, black lacquer with chrome lips, the road case's steel corners). **A look, kept
   per insert**: saved in the song and in the plug-in's state, one step of undo, never heard;
-  a preset neither carries nor resets it (`EffectKind::is_look`).
+  each factory preset suggests one and loading it sets it (*Talk-box* the tube, *Radio* the
+  desk microphone, *Robot* the gooseneck); a preset of yours keeps the one it was saved
+  with; A/B leaves it, and it never marks a preset modified (`EffectKind::is_look`).
 - **The bank**: a phosphor screen in a machined bezel, a column of lit cells per band on a
   log axis, the peak held; **the band levels drawn by dragging across it** (−24 … +12 dB in
   half decibels, snapped to 0 within a decibel; one stroke one step of undo); the formant

@@ -293,9 +293,24 @@ impl CantusApp {
             return;
         }
         let mut commands = Vec::new();
-        // fxa:loquax — a look (Loquax's microphone) stays as presets change.
+        // fxa:loquax — a look (Loquax's microphone): set when the map names it (a factory
+        // preset suggests its object, a user's keeps the one it was saved with), left as it
+        // is when it does not (an older preset, the other side of A/B).
         let kind = slot.spec.kind;
-        for info in kind.params().iter().filter(|i| !kind.is_look(i.key)) {
+        for info in kind.params() {
+            if kind.is_look(info.key) {
+                if let Some(v) = params.get(info.key) {
+                    if slot.spec.get(info.key) != *v {
+                        commands.push(Command::SetEffectParam {
+                            strip,
+                            effect,
+                            key: info.key.to_string(),
+                            value: *v,
+                        });
+                    }
+                }
+                continue;
+            }
             match params.get(info.key) {
                 Some(v) => {
                     if slot.spec.params.get(info.key) != Some(v) {
@@ -363,11 +378,15 @@ impl CantusApp {
         else {
             return;
         };
-        let (other, on_b) = self
+        let (mut other, on_b) = self
             .fx
             .ab
             .remove(&effect)
             .unwrap_or_else(|| (current.clone(), false));
+        // fxa:loquax — A/B compares the sound: a look (Loquax's microphone) stays.
+        if let Some(kind) = self.project().effect(strip, effect).map(|e| e.spec.kind) {
+            other.retain(|k, _| !kind.is_look(k));
+        }
         self.apply_fx_params(strip, effect, &other, "cmd.fx_ab");
         self.fx.ab.insert(effect, (current, !on_b));
     }
@@ -430,6 +449,13 @@ pub fn save_user_preset(
     name: &str,
     params: &BTreeMap<String, f32>,
 ) -> Result<(), String> {
+    // fxa:loquax — a user's preset keeps the look it was saved with (Loquax's object), its
+    // default written out when it was never moved, so loading it always sets it.
+    let mut params = params.clone();
+    for info in kind.params().iter().filter(|i| kind.is_look(i.key)) {
+        params.entry(info.key.to_string()).or_insert(info.default);
+    }
+    let params = &params;
     let clean: String = name
         .chars()
         .map(|c| if "\\/:*?\"<>|".contains(c) { '-' } else { c })

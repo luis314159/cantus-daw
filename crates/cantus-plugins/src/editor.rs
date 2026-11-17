@@ -350,7 +350,8 @@ impl FxHost for PluginHost {
             .collect();
         let other = self.other.take().unwrap_or_else(|| now.clone());
         for (i, (a, b)) in now.iter().zip(&other).enumerate() {
-            if a != b {
+            // fxa:loquax — A/B compares the sound: a look (Loquax's microphone) stays.
+            if a != b && !table.kind.is_look(table.params[i].key) {
                 self.edit(table.params[i].index as u32, *b, false);
             }
         }

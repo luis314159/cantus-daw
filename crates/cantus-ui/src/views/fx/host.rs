@@ -214,9 +214,16 @@ pub trait FxHost {
         let kind = spec.kind;
         let lanes_now = spec.fractus.clone(); // fxa:fractus
         let mut edits: Vec<(&str, Option<f32>)> = Vec::new();
-        // fxa:loquax — a look (Loquax's microphone) stays as presets change.
-        for info in kind.params().iter().filter(|i| !kind.is_look(i.key)) {
+        // fxa:loquax — a look (Loquax's microphone): set when the map names it (a factory
+        // preset's suggested object, a user's saved one), left as it is when it does not.
+        for info in kind.params() {
             let now = spec.get(info.key);
+            if kind.is_look(info.key) {
+                if let Some(v) = params.get(info.key).filter(|v| **v != now) {
+                    edits.push((info.key, Some(*v)));
+                }
+                continue;
+            }
             match params.get(info.key) {
                 Some(v) if *v != now || !spec.params.contains_key(info.key) => {
                     edits.push((info.key, Some(*v)))

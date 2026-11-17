@@ -174,3 +174,65 @@ fn slot_of(spec: EffectSpec) -> EffectSlot {
     s.spec = spec;
     s
 }
+
+/// fxa:caelum (phase B) — Caelum as a pedal on Tabula's board: the board takes a key because
+/// its pedal does, and the key reaches the pedal's ducking as it reaches an insert's — the
+/// board keyed by the bass is Caelum inserted alone keyed by the bass, to the bit, offline
+/// and live; unkeyed, the pedal ducks on its own input (it never "does nothing").
+#[test]
+fn as_a_pedal_its_ducking_hears_the_board_s_key() {
+    use cantus_core::fx::tabula::{pedal_allowed, Board, Pedal, PedalId};
+    assert!(pedal_allowed(EffectKind::Shimmer), "Caelum may be a pedal");
+    let kv = [
+        ("mix", 1.0),
+        ("duck", 24.0),
+        ("dthr", -50.0),
+        ("decay", 3.0),
+        ("shim", 0.5),
+    ];
+    // Caelum inserted alone, keyed by the bass.
+    let mut alone = demo_project();
+    let fx = add_effect(&mut alone, EffectKind::Shimmer);
+    set_all(&mut alone, fx, &kv);
+    let bass = alone.strips[1].id;
+    strip_of(&mut alone, 0).effects[0].sidechain = Some(bass);
+    let want = render_of(&alone);
+    // The same Caelum as the board's one pedal, the board keyed by the bass.
+    let mut p = demo_project();
+    let spec = strip_of(&mut alone, 0).effects[0].spec.clone();
+    let fx = add_effect(&mut p, EffectKind::Board);
+    let slot = strip_of(&mut p, 0)
+        .effects
+        .iter_mut()
+        .find(|e| e.id == fx)
+        .unwrap();
+    slot.spec.board = Some(Box::new(Board {
+        pedals: vec![Pedal::new(PedalId(1), spec)],
+        macros: Vec::new(),
+    }));
+    assert!(
+        slot.spec.takes_sidechain(),
+        "a board with Caelum takes a key"
+    );
+    slot.sidechain = Some(bass);
+    let keyed = render_of(&p);
+    assert_null(&want, &keyed, 0.0, "the board keyed = the insert keyed");
+    let live = realtime(&p, keyed.len() / 2);
+    assert_null(
+        &keyed[..live.len()],
+        &live,
+        0.0,
+        "the board: live = offline",
+    );
+    // Unkeyed, the pedal ducks on its own input: another sound than keyed.
+    strip_of(&mut p, 0).effects[0].sidechain = None;
+    let own = render_of(&p);
+    let moved = own
+        .iter()
+        .zip(&keyed)
+        .fold(0f32, |m, (x, y)| m.max((x - y).abs()));
+    assert!(
+        moved > 1e-3,
+        "the key changes the pedal's ducking ({moved})"
+    );
+}

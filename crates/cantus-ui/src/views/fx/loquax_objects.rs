@@ -150,10 +150,13 @@ fn knurl(b: &mut Brush, r: Rect, k: f32) {
 }
 
 /// The talk-box standing in `r`: the stand's rod behind, the driver's housing on the floor
-/// (the on-air lamp, the footswitch, the jack), the driver's can on it with its nozzle, the
-/// clear tube rising and curving to its clip on the rod, the open end where the mouth
-/// would be — `level` (0 … 1) the voice: the lamp, the light carried in the tube, the glow at
-/// its mouth and the arcs, in `glow`. Gives the mouth's centre.
+/// (the on-air lamp, the driver's grille, the level's knurled knob, the jack and its nut),
+/// the driver's can on it with its nozzle, the clear tube (its inner wall seen through it,
+/// its highlights) held on the nozzle by a ferrule and a worm-drive clamp, rising and curving
+/// to its clip on the rod, its chrome mouthpiece and open end where the mouth would be —
+/// `level` (0 … 1) the voice: the lamp, the thread of light in the bore, the glow at its
+/// mouth and the arcs, in `glow`. Gives the mouth's centre. (Phase B's follow-up, the
+/// owner's 2026-11-17 answer: as fine as the gooseneck and the desk microphone.)
 pub fn talk_box(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) -> Pos2 {
     let k = s.k;
     let lv = level.clamp(0.0, 1.0);
@@ -207,6 +210,10 @@ pub fn talk_box(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
         mouth,
     ];
     tube(b, k, ctrl, tw, lv, glow);
+    let along = |t: f32| cubic(ctrl, (t + 0.01).min(1.0)) - cubic(ctrl, (t - 0.01).max(0.0));
+    // Where the tube slides over the nozzle: a ferrule, and a worm-drive clamp above it.
+    ferrule(b, k, cubic(ctrl, 0.025), along(0.025), tw, tw * 1.1);
+    hose_clamp(b, k, cubic(ctrl, 0.085), along(0.085), tw);
     // The clip holding the tube to the rod: a rubber saddle and its wing screw.
     let clip = Rect::from_center_size(pos2(xr, my), vec2(rw * 2.4, tw * 1.9));
     b.rrect(clip, 2.0 * k, Fill::V(c(pal::RUBBER_LIGHT), c(pal::RUBBER)));
@@ -223,72 +230,165 @@ pub fn talk_box(b: &mut Brush, s: &Style, r: Rect, level: f32, glow: Color32) ->
         (rw * 0.55).max(2.0 * k),
         0.3,
     );
-    // The open end, seen a little from the side: the cut's ring, dark inside, its glow.
-    let end = vec2(tw * 0.28, tw * 0.55);
+    // The mouthpiece: a chrome ferrule over the tube's last inch, then its open end seen a
+    // little from the side — the chrome lip, the vinyl's wall inside it, the dark bore and
+    // the voice's light deep in it.
+    ferrule(b, k, cubic(ctrl, 0.955), along(0.955), tw, tw * 1.5);
+    let end = vec2(tw * 0.30, tw * 0.6);
     if lv > 0.01 {
         b.radial(
             Rect::from_center_size(mouth, Vec2::splat(tw * 7.0)),
             mouth,
             Vec2::splat(tw * 2.6),
             &[
-                (0.0, with_alpha(glow, 0.55 * lv)),
+                (0.0, with_alpha(glow, 0.5 * lv)),
                 (1.0, with_alpha(glow, 0.0)),
             ],
             10,
         );
     }
-    b.polygon(&ellipse(mouth, end), c(pal::FOAM));
+    b.polygon(&ellipse(mouth, end), c(pal::CHROME_DARK));
+    b.polygon(&ellipse(mouth, end * 0.84), with_alpha(c(pal::TUBE), 0.55));
+    b.polygon(&ellipse(mouth, end * 0.62), c(pal::FOAM));
     b.polygon(
-        &ellipse(mouth, end * 0.7),
-        mix(c(pal::FOAM), glow, 0.55 * lv),
+        &ellipse(mouth + vec2(tw * 0.04, 0.0), end * 0.4),
+        mix(c(pal::FOAM), glow, 0.6 * lv),
     );
     let ring = ellipse(mouth, end);
     let mut closed = [Pos2::ZERO; 25];
     closed[..24].copy_from_slice(&ring);
     closed[24] = ring[0];
-    b.polyline(&closed, 1.0 * k, with_alpha(c(pal::TUBE), 0.85));
+    b.polyline(&closed, 0.9 * k, with_alpha(c(pal::CHROME_LIGHT), 0.9));
+    // The lip's light at its top.
+    b.arc(
+        mouth,
+        end.y * 0.92,
+        -PI * 0.85,
+        -PI * 0.35,
+        0.8 * k,
+        with_alpha(c(pal::CHROME_LIGHT), 0.7),
+        false,
+    );
     arcs(b, mouth, tw * 1.6, k, lv, glow);
     // The housing in the colourway's finish, the driver on it.
     housing(b, s, house, 3.0 * k);
     driver(b, k, can, nozzle);
-    // On the housing's face: the on-air lamp, the footswitch, the output jack.
+    // On the housing's face: the on-air lamp, the driver's grille, the level's knurled knob,
+    // the output jack with its nut.
     let fy = house.top() + house.height() * 0.6;
+    let hw = house.width();
     art::lamp(
         b,
-        pos2(house.left() + house.width() * 0.16, fy),
+        pos2(house.left() + hw * 0.1, fy),
         (hb * 0.09).max(2.4 * k),
         glow,
         lv,
     );
-    let sw = pos2(house.left() + house.width() * 0.5, fy);
-    let swr = (hb * 0.17).max(4.0 * k);
-    b.circle(
-        sw + vec2(0.0, swr * 0.25),
-        swr * 1.25,
-        Fill::Solid(with_alpha(c(pal::SHADOW), 0.45)),
+    grille(
+        b,
+        k,
+        Rect::from_min_max(
+            pos2(house.left() + hw * 0.2, house.top() + house.height() * 0.32),
+            pos2(
+                house.left() + hw * 0.52,
+                house.bottom() - house.height() * 0.16,
+            ),
+        ),
     );
-    b.circle(sw, swr * 1.15, Fill::V(c(pal::CHROME_DARK), c(pal::CHROME)));
-    b.circle(sw, swr, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)));
-    b.circle_stroke(sw, swr * 0.7, 0.5 * k, with_alpha(c(pal::CHROME_DARK), 0.7));
-    b.circle(
-        sw - vec2(swr, swr) * 0.3,
-        swr * 0.28,
-        Fill::Solid(with_alpha(c(pal::CHROME_LIGHT), 0.8)),
+    knurled_knob(
+        b,
+        k,
+        pos2(house.left() + hw * 0.69, fy),
+        (hb * 0.2).max(4.6 * k),
     );
-    let jack = pos2(house.right() - house.width() * 0.13, fy);
+    let jack = pos2(house.right() - hw * 0.1, fy);
     let jr = (hb * 0.08).max(2.2 * k);
+    // The jack's hex nut, its chrome barrel, the dark socket.
+    let hex: [Pos2; 6] =
+        std::array::from_fn(|i| jack + Vec2::angled(i as f32 * PI / 3.0 + PI / 6.0) * jr * 1.7);
+    b.polygon(&hex, c(pal::CHROME_DARK));
     b.circle(
         jack,
-        jr * 1.4,
+        jr * 1.35,
         Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
     );
     b.circle(jack, jr * 0.75, Fill::Solid(c(pal::GASKET)));
+    b.circle_stroke(
+        jack,
+        jr * 1.35,
+        0.5 * k,
+        with_alpha(c(pal::CHROME_DARK), 0.8),
+    );
     mouth
 }
 
-/// The clear tube along the cubic `ctrl`, `tw` thick: its shadow, the faint body, the light
-/// it carries (the voice, `lv` in `glow`, brightest toward the mouth), its two walls and the
-/// highlight on the side toward the light.
+/// The driver's grille on the housing's face: a recessed panel punched with rows of round
+/// holes, offset every other row, the dark of the cabinet behind them.
+fn grille(b: &mut Brush, k: f32, r: Rect) {
+    b.rrect(
+        r.expand(1.0 * k),
+        2.0 * k,
+        Fill::V(c(pal::CHROME_DARK), c(pal::CHROME_LIGHT)),
+    );
+    b.rrect(r, 1.6 * k, Fill::V(c(pal::SATIN), c(pal::SATIN_LIGHT)));
+    let step = (2.6 * k).max(r.height() / 6.0);
+    let hole = step * 0.3;
+    let mut row = 0;
+    let mut y = r.top() + step * 0.6;
+    while y < r.bottom() - step * 0.3 {
+        let mut x = r.left() + step * if row % 2 == 0 { 0.6 } else { 1.1 };
+        while x < r.right() - step * 0.3 {
+            b.dot(pos2(x, y), hole, c(pal::GASKET));
+            b.dot(
+                pos2(x, y + hole * 0.6),
+                hole * 0.5,
+                with_alpha(c(pal::SATIN_LIGHT), 0.35),
+            );
+            x += step;
+        }
+        y += step * 0.86;
+        row += 1;
+    }
+    b.rrect_stroke(r, 1.6 * k, 0.6 * k, with_alpha(c(pal::SHADOW), 0.6));
+}
+
+/// The level's knob at `p`, radius `rad`: its shadow, the knurled skirt (a ridge every few
+/// degrees round the rim), the chrome cap with its light, the pointer.
+fn knurled_knob(b: &mut Brush, k: f32, p: Pos2, rad: f32) {
+    b.circle(
+        p + vec2(0.0, rad * 0.25),
+        rad * 1.15,
+        Fill::Solid(with_alpha(c(pal::SHADOW), 0.45)),
+    );
+    b.circle(p, rad, Fill::V(c(pal::CHROME), c(pal::CHROME_DARK)));
+    for i in 0..36 {
+        let a = i as f32 / 36.0 * 2.0 * PI;
+        let u = Vec2::angled(a);
+        let lit = 0.35 + 0.5 * (0.5 - 0.5 * (u.y + u.x * 0.4)).clamp(0.0, 1.0);
+        b.segment(
+            p + u * rad * 0.8,
+            p + u * rad * 0.99,
+            0.55 * k,
+            with_alpha(c(pal::CHROME_DARK), lit),
+            false,
+        );
+    }
+    b.circle(p, rad * 0.68, Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME)));
+    b.circle_stroke(p, rad * 0.68, 0.5 * k, with_alpha(c(pal::CHROME_DARK), 0.7));
+    b.circle(
+        p - vec2(rad, rad) * 0.22,
+        rad * 0.2,
+        Fill::Solid(with_alpha(c(pal::CHROME_LIGHT), 0.8)),
+    );
+    let tip = p + Vec2::angled(-PI * 0.75) * rad * 0.6;
+    b.segment(p, tip, 1.0 * k, c(pal::GASKET), true);
+}
+
+/// The clear tube along the cubic `ctrl`, `tw` thick, as fine as the gooseneck: a soft
+/// shadow; the vinyl itself barely there; the voice's light a thin thread down the bore,
+/// brightest toward the mouth; the bore's inner wall seen through the outer (two fainter
+/// lines inside the two edges); the edges where the vinyl is seen edge-on; and the
+/// highlights the light makes on the curve's outer side, broken where the tube turns away.
 fn tube(b: &mut Brush, k: f32, ctrl: [Pos2; 4], tw: f32, lv: f32, glow: Color32) {
     let mut pts = [Pos2::ZERO; NECK + 1];
     for (i, p) in pts.iter_mut().enumerate() {
@@ -299,37 +399,169 @@ fn tube(b: &mut Brush, k: f32, ctrl: [Pos2; 4], tw: f32, lv: f32, glow: Color32)
         vec2(t.y, -t.x)
     };
     b.polyline(
-        &pts.map(|p| p + vec2(2.5, 3.0) * k),
-        tw * 0.9,
-        with_alpha(c(pal::SHADOW), 0.3),
+        &pts.map(|p| p + vec2(3.0, 3.5) * k),
+        tw * 0.8,
+        with_alpha(c(pal::SHADOW), 0.16),
     );
-    b.polyline(&pts, tw, with_alpha(c(pal::TUBE), 0.22));
+    // The vinyl's body: a faint tint, a little denser along the edges than across the bore.
+    b.polyline(&pts, tw, with_alpha(c(pal::TUBE), 0.07));
+    let side = |f: f32| -> [Pos2; NECK + 1] {
+        let mut q = [Pos2::ZERO; NECK + 1];
+        for (i, p) in q.iter_mut().enumerate() {
+            *p = pts[i] + left(i) * tw * f;
+        }
+        q
+    };
+    for f in [0.36f32, -0.36] {
+        b.polyline(&side(f), tw * 0.22, with_alpha(c(pal::TUBE), 0.08));
+    }
     if lv > 0.01 {
-        // The voice carried up the tube: four pieces, each brighter toward the mouth.
+        // The voice carried up the bore: a thread, four pieces brighter toward the mouth.
         let q = NECK / 4;
         for j in 0..4 {
             let a = (j * q).min(NECK);
             let z = ((j + 1) * q).min(NECK);
             b.glow_polyline(
                 &pts[a..=z],
-                tw * 0.34,
-                with_alpha(glow, lv * (0.25 + 0.17 * j as f32)),
-                with_alpha(glow, lv * (0.1 + 0.08 * j as f32)),
-                tw * 0.3,
+                (tw * 0.12).max(0.8 * k),
+                with_alpha(glow, lv * (0.30 + 0.16 * j as f32)),
+                with_alpha(glow, lv * (0.05 + 0.04 * j as f32)),
+                tw * 0.22,
             );
         }
     }
-    let mut wall_a = [Pos2::ZERO; NECK + 1];
-    let mut wall_b = [Pos2::ZERO; NECK + 1];
-    let mut shine = [Pos2::ZERO; NECK + 1];
-    for i in 0..=NECK {
-        wall_a[i] = pts[i] + left(i) * tw * 0.45;
-        wall_b[i] = pts[i] - left(i) * tw * 0.45;
-        shine[i] = pts[i] + left(i) * tw * 0.22;
+    // The inner wall seen through the vinyl, then the outer edges.
+    b.polyline(&side(0.27), 0.5 * k, with_alpha(c(pal::TUBE_EDGE), 0.38));
+    b.polyline(&side(-0.27), 0.5 * k, with_alpha(c(pal::TUBE_EDGE), 0.45));
+    b.polyline(&side(0.47), 0.7 * k, with_alpha(c(pal::TUBE_EDGE), 0.8));
+    b.polyline(&side(-0.47), 0.9 * k, with_alpha(c(pal::TUBE_EDGE), 0.9));
+    // The highlights: a bright streak on the lit side, broken where the tube turns from the
+    // light (its normal away from the upper left), and the far wall's faint reflection.
+    let shine = side(0.34);
+    let light = vec2(-0.6, -0.8);
+    let mut run = 0usize;
+    for i in 1..=NECK {
+        let lit = left(i).dot(light) > 0.15;
+        if !lit || i == NECK {
+            if i - run >= 3 {
+                b.polyline(
+                    &shine[run..i],
+                    0.9 * k,
+                    with_alpha(c(pal::CHROME_LIGHT), 0.75),
+                );
+            }
+            run = i;
+        }
     }
-    b.polyline(&wall_a, 0.8 * k, with_alpha(c(pal::TUBE_EDGE), 0.85));
-    b.polyline(&wall_b, 1.0 * k, with_alpha(c(pal::TUBE_EDGE), 0.95));
-    b.polyline(&shine, 0.8 * k, with_alpha(c(pal::CHROME_LIGHT), 0.55));
+    b.polyline(&side(-0.2), 0.6 * k, with_alpha(c(pal::CHROME_LIGHT), 0.18));
+}
+
+/// A chrome sleeve over the tube at `at`, the tube running along `dir`: `tw` the tube's
+/// width, `len` the sleeve's length, rolled rims at both ends (the ferrules at the tube's
+/// ends, a band at its clip).
+fn ferrule(b: &mut Brush, k: f32, at: Pos2, dir: Vec2, tw: f32, len: f32) {
+    let d = dir.normalized();
+    let n = vec2(-d.y, d.x);
+    let (hw, hl) = (tw * 0.58, len * 0.5);
+    let quad = |w: f32, a: f32, z: f32| {
+        [
+            at + d * a + n * w,
+            at + d * z + n * w,
+            at + d * z - n * w,
+            at + d * a - n * w,
+        ]
+    };
+    b.polygon(
+        &quad(hw, -hl, hl).map(|p| p + vec2(1.5, 2.0) * k),
+        with_alpha(c(pal::SHADOW), 0.35),
+    );
+    b.polygon(&quad(hw, -hl, hl), c(pal::CHROME));
+    // The cylinder's light: dark at the edges, bright a third of the way across.
+    b.polygon(
+        &[
+            at - d * hl + n * hw,
+            at + d * hl + n * hw,
+            at + d * hl + n * hw * 0.55,
+            at - d * hl + n * hw * 0.55,
+        ],
+        with_alpha(c(pal::CHROME_DARK), 0.7),
+    );
+    b.polygon(
+        &[
+            at - d * hl - n * hw,
+            at + d * hl - n * hw,
+            at + d * hl - n * hw * 0.6,
+            at - d * hl - n * hw * 0.6,
+        ],
+        with_alpha(c(pal::CHROME_DARK), 0.85),
+    );
+    b.segment(
+        at - d * hl - n * hw * 0.2,
+        at + d * hl - n * hw * 0.2,
+        0.9 * k,
+        with_alpha(c(pal::CHROME_LIGHT), 0.95),
+        false,
+    );
+    // The rolled rims.
+    for e in [-hl, hl] {
+        b.segment(
+            at + d * e + n * (hw + 0.6 * k),
+            at + d * e - n * (hw + 0.6 * k),
+            1.4 * k,
+            c(pal::CHROME_DARK),
+            true,
+        );
+        b.segment(
+            at + d * e + n * hw,
+            at + d * e - n * hw * 0.3,
+            0.6 * k,
+            with_alpha(c(pal::CHROME_LIGHT), 0.8),
+            false,
+        );
+    }
+}
+
+/// A worm-drive hose clamp round the tube at `at` (the tube along `dir`): the steel band's
+/// perforations, its housing on the near side with the screw's slotted head.
+fn hose_clamp(b: &mut Brush, k: f32, at: Pos2, dir: Vec2, tw: f32) {
+    let d = dir.normalized();
+    let n = vec2(-d.y, d.x);
+    let (hw, hb) = (tw * 0.62, (tw * 0.16).max(1.6 * k));
+    let band = [
+        at - d * hb + n * hw,
+        at + d * hb + n * hw,
+        at + d * hb - n * hw,
+        at - d * hb - n * hw,
+    ];
+    b.polygon(&band, c(pal::CHROME));
+    b.segment(
+        at - d * hb - n * hw * 0.3,
+        at - d * hb + n * hw * 0.9,
+        0.6 * k,
+        with_alpha(c(pal::CHROME_LIGHT), 0.9),
+        false,
+    );
+    let mut t = -0.7f32;
+    while t < 0.75 {
+        b.segment(
+            at + n * hw * t - d * hb * 0.5,
+            at + n * hw * t + d * hb * 0.5,
+            0.5 * k,
+            with_alpha(c(pal::CHROME_DARK), 0.6),
+            false,
+        );
+        t += 0.28;
+    }
+    // The housing and its screw, standing off the tube's lit side.
+    let hc = at + n * (hw + tw * 0.18);
+    let hs = Rect::from_center_size(hc, Vec2::splat((tw * 0.42).max(4.0 * k)));
+    b.rrect(
+        hs,
+        1.2 * k,
+        Fill::V(c(pal::CHROME_LIGHT), c(pal::CHROME_DARK)),
+    );
+    b.rrect_stroke(hs, 1.2 * k, 0.5 * k, with_alpha(c(pal::CHROME_DARK), 0.8));
+    art::screw(b, hc, hs.width() * 0.32, 0.6);
 }
 
 /// The compression driver on the housing: a satin can with a chrome band and two screws,

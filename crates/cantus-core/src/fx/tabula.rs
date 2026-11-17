@@ -199,8 +199,10 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             // `SetFractusLane` addresses an insert, not a pedal (no lane could be painted on
             // a board), and a board hears no notes, so its keys and the presets they play
             // would do nothing (ADR 0140, phase B).
+            // fxa:caelum — Caelum is a pedal: a reverb pedal is natural. Its ducking hears
+            // the board's key when the slot is keyed (a board takes a key when a pedal does),
+            // its own input otherwise; its pre-delay syncs to the song through the board.
             | EffectKind::Glitch
-            | EffectKind::Shimmer
     )
 }
 
@@ -575,7 +577,6 @@ mod tests {
                     // fxa:contract — wave A joins the board in phase B.
                     | EffectKind::Vocoder
                     | EffectKind::Glitch
-                    | EffectKind::Shimmer
             ) {
                 assert!(pedal_allowed(k), "{k:?}");
             }

@@ -9,12 +9,12 @@
 
 use super::super::canvas::{self, Ink};
 use super::super::frame::tr;
+use super::super::host::FxHost;
 use super::art::{self, c, hash, Signed};
 use crate::kit::color::{mix, with_alpha};
 use crate::kit::skin::observatory as pal;
 use crate::kit::text::{Role, Text};
 use crate::kit::{Brush, Fill, Style};
-use super::super::host::FxHost;
 use cantus_core::EffectSpec;
 use egui::{pos2, vec2, Align2, Color32, Pos2, Rect, Vec2};
 use std::f32::consts::{FRAC_PI_2, TAU};
@@ -540,15 +540,24 @@ pub fn semitone_at(c: Pos2, rad: f32, p: Pos2) -> f32 {
     best.1
 }
 
-/// Which hand a press at `p` takes: the one whose line (centre to its jewel) passes nearer.
+/// Which hand a press at `p` takes: the hand whose jewel it is on (a jewel lies under the
+/// other hand's line when the two voices share a note in the octave), else the one whose
+/// line (centre to its jewel) passes nearer.
 pub fn hand_at(c: Pos2, rad: f32, spec: &EffectSpec, p: Pos2) -> Hand {
+    let (pa, pb) = (spec.get("pa"), spec.get("pb"));
+    let jewel = |st: f32| (point_of(c, rad, st) - p).length();
+    let on = rad * 0.07;
+    let (ja, jb) = (jewel(pa), jewel(pb));
+    if ja.min(jb) <= on {
+        return if jb < ja { Hand::Second } else { Hand::First };
+    }
     let to = |st: f32| {
         let tip = point_of(c, rad, st);
         let seg = tip - c;
         let t = ((p - c).dot(seg) / seg.length_sq().max(1e-6)).clamp(0.0, 1.0);
         (c + seg * t - p).length()
     };
-    if spec.get("pblvl") > 0.0 && to(spec.get("pb")) < to(spec.get("pa")) {
+    if to(pb) < to(pa) {
         Hand::Second
     } else {
         Hand::First
@@ -556,7 +565,7 @@ pub fn hand_at(c: Pos2, rad: f32, spec: &EffectSpec, p: Pos2) -> Hand {
 }
 
 /// The voices answer the pointer: a press on the plate takes the nearer hand (the alidade
-/// the first voice; the slimmer hand the second, while the second voice is heard), and
+/// the first voice, the slimmer hand the second, heard or not), and
 /// dragging turns it to the semitone under the pointer (`semitone_at`); a click puts the
 /// nearer hand where it falls. One drag, one step of undo (the cards' pills keep each
 /// voice's automation and MIDI learn).
@@ -568,7 +577,10 @@ pub fn edit(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, r: Rect) {
     let inside = |p: Pos2| (p - c).length() <= rad * 0.8;
     if resp.drag_started() || resp.clicked() {
         let origin = ui.input(|i| i.pointer.press_origin());
-        if let Some(p) = origin.or(resp.interact_pointer_pos()).filter(|p| inside(*p)) {
+        if let Some(p) = origin
+            .or(resp.interact_pointer_pos())
+            .filter(|p| inside(*p))
+        {
             let hand = hand_at(c, rad, host.spec(), p);
             ui.data_mut(|d| d.insert_temp(id, Some(hand)));
         }

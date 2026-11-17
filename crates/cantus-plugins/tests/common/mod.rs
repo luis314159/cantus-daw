@@ -929,7 +929,10 @@ pub enum Direct {
     /// fxa:caelum — Caelum, the shimmer reverb: its DSP (the pre-delay synced at 120 BPM when
     /// asked, no host transport here) and its output level gliding after it, as the engine's
     /// unit glides it.
-    Caelum(Box<cantus_dsp::caelum::Caelum>, cantus_dsp::modfx_line::Glide),
+    Caelum(
+        Box<cantus_dsp::caelum::Caelum>,
+        cantus_dsp::modfx_line::Glide,
+    ),
     Fractus(
         Box<cantus_dsp::fractus::Fractus>,
         Box<cantus_dsp::fractus::Pattern>,

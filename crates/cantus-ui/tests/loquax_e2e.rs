@@ -189,3 +189,93 @@ fn loquax_speaks_through_the_drone_the_notes_and_the_sidechain_and_undoes() {
     });
     assert_eq!(rendered(&mut app), dry, "the null, to the bit");
 }
+
+/// The object is a preset's suggestion (the owner's answer, 2026-11-17): loading a factory
+/// preset sets it (Talk-box the tube, Radio the desk microphone, Robot the gooseneck), one
+/// step with the values; it never makes the preset "modified" and A/B leaves it; a user's
+/// saved preset keeps the object it was saved with, and loading it sets it. // fxa:loquax
+#[test]
+fn presets_set_the_object_and_neither_the_drift_mark_nor_a_b_sees_it() {
+    use cantus_ui::views::fx::frame::{read_presets, recognise};
+    use cantus_ui::views::fx::host::{DawHost, FxHost};
+    let (mut app, _proc) = assembled();
+    let mut p = Project::new("Objects");
+    let voice = line(&mut p, "Voice", &[(57, 0, 1)]);
+    p.tracks.push(voice);
+    app.replace_project(p);
+    let strip = app.project().tracks[0].strip.expect("a strip");
+    app.add_effect(strip, EffectKind::Vocoder);
+    let effect = app.project().strip(strip).unwrap().effects[0].id;
+    let obj = |app: &CantusApp| app.project().effect(strip, effect).unwrap().spec.get("obj");
+    let list = read_presets(EffectKind::Vocoder, false);
+    let named = |key: &str| {
+        let name = cantus_ui::i18n::t(key);
+        list.iter().find(|e| e.name == name).expect(key).clone()
+    };
+    // Every factory preset suggests its object.
+    for e in list.iter().filter(|e| e.factory) {
+        assert!(e.params.contains_key("obj"), "{} names its object", e.name);
+    }
+    assert_eq!(obj(&app), 0.0, "Robot: the gooseneck");
+    let load = |app: &mut CantusApp, key: &str| {
+        DawHost::new(app, strip, effect, "loquax").load_preset(&named(key));
+    };
+    load(&mut app, "preset.loquax.talk_box");
+    assert_eq!(obj(&app), 1.0, "Talk-box shows the tube");
+    assert_eq!(
+        app.project()
+            .effect(strip, effect)
+            .unwrap()
+            .spec
+            .get("bands"),
+        48.0
+    );
+    app.undo();
+    assert_eq!(obj(&app), 0.0, "the preset and its object, one undo step");
+    load(&mut app, "preset.loquax.radio");
+    assert_eq!(obj(&app), 2.0, "Radio shows the desk microphone");
+
+    // The object moved by hand: still the preset, not "modified".
+    app.exec(Command::SetEffectParam {
+        strip,
+        effect,
+        key: "obj".into(),
+        value: 1.0,
+    });
+    let spec = app.project().effect(strip, effect).unwrap().spec.clone();
+    assert_eq!(
+        recognise(&spec, &list).map(|l| l.name),
+        Some(cantus_ui::i18n::t("preset.loquax.radio")),
+        "a look is no drift"
+    );
+
+    // A/B compares the sound: B (Robot) and back, the object stays the tube.
+    let a_side = cantus_ui::views::fx::preset_map(&spec);
+    app.copy_ab(effect, &a_side);
+    load(&mut app, "preset.loquax.robot");
+    assert_eq!(obj(&app), 0.0);
+    app.exec(Command::SetEffectParam {
+        strip,
+        effect,
+        key: "obj".into(),
+        value: 2.0,
+    });
+    app.toggle_ab(strip, effect);
+    let spec = app.project().effect(strip, effect).unwrap().spec.clone();
+    assert_eq!(spec.get("bands"), 8.0, "A's sound, Radio's eight bands");
+    assert_eq!(spec.get("obj"), 2.0, "A/B leaves the object");
+
+    // A user's preset keeps the object it was saved with.
+    DawHost::new(&mut app, strip, effect, "loquax")
+        .save_preset("My desk")
+        .unwrap();
+    load(&mut app, "preset.loquax.talk_box");
+    assert_eq!(obj(&app), 1.0);
+    let mine = read_presets(EffectKind::Vocoder, true)
+        .into_iter()
+        .find(|e| e.name == "My desk")
+        .expect("saved");
+    assert_eq!(mine.params.get("obj"), Some(&2.0), "the object saved");
+    DawHost::new(&mut app, strip, effect, "loquax").load_preset(&mine);
+    assert_eq!(obj(&app), 2.0, "and set again on loading it");
+}
