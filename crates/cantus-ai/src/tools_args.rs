@@ -599,7 +599,6 @@ pub const EFFECT_ALIASES: &[(&str, EffectKind)] = &[
     ("glue", EffectKind::BusCompressor),           // fxb:contract
     ("resonance_suppressor", EffectKind::ResonanceSuppressor), // fxb:contract
     ("resonance", EffectKind::ResonanceSuppressor), // fxb:contract
-    ("soothe", EffectKind::ResonanceSuppressor),   // fxb:contract
     ("ducker", EffectKind::Ducker),                // fxb:contract
     ("ducking", EffectKind::Ducker),               // fxb:contract
     ("pump", EffectKind::Ducker),                  // fxb:contract
