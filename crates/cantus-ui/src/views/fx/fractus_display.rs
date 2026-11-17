@@ -141,6 +141,11 @@ impl View {
         self.len
     }
 
+    /// Whether it holds no reading (silence, or nothing seen yet).
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     /// The grains `age` readings back (0 the newest).
     pub fn back(&self, age: usize) -> &[(f32, f32)] {
         if age >= self.len {
