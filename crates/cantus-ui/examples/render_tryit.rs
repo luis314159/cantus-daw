@@ -25,7 +25,7 @@
 //!
 //! Presets are each unit's factory presets in their order, without the init patch, those for
 //! drums, voice, buses and the master left out (the take is a guitar), and those that need
-//! notes from a track (Fractus's played lanes) — up to `--presets` (5) a unit.
+//! notes from a track (Fractus's played lanes) — up to `--presets` (4) a unit.
 
 use cantus_core::{EffectId, EffectKind, EffectSlot};
 use cantus_engine::fx::SongPosition;
@@ -316,7 +316,7 @@ fn main() {
         .position(|a| a == "--presets")
         .and_then(|i| args.get(i + 1))
         .and_then(|v| v.parse().ok())
-        .unwrap_or(5usize);
+        .unwrap_or(4usize);
     let mut pos = args
         .iter()
         .enumerate()
