@@ -825,6 +825,19 @@ pub fn settings(kind: EffectKind) -> Vec<(&'static str, f32)> {
         // fxc:purus — every module on: the hum followed and subtracted gently over twelve
         // harmonics, the de-click with crackle, the room estimated and taken down, the
         // output moved (its latency the three modules': 50 ms, 767 and 1 023 samples).
+        // fxc:comparatio — the reference asked to be heard, matched short-term with an offset
+        // and a long crossfade, looped: with no reference loaded (a test has no file) the mix
+        // passes to the bit, in the plug-in as in the DSP.
+        EffectKind::Reference => vec![
+            ("listen", 1.0),
+            ("match", 1.0),
+            ("offset", -2.0),
+            ("fade", 120.0),
+            ("sync", 2.0),
+            ("lstart", 1.0),
+            ("lend", 3.0),
+            ("res", 1.0),
+        ], // fxc:comparatio
         EffectKind::Repair => vec![
             ("hon", 1.0),
             ("hmode", 1.0),
@@ -943,6 +956,8 @@ pub enum Direct {
     /// its steps as the engine writes them (`fx::fractus::pattern_into`).
     /// fxc:purus — Purus, the real-time repair: its DSP (its output level is its own).
     Purus(Box<cantus_dsp::purus::Purus>),
+    /// fxc:comparatio — Comparatio, the reference comparator: its DSP, no reference.
+    Comparatio(Box<cantus_dsp::comparatio::Comparatio>),
     /// fxa:caelum — Caelum, the shimmer reverb: its DSP (the pre-delay synced at 120 BPM when
     /// asked, no host transport here) and its output level gliding after it, as the engine's
     /// unit glides it.
@@ -1056,6 +1071,9 @@ impl Direct {
             EffectKind::Amp => Direct::Arca(Box::new(cantus_dsp::arca::Arca::new(SR))), // fx3:arca
             EffectKind::Vocoder => Direct::Loquax(Box::new(cantus_dsp::loquax::Loquax::new(SR))), // fxa:loquax
             EffectKind::Repair => Direct::Purus(Box::new(cantus_dsp::purus::Purus::new(SR))), // fxc:purus
+            EffectKind::Reference => Direct::Comparatio(Box::new(
+                cantus_dsp::comparatio::Comparatio::new(SR),
+            )), // fxc:comparatio
             EffectKind::Shimmer => Direct::Caelum(
                 Box::new(cantus_dsp::caelum::Caelum::new(SR)),
                 cantus_dsp::modfx_line::Glide::new(1.0, 10.0, SR, 1e-6),
@@ -1119,6 +1137,7 @@ impl Direct {
             // fxa:caelum — a synced pre-delay at 120 BPM (a host without a transport); the
             // output's target as the engine's unit sets it (0 dB not applied).
             Direct::Purus(x) => x.set(&fx::purus::settings(spec)), // fxc:purus
+            Direct::Comparatio(x) => x.set(&fx::comparatio::settings(spec, SR, 0)), // fxc:comparatio
             Direct::Caelum(x, out) => {
                 let mut s = fx::caelum::settings(spec);
                 if let Some(beats) = fx::caelum::sync_beats(spec.get("psync")) {
@@ -1197,6 +1216,7 @@ impl Direct {
             Direct::Loquax(x) => x.reset(),     // fxa:loquax
             Direct::Fractus(x, _) => x.reset(), // fxa:fractus
             Direct::Purus(x) => x.reset(),      // fxc:purus
+            Direct::Comparatio(x) => x.reset(), // fxc:comparatio
             Direct::Caelum(x, out) => {
                 out.jump(out.target);
                 x.reset();
@@ -1241,6 +1261,7 @@ impl Direct {
             Direct::Fractus(x, _) => x.latency(), // fxa:fractus
             Direct::Caelum(x, _) => x.latency(),  // fxa:caelum
             Direct::Purus(x) => x.latency(),      // fxc:purus
+            Direct::Comparatio(x) => x.latency(), // fxc:comparatio
             Direct::Wire => 0,
             Direct::Aula(x, _) => x.latency(),
         }
@@ -1280,6 +1301,7 @@ impl Direct {
             Direct::Loquax(x) => x.process(l, r, key, &[]), // fxa:loquax
             Direct::Fractus(x, _) => x.process(l, r), // fxa:fractus
             Direct::Purus(x) => x.process(l, r),     // fxc:purus
+            Direct::Comparatio(x) => x.process(l, r, None), // fxc:comparatio
             Direct::Caelum(x, out) => {
                 x.process(l, r, key);
                 if !(out.still() && out.value == 1.0) {

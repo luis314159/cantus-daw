@@ -81,8 +81,10 @@ fn through_clap_is_bit_identical_to_the_dsp() {
         let (mut dry, dry_r) = signal(N, 7);
         dry.extend_from_slice(&dry_r);
         let moved = plugin.iter().zip(&dry).filter(|(a, b)| a != b).count();
-        if kind == EffectKind::Analyzer {
-            assert_eq!(moved, 0, "Speculum is a pass-through");
+        // fxc:comparatio — and Comparatio with no reference loaded (a test has no file): the
+        // mix heard, to the bit; the reference heard is `tests/comparatio.rs`'s.
+        if matches!(kind, EffectKind::Analyzer | EffectKind::Reference) {
+            assert_eq!(moved, 0, "{kind:?} is a pass-through here");
         } else {
             assert!(moved > N / 10, "{kind:?} changed only {moved} samples");
         }
@@ -241,6 +243,8 @@ fn automation_lands_on_the_grid_at_any_block_size() {
             // fxc:purus — its output (the room's reduction takes nothing from the test signal:
             // no room is evidenced in it, so automating it rightly changes no sample).
             EffectKind::Repair => "out",
+            // fxc:comparatio — its offset (with no reference loaded, rightly no sample moves).
+            EffectKind::Reference => "offset",
             _ => "thr",
         };
         let table = params::table(kind);
@@ -253,7 +257,8 @@ fn automation_lands_on_the_grid_at_any_block_size() {
         let still = automated_dsp(kind, &base, &[], n);
         // Speculum's parameters are how it is looked at: automating one changes no sample.
         assert!(
-            diff(&expected, &still).is_some() != (kind == EffectKind::Analyzer),
+            diff(&expected, &still).is_some()
+                != matches!(kind, EffectKind::Analyzer | EffectKind::Reference), // fxc:comparatio
             "{kind:?}: automating {key} changes the sound"
         );
         let events: Vec<Ev> = changes

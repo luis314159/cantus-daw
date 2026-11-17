@@ -376,3 +376,103 @@ project by path, never exported), and `docs/beta-checklist.md`'s listening steps
 - For the integrator: one `lib.rs` line; `comprimo_loudness.rs` now uses Terminus's
   K-weighting (guarded by `comparatio_tests_shared.rs`); `terminus_loudness.rs` gains an
   additive `LoudnessMeter::reset`. No kind, no schema and no ADR number taken.
+
+## Phase B (3), to the finish (2026-11-17): sheet v1 approved
+
+Branch `fx/wave-c` (worktree `C:\projects\daw-fx\wave-a`), from cae94d52. The owner approved
+sheet v1 as an **ordinary insert** meant for the master's last slot (renders never hear the
+reference), and step 3 as proposed: a list of references, the match EQ sent to Aequalis,
+loading in the plug-in.
+
+- **The list of references** (`EffectSpec::refs`, `fx::comparatio::{References, Reference}`):
+  at most eight, each a path with the **size and hash** it had when loaded, and the Aequalis
+  its match EQ went to; the one compared stays `EffectSpec::ir` (the engine's path
+  unchanged). `Command::SetReferences` sets the list and the one compared together, one step,
+  its inverse the pair it replaced; refused for a path twice or empty, a ninth, one compared
+  that the list lacks, another kind; repaired on load (`repair_project`); **its own undo-fuzz
+  stream** (`crng`, applied and refused counted). **Still schema 66** (this branch's own):
+  `migrate_65_to_66`'s note extended, `fixtures/v66.cantus` regenerated (a list of three, the
+  one compared with its print, the match EQ's amount 0.75), its test extended.
+- **Each keeps its own analysis**: the store reads every listed reference once and keeps its
+  `Summary` (length, whole-file loudness and readings, the middle's tonal curves in thirds and
+  sixths, a 240-peak overview, the print) after its audio is let go.
+- **The print** (`comparatio_store::fingerprint`): size + FNV-1a of the size, the first and
+  last 64 KiB and 62 blocks of 4 KiB between (milliseconds at any length); one byte changed in
+  the middle changes it (tested). The strip says **missing** or **changed since it was
+  loaded** in red; loading the file again takes its new print.
+- **The editor finished**: the reference strip's numbered memory keys (the one compared lit
+  in the reference's voice), *Load reference…* (native dialog), *Remove*, audio files dropped
+  on the console (taken from the window's own import), the name line with length and
+  loudness, the overview **dragged into a loop** (`sync` 2, `lstart`, `lend`, one step) and the
+  loop drawn on it. **Your mix's tonal curve is live** (`picture::Live`: the slot's analyser
+  tap, the pair's first — the input's middle — measured on the editor's thread in thirds and
+  sixths; restarted with the unit's measurement); the reference's is the same middle of its
+  whole file, so like meets like. Curves remade only when something they come from changed.
+  The demo feeds the same `Live`.
+- **The match EQ**: the suggestion drawn over the difference in orange (`MATCH`, apart from
+  every colourway's voices) with its legend, before anything is sent; the *Match EQ* card
+  (`eqamt` 0 … 1 shown in %, default 0.5; `eqmax` 1 … 12 dB, default 6 — the DSP's
+  defaults; display keys, no sample changes). **Send to Aequalis** fits it (`aequalis::fit`,
+  at most 6 bands, minimum phase) and inserts an Aequalis **just before the unit**, its output
+  at the suggestion's makeup (`Batch` of `InsertEffect` + `SetReferences` keeping its id: one
+  step); a second send **replaces that Aequalis's spec in place** (`ReplaceEffect`, same id,
+  one step). A user's own EQ is never touched; the key shows only where the host has a chain
+  (Cantus).
+- **learn_everywhere green for Comparatio**: `listen` offers automation and learn on the
+  selector (0 ↔ 1), the two lamps and the A, B, X keys (`stepped_offer_one`, each its value);
+  `seed` and `trial` excused by name (the blind test's order and trial, kept by its keys: a
+  lane or a controller would give the answer away), as Loquax's object is. **A new blind
+  test's seed comes from the clock** (never seed + 1: after a preset or a reload put it back
+  to 0, an order could have been learnt).
+- **Presets** fourteen (`reference.toml`, roles master/bus, styles across the library): the
+  whole file's loudness, section by section, by hand, the reference 1 dB down, locked to the
+  song, a chorus loop (45–75 s), the first thirty seconds, quick (10 ms) and smooth (150 ms)
+  switching, low end in detail, a gentle and a full match EQ, an album locked by its whole
+  file, a worship mix against a live record. None names `listen`, `seed` or `trial` (loading
+  one returns to your mix). `preset_tool fit` has nothing to set: Comparatio has no output
+  key and never changes the mix's level (the audition renders the mix). The audit's
+  Comparatio line removed (floor 12).
+- **Export** `Cantus Comparatio` (CLAP and VST3; class id by its rule `8C4B6490…`; features
+  `analyzer`, `utility`; `Fx|Analyzer`): the same editor; the state is the project's format
+  (`refs` and `ir` beside the values, never audio; `state::with_references`,
+  `load_references` repairing as a project loads); `comparatio_post::RefPost` keeps the list
+  on the main thread, asks the store to read the one compared on its own thread at the
+  processor's rate (at activation, or when the editor or a state names it), posts the file to
+  the processor as Fractus's lanes are posted, and lets go of the others' audio
+  (`keep_only`); the memory builder answers the unit's need by **waiting on its own thread**
+  (`comparatio_store::wait_for`, giving up when the read fails or the processor goes). **A
+  host's offline render hears the mix**: CLAP's `render` extension (offered by Comparatio
+  alone) and VST3's `setupProcessing` `processMode == kOffline` set the processor's `listen`
+  to the mix before the unit is configured. Ids appended and blessed.
+- **Tabula**: never a pedal (decided at the contract; now with its reason in full — the render
+  guarantee strips Comparatio *slots*, a pedal inside a board would sit outside it) and held
+  by `fx::comparatio::tests::it_is_never_a_pedal`.
+- **AI words** (`tools_mixer.rs`'s effect description; `agent_units` gains `eqamt`, `eqmax`
+  and the list). **Site card** (`web/src/units_data.rs`, EFFECTS 39; big 1800 × 1157, thumb
+  640 × 411). **Docs**: ADR 0146 phase B, `docs/plugins/comparatio.md`, the manual EN/ES
+  (after Purus).
+
+### Measured
+
+| What | Measured |
+|---|---|
+| e2e (`comparatio_e2e`, through `CantusApp::assemble`): the reference heard on the master against the mix, both steady noise, the file 17.1 dB louder (−13.80 against −30.92 LUFS) | **−0.023 LU** (−30.94 heard) |
+| e2e: a render with `listen` reference, X, One, Two | the dry master **to the bit** (each) |
+| e2e: live in odd blocks (256, 333, 512, 17, 1 024) with the mix heard, 3 s | the render **to the bit** |
+| e2e: back to the mix, from 100 ms after the switch | the render **to the bit** |
+| Two references in a list, 20 dB apart in their files | their summaries 19.3 dB apart (K-weighting's tilt between 300 Hz and 1 kHz), each curve's loudest band at its own tone |
+| The print of a 3 s WAV; one byte changed in the middle | equal to the file's size; the hash changes |
+| Pointer (`comparatio_drag`, real events through the window the app draws) | 4 tests: six selector/lamp/key presses, two numbered keys, Remove, Load reference…, a drop, a loop dragged (3.0 → 9.0 s ± 0.4 on the 12 s demo), Send to Aequalis inserted then updated in place — each one undo step |
+
+### Shared files touched (marked `fxc:comparatio`)
+
+Core: `effect.rs` (`EffectSpec::refs`), `command.rs` (`SetReferences`), `freeze_guard.rs`,
+`record_mode.rs`; tests `undo_invariants.rs` (its own stream). Project: `format.rs`
+(repair, the note, the fixture test), `examples/write_fixture.rs`, `fixtures/v66.cantus`.
+UI: `views/fx/host.rs` (five `FxHost` methods with defaults, `DawHost`'s),
+`views/eq_editor.rs` (`band_fields`, pub(crate)), `kit/skin/comparator.rs` (`MATCH`),
+`agent_units.rs`; tests `learn_everywhere.rs`, `preset_audit.rs`. Plug-ins: `Cargo.toml`
+(feature, `hound` for tests), `build.rs`, `src/{desc,lib,instance,memory,state,editor}.rs`,
+`src/clap/ext.rs`, `src/vst3/plugin.rs`, `tests/golden/ids.txt`. Engine:
+`fx/comparatio_store.rs` (its own). AI: `tools_mixer.rs`; golden `mcp-tools-list.json`.
+xtask: `main.rs`. Web: `units_data.rs`.

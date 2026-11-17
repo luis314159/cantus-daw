@@ -805,6 +805,8 @@ pub struct Processor {
         Producer<crate::lapsus_bank::Posted<cantus_core::IrFile>>,
     )>,
     comparatio_held: Option<crate::lapsus_bank::Posted<cantus_core::IrFile>>,
+    /// fxc:comparatio — the host renders offline (seen at the last pull): the mix heard.
+    offline: bool,
     /// fx3:tabula — the board's rings while this processor lives, and a post that could not
     /// go back yet.
     board: Option<crate::board_post::Lent>,
@@ -866,6 +868,9 @@ impl Processor {
             // fxc:comparatio — the file compared, read at this rate on its own thread.
             shared.comparatio.activate(sample_rate);
             spec.ir = shared.comparatio.file.get();
+            if shared.comparatio.offline() {
+                let _ = spec.set("listen", cantus_core::fx::comparatio::LISTEN_MIX);
+            }
         }
         cantus_core::fx::tabula::apply_macros(&mut spec); // fx3:tabula
         let slot = EffectSlot {
@@ -942,6 +947,8 @@ impl Processor {
             fractus,            // fxa:fractus
             comparatio,         // fxc:comparatio
             comparatio_held: None,
+            offline: table.kind == cantus_core::EffectKind::Reference
+                && shared.comparatio.offline(),
             fractus_held: None, // fxa:fractus
             transport: None,
             moves: [(0, HostTransport::default()); MOVES],
@@ -1087,6 +1094,14 @@ impl Processor {
                 &mut self.lapsus_held,
                 &mut self.spec.lapsus,
             ) {
+                self.dirty = true;
+            }
+        }
+        // fxc:comparatio — a host that starts or stops rendering offline.
+        if self.shared.table.kind == cantus_core::EffectKind::Reference {
+            let offline = self.shared.comparatio.offline();
+            if offline != self.offline {
+                self.offline = offline;
                 self.dirty = true;
             }
         }

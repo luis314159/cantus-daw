@@ -62,9 +62,11 @@ fn temp(name: &str) -> PathBuf {
     d
 }
 
-fn rms_db(x: &[f32]) -> f64 {
-    let p = x.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>() / x.len().max(1) as f64;
-    10.0 * p.max(1e-30).log10()
+/// Integrated loudness (EBU R128, Terminus's meter), LUFS.
+fn lufs(l: &[f32], r: &[f32]) -> f64 {
+    let mut m = cantus_dsp::terminus::loudness::LoudnessMeter::new(SR);
+    m.process(l, r);
+    m.integrated().expect("loud enough")
 }
 
 /// Run `frames` of `(l, r)` through `p` in blocks of 480; the output.
@@ -130,7 +132,8 @@ fn references_live_in_the_state_by_path_size_and_hash_never_their_audio() {
 fn a_reference_loaded_with_the_state_is_heard_matched_and_the_mix_is_untouched() {
     let dir = temp("heard");
     // The reference 12 dB louder than the mix, in a file at another rate (resampled).
-    let (rl, rr) = steady(0x0BAD_5EED, 0.5, 0.4, 44_100 * 6);
+    // 20 s: a free reference plays once from the song's start, so it outlasts the test.
+    let (rl, rr) = steady(0x0BAD_5EED, 0.5, 0.4, 44_100 * 20);
     let file = wav(&dir, "Loud master.wav", &rl, &rr, 44_100);
     let path = file.to_string_lossy().to_string();
     let one = shared();
@@ -157,24 +160,24 @@ fn a_reference_loaded_with_the_state_is_heard_matched_and_the_mix_is_untouched()
         "read at the host's rate on the plug-in's own thread: {:?}",
         store::status(&path)
     );
+    // A few more seconds of the mix: the unit has its reference now and measures it beside.
+    let (ol, _) = run(&mut p, &ml, &mr);
+    assert_eq!(ol, ml, "still your mix, untouched");
     // The reference heard: the host sets listen (a parameter like any other).
     let listen = host.table.by_key("listen").unwrap().index;
     host.set_value(listen, 1.0);
-    let mut heard = (Vec::new(), Vec::new());
-    for _ in 0..4 {
-        let (a, b) = run(&mut p, &ml, &mr);
-        heard.0.extend(a);
-        heard.1.extend(b);
-    }
-    let tail = &heard.0[heard.0.len() - SR as usize * 4..];
-    let mix_db = rms_db(&ml);
-    let heard_db = rms_db(tail);
-    eprintln!("mix {mix_db:.2} dB, heard {heard_db:.2} dB");
+    let heard = run(&mut p, &ml, &mr);
+    // From half a second on (the crossfade and the match's glide done).
+    let h = SR as usize / 2;
+    let tail = &heard.0[h..];
+    let mix_db = lufs(&ml[h..], &mr[h..]);
+    let heard_db = lufs(tail, &heard.1[h..]);
+    eprintln!("mix {mix_db:.2} LUFS, heard {heard_db:.2} LUFS");
     assert!(
-        (heard_db - mix_db).abs() < 0.5,
-        "heard at the mix's level (the same colour of noise): {heard_db:.2} against {mix_db:.2}"
+        (heard_db - mix_db).abs() < 0.2,
+        "heard at the mix's loudness: {heard_db:.2} against {mix_db:.2}"
     );
-    assert_ne!(tail, &ml[..], "it is the reference that is heard");
+    assert_ne!(tail, &ml[SR as usize / 2..], "it is the reference that is heard");
     // A host's offline render hears the mix, to the bit, whatever the panel says.
     host.comparatio.set_offline(true);
     let mut p2 = Processor::new(host.clone(), SR);
