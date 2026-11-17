@@ -199,9 +199,9 @@ Spanish too), the window is shorter, and the list is sized to its rows. Shots:
   smoothers at the factory defaults on a render that begins on a note (it snaps only in
   idle blocks). The e2e proves render-from-bar-N on the strip's pan and fader, and on the
   EQ from the first full beat.
-- The pad's three colourways (Titanium, Copper, Frost) are in the model (`look`) and the
-  sheets, but the window has no menu to choose one yet — the other units choose theirs in
-  the ⋯ menu; for the integrator.
+- The face's colourways (Titanium, Copper, Frost; the formula's Bakelite, Ivory, Ebony)
+  are chosen in the window's ⋯ menu, as the other units' (the source's `look`, one
+  `SetModulator`, one undo step).
 - Not here: a third axis (FL has two; Kaoss-style corner morphs are the backlog's); a
   right-click on the window's own controls for automation and MIDI learn (an axis is
   automated by a recording pass, or by `Alt+A` after its card knob moved, and learnt by
@@ -246,7 +246,7 @@ Phase B (step 3):
   drives (from its trace) — each baked curve within 0.002 of the trace at the control
   points, the baked render within 1 % of peak of the modulated one, the route audible; the
   telemetry tells where a gliding puck is and where it heads.
-- `cantus-ui` `tests/fxd_drag.rs` (16, through `CantusApp::assemble` with real pointer and
+- `cantus-ui` `tests/fxd_drag.rs` (17, through `CantusApp::assemble` with real pointer and
   key events): the window opens from the row and a drag sets X and Y in one step; a drag
   while a pass writes automation writes two lanes; a drawn path is one step; a gesture
   recorded while the song plays becomes the path; recording over a playing path hears the

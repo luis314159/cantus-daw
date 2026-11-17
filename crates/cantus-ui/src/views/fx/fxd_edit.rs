@@ -623,6 +623,94 @@ pub fn toggle_on(app: &mut CantusApp, id: ModulatorId) {
 }
 
 /// Apply preset `p` to the controller: one `SetModulator`, one step.
+/// The colourways a face offers, in `look`'s order.
+pub fn look_keys(formula: bool) -> [&'static str; 3] {
+    if formula {
+        [
+            "fxd.formula.look.bakelite",
+            "fxd.formula.look.ivory",
+            "fxd.formula.look.ebony",
+        ]
+    } else {
+        [
+            "fxd.xy.look.titanium",
+            "fxd.xy.look.copper",
+            "fxd.xy.look.frost",
+        ]
+    }
+}
+
+/// The ⋯ list: the face's colourways (the face's own `look`, one undo step a choice).
+pub fn looks_menu(app: &mut CantusApp, ctx: &egui::Context, id: ModulatorId, formula: bool) {
+    use crate::kit::menu;
+    use crate::kit::text::Src;
+    let Some((at, opener)) = app.fx.fxd.looks_menu else {
+        app.fx.fxd.looks_rows.clear();
+        return;
+    };
+    let Some(m) = app.project().modulator(id).map(|(_, _, m)| m) else {
+        return;
+    };
+    let look = match &m.source {
+        ModSource::XyPad(x) => x.look,
+        ModSource::Formula(f) => f.look,
+        _ => 0,
+    };
+    let keys = look_keys(formula);
+    let items: Vec<menu::Item<'_>> = keys
+        .iter()
+        .enumerate()
+        .map(|(i, k)| super::frame::radio(Src::Key(k), usize::from(look) == i))
+        .collect();
+    let shell = super::fxd::shell_of(formula, look);
+    let s = crate::kit::Style::plain()
+        .scaled(shell.scale(ctx))
+        .function(crate::kit::tokens::Function::Mod)
+        .skinned(shell.skin);
+    let width = menu::width(ctx, &items, &s).max(180.0 * s.k);
+    let h = menu::height(&items, s.d(1.0));
+    let mut hovered = None;
+    let mut clicked = None;
+    let mut rows = std::mem::take(&mut app.fx.fxd.looks_rows);
+    rows.clear();
+    let area = egui::Area::new(egui::Id::new(("fxd-looks", id.0)))
+        .order(egui::Order::Foreground)
+        .fixed_pos(at)
+        .constrain(true)
+        .show(ctx, |ui| {
+            let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, h), egui::Sense::click());
+            for i in 0..items.len() {
+                rows.push(menu::row(rect, &items, s.d(1.0), i));
+            }
+            hovered = resp
+                .hover_pos()
+                .and_then(|p| (0..items.len()).find(|&i| rows[i].contains(p)));
+            if resp.clicked() {
+                clicked = hovered;
+            }
+            crate::kit::with_brush(ui.painter(), |b| menu::paint(b, rect, &s, &items, hovered));
+        });
+    app.fx.fxd.looks_rows = rows;
+    let inside = area.response.rect;
+    let away = ctx.input(|i| {
+        i.pointer.any_pressed()
+            && i.pointer
+                .interact_pos()
+                .is_some_and(|p| !inside.contains(p) && !opener.contains(p))
+    }) || ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    if let Some(i) = clicked {
+        app.fx.fxd.looks_menu = None;
+        let to = i as u8;
+        edit(app, id, None, |m| match &mut m.source {
+            ModSource::XyPad(x) => x.look = to,
+            ModSource::Formula(f) => f.look = to,
+            _ => {}
+        });
+    } else if away {
+        app.fx.fxd.looks_menu = None;
+    }
+}
+
 pub fn apply_preset(app: &mut CantusApp, id: ModulatorId, p: &presets::ControllerPreset) {
     let Some(m) = modulator(app, id) else {
         return;

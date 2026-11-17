@@ -89,8 +89,8 @@ row names them.
 Commits: `10f0a3ed` + `92eb2d65` (AI), `0367f73a` (core: presets, `tidy_links`, bake),
 `badab3aa` (engine: telemetry, `trace_route`; the UI's bake hooks), `635f3f22` +
 `da3c0341` + `ebbb1ca4` (UI: the windows, the pointer tests, the shots), `95378678`
-(recording over a playing path), `aad25a3f` (the e2e), the links' axis and range edited in
-*What it drives* (the commit after these docs), and these docs.
+(recording over a playing path), `aad25a3f` (the e2e), these docs, and two follow-ups after them (the links' axis and range edited in *What it
+drives*; the colourways in the ⋯ menu).
 
 What was built (files):
 
@@ -147,7 +147,7 @@ Numbers (tests written in step 3):
 - `cantus-engine` `tests/fxd_bake.rs` **5**: each baked curve within **0.002** of the
   trace at the control points, the baked render within **1 % of peak** of the modulated
   render, the route audible; the telemetry of a gliding puck.
-- `cantus-ui` `tests/fxd_drag.rs` **16** (through `CantusApp::assemble`, real pointer and
+- `cantus-ui` `tests/fxd_drag.rs` **17** (through `CantusApp::assemble`, real pointer and
   key events: 11 on the pad and the window, 5 on the formula), `tests/fxd_whole.rs` **2**
   (step 2's, on the new windows).
 - `cantus-ui` `tests/fxd_e2e.rs` **6** (through `assemble` with the real engine wiring,
@@ -191,9 +191,8 @@ owner's):
 The e2e therefore proves render-from-bar-N on the strip's pan and fader, and on the EQ
 from the first full beat.
 
-**Also open** (small, for the integrator): the controllers' colourways (Titanium, Copper,
-Frost; Bakelite, Ivory, Ebony) are in the model and the sheets, but the window has no menu
-to choose one (the other units choose theirs in the ⋯ menu).
+The colourways (Titanium, Copper, Frost; Bakelite, Ivory, Ebony) are chosen in the window's
+⋯ menu, one undo step a choice (`the_more_key_offers_the_face_s_colourways_one_step_a_choice`).
 
 **Exported plug-ins: nothing.** Modulators (and so both controllers) live in the host —
 Cantus's project and engine; the exported CLAP/VST3 effects carry no modulators, and the

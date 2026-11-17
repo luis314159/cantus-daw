@@ -1208,7 +1208,8 @@ or right-click a knob ▸ **Modulate…** ▸ **X-Y pad** (it comes already conn
 knob). **Open it**: the **Open** key on its row (*Window*), or double-click its picture.
 The window floats like an effect's editor: drag it by its header, close it with its key or
 `Esc`, minimise or maximise it, scale it from its corner grip. The lamp in the header
-switches the pad on and off. One controller window is open at a time; it closes by itself
+switches the pad on and off, and its **⋯** menu offers three colourways — **Titanium**,
+**Copper** and **Frost** (the formula's: **Bakelite**, **Ivory**, **Ebony**). One controller window is open at a time; it closes by itself
 when its modulator is removed.
 
 **Connect what it drives** as any modulator: right-click a parameter ▸ **Modulate…** ▸ the

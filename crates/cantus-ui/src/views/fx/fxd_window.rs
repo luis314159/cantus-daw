@@ -66,6 +66,10 @@ pub struct State {
     pub(crate) dial: Option<(usize, f32, MergeKey)>,
     /// The preset list, open under the header's well: where, and the well that opened it.
     pub(crate) menu: Option<(Pos2, Rect)>,
+    /// The ⋯ list (the face's colourways), open under the ⋯ key: where, and the key.
+    pub(crate) looks_menu: Option<(Pos2, Rect)>,
+    /// The colourway list's rows, while it is open.
+    pub looks_rows: Vec<Rect>,
     /// Where the window's parts were drawn last frame (tests drive them).
     pub rects_xy: fxd_xy::Rects,
     pub rects_f: fxd_formula::Rects,
@@ -134,6 +138,7 @@ impl State {
         self.typing = None;
         self.dial = None;
         self.menu = None;
+        self.looks_menu = None;
         self.words = None;
         self.mode = fxd_xy::PadMode::Hand;
         self.live_xy.links_first = 0;
@@ -443,6 +448,16 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
             shell::Event::Bypass => fxd_edit::toggle_on(app, id),
             shell::Event::PresetPrev => fxd_edit::step_preset(app, id, -1),
             shell::Event::PresetNext => fxd_edit::step_preset(app, id, 1),
+            shell::Event::More => {
+                let more = header.more;
+                app.fx.fxd.looks_menu = match app.fx.fxd.looks_menu {
+                    Some(_) => None,
+                    None => Some((
+                        egui::pos2(more.right() - 180.0 * shell_out.k, more.bottom()),
+                        more,
+                    )),
+                };
+            }
             shell::Event::PresetBrowse => {
                 let well = header.preset.unwrap_or(header.name);
                 app.fx.fxd.menu = match app.fx.fxd.menu {
@@ -454,6 +469,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         }
     }
     fxd_edit::preset_menu(app, ctx, id, formula);
+    fxd_edit::looks_menu(app, ctx, id, formula);
     if st.maximised.is_none() {
         let to = at + moved;
         app.fx.fxd.pos = Some(to);

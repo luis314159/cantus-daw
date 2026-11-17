@@ -167,7 +167,7 @@ its frame and *What it drives* are the pad's (ADR 0147 Phase B); what is the for
 - The pre-existing findings of the e2e (a native effect's start from its stored value on a
   play or seek; Firmus's smoothers at their defaults on a render that begins on a note) are
   ADR 0147's Consequences; the formula's e2e proves render-from-bar-N on the strip's fader.
-- The three colourways (Bakelite, Ivory, Ebony) have no menu in the window yet (ADR 0147).
+- The three colourways (Bakelite, Ivory, Ebony) are chosen in the window's ⋯ menu (ADR 0147).
 - Not here: a formula of other parameters' values or of audio (FL's controller has none;
   a follower covers audio), user-defined variables, multi-line programs.
 
@@ -202,7 +202,7 @@ Phase B (step 3):
 - `cantus-engine` `tests/fxd_bake.rs`: a formula with an automated knob bakes what it
   played; one whose knob an LFO drives bakes from its trace (within 0.002 at the control
   points, the render within 1 % of peak).
-- `cantus-ui` `tests/fxd_drag.rs` (the formula's five of 16): the formula typed on its
+- `cantus-ui` `tests/fxd_drag.rs` (the formula's five of 17): the formula typed on its
   display is one step a session; the keypad types at the caret and `Esc` drops a broken
   draft; the dials turn a, b, c one step a drag; a dial double-clicked goes back to the
   middle; a formula longer than the line keeps the caret in sight (measured as painted).

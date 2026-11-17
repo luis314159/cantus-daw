@@ -1320,7 +1320,8 @@ des.
 esa perilla). **Abrirlo**: la tecla **Abrir** de su fila (*Ventana*), o doble clic en su
 dibujo. La ventana flota como el editor de un efecto: arrástrala por la cabecera, ciérrala
 con su tecla o con `Esc`, minimízala o maximízala, escálala desde el agarre de su esquina.
-La lámpara de la cabecera enciende y apaga el pad. Solo hay una ventana de controlador
+La lámpara de la cabecera enciende y apaga el pad, y su menú **⋯** ofrece tres acabados —
+**Titanio**, **Cobre** y **Escarcha** (los de la fórmula: **Baquelita**, **Marfil**, **Ébano**). Solo hay una ventana de controlador
 abierta a la vez, y se cierra sola cuando se quita su modulador.
 
 **Conectar lo que mueve**, como con cualquier modulador: clic derecho en un parámetro ▸

@@ -404,6 +404,31 @@ fn a_link_s_axis_and_range_are_set_in_what_it_drives_one_step_each() {
 }
 
 #[test]
+fn the_more_key_offers_the_face_s_colourways_one_step_a_choice() {
+    for kind in [ModKind::XyPad, ModKind::Formula] {
+        let (mut r, id) = rig(kind);
+        open(&mut r, id);
+        let look = |r: &Rig| match &r.app.project().modulator(id).unwrap().2.source {
+            ModSource::XyPad(x) => x.look,
+            ModSource::Formula(f) => f.look,
+            _ => unreachable!(),
+        };
+        assert_eq!(look(&r), 0);
+        let steps = undo_steps(&r);
+        let more = r.app.fx.fxd.header.expect("the header is drawn").more;
+        r.click(more.center());
+        assert_eq!(r.app.fx.fxd.looks_rows.len(), 3, "three colourways listed");
+        let second = r.app.fx.fxd.looks_rows[1];
+        r.click(second.center());
+        assert_eq!(look(&r), 1, "the second colourway worn");
+        assert_eq!(undo_steps(&r), steps + 1, "one step");
+        assert!(r.app.fx.fxd.looks_rows.is_empty(), "the list closes");
+        r.app.undo();
+        assert_eq!(look(&r), 0);
+    }
+}
+
+#[test]
 fn the_pads_cards_move_its_settings_one_step_each() {
     let (mut r, id) = rig(ModKind::XyPad);
     open(&mut r, id);
