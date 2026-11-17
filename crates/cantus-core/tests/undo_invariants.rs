@@ -2085,17 +2085,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             }
             // fxd:contract - the X-Y pad and the formula controller (ADRs 0147, 0148), from a
             // stream of their own (`drng`).
+            // (In a function of its own: the test's frame is already as large as a debug
+            // build's stack allows.)
             if drng.below(4) == 0 {
-                let mut scratch = bus.project().clone();
-                let (k, cmd) = fxd_controller_command(&mut drng, &mut scratch);
-                bus.reserve_ids(scratch.next_id);
-                let ok = bus.execute(cmd, origins[drng.below(5) as usize]).is_ok();
-                controlled[k][usize::from(!ok)] += 1;
-                if ok {
-                    let mut snap = bus.project().clone();
-                    snap.next_id = 0;
-                    checkpoints.push(snap);
-                }
+                fxd_step(&mut drng, &mut bus, &origins, &mut controlled, &mut checkpoints);
             }
             // Id allocation mutates `next_id` outside the command system; keep the two in
             // sync by cloning the project only to *generate* the command, then re-applying
@@ -2954,6 +2947,8 @@ fn modulator_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 ModSource::Envelope(env) => env.sustain = rng.f32(0.0, 1.0),
                 ModSource::Follower(f) => f.release_ms = rng.f32(1.0, 2000.0),
                 ModSource::Random(r) => r.seed = rng.below(1000) as u32,
+                // fxd: the controllers have a stream of their own (`fxd_controller_command`).
+                ModSource::XyPad(_) | ModSource::Formula(_) => {}
             }
         }
     }
@@ -6803,6 +6798,26 @@ const FXD_FORMULAS: [&str; 6] = [
 ];
 const FXD_BROKEN: [&str; 4] = ["a*Sin(", "MouseX", "1 +", "foo(1)"];
 
+#[inline(never)]
+fn fxd_step(
+    drng: &mut Lcg,
+    bus: &mut CommandBus,
+    origins: &[Origin; 5],
+    controlled: &mut [[usize; 2]; FXD_KINDS],
+    checkpoints: &mut Vec<Project>,
+) {
+    let mut scratch = bus.project().clone();
+    let (k, cmd) = fxd_controller_command(drng, &mut scratch);
+    bus.reserve_ids(scratch.next_id);
+    let ok = bus.execute(cmd, origins[drng.below(5) as usize]).is_ok();
+    controlled[k][usize::from(!ok)] += 1;
+    if ok {
+        let mut snap = bus.project().clone();
+        snap.next_id = 0;
+        checkpoints.push(snap);
+    }
+}
+
 fn fxd_controller_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
     use cantus_core::modulator::*;
     let controllers: Vec<Modulator> = project
@@ -6827,19 +6842,28 @@ fn fxd_controller_command(rng: &mut Lcg, project: &mut Project) -> (usize, Comma
     };
     let links = |rng: &mut Lcg, m: &Modulator| -> Vec<RouteLink> {
         let outputs = m.source.kind().outputs();
-        m.routes
-            .iter()
-            .filter(|_| rng.below(2) == 0)
-            .map(|r| RouteLink {
-                target: r.target.clone(),
-                output: rng.below(u64::from(outputs)) as u8,
-                range: (rng.below(2) == 0).then(|| RouteRange {
+        let mut out = Vec::new();
+        for r in &m.routes {
+            if rng.below(2) == 0 {
+                continue;
+            }
+            let output = rng.below(u64::from(outputs)) as u8;
+            let range = if rng.below(2) == 0 {
+                Some(RouteRange {
                     from: rng.f32(-1.0, 1.0),
                     to: rng.f32(-1.0, 1.0),
                     curve: rng.f32(-1.0, 1.0),
-                }),
-            })
-            .collect()
+                })
+            } else {
+                None
+            };
+            out.push(RouteLink {
+                target: r.target.clone(),
+                output,
+                range,
+            });
+        }
+        out
     };
     let path = |rng: &mut Lcg| XyPath {
         points: (0..2 + rng.below(30))
@@ -6959,15 +6983,11 @@ fn fxd_controller_command(rng: &mut Lcg, project: &mut Project) -> (usize, Comma
         _ => {
             // Another modulator drives a controller's input (one level).
             let c = pick(rng);
-            let mut m = project
+            let other = project
                 .all_modulators()
                 .map(|(_, m)| m.clone())
-                .find(|m| m.id != c.id)
-                .unwrap_or_else(|| {
-                    let mut m = Modulator::new(ModulatorId(project.alloc_id()), ModKind::Lfo);
-                    m.id = c.id;
-                    m
-                });
+                .find(|m| m.id != c.id);
+            let mut m = other.unwrap_or_else(|| c.clone());
             if m.id == c.id {
                 // Only the controller itself: its own input is refused, so drive the master.
                 m = c.clone();
