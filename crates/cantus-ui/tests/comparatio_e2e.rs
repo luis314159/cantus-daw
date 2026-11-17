@@ -174,6 +174,19 @@ fn comparatio_compares_a_reference_on_the_boot_path() {
             &[reference.clone()]
         ));
     }
+    // Read off the audio thread (on a thread of its own when files load in the background):
+    // the app's frames attach it.
+    let stored = app.project().effect(StripId::MASTER, fx).unwrap().spec.ir.clone().unwrap().path;
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !matches!(
+        cantus_engine::fx::comparatio_store::status(&stored),
+        cantus_engine::fx::comparatio_store::RefStatus::Loaded { .. }
+    ) {
+        assert!(std::time::Instant::now() < until, "the reference is read");
+        app.sync_engine();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    app.sync_engine();
     let spec = app.project().effect(StripId::MASTER, fx).unwrap().spec.clone();
     let refs = spec.refs.as_deref().expect("its list");
     assert_eq!(refs.list.len(), 1);

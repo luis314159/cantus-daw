@@ -65,6 +65,62 @@ unit `cantus_engine::fx::comparatio`, store `cantus_engine::fx::comparatio_store
 - **No starting preset**: it starts at its defaults (it measures, `Neutral::Measures`).
 - **Not a Tabula pedal**, ever: a reference is the master's monitoring, not a pedal's sound.
 
+## Decision, phase B (step 3; the owner approved sheet v1 on 2026-11-17)
+
+- **A list of references** (`EffectSpec::refs`, `fx::comparatio::References`; still schema
+  66 — this branch's own migration, `migrate_65_to_66`'s note extended, `fixtures/v66.cantus`
+  regenerated with a list of three): at most **eight**, each a path with **the size and a
+  hash** of the file as it was loaded (`Reference`), plus the Aequalis its match EQ was last
+  sent to. The one compared stays `EffectSpec::ir`, so the engine's path is unchanged.
+  `Command::SetReferences` sets the list and the one compared **together**, as one step whose
+  inverse is the pair it replaced; it refuses a path twice or empty, a ninth, one compared
+  that the list lacks, and any other kind. A hand-edited list is repaired on load
+  (`repair_project`). Its own undo-fuzz stream counts it applied and refused.
+- **Each reference keeps its own analysis**: the store reads every reference in the list
+  once (the one compared for the unit, the others for their summary) and keeps a
+  `Summary` — length, whole-file loudness and readings, the tonal curves of the signal's
+  middle in thirds and sixths, a 240-peak overview, the file's print — after its audio is let
+  go (the audio of the ones not compared is swept beyond three, as before).
+- **The print** (`comparatio_store::fingerprint`): the size and a 64-bit FNV-1a of the size,
+  the first and last 64 KiB and 62 blocks of 4 KiB between — milliseconds whatever the
+  file's length; a re-exported master changes every sample, so it changes the print. The
+  editor compares it with the one kept and says **missing** or **changed since it was
+  loaded**; loading the file again takes its new print. Chosen over a whole-file hash so that
+  loading never waits on the disk.
+- **Your mix's tonal curve is the slot's analyser tap** (the input's middle, the pair's first),
+  measured on the editor's thread (`picture::Live`), in thirds and sixths; the reference's is
+  the same middle of its whole file. Like meets like; nothing is added to the audio thread.
+- **The match EQ**: `match_eq::suggest` on the difference (the *Match EQ* card's `eqamt` and
+  `eqmax`, display keys like `res`: no sample changes) drawn over the difference before it
+  is sent; **Send to Aequalis** fits it (`aequalis::fit`, at most six bands, minimum phase)
+  and puts an Aequalis **just before the unit** — the mix is what is changed, and it is then
+  compared — with its output at the suggestion's makeup (the mix's loudness kept): a `Batch`
+  of `InsertEffect` and `SetReferences` (its id kept), one step; a second send **replaces
+  that Aequalis's spec in place** (`ReplaceEffect`, same id), one step. A user's own EQ is
+  never touched. Only Cantus can send (a plug-in has no chain of ours).
+- **Loading**: *Load reference…* (a native dialog) and a file dropped on the console add the
+  files and compare the last; the numbered keys choose; *Remove* takes the one compared off.
+  Each one step. A drag across the overview sets a loop (`sync` 2, `lstart`, `lend`), one
+  step.
+- **Learn**: what is heard (`listen`) offers automation and MIDI learn on the selector, the
+  lamps and the A, B, X keys (a footswitch for A/B). The blind test's `seed` and `trial` are
+  kept by its own keys and are **no control's** (learn_everywhere excuses them by name, as it
+  does Loquax's object): a lane or a controller moving them would give the answer away. A new
+  test's seed comes from the clock, so no order can be learnt even after a preset or a
+  reload set it back to 0.
+- **Presets** (fourteen) are ways of comparing; none names what is heard or the blind order,
+  so loading one returns to your mix.
+- **The plug-in** (`Cantus Comparatio`, CLAP and VST3): its state is the project's format —
+  `refs` and `ir` in the `EffectSpec` JSON, **never audio**; the main thread keeps the list
+  (`comparatio_post::RefPost`), asks the store to read the one compared on a thread of its
+  own at the processor's rate, and posts the file to the processor as Fractus's lanes are
+  posted; the plug-in's memory builder answers the unit's need by **waiting on its own
+  thread** for the store (giving up when the read fails or the processor goes). A host's
+  **offline render hears the mix**: CLAP's `render` extension (offered by Comparatio alone)
+  and VST3's `processMode == kOffline` set the processor's unit to your mix.
+- **Tabula**: still never a pedal — the render guarantee strips Comparatio *slots*; a pedal
+  inside a board would sit outside it. `pedal_allowed` refuses it and a test holds it.
+
 ## Consequences
 
 - The editor (design sheet v1, `compartir/comparatio/design/v1`): a two-deck console — your
@@ -83,6 +139,11 @@ unit `cantus_engine::fx::comparatio`, store `cantus_engine::fx::comparatio_store
   at the mix's integrated loudness within 0.1 LU, the mix back to the bit, an export
   without it).
 
+- **Phase B, owner's choices left**: per-reference settings (each its own loop, offset and
+  sync) — one set for the unit today; a drop onto the plug-in's window needs egui-baseview to
+  pass the system's drop through (0.7 does not); the 20-minute cut and the three spare
+  references kept in memory.
+
 ## What the tests hold
 
 `cantus-core` `fx::comparatio` (keys, the null) and an undo-fuzz arm for its reference;
@@ -93,3 +154,19 @@ read and resampled through the store, its whole-file loudness, a missing file re
 live = offline), `fx_contract`, `rt_memory::comparatio_never_allocates` (heard, matched,
 blind, locked, looped, swapped while heard, taken away); `cantus-project` schema 66's
 fixture (a reference by path); `cantus-ui` `fxc_whole`.
+
+**Phase B**: `cantus-core` `fx::comparatio` (a list valid only whole, unique and within
+eight; the one compared shown; a hand-edited list repaired; never a pedal) and
+`undo_invariants` (Comparatio's references applied and refused, from a stream of their own);
+`cantus-project` schema 66's fixture (a list of three with a print, the match EQ's amount);
+`cantus-engine` `fx_comparatio::every_reference_in_the_list_keeps_its_own_analysis` (each
+summary its own loudness, curves and overview; the print equal to the file's, changed by one
+byte in the middle; a missing file named; a plug-in's request and wait); `cantus-plugins`
+`tests/comparatio.rs` (the state by path, size and hash, never audio, round-tripped and
+repaired; a reference loaded with a state heard matched, the mix untouched to the bit; an
+offline render the mix to the bit; a missing file reported) and the golden ids; `cantus-ui`
+`comparatio_drag` (the selector, lamps and keys; the numbered keys, Remove, Load reference…
+and a drop; the overview's loop; Send to Aequalis inserted then updated in place — each one
+undo step), `comparatio_e2e` (through `CantusApp::assemble`: a WAV loaded as the editor loads
+it, no render holds it, live = offline for the mix, the reference heard within 0.1 LU of the
+mix, back to the mix to the bit), `learn_everywhere`, `preset_audit`, `fxc_whole`.

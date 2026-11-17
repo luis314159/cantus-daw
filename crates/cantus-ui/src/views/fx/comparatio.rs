@@ -150,11 +150,16 @@ impl Words {
         } else {
             frame::tr("comparatio.match.level").to_string()
         };
-        let (list, at) = listed(spec);
         let summary = spec.ir.as_deref().and_then(|f| store::summary(&f.path));
-        (self.status, self.warn) = match (spec.ir.as_deref(), at) {
-            (Some(f), Some(i)) => status_words(&f.path, &list[i], summary.as_deref()),
-            _ => (String::new(), false),
+        (self.status, self.warn) = match spec.ir.as_deref() {
+            Some(f) => {
+                let entry = spec
+                    .refs
+                    .as_deref()
+                    .and_then(|r| r.find(&f.path).map(|i| &r.list[i]));
+                status_words(&f.path, entry, summary.as_deref())
+            }
+            None => (String::new(), false),
         };
         self.reference = match spec.ir.as_deref() {
             Some(f) if pic.loaded() || summary.is_some() => {
@@ -399,6 +404,18 @@ fn update_curves(host: &mut dyn FxHost, st: &mut State) {
     }
 }
 
+/// How many references the strip lists and which is compared — no copy (every frame).
+fn count_at(spec: &EffectSpec) -> (usize, Option<usize>) {
+    let list = spec.refs.as_deref().map_or(&[][..], |r| &r.list[..]);
+    match spec.ir.as_deref() {
+        Some(f) => match list.iter().position(|r| r.path == f.path) {
+            Some(i) => (list.len(), Some(i)),
+            None => (list.len() + 1, Some(list.len())),
+        },
+        None => (list.len(), None),
+    }
+}
+
 /// The references the strip lists and which is compared.
 fn listed(spec: &EffectSpec) -> (Vec<Reference>, Option<usize>) {
     let list = cantus_core::fx::comparatio::listed(spec.refs.as_deref(), spec.ir.as_deref());
@@ -410,7 +427,7 @@ fn listed(spec: &EffectSpec) -> (Vec<Reference>, Option<usize>) {
 }
 
 /// What became of a reference's file, in words, and whether it is a warning.
-fn status_words(path: &str, entry: &Reference, summary: Option<&Summary>) -> (String, bool) {
+fn status_words(path: &str, entry: Option<&Reference>, summary: Option<&Summary>) -> (String, bool) {
     match store::status(path) {
         RefStatus::Failed(e) => {
             let key = if e.contains("not there") {
@@ -421,7 +438,11 @@ fn status_words(path: &str, entry: &Reference, summary: Option<&Summary>) -> (St
             (frame::tr(key).to_string(), true)
         }
         _ => match summary {
-            Some(x) if !entry.hash.is_empty() && (x.hash != entry.hash || x.bytes != entry.bytes) => {
+            Some(x)
+                if entry.is_some_and(|e| {
+                    !e.hash.is_empty() && (x.hash != e.hash || x.bytes != e.bytes)
+                }) =>
+            {
                 (frame::tr("comparatio.ref.changed").to_string(), true)
             }
             _ => (String::new(), false),
@@ -785,8 +806,8 @@ fn display(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
     });
     // Phase B: the reference's strip (its numbered keys, Load and Remove) and Send to
     // Aequalis — after the console's own, so their numbers stay.
-    let (list, at) = listed(host.spec());
-    let strip = strip_lay(&ctx, k, l.strip, list.len(), at.is_some());
+    let (count, at) = count_at(host.spec());
+    let strip = strip_lay(&ctx, k, l.strip, count, at.is_some());
     spots.push(Spot {
         rect: strip.load,
         act: Act::Load,

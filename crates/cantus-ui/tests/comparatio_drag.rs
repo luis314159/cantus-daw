@@ -138,7 +138,8 @@ fn drop_file(app: &mut CantusApp, size: egui::Vec2, at: Pos2, file: &Path) {
         if f == 3 {
             input.dropped_files.push(Arc::new(Dropped(file.to_path_buf())));
         }
-        let _ = c.run_ui(input, |ui| window(app, ui));
+        let mut out = c.run_ui(input, |ui| window(app, ui));
+        out.textures_delta.clear();
     }
 }
 
