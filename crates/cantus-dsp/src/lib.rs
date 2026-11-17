@@ -60,6 +60,7 @@ pub mod gravis;
 pub mod impetus;
 pub mod lamina;
 pub mod latitudo;
+pub mod lenis; // fx-b:lenis
 pub mod math;
 pub mod modfx_clock;
 pub mod modfx_hilbert;
