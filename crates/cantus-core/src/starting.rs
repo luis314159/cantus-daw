@@ -198,6 +198,8 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("att", 5.0),
                 ("rel", 4.0),
                 ("makeup", 2.0),
+                // Fitted to the dry's loudness (`preset_tool fit`).
+                ("out", -1.5),
             ],
         ), // fxb:vinculum
         // fxb:lenis — gentle: half of each resonance's bump taken away, the soft curve,

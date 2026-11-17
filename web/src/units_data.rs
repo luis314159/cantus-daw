@@ -196,7 +196,7 @@ pub const INSTRUMENTS: [Unit; 9] = [
 
 ];
 
-pub const EFFECTS: [Unit; 34] = [
+pub const EFFECTS: [Unit; 35] = [
     Unit {
         file: "aequalis",
         name: "Aequalis",
@@ -535,6 +535,28 @@ pub const EFFECTS: [Unit; 34] = [
         ab: None,
         big: (1800, 1000),
         thumb: (640, 356),
+    },
+
+    // fxb:vinculum — Vinculum, the bus compressor (ADR 0142, provisional).
+    Unit {
+        file: "vinculum",
+        name: "Vinculum",
+        kind: ("Bus compressor", "Compresor de bus"),
+        pitch: ("The bus compressor that glues a mix, three ways: a console's VCA with its Auto release, a photocell leveller and a valve variable-mu — racked, its needles swinging, keyed by any track.", "El compresor de bus que une una mezcla, de tres maneras: el VCA de una consola con su liberación automática, un nivelador de fotocélula y un mu variable de válvulas — en su rack, con las agujas oscilando, con la clave de cualquier pista."),
+        what: long!(("Vinculum is the compressor engineers reach for by name on a bus. The VCA follows the published gain computer of a console's bus compressor, its ratio, attack and release on stepped switches, and an Auto release with two time constants: a lone hit lets go at a tenth of a second, sustained work slowly, so the mix breathes without pumping. The opto is a photocell lit by the output — soft at first, about 3:1 at depth or near 10:1 in Limit — with the cell's slow memory: the longer it was lit, the longer it lets go. The vari-mu is a valve whose ratio rises as it works, from 1.5:1 to 4:1, or from 4:1 to 20:1 in Limit, with the classic limiter's six time positions and an odd-harmonic valve colour you add as you like. Any track can be the key — the drums pressing the whole mix — through a high-pass so the low end does not pull it, and the mix knob makes it parallel. Its window is the unit in its rack: two backlit needle meters, a window on the model's gain element, the faceplate's switches and lamps answering a click, and a screen with the transfer curve and eight seconds of reduction. No latency; at its defaults it passes the sound untouched.", "Vinculum es el compresor que los ingenieros piden por su nombre en un bus. El VCA sigue la ley de ganancia publicada del compresor de bus de una consola, con su proporción, ataque y liberación en conmutadores por pasos, y una liberación automática de dos constantes: un golpe aislado se suelta en una décima de segundo y el trabajo sostenido despacio, de modo que la mezcla respira sin bombear. El óptico es una fotocélula encendida por la salida — suave al principio, unos 3:1 a fondo o cerca de 10:1 en Limitar — con la memoria lenta de la célula: cuanto más tiempo estuvo encendida, más tarda en soltar. El mu variable es una válvula cuya proporción sube a medida que trabaja, de 1,5:1 a 4:1, o de 4:1 a 20:1 en Limitar, con las seis posiciones de tiempo del limitador clásico y un color de válvula de armónicos impares que añades a tu gusto. Cualquier pista puede ser la clave — la batería empujando toda la mezcla — a través de un paso alto para que los graves no la arrastren, y la perilla de mezcla la hace paralela. Su ventana es la unidad en su rack: dos vúmetros de aguja retroiluminados, una ventana al elemento de ganancia del modelo, los conmutadores y pilotos de la placa respondiendo a un clic, y una pantalla con la curva de transferencia y ocho segundos de reducción. Sin latencia; en sus valores por defecto deja pasar el sonido intacto.")),
+        features: long!(&[
+            ("VCA, opto and vari-mu, each checked against its published law within 0.02 dB", "VCA, óptico y mu variable, cada uno comprobado con su ley publicada a menos de 0,02 dB"),
+            ("The VCA's Auto release: a lone hit back at 0.1 s, sustained work slowly", "La liberación automática del VCA: un golpe aislado vuelve en 0,1 s, el trabajo sostenido despacio"),
+            ("The vari-mu's ratio rising to 20:1 at 12 dB, its six time positions, a valve colour at 2×", "La proporción del mu variable subiendo a 20:1 a 12 dB, sus seis posiciones de tiempo, un color de válvula a 2×"),
+            ("Keyed by any track through a side-chain high-pass; parallel by its mix", "Con la clave de cualquier pista a través de un paso alto en la cadena lateral; paralelo por su mezcla"),
+            ("The faceplate's switches and lamps answer a click; the key chosen from its lamp", "Los conmutadores y pilotos de la placa responden a un clic; la clave se elige desde su piloto"),
+            ("Fourteen factory presets; no latency; untouched at its defaults; a pedal on the pedalboard too", "Catorce presets de fábrica; sin latencia; intacto en sus valores por defecto; también un pedal en la pedalera"),
+        ]),
+        presets: Some(14),
+        plugin: true,
+        ab: None,
+        big: (1800, 1209),
+        thumb: (640, 430),
     },
 
     // fx:libra — Libra, the utility (ADR 0133, provisional).

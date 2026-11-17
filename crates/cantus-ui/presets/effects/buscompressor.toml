@@ -1,6 +1,6 @@
 # Vinculum bus compressor: factory presets (ADR 0101). Names are locale keys (the unit's locale file).
-# The fx side round's wave B: the starting preset only until phase B adds the rest.
-# The tests check every key, value, style and role (`preset_data`, `preset_render`).
+# `cargo run --release -p cantus-ui --example preset_tool -- fit` sets the levels;
+# the tests check every key, value, style and role (`preset_data`, `preset_render`).
 
 [[preset]]
 key = "preset.vinculum.glue"
@@ -10,6 +10,170 @@ roles = ["bus"]
 [preset.values]
 "att" = 5
 "makeup" = 2
+"out" = -1.5
 "ratio" = 1
 "rel" = 4
 "thr" = -18
+
+[[preset]]
+key = "preset.vinculum.mix_glue"
+note = "The mix bus held together: the VCA at 2:1, 10 ms attack so the drums keep their crack, Auto release, a decibel or two of reduction."
+styles = ["pop", "worship"]
+roles = ["master"]
+[preset.values]
+"att" = 4
+"makeup" = 1.5
+"ratio" = 0
+"rel" = 4
+"thr" = -22
+
+[[preset]]
+key = "preset.vinculum.punchy_drums"
+note = "A drum bus with punch: 4:1, the slowest attack lets every hit's front through, the fastest release pulls the room up between them."
+styles = ["rock", "pop"]
+roles = ["drums"]
+[preset.values]
+"att" = 5
+"makeup" = 1
+"ratio" = 1
+"rel" = 0
+"thr" = -26
+
+[[preset]]
+key = "preset.vinculum.drum_smash"
+note = "The drums crushed: 10:1, the fastest attack and release, deep reduction and the room pumping up behind every hit."
+styles = ["rock", "trap"]
+roles = ["drums"]
+[preset.values]
+"att" = 0
+"makeup" = 12
+"out" = 0.9
+"ratio" = 2
+"rel" = 0
+"thr" = -36
+
+[[preset]]
+key = "preset.vinculum.parallel_drums"
+note = "New York drums: the smash under the dry kit, 40 % of it, so the hits stay whole and the body grows."
+styles = ["rock", "house"]
+roles = ["drums"]
+[preset.values]
+"att" = 2
+"makeup" = 11.5
+"mix" = 0.4
+"out" = 1
+"ratio" = 2
+"rel" = 1
+"thr" = -38
+
+[[preset]]
+key = "preset.vinculum.bus_pump"
+note = "The bus breathing with the kick: 10:1, 0.3 ms attack, 0.3 s release, so the low end leads. Route the kick as the key for the classic duck."
+styles = ["house", "trap"]
+roles = ["creative"]
+[preset.values]
+"att" = 1
+"makeup" = 12
+"out" = -1.4
+"ratio" = 2
+"rel" = 1
+"thr" = -28
+
+[[preset]]
+key = "preset.vinculum.bus_catch"
+note = "A limit on the bus: the VCA at 10:1 with its fastest attack, only the peaks over the threshold held."
+styles = ["house", "pop"]
+roles = ["bus"]
+[preset.values]
+"att" = 0
+"makeup" = 1.5
+"ratio" = 2
+"rel" = 1
+"thr" = -16
+
+[[preset]]
+key = "preset.vinculum.opto_vocals"
+note = "A vocal bus levelled by the photocell: soft at first, about 3:1 at depth, the key's high-pass at 100 Hz so breath and plosives do not pull it."
+styles = ["pop", "rnb"]
+roles = ["vocal"]
+[preset.values]
+"hpf" = 100
+"makeup" = 5
+"model" = 1
+"out" = -2
+"thr" = -40
+
+[[preset]]
+key = "preset.vinculum.opto_smooth"
+note = "The photocell's slow memory on a band: it settles in and lets go over seconds, 70 % wet, for a mix that moves without anyone hearing it work."
+styles = ["jazz", "worship"]
+roles = ["bus"]
+[preset.values]
+"makeup" = 3
+"mix" = 0.7
+"model" = 1
+"thr" = -28
+
+[[preset]]
+key = "preset.vinculum.opto_limit"
+note = "The photocell in Limit: near 10:1 at depth, a voice held level line after line."
+styles = ["rock", "pop"]
+roles = ["vocal"]
+[preset.values]
+"char" = 1
+"hpf" = 80
+"makeup" = 4
+"model" = 1
+"out" = -0.7
+"thr" = -38
+
+[[preset]]
+key = "preset.vinculum.valve_master"
+note = "Mastering glue on the valves: Compress, the second time position (0.2 ms, 0.8 s), a touch of the valves' colour, a decibel of reduction."
+styles = ["pop", "film"]
+roles = ["master"]
+[preset.values]
+"colour" = 0.3
+"makeup" = 4
+"model" = 2
+"thr" = -24
+"time" = 1
+
+[[preset]]
+key = "preset.vinculum.valve_warmth"
+note = "A warm valve bus: the programme-dependent fifth position, more colour, the ratio rising as it works."
+styles = ["jazz", "lofi"]
+roles = ["bus"]
+[preset.values]
+"colour" = 0.6
+"makeup" = 5.5
+"model" = 2
+"thr" = -26
+"time" = 4
+
+[[preset]]
+key = "preset.vinculum.valve_limit"
+note = "The valve limiter: Limit from 4:1 rising to 20:1, the first time position (0.2 ms, 0.3 s), on a master's peaks."
+styles = ["rock", "house"]
+roles = ["master"]
+[preset.values]
+"char" = 1
+"makeup" = 2.5
+"model" = 2
+"thr" = -18
+"time" = 0
+
+[[preset]]
+key = "preset.vinculum.lofi_squash"
+note = "Squashed through the valves: Limit, the fourth time position, the colour full and half of it under the dry."
+styles = ["lofi", "trap"]
+roles = ["creative"]
+[preset.values]
+"char" = 1
+"colour" = 1
+"makeup" = 10
+"mix" = 0.5
+"model" = 2
+"out" = 2.8
+"thr" = -32
+"time" = 3

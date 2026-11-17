@@ -315,13 +315,14 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 }
 
 /// The starting preset (`cantus_core::starting`): Glue — the VCA at 4 : 1, 30 ms, Auto,
-/// −18 dB, +2 dB.
+/// −18 dB, +2 dB of make-up, the output fitted to the dry's loudness (−1.5 dB).
 pub const DEMO: &[(&str, f32)] = &[
     ("thr", -18.0),
     ("ratio", 1.0),
     ("att", 5.0),
     ("rel", 4.0),
     ("makeup", 2.0),
+    ("out", -1.5),
 ];
 
 /// The settings `--editor vinculum` and the screenshot tool open it with: the starting
