@@ -269,7 +269,9 @@ impl Glide {
     }
 }
 
-/// The resonance suppressor.
+/// The resonance suppressor. A clone carries on exactly as the original (the engine
+/// forks units; fx-b:lenis, phase B).
+#[derive(Clone)]
 pub struct Lenis {
     sr: f32,
     fft: Fft,
@@ -434,6 +436,16 @@ impl Lenis {
     pub fn reset(&mut self) {
         let s = self.pending.take().unwrap_or(self.s);
         self.apply(s, true);
+    }
+
+    /// Back to a new unit's state: [`Lenis::reset`] with the stream's clock at 0 as well —
+    /// the engine's reset, after which it skips the unit to where the stream is, so the
+    /// frame grid lands where a new unit's would (fx-b:lenis, phase B). No allocation.
+    pub fn restart(&mut self) {
+        self.reset();
+        self.pos = 0;
+        self.zero_run = u64::MAX;
+        self.meter.frames = 0;
     }
 
     /// At rest: silence in gives silence out and changes nothing, so [`Lenis::skip`] may

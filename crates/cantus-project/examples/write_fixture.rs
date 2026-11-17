@@ -1620,6 +1620,37 @@ fn main() {
             p.strip_mut(s).unwrap().effects.push(e);
         }
     }
+    // fxb:contract — Schema 65 (the fx side round's wave B, ADRs 0142–0144; provisional —
+    // renumbered when merged after round 40): on the second strip one insert each of
+    // Vinculum (the opto at Limit, its threshold down), Lenis (its depth up, a focus band
+    // on) and Cedo (on the tempo, a drawn shape of three points).
+    if upto >= 65 {
+        use cantus_core::fx::cedo::Shape;
+        use cantus_core::fx::lapsus::Point;
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut vinculum = p.make_effect(EffectKind::BusCompressor);
+        for (k, v) in [("model", 1.0), ("char", 1.0), ("thr", -20.0)] {
+            vinculum.spec.set(k, v).unwrap();
+        }
+        let mut lenis = p.make_effect(EffectKind::ResonanceSuppressor);
+        for (k, v) in [("depth", 0.5), ("b2on", 1.0), ("b2amt", 0.5)] {
+            lenis.spec.set(k, v).unwrap();
+        }
+        let mut cedo = p.make_effect(EffectKind::Ducker);
+        for (k, v) in [("trig", 1.0), ("depth", 9.0)] {
+            cedo.spec.set(k, v).unwrap();
+        }
+        cedo.spec.cedo = Some(Box::new(Shape {
+            points: vec![
+                Point::new(0.0, 1.0),
+                Point::new(0.4, 0.3).bend(0.5),
+                Point::new(0.7, 0.0).shape(2),
+            ],
+        }));
+        for e in [vinculum, lenis, cedo] {
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

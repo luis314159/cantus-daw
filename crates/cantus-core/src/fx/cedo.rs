@@ -166,6 +166,28 @@ impl Shape {
     }
 }
 
+/// Shapes a command would refuse (a hand edit), repaired on load: a shape on a slot that is
+/// not a Cedo taken off, points out of range or order sanitized. Returns how many changed.
+pub fn repair_project(project: &mut crate::model::Project) -> usize {
+    let mut changed = 0;
+    for e in project.all_effects_mut() {
+        if e.spec.kind != crate::EffectKind::Ducker {
+            if e.spec.cedo.take().is_some() {
+                changed += 1;
+            }
+            continue;
+        }
+        if let Some(s) = e.spec.cedo.as_deref() {
+            let clean = s.sanitized();
+            if clean != *s {
+                changed += 1;
+                e.spec.cedo = Some(Box::new(clean));
+            }
+        }
+    }
+    changed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

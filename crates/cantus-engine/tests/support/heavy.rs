@@ -450,6 +450,63 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("out", 6.0),
             ],
         ), // fxa:caelum
+        // fxb:vinculum — the vari-mu with its colour at 2× working hard, the side chain's
+        // high-pass, parallel, made up, the output raised (time position 2, 0.4 ms / 2 s:
+        // the programme-dependent positions hold 10–15 s and rest in minutes, not 30 s).
+        EffectKind::BusCompressor => set(
+            &mut s,
+            &[
+                ("model", 2.0),
+                ("char", 1.0),
+                ("time", 1.0),
+                ("thr", -30.0),
+                ("hpf", 120.0),
+                ("colour", 1.0),
+                ("makeup", 6.0),
+                ("mix", 0.8),
+                ("out", 3.0),
+            ],
+        ), // fxb:vinculum
+        // fxb:lenis — the most work: Precise, Mid/Side (two detectors), Hard at full depth
+        // and low selectivity, every focus band on, half the mix.
+        EffectKind::ResonanceSuppressor => {
+            set(
+                &mut s,
+                &[
+                    ("depth", 1.0),
+                    ("select", 0.2),
+                    ("qual", 2.0),
+                    ("chan", 2.0),
+                    ("curve", 1.0),
+                    ("att", 1.0),
+                    ("mix", 0.8),
+                    ("out", 3.0),
+                ],
+            );
+            for b in 0..cantus_core::fx::lenis::BANDS {
+                let key = |w| cantus_core::fx::lenis::band_key(b, w);
+                set(&mut s, &[(key("on"), 1.0), (key("amt"), 0.5)]);
+            }
+        } // fxb:lenis
+        // fxb:cedo — the sidechain through a band-pass key, RMS, the longest lookahead, the
+        // lows split at linear phase, half linked, deep.
+        EffectKind::Ducker => set(
+            &mut s,
+            &[
+                ("depth", 30.0),
+                ("thr", -36.0),
+                ("kfilt", 2.0),
+                ("khz", 80.0),
+                ("det", 1.0),
+                ("look", 10.0),
+                ("band", 1.0),
+                ("xover", 1.0),
+                ("xhz", 150.0),
+                ("link", 0.5),
+                ("mix", 0.9),
+                ("out", 3.0),
+            ],
+        ), // fxb:cedo
     }
     s
 }

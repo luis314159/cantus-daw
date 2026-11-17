@@ -205,6 +205,7 @@ pub fn focus_weight(s: &LenisSettings, hz: f32) -> f32 {
 
 /// What the settings make of each bin: the focus weight and the envelope's box, and the
 /// curve's numbers. Rebuilt only when the settings or the geometry change.
+#[derive(Clone)]
 pub struct Design {
     pub weight: Vec<f32>,
     pub lo: Vec<u32>,
@@ -409,6 +410,7 @@ impl Design {
 pub use super::{MAX_ATTACK_MS, MAX_RELEASE_MS, MIN_ATTACK_MS, MIN_RELEASE_MS};
 
 /// Working arrays one detector pass uses, shared by the detectors.
+#[derive(Clone)]
 pub struct Scratch {
     /// The slow average's spectrum, dBFS (the meter reads it after each pass).
     pub level: Vec<f32>,
@@ -553,6 +555,7 @@ struct ScratchView<'a> {
 
 /// One detector: a channel's (or the linked pair's, or mid's, or side's) averaged power on
 /// two time scales, and its reduction per bin.
+#[derive(Clone)]
 pub struct Detector {
     slow: Vec<f32>,
     fast: Vec<f32>,
@@ -782,6 +785,17 @@ impl Detector {
             };
         }
         self.quiet = !self.power && !touched;
+        if self.quiet {
+            // fx-b:lenis (phase B) — quiet, the detector is in the state silence leaves
+            // and a reset makes: calm, no lift running, no onset remembered. Without this
+            // a detector that went quiet within `CALM_MS` of a peak kept a short `since`
+            // through any length of rest (an all-zero frame on a quiet detector is not
+            // looked at), and its first frame back judged an onset differently from a
+            // reset twin's (the engine's twins test, heavy settings: 1e-14 apart).
+            self.onset.fill(0.0);
+            self.since.fill(u16::MAX);
+            self.rise.fill(0);
+        }
         touched
     }
 }

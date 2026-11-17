@@ -595,3 +595,115 @@ fn the_vari_mu_table_is_its_equilibrium() {
         assert!(worst < 2e-3, "{worst} dB");
     }
 }
+
+// fx-b:vinculum (phase B) — the external key.
+/// A key that is the input itself is no key at all, to the bit, in every configuration;
+/// a loud key on a quiet input compresses it (every model) and a silent key leaves it be;
+/// the high-pass filters the key too; and keyed, the block size changes no bit.
+#[test]
+fn the_external_key_drives_the_side_chain() {
+    let (l, r) = programme(1.0, 1.5);
+    for s in configurations() {
+        let plain = run(&mut unit(&s), &l, &r, 64);
+        let (mut a, mut b) = (l.clone(), r.clone());
+        let mut v = unit(&s);
+        for ((x, y), (kl, kr)) in a
+            .chunks_mut(64)
+            .zip(b.chunks_mut(64))
+            .zip(l.chunks(64).zip(r.chunks(64)))
+        {
+            v.process_keyed(x, y, Some((kl, kr)));
+        }
+        assert_eq!(bits(&a), bits(&plain.0), "{s:?}: the input as its own key");
+        assert_eq!(bits(&b), bits(&plain.1), "{s:?}");
+    }
+    let quiet: Vec<f32> = l.iter().map(|x| x * 0.01).collect();
+    let keyed = |s: &VinculumSettings, key: &[f32], block: usize| {
+        let (mut a, mut b) = (quiet.clone(), quiet.clone());
+        let mut v = unit(s);
+        let mut most = 0f32;
+        for ((x, y), k) in a
+            .chunks_mut(block)
+            .zip(b.chunks_mut(block))
+            .zip(key.chunks(block))
+        {
+            v.process_keyed(x, y, Some((k, k)));
+            most = most.max(v.take_meter().gr_peak_db);
+        }
+        (a, b, most)
+    };
+    let silence = vec![0.0f32; l.len()];
+    for model in Model::ALL {
+        let s = VinculumSettings {
+            threshold_db: -20.0,
+            ..hard(model)
+        };
+        let (a, _, gr) = keyed(&s, &l, 64);
+        assert!(gr > 3.0, "{model:?}: the key compresses ({gr} dB)");
+        let moved = a.iter().zip(&quiet).any(|(x, y)| x != y);
+        assert!(moved, "{model:?}: the quiet input is turned down");
+        let (_, _, gr0) = keyed(&s, &silence, 64);
+        assert_eq!(gr0, 0.0, "{model:?}: a silent key does nothing");
+        let one = keyed(&s, &l, 1);
+        let big = keyed(&s, &l, 512);
+        assert_eq!(bits(&one.0), bits(&a), "{model:?}: blocks of 1");
+        assert_eq!(bits(&big.0), bits(&a), "{model:?}: blocks of 512");
+    }
+    // The high-pass filters the key: a 40 Hz key past a 300 Hz high-pass barely moves it.
+    let low: Vec<f32> = (0..l.len())
+        .map(|i| 0.9 * math::sin(2.0 * std::f32::consts::PI * 40.0 * i as f32 / SR))
+        .collect();
+    let s = VinculumSettings {
+        threshold_db: -20.0,
+        ..hard(Model::Vca)
+    };
+    let open = keyed(&s, &low, 64).2;
+    let filtered = keyed(
+        &VinculumSettings {
+            sc_hpf_hz: 300.0,
+            ..s
+        },
+        &low,
+        64,
+    )
+    .2;
+    assert!(
+        filtered < open - 6.0,
+        "the high-pass hears the key: {open} dB open, {filtered} dB filtered"
+    );
+}
+
+/// The side chain's high-pass comes to rest on silence (fx-b:vinculum, phase B: the
+/// engine's rest test found its states cycling around 1e-19 at 120 Hz), the vari-mu at
+/// Limit with its colour working hard before: at rest within 30 s, and as new.
+#[test]
+fn the_side_chain_high_pass_comes_to_rest() {
+    for hz in [20.0, 120.0, 500.0] {
+        let s = VinculumSettings {
+            model: Model::VariMu,
+            character: Character::Limit,
+            mu_time: 1,
+            threshold_db: -30.0,
+            sc_hpf_hz: hz,
+            colour: 1.0,
+            makeup_db: 6.0,
+            mix: 0.8,
+            ..Default::default()
+        };
+        let mut v = unit(&s);
+        let (l, r) = programme(1.0, 1.0);
+        run(&mut v, &l, &r, 64);
+        let z = vec![0.0f32; 4800];
+        let mut rested = false;
+        for _ in 0..300 {
+            let (mut a, mut b) = (z.clone(), z.clone());
+            v.process(&mut a, &mut b);
+            if v.at_rest() {
+                rested = true;
+                break;
+            }
+        }
+        assert!(rested, "{hz} Hz: no rest within 30 s");
+        assert!(v.hp.iter().all(HighPass::is_zero));
+    }
+}

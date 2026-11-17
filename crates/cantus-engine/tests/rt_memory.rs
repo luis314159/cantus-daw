@@ -3400,3 +3400,151 @@ fn caelum_never_allocates() {
         rig.allocations,
     );
 }
+
+/// fxb — play `p`, then each phase's settings on effect `id` of strip `s0`, a seek and a
+/// stop, and require that the audio thread allocated nothing.
+fn fxb_phases(
+    mut p: Project,
+    s0: StripId,
+    id: EffectId,
+    phases: &[(&'static str, &[(&str, f32)])],
+    edit: impl Fn(&mut cantus_core::EffectSlot, usize),
+) {
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("the starting preset", 30);
+    for (n, (phase, kv)) in phases.iter().enumerate() {
+        let e = p.strip_mut(s0).unwrap().effect_mut(id).unwrap();
+        for (k, v) in *kv {
+            e.spec.set(k, *v).unwrap();
+        }
+        edit(e, n);
+        rig.snapshot(&p);
+        rig.play(phase, 20);
+    }
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(3))).unwrap();
+    rig.play("seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?}",
+        rig.allocations,
+    );
+}
+
+// fxb:vinculum — Vinculum (ADR 0142, provisional) on the audio thread: the glue, each
+// model, the colour at 2×, the external key routed and the side chain's high-pass.
+#[test]
+fn vinculum_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let key = p.tracks[1].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::BusCompressor);
+    fx.spec = cantus_core::starting::starting_spec(EffectKind::BusCompressor);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    fxb_phases(
+        p,
+        s0,
+        id,
+        &[
+            ("opto limit", &[("model", 1.0), ("char", 1.0)]),
+            (
+                "vari-mu, colour",
+                &[("model", 2.0), ("colour", 1.0), ("time", 5.0)],
+            ),
+            (
+                "keyed, high-passed",
+                &[("model", 0.0), ("hpf", 200.0), ("mix", 0.5)],
+            ),
+        ],
+        |e, n| {
+            if n == 2 {
+                e.sidechain = Some(key);
+            }
+        },
+    );
+}
+
+// fxb:lenis — Lenis (ADR 0143, provisional) on the audio thread: gentle, then every
+// quality (a change resets the DSP and its latency moves), each channel mode, the focus's
+// bands, the delta.
+#[test]
+fn lenis_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut fx = p.make_effect(EffectKind::ResonanceSuppressor);
+    fx.spec = cantus_core::starting::starting_spec(EffectKind::ResonanceSuppressor);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    fxb_phases(
+        p,
+        s0,
+        id,
+        &[
+            (
+                "precise, mid/side",
+                &[("qual", 2.0), ("chan", 2.0), ("curve", 1.0)],
+            ),
+            (
+                "fast, independent",
+                &[("qual", 0.0), ("chan", 1.0), ("depth", 1.0)],
+            ),
+            (
+                "bands, delta",
+                &[("b0on", 1.0), ("b3on", 1.0), ("b3amt", 1.0), ("delta", 1.0)],
+            ),
+        ],
+        |_, _| {},
+    );
+}
+
+// fxb:cedo — Cedo (ADR 0144, provisional) on the audio thread: the pump on the tempo, a
+// drawn shape, the notes of another track, the sidechain with a filtered RMS key and the
+// lookahead, the lows split at linear phase.
+#[test]
+fn cedo_never_allocates() {
+    use cantus_core::fx::cedo::Shape;
+    use cantus_core::fx::lapsus::Point;
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let key = p.tracks[1].strip.unwrap();
+    let notes_from = p.tracks[1].id;
+    let mut fx = p.make_effect(EffectKind::Ducker);
+    fx.spec = cantus_core::starting::starting_spec(EffectKind::Ducker);
+    let id = fx.id;
+    p.strip_mut(s0).unwrap().effects.push(fx);
+    fxb_phases(
+        p,
+        s0,
+        id,
+        &[
+            (
+                "a drawn shape, swung eighths",
+                &[("div", 11.0), ("swing", 0.5)],
+            ),
+            ("notes of another track", &[("trig", 2.0), ("vel", 1.0)]),
+            (
+                "keyed, filtered, ahead",
+                &[("trig", 0.0), ("kfilt", 2.0), ("det", 1.0), ("look", 10.0)],
+            ),
+            ("lows at linear phase", &[("band", 1.0), ("xover", 1.0)]),
+        ],
+        |e, n| match n {
+            0 => {
+                e.spec.cedo = Some(Box::new(Shape {
+                    points: vec![
+                        Point::new(0.0, 1.0),
+                        Point::new(0.3, 0.2).bend(0.5),
+                        Point::new(0.5, 0.0).shape(2),
+                    ],
+                }))
+            }
+            1 => e.midi_from = Some(notes_from),
+            2 => e.sidechain = Some(key),
+            _ => {}
+        },
+    );
+}

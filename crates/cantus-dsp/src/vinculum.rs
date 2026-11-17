@@ -218,6 +218,14 @@ impl HighPass {
         if self.z2.abs() < 1e-20 {
             self.z2 = 0.0;
         }
+        // fx-b:vinculum (phase B) — on silence a low corner's states can settle into a
+        // cycle around 1e-19 that the flush above never catches (the engine's rest test, the
+        // high-pass at 120 Hz): fed exact zeros, states that small are let go. The key only
+        // drives the detector, and 1e-15 is 300 dB under any threshold.
+        if x == 0.0 && self.z1.abs() < 1e-15 && self.z2.abs() < 1e-15 {
+            self.z1 = 0.0;
+            self.z2 = 0.0;
+        }
         y
     }
 
@@ -502,6 +510,21 @@ impl Vinculum {
 
     /// Process a stereo block in place.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        self.process_keyed(left, right, None);
+    }
+
+    /// Process a stereo block in place, the side chain listening to `key` (another strip's
+    /// signal, the classic bus compressor's external key) when given, to the input
+    /// otherwise; through the high-pass either way. In the feedback models the key takes
+    /// the input's place in the loop: the opto's panel is lit by the key through the cell,
+    /// the vari-mu's equilibrium is solved on the key. `None` is [`Vinculum::process`] to
+    /// the bit; a key missing samples is silence there. (fx-b:vinculum, phase B)
+    pub fn process_keyed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<(&[f32], &[f32])>,
+    ) {
         let n = left.len().min(right.len());
         let mix = self.s.mix;
         let colour = if self.s.model == Model::VariMu {
@@ -515,7 +538,13 @@ impl Vinculum {
         let mut peak_cond = 0f32;
         for i in 0..n {
             let (xl, xr) = (left[i], right[i]);
-            let level = self.key(xl, xr);
+            let level = match key {
+                Some((kl, kr)) => self.key(
+                    kl.get(i).copied().unwrap_or(0.0),
+                    kr.get(i).copied().unwrap_or(0.0),
+                ),
+                None => self.key(xl, xr),
+            };
             let (g, gr) = match self.s.model {
                 Model::Vca => self.vca_gain(level),
                 Model::Opto => {

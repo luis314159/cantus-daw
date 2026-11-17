@@ -521,3 +521,82 @@ fn the_detector_s_log_is_close_to_the_library_s() {
     }
     assert!(worst < 2e-6, "{worst}");
 }
+
+// fx-b:lenis (phase B) — the engine forks units: a clone carries on as the original.
+#[test]
+fn a_clone_carries_on_exactly_as_the_original() {
+    let sr = 48_000.0;
+    let n = 48_000;
+    let mut seed = 0x9e37_79b9u32;
+    let sig: Vec<f32> = (0..n)
+        .map(|i| {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let noise = (seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5;
+            0.2 * noise + 0.3 * math::sin(2.0 * std::f32::consts::PI * 3_000.0 * i as f32 / sr)
+        })
+        .collect();
+    let mut a = Lenis::new(sr);
+    a.set(&LenisSettings {
+        depth: 0.8,
+        mode: Mode::Hard,
+        ..Default::default()
+    });
+    let (mut l, mut r) = (sig.clone(), sig.clone());
+    let half = n / 2;
+    a.process(&mut l[..half], &mut r[..half]);
+    let mut b = a.clone();
+    let (mut l2, mut r2) = (l.clone(), r.clone());
+    a.process(&mut l[half..], &mut r[half..]);
+    b.process(&mut l2[half..], &mut r2[half..]);
+    assert!(l[half..]
+        .iter()
+        .zip(&l2[half..])
+        .all(|(x, y)| x.to_bits() == y.to_bits()));
+    assert!(r[half..]
+        .iter()
+        .zip(&r2[half..])
+        .all(|(x, y)| x.to_bits() == y.to_bits()));
+    assert!(
+        a.meter().max_reduction_db > 1.0,
+        "it was working when forked"
+    );
+}
+
+// fx-b:lenis (phase B) — `restart` is a new unit: after work, a restarted unit and a new
+// one, skipped as far, give the same bits.
+#[test]
+fn a_restarted_unit_is_a_new_one() {
+    let sr = 48_000.0;
+    let s = LenisSettings {
+        depth: 1.0,
+        mode: Mode::Hard,
+        quality: Quality::Precise,
+        channels: Channels::MidSide,
+        selectivity: 0.2,
+        attack_ms: 1.0,
+        ..Default::default()
+    };
+    let sig = |n: usize, k: f32| -> Vec<f32> {
+        (0..n)
+            .map(|i| {
+                0.3 * math::sin(2.0 * std::f32::consts::PI * 3_000.0 * i as f32 / sr)
+                    + 0.1 * math::sin(k * i as f32)
+            })
+            .collect()
+    };
+    let mut a = Lenis::new(sr);
+    a.set(&s);
+    let (mut l, mut r) = (sig(10_007, 0.3), sig(10_007, 0.7));
+    a.process(&mut l, &mut r);
+    a.restart();
+    a.skip(5_003);
+    let mut b = Lenis::new(sr);
+    b.set(&s);
+    b.skip(5_003);
+    let (mut l1, mut r1) = (sig(20_000, 0.11), sig(20_000, 0.5));
+    let (mut l2, mut r2) = (l1.clone(), r1.clone());
+    a.process(&mut l1, &mut r1);
+    b.process(&mut l2, &mut r2);
+    assert!(l1.iter().zip(&l2).all(|(x, y)| x.to_bits() == y.to_bits()));
+    assert!(r1.iter().zip(&r2).all(|(x, y)| x.to_bits() == y.to_bits()));
+}

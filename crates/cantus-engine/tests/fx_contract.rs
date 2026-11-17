@@ -456,11 +456,14 @@ fn must_rest(kind: EffectKind) -> (bool, bool) {
         EffectKind::PitchShift => (true, true), // fx3:saltus
         // fx3:rota — a turning rotor is never at rest (its angle is its history); parked,
         // it is (the twins of the DSP's own tests).
-        EffectKind::Rotary => (false, false), // fx3:rota
-        EffectKind::Amp => (true, true),      // fx3:arca
-        EffectKind::Vocoder => (true, true),  // fxa:loquax — its voices released, its banks drained
+        EffectKind::Rotary => (false, false),      // fx3:rota
+        EffectKind::Amp => (true, true),           // fx3:arca
+        EffectKind::Vocoder => (true, true), // fxa:loquax — its voices released, its banks drained
         EffectKind::Glitch => (true, true), // fxa:fractus — the history, the capture and the echoes silent
         EffectKind::Shimmer => (true, true), // fxa:caelum — finite: the tank drained (infinite or frozen never rests)
+        EffectKind::BusCompressor => (true, true), // fxb:vinculum — every reduction let go, the colour's filters empty
+        EffectKind::ResonanceSuppressor => (true, true), // fxb:lenis — the rings, the averages and the reductions at +0.0
+        EffectKind::Ducker => (true, true), // fxb:cedo — the envelope idle, the lines and the split clear (stopped)
         _ => (false, false),
     }
 }
@@ -566,6 +569,9 @@ per_kind! {
     loquax => EffectKind::Vocoder, // fxa:contract
     fractus => EffectKind::Glitch, // fxa:contract
     caelum => EffectKind::Shimmer, // fxa:contract
+    vinculum => EffectKind::BusCompressor, // fxb:contract
+    lenis => EffectKind::ResonanceSuppressor, // fxb:contract
+    cedo => EffectKind::Ducker, // fxb:contract
 }
 
 // fx3:tabula — Tabula (ADR 0134): a board of one pedal is that unit inserted alone, to
@@ -631,6 +637,6 @@ fn a_board_of_one_is_the_unit() {
 
 #[test]
 fn every_native_kind_is_checked() {
-    // `per_kind!` lists thirty-eight: a new kind must be added there. // fxa:contract
-    assert_eq!(EffectKind::ALL.len(), 38); // fxa:contract: wave A's three
+    // `per_kind!` lists forty-one: a new kind must be added there. // fxb:contract
+    assert_eq!(EffectKind::ALL.len(), 41); // fxb:contract: wave B's three
 }
