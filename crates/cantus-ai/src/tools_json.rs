@@ -112,6 +112,10 @@ pub fn target_json(p: &Project, t: &cantus_core::AutoTarget) -> Value {
         T::Plugin { effect, id } => json!({"effect_id": effect.0, "plugin_param": id}),
         T::PluginInstrument { track, id } => json!({"track_id": track.0, "plugin_param": id}),
         T::ModAmount(m) => json!({"modulator_id": m.0, "param": "amount"}),
+        // fxd: a controller's input (ADRs 0147, 0148).
+        T::ModInput { modulator, input } => {
+            json!({"modulator_id": modulator.0, "param": "input", "input": input})
+        }
         T::NoteFx { track, effect, key } => {
             json!({"track_id": track.0, "note_effect_id": effect.0, "param": key})
         }

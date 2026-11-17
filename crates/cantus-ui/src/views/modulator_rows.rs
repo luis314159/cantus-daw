@@ -545,6 +545,9 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             );
             polarity(sh, m, r.unipolar);
         }
+        // fxd: the controllers' own windows hold their settings (step 3); the row shows
+        // their movement.
+        ModSource::XyPad(_) | ModSource::Formula(_) => preview(sh, app, m),
     }
 }
 

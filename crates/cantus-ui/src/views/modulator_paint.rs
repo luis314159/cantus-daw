@@ -31,6 +31,9 @@ pub fn preview_beats(src: &ModSource) -> f64 {
             f64::from(ms.max(50.0)) * 2.0 / 500.0
         }
         ModSource::Follower(_) => 1.0,
+        // fxd: a pad's path loop (its X), a formula's eight beats.
+        ModSource::XyPad(x) => x.path.as_ref().map_or(4.0, |p| f64::from(p.beats)),
+        ModSource::Formula(_) => 8.0,
     }
 }
 

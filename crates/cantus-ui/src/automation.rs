@@ -226,7 +226,7 @@ pub fn host_track(
         AutoTarget::PluginInstrument { track: t, .. } => Some(*t),
         AutoTarget::NoteFx { track: t, .. } => Some(*t),
         // A modulator's amount: under the track it lives on (or that feeds its strip).
-        AutoTarget::ModAmount(m) => match project.modulator(*m).map(|(h, _, _)| h) {
+        AutoTarget::ModAmount(m) | AutoTarget::ModInput { modulator: m, .. } => match project.modulator(*m).map(|(h, _, _)| h) {
             Some(cantus_core::ModHost::Track(t)) => Some(t),
             Some(cantus_core::ModHost::Strip(s)) => feeding(s),
             _ => None,
@@ -343,6 +343,15 @@ pub fn target_parts(project: &Project, target: &AutoTarget) -> (String, String) 
                 .unwrap_or_else(|| t("auto.target.missing"));
             (name, t("mods.target.amount"))
         }
+        // fxd: a controller's input, by its own name (Horizontal position, Knob a).
+        AutoTarget::ModInput { modulator, input } => {
+            let name = crate::views::modulator::mod_name(project, *modulator)
+                .unwrap_or_else(|| t("auto.target.missing"));
+            let kind = project
+                .modulator(*modulator)
+                .map_or(cantus_core::ModKind::XyPad, |(_, _, m)| m.source.kind());
+            (name, t(kind.input_key(*input)))
+        }
         AutoTarget::NoteFx { track, effect, key } => {
             crate::notefx_ui::target_parts(project, *track, *effect, key)
         }
@@ -385,7 +394,8 @@ pub fn write_value(project: &Project, target: &AutoTarget, v: f32, out: &mut Str
         | AutoTarget::Send { .. }
         | AutoTarget::Plugin { .. }
         | AutoTarget::PluginInstrument { .. }
-        | AutoTarget::ModAmount(_) => {
+        | AutoTarget::ModAmount(_)
+        | AutoTarget::ModInput { .. } => {
             let _ = write!(out, "{:.0} %", v * 100.0);
         }
         AutoTarget::TrackGain(_) | AutoTarget::StripGain(_) | AutoTarget::MasterGain => {

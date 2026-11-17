@@ -284,6 +284,9 @@ pub struct FormulaSource {
     /// Its routes' ranges, by target.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<RouteLink>,
+    /// The face's colourway (0 the first, below `xy::LOOKS`).
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub look: u8,
 }
 
 impl FormulaSource {
@@ -295,6 +298,7 @@ impl FormulaSource {
             .iter()
             .all(|v| v.is_finite() && (0.0..=1.0).contains(v))
             && links_valid(&self.links, 1)
+            && self.look < xy::LOOKS
             && formula::Program::compile(&self.text).is_ok()
     }
 
@@ -438,6 +442,7 @@ impl ModKind {
                 inputs: [0.5, 0.5, 0.5],
                 bipolar: false,
                 links: Vec::new(),
+                look: 0,
             }),
         }
     }

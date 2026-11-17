@@ -121,6 +121,10 @@ pub mod unit_view;
 /// Valve-amp parts drawn: tubes, grille, jewel lights, brass. // fx:fragor
 pub mod valve_draw;
 /// Vetus, lo-fi (fx side round). // fx:contract
+pub mod fxd; // fxd:contract — the X-Y pad's and the formula controller's windows
+pub mod fxd_art; // fxd
+pub mod fxd_formula; // fxd
+pub mod fxd_xy; // fxd
 pub mod vetus; // fx:vetus — a unit's chosen drawing (Vetus's record or cassette)
 
 /// How many recent (input, output) pairs of the analysed effect are kept for displays.

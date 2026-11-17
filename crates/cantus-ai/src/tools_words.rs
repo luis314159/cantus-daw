@@ -233,6 +233,11 @@ pub fn target(p: &Project, t: &AutoTarget) -> Said {
         AutoTarget::ModAmount(m) => {
             Said::new("ai.phrase.target.mod_amount").nested("modulator", modulator(p, *m))
         }
+        // fxd: a controller's input reads as its modulator's amount does until step 3
+        // gives it its own phrase.
+        AutoTarget::ModInput { modulator: m, .. } => {
+            Said::new("ai.phrase.target.mod_amount").nested("modulator", modulator(p, *m))
+        }
         AutoTarget::NoteFx { track, key: k, .. } => Said::new("ai.phrase.target.notefx")
             .arg("key", k)
             .name("track", tn(*track)),

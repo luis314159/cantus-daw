@@ -139,7 +139,17 @@ pub struct XySource {
     /// Its routes' axes and ranges, by target (a route without one is the X axis as it is).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<super::RouteLink>,
+    /// The face's colourway (0 the first; the face's own list, `fxd.xy.look.*`).
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub look: u8,
 }
+
+fn is_zero_u8(x: &u8) -> bool {
+    *x == 0
+}
+
+/// Colourways a controller's face offers.
+pub const LOOKS: u8 = 3;
 
 fn is_zero(x: &f32) -> bool {
     *x == 0.0
@@ -155,6 +165,7 @@ impl Default for XySource {
             path: None,
             play_path: false,
             links: Vec::new(),
+            look: 0,
         }
     }
 }
@@ -168,6 +179,7 @@ impl XySource {
             && (0.0..=MAX_INERTIA_MS).contains(&self.inertia_ms)
             && self.path.as_ref().is_none_or(XyPath::is_valid)
             && super::links_valid(&self.links, 2)
+            && self.look < LOOKS
     }
 
     /// Where the puck heads at song position `beats`: the path while it plays, else the

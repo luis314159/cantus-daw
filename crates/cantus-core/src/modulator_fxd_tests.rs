@@ -247,6 +247,7 @@ fn the_pad_at_rest_and_the_formula_at_zero_output_nothing() {
         inputs: [0.0; 3],
         bipolar: false,
         links: vec![],
+        look: 0,
     });
     let prog = formula::Program::compile("a*Sin(SongTime*Pi*b)+c").unwrap();
     assert_eq!(controller_outputs(&f, Some(&prog), &t, [0.0; 3]), [0.0, 0.0]);

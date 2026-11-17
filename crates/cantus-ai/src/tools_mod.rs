@@ -624,6 +624,9 @@ fn configure(p: &Project, m: &mut Modulator, a: A<'_>) -> Res<()> {
                 r.unipolar = u;
             }
         }
+        // fxd: the controllers' words for agents come in step 3; their inputs are set
+        // through `AutoTarget::ModInput` like any parameter.
+        ModSource::XyPad(_) | ModSource::Formula(_) => {}
     }
     if a.has("add_routes") && a.has("routes") {
         return Err(ToolError::bad(

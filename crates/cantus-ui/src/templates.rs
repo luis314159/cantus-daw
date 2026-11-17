@@ -569,6 +569,10 @@ impl Ids {
                 id: *id,
             },
             A::ModAmount(m) => A::ModAmount(*self.mods.get(m)?),
+            A::ModInput { modulator, input } => A::ModInput {
+                modulator: *self.mods.get(modulator)?,
+                input: *input,
+            },
             A::NoteFx { track, effect, key } => A::NoteFx {
                 track: self.track(*track)?,
                 effect: *self.notefx.get(effect)?,

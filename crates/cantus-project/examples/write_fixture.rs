@@ -1668,6 +1668,7 @@ fn main() {
             inputs: [0.5, 0.25, 0.5],
             bipolar: false,
             links: Vec::new(),
+            look: 0,
         });
         formula.routes.push(ModRoute {
             target: AutoTarget::StripGain(strip1),

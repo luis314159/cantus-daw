@@ -559,7 +559,8 @@ pub fn parse_value(app: &CantusApp, target: &MappingTarget, typed: &str) -> Opti
                 AutoTarget::StripWidth(_)
                 | AutoTarget::MasterWidth
                 | AutoTarget::Send { .. }
-                | AutoTarget::ModAmount(_) => v / 100.0,
+                | AutoTarget::ModAmount(_)
+                | AutoTarget::ModInput { .. } => v / 100.0,
                 // A device's parameter in its own units, as its knob reads them: "50%",
                 // "1.2 s", "2.5 kHz" (review 1, #43).
                 AutoTarget::Effect { .. }

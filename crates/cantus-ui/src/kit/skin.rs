@@ -69,6 +69,8 @@ mod tone;
 // fx:contract — the fx side round's faces and their colourways.
 #[path = "skin/side.rs"]
 mod side;
+// fxd — the controllers' faces, for their windows (ADRs 0147, 0148).
+pub use side::{FORMULA_COLOURWAYS, XY_COLOURWAYS};
 
 #[path = "skin/displays.rs"]
 pub mod displays;
