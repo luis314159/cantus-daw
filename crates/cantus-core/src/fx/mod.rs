@@ -49,6 +49,10 @@ pub mod caelum; // fxa:contract
 pub mod fractus; // fxa:contract
 pub mod loquax; // fxa:contract
 
+// fxc:contract — the side round's wave C (provisional ADRs 0145–0146).
+pub mod comparatio; // fxc:contract
+pub mod purus; // fxc:contract
+
 /// How any parameter's value is printed and read back (shared by the DAW's knobs and the
 /// exported plug-ins, ADR 0020).
 pub mod readout;

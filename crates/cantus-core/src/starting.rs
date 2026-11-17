@@ -196,6 +196,13 @@ pub fn start_of(kind: EffectKind) -> Start {
                 ("out", -0.9),
             ],
         ), // fxa:caelum
+        // fxc:purus — mains hum at 50 Hz, followed (±2 Hz), eight harmonics, the notches: the
+        // commonest repair, heard at once on a buzzing track and nearly nothing on a clean one
+        // (2 Hz notches). The other modules stay off (their latency is asked for).
+        K::Repair => preset("preset.purus.mains_50", &[("hon", 1.0), ("hmode", 1.0)]), // fxc:purus
+        // fxc:comparatio — it measures until a reference is loaded and pressed: the mix heard,
+        // the integrated match ready.
+        K::Reference => Start::Neutral(Measures), // fxc:comparatio
         K::Multiband => preset(
             "mb.preset.glue",
             &[

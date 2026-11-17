@@ -94,6 +94,11 @@ pub enum EffectKind {
     Glitch, // fxa:contract
     /// Caelum, the shimmer reverb (`fx::caelum`). // fxa:contract
     Shimmer, // fxa:contract
+    // fxc:contract — the side round's wave C (provisional ADRs 0145–0146).
+    /// Purus, the real-time repair unit: de-hum, de-click and de-crackle, de-reverb (`fx::purus`). // fxc:contract
+    Repair, // fxc:contract
+    /// Comparatio, the reference comparator: a reference track at the mix's loudness, A/B and blind (`fx::comparatio`, its file in [`EffectSpec::ir`]). // fxc:contract
+    Reference, // fxc:contract
 }
 
 pub use fx::compressor::COMPRESSOR_PARAMS;
@@ -206,7 +211,8 @@ pub const REVERB_PARAMS: &[EffectParamInfo] = &[
 ];
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 38] = [
+    pub const ALL: [EffectKind; 40] = [
+        // fxc:contract: 40 with wave C's two (wave B's three come before them at the merge)
         // fxa:contract: 38 with wave A's three
         // fx3:contract: 35 with wave 3's four
         // fx:contract: 31 with the side round's five
@@ -249,6 +255,8 @@ impl EffectKind {
         EffectKind::Vocoder,    // fxa:contract
         EffectKind::Glitch,     // fxa:contract
         EffectKind::Shimmer,    // fxa:contract
+        EffectKind::Repair,     // fxc:contract
+        EffectKind::Reference,  // fxc:contract
     ];
 
     /// Whether the menus and the picker offer it for a new insert: the older Reverb is kept
@@ -298,6 +306,8 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::NAME_KEY, // fxa:contract
             EffectKind::Glitch => fx::fractus::NAME_KEY, // fxa:contract
             EffectKind::Shimmer => fx::caelum::NAME_KEY, // fxa:contract
+            EffectKind::Repair => fx::purus::NAME_KEY, // fxc:contract
+            EffectKind::Reference => fx::comparatio::NAME_KEY, // fxc:contract
         }
     }
 
@@ -343,6 +353,8 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::params(), // fxa:contract
             EffectKind::Glitch => fx::fractus::params(), // fxa:contract
             EffectKind::Shimmer => fx::caelum::params(), // fxa:contract
+            EffectKind::Repair => fx::purus::params(), // fxc:contract
+            EffectKind::Reference => fx::comparatio::params(), // fxc:contract
         }
     }
 
@@ -388,6 +400,8 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::SPARSE, // fxa:contract
             EffectKind::Glitch => fx::fractus::SPARSE, // fxa:contract
             EffectKind::Shimmer => fx::caelum::SPARSE, // fxa:contract
+            EffectKind::Repair => fx::purus::SPARSE, // fxc:contract
+            EffectKind::Reference => fx::comparatio::SPARSE, // fxc:contract
         }
     }
 
@@ -404,6 +418,7 @@ impl EffectKind {
         match self {
             EffectKind::Aula => true,
             EffectKind::Amp => true, // fx3:arca — the cabinet's user IR
+            EffectKind::Reference => true, // fxc:comparatio — the reference track
             _ => false,
         }
     }
@@ -450,6 +465,8 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::TAKES_SIDECHAIN, // fxa:contract
             EffectKind::Glitch => fx::fractus::TAKES_SIDECHAIN, // fxa:contract
             EffectKind::Shimmer => fx::caelum::TAKES_SIDECHAIN, // fxa:contract
+            EffectKind::Repair => fx::purus::TAKES_SIDECHAIN, // fxc:contract
+            EffectKind::Reference => fx::comparatio::TAKES_SIDECHAIN, // fxc:contract
         }
     }
 
@@ -495,6 +512,8 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::TAKES_NOTES, // fxa:contract
             EffectKind::Glitch => fx::fractus::TAKES_NOTES, // fxa:contract
             EffectKind::Shimmer => fx::caelum::TAKES_NOTES, // fxa:contract
+            EffectKind::Repair => fx::purus::TAKES_NOTES, // fxc:contract
+            EffectKind::Reference => fx::comparatio::TAKES_NOTES, // fxc:contract
             _ => false,
         }
     }
@@ -531,6 +550,8 @@ impl EffectKind {
             EffectKind::Vocoder => fx::loquax::CHOICES, // fxa:contract
             EffectKind::Glitch => fx::fractus::CHOICES, // fxa:contract
             EffectKind::Shimmer => fx::caelum::CHOICES, // fxa:contract
+            EffectKind::Repair => fx::purus::CHOICES, // fxc:contract
+            EffectKind::Reference => fx::comparatio::CHOICES, // fxc:contract
             _ => &[],
         }
     }

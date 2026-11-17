@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 64; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes); fx: 62 the side round's five kinds, 63 wave 3: Tabula's board and three kinds, 64 wave A: Fractus's lanes and three kinds (all provisional — renumbered when merged after round 40, r40 uses 62–70)
+pub const SCHEMA_VERSION: u32 = 66; // r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes); fx: 62 the side round's five kinds, 63 wave 3: Tabula's board and three kinds, 64 wave A: Fractus's lanes and three kinds, 65 wave B's (filled at its merge), 66 wave C: Purus and Comparatio (all provisional — renumbered when merged after round 40, r40 uses 62–70)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -319,6 +319,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_61_to_62, // fx: provisional — renumbered when merged after round 40 (r40 uses 62–70)
     migrate_62_to_63, // fx3: provisional — renumbered when merged after round 40 (r40 uses 62–70)
     migrate_63_to_64, // fxa: provisional — renumbered when merged after round 40 (r40 uses 62–70)
+    migrate_64_to_65, // fxb: wave B's number, filled at the merge (an empty step here)
+    migrate_65_to_66, // fxc: provisional — renumbered when merged after round 40 (r40 uses 62–70)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1104,6 +1106,23 @@ fn migrate_63_to_64(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 65 is wave B's (Vinculum, Lenis, Cedo — ADRs 0142–0144, built in parallel on
+/// `fx/wave-b`). On wave C's branch it is an empty step so the chain reaches 66; the
+/// integrator replaces it with wave B's own when the branches meet.
+// fxb: wave B's number, filled at the merge
+fn migrate_64_to_65(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 66 (the fx side round's wave C, ADRs 0145–0146): two new effect kinds — Purus
+/// (repair) and Comparatio (the reference comparator, whose reference track is a file by
+/// path in `EffectSpec::ir`, the field Aula's response has used since schema 60). Nothing
+/// older has either, so nothing is written.
+// fxc: provisional — renumbered when merged after round 40 (r40 uses 62–70)
+fn migrate_65_to_66(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 fn migrate_58_to_59(value: &mut Value) -> Result<(), String> {
     let tracks = value
         .get_mut("project")
@@ -1543,7 +1562,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // fxc:contract — no longer the newest: migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(64));
         let p = report.file.project;
         let slots: Vec<_> = p.strips[1]
             .effects
@@ -1594,6 +1614,37 @@ mod tests {
             .iter()
             .filter(|e| e.spec.kind != K::Glitch)
             .all(|e| e.spec.fractus.is_none()));
+    }
+
+    /// fxc:contract — Schema 66 (the fx side round's wave C, provisional): the fixture holds
+    /// a Purus with its de-hum and de-reverb on and a Comparatio with a reference track by
+    /// path; every older file (64) opens with neither.
+    #[test]
+    fn schema_66_keeps_wave_c_s_kinds_and_the_reference_by_path() {
+        use cantus_core::EffectKind as K;
+        let new_kinds = [K::Repair, K::Reference];
+        assert_eq!(&K::ALL[K::ALL.len() - 2..], new_kinds);
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v66.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        assert!(report.integrity_verified);
+        let p = report.file.project;
+        let slots: Vec<_> = p.strips[1]
+            .effects
+            .iter()
+            .filter(|e| new_kinds.contains(&e.spec.kind))
+            .collect();
+        let kinds: Vec<K> = slots.iter().map(|e| e.spec.kind).collect();
+        assert_eq!(kinds, new_kinds.to_vec());
+        assert_eq!(slots[0].spec.get("hon"), 1.0);
+        assert_eq!(slots[0].spec.get("von"), 1.0);
+        assert_eq!(slots[0].spec.get("vdirect"), 0.0);
+        let r = slots[1].spec.ir.as_deref().expect("the reference");
+        assert_eq!(r.path, "references/Reference master.flac");
+        assert_eq!(slots[1].spec.get("match"), 1.0);
+        let old = std::fs::read_to_string(dir.join("v64.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.all_effects().all(|(_, e)| !new_kinds.contains(&e.spec.kind)));
     }
 
     /// fx3:contract — a hand-edited board is repaired on load: a nested board and a second

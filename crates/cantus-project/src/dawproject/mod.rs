@@ -481,6 +481,8 @@ pub fn effect_device_name(kind: EffectKind) -> String {
         EffectKind::Vocoder => "Loquax".into(),     // fxa:contract
         EffectKind::Glitch => "Fractus".into(),     // fxa:contract
         EffectKind::Shimmer => "Caelum".into(),     // fxa:contract
+        EffectKind::Repair => "Purus".into(),       // fxc:contract
+        EffectKind::Reference => "Comparatio".into(), // fxc:contract
         EffectKind::Delay => "Delay".into(),
         EffectKind::Reverb => "Reverb".into(),
         #[allow(unreachable_patterns)]

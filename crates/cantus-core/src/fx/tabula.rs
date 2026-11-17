@@ -203,6 +203,11 @@ pub fn pedal_allowed(kind: EffectKind) -> bool {
             // the board's key when the slot is keyed (a board takes a key when a pedal does),
             // its own input otherwise; its pre-delay syncs to the song through the board.
             | EffectKind::Glitch
+            // fxc:contract — Purus joins the board with its face in phase B (its latency
+            // is compensated inside a board as any pedal's). Comparatio never does: a
+            // reference is the master's monitoring, not a pedal's sound.
+            | EffectKind::Repair
+            | EffectKind::Reference
     )
 }
 
@@ -577,6 +582,9 @@ mod tests {
                     // fxa:contract — wave A joins the board in phase B.
                     | EffectKind::Vocoder
                     | EffectKind::Glitch
+                    // fxc:contract
+                    | EffectKind::Repair
+                    | EffectKind::Reference
             ) {
                 assert!(pedal_allowed(k), "{k:?}");
             }

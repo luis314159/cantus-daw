@@ -1620,6 +1620,25 @@ fn main() {
             p.strip_mut(s).unwrap().effects.push(e);
         }
     }
+    // fxc:contract — Schema 66 (the fx side round's wave C, ADRs 0145–0146; provisional —
+    // renumbered when merged after round 40; 65 is wave B's): on the second strip a Purus
+    // (the de-hum on, the de-reverb on with a far microphone's Direct sound) and a
+    // Comparatio with a reference track by path, matched short-term.
+    if upto >= 66 {
+        let s = p.strips.get(1).map(|s| s.id).expect("a second strip");
+        let mut purus = p.make_effect(EffectKind::Repair);
+        purus.spec.set("hon", 1.0).unwrap();
+        purus.spec.set("von", 1.0).unwrap();
+        purus.spec.set("vdirect", 0.0).unwrap();
+        let mut comparatio = p.make_effect(EffectKind::Reference);
+        comparatio.spec.ir = Some(Box::new(cantus_core::IrFile::new(
+            "references/Reference master.flac",
+        )));
+        comparatio.spec.set("match", 1.0).unwrap();
+        for e in [purus, comparatio] {
+            p.strip_mut(s).unwrap().effects.push(e);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

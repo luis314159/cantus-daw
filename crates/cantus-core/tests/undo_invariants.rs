@@ -299,6 +299,23 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
                                 pedal: None, // fx3:contract
                             };
                         }
+                        // fxc:comparatio — Comparatio's reference track, a file by path
+                        // through the same command: set, swapped, cleared, an empty path.
+                        if e.spec.kind == EffectKind::Reference && rng.below(3) == 0 {
+                            let ir = match rng.below(4) {
+                                0 => None,
+                                1 => Some(Box::new(cantus_core::IrFile::new(""))),
+                                n => Some(Box::new(cantus_core::IrFile::new(format!(
+                                    "references/master {n}.flac"
+                                )))),
+                            };
+                            return Command::SetEffectIr {
+                                strip: host,
+                                effect: e.id,
+                                ir,
+                                pedal: None,
+                            };
+                        }
                         // fx:lapsus — a slot of Lapsus's banks: a pattern of its own (out
                         // of range on purpose, so sanitizing is undone too), the factory's
                         // again, a slot past the bank, and onto kinds that have none.
