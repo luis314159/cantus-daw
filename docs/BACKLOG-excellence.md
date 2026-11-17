@@ -1989,6 +1989,37 @@ and found it fun. Two requests:
 
    Python is for what users write, not for what we ship.
 
+   **How the presets would work (sketch, 2026-11-17).** One pipeline:
+   - the camera at 60 fps where it can (30 at least);
+   - 21 landmarks a hand;
+   - smoothing by a One Euro filter, with a few ms of prediction;
+   - features: height, side, pinch, openness, speed, pose;
+   - a mapping onto what exists — Tactus's X/Y, modulators, notes, the transport.
+
+   Each preset is a mapping, plus the instrument or effect it sets up, saved like any preset
+   and recordable (Tactus's two lanes, notes as MIDI).
+   - **Theremin:** the right hand's distance or side is the pitch (continuous, glided;
+     optional snap to a scale, its strength a knob); the left hand's height is the volume
+     (low = silent); the hand's own tremor is the vibrato. The voice is a Theremin preset
+     of a Cantus synth (sine plus a little formant), or a small voice of its own.
+   - **Filter sweep:** the hand's height drives the cutoff and its side the resonance
+     (through Tactus); a pinch is a clutch that holds the value while the hand moves away.
+   - **Air drums:** pads are zones of the picture; a strike is the fingertip's downward
+     speed turning back (caught at the deceleration, before the bottom, to win back a
+     frame); speed gives the velocity; it plays the kit's pads.
+   - **Conductor:** the beat's lowest point (the ictus) taps the tempo, smoothed and within
+     limits; the gesture's size is the dynamics.
+   - **Fist / open hand:** poses from the fingers' bend (rules on the landmarks, no extra
+     model), with hysteresis and a hold time, so a passing shape triggers nothing.
+
+   Calibration: "show your hands" and a reach high and low, kept per user. The camera
+   window draws the hand's skeleton and the zones.
+
+   Latency is the honest limit: a 30 fps camera adds up to 33 ms plus about 5–10 ms of
+   inference. That is fine for continuous control (theremin, sweeps) and harder for drums,
+   which want 60–120 fps cameras, the early-strike catch, and an option to snap recorded
+   hits to the grid. Measured and shown in the window.
+
 **The scripting decision (recommended, 2026-11-17; the owner to confirm):** both, each for
 what it is best at, and no embedded CPython.
 
