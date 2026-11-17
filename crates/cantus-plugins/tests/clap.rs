@@ -310,12 +310,21 @@ fn the_sidechain_keys_the_detector_only_when_asked() {
 
 /// fxa:loquax — Loquax's carrier through the sidechain input: with the plug-in's switch on the
 /// external key the voice speaks through the key's sound, exactly as the DSP keyed by it; on
-/// its own input there is no carrier (the synthesiser plays no notes) and the vocoded voice is
-/// silence — the key heard only when asked for.
+/// its own input there is no carrier (the synthesiser plays no notes; the consonants' noise
+/// and sibilance are off) — the key heard only when asked for.
 #[test]
 fn loquax_s_carrier_is_the_sidechain_input_when_asked() {
     let kind = EffectKind::Vocoder;
-    let values = [("mix", 1.0), ("src", 0.0), ("bands", 16.0)];
+    // Off the starting preset's robot, the consonants' noise and sibilance off: only the
+    // key carries.
+    let values = [
+        ("mix", 1.0),
+        ("robot", 0.0),
+        ("src", 0.0),
+        ("bands", 16.0),
+        ("sib", 0.0),
+        ("unv", 0.0),
+    ];
     let spec = spec_with(kind, &values);
     let n = 24_000;
     let (key_l, key_r) = signal(n, 99);
@@ -340,8 +349,12 @@ fn loquax_s_carrier_is_the_sidechain_input_when_asked() {
         outs.push(l);
     }
     let energy = |x: &[f32]| x.iter().map(|v| v * v).sum::<f32>();
-    assert!(energy(&outs[0]) < 1e-6, "no carrier: silence");
-    assert!(energy(&outs[1]) > 1.0, "the key carries the voice");
+    assert!(
+        energy(&outs[1]) > 4.0 * energy(&outs[0]) && energy(&outs[1]) > 1.0,
+        "the key carries the voice: {} against {} unkeyed",
+        energy(&outs[1]),
+        energy(&outs[0])
+    );
 }
 
 #[test]

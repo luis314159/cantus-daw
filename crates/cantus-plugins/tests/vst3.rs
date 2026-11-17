@@ -345,7 +345,16 @@ fn through_vst3_is_bit_identical_to_the_dsp() {
 #[test]
 fn loquax_s_carrier_is_the_vst3_sidechain_bus() {
     let kind = EffectKind::Vocoder;
-    let values = [("mix", 1.0), ("src", 0.0), ("bands", 16.0)];
+    // Off the starting preset's robot, the consonants' noise and sibilance off: only the
+    // key carries.
+    let values = [
+        ("mix", 1.0),
+        ("robot", 0.0),
+        ("src", 0.0),
+        ("bands", 16.0),
+        ("sib", 0.0),
+        ("unv", 0.0),
+    ];
     let spec = spec_with(kind, &values);
     let mut state: serde_json::Value = serde_json::to_value(&spec).unwrap();
     state

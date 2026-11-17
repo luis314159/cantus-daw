@@ -39,7 +39,7 @@ const SALTUS: &[(&str, f32)] = &[("mode", 1.0), ("hsrc", 2.0), ("lvl2", 0.5), ("
 const ROTA: &[(&str, f32)] = &[("mix", 1.0), ("drive", 0.3)];
 
 /// fxa:loquax — Loquax's synthesiser carrier played by the notes, the voice speaking through.
-const LOQUAX: &[(&str, f32)] = &[("mix", 1.0), ("src", 1.0), ("bands", 16.0)];
+const LOQUAX: &[(&str, f32)] = &[("mix", 1.0), ("robot", 0.0), ("src", 1.0), ("bands", 16.0)];
 
 /// A note a host sends. In CLAP's dialect a note on or off carries the note id
 /// `1000 + pitch` and the channel `pitch % 16` (in MIDI bytes, that channel too).

@@ -56,7 +56,11 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/rota.en.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/arca.en.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/loquax.en.txt"),  // fxa:loquax
-                include_str!("../../cantus-ui/locales/fx/delay.en.txt"),   // r39:delay
+                // fxa:loquax — wave A's other two, so every kind's choices have their words
+                // (`pane_words`); their plug-ins are their own builders'.
+                include_str!("../../cantus-ui/locales/fx/fractus.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/caelum.en.txt"),
+                include_str!("../../cantus-ui/locales/fx/delay.en.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.en.txt"),
             ],
             Lang::Es => &[
@@ -95,7 +99,11 @@ impl Lang {
                 include_str!("../../cantus-ui/locales/fx/rota.es.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/arca.es.txt"),    // fx3:contract
                 include_str!("../../cantus-ui/locales/fx/loquax.es.txt"),  // fxa:loquax
-                include_str!("../../cantus-ui/locales/fx/delay.es.txt"),   // r39:delay
+                // fxa:loquax — wave A's other two, so every kind's choices have their words
+                // (`pane_words`); their plug-ins are their own builders'.
+                include_str!("../../cantus-ui/locales/fx/fractus.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/caelum.es.txt"),
+                include_str!("../../cantus-ui/locales/fx/delay.es.txt"), // r39:delay
                 include_str!("../../cantus-ui/locales/areas/export.es.txt"),
             ],
         }

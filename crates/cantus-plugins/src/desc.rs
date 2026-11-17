@@ -474,7 +474,7 @@ pub static ALL: [Descriptor; 34] = [
         full_name: "Cantus Loquax",
         slug: "loquax",
         clap_id: "com.github.lalmazan.cantus.loquax",
-        vst3_cid: [0x5B1E7A39, 0xC4D2486F, 0x9A03E1B7, 0x2F6C85D4],
+        vst3_cid: [0xEA91B43C, 0x9B54E866, 0x867C5461, 0x736417E8],
         clap_features: &[FX, "filter", STEREO],
         vst3_categories: "Fx|Filter",
         description: "Vocoder: a voice speaks through a synthesiser played by notes or through the sidechain, in 8 to 64 bands.",

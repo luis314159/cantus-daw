@@ -418,7 +418,16 @@ impl Loquax {
             s.order = 6;
         }
         s.lo_hz = s.lo_hz.clamp(LO_MIN, LO_MAX);
-        s.hi_hz = s.hi_hz.clamp(HI_MIN, self.hi_cap());
+        let cap = self.hi_cap();
+        if cap >= HI_MIN {
+            s.hi_hz = s.hi_hz.clamp(HI_MIN, cap);
+        } else {
+            // A host's rate too low for the bank's range (a validator's 1 234.6 Hz): the bank
+            // squeezed under its Nyquist, its lowest band under its highest. Every rate of
+            // 3.6 kHz and up takes the branch above, unchanged.
+            s.hi_hz = cap;
+            s.lo_hz = s.lo_hz.min(cap * 0.5);
+        }
         let g = &mut self.gl;
         g.mix.target = s.mix.clamp(0.0, 1.0);
         g.out.target = if s.out_db == 0.0 {
